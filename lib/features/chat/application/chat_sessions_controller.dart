@@ -126,6 +126,59 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     );
   }
 
+  Future<void> renameConversation({
+    required String conversationId,
+    required String title,
+  }) async {
+    final nextTitle = title.trim();
+    if (nextTitle.isEmpty) {
+      return;
+    }
+
+    final targetConversation = state.conversations.where((conversation) {
+      return conversation.id == conversationId;
+    }).firstOrNull;
+    if (targetConversation == null) {
+      return;
+    }
+
+    state = state.copyWith(
+      conversations: _replaceConversation(
+        targetConversation.copyWith(
+          title: nextTitle,
+          updatedAt: DateTime.now(),
+        ),
+      ),
+    );
+    await _saveAll();
+  }
+
+  Future<void> deleteConversations(Set<String> conversationIds) async {
+    if (conversationIds.isEmpty || state.isStreaming) {
+      return;
+    }
+
+    final remainingConversations = state.conversations.where((conversation) {
+      return !conversationIds.contains(conversation.id);
+    }).toList(growable: false);
+
+    final fallbackConversation = remainingConversations.firstOrNull ??
+        _createConversation();
+
+    state = state.copyWith(
+      conversations: remainingConversations.isEmpty
+          ? [fallbackConversation]
+          : remainingConversations,
+      activeConversationId: remainingConversations.any((conversation) {
+        return conversation.id == state.activeConversationId;
+      })
+          ? state.activeConversationId
+          : fallbackConversation.id,
+      clearErrorMessage: true,
+    );
+    await _saveAll();
+  }
+
   Future<void> updateActiveConversationPreferences({
     String? selectedModelId,
     String? selectedPromptTemplateId,

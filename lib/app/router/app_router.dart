@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/chat/presentation/chat_screen.dart';
-import '../../features/history/presentation/history_placeholder_screen.dart';
+import '../../features/history/presentation/history_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
 import '../navigation/app_destination.dart';
 
@@ -19,7 +19,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppDestination.history.path,
         name: AppDestination.history.name,
-        builder: (context, state) => const HistoryPlaceholderScreen(),
+        builder: (context, state) => const HistoryScreen(),
       ),
       GoRoute(
         path: AppDestination.settings.path,
