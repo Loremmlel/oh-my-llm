@@ -1,0 +1,169 @@
+import 'dart:convert';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
+
+import '../../settings/domain/models/llm_model_config.dart';
+import '../domain/models/chat_message.dart';
+import 'chat_completion_client.dart';
+
+final chatCompletionClientProvider = Provider<ChatCompletionClient>((ref) {
+  final httpClient = http.Client();
+  ref.onDispose(httpClient.close);
+  return OpenAiCompatibleChatClient(httpClient: httpClient);
+});
+
+class OpenAiCompatibleChatClient implements ChatCompletionClient {
+  OpenAiCompatibleChatClient({
+    required http.Client httpClient,
+  }) : _httpClient = httpClient;
+
+  final http.Client _httpClient;
+
+  @override
+  Stream<String> streamCompletion({
+    required LlmModelConfig modelConfig,
+    required List<ChatCompletionRequestMessage> messages,
+    ReasoningEffort? reasoningEffort,
+  }) async* {
+    final uri = Uri.parse(modelConfig.apiUrl);
+    final request = http.Request('POST', uri)
+      ..headers.addAll({
+        'Content-Type': 'application/json',
+        'Accept': 'text/event-stream',
+        'Authorization': 'Bearer ${modelConfig.apiKey}',
+      })
+      ..body = jsonEncode({
+        'model': modelConfig.modelName,
+        'stream': true,
+        'messages': messages.map((message) => message.toJson()).toList(),
+        if (reasoningEffort != null)
+          'reasoning_effort': reasoningEffort.apiValue,
+      });
+
+    final response = await _httpClient.send(request);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final responseBody = await response.stream.bytesToString();
+      throw ChatCompletionException(
+        '请求失败（${response.statusCode}）：${responseBody.trim().isEmpty ? '服务端未返回错误详情' : responseBody.trim()}',
+      );
+    }
+
+    final lineStream = response.stream
+        .transform(utf8.decoder)
+        .transform(const LineSplitter());
+
+    final dataLines = <String>[];
+
+    await for (final line in lineStream) {
+      if (line.isEmpty) {
+        final chunk = _consumeEventData(dataLines);
+        if (chunk == null) {
+          continue;
+        }
+        if (chunk == _doneMarker) {
+          break;
+        }
+
+        yield _parseChunk(chunk);
+        continue;
+      }
+
+      if (line.startsWith('data:')) {
+        dataLines.add(line.substring(5).trimLeft());
+      }
+    }
+
+    final trailingChunk = _consumeEventData(dataLines);
+    if (trailingChunk != null && trailingChunk != _doneMarker) {
+      yield _parseChunk(trailingChunk);
+    }
+  }
+
+  static const _doneMarker = '[DONE]';
+
+  String? _consumeEventData(List<String> dataLines) {
+    if (dataLines.isEmpty) {
+      return null;
+    }
+
+    final eventData = dataLines.join('\n').trim();
+    dataLines.clear();
+
+    if (eventData.isEmpty) {
+      return null;
+    }
+
+    return eventData;
+  }
+
+  String _parseChunk(String rawChunk) {
+    final decoded = jsonDecode(rawChunk);
+    if (decoded is! Map) {
+      return '';
+    }
+
+    final choices = decoded['choices'];
+    if (choices is! List || choices.isEmpty || choices.first is! Map) {
+      return '';
+    }
+
+    final firstChoice = Map<String, dynamic>.from(choices.first as Map);
+    final delta = firstChoice['delta'] ?? firstChoice['message'];
+    return _extractContent(delta);
+  }
+
+  String _extractContent(Object? payload) {
+    if (payload is String) {
+      return payload;
+    }
+    if (payload is! Map) {
+      return '';
+    }
+
+    final content = payload['content'];
+    if (content is String) {
+      return content;
+    }
+    if (content is List) {
+      return content.map(_extractSegmentText).join();
+    }
+
+    final reasoningContent = payload['reasoning_content'];
+    if (reasoningContent is String) {
+      return reasoningContent;
+    }
+
+    return '';
+  }
+
+  String _extractSegmentText(Object? segment) {
+    if (segment is String) {
+      return segment;
+    }
+    if (segment is! Map) {
+      return '';
+    }
+
+    final text = segment['text'];
+    if (text is String) {
+      return text;
+    }
+
+    final nestedText = segment['content'];
+    if (nestedText is String) {
+      return nestedText;
+    }
+
+    return '';
+  }
+}
+
+class ChatCompletionException implements Exception {
+  const ChatCompletionException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
