@@ -30,6 +30,20 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
     if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
       throw const ChatCompletionException('API URL 无效，请在设置页检查模型配置。');
     }
+    final thinkingConfig = _buildThinkingConfig(
+      uri,
+      enabled: reasoningEffort != null,
+    );
+    final payload = <String, Object>{
+      'model': modelConfig.modelName,
+      'stream': true,
+      'messages': messages.map((message) => message.toJson()).toList(),
+      if (reasoningEffort != null)
+        'reasoning_effort': _buildReasoningEffort(uri, reasoningEffort),
+    };
+    if (thinkingConfig != null) {
+      payload['thinking'] = thinkingConfig;
+    }
 
     final request = http.Request('POST', uri)
       ..headers.addAll({
@@ -37,14 +51,7 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
         'Accept': 'text/event-stream',
         'Authorization': 'Bearer ${modelConfig.apiKey}',
       })
-      ..body = jsonEncode({
-        'model': modelConfig.modelName,
-        'stream': true,
-        'thinking': reasoningEffort != null,
-        'messages': messages.map((message) => message.toJson()).toList(),
-        if (reasoningEffort != null)
-          'reasoning_effort': reasoningEffort.apiValue,
-      });
+      ..body = jsonEncode(payload);
 
     final response = await _httpClient.send(request);
     if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -178,6 +185,34 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
     }
 
     return '';
+  }
+
+  Map<String, String>? _buildThinkingConfig(Uri uri, {required bool enabled}) {
+    if (_isOfficialOpenAiHost(uri.host)) {
+      return null;
+    }
+
+    return {
+      'type': enabled ? 'enabled' : 'disabled',
+    };
+  }
+
+  String _buildReasoningEffort(Uri uri, ReasoningEffort effort) {
+    if (_isOfficialOpenAiHost(uri.host)) {
+      return effort.apiValue;
+    }
+
+    return switch (effort) {
+      ReasoningEffort.low || ReasoningEffort.medium || ReasoningEffort.high =>
+        'high',
+      ReasoningEffort.xhigh => 'max',
+    };
+  }
+
+  bool _isOfficialOpenAiHost(String host) {
+    final normalizedHost = host.toLowerCase();
+    return normalizedHost == 'api.openai.com' ||
+        normalizedHost.endsWith('.openai.com');
   }
 }
 

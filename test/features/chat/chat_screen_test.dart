@@ -44,6 +44,8 @@ void main() {
     expect(find.text('前置 Prompt 选择器'), findsOneWidget);
     expect(find.text('消息定位条'), findsOneWidget);
     expect(find.text('历史会话面板'), findsOneWidget);
+    expect(find.text('未命名对话'), findsOneWidget);
+    expect(find.textContaining('深度思考：'), findsNothing);
   });
 
   testWidgets('chat screen renames conversation without controller errors', (
@@ -128,7 +130,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 12));
 
     expect(find.textContaining('第一段'), findsWidgets);
-    expect(find.text('流式生成中'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, '生成中'), findsOneWidget);
 
     await tester.pumpAndSettle();
 

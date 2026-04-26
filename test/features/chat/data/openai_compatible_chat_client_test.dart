@@ -15,7 +15,9 @@ void main() {
         expect(request.method, 'POST');
         expect(request.headers['Authorization'], 'Bearer sk-test-12345678');
         final payload = jsonDecode((request as http.Request).body) as Map<String, dynamic>;
-        expect(payload['thinking'], isTrue);
+        expect(payload['thinking'], {
+          'type': 'enabled',
+        });
         expect(payload['reasoning_effort'], 'high');
 
         return http.StreamedResponse(
@@ -53,7 +55,9 @@ void main() {
     final client = OpenAiCompatibleChatClient(
       httpClient: _FakeStreamingHttpClient((request) async {
         final payload = jsonDecode((request as http.Request).body) as Map<String, dynamic>;
-        expect(payload['thinking'], isFalse);
+        expect(payload['thinking'], {
+          'type': 'disabled',
+        });
         expect(payload.containsKey('reasoning_effort'), isFalse);
 
         return http.StreamedResponse(
@@ -74,6 +78,38 @@ void main() {
               content: '你好',
             ),
           ],
+        )
+        .drain<void>();
+  });
+
+  test('streamCompletion omits thinking for official OpenAI hosts', () async {
+    final client = OpenAiCompatibleChatClient(
+      httpClient: _FakeStreamingHttpClient((request) async {
+        final payload = jsonDecode((request as http.Request).body) as Map<String, dynamic>;
+        expect(payload.containsKey('thinking'), isFalse);
+        expect(payload['reasoning_effort'], 'xhigh');
+
+        return http.StreamedResponse(
+          Stream.fromIterable([
+            utf8.encode('data: [DONE]\n\n'),
+          ]),
+          200,
+        );
+      }),
+    );
+
+    await client
+        .streamCompletion(
+          modelConfig: _modelConfig(
+            apiUrl: 'https://api.openai.com/v1/chat/completions',
+          ),
+          messages: const [
+            ChatCompletionRequestMessage(
+              role: ChatMessageRole.user,
+              content: '你好',
+            ),
+          ],
+          reasoningEffort: ReasoningEffort.xhigh,
         )
         .drain<void>();
   });
