@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -1054,6 +1055,17 @@ class _ChatMessageBubble extends StatelessWidget {
   final VoidCallback? onEditPressed;
   final VoidCallback? onRetryPressed;
 
+  Future<void> _copyMessage(BuildContext context) async {
+    await Clipboard.setData(ClipboardData(text: message.content));
+    if (!context.mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('已复制消息内容')));
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -1092,6 +1104,13 @@ class _ChatMessageBubble extends StatelessWidget {
                       ),
                     ],
                     const Spacer(),
+                    IconButton(
+                      onPressed: () {
+                        _copyMessage(context);
+                      },
+                      tooltip: '复制消息',
+                      icon: const Icon(Icons.content_copy_rounded),
+                    ),
                     if (canEdit)
                       IconButton(
                         onPressed: onEditPressed,

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -262,6 +263,74 @@ void main() {
 
     expect(find.text('这是思考过程'), findsOneWidget);
     expect(find.text('收起'), findsOneWidget);
+  });
+
+  testWidgets('chat screen copies raw message content without reasoning', (
+    tester,
+  ) async {
+    final preferences = await _createSeededPreferences();
+    final fakeClient = FakeChatCompletionClient()
+      ..enqueueDeltas([
+        const ChatCompletionChunk(reasoningDelta: '这是思考过程'),
+        const ChatCompletionChunk(contentDelta: '这是最终回复'),
+      ]);
+    String? clipboardText;
+
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, (methodCall) async {
+          switch (methodCall.method) {
+            case 'Clipboard.setData':
+              final arguments = methodCall.arguments as Map<dynamic, dynamic>;
+              clipboardText = arguments['text'] as String?;
+              return null;
+            case 'Clipboard.getData':
+              return <String, dynamic>{'text': clipboardText};
+          }
+
+          return null;
+        });
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, null);
+    });
+
+    tester.view.physicalSize = const Size(1440, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(preferences),
+          chatCompletionClientProvider.overrideWithValue(fakeClient),
+        ],
+        child: const MaterialApp(home: ChatScreen()),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    await _sendMessage(tester, '请原样复制这条用户消息');
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('复制消息'), findsNWidgets(2));
+
+    await tester.tap(find.byTooltip('复制消息').first);
+    await tester.pumpAndSettle();
+
+    expect(
+      (await Clipboard.getData('text/plain'))?.text,
+      equals('请原样复制这条用户消息'),
+    );
+
+    await tester.tap(find.byTooltip('复制消息').last);
+    await tester.pumpAndSettle();
+
+    expect((await Clipboard.getData('text/plain'))?.text, equals('这是最终回复'));
+    expect((await Clipboard.getData('text/plain'))?.text, isNot('这是思考过程'));
   });
 
   testWidgets('chat screen retries latest assistant reply', (tester) async {
