@@ -14,14 +14,13 @@ final chatCompletionClientProvider = Provider<ChatCompletionClient>((ref) {
 });
 
 class OpenAiCompatibleChatClient implements ChatCompletionClient {
-  OpenAiCompatibleChatClient({
-    required http.Client httpClient,
-  }) : _httpClient = httpClient;
+  OpenAiCompatibleChatClient({required http.Client httpClient})
+    : _httpClient = httpClient;
 
   final http.Client _httpClient;
 
   @override
-  Stream<String> streamCompletion({
+  Stream<ChatCompletionChunk> streamCompletion({
     required LlmModelConfig modelConfig,
     required List<ChatCompletionRequestMessage> messages,
     ReasoningEffort? reasoningEffort,
@@ -109,7 +108,7 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
     return eventData;
   }
 
-  String _parseChunk(String rawChunk) {
+  ChatCompletionChunk _parseChunk(String rawChunk) {
     late final Object? decoded;
     try {
       decoded = jsonDecode(rawChunk);
@@ -118,7 +117,7 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
     }
 
     if (decoded is! Map) {
-      return '';
+      return const ChatCompletionChunk();
     }
 
     final error = decoded['error'];
@@ -134,33 +133,52 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
 
     final choices = decoded['choices'];
     if (choices is! List || choices.isEmpty || choices.first is! Map) {
-      return '';
+      return const ChatCompletionChunk();
     }
 
     final firstChoice = Map<String, dynamic>.from(choices.first as Map);
     final delta = firstChoice['delta'] ?? firstChoice['message'];
-    return _extractContent(delta);
+    return _extractChunk(delta);
   }
 
-  String _extractContent(Object? payload) {
+  ChatCompletionChunk _extractChunk(Object? payload) {
+    if (payload is String) {
+      return ChatCompletionChunk(contentDelta: payload);
+    }
+    if (payload is! Map) {
+      return const ChatCompletionChunk();
+    }
+
+    return ChatCompletionChunk(
+      contentDelta: _extractTextPayload(payload['content']),
+      reasoningDelta: _extractTextPayload(
+        payload['reasoning_content'] ?? payload['reasoning'],
+      ),
+    );
+  }
+
+  String _extractTextPayload(Object? payload) {
     if (payload is String) {
       return payload;
+    }
+    if (payload is List) {
+      return payload.map(_extractSegmentText).join();
     }
     if (payload is! Map) {
       return '';
     }
 
-    final content = payload['content'];
-    if (content is String) {
-      return content;
-    }
-    if (content is List) {
-      return content.map(_extractSegmentText).join();
+    final text = payload['text'];
+    if (text is String) {
+      return text;
     }
 
-    final reasoningContent = payload['reasoning_content'];
-    if (reasoningContent is String) {
-      return reasoningContent;
+    final nestedText = payload['content'];
+    if (nestedText is String) {
+      return nestedText;
+    }
+    if (nestedText is List) {
+      return nestedText.map(_extractSegmentText).join();
     }
 
     return '';
@@ -183,6 +201,9 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
     if (nestedText is String) {
       return nestedText;
     }
+    if (nestedText is List) {
+      return nestedText.map(_extractSegmentText).join();
+    }
 
     return '';
   }
@@ -192,9 +213,7 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
       return null;
     }
 
-    return {
-      'type': enabled ? 'enabled' : 'disabled',
-    };
+    return {'type': enabled ? 'enabled' : 'disabled'};
   }
 
   String _buildReasoningEffort(Uri uri, ReasoningEffort effort) {
@@ -203,8 +222,9 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
     }
 
     return switch (effort) {
-      ReasoningEffort.low || ReasoningEffort.medium || ReasoningEffort.high =>
-        'high',
+      ReasoningEffort.low ||
+      ReasoningEffort.medium ||
+      ReasoningEffort.high => 'high',
       ReasoningEffort.xhigh => 'max',
     };
   }

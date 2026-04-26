@@ -90,21 +90,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               if (chatState.isStreaming) {
                 return;
               }
-              ref.read(chatSessionsProvider.notifier).selectConversation(
-                    conversationId,
-                  );
+              ref
+                  .read(chatSessionsProvider.notifier)
+                  .selectConversation(conversationId);
             },
           ),
         ),
       ),
       actions: [
         IconButton(
-          onPressed: chatState.isStreaming ? null : _createConversationAndScroll,
+          onPressed: chatState.isStreaming
+              ? null
+              : _createConversationAndScroll,
           tooltip: '新建对话',
           icon: const Icon(Icons.add_comment_outlined),
         ),
         IconButton(
-          onPressed: () => _showRenameDialog(context, conversation.resolvedTitle),
+          onPressed: () =>
+              _showRenameDialog(context, conversation.resolvedTitle),
           tooltip: '修改对话标题',
           icon: const Icon(Icons.edit_outlined),
         ),
@@ -133,9 +136,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         if (chatState.isStreaming) {
                           return;
                         }
-                        ref.read(chatSessionsProvider.notifier).selectConversation(
-                              conversationId,
-                            );
+                        ref
+                            .read(chatSessionsProvider.notifier)
+                            .selectConversation(conversationId);
                       },
                     ),
                   ),
@@ -218,7 +221,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           }
                         : null,
                     onScrollToBottomPressed: _scrollToBottom,
-                    onSendPressed: selectedModel == null || chatState.isStreaming
+                    onSendPressed:
+                        selectedModel == null || chatState.isStreaming
                         ? null
                         : () async {
                             final content = _messageController.text.trim();
@@ -266,9 +270,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   List<ChatConversationGroup> _buildConversationGroups(
     List<ChatConversation> conversations,
   ) {
-    final visibleConversations = conversations.where((conversation) {
-      return conversation.hasMessages;
-    }).toList(growable: false);
+    final visibleConversations = conversations
+        .where((conversation) {
+          return conversation.hasMessages;
+        })
+        .toList(growable: false);
     return groupConversationsByUpdatedAt(visibleConversations);
   }
 
@@ -434,10 +440,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       return;
     }
 
-    await ref.read(chatSessionsProvider.notifier).editMessage(
-          messageId: messageId,
-          nextContent: nextContent.trim(),
-        );
+    await ref
+        .read(chatSessionsProvider.notifier)
+        .editMessage(messageId: messageId, nextContent: nextContent.trim());
   }
 }
 
@@ -510,9 +515,7 @@ class _ChatWorkspace extends StatelessWidget {
               _buildErrorBanner(theme),
               const SizedBox(height: 12),
             ],
-            Expanded(
-              child: messagesCard,
-            ),
+            Expanded(child: messagesCard),
             const SizedBox(height: 16),
             composerCard,
           ],
@@ -554,8 +557,8 @@ class _ChatWorkspace extends StatelessWidget {
   }
 
   Widget _buildMessagesCard() {
-    final latestAssistantMessage = conversation.messages.lastOrNull?.role ==
-            ChatMessageRole.assistant
+    final latestAssistantMessage =
+        conversation.messages.lastOrNull?.role == ChatMessageRole.assistant
         ? conversation.messages.lastOrNull
         : null;
 
@@ -576,9 +579,11 @@ class _ChatWorkspace extends StatelessWidget {
                       key: messageKeys.putIfAbsent(message.id, GlobalKey.new),
                       child: _ChatMessageBubble(
                         message: message,
-                        canEdit: !isStreaming &&
+                        canEdit:
+                            !isStreaming &&
                             message.role == ChatMessageRole.user,
-                        canRetry: !isStreaming &&
+                        canRetry:
+                            !isStreaming &&
                             latestAssistantMessage?.id == message.id,
                         onEditPressed: message.role == ChatMessageRole.user
                             ? () {
@@ -693,15 +698,14 @@ class _ChatWorkspace extends StatelessWidget {
       key: ValueKey(selectedModel?.id),
       initialValue: selectedModel?.id,
       isExpanded: true,
-      items: modelConfigs.map((config) {
-        return DropdownMenuItem(
-          value: config.id,
-          child: Text(
-            config.displayName,
-            overflow: TextOverflow.ellipsis,
-          ),
-        );
-      }).toList(growable: false),
+      items: modelConfigs
+          .map((config) {
+            return DropdownMenuItem(
+              value: config.id,
+              child: Text(config.displayName, overflow: TextOverflow.ellipsis),
+            );
+          })
+          .toList(growable: false),
       onChanged: modelConfigs.isEmpty ? null : onModelChanged,
       decoration: InputDecoration(
         labelText: '模型选择器',
@@ -713,7 +717,10 @@ class _ChatWorkspace extends StatelessWidget {
     );
   }
 
-  Widget _buildPromptSelector(String promptSelectionValue, {bool compact = false}) {
+  Widget _buildPromptSelector(
+    String promptSelectionValue, {
+    bool compact = false,
+  }) {
     return DropdownButtonFormField<String>(
       key: ValueKey(promptSelectionValue),
       initialValue: promptSelectionValue,
@@ -726,10 +733,7 @@ class _ChatWorkspace extends StatelessWidget {
         ...promptTemplates.map((template) {
           return DropdownMenuItem(
             value: template.id,
-            child: Text(
-              template.name,
-              overflow: TextOverflow.ellipsis,
-            ),
+            child: Text(template.name, overflow: TextOverflow.ellipsis),
           );
         }),
       ],
@@ -749,12 +753,14 @@ class _ChatWorkspace extends StatelessWidget {
       key: ValueKey(reasoningEffort),
       initialValue: reasoningEffort,
       isExpanded: true,
-      items: ReasoningEffort.values.map((effort) {
-        return DropdownMenuItem(
-          value: effort,
-          child: Text(_effortLabel(effort)),
-        );
-      }).toList(growable: false),
+      items: ReasoningEffort.values
+          .map((effort) {
+            return DropdownMenuItem(
+              value: effort,
+              child: Text(_effortLabel(effort)),
+            );
+          })
+          .toList(growable: false),
       onChanged: supportsReasoning && reasoningEnabled
           ? (value) {
               if (value != null) {
@@ -807,10 +813,7 @@ class _ThinkingToggle extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              '深度思考',
-              style: theme.textTheme.bodySmall,
-            ),
+            Text('深度思考', style: theme.textTheme.bodySmall),
             const SizedBox(width: 4),
             Switch.adaptive(
               value: enabled && value,
@@ -825,9 +828,7 @@ class _ThinkingToggle extends StatelessWidget {
 }
 
 class _RenameConversationDialog extends StatefulWidget {
-  const _RenameConversationDialog({
-    required this.initialTitle,
-  });
+  const _RenameConversationDialog({required this.initialTitle});
 
   final String initialTitle;
 
@@ -857,9 +858,7 @@ class _RenameConversationDialogState extends State<_RenameConversationDialog> {
       title: const Text('修改对话标题'),
       content: TextField(
         controller: _titleController,
-        decoration: const InputDecoration(
-          labelText: '对话标题',
-        ),
+        decoration: const InputDecoration(labelText: '对话标题'),
         autofocus: true,
       ),
       actions: [
@@ -884,9 +883,7 @@ class _RenameConversationDialogState extends State<_RenameConversationDialog> {
 }
 
 class _EditMessageDialog extends StatefulWidget {
-  const _EditMessageDialog({
-    required this.initialContent,
-  });
+  const _EditMessageDialog({required this.initialContent});
 
   final String initialContent;
 
@@ -1014,7 +1011,12 @@ class _ChatMessageBubble extends StatelessWidget {
                       ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                if (!isUser && message.reasoningContent.trim().isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _ReasoningPanel(content: message.reasoningContent),
+                  const SizedBox(height: 8),
+                ] else
+                  const SizedBox(height: 8),
                 MarkdownBody(
                   data: message.content.isEmpty && message.isStreaming
                       ? '_正在等待模型返回内容..._'
@@ -1036,10 +1038,102 @@ class _ChatMessageBubble extends StatelessWidget {
   }
 }
 
+class _ReasoningPanel extends StatefulWidget {
+  const _ReasoningPanel({required this.content});
+
+  final String content;
+
+  @override
+  State<_ReasoningPanel> createState() => _ReasoningPanelState();
+}
+
+class _ReasoningPanelState extends State<_ReasoningPanel> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final textColor = theme.colorScheme.onSurfaceVariant;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface.withValues(alpha: 0.82),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.8),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: () {
+              setState(() {
+                _expanded = !_expanded;
+              });
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Row(
+                children: [
+                  Icon(
+                    _expanded
+                        ? Icons.keyboard_arrow_down_rounded
+                        : Icons.keyboard_arrow_right_rounded,
+                    size: 18,
+                    color: textColor,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    '深度思考',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: textColor,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    _expanded ? '收起' : '展开',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: textColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 167),
+            alignment: Alignment.topCenter,
+            child: _expanded
+                ? Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                    child: MarkdownBody(
+                      data: widget.content,
+                      selectable: true,
+                      styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
+                        p: theme.textTheme.bodyMedium?.copyWith(
+                          color: textColor,
+                        ),
+                        code: theme.textTheme.bodySmall?.copyWith(
+                          color: textColor,
+                        ),
+                        blockquote: theme.textTheme.bodySmall?.copyWith(
+                          color: textColor,
+                        ),
+                      ),
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _EmptyConversationView extends StatelessWidget {
-  const _EmptyConversationView({
-    required this.hasModels,
-  });
+  const _EmptyConversationView({required this.hasModels});
 
   final bool hasModels;
 
@@ -1121,10 +1215,7 @@ class _ConversationHistoryPanel extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: Text(
-                    '历史会话面板',
-                    style: theme.textTheme.titleLarge,
-                  ),
+                  child: Text('历史会话面板', style: theme.textTheme.titleLarge),
                 ),
                 IconButton(
                   onPressed: onCreateConversation,
@@ -1141,9 +1232,7 @@ class _ConversationHistoryPanel extends StatelessWidget {
             const SizedBox(height: 12),
             Expanded(
               child: groups.isEmpty
-                  ? const Center(
-                      child: Text('还没有已保存的会话记录。'),
-                    )
+                  ? const Center(child: Text('还没有已保存的会话记录。'))
                   : ListView.separated(
                       itemCount: groups.length,
                       separatorBuilder: (context, index) {
@@ -1166,8 +1255,8 @@ class _ConversationHistoryPanel extends StatelessWidget {
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(14),
                                   ),
-                                  tileColor: conversation.id ==
-                                          activeConversationId
+                                  tileColor:
+                                      conversation.id == activeConversationId
                                       ? theme.colorScheme.primaryContainer
                                       : theme.colorScheme.surfaceContainerLow,
                                   title: Text(
@@ -1176,9 +1265,7 @@ class _ConversationHistoryPanel extends StatelessWidget {
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                   subtitle: Text(
-                                    conversation.messages
-                                            .lastOrNull
-                                            ?.content
+                                    conversation.messages.lastOrNull?.content
                                             .trim()
                                             .replaceAll('\n', ' ') ??
                                         '暂无内容',
@@ -1221,10 +1308,7 @@ class _MessageAnchorPanel extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              '消息定位条',
-              style: theme.textTheme.titleLarge,
-            ),
+            Text('消息定位条', style: theme.textTheme.titleLarge),
             const SizedBox(height: 8),
             Text(
               userMessages.isEmpty
@@ -1234,9 +1318,7 @@ class _MessageAnchorPanel extends StatelessWidget {
             const SizedBox(height: 16),
             Expanded(
               child: userMessages.isEmpty
-                  ? const Center(
-                      child: Text('暂无锚点'),
-                    )
+                  ? const Center(child: Text('暂无锚点'))
                   : ListView.separated(
                       itemCount: userMessages.length,
                       separatorBuilder: (context, index) {
@@ -1244,7 +1326,9 @@ class _MessageAnchorPanel extends StatelessWidget {
                       },
                       itemBuilder: (context, index) {
                         final message = userMessages[index];
-                        final preview = message.content.trim().characters
+                        final preview = message.content
+                            .trim()
+                            .characters
                             .take(10)
                             .toString();
 
@@ -1257,7 +1341,8 @@ class _MessageAnchorPanel extends StatelessWidget {
                               height: 32,
                               alignment: Alignment.center,
                               decoration: BoxDecoration(
-                                color: theme.colorScheme.surfaceContainerHighest,
+                                color:
+                                    theme.colorScheme.surfaceContainerHighest,
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Text(
