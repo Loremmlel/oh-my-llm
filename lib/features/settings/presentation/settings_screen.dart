@@ -5,8 +5,11 @@ import '../../../app/navigation/app_destination.dart';
 import '../../../app/shell/app_shell_scaffold.dart';
 import '../../../core/utils/id_generator.dart';
 import '../application/llm_model_configs_controller.dart';
+import '../application/prompt_templates_controller.dart';
 import '../domain/models/llm_model_config.dart';
+import '../domain/models/prompt_template.dart';
 import 'widgets/model_config_form_dialog.dart';
+import 'widgets/prompt_template_form_dialog.dart';
 import 'widgets/settings_section_card.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -15,6 +18,7 @@ class SettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final modelConfigs = ref.watch(llmModelConfigsProvider);
+    final promptTemplates = ref.watch(promptTemplatesProvider);
 
     return AppShellScaffold(
       currentDestination: AppDestination.settings,
@@ -44,10 +48,26 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 20),
-          const SettingsSectionCard(
+          SettingsSectionCard(
             title: '前置 Prompt 设置',
-            description: '下一个能力块会在这里接入 system prompt 和多条 user/assistant 指令的编辑体验。',
-            child: _PromptSettingsPreview(),
+            description: '配置会在每次对话时被插入到历史最前面，作为额外上下文发送给模型。',
+            action: FilledButton.icon(
+              onPressed: () {
+                _showPromptTemplateDialog(context, ref);
+              },
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('新增模板'),
+            ),
+            child: _PromptTemplatesList(
+              templates: promptTemplates,
+              onEditRequested: (template) {
+                _showPromptTemplateDialog(
+                  context,
+                  ref,
+                  initialValue: template,
+                );
+              },
+            ),
           ),
         ],
       ),
@@ -83,6 +103,44 @@ class SettingsScreen extends ConsumerWidget {
                     initialValue == null
                         ? '模型配置已保存'
                         : '模型配置已更新',
+                  ),
+                ),
+              );
+            }
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _showPromptTemplateDialog(
+    BuildContext context,
+    WidgetRef ref, {
+    PromptTemplate? initialValue,
+  }) {
+    return showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return PromptTemplateFormDialog(
+          initialValue: initialValue,
+          onSubmit: (formData) async {
+            final template = PromptTemplate(
+              id: initialValue?.id ?? generateEntityId(),
+              name: formData.name,
+              systemPrompt: formData.systemPrompt,
+              messages: formData.messages,
+              updatedAt: DateTime.now(),
+            );
+
+            await ref.read(promptTemplatesProvider.notifier).upsert(template);
+
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    initialValue == null
+                        ? 'Prompt 模板已保存'
+                        : 'Prompt 模板已更新',
                   ),
                 ),
               );
@@ -218,16 +276,123 @@ class _ModelConfigTile extends ConsumerWidget {
   }
 }
 
-class _PromptSettingsPreview extends StatelessWidget {
-  const _PromptSettingsPreview();
+class _PromptTemplatesList extends ConsumerWidget {
+  const _PromptTemplatesList({
+    required this.templates,
+    required this.onEditRequested,
+  });
+
+  final List<PromptTemplate> templates;
+  final ValueChanged<PromptTemplate> onEditRequested;
 
   @override
-  Widget build(BuildContext context) {
-    return const _EmptyState(
-      icon: Icons.notes_rounded,
-      title: '前置 Prompt 编辑器待接入',
-      description: '下一次提交会把 system prompt、多条 user/assistant 指令和本地持久化一起接进来。',
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (templates.isEmpty) {
+      return const _EmptyState(
+        icon: Icons.notes_rounded,
+        title: '还没有 Prompt 模板',
+        description: '添加模板后，聊天页就可以把它们作为 system / few-shot 上下文插入到对话最前面。',
+      );
+    }
+
+    return Column(
+      children: [
+        for (final template in templates)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _PromptTemplateTile(
+              template: template,
+              onEditRequested: onEditRequested,
+            ),
+          ),
+      ],
     );
+  }
+}
+
+class _PromptTemplateTile extends ConsumerWidget {
+  const _PromptTemplateTile({
+    required this.template,
+    required this.onEditRequested,
+  });
+
+  final PromptTemplate template;
+  final ValueChanged<PromptTemplate> onEditRequested;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(template.name, style: theme.textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Text(template.summary),
+            const SizedBox(height: 4),
+            Text(
+              'System：${_summarize(template.systemPrompt)}',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            if (template.messages.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              for (final message in template.messages.take(3))
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(
+                    '${message.role.label}：${_summarize(message.content)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+            ],
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () => onEditRequested(template),
+                  icon: const Icon(Icons.edit_outlined),
+                  label: const Text('编辑'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    await ref
+                        .read(promptTemplatesProvider.notifier)
+                        .deleteById(template.id);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Prompt 模板已删除')),
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.delete_outline_rounded),
+                  label: const Text('删除'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _summarize(String content) {
+    final normalized = content.trim().replaceAll('\n', ' ');
+    if (normalized.length <= 30) {
+      return normalized;
+    }
+
+    return '${normalized.substring(0, 30)}...';
   }
 }
 
