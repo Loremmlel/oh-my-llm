@@ -46,6 +46,10 @@ void main() {
     expect(find.text('历史会话面板'), findsOneWidget);
     expect(find.text('未命名对话'), findsOneWidget);
     expect(find.textContaining('深度思考：'), findsNothing);
+    expect(find.byType(SwitchListTile), findsNothing);
+    expect(find.byType(SegmentedButton<ReasoningEffort>), findsNothing);
+    expect(find.byType(Switch), findsOneWidget);
+    expect(find.text('思考负担'), findsOneWidget);
   });
 
   testWidgets('chat screen renames conversation without controller errors', (

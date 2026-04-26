@@ -619,69 +619,10 @@ class _ChatWorkspace extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final compact = constraints.maxWidth < 700;
-
-                if (compact) {
-                  return Column(
-                    children: [
-                      _buildModelSelector(),
-                      const SizedBox(height: 12),
-                      _buildPromptSelector(promptSelectionValue),
-                    ],
-                  );
-                }
-
-                return Row(
-                  children: [
-                    Expanded(child: _buildModelSelector()),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildPromptSelector(promptSelectionValue),
-                    ),
-                  ],
-                );
-              },
-            ),
-            const SizedBox(height: 12),
-            SwitchListTile.adaptive(
-              contentPadding: EdgeInsets.zero,
-              value: supportsReasoning && reasoningEnabled,
-              onChanged: onReasoningEnabledChanged,
-              title: const Text('深度思考'),
-              subtitle: Text(
-                supportsReasoning
-                    ? '当前模型支持思考参数，可以控制推理负担。'
-                    : '当前模型未开启深度思考能力。',
-              ),
-            ),
-            const SizedBox(height: 8),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: SegmentedButton<ReasoningEffort>(
-                segments: ReasoningEffort.values.map((effort) {
-                  return ButtonSegment<ReasoningEffort>(
-                    value: effort,
-                    label: Text(effort.apiValue),
-                  );
-                }).toList(growable: false),
-                selected: {reasoningEffort},
-                onSelectionChanged: supportsReasoning
-                    ? (selection) {
-                        if (selection.isNotEmpty) {
-                          onReasoningEffortChanged?.call(selection.first);
-                        }
-                      }
-                    : null,
-                showSelectedIcon: false,
-              ),
-            ),
-            const SizedBox(height: 16),
             TextField(
               controller: messageController,
-              minLines: 4,
-              maxLines: 8,
+              minLines: 2,
+              maxLines: 6,
               textInputAction: TextInputAction.newline,
               decoration: const InputDecoration(
                 labelText: '输入消息',
@@ -689,17 +630,40 @@ class _ChatWorkspace extends StatelessWidget {
                 alignLabelWithHint: true,
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             Row(
               children: [
                 Expanded(
-                  child: Text(
-                    modelConfigs.isEmpty
-                        ? '需要至少配置一个模型后才能发送消息。'
-                        : isStreaming
-                            ? '正在流式接收模型回复。你可以手动滚动查看历史，或点右下角按钮回到底部。'
-                            : '已接入 OpenAI 兼容流式回复，弱网或配置错误时会在顶部显示错误提示。',
-                    style: theme.textTheme.bodySmall,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 170,
+                          child: _buildModelSelector(compact: true),
+                        ),
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          width: 216,
+                          child: _buildPromptSelector(
+                            promptSelectionValue,
+                            compact: true,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        _ThinkingToggle(
+                          enabled: supportsReasoning,
+                          value: supportsReasoning && reasoningEnabled,
+                          onChanged: onReasoningEnabledChanged,
+                        ),
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          width: 152,
+                          child: _buildReasoningEffortSelector(compact: true),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -724,42 +688,137 @@ class _ChatWorkspace extends StatelessWidget {
     );
   }
 
-  Widget _buildModelSelector() {
+  Widget _buildModelSelector({bool compact = false}) {
     return DropdownButtonFormField<String>(
       key: ValueKey(selectedModel?.id),
       initialValue: selectedModel?.id,
+      isExpanded: true,
       items: modelConfigs.map((config) {
         return DropdownMenuItem(
           value: config.id,
-          child: Text(config.displayName),
+          child: Text(
+            config.displayName,
+            overflow: TextOverflow.ellipsis,
+          ),
         );
       }).toList(growable: false),
       onChanged: modelConfigs.isEmpty ? null : onModelChanged,
-      decoration: const InputDecoration(
+      decoration: InputDecoration(
         labelText: '模型选择器',
+        isDense: compact,
+        contentPadding: compact
+            ? const EdgeInsets.symmetric(horizontal: 12, vertical: 10)
+            : null,
       ),
     );
   }
 
-  Widget _buildPromptSelector(String promptSelectionValue) {
+  Widget _buildPromptSelector(String promptSelectionValue, {bool compact = false}) {
     return DropdownButtonFormField<String>(
       key: ValueKey(promptSelectionValue),
       initialValue: promptSelectionValue,
+      isExpanded: true,
       items: [
         const DropdownMenuItem(
           value: _noPromptTemplateValue,
-          child: Text('不使用前置 Prompt'),
+          child: Text('不使用'),
         ),
         ...promptTemplates.map((template) {
           return DropdownMenuItem(
             value: template.id,
-            child: Text(template.name),
+            child: Text(
+              template.name,
+              overflow: TextOverflow.ellipsis,
+            ),
           );
         }),
       ],
       onChanged: onPromptTemplateChanged,
-      decoration: const InputDecoration(
+      decoration: InputDecoration(
         labelText: '前置 Prompt 选择器',
+        isDense: compact,
+        contentPadding: compact
+            ? const EdgeInsets.symmetric(horizontal: 12, vertical: 10)
+            : null,
+      ),
+    );
+  }
+
+  Widget _buildReasoningEffortSelector({bool compact = false}) {
+    return DropdownButtonFormField<ReasoningEffort>(
+      key: ValueKey(reasoningEffort),
+      initialValue: reasoningEffort,
+      isExpanded: true,
+      items: ReasoningEffort.values.map((effort) {
+        return DropdownMenuItem(
+          value: effort,
+          child: Text(_effortLabel(effort)),
+        );
+      }).toList(growable: false),
+      onChanged: supportsReasoning && reasoningEnabled
+          ? (value) {
+              if (value != null) {
+                onReasoningEffortChanged?.call(value);
+              }
+            }
+          : null,
+      decoration: InputDecoration(
+        labelText: '思考负担',
+        isDense: compact,
+        contentPadding: compact
+            ? const EdgeInsets.symmetric(horizontal: 12, vertical: 10)
+            : null,
+      ),
+    );
+  }
+
+  String _effortLabel(ReasoningEffort effort) {
+    return switch (effort) {
+      ReasoningEffort.low => 'low',
+      ReasoningEffort.medium => 'med',
+      ReasoningEffort.high => 'high',
+      ReasoningEffort.xhigh => 'xhigh',
+    };
+  }
+}
+
+class _ThinkingToggle extends StatelessWidget {
+  const _ThinkingToggle({
+    required this.enabled,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final bool enabled;
+  final bool value;
+  final ValueChanged<bool>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '深度思考',
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(width: 4),
+            Switch.adaptive(
+              value: enabled && value,
+              onChanged: enabled ? onChanged : null,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ],
+        ),
       ),
     );
   }
