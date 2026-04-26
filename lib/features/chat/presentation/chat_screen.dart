@@ -6,11 +6,12 @@ import 'package:go_router/go_router.dart';
 import '../../../app/navigation/app_destination.dart';
 import '../../../app/shell/app_shell_scaffold.dart';
 import '../../../core/constants/app_breakpoints.dart';
-import '../../../core/utils/id_generator.dart';
 import '../../settings/application/llm_model_configs_controller.dart';
 import '../../settings/application/prompt_templates_controller.dart';
 import '../../settings/domain/models/llm_model_config.dart';
 import '../../settings/domain/models/prompt_template.dart';
+import '../application/chat_sessions_controller.dart';
+import '../domain/chat_conversation_groups.dart';
 import '../domain/models/chat_conversation.dart';
 import '../domain/models/chat_message.dart';
 
@@ -25,41 +26,52 @@ class ChatScreen extends ConsumerStatefulWidget {
 
 class _ChatScreenState extends ConsumerState<ChatScreen> {
   late final TextEditingController _messageController;
-  late ChatConversation _conversation;
+  late final ScrollController _messageScrollController;
 
-  String? _selectedModelId;
-  String? _selectedPromptTemplateId;
-  bool _reasoningEnabled = true;
-  ReasoningEffort _reasoningEffort = ReasoningEffort.medium;
+  final Map<String, GlobalKey> _messageKeys = <String, GlobalKey>{};
+
+  bool _showScrollToBottom = false;
+  String? _lastConversationId;
+  String? _lastRenderSignature;
 
   @override
   void initState() {
     super.initState();
     _messageController = TextEditingController();
-    final now = DateTime.now();
-    _conversation = ChatConversation(
-      id: generateEntityId(),
-      messages: const [],
-      createdAt: now,
-      updatedAt: now,
-    );
+    _messageScrollController = ScrollController()
+      ..addListener(_handleMessageScrollChanged);
   }
 
   @override
   void dispose() {
     _messageController.dispose();
+    _messageScrollController
+      ..removeListener(_handleMessageScrollChanged)
+      ..dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final chatState = ref.watch(chatSessionsProvider);
+    final conversation = chatState.activeConversation;
     final modelConfigs = ref.watch(llmModelConfigsProvider);
     final promptTemplates = ref.watch(promptTemplatesProvider);
 
-    final selectedModel = _resolveSelectedModel(modelConfigs);
-    final selectedPromptTemplate =
-        _resolveSelectedPromptTemplate(promptTemplates);
+    final selectedModel = _resolveSelectedModel(
+      modelConfigs,
+      conversation.selectedModelId,
+    );
+    final selectedPromptTemplate = _resolveSelectedPromptTemplate(
+      promptTemplates,
+      conversation.selectedPromptTemplateId,
+    );
     final supportsReasoning = selectedModel?.supportsReasoning ?? false;
+
+    _scheduleScrollSync(
+      conversation: conversation,
+      isStreaming: chatState.isStreaming,
+    );
 
     return AppShellScaffold(
       currentDestination: AppDestination.chat,
@@ -68,15 +80,31 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: _ConversationHistoryPanel(
-            conversation: _conversation,
-            promptTemplateCount: promptTemplates.length,
-            modelConfigCount: modelConfigs.length,
+            groups: _buildConversationGroups(chatState.conversations),
+            activeConversationId: conversation.id,
+            hasDraftConversation: !conversation.hasMessages,
+            onCreateConversation: chatState.isStreaming
+                ? null
+                : () => _createConversationAndScroll(),
+            onConversationSelected: (conversationId) {
+              if (chatState.isStreaming) {
+                return;
+              }
+              ref.read(chatSessionsProvider.notifier).selectConversation(
+                    conversationId,
+                  );
+            },
           ),
         ),
       ),
       actions: [
         IconButton(
-          onPressed: () => _showRenameDialog(context),
+          onPressed: chatState.isStreaming ? null : _createConversationAndScroll,
+          tooltip: '新建对话',
+          icon: const Icon(Icons.add_comment_outlined),
+        ),
+        IconButton(
+          onPressed: () => _showRenameDialog(context, conversation.resolvedTitle),
           tooltip: '修改对话标题',
           icon: const Icon(Icons.edit_outlined),
         ),
@@ -93,76 +121,125 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               children: [
                 if (showSidePanels) ...[
                   SizedBox(
-                    width: 280,
+                    width: 300,
                     child: _ConversationHistoryPanel(
-                      conversation: _conversation,
-                      promptTemplateCount: promptTemplates.length,
-                      modelConfigCount: modelConfigs.length,
+                      groups: _buildConversationGroups(chatState.conversations),
+                      activeConversationId: conversation.id,
+                      hasDraftConversation: !conversation.hasMessages,
+                      onCreateConversation: chatState.isStreaming
+                          ? null
+                          : () => _createConversationAndScroll(),
+                      onConversationSelected: (conversationId) {
+                        if (chatState.isStreaming) {
+                          return;
+                        }
+                        ref.read(chatSessionsProvider.notifier).selectConversation(
+                              conversationId,
+                            );
+                      },
                     ),
                   ),
                   const SizedBox(width: 20),
                 ],
                 Expanded(
                   child: _ChatWorkspace(
-                    conversation: _conversation,
+                    conversation: conversation,
                     selectedModel: selectedModel,
                     selectedPromptTemplate: selectedPromptTemplate,
                     modelConfigs: modelConfigs,
                     promptTemplates: promptTemplates,
                     messageController: _messageController,
-                    reasoningEnabled: _reasoningEnabled,
-                    reasoningEffort: _reasoningEffort,
+                    messageScrollController: _messageScrollController,
+                    messageKeys: _messageKeys,
+                    reasoningEnabled:
+                        supportsReasoning && conversation.reasoningEnabled,
+                    reasoningEffort: conversation.reasoningEffort,
                     supportsReasoning: supportsReasoning,
+                    isStreaming: chatState.isStreaming,
+                    errorMessage: chatState.errorMessage,
+                    showScrollToBottom: _showScrollToBottom,
+                    onDismissError: () {
+                      ref.read(chatSessionsProvider.notifier).clearError();
+                    },
                     onModelChanged: (value) {
                       final nextModel = modelConfigs.where((config) {
                         return config.id == value;
                       }).firstOrNull;
+                      final keepReasoning =
+                          nextModel?.supportsReasoning ?? false;
 
-                      setState(() {
-                        _selectedModelId = value;
-                        if (!(nextModel?.supportsReasoning ?? false)) {
-                          _reasoningEnabled = false;
-                        }
-                      });
+                      ref
+                          .read(chatSessionsProvider.notifier)
+                          .updateActiveConversationPreferences(
+                            selectedModelId: value,
+                            reasoningEnabled: keepReasoning
+                                ? conversation.reasoningEnabled
+                                : false,
+                          );
                     },
                     onPromptTemplateChanged: (value) {
-                      setState(() {
-                        _selectedPromptTemplateId =
-                            value == _noPromptTemplateValue ? null : value;
-                      });
+                      ref
+                          .read(chatSessionsProvider.notifier)
+                          .updateActiveConversationPreferences(
+                            selectedPromptTemplateId:
+                                value == _noPromptTemplateValue ? null : value,
+                            clearSelectedPromptTemplateId:
+                                value == _noPromptTemplateValue,
+                          );
                     },
                     onReasoningEnabledChanged: supportsReasoning
                         ? (value) {
-                            setState(() {
-                              _reasoningEnabled = value;
-                            });
+                            ref
+                                .read(chatSessionsProvider.notifier)
+                                .updateActiveConversationPreferences(
+                                  reasoningEnabled: value,
+                                );
                           }
                         : null,
                     onReasoningEffortChanged: supportsReasoning
                         ? (value) {
-                            setState(() {
-                              _reasoningEffort = value;
-                            });
+                            ref
+                                .read(chatSessionsProvider.notifier)
+                                .updateActiveConversationPreferences(
+                                  reasoningEffort: value,
+                                );
                           }
                         : null,
-                    onSendPressed: () {
-                      _handleSendMessage(
-                        selectedModel: selectedModel,
-                        selectedPromptTemplate: selectedPromptTemplate,
-                      );
-                    },
+                    onScrollToBottomPressed: _scrollToBottom,
+                    onSendPressed: selectedModel == null || chatState.isStreaming
+                        ? null
+                        : () async {
+                            final content = _messageController.text.trim();
+                            if (content.isEmpty) {
+                              return;
+                            }
+
+                            _messageController.clear();
+                            await ref
+                                .read(chatSessionsProvider.notifier)
+                                .sendMessage(
+                                  content: content,
+                                  modelConfig: selectedModel,
+                                  promptTemplate: selectedPromptTemplate,
+                                  reasoningEnabled:
+                                      supportsReasoning &&
+                                      conversation.reasoningEnabled,
+                                  reasoningEffort: conversation.reasoningEffort,
+                                );
+                          },
                   ),
                 ),
                 if (showSidePanels) ...[
                   const SizedBox(width: 20),
                   SizedBox(
-                    width: 220,
+                    width: 180,
                     child: _MessageAnchorPanel(
-                      userMessages: _conversation.messages
+                      userMessages: conversation.messages
                           .where(
                             (message) => message.role == ChatMessageRole.user,
                           )
                           .toList(growable: false),
+                      onSelectMessage: _scrollToMessage,
                     ),
                   ),
                 ],
@@ -174,13 +251,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
-  LlmModelConfig? _resolveSelectedModel(List<LlmModelConfig> modelConfigs) {
+  List<ChatConversationGroup> _buildConversationGroups(
+    List<ChatConversation> conversations,
+  ) {
+    final visibleConversations = conversations.where((conversation) {
+      return conversation.hasMessages;
+    }).toList(growable: false);
+    return groupConversationsByUpdatedAt(visibleConversations);
+  }
+
+  LlmModelConfig? _resolveSelectedModel(
+    List<LlmModelConfig> modelConfigs,
+    String? selectedModelId,
+  ) {
     if (modelConfigs.isEmpty) {
       return null;
     }
 
     final selected = modelConfigs.where((config) {
-      return config.id == _selectedModelId;
+      return config.id == selectedModelId;
     }).firstOrNull;
 
     return selected ?? modelConfigs.first;
@@ -188,133 +277,133 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   PromptTemplate? _resolveSelectedPromptTemplate(
     List<PromptTemplate> promptTemplates,
+    String? selectedPromptTemplateId,
   ) {
     if (promptTemplates.isEmpty) {
       return null;
     }
 
-    final selected = promptTemplates.where((template) {
-      return template.id == _selectedPromptTemplateId;
+    return promptTemplates.where((template) {
+      return template.id == selectedPromptTemplateId;
     }).firstOrNull;
-
-    return selected;
   }
 
-  Future<void> _showRenameDialog(BuildContext context) async {
-    final titleController = TextEditingController(
-      text: _conversation.resolvedTitle,
-    );
-
-    await showDialog<void>(
+  Future<void> _showRenameDialog(
+    BuildContext context,
+    String initialTitle,
+  ) async {
+    final nextTitle = await showDialog<String>(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('修改对话标题'),
-          content: TextField(
-            controller: titleController,
-            decoration: const InputDecoration(
-              labelText: '对话标题',
-            ),
-            autofocus: true,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () {
-                final nextTitle = titleController.text.trim();
-                if (nextTitle.isEmpty) {
-                  return;
-                }
-
-                setState(() {
-                  _conversation = _conversation.copyWith(title: nextTitle);
-                });
-                Navigator.of(context).pop();
-              },
-              child: const Text('保存'),
-            ),
-          ],
-        );
+        return _RenameConversationDialog(initialTitle: initialTitle);
       },
     );
 
-    titleController.dispose();
-  }
-
-  void _handleSendMessage({
-    required LlmModelConfig? selectedModel,
-    required PromptTemplate? selectedPromptTemplate,
-  }) {
-    final content = _messageController.text.trim();
-    if (content.isEmpty || selectedModel == null) {
+    if (!mounted || nextTitle == null || nextTitle.trim().isEmpty) {
       return;
     }
 
-    final timestamp = DateTime.now();
-    final nextMessages = [
-      ..._conversation.messages,
-      ChatMessage(
-        id: generateEntityId(),
-        role: ChatMessageRole.user,
-        content: content,
-        createdAt: timestamp,
-      ),
-      ChatMessage(
-        id: generateEntityId(),
-        role: ChatMessageRole.assistant,
-        content: _buildAssistantPreviewReply(
-          userInput: content,
-          selectedModel: selectedModel,
-          selectedPromptTemplate: selectedPromptTemplate,
-          enableReasoning:
-              _reasoningEnabled && selectedModel.supportsReasoning,
-          reasoningEffort: _reasoningEffort,
-        ),
-        createdAt: timestamp.add(const Duration(milliseconds: 200)),
-      ),
-    ];
+    await ref
+        .read(chatSessionsProvider.notifier)
+        .renameActiveConversation(nextTitle.trim());
+  }
 
-    setState(() {
-      _conversation = _conversation.copyWith(
-        messages: nextMessages,
-        updatedAt: timestamp,
-      );
-      _messageController.clear();
+  Future<void> _createConversationAndScroll() async {
+    await ref.read(chatSessionsProvider.notifier).createConversation();
+    if (!mounted) {
+      return;
+    }
+
+    _messageController.clear();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToBottom(jump: true);
     });
   }
 
-  String _buildAssistantPreviewReply({
-    required String userInput,
-    required LlmModelConfig selectedModel,
-    required PromptTemplate? selectedPromptTemplate,
-    required bool enableReasoning,
-    required ReasoningEffort reasoningEffort,
+  void _scheduleScrollSync({
+    required ChatConversation conversation,
+    required bool isStreaming,
   }) {
-    final promptSummary = selectedPromptTemplate == null
-        ? '未使用前置 Prompt'
-        : '已附加模板 **${selectedPromptTemplate.name}**';
-    final reasoningSummary = enableReasoning
-        ? '开启，负担为 **${reasoningEffort.apiValue}**'
-        : '关闭';
+    final signature = [
+      conversation.id,
+      conversation.messages.length,
+      conversation.messages.lastOrNull?.content.length ?? 0,
+      isStreaming,
+    ].join('|');
 
-    return '''
-### 已收到你的输入
+    if (_lastConversationId != conversation.id) {
+      _lastConversationId = conversation.id;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        _scrollToBottom(jump: true);
+      });
+    } else if (_lastRenderSignature != signature) {
+      final shouldAutoScroll = _isNearBottom();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_messageScrollController.hasClients) {
+          return;
+        }
+        if (shouldAutoScroll) {
+          _scrollToBottom();
+        }
+      });
+    }
 
-- 当前模型：**${selectedModel.displayName}**
-- 前置 Prompt：$promptSummary
-- 深度思考：$reasoningSummary
+    _lastRenderSignature = signature;
+  }
 
-> 这里先演示聊天页核心体验。下一步会把真实的 OpenAI 兼容接口和流式输出接进来。
+  void _handleMessageScrollChanged() {
+    final shouldShow = !_isNearBottom();
+    if (shouldShow == _showScrollToBottom) {
+      return;
+    }
 
-你刚才输入的是：
+    setState(() {
+      _showScrollToBottom = shouldShow;
+    });
+  }
 
-```text
-$userInput
-```
-''';
+  bool _isNearBottom() {
+    if (!_messageScrollController.hasClients) {
+      return true;
+    }
+
+    final position = _messageScrollController.position;
+    return position.maxScrollExtent - position.pixels < 120;
+  }
+
+  Future<void> _scrollToBottom({bool jump = false}) async {
+    if (!_messageScrollController.hasClients) {
+      return;
+    }
+
+    final target = _messageScrollController.position.maxScrollExtent;
+    if (jump) {
+      _messageScrollController.jumpTo(target);
+      return;
+    }
+
+    await _messageScrollController.animateTo(
+      target,
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.easeOut,
+    );
+  }
+
+  Future<void> _scrollToMessage(String messageId) async {
+    final targetContext = _messageKeys[messageId]?.currentContext;
+    if (targetContext == null) {
+      return;
+    }
+
+    await Scrollable.ensureVisible(
+      targetContext,
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.easeOutCubic,
+      alignment: 0.12,
+    );
   }
 }
 
@@ -326,13 +415,20 @@ class _ChatWorkspace extends StatelessWidget {
     required this.modelConfigs,
     required this.promptTemplates,
     required this.messageController,
+    required this.messageScrollController,
+    required this.messageKeys,
     required this.reasoningEnabled,
     required this.reasoningEffort,
     required this.supportsReasoning,
+    required this.isStreaming,
+    required this.errorMessage,
+    required this.showScrollToBottom,
+    required this.onDismissError,
     required this.onModelChanged,
     required this.onPromptTemplateChanged,
     required this.onReasoningEnabledChanged,
     required this.onReasoningEffortChanged,
+    required this.onScrollToBottomPressed,
     required this.onSendPressed,
   });
 
@@ -342,14 +438,21 @@ class _ChatWorkspace extends StatelessWidget {
   final List<LlmModelConfig> modelConfigs;
   final List<PromptTemplate> promptTemplates;
   final TextEditingController messageController;
+  final ScrollController messageScrollController;
+  final Map<String, GlobalKey> messageKeys;
   final bool reasoningEnabled;
   final ReasoningEffort reasoningEffort;
   final bool supportsReasoning;
+  final bool isStreaming;
+  final String? errorMessage;
+  final bool showScrollToBottom;
+  final VoidCallback onDismissError;
   final ValueChanged<String?> onModelChanged;
   final ValueChanged<String?> onPromptTemplateChanged;
   final ValueChanged<bool>? onReasoningEnabledChanged;
   final ValueChanged<ReasoningEffort>? onReasoningEffortChanged;
-  final VoidCallback onSendPressed;
+  final VoidCallback onScrollToBottomPressed;
+  final Future<void> Function()? onSendPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -370,7 +473,7 @@ class _ChatWorkspace extends StatelessWidget {
             children: [
               headerCard,
               const SizedBox(height: 16),
-              SizedBox(height: 360, child: messagesCard),
+              SizedBox(height: 420, child: messagesCard),
               const SizedBox(height: 16),
               composerCard,
             ],
@@ -435,8 +538,40 @@ class _ChatWorkspace extends StatelessWidget {
                         : '深度思考：关闭',
                   ),
                 ),
+                if (isStreaming)
+                  const Chip(
+                    avatar: Icon(Icons.sync_rounded, size: 18),
+                    label: Text('流式生成中'),
+                  ),
               ],
             ),
+            if (errorMessage != null) ...[
+              const SizedBox(height: 12),
+              Material(
+                color: theme.colorScheme.errorContainer,
+                borderRadius: BorderRadius.circular(16),
+                child: ListTile(
+                  leading: Icon(
+                    Icons.error_outline_rounded,
+                    color: theme.colorScheme.onErrorContainer,
+                  ),
+                  title: Text(
+                    errorMessage!,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onErrorContainer,
+                    ),
+                  ),
+                  trailing: IconButton(
+                    onPressed: onDismissError,
+                    icon: Icon(
+                      Icons.close_rounded,
+                      color: theme.colorScheme.onErrorContainer,
+                    ),
+                    tooltip: '关闭错误提示',
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -445,19 +580,39 @@ class _ChatWorkspace extends StatelessWidget {
 
   Widget _buildMessagesCard() {
     return Card(
-      child: conversation.messages.isEmpty
-          ? _EmptyConversationView(hasModels: modelConfigs.isNotEmpty)
-          : ListView.separated(
+      child: Stack(
+        children: [
+          if (conversation.messages.isEmpty)
+            _EmptyConversationView(hasModels: modelConfigs.isNotEmpty)
+          else
+            SingleChildScrollView(
+              controller: messageScrollController,
               padding: const EdgeInsets.all(20),
-              itemCount: conversation.messages.length,
-              separatorBuilder: (context, index) {
-                return const SizedBox(height: 16);
-              },
-              itemBuilder: (context, index) {
-                final message = conversation.messages[index];
-                return _ChatMessageBubble(message: message);
-              },
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final message in conversation.messages) ...[
+                    KeyedSubtree(
+                      key: messageKeys.putIfAbsent(message.id, GlobalKey.new),
+                      child: _ChatMessageBubble(message: message),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                ],
+              ),
             ),
+          if (showScrollToBottom)
+            Positioned(
+              right: 16,
+              bottom: 16,
+              child: FloatingActionButton.small(
+                onPressed: onScrollToBottomPressed,
+                tooltip: '滚动到底部',
+                child: const Icon(Icons.arrow_downward_rounded),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -545,15 +700,25 @@ class _ChatWorkspace extends StatelessWidget {
                   child: Text(
                     modelConfigs.isEmpty
                         ? '需要至少配置一个模型后才能发送消息。'
-                        : '这一步先提供本地交互体验，真实流式回复会在下一能力块接入。',
+                        : isStreaming
+                            ? '正在流式接收模型回复。你可以手动滚动查看历史，或点右下角按钮回到底部。'
+                            : '已接入 OpenAI 兼容流式回复，弱网或配置错误时会在顶部显示错误提示。',
                     style: theme.textTheme.bodySmall,
                   ),
                 ),
                 const SizedBox(width: 12),
                 FilledButton.icon(
-                  onPressed: modelConfigs.isEmpty ? null : onSendPressed,
-                  icon: const Icon(Icons.send_rounded),
-                  label: const Text('发送'),
+                  onPressed: modelConfigs.isEmpty || isStreaming
+                      ? null
+                      : () {
+                          onSendPressed?.call();
+                        },
+                  icon: Icon(
+                    isStreaming
+                        ? Icons.hourglass_top_rounded
+                        : Icons.send_rounded,
+                  ),
+                  label: Text(isStreaming ? '生成中' : '发送'),
                 ),
               ],
             ),
@@ -604,6 +769,65 @@ class _ChatWorkspace extends StatelessWidget {
   }
 }
 
+class _RenameConversationDialog extends StatefulWidget {
+  const _RenameConversationDialog({
+    required this.initialTitle,
+  });
+
+  final String initialTitle;
+
+  @override
+  State<_RenameConversationDialog> createState() =>
+      _RenameConversationDialogState();
+}
+
+class _RenameConversationDialogState extends State<_RenameConversationDialog> {
+  late final TextEditingController _titleController;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController(text: widget.initialTitle);
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('修改对话标题'),
+      content: TextField(
+        controller: _titleController,
+        decoration: const InputDecoration(
+          labelText: '对话标题',
+        ),
+        autofocus: true,
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: () {
+            final nextTitle = _titleController.text.trim();
+            if (nextTitle.isEmpty) {
+              return;
+            }
+
+            Navigator.of(context).pop(nextTitle);
+          },
+          child: const Text('保存'),
+        ),
+      ],
+    );
+  }
+}
+
 class _ChatMessageBubble extends StatelessWidget {
   const _ChatMessageBubble({
     required this.message,
@@ -634,13 +858,27 @@ class _ChatMessageBubble extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  isUser ? '你' : '模型',
-                  style: theme.textTheme.labelLarge,
+                Row(
+                  children: [
+                    Text(
+                      isUser ? '你' : '模型',
+                      style: theme.textTheme.labelLarge,
+                    ),
+                    if (message.isStreaming) ...[
+                      const SizedBox(width: 8),
+                      const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ],
+                  ],
                 ),
                 const SizedBox(height: 8),
                 MarkdownBody(
-                  data: message.content,
+                  data: message.content.isEmpty && message.isStreaming
+                      ? '_正在等待模型返回内容..._'
+                      : message.content,
                   selectable: true,
                   styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
                     p: theme.textTheme.bodyLarge,
@@ -693,7 +931,7 @@ class _EmptyConversationView extends StatelessWidget {
                   const SizedBox(height: 12),
                   Text(
                     hasModels
-                        ? '输入你的第一条消息后，这里会显示左右分栏的对话记录，并自动生成会话标题。'
+                        ? '输入你的第一条消息后，这里会显示真实的流式回复，同时左侧历史列表和右侧定位条会一起工作。'
                         : '你还没有配置模型。先去设置页添加一个 OpenAI 兼容模型，聊天页才能真正发起请求。',
                     textAlign: TextAlign.center,
                   ),
@@ -717,51 +955,122 @@ class _EmptyConversationView extends StatelessWidget {
 
 class _ConversationHistoryPanel extends StatelessWidget {
   const _ConversationHistoryPanel({
-    required this.conversation,
-    required this.modelConfigCount,
-    required this.promptTemplateCount,
+    required this.groups,
+    required this.activeConversationId,
+    required this.hasDraftConversation,
+    required this.onCreateConversation,
+    required this.onConversationSelected,
   });
 
-  final ChatConversation conversation;
-  final int modelConfigCount;
-  final int promptTemplateCount;
+  final List<ChatConversationGroup> groups;
+  final String activeConversationId;
+  final bool hasDraftConversation;
+  final VoidCallback? onCreateConversation;
+  final ValueChanged<String> onConversationSelected;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              '历史会话面板',
-              style: Theme.of(context).textTheme.titleLarge,
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '历史会话面板',
+                    style: theme.textTheme.titleLarge,
+                  ),
+                ),
+                IconButton(
+                  onPressed: onCreateConversation,
+                  tooltip: '新建对话',
+                  icon: const Icon(Icons.add_rounded),
+                ),
+              ],
             ),
             const SizedBox(height: 8),
             Text(
-              '历史页能力块完成前，这里先承载当前会话摘要和后续要接入的列表结构。',
+              '按更新时间分组展示对话，点击即可切换到对应会话。',
+              style: theme.textTheme.bodyMedium,
             ),
+            if (hasDraftConversation) ...[
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest.withValues(
+                    alpha: 0.45,
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Text(
+                  '当前是未发送消息的新对话草稿。发送后会自动进入历史列表。',
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
-            _InfoRow(label: '当前标题', value: conversation.resolvedTitle),
-            _InfoRow(
-              label: '消息数',
-              value: '${conversation.messages.length} 条',
+            Expanded(
+              child: groups.isEmpty
+                  ? const Center(
+                      child: Text('还没有已保存的会话记录。'),
+                    )
+                  : ListView.separated(
+                      itemCount: groups.length,
+                      separatorBuilder: (context, index) {
+                        return const SizedBox(height: 16);
+                      },
+                      itemBuilder: (context, index) {
+                        final group = groups[index];
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              group.bucket.label,
+                              style: theme.textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: 8),
+                            for (final conversation in group.conversations)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: ListTile(
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  tileColor: conversation.id ==
+                                          activeConversationId
+                                      ? theme.colorScheme.primaryContainer
+                                      : theme.colorScheme.surfaceContainerLow,
+                                  title: Text(
+                                    conversation.resolvedTitle,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  subtitle: Text(
+                                    conversation.messages
+                                            .lastOrNull
+                                            ?.content
+                                            .trim()
+                                            .replaceAll('\n', ' ') ??
+                                        '暂无内容',
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  onTap: () {
+                                    onConversationSelected(conversation.id);
+                                  },
+                                ),
+                              ),
+                          ],
+                        );
+                      },
+                    ),
             ),
-            _InfoRow(
-              label: '模型配置',
-              value: '$modelConfigCount 个',
-            ),
-            _InfoRow(
-              label: 'Prompt 模板',
-              value: '$promptTemplateCount 个',
-            ),
-            const SizedBox(height: 16),
-            const Text('后续会在这里接入：'),
-            const SizedBox(height: 8),
-            const _PanelBullet(text: '按更新时间分组的会话列表'),
-            const _PanelBullet(text: '最近、一日内、三日内等分段标题'),
-            const _PanelBullet(text: '点击会话后切换到对应聊天内容'),
           ],
         ),
       ),
@@ -772,12 +1081,16 @@ class _ConversationHistoryPanel extends StatelessWidget {
 class _MessageAnchorPanel extends StatelessWidget {
   const _MessageAnchorPanel({
     required this.userMessages,
+    required this.onSelectMessage,
   });
 
   final List<ChatMessage> userMessages;
+  final ValueChanged<String> onSelectMessage;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -786,98 +1099,55 @@ class _MessageAnchorPanel extends StatelessWidget {
           children: [
             Text(
               '消息定位条',
-              style: Theme.of(context).textTheme.titleLarge,
+              style: theme.textTheme.titleLarge,
             ),
             const SizedBox(height: 8),
             Text(
               userMessages.isEmpty
-                  ? '发送消息后，这里会列出用户问题的短摘要。'
-                  : '下一能力块会把这些锚点接成真正的快速定位入口。',
+                  ? '发送用户消息后，这里会按顺序出现可点击锚点。'
+                  : '悬浮或长按查看消息前 10 个字，点击即可跳转到对应位置。',
             ),
             const SizedBox(height: 16),
-            if (userMessages.isEmpty)
-              const _PanelBullet(text: '暂时还没有用户消息')
-            else
-              for (final message in userMessages)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .surfaceContainerHighest
-                          .withValues(alpha: 0.45),
-                      borderRadius: BorderRadius.circular(14),
+            Expanded(
+              child: userMessages.isEmpty
+                  ? const Center(
+                      child: Text('暂无锚点'),
+                    )
+                  : ListView.separated(
+                      itemCount: userMessages.length,
+                      separatorBuilder: (context, index) {
+                        return const SizedBox(height: 12);
+                      },
+                      itemBuilder: (context, index) {
+                        final message = userMessages[index];
+                        final preview = message.content.trim().characters
+                            .take(10)
+                            .toString();
+
+                        return Tooltip(
+                          message: preview,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () => onSelectMessage(message.id),
+                            child: Container(
+                              height: 32,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.surfaceContainerHighest,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                '— ${index + 1}',
+                                style: theme.textTheme.titleMedium,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                      child: Text(
-                        message.content.characters.take(10).toString(),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ),
-                ),
+            ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({
-    required this.label,
-    required this.value,
-  });
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 72,
-            child: Text('$label：'),
-          ),
-          Expanded(child: Text(value)),
-        ],
-      ),
-    );
-  }
-}
-
-class _PanelBullet extends StatelessWidget {
-  const _PanelBullet({
-    required this.text,
-  });
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            Icons.circle,
-            size: 8,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-          const SizedBox(width: 10),
-          Expanded(child: Text(text)),
-        ],
       ),
     );
   }
