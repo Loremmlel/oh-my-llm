@@ -1,13 +1,25 @@
+import 'package:flutter/material.dart';
+
+import '../../../app/navigation/app_destination.dart';
+import '../../../app/shell/app_shell_scaffold.dart';
 import '../../../core/widgets/feature_placeholder_view.dart';
 
-class SettingsPlaceholderScreen extends FeaturePlaceholderView {
-  const SettingsPlaceholderScreen({super.key})
-      : super(
-          title: '设置页',
-          description: '模型配置和前置 Prompt 管理会在后续能力块中基于这里的领域模型继续实现。',
-          highlights: const [
-            '已建立模型配置与 Prompt 模板的数据结构。',
-            '本地持久化入口已经在应用启动阶段接入。',
-          ],
-        );
+class SettingsPlaceholderScreen extends StatelessWidget {
+  const SettingsPlaceholderScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const AppShellScaffold(
+      currentDestination: AppDestination.settings,
+      title: '设置页',
+      body: FeaturePlaceholderView(
+        title: '设置页',
+        description: '设置页已经进入统一导航骨架，接下来会在这里落地模型配置和前置 Prompt 管理。',
+        highlights: [
+          '模型配置和 Prompt 模板的数据结构已经准备完成。',
+          '后续设置会通过本地持久化保存。',
+        ],
+      ),
+    );
+  }
 }

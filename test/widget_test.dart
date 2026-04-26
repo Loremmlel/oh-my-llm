@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -6,9 +7,16 @@ import 'package:oh_my_llm/app/app.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 
 void main() {
-  testWidgets('app boots into chat placeholder route', (tester) async {
+  testWidgets('app boots into desktop chat shell', (tester) async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     final preferences = await SharedPreferences.getInstance();
+
+    tester.view.physicalSize = const Size(1440, 1024);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
 
     await tester.pumpWidget(
       ProviderScope(
@@ -22,6 +30,37 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('对话页'), findsOneWidget);
-    expect(find.text('Oh My LLM'), findsOneWidget);
+    expect(find.text('Oh My LLM'), findsWidgets);
+    expect(find.text('历史会话面板'), findsOneWidget);
+    expect(find.text('消息定位条'), findsOneWidget);
+  });
+
+  testWidgets('app shows compact navigation shell on narrow screens', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final preferences = await SharedPreferences.getInstance();
+
+    tester.view.physicalSize = const Size(430, 932);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(preferences),
+        ],
+        child: const OhMyLlmApp(),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('历史对话'), findsOneWidget);
+    expect(find.text('设置'), findsOneWidget);
+    expect(find.byType(NavigationBar), findsOneWidget);
   });
 }
