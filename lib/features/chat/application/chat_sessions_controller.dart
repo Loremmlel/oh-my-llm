@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/utils/id_generator.dart';
+import '../../settings/application/chat_defaults_controller.dart';
 import '../../settings/application/llm_model_configs_controller.dart';
 import '../../settings/application/prompt_templates_controller.dart';
 import '../../settings/domain/models/llm_model_config.dart';
@@ -341,11 +342,14 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
 
   ChatConversation _createConversation() {
     final now = DateTime.now();
+    final chatDefaults = ref.read(chatDefaultsProvider);
     return ChatConversation(
       id: generateEntityId(),
       messages: const [],
       createdAt: now,
       updatedAt: now,
+      selectedModelId: chatDefaults.defaultModelId,
+      selectedPromptTemplateId: chatDefaults.defaultPromptTemplateId,
       reasoningEffort: ReasoningEffort.medium,
     );
   }
