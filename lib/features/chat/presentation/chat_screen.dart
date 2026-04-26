@@ -26,12 +26,15 @@ class ChatScreen extends ConsumerStatefulWidget {
 class _ChatScreenState extends ConsumerState<ChatScreen> {
   late final TextEditingController _messageController;
   late final ScrollController _messageScrollController;
+  final GlobalKey _messagesViewportKey = GlobalKey();
 
   final Map<String, GlobalKey> _messageKeys = <String, GlobalKey>{};
 
   bool _showScrollToBottom = false;
+  bool _anchorRefreshQueued = false;
   String? _lastConversationId;
   String? _lastRenderSignature;
+  String? _activeAnchorMessageId;
 
   @override
   void initState() {
@@ -69,11 +72,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       chatDefaults.defaultPromptTemplateId,
     );
     final supportsReasoning = selectedModel?.supportsReasoning ?? false;
+    final userMessages = conversation.messages
+        .where((message) {
+          return message.role == ChatMessageRole.user;
+        })
+        .toList(growable: false);
 
     _scheduleScrollSync(
       conversation: conversation,
       isStreaming: chatState.isStreaming,
     );
+    _scheduleAnchorRefresh();
 
     return AppShellScaffold(
       currentDestination: AppDestination.chat,
@@ -150,8 +159,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   child: _ChatWorkspace(
                     conversation: conversation,
                     hasModels: modelConfigs.isNotEmpty,
+                    userMessages: userMessages,
+                    activeAnchorMessageId: _activeAnchorMessageId,
                     messageController: _messageController,
                     messageScrollController: _messageScrollController,
+                    messagesViewportKey: _messagesViewportKey,
                     messageKeys: _messageKeys,
                     reasoningEnabled:
                         supportsReasoning && conversation.reasoningEnabled,
@@ -194,6 +206,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           }
                         : null,
                     onScrollToBottomPressed: _scrollToBottom,
+                    onSelectMessage: _scrollToMessage,
                     onSendPressed:
                         selectedModel == null || chatState.isStreaming
                         ? null
@@ -218,20 +231,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           },
                   ),
                 ),
-                if (showSidePanels) ...[
-                  const SizedBox(width: 12),
-                  SizedBox(
-                    width: 120,
-                    child: _MessageAnchorPanel(
-                      userMessages: conversation.messages
-                          .where(
-                            (message) => message.role == ChatMessageRole.user,
-                          )
-                          .toList(growable: false),
-                      onSelectMessage: _scrollToMessage,
-                    ),
-                  ),
-                ],
               ],
             ),
           );
@@ -362,12 +361,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void _handleMessageScrollChanged() {
     final shouldShow = !_isNearBottom();
     if (shouldShow == _showScrollToBottom) {
-      return;
+      _scheduleAnchorRefresh();
+    } else {
+      setState(() {
+        _showScrollToBottom = shouldShow;
+      });
+      _scheduleAnchorRefresh();
     }
-
-    setState(() {
-      _showScrollToBottom = shouldShow;
-    });
   }
 
   bool _isNearBottom() {
@@ -387,6 +387,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final target = _messageScrollController.position.maxScrollExtent;
     if (jump) {
       _messageScrollController.jumpTo(target);
+      _scheduleAnchorRefresh();
       return;
     }
 
@@ -395,6 +396,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       duration: const Duration(milliseconds: 240),
       curve: Curves.easeOut,
     );
+    _scheduleAnchorRefresh();
   }
 
   Future<void> _scrollToMessage(String messageId) async {
@@ -409,6 +411,108 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       curve: Curves.easeOutCubic,
       alignment: 0.12,
     );
+    _scheduleAnchorRefresh();
+  }
+
+  void _scheduleAnchorRefresh() {
+    if (_anchorRefreshQueued) {
+      return;
+    }
+
+    _anchorRefreshQueued = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _anchorRefreshQueued = false;
+      _refreshActiveAnchor();
+    });
+  }
+
+  void _refreshActiveAnchor() {
+    if (!mounted) {
+      return;
+    }
+
+    final viewportContext = _messagesViewportKey.currentContext;
+    final viewportRenderObject = viewportContext?.findRenderObject();
+    if (viewportRenderObject is! RenderBox || !viewportRenderObject.hasSize) {
+      _setActiveAnchorMessage(null);
+      return;
+    }
+
+    final userMessages = ref
+        .read(chatSessionsProvider)
+        .activeConversation
+        .messages
+        .where((message) => message.role == ChatMessageRole.user)
+        .toList(growable: false);
+    if (userMessages.isEmpty) {
+      _setActiveAnchorMessage(null);
+      return;
+    }
+
+    final viewportOffset = viewportRenderObject.localToGlobal(Offset.zero);
+    final viewportRect = viewportOffset & viewportRenderObject.size;
+    final viewportCenterY = viewportRect.center.dy;
+
+    String? bestVisibleMessageId;
+    var bestVisibleDistance = double.infinity;
+    String? nearestAboveMessageId;
+    var nearestAboveCenterY = double.negativeInfinity;
+    String? nearestBelowMessageId;
+    var nearestBelowCenterY = double.infinity;
+
+    for (final message in userMessages) {
+      final messageRenderObject = _messageKeys[message.id]?.currentContext
+          ?.findRenderObject();
+      if (messageRenderObject is! RenderBox ||
+          !messageRenderObject.attached ||
+          !messageRenderObject.hasSize) {
+        continue;
+      }
+
+      final messageOffset = messageRenderObject.localToGlobal(Offset.zero);
+      final messageRect = messageOffset & messageRenderObject.size;
+      final messageCenterY = messageRect.center.dy;
+      final intersectsViewport =
+          messageRect.bottom >= viewportRect.top &&
+          messageRect.top <= viewportRect.bottom;
+
+      if (intersectsViewport) {
+        final distance = (messageCenterY - viewportCenterY).abs();
+        if (distance < bestVisibleDistance) {
+          bestVisibleDistance = distance;
+          bestVisibleMessageId = message.id;
+        }
+      }
+
+      if (messageCenterY <= viewportCenterY &&
+          messageCenterY > nearestAboveCenterY) {
+        nearestAboveCenterY = messageCenterY;
+        nearestAboveMessageId = message.id;
+      }
+
+      if (messageCenterY > viewportCenterY &&
+          messageCenterY < nearestBelowCenterY) {
+        nearestBelowCenterY = messageCenterY;
+        nearestBelowMessageId = message.id;
+      }
+    }
+
+    _setActiveAnchorMessage(
+      bestVisibleMessageId ??
+          nearestAboveMessageId ??
+          nearestBelowMessageId ??
+          userMessages.first.id,
+    );
+  }
+
+  void _setActiveAnchorMessage(String? messageId) {
+    if (_activeAnchorMessageId == messageId) {
+      return;
+    }
+
+    setState(() {
+      _activeAnchorMessageId = messageId;
+    });
   }
 
   Future<void> _showEditMessageDialog(
@@ -437,8 +541,11 @@ class _ChatWorkspace extends StatelessWidget {
   const _ChatWorkspace({
     required this.conversation,
     required this.hasModels,
+    required this.userMessages,
+    required this.activeAnchorMessageId,
     required this.messageController,
     required this.messageScrollController,
+    required this.messagesViewportKey,
     required this.messageKeys,
     required this.reasoningEnabled,
     required this.reasoningEffort,
@@ -452,13 +559,17 @@ class _ChatWorkspace extends StatelessWidget {
     required this.onReasoningEnabledChanged,
     required this.onReasoningEffortChanged,
     required this.onScrollToBottomPressed,
+    required this.onSelectMessage,
     required this.onSendPressed,
   });
 
   final ChatConversation conversation;
   final bool hasModels;
+  final List<ChatMessage> userMessages;
+  final String? activeAnchorMessageId;
   final TextEditingController messageController;
   final ScrollController messageScrollController;
+  final GlobalKey messagesViewportKey;
   final Map<String, GlobalKey> messageKeys;
   final bool reasoningEnabled;
   final ReasoningEffort reasoningEffort;
@@ -472,6 +583,7 @@ class _ChatWorkspace extends StatelessWidget {
   final ValueChanged<bool>? onReasoningEnabledChanged;
   final ValueChanged<ReasoningEffort>? onReasoningEffortChanged;
   final VoidCallback onScrollToBottomPressed;
+  final ValueChanged<String> onSelectMessage;
   final Future<void> Function()? onSendPressed;
 
   @override
@@ -480,7 +592,7 @@ class _ChatWorkspace extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final messagesCard = _buildMessagesCard();
+        final messagesCard = _buildMessagesCard(theme);
         final composerCard = _buildComposerCard(theme);
 
         return Column(
@@ -531,64 +643,94 @@ class _ChatWorkspace extends StatelessWidget {
     );
   }
 
-  Widget _buildMessagesCard() {
+  Widget _buildMessagesCard(ThemeData theme) {
     final latestAssistantMessage =
         conversation.messages.lastOrNull?.role == ChatMessageRole.assistant
         ? conversation.messages.lastOrNull
         : null;
 
-    return Card(
-      child: Stack(
-        children: [
-          if (conversation.messages.isEmpty)
-            _EmptyConversationView(hasModels: hasModels)
-          else
-            SingleChildScrollView(
-              controller: messageScrollController,
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (final message in conversation.messages) ...[
-                    KeyedSubtree(
-                      key: messageKeys.putIfAbsent(message.id, GlobalKey.new),
-                      child: _ChatMessageBubble(
-                        message: message,
-                        canEdit:
-                            !isStreaming &&
-                            message.role == ChatMessageRole.user,
-                        canRetry:
-                            !isStreaming &&
-                            latestAssistantMessage?.id == message.id,
-                        onEditPressed: message.role == ChatMessageRole.user
-                            ? () {
-                                onEditMessage(message);
-                              }
-                            : null,
-                        onRetryPressed: latestAssistantMessage?.id == message.id
-                            ? () {
-                                onRetryLatestAssistant();
-                              }
-                            : null,
-                      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final anchorRightPadding = userMessages.isEmpty ? 14.0 : 52.0;
+
+        return Card(
+          clipBehavior: Clip.antiAlias,
+          child: Stack(
+            children: [
+              if (conversation.messages.isEmpty)
+                KeyedSubtree(
+                  key: messagesViewportKey,
+                  child: _EmptyConversationView(hasModels: hasModels),
+                )
+              else
+                SingleChildScrollView(
+                  key: messagesViewportKey,
+                  controller: messageScrollController,
+                  padding: EdgeInsets.fromLTRB(14, 14, anchorRightPadding, 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (final message in conversation.messages) ...[
+                        KeyedSubtree(
+                          key: messageKeys.putIfAbsent(
+                            message.id,
+                            GlobalKey.new,
+                          ),
+                          child: _ChatMessageBubble(
+                            message: message,
+                            canEdit:
+                                !isStreaming &&
+                                message.role == ChatMessageRole.user,
+                            canRetry:
+                                !isStreaming &&
+                                latestAssistantMessage?.id == message.id,
+                            onEditPressed: message.role == ChatMessageRole.user
+                                ? () {
+                                    onEditMessage(message);
+                                  }
+                                : null,
+                            onRetryPressed:
+                                latestAssistantMessage?.id == message.id
+                                ? () {
+                                    onRetryLatestAssistant();
+                                  }
+                                : null,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+                    ],
+                  ),
+                ),
+              if (userMessages.isNotEmpty)
+                Positioned(
+                  right: 8,
+                  top: 0,
+                  bottom: 0,
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: _MessageAnchorRail(
+                      userMessages: userMessages,
+                      activeMessageId: activeAnchorMessageId,
+                      maxHeight: constraints.maxHeight * 0.5,
+                      onSelectMessage: onSelectMessage,
                     ),
-                    const SizedBox(height: 12),
-                  ],
-                ],
-              ),
-            ),
-          if (showScrollToBottom)
-            Positioned(
-              right: 16,
-              bottom: 16,
-              child: FloatingActionButton.small(
-                onPressed: onScrollToBottomPressed,
-                tooltip: '滚动到底部',
-                child: const Icon(Icons.arrow_downward_rounded),
-              ),
-            ),
-        ],
-      ),
+                  ),
+                ),
+              if (showScrollToBottom)
+                Positioned(
+                  right: 16,
+                  bottom: 16,
+                  child: FloatingActionButton.small(
+                    onPressed: onScrollToBottomPressed,
+                    tooltip: '滚动到底部',
+                    child: const Icon(Icons.arrow_downward_rounded),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -709,23 +851,69 @@ class _ThinkingToggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final backgroundColor = !enabled
+        ? theme.colorScheme.surfaceContainerLow
+        : value
+        ? theme.colorScheme.primaryContainer
+        : theme.colorScheme.surfaceContainerHigh;
+    final borderColor = value
+        ? theme.colorScheme.primary.withValues(alpha: 0.28)
+        : theme.colorScheme.outlineVariant.withValues(alpha: 0.75);
+    final labelColor = enabled && value
+        ? theme.colorScheme.onPrimaryContainer
+        : theme.colorScheme.onSurfaceVariant;
 
-    return DecoratedBox(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 167),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(14),
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('深度思考', style: theme.textTheme.bodySmall),
-            const SizedBox(width: 4),
-            Switch.adaptive(
-              value: enabled && value,
-              onChanged: enabled ? onChanged : null,
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            Text(
+              '深度思考',
+              style: theme.textTheme.bodySmall?.copyWith(color: labelColor),
+            ),
+            const SizedBox(width: 6),
+            Theme(
+              data: theme.copyWith(
+                switchTheme: SwitchThemeData(
+                  trackColor: WidgetStateProperty.resolveWith((states) {
+                    if (states.contains(WidgetState.disabled)) {
+                      return theme.colorScheme.surfaceContainerHighest;
+                    }
+                    if (states.contains(WidgetState.selected)) {
+                      return theme.colorScheme.primary;
+                    }
+                    return theme.colorScheme.surfaceContainerHighest;
+                  }),
+                  trackOutlineColor: WidgetStateProperty.resolveWith((states) {
+                    if (states.contains(WidgetState.selected)) {
+                      return Colors.transparent;
+                    }
+                    return theme.colorScheme.outlineVariant;
+                  }),
+                  thumbColor: WidgetStateProperty.resolveWith((states) {
+                    if (states.contains(WidgetState.disabled)) {
+                      return theme.colorScheme.outline;
+                    }
+                    if (states.contains(WidgetState.selected)) {
+                      return theme.colorScheme.onPrimary;
+                    }
+                    return theme.colorScheme.onSurfaceVariant;
+                  }),
+                ),
+              ),
+              child: Switch(
+                value: enabled && value,
+                onChanged: enabled ? onChanged : null,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
             ),
           ],
         ),
@@ -1072,7 +1260,7 @@ class _EmptyConversationView extends StatelessWidget {
                   const SizedBox(height: 12),
                   Text(
                     hasModels
-                        ? '输入你的第一条消息后，这里会显示真实的流式回复，同时左侧历史列表和右侧定位条会一起工作。'
+                        ? '输入你的第一条消息后，这里会显示真实的流式回复，同时左侧历史列表和右侧悬浮定位条会一起工作。'
                         : '你还没有配置模型。先去设置页添加一个 OpenAI 兼容模型，聊天页才能真正发起请求。',
                     textAlign: TextAlign.center,
                   ),
@@ -1196,73 +1384,86 @@ class _ConversationHistoryPanel extends StatelessWidget {
   }
 }
 
-class _MessageAnchorPanel extends StatelessWidget {
-  const _MessageAnchorPanel({
+class _MessageAnchorRail extends StatelessWidget {
+  const _MessageAnchorRail({
     required this.userMessages,
+    required this.activeMessageId,
+    required this.maxHeight,
     required this.onSelectMessage,
   });
 
   final List<ChatMessage> userMessages;
+  final String? activeMessageId;
+  final double maxHeight;
   final ValueChanged<String> onSelectMessage;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('消息定位条', style: theme.textTheme.titleLarge),
-            const SizedBox(height: 8),
-            Text(
-              userMessages.isEmpty
-                  ? '发送用户消息后，这里会按顺序出现可点击锚点。'
-                  : '悬浮或长按查看消息前 10 个字，点击即可跳转到对应位置。',
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: userMessages.isEmpty
-                  ? const Center(child: Text('暂无锚点'))
-                  : ListView.separated(
-                      itemCount: userMessages.length,
-                      separatorBuilder: (context, index) {
-                        return const SizedBox(height: 12);
-                      },
-                      itemBuilder: (context, index) {
-                        final message = userMessages[index];
-                        final preview = message.content
-                            .trim()
-                            .characters
-                            .take(10)
-                            .toString();
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxHeight: maxHeight,
+        minWidth: 28,
+        maxWidth: 28,
+      ),
+      child: DecoratedBox(
+        key: const ValueKey('message-anchor-rail'),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface.withValues(alpha: 0.92),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.75),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+          child: Scrollbar(
+            thumbVisibility: userMessages.length > 10,
+            interactive: true,
+            radius: const Radius.circular(999),
+            thickness: 2.5,
+            child: ListView.separated(
+              primary: false,
+              padding: EdgeInsets.zero,
+              itemCount: userMessages.length,
+              separatorBuilder: (context, index) {
+                return const SizedBox(height: 8);
+              },
+              itemBuilder: (context, index) {
+                final message = userMessages[index];
+                final isActive = message.id == activeMessageId;
 
-                        return Tooltip(
-                          message: preview,
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(12),
-                            onTap: () => onSelectMessage(message.id),
-                            child: Container(
-                              height: 32,
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                color:
-                                    theme.colorScheme.surfaceContainerHighest,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                '— ${index + 1}',
-                                style: theme.textTheme.titleMedium,
-                              ),
-                            ),
+                return Semantics(
+                  button: true,
+                  selected: isActive,
+                  label: '定位到第 ${index + 1} 条用户消息',
+                  child: InkWell(
+                    key: ValueKey('message-anchor-item-${index + 1}'),
+                    borderRadius: BorderRadius.circular(999),
+                    onTap: () => onSelectMessage(message.id),
+                    child: SizedBox(
+                      width: 20,
+                      height: 18,
+                      child: Center(
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 167),
+                          width: isActive ? 14 : 10,
+                          height: isActive ? 6 : 4,
+                          decoration: BoxDecoration(
+                            color: isActive
+                                ? theme.colorScheme.primary
+                                : theme.colorScheme.outline,
+                            borderRadius: BorderRadius.circular(999),
                           ),
-                        );
-                      },
+                        ),
+                      ),
                     ),
+                  ),
+                );
+              },
             ),
-          ],
+          ),
         ),
       ),
     );

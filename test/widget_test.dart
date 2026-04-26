@@ -55,7 +55,8 @@ void main() {
     expect(find.text('前置 Prompt 选择器'), findsNothing);
     expect(find.text('思考负担'), findsOneWidget);
     expect(find.text('历史会话面板'), findsOneWidget);
-    expect(find.text('消息定位条'), findsOneWidget);
+    expect(find.text('消息定位条'), findsNothing);
+    expect(find.byKey(const ValueKey('message-anchor-rail')), findsNothing);
   });
 
   testWidgets('app shows compact navigation shell on narrow screens', (
