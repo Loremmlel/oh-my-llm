@@ -40,6 +40,7 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
       ..body = jsonEncode({
         'model': modelConfig.modelName,
         'stream': true,
+        'thinking': reasoningEffort != null,
         'messages': messages.map((message) => message.toJson()).toList(),
         if (reasoningEffort != null)
           'reasoning_effort': reasoningEffort.apiValue,

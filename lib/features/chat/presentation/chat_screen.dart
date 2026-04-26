@@ -500,30 +500,27 @@ class _ChatWorkspace extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact = constraints.maxWidth < AppBreakpoints.compact ||
-            constraints.maxHeight < 900;
         final headerCard = _buildHeaderCard(theme);
         final messagesCard = _buildMessagesCard();
         final composerCard = _buildComposerCard(theme, promptSelectionValue);
 
-        if (compact) {
-          return ListView(
-            children: [
-              headerCard,
-              const SizedBox(height: 16),
-              SizedBox(height: 420, child: messagesCard),
-              const SizedBox(height: 16),
-              composerCard,
-            ],
-          );
-        }
-
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            headerCard,
-            const SizedBox(height: 16),
-            Expanded(child: messagesCard),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Flexible(
+                    child: SingleChildScrollView(
+                      child: headerCard,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Expanded(child: messagesCard),
+                ],
+              ),
+            ),
             const SizedBox(height: 16),
             composerCard,
           ],

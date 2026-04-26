@@ -356,7 +356,7 @@ class _HistoryConversationTile extends StatelessWidget {
             children: [
               Checkbox(
                 value: selected,
-                onChanged: selectionMode ? onSelectionChanged : null,
+                onChanged: onSelectionChanged,
               ),
               const SizedBox(width: 8),
               Expanded(
