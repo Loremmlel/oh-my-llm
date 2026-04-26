@@ -42,7 +42,8 @@ void main() {
 
     expect(find.text('模型选择器'), findsNothing);
     expect(find.text('前置 Prompt 选择器'), findsNothing);
-    expect(find.text('消息定位条'), findsOneWidget);
+    expect(find.text('消息定位条'), findsNothing);
+    expect(find.byKey(const ValueKey('message-anchor-rail')), findsNothing);
     expect(find.text('历史会话面板'), findsOneWidget);
     expect(find.text('未命名对话'), findsOneWidget);
     expect(find.textContaining('深度思考：'), findsNothing);
@@ -138,7 +139,8 @@ void main() {
     expect(find.textContaining('帮我总结一下这个仓库'), findsWidgets);
     expect(find.textContaining('第一段 第二段'), findsWidgets);
     expect(find.textContaining('帮我总结一下这个仓'), findsWidgets);
-    expect(find.text('— 1'), findsOneWidget);
+    expect(find.byKey(const ValueKey('message-anchor-rail')), findsOneWidget);
+    expect(find.byKey(const ValueKey('message-anchor-item-1')), findsOneWidget);
     expect(find.text('最近'), findsOneWidget);
     expect(
       fakeClient.lastRequestMessages.map((message) => message.role).toList(),
