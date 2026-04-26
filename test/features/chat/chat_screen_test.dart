@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
+import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/data/chat_completion_client.dart';
 import 'package:oh_my_llm/features/chat/data/openai_compatible_chat_client.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
@@ -68,6 +69,8 @@ void main() {
       ),
     );
 
+    await tester.pumpAndSettle();
+
     await tester.tap(find.byTooltip('修改对话标题'));
     await tester.pumpAndSettle();
 
@@ -89,6 +92,10 @@ void main() {
   ) async {
     final preferences = await _createSeededPreferences();
     final fakeClient = FakeChatCompletionClient();
+    fakeClient.enqueueChunks(
+      ['第一段 ', '第二段'],
+      chunkDelay: const Duration(milliseconds: 10),
+    );
 
     tester.view.physicalSize = const Size(1440, 1600);
     tester.view.devicePixelRatio = 1;
@@ -118,14 +125,11 @@ void main() {
     await tester.tap(sendButton);
     await tester.pump();
 
-    fakeClient.emit('第一段 ');
-    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 12));
 
     expect(find.textContaining('第一段'), findsWidgets);
     expect(find.text('流式生成中'), findsOneWidget);
 
-    fakeClient.emit('第二段');
-    await fakeClient.close();
     await tester.pumpAndSettle();
 
     expect(find.textContaining('帮我总结一下这个仓库'), findsWidgets);
@@ -144,6 +148,110 @@ void main() {
     expect(
       fakeClient.lastModelConfig?.displayName,
       equals('GPT-4.1'),
+    );
+  });
+
+  testWidgets('chat screen edits user message and regenerates following replies', (
+    tester,
+  ) async {
+    final preferences = await _createSeededPreferences();
+    final fakeClient = FakeChatCompletionClient()
+      ..enqueueChunks(['原始回复一'])
+      ..enqueueChunks(['原始回复二']);
+
+    tester.view.physicalSize = const Size(1440, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(preferences),
+          chatCompletionClientProvider.overrideWithValue(fakeClient),
+        ],
+        child: const MaterialApp(home: ChatScreen()),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    await _sendMessage(tester, '第一条原始问题');
+    await tester.pumpAndSettle();
+    await _sendMessage(tester, '第二条问题');
+    await tester.pumpAndSettle();
+
+    fakeClient
+      ..enqueueChunks(['重算后的回复一'])
+      ..enqueueChunks(['重算后的回复二']);
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
+    final activeConversation = container.read(chatSessionsProvider).activeConversation;
+    final firstUserMessage = activeConversation.messages.firstWhere((message) {
+      return message.role == ChatMessageRole.user;
+    });
+
+    await container.read(chatSessionsProvider.notifier).editMessage(
+          messageId: firstUserMessage.id,
+          nextContent: '第一条已修改问题',
+        );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('第一条已修改问题'), findsWidgets);
+    expect(find.textContaining('重算后的回复一'), findsWidgets);
+    expect(find.textContaining('重算后的回复二'), findsWidgets);
+    expect(find.textContaining('原始回复一'), findsNothing);
+    expect(find.textContaining('原始回复二'), findsNothing);
+    expect(
+      fakeClient.requestHistory[2].map((message) => message.content).toList(),
+      ['第一条已修改问题'],
+    );
+    expect(
+      fakeClient.requestHistory[3].map((message) => message.content).toList(),
+      ['第一条已修改问题', '重算后的回复一', '第二条问题'],
+    );
+  });
+
+  testWidgets('chat screen retries latest assistant reply', (tester) async {
+    final preferences = await _createSeededPreferences();
+    final fakeClient = FakeChatCompletionClient()
+      ..enqueueChunks(['原始回复'])
+      ..enqueueChunks(['重试后的回复']);
+
+    tester.view.physicalSize = const Size(1440, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(preferences),
+          chatCompletionClientProvider.overrideWithValue(fakeClient),
+        ],
+        child: const MaterialApp(home: ChatScreen()),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    await _sendMessage(tester, '帮我重试一下');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('重试回复'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('重试后的回复'), findsWidgets);
+    expect(find.textContaining('原始回复'), findsNothing);
+    expect(
+      fakeClient.requestHistory.last.map((message) => message.content).toList(),
+      ['帮我重试一下'],
     );
   });
 }
@@ -180,8 +288,18 @@ Future<SharedPreferences> _createSeededPreferences() async {
   return SharedPreferences.getInstance();
 }
 
+Future<void> _sendMessage(WidgetTester tester, String content) async {
+  await tester.enterText(find.byType(TextField).first, content);
+  final sendButton = find.widgetWithText(FilledButton, '发送');
+  await tester.ensureVisible(sendButton);
+  await tester.tap(sendButton);
+  await tester.pump();
+}
+
 class FakeChatCompletionClient implements ChatCompletionClient {
-  final StreamController<String> _controller = StreamController<String>();
+  final List<List<ChatCompletionRequestMessage>> requestHistory = [];
+  final List<LlmModelConfig> requestedModels = [];
+  final List<Stream<String>> _queuedStreams = [];
 
   List<ChatCompletionRequestMessage> lastRequestMessages = const [];
   LlmModelConfig? lastModelConfig;
@@ -194,14 +312,28 @@ class FakeChatCompletionClient implements ChatCompletionClient {
   }) {
     lastModelConfig = modelConfig;
     lastRequestMessages = List.unmodifiable(messages);
-    return _controller.stream;
+    requestHistory.add(lastRequestMessages);
+    requestedModels.add(modelConfig);
+    if (_queuedStreams.isEmpty) {
+      return const Stream.empty();
+    }
+
+    return _queuedStreams.removeAt(0);
   }
 
-  void emit(String chunk) {
-    _controller.add(chunk);
+  void enqueueChunks(
+    List<String> chunks, {
+    Duration chunkDelay = Duration.zero,
+  }) {
+    _queuedStreams.add(_streamChunks(chunks, chunkDelay));
   }
 
-  Future<void> close() {
-    return _controller.close();
+  Stream<String> _streamChunks(List<String> chunks, Duration chunkDelay) async* {
+    for (final chunk in chunks) {
+      if (chunkDelay > Duration.zero) {
+        await Future<void>.delayed(chunkDelay);
+      }
+      yield chunk;
+    }
   }
 }
