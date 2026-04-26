@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:equatable/equatable.dart';
 
 class LlmModelConfig extends Equatable {
@@ -34,6 +36,31 @@ class LlmModelConfig extends Equatable {
       supportsReasoning: supportsReasoning ?? this.supportsReasoning,
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'displayName': displayName,
+      'apiUrl': apiUrl,
+      'apiKey': apiKey,
+      'modelName': modelName,
+      'supportsReasoning': supportsReasoning,
+    };
+  }
+
+  factory LlmModelConfig.fromJson(Map<String, dynamic> json) {
+    return LlmModelConfig(
+      id: json['id'] as String,
+      displayName: json['displayName'] as String,
+      apiUrl: json['apiUrl'] as String,
+      apiKey: json['apiKey'] as String,
+      modelName: json['modelName'] as String,
+      supportsReasoning: json['supportsReasoning'] as bool? ?? false,
+    );
+  }
+
+  @override
+  String toString() => jsonEncode(toJson());
 
   @override
   List<Object> get props {

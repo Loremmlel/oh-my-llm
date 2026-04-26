@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/chat/presentation/chat_placeholder_screen.dart';
 import '../../features/history/presentation/history_placeholder_screen.dart';
-import '../../features/settings/presentation/settings_placeholder_screen.dart';
+import '../../features/settings/presentation/settings_screen.dart';
 import '../navigation/app_destination.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -24,7 +24,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppDestination.settings.path,
         name: AppDestination.settings.name,
-        builder: (context, state) => const SettingsPlaceholderScreen(),
+        builder: (context, state) => const SettingsScreen(),
       ),
     ],
     errorBuilder: (context, state) {
