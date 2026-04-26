@@ -75,7 +75,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     return AppShellScaffold(
       currentDestination: AppDestination.chat,
-      title: '对话页',
+      title: conversation.resolvedTitle,
       endDrawer: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -121,7 +121,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               children: [
                 if (showSidePanels) ...[
                   SizedBox(
-                    width: 300,
+                    width: 240,
                     child: _ConversationHistoryPanel(
                       groups: _buildConversationGroups(chatState.conversations),
                       activeConversationId: conversation.id,
@@ -139,7 +139,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       },
                     ),
                   ),
-                  const SizedBox(width: 20),
+                  const SizedBox(width: 16),
                 ],
                 Expanded(
                   child: _ChatWorkspace(
@@ -242,9 +242,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   ),
                 ),
                 if (showSidePanels) ...[
-                  const SizedBox(width: 20),
+                  const SizedBox(width: 16),
                   SizedBox(
-                    width: 180,
+                    width: 140,
                     child: _MessageAnchorPanel(
                       userMessages: conversation.messages
                           .where(
@@ -500,26 +500,18 @@ class _ChatWorkspace extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final headerCard = _buildHeaderCard(theme);
         final messagesCard = _buildMessagesCard();
         final composerCard = _buildComposerCard(theme, promptSelectionValue);
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (errorMessage != null) ...[
+              _buildErrorBanner(theme),
+              const SizedBox(height: 12),
+            ],
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Flexible(
-                    child: SingleChildScrollView(
-                      child: headerCard,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Expanded(child: messagesCard),
-                ],
-              ),
+              child: messagesCard,
             ),
             const SizedBox(height: 16),
             composerCard,
@@ -529,85 +521,33 @@ class _ChatWorkspace extends StatelessWidget {
     );
   }
 
-  Widget _buildHeaderCard(ThemeData theme) {
+  Widget _buildErrorBanner(ThemeData theme) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              conversation.resolvedTitle,
-              style: theme.textTheme.headlineSmall,
+        padding: const EdgeInsets.all(8),
+        child: Material(
+          color: theme.colorScheme.errorContainer,
+          borderRadius: BorderRadius.circular(16),
+          child: ListTile(
+            leading: Icon(
+              Icons.error_outline_rounded,
+              color: theme.colorScheme.onErrorContainer,
             ),
-            const SizedBox(height: 8),
-            Text(
-              '标题默认取首条用户消息前 15 个字，你也可以随时从右上角手动修改。',
-              style: theme.textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                Chip(
-                  avatar: const Icon(Icons.smart_toy_outlined, size: 18),
-                  label: Text(
-                    selectedModel?.displayName ?? '请先到设置页添加模型',
-                  ),
-                ),
-                Chip(
-                  avatar: const Icon(Icons.notes_rounded, size: 18),
-                  label: Text(
-                    selectedPromptTemplate?.name ?? '未使用前置 Prompt',
-                  ),
-                ),
-                Chip(
-                  avatar: const Icon(
-                    Icons.psychology_alt_outlined,
-                    size: 18,
-                  ),
-                  label: Text(
-                    supportsReasoning && reasoningEnabled
-                        ? '深度思考：${reasoningEffort.apiValue}'
-                        : '深度思考：关闭',
-                  ),
-                ),
-                if (isStreaming)
-                  const Chip(
-                    avatar: Icon(Icons.sync_rounded, size: 18),
-                    label: Text('流式生成中'),
-                  ),
-              ],
-            ),
-            if (errorMessage != null) ...[
-              const SizedBox(height: 12),
-              Material(
-                color: theme.colorScheme.errorContainer,
-                borderRadius: BorderRadius.circular(16),
-                child: ListTile(
-                  leading: Icon(
-                    Icons.error_outline_rounded,
-                    color: theme.colorScheme.onErrorContainer,
-                  ),
-                  title: Text(
-                    errorMessage!,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onErrorContainer,
-                    ),
-                  ),
-                  trailing: IconButton(
-                    onPressed: onDismissError,
-                    icon: Icon(
-                      Icons.close_rounded,
-                      color: theme.colorScheme.onErrorContainer,
-                    ),
-                    tooltip: '关闭错误提示',
-                  ),
-                ),
+            title: Text(
+              errorMessage!,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onErrorContainer,
               ),
-            ],
-          ],
+            ),
+            trailing: IconButton(
+              onPressed: onDismissError,
+              icon: Icon(
+                Icons.close_rounded,
+                color: theme.colorScheme.onErrorContainer,
+              ),
+              tooltip: '关闭错误提示',
+            ),
+          ),
         ),
       ),
     );
@@ -1136,26 +1076,10 @@ class _ConversationHistoryPanel extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              '按更新时间分组展示对话，点击即可切换到对应会话。',
-              style: theme.textTheme.bodyMedium,
+              hasDraftConversation ? '当前包含未发送的新对话草稿。' : '按更新时间分组展示对话。',
+              style: theme.textTheme.bodySmall,
             ),
-            if (hasDraftConversation) ...[
-              const SizedBox(height: 12),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceContainerHighest.withValues(
-                    alpha: 0.45,
-                  ),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: const Text(
-                  '当前是未发送消息的新对话草稿。发送后会自动进入历史列表。',
-                ),
-              ),
-            ],
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             Expanded(
               child: groups.isEmpty
                   ? const Center(
