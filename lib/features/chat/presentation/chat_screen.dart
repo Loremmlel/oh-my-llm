@@ -161,6 +161,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     onDismissError: () {
                       ref.read(chatSessionsProvider.notifier).clearError();
                     },
+                    onEditMessage: (message) async {
+                      await _showEditMessageDialog(
+                        context,
+                        messageId: message.id,
+                        initialContent: message.content,
+                      );
+                    },
+                    onRetryLatestAssistant: () async {
+                      await ref
+                          .read(chatSessionsProvider.notifier)
+                          .retryLatestAssistant();
+                    },
                     onModelChanged: (value) {
                       final nextModel = modelConfigs.where((config) {
                         return config.id == value;
@@ -405,6 +417,28 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       alignment: 0.12,
     );
   }
+
+  Future<void> _showEditMessageDialog(
+    BuildContext context, {
+    required String messageId,
+    required String initialContent,
+  }) async {
+    final nextContent = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return _EditMessageDialog(initialContent: initialContent);
+      },
+    );
+
+    if (!mounted || nextContent == null || nextContent.trim().isEmpty) {
+      return;
+    }
+
+    await ref.read(chatSessionsProvider.notifier).editMessage(
+          messageId: messageId,
+          nextContent: nextContent.trim(),
+        );
+  }
 }
 
 class _ChatWorkspace extends StatelessWidget {
@@ -424,6 +458,8 @@ class _ChatWorkspace extends StatelessWidget {
     required this.errorMessage,
     required this.showScrollToBottom,
     required this.onDismissError,
+    required this.onEditMessage,
+    required this.onRetryLatestAssistant,
     required this.onModelChanged,
     required this.onPromptTemplateChanged,
     required this.onReasoningEnabledChanged,
@@ -447,6 +483,8 @@ class _ChatWorkspace extends StatelessWidget {
   final String? errorMessage;
   final bool showScrollToBottom;
   final VoidCallback onDismissError;
+  final ValueChanged<ChatMessage> onEditMessage;
+  final Future<void> Function() onRetryLatestAssistant;
   final ValueChanged<String?> onModelChanged;
   final ValueChanged<String?> onPromptTemplateChanged;
   final ValueChanged<bool>? onReasoningEnabledChanged;
@@ -579,6 +617,11 @@ class _ChatWorkspace extends StatelessWidget {
   }
 
   Widget _buildMessagesCard() {
+    final latestAssistantMessage = conversation.messages.lastOrNull?.role ==
+            ChatMessageRole.assistant
+        ? conversation.messages.lastOrNull
+        : null;
+
     return Card(
       child: Stack(
         children: [
@@ -594,7 +637,23 @@ class _ChatWorkspace extends StatelessWidget {
                   for (final message in conversation.messages) ...[
                     KeyedSubtree(
                       key: messageKeys.putIfAbsent(message.id, GlobalKey.new),
-                      child: _ChatMessageBubble(message: message),
+                      child: _ChatMessageBubble(
+                        message: message,
+                        canEdit: !isStreaming &&
+                            message.role == ChatMessageRole.user,
+                        canRetry: !isStreaming &&
+                            latestAssistantMessage?.id == message.id,
+                        onEditPressed: message.role == ChatMessageRole.user
+                            ? () {
+                                onEditMessage(message);
+                              }
+                            : null,
+                        onRetryPressed: latestAssistantMessage?.id == message.id
+                            ? () {
+                                onRetryLatestAssistant();
+                              }
+                            : null,
+                      ),
                     ),
                     const SizedBox(height: 16),
                   ],
@@ -828,12 +887,84 @@ class _RenameConversationDialogState extends State<_RenameConversationDialog> {
   }
 }
 
+class _EditMessageDialog extends StatefulWidget {
+  const _EditMessageDialog({
+    required this.initialContent,
+  });
+
+  final String initialContent;
+
+  @override
+  State<_EditMessageDialog> createState() => _EditMessageDialogState();
+}
+
+class _EditMessageDialogState extends State<_EditMessageDialog> {
+  late final TextEditingController _contentController;
+
+  @override
+  void initState() {
+    super.initState();
+    _contentController = TextEditingController(text: widget.initialContent);
+  }
+
+  @override
+  void dispose() {
+    _contentController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('编辑用户消息'),
+      content: SizedBox(
+        width: 560,
+        child: TextField(
+          controller: _contentController,
+          minLines: 4,
+          maxLines: 10,
+          decoration: const InputDecoration(
+            labelText: '消息内容',
+            alignLabelWithHint: true,
+          ),
+          autofocus: true,
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: () {
+            final nextContent = _contentController.text.trim();
+            if (nextContent.isEmpty) {
+              return;
+            }
+
+            Navigator.of(context).pop(nextContent);
+          },
+          child: const Text('保存并重算'),
+        ),
+      ],
+    );
+  }
+}
+
 class _ChatMessageBubble extends StatelessWidget {
   const _ChatMessageBubble({
     required this.message,
+    this.canEdit = false,
+    this.canRetry = false,
+    this.onEditPressed,
+    this.onRetryPressed,
   });
 
   final ChatMessage message;
+  final bool canEdit;
+  final bool canRetry;
+  final VoidCallback? onEditPressed;
+  final VoidCallback? onRetryPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -872,6 +1003,19 @@ class _ChatMessageBubble extends StatelessWidget {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       ),
                     ],
+                    const Spacer(),
+                    if (canEdit)
+                      IconButton(
+                        onPressed: onEditPressed,
+                        tooltip: '编辑消息',
+                        icon: const Icon(Icons.edit_outlined),
+                      ),
+                    if (canRetry)
+                      IconButton(
+                        onPressed: onRetryPressed,
+                        tooltip: '重试回复',
+                        icon: const Icon(Icons.refresh_rounded),
+                      ),
                   ],
                 ),
                 const SizedBox(height: 8),
