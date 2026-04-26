@@ -48,17 +48,19 @@ class ChatSessionsState extends Equatable {
       conversations: conversations ?? this.conversations,
       activeConversationId: activeConversationId ?? this.activeConversationId,
       isStreaming: isStreaming ?? this.isStreaming,
-      errorMessage: clearErrorMessage ? null : errorMessage ?? this.errorMessage,
+      errorMessage: clearErrorMessage
+          ? null
+          : errorMessage ?? this.errorMessage,
     );
   }
 
   @override
   List<Object?> get props => [
-        conversations,
-        activeConversationId,
-        isStreaming,
-        errorMessage,
-      ];
+    conversations,
+    activeConversationId,
+    isStreaming,
+    errorMessage,
+  ];
 }
 
 class ChatSessionsController extends Notifier<ChatSessionsState> {
@@ -106,10 +108,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
       return;
     }
 
-    state = state.copyWith(
-      activeConversationId: id,
-      clearErrorMessage: true,
-    );
+    state = state.copyWith(activeConversationId: id, clearErrorMessage: true);
   }
 
   Future<void> renameActiveConversation(String title) async {
@@ -158,20 +157,23 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
       return;
     }
 
-    final remainingConversations = state.conversations.where((conversation) {
-      return !conversationIds.contains(conversation.id);
-    }).toList(growable: false);
+    final remainingConversations = state.conversations
+        .where((conversation) {
+          return !conversationIds.contains(conversation.id);
+        })
+        .toList(growable: false);
 
-    final fallbackConversation = remainingConversations.firstOrNull ??
-        _createConversation();
+    final fallbackConversation =
+        remainingConversations.firstOrNull ?? _createConversation();
 
     state = state.copyWith(
       conversations: remainingConversations.isEmpty
           ? [fallbackConversation]
           : remainingConversations,
-      activeConversationId: remainingConversations.any((conversation) {
-        return conversation.id == state.activeConversationId;
-      })
+      activeConversationId:
+          remainingConversations.any((conversation) {
+            return conversation.id == state.activeConversationId;
+          })
           ? state.activeConversationId
           : fallbackConversation.id,
       clearErrorMessage: true,
@@ -226,44 +228,20 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
 
     final promptTemplate = _resolvePromptTemplate(currentConversation);
     final targetMessage = currentConversation.messages[targetIndex];
-    final rebuiltUserMessages = [
-      targetMessage.copyWith(content: trimmedContent),
-      ...currentConversation.messages.skip(targetIndex + 1).where((message) {
-        return message.role == ChatMessageRole.user;
-      }),
-    ];
-
-    var rebuiltConversation = currentConversation.copyWith(
-      messages: currentConversation.messages.take(targetIndex).toList(
-            growable: false,
-          ),
+    final rebuiltConversation = currentConversation.copyWith(
+      messages: [
+        ...currentConversation.messages.take(targetIndex),
+        targetMessage.copyWith(content: trimmedContent),
+      ],
       updatedAt: DateTime.now(),
     );
-    state = state.copyWith(
-      conversations: _replaceConversation(rebuiltConversation),
-      clearErrorMessage: true,
+    await _streamAssistantReply(
+      conversation: rebuiltConversation,
+      modelConfig: modelConfig,
+      promptTemplate: promptTemplate,
+      reasoningEnabled: rebuiltConversation.reasoningEnabled,
+      reasoningEffort: rebuiltConversation.reasoningEffort,
     );
-    await _saveAll();
-
-    for (final userMessage in rebuiltUserMessages) {
-      rebuiltConversation = rebuiltConversation.copyWith(
-        messages: [...rebuiltConversation.messages, userMessage],
-        updatedAt: DateTime.now(),
-      );
-
-      final nextConversation = await _streamAssistantReply(
-        conversation: rebuiltConversation,
-        modelConfig: modelConfig,
-        promptTemplate: promptTemplate,
-        reasoningEnabled: rebuiltConversation.reasoningEnabled,
-        reasoningEffort: rebuiltConversation.reasoningEffort,
-      );
-      if (nextConversation == null) {
-        return;
-      }
-
-      rebuiltConversation = nextConversation;
-    }
   }
 
   Future<void> retryLatestAssistant() async {
@@ -291,9 +269,9 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
 
     final promptTemplate = _resolvePromptTemplate(currentConversation);
     final baseConversation = currentConversation.copyWith(
-      messages: currentConversation.messages.take(latestAssistantIndex).toList(
-            growable: false,
-          ),
+      messages: currentConversation.messages
+          .take(latestAssistantIndex)
+          .toList(growable: false),
       updatedAt: DateTime.now(),
     );
     state = state.copyWith(
@@ -382,18 +360,20 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
         .firstOrNull;
     final hasPartialContent =
         failedAssistantMessage != null &&
-        failedAssistantMessage.content.trim().isNotEmpty;
+        (failedAssistantMessage.content.trim().isNotEmpty ||
+            failedAssistantMessage.reasoningContent.trim().isNotEmpty);
 
     final nextMessages = hasPartialContent
         ? _replaceAssistantMessage(
             messages: currentConversation.messages,
             assistantMessageId: assistantMessageId,
             nextContent: failedAssistantMessage.content,
+            nextReasoningContent: failedAssistantMessage.reasoningContent,
             isStreaming: false,
           )
         : currentConversation.messages
-            .where((message) => message.id != assistantMessageId)
-            .toList(growable: false);
+              .where((message) => message.id != assistantMessageId)
+              .toList(growable: false);
 
     final nextConversation = currentConversation.copyWith(
       messages: nextMessages,
@@ -409,9 +389,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
   }
 
   Future<void> _updateActiveConversation(ChatConversation conversation) async {
-    state = state.copyWith(
-      conversations: _replaceConversation(conversation),
-    );
+    state = state.copyWith(conversations: _replaceConversation(conversation));
     await _saveAll();
   }
 
@@ -449,27 +427,29 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
 
     try {
       final responseBuffer = StringBuffer();
+      final reasoningBuffer = StringBuffer();
       await for (final chunk in _chatClient.streamCompletion(
         modelConfig: modelConfig,
         messages: _buildRequestMessages(
           promptTemplate: promptTemplate,
           conversationMessages: conversation.messages,
         ),
-        reasoningEffort:
-            reasoningEnabled && modelConfig.supportsReasoning
-                ? reasoningEffort
-                : null,
+        reasoningEffort: reasoningEnabled && modelConfig.supportsReasoning
+            ? reasoningEffort
+            : null,
       )) {
         if (chunk.isEmpty) {
           continue;
         }
 
-        responseBuffer.write(chunk);
+        responseBuffer.write(chunk.contentDelta);
+        reasoningBuffer.write(chunk.reasoningDelta);
         streamingConversation = streamingConversation.copyWith(
           messages: _replaceAssistantMessage(
             messages: streamingConversation.messages,
             assistantMessageId: assistantMessage.id,
             nextContent: responseBuffer.toString(),
+            nextReasoningContent: reasoningBuffer.toString(),
             isStreaming: true,
           ),
           updatedAt: DateTime.now(),
@@ -482,6 +462,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
           messages: streamingConversation.messages,
           assistantMessageId: assistantMessage.id,
           nextContent: responseBuffer.toString(),
+          nextReasoningContent: reasoningBuffer.toString(),
           isStreaming: false,
         ),
         updatedAt: DateTime.now(),
@@ -509,14 +490,14 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
   }
 
   void _replaceConversationInMemory(ChatConversation conversation) {
-    state = state.copyWith(
-      conversations: _replaceConversation(conversation),
-    );
+    state = state.copyWith(conversations: _replaceConversation(conversation));
   }
 
   List<ChatConversation> _replaceConversation(ChatConversation conversation) {
     final conversations = [...state.conversations];
-    final index = conversations.indexWhere((item) => item.id == conversation.id);
+    final index = conversations.indexWhere(
+      (item) => item.id == conversation.id,
+    );
 
     if (index == -1) {
       conversations.add(conversation);
@@ -541,7 +522,8 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
   }) {
     final requestMessages = <ChatCompletionRequestMessage>[];
 
-    if (promptTemplate != null && promptTemplate.systemPrompt.trim().isNotEmpty) {
+    if (promptTemplate != null &&
+        promptTemplate.systemPrompt.trim().isNotEmpty) {
       requestMessages.add(
         ChatCompletionRequestMessage(
           role: ChatMessageRole.system,
@@ -579,26 +561,32 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     required List<ChatMessage> messages,
     required String assistantMessageId,
     required String nextContent,
+    required String nextReasoningContent,
     required bool isStreaming,
   }) {
-    return messages.map((message) {
-      if (message.id != assistantMessageId) {
-        return message;
-      }
+    return messages
+        .map((message) {
+          if (message.id != assistantMessageId) {
+            return message;
+          }
 
-      return message.copyWith(
-        content: nextContent,
-        isStreaming: isStreaming,
-      );
-    }).toList(growable: false);
+          return message.copyWith(
+            content: nextContent,
+            reasoningContent: nextReasoningContent,
+            isStreaming: isStreaming,
+          );
+        })
+        .toList(growable: false);
   }
 
   Future<void> _saveAll() {
     return _repository.saveAll(
-      state.conversations.where((conversation) {
-        return conversation.hasMessages ||
-            (conversation.title?.trim().isNotEmpty ?? false);
-      }).toList(growable: false),
+      state.conversations
+          .where((conversation) {
+            return conversation.hasMessages ||
+                (conversation.title?.trim().isNotEmpty ?? false);
+          })
+          .toList(growable: false),
     );
   }
 

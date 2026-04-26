@@ -98,10 +98,10 @@ void main() {
   ) async {
     final preferences = await _createSeededPreferences();
     final fakeClient = FakeChatCompletionClient();
-    fakeClient.enqueueChunks(
-      ['第一段 ', '第二段'],
-      chunkDelay: const Duration(milliseconds: 10),
-    );
+    fakeClient.enqueueChunks([
+      '第一段 ',
+      '第二段',
+    ], chunkDelay: const Duration(milliseconds: 10));
 
     tester.view.physicalSize = const Size(1440, 1600);
     tester.view.devicePixelRatio = 1;
@@ -122,10 +122,7 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    await tester.enterText(
-      find.byType(TextField),
-      '帮我总结一下这个仓库的结构和当前能力',
-    );
+    await tester.enterText(find.byType(TextField), '帮我总结一下这个仓库的结构和当前能力');
     final sendButton = find.widgetWithText(FilledButton, '发送');
     await tester.ensureVisible(sendButton);
     await tester.tap(sendButton);
@@ -147,23 +144,90 @@ void main() {
       fakeClient.lastRequestMessages.map((message) => message.role).toList(),
       [ChatMessageRole.user],
     );
-    expect(
-      fakeClient.lastRequestMessages.single.content,
-      '帮我总结一下这个仓库的结构和当前能力',
-    );
-    expect(
-      fakeClient.lastModelConfig?.displayName,
-      equals('GPT-4.1'),
-    );
+    expect(fakeClient.lastRequestMessages.single.content, '帮我总结一下这个仓库的结构和当前能力');
+    expect(fakeClient.lastModelConfig?.displayName, equals('GPT-4.1'));
   });
 
-  testWidgets('chat screen edits user message and regenerates following replies', (
+  testWidgets(
+    'chat screen edits user message and regenerates following replies',
+    (tester) async {
+      final preferences = await _createSeededPreferences();
+      final fakeClient = FakeChatCompletionClient()
+        ..enqueueChunks(['原始回复一'])
+        ..enqueueChunks(['原始回复二'])
+        ..enqueueChunks(['原始回复三']);
+
+      tester.view.physicalSize = const Size(1440, 1600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(preferences),
+            chatCompletionClientProvider.overrideWithValue(fakeClient),
+          ],
+          child: const MaterialApp(home: ChatScreen()),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      await _sendMessage(tester, '第一条原始问题');
+      await tester.pumpAndSettle();
+      await _sendMessage(tester, '第二条问题');
+      await tester.pumpAndSettle();
+      await _sendMessage(tester, '第三条问题');
+      await tester.pumpAndSettle();
+
+      fakeClient.enqueueChunks(['重算后的第二条回复']);
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ChatScreen)),
+      );
+      final activeConversation = container
+          .read(chatSessionsProvider)
+          .activeConversation;
+      final secondUserMessage = activeConversation.messages
+          .where((message) {
+            return message.role == ChatMessageRole.user;
+          })
+          .elementAt(1);
+
+      await container
+          .read(chatSessionsProvider.notifier)
+          .editMessage(
+            messageId: secondUserMessage.id,
+            nextContent: '第二条已修改问题',
+          );
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('第一条原始问题'), findsWidgets);
+      expect(find.textContaining('原始回复一'), findsWidgets);
+      expect(find.textContaining('第二条已修改问题'), findsWidgets);
+      expect(find.textContaining('重算后的第二条回复'), findsWidgets);
+      expect(find.textContaining('原始回复二'), findsNothing);
+      expect(find.textContaining('第三条问题'), findsNothing);
+      expect(find.textContaining('原始回复三'), findsNothing);
+      expect(
+        fakeClient.requestHistory[3].map((message) => message.content).toList(),
+        ['第一条原始问题', '原始回复一', '第二条已修改问题'],
+      );
+    },
+  );
+
+  testWidgets('chat screen shows reasoning in a collapsible panel', (
     tester,
   ) async {
     final preferences = await _createSeededPreferences();
     final fakeClient = FakeChatCompletionClient()
-      ..enqueueChunks(['原始回复一'])
-      ..enqueueChunks(['原始回复二']);
+      ..enqueueDeltas([
+        const ChatCompletionChunk(reasoningDelta: '这是思考过程'),
+        const ChatCompletionChunk(contentDelta: '这是最终回复'),
+      ]);
 
     tester.view.physicalSize = const Size(1440, 1600);
     tester.view.devicePixelRatio = 1;
@@ -184,42 +248,18 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    await _sendMessage(tester, '第一条原始问题');
-    await tester.pumpAndSettle();
-    await _sendMessage(tester, '第二条问题');
+    await _sendMessage(tester, '请回答并返回思考过程');
     await tester.pumpAndSettle();
 
-    fakeClient
-      ..enqueueChunks(['重算后的回复一'])
-      ..enqueueChunks(['重算后的回复二']);
+    expect(find.text('展开'), findsOneWidget);
+    expect(find.text('这是思考过程'), findsNothing);
+    expect(find.textContaining('这是最终回复'), findsWidgets);
 
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ChatScreen)),
-    );
-    final activeConversation = container.read(chatSessionsProvider).activeConversation;
-    final firstUserMessage = activeConversation.messages.firstWhere((message) {
-      return message.role == ChatMessageRole.user;
-    });
-
-    await container.read(chatSessionsProvider.notifier).editMessage(
-          messageId: firstUserMessage.id,
-          nextContent: '第一条已修改问题',
-        );
+    await tester.tap(find.text('展开'));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('第一条已修改问题'), findsWidgets);
-    expect(find.textContaining('重算后的回复一'), findsWidgets);
-    expect(find.textContaining('重算后的回复二'), findsWidgets);
-    expect(find.textContaining('原始回复一'), findsNothing);
-    expect(find.textContaining('原始回复二'), findsNothing);
-    expect(
-      fakeClient.requestHistory[2].map((message) => message.content).toList(),
-      ['第一条已修改问题'],
-    );
-    expect(
-      fakeClient.requestHistory[3].map((message) => message.content).toList(),
-      ['第一条已修改问题', '重算后的回复一', '第二条问题'],
-    );
+    expect(find.text('这是思考过程'), findsOneWidget);
+    expect(find.text('收起'), findsOneWidget);
   });
 
   testWidgets('chat screen retries latest assistant reply', (tester) async {
@@ -287,7 +327,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(ListView), findsNothing);
-    expect(find.widgetWithText(FilledButton, '发送').hitTestable(), findsOneWidget);
+    expect(
+      find.widgetWithText(FilledButton, '发送').hitTestable(),
+      findsOneWidget,
+    );
   });
 }
 
@@ -309,11 +352,7 @@ Future<SharedPreferences> _createSeededPreferences() async {
         'name': '代码助手',
         'systemPrompt': '你是代码助手',
         'messages': [
-          {
-            'id': 'message-1',
-            'role': 'user',
-            'content': '请优先关注实现细节。',
-          },
+          {'id': 'message-1', 'role': 'user', 'content': '请优先关注实现细节。'},
         ],
         'updatedAt': DateTime(2026, 4, 26).toIso8601String(),
       },
@@ -334,13 +373,13 @@ Future<void> _sendMessage(WidgetTester tester, String content) async {
 class FakeChatCompletionClient implements ChatCompletionClient {
   final List<List<ChatCompletionRequestMessage>> requestHistory = [];
   final List<LlmModelConfig> requestedModels = [];
-  final List<Stream<String>> _queuedStreams = [];
+  final List<Stream<ChatCompletionChunk>> _queuedStreams = [];
 
   List<ChatCompletionRequestMessage> lastRequestMessages = const [];
   LlmModelConfig? lastModelConfig;
 
   @override
-  Stream<String> streamCompletion({
+  Stream<ChatCompletionChunk> streamCompletion({
     required LlmModelConfig modelConfig,
     required List<ChatCompletionRequestMessage> messages,
     ReasoningEffort? reasoningEffort,
@@ -350,7 +389,7 @@ class FakeChatCompletionClient implements ChatCompletionClient {
     requestHistory.add(lastRequestMessages);
     requestedModels.add(modelConfig);
     if (_queuedStreams.isEmpty) {
-      return const Stream.empty();
+      return const Stream<ChatCompletionChunk>.empty();
     }
 
     return _queuedStreams.removeAt(0);
@@ -360,10 +399,27 @@ class FakeChatCompletionClient implements ChatCompletionClient {
     List<String> chunks, {
     Duration chunkDelay = Duration.zero,
   }) {
-    _queuedStreams.add(_streamChunks(chunks, chunkDelay));
+    _queuedStreams.add(
+      _streamDeltas(
+        chunks
+            .map((chunk) => ChatCompletionChunk(contentDelta: chunk))
+            .toList(growable: false),
+        chunkDelay,
+      ),
+    );
   }
 
-  Stream<String> _streamChunks(List<String> chunks, Duration chunkDelay) async* {
+  void enqueueDeltas(
+    List<ChatCompletionChunk> chunks, {
+    Duration chunkDelay = Duration.zero,
+  }) {
+    _queuedStreams.add(_streamDeltas(chunks, chunkDelay));
+  }
+
+  Stream<ChatCompletionChunk> _streamDeltas(
+    List<ChatCompletionChunk> chunks,
+    Duration chunkDelay,
+  ) async* {
     for (final chunk in chunks) {
       if (chunkDelay > Duration.zero) {
         await Future<void>.delayed(chunkDelay);

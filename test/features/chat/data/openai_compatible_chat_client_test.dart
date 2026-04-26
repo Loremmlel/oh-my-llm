@@ -14,20 +14,18 @@ void main() {
       httpClient: _FakeStreamingHttpClient((request) async {
         expect(request.method, 'POST');
         expect(request.headers['Authorization'], 'Bearer sk-test-12345678');
-        final payload = jsonDecode((request as http.Request).body) as Map<String, dynamic>;
-        expect(payload['thinking'], {
-          'type': 'enabled',
-        });
+        final payload =
+            jsonDecode((request as http.Request).body) as Map<String, dynamic>;
+        expect(payload['thinking'], {'type': 'enabled'});
         expect(payload['reasoning_effort'], 'high');
 
         return http.StreamedResponse(
           Stream.fromIterable([
             utf8.encode(
-              'data: {"choices":[{"delta":{"content":"第一段 "}}]}\n\n',
+              'data: {"choices":[{"delta":{"reasoning_content":"思考中"}}]}\n\n',
             ),
-            utf8.encode(
-              'data: {"choices":[{"delta":{"content":"第二段"}}]}\n\n',
-            ),
+            utf8.encode('data: {"choices":[{"delta":{"content":"第一段 "}}]}\n\n'),
+            utf8.encode('data: {"choices":[{"delta":{"content":"第二段"}}]}\n\n'),
             utf8.encode('data: [DONE]\n\n'),
           ]),
           200,
@@ -48,51 +46,60 @@ void main() {
         )
         .toList();
 
-    expect(chunks, ['第一段 ', '第二段']);
+    expect(chunks.map((chunk) => chunk.reasoningDelta).toList(), [
+      '思考中',
+      '',
+      '',
+    ]);
+    expect(chunks.map((chunk) => chunk.contentDelta).toList(), [
+      '',
+      '第一段 ',
+      '第二段',
+    ]);
   });
 
-  test('streamCompletion explicitly disables thinking when reasoning is off', () async {
-    final client = OpenAiCompatibleChatClient(
-      httpClient: _FakeStreamingHttpClient((request) async {
-        final payload = jsonDecode((request as http.Request).body) as Map<String, dynamic>;
-        expect(payload['thinking'], {
-          'type': 'disabled',
-        });
-        expect(payload.containsKey('reasoning_effort'), isFalse);
+  test(
+    'streamCompletion explicitly disables thinking when reasoning is off',
+    () async {
+      final client = OpenAiCompatibleChatClient(
+        httpClient: _FakeStreamingHttpClient((request) async {
+          final payload =
+              jsonDecode((request as http.Request).body)
+                  as Map<String, dynamic>;
+          expect(payload['thinking'], {'type': 'disabled'});
+          expect(payload.containsKey('reasoning_effort'), isFalse);
 
-        return http.StreamedResponse(
-          Stream.fromIterable([
-            utf8.encode('data: [DONE]\n\n'),
-          ]),
-          200,
-        );
-      }),
-    );
+          return http.StreamedResponse(
+            Stream.fromIterable([utf8.encode('data: [DONE]\n\n')]),
+            200,
+          );
+        }),
+      );
 
-    await client
-        .streamCompletion(
-          modelConfig: _modelConfig(),
-          messages: const [
-            ChatCompletionRequestMessage(
-              role: ChatMessageRole.user,
-              content: '你好',
-            ),
-          ],
-        )
-        .drain<void>();
-  });
+      await client
+          .streamCompletion(
+            modelConfig: _modelConfig(),
+            messages: const [
+              ChatCompletionRequestMessage(
+                role: ChatMessageRole.user,
+                content: '你好',
+              ),
+            ],
+          )
+          .drain<void>();
+    },
+  );
 
   test('streamCompletion omits thinking for official OpenAI hosts', () async {
     final client = OpenAiCompatibleChatClient(
       httpClient: _FakeStreamingHttpClient((request) async {
-        final payload = jsonDecode((request as http.Request).body) as Map<String, dynamic>;
+        final payload =
+            jsonDecode((request as http.Request).body) as Map<String, dynamic>;
         expect(payload.containsKey('thinking'), isFalse);
         expect(payload['reasoning_effort'], 'xhigh');
 
         return http.StreamedResponse(
-          Stream.fromIterable([
-            utf8.encode('data: [DONE]\n\n'),
-          ]),
+          Stream.fromIterable([utf8.encode('data: [DONE]\n\n')]),
           200,
         );
       }),
@@ -188,7 +195,8 @@ LlmModelConfig _modelConfig({
 class _FakeStreamingHttpClient extends http.BaseClient {
   _FakeStreamingHttpClient(this._handler);
 
-  final Future<http.StreamedResponse> Function(http.BaseRequest request) _handler;
+  final Future<http.StreamedResponse> Function(http.BaseRequest request)
+  _handler;
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) {

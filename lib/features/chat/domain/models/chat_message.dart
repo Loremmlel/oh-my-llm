@@ -28,6 +28,7 @@ class ChatMessage extends Equatable {
     required this.content,
     required this.createdAt,
     this.isStreaming = false,
+    this.reasoningContent = '',
   });
 
   final String id;
@@ -35,6 +36,7 @@ class ChatMessage extends Equatable {
   final String content;
   final DateTime createdAt;
   final bool isStreaming;
+  final String reasoningContent;
 
   ChatMessage copyWith({
     String? id,
@@ -42,6 +44,7 @@ class ChatMessage extends Equatable {
     String? content,
     DateTime? createdAt,
     bool? isStreaming,
+    String? reasoningContent,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -49,6 +52,7 @@ class ChatMessage extends Equatable {
       content: content ?? this.content,
       createdAt: createdAt ?? this.createdAt,
       isStreaming: isStreaming ?? this.isStreaming,
+      reasoningContent: reasoningContent ?? this.reasoningContent,
     );
   }
 
@@ -58,6 +62,7 @@ class ChatMessage extends Equatable {
       'role': role.apiValue,
       'content': content,
       'createdAt': createdAt.toIso8601String(),
+      'reasoningContent': reasoningContent,
     };
   }
 
@@ -69,9 +74,17 @@ class ChatMessage extends Equatable {
       ),
       content: json['content'] as String,
       createdAt: DateTime.parse(json['createdAt'] as String),
+      reasoningContent: json['reasoningContent'] as String? ?? '',
     );
   }
 
   @override
-  List<Object> get props => [id, role, content, createdAt, isStreaming];
+  List<Object> get props => [
+    id,
+    role,
+    content,
+    createdAt,
+    isStreaming,
+    reasoningContent,
+  ];
 }
