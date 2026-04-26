@@ -44,16 +44,16 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [
-          sharedPreferencesProvider.overrideWithValue(preferences),
-        ],
+        overrides: [sharedPreferencesProvider.overrideWithValue(preferences)],
         child: const OhMyLlmApp(),
       ),
     );
 
     await tester.pumpAndSettle();
 
-    expect(find.text('模型选择器'), findsOneWidget);
+    expect(find.text('模型选择器'), findsNothing);
+    expect(find.text('前置 Prompt 选择器'), findsNothing);
+    expect(find.text('思考负担'), findsOneWidget);
     expect(find.text('历史会话面板'), findsOneWidget);
     expect(find.text('消息定位条'), findsOneWidget);
   });
@@ -73,9 +73,7 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [
-          sharedPreferencesProvider.overrideWithValue(preferences),
-        ],
+        overrides: [sharedPreferencesProvider.overrideWithValue(preferences)],
         child: const OhMyLlmApp(),
       ),
     );

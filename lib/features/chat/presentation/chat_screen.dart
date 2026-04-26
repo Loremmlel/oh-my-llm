@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/navigation/app_destination.dart';
 import '../../../app/shell/app_shell_scaffold.dart';
 import '../../../core/constants/app_breakpoints.dart';
+import '../../settings/application/chat_defaults_controller.dart';
 import '../../settings/application/llm_model_configs_controller.dart';
 import '../../settings/application/prompt_templates_controller.dart';
 import '../../settings/domain/models/llm_model_config.dart';
@@ -14,8 +15,6 @@ import '../application/chat_sessions_controller.dart';
 import '../domain/chat_conversation_groups.dart';
 import '../domain/models/chat_conversation.dart';
 import '../domain/models/chat_message.dart';
-
-const String _noPromptTemplateValue = '__no_prompt_template__';
 
 class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({super.key});
@@ -55,16 +54,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Widget build(BuildContext context) {
     final chatState = ref.watch(chatSessionsProvider);
     final conversation = chatState.activeConversation;
+    final chatDefaults = ref.watch(chatDefaultsProvider);
     final modelConfigs = ref.watch(llmModelConfigsProvider);
     final promptTemplates = ref.watch(promptTemplatesProvider);
 
     final selectedModel = _resolveSelectedModel(
       modelConfigs,
       conversation.selectedModelId,
+      chatDefaults.defaultModelId,
     );
     final selectedPromptTemplate = _resolveSelectedPromptTemplate(
       promptTemplates,
       conversation.selectedPromptTemplateId,
+      chatDefaults.defaultPromptTemplateId,
     );
     final supportsReasoning = selectedModel?.supportsReasoning ?? false;
 
@@ -78,7 +80,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       title: conversation.resolvedTitle,
       endDrawer: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(12),
           child: _ConversationHistoryPanel(
             groups: _buildConversationGroups(chatState.conversations),
             activeConversationId: conversation.id,
@@ -118,13 +120,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               constraints.maxWidth >= AppBreakpoints.expanded;
 
           return Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(12),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (showSidePanels) ...[
                   SizedBox(
-                    width: 240,
+                    width: 220,
                     child: _ConversationHistoryPanel(
                       groups: _buildConversationGroups(chatState.conversations),
                       activeConversationId: conversation.id,
@@ -142,15 +144,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       },
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 12),
                 ],
                 Expanded(
                   child: _ChatWorkspace(
                     conversation: conversation,
-                    selectedModel: selectedModel,
-                    selectedPromptTemplate: selectedPromptTemplate,
-                    modelConfigs: modelConfigs,
-                    promptTemplates: promptTemplates,
+                    hasModels: modelConfigs.isNotEmpty,
                     messageController: _messageController,
                     messageScrollController: _messageScrollController,
                     messageKeys: _messageKeys,
@@ -175,32 +174,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       await ref
                           .read(chatSessionsProvider.notifier)
                           .retryLatestAssistant();
-                    },
-                    onModelChanged: (value) {
-                      final nextModel = modelConfigs.where((config) {
-                        return config.id == value;
-                      }).firstOrNull;
-                      final keepReasoning =
-                          nextModel?.supportsReasoning ?? false;
-
-                      ref
-                          .read(chatSessionsProvider.notifier)
-                          .updateActiveConversationPreferences(
-                            selectedModelId: value,
-                            reasoningEnabled: keepReasoning
-                                ? conversation.reasoningEnabled
-                                : false,
-                          );
-                    },
-                    onPromptTemplateChanged: (value) {
-                      ref
-                          .read(chatSessionsProvider.notifier)
-                          .updateActiveConversationPreferences(
-                            selectedPromptTemplateId:
-                                value == _noPromptTemplateValue ? null : value,
-                            clearSelectedPromptTemplateId:
-                                value == _noPromptTemplateValue,
-                          );
                     },
                     onReasoningEnabledChanged: supportsReasoning
                         ? (value) {
@@ -246,9 +219,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   ),
                 ),
                 if (showSidePanels) ...[
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 12),
                   SizedBox(
-                    width: 140,
+                    width: 120,
                     child: _MessageAnchorPanel(
                       userMessages: conversation.messages
                           .where(
@@ -281,6 +254,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   LlmModelConfig? _resolveSelectedModel(
     List<LlmModelConfig> modelConfigs,
     String? selectedModelId,
+    String? defaultModelId,
   ) {
     if (modelConfigs.isEmpty) {
       return null;
@@ -290,19 +264,32 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       return config.id == selectedModelId;
     }).firstOrNull;
 
-    return selected ?? modelConfigs.first;
+    if (selected != null) {
+      return selected;
+    }
+
+    final defaultSelected = modelConfigs.where((config) {
+      return config.id == defaultModelId;
+    }).firstOrNull;
+
+    return defaultSelected ?? modelConfigs.first;
   }
 
   PromptTemplate? _resolveSelectedPromptTemplate(
     List<PromptTemplate> promptTemplates,
     String? selectedPromptTemplateId,
+    String? defaultPromptTemplateId,
   ) {
-    if (promptTemplates.isEmpty) {
-      return null;
+    final selected = promptTemplates.where((template) {
+      return template.id == selectedPromptTemplateId;
+    }).firstOrNull;
+
+    if (selected != null) {
+      return selected;
     }
 
     return promptTemplates.where((template) {
-      return template.id == selectedPromptTemplateId;
+      return template.id == defaultPromptTemplateId;
     }).firstOrNull;
   }
 
@@ -449,10 +436,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 class _ChatWorkspace extends StatelessWidget {
   const _ChatWorkspace({
     required this.conversation,
-    required this.selectedModel,
-    required this.selectedPromptTemplate,
-    required this.modelConfigs,
-    required this.promptTemplates,
+    required this.hasModels,
     required this.messageController,
     required this.messageScrollController,
     required this.messageKeys,
@@ -465,8 +449,6 @@ class _ChatWorkspace extends StatelessWidget {
     required this.onDismissError,
     required this.onEditMessage,
     required this.onRetryLatestAssistant,
-    required this.onModelChanged,
-    required this.onPromptTemplateChanged,
     required this.onReasoningEnabledChanged,
     required this.onReasoningEffortChanged,
     required this.onScrollToBottomPressed,
@@ -474,10 +456,7 @@ class _ChatWorkspace extends StatelessWidget {
   });
 
   final ChatConversation conversation;
-  final LlmModelConfig? selectedModel;
-  final PromptTemplate? selectedPromptTemplate;
-  final List<LlmModelConfig> modelConfigs;
-  final List<PromptTemplate> promptTemplates;
+  final bool hasModels;
   final TextEditingController messageController;
   final ScrollController messageScrollController;
   final Map<String, GlobalKey> messageKeys;
@@ -490,8 +469,6 @@ class _ChatWorkspace extends StatelessWidget {
   final VoidCallback onDismissError;
   final ValueChanged<ChatMessage> onEditMessage;
   final Future<void> Function() onRetryLatestAssistant;
-  final ValueChanged<String?> onModelChanged;
-  final ValueChanged<String?> onPromptTemplateChanged;
   final ValueChanged<bool>? onReasoningEnabledChanged;
   final ValueChanged<ReasoningEffort>? onReasoningEffortChanged;
   final VoidCallback onScrollToBottomPressed;
@@ -500,23 +477,21 @@ class _ChatWorkspace extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final promptSelectionValue =
-        selectedPromptTemplate?.id ?? _noPromptTemplateValue;
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final messagesCard = _buildMessagesCard();
-        final composerCard = _buildComposerCard(theme, promptSelectionValue);
+        final composerCard = _buildComposerCard(theme);
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (errorMessage != null) ...[
               _buildErrorBanner(theme),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
             ],
             Expanded(child: messagesCard),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             composerCard,
           ],
         );
@@ -527,7 +502,7 @@ class _ChatWorkspace extends StatelessWidget {
   Widget _buildErrorBanner(ThemeData theme) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.all(6),
         child: Material(
           color: theme.colorScheme.errorContainer,
           borderRadius: BorderRadius.circular(16),
@@ -566,11 +541,11 @@ class _ChatWorkspace extends StatelessWidget {
       child: Stack(
         children: [
           if (conversation.messages.isEmpty)
-            _EmptyConversationView(hasModels: modelConfigs.isNotEmpty)
+            _EmptyConversationView(hasModels: hasModels)
           else
             SingleChildScrollView(
               controller: messageScrollController,
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(14),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -597,7 +572,7 @@ class _ChatWorkspace extends StatelessWidget {
                             : null,
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
                   ],
                 ],
               ),
@@ -617,17 +592,17 @@ class _ChatWorkspace extends StatelessWidget {
     );
   }
 
-  Widget _buildComposerCard(ThemeData theme, String promptSelectionValue) {
+  Widget _buildComposerCard(ThemeData theme) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             TextField(
               controller: messageController,
               minLines: 2,
-              maxLines: 6,
+              maxLines: 5,
               textInputAction: TextInputAction.newline,
               decoration: const InputDecoration(
                 labelText: '输入消息',
@@ -635,7 +610,7 @@ class _ChatWorkspace extends StatelessWidget {
                 alignLabelWithHint: true,
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             Row(
               children: [
                 Expanded(
@@ -643,19 +618,6 @@ class _ChatWorkspace extends StatelessWidget {
                     scrollDirection: Axis.horizontal,
                     child: Row(
                       children: [
-                        SizedBox(
-                          width: 170,
-                          child: _buildModelSelector(compact: true),
-                        ),
-                        const SizedBox(width: 8),
-                        SizedBox(
-                          width: 216,
-                          child: _buildPromptSelector(
-                            promptSelectionValue,
-                            compact: true,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
                         _ThinkingToggle(
                           enabled: supportsReasoning,
                           value: supportsReasoning && reasoningEnabled,
@@ -663,7 +625,7 @@ class _ChatWorkspace extends StatelessWidget {
                         ),
                         const SizedBox(width: 8),
                         SizedBox(
-                          width: 152,
+                          width: 132,
                           child: _buildReasoningEffortSelector(compact: true),
                         ),
                         const SizedBox(width: 8),
@@ -671,9 +633,9 @@ class _ChatWorkspace extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 8),
                 FilledButton.icon(
-                  onPressed: modelConfigs.isEmpty || isStreaming
+                  onPressed: !hasModels || isStreaming
                       ? null
                       : () {
                           onSendPressed?.call();
@@ -689,61 +651,6 @@ class _ChatWorkspace extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildModelSelector({bool compact = false}) {
-    return DropdownButtonFormField<String>(
-      key: ValueKey(selectedModel?.id),
-      initialValue: selectedModel?.id,
-      isExpanded: true,
-      items: modelConfigs
-          .map((config) {
-            return DropdownMenuItem(
-              value: config.id,
-              child: Text(config.displayName, overflow: TextOverflow.ellipsis),
-            );
-          })
-          .toList(growable: false),
-      onChanged: modelConfigs.isEmpty ? null : onModelChanged,
-      decoration: InputDecoration(
-        labelText: '模型选择器',
-        isDense: compact,
-        contentPadding: compact
-            ? const EdgeInsets.symmetric(horizontal: 12, vertical: 10)
-            : null,
-      ),
-    );
-  }
-
-  Widget _buildPromptSelector(
-    String promptSelectionValue, {
-    bool compact = false,
-  }) {
-    return DropdownButtonFormField<String>(
-      key: ValueKey(promptSelectionValue),
-      initialValue: promptSelectionValue,
-      isExpanded: true,
-      items: [
-        const DropdownMenuItem(
-          value: _noPromptTemplateValue,
-          child: Text('不使用'),
-        ),
-        ...promptTemplates.map((template) {
-          return DropdownMenuItem(
-            value: template.id,
-            child: Text(template.name, overflow: TextOverflow.ellipsis),
-          );
-        }),
-      ],
-      onChanged: onPromptTemplateChanged,
-      decoration: InputDecoration(
-        labelText: '前置 Prompt 选择器',
-        isDense: compact,
-        contentPadding: compact
-            ? const EdgeInsets.symmetric(horizontal: 12, vertical: 10)
-            : null,
       ),
     );
   }
@@ -809,7 +716,7 @@ class _ThinkingToggle extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
