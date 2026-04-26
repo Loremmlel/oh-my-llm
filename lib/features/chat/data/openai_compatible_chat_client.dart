@@ -26,7 +26,11 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
     required List<ChatCompletionRequestMessage> messages,
     ReasoningEffort? reasoningEffort,
   }) async* {
-    final uri = Uri.parse(modelConfig.apiUrl);
+    final uri = Uri.tryParse(modelConfig.apiUrl);
+    if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
+      throw const ChatCompletionException('API URL 无效，请在设置页检查模型配置。');
+    }
+
     final request = http.Request('POST', uri)
       ..headers.addAll({
         'Content-Type': 'application/json',
@@ -98,9 +102,26 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
   }
 
   String _parseChunk(String rawChunk) {
-    final decoded = jsonDecode(rawChunk);
+    late final Object? decoded;
+    try {
+      decoded = jsonDecode(rawChunk);
+    } on FormatException {
+      throw const ChatCompletionException('服务端返回了无法解析的流式数据。');
+    }
+
     if (decoded is! Map) {
       return '';
+    }
+
+    final error = decoded['error'];
+    if (error is String && error.trim().isNotEmpty) {
+      throw ChatCompletionException(error.trim());
+    }
+    if (error is Map) {
+      final message = error['message'];
+      if (message is String && message.trim().isNotEmpty) {
+        throw ChatCompletionException(message.trim());
+      }
     }
 
     final choices = decoded['choices'];

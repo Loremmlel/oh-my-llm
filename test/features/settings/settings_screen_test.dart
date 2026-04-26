@@ -1,9 +1,12 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
+import 'package:oh_my_llm/core/persistence/versioned_json_storage.dart';
 import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dart';
 import 'package:oh_my_llm/features/settings/data/prompt_template_repository.dart';
 import 'package:oh_my_llm/features/settings/presentation/settings_screen.dart';
@@ -75,8 +78,11 @@ void main() {
 
     expect(find.text('还没有模型配置'), findsOneWidget);
     expect(
-      preferences.getString(llmModelConfigsStorageKey),
-      equals('[]'),
+      jsonDecode(preferences.getString(llmModelConfigsStorageKey)!),
+      {
+        'version': VersionedJsonStorage.currentSchemaVersion,
+        'items': const [],
+      },
     );
   });
 
@@ -144,8 +150,11 @@ void main() {
 
     expect(find.text('还没有 Prompt 模板'), findsOneWidget);
     expect(
-      preferences.getString(promptTemplatesStorageKey),
-      equals('[]'),
+      jsonDecode(preferences.getString(promptTemplatesStorageKey)!),
+      {
+        'version': VersionedJsonStorage.currentSchemaVersion,
+        'items': const [],
+      },
     );
   });
 }
