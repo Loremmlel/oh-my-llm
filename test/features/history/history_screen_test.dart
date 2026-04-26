@@ -125,6 +125,28 @@ void main() {
     final activeConversation = container.read(chatSessionsProvider).activeConversation;
     expect(activeConversation.resolvedTitle, 'Flutter 路线图');
   });
+
+  testWidgets('history screen checkbox selects without triggering navigation', (
+    tester,
+  ) async {
+    final preferences = await _createSeededPreferences();
+
+    tester.view.physicalSize = const Size(1440, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(_buildHistoryApp(preferences));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(Checkbox).first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('聊天落点'), findsNothing);
+    expect(find.widgetWithText(FilledButton, '删除 1 项'), findsOneWidget);
+  });
 }
 
 Widget _buildHistoryApp(SharedPreferences preferences) {

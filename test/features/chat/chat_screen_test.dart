@@ -254,6 +254,35 @@ void main() {
       ['帮我重试一下'],
     );
   });
+
+  testWidgets('chat screen keeps composer visible on compact layouts', (
+    tester,
+  ) async {
+    final preferences = await _createSeededPreferences();
+    final fakeClient = FakeChatCompletionClient();
+
+    tester.view.physicalSize = const Size(430, 932);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(preferences),
+          chatCompletionClientProvider.overrideWithValue(fakeClient),
+        ],
+        child: const MaterialApp(home: ChatScreen()),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ListView), findsNothing);
+    expect(find.widgetWithText(FilledButton, '发送').hitTestable(), findsOneWidget);
+  });
 }
 
 Future<SharedPreferences> _createSeededPreferences() async {

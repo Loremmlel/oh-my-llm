@@ -14,6 +14,9 @@ void main() {
       httpClient: _FakeStreamingHttpClient((request) async {
         expect(request.method, 'POST');
         expect(request.headers['Authorization'], 'Bearer sk-test-12345678');
+        final payload = jsonDecode((request as http.Request).body) as Map<String, dynamic>;
+        expect(payload['thinking'], isTrue);
+        expect(payload['reasoning_effort'], 'high');
 
         return http.StreamedResponse(
           Stream.fromIterable([
@@ -39,10 +42,40 @@ void main() {
               content: '你好',
             ),
           ],
+          reasoningEffort: ReasoningEffort.high,
         )
         .toList();
 
     expect(chunks, ['第一段 ', '第二段']);
+  });
+
+  test('streamCompletion explicitly disables thinking when reasoning is off', () async {
+    final client = OpenAiCompatibleChatClient(
+      httpClient: _FakeStreamingHttpClient((request) async {
+        final payload = jsonDecode((request as http.Request).body) as Map<String, dynamic>;
+        expect(payload['thinking'], isFalse);
+        expect(payload.containsKey('reasoning_effort'), isFalse);
+
+        return http.StreamedResponse(
+          Stream.fromIterable([
+            utf8.encode('data: [DONE]\n\n'),
+          ]),
+          200,
+        );
+      }),
+    );
+
+    await client
+        .streamCompletion(
+          modelConfig: _modelConfig(),
+          messages: const [
+            ChatCompletionRequestMessage(
+              role: ChatMessageRole.user,
+              content: '你好',
+            ),
+          ],
+        )
+        .drain<void>();
   });
 
   test('streamCompletion surfaces API errors from SSE payloads', () async {
