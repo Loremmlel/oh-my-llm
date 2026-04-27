@@ -11,10 +11,12 @@ import '../domain/models/llm_model_config.dart';
 import '../domain/models/prompt_template.dart';
 import 'widgets/settings_widgets.dart';
 
+/// 设置页入口，集中管理模型配置、Prompt 模板和聊天默认项。
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   @override
+  /// 构建设置页的三块配置区域。
   Widget build(BuildContext context, WidgetRef ref) {
     final chatDefaults = ref.watch(chatDefaultsProvider);
     final modelConfigs = ref.watch(llmModelConfigsProvider);
@@ -77,6 +79,7 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
+  /// 弹出模型配置对话框，并把提交结果写回控制器。
   Future<void> _showModelConfigDialog(
     BuildContext context,
     WidgetRef ref, {
@@ -112,6 +115,7 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
+  /// 弹出 Prompt 模板对话框，并把提交结果写回控制器。
   Future<void> _showPromptTemplateDialog(
     BuildContext context,
     WidgetRef ref, {

@@ -7,17 +7,20 @@ import '../domain/models/prompt_template.dart';
 
 const String promptTemplatesStorageKey = 'settings.prompt_templates';
 
+/// Prompt 模板的 SharedPreferences 仓库。
 final promptTemplateRepositoryProvider = Provider<PromptTemplateRepository>((
   ref,
 ) {
   return PromptTemplateRepository(ref.watch(sharedPreferencesProvider));
 });
 
+/// 读取和保存 Prompt 模板列表。
 class PromptTemplateRepository {
   const PromptTemplateRepository(this._sharedPreferences);
 
   final SharedPreferences _sharedPreferences;
 
+  /// 读取全部 Prompt 模板。
   List<PromptTemplate> loadAll() {
     final rawJson = _sharedPreferences.getString(promptTemplatesStorageKey);
     if (rawJson == null || rawJson.isEmpty) {
@@ -30,6 +33,7 @@ class PromptTemplateRepository {
     ).map(PromptTemplate.fromJson).toList(growable: false);
   }
 
+  /// 保存全部 Prompt 模板。
   Future<void> saveAll(List<PromptTemplate> templates) async {
     final rawJson = VersionedJsonStorage.encodeObjectList(
       items: templates,

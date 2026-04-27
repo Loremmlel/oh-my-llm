@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/utils/id_generator.dart';
 import '../../domain/models/prompt_template.dart';
 
+/// Prompt 模板表单提交数据。
 class PromptTemplateFormData {
   const PromptTemplateFormData({
     required this.name,
@@ -15,6 +16,7 @@ class PromptTemplateFormData {
   final List<PromptMessage> messages;
 }
 
+/// 新增或编辑 Prompt 模板的对话框。
 class PromptTemplateFormDialog extends StatefulWidget {
   const PromptTemplateFormDialog({
     required this.onSubmit,
@@ -30,6 +32,7 @@ class PromptTemplateFormDialog extends StatefulWidget {
       _PromptTemplateFormDialogState();
 }
 
+/// Prompt 模板表单的输入与排序状态。
 class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog> {
   final _formKey = GlobalKey<FormState>();
 
@@ -41,17 +44,21 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog> {
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(text: widget.initialValue?.name ?? '');
+    _nameController = TextEditingController(
+      text: widget.initialValue?.name ?? '',
+    );
     _systemPromptController = TextEditingController(
       text: widget.initialValue?.systemPrompt ?? '',
     );
-    _messages = (widget.initialValue?.messages ?? const []).map((message) {
-      return _EditablePromptMessage(
-        id: message.id,
-        role: message.role,
-        controller: TextEditingController(text: message.content),
-      );
-    }).toList(growable: true);
+    _messages = (widget.initialValue?.messages ?? const [])
+        .map((message) {
+          return _EditablePromptMessage(
+            id: message.id,
+            role: message.role,
+            controller: TextEditingController(text: message.content),
+          );
+        })
+        .toList(growable: true);
   }
 
   @override
@@ -65,6 +72,7 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog> {
   }
 
   @override
+  /// 构建 Prompt 模板编辑表单和消息列表。
   Widget build(BuildContext context) {
     final isEditing = widget.initialValue != null;
 
@@ -137,7 +145,9 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog> {
                     canMoveDown: index < _messages.length - 1,
                     onRoleChanged: (role) {
                       setState(() {
-                        _messages[index] = _messages[index].copyWith(role: role);
+                        _messages[index] = _messages[index].copyWith(
+                          role: role,
+                        );
                       });
                     },
                     onMoveUp: () => _moveMessage(index, index - 1),
@@ -164,6 +174,7 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog> {
     );
   }
 
+  /// 向模板中追加一条附加消息。
   void _addMessage(PromptMessageRole role) {
     setState(() {
       _messages.add(
@@ -176,6 +187,7 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog> {
     });
   }
 
+  /// 调整附加消息的顺序。
   void _moveMessage(int from, int to) {
     setState(() {
       final message = _messages.removeAt(from);
@@ -183,6 +195,7 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog> {
     });
   }
 
+  /// 删除指定附加消息并释放对应控制器。
   void _removeMessage(int index) {
     setState(() {
       final message = _messages.removeAt(index);
@@ -190,18 +203,22 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog> {
     });
   }
 
+  /// 提交模板并过滤掉空消息。
   Future<void> _handleSubmit() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
 
-    final messages = _messages.map((message) {
-      return PromptMessage(
-        id: message.id,
-        role: message.role,
-        content: message.controller.text.trim(),
-      );
-    }).where((message) => message.content.isNotEmpty).toList(growable: false);
+    final messages = _messages
+        .map((message) {
+          return PromptMessage(
+            id: message.id,
+            role: message.role,
+            content: message.controller.text.trim(),
+          );
+        })
+        .where((message) => message.content.isNotEmpty)
+        .toList(growable: false);
 
     setState(() {
       _isSaving = true;
@@ -220,6 +237,7 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog> {
     }
   }
 
+  /// 校验必填字段是否为空。
   String? _validateRequired(String? value) {
     if (value == null || value.trim().isEmpty) {
       return '此项不能为空';
@@ -229,6 +247,7 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog> {
   }
 }
 
+/// 单条 Prompt 附加消息的编辑面板。
 class _PromptMessageEditor extends StatelessWidget {
   const _PromptMessageEditor({
     required this.index,
@@ -252,12 +271,14 @@ class _PromptMessageEditor extends StatelessWidget {
   final VoidCallback onDelete;
 
   @override
+  /// 构建消息角色、顺序和内容编辑区。
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        color: Theme.of(context).colorScheme.surfaceContainerHighest
-            .withValues(alpha: 0.4),
+        color: Theme.of(
+          context,
+        ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -287,12 +308,14 @@ class _PromptMessageEditor extends StatelessWidget {
             const SizedBox(height: 12),
             DropdownButtonFormField<PromptMessageRole>(
               initialValue: message.role,
-              items: PromptMessageRole.values.map((role) {
-                return DropdownMenuItem(
-                  value: role,
-                  child: Text(role.label),
-                );
-              }).toList(growable: false),
+              items: PromptMessageRole.values
+                  .map((role) {
+                    return DropdownMenuItem(
+                      value: role,
+                      child: Text(role.label),
+                    );
+                  })
+                  .toList(growable: false),
               onChanged: (value) {
                 if (value != null) {
                   onRoleChanged(value);
@@ -305,9 +328,7 @@ class _PromptMessageEditor extends StatelessWidget {
               controller: message.controller,
               minLines: 2,
               maxLines: 6,
-              decoration: const InputDecoration(
-                labelText: '消息内容',
-              ),
+              decoration: const InputDecoration(labelText: '消息内容'),
             ),
           ],
         ),
@@ -316,6 +337,7 @@ class _PromptMessageEditor extends StatelessWidget {
   }
 }
 
+/// 表单内使用的可编辑消息包装，持有独立控制器。
 class _EditablePromptMessage {
   const _EditablePromptMessage({
     required this.id,

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:equatable/equatable.dart';
 
+/// OpenAI 兼容模型配置。
 class LlmModelConfig extends Equatable {
   const LlmModelConfig({
     required this.id,
@@ -19,6 +20,7 @@ class LlmModelConfig extends Equatable {
   final String modelName;
   final bool supportsReasoning;
 
+  /// 复制模型配置，并允许覆盖任意字段。
   LlmModelConfig copyWith({
     String? id,
     String? displayName,
@@ -37,6 +39,7 @@ class LlmModelConfig extends Equatable {
     );
   }
 
+  /// 将模型配置序列化为 JSON。
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -48,6 +51,7 @@ class LlmModelConfig extends Equatable {
     };
   }
 
+  /// 从 JSON 反序列化模型配置。
   factory LlmModelConfig.fromJson(Map<String, dynamic> json) {
     return LlmModelConfig(
       id: json['id'] as String,
@@ -64,13 +68,6 @@ class LlmModelConfig extends Equatable {
 
   @override
   List<Object> get props {
-    return [
-      id,
-      displayName,
-      apiUrl,
-      apiKey,
-      modelName,
-      supportsReasoning,
-    ];
+    return [id, displayName, apiUrl, apiKey, modelName, supportsReasoning];
   }
 }

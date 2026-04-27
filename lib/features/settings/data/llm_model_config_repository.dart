@@ -7,17 +7,20 @@ import '../domain/models/llm_model_config.dart';
 
 const String llmModelConfigsStorageKey = 'settings.llm_model_configs';
 
+/// 模型配置的 SharedPreferences 仓库。
 final llmModelConfigRepositoryProvider = Provider<LlmModelConfigRepository>((
   ref,
 ) {
   return LlmModelConfigRepository(ref.watch(sharedPreferencesProvider));
 });
 
+/// 读取和保存 OpenAI 兼容模型配置列表。
 class LlmModelConfigRepository {
   const LlmModelConfigRepository(this._sharedPreferences);
 
   final SharedPreferences _sharedPreferences;
 
+  /// 读取全部模型配置。
   List<LlmModelConfig> loadAll() {
     final rawJson = _sharedPreferences.getString(llmModelConfigsStorageKey);
     if (rawJson == null || rawJson.isEmpty) {
@@ -25,13 +28,12 @@ class LlmModelConfigRepository {
     }
 
     return VersionedJsonStorage.decodeObjectList(
-          rawJson: rawJson,
-          subject: 'model configs',
-        )
-        .map(LlmModelConfig.fromJson)
-        .toList(growable: false);
+      rawJson: rawJson,
+      subject: 'model configs',
+    ).map(LlmModelConfig.fromJson).toList(growable: false);
   }
 
+  /// 保存全部模型配置。
   Future<void> saveAll(List<LlmModelConfig> configs) async {
     final rawJson = VersionedJsonStorage.encodeObjectList(
       items: configs,
