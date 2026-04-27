@@ -14,6 +14,13 @@ flutter build windows
 flutter build apk
 ```
 
+## Repository workflow
+
+- Prefer small, audited changes. If a feature block is complete, commit it before moving on.
+- When splitting large Dart files, use `import` / `export` boundaries instead of `part` / `part of`.
+- New comments and doc comments should use Simplified Chinese. Use `///` for doc comments and keep inline comments focused on explaining why.
+- Keep existing behavior intact unless the task explicitly asks for a behavior change.
+
 ## High-level architecture
 
 - The app boots through `lib\main.dart` -> `lib\bootstrap.dart`, where `SharedPreferences` is created once and injected through Riverpod via `sharedPreferencesProvider`.
@@ -52,4 +59,5 @@ flutter build apk
   - other compatible hosts: send `thinking: {"type":"enabled"|"disabled"}`
   - compatible-host effort values are normalized in the client before sending
 - Widget tests usually seed storage with `SharedPreferences.setMockInitialValues(...)` and inject dependencies with `ProviderScope` overrides. Prefer that pattern over adding special test-only code paths.
+- When splitting tests, keep only one runnable `*_test.dart` entrypoint per suite; move shared cases into helper files such as `*_cases.dart` so Flutter does not discover them as separate test targets.
 - This repo is being developed in small audited increments: each completed feature or fix is expected to be committed separately instead of batching unrelated work into one commit.
