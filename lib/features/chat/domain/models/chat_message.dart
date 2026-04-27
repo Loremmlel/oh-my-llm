@@ -27,6 +27,7 @@ class ChatMessage extends Equatable {
     required this.role,
     required this.content,
     required this.createdAt,
+    this.parentId,
     this.isStreaming = false,
     this.reasoningContent = '',
   });
@@ -35,6 +36,7 @@ class ChatMessage extends Equatable {
   final ChatMessageRole role;
   final String content;
   final DateTime createdAt;
+  final String? parentId;
   final bool isStreaming;
   final String reasoningContent;
 
@@ -43,6 +45,7 @@ class ChatMessage extends Equatable {
     ChatMessageRole? role,
     String? content,
     DateTime? createdAt,
+    String? parentId,
     bool? isStreaming,
     String? reasoningContent,
   }) {
@@ -51,6 +54,7 @@ class ChatMessage extends Equatable {
       role: role ?? this.role,
       content: content ?? this.content,
       createdAt: createdAt ?? this.createdAt,
+      parentId: parentId ?? this.parentId,
       isStreaming: isStreaming ?? this.isStreaming,
       reasoningContent: reasoningContent ?? this.reasoningContent,
     );
@@ -62,6 +66,7 @@ class ChatMessage extends Equatable {
       'role': role.apiValue,
       'content': content,
       'createdAt': createdAt.toIso8601String(),
+      'parentId': parentId,
       'reasoningContent': reasoningContent,
     };
   }
@@ -74,16 +79,18 @@ class ChatMessage extends Equatable {
       ),
       content: json['content'] as String,
       createdAt: DateTime.parse(json['createdAt'] as String),
+      parentId: json['parentId'] as String?,
       reasoningContent: json['reasoningContent'] as String? ?? '',
     );
   }
 
   @override
-  List<Object> get props => [
+  List<Object?> get props => [
     id,
     role,
     content,
     createdAt,
+    parentId,
     isStreaming,
     reasoningContent,
   ];
