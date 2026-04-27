@@ -29,10 +29,10 @@ flutter build apk
 - The app boots through `lib\main.dart` -> `lib\bootstrap.dart`, where `SharedPreferences` is created once and injected through Riverpod via `sharedPreferencesProvider`.
 - `lib\app\app.dart`, `lib\app\router\app_router.dart`, and `lib\app\shell\app_shell_scaffold.dart` define the global shell: GoRouter owns the three top-level screens (`chat`, `history`, `settings`), and the shell swaps between desktop `NavigationRail` and compact mobile `NavigationBar` / `endDrawer` layouts.
 - The codebase follows a feature-first split under `lib\features\...`, usually with `application`, `data`, `domain`, and `presentation` layers:
-  - `settings`: local CRUD for model configs, prompt templates, and chat defaults
+  - `settings`: local CRUD for model configs, prompt templates, fixed prompt sequences, and chat defaults
   - `chat`: conversation state, persistence, streaming client, and the main chat UI
   - `history`: grouped search / rename / batch delete UI over the same conversation state
-- Persistent state is local-first. Lightweight settings and templates still use SharedPreferences-backed JSON, while chat history now lives in SQLite through `core\persistence\app_database.dart` and `sqlite_chat_conversation_repository.dart`. `chat_defaults` is a single JSON object, not a versioned list.
+- Persistent state is local-first. Lightweight settings, prompt templates, and fixed prompt sequences still use SharedPreferences-backed JSON, while chat history now lives in SQLite through `core\persistence\app_database.dart` and `sqlite_chat_conversation_repository.dart`. `chat_defaults` is a single JSON object, not a versioned list.
 - `lib\features\chat\application\chat_sessions_controller.dart` is the center of the app. It owns:
   - active conversation selection
   - creation / rename / delete
@@ -46,6 +46,7 @@ flutter build apk
 ## Key conventions
 
 - New chat conversations inherit **default model** and **default prompt template** from settings. The chat screen no longer lets users pick them directly; those defaults are managed in `SettingsScreen`.
+- Fixed prompt sequences are **user-message-only** ordered steps for manual comparison workflows. They are configured in settings, launched from the chat composer through an independent runner dialog, and must never auto-send the whole sequence in one go.
 - Reasoning is modeled separately from answer text:
   - assistant reply text lives in `ChatMessage.content`
   - provider reasoning lives in `ChatMessage.reasoningContent`
