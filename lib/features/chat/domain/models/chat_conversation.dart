@@ -5,28 +5,46 @@ import 'package:equatable/equatable.dart';
 
 import 'chat_message.dart';
 
+const rootConversationParentId = '__root__';
+
 class ChatConversation extends Equatable {
   const ChatConversation({
     required this.id,
-    required this.messages,
+    required List<ChatMessage> messages,
     required this.createdAt,
     required this.updatedAt,
     this.title,
+    this.messageNodes = const [],
+    this.selectedChildByParentId = const {},
     this.selectedModelId,
     this.selectedPromptTemplateId,
     this.reasoningEnabled = false,
     this.reasoningEffort = ReasoningEffort.medium,
-  });
+  }) : _messages = messages;
 
   final String id;
   final String? title;
-  final List<ChatMessage> messages;
+  final List<ChatMessage> _messages;
+  final List<ChatMessage> messageNodes;
+  final Map<String, String> selectedChildByParentId;
   final DateTime createdAt;
   final DateTime updatedAt;
   final String? selectedModelId;
   final String? selectedPromptTemplateId;
   final bool reasoningEnabled;
   final ReasoningEffort reasoningEffort;
+
+  List<ChatMessage> get messages {
+    if (messageNodes.isEmpty) {
+      return _messages;
+    }
+
+    final resolvedPath = _resolveActivePath(
+      nodes: messageNodes,
+      selectedChildByParentId: selectedChildByParentId,
+    );
+    return resolvedPath.isEmpty ? _messages : resolvedPath;
+  }
 
   bool get hasMessages => messages.isNotEmpty;
 
@@ -51,6 +69,8 @@ class ChatConversation extends Equatable {
     String? id,
     String? title,
     List<ChatMessage>? messages,
+    List<ChatMessage>? messageNodes,
+    Map<String, String>? selectedChildByParentId,
     DateTime? createdAt,
     DateTime? updatedAt,
     String? selectedModelId,
@@ -64,6 +84,9 @@ class ChatConversation extends Equatable {
       id: id ?? this.id,
       title: title ?? this.title,
       messages: messages ?? this.messages,
+      messageNodes: messageNodes ?? this.messageNodes,
+      selectedChildByParentId:
+          selectedChildByParentId ?? this.selectedChildByParentId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       selectedModelId: clearSelectedModelId
@@ -78,10 +101,19 @@ class ChatConversation extends Equatable {
   }
 
   Map<String, dynamic> toJson() {
+    final effectiveNodes = messageNodes.isEmpty
+        ? _buildLinearMessageNodes(_messages)
+        : messageNodes;
+    final effectiveSelections = messageNodes.isEmpty
+        ? _buildLinearSelections(effectiveNodes)
+        : selectedChildByParentId;
+
     return {
       'id': id,
       'title': title,
       'messages': messages.map((message) => message.toJson()).toList(),
+      'messageNodes': effectiveNodes.map((message) => message.toJson()).toList(),
+      'selectedChildByParentId': effectiveSelections,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
       'selectedModelId': selectedModelId,
@@ -93,17 +125,38 @@ class ChatConversation extends Equatable {
 
   factory ChatConversation.fromJson(Map<String, dynamic> json) {
     final rawMessages = json['messages'] as List<dynamic>? ?? const [];
+    final rawMessageNodes = json['messageNodes'] as List<dynamic>? ?? const [];
+    final rawSelections =
+        json['selectedChildByParentId'] as Map<String, dynamic>? ?? const {};
+    final parsedMessages = rawMessages
+        .map((message) {
+          return ChatMessage.fromJson(
+            Map<String, dynamic>.from(message as Map),
+          );
+        })
+        .toList(growable: false);
+    final parsedMessageNodes = rawMessageNodes
+        .map((message) {
+          return ChatMessage.fromJson(
+            Map<String, dynamic>.from(message as Map),
+          );
+        })
+        .toList(growable: false);
+
+    final hasTreeData = parsedMessageNodes.isNotEmpty;
+    final effectiveNodes = hasTreeData
+        ? parsedMessageNodes
+        : _buildLinearMessageNodes(parsedMessages);
+    final effectiveSelections = hasTreeData
+        ? rawSelections.map((key, value) => MapEntry(key, value as String))
+        : _buildLinearSelections(effectiveNodes);
 
     return ChatConversation(
       id: json['id'] as String,
       title: json['title'] as String?,
-      messages: rawMessages
-          .map((message) {
-            return ChatMessage.fromJson(
-              Map<String, dynamic>.from(message as Map),
-            );
-          })
-          .toList(growable: false),
+      messages: parsedMessages,
+      messageNodes: effectiveNodes,
+      selectedChildByParentId: effectiveSelections,
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
       selectedModelId: json['selectedModelId'] as String?,
@@ -119,11 +172,77 @@ class ChatConversation extends Equatable {
   @override
   String toString() => jsonEncode(toJson());
 
+  static List<ChatMessage> _resolveActivePath({
+    required List<ChatMessage> nodes,
+    required Map<String, String> selectedChildByParentId,
+  }) {
+    if (nodes.isEmpty) {
+      return const [];
+    }
+
+    final childrenByParent = <String, List<ChatMessage>>{};
+    for (final node in nodes) {
+      final parentId = node.parentId ?? rootConversationParentId;
+      childrenByParent.putIfAbsent(parentId, () => <ChatMessage>[]).add(node);
+    }
+
+    final path = <ChatMessage>[];
+    var parentId = rootConversationParentId;
+    while (true) {
+      final siblings = childrenByParent[parentId];
+      if (siblings == null || siblings.isEmpty) {
+        break;
+      }
+
+      final selectedChildId = selectedChildByParentId[parentId];
+      final selectedNode =
+          siblings
+              .where((node) => node.id == selectedChildId)
+              .firstOrNull ??
+          siblings.first;
+      path.add(selectedNode);
+      parentId = selectedNode.id;
+    }
+
+    return List.unmodifiable(path);
+  }
+
+  static List<ChatMessage> _buildLinearMessageNodes(List<ChatMessage> messages) {
+    if (messages.isEmpty) {
+      return const [];
+    }
+
+    String parentId = rootConversationParentId;
+    final nodes = messages.map((message) {
+      final next = message.copyWith(parentId: parentId);
+      parentId = next.id;
+      return next;
+    }).toList(growable: false);
+    return List.unmodifiable(nodes);
+  }
+
+  static Map<String, String> _buildLinearSelections(List<ChatMessage> nodes) {
+    if (nodes.isEmpty) {
+      return const {};
+    }
+
+    final selections = <String, String>{};
+    for (final node in nodes) {
+      final parentId = node.parentId ?? rootConversationParentId;
+      selections[parentId] = node.id;
+    }
+    return Map.unmodifiable(selections);
+  }
+
   @override
   List<Object?> get props => [
         id,
         title,
         messages,
+        messageNodes,
+        selectedChildByParentId.entries
+            .map((entry) => '${entry.key}:${entry.value}')
+            .toList(growable: false),
         createdAt,
         updatedAt,
         selectedModelId,
