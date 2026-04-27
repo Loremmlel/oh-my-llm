@@ -1,26 +1,26 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/persistence/versioned_json_storage.dart';
-import '../../../core/persistence/shared_preferences_provider.dart';
 import '../domain/models/prompt_template.dart';
+import 'sqlite_prompt_template_repository.dart';
 
+export 'sqlite_prompt_template_repository.dart'
+    show SqlitePromptTemplateRepository, promptTemplateRepositoryProvider;
+
+/// SharedPreferences 中旧版 Prompt 模板数据的键名，仅供迁移时使用。
 const String promptTemplatesStorageKey = 'settings.prompt_templates';
 
-/// Prompt 模板的 SharedPreferences 仓库。
-final promptTemplateRepositoryProvider = Provider<PromptTemplateRepository>((
-  ref,
-) {
-  return PromptTemplateRepository(ref.watch(sharedPreferencesProvider));
-});
-
-/// 读取和保存 Prompt 模板列表。
-class PromptTemplateRepository {
-  const PromptTemplateRepository(this._sharedPreferences);
+/// 旧版 SharedPreferences Prompt 模板仓库，仅供一次性数据迁移使用。
+///
+/// 正式读写请使用 [promptTemplateRepositoryProvider] 对应的
+/// [SqlitePromptTemplateRepository]。
+class LegacyPromptTemplateRepository {
+  const LegacyPromptTemplateRepository(this._sharedPreferences);
 
   final SharedPreferences _sharedPreferences;
 
-  /// 读取全部 Prompt 模板。
+  /// 从 SharedPreferences 读取旧版全部 Prompt 模板。
   List<PromptTemplate> loadAll() {
     final rawJson = _sharedPreferences.getString(promptTemplatesStorageKey);
     if (rawJson == null || rawJson.isEmpty) {
@@ -32,13 +32,20 @@ class PromptTemplateRepository {
       subject: 'prompt templates',
     ).map(PromptTemplate.fromJson).toList(growable: false);
   }
-
-  /// 保存全部 Prompt 模板。
-  Future<void> saveAll(List<PromptTemplate> templates) async {
-    final rawJson = VersionedJsonStorage.encodeObjectList(
-      items: templates,
-      toJson: (template) => template.toJson(),
-    );
-    await _sharedPreferences.setString(promptTemplatesStorageKey, rawJson);
-  }
 }
+
+/// 仅供测试使用：通过 SharedPreferences 保存 Prompt 模板（用于迁移路径测试）。
+///
+/// 生产代码不应调用此方法，数据写入应通过 [SqlitePromptTemplateRepository.saveAll]。
+@visibleForTesting
+Future<void> saveLegacyPromptTemplatesForTest(
+  SharedPreferences preferences,
+  List<PromptTemplate> templates,
+) async {
+  final rawJson = VersionedJsonStorage.encodeObjectList(
+    items: templates,
+    toJson: (t) => t.toJson(),
+  );
+  await preferences.setString(promptTemplatesStorageKey, rawJson);
+}
+

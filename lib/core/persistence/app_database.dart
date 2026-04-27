@@ -54,10 +54,17 @@ class AppDatabase {
     final currentVersion =
         _connection.select('PRAGMA user_version;').single['user_version']
             as int;
-    if (currentVersion >= 1) {
-      return;
-    }
 
+    if (currentVersion < 1) {
+      _migrateV1();
+    }
+    if (currentVersion < 2) {
+      _migrateV2();
+    }
+  }
+
+  /// 初始 schema：聊天记录相关表。
+  void _migrateV1() {
     _connection.execute('''
       CREATE TABLE IF NOT EXISTS conversations (
         id TEXT PRIMARY KEY,
@@ -105,5 +112,30 @@ class AppDatabase {
       ON messages(conversation_id, parent_id);
     ''');
     _connection.execute('PRAGMA user_version = 1;');
+  }
+
+  /// 新增 Prompt 模板和固定顺序提示词序列表。
+  ///
+  /// 子项（messages / steps）以 JSON 数组字符串存储，因为它们始终作为整体读写，
+  /// 无需按子项单独查询。
+  void _migrateV2() {
+    _connection.execute('''
+      CREATE TABLE IF NOT EXISTS prompt_templates (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        system_prompt TEXT NOT NULL DEFAULT '',
+        messages_json TEXT NOT NULL DEFAULT '[]',
+        updated_at TEXT NOT NULL
+      );
+    ''');
+    _connection.execute('''
+      CREATE TABLE IF NOT EXISTS fixed_prompt_sequences (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        steps_json TEXT NOT NULL DEFAULT '[]',
+        updated_at TEXT NOT NULL
+      );
+    ''');
+    _connection.execute('PRAGMA user_version = 2;');
   }
 }

@@ -1,10 +1,7 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:oh_my_llm/core/persistence/versioned_json_storage.dart';
-import 'package:oh_my_llm/features/settings/data/fixed_prompt_sequence_repository.dart';
+import 'package:oh_my_llm/features/settings/data/sqlite_fixed_prompt_sequence_repository.dart';
 
 import 'settings_screen_test_helpers.dart';
 
@@ -14,7 +11,9 @@ void registerSettingsScreenFixedPromptSequencesTests() {
     (tester) async {
       final preferences = await createEmptyPreferences();
 
-      await pumpSettingsScreen(tester, preferences: preferences);
+      // 接收数据库实例以便查询 SQLite 断言。
+      final database = await pumpSettingsScreen(tester, preferences: preferences);
+      final repo = SqliteFixedPromptSequenceRepository(database);
 
       expect(find.text('还没有固定顺序提示词'), findsOneWidget);
 
@@ -38,10 +37,7 @@ void registerSettingsScreenFixedPromptSequencesTests() {
       await tester.pumpAndSettle();
 
       expect(find.text('对比测试流程'), findsWidgets);
-      expect(
-        preferences.getString(fixedPromptSequencesStorageKey),
-        contains('对比测试流程'),
-      );
+      expect(repo.loadAll().any((s) => s.name == '对比测试流程'), isTrue);
       expect(find.textContaining('共 2 步'), findsOneWidget);
 
       await tester.drag(find.byType(ListView), const Offset(0, -600));
@@ -55,23 +51,14 @@ void registerSettingsScreenFixedPromptSequencesTests() {
       await tester.pumpAndSettle();
 
       expect(find.text('对比测试流程 v2'), findsWidgets);
-      expect(
-        preferences.getString(fixedPromptSequencesStorageKey),
-        contains('对比测试流程 v2'),
-      );
+      expect(repo.loadAll().any((s) => s.name == '对比测试流程 v2'), isTrue);
 
       final deleteButton = find.widgetWithText(OutlinedButton, '删除').last;
       await tester.tap(deleteButton);
       await tester.pumpAndSettle();
 
       expect(find.text('还没有固定顺序提示词'), findsOneWidget);
-      expect(
-        jsonDecode(preferences.getString(fixedPromptSequencesStorageKey)!),
-        {
-          'version': VersionedJsonStorage.currentSchemaVersion,
-          'items': const [],
-        },
-      );
+      expect(repo.loadAll(), isEmpty);
     },
   );
 }
