@@ -7,6 +7,7 @@ import '../../domain/models/prompt_template.dart';
 
 const String noPromptTemplateValue = '__no_prompt_template__';
 
+/// 聊天默认项设置区，用于选择默认模型和默认 Prompt。
 class ChatDefaultsSection extends ConsumerWidget {
   const ChatDefaultsSection({
     required this.modelConfigs,
@@ -22,6 +23,7 @@ class ChatDefaultsSection extends ConsumerWidget {
   final String? defaultPromptTemplateId;
 
   @override
+  /// 构建默认模型和默认 Prompt 的两个下拉选择器。
   Widget build(BuildContext context, WidgetRef ref) {
     final resolvedModelId =
         modelConfigs.any((config) {

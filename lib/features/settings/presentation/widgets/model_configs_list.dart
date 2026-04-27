@@ -6,6 +6,7 @@ import '../../application/llm_model_configs_controller.dart';
 import '../../domain/models/llm_model_config.dart';
 import 'settings_empty_state.dart';
 
+/// 模型配置列表，负责展示、编辑和删除单个配置。
 class ModelConfigsList extends ConsumerWidget {
   const ModelConfigsList({
     required this.configs,
@@ -17,6 +18,7 @@ class ModelConfigsList extends ConsumerWidget {
   final ValueChanged<LlmModelConfig> onEditRequested;
 
   @override
+  /// 构建模型列表；空列表时显示空状态提示。
   Widget build(BuildContext context, WidgetRef ref) {
     if (configs.isEmpty) {
       return const SettingsEmptyState(
@@ -41,6 +43,7 @@ class ModelConfigsList extends ConsumerWidget {
   }
 }
 
+/// 单个模型配置卡片。
 class _ModelConfigTile extends ConsumerWidget {
   const _ModelConfigTile({required this.config, required this.onEditRequested});
 
@@ -48,6 +51,7 @@ class _ModelConfigTile extends ConsumerWidget {
   final ValueChanged<LlmModelConfig> onEditRequested;
 
   @override
+  /// 构建模型配置详情和操作按钮。
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
 
@@ -121,6 +125,7 @@ class _ModelConfigTile extends ConsumerWidget {
     );
   }
 
+  /// 把 API Key 截断为适合展示的掩码文本。
   String _maskApiKey(String apiKey) {
     final trimmed = apiKey.trim();
     if (trimmed.length <= 8) {

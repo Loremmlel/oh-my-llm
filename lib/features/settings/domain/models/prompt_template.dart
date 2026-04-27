@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:equatable/equatable.dart';
 
+/// Prompt 模板中附加消息的发送角色。
 enum PromptMessageRole {
   user('user'),
   assistant('assistant');
@@ -10,11 +11,13 @@ enum PromptMessageRole {
 
   final String apiValue;
 
+  /// 返回更适合界面展示的角色标签。
   String get label => switch (this) {
-        PromptMessageRole.user => 'User',
-        PromptMessageRole.assistant => 'Assistant',
-      };
+    PromptMessageRole.user => 'User',
+    PromptMessageRole.assistant => 'Assistant',
+  };
 
+  /// 从 API 字符串值解析角色枚举。
   static PromptMessageRole fromApiValue(String value) {
     return PromptMessageRole.values.firstWhere(
       (role) => role.apiValue == value,
@@ -22,6 +25,7 @@ enum PromptMessageRole {
   }
 }
 
+/// Prompt 模板中的一条附加消息。
 class PromptMessage extends Equatable {
   const PromptMessage({
     required this.id,
@@ -33,6 +37,7 @@ class PromptMessage extends Equatable {
   final PromptMessageRole role;
   final String content;
 
+  /// 复制消息，并允许覆盖常用字段。
   PromptMessage copyWith({
     String? id,
     PromptMessageRole? role,
@@ -45,14 +50,12 @@ class PromptMessage extends Equatable {
     );
   }
 
+  /// 将消息序列化为 JSON。
   Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'role': role.apiValue,
-      'content': content,
-    };
+    return {'id': id, 'role': role.apiValue, 'content': content};
   }
 
+  /// 从 JSON 反序列化消息。
   factory PromptMessage.fromJson(Map<String, dynamic> json) {
     return PromptMessage(
       id: json['id'] as String,
@@ -65,6 +68,7 @@ class PromptMessage extends Equatable {
   List<Object> get props => [id, role, content];
 }
 
+/// 可复用的 Prompt 模板，包含 system 指令和附加消息。
 class PromptTemplate extends Equatable {
   const PromptTemplate({
     required this.id,
@@ -80,6 +84,7 @@ class PromptTemplate extends Equatable {
   final List<PromptMessage> messages;
   final DateTime updatedAt;
 
+  /// 复制模板，并允许覆盖标题、指令、消息和更新时间。
   PromptTemplate copyWith({
     String? id,
     String? name,
@@ -96,6 +101,7 @@ class PromptTemplate extends Equatable {
     );
   }
 
+  /// 将模板序列化为 JSON。
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -106,6 +112,7 @@ class PromptTemplate extends Equatable {
     };
   }
 
+  /// 从 JSON 反序列化模板。
   factory PromptTemplate.fromJson(Map<String, dynamic> json) {
     final rawMessages = json['messages'] as List<dynamic>? ?? const [];
 
@@ -114,12 +121,16 @@ class PromptTemplate extends Equatable {
       name: json['name'] as String,
       systemPrompt: json['systemPrompt'] as String,
       messages: rawMessages
-          .map((item) => PromptMessage.fromJson(Map<String, dynamic>.from(item as Map)))
+          .map(
+            (item) =>
+                PromptMessage.fromJson(Map<String, dynamic>.from(item as Map)),
+          )
           .toList(growable: false),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
     );
   }
 
+  /// 返回模板内容的摘要，便于列表页快速浏览。
   String get summary {
     if (messages.isEmpty) {
       return '仅包含 system 指令';

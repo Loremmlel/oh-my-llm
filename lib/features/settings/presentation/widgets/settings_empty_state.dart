@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+/// 设置页中的空状态提示组件。
 class SettingsEmptyState extends StatelessWidget {
   const SettingsEmptyState({
     required this.icon,
@@ -13,6 +14,7 @@ class SettingsEmptyState extends StatelessWidget {
   final String description;
 
   @override
+  /// 构建图标、标题和说明组成的空状态视图。
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 

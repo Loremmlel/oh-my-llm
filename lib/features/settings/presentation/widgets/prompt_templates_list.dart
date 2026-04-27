@@ -6,6 +6,7 @@ import '../../application/prompt_templates_controller.dart';
 import '../../domain/models/prompt_template.dart';
 import 'settings_empty_state.dart';
 
+/// Prompt 模板列表，负责展示、编辑和删除模板。
 class PromptTemplatesList extends ConsumerWidget {
   const PromptTemplatesList({
     required this.templates,
@@ -17,6 +18,7 @@ class PromptTemplatesList extends ConsumerWidget {
   final ValueChanged<PromptTemplate> onEditRequested;
 
   @override
+  /// 构建模板列表；空列表时显示空状态提示。
   Widget build(BuildContext context, WidgetRef ref) {
     if (templates.isEmpty) {
       return const SettingsEmptyState(
@@ -41,6 +43,7 @@ class PromptTemplatesList extends ConsumerWidget {
   }
 }
 
+/// 单个 Prompt 模板卡片。
 class _PromptTemplateTile extends ConsumerWidget {
   const _PromptTemplateTile({
     required this.template,
@@ -51,6 +54,7 @@ class _PromptTemplateTile extends ConsumerWidget {
   final ValueChanged<PromptTemplate> onEditRequested;
 
   @override
+  /// 构建模板摘要、附加消息预览和操作按钮。
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
 
@@ -120,6 +124,7 @@ class _PromptTemplateTile extends ConsumerWidget {
     );
   }
 
+  /// 把长文本截断为适合列表显示的摘要。
   String _summarize(String content) {
     final normalized = content.trim().replaceAll('\n', ' ');
     if (normalized.length <= 30) {

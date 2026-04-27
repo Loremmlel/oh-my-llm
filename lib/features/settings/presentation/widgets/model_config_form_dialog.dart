@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../domain/models/llm_model_config.dart';
 
+/// 模型配置表单提交数据。
 class ModelConfigFormData {
   const ModelConfigFormData({
     required this.displayName,
@@ -18,6 +19,7 @@ class ModelConfigFormData {
   final bool supportsReasoning;
 }
 
+/// 新增或编辑模型配置的对话框。
 class ModelConfigFormDialog extends StatefulWidget {
   const ModelConfigFormDialog({
     required this.onSubmit,
@@ -32,6 +34,7 @@ class ModelConfigFormDialog extends StatefulWidget {
   State<ModelConfigFormDialog> createState() => _ModelConfigFormDialogState();
 }
 
+/// 模型配置表单的输入状态。
 class _ModelConfigFormDialogState extends State<ModelConfigFormDialog> {
   final _formKey = GlobalKey<FormState>();
 
@@ -71,6 +74,7 @@ class _ModelConfigFormDialogState extends State<ModelConfigFormDialog> {
   }
 
   @override
+  /// 构建模型配置表单和保存按钮。
   Widget build(BuildContext context) {
     final isEditing = widget.initialValue != null;
 
@@ -105,9 +109,7 @@ class _ModelConfigFormDialogState extends State<ModelConfigFormDialog> {
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _apiKeyController,
-                  decoration: const InputDecoration(
-                    labelText: 'API Key',
-                  ),
+                  decoration: const InputDecoration(labelText: 'API Key'),
                   obscureText: true,
                   validator: _validateRequired,
                 ),
@@ -150,6 +152,7 @@ class _ModelConfigFormDialogState extends State<ModelConfigFormDialog> {
     );
   }
 
+  /// 提交表单并在成功后关闭对话框。
   Future<void> _handleSubmit() async {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -174,6 +177,7 @@ class _ModelConfigFormDialogState extends State<ModelConfigFormDialog> {
     }
   }
 
+  /// 校验必填字段是否为空。
   String? _validateRequired(String? value) {
     if (value == null || value.trim().isEmpty) {
       return '此项不能为空';
@@ -182,6 +186,7 @@ class _ModelConfigFormDialogState extends State<ModelConfigFormDialog> {
     return null;
   }
 
+  /// 校验输入是否为合法 URL。
   String? _validateUrl(String? value) {
     final requiredError = _validateRequired(value);
     if (requiredError != null) {
