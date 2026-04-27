@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import '../../../app/navigation/app_destination.dart';
 import '../../../app/shell/app_shell_scaffold.dart';
@@ -26,31 +27,35 @@ class ChatScreen extends ConsumerStatefulWidget {
 /// 聊天页状态层，处理滚动同步、锚点定位和编辑弹窗等页面级交互。
 class _ChatScreenState extends ConsumerState<ChatScreen> {
   late final TextEditingController _messageController;
-  late final ScrollController _messageScrollController;
-  final GlobalKey _messagesViewportKey = GlobalKey();
-
-  final Map<String, GlobalKey> _messageKeys = <String, GlobalKey>{};
+  final ItemScrollController _messageItemScrollController =
+      ItemScrollController();
+  final ItemPositionsListener _messageItemPositionsListener =
+      ItemPositionsListener.create();
 
   bool _showScrollToBottom = false;
-  bool _anchorRefreshQueued = false;
   String? _lastConversationId;
   String? _lastRenderSignature;
   String? _activeAnchorMessageId;
+  List<ChatMessage> _latestMessages = const <ChatMessage>[];
+  List<ChatMessage> _latestUserMessages = const <ChatMessage>[];
+  List<int> _latestUserMessageIndexes = const <int>[];
+  Map<String, int> _latestMessageIndexById = const <String, int>{};
 
   @override
   void initState() {
     super.initState();
     _messageController = TextEditingController();
-    _messageScrollController = ScrollController()
-      ..addListener(_handleMessageScrollChanged);
+    _messageItemPositionsListener.itemPositions.addListener(
+      _handleVisibleItemsChanged,
+    );
   }
 
   @override
   void dispose() {
     _messageController.dispose();
-    _messageScrollController
-      ..removeListener(_handleMessageScrollChanged)
-      ..dispose();
+    _messageItemPositionsListener.itemPositions.removeListener(
+      _handleVisibleItemsChanged,
+    );
     super.dispose();
   }
 
@@ -83,6 +88,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           return message.role == ChatMessageRole.user;
         })
         .toList(growable: false);
+    _cacheVisibleMessageMetadata(activeMessages, userMessages);
 
     _scheduleScrollSync(
       conversationId: conversation.id,
@@ -167,9 +173,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     userMessages: userMessages,
                     activeAnchorMessageId: _activeAnchorMessageId,
                     messageController: _messageController,
-                    messageScrollController: _messageScrollController,
-                    messagesViewportKey: _messagesViewportKey,
-                    messageKeys: _messageKeys,
+                    messageItemScrollController: _messageItemScrollController,
+                    messageItemPositionsListener: _messageItemPositionsListener,
                     reasoningEnabled:
                         supportsReasoning && conversation.reasoningEnabled,
                     reasoningEffort: conversation.reasoningEffort,
@@ -364,9 +369,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         _scrollToBottom(jump: true);
       });
     } else if (_lastRenderSignature != signature) {
-      final shouldAutoScroll = _isNearBottom();
+      final shouldAutoScroll = !_showScrollToBottom;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !_messageScrollController.hasClients) {
+        if (!mounted) {
           return;
         }
         if (shouldAutoScroll) {
@@ -378,167 +383,148 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _lastRenderSignature = signature;
   }
 
-  /// 监听消息列表滚动状态，决定是否显示“滚动到底部”按钮。
-  void _handleMessageScrollChanged() {
-    final shouldShow = !_isNearBottom();
-    if (shouldShow == _showScrollToBottom) {
-      _scheduleAnchorRefresh();
-    } else {
-      setState(() {
-        _showScrollToBottom = shouldShow;
-      });
-      _scheduleAnchorRefresh();
-    }
-  }
-
-  /// 判断当前滚动位置是否已经接近底部。
-  bool _isNearBottom() {
-    if (!_messageScrollController.hasClients) {
-      return true;
-    }
-
-    final position = _messageScrollController.position;
-    return position.maxScrollExtent - position.pixels < 120;
+  /// 缓存当前可见列表所需的索引信息，避免滚动监听里重复全量计算。
+  void _cacheVisibleMessageMetadata(
+    List<ChatMessage> messages,
+    List<ChatMessage> userMessages,
+  ) {
+    _latestMessages = messages;
+    _latestUserMessages = userMessages;
+    _latestMessageIndexById = <String, int>{
+      for (var index = 0; index < messages.length; index += 1)
+        messages[index].id: index,
+    };
+    _latestUserMessageIndexes = <int>[
+      for (var index = 0; index < messages.length; index += 1)
+        if (messages[index].role == ChatMessageRole.user) index,
+    ];
   }
 
   /// 滚动到消息列表底部；可选择直接跳转或平滑动画。
   Future<void> _scrollToBottom({bool jump = false}) async {
-    if (!_messageScrollController.hasClients) {
+    if (_latestMessages.isEmpty || !_messageItemScrollController.isAttached) {
       return;
     }
 
-    final target = _messageScrollController.position.maxScrollExtent;
+    final targetIndex = _latestMessages.length - 1;
     if (jump) {
-      _messageScrollController.jumpTo(target);
-      _scheduleAnchorRefresh();
+      _messageItemScrollController.jumpTo(index: targetIndex, alignment: 1);
       return;
     }
 
-    await _messageScrollController.animateTo(
-      target,
+    await _messageItemScrollController.scrollTo(
+      index: targetIndex,
+      alignment: 1,
       duration: const Duration(milliseconds: 240),
       curve: Curves.easeOut,
     );
-    _scheduleAnchorRefresh();
   }
 
   /// 滚动到某条指定消息，并刷新当前激活锚点。
   Future<void> _scrollToMessage(String messageId) async {
-    final targetContext = _messageKeys[messageId]?.currentContext;
-    if (targetContext == null) {
+    final targetIndex = _latestMessageIndexById[messageId];
+    if (targetIndex == null || !_messageItemScrollController.isAttached) {
       return;
     }
 
-    await Scrollable.ensureVisible(
-      targetContext,
+    await _messageItemScrollController.scrollTo(
+      index: targetIndex,
       duration: const Duration(milliseconds: 240),
       curve: Curves.easeOutCubic,
       alignment: 0.12,
     );
-    _scheduleAnchorRefresh();
   }
 
-  /// 合并多次滚动后的锚点刷新请求，避免一帧里重复计算。
-  void _scheduleAnchorRefresh() {
-    if (_anchorRefreshQueued) {
-      return;
-    }
-
-    _anchorRefreshQueued = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _anchorRefreshQueued = false;
-      _refreshActiveAnchor();
-    });
-  }
-
-  /// 根据当前视口位置重新计算激活的用户消息锚点。
-  void _refreshActiveAnchor() {
+  /// 根据当前可见项更新“滚到底部”按钮和激活锚点。
+  void _handleVisibleItemsChanged() {
     if (!mounted) {
       return;
     }
 
-    final viewportContext = _messagesViewportKey.currentContext;
-    final viewportRenderObject = viewportContext?.findRenderObject();
-    if (viewportRenderObject is! RenderBox || !viewportRenderObject.hasSize) {
-      _setActiveAnchorMessage(null);
-      return;
-    }
+    final positions =
+        _messageItemPositionsListener.itemPositions.value
+            .where((position) {
+              return position.index >= 0 &&
+                  position.index < _latestMessages.length;
+            })
+            .toList(growable: false)
+          ..sort((left, right) => left.index.compareTo(right.index));
+    final nextShowScrollToBottom = _resolveShowScrollToBottom(positions);
+    final nextActiveAnchorMessageId = _resolveActiveAnchorMessageId(positions);
 
-    final userMessages = ref
-        .read(activeChatConversationProvider)
-        .messages
-        .where((message) => message.role == ChatMessageRole.user)
-        .toList(growable: false);
-    if (userMessages.isEmpty) {
-      _setActiveAnchorMessage(null);
-      return;
-    }
-
-    final viewportOffset = viewportRenderObject.localToGlobal(Offset.zero);
-    final viewportRect = viewportOffset & viewportRenderObject.size;
-    final viewportCenterY = viewportRect.center.dy;
-
-    String? bestVisibleMessageId;
-    var bestVisibleDistance = double.infinity;
-    String? nearestAboveMessageId;
-    var nearestAboveCenterY = double.negativeInfinity;
-    String? nearestBelowMessageId;
-    var nearestBelowCenterY = double.infinity;
-
-    for (final message in userMessages) {
-      final messageRenderObject = _messageKeys[message.id]?.currentContext
-          ?.findRenderObject();
-      if (messageRenderObject is! RenderBox ||
-          !messageRenderObject.attached ||
-          !messageRenderObject.hasSize) {
-        continue;
-      }
-
-      final messageOffset = messageRenderObject.localToGlobal(Offset.zero);
-      final messageRect = messageOffset & messageRenderObject.size;
-      final messageCenterY = messageRect.center.dy;
-      final intersectsViewport =
-          messageRect.bottom >= viewportRect.top &&
-          messageRect.top <= viewportRect.bottom;
-
-      if (intersectsViewport) {
-        final distance = (messageCenterY - viewportCenterY).abs();
-        if (distance < bestVisibleDistance) {
-          bestVisibleDistance = distance;
-          bestVisibleMessageId = message.id;
-        }
-      }
-
-      if (messageCenterY <= viewportCenterY &&
-          messageCenterY > nearestAboveCenterY) {
-        nearestAboveCenterY = messageCenterY;
-        nearestAboveMessageId = message.id;
-      }
-
-      if (messageCenterY > viewportCenterY &&
-          messageCenterY < nearestBelowCenterY) {
-        nearestBelowCenterY = messageCenterY;
-        nearestBelowMessageId = message.id;
-      }
-    }
-
-    _setActiveAnchorMessage(
-      bestVisibleMessageId ??
-          nearestAboveMessageId ??
-          nearestBelowMessageId ??
-          userMessages.first.id,
-    );
-  }
-
-  /// 更新当前激活锚点消息 ID。
-  void _setActiveAnchorMessage(String? messageId) {
-    if (_activeAnchorMessageId == messageId) {
+    if (_showScrollToBottom == nextShowScrollToBottom &&
+        _activeAnchorMessageId == nextActiveAnchorMessageId) {
       return;
     }
 
     setState(() {
-      _activeAnchorMessageId = messageId;
+      _showScrollToBottom = nextShowScrollToBottom;
+      _activeAnchorMessageId = nextActiveAnchorMessageId;
     });
+  }
+
+  /// 根据可见项判断当前是否已经接近列表底部。
+  bool _resolveShowScrollToBottom(List<ItemPosition> positions) {
+    if (_latestMessages.isEmpty || positions.isEmpty) {
+      return false;
+    }
+
+    final lastVisiblePosition = positions.where((position) {
+      return position.index == _latestMessages.length - 1;
+    }).firstOrNull;
+    if (lastVisiblePosition == null) {
+      return true;
+    }
+
+    return lastVisiblePosition.itemTrailingEdge > 1.1;
+  }
+
+  /// 根据当前可见消息位置推导出最合适的用户消息锚点。
+  String? _resolveActiveAnchorMessageId(List<ItemPosition> positions) {
+    if (_latestUserMessages.isEmpty || positions.isEmpty) {
+      return null;
+    }
+
+    var bestVisibleAnchorId = '';
+    var bestVisibleDistance = double.infinity;
+
+    for (final position in positions) {
+      final message = _latestMessages[position.index];
+      if (message.role != ChatMessageRole.user) {
+        continue;
+      }
+
+      final center = (position.itemLeadingEdge + position.itemTrailingEdge) / 2;
+      final distance = (center - 0.5).abs();
+      if (distance < bestVisibleDistance) {
+        bestVisibleDistance = distance;
+        bestVisibleAnchorId = message.id;
+      }
+    }
+
+    if (bestVisibleAnchorId.isNotEmpty) {
+      return bestVisibleAnchorId;
+    }
+
+    final firstVisibleIndex = positions.first.index;
+    final lastVisibleIndex = positions.last.index;
+    final nearestAboveIndex = _latestUserMessageIndexes.lastWhere(
+      (index) => index <= firstVisibleIndex,
+      orElse: () => -1,
+    );
+    if (nearestAboveIndex >= 0) {
+      return _latestMessages[nearestAboveIndex].id;
+    }
+
+    final nearestBelowIndex = _latestUserMessageIndexes.firstWhere(
+      (index) => index >= lastVisibleIndex,
+      orElse: () => -1,
+    );
+    if (nearestBelowIndex >= 0) {
+      return _latestMessages[nearestBelowIndex].id;
+    }
+
+    return _latestUserMessages.first.id;
   }
 
   /// 弹出消息编辑对话框并把修改后的内容交给控制器重算。
