@@ -34,6 +34,21 @@ class LlmModelConfigsController extends Notifier<List<LlmModelConfig>> {
     await _repository.saveAll(state);
   }
 
+  /// 批量新增或更新多个模型配置，一次性刷新状态。
+  Future<void> upsertAll(List<LlmModelConfig> configs) async {
+    final updated = [...state];
+    for (final config in configs) {
+      final i = updated.indexWhere((c) => c.id == config.id);
+      if (i == -1) {
+        updated.add(config);
+      } else {
+        updated[i] = config;
+      }
+    }
+    state = _sort(updated);
+    await _repository.saveAll(state);
+  }
+
   /// 按 id 删除一个模型配置。
   Future<void> deleteById(String id) async {
     state = state.where((config) => config.id != id).toList(growable: false);

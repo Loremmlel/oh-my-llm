@@ -255,6 +255,12 @@ class ChatWorkspace extends StatelessWidget {
   }
 
   /// 构建消息输入区、思考开关和发送按钮。
+  ///
+  /// 宽度 < 520 时改为双行布局：
+  ///   - 第一行：思考开关 + 思考强度选择（各占 Expanded，无横向滚动）
+  ///   - 第二行：固定顺序提示词按钮 + 发送按钮（右对齐）
+  ///
+  /// 宽度 >= 520 时保持单行布局，思考控件区横向可滚动。
   Widget _buildComposerCard(ThemeData theme) {
     return Card(
       child: Padding(
@@ -274,54 +280,87 @@ class ChatWorkspace extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        ThinkingToggle(
-                          enabled: supportsReasoning,
-                          value: supportsReasoning && reasoningEnabled,
-                          onChanged: onReasoningEnabledChanged,
-                        ),
-                        const SizedBox(width: 8),
-                        SizedBox(
-                          width: 132,
-                          child: _buildReasoningEffortSelector(compact: true),
-                        ),
-                        const SizedBox(width: 8),
-                      ],
+            LayoutBuilder(
+              builder: (context, constraints) {
+                // 宽度不足以在单行内舒适展示所有控件时，切换为双行布局
+                const twoRowThreshold = 520.0;
+                final isCompact = constraints.maxWidth < twoRowThreshold;
+
+                if (isCompact) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildThinkingControlsRow(),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: _buildActionButtons(),
+                      ),
+                    ],
+                  );
+                }
+
+                return Row(
+                  children: [
+                    Expanded(
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: _buildThinkingControlsRow(),
+                      ),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton.outlined(
-                  onPressed: onOpenFixedPromptSequenceRunner,
-                  tooltip: '固定顺序提示词',
-                  icon: const Icon(Icons.playlist_play_rounded),
-                ),
-                const SizedBox(width: 8),
-                FilledButton.icon(
-                  onPressed: !hasModels || isStreaming
-                      ? null
-                      : () {
-                          onSendPressed?.call();
-                        },
-                  icon: Icon(
-                    isStreaming
-                        ? Icons.hourglass_top_rounded
-                        : Icons.send_rounded,
-                  ),
-                  label: Text(isStreaming ? '生成中' : '发送'),
-                ),
-              ],
+                    const SizedBox(width: 8),
+                    ..._buildActionButtons(),
+                  ],
+                );
+              },
             ),
           ],
         ),
       ),
     );
+  }
+
+  /// 构建思考开关和思考强度选择器组成的横向控件行。
+  Widget _buildThinkingControlsRow() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ThinkingToggle(
+          enabled: supportsReasoning,
+          value: supportsReasoning && reasoningEnabled,
+          onChanged: onReasoningEnabledChanged,
+        ),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 132,
+          child: _buildReasoningEffortSelector(compact: true),
+        ),
+        const SizedBox(width: 8),
+      ],
+    );
+  }
+
+  /// 构建固定顺序提示词按钮和发送按钮。
+  List<Widget> _buildActionButtons() {
+    return [
+      IconButton.outlined(
+        onPressed: onOpenFixedPromptSequenceRunner,
+        tooltip: '固定顺序提示词',
+        icon: const Icon(Icons.playlist_play_rounded),
+      ),
+      const SizedBox(width: 8),
+      FilledButton.icon(
+        onPressed: !hasModels || isStreaming
+            ? null
+            : () {
+                onSendPressed?.call();
+              },
+        icon: Icon(
+          isStreaming ? Icons.hourglass_top_rounded : Icons.send_rounded,
+        ),
+        label: Text(isStreaming ? '生成中' : '发送'),
+      ),
+    ];
   }
 
   /// 构建思考强度下拉框。

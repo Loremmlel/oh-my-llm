@@ -1,0 +1,36 @@
+#!/bin/sh
+# pre-commit: 每次提交前自动将 pubspec.yaml 的 patch 版本 +1。
+#
+# 安装方式：
+#   git config core.hooksPath .githooks
+#
+# 注意：该钩子会修改并暂存 pubspec.yaml，因此 patch 版本变更会随本次
+# 提交一同进入历史记录，无需手动维护版本号。
+
+PUBSPEC="pubspec.yaml"
+
+# 提取当前版本行，例如 "version: 1.2.3+4"
+CURRENT_LINE=$(grep '^version:' "$PUBSPEC" | head -1)
+CURRENT_VERSION=$(echo "$CURRENT_LINE" | sed 's/^version:[[:space:]]*//')
+
+# 拆分 semver 和 build 号
+SEMVER=$(echo "$CURRENT_VERSION" | cut -d'+' -f1)
+BUILD=$(echo "$CURRENT_VERSION" | cut -d'+' -f2)
+
+# 拆分主、次、补丁版本号
+MAJOR=$(echo "$SEMVER" | cut -d'.' -f1)
+MINOR=$(echo "$SEMVER" | cut -d'.' -f2)
+PATCH=$(echo "$SEMVER" | cut -d'.' -f3)
+
+# patch +1
+NEW_PATCH=$((PATCH + 1))
+NEW_VERSION="${MAJOR}.${MINOR}.${NEW_PATCH}+${BUILD}"
+
+# 替换 pubspec.yaml 中的版本号（兼容 GNU sed 和 macOS BSD sed）
+sed -i.bak "s/^version: .*/version: ${NEW_VERSION}/" "$PUBSPEC"
+rm -f "${PUBSPEC}.bak"
+
+# 将修改后的 pubspec.yaml 加入本次暂存区
+git add "$PUBSPEC"
+
+echo "[pre-commit] Version bumped: ${CURRENT_VERSION} -> ${NEW_VERSION}"

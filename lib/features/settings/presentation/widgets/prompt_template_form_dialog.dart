@@ -107,13 +107,14 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog> {
                   validator: _validateRequired,
                 ),
                 const SizedBox(height: 20),
-                Row(
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       '附加消息',
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
-                    const Spacer(),
+                    const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,

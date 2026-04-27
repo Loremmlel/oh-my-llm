@@ -36,6 +36,21 @@ class PromptTemplatesController extends Notifier<List<PromptTemplate>> {
     await _repository.saveAll(state);
   }
 
+  /// 批量新增或更新多个 Prompt 模板，一次性刷新状态。
+  Future<void> upsertAll(List<PromptTemplate> templates) async {
+    final updated = [...state];
+    for (final template in templates) {
+      final i = updated.indexWhere((t) => t.id == template.id);
+      if (i == -1) {
+        updated.add(template);
+      } else {
+        updated[i] = template;
+      }
+    }
+    state = _sort(updated);
+    await _repository.saveAll(state);
+  }
+
   /// 按 id 删除一个 Prompt 模板。
   Future<void> deleteById(String id) async {
     state = state
