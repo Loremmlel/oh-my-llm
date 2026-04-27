@@ -1,4 +1,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 网络访问权限（调用 LLM API 必须） -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 检查网络连接状态 -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- 访问应用私有目录文件（保存聊天记录） -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+
     <application
         android:label="oh_my_llm"
         android:name="${applicationName}"
