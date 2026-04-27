@@ -200,6 +200,35 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     );
   }
 
+  Future<void> selectMessageVersion({
+    required String parentId,
+    required String messageId,
+  }) async {
+    if (state.isStreaming) {
+      return;
+    }
+
+    final currentConversation = state.activeConversation;
+    final tree = _resolveTreeState(currentConversation);
+    final siblings = tree.nodes.where((node) {
+      return (node.parentId ?? rootConversationParentId) == parentId;
+    }).toList(growable: false);
+    final hasTarget = siblings.any((node) => node.id == messageId);
+    if (!hasTarget) {
+      return;
+    }
+
+    final nextSelections = Map<String, String>.from(tree.selections);
+    nextSelections[parentId] = messageId;
+    await _updateActiveConversation(
+      currentConversation.copyWith(
+        messageNodes: tree.nodes,
+        selectedChildByParentId: nextSelections,
+        updatedAt: DateTime.now(),
+      ),
+    );
+  }
+
   Future<void> editMessage({
     required String messageId,
     required String nextContent,

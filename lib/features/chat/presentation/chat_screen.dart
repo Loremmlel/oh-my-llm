@@ -207,10 +207,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           }
                         : null,
                     onScrollToBottomPressed: _scrollToBottom,
-                    onSelectMessage: _scrollToMessage,
-                    onSendPressed:
-                        selectedModel == null || chatState.isStreaming
-                        ? null
+                     onSelectMessage: _scrollToMessage,
+                     onSelectMessageVersion: (parentId, messageId) async {
+                       await ref
+                           .read(chatSessionsProvider.notifier)
+                           .selectMessageVersion(
+                             parentId: parentId,
+                             messageId: messageId,
+                           );
+                     },
+                     onSendPressed:
+                         selectedModel == null || chatState.isStreaming
+                         ? null
                         : () async {
                             final content = _messageController.text.trim();
                             if (content.isEmpty) {
@@ -561,6 +569,7 @@ class _ChatWorkspace extends StatelessWidget {
     required this.onReasoningEffortChanged,
     required this.onScrollToBottomPressed,
     required this.onSelectMessage,
+    required this.onSelectMessageVersion,
     required this.onSendPressed,
   });
 
@@ -585,6 +594,8 @@ class _ChatWorkspace extends StatelessWidget {
   final ValueChanged<ReasoningEffort>? onReasoningEffortChanged;
   final VoidCallback onScrollToBottomPressed;
   final ValueChanged<String> onSelectMessage;
+  final Future<void> Function(String parentId, String messageId)
+  onSelectMessageVersion;
   final Future<void> Function()? onSendPressed;
 
   @override
@@ -649,6 +660,7 @@ class _ChatWorkspace extends StatelessWidget {
         conversation.messages.lastOrNull?.role == ChatMessageRole.assistant
         ? conversation.messages.lastOrNull
         : null;
+    final versionInfoByMessageId = _buildMessageVersionInfoMap();
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -696,6 +708,17 @@ class _ChatWorkspace extends StatelessWidget {
                                     onRetryLatestAssistant();
                                   }
                                 : null,
+                            versionInfo: versionInfoByMessageId[message.id],
+                            onSwitchVersion: (targetMessageId) async {
+                              final versionInfo = versionInfoByMessageId[message.id];
+                              if (versionInfo == null) {
+                                return;
+                              }
+                              await onSelectMessageVersion(
+                                versionInfo.parentId,
+                                targetMessageId,
+                              );
+                            },
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -733,6 +756,37 @@ class _ChatWorkspace extends StatelessWidget {
         );
       },
     );
+  }
+
+  Map<String, _MessageVersionInfo> _buildMessageVersionInfoMap() {
+    if (conversation.messageNodes.isEmpty) {
+      return const {};
+    }
+
+    final siblingsByParent = <String, List<ChatMessage>>{};
+    for (final node in conversation.messageNodes) {
+      final parentId = node.parentId ?? rootConversationParentId;
+      siblingsByParent.putIfAbsent(parentId, () => <ChatMessage>[]).add(node);
+    }
+
+    final result = <String, _MessageVersionInfo>{};
+    for (final message in conversation.messages) {
+      final parentId = message.parentId ?? rootConversationParentId;
+      final siblings = siblingsByParent[parentId] ?? const <ChatMessage>[];
+      if (siblings.length <= 1) {
+        continue;
+      }
+      final index = siblings.indexWhere((item) => item.id == message.id);
+      if (index == -1) {
+        continue;
+      }
+      result[message.id] = _MessageVersionInfo(
+        parentId: parentId,
+        currentIndex: index,
+        siblings: siblings,
+      );
+    }
+    return result;
   }
 
   Widget _buildComposerCard(ThemeData theme) {
@@ -1047,6 +1101,8 @@ class _ChatMessageBubble extends StatelessWidget {
     this.canRetry = false,
     this.onEditPressed,
     this.onRetryPressed,
+    this.versionInfo,
+    this.onSwitchVersion,
   });
 
   final ChatMessage message;
@@ -1054,6 +1110,8 @@ class _ChatMessageBubble extends StatelessWidget {
   final bool canRetry;
   final VoidCallback? onEditPressed;
   final VoidCallback? onRetryPressed;
+  final _MessageVersionInfo? versionInfo;
+  final Future<void> Function(String targetMessageId)? onSwitchVersion;
 
   Future<void> _copyMessage(BuildContext context) async {
     await Clipboard.setData(ClipboardData(text: message.content));
@@ -1143,11 +1201,90 @@ class _ChatMessageBubble extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (versionInfo != null) ...[
+                  const SizedBox(height: 8),
+                  _MessageVersionNavigator(
+                    currentIndex: versionInfo!.currentIndex,
+                    total: versionInfo!.siblings.length,
+                    onPrevious: versionInfo!.currentIndex > 0
+                        ? () {
+                            onSwitchVersion?.call(
+                              versionInfo!
+                                  .siblings[versionInfo!.currentIndex - 1]
+                                  .id,
+                            );
+                          }
+                        : null,
+                    onNext:
+                        versionInfo!.currentIndex < versionInfo!.siblings.length - 1
+                        ? () {
+                            onSwitchVersion?.call(
+                              versionInfo!
+                                  .siblings[versionInfo!.currentIndex + 1]
+                                  .id,
+                            );
+                          }
+                        : null,
+                  ),
+                ],
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+class _MessageVersionInfo {
+  const _MessageVersionInfo({
+    required this.parentId,
+    required this.currentIndex,
+    required this.siblings,
+  });
+
+  final String parentId;
+  final int currentIndex;
+  final List<ChatMessage> siblings;
+}
+
+class _MessageVersionNavigator extends StatelessWidget {
+  const _MessageVersionNavigator({
+    required this.currentIndex,
+    required this.total,
+    this.onPrevious,
+    this.onNext,
+  });
+
+  final int currentIndex;
+  final int total;
+  final VoidCallback? onPrevious;
+  final VoidCallback? onNext;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          onPressed: onPrevious,
+          tooltip: '上一版本',
+          visualDensity: VisualDensity.compact,
+          icon: const Icon(Icons.chevron_left_rounded),
+        ),
+        Text(
+          '${currentIndex + 1}/$total',
+          style: theme.textTheme.labelMedium,
+        ),
+        IconButton(
+          onPressed: onNext,
+          tooltip: '下一版本',
+          visualDensity: VisualDensity.compact,
+          icon: const Icon(Icons.chevron_right_rounded),
+        ),
+      ],
     );
   }
 }
