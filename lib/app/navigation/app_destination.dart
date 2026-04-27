@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+/// 应用壳支持的顶层入口。
+///
+/// 每个入口同时提供路由路径和图标，供桌面导航栏和紧凑底部导航共享。
 enum AppDestination {
   chat(
     path: '/chat',

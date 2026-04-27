@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+/// 用于解释某个功能区域或初始化状态的紧凑卡片。
 class PlaceholderPanel extends StatelessWidget {
   const PlaceholderPanel({
     required this.title,
@@ -14,6 +15,7 @@ class PlaceholderPanel extends StatelessWidget {
   final List<String> items;
   final double? width;
 
+  /// 构建带标题与项目符号提示的说明面板。
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
