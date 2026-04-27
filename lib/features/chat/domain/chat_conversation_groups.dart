@@ -1,4 +1,5 @@
 import 'models/chat_conversation.dart';
+import 'models/chat_conversation_summary.dart';
 
 /// 历史会话分组所使用的时间桶。
 enum ConversationTimeBucket {
@@ -25,31 +26,89 @@ class ChatConversationGroup {
   final List<ChatConversation> conversations;
 }
 
+/// 按更新时间分组后的轻量会话摘要集合。
+class ChatConversationSummaryGroup {
+  const ChatConversationSummaryGroup({
+    required this.bucket,
+    required this.conversations,
+  });
+
+  final ConversationTimeBucket bucket;
+  final List<ChatConversationSummary> conversations;
+}
+
 /// 按更新时间把会话拆分到不同时间桶中。
 List<ChatConversationGroup> groupConversationsByUpdatedAt(
   List<ChatConversation> conversations, {
   DateTime? now,
 }) {
-  final referenceTime = now ?? DateTime.now();
-  final grouped = <ConversationTimeBucket, List<ChatConversation>>{};
+  final grouped = _groupItemsByUpdatedAt(
+    conversations,
+    now: now,
+    updatedAtOf: (conversation) => conversation.updatedAt,
+  );
 
-  for (final conversation in conversations) {
-    final bucket = _resolveBucket(
-      referenceTime.difference(conversation.updatedAt),
-    );
-    grouped.putIfAbsent(bucket, () => <ChatConversation>[]).add(conversation);
+  return grouped
+      .map((group) {
+        return ChatConversationGroup(
+          bucket: group.bucket,
+          conversations: group.items,
+        );
+      })
+      .toList(growable: false);
+}
+
+/// 按更新时间把会话摘要拆分到不同时间桶中。
+List<ChatConversationSummaryGroup> groupConversationSummariesByUpdatedAt(
+  List<ChatConversationSummary> conversations, {
+  DateTime? now,
+}) {
+  final grouped = _groupItemsByUpdatedAt(
+    conversations,
+    now: now,
+    updatedAtOf: (conversation) => conversation.updatedAt,
+  );
+
+  return grouped
+      .map((group) {
+        return ChatConversationSummaryGroup(
+          bucket: group.bucket,
+          conversations: group.items,
+        );
+      })
+      .toList(growable: false);
+}
+
+class _ConversationGroupItems<T> {
+  const _ConversationGroupItems({required this.bucket, required this.items});
+
+  final ConversationTimeBucket bucket;
+  final List<T> items;
+}
+
+List<_ConversationGroupItems<T>> _groupItemsByUpdatedAt<T>(
+  List<T> items, {
+  DateTime? now,
+  required DateTime Function(T item) updatedAtOf,
+}) {
+  final referenceTime = now ?? DateTime.now();
+  final grouped = <ConversationTimeBucket, List<T>>{};
+
+  for (final item in items) {
+    final bucket = _resolveBucket(referenceTime.difference(updatedAtOf(item)));
+    grouped.putIfAbsent(bucket, () => <T>[]).add(item);
   }
 
   return ConversationTimeBucket.values
       .where(grouped.containsKey)
-      .map((bucket) {
-        final bucketConversations = grouped[bucket]!
+      .map<_ConversationGroupItems<T>>((bucket) {
+        final bucketItems = grouped[bucket]!
           ..sort((left, right) {
-            return right.updatedAt.compareTo(left.updatedAt);
+            return updatedAtOf(right).compareTo(updatedAtOf(left));
           });
-        return ChatConversationGroup(
+        return _ConversationGroupItems<T>(
           bucket: bucket,
-          conversations: List.unmodifiable(bucketConversations),
+          items: List.unmodifiable(bucketItems),
         );
       })
       .toList(growable: false);

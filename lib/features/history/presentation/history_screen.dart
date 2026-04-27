@@ -5,8 +5,9 @@ import 'package:go_router/go_router.dart';
 import '../../../app/navigation/app_destination.dart';
 import '../../../app/shell/app_shell_scaffold.dart';
 import '../../chat/application/chat_sessions_controller.dart';
+import '../../chat/data/chat_conversation_repository.dart';
 import '../../chat/domain/chat_conversation_groups.dart';
-import '../../chat/domain/models/chat_conversation.dart';
+import '../../chat/domain/models/chat_conversation_summary.dart';
 import 'widgets/history_widgets.dart';
 
 /// 历史对话页入口，支持搜索、批量选择、删除和重命名。
@@ -40,17 +41,14 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   @override
   /// 构建历史页的搜索区和分组列表。
   Widget build(BuildContext context) {
-    final chatState = ref.watch(chatSessionsProvider);
-    final conversations = chatState.conversations
-        .where((conversation) {
-          return conversation.hasMessages;
-        })
-        .toList(growable: false);
-    final filteredConversations = _filterConversations(
-      conversations,
-      _searchController.text,
-    );
-    final groups = groupConversationsByUpdatedAt(filteredConversations);
+    ref.watch(chatHistoryRevisionProvider);
+    final repository = ref.read(chatConversationRepositoryProvider);
+    final searchKeyword = _searchController.text;
+    final allConversations = repository.loadHistorySummaries();
+    final filteredConversations = searchKeyword.trim().isEmpty
+        ? allConversations
+        : repository.loadHistorySummaries(keyword: searchKeyword);
+    final groups = groupConversationSummariesByUpdatedAt(filteredConversations);
 
     return AppShellScaffold(
       currentDestination: AppDestination.history,
@@ -81,7 +79,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                 HistoryToolbar(
                   searchController: _searchController,
                   selectedCount: _selectedConversationIds.length,
-                  hasConversations: conversations.isNotEmpty,
+                  hasConversations: allConversations.isNotEmpty,
                   onSearchChanged: (_) => setState(() {}),
                   onSelectAllPressed: filteredConversations.isEmpty
                       ? null
@@ -104,7 +102,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                 Expanded(
                   child: groups.isEmpty
                       ? EmptyHistoryView(
-                          hasConversations: conversations.isNotEmpty,
+                          hasConversations: allConversations.isNotEmpty,
                           searchKeyword: _searchController.text,
                         )
                       : ListView.separated(
@@ -174,36 +172,6 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     );
   }
 
-  /// 按标题和用户消息过滤历史会话。
-  List<ChatConversation> _filterConversations(
-    List<ChatConversation> conversations,
-    String keyword,
-  ) {
-    final normalizedKeyword = keyword.trim().toLowerCase();
-    if (normalizedKeyword.isEmpty) {
-      return conversations;
-    }
-
-    return conversations
-        .where((conversation) {
-          final titleMatched = conversation.resolvedTitle
-              .toLowerCase()
-              .contains(normalizedKeyword);
-          if (titleMatched) {
-            return true;
-          }
-
-          final searchableMessages = conversation.messageNodes.isNotEmpty
-              ? conversation.messageNodes
-              : conversation.messages;
-          return searchableMessages.any((message) {
-            return message.role.name == 'user' &&
-                message.content.toLowerCase().contains(normalizedKeyword);
-          });
-        })
-        .toList(growable: false);
-  }
-
   /// 切换某个会话的选中状态。
   void _toggleSelection(String conversationId) {
     setState(() {
@@ -225,7 +193,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   /// 弹出重命名对话框，并把结果提交给控制器。
   Future<void> _showRenameDialog(
     BuildContext context, {
-    required ChatConversation conversation,
+    required ChatConversationSummary conversation,
   }) async {
     final nextTitle = await showDialog<String>(
       context: context,

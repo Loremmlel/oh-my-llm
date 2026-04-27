@@ -42,6 +42,12 @@ final chatErrorMessageProvider = Provider<String?>((ref) {
   return ref.watch(chatSessionsProvider.select((state) => state.errorMessage));
 });
 
+final chatHistoryRevisionProvider = Provider<int>((ref) {
+  return ref.watch(
+    chatSessionsProvider.select((state) => state.historyRevision),
+  );
+});
+
 final activeChatConversationProvider = Provider<ChatConversation>((ref) {
   final state = ref.watch(chatSessionsProvider);
   return _applyStreamingReplyToConversation(
@@ -95,6 +101,7 @@ class ChatSessionsState extends Equatable {
     this.isStreaming = false,
     this.errorMessage,
     this.streamingReply,
+    this.historyRevision = 0,
   });
 
   final List<ChatConversation> conversations;
@@ -102,6 +109,7 @@ class ChatSessionsState extends Equatable {
   final bool isStreaming;
   final String? errorMessage;
   final ChatStreamingReply? streamingReply;
+  final int historyRevision;
 
   /// 获取当前正在展示的会话；找不到时回退到列表首项。
   ChatConversation get activeConversation {
@@ -120,6 +128,8 @@ class ChatSessionsState extends Equatable {
     bool clearErrorMessage = false,
     ChatStreamingReply? streamingReply,
     bool clearStreamingReply = false,
+    int? historyRevision,
+    bool incrementHistoryRevision = false,
   }) {
     return ChatSessionsState(
       conversations: conversations ?? this.conversations,
@@ -131,6 +141,9 @@ class ChatSessionsState extends Equatable {
       streamingReply: clearStreamingReply
           ? null
           : streamingReply ?? this.streamingReply,
+      historyRevision: incrementHistoryRevision
+          ? this.historyRevision + 1
+          : historyRevision ?? this.historyRevision,
     );
   }
 
@@ -141,6 +154,7 @@ class ChatSessionsState extends Equatable {
     isStreaming,
     errorMessage,
     streamingReply,
+    historyRevision,
   ];
 }
 
@@ -203,6 +217,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
       conversations: [nextConversation, ...state.conversations],
       activeConversationId: nextConversation.id,
       clearErrorMessage: true,
+      incrementHistoryRevision: true,
     );
     await _saveAll();
   }
@@ -258,6 +273,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
           updatedAt: DateTime.now(),
         ),
       ),
+      incrementHistoryRevision: true,
     );
     await _saveAll();
   }
@@ -288,6 +304,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
           ? state.activeConversationId
           : fallbackConversation.id,
       clearErrorMessage: true,
+      incrementHistoryRevision: true,
     );
     await _saveAll();
   }
@@ -440,6 +457,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     state = state.copyWith(
       conversations: _replaceConversation(baseConversation),
       clearErrorMessage: true,
+      incrementHistoryRevision: true,
     );
     await _saveAll();
 
@@ -564,13 +582,17 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
       isStreaming: false,
       errorMessage: errorMessage,
       clearStreamingReply: true,
+      incrementHistoryRevision: true,
     );
     await _saveAll();
   }
 
   /// 替换当前活动会话并同步持久化。
   Future<void> _updateActiveConversation(ChatConversation conversation) async {
-    state = state.copyWith(conversations: _replaceConversation(conversation));
+    state = state.copyWith(
+      conversations: _replaceConversation(conversation),
+      incrementHistoryRevision: true,
+    );
     await _saveAll();
   }
 
@@ -621,6 +643,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
       isStreaming: true,
       streamingReply: streamingReply,
       clearErrorMessage: true,
+      incrementHistoryRevision: true,
     );
     await _saveAll();
 
@@ -674,6 +697,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
         conversations: _replaceConversation(completedConversation),
         isStreaming: false,
         clearStreamingReply: true,
+        incrementHistoryRevision: true,
       );
       await _saveAll();
       return completedConversation;
