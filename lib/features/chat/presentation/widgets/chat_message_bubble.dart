@@ -106,18 +106,7 @@ class ChatMessageBubble extends StatelessWidget {
                   const SizedBox(height: 8),
                 ] else
                   const SizedBox(height: 8),
-                MarkdownBody(
-                  data: message.content.isEmpty && message.isStreaming
-                      ? '_正在等待模型返回内容..._'
-                      : message.content,
-                  selectable: true,
-                  styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
-                    p: theme.textTheme.bodyLarge,
-                    blockquote: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ),
+                _buildMessageContent(theme, isUser: isUser),
                 if (versionInfo != null) ...[
                   const SizedBox(height: 8),
                   MessageVersionNavigator(
@@ -148,6 +137,27 @@ class ChatMessageBubble extends StatelessWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  /// 根据消息角色选择更合适的正文渲染方式。
+  Widget _buildMessageContent(ThemeData theme, {required bool isUser}) {
+    if (isUser) {
+      // 用户消息只需要按原文展示，不需要为 Markdown 解析支付额外成本。
+      return SelectableText(message.content, style: theme.textTheme.bodyLarge);
+    }
+
+    return MarkdownBody(
+      data: message.content.isEmpty && message.isStreaming
+          ? '_正在等待模型返回内容..._'
+          : message.content,
+      selectable: true,
+      styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
+        p: theme.textTheme.bodyLarge,
+        blockquote: theme.textTheme.bodyMedium?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
         ),
       ),
     );
