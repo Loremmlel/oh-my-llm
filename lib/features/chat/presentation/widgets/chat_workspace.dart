@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../domain/models/chat_conversation.dart';
 import '../../domain/models/chat_message.dart';
-import 'chat_message_bubble.dart';
+import 'cached_chat_message_bubble.dart';
 import 'empty_conversation_view.dart';
 import 'message_anchor_rail.dart';
 import 'message_version_info.dart';
@@ -160,7 +160,7 @@ class ChatWorkspace extends StatelessWidget {
                                   GlobalKey.new,
                                 )
                               : ValueKey(message.id),
-                          child: ChatMessageBubble(
+                          child: CachedChatMessageBubble(
                             message: message,
                             canEdit:
                                 !isStreaming &&
