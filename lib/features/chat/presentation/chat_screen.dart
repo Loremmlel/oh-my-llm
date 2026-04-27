@@ -15,6 +15,7 @@ import '../domain/models/chat_conversation.dart';
 import '../domain/models/chat_message.dart';
 import 'widgets/widgets.dart';
 
+/// 聊天页入口，负责把会话状态、输入框和侧栏组合成完整页面。
 class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({super.key});
 
@@ -22,6 +23,7 @@ class ChatScreen extends ConsumerStatefulWidget {
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
 }
 
+/// 聊天页状态层，处理滚动同步、锚点定位和编辑弹窗等页面级交互。
 class _ChatScreenState extends ConsumerState<ChatScreen> {
   late final TextEditingController _messageController;
   late final ScrollController _messageScrollController;
@@ -53,6 +55,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   @override
+  /// 构建聊天页的整体布局与交互入口。
   Widget build(BuildContext context) {
     final chatState = ref.watch(chatSessionsProvider);
     final conversation = chatState.activeConversation;
@@ -246,6 +249,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
+  /// 过滤出可展示的会话分组，隐藏空草稿会话。
   List<ChatConversationGroup> _buildConversationGroups(
     List<ChatConversation> conversations,
   ) {
@@ -257,6 +261,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     return groupConversationsByUpdatedAt(visibleConversations);
   }
 
+  /// 解析当前会话应使用的模型配置，并在缺省时回退到默认项。
   LlmModelConfig? _resolveSelectedModel(
     List<LlmModelConfig> modelConfigs,
     String? selectedModelId,
@@ -281,6 +286,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     return defaultSelected ?? modelConfigs.first;
   }
 
+  /// 解析当前会话应使用的 Prompt 模板，并在缺省时回退到默认项。
   PromptTemplate? _resolveSelectedPromptTemplate(
     List<PromptTemplate> promptTemplates,
     String? selectedPromptTemplateId,
@@ -299,6 +305,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }).firstOrNull;
   }
 
+  /// 弹出会话重命名对话框并提交新标题。
   Future<void> _showRenameDialog(
     BuildContext context,
     String initialTitle,
@@ -319,6 +326,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         .renameActiveConversation(nextTitle.trim());
   }
 
+  /// 新建会话后把输入框清空，并把视图滚回底部。
   Future<void> _createConversationAndScroll() async {
     await ref.read(chatSessionsProvider.notifier).createConversation();
     if (!mounted) {
@@ -331,6 +339,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
   }
 
+  /// 根据会话内容变化决定是否自动滚动到末尾。
   void _scheduleScrollSync({
     required ChatConversation conversation,
     required bool isStreaming,
@@ -365,6 +374,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _lastRenderSignature = signature;
   }
 
+  /// 监听消息列表滚动状态，决定是否显示“滚动到底部”按钮。
   void _handleMessageScrollChanged() {
     final shouldShow = !_isNearBottom();
     if (shouldShow == _showScrollToBottom) {
@@ -377,6 +387,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
+  /// 判断当前滚动位置是否已经接近底部。
   bool _isNearBottom() {
     if (!_messageScrollController.hasClients) {
       return true;
@@ -386,6 +397,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     return position.maxScrollExtent - position.pixels < 120;
   }
 
+  /// 滚动到消息列表底部；可选择直接跳转或平滑动画。
   Future<void> _scrollToBottom({bool jump = false}) async {
     if (!_messageScrollController.hasClients) {
       return;
@@ -406,6 +418,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _scheduleAnchorRefresh();
   }
 
+  /// 滚动到某条指定消息，并刷新当前激活锚点。
   Future<void> _scrollToMessage(String messageId) async {
     final targetContext = _messageKeys[messageId]?.currentContext;
     if (targetContext == null) {
@@ -421,6 +434,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _scheduleAnchorRefresh();
   }
 
+  /// 合并多次滚动后的锚点刷新请求，避免一帧里重复计算。
   void _scheduleAnchorRefresh() {
     if (_anchorRefreshQueued) {
       return;
@@ -433,6 +447,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
   }
 
+  /// 根据当前视口位置重新计算激活的用户消息锚点。
   void _refreshActiveAnchor() {
     if (!mounted) {
       return;
@@ -512,6 +527,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
+  /// 更新当前激活锚点消息 ID。
   void _setActiveAnchorMessage(String? messageId) {
     if (_activeAnchorMessageId == messageId) {
       return;
@@ -522,6 +538,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
   }
 
+  /// 弹出消息编辑对话框并把修改后的内容交给控制器重算。
   Future<void> _showEditMessageDialog(
     BuildContext context, {
     required String messageId,

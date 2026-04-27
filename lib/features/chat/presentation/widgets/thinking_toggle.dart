@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+/// 控制聊天页是否启用深度思考的开关。
 class ThinkingToggle extends StatelessWidget {
   const ThinkingToggle({
     required this.enabled,
@@ -13,6 +14,7 @@ class ThinkingToggle extends StatelessWidget {
   final ValueChanged<bool>? onChanged;
 
   @override
+  /// 构建带状态样式的深度思考开关。
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final backgroundColor = !enabled

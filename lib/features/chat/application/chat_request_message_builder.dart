@@ -2,6 +2,7 @@ import '../../settings/domain/models/prompt_template.dart';
 import '../data/chat_completion_client.dart';
 import '../domain/models/chat_message.dart';
 
+/// 把提示词模板与会话消息拼装成模型请求消息列表。
 List<ChatCompletionRequestMessage> buildRequestMessages({
   required PromptTemplate? promptTemplate,
   required List<ChatMessage> conversationMessages,
@@ -18,6 +19,7 @@ List<ChatCompletionRequestMessage> buildRequestMessages({
   }
 
   if (promptTemplate != null) {
+    // 模板消息始终排在会话消息前面，保持与后端请求顺序一致。
     requestMessages.addAll(
       promptTemplate.messages.map((message) {
         return ChatCompletionRequestMessage(

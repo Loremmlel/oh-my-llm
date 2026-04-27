@@ -7,6 +7,7 @@ import 'message_version_info.dart';
 import 'message_version_navigator.dart';
 import 'reasoning_panel.dart';
 
+/// 单条聊天消息气泡，负责正文、推理内容和消息操作。
 class ChatMessageBubble extends StatelessWidget {
   const ChatMessageBubble({
     required this.message,
@@ -27,6 +28,7 @@ class ChatMessageBubble extends StatelessWidget {
   final MessageVersionInfo? versionInfo;
   final Future<void> Function(String targetMessageId)? onSwitchVersion;
 
+  /// 将消息正文复制到剪贴板。
   Future<void> _copyMessage(BuildContext context) async {
     await Clipboard.setData(ClipboardData(text: message.content));
     if (!context.mounted) {
@@ -39,6 +41,7 @@ class ChatMessageBubble extends StatelessWidget {
   }
 
   @override
+  /// 构建按角色区分样式的消息气泡。
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isUser = message.role == ChatMessageRole.user;
