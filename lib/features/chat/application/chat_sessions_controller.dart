@@ -20,6 +20,7 @@ final chatSessionsProvider =
       ChatSessionsController.new,
     );
 
+/// 当前聊天会话集合与活动会话状态。
 class ChatSessionsState extends Equatable {
   const ChatSessionsState({
     required this.conversations,
@@ -33,6 +34,7 @@ class ChatSessionsState extends Equatable {
   final bool isStreaming;
   final String? errorMessage;
 
+  /// 获取当前正在展示的会话；找不到时回退到列表首项。
   ChatConversation get activeConversation {
     return conversations.firstWhere(
       (conversation) => conversation.id == activeConversationId,
@@ -40,6 +42,7 @@ class ChatSessionsState extends Equatable {
     );
   }
 
+  /// 复制状态并按需替换会话列表、活动会话和错误信息。
   ChatSessionsState copyWith({
     List<ChatConversation>? conversations,
     String? activeConversationId,
@@ -66,6 +69,7 @@ class ChatSessionsState extends Equatable {
   ];
 }
 
+/// 聊天页面的会话编排器，负责发送、重试、编辑和持久化。
 class ChatSessionsController extends Notifier<ChatSessionsState> {
   ChatConversationRepository get _repository =>
       ref.read(chatConversationRepositoryProvider);
@@ -74,6 +78,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
       ref.read(chatCompletionClientProvider);
 
   @override
+  /// 读取持久化数据并初始化当前会话状态。
   ChatSessionsState build() {
     final conversations = _sort(_repository.loadAll());
     final initialConversation = conversations.isEmpty
@@ -88,6 +93,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     );
   }
 
+  /// 新建一个会话并切换到该会话。
   Future<void> createConversation() async {
     final currentConversation = state.activeConversation;
     if (!currentConversation.hasMessages) {
@@ -103,6 +109,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     await _saveAll();
   }
 
+  /// 选择一个已存在的会话作为活动会话。
   void selectConversation(String id) {
     final hasMatch = state.conversations.any((conversation) {
       return conversation.id == id;
@@ -114,6 +121,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     state = state.copyWith(activeConversationId: id, clearErrorMessage: true);
   }
 
+  /// 重命名当前活动会话。
   Future<void> renameActiveConversation(String title) async {
     final nextTitle = title.trim();
     if (nextTitle.isEmpty) {
@@ -128,6 +136,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     );
   }
 
+  /// 重命名单个会话。
   Future<void> renameConversation({
     required String conversationId,
     required String title,
@@ -155,6 +164,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     await _saveAll();
   }
 
+  /// 删除一组会话，必要时回退到新的空会话。
   Future<void> deleteConversations(Set<String> conversationIds) async {
     if (conversationIds.isEmpty || state.isStreaming) {
       return;
@@ -184,6 +194,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     await _saveAll();
   }
 
+  /// 更新当前会话的默认模型和 Prompt 相关偏好。
   Future<void> updateActiveConversationPreferences({
     String? selectedModelId,
     String? selectedPromptTemplateId,
@@ -202,6 +213,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     );
   }
 
+  /// 切换某个父节点下的选中消息版本。
   Future<void> selectMessageVersion({
     required String parentId,
     required String messageId,
@@ -233,6 +245,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     );
   }
 
+  /// 编辑一条用户消息并从该节点重新生成后续回复。
   Future<void> editMessage({
     required String messageId,
     required String nextContent,
@@ -289,6 +302,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     );
   }
 
+  /// 重新请求当前对话中最新的一条模型回复。
   Future<void> retryLatestAssistant() async {
     if (state.isStreaming) {
       return;
@@ -342,6 +356,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     );
   }
 
+  /// 清除当前错误提示。
   void clearError() {
     if (state.errorMessage == null) {
       return;
@@ -350,6 +365,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     state = state.copyWith(clearErrorMessage: true);
   }
 
+  /// 发送新消息并触发模型流式回复。
   Future<void> sendMessage({
     required String content,
     required LlmModelConfig modelConfig,
@@ -402,6 +418,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     );
   }
 
+  /// 创建一个空会话并继承设置页中的默认选择。
   ChatConversation _createConversation() {
     final now = DateTime.now();
     final chatDefaults = ref.read(chatDefaultsProvider);
@@ -416,6 +433,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     );
   }
 
+  /// 在流式请求失败时，保留已生成内容或清除空白占位节点。
   Future<void> _handleStreamingFailure({
     required String assistantMessageId,
     required String errorMessage,
@@ -454,11 +472,13 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     await _saveAll();
   }
 
+  /// 替换当前活动会话并同步持久化。
   Future<void> _updateActiveConversation(ChatConversation conversation) async {
     state = state.copyWith(conversations: _replaceConversation(conversation));
     await _saveAll();
   }
 
+  /// 把 assistant 回复以流式方式写回当前会话。
   Future<ChatConversation?> _streamAssistantReply({
     required ChatConversation conversation,
     required LlmModelConfig modelConfig,
@@ -479,6 +499,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
       parentId: assistantParentId,
       isStreaming: true,
     );
+    // 先插入一个流式占位节点，后续增量会持续覆盖这条消息。
     final initialTree = appendNodeToTree(
       treeState: tree,
       node: assistantMessage,
@@ -494,6 +515,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
       reasoningEffort: reasoningEffort,
     );
 
+    // 先把占位消息写入内存和持久层，确保刷新后仍能恢复进度。
     state = state.copyWith(
       conversations: _replaceConversation(streamingConversation),
       isStreaming: true,
@@ -535,6 +557,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
         _replaceConversationInMemory(streamingConversation);
       }
 
+      // 持续用最新增量覆盖同一条 assistant 消息，保持界面平滑刷新。
       final completedTree = replaceAssistantMessageInTree(
         treeState: resolveMessageTreeState(streamingConversation),
         assistantMessageId: assistantMessage.id,
@@ -569,10 +592,12 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     return null;
   }
 
+  /// 将会话替换进当前列表但不额外写盘。
   void _replaceConversationInMemory(ChatConversation conversation) {
     state = state.copyWith(conversations: _replaceConversation(conversation));
   }
 
+  /// 在会话列表中按 id 覆盖或插入指定会话。
   List<ChatConversation> _replaceConversation(ChatConversation conversation) {
     final conversations = [...state.conversations];
     final index = conversations.indexWhere(
@@ -588,6 +613,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     return _sort(conversations);
   }
 
+  /// 按更新时间倒序排列会话。
   List<ChatConversation> _sort(List<ChatConversation> conversations) {
     final sortedConversations = [...conversations];
     sortedConversations.sort((left, right) {
@@ -596,6 +622,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     return List.unmodifiable(sortedConversations);
   }
 
+  /// 只持久化非空会话，避免写入无意义的空草稿。
   Future<void> _saveAll() {
     return _repository.saveAll(
       state.conversations
@@ -607,6 +634,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     );
   }
 
+  /// 选择当前会话对应的模型配置；找不到时回退到首个配置。
   LlmModelConfig? _resolveModelConfig(ChatConversation conversation) {
     final modelConfigs = ref.read(llmModelConfigsProvider);
     if (modelConfigs.isEmpty) {
@@ -619,6 +647,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
         modelConfigs.first;
   }
 
+  /// 选择当前会话对应的 Prompt 模板。
   PromptTemplate? _resolvePromptTemplate(ChatConversation conversation) {
     final promptTemplates = ref.read(promptTemplatesProvider);
     if (promptTemplates.isEmpty) {
@@ -630,6 +659,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     }).firstOrNull;
   }
 
+  /// 更新错误信息并保留在状态中，供界面展示。
   void _setErrorMessage(String message) {
     state = state.copyWith(errorMessage: message);
   }

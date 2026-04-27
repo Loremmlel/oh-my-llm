@@ -1,6 +1,7 @@
 import '../domain/models/chat_conversation.dart';
 import '../domain/models/chat_message.dart';
 
+/// 消息树状态，包含当前节点序列与父子选择映射。
 class ChatMessageTreeState {
   const ChatMessageTreeState({required this.nodes, required this.selections});
 
@@ -8,6 +9,7 @@ class ChatMessageTreeState {
   final Map<String, String> selections;
 }
 
+/// 从会话中恢复可编辑的消息树状态。
 ChatMessageTreeState resolveMessageTreeState(ChatConversation conversation) {
   if (conversation.messageNodes.isNotEmpty) {
     return ChatMessageTreeState(
@@ -30,6 +32,7 @@ ChatMessageTreeState resolveMessageTreeState(ChatConversation conversation) {
   return ChatMessageTreeState(nodes: nodes, selections: selections);
 }
 
+/// 向当前消息树追加一个节点，并同步更新选中分支。
 ChatMessageTreeState appendNodeToTree({
   required ChatMessageTreeState treeState,
   required ChatMessage node,
@@ -41,6 +44,7 @@ ChatMessageTreeState appendNodeToTree({
   return ChatMessageTreeState(nodes: nextNodes, selections: nextSelections);
 }
 
+/// 在消息树中替换某条 assistant 消息的内容。
 ChatMessageTreeState replaceAssistantMessageInTree({
   required ChatMessageTreeState treeState,
   required String assistantMessageId,
@@ -67,6 +71,7 @@ ChatMessageTreeState replaceAssistantMessageInTree({
   );
 }
 
+/// 从消息树中删除某个节点及其全部后代。
 ChatMessageTreeState removeNodeFromTree({
   required ChatMessageTreeState treeState,
   required String nodeId,

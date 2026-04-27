@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+/// 用于编辑用户消息内容并触发重算的对话框。
 class EditMessageDialog extends StatefulWidget {
   const EditMessageDialog({required this.initialContent, super.key});
 
@@ -9,6 +10,7 @@ class EditMessageDialog extends StatefulWidget {
   State<EditMessageDialog> createState() => _EditMessageDialogState();
 }
 
+/// 编辑消息对话框的输入与保存状态。
 class _EditMessageDialogState extends State<EditMessageDialog> {
   late final TextEditingController _contentController;
 
@@ -25,6 +27,7 @@ class _EditMessageDialogState extends State<EditMessageDialog> {
   }
 
   @override
+  /// 构建多行消息编辑框与保存操作。
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('编辑用户消息'),

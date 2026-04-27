@@ -7,12 +7,14 @@ import '../../settings/domain/models/llm_model_config.dart';
 import '../domain/models/chat_message.dart';
 import 'chat_completion_client.dart';
 
+/// OpenAI 兼容接口的 HTTP 流式客户端提供者。
 final chatCompletionClientProvider = Provider<ChatCompletionClient>((ref) {
   final httpClient = http.Client();
   ref.onDispose(httpClient.close);
   return OpenAiCompatibleChatClient(httpClient: httpClient);
 });
 
+/// 直接使用 HTTP 请求读取 SSE 流，并把返回内容拆成补全增量。
 class OpenAiCompatibleChatClient implements ChatCompletionClient {
   OpenAiCompatibleChatClient({required http.Client httpClient})
     : _httpClient = httpClient;
@@ -20,6 +22,7 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
   final http.Client _httpClient;
 
   @override
+  /// 发送流式请求并把 SSE 事件转换为内容与推理增量。
   Stream<ChatCompletionChunk> streamCompletion({
     required LlmModelConfig modelConfig,
     required List<ChatCompletionRequestMessage> messages,
@@ -33,6 +36,7 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
       uri,
       enabled: reasoningEffort != null,
     );
+    // 官方 OpenAI 主机使用原生 reasoning_effort；兼容主机同时需要 thinking。
     final payload = <String, Object>{
       'model': modelConfig.modelName,
       'stream': true,
@@ -66,6 +70,7 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
 
     final dataLines = <String>[];
 
+    // SSE 事件以空行分隔；这里先收集 data 行，再按事件边界解析。
     await for (final line in lineStream) {
       if (line.isEmpty) {
         final chunk = _consumeEventData(dataLines);
@@ -93,6 +98,7 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
 
   static const _doneMarker = '[DONE]';
 
+  /// 合并当前事件的 data 行；空事件直接丢弃。
   String? _consumeEventData(List<String> dataLines) {
     if (dataLines.isEmpty) {
       return null;
@@ -108,6 +114,7 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
     return eventData;
   }
 
+  /// 解析单个 SSE data 块，兼容错误结构和补全文本结构。
   ChatCompletionChunk _parseChunk(String rawChunk) {
     late final Object? decoded;
     try {
@@ -141,6 +148,7 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
     return _extractChunk(delta);
   }
 
+  /// 从 delta/message 载荷中提取正文和推理文本。
   ChatCompletionChunk _extractChunk(Object? payload) {
     if (payload is String) {
       return ChatCompletionChunk(contentDelta: payload);
@@ -157,6 +165,7 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
     );
   }
 
+  /// 兼容字符串、数组和嵌套对象形式的文本字段。
   String _extractTextPayload(Object? payload) {
     if (payload is String) {
       return payload;
@@ -184,6 +193,7 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
     return '';
   }
 
+  /// 兼容多段 segment 结构中的文本字段。
   String _extractSegmentText(Object? segment) {
     if (segment is String) {
       return segment;
@@ -208,6 +218,7 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
     return '';
   }
 
+  /// 非官方 OpenAI 主机需要显式携带 thinking 开关。
   Map<String, String>? _buildThinkingConfig(Uri uri, {required bool enabled}) {
     if (_isOfficialOpenAiHost(uri.host)) {
       return null;
@@ -216,6 +227,7 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
     return {'type': enabled ? 'enabled' : 'disabled'};
   }
 
+  /// 将 reasoning effort 按主机类型映射为对应 API 值。
   String _buildReasoningEffort(Uri uri, ReasoningEffort effort) {
     if (_isOfficialOpenAiHost(uri.host)) {
       return effort.apiValue;
@@ -229,6 +241,7 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
     };
   }
 
+  /// 判断是否为官方 OpenAI 主机。
   bool _isOfficialOpenAiHost(String host) {
     final normalizedHost = host.toLowerCase();
     return normalizedHost == 'api.openai.com' ||
@@ -236,6 +249,7 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
   }
 }
 
+/// 流式补全请求失败时抛出的业务异常。
 class ChatCompletionException implements Exception {
   const ChatCompletionException(this.message);
 

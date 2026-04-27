@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+/// 聊天消息的发送角色。
 enum ChatMessageRole {
   system('system'),
   user('user'),
@@ -10,6 +11,7 @@ enum ChatMessageRole {
   final String apiValue;
 }
 
+/// 模型推理强度枚举，保持与 API 的字符串值一致。
 enum ReasoningEffort {
   low('low'),
   medium('medium'),
@@ -21,6 +23,7 @@ enum ReasoningEffort {
   final String apiValue;
 }
 
+/// 单条聊天消息，包含正文、推理内容和树结构位置。
 class ChatMessage extends Equatable {
   const ChatMessage({
     required this.id,
@@ -40,6 +43,7 @@ class ChatMessage extends Equatable {
   final bool isStreaming;
   final String reasoningContent;
 
+  /// 复制消息，并允许覆盖常用字段。
   ChatMessage copyWith({
     String? id,
     ChatMessageRole? role,
@@ -60,6 +64,7 @@ class ChatMessage extends Equatable {
     );
   }
 
+  /// 将消息序列化为持久化 JSON。
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -71,6 +76,7 @@ class ChatMessage extends Equatable {
     };
   }
 
+  /// 从持久化 JSON 反序列化消息。
   factory ChatMessage.fromJson(Map<String, dynamic> json) {
     return ChatMessage(
       id: json['id'] as String,

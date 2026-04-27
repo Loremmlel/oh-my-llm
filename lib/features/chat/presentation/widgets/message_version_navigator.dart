@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+/// 消息版本切换器，展示当前版本并提供前后翻页按钮。
 class MessageVersionNavigator extends StatelessWidget {
   const MessageVersionNavigator({
     required this.currentIndex,
@@ -15,6 +16,7 @@ class MessageVersionNavigator extends StatelessWidget {
   final VoidCallback? onNext;
 
   @override
+  /// 构建上一版本/下一版本的轻量导航控件。
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 

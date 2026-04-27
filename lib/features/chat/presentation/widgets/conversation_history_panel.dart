@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../domain/chat_conversation_groups.dart';
 
+/// 聊天页侧边历史面板，用于快速切换会话。
 class ConversationHistoryPanel extends StatelessWidget {
   const ConversationHistoryPanel({
     required this.groups,
@@ -19,6 +20,7 @@ class ConversationHistoryPanel extends StatelessWidget {
   final ValueChanged<String> onConversationSelected;
 
   @override
+  /// 构建按时间分组的会话列表与新建入口。
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 

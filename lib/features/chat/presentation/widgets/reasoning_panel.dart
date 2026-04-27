@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 
+/// 折叠式推理内容面板，用于展示模型的深度思考文本。
 class ReasoningPanel extends StatefulWidget {
   const ReasoningPanel({required this.content, super.key});
 
@@ -10,10 +11,12 @@ class ReasoningPanel extends StatefulWidget {
   State<ReasoningPanel> createState() => _ReasoningPanelState();
 }
 
+/// 推理面板的展开状态。
 class _ReasoningPanelState extends State<ReasoningPanel> {
   bool _expanded = false;
 
   @override
+  /// 构建可展开/收起的推理内容区域。
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final textColor = theme.colorScheme.onSurfaceVariant;

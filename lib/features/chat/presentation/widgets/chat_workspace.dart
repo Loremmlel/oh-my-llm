@@ -8,6 +8,7 @@ import 'message_anchor_rail.dart';
 import 'message_version_info.dart';
 import 'thinking_toggle.dart';
 
+/// 聊天页主工作区，组合消息列表、锚点条和消息输入区。
 class ChatWorkspace extends StatelessWidget {
   const ChatWorkspace({
     required this.conversation,
@@ -62,6 +63,7 @@ class ChatWorkspace extends StatelessWidget {
   final Future<void> Function()? onSendPressed;
 
   @override
+  /// 构建消息区、错误提示和输入区的整体布局。
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
@@ -86,6 +88,7 @@ class ChatWorkspace extends StatelessWidget {
     );
   }
 
+  /// 构建当前对话的错误提示横幅。
   Widget _buildErrorBanner(ThemeData theme) {
     return Card(
       child: Padding(
@@ -118,6 +121,7 @@ class ChatWorkspace extends StatelessWidget {
     );
   }
 
+  /// 构建消息列表卡片，并把版本信息和锚点条组装进去。
   Widget _buildMessagesCard(ThemeData theme) {
     final latestAssistantMessage =
         conversation.messages.lastOrNull?.role == ChatMessageRole.assistant
@@ -222,6 +226,7 @@ class ChatWorkspace extends StatelessWidget {
     );
   }
 
+  /// 为每条消息计算可切换的版本信息。
   Map<String, MessageVersionInfo> _buildMessageVersionInfoMap() {
     if (conversation.messageNodes.isEmpty) {
       return const {};
@@ -253,6 +258,7 @@ class ChatWorkspace extends StatelessWidget {
     return result;
   }
 
+  /// 构建消息输入区、思考开关和发送按钮。
   Widget _buildComposerCard(ThemeData theme) {
     return Card(
       child: Padding(
@@ -316,6 +322,7 @@ class ChatWorkspace extends StatelessWidget {
     );
   }
 
+  /// 构建思考强度下拉框。
   Widget _buildReasoningEffortSelector({bool compact = false}) {
     return DropdownButtonFormField<ReasoningEffort>(
       key: ValueKey(reasoningEffort),
@@ -346,6 +353,7 @@ class ChatWorkspace extends StatelessWidget {
     );
   }
 
+  /// 把枚举值转换为更短的显示文本。
   String _effortLabel(ReasoningEffort effort) {
     return switch (effort) {
       ReasoningEffort.low => 'low',

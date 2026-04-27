@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+/// 用于重命名会话标题的对话框。
 class RenameConversationDialog extends StatefulWidget {
   const RenameConversationDialog({required this.initialTitle, super.key});
 
@@ -10,6 +11,7 @@ class RenameConversationDialog extends StatefulWidget {
       _RenameConversationDialogState();
 }
 
+/// 重命名对话框的输入与提交状态。
 class _RenameConversationDialogState extends State<RenameConversationDialog> {
   late final TextEditingController _titleController;
 
@@ -26,6 +28,7 @@ class _RenameConversationDialogState extends State<RenameConversationDialog> {
   }
 
   @override
+  /// 构建标题输入框与确认/取消操作。
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('修改对话标题'),

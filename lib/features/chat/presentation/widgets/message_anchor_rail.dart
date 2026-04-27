@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../domain/models/chat_message.dart';
 
+/// 右侧消息锚点条，用于快速跳转到用户消息。
 class MessageAnchorRail extends StatelessWidget {
   const MessageAnchorRail({
     required this.userMessages,
@@ -17,6 +18,7 @@ class MessageAnchorRail extends StatelessWidget {
   final ValueChanged<String> onSelectMessage;
 
   @override
+  /// 构建按用户消息排列的锚点按钮列表。
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 

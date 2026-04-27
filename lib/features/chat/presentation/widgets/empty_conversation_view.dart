@@ -3,12 +3,14 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../app/navigation/app_destination.dart';
 
+/// 聊天页空状态提示，必要时引导用户去设置模型。
 class EmptyConversationView extends StatelessWidget {
   const EmptyConversationView({required this.hasModels, super.key});
 
   final bool hasModels;
 
   @override
+  /// 构建空对话提示和可选的设置跳转按钮。
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 

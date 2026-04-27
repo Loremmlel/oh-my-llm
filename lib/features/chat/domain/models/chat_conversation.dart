@@ -7,6 +7,7 @@ import 'chat_message.dart';
 
 const rootConversationParentId = '__root__';
 
+/// 单个会话及其消息树状态。
 class ChatConversation extends Equatable {
   const ChatConversation({
     required this.id,
@@ -34,6 +35,7 @@ class ChatConversation extends Equatable {
   final bool reasoningEnabled;
   final ReasoningEffort reasoningEffort;
 
+  /// 当前会话实际展示的消息序列。
   List<ChatMessage> get messages {
     if (messageNodes.isEmpty) {
       return _messages;
@@ -46,8 +48,10 @@ class ChatConversation extends Equatable {
     return resolvedPath.isEmpty ? _messages : resolvedPath;
   }
 
+  /// 会话是否包含任何消息。
   bool get hasMessages => messages.isNotEmpty;
 
+  /// 优先返回显式标题；否则用首条用户消息截断生成标题。
   String get resolvedTitle {
     if (title != null && title!.trim().isNotEmpty) {
       return title!.trim();
@@ -65,6 +69,7 @@ class ChatConversation extends Equatable {
     return normalizedContent.characters.take(15).toString();
   }
 
+  /// 复制当前会话，并允许单独覆盖或清空部分字段。
   ChatConversation copyWith({
     String? id,
     String? title,
@@ -100,6 +105,7 @@ class ChatConversation extends Equatable {
     );
   }
 
+  /// 将会话序列化为持久化 JSON。
   Map<String, dynamic> toJson() {
     final effectiveNodes = messageNodes.isEmpty
         ? _buildLinearMessageNodes(_messages)
@@ -112,7 +118,9 @@ class ChatConversation extends Equatable {
       'id': id,
       'title': title,
       'messages': messages.map((message) => message.toJson()).toList(),
-      'messageNodes': effectiveNodes.map((message) => message.toJson()).toList(),
+      'messageNodes': effectiveNodes
+          .map((message) => message.toJson())
+          .toList(),
       'selectedChildByParentId': effectiveSelections,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
@@ -123,6 +131,7 @@ class ChatConversation extends Equatable {
     };
   }
 
+  /// 从持久化 JSON 反序列化会话。
   factory ChatConversation.fromJson(Map<String, dynamic> json) {
     final rawMessages = json['messages'] as List<dynamic>? ?? const [];
     final rawMessageNodes = json['messageNodes'] as List<dynamic>? ?? const [];
@@ -172,6 +181,7 @@ class ChatConversation extends Equatable {
   @override
   String toString() => jsonEncode(toJson());
 
+  /// 解析当前会话中按选择路径生效的消息链。
   static List<ChatMessage> _resolveActivePath({
     required List<ChatMessage> nodes,
     required Map<String, String> selectedChildByParentId,
@@ -196,9 +206,7 @@ class ChatConversation extends Equatable {
 
       final selectedChildId = selectedChildByParentId[parentId];
       final selectedNode =
-          siblings
-              .where((node) => node.id == selectedChildId)
-              .firstOrNull ??
+          siblings.where((node) => node.id == selectedChildId).firstOrNull ??
           siblings.first;
       path.add(selectedNode);
       parentId = selectedNode.id;
@@ -207,20 +215,26 @@ class ChatConversation extends Equatable {
     return List.unmodifiable(path);
   }
 
-  static List<ChatMessage> _buildLinearMessageNodes(List<ChatMessage> messages) {
+  /// 把线性消息序列补成单链消息树。
+  static List<ChatMessage> _buildLinearMessageNodes(
+    List<ChatMessage> messages,
+  ) {
     if (messages.isEmpty) {
       return const [];
     }
 
     String parentId = rootConversationParentId;
-    final nodes = messages.map((message) {
-      final next = message.copyWith(parentId: parentId);
-      parentId = next.id;
-      return next;
-    }).toList(growable: false);
+    final nodes = messages
+        .map((message) {
+          final next = message.copyWith(parentId: parentId);
+          parentId = next.id;
+          return next;
+        })
+        .toList(growable: false);
     return List.unmodifiable(nodes);
   }
 
+  /// 为线性消息树生成默认选择映射。
   static Map<String, String> _buildLinearSelections(List<ChatMessage> nodes) {
     if (nodes.isEmpty) {
       return const {};
@@ -236,18 +250,18 @@ class ChatConversation extends Equatable {
 
   @override
   List<Object?> get props => [
-        id,
-        title,
-        messages,
-        messageNodes,
-        selectedChildByParentId.entries
-            .map((entry) => '${entry.key}:${entry.value}')
-            .toList(growable: false),
-        createdAt,
-        updatedAt,
-        selectedModelId,
-        selectedPromptTemplateId,
-        reasoningEnabled,
-        reasoningEffort,
-      ];
+    id,
+    title,
+    messages,
+    messageNodes,
+    selectedChildByParentId.entries
+        .map((entry) => '${entry.key}:${entry.value}')
+        .toList(growable: false),
+    createdAt,
+    updatedAt,
+    selectedModelId,
+    selectedPromptTemplateId,
+    reasoningEnabled,
+    reasoningEffort,
+  ];
 }

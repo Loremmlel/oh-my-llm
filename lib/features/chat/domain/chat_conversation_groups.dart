@@ -1,5 +1,6 @@
 import 'models/chat_conversation.dart';
 
+/// 历史会话分组所使用的时间桶。
 enum ConversationTimeBucket {
   recent('最近'),
   withinDay('一天内'),
@@ -13,6 +14,7 @@ enum ConversationTimeBucket {
   final String label;
 }
 
+/// 按更新时间分组后的会话集合。
 class ChatConversationGroup {
   const ChatConversationGroup({
     required this.bucket,
@@ -23,6 +25,7 @@ class ChatConversationGroup {
   final List<ChatConversation> conversations;
 }
 
+/// 按更新时间把会话拆分到不同时间桶中。
 List<ChatConversationGroup> groupConversationsByUpdatedAt(
   List<ChatConversation> conversations, {
   DateTime? now,
@@ -40,9 +43,10 @@ List<ChatConversationGroup> groupConversationsByUpdatedAt(
   return ConversationTimeBucket.values
       .where(grouped.containsKey)
       .map((bucket) {
-        final bucketConversations = grouped[bucket]!..sort((left, right) {
-          return right.updatedAt.compareTo(left.updatedAt);
-        });
+        final bucketConversations = grouped[bucket]!
+          ..sort((left, right) {
+            return right.updatedAt.compareTo(left.updatedAt);
+          });
         return ChatConversationGroup(
           bucket: bucket,
           conversations: List.unmodifiable(bucketConversations),
@@ -51,6 +55,7 @@ List<ChatConversationGroup> groupConversationsByUpdatedAt(
       .toList(growable: false);
 }
 
+/// 根据会话年龄选择对应的时间桶。
 ConversationTimeBucket _resolveBucket(Duration age) {
   if (age < const Duration(hours: 1)) {
     return ConversationTimeBucket.recent;
