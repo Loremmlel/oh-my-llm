@@ -6,8 +6,10 @@ import '../../../app/navigation/app_destination.dart';
 import '../../../app/shell/app_shell_scaffold.dart';
 import '../../../core/constants/app_breakpoints.dart';
 import '../../settings/application/chat_defaults_controller.dart';
+import '../../settings/application/fixed_prompt_sequences_controller.dart';
 import '../../settings/application/llm_model_configs_controller.dart';
 import '../../settings/application/prompt_templates_controller.dart';
+import '../../settings/domain/models/fixed_prompt_sequence.dart';
 import '../../settings/domain/models/llm_model_config.dart';
 import '../../settings/domain/models/prompt_template.dart';
 import '../application/chat_sessions_controller.dart';
@@ -36,6 +38,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   String? _lastConversationId;
   String? _lastRenderSignature;
   String? _activeAnchorMessageId;
+  String? _selectedFixedPromptSequenceId;
+  int _selectedFixedPromptStepIndex = 0;
   List<ChatMessage> _latestMessages = const <ChatMessage>[];
   List<ChatMessage> _latestUserMessages = const <ChatMessage>[];
   List<int> _latestUserMessageIndexes = const <int>[];
@@ -68,6 +72,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final isStreaming = ref.watch(isChatStreamingProvider);
     final errorMessage = ref.watch(chatErrorMessageProvider);
     final chatDefaults = ref.watch(chatDefaultsProvider);
+    final fixedPromptSequences = ref.watch(fixedPromptSequencesProvider);
     final modelConfigs = ref.watch(llmModelConfigsProvider);
     final promptTemplates = ref.watch(promptTemplatesProvider);
     final activeMessages = conversation.messages;
@@ -215,6 +220,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                 );
                           }
                         : null,
+                    onOpenFixedPromptSequenceRunner: () async {
+                      await _showFixedPromptSequenceRunnerDialog(
+                        context,
+                        fixedPromptSequences: fixedPromptSequences,
+                        selectedModel: selectedModel,
+                        selectedPromptTemplate: selectedPromptTemplate,
+                        conversation: conversation,
+                        supportsReasoning: supportsReasoning,
+                        isStreaming: isStreaming,
+                      );
+                    },
                     onScrollToBottomPressed: _scrollToBottom,
                     onSelectMessage: _scrollToMessage,
                     onSelectMessageVersion: (parentId, messageId) async {
@@ -234,17 +250,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             }
 
                             _messageController.clear();
-                            await ref
-                                .read(chatSessionsProvider.notifier)
-                                .sendMessage(
-                                  content: content,
-                                  modelConfig: selectedModel,
-                                  promptTemplate: selectedPromptTemplate,
-                                  reasoningEnabled:
-                                      supportsReasoning &&
-                                      conversation.reasoningEnabled,
-                                  reasoningEffort: conversation.reasoningEffort,
-                                );
+                            await _sendMessageContent(
+                              content: content,
+                              modelConfig: selectedModel,
+                              promptTemplate: selectedPromptTemplate,
+                              conversation: conversation,
+                              supportsReasoning: supportsReasoning,
+                              isStreaming: isStreaming,
+                            );
                           },
                   ),
                 ),
@@ -310,6 +323,84 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     return promptTemplates.where((template) {
       return template.id == defaultPromptTemplateId;
     }).firstOrNull;
+  }
+
+  /// 弹出固定顺序提示词运行器，并在关闭后同步输入框或直接发送当前步骤。
+  Future<void> _showFixedPromptSequenceRunnerDialog(
+    BuildContext context, {
+    required List<FixedPromptSequence> fixedPromptSequences,
+    required LlmModelConfig? selectedModel,
+    required PromptTemplate? selectedPromptTemplate,
+    required ChatConversation conversation,
+    required bool supportsReasoning,
+    required bool isStreaming,
+  }) async {
+    final result = await showDialog<FixedPromptSequenceRunnerResult>(
+      context: context,
+      builder: (context) {
+        return FixedPromptSequenceRunnerDialog(
+          sequences: fixedPromptSequences,
+          initialSelectedSequenceId: _selectedFixedPromptSequenceId,
+          initialStepIndex: _selectedFixedPromptStepIndex,
+          canSendDirectly: selectedModel != null && !isStreaming,
+        );
+      },
+    );
+
+    if (!mounted || result == null) {
+      return;
+    }
+
+    setState(() {
+      _selectedFixedPromptSequenceId = result.selectedSequenceId;
+      _selectedFixedPromptStepIndex = result.nextStepIndex;
+    });
+
+    switch (result.action) {
+      case FixedPromptSequenceRunnerAction.fillComposer:
+        _messageController
+          ..text = result.content
+          ..selection = TextSelection.collapsed(offset: result.content.length);
+      case FixedPromptSequenceRunnerAction.sendStep:
+        if (_messageController.text.trim() == result.content.trim()) {
+          _messageController.clear();
+        }
+        await _sendMessageContent(
+          content: result.content,
+          modelConfig: selectedModel,
+          promptTemplate: selectedPromptTemplate,
+          conversation: conversation,
+          supportsReasoning: supportsReasoning,
+          isStreaming: isStreaming,
+        );
+      case FixedPromptSequenceRunnerAction.none:
+        return;
+    }
+  }
+
+  /// 复用当前会话配置发送一条用户消息。
+  Future<void> _sendMessageContent({
+    required String content,
+    required LlmModelConfig? modelConfig,
+    required PromptTemplate? promptTemplate,
+    required ChatConversation conversation,
+    required bool supportsReasoning,
+    required bool isStreaming,
+  }) async {
+    final trimmedContent = content.trim();
+    if (trimmedContent.isEmpty || modelConfig == null || isStreaming) {
+      return;
+    }
+
+    await ref
+        .read(chatSessionsProvider.notifier)
+        .sendMessage(
+          content: trimmedContent,
+          modelConfig: modelConfig,
+          promptTemplate: promptTemplate,
+          reasoningEnabled: supportsReasoning && conversation.reasoningEnabled,
+          reasoningEffort: conversation.reasoningEffort,
+        );
   }
 
   /// 弹出会话重命名对话框并提交新标题。

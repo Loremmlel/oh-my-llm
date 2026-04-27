@@ -8,10 +8,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
+import 'package:oh_my_llm/core/persistence/versioned_json_storage.dart';
 import 'package:oh_my_llm/features/chat/data/chat_completion_client.dart';
 import 'package:oh_my_llm/features/chat/data/openai_compatible_chat_client.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
+import 'package:oh_my_llm/features/settings/data/fixed_prompt_sequence_repository.dart';
 import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dart';
 import 'package:oh_my_llm/features/settings/data/prompt_template_repository.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
@@ -41,6 +43,20 @@ Future<SharedPreferences> createSeededPreferences() async {
         'updatedAt': DateTime(2026, 4, 26).toIso8601String(),
       },
     ]),
+    fixedPromptSequencesStorageKey: jsonEncode({
+      'version': VersionedJsonStorage.currentSchemaVersion,
+      'items': [
+        {
+          'id': 'sequence-1',
+          'name': '对比测试流程',
+          'steps': [
+            {'id': 'step-1', 'content': '请先总结当前实现的核心目标。'},
+            {'id': 'step-2', 'content': '请列出三个可执行方案，并说明权衡。'},
+          ],
+          'updatedAt': DateTime(2026, 4, 27).toIso8601String(),
+        },
+      ],
+    }),
   });
 
   return SharedPreferences.getInstance();

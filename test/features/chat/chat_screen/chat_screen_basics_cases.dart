@@ -77,6 +77,56 @@ void registerChatScreenBasicsTests() {
     );
   });
 
+  testWidgets('chat screen fills composer from fixed prompt sequence runner', (
+    tester,
+  ) async {
+    final preferences = await createSeededPreferences();
+    final fakeClient = FakeChatCompletionClient();
+
+    await pumpChatScreen(
+      tester,
+      preferences: preferences,
+      fakeClient: fakeClient,
+    );
+
+    await tester.tap(find.byTooltip('固定顺序提示词'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('固定顺序提示词'), findsOneWidget);
+    expect(find.text('请先总结当前实现的核心目标。'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(OutlinedButton, '填入输入框'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('请先总结当前实现的核心目标。'), findsWidgets);
+  });
+
+  testWidgets('chat screen sends fixed prompt sequence step and advances', (
+    tester,
+  ) async {
+    final preferences = await createSeededPreferences();
+    final fakeClient = FakeChatCompletionClient()..enqueueChunks(['已收到']);
+
+    await pumpChatScreen(
+      tester,
+      preferences: preferences,
+      fakeClient: fakeClient,
+    );
+
+    await tester.tap(find.byTooltip('固定顺序提示词'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, '发送当前步骤'));
+    await tester.pumpAndSettle();
+
+    expect(fakeClient.lastRequestMessages.single.content, '请先总结当前实现的核心目标。');
+    expect(find.textContaining('已收到'), findsWidgets);
+
+    await tester.tap(find.byTooltip('固定顺序提示词'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('请列出三个可执行方案，并说明权衡。'), findsOneWidget);
+  });
+
   testWidgets('chat screen scroll-to-bottom button returns to latest message', (
     tester,
   ) async {
