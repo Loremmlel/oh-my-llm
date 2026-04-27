@@ -23,11 +23,11 @@
 
 ### 运行要求
 
-| 工具 | 版本 |
-|------|------|
-| Flutter | ≥ 3.11.5（对应 Dart ≥ 3.x） |
-| Android SDK | 仅构建 Android 时需要 |
-| Visual Studio 2022（含 C++ 桌面开发） | 仅构建 Windows 时需要 |
+| 工具                             | 版本                      |
+|--------------------------------|-------------------------|
+| Flutter                        | ≥ 3.11.5（对应 Dart ≥ 3.x） |
+| Android SDK                    | 仅构建 Android 时需要         |
+| Visual Studio 2022（含 C++ 桌面开发） | 仅构建 Windows 时需要         |
 
 ### 本地运行
 
@@ -58,13 +58,13 @@ flutter run -d windows   # 或 -d <your_android_device_id>
 
 在设置页新增一条模型配置，填入：
 
-| 字段 | 说明 |
-|------|------|
-| 显示名称 | 列表中展示的名字，可随意填写 |
-| API URL | 完整的 chat completions 端点，例如 `https://api.openai.com/v1/chat/completions` |
-| API Key | 接口密钥 |
-| Model Name | 模型名称，原样传给 API |
-| 支持推理 | 勾选后在聊天页可开启 thinking |
+| 字段         | 说明                                                                      |
+|------------|-------------------------------------------------------------------------|
+| 显示名称       | 列表中展示的名字，可随意填写                                                          |
+| API URL    | 完整的 chat completions 端点，例如 `https://api.openai.com/v1/chat/completions` |
+| API Key    | 接口密钥                                                                    |
+| Model Name | 模型名称，原样传给 API                                                           |
+| 支持推理       | 勾选后在聊天页可开启 thinking                                                     |
 
 > **OpenAI 官方主机**使用原生 `reasoning_effort` 字段；  
 > **其他兼容主机**使用 `thinking: {"type": "enabled"|"disabled"}` 字段，
@@ -140,13 +140,13 @@ lib/
 
 ### 持久化策略
 
-| 数据 | 存储方式 |
-|------|---------|
-| 聊天记录 | SQLite（`chat_history.sqlite`，位于应用 Support 目录） |
-| 模型配置 | SharedPreferences JSON（`settings.llm_model_configs`） |
-| Prompt 模板 | SQLite |
-| 固定顺序提示词 | SQLite |
-| 聊天默认项 | SharedPreferences JSON（单对象） |
+| 数据        | 存储方式                                                 |
+|-----------|------------------------------------------------------|
+| 聊天记录      | SQLite（`chat_history.sqlite`，位于应用 Support 目录）        |
+| 模型配置      | SharedPreferences JSON（`settings.llm_model_configs`） |
+| Prompt 模板 | SQLite                                               |
+| 固定顺序提示词   | SQLite                                               |
+| 聊天默认项     | SharedPreferences JSON（单对象）                          |
 
 历史版本使用 SharedPreferences 存储所有数据，升级时会自动执行一次性迁移，迁移完成后删除旧键。
 
@@ -184,9 +184,9 @@ flutter test             # 运行全部测试（约 40 个 widget + 集成测试
 
 ## 数据文件位置
 
-| 平台 | 路径 |
-|------|------|
-| Windows | `%APPDATA%\<org>\oh_my_llm\` |
+| 平台      | 路径                                  |
+|---------|-------------------------------------|
+| Windows | `%APPDATA%\<org>\oh_my_llm\`        |
 | Android | `/data/data/com.example.oh_my_llm/` |
 
 聊天记录文件为 `chat_history.sqlite`，设置项保存在系统 SharedPreferences 中。
