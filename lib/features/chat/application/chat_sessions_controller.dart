@@ -7,6 +7,8 @@ import '../../settings/application/llm_model_configs_controller.dart';
 import '../../settings/application/prompt_templates_controller.dart';
 import '../../settings/domain/models/llm_model_config.dart';
 import '../../settings/domain/models/prompt_template.dart';
+import 'chat_message_tree.dart';
+import 'chat_request_message_builder.dart';
 import '../data/chat_completion_client.dart';
 import '../data/chat_conversation_repository.dart';
 import '../data/openai_compatible_chat_client.dart';
@@ -209,10 +211,12 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     }
 
     final currentConversation = state.activeConversation;
-    final tree = _resolveTreeState(currentConversation);
-    final siblings = tree.nodes.where((node) {
-      return (node.parentId ?? rootConversationParentId) == parentId;
-    }).toList(growable: false);
+    final tree = resolveMessageTreeState(currentConversation);
+    final siblings = tree.nodes
+        .where((node) {
+          return (node.parentId ?? rootConversationParentId) == parentId;
+        })
+        .toList(growable: false);
     final hasTarget = siblings.any((node) => node.id == messageId);
     if (!hasTarget) {
       return;
@@ -243,12 +247,10 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     }
 
     final currentConversation = state.activeConversation;
-    final tree = _resolveTreeState(currentConversation);
-    final targetMessage = tree.nodes
-        .where((message) {
-          return message.id == messageId && message.role == ChatMessageRole.user;
-        })
-        .firstOrNull;
+    final tree = resolveMessageTreeState(currentConversation);
+    final targetMessage = tree.nodes.where((message) {
+      return message.id == messageId && message.role == ChatMessageRole.user;
+    }).firstOrNull;
     if (targetMessage == null) {
       return;
     }
@@ -310,7 +312,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     }
 
     final promptTemplate = _resolvePromptTemplate(currentConversation);
-    final tree = _resolveTreeState(currentConversation);
+    final tree = resolveMessageTreeState(currentConversation);
     final latestAssistant = activePath[latestAssistantIndex];
     final parentId = latestAssistant.parentId ?? rootConversationParentId;
     final requestMessages = activePath
@@ -366,7 +368,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
 
     final currentConversation = state.activeConversation;
     final timestamp = DateTime.now();
-    final tree = _resolveTreeState(currentConversation);
+    final tree = resolveMessageTreeState(currentConversation);
     final activePath = currentConversation.messages;
     final parentId = activePath.lastOrNull?.id;
     final userMessage = ChatMessage(
@@ -419,7 +421,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     required String errorMessage,
   }) async {
     final currentConversation = state.activeConversation;
-    final tree = _resolveTreeState(currentConversation);
+    final tree = resolveMessageTreeState(currentConversation);
     final failedAssistantMessage = tree.nodes
         .where((message) => message.id == assistantMessageId)
         .firstOrNull;
@@ -429,14 +431,14 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
             failedAssistantMessage.reasoningContent.trim().isNotEmpty);
 
     final nextTree = hasPartialContent
-        ? _replaceAssistantMessageInTree(
+        ? replaceAssistantMessageInTree(
             treeState: tree,
             assistantMessageId: assistantMessageId,
             nextContent: failedAssistantMessage.content,
             nextReasoningContent: failedAssistantMessage.reasoningContent,
             isStreaming: false,
           )
-        : _removeNodeFromTree(treeState: tree, nodeId: assistantMessageId);
+        : removeNodeFromTree(treeState: tree, nodeId: assistantMessageId);
 
     final nextConversation = currentConversation.copyWith(
       messageNodes: nextTree.nodes,
@@ -467,7 +469,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     required ReasoningEffort reasoningEffort,
   }) async {
     final timestamp = DateTime.now();
-    final tree = _resolveTreeState(conversation);
+    final tree = resolveMessageTreeState(conversation);
     final assistantParentId = parentMessageId ?? rootConversationParentId;
     final assistantMessage = ChatMessage(
       id: generateEntityId(),
@@ -477,7 +479,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
       parentId: assistantParentId,
       isStreaming: true,
     );
-    final initialTree = _appendNodeToTree(
+    final initialTree = appendNodeToTree(
       treeState: tree,
       node: assistantMessage,
       parentId: assistantParentId,
@@ -504,7 +506,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
       final reasoningBuffer = StringBuffer();
       await for (final chunk in _chatClient.streamCompletion(
         modelConfig: modelConfig,
-        messages: _buildRequestMessages(
+        messages: buildRequestMessages(
           promptTemplate: promptTemplate,
           conversationMessages: requestConversationMessages,
         ),
@@ -518,8 +520,8 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
 
         responseBuffer.write(chunk.contentDelta);
         reasoningBuffer.write(chunk.reasoningDelta);
-        final nextTree = _replaceAssistantMessageInTree(
-          treeState: _resolveTreeState(streamingConversation),
+        final nextTree = replaceAssistantMessageInTree(
+          treeState: resolveMessageTreeState(streamingConversation),
           assistantMessageId: assistantMessage.id,
           nextContent: responseBuffer.toString(),
           nextReasoningContent: reasoningBuffer.toString(),
@@ -533,8 +535,8 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
         _replaceConversationInMemory(streamingConversation);
       }
 
-      final completedTree = _replaceAssistantMessageInTree(
-        treeState: _resolveTreeState(streamingConversation),
+      final completedTree = replaceAssistantMessageInTree(
+        treeState: resolveMessageTreeState(streamingConversation),
         assistantMessageId: assistantMessage.id,
         nextContent: responseBuffer.toString(),
         nextReasoningContent: reasoningBuffer.toString(),
@@ -594,136 +596,6 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     return List.unmodifiable(sortedConversations);
   }
 
-  List<ChatCompletionRequestMessage> _buildRequestMessages({
-    required PromptTemplate? promptTemplate,
-    required List<ChatMessage> conversationMessages,
-  }) {
-    final requestMessages = <ChatCompletionRequestMessage>[];
-
-    if (promptTemplate != null &&
-        promptTemplate.systemPrompt.trim().isNotEmpty) {
-      requestMessages.add(
-        ChatCompletionRequestMessage(
-          role: ChatMessageRole.system,
-          content: promptTemplate.systemPrompt.trim(),
-        ),
-      );
-    }
-
-    if (promptTemplate != null) {
-      requestMessages.addAll(
-        promptTemplate.messages.map((message) {
-          return ChatCompletionRequestMessage(
-            role: message.role == PromptMessageRole.user
-                ? ChatMessageRole.user
-                : ChatMessageRole.assistant,
-            content: message.content,
-          );
-        }),
-      );
-    }
-
-    requestMessages.addAll(
-      conversationMessages.map((message) {
-        return ChatCompletionRequestMessage(
-          role: message.role,
-          content: message.content,
-        );
-      }),
-    );
-
-    return List.unmodifiable(requestMessages);
-  }
-
-  _TreeState _resolveTreeState(ChatConversation conversation) {
-    if (conversation.messageNodes.isNotEmpty) {
-      return _TreeState(
-        nodes: List<ChatMessage>.from(conversation.messageNodes),
-        selections: Map<String, String>.from(
-          conversation.selectedChildByParentId,
-        ),
-      );
-    }
-
-    final nodes = <ChatMessage>[];
-    final selections = <String, String>{};
-    var parentId = rootConversationParentId;
-    for (final message in conversation.messages) {
-      final node = message.copyWith(parentId: parentId);
-      nodes.add(node);
-      selections[parentId] = node.id;
-      parentId = node.id;
-    }
-    return _TreeState(nodes: nodes, selections: selections);
-  }
-
-  _TreeState _appendNodeToTree({
-    required _TreeState treeState,
-    required ChatMessage node,
-    required String parentId,
-  }) {
-    final nextNodes = [...treeState.nodes, node];
-    final nextSelections = Map<String, String>.from(treeState.selections);
-    nextSelections[parentId] = node.id;
-    return _TreeState(nodes: nextNodes, selections: nextSelections);
-  }
-
-  _TreeState _replaceAssistantMessageInTree({
-    required _TreeState treeState,
-    required String assistantMessageId,
-    required String nextContent,
-    required String nextReasoningContent,
-    required bool isStreaming,
-  }) {
-    final nextNodes = treeState.nodes
-        .map((message) {
-          if (message.id != assistantMessageId) {
-            return message;
-          }
-
-          return message.copyWith(
-            content: nextContent,
-            reasoningContent: nextReasoningContent,
-            isStreaming: isStreaming,
-          );
-        })
-        .toList(growable: false);
-    return _TreeState(
-      nodes: nextNodes,
-      selections: Map<String, String>.from(treeState.selections),
-    );
-  }
-
-  _TreeState _removeNodeFromTree({
-    required _TreeState treeState,
-    required String nodeId,
-  }) {
-    final childIdsByParent = <String, List<String>>{};
-    for (final node in treeState.nodes) {
-      final parentId = node.parentId ?? rootConversationParentId;
-      childIdsByParent.putIfAbsent(parentId, () => <String>[]).add(node.id);
-    }
-
-    final removedNodeIds = <String>{};
-    final queue = <String>[nodeId];
-    while (queue.isNotEmpty) {
-      final currentId = queue.removeLast();
-      if (!removedNodeIds.add(currentId)) {
-        continue;
-      }
-      queue.addAll(childIdsByParent[currentId] ?? const []);
-    }
-
-    final nextNodes = treeState.nodes
-        .where((node) => !removedNodeIds.contains(node.id))
-        .toList(growable: false);
-    final nextSelections = Map<String, String>.from(treeState.selections)
-      ..removeWhere((key, value) {
-        return removedNodeIds.contains(key) || removedNodeIds.contains(value);
-      });
-    return _TreeState(nodes: nextNodes, selections: nextSelections);
-  }
-
   Future<void> _saveAll() {
     return _repository.saveAll(
       state.conversations
@@ -761,11 +633,4 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
   void _setErrorMessage(String message) {
     state = state.copyWith(errorMessage: message);
   }
-}
-
-class _TreeState {
-  const _TreeState({required this.nodes, required this.selections});
-
-  final List<ChatMessage> nodes;
-  final Map<String, String> selections;
 }
