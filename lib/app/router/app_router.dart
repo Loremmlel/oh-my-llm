@@ -7,6 +7,10 @@ import '../../features/history/presentation/history_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
 import '../navigation/app_destination.dart';
 
+/// 应用顶层路由配置。
+///
+/// 以 GoRouter 管理聊天、历史对话、设置三个顶层页面之间的跳转，
+/// 初始落地页为聊天页。
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: AppDestination.chat.path,

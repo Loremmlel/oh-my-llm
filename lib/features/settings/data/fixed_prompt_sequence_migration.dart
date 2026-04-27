@@ -27,12 +27,14 @@ Future<void> migrateLegacyFixedPromptSequences({
       false;
 
   if (hasMigrated) {
+    // 迁移已完成——清除可能残留的旧 SP 数据后返回。
     if (hasLegacyPayload) {
       await preferences.remove(fixedPromptSequencesStorageKey);
     }
     return;
   }
 
+  // SQLite 中已有数据时跳过导入（避免重复写入）。
   final existingSequences = repository.loadAll();
   if (existingSequences.isNotEmpty) {
     if (hasLegacyPayload) {
@@ -45,6 +47,7 @@ Future<void> migrateLegacyFixedPromptSequences({
     return;
   }
 
+  // 将 SP 旧数据导入 SQLite。
   if (hasLegacyPayload) {
     final legacySequences = LegacyFixedPromptSequenceRepository(
       preferences,

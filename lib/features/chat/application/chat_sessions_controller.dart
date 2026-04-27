@@ -17,37 +17,50 @@ import '../data/openai_compatible_chat_client.dart';
 import '../domain/models/chat_conversation.dart';
 import '../domain/models/chat_message.dart';
 
+/// 主入口 provider，暴露完整会话状态和操作接口。
 final chatSessionsProvider =
     NotifierProvider<ChatSessionsController, ChatSessionsState>(
       ChatSessionsController.new,
     );
 
+/// UI 刷新节流阈值：流式增量积累满此间隔才触发一次界面重建，
+/// 避免高频 token 回调把单帧渲染时间占满。
 const _streamUiFlushInterval = Duration(milliseconds: 300);
 
+/// 当前所有聊天会话列表（仅在会话增删改时重建）。
 final chatConversationsProvider = Provider<List<ChatConversation>>((ref) {
   return ref.watch(chatSessionsProvider.select((state) => state.conversations));
 });
 
+/// 当前活动会话的 ID（仅在切换会话时重建）。
 final activeConversationIdProvider = Provider<String>((ref) {
   return ref.watch(
     chatSessionsProvider.select((state) => state.activeConversationId),
   );
 });
 
+/// 是否正在进行流式请求（仅在流开始/结束时重建）。
 final isChatStreamingProvider = Provider<bool>((ref) {
   return ref.watch(chatSessionsProvider.select((state) => state.isStreaming));
 });
 
+/// 当前错误提示文字，无错误时为 `null`（仅在错误状态变化时重建）。
 final chatErrorMessageProvider = Provider<String?>((ref) {
   return ref.watch(chatSessionsProvider.select((state) => state.errorMessage));
 });
 
+/// 历史列表变更计数器，每次会话增删改时递增，供历史页触发重新查询。
 final chatHistoryRevisionProvider = Provider<int>((ref) {
   return ref.watch(
     chatSessionsProvider.select((state) => state.historyRevision),
   );
 });
 
+/// 当前活动会话的完整视图，已将流式增量合并进消息列表（高频刷新）。
+///
+/// 流式进行期间，此 provider 每次 [_streamUiFlushInterval] 重建一次，
+/// 而 [chatConversationsProvider] 和 [chatHistoryRevisionProvider] 保持静止，
+/// 以此隔离高频重建的影响范围。
 final activeChatConversationProvider = Provider<ChatConversation>((ref) {
   final state = ref.watch(chatSessionsProvider);
   return _applyStreamingReplyToConversation(
@@ -57,6 +70,10 @@ final activeChatConversationProvider = Provider<ChatConversation>((ref) {
 });
 
 /// 当前流式中的 assistant 消息增量。
+///
+/// 流式进行期间，控制器以此对象在内存中累积内容，
+/// 只有到达刷新阈值时才将其写入 [activeChatConversationProvider]，
+/// 从而控制 Markdown 渲染频率。
 class ChatStreamingReply extends Equatable {
   const ChatStreamingReply({
     required this.conversationId,
@@ -65,9 +82,16 @@ class ChatStreamingReply extends Equatable {
     this.reasoningContent = '',
   });
 
+  /// 正在流式回复的会话 ID，用于校验当前 reply 是否属于活动会话。
   final String conversationId;
+
+  /// 正在写入的 assistant 消息节点 ID。
   final String assistantMessageId;
+
+  /// 已累积的回复正文（Markdown）。
   final String content;
+
+  /// 已累积的推理过程文本（thinking 内容）。
   final String reasoningContent;
 
   ChatStreamingReply copyWith({
@@ -94,6 +118,10 @@ class ChatStreamingReply extends Equatable {
 }
 
 /// 当前聊天会话集合与活动会话状态。
+///
+/// 将流式增量 ([streamingReply]) 独立存储，而不是直接写进会话列表，
+/// 目的是让流式刷新只触发 [activeChatConversationProvider] 重建，
+/// 而不影响历史列表、导航栏等消费 [chatConversationsProvider] 的控件。
 class ChatSessionsState extends Equatable {
   const ChatSessionsState({
     required this.conversations,
@@ -104,11 +132,22 @@ class ChatSessionsState extends Equatable {
     this.historyRevision = 0,
   });
 
+  /// 所有持久化会话（按 [updatedAt] 倒序排列）。
   final List<ChatConversation> conversations;
+
+  /// 当前正在查看的会话 ID。
   final String activeConversationId;
+
+  /// 是否有流式请求正在进行。
   final bool isStreaming;
+
+  /// 最近一次错误的用户可读描述，正常时为 `null`。
   final String? errorMessage;
+
+  /// 正在进行中的流式增量，流结束后清空。
   final ChatStreamingReply? streamingReply;
+
+  /// 历史列表变更版本号，每次写入会话时递增，供历史页触发重新查询。
   final int historyRevision;
 
   /// 获取当前正在展示的会话；找不到时回退到列表首项。
@@ -158,6 +197,11 @@ class ChatSessionsState extends Equatable {
   ];
 }
 
+/// 将流式增量合并进 [conversation]，返回一个带最新内容的临时会话快照。
+///
+/// 此函数是纯函数，不修改任何状态，专供 [activeChatConversationProvider] 和
+/// 流式结束后的最终落盘使用。当 [streamingReply] 为 `null` 或 ID 不匹配时，
+/// 原样返回 [conversation]，不做任何变更。
 ChatConversation _applyStreamingReplyToConversation({
   required ChatConversation conversation,
   required ChatStreamingReply? streamingReply,
@@ -189,8 +233,12 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
   ChatCompletionClient get _chatClient =>
       ref.read(chatCompletionClientProvider);
 
-  @override
+  // ── 生命周期 ────────────────────────────────────────────────────────────────
+
   /// 读取持久化数据并初始化当前会话状态。
+  ///
+  /// 若数据库为空则自动创建一个新的空白会话作为初始状态。
+  @override
   ChatSessionsState build() {
     final conversations = _sort(_repository.loadAll());
     final initialConversation = conversations.isEmpty
@@ -204,6 +252,8 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
       activeConversationId: initialConversation.id,
     );
   }
+
+  // ── 公开操作 ────────────────────────────────────────────────────────────────
 
   /// 新建一个会话并切换到该会话。
   Future<void> createConversation() async {
@@ -533,6 +583,8 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
       reasoningEffort: reasoningEffort,
     );
   }
+
+  // ── 私有辅助 ────────────────────────────────────────────────────────────────
 
   /// 创建一个空会话并继承设置页中的默认选择。
   ChatConversation _createConversation() {

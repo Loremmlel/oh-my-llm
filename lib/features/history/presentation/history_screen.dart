@@ -12,6 +12,7 @@ import '../../chat/domain/chat_conversation_groups.dart';
 import '../../chat/domain/models/chat_conversation_summary.dart';
 import 'widgets/history_widgets.dart';
 
+/// 搜索输入防抖时长，避免每次按键都触发数据库查询。
 const _historySearchDebounceDuration = Duration(milliseconds: 300);
 
 /// 历史对话页入口，支持搜索、批量选择、删除和重命名。
@@ -45,8 +46,8 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     super.dispose();
   }
 
-  @override
   /// 构建历史页的搜索区和分组列表。
+  @override
   Widget build(BuildContext context) {
     ref.watch(chatHistoryRevisionProvider);
     final repository = ref.read(chatConversationRepositoryProvider);

@@ -13,6 +13,10 @@ import 'features/settings/data/prompt_template_migration.dart';
 import 'features/settings/data/sqlite_fixed_prompt_sequence_repository.dart';
 import 'features/settings/data/sqlite_prompt_template_repository.dart';
 
+/// 应用启动入口：初始化持久化层、执行一次性数据迁移，最后启动 Flutter 应用。
+///
+/// [sharedPreferences] 仅供测试注入；生产代码传 `null`，由函数内部通过
+/// `SharedPreferences.getInstance()` 获取实例。
 Future<void> bootstrap({SharedPreferences? sharedPreferences}) async {
   WidgetsFlutterBinding.ensureInitialized();
 
