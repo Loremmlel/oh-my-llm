@@ -37,6 +37,21 @@ class FixedPromptSequencesController
     await _repository.saveAll(state);
   }
 
+  /// 批量新增或更新多个固定顺序提示词序列，一次性刷新状态。
+  Future<void> upsertAll(List<FixedPromptSequence> sequences) async {
+    final updated = [...state];
+    for (final sequence in sequences) {
+      final i = updated.indexWhere((s) => s.id == sequence.id);
+      if (i == -1) {
+        updated.add(sequence);
+      } else {
+        updated[i] = sequence;
+      }
+    }
+    state = _sort(updated);
+    await _repository.saveAll(state);
+  }
+
   /// 按 id 删除一个固定顺序提示词序列。
   Future<void> deleteById(String id) async {
     state = state

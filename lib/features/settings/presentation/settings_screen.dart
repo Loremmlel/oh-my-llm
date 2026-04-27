@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/navigation/app_destination.dart';
@@ -11,6 +12,8 @@ import '../application/prompt_templates_controller.dart';
 import '../domain/models/fixed_prompt_sequence.dart';
 import '../domain/models/llm_model_config.dart';
 import '../domain/models/prompt_template.dart';
+import '../domain/models/settings_export_data.dart';
+import 'widgets/import_confirm_dialog.dart';
 import 'widgets/settings_widgets.dart';
 
 /// 设置页入口，集中管理模型配置、Prompt 模板和聊天默认项。
@@ -18,7 +21,7 @@ class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   @override
-  /// 构建设置页的三块配置区域。
+  /// 构建设置页的三块配置区域，顶部附导出/导入操作栏。
   Widget build(BuildContext context, WidgetRef ref) {
     final chatDefaults = ref.watch(chatDefaultsProvider);
     final fixedPromptSequences = ref.watch(fixedPromptSequencesProvider);
@@ -31,6 +34,16 @@ class SettingsScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // 导出按钮：将三类配置序列化为 JSON 并写入剪贴板
+          Align(
+            alignment: Alignment.centerRight,
+            child: OutlinedButton.icon(
+              onPressed: () => _exportToClipboard(context, ref),
+              icon: const Icon(Icons.upload_rounded),
+              label: const Text('导出全部配置'),
+            ),
+          ),
+          const SizedBox(height: 12),
           SettingsSectionCard(
             title: '聊天默认项',
             description: '统一指定默认模型和默认 Prompt。聊天页会直接使用这里的配置，不再单独选择。',
@@ -44,10 +57,14 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: 16),
           SettingsSectionCard(
             title: '模型设置',
-            description: '管理 OpenAI 兼容模型配置，默认模型会从下方“聊天默认项”中指定。',
+            description: '管理 OpenAI 兼容模型配置，默认模型会从下方"聊天默认项"中指定。',
             action: FilledButton.icon(
-              onPressed: () {
-                _showModelConfigDialog(context, ref);
+              onPressed: () async {
+                // 先检测剪贴板是否有可导入的配置数据，避免用户错过导入机会
+                final handled = await _tryImportFromClipboard(context, ref);
+                if (!handled && context.mounted) {
+                  _showModelConfigDialog(context, ref);
+                }
               },
               icon: const Icon(Icons.add_rounded),
               label: const Text('新增模型'),
@@ -62,10 +79,13 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: 16),
           SettingsSectionCard(
             title: '前置 Prompt 设置',
-            description: '配置会在每次对话时被插入到历史最前面，默认模板同样从“聊天默认项”中指定。',
+            description: '配置会在每次对话时被插入到历史最前面，默认模板同样从"聊天默认项"中指定。',
             action: FilledButton.icon(
-              onPressed: () {
-                _showPromptTemplateDialog(context, ref);
+              onPressed: () async {
+                final handled = await _tryImportFromClipboard(context, ref);
+                if (!handled && context.mounted) {
+                  _showPromptTemplateDialog(context, ref);
+                }
               },
               icon: const Icon(Icons.add_rounded),
               label: const Text('新增模板'),
@@ -82,8 +102,11 @@ class SettingsScreen extends ConsumerWidget {
             title: '固定顺序提示词',
             description: '配置可逐步发送的用户提示词序列，适合做模型对比测试，不会自动整组连发。',
             action: FilledButton.icon(
-              onPressed: () {
-                _showFixedPromptSequenceDialog(context, ref);
+              onPressed: () async {
+                final handled = await _tryImportFromClipboard(context, ref);
+                if (!handled && context.mounted) {
+                  _showFixedPromptSequenceDialog(context, ref);
+                }
               },
               icon: const Icon(Icons.add_rounded),
               label: const Text('新增序列'),
@@ -102,6 +125,64 @@ class SettingsScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  /// 将当前全部配置序列化为 JSON 并复制到剪贴板。
+  Future<void> _exportToClipboard(BuildContext context, WidgetRef ref) async {
+    final modelConfigs = ref.read(llmModelConfigsProvider);
+    final promptTemplates = ref.read(promptTemplatesProvider);
+    final fixedPromptSequences = ref.read(fixedPromptSequencesProvider);
+
+    final exportData = SettingsExportData(
+      modelConfigs: modelConfigs,
+      promptTemplates: promptTemplates,
+      fixedPromptSequences: fixedPromptSequences,
+    );
+
+    await Clipboard.setData(ClipboardData(text: exportData.toJsonString()));
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('已复制全部配置到剪贴板')),
+      );
+    }
+  }
+
+  /// 读取剪贴板，检测是否含有本应用的配置导出数据。
+  ///
+  /// 若检测到，则弹出 [ImportConfirmDialog]；确认后批量写入并返回 true。
+  /// 若未检测到或用户取消，则返回 false，调用方继续显示常规表单。
+  Future<bool> _tryImportFromClipboard(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    // 仅读取一次剪贴板，不在 build 或监听器中重复读取
+    final clipboardData = await Clipboard.getData(Clipboard.kTextPlain);
+    final exportData = SettingsExportData.tryParseJson(clipboardData?.text);
+
+    if (exportData == null || !exportData.hasContent) {
+      return false;
+    }
+
+    if (!context.mounted) {
+      return false;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return ImportConfirmDialog(exportData: exportData);
+      },
+    );
+
+    if (confirmed == true && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('配置已成功导入')),
+      );
+    }
+
+    // 无论确认还是取消，只要弹过对话框就算"已处理"，不再打开表单
+    return true;
   }
 
   /// 弹出模型配置对话框，并把提交结果写回控制器。

@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -20,13 +21,30 @@ Future<AppDatabase> pumpSettingsScreen(
   required SharedPreferences preferences,
 }) async {
   final database = await createTestDatabase(preferences);
-  tester.view.physicalSize = const Size(1440, 1024);
+  tester.view.physicalSize = const Size(1440, 1500);
   tester.view.devicePixelRatio = 1;
   addTearDown(() {
     tester.view.resetPhysicalSize();
     tester.view.resetDevicePixelRatio();
     database.close();
   });
+
+  // 设置空剪贴板，避免"新增"按钮的导入检测挂起平台通道
+  tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+    SystemChannels.platform,
+    (call) async {
+      if (call.method == 'Clipboard.getData') {
+        return <String, dynamic>{'text': ''};
+      }
+      if (call.method == 'Clipboard.setData') {
+        return null;
+      }
+      if (call.method == 'Clipboard.hasStrings') {
+        return <String, dynamic>{'value': false};
+      }
+      return null;
+    },
+  );
 
   await tester.pumpWidget(
     ProviderScope(
