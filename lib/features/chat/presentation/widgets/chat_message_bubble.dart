@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 
 import '../../domain/models/chat_message.dart';
 import 'message_version_info.dart';
 import 'message_version_navigator.dart';
 import 'reasoning_panel.dart';
+import 'streaming_markdown_view.dart';
 
 /// 单条聊天消息气泡，负责正文、推理内容和消息操作。
 class ChatMessageBubble extends StatelessWidget {
@@ -149,17 +149,9 @@ class ChatMessageBubble extends StatelessWidget {
       return SelectableText(message.content, style: theme.textTheme.bodyLarge);
     }
 
-    return MarkdownBody(
-      data: message.content.isEmpty && message.isStreaming
-          ? '_正在等待模型返回内容..._'
-          : message.content,
-      selectable: true,
-      styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
-        p: theme.textTheme.bodyLarge,
-        blockquote: theme.textTheme.bodyMedium?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-        ),
-      ),
+    return StreamingMarkdownView(
+      content: message.content,
+      isStreaming: message.isStreaming,
     );
   }
 }
