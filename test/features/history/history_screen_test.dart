@@ -10,6 +10,7 @@ import 'package:oh_my_llm/app/navigation/app_destination.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/data/chat_conversation_repository.dart';
+import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/history/presentation/history_screen.dart';
 
 void main() {
@@ -44,6 +45,27 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('没有匹配'), findsOneWidget);
+  });
+
+  testWidgets('history search matches user messages across all branches', (
+    tester,
+  ) async {
+    final preferences = await _createTreeSeededPreferences();
+
+    tester.view.physicalSize = const Size(1440, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(_buildHistoryApp(preferences));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField).first, '分支关键词');
+    await tester.pumpAndSettle();
+
+    expect(find.text('树状会话'), findsOneWidget);
   });
 
   testWidgets('history screen renames and batch deletes conversations', (
@@ -252,6 +274,52 @@ Future<SharedPreferences> _createSeededPreferences() async {
         ],
         'createdAt': DateTime(2026, 4, 20, 10, 0).toIso8601String(),
         'updatedAt': DateTime(2026, 4, 20, 10, 1).toIso8601String(),
+        'selectedModelId': 'model-1',
+        'selectedPromptTemplateId': null,
+        'reasoningEnabled': false,
+        'reasoningEffort': 'medium',
+      },
+    ]),
+  });
+
+  return SharedPreferences.getInstance();
+}
+
+Future<SharedPreferences> _createTreeSeededPreferences() async {
+  SharedPreferences.setMockInitialValues({
+    chatConversationsStorageKey: jsonEncode([
+      {
+        'id': 'conversation-tree',
+        'title': '树状会话',
+        'messages': [
+          {
+            'id': 'u-root-a',
+            'role': 'user',
+            'content': '当前分支用户消息',
+            'createdAt': DateTime(2026, 4, 26, 20, 0).toIso8601String(),
+          },
+        ],
+        'messageNodes': [
+          {
+            'id': 'u-root-a',
+            'role': 'user',
+            'content': '当前分支用户消息',
+            'parentId': rootConversationParentId,
+            'createdAt': DateTime(2026, 4, 26, 20, 0).toIso8601String(),
+          },
+          {
+            'id': 'u-root-b',
+            'role': 'user',
+            'content': '另一条分支关键词消息',
+            'parentId': rootConversationParentId,
+            'createdAt': DateTime(2026, 4, 26, 20, 1).toIso8601String(),
+          },
+        ],
+        'selectedChildByParentId': {
+          rootConversationParentId: 'u-root-a',
+        },
+        'createdAt': DateTime(2026, 4, 26, 20, 0).toIso8601String(),
+        'updatedAt': DateTime(2026, 4, 26, 20, 1).toIso8601String(),
         'selectedModelId': 'model-1',
         'selectedPromptTemplateId': null,
         'reasoningEnabled': false,

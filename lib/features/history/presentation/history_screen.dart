@@ -184,7 +184,10 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         return true;
       }
 
-      return conversation.messages.any((message) {
+      final searchableMessages = conversation.messageNodes.isNotEmpty
+          ? conversation.messageNodes
+          : conversation.messages;
+      return searchableMessages.any((message) {
         return message.role.name == 'user' &&
             message.content.toLowerCase().contains(normalizedKeyword);
       });
