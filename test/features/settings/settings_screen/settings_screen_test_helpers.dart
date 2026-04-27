@@ -5,25 +5,33 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dart';
 import 'package:oh_my_llm/features/settings/data/prompt_template_repository.dart';
 import 'package:oh_my_llm/features/settings/presentation/settings_screen.dart';
 
+import '../../../test_database.dart';
+
 Future<void> pumpSettingsScreen(
   WidgetTester tester, {
   required SharedPreferences preferences,
 }) async {
+  final database = await createTestDatabase(preferences);
   tester.view.physicalSize = const Size(1440, 1024);
   tester.view.devicePixelRatio = 1;
   addTearDown(() {
     tester.view.resetPhysicalSize();
     tester.view.resetDevicePixelRatio();
+    database.close();
   });
 
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [sharedPreferencesProvider.overrideWithValue(preferences)],
+      overrides: [
+        appDatabaseProvider.overrideWithValue(database),
+        sharedPreferencesProvider.overrideWithValue(preferences),
+      ],
       child: const MaterialApp(home: SettingsScreen()),
     ),
   );

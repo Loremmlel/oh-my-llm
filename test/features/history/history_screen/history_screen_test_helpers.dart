@@ -6,28 +6,37 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/app/navigation/app_destination.dart';
+import 'package:oh_my_llm/core/persistence/app_database.dart';
+import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/features/chat/data/chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/history/presentation/history_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../test_database.dart';
+
 Future<void> pumpHistoryScreen(
   WidgetTester tester, {
   required SharedPreferences preferences,
 }) async {
+  final database = await createTestDatabase(preferences);
   tester.view.physicalSize = const Size(1440, 1200);
   tester.view.devicePixelRatio = 1;
   addTearDown(() {
     tester.view.resetPhysicalSize();
     tester.view.resetDevicePixelRatio();
+    database.close();
   });
 
-  await tester.pumpWidget(buildHistoryApp(preferences));
+  await tester.pumpWidget(buildHistoryApp(preferences, database: database));
   await tester.pumpAndSettle();
 }
 
-Widget buildHistoryApp(SharedPreferences preferences) {
+Widget buildHistoryApp(
+  SharedPreferences preferences, {
+  required AppDatabase database,
+}) {
   final router = GoRouter(
     initialLocation: AppDestination.history.path,
     routes: [
@@ -49,7 +58,10 @@ Widget buildHistoryApp(SharedPreferences preferences) {
   );
 
   return ProviderScope(
-    overrides: [sharedPreferencesProvider.overrideWithValue(preferences)],
+    overrides: [
+      appDatabaseProvider.overrideWithValue(database),
+      sharedPreferencesProvider.overrideWithValue(preferences),
+    ],
     child: MaterialApp.router(routerConfig: router),
   );
 }

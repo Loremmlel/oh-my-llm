@@ -1,44 +1,25 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../../core/persistence/shared_preferences_provider.dart';
-import '../../../core/persistence/versioned_json_storage.dart';
+import '../../../core/persistence/app_database_provider.dart';
 import '../domain/models/chat_conversation.dart';
+import 'sqlite_chat_conversation_repository.dart';
 
 const chatConversationsStorageKey = 'chat_conversations';
+const chatConversationsSqliteMigrationFlagKey =
+    'chat_conversations_sqlite_migrated';
 
 final chatConversationRepositoryProvider = Provider<ChatConversationRepository>(
   (ref) {
-    final preferences = ref.watch(sharedPreferencesProvider);
-    return ChatConversationRepository(preferences);
+    final database = ref.watch(appDatabaseProvider);
+    return SqliteChatConversationRepository(database);
   },
 );
 
-/// 基于 SharedPreferences 的会话持久化仓库。
-class ChatConversationRepository {
-  const ChatConversationRepository(this._preferences);
-
-  final SharedPreferences _preferences;
-
+/// 聊天会话持久化仓库接口。
+abstract interface class ChatConversationRepository {
   /// 读取全部会话；空存储会返回空列表。
-  List<ChatConversation> loadAll() {
-    final rawValue = _preferences.getString(chatConversationsStorageKey);
-    if (rawValue == null || rawValue.trim().isEmpty) {
-      return const [];
-    }
-
-    return VersionedJsonStorage.decodeObjectList(
-      rawJson: rawValue,
-      subject: 'conversations',
-    ).map(ChatConversation.fromJson).toList(growable: false);
-  }
+  List<ChatConversation> loadAll();
 
   /// 将当前会话列表覆盖写回持久层。
-  Future<void> saveAll(List<ChatConversation> conversations) {
-    final payload = VersionedJsonStorage.encodeObjectList(
-      items: conversations,
-      toJson: (conversation) => conversation.toJson(),
-    );
-    return _preferences.setString(chatConversationsStorageKey, payload);
-  }
+  Future<void> saveAll(List<ChatConversation> conversations);
 }
