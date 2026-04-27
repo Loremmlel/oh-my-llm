@@ -9,6 +9,7 @@ import '../../chat/domain/chat_conversation_groups.dart';
 import '../../chat/domain/models/chat_conversation.dart';
 import 'widgets/history_widgets.dart';
 
+/// 历史对话页入口，支持搜索、批量选择、删除和重命名。
 class HistoryScreen extends ConsumerStatefulWidget {
   const HistoryScreen({super.key});
 
@@ -16,6 +17,7 @@ class HistoryScreen extends ConsumerStatefulWidget {
   ConsumerState<HistoryScreen> createState() => _HistoryScreenState();
 }
 
+/// 历史页状态层，负责搜索、选择和会话跳转。
 class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   late final TextEditingController _searchController;
 
@@ -36,6 +38,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   }
 
   @override
+  /// 构建历史页的搜索区和分组列表。
   Widget build(BuildContext context) {
     final chatState = ref.watch(chatSessionsProvider);
     final conversations = chatState.conversations
@@ -171,6 +174,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     );
   }
 
+  /// 按标题和用户消息过滤历史会话。
   List<ChatConversation> _filterConversations(
     List<ChatConversation> conversations,
     String keyword,
@@ -200,6 +204,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         .toList(growable: false);
   }
 
+  /// 切换某个会话的选中状态。
   void _toggleSelection(String conversationId) {
     setState(() {
       if (_selectedConversationIds.contains(conversationId)) {
@@ -210,12 +215,14 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     });
   }
 
+  /// 清空全部选中项。
   void _clearSelection() {
     setState(() {
       _selectedConversationIds.clear();
     });
   }
 
+  /// 弹出重命名对话框，并把结果提交给控制器。
   Future<void> _showRenameDialog(
     BuildContext context, {
     required ChatConversation conversation,
@@ -238,6 +245,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         .renameConversation(conversationId: conversation.id, title: nextTitle);
   }
 
+  /// 确认并删除当前选中的历史会话。
   Future<void> _confirmDeleteSelected() async {
     final confirmed = await showDialog<bool>(
       context: context,

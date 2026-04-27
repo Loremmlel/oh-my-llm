@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../chat/domain/models/chat_conversation.dart';
 
+/// 历史页中的单个会话条目。
 class HistoryConversationTile extends StatelessWidget {
   const HistoryConversationTile({
     super.key,
@@ -21,6 +22,7 @@ class HistoryConversationTile extends StatelessWidget {
   final ValueChanged<bool?> onSelectionChanged;
 
   @override
+  /// 构建可选择、可重命名的会话条目。
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final latestUserMessage = conversation.messages.lastWhere(
