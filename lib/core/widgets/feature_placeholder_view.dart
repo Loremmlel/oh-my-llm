@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+/// 用于尚未启用功能页的居中占位卡片。
 class FeaturePlaceholderView extends StatelessWidget {
   const FeaturePlaceholderView({
     required this.title,
@@ -12,6 +13,7 @@ class FeaturePlaceholderView extends StatelessWidget {
   final String description;
   final List<String> highlights;
 
+  /// 构建一个友好的占位说明，并列出关键提示。
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -28,15 +30,9 @@ class FeaturePlaceholderView extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Oh My LLM',
-                    style: theme.textTheme.headlineMedium,
-                  ),
+                  Text('Oh My LLM', style: theme.textTheme.headlineMedium),
                   const SizedBox(height: 12),
-                  Text(
-                    description,
-                    style: theme.textTheme.bodyLarge,
-                  ),
+                  Text(description, style: theme.textTheme.bodyLarge),
                   const SizedBox(height: 20),
                   for (final item in highlights)
                     Padding(

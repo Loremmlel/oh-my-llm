@@ -4,6 +4,10 @@ import 'package:go_router/go_router.dart';
 import '../../core/constants/app_breakpoints.dart';
 import '../navigation/app_destination.dart';
 
+/// 应用顶层页面共用的脚手架。
+///
+/// 它负责在桌面侧边栏布局和紧凑底部导航布局之间切换，让业务页面只需
+/// 关注页面内容和可选动作。
 class AppShellScaffold extends StatelessWidget {
   const AppShellScaffold({
     required this.currentDestination,
@@ -20,6 +24,7 @@ class AppShellScaffold extends StatelessWidget {
   final List<Widget>? actions;
   final Widget? endDrawer;
 
+  /// 构建自适应页面脚手架，并把路由切换交给 GoRouter。
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
@@ -31,6 +36,7 @@ class AppShellScaffold extends StatelessWidget {
             title: Text(title),
             actions: [
               ...?actions,
+              // 紧凑布局里才显示抽屉按钮，因为宽屏下侧边导航已经常驻可见。
               if (isCompact && endDrawer != null)
                 Builder(
                   builder: (context) {
@@ -68,9 +74,7 @@ class AppShellScaffold extends StatelessWidget {
           body: Row(
             children: [
               if (!isCompact) ...[
-                _DesktopNavigationRail(
-                  currentDestination: currentDestination,
-                ),
+                _DesktopNavigationRail(currentDestination: currentDestination),
                 const VerticalDivider(width: 1),
               ],
               Expanded(child: body),
@@ -82,13 +86,13 @@ class AppShellScaffold extends StatelessWidget {
   }
 }
 
+/// 供 [AppShellScaffold] 在桌面端使用的导航栏。
 class _DesktopNavigationRail extends StatelessWidget {
-  const _DesktopNavigationRail({
-    required this.currentDestination,
-  });
+  const _DesktopNavigationRail({required this.currentDestination});
 
   final AppDestination currentDestination;
 
+  /// 构建侧边导航栏，并在入口变化时跳转到对应页面。
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -110,10 +114,7 @@ class _DesktopNavigationRail extends StatelessWidget {
       backgroundColor: theme.scaffoldBackgroundColor,
       leading: Padding(
         padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
-        child: Text(
-          'Oh My LLM',
-          style: theme.textTheme.titleLarge,
-        ),
+        child: Text('Oh My LLM', style: theme.textTheme.titleLarge),
       ),
       destinations: [
         for (final destination in AppDestination.values)
