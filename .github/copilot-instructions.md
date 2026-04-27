@@ -2,7 +2,7 @@
 
 ## Build, test, and lint commands
 
-This repository uses standard Flutter CLI commands; there are no custom wrapper scripts.
+This repository uses standard Flutter CLI commands for day-to-day work, plus root PowerShell scripts for release packaging.
 
 ```powershell
 flutter pub get
@@ -12,6 +12,8 @@ flutter test test\features\chat\chat_screen_test.dart
 flutter test test\features\chat\chat_screen_test.dart --plain-name "chat screen copies raw message content without reasoning"
 flutter build windows
 flutter build apk
+.\build-windows-release.ps1
+.\build-android-apk.ps1
 ```
 
 ## Repository workflow
@@ -20,6 +22,7 @@ flutter build apk
 - When splitting large Dart files, use `import` / `export` boundaries instead of `part` / `part of`.
 - New comments and doc comments should use Simplified Chinese. Use `///` for doc comments and keep inline comments focused on explaining why.
 - Keep existing behavior intact unless the task explicitly asks for a behavior change.
+- Keep generated release artifacts in `artifacts\` and do not commit local Android signing files such as `android\key.properties` or `android\app\self-use-release.jks`.
 
 ## High-level architecture
 
@@ -29,7 +32,7 @@ flutter build apk
   - `settings`: local CRUD for model configs, prompt templates, and chat defaults
   - `chat`: conversation state, persistence, streaming client, and the main chat UI
   - `history`: grouped search / rename / batch delete UI over the same conversation state
-- Persistent state is local-first and SharedPreferences-backed. Most collections (`model configs`, `prompt templates`, `conversations`) go through `core\persistence\versioned_json_storage.dart`, which writes `{ "version": 1, "items": [...] }` but still reads legacy raw arrays. `chat_defaults` is a single JSON object, not a versioned list.
+- Persistent state is local-first. Lightweight settings and templates still use SharedPreferences-backed JSON, while chat history now lives in SQLite through `core\persistence\app_database.dart` and `sqlite_chat_conversation_repository.dart`. `chat_defaults` is a single JSON object, not a versioned list.
 - `lib\features\chat\application\chat_sessions_controller.dart` is the center of the app. It owns:
   - active conversation selection
   - creation / rename / delete
@@ -58,6 +61,6 @@ flutter build apk
   - official OpenAI hosts: omit `thinking`, send native `reasoning_effort`
   - other compatible hosts: send `thinking: {"type":"enabled"|"disabled"}`
   - compatible-host effort values are normalized in the client before sending
-- Widget tests usually seed storage with `SharedPreferences.setMockInitialValues(...)` and inject dependencies with `ProviderScope` overrides. Prefer that pattern over adding special test-only code paths.
+- Widget tests usually seed storage with `SharedPreferences.setMockInitialValues(...)` and inject dependencies with `ProviderScope` overrides. When chat history is involved, also override `appDatabaseProvider` with the test database helper.
 - When splitting tests, keep only one runnable `*_test.dart` entrypoint per suite; move shared cases into helper files such as `*_cases.dart` so Flutter does not discover them as separate test targets.
 - This repo is being developed in small audited increments: each completed feature or fix is expected to be committed separately instead of batching unrelated work into one commit.
