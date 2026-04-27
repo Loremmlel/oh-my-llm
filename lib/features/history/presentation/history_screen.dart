@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,6 +12,8 @@ import '../../chat/domain/chat_conversation_groups.dart';
 import '../../chat/domain/models/chat_conversation_summary.dart';
 import 'widgets/history_widgets.dart';
 
+const _historySearchDebounceDuration = Duration(milliseconds: 300);
+
 /// 历史对话页入口，支持搜索、批量选择、删除和重命名。
 class HistoryScreen extends ConsumerStatefulWidget {
   const HistoryScreen({super.key});
@@ -21,8 +25,10 @@ class HistoryScreen extends ConsumerStatefulWidget {
 /// 历史页状态层，负责搜索、选择和会话跳转。
 class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   late final TextEditingController _searchController;
+  Timer? _searchDebounceTimer;
 
   final Set<String> _selectedConversationIds = <String>{};
+  String _debouncedSearchKeyword = '';
 
   bool get _selectionMode => _selectedConversationIds.isNotEmpty;
 
@@ -34,6 +40,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
 
   @override
   void dispose() {
+    _searchDebounceTimer?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -43,11 +50,10 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   Widget build(BuildContext context) {
     ref.watch(chatHistoryRevisionProvider);
     final repository = ref.read(chatConversationRepositoryProvider);
-    final searchKeyword = _searchController.text;
     final allConversations = repository.loadHistorySummaries();
-    final filteredConversations = searchKeyword.trim().isEmpty
+    final filteredConversations = _debouncedSearchKeyword.isEmpty
         ? allConversations
-        : repository.loadHistorySummaries(keyword: searchKeyword);
+        : repository.loadHistorySummaries(keyword: _debouncedSearchKeyword);
     final groups = groupConversationSummariesByUpdatedAt(filteredConversations);
 
     return AppShellScaffold(
@@ -80,7 +86,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                   searchController: _searchController,
                   selectedCount: _selectedConversationIds.length,
                   hasConversations: allConversations.isNotEmpty,
-                  onSearchChanged: (_) => setState(() {}),
+                  onSearchChanged: _handleSearchChanged,
                   onSelectAllPressed: filteredConversations.isEmpty
                       ? null
                       : () {
@@ -187,6 +193,33 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   void _clearSelection() {
     setState(() {
       _selectedConversationIds.clear();
+    });
+  }
+
+  /// 将搜索输入和真正执行查询的关键字解耦，避免每次按键都立即查库。
+  void _handleSearchChanged(String value) {
+    _searchDebounceTimer?.cancel();
+    final nextKeyword = value.trim();
+
+    if (nextKeyword.isEmpty) {
+      if (_debouncedSearchKeyword.isEmpty) {
+        return;
+      }
+
+      setState(() {
+        _debouncedSearchKeyword = '';
+      });
+      return;
+    }
+
+    _searchDebounceTimer = Timer(_historySearchDebounceDuration, () {
+      if (!mounted || _debouncedSearchKeyword == nextKeyword) {
+        return;
+      }
+
+      setState(() {
+        _debouncedSearchKeyword = nextKeyword;
+      });
     });
   }
 
