@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -20,6 +22,71 @@ final chatSessionsProvider =
       ChatSessionsController.new,
     );
 
+const _streamUiFlushInterval = Duration(milliseconds: 33);
+
+final chatConversationsProvider = Provider<List<ChatConversation>>((ref) {
+  return ref.watch(chatSessionsProvider.select((state) => state.conversations));
+});
+
+final activeConversationIdProvider = Provider<String>((ref) {
+  return ref.watch(
+    chatSessionsProvider.select((state) => state.activeConversationId),
+  );
+});
+
+final isChatStreamingProvider = Provider<bool>((ref) {
+  return ref.watch(chatSessionsProvider.select((state) => state.isStreaming));
+});
+
+final chatErrorMessageProvider = Provider<String?>((ref) {
+  return ref.watch(chatSessionsProvider.select((state) => state.errorMessage));
+});
+
+final activeChatConversationProvider = Provider<ChatConversation>((ref) {
+  final state = ref.watch(chatSessionsProvider);
+  return _applyStreamingReplyToConversation(
+    conversation: state.activeConversation,
+    streamingReply: state.streamingReply,
+  );
+});
+
+/// 当前流式中的 assistant 消息增量。
+class ChatStreamingReply extends Equatable {
+  const ChatStreamingReply({
+    required this.conversationId,
+    required this.assistantMessageId,
+    this.content = '',
+    this.reasoningContent = '',
+  });
+
+  final String conversationId;
+  final String assistantMessageId;
+  final String content;
+  final String reasoningContent;
+
+  ChatStreamingReply copyWith({
+    String? conversationId,
+    String? assistantMessageId,
+    String? content,
+    String? reasoningContent,
+  }) {
+    return ChatStreamingReply(
+      conversationId: conversationId ?? this.conversationId,
+      assistantMessageId: assistantMessageId ?? this.assistantMessageId,
+      content: content ?? this.content,
+      reasoningContent: reasoningContent ?? this.reasoningContent,
+    );
+  }
+
+  @override
+  List<Object?> get props => [
+    conversationId,
+    assistantMessageId,
+    content,
+    reasoningContent,
+  ];
+}
+
 /// 当前聊天会话集合与活动会话状态。
 class ChatSessionsState extends Equatable {
   const ChatSessionsState({
@@ -27,12 +94,14 @@ class ChatSessionsState extends Equatable {
     required this.activeConversationId,
     this.isStreaming = false,
     this.errorMessage,
+    this.streamingReply,
   });
 
   final List<ChatConversation> conversations;
   final String activeConversationId;
   final bool isStreaming;
   final String? errorMessage;
+  final ChatStreamingReply? streamingReply;
 
   /// 获取当前正在展示的会话；找不到时回退到列表首项。
   ChatConversation get activeConversation {
@@ -49,6 +118,8 @@ class ChatSessionsState extends Equatable {
     bool? isStreaming,
     String? errorMessage,
     bool clearErrorMessage = false,
+    ChatStreamingReply? streamingReply,
+    bool clearStreamingReply = false,
   }) {
     return ChatSessionsState(
       conversations: conversations ?? this.conversations,
@@ -57,6 +128,9 @@ class ChatSessionsState extends Equatable {
       errorMessage: clearErrorMessage
           ? null
           : errorMessage ?? this.errorMessage,
+      streamingReply: clearStreamingReply
+          ? null
+          : streamingReply ?? this.streamingReply,
     );
   }
 
@@ -66,7 +140,31 @@ class ChatSessionsState extends Equatable {
     activeConversationId,
     isStreaming,
     errorMessage,
+    streamingReply,
   ];
+}
+
+ChatConversation _applyStreamingReplyToConversation({
+  required ChatConversation conversation,
+  required ChatStreamingReply? streamingReply,
+  bool isStreaming = true,
+}) {
+  if (streamingReply == null ||
+      streamingReply.conversationId != conversation.id) {
+    return conversation;
+  }
+
+  final nextTree = replaceAssistantMessageInTree(
+    treeState: resolveMessageTreeState(conversation),
+    assistantMessageId: streamingReply.assistantMessageId,
+    nextContent: streamingReply.content,
+    nextReasoningContent: streamingReply.reasoningContent,
+    isStreaming: isStreaming,
+  );
+  return conversation.copyWith(
+    messageNodes: nextTree.nodes,
+    selectedChildByParentId: nextTree.selections,
+  );
 }
 
 /// 聊天页面的会话编排器，负责发送、重试、编辑和持久化。
@@ -435,30 +533,27 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
 
   /// 在流式请求失败时，保留已生成内容或清除空白占位节点。
   Future<void> _handleStreamingFailure({
+    required ChatConversation conversation,
+    required ChatStreamingReply streamingReply,
     required String assistantMessageId,
     required String errorMessage,
   }) async {
-    final currentConversation = state.activeConversation;
-    final tree = resolveMessageTreeState(currentConversation);
-    final failedAssistantMessage = tree.nodes
-        .where((message) => message.id == assistantMessageId)
-        .firstOrNull;
     final hasPartialContent =
-        failedAssistantMessage != null &&
-        (failedAssistantMessage.content.trim().isNotEmpty ||
-            failedAssistantMessage.reasoningContent.trim().isNotEmpty);
+        streamingReply.content.trim().isNotEmpty ||
+        streamingReply.reasoningContent.trim().isNotEmpty;
+    final tree = resolveMessageTreeState(conversation);
 
     final nextTree = hasPartialContent
         ? replaceAssistantMessageInTree(
             treeState: tree,
             assistantMessageId: assistantMessageId,
-            nextContent: failedAssistantMessage.content,
-            nextReasoningContent: failedAssistantMessage.reasoningContent,
+            nextContent: streamingReply.content,
+            nextReasoningContent: streamingReply.reasoningContent,
             isStreaming: false,
           )
         : removeNodeFromTree(treeState: tree, nodeId: assistantMessageId);
 
-    final nextConversation = currentConversation.copyWith(
+    final nextConversation = conversation.copyWith(
       messageNodes: nextTree.nodes,
       selectedChildByParentId: nextTree.selections,
       updatedAt: DateTime.now(),
@@ -468,6 +563,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
       conversations: _replaceConversation(nextConversation),
       isStreaming: false,
       errorMessage: errorMessage,
+      clearStreamingReply: true,
     );
     await _saveAll();
   }
@@ -514,11 +610,16 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
       reasoningEnabled: reasoningEnabled,
       reasoningEffort: reasoningEffort,
     );
+    var streamingReply = ChatStreamingReply(
+      conversationId: streamingConversation.id,
+      assistantMessageId: assistantMessage.id,
+    );
 
     // 先把占位消息写入内存和持久层，确保刷新后仍能恢复进度。
     state = state.copyWith(
       conversations: _replaceConversation(streamingConversation),
       isStreaming: true,
+      streamingReply: streamingReply,
       clearErrorMessage: true,
     );
     await _saveAll();
@@ -526,6 +627,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     try {
       final responseBuffer = StringBuffer();
       final reasoningBuffer = StringBuffer();
+      var lastUiFlushAt = timestamp.subtract(_streamUiFlushInterval);
       await for (final chunk in _chatClient.streamCompletion(
         modelConfig: modelConfig,
         messages: buildRequestMessages(
@@ -542,48 +644,50 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
 
         responseBuffer.write(chunk.contentDelta);
         reasoningBuffer.write(chunk.reasoningDelta);
-        final nextTree = replaceAssistantMessageInTree(
-          treeState: resolveMessageTreeState(streamingConversation),
-          assistantMessageId: assistantMessage.id,
-          nextContent: responseBuffer.toString(),
-          nextReasoningContent: reasoningBuffer.toString(),
-          isStreaming: true,
+        streamingReply = streamingReply.copyWith(
+          content: responseBuffer.toString(),
+          reasoningContent: reasoningBuffer.toString(),
         );
-        streamingConversation = streamingConversation.copyWith(
-          messageNodes: nextTree.nodes,
-          selectedChildByParentId: nextTree.selections,
-          updatedAt: DateTime.now(),
-        );
-        _replaceConversationInMemory(streamingConversation);
+        final now = DateTime.now();
+        if (now.difference(lastUiFlushAt) < _streamUiFlushInterval) {
+          continue;
+        }
+
+        _replaceStreamingReplyInMemory(streamingReply);
+        lastUiFlushAt = now;
       }
 
-      // 持续用最新增量覆盖同一条 assistant 消息，保持界面平滑刷新。
-      final completedTree = replaceAssistantMessageInTree(
-        treeState: resolveMessageTreeState(streamingConversation),
-        assistantMessageId: assistantMessage.id,
-        nextContent: responseBuffer.toString(),
-        nextReasoningContent: reasoningBuffer.toString(),
+      streamingReply = streamingReply.copyWith(
+        content: responseBuffer.toString(),
+        reasoningContent: reasoningBuffer.toString(),
+      );
+      _replaceStreamingReplyInMemory(streamingReply);
+
+      // 持续用最新增量覆盖同一条 assistant 消息，但只在结束时真正写回会话列表。
+      final completedConversation = _applyStreamingReplyToConversation(
+        conversation: streamingConversation,
+        streamingReply: streamingReply,
         isStreaming: false,
-      );
-      final completedConversation = streamingConversation.copyWith(
-        messageNodes: completedTree.nodes,
-        selectedChildByParentId: completedTree.selections,
-        updatedAt: DateTime.now(),
-      );
+      ).copyWith(updatedAt: DateTime.now());
 
       state = state.copyWith(
         conversations: _replaceConversation(completedConversation),
         isStreaming: false,
+        clearStreamingReply: true,
       );
       await _saveAll();
       return completedConversation;
     } on ChatCompletionException catch (error) {
       await _handleStreamingFailure(
+        conversation: streamingConversation,
+        streamingReply: streamingReply,
         assistantMessageId: assistantMessage.id,
         errorMessage: error.message,
       );
     } catch (_) {
       await _handleStreamingFailure(
+        conversation: streamingConversation,
+        streamingReply: streamingReply,
         assistantMessageId: assistantMessage.id,
         errorMessage: '请求未完成，请检查网络、API URL 或模型配置。',
       );
@@ -592,9 +696,13 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     return null;
   }
 
-  /// 将会话替换进当前列表但不额外写盘。
-  void _replaceConversationInMemory(ChatConversation conversation) {
-    state = state.copyWith(conversations: _replaceConversation(conversation));
+  /// 仅刷新流式增量，不去改动完整会话列表。
+  void _replaceStreamingReplyInMemory(ChatStreamingReply streamingReply) {
+    if (state.streamingReply == streamingReply) {
+      return;
+    }
+
+    state = state.copyWith(streamingReply: streamingReply, isStreaming: true);
   }
 
   /// 在会话列表中按 id 覆盖或插入指定会话。

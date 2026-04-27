@@ -57,11 +57,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   /// 构建聊天页的整体布局与交互入口。
   Widget build(BuildContext context) {
-    final chatState = ref.watch(chatSessionsProvider);
-    final conversation = chatState.activeConversation;
+    final conversation = ref.watch(activeChatConversationProvider);
+    final conversations = ref.watch(chatConversationsProvider);
+    final activeConversationId = ref.watch(activeConversationIdProvider);
+    final isStreaming = ref.watch(isChatStreamingProvider);
+    final errorMessage = ref.watch(chatErrorMessageProvider);
     final chatDefaults = ref.watch(chatDefaultsProvider);
     final modelConfigs = ref.watch(llmModelConfigsProvider);
     final promptTemplates = ref.watch(promptTemplatesProvider);
+    final activeMessages = conversation.messages;
 
     final selectedModel = _resolveSelectedModel(
       modelConfigs,
@@ -74,17 +78,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       chatDefaults.defaultPromptTemplateId,
     );
     final supportsReasoning = selectedModel?.supportsReasoning ?? false;
-    final userMessages = conversation.messages
+    final userMessages = activeMessages
         .where((message) {
           return message.role == ChatMessageRole.user;
         })
         .toList(growable: false);
 
     _scheduleScrollSync(
-      conversation: conversation,
-      isStreaming: chatState.isStreaming,
+      conversationId: conversation.id,
+      messages: activeMessages,
+      isStreaming: isStreaming,
     );
-    _scheduleAnchorRefresh();
 
     return AppShellScaffold(
       currentDestination: AppDestination.chat,
@@ -93,14 +97,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: ConversationHistoryPanel(
-            groups: _buildConversationGroups(chatState.conversations),
-            activeConversationId: conversation.id,
+            groups: _buildConversationGroups(conversations),
+            activeConversationId: activeConversationId,
             hasDraftConversation: !conversation.hasMessages,
-            onCreateConversation: chatState.isStreaming
+            onCreateConversation: isStreaming
                 ? null
                 : () => _createConversationAndScroll(),
             onConversationSelected: (conversationId) {
-              if (chatState.isStreaming) {
+              if (isStreaming) {
                 return;
               }
               ref
@@ -112,9 +116,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       ),
       actions: [
         IconButton(
-          onPressed: chatState.isStreaming
-              ? null
-              : _createConversationAndScroll,
+          onPressed: isStreaming ? null : _createConversationAndScroll,
           tooltip: '新建对话',
           icon: const Icon(Icons.add_comment_outlined),
         ),
@@ -139,14 +141,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   SizedBox(
                     width: 220,
                     child: ConversationHistoryPanel(
-                      groups: _buildConversationGroups(chatState.conversations),
-                      activeConversationId: conversation.id,
+                      groups: _buildConversationGroups(conversations),
+                      activeConversationId: activeConversationId,
                       hasDraftConversation: !conversation.hasMessages,
-                      onCreateConversation: chatState.isStreaming
+                      onCreateConversation: isStreaming
                           ? null
                           : () => _createConversationAndScroll(),
                       onConversationSelected: (conversationId) {
-                        if (chatState.isStreaming) {
+                        if (isStreaming) {
                           return;
                         }
                         ref
@@ -160,6 +162,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 Expanded(
                   child: ChatWorkspace(
                     conversation: conversation,
+                    messages: activeMessages,
                     hasModels: modelConfigs.isNotEmpty,
                     userMessages: userMessages,
                     activeAnchorMessageId: _activeAnchorMessageId,
@@ -171,8 +174,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         supportsReasoning && conversation.reasoningEnabled,
                     reasoningEffort: conversation.reasoningEffort,
                     supportsReasoning: supportsReasoning,
-                    isStreaming: chatState.isStreaming,
-                    errorMessage: chatState.errorMessage,
+                    isStreaming: isStreaming,
+                    errorMessage: errorMessage,
                     showScrollToBottom: _showScrollToBottom,
                     onDismissError: () {
                       ref.read(chatSessionsProvider.notifier).clearError();
@@ -217,8 +220,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             messageId: messageId,
                           );
                     },
-                    onSendPressed:
-                        selectedModel == null || chatState.isStreaming
+                    onSendPressed: selectedModel == null || isStreaming
                         ? null
                         : () async {
                             final content = _messageController.text.trim();
@@ -341,18 +343,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   /// 根据会话内容变化决定是否自动滚动到末尾。
   void _scheduleScrollSync({
-    required ChatConversation conversation,
+    required String conversationId,
+    required List<ChatMessage> messages,
     required bool isStreaming,
   }) {
     final signature = [
-      conversation.id,
-      conversation.messages.length,
-      conversation.messages.lastOrNull?.content.length ?? 0,
+      conversationId,
+      messages.length,
+      messages.lastOrNull?.content.length ?? 0,
+      messages.lastOrNull?.reasoningContent.length ?? 0,
       isStreaming,
     ].join('|');
 
-    if (_lastConversationId != conversation.id) {
-      _lastConversationId = conversation.id;
+    if (_lastConversationId != conversationId) {
+      _lastConversationId = conversationId;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) {
           return;
@@ -461,8 +465,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
 
     final userMessages = ref
-        .read(chatSessionsProvider)
-        .activeConversation
+        .read(activeChatConversationProvider)
         .messages
         .where((message) => message.role == ChatMessageRole.user)
         .toList(growable: false);
