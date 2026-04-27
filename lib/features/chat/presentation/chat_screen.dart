@@ -408,16 +408,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     final targetIndex = _latestMessages.length - 1;
     if (jump) {
-      _messageItemScrollController.jumpTo(index: targetIndex, alignment: 1);
+      _messageItemScrollController.jumpTo(index: targetIndex, alignment: 0);
+      _scheduleVisibleItemsSync();
       return;
     }
 
     await _messageItemScrollController.scrollTo(
       index: targetIndex,
-      alignment: 1,
+      alignment: 0,
       duration: const Duration(milliseconds: 240),
       curve: Curves.easeOut,
     );
+    _scheduleVisibleItemsSync();
   }
 
   /// 滚动到某条指定消息，并刷新当前激活锚点。
@@ -463,6 +465,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
   }
 
+  /// 在主动滚动后补一次可见项同步，避免按钮状态滞后到下一次滚动事件。
+  void _scheduleVisibleItemsSync() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+
+      _handleVisibleItemsChanged();
+    });
+  }
+
   /// 根据可见项判断当前是否已经接近列表底部。
   bool _resolveShowScrollToBottom(List<ItemPosition> positions) {
     if (_latestMessages.isEmpty || positions.isEmpty) {
@@ -476,7 +489,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       return true;
     }
 
-    return lastVisiblePosition.itemTrailingEdge > 1.1;
+    return lastVisiblePosition.itemTrailingEdge > 1.01;
   }
 
   /// 根据当前可见消息位置推导出最合适的用户消息锚点。

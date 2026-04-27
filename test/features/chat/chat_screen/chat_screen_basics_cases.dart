@@ -76,4 +76,41 @@ void registerChatScreenBasicsTests() {
       findsOneWidget,
     );
   });
+
+  testWidgets('chat screen scroll-to-bottom button returns to latest message', (
+    tester,
+  ) async {
+    final preferences = await createSeededPreferences();
+    final fakeClient = FakeChatCompletionClient();
+    for (var index = 1; index <= 8; index += 1) {
+      fakeClient.enqueueChunks(['第 $index 条回复：${'内容 ' * 20}']);
+    }
+
+    await pumpChatScreen(
+      tester,
+      preferences: preferences,
+      fakeClient: fakeClient,
+      size: const Size(900, 520),
+    );
+
+    for (var index = 1; index <= 8; index += 1) {
+      await sendMessage(tester, '第 $index 条问题：${'内容 ' * 20}');
+      await tester.pumpAndSettle();
+    }
+
+    expect(find.byTooltip('滚动到底部'), findsNothing);
+    expect(find.textContaining('第 8 条回复'), findsWidgets);
+
+    final scrollable = find.byType(Scrollable).first;
+    await tester.drag(scrollable, const Offset(0, 600));
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('滚动到底部'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('滚动到底部'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('第 8 条回复'), findsWidgets);
+    expect(find.byTooltip('滚动到底部'), findsNothing);
+  });
 }
