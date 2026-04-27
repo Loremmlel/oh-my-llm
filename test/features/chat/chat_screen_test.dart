@@ -11,6 +11,7 @@ import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/data/chat_completion_client.dart';
 import 'package:oh_my_llm/features/chat/data/openai_compatible_chat_client.dart';
+import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
 import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dart';
@@ -370,6 +371,133 @@ void main() {
       fakeClient.requestHistory.last.map((message) => message.content).toList(),
       ['帮我重试一下'],
     );
+  });
+
+  testWidgets('retry keeps assistant sibling versions in tree', (tester) async {
+    final preferences = await _createSeededPreferences();
+    final fakeClient = FakeChatCompletionClient()
+      ..enqueueChunks(['首次回复'])
+      ..enqueueChunks(['重试后回复']);
+
+    tester.view.physicalSize = const Size(1440, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(preferences),
+          chatCompletionClientProvider.overrideWithValue(fakeClient),
+        ],
+        child: const MaterialApp(home: ChatScreen()),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+    await _sendMessage(tester, '测试重试分支');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('重试回复'));
+    await tester.pumpAndSettle();
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
+    final activeConversation = container
+        .read(chatSessionsProvider)
+        .activeConversation;
+    final rootUser = activeConversation.messageNodes.firstWhere((message) {
+      return message.role == ChatMessageRole.user &&
+          (message.parentId ?? rootConversationParentId) ==
+              rootConversationParentId;
+    });
+    final assistantSiblings = activeConversation.messageNodes.where((message) {
+      return message.role == ChatMessageRole.assistant &&
+          message.parentId == rootUser.id;
+    }).toList(growable: false);
+
+    expect(assistantSiblings.length, 2);
+    expect(find.textContaining('重试后回复'), findsWidgets);
+    expect(find.text('2/2'), findsOneWidget);
+
+    await container.read(chatSessionsProvider.notifier).selectMessageVersion(
+          parentId: rootUser.id,
+          messageId: assistantSiblings.first.id,
+        );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('首次回复'), findsWidgets);
+  });
+
+  testWidgets('editing user message creates switchable root branches', (
+    tester,
+  ) async {
+    final preferences = await _createSeededPreferences();
+    final fakeClient = FakeChatCompletionClient()
+      ..enqueueChunks(['原始回复一'])
+      ..enqueueChunks(['原始回复二'])
+      ..enqueueChunks(['编辑后回复一']);
+
+    tester.view.physicalSize = const Size(1440, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(preferences),
+          chatCompletionClientProvider.overrideWithValue(fakeClient),
+        ],
+        child: const MaterialApp(home: ChatScreen()),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+    await _sendMessage(tester, '原始用户1');
+    await tester.pumpAndSettle();
+    await _sendMessage(tester, '原始用户2');
+    await tester.pumpAndSettle();
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
+    final beforeEditConversation = container
+        .read(chatSessionsProvider)
+        .activeConversation;
+    final originalRootUser = beforeEditConversation.messageNodes.firstWhere((
+      message,
+    ) {
+      return message.role == ChatMessageRole.user &&
+          (message.parentId ?? rootConversationParentId) ==
+              rootConversationParentId;
+    });
+
+    await container.read(chatSessionsProvider.notifier).editMessage(
+          messageId: originalRootUser.id,
+          nextContent: '编辑后的用户1',
+        );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('编辑后的用户1'), findsWidgets);
+    expect(find.textContaining('编辑后回复一'), findsWidgets);
+    expect(find.textContaining('原始用户2'), findsNothing);
+    expect(find.text('2/2'), findsOneWidget);
+
+    await container.read(chatSessionsProvider.notifier).selectMessageVersion(
+          parentId: rootConversationParentId,
+          messageId: originalRootUser.id,
+        );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('原始用户1'), findsWidgets);
+    expect(find.textContaining('原始用户2'), findsWidgets);
+    expect(find.textContaining('原始回复二'), findsWidgets);
   });
 
   testWidgets('chat screen keeps composer visible on compact layouts', (
