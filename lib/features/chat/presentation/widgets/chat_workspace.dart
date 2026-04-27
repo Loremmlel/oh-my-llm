@@ -12,6 +12,7 @@ import 'thinking_toggle.dart';
 class ChatWorkspace extends StatelessWidget {
   const ChatWorkspace({
     required this.conversation,
+    required this.messages,
     required this.hasModels,
     required this.userMessages,
     required this.activeAnchorMessageId,
@@ -38,6 +39,7 @@ class ChatWorkspace extends StatelessWidget {
   });
 
   final ChatConversation conversation;
+  final List<ChatMessage> messages;
   final bool hasModels;
   final List<ChatMessage> userMessages;
   final String? activeAnchorMessageId;
@@ -124,8 +126,8 @@ class ChatWorkspace extends StatelessWidget {
   /// 构建消息列表卡片，并把版本信息和锚点条组装进去。
   Widget _buildMessagesCard(ThemeData theme) {
     final latestAssistantMessage =
-        conversation.messages.lastOrNull?.role == ChatMessageRole.assistant
-        ? conversation.messages.lastOrNull
+        messages.lastOrNull?.role == ChatMessageRole.assistant
+        ? messages.lastOrNull
         : null;
     final versionInfoByMessageId = _buildMessageVersionInfoMap();
 
@@ -137,7 +139,7 @@ class ChatWorkspace extends StatelessWidget {
           clipBehavior: Clip.antiAlias,
           child: Stack(
             children: [
-              if (conversation.messages.isEmpty)
+              if (messages.isEmpty)
                 KeyedSubtree(
                   key: messagesViewportKey,
                   child: EmptyConversationView(hasModels: hasModels),
@@ -150,12 +152,14 @@ class ChatWorkspace extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      for (final message in conversation.messages) ...[
+                      for (final message in messages) ...[
                         KeyedSubtree(
-                          key: messageKeys.putIfAbsent(
-                            message.id,
-                            GlobalKey.new,
-                          ),
+                          key: message.role == ChatMessageRole.user
+                              ? messageKeys.putIfAbsent(
+                                  message.id,
+                                  GlobalKey.new,
+                                )
+                              : ValueKey(message.id),
                           child: ChatMessageBubble(
                             message: message,
                             canEdit:
@@ -239,7 +243,7 @@ class ChatWorkspace extends StatelessWidget {
     }
 
     final result = <String, MessageVersionInfo>{};
-    for (final message in conversation.messages) {
+    for (final message in messages) {
       final parentId = message.parentId ?? rootConversationParentId;
       final siblings = siblingsByParent[parentId] ?? const <ChatMessage>[];
       if (siblings.length <= 1) {

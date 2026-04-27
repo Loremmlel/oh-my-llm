@@ -252,7 +252,7 @@ class ChatConversation extends Equatable {
   List<Object?> get props => [
     id,
     title,
-    messages,
+    _messages,
     messageNodes,
     selectedChildByParentId.entries
         .map((entry) => '${entry.key}:${entry.value}')
