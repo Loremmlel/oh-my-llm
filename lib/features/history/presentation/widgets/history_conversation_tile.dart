@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../chat/domain/models/chat_conversation.dart';
+import '../../../chat/domain/models/chat_conversation_summary.dart';
 
 /// 历史页中的单个会话条目。
 class HistoryConversationTile extends StatelessWidget {
@@ -14,7 +14,7 @@ class HistoryConversationTile extends StatelessWidget {
     required this.onSelectionChanged,
   });
 
-  final ChatConversation conversation;
+  final ChatConversationSummary conversation;
   final bool selected;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
@@ -25,10 +25,6 @@ class HistoryConversationTile extends StatelessWidget {
   /// 构建可选择、可重命名的会话条目。
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final latestUserMessage = conversation.messages.lastWhere(
-      (message) => message.role.name == 'user',
-      orElse: () => conversation.messages.first,
-    );
 
     return Material(
       color: selected
@@ -58,7 +54,7 @@ class HistoryConversationTile extends StatelessWidget {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      latestUserMessage.content.trim().replaceAll('\n', ' '),
+                      conversation.previewText,
                       style: theme.textTheme.bodyMedium,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,

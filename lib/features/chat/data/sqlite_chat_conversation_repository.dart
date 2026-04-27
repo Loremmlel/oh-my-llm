@@ -1,5 +1,6 @@
 import '../../../core/persistence/app_database.dart';
 import '../domain/models/chat_conversation.dart';
+import '../domain/models/chat_conversation_summary.dart';
 import '../domain/models/chat_message.dart';
 import 'chat_conversation_repository.dart';
 
@@ -101,6 +102,70 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
             ),
           );
           return draft.copyWith(messages: draft.messages);
+        })
+        .toList(growable: false);
+  }
+
+  @override
+  List<ChatConversationSummary> loadHistorySummaries({String keyword = ''}) {
+    final normalizedKeyword = keyword.trim().toLowerCase();
+    final hasKeyword = normalizedKeyword.isNotEmpty;
+    final likeKeyword = '%$normalizedKeyword%';
+    final rows = _database.connection.select(
+      '''
+      SELECT
+        c.id,
+        c.title,
+        c.updated_at,
+        COALESCE((
+          SELECT m.content
+          FROM messages m
+          WHERE m.conversation_id = c.id
+            AND m.role = 'user'
+          ORDER BY m.node_index ASC
+          LIMIT 1
+        ), '') AS first_user_message_preview,
+        COALESCE((
+          SELECT m.content
+          FROM messages m
+          WHERE m.conversation_id = c.id
+            AND m.role = 'user'
+          ORDER BY m.node_index DESC
+          LIMIT 1
+        ), '') AS latest_user_message_preview
+      FROM conversations c
+      WHERE EXISTS (
+        SELECT 1
+        FROM messages m
+        WHERE m.conversation_id = c.id
+      )
+        AND (
+          ? = 0
+          OR LOWER(COALESCE(c.title, '')) LIKE ?
+          OR EXISTS (
+            SELECT 1
+            FROM messages m
+            WHERE m.conversation_id = c.id
+              AND m.role = 'user'
+              AND LOWER(m.content) LIKE ?
+          )
+        )
+      ORDER BY c.updated_at DESC
+      ''',
+      [hasKeyword ? 1 : 0, likeKeyword, likeKeyword],
+    );
+
+    return rows
+        .map((row) {
+          return ChatConversationSummary(
+            id: row['id'] as String,
+            title: row['title'] as String?,
+            updatedAt: DateTime.parse(row['updated_at'] as String),
+            firstUserMessagePreview:
+                row['first_user_message_preview'] as String? ?? '',
+            latestUserMessagePreview:
+                row['latest_user_message_preview'] as String? ?? '',
+          );
         })
         .toList(growable: false);
   }
