@@ -31,6 +31,7 @@ class ChatWorkspace extends StatelessWidget {
     required this.onRetryLatestAssistant,
     required this.onReasoningEnabledChanged,
     required this.onReasoningEffortChanged,
+    required this.onOpenFixedPromptSequenceRunner,
     required this.onScrollToBottomPressed,
     required this.onSelectMessage,
     required this.onSelectMessageVersion,
@@ -57,6 +58,7 @@ class ChatWorkspace extends StatelessWidget {
   final Future<void> Function() onRetryLatestAssistant;
   final ValueChanged<bool>? onReasoningEnabledChanged;
   final ValueChanged<ReasoningEffort>? onReasoningEffortChanged;
+  final Future<void> Function() onOpenFixedPromptSequenceRunner;
   final VoidCallback onScrollToBottomPressed;
   final ValueChanged<String> onSelectMessage;
   final Future<void> Function(String parentId, String messageId)
@@ -293,6 +295,12 @@ class ChatWorkspace extends StatelessWidget {
                       ],
                     ),
                   ),
+                ),
+                const SizedBox(width: 8),
+                IconButton.outlined(
+                  onPressed: onOpenFixedPromptSequenceRunner,
+                  tooltip: '固定顺序提示词',
+                  icon: const Icon(Icons.playlist_play_rounded),
                 ),
                 const SizedBox(width: 8),
                 FilledButton.icon(
