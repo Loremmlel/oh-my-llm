@@ -5,7 +5,10 @@ import '../domain/models/chat_conversation.dart';
 import '../domain/models/chat_conversation_summary.dart';
 import 'sqlite_chat_conversation_repository.dart';
 
+/// SharedPreferences 中旧版聊天记录的存储键（已废弃，仅供迁移读取）。
 const chatConversationsStorageKey = 'chat_conversations';
+
+/// SharedPreferences 中聊天记录已完成 SQLite 迁移的标志键。
 const chatConversationsSqliteMigrationFlagKey =
     'chat_conversations_sqlite_migrated';
 

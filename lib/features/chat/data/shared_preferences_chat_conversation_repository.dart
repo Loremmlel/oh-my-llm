@@ -13,6 +13,9 @@ class SharedPreferencesChatConversationRepository
 
   final SharedPreferences _preferences;
 
+  /// 从 SharedPreferences 读取全部聊天记录。
+  ///
+  /// 读取时兼容旧格式（裸 JSON 数组）和新格式（`{"version":1,"items":[...]}`）。
   @override
   List<ChatConversation> loadAll() {
     final rawValue = _preferences.getString(chatConversationsStorageKey);
@@ -26,6 +29,10 @@ class SharedPreferencesChatConversationRepository
     ).map(ChatConversation.fromJson).toList(growable: false);
   }
 
+  /// 返回符合 [keyword] 搜索条件的对话摘要列表。
+  ///
+  /// 搜索范围仅覆盖对话标题和用户消息，不匹配助手回复，
+  /// 与 SQLite 仓库保持一致的行为。
   @override
   List<ChatConversationSummary> loadHistorySummaries({String keyword = ''}) {
     final normalizedKeyword = keyword.trim().toLowerCase();
@@ -67,6 +74,7 @@ class SharedPreferencesChatConversationRepository
         .toList(growable: false);
   }
 
+  /// 将全部聊天记录覆盖写入 SharedPreferences。
   @override
   Future<void> saveAll(List<ChatConversation> conversations) {
     final payload = VersionedJsonStorage.encodeObjectList(
