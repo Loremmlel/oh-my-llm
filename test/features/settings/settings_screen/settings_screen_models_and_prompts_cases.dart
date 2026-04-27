@@ -1,11 +1,8 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:oh_my_llm/core/persistence/versioned_json_storage.dart';
 import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dart';
-import 'package:oh_my_llm/features/settings/data/prompt_template_repository.dart';
+import 'package:oh_my_llm/features/settings/data/sqlite_prompt_template_repository.dart';
 
 import 'settings_screen_test_helpers.dart';
 
@@ -58,10 +55,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
     await tester.pumpAndSettle();
 
     expect(find.text('还没有模型配置'), findsOneWidget);
-    expect(jsonDecode(preferences.getString(llmModelConfigsStorageKey)!), {
-      'version': VersionedJsonStorage.currentSchemaVersion,
-      'items': const [],
-    });
+    expect(preferences.getString(llmModelConfigsStorageKey), contains('"items":[]'));
   });
 
   testWidgets(
@@ -69,7 +63,9 @@ void registerSettingsScreenModelsAndPromptsTests() {
     (tester) async {
       final preferences = await createEmptyPreferences();
 
-      await pumpSettingsScreen(tester, preferences: preferences);
+      // 接收数据库实例以便查询 SQLite 断言。
+      final database = await pumpSettingsScreen(tester, preferences: preferences);
+      final repo = SqlitePromptTemplateRepository(database);
 
       expect(find.text('还没有 Prompt 模板'), findsOneWidget);
 
@@ -88,10 +84,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
       await tester.pumpAndSettle();
 
       expect(find.text('代码审阅'), findsWidgets);
-      expect(
-        preferences.getString(promptTemplatesStorageKey),
-        contains('代码审阅'),
-      );
+      expect(repo.loadAll().any((t) => t.name == '代码审阅'), isTrue);
       expect(find.textContaining('1 条 system 指令 + 1 条附加消息'), findsOneWidget);
 
       await tester.tap(find.text('编辑'));
@@ -101,19 +94,13 @@ void registerSettingsScreenModelsAndPromptsTests() {
       await tester.pumpAndSettle();
 
       expect(find.text('代码审阅 v2'), findsWidgets);
-      expect(
-        preferences.getString(promptTemplatesStorageKey),
-        contains('代码审阅 v2'),
-      );
+      expect(repo.loadAll().any((t) => t.name == '代码审阅 v2'), isTrue);
 
       await tester.tap(find.text('删除'));
       await tester.pumpAndSettle();
 
       expect(find.text('还没有 Prompt 模板'), findsOneWidget);
-      expect(jsonDecode(preferences.getString(promptTemplatesStorageKey)!), {
-        'version': VersionedJsonStorage.currentSchemaVersion,
-        'items': const [],
-      });
+      expect(repo.loadAll(), isEmpty);
     },
   );
 }

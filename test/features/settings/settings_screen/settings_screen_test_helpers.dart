@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dart';
@@ -13,7 +14,8 @@ import 'package:oh_my_llm/features/settings/presentation/settings_screen.dart';
 
 import '../../../test_database.dart';
 
-Future<void> pumpSettingsScreen(
+/// 挂载设置页并返回测试用数据库实例，供断言查询 SQLite 数据。
+Future<AppDatabase> pumpSettingsScreen(
   WidgetTester tester, {
   required SharedPreferences preferences,
 }) async {
@@ -37,6 +39,7 @@ Future<void> pumpSettingsScreen(
   );
 
   await tester.pumpAndSettle();
+  return database;
 }
 
 Future<SharedPreferences> createEmptyPreferences() async {
@@ -44,6 +47,10 @@ Future<SharedPreferences> createEmptyPreferences() async {
   return SharedPreferences.getInstance();
 }
 
+/// 创建包含默认种子数据的 SharedPreferences 实例。
+///
+/// 模型配置继续存储在 SP 中；Prompt 模板以旧版格式写入 SP，
+/// 在 [pumpSettingsScreen] 内调用的迁移逻辑会将其搬到 SQLite。
 Future<SharedPreferences> createDefaultsSeededPreferences() async {
   SharedPreferences.setMockInitialValues({
     llmModelConfigsStorageKey: jsonEncode([
@@ -64,6 +71,7 @@ Future<SharedPreferences> createDefaultsSeededPreferences() async {
         'supportsReasoning': false,
       },
     ]),
+    // Prompt 模板以旧版 SP 格式写入，由迁移流程搬到 SQLite。
     promptTemplatesStorageKey: jsonEncode([
       {
         'id': 'prompt-1',

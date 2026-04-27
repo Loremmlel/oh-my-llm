@@ -10,7 +10,7 @@ final promptTemplatesProvider =
 
 /// Prompt 模板控制器，负责模板列表的加载、增删改和排序。
 class PromptTemplatesController extends Notifier<List<PromptTemplate>> {
-  PromptTemplateRepository get _repository =>
+  SqlitePromptTemplateRepository get _repository =>
       ref.read(promptTemplateRepositoryProvider);
 
   @override

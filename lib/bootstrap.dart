@@ -8,6 +8,10 @@ import 'core/persistence/app_database_provider.dart';
 import 'core/persistence/shared_preferences_provider.dart';
 import 'features/chat/data/chat_conversation_migration.dart';
 import 'features/chat/data/sqlite_chat_conversation_repository.dart';
+import 'features/settings/data/fixed_prompt_sequence_migration.dart';
+import 'features/settings/data/prompt_template_migration.dart';
+import 'features/settings/data/sqlite_fixed_prompt_sequence_repository.dart';
+import 'features/settings/data/sqlite_prompt_template_repository.dart';
 
 Future<void> bootstrap({SharedPreferences? sharedPreferences}) async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,10 +19,19 @@ Future<void> bootstrap({SharedPreferences? sharedPreferences}) async {
   final preferences =
       sharedPreferences ?? await SharedPreferences.getInstance();
   final appDatabase = await AppDatabase.open();
-  final chatRepository = SqliteChatConversationRepository(appDatabase);
+
+  // 按顺序执行各数据源的一次性迁移。
   await migrateLegacyChatConversations(
     preferences: preferences,
-    repository: chatRepository,
+    repository: SqliteChatConversationRepository(appDatabase),
+  );
+  await migrateLegacyPromptTemplates(
+    preferences: preferences,
+    repository: SqlitePromptTemplateRepository(appDatabase),
+  );
+  await migrateLegacyFixedPromptSequences(
+    preferences: preferences,
+    repository: SqliteFixedPromptSequenceRepository(appDatabase),
   );
 
   runApp(

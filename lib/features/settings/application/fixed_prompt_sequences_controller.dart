@@ -11,7 +11,7 @@ final fixedPromptSequencesProvider =
 /// 固定顺序提示词控制器，负责序列列表的加载、增删改和排序。
 class FixedPromptSequencesController
     extends Notifier<List<FixedPromptSequence>> {
-  FixedPromptSequenceRepository get _repository =>
+  SqliteFixedPromptSequenceRepository get _repository =>
       ref.read(fixedPromptSequenceRepositoryProvider);
 
   @override
