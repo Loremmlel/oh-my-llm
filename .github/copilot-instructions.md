@@ -20,9 +20,27 @@ flutter build apk
 
 - Prefer small, audited changes. If a feature block is complete, commit it before moving on.
 - When splitting large Dart files, use `import` / `export` boundaries instead of `part` / `part of`.
-- New comments and doc comments should use Simplified Chinese. Use `///` for doc comments and keep inline comments focused on explaining why.
 - Keep existing behavior intact unless the task explicitly asks for a behavior change.
 - Keep generated release artifacts in `artifacts\` and do not commit local Android signing files such as `android\key.properties` or `android\app\self-use-release.jks`.
+
+## Comment style guide
+
+Comments should use Simplified Chinese and follow these conventions (reference: `lib\features\chat\presentation\widgets\streaming_markdown_view.dart`):
+
+**Doc comments** (use `///`):
+- Classes and public methods: detailed explanation of purpose, mechanism, and when to use
+- Complex items: include examples, formulas, or usage patterns (e.g., dynamic interval formula in `StreamingMarkdownView`)
+- Fields: add doc comments if their purpose is not self-evident
+- Never place doc comments after `@override`; place them before the annotation
+
+**Inline comments** (use `//`):
+- Prefer explanatory comments (explain "why", not "what") over descriptive ones
+- Only add descriptive comments when code is complex, verbose, or impossible to understand directly
+- Keep comments concise and end with a period
+
+**Section dividers for large classes:**
+- Use format: `// ── Category ──────────────────────────────────────────────────────────────`
+- Group related methods (e.g., lifecycle, public operations, private helpers) for clarity
 
 ## High-level architecture
 
