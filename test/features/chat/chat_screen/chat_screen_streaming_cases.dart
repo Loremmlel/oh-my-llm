@@ -135,4 +135,24 @@ void registerChatScreenStreamingTests() {
     expect((await Clipboard.getData('text/plain'))?.text, equals('这是最终回复'));
     expect((await Clipboard.getData('text/plain'))?.text, isNot('这是思考过程'));
   });
+
+  testWidgets('chat screen keeps user message markdown syntax as raw text', (
+    tester,
+  ) async {
+    final preferences = await createSeededPreferences();
+    final fakeClient = FakeChatCompletionClient()..enqueueChunks(['收到']);
+    const userMessage = '**保留原样**\n- 这不是列表';
+
+    await pumpChatScreen(
+      tester,
+      preferences: preferences,
+      fakeClient: fakeClient,
+    );
+
+    await sendMessage(tester, userMessage);
+    await tester.pumpAndSettle();
+
+    expect(find.text(userMessage), findsOneWidget);
+    expect(find.textContaining('收到'), findsWidgets);
+  });
 }

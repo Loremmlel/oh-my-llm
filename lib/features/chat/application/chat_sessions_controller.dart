@@ -22,7 +22,7 @@ final chatSessionsProvider =
       ChatSessionsController.new,
     );
 
-const _streamUiFlushInterval = Duration(milliseconds: 33);
+const _streamUiFlushInterval = Duration(milliseconds: 300);
 
 final chatConversationsProvider = Provider<List<ChatConversation>>((ref) {
   return ref.watch(chatSessionsProvider.select((state) => state.conversations));
