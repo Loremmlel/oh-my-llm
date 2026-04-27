@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import '../../domain/models/chat_conversation.dart';
 import '../../domain/models/chat_message.dart';
@@ -17,9 +18,8 @@ class ChatWorkspace extends StatelessWidget {
     required this.userMessages,
     required this.activeAnchorMessageId,
     required this.messageController,
-    required this.messageScrollController,
-    required this.messagesViewportKey,
-    required this.messageKeys,
+    required this.messageItemScrollController,
+    required this.messageItemPositionsListener,
     required this.reasoningEnabled,
     required this.reasoningEffort,
     required this.supportsReasoning,
@@ -44,9 +44,8 @@ class ChatWorkspace extends StatelessWidget {
   final List<ChatMessage> userMessages;
   final String? activeAnchorMessageId;
   final TextEditingController messageController;
-  final ScrollController messageScrollController;
-  final GlobalKey messagesViewportKey;
-  final Map<String, GlobalKey> messageKeys;
+  final ItemScrollController messageItemScrollController;
+  final ItemPositionsListener messageItemPositionsListener;
   final bool reasoningEnabled;
   final ReasoningEffort reasoningEffort;
   final bool supportsReasoning;
@@ -140,63 +139,54 @@ class ChatWorkspace extends StatelessWidget {
           child: Stack(
             children: [
               if (messages.isEmpty)
-                KeyedSubtree(
-                  key: messagesViewportKey,
-                  child: EmptyConversationView(hasModels: hasModels),
-                )
+                EmptyConversationView(hasModels: hasModels)
               else
-                SingleChildScrollView(
-                  key: messagesViewportKey,
-                  controller: messageScrollController,
+                ScrollablePositionedList.separated(
+                  itemScrollController: messageItemScrollController,
+                  itemPositionsListener: messageItemPositionsListener,
                   padding: EdgeInsets.fromLTRB(14, 14, anchorRightPadding, 14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      for (final message in messages) ...[
-                        KeyedSubtree(
-                          key: message.role == ChatMessageRole.user
-                              ? messageKeys.putIfAbsent(
-                                  message.id,
-                                  GlobalKey.new,
-                                )
-                              : ValueKey(message.id),
-                          child: CachedChatMessageBubble(
-                            message: message,
-                            canEdit:
-                                !isStreaming &&
-                                message.role == ChatMessageRole.user,
-                            canRetry:
-                                !isStreaming &&
-                                latestAssistantMessage?.id == message.id,
-                            onEditPressed: message.role == ChatMessageRole.user
-                                ? () {
-                                    onEditMessage(message);
-                                  }
-                                : null,
-                            onRetryPressed:
-                                latestAssistantMessage?.id == message.id
-                                ? () {
-                                    onRetryLatestAssistant();
-                                  }
-                                : null,
-                            versionInfo: versionInfoByMessageId[message.id],
-                            onSwitchVersion: (targetMessageId) async {
-                              final versionInfo =
-                                  versionInfoByMessageId[message.id];
-                              if (versionInfo == null) {
-                                return;
+                  itemCount: messages.length,
+                  separatorBuilder: (context, index) {
+                    return const SizedBox(height: 12);
+                  },
+                  itemBuilder: (context, index) {
+                    final message = messages[index];
+
+                    return KeyedSubtree(
+                      key: ValueKey(message.id),
+                      child: CachedChatMessageBubble(
+                        message: message,
+                        canEdit:
+                            !isStreaming &&
+                            message.role == ChatMessageRole.user,
+                        canRetry:
+                            !isStreaming &&
+                            latestAssistantMessage?.id == message.id,
+                        onEditPressed: message.role == ChatMessageRole.user
+                            ? () {
+                                onEditMessage(message);
                               }
-                              await onSelectMessageVersion(
-                                versionInfo.parentId,
-                                targetMessageId,
-                              );
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                      ],
-                    ],
-                  ),
+                            : null,
+                        onRetryPressed: latestAssistantMessage?.id == message.id
+                            ? () {
+                                onRetryLatestAssistant();
+                              }
+                            : null,
+                        versionInfo: versionInfoByMessageId[message.id],
+                        onSwitchVersion: (targetMessageId) async {
+                          final versionInfo =
+                              versionInfoByMessageId[message.id];
+                          if (versionInfo == null) {
+                            return;
+                          }
+                          await onSelectMessageVersion(
+                            versionInfo.parentId,
+                            targetMessageId,
+                          );
+                        },
+                      ),
+                    );
+                  },
                 ),
               if (userMessages.isNotEmpty)
                 Positioned(
