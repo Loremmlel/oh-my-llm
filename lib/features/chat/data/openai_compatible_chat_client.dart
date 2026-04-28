@@ -36,7 +36,7 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
       uri,
       enabled: reasoningEffort != null,
     );
-    // 官方 OpenAI 主机使用原生 reasoning_effort；兼容主机同时需要 thinking。
+    // DeepSeek 主机需要 thinking 字段；reasoning_effort 无论如何都不做映射。
     final payload = <String, Object>{
       'model': modelConfig.modelName,
       'stream': true,
@@ -218,34 +218,24 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
     return '';
   }
 
-  /// 非官方 OpenAI 主机需要显式携带 thinking 开关。
+  /// DeepSeek 主机需要显式携带 thinking 开关。
   Map<String, String>? _buildThinkingConfig(Uri uri, {required bool enabled}) {
-    if (_isOfficialOpenAiHost(uri.host)) {
+    if (!_isDeepSeekHost(uri.host)) {
       return null;
     }
 
     return {'type': enabled ? 'enabled' : 'disabled'};
   }
 
-  /// 将 reasoning effort 按主机类型映射为对应 API 值。
+  /// 不做 reasoning effort 映射，直接使用用户设置的值；让 API 厂商处理兼容性。
   String _buildReasoningEffort(Uri uri, ReasoningEffort effort) {
-    if (_isOfficialOpenAiHost(uri.host)) {
-      return effort.apiValue;
-    }
-
-    return switch (effort) {
-      ReasoningEffort.low ||
-      ReasoningEffort.medium ||
-      ReasoningEffort.high => 'high',
-      ReasoningEffort.xhigh => 'max',
-    };
+    return effort.apiValue;
   }
 
-  /// 判断是否为官方 OpenAI 主机。
-  bool _isOfficialOpenAiHost(String host) {
+  /// 判断是否为 DeepSeek 主机。
+  bool _isDeepSeekHost(String host) {
     final normalizedHost = host.toLowerCase();
-    return normalizedHost == 'api.openai.com' ||
-        normalizedHost.endsWith('.openai.com');
+    return normalizedHost == 'api.deepseek.com';
   }
 }
 
