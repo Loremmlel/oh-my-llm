@@ -36,6 +36,8 @@ class ChatWorkspace extends StatelessWidget {
     required this.onSelectMessage,
     required this.onSelectMessageVersion,
     required this.onSendPressed,
+    this.onFavoritePressed,
+    this.favoritedAssistantContents = const {},
     super.key,
   });
 
@@ -64,6 +66,12 @@ class ChatWorkspace extends StatelessWidget {
   final Future<void> Function(String parentId, String messageId)
   onSelectMessageVersion;
   final Future<void> Function()? onSendPressed;
+
+  /// 点击收藏按钮时的回调（仅助手消息），为 null 则不显示收藏按钮。
+  final ValueChanged<ChatMessage>? onFavoritePressed;
+
+  /// 已收藏的助手消息内容集合，用于显示收藏高亮状态。
+  final Set<String> favoritedAssistantContents;
 
   @override
   /// 构建消息区、错误提示和输入区的整体布局。
@@ -174,6 +182,15 @@ class ChatWorkspace extends StatelessWidget {
                                 onRetryLatestAssistant();
                               }
                             : null,
+                        onFavoritePressed:
+                            message.role == ChatMessageRole.assistant &&
+                                onFavoritePressed != null
+                            ? () => onFavoritePressed!(message)
+                            : null,
+                        isFavorited: message.role == ChatMessageRole.assistant &&
+                            favoritedAssistantContents.contains(
+                              message.content,
+                            ),
                         versionInfo: versionInfoByMessageId[message.id],
                         onSwitchVersion: (targetMessageId) async {
                           final versionInfo =

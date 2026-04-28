@@ -61,6 +61,9 @@ class AppDatabase {
     if (currentVersion < 2) {
       _migrateV2();
     }
+    if (currentVersion < 3) {
+      _migrateV3();
+    }
   }
 
   /// 初始 schema：聊天记录相关表。
@@ -137,5 +140,38 @@ class AppDatabase {
       );
     ''');
     _connection.execute('PRAGMA user_version = 2;');
+  }
+
+  /// 新增收藏夹和收藏记录表。
+  void _migrateV3() {
+    _connection.execute('''
+      CREATE TABLE IF NOT EXISTS collections (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+    ''');
+    _connection.execute('''
+      CREATE TABLE IF NOT EXISTS favorites (
+        id TEXT PRIMARY KEY,
+        collection_id TEXT,
+        user_message_content TEXT NOT NULL,
+        assistant_content TEXT NOT NULL,
+        assistant_reasoning_content TEXT NOT NULL DEFAULT '',
+        source_conversation_id TEXT,
+        source_conversation_title TEXT,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE SET NULL
+      );
+    ''');
+    _connection.execute('''
+      CREATE INDEX IF NOT EXISTS idx_favorites_created_at
+      ON favorites(created_at DESC);
+    ''');
+    _connection.execute('''
+      CREATE INDEX IF NOT EXISTS idx_favorites_collection_id
+      ON favorites(collection_id);
+    ''');
+    _connection.execute('PRAGMA user_version = 3;');
   }
 }
