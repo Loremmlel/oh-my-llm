@@ -102,20 +102,22 @@ class _FixedPromptSequenceRunnerDialogState
         width: 680,
         child: widget.sequences.isEmpty
             ? const Text('还没有可用的固定顺序提示词，请先去设置页添加。')
-            : Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 限高可滚动区域：序列选择 + 步骤内容，防止步骤文本过长时撑满屏幕
-                  ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxHeight: screenHeight * 0.55,
-                    ),
-                    child: SingleChildScrollView(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
+            // 用 ConstrainedBox 限定整个内容区最大高度，再用 Column(max) + Flexible 分配空间：
+            // Flexible 包裹可滚动内容会自动伸缩，Wrap 按钮固定在底部不参与滚动，
+            // 防止 Column(mainAxisSize.min) 在溢出约束时产生 RenderFlex overflow。
+            : ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: screenHeight * 0.65,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Flexible(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                           DropdownButtonFormField<String>(
                             initialValue: sequence?.id,
                             isExpanded: true,
@@ -289,6 +291,7 @@ class _FixedPromptSequenceRunnerDialogState
                   ],
                 ],
               ),
+            ),
       ),
       actions: [
         TextButton(

@@ -73,7 +73,7 @@ class ChatWorkspace extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final messagesCard = _buildMessagesCard(theme);
-        final composerCard = _buildComposerCard(theme);
+        final composerCard = _buildComposerCard(context, theme);
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -254,14 +254,13 @@ class ChatWorkspace extends StatelessWidget {
     return result;
   }
 
-  /// 构建消息输入区、思考开关和发送按钮。
+  /// 构建消息输入区、思考控件和发送按钮。
   ///
-  /// 宽度 < 520 时改为双行布局：
-  ///   - 第一行：思考开关 + 思考强度选择（各占 Expanded，无横向滚动）
-  ///   - 第二行：固定顺序提示词按钮 + 发送按钮（右对齐）
+  /// 所有控件压缩到单行，从左到右依次为：
+  ///   深度思考 pill | 思考强度 pill | [Spacer] | 固定提示词图标 | 发送按钮
   ///
-  /// 宽度 >= 520 时保持单行布局，思考控件区横向可滚动。
-  Widget _buildComposerCard(ThemeData theme) {
+  /// 两个 pill 均为可点击的圆角矩形，高度约 28px，避免 [Switch] 撑开行高。
+  Widget _buildComposerCard(BuildContext context, ThemeData theme) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -280,39 +279,18 @@ class ChatWorkspace extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                // 宽度不足以在单行内舒适展示所有控件时，切换为双行布局
-                const twoRowThreshold = 520.0;
-                final isCompact = constraints.maxWidth < twoRowThreshold;
-
-                if (isCompact) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _buildThinkingControlsRow(),
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: _buildActionButtons(),
-                      ),
-                    ],
-                  );
-                }
-
-                return Row(
-                  children: [
-                    Expanded(
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: _buildThinkingControlsRow(),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    ..._buildActionButtons(),
-                  ],
-                );
-              },
+            Row(
+              children: [
+                ThinkingToggle(
+                  enabled: supportsReasoning,
+                  value: supportsReasoning && reasoningEnabled,
+                  onChanged: onReasoningEnabledChanged,
+                ),
+                const SizedBox(width: 8),
+                _buildEffortPill(context, theme),
+                const Spacer(),
+                ..._buildActionButtons(),
+              ],
             ),
           ],
         ),
@@ -320,23 +298,63 @@ class ChatWorkspace extends StatelessWidget {
     );
   }
 
-  /// 构建思考开关和思考强度选择器组成的横向控件行。
-  Widget _buildThinkingControlsRow() {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        ThinkingToggle(
-          enabled: supportsReasoning,
-          value: supportsReasoning && reasoningEnabled,
-          onChanged: onReasoningEnabledChanged,
+  /// 构建思考强度 pill 选择器。
+  ///
+  /// 样式与 [ThinkingToggle] 一致，使用 [PopupMenuButton] 包裹，
+  /// 点击后展示 low / med / high / xhigh 四个选项。
+  /// 当深度思考未启用时，pill 变灰且不可交互。
+  Widget _buildEffortPill(BuildContext context, ThemeData theme) {
+    final isActive = supportsReasoning && reasoningEnabled;
+    final backgroundColor = !supportsReasoning
+        ? theme.colorScheme.surfaceContainerLow
+        : isActive
+        ? theme.colorScheme.primaryContainer
+        : theme.colorScheme.surfaceContainerHigh;
+    final borderColor = isActive
+        ? theme.colorScheme.primary.withValues(alpha: 0.28)
+        : theme.colorScheme.outlineVariant.withValues(alpha: 0.75);
+    final labelColor = isActive
+        ? theme.colorScheme.onPrimaryContainer
+        : theme.colorScheme.onSurfaceVariant;
+
+    // PopupMenuButton 作为父容器，点击 pill 即可展开菜单
+    return PopupMenuButton<ReasoningEffort>(
+      enabled: isActive,
+      initialValue: reasoningEffort,
+      tooltip: '思考强度',
+      onSelected: (value) => onReasoningEffortChanged?.call(value),
+      itemBuilder: (context) => ReasoningEffort.values
+          .map(
+            (effort) => PopupMenuItem(
+              value: effort,
+              child: Text(_effortLabel(effort)),
+            ),
+          )
+          .toList(growable: false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 167),
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: borderColor),
         ),
-        const SizedBox(width: 8),
-        SizedBox(
-          width: 132,
-          child: _buildReasoningEffortSelector(compact: true),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _effortLabel(reasoningEffort),
+              style: theme.textTheme.bodySmall?.copyWith(color: labelColor),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              Icons.expand_more_rounded,
+              size: 14,
+              color: labelColor,
+            ),
+          ],
         ),
-        const SizedBox(width: 8),
-      ],
+      ),
     );
   }
 
@@ -360,9 +378,8 @@ class ChatWorkspace extends StatelessWidget {
                 onSendPressed?.call();
               },
         style: FilledButton.styleFrom(
-          minimumSize: const Size(60, 36),
+          minimumSize: const Size(60, 40),
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          visualDensity: VisualDensity.compact,
         ),
         icon: Icon(
           isStreaming ? Icons.hourglass_top_rounded : Icons.send_rounded,
@@ -370,46 +387,6 @@ class ChatWorkspace extends StatelessWidget {
         label: Text(isStreaming ? '生成中' : '发送'),
       ),
     ];
-  }
-
-  /// 构建思考强度下拉框。
-  ///
-  /// compact 模式去掉浮动标签（避免标签占据约 16px 的额外行高），
-  /// 改用外层 [Tooltip] 提供提示，同时收紧 contentPadding。
-  Widget _buildReasoningEffortSelector({bool compact = false}) {
-    final dropdown = DropdownButtonFormField<ReasoningEffort>(
-      key: ValueKey(reasoningEffort),
-      initialValue: reasoningEffort,
-      isExpanded: true,
-      items: ReasoningEffort.values
-          .map((effort) {
-            return DropdownMenuItem(
-              value: effort,
-              child: Text(_effortLabel(effort)),
-            );
-          })
-          .toList(growable: false),
-      onChanged: supportsReasoning && reasoningEnabled
-          ? (value) {
-              if (value != null) {
-                onReasoningEffortChanged?.call(value);
-              }
-            }
-          : null,
-      decoration: InputDecoration(
-        // compact 模式省去浮动标签以减小高度；标签语义由外层 Tooltip 承担
-        labelText: compact ? null : '思考负担',
-        isDense: compact,
-        contentPadding: compact
-            ? const EdgeInsets.symmetric(horizontal: 12, vertical: 7)
-            : null,
-      ),
-    );
-
-    if (compact) {
-      return Tooltip(message: '思考强度', child: dropdown);
-    }
-    return dropdown;
   }
 
   /// 把枚举值转换为更短的显示文本。
