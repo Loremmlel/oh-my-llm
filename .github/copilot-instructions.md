@@ -10,6 +10,9 @@ flutter analyze
 flutter test
 flutter test test\features\chat\chat_screen_test.dart
 flutter test test\features\chat\chat_screen_test.dart --plain-name "chat screen copies raw message content without reasoning"
+flutter test test\features\chat\application\chat_sessions_controller_test.dart
+flutter test test\core\persistence\app_database_migration_test.dart
+flutter test test\app\shell\app_shell_scaffold_test.dart
 flutter build windows
 flutter build apk
 .\build-windows-release.ps1
@@ -84,3 +87,21 @@ Comments should use Simplified Chinese and follow these conventions (reference: 
 - Widget tests usually seed storage with `SharedPreferences.setMockInitialValues(...)` and inject dependencies with `ProviderScope` overrides. When chat history, favorites, or collections are involved, also override `appDatabaseProvider` with the test database helper.
 - When splitting tests, keep only one runnable `*_test.dart` entrypoint per suite; move shared cases into helper files such as `*_cases.dart` so Flutter does not discover them as separate test targets.
 - This repo is being developed in small audited increments: each completed feature or fix is expected to be committed separately instead of batching unrelated work into one commit.
+
+## Test coverage
+
+Test structure: single `*_test.dart` entry point + multiple `*_cases.dart` helpers. Cases files export `void registerXxxTests()` but are NOT runnable test targets.
+
+**Core test files:**
+- `test/features/favorites/` — FavoritesScreen, FavoriteDetailScreen, ManageCollectionsDialog widget tests; FavoritesController unit tests
+- `test/features/chat/chat_screen/chat_screen_favorites_cases.dart` — Chat↔Favorites bookmark flow
+- `test/features/chat/application/chat_sessions_controller_test.dart` — ChatSessionsController: create/rename/delete conversations, send messages, edit, retry, error handling
+- `test/core/persistence/app_database_migration_test.dart` — AppDatabase schema: user_version=3, all V1-V3 tables, default values, FK cascades, indexes
+- `test/app/shell/app_shell_scaffold_test.dart` — AppShellScaffold: wide layout (NavigationRail), compact layout (NavigationBar), breakpoint behavior
+
+**Test patterns:**
+- Widget tests: `SharedPreferences.setMockInitialValues(...)` + `ProviderScope(overrides: [...appDatabaseProvider])` + `pumpWidget`
+- Unit tests: `ProviderContainer` + `AppDatabase.inMemory()` + `ProviderContainer.read()` / `read(...notifier)`
+- Fake clients: `FakeChatCompletionClient` (from test helpers) with `enqueueChunks()` and `enqueueError()` for streaming tests
+- Database: `createTestDatabase(preferences)` runs full migration stack V1→V3
+- Error injection: catch `ChatCompletionException` in controller; stream.error() for null-content cleanup tests
