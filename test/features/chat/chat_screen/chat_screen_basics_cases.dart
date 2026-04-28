@@ -25,7 +25,9 @@ void registerChatScreenBasicsTests() {
     expect(find.textContaining('深度思考：'), findsNothing);
     expect(find.byType(SwitchListTile), findsNothing);
     expect(find.byType(SegmentedButton<ReasoningEffort>), findsNothing);
-    expect(find.byType(Switch), findsOneWidget);
+    // ThinkingToggle 现在是纯 pill，不含 Switch
+    expect(find.byType(Switch), findsNothing);
+    // 思考强度 pill 通过 PopupMenuButton tooltip 可被查找
     expect(find.byTooltip('思考强度'), findsOneWidget);
   });
 
