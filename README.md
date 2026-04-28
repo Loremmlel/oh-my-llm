@@ -9,6 +9,7 @@
 - 🗂️ **Prompt 模板**：可复用 system 指令 + 附加消息，随时切换
 - 🔢 **固定顺序提示词**：预设多步 Prompt，比较测试时逐步手动发送
 - 🔍 **历史搜索**：按对话标题和用户消息全文检索，按时间分组展示
+- ⭐ **收藏**：保存满意的模型回复，按收藏夹筛选并查看详情
 - 🖥️ **响应式布局**：桌面侧边导航轨、移动端底部导航条
 
 ---
@@ -106,6 +107,13 @@ flutter run -d windows   # 或 -d <your_android_device_id>
 - 支持**批量选择**后删除
 - 支持单条对话**重命名**
 
+### 收藏与收藏夹
+
+- 在聊天页点击助手消息上的**书签**按钮即可收藏，收藏内容会保存用户消息、模型回复和推理内容的完整副本
+- 收藏页支持按**全部 / 未分类 / 收藏夹**筛选
+- 支持新建、重命名、删除收藏夹；删除收藏夹只会把其中的收藏移回未分类
+- 收藏详情页可以跳回来源对话，原对话删除后收藏内容仍然保留
+
 ---
 
 ## 架构概览
@@ -116,7 +124,8 @@ lib/
 ├── bootstrap.dart              # 初始化：SharedPreferences + SQLite + 数据迁移
 ├── app/
 │   ├── app.dart                # MaterialApp + ProviderScope
-│   ├── router/                 # GoRouter 三页路由（chat / history / settings）
+│   ├── navigation/             # 顶层入口枚举（chat / history / favorites / settings）
+│   ├── router/                 # GoRouter 四个顶层页面 + 收藏详情页路由
 │   └── shell/                  # 响应式导航壳（NavigationRail / NavigationBar）
 ├── core/
 │   ├── constants/              # 响应式断点
@@ -129,6 +138,11 @@ lib/
     │   ├── data/               # OpenAI 兼容 HTTP 客户端 + SQLite 仓库 + 迁移
     │   ├── domain/             # ChatMessage / ChatConversation 模型 + 消息树
     │   └── presentation/       # 聊天页 + 流式 Markdown 组件
+    ├── favorites/
+    │   ├── application/        # 收藏与收藏夹控制器
+    │   ├── data/               # SQLite 收藏仓库 + 迁移
+    │   ├── domain/             # 收藏 / 收藏夹模型
+    │   └── presentation/       # 收藏页 + 收藏详情页
     ├── history/
     │   └── presentation/       # 历史页（搜索 + 分组 + 批量操作）
     └── settings/
@@ -140,13 +154,13 @@ lib/
 
 ### 持久化策略
 
-| 数据        | 存储方式                                                 |
-|-----------|------------------------------------------------------|
-| 聊天记录      | SQLite（`chat_history.sqlite`，位于应用 Support 目录）        |
-| 模型配置      | SharedPreferences JSON（`settings.llm_model_configs`） |
-| Prompt 模板 | SQLite                                               |
-| 固定顺序提示词   | SQLite                                               |
-| 聊天默认项     | SharedPreferences JSON（单对象）                          |
+| 数据            | 存储方式                                                 |
+|---------------|------------------------------------------------------|
+| 聊天记录 / 收藏 / 收藏夹 | SQLite（`chat_history.sqlite`，位于应用 Support 目录）        |
+| Prompt 模板     | SQLite                                               |
+| 固定顺序提示词       | SQLite                                               |
+| 模型配置          | SharedPreferences JSON（`settings.llm_model_configs`） |
+| 聊天默认项         | SharedPreferences JSON（单对象）                          |
 
 历史版本使用 SharedPreferences 存储所有数据，升级时会自动执行一次性迁移，迁移完成后删除旧键。
 
@@ -178,7 +192,7 @@ flutter test             # 运行全部测试（约 40 个 widget + 集成测试
 ### 测试
 
 测试用 `SharedPreferences.setMockInitialValues(...)` 注入存储，用 `ProviderScope` 覆盖依赖。
-涉及聊天记录时同时覆盖 `appDatabaseProvider`（内存数据库）。
+涉及聊天记录、收藏或收藏夹时同时覆盖 `appDatabaseProvider`（内存数据库）。
 
 ---
 
@@ -189,7 +203,7 @@ flutter test             # 运行全部测试（约 40 个 widget + 集成测试
 | Windows | `%APPDATA%\<org>\oh_my_llm\`        |
 | Android | `/data/data/com.example.oh_my_llm/` |
 
-聊天记录文件为 `chat_history.sqlite`，设置项保存在系统 SharedPreferences 中。
+SQLite 文件 `chat_history.sqlite` 统一保存聊天记录、Prompt 模板、固定顺序提示词、收藏和收藏夹；模型配置与聊天默认项仍保存在系统 SharedPreferences 中。
 
 ---
 
