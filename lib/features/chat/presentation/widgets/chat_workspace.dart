@@ -346,6 +346,10 @@ class ChatWorkspace extends StatelessWidget {
       IconButton.outlined(
         onPressed: onOpenFixedPromptSequenceRunner,
         tooltip: '固定顺序提示词',
+        style: IconButton.styleFrom(
+          minimumSize: const Size(36, 36),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
         icon: const Icon(Icons.playlist_play_rounded),
       ),
       const SizedBox(width: 8),
@@ -355,6 +359,11 @@ class ChatWorkspace extends StatelessWidget {
             : () {
                 onSendPressed?.call();
               },
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(60, 36),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          visualDensity: VisualDensity.compact,
+        ),
         icon: Icon(
           isStreaming ? Icons.hourglass_top_rounded : Icons.send_rounded,
         ),
@@ -364,8 +373,11 @@ class ChatWorkspace extends StatelessWidget {
   }
 
   /// 构建思考强度下拉框。
+  ///
+  /// compact 模式去掉浮动标签（避免标签占据约 16px 的额外行高），
+  /// 改用外层 [Tooltip] 提供提示，同时收紧 contentPadding。
   Widget _buildReasoningEffortSelector({bool compact = false}) {
-    return DropdownButtonFormField<ReasoningEffort>(
+    final dropdown = DropdownButtonFormField<ReasoningEffort>(
       key: ValueKey(reasoningEffort),
       initialValue: reasoningEffort,
       isExpanded: true,
@@ -385,13 +397,19 @@ class ChatWorkspace extends StatelessWidget {
             }
           : null,
       decoration: InputDecoration(
-        labelText: '思考负担',
+        // compact 模式省去浮动标签以减小高度；标签语义由外层 Tooltip 承担
+        labelText: compact ? null : '思考负担',
         isDense: compact,
         contentPadding: compact
-            ? const EdgeInsets.symmetric(horizontal: 12, vertical: 10)
+            ? const EdgeInsets.symmetric(horizontal: 12, vertical: 7)
             : null,
       ),
     );
+
+    if (compact) {
+      return Tooltip(message: '思考强度', child: dropdown);
+    }
+    return dropdown;
   }
 
   /// 把枚举值转换为更短的显示文本。

@@ -37,7 +37,7 @@ class ThinkingToggle extends StatelessWidget {
         border: Border.all(color: borderColor),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
