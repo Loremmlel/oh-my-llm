@@ -45,12 +45,13 @@ Comments should use Simplified Chinese and follow these conventions (reference: 
 ## High-level architecture
 
 - The app boots through `lib\main.dart` -> `lib\bootstrap.dart`, where `SharedPreferences` is created once and injected through Riverpod via `sharedPreferencesProvider`.
-- `lib\app\app.dart`, `lib\app\router\app_router.dart`, and `lib\app\shell\app_shell_scaffold.dart` define the global shell: GoRouter owns the three top-level screens (`chat`, `history`, `settings`), and the shell swaps between desktop `NavigationRail` and compact mobile `NavigationBar` / `endDrawer` layouts.
+- `lib\app\app.dart`, `lib\app\navigation\app_destination.dart`, `lib\app\router\app_router.dart`, and `lib\app\shell\app_shell_scaffold.dart` define the global shell: GoRouter owns the four top-level screens (`chat`, `history`, `favorites`, `settings`), and the shell swaps between desktop `NavigationRail` and compact mobile `NavigationBar` / `endDrawer` layouts. The favorites detail page is a separate route.
 - The codebase follows a feature-first split under `lib\features\...`, usually with `application`, `data`, `domain`, and `presentation` layers:
   - `settings`: local CRUD for model configs, prompt templates, fixed prompt sequences, and chat defaults
   - `chat`: conversation state, persistence, streaming client, and the main chat UI
   - `history`: grouped search / rename / batch delete UI over the same conversation state
-- Persistent state is local-first. Lightweight settings, prompt templates, and fixed prompt sequences still use SharedPreferences-backed JSON, while chat history now lives in SQLite through `core\persistence\app_database.dart` and `sqlite_chat_conversation_repository.dart`. `chat_defaults` is a single JSON object, not a versioned list.
+  - `favorites`: saved assistant replies, collection management, and the favorites detail view
+- Persistent state is local-first. Model configs and chat defaults still use SharedPreferences-backed JSON, while chat history, prompt templates, fixed prompt sequences, favorites, and collections now live in SQLite through `core\persistence\app_database.dart`. `chat_defaults` is a single JSON object, not a versioned list.
 - `lib\features\chat\application\chat_sessions_controller.dart` is the center of the app. It owns:
   - active conversation selection
   - creation / rename / delete
@@ -80,6 +81,6 @@ Comments should use Simplified Chinese and follow these conventions (reference: 
   - official OpenAI hosts: omit `thinking`, send native `reasoning_effort`
   - other compatible hosts: send `thinking: {"type":"enabled"|"disabled"}`
   - compatible-host effort values are normalized in the client before sending
-- Widget tests usually seed storage with `SharedPreferences.setMockInitialValues(...)` and inject dependencies with `ProviderScope` overrides. When chat history is involved, also override `appDatabaseProvider` with the test database helper.
+- Widget tests usually seed storage with `SharedPreferences.setMockInitialValues(...)` and inject dependencies with `ProviderScope` overrides. When chat history, favorites, or collections are involved, also override `appDatabaseProvider` with the test database helper.
 - When splitting tests, keep only one runnable `*_test.dart` entrypoint per suite; move shared cases into helper files such as `*_cases.dart` so Flutter does not discover them as separate test targets.
 - This repo is being developed in small audited increments: each completed feature or fix is expected to be committed separately instead of batching unrelated work into one commit.
