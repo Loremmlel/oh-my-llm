@@ -17,7 +17,7 @@ class FixedPromptSequencesList extends ConsumerWidget {
   final ValueChanged<FixedPromptSequence> onEditRequested;
 
   @override
-  /// 构建序列列表；空列表时显示空状态提示。
+  /// 构建序列列表；空列表时显示空状态提示。宽度足够时一行展示多列。
   Widget build(BuildContext context, WidgetRef ref) {
     if (sequences.isEmpty) {
       return const SettingsEmptyState(
@@ -27,18 +27,68 @@ class FixedPromptSequencesList extends ConsumerWidget {
       );
     }
 
-    return Column(
-      children: [
-        for (final sequence in sequences)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: _FixedPromptSequenceTile(
-              sequence: sequence,
-              onEditRequested: onEditRequested,
-            ),
-          ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const minItemWidth = 280.0;
+        const gap = 12.0;
+        final crossAxisCount =
+            ((constraints.maxWidth + gap) / (minItemWidth + gap))
+                .floor()
+                .clamp(1, 3);
+        return _buildGrid(sequences, crossAxisCount, gap, constraints.maxWidth, ref);
+      },
     );
+  }
+
+  Widget _buildGrid(
+    List<FixedPromptSequence> items,
+    int crossAxisCount,
+    double gap,
+    double availableWidth,
+    WidgetRef ref,
+  ) {
+    if (crossAxisCount == 1) {
+      return Column(
+        children: [
+          for (final sequence in items)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _FixedPromptSequenceTile(
+                sequence: sequence,
+                onEditRequested: onEditRequested,
+              ),
+            ),
+        ],
+      );
+    }
+
+    final itemWidth =
+        (availableWidth - gap * (crossAxisCount - 1)) / crossAxisCount;
+    final rows = <Widget>[];
+    for (var i = 0; i < items.length; i += crossAxisCount) {
+      final rowItems = items.skip(i).take(crossAxisCount).toList();
+      rows.add(
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (var j = 0; j < rowItems.length; j++) ...[
+                if (j > 0) SizedBox(width: gap),
+                SizedBox(
+                  width: itemWidth,
+                  child: _FixedPromptSequenceTile(
+                    sequence: rowItems[j],
+                    onEditRequested: onEditRequested,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
+    return Column(children: rows);
   }
 }
 
