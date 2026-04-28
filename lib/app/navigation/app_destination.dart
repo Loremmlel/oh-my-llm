@@ -16,17 +16,17 @@ enum AppDestination {
     icon: Icons.history_rounded,
     selectedIcon: Icons.history_toggle_off_rounded,
   ),
-  settings(
-    path: '/settings',
-    label: '设置',
-    icon: Icons.settings_outlined,
-    selectedIcon: Icons.settings_rounded,
-  ),
   favorites(
     path: '/favorites',
     label: '收藏',
     icon: Icons.bookmark_border_rounded,
     selectedIcon: Icons.bookmark_rounded,
+  ),
+  settings(
+    path: '/settings',
+    label: '设置',
+    icon: Icons.settings_outlined,
+    selectedIcon: Icons.settings_rounded,
   );
 
   const AppDestination({

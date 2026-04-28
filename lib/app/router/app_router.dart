@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/chat/presentation/chat_screen.dart';
+import '../../features/favorites/domain/models/favorite.dart';
+import '../../features/favorites/presentation/favorite_detail_screen.dart';
 import '../../features/favorites/presentation/favorites_screen.dart';
 import '../../features/history/presentation/history_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
@@ -35,6 +37,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppDestination.favorites.path,
         name: AppDestination.favorites.name,
         builder: (context, state) => const FavoritesScreen(),
+      ),
+      GoRoute(
+        path: '/favorites/detail',
+        builder: (context, state) {
+          final favorite = state.extra as Favorite;
+          return FavoriteDetailScreen(favorite: favorite);
+        },
       ),
     ],
     errorBuilder: (context, state) {
