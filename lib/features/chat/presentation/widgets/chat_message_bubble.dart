@@ -15,6 +15,8 @@ class ChatMessageBubble extends StatelessWidget {
     this.canRetry = false,
     this.onEditPressed,
     this.onRetryPressed,
+    this.onFavoritePressed,
+    this.isFavorited = false,
     this.versionInfo,
     this.onSwitchVersion,
     super.key,
@@ -25,6 +27,13 @@ class ChatMessageBubble extends StatelessWidget {
   final bool canRetry;
   final VoidCallback? onEditPressed;
   final VoidCallback? onRetryPressed;
+
+  /// 收藏按钮回调，仅在助手消息上提供；为 null 则不显示收藏按钮。
+  final VoidCallback? onFavoritePressed;
+
+  /// 当前消息是否已被收藏，影响收藏图标的高亮状态。
+  final bool isFavorited;
+
   final MessageVersionInfo? versionInfo;
   final Future<void> Function(String targetMessageId)? onSwitchVersion;
 
@@ -86,6 +95,16 @@ class ChatMessageBubble extends StatelessWidget {
                       tooltip: '复制消息',
                       icon: const Icon(Icons.content_copy_rounded),
                     ),
+                    if (onFavoritePressed != null)
+                      IconButton(
+                        onPressed: onFavoritePressed,
+                        tooltip: isFavorited ? '已收藏' : '收藏回复',
+                        icon: Icon(
+                          isFavorited
+                              ? Icons.bookmark_rounded
+                              : Icons.bookmark_border_rounded,
+                        ),
+                      ),
                     if (canEdit)
                       IconButton(
                         onPressed: onEditPressed,

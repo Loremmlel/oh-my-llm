@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/chat/presentation/chat_screen.dart';
+import '../../features/favorites/presentation/favorites_screen.dart';
 import '../../features/history/presentation/history_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
 import '../navigation/app_destination.dart';
@@ -29,6 +30,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppDestination.settings.path,
         name: AppDestination.settings.name,
         builder: (context, state) => const SettingsScreen(),
+      ),
+      GoRoute(
+        path: AppDestination.favorites.path,
+        name: AppDestination.favorites.name,
+        builder: (context, state) => const FavoritesScreen(),
       ),
     ],
     errorBuilder: (context, state) {

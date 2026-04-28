@@ -12,6 +12,8 @@ class CachedChatMessageBubble extends StatefulWidget {
     this.canRetry = false,
     this.onEditPressed,
     this.onRetryPressed,
+    this.onFavoritePressed,
+    this.isFavorited = false,
     this.versionInfo,
     this.onSwitchVersion,
     super.key,
@@ -22,6 +24,8 @@ class CachedChatMessageBubble extends StatefulWidget {
   final bool canRetry;
   final VoidCallback? onEditPressed;
   final VoidCallback? onRetryPressed;
+  final VoidCallback? onFavoritePressed;
+  final bool isFavorited;
   final MessageVersionInfo? versionInfo;
   final Future<void> Function(String targetMessageId)? onSwitchVersion;
 
@@ -59,6 +63,7 @@ class _CachedChatMessageBubbleState extends State<CachedChatMessageBubble> {
     return oldWidget.message == widget.message &&
         oldWidget.canEdit == widget.canEdit &&
         oldWidget.canRetry == widget.canRetry &&
+        oldWidget.isFavorited == widget.isFavorited &&
         _sameVersionInfo(oldWidget.versionInfo, widget.versionInfo);
   }
 
@@ -94,6 +99,8 @@ class _CachedChatMessageBubbleState extends State<CachedChatMessageBubble> {
       canRetry: widget.canRetry,
       onEditPressed: widget.onEditPressed,
       onRetryPressed: widget.onRetryPressed,
+      onFavoritePressed: widget.onFavoritePressed,
+      isFavorited: widget.isFavorited,
       versionInfo: widget.versionInfo,
       onSwitchVersion: widget.onSwitchVersion,
     );

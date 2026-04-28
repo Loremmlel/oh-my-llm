@@ -16,6 +16,7 @@ import '../application/chat_sessions_controller.dart';
 import '../domain/chat_conversation_groups.dart';
 import '../domain/models/chat_conversation.dart';
 import '../domain/models/chat_message.dart';
+import '../../favorites/application/favorites_controller.dart';
 import 'widgets/widgets.dart';
 
 /// 聊天页入口，负责把会话状态、输入框和侧栏组合成完整页面。
@@ -76,6 +77,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final modelConfigs = ref.watch(llmModelConfigsProvider);
     final promptTemplates = ref.watch(promptTemplatesProvider);
     final activeMessages = conversation.messages;
+    final favorites = ref.watch(favoritesProvider);
+    final favoritedContents = favorites
+        .map((f) => f.assistantContent)
+        .toSet();
 
     final selectedModel = _resolveSelectedModel(
       modelConfigs,
@@ -259,6 +264,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               isStreaming: isStreaming,
                             );
                           },
+                    onFavoritePressed: (message) =>
+                        _showAddToFavoritesDialog(context, message, conversation),
+                    favoritedAssistantContents: favoritedContents,
                   ),
                 ),
               ],
@@ -401,6 +409,79 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           reasoningEnabled: supportsReasoning && conversation.reasoningEnabled,
           reasoningEffort: conversation.reasoningEffort,
         );
+  }
+
+  /// 弹出添加到收藏夹对话框，并在用户确认后执行收藏。
+  Future<void> _showAddToFavoritesDialog(
+    BuildContext context,
+    ChatMessage assistantMessage,
+    ChatConversation conversation,
+  ) async {
+    // 如果已收藏，提示取消
+    final favoritesController = ref.read(favoritesProvider.notifier);
+    if (favoritesController.isFavorited(assistantMessage.content)) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('已取消收藏'),
+          action: SnackBarAction(
+            label: '撤销',
+            onPressed: () {},
+          ),
+        ),
+      );
+      // 找到并删除对应收藏
+      final allFavorites = ref.read(favoritesProvider);
+      final existing = allFavorites.where(
+        (f) => f.assistantContent == assistantMessage.content,
+      ).firstOrNull;
+      if (existing != null) {
+        favoritesController.remove(existing.id);
+      }
+      return;
+    }
+
+    // 查找上一条用户消息
+    final messages = conversation.messages;
+    final assistantIndex = messages.indexWhere(
+      (m) => m.id == assistantMessage.id,
+    );
+    final userMessage = assistantIndex > 0
+        ? messages
+              .sublist(0, assistantIndex)
+              .lastWhere(
+                (m) => m.role == ChatMessageRole.user,
+                orElse: () => messages[0],
+              )
+        : null;
+
+    if (!context.mounted) return;
+    final selectedCollectionId = await showDialog<String>(
+      context: context,
+      builder: (context) => AddToFavoritesDialog(
+        assistantContent: assistantMessage.content,
+      ),
+    );
+
+    if (selectedCollectionId == null || !mounted) {
+      return;
+    }
+
+    favoritesController.add(
+      userMessageContent: userMessage?.content ?? '',
+      assistantContent: assistantMessage.content,
+      assistantReasoningContent: assistantMessage.reasoningContent,
+      // '' 表示用户选择了未分类
+      collectionId: selectedCollectionId.isEmpty ? null : selectedCollectionId,
+      sourceConversationId: conversation.id,
+      sourceConversationTitle: conversation.resolvedTitle,
+    );
+
+    if (!mounted) return;
+    // ignore: use_build_context_synchronously
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('已收藏')),
+    );
   }
 
   /// 弹出会话重命名对话框并提交新标题。
