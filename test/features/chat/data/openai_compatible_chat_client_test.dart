@@ -16,7 +16,7 @@ void main() {
         expect(request.headers['Authorization'], 'Bearer sk-test-12345678');
         final payload =
             jsonDecode((request as http.Request).body) as Map<String, dynamic>;
-        expect(payload['thinking'], {'type': 'enabled'});
+        expect(payload.containsKey('thinking'), isFalse);
         expect(payload['reasoning_effort'], 'high');
 
         return http.StreamedResponse(
@@ -66,7 +66,7 @@ void main() {
           final payload =
               jsonDecode((request as http.Request).body)
                   as Map<String, dynamic>;
-          expect(payload['thinking'], {'type': 'disabled'});
+          expect(payload.containsKey('thinking'), isFalse);
           expect(payload.containsKey('reasoning_effort'), isFalse);
 
           return http.StreamedResponse(
@@ -422,7 +422,7 @@ void main() {
         )
         .drain<void>();
 
-    expect(sentEffort, 'high');
+    expect(sentEffort, 'low');
   });
 
   test(
@@ -454,7 +454,7 @@ void main() {
         )
         .drain<void>();
 
-    expect(sentEffort, 'high');
+    expect(sentEffort, 'medium');
   });
 
   test(
@@ -486,7 +486,7 @@ void main() {
         )
         .drain<void>();
 
-    expect(sentEffort, 'max');
+    expect(sentEffort, 'xhigh');
   });
 
   test(
