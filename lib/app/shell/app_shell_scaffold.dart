@@ -52,6 +52,7 @@ class AppShellScaffold extends StatelessWidget {
           endDrawer: isCompact ? endDrawer : null,
           bottomNavigationBar: isCompact
               ? NavigationBar(
+                  height: 64,
                   selectedIndex: currentDestination.index,
                   onDestinationSelected: (index) {
                     final destination = AppDestination.values[index];

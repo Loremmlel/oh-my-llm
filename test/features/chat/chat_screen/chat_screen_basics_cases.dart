@@ -26,7 +26,7 @@ void registerChatScreenBasicsTests() {
     expect(find.byType(SwitchListTile), findsNothing);
     expect(find.byType(SegmentedButton<ReasoningEffort>), findsNothing);
     expect(find.byType(Switch), findsOneWidget);
-    expect(find.text('思考负担'), findsOneWidget);
+    expect(find.byTooltip('思考强度'), findsOneWidget);
   });
 
   testWidgets('chat screen renames conversation without controller errors', (
