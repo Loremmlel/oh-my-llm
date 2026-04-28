@@ -4,13 +4,12 @@ import 'package:go_router/go_router.dart';
 
 import '../../../app/navigation/app_destination.dart';
 import '../../../app/shell/app_shell_scaffold.dart';
-import '../../chat/application/chat_sessions_controller.dart';
 import '../application/collections_controller.dart';
 import '../application/favorites_controller.dart';
 import '../domain/models/collection.dart';
 import '../domain/models/favorite.dart';
 import '../presentation/widgets/dialogs/manage_collections_dialog.dart';
-import '../presentation/widgets/favorite_card.dart';
+import '../presentation/widgets/favorite_list_item.dart';
 
 /// 收藏页，展示按收藏夹筛选的收藏记录。
 class FavoritesScreen extends ConsumerStatefulWidget {
@@ -104,20 +103,17 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
       itemCount: favorites.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 12),
+      separatorBuilder: (context, index) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
         final favorite = favorites[index];
         final collection = favorite.collectionId != null
             ? collectionById[favorite.collectionId]
             : null;
 
-        return FavoriteCard(
+        return FavoriteListItem(
           favorite: favorite,
           collectionName: collection?.name,
-          onDeletePressed: () => _confirmDelete(context, favorite),
-          onGoToConversation: favorite.sourceConversationId != null
-              ? () => _goToConversation(favorite.sourceConversationId!)
-              : null,
+          onTap: () => context.push('/favorites/detail', extra: favorite),
         );
       },
     );
@@ -153,37 +149,6 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
         ),
       ),
     );
-  }
-
-  Future<void> _confirmDelete(BuildContext context, Favorite favorite) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('删除收藏'),
-          content: const Text('确定要删除这条收藏记录吗？'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('删除'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirmed == true) {
-      ref.read(favoritesProvider.notifier).remove(favorite.id);
-    }
-  }
-
-  void _goToConversation(String conversationId) {
-    ref.read(chatSessionsProvider.notifier).selectConversation(conversationId);
-    context.go(AppDestination.chat.path);
   }
 
   Future<void> _showManageCollectionsDialog(BuildContext context) async {
