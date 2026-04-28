@@ -150,8 +150,9 @@ class SettingsScreen extends ConsumerWidget {
 
   /// 读取剪贴板，检测是否含有本应用的配置导出数据。
   ///
-  /// 若检测到，则弹出 [ImportConfirmDialog]；确认后批量写入并返回 true。
-  /// 若未检测到或用户取消，则返回 false，调用方继续显示常规表单。
+  /// 若检测到，先去重过滤掉本地已存在的内容相同的条目，再弹出 [ImportConfirmDialog]；
+  /// 确认后批量写入并返回 true。若未检测到、全部重复或用户取消，则返回 false，
+  /// 调用方继续显示常规表单。
   Future<bool> _tryImportFromClipboard(
     BuildContext context,
     WidgetRef ref,
@@ -164,14 +165,33 @@ class SettingsScreen extends ConsumerWidget {
       return false;
     }
 
+    // 去重：过滤掉与本地内容等价的条目
+    final existingModels = ref.read(llmModelConfigsProvider);
+    final existingTemplates = ref.read(promptTemplatesProvider);
+    final existingSequences = ref.read(fixedPromptSequencesProvider);
+    final dedupedData = _deduplicateExportData(
+      exportData,
+      existingModels: existingModels,
+      existingTemplates: existingTemplates,
+      existingSequences: existingSequences,
+    );
+
     if (!context.mounted) {
       return false;
+    }
+
+    // 全部重复时不弹对话框，提示用户后返回 true（视为已处理，不打开表单）
+    if (!dedupedData.hasContent) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('剪贴板中的配置在本地均已存在，无需导入')),
+      );
+      return true;
     }
 
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
-        return ImportConfirmDialog(exportData: exportData);
+        return ImportConfirmDialog(exportData: dedupedData);
       },
     );
 
@@ -182,6 +202,72 @@ class SettingsScreen extends ConsumerWidget {
     }
 
     // 无论确认还是取消，只要弹过对话框就算"已处理"，不再打开表单
+    return true;
+  }
+
+  /// 从待导入数据中过滤掉与本地已有条目内容等价的项，返回仅含新增内容的数据包。
+  ///
+  /// 去重规则：
+  /// - 模型配置：`apiUrl`、`apiKey`、`modelName` 三字段全部相同即视为重复。
+  /// - Prompt 模板：`systemPrompt` 相同且所有附加消息（role + content 有序）相同。
+  /// - 固定顺序提示词：所有步骤内容（content 有序）相同。
+  ///
+  /// 不使用抽样比较：Dart 的 `String ==` 在 C 层实现，10K 字符级别 < 0.1ms，
+  /// 一次性导入操作无需额外优化，而抽样有误判（假阴性）风险。
+  SettingsExportData _deduplicateExportData(
+    SettingsExportData data, {
+    required List<LlmModelConfig> existingModels,
+    required List<PromptTemplate> existingTemplates,
+    required List<FixedPromptSequence> existingSequences,
+  }) {
+    final newModels = data.modelConfigs.where((incoming) {
+      return !existingModels.any(
+        (e) =>
+            e.apiUrl == incoming.apiUrl &&
+            e.apiKey == incoming.apiKey &&
+            e.modelName == incoming.modelName,
+      );
+    }).toList(growable: false);
+
+    final newTemplates = data.promptTemplates.where((incoming) {
+      return !existingTemplates.any((e) => _promptTemplatesContentEqual(e, incoming));
+    }).toList(growable: false);
+
+    final newSequences = data.fixedPromptSequences.where((incoming) {
+      return !existingSequences.any((e) => _sequencesContentEqual(e, incoming));
+    }).toList(growable: false);
+
+    return SettingsExportData(
+      modelConfigs: newModels,
+      promptTemplates: newTemplates,
+      fixedPromptSequences: newSequences,
+    );
+  }
+
+  /// 判断两个 Prompt 模板内容是否等价（忽略 id、name、updatedAt）。
+  bool _promptTemplatesContentEqual(PromptTemplate a, PromptTemplate b) {
+    if (a.systemPrompt.length != b.systemPrompt.length) return false;
+    if (a.systemPrompt != b.systemPrompt) return false;
+    if (a.messages.length != b.messages.length) return false;
+    for (var i = 0; i < a.messages.length; i++) {
+      final ma = a.messages[i];
+      final mb = b.messages[i];
+      if (ma.role != mb.role) return false;
+      if (ma.content.length != mb.content.length) return false;
+      if (ma.content != mb.content) return false;
+    }
+    return true;
+  }
+
+  /// 判断两个固定顺序提示词序列内容是否等价（忽略 id、name、updatedAt）。
+  bool _sequencesContentEqual(FixedPromptSequence a, FixedPromptSequence b) {
+    if (a.steps.length != b.steps.length) return false;
+    for (var i = 0; i < a.steps.length; i++) {
+      final sa = a.steps[i];
+      final sb = b.steps[i];
+      if (sa.content.length != sb.content.length) return false;
+      if (sa.content != sb.content) return false;
+    }
     return true;
   }
 

@@ -18,7 +18,7 @@ class ModelConfigsList extends ConsumerWidget {
   final ValueChanged<LlmModelConfig> onEditRequested;
 
   @override
-  /// 构建模型列表；空列表时显示空状态提示。
+  /// 构建模型列表；空列表时显示空状态提示。宽度足够时一行展示多列。
   Widget build(BuildContext context, WidgetRef ref) {
     if (configs.isEmpty) {
       return const SettingsEmptyState(
@@ -28,18 +28,68 @@ class ModelConfigsList extends ConsumerWidget {
       );
     }
 
-    return Column(
-      children: [
-        for (final config in configs)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: _ModelConfigTile(
-              config: config,
-              onEditRequested: onEditRequested,
-            ),
-          ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const minItemWidth = 280.0;
+        const gap = 12.0;
+        final crossAxisCount =
+            ((constraints.maxWidth + gap) / (minItemWidth + gap))
+                .floor()
+                .clamp(1, 3);
+        return _buildGrid(configs, crossAxisCount, gap, constraints.maxWidth, ref);
+      },
     );
+  }
+
+  Widget _buildGrid(
+    List<LlmModelConfig> items,
+    int crossAxisCount,
+    double gap,
+    double availableWidth,
+    WidgetRef ref,
+  ) {
+    if (crossAxisCount == 1) {
+      return Column(
+        children: [
+          for (final config in items)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _ModelConfigTile(
+                config: config,
+                onEditRequested: onEditRequested,
+              ),
+            ),
+        ],
+      );
+    }
+
+    final itemWidth =
+        (availableWidth - gap * (crossAxisCount - 1)) / crossAxisCount;
+    final rows = <Widget>[];
+    for (var i = 0; i < items.length; i += crossAxisCount) {
+      final rowItems = items.skip(i).take(crossAxisCount).toList();
+      rows.add(
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (var j = 0; j < rowItems.length; j++) ...[
+                if (j > 0) SizedBox(width: gap),
+                SizedBox(
+                  width: itemWidth,
+                  child: _ModelConfigTile(
+                    config: rowItems[j],
+                    onEditRequested: onEditRequested,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
+    return Column(children: rows);
   }
 }
 

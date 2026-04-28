@@ -60,7 +60,7 @@ class _ImportConfirmDialogState extends ConsumerState<ImportConfirmDialog> {
             ),
           const SizedBox(height: 12),
           Text(
-            '已存在同 id 的条目将被覆盖更新，其余条目不受影响。',
+            '与本地内容重复的条目已被过滤，以下均为新增项，导入后不影响已有配置。',
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ],
