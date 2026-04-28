@@ -124,6 +124,10 @@ class FakeChatCompletionClient implements ChatCompletionClient {
     return _queuedStreams.removeAt(0);
   }
 
+  void enqueueError(Object error) {
+    _queuedStreams.add(Stream<ChatCompletionChunk>.error(error));
+  }
+
   void enqueueChunks(
     List<String> chunks, {
     Duration chunkDelay = Duration.zero,
