@@ -44,12 +44,15 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
       uri,
       enabled: reasoningEffort != null,
     );
+    final usesGoogleThinkingConfig =
+        reasoningEffort != null && _isGoogleOpenAiCompatibleHost(uri.host);
     // DeepSeek 主机需要 thinking 字段；reasoning_effort 无论如何都不做映射。
+    // Google OpenAI 兼容端点要求 reasoning_effort 与 thinking_config 二选一。
     final payload = <String, Object>{
       'model': modelConfig.modelName,
       'stream': true,
       'messages': messages.map((message) => message.toJson()).toList(),
-      if (reasoningEffort != null)
+      if (reasoningEffort != null && !usesGoogleThinkingConfig)
         'reasoning_effort': _buildReasoningEffort(uri, reasoningEffort),
     };
     if (thinkingConfig != null) {
@@ -57,7 +60,7 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
     }
     final extraBody = _buildExtraBody(
       uri,
-      reasoningEnabled: reasoningEffort != null,
+      useThinkingConfig: usesGoogleThinkingConfig,
     );
     if (extraBody != null) {
       payload['extra_body'] = extraBody;
@@ -404,9 +407,9 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
   /// Gemini OpenAI 兼容层可通过 extra_body 透传 thinking 配置。
   Map<String, Object>? _buildExtraBody(
     Uri uri, {
-    required bool reasoningEnabled,
+    required bool useThinkingConfig,
   }) {
-    if (!reasoningEnabled || !_isGoogleOpenAiCompatibleHost(uri.host)) {
+    if (!useThinkingConfig || !_isGoogleOpenAiCompatibleHost(uri.host)) {
       return null;
     }
     return {
