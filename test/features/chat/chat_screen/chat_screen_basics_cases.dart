@@ -1,7 +1,14 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:oh_my_llm/features/chat/data/chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
+import 'package:oh_my_llm/features/chat/presentation/widgets/thinking_toggle.dart';
+import 'package:oh_my_llm/features/settings/data/chat_defaults_repository.dart';
+import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dart';
 
 import 'chat_screen_test_helpers.dart';
 
@@ -29,6 +36,105 @@ void registerChatScreenBasicsTests() {
     expect(find.byType(Switch), findsNothing);
     // 思考强度 pill 通过 PopupMenuButton tooltip 可被查找
     expect(find.byTooltip('思考强度'), findsOneWidget);
+  });
+
+  testWidgets('chat screen prefers default model for reasoning capability', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({
+      llmModelConfigsStorageKey: jsonEncode([
+        {
+          'id': 'model-legacy',
+          'displayName': 'Legacy',
+          'apiUrl': 'https://api.example.com/v1/chat/completions',
+          'apiKey': 'sk-test',
+          'modelName': 'legacy',
+          'supportsReasoning': false,
+        },
+        {
+          'id': 'model-new',
+          'displayName': 'DeepSeek V4 Flash',
+          'apiUrl': 'https://api.example.com/v1/chat/completions',
+          'apiKey': 'sk-test',
+          'modelName': 'deepseek-v4-flash',
+          'supportsReasoning': true,
+        },
+      ]),
+      chatDefaultsStorageKey: jsonEncode({'defaultModelId': 'model-new'}),
+      chatConversationsStorageKey: jsonEncode([
+        {
+          'id': 'conversation-1',
+          'title': '旧会话',
+          'messages': [],
+          'createdAt': DateTime(2026, 4, 29).toIso8601String(),
+          'updatedAt': DateTime(2026, 4, 29).toIso8601String(),
+          'selectedModelId': 'model-legacy',
+          'selectedPromptTemplateId': null,
+          'reasoningEnabled': false,
+          'reasoningEffort': 'medium',
+        },
+      ]),
+    });
+    final preferences = await SharedPreferences.getInstance();
+    final fakeClient = FakeChatCompletionClient();
+    await pumpChatScreen(
+      tester,
+      preferences: preferences,
+      fakeClient: fakeClient,
+    );
+
+    final toggle = tester.widget<ThinkingToggle>(find.byType(ThinkingToggle));
+    expect(toggle.enabled, isTrue);
+  });
+
+  testWidgets('chat screen custom title item hides preview in history panel', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({
+      llmModelConfigsStorageKey: jsonEncode([
+        {
+          'id': 'model-1',
+          'displayName': 'DeepSeek V4 Flash',
+          'apiUrl': 'https://api.example.com/v1/chat/completions',
+          'apiKey': 'sk-test',
+          'modelName': 'deepseek-v4-flash',
+          'supportsReasoning': true,
+        },
+      ]),
+      chatConversationsStorageKey: jsonEncode([
+        {
+          'id': 'conversation-1',
+          'title': '这是一段超长的用户自定义历史标题用于验证两行显示',
+          'messages': [
+            {
+              'id': 'm1',
+              'role': 'user',
+              'content': '这段文本只用于生成预览',
+              'createdAt': DateTime(2026, 4, 29).toIso8601String(),
+            },
+          ],
+          'createdAt': DateTime(2026, 4, 29).toIso8601String(),
+          'updatedAt': DateTime(2026, 4, 29).toIso8601String(),
+          'selectedModelId': 'model-1',
+          'selectedPromptTemplateId': null,
+          'reasoningEnabled': false,
+          'reasoningEffort': 'medium',
+        },
+      ]),
+    });
+    final preferences = await SharedPreferences.getInstance();
+    final fakeClient = FakeChatCompletionClient();
+    await pumpChatScreen(
+      tester,
+      preferences: preferences,
+      fakeClient: fakeClient,
+    );
+
+    final historyTile = tester.widget<ListTile>(find.byType(ListTile).first);
+    expect(historyTile.subtitle, isNull);
+    final titleText = historyTile.title! as Tooltip;
+    final titleWidget = titleText.child! as Text;
+    expect(titleWidget.maxLines, 2);
   });
 
   testWidgets('chat screen renames conversation without controller errors', (

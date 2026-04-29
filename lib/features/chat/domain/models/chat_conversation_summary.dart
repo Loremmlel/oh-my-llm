@@ -17,9 +17,12 @@ class ChatConversationSummary extends Equatable {
   final String firstUserMessagePreview;
   final String latestUserMessagePreview;
 
+  /// 是否存在用户手动设置的标题。
+  bool get hasCustomTitle => title != null && title!.trim().isNotEmpty;
+
   /// 优先显示显式标题；否则回退到首条用户消息的前 15 个字符。
   String get resolvedTitle {
-    if (title != null && title!.trim().isNotEmpty) {
+    if (hasCustomTitle) {
       return title!.trim();
     }
 

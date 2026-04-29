@@ -51,9 +51,12 @@ class ChatConversation extends Equatable {
   /// 会话是否包含任何消息。
   bool get hasMessages => messages.isNotEmpty;
 
+  /// 是否存在用户手动设置的标题。
+  bool get hasCustomTitle => title != null && title!.trim().isNotEmpty;
+
   /// 优先返回显式标题；否则用首条用户消息截断生成标题。
   String get resolvedTitle {
-    if (title != null && title!.trim().isNotEmpty) {
+    if (hasCustomTitle) {
       return title!.trim();
     }
 

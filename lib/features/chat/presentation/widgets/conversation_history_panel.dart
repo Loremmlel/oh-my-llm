@@ -77,19 +77,29 @@ class ConversationHistoryPanel extends StatelessWidget {
                                       conversation.id == activeConversationId
                                       ? theme.colorScheme.primaryContainer
                                       : theme.colorScheme.surfaceContainerLow,
-                                  title: Text(
-                                    conversation.resolvedTitle,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
+                                  title: Tooltip(
+                                    message: conversation.resolvedTitle,
+                                    child: Text(
+                                      conversation.resolvedTitle,
+                                      maxLines: conversation.hasCustomTitle
+                                          ? 2
+                                          : 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                                   ),
-                                  subtitle: Text(
-                                    conversation.messages.lastOrNull?.content
-                                            .trim()
-                                            .replaceAll('\n', ' ') ??
-                                        '暂无内容',
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
+                                  subtitle: conversation.hasCustomTitle
+                                      ? null
+                                      : Text(
+                                          conversation
+                                                  .messages
+                                                  .lastOrNull
+                                                  ?.content
+                                                  .trim()
+                                                  .replaceAll('\n', ' ') ??
+                                              '暂无内容',
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
                                   onTap: () {
                                     onConversationSelected(conversation.id);
                                   },
