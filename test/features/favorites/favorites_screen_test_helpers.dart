@@ -18,9 +18,10 @@ Future<void> pumpFavoritesScreen(
   WidgetTester tester, {
   required SharedPreferences preferences,
   AppDatabase? database,
+  Size viewportSize = const Size(1440, 1200),
 }) async {
   final db = database ?? await createTestDatabase(preferences);
-  tester.view.physicalSize = const Size(1440, 1200);
+  tester.view.physicalSize = viewportSize;
   tester.view.devicePixelRatio = 1;
   addTearDown(() {
     tester.view.resetPhysicalSize();
