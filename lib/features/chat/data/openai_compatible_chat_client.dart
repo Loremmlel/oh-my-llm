@@ -243,8 +243,9 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
       return const ChatCompletionChunk();
     }
 
+    final extractedContent = _extractContentPayload(payload['content']);
     final splitResult = inlineReasoningSplitter.splitContent(
-      _extractTextPayload(payload['content']),
+      extractedContent.content,
     );
     final explicitReasoning = _extractTextPayload(
       payload['reasoning_content'] ?? payload['reasoning'],
@@ -252,8 +253,83 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
 
     return ChatCompletionChunk(
       contentDelta: splitResult.content,
-      reasoningDelta: '$explicitReasoning${splitResult.reasoning}',
+      reasoningDelta:
+          '$explicitReasoning${extractedContent.reasoning}${splitResult.reasoning}',
     );
+  }
+
+  /// 提取 content 字段中的正文与思考摘要（part.thought=true）。
+  _ChunkTextExtraction _extractContentPayload(
+    Object? payload, {
+    bool forceReasoning = false,
+  }) {
+    if (payload is String) {
+      return forceReasoning
+          ? _ChunkTextExtraction(reasoning: payload)
+          : _ChunkTextExtraction(content: payload);
+    }
+    if (payload is List) {
+      final contentBuffer = StringBuffer();
+      final reasoningBuffer = StringBuffer();
+      for (final segment in payload) {
+        final extracted = _extractContentPayload(
+          segment,
+          forceReasoning: forceReasoning,
+        );
+        contentBuffer.write(extracted.content);
+        reasoningBuffer.write(extracted.reasoning);
+      }
+      return _ChunkTextExtraction(
+        content: contentBuffer.toString(),
+        reasoning: reasoningBuffer.toString(),
+      );
+    }
+    if (payload is! Map) {
+      return const _ChunkTextExtraction();
+    }
+
+    final thoughtEnabled = _isThoughtPart(payload['thought']);
+    final nextForceReasoning = forceReasoning || thoughtEnabled;
+    final contentBuffer = StringBuffer();
+    final reasoningBuffer = StringBuffer();
+
+    final text = payload['text'];
+    if (text is String) {
+      if (nextForceReasoning) {
+        reasoningBuffer.write(text);
+      } else {
+        contentBuffer.write(text);
+      }
+    }
+
+    final nestedContent = _extractContentPayload(
+      payload['content'],
+      forceReasoning: nextForceReasoning,
+    );
+    contentBuffer.write(nestedContent.content);
+    reasoningBuffer.write(nestedContent.reasoning);
+
+    final nestedParts = _extractContentPayload(
+      payload['parts'],
+      forceReasoning: nextForceReasoning,
+    );
+    contentBuffer.write(nestedParts.content);
+    reasoningBuffer.write(nestedParts.reasoning);
+
+    return _ChunkTextExtraction(
+      content: contentBuffer.toString(),
+      reasoning: reasoningBuffer.toString(),
+    );
+  }
+
+  bool _isThoughtPart(Object? value) {
+    if (value is bool) {
+      return value;
+    }
+    if (value is String) {
+      return value.toLowerCase() == 'true';
+    }
+    return false;
   }
 
   /// 兼容字符串、数组和嵌套对象形式的文本字段。
@@ -337,6 +413,13 @@ class _InlineReasoningSplitResult {
   final String reasoning;
 
   bool get isEmpty => content.isEmpty && reasoning.isEmpty;
+}
+
+class _ChunkTextExtraction {
+  const _ChunkTextExtraction({this.content = '', this.reasoning = ''});
+
+  final String content;
+  final String reasoning;
 }
 
 /// 从正文中抽取 thought/thinking 标签内容，转入 reasoning。
