@@ -12,6 +12,7 @@ Favorite _makeFavorite({
   String assistantContent = '助手回复',
   String userMessageContent = '用户消息',
   String assistantReasoningContent = '',
+  String assistantModelDisplayName = '匿名模型',
   String? sourceConversationId,
   String? sourceConversationTitle,
   DateTime? createdAt,
@@ -22,6 +23,7 @@ Favorite _makeFavorite({
     userMessageContent: userMessageContent,
     assistantContent: assistantContent,
     assistantReasoningContent: assistantReasoningContent,
+    assistantModelDisplayName: assistantModelDisplayName,
     sourceConversationId: sourceConversationId,
     sourceConversationTitle: sourceConversationTitle,
     createdAt: createdAt ?? DateTime(2026, 1, 1),
@@ -71,9 +73,7 @@ void main() {
       collectionsRepo.save(
         FavoriteCollection(id: 'col-1', name: 'A', createdAt: DateTime(2026)),
       );
-      repository.save(
-        _makeFavorite(id: 'fav-1', collectionId: 'col-1'),
-      );
+      repository.save(_makeFavorite(id: 'fav-1', collectionId: 'col-1'));
       repository.save(_makeFavorite(id: 'fav-2', collectionId: null));
 
       expect(repository.loadAll(), hasLength(2));
@@ -84,9 +84,7 @@ void main() {
       collectionsRepo.save(
         FavoriteCollection(id: 'col-1', name: 'A', createdAt: DateTime(2026)),
       );
-      repository.save(
-        _makeFavorite(id: 'fav-1', collectionId: 'col-1'),
-      );
+      repository.save(_makeFavorite(id: 'fav-1', collectionId: 'col-1'));
       repository.save(_makeFavorite(id: 'fav-2', collectionId: null));
 
       final result = repository.loadAll(collectionId: '');
@@ -101,12 +99,8 @@ void main() {
       collectionsRepo.save(
         FavoriteCollection(id: 'col-2', name: 'B', createdAt: DateTime(2026)),
       );
-      repository.save(
-        _makeFavorite(id: 'fav-1', collectionId: 'col-1'),
-      );
-      repository.save(
-        _makeFavorite(id: 'fav-2', collectionId: 'col-2'),
-      );
+      repository.save(_makeFavorite(id: 'fav-1', collectionId: 'col-1'));
+      repository.save(_makeFavorite(id: 'fav-2', collectionId: 'col-2'));
       repository.save(_makeFavorite(id: 'fav-3', collectionId: null));
 
       final result = repository.loadAll(collectionId: 'col-1');
@@ -160,6 +154,17 @@ void main() {
       expect(result.sourceConversationId, 'conv-123');
       expect(result.sourceConversationTitle, '关于 Dart 的讨论');
     });
+
+    test('保存模型显示名后正确还原', () {
+      final fav = _makeFavorite(
+        id: 'fav-1',
+        assistantModelDisplayName: 'Gemini 3.1 Flash Lite',
+      );
+      repository.save(fav);
+
+      final result = repository.loadAll().first;
+      expect(result.assistantModelDisplayName, 'Gemini 3.1 Flash Lite');
+    });
   });
 
   group('SqliteFavoritesRepository - moveToCollection', () {
@@ -197,16 +202,12 @@ void main() {
     });
 
     test('已收藏时返回 true', () {
-      repository.save(
-        _makeFavorite(id: 'fav-1', assistantContent: '某段精彩回答'),
-      );
+      repository.save(_makeFavorite(id: 'fav-1', assistantContent: '某段精彩回答'));
       expect(repository.existsByAssistantContent('某段精彩回答'), isTrue);
     });
 
     test('删除后返回 false', () {
-      repository.save(
-        _makeFavorite(id: 'fav-1', assistantContent: '某段精彩回答'),
-      );
+      repository.save(_makeFavorite(id: 'fav-1', assistantContent: '某段精彩回答'));
       repository.delete('fav-1');
       expect(repository.existsByAssistantContent('某段精彩回答'), isFalse);
     });

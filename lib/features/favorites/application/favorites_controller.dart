@@ -22,17 +22,15 @@ class FavoritesFilterNotifier extends Notifier<String?> {
 }
 
 /// 收藏列表 Provider（随过滤条件变化而重建）。
-final favoritesProvider =
-    NotifierProvider<FavoritesController, List<Favorite>>(
-      FavoritesController.new,
-    );
+final favoritesProvider = NotifierProvider<FavoritesController, List<Favorite>>(
+  FavoritesController.new,
+);
 
 /// 收藏列表管理控制器。
 ///
 /// 维护当前过滤条件下的收藏列表，支持新增、删除和移动收藏夹。
 class FavoritesController extends Notifier<List<Favorite>> {
-  SqliteFavoritesRepository get _repo =>
-      ref.read(favoritesRepositoryProvider);
+  SqliteFavoritesRepository get _repo => ref.read(favoritesRepositoryProvider);
 
   @override
   List<Favorite> build() {
@@ -47,6 +45,7 @@ class FavoritesController extends Notifier<List<Favorite>> {
     required String userMessageContent,
     required String assistantContent,
     String assistantReasoningContent = '',
+    String assistantModelDisplayName = '匿名模型',
     String? collectionId,
     String? sourceConversationId,
     String? sourceConversationTitle,
@@ -57,6 +56,7 @@ class FavoritesController extends Notifier<List<Favorite>> {
       userMessageContent: userMessageContent,
       assistantContent: assistantContent,
       assistantReasoningContent: assistantReasoningContent,
+      assistantModelDisplayName: assistantModelDisplayName,
       sourceConversationId: sourceConversationId,
       sourceConversationTitle: sourceConversationTitle,
       createdAt: DateTime.now(),

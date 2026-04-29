@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../../core/constants/model_display_name.dart';
+
 /// 聊天消息的发送角色。
 enum ChatMessageRole {
   system('system'),
@@ -33,6 +35,7 @@ class ChatMessage extends Equatable {
     this.parentId,
     this.isStreaming = false,
     this.reasoningContent = '',
+    this.assistantModelDisplayName = '',
   });
 
   final String id;
@@ -42,6 +45,7 @@ class ChatMessage extends Equatable {
   final String? parentId;
   final bool isStreaming;
   final String reasoningContent;
+  final String assistantModelDisplayName;
 
   /// 复制消息，并允许覆盖常用字段。
   ChatMessage copyWith({
@@ -52,6 +56,7 @@ class ChatMessage extends Equatable {
     String? parentId,
     bool? isStreaming,
     String? reasoningContent,
+    String? assistantModelDisplayName,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -61,6 +66,8 @@ class ChatMessage extends Equatable {
       parentId: parentId ?? this.parentId,
       isStreaming: isStreaming ?? this.isStreaming,
       reasoningContent: reasoningContent ?? this.reasoningContent,
+      assistantModelDisplayName:
+          assistantModelDisplayName ?? this.assistantModelDisplayName,
     );
   }
 
@@ -73,21 +80,34 @@ class ChatMessage extends Equatable {
       'createdAt': createdAt.toIso8601String(),
       'parentId': parentId,
       'reasoningContent': reasoningContent,
+      'assistantModelDisplayName': assistantModelDisplayName,
     };
   }
 
   /// 从持久化 JSON 反序列化消息。
   factory ChatMessage.fromJson(Map<String, dynamic> json) {
+    final role = ChatMessageRole.values.firstWhere(
+      (role) => role.apiValue == json['role'],
+    );
     return ChatMessage(
       id: json['id'] as String,
-      role: ChatMessageRole.values.firstWhere(
-        (role) => role.apiValue == json['role'],
-      ),
+      role: role,
       content: json['content'] as String,
       createdAt: DateTime.parse(json['createdAt'] as String),
       parentId: json['parentId'] as String?,
       reasoningContent: json['reasoningContent'] as String? ?? '',
+      assistantModelDisplayName:
+          json['assistantModelDisplayName'] as String? ??
+          (role == ChatMessageRole.assistant
+              ? anonymousAssistantModelDisplayName
+              : ''),
     );
+  }
+
+  /// 用于 UI 展示的助手模型名称；为空时回退匿名名称。
+  String get resolvedAssistantModelDisplayName {
+    final normalized = assistantModelDisplayName.trim();
+    return normalized.isEmpty ? anonymousAssistantModelDisplayName : normalized;
   }
 
   @override
@@ -99,5 +119,6 @@ class ChatMessage extends Equatable {
     parentId,
     isStreaming,
     reasoningContent,
+    assistantModelDisplayName,
   ];
 }

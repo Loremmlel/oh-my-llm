@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../../core/constants/model_display_name.dart';
+
 /// 一条收藏记录，保存收藏时刻的用户消息与模型回复内容的完整副本。
 ///
 /// 内容独立于原始对话，删除对话不会影响收藏内容。
@@ -12,6 +14,7 @@ class Favorite extends Equatable {
     required this.createdAt,
     this.collectionId,
     this.assistantReasoningContent = '',
+    this.assistantModelDisplayName = anonymousAssistantModelDisplayName,
     this.sourceConversationId,
     this.sourceConversationTitle,
   });
@@ -29,6 +32,9 @@ class Favorite extends Equatable {
 
   /// 收藏时模型深度思考的推理内容；无推理时为空字符串。
   final String assistantReasoningContent;
+
+  /// 收藏时该回复对应的模型显示名快照。
+  final String assistantModelDisplayName;
 
   /// 来源对话 ID；对话可能已被删除。
   final String? sourceConversationId;
@@ -49,6 +55,7 @@ class Favorite extends Equatable {
     String? userMessageContent,
     String? assistantContent,
     String? assistantReasoningContent,
+    String? assistantModelDisplayName,
     String? sourceConversationId,
     String? sourceConversationTitle,
     DateTime? createdAt,
@@ -56,12 +63,15 @@ class Favorite extends Equatable {
   }) {
     return Favorite(
       id: id ?? this.id,
-      collectionId:
-          clearCollectionId ? null : collectionId ?? this.collectionId,
+      collectionId: clearCollectionId
+          ? null
+          : collectionId ?? this.collectionId,
       userMessageContent: userMessageContent ?? this.userMessageContent,
       assistantContent: assistantContent ?? this.assistantContent,
       assistantReasoningContent:
           assistantReasoningContent ?? this.assistantReasoningContent,
+      assistantModelDisplayName:
+          assistantModelDisplayName ?? this.assistantModelDisplayName,
       sourceConversationId: sourceConversationId ?? this.sourceConversationId,
       sourceConversationTitle:
           sourceConversationTitle ?? this.sourceConversationTitle,
@@ -76,6 +86,7 @@ class Favorite extends Equatable {
     userMessageContent,
     assistantContent,
     assistantReasoningContent,
+    assistantModelDisplayName,
     sourceConversationId,
     sourceConversationTitle,
     createdAt,

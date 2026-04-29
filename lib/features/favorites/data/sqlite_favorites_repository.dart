@@ -47,15 +47,16 @@ class SqliteFavoritesRepository {
     _database.connection.execute(
       'INSERT OR REPLACE INTO favorites '
       '(id, collection_id, user_message_content, assistant_content, '
-      'assistant_reasoning_content, source_conversation_id, '
+      'assistant_reasoning_content, assistant_model_display_name, source_conversation_id, '
       'source_conversation_title, created_at) '
-      'VALUES (?, ?, ?, ?, ?, ?, ?, ?);',
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);',
       [
         favorite.id,
         favorite.collectionId,
         favorite.userMessageContent,
         favorite.assistantContent,
         favorite.assistantReasoningContent,
+        favorite.assistantModelDisplayName,
         favorite.sourceConversationId,
         favorite.sourceConversationTitle,
         favorite.createdAt.toIso8601String(),
@@ -65,10 +66,9 @@ class SqliteFavoritesRepository {
 
   /// 删除指定收藏记录。
   void delete(String favoriteId) {
-    _database.connection.execute(
-      'DELETE FROM favorites WHERE id = ?;',
-      [favoriteId],
-    );
+    _database.connection.execute('DELETE FROM favorites WHERE id = ?;', [
+      favoriteId,
+    ]);
   }
 
   /// 将指定收藏移动到另一个收藏夹（null 表示未分类）。
@@ -96,6 +96,8 @@ class SqliteFavoritesRepository {
       assistantContent: row['assistant_content'] as String,
       assistantReasoningContent:
           (row['assistant_reasoning_content'] as String?) ?? '',
+      assistantModelDisplayName:
+          (row['assistant_model_display_name'] as String?) ?? '匿名模型',
       sourceConversationId: row['source_conversation_id'] as String?,
       sourceConversationTitle: row['source_conversation_title'] as String?,
       createdAt: DateTime.parse(row['created_at'] as String),
