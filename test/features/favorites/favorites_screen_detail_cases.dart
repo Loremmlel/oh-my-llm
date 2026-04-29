@@ -16,6 +16,7 @@ void registerFavoriteDetailScreenTests() {
       id: 'fav-detail',
       userMessageContent: '这是完整的用户消息内容，用于详情测试',
       assistantContent: '这是完整的模型回复内容，用于详情测试',
+      assistantModelDisplayName: 'DeepSeek V4 Flash',
     );
 
     await pumpFavoritesScreen(
@@ -35,6 +36,7 @@ void registerFavoriteDetailScreenTests() {
 
     // Assistant content rendered via MarkdownBody
     expect(find.textContaining('这是完整的模型回复内容'), findsOneWidget);
+    expect(find.text('DeepSeek V4 Flash'), findsOneWidget);
   });
 
   testWidgets(

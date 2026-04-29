@@ -64,6 +64,9 @@ class AppDatabase {
     if (currentVersion < 3) {
       _migrateV3();
     }
+    if (currentVersion < 4) {
+      _migrateV4();
+    }
   }
 
   /// 初始 schema：聊天记录相关表。
@@ -173,5 +176,18 @@ class AppDatabase {
       ON favorites(collection_id);
     ''');
     _connection.execute('PRAGMA user_version = 3;');
+  }
+
+  /// 为消息与收藏补充助手模型显示名快照列。
+  void _migrateV4() {
+    _connection.execute('''
+      ALTER TABLE messages
+      ADD COLUMN assistant_model_display_name TEXT NOT NULL DEFAULT '匿名模型';
+    ''');
+    _connection.execute('''
+      ALTER TABLE favorites
+      ADD COLUMN assistant_model_display_name TEXT NOT NULL DEFAULT '匿名模型';
+    ''');
+    _connection.execute('PRAGMA user_version = 4;');
   }
 }

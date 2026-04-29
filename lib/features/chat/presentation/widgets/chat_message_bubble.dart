@@ -75,9 +75,20 @@ class ChatMessageBubble extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Text(
-                      isUser ? '你' : '模型',
-                      style: theme.textTheme.labelLarge,
+                    Expanded(
+                      child: Tooltip(
+                        message: isUser
+                            ? '你'
+                            : message.resolvedAssistantModelDisplayName,
+                        child: Text(
+                          isUser
+                              ? '你'
+                              : message.resolvedAssistantModelDisplayName,
+                          style: theme.textTheme.labelLarge,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
                     ),
                     if (message.isStreaming) ...[
                       const SizedBox(width: 8),
@@ -87,7 +98,6 @@ class ChatMessageBubble extends StatelessWidget {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       ),
                     ],
-                    const Spacer(),
                     IconButton(
                       onPressed: () {
                         _copyMessage(context);

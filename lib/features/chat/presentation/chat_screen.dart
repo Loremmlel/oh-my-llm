@@ -78,9 +78,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final promptTemplates = ref.watch(promptTemplatesProvider);
     final activeMessages = conversation.messages;
     final favorites = ref.watch(favoritesProvider);
-    final favoritedContents = favorites
-        .map((f) => f.assistantContent)
-        .toSet();
+    final favoritedContents = favorites.map((f) => f.assistantContent).toSet();
 
     final selectedModel = _resolveSelectedModel(
       modelConfigs,
@@ -264,8 +262,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               isStreaming: isStreaming,
                             );
                           },
-                    onFavoritePressed: (message) =>
-                        _showAddToFavoritesDialog(context, message, conversation),
+                    onFavoritePressed: (message) => _showAddToFavoritesDialog(
+                      context,
+                      message,
+                      conversation,
+                    ),
                     favoritedAssistantContents: favoritedContents,
                   ),
                 ),
@@ -424,17 +425,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('已取消收藏'),
-          action: SnackBarAction(
-            label: '撤销',
-            onPressed: () {},
-          ),
+          action: SnackBarAction(label: '撤销', onPressed: () {}),
         ),
       );
       // 找到并删除对应收藏
       final allFavorites = ref.read(favoritesProvider);
-      final existing = allFavorites.where(
-        (f) => f.assistantContent == assistantMessage.content,
-      ).firstOrNull;
+      final existing = allFavorites
+          .where((f) => f.assistantContent == assistantMessage.content)
+          .firstOrNull;
       if (existing != null) {
         favoritesController.remove(existing.id);
       }
@@ -458,9 +456,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (!context.mounted) return;
     final selectedCollectionId = await showDialog<String>(
       context: context,
-      builder: (context) => AddToFavoritesDialog(
-        assistantContent: assistantMessage.content,
-      ),
+      builder: (context) =>
+          AddToFavoritesDialog(assistantContent: assistantMessage.content),
     );
 
     if (selectedCollectionId == null || !mounted) {
@@ -471,6 +468,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       userMessageContent: userMessage?.content ?? '',
       assistantContent: assistantMessage.content,
       assistantReasoningContent: assistantMessage.reasoningContent,
+      assistantModelDisplayName:
+          assistantMessage.resolvedAssistantModelDisplayName,
       // '' 表示用户选择了未分类
       collectionId: selectedCollectionId.isEmpty ? null : selectedCollectionId,
       sourceConversationId: conversation.id,
@@ -479,9 +478,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     if (!mounted) return;
     // ignore: use_build_context_synchronously
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('已收藏')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('已收藏')));
   }
 
   /// 弹出会话重命名对话框并提交新标题。

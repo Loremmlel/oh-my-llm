@@ -79,6 +79,7 @@ void seedFavorite(
   required String userMessageContent,
   required String assistantContent,
   String assistantReasoningContent = '',
+  String assistantModelDisplayName = '匿名模型',
   String? collectionId,
   String? sourceConversationId,
   String? sourceConversationTitle,
@@ -87,15 +88,16 @@ void seedFavorite(
   database.connection.execute(
     'INSERT INTO favorites '
     '(id, collection_id, user_message_content, assistant_content, '
-    'assistant_reasoning_content, source_conversation_id, '
+    'assistant_reasoning_content, assistant_model_display_name, source_conversation_id, '
     'source_conversation_title, created_at) '
-    'VALUES (?, ?, ?, ?, ?, ?, ?, ?);',
+    'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);',
     [
       id,
       collectionId,
       userMessageContent,
       assistantContent,
       assistantReasoningContent,
+      assistantModelDisplayName,
       sourceConversationId,
       sourceConversationTitle,
       (createdAt ?? DateTime(2026, 4, 28)).toIso8601String(),

@@ -38,6 +38,7 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
         role,
         content,
         reasoning_content,
+        assistant_model_display_name,
         created_at
       FROM messages
       ORDER BY conversation_id, node_index
@@ -63,6 +64,8 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
               createdAt: DateTime.parse(row['created_at'] as String),
               parentId: row['parent_id'] as String?,
               reasoningContent: row['reasoning_content'] as String? ?? '',
+              assistantModelDisplayName:
+                  row['assistant_model_display_name'] as String? ?? '',
             ),
           );
     }
@@ -201,8 +204,9 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
           role,
           content,
           reasoning_content,
+          assistant_model_display_name,
           created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       ''');
       final selectionStatement = _database.connection.prepare('''
         INSERT INTO conversation_branch_selections (
@@ -240,6 +244,7 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
               message.role.apiValue,
               message.content,
               message.reasoningContent,
+              message.assistantModelDisplayName,
               message.createdAt.toIso8601String(),
             ]);
           }

@@ -75,14 +75,31 @@ class FavoriteListItem extends StatelessWidget {
                             Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(
-                                  Icons.folder_outlined,
-                                  size: 12,
-                                ),
+                                const Icon(Icons.folder_outlined, size: 12),
                                 const SizedBox(width: 2),
                                 Text(collectionName!),
                               ],
                             ),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.smart_toy_outlined, size: 12),
+                              const SizedBox(width: 2),
+                              Tooltip(
+                                message: favorite.assistantModelDisplayName,
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    maxWidth: 160,
+                                  ),
+                                  child: Text(
+                                    favorite.assistantModelDisplayName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                           Text(_formatDate(favorite.createdAt)),
                         ],
                       ),
