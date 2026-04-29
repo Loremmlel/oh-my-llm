@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 final class AppTheme {
   const AppTheme._();
@@ -29,6 +30,13 @@ final class AppTheme {
         backgroundColor: Colors.transparent,
         foregroundColor: colorScheme.onSurface,
         surfaceTintColor: Colors.transparent,
+        systemOverlayStyle: brightness == Brightness.light
+            ? SystemUiOverlayStyle.dark.copyWith(
+                statusBarColor: Colors.transparent,
+              )
+            : SystemUiOverlayStyle.light.copyWith(
+                statusBarColor: Colors.transparent,
+              ),
       ),
       cardTheme: CardThemeData(
         elevation: 0,
@@ -61,9 +69,7 @@ final class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
-          borderSide: BorderSide(
-            color: colorScheme.primary,
-          ),
+          borderSide: BorderSide(color: colorScheme.primary),
         ),
       ),
       snackBarTheme: SnackBarThemeData(
