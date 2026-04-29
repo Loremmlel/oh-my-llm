@@ -1,8 +1,11 @@
 import 'dart:convert';
+import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
+import '../../../core/logging/app_network_logger_provider.dart';
+import '../../../core/logging/network_logger.dart';
 import '../../settings/domain/models/llm_model_config.dart';
 import '../domain/models/chat_message.dart';
 import 'chat_completion_client.dart';
@@ -11,15 +14,20 @@ import 'chat_completion_client.dart';
 final chatCompletionClientProvider = Provider<ChatCompletionClient>((ref) {
   final httpClient = http.Client();
   ref.onDispose(httpClient.close);
-  return OpenAiCompatibleChatClient(httpClient: httpClient);
+  final logger = ref.watch(appNetworkLoggerProvider);
+  return OpenAiCompatibleChatClient(httpClient: httpClient, logger: logger);
 });
 
 /// 直接使用 HTTP 请求读取 SSE 流，并把返回内容拆成补全增量。
 class OpenAiCompatibleChatClient implements ChatCompletionClient {
-  OpenAiCompatibleChatClient({required http.Client httpClient})
-    : _httpClient = httpClient;
+  OpenAiCompatibleChatClient({
+    required http.Client httpClient,
+    NetworkLogger logger = const NoopNetworkLogger(),
+  }) : _httpClient = httpClient,
+       _logger = logger;
 
   final http.Client _httpClient;
+  final NetworkLogger _logger;
 
   @override
   /// 发送流式请求并把 SSE 事件转换为内容与推理增量。
@@ -56,9 +64,42 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
       })
       ..body = jsonEncode(payload);
 
-    final response = await _httpClient.send(request);
+    _fireAndForget(
+      _logger.logRequest(
+        uri: uri,
+        method: request.method,
+        headers: request.headers,
+        payload: payload,
+      ),
+    );
+
+    final requestStartedAt = DateTime.now();
+    late final http.StreamedResponse response;
+    try {
+      response = await _httpClient.send(request);
+    } catch (error, stackTrace) {
+      _fireAndForget(
+        _logger.logError(uri: uri, error: error, stackTrace: stackTrace),
+      );
+      rethrow;
+    }
+    _fireAndForget(
+      _logger.logResponse(
+        uri: uri,
+        statusCode: response.statusCode,
+        headers: response.headers,
+        elapsed: DateTime.now().difference(requestStartedAt),
+      ),
+    );
     if (response.statusCode < 200 || response.statusCode >= 300) {
       final responseBody = await response.stream.bytesToString();
+      _fireAndForget(
+        _logger.logError(
+          uri: uri,
+          error:
+              'HTTP ${response.statusCode}: ${responseBody.trim().isEmpty ? '服务端未返回错误详情' : responseBody.trim()}',
+        ),
+      );
       throw ChatCompletionException(
         '请求失败（${response.statusCode}）：${responseBody.trim().isEmpty ? '服务端未返回错误详情' : responseBody.trim()}',
       );
@@ -82,24 +123,40 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
           break;
         }
 
-        yield _parseChunk(
-          chunk,
-          inlineReasoningSplitter: inlineReasoningSplitter,
-        );
+        try {
+          yield _parseChunk(
+            chunk,
+            inlineReasoningSplitter: inlineReasoningSplitter,
+          );
+        } catch (error, stackTrace) {
+          _fireAndForget(
+            _logger.logError(uri: uri, error: error, stackTrace: stackTrace),
+          );
+          rethrow;
+        }
         continue;
       }
 
       if (line.startsWith('data:')) {
-        dataLines.add(line.substring(5).trimLeft());
+        final dataLine = line.substring(5).trimLeft();
+        dataLines.add(dataLine);
+        _fireAndForget(_logger.logSseLine(uri: uri, line: dataLine));
       }
     }
 
     final trailingChunk = _consumeEventData(dataLines);
     if (trailingChunk != null && trailingChunk != _doneMarker) {
-      yield _parseChunk(
-        trailingChunk,
-        inlineReasoningSplitter: inlineReasoningSplitter,
-      );
+      try {
+        yield _parseChunk(
+          trailingChunk,
+          inlineReasoningSplitter: inlineReasoningSplitter,
+        );
+      } catch (error, stackTrace) {
+        _fireAndForget(
+          _logger.logError(uri: uri, error: error, stackTrace: stackTrace),
+        );
+        rethrow;
+      }
     }
 
     final trailingInlineReasoning = inlineReasoningSplitter.flushRemainder();
@@ -109,6 +166,10 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
   }
 
   static const _doneMarker = '[DONE]';
+
+  void _fireAndForget(Future<void> future) {
+    unawaited(future);
+  }
 
   /// 合并当前事件的 data 行；空事件直接丢弃。
   String? _consumeEventData(List<String> dataLines) {
