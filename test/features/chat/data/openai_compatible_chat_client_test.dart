@@ -161,7 +161,7 @@ void main() {
       httpClient: _FakeStreamingHttpClient((request) async {
         final payload =
             jsonDecode((request as http.Request).body) as Map<String, dynamic>;
-        expect(payload['reasoning_effort'], 'medium');
+        expect(payload.containsKey('reasoning_effort'), isFalse);
         final extraBody = payload['extra_body'] as Map<String, dynamic>;
         final google = extraBody['google'] as Map<String, dynamic>;
         final thinkingConfig =
