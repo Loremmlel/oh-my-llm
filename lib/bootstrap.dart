@@ -1,8 +1,12 @@
+import 'dart:io';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app/app.dart';
+import 'core/logging/app_network_logger.dart';
+import 'core/logging/app_network_logger_provider.dart';
 import 'core/persistence/app_database.dart';
 import 'core/persistence/app_database_provider.dart';
 import 'core/persistence/shared_preferences_provider.dart';
@@ -23,6 +27,11 @@ Future<void> bootstrap({SharedPreferences? sharedPreferences}) async {
   final preferences =
       sharedPreferences ?? await SharedPreferences.getInstance();
   final appDatabase = await AppDatabase.open();
+  final networkLogger = await AppNetworkLogger.create(
+    directoryPath: File(appDatabase.path).parent.path,
+    preferences: preferences,
+  );
+  await networkLogger.onAppLaunch();
 
   // 按顺序执行各数据源的一次性迁移。
   await migrateLegacyChatConversations(
@@ -43,6 +52,7 @@ Future<void> bootstrap({SharedPreferences? sharedPreferences}) async {
       overrides: [
         sharedPreferencesProvider.overrideWithValue(preferences),
         appDatabaseProvider.overrideWithValue(appDatabase),
+        appNetworkLoggerProvider.overrideWithValue(networkLogger),
       ],
       child: const OhMyLlmApp(),
     ),

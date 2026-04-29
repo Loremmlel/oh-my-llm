@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 
+import 'package:oh_my_llm/core/logging/network_logger.dart';
 import 'package:oh_my_llm/features/chat/data/chat_completion_client.dart';
 import 'package:oh_my_llm/features/chat/data/openai_compatible_chat_client.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
@@ -56,6 +57,38 @@ void main() {
       '第一段 ',
       '第二段',
     ]);
+  });
+
+  test('streamCompletion writes request and response logs', () async {
+    final logger = _FakeNetworkLogger();
+    final client = OpenAiCompatibleChatClient(
+      httpClient: _FakeStreamingHttpClient((request) async {
+        return http.StreamedResponse(
+          Stream.fromIterable([
+            utf8.encode('data: {"choices":[{"delta":{"content":"ok"}}]}\n\n'),
+            utf8.encode('data: [DONE]\n\n'),
+          ]),
+          200,
+        );
+      }),
+      logger: logger,
+    );
+
+    await client
+        .streamCompletion(
+          modelConfig: _modelConfig(),
+          messages: const [
+            ChatCompletionRequestMessage(
+              role: ChatMessageRole.user,
+              content: 'hello',
+            ),
+          ],
+        )
+        .drain<void>();
+
+    expect(logger.requestCount, 1);
+    expect(logger.responseCount, 1);
+    expect(logger.sseCount, greaterThan(0));
   });
 
   test(
@@ -763,5 +796,49 @@ class _FakeStreamingHttpClient extends http.BaseClient {
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) {
     return _handler(request);
+  }
+}
+
+final class _FakeNetworkLogger implements NetworkLogger {
+  int requestCount = 0;
+  int responseCount = 0;
+  int sseCount = 0;
+
+  @override
+  Future<void> onAppLaunch() async {}
+
+  @override
+  Future<void> onAppDetached() async {}
+
+  @override
+  Future<void> logError({
+    required Uri uri,
+    required Object error,
+    StackTrace? stackTrace,
+  }) async {}
+
+  @override
+  Future<void> logRequest({
+    required Uri uri,
+    required String method,
+    required Map<String, String> headers,
+    required Object? payload,
+  }) async {
+    requestCount += 1;
+  }
+
+  @override
+  Future<void> logResponse({
+    required Uri uri,
+    required int statusCode,
+    required Map<String, String> headers,
+    required Duration elapsed,
+  }) async {
+    responseCount += 1;
+  }
+
+  @override
+  Future<void> logSseLine({required Uri uri, required String line}) async {
+    sseCount += 1;
   }
 }
