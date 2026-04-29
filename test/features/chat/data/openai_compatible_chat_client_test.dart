@@ -601,6 +601,82 @@ void main() {
   });
 
   test(
+    'streamCompletion extracts Gemini thought summaries from content parts',
+    () async {
+      final client = OpenAiCompatibleChatClient(
+        httpClient: _FakeStreamingHttpClient((request) async {
+          return http.StreamedResponse(
+            Stream.fromIterable([
+              utf8.encode(
+                'data: {"choices":[{"delta":{"content":[{"text":"最终答案"},{"text":"思考摘要","thought":true}]}}]}\n\n',
+              ),
+              utf8.encode('data: [DONE]\n\n'),
+            ]),
+            200,
+          );
+        }),
+      );
+
+      final chunks = await client
+          .streamCompletion(
+            modelConfig: _modelConfig(),
+            messages: const [
+              ChatCompletionRequestMessage(
+                role: ChatMessageRole.user,
+                content: '你好',
+              ),
+            ],
+            reasoningEffort: ReasoningEffort.high,
+          )
+          .toList();
+
+      expect(chunks.map((c) => c.contentDelta).join(), '最终答案');
+      expect(chunks.map((c) => c.reasoningDelta).join(), '思考摘要');
+    },
+  );
+
+  test(
+    'streamCompletion keeps rolling thought summaries in streaming chunks',
+    () async {
+      final client = OpenAiCompatibleChatClient(
+        httpClient: _FakeStreamingHttpClient((request) async {
+          return http.StreamedResponse(
+            Stream.fromIterable([
+              utf8.encode(
+                'data: {"choices":[{"delta":{"content":[{"text":"阶段一总结","thought":true}]}}]}\n\n',
+              ),
+              utf8.encode(
+                'data: {"choices":[{"delta":{"content":[{"text":"阶段二总结","thought":true}]}}]}\n\n',
+              ),
+              utf8.encode(
+                'data: {"choices":[{"delta":{"content":[{"text":"正文补充"}]}}]}\n\n',
+              ),
+              utf8.encode('data: [DONE]\n\n'),
+            ]),
+            200,
+          );
+        }),
+      );
+
+      final chunks = await client
+          .streamCompletion(
+            modelConfig: _modelConfig(),
+            messages: const [
+              ChatCompletionRequestMessage(
+                role: ChatMessageRole.user,
+                content: '你好',
+              ),
+            ],
+            reasoningEffort: ReasoningEffort.high,
+          )
+          .toList();
+
+      expect(chunks.map((c) => c.reasoningDelta).join(), '阶段一总结阶段二总结');
+      expect(chunks.map((c) => c.contentDelta).join(), '正文补充');
+    },
+  );
+
+  test(
     'streamCompletion extracts reasoning from "reasoning" alias field',
     () async {
       final client = OpenAiCompatibleChatClient(
