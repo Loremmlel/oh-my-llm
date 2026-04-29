@@ -84,6 +84,7 @@ Comments should use Simplified Chinese and follow these conventions (reference: 
   - official OpenAI hosts: omit `thinking`, send native `reasoning_effort`
   - other compatible hosts: send `thinking: {"type":"enabled"|"disabled"}`
   - compatible-host effort values are normalized in the client before sending
+- On mobile, the favorites detail top metadata bar must always enforce width constraints and prevent horizontal overflow (long timestamps/source titles must wrap or ellipsize safely).
 - Widget tests usually seed storage with `SharedPreferences.setMockInitialValues(...)` and inject dependencies with `ProviderScope` overrides. When chat history, favorites, or collections are involved, also override `appDatabaseProvider` with the test database helper.
 - When splitting tests, keep only one runnable `*_test.dart` entrypoint per suite; move shared cases into helper files such as `*_cases.dart` so Flutter does not discover them as separate test targets.
 - This repo is being developed in small audited increments: each completed feature or fix is expected to be committed separately instead of batching unrelated work into one commit.

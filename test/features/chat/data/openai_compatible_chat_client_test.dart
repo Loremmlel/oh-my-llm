@@ -277,9 +277,7 @@ void main() {
     final client = OpenAiCompatibleChatClient(
       httpClient: _FakeStreamingHttpClient((request) async {
         return http.StreamedResponse(
-          Stream.fromIterable([
-            utf8.encode('data: {not valid json}\n\n'),
-          ]),
+          Stream.fromIterable([utf8.encode('data: {not valid json}\n\n')]),
           200,
         );
       }),
@@ -301,36 +299,38 @@ void main() {
     );
   });
 
-  test('streamCompletion handles non-Map JSON gracefully (returns empty chunk)',
-      () async {
-    final client = OpenAiCompatibleChatClient(
-      httpClient: _FakeStreamingHttpClient((request) async {
-        return http.StreamedResponse(
-          Stream.fromIterable([
-            utf8.encode('data: [1, 2, 3]\n\n'),
-            utf8.encode('data: [DONE]\n\n'),
-          ]),
-          200,
-        );
-      }),
-    );
+  test(
+    'streamCompletion handles non-Map JSON gracefully (returns empty chunk)',
+    () async {
+      final client = OpenAiCompatibleChatClient(
+        httpClient: _FakeStreamingHttpClient((request) async {
+          return http.StreamedResponse(
+            Stream.fromIterable([
+              utf8.encode('data: [1, 2, 3]\n\n'),
+              utf8.encode('data: [DONE]\n\n'),
+            ]),
+            200,
+          );
+        }),
+      );
 
-    final chunks = await client
-        .streamCompletion(
-          modelConfig: _modelConfig(),
-          messages: const [
-            ChatCompletionRequestMessage(
-              role: ChatMessageRole.user,
-              content: '你好',
-            ),
-          ],
-        )
-        .toList();
+      final chunks = await client
+          .streamCompletion(
+            modelConfig: _modelConfig(),
+            messages: const [
+              ChatCompletionRequestMessage(
+                role: ChatMessageRole.user,
+                content: '你好',
+              ),
+            ],
+          )
+          .toList();
 
-    // 非 Map JSON 返回空 chunk，不抛出异常。
-    expect(chunks, hasLength(1));
-    expect(chunks.single.isEmpty, isTrue);
-  });
+      // 非 Map JSON 返回空 chunk，不抛出异常。
+      expect(chunks, hasLength(1));
+      expect(chunks.single.isEmpty, isTrue);
+    },
+  );
 
   test('streamCompletion handles missing choices field', () async {
     final client = OpenAiCompatibleChatClient(
@@ -394,139 +394,148 @@ void main() {
     );
   });
 
-  test('streamCompletion ReasoningEffort.low maps to "high" on compatible host',
-      () async {
-    String? sentEffort;
-    final client = OpenAiCompatibleChatClient(
-      httpClient: _FakeStreamingHttpClient((request) async {
-        final payload =
-            jsonDecode((request as http.Request).body) as Map<String, dynamic>;
-        sentEffort = payload['reasoning_effort'] as String?;
-        return http.StreamedResponse(
-          Stream.fromIterable([utf8.encode('data: [DONE]\n\n')]),
-          200,
-        );
-      }),
-    );
+  test(
+    'streamCompletion ReasoningEffort.low maps to "high" on compatible host',
+    () async {
+      String? sentEffort;
+      final client = OpenAiCompatibleChatClient(
+        httpClient: _FakeStreamingHttpClient((request) async {
+          final payload =
+              jsonDecode((request as http.Request).body)
+                  as Map<String, dynamic>;
+          sentEffort = payload['reasoning_effort'] as String?;
+          return http.StreamedResponse(
+            Stream.fromIterable([utf8.encode('data: [DONE]\n\n')]),
+            200,
+          );
+        }),
+      );
 
-    await client
-        .streamCompletion(
-          modelConfig: _modelConfig(),
-          messages: const [
-            ChatCompletionRequestMessage(
-              role: ChatMessageRole.user,
-              content: '你好',
-            ),
-          ],
-          reasoningEffort: ReasoningEffort.low,
-        )
-        .drain<void>();
+      await client
+          .streamCompletion(
+            modelConfig: _modelConfig(),
+            messages: const [
+              ChatCompletionRequestMessage(
+                role: ChatMessageRole.user,
+                content: '你好',
+              ),
+            ],
+            reasoningEffort: ReasoningEffort.low,
+          )
+          .drain<void>();
 
-    expect(sentEffort, 'low');
-  });
+      expect(sentEffort, 'low');
+    },
+  );
 
   test(
-      'streamCompletion ReasoningEffort.medium maps to "high" on compatible host',
-      () async {
-    String? sentEffort;
-    final client = OpenAiCompatibleChatClient(
-      httpClient: _FakeStreamingHttpClient((request) async {
-        final payload =
-            jsonDecode((request as http.Request).body) as Map<String, dynamic>;
-        sentEffort = payload['reasoning_effort'] as String?;
-        return http.StreamedResponse(
-          Stream.fromIterable([utf8.encode('data: [DONE]\n\n')]),
-          200,
-        );
-      }),
-    );
+    'streamCompletion ReasoningEffort.medium maps to "high" on compatible host',
+    () async {
+      String? sentEffort;
+      final client = OpenAiCompatibleChatClient(
+        httpClient: _FakeStreamingHttpClient((request) async {
+          final payload =
+              jsonDecode((request as http.Request).body)
+                  as Map<String, dynamic>;
+          sentEffort = payload['reasoning_effort'] as String?;
+          return http.StreamedResponse(
+            Stream.fromIterable([utf8.encode('data: [DONE]\n\n')]),
+            200,
+          );
+        }),
+      );
 
-    await client
-        .streamCompletion(
-          modelConfig: _modelConfig(),
-          messages: const [
-            ChatCompletionRequestMessage(
-              role: ChatMessageRole.user,
-              content: '你好',
-            ),
-          ],
-          reasoningEffort: ReasoningEffort.medium,
-        )
-        .drain<void>();
+      await client
+          .streamCompletion(
+            modelConfig: _modelConfig(),
+            messages: const [
+              ChatCompletionRequestMessage(
+                role: ChatMessageRole.user,
+                content: '你好',
+              ),
+            ],
+            reasoningEffort: ReasoningEffort.medium,
+          )
+          .drain<void>();
 
-    expect(sentEffort, 'medium');
-  });
-
-  test(
-      'streamCompletion ReasoningEffort.xhigh maps to "max" on compatible host',
-      () async {
-    String? sentEffort;
-    final client = OpenAiCompatibleChatClient(
-      httpClient: _FakeStreamingHttpClient((request) async {
-        final payload =
-            jsonDecode((request as http.Request).body) as Map<String, dynamic>;
-        sentEffort = payload['reasoning_effort'] as String?;
-        return http.StreamedResponse(
-          Stream.fromIterable([utf8.encode('data: [DONE]\n\n')]),
-          200,
-        );
-      }),
-    );
-
-    await client
-        .streamCompletion(
-          modelConfig: _modelConfig(),
-          messages: const [
-            ChatCompletionRequestMessage(
-              role: ChatMessageRole.user,
-              content: '你好',
-            ),
-          ],
-          reasoningEffort: ReasoningEffort.xhigh,
-        )
-        .drain<void>();
-
-    expect(sentEffort, 'xhigh');
-  });
+      expect(sentEffort, 'medium');
+    },
+  );
 
   test(
-      'streamCompletion sends native effort values for official OpenAI subdomains',
-      () async {
-    // *.openai.com 子域名也应视为官方主机。
-    String? sentEffort;
-    bool? hasThinking;
-    final client = OpenAiCompatibleChatClient(
-      httpClient: _FakeStreamingHttpClient((request) async {
-        final payload =
-            jsonDecode((request as http.Request).body) as Map<String, dynamic>;
-        sentEffort = payload['reasoning_effort'] as String?;
-        hasThinking = payload.containsKey('thinking');
-        return http.StreamedResponse(
-          Stream.fromIterable([utf8.encode('data: [DONE]\n\n')]),
-          200,
-        );
-      }),
-    );
+    'streamCompletion ReasoningEffort.xhigh maps to "max" on compatible host',
+    () async {
+      String? sentEffort;
+      final client = OpenAiCompatibleChatClient(
+        httpClient: _FakeStreamingHttpClient((request) async {
+          final payload =
+              jsonDecode((request as http.Request).body)
+                  as Map<String, dynamic>;
+          sentEffort = payload['reasoning_effort'] as String?;
+          return http.StreamedResponse(
+            Stream.fromIterable([utf8.encode('data: [DONE]\n\n')]),
+            200,
+          );
+        }),
+      );
 
-    await client
-        .streamCompletion(
-          modelConfig: _modelConfig(
-            apiUrl: 'https://api.openai.com/v1/chat/completions',
-          ),
-          messages: const [
-            ChatCompletionRequestMessage(
-              role: ChatMessageRole.user,
-              content: '你好',
+      await client
+          .streamCompletion(
+            modelConfig: _modelConfig(),
+            messages: const [
+              ChatCompletionRequestMessage(
+                role: ChatMessageRole.user,
+                content: '你好',
+              ),
+            ],
+            reasoningEffort: ReasoningEffort.xhigh,
+          )
+          .drain<void>();
+
+      expect(sentEffort, 'xhigh');
+    },
+  );
+
+  test(
+    'streamCompletion sends native effort values for official OpenAI subdomains',
+    () async {
+      // *.openai.com 子域名也应视为官方主机。
+      String? sentEffort;
+      bool? hasThinking;
+      final client = OpenAiCompatibleChatClient(
+        httpClient: _FakeStreamingHttpClient((request) async {
+          final payload =
+              jsonDecode((request as http.Request).body)
+                  as Map<String, dynamic>;
+          sentEffort = payload['reasoning_effort'] as String?;
+          hasThinking = payload.containsKey('thinking');
+          return http.StreamedResponse(
+            Stream.fromIterable([utf8.encode('data: [DONE]\n\n')]),
+            200,
+          );
+        }),
+      );
+
+      await client
+          .streamCompletion(
+            modelConfig: _modelConfig(
+              apiUrl: 'https://api.openai.com/v1/chat/completions',
             ),
-          ],
-          reasoningEffort: ReasoningEffort.low,
-        )
-        .drain<void>();
+            messages: const [
+              ChatCompletionRequestMessage(
+                role: ChatMessageRole.user,
+                content: '你好',
+              ),
+            ],
+            reasoningEffort: ReasoningEffort.low,
+          )
+          .drain<void>();
 
-    // 官方 OpenAI 主机不发 thinking 字段，effort 直接用原生值。
-    expect(hasThinking, isFalse);
-    expect(sentEffort, 'low');
-  });
+      // 官方 OpenAI 主机不发 thinking 字段，effort 直接用原生值。
+      expect(hasThinking, isFalse);
+      expect(sentEffort, 'low');
+    },
+  );
 
   test('streamCompletion extracts text from array content payload', () async {
     final client = OpenAiCompatibleChatClient(
@@ -558,14 +567,81 @@ void main() {
     expect(chunks.single.contentDelta, 'segment1segment2');
   });
 
-  test('streamCompletion extracts reasoning from "reasoning" alias field',
-      () async {
+  test(
+    'streamCompletion extracts reasoning from "reasoning" alias field',
+    () async {
+      final client = OpenAiCompatibleChatClient(
+        httpClient: _FakeStreamingHttpClient((request) async {
+          return http.StreamedResponse(
+            Stream.fromIterable([
+              utf8.encode(
+                'data: {"choices":[{"delta":{"reasoning":"别名推理内容"}}]}\n\n',
+              ),
+              utf8.encode('data: [DONE]\n\n'),
+            ]),
+            200,
+          );
+        }),
+      );
+
+      final chunks = await client
+          .streamCompletion(
+            modelConfig: _modelConfig(),
+            messages: const [
+              ChatCompletionRequestMessage(
+                role: ChatMessageRole.user,
+                content: '你好',
+              ),
+            ],
+            reasoningEffort: ReasoningEffort.high,
+          )
+          .toList();
+
+      expect(chunks.map((c) => c.reasoningDelta).toList(), ['别名推理内容']);
+    },
+  );
+
+  test(
+    'streamCompletion moves <thinking> content from body into reasoning',
+    () async {
+      final client = OpenAiCompatibleChatClient(
+        httpClient: _FakeStreamingHttpClient((request) async {
+          return http.StreamedResponse(
+            Stream.fromIterable([
+              utf8.encode(
+                'data: {"choices":[{"delta":{"content":"回答前缀<thinking>隐藏推理</thinking>回答后缀"}}]}\n\n',
+              ),
+              utf8.encode('data: [DONE]\n\n'),
+            ]),
+            200,
+          );
+        }),
+      );
+
+      final chunks = await client
+          .streamCompletion(
+            modelConfig: _modelConfig(),
+            messages: const [
+              ChatCompletionRequestMessage(
+                role: ChatMessageRole.user,
+                content: '你好',
+              ),
+            ],
+          )
+          .toList();
+
+      expect(chunks.map((c) => c.contentDelta).join(), '回答前缀回答后缀');
+      expect(chunks.map((c) => c.reasoningDelta).join(), '隐藏推理');
+    },
+  );
+
+  test('streamCompletion supports thoughts/thinkings tag variants', () async {
     final client = OpenAiCompatibleChatClient(
       httpClient: _FakeStreamingHttpClient((request) async {
         return http.StreamedResponse(
           Stream.fromIterable([
             utf8.encode(
-              'data: {"choices":[{"delta":{"reasoning":"别名推理内容"}}]}\n\n',
+              'data: {"choices":[{"delta":{"content":"A<THOUGHTS>R1</THOUGHTS>B<thinkings>R2</thinkings>C"}}]}\n\n',
             ),
             utf8.encode('data: [DONE]\n\n'),
           ]),
@@ -583,45 +659,86 @@ void main() {
               content: '你好',
             ),
           ],
-          reasoningEffort: ReasoningEffort.high,
         )
         .toList();
 
-    expect(chunks.map((c) => c.reasoningDelta).toList(), ['别名推理内容']);
+    expect(chunks.map((c) => c.contentDelta).join(), 'ABC');
+    expect(chunks.map((c) => c.reasoningDelta).join(), 'R1R2');
   });
 
   test(
-      'streamCompletion sends ReasoningEffort.high as "high" on compatible host',
-      () async {
-    String? sentEffort;
-    final client = OpenAiCompatibleChatClient(
-      httpClient: _FakeStreamingHttpClient((request) async {
-        final payload =
-            jsonDecode((request as http.Request).body) as Map<String, dynamic>;
-        sentEffort = payload['reasoning_effort'] as String?;
-        return http.StreamedResponse(
-          Stream.fromIterable([utf8.encode('data: [DONE]\n\n')]),
-          200,
-        );
-      }),
-    );
+    'streamCompletion extracts inline reasoning across chunk boundaries',
+    () async {
+      final client = OpenAiCompatibleChatClient(
+        httpClient: _FakeStreamingHttpClient((request) async {
+          return http.StreamedResponse(
+            Stream.fromIterable([
+              utf8.encode(
+                'data: {"choices":[{"delta":{"content":"A<think"}}]}\n\n',
+              ),
+              utf8.encode(
+                'data: {"choices":[{"delta":{"content":"ing>R"}}]}\n\n',
+              ),
+              utf8.encode(
+                'data: {"choices":[{"delta":{"content":"1</thinking>B"}}]}\n\n',
+              ),
+              utf8.encode('data: [DONE]\n\n'),
+            ]),
+            200,
+          );
+        }),
+      );
 
-    await client
-        .streamCompletion(
-          modelConfig: _modelConfig(),
-          messages: const [
-            ChatCompletionRequestMessage(
-              role: ChatMessageRole.user,
-              content: '你好',
-            ),
-          ],
-          reasoningEffort: ReasoningEffort.high,
-        )
-        .drain<void>();
+      final chunks = await client
+          .streamCompletion(
+            modelConfig: _modelConfig(),
+            messages: const [
+              ChatCompletionRequestMessage(
+                role: ChatMessageRole.user,
+                content: '你好',
+              ),
+            ],
+          )
+          .toList();
 
-    expect(sentEffort, 'high');
-  });
+      expect(chunks.map((c) => c.contentDelta).join(), 'AB');
+      expect(chunks.map((c) => c.reasoningDelta).join(), 'R1');
+    },
+  );
 
+  test(
+    'streamCompletion sends ReasoningEffort.high as "high" on compatible host',
+    () async {
+      String? sentEffort;
+      final client = OpenAiCompatibleChatClient(
+        httpClient: _FakeStreamingHttpClient((request) async {
+          final payload =
+              jsonDecode((request as http.Request).body)
+                  as Map<String, dynamic>;
+          sentEffort = payload['reasoning_effort'] as String?;
+          return http.StreamedResponse(
+            Stream.fromIterable([utf8.encode('data: [DONE]\n\n')]),
+            200,
+          );
+        }),
+      );
+
+      await client
+          .streamCompletion(
+            modelConfig: _modelConfig(),
+            messages: const [
+              ChatCompletionRequestMessage(
+                role: ChatMessageRole.user,
+                content: '你好',
+              ),
+            ],
+            reasoningEffort: ReasoningEffort.high,
+          )
+          .drain<void>();
+
+      expect(sentEffort, 'high');
+    },
+  );
 }
 
 LlmModelConfig _modelConfig({

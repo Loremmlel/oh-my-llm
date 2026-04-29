@@ -69,6 +69,7 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
         .transform(const LineSplitter());
 
     final dataLines = <String>[];
+    final inlineReasoningSplitter = _InlineReasoningTagSplitter();
 
     // SSE 事件以空行分隔；这里先收集 data 行，再按事件边界解析。
     await for (final line in lineStream) {
@@ -81,7 +82,10 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
           break;
         }
 
-        yield _parseChunk(chunk);
+        yield _parseChunk(
+          chunk,
+          inlineReasoningSplitter: inlineReasoningSplitter,
+        );
         continue;
       }
 
@@ -92,7 +96,15 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
 
     final trailingChunk = _consumeEventData(dataLines);
     if (trailingChunk != null && trailingChunk != _doneMarker) {
-      yield _parseChunk(trailingChunk);
+      yield _parseChunk(
+        trailingChunk,
+        inlineReasoningSplitter: inlineReasoningSplitter,
+      );
+    }
+
+    final trailingInlineReasoning = inlineReasoningSplitter.flushRemainder();
+    if (trailingInlineReasoning != null && !trailingInlineReasoning.isEmpty) {
+      yield trailingInlineReasoning;
     }
   }
 
@@ -115,7 +127,10 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
   }
 
   /// 解析单个 SSE data 块，兼容错误结构和补全文本结构。
-  ChatCompletionChunk _parseChunk(String rawChunk) {
+  ChatCompletionChunk _parseChunk(
+    String rawChunk, {
+    required _InlineReasoningTagSplitter inlineReasoningSplitter,
+  }) {
     late final Object? decoded;
     try {
       decoded = jsonDecode(rawChunk);
@@ -145,23 +160,38 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
 
     final firstChoice = Map<String, dynamic>.from(choices.first as Map);
     final delta = firstChoice['delta'] ?? firstChoice['message'];
-    return _extractChunk(delta);
+    return _extractChunk(
+      delta,
+      inlineReasoningSplitter: inlineReasoningSplitter,
+    );
   }
 
   /// 从 delta/message 载荷中提取正文和推理文本。
-  ChatCompletionChunk _extractChunk(Object? payload) {
+  ChatCompletionChunk _extractChunk(
+    Object? payload, {
+    required _InlineReasoningTagSplitter inlineReasoningSplitter,
+  }) {
     if (payload is String) {
-      return ChatCompletionChunk(contentDelta: payload);
+      final splitResult = inlineReasoningSplitter.splitContent(payload);
+      return ChatCompletionChunk(
+        contentDelta: splitResult.content,
+        reasoningDelta: splitResult.reasoning,
+      );
     }
     if (payload is! Map) {
       return const ChatCompletionChunk();
     }
 
+    final splitResult = inlineReasoningSplitter.splitContent(
+      _extractTextPayload(payload['content']),
+    );
+    final explicitReasoning = _extractTextPayload(
+      payload['reasoning_content'] ?? payload['reasoning'],
+    );
+
     return ChatCompletionChunk(
-      contentDelta: _extractTextPayload(payload['content']),
-      reasoningDelta: _extractTextPayload(
-        payload['reasoning_content'] ?? payload['reasoning'],
-      ),
+      contentDelta: splitResult.content,
+      reasoningDelta: '$explicitReasoning${splitResult.reasoning}',
     );
   }
 
@@ -236,6 +266,106 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
   bool _isDeepSeekHost(String host) {
     final normalizedHost = host.toLowerCase();
     return normalizedHost == 'api.deepseek.com';
+  }
+}
+
+class _InlineReasoningSplitResult {
+  const _InlineReasoningSplitResult({this.content = '', this.reasoning = ''});
+
+  final String content;
+  final String reasoning;
+
+  bool get isEmpty => content.isEmpty && reasoning.isEmpty;
+}
+
+/// 从正文中抽取 thought/thinking 标签内容，转入 reasoning。
+class _InlineReasoningTagSplitter {
+  static final RegExp _openingTag = RegExp(
+    r'^<\s*(thoughts?|thinkings?)\b[^>]*>$',
+    caseSensitive: false,
+  );
+  static final RegExp _closingTag = RegExp(
+    r'^<\s*/\s*(thoughts?|thinkings?)\s*>$',
+    caseSensitive: false,
+  );
+
+  bool _insideReasoningTag = false;
+  String _tail = '';
+
+  _InlineReasoningSplitResult splitContent(String delta) {
+    if (delta.isEmpty && _tail.isEmpty) {
+      return const _InlineReasoningSplitResult();
+    }
+
+    final input = '$_tail$delta';
+    _tail = '';
+    final contentBuffer = StringBuffer();
+    final reasoningBuffer = StringBuffer();
+    var cursor = 0;
+
+    while (cursor < input.length) {
+      final tagStart = input.indexOf('<', cursor);
+      if (tagStart == -1) {
+        final remaining = input.substring(cursor);
+        if (_insideReasoningTag) {
+          reasoningBuffer.write(remaining);
+        } else {
+          contentBuffer.write(remaining);
+        }
+        break;
+      }
+
+      final beforeTag = input.substring(cursor, tagStart);
+      if (_insideReasoningTag) {
+        reasoningBuffer.write(beforeTag);
+      } else {
+        contentBuffer.write(beforeTag);
+      }
+
+      final tagEnd = input.indexOf('>', tagStart + 1);
+      if (tagEnd == -1) {
+        _tail = input.substring(tagStart);
+        break;
+      }
+
+      final candidateTag = input.substring(tagStart, tagEnd + 1);
+      if (!_insideReasoningTag && _openingTag.hasMatch(candidateTag)) {
+        _insideReasoningTag = true;
+        cursor = tagEnd + 1;
+        continue;
+      }
+
+      if (_insideReasoningTag && _closingTag.hasMatch(candidateTag)) {
+        _insideReasoningTag = false;
+        cursor = tagEnd + 1;
+        continue;
+      }
+
+      if (_insideReasoningTag) {
+        reasoningBuffer.write('<');
+      } else {
+        contentBuffer.write('<');
+      }
+      cursor = tagStart + 1;
+    }
+
+    return _InlineReasoningSplitResult(
+      content: contentBuffer.toString(),
+      reasoning: reasoningBuffer.toString(),
+    );
+  }
+
+  ChatCompletionChunk? flushRemainder() {
+    if (_tail.isEmpty) {
+      return null;
+    }
+
+    final remainder = _tail;
+    _tail = '';
+    if (_insideReasoningTag) {
+      return ChatCompletionChunk(reasoningDelta: remainder);
+    }
+    return ChatCompletionChunk(contentDelta: remainder);
   }
 }
 

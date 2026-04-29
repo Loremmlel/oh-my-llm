@@ -39,68 +39,82 @@ class FavoriteCard extends StatelessWidget {
             // ── 元信息行 ───────────────────────────────────────────────────
             Row(
               children: [
-                if (collectionName != null) ...[
-                  Icon(
-                    Icons.folder_outlined,
-                    size: 14,
-                    color: theme.colorScheme.primary,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    collectionName!,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: theme.colorScheme.primary,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                ],
-                Icon(
-                  Icons.access_time_rounded,
-                  size: 14,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  _formatDate(favorite.createdAt),
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const Spacer(),
-                if (onGoToConversation != null)
-                  Tooltip(
-                    message: '跳转到来源对话',
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(4),
-                      onTap: onGoToConversation,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 4,
-                          vertical: 2,
+                Expanded(
+                  child: Wrap(
+                    spacing: 4,
+                    runSpacing: 2,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      if (collectionName != null) ...[
+                        Icon(
+                          Icons.folder_outlined,
+                          size: 14,
+                          color: theme.colorScheme.primary,
                         ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (favorite.sourceConversationTitle != null)
-                              Text(
-                                favorite.sourceConversationTitle!,
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
+                        Text(
+                          collectionName!,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: theme.colorScheme.primary,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                      Icon(
+                        Icons.access_time_rounded,
+                        size: 14,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      Text(
+                        _formatDate(favorite.createdAt),
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (onGoToConversation != null)
+                  Flexible(
+                    child: Tooltip(
+                      message: '跳转到来源对话',
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(4),
+                        onTap: onGoToConversation,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 2,
+                          ),
+                          child: Row(
+                            children: [
+                              if (favorite.sourceConversationTitle != null &&
+                                  favorite.sourceConversationTitle!
+                                      .trim()
+                                      .isNotEmpty) ...[
+                                Expanded(
+                                  child: Text(
+                                    favorite.sourceConversationTitle!,
+                                    style: theme.textTheme.labelSmall?.copyWith(
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                    maxLines: 1,
+                                  ),
                                 ),
-                                overflow: TextOverflow.ellipsis,
-                                maxLines: 1,
+                                const SizedBox(width: 2),
+                              ],
+                              Icon(
+                                Icons.open_in_new_rounded,
+                                size: 14,
+                                color: theme.colorScheme.onSurfaceVariant,
                               ),
-                            const SizedBox(width: 2),
-                            Icon(
-                              Icons.open_in_new_rounded,
-                              size: 14,
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ),
                   ),
+                const SizedBox(width: 2),
                 IconButton(
                   onPressed: onDeletePressed,
                   tooltip: '删除收藏',
