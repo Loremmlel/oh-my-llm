@@ -475,11 +475,8 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
 
     final currentConversation = state.activeConversation;
     final activePath = currentConversation.messages;
-    final latestAssistantIndex = activePath.lastIndexWhere((message) {
-      return message.role == ChatMessageRole.assistant;
-    });
-    if (latestAssistantIndex == -1 ||
-        latestAssistantIndex != activePath.length - 1) {
+    final latestMessage = activePath.lastOrNull;
+    if (latestMessage == null) {
       _setErrorMessage('只能重试当前对话中的最新模型回复。');
       return;
     }
@@ -491,6 +488,29 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     }
 
     final promptTemplate = _resolvePromptTemplate(currentConversation);
+    if (latestMessage.role == ChatMessageRole.user &&
+        state.errorMessage != null) {
+      await _streamAssistantReply(
+        conversation: currentConversation.copyWith(updatedAt: DateTime.now()),
+        modelConfig: modelConfig,
+        promptTemplate: promptTemplate,
+        requestConversationMessages: activePath,
+        parentMessageId: latestMessage.id,
+        reasoningEnabled: currentConversation.reasoningEnabled,
+        reasoningEffort: currentConversation.reasoningEffort,
+      );
+      return;
+    }
+
+    final latestAssistantIndex = activePath.lastIndexWhere((message) {
+      return message.role == ChatMessageRole.assistant;
+    });
+    if (latestAssistantIndex == -1 ||
+        latestAssistantIndex != activePath.length - 1) {
+      _setErrorMessage('只能重试当前对话中的最新模型回复。');
+      return;
+    }
+
     final tree = resolveMessageTreeState(currentConversation);
     final latestAssistant = activePath[latestAssistantIndex];
     final parentId = latestAssistant.parentId ?? rootConversationParentId;
@@ -758,12 +778,12 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
         assistantMessageId: assistantMessage.id,
         errorMessage: error.message,
       );
-    } catch (_) {
+    } catch (error, stackTrace) {
       await _handleStreamingFailure(
         conversation: streamingConversation,
         streamingReply: streamingReply,
         assistantMessageId: assistantMessage.id,
-        errorMessage: '请求未完成，请检查网络、API URL 或模型配置。',
+        errorMessage: _formatUnexpectedStreamingError(error, stackTrace),
       );
     }
 
@@ -852,5 +872,15 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
   /// 更新错误信息并保留在状态中，供界面展示。
   void _setErrorMessage(String message) {
     state = state.copyWith(errorMessage: message);
+  }
+
+  /// 保留原始异常并附加堆栈，方便开发者直接定位问题。
+  String _formatUnexpectedStreamingError(Object error, StackTrace stackTrace) {
+    final rawError = error.toString();
+    final normalizedError = rawError.trim();
+    final header = normalizedError.isEmpty
+        ? '请求未完成，请检查网络、API URL 或模型配置。'
+        : normalizedError;
+    return '$header\n\n```text\n$stackTrace\n```';
   }
 }

@@ -11,6 +11,8 @@ import 'thinking_toggle.dart';
 
 /// 聊天页主工作区，组合消息列表、锚点条和消息输入区。
 class ChatWorkspace extends StatelessWidget {
+  static const _transientErrorMessageId = '__transient_error_message__';
+
   const ChatWorkspace({
     required this.conversation,
     required this.messages,
@@ -25,8 +27,8 @@ class ChatWorkspace extends StatelessWidget {
     required this.supportsReasoning,
     required this.isStreaming,
     required this.errorMessage,
+    required this.errorModelDisplayName,
     required this.showScrollToBottom,
-    required this.onDismissError,
     required this.onEditMessage,
     required this.onRetryLatestAssistant,
     required this.onReasoningEnabledChanged,
@@ -54,8 +56,8 @@ class ChatWorkspace extends StatelessWidget {
   final bool supportsReasoning;
   final bool isStreaming;
   final String? errorMessage;
+  final String errorModelDisplayName;
   final bool showScrollToBottom;
-  final VoidCallback onDismissError;
   final ValueChanged<ChatMessage> onEditMessage;
   final Future<void> Function() onRetryLatestAssistant;
   final ValueChanged<bool>? onReasoningEnabledChanged;
@@ -86,10 +88,6 @@ class ChatWorkspace extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (errorMessage != null) ...[
-              _buildErrorBanner(theme),
-              const SizedBox(height: 8),
-            ],
             Expanded(child: messagesCard),
             const SizedBox(height: 12),
             composerCard,
@@ -99,44 +97,12 @@ class ChatWorkspace extends StatelessWidget {
     );
   }
 
-  /// 构建当前对话的错误提示横幅。
-  Widget _buildErrorBanner(ThemeData theme) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(6),
-        child: Material(
-          color: theme.colorScheme.errorContainer,
-          borderRadius: BorderRadius.circular(16),
-          child: ListTile(
-            leading: Icon(
-              Icons.error_outline_rounded,
-              color: theme.colorScheme.onErrorContainer,
-            ),
-            title: Text(
-              errorMessage!,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onErrorContainer,
-              ),
-            ),
-            trailing: IconButton(
-              onPressed: onDismissError,
-              icon: Icon(
-                Icons.close_rounded,
-                color: theme.colorScheme.onErrorContainer,
-              ),
-              tooltip: '关闭错误提示',
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   /// 构建消息列表卡片，并把版本信息和锚点条组装进去。
   Widget _buildMessagesCard(ThemeData theme) {
+    final displayMessages = _buildDisplayMessages();
     final latestAssistantMessage =
-        messages.lastOrNull?.role == ChatMessageRole.assistant
-        ? messages.lastOrNull
+        displayMessages.lastOrNull?.role == ChatMessageRole.assistant
+        ? displayMessages.lastOrNull
         : null;
     final versionInfoByMessageId = _buildMessageVersionInfoMap();
 
@@ -155,12 +121,14 @@ class ChatWorkspace extends StatelessWidget {
                   itemScrollController: messageItemScrollController,
                   itemPositionsListener: messageItemPositionsListener,
                   padding: EdgeInsets.fromLTRB(14, 14, anchorRightPadding, 14),
-                  itemCount: messages.length,
+                  itemCount: displayMessages.length,
                   separatorBuilder: (context, index) {
                     return const SizedBox(height: 12);
                   },
                   itemBuilder: (context, index) {
-                    final message = messages[index];
+                    final message = displayMessages[index];
+                    final isTransientError =
+                        message.id == _transientErrorMessageId;
 
                     return KeyedSubtree(
                       key: ValueKey(message.id),
@@ -183,11 +151,14 @@ class ChatWorkspace extends StatelessWidget {
                               }
                             : null,
                         onFavoritePressed:
-                            message.role == ChatMessageRole.assistant &&
+                            !isTransientError &&
+                                message.role == ChatMessageRole.assistant &&
                                 onFavoritePressed != null
                             ? () => onFavoritePressed!(message)
                             : null,
-                        isFavorited: message.role == ChatMessageRole.assistant &&
+                        isFavorited:
+                            !isTransientError &&
+                            message.role == ChatMessageRole.assistant &&
                             favoritedAssistantContents.contains(
                               message.content,
                             ),
@@ -237,6 +208,25 @@ class ChatWorkspace extends StatelessWidget {
         );
       },
     );
+  }
+
+  /// 把临时错误拼接为一条助手样式消息，仅用于 UI 展示，不写入会话树。
+  List<ChatMessage> _buildDisplayMessages() {
+    final normalizedError = errorMessage?.trim();
+    if (normalizedError == null || normalizedError.isEmpty) {
+      return messages;
+    }
+    return [
+      ...messages,
+      ChatMessage(
+        id: _transientErrorMessageId,
+        role: ChatMessageRole.assistant,
+        content: normalizedError,
+        createdAt: DateTime.fromMillisecondsSinceEpoch(0),
+        parentId: messages.lastOrNull?.id ?? rootConversationParentId,
+        assistantModelDisplayName: errorModelDisplayName,
+      ),
+    ];
   }
 
   /// 为每条消息计算可切换的版本信息。
@@ -342,10 +332,8 @@ class ChatWorkspace extends StatelessWidget {
       onSelected: (value) => onReasoningEffortChanged?.call(value),
       itemBuilder: (context) => ReasoningEffort.values
           .map(
-            (effort) => PopupMenuItem(
-              value: effort,
-              child: Text(_effortLabel(effort)),
-            ),
+            (effort) =>
+                PopupMenuItem(value: effort, child: Text(_effortLabel(effort))),
           )
           .toList(growable: false),
       child: AnimatedContainer(
@@ -364,11 +352,7 @@ class ChatWorkspace extends StatelessWidget {
               style: theme.textTheme.bodySmall?.copyWith(color: labelColor),
             ),
             const SizedBox(width: 4),
-            Icon(
-              Icons.expand_more_rounded,
-              size: 14,
-              color: labelColor,
-            ),
+            Icon(Icons.expand_more_rounded, size: 14, color: labelColor),
           ],
         ),
       ),
