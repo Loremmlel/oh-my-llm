@@ -300,19 +300,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       return null;
     }
 
-    final selected = modelConfigs.where((config) {
-      return config.id == selectedModelId;
-    }).firstOrNull;
-
-    if (selected != null) {
-      return selected;
-    }
-
     final defaultSelected = modelConfigs.where((config) {
       return config.id == defaultModelId;
     }).firstOrNull;
 
-    return defaultSelected ?? modelConfigs.first;
+    if (defaultSelected != null) {
+      return defaultSelected;
+    }
+
+    return modelConfigs.where((config) {
+          return config.id == selectedModelId;
+        }).firstOrNull ??
+        modelConfigs.first;
   }
 
   /// 解析当前会话应使用的 Prompt 模板，并在缺省时回退到默认项。

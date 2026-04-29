@@ -568,7 +568,6 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
       messageNodes: pendingNodes,
       selectedChildByParentId: pendingSelections,
       updatedAt: timestamp,
-      selectedModelId: modelConfig.id,
       selectedPromptTemplateId: promptTemplate?.id,
       reasoningEnabled: reasoningEnabled,
       reasoningEffort: reasoningEffort,
@@ -595,7 +594,6 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
       messages: const [],
       createdAt: now,
       updatedAt: now,
-      selectedModelId: chatDefaults.defaultModelId,
       selectedPromptTemplateId: chatDefaults.defaultPromptTemplateId,
       reasoningEffort: ReasoningEffort.medium,
     );
@@ -668,6 +666,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
       createdAt: timestamp.add(const Duration(milliseconds: 1)),
       parentId: assistantParentId,
       isStreaming: true,
+      assistantModelDisplayName: modelConfig.displayName,
     );
     // 先插入一个流式占位节点，后续增量会持续覆盖这条消息。
     final initialTree = appendNodeToTree(
@@ -679,7 +678,6 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
       messageNodes: initialTree.nodes,
       selectedChildByParentId: initialTree.selections,
       updatedAt: timestamp,
-      selectedModelId: modelConfig.id,
       selectedPromptTemplateId: promptTemplate?.id,
       reasoningEnabled: reasoningEnabled,
       reasoningEffort: reasoningEffort,
@@ -823,6 +821,14 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     final modelConfigs = ref.read(llmModelConfigsProvider);
     if (modelConfigs.isEmpty) {
       return null;
+    }
+
+    final defaultModelId = ref.read(chatDefaultsProvider).defaultModelId;
+    final defaultModel = modelConfigs.where((config) {
+      return config.id == defaultModelId;
+    }).firstOrNull;
+    if (defaultModel != null) {
+      return defaultModel;
     }
 
     return modelConfigs.where((config) {
