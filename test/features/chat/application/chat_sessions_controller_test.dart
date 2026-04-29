@@ -61,8 +61,9 @@ void main() {
   });
 
   /// 向活动会话发送一条消息并等待流式回复完成。
-  Future<void> sendMsg(String content) =>
-      container.read(chatSessionsProvider.notifier).sendMessage(
+  Future<void> sendMsg(String content) => container
+      .read(chatSessionsProvider.notifier)
+      .sendMessage(
         content: content,
         modelConfig: _testModel,
         promptTemplate: null,
@@ -88,8 +89,9 @@ void main() {
       overrides: [
         appDatabaseProvider.overrideWithValue(database),
         sharedPreferencesProvider.overrideWithValue(preferences),
-        chatCompletionClientProvider
-            .overrideWithValue(FakeChatCompletionClient()),
+        chatCompletionClientProvider.overrideWithValue(
+          FakeChatCompletionClient(),
+        ),
       ],
     );
     addTearDown(container2.dispose);
@@ -124,8 +126,7 @@ void main() {
   test('selectConversation 切换到指定会话', () async {
     fakeClient.enqueueChunks(['回复']);
     await sendMsg('消息');
-    final firstId =
-        container.read(chatSessionsProvider).activeConversationId;
+    final firstId = container.read(chatSessionsProvider).activeConversationId;
 
     await container.read(chatSessionsProvider.notifier).createConversation();
     expect(
@@ -134,15 +135,11 @@ void main() {
     );
 
     container.read(chatSessionsProvider.notifier).selectConversation(firstId);
-    expect(
-      container.read(chatSessionsProvider).activeConversationId,
-      firstId,
-    );
+    expect(container.read(chatSessionsProvider).activeConversationId, firstId);
   });
 
   test('selectConversation 对不存在的 id 为空操作', () {
-    final initialId =
-        container.read(chatSessionsProvider).activeConversationId;
+    final initialId = container.read(chatSessionsProvider).activeConversationId;
     container
         .read(chatSessionsProvider.notifier)
         .selectConversation('non-existent');
@@ -184,10 +181,9 @@ void main() {
     await sendMsg('消息');
     final id = container.read(chatSessionsProvider).activeConversationId;
 
-    await container.read(chatSessionsProvider.notifier).renameConversation(
-      conversationId: id,
-      title: '重命名后',
-    );
+    await container
+        .read(chatSessionsProvider.notifier)
+        .renameConversation(conversationId: id, title: '重命名后');
 
     final renamed = container
         .read(chatSessionsProvider)
@@ -210,9 +206,9 @@ void main() {
     expect(state.conversations.length, 2);
 
     final toDelete = state.conversations.last.id;
-    await container
-        .read(chatSessionsProvider.notifier)
-        .deleteConversations({toDelete});
+    await container.read(chatSessionsProvider.notifier).deleteConversations({
+      toDelete,
+    });
 
     final after = container.read(chatSessionsProvider);
     expect(after.conversations.length, 1);
@@ -224,9 +220,9 @@ void main() {
     await sendMsg('消息');
 
     final id = container.read(chatSessionsProvider).activeConversationId;
-    await container
-        .read(chatSessionsProvider.notifier)
-        .deleteConversations({id});
+    await container.read(chatSessionsProvider.notifier).deleteConversations({
+      id,
+    });
 
     final state = container.read(chatSessionsProvider);
     expect(state.conversations.length, 1);
@@ -239,25 +235,29 @@ void main() {
     final id = container.read(chatSessionsProvider).activeConversationId;
 
     // 手动把 isStreaming 置为 true（模拟流式进行中）
-    container.read(chatSessionsProvider.notifier).sendMessage(
-      content: '第二条',
-      modelConfig: _testModel,
-      promptTemplate: null,
-      reasoningEnabled: false,
-      reasoningEffort: ReasoningEffort.medium,
-    );
+    container
+        .read(chatSessionsProvider.notifier)
+        .sendMessage(
+          content: '第二条',
+          modelConfig: _testModel,
+          promptTemplate: null,
+          reasoningEnabled: false,
+          reasoningEffort: ReasoningEffort.medium,
+        );
     // 在 Future 完成前读取状态（此处流式是同步 Stream，所以直接等待即可跳过测试）
     // 使用 isStreaming guard：传入空 Stream 时 isStreaming 仍为 true 直到 await 完成
     // 此测试仅验证 deleteConversations 在 isStreaming 时不删除已有记录
-    final countBefore =
-        container.read(chatSessionsProvider).conversations.length;
+    final countBefore = container
+        .read(chatSessionsProvider)
+        .conversations
+        .length;
     // 如果已经不在流式中（空流立即完成），跳过 isStreaming 验证
     if (!container.read(chatSessionsProvider).isStreaming) {
       return;
     }
-    await container
-        .read(chatSessionsProvider.notifier)
-        .deleteConversations({id});
+    await container.read(chatSessionsProvider.notifier).deleteConversations({
+      id,
+    });
     expect(
       container.read(chatSessionsProvider).conversations.length,
       countBefore,
@@ -270,8 +270,10 @@ void main() {
     fakeClient.enqueueChunks(['你好！']);
     await sendMsg('你好');
 
-    final messages =
-        container.read(chatSessionsProvider).activeConversation.messages;
+    final messages = container
+        .read(chatSessionsProvider)
+        .activeConversation
+        .messages;
     expect(messages.length, 2);
     expect(messages[0].role, ChatMessageRole.user);
     expect(messages[0].content, '你好');
@@ -283,19 +285,23 @@ void main() {
     fakeClient.enqueueChunks(['回复']);
     await sendMsg('  你好  ');
 
-    final messages =
-        container.read(chatSessionsProvider).activeConversation.messages;
+    final messages = container
+        .read(chatSessionsProvider)
+        .activeConversation
+        .messages;
     expect(messages[0].content, '你好');
   });
 
   test('sendMessage 纯空白内容为空操作', () async {
-    await container.read(chatSessionsProvider.notifier).sendMessage(
-      content: '   ',
-      modelConfig: _testModel,
-      promptTemplate: null,
-      reasoningEnabled: false,
-      reasoningEffort: ReasoningEffort.medium,
-    );
+    await container
+        .read(chatSessionsProvider.notifier)
+        .sendMessage(
+          content: '   ',
+          modelConfig: _testModel,
+          promptTemplate: null,
+          reasoningEnabled: false,
+          reasoningEffort: ReasoningEffort.medium,
+        );
     expect(
       container.read(chatSessionsProvider).activeConversation.hasMessages,
       isFalse,
@@ -322,8 +328,10 @@ void main() {
     await sendMsg('触发错误');
 
     // 空流失败后 assistant 占位节点应被移除，只剩 user 消息
-    final messages =
-        container.read(chatSessionsProvider).activeConversation.messages;
+    final messages = container
+        .read(chatSessionsProvider)
+        .activeConversation
+        .messages;
     expect(messages.length, 1);
     expect(messages.first.role, ChatMessageRole.user);
   });
@@ -342,13 +350,14 @@ void main() {
         .first
         .id;
 
-    await container.read(chatSessionsProvider.notifier).editMessage(
-      messageId: userMessageId,
-      nextContent: '修改后的问题',
-    );
+    await container
+        .read(chatSessionsProvider.notifier)
+        .editMessage(messageId: userMessageId, nextContent: '修改后的问题');
 
-    final messages =
-        container.read(chatSessionsProvider).activeConversation.messages;
+    final messages = container
+        .read(chatSessionsProvider)
+        .activeConversation
+        .messages;
     expect(messages.length, 2);
     expect(messages[0].content, '修改后的问题');
     expect(messages[1].content, '重新生成的回复');
@@ -365,14 +374,15 @@ void main() {
         .first
         .id;
 
-    await container.read(chatSessionsProvider.notifier).editMessage(
-      messageId: userMessageId,
-      nextContent: '   ',
-    );
+    await container
+        .read(chatSessionsProvider.notifier)
+        .editMessage(messageId: userMessageId, nextContent: '   ');
 
     // 消息树不应改变
-    final messages =
-        container.read(chatSessionsProvider).activeConversation.messages;
+    final messages = container
+        .read(chatSessionsProvider)
+        .activeConversation
+        .messages;
     expect(messages[0].content, '原始问题');
   });
 
@@ -385,8 +395,10 @@ void main() {
 
     await container.read(chatSessionsProvider.notifier).retryLatestAssistant();
 
-    final messages =
-        container.read(chatSessionsProvider).activeConversation.messages;
+    final messages = container
+        .read(chatSessionsProvider)
+        .activeConversation
+        .messages;
     expect(messages.length, 2);
     expect(messages.last.content, '重试回复');
   });
@@ -394,6 +406,45 @@ void main() {
   test('retryLatestAssistant 无助手消息时设置 errorMessage', () async {
     await container.read(chatSessionsProvider.notifier).retryLatestAssistant();
     expect(container.read(chatSessionsProvider).errorMessage, isNotNull);
+  });
+
+  test('retryLatestAssistant 可重试失败后未落树的最新用户消息', () async {
+    fakeClient.enqueueError(ChatCompletionException('503 unavailable'));
+    await sendMsg('先失败后重试');
+    expect(
+      container.read(chatSessionsProvider).activeConversation.messages,
+      hasLength(1),
+    );
+
+    fakeClient.enqueueChunks(['重试成功回复']);
+    await container.read(chatSessionsProvider.notifier).retryLatestAssistant();
+
+    final state = container.read(chatSessionsProvider);
+    final messages = state.activeConversation.messages;
+    expect(messages, hasLength(2));
+    expect(messages[0].role, ChatMessageRole.user);
+    expect(messages[1].role, ChatMessageRole.assistant);
+    expect(messages[1].content, '重试成功回复');
+    expect(state.errorMessage, isNull);
+
+    final userMessage = messages.first;
+    final assistantChildren = state.activeConversation.messageNodes
+        .where((node) {
+          return node.role == ChatMessageRole.assistant &&
+              node.parentId == userMessage.id;
+        })
+        .toList(growable: false);
+    expect(assistantChildren, hasLength(1));
+  });
+
+  test('sendMessage 未知异常时在错误信息中包含堆栈', () async {
+    fakeClient.enqueueError(StateError('boom'));
+    await sendMsg('触发未知异常');
+
+    final errorMessage = container.read(chatSessionsProvider).errorMessage;
+    expect(errorMessage, isNotNull);
+    expect(errorMessage, contains('Bad state: boom'));
+    expect(errorMessage, contains('```text'));
   });
 
   // ── clearError ─────────────────────────────────────────────────────────────

@@ -189,10 +189,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     supportsReasoning: supportsReasoning,
                     isStreaming: isStreaming,
                     errorMessage: errorMessage,
+                    errorModelDisplayName: selectedModel?.displayName ?? '模型',
                     showScrollToBottom: _showScrollToBottom,
-                    onDismissError: () {
-                      ref.read(chatSessionsProvider.notifier).clearError();
-                    },
                     onEditMessage: (message) async {
                       await _showEditMessageDialog(
                         context,
