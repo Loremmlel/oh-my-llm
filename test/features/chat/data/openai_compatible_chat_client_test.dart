@@ -101,6 +101,7 @@ void main() {
                   as Map<String, dynamic>;
           expect(payload.containsKey('thinking'), isFalse);
           expect(payload.containsKey('reasoning_effort'), isFalse);
+          expect(payload.containsKey('extra_body'), isFalse);
 
           return http.StreamedResponse(
             Stream.fromIterable([utf8.encode('data: [DONE]\n\n')]),
@@ -130,6 +131,7 @@ void main() {
             jsonDecode((request as http.Request).body) as Map<String, dynamic>;
         expect(payload.containsKey('thinking'), isFalse);
         expect(payload['reasoning_effort'], 'xhigh');
+        expect(payload.containsKey('extra_body'), isFalse);
 
         return http.StreamedResponse(
           Stream.fromIterable([utf8.encode('data: [DONE]\n\n')]),
@@ -150,6 +152,42 @@ void main() {
             ),
           ],
           reasoningEffort: ReasoningEffort.xhigh,
+        )
+        .drain<void>();
+  });
+
+  test('streamCompletion adds Gemini include_thoughts in extra_body', () async {
+    final client = OpenAiCompatibleChatClient(
+      httpClient: _FakeStreamingHttpClient((request) async {
+        final payload =
+            jsonDecode((request as http.Request).body) as Map<String, dynamic>;
+        expect(payload['reasoning_effort'], 'medium');
+        final extraBody = payload['extra_body'] as Map<String, dynamic>;
+        final google = extraBody['google'] as Map<String, dynamic>;
+        final thinkingConfig =
+            google['thinking_config'] as Map<String, dynamic>;
+        expect(thinkingConfig['include_thoughts'], isTrue);
+
+        return http.StreamedResponse(
+          Stream.fromIterable([utf8.encode('data: [DONE]\n\n')]),
+          200,
+        );
+      }),
+    );
+
+    await client
+        .streamCompletion(
+          modelConfig: _modelConfig(
+            apiUrl:
+                'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+          ),
+          messages: const [
+            ChatCompletionRequestMessage(
+              role: ChatMessageRole.user,
+              content: '你好',
+            ),
+          ],
+          reasoningEffort: ReasoningEffort.medium,
         )
         .drain<void>();
   });

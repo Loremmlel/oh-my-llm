@@ -55,6 +55,13 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
     if (thinkingConfig != null) {
       payload['thinking'] = thinkingConfig;
     }
+    final extraBody = _buildExtraBody(
+      uri,
+      reasoningEnabled: reasoningEffort != null,
+    );
+    if (extraBody != null) {
+      payload['extra_body'] = extraBody;
+    }
 
     final request = http.Request('POST', uri)
       ..headers.addAll({
@@ -394,6 +401,21 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
     return {'type': enabled ? 'enabled' : 'disabled'};
   }
 
+  /// Gemini OpenAI 兼容层可通过 extra_body 透传 thinking 配置。
+  Map<String, Object>? _buildExtraBody(
+    Uri uri, {
+    required bool reasoningEnabled,
+  }) {
+    if (!reasoningEnabled || !_isGoogleOpenAiCompatibleHost(uri.host)) {
+      return null;
+    }
+    return {
+      'google': {
+        'thinking_config': {'include_thoughts': true},
+      },
+    };
+  }
+
   /// 不做 reasoning effort 映射，直接使用用户设置的值；让 API 厂商处理兼容性。
   String _buildReasoningEffort(Uri uri, ReasoningEffort effort) {
     return effort.apiValue;
@@ -403,6 +425,11 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
   bool _isDeepSeekHost(String host) {
     final normalizedHost = host.toLowerCase();
     return normalizedHost == 'api.deepseek.com';
+  }
+
+  bool _isGoogleOpenAiCompatibleHost(String host) {
+    final normalizedHost = host.toLowerCase();
+    return normalizedHost == 'generativelanguage.googleapis.com';
   }
 }
 
