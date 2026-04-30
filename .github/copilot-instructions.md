@@ -62,28 +62,43 @@ Comments should use Simplified Chinese and follow these conventions (reference: 
   - edit-and-regenerate behavior
   - retrying only the latest assistant reply
   - streaming assistant updates into persisted state
-- Chat requests are built manually in `lib\features\chat\data\openai_compatible_chat_client.dart` using `package:http`, not an SDK. The client parses SSE-style `data:` lines, separates assistant answer text from reasoning text, and applies different request payload rules for official OpenAI hosts vs other OpenAI-compatible hosts.
+  - error handling and inline error display (errors appear as assistant messages in the conversation, not as popups)
+- Chat requests are built manually in `lib\features\chat\data\openai_compatible_chat_client.dart` using `package:http`, not an SDK. The client uses a **Strategy pattern** (`VendorPayloadAdapterRegistry` in `vendor_payload_adapters.dart`) to handle per-vendor API differences:
+  - **OpenAI official**: sends native `reasoning_effort`, receives `delta.reasoning_content`
+  - **Google AI compatible**: sends `extra_body.google.thinking_config.include_thoughts: true`, receives `delta.thinking` or `extra_content.google.thought_signature`
+  - **DeepSeek**: sends `thinking: {"type": "enabled"|"disabled"}`, receives `delta.thinking_content`
+  - **Other compatible hosts**: normalized `thinking` field, receives `delta.reasoning_content`
+- SSE parsing is factored into `lib\features\chat\data\chat_chunk_parser.dart` (`ChatChunkParser` class), which handles:
+  - Splitting `<thought>` XML tags (Google Gemma models)
+  - Accumulating various `thinking` fields (`delta.thinking`, `delta.reasoning_content`, `delta.thinking_content`)
+  - Correctly merging high-frequency chunks in the 300 ms flush window without losing vendor-specific fields
+- Stream state (`ChatStreamingReply`, `ChatSessionsState`, `applyStreamingReplyToConversation`) is factored into `lib\features\chat\application\chat_sessions_state.dart` to reduce controller file size; the controller re-exports this module so downstream imports remain unchanged.
+- Scroll and anchor logic is factored into `lib\features\chat\presentation\chat_scroll_controller.dart` (`ChatScrollController`), using callbacks to communicate with the owning `State` widget.
+- Network logging is centralized in `lib\core\logging\app_logger.dart` (singleton pattern), writing to `{AppData}/app_log.txt`. All HTTP requests/responses/errors are recorded for debugging vendor API compatibility issues.
 - History and chat share the same time-grouping logic from `lib\features\chat\domain\chat_conversation_groups.dart`; if grouping behavior changes, update both surfaces consistently.
 
 ## Key conventions
 
 - New chat conversations inherit **default model** and **default prompt template** from settings. The chat screen no longer lets users pick them directly; those defaults are managed in `SettingsScreen`.
+- **Model display in UI**: Assistant messages show the actual model's display name (e.g., "DeepSeek V4 Flash", "Gemini 3.1 Flash Lite") instead of generic "Model" label. Stored in `ChatMessage.assistantModelDisplayName`, displays as "Anonymous Model" if empty (for migrated older records).
 - Fixed prompt sequences are **user-message-only** ordered steps for manual comparison workflows. They are configured in settings, launched from the chat composer through an independent runner dialog, and must never auto-send the whole sequence in one go.
 - Reasoning is modeled separately from answer text:
   - assistant reply text lives in `ChatMessage.content`
-  - provider reasoning lives in `ChatMessage.reasoningContent`
-  - UI, persistence, and copy behavior should keep them separate
+  - reasoning content lives in `ChatMessage.reasoningContent` (vendor-agnostic, normalized internally)
+  - reasoning metadata lives in `ChatMessage.assistantModelDisplayName`
+  - UI, persistence, and copy behavior should keep them separate; each feature must decide independently whether to show reasoning
 - Prompt templates are prepended to request history in `ChatSessionsController._buildRequestMessages()` as:
   1. system prompt, if present
   2. template messages
   3. conversation messages
 - Editing an older user message does **not** replay the rest of the conversation. The controller truncates after the edited user turn, then regenerates a new assistant reply from that point.
 - History search intentionally matches only conversation title and **user** messages, never assistant replies.
-- Conversation titles are derived from the first user message (`15` characters via `characters`) unless the user renamed the conversation explicitly.
-- The OpenAI-compatible request payload is host-sensitive:
+- Conversation titles are derived from the first user message (`15` characters via `characters`) unless the user renamed the conversation explicitly. Custom titles show only the title in history list (no preview text) to save space on mobile; desktop shows tooltip on hover.
+- The OpenAI-compatible request payload is host-sensitive (handled by `VendorPayloadAdapterRegistry`):
   - official OpenAI hosts: omit `thinking`, send native `reasoning_effort`
-  - other compatible hosts: send `thinking: {"type":"enabled"|"disabled"}`
-  - compatible-host effort values are normalized in the client before sending
+  - Google AI compatible: omit `reasoning_effort`, send `extra_body.google.thinking_config.include_thoughts: true`
+  - DeepSeek and others: send `thinking: {"type":"enabled"|"disabled"}`
+  - compatible-host effort values are normalized in adapters before sending
 - On mobile, the favorites detail top metadata bar must always enforce width constraints and prevent horizontal overflow (long timestamps/source titles must wrap or ellipsize safely).
 - Widget tests usually seed storage with `SharedPreferences.setMockInitialValues(...)` and inject dependencies with `ProviderScope` overrides. When chat history, favorites, or collections are involved, also override `appDatabaseProvider` with the test database helper.
 - When splitting tests, keep only one runnable `*_test.dart` entrypoint per suite; move shared cases into helper files such as `*_cases.dart` so Flutter does not discover them as separate test targets.
@@ -106,3 +121,25 @@ Test structure: single `*_test.dart` entry point + multiple `*_cases.dart` helpe
 - Fake clients: `FakeChatCompletionClient` (from test helpers) with `enqueueChunks()` and `enqueueError()` for streaming tests
 - Database: `createTestDatabase(preferences)` runs full migration stack V1→V3
 - Error injection: catch `ChatCompletionException` in controller; stream.error() for null-content cleanup tests
+- Parser tests: inject mock vendor adapters via constructor to validate Strategy pattern behavior per vendor
+- Adapter tests: verify payload construction, field presence/absence, and error handling for each vendor
+
+## Design patterns and refactoring
+
+**Strategy Pattern (vendor payload adapters):**
+- `VendorPayloadAdapter` interface abstracts vendor-specific API differences
+- `VendorPayloadAdapterRegistry` holds a registry of adapter implementations (OpenAI, Google, DeepSeek, Default)
+- `OpenAiCompatibleChatClient` queries the registry to get the correct adapter, then calls `buildPatch()` to customize the request payload
+- Benefit: eliminates vendor-specific `if` branches scattered throughout the client; new vendors can be added by implementing the interface and registering with the registry
+
+**File splitting with export boundaries:**
+- When a file exceeds ~300-400 lines, split into focused modules using `import` / `export` boundaries
+- Example: `ChatSessionsState` extracted from `ChatSessionsController` into separate file; controller re-exports to keep external imports unchanged
+- Example: `ChatChunkParser` extracted from `OpenAiCompatibleChatClient` into separate file; parser handles all SSE frame decoding
+- Example: `ChatScrollController` extracted from `ChatScreen` to isolate scroll/anchor management
+- Benefit: improved readability, testability, and reduced circular import risk
+
+**Singleton pattern (logging):**
+- `AppLogger` initialized once in `bootstrap.dart`, injected as dependency where needed
+- Centralized logging of all HTTP traffic for debugging vendor API compatibility issues
+- Automatic cleanup when log file exceeds 1 MB or on app shutdown
