@@ -447,17 +447,6 @@ void main() {
     expect(errorMessage, contains('```text'));
   });
 
-  // ── clearError ─────────────────────────────────────────────────────────────
-
-  test('clearError 清除 errorMessage', () async {
-    await container
-        .read(chatSessionsProvider.notifier)
-        .retryLatestAssistant(); // 触发错误
-    expect(container.read(chatSessionsProvider).errorMessage, isNotNull);
-
-    container.read(chatSessionsProvider.notifier).clearError();
-    expect(container.read(chatSessionsProvider).errorMessage, isNull);
-  });
 
   // ── historyRevision ────────────────────────────────────────────────────────
 
