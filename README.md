@@ -5,6 +5,7 @@
 - 📱 **多端**：Windows 桌面、Android（iOS/macOS 理论可用，未测试）
 - 🔌 **无厂商绑定**：任意 OpenAI 兼容接口（OpenAI 官方、Claude、DeepSeek、本地 Ollama 等）
 - 🧠 **推理模型支持**：内置 thinking / reasoning_effort 控制，推理内容独立展示
+- 📚 **高性能 Markdown 渲染**：基于 `flutter_smooth_markdown`，支持流式场景与 LaTeX 公式
 - 📝 **消息树**：每条用户消息可编辑生成新分支，无限版本切换
 - 🗂️ **Prompt 模板**：可复用 system 指令 + 附加消息，随时切换
 - 🔢 **固定顺序提示词**：预设多步 Prompt，比较测试时逐步手动发送
@@ -200,10 +201,13 @@ lib/
 ### 流式渲染性能
 
 `StreamingMarkdownView` 把长文本分为两层：
-- **渲染快照**（`MarkdownBody`）：以动态定时器按 `clamp(length × 0.4 + 1000, 1000, 5000) ms` 间隔刷新，内容越长刷新越慢
+- **渲染快照**（Markdown 组件）：以动态定时器按 `clamp(length × 0.4 + 1000, 1000, 5000) ms` 间隔刷新，内容越长刷新越慢
 - **实时尾部**（`SelectableText`）：快照之后新增的纯文本，每次 build 即时更新，成本极低
 
 UI 更新节流阈值为 300 ms，高频 SSE token 在内存中聚合后统一触发 Riverpod 状态更新。
+
+当前采用双实现切换策略：默认 `flutter_smooth_markdown`，并在
+`lib\features\chat\presentation\widgets\chat_markdown_engine.dart` 保留 legacy 回滚开关。
 
 ---
 
