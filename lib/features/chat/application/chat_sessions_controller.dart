@@ -542,14 +542,6 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     );
   }
 
-  /// 清除当前错误提示。
-  void clearError() {
-    if (state.errorMessage == null) {
-      return;
-    }
-
-    state = state.copyWith(clearErrorMessage: true);
-  }
 
   /// 发送新消息并触发模型流式回复。
   Future<void> sendMessage({
