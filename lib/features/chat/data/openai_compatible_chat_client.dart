@@ -10,6 +10,7 @@ import '../../settings/domain/models/llm_model_config.dart';
 import '../domain/models/chat_message.dart';
 import 'chat_chunk_parser.dart';
 import 'chat_completion_client.dart';
+import 'vendor_payload_adapters.dart';
 
 /// OpenAI 兼容接口的 HTTP 流式客户端提供者。
 final chatCompletionClientProvider = Provider<ChatCompletionClient>((ref) {
@@ -24,11 +25,14 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
   OpenAiCompatibleChatClient({
     required http.Client httpClient,
     NetworkLogger logger = const NoopNetworkLogger(),
+    VendorPayloadAdapterRegistry adapters = VendorPayloadAdapterRegistry.standard,
   }) : _httpClient = httpClient,
-       _logger = logger;
+       _logger = logger,
+       _adapters = adapters;
 
   final http.Client _httpClient;
   final NetworkLogger _logger;
+  final VendorPayloadAdapterRegistry _adapters;
   static const _parser = ChatChunkParser();
 
   @override
@@ -42,30 +46,20 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
     if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
       throw const ChatCompletionException('API URL 无效，请在设置页检查模型配置。');
     }
-    final thinkingConfig = _buildThinkingConfig(
-      uri,
-      enabled: reasoningEffort != null,
-    );
-    final usesGoogleThinkingConfig =
-        reasoningEffort != null && _isGoogleOpenAiCompatibleHost(uri.host);
-    // DeepSeek 主机需要 thinking 字段；reasoning_effort 无论如何都不做映射。
-    // Google OpenAI 兼容端点要求 reasoning_effort 与 thinking_config 二选一。
+
+    final patch = _adapters.resolve(uri.host).buildPatch(reasoningEffort);
     final payload = <String, Object>{
       'model': modelConfig.modelName,
       'stream': true,
       'messages': messages.map((message) => message.toJson()).toList(),
-      if (reasoningEffort != null && !usesGoogleThinkingConfig)
-        'reasoning_effort': _buildReasoningEffort(uri, reasoningEffort),
+      if (reasoningEffort != null && !patch.skipStandardReasoningEffort)
+        'reasoning_effort': reasoningEffort.apiValue,
     };
-    if (thinkingConfig != null) {
-      payload['thinking'] = thinkingConfig;
+    if (patch.thinkingConfig != null) {
+      payload['thinking'] = patch.thinkingConfig!;
     }
-    final extraBody = _buildExtraBody(
-      uri,
-      useThinkingConfig: usesGoogleThinkingConfig,
-    );
-    if (extraBody != null) {
-      payload['extra_body'] = extraBody;
+    if (patch.extraBody != null) {
+      payload['extra_body'] = patch.extraBody!;
     }
 
     final request = http.Request('POST', uri)
@@ -203,45 +197,5 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
     }
 
     return eventData;
-  }
-
-  /// DeepSeek 主机需要显式携带 thinking 开关。
-  Map<String, String>? _buildThinkingConfig(Uri uri, {required bool enabled}) {
-    if (!_isDeepSeekHost(uri.host)) {
-      return null;
-    }
-
-    return {'type': enabled ? 'enabled' : 'disabled'};
-  }
-
-  /// Gemini OpenAI 兼容层可通过 extra_body 透传 thinking 配置。
-  Map<String, Object>? _buildExtraBody(
-    Uri uri, {
-    required bool useThinkingConfig,
-  }) {
-    if (!useThinkingConfig || !_isGoogleOpenAiCompatibleHost(uri.host)) {
-      return null;
-    }
-    return {
-      'google': {
-        'thinking_config': {'include_thoughts': true},
-      },
-    };
-  }
-
-  /// 不做 reasoning effort 映射，直接使用用户设置的值；让 API 厂商处理兼容性。
-  String _buildReasoningEffort(Uri uri, ReasoningEffort effort) {
-    return effort.apiValue;
-  }
-
-  /// 判断是否为 DeepSeek 主机。
-  bool _isDeepSeekHost(String host) {
-    final normalizedHost = host.toLowerCase();
-    return normalizedHost == 'api.deepseek.com';
-  }
-
-  bool _isGoogleOpenAiCompatibleHost(String host) {
-    final normalizedHost = host.toLowerCase();
-    return normalizedHost == 'generativelanguage.googleapis.com';
   }
 }
