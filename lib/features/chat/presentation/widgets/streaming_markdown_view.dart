@@ -3,6 +3,32 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 
+const Map<String, String> _latexCommandSymbolMap = {
+  'LeftArrow': '←',
+  'leftarrow': '←',
+  'RightArrow': '→',
+  'rightarrow': '→',
+  'LeftRightArrow': '↔',
+  'leftrightarrow': '↔',
+  'Longleftarrow': '⟸',
+  'Longrightarrow': '⟹',
+  'Longleftrightarrow': '⟺',
+};
+
+/// 对常见 TeX 控制序列做轻量文本兼容。
+///
+/// 当前不引入完整公式引擎，仅将形如 `$\\LeftArrow$` 的常见符号写法降级为可读字符，
+/// 未识别的命令保持原样，避免误改普通文本。
+String normalizeLatexLikeTextForDisplay(String input) {
+  return input.replaceAllMapped(RegExp(r'\$\\([A-Za-z]+)\$'), (match) {
+    final command = match.group(1);
+    if (command == null) {
+      return match.group(0) ?? '';
+    }
+    return _latexCommandSymbolMap[command] ?? (match.group(0) ?? '');
+  });
+}
+
 /// 流式 Markdown 渲染组件。
 ///
 /// 流式期间将内容分为两个层次展示：
@@ -131,9 +157,10 @@ class _StreamingMarkdownViewState extends State<StreamingMarkdownView> {
   /// 构建带主题样式的 [MarkdownBody]。
   Widget _buildMarkdownWidget(String content) {
     final theme = Theme.of(context);
-    final data = content.isEmpty && widget.isStreaming
+    final normalizedContent = normalizeLatexLikeTextForDisplay(content);
+    final data = normalizedContent.isEmpty && widget.isStreaming
         ? '_正在等待模型返回内容..._'
-        : content;
+        : normalizedContent;
     return MarkdownBody(
       data: data,
       selectable: true,
@@ -156,7 +183,9 @@ class _StreamingMarkdownViewState extends State<StreamingMarkdownView> {
     }
 
     // 流式状态：快照之后新增的部分作为纯文本尾部，每次 build 即时更新，成本极低。
-    final tail = widget.content.substring(_renderedContent.length).trimLeft();
+    final tail = normalizeLatexLikeTextForDisplay(
+      widget.content.substring(_renderedContent.length).trimLeft(),
+    );
     final theme = Theme.of(context);
 
     return Column(
