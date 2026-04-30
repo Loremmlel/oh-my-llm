@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -228,5 +229,68 @@ void registerChatScreenBranchingTests() {
     expect(find.textContaining('原始用户1'), findsWidgets);
     expect(find.textContaining('原始用户2'), findsWidgets);
     expect(find.textContaining('原始回复二'), findsWidgets);
+  });
+
+  testWidgets('delete message dialog offers current branch or all versions', (
+    tester,
+  ) async {
+    final preferences = await createSeededPreferences();
+    final fakeClient = FakeChatCompletionClient()
+      ..enqueueChunks(['首次回复'])
+      ..enqueueChunks(['重试后回复']);
+
+    await pumpChatScreen(
+      tester,
+      preferences: preferences,
+      fakeClient: fakeClient,
+    );
+
+    await sendMessage(tester, '测试删除弹窗');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('重试回复'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('删除消息').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('删除哪个范围？'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, '删除当前分支'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, '删除全部版本'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(FilledButton, '删除当前分支'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('首次回复'), findsWidgets);
+    expect(find.textContaining('重试后回复'), findsNothing);
+    expect(find.text('1/1'), findsNothing);
+  });
+
+  testWidgets('delete all assistant versions removes the reply node', (
+    tester,
+  ) async {
+    final preferences = await createSeededPreferences();
+    final fakeClient = FakeChatCompletionClient()
+      ..enqueueChunks(['首次回复'])
+      ..enqueueChunks(['重试后回复']);
+
+    await pumpChatScreen(
+      tester,
+      preferences: preferences,
+      fakeClient: fakeClient,
+    );
+
+    await sendMessage(tester, '测试全部删除');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('重试回复'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('删除消息').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, '删除全部版本'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('首次回复'), findsNothing);
+    expect(find.textContaining('重试后回复'), findsNothing);
+    expect(find.textContaining('测试全部删除'), findsWidgets);
   });
 }

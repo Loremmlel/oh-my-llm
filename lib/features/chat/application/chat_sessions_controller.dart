@@ -19,6 +19,9 @@ import '../domain/models/chat_message.dart';
 
 export 'chat_sessions_state.dart';
 
+/// 删除消息时的作用范围。
+enum ChatMessageDeletionScope { currentBranch, allBranches }
+
 /// 主入口 provider，暴露完整会话状态和操作接口。
 final chatSessionsProvider =
     NotifierProvider<ChatSessionsController, ChatSessionsState>(
@@ -79,6 +82,11 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
   ChatCompletionClient get _chatClient =>
       ref.read(chatCompletionClientProvider);
 
+  StreamSubscription<ChatCompletionChunk>? _activeStreamingSubscription;
+  Completer<ChatConversation?>? _activeStreamingCompleter;
+  ChatStreamingReply? _latestStreamingReply;
+  bool _streamStopRequested = false;
+
   // ── 生命周期 ────────────────────────────────────────────────────────────────
 
   /// 读取持久化数据并初始化当前会话状态。
@@ -86,6 +94,9 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
   /// 若数据库为空则自动创建一个新的空白会话作为初始状态。
   @override
   ChatSessionsState build() {
+    ref.onDispose(() {
+      _activeStreamingSubscription?.cancel();
+    });
     final conversations = _sort(_repository.loadAll());
     final initialConversation = conversations.isEmpty
         ? _createConversation()
@@ -222,6 +233,35 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
         clearSelectedPromptTemplateId: clearSelectedPromptTemplateId,
       ),
     );
+  }
+
+  /// 终止当前流式回复，并保留已收到的部分内容。
+  Future<ChatConversation?> stopStreaming() async {
+    if (!state.isStreaming) {
+      return null;
+    }
+
+    _streamStopRequested = true;
+    final subscription = _activeStreamingSubscription;
+    _activeStreamingSubscription = null;
+    await subscription?.cancel();
+
+    final stoppedConversation = _buildConversationAfterStreamingInterrupt(
+      conversation: state.activeConversation,
+      streamingReply: _latestStreamingReply ?? state.streamingReply,
+    );
+    state = state.copyWith(
+      conversations: _replaceConversation(stoppedConversation),
+      isStreaming: false,
+      clearStreamingReply: true,
+      clearErrorMessage: true,
+      incrementHistoryRevision: true,
+    );
+    await _saveAll();
+
+    _completeActiveStreaming(stoppedConversation);
+    _clearActiveStreamingSession();
+    return stoppedConversation;
   }
 
   /// 切换某个父节点下的选中消息版本。
@@ -388,7 +428,6 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     );
   }
 
-
   /// 发送新消息并触发模型流式回复。
   Future<void> sendMessage({
     required String content,
@@ -426,7 +465,6 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
       messageNodes: pendingNodes,
       selectedChildByParentId: pendingSelections,
       updatedAt: timestamp,
-      selectedPromptTemplateId: promptTemplate?.id,
       reasoningEnabled: reasoningEnabled,
       reasoningEffort: reasoningEffort,
     );
@@ -441,18 +479,71 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     );
   }
 
+  /// 删除一条当前可见消息；当 [scope] 为全部版本时，会删除同父节点下所有兄弟分支。
+  Future<void> deleteMessage({
+    required String messageId,
+    required ChatMessageDeletionScope scope,
+  }) async {
+    if (state.isStreaming) {
+      return;
+    }
+
+    final currentConversation = state.activeConversation;
+    final tree = resolveMessageTreeState(currentConversation);
+    final targetMessage = tree.nodes.where((message) {
+      return message.id == messageId;
+    }).firstOrNull;
+    if (targetMessage == null) {
+      return;
+    }
+
+    final parentId = targetMessage.parentId ?? rootConversationParentId;
+    final siblingIds = tree.nodes
+        .where((message) {
+          return (message.parentId ?? rootConversationParentId) == parentId;
+        })
+        .map((message) => message.id)
+        .toList(growable: false);
+    final removedIds = scope == ChatMessageDeletionScope.allBranches
+        ? siblingIds
+        : [messageId];
+
+    var nextTree = tree;
+    for (final removedId in removedIds) {
+      nextTree = removeNodeFromTree(treeState: nextTree, nodeId: removedId);
+    }
+
+    final remainingSiblings = nextTree.nodes
+        .where((message) {
+          return (message.parentId ?? rootConversationParentId) == parentId;
+        })
+        .toList(growable: false);
+    final nextSelections = Map<String, String>.from(nextTree.selections);
+    if (remainingSiblings.isEmpty) {
+      nextSelections.remove(parentId);
+    } else {
+      nextSelections[parentId] = remainingSiblings.first.id;
+    }
+
+    await _updateActiveConversation(
+      currentConversation.copyWith(
+        messageNodes: nextTree.nodes,
+        selectedChildByParentId: nextSelections,
+        updatedAt: DateTime.now(),
+      ),
+    );
+  }
+
   // ── 私有辅助 ────────────────────────────────────────────────────────────────
 
   /// 创建一个空会话并继承设置页中的默认选择。
   ChatConversation _createConversation() {
     final now = DateTime.now();
-    final chatDefaults = ref.read(chatDefaultsProvider);
     return ChatConversation(
       id: generateEntityId(),
       messages: const [],
       createdAt: now,
       updatedAt: now,
-      selectedPromptTemplateId: chatDefaults.defaultPromptTemplateId,
       reasoningEffort: ReasoningEffort.medium,
     );
   }
@@ -536,7 +627,6 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
       messageNodes: initialTree.nodes,
       selectedChildByParentId: initialTree.selections,
       updatedAt: timestamp,
-      selectedPromptTemplateId: promptTemplate?.id,
       reasoningEnabled: reasoningEnabled,
       reasoningEffort: reasoningEffort,
     );
@@ -544,6 +634,10 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
       conversationId: streamingConversation.id,
       assistantMessageId: assistantMessage.id,
     );
+    final completer = Completer<ChatConversation?>();
+    _activeStreamingCompleter = completer;
+    _latestStreamingReply = streamingReply;
+    _streamStopRequested = false;
 
     // 先把占位消息写入内存和持久层，确保刷新后仍能恢复进度。
     state = state.copyWith(
@@ -555,43 +649,20 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     );
     await _saveAll();
 
-    try {
-      final responseBuffer = StringBuffer();
-      final reasoningBuffer = StringBuffer();
-      var lastUiFlushAt = timestamp.subtract(_streamUiFlushInterval);
-      await for (final chunk in _chatClient.streamCompletion(
-        modelConfig: modelConfig,
-        messages: buildRequestMessages(
-          promptTemplate: promptTemplate,
-          conversationMessages: requestConversationMessages,
-        ),
-        reasoningEffort: reasoningEnabled && modelConfig.supportsReasoning
-            ? reasoningEffort
-            : null,
-      )) {
-        if (chunk.isEmpty) {
-          continue;
-        }
+    final responseBuffer = StringBuffer();
+    final reasoningBuffer = StringBuffer();
+    var lastUiFlushAt = timestamp.subtract(_streamUiFlushInterval);
 
-        responseBuffer.write(chunk.contentDelta);
-        reasoningBuffer.write(chunk.reasoningDelta);
-        streamingReply = streamingReply.copyWith(
-          content: responseBuffer.toString(),
-          reasoningContent: reasoningBuffer.toString(),
-        );
-        final now = DateTime.now();
-        if (now.difference(lastUiFlushAt) < _streamUiFlushInterval) {
-          continue;
-        }
-
-        _replaceStreamingReplyInMemory(streamingReply);
-        lastUiFlushAt = now;
+    Future<void> completeWithSuccess() async {
+      if (_streamStopRequested || completer.isCompleted) {
+        return;
       }
 
       streamingReply = streamingReply.copyWith(
         content: responseBuffer.toString(),
         reasoningContent: reasoningBuffer.toString(),
       );
+      _latestStreamingReply = streamingReply;
       _replaceStreamingReplyInMemory(streamingReply);
 
       // 持续用最新增量覆盖同一条 assistant 消息，但只在结束时真正写回会话列表。
@@ -608,24 +679,70 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
         incrementHistoryRevision: true,
       );
       await _saveAll();
-      return completedConversation;
-    } on ChatCompletionException catch (error) {
-      await _handleStreamingFailure(
-        conversation: streamingConversation,
-        streamingReply: streamingReply,
-        assistantMessageId: assistantMessage.id,
-        errorMessage: error.message,
-      );
-    } catch (error, stackTrace) {
-      await _handleStreamingFailure(
-        conversation: streamingConversation,
-        streamingReply: streamingReply,
-        assistantMessageId: assistantMessage.id,
-        errorMessage: _formatUnexpectedStreamingError(error, stackTrace),
-      );
+      _completeActiveStreaming(completedConversation);
+      _clearActiveStreamingSession();
     }
 
-    return null;
+    Future<void> completeWithError(Object error, StackTrace stackTrace) async {
+      if (_streamStopRequested || completer.isCompleted) {
+        return;
+      }
+
+      final errorMessage = error is ChatCompletionException
+          ? error.message
+          : _formatUnexpectedStreamingError(error, stackTrace);
+      await _handleStreamingFailure(
+        conversation: streamingConversation,
+        streamingReply: streamingReply,
+        assistantMessageId: assistantMessage.id,
+        errorMessage: errorMessage,
+      );
+      _completeActiveStreaming(null);
+      _clearActiveStreamingSession();
+    }
+
+    _activeStreamingSubscription = _chatClient
+        .streamCompletion(
+          modelConfig: modelConfig,
+          messages: buildRequestMessages(
+            promptTemplate: promptTemplate,
+            conversationMessages: requestConversationMessages,
+          ),
+          reasoningEffort: reasoningEnabled && modelConfig.supportsReasoning
+              ? reasoningEffort
+              : null,
+        )
+        .listen(
+          (chunk) {
+            if (chunk.isEmpty || _streamStopRequested) {
+              return;
+            }
+
+            responseBuffer.write(chunk.contentDelta);
+            reasoningBuffer.write(chunk.reasoningDelta);
+            streamingReply = streamingReply.copyWith(
+              content: responseBuffer.toString(),
+              reasoningContent: reasoningBuffer.toString(),
+            );
+            _latestStreamingReply = streamingReply;
+            final now = DateTime.now();
+            if (now.difference(lastUiFlushAt) < _streamUiFlushInterval) {
+              return;
+            }
+
+            _replaceStreamingReplyInMemory(streamingReply);
+            lastUiFlushAt = now;
+          },
+          onDone: () {
+            unawaited(completeWithSuccess());
+          },
+          onError: (Object error, StackTrace stackTrace) {
+            unawaited(completeWithError(error, stackTrace));
+          },
+          cancelOnError: false,
+        );
+
+    return completer.future;
   }
 
   /// 仅刷新流式增量，不去改动完整会话列表。
@@ -702,9 +819,60 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
       return null;
     }
 
+    final defaultPromptTemplateId = ref
+        .read(chatDefaultsProvider)
+        .defaultPromptTemplateId;
     return promptTemplates.where((template) {
-      return template.id == conversation.selectedPromptTemplateId;
+      return template.id == defaultPromptTemplateId;
     }).firstOrNull;
+  }
+
+  ChatConversation _buildConversationAfterStreamingInterrupt({
+    required ChatConversation conversation,
+    required ChatStreamingReply? streamingReply,
+  }) {
+    if (streamingReply == null) {
+      return conversation.copyWith(updatedAt: DateTime.now());
+    }
+
+    final hasPartialContent =
+        streamingReply.content.trim().isNotEmpty ||
+        streamingReply.reasoningContent.trim().isNotEmpty;
+    final tree = resolveMessageTreeState(conversation);
+    final nextTree = hasPartialContent
+        ? replaceAssistantMessageInTree(
+            treeState: tree,
+            assistantMessageId: streamingReply.assistantMessageId,
+            nextContent: streamingReply.content,
+            nextReasoningContent: streamingReply.reasoningContent,
+            isStreaming: false,
+          )
+        : removeNodeFromTree(
+            treeState: tree,
+            nodeId: streamingReply.assistantMessageId,
+          );
+
+    return conversation.copyWith(
+      messageNodes: nextTree.nodes,
+      selectedChildByParentId: nextTree.selections,
+      updatedAt: DateTime.now(),
+    );
+  }
+
+  void _completeActiveStreaming(ChatConversation? conversation) {
+    final completer = _activeStreamingCompleter;
+    if (completer == null || completer.isCompleted) {
+      return;
+    }
+
+    completer.complete(conversation);
+  }
+
+  void _clearActiveStreamingSession() {
+    _activeStreamingSubscription = null;
+    _activeStreamingCompleter = null;
+    _latestStreamingReply = null;
+    _streamStopRequested = false;
   }
 
   /// 更新错误信息并保留在状态中，供界面展示。

@@ -1,14 +1,18 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/features/chat/data/chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
+import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/thinking_toggle.dart';
+import 'package:oh_my_llm/features/settings/application/chat_defaults_controller.dart';
 import 'package:oh_my_llm/features/settings/data/chat_defaults_repository.dart';
 import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dart';
+import 'package:oh_my_llm/features/settings/data/prompt_template_repository.dart';
 
 import 'chat_screen_test_helpers.dart';
 
@@ -271,4 +275,152 @@ void registerChatScreenBasicsTests() {
     expect(find.textContaining('第 8 条回复'), findsWidgets);
     expect(find.byTooltip('滚动到底部'), findsNothing);
   });
+
+  testWidgets(
+    'chat screen uses the latest default Prompt for an existing conversation',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({
+        llmModelConfigsStorageKey: jsonEncode([
+          {
+            'id': 'model-1',
+            'displayName': 'GPT-4.1',
+            'apiUrl': 'https://api.example.com/v1/chat/completions',
+            'apiKey': 'sk-test-12345678',
+            'modelName': 'gpt-4.1',
+            'supportsReasoning': true,
+          },
+        ]),
+        promptTemplatesStorageKey: jsonEncode([
+          {
+            'id': 'prompt-1',
+            'name': '模板一',
+            'systemPrompt': '',
+            'messages': [
+              {
+                'id': 'prompt-1-message-1',
+                'role': 'user',
+                'content': '模板一前置',
+                'placement': 'before',
+              },
+            ],
+            'updatedAt': DateTime(2026, 4, 30).toIso8601String(),
+          },
+          {
+            'id': 'prompt-2',
+            'name': '模板二',
+            'systemPrompt': '',
+            'messages': [
+              {
+                'id': 'prompt-2-message-1',
+                'role': 'user',
+                'content': '模板二前置',
+                'placement': 'before',
+              },
+            ],
+            'updatedAt': DateTime(2026, 4, 30, 0, 1).toIso8601String(),
+          },
+        ]),
+        chatDefaultsStorageKey: jsonEncode({
+          'defaultPromptTemplateId': 'prompt-1',
+        }),
+      });
+      final preferences = await SharedPreferences.getInstance();
+      final fakeClient = FakeChatCompletionClient()
+        ..enqueueChunks(['第一次回复'])
+        ..enqueueChunks(['第二次回复']);
+
+      await pumpChatScreen(
+        tester,
+        preferences: preferences,
+        fakeClient: fakeClient,
+      );
+
+      await sendMessage(tester, '第一次问题');
+      await tester.pumpAndSettle();
+      expect(fakeClient.requestHistory.first.first.content, '模板一前置');
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ChatScreen)),
+      );
+      await container
+          .read(chatDefaultsProvider.notifier)
+          .setDefaultPromptTemplateId('prompt-2');
+      await tester.pumpAndSettle();
+
+      await sendMessage(tester, '第二次问题');
+      await tester.pumpAndSettle();
+
+      final lastRequestContents = fakeClient.requestHistory.last
+          .map((message) => message.content)
+          .toList(growable: false);
+      expect(lastRequestContents.first, '模板二前置');
+      expect(lastRequestContents, isNot(contains('模板一前置')));
+    },
+  );
+
+  testWidgets(
+    'chat screen does not fall back to a stale conversation Prompt after clearing the default',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({
+        llmModelConfigsStorageKey: jsonEncode([
+          {
+            'id': 'model-1',
+            'displayName': 'GPT-4.1',
+            'apiUrl': 'https://api.example.com/v1/chat/completions',
+            'apiKey': 'sk-test-12345678',
+            'modelName': 'gpt-4.1',
+            'supportsReasoning': true,
+          },
+        ]),
+        promptTemplatesStorageKey: jsonEncode([
+          {
+            'id': 'prompt-1',
+            'name': '模板一',
+            'systemPrompt': '',
+            'messages': [
+              {
+                'id': 'prompt-1-message-1',
+                'role': 'user',
+                'content': '模板一前置',
+                'placement': 'before',
+              },
+            ],
+            'updatedAt': DateTime(2026, 4, 30).toIso8601String(),
+          },
+        ]),
+        chatDefaultsStorageKey: jsonEncode({
+          'defaultPromptTemplateId': 'prompt-1',
+        }),
+      });
+      final preferences = await SharedPreferences.getInstance();
+      final fakeClient = FakeChatCompletionClient()
+        ..enqueueChunks(['第一次回复'])
+        ..enqueueChunks(['第二次回复']);
+
+      await pumpChatScreen(
+        tester,
+        preferences: preferences,
+        fakeClient: fakeClient,
+      );
+
+      await sendMessage(tester, '第一次问题');
+      await tester.pumpAndSettle();
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ChatScreen)),
+      );
+      await container
+          .read(chatDefaultsProvider.notifier)
+          .setDefaultPromptTemplateId(null);
+      await tester.pumpAndSettle();
+
+      await sendMessage(tester, '第二次问题');
+      await tester.pumpAndSettle();
+
+      final lastRequestContents = fakeClient.requestHistory.last
+          .map((message) => message.content)
+          .toList(growable: false);
+      expect(lastRequestContents, ['第一次问题', '第一次回复', '第二次问题']);
+    },
+  );
 }
