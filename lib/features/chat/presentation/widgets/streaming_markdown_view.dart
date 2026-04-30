@@ -277,7 +277,11 @@ class _StreamingMarkdownViewState extends State<StreamingMarkdownView> {
           ),
         );
       case ChatMarkdownEngine.smooth:
-        return smooth_md.SmoothMarkdown(data: data, selectable: true);
+        return smooth_md.SmoothMarkdown(
+          data: data,
+          selectable: true,
+          styleSheet: smooth_md.MarkdownStyleSheet.fromTheme(theme),
+        );
     }
   }
 
@@ -290,9 +294,11 @@ class _StreamingMarkdownViewState extends State<StreamingMarkdownView> {
         widget.content,
       );
       if (!widget.isStreaming) {
+        final theme = Theme.of(context);
         return smooth_md.SmoothMarkdown(
           data: normalizedContent,
           selectable: true,
+          styleSheet: smooth_md.MarkdownStyleSheet.fromTheme(theme),
         );
       }
 
@@ -315,6 +321,7 @@ class _StreamingMarkdownViewState extends State<StreamingMarkdownView> {
           smooth_md.StreamMarkdown(
             stream: controller.stream,
             selectable: true,
+            styleSheet: smooth_md.MarkdownStyleSheet.fromTheme(theme),
             loadingWidget: Text(
               '正在等待模型返回内容...',
               style: theme.textTheme.bodyLarge?.copyWith(
