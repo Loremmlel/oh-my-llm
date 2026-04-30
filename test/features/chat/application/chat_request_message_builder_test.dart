@@ -35,8 +35,16 @@ void main() {
     );
   }
 
-  PromptMessage _tplMsg(PromptMessageRole role, String content) =>
-      PromptMessage(id: 'pm1', role: role, content: content);
+  PromptMessage _tplMsg(
+    PromptMessageRole role,
+    String content, {
+    PromptMessagePlacement placement = PromptMessagePlacement.before,
+  }) => PromptMessage(
+    id: 'pm1',
+    role: role,
+    content: content,
+    placement: placement,
+  );
 
   // ── 无模板 ────────────────────────────────────────────────────────────────
 
@@ -44,10 +52,7 @@ void main() {
     test('只返回会话消息', () {
       final result = buildRequestMessages(
         promptTemplate: null,
-        conversationMessages: [
-          _userMsg('你好'),
-          _assistantMsg('你好！'),
-        ],
+        conversationMessages: [_userMsg('你好'), _assistantMsg('你好！')],
       );
 
       expect(result, hasLength(2));
@@ -166,6 +171,49 @@ void main() {
       expect(result, hasLength(1));
       expect(result.single.content, '问题');
     });
+
+    test('after 模板消息排在会话消息后面', () {
+      final result = buildRequestMessages(
+        promptTemplate: _template(
+          messages: [
+            _tplMsg(
+              PromptMessageRole.assistant,
+              '后置提示',
+              placement: PromptMessagePlacement.after,
+            ),
+          ],
+        ),
+        conversationMessages: [_userMsg('真实问题')],
+      );
+
+      expect(result, hasLength(2));
+      expect(result[0].content, '真实问题');
+      expect(result[1].content, '后置提示');
+    });
+
+    test('before 和 after 混用时，顺序为 before -> 会话 -> after', () {
+      final result = buildRequestMessages(
+        promptTemplate: _template(
+          messages: [
+            _tplMsg(PromptMessageRole.user, '前置-1'),
+            _tplMsg(
+              PromptMessageRole.assistant,
+              '后置-1',
+              placement: PromptMessagePlacement.after,
+            ),
+            _tplMsg(PromptMessageRole.assistant, '前置-2'),
+          ],
+        ),
+        conversationMessages: [_userMsg('真实问题')],
+      );
+
+      expect(result.map((m) => m.content).toList(), [
+        '前置-1',
+        '前置-2',
+        '真实问题',
+        '后置-1',
+      ]);
+    });
   });
 
   // ── 完整组合 ──────────────────────────────────────────────────────────────
@@ -180,10 +228,7 @@ void main() {
             _tplMsg(PromptMessageRole.assistant, '示例助手'),
           ],
         ),
-        conversationMessages: [
-          _userMsg('真实用户'),
-          _assistantMsg('真实助手'),
-        ],
+        conversationMessages: [_userMsg('真实用户'), _assistantMsg('真实助手')],
       );
 
       expect(result, hasLength(5));

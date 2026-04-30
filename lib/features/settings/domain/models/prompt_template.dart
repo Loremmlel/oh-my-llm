@@ -25,34 +25,67 @@ enum PromptMessageRole {
   }
 }
 
+/// Prompt 模板附加消息在请求中的拼接位置。
+enum PromptMessagePlacement {
+  before('before'),
+  after('after');
+
+  const PromptMessagePlacement(this.apiValue);
+
+  final String apiValue;
+
+  /// 返回更适合界面展示的位置标签。
+  String get label => switch (this) {
+    PromptMessagePlacement.before => '会话前',
+    PromptMessagePlacement.after => '会话后',
+  };
+
+  /// 从持久化字符串解析位置枚举。
+  static PromptMessagePlacement fromApiValue(String value) {
+    return PromptMessagePlacement.values.firstWhere(
+      (placement) => placement.apiValue == value,
+      orElse: () => PromptMessagePlacement.before,
+    );
+  }
+}
+
 /// Prompt 模板中的一条附加消息。
 class PromptMessage extends Equatable {
   const PromptMessage({
     required this.id,
     required this.role,
     required this.content,
+    this.placement = PromptMessagePlacement.before,
   });
 
   final String id;
   final PromptMessageRole role;
   final String content;
+  final PromptMessagePlacement placement;
 
   /// 复制消息，并允许覆盖常用字段。
   PromptMessage copyWith({
     String? id,
     PromptMessageRole? role,
     String? content,
+    PromptMessagePlacement? placement,
   }) {
     return PromptMessage(
       id: id ?? this.id,
       role: role ?? this.role,
       content: content ?? this.content,
+      placement: placement ?? this.placement,
     );
   }
 
   /// 将消息序列化为 JSON。
   Map<String, dynamic> toJson() {
-    return {'id': id, 'role': role.apiValue, 'content': content};
+    return {
+      'id': id,
+      'role': role.apiValue,
+      'content': content,
+      'placement': placement.apiValue,
+    };
   }
 
   /// 从 JSON 反序列化消息。
@@ -61,11 +94,15 @@ class PromptMessage extends Equatable {
       id: json['id'] as String,
       role: PromptMessageRole.fromApiValue(json['role'] as String),
       content: json['content'] as String,
+      placement: PromptMessagePlacement.fromApiValue(
+        (json['placement'] as String?) ??
+            PromptMessagePlacement.before.apiValue,
+      ),
     );
   }
 
   @override
-  List<Object> get props => [id, role, content];
+  List<Object> get props => [id, role, content, placement];
 }
 
 /// 可复用的 Prompt 模板，包含 system 指令和附加消息。

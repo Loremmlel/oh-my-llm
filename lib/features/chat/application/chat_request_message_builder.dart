@@ -19,9 +19,11 @@ List<ChatCompletionRequestMessage> buildRequestMessages({
   }
 
   if (promptTemplate != null) {
-    // 模板消息始终排在会话消息前面，保持与后端请求顺序一致。
+    final beforeMessages = promptTemplate.messages.where(
+      (message) => message.placement == PromptMessagePlacement.before,
+    );
     requestMessages.addAll(
-      promptTemplate.messages.map((message) {
+      beforeMessages.map((message) {
         return ChatCompletionRequestMessage(
           role: message.role == PromptMessageRole.user
               ? ChatMessageRole.user
@@ -40,6 +42,22 @@ List<ChatCompletionRequestMessage> buildRequestMessages({
       );
     }),
   );
+
+  if (promptTemplate != null) {
+    final afterMessages = promptTemplate.messages.where(
+      (message) => message.placement == PromptMessagePlacement.after,
+    );
+    requestMessages.addAll(
+      afterMessages.map((message) {
+        return ChatCompletionRequestMessage(
+          role: message.role == PromptMessageRole.user
+              ? ChatMessageRole.user
+              : ChatMessageRole.assistant,
+          content: message.content,
+        );
+      }),
+    );
+  }
 
   return List.unmodifiable(requestMessages);
 }

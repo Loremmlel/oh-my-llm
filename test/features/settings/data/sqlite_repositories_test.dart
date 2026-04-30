@@ -87,8 +87,18 @@ void main() {
         name: '全字段',
         systemPrompt: '系统指令',
         messages: const [
-          PromptMessage(id: 'msg-1', role: PromptMessageRole.user, content: '用户提问'),
-          PromptMessage(id: 'msg-2', role: PromptMessageRole.assistant, content: '助手回答'),
+          PromptMessage(
+            id: 'msg-1',
+            role: PromptMessageRole.user,
+            content: '用户提问',
+            placement: PromptMessagePlacement.before,
+          ),
+          PromptMessage(
+            id: 'msg-2',
+            role: PromptMessageRole.assistant,
+            content: '助手回答',
+            placement: PromptMessagePlacement.after,
+          ),
         ],
         updatedAt: DateTime(2026, 3, 15),
       );
@@ -100,6 +110,18 @@ void main() {
       expect(loaded.messages, hasLength(2));
       expect(loaded.messages[0].content, '用户提问');
       expect(loaded.messages[1].role, PromptMessageRole.assistant);
+      expect(loaded.messages[0].placement, PromptMessagePlacement.before);
+      expect(loaded.messages[1].placement, PromptMessagePlacement.after);
+    });
+
+    test('旧数据未携带 placement 时默认解析为 before', () {
+      final decoded = PromptMessage.fromJson({
+        'id': 'msg-old',
+        'role': 'user',
+        'content': '旧模板消息',
+      });
+
+      expect(decoded.placement, PromptMessagePlacement.before);
     });
   });
 
