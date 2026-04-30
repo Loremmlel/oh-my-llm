@@ -1,6 +1,16 @@
 import '../domain/models/chat_message.dart';
 import '../../settings/domain/models/llm_model_config.dart';
 
+/// 流式补全请求失败时抛出的业务异常。
+class ChatCompletionException implements Exception {
+  const ChatCompletionException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
 /// 聊天补全客户端抽象。
 abstract class ChatCompletionClient {
   /// 以流式方式拉取模型回复增量。
