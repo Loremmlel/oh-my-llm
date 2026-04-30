@@ -74,7 +74,7 @@ Comments should use Simplified Chinese and follow these conventions (reference: 
   - Correctly merging high-frequency chunks in the 300 ms flush window without losing vendor-specific fields
 - Stream state (`ChatStreamingReply`, `ChatSessionsState`, `applyStreamingReplyToConversation`) is factored into `lib\features\chat\application\chat_sessions_state.dart` to reduce controller file size; the controller re-exports this module so downstream imports remain unchanged.
 - Scroll and anchor logic is factored into `lib\features\chat\presentation\chat_scroll_controller.dart` (`ChatScrollController`), using callbacks to communicate with the owning `State` widget.
-- Markdown rendering uses a dual-engine switch in `lib\features\chat\presentation\widgets\chat_markdown_engine.dart`: default `flutter_smooth_markdown`, with legacy `flutter_markdown_plus` kept as rollback path during migration.
+- Markdown rendering uses a dual-engine switch in `lib\features\chat\presentation\widgets\chat_markdown_engine.dart`: default `flutter_smooth_markdown` StreamMarkdown path (no length-based full re-render interval), with legacy `flutter_markdown_plus` kept as rollback path during migration.
 - Network logging is centralized in `lib\core\logging\app_logger.dart` (singleton pattern), writing to `{AppData}/app_log.txt`. All HTTP requests/responses/errors are recorded for debugging vendor API compatibility issues.
 - History and chat share the same time-grouping logic from `lib\features\chat\domain\chat_conversation_groups.dart`; if grouping behavior changes, update both surfaces consistently.
 

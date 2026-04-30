@@ -76,12 +76,33 @@ class _StreamingMarkdownViewState extends State<StreamingMarkdownView> {
   /// 控制定期刷新 Markdown 快照的定时器。
   Timer? _markdownRefreshTimer;
 
+  /// smooth 流式渲染输入流控制器；每次进入流式会话时重建。
+  StreamController<String>? _smoothStreamController;
+
+  /// smooth 流式路径下，已推送给 [StreamMarkdown] 的累计文本。
+  String _smoothAccumulatedContent = '';
+
+  /// smooth 路径的实时尾部文本，用于在 StreamMarkdown 内部节流窗口中即时回显最新增量。
+  String _smoothLiveTail = '';
+
+  bool get _isLegacyEngine => kChatMarkdownEngine == ChatMarkdownEngine.legacy;
+  bool get _isSmoothEngine => kChatMarkdownEngine == ChatMarkdownEngine.smooth;
+
   // ── 生命周期 ──────────────────────────────────────────────────────────────
+
+  @override
+  void initState() {
+    super.initState();
+    if (_isSmoothEngine && widget.isStreaming) {
+      _startSmoothStreamingSession();
+      _pushSmoothNormalizedContent(widget.content);
+    }
+  }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (widget.isStreaming) {
+    if (_isLegacyEngine && widget.isStreaming) {
       // 主题等 InheritedWidget 可能发生变化，重建缓存快照以保证样式正确。
       // 这是低频操作（如深色模式切换），重建一次的成本可接受。
       _doRenderMarkdown();
@@ -95,20 +116,35 @@ class _StreamingMarkdownViewState extends State<StreamingMarkdownView> {
   void didUpdateWidget(covariant StreamingMarkdownView oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    if (!oldWidget.isStreaming && widget.isStreaming) {
+    if (_isLegacyEngine && !oldWidget.isStreaming && widget.isStreaming) {
       // 进入流式状态：初始化快照并启动定时器。
       _doRenderMarkdown();
       _scheduleNextRefresh();
-    } else if (oldWidget.isStreaming && !widget.isStreaming) {
+    } else if (_isLegacyEngine &&
+        oldWidget.isStreaming &&
+        !widget.isStreaming) {
       // 流式结束：取消定时器并做最终全量渲染。
       _cancelTimer();
       _doRenderMarkdown();
+    } else if (_isSmoothEngine &&
+        !oldWidget.isStreaming &&
+        widget.isStreaming) {
+      _startSmoothStreamingSession();
+      _pushSmoothNormalizedContent(widget.content);
+    } else if (_isSmoothEngine && widget.isStreaming) {
+      _pushSmoothNormalizedContent(widget.content);
+    } else if (_isSmoothEngine &&
+        oldWidget.isStreaming &&
+        !widget.isStreaming) {
+      _pushSmoothNormalizedContent(widget.content);
+      _closeSmoothStreamingSession();
     }
   }
 
   @override
   void dispose() {
     _cancelTimer();
+    _closeSmoothStreamingSession();
     super.dispose();
   }
 
@@ -158,6 +194,69 @@ class _StreamingMarkdownViewState extends State<StreamingMarkdownView> {
     _renderedMarkdown = _buildMarkdownWidget(_renderedContent);
   }
 
+  /// 启动 smooth 流式会话。
+  void _startSmoothStreamingSession() {
+    _closeSmoothStreamingSession();
+    _smoothStreamController = StreamController<String>();
+    _smoothAccumulatedContent = '';
+    _smoothLiveTail = '';
+  }
+
+  /// 结束 smooth 流式会话。
+  void _closeSmoothStreamingSession() {
+    final controller = _smoothStreamController;
+    _smoothStreamController = null;
+    _smoothAccumulatedContent = '';
+    _smoothLiveTail = '';
+    if (controller != null && !controller.isClosed) {
+      controller.close();
+    }
+  }
+
+  /// 把当前全量内容转换成 smooth 需要的增量 chunk 推入流。
+  ///
+  /// 当归一化后文本不再以前缀关系延展（例如 TeX 命令在后续 chunk 到达后被整体替换），
+  /// 重新开始一次流式会话并推送完整文本，确保显示结果正确。
+  void _pushSmoothNormalizedContent(String fullContent) {
+    if (!widget.isStreaming) {
+      return;
+    }
+    var controller = _smoothStreamController;
+    if (controller == null || controller.isClosed) {
+      _startSmoothStreamingSession();
+      controller = _smoothStreamController;
+      if (controller == null) {
+        return;
+      }
+    }
+
+    final normalized = normalizeLatexLikeTextForDisplay(fullContent);
+    if (normalized == _smoothAccumulatedContent) {
+      return;
+    }
+
+    if (normalized.startsWith(_smoothAccumulatedContent)) {
+      final delta = normalized.substring(_smoothAccumulatedContent.length);
+      _smoothLiveTail = delta;
+      if (delta.isNotEmpty) {
+        controller.add(delta);
+      }
+      _smoothAccumulatedContent = normalized;
+      return;
+    }
+
+    _startSmoothStreamingSession();
+    controller = _smoothStreamController;
+    if (controller == null || controller.isClosed) {
+      return;
+    }
+    if (normalized.isNotEmpty) {
+      controller.add(normalized);
+    }
+    _smoothAccumulatedContent = normalized;
+    _smoothLiveTail = normalized;
+  }
+
   /// 构建带主题样式的 Markdown。
   Widget _buildMarkdownWidget(String content) {
     final theme = Theme.of(context);
@@ -186,6 +285,52 @@ class _StreamingMarkdownViewState extends State<StreamingMarkdownView> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isSmoothEngine) {
+      final normalizedContent = normalizeLatexLikeTextForDisplay(
+        widget.content,
+      );
+      if (!widget.isStreaming) {
+        return smooth_md.SmoothMarkdown(
+          data: normalizedContent,
+          selectable: true,
+        );
+      }
+
+      final controller = _smoothStreamController;
+      final theme = Theme.of(context);
+      if (controller == null || controller.isClosed) {
+        return Text(
+          '正在等待模型返回内容...',
+          style: theme.textTheme.bodyLarge?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+            fontStyle: FontStyle.italic,
+          ),
+        );
+      }
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          smooth_md.StreamMarkdown(
+            stream: controller.stream,
+            selectable: true,
+            loadingWidget: Text(
+              '正在等待模型返回内容...',
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ),
+          if (_smoothLiveTail.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            SelectableText(_smoothLiveTail, style: theme.textTheme.bodyLarge),
+          ],
+        ],
+      );
+    }
+
     // 非流式状态：直接展示缓存的最终渲染结果（由 didUpdateWidget 在流结束时生成）。
     if (!widget.isStreaming) {
       return _renderedMarkdown ?? _buildMarkdownWidget(widget.content);

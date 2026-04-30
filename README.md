@@ -200,14 +200,12 @@ lib/
 
 ### 流式渲染性能
 
-`StreamingMarkdownView` 把长文本分为两层：
-- **渲染快照**（Markdown 组件）：以动态定时器按 `clamp(length × 0.4 + 1000, 1000, 5000) ms` 间隔刷新，内容越长刷新越慢
-- **实时尾部**（`SelectableText`）：快照之后新增的纯文本，每次 build 即时更新，成本极低
+默认 `flutter_smooth_markdown` 路径使用 `StreamMarkdown` 直接消费增量 chunk，不再依赖“按字数动态定时全量重渲染”。
 
-UI 更新节流阈值为 300 ms，高频 SSE token 在内存中聚合后统一触发 Riverpod 状态更新。
+UI 更新节流阈值仍为 300 ms：高频 SSE token 先在控制器层聚合，再统一触发 Riverpod 状态更新，减少状态层高频重建。
 
 当前采用双实现切换策略：默认 `flutter_smooth_markdown`，并在
-`lib\features\chat\presentation\widgets\chat_markdown_engine.dart` 保留 legacy 回滚开关。
+`lib\features\chat\presentation\widgets\chat_markdown_engine.dart` 保留 legacy 回滚开关；legacy 路径仍沿用旧的定时快照策略。
 
 ---
 
