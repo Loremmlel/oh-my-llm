@@ -10,6 +10,8 @@ export 'reasoning_panel.dart';
 export 'streaming_markdown_view.dart';
 export 'thinking_toggle.dart';
 export 'dialogs/add_to_favorites_dialog.dart';
+export 'dialogs/delete_message_dialog.dart';
 export 'dialogs/edit_message_dialog.dart';
 export 'dialogs/fixed_prompt_sequence_runner_dialog.dart';
 export 'dialogs/rename_conversation_dialog.dart';
+export 'dialogs/stop_streaming_confirm_dialog.dart';

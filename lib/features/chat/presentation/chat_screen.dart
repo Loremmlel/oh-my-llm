@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/navigation/app_destination.dart';
@@ -11,6 +11,7 @@ import '../../settings/application/prompt_templates_controller.dart';
 import '../../settings/domain/models/fixed_prompt_sequence.dart';
 import '../../settings/domain/models/llm_model_config.dart';
 import '../../settings/domain/models/prompt_template.dart';
+import '../application/chat_message_tree.dart';
 import '../application/chat_sessions_controller.dart';
 import '../domain/chat_conversation_groups.dart';
 import '../domain/models/chat_conversation.dart';
@@ -80,7 +81,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
     final selectedPromptTemplate = _resolveSelectedPromptTemplate(
       promptTemplates,
-      conversation.selectedPromptTemplateId,
       chatDefaults.defaultPromptTemplateId,
     );
     final supportsReasoning = selectedModel?.supportsReasoning ?? false;
@@ -195,6 +195,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           .read(chatSessionsProvider.notifier)
                           .retryLatestAssistant();
                     },
+                    onDeleteMessage: (message) async {
+                      await _showDeleteMessageDialog(context, message);
+                    },
                     onReasoningEnabledChanged: supportsReasoning
                         ? (value) {
                             ref
@@ -252,6 +255,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               isStreaming: isStreaming,
                             );
                           },
+                    onStopStreaming: isStreaming
+                        ? () async {
+                            await _showStopStreamingDialog(context);
+                          }
+                        : null,
                     onFavoritePressed: (message) => _showAddToFavoritesDialog(
                       context,
                       message,
@@ -307,17 +315,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// 解析当前会话应使用的 Prompt 模板，并在缺省时回退到默认项。
   PromptTemplate? _resolveSelectedPromptTemplate(
     List<PromptTemplate> promptTemplates,
-    String? selectedPromptTemplateId,
     String? defaultPromptTemplateId,
   ) {
-    final selected = promptTemplates.where((template) {
-      return template.id == selectedPromptTemplateId;
-    }).firstOrNull;
-
-    if (selected != null) {
-      return selected;
-    }
-
     return promptTemplates.where((template) {
       return template.id == defaultPromptTemplateId;
     }).firstOrNull;
@@ -526,5 +525,50 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     await ref
         .read(chatSessionsProvider.notifier)
         .editMessage(messageId: messageId, nextContent: nextContent.trim());
+  }
+
+  Future<void> _showStopStreamingDialog(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return const StopStreamingConfirmDialog();
+      },
+    );
+
+    if (!mounted || confirmed != true) {
+      return;
+    }
+
+    await ref.read(chatSessionsProvider.notifier).stopStreaming();
+  }
+
+  Future<void> _showDeleteMessageDialog(
+    BuildContext context,
+    ChatMessage message,
+  ) async {
+    final tree = resolveMessageTreeState(
+      ref.read(activeChatConversationProvider),
+    );
+    final parentId = message.parentId ?? rootConversationParentId;
+    final siblingCount = tree.nodes.where((node) {
+      return (node.parentId ?? rootConversationParentId) == parentId;
+    }).length;
+    final scope = await showDialog<ChatMessageDeletionScope>(
+      context: context,
+      builder: (context) {
+        return DeleteMessageDialog(
+          role: message.role,
+          siblingCount: siblingCount,
+        );
+      },
+    );
+
+    if (!mounted || scope == null) {
+      return;
+    }
+
+    await ref
+        .read(chatSessionsProvider.notifier)
+        .deleteMessage(messageId: message.id, scope: scope);
   }
 }

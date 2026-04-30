@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,8 +11,10 @@ import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/data/chat_completion_client.dart';
 import 'package:oh_my_llm/features/chat/data/openai_compatible_chat_client.dart';
+import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dart';
+import 'package:oh_my_llm/features/settings/data/prompt_template_repository.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
 
 import '../chat_screen/chat_screen_test_helpers.dart';
@@ -42,6 +45,36 @@ void main() {
           'apiKey': 'sk-test',
           'modelName': 'test-model',
           'supportsReasoning': false,
+        },
+      ]),
+      promptTemplatesStorageKey: jsonEncode([
+        {
+          'id': 'prompt-1',
+          'name': '模板一',
+          'systemPrompt': '',
+          'messages': [
+            {
+              'id': 'prompt-1-message-1',
+              'role': 'user',
+              'content': '模板一前置',
+              'placement': 'before',
+            },
+          ],
+          'updatedAt': DateTime(2026, 4, 30).toIso8601String(),
+        },
+        {
+          'id': 'prompt-2',
+          'name': '模板二',
+          'systemPrompt': '',
+          'messages': [
+            {
+              'id': 'prompt-2-message-1',
+              'role': 'user',
+              'content': '模板二前置',
+              'placement': 'before',
+            },
+          ],
+          'updatedAt': DateTime(2026, 4, 30, 0, 1).toIso8601String(),
         },
       ]),
     });
@@ -448,6 +481,143 @@ void main() {
     expect(errorMessage, contains('```text'));
   });
 
+  test('stopStreaming 保留已收到的部分回复', () async {
+    final streamController = StreamController<ChatCompletionChunk>();
+    addTearDown(streamController.close);
+    fakeClient.enqueueStream(streamController.stream);
+
+    final sendFuture = sendMsg('请开始生成');
+    await Future<void>.delayed(const Duration(milliseconds: 1));
+    streamController.add(const ChatCompletionChunk(contentDelta: '部分回复'));
+    await Future<void>.delayed(const Duration(milliseconds: 1));
+
+    await container.read(chatSessionsProvider.notifier).stopStreaming();
+    await sendFuture;
+
+    final state = container.read(chatSessionsProvider);
+    expect(state.isStreaming, isFalse);
+    expect(state.errorMessage, isNull);
+    expect(state.activeConversation.messages, hasLength(2));
+    expect(state.activeConversation.messages.last.content, '部分回复');
+    expect(state.activeConversation.messages.last.isStreaming, isFalse);
+  });
+
+  test('stopStreaming 在无内容时移除空白助手占位', () async {
+    final streamController = StreamController<ChatCompletionChunk>();
+    addTearDown(streamController.close);
+    fakeClient.enqueueStream(streamController.stream);
+
+    final sendFuture = sendMsg('不要输出任何内容');
+    await Future<void>.delayed(const Duration(milliseconds: 1));
+
+    await container.read(chatSessionsProvider.notifier).stopStreaming();
+    await sendFuture;
+
+    final messages = container
+        .read(chatSessionsProvider)
+        .activeConversation
+        .messages;
+    expect(messages, hasLength(1));
+    expect(messages.single.role, ChatMessageRole.user);
+  });
+
+  test('deleteMessage 删除当前助手分支后回退到剩余版本', () async {
+    fakeClient
+      ..enqueueChunks(['首次回复'])
+      ..enqueueChunks(['重试回复']);
+    await sendMsg('测试删除分支');
+    await container.read(chatSessionsProvider.notifier).retryLatestAssistant();
+
+    final stateBeforeDelete = container.read(chatSessionsProvider);
+    final latestAssistant = stateBeforeDelete.activeConversation.messages.last;
+    await container
+        .read(chatSessionsProvider.notifier)
+        .deleteMessage(
+          messageId: latestAssistant.id,
+          scope: ChatMessageDeletionScope.currentBranch,
+        );
+
+    final messages = container
+        .read(chatSessionsProvider)
+        .activeConversation
+        .messages;
+    expect(messages.last.content, '首次回复');
+    final assistantChildren = container
+        .read(chatSessionsProvider)
+        .activeConversation
+        .messageNodes
+        .where((node) {
+          return node.role == ChatMessageRole.assistant &&
+              node.parentId == messages.first.id;
+        })
+        .toList(growable: false);
+    expect(assistantChildren, hasLength(1));
+  });
+
+  test('deleteMessage 删除全部助手版本后保留父用户消息', () async {
+    fakeClient
+      ..enqueueChunks(['首次回复'])
+      ..enqueueChunks(['重试回复']);
+    await sendMsg('测试全部删除');
+    await container.read(chatSessionsProvider.notifier).retryLatestAssistant();
+
+    final latestAssistant = container
+        .read(chatSessionsProvider)
+        .activeConversation
+        .messages
+        .last;
+    await container
+        .read(chatSessionsProvider.notifier)
+        .deleteMessage(
+          messageId: latestAssistant.id,
+          scope: ChatMessageDeletionScope.allBranches,
+        );
+
+    final messages = container
+        .read(chatSessionsProvider)
+        .activeConversation
+        .messages;
+    expect(messages, hasLength(1));
+    expect(messages.single.role, ChatMessageRole.user);
+  });
+
+  test('deleteMessage 删除当前用户分支后切回剩余根分支', () async {
+    fakeClient
+      ..enqueueChunks(['原始回复一'])
+      ..enqueueChunks(['原始回复二'])
+      ..enqueueChunks(['编辑后回复一']);
+    await sendMsg('原始用户1');
+    await sendMsg('原始用户2');
+
+    final beforeEdit = container.read(chatSessionsProvider).activeConversation;
+    final originalRootUser = beforeEdit.messageNodes.firstWhere((message) {
+      return message.role == ChatMessageRole.user &&
+          (message.parentId ?? rootConversationParentId) ==
+              rootConversationParentId;
+    });
+    await container
+        .read(chatSessionsProvider.notifier)
+        .editMessage(messageId: originalRootUser.id, nextContent: '编辑后的用户1');
+
+    final currentRootUser = container
+        .read(chatSessionsProvider)
+        .activeConversation
+        .messages
+        .first;
+    await container
+        .read(chatSessionsProvider.notifier)
+        .deleteMessage(
+          messageId: currentRootUser.id,
+          scope: ChatMessageDeletionScope.currentBranch,
+        );
+
+    final messages = container
+        .read(chatSessionsProvider)
+        .activeConversation
+        .messages;
+    expect(messages.first.content, '原始用户1');
+    expect(messages.last.content, '原始回复二');
+  });
 
   // ── historyRevision ────────────────────────────────────────────────────────
 

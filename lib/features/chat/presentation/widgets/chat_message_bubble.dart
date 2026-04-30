@@ -15,6 +15,7 @@ class ChatMessageBubble extends StatelessWidget {
     this.canRetry = false,
     this.onEditPressed,
     this.onRetryPressed,
+    this.onDeletePressed,
     this.onFavoritePressed,
     this.isFavorited = false,
     this.versionInfo,
@@ -27,6 +28,7 @@ class ChatMessageBubble extends StatelessWidget {
   final bool canRetry;
   final VoidCallback? onEditPressed;
   final VoidCallback? onRetryPressed;
+  final VoidCallback? onDeletePressed;
 
   /// 收藏按钮回调，仅在助手消息上提供；为 null 则不显示收藏按钮。
   final VoidCallback? onFavoritePressed;
@@ -126,6 +128,12 @@ class ChatMessageBubble extends StatelessWidget {
                         onPressed: onRetryPressed,
                         tooltip: '重试回复',
                         icon: const Icon(Icons.refresh_rounded),
+                      ),
+                    if (onDeletePressed != null)
+                      IconButton(
+                        onPressed: onDeletePressed,
+                        tooltip: '删除消息',
+                        icon: const Icon(Icons.delete_outline_rounded),
                       ),
                   ],
                 ),

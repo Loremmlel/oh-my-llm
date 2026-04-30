@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -33,7 +35,7 @@ void registerChatScreenStreamingTests() {
     await tester.pump(const Duration(milliseconds: 12));
 
     expect(find.textContaining('第一段'), findsWidgets);
-    expect(find.widgetWithText(FilledButton, '生成中'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, '终止回答'), findsOneWidget);
 
     await tester.pumpAndSettle();
 
@@ -154,5 +156,37 @@ void registerChatScreenStreamingTests() {
 
     expect(find.text(userMessage), findsOneWidget);
     expect(find.textContaining('收到'), findsWidgets);
+  });
+
+  testWidgets('chat screen shows a confirmation dialog before stopping', (
+    tester,
+  ) async {
+    final preferences = await createSeededPreferences();
+    final fakeClient = FakeChatCompletionClient();
+    final streamController = StreamController<ChatCompletionChunk>();
+    addTearDown(streamController.close);
+    fakeClient.enqueueStream(streamController.stream);
+
+    await pumpChatScreen(
+      tester,
+      preferences: preferences,
+      fakeClient: fakeClient,
+    );
+
+    await sendMessage(tester, '请开始长回复');
+    await tester.pump();
+
+    streamController.add(const ChatCompletionChunk(contentDelta: '已生成部分'));
+    await tester.pump(const Duration(milliseconds: 16));
+
+    await tester.tap(find.widgetWithText(FilledButton, '终止回答'));
+    await tester.pump();
+    expect(find.text('终止本次回答？'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(TextButton, '继续生成'));
+    await tester.pump();
+    expect(find.text('终止本次回答？'), findsNothing);
+    expect(find.widgetWithText(FilledButton, '终止回答'), findsOneWidget);
+    expect(find.textContaining('已生成部分'), findsWidgets);
   });
 }

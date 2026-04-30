@@ -31,6 +31,7 @@ class ChatWorkspace extends StatelessWidget {
     required this.showScrollToBottom,
     required this.onEditMessage,
     required this.onRetryLatestAssistant,
+    required this.onDeleteMessage,
     required this.onReasoningEnabledChanged,
     required this.onReasoningEffortChanged,
     required this.onOpenFixedPromptSequenceRunner,
@@ -38,6 +39,7 @@ class ChatWorkspace extends StatelessWidget {
     required this.onSelectMessage,
     required this.onSelectMessageVersion,
     required this.onSendPressed,
+    required this.onStopStreaming,
     this.onFavoritePressed,
     this.favoritedAssistantContents = const {},
     super.key,
@@ -60,6 +62,7 @@ class ChatWorkspace extends StatelessWidget {
   final bool showScrollToBottom;
   final ValueChanged<ChatMessage> onEditMessage;
   final Future<void> Function() onRetryLatestAssistant;
+  final ValueChanged<ChatMessage> onDeleteMessage;
   final ValueChanged<bool>? onReasoningEnabledChanged;
   final ValueChanged<ReasoningEffort>? onReasoningEffortChanged;
   final Future<void> Function() onOpenFixedPromptSequenceRunner;
@@ -68,6 +71,7 @@ class ChatWorkspace extends StatelessWidget {
   final Future<void> Function(String parentId, String messageId)
   onSelectMessageVersion;
   final Future<void> Function()? onSendPressed;
+  final Future<void> Function()? onStopStreaming;
 
   /// 点击收藏按钮时的回调（仅助手消息），为 null 则不显示收藏按钮。
   final ValueChanged<ChatMessage>? onFavoritePressed;
@@ -148,6 +152,11 @@ class ChatWorkspace extends StatelessWidget {
                         onRetryPressed: latestAssistantMessage?.id == message.id
                             ? () {
                                 onRetryLatestAssistant();
+                              }
+                            : null,
+                        onDeletePressed: !isStreaming && !isTransientError
+                            ? () {
+                                onDeleteMessage(message);
                               }
                             : null,
                         onFavoritePressed:
@@ -296,7 +305,7 @@ class ChatWorkspace extends StatelessWidget {
                 const SizedBox(width: 8),
                 _buildEffortPill(context, theme),
                 const Spacer(),
-                ..._buildActionButtons(),
+                ..._buildActionButtons(theme),
               ],
             ),
           ],
@@ -360,7 +369,7 @@ class ChatWorkspace extends StatelessWidget {
   }
 
   /// 构建固定顺序提示词按钮和发送按钮。
-  List<Widget> _buildActionButtons() {
+  List<Widget> _buildActionButtons(ThemeData theme) {
     return [
       IconButton.outlined(
         onPressed: onOpenFixedPromptSequenceRunner,
@@ -373,7 +382,11 @@ class ChatWorkspace extends StatelessWidget {
       ),
       const SizedBox(width: 8),
       FilledButton.icon(
-        onPressed: !hasModels || isStreaming
+        onPressed: isStreaming
+            ? () {
+                onStopStreaming?.call();
+              }
+            : !hasModels
             ? null
             : () {
                 onSendPressed?.call();
@@ -381,11 +394,11 @@ class ChatWorkspace extends StatelessWidget {
         style: FilledButton.styleFrom(
           minimumSize: const Size(60, 40),
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          backgroundColor: isStreaming ? theme.colorScheme.error : null,
+          foregroundColor: isStreaming ? theme.colorScheme.onError : null,
         ),
-        icon: Icon(
-          isStreaming ? Icons.hourglass_top_rounded : Icons.send_rounded,
-        ),
-        label: Text(isStreaming ? '生成中' : '发送'),
+        icon: Icon(isStreaming ? Icons.stop_rounded : Icons.send_rounded),
+        label: Text(isStreaming ? '终止回答' : '发送'),
       ),
     ];
   }
