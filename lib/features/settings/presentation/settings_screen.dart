@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -142,9 +142,9 @@ class SettingsScreen extends ConsumerWidget {
     await Clipboard.setData(ClipboardData(text: exportData.toJsonString()));
 
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('已复制全部配置到剪贴板')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('已复制全部配置到剪贴板')));
     }
   }
 
@@ -182,9 +182,9 @@ class SettingsScreen extends ConsumerWidget {
 
     // 全部重复时不弹对话框，提示用户后返回 true（视为已处理，不打开表单）
     if (!dedupedData.hasContent) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('剪贴板中的配置在本地均已存在，无需导入')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('剪贴板中的配置在本地均已存在，无需导入')));
       return true;
     }
 
@@ -196,9 +196,9 @@ class SettingsScreen extends ConsumerWidget {
     );
 
     if (confirmed == true && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('配置已成功导入')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('配置已成功导入')));
     }
 
     // 无论确认还是取消，只要弹过对话框就算"已处理"，不再打开表单
@@ -220,22 +220,32 @@ class SettingsScreen extends ConsumerWidget {
     required List<PromptTemplate> existingTemplates,
     required List<FixedPromptSequence> existingSequences,
   }) {
-    final newModels = data.modelConfigs.where((incoming) {
-      return !existingModels.any(
-        (e) =>
-            e.apiUrl == incoming.apiUrl &&
-            e.apiKey == incoming.apiKey &&
-            e.modelName == incoming.modelName,
-      );
-    }).toList(growable: false);
+    final newModels = data.modelConfigs
+        .where((incoming) {
+          return !existingModels.any(
+            (e) =>
+                e.apiUrl == incoming.apiUrl &&
+                e.apiKey == incoming.apiKey &&
+                e.modelName == incoming.modelName,
+          );
+        })
+        .toList(growable: false);
 
-    final newTemplates = data.promptTemplates.where((incoming) {
-      return !existingTemplates.any((e) => _promptTemplatesContentEqual(e, incoming));
-    }).toList(growable: false);
+    final newTemplates = data.promptTemplates
+        .where((incoming) {
+          return !existingTemplates.any(
+            (e) => _promptTemplatesContentEqual(e, incoming),
+          );
+        })
+        .toList(growable: false);
 
-    final newSequences = data.fixedPromptSequences.where((incoming) {
-      return !existingSequences.any((e) => _sequencesContentEqual(e, incoming));
-    }).toList(growable: false);
+    final newSequences = data.fixedPromptSequences
+        .where((incoming) {
+          return !existingSequences.any(
+            (e) => _sequencesContentEqual(e, incoming),
+          );
+        })
+        .toList(growable: false);
 
     return SettingsExportData(
       modelConfigs: newModels,
@@ -253,6 +263,7 @@ class SettingsScreen extends ConsumerWidget {
       final ma = a.messages[i];
       final mb = b.messages[i];
       if (ma.role != mb.role) return false;
+      if (ma.placement != mb.placement) return false;
       if (ma.content.length != mb.content.length) return false;
       if (ma.content != mb.content) return false;
     }

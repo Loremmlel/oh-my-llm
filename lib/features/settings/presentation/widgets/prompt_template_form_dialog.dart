@@ -55,6 +55,7 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog> {
           return _EditablePromptMessage(
             id: message.id,
             role: message.role,
+            placement: message.placement,
             controller: TextEditingController(text: message.content),
           );
         })
@@ -151,6 +152,13 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog> {
                         );
                       });
                     },
+                    onPlacementChanged: (placement) {
+                      setState(() {
+                        _messages[index] = _messages[index].copyWith(
+                          placement: placement,
+                        );
+                      });
+                    },
                     onMoveUp: () => _moveMessage(index, index - 1),
                     onMoveDown: () => _moveMessage(index, index + 1),
                     onDelete: () => _removeMessage(index),
@@ -182,6 +190,7 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog> {
         _EditablePromptMessage(
           id: generateEntityId(),
           role: role,
+          placement: PromptMessagePlacement.before,
           controller: TextEditingController(),
         ),
       );
@@ -216,6 +225,7 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog> {
             id: message.id,
             role: message.role,
             content: message.controller.text.trim(),
+            placement: message.placement,
           );
         })
         .where((message) => message.content.isNotEmpty)
@@ -256,6 +266,7 @@ class _PromptMessageEditor extends StatelessWidget {
     required this.canMoveUp,
     required this.canMoveDown,
     required this.onRoleChanged,
+    required this.onPlacementChanged,
     required this.onMoveUp,
     required this.onMoveDown,
     required this.onDelete,
@@ -267,6 +278,7 @@ class _PromptMessageEditor extends StatelessWidget {
   final bool canMoveUp;
   final bool canMoveDown;
   final ValueChanged<PromptMessageRole> onRoleChanged;
+  final ValueChanged<PromptMessagePlacement> onPlacementChanged;
   final VoidCallback onMoveUp;
   final VoidCallback onMoveDown;
   final VoidCallback onDelete;
@@ -325,6 +337,24 @@ class _PromptMessageEditor extends StatelessWidget {
               decoration: const InputDecoration(labelText: '角色'),
             ),
             const SizedBox(height: 12),
+            DropdownButtonFormField<PromptMessagePlacement>(
+              initialValue: message.placement,
+              items: PromptMessagePlacement.values
+                  .map((placement) {
+                    return DropdownMenuItem(
+                      value: placement,
+                      child: Text(placement.label),
+                    );
+                  })
+                  .toList(growable: false),
+              onChanged: (value) {
+                if (value != null) {
+                  onPlacementChanged(value);
+                }
+              },
+              decoration: const InputDecoration(labelText: '拼接位置'),
+            ),
+            const SizedBox(height: 12),
             TextFormField(
               controller: message.controller,
               minLines: 2,
@@ -343,21 +373,25 @@ class _EditablePromptMessage {
   const _EditablePromptMessage({
     required this.id,
     required this.role,
+    required this.placement,
     required this.controller,
   });
 
   final String id;
   final PromptMessageRole role;
+  final PromptMessagePlacement placement;
   final TextEditingController controller;
 
   _EditablePromptMessage copyWith({
     String? id,
     PromptMessageRole? role,
+    PromptMessagePlacement? placement,
     TextEditingController? controller,
   }) {
     return _EditablePromptMessage(
       id: id ?? this.id,
       role: role ?? this.role,
+      placement: placement ?? this.placement,
       controller: controller ?? this.controller,
     );
   }
