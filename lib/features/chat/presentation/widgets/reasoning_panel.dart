@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart' as legacy_md;
+import 'package:flutter_smooth_markdown/flutter_smooth_markdown.dart'
+    as smooth_md;
+
+import 'chat_markdown_engine.dart';
 
 /// 折叠式推理内容面板，用于展示模型的深度思考文本。
 class ReasoningPanel extends StatefulWidget {
@@ -14,6 +18,24 @@ class ReasoningPanel extends StatefulWidget {
 /// 推理面板的展开状态。
 class _ReasoningPanelState extends State<ReasoningPanel> {
   bool _expanded = false;
+
+  Widget _buildReasoningMarkdown(BuildContext context, ThemeData theme) {
+    final textColor = theme.colorScheme.onSurfaceVariant;
+    switch (kChatMarkdownEngine) {
+      case ChatMarkdownEngine.legacy:
+        return legacy_md.MarkdownBody(
+          data: widget.content,
+          selectable: true,
+          styleSheet: legacy_md.MarkdownStyleSheet.fromTheme(theme).copyWith(
+            p: theme.textTheme.bodyMedium?.copyWith(color: textColor),
+            code: theme.textTheme.bodySmall?.copyWith(color: textColor),
+            blockquote: theme.textTheme.bodySmall?.copyWith(color: textColor),
+          ),
+        );
+      case ChatMarkdownEngine.smooth:
+        return smooth_md.SmoothMarkdown(data: widget.content, selectable: true);
+    }
+  }
 
   @override
   /// 构建可展开/收起的推理内容区域。
@@ -74,21 +96,7 @@ class _ReasoningPanelState extends State<ReasoningPanel> {
             child: _expanded
                 ? Padding(
                     padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                    child: MarkdownBody(
-                      data: widget.content,
-                      selectable: true,
-                      styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
-                        p: theme.textTheme.bodyMedium?.copyWith(
-                          color: textColor,
-                        ),
-                        code: theme.textTheme.bodySmall?.copyWith(
-                          color: textColor,
-                        ),
-                        blockquote: theme.textTheme.bodySmall?.copyWith(
-                          color: textColor,
-                        ),
-                      ),
-                    ),
+                    child: _buildReasoningMarkdown(context, theme),
                   )
                 : const SizedBox.shrink(),
           ),

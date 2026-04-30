@@ -1,7 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart' as legacy_md;
+import 'package:flutter_smooth_markdown/flutter_smooth_markdown.dart'
+    as smooth_md;
+
+import 'chat_markdown_engine.dart';
 
 const Map<String, String> _latexCommandSymbolMap = {
   'LeftArrow': '←',
@@ -32,14 +36,14 @@ String normalizeLatexLikeTextForDisplay(String input) {
 /// 流式 Markdown 渲染组件。
 ///
 /// 流式期间将内容分为两个层次展示：
-/// - **已渲染快照**：上一次 [MarkdownBody] 渲染的结果，以 Timer 按动态间隔定期刷新；
+/// - **已渲染快照**：上一次 Markdown 渲染的结果，以 Timer 按动态间隔定期刷新；
 /// - **实时尾部**：快照之后新增的文本，以 [SelectableText] 每次 build 即时更新，成本极低。
 ///
 /// 动态渲染间隔公式：`clamp(length × 0.4 + 1000, 1000, 5000)` 毫秒。
 /// 内容越长，渲染一次的开销越大，因此间隔也随之拉长，最高 5 秒。
 ///
 /// 流式结束（[isStreaming] 变为 `false`）后，
-/// 取消 Timer，对完整内容做最终全量 [MarkdownBody] 渲染。
+/// 取消 Timer，对完整内容做最终全量渲染。
 ///
 /// 示例用法：
 /// ```dart
@@ -66,7 +70,7 @@ class _StreamingMarkdownViewState extends State<StreamingMarkdownView> {
   /// 上一次完整渲染时对应的内容字符串。
   String _renderedContent = '';
 
-  /// 上一次渲染生成的 [MarkdownBody] 缓存；只在定时器触发或流式结束时才替换。
+  /// 上一次渲染生成的 Markdown 缓存；只在定时器触发或流式结束时才替换。
   Widget? _renderedMarkdown;
 
   /// 控制定期刷新 Markdown 快照的定时器。
@@ -145,7 +149,7 @@ class _StreamingMarkdownViewState extends State<StreamingMarkdownView> {
 
   // ── 渲染逻辑 ──────────────────────────────────────────────────────────────
 
-  /// 用当前内容生成并缓存 [MarkdownBody] 快照。
+  /// 用当前内容生成并缓存 Markdown 快照。
   ///
   /// 此方法不调用 [setState]；调用方负责触发重建（定时器内用 [setState]，
   /// 生命周期方法中由框架自动重建）。
@@ -154,23 +158,28 @@ class _StreamingMarkdownViewState extends State<StreamingMarkdownView> {
     _renderedMarkdown = _buildMarkdownWidget(_renderedContent);
   }
 
-  /// 构建带主题样式的 [MarkdownBody]。
+  /// 构建带主题样式的 Markdown。
   Widget _buildMarkdownWidget(String content) {
     final theme = Theme.of(context);
     final normalizedContent = normalizeLatexLikeTextForDisplay(content);
     final data = normalizedContent.isEmpty && widget.isStreaming
         ? '_正在等待模型返回内容..._'
         : normalizedContent;
-    return MarkdownBody(
-      data: data,
-      selectable: true,
-      styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
-        p: theme.textTheme.bodyLarge,
-        blockquote: theme.textTheme.bodyMedium?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-        ),
-      ),
-    );
+    switch (kChatMarkdownEngine) {
+      case ChatMarkdownEngine.legacy:
+        return legacy_md.MarkdownBody(
+          data: data,
+          selectable: true,
+          styleSheet: legacy_md.MarkdownStyleSheet.fromTheme(theme).copyWith(
+            p: theme.textTheme.bodyLarge,
+            blockquote: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        );
+      case ChatMarkdownEngine.smooth:
+        return smooth_md.SmoothMarkdown(data: data, selectable: true);
+    }
   }
 
   // ── 构建 ─────────────────────────────────────────────────────────────────
