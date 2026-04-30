@@ -87,7 +87,7 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
           final selections =
               selectionsByConversationId[row['id'] as String] ??
               const <String, String>{};
-          final draft = ChatConversation(
+          return ChatConversation(
             id: row['id'] as String,
             title: row['title'] as String?,
             messages: const <ChatMessage>[],
@@ -104,7 +104,6 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
               orElse: () => ReasoningEffort.medium,
             ),
           );
-          return draft.copyWith(messages: draft.messages);
         })
         .toList(growable: false);
   }
