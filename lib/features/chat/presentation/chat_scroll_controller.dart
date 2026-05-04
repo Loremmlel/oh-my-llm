@@ -53,6 +53,13 @@ class ChatScrollController {
   List<int> _latestUserMessageIndexes = const [];
   Map<String, int> _latestMessageIndexById = const {};
 
+  /// 上一帧中最后一条消息的 leading edge（viewport 分数）。
+  /// 负值表示 leading edge 在 viewport 顶部之上（消息比 viewport 更高）。
+  double _lastItemLeadingEdge = 0;
+
+  /// 上一帧中最后一条消息的 trailing edge（viewport 分数）。
+  double _lastItemTrailingEdge = 0;
+
   // ── 元数据缓存 ──────────────────────────────────────────────────────────────
 
   /// 缓存当前可见列表所需的索引信息，避免滚动监听里重复全量计算。
@@ -106,6 +113,12 @@ class ChatScrollController {
   }
 
   /// 滚动到消息列表底部；[jump] 为 true 时直接跳转，否则平滑动画。
+  ///
+  /// alignment 由 [_computeScrollAlignment] 动态计算：
+  /// - 当最后一条消息较短（完全在 viewport 内）时，使用 0（leading edge 对齐顶部），
+  ///   这样整条消息从头可见；
+  /// - 当最后一条消息比 viewport 更高时（streaming 长回复），使用负值 alignment，
+  ///   使 trailing edge 对齐到 viewport 底部，避免滚回消息开头的回弹问题。
   Future<void> scrollToBottom({bool jump = false}) async {
     if (_latestMessages.isEmpty || !itemScrollController.isAttached) return;
 
@@ -118,11 +131,25 @@ class ChatScrollController {
 
     await itemScrollController.scrollTo(
       index: targetIndex,
-      alignment: 0,
+      alignment: _computeScrollAlignment(),
       duration: const Duration(milliseconds: 240),
       curve: Curves.easeOut,
     );
     _scheduleVisibleItemsSync();
+  }
+
+  /// 根据上一帧的最后一条消息位置计算合适的 alignment。
+  ///
+  /// - 如果消息 leading edge ≥ 0（消息从 viewport 顶部或以内开始），返回 0；
+  ///   此时 alignment: 0 把 leading edge 对齐顶部，短消息完整可见。
+  /// - 如果消息 leading edge < 0（消息比 viewport 更高，leading edge 已超出顶部），
+  ///   返回 `1.0 - height`（height 为 trailing – leading 的 viewport 分数）；
+  ///   此时 trailing edge 恰好对齐到 viewport 底部，用户看到消息末尾。
+  double _computeScrollAlignment() {
+    if (_lastItemLeadingEdge >= 0) return 0;
+    final height = _lastItemTrailingEdge - _lastItemLeadingEdge;
+    if (height <= 0) return 0;
+    return 1.0 - height;
   }
 
   /// 滚动到某条指定消息。
@@ -140,7 +167,7 @@ class ChatScrollController {
 
   // ── 可见性监听 ──────────────────────────────────────────────────────────────
 
-  /// 根据当前可见项更新「滚到底部」按钮和激活锚点。
+  /// 根据当前可见项更新「滚到底部」按钮和激活锚点，并更新最后一条消息的位置缓存。
   void handleVisibleItemsChanged() {
     if (!_isMounted()) return;
 
@@ -148,6 +175,15 @@ class ChatScrollController {
         .where((p) => p.index >= 0 && p.index < _latestMessages.length)
         .toList(growable: false)
       ..sort((l, r) => l.index.compareTo(r.index));
+
+    // 更新最后一条消息的位置缓存，供 _computeScrollAlignment 使用。
+    final lastRealIndex = _latestMessages.length - 1;
+    final lastItemPos =
+        positions.where((p) => p.index == lastRealIndex).firstOrNull;
+    if (lastItemPos != null) {
+      _lastItemLeadingEdge = lastItemPos.itemLeadingEdge;
+      _lastItemTrailingEdge = lastItemPos.itemTrailingEdge;
+    }
 
     final nextShowScrollToBottom = _resolveShowScrollToBottom(positions);
     final nextActiveAnchorMessageId = _resolveActiveAnchorMessageId(positions);
@@ -172,7 +208,7 @@ class ChatScrollController {
 
   // ── 状态推导 ────────────────────────────────────────────────────────────────
 
-  /// 根据可见项判断当前是否已经接近列表底部。
+  /// 根据当前可见项判断是否已经接近列表底部。
   bool _resolveShowScrollToBottom(List<ItemPosition> positions) {
     if (_latestMessages.isEmpty || positions.isEmpty) return false;
 
