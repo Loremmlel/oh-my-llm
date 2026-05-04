@@ -39,12 +39,7 @@ class MessageAnchorRail extends StatelessWidget {
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-          child: Scrollbar(
-            thumbVisibility: userMessages.length > 10,
-            interactive: true,
-            radius: const Radius.circular(999),
-            thickness: 2.5,
-            child: ListView.separated(
+          child: ListView.separated(
               primary: false,
               padding: EdgeInsets.zero,
               itemCount: userMessages.length,
@@ -84,9 +79,9 @@ class MessageAnchorRail extends StatelessWidget {
                 );
               },
             ),
-          ),
         ),
       ),
     );
   }
 }
+
