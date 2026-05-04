@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -237,6 +238,61 @@ void registerChatScreenBasicsTests() {
     await tester.pumpAndSettle();
 
     expect(find.text('请列出三个可执行方案，并说明权衡。'), findsOneWidget);
+  });
+
+  testWidgets('chat screen sends message with Ctrl+Enter shortcut', (
+    tester,
+  ) async {
+    final preferences = await createSeededPreferences();
+    final fakeClient = FakeChatCompletionClient()..enqueueChunks(['快捷键发送成功']);
+
+    await pumpChatScreen(
+      tester,
+      preferences: preferences,
+      fakeClient: fakeClient,
+    );
+
+    const content = '请使用快捷键发送这条消息';
+    await tester.tap(find.byType(TextField).first);
+    await tester.pump();
+    await tester.enterText(find.byType(TextField).first, content);
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+
+    expect(fakeClient.lastRequestMessages.single.content, content);
+    expect(find.textContaining('快捷键发送成功'), findsWidgets);
+  });
+
+  testWidgets('chat screen anchor rail does not render a scrollbar', (
+    tester,
+  ) async {
+    final preferences = await createSeededPreferences();
+    final fakeClient = FakeChatCompletionClient();
+    for (var index = 1; index <= 12; index += 1) {
+      fakeClient.enqueueChunks(['第 $index 条回复']);
+    }
+
+    await pumpChatScreen(
+      tester,
+      preferences: preferences,
+      fakeClient: fakeClient,
+      size: const Size(900, 520),
+    );
+
+    for (var index = 1; index <= 12; index += 1) {
+      await sendMessage(tester, '第 $index 条问题');
+      await tester.pumpAndSettle();
+    }
+
+    final rail = find.byKey(const ValueKey('message-anchor-rail'));
+    expect(rail, findsOneWidget);
+    expect(
+      find.descendant(of: rail, matching: find.byType(Scrollbar)),
+      findsNothing,
+    );
   });
 
   testWidgets('chat screen scroll-to-bottom button returns to latest message', (
