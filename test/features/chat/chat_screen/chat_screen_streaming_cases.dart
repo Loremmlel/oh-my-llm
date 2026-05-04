@@ -83,6 +83,28 @@ void registerChatScreenStreamingTests() {
     expect(find.text('收起'), findsOneWidget);
   });
 
+  testWidgets('chat screen keeps word counts visible after streaming completes', (
+    tester,
+  ) async {
+    final preferences = await createSeededPreferences();
+    final fakeClient = FakeChatCompletionClient()
+      ..enqueueDeltas([
+        const ChatCompletionChunk(reasoningDelta: '深度 思考'),
+        const ChatCompletionChunk(contentDelta: 'hello 世界！'),
+      ]);
+
+    await pumpChatScreen(
+      tester,
+      preferences: preferences,
+      fakeClient: fakeClient,
+    );
+
+    await sendMessage(tester, '请统计字数');
+    await tester.pumpAndSettle();
+
+    expect(find.text('深度思考：4 字，回复：3 字'), findsOneWidget);
+  });
+
   testWidgets('chat screen copies raw message content without reasoning', (
     tester,
   ) async {

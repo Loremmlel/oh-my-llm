@@ -28,6 +28,9 @@ class _StreamingWordCounter {
 
   /// 更新计数：仅处理 [fullText] 中尚未处理的新增部分。
   void update(String fullText) {
+    if (fullText.length < _processedLength) {
+      reset();
+    }
     for (var i = _processedLength; i < fullText.length; i++) {
       final c = fullText[i];
       if (_isCjk(c)) {
@@ -225,8 +228,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                       ),
                   ],
                 ),
-                // 流式输出时在标题行下方实时显示字数统计。
-                if (!isUser && message.isStreaming && message.content.isNotEmpty)
+                if (!isUser && _shouldShowWordCount(message))
                   _buildWordCountRow(theme, message),
                 if (!isUser && message.reasoningContent.trim().isNotEmpty) ...[
                   const SizedBox(height: 12),
@@ -284,6 +286,12 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
       padding: const EdgeInsets.only(top: 2, bottom: 2),
       child: Text(label, style: style),
     );
+  }
+
+  /// 判断当前助手消息是否需要显示字数统计。
+  bool _shouldShowWordCount(ChatMessage message) {
+    return message.content.trim().isNotEmpty ||
+        message.reasoningContent.trim().isNotEmpty;
   }
 
   /// 根据消息角色选择更合适的正文渲染方式。
