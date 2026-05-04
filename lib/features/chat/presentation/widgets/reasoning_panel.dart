@@ -33,7 +33,11 @@ class _ReasoningPanelState extends State<ReasoningPanel> {
           ),
         );
       case ChatMarkdownEngine.smooth:
-        return smooth_md.SmoothMarkdown(data: widget.content, selectable: true);
+        return smooth_md.SmoothMarkdown(
+          data: widget.content,
+          selectable: true,
+          styleSheet: smooth_md.MarkdownStyleSheet.fromTheme(theme),
+        );
     }
   }
 
