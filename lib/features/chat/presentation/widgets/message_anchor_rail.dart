@@ -39,15 +39,19 @@ class MessageAnchorRail extends StatelessWidget {
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-          child: ListView.separated(
-              primary: false,
-              padding: EdgeInsets.zero,
-              itemCount: userMessages.length,
-              separatorBuilder: (context, index) {
-                return const SizedBox(height: 8);
-              },
-              itemBuilder: (context, index) {
-                final message = userMessages[index];
+          child: ScrollConfiguration(
+            behavior: ScrollConfiguration.of(context).copyWith(
+              scrollbars: false,
+            ),
+            child: ListView.separated(
+                primary: false,
+                padding: EdgeInsets.zero,
+                itemCount: userMessages.length,
+                separatorBuilder: (context, index) {
+                  return const SizedBox(height: 8);
+                },
+                itemBuilder: (context, index) {
+                  final message = userMessages[index];
                 final isActive = message.id == activeMessageId;
 
                 return Semantics(
@@ -79,6 +83,7 @@ class MessageAnchorRail extends StatelessWidget {
                 );
               },
             ),
+          ),
         ),
       ),
     );
