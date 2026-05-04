@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import '../../domain/models/chat_conversation.dart';
@@ -283,15 +284,27 @@ class ChatWorkspace extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            TextField(
-              controller: messageController,
-              minLines: 2,
-              maxLines: 5,
-              textInputAction: TextInputAction.newline,
-              decoration: const InputDecoration(
-                labelText: '输入消息',
-                hintText: '输入你的问题、指令或待处理内容。',
-                alignLabelWithHint: true,
+            CallbackShortcuts(
+              bindings: {
+                const SingleActivator(
+                  LogicalKeyboardKey.enter,
+                  control: true,
+                ): () => onSendPressed?.call(),
+                const SingleActivator(
+                  LogicalKeyboardKey.enter,
+                  meta: true,
+                ): () => onSendPressed?.call(),
+              },
+              child: TextField(
+                controller: messageController,
+                minLines: 2,
+                maxLines: 5,
+                textInputAction: TextInputAction.newline,
+                decoration: const InputDecoration(
+                  labelText: '输入消息',
+                  hintText: '输入你的问题、指令或待处理内容。',
+                  alignLabelWithHint: true,
+                ),
               ),
             ),
             const SizedBox(height: 8),
