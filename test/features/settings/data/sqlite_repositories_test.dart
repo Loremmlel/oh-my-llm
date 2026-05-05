@@ -3,8 +3,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/settings/data/sqlite_prompt_template_repository.dart';
 import 'package:oh_my_llm/features/settings/data/sqlite_fixed_prompt_sequence_repository.dart';
+import 'package:oh_my_llm/features/settings/data/sqlite_template_prompt_repository.dart';
 import 'package:oh_my_llm/features/settings/domain/models/fixed_prompt_sequence.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompt_template.dart';
+import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
 
 // ── 辅助构造函数 ─────────────────────────────────────────────────────────────
 
@@ -25,6 +27,17 @@ FixedPromptSequence _sequence(String id, {DateTime? updatedAt}) =>
       steps: const [FixedPromptSequenceStep(id: 'step-1', content: '步骤内容')],
       updatedAt: updatedAt ?? DateTime(2026, 1, 1),
     );
+
+TemplatePrompt _templatePrompt(String id, {DateTime? updatedAt}) => TemplatePrompt(
+  id: id,
+  title: '模板提示词 $id',
+  content: '请处理{{正文}}，并补充{{语气}}。',
+  variables: const [
+    TemplatePromptVariable(name: templatePromptBodyVariableName),
+    TemplatePromptVariable(name: '语气', defaultValue: '专业'),
+  ],
+  updatedAt: updatedAt ?? DateTime(2026, 1, 1),
+);
 
 // ── SqlitePromptTemplateRepository ────────────────────────────────────────────
 
@@ -194,6 +207,69 @@ void main() {
       expect(loaded.steps, hasLength(2));
       expect(loaded.steps[0].id, 's1');
       expect(loaded.steps[1].content, '第二步内容');
+    });
+  });
+
+  // ── SqliteTemplatePromptRepository ──────────────────────────────────────────
+
+  group('SqliteTemplatePromptRepository', () {
+    late AppDatabase database;
+    late SqliteTemplatePromptRepository repo;
+
+    setUp(() {
+      database = AppDatabase.inMemory();
+      repo = SqliteTemplatePromptRepository(database);
+    });
+
+    tearDown(() => database.close());
+
+    test('loadAll 空表返回空列表', () {
+      expect(repo.loadAll(), isEmpty);
+    });
+
+    test('saveAll 后 loadAll 可还原数据', () async {
+      await repo.saveAll([_templatePrompt('tp-1'), _templatePrompt('tp-2')]);
+
+      final result = repo.loadAll();
+      expect(result, hasLength(2));
+      expect(result.map((item) => item.id).toSet(), {'tp-1', 'tp-2'});
+    });
+
+    test('loadAll 按 updated_at 降序返回', () async {
+      await repo.saveAll([
+        _templatePrompt('old', updatedAt: DateTime(2026, 1, 1)),
+        _templatePrompt('new', updatedAt: DateTime(2026, 6, 1)),
+      ]);
+
+      final result = repo.loadAll();
+      expect(result.first.id, 'new');
+      expect(result.last.id, 'old');
+    });
+
+    test('saveAll 空列表后 loadAll 返回空列表（全部删除）', () async {
+      await repo.saveAll([_templatePrompt('tp-1')]);
+      await repo.saveAll([]);
+
+      expect(repo.loadAll(), isEmpty);
+    });
+
+    test('往返序列化：content 和 variables 字段正确还原', () async {
+      final original = TemplatePrompt(
+        id: 'full',
+        title: '全字段模板',
+        content: '请处理{{正文}}，语气保持{{语气}}。',
+        variables: const [
+          TemplatePromptVariable(name: templatePromptBodyVariableName),
+          TemplatePromptVariable(name: '语气', defaultValue: '自然'),
+        ],
+        updatedAt: DateTime(2026, 3, 15),
+      );
+      await repo.saveAll([original]);
+
+      final loaded = repo.loadAll().single;
+      expect(loaded.id, original.id);
+      expect(loaded.content, original.content);
+      expect(loaded.variables, original.variables);
     });
   });
 }

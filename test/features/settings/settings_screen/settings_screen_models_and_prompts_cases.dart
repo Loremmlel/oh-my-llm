@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dart';
 import 'package:oh_my_llm/features/settings/data/sqlite_prompt_template_repository.dart';
+import 'package:oh_my_llm/features/settings/data/sqlite_template_prompt_repository.dart';
 
 import 'settings_screen_test_helpers.dart';
 
@@ -103,4 +104,49 @@ void registerSettingsScreenModelsAndPromptsTests() {
       expect(repo.loadAll(), isEmpty);
     },
   );
+
+  testWidgets('settings screen supports template prompt CRUD with persistence', (
+    tester,
+  ) async {
+    final preferences = await createEmptyPreferences();
+
+    final database = await pumpSettingsScreen(tester, preferences: preferences);
+    final repo = SqliteTemplatePromptRepository(database);
+
+    expect(find.text('还没有模板提示词'), findsOneWidget);
+
+    await tester.tap(find.text('新增模板提示词'));
+    await tester.pumpAndSettle();
+
+    final fields = find.byType(TextFormField);
+    await tester.enterText(fields.at(0), '翻译模板');
+    await tester.enterText(fields.at(1), '请把{{正文}}翻译成{{目标语言}}。');
+    await tester.pumpAndSettle();
+
+    expect(find.text('正文 使用聊天页主输入框提供内容，不单独设置默认值。'), findsOneWidget);
+
+    final refreshedFields = find.byType(TextFormField);
+    await tester.enterText(refreshedFields.at(2), '英文');
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('翻译模板'), findsWidgets);
+    expect(repo.loadAll().any((item) => item.title == '翻译模板'), isTrue);
+    expect(find.textContaining('共 2 个变量'), findsOneWidget);
+
+    await tester.tap(find.text('编辑'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField).at(0), '翻译模板 v2');
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('翻译模板 v2'), findsWidgets);
+    expect(repo.loadAll().any((item) => item.title == '翻译模板 v2'), isTrue);
+
+    await tester.tap(find.text('删除'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('还没有模板提示词'), findsOneWidget);
+    expect(repo.loadAll(), isEmpty);
+  });
 }

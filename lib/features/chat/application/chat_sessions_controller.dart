@@ -435,6 +435,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     required PromptTemplate? promptTemplate,
     required bool reasoningEnabled,
     required ReasoningEffort reasoningEffort,
+    List<UserMessageSegment> userMessageSegments = const [],
   }) async {
     if (state.isStreaming) {
       return;
@@ -456,6 +457,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
       content: trimmedContent,
       createdAt: timestamp,
       parentId: parentId ?? rootConversationParentId,
+      userMessageSegments: userMessageSegments,
     );
     final pendingNodes = [...tree.nodes, userMessage];
     final pendingSelections = Map<String, String>.from(tree.selections);

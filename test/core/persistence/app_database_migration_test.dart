@@ -16,13 +16,13 @@ void main() {
 
     // ── user_version ───────────────────────────────────────────────────────
 
-    test('user_version 在迁移完成后为 4', () {
+    test('user_version 在迁移完成后为 5', () {
       final version =
           database.connection
                   .select('PRAGMA user_version;')
                   .single['user_version']
               as int;
-      expect(version, 4);
+      expect(version, 5);
     });
 
     // ── V1 表结构 ──────────────────────────────────────────────────────────
@@ -57,6 +57,7 @@ void main() {
           'content',
           'reasoning_content',
           'assistant_model_display_name',
+          'user_message_segments_json',
           'created_at',
         ]),
       );
@@ -216,6 +217,43 @@ void main() {
           )
           .single;
       expect(row['assistant_model_display_name'], '匿名模型');
+    });
+
+    // ── V5 表结构 ──────────────────────────────────────────────────────────
+
+    test('V5 创建 template_prompts 表', () {
+      final tables = _tableNames(database);
+      expect(tables, contains('template_prompts'));
+    });
+
+    test('V5 messages.user_message_segments_json 默认值为空数组字符串', () {
+      database.connection.execute('''
+        INSERT INTO conversations (id, created_at, updated_at, reasoning_effort)
+        VALUES ('c1', '2026-01-01', '2026-01-01', 'medium');
+      ''');
+      database.connection.execute('''
+        INSERT INTO messages (id, conversation_id, node_index, role, content, created_at)
+        VALUES ('m1', 'c1', 0, 'user', 'hello', '2026-01-01');
+      ''');
+      final row = database.connection
+          .select(
+            "SELECT user_message_segments_json FROM messages WHERE id = 'm1';",
+          )
+          .single;
+      expect(row['user_message_segments_json'], '[]');
+    });
+
+    test('V5 template_prompts.variables_json 默认值为空数组字符串', () {
+      database.connection.execute('''
+        INSERT INTO template_prompts (id, title, content, updated_at)
+        VALUES ('tp-1', '模板', '内容', '2026-01-01');
+      ''');
+      final row = database.connection
+          .select(
+            "SELECT variables_json FROM template_prompts WHERE id = 'tp-1';",
+          )
+          .single;
+      expect(row['variables_json'], '[]');
     });
 
     // ── V3 外键 ON DELETE SET NULL ─────────────────────────────────────────

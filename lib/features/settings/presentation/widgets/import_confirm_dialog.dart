@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../application/fixed_prompt_sequences_controller.dart';
 import '../../application/llm_model_configs_controller.dart';
 import '../../application/prompt_templates_controller.dart';
+import '../../application/template_prompts_controller.dart';
 import '../../domain/models/settings_export_data.dart';
 
 /// 配置导入确认对话框。
@@ -50,6 +51,13 @@ class _ImportConfirmDialogState extends ConsumerState<ImportConfirmDialog> {
               icon: Icons.text_snippet_outlined,
               label: '前置 Prompt 模板',
               count: data.promptTemplates.length,
+            ),
+          if (data.templatePrompts.isNotEmpty)
+            _buildCountRow(
+              context,
+              icon: Icons.dynamic_form_outlined,
+              label: '模板提示词',
+              count: data.templatePrompts.length,
             ),
           if (data.fixedPromptSequences.isNotEmpty)
             _buildCountRow(
@@ -104,7 +112,7 @@ class _ImportConfirmDialogState extends ConsumerState<ImportConfirmDialog> {
     );
   }
 
-  /// 批量写入三类配置并关闭对话框。
+  /// 批量写入四类配置并关闭对话框。
   Future<void> _handleImport() async {
     setState(() => _isImporting = true);
 
@@ -119,6 +127,11 @@ class _ImportConfirmDialogState extends ConsumerState<ImportConfirmDialog> {
       await ref
           .read(promptTemplatesProvider.notifier)
           .upsertAll(data.promptTemplates);
+    }
+    if (data.templatePrompts.isNotEmpty) {
+      await ref
+          .read(templatePromptsProvider.notifier)
+          .upsertAll(data.templatePrompts);
     }
     if (data.fixedPromptSequences.isNotEmpty) {
       await ref

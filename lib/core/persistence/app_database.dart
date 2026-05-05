@@ -67,6 +67,9 @@ class AppDatabase {
     if (currentVersion < 4) {
       _migrateV4();
     }
+    if (currentVersion < 5) {
+      _migrateV5();
+    }
   }
 
   /// 初始 schema：聊天记录相关表。
@@ -189,5 +192,23 @@ class AppDatabase {
       ADD COLUMN assistant_model_display_name TEXT NOT NULL DEFAULT '匿名模型';
     ''');
     _connection.execute('PRAGMA user_version = 4;');
+  }
+
+  /// 新增模板提示词表，并为用户消息补充分段展示元数据列。
+  void _migrateV5() {
+    _connection.execute('''
+      CREATE TABLE IF NOT EXISTS template_prompts (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        variables_json TEXT NOT NULL DEFAULT '[]',
+        updated_at TEXT NOT NULL
+      );
+    ''');
+    _connection.execute('''
+      ALTER TABLE messages
+      ADD COLUMN user_message_segments_json TEXT NOT NULL DEFAULT '[]';
+    ''');
+    _connection.execute('PRAGMA user_version = 5;');
   }
 }

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'fixed_prompt_sequence.dart';
 import 'llm_model_config.dart';
 import 'prompt_template.dart';
+import 'template_prompt.dart';
 
 /// 配置导出/导入的数据包，包含三类设置项的完整快照。
 ///
@@ -25,6 +26,7 @@ class SettingsExportData {
   const SettingsExportData({
     required this.modelConfigs,
     required this.promptTemplates,
+    required this.templatePrompts,
     required this.fixedPromptSequences,
   });
 
@@ -36,6 +38,7 @@ class SettingsExportData {
 
   final List<LlmModelConfig> modelConfigs;
   final List<PromptTemplate> promptTemplates;
+  final List<TemplatePrompt> templatePrompts;
   final List<FixedPromptSequence> fixedPromptSequences;
 
   /// 将导出数据序列化为 JSON 字符串（含标识符和版本号）。
@@ -45,6 +48,7 @@ class SettingsExportData {
       'version': formatVersion,
       'modelConfigs': modelConfigs.map((c) => c.toJson()).toList(),
       'promptTemplates': promptTemplates.map((t) => t.toJson()).toList(),
+      'templatePrompts': templatePrompts.map((t) => t.toJson()).toList(),
       'fixedPromptSequences':
           fixedPromptSequences.map((s) => s.toJson()).toList(),
     });
@@ -66,6 +70,8 @@ class SettingsExportData {
 
       final rawModels = raw['modelConfigs'] as List<dynamic>? ?? const [];
       final rawTemplates = raw['promptTemplates'] as List<dynamic>? ?? const [];
+      final rawTemplatePrompts =
+          raw['templatePrompts'] as List<dynamic>? ?? const [];
       final rawSequences =
           raw['fixedPromptSequences'] as List<dynamic>? ?? const [];
 
@@ -77,6 +83,11 @@ class SettingsExportData {
             .toList(growable: false),
         promptTemplates: rawTemplates
             .map((item) => PromptTemplate.fromJson(
+                  Map<String, dynamic>.from(item as Map),
+                ))
+            .toList(growable: false),
+        templatePrompts: rawTemplatePrompts
+            .map((item) => TemplatePrompt.fromJson(
                   Map<String, dynamic>.from(item as Map),
                 ))
             .toList(growable: false),
@@ -96,5 +107,6 @@ class SettingsExportData {
   bool get hasContent =>
       modelConfigs.isNotEmpty ||
       promptTemplates.isNotEmpty ||
+      templatePrompts.isNotEmpty ||
       fixedPromptSequences.isNotEmpty;
 }
