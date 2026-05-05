@@ -5,7 +5,7 @@ final class AppLogStore {
   AppLogStore._({required File file, required this.maxBytes}) : _file = file;
 
   static const defaultLogFileName = 'network.log';
-  static const defaultMaxBytes = 1024 * 1024;
+  static const defaultMaxBytes = 10 * 1024 * 1024;
 
   final File _file;
   final int maxBytes;

@@ -372,8 +372,8 @@ class ChatWorkspace extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text('正文会在发送时插入模板提示词上方。', style: theme.textTheme.bodySmall),
               ],
-              const SizedBox(height: 8),
             ],
+            const SizedBox(height: 12),
             CallbackShortcuts(
               bindings: {
                 const SingleActivator(
