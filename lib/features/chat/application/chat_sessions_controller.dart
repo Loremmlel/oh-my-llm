@@ -216,7 +216,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     await _saveAll();
   }
 
-  /// 更新当前会话的默认模型和 Prompt 相关偏好。
+  /// 更新当前会话的模型、前置 Prompt 和思考偏好。
   Future<void> updateActiveConversationPreferences({
     String? selectedModelId,
     String? selectedPromptTemplateId,
@@ -538,14 +538,32 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
 
   // ── 私有辅助 ────────────────────────────────────────────────────────────────
 
-  /// 创建一个空会话并继承设置页中的默认选择。
+  /// 创建一个空会话，并继承最近一次聊天选择。
   ChatConversation _createConversation() {
     final now = DateTime.now();
+    final rememberedSelections = ref.read(chatDefaultsProvider);
+    final modelConfigs = ref.read(llmModelConfigsProvider);
+    final promptTemplates = ref.read(promptTemplatesProvider);
+    final rememberedModelId =
+        modelConfigs.any(
+          (config) => config.id == rememberedSelections.defaultModelId,
+        )
+        ? rememberedSelections.defaultModelId
+        : modelConfigs.firstOrNull?.id;
+    final rememberedPromptTemplateId =
+        promptTemplates.any(
+          (template) =>
+              template.id == rememberedSelections.defaultPromptTemplateId,
+        )
+        ? rememberedSelections.defaultPromptTemplateId
+        : null;
     return ChatConversation(
       id: generateEntityId(),
       messages: const [],
       createdAt: now,
       updatedAt: now,
+      selectedModelId: rememberedModelId,
+      selectedPromptTemplateId: rememberedPromptTemplateId,
       reasoningEffort: ReasoningEffort.medium,
     );
   }
@@ -800,6 +818,13 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
       return null;
     }
 
+    final conversationSelected = modelConfigs.where((config) {
+      return config.id == conversation.selectedModelId;
+    }).firstOrNull;
+    if (conversationSelected != null) {
+      return conversationSelected;
+    }
+
     final defaultModelId = ref.read(chatDefaultsProvider).defaultModelId;
     final defaultModel = modelConfigs.where((config) {
       return config.id == defaultModelId;
@@ -808,17 +833,25 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
       return defaultModel;
     }
 
-    return modelConfigs.where((config) {
-          return config.id == conversation.selectedModelId;
-        }).firstOrNull ??
-        modelConfigs.first;
+    return modelConfigs.first;
   }
 
-  /// 选择当前会话对应的 Prompt 模板。
+  /// 选择当前会话对应的前置 Prompt 模板。
   PromptTemplate? _resolvePromptTemplate(ChatConversation conversation) {
     final promptTemplates = ref.read(promptTemplatesProvider);
     if (promptTemplates.isEmpty) {
       return null;
+    }
+
+    if (conversation.selectedPromptTemplateId == noPromptTemplateSelectedId) {
+      return null;
+    }
+
+    final conversationSelected = promptTemplates.where((template) {
+      return template.id == conversation.selectedPromptTemplateId;
+    }).firstOrNull;
+    if (conversationSelected != null) {
+      return conversationSelected;
     }
 
     final defaultPromptTemplateId = ref

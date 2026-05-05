@@ -44,7 +44,9 @@ TemplatedUserMessage buildTemplatedUserMessage({
 
   void appendRenderedTemplateContent() {
     var cursor = 0;
-    for (final match in matchTemplatePromptPlaceholders(templatePrompt.content)) {
+    for (final match in matchTemplatePromptPlaceholders(
+      templatePrompt.content,
+    )) {
       final start = match.start;
       final end = match.end;
       if (start > cursor) {
@@ -76,7 +78,7 @@ TemplatedUserMessage buildTemplatedUserMessage({
 
   if (!templatePrompt.containsBodyVariable) {
     appendSegment(normalizedBody, UserMessageSegmentKind.body);
-    if (templatePrompt.content.trim().isNotEmpty) {
+    if (normalizedBody.isNotEmpty && templatePrompt.content.trim().isNotEmpty) {
       appendSegment('\n', UserMessageSegmentKind.body);
     }
   }

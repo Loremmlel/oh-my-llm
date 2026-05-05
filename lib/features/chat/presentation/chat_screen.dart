@@ -75,7 +75,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final activeConversationId = ref.watch(activeConversationIdProvider);
     final isStreaming = ref.watch(isChatStreamingProvider);
     final errorMessage = ref.watch(chatErrorMessageProvider);
-    final chatDefaults = ref.watch(chatDefaultsProvider);
+    final rememberedSelections = ref.watch(chatDefaultsProvider);
     final fixedPromptSequences = ref.watch(fixedPromptSequencesProvider);
     final modelConfigs = ref.watch(llmModelConfigsProvider);
     final promptTemplates = ref.watch(promptTemplatesProvider);
@@ -87,11 +87,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final selectedModel = _resolveSelectedModel(
       modelConfigs,
       conversation.selectedModelId,
-      chatDefaults.defaultModelId,
+      rememberedSelections.defaultModelId,
     );
     final selectedPromptTemplate = _resolveSelectedPromptTemplate(
       promptTemplates,
-      chatDefaults.defaultPromptTemplateId,
+      conversation.selectedPromptTemplateId,
+      rememberedSelections.defaultPromptTemplateId,
     );
     final selectedTemplatePrompt = _resolveSelectedTemplatePrompt(
       templatePrompts,
@@ -185,17 +186,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     conversation: conversation,
                     messages: activeMessages,
                     hasModels: modelConfigs.isNotEmpty,
+                    modelConfigs: modelConfigs,
+                    selectedModel: selectedModel,
+                    promptTemplates: promptTemplates,
+                    selectedPromptTemplate: selectedPromptTemplate,
                     userMessages: userMessages,
                     activeAnchorMessageId: _scroll.activeAnchorMessageId,
-                     messageController: _messageController,
-                     templatePrompts: templatePrompts,
-                     selectedTemplatePrompt: selectedTemplatePrompt,
-                     templateVariableControllers: _templateVariableControllers,
-                     messageItemScrollController: _scroll.itemScrollController,
-                     messageItemPositionsListener: _scroll.itemPositionsListener,
-                     isComposerCollapsed: _isComposerCollapsed,
-                     reasoningEnabled:
-                         supportsReasoning && conversation.reasoningEnabled,
+                    messageController: _messageController,
+                    templatePrompts: templatePrompts,
+                    selectedTemplatePrompt: selectedTemplatePrompt,
+                    templateVariableControllers: _templateVariableControllers,
+                    messageItemScrollController: _scroll.itemScrollController,
+                    messageItemPositionsListener: _scroll.itemPositionsListener,
+                    isComposerCollapsed: _isComposerCollapsed,
+                    reasoningEnabled:
+                        supportsReasoning && conversation.reasoningEnabled,
                     reasoningEffort: conversation.reasoningEffort,
                     supportsReasoning: supportsReasoning,
                     isStreaming: isStreaming,
@@ -214,18 +219,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           .read(chatSessionsProvider.notifier)
                           .retryLatestAssistant();
                     },
-                     onDeleteMessage: (message) async {
-                       await _showDeleteMessageDialog(context, message);
-                     },
-                     onTemplatePromptSelected: (templatePromptId) {
-                       _handleTemplatePromptSelected(
-                         templatePromptId,
-                         templatePrompts,
-                       );
-                     },
-                     onToggleComposerCollapsed: _toggleComposerCollapsed,
-                     onReasoningEnabledChanged: supportsReasoning
-                         ? (value) {
+                    onDeleteMessage: (message) async {
+                      await _showDeleteMessageDialog(context, message);
+                    },
+                    onModelSelected: (modelId) {
+                      _handleModelSelected(modelId);
+                    },
+                    onPromptTemplateSelected: (promptTemplateId) {
+                      _handlePromptTemplateSelected(promptTemplateId);
+                    },
+                    onTemplatePromptSelected: (templatePromptId) {
+                      _handleTemplatePromptSelected(
+                        templatePromptId,
+                        templatePrompts,
+                      );
+                    },
+                    onToggleComposerCollapsed: _toggleComposerCollapsed,
+                    onReasoningEnabledChanged: supportsReasoning
+                        ? (value) {
                             ref
                                 .read(chatSessionsProvider.notifier)
                                 .updateActiveConversationPreferences(
@@ -263,29 +274,28 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             messageId: messageId,
                           );
                     },
-                     onSendPressed: selectedModel == null || isStreaming
-                         ? null
-                         : () async {
-                             final body = _messageController.text.trim();
-                             if (body.isEmpty) {
-                               return;
-                             }
+                    onSendPressed: selectedModel == null || isStreaming
+                        ? null
+                        : () async {
+                            final templatedMessage = buildTemplatedUserMessage(
+                              body: _messageController.text,
+                              templatePrompt: selectedTemplatePrompt,
+                              variableValues: _resolveTemplatePromptValues(
+                                selectedTemplatePrompt,
+                              ),
+                            );
+                            if (templatedMessage.content.trim().isEmpty) {
+                              return;
+                            }
 
-                             final templatedMessage = buildTemplatedUserMessage(
-                               body: body,
-                               templatePrompt: selectedTemplatePrompt,
-                               variableValues: _resolveTemplatePromptValues(
-                                 selectedTemplatePrompt,
-                               ),
-                             );
-                             _messageController.clear();
-                             await _sendMessageContent(
-                               content: templatedMessage.content,
-                               userMessageSegments:
-                                   templatedMessage.userMessageSegments,
-                               modelConfig: selectedModel,
-                               promptTemplate: selectedPromptTemplate,
-                               conversation: conversation,
+                            _messageController.clear();
+                            await _sendMessageContent(
+                              content: templatedMessage.content,
+                              userMessageSegments:
+                                  templatedMessage.userMessageSegments,
+                              modelConfig: selectedModel,
+                              promptTemplate: selectedPromptTemplate,
+                              conversation: conversation,
                               supportsReasoning: supportsReasoning,
                               isStreaming: isStreaming,
                             );
@@ -327,33 +337,49 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   LlmModelConfig? _resolveSelectedModel(
     List<LlmModelConfig> modelConfigs,
     String? selectedModelId,
-    String? defaultModelId,
+    String? rememberedModelId,
   ) {
     if (modelConfigs.isEmpty) {
       return null;
     }
 
-    final defaultSelected = modelConfigs.where((config) {
-      return config.id == defaultModelId;
+    final conversationSelected = modelConfigs.where((config) {
+      return config.id == selectedModelId;
     }).firstOrNull;
-
-    if (defaultSelected != null) {
-      return defaultSelected;
+    if (conversationSelected != null) {
+      return conversationSelected;
     }
 
-    return modelConfigs.where((config) {
-          return config.id == selectedModelId;
-        }).firstOrNull ??
-        modelConfigs.first;
+    final rememberedSelected = modelConfigs.where((config) {
+      return config.id == rememberedModelId;
+    }).firstOrNull;
+
+    if (rememberedSelected != null) {
+      return rememberedSelected;
+    }
+
+    return modelConfigs.first;
   }
 
-  /// 解析当前会话应使用的 Prompt 模板，并在缺省时回退到默认项。
+  /// 解析当前会话应使用的前置 Prompt，并在缺省时回退到最近一次选择。
   PromptTemplate? _resolveSelectedPromptTemplate(
     List<PromptTemplate> promptTemplates,
-    String? defaultPromptTemplateId,
+    String? selectedPromptTemplateId,
+    String? rememberedPromptTemplateId,
   ) {
+    if (selectedPromptTemplateId == noPromptTemplateSelectedId) {
+      return null;
+    }
+
+    final conversationSelected = promptTemplates.where((template) {
+      return template.id == selectedPromptTemplateId;
+    }).firstOrNull;
+    if (conversationSelected != null) {
+      return conversationSelected;
+    }
+
     return promptTemplates.where((template) {
-      return template.id == defaultPromptTemplateId;
+      return template.id == rememberedPromptTemplateId;
     }).firstOrNull;
   }
 
@@ -410,6 +436,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     setState(() {
       _isComposerCollapsed = !_isComposerCollapsed;
     });
+  }
+
+  Future<void> _handleModelSelected(String modelId) async {
+    await ref
+        .read(chatSessionsProvider.notifier)
+        .updateActiveConversationPreferences(selectedModelId: modelId);
+    await ref.read(chatDefaultsProvider.notifier).rememberModelId(modelId);
+  }
+
+  Future<void> _handlePromptTemplateSelected(String? promptTemplateId) async {
+    await ref
+        .read(chatSessionsProvider.notifier)
+        .updateActiveConversationPreferences(
+          selectedPromptTemplateId:
+              promptTemplateId ?? noPromptTemplateSelectedId,
+        );
+    await ref
+        .read(chatDefaultsProvider.notifier)
+        .rememberPromptTemplateId(promptTemplateId);
   }
 
   Map<String, String> _resolveTemplatePromptValues(

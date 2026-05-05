@@ -1,6 +1,6 @@
 import 'package:equatable/equatable.dart';
 
-/// 聊天页使用的默认模型与默认 Prompt 配置。
+/// 聊天页最近一次使用的模型与前置 Prompt 记忆。
 class ChatDefaults extends Equatable {
   const ChatDefaults({this.defaultModelId, this.defaultPromptTemplateId});
 

@@ -6,6 +6,7 @@ import 'package:equatable/equatable.dart';
 import 'chat_message.dart';
 
 const rootConversationParentId = '__root__';
+const noPromptTemplateSelectedId = '__no_prompt_template_selected__';
 
 /// 单个会话及其消息树状态。
 class ChatConversation extends Equatable {

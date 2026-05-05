@@ -8,7 +8,7 @@ import 'package:oh_my_llm/features/settings/domain/models/chat_defaults.dart';
 
 void main() {
   group('ChatDefaultsRepository', () {
-    test('load 在 SP 为空时返回默认值（两个字段均为 null）', () async {
+    test('load 在 SP 为空时返回空记忆（两个字段均为 null）', () async {
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
       final repo = ChatDefaultsRepository(prefs);
@@ -69,7 +69,7 @@ void main() {
       expect(repo.load(), original);
     });
 
-    test('save 后 load 仅有 defaultModelId 的场景', () async {
+    test('save 后 load 仅有 remembered modelId 的场景', () async {
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
       final repo = ChatDefaultsRepository(prefs);

@@ -1,31 +1,19 @@
-import 'dart:convert';
-
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:oh_my_llm/features/settings/data/chat_defaults_repository.dart';
 
 import 'settings_screen_test_helpers.dart';
 
 void registerSettingsScreenDefaultsTests() {
-  testWidgets('settings screen persists chat defaults', (tester) async {
+  testWidgets('settings screen no longer shows chat defaults section', (
+    tester,
+  ) async {
     final preferences = await createDefaultsSeededPreferences();
 
     await pumpSettingsScreen(tester, preferences: preferences);
 
-    await tester.tap(find.byType(DropdownButtonFormField<String>).at(0));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Claude Sonnet').last);
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byType(DropdownButtonFormField<String>).at(1));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('代码助手').last);
-    await tester.pumpAndSettle();
-
-    expect(jsonDecode(preferences.getString(chatDefaultsStorageKey)!), {
-      'defaultModelId': 'model-2',
-      'defaultPromptTemplateId': 'prompt-1',
-    });
+    expect(find.text('聊天默认项'), findsNothing);
+    expect(find.text('模型设置'), findsOneWidget);
+    expect(find.text('前置 Prompt 设置'), findsOneWidget);
+    expect(find.textContaining('聊天页会记住最近一次使用的模型'), findsOneWidget);
+    expect(find.textContaining('聊天页会记住最近一次使用的选择'), findsOneWidget);
   });
 }

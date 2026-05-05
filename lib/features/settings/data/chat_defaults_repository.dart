@@ -8,18 +8,18 @@ import '../domain/models/chat_defaults.dart';
 
 const String chatDefaultsStorageKey = 'settings.chat_defaults';
 
-/// 聊天默认项的 SharedPreferences 仓库。
+/// 聊天页最近一次选择记忆的 SharedPreferences 仓库。
 final chatDefaultsRepositoryProvider = Provider<ChatDefaultsRepository>((ref) {
   return ChatDefaultsRepository(ref.watch(sharedPreferencesProvider));
 });
 
-/// 读取和保存聊天默认项配置。
+/// 读取和保存聊天页最近一次选择的模型 / 前置 Prompt。
 class ChatDefaultsRepository {
   const ChatDefaultsRepository(this._sharedPreferences);
 
   final SharedPreferences _sharedPreferences;
 
-  /// 读取默认模型和默认 Prompt 模板。
+  /// 读取最近一次使用的模型和前置 Prompt 模板。
   ChatDefaults load() {
     final rawJson = _sharedPreferences.getString(chatDefaultsStorageKey);
     if (rawJson == null || rawJson.isEmpty) {
@@ -36,7 +36,7 @@ class ChatDefaultsRepository {
     return ChatDefaults.fromJson(Map<String, dynamic>.from(decoded));
   }
 
-  /// 保存当前默认项配置。
+  /// 保存当前最近一次选择记忆。
   Future<void> save(ChatDefaults defaults) async {
     await _sharedPreferences.setString(
       chatDefaultsStorageKey,
