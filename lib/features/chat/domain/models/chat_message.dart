@@ -25,6 +25,54 @@ enum ReasoningEffort {
   final String apiValue;
 }
 
+/// 用户消息中的一个可着色文本片段。
+enum UserMessageSegmentKind {
+  body('body'),
+  template('template');
+
+  const UserMessageSegmentKind(this.apiValue);
+
+  final String apiValue;
+
+  /// 从持久化字符串解析片段类型。
+  static UserMessageSegmentKind fromApiValue(String value) {
+    return UserMessageSegmentKind.values.firstWhere(
+      (kind) => kind.apiValue == value,
+      orElse: () => UserMessageSegmentKind.body,
+    );
+  }
+}
+
+/// 用户消息展示时的一个文本片段。
+class UserMessageSegment extends Equatable {
+  const UserMessageSegment({
+    required this.text,
+    required this.kind,
+  });
+
+  final String text;
+  final UserMessageSegmentKind kind;
+
+  /// 将片段序列化为持久化 JSON。
+  Map<String, dynamic> toJson() {
+    return {
+      'text': text,
+      'kind': kind.apiValue,
+    };
+  }
+
+  /// 从持久化 JSON 反序列化片段。
+  factory UserMessageSegment.fromJson(Map<String, dynamic> json) {
+    return UserMessageSegment(
+      text: json['text'] as String,
+      kind: UserMessageSegmentKind.fromApiValue(json['kind'] as String),
+    );
+  }
+
+  @override
+  List<Object> get props => [text, kind];
+}
+
 /// 单条聊天消息，包含正文、推理内容和树结构位置。
 class ChatMessage extends Equatable {
   const ChatMessage({
@@ -36,6 +84,7 @@ class ChatMessage extends Equatable {
     this.isStreaming = false,
     this.reasoningContent = '',
     this.assistantModelDisplayName = '',
+    this.userMessageSegments = const [],
   });
 
   final String id;
@@ -46,6 +95,7 @@ class ChatMessage extends Equatable {
   final bool isStreaming;
   final String reasoningContent;
   final String assistantModelDisplayName;
+  final List<UserMessageSegment> userMessageSegments;
 
   /// 复制消息，并允许覆盖常用字段。
   ChatMessage copyWith({
@@ -57,6 +107,7 @@ class ChatMessage extends Equatable {
     bool? isStreaming,
     String? reasoningContent,
     String? assistantModelDisplayName,
+    List<UserMessageSegment>? userMessageSegments,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -68,6 +119,7 @@ class ChatMessage extends Equatable {
       reasoningContent: reasoningContent ?? this.reasoningContent,
       assistantModelDisplayName:
           assistantModelDisplayName ?? this.assistantModelDisplayName,
+      userMessageSegments: userMessageSegments ?? this.userMessageSegments,
     );
   }
 
@@ -81,6 +133,8 @@ class ChatMessage extends Equatable {
       'parentId': parentId,
       'reasoningContent': reasoningContent,
       'assistantModelDisplayName': assistantModelDisplayName,
+      'userMessageSegments':
+          userMessageSegments.map((segment) => segment.toJson()).toList(),
     };
   }
 
@@ -89,6 +143,7 @@ class ChatMessage extends Equatable {
     final role = ChatMessageRole.values.firstWhere(
       (role) => role.apiValue == json['role'],
     );
+    final rawSegments = json['userMessageSegments'] as List<dynamic>? ?? const [];
     return ChatMessage(
       id: json['id'] as String,
       role: role,
@@ -101,6 +156,13 @@ class ChatMessage extends Equatable {
           (role == ChatMessageRole.assistant
               ? anonymousAssistantModelDisplayName
               : ''),
+      userMessageSegments: rawSegments
+          .map(
+            (segment) => UserMessageSegment.fromJson(
+              Map<String, dynamic>.from(segment as Map),
+            ),
+          )
+          .toList(growable: false),
     );
   }
 
@@ -120,5 +182,6 @@ class ChatMessage extends Equatable {
     isStreaming,
     reasoningContent,
     assistantModelDisplayName,
+    userMessageSegments,
   ];
 }

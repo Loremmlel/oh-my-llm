@@ -4,6 +4,7 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import '../../domain/models/chat_conversation.dart';
 import '../../domain/models/chat_message.dart';
+import '../../../settings/domain/models/template_prompt.dart';
 import 'cached_chat_message_bubble.dart';
 import 'empty_conversation_view.dart';
 import 'message_anchor_rail.dart';
@@ -21,8 +22,12 @@ class ChatWorkspace extends StatelessWidget {
     required this.userMessages,
     required this.activeAnchorMessageId,
     required this.messageController,
+    required this.templatePrompts,
+    required this.selectedTemplatePrompt,
+    required this.templateVariableControllers,
     required this.messageItemScrollController,
     required this.messageItemPositionsListener,
+    required this.isComposerCollapsed,
     required this.reasoningEnabled,
     required this.reasoningEffort,
     required this.supportsReasoning,
@@ -33,6 +38,8 @@ class ChatWorkspace extends StatelessWidget {
     required this.onEditMessage,
     required this.onRetryLatestAssistant,
     required this.onDeleteMessage,
+    required this.onTemplatePromptSelected,
+    required this.onToggleComposerCollapsed,
     required this.onReasoningEnabledChanged,
     required this.onReasoningEffortChanged,
     required this.onOpenFixedPromptSequenceRunner,
@@ -52,8 +59,12 @@ class ChatWorkspace extends StatelessWidget {
   final List<ChatMessage> userMessages;
   final String? activeAnchorMessageId;
   final TextEditingController messageController;
+  final List<TemplatePrompt> templatePrompts;
+  final TemplatePrompt? selectedTemplatePrompt;
+  final Map<String, TextEditingController> templateVariableControllers;
   final ItemScrollController messageItemScrollController;
   final ItemPositionsListener messageItemPositionsListener;
+  final bool isComposerCollapsed;
   final bool reasoningEnabled;
   final ReasoningEffort reasoningEffort;
   final bool supportsReasoning;
@@ -64,6 +75,8 @@ class ChatWorkspace extends StatelessWidget {
   final ValueChanged<ChatMessage> onEditMessage;
   final Future<void> Function() onRetryLatestAssistant;
   final ValueChanged<ChatMessage> onDeleteMessage;
+  final ValueChanged<String?> onTemplatePromptSelected;
+  final VoidCallback onToggleComposerCollapsed;
   final ValueChanged<bool>? onReasoningEnabledChanged;
   final ValueChanged<ReasoningEffort>? onReasoningEffortChanged;
   final Future<void> Function() onOpenFixedPromptSequenceRunner;
@@ -278,12 +291,104 @@ class ChatWorkspace extends StatelessWidget {
   ///
   /// 两个 pill 均为可点击的圆角矩形，高度约 28px，避免 [Switch] 撑开行高。
   Widget _buildComposerCard(BuildContext context, ThemeData theme) {
+    if (isComposerCollapsed) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Row(
+            children: [
+              const Icon(Icons.keyboard_arrow_up_rounded),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '输入区已隐藏',
+                  style: theme.textTheme.bodyMedium,
+                ),
+              ),
+              Tooltip(
+                message: '展开输入区',
+                child: OutlinedButton.icon(
+                  onPressed: onToggleComposerCollapsed,
+                  icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                  label: const Text('展开'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<String?>(
+                    key: const ValueKey('template-prompt-selector'),
+                    initialValue: selectedTemplatePrompt?.id,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: '模板提示词',
+                    ),
+                    items: [
+                      const DropdownMenuItem<String?>(
+                        value: null,
+                        child: Text('不使用模板提示词'),
+                      ),
+                      ...templatePrompts.map((templatePrompt) {
+                        return DropdownMenuItem<String?>(
+                          value: templatePrompt.id,
+                          child: Text(templatePrompt.title),
+                        );
+                      }),
+                    ],
+                    onChanged: isStreaming ? null : onTemplatePromptSelected,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton.outlined(
+                  onPressed: onToggleComposerCollapsed,
+                  tooltip: '收起输入区',
+                  icon: const Icon(Icons.keyboard_arrow_up_rounded),
+                ),
+              ],
+            ),
+            if (selectedTemplatePrompt != null) ...[
+              const SizedBox(height: 12),
+              if (selectedTemplatePrompt!.inputVariables.isEmpty)
+                Text(
+                  '当前模板没有额外变量。',
+                  style: theme.textTheme.bodySmall,
+                )
+              else
+                for (final variable in selectedTemplatePrompt!.inputVariables)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: TextField(
+                      key: ValueKey('template-variable-${variable.name}'),
+                      controller: templateVariableControllers[variable.name],
+                      decoration: InputDecoration(
+                        labelText: variable.name,
+                        hintText: variable.defaultValue.isEmpty
+                            ? '未设置默认值'
+                            : variable.defaultValue,
+                      ),
+                    ),
+                  ),
+              if (!selectedTemplatePrompt!.containsBodyVariable) ...[
+                const SizedBox(height: 4),
+                Text(
+                  '正文会在发送时插入模板提示词上方。',
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+              const SizedBox(height: 8),
+            ],
             CallbackShortcuts(
               bindings: {
                 const SingleActivator(
@@ -296,13 +401,16 @@ class ChatWorkspace extends StatelessWidget {
                 ): () => onSendPressed?.call(),
               },
               child: TextField(
+                key: const ValueKey('chat-message-composer'),
                 controller: messageController,
                 minLines: 2,
                 maxLines: 5,
                 textInputAction: TextInputAction.newline,
-                decoration: const InputDecoration(
-                  labelText: '输入消息',
-                  hintText: '输入你的问题、指令或待处理内容。',
+                decoration: InputDecoration(
+                  labelText: '正文',
+                  hintText: selectedTemplatePrompt == null
+                      ? '输入你的问题、指令或待处理内容。'
+                      : '输入要注入模板的正文内容。',
                   alignLabelWithHint: true,
                 ),
               ),

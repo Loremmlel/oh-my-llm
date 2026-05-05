@@ -9,10 +9,12 @@ import '../application/chat_defaults_controller.dart';
 import '../application/fixed_prompt_sequences_controller.dart';
 import '../application/llm_model_configs_controller.dart';
 import '../application/prompt_templates_controller.dart';
+import '../application/template_prompts_controller.dart';
 import '../domain/models/fixed_prompt_sequence.dart';
 import '../domain/models/llm_model_config.dart';
 import '../domain/models/prompt_template.dart';
 import '../domain/models/settings_export_data.dart';
+import '../domain/models/template_prompt.dart';
 import 'widgets/import_confirm_dialog.dart';
 import 'widgets/settings_widgets.dart';
 
@@ -27,6 +29,7 @@ class SettingsScreen extends ConsumerWidget {
     final fixedPromptSequences = ref.watch(fixedPromptSequencesProvider);
     final modelConfigs = ref.watch(llmModelConfigsProvider);
     final promptTemplates = ref.watch(promptTemplatesProvider);
+    final templatePrompts = ref.watch(templatePromptsProvider);
 
     return AppShellScaffold(
       currentDestination: AppDestination.settings,
@@ -99,6 +102,32 @@ class SettingsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
           SettingsSectionCard(
+            title: '模板提示词',
+            description:
+                '配置可在聊天页临时应用的变量模板。使用 {{变量名}} 声明注入位，{{正文}} 对应主输入框。',
+            action: FilledButton.icon(
+              onPressed: () async {
+                final handled = await _tryImportFromClipboard(context, ref);
+                if (!handled && context.mounted) {
+                  _showTemplatePromptDialog(context, ref);
+                }
+              },
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('新增模板提示词'),
+            ),
+            child: TemplatePromptsList(
+              templatePrompts: templatePrompts,
+              onEditRequested: (templatePrompt) {
+                _showTemplatePromptDialog(
+                  context,
+                  ref,
+                  initialValue: templatePrompt,
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 16),
+          SettingsSectionCard(
             title: '固定顺序提示词',
             description: '配置可逐步发送的用户提示词序列，适合做模型对比测试，不会自动整组连发。',
             action: FilledButton.icon(
@@ -131,11 +160,13 @@ class SettingsScreen extends ConsumerWidget {
   Future<void> _exportToClipboard(BuildContext context, WidgetRef ref) async {
     final modelConfigs = ref.read(llmModelConfigsProvider);
     final promptTemplates = ref.read(promptTemplatesProvider);
+    final templatePrompts = ref.read(templatePromptsProvider);
     final fixedPromptSequences = ref.read(fixedPromptSequencesProvider);
 
     final exportData = SettingsExportData(
       modelConfigs: modelConfigs,
       promptTemplates: promptTemplates,
+      templatePrompts: templatePrompts,
       fixedPromptSequences: fixedPromptSequences,
     );
 
@@ -168,11 +199,13 @@ class SettingsScreen extends ConsumerWidget {
     // 去重：过滤掉与本地内容等价的条目
     final existingModels = ref.read(llmModelConfigsProvider);
     final existingTemplates = ref.read(promptTemplatesProvider);
+    final existingTemplatePrompts = ref.read(templatePromptsProvider);
     final existingSequences = ref.read(fixedPromptSequencesProvider);
     final dedupedData = _deduplicateExportData(
       exportData,
       existingModels: existingModels,
       existingTemplates: existingTemplates,
+      existingTemplatePrompts: existingTemplatePrompts,
       existingSequences: existingSequences,
     );
 
@@ -218,6 +251,7 @@ class SettingsScreen extends ConsumerWidget {
     SettingsExportData data, {
     required List<LlmModelConfig> existingModels,
     required List<PromptTemplate> existingTemplates,
+    required List<TemplatePrompt> existingTemplatePrompts,
     required List<FixedPromptSequence> existingSequences,
   }) {
     final newModels = data.modelConfigs
@@ -239,6 +273,14 @@ class SettingsScreen extends ConsumerWidget {
         })
         .toList(growable: false);
 
+    final newTemplatePrompts = data.templatePrompts
+        .where((incoming) {
+          return !existingTemplatePrompts.any(
+            (e) => _templatePromptsContentEqual(e, incoming),
+          );
+        })
+        .toList(growable: false);
+
     final newSequences = data.fixedPromptSequences
         .where((incoming) {
           return !existingSequences.any(
@@ -250,6 +292,7 @@ class SettingsScreen extends ConsumerWidget {
     return SettingsExportData(
       modelConfigs: newModels,
       promptTemplates: newTemplates,
+      templatePrompts: newTemplatePrompts,
       fixedPromptSequences: newSequences,
     );
   }
@@ -266,6 +309,21 @@ class SettingsScreen extends ConsumerWidget {
       if (ma.placement != mb.placement) return false;
       if (ma.content.length != mb.content.length) return false;
       if (ma.content != mb.content) return false;
+    }
+    return true;
+  }
+
+  /// 判断两个模板提示词内容是否等价（忽略 id、title、updatedAt）。
+  bool _templatePromptsContentEqual(TemplatePrompt a, TemplatePrompt b) {
+    if (a.content.length != b.content.length) return false;
+    if (a.content != b.content) return false;
+    if (a.variables.length != b.variables.length) return false;
+    for (var i = 0; i < a.variables.length; i++) {
+      final va = a.variables[i];
+      final vb = b.variables[i];
+      if (va.name != vb.name) return false;
+      if (va.defaultValue.length != vb.defaultValue.length) return false;
+      if (va.defaultValue != vb.defaultValue) return false;
     }
     return true;
   }
@@ -345,6 +403,45 @@ class SettingsScreen extends ConsumerWidget {
                 SnackBar(
                   content: Text(
                     initialValue == null ? 'Prompt 模板已保存' : 'Prompt 模板已更新',
+                  ),
+                ),
+              );
+            }
+          },
+        );
+      },
+    );
+  }
+
+  /// 弹出模板提示词对话框，并把提交结果写回控制器。
+  Future<void> _showTemplatePromptDialog(
+    BuildContext context,
+    WidgetRef ref, {
+    TemplatePrompt? initialValue,
+  }) {
+    return showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return TemplatePromptFormDialog(
+          initialValue: initialValue,
+          onSubmit: (formData) async {
+            final templatePrompt = TemplatePrompt(
+              id: initialValue?.id ?? generateEntityId(),
+              title: formData.title,
+              content: formData.content,
+              variables: formData.variables,
+              updatedAt: DateTime.now(),
+            );
+
+            await ref
+                .read(templatePromptsProvider.notifier)
+                .upsert(templatePrompt);
+
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    initialValue == null ? '模板提示词已保存' : '模板提示词已更新',
                   ),
                 ),
               );

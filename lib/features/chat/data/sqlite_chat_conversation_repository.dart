@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import '../../../core/persistence/app_database.dart';
 import '../domain/models/chat_conversation.dart';
 import '../domain/models/chat_conversation_summary.dart';
@@ -39,6 +41,7 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
         content,
         reasoning_content,
         assistant_model_display_name,
+        user_message_segments_json,
         created_at
       FROM messages
       ORDER BY conversation_id, node_index
@@ -66,6 +69,16 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
               reasoningContent: row['reasoning_content'] as String? ?? '',
               assistantModelDisplayName:
                   row['assistant_model_display_name'] as String? ?? '',
+              userMessageSegments:
+                  (jsonDecode(
+                        row['user_message_segments_json'] as String? ?? '[]',
+                      ) as List)
+                      .map(
+                        (segment) => UserMessageSegment.fromJson(
+                          Map<String, dynamic>.from(segment as Map),
+                        ),
+                      )
+                      .toList(growable: false),
             ),
           );
     }
@@ -204,8 +217,9 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
           content,
           reasoning_content,
           assistant_model_display_name,
+          user_message_segments_json,
           created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ''');
       final selectionStatement = _database.connection.prepare('''
         INSERT INTO conversation_branch_selections (
@@ -244,6 +258,11 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
               message.content,
               message.reasoningContent,
               message.assistantModelDisplayName,
+              jsonEncode(
+                message.userMessageSegments
+                    .map((segment) => segment.toJson())
+                    .toList(),
+              ),
               message.createdAt.toIso8601String(),
             ]);
           }

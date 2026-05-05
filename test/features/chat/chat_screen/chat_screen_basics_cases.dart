@@ -6,14 +6,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/data/chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/thinking_toggle.dart';
 import 'package:oh_my_llm/features/settings/application/chat_defaults_controller.dart';
+import 'package:oh_my_llm/features/settings/application/template_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/data/chat_defaults_repository.dart';
 import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dart';
 import 'package:oh_my_llm/features/settings/data/prompt_template_repository.dart';
+import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
 
 import 'chat_screen_test_helpers.dart';
 
@@ -190,6 +193,157 @@ void registerChatScreenBasicsTests() {
     );
   });
 
+  testWidgets('chat screen can collapse and expand the composer', (
+    tester,
+  ) async {
+    final preferences = await createSeededPreferences();
+    final fakeClient = FakeChatCompletionClient();
+
+    await pumpChatScreen(
+      tester,
+      preferences: preferences,
+      fakeClient: fakeClient,
+    );
+
+    expect(find.widgetWithText(FilledButton, '发送'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('收起输入区'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('输入区已隐藏'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, '发送'), findsNothing);
+
+    await tester.tap(find.byTooltip('展开输入区'));
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(FilledButton, '发送'), findsOneWidget);
+  });
+
+  testWidgets('chat screen applies selected template prompt to user message', (
+    tester,
+  ) async {
+    final preferences = await createSeededPreferences();
+    final fakeClient = FakeChatCompletionClient()..enqueueChunks(['已收到']);
+
+    await pumpChatScreen(
+      tester,
+      preferences: preferences,
+      fakeClient: fakeClient,
+    );
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
+    await container.read(templatePromptsProvider.notifier).upsert(
+      TemplatePrompt(
+        id: 'tp-1',
+        title: '翻译模板',
+        content: '请把{{正文}}翻译成{{目标语言}}。',
+        variables: const [
+          TemplatePromptVariable(name: templatePromptBodyVariableName),
+          TemplatePromptVariable(name: '目标语言', defaultValue: '英文'),
+        ],
+        updatedAt: DateTime(2026, 5, 5),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('template-prompt-selector')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('翻译模板').last);
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const ValueKey('template-variable-目标语言')),
+      '法文',
+    );
+    await sendMessage(tester, '你好');
+    await tester.pumpAndSettle();
+
+    expect(fakeClient.requestHistory.last.last.content, '请把你好翻译成法文。');
+
+    final userMessage = container
+        .read(activeChatConversationProvider)
+        .messages
+        .firstWhere((message) => message.role == ChatMessageRole.user);
+    expect(
+      userMessage.userMessageSegments,
+      const [
+        UserMessageSegment(
+          text: '请把',
+          kind: UserMessageSegmentKind.template,
+        ),
+        UserMessageSegment(
+          text: '你好',
+          kind: UserMessageSegmentKind.body,
+        ),
+        UserMessageSegment(
+          text: '翻译成法文。',
+          kind: UserMessageSegmentKind.template,
+        ),
+      ],
+    );
+
+    final richTextFinder = find.byWidgetPredicate((widget) {
+      return widget is SelectableText &&
+          widget.textSpan?.toPlainText() == '请把你好翻译成法文。';
+    });
+    final rendered = tester.widget<SelectableText>(richTextFinder.first);
+    final spans = rendered.textSpan!.children!.cast<TextSpan>();
+    final theme = Theme.of(tester.element(richTextFinder.first));
+    expect(
+      spans[0].style?.color,
+      theme.colorScheme.onPrimaryContainer.withValues(alpha: 0.62),
+    );
+    expect(spans[1].style?.color, theme.colorScheme.onPrimaryContainer);
+    expect(
+      spans[2].style?.color,
+      theme.colorScheme.onPrimaryContainer.withValues(alpha: 0.62),
+    );
+  });
+
+  testWidgets('chat screen inserts body above template when 正文 placeholder is absent', (
+    tester,
+  ) async {
+    final preferences = await createSeededPreferences();
+    final fakeClient = FakeChatCompletionClient()..enqueueChunks(['已收到']);
+
+    await pumpChatScreen(
+      tester,
+      preferences: preferences,
+      fakeClient: fakeClient,
+    );
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
+    await container.read(templatePromptsProvider.notifier).upsert(
+      TemplatePrompt(
+        id: 'tp-2',
+        title: '总结模板',
+        content: '请总结成{{语气}}。',
+        variables: const [
+          TemplatePromptVariable(name: '语气', defaultValue: '简洁'),
+        ],
+        updatedAt: DateTime(2026, 5, 5, 0, 1),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('template-prompt-selector')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('总结模板').last);
+    await tester.pumpAndSettle();
+
+    await sendMessage(tester, '这是一段原文');
+    await tester.pumpAndSettle();
+
+    expect(
+      fakeClient.requestHistory.last.last.content,
+      '这是一段原文\n请总结成简洁。',
+    );
+  });
+
   testWidgets('chat screen fills composer from fixed prompt sequence runner', (
     tester,
   ) async {
@@ -253,9 +407,12 @@ void registerChatScreenBasicsTests() {
     );
 
     const content = '请使用快捷键发送这条消息';
-    await tester.tap(find.byType(TextField).first);
+    await tester.tap(find.byKey(const ValueKey('chat-message-composer')));
     await tester.pump();
-    await tester.enterText(find.byType(TextField).first, content);
+    await tester.enterText(
+      find.byKey(const ValueKey('chat-message-composer')),
+      content,
+    );
 
     await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);

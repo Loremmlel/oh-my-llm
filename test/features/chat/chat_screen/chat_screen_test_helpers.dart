@@ -92,7 +92,10 @@ Future<void> pumpChatScreen(
 }
 
 Future<void> sendMessage(WidgetTester tester, String content) async {
-  await tester.enterText(find.byType(TextField).first, content);
+  await tester.enterText(
+    find.byKey(const ValueKey('chat-message-composer')),
+    content,
+  );
   final sendButton = find.widgetWithText(FilledButton, '发送');
   await tester.ensureVisible(sendButton);
   await tester.tap(sendButton);

@@ -8,11 +8,14 @@ import '../../settings/application/chat_defaults_controller.dart';
 import '../../settings/application/fixed_prompt_sequences_controller.dart';
 import '../../settings/application/llm_model_configs_controller.dart';
 import '../../settings/application/prompt_templates_controller.dart';
+import '../../settings/application/template_prompts_controller.dart';
 import '../../settings/domain/models/fixed_prompt_sequence.dart';
 import '../../settings/domain/models/llm_model_config.dart';
 import '../../settings/domain/models/prompt_template.dart';
+import '../../settings/domain/models/template_prompt.dart';
 import '../application/chat_message_tree.dart';
 import '../application/chat_sessions_controller.dart';
+import '../application/templated_user_message_builder.dart';
 import '../domain/chat_conversation_groups.dart';
 import '../domain/models/chat_conversation.dart';
 import '../domain/models/chat_message.dart';
@@ -32,9 +35,12 @@ class ChatScreen extends ConsumerStatefulWidget {
 class _ChatScreenState extends ConsumerState<ChatScreen> {
   late final TextEditingController _messageController;
   late final ChatScrollController _scroll;
+  final Map<String, TextEditingController> _templateVariableControllers = {};
 
   String? _selectedFixedPromptSequenceId;
+  String? _selectedTemplatePromptId;
   int _selectedFixedPromptStepIndex = 0;
+  bool _isComposerCollapsed = false;
 
   @override
   void initState() {
@@ -52,6 +58,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   void dispose() {
     _messageController.dispose();
+    for (final controller in _templateVariableControllers.values) {
+      controller.dispose();
+    }
     _scroll.itemPositionsListener.itemPositions.removeListener(
       _scroll.handleVisibleItemsChanged,
     );
@@ -70,6 +79,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final fixedPromptSequences = ref.watch(fixedPromptSequencesProvider);
     final modelConfigs = ref.watch(llmModelConfigsProvider);
     final promptTemplates = ref.watch(promptTemplatesProvider);
+    final templatePrompts = ref.watch(templatePromptsProvider);
     final activeMessages = conversation.messages;
     final favorites = ref.watch(favoritesProvider);
     final favoritedContents = favorites.map((f) => f.assistantContent).toSet();
@@ -83,6 +93,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       promptTemplates,
       chatDefaults.defaultPromptTemplateId,
     );
+    final selectedTemplatePrompt = _resolveSelectedTemplatePrompt(
+      templatePrompts,
+      _selectedTemplatePromptId,
+    );
+    _syncTemplateVariableControllers(selectedTemplatePrompt);
     final supportsReasoning = selectedModel?.supportsReasoning ?? false;
     final userMessages = activeMessages
         .where((message) {
@@ -172,11 +187,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     hasModels: modelConfigs.isNotEmpty,
                     userMessages: userMessages,
                     activeAnchorMessageId: _scroll.activeAnchorMessageId,
-                    messageController: _messageController,
-                    messageItemScrollController: _scroll.itemScrollController,
-                    messageItemPositionsListener: _scroll.itemPositionsListener,
-                    reasoningEnabled:
-                        supportsReasoning && conversation.reasoningEnabled,
+                     messageController: _messageController,
+                     templatePrompts: templatePrompts,
+                     selectedTemplatePrompt: selectedTemplatePrompt,
+                     templateVariableControllers: _templateVariableControllers,
+                     messageItemScrollController: _scroll.itemScrollController,
+                     messageItemPositionsListener: _scroll.itemPositionsListener,
+                     isComposerCollapsed: _isComposerCollapsed,
+                     reasoningEnabled:
+                         supportsReasoning && conversation.reasoningEnabled,
                     reasoningEffort: conversation.reasoningEffort,
                     supportsReasoning: supportsReasoning,
                     isStreaming: isStreaming,
@@ -195,11 +214,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           .read(chatSessionsProvider.notifier)
                           .retryLatestAssistant();
                     },
-                    onDeleteMessage: (message) async {
-                      await _showDeleteMessageDialog(context, message);
-                    },
-                    onReasoningEnabledChanged: supportsReasoning
-                        ? (value) {
+                     onDeleteMessage: (message) async {
+                       await _showDeleteMessageDialog(context, message);
+                     },
+                     onTemplatePromptSelected: (templatePromptId) {
+                       _handleTemplatePromptSelected(
+                         templatePromptId,
+                         templatePrompts,
+                       );
+                     },
+                     onToggleComposerCollapsed: _toggleComposerCollapsed,
+                     onReasoningEnabledChanged: supportsReasoning
+                         ? (value) {
                             ref
                                 .read(chatSessionsProvider.notifier)
                                 .updateActiveConversationPreferences(
@@ -237,20 +263,29 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             messageId: messageId,
                           );
                     },
-                    onSendPressed: selectedModel == null || isStreaming
-                        ? null
-                        : () async {
-                            final content = _messageController.text.trim();
-                            if (content.isEmpty) {
-                              return;
-                            }
+                     onSendPressed: selectedModel == null || isStreaming
+                         ? null
+                         : () async {
+                             final body = _messageController.text.trim();
+                             if (body.isEmpty) {
+                               return;
+                             }
 
-                            _messageController.clear();
-                            await _sendMessageContent(
-                              content: content,
-                              modelConfig: selectedModel,
-                              promptTemplate: selectedPromptTemplate,
-                              conversation: conversation,
+                             final templatedMessage = buildTemplatedUserMessage(
+                               body: body,
+                               templatePrompt: selectedTemplatePrompt,
+                               variableValues: _resolveTemplatePromptValues(
+                                 selectedTemplatePrompt,
+                               ),
+                             );
+                             _messageController.clear();
+                             await _sendMessageContent(
+                               content: templatedMessage.content,
+                               userMessageSegments:
+                                   templatedMessage.userMessageSegments,
+                               modelConfig: selectedModel,
+                               promptTemplate: selectedPromptTemplate,
+                               conversation: conversation,
                               supportsReasoning: supportsReasoning,
                               isStreaming: isStreaming,
                             );
@@ -322,6 +357,78 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }).firstOrNull;
   }
 
+  TemplatePrompt? _resolveSelectedTemplatePrompt(
+    List<TemplatePrompt> templatePrompts,
+    String? selectedTemplatePromptId,
+  ) {
+    if (selectedTemplatePromptId == null) {
+      return null;
+    }
+    return templatePrompts.where((templatePrompt) {
+      return templatePrompt.id == selectedTemplatePromptId;
+    }).firstOrNull;
+  }
+
+  void _syncTemplateVariableControllers(TemplatePrompt? templatePrompt) {
+    final activeNames =
+        templatePrompt?.inputVariables
+            .map((variable) => variable.name)
+            .toSet() ??
+        const <String>{};
+    final removedNames = _templateVariableControllers.keys
+        .where((name) => !activeNames.contains(name))
+        .toList(growable: false);
+    for (final name in removedNames) {
+      _templateVariableControllers.remove(name)?.dispose();
+    }
+
+    if (templatePrompt == null) {
+      return;
+    }
+
+    for (final variable in templatePrompt.inputVariables) {
+      _templateVariableControllers.putIfAbsent(
+        variable.name,
+        () => TextEditingController(),
+      );
+    }
+  }
+
+  void _handleTemplatePromptSelected(
+    String? templatePromptId,
+    List<TemplatePrompt> templatePrompts,
+  ) {
+    setState(() {
+      _selectedTemplatePromptId = templatePromptId;
+      _syncTemplateVariableControllers(
+        _resolveSelectedTemplatePrompt(templatePrompts, templatePromptId),
+      );
+    });
+  }
+
+  void _toggleComposerCollapsed() {
+    setState(() {
+      _isComposerCollapsed = !_isComposerCollapsed;
+    });
+  }
+
+  Map<String, String> _resolveTemplatePromptValues(
+    TemplatePrompt? templatePrompt,
+  ) {
+    if (templatePrompt == null) {
+      return const {};
+    }
+
+    return {
+      for (final variable in templatePrompt.inputVariables)
+        variable.name: (() {
+          final typedValue =
+              _templateVariableControllers[variable.name]?.text.trim() ?? '';
+          return typedValue.isEmpty ? variable.defaultValue : typedValue;
+        })(),
+    };
+  }
+
   /// 弹出固定顺序提示词运行器，并在关闭后同步输入框或直接发送当前步骤。
   Future<void> _showFixedPromptSequenceRunnerDialog(
     BuildContext context, {
@@ -383,6 +490,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     required ChatConversation conversation,
     required bool supportsReasoning,
     required bool isStreaming,
+    List<UserMessageSegment> userMessageSegments = const [],
   }) async {
     final trimmedContent = content.trim();
     if (trimmedContent.isEmpty || modelConfig == null || isStreaming) {
@@ -393,6 +501,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         .read(chatSessionsProvider.notifier)
         .sendMessage(
           content: trimmedContent,
+          userMessageSegments: userMessageSegments,
           modelConfig: modelConfig,
           promptTemplate: promptTemplate,
           reasoningEnabled: supportsReasoning && conversation.reasoningEnabled,

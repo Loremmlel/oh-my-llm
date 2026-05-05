@@ -297,10 +297,32 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
   /// 根据消息角色选择更合适的正文渲染方式。
   Widget _buildMessageContent(ThemeData theme, {required bool isUser}) {
     if (isUser) {
+      final bodyColor = theme.colorScheme.onPrimaryContainer;
+      final bodyStyle = theme.textTheme.bodyMedium?.copyWith(color: bodyColor);
+      final templateStyle = theme.textTheme.bodyMedium?.copyWith(
+        color: bodyColor.withValues(alpha: 0.62),
+      );
+
+      if (widget.message.userMessageSegments.isNotEmpty) {
+        return SelectableText.rich(
+          TextSpan(
+            style: bodyStyle,
+            children: widget.message.userMessageSegments.map((segment) {
+              return TextSpan(
+                text: segment.text,
+                style: segment.kind == UserMessageSegmentKind.body
+                    ? bodyStyle
+                    : templateStyle,
+              );
+            }).toList(growable: false),
+          ),
+        );
+      }
+
       // 用户消息只需要按原文展示，不需要为 Markdown 解析支付额外成本。
       return SelectableText(
         widget.message.content,
-        style: theme.textTheme.bodyLarge,
+        style: bodyStyle,
       );
     }
 

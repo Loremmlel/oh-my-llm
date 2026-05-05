@@ -25,6 +25,16 @@ void main() {
           content: '当前用户分支',
           parentId: rootConversationParentId,
           createdAt: DateTime(2026, 4, 27, 10),
+          userMessageSegments: const [
+            UserMessageSegment(
+              text: '当前',
+              kind: UserMessageSegmentKind.template,
+            ),
+            UserMessageSegment(
+              text: '用户分支',
+              kind: UserMessageSegmentKind.body,
+            ),
+          ],
         ),
         ChatMessage(
           id: 'assistant-2',
@@ -42,6 +52,16 @@ void main() {
           content: '当前用户分支',
           parentId: rootConversationParentId,
           createdAt: DateTime(2026, 4, 27, 10),
+          userMessageSegments: const [
+            UserMessageSegment(
+              text: '当前',
+              kind: UserMessageSegmentKind.template,
+            ),
+            UserMessageSegment(
+              text: '用户分支',
+              kind: UserMessageSegmentKind.body,
+            ),
+          ],
         ),
         ChatMessage(
           id: 'assistant-1',
