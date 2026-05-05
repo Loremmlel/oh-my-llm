@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/navigation/app_destination.dart';
 import '../../../app/shell/app_shell_scaffold.dart';
 import '../../../core/utils/id_generator.dart';
-import '../application/chat_defaults_controller.dart';
 import '../application/fixed_prompt_sequences_controller.dart';
 import '../application/llm_model_configs_controller.dart';
 import '../application/prompt_templates_controller.dart';
@@ -18,14 +17,13 @@ import '../domain/models/template_prompt.dart';
 import 'widgets/import_confirm_dialog.dart';
 import 'widgets/settings_widgets.dart';
 
-/// 设置页入口，集中管理模型配置、Prompt 模板和聊天默认项。
+/// 设置页入口，集中管理模型配置、前置 Prompt、模板提示词和固定序列。
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   @override
-  /// 构建设置页的三块配置区域，顶部附导出/导入操作栏。
+  /// 构建设置页的各类配置区域，顶部附导出/导入操作栏。
   Widget build(BuildContext context, WidgetRef ref) {
-    final chatDefaults = ref.watch(chatDefaultsProvider);
     final fixedPromptSequences = ref.watch(fixedPromptSequencesProvider);
     final modelConfigs = ref.watch(llmModelConfigsProvider);
     final promptTemplates = ref.watch(promptTemplatesProvider);
@@ -48,19 +46,8 @@ class SettingsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 12),
           SettingsSectionCard(
-            title: '聊天默认项',
-            description: '统一指定默认模型和默认 Prompt。聊天页会直接使用这里的配置，不再单独选择。',
-            child: ChatDefaultsSection(
-              modelConfigs: modelConfigs,
-              promptTemplates: promptTemplates,
-              defaultModelId: chatDefaults.defaultModelId,
-              defaultPromptTemplateId: chatDefaults.defaultPromptTemplateId,
-            ),
-          ),
-          const SizedBox(height: 16),
-          SettingsSectionCard(
             title: '模型设置',
-            description: '管理 OpenAI 兼容模型配置，默认模型会从下方"聊天默认项"中指定。',
+            description: '管理 OpenAI 兼容模型配置。聊天页会记住最近一次使用的模型。',
             action: FilledButton.icon(
               onPressed: () async {
                 // 先检测剪贴板是否有可导入的配置数据，避免用户错过导入机会
@@ -82,7 +69,7 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: 16),
           SettingsSectionCard(
             title: '前置 Prompt 设置',
-            description: '配置会在每次对话时被插入到历史最前面，默认模板同样从"聊天默认项"中指定。',
+            description: '配置可在聊天页选择的前置 Prompt，聊天页会记住最近一次使用的选择。',
             action: FilledButton.icon(
               onPressed: () async {
                 final handled = await _tryImportFromClipboard(context, ref);
@@ -103,8 +90,7 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: 16),
           SettingsSectionCard(
             title: '模板提示词',
-            description:
-                '配置可在聊天页临时应用的变量模板。使用 {{变量名}} 声明注入位，{{正文}} 对应主输入框。',
+            description: '配置可在聊天页临时应用的变量模板。使用 {{变量名}} 声明注入位，{{正文}} 对应主输入框。',
             action: FilledButton.icon(
               onPressed: () async {
                 final handled = await _tryImportFromClipboard(context, ref);
@@ -440,9 +426,7 @@ class SettingsScreen extends ConsumerWidget {
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text(
-                    initialValue == null ? '模板提示词已保存' : '模板提示词已更新',
-                  ),
+                  content: Text(initialValue == null ? '模板提示词已保存' : '模板提示词已更新'),
                 ),
               );
             }

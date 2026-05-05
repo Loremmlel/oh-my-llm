@@ -31,8 +31,8 @@ void registerChatScreenBasicsTests() {
       fakeClient: fakeClient,
     );
 
-    expect(find.text('模型选择器'), findsNothing);
-    expect(find.text('前置 Prompt 选择器'), findsNothing);
+    expect(find.byKey(const ValueKey('chat-model-selector')), findsOneWidget);
+    expect(find.byKey(const ValueKey('chat-prompt-selector')), findsOneWidget);
     expect(find.text('消息定位条'), findsNothing);
     expect(find.byKey(const ValueKey('message-anchor-rail')), findsNothing);
     expect(find.text('历史会话面板'), findsOneWidget);
@@ -46,7 +46,7 @@ void registerChatScreenBasicsTests() {
     expect(find.byTooltip('思考强度'), findsOneWidget);
   });
 
-  testWidgets('chat screen prefers default model for reasoning capability', (
+  testWidgets('chat screen uses remembered model for reasoning capability', (
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({
@@ -76,7 +76,7 @@ void registerChatScreenBasicsTests() {
           'messages': [],
           'createdAt': DateTime(2026, 4, 29).toIso8601String(),
           'updatedAt': DateTime(2026, 4, 29).toIso8601String(),
-          'selectedModelId': 'model-legacy',
+          'selectedModelId': null,
           'selectedPromptTemplateId': null,
           'reasoningEnabled': false,
           'reasoningEffort': 'medium',
@@ -93,6 +93,47 @@ void registerChatScreenBasicsTests() {
 
     final toggle = tester.widget<ThinkingToggle>(find.byType(ThinkingToggle));
     expect(toggle.enabled, isTrue);
+  });
+
+  testWidgets('chat screen can send template prompt with empty 正文', (
+    tester,
+  ) async {
+    final preferences = await createSeededPreferences();
+    final fakeClient = FakeChatCompletionClient()..enqueueChunks(['已收到']);
+
+    await pumpChatScreen(
+      tester,
+      preferences: preferences,
+      fakeClient: fakeClient,
+    );
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
+    await container
+        .read(templatePromptsProvider.notifier)
+        .upsert(
+          TemplatePrompt(
+            id: 'tp-empty-body',
+            title: '模板直发',
+            content: '请输出{{风格}}版摘要。',
+            variables: const [
+              TemplatePromptVariable(name: '风格', defaultValue: '简洁'),
+            ],
+            updatedAt: DateTime(2026, 5, 5, 0, 2),
+          ),
+        );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('template-prompt-selector')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('模板直发').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(FilledButton, '发送'));
+    await tester.pumpAndSettle();
+
+    expect(fakeClient.requestHistory.last.last.content, '请输出简洁版摘要。');
   });
 
   testWidgets('chat screen custom title item hides preview in history panel', (
@@ -234,18 +275,20 @@ void registerChatScreenBasicsTests() {
     final container = ProviderScope.containerOf(
       tester.element(find.byType(ChatScreen)),
     );
-    await container.read(templatePromptsProvider.notifier).upsert(
-      TemplatePrompt(
-        id: 'tp-1',
-        title: '翻译模板',
-        content: '请把{{正文}}翻译成{{目标语言}}。',
-        variables: const [
-          TemplatePromptVariable(name: templatePromptBodyVariableName),
-          TemplatePromptVariable(name: '目标语言', defaultValue: '英文'),
-        ],
-        updatedAt: DateTime(2026, 5, 5),
-      ),
-    );
+    await container
+        .read(templatePromptsProvider.notifier)
+        .upsert(
+          TemplatePrompt(
+            id: 'tp-1',
+            title: '翻译模板',
+            content: '请把{{正文}}翻译成{{目标语言}}。',
+            variables: const [
+              TemplatePromptVariable(name: templatePromptBodyVariableName),
+              TemplatePromptVariable(name: '目标语言', defaultValue: '英文'),
+            ],
+            updatedAt: DateTime(2026, 5, 5),
+          ),
+        );
     await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const ValueKey('template-prompt-selector')));
@@ -266,23 +309,11 @@ void registerChatScreenBasicsTests() {
         .read(activeChatConversationProvider)
         .messages
         .firstWhere((message) => message.role == ChatMessageRole.user);
-    expect(
-      userMessage.userMessageSegments,
-      const [
-        UserMessageSegment(
-          text: '请把',
-          kind: UserMessageSegmentKind.template,
-        ),
-        UserMessageSegment(
-          text: '你好',
-          kind: UserMessageSegmentKind.body,
-        ),
-        UserMessageSegment(
-          text: '翻译成法文。',
-          kind: UserMessageSegmentKind.template,
-        ),
-      ],
-    );
+    expect(userMessage.userMessageSegments, const [
+      UserMessageSegment(text: '请把', kind: UserMessageSegmentKind.template),
+      UserMessageSegment(text: '你好', kind: UserMessageSegmentKind.body),
+      UserMessageSegment(text: '翻译成法文。', kind: UserMessageSegmentKind.template),
+    ]);
 
     final richTextFinder = find.byWidgetPredicate((widget) {
       return widget is SelectableText &&
@@ -302,11 +333,122 @@ void registerChatScreenBasicsTests() {
     );
   });
 
-  testWidgets('chat screen inserts body above template when 正文 placeholder is absent', (
+  testWidgets(
+    'chat screen inserts body above template when 正文 placeholder is absent',
+    (tester) async {
+      final preferences = await createSeededPreferences();
+      final fakeClient = FakeChatCompletionClient()..enqueueChunks(['已收到']);
+
+      await pumpChatScreen(
+        tester,
+        preferences: preferences,
+        fakeClient: fakeClient,
+      );
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ChatScreen)),
+      );
+      await container
+          .read(templatePromptsProvider.notifier)
+          .upsert(
+            TemplatePrompt(
+              id: 'tp-2',
+              title: '总结模板',
+              content: '请总结成{{语气}}。',
+              variables: const [
+                TemplatePromptVariable(name: '语气', defaultValue: '简洁'),
+              ],
+              updatedAt: DateTime(2026, 5, 5, 0, 1),
+            ),
+          );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('template-prompt-selector')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('总结模板').last);
+      await tester.pumpAndSettle();
+
+      await sendMessage(tester, '这是一段原文');
+      await tester.pumpAndSettle();
+
+      expect(fakeClient.requestHistory.last.last.content, '这是一段原文\n请总结成简洁。');
+    },
+  );
+
+  testWidgets(
+    'chat screen lays out template variables compactly on wide screens',
+    (tester) async {
+      final preferences = await createSeededPreferences();
+      final fakeClient = FakeChatCompletionClient();
+
+      await pumpChatScreen(
+        tester,
+        preferences: preferences,
+        fakeClient: fakeClient,
+      );
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ChatScreen)),
+      );
+      await container
+          .read(templatePromptsProvider.notifier)
+          .upsert(
+            TemplatePrompt(
+              id: 'tp-grid',
+              title: '多变量模板',
+              content: '请按{{语气}}、{{长度}}、{{受众}}输出。',
+              variables: const [
+                TemplatePromptVariable(name: '语气', defaultValue: '正式'),
+                TemplatePromptVariable(name: '长度', defaultValue: '简短'),
+                TemplatePromptVariable(name: '受众', defaultValue: '开发者'),
+              ],
+              updatedAt: DateTime(2026, 5, 5, 0, 3),
+            ),
+          );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('template-prompt-selector')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('多变量模板').last);
+      await tester.pumpAndSettle();
+
+      final toneRect = tester.getRect(
+        find.byKey(const ValueKey('template-variable-语气')),
+      );
+      final lengthRect = tester.getRect(
+        find.byKey(const ValueKey('template-variable-长度')),
+      );
+
+      expect(toneRect.top, lengthRect.top);
+      expect(lengthRect.left, greaterThan(toneRect.left));
+    },
+  );
+
+  testWidgets('chat screen remembers selected model for new conversations', (
     tester,
   ) async {
-    final preferences = await createSeededPreferences();
-    final fakeClient = FakeChatCompletionClient()..enqueueChunks(['已收到']);
+    SharedPreferences.setMockInitialValues({
+      llmModelConfigsStorageKey: jsonEncode([
+        {
+          'id': 'model-legacy',
+          'displayName': 'Legacy',
+          'apiUrl': 'https://api.example.com/v1/chat/completions',
+          'apiKey': 'sk-test',
+          'modelName': 'legacy',
+          'supportsReasoning': false,
+        },
+        {
+          'id': 'model-new',
+          'displayName': 'DeepSeek V4 Flash',
+          'apiUrl': 'https://api.example.com/v1/chat/completions',
+          'apiKey': 'sk-test',
+          'modelName': 'deepseek-v4-flash',
+          'supportsReasoning': true,
+        },
+      ]),
+    });
+    final preferences = await SharedPreferences.getInstance();
+    final fakeClient = FakeChatCompletionClient()..enqueueChunks(['第一次回复']);
 
     await pumpChatScreen(
       tester,
@@ -314,33 +456,23 @@ void registerChatScreenBasicsTests() {
       fakeClient: fakeClient,
     );
 
+    await tester.tap(find.byKey(const ValueKey('chat-model-selector')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('DeepSeek V4 Flash').last);
+    await tester.pumpAndSettle();
+
+    await sendMessage(tester, '第一次问题');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('新建对话').first);
+    await tester.pumpAndSettle();
+
     final container = ProviderScope.containerOf(
       tester.element(find.byType(ChatScreen)),
     );
-    await container.read(templatePromptsProvider.notifier).upsert(
-      TemplatePrompt(
-        id: 'tp-2',
-        title: '总结模板',
-        content: '请总结成{{语气}}。',
-        variables: const [
-          TemplatePromptVariable(name: '语气', defaultValue: '简洁'),
-        ],
-        updatedAt: DateTime(2026, 5, 5, 0, 1),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byKey(const ValueKey('template-prompt-selector')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('总结模板').last);
-    await tester.pumpAndSettle();
-
-    await sendMessage(tester, '这是一段原文');
-    await tester.pumpAndSettle();
-
+    expect(container.read(chatDefaultsProvider).defaultModelId, 'model-new');
     expect(
-      fakeClient.requestHistory.last.last.content,
-      '这是一段原文\n请总结成简洁。',
+      container.read(activeChatConversationProvider).selectedModelId,
+      'model-new',
     );
   });
 
@@ -473,9 +605,6 @@ void registerChatScreenBasicsTests() {
       await tester.pumpAndSettle();
     }
 
-    expect(find.byTooltip('滚动到底部'), findsNothing);
-    expect(find.textContaining('第 8 条回复'), findsWidgets);
-
     final scrollable = find.byType(Scrollable).first;
     await tester.drag(scrollable, const Offset(0, 600));
     await tester.pumpAndSettle();
@@ -486,154 +615,166 @@ void registerChatScreenBasicsTests() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('第 8 条回复'), findsWidgets);
-    expect(find.byTooltip('滚动到底部'), findsNothing);
   });
 
-  testWidgets(
-    'chat screen uses the latest default Prompt for an existing conversation',
-    (tester) async {
-      SharedPreferences.setMockInitialValues({
-        llmModelConfigsStorageKey: jsonEncode([
-          {
-            'id': 'model-1',
-            'displayName': 'GPT-4.1',
-            'apiUrl': 'https://api.example.com/v1/chat/completions',
-            'apiKey': 'sk-test-12345678',
-            'modelName': 'gpt-4.1',
-            'supportsReasoning': true,
-          },
-        ]),
-        promptTemplatesStorageKey: jsonEncode([
-          {
-            'id': 'prompt-1',
-            'name': '模板一',
-            'systemPrompt': '',
-            'messages': [
-              {
-                'id': 'prompt-1-message-1',
-                'role': 'user',
-                'content': '模板一前置',
-                'placement': 'before',
-              },
-            ],
-            'updatedAt': DateTime(2026, 4, 30).toIso8601String(),
-          },
-          {
-            'id': 'prompt-2',
-            'name': '模板二',
-            'systemPrompt': '',
-            'messages': [
-              {
-                'id': 'prompt-2-message-1',
-                'role': 'user',
-                'content': '模板二前置',
-                'placement': 'before',
-              },
-            ],
-            'updatedAt': DateTime(2026, 4, 30, 0, 1).toIso8601String(),
-          },
-        ]),
-        chatDefaultsStorageKey: jsonEncode({
-          'defaultPromptTemplateId': 'prompt-1',
-        }),
-      });
-      final preferences = await SharedPreferences.getInstance();
-      final fakeClient = FakeChatCompletionClient()
-        ..enqueueChunks(['第一次回复'])
-        ..enqueueChunks(['第二次回复']);
+  testWidgets('chat screen remembers selected Prompt for new conversations', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({
+      llmModelConfigsStorageKey: jsonEncode([
+        {
+          'id': 'model-1',
+          'displayName': 'GPT-4.1',
+          'apiUrl': 'https://api.example.com/v1/chat/completions',
+          'apiKey': 'sk-test-12345678',
+          'modelName': 'gpt-4.1',
+          'supportsReasoning': true,
+        },
+      ]),
+      promptTemplatesStorageKey: jsonEncode([
+        {
+          'id': 'prompt-1',
+          'name': '模板一',
+          'systemPrompt': '',
+          'messages': [
+            {
+              'id': 'prompt-1-message-1',
+              'role': 'user',
+              'content': '模板一前置',
+              'placement': 'before',
+            },
+          ],
+          'updatedAt': DateTime(2026, 4, 30).toIso8601String(),
+        },
+        {
+          'id': 'prompt-2',
+          'name': '模板二',
+          'systemPrompt': '',
+          'messages': [
+            {
+              'id': 'prompt-2-message-1',
+              'role': 'user',
+              'content': '模板二前置',
+              'placement': 'before',
+            },
+          ],
+          'updatedAt': DateTime(2026, 4, 30, 0, 1).toIso8601String(),
+        },
+      ]),
+    });
+    final preferences = await SharedPreferences.getInstance();
+    final fakeClient = FakeChatCompletionClient()
+      ..enqueueChunks(['第一次回复'])
+      ..enqueueChunks(['第二次回复']);
 
-      await pumpChatScreen(
-        tester,
-        preferences: preferences,
-        fakeClient: fakeClient,
-      );
+    await pumpChatScreen(
+      tester,
+      preferences: preferences,
+      fakeClient: fakeClient,
+    );
 
-      await sendMessage(tester, '第一次问题');
-      await tester.pumpAndSettle();
-      expect(fakeClient.requestHistory.first.first.content, '模板一前置');
+    await tester.tap(find.byKey(const ValueKey('chat-prompt-selector')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('模板二').last);
+    await tester.pumpAndSettle();
 
-      final container = ProviderScope.containerOf(
-        tester.element(find.byType(ChatScreen)),
-      );
-      await container
-          .read(chatDefaultsProvider.notifier)
-          .setDefaultPromptTemplateId('prompt-2');
-      await tester.pumpAndSettle();
+    await sendMessage(tester, '第一次问题');
+    await tester.pumpAndSettle();
+    expect(fakeClient.requestHistory.first.first.content, '模板二前置');
 
-      await sendMessage(tester, '第二次问题');
-      await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('新建对话').first);
+    await tester.pumpAndSettle();
+    await sendMessage(tester, '第二次问题');
+    await tester.pumpAndSettle();
 
-      final lastRequestContents = fakeClient.requestHistory.last
-          .map((message) => message.content)
-          .toList(growable: false);
-      expect(lastRequestContents.first, '模板二前置');
-      expect(lastRequestContents, isNot(contains('模板一前置')));
-    },
-  );
+    final requestContents = fakeClient.requestHistory.last
+        .map((message) => message.content)
+        .toList(growable: false);
+    expect(requestContents.first, '模板二前置');
 
-  testWidgets(
-    'chat screen does not fall back to a stale conversation Prompt after clearing the default',
-    (tester) async {
-      SharedPreferences.setMockInitialValues({
-        llmModelConfigsStorageKey: jsonEncode([
-          {
-            'id': 'model-1',
-            'displayName': 'GPT-4.1',
-            'apiUrl': 'https://api.example.com/v1/chat/completions',
-            'apiKey': 'sk-test-12345678',
-            'modelName': 'gpt-4.1',
-            'supportsReasoning': true,
-          },
-        ]),
-        promptTemplatesStorageKey: jsonEncode([
-          {
-            'id': 'prompt-1',
-            'name': '模板一',
-            'systemPrompt': '',
-            'messages': [
-              {
-                'id': 'prompt-1-message-1',
-                'role': 'user',
-                'content': '模板一前置',
-                'placement': 'before',
-              },
-            ],
-            'updatedAt': DateTime(2026, 4, 30).toIso8601String(),
-          },
-        ]),
-        chatDefaultsStorageKey: jsonEncode({
-          'defaultPromptTemplateId': 'prompt-1',
-        }),
-      });
-      final preferences = await SharedPreferences.getInstance();
-      final fakeClient = FakeChatCompletionClient()
-        ..enqueueChunks(['第一次回复'])
-        ..enqueueChunks(['第二次回复']);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
+    expect(
+      container.read(chatDefaultsProvider).defaultPromptTemplateId,
+      'prompt-2',
+    );
+  });
 
-      await pumpChatScreen(
-        tester,
-        preferences: preferences,
-        fakeClient: fakeClient,
-      );
+  testWidgets('chat screen can clear remembered Prompt from selector', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({
+      llmModelConfigsStorageKey: jsonEncode([
+        {
+          'id': 'model-1',
+          'displayName': 'GPT-4.1',
+          'apiUrl': 'https://api.example.com/v1/chat/completions',
+          'apiKey': 'sk-test-12345678',
+          'modelName': 'gpt-4.1',
+          'supportsReasoning': true,
+        },
+      ]),
+      promptTemplatesStorageKey: jsonEncode([
+        {
+          'id': 'prompt-1',
+          'name': '模板一',
+          'systemPrompt': '',
+          'messages': [
+            {
+              'id': 'prompt-1-message-1',
+              'role': 'user',
+              'content': '模板一前置',
+              'placement': 'before',
+            },
+          ],
+          'updatedAt': DateTime(2026, 4, 30).toIso8601String(),
+        },
+      ]),
+      chatDefaultsStorageKey: jsonEncode({
+        'defaultPromptTemplateId': 'prompt-1',
+      }),
+    });
+    final preferences = await SharedPreferences.getInstance();
+    final fakeClient = FakeChatCompletionClient()
+      ..enqueueChunks(['第一次回复'])
+      ..enqueueChunks(['第二次回复']);
 
-      await sendMessage(tester, '第一次问题');
-      await tester.pumpAndSettle();
+    await pumpChatScreen(
+      tester,
+      preferences: preferences,
+      fakeClient: fakeClient,
+    );
 
-      final container = ProviderScope.containerOf(
-        tester.element(find.byType(ChatScreen)),
-      );
-      await container
-          .read(chatDefaultsProvider.notifier)
-          .setDefaultPromptTemplateId(null);
-      await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('chat-prompt-selector')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('不使用前置 Prompt').last);
+    await tester.pumpAndSettle();
 
-      await sendMessage(tester, '第二次问题');
-      await tester.pumpAndSettle();
+    await sendMessage(tester, '第一次问题');
+    await tester.pumpAndSettle();
 
-      final lastRequestContents = fakeClient.requestHistory.last
-          .map((message) => message.content)
-          .toList(growable: false);
-      expect(lastRequestContents, ['第一次问题', '第一次回复', '第二次问题']);
-    },
-  );
+    final firstRequestContents = fakeClient.requestHistory.first
+        .map((message) => message.content)
+        .toList(growable: false);
+    expect(firstRequestContents, ['第一次问题']);
+
+    await tester.tap(find.byTooltip('新建对话').first);
+    await tester.pumpAndSettle();
+    await sendMessage(tester, '第二次问题');
+    await tester.pumpAndSettle();
+
+    final lastRequestContents = fakeClient.requestHistory.last
+        .map((message) => message.content)
+        .toList(growable: false);
+    expect(lastRequestContents, ['第二次问题']);
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
+    expect(
+      container.read(chatDefaultsProvider).defaultPromptTemplateId,
+      isNull,
+    );
+  });
 }

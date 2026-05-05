@@ -7,7 +7,7 @@ import '../../domain/models/prompt_template.dart';
 
 const String noPromptTemplateValue = '__no_prompt_template__';
 
-/// 聊天默认项设置区，用于选择默认模型和默认 Prompt。
+/// 聊天页最近一次选择记忆设置区。
 class ChatDefaultsSection extends ConsumerWidget {
   const ChatDefaultsSection({
     required this.modelConfigs,
@@ -23,7 +23,7 @@ class ChatDefaultsSection extends ConsumerWidget {
   final String? defaultPromptTemplateId;
 
   @override
-  /// 构建默认模型和默认 Prompt 的两个下拉选择器。
+  /// 构建最近一次模型和前置 Prompt 记忆的两个下拉选择器。
   Widget build(BuildContext context, WidgetRef ref) {
     final resolvedModelId =
         modelConfigs.any((config) {
@@ -61,11 +61,11 @@ class ChatDefaultsSection extends ConsumerWidget {
               : (value) async {
                   await ref
                       .read(chatDefaultsProvider.notifier)
-                      .setDefaultModelId(value);
+                      .rememberModelId(value);
                 },
           decoration: const InputDecoration(
             labelText: '默认模型',
-            helperText: '会用于新建对话或未指定模型的对话。',
+            helperText: '会作为聊天页最近一次模型选择记忆。',
           ),
         ),
         const SizedBox(height: 12),
@@ -88,13 +88,13 @@ class ChatDefaultsSection extends ConsumerWidget {
           onChanged: (value) async {
             await ref
                 .read(chatDefaultsProvider.notifier)
-                .setDefaultPromptTemplateId(
+                .rememberPromptTemplateId(
                   value == noPromptTemplateValue ? null : value,
                 );
           },
           decoration: const InputDecoration(
-            labelText: '默认 Prompt',
-            helperText: '会在聊天发送时自动插入到历史最前面。',
+            labelText: '前置 Prompt 记忆',
+            helperText: '会作为聊天页最近一次前置 Prompt 选择记忆。',
           ),
         ),
       ],

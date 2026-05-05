@@ -33,10 +33,17 @@ class PromptTemplatesList extends ConsumerWidget {
         const minItemWidth = 280.0;
         const gap = 12.0;
         final crossAxisCount =
-            ((constraints.maxWidth + gap) / (minItemWidth + gap))
-                .floor()
-                .clamp(1, 3);
-        return _buildGrid(templates, crossAxisCount, gap, constraints.maxWidth, ref);
+            ((constraints.maxWidth + gap) / (minItemWidth + gap)).floor().clamp(
+              1,
+              3,
+            );
+        return _buildGrid(
+          templates,
+          crossAxisCount,
+          gap,
+          constraints.maxWidth,
+          ref,
+        );
       },
     );
   }
@@ -156,7 +163,7 @@ class _PromptTemplateTile extends ConsumerWidget {
                         .deleteById(template.id);
                     await ref
                         .read(chatDefaultsProvider.notifier)
-                        .clearDefaultPromptTemplateIdIfMatches(template.id);
+                        .clearRememberedPromptTemplateIdIfMatches(template.id);
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Prompt 模板已删除')),

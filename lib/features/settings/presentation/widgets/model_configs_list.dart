@@ -33,10 +33,17 @@ class ModelConfigsList extends ConsumerWidget {
         const minItemWidth = 280.0;
         const gap = 12.0;
         final crossAxisCount =
-            ((constraints.maxWidth + gap) / (minItemWidth + gap))
-                .floor()
-                .clamp(1, 3);
-        return _buildGrid(configs, crossAxisCount, gap, constraints.maxWidth, ref);
+            ((constraints.maxWidth + gap) / (minItemWidth + gap)).floor().clamp(
+              1,
+              3,
+            );
+        return _buildGrid(
+          configs,
+          crossAxisCount,
+          gap,
+          constraints.maxWidth,
+          ref,
+        );
       },
     );
   }
@@ -157,7 +164,7 @@ class _ModelConfigTile extends ConsumerWidget {
                         .deleteById(config.id);
                     await ref
                         .read(chatDefaultsProvider.notifier)
-                        .clearDefaultModelIdIfMatches(config.id);
+                        .clearRememberedModelIdIfMatches(config.id);
                     if (context.mounted) {
                       ScaffoldMessenger.of(
                         context,

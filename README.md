@@ -180,7 +180,7 @@ lib/
     ├── history/
     │   └── presentation/       # 历史页（搜索 + 分组 + 批量操作）
     └── settings/
-        ├── application/        # 各 Notifier（模型配置 / 模板 / 序列 / 默认项）
+        ├── application/        # 各 Notifier（模型配置 / 模板 / 序列 / 最近选择记忆）
         ├── data/               # SharedPreferences 仓库 + SQLite 仓库 + 迁移
         ├── domain/             # 设置相关模型
         └── presentation/       # 设置页
@@ -194,7 +194,7 @@ lib/
 | Prompt 模板     | SQLite                                               |
 | 固定顺序提示词       | SQLite                                               |
 | 模型配置          | SharedPreferences JSON（`settings.llm_model_configs`） |
-| 聊天默认项         | SharedPreferences JSON（单对象）                          |
+| 最近一次聊天选择记忆   | SharedPreferences JSON（单对象）                          |
 
 历史版本使用 SharedPreferences 存储所有数据，升级时会自动执行一次性迁移，迁移完成后删除旧键。
 
@@ -251,7 +251,7 @@ flutter test             # 运行全部测试（286 个测试）
 | Windows | `%APPDATA%\<org>\oh_my_llm\`        |
 | Android | `/data/data/com.example.oh_my_llm/` |
 
-SQLite 文件 `chat_history.sqlite` 统一保存聊天记录、Prompt 模板、固定顺序提示词、收藏和收藏夹；模型配置与聊天默认项仍保存在系统 SharedPreferences 中。
+SQLite 文件 `chat_history.sqlite` 统一保存聊天记录、Prompt 模板、固定顺序提示词、收藏和收藏夹；模型配置与最近一次聊天选择记忆仍保存在系统 SharedPreferences 中。
 
 ---
 

@@ -4,6 +4,8 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import '../../domain/models/chat_conversation.dart';
 import '../../domain/models/chat_message.dart';
+import '../../../settings/domain/models/llm_model_config.dart';
+import '../../../settings/domain/models/prompt_template.dart';
 import '../../../settings/domain/models/template_prompt.dart';
 import 'cached_chat_message_bubble.dart';
 import 'empty_conversation_view.dart';
@@ -19,6 +21,10 @@ class ChatWorkspace extends StatelessWidget {
     required this.conversation,
     required this.messages,
     required this.hasModels,
+    required this.modelConfigs,
+    required this.selectedModel,
+    required this.promptTemplates,
+    required this.selectedPromptTemplate,
     required this.userMessages,
     required this.activeAnchorMessageId,
     required this.messageController,
@@ -38,6 +44,8 @@ class ChatWorkspace extends StatelessWidget {
     required this.onEditMessage,
     required this.onRetryLatestAssistant,
     required this.onDeleteMessage,
+    required this.onModelSelected,
+    required this.onPromptTemplateSelected,
     required this.onTemplatePromptSelected,
     required this.onToggleComposerCollapsed,
     required this.onReasoningEnabledChanged,
@@ -56,6 +64,10 @@ class ChatWorkspace extends StatelessWidget {
   final ChatConversation conversation;
   final List<ChatMessage> messages;
   final bool hasModels;
+  final List<LlmModelConfig> modelConfigs;
+  final LlmModelConfig? selectedModel;
+  final List<PromptTemplate> promptTemplates;
+  final PromptTemplate? selectedPromptTemplate;
   final List<ChatMessage> userMessages;
   final String? activeAnchorMessageId;
   final TextEditingController messageController;
@@ -75,6 +87,8 @@ class ChatWorkspace extends StatelessWidget {
   final ValueChanged<ChatMessage> onEditMessage;
   final Future<void> Function() onRetryLatestAssistant;
   final ValueChanged<ChatMessage> onDeleteMessage;
+  final ValueChanged<String> onModelSelected;
+  final ValueChanged<String?> onPromptTemplateSelected;
   final ValueChanged<String?> onTemplatePromptSelected;
   final VoidCallback onToggleComposerCollapsed;
   final ValueChanged<bool>? onReasoningEnabledChanged;
@@ -284,12 +298,7 @@ class ChatWorkspace extends StatelessWidget {
     return result;
   }
 
-  /// 构建消息输入区、思考控件和发送按钮。
-  ///
-  /// 所有控件压缩到单行，从左到右依次为：
-  ///   深度思考 pill | 思考强度 pill | [Spacer] | 固定提示词图标 | 发送按钮
-  ///
-  /// 两个 pill 均为可点击的圆角矩形，高度约 28px，避免 [Switch] 撑开行高。
+  /// 构建消息输入区、模型 / Prompt 选择控件与发送按钮。
   Widget _buildComposerCard(BuildContext context, ThemeData theme) {
     if (isComposerCollapsed) {
       return Card(
@@ -300,10 +309,7 @@ class ChatWorkspace extends StatelessWidget {
               const Icon(Icons.keyboard_arrow_up_rounded),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(
-                  '输入区已隐藏',
-                  style: theme.textTheme.bodyMedium,
-                ),
+                child: Text('输入区已隐藏', style: theme.textTheme.bodyMedium),
               ),
               Tooltip(
                 message: '展开输入区',
@@ -332,9 +338,7 @@ class ChatWorkspace extends StatelessWidget {
                     key: const ValueKey('template-prompt-selector'),
                     initialValue: selectedTemplatePrompt?.id,
                     isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: '模板提示词',
-                    ),
+                    decoration: const InputDecoration(labelText: '模板提示词'),
                     items: [
                       const DropdownMenuItem<String?>(
                         value: null,
@@ -361,31 +365,12 @@ class ChatWorkspace extends StatelessWidget {
             if (selectedTemplatePrompt != null) ...[
               const SizedBox(height: 12),
               if (selectedTemplatePrompt!.inputVariables.isEmpty)
-                Text(
-                  '当前模板没有额外变量。',
-                  style: theme.textTheme.bodySmall,
-                )
+                Text('当前模板没有额外变量。', style: theme.textTheme.bodySmall)
               else
-                for (final variable in selectedTemplatePrompt!.inputVariables)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: TextField(
-                      key: ValueKey('template-variable-${variable.name}'),
-                      controller: templateVariableControllers[variable.name],
-                      decoration: InputDecoration(
-                        labelText: variable.name,
-                        hintText: variable.defaultValue.isEmpty
-                            ? '未设置默认值'
-                            : variable.defaultValue,
-                      ),
-                    ),
-                  ),
+                _buildTemplateVariableFields(),
               if (!selectedTemplatePrompt!.containsBodyVariable) ...[
                 const SizedBox(height: 4),
-                Text(
-                  '正文会在发送时插入模板提示词上方。',
-                  style: theme.textTheme.bodySmall,
-                ),
+                Text('正文会在发送时插入模板提示词上方。', style: theme.textTheme.bodySmall),
               ],
               const SizedBox(height: 8),
             ],
@@ -394,17 +379,19 @@ class ChatWorkspace extends StatelessWidget {
                 const SingleActivator(
                   LogicalKeyboardKey.enter,
                   control: true,
-                ): () => onSendPressed?.call(),
+                ): () =>
+                    onSendPressed?.call(),
                 const SingleActivator(
                   LogicalKeyboardKey.enter,
                   meta: true,
-                ): () => onSendPressed?.call(),
+                ): () =>
+                    onSendPressed?.call(),
               },
               child: TextField(
                 key: const ValueKey('chat-message-composer'),
                 controller: messageController,
-                minLines: 2,
-                maxLines: 5,
+                minLines: 3,
+                maxLines: 10,
                 textInputAction: TextInputAction.newline,
                 decoration: InputDecoration(
                   labelText: '正文',
@@ -416,22 +403,137 @@ class ChatWorkspace extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                ThinkingToggle(
-                  enabled: supportsReasoning,
-                  value: supportsReasoning && reasoningEnabled,
-                  onChanged: onReasoningEnabledChanged,
-                ),
-                const SizedBox(width: 8),
-                _buildEffortPill(context, theme),
-                const Spacer(),
-                ..._buildActionButtons(theme),
-              ],
-            ),
+            _buildModelPreferencesRow(context),
+            const SizedBox(height: 8),
+            _buildPromptActionRow(theme),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildModelPreferencesRow(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Expanded(
+          child: DropdownButtonFormField<String>(
+            key: const ValueKey('chat-model-selector'),
+            initialValue: selectedModel?.id,
+            isExpanded: true,
+            decoration: InputDecoration(
+              labelText: '模型',
+              hintText: hasModels ? null : '请先在设置页新增模型',
+            ),
+            items: modelConfigs
+                .map((config) {
+                  return DropdownMenuItem<String>(
+                    value: config.id,
+                    child: Text(
+                      config.displayName,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  );
+                })
+                .toList(growable: false),
+            onChanged: isStreaming || modelConfigs.isEmpty
+                ? null
+                : (value) {
+                    if (value == null) {
+                      return;
+                    }
+                    onModelSelected(value);
+                  },
+          ),
+        ),
+        const SizedBox(width: 8),
+        ThinkingToggle(
+          enabled: supportsReasoning,
+          value: supportsReasoning && reasoningEnabled,
+          onChanged: onReasoningEnabledChanged,
+        ),
+        const SizedBox(width: 8),
+        _buildEffortPill(context, theme),
+      ],
+    );
+  }
+
+  Widget _buildPromptActionRow(ThemeData theme) {
+    return Row(
+      children: [
+        Expanded(
+          child: DropdownButtonFormField<String>(
+            key: const ValueKey('chat-prompt-selector'),
+            initialValue:
+                selectedPromptTemplate?.id ?? noPromptTemplateSelectedId,
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: '前置 Prompt'),
+            items: [
+              const DropdownMenuItem<String>(
+                value: noPromptTemplateSelectedId,
+                child: Text('不使用前置 Prompt'),
+              ),
+              ...promptTemplates.map((template) {
+                return DropdownMenuItem<String>(
+                  value: template.id,
+                  child: Text(template.name, overflow: TextOverflow.ellipsis),
+                );
+              }),
+            ],
+            onChanged: isStreaming
+                ? null
+                : (value) {
+                    if (value == null) {
+                      return;
+                    }
+                    onPromptTemplateSelected(
+                      value == noPromptTemplateSelectedId ? null : value,
+                    );
+                  },
+          ),
+        ),
+        const SizedBox(width: 8),
+        ..._buildActionButtons(theme),
+      ],
+    );
+  }
+
+  Widget _buildTemplateVariableFields() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const minItemWidth = 220.0;
+        const gap = 8.0;
+        final crossAxisCount =
+            ((constraints.maxWidth + gap) / (minItemWidth + gap)).floor().clamp(
+              1,
+              3,
+            );
+        final itemWidth = crossAxisCount == 1
+            ? constraints.maxWidth
+            : (constraints.maxWidth - gap * (crossAxisCount - 1)) /
+                  crossAxisCount;
+
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: [
+            for (final variable in selectedTemplatePrompt!.inputVariables)
+              SizedBox(
+                width: itemWidth,
+                child: TextField(
+                  key: ValueKey('template-variable-${variable.name}'),
+                  controller: templateVariableControllers[variable.name],
+                  decoration: InputDecoration(
+                    labelText: variable.name,
+                    hintText: variable.defaultValue.isEmpty
+                        ? '未设置默认值'
+                        : variable.defaultValue,
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 
