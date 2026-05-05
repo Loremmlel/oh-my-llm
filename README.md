@@ -75,9 +75,9 @@ flutter run -d windows   # 或 -d <your_android_device_id>
 ### 日志系统
 
 应用在启动时自动初始化日志系统，记录所有网络请求、响应和错误。
-- **日志位置**：`{AppData}/app_log.txt`（与 SQLite、SharedPreferences 同目录）
-- **日志内容**：每次 HTTP 请求的完整信息（headers、payload）、响应状态和 body、SSE 流事件、错误堆栈
-- **自动清理**：超过 1 MB 或应用完全关闭时清空日志，便于开发者调试网络问题和服务商 API 不兼容
+- **日志位置**：`{AppData}/network.log`（与 SQLite、SharedPreferences 同目录）
+- **日志内容**：每次 HTTP 请求的 headers / payload、响应状态 / headers、SSE 流事件、错误堆栈；非 2xx 错误会额外记录错误响应内容
+- **自动清理**：仅在日志超过 10 MB 时重置，应用退出或再次启动都不会主动清空日志
 - **调试用途**：开发者可从日志中直接复制请求信息重现问题，加快问题排查
 
 ### 厂商 OpenAI 兼容处理

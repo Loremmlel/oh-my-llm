@@ -136,6 +136,28 @@ void registerChatScreenBasicsTests() {
     expect(fakeClient.requestHistory.last.last.content, '请输出简洁版摘要。');
   });
 
+  testWidgets('chat screen keeps spacing between template selector and 正文', (
+    tester,
+  ) async {
+    final preferences = await createSeededPreferences();
+    final fakeClient = FakeChatCompletionClient();
+
+    await pumpChatScreen(
+      tester,
+      preferences: preferences,
+      fakeClient: fakeClient,
+    );
+
+    final selectorRect = tester.getRect(
+      find.byKey(const ValueKey('template-prompt-selector')),
+    );
+    final composerRect = tester.getRect(
+      find.byKey(const ValueKey('chat-message-composer')),
+    );
+
+    expect(composerRect.top, greaterThanOrEqualTo(selectorRect.bottom + 12));
+  });
+
   testWidgets('chat screen custom title item hides preview in history panel', (
     tester,
   ) async {

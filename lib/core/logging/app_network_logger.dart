@@ -1,67 +1,40 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:shared_preferences/shared_preferences.dart';
-
 import 'app_log_store.dart';
 import 'network_log_redactor.dart';
 import 'network_logger.dart';
 
-/// 应用级网络日志实现，支持启动恢复清理、阈值轮转与生命周期清理。
+/// 应用级网络日志实现，仅依赖文件阈值轮转，不在退出或重启时主动清空。
 final class AppNetworkLogger implements NetworkLogger {
   AppNetworkLogger({
     required AppLogStore store,
-    required SharedPreferences preferences,
     NetworkLogRedactor redactor = const NetworkLogRedactor(),
   }) : _store = store,
-       _preferences = preferences,
        _redactor = redactor;
 
-  static const cleanShutdownMarkerKey = 'network_log_clean_shutdown';
-  static const initializedMarkerKey = 'network_log_initialized';
-
   final AppLogStore _store;
-  final SharedPreferences _preferences;
   final NetworkLogRedactor _redactor;
 
   static Future<AppNetworkLogger> create({
     required String directoryPath,
-    required SharedPreferences preferences,
   }) async {
     final store = await AppLogStore.open(directoryPath: directoryPath);
-    return AppNetworkLogger(store: store, preferences: preferences);
+    return AppNetworkLogger(store: store);
   }
 
   @override
   Future<void> onAppLaunch() async {
     try {
-      final hasInitialized =
-          _preferences.getBool(initializedMarkerKey) ?? false;
-      final cleanShutdown =
-          _preferences.getBool(cleanShutdownMarkerKey) ?? true;
-      if (hasInitialized && !cleanShutdown) {
-        await _store.clear(reason: 'recovered from unclean shutdown');
-      }
       final now = DateTime.now().toIso8601String();
       await _store.appendLine('[$now] [app-launch] logger initialized.');
-      await _preferences.setBool(initializedMarkerKey, true);
-      await _preferences.setBool(cleanShutdownMarkerKey, false);
     } catch (error, stackTrace) {
       stderr.writeln('[network-log] launch init failed: $error\n$stackTrace');
     }
   }
 
   @override
-  Future<void> onAppDetached() async {
-    try {
-      await _store.clear(reason: 'app detached');
-      await _preferences.setBool(cleanShutdownMarkerKey, true);
-    } catch (error, stackTrace) {
-      stderr.writeln(
-        '[network-log] detached cleanup failed: $error\n$stackTrace',
-      );
-    }
-  }
+  Future<void> onAppDetached() async {}
 
   @override
   Future<void> logRequest({

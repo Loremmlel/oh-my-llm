@@ -29,7 +29,6 @@ Future<void> bootstrap({SharedPreferences? sharedPreferences}) async {
   final appDatabase = await AppDatabase.open();
   final networkLogger = await AppNetworkLogger.create(
     directoryPath: File(appDatabase.path).parent.path,
-    preferences: preferences,
   );
   await networkLogger.onAppLaunch();
 
