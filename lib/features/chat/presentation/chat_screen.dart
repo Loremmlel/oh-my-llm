@@ -11,6 +11,7 @@ import '../../settings/application/prompt_templates_controller.dart';
 import '../../settings/application/template_prompts_controller.dart';
 import '../../settings/domain/models/fixed_prompt_sequence.dart';
 import '../../settings/domain/models/llm_model_config.dart';
+import '../../settings/domain/models/llm_provider_config.dart';
 import '../../settings/domain/models/prompt_template.dart';
 import '../../settings/domain/models/template_prompt.dart';
 import '../application/chat_message_tree.dart';
@@ -77,6 +78,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final errorMessage = ref.watch(chatErrorMessageProvider);
     final rememberedSelections = ref.watch(chatDefaultsProvider);
     final fixedPromptSequences = ref.watch(fixedPromptSequencesProvider);
+    final modelProviders = ref.watch(llmProviderConfigsProvider);
     final modelConfigs = ref.watch(llmModelConfigsProvider);
     final promptTemplates = ref.watch(promptTemplatesProvider);
     final templatePrompts = ref.watch(templatePromptsProvider);
@@ -89,6 +91,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       conversation.selectedModelId,
       rememberedSelections.defaultModelId,
     );
+    final selectableProviders = modelProviders
+        .where((provider) => provider.models.isNotEmpty)
+        .toList(growable: false);
+    final selectedProviderId = _resolveSelectedProviderId(
+      selectableProviders,
+      selectedModel,
+    );
+    final selectableModels = selectedProviderId == null
+        ? const <LlmModelConfig>[]
+        : modelConfigs.where((config) {
+            return config.providerId == selectedProviderId;
+          }).toList(growable: false);
     final selectedPromptTemplate = _resolveSelectedPromptTemplate(
       promptTemplates,
       conversation.selectedPromptTemplateId,
@@ -186,7 +200,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     conversation: conversation,
                     messages: activeMessages,
                     hasModels: modelConfigs.isNotEmpty,
-                    modelConfigs: modelConfigs,
+                    modelProviders: selectableProviders,
+                    modelConfigs: selectableModels,
+                    selectedProviderId: selectedProviderId,
                     selectedModel: selectedModel,
                     promptTemplates: promptTemplates,
                     selectedPromptTemplate: selectedPromptTemplate,
@@ -219,12 +235,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           .read(chatSessionsProvider.notifier)
                           .retryLatestAssistant();
                     },
-                    onDeleteMessage: (message) async {
-                      await _showDeleteMessageDialog(context, message);
-                    },
-                    onModelSelected: (modelId) {
-                      _handleModelSelected(modelId);
-                    },
+                     onDeleteMessage: (message) async {
+                       await _showDeleteMessageDialog(context, message);
+                     },
+                     onProviderSelected: (providerId) {
+                       _handleProviderSelected(providerId, selectableProviders);
+                     },
+                     onModelSelected: (modelId) {
+                       _handleModelSelected(modelId);
+                     },
                     onPromptTemplateSelected: (promptTemplateId) {
                       _handlePromptTemplateSelected(promptTemplateId);
                     },
@@ -361,6 +380,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     return modelConfigs.first;
   }
 
+  String? _resolveSelectedProviderId(
+    List<LlmProviderConfig> providers,
+    LlmModelConfig? selectedModel,
+  ) {
+    if (providers.isEmpty) {
+      return null;
+    }
+    if (selectedModel != null &&
+        providers.any((provider) => provider.id == selectedModel.providerId)) {
+      return selectedModel.providerId;
+    }
+    return providers.first.id;
+  }
+
   /// 解析当前会话应使用的前置 Prompt，并在缺省时回退到最近一次选择。
   PromptTemplate? _resolveSelectedPromptTemplate(
     List<PromptTemplate> promptTemplates,
@@ -443,6 +476,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         .read(chatSessionsProvider.notifier)
         .updateActiveConversationPreferences(selectedModelId: modelId);
     await ref.read(chatDefaultsProvider.notifier).rememberModelId(modelId);
+  }
+
+  Future<void> _handleProviderSelected(
+    String providerId,
+    List<LlmProviderConfig> providers,
+  ) async {
+    final provider = providers.where((item) => item.id == providerId).firstOrNull;
+    final targetModelId = provider?.models.firstOrNull?.id;
+    if (targetModelId == null) {
+      return;
+    }
+    await _handleModelSelected(targetModelId);
   }
 
   Future<void> _handlePromptTemplateSelected(String? promptTemplateId) async {

@@ -3,112 +3,67 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../application/chat_defaults_controller.dart';
 import '../../application/llm_model_configs_controller.dart';
-import '../../domain/models/llm_model_config.dart';
+import '../../domain/models/llm_provider_config.dart';
 import 'settings_empty_state.dart';
 
-/// 模型配置列表，负责展示、编辑和删除单个配置。
+/// 服务商配置列表，负责展示服务商信息和其下模型。
 class ModelConfigsList extends ConsumerWidget {
   const ModelConfigsList({
-    required this.configs,
-    required this.onEditRequested,
+    required this.providers,
+    required this.onEditProviderRequested,
+    required this.onAddModelRequested,
+    required this.onEditModelRequested,
     super.key,
   });
 
-  final List<LlmModelConfig> configs;
-  final ValueChanged<LlmModelConfig> onEditRequested;
+  final List<LlmProviderConfig> providers;
+  final ValueChanged<LlmProviderConfig> onEditProviderRequested;
+  final ValueChanged<LlmProviderConfig> onAddModelRequested;
+  final void Function(LlmProviderConfig provider, LlmProviderModelConfig model)
+  onEditModelRequested;
 
   @override
-  /// 构建模型列表；空列表时显示空状态提示。宽度足够时一行展示多列。
   Widget build(BuildContext context, WidgetRef ref) {
-    if (configs.isEmpty) {
+    if (providers.isEmpty) {
       return const SettingsEmptyState(
-        icon: Icons.smart_toy_outlined,
-        title: '还没有模型配置',
-        description: '先添加一个模型，聊天页才能真正发起对话请求。',
+        icon: Icons.hub_outlined,
+        title: '还没有服务商配置',
+        description: '先添加一个服务商，再在服务商下添加模型，聊天页才能真正发起对话请求。',
       );
     }
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        const minItemWidth = 280.0;
-        const gap = 12.0;
-        final crossAxisCount =
-            ((constraints.maxWidth + gap) / (minItemWidth + gap)).floor().clamp(
-              1,
-              3,
-            );
-        return _buildGrid(
-          configs,
-          crossAxisCount,
-          gap,
-          constraints.maxWidth,
-          ref,
-        );
-      },
-    );
-  }
-
-  Widget _buildGrid(
-    List<LlmModelConfig> items,
-    int crossAxisCount,
-    double gap,
-    double availableWidth,
-    WidgetRef ref,
-  ) {
-    if (crossAxisCount == 1) {
-      return Column(
-        children: [
-          for (final config in items)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _ModelConfigTile(
-                config: config,
-                onEditRequested: onEditRequested,
-              ),
+    return Column(
+      children: [
+        for (final provider in providers)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _ProviderTile(
+              provider: provider,
+              onEditProviderRequested: onEditProviderRequested,
+              onAddModelRequested: onAddModelRequested,
+              onEditModelRequested: onEditModelRequested,
             ),
-        ],
-      );
-    }
-
-    final itemWidth =
-        (availableWidth - gap * (crossAxisCount - 1)) / crossAxisCount;
-    final rows = <Widget>[];
-    for (var i = 0; i < items.length; i += crossAxisCount) {
-      final rowItems = items.skip(i).take(crossAxisCount).toList();
-      rows.add(
-        Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              for (var j = 0; j < rowItems.length; j++) ...[
-                if (j > 0) SizedBox(width: gap),
-                SizedBox(
-                  width: itemWidth,
-                  child: _ModelConfigTile(
-                    config: rowItems[j],
-                    onEditRequested: onEditRequested,
-                  ),
-                ),
-              ],
-            ],
           ),
-        ),
-      );
-    }
-    return Column(children: rows);
+      ],
+    );
   }
 }
 
-/// 单个模型配置卡片。
-class _ModelConfigTile extends ConsumerWidget {
-  const _ModelConfigTile({required this.config, required this.onEditRequested});
+class _ProviderTile extends ConsumerWidget {
+  const _ProviderTile({
+    required this.provider,
+    required this.onEditProviderRequested,
+    required this.onAddModelRequested,
+    required this.onEditModelRequested,
+  });
 
-  final LlmModelConfig config;
-  final ValueChanged<LlmModelConfig> onEditRequested;
+  final LlmProviderConfig provider;
+  final ValueChanged<LlmProviderConfig> onEditProviderRequested;
+  final ValueChanged<LlmProviderConfig> onAddModelRequested;
+  final void Function(LlmProviderConfig provider, LlmProviderModelConfig model)
+  onEditModelRequested;
 
   @override
-  /// 构建模型配置详情和操作按钮。
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
 
@@ -123,52 +78,175 @@ class _ModelConfigTile extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: Text(
-                    config.displayName,
-                    style: theme.textTheme.titleMedium,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(provider.name, style: theme.textTheme.titleMedium),
+                      const SizedBox(height: 8),
+                      Text('API URL：${provider.apiUrl}'),
+                      const SizedBox(height: 4),
+                      Text('API Key：${_maskApiKey(provider.apiKey)}'),
+                      const SizedBox(height: 4),
+                      Text('模型数量：${provider.models.length}'),
+                    ],
                   ),
                 ),
-                if (config.supportsReasoning)
-                  Chip(
-                    avatar: const Icon(Icons.psychology_alt_outlined, size: 18),
-                    label: const Text('支持深度思考'),
-                    visualDensity: VisualDensity.compact,
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
+                const SizedBox(width: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: () => onAddModelRequested(provider),
+                      icon: const Icon(Icons.add_rounded),
+                      label: const Text('新增模型'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () => onEditProviderRequested(provider),
+                      icon: const Icon(Icons.edit_outlined),
+                      label: const Text('编辑服务商'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        await ref
+                            .read(llmProviderConfigsProvider.notifier)
+                            .deleteProviderById(provider.id);
+                        for (final model in provider.models) {
+                          await ref
+                              .read(chatDefaultsProvider.notifier)
+                              .clearRememberedModelIdIfMatches(model.id);
+                        }
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('服务商已删除')),
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.delete_outline_rounded),
+                      label: const Text('删除服务商'),
+                    ),
+                  ],
+                ),
               ],
             ),
-            const SizedBox(height: 8),
-            Text('API URL：${config.apiUrl}'),
-            const SizedBox(height: 4),
-            Text('模型名称：${config.modelName}'),
-            const SizedBox(height: 4),
-            Text('API Key：${_maskApiKey(config.apiKey)}'),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
+            if (provider.models.isEmpty)
+              Text(
+                '当前服务商下还没有模型。',
+                style: theme.textTheme.bodyMedium,
+              )
+            else
+              Column(
+                children: [
+                  for (final model in provider.models)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: _ProviderModelTile(
+                        provider: provider,
+                        model: model,
+                        onEditModelRequested: onEditModelRequested,
+                      ),
+                    ),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _maskApiKey(String apiKey) {
+    final trimmed = apiKey.trim();
+    if (trimmed.length <= 8) {
+      return '已保存';
+    }
+
+    return '${trimmed.substring(0, 4)}****${trimmed.substring(trimmed.length - 4)}';
+  }
+}
+
+class _ProviderModelTile extends ConsumerWidget {
+  const _ProviderModelTile({
+    required this.provider,
+    required this.model,
+    required this.onEditModelRequested,
+  });
+
+  final LlmProviderConfig provider;
+  final LlmProviderModelConfig model;
+  final void Function(LlmProviderConfig provider, LlmProviderModelConfig model)
+  onEditModelRequested;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        color: theme.colorScheme.surface.withValues(alpha: 0.7),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          model.displayName,
+                          style: theme.textTheme.titleSmall,
+                        ),
+                      ),
+                      if (model.supportsReasoning)
+                        Chip(
+                          avatar: const Icon(
+                            Icons.psychology_alt_outlined,
+                            size: 18,
+                          ),
+                          label: const Text('支持深度思考'),
+                          visualDensity: VisualDensity.compact,
+                          materialTapTargetSize:
+                              MaterialTapTargetSize.shrinkWrap,
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text('API 模型名称：${model.modelName}'),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
                 OutlinedButton.icon(
-                  onPressed: () {
-                    onEditRequested(config);
-                  },
+                  onPressed: () => onEditModelRequested(provider, model),
                   icon: const Icon(Icons.edit_outlined),
                   label: const Text('编辑'),
                 ),
                 OutlinedButton.icon(
                   onPressed: () async {
-                    await ref
-                        .read(llmModelConfigsProvider.notifier)
-                        .deleteById(config.id);
+                    await ref.read(llmProviderConfigsProvider.notifier).deleteModel(
+                          providerId: provider.id,
+                          modelId: model.id,
+                        );
                     await ref
                         .read(chatDefaultsProvider.notifier)
-                        .clearRememberedModelIdIfMatches(config.id);
+                        .clearRememberedModelIdIfMatches(model.id);
                     if (context.mounted) {
                       ScaffoldMessenger.of(
                         context,
-                      ).showSnackBar(const SnackBar(content: Text('模型配置已删除')));
+                      ).showSnackBar(const SnackBar(content: Text('模型已删除')));
                     }
                   },
                   icon: const Icon(Icons.delete_outline_rounded),
@@ -180,15 +258,5 @@ class _ModelConfigTile extends ConsumerWidget {
         ),
       ),
     );
-  }
-
-  /// 把 API Key 截断为适合展示的掩码文本。
-  String _maskApiKey(String apiKey) {
-    final trimmed = apiKey.trim();
-    if (trimmed.length <= 8) {
-      return '已保存';
-    }
-
-    return '${trimmed.substring(0, 4)}****${trimmed.substring(trimmed.length - 4)}';
   }
 }

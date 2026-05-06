@@ -67,7 +67,7 @@ Future<SharedPreferences> createEmptyPreferences() async {
 
 /// 创建包含默认种子数据的 SharedPreferences 实例。
 ///
-/// 模型配置继续存储在 SP 中；Prompt 模板以旧版格式写入 SP，
+/// 服务商与模型配置继续存储在 SP 中；Prompt 模板以旧版格式写入 SP，
 /// 在 [pumpSettingsScreen] 内调用的迁移逻辑会将其搬到 SQLite。
 Future<SharedPreferences> createDefaultsSeededPreferences() async {
   SharedPreferences.setMockInitialValues({
