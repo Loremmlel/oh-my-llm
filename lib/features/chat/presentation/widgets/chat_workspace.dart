@@ -341,13 +341,13 @@ class ChatWorkspace extends StatelessWidget {
           final isCompact = constraints.maxWidth < _compactComposerBreakpoint;
 
           return Padding(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildTemplateHeader(),
                 if (selectedTemplatePrompt != null) ...[
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   if (selectedTemplatePrompt!.inputVariables.isEmpty)
                     Text('当前模板没有额外变量。', style: theme.textTheme.bodySmall)
                   else
@@ -360,11 +360,11 @@ class ChatWorkspace extends StatelessWidget {
                     ),
                   ],
                 ],
-                const SizedBox(height: 12),
-                _buildMessageComposerField(),
                 const SizedBox(height: 10),
-                _buildProviderAndModelRow(),
+                _buildMessageComposerField(),
                 const SizedBox(height: 8),
+                _buildProviderAndModelRow(),
+                const SizedBox(height: 6),
                 if (isCompact)
                   _buildCompactActionRow(context, theme)
                 else
@@ -401,7 +401,7 @@ class ChatWorkspace extends StatelessWidget {
             onChanged: isStreaming ? null : onTemplatePromptSelected,
           ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 6),
         IconButton.outlined(
           onPressed: onToggleComposerCollapsed,
           tooltip: '收起输入区',
@@ -415,13 +415,7 @@ class ChatWorkspace extends StatelessWidget {
     required String labelText,
     String? hintText,
   }) {
-    return InputDecoration(
-      labelText: labelText,
-      hintText: hintText,
-      isDense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      constraints: const BoxConstraints(minHeight: 48),
-    );
+    return InputDecoration(labelText: labelText, hintText: hintText);
   }
 
   Widget _buildMessageComposerField() {
@@ -492,7 +486,7 @@ class ChatWorkspace extends StatelessWidget {
                   },
           ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 6),
         Expanded(
           child: DropdownButtonFormField<String>(
             key: const ValueKey('chat-model-selector'),
@@ -542,8 +536,8 @@ class ChatWorkspace extends StatelessWidget {
       children: [
         Expanded(
           child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: 6,
+            runSpacing: 6,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               ThinkingToggle(
@@ -601,7 +595,7 @@ class ChatWorkspace extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 6),
         Align(
           alignment: Alignment.topRight,
           child: _buildSendButton(theme, expandLabel: false),
@@ -625,7 +619,7 @@ class ChatWorkspace extends StatelessWidget {
             label: Text(_compactSettingsSummary()),
           ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 6),
         _buildSendButton(theme, expandLabel: true),
       ],
     );
@@ -635,7 +629,7 @@ class ChatWorkspace extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         const minItemWidth = 220.0;
-        const gap = 8.0;
+        const gap = 6.0;
         final crossAxisCount =
             ((constraints.maxWidth + gap) / (minItemWidth + gap)).floor().clamp(
               1,
