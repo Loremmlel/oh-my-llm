@@ -10,14 +10,14 @@ import '../application/llm_model_configs_controller.dart';
 import '../application/prompt_templates_controller.dart';
 import '../application/template_prompts_controller.dart';
 import '../domain/models/fixed_prompt_sequence.dart';
-import '../domain/models/llm_model_config.dart';
+import '../domain/models/llm_provider_config.dart';
 import '../domain/models/prompt_template.dart';
 import '../domain/models/settings_export_data.dart';
 import '../domain/models/template_prompt.dart';
 import 'widgets/import_confirm_dialog.dart';
 import 'widgets/settings_widgets.dart';
 
-/// 设置页入口，集中管理模型配置、前置 Prompt、模板提示词和固定序列。
+/// 设置页入口，集中管理服务商、前置 Prompt、模板提示词和固定序列。
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
@@ -25,7 +25,7 @@ class SettingsScreen extends ConsumerWidget {
   /// 构建设置页的各类配置区域，顶部附导出/导入操作栏。
   Widget build(BuildContext context, WidgetRef ref) {
     final fixedPromptSequences = ref.watch(fixedPromptSequencesProvider);
-    final modelConfigs = ref.watch(llmModelConfigsProvider);
+    final modelProviders = ref.watch(llmProviderConfigsProvider);
     final promptTemplates = ref.watch(promptTemplatesProvider);
     final templatePrompts = ref.watch(templatePromptsProvider);
 
@@ -46,23 +46,33 @@ class SettingsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 12),
           SettingsSectionCard(
-            title: '模型设置',
-            description: '管理 OpenAI 兼容模型配置。聊天页会记住最近一次使用的模型。',
+            title: '服务商设置',
+            description: '管理服务商与其下模型。聊天页会记住最近一次使用的模型。',
             action: FilledButton.icon(
               onPressed: () async {
-                // 先检测剪贴板是否有可导入的配置数据，避免用户错过导入机会
                 final handled = await _tryImportFromClipboard(context, ref);
                 if (!handled && context.mounted) {
-                  _showModelConfigDialog(context, ref);
+                  _showModelProviderDialog(context, ref);
                 }
               },
               icon: const Icon(Icons.add_rounded),
-              label: const Text('新增模型'),
+              label: const Text('新增服务商'),
             ),
             child: ModelConfigsList(
-              configs: modelConfigs,
-              onEditRequested: (config) {
-                _showModelConfigDialog(context, ref, initialValue: config);
+              providers: modelProviders,
+              onEditProviderRequested: (provider) {
+                _showModelProviderDialog(context, ref, initialValue: provider);
+              },
+              onAddModelRequested: (provider) {
+                _showModelConfigDialog(context, ref, provider: provider);
+              },
+              onEditModelRequested: (provider, model) {
+                _showModelConfigDialog(
+                  context,
+                  ref,
+                  provider: provider,
+                  initialValue: model,
+                );
               },
             ),
           ),
@@ -144,13 +154,13 @@ class SettingsScreen extends ConsumerWidget {
 
   /// 将当前全部配置序列化为 JSON 并复制到剪贴板。
   Future<void> _exportToClipboard(BuildContext context, WidgetRef ref) async {
-    final modelConfigs = ref.read(llmModelConfigsProvider);
+    final modelProviders = ref.read(llmProviderConfigsProvider);
     final promptTemplates = ref.read(promptTemplatesProvider);
     final templatePrompts = ref.read(templatePromptsProvider);
     final fixedPromptSequences = ref.read(fixedPromptSequencesProvider);
 
     final exportData = SettingsExportData(
-      modelConfigs: modelConfigs,
+      modelProviders: modelProviders,
       promptTemplates: promptTemplates,
       templatePrompts: templatePrompts,
       fixedPromptSequences: fixedPromptSequences,
@@ -183,13 +193,13 @@ class SettingsScreen extends ConsumerWidget {
     }
 
     // 去重：过滤掉与本地内容等价的条目
-    final existingModels = ref.read(llmModelConfigsProvider);
+    final existingProviders = ref.read(llmProviderConfigsProvider);
     final existingTemplates = ref.read(promptTemplatesProvider);
     final existingTemplatePrompts = ref.read(templatePromptsProvider);
     final existingSequences = ref.read(fixedPromptSequencesProvider);
     final dedupedData = _deduplicateExportData(
       exportData,
-      existingModels: existingModels,
+      existingProviders: existingProviders,
       existingTemplates: existingTemplates,
       existingTemplatePrompts: existingTemplatePrompts,
       existingSequences: existingSequences,
@@ -227,7 +237,7 @@ class SettingsScreen extends ConsumerWidget {
   /// 从待导入数据中过滤掉与本地已有条目内容等价的项，返回仅含新增内容的数据包。
   ///
   /// 去重规则：
-  /// - 模型配置：`apiUrl`、`apiKey`、`modelName` 三字段全部相同即视为重复。
+  /// - 服务商模型：`apiUrl`、`apiKey`、`modelName` 三字段全部相同即视为重复。
   /// - Prompt 模板：`systemPrompt` 相同且所有附加消息（role + content 有序）相同。
   /// - 固定顺序提示词：所有步骤内容（content 有序）相同。
   ///
@@ -235,20 +245,27 @@ class SettingsScreen extends ConsumerWidget {
   /// 一次性导入操作无需额外优化，而抽样有误判（假阴性）风险。
   SettingsExportData _deduplicateExportData(
     SettingsExportData data, {
-    required List<LlmModelConfig> existingModels,
+    required List<LlmProviderConfig> existingProviders,
     required List<PromptTemplate> existingTemplates,
     required List<TemplatePrompt> existingTemplatePrompts,
     required List<FixedPromptSequence> existingSequences,
   }) {
-    final newModels = data.modelConfigs
-        .where((incoming) {
-          return !existingModels.any(
-            (e) =>
-                e.apiUrl == incoming.apiUrl &&
-                e.apiKey == incoming.apiKey &&
-                e.modelName == incoming.modelName,
-          );
+    final existingModels = existingProviders
+        .expand((provider) => provider.resolvedModels)
+        .toList(growable: false);
+    final newProviders = data.modelProviders
+        .map((provider) {
+          final nextModels = provider.models.where((model) {
+            return !existingModels.any(
+              (existing) =>
+                  existing.apiUrl == provider.apiUrl &&
+                  existing.apiKey == provider.apiKey &&
+                  existing.modelName == model.modelName,
+            );
+          }).toList(growable: false);
+          return provider.copyWith(models: nextModels);
         })
+        .where((provider) => provider.models.isNotEmpty)
         .toList(growable: false);
 
     final newTemplates = data.promptTemplates
@@ -276,7 +293,7 @@ class SettingsScreen extends ConsumerWidget {
         .toList(growable: false);
 
     return SettingsExportData(
-      modelConfigs: newModels,
+      modelProviders: newProviders,
       promptTemplates: newTemplates,
       templatePrompts: newTemplatePrompts,
       fixedPromptSequences: newSequences,
@@ -326,11 +343,49 @@ class SettingsScreen extends ConsumerWidget {
     return true;
   }
 
-  /// 弹出模型配置对话框，并把提交结果写回控制器。
+  /// 弹出服务商对话框，并把提交结果写回控制器。
+  Future<void> _showModelProviderDialog(
+    BuildContext context,
+    WidgetRef ref, {
+    LlmProviderConfig? initialValue,
+  }) {
+    return showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return ModelProviderFormDialog(
+          initialValue: initialValue,
+          onSubmit: (formData) async {
+            final provider = LlmProviderConfig(
+              id: initialValue?.id ?? generateEntityId(),
+              name: formData.name,
+              apiUrl: formData.apiUrl,
+              apiKey: formData.apiKey,
+              models: initialValue?.models ?? const [],
+            );
+
+            await ref
+                .read(llmProviderConfigsProvider.notifier)
+                .upsertProvider(provider);
+
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(initialValue == null ? '服务商已保存' : '服务商已更新'),
+                ),
+              );
+            }
+          },
+        );
+      },
+    );
+  }
+
+  /// 弹出模型对话框，并把提交结果写回指定服务商。
   Future<void> _showModelConfigDialog(
     BuildContext context,
     WidgetRef ref, {
-    LlmModelConfig? initialValue,
+    required LlmProviderConfig provider,
+    LlmProviderModelConfig? initialValue,
   }) {
     return showDialog<void>(
       context: context,
@@ -338,21 +393,22 @@ class SettingsScreen extends ConsumerWidget {
         return ModelConfigFormDialog(
           initialValue: initialValue,
           onSubmit: (formData) async {
-            final config = LlmModelConfig(
+            final model = LlmProviderModelConfig(
               id: initialValue?.id ?? generateEntityId(),
               displayName: formData.displayName,
-              apiUrl: formData.apiUrl,
-              apiKey: formData.apiKey,
               modelName: formData.modelName,
               supportsReasoning: formData.supportsReasoning,
             );
 
-            await ref.read(llmModelConfigsProvider.notifier).upsert(config);
+            await ref.read(llmProviderConfigsProvider.notifier).upsertModel(
+                  providerId: provider.id,
+                  model: model,
+                );
 
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text(initialValue == null ? '模型配置已保存' : '模型配置已更新'),
+                  content: Text(initialValue == null ? '模型已保存' : '模型已更新'),
                 ),
               );
             }

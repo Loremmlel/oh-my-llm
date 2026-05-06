@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../app/navigation/app_destination.dart';
 
-/// 聊天页空状态提示，必要时引导用户去设置模型。
+/// 聊天页空状态提示，必要时引导用户去设置服务商与模型。
 class EmptyConversationView extends StatelessWidget {
   const EmptyConversationView({required this.hasModels, super.key});
 
@@ -31,7 +31,7 @@ class EmptyConversationView extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    hasModels ? '开始一段新对话' : '先准备模型配置',
+                    hasModels ? '开始一段新对话' : '先准备服务商与模型',
                     style: theme.textTheme.headlineSmall,
                     textAlign: TextAlign.center,
                   ),
@@ -39,7 +39,7 @@ class EmptyConversationView extends StatelessWidget {
                   Text(
                     hasModels
                         ? '输入你的第一条消息后，这里会显示真实的流式回复，同时左侧历史列表和右侧悬浮定位条会一起工作。'
-                        : '你还没有配置模型。先去设置页添加一个 OpenAI 兼容模型，聊天页才能真正发起请求。',
+                        : '你还没有配置服务商与模型。先去设置页添加服务商，并在其下新增至少一个模型，聊天页才能真正发起请求。',
                     textAlign: TextAlign.center,
                   ),
                   if (!hasModels) ...[

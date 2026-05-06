@@ -56,17 +56,20 @@ flutter run -d windows   # 或 -d <your_android_device_id>
 
 ## 功能详解
 
-### 模型配置
+### 服务商与模型
 
-在设置页新增一条模型配置，填入：
+在设置页先新增一条服务商，再在服务商卡片内添加模型：
 
-| 字段         | 说明                                                                      |
-|------------|-------------------------------------------------------------------------|
-| 显示名称       | 列表中展示的名字，可随意填写                                                          |
-| API URL    | 完整的 chat completions 端点，例如 `https://api.openai.com/v1/chat/completions` |
-| API Key    | 接口密钥                                                                    |
-| Model Name | 模型名称，原样传给 API                                                           |
-| 支持推理       | 勾选后在聊天页可开启 thinking                                                     |
+| 层级  | 字段         | 说明                                                                      |
+|-----|------------|-------------------------------------------------------------------------|
+| 服务商 | 服务商名称      | 例如 `DeepSeek 官方`、`OpenRouter`                                             |
+| 服务商 | API URL    | 完整的 chat completions 端点，例如 `https://api.openai.com/v1/chat/completions` |
+| 服务商 | API Key    | 接口密钥                                                                    |
+| 模型  | 显示名称       | 列表中展示的名字，可随意填写                                                          |
+| 模型  | Model Name | 模型名称，原样传给 API                                                           |
+| 模型  | 支持推理       | 勾选后在聊天页可开启 thinking                                                     |
+
+聊天页模型选择器为二级：先选服务商，再选该服务商下的模型。旧版平铺模型配置会在读取时按相同 `API URL + API Key` 自动聚合成服务商。
 
 > **OpenAI 官方主机**使用原生 `reasoning_effort` 字段；  
 > **其他兼容主机**使用 `thinking: {"type": "enabled"|"disabled"}` 字段，
@@ -180,7 +183,7 @@ lib/
     ├── history/
     │   └── presentation/       # 历史页（搜索 + 分组 + 批量操作）
     └── settings/
-        ├── application/        # 各 Notifier（模型配置 / 模板 / 序列 / 最近选择记忆）
+        ├── application/        # 各 Notifier（服务商配置 / 模板 / 序列 / 最近选择记忆）
         ├── data/               # SharedPreferences 仓库 + SQLite 仓库 + 迁移
         ├── domain/             # 设置相关模型
         └── presentation/       # 设置页
@@ -193,7 +196,7 @@ lib/
 | 聊天记录 / 收藏 / 收藏夹 | SQLite（`chat_history.sqlite`，位于应用 Support 目录）        |
 | Prompt 模板     | SQLite                                               |
 | 固定顺序提示词       | SQLite                                               |
-| 模型配置          | SharedPreferences JSON（`settings.llm_model_configs`） |
+| 服务商与模型配置      | SharedPreferences JSON（`settings.llm_model_configs`） |
 | 最近一次聊天选择记忆   | SharedPreferences JSON（单对象）                          |
 
 历史版本使用 SharedPreferences 存储所有数据，升级时会自动执行一次性迁移，迁移完成后删除旧键。
@@ -251,7 +254,7 @@ flutter test             # 运行全部测试（286 个测试）
 | Windows | `%APPDATA%\<org>\oh_my_llm\`        |
 | Android | `/data/data/com.example.oh_my_llm/` |
 
-SQLite 文件 `chat_history.sqlite` 统一保存聊天记录、Prompt 模板、固定顺序提示词、收藏和收藏夹；模型配置与最近一次聊天选择记忆仍保存在系统 SharedPreferences 中。
+SQLite 文件 `chat_history.sqlite` 统一保存聊天记录、Prompt 模板、固定顺序提示词、收藏和收藏夹；服务商与模型配置、最近一次聊天选择记忆仍保存在系统 SharedPreferences 中。
 
 ---
 

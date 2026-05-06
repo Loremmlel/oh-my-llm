@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'fixed_prompt_sequence.dart';
 import 'llm_model_config.dart';
+import 'llm_provider_config.dart';
 import 'prompt_template.dart';
 import 'template_prompt.dart';
 
@@ -16,15 +17,15 @@ import 'template_prompt.dart';
 /// ```json
 /// {
 ///   "identifier": "shikiyuzu-oh-my-llm",
-///   "version": 1,
-///   "modelConfigs": [...],
+///   "version": 2,
+///   "modelProviders": [...],
 ///   "promptTemplates": [...],
 ///   "fixedPromptSequences": [...]
 /// }
 /// ```
 class SettingsExportData {
   const SettingsExportData({
-    required this.modelConfigs,
+    required this.modelProviders,
     required this.promptTemplates,
     required this.templatePrompts,
     required this.fixedPromptSequences,
@@ -34,19 +35,25 @@ class SettingsExportData {
   static const String identifier = 'shikiyuzu-oh-my-llm';
 
   /// 当前导出格式版本，未来格式变更时递增。
-  static const int formatVersion = 1;
+  static const int formatVersion = 2;
 
-  final List<LlmModelConfig> modelConfigs;
+  final List<LlmProviderConfig> modelProviders;
   final List<PromptTemplate> promptTemplates;
   final List<TemplatePrompt> templatePrompts;
   final List<FixedPromptSequence> fixedPromptSequences;
+
+  List<LlmModelConfig> get modelConfigs {
+    return modelProviders
+        .expand((provider) => provider.resolvedModels)
+        .toList(growable: false);
+  }
 
   /// 将导出数据序列化为 JSON 字符串（含标识符和版本号）。
   String toJsonString() {
     return jsonEncode({
       'identifier': identifier,
       'version': formatVersion,
-      'modelConfigs': modelConfigs.map((c) => c.toJson()).toList(),
+      'modelProviders': modelProviders.map((p) => p.toJson()).toList(),
       'promptTemplates': promptTemplates.map((t) => t.toJson()).toList(),
       'templatePrompts': templatePrompts.map((t) => t.toJson()).toList(),
       'fixedPromptSequences':
@@ -68,19 +75,26 @@ class SettingsExportData {
       if (raw is! Map<String, dynamic>) return null;
       if (raw['identifier'] != identifier) return null;
 
-      final rawModels = raw['modelConfigs'] as List<dynamic>? ?? const [];
+      final rawProviders =
+          raw['modelProviders'] as List<dynamic>? ?? const [];
       final rawTemplates = raw['promptTemplates'] as List<dynamic>? ?? const [];
       final rawTemplatePrompts =
           raw['templatePrompts'] as List<dynamic>? ?? const [];
       final rawSequences =
           raw['fixedPromptSequences'] as List<dynamic>? ?? const [];
 
+      final modelProviders = rawProviders.isNotEmpty
+          ? rawProviders
+                .map((item) => LlmProviderConfig.fromJson(
+                      Map<String, dynamic>.from(item as Map),
+                    ))
+                .toList(growable: false)
+          : _migrateLegacyModelConfigs(
+                raw['modelConfigs'] as List<dynamic>? ?? const [],
+              );
+
       return SettingsExportData(
-        modelConfigs: rawModels
-            .map((item) => LlmModelConfig.fromJson(
-                  Map<String, dynamic>.from(item as Map),
-                ))
-            .toList(growable: false),
+        modelProviders: modelProviders,
         promptTemplates: rawTemplates
             .map((item) => PromptTemplate.fromJson(
                   Map<String, dynamic>.from(item as Map),
@@ -105,8 +119,50 @@ class SettingsExportData {
 
   /// 是否包含任何可导入的条目。
   bool get hasContent =>
-      modelConfigs.isNotEmpty ||
+      modelProviders.isNotEmpty ||
       promptTemplates.isNotEmpty ||
       templatePrompts.isNotEmpty ||
       fixedPromptSequences.isNotEmpty;
+
+  static List<LlmProviderConfig> _migrateLegacyModelConfigs(
+    List<dynamic> rawModels,
+  ) {
+    final legacyModels = rawModels
+        .map((item) => LlmModelConfig.fromJson(Map<String, dynamic>.from(item as Map)))
+        .toList(growable: false);
+    if (legacyModels.isEmpty) {
+      return const [];
+    }
+
+    final providers = <LlmProviderConfig>[];
+    final indexBySignature = <String, int>{};
+    for (final model in legacyModels) {
+      final signature = '${model.apiUrl}::${model.apiKey}';
+      final existingIndex = indexBySignature[signature];
+      final providerModel = LlmProviderModelConfig(
+        id: model.id,
+        displayName: model.displayName,
+        modelName: model.modelName,
+        supportsReasoning: model.supportsReasoning,
+      );
+      if (existingIndex == null) {
+        indexBySignature[signature] = providers.length;
+        providers.add(
+          LlmProviderConfig(
+            id: 'provider-${providers.length + 1}',
+            name: '服务商${providers.length + 1}',
+            apiUrl: model.apiUrl,
+            apiKey: model.apiKey,
+            models: [providerModel],
+          ),
+        );
+      } else {
+        final provider = providers[existingIndex];
+        providers[existingIndex] = provider.copyWith(
+          models: [...provider.models, providerModel],
+        );
+      }
+    }
+    return providers;
+  }
 }

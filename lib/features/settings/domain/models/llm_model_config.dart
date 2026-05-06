@@ -11,6 +11,8 @@ class LlmModelConfig extends Equatable {
     required this.apiKey,
     required this.modelName,
     required this.supportsReasoning,
+    this.providerId = '',
+    this.providerName = '',
   });
 
   final String id;
@@ -19,6 +21,8 @@ class LlmModelConfig extends Equatable {
   final String apiKey;
   final String modelName;
   final bool supportsReasoning;
+  final String providerId;
+  final String providerName;
 
   /// 复制模型配置，并允许覆盖任意字段。
   LlmModelConfig copyWith({
@@ -28,6 +32,8 @@ class LlmModelConfig extends Equatable {
     String? apiKey,
     String? modelName,
     bool? supportsReasoning,
+    String? providerId,
+    String? providerName,
   }) {
     return LlmModelConfig(
       id: id ?? this.id,
@@ -36,6 +42,8 @@ class LlmModelConfig extends Equatable {
       apiKey: apiKey ?? this.apiKey,
       modelName: modelName ?? this.modelName,
       supportsReasoning: supportsReasoning ?? this.supportsReasoning,
+      providerId: providerId ?? this.providerId,
+      providerName: providerName ?? this.providerName,
     );
   }
 
@@ -48,6 +56,8 @@ class LlmModelConfig extends Equatable {
       'apiKey': apiKey,
       'modelName': modelName,
       'supportsReasoning': supportsReasoning,
+      if (providerId.isNotEmpty) 'providerId': providerId,
+      if (providerName.isNotEmpty) 'providerName': providerName,
     };
   }
 
@@ -60,6 +70,8 @@ class LlmModelConfig extends Equatable {
       apiKey: json['apiKey'] as String,
       modelName: json['modelName'] as String,
       supportsReasoning: json['supportsReasoning'] as bool? ?? false,
+      providerId: json['providerId'] as String? ?? '',
+      providerName: json['providerName'] as String? ?? '',
     );
   }
 
@@ -68,6 +80,15 @@ class LlmModelConfig extends Equatable {
 
   @override
   List<Object> get props {
-    return [id, displayName, apiUrl, apiKey, modelName, supportsReasoning];
+    return [
+      id,
+      displayName,
+      apiUrl,
+      apiKey,
+      modelName,
+      supportsReasoning,
+      providerId,
+      providerName,
+    ];
   }
 }

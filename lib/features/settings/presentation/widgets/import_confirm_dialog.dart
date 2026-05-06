@@ -38,12 +38,12 @@ class _ImportConfirmDialogState extends ConsumerState<ImportConfirmDialog> {
         children: [
           const Text('剪贴板中包含本应用的配置数据，是否导入？'),
           const SizedBox(height: 16),
-          if (data.modelConfigs.isNotEmpty)
+          if (data.modelProviders.isNotEmpty)
             _buildCountRow(
               context,
-              icon: Icons.smart_toy_outlined,
-              label: '模型配置',
-              count: data.modelConfigs.length,
+              icon: Icons.hub_outlined,
+              label: 'LLM 服务商',
+              count: data.modelProviders.length,
             ),
           if (data.promptTemplates.isNotEmpty)
             _buildCountRow(
@@ -118,10 +118,10 @@ class _ImportConfirmDialogState extends ConsumerState<ImportConfirmDialog> {
 
     final data = widget.exportData;
 
-    if (data.modelConfigs.isNotEmpty) {
+    if (data.modelProviders.isNotEmpty) {
       await ref
-          .read(llmModelConfigsProvider.notifier)
-          .upsertAll(data.modelConfigs);
+          .read(llmProviderConfigsProvider.notifier)
+          .mergeImportedProviders(data.modelProviders);
     }
     if (data.promptTemplates.isNotEmpty) {
       await ref
