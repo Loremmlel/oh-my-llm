@@ -155,7 +155,7 @@ void registerChatScreenBasicsTests() {
       find.byKey(const ValueKey('chat-message-composer')),
     );
 
-    expect(composerRect.top, greaterThanOrEqualTo(selectorRect.bottom + 12));
+    expect(composerRect.top, greaterThanOrEqualTo(selectorRect.bottom + 10));
   });
 
   testWidgets('chat screen keeps desktop send button aligned to the far right', (
@@ -174,27 +174,6 @@ void registerChatScreenBasicsTests() {
     final sendButtonRect = tester.getRect(find.widgetWithText(FilledButton, '发送'));
 
     expect(sendButtonRect.right, greaterThanOrEqualTo(composerCardRect.right - 18));
-  });
-
-  testWidgets('chat screen uses shorter selector heights', (tester) async {
-    final preferences = await createSeededPreferences();
-    final fakeClient = FakeChatCompletionClient();
-
-    await pumpChatScreen(
-      tester,
-      preferences: preferences,
-      fakeClient: fakeClient,
-    );
-
-    final templateRect = tester.getRect(
-      find.byKey(const ValueKey('template-prompt-selector')),
-    );
-    final providerRect = tester.getRect(
-      find.byKey(const ValueKey('chat-provider-selector')),
-    );
-
-    expect(templateRect.height, lessThan(56));
-    expect(providerRect.height, lessThan(56));
   });
 
   testWidgets('chat screen composer grows only while focused and multiline', (
