@@ -35,6 +35,7 @@ class ChatScreen extends ConsumerStatefulWidget {
 /// 聊天页状态层，处理滚动同步、锚点定位和编辑弹窗等页面级交互。
 class _ChatScreenState extends ConsumerState<ChatScreen> {
   late final TextEditingController _messageController;
+  late final FocusNode _messageFocusNode;
   late final ChatScrollController _scroll;
   final Map<String, TextEditingController> _templateVariableControllers = {};
 
@@ -47,6 +48,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void initState() {
     super.initState();
     _messageController = TextEditingController();
+    _messageFocusNode = FocusNode();
     _scroll = ChatScrollController(
       onStateChange: () => setState(() {}),
       isMounted: () => mounted,
@@ -58,6 +60,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   @override
   void dispose() {
+    _messageFocusNode.dispose();
     _messageController.dispose();
     for (final controller in _templateVariableControllers.values) {
       controller.dispose();
@@ -207,9 +210,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     promptTemplates: promptTemplates,
                     selectedPromptTemplate: selectedPromptTemplate,
                     userMessages: userMessages,
-                    activeAnchorMessageId: _scroll.activeAnchorMessageId,
-                    messageController: _messageController,
-                    templatePrompts: templatePrompts,
+                     activeAnchorMessageId: _scroll.activeAnchorMessageId,
+                     messageController: _messageController,
+                     messageFocusNode: _messageFocusNode,
+                     templatePrompts: templatePrompts,
                     selectedTemplatePrompt: selectedTemplatePrompt,
                     templateVariableControllers: _templateVariableControllers,
                     messageItemScrollController: _scroll.itemScrollController,

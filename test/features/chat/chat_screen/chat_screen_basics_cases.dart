@@ -158,6 +158,75 @@ void registerChatScreenBasicsTests() {
     expect(composerRect.top, greaterThanOrEqualTo(selectorRect.bottom + 12));
   });
 
+  testWidgets('chat screen keeps desktop send button aligned to the far right', (
+    tester,
+  ) async {
+    final preferences = await createSeededPreferences();
+    final fakeClient = FakeChatCompletionClient();
+
+    await pumpChatScreen(
+      tester,
+      preferences: preferences,
+      fakeClient: fakeClient,
+    );
+
+    final composerCardRect = tester.getRect(find.byType(Card).last);
+    final sendButtonRect = tester.getRect(find.widgetWithText(FilledButton, '发送'));
+
+    expect(sendButtonRect.right, greaterThanOrEqualTo(composerCardRect.right - 18));
+  });
+
+  testWidgets('chat screen uses shorter selector heights', (tester) async {
+    final preferences = await createSeededPreferences();
+    final fakeClient = FakeChatCompletionClient();
+
+    await pumpChatScreen(
+      tester,
+      preferences: preferences,
+      fakeClient: fakeClient,
+    );
+
+    final templateRect = tester.getRect(
+      find.byKey(const ValueKey('template-prompt-selector')),
+    );
+    final providerRect = tester.getRect(
+      find.byKey(const ValueKey('chat-provider-selector')),
+    );
+
+    expect(templateRect.height, lessThan(56));
+    expect(providerRect.height, lessThan(56));
+  });
+
+  testWidgets('chat screen composer grows only while focused and multiline', (
+    tester,
+  ) async {
+    final preferences = await createSeededPreferences();
+    final fakeClient = FakeChatCompletionClient();
+
+    await pumpChatScreen(
+      tester,
+      preferences: preferences,
+      fakeClient: fakeClient,
+    );
+
+    final composerFinder = find.byKey(const ValueKey('chat-message-composer'));
+    final initialHeight = tester.getRect(composerFinder).height;
+
+    await tester.tap(composerFinder);
+    await tester.pumpAndSettle();
+    await tester.enterText(composerFinder, '1\n2\n3\n4');
+    await tester.pumpAndSettle();
+
+    final expandedHeight = tester.getRect(composerFinder).height;
+    expect(expandedHeight, greaterThan(initialHeight));
+
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pumpAndSettle();
+
+    final collapsedHeight = tester.getRect(composerFinder).height;
+    expect(collapsedHeight, lessThan(expandedHeight));
+  });
+
   testWidgets('chat screen custom title item hides preview in history panel', (
     tester,
   ) async {

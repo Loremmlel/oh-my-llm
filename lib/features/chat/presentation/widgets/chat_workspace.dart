@@ -32,6 +32,7 @@ class ChatWorkspace extends StatelessWidget {
     required this.userMessages,
     required this.activeAnchorMessageId,
     required this.messageController,
+    required this.messageFocusNode,
     required this.templatePrompts,
     required this.selectedTemplatePrompt,
     required this.templateVariableControllers,
@@ -78,6 +79,7 @@ class ChatWorkspace extends StatelessWidget {
   final List<ChatMessage> userMessages;
   final String? activeAnchorMessageId;
   final TextEditingController messageController;
+  final FocusNode messageFocusNode;
   final List<TemplatePrompt> templatePrompts;
   final TemplatePrompt? selectedTemplatePrompt;
   final Map<String, TextEditingController> templateVariableControllers;
@@ -361,7 +363,7 @@ class ChatWorkspace extends StatelessWidget {
                 const SizedBox(height: 12),
                 _buildMessageComposerField(),
                 const SizedBox(height: 10),
-                _buildProviderAndModelRow(isCompact: isCompact),
+                _buildProviderAndModelRow(),
                 const SizedBox(height: 8),
                 if (isCompact)
                   _buildCompactActionRow(context, theme)
@@ -383,7 +385,7 @@ class ChatWorkspace extends StatelessWidget {
             key: const ValueKey('template-prompt-selector'),
             initialValue: selectedTemplatePrompt?.id,
             isExpanded: true,
-            decoration: const InputDecoration(labelText: '模板提示词'),
+            decoration: _buildCompactSelectorDecoration(labelText: '模板提示词'),
             items: [
               const DropdownMenuItem<String?>(
                 value: null,
@@ -409,38 +411,58 @@ class ChatWorkspace extends StatelessWidget {
     );
   }
 
-  Widget _buildMessageComposerField() {
-    return CallbackShortcuts(
-      bindings: {
-        const SingleActivator(
-          LogicalKeyboardKey.enter,
-          control: true,
-        ): () =>
-            onSendPressed?.call(),
-        const SingleActivator(
-          LogicalKeyboardKey.enter,
-          meta: true,
-        ): () =>
-            onSendPressed?.call(),
-      },
-      child: TextField(
-        key: const ValueKey('chat-message-composer'),
-        controller: messageController,
-        minLines: 3,
-        maxLines: 10,
-        textInputAction: TextInputAction.newline,
-        decoration: InputDecoration(
-          labelText: '正文',
-          hintText: selectedTemplatePrompt == null
-              ? '输入你的问题、指令或待处理内容。'
-              : '输入要注入模板的正文内容。',
-          alignLabelWithHint: true,
-        ),
-      ),
+  InputDecoration _buildCompactSelectorDecoration({
+    required String labelText,
+    String? hintText,
+  }) {
+    return InputDecoration(
+      labelText: labelText,
+      hintText: hintText,
+      isDense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      constraints: const BoxConstraints(minHeight: 48),
     );
   }
 
-  Widget _buildProviderAndModelRow({required bool isCompact}) {
+  Widget _buildMessageComposerField() {
+    return ListenableBuilder(
+      listenable: messageFocusNode,
+      builder: (context, child) {
+        final isFocused = messageFocusNode.hasFocus;
+        return CallbackShortcuts(
+          bindings: {
+            const SingleActivator(
+              LogicalKeyboardKey.enter,
+              control: true,
+            ): () =>
+                onSendPressed?.call(),
+            const SingleActivator(
+              LogicalKeyboardKey.enter,
+              meta: true,
+            ): () =>
+                onSendPressed?.call(),
+          },
+          child: TextField(
+            key: const ValueKey('chat-message-composer'),
+            controller: messageController,
+            focusNode: messageFocusNode,
+            minLines: 2,
+            maxLines: isFocused ? 5 : 2,
+            textInputAction: TextInputAction.newline,
+            decoration: InputDecoration(
+              labelText: '正文',
+              hintText: selectedTemplatePrompt == null
+                  ? '输入你的问题、指令或待处理内容。'
+                  : '输入要注入模板的正文内容。',
+              alignLabelWithHint: true,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildProviderAndModelRow() {
     return Row(
       children: [
         Expanded(
@@ -448,13 +470,8 @@ class ChatWorkspace extends StatelessWidget {
             key: const ValueKey('chat-provider-selector'),
             isExpanded: true,
             initialValue: selectedProviderId,
-            decoration: InputDecoration(
+            decoration: _buildCompactSelectorDecoration(
               labelText: '服务商',
-              isDense: true,
-              contentPadding: EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: isCompact ? 10 : 12,
-              ),
               hintText: hasModels ? null : '请先在设置页新增服务商与模型',
             ),
             items: modelProviders
@@ -481,13 +498,8 @@ class ChatWorkspace extends StatelessWidget {
             key: const ValueKey('chat-model-selector'),
             initialValue: selectedModel?.id,
             isExpanded: true,
-            decoration: InputDecoration(
+            decoration: _buildCompactSelectorDecoration(
               labelText: '模型',
-              isDense: true,
-              contentPadding: EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: isCompact ? 10 : 12,
-              ),
               hintText: !hasModels
                   ? '请先在设置页新增服务商与模型'
                   : selectedProviderId == null
@@ -525,63 +537,75 @@ class ChatWorkspace extends StatelessWidget {
     BuildContext context,
     ThemeData theme,
   ) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      crossAxisAlignment: WrapCrossAlignment.center,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        ThinkingToggle(
-          enabled: supportsReasoning,
-          value: supportsReasoning && reasoningEnabled,
-          onChanged: onReasoningEnabledChanged,
-        ),
-        if (supportsReasoning && reasoningEnabled)
-          _buildEffortPill(context, theme),
-        ConstrainedBox(
-          constraints: const BoxConstraints.tightFor(width: 260),
-          child: DropdownButtonFormField<String>(
-            key: const ValueKey('chat-prompt-selector'),
-            initialValue:
-                selectedPromptTemplate?.id ?? noPromptTemplateSelectedId,
-            isExpanded: true,
-            decoration: const InputDecoration(
-              labelText: '前置 Prompt',
-              isDense: true,
-              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            ),
-            items: [
-              const DropdownMenuItem<String>(
-                value: noPromptTemplateSelectedId,
-                child: Text('不使用前置 Prompt'),
+        Expanded(
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              ThinkingToggle(
+                enabled: supportsReasoning,
+                value: supportsReasoning && reasoningEnabled,
+                onChanged: onReasoningEnabledChanged,
               ),
-              ...promptTemplates.map((template) {
-                return DropdownMenuItem<String>(
-                  value: template.id,
-                  child: Text(template.name, overflow: TextOverflow.ellipsis),
-                );
-              }),
+              if (supportsReasoning && reasoningEnabled)
+                _buildEffortPill(context, theme),
+              ConstrainedBox(
+                constraints: const BoxConstraints.tightFor(width: 248),
+                child: DropdownButtonFormField<String>(
+                  key: const ValueKey('chat-prompt-selector'),
+                  initialValue:
+                      selectedPromptTemplate?.id ?? noPromptTemplateSelectedId,
+                  isExpanded: true,
+                  decoration: _buildCompactSelectorDecoration(
+                    labelText: '前置 Prompt',
+                  ),
+                  items: [
+                    const DropdownMenuItem<String>(
+                      value: noPromptTemplateSelectedId,
+                      child: Text('不使用前置 Prompt'),
+                    ),
+                    ...promptTemplates.map((template) {
+                      return DropdownMenuItem<String>(
+                        value: template.id,
+                        child: Text(
+                          template.name,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      );
+                    }),
+                  ],
+                  onChanged: isStreaming
+                      ? null
+                      : (value) {
+                          if (value == null) {
+                            return;
+                          }
+                          onPromptTemplateSelected(
+                            value == noPromptTemplateSelectedId ? null : value,
+                          );
+                        },
+                ),
+              ),
+              Tooltip(
+                message: '固定顺序提示词',
+                child: OutlinedButton.icon(
+                  onPressed: onOpenFixedPromptSequenceRunner,
+                  icon: const Icon(Icons.playlist_play_rounded),
+                  label: const Text('固定顺序提示词'),
+                ),
+              ),
             ],
-            onChanged: isStreaming
-                ? null
-                : (value) {
-                    if (value == null) {
-                      return;
-                    }
-                    onPromptTemplateSelected(
-                      value == noPromptTemplateSelectedId ? null : value,
-                    );
-                  },
           ),
         ),
-        Tooltip(
-          message: '固定顺序提示词',
-          child: OutlinedButton.icon(
-            onPressed: onOpenFixedPromptSequenceRunner,
-            icon: const Icon(Icons.playlist_play_rounded),
-            label: const Text('固定顺序提示词'),
-          ),
+        const SizedBox(width: 8),
+        Align(
+          alignment: Alignment.topRight,
+          child: _buildSendButton(theme, expandLabel: false),
         ),
-        _buildSendButton(theme, expandLabel: false),
       ],
     );
   }
@@ -791,7 +815,9 @@ class ChatWorkspace extends StatelessWidget {
                       initialValue:
                           selectedPromptTemplate?.id ?? noPromptTemplateSelectedId,
                       isExpanded: true,
-                      decoration: const InputDecoration(labelText: '前置 Prompt'),
+                      decoration: _buildCompactSelectorDecoration(
+                        labelText: '前置 Prompt',
+                      ),
                       items: [
                         const DropdownMenuItem<String>(
                           value: noPromptTemplateSelectedId,
