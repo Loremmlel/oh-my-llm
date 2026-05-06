@@ -42,8 +42,8 @@ void registerChatScreenBasicsTests() {
     expect(find.byType(SegmentedButton<ReasoningEffort>), findsNothing);
     // ThinkingToggle 现在是纯 pill，不含 Switch
     expect(find.byType(Switch), findsNothing);
-    // 思考强度 pill 通过 PopupMenuButton tooltip 可被查找
-    expect(find.byTooltip('思考强度'), findsOneWidget);
+    // 默认未开启深度思考时，不再常驻显示思考强度控件。
+    expect(find.byTooltip('思考强度'), findsNothing);
   });
 
   testWidgets('chat screen uses remembered model for reasoning capability', (
@@ -254,6 +254,36 @@ void registerChatScreenBasicsTests() {
       find.widgetWithText(FilledButton, '发送').hitTestable(),
       findsOneWidget,
     );
+    expect(
+      find.byKey(const ValueKey('chat-secondary-settings-button')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('chat-prompt-selector')), findsNothing);
+  });
+
+  testWidgets('chat screen opens compact secondary settings sheet on mobile', (
+    tester,
+  ) async {
+    final preferences = await createSeededPreferences();
+    final fakeClient = FakeChatCompletionClient();
+
+    await pumpChatScreen(
+      tester,
+      preferences: preferences,
+      fakeClient: fakeClient,
+      size: const Size(430, 932),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('chat-secondary-settings-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('更多设置'), findsOneWidget);
+    expect(find.byKey(const ValueKey('chat-prompt-selector')), findsOneWidget);
+    expect(find.text('思考强度'), findsNothing);
+    await tester.tap(find.text('深度思考'));
+    await tester.pumpAndSettle();
+    expect(find.text('思考强度'), findsOneWidget);
+    expect(find.text('固定顺序提示词'), findsOneWidget);
   });
 
   testWidgets('chat screen can collapse and expand the composer', (
@@ -513,7 +543,7 @@ void registerChatScreenBasicsTests() {
     await tester.tap(find.byTooltip('固定顺序提示词'));
     await tester.pumpAndSettle();
 
-    expect(find.text('固定顺序提示词'), findsOneWidget);
+    expect(find.text('固定顺序提示词'), findsWidgets);
     expect(find.text('请先总结当前实现的核心目标。'), findsOneWidget);
 
     await tester.tap(find.widgetWithText(OutlinedButton, '填入输入框'));
