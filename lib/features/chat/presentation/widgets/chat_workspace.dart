@@ -17,6 +17,7 @@ import 'thinking_toggle.dart';
 /// 聊天页主工作区，组合消息列表、锚点条和消息输入区。
 class ChatWorkspace extends StatelessWidget {
   static const _transientErrorMessageId = '__transient_error_message__';
+  static const _compactComposerBreakpoint = 680.0;
 
   const ChatWorkspace({
     required this.conversation,
@@ -333,193 +334,221 @@ class ChatWorkspace extends StatelessWidget {
     }
 
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isCompact = constraints.maxWidth < _compactComposerBreakpoint;
+
+          return Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: DropdownButtonFormField<String?>(
-                    key: const ValueKey('template-prompt-selector'),
-                    initialValue: selectedTemplatePrompt?.id,
-                    isExpanded: true,
-                    decoration: const InputDecoration(labelText: '模板提示词'),
-                    items: [
-                      const DropdownMenuItem<String?>(
-                        value: null,
-                        child: Text('不使用模板提示词'),
-                      ),
-                      ...templatePrompts.map((templatePrompt) {
-                        return DropdownMenuItem<String?>(
-                          value: templatePrompt.id,
-                          child: Text(templatePrompt.title),
-                        );
-                      }),
-                    ],
-                    onChanged: isStreaming ? null : onTemplatePromptSelected,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton.outlined(
-                  onPressed: onToggleComposerCollapsed,
-                  tooltip: '收起输入区',
-                  icon: const Icon(Icons.keyboard_arrow_up_rounded),
-                ),
+                _buildTemplateHeader(),
+                if (selectedTemplatePrompt != null) ...[
+                  const SizedBox(height: 12),
+                  if (selectedTemplatePrompt!.inputVariables.isEmpty)
+                    Text('当前模板没有额外变量。', style: theme.textTheme.bodySmall)
+                  else
+                    _buildTemplateVariableFields(),
+                  if (!selectedTemplatePrompt!.containsBodyVariable) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      '正文会在发送时插入模板提示词上方。',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                ],
+                const SizedBox(height: 12),
+                _buildMessageComposerField(),
+                const SizedBox(height: 10),
+                _buildProviderAndModelRow(isCompact: isCompact),
+                const SizedBox(height: 8),
+                if (isCompact)
+                  _buildCompactActionRow(context, theme)
+                else
+                  _buildDesktopSecondarySettingsRow(context, theme),
               ],
             ),
-            if (selectedTemplatePrompt != null) ...[
-              const SizedBox(height: 12),
-              if (selectedTemplatePrompt!.inputVariables.isEmpty)
-                Text('当前模板没有额外变量。', style: theme.textTheme.bodySmall)
-              else
-                _buildTemplateVariableFields(),
-              if (!selectedTemplatePrompt!.containsBodyVariable) ...[
-                const SizedBox(height: 4),
-                Text('正文会在发送时插入模板提示词上方。', style: theme.textTheme.bodySmall),
-              ],
-            ],
-            const SizedBox(height: 12),
-            CallbackShortcuts(
-              bindings: {
-                const SingleActivator(
-                  LogicalKeyboardKey.enter,
-                  control: true,
-                ): () =>
-                    onSendPressed?.call(),
-                const SingleActivator(
-                  LogicalKeyboardKey.enter,
-                  meta: true,
-                ): () =>
-                    onSendPressed?.call(),
-              },
-              child: TextField(
-                key: const ValueKey('chat-message-composer'),
-                controller: messageController,
-                minLines: 3,
-                maxLines: 10,
-                textInputAction: TextInputAction.newline,
-                decoration: InputDecoration(
-                  labelText: '正文',
-                  hintText: selectedTemplatePrompt == null
-                      ? '输入你的问题、指令或待处理内容。'
-                      : '输入要注入模板的正文内容。',
-                  alignLabelWithHint: true,
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            _buildModelPreferencesRow(context),
-            const SizedBox(height: 8),
-            _buildPromptActionRow(theme),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
 
-  Widget _buildModelPreferencesRow(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildTemplateHeader() {
+    return Row(
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: DropdownButtonFormField<String>(
-                key: const ValueKey('chat-provider-selector'),
-                initialValue: selectedProviderId,
-                isExpanded: true,
-                decoration: InputDecoration(
-                  labelText: '服务商',
-                  hintText: hasModels ? null : '请先在设置页新增服务商与模型',
-                ),
-                items: modelProviders
-                    .map((provider) {
-                      return DropdownMenuItem<String>(
-                        value: provider.id,
-                        child: Text(provider.name, overflow: TextOverflow.ellipsis),
-                      );
-                    })
-                    .toList(growable: false),
-                onChanged: isStreaming || modelProviders.isEmpty
-                    ? null
-                    : (value) {
-                        if (value == null) {
-                          return;
-                        }
-                        onProviderSelected(value);
-                      },
+        Expanded(
+          child: DropdownButtonFormField<String?>(
+            key: const ValueKey('template-prompt-selector'),
+            initialValue: selectedTemplatePrompt?.id,
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: '模板提示词'),
+            items: [
+              const DropdownMenuItem<String?>(
+                value: null,
+                child: Text('不使用模板提示词'),
               ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: DropdownButtonFormField<String>(
-                key: const ValueKey('chat-model-selector'),
-                initialValue: selectedModel?.id,
-                isExpanded: true,
-                decoration: InputDecoration(
-                  labelText: '模型',
-                  hintText: !hasModels
-                      ? '请先在设置页新增服务商与模型'
-                      : selectedProviderId == null
-                      ? '请先选择服务商'
-                      : modelConfigs.isEmpty
-                      ? '当前服务商还没有模型'
-                      : null,
-                ),
-                items: modelConfigs
-                    .map((config) {
-                      return DropdownMenuItem<String>(
-                        value: config.id,
-                        child: Text(
-                          config.displayName,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      );
-                    })
-                    .toList(growable: false),
-                onChanged: isStreaming || modelConfigs.isEmpty
-                    ? null
-                    : (value) {
-                        if (value == null) {
-                          return;
-                        }
-                        onModelSelected(value);
-                      },
-              ),
-            ),
-          ],
+              ...templatePrompts.map((templatePrompt) {
+                return DropdownMenuItem<String?>(
+                  value: templatePrompt.id,
+                  child: Text(templatePrompt.title),
+                );
+              }),
+            ],
+            onChanged: isStreaming ? null : onTemplatePromptSelected,
+          ),
         ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            ThinkingToggle(
-              enabled: supportsReasoning,
-              value: supportsReasoning && reasoningEnabled,
-              onChanged: onReasoningEnabledChanged,
-            ),
-            _buildEffortPill(context, theme),
-          ],
+        const SizedBox(width: 8),
+        IconButton.outlined(
+          onPressed: onToggleComposerCollapsed,
+          tooltip: '收起输入区',
+          icon: const Icon(Icons.keyboard_arrow_up_rounded),
         ),
       ],
     );
   }
 
-  Widget _buildPromptActionRow(ThemeData theme) {
+  Widget _buildMessageComposerField() {
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(
+          LogicalKeyboardKey.enter,
+          control: true,
+        ): () =>
+            onSendPressed?.call(),
+        const SingleActivator(
+          LogicalKeyboardKey.enter,
+          meta: true,
+        ): () =>
+            onSendPressed?.call(),
+      },
+      child: TextField(
+        key: const ValueKey('chat-message-composer'),
+        controller: messageController,
+        minLines: 3,
+        maxLines: 10,
+        textInputAction: TextInputAction.newline,
+        decoration: InputDecoration(
+          labelText: '正文',
+          hintText: selectedTemplatePrompt == null
+              ? '输入你的问题、指令或待处理内容。'
+              : '输入要注入模板的正文内容。',
+          alignLabelWithHint: true,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProviderAndModelRow({required bool isCompact}) {
     return Row(
       children: [
         Expanded(
+          child: DropdownButtonFormField<String>(
+            key: const ValueKey('chat-provider-selector'),
+            isExpanded: true,
+            initialValue: selectedProviderId,
+            decoration: InputDecoration(
+              labelText: '服务商',
+              isDense: true,
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: isCompact ? 10 : 12,
+              ),
+              hintText: hasModels ? null : '请先在设置页新增服务商与模型',
+            ),
+            items: modelProviders
+                .map((provider) {
+                  return DropdownMenuItem<String>(
+                    value: provider.id,
+                    child: Text(provider.name, overflow: TextOverflow.ellipsis),
+                  );
+                })
+                .toList(growable: false),
+            onChanged: isStreaming || modelProviders.isEmpty
+                ? null
+                : (value) {
+                    if (value == null) {
+                      return;
+                    }
+                    onProviderSelected(value);
+                  },
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: DropdownButtonFormField<String>(
+            key: const ValueKey('chat-model-selector'),
+            initialValue: selectedModel?.id,
+            isExpanded: true,
+            decoration: InputDecoration(
+              labelText: '模型',
+              isDense: true,
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: isCompact ? 10 : 12,
+              ),
+              hintText: !hasModels
+                  ? '请先在设置页新增服务商与模型'
+                  : selectedProviderId == null
+                  ? '请先选择服务商'
+                  : modelConfigs.isEmpty
+                  ? '当前服务商还没有模型'
+                  : null,
+            ),
+            items: modelConfigs
+                .map((config) {
+                  return DropdownMenuItem<String>(
+                    value: config.id,
+                    child: Text(
+                      config.displayName,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  );
+                })
+                .toList(growable: false),
+            onChanged: isStreaming || modelConfigs.isEmpty
+                ? null
+                : (value) {
+                    if (value == null) {
+                      return;
+                    }
+                    onModelSelected(value);
+                  },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDesktopSecondarySettingsRow(
+    BuildContext context,
+    ThemeData theme,
+  ) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        ThinkingToggle(
+          enabled: supportsReasoning,
+          value: supportsReasoning && reasoningEnabled,
+          onChanged: onReasoningEnabledChanged,
+        ),
+        if (supportsReasoning && reasoningEnabled)
+          _buildEffortPill(context, theme),
+        ConstrainedBox(
+          constraints: const BoxConstraints.tightFor(width: 260),
           child: DropdownButtonFormField<String>(
             key: const ValueKey('chat-prompt-selector'),
             initialValue:
                 selectedPromptTemplate?.id ?? noPromptTemplateSelectedId,
             isExpanded: true,
-            decoration: const InputDecoration(labelText: '前置 Prompt'),
+            decoration: const InputDecoration(
+              labelText: '前置 Prompt',
+              isDense: true,
+              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            ),
             items: [
               const DropdownMenuItem<String>(
                 value: noPromptTemplateSelectedId,
@@ -544,8 +573,36 @@ class ChatWorkspace extends StatelessWidget {
                   },
           ),
         ),
+        Tooltip(
+          message: '固定顺序提示词',
+          child: OutlinedButton.icon(
+            onPressed: onOpenFixedPromptSequenceRunner,
+            icon: const Icon(Icons.playlist_play_rounded),
+            label: const Text('固定顺序提示词'),
+          ),
+        ),
+        _buildSendButton(theme, expandLabel: false),
+      ],
+    );
+  }
+
+  Widget _buildCompactActionRow(BuildContext context, ThemeData theme) {
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton.icon(
+            key: const ValueKey('chat-secondary-settings-button'),
+            onPressed: isStreaming
+                ? null
+                : () {
+                    _showCompactSecondarySettingsSheet(context, theme);
+                  },
+            icon: const Icon(Icons.tune_rounded),
+            label: Text(_compactSettingsSummary()),
+          ),
+        ),
         const SizedBox(width: 8),
-        ..._buildActionButtons(theme),
+        _buildSendButton(theme, expandLabel: true),
       ],
     );
   }
@@ -643,39 +700,149 @@ class ChatWorkspace extends StatelessWidget {
     );
   }
 
-  /// 构建固定顺序提示词按钮和发送按钮。
-  List<Widget> _buildActionButtons(ThemeData theme) {
-    return [
-      IconButton.outlined(
-        onPressed: onOpenFixedPromptSequenceRunner,
-        tooltip: '固定顺序提示词',
-        style: IconButton.styleFrom(
-          minimumSize: const Size(36, 36),
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        ),
-        icon: const Icon(Icons.playlist_play_rounded),
+  Widget _buildSendButton(ThemeData theme, {required bool expandLabel}) {
+    return FilledButton.icon(
+      onPressed: isStreaming
+          ? () {
+              onStopStreaming?.call();
+            }
+          : !hasModels
+          ? null
+          : () {
+              onSendPressed?.call();
+            },
+      style: FilledButton.styleFrom(
+        minimumSize: Size(expandLabel ? 112 : 60, 40),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        backgroundColor: isStreaming ? theme.colorScheme.error : null,
+        foregroundColor: isStreaming ? theme.colorScheme.onError : null,
       ),
-      const SizedBox(width: 8),
-      FilledButton.icon(
-        onPressed: isStreaming
-            ? () {
-                onStopStreaming?.call();
-              }
-            : !hasModels
-            ? null
-            : () {
-                onSendPressed?.call();
-              },
-        style: FilledButton.styleFrom(
-          minimumSize: const Size(60, 40),
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          backgroundColor: isStreaming ? theme.colorScheme.error : null,
-          foregroundColor: isStreaming ? theme.colorScheme.onError : null,
-        ),
-        icon: Icon(isStreaming ? Icons.stop_rounded : Icons.send_rounded),
-        label: Text(isStreaming ? '终止回答' : '发送'),
-      ),
-    ];
+      icon: Icon(isStreaming ? Icons.stop_rounded : Icons.send_rounded),
+      label: Text(isStreaming ? '终止回答' : '发送'),
+    );
+  }
+
+  String _compactSettingsSummary() {
+    final parts = <String>[];
+    parts.add(supportsReasoning && reasoningEnabled ? _effortLabel(reasoningEffort) : '思考关');
+    parts.add(selectedPromptTemplate?.name ?? '无 Prompt');
+    return '更多设置 · ${parts.join(' · ')}';
+  }
+
+  Future<void> _showCompactSecondarySettingsSheet(
+    BuildContext context,
+    ThemeData theme,
+  ) {
+    var localReasoningEnabled = supportsReasoning && reasoningEnabled;
+    var localEffort = reasoningEffort;
+
+    return showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (bottomSheetContext) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('更多设置', style: theme.textTheme.titleMedium),
+                    const SizedBox(height: 12),
+                    ThinkingToggle(
+                      enabled: supportsReasoning,
+                      value: localReasoningEnabled,
+                      onChanged: supportsReasoning
+                          ? (value) {
+                              setModalState(() {
+                                localReasoningEnabled = value;
+                              });
+                              onReasoningEnabledChanged?.call(value);
+                            }
+                          : null,
+                    ),
+                    if (supportsReasoning && localReasoningEnabled) ...[
+                      const SizedBox(height: 12),
+                      Text('思考强度', style: theme.textTheme.labelLarge),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final effort in ReasoningEffort.values)
+                            ChoiceChip(
+                              label: Text(_effortLabel(effort)),
+                              selected: localEffort == effort,
+                              onSelected: (_) {
+                                setModalState(() {
+                                  localEffort = effort;
+                                });
+                                onReasoningEffortChanged?.call(effort);
+                              },
+                            ),
+                        ],
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      key: const ValueKey('chat-prompt-selector'),
+                      initialValue:
+                          selectedPromptTemplate?.id ?? noPromptTemplateSelectedId,
+                      isExpanded: true,
+                      decoration: const InputDecoration(labelText: '前置 Prompt'),
+                      items: [
+                        const DropdownMenuItem<String>(
+                          value: noPromptTemplateSelectedId,
+                          child: Text('不使用前置 Prompt'),
+                        ),
+                        ...promptTemplates.map((template) {
+                          return DropdownMenuItem<String>(
+                            value: template.id,
+                            child: Text(
+                              template.name,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          );
+                        }),
+                      ],
+                      onChanged: isStreaming
+                          ? null
+                          : (value) {
+                              if (value == null) {
+                                return;
+                              }
+                              onPromptTemplateSelected(
+                                value == noPromptTemplateSelectedId
+                                    ? null
+                                    : value,
+                              );
+                            },
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: Tooltip(
+                        message: '固定顺序提示词',
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            Navigator.of(bottomSheetContext).pop();
+                            await onOpenFixedPromptSequenceRunner();
+                          },
+                          icon: const Icon(Icons.playlist_play_rounded),
+                          label: const Text('固定顺序提示词'),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   /// 把枚举值转换为更短的显示文本。
