@@ -3,15 +3,13 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/utils/id_generator.dart';
-import '../../settings/application/chat_defaults_controller.dart';
-import '../../settings/application/llm_model_configs_controller.dart';
-import '../../settings/application/prompt_templates_controller.dart';
 import '../../settings/domain/models/llm_model_config.dart';
 import '../../settings/domain/models/memory_prompt.dart';
 import '../../settings/domain/models/prompt_template.dart';
+import 'chat_sessions_controller_streaming.dart';
+import 'chat_sessions_controller_support.dart';
 import 'checkpoint_request_context.dart';
 import 'chat_message_tree.dart';
-import 'chat_request_message_builder.dart';
 import 'chat_sessions_state.dart';
 import '../data/chat_completion_client.dart';
 import '../data/chat_conversation_repository.dart';
@@ -30,10 +28,6 @@ final chatSessionsProvider =
     NotifierProvider<ChatSessionsController, ChatSessionsState>(
       ChatSessionsController.new,
     );
-
-/// UI 刷新节流阈值：流式增量积累满此间隔才触发一次界面重建，
-/// 避免高频 token 回调把单帧渲染时间占满。
-const _streamUiFlushInterval = Duration(milliseconds: 300);
 
 /// 当前所有聊天会话列表（仅在会话增删改时重建）。
 final chatConversationsProvider = Provider<List<ChatConversation>>((ref) {
@@ -94,17 +88,55 @@ final activeChatConversationProvider = Provider<ChatConversation>((ref) {
 });
 
 /// 聊天页面的会话编排器，负责发送、重试、编辑和持久化。
-class ChatSessionsController extends Notifier<ChatSessionsState> {
-  ChatConversationRepository get _repository =>
+class ChatSessionsController extends Notifier<ChatSessionsState>
+    with ChatSessionsControllerSupport, ChatSessionsControllerStreaming {
+  @override
+  ChatConversationRepository get repository =>
       ref.read(chatConversationRepositoryProvider);
 
-  ChatCompletionClient get _chatClient =>
-      ref.read(chatCompletionClientProvider);
+  @override
+  ChatCompletionClient get chatClient => ref.read(chatCompletionClientProvider);
 
   StreamSubscription<ChatCompletionChunk>? _activeStreamingSubscription;
   Completer<ChatConversation?>? _activeStreamingCompleter;
   ChatStreamingReply? _latestStreamingReply;
   bool _streamStopRequested = false;
+
+  @override
+  StreamSubscription<ChatCompletionChunk>? get activeStreamingSubscription =>
+      _activeStreamingSubscription;
+
+  @override
+  set activeStreamingSubscription(
+    StreamSubscription<ChatCompletionChunk>? value,
+  ) {
+    _activeStreamingSubscription = value;
+  }
+
+  @override
+  Completer<ChatConversation?>? get activeStreamingCompleter =>
+      _activeStreamingCompleter;
+
+  @override
+  set activeStreamingCompleter(Completer<ChatConversation?>? value) {
+    _activeStreamingCompleter = value;
+  }
+
+  @override
+  ChatStreamingReply? get latestStreamingReply => _latestStreamingReply;
+
+  @override
+  set latestStreamingReply(ChatStreamingReply? value) {
+    _latestStreamingReply = value;
+  }
+
+  @override
+  bool get streamStopRequested => _streamStopRequested;
+
+  @override
+  set streamStopRequested(bool value) {
+    _streamStopRequested = value;
+  }
 
   bool get _isBusy => state.isStreaming || state.isCheckpointing;
 
@@ -116,11 +148,11 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
   @override
   ChatSessionsState build() {
     ref.onDispose(() {
-      _activeStreamingSubscription?.cancel();
+      activeStreamingSubscription?.cancel();
     });
-    final conversations = _sort(_repository.loadAll());
+    final conversations = sortConversations(repository.loadAll());
     final initialConversation = conversations.isEmpty
-        ? _createConversation()
+        ? buildEmptyConversation()
         : conversations.first;
 
     return ChatSessionsState(
@@ -143,14 +175,14 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
       return;
     }
 
-    final nextConversation = _createConversation();
+    final nextConversation = buildEmptyConversation();
     state = state.copyWith(
       conversations: [nextConversation, ...state.conversations],
       activeConversationId: nextConversation.id,
       clearErrorMessage: true,
       incrementHistoryRevision: true,
     );
-    await _saveAll();
+    await saveAllConversations();
   }
 
   /// 选择一个已存在的会话作为活动会话。
@@ -178,7 +210,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
       return;
     }
 
-    await _updateActiveConversation(
+    await updateActiveConversation(
       state.activeConversation.copyWith(
         title: nextTitle,
         updatedAt: DateTime.now(),
@@ -207,7 +239,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     }
 
     state = state.copyWith(
-      conversations: _replaceConversation(
+      conversations: replaceConversation(
         targetConversation.copyWith(
           title: nextTitle,
           updatedAt: DateTime.now(),
@@ -215,7 +247,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
       ),
       incrementHistoryRevision: true,
     );
-    await _saveAll();
+    await saveAllConversations();
   }
 
   /// 删除一组会话，必要时回退到新的空会话。
@@ -231,7 +263,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
         .toList(growable: false);
 
     final fallbackConversation =
-        remainingConversations.firstOrNull ?? _createConversation();
+        remainingConversations.firstOrNull ?? buildEmptyConversation();
 
     state = state.copyWith(
       conversations: remainingConversations.isEmpty
@@ -246,7 +278,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
       clearErrorMessage: true,
       incrementHistoryRevision: true,
     );
-    await _saveAll();
+    await saveAllConversations();
   }
 
   /// 更新当前会话的模型、前置 Prompt 和思考偏好。
@@ -262,7 +294,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     if (_isBusy) {
       return Future.value();
     }
-    return _updateActiveConversation(
+    return updateActiveConversation(
       state.activeConversation.copyWith(
         selectedModelId: selectedModelId,
         selectedCheckpointId: selectedCheckpointId,
@@ -296,7 +328,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     }
 
     final currentConversation = state.activeConversation;
-    final promptTemplate = _resolvePromptTemplate(currentConversation);
+    final promptTemplate = resolvePromptTemplate(currentConversation);
     final sourceContext = resolveCheckpointRequestContext(
       checkpoints: currentConversation.checkpoints,
       selectedCheckpointId: sourceCheckpointId,
@@ -315,7 +347,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
 
     state = state.copyWith(isCheckpointing: true, clearErrorMessage: true);
     try {
-      final result = await _chatClient.complete(
+      final result = await chatClient.complete(
         modelConfig: modelConfig,
         messages: buildCheckpointSummaryMessages(
           memoryPrompt: memoryPrompt,
@@ -335,7 +367,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
       final now = DateTime.now();
       final nextCheckpoint = ChatCheckpoint(
         id: generateEntityId(),
-        title: _buildNextCheckpointTitle(currentConversation.checkpoints),
+        title: buildNextCheckpointTitle(currentConversation.checkpoints),
         content: checkpointContent,
         createdAt: now,
         parentCheckpointId: sourceContext.activeCheckpoint?.id,
@@ -348,46 +380,17 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
       );
 
       state = state.copyWith(
-        conversations: _replaceConversation(nextConversation),
+        conversations: replaceConversation(nextConversation),
         isCheckpointing: false,
         clearErrorMessage: true,
         incrementHistoryRevision: true,
       );
-      await _saveAll();
+      await saveAllConversations();
       return nextCheckpoint;
     } catch (_) {
       state = state.copyWith(isCheckpointing: false);
       rethrow;
     }
-  }
-
-  /// 终止当前流式回复，并保留已收到的部分内容。
-  Future<ChatConversation?> stopStreaming() async {
-    if (!state.isStreaming) {
-      return null;
-    }
-
-    _streamStopRequested = true;
-    final subscription = _activeStreamingSubscription;
-    _activeStreamingSubscription = null;
-    await subscription?.cancel();
-
-    final stoppedConversation = _buildConversationAfterStreamingInterrupt(
-      conversation: state.activeConversation,
-      streamingReply: _latestStreamingReply ?? state.streamingReply,
-    );
-    state = state.copyWith(
-      conversations: _replaceConversation(stoppedConversation),
-      isStreaming: false,
-      clearStreamingReply: true,
-      clearErrorMessage: true,
-      incrementHistoryRevision: true,
-    );
-    await _saveAll();
-
-    _completeActiveStreaming(stoppedConversation);
-    _clearActiveStreamingSession();
-    return stoppedConversation;
   }
 
   /// 切换某个父节点下的选中消息版本。
@@ -413,7 +416,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
 
     final nextSelections = Map<String, String>.from(tree.selections);
     nextSelections[parentId] = messageId;
-    await _updateActiveConversation(
+    await updateActiveConversation(
       currentConversation.copyWith(
         messageNodes: tree.nodes,
         selectedChildByParentId: nextSelections,
@@ -445,13 +448,13 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
       return;
     }
 
-    final modelConfig = _resolveModelConfig(currentConversation);
+    final modelConfig = resolveModelConfig(currentConversation);
     if (modelConfig == null) {
-      _setErrorMessage('无法重算：当前对话没有可用模型，请先检查模型设置。');
+      setErrorMessage('无法重算：当前对话没有可用模型，请先检查模型设置。');
       return;
     }
 
-    final promptTemplate = _resolvePromptTemplate(currentConversation);
+    final promptTemplate = resolvePromptTemplate(currentConversation);
     final branchUserMessage = ChatMessage(
       id: generateEntityId(),
       role: ChatMessageRole.user,
@@ -468,11 +471,11 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
       selectedChildByParentId: nextSelections,
       updatedAt: DateTime.now(),
     );
-    final checkpointContext = _resolveCheckpointContext(
+    final checkpointContext = resolveCheckpointContext(
       conversation: rebuiltConversation,
       conversationMessages: rebuiltConversation.messages,
     );
-    await _streamAssistantReply(
+    await streamAssistantReply(
       conversation: rebuiltConversation,
       modelConfig: modelConfig,
       promptTemplate: promptTemplate,
@@ -495,24 +498,24 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     final activePath = currentConversation.messages;
     final latestMessage = activePath.lastOrNull;
     if (latestMessage == null) {
-      _setErrorMessage('只能重试当前对话中的最新模型回复。');
+      setErrorMessage('只能重试当前对话中的最新模型回复。');
       return;
     }
 
-    final modelConfig = _resolveModelConfig(currentConversation);
+    final modelConfig = resolveModelConfig(currentConversation);
     if (modelConfig == null) {
-      _setErrorMessage('无法重试：当前对话没有可用模型，请先检查模型设置。');
+      setErrorMessage('无法重试：当前对话没有可用模型，请先检查模型设置。');
       return;
     }
 
-    final promptTemplate = _resolvePromptTemplate(currentConversation);
+    final promptTemplate = resolvePromptTemplate(currentConversation);
     if (latestMessage.role == ChatMessageRole.user &&
         state.errorMessage != null) {
-      final checkpointContext = _resolveCheckpointContext(
+      final checkpointContext = resolveCheckpointContext(
         conversation: currentConversation,
         conversationMessages: activePath,
       );
-      await _streamAssistantReply(
+      await streamAssistantReply(
         conversation: currentConversation.copyWith(updatedAt: DateTime.now()),
         modelConfig: modelConfig,
         promptTemplate: promptTemplate,
@@ -531,7 +534,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     });
     if (latestAssistantIndex == -1 ||
         latestAssistantIndex != activePath.length - 1) {
-      _setErrorMessage('只能重试当前对话中的最新模型回复。');
+      setErrorMessage('只能重试当前对话中的最新模型回复。');
       return;
     }
 
@@ -549,18 +552,18 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
       updatedAt: DateTime.now(),
     );
     state = state.copyWith(
-      conversations: _replaceConversation(baseConversation),
+      conversations: replaceConversation(baseConversation),
       clearErrorMessage: true,
       incrementHistoryRevision: true,
     );
-    await _saveAll();
+    await saveAllConversations();
 
-    final checkpointContext = _resolveCheckpointContext(
+    final checkpointContext = resolveCheckpointContext(
       conversation: baseConversation,
       conversationMessages: requestMessages,
     );
 
-    await _streamAssistantReply(
+    await streamAssistantReply(
       conversation: baseConversation,
       modelConfig: modelConfig,
       promptTemplate: promptTemplate,
@@ -615,11 +618,11 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
       reasoningEnabled: reasoningEnabled,
       reasoningEffort: reasoningEffort,
     );
-    final checkpointContext = _resolveCheckpointContext(
+    final checkpointContext = resolveCheckpointContext(
       conversation: pendingConversation,
       conversationMessages: pendingConversation.messages,
     );
-    await _streamAssistantReply(
+    await streamAssistantReply(
       conversation: pendingConversation,
       modelConfig: modelConfig,
       promptTemplate: promptTemplate,
@@ -678,421 +681,12 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
       nextSelections[parentId] = remainingSiblings.first.id;
     }
 
-    await _updateActiveConversation(
+    await updateActiveConversation(
       currentConversation.copyWith(
         messageNodes: nextTree.nodes,
         selectedChildByParentId: nextSelections,
         updatedAt: DateTime.now(),
       ),
     );
-  }
-
-  // ── 私有辅助 ────────────────────────────────────────────────────────────────
-
-  /// 创建一个空会话，并继承最近一次聊天选择。
-  ChatConversation _createConversation() {
-    final now = DateTime.now();
-    final rememberedSelections = ref.read(chatDefaultsProvider);
-    final modelConfigs = ref.read(llmModelConfigsProvider);
-    final promptTemplates = ref.read(promptTemplatesProvider);
-    final rememberedModelId =
-        modelConfigs.any(
-          (config) => config.id == rememberedSelections.defaultModelId,
-        )
-        ? rememberedSelections.defaultModelId
-        : modelConfigs.firstOrNull?.id;
-    final rememberedPromptTemplateId =
-        promptTemplates.any(
-          (template) =>
-              template.id == rememberedSelections.defaultPromptTemplateId,
-        )
-        ? rememberedSelections.defaultPromptTemplateId
-        : null;
-    return ChatConversation(
-      id: generateEntityId(),
-      messages: const [],
-      createdAt: now,
-      updatedAt: now,
-      selectedModelId: rememberedModelId,
-      selectedPromptTemplateId: rememberedPromptTemplateId,
-      reasoningEffort: ReasoningEffort.medium,
-    );
-  }
-
-  /// 在流式请求失败时，保留已生成内容或清除空白占位节点。
-  Future<void> _handleStreamingFailure({
-    required ChatConversation conversation,
-    required ChatStreamingReply streamingReply,
-    required String assistantMessageId,
-    required String errorMessage,
-  }) async {
-    final hasPartialContent =
-        streamingReply.content.trim().isNotEmpty ||
-        streamingReply.reasoningContent.trim().isNotEmpty;
-    final tree = resolveMessageTreeState(conversation);
-
-    final nextTree = hasPartialContent
-        ? replaceAssistantMessageInTree(
-            treeState: tree,
-            assistantMessageId: assistantMessageId,
-            nextContent: streamingReply.content,
-            nextReasoningContent: streamingReply.reasoningContent,
-            isStreaming: false,
-          )
-        : removeNodeFromTree(treeState: tree, nodeId: assistantMessageId);
-
-    final nextConversation = conversation.copyWith(
-      messageNodes: nextTree.nodes,
-      selectedChildByParentId: nextTree.selections,
-      updatedAt: DateTime.now(),
-    );
-
-    state = state.copyWith(
-      conversations: _replaceConversation(nextConversation),
-      isStreaming: false,
-      errorMessage: errorMessage,
-      clearStreamingReply: true,
-      incrementHistoryRevision: true,
-    );
-    await _saveAll();
-  }
-
-  /// 替换当前活动会话并同步持久化。
-  Future<void> _updateActiveConversation(ChatConversation conversation) async {
-    state = state.copyWith(
-      conversations: _replaceConversation(conversation),
-      incrementHistoryRevision: true,
-    );
-    await _saveAll();
-  }
-
-  /// 把 assistant 回复以流式方式写回当前会话。
-  Future<ChatConversation?> _streamAssistantReply({
-    required ChatConversation conversation,
-    required LlmModelConfig modelConfig,
-    required PromptTemplate? promptTemplate,
-    required List<ChatMessage> requestConversationMessages,
-    List<ChatCheckpoint> requestCheckpointChain = const [],
-    required String? parentMessageId,
-    required bool reasoningEnabled,
-    required ReasoningEffort reasoningEffort,
-    String appliedCheckpointTitle = '',
-  }) async {
-    final timestamp = DateTime.now();
-    final tree = resolveMessageTreeState(conversation);
-    final assistantParentId = parentMessageId ?? rootConversationParentId;
-    final assistantMessage = ChatMessage(
-      id: generateEntityId(),
-      role: ChatMessageRole.assistant,
-      content: '',
-      createdAt: timestamp.add(const Duration(milliseconds: 1)),
-      parentId: assistantParentId,
-      isStreaming: true,
-      assistantModelDisplayName: modelConfig.displayName,
-      appliedCheckpointTitle: appliedCheckpointTitle,
-    );
-    // 先插入一个流式占位节点，后续增量会持续覆盖这条消息。
-    final initialTree = appendNodeToTree(
-      treeState: tree,
-      node: assistantMessage,
-      parentId: assistantParentId,
-    );
-    var streamingConversation = conversation.copyWith(
-      messageNodes: initialTree.nodes,
-      selectedChildByParentId: initialTree.selections,
-      updatedAt: timestamp,
-      reasoningEnabled: reasoningEnabled,
-      reasoningEffort: reasoningEffort,
-    );
-    var streamingReply = ChatStreamingReply(
-      conversationId: streamingConversation.id,
-      assistantMessageId: assistantMessage.id,
-    );
-    final completer = Completer<ChatConversation?>();
-    _activeStreamingCompleter = completer;
-    _latestStreamingReply = streamingReply;
-    _streamStopRequested = false;
-
-    // 先把占位消息写入内存和持久层，确保刷新后仍能恢复进度。
-    state = state.copyWith(
-      conversations: _replaceConversation(streamingConversation),
-      isStreaming: true,
-      streamingReply: streamingReply,
-      clearErrorMessage: true,
-      incrementHistoryRevision: true,
-    );
-    await _saveAll();
-
-    final responseBuffer = StringBuffer();
-    final reasoningBuffer = StringBuffer();
-    var lastUiFlushAt = timestamp.subtract(_streamUiFlushInterval);
-
-    Future<void> completeWithSuccess() async {
-      if (_streamStopRequested || completer.isCompleted) {
-        return;
-      }
-
-      streamingReply = streamingReply.copyWith(
-        content: responseBuffer.toString(),
-        reasoningContent: reasoningBuffer.toString(),
-      );
-      _latestStreamingReply = streamingReply;
-      _replaceStreamingReplyInMemory(streamingReply);
-
-      // 持续用最新增量覆盖同一条 assistant 消息，但只在结束时真正写回会话列表。
-      final completedConversation = applyStreamingReplyToConversation(
-        conversation: streamingConversation,
-        streamingReply: streamingReply,
-        isStreaming: false,
-      ).copyWith(updatedAt: DateTime.now());
-
-      state = state.copyWith(
-        conversations: _replaceConversation(completedConversation),
-        isStreaming: false,
-        clearStreamingReply: true,
-        incrementHistoryRevision: true,
-      );
-      await _saveAll();
-      _completeActiveStreaming(completedConversation);
-      _clearActiveStreamingSession();
-    }
-
-    Future<void> completeWithError(Object error, StackTrace stackTrace) async {
-      if (_streamStopRequested || completer.isCompleted) {
-        return;
-      }
-
-      final errorMessage = error is ChatCompletionException
-          ? error.message
-          : _formatUnexpectedStreamingError(error, stackTrace);
-      await _handleStreamingFailure(
-        conversation: streamingConversation,
-        streamingReply: streamingReply,
-        assistantMessageId: assistantMessage.id,
-        errorMessage: errorMessage,
-      );
-      _completeActiveStreaming(null);
-      _clearActiveStreamingSession();
-    }
-
-    _activeStreamingSubscription = _chatClient
-        .streamCompletion(
-          modelConfig: modelConfig,
-          messages: buildRequestMessages(
-            promptTemplate: promptTemplate,
-            conversationMessages: requestConversationMessages,
-            checkpointChain: requestCheckpointChain,
-          ),
-          reasoningEffort: reasoningEnabled && modelConfig.supportsReasoning
-              ? reasoningEffort
-              : null,
-        )
-        .listen(
-          (chunk) {
-            if (chunk.isEmpty || _streamStopRequested) {
-              return;
-            }
-
-            responseBuffer.write(chunk.contentDelta);
-            reasoningBuffer.write(chunk.reasoningDelta);
-            streamingReply = streamingReply.copyWith(
-              content: responseBuffer.toString(),
-              reasoningContent: reasoningBuffer.toString(),
-            );
-            _latestStreamingReply = streamingReply;
-            final now = DateTime.now();
-            if (now.difference(lastUiFlushAt) < _streamUiFlushInterval) {
-              return;
-            }
-
-            _replaceStreamingReplyInMemory(streamingReply);
-            lastUiFlushAt = now;
-          },
-          onDone: () {
-            unawaited(completeWithSuccess());
-          },
-          onError: (Object error, StackTrace stackTrace) {
-            unawaited(completeWithError(error, stackTrace));
-          },
-          cancelOnError: false,
-        );
-
-    return completer.future;
-  }
-
-  /// 仅刷新流式增量，不去改动完整会话列表。
-  void _replaceStreamingReplyInMemory(ChatStreamingReply streamingReply) {
-    if (state.streamingReply == streamingReply) {
-      return;
-    }
-
-    state = state.copyWith(streamingReply: streamingReply, isStreaming: true);
-  }
-
-  /// 在会话列表中按 id 覆盖或插入指定会话。
-  List<ChatConversation> _replaceConversation(ChatConversation conversation) {
-    final conversations = [...state.conversations];
-    final index = conversations.indexWhere(
-      (item) => item.id == conversation.id,
-    );
-
-    if (index == -1) {
-      conversations.add(conversation);
-    } else {
-      conversations[index] = conversation;
-    }
-
-    return _sort(conversations);
-  }
-
-  /// 按更新时间倒序排列会话。
-  List<ChatConversation> _sort(List<ChatConversation> conversations) {
-    final sortedConversations = [...conversations];
-    sortedConversations.sort((left, right) {
-      return right.updatedAt.compareTo(left.updatedAt);
-    });
-    return List.unmodifiable(sortedConversations);
-  }
-
-  /// 只持久化非空会话，避免写入无意义的空草稿。
-  Future<void> _saveAll() {
-    return _repository.saveAll(
-      state.conversations
-          .where((conversation) {
-            return conversation.hasMessages ||
-                conversation.checkpoints.isNotEmpty ||
-                (conversation.title?.trim().isNotEmpty ?? false);
-          })
-          .toList(growable: false),
-    );
-  }
-
-  CheckpointRequestContext _resolveCheckpointContext({
-    required ChatConversation conversation,
-    required List<ChatMessage> conversationMessages,
-  }) {
-    return resolveCheckpointRequestContext(
-      checkpoints: conversation.checkpoints,
-      selectedCheckpointId: conversation.selectedCheckpointId,
-      conversationMessages: conversationMessages,
-    );
-  }
-
-  String _buildNextCheckpointTitle(List<ChatCheckpoint> checkpoints) {
-    return '检查点 ${checkpoints.length + 1}';
-  }
-
-  /// 选择当前会话对应的模型配置；找不到时回退到首个配置。
-  LlmModelConfig? _resolveModelConfig(ChatConversation conversation) {
-    final modelConfigs = ref.read(llmModelConfigsProvider);
-    if (modelConfigs.isEmpty) {
-      return null;
-    }
-
-    final conversationSelected = modelConfigs.where((config) {
-      return config.id == conversation.selectedModelId;
-    }).firstOrNull;
-    if (conversationSelected != null) {
-      return conversationSelected;
-    }
-
-    final defaultModelId = ref.read(chatDefaultsProvider).defaultModelId;
-    final defaultModel = modelConfigs.where((config) {
-      return config.id == defaultModelId;
-    }).firstOrNull;
-    if (defaultModel != null) {
-      return defaultModel;
-    }
-
-    return modelConfigs.first;
-  }
-
-  /// 选择当前会话对应的前置 Prompt 模板。
-  PromptTemplate? _resolvePromptTemplate(ChatConversation conversation) {
-    final promptTemplates = ref.read(promptTemplatesProvider);
-    if (promptTemplates.isEmpty) {
-      return null;
-    }
-
-    if (conversation.selectedPromptTemplateId == noPromptTemplateSelectedId) {
-      return null;
-    }
-
-    final conversationSelected = promptTemplates.where((template) {
-      return template.id == conversation.selectedPromptTemplateId;
-    }).firstOrNull;
-    if (conversationSelected != null) {
-      return conversationSelected;
-    }
-
-    final defaultPromptTemplateId = ref
-        .read(chatDefaultsProvider)
-        .defaultPromptTemplateId;
-    return promptTemplates.where((template) {
-      return template.id == defaultPromptTemplateId;
-    }).firstOrNull;
-  }
-
-  ChatConversation _buildConversationAfterStreamingInterrupt({
-    required ChatConversation conversation,
-    required ChatStreamingReply? streamingReply,
-  }) {
-    if (streamingReply == null) {
-      return conversation.copyWith(updatedAt: DateTime.now());
-    }
-
-    final hasPartialContent =
-        streamingReply.content.trim().isNotEmpty ||
-        streamingReply.reasoningContent.trim().isNotEmpty;
-    final tree = resolveMessageTreeState(conversation);
-    final nextTree = hasPartialContent
-        ? replaceAssistantMessageInTree(
-            treeState: tree,
-            assistantMessageId: streamingReply.assistantMessageId,
-            nextContent: streamingReply.content,
-            nextReasoningContent: streamingReply.reasoningContent,
-            isStreaming: false,
-          )
-        : removeNodeFromTree(
-            treeState: tree,
-            nodeId: streamingReply.assistantMessageId,
-          );
-
-    return conversation.copyWith(
-      messageNodes: nextTree.nodes,
-      selectedChildByParentId: nextTree.selections,
-      updatedAt: DateTime.now(),
-    );
-  }
-
-  void _completeActiveStreaming(ChatConversation? conversation) {
-    final completer = _activeStreamingCompleter;
-    if (completer == null || completer.isCompleted) {
-      return;
-    }
-
-    completer.complete(conversation);
-  }
-
-  void _clearActiveStreamingSession() {
-    _activeStreamingSubscription = null;
-    _activeStreamingCompleter = null;
-    _latestStreamingReply = null;
-    _streamStopRequested = false;
-  }
-
-  /// 更新错误信息并保留在状态中，供界面展示。
-  void _setErrorMessage(String message) {
-    state = state.copyWith(errorMessage: message);
-  }
-
-  /// 保留原始异常并附加堆栈，方便开发者直接定位问题。
-  String _formatUnexpectedStreamingError(Object error, StackTrace stackTrace) {
-    final rawError = error.toString();
-    final normalizedError = rawError.trim();
-    final header = normalizedError.isEmpty
-        ? '请求未完成，请检查网络、API URL 或模型配置。'
-        : normalizedError;
-    return '$header\n\n```text\n$stackTrace\n```';
   }
 }
