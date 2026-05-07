@@ -15,8 +15,10 @@ import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dart';
 import 'package:oh_my_llm/features/settings/data/prompt_template_repository.dart';
+import 'package:oh_my_llm/features/settings/application/prompt_templates_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/memory_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/models/prompt_template.dart';
 
 import '../chat_screen/chat_screen_test_helpers.dart';
 
@@ -429,6 +431,44 @@ void main() {
     expect(conversation.checkpoints.single.sourceMemoryPromptName, '研发总结');
     expect(container.read(chatSessionsProvider).isCheckpointing, isFalse);
     expect(fakeClient.lastRequestMessages.map((item) => item.content).join('\n'), contains('请总结当前对话中的关键事实、约束与待办。'));
+  });
+
+  test('createCheckpoint 会附带当前选中的前置提示词', () async {
+    fakeClient.enqueueChunks(['首轮回复']);
+    await sendMsg('需要带前置提示词的上下文');
+    await container.read(promptTemplatesProvider.notifier).upsert(
+          PromptTemplate(
+            id: 'prompt-1',
+            name: '模板一',
+            systemPrompt: '',
+            messages: const [
+              PromptMessage(
+                id: 'prompt-1-message-1',
+                role: PromptMessageRole.user,
+                content: '模板一前置',
+                placement: PromptMessagePlacement.before,
+              ),
+            ],
+            updatedAt: DateTime(2026, 4, 30),
+          ),
+        );
+    await container
+        .read(chatSessionsProvider.notifier)
+        .updateActiveConversationPreferences(selectedPromptTemplateId: 'prompt-1');
+
+    fakeClient.enqueueChunks(['检查点总结']);
+    await container.read(chatSessionsProvider.notifier).createCheckpoint(
+          modelConfig: _testModel,
+          memoryPrompt: _memoryPrompt,
+          reasoningEnabled: false,
+          reasoningEffort: ReasoningEffort.medium,
+        );
+
+    final requestContents = fakeClient.lastRequestMessages
+        .map((message) => message.content)
+        .toList(growable: false);
+    expect(requestContents, contains('模板一前置'));
+    expect(requestContents.last, contains('请按照以下记忆总结提示词生成新的检查点'));
   });
 
   test('选中检查点后发送消息只携带检查点 system 消息与增量消息', () async {

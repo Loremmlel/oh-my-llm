@@ -2,6 +2,7 @@ import '../data/chat_completion_client.dart';
 import '../domain/models/chat_checkpoint.dart';
 import '../domain/models/chat_message.dart';
 import '../../settings/domain/models/memory_prompt.dart';
+import '../../settings/domain/models/prompt_template.dart';
 
 /// 选中检查点后，真正参与请求拼装的上下文视图。
 class CheckpointRequestContext {
@@ -124,17 +125,41 @@ List<ChatCompletionRequestMessage> buildCheckpointSummaryMessages({
   required MemoryPrompt memoryPrompt,
   required List<ChatMessage> conversationMessages,
   List<ChatCheckpoint> checkpointChain = const [],
+  PromptTemplate? promptTemplate,
 }) {
-  final requestMessages = <ChatCompletionRequestMessage>[
+  final requestMessages = <ChatCompletionRequestMessage>[];
+  if (promptTemplate != null && promptTemplate.systemPrompt.trim().isNotEmpty) {
+    requestMessages.add(
+      ChatCompletionRequestMessage(
+        role: ChatMessageRole.system,
+        content: promptTemplate.systemPrompt.trim(),
+      ),
+    );
+  }
+  requestMessages.add(
     ChatCompletionRequestMessage(
       role: ChatMessageRole.system,
       content: checkpointChain.isEmpty
           ? '你正在为当前对话创建根检查点。请提炼可长期复用的重要事实、约束、决定、待办和上下文。输出应简洁、结构清晰，并适合后续继续对话时直接作为记忆使用。'
           : '你正在为当前对话创建新的链式检查点。已有检查点会与本次新检查点一起在后续对话中使用。除非为了消除歧义必须重述，否则不要机械重复旧检查点，重点总结自最后一个已提供检查点之后新增或变化的重要信息。',
     ),
-  ];
-
+  );
   requestMessages.addAll(buildCheckpointMemoryMessages(checkpointChain));
+  if (promptTemplate != null) {
+    final beforeMessages = promptTemplate.messages.where(
+      (message) => message.placement == PromptMessagePlacement.before,
+    );
+    requestMessages.addAll(
+      beforeMessages.map((message) {
+        return ChatCompletionRequestMessage(
+          role: message.role == PromptMessageRole.user
+              ? ChatMessageRole.user
+              : ChatMessageRole.assistant,
+          content: message.content,
+        );
+      }),
+    );
+  }
   requestMessages.addAll(
     conversationMessages.map((message) {
       return ChatCompletionRequestMessage(
@@ -149,5 +174,20 @@ List<ChatCompletionRequestMessage> buildCheckpointSummaryMessages({
       content: '请按照以下记忆总结提示词生成新的检查点：\n\n${memoryPrompt.content.trim()}',
     ),
   );
+  if (promptTemplate != null) {
+    final afterMessages = promptTemplate.messages.where(
+      (message) => message.placement == PromptMessagePlacement.after,
+    );
+    requestMessages.addAll(
+      afterMessages.map((message) {
+        return ChatCompletionRequestMessage(
+          role: message.role == PromptMessageRole.user
+              ? ChatMessageRole.user
+              : ChatMessageRole.assistant,
+          content: message.content,
+        );
+      }),
+    );
+  }
   return List.unmodifiable(requestMessages);
 }

@@ -166,6 +166,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               : () => _showCheckpointsDialog(
                     context,
                     selectedModel: selectedModel,
+                    selectedPromptTemplate: selectedPromptTemplate,
                     supportsReasoning: supportsReasoning,
                   ),
           tooltip: '对话检查点',
@@ -620,6 +621,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Future<void> _showCheckpointsDialog(
     BuildContext context, {
     required LlmModelConfig? selectedModel,
+    required PromptTemplate? selectedPromptTemplate,
     required bool supportsReasoning,
   }) {
     return showDialog<void>(
@@ -627,6 +629,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       builder: (context) {
         return ConversationCheckpointsDialog(
           selectedModel: selectedModel,
+          selectedPromptTemplate: selectedPromptTemplate,
           supportsReasoning: supportsReasoning,
         );
       },
