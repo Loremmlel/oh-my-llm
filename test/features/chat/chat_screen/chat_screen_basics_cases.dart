@@ -287,6 +287,42 @@ void registerChatScreenBasicsTests() {
     expect(find.text('新的对话标题'), findsOneWidget);
   });
 
+  testWidgets('chat screen keeps custom title after sending a new reply', (
+    tester,
+  ) async {
+    final preferences = await createSeededPreferences();
+    final fakeClient = FakeChatCompletionClient()..enqueueChunks(['新的回答']);
+
+    await pumpChatScreen(
+      tester,
+      preferences: preferences,
+      fakeClient: fakeClient,
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
+
+    await tester.tap(find.byTooltip('修改对话标题'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.byType(TextField),
+      ),
+      '自定义标题',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, '保存'));
+    await tester.pumpAndSettle();
+
+    await sendMessage(tester, '发送后不要重置标题');
+    await tester.pumpAndSettle();
+
+    expect(
+      container.read(chatSessionsProvider).activeConversation.resolvedTitle,
+      '自定义标题',
+    );
+  });
+
   testWidgets('chat screen opens checkpoints dialog and shows current word count', (
     tester,
   ) async {
