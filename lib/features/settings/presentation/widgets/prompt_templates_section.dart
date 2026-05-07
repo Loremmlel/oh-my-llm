@@ -1,0 +1,36 @@
+import 'package:flutter/material.dart';
+
+import '../../domain/models/prompt_template.dart';
+import 'prompt_templates_list.dart';
+import 'settings_section_card.dart';
+
+/// 设置页中的前置 Prompt 分区。
+class PromptTemplatesSection extends StatelessWidget {
+  const PromptTemplatesSection({
+    required this.templates,
+    required this.onAddPressed,
+    required this.onEditRequested,
+    super.key,
+  });
+
+  final List<PromptTemplate> templates;
+  final VoidCallback onAddPressed;
+  final ValueChanged<PromptTemplate> onEditRequested;
+
+  @override
+  Widget build(BuildContext context) {
+    return SettingsSectionCard(
+      title: '前置 Prompt 设置',
+      description: '配置可在聊天页选择的前置 Prompt，聊天页会记住最近一次使用的选择。',
+      action: FilledButton.icon(
+        onPressed: onAddPressed,
+        icon: const Icon(Icons.add_rounded),
+        label: const Text('新增模板'),
+      ),
+      child: PromptTemplatesList(
+        templates: templates,
+        onEditRequested: onEditRequested,
+      ),
+    );
+  }
+}

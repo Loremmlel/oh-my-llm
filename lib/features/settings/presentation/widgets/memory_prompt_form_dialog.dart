@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../domain/models/memory_prompt.dart';
+import 'settings_form_dialog_scaffold.dart';
 
 /// 记忆总结提示词表单提交数据。
 class MemoryPromptFormData {
-  const MemoryPromptFormData({
-    required this.name,
-    required this.content,
-  });
+  const MemoryPromptFormData({required this.name, required this.content});
 
   final String name;
   final String content;
@@ -37,7 +35,9 @@ class _MemoryPromptFormDialogState extends State<MemoryPromptFormDialog> {
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(text: widget.initialValue?.name ?? '');
+    _nameController = TextEditingController(
+      text: widget.initialValue?.name ?? '',
+    );
     _contentController = TextEditingController(
       text: widget.initialValue?.content ?? '',
     );
@@ -54,51 +54,36 @@ class _MemoryPromptFormDialogState extends State<MemoryPromptFormDialog> {
   Widget build(BuildContext context) {
     final isEditing = widget.initialValue != null;
 
-    return AlertDialog(
-      title: Text(isEditing ? '编辑记忆总结提示词' : '新增记忆总结提示词'),
-      content: SizedBox(
-        width: 720,
-        child: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  controller: _nameController,
-                  decoration: const InputDecoration(
-                    labelText: '名称',
-                    hintText: '例如：研发任务总结 / 写作人设总结',
-                  ),
-                  validator: _validateRequired,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _contentController,
-                  minLines: 6,
-                  maxLines: 12,
-                  decoration: const InputDecoration(
-                    labelText: '记忆总结提示词',
-                    hintText: '说明你希望模型如何总结当前上下文，例如保留哪些重点、输出什么结构。',
-                    alignLabelWithHint: true,
-                  ),
-                  validator: _validateRequired,
-                ),
-              ],
+    return SettingsFormDialogScaffold(
+      title: isEditing ? '编辑记忆总结提示词' : '新增记忆总结提示词',
+      formKey: _formKey,
+      isSaving: _isSaving,
+      onSubmit: _handleSubmit,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextFormField(
+            controller: _nameController,
+            decoration: const InputDecoration(
+              labelText: '名称',
+              hintText: '例如：研发任务总结 / 写作人设总结',
             ),
+            validator: _validateRequired,
           ),
-        ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _contentController,
+            minLines: 6,
+            maxLines: 12,
+            decoration: const InputDecoration(
+              labelText: '记忆总结提示词',
+              hintText: '说明你希望模型如何总结当前上下文，例如保留哪些重点、输出什么结构。',
+              alignLabelWithHint: true,
+            ),
+            validator: _validateRequired,
+          ),
+        ],
       ),
-      actions: [
-        TextButton(
-          onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
-          child: const Text('取消'),
-        ),
-        FilledButton(
-          onPressed: _isSaving ? null : _handleSubmit,
-          child: Text(_isSaving ? '保存中...' : '保存'),
-        ),
-      ],
     );
   }
 
