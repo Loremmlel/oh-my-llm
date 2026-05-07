@@ -79,4 +79,36 @@ void main() {
       expect(content, isNot(contains('[log-cleared]')));
     },
   );
+
+  test('AppNetworkLogger writes non-stream response bodies', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'network-log-body-',
+    );
+    addTearDown(() async {
+      if (await directory.exists()) {
+        await directory.delete(recursive: true);
+      }
+    });
+
+    final file = File('${directory.path}${Platform.pathSeparator}network.log');
+    final logger = AppNetworkLogger(
+      store: await AppLogStore.open(directoryPath: directory.path),
+    );
+
+    await logger.logResponseBody(
+      uri: Uri.parse('https://api.example.com/v1/chat/completions'),
+      body: const {
+        'choices': [
+          {
+            'message': {'content': '完整回复', 'reasoning_content': '完整思考'},
+          },
+        ],
+      },
+    );
+
+    final content = await file.readAsString();
+    expect(content, contains('[response-body]'));
+    expect(content, contains('完整回复'));
+    expect(content, contains('完整思考'));
+  });
 }

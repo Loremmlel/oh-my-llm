@@ -72,6 +72,23 @@ final class AppNetworkLogger implements NetworkLogger {
   }
 
   @override
+  Future<void> logResponseBody({
+    required Uri uri,
+    required Object? body,
+  }) async {
+    await _safeWrite(() async {
+      final redactedBody = _redactor.redactPayload(body);
+      final serializedBody = redactedBody is String
+          ? redactedBody
+          : _redactor.toJson(redactedBody);
+      await _store.appendLine(
+        '[${DateTime.now().toIso8601String()}] [response-body] $uri'
+        ' body=$serializedBody',
+      );
+    });
+  }
+
+  @override
   Future<void> logSseLine({required Uri uri, required String line}) async {
     await _safeWrite(() async {
       final trimmed = line.length > 1000 ? '${line.substring(0, 1000)}…' : line;

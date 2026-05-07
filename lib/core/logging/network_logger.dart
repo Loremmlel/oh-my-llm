@@ -20,6 +20,8 @@ abstract interface class NetworkLogger {
     required Duration elapsed,
   });
 
+  Future<void> logResponseBody({required Uri uri, required Object? body});
+
   Future<void> logSseLine({required Uri uri, required String line});
 
   Future<void> logError({
@@ -52,6 +54,12 @@ final class NoopNetworkLogger implements NetworkLogger {
     required int statusCode,
     required Map<String, String> headers,
     required Duration elapsed,
+  }) async {}
+
+  @override
+  Future<void> logResponseBody({
+    required Uri uri,
+    required Object? body,
   }) async {}
 
   @override

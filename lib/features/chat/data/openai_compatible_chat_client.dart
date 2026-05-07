@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -25,7 +25,8 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
   OpenAiCompatibleChatClient({
     required http.Client httpClient,
     NetworkLogger logger = const NoopNetworkLogger(),
-    VendorPayloadAdapterRegistry adapters = VendorPayloadAdapterRegistry.standard,
+    VendorPayloadAdapterRegistry adapters =
+        VendorPayloadAdapterRegistry.standard,
   }) : _httpClient = httpClient,
        _logger = logger,
        _adapters = adapters;
@@ -140,6 +141,12 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
     );
     final response = await _sendRequest(requestContext);
     final responseBody = await response.stream.bytesToString();
+    _fireAndForget(
+      _logger.logResponseBody(
+        uri: requestContext.uri,
+        body: _decodeResponseBodyForLogging(responseBody),
+      ),
+    );
     final parsed = _parser.parseRawChunk(
       responseBody,
       inlineReasoningSplitter: InlineReasoningTagSplitter(),
@@ -157,6 +164,18 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
 
   void _fireAndForget(Future<void> future) {
     unawaited(future);
+  }
+
+  Object _decodeResponseBodyForLogging(String responseBody) {
+    final trimmed = responseBody.trim();
+    if (trimmed.isEmpty) {
+      return '';
+    }
+    try {
+      return jsonDecode(trimmed);
+    } catch (_) {
+      return trimmed;
+    }
   }
 
   /// 合并当前事件的 data 行；空事件直接丢弃。
@@ -212,7 +231,9 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
     return _OpenAiRequestContext(uri: uri, payload: payload, request: request);
   }
 
-  Future<http.StreamedResponse> _sendRequest(_OpenAiRequestContext context) async {
+  Future<http.StreamedResponse> _sendRequest(
+    _OpenAiRequestContext context,
+  ) async {
     _fireAndForget(
       _logger.logRequest(
         uri: context.uri,
@@ -228,7 +249,11 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
       response = await _httpClient.send(context.request);
     } catch (error, stackTrace) {
       _fireAndForget(
-        _logger.logError(uri: context.uri, error: error, stackTrace: stackTrace),
+        _logger.logError(
+          uri: context.uri,
+          error: error,
+          stackTrace: stackTrace,
+        ),
       );
       rethrow;
     }

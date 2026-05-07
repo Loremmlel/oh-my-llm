@@ -6,6 +6,7 @@ import '../../../application/chat_sessions_controller.dart';
 import '../../../domain/chat_word_counter.dart';
 import '../../../domain/models/chat_checkpoint.dart';
 import '../../../domain/models/chat_conversation.dart';
+import '../streaming_markdown_view.dart';
 import '../../../../settings/application/memory_prompts_controller.dart';
 import '../../../../settings/domain/models/llm_model_config.dart';
 import '../../../../settings/domain/models/prompt_template.dart';
@@ -39,14 +40,18 @@ class _ConversationCheckpointsDialogState
     final conversation = ref.watch(activeChatConversationProvider);
     final memoryPrompts = ref.watch(memoryPromptsProvider);
     final isBusy = ref.watch(isChatBusyProvider);
-    final compatibleCheckpoints = conversation.checkpoints.where((checkpoint) {
-      return _isCheckpointCompatible(conversation, checkpoint);
-    }).toList(growable: false);
+    final compatibleCheckpoints = conversation.checkpoints
+        .where((checkpoint) {
+          return _isCheckpointCompatible(conversation, checkpoint);
+        })
+        .toList(growable: false);
     final selectedMemoryPrompt = memoryPrompts.where((prompt) {
       return prompt.id == _selectedMemoryPromptId;
     }).firstOrNull;
     final selectedSourceCheckpointId =
-        compatibleCheckpoints.any((item) => item.id == _selectedSourceCheckpointId)
+        compatibleCheckpoints.any(
+          (item) => item.id == _selectedSourceCheckpointId,
+        )
         ? _selectedSourceCheckpointId
         : compatibleCheckpoints.any(
             (item) => item.id == conversation.selectedCheckpointId,
@@ -145,7 +150,8 @@ class _ConversationCheckpointsDialogState
               ),
               const SizedBox(height: 12),
               FilledButton.icon(
-                onPressed: _isCreating ||
+                onPressed:
+                    _isCreating ||
                         isBusy ||
                         widget.selectedModel == null ||
                         selectedMemoryPrompt == null
@@ -209,6 +215,7 @@ class _ConversationCheckpointsDialogState
       checkpoints: conversation.checkpoints,
       selectedCheckpointId: checkpoint.id,
     );
+    final previewContent = checkpoint.content.trim();
     final theme = Theme.of(context);
 
     return Card(
@@ -227,15 +234,33 @@ class _ConversationCheckpointsDialogState
               contentPadding: EdgeInsets.zero,
               title: Text(checkpoint.title),
               subtitle: Text(
-                compatible ? _formatCheckpointMeta(checkpoint, chain) : '当前分支不兼容该检查点。',
+                compatible
+                    ? _formatCheckpointMeta(checkpoint, chain)
+                    : '当前分支不兼容该检查点。',
               ),
             ),
-            Text(
-              checkpoint.content.trim(),
-              maxLines: 5,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall,
-            ),
+            if (previewContent.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: ColoredBox(
+                  color: theme.colorScheme.surfaceContainerHighest.withValues(
+                    alpha: 0.32,
+                  ),
+                  child: SizedBox(
+                    height: 180,
+                    child: SingleChildScrollView(
+                      key: ValueKey('checkpoint-preview-${checkpoint.title}'),
+                      padding: const EdgeInsets.all(12),
+                      child: StreamingMarkdownView(
+                        content: previewContent,
+                        isStreaming: false,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -269,7 +294,9 @@ class _ConversationCheckpointsDialogState
   }
 
   Future<void> _selectCheckpoint(String? checkpointId) async {
-    await ref.read(chatSessionsProvider.notifier).selectActiveCheckpoint(checkpointId);
+    await ref
+        .read(chatSessionsProvider.notifier)
+        .selectActiveCheckpoint(checkpointId);
   }
 
   Future<void> _handleCreateCheckpoint(
@@ -278,7 +305,9 @@ class _ConversationCheckpointsDialogState
     required String selectedMemoryPromptId,
     required String? sourceCheckpointId,
   }) async {
-    final selectedMemoryPrompt = ref.read(memoryPromptsProvider).where((prompt) {
+    final selectedMemoryPrompt = ref.read(memoryPromptsProvider).where((
+      prompt,
+    ) {
       return prompt.id == selectedMemoryPromptId;
     }).firstOrNull;
     if (selectedMemoryPrompt == null || widget.selectedModel == null) {
@@ -289,7 +318,9 @@ class _ConversationCheckpointsDialogState
       _isCreating = true;
     });
     try {
-      final checkpoint = await ref.read(chatSessionsProvider.notifier).createCheckpoint(
+      final checkpoint = await ref
+          .read(chatSessionsProvider.notifier)
+          .createCheckpoint(
             modelConfig: widget.selectedModel!,
             memoryPrompt: selectedMemoryPrompt,
             reasoningEnabled:
