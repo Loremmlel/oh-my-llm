@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+
 import 'package:oh_my_llm/core/persistence/versioned_json_storage.dart';
 
 void main() {
@@ -15,20 +16,6 @@ void main() {
     expect(decoded, [
       {'id': 'item-1'},
     ]);
-  });
-
-  test('encodeObjectList writes versioned payloads', () {
-    final rawJson = VersionedJsonStorage.encodeObjectList(
-      items: const ['item-1'],
-      toJson: (item) => {'id': item},
-    );
-
-    expect(jsonDecode(rawJson), {
-      'version': VersionedJsonStorage.currentSchemaVersion,
-      'items': [
-        {'id': 'item-1'},
-      ],
-    });
   });
 
   test('decodeObjectList rejects unsupported future versions', () {

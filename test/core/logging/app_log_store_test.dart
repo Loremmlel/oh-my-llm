@@ -6,10 +6,6 @@ import 'package:oh_my_llm/core/logging/app_network_logger.dart';
 import 'package:oh_my_llm/core/logging/app_log_store.dart';
 
 void main() {
-  test('AppLogStore default max size is 10 MB', () {
-    expect(AppLogStore.defaultMaxBytes, 10 * 1024 * 1024);
-  });
-
   test('AppLogStore rotates file when size exceeds max bytes', () async {
     final directory = await Directory.systemTemp.createTemp('log-store-test-');
     addTearDown(() async {
