@@ -48,132 +48,88 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 12),
-          SettingsSectionCard(
-            title: '服务商设置',
-            description: '管理服务商与其下模型。聊天页会记住最近一次使用的模型。',
-            action: FilledButton.icon(
-              onPressed: () async {
-                final handled = await _tryImportFromClipboard(context, ref);
-                if (!handled && context.mounted) {
-                  _showModelProviderDialog(context, ref);
-                }
-              },
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('新增服务商'),
-            ),
-            child: ModelConfigsList(
-              providers: modelProviders,
-              onEditProviderRequested: (provider) {
-                _showModelProviderDialog(context, ref, initialValue: provider);
-              },
-              onAddModelRequested: (provider) {
-                _showModelConfigDialog(context, ref, provider: provider);
-              },
-              onEditModelRequested: (provider, model) {
-                _showModelConfigDialog(
-                  context,
-                  ref,
-                  provider: provider,
-                  initialValue: model,
-                );
-              },
-            ),
+          ModelProvidersSection(
+            providers: modelProviders,
+            onAddPressed: () async {
+              final handled = await _tryImportFromClipboard(context, ref);
+              if (!handled && context.mounted) {
+                _showModelProviderDialog(context, ref);
+              }
+            },
+            onEditProviderRequested: (provider) {
+              _showModelProviderDialog(context, ref, initialValue: provider);
+            },
+            onAddModelRequested: (provider) {
+              _showModelConfigDialog(context, ref, provider: provider);
+            },
+            onEditModelRequested: (provider, model) {
+              _showModelConfigDialog(
+                context,
+                ref,
+                provider: provider,
+                initialValue: model,
+              );
+            },
           ),
           const SizedBox(height: 16),
-          SettingsSectionCard(
-            title: '记忆总结提示词',
-            description: '配置聊天页创建检查点时可选择的总结提示词，用于适配不同场景下的记忆沉淀方式。',
-            action: FilledButton.icon(
-              onPressed: () async {
-                final handled = await _tryImportFromClipboard(context, ref);
-                if (!handled && context.mounted) {
-                  _showMemoryPromptDialog(context, ref);
-                }
-              },
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('新增记忆提示词'),
-            ),
-            child: MemoryPromptsList(
-              memoryPrompts: memoryPrompts,
-              onEditRequested: (memoryPrompt) {
-                _showMemoryPromptDialog(
-                  context,
-                  ref,
-                  initialValue: memoryPrompt,
-                );
-              },
-            ),
+          MemoryPromptsSection(
+            memoryPrompts: memoryPrompts,
+            onAddPressed: () async {
+              final handled = await _tryImportFromClipboard(context, ref);
+              if (!handled && context.mounted) {
+                _showMemoryPromptDialog(context, ref);
+              }
+            },
+            onEditRequested: (memoryPrompt) {
+              _showMemoryPromptDialog(context, ref, initialValue: memoryPrompt);
+            },
           ),
           const SizedBox(height: 16),
-          SettingsSectionCard(
-            title: '前置 Prompt 设置',
-            description: '配置可在聊天页选择的前置 Prompt，聊天页会记住最近一次使用的选择。',
-            action: FilledButton.icon(
-              onPressed: () async {
-                final handled = await _tryImportFromClipboard(context, ref);
-                if (!handled && context.mounted) {
-                  _showPromptTemplateDialog(context, ref);
-                }
-              },
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('新增模板'),
-            ),
-            child: PromptTemplatesList(
-              templates: promptTemplates,
-              onEditRequested: (template) {
-                _showPromptTemplateDialog(context, ref, initialValue: template);
-              },
-            ),
+          PromptTemplatesSection(
+            templates: promptTemplates,
+            onAddPressed: () async {
+              final handled = await _tryImportFromClipboard(context, ref);
+              if (!handled && context.mounted) {
+                _showPromptTemplateDialog(context, ref);
+              }
+            },
+            onEditRequested: (template) {
+              _showPromptTemplateDialog(context, ref, initialValue: template);
+            },
           ),
           const SizedBox(height: 16),
-          SettingsSectionCard(
-            title: '模板提示词',
-            description: '配置可在聊天页临时应用的变量模板。使用 {{变量名}} 声明注入位，{{正文}} 对应主输入框。',
-            action: FilledButton.icon(
-              onPressed: () async {
-                final handled = await _tryImportFromClipboard(context, ref);
-                if (!handled && context.mounted) {
-                  _showTemplatePromptDialog(context, ref);
-                }
-              },
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('新增模板提示词'),
-            ),
-            child: TemplatePromptsList(
-              templatePrompts: templatePrompts,
-              onEditRequested: (templatePrompt) {
-                _showTemplatePromptDialog(
-                  context,
-                  ref,
-                  initialValue: templatePrompt,
-                );
-              },
-            ),
+          TemplatePromptsSection(
+            templatePrompts: templatePrompts,
+            onAddPressed: () async {
+              final handled = await _tryImportFromClipboard(context, ref);
+              if (!handled && context.mounted) {
+                _showTemplatePromptDialog(context, ref);
+              }
+            },
+            onEditRequested: (templatePrompt) {
+              _showTemplatePromptDialog(
+                context,
+                ref,
+                initialValue: templatePrompt,
+              );
+            },
           ),
           const SizedBox(height: 16),
-          SettingsSectionCard(
-            title: '固定顺序提示词',
-            description: '配置可逐步发送的用户提示词序列，适合做模型对比测试，不会自动整组连发。',
-            action: FilledButton.icon(
-              onPressed: () async {
-                final handled = await _tryImportFromClipboard(context, ref);
-                if (!handled && context.mounted) {
-                  _showFixedPromptSequenceDialog(context, ref);
-                }
-              },
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('新增序列'),
-            ),
-            child: FixedPromptSequencesList(
-              sequences: fixedPromptSequences,
-              onEditRequested: (sequence) {
-                _showFixedPromptSequenceDialog(
-                  context,
-                  ref,
-                  initialValue: sequence,
-                );
-              },
-            ),
+          FixedPromptSequencesSection(
+            sequences: fixedPromptSequences,
+            onAddPressed: () async {
+              final handled = await _tryImportFromClipboard(context, ref);
+              if (!handled && context.mounted) {
+                _showFixedPromptSequenceDialog(context, ref);
+              }
+            },
+            onEditRequested: (sequence) {
+              _showFixedPromptSequenceDialog(
+                context,
+                ref,
+                initialValue: sequence,
+              );
+            },
           ),
         ],
       ),
@@ -288,14 +244,16 @@ class SettingsScreen extends ConsumerWidget {
         .toList(growable: false);
     final newProviders = data.modelProviders
         .map((provider) {
-          final nextModels = provider.models.where((model) {
-            return !existingModels.any(
-              (existing) =>
-                  existing.apiUrl == provider.apiUrl &&
-                  existing.apiKey == provider.apiKey &&
-                  existing.modelName == model.modelName,
-            );
-          }).toList(growable: false);
+          final nextModels = provider.models
+              .where((model) {
+                return !existingModels.any(
+                  (existing) =>
+                      existing.apiUrl == provider.apiUrl &&
+                      existing.apiKey == provider.apiKey &&
+                      existing.modelName == model.modelName,
+                );
+              })
+              .toList(growable: false);
           return provider.copyWith(models: nextModels);
         })
         .where((provider) => provider.models.isNotEmpty)
@@ -448,10 +406,9 @@ class SettingsScreen extends ConsumerWidget {
               supportsReasoning: formData.supportsReasoning,
             );
 
-            await ref.read(llmProviderConfigsProvider.notifier).upsertModel(
-                  providerId: provider.id,
-                  model: model,
-                );
+            await ref
+                .read(llmProviderConfigsProvider.notifier)
+                .upsertModel(providerId: provider.id, model: model);
 
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(

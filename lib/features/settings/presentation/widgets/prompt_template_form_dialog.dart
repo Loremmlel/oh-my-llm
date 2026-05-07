@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/utils/id_generator.dart';
 import '../../domain/models/prompt_template.dart';
+import 'settings_form_dialog_scaffold.dart';
 
 /// Prompt 模板表单提交数据。
 class PromptTemplateFormData {
@@ -77,109 +78,88 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog> {
   Widget build(BuildContext context) {
     final isEditing = widget.initialValue != null;
 
-    return AlertDialog(
-      title: Text(isEditing ? '编辑 Prompt 模板' : '新增 Prompt 模板'),
-      content: SizedBox(
-        width: 720,
-        child: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextFormField(
-                  controller: _nameController,
-                  decoration: const InputDecoration(
-                    labelText: '模板名称',
-                    hintText: '例如：代码审阅助手',
-                  ),
-                  validator: _validateRequired,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _systemPromptController,
-                  minLines: 3,
-                  maxLines: 6,
-                  decoration: const InputDecoration(
-                    labelText: 'System 指令',
-                    hintText: '你是我的人工智能助手，协助我完成各种任务。',
-                  ),
-                  validator: _validateRequired,
-                ),
-                const SizedBox(height: 20),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '附加消息',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        OutlinedButton.icon(
-                          onPressed: () => _addMessage(PromptMessageRole.user),
-                          icon: const Icon(Icons.person_outline_rounded),
-                          label: const Text('新增 User'),
-                        ),
-                        OutlinedButton.icon(
-                          onPressed: () =>
-                              _addMessage(PromptMessageRole.assistant),
-                          icon: const Icon(Icons.smart_toy_outlined),
-                          label: const Text('新增 Assistant'),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                if (_messages.isEmpty)
-                  const Text('可以只保存 system 指令，也可以继续追加 user/assistant 消息。'),
-                for (var index = 0; index < _messages.length; index++) ...[
-                  _PromptMessageEditor(
-                    key: ValueKey(_messages[index].id),
-                    index: index,
-                    message: _messages[index],
-                    canMoveUp: index > 0,
-                    canMoveDown: index < _messages.length - 1,
-                    onRoleChanged: (role) {
-                      setState(() {
-                        _messages[index] = _messages[index].copyWith(
-                          role: role,
-                        );
-                      });
-                    },
-                    onPlacementChanged: (placement) {
-                      setState(() {
-                        _messages[index] = _messages[index].copyWith(
-                          placement: placement,
-                        );
-                      });
-                    },
-                    onMoveUp: () => _moveMessage(index, index - 1),
-                    onMoveDown: () => _moveMessage(index, index + 1),
-                    onDelete: () => _removeMessage(index),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-              ],
+    return SettingsFormDialogScaffold(
+      title: isEditing ? '编辑 Prompt 模板' : '新增 Prompt 模板',
+      formKey: _formKey,
+      isSaving: _isSaving,
+      onSubmit: _handleSubmit,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextFormField(
+            controller: _nameController,
+            decoration: const InputDecoration(
+              labelText: '模板名称',
+              hintText: '例如：代码审阅助手',
             ),
+            validator: _validateRequired,
           ),
-        ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _systemPromptController,
+            minLines: 3,
+            maxLines: 6,
+            decoration: const InputDecoration(
+              labelText: 'System 指令',
+              hintText: '你是我的人工智能助手，协助我完成各种任务。',
+            ),
+            validator: _validateRequired,
+          ),
+          const SizedBox(height: 20),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('附加消息', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () => _addMessage(PromptMessageRole.user),
+                    icon: const Icon(Icons.person_outline_rounded),
+                    label: const Text('新增 User'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => _addMessage(PromptMessageRole.assistant),
+                    icon: const Icon(Icons.smart_toy_outlined),
+                    label: const Text('新增 Assistant'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (_messages.isEmpty)
+            const Text('可以只保存 system 指令，也可以继续追加 user/assistant 消息。'),
+          for (var index = 0; index < _messages.length; index++) ...[
+            _PromptMessageEditor(
+              key: ValueKey(_messages[index].id),
+              index: index,
+              message: _messages[index],
+              canMoveUp: index > 0,
+              canMoveDown: index < _messages.length - 1,
+              onRoleChanged: (role) {
+                setState(() {
+                  _messages[index] = _messages[index].copyWith(role: role);
+                });
+              },
+              onPlacementChanged: (placement) {
+                setState(() {
+                  _messages[index] = _messages[index].copyWith(
+                    placement: placement,
+                  );
+                });
+              },
+              onMoveUp: () => _moveMessage(index, index - 1),
+              onMoveDown: () => _moveMessage(index, index + 1),
+              onDelete: () => _removeMessage(index),
+            ),
+            const SizedBox(height: 12),
+          ],
+        ],
       ),
-      actions: [
-        TextButton(
-          onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
-          child: const Text('取消'),
-        ),
-        FilledButton(
-          onPressed: _isSaving ? null : _handleSubmit,
-          child: Text(_isSaving ? '保存中...' : '保存'),
-        ),
-      ],
     );
   }
 

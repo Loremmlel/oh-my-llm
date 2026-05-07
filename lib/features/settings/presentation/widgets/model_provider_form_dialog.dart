@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../domain/models/llm_provider_config.dart';
+import 'settings_form_dialog_scaffold.dart';
 
 /// 服务商表单提交数据。
 class ModelProviderFormData {
@@ -27,7 +28,8 @@ class ModelProviderFormDialog extends StatefulWidget {
   final LlmProviderConfig? initialValue;
 
   @override
-  State<ModelProviderFormDialog> createState() => _ModelProviderFormDialogState();
+  State<ModelProviderFormDialog> createState() =>
+      _ModelProviderFormDialogState();
 }
 
 class _ModelProviderFormDialogState extends State<ModelProviderFormDialog> {
@@ -41,7 +43,9 @@ class _ModelProviderFormDialogState extends State<ModelProviderFormDialog> {
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(text: widget.initialValue?.name ?? '');
+    _nameController = TextEditingController(
+      text: widget.initialValue?.name ?? '',
+    );
     _apiUrlController = TextEditingController(
       text: widget.initialValue?.apiUrl ?? '',
     );
@@ -62,56 +66,42 @@ class _ModelProviderFormDialogState extends State<ModelProviderFormDialog> {
   Widget build(BuildContext context) {
     final isEditing = widget.initialValue != null;
 
-    return AlertDialog(
-      title: Text(isEditing ? '编辑服务商' : '新增服务商'),
-      content: SizedBox(
-        width: 520,
-        child: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  controller: _nameController,
-                  decoration: const InputDecoration(
-                    labelText: '服务商名称',
-                    hintText: '例如：DeepSeek 官方',
-                  ),
-                  validator: _validateRequired,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _apiUrlController,
-                  decoration: const InputDecoration(
-                    labelText: 'API URL',
-                    hintText: 'https://api.example.com/v1/chat/completions',
-                  ),
-                  keyboardType: TextInputType.url,
-                  validator: _validateUrl,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _apiKeyController,
-                  decoration: const InputDecoration(labelText: 'API Key'),
-                  obscureText: true,
-                  validator: _validateRequired,
-                ),
-              ],
+    return SettingsFormDialogScaffold(
+      title: isEditing ? '编辑服务商' : '新增服务商',
+      formKey: _formKey,
+      isSaving: _isSaving,
+      onSubmit: _handleSubmit,
+      width: 520,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextFormField(
+            controller: _nameController,
+            decoration: const InputDecoration(
+              labelText: '服务商名称',
+              hintText: '例如：DeepSeek 官方',
             ),
+            validator: _validateRequired,
           ),
-        ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _apiUrlController,
+            decoration: const InputDecoration(
+              labelText: 'API URL',
+              hintText: 'https://api.example.com/v1/chat/completions',
+            ),
+            keyboardType: TextInputType.url,
+            validator: _validateUrl,
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _apiKeyController,
+            decoration: const InputDecoration(labelText: 'API Key'),
+            obscureText: true,
+            validator: _validateRequired,
+          ),
+        ],
       ),
-      actions: [
-        TextButton(
-          onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
-          child: const Text('取消'),
-        ),
-        FilledButton(
-          onPressed: _isSaving ? null : _handleSubmit,
-          child: Text(_isSaving ? '保存中...' : '保存'),
-        ),
-      ],
     );
   }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../domain/models/llm_provider_config.dart';
+import 'settings_form_dialog_scaffold.dart';
 
 /// 服务商下模型表单的提交数据。
 class ModelConfigFormData {
@@ -62,60 +63,46 @@ class _ModelConfigFormDialogState extends State<ModelConfigFormDialog> {
   Widget build(BuildContext context) {
     final isEditing = widget.initialValue != null;
 
-    return AlertDialog(
-      title: Text(isEditing ? '编辑模型' : '新增模型'),
-      content: SizedBox(
-        width: 520,
-        child: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  controller: _displayNameController,
-                  decoration: const InputDecoration(
-                    labelText: '显示名称',
-                    hintText: '例如：DeepSeek V4 Flash',
-                  ),
-                  validator: _validateRequired,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _modelNameController,
-                  decoration: const InputDecoration(
-                    labelText: 'API 模型名称',
-                    hintText: '例如：deepseek-v4-flash',
-                  ),
-                  validator: _validateRequired,
-                ),
-                const SizedBox(height: 12),
-                SwitchListTile.adaptive(
-                  contentPadding: EdgeInsets.zero,
-                  value: _supportsReasoning,
-                  title: const Text('支持深度思考'),
-                  subtitle: const Text('聊天页会据此决定是否展示思考相关选项。'),
-                  onChanged: (value) {
-                    setState(() {
-                      _supportsReasoning = value;
-                    });
-                  },
-                ),
-              ],
+    return SettingsFormDialogScaffold(
+      title: isEditing ? '编辑模型' : '新增模型',
+      formKey: _formKey,
+      isSaving: _isSaving,
+      onSubmit: _handleSubmit,
+      width: 520,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextFormField(
+            controller: _displayNameController,
+            decoration: const InputDecoration(
+              labelText: '显示名称',
+              hintText: '例如：DeepSeek V4 Flash',
             ),
+            validator: _validateRequired,
           ),
-        ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _modelNameController,
+            decoration: const InputDecoration(
+              labelText: 'API 模型名称',
+              hintText: '例如：deepseek-v4-flash',
+            ),
+            validator: _validateRequired,
+          ),
+          const SizedBox(height: 12),
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            value: _supportsReasoning,
+            title: const Text('支持深度思考'),
+            subtitle: const Text('聊天页会据此决定是否展示思考相关选项。'),
+            onChanged: (value) {
+              setState(() {
+                _supportsReasoning = value;
+              });
+            },
+          ),
+        ],
       ),
-      actions: [
-        TextButton(
-          onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
-          child: const Text('取消'),
-        ),
-        FilledButton(
-          onPressed: _isSaving ? null : _handleSubmit,
-          child: Text(_isSaving ? '保存中...' : '保存'),
-        ),
-      ],
     );
   }
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../domain/models/template_prompt.dart';
 import '../../domain/template_prompt_parser.dart';
+import 'settings_form_dialog_scaffold.dart';
 
 /// 模板提示词表单提交数据。
 class TemplatePromptFormData {
@@ -28,7 +29,8 @@ class TemplatePromptFormDialog extends StatefulWidget {
   final TemplatePrompt? initialValue;
 
   @override
-  State<TemplatePromptFormDialog> createState() => _TemplatePromptFormDialogState();
+  State<TemplatePromptFormDialog> createState() =>
+      _TemplatePromptFormDialogState();
 }
 
 /// 模板提示词表单的输入与变量状态。
@@ -75,81 +77,63 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog> {
   Widget build(BuildContext context) {
     final isEditing = widget.initialValue != null;
 
-    return AlertDialog(
-      title: Text(isEditing ? '编辑模板提示词' : '新增模板提示词'),
-      content: SizedBox(
-        width: 720,
-        child: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextFormField(
-                  controller: _titleController,
-                  decoration: const InputDecoration(
-                    labelText: '标题',
-                    hintText: '例如：翻译润色模板',
-                  ),
-                  validator: _validateRequired,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _contentController,
-                  minLines: 5,
-                  maxLines: 10,
-                  decoration: const InputDecoration(
-                    labelText: '模板提示词',
-                    hintText: '请将以下{{正文}}翻译成{{目标语言}}，并保持{{语气}}。',
-                    alignLabelWithHint: true,
-                  ),
-                  validator: _validateRequired,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '使用 {{变量名}} 声明可注入变量；其中 {{正文}} 对应聊天页主输入框，不设置默认值。',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  '变量默认值',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 8),
-                if (_variables.isEmpty)
-                  const Text('当前模板还没有检测到任何变量。')
-                else
-                  for (final variable in _variables) ...[
-                    if (variable.isBody)
-                      _buildBodyVariableHint(context, variable)
-                    else
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: TextFormField(
-                          controller: _variableControllers[variable.name],
-                          decoration: InputDecoration(
-                            labelText: variable.name,
-                            hintText: '留空则聊天页默认使用空值',
-                          ),
-                        ),
-                      ),
-                  ],
-              ],
+    return SettingsFormDialogScaffold(
+      title: isEditing ? '编辑模板提示词' : '新增模板提示词',
+      formKey: _formKey,
+      isSaving: _isSaving,
+      onSubmit: _handleSubmit,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextFormField(
+            controller: _titleController,
+            decoration: const InputDecoration(
+              labelText: '标题',
+              hintText: '例如：翻译润色模板',
             ),
+            validator: _validateRequired,
           ),
-        ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _contentController,
+            minLines: 5,
+            maxLines: 10,
+            decoration: const InputDecoration(
+              labelText: '模板提示词',
+              hintText: '请将以下{{正文}}翻译成{{目标语言}}，并保持{{语气}}。',
+              alignLabelWithHint: true,
+            ),
+            validator: _validateRequired,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '使用 {{变量名}} 声明可注入变量；其中 {{正文}} 对应聊天页主输入框，不设置默认值。',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 20),
+          Text('变量默认值', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          if (_variables.isEmpty)
+            const Text('当前模板还没有检测到任何变量。')
+          else
+            for (final variable in _variables) ...[
+              if (variable.isBody)
+                _buildBodyVariableHint(context, variable)
+              else
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: TextFormField(
+                    controller: _variableControllers[variable.name],
+                    decoration: InputDecoration(
+                      labelText: variable.name,
+                      hintText: '留空则聊天页默认使用空值',
+                    ),
+                  ),
+                ),
+            ],
+        ],
       ),
-      actions: [
-        TextButton(
-          onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
-          child: const Text('取消'),
-        ),
-        FilledButton(
-          onPressed: _isSaving ? null : _handleSubmit,
-          child: Text(_isSaving ? '保存中...' : '保存'),
-        ),
-      ],
     );
   }
 
@@ -172,11 +156,7 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog> {
             children: [
               const Icon(Icons.notes_rounded),
               const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  '${variable.name} 使用聊天页主输入框提供内容，不单独设置默认值。',
-                ),
-              ),
+              Expanded(child: Text('${variable.name} 使用聊天页主输入框提供内容，不单独设置默认值。')),
             ],
           ),
         ),
@@ -201,15 +181,20 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog> {
   }
 
   List<TemplatePromptVariable> _buildVariablesFromControllers() {
-    return _variables.map((variable) {
-      if (variable.isBody) {
-        return const TemplatePromptVariable(name: templatePromptBodyVariableName);
-      }
-      return TemplatePromptVariable(
-        name: variable.name,
-        defaultValue: _variableControllers[variable.name]?.text.trim() ?? '',
-      );
-    }).toList(growable: false);
+    return _variables
+        .map((variable) {
+          if (variable.isBody) {
+            return const TemplatePromptVariable(
+              name: templatePromptBodyVariableName,
+            );
+          }
+          return TemplatePromptVariable(
+            name: variable.name,
+            defaultValue:
+                _variableControllers[variable.name]?.text.trim() ?? '',
+          );
+        })
+        .toList(growable: false);
   }
 
   void _syncVariableControllers() {
