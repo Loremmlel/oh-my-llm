@@ -66,105 +66,95 @@ class _ProviderTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final actionButtons = Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        OutlinedButton.icon(
+          onPressed: () => onAddModelRequested(provider),
+          icon: const Icon(Icons.add_rounded),
+          label: const Text('新增模型'),
+        ),
+        OutlinedButton.icon(
+          onPressed: () => onEditProviderRequested(provider),
+          icon: const Icon(Icons.edit_outlined),
+          label: const Text('编辑服务商'),
+        ),
+        OutlinedButton.icon(
+          onPressed: () async {
+            await ref.read(llmProviderConfigsProvider.notifier).deleteProviderById(
+                  provider.id,
+                );
+            for (final model in provider.models) {
+              await ref
+                  .read(chatDefaultsProvider.notifier)
+                  .clearRememberedModelIdIfMatches(model.id);
+            }
+            if (context.mounted) {
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('服务商已删除')));
+            }
+          },
+          icon: const Icon(Icons.delete_outline_rounded),
+          label: const Text('删除服务商'),
+        ),
+      ],
+    );
 
     return DecoratedBox(
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(18),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isCompact = constraints.maxWidth < 640;
+
+          return Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Column(
+                if (isCompact) ...[
+                  _ProviderInfo(provider: provider),
+                  const SizedBox(height: 12),
+                  actionButtons,
+                ] else
+                  Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(provider.name, style: theme.textTheme.titleMedium),
-                      const SizedBox(height: 8),
-                      Text('API URL：${provider.apiUrl}'),
-                      const SizedBox(height: 4),
-                      Text('API Key：${_maskApiKey(provider.apiKey)}'),
-                      const SizedBox(height: 4),
-                      Text('模型数量：${provider.models.length}'),
+                      Expanded(child: _ProviderInfo(provider: provider)),
+                      const SizedBox(width: 8),
+                      Flexible(child: actionButtons),
                     ],
                   ),
-                ),
-                const SizedBox(width: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: () => onAddModelRequested(provider),
-                      icon: const Icon(Icons.add_rounded),
-                      label: const Text('新增模型'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: () => onEditProviderRequested(provider),
-                      icon: const Icon(Icons.edit_outlined),
-                      label: const Text('编辑服务商'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: () async {
-                        await ref
-                            .read(llmProviderConfigsProvider.notifier)
-                            .deleteProviderById(provider.id);
-                        for (final model in provider.models) {
-                          await ref
-                              .read(chatDefaultsProvider.notifier)
-                              .clearRememberedModelIdIfMatches(model.id);
-                        }
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('服务商已删除')),
-                          );
-                        }
-                      },
-                      icon: const Icon(Icons.delete_outline_rounded),
-                      label: const Text('删除服务商'),
-                    ),
-                  ],
-                ),
+                const SizedBox(height: 16),
+                if (provider.models.isEmpty)
+                  Text(
+                    '当前服务商下还没有模型。',
+                    style: theme.textTheme.bodyMedium,
+                  )
+                else
+                  Column(
+                    children: [
+                      for (final model in provider.models)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: _ProviderModelTile(
+                            provider: provider,
+                            model: model,
+                            onEditModelRequested: onEditModelRequested,
+                          ),
+                        ),
+                    ],
+                  ),
               ],
             ),
-            const SizedBox(height: 16),
-            if (provider.models.isEmpty)
-              Text(
-                '当前服务商下还没有模型。',
-                style: theme.textTheme.bodyMedium,
-              )
-            else
-              Column(
-                children: [
-                  for (final model in provider.models)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: _ProviderModelTile(
-                        provider: provider,
-                        model: model,
-                        onEditModelRequested: onEditModelRequested,
-                      ),
-                    ),
-                ],
-              ),
-          ],
-        ),
+          );
+        },
       ),
     );
-  }
-
-  String _maskApiKey(String apiKey) {
-    final trimmed = apiKey.trim();
-    if (trimmed.length <= 8) {
-      return '已保存';
-    }
-
-    return '${trimmed.substring(0, 4)}****${trimmed.substring(trimmed.length - 4)}';
   }
 }
 
@@ -183,80 +173,130 @@ class _ProviderModelTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final actionButtons = Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        OutlinedButton.icon(
+          onPressed: () => onEditModelRequested(provider, model),
+          icon: const Icon(Icons.edit_outlined),
+          label: const Text('编辑'),
+        ),
+        OutlinedButton.icon(
+          onPressed: () async {
+            await ref.read(llmProviderConfigsProvider.notifier).deleteModel(
+                  providerId: provider.id,
+                  modelId: model.id,
+                );
+            await ref
+                .read(chatDefaultsProvider.notifier)
+                .clearRememberedModelIdIfMatches(model.id);
+            if (context.mounted) {
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('模型已删除')));
+            }
+          },
+          icon: const Icon(Icons.delete_outline_rounded),
+          label: const Text('删除'),
+        ),
+      ],
+    );
 
     return DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(14),
         color: theme.colorScheme.surface.withValues(alpha: 0.7),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isCompact = constraints.maxWidth < 560;
+
+          return Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (isCompact) ...[
+                  _ProviderModelInfo(model: model),
+                  const SizedBox(height: 12),
+                  actionButtons,
+                ] else
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Text(
-                          model.displayName,
-                          style: theme.textTheme.titleSmall,
-                        ),
-                      ),
-                      if (model.supportsReasoning)
-                        Chip(
-                          avatar: const Icon(
-                            Icons.psychology_alt_outlined,
-                            size: 18,
-                          ),
-                          label: const Text('支持深度思考'),
-                          visualDensity: VisualDensity.compact,
-                          materialTapTargetSize:
-                              MaterialTapTargetSize.shrinkWrap,
-                        ),
+                      Expanded(child: _ProviderModelInfo(model: model)),
+                      const SizedBox(width: 8),
+                      Flexible(child: actionButtons),
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  Text('API 模型名称：${model.modelName}'),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: () => onEditModelRequested(provider, model),
-                  icon: const Icon(Icons.edit_outlined),
-                  label: const Text('编辑'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: () async {
-                    await ref.read(llmProviderConfigsProvider.notifier).deleteModel(
-                          providerId: provider.id,
-                          modelId: model.id,
-                        );
-                    await ref
-                        .read(chatDefaultsProvider.notifier)
-                        .clearRememberedModelIdIfMatches(model.id);
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(
-                        context,
-                      ).showSnackBar(const SnackBar(content: Text('模型已删除')));
-                    }
-                  },
-                  icon: const Icon(Icons.delete_outline_rounded),
-                  label: const Text('删除'),
-                ),
               ],
             ),
-          ],
-        ),
+          );
+        },
       ),
+    );
+  }
+}
+
+class _ProviderInfo extends StatelessWidget {
+  const _ProviderInfo({required this.provider});
+
+  final LlmProviderConfig provider;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(provider.name, style: theme.textTheme.titleMedium),
+        const SizedBox(height: 8),
+        Text('API URL：${provider.apiUrl}'),
+        const SizedBox(height: 4),
+        Text('API Key：${_maskApiKey(provider.apiKey)}'),
+        const SizedBox(height: 4),
+        Text('模型数量：${provider.models.length}'),
+      ],
+    );
+  }
+
+  String _maskApiKey(String apiKey) {
+    final trimmed = apiKey.trim();
+    if (trimmed.length <= 8) {
+      return '已保存';
+    }
+
+    return '${trimmed.substring(0, 4)}****${trimmed.substring(trimmed.length - 4)}';
+  }
+}
+
+class _ProviderModelInfo extends StatelessWidget {
+  const _ProviderModelInfo({required this.model});
+
+  final LlmProviderModelConfig model;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(model.displayName, style: theme.textTheme.titleSmall),
+        if (model.supportsReasoning) ...[
+          const SizedBox(height: 8),
+          Chip(
+            avatar: const Icon(Icons.psychology_alt_outlined, size: 18),
+            label: const Text('支持深度思考'),
+            visualDensity: VisualDensity.compact,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ],
+        const SizedBox(height: 4),
+        Text('API 模型名称：${model.modelName}'),
+      ],
     );
   }
 }

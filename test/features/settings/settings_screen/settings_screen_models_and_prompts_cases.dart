@@ -95,6 +95,26 @@ void registerSettingsScreenModelsAndPromptsTests() {
     );
   });
 
+  testWidgets('settings screen stacks provider and model actions on narrow layouts', (
+    tester,
+  ) async {
+    final preferences = await createDefaultsSeededPreferences();
+
+    await pumpSettingsScreen(
+      tester,
+      preferences: preferences,
+      size: const Size(430, 932),
+    );
+
+    final providerMetaRect = tester.getRect(find.text('模型数量：1').first);
+    final addModelButtonRect = tester.getRect(find.text('新增模型').first);
+    expect(addModelButtonRect.top, greaterThan(providerMetaRect.bottom));
+
+    final modelMetaRect = tester.getRect(find.text('API 模型名称：gpt-4.1'));
+    final editModelButtonRect = tester.getRect(find.text('编辑').first);
+    expect(editModelButtonRect.top, greaterThan(modelMetaRect.bottom));
+  });
+
   testWidgets(
     'settings screen supports prompt template CRUD with persistence',
     (tester) async {

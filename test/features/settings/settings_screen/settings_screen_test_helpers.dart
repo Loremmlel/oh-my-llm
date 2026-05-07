@@ -19,9 +19,10 @@ import '../../../test_database.dart';
 Future<AppDatabase> pumpSettingsScreen(
   WidgetTester tester, {
   required SharedPreferences preferences,
+  Size size = const Size(1440, 1500),
 }) async {
   final database = await createTestDatabase(preferences);
-  tester.view.physicalSize = const Size(1440, 1500);
+  tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(() {
     tester.view.resetPhysicalSize();
