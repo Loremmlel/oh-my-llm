@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_markdown_plus/flutter_markdown_plus.dart' as legacy_md;
 import 'package:flutter_smooth_markdown/flutter_smooth_markdown.dart'
     as smooth_md;
-
-import 'chat_markdown_engine.dart';
 
 /// 折叠式推理内容面板，用于展示模型的深度思考文本。
 class ReasoningPanel extends StatefulWidget {
@@ -20,25 +17,11 @@ class _ReasoningPanelState extends State<ReasoningPanel> {
   bool _expanded = false;
 
   Widget _buildReasoningMarkdown(BuildContext context, ThemeData theme) {
-    final textColor = theme.colorScheme.onSurfaceVariant;
-    switch (kChatMarkdownEngine) {
-      case ChatMarkdownEngine.legacy:
-        return legacy_md.MarkdownBody(
-          data: widget.content,
-          selectable: true,
-          styleSheet: legacy_md.MarkdownStyleSheet.fromTheme(theme).copyWith(
-            p: theme.textTheme.bodyMedium?.copyWith(color: textColor),
-            code: theme.textTheme.bodySmall?.copyWith(color: textColor),
-            blockquote: theme.textTheme.bodySmall?.copyWith(color: textColor),
-          ),
-        );
-      case ChatMarkdownEngine.smooth:
-        return smooth_md.SmoothMarkdown(
-          data: widget.content,
-          selectable: true,
-          styleSheet: smooth_md.MarkdownStyleSheet.fromTheme(theme),
-        );
-    }
+    return smooth_md.SmoothMarkdown(
+      data: widget.content,
+      selectable: true,
+      styleSheet: smooth_md.MarkdownStyleSheet.fromTheme(theme),
+    );
   }
 
   @override

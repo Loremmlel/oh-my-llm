@@ -54,14 +54,9 @@ class LlmModelConfigRepository {
 
   /// 读取全部展开后的模型配置，仅供聊天页与请求层使用。
   List<LlmModelConfig> loadAll() {
-    return loadProviders().expand((provider) => provider.resolvedModels).toList(
-      growable: false,
-    );
-  }
-
-  /// 兼容旧测试与工具调用：把平铺模型列表转换并保存为服务商结构。
-  Future<void> saveAll(List<LlmModelConfig> configs) async {
-    await saveProviders(_providersFromResolvedModels(configs));
+    return loadProviders()
+        .expand((provider) => provider.resolvedModels)
+        .toList(growable: false);
   }
 
   List<LlmProviderConfig> _migrateLegacyModels(List<LlmModelConfig> models) {
@@ -101,69 +96,26 @@ class LlmModelConfigRepository {
     return providers;
   }
 
-  List<LlmProviderConfig> _providersFromResolvedModels(
-    List<LlmModelConfig> configs,
-  ) {
-    final providers = <LlmProviderConfig>[];
-    final providerIndexByKey = <String, int>{};
-
-    for (final config in configs) {
-      final signature = config.providerId.isNotEmpty
-          ? 'provider:${config.providerId}'
-          : _buildSignature(config.apiUrl, config.apiKey);
-      final existingIndex = providerIndexByKey[signature];
-      final providerModel = LlmProviderModelConfig(
-        id: config.id,
-        displayName: config.displayName,
-        modelName: config.modelName,
-        supportsReasoning: config.supportsReasoning,
-      );
-
-      if (existingIndex == null) {
-        providerIndexByKey[signature] = providers.length;
-        providers.add(
-          LlmProviderConfig(
-            id: config.providerId.isNotEmpty
-                ? config.providerId
-                : 'provider-${providers.length + 1}',
-            name: config.providerName.isNotEmpty
-                ? config.providerName
-                : '服务商${providers.length + 1}',
-            apiUrl: config.apiUrl,
-            apiKey: config.apiKey,
-            models: [providerModel],
-          ),
-        );
-        continue;
-      }
-
-      final existingProvider = providers[existingIndex];
-      providers[existingIndex] = existingProvider.copyWith(
-        models: [...existingProvider.models, providerModel],
-      );
-    }
-
-    return providers;
-  }
-
   String _buildSignature(String apiUrl, String apiKey) {
     return '${apiUrl.trim()}::${apiKey.trim()}';
   }
 
   List<LlmProviderConfig> _sortProviders(List<LlmProviderConfig> providers) {
-    final normalized = providers
-        .map((provider) {
-          final models = [...provider.models]..sort((left, right) {
-            return left.displayName.toLowerCase().compareTo(
-              right.displayName.toLowerCase(),
-            );
+    final normalized =
+        providers
+            .map((provider) {
+              final models = [...provider.models]
+                ..sort((left, right) {
+                  return left.displayName.toLowerCase().compareTo(
+                    right.displayName.toLowerCase(),
+                  );
+                });
+              return provider.copyWith(models: List.unmodifiable(models));
+            })
+            .toList(growable: false)
+          ..sort((left, right) {
+            return left.name.toLowerCase().compareTo(right.name.toLowerCase());
           });
-          return provider.copyWith(models: List.unmodifiable(models));
-        })
-        .toList(growable: false)
-      ..sort((left, right) {
-        return left.name.toLowerCase().compareTo(right.name.toLowerCase());
-      });
     return List.unmodifiable(normalized);
   }
 }
