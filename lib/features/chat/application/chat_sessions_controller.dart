@@ -7,13 +7,16 @@ import '../../settings/application/chat_defaults_controller.dart';
 import '../../settings/application/llm_model_configs_controller.dart';
 import '../../settings/application/prompt_templates_controller.dart';
 import '../../settings/domain/models/llm_model_config.dart';
+import '../../settings/domain/models/memory_prompt.dart';
 import '../../settings/domain/models/prompt_template.dart';
+import 'checkpoint_request_context.dart';
 import 'chat_message_tree.dart';
 import 'chat_request_message_builder.dart';
 import 'chat_sessions_state.dart';
 import '../data/chat_completion_client.dart';
 import '../data/chat_conversation_repository.dart';
 import '../data/openai_compatible_chat_client.dart';
+import '../domain/models/chat_checkpoint.dart';
 import '../domain/models/chat_conversation.dart';
 import '../domain/models/chat_message.dart';
 
@@ -47,6 +50,22 @@ final activeConversationIdProvider = Provider<String>((ref) {
 /// 是否正在进行流式请求（仅在流开始/结束时重建）。
 final isChatStreamingProvider = Provider<bool>((ref) {
   return ref.watch(chatSessionsProvider.select((state) => state.isStreaming));
+});
+
+/// 是否正在创建检查点。
+final isChatCheckpointingProvider = Provider<bool>((ref) {
+  return ref.watch(
+    chatSessionsProvider.select((state) => state.isCheckpointing),
+  );
+});
+
+/// 是否有聊天相关请求正在进行。
+final isChatBusyProvider = Provider<bool>((ref) {
+  return ref.watch(
+    chatSessionsProvider.select(
+      (state) => state.isStreaming || state.isCheckpointing,
+    ),
+  );
 });
 
 /// 当前错误提示文字，无错误时为 `null`（仅在错误状态变化时重建）。
@@ -87,6 +106,8 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
   ChatStreamingReply? _latestStreamingReply;
   bool _streamStopRequested = false;
 
+  bool get _isBusy => state.isStreaming || state.isCheckpointing;
+
   // ── 生命周期 ────────────────────────────────────────────────────────────────
 
   /// 读取持久化数据并初始化当前会话状态。
@@ -114,6 +135,9 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
 
   /// 新建一个会话并切换到该会话。
   Future<void> createConversation() async {
+    if (_isBusy) {
+      return;
+    }
     final currentConversation = state.activeConversation;
     if (!currentConversation.hasMessages) {
       return;
@@ -131,6 +155,9 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
 
   /// 选择一个已存在的会话作为活动会话。
   void selectConversation(String id) {
+    if (_isBusy) {
+      return;
+    }
     final hasMatch = state.conversations.any((conversation) {
       return conversation.id == id;
     });
@@ -143,6 +170,9 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
 
   /// 重命名当前活动会话。
   Future<void> renameActiveConversation(String title) async {
+    if (_isBusy) {
+      return;
+    }
     final nextTitle = title.trim();
     if (nextTitle.isEmpty) {
       return;
@@ -161,6 +191,9 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     required String conversationId,
     required String title,
   }) async {
+    if (_isBusy) {
+      return;
+    }
     final nextTitle = title.trim();
     if (nextTitle.isEmpty) {
       return;
@@ -187,7 +220,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
 
   /// 删除一组会话，必要时回退到新的空会话。
   Future<void> deleteConversations(Set<String> conversationIds) async {
-    if (conversationIds.isEmpty || state.isStreaming) {
+    if (conversationIds.isEmpty || _isBusy) {
       return;
     }
 
@@ -219,20 +252,111 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
   /// 更新当前会话的模型、前置 Prompt 和思考偏好。
   Future<void> updateActiveConversationPreferences({
     String? selectedModelId,
+    String? selectedCheckpointId,
     String? selectedPromptTemplateId,
     bool? reasoningEnabled,
     ReasoningEffort? reasoningEffort,
+    bool clearSelectedCheckpointId = false,
     bool clearSelectedPromptTemplateId = false,
   }) {
+    if (_isBusy) {
+      return Future.value();
+    }
     return _updateActiveConversation(
       state.activeConversation.copyWith(
         selectedModelId: selectedModelId,
+        selectedCheckpointId: selectedCheckpointId,
         selectedPromptTemplateId: selectedPromptTemplateId,
         reasoningEnabled: reasoningEnabled,
         reasoningEffort: reasoningEffort,
+        clearSelectedCheckpointId: clearSelectedCheckpointId,
         clearSelectedPromptTemplateId: clearSelectedPromptTemplateId,
       ),
     );
+  }
+
+  /// 更新当前会话启用的检查点。
+  Future<void> selectActiveCheckpoint(String? checkpointId) {
+    return updateActiveConversationPreferences(
+      selectedCheckpointId: checkpointId,
+      clearSelectedCheckpointId: checkpointId == null,
+    );
+  }
+
+  /// 基于当前上下文创建一个新的检查点。
+  Future<ChatCheckpoint> createCheckpoint({
+    required LlmModelConfig modelConfig,
+    required MemoryPrompt memoryPrompt,
+    required bool reasoningEnabled,
+    required ReasoningEffort reasoningEffort,
+    String? sourceCheckpointId,
+  }) async {
+    if (_isBusy) {
+      throw const ChatCompletionException('当前仍有请求在进行，请稍后再试。');
+    }
+
+    final currentConversation = state.activeConversation;
+    final sourceContext = resolveCheckpointRequestContext(
+      checkpoints: currentConversation.checkpoints,
+      selectedCheckpointId: sourceCheckpointId,
+      conversationMessages: currentConversation.messages,
+    );
+    if (sourceCheckpointId != null && sourceContext.checkpointChain.isEmpty) {
+      throw const ChatCompletionException('所选检查点与当前分支不兼容，请重新选择。');
+    }
+
+    final summaryMessages = sourceCheckpointId == null
+        ? currentConversation.messages
+        : sourceContext.tailMessages;
+    if (summaryMessages.isEmpty) {
+      throw const ChatCompletionException('当前没有可用于创建检查点的新上下文。');
+    }
+
+    state = state.copyWith(isCheckpointing: true, clearErrorMessage: true);
+    try {
+      final result = await _chatClient.complete(
+        modelConfig: modelConfig,
+        messages: buildCheckpointSummaryMessages(
+          memoryPrompt: memoryPrompt,
+          conversationMessages: summaryMessages,
+          checkpointChain: sourceContext.checkpointChain,
+        ),
+        reasoningEffort: reasoningEnabled && modelConfig.supportsReasoning
+            ? reasoningEffort
+            : null,
+      );
+      final checkpointContent = result.content.trim();
+      if (checkpointContent.isEmpty) {
+        throw const ChatCompletionException('模型没有返回可用的检查点内容。');
+      }
+
+      final now = DateTime.now();
+      final nextCheckpoint = ChatCheckpoint(
+        id: generateEntityId(),
+        title: _buildNextCheckpointTitle(currentConversation.checkpoints),
+        content: checkpointContent,
+        createdAt: now,
+        parentCheckpointId: sourceContext.activeCheckpoint?.id,
+        coveredUntilMessageId: currentConversation.messages.lastOrNull?.id,
+        sourceMemoryPromptName: memoryPrompt.name,
+      );
+      final nextConversation = currentConversation.copyWith(
+        checkpoints: [...currentConversation.checkpoints, nextCheckpoint],
+        updatedAt: now,
+      );
+
+      state = state.copyWith(
+        conversations: _replaceConversation(nextConversation),
+        isCheckpointing: false,
+        clearErrorMessage: true,
+        incrementHistoryRevision: true,
+      );
+      await _saveAll();
+      return nextCheckpoint;
+    } catch (_) {
+      state = state.copyWith(isCheckpointing: false);
+      rethrow;
+    }
   }
 
   /// 终止当前流式回复，并保留已收到的部分内容。
@@ -269,7 +393,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     required String parentId,
     required String messageId,
   }) async {
-    if (state.isStreaming) {
+    if (_isBusy) {
       return;
     }
 
@@ -301,7 +425,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     required String messageId,
     required String nextContent,
   }) async {
-    if (state.isStreaming) {
+    if (_isBusy) {
       return;
     }
 
@@ -342,20 +466,26 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
       selectedChildByParentId: nextSelections,
       updatedAt: DateTime.now(),
     );
+    final checkpointContext = _resolveCheckpointContext(
+      conversation: rebuiltConversation,
+      conversationMessages: rebuiltConversation.messages,
+    );
     await _streamAssistantReply(
       conversation: rebuiltConversation,
       modelConfig: modelConfig,
       promptTemplate: promptTemplate,
-      requestConversationMessages: rebuiltConversation.messages,
+      requestConversationMessages: checkpointContext.tailMessages,
+      requestCheckpointChain: checkpointContext.checkpointChain,
       parentMessageId: branchUserMessage.id,
       reasoningEnabled: rebuiltConversation.reasoningEnabled,
       reasoningEffort: rebuiltConversation.reasoningEffort,
+      appliedCheckpointTitle: checkpointContext.activeCheckpoint?.title ?? '',
     );
   }
 
   /// 重新请求当前对话中最新的一条模型回复。
   Future<void> retryLatestAssistant() async {
-    if (state.isStreaming) {
+    if (_isBusy) {
       return;
     }
 
@@ -376,14 +506,20 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     final promptTemplate = _resolvePromptTemplate(currentConversation);
     if (latestMessage.role == ChatMessageRole.user &&
         state.errorMessage != null) {
+      final checkpointContext = _resolveCheckpointContext(
+        conversation: currentConversation,
+        conversationMessages: activePath,
+      );
       await _streamAssistantReply(
         conversation: currentConversation.copyWith(updatedAt: DateTime.now()),
         modelConfig: modelConfig,
         promptTemplate: promptTemplate,
-        requestConversationMessages: activePath,
+        requestConversationMessages: checkpointContext.tailMessages,
+        requestCheckpointChain: checkpointContext.checkpointChain,
         parentMessageId: latestMessage.id,
         reasoningEnabled: currentConversation.reasoningEnabled,
         reasoningEffort: currentConversation.reasoningEffort,
+        appliedCheckpointTitle: checkpointContext.activeCheckpoint?.title ?? '',
       );
       return;
     }
@@ -417,14 +553,21 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     );
     await _saveAll();
 
+    final checkpointContext = _resolveCheckpointContext(
+      conversation: baseConversation,
+      conversationMessages: requestMessages,
+    );
+
     await _streamAssistantReply(
       conversation: baseConversation,
       modelConfig: modelConfig,
       promptTemplate: promptTemplate,
-      requestConversationMessages: requestMessages,
+      requestConversationMessages: checkpointContext.tailMessages,
+      requestCheckpointChain: checkpointContext.checkpointChain,
       parentMessageId: parentId == rootConversationParentId ? null : parentId,
       reasoningEnabled: baseConversation.reasoningEnabled,
       reasoningEffort: baseConversation.reasoningEffort,
+      appliedCheckpointTitle: checkpointContext.activeCheckpoint?.title ?? '',
     );
   }
 
@@ -437,7 +580,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     required ReasoningEffort reasoningEffort,
     List<UserMessageSegment> userMessageSegments = const [],
   }) async {
-    if (state.isStreaming) {
+    if (_isBusy) {
       return;
     }
 
@@ -470,14 +613,20 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
       reasoningEnabled: reasoningEnabled,
       reasoningEffort: reasoningEffort,
     );
+    final checkpointContext = _resolveCheckpointContext(
+      conversation: pendingConversation,
+      conversationMessages: pendingConversation.messages,
+    );
     await _streamAssistantReply(
       conversation: pendingConversation,
       modelConfig: modelConfig,
       promptTemplate: promptTemplate,
-      requestConversationMessages: pendingConversation.messages,
+      requestConversationMessages: checkpointContext.tailMessages,
+      requestCheckpointChain: checkpointContext.checkpointChain,
       parentMessageId: userMessage.id,
       reasoningEnabled: reasoningEnabled,
       reasoningEffort: reasoningEffort,
+      appliedCheckpointTitle: checkpointContext.activeCheckpoint?.title ?? '',
     );
   }
 
@@ -486,7 +635,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     required String messageId,
     required ChatMessageDeletionScope scope,
   }) async {
-    if (state.isStreaming) {
+    if (_isBusy) {
       return;
     }
 
@@ -621,9 +770,11 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     required LlmModelConfig modelConfig,
     required PromptTemplate? promptTemplate,
     required List<ChatMessage> requestConversationMessages,
+    List<ChatCheckpoint> requestCheckpointChain = const [],
     required String? parentMessageId,
     required bool reasoningEnabled,
     required ReasoningEffort reasoningEffort,
+    String appliedCheckpointTitle = '',
   }) async {
     final timestamp = DateTime.now();
     final tree = resolveMessageTreeState(conversation);
@@ -636,6 +787,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
       parentId: assistantParentId,
       isStreaming: true,
       assistantModelDisplayName: modelConfig.displayName,
+      appliedCheckpointTitle: appliedCheckpointTitle,
     );
     // 先插入一个流式占位节点，后续增量会持续覆盖这条消息。
     final initialTree = appendNodeToTree(
@@ -727,6 +879,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
           messages: buildRequestMessages(
             promptTemplate: promptTemplate,
             conversationMessages: requestConversationMessages,
+            checkpointChain: requestCheckpointChain,
           ),
           reasoningEffort: reasoningEnabled && modelConfig.supportsReasoning
               ? reasoningEffort
@@ -805,10 +958,26 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
       state.conversations
           .where((conversation) {
             return conversation.hasMessages ||
+                conversation.checkpoints.isNotEmpty ||
                 (conversation.title?.trim().isNotEmpty ?? false);
           })
           .toList(growable: false),
     );
+  }
+
+  CheckpointRequestContext _resolveCheckpointContext({
+    required ChatConversation conversation,
+    required List<ChatMessage> conversationMessages,
+  }) {
+    return resolveCheckpointRequestContext(
+      checkpoints: conversation.checkpoints,
+      selectedCheckpointId: conversation.selectedCheckpointId,
+      conversationMessages: conversationMessages,
+    );
+  }
+
+  String _buildNextCheckpointTitle(List<ChatCheckpoint> checkpoints) {
+    return '检查点 ${checkpoints.length + 1}';
   }
 
   /// 选择当前会话对应的模型配置；找不到时回退到首个配置。

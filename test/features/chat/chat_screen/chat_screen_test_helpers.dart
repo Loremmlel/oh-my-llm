@@ -106,6 +106,7 @@ class FakeChatCompletionClient implements ChatCompletionClient {
   final List<List<ChatCompletionRequestMessage>> requestHistory = [];
   final List<LlmModelConfig> requestedModels = [];
   final List<Stream<ChatCompletionChunk>> _queuedStreams = [];
+  final List<ChatCompletionResult> completedResults = [];
 
   List<ChatCompletionRequestMessage> lastRequestMessages = const [];
   LlmModelConfig? lastModelConfig;
@@ -125,6 +126,37 @@ class FakeChatCompletionClient implements ChatCompletionClient {
     }
 
     return _queuedStreams.removeAt(0);
+  }
+
+  @override
+  Future<ChatCompletionResult> complete({
+    required LlmModelConfig modelConfig,
+    required List<ChatCompletionRequestMessage> messages,
+    ReasoningEffort? reasoningEffort,
+  }) async {
+    lastModelConfig = modelConfig;
+    lastRequestMessages = List.unmodifiable(messages);
+    requestHistory.add(lastRequestMessages);
+    requestedModels.add(modelConfig);
+    if (_queuedStreams.isNotEmpty) {
+      final stream = _queuedStreams.removeAt(0);
+      final contentBuffer = StringBuffer();
+      final reasoningBuffer = StringBuffer();
+      await for (final chunk in stream) {
+        contentBuffer.write(chunk.contentDelta);
+        reasoningBuffer.write(chunk.reasoningDelta);
+      }
+      final result = ChatCompletionResult(
+        content: contentBuffer.toString(),
+        reasoningContent: reasoningBuffer.toString(),
+      );
+      completedResults.add(result);
+      return result;
+    }
+
+    const result = ChatCompletionResult();
+    completedResults.add(result);
+    return result;
   }
 
   void enqueueError(Object error) {

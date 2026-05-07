@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import '../../../core/persistence/app_database.dart';
+import '../domain/models/chat_checkpoint.dart';
 import '../domain/models/chat_conversation.dart';
 import '../domain/models/chat_conversation_summary.dart';
 import '../domain/models/chat_message.dart';
@@ -21,6 +22,7 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
         created_at,
         updated_at,
         selected_model_id,
+        selected_checkpoint_id,
         selected_prompt_template_id,
         reasoning_enabled,
         reasoning_effort
@@ -41,6 +43,7 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
         content,
         reasoning_content,
         assistant_model_display_name,
+        applied_checkpoint_title,
         user_message_segments_json,
         created_at
       FROM messages
@@ -50,6 +53,19 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
       SELECT conversation_id, parent_id, child_id
       FROM conversation_branch_selections
       ORDER BY conversation_id, parent_id
+    ''');
+    final checkpointRows = _database.connection.select('''
+      SELECT
+        id,
+        conversation_id,
+        title,
+        content,
+        parent_checkpoint_id,
+        covered_until_message_id,
+        source_memory_prompt_name,
+        created_at
+      FROM conversation_checkpoints
+      ORDER BY conversation_id, created_at ASC
     ''');
 
     final nodesByConversationId = <String, List<ChatMessage>>{};
@@ -69,6 +85,8 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
               reasoningContent: row['reasoning_content'] as String? ?? '',
               assistantModelDisplayName:
                   row['assistant_model_display_name'] as String? ?? '',
+              appliedCheckpointTitle:
+                  row['applied_checkpoint_title'] as String? ?? '',
               userMessageSegments:
                   (jsonDecode(
                         row['user_message_segments_json'] as String? ?? '[]',
@@ -92,6 +110,25 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
       )[row['parent_id'] as String] = row['child_id'] as String;
     }
 
+    final checkpointsByConversationId = <String, List<ChatCheckpoint>>{};
+    for (final row in checkpointRows) {
+      final conversationId = row['conversation_id'] as String;
+      checkpointsByConversationId
+          .putIfAbsent(conversationId, () => <ChatCheckpoint>[])
+          .add(
+            ChatCheckpoint(
+              id: row['id'] as String,
+              title: row['title'] as String,
+              content: row['content'] as String,
+              createdAt: DateTime.parse(row['created_at'] as String),
+              parentCheckpointId: row['parent_checkpoint_id'] as String?,
+              coveredUntilMessageId: row['covered_until_message_id'] as String?,
+              sourceMemoryPromptName:
+                  row['source_memory_prompt_name'] as String? ?? '',
+            ),
+          );
+    }
+
     return conversationRows
         .map((row) {
           final nodes =
@@ -100,15 +137,20 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
           final selections =
               selectionsByConversationId[row['id'] as String] ??
               const <String, String>{};
+          final checkpoints =
+              checkpointsByConversationId[row['id'] as String] ??
+              const <ChatCheckpoint>[];
           return ChatConversation(
             id: row['id'] as String,
             title: row['title'] as String?,
             messages: const <ChatMessage>[],
             messageNodes: List.unmodifiable(nodes),
             selectedChildByParentId: Map.unmodifiable(selections),
+            checkpoints: List.unmodifiable(checkpoints),
             createdAt: DateTime.parse(row['created_at'] as String),
             updatedAt: DateTime.parse(row['updated_at'] as String),
             selectedModelId: row['selected_model_id'] as String?,
+            selectedCheckpointId: row['selected_checkpoint_id'] as String?,
             selectedPromptTemplateId:
                 row['selected_prompt_template_id'] as String?,
             reasoningEnabled: (row['reasoning_enabled'] as int) == 1,
@@ -192,6 +234,7 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
       _database.connection.execute(
         'DELETE FROM conversation_branch_selections;',
       );
+      _database.connection.execute('DELETE FROM conversation_checkpoints;');
       _database.connection.execute('DELETE FROM messages;');
       _database.connection.execute('DELETE FROM conversations;');
 
@@ -202,10 +245,11 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
           created_at,
           updated_at,
           selected_model_id,
+          selected_checkpoint_id,
           selected_prompt_template_id,
           reasoning_enabled,
           reasoning_effort
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       ''');
       final messageStatement = _database.connection.prepare('''
         INSERT INTO messages (
@@ -217,9 +261,10 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
           content,
           reasoning_content,
           assistant_model_display_name,
+          applied_checkpoint_title,
           user_message_segments_json,
           created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ''');
       final selectionStatement = _database.connection.prepare('''
         INSERT INTO conversation_branch_selections (
@@ -227,6 +272,18 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
           parent_id,
           child_id
         ) VALUES (?, ?, ?)
+      ''');
+      final checkpointStatement = _database.connection.prepare('''
+        INSERT INTO conversation_checkpoints (
+          id,
+          conversation_id,
+          title,
+          content,
+          parent_checkpoint_id,
+          covered_until_message_id,
+          source_memory_prompt_name,
+          created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       ''');
       try {
         for (final conversation in conversations) {
@@ -239,6 +296,7 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
             normalizedConversation.createdAt.toIso8601String(),
             normalizedConversation.updatedAt.toIso8601String(),
             normalizedConversation.selectedModelId,
+            normalizedConversation.selectedCheckpointId,
             normalizedConversation.selectedPromptTemplateId,
             normalizedConversation.reasoningEnabled ? 1 : 0,
             normalizedConversation.reasoningEffort.apiValue,
@@ -258,6 +316,7 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
               message.content,
               message.reasoningContent,
               message.assistantModelDisplayName,
+              message.appliedCheckpointTitle,
               jsonEncode(
                 message.userMessageSegments
                     .map((segment) => segment.toJson())
@@ -274,11 +333,24 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
               entry.value,
             ]);
           }
+          for (final checkpoint in normalizedConversation.checkpoints) {
+            checkpointStatement.execute([
+              checkpoint.id,
+              normalizedConversation.id,
+              checkpoint.title,
+              checkpoint.content,
+              checkpoint.parentCheckpointId,
+              checkpoint.coveredUntilMessageId,
+              checkpoint.sourceMemoryPromptName,
+              checkpoint.createdAt.toIso8601String(),
+            ]);
+          }
         }
       } finally {
         conversationStatement.dispose();
         messageStatement.dispose();
         selectionStatement.dispose();
+        checkpointStatement.dispose();
       }
 
       _database.connection.execute('COMMIT;');

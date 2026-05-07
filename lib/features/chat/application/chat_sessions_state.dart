@@ -61,6 +61,7 @@ class ChatSessionsState extends Equatable {
     required this.conversations,
     required this.activeConversationId,
     this.isStreaming = false,
+    this.isCheckpointing = false,
     this.errorMessage,
     this.streamingReply,
     this.historyRevision = 0,
@@ -74,6 +75,9 @@ class ChatSessionsState extends Equatable {
 
   /// 是否有流式请求正在进行。
   final bool isStreaming;
+
+  /// 是否正在创建检查点。
+  final bool isCheckpointing;
 
   /// 最近一次错误的用户可读描述，正常时为 `null`。
   final String? errorMessage;
@@ -97,6 +101,7 @@ class ChatSessionsState extends Equatable {
     List<ChatConversation>? conversations,
     String? activeConversationId,
     bool? isStreaming,
+    bool? isCheckpointing,
     String? errorMessage,
     bool clearErrorMessage = false,
     ChatStreamingReply? streamingReply,
@@ -108,6 +113,7 @@ class ChatSessionsState extends Equatable {
       conversations: conversations ?? this.conversations,
       activeConversationId: activeConversationId ?? this.activeConversationId,
       isStreaming: isStreaming ?? this.isStreaming,
+      isCheckpointing: isCheckpointing ?? this.isCheckpointing,
       errorMessage: clearErrorMessage
           ? null
           : errorMessage ?? this.errorMessage,
@@ -125,6 +131,7 @@ class ChatSessionsState extends Equatable {
     conversations,
     activeConversationId,
     isStreaming,
+    isCheckpointing,
     errorMessage,
     streamingReply,
     historyRevision,

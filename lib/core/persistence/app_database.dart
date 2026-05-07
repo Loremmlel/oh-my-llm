@@ -70,6 +70,9 @@ class AppDatabase {
     if (currentVersion < 5) {
       _migrateV5();
     }
+    if (currentVersion < 6) {
+      _migrateV6();
+    }
   }
 
   /// 初始 schema：聊天记录相关表。
@@ -210,5 +213,43 @@ class AppDatabase {
       ADD COLUMN user_message_segments_json TEXT NOT NULL DEFAULT '[]';
     ''');
     _connection.execute('PRAGMA user_version = 5;');
+  }
+
+  /// 新增记忆总结提示词、对话检查点，以及会话当前启用检查点字段。
+  void _migrateV6() {
+    _connection.execute('''
+      CREATE TABLE IF NOT EXISTS memory_prompts (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        content TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+    ''');
+    _connection.execute('''
+      CREATE TABLE IF NOT EXISTS conversation_checkpoints (
+        id TEXT PRIMARY KEY,
+        conversation_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        parent_checkpoint_id TEXT,
+        covered_until_message_id TEXT,
+        source_memory_prompt_name TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
+      );
+    ''');
+    _connection.execute('''
+      CREATE INDEX IF NOT EXISTS idx_conversation_checkpoints_conversation_created_at
+      ON conversation_checkpoints(conversation_id, created_at DESC);
+    ''');
+    _connection.execute('''
+      ALTER TABLE conversations
+      ADD COLUMN selected_checkpoint_id TEXT;
+    ''');
+    _connection.execute('''
+      ALTER TABLE messages
+      ADD COLUMN applied_checkpoint_title TEXT NOT NULL DEFAULT '';
+    ''');
+    _connection.execute('PRAGMA user_version = 6;');
   }
 }

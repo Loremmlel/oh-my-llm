@@ -3,8 +3,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/settings/data/sqlite_prompt_template_repository.dart';
 import 'package:oh_my_llm/features/settings/data/sqlite_fixed_prompt_sequence_repository.dart';
+import 'package:oh_my_llm/features/settings/data/sqlite_memory_prompt_repository.dart';
 import 'package:oh_my_llm/features/settings/data/sqlite_template_prompt_repository.dart';
 import 'package:oh_my_llm/features/settings/domain/models/fixed_prompt_sequence.dart';
+import 'package:oh_my_llm/features/settings/domain/models/memory_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompt_template.dart';
 import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
 
@@ -36,6 +38,13 @@ TemplatePrompt _templatePrompt(String id, {DateTime? updatedAt}) => TemplateProm
     TemplatePromptVariable(name: templatePromptBodyVariableName),
     TemplatePromptVariable(name: '语气', defaultValue: '专业'),
   ],
+  updatedAt: updatedAt ?? DateTime(2026, 1, 1),
+);
+
+MemoryPrompt _memoryPrompt(String id, {DateTime? updatedAt}) => MemoryPrompt(
+  id: id,
+  name: '记忆提示词 $id',
+  content: '请总结当前对话的重要事实与待办。',
   updatedAt: updatedAt ?? DateTime(2026, 1, 1),
 );
 
@@ -270,6 +279,58 @@ void main() {
       expect(loaded.id, original.id);
       expect(loaded.content, original.content);
       expect(loaded.variables, original.variables);
+    });
+  });
+
+  // ── SqliteMemoryPromptRepository ────────────────────────────────────────────
+
+  group('SqliteMemoryPromptRepository', () {
+    late AppDatabase database;
+    late SqliteMemoryPromptRepository repo;
+
+    setUp(() {
+      database = AppDatabase.inMemory();
+      repo = SqliteMemoryPromptRepository(database);
+    });
+
+    tearDown(() => database.close());
+
+    test('loadAll 空表返回空列表', () {
+      expect(repo.loadAll(), isEmpty);
+    });
+
+    test('saveAll 后 loadAll 可还原数据', () async {
+      await repo.saveAll([_memoryPrompt('mp-1'), _memoryPrompt('mp-2')]);
+
+      final result = repo.loadAll();
+      expect(result, hasLength(2));
+      expect(result.map((item) => item.id).toSet(), {'mp-1', 'mp-2'});
+    });
+
+    test('loadAll 按 updated_at 降序返回', () async {
+      await repo.saveAll([
+        _memoryPrompt('old', updatedAt: DateTime(2026, 1, 1)),
+        _memoryPrompt('new', updatedAt: DateTime(2026, 6, 1)),
+      ]);
+
+      final result = repo.loadAll();
+      expect(result.first.id, 'new');
+      expect(result.last.id, 'old');
+    });
+
+    test('往返序列化：name 和 content 字段正确还原', () async {
+      final original = MemoryPrompt(
+        id: 'memory-full',
+        name: '研发总结',
+        content: '请优先总结决策、约束、待办与风险。',
+        updatedAt: DateTime(2026, 3, 15),
+      );
+      await repo.saveAll([original]);
+
+      final loaded = repo.loadAll().single;
+      expect(loaded.id, original.id);
+      expect(loaded.name, original.name);
+      expect(loaded.content, original.content);
     });
   });
 }

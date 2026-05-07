@@ -84,6 +84,7 @@ class ChatMessage extends Equatable {
     this.isStreaming = false,
     this.reasoningContent = '',
     this.assistantModelDisplayName = '',
+    this.appliedCheckpointTitle = '',
     this.userMessageSegments = const [],
   });
 
@@ -95,6 +96,7 @@ class ChatMessage extends Equatable {
   final bool isStreaming;
   final String reasoningContent;
   final String assistantModelDisplayName;
+  final String appliedCheckpointTitle;
   final List<UserMessageSegment> userMessageSegments;
 
   /// 复制消息，并允许覆盖常用字段。
@@ -107,6 +109,7 @@ class ChatMessage extends Equatable {
     bool? isStreaming,
     String? reasoningContent,
     String? assistantModelDisplayName,
+    String? appliedCheckpointTitle,
     List<UserMessageSegment>? userMessageSegments,
   }) {
     return ChatMessage(
@@ -119,6 +122,8 @@ class ChatMessage extends Equatable {
       reasoningContent: reasoningContent ?? this.reasoningContent,
       assistantModelDisplayName:
           assistantModelDisplayName ?? this.assistantModelDisplayName,
+      appliedCheckpointTitle:
+          appliedCheckpointTitle ?? this.appliedCheckpointTitle,
       userMessageSegments: userMessageSegments ?? this.userMessageSegments,
     );
   }
@@ -133,6 +138,7 @@ class ChatMessage extends Equatable {
       'parentId': parentId,
       'reasoningContent': reasoningContent,
       'assistantModelDisplayName': assistantModelDisplayName,
+      'appliedCheckpointTitle': appliedCheckpointTitle,
       'userMessageSegments':
           userMessageSegments.map((segment) => segment.toJson()).toList(),
     };
@@ -156,6 +162,7 @@ class ChatMessage extends Equatable {
           (role == ChatMessageRole.assistant
               ? anonymousAssistantModelDisplayName
               : ''),
+      appliedCheckpointTitle: json['appliedCheckpointTitle'] as String? ?? '',
       userMessageSegments: rawSegments
           .map(
             (segment) => UserMessageSegment.fromJson(
@@ -182,6 +189,7 @@ class ChatMessage extends Equatable {
     isStreaming,
     reasoningContent,
     assistantModelDisplayName,
+    appliedCheckpointTitle,
     userMessageSegments,
   ];
 }

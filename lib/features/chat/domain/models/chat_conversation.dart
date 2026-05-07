@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:characters/characters.dart';
 import 'package:equatable/equatable.dart';
 
+import 'chat_checkpoint.dart';
 import 'chat_message.dart';
 
 const rootConversationParentId = '__root__';
@@ -18,7 +19,9 @@ class ChatConversation extends Equatable {
     this.title,
     this.messageNodes = const [],
     this.selectedChildByParentId = const {},
+    this.checkpoints = const [],
     this.selectedModelId,
+    this.selectedCheckpointId,
     this.selectedPromptTemplateId,
     this.reasoningEnabled = false,
     this.reasoningEffort = ReasoningEffort.medium,
@@ -29,9 +32,11 @@ class ChatConversation extends Equatable {
   final List<ChatMessage> _messages;
   final List<ChatMessage> messageNodes;
   final Map<String, String> selectedChildByParentId;
+  final List<ChatCheckpoint> checkpoints;
   final DateTime createdAt;
   final DateTime updatedAt;
   final String? selectedModelId;
+  final String? selectedCheckpointId;
   final String? selectedPromptTemplateId;
   final bool reasoningEnabled;
   final ReasoningEffort reasoningEffort;
@@ -80,13 +85,16 @@ class ChatConversation extends Equatable {
     List<ChatMessage>? messages,
     List<ChatMessage>? messageNodes,
     Map<String, String>? selectedChildByParentId,
+    List<ChatCheckpoint>? checkpoints,
     DateTime? createdAt,
     DateTime? updatedAt,
     String? selectedModelId,
+    String? selectedCheckpointId,
     String? selectedPromptTemplateId,
     bool? reasoningEnabled,
     ReasoningEffort? reasoningEffort,
     bool clearSelectedModelId = false,
+    bool clearSelectedCheckpointId = false,
     bool clearSelectedPromptTemplateId = false,
   }) {
     return ChatConversation(
@@ -96,11 +104,15 @@ class ChatConversation extends Equatable {
       messageNodes: messageNodes ?? this.messageNodes,
       selectedChildByParentId:
           selectedChildByParentId ?? this.selectedChildByParentId,
+      checkpoints: checkpoints ?? this.checkpoints,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       selectedModelId: clearSelectedModelId
           ? null
           : selectedModelId ?? this.selectedModelId,
+      selectedCheckpointId: clearSelectedCheckpointId
+          ? null
+          : selectedCheckpointId ?? this.selectedCheckpointId,
       selectedPromptTemplateId: clearSelectedPromptTemplateId
           ? null
           : selectedPromptTemplateId ?? this.selectedPromptTemplateId,
@@ -129,7 +141,9 @@ class ChatConversation extends Equatable {
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
       'selectedModelId': selectedModelId,
+      'selectedCheckpointId': selectedCheckpointId,
       'selectedPromptTemplateId': selectedPromptTemplateId,
+      'checkpoints': checkpoints.map((checkpoint) => checkpoint.toJson()).toList(),
       'reasoningEnabled': reasoningEnabled,
       'reasoningEffort': reasoningEffort.apiValue,
     };
@@ -141,6 +155,7 @@ class ChatConversation extends Equatable {
     final rawMessageNodes = json['messageNodes'] as List<dynamic>? ?? const [];
     final rawSelections =
         json['selectedChildByParentId'] as Map<String, dynamic>? ?? const {};
+    final rawCheckpoints = json['checkpoints'] as List<dynamic>? ?? const [];
     final parsedMessages = rawMessages
         .map((message) {
           return ChatMessage.fromJson(
@@ -170,9 +185,17 @@ class ChatConversation extends Equatable {
       messages: parsedMessages,
       messageNodes: effectiveNodes,
       selectedChildByParentId: effectiveSelections,
+      checkpoints: rawCheckpoints
+          .map(
+            (checkpoint) => ChatCheckpoint.fromJson(
+              Map<String, dynamic>.from(checkpoint as Map),
+            ),
+          )
+          .toList(growable: false),
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
       selectedModelId: json['selectedModelId'] as String?,
+      selectedCheckpointId: json['selectedCheckpointId'] as String?,
       selectedPromptTemplateId: json['selectedPromptTemplateId'] as String?,
       reasoningEnabled: json['reasoningEnabled'] as bool? ?? false,
       reasoningEffort: ReasoningEffort.values.firstWhere(
@@ -261,9 +284,11 @@ class ChatConversation extends Equatable {
     selectedChildByParentId.entries
         .map((entry) => '${entry.key}:${entry.value}')
         .toList(growable: false),
+    checkpoints,
     createdAt,
     updatedAt,
     selectedModelId,
+    selectedCheckpointId,
     selectedPromptTemplateId,
     reasoningEnabled,
     reasoningEffort,

@@ -12,10 +12,13 @@ import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/thinking_toggle.dart';
 import 'package:oh_my_llm/features/settings/application/chat_defaults_controller.dart';
+import 'package:oh_my_llm/features/settings/application/llm_model_configs_controller.dart';
+import 'package:oh_my_llm/features/settings/application/memory_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/application/template_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/data/chat_defaults_repository.dart';
 import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dart';
 import 'package:oh_my_llm/features/settings/data/prompt_template_repository.dart';
+import 'package:oh_my_llm/features/settings/domain/models/memory_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
 
 import 'chat_screen_test_helpers.dart';
@@ -282,6 +285,82 @@ void registerChatScreenBasicsTests() {
     await tester.pumpAndSettle();
 
     expect(find.text('新的对话标题'), findsOneWidget);
+  });
+
+  testWidgets('chat screen opens checkpoints dialog and shows current word count', (
+    tester,
+  ) async {
+    final preferences = await createSeededPreferences();
+    final fakeClient = FakeChatCompletionClient()..enqueueChunks(['已收到']);
+
+    await pumpChatScreen(
+      tester,
+      preferences: preferences,
+      fakeClient: fakeClient,
+    );
+
+    await sendMessage(tester, '你好');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('对话检查点'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('对话检查点'), findsOneWidget);
+    expect(find.text('当前上下文字数：5 字（不含前置 Prompt）'), findsOneWidget);
+  });
+
+  testWidgets('chat screen shows applied checkpoint label after enabling checkpoint', (tester) async {
+    final preferences = await createSeededPreferences();
+    final fakeClient = FakeChatCompletionClient()
+      ..enqueueChunks(['首轮回复'])
+      ..enqueueChunks(['阶段总结'])
+      ..enqueueChunks(['使用检查点后的回答']);
+
+    await pumpChatScreen(
+      tester,
+      preferences: preferences,
+      fakeClient: fakeClient,
+    );
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
+    await container
+        .read(memoryPromptsProvider.notifier)
+        .upsert(
+          MemoryPrompt(
+            id: 'memory-1',
+            name: '研发总结',
+            content: '请总结当前研发对话中的关键事实、约束与待办。',
+            updatedAt: DateTime(2026, 5, 6),
+          ),
+        );
+    await tester.pumpAndSettle();
+
+    await sendMessage(tester, '第一轮问题');
+    await tester.pumpAndSettle();
+    final checkpoint = await container
+        .read(chatSessionsProvider.notifier)
+        .createCheckpoint(
+          modelConfig: container.read(llmModelConfigsProvider).single,
+          memoryPrompt: MemoryPrompt(
+            id: 'memory-1',
+            name: '研发总结',
+            content: '请总结当前研发对话中的关键事实、约束与待办。',
+            updatedAt: DateTime(2026, 5, 6),
+          ),
+          reasoningEnabled: false,
+          reasoningEffort: ReasoningEffort.medium,
+        );
+    await container
+        .read(chatSessionsProvider.notifier)
+        .selectActiveCheckpoint(checkpoint.id);
+    await tester.pumpAndSettle();
+
+    await sendMessage(tester, '第二轮问题');
+    await tester.pumpAndSettle();
+
+    expect(find.text('使用检查点：检查点 1'), findsOneWidget);
   });
 
   testWidgets('chat screen keeps composer visible on compact layouts', (

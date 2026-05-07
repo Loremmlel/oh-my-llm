@@ -50,6 +50,23 @@ class DeepSeekPayloadAdapter extends VendorPayloadAdapter {
   }
 }
 
+class ArkPayloadAdapter extends VendorPayloadAdapter {
+  const ArkPayloadAdapter();
+
+  @override
+  bool matches(String host) =>
+      host.toLowerCase() == 'ark.cn-beijing.volces.com';
+
+  @override
+  VendorPayloadPatch buildPatch(ReasoningEffort? reasoningEffort) {
+    return VendorPayloadPatch(
+      thinkingConfig: {
+        'type': reasoningEffort != null ? 'enabled' : 'disabled',
+      },
+    );
+  }
+}
+
 /// Gemini OpenAI 兼容层适配器：通过 extra_body 透传 thinking 配置。
 ///
 /// Google 的 OpenAI 兼容端点要求 `reasoning_effort` 与
@@ -104,6 +121,7 @@ class VendorPayloadAdapterRegistry {
   /// 内置注册表，包含所有已知厂商适配器。
   static const standard = VendorPayloadAdapterRegistry([
     DeepSeekPayloadAdapter(),
+    ArkPayloadAdapter(),
     GoogleOpenAiCompatibleAdapter(),
     DefaultPayloadAdapter(),
   ]);

@@ -7,6 +7,7 @@ import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/chat/data/chat_conversation_migration.dart';
 import 'package:oh_my_llm/features/chat/data/chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/data/sqlite_chat_conversation_repository.dart';
+import 'package:oh_my_llm/features/chat/domain/models/chat_checkpoint.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 
@@ -42,6 +43,7 @@ void main() {
           content: '当前助手分支',
           parentId: 'user-1',
           reasoningContent: '保留思考内容',
+          appliedCheckpointTitle: '检查点 1',
           createdAt: DateTime(2026, 4, 27, 10, 2),
         ),
       ],
@@ -83,13 +85,24 @@ void main() {
         rootConversationParentId: 'user-1',
         'user-1': 'assistant-2',
       },
-      createdAt: DateTime(2026, 4, 27, 10),
-      updatedAt: DateTime(2026, 4, 27, 10, 2),
-      selectedModelId: 'model-1',
-      selectedPromptTemplateId: 'prompt-1',
-      reasoningEnabled: true,
-      reasoningEffort: ReasoningEffort.high,
-    );
+        createdAt: DateTime(2026, 4, 27, 10),
+        updatedAt: DateTime(2026, 4, 27, 10, 2),
+        selectedModelId: 'model-1',
+        selectedCheckpointId: 'checkpoint-1',
+        selectedPromptTemplateId: 'prompt-1',
+        checkpoints: [
+          ChatCheckpoint(
+            id: 'checkpoint-1',
+            title: '检查点 1',
+            content: '总结当前分支的重要上下文。',
+            createdAt: DateTime(2026, 4, 27, 10, 1),
+            coveredUntilMessageId: 'assistant-2',
+            sourceMemoryPromptName: '研发总结',
+          ),
+        ],
+        reasoningEnabled: true,
+        reasoningEffort: ReasoningEffort.high,
+      );
 
     await repository.saveAll([conversation]);
     final restored = repository.loadAll();

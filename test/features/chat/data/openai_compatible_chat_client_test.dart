@@ -91,6 +91,39 @@ void main() {
     expect(logger.sseCount, greaterThan(0));
   });
 
+  test('complete sends non-stream request and parses full response body', () async {
+    final client = OpenAiCompatibleChatClient(
+      httpClient: _FakeStreamingHttpClient((request) async {
+        final payload =
+            jsonDecode((request as http.Request).body) as Map<String, dynamic>;
+        expect(payload['stream'], isFalse);
+
+        return http.StreamedResponse(
+          Stream.fromIterable([
+            utf8.encode(
+              '{"choices":[{"message":{"content":"完整回复","reasoning_content":"完整思考"}}]}',
+            ),
+          ]),
+          200,
+        );
+      }),
+    );
+
+    final result = await client.complete(
+      modelConfig: _modelConfig(),
+      messages: const [
+        ChatCompletionRequestMessage(
+          role: ChatMessageRole.user,
+          content: '请总结',
+        ),
+      ],
+      reasoningEffort: ReasoningEffort.medium,
+    );
+
+    expect(result.content, '完整回复');
+    expect(result.reasoningContent, '完整思考');
+  });
+
   test(
     'streamCompletion explicitly disables thinking when reasoning is off',
     () async {

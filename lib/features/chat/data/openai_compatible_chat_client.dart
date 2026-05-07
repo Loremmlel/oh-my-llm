@@ -42,74 +42,13 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
     required List<ChatCompletionRequestMessage> messages,
     ReasoningEffort? reasoningEffort,
   }) async* {
-    final uri = Uri.tryParse(modelConfig.apiUrl);
-    if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
-      throw const ChatCompletionException('API URL 无效，请在设置页检查模型配置。');
-    }
-
-    final patch = _adapters.resolve(uri.host).buildPatch(reasoningEffort);
-    final payload = <String, Object>{
-      'model': modelConfig.modelName,
-      'stream': true,
-      'messages': messages.map((message) => message.toJson()).toList(),
-      if (reasoningEffort != null && !patch.skipStandardReasoningEffort)
-        'reasoning_effort': reasoningEffort.apiValue,
-    };
-    if (patch.thinkingConfig != null) {
-      payload['thinking'] = patch.thinkingConfig!;
-    }
-    if (patch.extraBody != null) {
-      payload['extra_body'] = patch.extraBody!;
-    }
-
-    final request = http.Request('POST', uri)
-      ..headers.addAll({
-        'Content-Type': 'application/json',
-        'Accept': 'text/event-stream',
-        'Authorization': 'Bearer ${modelConfig.apiKey}',
-      })
-      ..body = jsonEncode(payload);
-
-    _fireAndForget(
-      _logger.logRequest(
-        uri: uri,
-        method: request.method,
-        headers: request.headers,
-        payload: payload,
-      ),
+    final requestContext = _buildRequestContext(
+      modelConfig: modelConfig,
+      messages: messages,
+      reasoningEffort: reasoningEffort,
+      stream: true,
     );
-
-    final requestStartedAt = DateTime.now();
-    late final http.StreamedResponse response;
-    try {
-      response = await _httpClient.send(request);
-    } catch (error, stackTrace) {
-      _fireAndForget(
-        _logger.logError(uri: uri, error: error, stackTrace: stackTrace),
-      );
-      rethrow;
-    }
-    _fireAndForget(
-      _logger.logResponse(
-        uri: uri,
-        statusCode: response.statusCode,
-        headers: response.headers,
-        elapsed: DateTime.now().difference(requestStartedAt),
-      ),
-    );
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      final responseBody = await response.stream.bytesToString();
-      _fireAndForget(
-        _logger.logError(
-          uri: uri,
-          error:
-              'HTTP ${response.statusCode}: ${responseBody.trim().isEmpty ? "服务端未返回错误详情" : responseBody.trim()}',
-        ),
-      );
-      throw ChatCompletionException(
-        '请求失败（${response.statusCode}）：${responseBody.trim().isEmpty ? "服务端未返回错误详情" : responseBody.trim()}',
-      );
-    }
+    final response = await _sendRequest(requestContext);
 
     final lineStream = response.stream
         .transform(utf8.decoder)
@@ -139,7 +78,11 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
           }
         } catch (error, stackTrace) {
           _fireAndForget(
-            _logger.logError(uri: uri, error: error, stackTrace: stackTrace),
+            _logger.logError(
+              uri: requestContext.uri,
+              error: error,
+              stackTrace: stackTrace,
+            ),
           );
           rethrow;
         }
@@ -149,7 +92,9 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
       if (line.startsWith('data:')) {
         final dataLine = line.substring(5).trimLeft();
         dataLines.add(dataLine);
-        _fireAndForget(_logger.logSseLine(uri: uri, line: dataLine));
+        _fireAndForget(
+          _logger.logSseLine(uri: requestContext.uri, line: dataLine),
+        );
       }
     }
 
@@ -165,7 +110,11 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
         }
       } catch (error, stackTrace) {
         _fireAndForget(
-          _logger.logError(uri: uri, error: error, stackTrace: stackTrace),
+          _logger.logError(
+            uri: requestContext.uri,
+            error: error,
+            stackTrace: stackTrace,
+          ),
         );
         rethrow;
       }
@@ -175,6 +124,33 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
     if (trailingInlineReasoning != null && !trailingInlineReasoning.isEmpty) {
       yield trailingInlineReasoning;
     }
+  }
+
+  @override
+  Future<ChatCompletionResult> complete({
+    required LlmModelConfig modelConfig,
+    required List<ChatCompletionRequestMessage> messages,
+    ReasoningEffort? reasoningEffort,
+  }) async {
+    final requestContext = _buildRequestContext(
+      modelConfig: modelConfig,
+      messages: messages,
+      reasoningEffort: reasoningEffort,
+      stream: false,
+    );
+    final response = await _sendRequest(requestContext);
+    final responseBody = await response.stream.bytesToString();
+    final parsed = _parser.parseRawChunk(
+      responseBody,
+      inlineReasoningSplitter: InlineReasoningTagSplitter(),
+    );
+    if (parsed == null) {
+      return const ChatCompletionResult();
+    }
+    return ChatCompletionResult(
+      content: parsed.contentDelta,
+      reasoningContent: parsed.reasoningDelta,
+    );
   }
 
   static const _doneMarker = '[DONE]';
@@ -198,4 +174,99 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
 
     return eventData;
   }
+
+  _OpenAiRequestContext _buildRequestContext({
+    required LlmModelConfig modelConfig,
+    required List<ChatCompletionRequestMessage> messages,
+    required bool stream,
+    ReasoningEffort? reasoningEffort,
+  }) {
+    final uri = Uri.tryParse(modelConfig.apiUrl);
+    if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
+      throw const ChatCompletionException('API URL 无效，请在设置页检查模型配置。');
+    }
+
+    final patch = _adapters.resolve(uri.host).buildPatch(reasoningEffort);
+    final payload = <String, Object>{
+      'model': modelConfig.modelName,
+      'stream': stream,
+      'messages': messages.map((message) => message.toJson()).toList(),
+      if (reasoningEffort != null && !patch.skipStandardReasoningEffort)
+        'reasoning_effort': reasoningEffort.apiValue,
+    };
+    if (patch.thinkingConfig != null) {
+      payload['thinking'] = patch.thinkingConfig!;
+    }
+    if (patch.extraBody != null) {
+      payload['extra_body'] = patch.extraBody!;
+    }
+
+    final request = http.Request('POST', uri)
+      ..headers.addAll({
+        'Content-Type': 'application/json',
+        'Accept': stream ? 'text/event-stream' : 'application/json',
+        'Authorization': 'Bearer ${modelConfig.apiKey}',
+      })
+      ..body = jsonEncode(payload);
+
+    return _OpenAiRequestContext(uri: uri, payload: payload, request: request);
+  }
+
+  Future<http.StreamedResponse> _sendRequest(_OpenAiRequestContext context) async {
+    _fireAndForget(
+      _logger.logRequest(
+        uri: context.uri,
+        method: context.request.method,
+        headers: context.request.headers,
+        payload: context.payload,
+      ),
+    );
+
+    final requestStartedAt = DateTime.now();
+    late final http.StreamedResponse response;
+    try {
+      response = await _httpClient.send(context.request);
+    } catch (error, stackTrace) {
+      _fireAndForget(
+        _logger.logError(uri: context.uri, error: error, stackTrace: stackTrace),
+      );
+      rethrow;
+    }
+
+    _fireAndForget(
+      _logger.logResponse(
+        uri: context.uri,
+        statusCode: response.statusCode,
+        headers: response.headers,
+        elapsed: DateTime.now().difference(requestStartedAt),
+      ),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final responseBody = await response.stream.bytesToString();
+      _fireAndForget(
+        _logger.logError(
+          uri: context.uri,
+          error:
+              'HTTP ${response.statusCode}: ${responseBody.trim().isEmpty ? "服务端未返回错误详情" : responseBody.trim()}',
+        ),
+      );
+      throw ChatCompletionException(
+        '请求失败（${response.statusCode}）：${responseBody.trim().isEmpty ? "服务端未返回错误详情" : responseBody.trim()}',
+      );
+    }
+
+    return response;
+  }
+}
+
+class _OpenAiRequestContext {
+  const _OpenAiRequestContext({
+    required this.uri,
+    required this.payload,
+    required this.request,
+  });
+
+  final Uri uri;
+  final Map<String, Object> payload;
+  final http.Request request;
 }
