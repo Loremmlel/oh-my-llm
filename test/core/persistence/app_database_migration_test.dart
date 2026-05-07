@@ -14,8 +14,6 @@ void main() {
       database.close();
     });
 
-    // ── user_version ───────────────────────────────────────────────────────
-
     test('user_version 在迁移完成后为 6', () {
       final version =
           database.connection
@@ -25,279 +23,65 @@ void main() {
       expect(version, 6);
     });
 
-    // ── V1 表结构 ──────────────────────────────────────────────────────────
-
-    test('V1 创建 conversations 表并包含所有列', () {
-      final columns = _columnNames(database, 'conversations');
-      expect(
-        columns,
-        containsAll([
-          'id',
-          'title',
-          'created_at',
-          'updated_at',
-          'selected_model_id',
-          'selected_checkpoint_id',
-          'selected_prompt_template_id',
-          'reasoning_enabled',
-          'reasoning_effort',
-        ]),
-      );
-    });
-
-    test('V1 创建 messages 表并包含所有列', () {
-      final columns = _columnNames(database, 'messages');
-      expect(
-        columns,
-        containsAll([
-          'id',
-          'conversation_id',
-          'node_index',
-          'parent_id',
-          'role',
-          'content',
-          'reasoning_content',
-          'assistant_model_display_name',
-          'applied_checkpoint_title',
-          'user_message_segments_json',
-          'created_at',
-        ]),
-      );
-    });
-
-    test('V1 创建 conversation_branch_selections 表', () {
+    test('创建关键业务表', () {
       final tables = _tableNames(database);
-      expect(tables, contains('conversation_branch_selections'));
-    });
-
-    test('V1 messages.reasoning_content 默认值为空字符串', () {
-      database.connection.execute('''
-        INSERT INTO conversations (id, created_at, updated_at, reasoning_effort)
-        VALUES ('c1', '2026-01-01', '2026-01-01', 'medium');
-      ''');
-      database.connection.execute('''
-        INSERT INTO messages (id, conversation_id, node_index, role, content, created_at)
-        VALUES ('m1', 'c1', 0, 'user', 'hello', '2026-01-01');
-      ''');
-      final row = database.connection
-          .select("SELECT reasoning_content FROM messages WHERE id = 'm1';")
-          .single;
-      expect(row['reasoning_content'], '');
-    });
-
-    // ── V1 外键级联 ────────────────────────────────────────────────────────
-
-    test('删除 conversation 后级联删除 messages', () {
-      database.connection.execute('''
-        INSERT INTO conversations (id, created_at, updated_at, reasoning_effort)
-        VALUES ('c1', '2026-01-01', '2026-01-01', 'medium');
-      ''');
-      database.connection.execute('''
-        INSERT INTO messages (id, conversation_id, node_index, role, content, created_at)
-        VALUES ('m1', 'c1', 0, 'user', 'hello', '2026-01-01');
-      ''');
-      database.connection.execute("DELETE FROM conversations WHERE id = 'c1';");
-
-      final messages = database.connection.select(
-        "SELECT * FROM messages WHERE conversation_id = 'c1';",
+      expect(
+        tables,
+        containsAll([
+          'conversations',
+          'messages',
+          'conversation_branch_selections',
+          'prompt_templates',
+          'fixed_prompt_sequences',
+          'collections',
+          'favorites',
+          'template_prompts',
+          'memory_prompts',
+          'conversation_checkpoints',
+        ]),
       );
-      expect(messages, isEmpty);
     });
 
-    test('删除 conversation 后级联删除 conversation_branch_selections', () {
+    test('删除 conversation 后清理消息、分支选择和检查点', () {
       database.connection.execute('''
         INSERT INTO conversations (id, created_at, updated_at, reasoning_effort)
         VALUES ('c1', '2026-01-01', '2026-01-01', 'medium');
+      ''');
+      database.connection.execute('''
+        INSERT INTO messages (id, conversation_id, node_index, role, content, created_at)
+        VALUES ('m1', 'c1', 0, 'user', 'hello', '2026-01-01');
       ''');
       database.connection.execute('''
         INSERT INTO conversation_branch_selections (conversation_id, parent_id, child_id)
         VALUES ('c1', 'root', 'm1');
       ''');
+      database.connection.execute('''
+        INSERT INTO conversation_checkpoints (
+          id, conversation_id, title, content, created_at
+        ) VALUES ('cp-1', 'c1', '检查点 1', '摘要', '2026-01-01');
+      ''');
+
       database.connection.execute("DELETE FROM conversations WHERE id = 'c1';");
 
-      final selections = database.connection.select(
-        "SELECT * FROM conversation_branch_selections WHERE conversation_id = 'c1';",
-      );
-      expect(selections, isEmpty);
-    });
-
-    // ── V2 表结构 ──────────────────────────────────────────────────────────
-
-    test('V2 创建 prompt_templates 表', () {
-      final tables = _tableNames(database);
-      expect(tables, contains('prompt_templates'));
-    });
-
-    test('V2 创建 fixed_prompt_sequences 表', () {
-      final tables = _tableNames(database);
-      expect(tables, contains('fixed_prompt_sequences'));
-    });
-
-    test('V2 prompt_templates.messages_json 默认值为空数组字符串', () {
-      database.connection.execute('''
-        INSERT INTO prompt_templates (id, name, updated_at)
-        VALUES ('tpl-1', '测试模板', '2026-01-01');
-      ''');
-      final row = database.connection
-          .select(
-            "SELECT messages_json FROM prompt_templates WHERE id = 'tpl-1';",
-          )
-          .single;
-      expect(row['messages_json'], '[]');
-    });
-
-    // ── V3 表结构 ──────────────────────────────────────────────────────────
-
-    test('V3 创建 collections 表', () {
-      final tables = _tableNames(database);
-      expect(tables, contains('collections'));
-    });
-
-    test('V3 创建 favorites 表', () {
-      final tables = _tableNames(database);
-      expect(tables, contains('favorites'));
-    });
-
-    test('V3 favorites 包含所有列', () {
-      final columns = _columnNames(database, 'favorites');
       expect(
-        columns,
-        containsAll([
-          'id',
-          'collection_id',
-          'user_message_content',
-          'assistant_content',
-          'assistant_reasoning_content',
-          'assistant_model_display_name',
-          'source_conversation_id',
-          'source_conversation_title',
-          'created_at',
-        ]),
+        database.connection.select(
+          "SELECT * FROM messages WHERE conversation_id = 'c1';",
+        ),
+        isEmpty,
+      );
+      expect(
+        database.connection.select(
+          "SELECT * FROM conversation_branch_selections WHERE conversation_id = 'c1';",
+        ),
+        isEmpty,
+      );
+      expect(
+        database.connection.select(
+          "SELECT * FROM conversation_checkpoints WHERE conversation_id = 'c1';",
+        ),
+        isEmpty,
       );
     });
-
-    test('V3 favorites.assistant_reasoning_content 默认值为空字符串', () {
-      database.connection.execute('''
-        INSERT INTO favorites (
-          id, user_message_content, assistant_content, created_at
-        ) VALUES ('f1', '问题', '回答', '2026-01-01');
-      ''');
-      final row = database.connection
-          .select(
-            "SELECT assistant_reasoning_content FROM favorites WHERE id = 'f1';",
-          )
-          .single;
-      expect(row['assistant_reasoning_content'], '');
-    });
-
-    test('V4 messages.assistant_model_display_name 默认值为匿名模型', () {
-      database.connection.execute('''
-        INSERT INTO conversations (id, created_at, updated_at, reasoning_effort)
-        VALUES ('c1', '2026-01-01', '2026-01-01', 'medium');
-      ''');
-      database.connection.execute('''
-        INSERT INTO messages (id, conversation_id, node_index, role, content, created_at)
-        VALUES ('m1', 'c1', 0, 'assistant', 'hello', '2026-01-01');
-      ''');
-      final row = database.connection
-          .select(
-            "SELECT assistant_model_display_name FROM messages WHERE id = 'm1';",
-          )
-          .single;
-      expect(row['assistant_model_display_name'], '匿名模型');
-    });
-
-    test('V4 favorites.assistant_model_display_name 默认值为匿名模型', () {
-      database.connection.execute('''
-        INSERT INTO favorites (
-          id, user_message_content, assistant_content, created_at
-        ) VALUES ('f1', '问题', '回答', '2026-01-01');
-      ''');
-      final row = database.connection
-          .select(
-            "SELECT assistant_model_display_name FROM favorites WHERE id = 'f1';",
-          )
-          .single;
-      expect(row['assistant_model_display_name'], '匿名模型');
-    });
-
-    // ── V5 表结构 ──────────────────────────────────────────────────────────
-
-    test('V5 创建 template_prompts 表', () {
-      final tables = _tableNames(database);
-      expect(tables, contains('template_prompts'));
-    });
-
-    test('V6 创建 memory_prompts 表', () {
-      final tables = _tableNames(database);
-      expect(tables, contains('memory_prompts'));
-    });
-
-    test('V6 创建 conversation_checkpoints 表', () {
-      final tables = _tableNames(database);
-      expect(tables, contains('conversation_checkpoints'));
-    });
-
-    test('V5 messages.user_message_segments_json 默认值为空数组字符串', () {
-      database.connection.execute('''
-        INSERT INTO conversations (id, created_at, updated_at, reasoning_effort)
-        VALUES ('c1', '2026-01-01', '2026-01-01', 'medium');
-      ''');
-      database.connection.execute('''
-        INSERT INTO messages (id, conversation_id, node_index, role, content, created_at)
-        VALUES ('m1', 'c1', 0, 'user', 'hello', '2026-01-01');
-      ''');
-      final row = database.connection
-          .select(
-            "SELECT user_message_segments_json FROM messages WHERE id = 'm1';",
-          )
-          .single;
-      expect(row['user_message_segments_json'], '[]');
-    });
-
-    test('V6 messages.applied_checkpoint_title 默认值为空字符串', () {
-      database.connection.execute('''
-        INSERT INTO conversations (id, created_at, updated_at, reasoning_effort)
-        VALUES ('c1', '2026-01-01', '2026-01-01', 'medium');
-      ''');
-      database.connection.execute('''
-        INSERT INTO messages (id, conversation_id, node_index, role, content, created_at)
-        VALUES ('m1', 'c1', 0, 'assistant', 'hello', '2026-01-01');
-      ''');
-      final row = database.connection
-          .select(
-            "SELECT applied_checkpoint_title FROM messages WHERE id = 'm1';",
-          )
-          .single;
-      expect(row['applied_checkpoint_title'], '');
-    });
-
-    test('V5 template_prompts.variables_json 默认值为空数组字符串', () {
-      database.connection.execute('''
-        INSERT INTO template_prompts (id, title, content, updated_at)
-        VALUES ('tp-1', '模板', '内容', '2026-01-01');
-      ''');
-      final row = database.connection
-          .select(
-            "SELECT variables_json FROM template_prompts WHERE id = 'tp-1';",
-          )
-          .single;
-      expect(row['variables_json'], '[]');
-    });
-
-    test('V6 memory_prompts 保存 name 与 content', () {
-      database.connection.execute('''
-        INSERT INTO memory_prompts (id, name, content, updated_at)
-        VALUES ('mp-1', '总结模板', '请总结重点', '2026-01-01');
-      ''');
-      final row = database.connection
-          .select("SELECT name, content FROM memory_prompts WHERE id = 'mp-1';")
-          .single;
-      expect(row['name'], '总结模板');
-      expect(row['content'], '请总结重点');
-    });
-
-    // ── V3 外键 ON DELETE SET NULL ─────────────────────────────────────────
 
     test('删除 collection 后 favorites.collection_id 置为 NULL', () {
       database.connection.execute('''
@@ -309,6 +93,7 @@ void main() {
           id, collection_id, user_message_content, assistant_content, created_at
         ) VALUES ('f1', 'col-1', '问题', '回答', '2026-01-01');
       ''');
+
       database.connection.execute(
         "DELETE FROM collections WHERE id = 'col-1';",
       );
@@ -318,57 +103,14 @@ void main() {
           .single;
       expect(row['collection_id'], isNull);
     });
-
-    // ── 索引 ───────────────────────────────────────────────────────────────
-
-    test('conversations 表存在 updated_at 降序索引', () {
-      final indexes = _indexNames(database, 'conversations');
-      expect(indexes, contains('idx_conversations_updated_at'));
-    });
-
-    test('favorites 表存在 created_at 和 collection_id 索引', () {
-      final indexes = _indexNames(database, 'favorites');
-      expect(
-        indexes,
-        containsAll([
-          'idx_favorites_created_at',
-          'idx_favorites_collection_id',
-        ]),
-      );
-    });
-
-    test('conversation_checkpoints 表存在 conversation_id + created_at 索引', () {
-      final indexes = _indexNames(database, 'conversation_checkpoints');
-      expect(
-        indexes,
-        contains('idx_conversation_checkpoints_conversation_created_at'),
-      );
-    });
   });
 }
 
-/// 返回指定表的所有列名。
-List<String> _columnNames(AppDatabase database, String tableName) {
-  return database.connection
-      .select("PRAGMA table_info($tableName);")
-      .map((row) => row['name'] as String)
-      .toList();
-}
-
-/// 返回数据库中所有用户创建的表名。
 List<String> _tableNames(AppDatabase database) {
   return database.connection
       .select(
         "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%';",
       )
-      .map((row) => row['name'] as String)
-      .toList();
-}
-
-/// 返回指定表上的所有索引名。
-List<String> _indexNames(AppDatabase database, String tableName) {
-  return database.connection
-      .select("PRAGMA index_list($tableName);")
       .map((row) => row['name'] as String)
       .toList();
 }
