@@ -161,23 +161,29 @@ void registerChatScreenBasicsTests() {
     expect(composerRect.top, greaterThanOrEqualTo(selectorRect.bottom + 10));
   });
 
-  testWidgets('chat screen keeps desktop send button aligned to the far right', (
-    tester,
-  ) async {
-    final preferences = await createSeededPreferences();
-    final fakeClient = FakeChatCompletionClient();
+  testWidgets(
+    'chat screen keeps desktop send button aligned to the far right',
+    (tester) async {
+      final preferences = await createSeededPreferences();
+      final fakeClient = FakeChatCompletionClient();
 
-    await pumpChatScreen(
-      tester,
-      preferences: preferences,
-      fakeClient: fakeClient,
-    );
+      await pumpChatScreen(
+        tester,
+        preferences: preferences,
+        fakeClient: fakeClient,
+      );
 
-    final composerCardRect = tester.getRect(find.byType(Card).last);
-    final sendButtonRect = tester.getRect(find.widgetWithText(FilledButton, '发送'));
+      final composerCardRect = tester.getRect(find.byType(Card).last);
+      final sendButtonRect = tester.getRect(
+        find.widgetWithText(FilledButton, '发送'),
+      );
 
-    expect(sendButtonRect.right, greaterThanOrEqualTo(composerCardRect.right - 18));
-  });
+      expect(
+        sendButtonRect.right,
+        greaterThanOrEqualTo(composerCardRect.right - 18),
+      );
+    },
+  );
 
   testWidgets('chat screen composer grows only while focused and multiline', (
     tester,
@@ -323,107 +329,183 @@ void registerChatScreenBasicsTests() {
     );
   });
 
-  testWidgets('chat screen opens checkpoints dialog and shows current word count', (
-    tester,
-  ) async {
-    final preferences = await createSeededPreferences();
-    final fakeClient = FakeChatCompletionClient()..enqueueChunks(['已收到']);
+  testWidgets(
+    'chat screen opens checkpoints dialog and shows current word count',
+    (tester) async {
+      final preferences = await createSeededPreferences();
+      final fakeClient = FakeChatCompletionClient()..enqueueChunks(['已收到']);
 
-    await pumpChatScreen(
-      tester,
-      preferences: preferences,
-      fakeClient: fakeClient,
-    );
+      await pumpChatScreen(
+        tester,
+        preferences: preferences,
+        fakeClient: fakeClient,
+      );
 
-    await sendMessage(tester, '你好');
-    await tester.pumpAndSettle();
+      await sendMessage(tester, '你好');
+      await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('对话检查点'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('对话检查点'));
+      await tester.pumpAndSettle();
 
-    expect(find.text('对话检查点'), findsOneWidget);
-    expect(find.text('当前上下文字数：5 字（不含前置 Prompt）'), findsOneWidget);
-  });
+      expect(find.text('对话检查点'), findsOneWidget);
+      expect(find.text('当前上下文字数：5 字（不含前置 Prompt）'), findsOneWidget);
+    },
+  );
 
-  testWidgets('chat screen checkpoints dialog shows current prompt template usage', (
-    tester,
-  ) async {
-    final preferences = await createSeededPreferences();
-    final fakeClient = FakeChatCompletionClient();
+  testWidgets(
+    'chat screen checkpoints dialog shows current prompt template usage',
+    (tester) async {
+      final preferences = await createSeededPreferences();
+      final fakeClient = FakeChatCompletionClient();
 
-    await pumpChatScreen(
-      tester,
-      preferences: preferences,
-      fakeClient: fakeClient,
-    );
+      await pumpChatScreen(
+        tester,
+        preferences: preferences,
+        fakeClient: fakeClient,
+      );
 
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ChatScreen)),
-    );
-    await container
-        .read(chatSessionsProvider.notifier)
-        .updateActiveConversationPreferences(selectedPromptTemplateId: 'prompt-1');
-    await tester.pumpAndSettle();
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ChatScreen)),
+      );
+      await container
+          .read(chatSessionsProvider.notifier)
+          .updateActiveConversationPreferences(
+            selectedPromptTemplateId: 'prompt-1',
+          );
+      await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('对话检查点'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('对话检查点'));
+      await tester.pumpAndSettle();
 
-    expect(find.text('当前总结会附带前置提示词：代码助手'), findsOneWidget);
-  });
+      expect(find.text('当前总结会附带前置提示词：代码助手'), findsOneWidget);
+    },
+  );
 
-  testWidgets('chat screen shows applied checkpoint label after enabling checkpoint', (tester) async {
-    final preferences = await createSeededPreferences();
-    final fakeClient = FakeChatCompletionClient()
-      ..enqueueChunks(['首轮回复'])
-      ..enqueueChunks(['阶段总结'])
-      ..enqueueChunks(['使用检查点后的回答']);
+  testWidgets(
+    'chat screen checkpoints dialog renders markdown preview in scrollable area',
+    (tester) async {
+      final preferences = await createSeededPreferences();
+      final fakeClient = FakeChatCompletionClient()
+        ..enqueueChunks(['首轮回复'])
+        ..enqueueChunks([
+          '# 检查点标题\n\n'
+              '- 第一条\n'
+              '- 第二条\n\n'
+              '```dart\n'
+              'void main() {\n'
+              "  print('hello');\n"
+              '}\n'
+              '```\n\n'
+              '${List.generate(24, (index) => '第 ${index + 1} 行详细内容。').join('\n\n')}',
+        ]);
 
-    await pumpChatScreen(
-      tester,
-      preferences: preferences,
-      fakeClient: fakeClient,
-    );
+      await pumpChatScreen(
+        tester,
+        preferences: preferences,
+        fakeClient: fakeClient,
+      );
 
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ChatScreen)),
-    );
-    await container
-        .read(memoryPromptsProvider.notifier)
-        .upsert(
-          MemoryPrompt(
-            id: 'memory-1',
-            name: '研发总结',
-            content: '请总结当前研发对话中的关键事实、约束与待办。',
-            updatedAt: DateTime(2026, 5, 6),
-          ),
-        );
-    await tester.pumpAndSettle();
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ChatScreen)),
+      );
+      await container
+          .read(memoryPromptsProvider.notifier)
+          .upsert(
+            MemoryPrompt(
+              id: 'memory-1',
+              name: '研发总结',
+              content: '请总结当前研发对话中的关键事实、约束与待办。',
+              updatedAt: DateTime(2026, 5, 6),
+            ),
+          );
+      await tester.pumpAndSettle();
 
-    await sendMessage(tester, '第一轮问题');
-    await tester.pumpAndSettle();
-    final checkpoint = await container
-        .read(chatSessionsProvider.notifier)
-        .createCheckpoint(
-          modelConfig: container.read(llmModelConfigsProvider).single,
-          memoryPrompt: MemoryPrompt(
-            id: 'memory-1',
-            name: '研发总结',
-            content: '请总结当前研发对话中的关键事实、约束与待办。',
-            updatedAt: DateTime(2026, 5, 6),
-          ),
-          reasoningEnabled: false,
-          reasoningEffort: ReasoningEffort.medium,
-        );
-    await container
-        .read(chatSessionsProvider.notifier)
-        .selectActiveCheckpoint(checkpoint.id);
-    await tester.pumpAndSettle();
+      await sendMessage(tester, '先生成一点上下文');
+      await tester.pumpAndSettle();
 
-    await sendMessage(tester, '第二轮问题');
-    await tester.pumpAndSettle();
+      await container
+          .read(chatSessionsProvider.notifier)
+          .createCheckpoint(
+            modelConfig: container.read(llmModelConfigsProvider).single,
+            memoryPrompt: MemoryPrompt(
+              id: 'memory-1',
+              name: '研发总结',
+              content: '请总结当前研发对话中的关键事实、约束与待办。',
+              updatedAt: DateTime(2026, 5, 6),
+            ),
+            reasoningEnabled: false,
+            reasoningEffort: ReasoningEffort.medium,
+          );
+      await tester.pumpAndSettle();
 
-    expect(find.text('使用检查点：检查点 1'), findsOneWidget);
-  });
+      await tester.tap(find.byTooltip('对话检查点'));
+      await tester.pumpAndSettle();
+
+      final preview = find.byKey(const ValueKey('checkpoint-preview-检查点 1'));
+      expect(preview, findsOneWidget);
+      expect(find.text('检查点标题'), findsOneWidget);
+
+      await tester.drag(preview, const Offset(0, -120));
+      await tester.pump();
+    },
+  );
+
+  testWidgets(
+    'chat screen shows applied checkpoint label after enabling checkpoint',
+    (tester) async {
+      final preferences = await createSeededPreferences();
+      final fakeClient = FakeChatCompletionClient()
+        ..enqueueChunks(['首轮回复'])
+        ..enqueueChunks(['阶段总结'])
+        ..enqueueChunks(['使用检查点后的回答']);
+
+      await pumpChatScreen(
+        tester,
+        preferences: preferences,
+        fakeClient: fakeClient,
+      );
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ChatScreen)),
+      );
+      await container
+          .read(memoryPromptsProvider.notifier)
+          .upsert(
+            MemoryPrompt(
+              id: 'memory-1',
+              name: '研发总结',
+              content: '请总结当前研发对话中的关键事实、约束与待办。',
+              updatedAt: DateTime(2026, 5, 6),
+            ),
+          );
+      await tester.pumpAndSettle();
+
+      await sendMessage(tester, '第一轮问题');
+      await tester.pumpAndSettle();
+      final checkpoint = await container
+          .read(chatSessionsProvider.notifier)
+          .createCheckpoint(
+            modelConfig: container.read(llmModelConfigsProvider).single,
+            memoryPrompt: MemoryPrompt(
+              id: 'memory-1',
+              name: '研发总结',
+              content: '请总结当前研发对话中的关键事实、约束与待办。',
+              updatedAt: DateTime(2026, 5, 6),
+            ),
+            reasoningEnabled: false,
+            reasoningEffort: ReasoningEffort.medium,
+          );
+      await container
+          .read(chatSessionsProvider.notifier)
+          .selectActiveCheckpoint(checkpoint.id);
+      await tester.pumpAndSettle();
+
+      await sendMessage(tester, '第二轮问题');
+      await tester.pumpAndSettle();
+
+      expect(find.text('使用检查点：检查点 1'), findsOneWidget);
+    },
+  );
 
   testWidgets('chat screen keeps composer visible on compact layouts', (
     tester,
@@ -463,7 +545,9 @@ void registerChatScreenBasicsTests() {
       size: const Size(430, 932),
     );
 
-    await tester.tap(find.byKey(const ValueKey('chat-secondary-settings-button')));
+    await tester.tap(
+      find.byKey(const ValueKey('chat-secondary-settings-button')),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('更多设置'), findsOneWidget);

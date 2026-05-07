@@ -91,38 +91,48 @@ void main() {
     expect(logger.sseCount, greaterThan(0));
   });
 
-  test('complete sends non-stream request and parses full response body', () async {
-    final client = OpenAiCompatibleChatClient(
-      httpClient: _FakeStreamingHttpClient((request) async {
-        final payload =
-            jsonDecode((request as http.Request).body) as Map<String, dynamic>;
-        expect(payload['stream'], isFalse);
+  test(
+    'complete sends non-stream request and parses full response body',
+    () async {
+      final logger = _FakeNetworkLogger();
+      final client = OpenAiCompatibleChatClient(
+        httpClient: _FakeStreamingHttpClient((request) async {
+          final payload =
+              jsonDecode((request as http.Request).body)
+                  as Map<String, dynamic>;
+          expect(payload['stream'], isFalse);
 
-        return http.StreamedResponse(
-          Stream.fromIterable([
-            utf8.encode(
-              '{"choices":[{"message":{"content":"完整回复","reasoning_content":"完整思考"}}]}',
-            ),
-          ]),
-          200,
-        );
-      }),
-    );
+          return http.StreamedResponse(
+            Stream.fromIterable([
+              utf8.encode(
+                '{"choices":[{"message":{"content":"完整回复","reasoning_content":"完整思考"}}]}',
+              ),
+            ]),
+            200,
+          );
+        }),
+        logger: logger,
+      );
 
-    final result = await client.complete(
-      modelConfig: _modelConfig(),
-      messages: const [
-        ChatCompletionRequestMessage(
-          role: ChatMessageRole.user,
-          content: '请总结',
-        ),
-      ],
-      reasoningEffort: ReasoningEffort.medium,
-    );
+      final result = await client.complete(
+        modelConfig: _modelConfig(),
+        messages: const [
+          ChatCompletionRequestMessage(
+            role: ChatMessageRole.user,
+            content: '请总结',
+          ),
+        ],
+        reasoningEffort: ReasoningEffort.medium,
+      );
 
-    expect(result.content, '完整回复');
-    expect(result.reasoningContent, '完整思考');
-  });
+      expect(result.content, '完整回复');
+      expect(result.reasoningContent, '完整思考');
+      expect(logger.requestCount, 1);
+      expect(logger.responseCount, 1);
+      expect(logger.responseBodyCount, 1);
+      expect(logger.responseBodies.single.toString(), contains('完整回复'));
+    },
+  );
 
   test(
     'streamCompletion explicitly disables thinking when reasoning is off',
@@ -949,7 +959,9 @@ class _FakeStreamingHttpClient extends http.BaseClient {
 final class _FakeNetworkLogger implements NetworkLogger {
   int requestCount = 0;
   int responseCount = 0;
+  int responseBodyCount = 0;
   int sseCount = 0;
+  final List<Object?> responseBodies = [];
 
   @override
   Future<void> onAppLaunch() async {}
@@ -982,6 +994,15 @@ final class _FakeNetworkLogger implements NetworkLogger {
     required Duration elapsed,
   }) async {
     responseCount += 1;
+  }
+
+  @override
+  Future<void> logResponseBody({
+    required Uri uri,
+    required Object? body,
+  }) async {
+    responseBodyCount += 1;
+    responseBodies.add(body);
   }
 
   @override
