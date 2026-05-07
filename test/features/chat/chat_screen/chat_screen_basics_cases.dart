@@ -345,6 +345,32 @@ void registerChatScreenBasicsTests() {
     expect(find.text('当前上下文字数：5 字（不含前置 Prompt）'), findsOneWidget);
   });
 
+  testWidgets('chat screen checkpoints dialog shows current prompt template usage', (
+    tester,
+  ) async {
+    final preferences = await createSeededPreferences();
+    final fakeClient = FakeChatCompletionClient();
+
+    await pumpChatScreen(
+      tester,
+      preferences: preferences,
+      fakeClient: fakeClient,
+    );
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
+    await container
+        .read(chatSessionsProvider.notifier)
+        .updateActiveConversationPreferences(selectedPromptTemplateId: 'prompt-1');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('对话检查点'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('当前总结会附带前置提示词：代码助手'), findsOneWidget);
+  });
+
   testWidgets('chat screen shows applied checkpoint label after enabling checkpoint', (tester) async {
     final preferences = await createSeededPreferences();
     final fakeClient = FakeChatCompletionClient()

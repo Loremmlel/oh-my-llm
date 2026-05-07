@@ -8,16 +8,19 @@ import '../../../domain/models/chat_checkpoint.dart';
 import '../../../domain/models/chat_conversation.dart';
 import '../../../../settings/application/memory_prompts_controller.dart';
 import '../../../../settings/domain/models/llm_model_config.dart';
+import '../../../../settings/domain/models/prompt_template.dart';
 
 /// 对话检查点管理弹窗。
 class ConversationCheckpointsDialog extends ConsumerStatefulWidget {
   const ConversationCheckpointsDialog({
     required this.selectedModel,
+    required this.selectedPromptTemplate,
     required this.supportsReasoning,
     super.key,
   });
 
   final LlmModelConfig? selectedModel;
+  final PromptTemplate? selectedPromptTemplate;
   final bool supportsReasoning;
 
   @override
@@ -71,6 +74,13 @@ class _ConversationCheckpointsDialogState
                 widget.selectedModel == null
                     ? '当前未选择可用模型，暂时只能查看和切换检查点。'
                     : '当前总结模型：${widget.selectedModel!.displayName}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                widget.selectedPromptTemplate == null
+                    ? '当前总结不会附带前置提示词。'
+                    : '当前总结会附带前置提示词：${widget.selectedPromptTemplate!.name}',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
               const SizedBox(height: 16),

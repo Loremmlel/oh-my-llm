@@ -296,6 +296,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
     }
 
     final currentConversation = state.activeConversation;
+    final promptTemplate = _resolvePromptTemplate(currentConversation);
     final sourceContext = resolveCheckpointRequestContext(
       checkpoints: currentConversation.checkpoints,
       selectedCheckpointId: sourceCheckpointId,
@@ -320,6 +321,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState> {
           memoryPrompt: memoryPrompt,
           conversationMessages: summaryMessages,
           checkpointChain: sourceContext.checkpointChain,
+          promptTemplate: promptTemplate,
         ),
         reasoningEffort: reasoningEnabled && modelConfig.supportsReasoning
             ? reasoningEffort
