@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/navigation/app_destination.dart';
 import '../../../app/shell/app_shell_scaffold.dart';
 import '../../../core/utils/id_generator.dart';
+import '../application/settings_import_deduplicator.dart';
 import '../application/fixed_prompt_sequences_controller.dart';
 import '../application/llm_model_configs_controller.dart';
 import '../application/memory_prompts_controller.dart';
@@ -22,6 +23,8 @@ import 'widgets/settings_widgets.dart';
 /// 设置页入口，集中管理服务商、前置 Prompt、模板提示词和固定序列。
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
+
+  static const _importDeduplicator = SettingsImportDeduplicator();
 
   @override
   /// 构建设置页的各类配置区域，顶部附导出/导入操作栏。
@@ -184,8 +187,8 @@ class SettingsScreen extends ConsumerWidget {
     final existingTemplates = ref.read(promptTemplatesProvider);
     final existingTemplatePrompts = ref.read(templatePromptsProvider);
     final existingSequences = ref.read(fixedPromptSequencesProvider);
-    final dedupedData = _deduplicateExportData(
-      exportData,
+    final dedupedData = _importDeduplicator.deduplicate(
+      data: exportData,
       existingProviders: existingProviders,
       existingMemoryPrompts: existingMemoryPrompts,
       existingTemplates: existingTemplates,
@@ -219,133 +222,6 @@ class SettingsScreen extends ConsumerWidget {
     }
 
     // 无论确认还是取消，只要弹过对话框就算"已处理"，不再打开表单
-    return true;
-  }
-
-  /// 从待导入数据中过滤掉与本地已有条目内容等价的项，返回仅含新增内容的数据包。
-  ///
-  /// 去重规则：
-  /// - 服务商模型：`apiUrl`、`apiKey`、`modelName` 三字段全部相同即视为重复。
-  /// - Prompt 模板：`systemPrompt` 相同且所有附加消息（role + content 有序）相同。
-  /// - 固定顺序提示词：所有步骤内容（content 有序）相同。
-  ///
-  /// 不使用抽样比较：Dart 的 `String ==` 在 C 层实现，10K 字符级别 < 0.1ms，
-  /// 一次性导入操作无需额外优化，而抽样有误判（假阴性）风险。
-  SettingsExportData _deduplicateExportData(
-    SettingsExportData data, {
-    required List<LlmProviderConfig> existingProviders,
-    required List<MemoryPrompt> existingMemoryPrompts,
-    required List<PromptTemplate> existingTemplates,
-    required List<TemplatePrompt> existingTemplatePrompts,
-    required List<FixedPromptSequence> existingSequences,
-  }) {
-    final existingModels = existingProviders
-        .expand((provider) => provider.resolvedModels)
-        .toList(growable: false);
-    final newProviders = data.modelProviders
-        .map((provider) {
-          final nextModels = provider.models
-              .where((model) {
-                return !existingModels.any(
-                  (existing) =>
-                      existing.apiUrl == provider.apiUrl &&
-                      existing.apiKey == provider.apiKey &&
-                      existing.modelName == model.modelName,
-                );
-              })
-              .toList(growable: false);
-          return provider.copyWith(models: nextModels);
-        })
-        .where((provider) => provider.models.isNotEmpty)
-        .toList(growable: false);
-
-    final newMemoryPrompts = data.memoryPrompts
-        .where((incoming) {
-          return !existingMemoryPrompts.any(
-            (existing) => _memoryPromptsContentEqual(existing, incoming),
-          );
-        })
-        .toList(growable: false);
-
-    final newTemplates = data.promptTemplates
-        .where((incoming) {
-          return !existingTemplates.any(
-            (e) => _promptTemplatesContentEqual(e, incoming),
-          );
-        })
-        .toList(growable: false);
-
-    final newTemplatePrompts = data.templatePrompts
-        .where((incoming) {
-          return !existingTemplatePrompts.any(
-            (e) => _templatePromptsContentEqual(e, incoming),
-          );
-        })
-        .toList(growable: false);
-
-    final newSequences = data.fixedPromptSequences
-        .where((incoming) {
-          return !existingSequences.any(
-            (e) => _sequencesContentEqual(e, incoming),
-          );
-        })
-        .toList(growable: false);
-
-    return SettingsExportData(
-      modelProviders: newProviders,
-      memoryPrompts: newMemoryPrompts,
-      promptTemplates: newTemplates,
-      templatePrompts: newTemplatePrompts,
-      fixedPromptSequences: newSequences,
-    );
-  }
-
-  /// 判断两个记忆总结提示词内容是否等价（忽略 id、name、updatedAt）。
-  bool _memoryPromptsContentEqual(MemoryPrompt a, MemoryPrompt b) {
-    if (a.content.length != b.content.length) return false;
-    return a.content == b.content;
-  }
-
-  /// 判断两个 Prompt 模板内容是否等价（忽略 id、name、updatedAt）。
-  bool _promptTemplatesContentEqual(PromptTemplate a, PromptTemplate b) {
-    if (a.systemPrompt.length != b.systemPrompt.length) return false;
-    if (a.systemPrompt != b.systemPrompt) return false;
-    if (a.messages.length != b.messages.length) return false;
-    for (var i = 0; i < a.messages.length; i++) {
-      final ma = a.messages[i];
-      final mb = b.messages[i];
-      if (ma.role != mb.role) return false;
-      if (ma.placement != mb.placement) return false;
-      if (ma.content.length != mb.content.length) return false;
-      if (ma.content != mb.content) return false;
-    }
-    return true;
-  }
-
-  /// 判断两个模板提示词内容是否等价（忽略 id、title、updatedAt）。
-  bool _templatePromptsContentEqual(TemplatePrompt a, TemplatePrompt b) {
-    if (a.content.length != b.content.length) return false;
-    if (a.content != b.content) return false;
-    if (a.variables.length != b.variables.length) return false;
-    for (var i = 0; i < a.variables.length; i++) {
-      final va = a.variables[i];
-      final vb = b.variables[i];
-      if (va.name != vb.name) return false;
-      if (va.defaultValue.length != vb.defaultValue.length) return false;
-      if (va.defaultValue != vb.defaultValue) return false;
-    }
-    return true;
-  }
-
-  /// 判断两个固定顺序提示词序列内容是否等价（忽略 id、name、updatedAt）。
-  bool _sequencesContentEqual(FixedPromptSequence a, FixedPromptSequence b) {
-    if (a.steps.length != b.steps.length) return false;
-    for (var i = 0; i < a.steps.length; i++) {
-      final sa = a.steps[i];
-      final sb = b.steps[i];
-      if (sa.content.length != sb.content.length) return false;
-      if (sa.content != sb.content) return false;
-    }
     return true;
   }
 
