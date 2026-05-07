@@ -16,13 +16,13 @@ void main() {
 
     // ── user_version ───────────────────────────────────────────────────────
 
-    test('user_version 在迁移完成后为 5', () {
+    test('user_version 在迁移完成后为 6', () {
       final version =
           database.connection
                   .select('PRAGMA user_version;')
                   .single['user_version']
               as int;
-      expect(version, 5);
+      expect(version, 6);
     });
 
     // ── V1 表结构 ──────────────────────────────────────────────────────────
@@ -37,6 +37,7 @@ void main() {
           'created_at',
           'updated_at',
           'selected_model_id',
+          'selected_checkpoint_id',
           'selected_prompt_template_id',
           'reasoning_enabled',
           'reasoning_effort',
@@ -57,6 +58,7 @@ void main() {
           'content',
           'reasoning_content',
           'assistant_model_display_name',
+          'applied_checkpoint_title',
           'user_message_segments_json',
           'created_at',
         ]),
@@ -226,6 +228,16 @@ void main() {
       expect(tables, contains('template_prompts'));
     });
 
+    test('V6 创建 memory_prompts 表', () {
+      final tables = _tableNames(database);
+      expect(tables, contains('memory_prompts'));
+    });
+
+    test('V6 创建 conversation_checkpoints 表', () {
+      final tables = _tableNames(database);
+      expect(tables, contains('conversation_checkpoints'));
+    });
+
     test('V5 messages.user_message_segments_json 默认值为空数组字符串', () {
       database.connection.execute('''
         INSERT INTO conversations (id, created_at, updated_at, reasoning_effort)
@@ -243,6 +255,23 @@ void main() {
       expect(row['user_message_segments_json'], '[]');
     });
 
+    test('V6 messages.applied_checkpoint_title 默认值为空字符串', () {
+      database.connection.execute('''
+        INSERT INTO conversations (id, created_at, updated_at, reasoning_effort)
+        VALUES ('c1', '2026-01-01', '2026-01-01', 'medium');
+      ''');
+      database.connection.execute('''
+        INSERT INTO messages (id, conversation_id, node_index, role, content, created_at)
+        VALUES ('m1', 'c1', 0, 'assistant', 'hello', '2026-01-01');
+      ''');
+      final row = database.connection
+          .select(
+            "SELECT applied_checkpoint_title FROM messages WHERE id = 'm1';",
+          )
+          .single;
+      expect(row['applied_checkpoint_title'], '');
+    });
+
     test('V5 template_prompts.variables_json 默认值为空数组字符串', () {
       database.connection.execute('''
         INSERT INTO template_prompts (id, title, content, updated_at)
@@ -254,6 +283,18 @@ void main() {
           )
           .single;
       expect(row['variables_json'], '[]');
+    });
+
+    test('V6 memory_prompts 保存 name 与 content', () {
+      database.connection.execute('''
+        INSERT INTO memory_prompts (id, name, content, updated_at)
+        VALUES ('mp-1', '总结模板', '请总结重点', '2026-01-01');
+      ''');
+      final row = database.connection
+          .select("SELECT name, content FROM memory_prompts WHERE id = 'mp-1';")
+          .single;
+      expect(row['name'], '总结模板');
+      expect(row['content'], '请总结重点');
     });
 
     // ── V3 外键 ON DELETE SET NULL ─────────────────────────────────────────
@@ -293,6 +334,14 @@ void main() {
           'idx_favorites_created_at',
           'idx_favorites_collection_id',
         ]),
+      );
+    });
+
+    test('conversation_checkpoints 表存在 conversation_id + created_at 索引', () {
+      final indexes = _indexNames(database, 'conversation_checkpoints');
+      expect(
+        indexes,
+        contains('idx_conversation_checkpoints_conversation_created_at'),
       );
     });
   });

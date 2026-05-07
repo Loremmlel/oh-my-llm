@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'fixed_prompt_sequence.dart';
 import 'llm_model_config.dart';
 import 'llm_provider_config.dart';
+import 'memory_prompt.dart';
 import 'prompt_template.dart';
 import 'template_prompt.dart';
 
@@ -19,6 +20,7 @@ import 'template_prompt.dart';
 ///   "identifier": "shikiyuzu-oh-my-llm",
 ///   "version": 2,
 ///   "modelProviders": [...],
+///   "memoryPrompts": [...],
 ///   "promptTemplates": [...],
 ///   "fixedPromptSequences": [...]
 /// }
@@ -26,6 +28,7 @@ import 'template_prompt.dart';
 class SettingsExportData {
   const SettingsExportData({
     required this.modelProviders,
+    required this.memoryPrompts,
     required this.promptTemplates,
     required this.templatePrompts,
     required this.fixedPromptSequences,
@@ -35,9 +38,10 @@ class SettingsExportData {
   static const String identifier = 'shikiyuzu-oh-my-llm';
 
   /// 当前导出格式版本，未来格式变更时递增。
-  static const int formatVersion = 2;
+  static const int formatVersion = 3;
 
   final List<LlmProviderConfig> modelProviders;
+  final List<MemoryPrompt> memoryPrompts;
   final List<PromptTemplate> promptTemplates;
   final List<TemplatePrompt> templatePrompts;
   final List<FixedPromptSequence> fixedPromptSequences;
@@ -54,6 +58,7 @@ class SettingsExportData {
       'identifier': identifier,
       'version': formatVersion,
       'modelProviders': modelProviders.map((p) => p.toJson()).toList(),
+      'memoryPrompts': memoryPrompts.map((p) => p.toJson()).toList(),
       'promptTemplates': promptTemplates.map((t) => t.toJson()).toList(),
       'templatePrompts': templatePrompts.map((t) => t.toJson()).toList(),
       'fixedPromptSequences':
@@ -77,6 +82,8 @@ class SettingsExportData {
 
       final rawProviders =
           raw['modelProviders'] as List<dynamic>? ?? const [];
+      final rawMemoryPrompts =
+          raw['memoryPrompts'] as List<dynamic>? ?? const [];
       final rawTemplates = raw['promptTemplates'] as List<dynamic>? ?? const [];
       final rawTemplatePrompts =
           raw['templatePrompts'] as List<dynamic>? ?? const [];
@@ -95,6 +102,13 @@ class SettingsExportData {
 
       return SettingsExportData(
         modelProviders: modelProviders,
+        memoryPrompts: rawMemoryPrompts
+            .map(
+              (item) => MemoryPrompt.fromJson(
+                Map<String, dynamic>.from(item as Map),
+              ),
+            )
+            .toList(growable: false),
         promptTemplates: rawTemplates
             .map((item) => PromptTemplate.fromJson(
                   Map<String, dynamic>.from(item as Map),
@@ -120,6 +134,7 @@ class SettingsExportData {
   /// 是否包含任何可导入的条目。
   bool get hasContent =>
       modelProviders.isNotEmpty ||
+      memoryPrompts.isNotEmpty ||
       promptTemplates.isNotEmpty ||
       templatePrompts.isNotEmpty ||
       fixedPromptSequences.isNotEmpty;

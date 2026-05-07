@@ -1,72 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../domain/chat_word_counter.dart';
 import '../../domain/models/chat_message.dart';
 import 'message_version_info.dart';
 import 'message_version_navigator.dart';
 import 'reasoning_panel.dart';
 import 'streaming_markdown_view.dart';
-
-/// 流式字数累计计数器。
-///
-/// 只处理 [update] 调用时新增的字符（O(Δ)），不重新扫描已处理内容，
-/// 适合在每帧 streaming 回调中频繁调用。
-///
-/// 计字规则：
-/// - 一个 CJK 汉字 = 1 字
-/// - 一个连续英文字母序列（英文单词）= 1 字
-/// - 标点、空格、数字、其他字符不计
-class _StreamingWordCounter {
-  int _count = 0;
-  int _processedLength = 0;
-
-  /// 上一个处理的字符是否属于英文字母（用于连续字母只计一次）。
-  bool _inEnglishWord = false;
-
-  /// 当前字数。
-  int get count => _count;
-
-  /// 更新计数：仅处理 [fullText] 中尚未处理的新增部分。
-  void update(String fullText) {
-    if (fullText.length < _processedLength) {
-      reset();
-    }
-    for (var i = _processedLength; i < fullText.length; i++) {
-      final c = fullText[i];
-      if (_isCjk(c)) {
-        _count++;
-        _inEnglishWord = false;
-      } else if (_isLetter(c)) {
-        if (!_inEnglishWord) {
-          _count++;
-          _inEnglishWord = true;
-        }
-      } else {
-        _inEnglishWord = false;
-      }
-    }
-    _processedLength = fullText.length;
-  }
-
-  /// 重置所有状态（切换消息或重试时调用）。
-  void reset() {
-    _count = 0;
-    _processedLength = 0;
-    _inEnglishWord = false;
-  }
-
-  static bool _isCjk(String c) {
-    final code = c.codeUnitAt(0);
-    return (code >= 0x4e00 && code <= 0x9fff) ||
-        (code >= 0x3400 && code <= 0x4dbf) ||
-        (code >= 0xf900 && code <= 0xfaff);
-  }
-
-  static bool _isLetter(String c) {
-    final code = c.codeUnitAt(0);
-    return (code >= 0x41 && code <= 0x5a) || (code >= 0x61 && code <= 0x7a);
-  }
-}
 
 /// 单条聊天消息气泡，负责正文、推理内容和消息操作。
 class ChatMessageBubble extends StatefulWidget {
@@ -105,8 +45,8 @@ class ChatMessageBubble extends StatefulWidget {
 }
 
 class _ChatMessageBubbleState extends State<ChatMessageBubble> {
-  final _reasoningCounter = _StreamingWordCounter();
-  final _contentCounter = _StreamingWordCounter();
+  final _reasoningCounter = StreamingChatWordCounter();
+  final _contentCounter = StreamingChatWordCounter();
 
   /// 将消息正文复制到剪贴板。
   Future<void> _copyMessage(BuildContext context) async {
@@ -228,6 +168,8 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                       ),
                   ],
                 ),
+                if (!isUser && message.appliedCheckpointTitle.trim().isNotEmpty)
+                  _buildCheckpointUsageRow(theme, message.appliedCheckpointTitle),
                 if (!isUser && _shouldShowWordCount(message))
                   _buildWordCountRow(theme, message),
                 if (!isUser && message.reasoningContent.trim().isNotEmpty) ...[
@@ -285,6 +227,17 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
     return Padding(
       padding: const EdgeInsets.only(top: 2, bottom: 2),
       child: Text(label, style: style),
+    );
+  }
+
+  /// 构建检查点使用提示行。
+  Widget _buildCheckpointUsageRow(ThemeData theme, String checkpointTitle) {
+    final style = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+    return Padding(
+      padding: const EdgeInsets.only(top: 2, bottom: 2),
+      child: Text('使用检查点：$checkpointTitle', style: style),
     );
   }
 

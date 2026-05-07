@@ -78,6 +78,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final conversations = ref.watch(chatConversationsProvider);
     final activeConversationId = ref.watch(activeConversationIdProvider);
     final isStreaming = ref.watch(isChatStreamingProvider);
+    final isBusy = ref.watch(isChatBusyProvider);
     final errorMessage = ref.watch(chatErrorMessageProvider);
     final rememberedSelections = ref.watch(chatDefaultsProvider);
     final fixedPromptSequences = ref.watch(fixedPromptSequencesProvider);
@@ -135,17 +136,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       endDrawer: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(12),
-          child: ConversationHistoryPanel(
-            groups: _buildConversationGroups(conversations),
-            activeConversationId: activeConversationId,
-            hasDraftConversation: !conversation.hasMessages,
-            onCreateConversation: isStreaming
-                ? null
-                : () => _createConversationAndScroll(),
-            onConversationSelected: (conversationId) {
-              if (isStreaming) {
-                return;
-              }
+            child: ConversationHistoryPanel(
+              groups: _buildConversationGroups(conversations),
+              activeConversationId: activeConversationId,
+              hasDraftConversation: !conversation.hasMessages,
+              onCreateConversation: isBusy
+                  ? null
+                  : () => _createConversationAndScroll(),
+              onConversationSelected: (conversationId) {
+                if (isBusy) {
+                  return;
+                }
               ref
                   .read(chatSessionsProvider.notifier)
                   .selectConversation(conversationId);
@@ -155,13 +156,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       ),
       actions: [
         IconButton(
-          onPressed: isStreaming ? null : _createConversationAndScroll,
+          onPressed: isBusy ? null : _createConversationAndScroll,
           tooltip: '新建对话',
           icon: const Icon(Icons.add_comment_outlined),
         ),
         IconButton(
-          onPressed: () =>
-              _showRenameDialog(context, conversation.resolvedTitle),
+          onPressed: isBusy
+              ? null
+              : () => _showCheckpointsDialog(
+                    context,
+                    selectedModel: selectedModel,
+                    supportsReasoning: supportsReasoning,
+                  ),
+          tooltip: '对话检查点',
+          icon: const Icon(Icons.memory_rounded),
+        ),
+        IconButton(
+          onPressed: isBusy
+              ? null
+              : () => _showRenameDialog(context, conversation.resolvedTitle),
           tooltip: '修改对话标题',
           icon: const Icon(Icons.edit_outlined),
         ),
@@ -183,11 +196,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       groups: _buildConversationGroups(conversations),
                       activeConversationId: activeConversationId,
                       hasDraftConversation: !conversation.hasMessages,
-                      onCreateConversation: isStreaming
+                      onCreateConversation: isBusy
                           ? null
                           : () => _createConversationAndScroll(),
                       onConversationSelected: (conversationId) {
-                        if (isStreaming) {
+                        if (isBusy) {
                           return;
                         }
                         ref
@@ -223,6 +236,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         supportsReasoning && conversation.reasoningEnabled,
                     reasoningEffort: conversation.reasoningEffort,
                     supportsReasoning: supportsReasoning,
+                    isBusy: isBusy,
                     isStreaming: isStreaming,
                     errorMessage: errorMessage,
                     errorModelDisplayName: selectedModel?.displayName ?? '模型',
@@ -284,7 +298,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         selectedPromptTemplate: selectedPromptTemplate,
                         conversation: conversation,
                         supportsReasoning: supportsReasoning,
-                        isStreaming: isStreaming,
+                        isBusy: isBusy,
                       );
                     },
                     onScrollToBottomPressed: _scroll.scrollToBottom,
@@ -297,7 +311,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             messageId: messageId,
                           );
                     },
-                    onSendPressed: selectedModel == null || isStreaming
+                    onSendPressed: selectedModel == null || isBusy
                         ? null
                         : () async {
                             final templatedMessage = buildTemplatedUserMessage(
@@ -320,7 +334,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               promptTemplate: selectedPromptTemplate,
                               conversation: conversation,
                               supportsReasoning: supportsReasoning,
-                              isStreaming: isStreaming,
+                              isBusy: isBusy,
                             );
                           },
                     onStopStreaming: isStreaming
@@ -531,7 +545,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     required PromptTemplate? selectedPromptTemplate,
     required ChatConversation conversation,
     required bool supportsReasoning,
-    required bool isStreaming,
+    required bool isBusy,
   }) async {
     final result = await showDialog<FixedPromptSequenceRunnerResult>(
       context: context,
@@ -540,7 +554,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           sequences: fixedPromptSequences,
           initialSelectedSequenceId: _selectedFixedPromptSequenceId,
           initialStepIndex: _selectedFixedPromptStepIndex,
-          canSendDirectly: selectedModel != null && !isStreaming,
+          canSendDirectly: selectedModel != null && !isBusy,
         );
       },
     );
@@ -569,7 +583,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           promptTemplate: selectedPromptTemplate,
           conversation: conversation,
           supportsReasoning: supportsReasoning,
-          isStreaming: isStreaming,
+          isBusy: isBusy,
         );
       case FixedPromptSequenceRunnerAction.none:
         return;
@@ -583,11 +597,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     required PromptTemplate? promptTemplate,
     required ChatConversation conversation,
     required bool supportsReasoning,
-    required bool isStreaming,
+    required bool isBusy,
     List<UserMessageSegment> userMessageSegments = const [],
   }) async {
     final trimmedContent = content.trim();
-    if (trimmedContent.isEmpty || modelConfig == null || isStreaming) {
+    if (trimmedContent.isEmpty || modelConfig == null || isBusy) {
       return;
     }
 
@@ -601,6 +615,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           reasoningEnabled: supportsReasoning && conversation.reasoningEnabled,
           reasoningEffort: conversation.reasoningEffort,
         );
+  }
+
+  Future<void> _showCheckpointsDialog(
+    BuildContext context, {
+    required LlmModelConfig? selectedModel,
+    required bool supportsReasoning,
+  }) {
+    return showDialog<void>(
+      context: context,
+      builder: (context) {
+        return ConversationCheckpointsDialog(
+          selectedModel: selectedModel,
+          supportsReasoning: supportsReasoning,
+        );
+      },
+    );
   }
 
   /// 弹出添加到收藏夹对话框，并在用户确认后执行收藏。

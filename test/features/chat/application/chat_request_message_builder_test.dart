@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/chat/application/chat_request_message_builder.dart';
 import 'package:oh_my_llm/features/chat/data/chat_completion_client.dart';
+import 'package:oh_my_llm/features/chat/domain/models/chat_checkpoint.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompt_template.dart';
 
@@ -269,5 +270,25 @@ void main() {
 
       expect(result, everyElement(isA<ChatCompletionRequestMessage>()));
     });
+  });
+
+  test('启用检查点时会在会话消息前插入检查点 system 消息', () {
+    final result = buildRequestMessages(
+      promptTemplate: null,
+      checkpointChain: [
+        ChatCheckpoint(
+          id: 'cp-1',
+          title: '检查点 1',
+          content: '已确认的长期记忆',
+          createdAt: DateTime(2026),
+        ),
+      ],
+      conversationMessages: [_userMsg('新的问题')],
+    );
+
+    expect(result, hasLength(2));
+    expect(result.first.role, ChatMessageRole.system);
+    expect(result.first.content, contains('检查点 1'));
+    expect(result.last.content, '新的问题');
   });
 }

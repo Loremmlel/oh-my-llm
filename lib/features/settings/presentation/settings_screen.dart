@@ -7,10 +7,12 @@ import '../../../app/shell/app_shell_scaffold.dart';
 import '../../../core/utils/id_generator.dart';
 import '../application/fixed_prompt_sequences_controller.dart';
 import '../application/llm_model_configs_controller.dart';
+import '../application/memory_prompts_controller.dart';
 import '../application/prompt_templates_controller.dart';
 import '../application/template_prompts_controller.dart';
 import '../domain/models/fixed_prompt_sequence.dart';
 import '../domain/models/llm_provider_config.dart';
+import '../domain/models/memory_prompt.dart';
 import '../domain/models/prompt_template.dart';
 import '../domain/models/settings_export_data.dart';
 import '../domain/models/template_prompt.dart';
@@ -26,6 +28,7 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final fixedPromptSequences = ref.watch(fixedPromptSequencesProvider);
     final modelProviders = ref.watch(llmProviderConfigsProvider);
+    final memoryPrompts = ref.watch(memoryPromptsProvider);
     final promptTemplates = ref.watch(promptTemplatesProvider);
     final templatePrompts = ref.watch(templatePromptsProvider);
 
@@ -72,6 +75,31 @@ class SettingsScreen extends ConsumerWidget {
                   ref,
                   provider: provider,
                   initialValue: model,
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 16),
+          SettingsSectionCard(
+            title: '记忆总结提示词',
+            description: '配置聊天页创建检查点时可选择的总结提示词，用于适配不同场景下的记忆沉淀方式。',
+            action: FilledButton.icon(
+              onPressed: () async {
+                final handled = await _tryImportFromClipboard(context, ref);
+                if (!handled && context.mounted) {
+                  _showMemoryPromptDialog(context, ref);
+                }
+              },
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('新增记忆提示词'),
+            ),
+            child: MemoryPromptsList(
+              memoryPrompts: memoryPrompts,
+              onEditRequested: (memoryPrompt) {
+                _showMemoryPromptDialog(
+                  context,
+                  ref,
+                  initialValue: memoryPrompt,
                 );
               },
             ),
@@ -155,12 +183,14 @@ class SettingsScreen extends ConsumerWidget {
   /// 将当前全部配置序列化为 JSON 并复制到剪贴板。
   Future<void> _exportToClipboard(BuildContext context, WidgetRef ref) async {
     final modelProviders = ref.read(llmProviderConfigsProvider);
+    final memoryPrompts = ref.read(memoryPromptsProvider);
     final promptTemplates = ref.read(promptTemplatesProvider);
     final templatePrompts = ref.read(templatePromptsProvider);
     final fixedPromptSequences = ref.read(fixedPromptSequencesProvider);
 
     final exportData = SettingsExportData(
       modelProviders: modelProviders,
+      memoryPrompts: memoryPrompts,
       promptTemplates: promptTemplates,
       templatePrompts: templatePrompts,
       fixedPromptSequences: fixedPromptSequences,
@@ -194,12 +224,14 @@ class SettingsScreen extends ConsumerWidget {
 
     // 去重：过滤掉与本地内容等价的条目
     final existingProviders = ref.read(llmProviderConfigsProvider);
+    final existingMemoryPrompts = ref.read(memoryPromptsProvider);
     final existingTemplates = ref.read(promptTemplatesProvider);
     final existingTemplatePrompts = ref.read(templatePromptsProvider);
     final existingSequences = ref.read(fixedPromptSequencesProvider);
     final dedupedData = _deduplicateExportData(
       exportData,
       existingProviders: existingProviders,
+      existingMemoryPrompts: existingMemoryPrompts,
       existingTemplates: existingTemplates,
       existingTemplatePrompts: existingTemplatePrompts,
       existingSequences: existingSequences,
@@ -246,6 +278,7 @@ class SettingsScreen extends ConsumerWidget {
   SettingsExportData _deduplicateExportData(
     SettingsExportData data, {
     required List<LlmProviderConfig> existingProviders,
+    required List<MemoryPrompt> existingMemoryPrompts,
     required List<PromptTemplate> existingTemplates,
     required List<TemplatePrompt> existingTemplatePrompts,
     required List<FixedPromptSequence> existingSequences,
@@ -266,6 +299,14 @@ class SettingsScreen extends ConsumerWidget {
           return provider.copyWith(models: nextModels);
         })
         .where((provider) => provider.models.isNotEmpty)
+        .toList(growable: false);
+
+    final newMemoryPrompts = data.memoryPrompts
+        .where((incoming) {
+          return !existingMemoryPrompts.any(
+            (existing) => _memoryPromptsContentEqual(existing, incoming),
+          );
+        })
         .toList(growable: false);
 
     final newTemplates = data.promptTemplates
@@ -294,10 +335,17 @@ class SettingsScreen extends ConsumerWidget {
 
     return SettingsExportData(
       modelProviders: newProviders,
+      memoryPrompts: newMemoryPrompts,
       promptTemplates: newTemplates,
       templatePrompts: newTemplatePrompts,
       fixedPromptSequences: newSequences,
     );
+  }
+
+  /// 判断两个记忆总结提示词内容是否等价（忽略 id、name、updatedAt）。
+  bool _memoryPromptsContentEqual(MemoryPrompt a, MemoryPrompt b) {
+    if (a.content.length != b.content.length) return false;
+    return a.content == b.content;
   }
 
   /// 判断两个 Prompt 模板内容是否等价（忽略 id、name、updatedAt）。
@@ -445,6 +493,42 @@ class SettingsScreen extends ConsumerWidget {
                 SnackBar(
                   content: Text(
                     initialValue == null ? 'Prompt 模板已保存' : 'Prompt 模板已更新',
+                  ),
+                ),
+              );
+            }
+          },
+        );
+      },
+    );
+  }
+
+  /// 弹出记忆总结提示词对话框，并把提交结果写回控制器。
+  Future<void> _showMemoryPromptDialog(
+    BuildContext context,
+    WidgetRef ref, {
+    MemoryPrompt? initialValue,
+  }) {
+    return showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return MemoryPromptFormDialog(
+          initialValue: initialValue,
+          onSubmit: (formData) async {
+            final memoryPrompt = MemoryPrompt(
+              id: initialValue?.id ?? generateEntityId(),
+              name: formData.name,
+              content: formData.content,
+              updatedAt: DateTime.now(),
+            );
+
+            await ref.read(memoryPromptsProvider.notifier).upsert(memoryPrompt);
+
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    initialValue == null ? '记忆总结提示词已保存' : '记忆总结提示词已更新',
                   ),
                 ),
               );

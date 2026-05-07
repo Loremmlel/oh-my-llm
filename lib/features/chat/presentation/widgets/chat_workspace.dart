@@ -42,6 +42,7 @@ class ChatWorkspace extends StatelessWidget {
     required this.reasoningEnabled,
     required this.reasoningEffort,
     required this.supportsReasoning,
+    required this.isBusy,
     required this.isStreaming,
     required this.errorMessage,
     required this.errorModelDisplayName,
@@ -89,6 +90,7 @@ class ChatWorkspace extends StatelessWidget {
   final bool reasoningEnabled;
   final ReasoningEffort reasoningEffort;
   final bool supportsReasoning;
+  final bool isBusy;
   final bool isStreaming;
   final String? errorMessage;
   final String errorModelDisplayName;
@@ -174,13 +176,13 @@ class ChatWorkspace extends StatelessWidget {
 
                     return KeyedSubtree(
                       key: ValueKey(message.id),
-                      child: CachedChatMessageBubble(
-                        message: message,
-                        canEdit:
-                            !isStreaming &&
+                        child: CachedChatMessageBubble(
+                          message: message,
+                          canEdit:
+                            !isBusy &&
                             message.role == ChatMessageRole.user,
-                        canRetry:
-                            !isStreaming &&
+                          canRetry:
+                            !isBusy &&
                             latestAssistantMessage?.id == message.id,
                         onEditPressed: message.role == ChatMessageRole.user
                             ? () {
@@ -192,7 +194,7 @@ class ChatWorkspace extends StatelessWidget {
                                 onRetryLatestAssistant();
                               }
                             : null,
-                        onDeletePressed: !isStreaming && !isTransientError
+                        onDeletePressed: !isBusy && !isTransientError
                             ? () {
                                 onDeleteMessage(message);
                               }
@@ -398,7 +400,7 @@ class ChatWorkspace extends StatelessWidget {
                 );
               }),
             ],
-            onChanged: isStreaming ? null : onTemplatePromptSelected,
+            onChanged: isBusy ? null : onTemplatePromptSelected,
           ),
         ),
         const SizedBox(width: 6),
@@ -476,7 +478,7 @@ class ChatWorkspace extends StatelessWidget {
                   );
                 })
                 .toList(growable: false),
-            onChanged: isStreaming || modelProviders.isEmpty
+            onChanged: isBusy || modelProviders.isEmpty
                 ? null
                 : (value) {
                     if (value == null) {
@@ -513,7 +515,7 @@ class ChatWorkspace extends StatelessWidget {
                   );
                 })
                 .toList(growable: false),
-            onChanged: isStreaming || modelConfigs.isEmpty
+            onChanged: isBusy || modelConfigs.isEmpty
                 ? null
                 : (value) {
                     if (value == null) {
@@ -572,7 +574,7 @@ class ChatWorkspace extends StatelessWidget {
                       );
                     }),
                   ],
-                  onChanged: isStreaming
+                  onChanged: isBusy
                       ? null
                       : (value) {
                           if (value == null) {
@@ -610,7 +612,7 @@ class ChatWorkspace extends StatelessWidget {
         Expanded(
           child: OutlinedButton.icon(
             key: const ValueKey('chat-secondary-settings-button'),
-            onPressed: isStreaming
+            onPressed: isBusy
                 ? null
                 : () {
                     _showCompactSecondarySettingsSheet(context, theme);
@@ -724,7 +726,7 @@ class ChatWorkspace extends StatelessWidget {
           ? () {
               onStopStreaming?.call();
             }
-          : !hasModels
+          : isBusy || !hasModels
           ? null
           : () {
               onSendPressed?.call();
@@ -827,7 +829,7 @@ class ChatWorkspace extends StatelessWidget {
                           );
                         }),
                       ],
-                      onChanged: isStreaming
+                      onChanged: isBusy
                           ? null
                           : (value) {
                               if (value == null) {
@@ -846,7 +848,9 @@ class ChatWorkspace extends StatelessWidget {
                       child: Tooltip(
                         message: '固定顺序提示词',
                         child: OutlinedButton.icon(
-                          onPressed: () async {
+                          onPressed: isBusy
+                              ? null
+                              : () async {
                             Navigator.of(bottomSheetContext).pop();
                             await onOpenFixedPromptSequenceRunner();
                           },

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../application/fixed_prompt_sequences_controller.dart';
 import '../../application/llm_model_configs_controller.dart';
+import '../../application/memory_prompts_controller.dart';
 import '../../application/prompt_templates_controller.dart';
 import '../../application/template_prompts_controller.dart';
 import '../../domain/models/settings_export_data.dart';
@@ -44,6 +45,13 @@ class _ImportConfirmDialogState extends ConsumerState<ImportConfirmDialog> {
               icon: Icons.hub_outlined,
               label: 'LLM 服务商',
               count: data.modelProviders.length,
+            ),
+          if (data.memoryPrompts.isNotEmpty)
+            _buildCountRow(
+              context,
+              icon: Icons.memory_rounded,
+              label: '记忆总结提示词',
+              count: data.memoryPrompts.length,
             ),
           if (data.promptTemplates.isNotEmpty)
             _buildCountRow(
@@ -122,6 +130,9 @@ class _ImportConfirmDialogState extends ConsumerState<ImportConfirmDialog> {
       await ref
           .read(llmProviderConfigsProvider.notifier)
           .mergeImportedProviders(data.modelProviders);
+    }
+    if (data.memoryPrompts.isNotEmpty) {
+      await ref.read(memoryPromptsProvider.notifier).upsertAll(data.memoryPrompts);
     }
     if (data.promptTemplates.isNotEmpty) {
       await ref

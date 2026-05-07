@@ -16,6 +16,7 @@ import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dart';
 import 'package:oh_my_llm/features/settings/data/prompt_template_repository.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
+import 'package:oh_my_llm/features/settings/domain/models/memory_prompt.dart';
 
 import '../chat_screen/chat_screen_test_helpers.dart';
 
@@ -27,6 +28,13 @@ final _testModel = LlmModelConfig(
   apiKey: 'sk-test',
   modelName: 'test-model',
   supportsReasoning: false,
+);
+
+final _memoryPrompt = MemoryPrompt(
+  id: 'memory-1',
+  name: '研发总结',
+  content: '请总结当前对话中的关键事实、约束与待办。',
+  updatedAt: DateTime(2026, 5, 1),
 );
 
 void main() {
@@ -226,6 +234,35 @@ void main() {
     expect(renamed.title, '重命名后');
   });
 
+  test('renameActiveConversation 后继续发送消息不会重置自定义标题', () async {
+    fakeClient.enqueueChunks(['第一次回复']);
+    await sendMsg('第一条消息');
+
+    await container
+        .read(chatSessionsProvider.notifier)
+        .renameActiveConversation('手动标题');
+
+    fakeClient.enqueueChunks(['第二次回复']);
+    await sendMsg('第二条消息');
+
+    final activeConversation = container.read(chatSessionsProvider).activeConversation;
+    expect(activeConversation.title, '手动标题');
+    expect(activeConversation.resolvedTitle, '手动标题');
+  });
+
+  test('空白会话先自定义标题后首次发送消息不会重置标题', () async {
+    await container
+        .read(chatSessionsProvider.notifier)
+        .renameActiveConversation('空白草稿标题');
+
+    fakeClient.enqueueChunks(['首次回复']);
+    await sendMsg('首条消息');
+
+    final activeConversation = container.read(chatSessionsProvider).activeConversation;
+    expect(activeConversation.title, '空白草稿标题');
+    expect(activeConversation.resolvedTitle, '空白草稿标题');
+  });
+
   // ── deleteConversations ────────────────────────────────────────────────────
 
   test('deleteConversations 删除指定会话', () async {
@@ -368,6 +405,90 @@ void main() {
         .messages;
     expect(messages.length, 1);
     expect(messages.first.role, ChatMessageRole.user);
+  });
+
+  test('createCheckpoint 保存检查点并记录来源提示词名称', () async {
+    fakeClient.enqueueChunks(['首轮回复']);
+    await sendMsg('先产生一些上下文');
+
+    fakeClient.enqueueChunks(['这是总结后的检查点内容']);
+
+    final checkpoint = await container
+        .read(chatSessionsProvider.notifier)
+        .createCheckpoint(
+          modelConfig: _testModel,
+          memoryPrompt: _memoryPrompt,
+          reasoningEnabled: false,
+          reasoningEffort: ReasoningEffort.medium,
+        );
+
+    final conversation = container.read(chatSessionsProvider).activeConversation;
+    expect(conversation.checkpoints, hasLength(1));
+    expect(conversation.checkpoints.single.id, checkpoint.id);
+    expect(conversation.checkpoints.single.content, '这是总结后的检查点内容');
+    expect(conversation.checkpoints.single.sourceMemoryPromptName, '研发总结');
+    expect(container.read(chatSessionsProvider).isCheckpointing, isFalse);
+    expect(fakeClient.lastRequestMessages.map((item) => item.content).join('\n'), contains('请总结当前对话中的关键事实、约束与待办。'));
+  });
+
+  test('选中检查点后发送消息只携带检查点 system 消息与增量消息', () async {
+    fakeClient.enqueueChunks(['首轮回复']);
+    await sendMsg('第一轮问题');
+
+    fakeClient.enqueueChunks(['检查点总结']);
+    final checkpoint = await container
+        .read(chatSessionsProvider.notifier)
+        .createCheckpoint(
+          modelConfig: _testModel,
+          memoryPrompt: _memoryPrompt,
+          reasoningEnabled: false,
+          reasoningEffort: ReasoningEffort.medium,
+        );
+
+    await container
+        .read(chatSessionsProvider.notifier)
+        .selectActiveCheckpoint(checkpoint.id);
+
+    fakeClient.enqueueChunks(['第二轮回复']);
+    await sendMsg('第二轮问题');
+
+    final lastRequest = fakeClient.requestHistory.last;
+    expect(lastRequest, hasLength(2));
+    expect(lastRequest.first.role, ChatMessageRole.system);
+    expect(lastRequest.first.content, contains('检查点 1'));
+    expect(lastRequest.first.content, contains('检查点总结'));
+    expect(lastRequest.last.role, ChatMessageRole.user);
+    expect(lastRequest.last.content, '第二轮问题');
+  });
+
+  test('选中检查点后助手回复会写入 appliedCheckpointTitle', () async {
+    fakeClient.enqueueChunks(['原始回复']);
+    await sendMsg('原始问题');
+
+    fakeClient.enqueueChunks(['新的检查点']);
+    final checkpoint = await container
+        .read(chatSessionsProvider.notifier)
+        .createCheckpoint(
+          modelConfig: _testModel,
+          memoryPrompt: _memoryPrompt,
+          reasoningEnabled: false,
+          reasoningEffort: ReasoningEffort.medium,
+        );
+    await container
+        .read(chatSessionsProvider.notifier)
+        .selectActiveCheckpoint(checkpoint.id);
+
+    fakeClient.enqueueChunks(['使用检查点后的回复']);
+    await sendMsg('下一条问题');
+
+    final assistant = container
+        .read(chatSessionsProvider)
+        .activeConversation
+        .messages
+        .last;
+    expect(assistant.role, ChatMessageRole.assistant);
+    expect(assistant.content, '使用检查点后的回复');
+    expect(assistant.appliedCheckpointTitle, '检查点 1');
   });
 
   // ── editMessage ────────────────────────────────────────────────────────────

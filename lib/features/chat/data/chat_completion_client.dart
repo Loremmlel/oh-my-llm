@@ -19,6 +19,28 @@ abstract class ChatCompletionClient {
     required List<ChatCompletionRequestMessage> messages,
     ReasoningEffort? reasoningEffort,
   });
+
+  /// 以一次性方式获取完整回复。
+  Future<ChatCompletionResult> complete({
+    required LlmModelConfig modelConfig,
+    required List<ChatCompletionRequestMessage> messages,
+    ReasoningEffort? reasoningEffort,
+  }) async {
+    final contentBuffer = StringBuffer();
+    final reasoningBuffer = StringBuffer();
+    await for (final chunk in streamCompletion(
+      modelConfig: modelConfig,
+      messages: messages,
+      reasoningEffort: reasoningEffort,
+    )) {
+      contentBuffer.write(chunk.contentDelta);
+      reasoningBuffer.write(chunk.reasoningDelta);
+    }
+    return ChatCompletionResult(
+      content: contentBuffer.toString(),
+      reasoningContent: reasoningBuffer.toString(),
+    );
+  }
 }
 
 /// 流式返回的一段补全增量。
@@ -30,6 +52,14 @@ class ChatCompletionChunk {
 
   /// 当内容增量和推理增量都为空时，说明这段 chunk 没有有效内容。
   bool get isEmpty => contentDelta.isEmpty && reasoningDelta.isEmpty;
+}
+
+/// 一次性请求返回的完整结果。
+class ChatCompletionResult {
+  const ChatCompletionResult({this.content = '', this.reasoningContent = ''});
+
+  final String content;
+  final String reasoningContent;
 }
 
 /// 发给模型 API 的单条请求消息。
