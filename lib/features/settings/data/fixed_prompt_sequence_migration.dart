@@ -1,5 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../core/persistence/legacy_preferences_collection_migrator.dart';
+import '../domain/models/fixed_prompt_sequence.dart';
 import 'fixed_prompt_sequence_repository.dart';
 
 /// SharedPreferences 中固定顺序提示词已完成 SQLite 迁移的标志键。
@@ -17,46 +19,12 @@ Future<void> migrateLegacyFixedPromptSequences({
   required SharedPreferences preferences,
   required SqliteFixedPromptSequenceRepository repository,
 }) async {
-  final hasMigrated =
-      preferences.getBool(fixedPromptSequencesSqliteMigrationFlagKey) ?? false;
-  final hasLegacyPayload =
-      preferences
-          .getString(fixedPromptSequencesStorageKey)
-          ?.trim()
-          .isNotEmpty ??
-      false;
-
-  if (hasMigrated) {
-    // 迁移已完成——清除可能残留的旧 SP 数据后返回。
-    if (hasLegacyPayload) {
-      await preferences.remove(fixedPromptSequencesStorageKey);
-    }
-    return;
-  }
-
-  // SQLite 中已有数据时跳过导入（避免重复写入）。
-  final existingSequences = repository.loadAll();
-  if (existingSequences.isNotEmpty) {
-    if (hasLegacyPayload) {
-      await preferences.remove(fixedPromptSequencesStorageKey);
-    }
-    await preferences.setBool(
-      fixedPromptSequencesSqliteMigrationFlagKey,
-      true,
-    );
-    return;
-  }
-
-  // 将 SP 旧数据导入 SQLite。
-  if (hasLegacyPayload) {
-    final legacySequences = LegacyFixedPromptSequenceRepository(
-      preferences,
-    ).loadAll();
-    if (legacySequences.isNotEmpty) {
-      await repository.saveAll(legacySequences);
-    }
-    await preferences.remove(fixedPromptSequencesStorageKey);
-  }
-
-  await preferences.setBool(fixedPromptSequencesSqliteMigrationFlagKey, true);
+  await LegacyPreferencesCollectionMigrator<FixedPromptSequence>(
+    preferences: preferences,
+    migrationFlagKey: fixedPromptSequencesSqliteMigrationFlagKey,
+    legacyStorageKey: fixedPromptSequencesStorageKey,
+    loadCurrentItems: repository.loadAll,
+    loadLegacyItems: LegacyFixedPromptSequenceRepository(preferences).loadAll,
+    saveCurrentItems: repository.saveAll,
+  ).migrate();
 }
