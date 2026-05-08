@@ -72,6 +72,7 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
   /// 构建预设 Prompt 的主从式编辑器。
   Widget build(BuildContext context) {
     final isEditing = widget.initialValue != null;
+    const masterDetailBreakpoint = 900.0;
 
     return SettingsFormDialogScaffold(
       title: isEditing ? '编辑预设 Prompt' : '新增预设 Prompt',
@@ -79,9 +80,11 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
       isSaving: isSaving,
       onSubmit: _handleSubmit,
       width: 1120,
+      shouldScrollContent: (constraints) =>
+          constraints.maxWidth < masterDetailBreakpoint,
       child: AdaptiveMasterDetailLayout(
         key: const ValueKey('preset-prompt-form-layout'),
-        breakpoint: 900,
+        breakpoint: masterDetailBreakpoint,
         masterWidth: 340,
         minHeight: 620,
         compactChild: _buildCompactLayout(context),
