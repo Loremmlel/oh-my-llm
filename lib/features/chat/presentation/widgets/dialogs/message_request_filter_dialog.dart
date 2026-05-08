@@ -19,6 +19,33 @@ class MessageRequestFilterDialog extends ConsumerStatefulWidget {
 class _MessageRequestFilterDialogState
     extends ConsumerState<MessageRequestFilterDialog> {
   String? _focusedMessageId;
+  late final ScrollController _masterScrollController;
+  late final ScrollController _compactScrollController;
+
+  @override
+  void initState() {
+    super.initState();
+    _masterScrollController = ScrollController();
+    _compactScrollController = ScrollController();
+    // 打开时滚动到列表底部，让用户看到最新消息。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToBottom(_masterScrollController);
+      _scrollToBottom(_compactScrollController);
+    });
+  }
+
+  @override
+  void dispose() {
+    _masterScrollController.dispose();
+    _compactScrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollToBottom(ScrollController controller) {
+    if (controller.hasClients) {
+      controller.jumpTo(controller.position.maxScrollExtent);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -28,6 +55,13 @@ class _MessageRequestFilterDialogState
     final excludedCount = visibleMessages.where((message) {
       return conversation.isMessageExcluded(message.id);
     }).length;
+    final totalChars = visibleMessages.fold(
+      0,
+      (sum, m) => sum + m.content.length,
+    );
+    final includedChars = visibleMessages
+        .where((m) => !conversation.isMessageExcluded(m.id))
+        .fold(0, (sum, m) => sum + m.content.length);
     final focusedMessageId = _resolveFocusedMessageId(conversation);
     final focusedMessage = visibleMessages.where((message) {
       return message.id == focusedMessageId;
@@ -52,6 +86,13 @@ class _MessageRequestFilterDialogState
                   : '当前分支已排除 $excludedCount / ${visibleMessages.length} 条消息。',
               style: Theme.of(context).textTheme.bodySmall,
             ),
+            if (visibleMessages.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                '发送字数：$includedChars / $totalChars 字',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
             const SizedBox(height: 16),
             SizedBox(
               height: 420,
@@ -64,6 +105,7 @@ class _MessageRequestFilterDialogState
                   conversation: conversation,
                   messages: visibleMessages,
                   isBusy: isBusy,
+                  scrollController: _compactScrollController,
                 ),
                 master: _buildMasterPane(
                   context,
@@ -72,6 +114,7 @@ class _MessageRequestFilterDialogState
                   isBusy: isBusy,
                   excludedCount: excludedCount,
                   focusedMessageId: focusedMessageId,
+                  scrollController: _masterScrollController,
                 ),
                 detail: _buildDetailPane(
                   context,
@@ -111,6 +154,7 @@ class _MessageRequestFilterDialogState
     required ChatConversation conversation,
     required List<ChatMessage> messages,
     required bool isBusy,
+    required ScrollController scrollController,
   }) {
     if (messages.isEmpty) {
       return const Center(child: Text('当前分支还没有消息。'));
@@ -119,6 +163,7 @@ class _MessageRequestFilterDialogState
     return Card(
       margin: EdgeInsets.zero,
       child: ListView.separated(
+        controller: scrollController,
         padding: const EdgeInsets.all(12),
         itemCount: messages.length + 1,
         separatorBuilder: (_, _) => const SizedBox(height: 8),
@@ -173,6 +218,7 @@ class _MessageRequestFilterDialogState
     required bool isBusy,
     required int excludedCount,
     required String? focusedMessageId,
+    required ScrollController scrollController,
   }) {
     final theme = Theme.of(context);
 
@@ -231,6 +277,7 @@ class _MessageRequestFilterDialogState
             else
               Expanded(
                 child: ListView.separated(
+                  controller: scrollController,
                   itemCount: messages.length,
                   separatorBuilder: (_, _) => const SizedBox(height: 8),
                   itemBuilder: (context, index) {
