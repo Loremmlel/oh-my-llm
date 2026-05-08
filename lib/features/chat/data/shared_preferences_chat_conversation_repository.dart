@@ -1,6 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../../core/persistence/versioned_json_storage.dart';
+import '../../../core/persistence/legacy_preferences_json_storage.dart';
 import '../domain/models/chat_conversation.dart';
 import 'chat_conversation_repository.dart';
 
@@ -14,14 +14,11 @@ class SharedPreferencesChatConversationRepository {
   ///
   /// 读取时兼容旧格式（裸 JSON 数组）和新格式（`{"version":1,"items":[...]}`）。
   List<ChatConversation> loadAll() {
-    final rawValue = _preferences.getString(chatConversationsStorageKey);
-    if (rawValue == null || rawValue.trim().isEmpty) {
-      return const [];
-    }
-
-    return VersionedJsonStorage.decodeObjectList(
-      rawJson: rawValue,
+    return loadLegacyPreferenceCollection(
+      preferences: _preferences,
+      storageKey: chatConversationsStorageKey,
       subject: 'conversations',
-    ).map(ChatConversation.fromJson).toList(growable: false);
+      fromJson: ChatConversation.fromJson,
+    );
   }
 }

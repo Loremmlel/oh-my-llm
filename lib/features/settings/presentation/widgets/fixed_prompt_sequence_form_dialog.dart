@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/utils/id_generator.dart';
 import '../../domain/models/fixed_prompt_sequence.dart';
 import 'settings_form_dialog_scaffold.dart';
+import 'settings_form_dialog_state_mixin.dart';
 
 /// 固定顺序提示词表单提交数据。
 class FixedPromptSequenceFormData {
@@ -30,12 +31,10 @@ class FixedPromptSequenceFormDialog extends StatefulWidget {
 
 /// 固定顺序提示词表单的输入与步骤顺序状态。
 class _FixedPromptSequenceFormDialogState
-    extends State<FixedPromptSequenceFormDialog> {
-  final _formKey = GlobalKey<FormState>();
-
+    extends State<FixedPromptSequenceFormDialog>
+    with SettingsFormDialogStateMixin {
   late final TextEditingController _nameController;
   late List<_EditableFixedPromptSequenceStep> _steps;
-  bool _isSaving = false;
 
   @override
   void initState() {
@@ -69,8 +68,8 @@ class _FixedPromptSequenceFormDialogState
 
     return SettingsFormDialogScaffold(
       title: isEditing ? '编辑固定顺序提示词' : '新增固定顺序提示词',
-      formKey: _formKey,
-      isSaving: _isSaving,
+      formKey: formKey,
+      isSaving: isSaving,
       onSubmit: _handleSubmit,
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -82,7 +81,7 @@ class _FixedPromptSequenceFormDialogState
               labelText: '序列名称',
               hintText: '例如：代码审阅对比流程',
             ),
-            validator: _validateRequired,
+            validator: validateRequired,
           ),
           const SizedBox(height: 20),
           Row(
@@ -151,7 +150,7 @@ class _FixedPromptSequenceFormDialogState
 
   /// 提交序列并过滤掉空白步骤。
   Future<void> _handleSubmit() async {
-    if (!_formKey.currentState!.validate()) {
+    if (!validateForm()) {
       return;
     }
 
@@ -166,35 +165,18 @@ class _FixedPromptSequenceFormDialogState
         .toList(growable: false);
 
     if (steps.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('至少要保留一个非空步骤')));
+      showFormSnackBar('至少要保留一个非空步骤');
       return;
     }
 
-    setState(() {
-      _isSaving = true;
+    await submitAndClose(() {
+      return widget.onSubmit(
+        FixedPromptSequenceFormData(
+          name: _nameController.text.trim(),
+          steps: steps,
+        ),
+      );
     });
-
-    await widget.onSubmit(
-      FixedPromptSequenceFormData(
-        name: _nameController.text.trim(),
-        steps: steps,
-      ),
-    );
-
-    if (mounted) {
-      Navigator.of(context).pop();
-    }
-  }
-
-  /// 校验必填字段是否为空。
-  String? _validateRequired(String? value) {
-    if (value == null || value.trim().isEmpty) {
-      return '此项不能为空';
-    }
-
-    return null;
   }
 }
 

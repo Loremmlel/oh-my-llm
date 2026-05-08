@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../../core/persistence/versioned_json_storage.dart';
+import '../../../core/persistence/legacy_preferences_json_storage.dart';
 import '../domain/models/prompt_template.dart';
 import 'sqlite_prompt_template_repository.dart';
 
@@ -22,15 +22,12 @@ class LegacyPromptTemplateRepository {
 
   /// 从 SharedPreferences 读取旧版全部 Prompt 模板。
   List<PromptTemplate> loadAll() {
-    final rawJson = _sharedPreferences.getString(promptTemplatesStorageKey);
-    if (rawJson == null || rawJson.isEmpty) {
-      return const [];
-    }
-
-    return VersionedJsonStorage.decodeObjectList(
-      rawJson: rawJson,
+    return loadLegacyPreferenceCollection(
+      preferences: _sharedPreferences,
+      storageKey: promptTemplatesStorageKey,
       subject: 'prompt templates',
-    ).map(PromptTemplate.fromJson).toList(growable: false);
+      fromJson: PromptTemplate.fromJson,
+    );
   }
 }
 
@@ -42,10 +39,10 @@ Future<void> saveLegacyPromptTemplatesForTest(
   SharedPreferences preferences,
   List<PromptTemplate> templates,
 ) async {
-  final rawJson = VersionedJsonStorage.encodeObjectList(
+  await saveLegacyPreferenceCollectionForTest(
+    preferences: preferences,
+    storageKey: promptTemplatesStorageKey,
     items: templates,
-    toJson: (t) => t.toJson(),
+    toJson: (template) => template.toJson(),
   );
-  await preferences.setString(promptTemplatesStorageKey, rawJson);
 }
-

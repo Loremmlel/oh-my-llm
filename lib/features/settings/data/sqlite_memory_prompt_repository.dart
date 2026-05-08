@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/persistence/app_database.dart';
 import '../../../core/persistence/app_database_provider.dart';
+import '../../../core/persistence/sqlite_replace_all.dart';
 import '../domain/models/memory_prompt.dart';
 
 /// 记忆总结提示词的 SQLite 仓库 Provider。
@@ -25,27 +26,20 @@ class SqliteMemoryPromptRepository {
   }
 
   Future<void> saveAll(List<MemoryPrompt> memoryPrompts) async {
-    _database.connection.execute('BEGIN;');
-    try {
-      _database.connection.execute('DELETE FROM memory_prompts;');
-      final stmt = _database.connection.prepare(
-        'INSERT INTO memory_prompts (id, name, content, updated_at) '
-        'VALUES (?, ?, ?, ?);',
-      );
-      for (final memoryPrompt in memoryPrompts) {
-        stmt.execute([
-          memoryPrompt.id,
-          memoryPrompt.name,
-          memoryPrompt.content,
-          memoryPrompt.updatedAt.toIso8601String(),
-        ]);
-      }
-      stmt.dispose();
-      _database.connection.execute('COMMIT;');
-    } catch (_) {
-      _database.connection.execute('ROLLBACK;');
-      rethrow;
-    }
+    replaceAllRowsInTable(
+      connection: _database.connection,
+      deleteSql: 'DELETE FROM memory_prompts;',
+      insertSql:
+          'INSERT INTO memory_prompts (id, name, content, updated_at) '
+          'VALUES (?, ?, ?, ?);',
+      items: memoryPrompts,
+      buildValues: (memoryPrompt) => [
+        memoryPrompt.id,
+        memoryPrompt.name,
+        memoryPrompt.content,
+        memoryPrompt.updatedAt.toIso8601String(),
+      ],
+    );
   }
 
   MemoryPrompt _rowToMemoryPrompt(Map<String, dynamic> row) {

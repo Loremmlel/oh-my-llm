@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../domain/models/llm_provider_config.dart';
 import 'settings_form_dialog_scaffold.dart';
+import 'settings_form_dialog_state_mixin.dart';
 
 /// 服务商下模型表单的提交数据。
 class ModelConfigFormData {
@@ -31,14 +32,12 @@ class ModelConfigFormDialog extends StatefulWidget {
   State<ModelConfigFormDialog> createState() => _ModelConfigFormDialogState();
 }
 
-class _ModelConfigFormDialogState extends State<ModelConfigFormDialog> {
-  final _formKey = GlobalKey<FormState>();
-
+class _ModelConfigFormDialogState extends State<ModelConfigFormDialog>
+    with SettingsFormDialogStateMixin {
   late final TextEditingController _displayNameController;
   late final TextEditingController _modelNameController;
 
   late bool _supportsReasoning;
-  bool _isSaving = false;
 
   @override
   void initState() {
@@ -65,8 +64,8 @@ class _ModelConfigFormDialogState extends State<ModelConfigFormDialog> {
 
     return SettingsFormDialogScaffold(
       title: isEditing ? '编辑模型' : '新增模型',
-      formKey: _formKey,
-      isSaving: _isSaving,
+      formKey: formKey,
+      isSaving: isSaving,
       onSubmit: _handleSubmit,
       width: 520,
       child: Column(
@@ -78,7 +77,7 @@ class _ModelConfigFormDialogState extends State<ModelConfigFormDialog> {
               labelText: '显示名称',
               hintText: '例如：DeepSeek V4 Flash',
             ),
-            validator: _validateRequired,
+            validator: validateRequired,
           ),
           const SizedBox(height: 12),
           TextFormField(
@@ -87,7 +86,7 @@ class _ModelConfigFormDialogState extends State<ModelConfigFormDialog> {
               labelText: 'API 模型名称',
               hintText: '例如：deepseek-v4-flash',
             ),
-            validator: _validateRequired,
+            validator: validateRequired,
           ),
           const SizedBox(height: 12),
           SwitchListTile.adaptive(
@@ -107,32 +106,18 @@ class _ModelConfigFormDialogState extends State<ModelConfigFormDialog> {
   }
 
   Future<void> _handleSubmit() async {
-    if (!_formKey.currentState!.validate()) {
+    if (!validateForm()) {
       return;
     }
 
-    setState(() {
-      _isSaving = true;
+    await submitAndClose(() {
+      return widget.onSubmit(
+        ModelConfigFormData(
+          displayName: _displayNameController.text.trim(),
+          modelName: _modelNameController.text.trim(),
+          supportsReasoning: _supportsReasoning,
+        ),
+      );
     });
-
-    await widget.onSubmit(
-      ModelConfigFormData(
-        displayName: _displayNameController.text.trim(),
-        modelName: _modelNameController.text.trim(),
-        supportsReasoning: _supportsReasoning,
-      ),
-    );
-
-    if (mounted) {
-      Navigator.of(context).pop();
-    }
-  }
-
-  String? _validateRequired(String? value) {
-    if (value == null || value.trim().isEmpty) {
-      return '此项不能为空';
-    }
-
-    return null;
   }
 }

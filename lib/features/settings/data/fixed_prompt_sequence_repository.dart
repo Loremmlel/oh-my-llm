@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../../core/persistence/versioned_json_storage.dart';
+import '../../../core/persistence/legacy_preferences_json_storage.dart';
 import '../domain/models/fixed_prompt_sequence.dart';
 import 'sqlite_fixed_prompt_sequence_repository.dart';
 
@@ -24,17 +24,12 @@ class LegacyFixedPromptSequenceRepository {
 
   /// 从 SharedPreferences 读取旧版全部固定顺序提示词序列。
   List<FixedPromptSequence> loadAll() {
-    final rawJson = _sharedPreferences.getString(
-      fixedPromptSequencesStorageKey,
-    );
-    if (rawJson == null || rawJson.isEmpty) {
-      return const [];
-    }
-
-    return VersionedJsonStorage.decodeObjectList(
-      rawJson: rawJson,
+    return loadLegacyPreferenceCollection(
+      preferences: _sharedPreferences,
+      storageKey: fixedPromptSequencesStorageKey,
       subject: 'fixed prompt sequences',
-    ).map(FixedPromptSequence.fromJson).toList(growable: false);
+      fromJson: FixedPromptSequence.fromJson,
+    );
   }
 }
 
@@ -46,10 +41,10 @@ Future<void> saveLegacyFixedPromptSequencesForTest(
   SharedPreferences preferences,
   List<FixedPromptSequence> sequences,
 ) async {
-  final rawJson = VersionedJsonStorage.encodeObjectList(
+  await saveLegacyPreferenceCollectionForTest(
+    preferences: preferences,
+    storageKey: fixedPromptSequencesStorageKey,
     items: sequences,
-    toJson: (s) => s.toJson(),
+    toJson: (sequence) => sequence.toJson(),
   );
-  await preferences.setString(fixedPromptSequencesStorageKey, rawJson);
 }
-

@@ -25,6 +25,9 @@ class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   static const _importDeduplicator = SettingsImportDeduplicator();
+  static const _savedAllConfigMessage = '已复制全部配置到剪贴板';
+  static const _duplicateImportMessage = '剪贴板中的配置在本地均已存在，无需导入';
+  static const _importSuccessMessage = '配置已成功导入';
 
   @override
   /// 构建设置页的各类配置区域，顶部附导出/导入操作栏。
@@ -53,12 +56,11 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: 12),
           ModelProvidersSection(
             providers: modelProviders,
-            onAddPressed: () async {
-              final handled = await _tryImportFromClipboard(context, ref);
-              if (!handled && context.mounted) {
-                _showModelProviderDialog(context, ref);
-              }
-            },
+            onAddPressed: () => _handleAddPressed(
+              context,
+              ref,
+              () => _showModelProviderDialog(context, ref),
+            ),
             onEditProviderRequested: (provider) {
               _showModelProviderDialog(context, ref, initialValue: provider);
             },
@@ -77,12 +79,11 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: 16),
           MemoryPromptsSection(
             memoryPrompts: memoryPrompts,
-            onAddPressed: () async {
-              final handled = await _tryImportFromClipboard(context, ref);
-              if (!handled && context.mounted) {
-                _showMemoryPromptDialog(context, ref);
-              }
-            },
+            onAddPressed: () => _handleAddPressed(
+              context,
+              ref,
+              () => _showMemoryPromptDialog(context, ref),
+            ),
             onEditRequested: (memoryPrompt) {
               _showMemoryPromptDialog(context, ref, initialValue: memoryPrompt);
             },
@@ -90,12 +91,11 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: 16),
           PromptTemplatesSection(
             templates: promptTemplates,
-            onAddPressed: () async {
-              final handled = await _tryImportFromClipboard(context, ref);
-              if (!handled && context.mounted) {
-                _showPromptTemplateDialog(context, ref);
-              }
-            },
+            onAddPressed: () => _handleAddPressed(
+              context,
+              ref,
+              () => _showPromptTemplateDialog(context, ref),
+            ),
             onEditRequested: (template) {
               _showPromptTemplateDialog(context, ref, initialValue: template);
             },
@@ -103,12 +103,11 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: 16),
           TemplatePromptsSection(
             templatePrompts: templatePrompts,
-            onAddPressed: () async {
-              final handled = await _tryImportFromClipboard(context, ref);
-              if (!handled && context.mounted) {
-                _showTemplatePromptDialog(context, ref);
-              }
-            },
+            onAddPressed: () => _handleAddPressed(
+              context,
+              ref,
+              () => _showTemplatePromptDialog(context, ref),
+            ),
             onEditRequested: (templatePrompt) {
               _showTemplatePromptDialog(
                 context,
@@ -120,12 +119,11 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: 16),
           FixedPromptSequencesSection(
             sequences: fixedPromptSequences,
-            onAddPressed: () async {
-              final handled = await _tryImportFromClipboard(context, ref);
-              if (!handled && context.mounted) {
-                _showFixedPromptSequenceDialog(context, ref);
-              }
-            },
+            onAddPressed: () => _handleAddPressed(
+              context,
+              ref,
+              () => _showFixedPromptSequenceDialog(context, ref),
+            ),
             onEditRequested: (sequence) {
               _showFixedPromptSequenceDialog(
                 context,
@@ -158,9 +156,18 @@ class SettingsScreen extends ConsumerWidget {
     await Clipboard.setData(ClipboardData(text: exportData.toJsonString()));
 
     if (context.mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('已复制全部配置到剪贴板')));
+      _showSettingsSnackBar(context, _savedAllConfigMessage);
+    }
+  }
+
+  Future<void> _handleAddPressed(
+    BuildContext context,
+    WidgetRef ref,
+    Future<void> Function() openDialog,
+  ) async {
+    final handled = await _tryImportFromClipboard(context, ref);
+    if (!handled && context.mounted) {
+      await openDialog();
     }
   }
 
@@ -202,9 +209,7 @@ class SettingsScreen extends ConsumerWidget {
 
     // 全部重复时不弹对话框，提示用户后返回 true（视为已处理，不打开表单）
     if (!dedupedData.hasContent) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('剪贴板中的配置在本地均已存在，无需导入')));
+      _showSettingsSnackBar(context, _duplicateImportMessage);
       return true;
     }
 
@@ -216,9 +221,7 @@ class SettingsScreen extends ConsumerWidget {
     );
 
     if (confirmed == true && context.mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('配置已成功导入')));
+      _showSettingsSnackBar(context, _importSuccessMessage);
     }
 
     // 无论确认还是取消，只要弹过对话框就算"已处理"，不再打开表单
@@ -237,25 +240,25 @@ class SettingsScreen extends ConsumerWidget {
         return ModelProviderFormDialog(
           initialValue: initialValue,
           onSubmit: (formData) async {
-            final provider = LlmProviderConfig(
-              id: initialValue?.id ?? generateEntityId(),
-              name: formData.name,
-              apiUrl: formData.apiUrl,
-              apiKey: formData.apiKey,
-              models: initialValue?.models ?? const [],
+            await _saveSettingsItem(
+              context,
+              isEditing: initialValue != null,
+              createdMessage: '服务商已保存',
+              updatedMessage: '服务商已更新',
+              onSave: () {
+                final provider = LlmProviderConfig(
+                  id: initialValue?.id ?? generateEntityId(),
+                  name: formData.name,
+                  apiUrl: formData.apiUrl,
+                  apiKey: formData.apiKey,
+                  models: initialValue?.models ?? const [],
+                );
+
+                return ref
+                    .read(llmProviderConfigsProvider.notifier)
+                    .upsertProvider(provider);
+              },
             );
-
-            await ref
-                .read(llmProviderConfigsProvider.notifier)
-                .upsertProvider(provider);
-
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(initialValue == null ? '服务商已保存' : '服务商已更新'),
-                ),
-              );
-            }
           },
         );
       },
@@ -275,24 +278,24 @@ class SettingsScreen extends ConsumerWidget {
         return ModelConfigFormDialog(
           initialValue: initialValue,
           onSubmit: (formData) async {
-            final model = LlmProviderModelConfig(
-              id: initialValue?.id ?? generateEntityId(),
-              displayName: formData.displayName,
-              modelName: formData.modelName,
-              supportsReasoning: formData.supportsReasoning,
+            await _saveSettingsItem(
+              context,
+              isEditing: initialValue != null,
+              createdMessage: '模型已保存',
+              updatedMessage: '模型已更新',
+              onSave: () {
+                final model = LlmProviderModelConfig(
+                  id: initialValue?.id ?? generateEntityId(),
+                  displayName: formData.displayName,
+                  modelName: formData.modelName,
+                  supportsReasoning: formData.supportsReasoning,
+                );
+
+                return ref
+                    .read(llmProviderConfigsProvider.notifier)
+                    .upsertModel(providerId: provider.id, model: model);
+              },
             );
-
-            await ref
-                .read(llmProviderConfigsProvider.notifier)
-                .upsertModel(providerId: provider.id, model: model);
-
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(initialValue == null ? '模型已保存' : '模型已更新'),
-                ),
-              );
-            }
           },
         );
       },
@@ -311,25 +314,25 @@ class SettingsScreen extends ConsumerWidget {
         return PromptTemplateFormDialog(
           initialValue: initialValue,
           onSubmit: (formData) async {
-            final template = PromptTemplate(
-              id: initialValue?.id ?? generateEntityId(),
-              name: formData.name,
-              systemPrompt: formData.systemPrompt,
-              messages: formData.messages,
-              updatedAt: DateTime.now(),
+            await _saveSettingsItem(
+              context,
+              isEditing: initialValue != null,
+              createdMessage: 'Prompt 模板已保存',
+              updatedMessage: 'Prompt 模板已更新',
+              onSave: () {
+                final template = PromptTemplate(
+                  id: initialValue?.id ?? generateEntityId(),
+                  name: formData.name,
+                  systemPrompt: formData.systemPrompt,
+                  messages: formData.messages,
+                  updatedAt: DateTime.now(),
+                );
+
+                return ref
+                    .read(promptTemplatesProvider.notifier)
+                    .upsert(template);
+              },
             );
-
-            await ref.read(promptTemplatesProvider.notifier).upsert(template);
-
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    initialValue == null ? 'Prompt 模板已保存' : 'Prompt 模板已更新',
-                  ),
-                ),
-              );
-            }
           },
         );
       },
@@ -348,24 +351,24 @@ class SettingsScreen extends ConsumerWidget {
         return MemoryPromptFormDialog(
           initialValue: initialValue,
           onSubmit: (formData) async {
-            final memoryPrompt = MemoryPrompt(
-              id: initialValue?.id ?? generateEntityId(),
-              name: formData.name,
-              content: formData.content,
-              updatedAt: DateTime.now(),
+            await _saveSettingsItem(
+              context,
+              isEditing: initialValue != null,
+              createdMessage: '记忆总结提示词已保存',
+              updatedMessage: '记忆总结提示词已更新',
+              onSave: () {
+                final memoryPrompt = MemoryPrompt(
+                  id: initialValue?.id ?? generateEntityId(),
+                  name: formData.name,
+                  content: formData.content,
+                  updatedAt: DateTime.now(),
+                );
+
+                return ref
+                    .read(memoryPromptsProvider.notifier)
+                    .upsert(memoryPrompt);
+              },
             );
-
-            await ref.read(memoryPromptsProvider.notifier).upsert(memoryPrompt);
-
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    initialValue == null ? '记忆总结提示词已保存' : '记忆总结提示词已更新',
-                  ),
-                ),
-              );
-            }
           },
         );
       },
@@ -384,25 +387,25 @@ class SettingsScreen extends ConsumerWidget {
         return TemplatePromptFormDialog(
           initialValue: initialValue,
           onSubmit: (formData) async {
-            final templatePrompt = TemplatePrompt(
-              id: initialValue?.id ?? generateEntityId(),
-              title: formData.title,
-              content: formData.content,
-              variables: formData.variables,
-              updatedAt: DateTime.now(),
+            await _saveSettingsItem(
+              context,
+              isEditing: initialValue != null,
+              createdMessage: '模板提示词已保存',
+              updatedMessage: '模板提示词已更新',
+              onSave: () {
+                final templatePrompt = TemplatePrompt(
+                  id: initialValue?.id ?? generateEntityId(),
+                  title: formData.title,
+                  content: formData.content,
+                  variables: formData.variables,
+                  updatedAt: DateTime.now(),
+                );
+
+                return ref
+                    .read(templatePromptsProvider.notifier)
+                    .upsert(templatePrompt);
+              },
             );
-
-            await ref
-                .read(templatePromptsProvider.notifier)
-                .upsert(templatePrompt);
-
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(initialValue == null ? '模板提示词已保存' : '模板提示词已更新'),
-                ),
-              );
-            }
           },
         );
       },
@@ -421,29 +424,49 @@ class SettingsScreen extends ConsumerWidget {
         return FixedPromptSequenceFormDialog(
           initialValue: initialValue,
           onSubmit: (formData) async {
-            final sequence = FixedPromptSequence(
-              id: initialValue?.id ?? generateEntityId(),
-              name: formData.name,
-              steps: formData.steps,
-              updatedAt: DateTime.now(),
+            await _saveSettingsItem(
+              context,
+              isEditing: initialValue != null,
+              createdMessage: '固定顺序提示词已保存',
+              updatedMessage: '固定顺序提示词已更新',
+              onSave: () {
+                final sequence = FixedPromptSequence(
+                  id: initialValue?.id ?? generateEntityId(),
+                  name: formData.name,
+                  steps: formData.steps,
+                  updatedAt: DateTime.now(),
+                );
+
+                return ref
+                    .read(fixedPromptSequencesProvider.notifier)
+                    .upsert(sequence);
+              },
             );
-
-            await ref
-                .read(fixedPromptSequencesProvider.notifier)
-                .upsert(sequence);
-
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    initialValue == null ? '固定顺序提示词已保存' : '固定顺序提示词已更新',
-                  ),
-                ),
-              );
-            }
           },
         );
       },
     );
+  }
+
+  Future<void> _saveSettingsItem(
+    BuildContext context, {
+    required bool isEditing,
+    required String createdMessage,
+    required String updatedMessage,
+    required Future<void> Function() onSave,
+  }) async {
+    await onSave();
+    if (context.mounted) {
+      _showSettingsSnackBar(
+        context,
+        isEditing ? updatedMessage : createdMessage,
+      );
+    }
+  }
+
+  void _showSettingsSnackBar(BuildContext context, String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 }
