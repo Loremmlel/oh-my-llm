@@ -57,7 +57,7 @@ class _ImportConfirmDialogState extends ConsumerState<ImportConfirmDialog> {
             _buildCountRow(
               context,
               icon: Icons.text_snippet_outlined,
-              label: '前置 Prompt 模板',
+              label: '预设 Prompt',
               count: data.promptTemplates.length,
             ),
           if (data.templatePrompts.isNotEmpty)

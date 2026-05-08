@@ -79,7 +79,7 @@ class _ConversationCheckpointsDialogState
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('当前上下文字数：$contextWordCount 字（不含前置 Prompt）'),
+              Text('当前上下文字数：$contextWordCount 字（不含预设 Prompt）'),
               const SizedBox(height: 4),
               Text(
                 widget.selectedModel == null
@@ -90,8 +90,8 @@ class _ConversationCheckpointsDialogState
               const SizedBox(height: 4),
               Text(
                 widget.selectedPromptTemplate == null
-                    ? '当前总结不会附带前置提示词。'
-                    : '当前总结会附带前置提示词：${widget.selectedPromptTemplate!.name}',
+                    ? '当前总结不会附带预设 Prompt。'
+                    : '当前总结会附带预设 Prompt：${widget.selectedPromptTemplate!.name}',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
               const SizedBox(height: 16),

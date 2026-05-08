@@ -317,12 +317,13 @@ class SettingsScreen extends ConsumerWidget {
             await _saveSettingsItem(
               context,
               isEditing: initialValue != null,
-              createdMessage: 'Prompt 模板已保存',
-              updatedMessage: 'Prompt 模板已更新',
+              createdMessage: '预设 Prompt 已保存',
+              updatedMessage: '预设 Prompt 已更新',
               onSave: () {
                 final template = PromptTemplate(
                   id: initialValue?.id ?? generateEntityId(),
                   name: formData.name,
+                  systemPromptTitle: formData.systemPromptTitle,
                   systemPrompt: formData.systemPrompt,
                   messages: formData.messages,
                   updatedAt: DateTime.now(),

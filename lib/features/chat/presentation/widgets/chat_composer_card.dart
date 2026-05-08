@@ -257,11 +257,11 @@ class ChatComposerCard extends StatelessWidget {
                           selectedPromptTemplate?.id ??
                           noPromptTemplateSelectedId,
                       isExpanded: true,
-                      decoration: const InputDecoration(labelText: '前置 Prompt'),
+                      decoration: const InputDecoration(labelText: '预设 Prompt'),
                       items: [
                         const DropdownMenuItem<String>(
                           value: noPromptTemplateSelectedId,
-                          child: Text('不使用前置 Prompt'),
+                          child: Text('不使用预设 Prompt'),
                         ),
                         ...promptTemplates.map((template) {
                           return DropdownMenuItem<String>(
@@ -575,11 +575,11 @@ class _DesktopSecondarySettingsRow extends StatelessWidget {
                   initialValue:
                       selectedPromptTemplate?.id ?? noPromptTemplateSelectedId,
                   isExpanded: true,
-                  decoration: const InputDecoration(labelText: '前置 Prompt'),
+                  decoration: const InputDecoration(labelText: '预设 Prompt'),
                   items: [
                     const DropdownMenuItem<String>(
                       value: noPromptTemplateSelectedId,
-                      child: Text('不使用前置 Prompt'),
+                      child: Text('不使用预设 Prompt'),
                     ),
                     ...promptTemplates.map((template) {
                       return DropdownMenuItem<String>(

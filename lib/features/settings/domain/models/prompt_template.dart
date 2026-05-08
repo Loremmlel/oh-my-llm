@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:equatable/equatable.dart';
 
+const defaultSystemPromptTitle = 'system';
+
 /// Prompt 模板中附加消息的发送角色。
 enum PromptMessageRole {
   user('user'),
@@ -49,18 +51,32 @@ enum PromptMessagePlacement {
   }
 }
 
+String buildPresetPromptMessageFallbackTitle({
+  required PromptMessageRole role,
+  required PromptMessagePlacement placement,
+  required int sequence,
+}) {
+  final placementLabel = switch (placement) {
+    PromptMessagePlacement.before => '前置',
+    PromptMessagePlacement.after => '后置',
+  };
+  return '$placementLabel${role.apiValue}$sequence';
+}
+
 /// Prompt 模板中的一条附加消息。
 class PromptMessage extends Equatable {
   const PromptMessage({
     required this.id,
     required this.role,
     required this.content,
+    this.title = '',
     this.placement = PromptMessagePlacement.before,
   });
 
   final String id;
   final PromptMessageRole role;
   final String content;
+  final String title;
   final PromptMessagePlacement placement;
 
   /// 复制消息，并允许覆盖常用字段。
@@ -68,12 +84,14 @@ class PromptMessage extends Equatable {
     String? id,
     PromptMessageRole? role,
     String? content,
+    String? title,
     PromptMessagePlacement? placement,
   }) {
     return PromptMessage(
       id: id ?? this.id,
       role: role ?? this.role,
       content: content ?? this.content,
+      title: title ?? this.title,
       placement: placement ?? this.placement,
     );
   }
@@ -83,16 +101,23 @@ class PromptMessage extends Equatable {
     return {
       'id': id,
       'role': role.apiValue,
+      'title': title,
       'content': content,
       'placement': placement.apiValue,
     };
   }
 
   /// 从 JSON 反序列化消息。
-  factory PromptMessage.fromJson(Map<String, dynamic> json) {
+  factory PromptMessage.fromJson(
+    Map<String, dynamic> json, {
+    String? fallbackTitle,
+  }) {
     return PromptMessage(
       id: json['id'] as String,
       role: PromptMessageRole.fromApiValue(json['role'] as String),
+      title: (json['title'] as String?)?.trim().isNotEmpty == true
+          ? json['title'] as String
+          : (fallbackTitle ?? ''),
       content: json['content'] as String,
       placement: PromptMessagePlacement.fromApiValue(
         (json['placement'] as String?) ??
@@ -102,7 +127,7 @@ class PromptMessage extends Equatable {
   }
 
   @override
-  List<Object> get props => [id, role, content, placement];
+  List<Object> get props => [id, role, title, content, placement];
 }
 
 /// 可复用的 Prompt 模板，包含 system 指令和附加消息。
@@ -113,6 +138,7 @@ class PromptTemplate extends Equatable {
     required this.systemPrompt,
     required this.messages,
     required this.updatedAt,
+    this.systemPromptTitle = defaultSystemPromptTitle,
   });
 
   final String id;
@@ -120,6 +146,7 @@ class PromptTemplate extends Equatable {
   final String systemPrompt;
   final List<PromptMessage> messages;
   final DateTime updatedAt;
+  final String systemPromptTitle;
 
   /// 复制模板，并允许覆盖标题、指令、消息和更新时间。
   PromptTemplate copyWith({
@@ -128,6 +155,7 @@ class PromptTemplate extends Equatable {
     String? systemPrompt,
     List<PromptMessage>? messages,
     DateTime? updatedAt,
+    String? systemPromptTitle,
   }) {
     return PromptTemplate(
       id: id ?? this.id,
@@ -135,6 +163,7 @@ class PromptTemplate extends Equatable {
       systemPrompt: systemPrompt ?? this.systemPrompt,
       messages: messages ?? this.messages,
       updatedAt: updatedAt ?? this.updatedAt,
+      systemPromptTitle: systemPromptTitle ?? this.systemPromptTitle,
     );
   }
 
@@ -144,6 +173,7 @@ class PromptTemplate extends Equatable {
       'id': id,
       'name': name,
       'systemPrompt': systemPrompt,
+      'systemPromptTitle': systemPromptTitle,
       'messages': messages.map((message) => message.toJson()).toList(),
       'updatedAt': updatedAt.toIso8601String(),
     };
@@ -152,17 +182,40 @@ class PromptTemplate extends Equatable {
   /// 从 JSON 反序列化模板。
   factory PromptTemplate.fromJson(Map<String, dynamic> json) {
     final rawMessages = json['messages'] as List<dynamic>? ?? const [];
+    final messageCounters = <String, int>{};
+    final messages = rawMessages
+        .map((item) {
+          final messageJson = Map<String, dynamic>.from(item as Map);
+          final role = PromptMessageRole.fromApiValue(
+            messageJson['role'] as String,
+          );
+          final placement = PromptMessagePlacement.fromApiValue(
+            (messageJson['placement'] as String?) ??
+                PromptMessagePlacement.before.apiValue,
+          );
+          final counterKey = '${placement.apiValue}:${role.apiValue}';
+          final nextSequence = (messageCounters[counterKey] ?? 0) + 1;
+          messageCounters[counterKey] = nextSequence;
+          return PromptMessage.fromJson(
+            messageJson,
+            fallbackTitle: buildPresetPromptMessageFallbackTitle(
+              role: role,
+              placement: placement,
+              sequence: nextSequence,
+            ),
+          );
+        })
+        .toList(growable: false);
 
     return PromptTemplate(
       id: json['id'] as String,
       name: json['name'] as String,
       systemPrompt: json['systemPrompt'] as String,
-      messages: rawMessages
-          .map(
-            (item) =>
-                PromptMessage.fromJson(Map<String, dynamic>.from(item as Map)),
-          )
-          .toList(growable: false),
+      systemPromptTitle:
+          (json['systemPromptTitle'] as String?)?.trim().isNotEmpty == true
+          ? json['systemPromptTitle'] as String
+          : defaultSystemPromptTitle,
+      messages: messages,
       updatedAt: DateTime.parse(json['updatedAt'] as String),
     );
   }
@@ -180,5 +233,12 @@ class PromptTemplate extends Equatable {
   String toString() => jsonEncode(toJson());
 
   @override
-  List<Object> get props => [id, name, systemPrompt, messages, updatedAt];
+  List<Object> get props => [
+    id,
+    name,
+    systemPrompt,
+    systemPromptTitle,
+    messages,
+    updatedAt,
+  ];
 }
