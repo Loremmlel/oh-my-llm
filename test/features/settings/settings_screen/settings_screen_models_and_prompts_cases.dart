@@ -181,6 +181,54 @@ void registerSettingsScreenModelsAndPromptsTests() {
     },
   );
 
+  testWidgets('prompt template dialog keeps wide master header visible', (
+    tester,
+  ) async {
+    final preferences = await createEmptyPreferences();
+
+    await pumpSettingsScreen(
+      tester,
+      preferences: preferences,
+      size: const Size(1440, 2200),
+    );
+
+    await tester.tap(find.text('新增预设'));
+    await tester.pumpAndSettle();
+
+    final masterPane = find.byKey(const ValueKey('preset-prompt-master-pane'));
+    final addItemButton = find.descendant(
+      of: masterPane,
+      matching: find.widgetWithText(OutlinedButton, '新增条目'),
+    );
+
+    for (var index = 1; index <= 20; index++) {
+      await tester.tap(addItemButton);
+      await tester.pump();
+    }
+    await tester.pumpAndSettle();
+
+    final header = find.descendant(
+      of: masterPane,
+      matching: find.text('预设 Prompt 条目'),
+    );
+    final presetList = find.descendant(
+      of: masterPane,
+      matching: find.byType(ListView),
+    );
+    final headerOffsetBefore = tester.getTopLeft(header);
+
+    await tester.dragUntilVisible(
+      find.text('前置 前置user20'),
+      presetList,
+      const Offset(0, -300),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('前置 前置user20'), findsOneWidget);
+    expect(tester.getTopLeft(header).dy, headerOffsetBefore.dy);
+    expect(addItemButton, findsOneWidget);
+  });
+
   testWidgets(
     'settings screen supports template prompt CRUD with persistence',
     (tester) async {

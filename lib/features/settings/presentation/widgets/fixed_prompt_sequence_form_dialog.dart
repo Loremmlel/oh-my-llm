@@ -94,11 +94,7 @@ class _FixedPromptSequenceFormDialogState
         masterWidth: 340,
         minHeight: 620,
         compactChild: _buildCompactLayout(context),
-        master: _buildWidePane(
-          context: context,
-          key: const ValueKey('fixed-prompt-sequence-master-pane'),
-          child: _buildMasterContent(context),
-        ),
+        master: _buildWideMasterPane(context),
         detail: _buildWidePane(
           context: context,
           key: const ValueKey('fixed-prompt-sequence-detail-pane'),
@@ -144,6 +140,47 @@ class _FixedPromptSequenceFormDialogState
     );
   }
 
+  Widget _buildWideMasterPane(BuildContext context) {
+    return DecoratedBox(
+      key: const ValueKey('fixed-prompt-sequence-master-pane'),
+      decoration: BoxDecoration(
+        color: Theme.of(
+          context,
+        ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.22),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildMasterHeader(context),
+            const SizedBox(height: 16),
+            Expanded(
+              child: ListView.separated(
+                padding: EdgeInsets.zero,
+                itemCount: _steps.length,
+                itemBuilder: (context, index) {
+                  return _FixedPromptStepListTile(
+                    step: _steps[index],
+                    index: index,
+                    isSelected: _steps[index].id == _selectedStepId,
+                    onTap: () {
+                      setState(() {
+                        _selectedStepId = _steps[index].id;
+                      });
+                    },
+                  );
+                },
+                separatorBuilder: (_, _) => const SizedBox(height: 8),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildCompactPane({
     required BuildContext context,
     required Widget child,
@@ -162,6 +199,29 @@ class _FixedPromptSequenceFormDialogState
   }
 
   Widget _buildMasterContent(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildMasterHeader(context),
+        const SizedBox(height: 16),
+        for (var index = 0; index < _steps.length; index++) ...[
+          _FixedPromptStepListTile(
+            step: _steps[index],
+            index: index,
+            isSelected: _steps[index].id == _selectedStepId,
+            onTap: () {
+              setState(() {
+                _selectedStepId = _steps[index].id;
+              });
+            },
+          ),
+          if (index != _steps.length - 1) const SizedBox(height: 8),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildMasterHeader(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -195,20 +255,6 @@ class _FixedPromptSequenceFormDialogState
           '左侧用于切换步骤与调整顺序，右侧编辑当前步骤的标题和内容。',
           style: Theme.of(context).textTheme.bodySmall,
         ),
-        const SizedBox(height: 16),
-        for (var index = 0; index < _steps.length; index++) ...[
-          _FixedPromptStepListTile(
-            step: _steps[index],
-            index: index,
-            isSelected: _steps[index].id == _selectedStepId,
-            onTap: () {
-              setState(() {
-                _selectedStepId = _steps[index].id;
-              });
-            },
-          ),
-          if (index != _steps.length - 1) const SizedBox(height: 8),
-        ],
       ],
     );
   }
