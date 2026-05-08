@@ -30,32 +30,18 @@ abstract class VendorPayloadAdapter {
   VendorPayloadPatch buildPatch(ReasoningEffort? reasoningEffort);
 }
 
-/// DeepSeek 适配器：需要显式携带 thinking 开关。
+/// 需要显式开关 thinking 字段的厂商适配器。
 ///
-/// DeepSeek API 不读取 `reasoning_effort`，而是通过
-/// `thinking: {type: "enabled"|"disabled"}` 控制推理模式。
-class DeepSeekPayloadAdapter extends VendorPayloadAdapter {
-  const DeepSeekPayloadAdapter();
+/// DeepSeek、字节跳动火山引擎（Ark）等厂商不读取 `reasoning_effort`，
+/// 而是通过 `thinking: {type: "enabled"|"disabled"}` 控制推理模式。
+/// [_hosts] 为需要匹配的小写主机名列表。
+class ThinkingTogglePayloadAdapter extends VendorPayloadAdapter {
+  const ThinkingTogglePayloadAdapter(this._hosts);
+
+  final List<String> _hosts;
 
   @override
-  bool matches(String host) => host.toLowerCase() == 'api.deepseek.com';
-
-  @override
-  VendorPayloadPatch buildPatch(ReasoningEffort? reasoningEffort) {
-    return VendorPayloadPatch(
-      thinkingConfig: {
-        'type': reasoningEffort != null ? 'enabled' : 'disabled',
-      },
-    );
-  }
-}
-
-class ArkPayloadAdapter extends VendorPayloadAdapter {
-  const ArkPayloadAdapter();
-
-  @override
-  bool matches(String host) =>
-      host.toLowerCase() == 'ark.cn-beijing.volces.com';
+  bool matches(String host) => _hosts.contains(host.toLowerCase());
 
   @override
   VendorPayloadPatch buildPatch(ReasoningEffort? reasoningEffort) {
@@ -120,8 +106,10 @@ class VendorPayloadAdapterRegistry {
 
   /// 内置注册表，包含所有已知厂商适配器。
   static const standard = VendorPayloadAdapterRegistry([
-    DeepSeekPayloadAdapter(),
-    ArkPayloadAdapter(),
+    ThinkingTogglePayloadAdapter([
+      'api.deepseek.com',
+      'ark.cn-beijing.volces.com',
+    ]),
     GoogleOpenAiCompatibleAdapter(),
     DefaultPayloadAdapter(),
   ]);

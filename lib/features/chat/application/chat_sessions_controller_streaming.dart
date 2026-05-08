@@ -32,6 +32,13 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
   set streamStopRequested(bool value);
 
   /// 终止当前流式回复，并保留已收到的部分内容。
+  ///
+  /// 通过取消 [StreamSubscription] 实现：取消信号向下传播至 `async*` 生成器，
+  /// 中断对 SSE `ByteStream` 的监听，最终由 `dart:io` 的 `IOClient` 关闭底层
+  /// TCP socket。服务器检测到连接断开后会停止生成 token。
+  ///
+  /// OpenAI 兼容接口没有显式的"停止生成"API 端点，关闭 TCP 连接是唯一的
+  /// 标准方式。主流 LLM 服务（OpenAI、DeepSeek、Google 等）均支持此机制。
   Future<ChatConversation?> stopStreaming() async {
     if (!state.isStreaming) {
       return null;
@@ -211,7 +218,9 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
             promptTemplate: promptTemplate,
             conversationMessages: requestConversationMessages,
             checkpointChain: requestCheckpointChain,
-            excludedMessageIds: conversation.excludedMessageIds,
+            filter: ExcludeByIdMessageFilter(
+              conversation.excludedMessageIds.toSet(),
+            ),
           ),
           reasoningEffort: reasoningEnabled && modelConfig.supportsReasoning
               ? reasoningEffort

@@ -195,7 +195,7 @@ void main() {
       expect(result[1].content, '后置提示');
     });
 
-    test('excludedMessageIds 只会跳过被排除的会话消息', () {
+    test('filter 只会跳过被排除的会话消息', () {
       final result = buildRequestMessages(
         promptTemplate: buildTemplate(
           systemPrompt: '系统指令',
@@ -208,7 +208,7 @@ void main() {
             ),
           ],
         ),
-        excludedMessageIds: const ['a1'],
+        filter: const ExcludeByIdMessageFilter({'a1'}),
         conversationMessages: [
           buildUserMessage('真实问题'),
           buildAssistantMessage('不应继续发送的旧回复'),
@@ -326,7 +326,7 @@ void main() {
     expect(result.last.content, '新的问题');
   });
 
-  test('excludedMessageIds 不影响检查点 system 消息，只过滤会话消息', () {
+  test('filter 不影响检查点 system 消息，只过滤会话消息', () {
     final result = buildRequestMessages(
       promptTemplate: null,
       checkpointChain: [
@@ -337,7 +337,7 @@ void main() {
           createdAt: DateTime(2026),
         ),
       ],
-      excludedMessageIds: const ['a1'],
+      filter: const ExcludeByIdMessageFilter({'a1'}),
       conversationMessages: [
         buildUserMessage('新的问题'),
         buildAssistantMessage('旧回复'),
