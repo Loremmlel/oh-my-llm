@@ -5,6 +5,7 @@ import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dar
 import 'package:oh_my_llm/features/settings/data/sqlite_memory_prompt_repository.dart';
 import 'package:oh_my_llm/features/settings/data/sqlite_prompt_template_repository.dart';
 import 'package:oh_my_llm/features/settings/data/sqlite_template_prompt_repository.dart';
+import 'package:oh_my_llm/features/settings/presentation/settings_screen.dart';
 
 import 'settings_screen_test_helpers.dart';
 
@@ -178,6 +179,56 @@ void registerSettingsScreenModelsAndPromptsTests() {
 
       expect(find.text('还没有预设 Prompt'), findsOneWidget);
       expect(repo.loadAll(), isEmpty);
+    },
+  );
+
+  testWidgets(
+    'prompt template dialog only keeps outer scroll on compact layout',
+    (tester) async {
+      final preferences = await createEmptyPreferences();
+
+      await pumpSettingsScreen(
+        tester,
+        preferences: preferences,
+        size: const Size(1440, 2200),
+      );
+
+      await tester.tap(find.text('新增预设'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('settings-form-dialog-outer-scroll-view')),
+        findsNothing,
+      );
+
+      await tester.tap(find.text('取消'));
+      await tester.pumpAndSettle();
+
+      await pumpSettingsScreen(
+        tester,
+        preferences: preferences,
+        size: const Size(430, 932),
+      );
+
+      final settingsList = find.descendant(
+        of: find.byType(SettingsScreen),
+        matching: find.byType(ListView),
+      );
+      final addPresetButton = find.widgetWithText(FilledButton, '新增预设');
+      await tester.dragUntilVisible(
+        addPresetButton,
+        settingsList.first,
+        const Offset(0, -300),
+      );
+      await tester.ensureVisible(addPresetButton);
+      await tester.pumpAndSettle();
+      await tester.tap(addPresetButton);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('settings-form-dialog-outer-scroll-view')),
+        findsOneWidget,
+      );
     },
   );
 

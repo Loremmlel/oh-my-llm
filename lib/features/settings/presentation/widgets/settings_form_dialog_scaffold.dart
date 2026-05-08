@@ -11,8 +11,11 @@ class SettingsFormDialogScaffold extends StatelessWidget {
     this.width = 720,
     this.submitLabel = '保存',
     this.savingLabel = '保存中...',
+    this.shouldScrollContent = _alwaysScrollContent,
     super.key,
   });
+
+  static bool _alwaysScrollContent(BoxConstraints _) => true;
 
   final String title;
   final GlobalKey<FormState> formKey;
@@ -22,6 +25,7 @@ class SettingsFormDialogScaffold extends StatelessWidget {
   final double width;
   final String submitLabel;
   final String savingLabel;
+  final bool Function(BoxConstraints constraints) shouldScrollContent;
 
   @override
   Widget build(BuildContext context) {
@@ -29,9 +33,20 @@ class SettingsFormDialogScaffold extends StatelessWidget {
       title: Text(title),
       content: SizedBox(
         width: width,
-        child: Form(
-          key: formKey,
-          child: SingleChildScrollView(child: child),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            if (!shouldScrollContent(constraints)) {
+              return Form(key: formKey, child: child);
+            }
+
+            return Form(
+              key: formKey,
+              child: SingleChildScrollView(
+                key: const ValueKey('settings-form-dialog-outer-scroll-view'),
+                child: child,
+              ),
+            );
+          },
         ),
       ),
       actions: [

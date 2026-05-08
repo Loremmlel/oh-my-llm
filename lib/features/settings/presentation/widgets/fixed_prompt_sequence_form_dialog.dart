@@ -81,6 +81,7 @@ class _FixedPromptSequenceFormDialogState
   /// 构建固定顺序提示词的主从式编辑器。
   Widget build(BuildContext context) {
     final isEditing = widget.initialValue != null;
+    const masterDetailBreakpoint = 900.0;
 
     return SettingsFormDialogScaffold(
       title: isEditing ? '编辑固定顺序提示词' : '新增固定顺序提示词',
@@ -88,9 +89,11 @@ class _FixedPromptSequenceFormDialogState
       isSaving: isSaving,
       onSubmit: _handleSubmit,
       width: 1080,
+      shouldScrollContent: (constraints) =>
+          constraints.maxWidth < masterDetailBreakpoint,
       child: AdaptiveMasterDetailLayout(
         key: const ValueKey('fixed-prompt-sequence-form-layout'),
-        breakpoint: 900,
+        breakpoint: masterDetailBreakpoint,
         masterWidth: 340,
         minHeight: 620,
         compactChild: _buildCompactLayout(context),
