@@ -23,7 +23,7 @@ class ChatDefaultsSection extends ConsumerWidget {
   final String? defaultPromptTemplateId;
 
   @override
-  /// 构建最近一次模型和前置 Prompt 记忆的两个下拉选择器。
+  /// 构建最近一次模型和预设 Prompt 记忆的两个下拉选择器。
   Widget build(BuildContext context, WidgetRef ref) {
     final resolvedModelId =
         modelConfigs.any((config) {
@@ -93,8 +93,8 @@ class ChatDefaultsSection extends ConsumerWidget {
                 );
           },
           decoration: const InputDecoration(
-            labelText: '前置 Prompt 记忆',
-            helperText: '会作为聊天页最近一次前置 Prompt 选择记忆。',
+            labelText: '预设 Prompt 记忆',
+            helperText: '会作为聊天页最近一次预设 Prompt 选择记忆。',
           ),
         ),
       ],

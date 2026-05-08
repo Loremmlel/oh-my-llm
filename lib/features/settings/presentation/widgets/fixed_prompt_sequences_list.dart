@@ -137,7 +137,7 @@ class _FixedPromptSequenceTile extends ConsumerWidget {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 4),
                   child: Text(
-                    '${index + 1}. ${_summarize(sequence.steps[index].content)}',
+                    '${index + 1}. ${sequence.steps[index].title.isEmpty ? _summarize(sequence.steps[index].content) : sequence.steps[index].title}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),

@@ -23,8 +23,8 @@ class PromptTemplatesList extends ConsumerWidget {
     if (templates.isEmpty) {
       return const SettingsEmptyState(
         icon: Icons.notes_rounded,
-        title: '还没有 Prompt 模板',
-        description: '添加模板后，聊天页就可以把它们作为 system / few-shot 上下文插入到对话最前面。',
+        title: '还没有预设 Prompt',
+        description: '添加后，聊天页就可以把它们作为 system、前置或后置上下文插入到对话里。',
       );
     }
 
@@ -130,7 +130,7 @@ class _PromptTemplateTile extends ConsumerWidget {
             Text(template.summary),
             const SizedBox(height: 4),
             Text(
-              'System：${_summarize(template.systemPrompt)}',
+              'system · ${template.systemPromptTitle}：${_summarize(template.systemPrompt)}',
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
@@ -140,7 +140,7 @@ class _PromptTemplateTile extends ConsumerWidget {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 4),
                   child: Text(
-                    '${message.role.label}：${_summarize(message.content)}',
+                    '${_placementLabel(message.placement)} · ${message.title}：${_summarize(message.content)}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -166,7 +166,7 @@ class _PromptTemplateTile extends ConsumerWidget {
                         .clearRememberedPromptTemplateIdIfMatches(template.id);
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Prompt 模板已删除')),
+                        const SnackBar(content: Text('预设 Prompt 已删除')),
                       );
                     }
                   },
@@ -189,5 +189,12 @@ class _PromptTemplateTile extends ConsumerWidget {
     }
 
     return '${normalized.substring(0, 30)}...';
+  }
+
+  String _placementLabel(PromptMessagePlacement placement) {
+    return switch (placement) {
+      PromptMessagePlacement.before => '前置',
+      PromptMessagePlacement.after => '后置',
+    };
   }
 }

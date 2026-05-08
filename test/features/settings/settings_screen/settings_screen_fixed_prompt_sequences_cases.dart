@@ -30,18 +30,20 @@ void registerSettingsScreenFixedPromptSequencesTests() {
       );
 
       await tester.enterText(find.byType(TextFormField).at(0), '对比测试流程');
-      await tester.tap(find.text('新增步骤'));
-      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextFormField).at(1), '标题1');
       await tester.enterText(
-        find.byType(TextFormField).at(1),
+        find.byType(TextFormField).at(2),
         '请先总结这个需求的核心目标。',
       );
+      expect(find.text('步骤 1 · 标题1'), findsOneWidget);
       await tester.tap(find.text('新增步骤'));
       await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextFormField).at(1), '标题2');
       await tester.enterText(
         find.byType(TextFormField).at(2),
         '请列出三个可执行方案，并说明权衡。',
       );
+      expect(find.text('步骤 2 · 标题2'), findsOneWidget);
       await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
 

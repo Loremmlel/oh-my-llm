@@ -2,36 +2,54 @@ import 'dart:convert';
 
 import 'package:equatable/equatable.dart';
 
+String buildFixedPromptStepFallbackTitle(int sequence) => '标题$sequence';
+
 /// 固定顺序提示词中的单个步骤。
 class FixedPromptSequenceStep extends Equatable {
-  const FixedPromptSequenceStep({required this.id, required this.content});
+  const FixedPromptSequenceStep({
+    required this.id,
+    required this.content,
+    this.title = '',
+  });
 
   final String id;
   final String content;
+  final String title;
 
   /// 复制步骤并允许覆盖字段。
-  FixedPromptSequenceStep copyWith({String? id, String? content}) {
+  FixedPromptSequenceStep copyWith({
+    String? id,
+    String? content,
+    String? title,
+  }) {
     return FixedPromptSequenceStep(
       id: id ?? this.id,
       content: content ?? this.content,
+      title: title ?? this.title,
     );
   }
 
   /// 将步骤序列化为 JSON。
   Map<String, dynamic> toJson() {
-    return {'id': id, 'content': content};
+    return {'id': id, 'title': title, 'content': content};
   }
 
   /// 从 JSON 反序列化步骤。
-  factory FixedPromptSequenceStep.fromJson(Map<String, dynamic> json) {
+  factory FixedPromptSequenceStep.fromJson(
+    Map<String, dynamic> json, {
+    String? fallbackTitle,
+  }) {
     return FixedPromptSequenceStep(
       id: json['id'] as String,
+      title: (json['title'] as String?)?.trim().isNotEmpty == true
+          ? json['title'] as String
+          : (fallbackTitle ?? ''),
       content: json['content'] as String,
     );
   }
 
   @override
-  List<Object> get props => [id, content];
+  List<Object> get props => [id, title, content];
 }
 
 /// 供聊天页按顺序逐步发送的固定提示词序列。
@@ -80,10 +98,11 @@ class FixedPromptSequence extends Equatable {
     return FixedPromptSequence(
       id: json['id'] as String,
       name: json['name'] as String,
-      steps: rawSteps
+      steps: rawSteps.indexed
           .map(
-            (item) => FixedPromptSequenceStep.fromJson(
-              Map<String, dynamic>.from(item as Map),
+            (entry) => FixedPromptSequenceStep.fromJson(
+              Map<String, dynamic>.from(entry.$2 as Map),
+              fallbackTitle: buildFixedPromptStepFallbackTitle(entry.$1 + 1),
             ),
           )
           .toList(growable: false),

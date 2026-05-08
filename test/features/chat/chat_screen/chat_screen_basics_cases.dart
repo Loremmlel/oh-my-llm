@@ -340,7 +340,7 @@ void registerChatScreenBasicsTests() {
       await tester.pumpAndSettle();
 
       expect(find.text('对话检查点'), findsOneWidget);
-      expect(find.text('当前上下文字数：5 字（不含前置 Prompt）'), findsOneWidget);
+      expect(find.text('当前上下文字数：5 字（不含预设 Prompt）'), findsOneWidget);
     },
   );
 
@@ -369,7 +369,7 @@ void registerChatScreenBasicsTests() {
       await tester.tap(find.byTooltip('对话检查点'));
       await tester.pumpAndSettle();
 
-      expect(find.text('当前总结会附带前置提示词：代码助手'), findsOneWidget);
+      expect(find.text('当前总结会附带预设 Prompt：代码助手'), findsOneWidget);
     },
   );
 
@@ -1049,7 +1049,7 @@ void registerChatScreenBasicsTests() {
 
     await tester.tap(find.byKey(const ValueKey('chat-prompt-selector')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('不使用前置 Prompt').last);
+    await tester.tap(find.text('不使用预设 Prompt').last);
     await tester.pumpAndSettle();
 
     await sendMessage(tester, '第一次问题');

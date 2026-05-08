@@ -13,9 +13,15 @@ import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
 PromptTemplate template(String id, {DateTime? updatedAt}) => PromptTemplate(
   id: id,
   name: '模板 $id',
+  systemPromptTitle: 'system',
   systemPrompt: '系统 $id',
   messages: const [
-    PromptMessage(id: 'msg-1', role: PromptMessageRole.user, content: '用户消息'),
+    PromptMessage(
+      id: 'msg-1',
+      role: PromptMessageRole.user,
+      title: '前置user1',
+      content: '用户消息',
+    ),
   ],
   updatedAt: updatedAt ?? DateTime(2026, 1, 1),
 );
@@ -63,17 +69,20 @@ void main() {
       final original = PromptTemplate(
         id: 'full',
         name: '全字段',
+        systemPromptTitle: 'system',
         systemPrompt: '系统指令',
         messages: const [
           PromptMessage(
             id: 'msg-1',
             role: PromptMessageRole.user,
+            title: '前置user1',
             content: '用户提问',
             placement: PromptMessagePlacement.before,
           ),
           PromptMessage(
             id: 'msg-2',
             role: PromptMessageRole.assistant,
+            title: '后置assistant1',
             content: '助手回答',
             placement: PromptMessagePlacement.after,
           ),
@@ -95,6 +104,31 @@ void main() {
 
       expect(decoded.placement, PromptMessagePlacement.before);
     });
+
+    test(
+      'legacy prompt template generates fallback titles for system and messages',
+      () {
+        final decoded = PromptTemplate.fromJson({
+          'id': 'legacy',
+          'name': '旧模板',
+          'systemPrompt': '系统指令',
+          'messages': [
+            {'id': 'm1', 'role': 'user', 'content': '前置消息'},
+            {
+              'id': 'm2',
+              'role': 'assistant',
+              'placement': 'after',
+              'content': '后置消息',
+            },
+          ],
+          'updatedAt': '2026-01-01T00:00:00.000',
+        });
+
+        expect(decoded.systemPromptTitle, 'system');
+        expect(decoded.messages[0].title, '前置user1');
+        expect(decoded.messages[1].title, '后置assistant1');
+      },
+    );
   });
 
   group('SqliteFixedPromptSequenceRepository', () {
@@ -113,8 +147,8 @@ void main() {
         id: 'full-seq',
         name: '全字段序列',
         steps: const [
-          FixedPromptSequenceStep(id: 's1', content: '第一步内容'),
-          FixedPromptSequenceStep(id: 's2', content: '第二步内容'),
+          FixedPromptSequenceStep(id: 's1', title: '标题1', content: '第一步内容'),
+          FixedPromptSequenceStep(id: 's2', title: '标题2', content: '第二步内容'),
         ],
         updatedAt: DateTime(2026, 5, 20),
       );
@@ -122,6 +156,21 @@ void main() {
       await repo.saveAll([original]);
 
       expect(repo.loadAll().single, original);
+    });
+
+    test('legacy fixed sequence generates fallback step titles', () {
+      final decoded = FixedPromptSequence.fromJson({
+        'id': 'legacy-seq',
+        'name': '旧序列',
+        'steps': [
+          {'id': 's1', 'content': '第一步内容'},
+          {'id': 's2', 'content': '第二步内容'},
+        ],
+        'updatedAt': '2026-01-01T00:00:00.000',
+      });
+
+      expect(decoded.steps[0].title, '标题1');
+      expect(decoded.steps[1].title, '标题2');
     });
   });
 

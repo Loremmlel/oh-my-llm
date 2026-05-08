@@ -31,6 +31,13 @@ class PromptTemplateImportComparator
 
   @override
   bool isEquivalent(PromptTemplate existing, PromptTemplate incoming) {
+    if (existing.systemPromptTitle.length !=
+        incoming.systemPromptTitle.length) {
+      return false;
+    }
+    if (existing.systemPromptTitle != incoming.systemPromptTitle) {
+      return false;
+    }
     if (existing.systemPrompt.length != incoming.systemPrompt.length) {
       return false;
     }
@@ -43,6 +50,12 @@ class PromptTemplateImportComparator
     for (var index = 0; index < existing.messages.length; index += 1) {
       final left = existing.messages[index];
       final right = incoming.messages[index];
+      if (left.title.length != right.title.length) {
+        return false;
+      }
+      if (left.title != right.title) {
+        return false;
+      }
       if (left.role != right.role || left.placement != right.placement) {
         return false;
       }
@@ -104,6 +117,12 @@ class FixedPromptSequenceImportComparator
     for (var index = 0; index < existing.steps.length; index += 1) {
       final left = existing.steps[index];
       final right = incoming.steps[index];
+      if (left.title.length != right.title.length) {
+        return false;
+      }
+      if (left.title != right.title) {
+        return false;
+      }
       if (left.content.length != right.content.length) {
         return false;
       }
