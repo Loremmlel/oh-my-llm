@@ -442,27 +442,52 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
     return _items.indexWhere((item) => item.id == _selectedItemId);
   }
 
+  PromptMessagePlacement _resolveNewItemPlacement(
+    _EditablePresetPromptItem? selected,
+  ) {
+    if (selected == null || selected.role == _PresetPromptEditorRole.system) {
+      return PromptMessagePlacement.before;
+    }
+    return selected.placement ?? PromptMessagePlacement.before;
+  }
+
+  int _resolveNewItemInsertIndex({
+    required _EditablePresetPromptItem? selected,
+    required PromptMessagePlacement placement,
+  }) {
+    final selectedIndex = _selectedIndex;
+    if (selected == null || selectedIndex < 0) {
+      return placement == PromptMessagePlacement.before
+          ? _firstAfterIndex
+          : _items.length;
+    }
+    if (selected.role == _PresetPromptEditorRole.system) {
+      return 1;
+    }
+    return selectedIndex + 1;
+  }
+
   void _addMessageItem() {
+    final selected = _selectedItem;
+    final placement = _resolveNewItemPlacement(selected);
     final newItem = _EditablePresetPromptItem(
       id: generateEntityId(),
       role: _PresetPromptEditorRole.user,
-      placement: PromptMessagePlacement.before,
+      placement: placement,
       titleController: TextEditingController(
         text: _buildNextGeneratedTitle(
           role: PromptMessageRole.user,
-          placement: PromptMessagePlacement.before,
+          placement: placement,
         ),
       ),
       contentController: TextEditingController(),
     );
 
     setState(() {
-      final firstAfterIndex = _items.indexWhere(
-        (item) => item.placement == PromptMessagePlacement.after,
+      final insertIndex = _resolveNewItemInsertIndex(
+        selected: selected,
+        placement: placement,
       );
-      final insertIndex = firstAfterIndex == -1
-          ? _items.length
-          : firstAfterIndex;
       _items.insert(insertIndex, newItem);
       _selectedItemId = newItem.id;
     });
