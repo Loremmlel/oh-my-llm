@@ -12,7 +12,10 @@ void registerSettingsScreenFixedPromptSequencesTests() {
       final preferences = await createEmptyPreferences();
 
       // 接收数据库实例以便查询 SQLite 断言。
-      final database = await pumpSettingsScreen(tester, preferences: preferences);
+      final database = await pumpSettingsScreen(
+        tester,
+        preferences: preferences,
+      );
       final repo = SqliteFixedPromptSequenceRepository(database);
 
       expect(find.text('还没有固定顺序提示词'), findsOneWidget);
@@ -37,11 +40,12 @@ void registerSettingsScreenFixedPromptSequencesTests() {
       await tester.pumpAndSettle();
 
       expect(find.text('对比测试流程'), findsWidgets);
+      expect(
+        find.byKey(const ValueKey('fixed-sequences-master-detail')),
+        findsOneWidget,
+      );
       expect(repo.loadAll().any((s) => s.name == '对比测试流程'), isTrue);
-      expect(find.textContaining('共 2 步'), findsOneWidget);
-
-      await tester.drag(find.byType(ListView), const Offset(0, -600));
-      await tester.pumpAndSettle();
+      expect(find.textContaining('共 2 步'), findsWidgets);
 
       final editButton = find.widgetWithText(OutlinedButton, '编辑').last;
       await tester.tap(editButton);
