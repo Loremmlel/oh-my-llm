@@ -337,6 +337,9 @@ class _FixedPromptSequenceFormDialogState
   }
 
   void _addStep() {
+    final insertIndex = _selectedStepIndex >= 0
+        ? _selectedStepIndex + 1
+        : _steps.length;
     final newStep = _EditableFixedPromptSequenceStep(
       id: generateEntityId(),
       titleController: TextEditingController(
@@ -346,7 +349,7 @@ class _FixedPromptSequenceFormDialogState
     );
 
     setState(() {
-      _steps.add(newStep);
+      _steps.insert(insertIndex, newStep);
       _selectedStepId = newStep.id;
     });
   }

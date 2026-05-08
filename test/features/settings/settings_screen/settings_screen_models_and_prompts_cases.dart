@@ -183,6 +183,146 @@ void registerSettingsScreenModelsAndPromptsTests() {
   );
 
   testWidgets(
+    'prompt template dialog inserts a new item below selection and keeps groups ordered',
+    (tester) async {
+      final preferences = await createEmptyPreferences();
+
+      await pumpSettingsScreen(
+        tester,
+        preferences: preferences,
+        size: const Size(1440, 2200),
+      );
+      final masterPane = find.byKey(
+        const ValueKey('preset-prompt-master-pane'),
+      );
+      final addItemButton = find
+          .descendant(
+            of: masterPane,
+            matching: find.widgetWithText(OutlinedButton, '新增条目'),
+          )
+          .hitTestable();
+      final presetList = find
+          .descendant(of: masterPane, matching: find.byType(ListView))
+          .hitTestable();
+
+      Finder rawPresetTile(String title) {
+        return find.descendant(of: masterPane, matching: find.text(title));
+      }
+
+      Finder presetTile(String title) {
+        return rawPresetTile(title).hitTestable();
+      }
+
+      Future<void> ensurePresetTileVisible(String title) async {
+        if (presetTile(title).evaluate().isNotEmpty) {
+          return;
+        }
+        await tester.dragUntilVisible(
+          rawPresetTile(title),
+          presetList,
+          const Offset(0, -240),
+        );
+        await tester.pumpAndSettle();
+      }
+
+      Future<void> expectSelectedTitle(String expected) async {
+        final titleField = tester.widget<TextFormField>(
+          find.byType(TextFormField).at(1),
+        );
+        expect(titleField.controller?.text, expected);
+      }
+
+      Future<void> fillSelectedItem(String title, String content) async {
+        await tester.enterText(find.byType(TextFormField).at(1), title);
+        await tester.enterText(find.byType(TextFormField).at(2), content);
+        await tester.pump();
+      }
+
+      await tester.tap(find.text('新增预设'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextFormField).at(0), '插入测试模板');
+
+      await tester.tap(addItemButton);
+      await tester.pumpAndSettle();
+      await expectSelectedTitle('前置user1');
+      await fillSelectedItem('前置1', '内容1');
+
+      await tester.tap(addItemButton);
+      await tester.pumpAndSettle();
+      await expectSelectedTitle('前置user2');
+      await fillSelectedItem('后置1', '内容2');
+
+      await tester.tap(
+        find.byKey(const ValueKey('preset-prompt-placement-field')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('后置').last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(presetTile('system system'));
+      await tester.pumpAndSettle();
+      await tester.tap(addItemButton);
+      await tester.pumpAndSettle();
+      await expectSelectedTitle('前置user2');
+      await fillSelectedItem('前置0', '内容0');
+      await ensurePresetTileVisible('后置 后置1');
+
+      expect(
+        tester.getTopLeft(rawPresetTile('system system')).dy,
+        lessThan(tester.getTopLeft(rawPresetTile('前置 前置0')).dy),
+      );
+      expect(
+        tester.getTopLeft(rawPresetTile('前置 前置0')).dy,
+        lessThan(tester.getTopLeft(rawPresetTile('前置 前置1')).dy),
+      );
+      expect(
+        tester.getTopLeft(rawPresetTile('前置 前置1')).dy,
+        lessThan(tester.getTopLeft(rawPresetTile('后置 后置1')).dy),
+      );
+
+      await tester.tap(presetTile('前置 前置1'));
+      await tester.pumpAndSettle();
+      await tester.tap(addItemButton);
+      await tester.pumpAndSettle();
+      await expectSelectedTitle('前置user3');
+      await fillSelectedItem('前置1.5', '内容1.5');
+      await ensurePresetTileVisible('后置 后置1');
+
+      expect(
+        tester.getTopLeft(rawPresetTile('前置 前置1')).dy,
+        lessThan(tester.getTopLeft(rawPresetTile('前置 前置1.5')).dy),
+      );
+      expect(
+        tester.getTopLeft(rawPresetTile('前置 前置1.5')).dy,
+        lessThan(tester.getTopLeft(rawPresetTile('后置 后置1')).dy),
+      );
+
+      await ensurePresetTileVisible('后置 后置1');
+      await tester.tap(presetTile('后置 后置1'));
+      await tester.pumpAndSettle();
+      await tester.tap(addItemButton);
+      await tester.pumpAndSettle();
+      await expectSelectedTitle('后置user2');
+      await fillSelectedItem('后置1.5', '内容1.5');
+      await ensurePresetTileVisible('后置 后置1.5');
+
+      expect(
+        tester.getTopLeft(rawPresetTile('后置 后置1')).dy,
+        lessThan(tester.getTopLeft(rawPresetTile('后置 后置1.5')).dy),
+      );
+
+      final titleField = tester.widget<TextFormField>(
+        find.byType(TextFormField).at(1),
+      );
+      final contentField = tester.widget<TextFormField>(
+        find.byType(TextFormField).at(2),
+      );
+      expect(titleField.controller?.text, '后置1.5');
+      expect(contentField.controller?.text, '内容1.5');
+    },
+  );
+
+  testWidgets(
     'prompt template dialog only keeps outer scroll on compact layout',
     (tester) async {
       final preferences = await createEmptyPreferences();

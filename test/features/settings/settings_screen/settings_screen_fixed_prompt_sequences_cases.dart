@@ -150,6 +150,64 @@ void registerSettingsScreenFixedPromptSequencesTests() {
     },
   );
 
+  testWidgets(
+    'fixed prompt sequence dialog inserts a new step below selection',
+    (tester) async {
+      final preferences = await createEmptyPreferences();
+
+      await pumpSettingsScreen(
+        tester,
+        preferences: preferences,
+        size: const Size(1440, 2200),
+      );
+
+      await tester.tap(find.text('新增序列'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextFormField).at(0), '插入测试流程');
+      await tester.enterText(find.byType(TextFormField).at(1), '标题1');
+      await tester.enterText(find.byType(TextFormField).at(2), '内容1');
+
+      await tester.tap(find.text('新增步骤'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextFormField).at(1), '标题2');
+      await tester.enterText(find.byType(TextFormField).at(2), '内容2');
+
+      await tester.tap(find.text('新增步骤'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextFormField).at(1), '标题3');
+      await tester.enterText(find.byType(TextFormField).at(2), '内容3');
+
+      await tester.tap(find.text('步骤 1 · 标题1'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('新增步骤'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('步骤 1 · 标题1'), findsOneWidget);
+      expect(find.text('步骤 2 · 标题4'), findsOneWidget);
+      expect(find.text('步骤 3 · 标题2'), findsOneWidget);
+      expect(find.text('步骤 4 · 标题3'), findsOneWidget);
+
+      final step1Top = tester.getTopLeft(find.text('步骤 1 · 标题1')).dy;
+      final insertedTop = tester.getTopLeft(find.text('步骤 2 · 标题4')).dy;
+      final step2Top = tester.getTopLeft(find.text('步骤 3 · 标题2')).dy;
+      final step3Top = tester.getTopLeft(find.text('步骤 4 · 标题3')).dy;
+      expect(step1Top, lessThan(insertedTop));
+      expect(insertedTop, lessThan(step2Top));
+      expect(step2Top, lessThan(step3Top));
+
+      final titleField = tester.widget<TextFormField>(
+        find.byType(TextFormField).at(1),
+      );
+      final contentField = tester.widget<TextFormField>(
+        find.byType(TextFormField).at(2),
+      );
+      expect(titleField.controller?.text, '标题4');
+      expect(contentField.controller?.text, isEmpty);
+    },
+  );
+
   testWidgets('fixed prompt sequence dialog keeps wide master header visible', (
     tester,
   ) async {
@@ -227,9 +285,11 @@ void registerSettingsScreenFixedPromptSequencesTests() {
       findsNothing,
     );
 
-    final contentField = tester.widgetList<TextField>(
-      find.descendant(of: detailPane, matching: find.byType(TextField)),
-    ).last;
+    final contentField = tester
+        .widgetList<TextField>(
+          find.descendant(of: detailPane, matching: find.byType(TextField)),
+        )
+        .last;
     expect(contentField.expands, isTrue);
     expect(contentField.maxLines, isNull);
     expect(contentField.minLines, isNull);
