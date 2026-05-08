@@ -95,45 +95,17 @@ List<ChatCheckpoint> resolveCheckpointChain({
   return chain.reversed.toList(growable: false);
 }
 
-/// 构建用于普通聊天请求的检查点系统消息。
-List<ChatCompletionRequestMessage> buildCheckpointMemoryMessages(
-  List<ChatCheckpoint> checkpointChain,
-) {
-  if (checkpointChain.isEmpty) {
-    return const [];
-  }
-
-  final buffer = StringBuffer(
-    '当前对话已启用记忆检查点。以下内容按时间顺序提供，后面的检查点依赖前面的祖先检查点。'
-    '请将它们视为用户已确认的重要长期记忆；若与后续原始消息冲突，以后续原始消息为准。',
-  );
-  for (final checkpoint in checkpointChain) {
-    buffer
-      ..write('\n\n【${checkpoint.title}】\n')
-      ..write(checkpoint.content.trim());
-  }
-
-  return [
-    ChatCompletionRequestMessage(
-      role: ChatMessageRole.system,
-      content: buffer.toString().trim(),
-    ),
-  ];
-}
-
 /// 构建创建新检查点时的总结请求。
 List<ChatCompletionRequestMessage> buildCheckpointSummaryMessages({
   required MemoryPrompt memoryPrompt,
   required List<ChatMessage> conversationMessages,
   List<ChatCheckpoint> checkpointChain = const [],
   PromptTemplate? promptTemplate,
-  List<String> excludedMessageIds = const [],
+  RequestMessageFilter filter = RequestMessageFilter.passthrough,
 }) {
   final requestMessages = <ChatCompletionRequestMessage>[];
-  final filteredConversationMessages = filterConversationMessagesForRequest(
-    conversationMessages: conversationMessages,
-    excludedMessageIds: excludedMessageIds,
-  );
+  final filteredMessages = filter.apply(conversationMessages);
+
   if (promptTemplate != null && promptTemplate.systemPrompt.trim().isNotEmpty) {
     requestMessages.add(
       ChatCompletionRequestMessage(
@@ -142,6 +114,7 @@ List<ChatCompletionRequestMessage> buildCheckpointSummaryMessages({
       ),
     );
   }
+
   requestMessages.add(
     ChatCompletionRequestMessage(
       role: ChatMessageRole.system,
@@ -150,50 +123,37 @@ List<ChatCompletionRequestMessage> buildCheckpointSummaryMessages({
           : '你正在为当前对话创建新的链式检查点。已有检查点会与本次新检查点一起在后续对话中使用。除非为了消除歧义必须重述，否则不要机械重复旧检查点，重点总结自最后一个已提供检查点之后新增或变化的重要信息。',
     ),
   );
+
   requestMessages.addAll(buildCheckpointMemoryMessages(checkpointChain));
-  if (promptTemplate != null) {
-    final beforeMessages = promptTemplate.messages.where(
-      (message) => message.placement == PromptMessagePlacement.before,
-    );
-    requestMessages.addAll(
-      beforeMessages.map((message) {
-        return ChatCompletionRequestMessage(
-          role: message.role == PromptMessageRole.user
-              ? ChatMessageRole.user
-              : ChatMessageRole.assistant,
-          content: message.content,
-        );
-      }),
-    );
-  }
+
+  appendTemplateMessages(
+    buffer: requestMessages,
+    promptTemplate: promptTemplate,
+    placement: PromptMessagePlacement.before,
+  );
+
   requestMessages.addAll(
-    filteredConversationMessages.map((message) {
+    filteredMessages.map((message) {
       return ChatCompletionRequestMessage(
         role: message.role,
         content: message.content,
       );
     }),
   );
+
   requestMessages.add(
     ChatCompletionRequestMessage(
       role: ChatMessageRole.user,
       content: '请按照以下记忆总结提示词生成新的检查点：\n\n${memoryPrompt.content.trim()}',
     ),
   );
-  if (promptTemplate != null) {
-    final afterMessages = promptTemplate.messages.where(
-      (message) => message.placement == PromptMessagePlacement.after,
-    );
-    requestMessages.addAll(
-      afterMessages.map((message) {
-        return ChatCompletionRequestMessage(
-          role: message.role == PromptMessageRole.user
-              ? ChatMessageRole.user
-              : ChatMessageRole.assistant,
-          content: message.content,
-        );
-      }),
-    );
-  }
+
+  appendTemplateMessages(
+    buffer: requestMessages,
+    promptTemplate: promptTemplate,
+    placement: PromptMessagePlacement.after,
+  );
+
   return List.unmodifiable(requestMessages);
 }
+

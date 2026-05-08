@@ -6,6 +6,7 @@ import '../../../core/utils/id_generator.dart';
 import '../../settings/domain/models/llm_model_config.dart';
 import '../../settings/domain/models/memory_prompt.dart';
 import '../../settings/domain/models/prompt_template.dart';
+import 'chat_request_message_builder.dart';
 import 'chat_sessions_controller_streaming.dart';
 import 'chat_sessions_controller_support.dart';
 import 'checkpoint_request_context.dart';
@@ -396,7 +397,9 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
           conversationMessages: summaryMessages,
           checkpointChain: sourceContext.checkpointChain,
           promptTemplate: promptTemplate,
-          excludedMessageIds: currentConversation.excludedMessageIds,
+          filter: ExcludeByIdMessageFilter(
+            currentConversation.excludedMessageIds.toSet(),
+          ),
         ),
         reasoningEffort: reasoningEnabled && modelConfig.supportsReasoning
             ? reasoningEffort
