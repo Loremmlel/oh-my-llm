@@ -196,4 +196,47 @@ void registerSettingsScreenFixedPromptSequencesTests() {
     expect(tester.getTopLeft(header).dy, headerOffsetBefore.dy);
     expect(addStepButton, findsOneWidget);
   });
+
+  testWidgets('fixed prompt sequence dialog locks wide detail pane scroll', (
+    tester,
+  ) async {
+    final preferences = await createEmptyPreferences();
+
+    await pumpSettingsScreen(
+      tester,
+      preferences: preferences,
+      size: const Size(1440, 2200),
+    );
+
+    await tester.tap(find.text('新增序列'));
+    await tester.pumpAndSettle();
+
+    final detailPane = find.byKey(
+      const ValueKey('fixed-prompt-sequence-detail-pane'),
+    );
+    final deleteButton = find.descendant(
+      of: detailPane,
+      matching: find.widgetWithText(OutlinedButton, '删除当前步骤'),
+    );
+
+    expect(
+      find.descendant(
+        of: detailPane,
+        matching: find.byType(SingleChildScrollView),
+      ),
+      findsNothing,
+    );
+
+    final contentField = tester.widgetList<TextField>(
+      find.descendant(of: detailPane, matching: find.byType(TextField)),
+    ).last;
+    expect(contentField.expands, isTrue);
+    expect(contentField.maxLines, isNull);
+    expect(contentField.minLines, isNull);
+
+    final detailRect = tester.getRect(detailPane);
+    final deleteRect = tester.getRect(deleteButton);
+    expect(deleteRect.top, greaterThanOrEqualTo(detailRect.top));
+    expect(deleteRect.bottom, lessThanOrEqualTo(detailRect.bottom));
+  });
 }

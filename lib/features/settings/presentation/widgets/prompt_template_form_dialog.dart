@@ -95,7 +95,7 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
         detail: _buildWidePane(
           context: context,
           key: const ValueKey('preset-prompt-detail-pane'),
-          child: _buildDetailContent(context),
+          child: _buildDetailContent(context, isWide: true),
         ),
       ),
     );
@@ -111,7 +111,7 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
         _buildCompactPane(
           context: context,
           key: const ValueKey('preset-prompt-detail-pane'),
-          child: _buildDetailContent(context),
+          child: _buildDetailContent(context, isWide: false),
         ),
       ],
     );
@@ -130,10 +130,7 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
         ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.24),
         borderRadius: BorderRadius.circular(20),
       ),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: child,
-      ),
+      child: Padding(padding: const EdgeInsets.all(16), child: child),
     );
   }
 
@@ -267,7 +264,7 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
     );
   }
 
-  Widget _buildDetailContent(BuildContext context) {
+  Widget _buildDetailContent(BuildContext context, {required bool isWide}) {
     final selected = _selectedItem;
     if (selected == null) {
       return const Text('请先选择左侧条目。');
@@ -279,6 +276,19 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
       _PresetPromptEditorRole.user => 'User 条目',
       _PresetPromptEditorRole.assistant => 'Assistant 条目',
     };
+    final contentField = TextFormField(
+      key: const ValueKey('preset-prompt-content-field'),
+      controller: selected.contentController,
+      minLines: isWide ? null : 8,
+      maxLines: isWide ? null : 16,
+      expands: isWide,
+      textAlignVertical: TextAlignVertical.top,
+      decoration: InputDecoration(
+        labelText: isSystem ? 'system Prompt' : 'Prompt 内容',
+        hintText: isSystem ? '你是我的人工智能助手，协助我完成各种任务。' : '输入这一条预设 Prompt 的具体内容。',
+      ),
+      onChanged: (_) => setState(() {}),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -358,19 +368,7 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
           ),
         ],
         const SizedBox(height: 12),
-        TextFormField(
-          key: const ValueKey('preset-prompt-content-field'),
-          controller: selected.contentController,
-          minLines: 8,
-          maxLines: 16,
-          decoration: InputDecoration(
-            labelText: isSystem ? 'system Prompt' : 'Prompt 内容',
-            hintText: isSystem
-                ? '你是我的人工智能助手，协助我完成各种任务。'
-                : '输入这一条预设 Prompt 的具体内容。',
-          ),
-          onChanged: (_) => setState(() {}),
-        ),
+        if (isWide) Expanded(child: contentField) else contentField,
         if (!isSystem) ...[
           const SizedBox(height: 16),
           Align(

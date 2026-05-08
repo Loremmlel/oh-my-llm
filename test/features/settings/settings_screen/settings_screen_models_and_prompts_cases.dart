@@ -280,6 +280,52 @@ void registerSettingsScreenModelsAndPromptsTests() {
     expect(addItemButton, findsOneWidget);
   });
 
+  testWidgets('prompt template dialog locks wide detail pane scroll', (
+    tester,
+  ) async {
+    final preferences = await createEmptyPreferences();
+
+    await pumpSettingsScreen(
+      tester,
+      preferences: preferences,
+      size: const Size(1440, 2200),
+    );
+
+    await tester.tap(find.text('新增预设'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(OutlinedButton, '新增条目'));
+    await tester.pumpAndSettle();
+
+    final detailPane = find.byKey(const ValueKey('preset-prompt-detail-pane'));
+    final deleteButton = find.descendant(
+      of: detailPane,
+      matching: find.widgetWithText(OutlinedButton, '删除当前条目'),
+    );
+
+    expect(
+      find.descendant(
+        of: detailPane,
+        matching: find.byType(SingleChildScrollView),
+      ),
+      findsNothing,
+    );
+
+    final contentEditor = tester.widget<EditableText>(
+      find.descendant(
+        of: find.byKey(const ValueKey('preset-prompt-content-field')),
+        matching: find.byType(EditableText),
+      ),
+    );
+    expect(contentEditor.expands, isTrue);
+    expect(contentEditor.maxLines, isNull);
+    expect(contentEditor.minLines, isNull);
+
+    final detailRect = tester.getRect(detailPane);
+    final deleteRect = tester.getRect(deleteButton);
+    expect(deleteRect.top, greaterThanOrEqualTo(detailRect.top));
+    expect(deleteRect.bottom, lessThanOrEqualTo(detailRect.bottom));
+  });
+
   testWidgets(
     'settings screen supports template prompt CRUD with persistence',
     (tester) async {
