@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/persistence/app_database.dart';
 import '../../../core/persistence/app_database_provider.dart';
+import '../../../core/persistence/sqlite_replace_all.dart';
 import '../domain/models/fixed_prompt_sequence.dart';
 
 /// 固定顺序提示词序列的 SQLite 仓库 Provider。
@@ -38,27 +39,20 @@ class SqliteFixedPromptSequenceRepository {
   /// 采用 DELETE + INSERT 而非 UPSERT，保证磁盘上的顺序与传入列表一致，
   /// 同时避免遗留已删除条目。
   Future<void> saveAll(List<FixedPromptSequence> sequences) async {
-    _database.connection.execute('BEGIN;');
-    try {
-      _database.connection.execute('DELETE FROM fixed_prompt_sequences;');
-      final stmt = _database.connection.prepare(
-        'INSERT INTO fixed_prompt_sequences (id, name, steps_json, updated_at) '
-        'VALUES (?, ?, ?, ?);',
-      );
-      for (final sequence in sequences) {
-        stmt.execute([
-          sequence.id,
-          sequence.name,
-          jsonEncode(sequence.steps.map((s) => s.toJson()).toList()),
-          sequence.updatedAt.toIso8601String(),
-        ]);
-      }
-      stmt.dispose();
-      _database.connection.execute('COMMIT;');
-    } catch (_) {
-      _database.connection.execute('ROLLBACK;');
-      rethrow;
-    }
+    replaceAllRowsInTable(
+      connection: _database.connection,
+      deleteSql: 'DELETE FROM fixed_prompt_sequences;',
+      insertSql:
+          'INSERT INTO fixed_prompt_sequences (id, name, steps_json, updated_at) '
+          'VALUES (?, ?, ?, ?);',
+      items: sequences,
+      buildValues: (sequence) => [
+        sequence.id,
+        sequence.name,
+        jsonEncode(sequence.steps.map((s) => s.toJson()).toList()),
+        sequence.updatedAt.toIso8601String(),
+      ],
+    );
   }
 
   FixedPromptSequence _rowToSequence(Map<String, dynamic> row) {

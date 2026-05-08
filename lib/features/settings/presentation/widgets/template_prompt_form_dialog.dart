@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../domain/models/template_prompt.dart';
 import '../../domain/template_prompt_parser.dart';
 import 'settings_form_dialog_scaffold.dart';
+import 'settings_form_dialog_state_mixin.dart';
 
 /// 模板提示词表单提交数据。
 class TemplatePromptFormData {
@@ -34,14 +35,12 @@ class TemplatePromptFormDialog extends StatefulWidget {
 }
 
 /// 模板提示词表单的输入与变量状态。
-class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog> {
-  final _formKey = GlobalKey<FormState>();
-
+class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
+    with SettingsFormDialogStateMixin {
   late final TextEditingController _titleController;
   late final TextEditingController _contentController;
   final Map<String, TextEditingController> _variableControllers = {};
   late List<TemplatePromptVariable> _variables;
-  bool _isSaving = false;
 
   @override
   void initState() {
@@ -79,8 +78,8 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog> {
 
     return SettingsFormDialogScaffold(
       title: isEditing ? '编辑模板提示词' : '新增模板提示词',
-      formKey: _formKey,
-      isSaving: _isSaving,
+      formKey: formKey,
+      isSaving: isSaving,
       onSubmit: _handleSubmit,
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -92,7 +91,7 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog> {
               labelText: '标题',
               hintText: '例如：翻译润色模板',
             ),
-            validator: _validateRequired,
+            validator: validateRequired,
           ),
           const SizedBox(height: 12),
           TextFormField(
@@ -104,7 +103,7 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog> {
               hintText: '请将以下{{正文}}翻译成{{目标语言}}，并保持{{语气}}。',
               alignLabelWithHint: true,
             ),
-            validator: _validateRequired,
+            validator: validateRequired,
           ),
           const SizedBox(height: 8),
           Text(
@@ -221,32 +220,19 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog> {
   }
 
   Future<void> _handleSubmit() async {
-    if (!_formKey.currentState!.validate()) {
+    if (!validateForm()) {
       return;
     }
 
     final variables = _buildVariablesFromControllers();
-    setState(() {
-      _isSaving = true;
+    await submitAndClose(() {
+      return widget.onSubmit(
+        TemplatePromptFormData(
+          title: _titleController.text.trim(),
+          content: _contentController.text.trim(),
+          variables: variables,
+        ),
+      );
     });
-
-    await widget.onSubmit(
-      TemplatePromptFormData(
-        title: _titleController.text.trim(),
-        content: _contentController.text.trim(),
-        variables: variables,
-      ),
-    );
-
-    if (mounted) {
-      Navigator.of(context).pop();
-    }
-  }
-
-  String? _validateRequired(String? value) {
-    if (value == null || value.trim().isEmpty) {
-      return '此项不能为空';
-    }
-    return null;
   }
 }

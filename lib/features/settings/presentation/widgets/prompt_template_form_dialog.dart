@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/utils/id_generator.dart';
 import '../../domain/models/prompt_template.dart';
 import 'settings_form_dialog_scaffold.dart';
+import 'settings_form_dialog_state_mixin.dart';
 
 /// Prompt 模板表单提交数据。
 class PromptTemplateFormData {
@@ -34,13 +35,11 @@ class PromptTemplateFormDialog extends StatefulWidget {
 }
 
 /// Prompt 模板表单的输入与排序状态。
-class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog> {
-  final _formKey = GlobalKey<FormState>();
-
+class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
+    with SettingsFormDialogStateMixin {
   late final TextEditingController _nameController;
   late final TextEditingController _systemPromptController;
   late List<_EditablePromptMessage> _messages;
-  bool _isSaving = false;
 
   @override
   void initState() {
@@ -80,8 +79,8 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog> {
 
     return SettingsFormDialogScaffold(
       title: isEditing ? '编辑 Prompt 模板' : '新增 Prompt 模板',
-      formKey: _formKey,
-      isSaving: _isSaving,
+      formKey: formKey,
+      isSaving: isSaving,
       onSubmit: _handleSubmit,
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -93,7 +92,7 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog> {
               labelText: '模板名称',
               hintText: '例如：代码审阅助手',
             ),
-            validator: _validateRequired,
+            validator: validateRequired,
           ),
           const SizedBox(height: 12),
           TextFormField(
@@ -104,7 +103,7 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog> {
               labelText: 'System 指令',
               hintText: '你是我的人工智能助手，协助我完成各种任务。',
             ),
-            validator: _validateRequired,
+            validator: validateRequired,
           ),
           const SizedBox(height: 20),
           Column(
@@ -195,7 +194,7 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog> {
 
   /// 提交模板并过滤掉空消息。
   Future<void> _handleSubmit() async {
-    if (!_formKey.currentState!.validate()) {
+    if (!validateForm()) {
       return;
     }
 
@@ -211,30 +210,15 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog> {
         .where((message) => message.content.isNotEmpty)
         .toList(growable: false);
 
-    setState(() {
-      _isSaving = true;
+    await submitAndClose(() {
+      return widget.onSubmit(
+        PromptTemplateFormData(
+          name: _nameController.text.trim(),
+          systemPrompt: _systemPromptController.text.trim(),
+          messages: messages,
+        ),
+      );
     });
-
-    await widget.onSubmit(
-      PromptTemplateFormData(
-        name: _nameController.text.trim(),
-        systemPrompt: _systemPromptController.text.trim(),
-        messages: messages,
-      ),
-    );
-
-    if (mounted) {
-      Navigator.of(context).pop();
-    }
-  }
-
-  /// 校验必填字段是否为空。
-  String? _validateRequired(String? value) {
-    if (value == null || value.trim().isEmpty) {
-      return '此项不能为空';
-    }
-
-    return null;
   }
 }
 

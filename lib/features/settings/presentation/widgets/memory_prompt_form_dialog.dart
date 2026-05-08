@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../domain/models/memory_prompt.dart';
 import 'settings_form_dialog_scaffold.dart';
+import 'settings_form_dialog_state_mixin.dart';
 
 /// 记忆总结提示词表单提交数据。
 class MemoryPromptFormData {
@@ -26,11 +27,10 @@ class MemoryPromptFormDialog extends StatefulWidget {
   State<MemoryPromptFormDialog> createState() => _MemoryPromptFormDialogState();
 }
 
-class _MemoryPromptFormDialogState extends State<MemoryPromptFormDialog> {
-  final _formKey = GlobalKey<FormState>();
+class _MemoryPromptFormDialogState extends State<MemoryPromptFormDialog>
+    with SettingsFormDialogStateMixin {
   late final TextEditingController _nameController;
   late final TextEditingController _contentController;
-  bool _isSaving = false;
 
   @override
   void initState() {
@@ -56,8 +56,8 @@ class _MemoryPromptFormDialogState extends State<MemoryPromptFormDialog> {
 
     return SettingsFormDialogScaffold(
       title: isEditing ? '编辑记忆总结提示词' : '新增记忆总结提示词',
-      formKey: _formKey,
-      isSaving: _isSaving,
+      formKey: formKey,
+      isSaving: isSaving,
       onSubmit: _handleSubmit,
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -68,7 +68,7 @@ class _MemoryPromptFormDialogState extends State<MemoryPromptFormDialog> {
               labelText: '名称',
               hintText: '例如：研发任务总结 / 写作人设总结',
             ),
-            validator: _validateRequired,
+            validator: validateRequired,
           ),
           const SizedBox(height: 12),
           TextFormField(
@@ -80,7 +80,7 @@ class _MemoryPromptFormDialogState extends State<MemoryPromptFormDialog> {
               hintText: '说明你希望模型如何总结当前上下文，例如保留哪些重点、输出什么结构。',
               alignLabelWithHint: true,
             ),
-            validator: _validateRequired,
+            validator: validateRequired,
           ),
         ],
       ),
@@ -88,28 +88,17 @@ class _MemoryPromptFormDialogState extends State<MemoryPromptFormDialog> {
   }
 
   Future<void> _handleSubmit() async {
-    if (!_formKey.currentState!.validate()) {
+    if (!validateForm()) {
       return;
     }
 
-    setState(() {
-      _isSaving = true;
+    await submitAndClose(() {
+      return widget.onSubmit(
+        MemoryPromptFormData(
+          name: _nameController.text.trim(),
+          content: _contentController.text.trim(),
+        ),
+      );
     });
-    await widget.onSubmit(
-      MemoryPromptFormData(
-        name: _nameController.text.trim(),
-        content: _contentController.text.trim(),
-      ),
-    );
-    if (mounted) {
-      Navigator.of(context).pop();
-    }
-  }
-
-  String? _validateRequired(String? value) {
-    if (value == null || value.trim().isEmpty) {
-      return '此项不能为空';
-    }
-    return null;
   }
 }

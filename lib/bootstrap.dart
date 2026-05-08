@@ -7,15 +7,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'app/app.dart';
 import 'core/logging/app_network_logger.dart';
 import 'core/logging/app_network_logger_provider.dart';
+import 'core/persistence/app_data_migrations.dart';
 import 'core/persistence/app_database.dart';
 import 'core/persistence/app_database_provider.dart';
 import 'core/persistence/shared_preferences_provider.dart';
-import 'features/chat/data/chat_conversation_migration.dart';
-import 'features/chat/data/sqlite_chat_conversation_repository.dart';
-import 'features/settings/data/fixed_prompt_sequence_migration.dart';
-import 'features/settings/data/prompt_template_migration.dart';
-import 'features/settings/data/sqlite_fixed_prompt_sequence_repository.dart';
-import 'features/settings/data/sqlite_prompt_template_repository.dart';
 
 /// 应用启动入口：初始化持久化层、执行一次性数据迁移，最后启动 Flutter 应用。
 ///
@@ -33,18 +28,7 @@ Future<void> bootstrap({SharedPreferences? sharedPreferences}) async {
   await networkLogger.onAppLaunch();
 
   // 按顺序执行各数据源的一次性迁移。
-  await migrateLegacyChatConversations(
-    preferences: preferences,
-    repository: SqliteChatConversationRepository(appDatabase),
-  );
-  await migrateLegacyPromptTemplates(
-    preferences: preferences,
-    repository: SqlitePromptTemplateRepository(appDatabase),
-  );
-  await migrateLegacyFixedPromptSequences(
-    preferences: preferences,
-    repository: SqliteFixedPromptSequenceRepository(appDatabase),
-  );
+  await runAppDataMigrations(preferences: preferences, database: appDatabase);
 
   runApp(
     ProviderScope(

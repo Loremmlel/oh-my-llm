@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../domain/models/llm_provider_config.dart';
 import 'settings_form_dialog_scaffold.dart';
+import 'settings_form_dialog_state_mixin.dart';
 
 /// 服务商表单提交数据。
 class ModelProviderFormData {
@@ -32,13 +33,11 @@ class ModelProviderFormDialog extends StatefulWidget {
       _ModelProviderFormDialogState();
 }
 
-class _ModelProviderFormDialogState extends State<ModelProviderFormDialog> {
-  final _formKey = GlobalKey<FormState>();
-
+class _ModelProviderFormDialogState extends State<ModelProviderFormDialog>
+    with SettingsFormDialogStateMixin {
   late final TextEditingController _nameController;
   late final TextEditingController _apiUrlController;
   late final TextEditingController _apiKeyController;
-  bool _isSaving = false;
 
   @override
   void initState() {
@@ -68,8 +67,8 @@ class _ModelProviderFormDialogState extends State<ModelProviderFormDialog> {
 
     return SettingsFormDialogScaffold(
       title: isEditing ? '编辑服务商' : '新增服务商',
-      formKey: _formKey,
-      isSaving: _isSaving,
+      formKey: formKey,
+      isSaving: isSaving,
       onSubmit: _handleSubmit,
       width: 520,
       child: Column(
@@ -81,7 +80,7 @@ class _ModelProviderFormDialogState extends State<ModelProviderFormDialog> {
               labelText: '服务商名称',
               hintText: '例如：DeepSeek 官方',
             ),
-            validator: _validateRequired,
+            validator: validateRequired,
           ),
           const SizedBox(height: 12),
           TextFormField(
@@ -98,7 +97,7 @@ class _ModelProviderFormDialogState extends State<ModelProviderFormDialog> {
             controller: _apiKeyController,
             decoration: const InputDecoration(labelText: 'API Key'),
             obscureText: true,
-            validator: _validateRequired,
+            validator: validateRequired,
           ),
         ],
       ),
@@ -106,37 +105,23 @@ class _ModelProviderFormDialogState extends State<ModelProviderFormDialog> {
   }
 
   Future<void> _handleSubmit() async {
-    if (!_formKey.currentState!.validate()) {
+    if (!validateForm()) {
       return;
     }
 
-    setState(() {
-      _isSaving = true;
+    await submitAndClose(() {
+      return widget.onSubmit(
+        ModelProviderFormData(
+          name: _nameController.text.trim(),
+          apiUrl: _apiUrlController.text.trim(),
+          apiKey: _apiKeyController.text.trim(),
+        ),
+      );
     });
-
-    await widget.onSubmit(
-      ModelProviderFormData(
-        name: _nameController.text.trim(),
-        apiUrl: _apiUrlController.text.trim(),
-        apiKey: _apiKeyController.text.trim(),
-      ),
-    );
-
-    if (mounted) {
-      Navigator.of(context).pop();
-    }
-  }
-
-  String? _validateRequired(String? value) {
-    if (value == null || value.trim().isEmpty) {
-      return '此项不能为空';
-    }
-
-    return null;
   }
 
   String? _validateUrl(String? value) {
-    final requiredError = _validateRequired(value);
+    final requiredError = validateRequired(value);
     if (requiredError != null) {
       return requiredError;
     }
