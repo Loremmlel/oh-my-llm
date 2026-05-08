@@ -104,9 +104,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
     final selectableModels = selectedProviderId == null
         ? const <LlmModelConfig>[]
-        : modelConfigs.where((config) {
-            return config.providerId == selectedProviderId;
-          }).toList(growable: false);
+        : modelConfigs
+              .where((config) {
+                return config.providerId == selectedProviderId;
+              })
+              .toList(growable: false);
     final selectedPromptTemplate = _resolveSelectedPromptTemplate(
       promptTemplates,
       conversation.selectedPromptTemplateId,
@@ -136,17 +138,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       endDrawer: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(12),
-            child: ConversationHistoryPanel(
-              groups: _buildConversationGroups(conversations),
-              activeConversationId: activeConversationId,
-              hasDraftConversation: !conversation.hasMessages,
-              onCreateConversation: isBusy
-                  ? null
-                  : () => _createConversationAndScroll(),
-              onConversationSelected: (conversationId) {
-                if (isBusy) {
-                  return;
-                }
+          child: ConversationHistoryPanel(
+            groups: _buildConversationGroups(conversations),
+            activeConversationId: activeConversationId,
+            hasDraftConversation: !conversation.hasMessages,
+            onCreateConversation: isBusy
+                ? null
+                : () => _createConversationAndScroll(),
+            onConversationSelected: (conversationId) {
+              if (isBusy) {
+                return;
+              }
               ref
                   .read(chatSessionsProvider.notifier)
                   .selectConversation(conversationId);
@@ -164,11 +166,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           onPressed: isBusy
               ? null
               : () => _showCheckpointsDialog(
-                    context,
-                    selectedModel: selectedModel,
-                    selectedPromptTemplate: selectedPromptTemplate,
-                    supportsReasoning: supportsReasoning,
-                  ),
+                  context,
+                  selectedModel: selectedModel,
+                  selectedPromptTemplate: selectedPromptTemplate,
+                  supportsReasoning: supportsReasoning,
+                ),
           tooltip: '对话检查点',
           icon: const Icon(Icons.memory_rounded),
         ),
@@ -224,10 +226,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     promptTemplates: promptTemplates,
                     selectedPromptTemplate: selectedPromptTemplate,
                     userMessages: userMessages,
-                     activeAnchorMessageId: _scroll.activeAnchorMessageId,
-                     messageController: _messageController,
-                     messageFocusNode: _messageFocusNode,
-                     templatePrompts: templatePrompts,
+                    activeAnchorMessageId: _scroll.activeAnchorMessageId,
+                    messageController: _messageController,
+                    messageFocusNode: _messageFocusNode,
+                    templatePrompts: templatePrompts,
                     selectedTemplatePrompt: selectedTemplatePrompt,
                     templateVariableControllers: _templateVariableControllers,
                     messageItemScrollController: _scroll.itemScrollController,
@@ -254,15 +256,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           .read(chatSessionsProvider.notifier)
                           .retryLatestAssistant();
                     },
-                     onDeleteMessage: (message) async {
-                       await _showDeleteMessageDialog(context, message);
-                     },
-                     onProviderSelected: (providerId) {
-                       _handleProviderSelected(providerId, selectableProviders);
-                     },
-                     onModelSelected: (modelId) {
-                       _handleModelSelected(modelId);
-                     },
+                    onDeleteMessage: (message) async {
+                      await _showDeleteMessageDialog(context, message);
+                    },
+                    onProviderSelected: (providerId) {
+                      _handleProviderSelected(providerId, selectableProviders);
+                    },
+                    onModelSelected: (modelId) {
+                      _handleModelSelected(modelId);
+                    },
                     onPromptTemplateSelected: (promptTemplateId) {
                       _handlePromptTemplateSelected(promptTemplateId);
                     },
@@ -501,7 +503,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     String providerId,
     List<LlmProviderConfig> providers,
   ) async {
-    final provider = providers.where((item) => item.id == providerId).firstOrNull;
+    final provider = providers
+        .where((item) => item.id == providerId)
+        .firstOrNull;
     final targetModelId = provider?.models.firstOrNull?.id;
     if (targetModelId == null) {
       return;
@@ -668,6 +672,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final assistantIndex = messages.indexWhere(
       (m) => m.id == assistantMessage.id,
     );
+    final messenger = ScaffoldMessenger.of(context);
     final userMessage = assistantIndex > 0
         ? messages
               .sublist(0, assistantIndex)
@@ -701,10 +706,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
 
     if (!mounted) return;
-    // ignore: use_build_context_synchronously
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('已收藏')));
+    messenger.showSnackBar(const SnackBar(content: Text('已收藏')));
   }
 
   /// 弹出会话重命名对话框并提交新标题。

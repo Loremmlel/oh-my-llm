@@ -132,9 +132,9 @@ class LlmProviderConfig extends Equatable {
 
   /// 把当前服务商下所有模型展开为请求层可用的模型配置。
   List<LlmModelConfig> get resolvedModels {
-    return models.map((model) => model.resolveForProvider(this)).toList(
-      growable: false,
-    );
+    return models
+        .map((model) => model.resolveForProvider(this))
+        .toList(growable: false);
   }
 
   @override
@@ -142,4 +142,51 @@ class LlmProviderConfig extends Equatable {
 
   @override
   List<Object> get props => [id, name, apiUrl, apiKey, models];
+}
+
+/// 将旧版平铺模型配置聚合为当前的“服务商 + 模型”结构。
+///
+/// 旧数据按 `apiUrl + apiKey` 归并到同一个服务商下，服务商名称沿用
+/// 自动生成的占位文案，交由后续编辑流程让用户按需重命名。
+List<LlmProviderConfig> migrateLegacyModelsToProviders(
+  Iterable<LlmModelConfig> models,
+) {
+  final providers = <LlmProviderConfig>[];
+  final providerIndexBySignature = <String, int>{};
+
+  for (final model in models) {
+    final signature = _buildLegacyProviderSignature(model.apiUrl, model.apiKey);
+    final existingIndex = providerIndexBySignature[signature];
+    final providerModel = LlmProviderModelConfig(
+      id: model.id,
+      displayName: model.displayName,
+      modelName: model.modelName,
+      supportsReasoning: model.supportsReasoning,
+    );
+
+    if (existingIndex == null) {
+      providerIndexBySignature[signature] = providers.length;
+      providers.add(
+        LlmProviderConfig(
+          id: 'provider-${providers.length + 1}',
+          name: '服务商${providers.length + 1}',
+          apiUrl: model.apiUrl,
+          apiKey: model.apiKey,
+          models: [providerModel],
+        ),
+      );
+      continue;
+    }
+
+    final existingProvider = providers[existingIndex];
+    providers[existingIndex] = existingProvider.copyWith(
+      models: [...existingProvider.models, providerModel],
+    );
+  }
+
+  return providers;
+}
+
+String _buildLegacyProviderSignature(String apiUrl, String apiKey) {
+  return '${apiUrl.trim()}::${apiKey.trim()}';
 }

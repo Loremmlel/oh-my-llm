@@ -61,8 +61,9 @@ class SettingsExportData {
       'memoryPrompts': memoryPrompts.map((p) => p.toJson()).toList(),
       'promptTemplates': promptTemplates.map((t) => t.toJson()).toList(),
       'templatePrompts': templatePrompts.map((t) => t.toJson()).toList(),
-      'fixedPromptSequences':
-          fixedPromptSequences.map((s) => s.toJson()).toList(),
+      'fixedPromptSequences': fixedPromptSequences
+          .map((s) => s.toJson())
+          .toList(),
     });
   }
 
@@ -80,8 +81,7 @@ class SettingsExportData {
       if (raw is! Map<String, dynamic>) return null;
       if (raw['identifier'] != identifier) return null;
 
-      final rawProviders =
-          raw['modelProviders'] as List<dynamic>? ?? const [];
+      final rawProviders = raw['modelProviders'] as List<dynamic>? ?? const [];
       final rawMemoryPrompts =
           raw['memoryPrompts'] as List<dynamic>? ?? const [];
       final rawTemplates = raw['promptTemplates'] as List<dynamic>? ?? const [];
@@ -92,37 +92,44 @@ class SettingsExportData {
 
       final modelProviders = rawProviders.isNotEmpty
           ? rawProviders
-                .map((item) => LlmProviderConfig.fromJson(
-                      Map<String, dynamic>.from(item as Map),
-                    ))
+                .map(
+                  (item) => LlmProviderConfig.fromJson(
+                    Map<String, dynamic>.from(item as Map),
+                  ),
+                )
                 .toList(growable: false)
-          : _migrateLegacyModelConfigs(
-                raw['modelConfigs'] as List<dynamic>? ?? const [],
-              );
+          : _parseLegacyModelProviders(
+              raw['modelConfigs'] as List<dynamic>? ?? const [],
+            );
 
       return SettingsExportData(
         modelProviders: modelProviders,
         memoryPrompts: rawMemoryPrompts
             .map(
-              (item) => MemoryPrompt.fromJson(
+              (item) =>
+                  MemoryPrompt.fromJson(Map<String, dynamic>.from(item as Map)),
+            )
+            .toList(growable: false),
+        promptTemplates: rawTemplates
+            .map(
+              (item) => PromptTemplate.fromJson(
                 Map<String, dynamic>.from(item as Map),
               ),
             )
             .toList(growable: false),
-        promptTemplates: rawTemplates
-            .map((item) => PromptTemplate.fromJson(
-                  Map<String, dynamic>.from(item as Map),
-                ))
-            .toList(growable: false),
         templatePrompts: rawTemplatePrompts
-            .map((item) => TemplatePrompt.fromJson(
-                  Map<String, dynamic>.from(item as Map),
-                ))
+            .map(
+              (item) => TemplatePrompt.fromJson(
+                Map<String, dynamic>.from(item as Map),
+              ),
+            )
             .toList(growable: false),
         fixedPromptSequences: rawSequences
-            .map((item) => FixedPromptSequence.fromJson(
-                  Map<String, dynamic>.from(item as Map),
-                ))
+            .map(
+              (item) => FixedPromptSequence.fromJson(
+                Map<String, dynamic>.from(item as Map),
+              ),
+            )
             .toList(growable: false),
       );
     } catch (_) {
@@ -139,45 +146,19 @@ class SettingsExportData {
       templatePrompts.isNotEmpty ||
       fixedPromptSequences.isNotEmpty;
 
-  static List<LlmProviderConfig> _migrateLegacyModelConfigs(
+  static List<LlmProviderConfig> _parseLegacyModelProviders(
     List<dynamic> rawModels,
   ) {
     final legacyModels = rawModels
-        .map((item) => LlmModelConfig.fromJson(Map<String, dynamic>.from(item as Map)))
+        .map(
+          (item) =>
+              LlmModelConfig.fromJson(Map<String, dynamic>.from(item as Map)),
+        )
         .toList(growable: false);
     if (legacyModels.isEmpty) {
       return const [];
     }
 
-    final providers = <LlmProviderConfig>[];
-    final indexBySignature = <String, int>{};
-    for (final model in legacyModels) {
-      final signature = '${model.apiUrl}::${model.apiKey}';
-      final existingIndex = indexBySignature[signature];
-      final providerModel = LlmProviderModelConfig(
-        id: model.id,
-        displayName: model.displayName,
-        modelName: model.modelName,
-        supportsReasoning: model.supportsReasoning,
-      );
-      if (existingIndex == null) {
-        indexBySignature[signature] = providers.length;
-        providers.add(
-          LlmProviderConfig(
-            id: 'provider-${providers.length + 1}',
-            name: '服务商${providers.length + 1}',
-            apiUrl: model.apiUrl,
-            apiKey: model.apiKey,
-            models: [providerModel],
-          ),
-        );
-      } else {
-        final provider = providers[existingIndex];
-        providers[existingIndex] = provider.copyWith(
-          models: [...provider.models, providerModel],
-        );
-      }
-    }
-    return providers;
+    return migrateLegacyModelsToProviders(legacyModels);
   }
 }

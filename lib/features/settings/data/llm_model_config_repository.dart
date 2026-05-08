@@ -39,7 +39,9 @@ class LlmModelConfigRepository {
     final isProviderShape = items.any((item) => item['models'] is List);
     final providers = isProviderShape
         ? items.map(LlmProviderConfig.fromJson).toList(growable: false)
-        : _migrateLegacyModels(items.map(LlmModelConfig.fromJson).toList());
+        : migrateLegacyModelsToProviders(
+            items.map((item) => LlmModelConfig.fromJson(item)),
+          );
     return _sortProviders(providers);
   }
 
@@ -57,47 +59,6 @@ class LlmModelConfigRepository {
     return loadProviders()
         .expand((provider) => provider.resolvedModels)
         .toList(growable: false);
-  }
-
-  List<LlmProviderConfig> _migrateLegacyModels(List<LlmModelConfig> models) {
-    final providers = <LlmProviderConfig>[];
-    final providerIndexBySignature = <String, int>{};
-
-    for (final model in models) {
-      final signature = _buildSignature(model.apiUrl, model.apiKey);
-      final existingIndex = providerIndexBySignature[signature];
-      final providerModel = LlmProviderModelConfig(
-        id: model.id,
-        displayName: model.displayName,
-        modelName: model.modelName,
-        supportsReasoning: model.supportsReasoning,
-      );
-
-      if (existingIndex == null) {
-        providerIndexBySignature[signature] = providers.length;
-        providers.add(
-          LlmProviderConfig(
-            id: 'provider-${providers.length + 1}',
-            name: '服务商${providers.length + 1}',
-            apiUrl: model.apiUrl,
-            apiKey: model.apiKey,
-            models: [providerModel],
-          ),
-        );
-        continue;
-      }
-
-      final existingProvider = providers[existingIndex];
-      providers[existingIndex] = existingProvider.copyWith(
-        models: [...existingProvider.models, providerModel],
-      );
-    }
-
-    return providers;
-  }
-
-  String _buildSignature(String apiUrl, String apiKey) {
-    return '${apiUrl.trim()}::${apiKey.trim()}';
   }
 
   List<LlmProviderConfig> _sortProviders(List<LlmProviderConfig> providers) {

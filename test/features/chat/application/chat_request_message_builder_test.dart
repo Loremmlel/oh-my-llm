@@ -9,21 +9,21 @@ import 'package:oh_my_llm/features/settings/domain/models/prompt_template.dart';
 void main() {
   // ── 辅助函数 ─────────────────────────────────────────────────────────────
 
-  ChatMessage _userMsg(String content) => ChatMessage(
+  ChatMessage buildUserMessage(String content) => ChatMessage(
     id: 'u1',
     role: ChatMessageRole.user,
     content: content,
     createdAt: DateTime(2026),
   );
 
-  ChatMessage _assistantMsg(String content) => ChatMessage(
+  ChatMessage buildAssistantMessage(String content) => ChatMessage(
     id: 'a1',
     role: ChatMessageRole.assistant,
     content: content,
     createdAt: DateTime(2026),
   );
 
-  PromptTemplate _template({
+  PromptTemplate buildTemplate({
     String systemPrompt = '',
     List<PromptMessage> messages = const [],
   }) {
@@ -36,7 +36,7 @@ void main() {
     );
   }
 
-  PromptMessage _tplMsg(
+  PromptMessage buildTemplateMessage(
     PromptMessageRole role,
     String content, {
     PromptMessagePlacement placement = PromptMessagePlacement.before,
@@ -53,7 +53,10 @@ void main() {
     test('只返回会话消息', () {
       final result = buildRequestMessages(
         promptTemplate: null,
-        conversationMessages: [_userMsg('你好'), _assistantMsg('你好！')],
+        conversationMessages: [
+          buildUserMessage('你好'),
+          buildAssistantMessage('你好！'),
+        ],
       );
 
       expect(result, hasLength(2));
@@ -73,7 +76,7 @@ void main() {
     test('返回不可变列表', () {
       final result = buildRequestMessages(
         promptTemplate: null,
-        conversationMessages: [_userMsg('test')],
+        conversationMessages: [buildUserMessage('test')],
       );
 
       expect(
@@ -93,8 +96,8 @@ void main() {
   group('模板含 systemPrompt', () {
     test('非空 systemPrompt 作为第一条 system 消息插入', () {
       final result = buildRequestMessages(
-        promptTemplate: _template(systemPrompt: '你是一名助手'),
-        conversationMessages: [_userMsg('问题')],
+        promptTemplate: buildTemplate(systemPrompt: '你是一名助手'),
+        conversationMessages: [buildUserMessage('问题')],
       );
 
       expect(result[0].role, ChatMessageRole.system);
@@ -104,8 +107,8 @@ void main() {
 
     test('纯空白 systemPrompt 不插入 system 消息', () {
       final result = buildRequestMessages(
-        promptTemplate: _template(systemPrompt: '   '),
-        conversationMessages: [_userMsg('问题')],
+        promptTemplate: buildTemplate(systemPrompt: '   '),
+        conversationMessages: [buildUserMessage('问题')],
       );
 
       expect(result.any((m) => m.role == ChatMessageRole.system), isFalse);
@@ -113,8 +116,8 @@ void main() {
 
     test('systemPrompt 首尾空白被 trim', () {
       final result = buildRequestMessages(
-        promptTemplate: _template(systemPrompt: '  你是助手  '),
-        conversationMessages: [_userMsg('问题')],
+        promptTemplate: buildTemplate(systemPrompt: '  你是助手  '),
+        conversationMessages: [buildUserMessage('问题')],
       );
 
       expect(result[0].content, '你是助手');
@@ -126,13 +129,13 @@ void main() {
   group('模板含 messages', () {
     test('模板消息排在会话消息前面', () {
       final result = buildRequestMessages(
-        promptTemplate: _template(
+        promptTemplate: buildTemplate(
           messages: [
-            _tplMsg(PromptMessageRole.user, '示例问题'),
-            _tplMsg(PromptMessageRole.assistant, '示例回答'),
+            buildTemplateMessage(PromptMessageRole.user, '示例问题'),
+            buildTemplateMessage(PromptMessageRole.assistant, '示例回答'),
           ],
         ),
-        conversationMessages: [_userMsg('真实问题')],
+        conversationMessages: [buildUserMessage('真实问题')],
       );
 
       expect(result[0].content, '示例问题');
@@ -142,8 +145,8 @@ void main() {
 
     test('模板 user 消息转换为 ChatMessageRole.user', () {
       final result = buildRequestMessages(
-        promptTemplate: _template(
-          messages: [_tplMsg(PromptMessageRole.user, 'u')],
+        promptTemplate: buildTemplate(
+          messages: [buildTemplateMessage(PromptMessageRole.user, 'u')],
         ),
         conversationMessages: const [],
       );
@@ -153,8 +156,8 @@ void main() {
 
     test('模板 assistant 消息转换为 ChatMessageRole.assistant', () {
       final result = buildRequestMessages(
-        promptTemplate: _template(
-          messages: [_tplMsg(PromptMessageRole.assistant, 'a')],
+        promptTemplate: buildTemplate(
+          messages: [buildTemplateMessage(PromptMessageRole.assistant, 'a')],
         ),
         conversationMessages: const [],
       );
@@ -164,8 +167,8 @@ void main() {
 
     test('模板消息列表为空时不增加额外条目', () {
       final result = buildRequestMessages(
-        promptTemplate: _template(),
-        conversationMessages: [_userMsg('问题')],
+        promptTemplate: buildTemplate(),
+        conversationMessages: [buildUserMessage('问题')],
       );
 
       // 没有 system（空），没有模板消息，只有一条会话消息。
@@ -175,16 +178,16 @@ void main() {
 
     test('after 模板消息排在会话消息后面', () {
       final result = buildRequestMessages(
-        promptTemplate: _template(
+        promptTemplate: buildTemplate(
           messages: [
-            _tplMsg(
+            buildTemplateMessage(
               PromptMessageRole.assistant,
               '后置提示',
               placement: PromptMessagePlacement.after,
             ),
           ],
         ),
-        conversationMessages: [_userMsg('真实问题')],
+        conversationMessages: [buildUserMessage('真实问题')],
       );
 
       expect(result, hasLength(2));
@@ -194,18 +197,18 @@ void main() {
 
     test('before 和 after 混用时，顺序为 before -> 会话 -> after', () {
       final result = buildRequestMessages(
-        promptTemplate: _template(
+        promptTemplate: buildTemplate(
           messages: [
-            _tplMsg(PromptMessageRole.user, '前置-1'),
-            _tplMsg(
+            buildTemplateMessage(PromptMessageRole.user, '前置-1'),
+            buildTemplateMessage(
               PromptMessageRole.assistant,
               '后置-1',
               placement: PromptMessagePlacement.after,
             ),
-            _tplMsg(PromptMessageRole.assistant, '前置-2'),
+            buildTemplateMessage(PromptMessageRole.assistant, '前置-2'),
           ],
         ),
-        conversationMessages: [_userMsg('真实问题')],
+        conversationMessages: [buildUserMessage('真实问题')],
       );
 
       expect(result.map((m) => m.content).toList(), [
@@ -222,14 +225,17 @@ void main() {
   group('完整组合：system + template messages + 会话消息', () {
     test('顺序为 system → 模板消息 → 会话消息', () {
       final result = buildRequestMessages(
-        promptTemplate: _template(
+        promptTemplate: buildTemplate(
           systemPrompt: '系统指令',
           messages: [
-            _tplMsg(PromptMessageRole.user, '示例用户'),
-            _tplMsg(PromptMessageRole.assistant, '示例助手'),
+            buildTemplateMessage(PromptMessageRole.user, '示例用户'),
+            buildTemplateMessage(PromptMessageRole.assistant, '示例助手'),
           ],
         ),
-        conversationMessages: [_userMsg('真实用户'), _assistantMsg('真实助手')],
+        conversationMessages: [
+          buildUserMessage('真实用户'),
+          buildAssistantMessage('真实助手'),
+        ],
       );
 
       expect(result, hasLength(5));
@@ -264,8 +270,8 @@ void main() {
   group('返回类型约束', () {
     test('返回的每条消息均为 ChatCompletionRequestMessage', () {
       final result = buildRequestMessages(
-        promptTemplate: _template(systemPrompt: 'sys'),
-        conversationMessages: [_userMsg('hi')],
+        promptTemplate: buildTemplate(systemPrompt: 'sys'),
+        conversationMessages: [buildUserMessage('hi')],
       );
 
       expect(result, everyElement(isA<ChatCompletionRequestMessage>()));
@@ -283,7 +289,7 @@ void main() {
           createdAt: DateTime(2026),
         ),
       ],
-      conversationMessages: [_userMsg('新的问题')],
+      conversationMessages: [buildUserMessage('新的问题')],
     );
 
     expect(result, hasLength(2));

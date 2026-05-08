@@ -4,7 +4,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/settings/data/prompt_template_migration.dart';
 import 'package:oh_my_llm/features/settings/data/prompt_template_repository.dart';
-import 'package:oh_my_llm/features/settings/data/sqlite_prompt_template_repository.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompt_template.dart';
 
 /// 构造一条测试用 Prompt 模板。
@@ -38,10 +37,7 @@ void main() {
     expect(repository.loadAll(), hasLength(1));
     expect(repository.loadAll().single.id, 'tpl-1');
     expect(preferences.getString(promptTemplatesStorageKey), isNull);
-    expect(
-      preferences.getBool(promptTemplatesSqliteMigrationFlagKey),
-      isTrue,
-    );
+    expect(preferences.getBool(promptTemplatesSqliteMigrationFlagKey), isTrue);
   });
 
   // ── 路径 2：迁移标志已置位 ────────────────────────────────────────────────
@@ -69,10 +65,9 @@ void main() {
     });
     final preferences = await SharedPreferences.getInstance();
     // 向 SP 写入残留数据。
-    await saveLegacyPromptTemplatesForTest(
-      preferences,
-      [_template('tpl-residue')],
-    );
+    await saveLegacyPromptTemplatesForTest(preferences, [
+      _template('tpl-residue'),
+    ]);
     final database = AppDatabase.inMemory();
     addTearDown(database.close);
     final repository = SqlitePromptTemplateRepository(database);
@@ -99,10 +94,9 @@ void main() {
     // 先向 SQLite 写入数据（模拟其他设备同步）。
     await repository.saveAll([_template('tpl-existing')]);
     // 再向 SP 写入旧数据。
-    await saveLegacyPromptTemplatesForTest(
-      preferences,
-      [_template('tpl-legacy')],
-    );
+    await saveLegacyPromptTemplatesForTest(preferences, [
+      _template('tpl-legacy'),
+    ]);
 
     await migrateLegacyPromptTemplates(
       preferences: preferences,
@@ -113,10 +107,7 @@ void main() {
     expect(repository.loadAll(), hasLength(1));
     expect(repository.loadAll().single.id, 'tpl-existing');
     expect(preferences.getString(promptTemplatesStorageKey), isNull);
-    expect(
-      preferences.getBool(promptTemplatesSqliteMigrationFlagKey),
-      isTrue,
-    );
+    expect(preferences.getBool(promptTemplatesSqliteMigrationFlagKey), isTrue);
   });
 
   // ── 路径 4：全新安装 ──────────────────────────────────────────────────────
@@ -134,9 +125,6 @@ void main() {
     );
 
     expect(repository.loadAll(), isEmpty);
-    expect(
-      preferences.getBool(promptTemplatesSqliteMigrationFlagKey),
-      isTrue,
-    );
+    expect(preferences.getBool(promptTemplatesSqliteMigrationFlagKey), isTrue);
   });
 }
