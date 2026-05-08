@@ -40,9 +40,11 @@ class ChatWorkspace extends StatelessWidget {
     required this.errorMessage,
     required this.errorModelDisplayName,
     required this.showScrollToBottom,
+    required this.excludedMessageCount,
     required this.onEditMessage,
     required this.onRetryLatestAssistant,
     required this.onDeleteMessage,
+    required this.onToggleRequestExclusion,
     required this.onProviderSelected,
     required this.onModelSelected,
     required this.onPromptTemplateSelected,
@@ -51,6 +53,7 @@ class ChatWorkspace extends StatelessWidget {
     required this.onReasoningEnabledChanged,
     required this.onReasoningEffortChanged,
     required this.onOpenFixedPromptSequenceRunner,
+    required this.onOpenMessageFilter,
     required this.onScrollToBottomPressed,
     required this.onSelectMessage,
     required this.onSelectMessageVersion,
@@ -88,9 +91,11 @@ class ChatWorkspace extends StatelessWidget {
   final String? errorMessage;
   final String errorModelDisplayName;
   final bool showScrollToBottom;
+  final int excludedMessageCount;
   final ValueChanged<ChatMessage> onEditMessage;
   final Future<void> Function() onRetryLatestAssistant;
   final ValueChanged<ChatMessage> onDeleteMessage;
+  final ValueChanged<ChatMessage> onToggleRequestExclusion;
   final ValueChanged<String> onProviderSelected;
   final ValueChanged<String> onModelSelected;
   final ValueChanged<String?> onPromptTemplateSelected;
@@ -99,6 +104,7 @@ class ChatWorkspace extends StatelessWidget {
   final ValueChanged<bool>? onReasoningEnabledChanged;
   final ValueChanged<ReasoningEffort>? onReasoningEffortChanged;
   final Future<void> Function() onOpenFixedPromptSequenceRunner;
+  final Future<void> Function() onOpenMessageFilter;
   final VoidCallback onScrollToBottomPressed;
   final ValueChanged<String> onSelectMessage;
   final Future<void> Function(String parentId, String messageId)
@@ -134,6 +140,7 @@ class ChatWorkspace extends StatelessWidget {
             onEditMessage: onEditMessage,
             onRetryLatestAssistant: onRetryLatestAssistant,
             onDeleteMessage: onDeleteMessage,
+            onToggleRequestExclusion: onToggleRequestExclusion,
             onScrollToBottomPressed: onScrollToBottomPressed,
             onSelectMessage: onSelectMessage,
             onSelectMessageVersion: onSelectMessageVersion,
@@ -161,6 +168,7 @@ class ChatWorkspace extends StatelessWidget {
           supportsReasoning: supportsReasoning,
           isBusy: isBusy,
           isStreaming: isStreaming,
+          excludedMessageCount: excludedMessageCount,
           onProviderSelected: onProviderSelected,
           onModelSelected: onModelSelected,
           onPromptTemplateSelected: onPromptTemplateSelected,
@@ -169,6 +177,7 @@ class ChatWorkspace extends StatelessWidget {
           onReasoningEnabledChanged: onReasoningEnabledChanged,
           onReasoningEffortChanged: onReasoningEffortChanged,
           onOpenFixedPromptSequenceRunner: onOpenFixedPromptSequenceRunner,
+          onOpenMessageFilter: onOpenMessageFilter,
           onSendPressed: onSendPressed,
           onStopStreaming: onStopStreaming,
         ),

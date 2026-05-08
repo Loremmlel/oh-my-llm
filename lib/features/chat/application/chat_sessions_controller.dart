@@ -315,6 +315,48 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     );
   }
 
+  /// 更新一组消息是否参与后续请求上下文。
+  Future<void> setMessagesExcluded({
+    required Iterable<String> messageIds,
+    required bool excluded,
+  }) async {
+    if (_isBusy) {
+      return;
+    }
+
+    final currentConversation = state.activeConversation;
+    final validMessageIds = currentConversation.messageNodes
+        .map((message) => message.id)
+        .toSet();
+    final targetIds = messageIds.where(validMessageIds.contains).toSet();
+    if (targetIds.isEmpty) {
+      return;
+    }
+
+    final nextExcludedIds = Set<String>.from(
+      currentConversation.excludedMessageIds,
+    );
+    if (excluded) {
+      nextExcludedIds.addAll(targetIds);
+    } else {
+      nextExcludedIds.removeAll(targetIds);
+    }
+
+    if (nextExcludedIds.length ==
+            currentConversation.excludedMessageIds.length &&
+        nextExcludedIds.containsAll(currentConversation.excludedMessageIds)) {
+      return;
+    }
+
+    final orderedExcludedIds = currentConversation.messageNodes
+        .where((message) => nextExcludedIds.contains(message.id))
+        .map((message) => message.id)
+        .toList(growable: false);
+    await updateActiveConversation(
+      currentConversation.copyWith(excludedMessageIds: orderedExcludedIds),
+    );
+  }
+
   /// 基于当前上下文创建一个新的检查点。
   Future<ChatCheckpoint> createCheckpoint({
     required LlmModelConfig modelConfig,
@@ -354,6 +396,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
           conversationMessages: summaryMessages,
           checkpointChain: sourceContext.checkpointChain,
           promptTemplate: promptTemplate,
+          excludedMessageIds: currentConversation.excludedMessageIds,
         ),
         reasoningEffort: reasoningEnabled && modelConfig.supportsReasoning
             ? reasoningEffort
@@ -686,6 +729,11 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         messageNodes: nextTree.nodes,
         selectedChildByParentId: nextSelections,
         updatedAt: DateTime.now(),
+        excludedMessageIds: currentConversation.excludedMessageIds
+            .where((id) {
+              return nextTree.nodes.any((message) => message.id == id);
+            })
+            .toList(growable: false),
       ),
     );
   }

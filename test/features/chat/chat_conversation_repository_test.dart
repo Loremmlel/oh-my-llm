@@ -31,10 +31,7 @@ void main() {
               text: '当前',
               kind: UserMessageSegmentKind.template,
             ),
-            UserMessageSegment(
-              text: '用户分支',
-              kind: UserMessageSegmentKind.body,
-            ),
+            UserMessageSegment(text: '用户分支', kind: UserMessageSegmentKind.body),
           ],
         ),
         ChatMessage(
@@ -59,10 +56,7 @@ void main() {
               text: '当前',
               kind: UserMessageSegmentKind.template,
             ),
-            UserMessageSegment(
-              text: '用户分支',
-              kind: UserMessageSegmentKind.body,
-            ),
+            UserMessageSegment(text: '用户分支', kind: UserMessageSegmentKind.body),
           ],
         ),
         ChatMessage(
@@ -81,28 +75,29 @@ void main() {
           createdAt: DateTime(2026, 4, 27, 10, 2),
         ),
       ],
+      excludedMessageIds: const ['assistant-2'],
       selectedChildByParentId: const {
         rootConversationParentId: 'user-1',
         'user-1': 'assistant-2',
       },
-        createdAt: DateTime(2026, 4, 27, 10),
-        updatedAt: DateTime(2026, 4, 27, 10, 2),
-        selectedModelId: 'model-1',
-        selectedCheckpointId: 'checkpoint-1',
-        selectedPromptTemplateId: 'prompt-1',
-        checkpoints: [
-          ChatCheckpoint(
-            id: 'checkpoint-1',
-            title: '检查点 1',
-            content: '总结当前分支的重要上下文。',
-            createdAt: DateTime(2026, 4, 27, 10, 1),
-            coveredUntilMessageId: 'assistant-2',
-            sourceMemoryPromptName: '研发总结',
-          ),
-        ],
-        reasoningEnabled: true,
-        reasoningEffort: ReasoningEffort.high,
-      );
+      createdAt: DateTime(2026, 4, 27, 10),
+      updatedAt: DateTime(2026, 4, 27, 10, 2),
+      selectedModelId: 'model-1',
+      selectedCheckpointId: 'checkpoint-1',
+      selectedPromptTemplateId: 'prompt-1',
+      checkpoints: [
+        ChatCheckpoint(
+          id: 'checkpoint-1',
+          title: '检查点 1',
+          content: '总结当前分支的重要上下文。',
+          createdAt: DateTime(2026, 4, 27, 10, 1),
+          coveredUntilMessageId: 'assistant-2',
+          sourceMemoryPromptName: '研发总结',
+        ),
+      ],
+      reasoningEnabled: true,
+      reasoningEffort: ReasoningEffort.high,
+    );
 
     await repository.saveAll([conversation]);
     final restored = repository.loadAll();

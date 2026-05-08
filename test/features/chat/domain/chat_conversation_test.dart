@@ -39,10 +39,12 @@ void main() {
     );
     expect(conversation.selectedChildByParentId['u1'], 'a1');
     expect(conversation.selectedChildByParentId['a1'], 'u2');
-    expect(
-      conversation.messages.map((message) => message.id).toList(),
-      ['u1', 'a1', 'u2'],
-    );
+    expect(conversation.messages.map((message) => message.id).toList(), [
+      'u1',
+      'a1',
+      'u2',
+    ]);
+    expect(conversation.excludedMessageIds, isEmpty);
   });
 
   test('resolves active path from tree selections', () {
@@ -90,25 +92,24 @@ void main() {
       'reasoningEffort': 'medium',
     });
 
-    expect(
-      conversation.messages.map((message) => message.id).toList(),
-      ['u1a', 'a1a'],
-    );
+    expect(conversation.messages.map((message) => message.id).toList(), [
+      'u1a',
+      'a1a',
+    ]);
 
     final switched = conversation.copyWith(
-      selectedChildByParentId: {
-        rootConversationParentId: 'u1b',
-        'u1b': 'a1b',
-      },
+      selectedChildByParentId: {rootConversationParentId: 'u1b', 'u1b': 'a1b'},
     );
-    expect(
-      switched.messages.map((message) => message.id).toList(),
-      ['u1b', 'a1b'],
-    );
+    expect(switched.messages.map((message) => message.id).toList(), [
+      'u1b',
+      'a1b',
+    ]);
     expect(switched.toJson()['messageNodes'], isNotEmpty);
     expect(
-      (switched.toJson()['selectedChildByParentId'] as Map<String, dynamic>)[rootConversationParentId],
+      (switched.toJson()['selectedChildByParentId']
+          as Map<String, dynamic>)[rootConversationParentId],
       'u1b',
     );
+    expect(switched.excludedMessageIds, isEmpty);
   });
 }

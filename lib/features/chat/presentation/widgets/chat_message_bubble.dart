@@ -17,6 +17,8 @@ class ChatMessageBubble extends StatefulWidget {
     this.onEditPressed,
     this.onRetryPressed,
     this.onDeletePressed,
+    this.onToggleRequestExclusionPressed,
+    this.isExcludedFromRequest = false,
     this.onFavoritePressed,
     this.isFavorited = false,
     this.versionInfo,
@@ -30,6 +32,8 @@ class ChatMessageBubble extends StatefulWidget {
   final VoidCallback? onEditPressed;
   final VoidCallback? onRetryPressed;
   final VoidCallback? onDeletePressed;
+  final VoidCallback? onToggleRequestExclusionPressed;
+  final bool isExcludedFromRequest;
 
   /// 收藏按钮回调，仅在助手消息上提供；为 null 则不显示收藏按钮。
   final VoidCallback? onFavoritePressed;
@@ -50,9 +54,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
 
   /// 将消息正文复制到剪贴板。
   Future<void> _copyMessage(BuildContext context) async {
-    await Clipboard.setData(
-      ClipboardData(text: widget.message.content),
-    );
+    await Clipboard.setData(ClipboardData(text: widget.message.content));
     if (!context.mounted) return;
     ScaffoldMessenger.of(
       context,
@@ -109,18 +111,27 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                 Row(
                   children: [
                     Expanded(
-                      child: Tooltip(
-                        message: isUser
-                            ? '你'
-                            : message.resolvedAssistantModelDisplayName,
-                        child: Text(
-                          isUser
-                              ? '你'
-                              : message.resolvedAssistantModelDisplayName,
-                          style: theme.textTheme.labelLarge,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Tooltip(
+                            message: isUser
+                                ? '你'
+                                : message.resolvedAssistantModelDisplayName,
+                            child: Text(
+                              isUser
+                                  ? '你'
+                                  : message.resolvedAssistantModelDisplayName,
+                              style: theme.textTheme.labelLarge,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (widget.isExcludedFromRequest) ...[
+                            const SizedBox(height: 4),
+                            _buildRequestExclusionChip(theme, message.id),
+                          ],
+                        ],
                       ),
                     ),
                     if (message.isStreaming) ...[
@@ -138,6 +149,18 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                       tooltip: '复制消息',
                       icon: const Icon(Icons.content_copy_rounded),
                     ),
+                    if (widget.onToggleRequestExclusionPressed != null)
+                      IconButton(
+                        onPressed: widget.onToggleRequestExclusionPressed,
+                        tooltip: widget.isExcludedFromRequest
+                            ? '重新加入发送上下文'
+                            : '从发送上下文中排除',
+                        icon: Icon(
+                          widget.isExcludedFromRequest
+                              ? Icons.add_circle_outline_rounded
+                              : Icons.remove_circle_outline_rounded,
+                        ),
+                      ),
                     if (widget.onFavoritePressed != null)
                       IconButton(
                         onPressed: widget.onFavoritePressed,
@@ -169,7 +192,10 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                   ],
                 ),
                 if (!isUser && message.appliedCheckpointTitle.trim().isNotEmpty)
-                  _buildCheckpointUsageRow(theme, message.appliedCheckpointTitle),
+                  _buildCheckpointUsageRow(
+                    theme,
+                    message.appliedCheckpointTitle,
+                  ),
                 if (!isUser && _shouldShowWordCount(message))
                   _buildWordCountRow(theme, message),
                 if (!isUser && message.reasoningContent.trim().isNotEmpty) ...[
@@ -187,8 +213,10 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                     onPrevious: widget.versionInfo!.currentIndex > 0
                         ? () {
                             widget.onSwitchVersion?.call(
-                              widget.versionInfo!
-                                  .siblings[widget.versionInfo!.currentIndex - 1]
+                              widget
+                                  .versionInfo!
+                                  .siblings[widget.versionInfo!.currentIndex -
+                                      1]
                                   .id,
                             );
                           }
@@ -198,8 +226,10 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                             widget.versionInfo!.siblings.length - 1
                         ? () {
                             widget.onSwitchVersion?.call(
-                              widget.versionInfo!
-                                  .siblings[widget.versionInfo!.currentIndex + 1]
+                              widget
+                                  .versionInfo!
+                                  .siblings[widget.versionInfo!.currentIndex +
+                                      1]
                                   .id,
                             );
                           }
@@ -241,6 +271,25 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
     );
   }
 
+  Widget _buildRequestExclusionChip(ThemeData theme, String messageId) {
+    return DecoratedBox(
+      key: ValueKey('message-excluded-chip-$messageId'),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.errorContainer.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        child: Text(
+          '不发送',
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.colorScheme.onErrorContainer,
+          ),
+        ),
+      ),
+    );
+  }
+
   /// 判断当前助手消息是否需要显示字数统计。
   bool _shouldShowWordCount(ChatMessage message) {
     return message.content.trim().isNotEmpty ||
@@ -260,23 +309,22 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
         return SelectableText.rich(
           TextSpan(
             style: bodyStyle,
-            children: widget.message.userMessageSegments.map((segment) {
-              return TextSpan(
-                text: segment.text,
-                style: segment.kind == UserMessageSegmentKind.body
-                    ? bodyStyle
-                    : templateStyle,
-              );
-            }).toList(growable: false),
+            children: widget.message.userMessageSegments
+                .map((segment) {
+                  return TextSpan(
+                    text: segment.text,
+                    style: segment.kind == UserMessageSegmentKind.body
+                        ? bodyStyle
+                        : templateStyle,
+                  );
+                })
+                .toList(growable: false),
           ),
         );
       }
 
       // 用户消息只需要按原文展示，不需要为 Markdown 解析支付额外成本。
-      return SelectableText(
-        widget.message.content,
-        style: bodyStyle,
-      );
+      return SelectableText(widget.message.content, style: bodyStyle);
     }
 
     return StreamingMarkdownView(

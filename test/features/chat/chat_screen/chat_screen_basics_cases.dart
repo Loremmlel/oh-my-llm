@@ -499,6 +499,82 @@ void registerChatScreenBasicsTests() {
     },
   );
 
+  testWidgets('chat screen can exclude a reply from future requests', (
+    tester,
+  ) async {
+    final preferences = await createSeededPreferences();
+    final fakeClient = FakeChatCompletionClient()
+      ..enqueueChunks(['首轮回复'])
+      ..enqueueChunks(['第二轮回复']);
+
+    await pumpChatScreen(
+      tester,
+      preferences: preferences,
+      fakeClient: fakeClient,
+    );
+
+    await sendMessage(tester, '第一轮问题');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('从发送上下文中排除').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('不发送'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('chat-message-filter-button')),
+      findsOneWidget,
+    );
+    expect(find.text('上下文过滤 · 已排除 1 条'), findsOneWidget);
+
+    await sendMessage(tester, '第二轮问题');
+    await tester.pumpAndSettle();
+
+    expect(
+      fakeClient.requestHistory.last.map((message) => message.content).toList(),
+      ['第一轮问题', '第二轮问题'],
+    );
+  });
+
+  testWidgets('chat screen can restore excluded messages from filter dialog', (
+    tester,
+  ) async {
+    final preferences = await createSeededPreferences();
+    final fakeClient = FakeChatCompletionClient()
+      ..enqueueChunks(['首轮回复'])
+      ..enqueueChunks(['第二轮回复']);
+
+    await pumpChatScreen(
+      tester,
+      preferences: preferences,
+      fakeClient: fakeClient,
+    );
+
+    await sendMessage(tester, '第一轮问题');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('从发送上下文中排除').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('chat-message-filter-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('上下文过滤'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, '恢复当前分支'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, '关闭'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('不发送'), findsNothing);
+
+    await sendMessage(tester, '第二轮问题');
+    await tester.pumpAndSettle();
+
+    expect(
+      fakeClient.requestHistory.last.map((message) => message.content).toList(),
+      ['第一轮问题', '首轮回复', '第二轮问题'],
+    );
+  });
+
   testWidgets('chat screen keeps composer visible on compact layouts', (
     tester,
   ) async {

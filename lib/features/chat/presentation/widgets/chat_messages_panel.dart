@@ -27,6 +27,7 @@ class ChatMessagesPanel extends StatelessWidget {
     required this.onEditMessage,
     required this.onRetryLatestAssistant,
     required this.onDeleteMessage,
+    required this.onToggleRequestExclusion,
     required this.onScrollToBottomPressed,
     required this.onSelectMessage,
     required this.onSelectMessageVersion,
@@ -49,6 +50,7 @@ class ChatMessagesPanel extends StatelessWidget {
   final ValueChanged<ChatMessage> onEditMessage;
   final Future<void> Function() onRetryLatestAssistant;
   final ValueChanged<ChatMessage> onDeleteMessage;
+  final ValueChanged<ChatMessage> onToggleRequestExclusion;
   final VoidCallback onScrollToBottomPressed;
   final ValueChanged<String> onSelectMessage;
   final Future<void> Function(String parentId, String messageId)
@@ -110,6 +112,15 @@ class ChatMessagesPanel extends StatelessWidget {
                         onDeletePressed: !isBusy && !isTransientError
                             ? () {
                                 onDeleteMessage(message);
+                              }
+                            : null,
+                        isExcludedFromRequest:
+                            !isTransientError &&
+                            conversation.isMessageExcluded(message.id),
+                        onToggleRequestExclusionPressed:
+                            !isBusy && !isTransientError && !message.isStreaming
+                            ? () {
+                                onToggleRequestExclusion(message);
                               }
                             : null,
                         onFavoritePressed:

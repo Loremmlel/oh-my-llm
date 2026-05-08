@@ -87,6 +87,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final promptTemplates = ref.watch(promptTemplatesProvider);
     final templatePrompts = ref.watch(templatePromptsProvider);
     final activeMessages = conversation.messages;
+    final excludedVisibleMessageCount = activeMessages.where((message) {
+      return conversation.isMessageExcluded(message.id);
+    }).length;
     final favorites = ref.watch(favoritesProvider);
     final favoritedContents = favorites.map((f) => f.assistantContent).toSet();
 
@@ -244,6 +247,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     errorMessage: errorMessage,
                     errorModelDisplayName: selectedModel?.displayName ?? '模型',
                     showScrollToBottom: _scroll.showScrollToBottom,
+                    excludedMessageCount: excludedVisibleMessageCount,
                     onEditMessage: (message) async {
                       await _showEditMessageDialog(
                         context,
@@ -258,6 +262,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     },
                     onDeleteMessage: (message) async {
                       await _showDeleteMessageDialog(context, message);
+                    },
+                    onToggleRequestExclusion: (message) {
+                      ref
+                          .read(chatSessionsProvider.notifier)
+                          .setMessagesExcluded(
+                            messageIds: [message.id],
+                            excluded: !conversation.isMessageExcluded(
+                              message.id,
+                            ),
+                          );
                     },
                     onProviderSelected: (providerId) {
                       _handleProviderSelected(providerId, selectableProviders);
@@ -303,6 +317,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         supportsReasoning: supportsReasoning,
                         isBusy: isBusy,
                       );
+                    },
+                    onOpenMessageFilter: () async {
+                      await _showMessageRequestFilterDialog(context);
                     },
                     onScrollToBottomPressed: _scroll.scrollToBottom,
                     onSelectMessage: _scroll.scrollToMessage,
@@ -636,6 +653,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           selectedPromptTemplate: selectedPromptTemplate,
           supportsReasoning: supportsReasoning,
         );
+      },
+    );
+  }
+
+  Future<void> _showMessageRequestFilterDialog(BuildContext context) {
+    return showDialog<void>(
+      context: context,
+      builder: (context) {
+        return const MessageRequestFilterDialog();
       },
     );
   }

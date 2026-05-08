@@ -195,6 +195,34 @@ void main() {
       expect(result[1].content, '后置提示');
     });
 
+    test('excludedMessageIds 只会跳过被排除的会话消息', () {
+      final result = buildRequestMessages(
+        promptTemplate: buildTemplate(
+          systemPrompt: '系统指令',
+          messages: [
+            buildTemplateMessage(PromptMessageRole.user, '模板前置'),
+            buildTemplateMessage(
+              PromptMessageRole.assistant,
+              '模板后置',
+              placement: PromptMessagePlacement.after,
+            ),
+          ],
+        ),
+        excludedMessageIds: const ['a1'],
+        conversationMessages: [
+          buildUserMessage('真实问题'),
+          buildAssistantMessage('不应继续发送的旧回复'),
+        ],
+      );
+
+      expect(result.map((message) => message.content).toList(growable: false), [
+        '系统指令',
+        '模板前置',
+        '真实问题',
+        '模板后置',
+      ]);
+    });
+
     test('before 和 after 混用时，顺序为 before -> 会话 -> after', () {
       final result = buildRequestMessages(
         promptTemplate: buildTemplate(
@@ -295,6 +323,29 @@ void main() {
     expect(result, hasLength(2));
     expect(result.first.role, ChatMessageRole.system);
     expect(result.first.content, contains('检查点 1'));
+    expect(result.last.content, '新的问题');
+  });
+
+  test('excludedMessageIds 不影响检查点 system 消息，只过滤会话消息', () {
+    final result = buildRequestMessages(
+      promptTemplate: null,
+      checkpointChain: [
+        ChatCheckpoint(
+          id: 'cp-1',
+          title: '检查点 1',
+          content: '已确认记忆',
+          createdAt: DateTime(2026),
+        ),
+      ],
+      excludedMessageIds: const ['a1'],
+      conversationMessages: [
+        buildUserMessage('新的问题'),
+        buildAssistantMessage('旧回复'),
+      ],
+    );
+
+    expect(result, hasLength(2));
+    expect(result.first.role, ChatMessageRole.system);
     expect(result.last.content, '新的问题');
   });
 }
