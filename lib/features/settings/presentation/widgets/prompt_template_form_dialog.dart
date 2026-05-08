@@ -85,10 +85,9 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
         masterWidth: 340,
         minHeight: 620,
         compactChild: _buildCompactLayout(context),
-        master: _buildWidePane(
+        master: _buildWideMasterPane(
           context: context,
           key: const ValueKey('preset-prompt-master-pane'),
-          child: _buildMasterContent(context),
         ),
         detail: _buildWidePane(
           context: context,
@@ -135,6 +134,32 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
     );
   }
 
+  Widget _buildWideMasterPane({
+    required BuildContext context,
+    required Key key,
+  }) {
+    return DecoratedBox(
+      key: key,
+      decoration: BoxDecoration(
+        color: Theme.of(
+          context,
+        ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.24),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildMasterHeader(context),
+            const SizedBox(height: 16),
+            Expanded(child: _buildMasterListView()),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildCompactPane({
     required BuildContext context,
     required Widget child,
@@ -153,7 +178,17 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
   }
 
   Widget _buildMasterContent(BuildContext context) {
-    final selectedIndex = _selectedIndex;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildMasterHeader(context),
+        const SizedBox(height: 16),
+        _buildMasterListContent(),
+      ],
+    );
+  }
+
+  Widget _buildMasterHeader(BuildContext context) {
     final canMoveUp = _canMoveSelectedUp();
     final canMoveDown = _canMoveSelectedDown();
 
@@ -190,20 +225,42 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
           'system 固定唯一；前置与后置分组显示，后置永远排在前置之后。',
           style: Theme.of(context).textTheme.bodySmall,
         ),
-        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  Widget _buildMasterListView() {
+    return ListView.separated(
+      padding: const EdgeInsets.only(bottom: 16),
+      itemCount: _items.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
+      itemBuilder: (context, index) {
+        return _buildMasterListTile(index, _selectedIndex);
+      },
+    );
+  }
+
+  Widget _buildMasterListContent() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
         for (var index = 0; index < _items.length; index++) ...[
-          _PresetPromptListTile(
-            item: _items[index],
-            isSelected: index == selectedIndex,
-            onTap: () {
-              setState(() {
-                _selectedItemId = _items[index].id;
-              });
-            },
-          ),
+          _buildMasterListTile(index, _selectedIndex),
           if (index != _items.length - 1) const SizedBox(height: 8),
         ],
       ],
+    );
+  }
+
+  Widget _buildMasterListTile(int index, int selectedIndex) {
+    return _PresetPromptListTile(
+      item: _items[index],
+      isSelected: index == selectedIndex,
+      onTap: () {
+        setState(() {
+          _selectedItemId = _items[index].id;
+        });
+      },
     );
   }
 

@@ -99,4 +99,51 @@ void registerSettingsScreenFixedPromptSequencesTests() {
       expect(repo.loadAll(), isEmpty);
     },
   );
+
+  testWidgets('fixed prompt sequence dialog keeps wide master header visible', (
+    tester,
+  ) async {
+    final preferences = await createEmptyPreferences();
+
+    await pumpSettingsScreen(
+      tester,
+      preferences: preferences,
+      size: const Size(1440, 2200),
+    );
+
+    await tester.tap(find.text('新增序列'));
+    await tester.pumpAndSettle();
+
+    final masterPane = find.byKey(
+      const ValueKey('fixed-prompt-sequence-master-pane'),
+    );
+    final addStepButton = find.descendant(
+      of: masterPane,
+      matching: find.widgetWithText(OutlinedButton, '新增步骤'),
+    );
+
+    for (var index = 2; index <= 20; index++) {
+      await tester.tap(addStepButton);
+      await tester.pump();
+    }
+    await tester.pumpAndSettle();
+
+    final header = find.descendant(of: masterPane, matching: find.text('步骤列表'));
+    final stepList = find.descendant(
+      of: masterPane,
+      matching: find.byType(ListView),
+    );
+    final headerOffsetBefore = tester.getTopLeft(header);
+
+    await tester.dragUntilVisible(
+      find.text('步骤 20 · 标题20'),
+      stepList,
+      const Offset(0, -300),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('步骤 20 · 标题20'), findsOneWidget);
+    expect(tester.getTopLeft(header).dy, headerOffsetBefore.dy);
+    expect(addStepButton, findsOneWidget);
+  });
 }
