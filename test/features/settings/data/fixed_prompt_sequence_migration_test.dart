@@ -4,7 +4,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/settings/data/fixed_prompt_sequence_migration.dart';
 import 'package:oh_my_llm/features/settings/data/fixed_prompt_sequence_repository.dart';
-import 'package:oh_my_llm/features/settings/data/sqlite_fixed_prompt_sequence_repository.dart';
 import 'package:oh_my_llm/features/settings/domain/models/fixed_prompt_sequence.dart';
 
 /// 构造一条测试用固定顺序提示词序列。
@@ -12,9 +11,7 @@ FixedPromptSequence _sequence(String id) {
   return FixedPromptSequence(
     id: id,
     name: '测试序列 $id',
-    steps: const [
-      FixedPromptSequenceStep(id: 'step-1', content: '第一步'),
-    ],
+    steps: const [FixedPromptSequenceStep(id: 'step-1', content: '第一步')],
     updatedAt: DateTime(2026, 1, 1),
   );
 }
@@ -25,10 +22,9 @@ void main() {
   test('路径1：SP 有旧数据，导入 SQLite 并清除 SP、置位标志', () async {
     SharedPreferences.setMockInitialValues({});
     final preferences = await SharedPreferences.getInstance();
-    await saveLegacyFixedPromptSequencesForTest(
-      preferences,
-      [_sequence('seq-1')],
-    );
+    await saveLegacyFixedPromptSequencesForTest(preferences, [
+      _sequence('seq-1'),
+    ]);
 
     final database = AppDatabase.inMemory();
     addTearDown(database.close);
@@ -72,10 +68,9 @@ void main() {
       fixedPromptSequencesSqliteMigrationFlagKey: true,
     });
     final preferences = await SharedPreferences.getInstance();
-    await saveLegacyFixedPromptSequencesForTest(
-      preferences,
-      [_sequence('seq-residue')],
-    );
+    await saveLegacyFixedPromptSequencesForTest(preferences, [
+      _sequence('seq-residue'),
+    ]);
     final database = AppDatabase.inMemory();
     addTearDown(database.close);
     final repository = SqliteFixedPromptSequenceRepository(database);
@@ -101,10 +96,9 @@ void main() {
     // 先向 SQLite 写入数据。
     await repository.saveAll([_sequence('seq-existing')]);
     // 再向 SP 写入旧数据。
-    await saveLegacyFixedPromptSequencesForTest(
-      preferences,
-      [_sequence('seq-legacy')],
-    );
+    await saveLegacyFixedPromptSequencesForTest(preferences, [
+      _sequence('seq-legacy'),
+    ]);
 
     await migrateLegacyFixedPromptSequences(
       preferences: preferences,

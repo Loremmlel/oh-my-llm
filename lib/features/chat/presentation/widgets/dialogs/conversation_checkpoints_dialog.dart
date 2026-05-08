@@ -170,27 +170,43 @@ class _ConversationCheckpointsDialogState
               const SizedBox(height: 20),
               Text('当前启用检查点', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 8),
-              RadioListTile<String?>(
-                value: null,
-                groupValue: conversation.selectedCheckpointId,
-                onChanged: isBusy ? null : (_) => _selectCheckpoint(null),
-                title: const Text('不使用检查点'),
-                subtitle: const Text('后续对话继续携带完整上下文。'),
-                contentPadding: EdgeInsets.zero,
-              ),
-              if (conversation.checkpoints.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.only(top: 8),
-                  child: Text('当前对话还没有检查点。'),
-                )
-              else
-                for (final checkpoint in conversation.checkpoints.reversed)
-                  _buildCheckpointTile(
-                    context,
-                    conversation: conversation,
-                    checkpoint: checkpoint,
-                    isBusy: isBusy,
+              IgnorePointer(
+                ignoring: isBusy,
+                child: Opacity(
+                  opacity: isBusy ? 0.6 : 1,
+                  child: RadioGroup<String?>(
+                    groupValue: conversation.selectedCheckpointId,
+                    onChanged: (value) {
+                      _selectCheckpoint(value);
+                    },
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const RadioListTile<String?>(
+                          value: null,
+                          title: Text('不使用检查点'),
+                          subtitle: Text('后续对话继续携带完整上下文。'),
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                        if (conversation.checkpoints.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.only(top: 8),
+                            child: Text('当前对话还没有检查点。'),
+                          )
+                        else
+                          for (final checkpoint
+                              in conversation.checkpoints.reversed)
+                            _buildCheckpointTile(
+                              context,
+                              conversation: conversation,
+                              checkpoint: checkpoint,
+                              isBusy: isBusy,
+                            ),
+                      ],
+                    ),
                   ),
+                ),
+              ),
             ],
           ),
         ),
@@ -225,18 +241,20 @@ class _ConversationCheckpointsDialogState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            RadioListTile<String?>(
-              value: checkpoint.id,
-              groupValue: conversation.selectedCheckpointId,
-              onChanged: compatible && !isBusy
-                  ? (_) => _selectCheckpoint(checkpoint.id)
-                  : null,
-              contentPadding: EdgeInsets.zero,
-              title: Text(checkpoint.title),
-              subtitle: Text(
-                compatible
-                    ? _formatCheckpointMeta(checkpoint, chain)
-                    : '当前分支不兼容该检查点。',
+            IgnorePointer(
+              ignoring: !compatible || isBusy,
+              child: Opacity(
+                opacity: compatible && !isBusy ? 1 : 0.6,
+                child: RadioListTile<String?>(
+                  value: checkpoint.id,
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(checkpoint.title),
+                  subtitle: Text(
+                    compatible
+                        ? _formatCheckpointMeta(checkpoint, chain)
+                        : '当前分支不兼容该检查点。',
+                  ),
+                ),
               ),
             ),
             if (previewContent.isNotEmpty) ...[
@@ -313,6 +331,7 @@ class _ConversationCheckpointsDialogState
     if (selectedMemoryPrompt == null || widget.selectedModel == null) {
       return;
     }
+    final messenger = ScaffoldMessenger.of(context);
 
     setState(() {
       _isCreating = true;
@@ -334,16 +353,14 @@ class _ConversationCheckpointsDialogState
       setState(() {
         _selectedSourceCheckpointId = checkpoint.id;
       });
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('${checkpoint.title} 已创建')));
+      messenger.showSnackBar(
+        SnackBar(content: Text('${checkpoint.title} 已创建')),
+      );
     } catch (error) {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.toString())));
+      messenger.showSnackBar(SnackBar(content: Text(error.toString())));
     } finally {
       if (mounted) {
         setState(() {

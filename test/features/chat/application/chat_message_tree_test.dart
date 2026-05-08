@@ -7,7 +7,7 @@ import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 void main() {
   // ── 辅助函数 ─────────────────────────────────────────────────────────────
 
-  ChatMessage _msg(
+  ChatMessage buildMessage(
     String id, {
     String? parentId,
     ChatMessageRole role = ChatMessageRole.user,
@@ -22,7 +22,7 @@ void main() {
     );
   }
 
-  ChatConversation _conv({
+  ChatConversation buildConversation({
     List<ChatMessage> messages = const [],
     List<ChatMessage> messageNodes = const [],
     Map<String, String> selections = const {},
@@ -41,10 +41,10 @@ void main() {
 
   group('resolveMessageTreeState', () {
     test('空 messageNodes：线性消息序列转为树', () {
-      final conv = _conv(
+      final conv = buildConversation(
         messages: [
-          _msg('u1', role: ChatMessageRole.user),
-          _msg('a1', role: ChatMessageRole.assistant),
+          buildMessage('u1', role: ChatMessageRole.user),
+          buildMessage('a1', role: ChatMessageRole.assistant),
         ],
       );
 
@@ -58,7 +58,7 @@ void main() {
     });
 
     test('空 messageNodes 且消息列表为空：返回空树', () {
-      final state = resolveMessageTreeState(_conv());
+      final state = resolveMessageTreeState(buildConversation());
 
       expect(state.nodes, isEmpty);
       expect(state.selections, isEmpty);
@@ -66,11 +66,11 @@ void main() {
 
     test('已有 messageNodes：直接复用，不重建', () {
       final nodes = [
-        _msg('u1', parentId: rootConversationParentId),
-        _msg('a1', parentId: 'u1', role: ChatMessageRole.assistant),
-        _msg('a2', parentId: 'u1', role: ChatMessageRole.assistant),
+        buildMessage('u1', parentId: rootConversationParentId),
+        buildMessage('a1', parentId: 'u1', role: ChatMessageRole.assistant),
+        buildMessage('a2', parentId: 'u1', role: ChatMessageRole.assistant),
       ];
-      final conv = _conv(
+      final conv = buildConversation(
         messageNodes: nodes,
         selections: {rootConversationParentId: 'u1', 'u1': 'a2'},
       );
@@ -82,13 +82,13 @@ void main() {
     });
 
     test('返回的 nodes/selections 是可变副本，不影响原会话', () {
-      final conv = _conv(
-        messageNodes: [_msg('u1', parentId: rootConversationParentId)],
+      final conv = buildConversation(
+        messageNodes: [buildMessage('u1', parentId: rootConversationParentId)],
         selections: {rootConversationParentId: 'u1'},
       );
 
       final state = resolveMessageTreeState(conv);
-      state.nodes.add(_msg('extra'));
+      state.nodes.add(buildMessage('extra'));
       state.selections['new'] = 'value';
 
       expect(conv.messageNodes, hasLength(1));
@@ -100,14 +100,22 @@ void main() {
 
   group('appendNodeToTree', () {
     test('追加节点并更新父级选中映射', () {
-      final initial = resolveMessageTreeState(_conv(
-        messageNodes: [_msg('u1', parentId: rootConversationParentId)],
-        selections: {rootConversationParentId: 'u1'},
-      ));
+      final initial = resolveMessageTreeState(
+        buildConversation(
+          messageNodes: [
+            buildMessage('u1', parentId: rootConversationParentId),
+          ],
+          selections: {rootConversationParentId: 'u1'},
+        ),
+      );
 
       final next = appendNodeToTree(
         treeState: initial,
-        node: _msg('a1', parentId: 'u1', role: ChatMessageRole.assistant),
+        node: buildMessage(
+          'a1',
+          parentId: 'u1',
+          role: ChatMessageRole.assistant,
+        ),
         parentId: 'u1',
       );
 
@@ -121,7 +129,7 @@ void main() {
 
       final next = appendNodeToTree(
         treeState: initial,
-        node: _msg('u1', parentId: rootConversationParentId),
+        node: buildMessage('u1', parentId: rootConversationParentId),
         parentId: rootConversationParentId,
       );
 
@@ -131,15 +139,19 @@ void main() {
     test('追加第二个兄弟节点：选中映射切换到新节点', () {
       final initial = ChatMessageTreeState(
         nodes: [
-          _msg('u1', parentId: rootConversationParentId),
-          _msg('a1', parentId: 'u1', role: ChatMessageRole.assistant),
+          buildMessage('u1', parentId: rootConversationParentId),
+          buildMessage('a1', parentId: 'u1', role: ChatMessageRole.assistant),
         ],
         selections: {rootConversationParentId: 'u1', 'u1': 'a1'},
       );
 
       final next = appendNodeToTree(
         treeState: initial,
-        node: _msg('a2', parentId: 'u1', role: ChatMessageRole.assistant),
+        node: buildMessage(
+          'a2',
+          parentId: 'u1',
+          role: ChatMessageRole.assistant,
+        ),
         parentId: 'u1',
       );
 
@@ -151,13 +163,17 @@ void main() {
 
     test('不修改原 treeState', () {
       final initial = ChatMessageTreeState(
-        nodes: [_msg('u1', parentId: rootConversationParentId)],
+        nodes: [buildMessage('u1', parentId: rootConversationParentId)],
         selections: {rootConversationParentId: 'u1'},
       );
 
       appendNodeToTree(
         treeState: initial,
-        node: _msg('a1', parentId: 'u1', role: ChatMessageRole.assistant),
+        node: buildMessage(
+          'a1',
+          parentId: 'u1',
+          role: ChatMessageRole.assistant,
+        ),
         parentId: 'u1',
       );
 
@@ -172,7 +188,7 @@ void main() {
     test('正常替换目标消息内容与 streaming 标志', () {
       final initial = ChatMessageTreeState(
         nodes: [
-          _msg('u1', parentId: rootConversationParentId),
+          buildMessage('u1', parentId: rootConversationParentId),
           ChatMessage(
             id: 'a1',
             role: ChatMessageRole.assistant,
@@ -202,7 +218,7 @@ void main() {
 
     test('目标 id 不存在时：节点列表原封不动', () {
       final initial = ChatMessageTreeState(
-        nodes: [_msg('u1', parentId: rootConversationParentId)],
+        nodes: [buildMessage('u1', parentId: rootConversationParentId)],
         selections: {rootConversationParentId: 'u1'},
       );
 
@@ -220,8 +236,12 @@ void main() {
     test('只替换目标节点，其余节点内容不受影响', () {
       final initial = ChatMessageTreeState(
         nodes: [
-          _msg('u1', parentId: rootConversationParentId, content: '用户原始'),
-          _msg('a1', parentId: 'u1', role: ChatMessageRole.assistant),
+          buildMessage(
+            'u1',
+            parentId: rootConversationParentId,
+            content: '用户原始',
+          ),
+          buildMessage('a1', parentId: 'u1', role: ChatMessageRole.assistant),
         ],
         selections: {rootConversationParentId: 'u1', 'u1': 'a1'},
       );
@@ -240,8 +260,8 @@ void main() {
     test('选中映射在替换后保持不变', () {
       final initial = ChatMessageTreeState(
         nodes: [
-          _msg('u1', parentId: rootConversationParentId),
-          _msg('a1', parentId: 'u1', role: ChatMessageRole.assistant),
+          buildMessage('u1', parentId: rootConversationParentId),
+          buildMessage('a1', parentId: 'u1', role: ChatMessageRole.assistant),
         ],
         selections: {rootConversationParentId: 'u1', 'u1': 'a1'},
       );
@@ -264,8 +284,8 @@ void main() {
     test('删除叶子节点：节点移除，选中映射对应条目消失', () {
       final initial = ChatMessageTreeState(
         nodes: [
-          _msg('u1', parentId: rootConversationParentId),
-          _msg('a1', parentId: 'u1', role: ChatMessageRole.assistant),
+          buildMessage('u1', parentId: rootConversationParentId),
+          buildMessage('a1', parentId: 'u1', role: ChatMessageRole.assistant),
         ],
         selections: {rootConversationParentId: 'u1', 'u1': 'a1'},
       );
@@ -282,10 +302,10 @@ void main() {
       // 树形：root → u1 → a1 → u2 → a2
       final initial = ChatMessageTreeState(
         nodes: [
-          _msg('u1', parentId: rootConversationParentId),
-          _msg('a1', parentId: 'u1', role: ChatMessageRole.assistant),
-          _msg('u2', parentId: 'a1'),
-          _msg('a2', parentId: 'u2', role: ChatMessageRole.assistant),
+          buildMessage('u1', parentId: rootConversationParentId),
+          buildMessage('a1', parentId: 'u1', role: ChatMessageRole.assistant),
+          buildMessage('u2', parentId: 'a1'),
+          buildMessage('a2', parentId: 'u2', role: ChatMessageRole.assistant),
         ],
         selections: {
           rootConversationParentId: 'u1',
@@ -305,7 +325,7 @@ void main() {
 
     test('删除根节点（唯一节点）：树变为空', () {
       final initial = ChatMessageTreeState(
-        nodes: [_msg('u1', parentId: rootConversationParentId)],
+        nodes: [buildMessage('u1', parentId: rootConversationParentId)],
         selections: {rootConversationParentId: 'u1'},
       );
 
@@ -320,9 +340,9 @@ void main() {
       //           ↘ a2（当前选中）
       final initial = ChatMessageTreeState(
         nodes: [
-          _msg('u1', parentId: rootConversationParentId),
-          _msg('a1', parentId: 'u1', role: ChatMessageRole.assistant),
-          _msg('a2', parentId: 'u1', role: ChatMessageRole.assistant),
+          buildMessage('u1', parentId: rootConversationParentId),
+          buildMessage('a1', parentId: 'u1', role: ChatMessageRole.assistant),
+          buildMessage('a2', parentId: 'u1', role: ChatMessageRole.assistant),
         ],
         selections: {rootConversationParentId: 'u1', 'u1': 'a2'},
       );
@@ -337,8 +357,8 @@ void main() {
     test('删除当前选中的 value 节点：对应 selection 条目清除', () {
       final initial = ChatMessageTreeState(
         nodes: [
-          _msg('u1', parentId: rootConversationParentId),
-          _msg('a1', parentId: 'u1', role: ChatMessageRole.assistant),
+          buildMessage('u1', parentId: rootConversationParentId),
+          buildMessage('a1', parentId: 'u1', role: ChatMessageRole.assistant),
         ],
         selections: {rootConversationParentId: 'u1', 'u1': 'a1'},
       );
@@ -351,7 +371,7 @@ void main() {
 
     test('删除不存在的节点：树状态不变', () {
       final initial = ChatMessageTreeState(
-        nodes: [_msg('u1', parentId: rootConversationParentId)],
+        nodes: [buildMessage('u1', parentId: rootConversationParentId)],
         selections: {rootConversationParentId: 'u1'},
       );
 
@@ -365,10 +385,10 @@ void main() {
       // root → n1 → n2 → n3 → n4
       final initial = ChatMessageTreeState(
         nodes: [
-          _msg('n1', parentId: rootConversationParentId),
-          _msg('n2', parentId: 'n1'),
-          _msg('n3', parentId: 'n2'),
-          _msg('n4', parentId: 'n3'),
+          buildMessage('n1', parentId: rootConversationParentId),
+          buildMessage('n2', parentId: 'n1'),
+          buildMessage('n3', parentId: 'n2'),
+          buildMessage('n4', parentId: 'n3'),
         ],
         selections: {
           rootConversationParentId: 'n1',
