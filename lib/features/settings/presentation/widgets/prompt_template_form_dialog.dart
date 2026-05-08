@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/widgets/adaptive_master_detail_layout.dart';
 import '../../../../core/utils/id_generator.dart';
 import '../../domain/models/prompt_template.dart';
 import 'settings_form_dialog_scaffold.dart';
@@ -82,83 +83,172 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
       formKey: formKey,
       isSaving: isSaving,
       onSubmit: _handleSubmit,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          TextFormField(
-            controller: _nameController,
-            decoration: const InputDecoration(
-              labelText: '模板名称',
-              hintText: '例如：代码审阅助手',
-            ),
-            validator: validateRequired,
-          ),
-          const SizedBox(height: 12),
-          TextFormField(
-            controller: _systemPromptController,
-            minLines: 3,
-            maxLines: 6,
-            decoration: const InputDecoration(
-              labelText: 'System 指令',
-              hintText: '你是我的人工智能助手，协助我完成各种任务。',
-            ),
-            validator: validateRequired,
-          ),
-          const SizedBox(height: 20),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('附加消息', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: () => _addMessage(PromptMessageRole.user),
-                    icon: const Icon(Icons.person_outline_rounded),
-                    label: const Text('新增 User'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: () => _addMessage(PromptMessageRole.assistant),
-                    icon: const Icon(Icons.smart_toy_outlined),
-                    label: const Text('新增 Assistant'),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          if (_messages.isEmpty)
-            const Text('可以只保存 system 指令，也可以继续追加 user/assistant 消息。'),
-          for (var index = 0; index < _messages.length; index++) ...[
-            _PromptMessageEditor(
-              key: ValueKey(_messages[index].id),
-              index: index,
-              message: _messages[index],
-              canMoveUp: index > 0,
-              canMoveDown: index < _messages.length - 1,
-              onRoleChanged: (role) {
-                setState(() {
-                  _messages[index] = _messages[index].copyWith(role: role);
-                });
-              },
-              onPlacementChanged: (placement) {
-                setState(() {
-                  _messages[index] = _messages[index].copyWith(
-                    placement: placement,
-                  );
-                });
-              },
-              onMoveUp: () => _moveMessage(index, index - 1),
-              onMoveDown: () => _moveMessage(index, index + 1),
-              onDelete: () => _removeMessage(index),
-            ),
-            const SizedBox(height: 12),
-          ],
-        ],
+      width: 980,
+      child: AdaptiveMasterDetailLayout(
+        key: const ValueKey('prompt-template-form-layout'),
+        breakpoint: 840,
+        masterWidth: 320,
+        minHeight: 560,
+        compactChild: _buildCompactForm(context),
+        master: _buildMetaPane(context),
+        detail: _buildMessagesPane(context),
       ),
+    );
+  }
+
+  Widget _buildCompactForm(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildNameField(),
+        const SizedBox(height: 12),
+        _buildSystemPromptField(),
+        const SizedBox(height: 20),
+        _buildMessageHeader(context),
+        const SizedBox(height: 12),
+        _buildMessageList(),
+      ],
+    );
+  }
+
+  Widget _buildMetaPane(BuildContext context) {
+    final theme = Theme.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(
+          alpha: 0.28,
+        ),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('模板基础信息', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 12),
+            _buildNameField(),
+            const SizedBox(height: 12),
+            _buildSystemPromptField(),
+            const SizedBox(height: 16),
+            Text(
+              '左侧维护模板名称和 System 指令；右侧单独管理附加消息的顺序、角色和拼接位置。',
+              style: theme.textTheme.bodySmall,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMessagesPane(BuildContext context) {
+    final theme = Theme.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(
+          alpha: 0.18,
+        ),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildMessageHeader(context),
+            const SizedBox(height: 12),
+            _buildMessageList(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNameField() {
+    return TextFormField(
+      controller: _nameController,
+      decoration: const InputDecoration(
+        labelText: '模板名称',
+        hintText: '例如：代码审阅助手',
+      ),
+      validator: validateRequired,
+    );
+  }
+
+  Widget _buildSystemPromptField() {
+    return TextFormField(
+      controller: _systemPromptController,
+      minLines: 8,
+      maxLines: 14,
+      decoration: const InputDecoration(
+        labelText: 'System 指令',
+        hintText: '你是我的人工智能助手，协助我完成各种任务。',
+      ),
+      validator: validateRequired,
+    );
+  }
+
+  Widget _buildMessageHeader(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('附加消息', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            OutlinedButton.icon(
+              onPressed: () => _addMessage(PromptMessageRole.user),
+              icon: const Icon(Icons.person_outline_rounded),
+              label: const Text('新增 User'),
+            ),
+            OutlinedButton.icon(
+              onPressed: () => _addMessage(PromptMessageRole.assistant),
+              icon: const Icon(Icons.smart_toy_outlined),
+              label: const Text('新增 Assistant'),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMessageList() {
+    if (_messages.isEmpty) {
+      return const Text('可以只保存 system 指令，也可以继续追加 user/assistant 消息。');
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var index = 0; index < _messages.length; index++) ...[
+          _PromptMessageEditor(
+            key: ValueKey(_messages[index].id),
+            index: index,
+            message: _messages[index],
+            canMoveUp: index > 0,
+            canMoveDown: index < _messages.length - 1,
+            onRoleChanged: (role) {
+              setState(() {
+                _messages[index] = _messages[index].copyWith(role: role);
+              });
+            },
+            onPlacementChanged: (placement) {
+              setState(() {
+                _messages[index] = _messages[index].copyWith(
+                  placement: placement,
+                );
+              });
+            },
+            onMoveUp: () => _moveMessage(index, index - 1),
+            onMoveDown: () => _moveMessage(index, index + 1),
+            onDelete: () => _removeMessage(index),
+          ),
+          const SizedBox(height: 12),
+        ],
+      ],
     );
   }
 

@@ -140,6 +140,10 @@ void registerSettingsScreenModelsAndPromptsTests() {
       final fields = find.byType(TextFormField);
       await tester.enterText(fields.at(0), '代码审阅');
       await tester.enterText(fields.at(1), '你是资深代码审阅助手。');
+      expect(
+        find.byKey(const ValueKey('prompt-template-form-layout')),
+        findsOneWidget,
+      );
       await tester.tap(find.text('新增 User'));
       await tester.pumpAndSettle();
 
@@ -149,12 +153,8 @@ void registerSettingsScreenModelsAndPromptsTests() {
       await tester.pumpAndSettle();
 
       expect(find.text('代码审阅'), findsWidgets);
-      expect(
-        find.byKey(const ValueKey('prompt-templates-master-detail')),
-        findsOneWidget,
-      );
       expect(repo.loadAll().any((t) => t.name == '代码审阅'), isTrue);
-      expect(find.textContaining('1 条 system 指令 + 1 条附加消息'), findsWidgets);
+      expect(find.textContaining('1 条 system 指令 + 1 条附加消息'), findsOneWidget);
 
       await tester.tap(find.text('编辑'));
       await tester.pumpAndSettle();

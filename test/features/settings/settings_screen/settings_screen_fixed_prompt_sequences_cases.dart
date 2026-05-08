@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/settings/data/sqlite_fixed_prompt_sequence_repository.dart';
+import 'package:oh_my_llm/features/settings/presentation/settings_screen.dart';
 
 import 'settings_screen_test_helpers.dart';
 
@@ -15,6 +16,7 @@ void registerSettingsScreenFixedPromptSequencesTests() {
       final database = await pumpSettingsScreen(
         tester,
         preferences: preferences,
+        size: const Size(1440, 2200),
       );
       final repo = SqliteFixedPromptSequenceRepository(database);
 
@@ -22,6 +24,10 @@ void registerSettingsScreenFixedPromptSequencesTests() {
 
       await tester.tap(find.text('新增序列'));
       await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('fixed-prompt-sequence-form-layout')),
+        findsOneWidget,
+      );
 
       await tester.enterText(find.byType(TextFormField).at(0), '对比测试流程');
       await tester.tap(find.text('新增步骤'));
@@ -40,14 +46,32 @@ void registerSettingsScreenFixedPromptSequencesTests() {
       await tester.pumpAndSettle();
 
       expect(find.text('对比测试流程'), findsWidgets);
-      expect(
-        find.byKey(const ValueKey('fixed-sequences-master-detail')),
-        findsOneWidget,
-      );
       expect(repo.loadAll().any((s) => s.name == '对比测试流程'), isTrue);
-      expect(find.textContaining('共 2 步'), findsWidgets);
+      expect(find.textContaining('共 2 步'), findsOneWidget);
 
-      final editButton = find.widgetWithText(OutlinedButton, '编辑').last;
+      final sequenceTitle = find.text('对比测试流程').last;
+      final settingsList = find.descendant(
+        of: find.byType(SettingsScreen),
+        matching: find.byType(ListView),
+      );
+      final fixedSequencesSection = find.ancestor(
+        of: find.text('固定顺序提示词'),
+        matching: find.byType(Card),
+      );
+      await tester.dragUntilVisible(
+        sequenceTitle,
+        settingsList.first,
+        const Offset(0, -300),
+      );
+      final editButton = find.descendant(
+        of: fixedSequencesSection.first,
+        matching: find.widgetWithText(OutlinedButton, '编辑'),
+      );
+      await tester.dragUntilVisible(
+        editButton,
+        settingsList.first,
+        const Offset(0, -300),
+      );
       await tester.tap(editButton);
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextFormField).at(0), '对比测试流程 v2');
@@ -57,7 +81,15 @@ void registerSettingsScreenFixedPromptSequencesTests() {
       expect(find.text('对比测试流程 v2'), findsWidgets);
       expect(repo.loadAll().any((s) => s.name == '对比测试流程 v2'), isTrue);
 
-      final deleteButton = find.widgetWithText(OutlinedButton, '删除').last;
+      final deleteButton = find.descendant(
+        of: fixedSequencesSection.first,
+        matching: find.widgetWithText(OutlinedButton, '删除'),
+      );
+      await tester.dragUntilVisible(
+        deleteButton,
+        settingsList.first,
+        const Offset(0, -300),
+      );
       await tester.tap(deleteButton);
       await tester.pumpAndSettle();
 
