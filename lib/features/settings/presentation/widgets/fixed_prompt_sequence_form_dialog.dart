@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/widgets/adaptive_master_detail_layout.dart';
 import '../../../../core/utils/id_generator.dart';
 import '../../domain/models/fixed_prompt_sequence.dart';
 import 'settings_form_dialog_scaffold.dart';
@@ -71,52 +72,146 @@ class _FixedPromptSequenceFormDialogState
       formKey: formKey,
       isSaving: isSaving,
       onSubmit: _handleSubmit,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          TextFormField(
-            controller: _nameController,
-            decoration: const InputDecoration(
-              labelText: '序列名称',
-              hintText: '例如：代码审阅对比流程',
-            ),
-            validator: validateRequired,
-          ),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              Text('顺序步骤', style: Theme.of(context).textTheme.titleMedium),
-              const Spacer(),
-              OutlinedButton.icon(
-                onPressed: _addStep,
-                icon: const Icon(Icons.add_comment_outlined),
-                label: const Text('新增步骤'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '这里的每一步都会作为用户消息逐步使用，聊天页不会自动整组发送。',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-          const SizedBox(height: 12),
-          if (_steps.isEmpty) const Text('先添加至少一个步骤，聊天页才能按顺序填入或发送。'),
-          for (var index = 0; index < _steps.length; index++) ...[
-            _FixedPromptSequenceStepEditor(
-              key: ValueKey(_steps[index].id),
-              index: index,
-              step: _steps[index],
-              canMoveUp: index > 0,
-              canMoveDown: index < _steps.length - 1,
-              onMoveUp: () => _moveStep(index, index - 1),
-              onMoveDown: () => _moveStep(index, index + 1),
-              onDelete: () => _removeStep(index),
+      width: 980,
+      child: AdaptiveMasterDetailLayout(
+        key: const ValueKey('fixed-prompt-sequence-form-layout'),
+        breakpoint: 840,
+        masterWidth: 320,
+        minHeight: 560,
+        compactChild: _buildCompactForm(context),
+        master: _buildMetaPane(context),
+        detail: _buildStepsPane(context),
+      ),
+    );
+  }
+
+  Widget _buildCompactForm(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildNameField(),
+        const SizedBox(height: 20),
+        _buildStepsHeader(context),
+        const SizedBox(height: 12),
+        _buildStepsList(),
+      ],
+    );
+  }
+
+  Widget _buildMetaPane(BuildContext context) {
+    final theme = Theme.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(
+          alpha: 0.28,
+        ),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('序列基础信息', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 12),
+            _buildNameField(),
+            const SizedBox(height: 16),
+            Text(
+              '左侧只维护序列名称和使用说明；右侧专门编辑步骤内容、顺序和删除操作。',
+              style: theme.textTheme.bodySmall,
             ),
             const SizedBox(height: 12),
+            Text(
+              '这里的每一步都会作为用户消息逐步使用，聊天页不会自动整组发送。',
+              style: theme.textTheme.bodySmall,
+            ),
           ],
-        ],
+        ),
       ),
+    );
+  }
+
+  Widget _buildStepsPane(BuildContext context) {
+    final theme = Theme.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(
+          alpha: 0.18,
+        ),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildStepsHeader(context),
+            const SizedBox(height: 12),
+            _buildStepsList(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNameField() {
+    return TextFormField(
+      controller: _nameController,
+      decoration: const InputDecoration(
+        labelText: '序列名称',
+        hintText: '例如：代码审阅对比流程',
+      ),
+      validator: validateRequired,
+    );
+  }
+
+  Widget _buildStepsHeader(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text('顺序步骤', style: Theme.of(context).textTheme.titleMedium),
+            const Spacer(),
+            OutlinedButton.icon(
+              onPressed: _addStep,
+              icon: const Icon(Icons.add_comment_outlined),
+              label: const Text('新增步骤'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          '这里的每一步都会作为用户消息逐步使用，聊天页不会自动整组发送。',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStepsList() {
+    if (_steps.isEmpty) {
+      return const Text('先添加至少一个步骤，聊天页才能按顺序填入或发送。');
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var index = 0; index < _steps.length; index++) ...[
+          _FixedPromptSequenceStepEditor(
+            key: ValueKey(_steps[index].id),
+            index: index,
+            step: _steps[index],
+            canMoveUp: index > 0,
+            canMoveDown: index < _steps.length - 1,
+            onMoveUp: () => _moveStep(index, index - 1),
+            onMoveDown: () => _moveStep(index, index + 1),
+            onDelete: () => _removeStep(index),
+          ),
+          const SizedBox(height: 12),
+        ],
+      ],
     );
   }
 
