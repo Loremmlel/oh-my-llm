@@ -101,7 +101,7 @@ class _FixedPromptSequenceFormDialogState
         detail: _buildWidePane(
           context: context,
           key: const ValueKey('fixed-prompt-sequence-detail-pane'),
-          child: _buildDetailContent(context),
+          child: _buildDetailContent(context, isWide: true),
         ),
       ),
     );
@@ -117,7 +117,7 @@ class _FixedPromptSequenceFormDialogState
         _buildCompactPane(
           context: context,
           key: const ValueKey('fixed-prompt-sequence-detail-pane'),
-          child: _buildDetailContent(context),
+          child: _buildDetailContent(context, isWide: false),
         ),
       ],
     );
@@ -136,10 +136,7 @@ class _FixedPromptSequenceFormDialogState
         ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.22),
         borderRadius: BorderRadius.circular(20),
       ),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: child,
-      ),
+      child: Padding(padding: const EdgeInsets.all(16), child: child),
     );
   }
 
@@ -262,11 +259,25 @@ class _FixedPromptSequenceFormDialogState
     );
   }
 
-  Widget _buildDetailContent(BuildContext context) {
+  Widget _buildDetailContent(BuildContext context, {required bool isWide}) {
     final selected = _selectedStep;
     if (selected == null) {
       return const Text('请先选择左侧步骤。');
     }
+
+    final contentField = TextFormField(
+      key: ValueKey('fixed-step-content-${selected.id}'),
+      controller: selected.contentController,
+      minLines: isWide ? null : 8,
+      maxLines: isWide ? null : 16,
+      expands: isWide,
+      textAlignVertical: TextAlignVertical.top,
+      decoration: const InputDecoration(
+        labelText: '步骤内容',
+        hintText: '输入这一轮要发送给模型的用户提示词。',
+      ),
+      onChanged: (_) => setState(() {}),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -288,17 +299,7 @@ class _FixedPromptSequenceFormDialogState
           onChanged: (_) => setState(() {}),
         ),
         const SizedBox(height: 12),
-        TextFormField(
-          key: ValueKey('fixed-step-content-${selected.id}'),
-          controller: selected.contentController,
-          minLines: 8,
-          maxLines: 16,
-          decoration: const InputDecoration(
-            labelText: '步骤内容',
-            hintText: '输入这一轮要发送给模型的用户提示词。',
-          ),
-          onChanged: (_) => setState(() {}),
-        ),
+        if (isWide) Expanded(child: contentField) else contentField,
         const SizedBox(height: 16),
         Align(
           alignment: Alignment.centerLeft,
