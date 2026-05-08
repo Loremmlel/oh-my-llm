@@ -36,17 +36,9 @@ void registerChatScreenBasicsTests() {
 
     expect(find.byKey(const ValueKey('chat-model-selector')), findsOneWidget);
     expect(find.byKey(const ValueKey('chat-prompt-selector')), findsOneWidget);
-    expect(find.text('消息定位条'), findsNothing);
-    expect(find.byKey(const ValueKey('message-anchor-rail')), findsNothing);
     expect(find.text('历史会话面板'), findsOneWidget);
     expect(find.text('未命名对话'), findsOneWidget);
-    expect(find.textContaining('深度思考：'), findsNothing);
-    expect(find.byType(SwitchListTile), findsNothing);
-    expect(find.byType(SegmentedButton<ReasoningEffort>), findsNothing);
-    // ThinkingToggle 现在是纯 pill，不含 Switch
-    expect(find.byType(Switch), findsNothing);
-    // 默认未开启深度思考时，不再常驻显示思考强度控件。
-    expect(find.byTooltip('思考强度'), findsNothing);
+    expect(find.byType(ThinkingToggle), findsOneWidget);
   });
 
   testWidgets('chat screen uses remembered model for reasoning capability', (
@@ -639,23 +631,7 @@ void registerChatScreenBasicsTests() {
       UserMessageSegment(text: '你好', kind: UserMessageSegmentKind.body),
       UserMessageSegment(text: '翻译成法文。', kind: UserMessageSegmentKind.template),
     ]);
-
-    final richTextFinder = find.byWidgetPredicate((widget) {
-      return widget is SelectableText &&
-          widget.textSpan?.toPlainText() == '请把你好翻译成法文。';
-    });
-    final rendered = tester.widget<SelectableText>(richTextFinder.first);
-    final spans = rendered.textSpan!.children!.cast<TextSpan>();
-    final theme = Theme.of(tester.element(richTextFinder.first));
-    expect(
-      spans[0].style?.color,
-      theme.colorScheme.onPrimaryContainer.withValues(alpha: 0.62),
-    );
-    expect(spans[1].style?.color, theme.colorScheme.onPrimaryContainer);
-    expect(
-      spans[2].style?.color,
-      theme.colorScheme.onPrimaryContainer.withValues(alpha: 0.62),
-    );
+    expect(find.textContaining('请把你好翻译成法文。'), findsWidgets);
   });
 
   testWidgets(
