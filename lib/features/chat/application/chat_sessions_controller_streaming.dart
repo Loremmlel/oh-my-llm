@@ -211,6 +211,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
             promptTemplate: promptTemplate,
             conversationMessages: requestConversationMessages,
             checkpointChain: requestCheckpointChain,
+            excludedMessageIds: conversation.excludedMessageIds,
           ),
           reasoningEffort: reasoningEnabled && modelConfig.supportsReasoning
               ? reasoningEffort

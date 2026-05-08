@@ -73,6 +73,9 @@ class AppDatabase {
     if (currentVersion < 6) {
       _migrateV6();
     }
+    if (currentVersion < 7) {
+      _migrateV7();
+    }
   }
 
   /// 初始 schema：聊天记录相关表。
@@ -251,5 +254,14 @@ class AppDatabase {
       ADD COLUMN applied_checkpoint_title TEXT NOT NULL DEFAULT '';
     ''');
     _connection.execute('PRAGMA user_version = 6;');
+  }
+
+  /// 为会话增加“消息不发送”过滤状态。
+  void _migrateV7() {
+    _connection.execute('''
+      ALTER TABLE conversations
+      ADD COLUMN excluded_message_ids_json TEXT NOT NULL DEFAULT '[]';
+    ''');
+    _connection.execute('PRAGMA user_version = 7;');
   }
 }

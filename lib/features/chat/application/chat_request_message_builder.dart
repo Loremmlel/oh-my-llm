@@ -3,13 +3,37 @@ import '../data/chat_completion_client.dart';
 import '../domain/models/chat_checkpoint.dart';
 import '../domain/models/chat_message.dart';
 
+/// 过滤掉当前不应发送给模型的会话消息。
+List<ChatMessage> filterConversationMessagesForRequest({
+  required List<ChatMessage> conversationMessages,
+  List<String> excludedMessageIds = const [],
+}) {
+  if (conversationMessages.isEmpty || excludedMessageIds.isEmpty) {
+    return List.unmodifiable(conversationMessages);
+  }
+
+  final excludedIdSet = excludedMessageIds.toSet();
+  return List.unmodifiable(
+    conversationMessages
+        .where((message) {
+          return !excludedIdSet.contains(message.id);
+        })
+        .toList(growable: false),
+  );
+}
+
 /// 把提示词模板与会话消息拼装成模型请求消息列表。
 List<ChatCompletionRequestMessage> buildRequestMessages({
   required PromptTemplate? promptTemplate,
   required List<ChatMessage> conversationMessages,
   List<ChatCheckpoint> checkpointChain = const [],
+  List<String> excludedMessageIds = const [],
 }) {
   final requestMessages = <ChatCompletionRequestMessage>[];
+  final filteredConversationMessages = filterConversationMessagesForRequest(
+    conversationMessages: conversationMessages,
+    excludedMessageIds: excludedMessageIds,
+  );
 
   if (promptTemplate != null && promptTemplate.systemPrompt.trim().isNotEmpty) {
     requestMessages.add(
@@ -55,7 +79,7 @@ List<ChatCompletionRequestMessage> buildRequestMessages({
   }
 
   requestMessages.addAll(
-    conversationMessages.map((message) {
+    filteredConversationMessages.map((message) {
       return ChatCompletionRequestMessage(
         role: message.role,
         content: message.content,

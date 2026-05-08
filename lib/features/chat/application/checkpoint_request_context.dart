@@ -3,6 +3,7 @@ import '../domain/models/chat_checkpoint.dart';
 import '../domain/models/chat_message.dart';
 import '../../settings/domain/models/memory_prompt.dart';
 import '../../settings/domain/models/prompt_template.dart';
+import 'chat_request_message_builder.dart';
 
 /// 选中检查点后，真正参与请求拼装的上下文视图。
 class CheckpointRequestContext {
@@ -126,8 +127,13 @@ List<ChatCompletionRequestMessage> buildCheckpointSummaryMessages({
   required List<ChatMessage> conversationMessages,
   List<ChatCheckpoint> checkpointChain = const [],
   PromptTemplate? promptTemplate,
+  List<String> excludedMessageIds = const [],
 }) {
   final requestMessages = <ChatCompletionRequestMessage>[];
+  final filteredConversationMessages = filterConversationMessagesForRequest(
+    conversationMessages: conversationMessages,
+    excludedMessageIds: excludedMessageIds,
+  );
   if (promptTemplate != null && promptTemplate.systemPrompt.trim().isNotEmpty) {
     requestMessages.add(
       ChatCompletionRequestMessage(
@@ -161,7 +167,7 @@ List<ChatCompletionRequestMessage> buildCheckpointSummaryMessages({
     );
   }
   requestMessages.addAll(
-    conversationMessages.map((message) {
+    filteredConversationMessages.map((message) {
       return ChatCompletionRequestMessage(
         role: message.role,
         content: message.content,

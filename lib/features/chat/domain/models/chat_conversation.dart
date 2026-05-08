@@ -25,6 +25,7 @@ class ChatConversation extends Equatable {
     this.selectedPromptTemplateId,
     this.reasoningEnabled = false,
     this.reasoningEffort = ReasoningEffort.medium,
+    this.excludedMessageIds = const [],
   }) : _messages = messages;
 
   final String id;
@@ -40,6 +41,7 @@ class ChatConversation extends Equatable {
   final String? selectedPromptTemplateId;
   final bool reasoningEnabled;
   final ReasoningEffort reasoningEffort;
+  final List<String> excludedMessageIds;
 
   /// 当前会话实际展示的消息序列。
   List<ChatMessage> get messages {
@@ -56,6 +58,11 @@ class ChatConversation extends Equatable {
 
   /// 会话是否包含任何消息。
   bool get hasMessages => messages.isNotEmpty;
+
+  /// 当前消息是否被排除出后续请求上下文。
+  bool isMessageExcluded(String messageId) {
+    return excludedMessageIds.contains(messageId);
+  }
 
   /// 是否存在用户手动设置的标题。
   bool get hasCustomTitle => title != null && title!.trim().isNotEmpty;
@@ -93,6 +100,7 @@ class ChatConversation extends Equatable {
     String? selectedPromptTemplateId,
     bool? reasoningEnabled,
     ReasoningEffort? reasoningEffort,
+    List<String>? excludedMessageIds,
     bool clearSelectedModelId = false,
     bool clearSelectedCheckpointId = false,
     bool clearSelectedPromptTemplateId = false,
@@ -118,6 +126,7 @@ class ChatConversation extends Equatable {
           : selectedPromptTemplateId ?? this.selectedPromptTemplateId,
       reasoningEnabled: reasoningEnabled ?? this.reasoningEnabled,
       reasoningEffort: reasoningEffort ?? this.reasoningEffort,
+      excludedMessageIds: excludedMessageIds ?? this.excludedMessageIds,
     );
   }
 
@@ -143,9 +152,12 @@ class ChatConversation extends Equatable {
       'selectedModelId': selectedModelId,
       'selectedCheckpointId': selectedCheckpointId,
       'selectedPromptTemplateId': selectedPromptTemplateId,
-      'checkpoints': checkpoints.map((checkpoint) => checkpoint.toJson()).toList(),
+      'checkpoints': checkpoints
+          .map((checkpoint) => checkpoint.toJson())
+          .toList(),
       'reasoningEnabled': reasoningEnabled,
       'reasoningEffort': reasoningEffort.apiValue,
+      'excludedMessageIds': excludedMessageIds,
     };
   }
 
@@ -156,6 +168,8 @@ class ChatConversation extends Equatable {
     final rawSelections =
         json['selectedChildByParentId'] as Map<String, dynamic>? ?? const {};
     final rawCheckpoints = json['checkpoints'] as List<dynamic>? ?? const [];
+    final rawExcludedMessageIds =
+        json['excludedMessageIds'] as List<dynamic>? ?? const [];
     final parsedMessages = rawMessages
         .map((message) {
           return ChatMessage.fromJson(
@@ -202,6 +216,10 @@ class ChatConversation extends Equatable {
         (effort) => effort.apiValue == json['reasoningEffort'],
         orElse: () => ReasoningEffort.medium,
       ),
+      excludedMessageIds: rawExcludedMessageIds
+          .whereType<String>()
+          .toSet()
+          .toList(growable: false),
     );
   }
 
@@ -292,5 +310,6 @@ class ChatConversation extends Equatable {
     selectedPromptTemplateId,
     reasoningEnabled,
     reasoningEffort,
+    excludedMessageIds,
   ];
 }

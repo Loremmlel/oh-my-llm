@@ -25,7 +25,8 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
         selected_checkpoint_id,
         selected_prompt_template_id,
         reasoning_enabled,
-        reasoning_effort
+        reasoning_effort,
+        excluded_message_ids_json
       FROM conversations
       ORDER BY updated_at DESC
     ''');
@@ -89,8 +90,10 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
                   row['applied_checkpoint_title'] as String? ?? '',
               userMessageSegments:
                   (jsonDecode(
-                        row['user_message_segments_json'] as String? ?? '[]',
-                      ) as List)
+                            row['user_message_segments_json'] as String? ??
+                                '[]',
+                          )
+                          as List)
                       .map(
                         (segment) => UserMessageSegment.fromJson(
                           Map<String, dynamic>.from(segment as Map),
@@ -158,6 +161,12 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
               (effort) => effort.apiValue == row['reasoning_effort'],
               orElse: () => ReasoningEffort.medium,
             ),
+            excludedMessageIds:
+                (jsonDecode(row['excluded_message_ids_json'] as String? ?? '[]')
+                        as List)
+                    .whereType<String>()
+                    .toSet()
+                    .toList(growable: false),
           );
         })
         .toList(growable: false);
@@ -248,8 +257,9 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
           selected_checkpoint_id,
           selected_prompt_template_id,
           reasoning_enabled,
-          reasoning_effort
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          reasoning_effort,
+          excluded_message_ids_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ''');
       final messageStatement = _database.connection.prepare('''
         INSERT INTO messages (
@@ -300,6 +310,7 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
             normalizedConversation.selectedPromptTemplateId,
             normalizedConversation.reasoningEnabled ? 1 : 0,
             normalizedConversation.reasoningEffort.apiValue,
+            jsonEncode(normalizedConversation.excludedMessageIds),
           ]);
           for (
             var nodeIndex = 0;

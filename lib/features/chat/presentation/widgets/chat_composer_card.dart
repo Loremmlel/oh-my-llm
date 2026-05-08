@@ -32,6 +32,7 @@ class ChatComposerCard extends StatelessWidget {
     required this.supportsReasoning,
     required this.isBusy,
     required this.isStreaming,
+    required this.excludedMessageCount,
     required this.onProviderSelected,
     required this.onModelSelected,
     required this.onPromptTemplateSelected,
@@ -40,6 +41,7 @@ class ChatComposerCard extends StatelessWidget {
     required this.onReasoningEnabledChanged,
     required this.onReasoningEffortChanged,
     required this.onOpenFixedPromptSequenceRunner,
+    required this.onOpenMessageFilter,
     required this.onSendPressed,
     required this.onStopStreaming,
     super.key,
@@ -63,6 +65,7 @@ class ChatComposerCard extends StatelessWidget {
   final bool supportsReasoning;
   final bool isBusy;
   final bool isStreaming;
+  final int excludedMessageCount;
   final ValueChanged<String> onProviderSelected;
   final ValueChanged<String> onModelSelected;
   final ValueChanged<String?> onPromptTemplateSelected;
@@ -71,6 +74,7 @@ class ChatComposerCard extends StatelessWidget {
   final ValueChanged<bool>? onReasoningEnabledChanged;
   final ValueChanged<ReasoningEffort>? onReasoningEffortChanged;
   final Future<void> Function() onOpenFixedPromptSequenceRunner;
+  final Future<void> Function() onOpenMessageFilter;
   final Future<void> Function()? onSendPressed;
   final Future<void> Function()? onStopStreaming;
 
@@ -161,6 +165,7 @@ class ChatComposerCard extends StatelessWidget {
                     reasoningEnabled: reasoningEnabled,
                     reasoningEffort: reasoningEffort,
                     selectedPromptTemplate: selectedPromptTemplate,
+                    excludedMessageCount: excludedMessageCount,
                     onOpenSettings: () {
                       _showCompactSecondarySettingsSheet(context, theme);
                     },
@@ -183,6 +188,8 @@ class ChatComposerCard extends StatelessWidget {
                     onPromptTemplateSelected: onPromptTemplateSelected,
                     onOpenFixedPromptSequenceRunner:
                         onOpenFixedPromptSequenceRunner,
+                    onOpenMessageFilter: onOpenMessageFilter,
+                    excludedMessageCount: excludedMessageCount,
                     onSendPressed: onSendPressed,
                     onStopStreaming: onStopStreaming,
                   ),
@@ -301,6 +308,21 @@ class ChatComposerCard extends StatelessWidget {
                           icon: const Icon(Icons.playlist_play_rounded),
                           label: const Text('固定顺序提示词'),
                         ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        key: const ValueKey('chat-message-filter-button'),
+                        onPressed: isBusy
+                            ? null
+                            : () async {
+                                Navigator.of(bottomSheetContext).pop();
+                                await onOpenMessageFilter();
+                              },
+                        icon: const Icon(Icons.filter_alt_outlined),
+                        label: Text(_messageFilterLabel(excludedMessageCount)),
                       ),
                     ),
                   ],
@@ -524,6 +546,8 @@ class _DesktopSecondarySettingsRow extends StatelessWidget {
     required this.onReasoningEffortChanged,
     required this.onPromptTemplateSelected,
     required this.onOpenFixedPromptSequenceRunner,
+    required this.onOpenMessageFilter,
+    required this.excludedMessageCount,
     required this.onSendPressed,
     required this.onStopStreaming,
   });
@@ -541,6 +565,8 @@ class _DesktopSecondarySettingsRow extends StatelessWidget {
   final ValueChanged<ReasoningEffort>? onReasoningEffortChanged;
   final ValueChanged<String?> onPromptTemplateSelected;
   final Future<void> Function() onOpenFixedPromptSequenceRunner;
+  final Future<void> Function() onOpenMessageFilter;
+  final int excludedMessageCount;
   final Future<void> Function()? onSendPressed;
   final Future<void> Function()? onStopStreaming;
 
@@ -611,6 +637,12 @@ class _DesktopSecondarySettingsRow extends StatelessWidget {
                   label: const Text('固定顺序提示词'),
                 ),
               ),
+              OutlinedButton.icon(
+                key: const ValueKey('chat-message-filter-button'),
+                onPressed: isBusy ? null : onOpenMessageFilter,
+                icon: const Icon(Icons.filter_alt_outlined),
+                label: Text(_messageFilterLabel(excludedMessageCount)),
+              ),
             ],
           ),
         ),
@@ -641,6 +673,7 @@ class _CompactActionRow extends StatelessWidget {
     required this.reasoningEnabled,
     required this.reasoningEffort,
     required this.selectedPromptTemplate,
+    required this.excludedMessageCount,
     required this.onOpenSettings,
     required this.onSendPressed,
     required this.onStopStreaming,
@@ -653,6 +686,7 @@ class _CompactActionRow extends StatelessWidget {
   final bool reasoningEnabled;
   final ReasoningEffort reasoningEffort;
   final PromptTemplate? selectedPromptTemplate;
+  final int excludedMessageCount;
   final VoidCallback onOpenSettings;
   final Future<void> Function()? onSendPressed;
   final Future<void> Function()? onStopStreaming;
@@ -691,6 +725,9 @@ class _CompactActionRow extends StatelessWidget {
           : '思考关',
     );
     parts.add(selectedPromptTemplate?.name ?? '无 Prompt');
+    if (excludedMessageCount > 0) {
+      parts.add('过滤 $excludedMessageCount 条');
+    }
     return '更多设置 · ${parts.join(' · ')}';
   }
 }
@@ -860,4 +897,11 @@ String _effortLabel(ReasoningEffort effort) {
     ReasoningEffort.high => 'high',
     ReasoningEffort.xhigh => 'xhigh',
   };
+}
+
+String _messageFilterLabel(int excludedMessageCount) {
+  if (excludedMessageCount <= 0) {
+    return '上下文过滤';
+  }
+  return '上下文过滤 · 已排除 $excludedMessageCount 条';
 }

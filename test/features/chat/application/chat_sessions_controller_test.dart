@@ -247,7 +247,9 @@ void main() {
     fakeClient.enqueueChunks(['第二次回复']);
     await sendMsg('第二条消息');
 
-    final activeConversation = container.read(chatSessionsProvider).activeConversation;
+    final activeConversation = container
+        .read(chatSessionsProvider)
+        .activeConversation;
     expect(activeConversation.title, '手动标题');
     expect(activeConversation.resolvedTitle, '手动标题');
   });
@@ -260,7 +262,9 @@ void main() {
     fakeClient.enqueueChunks(['首次回复']);
     await sendMsg('首条消息');
 
-    final activeConversation = container.read(chatSessionsProvider).activeConversation;
+    final activeConversation = container
+        .read(chatSessionsProvider)
+        .activeConversation;
     expect(activeConversation.title, '空白草稿标题');
     expect(activeConversation.resolvedTitle, '空白草稿标题');
   });
@@ -365,6 +369,49 @@ void main() {
     expect(messages[0].content, '你好');
   });
 
+  test('setMessagesExcluded 会把排除状态保存到当前会话', () async {
+    fakeClient.enqueueChunks(['首轮回复']);
+    await sendMsg('第一轮问题');
+
+    final assistantMessageId = container
+        .read(chatSessionsProvider)
+        .activeConversation
+        .messages
+        .last
+        .id;
+    await container
+        .read(chatSessionsProvider.notifier)
+        .setMessagesExcluded(messageIds: [assistantMessageId], excluded: true);
+
+    final conversation = container
+        .read(chatSessionsProvider)
+        .activeConversation;
+    expect(conversation.excludedMessageIds, [assistantMessageId]);
+  });
+
+  test('sendMessage 会跳过已排除的历史消息', () async {
+    fakeClient.enqueueChunks(['首轮回复']);
+    await sendMsg('第一轮问题');
+
+    final assistantMessageId = container
+        .read(chatSessionsProvider)
+        .activeConversation
+        .messages
+        .last
+        .id;
+    await container
+        .read(chatSessionsProvider.notifier)
+        .setMessagesExcluded(messageIds: [assistantMessageId], excluded: true);
+
+    fakeClient.enqueueChunks(['第二轮回复']);
+    await sendMsg('第二轮问题');
+
+    expect(
+      fakeClient.requestHistory.last.map((message) => message.content).toList(),
+      ['第一轮问题', '第二轮问题'],
+    );
+  });
+
   test('sendMessage 纯空白内容为空操作', () async {
     await container
         .read(chatSessionsProvider.notifier)
@@ -424,19 +471,26 @@ void main() {
           reasoningEffort: ReasoningEffort.medium,
         );
 
-    final conversation = container.read(chatSessionsProvider).activeConversation;
+    final conversation = container
+        .read(chatSessionsProvider)
+        .activeConversation;
     expect(conversation.checkpoints, hasLength(1));
     expect(conversation.checkpoints.single.id, checkpoint.id);
     expect(conversation.checkpoints.single.content, '这是总结后的检查点内容');
     expect(conversation.checkpoints.single.sourceMemoryPromptName, '研发总结');
     expect(container.read(chatSessionsProvider).isCheckpointing, isFalse);
-    expect(fakeClient.lastRequestMessages.map((item) => item.content).join('\n'), contains('请总结当前对话中的关键事实、约束与待办。'));
+    expect(
+      fakeClient.lastRequestMessages.map((item) => item.content).join('\n'),
+      contains('请总结当前对话中的关键事实、约束与待办。'),
+    );
   });
 
   test('createCheckpoint 会附带当前选中的前置提示词', () async {
     fakeClient.enqueueChunks(['首轮回复']);
     await sendMsg('需要带前置提示词的上下文');
-    await container.read(promptTemplatesProvider.notifier).upsert(
+    await container
+        .read(promptTemplatesProvider.notifier)
+        .upsert(
           PromptTemplate(
             id: 'prompt-1',
             name: '模板一',
@@ -454,10 +508,14 @@ void main() {
         );
     await container
         .read(chatSessionsProvider.notifier)
-        .updateActiveConversationPreferences(selectedPromptTemplateId: 'prompt-1');
+        .updateActiveConversationPreferences(
+          selectedPromptTemplateId: 'prompt-1',
+        );
 
     fakeClient.enqueueChunks(['检查点总结']);
-    await container.read(chatSessionsProvider.notifier).createCheckpoint(
+    await container
+        .read(chatSessionsProvider.notifier)
+        .createCheckpoint(
           modelConfig: _testModel,
           memoryPrompt: _memoryPrompt,
           reasoningEnabled: false,
@@ -469,6 +527,37 @@ void main() {
         .toList(growable: false);
     expect(requestContents, contains('模板一前置'));
     expect(requestContents.last, contains('请按照以下记忆总结提示词生成新的检查点'));
+  });
+
+  test('createCheckpoint 会跳过已排除的对话消息', () async {
+    fakeClient.enqueueChunks(['首轮回复']);
+    await sendMsg('需要被排除的上下文');
+
+    final assistantMessageId = container
+        .read(chatSessionsProvider)
+        .activeConversation
+        .messages
+        .last
+        .id;
+    await container
+        .read(chatSessionsProvider.notifier)
+        .setMessagesExcluded(messageIds: [assistantMessageId], excluded: true);
+
+    fakeClient.enqueueChunks(['检查点总结']);
+    await container
+        .read(chatSessionsProvider.notifier)
+        .createCheckpoint(
+          modelConfig: _testModel,
+          memoryPrompt: _memoryPrompt,
+          reasoningEnabled: false,
+          reasoningEffort: ReasoningEffort.medium,
+        );
+
+    final requestContents = fakeClient.lastRequestMessages
+        .map((message) => message.content)
+        .toList(growable: false);
+    expect(requestContents, contains('需要被排除的上下文'));
+    expect(requestContents, isNot(contains('首轮回复')));
   });
 
   test('选中检查点后发送消息只携带检查点 system 消息与增量消息', () async {
@@ -740,6 +829,36 @@ void main() {
         .messages;
     expect(messages, hasLength(1));
     expect(messages.single.role, ChatMessageRole.user);
+  });
+
+  test('deleteMessage 会同步清理已排除消息 id', () async {
+    fakeClient.enqueueChunks(['首轮回复']);
+    await sendMsg('测试删除排除状态');
+
+    final assistantMessageId = container
+        .read(chatSessionsProvider)
+        .activeConversation
+        .messages
+        .last
+        .id;
+    await container
+        .read(chatSessionsProvider.notifier)
+        .setMessagesExcluded(messageIds: [assistantMessageId], excluded: true);
+
+    await container
+        .read(chatSessionsProvider.notifier)
+        .deleteMessage(
+          messageId: assistantMessageId,
+          scope: ChatMessageDeletionScope.currentBranch,
+        );
+
+    expect(
+      container
+          .read(chatSessionsProvider)
+          .activeConversation
+          .excludedMessageIds,
+      isEmpty,
+    );
   });
 
   test('deleteMessage 删除当前用户分支后切回剩余根分支', () async {

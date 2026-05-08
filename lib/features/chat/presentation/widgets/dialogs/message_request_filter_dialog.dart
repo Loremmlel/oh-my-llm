@@ -1,0 +1,436 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../../../core/widgets/adaptive_master_detail_layout.dart';
+import '../../../application/chat_sessions_controller.dart';
+import '../../../domain/models/chat_conversation.dart';
+import '../../../domain/models/chat_message.dart';
+import '../streaming_markdown_view.dart';
+
+/// 管理当前分支哪些消息会继续参与发送上下文。
+class MessageRequestFilterDialog extends ConsumerStatefulWidget {
+  const MessageRequestFilterDialog({super.key});
+
+  @override
+  ConsumerState<MessageRequestFilterDialog> createState() =>
+      _MessageRequestFilterDialogState();
+}
+
+class _MessageRequestFilterDialogState
+    extends ConsumerState<MessageRequestFilterDialog> {
+  String? _focusedMessageId;
+
+  @override
+  Widget build(BuildContext context) {
+    final conversation = ref.watch(activeChatConversationProvider);
+    final isBusy = ref.watch(isChatBusyProvider);
+    final visibleMessages = conversation.messages;
+    final excludedCount = visibleMessages.where((message) {
+      return conversation.isMessageExcluded(message.id);
+    }).length;
+    final focusedMessageId = _resolveFocusedMessageId(conversation);
+    final focusedMessage = visibleMessages.where((message) {
+      return message.id == focusedMessageId;
+    }).firstOrNull;
+
+    return AlertDialog(
+      title: const Text('上下文过滤'),
+      content: SizedBox(
+        width: 920,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '关闭某条消息后，它会保留在当前对话中，但不会继续发给模型。',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              visibleMessages.isEmpty
+                  ? '当前分支还没有消息。'
+                  : '当前分支已排除 $excludedCount / ${visibleMessages.length} 条消息。',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 420,
+              child: AdaptiveMasterDetailLayout(
+                breakpoint: 760,
+                masterWidth: 320,
+                minHeight: 420,
+                compactChild: _buildCompactList(
+                  context,
+                  conversation: conversation,
+                  messages: visibleMessages,
+                  isBusy: isBusy,
+                ),
+                master: _buildMasterPane(
+                  context,
+                  conversation: conversation,
+                  messages: visibleMessages,
+                  isBusy: isBusy,
+                  excludedCount: excludedCount,
+                  focusedMessageId: focusedMessageId,
+                ),
+                detail: _buildDetailPane(
+                  context,
+                  conversation: conversation,
+                  message: focusedMessage,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('关闭'),
+        ),
+      ],
+    );
+  }
+
+  String? _resolveFocusedMessageId(ChatConversation conversation) {
+    if (_focusedMessageId != null &&
+        conversation.messages.any(
+          (message) => message.id == _focusedMessageId,
+        )) {
+      return _focusedMessageId;
+    }
+
+    final firstExcluded = conversation.messages.where((message) {
+      return conversation.isMessageExcluded(message.id);
+    }).firstOrNull;
+    return firstExcluded?.id ?? conversation.messages.lastOrNull?.id;
+  }
+
+  Widget _buildCompactList(
+    BuildContext context, {
+    required ChatConversation conversation,
+    required List<ChatMessage> messages,
+    required bool isBusy,
+  }) {
+    if (messages.isEmpty) {
+      return const Center(child: Text('当前分支还没有消息。'));
+    }
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: ListView.separated(
+        padding: const EdgeInsets.all(12),
+        itemCount: messages.length + 1,
+        separatorBuilder: (_, _) => const SizedBox(height: 8),
+        itemBuilder: (context, index) {
+          if (index == 0) {
+            final excludedCount = messages.where((message) {
+              return conversation.isMessageExcluded(message.id);
+            }).length;
+            return Align(
+              alignment: Alignment.centerLeft,
+              child: FilledButton.tonalIcon(
+                onPressed: isBusy || excludedCount == 0
+                    ? null
+                    : () => _setMessagesExcluded(
+                        messageIds: messages.map((message) => message.id),
+                        excluded: false,
+                      ),
+                icon: const Icon(Icons.restart_alt_rounded),
+                label: const Text('恢复当前分支'),
+              ),
+            );
+          }
+
+          final message = messages[index - 1];
+          return SwitchListTile.adaptive(
+            value: !conversation.isMessageExcluded(message.id),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+            title: Text(_messageTitle(message)),
+            subtitle: Text(
+              _messageSummary(message),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            onChanged: isBusy
+                ? null
+                : (included) {
+                    _setMessagesExcluded(
+                      messageIds: [message.id],
+                      excluded: !included,
+                    );
+                  },
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildMasterPane(
+    BuildContext context, {
+    required ChatConversation conversation,
+    required List<ChatMessage> messages,
+    required bool isBusy,
+    required int excludedCount,
+    required String? focusedMessageId,
+  }) {
+    final theme = Theme.of(context);
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(
+          alpha: 0.24,
+        ),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('当前分支', style: theme.textTheme.titleMedium),
+                          const SizedBox(height: 4),
+                          Text(
+                            excludedCount == 0
+                                ? '当前没有排除消息。'
+                                : '当前已排除 $excludedCount 条消息。',
+                            style: theme.textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                    FilledButton.tonal(
+                      onPressed: isBusy || excludedCount == 0
+                          ? null
+                          : () => _setMessagesExcluded(
+                              messageIds: messages.map((message) => message.id),
+                              excluded: false,
+                            ),
+                      child: const Text('恢复当前分支'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (messages.isEmpty)
+              const Expanded(child: Center(child: Text('当前分支还没有消息。')))
+            else
+              Expanded(
+                child: ListView.separated(
+                  itemCount: messages.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 8),
+                  itemBuilder: (context, index) {
+                    final message = messages[index];
+                    final isExcluded = conversation.isMessageExcluded(
+                      message.id,
+                    );
+                    final isFocused = message.id == focusedMessageId;
+                    return _MessageFilterSelectionTile(
+                      message: message,
+                      focused: isFocused,
+                      excluded: isExcluded,
+                      onFocus: () {
+                        setState(() {
+                          _focusedMessageId = message.id;
+                        });
+                      },
+                      onChanged: isBusy
+                          ? null
+                          : (included) {
+                              _setMessagesExcluded(
+                                messageIds: [message.id],
+                                excluded: !included,
+                              );
+                            },
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetailPane(
+    BuildContext context, {
+    required ChatConversation conversation,
+    required ChatMessage? message,
+  }) {
+    final theme = Theme.of(context);
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(
+          alpha: 0.18,
+        ),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: message == null
+          ? Center(
+              child: Text(
+                '选择一条消息后，这里会显示完整预览。',
+                style: theme.textTheme.bodyMedium,
+              ),
+            )
+          : Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _messageTitle(message),
+                          style: theme.textTheme.headlineSmall,
+                        ),
+                      ),
+                      if (conversation.isMessageExcluded(message.id))
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.errorContainer.withValues(
+                              alpha: 0.72,
+                            ),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            child: Text(
+                              '不发送',
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: theme.colorScheme.onErrorContainer,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _messageSummary(message),
+                    style: theme.textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: ColoredBox(
+                        color: theme.colorScheme.surface,
+                        child: SingleChildScrollView(
+                          key: ValueKey('message-filter-preview-${message.id}'),
+                          padding: const EdgeInsets.all(12),
+                          child: message.role == ChatMessageRole.assistant
+                              ? StreamingMarkdownView(
+                                  content: message.content.trim(),
+                                  isStreaming: false,
+                                )
+                              : SelectableText(message.content),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+    );
+  }
+
+  Future<void> _setMessagesExcluded({
+    required Iterable<String> messageIds,
+    required bool excluded,
+  }) {
+    return ref
+        .read(chatSessionsProvider.notifier)
+        .setMessagesExcluded(messageIds: messageIds, excluded: excluded);
+  }
+}
+
+class _MessageFilterSelectionTile extends StatelessWidget {
+  const _MessageFilterSelectionTile({
+    required this.message,
+    required this.focused,
+    required this.excluded,
+    required this.onFocus,
+    this.onChanged,
+  });
+
+  final ChatMessage message;
+  final bool focused;
+  final bool excluded;
+  final VoidCallback onFocus;
+  final ValueChanged<bool>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Material(
+      color: focused
+          ? theme.colorScheme.primaryContainer.withValues(alpha: 0.52)
+          : theme.colorScheme.surface,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onFocus,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _messageTitle(message),
+                      style: theme.textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _messageSummary(message),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Switch(value: !excluded, onChanged: onChanged),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String _messageTitle(ChatMessage message) {
+  return switch (message.role) {
+    ChatMessageRole.user => '用户消息',
+    ChatMessageRole.assistant => '模型回复',
+    ChatMessageRole.system => '系统消息',
+  };
+}
+
+String _messageSummary(ChatMessage message) {
+  final preview = message.content.trim();
+  return preview.isEmpty ? '空内容。' : preview;
+}

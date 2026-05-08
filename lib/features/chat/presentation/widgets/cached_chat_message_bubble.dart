@@ -13,6 +13,8 @@ class CachedChatMessageBubble extends StatefulWidget {
     this.onEditPressed,
     this.onRetryPressed,
     this.onDeletePressed,
+    this.onToggleRequestExclusionPressed,
+    this.isExcludedFromRequest = false,
     this.onFavoritePressed,
     this.isFavorited = false,
     this.versionInfo,
@@ -26,6 +28,8 @@ class CachedChatMessageBubble extends StatefulWidget {
   final VoidCallback? onEditPressed;
   final VoidCallback? onRetryPressed;
   final VoidCallback? onDeletePressed;
+  final VoidCallback? onToggleRequestExclusionPressed;
+  final bool isExcludedFromRequest;
   final VoidCallback? onFavoritePressed;
   final bool isFavorited;
   final MessageVersionInfo? versionInfo;
@@ -65,6 +69,7 @@ class _CachedChatMessageBubbleState extends State<CachedChatMessageBubble> {
     return oldWidget.message == widget.message &&
         oldWidget.canEdit == widget.canEdit &&
         oldWidget.canRetry == widget.canRetry &&
+        oldWidget.isExcludedFromRequest == widget.isExcludedFromRequest &&
         oldWidget.isFavorited == widget.isFavorited &&
         _sameVersionInfo(oldWidget.versionInfo, widget.versionInfo);
   }
@@ -102,6 +107,8 @@ class _CachedChatMessageBubbleState extends State<CachedChatMessageBubble> {
       onEditPressed: widget.onEditPressed,
       onRetryPressed: widget.onRetryPressed,
       onDeletePressed: widget.onDeletePressed,
+      onToggleRequestExclusionPressed: widget.onToggleRequestExclusionPressed,
+      isExcludedFromRequest: widget.isExcludedFromRequest,
       onFavoritePressed: widget.onFavoritePressed,
       isFavorited: widget.isFavorited,
       versionInfo: widget.versionInfo,
