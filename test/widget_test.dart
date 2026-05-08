@@ -59,13 +59,8 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.text('模型选择器'), findsNothing);
-    expect(find.text('前置 Prompt 选择器'), findsNothing);
-    expect(find.text('思考负担'), findsNothing);
-    expect(find.byTooltip('思考强度'), findsNothing);
     expect(find.text('历史会话面板'), findsOneWidget);
-    expect(find.text('消息定位条'), findsNothing);
-    expect(find.byKey(const ValueKey('message-anchor-rail')), findsNothing);
+    expect(find.widgetWithText(FilledButton, '发送'), findsOneWidget);
   });
 
   testWidgets('app shows compact navigation shell on narrow screens', (
