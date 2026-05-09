@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../domain/models/template_prompt.dart';
@@ -37,10 +39,25 @@ class TemplatePromptFormDialog extends StatefulWidget {
 /// 模板提示词表单的输入与变量状态。
 class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
     with SettingsFormDialogStateMixin {
+  static const _largeContentThreshold = 6000;
+  static const _variableReconcileDebounce = Duration(milliseconds: 220);
+  static const _variableReconcileThrottle = Duration(milliseconds: 80);
+  static const _variableReconcileDebounceForLargeContent = Duration(
+    milliseconds: 320,
+  );
+  static const _variableReconcileThrottleForLargeContent = Duration(
+    milliseconds: 140,
+  );
+
   late final TextEditingController _titleController;
   late final TextEditingController _contentController;
   final Map<String, TextEditingController> _variableControllers = {};
   late List<TemplatePromptVariable> _variables;
+  Timer? _variableReconcileDebounceTimer;
+  Timer? _variableReconcileThrottleTimer;
+  DateTime? _lastVariableReconcileAt;
+  String _pendingContent = '';
+  String _lastReconciledContent = '';
 
   @override
   void initState() {
@@ -55,12 +72,16 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
       content: _contentController.text,
       existingVariables: widget.initialValue?.variables ?? const [],
     );
+    _pendingContent = _contentController.text;
+    _lastReconciledContent = _contentController.text;
     _syncVariableControllers();
     _contentController.addListener(_handleContentChanged);
   }
 
   @override
   void dispose() {
+    _variableReconcileDebounceTimer?.cancel();
+    _variableReconcileThrottleTimer?.cancel();
     _titleController.dispose();
     _contentController
       ..removeListener(_handleContentChanged)
@@ -164,12 +185,52 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
   }
 
   void _handleContentChanged() {
+    _pendingContent = _contentController.text;
+    _scheduleVariableReconcile();
+  }
+
+  /// 对模板变量重算做“节流 + 防抖”双调度，减少高频输入卡顿。
+  void _scheduleVariableReconcile() {
+    final debounceWindow = _resolveDebounceWindow(_pendingContent.length);
+    final throttleWindow = _resolveThrottleWindow(_pendingContent.length);
+    final now = DateTime.now();
+    final last = _lastVariableReconcileAt;
+    final canRunLeading =
+        last == null || now.difference(last) >= throttleWindow;
+    if (canRunLeading) {
+      _variableReconcileThrottleTimer?.cancel();
+      _runVariableReconcile();
+    } else if (!(_variableReconcileThrottleTimer?.isActive ?? false)) {
+      final remaining = throttleWindow - now.difference(last);
+      _variableReconcileThrottleTimer = Timer(remaining, _runVariableReconcile);
+    }
+
+    _variableReconcileDebounceTimer?.cancel();
+    _variableReconcileDebounceTimer = Timer(
+      debounceWindow,
+      _runVariableReconcile,
+    );
+  }
+
+  void _flushVariableReconcile() {
+    _variableReconcileDebounceTimer?.cancel();
+    _variableReconcileThrottleTimer?.cancel();
+    _runVariableReconcile(force: true);
+  }
+
+  void _runVariableReconcile({bool force = false}) {
+    final nextContent = _pendingContent;
+    if (!force && nextContent == _lastReconciledContent) {
+      return;
+    }
+    _lastReconciledContent = nextContent;
+    _lastVariableReconcileAt = DateTime.now();
+
     final nextVariables = reconcileTemplatePromptVariables(
-      content: _contentController.text,
+      content: nextContent,
       existingVariables: _buildVariablesFromControllers(),
     );
-    if (_variables.length == nextVariables.length &&
-        _variables.every((variable) => nextVariables.contains(variable))) {
+    if (_sameVariableShape(_variables, nextVariables)) {
       return;
     }
 
@@ -177,6 +238,34 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
       _variables = nextVariables;
       _syncVariableControllers();
     });
+  }
+
+  bool _sameVariableShape(
+    List<TemplatePromptVariable> current,
+    List<TemplatePromptVariable> next,
+  ) {
+    if (current.length != next.length) {
+      return false;
+    }
+    for (var index = 0; index < current.length; index += 1) {
+      if (current[index].name != next[index].name ||
+          current[index].isBody != next[index].isBody) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  Duration _resolveDebounceWindow(int contentLength) {
+    return contentLength > _largeContentThreshold
+        ? _variableReconcileDebounceForLargeContent
+        : _variableReconcileDebounce;
+  }
+
+  Duration _resolveThrottleWindow(int contentLength) {
+    return contentLength > _largeContentThreshold
+        ? _variableReconcileThrottleForLargeContent
+        : _variableReconcileThrottle;
   }
 
   List<TemplatePromptVariable> _buildVariablesFromControllers() {
@@ -220,6 +309,7 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
   }
 
   Future<void> _handleSubmit() async {
+    _flushVariableReconcile();
     if (!validateForm()) {
       return;
     }
