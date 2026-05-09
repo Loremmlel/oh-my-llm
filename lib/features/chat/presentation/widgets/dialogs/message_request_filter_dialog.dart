@@ -19,12 +19,15 @@ class _MessageRequestFilterDialogState
   String? _focusedMessageId;
   late final ScrollController _masterScrollController;
   late final ScrollController _compactScrollController;
+  late final ScrollController _detailPreviewScrollController;
+  String? _lastPreviewMessageId;
 
   @override
   void initState() {
     super.initState();
     _masterScrollController = ScrollController();
     _compactScrollController = ScrollController();
+    _detailPreviewScrollController = ScrollController();
     // 打开时滚动到列表底部，让用户看到最新消息。
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scrollToBottom(_masterScrollController);
@@ -36,6 +39,7 @@ class _MessageRequestFilterDialogState
   void dispose() {
     _masterScrollController.dispose();
     _compactScrollController.dispose();
+    _detailPreviewScrollController.dispose();
     super.dispose();
   }
 
@@ -62,6 +66,7 @@ class _MessageRequestFilterDialogState
     final focusedMessage = visibleMessages.where((message) {
       return message.id == focusedMessageId;
     }).firstOrNull;
+    _syncDetailPreviewScroll(focusedMessage?.id);
 
     return AlertDialog(
       title: const Text('上下文过滤'),
@@ -132,6 +137,19 @@ class _MessageRequestFilterDialogState
         ),
       ],
     );
+  }
+
+  void _syncDetailPreviewScroll(String? messageId) {
+    if (_lastPreviewMessageId == messageId) {
+      return;
+    }
+    _lastPreviewMessageId = messageId;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_detailPreviewScrollController.hasClients) {
+        return;
+      }
+      _detailPreviewScrollController.jumpTo(0);
+    });
   }
 
   String? _resolveFocusedMessageId({
@@ -386,8 +404,12 @@ class _MessageRequestFilterDialogState
                                 key: const ValueKey(
                                   'message-filter-preview-scrollbar',
                                 ),
+                                controller: _detailPreviewScrollController,
+                                interactive: true,
                                 thumbVisibility: true,
                                 child: SingleChildScrollView(
+                                  controller: _detailPreviewScrollController,
+                                  primary: false,
                                   key: ValueKey(
                                     'message-filter-preview-${message.id}',
                                   ),

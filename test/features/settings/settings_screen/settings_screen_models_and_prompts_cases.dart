@@ -515,6 +515,32 @@ void registerSettingsScreenModelsAndPromptsTests() {
     },
   );
 
+  testWidgets(
+    'template prompt variable reconcile uses throttle and stays consistent',
+    (tester) async {
+      final preferences = await createEmptyPreferences();
+      await pumpSettingsScreen(tester, preferences: preferences);
+
+      await tester.tap(find.text('新增模板提示词'));
+      await tester.pumpAndSettle();
+
+      final fields = find.byType(TextFormField);
+      await tester.enterText(fields.at(0), '调度测试');
+      await tester.enterText(fields.at(1), '请处理{{变量A}}。');
+      await tester.pump();
+      expect(find.text('变量A'), findsOneWidget);
+
+      await tester.enterText(fields.at(1), '请处理{{变量B}}。');
+      await tester.pump(const Duration(milliseconds: 20));
+      expect(find.text('变量A'), findsOneWidget);
+      expect(find.text('变量B'), findsNothing);
+
+      await tester.pump(const Duration(milliseconds: 140));
+      expect(find.text('变量A'), findsNothing);
+      expect(find.text('变量B'), findsOneWidget);
+    },
+  );
+
   testWidgets('settings screen supports memory prompt CRUD with persistence', (
     tester,
   ) async {

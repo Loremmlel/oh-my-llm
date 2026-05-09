@@ -626,6 +626,48 @@ void registerChatScreenBasicsTests() {
     );
   });
 
+  testWidgets('message filter preview scrollbar supports dragging', (
+    tester,
+  ) async {
+    final preferences = await createSeededPreferences();
+    final longAssistantReply = List<String>.generate(
+      280,
+      (index) => '滚动预览内容 $index',
+    ).join('\n');
+    final fakeClient = FakeChatCompletionClient()
+      ..enqueueChunks([longAssistantReply]);
+
+    await pumpChatScreen(
+      tester,
+      preferences: preferences,
+      fakeClient: fakeClient,
+    );
+
+    await sendMessage(tester, '请返回滚动测试文本');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('chat-message-filter-button')));
+    await tester.pumpAndSettle();
+
+    final scrollbarFinder = find.byKey(
+      const ValueKey('message-filter-preview-scrollbar'),
+    );
+    expect(scrollbarFinder, findsOneWidget);
+    final startController = tester
+        .widget<Scrollbar>(scrollbarFinder)
+        .controller;
+    expect(startController, isNotNull);
+    expect(startController!.hasClients, isTrue);
+    final startOffset = startController.offset;
+
+    await tester.drag(scrollbarFinder, const Offset(0, -220));
+    await tester.pumpAndSettle();
+
+    final endController = tester.widget<Scrollbar>(scrollbarFinder).controller;
+    expect(endController, isNotNull);
+    expect(endController!.offset, greaterThan(startOffset));
+  });
+
   testWidgets('chat screen keeps composer visible on compact layouts', (
     tester,
   ) async {
