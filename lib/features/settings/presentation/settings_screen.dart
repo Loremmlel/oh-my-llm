@@ -25,6 +25,9 @@ class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   static const _importDeduplicator = SettingsImportDeduplicator();
+  static final _promptTemplateCopySuffixPattern = RegExp(
+    r'^(.+?)（副本(?: \d+)?）$',
+  );
   static const _savedAllConfigMessage = '已复制全部配置到剪贴板';
   static const _duplicateImportMessage = '剪贴板中的配置在本地均已存在，无需导入';
   static const _importSuccessMessage = '配置已成功导入';
@@ -96,6 +99,9 @@ class SettingsScreen extends ConsumerWidget {
               ref,
               () => _showPromptTemplateDialog(context, ref),
             ),
+            onDuplicateRequested: (template) {
+              return _duplicatePromptTemplate(context, ref, template);
+            },
             onEditRequested: (template) {
               _showPromptTemplateDialog(context, ref, initialValue: template);
             },
@@ -135,6 +141,64 @@ class SettingsScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  /// 复制一个预设 Prompt，并立即保存为新条目。
+  Future<void> _duplicatePromptTemplate(
+    BuildContext context,
+    WidgetRef ref,
+    PromptTemplate source,
+  ) async {
+    final existingTemplates = ref.read(promptTemplatesProvider);
+    final existingNames = existingTemplates
+        .map((template) => template.name.trim())
+        .toSet();
+    final duplicatedName = _buildDuplicatedPromptTemplateName(
+      sourceName: source.name,
+      existingNames: existingNames,
+    );
+    final duplicatedTemplate = source.copyWith(
+      id: generateEntityId(),
+      name: duplicatedName,
+      updatedAt: DateTime.now(),
+      messages: source.messages
+          .map((message) => message.copyWith(id: generateEntityId()))
+          .toList(growable: false),
+    );
+    await ref.read(promptTemplatesProvider.notifier).upsert(duplicatedTemplate);
+    if (context.mounted) {
+      _showSettingsSnackBar(context, '预设 Prompt 已复制');
+    }
+  }
+
+  String _buildDuplicatedPromptTemplateName({
+    required String sourceName,
+    required Set<String> existingNames,
+  }) {
+    final normalizedSource = sourceName.trim();
+    final sourceCoreName = _extractPromptTemplateCopyCoreName(normalizedSource);
+    final firstCandidate = '$sourceCoreName（副本）';
+    if (!existingNames.contains(firstCandidate)) {
+      return firstCandidate;
+    }
+
+    var suffix = 2;
+    while (true) {
+      final candidate = '$sourceCoreName（副本 $suffix）';
+      if (!existingNames.contains(candidate)) {
+        return candidate;
+      }
+      suffix += 1;
+    }
+  }
+
+  String _extractPromptTemplateCopyCoreName(String name) {
+    final match = _promptTemplateCopySuffixPattern.firstMatch(name);
+    final baseName = match?.group(1)?.trim();
+    if (baseName == null || baseName.isEmpty) {
+      return name;
+    }
+    return baseName;
   }
 
   /// 将当前全部配置序列化为 JSON 并复制到剪贴板。

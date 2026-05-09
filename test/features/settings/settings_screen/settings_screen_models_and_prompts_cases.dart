@@ -183,6 +183,42 @@ void registerSettingsScreenModelsAndPromptsTests() {
   );
 
   testWidgets(
+    'settings screen can duplicate prompt template with incremental suffix',
+    (tester) async {
+      final preferences = await createEmptyPreferences();
+      final database = await pumpSettingsScreen(
+        tester,
+        preferences: preferences,
+      );
+      final repo = SqlitePromptTemplateRepository(database);
+
+      await tester.tap(find.text('新增预设'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextFormField).first, '代码审阅');
+      await tester.tap(find.text('保存'));
+      await tester.pumpAndSettle();
+
+      expect(repo.loadAll().length, 1);
+      expect(repo.loadAll().single.name, '代码审阅');
+
+      await tester.tap(find.widgetWithText(OutlinedButton, '复制').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(OutlinedButton, '复制').first);
+      await tester.pumpAndSettle();
+
+      expect(find.text('代码审阅（副本）'), findsWidgets);
+      expect(find.text('代码审阅（副本 2）'), findsWidgets);
+
+      final templates = repo.loadAll();
+      expect(templates.length, 3);
+      expect(templates.any((item) => item.name == '代码审阅'), isTrue);
+      expect(templates.any((item) => item.name == '代码审阅（副本）'), isTrue);
+      expect(templates.any((item) => item.name == '代码审阅（副本 2）'), isTrue);
+      expect(templates.map((item) => item.id).toSet().length, 3);
+    },
+  );
+
+  testWidgets(
     'prompt template dialog inserts a new item below selection and keeps groups ordered',
     (tester) async {
       final preferences = await createEmptyPreferences();
