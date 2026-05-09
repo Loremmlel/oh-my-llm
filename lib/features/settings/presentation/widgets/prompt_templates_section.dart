@@ -9,12 +9,14 @@ class PromptTemplatesSection extends StatelessWidget {
   const PromptTemplatesSection({
     required this.templates,
     required this.onAddPressed,
+    required this.onDuplicateRequested,
     required this.onEditRequested,
     super.key,
   });
 
   final List<PromptTemplate> templates;
   final VoidCallback onAddPressed;
+  final Future<void> Function(PromptTemplate template) onDuplicateRequested;
   final ValueChanged<PromptTemplate> onEditRequested;
 
   @override
@@ -29,6 +31,7 @@ class PromptTemplatesSection extends StatelessWidget {
       ),
       child: PromptTemplatesList(
         templates: templates,
+        onDuplicateRequested: onDuplicateRequested,
         onEditRequested: onEditRequested,
       ),
     );

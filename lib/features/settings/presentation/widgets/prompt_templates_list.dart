@@ -10,11 +10,13 @@ import 'settings_empty_state.dart';
 class PromptTemplatesList extends ConsumerWidget {
   const PromptTemplatesList({
     required this.templates,
+    required this.onDuplicateRequested,
     required this.onEditRequested,
     super.key,
   });
 
   final List<PromptTemplate> templates;
+  final Future<void> Function(PromptTemplate template) onDuplicateRequested;
   final ValueChanged<PromptTemplate> onEditRequested;
 
   @override
@@ -63,6 +65,7 @@ class PromptTemplatesList extends ConsumerWidget {
               padding: const EdgeInsets.only(bottom: 12),
               child: _PromptTemplateTile(
                 template: template,
+                onDuplicateRequested: onDuplicateRequested,
                 onEditRequested: onEditRequested,
               ),
             ),
@@ -87,6 +90,7 @@ class PromptTemplatesList extends ConsumerWidget {
                   width: itemWidth,
                   child: _PromptTemplateTile(
                     template: rowItems[j],
+                    onDuplicateRequested: onDuplicateRequested,
                     onEditRequested: onEditRequested,
                   ),
                 ),
@@ -104,10 +108,12 @@ class PromptTemplatesList extends ConsumerWidget {
 class _PromptTemplateTile extends ConsumerWidget {
   const _PromptTemplateTile({
     required this.template,
+    required this.onDuplicateRequested,
     required this.onEditRequested,
   });
 
   final PromptTemplate template;
+  final Future<void> Function(PromptTemplate template) onDuplicateRequested;
   final ValueChanged<PromptTemplate> onEditRequested;
 
   @override
@@ -151,6 +157,13 @@ class _PromptTemplateTile extends ConsumerWidget {
               spacing: 8,
               runSpacing: 8,
               children: [
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    await onDuplicateRequested(template);
+                  },
+                  icon: const Icon(Icons.content_copy_rounded),
+                  label: const Text('复制'),
+                ),
                 OutlinedButton.icon(
                   onPressed: () => onEditRequested(template),
                   icon: const Icon(Icons.edit_outlined),
