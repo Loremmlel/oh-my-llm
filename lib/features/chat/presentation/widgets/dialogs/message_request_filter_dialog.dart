@@ -3,9 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../../core/widgets/adaptive_master_detail_layout.dart';
 import '../../../application/chat_sessions_controller.dart';
-import '../../../domain/models/chat_conversation.dart';
 import '../../../domain/models/chat_message.dart';
-import '../streaming_markdown_view.dart';
 
 /// 管理当前分支哪些消息会继续参与发送上下文。
 class MessageRequestFilterDialog extends ConsumerStatefulWidget {
@@ -52,17 +50,15 @@ class _MessageRequestFilterDialogState
     final conversation = ref.watch(activeChatConversationProvider);
     final isBusy = ref.watch(isChatBusyProvider);
     final visibleMessages = conversation.messages;
-    final excludedCount = visibleMessages.where((message) {
-      return conversation.isMessageExcluded(message.id);
-    }).length;
-    final totalChars = visibleMessages.fold(
-      0,
-      (sum, m) => sum + m.content.length,
+    final excludedMessageIds = conversation.excludedMessageIds.toSet();
+    final stats = _MessageFilterStats.compute(
+      messages: visibleMessages,
+      excludedMessageIds: excludedMessageIds,
     );
-    final includedChars = visibleMessages
-        .where((m) => !conversation.isMessageExcluded(m.id))
-        .fold(0, (sum, m) => sum + m.content.length);
-    final focusedMessageId = _resolveFocusedMessageId(conversation);
+    final focusedMessageId = _resolveFocusedMessageId(
+      messages: visibleMessages,
+      excludedMessageIds: excludedMessageIds,
+    );
     final focusedMessage = visibleMessages.where((message) {
       return message.id == focusedMessageId;
     }).firstOrNull;
@@ -83,13 +79,13 @@ class _MessageRequestFilterDialogState
             Text(
               visibleMessages.isEmpty
                   ? '当前分支还没有消息。'
-                  : '当前分支已排除 $excludedCount / ${visibleMessages.length} 条消息。',
+                  : '当前分支已排除 ${stats.excludedCount} / ${visibleMessages.length} 条消息。',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             if (visibleMessages.isNotEmpty) ...[
               const SizedBox(height: 2),
               Text(
-                '发送字数：$includedChars / $totalChars 字',
+                '发送字数：${stats.includedChars} / ${stats.totalChars} 字',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ],
@@ -102,24 +98,27 @@ class _MessageRequestFilterDialogState
                 minHeight: 420,
                 compactChild: _buildCompactList(
                   context,
-                  conversation: conversation,
                   messages: visibleMessages,
+                  excludedMessageIds: excludedMessageIds,
+                  excludedCount: stats.excludedCount,
                   isBusy: isBusy,
                   scrollController: _compactScrollController,
                 ),
                 master: _buildMasterPane(
                   context,
-                  conversation: conversation,
                   messages: visibleMessages,
+                  excludedMessageIds: excludedMessageIds,
                   isBusy: isBusy,
-                  excludedCount: excludedCount,
+                  excludedCount: stats.excludedCount,
                   focusedMessageId: focusedMessageId,
                   scrollController: _masterScrollController,
                 ),
                 detail: _buildDetailPane(
                   context,
-                  conversation: conversation,
                   message: focusedMessage,
+                  excluded: focusedMessage != null
+                      ? excludedMessageIds.contains(focusedMessage.id)
+                      : false,
                 ),
               ),
             ),
@@ -135,24 +134,26 @@ class _MessageRequestFilterDialogState
     );
   }
 
-  String? _resolveFocusedMessageId(ChatConversation conversation) {
+  String? _resolveFocusedMessageId({
+    required List<ChatMessage> messages,
+    required Set<String> excludedMessageIds,
+  }) {
     if (_focusedMessageId != null &&
-        conversation.messages.any(
-          (message) => message.id == _focusedMessageId,
-        )) {
+        messages.any((message) => message.id == _focusedMessageId)) {
       return _focusedMessageId;
     }
 
-    final firstExcluded = conversation.messages.where((message) {
-      return conversation.isMessageExcluded(message.id);
+    final firstExcluded = messages.where((message) {
+      return excludedMessageIds.contains(message.id);
     }).firstOrNull;
-    return firstExcluded?.id ?? conversation.messages.lastOrNull?.id;
+    return firstExcluded?.id ?? messages.lastOrNull?.id;
   }
 
   Widget _buildCompactList(
     BuildContext context, {
-    required ChatConversation conversation,
     required List<ChatMessage> messages,
+    required Set<String> excludedMessageIds,
+    required int excludedCount,
     required bool isBusy,
     required ScrollController scrollController,
   }) {
@@ -169,9 +170,6 @@ class _MessageRequestFilterDialogState
         separatorBuilder: (_, _) => const SizedBox(height: 8),
         itemBuilder: (context, index) {
           if (index == 0) {
-            final excludedCount = messages.where((message) {
-              return conversation.isMessageExcluded(message.id);
-            }).length;
             return Align(
               alignment: Alignment.centerLeft,
               child: FilledButton.tonalIcon(
@@ -189,7 +187,7 @@ class _MessageRequestFilterDialogState
 
           final message = messages[index - 1];
           return SwitchListTile.adaptive(
-            value: !conversation.isMessageExcluded(message.id),
+            value: !excludedMessageIds.contains(message.id),
             contentPadding: const EdgeInsets.symmetric(horizontal: 8),
             title: Text(_messageTitle(message)),
             subtitle: Text(
@@ -213,8 +211,8 @@ class _MessageRequestFilterDialogState
 
   Widget _buildMasterPane(
     BuildContext context, {
-    required ChatConversation conversation,
     required List<ChatMessage> messages,
+    required Set<String> excludedMessageIds,
     required bool isBusy,
     required int excludedCount,
     required String? focusedMessageId,
@@ -282,9 +280,7 @@ class _MessageRequestFilterDialogState
                   separatorBuilder: (_, _) => const SizedBox(height: 8),
                   itemBuilder: (context, index) {
                     final message = messages[index];
-                    final isExcluded = conversation.isMessageExcluded(
-                      message.id,
-                    );
+                    final isExcluded = excludedMessageIds.contains(message.id);
                     final isFocused = message.id == focusedMessageId;
                     return _MessageFilterSelectionTile(
                       message: message,
@@ -315,8 +311,8 @@ class _MessageRequestFilterDialogState
 
   Widget _buildDetailPane(
     BuildContext context, {
-    required ChatConversation conversation,
     required ChatMessage? message,
+    required bool excluded,
   }) {
     final theme = Theme.of(context);
 
@@ -347,7 +343,7 @@ class _MessageRequestFilterDialogState
                           style: theme.textTheme.headlineSmall,
                         ),
                       ),
-                      if (conversation.isMessageExcluded(message.id))
+                      if (excluded)
                         DecoratedBox(
                           decoration: BoxDecoration(
                             color: theme.colorScheme.errorContainer.withValues(
@@ -370,28 +366,43 @@ class _MessageRequestFilterDialogState
                         ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _messageSummary(message),
-                    style: theme.textTheme.bodySmall,
-                  ),
                   const SizedBox(height: 16),
                   Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: ColoredBox(
-                        color: theme.colorScheme.surface,
-                        child: SingleChildScrollView(
-                          key: ValueKey('message-filter-preview-${message.id}'),
-                          padding: const EdgeInsets.all(12),
-                          child: message.role == ChatMessageRole.assistant
-                              ? StreamingMarkdownView(
-                                  content: message.content.trim(),
-                                  isStreaming: false,
-                                )
-                              : SelectableText(message.content),
-                        ),
-                      ),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        return ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: ColoredBox(
+                            color: theme.colorScheme.surface,
+                            child: ConstrainedBox(
+                              key: const ValueKey(
+                                'message-filter-preview-container',
+                              ),
+                              constraints: BoxConstraints(
+                                maxWidth: constraints.maxWidth,
+                                maxHeight: constraints.maxHeight,
+                              ),
+                              child: Scrollbar(
+                                key: const ValueKey(
+                                  'message-filter-preview-scrollbar',
+                                ),
+                                thumbVisibility: true,
+                                child: SingleChildScrollView(
+                                  key: ValueKey(
+                                    'message-filter-preview-${message.id}',
+                                  ),
+                                  padding: const EdgeInsets.all(12),
+                                  child: SelectableText(
+                                    message.content.isEmpty
+                                        ? '空内容。'
+                                        : message.content,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ],
@@ -407,6 +418,44 @@ class _MessageRequestFilterDialogState
     return ref
         .read(chatSessionsProvider.notifier)
         .setMessagesExcluded(messageIds: messageIds, excluded: excluded);
+  }
+}
+
+class _MessageFilterStats {
+  const _MessageFilterStats({
+    required this.excludedCount,
+    required this.totalChars,
+    required this.includedChars,
+  });
+
+  final int excludedCount;
+  final int totalChars;
+  final int includedChars;
+
+  /// 统一在单次遍历中完成弹窗头部统计，避免重复扫描列表。
+  static _MessageFilterStats compute({
+    required List<ChatMessage> messages,
+    required Set<String> excludedMessageIds,
+  }) {
+    var excludedCount = 0;
+    var totalChars = 0;
+    var includedChars = 0;
+
+    for (final message in messages) {
+      final length = message.content.length;
+      totalChars += length;
+      if (excludedMessageIds.contains(message.id)) {
+        excludedCount += 1;
+        continue;
+      }
+      includedChars += length;
+    }
+
+    return _MessageFilterStats(
+      excludedCount: excludedCount,
+      totalChars: totalChars,
+      includedChars: includedChars,
+    );
   }
 }
 
@@ -477,7 +526,13 @@ String _messageTitle(ChatMessage message) {
   };
 }
 
-String _messageSummary(ChatMessage message) {
+String _messageSummary(ChatMessage message, {int maxChars = 120}) {
   final preview = message.content.trim();
-  return preview.isEmpty ? '空内容。' : preview;
+  if (preview.isEmpty) {
+    return '空内容。';
+  }
+  if (preview.length <= maxChars) {
+    return preview;
+  }
+  return '${preview.substring(0, maxChars)}…';
 }

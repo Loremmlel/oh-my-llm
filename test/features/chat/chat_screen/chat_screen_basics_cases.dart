@@ -10,6 +10,7 @@ import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dar
 import 'package:oh_my_llm/features/chat/data/chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
+import 'package:oh_my_llm/features/chat/presentation/widgets/streaming_markdown_view.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/thinking_toggle.dart';
 import 'package:oh_my_llm/features/settings/application/chat_defaults_controller.dart';
 import 'package:oh_my_llm/features/settings/application/llm_model_configs_controller.dart';
@@ -572,6 +573,56 @@ void registerChatScreenBasicsTests() {
     expect(
       fakeClient.requestHistory.last.map((message) => message.content).toList(),
       ['第一轮问题', '首轮回复', '第二轮问题'],
+    );
+  });
+
+  testWidgets('message filter dialog shows single plain-text preview', (
+    tester,
+  ) async {
+    final preferences = await createSeededPreferences();
+    final longAssistantReply = List<String>.filled(300, '超长预览内容').join();
+    final fakeClient = FakeChatCompletionClient()
+      ..enqueueChunks([longAssistantReply]);
+
+    await pumpChatScreen(
+      tester,
+      preferences: preferences,
+      fakeClient: fakeClient,
+    );
+
+    await sendMessage(tester, '请返回长文本');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('chat-message-filter-button')));
+    await tester.pumpAndSettle();
+
+    final dialog = find.widgetWithText(AlertDialog, '上下文过滤');
+    expect(dialog, findsOneWidget);
+    expect(
+      find.descendant(
+        of: dialog,
+        matching: find.byKey(
+          const ValueKey('message-filter-preview-container'),
+        ),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: dialog,
+        matching: find.byKey(
+          const ValueKey('message-filter-preview-scrollbar'),
+        ),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: dialog, matching: find.byType(StreamingMarkdownView)),
+      findsNothing,
+    );
+    expect(
+      find.descendant(of: dialog, matching: find.text(longAssistantReply)),
+      findsOneWidget,
     );
   });
 
