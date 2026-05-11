@@ -74,9 +74,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
     required String assistantMessageId,
     required String errorMessage,
   }) async {
-    final hasPartialContent =
-        streamingReply.content.trim().isNotEmpty ||
-        streamingReply.reasoningContent.trim().isNotEmpty;
+    final hasPartialContent = streamingReply.content.trim().isNotEmpty;
     final tree = resolveMessageTreeState(conversation);
 
     final nextTree = hasPartialContent

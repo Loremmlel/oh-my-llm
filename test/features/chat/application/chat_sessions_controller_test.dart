@@ -456,6 +456,24 @@ void main() {
     expect(messages.first.role, ChatMessageRole.user);
   });
 
+  test('sendMessage 仅收到 reasoning 后失败时也清除占位 assistant 节点', () async {
+    final streamController = StreamController<ChatCompletionChunk>();
+    addTearDown(streamController.close);
+    fakeClient.enqueueStream(streamController.stream);
+
+    final sendFuture = sendMsg('先思考再失败');
+    await Future<void>.delayed(const Duration(milliseconds: 1));
+    streamController.add(const ChatCompletionChunk(reasoningDelta: '思考中'));
+    await Future<void>.delayed(const Duration(milliseconds: 1));
+    streamController.addError(const ChatCompletionException('请求失败'));
+    await sendFuture;
+
+    final state = container.read(chatSessionsProvider);
+    expect(state.errorMessage, '请求失败');
+    expect(state.activeConversation.messages, hasLength(1));
+    expect(state.activeConversation.messages.single.role, ChatMessageRole.user);
+  });
+
   test('createCheckpoint 保存检查点并记录来源提示词名称', () async {
     fakeClient.enqueueChunks(['首轮回复']);
     await sendMsg('先产生一些上下文');

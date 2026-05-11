@@ -69,7 +69,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
         contains('OpenAI 官方 v2'),
       );
 
-      await tester.tap(find.text('编辑'));
+      await tester.tap(find.widgetWithText(OutlinedButton, '编辑').last);
       await tester.pumpAndSettle();
       await tester.enterText(
         find.byType(TextFormField).at(0),
@@ -84,7 +84,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
         contains('OpenAI 4.1 Turbo'),
       );
 
-      await tester.tap(find.text('删除'));
+      await tester.tap(find.widgetWithText(OutlinedButton, '删除').last);
       await tester.pumpAndSettle();
 
       expect(find.text('当前服务商下还没有模型。'), findsOneWidget);
@@ -101,7 +101,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
   );
 
   testWidgets(
-    'settings screen stacks provider and model actions on narrow layouts',
+    'settings screen keeps model list collapsed by default and expands on demand',
     (tester) async {
       final preferences = await createDefaultsSeededPreferences();
 
@@ -114,10 +114,14 @@ void registerSettingsScreenModelsAndPromptsTests() {
       final providerMetaRect = tester.getRect(find.text('模型数量：1').first);
       final addModelButtonRect = tester.getRect(find.text('新增模型').first);
       expect(addModelButtonRect.top, greaterThan(providerMetaRect.bottom));
+      expect(find.text('API 模型名称：gpt-4.1'), findsNothing);
 
-      final modelMetaRect = tester.getRect(find.text('API 模型名称：gpt-4.1'));
-      final editModelButtonRect = tester.getRect(find.text('编辑').first);
-      expect(editModelButtonRect.top, greaterThan(modelMetaRect.bottom));
+      await tester.tap(
+        find.byKey(const ValueKey('provider-models-toggle-provider-1')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('API 模型名称：gpt-4.1'), findsOneWidget);
     },
   );
 
