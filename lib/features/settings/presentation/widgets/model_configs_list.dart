@@ -49,7 +49,7 @@ class ModelConfigsList extends ConsumerWidget {
   }
 }
 
-class _ProviderTile extends ConsumerWidget {
+class _ProviderTile extends ConsumerStatefulWidget {
   const _ProviderTile({
     required this.provider,
     required this.onEditProviderRequested,
@@ -64,27 +64,51 @@ class _ProviderTile extends ConsumerWidget {
   onEditModelRequested;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_ProviderTile> createState() => _ProviderTileState();
+}
+
+class _ProviderTileState extends ConsumerState<_ProviderTile> {
+  bool _modelsExpanded = false;
+
+  @override
+  void didUpdateWidget(covariant _ProviderTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.provider.models.isEmpty &&
+        widget.provider.models.isNotEmpty) {
+      _modelsExpanded = true;
+      return;
+    }
+    if (widget.provider.models.isEmpty && _modelsExpanded) {
+      _modelsExpanded = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final provider = widget.provider;
     final actionButtons = Wrap(
       spacing: 8,
       runSpacing: 8,
       children: [
         OutlinedButton.icon(
-          onPressed: () => onAddModelRequested(provider),
+          key: ValueKey('add-model-${provider.id}'),
+          onPressed: () => widget.onAddModelRequested(provider),
           icon: const Icon(Icons.add_rounded),
           label: const Text('新增模型'),
         ),
         OutlinedButton.icon(
-          onPressed: () => onEditProviderRequested(provider),
+          key: ValueKey('edit-provider-${provider.id}'),
+          onPressed: () => widget.onEditProviderRequested(provider),
           icon: const Icon(Icons.edit_outlined),
           label: const Text('编辑服务商'),
         ),
         OutlinedButton.icon(
+          key: ValueKey('delete-provider-${provider.id}'),
           onPressed: () async {
-            await ref.read(llmProviderConfigsProvider.notifier).deleteProviderById(
-                  provider.id,
-                );
+            await ref
+                .read(llmProviderConfigsProvider.notifier)
+                .deleteProviderById(provider.id);
             for (final model in provider.models) {
               await ref
                   .read(chatDefaultsProvider.notifier)
@@ -125,30 +149,59 @@ class _ProviderTile extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(child: _ProviderInfo(provider: provider)),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 12),
                       Flexible(child: actionButtons),
                     ],
                   ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 if (provider.models.isEmpty)
-                  Text(
-                    '当前服务商下还没有模型。',
-                    style: theme.textTheme.bodyMedium,
-                  )
-                else
-                  Column(
-                    children: [
-                      for (final model in provider.models)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: _ProviderModelTile(
-                            provider: provider,
-                            model: model,
-                            onEditModelRequested: onEditModelRequested,
-                          ),
-                        ),
-                    ],
+                  Text('当前服务商下还没有模型。', style: theme.textTheme.bodyMedium)
+                else ...[
+                  OutlinedButton.icon(
+                    key: ValueKey('provider-models-toggle-${provider.id}'),
+                    onPressed: () {
+                      setState(() {
+                        _modelsExpanded = !_modelsExpanded;
+                      });
+                    },
+                    icon: Icon(
+                      _modelsExpanded
+                          ? Icons.unfold_less_rounded
+                          : Icons.unfold_more_rounded,
+                    ),
+                    label: Text(
+                      _modelsExpanded
+                          ? '收起模型（${provider.models.length}）'
+                          : '展开模型（${provider.models.length}）',
+                    ),
                   ),
+                  AnimatedSize(
+                    duration: const Duration(milliseconds: 167),
+                    alignment: Alignment.topCenter,
+                    child: _modelsExpanded
+                        ? Padding(
+                            key: ValueKey(
+                              'provider-models-panel-${provider.id}',
+                            ),
+                            padding: const EdgeInsets.only(top: 12),
+                            child: Column(
+                              children: [
+                                for (final model in provider.models)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 8),
+                                    child: _ProviderModelTile(
+                                      provider: provider,
+                                      model: model,
+                                      onEditModelRequested:
+                                          widget.onEditModelRequested,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+                ],
               ],
             ),
           );
@@ -178,16 +231,17 @@ class _ProviderModelTile extends ConsumerWidget {
       runSpacing: 8,
       children: [
         OutlinedButton.icon(
+          key: ValueKey('edit-model-${model.id}'),
           onPressed: () => onEditModelRequested(provider, model),
           icon: const Icon(Icons.edit_outlined),
           label: const Text('编辑'),
         ),
         OutlinedButton.icon(
+          key: ValueKey('delete-model-${model.id}'),
           onPressed: () async {
-            await ref.read(llmProviderConfigsProvider.notifier).deleteModel(
-                  providerId: provider.id,
-                  modelId: model.id,
-                );
+            await ref
+                .read(llmProviderConfigsProvider.notifier)
+                .deleteModel(providerId: provider.id, modelId: model.id);
             await ref
                 .read(chatDefaultsProvider.notifier)
                 .clearRememberedModelIdIfMatches(model.id);
@@ -206,7 +260,7 @@ class _ProviderModelTile extends ConsumerWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(14),
-        color: theme.colorScheme.surface.withValues(alpha: 0.7),
+        color: theme.colorScheme.surface.withValues(alpha: 0.72),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -253,13 +307,58 @@ class _ProviderInfo extends StatelessWidget {
       children: [
         Text(provider.name, style: theme.textTheme.titleMedium),
         const SizedBox(height: 8),
-        Text('API URL：${provider.apiUrl}'),
-        const SizedBox(height: 4),
-        Text('API Key：${_maskApiKey(provider.apiKey)}'),
-        const SizedBox(height: 4),
-        Text('模型数量：${provider.models.length}'),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _ProviderMetaChip(
+              icon: Icons.hub_outlined,
+              label: '模型数量：${provider.models.length}',
+            ),
+            Tooltip(
+              message: provider.apiUrl,
+              child: _ProviderMetaChip(
+                icon: Icons.link_rounded,
+                label: 'API URL：${_buildApiUrlLabel(provider.apiUrl)}',
+              ),
+            ),
+            _ProviderMetaChip(
+              icon: Icons.key_outlined,
+              label: 'API Key：${_maskApiKey(provider.apiKey)}',
+            ),
+          ],
+        ),
+        if (provider.models.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Text(
+            '模型摘要：${_buildModelSummary(provider.models)}',
+            style: theme.textTheme.bodySmall,
+          ),
+        ],
       ],
     );
+  }
+
+  String _buildApiUrlLabel(String apiUrl) {
+    final uri = Uri.tryParse(apiUrl.trim());
+    final host = uri?.host.trim() ?? '';
+    return host.isNotEmpty ? host : apiUrl.trim();
+  }
+
+  String _buildModelSummary(List<LlmProviderModelConfig> models) {
+    if (models.isEmpty) {
+      return '无';
+    }
+    const previewLimit = 2;
+    final preview = models
+        .take(previewLimit)
+        .map((model) => model.displayName)
+        .join('、');
+    final remainingCount = models.length - previewLimit;
+    if (remainingCount <= 0) {
+      return preview;
+    }
+    return '$preview 等 $remainingCount 个模型';
   }
 
   String _maskApiKey(String apiKey) {
@@ -285,18 +384,40 @@ class _ProviderModelInfo extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(model.displayName, style: theme.textTheme.titleSmall),
-        if (model.supportsReasoning) ...[
-          const SizedBox(height: 8),
-          Chip(
-            avatar: const Icon(Icons.psychology_alt_outlined, size: 18),
-            label: const Text('支持深度思考'),
-            visualDensity: VisualDensity.compact,
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
-        ],
-        const SizedBox(height: 4),
-        Text('API 模型名称：${model.modelName}'),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _ProviderMetaChip(
+              icon: Icons.memory_rounded,
+              label: 'API 模型名称：${model.modelName}',
+            ),
+            if (model.supportsReasoning)
+              const _ProviderMetaChip(
+                icon: Icons.psychology_alt_outlined,
+                label: '支持深度思考',
+              ),
+          ],
+        ),
       ],
+    );
+  }
+}
+
+class _ProviderMetaChip extends StatelessWidget {
+  const _ProviderMetaChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Chip(
+      avatar: Icon(icon, size: 16),
+      label: Text(label),
+      visualDensity: VisualDensity.compact,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
     );
   }
 }

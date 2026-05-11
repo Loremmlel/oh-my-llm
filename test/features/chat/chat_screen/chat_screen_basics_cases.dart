@@ -626,6 +626,31 @@ void registerChatScreenBasicsTests() {
     );
   });
 
+  testWidgets(
+    'message filter dialog uses the same word-count rule as checkpoints',
+    (tester) async {
+      final preferences = await createSeededPreferences();
+      final fakeClient = FakeChatCompletionClient()
+        ..enqueueChunks(['done 456']);
+
+      await pumpChatScreen(
+        tester,
+        preferences: preferences,
+        fakeClient: fakeClient,
+      );
+
+      await sendMessage(tester, 'hello 123 世界');
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.byKey(const ValueKey('chat-message-filter-button')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('发送字数：4 / 4 字'), findsOneWidget);
+    },
+  );
+
   testWidgets('message filter preview scrollbar supports dragging', (
     tester,
   ) async {

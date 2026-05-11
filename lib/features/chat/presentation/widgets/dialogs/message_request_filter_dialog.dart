@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../../core/widgets/adaptive_master_detail_layout.dart';
 import '../../../application/chat_sessions_controller.dart';
+import '../../../domain/chat_word_counter.dart';
 import '../../../domain/models/chat_message.dart';
 
 /// 管理当前分支哪些消息会继续参与发送上下文。
@@ -464,7 +465,7 @@ class _MessageFilterStats {
     var includedChars = 0;
 
     for (final message in messages) {
-      final length = message.content.length;
+      final length = countChatWords(message.content);
       totalChars += length;
       if (excludedMessageIds.contains(message.id)) {
         excludedCount += 1;
