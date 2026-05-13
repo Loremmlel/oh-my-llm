@@ -6,6 +6,7 @@ const defaultSystemPromptTitle = 'system';
 
 /// Prompt 模板中附加消息的发送角色。
 enum PromptMessageRole {
+  system('system'),
   user('user'),
   assistant('assistant');
 
@@ -15,6 +16,7 @@ enum PromptMessageRole {
 
   /// 返回更适合界面展示的角色标签。
   String get label => switch (this) {
+    PromptMessageRole.system => 'System',
     PromptMessageRole.user => 'User',
     PromptMessageRole.assistant => 'Assistant',
   };
@@ -23,6 +25,7 @@ enum PromptMessageRole {
   static PromptMessageRole fromApiValue(String value) {
     return PromptMessageRole.values.firstWhere(
       (role) => role.apiValue == value,
+      orElse: () => PromptMessageRole.user,
     );
   }
 }
@@ -130,25 +133,52 @@ class PromptMessage extends Equatable {
   List<Object> get props => [id, role, title, content, placement];
 }
 
-/// 可复用的 Prompt 模板，包含 system 指令和附加消息。
+/// 可复用的 Prompt 模板，使用统一消息列表表示 system / user / assistant 条目。
 class PromptTemplate extends Equatable {
-  const PromptTemplate({
+  PromptTemplate({
     required this.id,
     required this.name,
-    required this.systemPrompt,
-    required this.messages,
+    required List<PromptMessage> messages,
     required this.updatedAt,
-    this.systemPromptTitle = defaultSystemPromptTitle,
-  });
+    String systemPrompt = '',
+    String systemPromptTitle = defaultSystemPromptTitle,
+  }) : messages = _normalizePromptTemplateMessages(
+         messages,
+         legacySystemPrompt: systemPrompt,
+         legacySystemPromptTitle: systemPromptTitle,
+       );
 
   final String id;
   final String name;
-  final String systemPrompt;
   final List<PromptMessage> messages;
   final DateTime updatedAt;
-  final String systemPromptTitle;
 
-  /// 复制模板，并允许覆盖标题、指令、消息和更新时间。
+  /// 为旧代码提供兼容读取：返回第一条 system 消息内容。
+  String get systemPrompt => _firstSystemMessage?.content ?? '';
+
+  /// 为旧代码提供兼容读取：返回第一条 system 消息标题。
+  String get systemPromptTitle =>
+      _firstSystemMessage?.title ?? defaultSystemPromptTitle;
+
+  PromptMessage? get _firstSystemMessage {
+    for (final message in messages) {
+      if (message.role == PromptMessageRole.system) {
+        return message;
+      }
+    }
+    return null;
+  }
+
+  Iterable<PromptMessage> messagesForPlacement(
+    PromptMessagePlacement placement,
+  ) {
+    return messages.where((message) => message.placement == placement);
+  }
+
+  /// 复制模板，并允许覆盖标题、消息和更新时间。
+  ///
+  /// `systemPrompt` / `systemPromptTitle` 仅保留给旧调用方，语义为“替换第一条
+  /// system 消息”；新的实现应直接传入完整的 `messages`。
   PromptTemplate copyWith({
     String? id,
     String? name,
@@ -157,13 +187,20 @@ class PromptTemplate extends Equatable {
     DateTime? updatedAt,
     String? systemPromptTitle,
   }) {
+    final nextMessages = messages ?? this.messages;
+    final shouldReplaceLegacySystem =
+        systemPrompt != null || systemPromptTitle != null;
     return PromptTemplate(
       id: id ?? this.id,
       name: name ?? this.name,
-      systemPrompt: systemPrompt ?? this.systemPrompt,
-      messages: messages ?? this.messages,
+      messages: shouldReplaceLegacySystem
+          ? _replaceLegacySystemMessage(
+              nextMessages,
+              systemPrompt: systemPrompt ?? this.systemPrompt,
+              systemPromptTitle: systemPromptTitle ?? this.systemPromptTitle,
+            )
+          : nextMessages,
       updatedAt: updatedAt ?? this.updatedAt,
-      systemPromptTitle: systemPromptTitle ?? this.systemPromptTitle,
     );
   }
 
@@ -182,35 +219,17 @@ class PromptTemplate extends Equatable {
   /// 从 JSON 反序列化模板。
   factory PromptTemplate.fromJson(Map<String, dynamic> json) {
     final rawMessages = json['messages'] as List<dynamic>? ?? const [];
-    final messageCounters = <String, int>{};
-    final messages = rawMessages
-        .map((item) {
-          final messageJson = Map<String, dynamic>.from(item as Map);
-          final role = PromptMessageRole.fromApiValue(
-            messageJson['role'] as String,
-          );
-          final placement = PromptMessagePlacement.fromApiValue(
-            (messageJson['placement'] as String?) ??
-                PromptMessagePlacement.before.apiValue,
-          );
-          final counterKey = '${placement.apiValue}:${role.apiValue}';
-          final nextSequence = (messageCounters[counterKey] ?? 0) + 1;
-          messageCounters[counterKey] = nextSequence;
-          return PromptMessage.fromJson(
-            messageJson,
-            fallbackTitle: buildPresetPromptMessageFallbackTitle(
-              role: role,
-              placement: placement,
-              sequence: nextSequence,
-            ),
-          );
-        })
-        .toList(growable: false);
+    final messages = _deserializePromptMessages(rawMessages);
+    final hasSystemMessages = messages.any(
+      (message) => message.role == PromptMessageRole.system,
+    );
 
     return PromptTemplate(
       id: json['id'] as String,
       name: json['name'] as String,
-      systemPrompt: json['systemPrompt'] as String,
+      systemPrompt: hasSystemMessages
+          ? ''
+          : (json['systemPrompt'] as String? ?? ''),
       systemPromptTitle:
           (json['systemPromptTitle'] as String?)?.trim().isNotEmpty == true
           ? json['systemPromptTitle'] as String
@@ -223,22 +242,107 @@ class PromptTemplate extends Equatable {
   /// 返回模板内容的摘要，便于列表页快速浏览。
   String get summary {
     if (messages.isEmpty) {
-      return '仅包含 system 指令';
+      return '暂无模板消息';
     }
 
-    return '1 条 system 指令 + ${messages.length} 条附加消息';
+    return '共 ${messages.length} 条消息';
   }
 
   @override
   String toString() => jsonEncode(toJson());
 
   @override
-  List<Object> get props => [
-    id,
-    name,
-    systemPrompt,
-    systemPromptTitle,
-    messages,
-    updatedAt,
-  ];
+  List<Object> get props => [id, name, messages, updatedAt];
+}
+
+List<PromptMessage> _normalizePromptTemplateMessages(
+  List<PromptMessage> messages, {
+  required String legacySystemPrompt,
+  required String legacySystemPromptTitle,
+}) {
+  final normalizedMessages = List<PromptMessage>.unmodifiable(messages);
+  if (normalizedMessages.any(
+    (message) => message.role == PromptMessageRole.system,
+  )) {
+    return normalizedMessages;
+  }
+
+  final trimmedLegacySystemPrompt = legacySystemPrompt.trim();
+  if (trimmedLegacySystemPrompt.isEmpty) {
+    return normalizedMessages;
+  }
+
+  final title = legacySystemPromptTitle.trim().isEmpty
+      ? defaultSystemPromptTitle
+      : legacySystemPromptTitle.trim();
+  return List<PromptMessage>.unmodifiable([
+    PromptMessage(
+      id: '_legacy-system-message',
+      role: PromptMessageRole.system,
+      title: title,
+      content: trimmedLegacySystemPrompt,
+      placement: PromptMessagePlacement.before,
+    ),
+    ...normalizedMessages,
+  ]);
+}
+
+List<PromptMessage> _replaceLegacySystemMessage(
+  List<PromptMessage> messages, {
+  required String systemPrompt,
+  required String systemPromptTitle,
+}) {
+  final mutableMessages = List<PromptMessage>.from(messages);
+  final systemIndex = mutableMessages.indexWhere(
+    (message) => message.role == PromptMessageRole.system,
+  );
+  final existingSystemId = systemIndex == -1
+      ? '_legacy-system-message'
+      : mutableMessages.removeAt(systemIndex).id;
+  final trimmedSystemPrompt = systemPrompt.trim();
+  if (trimmedSystemPrompt.isEmpty) {
+    return List<PromptMessage>.unmodifiable(mutableMessages);
+  }
+
+  final title = systemPromptTitle.trim().isEmpty
+      ? defaultSystemPromptTitle
+      : systemPromptTitle.trim();
+  mutableMessages.insert(
+    0,
+    PromptMessage(
+      id: existingSystemId,
+      role: PromptMessageRole.system,
+      title: title,
+      content: trimmedSystemPrompt,
+      placement: PromptMessagePlacement.before,
+    ),
+  );
+  return List<PromptMessage>.unmodifiable(mutableMessages);
+}
+
+List<PromptMessage> _deserializePromptMessages(List<dynamic> rawMessages) {
+  final messageCounters = <String, int>{};
+  return rawMessages
+      .map((item) {
+        final messageJson = Map<String, dynamic>.from(item as Map);
+        final role = PromptMessageRole.fromApiValue(
+          messageJson['role'] as String,
+        );
+        final placement = PromptMessagePlacement.fromApiValue(
+          (messageJson['placement'] as String?) ??
+              PromptMessagePlacement.before.apiValue,
+        );
+        final counterKey = '${placement.apiValue}:${role.apiValue}';
+        final nextSequence = (messageCounters[counterKey] ?? 0) + 1;
+        messageCounters[counterKey] = nextSequence;
+        return PromptMessage.fromJson(
+          messageJson,
+          fallbackTitle: buildPresetPromptMessageFallbackTitle(
+            role: role,
+            placement: placement,
+            sequence: nextSequence,
+          ),
+        );
+      })
+      .toList(growable: false);
 }

@@ -276,7 +276,6 @@ class _FixedPromptSequenceFormDialogState
         labelText: '步骤内容',
         hintText: '输入这一轮要发送给模型的用户提示词。',
       ),
-      onChanged: (_) => setState(() {}),
     );
 
     return Column(
@@ -296,7 +295,6 @@ class _FixedPromptSequenceFormDialogState
             labelText: '步骤标题',
             hintText: '例如：先总结需求、再列方案',
           ),
-          onChanged: (_) => setState(() {}),
         ),
         const SizedBox(height: 12),
         if (isWide) Expanded(child: contentField) else contentField,
@@ -443,39 +441,34 @@ class _FixedPromptStepListTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    return AnimatedBuilder(
+      animation: step.titleController,
+      builder: (context, child) {
+        final theme = Theme.of(context);
+        final colorScheme = theme.colorScheme;
 
-    return Material(
-      color: isSelected
-          ? colorScheme.secondaryContainer
-          : colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '步骤 ${index + 1} · ${step.titleController.text.trim()}',
+        return Material(
+          color: isSelected
+              ? colorScheme.secondaryContainer
+              : colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+          borderRadius: BorderRadius.circular(16),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Text(
+                step.titleController.text.trim().isEmpty
+                    ? '未命名步骤'
+                    : step.titleController.text.trim(),
                 style: theme.textTheme.titleSmall,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 6),
-              Text(
-                step.preview,
-                style: theme.textTheme.bodySmall,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -491,15 +484,4 @@ class _EditableFixedPromptSequenceStep {
   final String id;
   final TextEditingController titleController;
   final TextEditingController contentController;
-
-  String get preview {
-    final text = contentController.text.trim().replaceAll('\n', ' ');
-    if (text.isEmpty) {
-      return '点击右侧填写步骤内容';
-    }
-    if (text.length <= 36) {
-      return text;
-    }
-    return '${text.substring(0, 36)}...';
-  }
 }

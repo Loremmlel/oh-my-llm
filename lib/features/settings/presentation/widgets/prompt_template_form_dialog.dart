@@ -8,16 +8,9 @@ import 'settings_form_dialog_state_mixin.dart';
 
 /// 预设 Prompt 表单提交数据。
 class PromptTemplateFormData {
-  const PromptTemplateFormData({
-    required this.name,
-    required this.systemPromptTitle,
-    required this.systemPrompt,
-    required this.messages,
-  });
+  const PromptTemplateFormData({required this.name, required this.messages});
 
   final String name;
-  final String systemPromptTitle;
-  final String systemPrompt;
   final List<PromptMessage> messages;
 }
 
@@ -42,11 +35,9 @@ enum _PresetPromptEditorRole { system, user, assistant }
 /// 预设 Prompt 表单的输入与选中状态。
 class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
     with SettingsFormDialogStateMixin {
-  static const _systemItemId = '__system_preset_prompt__';
-
   late final TextEditingController _nameController;
   late final List<_EditablePresetPromptItem> _items;
-  late String _selectedItemId;
+  String? _selectedItemId;
 
   @override
   void initState() {
@@ -55,7 +46,7 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
       text: widget.initialValue?.name ?? '',
     );
     _items = _buildInitialItems(widget.initialValue);
-    _selectedItemId = _items.first.id;
+    _selectedItemId = _items.isEmpty ? null : _items.first.id;
   }
 
   @override
@@ -222,7 +213,7 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
         ),
         const SizedBox(height: 12),
         Text(
-          'system 固定唯一；前置与后置分组显示，后置永远排在前置之后。',
+          '左侧仅显示条目标题；system / user / assistant 都可自由增删，后置消息始终排在前置消息之后。',
           style: Theme.of(context).textTheme.bodySmall,
         ),
       ],
@@ -270,9 +261,8 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
       return const Text('请先选择左侧条目。');
     }
 
-    final isSystem = selected.role == _PresetPromptEditorRole.system;
     final titleLabel = switch (selected.role) {
-      _PresetPromptEditorRole.system => 'system 条目',
+      _PresetPromptEditorRole.system => 'System 条目',
       _PresetPromptEditorRole.user => 'User 条目',
       _PresetPromptEditorRole.assistant => 'Assistant 条目',
     };
@@ -284,10 +274,9 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
       expands: isWide,
       textAlignVertical: TextAlignVertical.top,
       decoration: InputDecoration(
-        labelText: isSystem ? 'system Prompt' : 'Prompt 内容',
-        hintText: isSystem ? '你是我的人工智能助手，协助我完成各种任务。' : '输入这一条预设 Prompt 的具体内容。',
+        labelText: 'Prompt 内容',
+        hintText: '输入这一条预设 Prompt 的具体内容。',
       ),
-      onChanged: (_) => setState(() {}),
     );
 
     return Column(
@@ -296,9 +285,7 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
         Text(titleLabel, style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
         Text(
-          isSystem
-              ? 'system 只保留一个，用于放置系统级指令。'
-              : '这里可以编辑标题、角色、位置和 Prompt 内容，左侧列表会即时同步。',
+          '这里可以编辑标题、角色、位置和 Prompt 内容。system 条目会以 system 消息发送给模型。',
           style: Theme.of(context).textTheme.bodySmall,
         ),
         const SizedBox(height: 16),
@@ -309,77 +296,67 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
             labelText: '标题',
             hintText: '例如：前置约束、后置收尾说明',
           ),
-          onChanged: (_) => setState(() {}),
         ),
         const SizedBox(height: 12),
         DropdownButtonFormField<_PresetPromptEditorRole>(
           key: const ValueKey('preset-prompt-role-field'),
           initialValue: selected.role,
-          items: isSystem
-              ? const [
-                  DropdownMenuItem(
-                    value: _PresetPromptEditorRole.system,
-                    child: Text('system'),
-                  ),
-                ]
-              : const [
-                  DropdownMenuItem(
-                    value: _PresetPromptEditorRole.user,
-                    child: Text('User'),
-                  ),
-                  DropdownMenuItem(
-                    value: _PresetPromptEditorRole.assistant,
-                    child: Text('Assistant'),
-                  ),
-                ],
-          onChanged: isSystem
-              ? null
-              : (value) {
-                  if (value != null) {
-                    setState(() {
-                      _replaceSelected(selected.copyWith(role: value));
-                    });
-                  }
-                },
+          items: const [
+            DropdownMenuItem(
+              value: _PresetPromptEditorRole.system,
+              child: Text('System'),
+            ),
+            DropdownMenuItem(
+              value: _PresetPromptEditorRole.user,
+              child: Text('User'),
+            ),
+            DropdownMenuItem(
+              value: _PresetPromptEditorRole.assistant,
+              child: Text('Assistant'),
+            ),
+          ],
+          onChanged: (value) {
+            if (value != null) {
+              setState(() {
+                _replaceSelected(selected.copyWith(role: value));
+              });
+            }
+          },
           decoration: const InputDecoration(labelText: '角色'),
         ),
-        if (!isSystem) ...[
-          const SizedBox(height: 12),
-          DropdownButtonFormField<PromptMessagePlacement>(
-            key: const ValueKey('preset-prompt-placement-field'),
-            initialValue: selected.placement,
-            items: PromptMessagePlacement.values
-                .map((placement) {
-                  return DropdownMenuItem(
-                    value: placement,
-                    child: Text(switch (placement) {
-                      PromptMessagePlacement.before => '前置',
-                      PromptMessagePlacement.after => '后置',
-                    }),
-                  );
-                })
-                .toList(growable: false),
-            onChanged: (value) {
-              if (value != null) {
-                _changeSelectedPlacement(value);
-              }
-            },
-            decoration: const InputDecoration(labelText: '位置'),
-          ),
-        ],
+        const SizedBox(height: 12),
+        DropdownButtonFormField<PromptMessagePlacement>(
+          key: const ValueKey('preset-prompt-placement-field'),
+          initialValue: selected.placement,
+          items: PromptMessagePlacement.values
+              .map((placement) {
+                return DropdownMenuItem(
+                  value: placement,
+                  child: Text(switch (placement) {
+                    PromptMessagePlacement.before => '前置',
+                    PromptMessagePlacement.after => '后置',
+                  }),
+                );
+              })
+              .toList(growable: false),
+          onChanged: (value) {
+            if (value != null) {
+              _changeSelectedPlacement(value);
+            }
+          },
+          decoration: const InputDecoration(labelText: '位置'),
+        ),
         const SizedBox(height: 12),
         if (isWide) Expanded(child: contentField) else contentField,
-        if (!isSystem) ...[
-          const SizedBox(height: 16),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: OutlinedButton.icon(
-              onPressed: () => _removeSelectedItem(),
-              icon: const Icon(Icons.delete_outline_rounded),
-              label: const Text('删除当前条目'),
-            ),
+        const SizedBox(height: 16),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: OutlinedButton.icon(
+            onPressed: () => _removeSelectedItem(),
+            icon: const Icon(Icons.delete_outline_rounded),
+            label: const Text('删除当前条目'),
           ),
-        ],
+        ),
       ],
     );
   }
@@ -395,17 +372,7 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
   }
 
   List<_EditablePresetPromptItem> _buildInitialItems(PromptTemplate? template) {
-    final systemItem = _EditablePresetPromptItem(
-      id: _systemItemId,
-      role: _PresetPromptEditorRole.system,
-      titleController: TextEditingController(
-        text: template?.systemPromptTitle ?? defaultSystemPromptTitle,
-      ),
-      contentController: TextEditingController(
-        text: template?.systemPrompt ?? '',
-      ),
-    );
-    final messages = (template?.messages ?? const <PromptMessage>[])
+    return (template?.messages ?? const <PromptMessage>[])
         .where((message) => message.placement == PromptMessagePlacement.before)
         .followedBy(
           (template?.messages ?? const <PromptMessage>[]).where(
@@ -416,6 +383,7 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
           return _EditablePresetPromptItem(
             id: message.id,
             role: switch (message.role) {
+              PromptMessageRole.system => _PresetPromptEditorRole.system,
               PromptMessageRole.user => _PresetPromptEditorRole.user,
               PromptMessageRole.assistant => _PresetPromptEditorRole.assistant,
             },
@@ -425,13 +393,15 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
           );
         })
         .toList(growable: true);
-
-    return [systemItem, ...messages];
   }
 
   _EditablePresetPromptItem? get _selectedItem {
+    final selectedItemId = _selectedItemId;
+    if (selectedItemId == null) {
+      return null;
+    }
     for (final item in _items) {
-      if (item.id == _selectedItemId) {
+      if (item.id == selectedItemId) {
         return item;
       }
     }
@@ -439,13 +409,17 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
   }
 
   int get _selectedIndex {
-    return _items.indexWhere((item) => item.id == _selectedItemId);
+    final selectedItemId = _selectedItemId;
+    if (selectedItemId == null) {
+      return -1;
+    }
+    return _items.indexWhere((item) => item.id == selectedItemId);
   }
 
   PromptMessagePlacement _resolveNewItemPlacement(
     _EditablePresetPromptItem? selected,
   ) {
-    if (selected == null || selected.role == _PresetPromptEditorRole.system) {
+    if (selected == null) {
       return PromptMessagePlacement.before;
     }
     return selected.placement ?? PromptMessagePlacement.before;
@@ -460,9 +434,6 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
       return placement == PromptMessagePlacement.before
           ? _firstAfterIndex
           : _items.length;
-    }
-    if (selected.role == _PresetPromptEditorRole.system) {
-      return 1;
     }
     return selectedIndex + 1;
   }
@@ -495,7 +466,7 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
 
   void _removeSelectedItem() {
     final index = _selectedIndex;
-    if (index <= 0) {
+    if (index < 0) {
       return;
     }
 
@@ -503,34 +474,32 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
       final removed = _items.removeAt(index);
       removed.titleController.dispose();
       removed.contentController.dispose();
-      _selectedItemId = _items[index - 1].id;
+      if (_items.isEmpty) {
+        _selectedItemId = null;
+        return;
+      }
+      _selectedItemId = _items[index > 0 ? index - 1 : 0].id;
     });
   }
 
   bool _canMoveSelectedUp() {
     final index = _selectedIndex;
-    if (index <= 0) {
+    if (index < 0) {
       return false;
     }
     final selected = _items[index];
-    if (selected.role == _PresetPromptEditorRole.system) {
-      return false;
-    }
     if (selected.placement == PromptMessagePlacement.before) {
-      return index > 1;
+      return index > 0;
     }
     return index > _firstAfterIndex;
   }
 
   bool _canMoveSelectedDown() {
     final index = _selectedIndex;
-    if (index <= 0) {
+    if (index < 0) {
       return false;
     }
     final selected = _items[index];
-    if (selected.role == _PresetPromptEditorRole.system) {
-      return false;
-    }
     if (selected.placement == PromptMessagePlacement.before) {
       return index < _lastBeforeIndex;
     }
@@ -539,12 +508,12 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
 
   void _moveSelected(int delta) {
     final index = _selectedIndex;
-    if (index <= 0) {
+    if (index < 0) {
       return;
     }
 
     final nextIndex = index + delta;
-    if (nextIndex <= 0 || nextIndex >= _items.length) {
+    if (nextIndex < 0 || nextIndex >= _items.length) {
       return;
     }
 
@@ -563,7 +532,7 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
 
   void _changeSelectedPlacement(PromptMessagePlacement placement) {
     final index = _selectedIndex;
-    if (index <= 0) {
+    if (index < 0) {
       return;
     }
 
@@ -630,6 +599,7 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
 
   _PresetPromptEditorRole _toEditorRole(PromptMessageRole role) {
     return switch (role) {
+      PromptMessageRole.system => _PresetPromptEditorRole.system,
       PromptMessageRole.user => _PresetPromptEditorRole.user,
       PromptMessageRole.assistant => _PresetPromptEditorRole.assistant,
     };
@@ -642,19 +612,7 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
       return;
     }
 
-    final systemItem = _items.firstWhere(
-      (item) => item.role == _PresetPromptEditorRole.system,
-    );
-    if (systemItem.titleController.text.trim().isEmpty) {
-      _selectedItemId = systemItem.id;
-      setState(() {});
-      showFormSnackBar('请填写 system 条目的标题');
-      return;
-    }
-
-    for (final item in _items.where(
-      (item) => item.role != _PresetPromptEditorRole.system,
-    )) {
+    for (final item in _items) {
       if (item.titleController.text.trim().isEmpty) {
         _selectedItemId = item.id;
         setState(() {});
@@ -668,16 +626,14 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
         return;
       }
     }
-
     final messages = _items
-        .where((item) => item.role != _PresetPromptEditorRole.system)
         .map((item) {
           return PromptMessage(
             id: item.id,
             role: switch (item.role) {
+              _PresetPromptEditorRole.system => PromptMessageRole.system,
               _PresetPromptEditorRole.user => PromptMessageRole.user,
               _PresetPromptEditorRole.assistant => PromptMessageRole.assistant,
-              _PresetPromptEditorRole.system => PromptMessageRole.user,
             },
             title: item.titleController.text.trim(),
             content: item.contentController.text.trim(),
@@ -688,12 +644,7 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
 
     await submitAndClose(() {
       return widget.onSubmit(
-        PromptTemplateFormData(
-          name: name,
-          systemPromptTitle: systemItem.titleController.text.trim(),
-          systemPrompt: systemItem.contentController.text.trim(),
-          messages: messages,
-        ),
+        PromptTemplateFormData(name: name, messages: messages),
       );
     });
   }
@@ -713,48 +664,34 @@ class _PresetPromptListTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    return AnimatedBuilder(
+      animation: item.titleController,
+      builder: (context, child) {
+        final theme = Theme.of(context);
+        final colorScheme = theme.colorScheme;
 
-    return Material(
-      color: isSelected
-          ? colorScheme.secondaryContainer
-          : colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text.rich(
-                TextSpan(
-                  children: [
-                    TextSpan(
-                      text: '${item.groupLabel} ',
-                      style: theme.textTheme.labelLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    TextSpan(text: item.titleController.text.trim()),
-                  ],
-                ),
+        return Material(
+          color: isSelected
+              ? colorScheme.secondaryContainer
+              : colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+          borderRadius: BorderRadius.circular(16),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Text(
+                item.titleController.text.trim().isEmpty
+                    ? '未命名条目'
+                    : item.titleController.text.trim(),
+                style: theme.textTheme.titleSmall,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 6),
-              Text(
-                item.contentPreview,
-                style: theme.textTheme.bodySmall,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -774,27 +711,6 @@ class _EditablePresetPromptItem {
   final PromptMessagePlacement? placement;
   final TextEditingController titleController;
   final TextEditingController contentController;
-
-  String get groupLabel => switch (role) {
-    _PresetPromptEditorRole.system => 'system',
-    _PresetPromptEditorRole.user ||
-    _PresetPromptEditorRole.assistant => switch (placement) {
-      PromptMessagePlacement.before => '前置',
-      PromptMessagePlacement.after => '后置',
-      null => '前置',
-    },
-  };
-
-  String get contentPreview {
-    final text = contentController.text.trim().replaceAll('\n', ' ');
-    if (text.isEmpty) {
-      return '点击右侧填写内容';
-    }
-    if (text.length <= 36) {
-      return text;
-    }
-    return '${text.substring(0, 36)}...';
-  }
 
   _EditablePresetPromptItem copyWith({
     String? id,

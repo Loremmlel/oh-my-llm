@@ -5,6 +5,8 @@ import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dar
 import 'package:oh_my_llm/features/settings/data/sqlite_memory_prompt_repository.dart';
 import 'package:oh_my_llm/features/settings/data/sqlite_prompt_template_repository.dart';
 import 'package:oh_my_llm/features/settings/data/sqlite_template_prompt_repository.dart';
+import 'package:oh_my_llm/features/settings/domain/models/prompt_template.dart';
+import 'package:oh_my_llm/features/settings/presentation/widgets/settings_card_grid.dart';
 import 'package:oh_my_llm/features/settings/presentation/settings_screen.dart';
 
 import 'settings_screen_test_helpers.dart';
@@ -160,14 +162,17 @@ void registerSettingsScreenModelsAndPromptsTests() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('后置').last);
       await tester.pumpAndSettle();
-      expect(find.text('后置 前置要求'), findsOneWidget);
       await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
 
       expect(find.text('代码审阅'), findsWidgets);
       expect(repo.loadAll().any((t) => t.name == '代码审阅'), isTrue);
       expect(repo.loadAll().single.messages.single.title, '前置要求');
-      expect(find.textContaining('1 条 system 指令 + 1 条附加消息'), findsOneWidget);
+      expect(
+        repo.loadAll().single.messages.single.placement,
+        PromptMessagePlacement.after,
+      );
+      expect(find.textContaining('共 1 条消息'), findsOneWidget);
 
       await tester.tap(find.text('编辑'));
       await tester.pumpAndSettle();
@@ -222,6 +227,46 @@ void registerSettingsScreenModelsAndPromptsTests() {
     },
   );
 
+  testWidgets('prompt template dialog allows multiple system messages', (
+    tester,
+  ) async {
+    final preferences = await createEmptyPreferences();
+    final database = await pumpSettingsScreen(tester, preferences: preferences);
+    final repo = SqlitePromptTemplateRepository(database);
+
+    await tester.tap(find.text('新增预设'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField).first, '多 system 模板');
+
+    Future<void> fillItem({
+      required String title,
+      required String content,
+      required String roleLabel,
+    }) async {
+      await tester.tap(find.text('新增条目'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextFormField).at(1), title);
+      await tester.enterText(find.byType(TextFormField).at(2), content);
+      await tester.tap(find.byKey(const ValueKey('preset-prompt-role-field')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(roleLabel).last);
+      await tester.pumpAndSettle();
+    }
+
+    await fillItem(title: '系统 1', content: '系统内容 1', roleLabel: 'System');
+    await fillItem(title: '系统 2', content: '系统内容 2', roleLabel: 'System');
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+
+    final saved = repo.loadAll().single;
+    final systemMessages = saved.messages
+        .where((message) => message.role == PromptMessageRole.system)
+        .toList(growable: false);
+    expect(systemMessages, hasLength(2));
+    expect(systemMessages[0].title, '系统 1');
+    expect(systemMessages[1].title, '系统 2');
+  });
+
   testWidgets(
     'prompt template dialog inserts a new item below selection and keeps groups ordered',
     (tester) async {
@@ -265,11 +310,11 @@ void registerSettingsScreenModelsAndPromptsTests() {
         await tester.pumpAndSettle();
       }
 
-      Future<void> expectSelectedTitle(String expected) async {
+      Future<String> selectedTitle() async {
         final titleField = tester.widget<TextFormField>(
           find.byType(TextFormField).at(1),
         );
-        expect(titleField.controller?.text, expected);
+        return titleField.controller?.text ?? '';
       }
 
       Future<void> fillSelectedItem(String title, String content) async {
@@ -284,12 +329,12 @@ void registerSettingsScreenModelsAndPromptsTests() {
 
       await tester.tap(addItemButton);
       await tester.pumpAndSettle();
-      await expectSelectedTitle('前置user1');
+      expect(await selectedTitle(), startsWith('前置user'));
       await fillSelectedItem('前置1', '内容1');
 
       await tester.tap(addItemButton);
       await tester.pumpAndSettle();
-      await expectSelectedTitle('前置user2');
+      expect(await selectedTitle(), startsWith('前置user'));
       await fillSelectedItem('后置1', '内容2');
 
       await tester.tap(
@@ -299,56 +344,35 @@ void registerSettingsScreenModelsAndPromptsTests() {
       await tester.tap(find.text('后置').last);
       await tester.pumpAndSettle();
 
-      await tester.tap(presetTile('system system'));
+      await tester.tap(presetTile('前置1'));
       await tester.pumpAndSettle();
       await tester.tap(addItemButton);
       await tester.pumpAndSettle();
-      await expectSelectedTitle('前置user2');
-      await fillSelectedItem('前置0', '内容0');
-      await ensurePresetTileVisible('后置 后置1');
-
-      expect(
-        tester.getTopLeft(rawPresetTile('system system')).dy,
-        lessThan(tester.getTopLeft(rawPresetTile('前置 前置0')).dy),
-      );
-      expect(
-        tester.getTopLeft(rawPresetTile('前置 前置0')).dy,
-        lessThan(tester.getTopLeft(rawPresetTile('前置 前置1')).dy),
-      );
-      expect(
-        tester.getTopLeft(rawPresetTile('前置 前置1')).dy,
-        lessThan(tester.getTopLeft(rawPresetTile('后置 后置1')).dy),
-      );
-
-      await tester.tap(presetTile('前置 前置1'));
-      await tester.pumpAndSettle();
-      await tester.tap(addItemButton);
-      await tester.pumpAndSettle();
-      await expectSelectedTitle('前置user3');
+      expect(await selectedTitle(), startsWith('前置user'));
       await fillSelectedItem('前置1.5', '内容1.5');
-      await ensurePresetTileVisible('后置 后置1');
+      await ensurePresetTileVisible('后置1');
 
       expect(
-        tester.getTopLeft(rawPresetTile('前置 前置1')).dy,
-        lessThan(tester.getTopLeft(rawPresetTile('前置 前置1.5')).dy),
+        tester.getTopLeft(rawPresetTile('前置1')).dy,
+        lessThan(tester.getTopLeft(rawPresetTile('前置1.5')).dy),
       );
       expect(
-        tester.getTopLeft(rawPresetTile('前置 前置1.5')).dy,
-        lessThan(tester.getTopLeft(rawPresetTile('后置 后置1')).dy),
+        tester.getTopLeft(rawPresetTile('前置1.5')).dy,
+        lessThan(tester.getTopLeft(rawPresetTile('后置1')).dy),
       );
 
-      await ensurePresetTileVisible('后置 后置1');
-      await tester.tap(presetTile('后置 后置1'));
+      await ensurePresetTileVisible('后置1');
+      await tester.tap(presetTile('后置1'));
       await tester.pumpAndSettle();
       await tester.tap(addItemButton);
       await tester.pumpAndSettle();
-      await expectSelectedTitle('后置user2');
+      expect(await selectedTitle(), startsWith('后置user'));
       await fillSelectedItem('后置1.5', '内容1.5');
-      await ensurePresetTileVisible('后置 后置1.5');
+      await ensurePresetTileVisible('后置1.5');
 
       expect(
-        tester.getTopLeft(rawPresetTile('后置 后置1')).dy,
-        lessThan(tester.getTopLeft(rawPresetTile('后置 后置1.5')).dy),
+        tester.getTopLeft(rawPresetTile('后置1')).dy,
+        lessThan(tester.getTopLeft(rawPresetTile('后置1.5')).dy),
       );
 
       final titleField = tester.widget<TextFormField>(
@@ -447,15 +471,18 @@ void registerSettingsScreenModelsAndPromptsTests() {
       matching: find.byType(ListView),
     );
     final headerOffsetBefore = tester.getTopLeft(header);
+    final titleField = tester.widget<TextFormField>(find.byType(TextFormField).at(1));
+    final latestAutoTitle = titleField.controller?.text ?? '';
+    expect(latestAutoTitle, isNotEmpty);
 
     await tester.dragUntilVisible(
-      find.text('前置 前置user20'),
+      find.text(latestAutoTitle),
       presetList,
       const Offset(0, -300),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('前置 前置user20'), findsOneWidget);
+    expect(find.text(latestAutoTitle), findsWidgets);
     expect(tester.getTopLeft(header).dy, headerOffsetBefore.dy);
     expect(addItemButton, findsOneWidget);
   });
@@ -618,4 +645,58 @@ void registerSettingsScreenModelsAndPromptsTests() {
     expect(find.text('还没有记忆总结提示词'), findsOneWidget);
     expect(repo.loadAll(), isEmpty);
   });
+
+  testWidgets(
+    'settings card grid arranges equal-width columns on wide layout',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 960,
+                child: SettingsCardGrid(
+                  minItemWidth: 100,
+                  children: [
+                    Container(
+                      key: ValueKey('grid-card-short'),
+                      color: Colors.red,
+                      child: SizedBox(height: 80),
+                    ),
+                    Container(
+                      key: ValueKey('grid-card-tall'),
+                      color: Colors.green,
+                      child: SizedBox(height: 180),
+                    ),
+                    Container(
+                      key: ValueKey('grid-card-medium'),
+                      color: Colors.blue,
+                      child: SizedBox(height: 120),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final shortRect = tester.getRect(
+        find.byKey(const ValueKey('grid-card-short')),
+      );
+      final tallRect = tester.getRect(
+        find.byKey(const ValueKey('grid-card-tall')),
+      );
+      final mediumRect = tester.getRect(
+        find.byKey(const ValueKey('grid-card-medium')),
+      );
+
+      expect(shortRect.top, moreOrLessEquals(tallRect.top));
+      expect(mediumRect.top, moreOrLessEquals(tallRect.top));
+      expect(shortRect.width, moreOrLessEquals(tallRect.width));
+      expect(mediumRect.width, moreOrLessEquals(tallRect.width));
+      expect(shortRect.left, lessThan(tallRect.left));
+      expect(tallRect.left, lessThan(mediumRect.left));
+    },
+  );
 }

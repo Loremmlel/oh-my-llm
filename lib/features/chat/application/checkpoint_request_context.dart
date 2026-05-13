@@ -106,15 +106,6 @@ List<ChatCompletionRequestMessage> buildCheckpointSummaryMessages({
   final requestMessages = <ChatCompletionRequestMessage>[];
   final filteredMessages = filter.apply(conversationMessages);
 
-  if (promptTemplate != null && promptTemplate.systemPrompt.trim().isNotEmpty) {
-    requestMessages.add(
-      ChatCompletionRequestMessage(
-        role: ChatMessageRole.system,
-        content: promptTemplate.systemPrompt.trim(),
-      ),
-    );
-  }
-
   requestMessages.add(
     ChatCompletionRequestMessage(
       role: ChatMessageRole.system,
@@ -156,4 +147,3 @@ List<ChatCompletionRequestMessage> buildCheckpointSummaryMessages({
 
   return List.unmodifiable(requestMessages);
 }
-

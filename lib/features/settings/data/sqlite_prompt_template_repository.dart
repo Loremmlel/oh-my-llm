@@ -48,7 +48,7 @@ class SqlitePromptTemplateRepository {
       buildValues: (template) => [
         template.id,
         template.name,
-        template.systemPrompt,
+        '',
         jsonEncode(template.messages.map((m) => m.toJson()).toList()),
         template.updatedAt.toIso8601String(),
       ],
@@ -57,16 +57,22 @@ class SqlitePromptTemplateRepository {
 
   PromptTemplate _rowToTemplate(Map<String, dynamic> row) {
     final rawMessages = jsonDecode(row['messages_json'] as String) as List;
+    final messages = rawMessages
+        .map(
+          (item) =>
+              PromptMessage.fromJson(Map<String, dynamic>.from(item as Map)),
+        )
+        .toList(growable: false);
+    final hasSystemMessages = messages.any(
+      (message) => message.role == PromptMessageRole.system,
+    );
     return PromptTemplate(
       id: row['id'] as String,
       name: row['name'] as String,
-      systemPrompt: row['system_prompt'] as String,
-      messages: rawMessages
-          .map(
-            (item) =>
-                PromptMessage.fromJson(Map<String, dynamic>.from(item as Map)),
-          )
-          .toList(growable: false),
+      systemPrompt: hasSystemMessages
+          ? ''
+          : row['system_prompt'] as String? ?? '',
+      messages: messages,
       updatedAt: DateTime.parse(row['updated_at'] as String),
     );
   }

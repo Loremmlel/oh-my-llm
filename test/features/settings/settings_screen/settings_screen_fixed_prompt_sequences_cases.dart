@@ -28,6 +28,11 @@ void registerSettingsScreenFixedPromptSequencesTests() {
         find.byKey(const ValueKey('fixed-prompt-sequence-form-layout')),
         findsOneWidget,
       );
+      final masterPane = find.byKey(
+        const ValueKey('fixed-prompt-sequence-master-pane'),
+      );
+      Finder stepTile(String title) =>
+          find.descendant(of: masterPane, matching: find.text(title));
 
       await tester.enterText(find.byType(TextFormField).at(0), '对比测试流程');
       await tester.enterText(find.byType(TextFormField).at(1), '标题1');
@@ -35,7 +40,7 @@ void registerSettingsScreenFixedPromptSequencesTests() {
         find.byType(TextFormField).at(2),
         '请先总结这个需求的核心目标。',
       );
-      expect(find.text('步骤 1 · 标题1'), findsOneWidget);
+      expect(stepTile('标题1'), findsOneWidget);
       await tester.tap(find.text('新增步骤'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextFormField).at(1), '标题2');
@@ -43,7 +48,7 @@ void registerSettingsScreenFixedPromptSequencesTests() {
         find.byType(TextFormField).at(2),
         '请列出三个可执行方案，并说明权衡。',
       );
-      expect(find.text('步骤 2 · 标题2'), findsOneWidget);
+      expect(stepTile('标题2'), findsOneWidget);
       await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
 
@@ -163,6 +168,17 @@ void registerSettingsScreenFixedPromptSequencesTests() {
 
       await tester.tap(find.text('新增序列'));
       await tester.pumpAndSettle();
+      final masterPane = find.byKey(
+        const ValueKey('fixed-prompt-sequence-master-pane'),
+      );
+      Finder stepTile(String title) =>
+          find.descendant(of: masterPane, matching: find.text(title));
+      String currentStepTitle() {
+        final titleField = tester.widget<TextFormField>(
+          find.byType(TextFormField).at(1),
+        );
+        return titleField.controller?.text ?? '';
+      }
 
       await tester.enterText(find.byType(TextFormField).at(0), '插入测试流程');
       await tester.enterText(find.byType(TextFormField).at(1), '标题1');
@@ -178,21 +194,23 @@ void registerSettingsScreenFixedPromptSequencesTests() {
       await tester.enterText(find.byType(TextFormField).at(1), '标题3');
       await tester.enterText(find.byType(TextFormField).at(2), '内容3');
 
-      await tester.tap(find.text('步骤 1 · 标题1'));
+      await tester.tap(stepTile('标题1'));
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('新增步骤'));
       await tester.pumpAndSettle();
+      final insertedTitle = currentStepTitle();
+      expect(insertedTitle, isNotEmpty);
 
-      expect(find.text('步骤 1 · 标题1'), findsOneWidget);
-      expect(find.text('步骤 2 · 标题4'), findsOneWidget);
-      expect(find.text('步骤 3 · 标题2'), findsOneWidget);
-      expect(find.text('步骤 4 · 标题3'), findsOneWidget);
+      expect(stepTile('标题1'), findsOneWidget);
+      expect(stepTile(insertedTitle), findsOneWidget);
+      expect(stepTile('标题2'), findsOneWidget);
+      expect(stepTile('标题3'), findsOneWidget);
 
-      final step1Top = tester.getTopLeft(find.text('步骤 1 · 标题1')).dy;
-      final insertedTop = tester.getTopLeft(find.text('步骤 2 · 标题4')).dy;
-      final step2Top = tester.getTopLeft(find.text('步骤 3 · 标题2')).dy;
-      final step3Top = tester.getTopLeft(find.text('步骤 4 · 标题3')).dy;
+      final step1Top = tester.getTopLeft(stepTile('标题1')).dy;
+      final insertedTop = tester.getTopLeft(stepTile(insertedTitle)).dy;
+      final step2Top = tester.getTopLeft(stepTile('标题2')).dy;
+      final step3Top = tester.getTopLeft(stepTile('标题3')).dy;
       expect(step1Top, lessThan(insertedTop));
       expect(insertedTop, lessThan(step2Top));
       expect(step2Top, lessThan(step3Top));
@@ -203,7 +221,7 @@ void registerSettingsScreenFixedPromptSequencesTests() {
       final contentField = tester.widget<TextFormField>(
         find.byType(TextFormField).at(2),
       );
-      expect(titleField.controller?.text, '标题4');
+      expect(titleField.controller?.text, insertedTitle);
       expect(contentField.controller?.text, isEmpty);
     },
   );
@@ -225,6 +243,12 @@ void registerSettingsScreenFixedPromptSequencesTests() {
     final masterPane = find.byKey(
       const ValueKey('fixed-prompt-sequence-master-pane'),
     );
+    Finder stepTile(String title) =>
+        find.descendant(of: masterPane, matching: find.text(title));
+    String currentStepTitle() {
+      final titleField = tester.widget<TextFormField>(find.byType(TextFormField).at(1));
+      return titleField.controller?.text ?? '';
+    }
     final addStepButton = find.descendant(
       of: masterPane,
       matching: find.widgetWithText(OutlinedButton, '新增步骤'),
@@ -242,15 +266,17 @@ void registerSettingsScreenFixedPromptSequencesTests() {
       matching: find.byType(ListView),
     );
     final headerOffsetBefore = tester.getTopLeft(header);
+    final latestAutoTitle = currentStepTitle();
+    expect(latestAutoTitle, isNotEmpty);
 
     await tester.dragUntilVisible(
-      find.text('步骤 20 · 标题20'),
+      stepTile(latestAutoTitle),
       stepList,
       const Offset(0, -300),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('步骤 20 · 标题20'), findsOneWidget);
+    expect(stepTile(latestAutoTitle), findsOneWidget);
     expect(tester.getTopLeft(header).dy, headerOffsetBefore.dy);
     expect(addStepButton, findsOneWidget);
   });

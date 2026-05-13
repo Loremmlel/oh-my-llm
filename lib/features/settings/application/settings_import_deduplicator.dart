@@ -31,19 +31,6 @@ class PromptTemplateImportComparator
 
   @override
   bool isEquivalent(PromptTemplate existing, PromptTemplate incoming) {
-    if (existing.systemPromptTitle.length !=
-        incoming.systemPromptTitle.length) {
-      return false;
-    }
-    if (existing.systemPromptTitle != incoming.systemPromptTitle) {
-      return false;
-    }
-    if (existing.systemPrompt.length != incoming.systemPrompt.length) {
-      return false;
-    }
-    if (existing.systemPrompt != incoming.systemPrompt) {
-      return false;
-    }
     if (existing.messages.length != incoming.messages.length) {
       return false;
     }

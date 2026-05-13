@@ -165,6 +165,33 @@ void main() {
       expect(result.single.role, ChatMessageRole.assistant);
     });
 
+    test('模板 system 消息转换为 ChatMessageRole.system，并支持多条', () {
+      final result = buildRequestMessages(
+        promptTemplate: buildTemplate(
+          messages: [
+            buildTemplateMessage(PromptMessageRole.system, '系统前置'),
+            buildTemplateMessage(
+              PromptMessageRole.system,
+              '系统后置',
+              placement: PromptMessagePlacement.after,
+            ),
+          ],
+        ),
+        conversationMessages: [buildUserMessage('真实问题')],
+      );
+
+      expect(result.map((message) => message.role).toList(), [
+        ChatMessageRole.system,
+        ChatMessageRole.user,
+        ChatMessageRole.system,
+      ]);
+      expect(result.map((message) => message.content).toList(), [
+        '系统前置',
+        '真实问题',
+        '系统后置',
+      ]);
+    });
+
     test('模板消息列表为空时不增加额外条目', () {
       final result = buildRequestMessages(
         promptTemplate: buildTemplate(),
