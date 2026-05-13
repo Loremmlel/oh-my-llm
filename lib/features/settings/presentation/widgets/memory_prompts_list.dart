@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../application/memory_prompts_controller.dart';
 import '../../domain/models/memory_prompt.dart';
+import 'settings_card_grid.dart';
 import 'settings_empty_state.dart';
 
 /// 记忆总结提示词列表。
@@ -26,75 +27,15 @@ class MemoryPromptsList extends ConsumerWidget {
       );
     }
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        const minItemWidth = 280.0;
-        const gap = 12.0;
-        final crossAxisCount =
-            ((constraints.maxWidth + gap) / (minItemWidth + gap)).floor().clamp(
-                  1,
-                  3,
-                );
-        return _buildGrid(
-          context,
-          ref,
-          crossAxisCount: crossAxisCount,
-          gap: gap,
-          availableWidth: constraints.maxWidth,
-        );
-      },
-    );
-  }
-
-  Widget _buildGrid(
-    BuildContext context,
-    WidgetRef ref, {
-    required int crossAxisCount,
-    required double gap,
-    required double availableWidth,
-  }) {
-    if (crossAxisCount == 1) {
-      return Column(
-        children: [
-          for (final memoryPrompt in memoryPrompts)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _MemoryPromptTile(
-                memoryPrompt: memoryPrompt,
-                onEditRequested: onEditRequested,
-              ),
-            ),
-        ],
-      );
-    }
-
-    final itemWidth =
-        (availableWidth - gap * (crossAxisCount - 1)) / crossAxisCount;
-    final rows = <Widget>[];
-    for (var i = 0; i < memoryPrompts.length; i += crossAxisCount) {
-      final rowItems = memoryPrompts.skip(i).take(crossAxisCount).toList();
-      rows.add(
-        Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              for (var j = 0; j < rowItems.length; j += 1) ...[
-                if (j > 0) SizedBox(width: gap),
-                SizedBox(
-                  width: itemWidth,
-                  child: _MemoryPromptTile(
-                    memoryPrompt: rowItems[j],
-                    onEditRequested: onEditRequested,
-                  ),
-                ),
-              ],
-            ],
+    return SettingsCardGrid(
+      children: [
+        for (final memoryPrompt in memoryPrompts)
+          _MemoryPromptTile(
+            memoryPrompt: memoryPrompt,
+            onEditRequested: onEditRequested,
           ),
-        ),
-      );
-    }
-    return Column(children: rows);
+      ],
+    );
   }
 }
 
@@ -144,9 +85,9 @@ class _MemoryPromptTile extends ConsumerWidget {
                         .read(memoryPromptsProvider.notifier)
                         .deleteById(memoryPrompt.id);
                     if (context.mounted) {
-                      ScaffoldMessenger.of(
-                        context,
-                      ).showSnackBar(const SnackBar(content: Text('记忆总结提示词已删除')));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('记忆总结提示词已删除')),
+                      );
                     }
                   },
                   icon: const Icon(Icons.delete_outline_rounded),

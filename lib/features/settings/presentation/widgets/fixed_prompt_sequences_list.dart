@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../application/fixed_prompt_sequences_controller.dart';
 import '../../domain/models/fixed_prompt_sequence.dart';
+import 'settings_card_grid.dart';
 import 'settings_empty_state.dart';
 
 /// 固定顺序提示词列表，负责展示、编辑和删除序列。
@@ -27,75 +28,15 @@ class FixedPromptSequencesList extends ConsumerWidget {
       );
     }
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        const minItemWidth = 280.0;
-        const gap = 12.0;
-        final crossAxisCount =
-            ((constraints.maxWidth + gap) / (minItemWidth + gap)).floor().clamp(
-              1,
-              3,
-            );
-        return _buildGrid(
-          sequences,
-          crossAxisCount,
-          gap,
-          constraints.maxWidth,
-          ref,
-        );
-      },
-    );
-  }
-
-  Widget _buildGrid(
-    List<FixedPromptSequence> items,
-    int crossAxisCount,
-    double gap,
-    double availableWidth,
-    WidgetRef ref,
-  ) {
-    if (crossAxisCount == 1) {
-      return Column(
-        children: [
-          for (final sequence in items)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _FixedPromptSequenceTile(
-                sequence: sequence,
-                onEditRequested: onEditRequested,
-              ),
-            ),
-        ],
-      );
-    }
-
-    final itemWidth =
-        (availableWidth - gap * (crossAxisCount - 1)) / crossAxisCount;
-    final rows = <Widget>[];
-    for (var i = 0; i < items.length; i += crossAxisCount) {
-      final rowItems = items.skip(i).take(crossAxisCount).toList();
-      rows.add(
-        Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              for (var j = 0; j < rowItems.length; j++) ...[
-                if (j > 0) SizedBox(width: gap),
-                SizedBox(
-                  width: itemWidth,
-                  child: _FixedPromptSequenceTile(
-                    sequence: rowItems[j],
-                    onEditRequested: onEditRequested,
-                  ),
-                ),
-              ],
-            ],
+    return SettingsCardGrid(
+      children: [
+        for (final sequence in sequences)
+          _FixedPromptSequenceTile(
+            sequence: sequence,
+            onEditRequested: onEditRequested,
           ),
-        ),
-      );
-    }
-    return Column(children: rows);
+      ],
+    );
   }
 }
 

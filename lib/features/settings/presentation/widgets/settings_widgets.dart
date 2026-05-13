@@ -11,6 +11,7 @@ export 'prompt_template_form_dialog.dart';
 export 'prompt_templates_section.dart';
 export 'prompt_templates_list.dart';
 export 'settings_form_dialog_scaffold.dart';
+export 'settings_card_grid.dart';
 export 'settings_section_card.dart';
 export 'memory_prompts_section.dart';
 export 'fixed_prompt_sequences_section.dart';

@@ -387,45 +387,37 @@ class _MessageRequestFilterDialogState
                   ),
                   const SizedBox(height: 16),
                   Expanded(
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        return ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: ColoredBox(
-                            color: theme.colorScheme.surface,
-                            child: ConstrainedBox(
-                              key: const ValueKey(
-                                'message-filter-preview-container',
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: ColoredBox(
+                        color: theme.colorScheme.surface,
+                        child: SizedBox.expand(
+                          key: const ValueKey(
+                            'message-filter-preview-container',
+                          ),
+                          child: Scrollbar(
+                            key: const ValueKey(
+                              'message-filter-preview-scrollbar',
+                            ),
+                            controller: _detailPreviewScrollController,
+                            interactive: true,
+                            thumbVisibility: true,
+                            child: SingleChildScrollView(
+                              controller: _detailPreviewScrollController,
+                              primary: false,
+                              key: ValueKey(
+                                'message-filter-preview-${message.id}',
                               ),
-                              constraints: BoxConstraints(
-                                maxWidth: constraints.maxWidth,
-                                maxHeight: constraints.maxHeight,
-                              ),
-                              child: Scrollbar(
-                                key: const ValueKey(
-                                  'message-filter-preview-scrollbar',
-                                ),
-                                controller: _detailPreviewScrollController,
-                                interactive: true,
-                                thumbVisibility: true,
-                                child: SingleChildScrollView(
-                                  controller: _detailPreviewScrollController,
-                                  primary: false,
-                                  key: ValueKey(
-                                    'message-filter-preview-${message.id}',
-                                  ),
-                                  padding: const EdgeInsets.all(12),
-                                  child: SelectableText(
-                                    message.content.isEmpty
-                                        ? '空内容。'
-                                        : message.content,
-                                  ),
-                                ),
+                              padding: const EdgeInsets.all(12),
+                              child: SelectableText(
+                                message.content.isEmpty
+                                    ? '空内容。'
+                                    : message.content,
                               ),
                             ),
                           ),
-                        );
-                      },
+                        ),
+                      ),
                     ),
                   ),
                 ],

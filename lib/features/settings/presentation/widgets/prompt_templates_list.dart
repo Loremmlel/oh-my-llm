@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../application/chat_defaults_controller.dart';
 import '../../application/prompt_templates_controller.dart';
 import '../../domain/models/prompt_template.dart';
+import 'settings_card_grid.dart';
 import 'settings_empty_state.dart';
 
 /// Prompt 模板列表，负责展示、编辑和删除模板。
@@ -30,77 +31,16 @@ class PromptTemplatesList extends ConsumerWidget {
       );
     }
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        const minItemWidth = 280.0;
-        const gap = 12.0;
-        final crossAxisCount =
-            ((constraints.maxWidth + gap) / (minItemWidth + gap)).floor().clamp(
-              1,
-              3,
-            );
-        return _buildGrid(
-          templates,
-          crossAxisCount,
-          gap,
-          constraints.maxWidth,
-          ref,
-        );
-      },
-    );
-  }
-
-  Widget _buildGrid(
-    List<PromptTemplate> items,
-    int crossAxisCount,
-    double gap,
-    double availableWidth,
-    WidgetRef ref,
-  ) {
-    if (crossAxisCount == 1) {
-      return Column(
-        children: [
-          for (final template in items)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _PromptTemplateTile(
-                template: template,
-                onDuplicateRequested: onDuplicateRequested,
-                onEditRequested: onEditRequested,
-              ),
-            ),
-        ],
-      );
-    }
-
-    final itemWidth =
-        (availableWidth - gap * (crossAxisCount - 1)) / crossAxisCount;
-    final rows = <Widget>[];
-    for (var i = 0; i < items.length; i += crossAxisCount) {
-      final rowItems = items.skip(i).take(crossAxisCount).toList();
-      rows.add(
-        Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              for (var j = 0; j < rowItems.length; j++) ...[
-                if (j > 0) SizedBox(width: gap),
-                SizedBox(
-                  width: itemWidth,
-                  child: _PromptTemplateTile(
-                    template: rowItems[j],
-                    onDuplicateRequested: onDuplicateRequested,
-                    onEditRequested: onEditRequested,
-                  ),
-                ),
-              ],
-            ],
+    return SettingsCardGrid(
+      children: [
+        for (final template in templates)
+          _PromptTemplateTile(
+            template: template,
+            onDuplicateRequested: onDuplicateRequested,
+            onEditRequested: onEditRequested,
           ),
-        ),
-      );
-    }
-    return Column(children: rows);
+      ],
+    );
   }
 }
 
@@ -134,23 +74,20 @@ class _PromptTemplateTile extends ConsumerWidget {
             Text(template.name, style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
             Text(template.summary),
-            const SizedBox(height: 4),
-            Text(
-              'system · ${template.systemPromptTitle}：${_summarize(template.systemPrompt)}',
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
             if (template.messages.isNotEmpty) ...[
               const SizedBox(height: 8),
               for (final message in template.messages.take(3))
                 Padding(
                   padding: const EdgeInsets.only(bottom: 4),
                   child: Text(
-                    '${_placementLabel(message.placement)} · ${message.title}：${_summarize(message.content)}',
+                    '${_placementLabel(message.placement)} · ${message.role.label} · ${message.title}：${_summarize(message.content)}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
+            ] else ...[
+              const SizedBox(height: 8),
+              Text('当前模板还没有任何条目。', style: theme.textTheme.bodySmall),
             ],
             const SizedBox(height: 12),
             Wrap(
