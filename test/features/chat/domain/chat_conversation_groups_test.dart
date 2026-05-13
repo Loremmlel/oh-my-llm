@@ -25,10 +25,13 @@ void main() {
       now = DateTime(2026, 4, 28, 12);
     });
 
-    test('按核心时间桶分组', () {
+    test('按时间桶分组，并在桶内按 updatedAt 降序排列', () {
+      expect(groupConversationsByUpdatedAt([], now: now), isEmpty);
+
       final groups = groupConversationsByUpdatedAt([
-        conv('recent', now.subtract(const Duration(minutes: 10))),
-        conv('day', now.subtract(const Duration(hours: 5))),
+        conv('recent-older', now.subtract(const Duration(minutes: 20))),
+        conv('within-day', now.subtract(const Duration(hours: 5))),
+        conv('recent-newer', now.subtract(const Duration(minutes: 10))),
         conv('older', now.subtract(const Duration(days: 60))),
       ], now: now);
 
@@ -37,22 +40,12 @@ void main() {
         ConversationTimeBucket.withinDay,
         ConversationTimeBucket.older,
       ]);
-    });
-
-    test('同一桶内按 updatedAt 降序排列', () {
-      final groups = groupConversationsByUpdatedAt([
-        conv('older', now.subtract(const Duration(hours: 3))),
-        conv('newer', now.subtract(const Duration(hours: 2))),
-      ], now: now);
-
-      expect(groups.single.conversations.map((item) => item.id), [
-        'newer',
-        'older',
+      expect(groups.first.conversations.map((item) => item.id), [
+        'recent-newer',
+        'recent-older',
       ]);
-    });
-
-    test('空列表返回空分组列表', () {
-      expect(groupConversationsByUpdatedAt([], now: now), isEmpty);
+      expect(groups[1].conversations.single.id, 'within-day');
+      expect(groups[2].conversations.single.id, 'older');
     });
   });
 
@@ -63,16 +56,22 @@ void main() {
       now = DateTime(2026, 4, 28, 12);
     });
 
-    test('summary 分组与排序行为保持一致', () {
+    test('summary 分组与排序行为与 conversations 保持一致', () {
       final groups = groupConversationSummariesByUpdatedAt([
-        summary('newer', now.subtract(const Duration(hours: 2))),
-        summary('older', now.subtract(const Duration(hours: 3))),
+        summary('recent-older', now.subtract(const Duration(minutes: 20))),
+        summary('within-day', now.subtract(const Duration(hours: 5))),
+        summary('recent-newer', now.subtract(const Duration(minutes: 10))),
       ], now: now);
 
-      expect(groups.single.conversations.map((item) => item.id), [
-        'newer',
-        'older',
+      expect(groups.map((group) => group.bucket), [
+        ConversationTimeBucket.recent,
+        ConversationTimeBucket.withinDay,
       ]);
+      expect(groups.first.conversations.map((item) => item.id), [
+        'recent-newer',
+        'recent-older',
+      ]);
+      expect(groups[1].conversations.single.id, 'within-day');
     });
   });
 }

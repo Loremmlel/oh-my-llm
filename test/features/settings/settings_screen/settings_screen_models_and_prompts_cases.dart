@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dart';
+import 'package:oh_my_llm/features/settings/data/sqlite_memory_prompt_repository.dart';
+import 'package:oh_my_llm/features/settings/data/sqlite_prompt_template_repository.dart';
+import 'package:oh_my_llm/features/settings/data/sqlite_template_prompt_repository.dart';
+import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/settings_card_grid.dart';
 import 'package:oh_my_llm/features/settings/presentation/settings_screen.dart';
 
@@ -11,10 +16,10 @@ void registerSettingsScreenModelsAndPromptsTests() {
     'settings screen supports provider and model CRUD flows',
     (tester) async {
       final preferences = await createEmptyPreferences();
+      final repository = LlmModelConfigRepository(preferences);
 
       await pumpSettingsScreen(tester, preferences: preferences);
-
-      expect(find.text('还没有服务商配置'), findsOneWidget);
+      expect(repository.loadProviders(), isEmpty);
 
       await tester.tap(find.text('新增服务商'));
       await tester.pumpAndSettle();
@@ -28,8 +33,10 @@ void registerSettingsScreenModelsAndPromptsTests() {
       await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
 
+      final createdProvider = repository.loadProviders().single;
+      expect(createdProvider.name, 'OpenAI 官方');
+      expect(repository.loadAll(), isEmpty);
       expect(find.text('OpenAI 官方'), findsWidgets);
-      expect(find.text('当前服务商下还没有模型。'), findsOneWidget);
 
       await tester.tap(find.text('新增模型'));
       await tester.pumpAndSettle();
@@ -41,8 +48,11 @@ void registerSettingsScreenModelsAndPromptsTests() {
       await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
 
+      final createdModel = repository.loadAll().single;
+      expect(createdModel.displayName, 'OpenAI 4.1');
+      expect(createdModel.modelName, 'gpt-4.1');
+      expect(createdModel.supportsReasoning, isTrue);
       expect(find.text('OpenAI 4.1'), findsWidgets);
-      expect(find.text('支持深度思考'), findsOneWidget);
 
       await tester.tap(find.text('编辑服务商'));
       await tester.pumpAndSettle();
@@ -50,6 +60,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
       await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
 
+      expect(repository.loadProviders().single.name, 'OpenAI 官方 v2');
       expect(find.text('OpenAI 官方 v2'), findsWidgets);
 
       await tester.tap(find.widgetWithText(OutlinedButton, '编辑').last);
@@ -58,17 +69,18 @@ void registerSettingsScreenModelsAndPromptsTests() {
       await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
 
+      expect(repository.loadAll().single.displayName, 'OpenAI 4.1 Turbo');
       expect(find.text('OpenAI 4.1 Turbo'), findsWidgets);
 
       await tester.tap(find.widgetWithText(OutlinedButton, '删除').last);
       await tester.pumpAndSettle();
 
-      expect(find.text('当前服务商下还没有模型。'), findsOneWidget);
+      expect(repository.loadAll(), isEmpty);
 
       await tester.tap(find.text('删除服务商'));
       await tester.pumpAndSettle();
 
-      expect(find.text('还没有服务商配置'), findsOneWidget);
+      expect(repository.loadProviders(), isEmpty);
     },
   );
 
@@ -83,14 +95,14 @@ void registerSettingsScreenModelsAndPromptsTests() {
         size: const Size(430, 932),
       );
 
-      expect(find.text('API 模型名称：gpt-4.1'), findsNothing);
+      expect(find.textContaining('gpt-4.1'), findsNothing);
 
       await tester.tap(
         find.byKey(const ValueKey('provider-models-toggle-provider-1')),
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('API 模型名称：gpt-4.1'), findsOneWidget);
+      expect(find.textContaining('gpt-4.1'), findsOneWidget);
     },
   );
 
@@ -98,18 +110,12 @@ void registerSettingsScreenModelsAndPromptsTests() {
     'settings screen supports prompt template CRUD flows',
     (tester) async {
       final preferences = await createEmptyPreferences();
-
-      await pumpSettingsScreen(tester, preferences: preferences);
-
-      expect(find.text('还没有预设 Prompt'), findsOneWidget);
+      final database = await pumpSettingsScreen(tester, preferences: preferences);
+      final repository = SqlitePromptTemplateRepository(database);
+      expect(repository.loadAll(), isEmpty);
 
       await tester.tap(find.text('新增预设'));
       await tester.pumpAndSettle();
-
-      expect(
-        find.byKey(const ValueKey('preset-prompt-form-layout')),
-        findsOneWidget,
-      );
       await tester.enterText(presetPromptNameField(), '代码审阅');
       await tester.tap(find.text('新增条目'));
       await tester.pumpAndSettle();
@@ -128,33 +134,26 @@ void registerSettingsScreenModelsAndPromptsTests() {
       await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
 
+      final createdTemplate = repository.loadAll().single;
+      expect(createdTemplate.name, '代码审阅');
+      expect(createdTemplate.messages, hasLength(1));
+      expect(createdTemplate.messages.single.title, '前置要求');
+      expect(createdTemplate.messages.single.content, '请检查这段代码的边界情况。');
       expect(find.text('代码审阅'), findsWidgets);
-      expect(find.textContaining('共 1 条消息'), findsOneWidget);
 
       await tester.tap(find.text('编辑'));
       await tester.pumpAndSettle();
-      expect(
-        tester.widget<TextFormField>(presetPromptNameField()).controller?.text,
-        '代码审阅',
-      );
-      expect(
-        tester.widget<TextFormField>(presetPromptTitleField()).controller?.text,
-        '前置要求',
-      );
-      expect(
-        tester.widget<TextFormField>(presetPromptContentField()).controller?.text,
-        '请检查这段代码的边界情况。',
-      );
       await tester.enterText(presetPromptNameField(), '代码审阅 v2');
       await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
 
+      expect(repository.loadAll().single.name, '代码审阅 v2');
       expect(find.text('代码审阅 v2'), findsWidgets);
 
       await tester.tap(find.text('删除'));
       await tester.pumpAndSettle();
 
-      expect(find.text('还没有预设 Prompt'), findsOneWidget);
+      expect(repository.loadAll(), isEmpty);
     },
   );
 
@@ -319,12 +318,6 @@ void registerSettingsScreenModelsAndPromptsTests() {
         lessThan(tester.getTopLeft(rawPresetTile('后置1.5')).dy),
       );
 
-      final titleField = tester.widget<TextFormField>(presetPromptTitleField());
-      final contentField = tester.widget<TextFormField>(
-        presetPromptContentField(),
-      );
-      expect(titleField.controller?.text, '后置1.5');
-      expect(contentField.controller?.text, '内容1.5');
     },
   );
 
@@ -475,10 +468,9 @@ void registerSettingsScreenModelsAndPromptsTests() {
     'settings screen supports template prompt CRUD flows',
     (tester) async {
       final preferences = await createEmptyPreferences();
-
-      await pumpSettingsScreen(tester, preferences: preferences);
-
-      expect(find.text('还没有模板提示词'), findsOneWidget);
+      final database = await pumpSettingsScreen(tester, preferences: preferences);
+      final repository = SqliteTemplatePromptRepository(database);
+      expect(repository.loadAll(), isEmpty);
 
       await tester.tap(find.text('新增模板提示词'));
       await tester.pumpAndSettle();
@@ -490,43 +482,32 @@ void registerSettingsScreenModelsAndPromptsTests() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('正文 使用聊天页主输入框提供内容，不单独设置默认值。'), findsOneWidget);
-
       await tester.enterText(templatePromptVariableField('目标语言'), '英文');
       await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
 
+      final createdTemplate = repository.loadAll().single;
+      expect(createdTemplate.title, '翻译模板');
+      expect(createdTemplate.variables.map((variable) => variable.name), [
+        templatePromptBodyVariableName,
+        '目标语言',
+      ]);
+      expect(createdTemplate.variables.last.defaultValue, '英文');
       expect(find.text('翻译模板'), findsWidgets);
-      expect(find.textContaining('共 2 个变量'), findsOneWidget);
 
       await tester.tap(find.text('编辑'));
       await tester.pumpAndSettle();
-      expect(
-        tester.widget<TextFormField>(templatePromptTitleField()).controller?.text,
-        '翻译模板',
-      );
-      expect(
-        tester.widget<TextFormField>(
-          templatePromptContentField(),
-        ).controller?.text,
-        '请把{{正文}}翻译成{{目标语言}}。',
-      );
-      expect(
-        tester.widget<TextFormField>(
-          templatePromptVariableField('目标语言'),
-        ).controller?.text,
-        '英文',
-      );
       await tester.enterText(templatePromptTitleField(), '翻译模板 v2');
       await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
 
+      expect(repository.loadAll().single.title, '翻译模板 v2');
       expect(find.text('翻译模板 v2'), findsWidgets);
 
       await tester.tap(find.text('删除'));
       await tester.pumpAndSettle();
 
-      expect(find.text('还没有模板提示词'), findsOneWidget);
+      expect(repository.loadAll(), isEmpty);
     },
   );
 
@@ -559,10 +540,9 @@ void registerSettingsScreenModelsAndPromptsTests() {
     tester,
   ) async {
     final preferences = await createEmptyPreferences();
-
-    await pumpSettingsScreen(tester, preferences: preferences);
-
-    expect(find.text('还没有记忆总结提示词'), findsOneWidget);
+    final database = await pumpSettingsScreen(tester, preferences: preferences);
+    final repository = SqliteMemoryPromptRepository(database);
+    expect(repository.loadAll(), isEmpty);
 
     await tester.tap(find.text('新增记忆提示词'));
     await tester.pumpAndSettle();
@@ -575,28 +555,24 @@ void registerSettingsScreenModelsAndPromptsTests() {
     await tester.tap(find.text('保存'));
     await tester.pumpAndSettle();
 
+    final createdPrompt = repository.loadAll().single;
+    expect(createdPrompt.name, '研发任务总结');
+    expect(createdPrompt.content, '请总结当前研发任务中的决定、约束与待办。');
     expect(find.text('研发任务总结'), findsWidgets);
 
     await tester.tap(find.text('编辑'));
     await tester.pumpAndSettle();
-    expect(
-      tester.widget<TextFormField>(memoryPromptNameField()).controller?.text,
-      '研发任务总结',
-    );
-    expect(
-      tester.widget<TextFormField>(memoryPromptContentField()).controller?.text,
-      '请总结当前研发任务中的决定、约束与待办。',
-    );
     await tester.enterText(memoryPromptNameField(), '研发任务总结 v2');
     await tester.tap(find.text('保存'));
     await tester.pumpAndSettle();
 
+    expect(repository.loadAll().single.name, '研发任务总结 v2');
     expect(find.text('研发任务总结 v2'), findsWidgets);
 
     await tester.tap(find.text('删除'));
     await tester.pumpAndSettle();
 
-    expect(find.text('还没有记忆总结提示词'), findsOneWidget);
+    expect(repository.loadAll(), isEmpty);
   });
 
   testWidgets(

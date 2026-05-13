@@ -8,25 +8,6 @@ import 'package:oh_my_llm/features/chat/presentation/widgets/dialogs/add_to_favo
 import 'chat_screen_test_helpers.dart';
 
 void registerChatScreenFavoritesTests() {
-  testWidgets('chat screen shows bookmark button on assistant message', (
-    tester,
-  ) async {
-    final preferences = await createSeededPreferences();
-    final fakeClient = FakeChatCompletionClient()
-      ..enqueueChunks(['这是模型的回复内容']);
-
-    await pumpChatScreen(
-      tester,
-      preferences: preferences,
-      fakeClient: fakeClient,
-    );
-
-    await sendMessage(tester, '测试问题');
-    await tester.pumpAndSettle();
-
-    expect(find.byTooltip('收藏回复'), findsOneWidget);
-  });
-
   testWidgets('chat screen bookmark tap shows add to favorites dialog', (
     tester,
   ) async {
@@ -70,18 +51,18 @@ void registerChatScreenFavoritesTests() {
     await tester.tap(find.byTooltip('收藏回复'));
     await tester.pumpAndSettle();
 
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(AddToFavoritesDialog)),
+    );
     await tester.tap(find.widgetWithText(TextButton, '取消'));
     await tester.pumpAndSettle();
 
-    // No snackbar shown
-    expect(find.text('已收藏'), findsNothing);
-
-    // Bookmark still shows as not favorited
+    expect(container.read(favoritesProvider), isEmpty);
     expect(find.byTooltip('收藏回复'), findsOneWidget);
     expect(find.byTooltip('已收藏'), findsNothing);
   });
 
-  testWidgets('chat screen favorites to uncategorized shows snackbar and updates icon', (
+  testWidgets('chat screen favorites to uncategorized saves favorite and updates icon', (
     tester,
   ) async {
     final preferences = await createSeededPreferences();
@@ -96,26 +77,25 @@ void registerChatScreenFavoritesTests() {
 
     await sendMessage(tester, '测试问题');
     await tester.pumpAndSettle();
-
     await tester.tap(find.byTooltip('收藏回复'));
     await tester.pumpAndSettle();
+    await tester.pumpAndSettle();
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(AddToFavoritesDialog)),
+    );
 
-    // Select uncategorized
     await tester.tap(find.text('未分类'));
     await tester.pumpAndSettle();
 
     await tester.tap(find.widgetWithText(FilledButton, '收藏'));
     await tester.pumpAndSettle();
 
-    // SnackBar appears
-    expect(find.text('已收藏'), findsOneWidget);
-
-    // Bookmark icon shows favorited state
+    expect(container.read(favoritesProvider), hasLength(1));
     expect(find.byTooltip('已收藏'), findsOneWidget);
     expect(find.byTooltip('收藏回复'), findsNothing);
   });
 
-  testWidgets('chat screen second bookmark tap unfavorites with snackbar', (
+  testWidgets('chat screen second bookmark tap removes favorite and restores icon', (
     tester,
   ) async {
     final preferences = await createSeededPreferences();
@@ -134,21 +114,21 @@ void registerChatScreenFavoritesTests() {
     // First tap: open dialog, select uncategorized, confirm
     await tester.tap(find.byTooltip('收藏回复'));
     await tester.pumpAndSettle();
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(AddToFavoritesDialog)),
+    );
     await tester.tap(find.text('未分类'));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, '收藏'));
     await tester.pumpAndSettle();
 
+    expect(container.read(favoritesProvider), hasLength(1));
     expect(find.byTooltip('已收藏'), findsOneWidget);
 
-    // 等待"已收藏" SnackBar 过期，避免"已取消收藏"被排队而不可见
-    await tester.pump(const Duration(seconds: 5));
-
-    // Second tap: unfavorite
     await tester.tap(find.byTooltip('已收藏'));
     await tester.pumpAndSettle();
 
-    expect(find.text('已取消收藏'), findsOneWidget);
+    expect(container.read(favoritesProvider), isEmpty);
     expect(find.byTooltip('收藏回复'), findsOneWidget);
     expect(find.byTooltip('已收藏'), findsNothing);
   });
@@ -171,8 +151,10 @@ void registerChatScreenFavoritesTests() {
 
     await tester.tap(find.byTooltip('收藏回复'));
     await tester.pumpAndSettle();
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(AddToFavoritesDialog)),
+    );
 
-    // Open new collection field
     await tester.tap(find.text('新建收藏夹'));
     await tester.pumpAndSettle();
 
@@ -189,10 +171,6 @@ void registerChatScreenFavoritesTests() {
     expect(find.text('已收藏'), findsOneWidget);
     expect(find.byTooltip('已收藏'), findsOneWidget);
 
-    // Verify the favorite was actually saved (check via provider)
-    final container = ProviderScope.containerOf(
-      tester.element(find.byTooltip('已收藏')),
-    );
     expect(container.read(favoritesProvider).length, 1);
     expect(
       container.read(favoritesProvider).first.collectionId,

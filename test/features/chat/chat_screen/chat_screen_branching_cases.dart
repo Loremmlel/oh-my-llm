@@ -63,7 +63,7 @@ void registerChatScreenBranchingTests() {
       expect(find.textContaining('第三条问题'), findsNothing);
       expect(find.textContaining('原始回复三'), findsNothing);
       expect(
-        fakeClient.requestHistory[3].map((message) => message.content).toList(),
+        fakeClient.requestHistory.last.map((message) => message.content).toList(),
         ['第一条原始问题', '原始回复一', '第二条已修改问题'],
       );
     },

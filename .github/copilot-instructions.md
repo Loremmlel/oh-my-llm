@@ -125,6 +125,54 @@ Test structure: single `*_test.dart` entry point + multiple `*_cases.dart` helpe
 - Parser tests: inject mock vendor adapters via constructor to validate Strategy pattern behavior per vendor
 - Adapter tests: verify payload construction, field presence/absence, and error handling for each vendor
 
+## Test design rules
+
+### Layer boundaries
+
+- `widget test` should focus on user-visible paths, cross-widget integration, and final observable outcomes.
+- `controller / application test` should cover state transitions, branching, request context assembly, checkpoint injection, exclusion logic, and error handling.
+- `data / client test` should cover vendor differences, payload construction, SSE parsing, and error propagation.
+- `domain / repository / migration test` should cover model contracts, persistence semantics, grouping rules, and migration safety.
+- If lower layers already have stable contract tests, do not reassert the same internal details in widget tests.
+
+### Assertion priority
+
+Prefer assertions on:
+
+1. final business result or state,
+2. persisted data,
+3. final request content,
+4. core user-visible output.
+
+Avoid using these as the primary assertion unless there is no better option:
+
+- exact `find.byTooltip(...)` copy,
+- exact snackbar / label / counter text,
+- private `ValueKey(...)` structure,
+- `requestHistory[N]` magic indexes,
+- provider internals from widget tests,
+- widget implementation details such as `maxLines`, `subtitle`, or `Scrollbar.controller`.
+
+If a tooltip must be used to locate an action, pair it with a business-result assertion rather than asserting the tooltip text itself.
+
+### Feature examples
+
+- Chat widget tests should not directly assert `userMessageSegments`, default prompt/model provider state, or builder-level request assembly details. “Remember model / Prompt” scenarios should prefer verifying the next real send, and request assertions should target the request produced by the current action (for example `.last`) rather than fixed indexes.
+- Favorites widget tests should prefer saved state, source metadata, and navigation results over snackbar copy, tooltip copy, or list-item rendering details.
+- History widget tests should prefer visible list changes and navigation outcomes over reading `chatSessionsProvider` or hard-coding debounce timing constants.
+- Settings widget tests should prefer repository / persisted-data assertions over dialog copy, form controller text, or duplicated wide-layout structure checks across multiple dialogs.
+
+### Test shape and maintenance
+
+- Keep a single runnable `*_test.dart` entrypoint and move shared scenario bodies into `*_cases.dart`.
+- Prefer helpers and combination tests over many tiny trim / empty / single-field passthrough tests.
+- Before adding a widget test, check:
+  1. Is this a user-noticeable regression?
+  2. Should this assertion still hold after a UI refactor?
+  3. Is the same behavior already covered at a lower layer?
+
+If the answer to 2 or 3 is "no", prefer moving the assertion down a layer, merging it into a broader contract test, or deleting it.
+
 ## Design patterns and refactoring
 
 **Strategy Pattern (vendor payload adapters):**

@@ -30,147 +30,121 @@ String _legacyPayload([String id = 'conv-1']) => jsonEncode([
   },
 ]);
 
-void main() {
-  // ── 路径 1：SP 有旧数据，SQLite 为空，未迁移 ─────────────────────────────
+Future<
+  ({
+    SharedPreferences preferences,
+    SqliteChatConversationRepository repository,
+  })
+>
+createMigrationContext(Map<String, Object> initialValues) async {
+  SharedPreferences.setMockInitialValues(initialValues);
+  final preferences = await SharedPreferences.getInstance();
+  final database = AppDatabase.inMemory();
+  addTearDown(database.close);
+  return (
+    preferences: preferences,
+    repository: SqliteChatConversationRepository(database),
+  );
+}
 
-  test('路径1：SP 有旧数据，导入 SQLite 并清除 SP、置位标志', () async {
-    SharedPreferences.setMockInitialValues({
+void main() {
+  test('首次迁移会导入旧 SP 数据、清理旧键并置位标志', () async {
+    final context = await createMigrationContext({
       chatConversationsStorageKey: _legacyPayload(),
     });
-    final preferences = await SharedPreferences.getInstance();
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final repository = SqliteChatConversationRepository(database);
 
     await migrateLegacyChatConversations(
-      preferences: preferences,
-      repository: repository,
+      preferences: context.preferences,
+      repository: context.repository,
     );
 
-    expect(repository.loadAll(), hasLength(1));
-    expect(preferences.getString(chatConversationsStorageKey), isNull);
+    expect(context.repository.loadAll(), hasLength(1));
+    expect(context.preferences.getString(chatConversationsStorageKey), isNull);
     expect(
-      preferences.getBool(chatConversationsSqliteMigrationFlagKey),
+      context.preferences.getBool(chatConversationsSqliteMigrationFlagKey),
       isTrue,
     );
   });
 
-  // ── 路径 2：迁移标志已置位 ────────────────────────────────────────────────
-
-  test('路径2：迁移标志已置位，SP 无残留 → 直接返回，不导入', () async {
-    SharedPreferences.setMockInitialValues({
+  test('已满足迁移条件的场景不会重复导入，但会清理残留旧数据', () async {
+    final alreadyMigrated = await createMigrationContext({
       chatConversationsSqliteMigrationFlagKey: true,
     });
-    final preferences = await SharedPreferences.getInstance();
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final repository = SqliteChatConversationRepository(database);
-
     await migrateLegacyChatConversations(
-      preferences: preferences,
-      repository: repository,
+      preferences: alreadyMigrated.preferences,
+      repository: alreadyMigrated.repository,
     );
+    expect(alreadyMigrated.repository.loadAll(), isEmpty);
 
-    expect(repository.loadAll(), isEmpty);
-  });
-
-  test('路径2b：迁移标志已置位，但 SP 中仍有残留旧数据 → 清除 SP，不重复导入', () async {
-    // 构造已有 SQLite 数据（需要先导入一次）。
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final repository = SqliteChatConversationRepository(database);
-
-    SharedPreferences.setMockInitialValues({
+    final leftoverLegacyData = await createMigrationContext({
       chatConversationsStorageKey: _legacyPayload(),
     });
-    var preferences = await SharedPreferences.getInstance();
-    // 第一次正常迁移。
     await migrateLegacyChatConversations(
-      preferences: preferences,
-      repository: repository,
+      preferences: leftoverLegacyData.preferences,
+      repository: leftoverLegacyData.repository,
     );
-    expect(repository.loadAll(), hasLength(1));
+    expect(leftoverLegacyData.repository.loadAll(), hasLength(1));
 
-    // 模拟 SP 键被意外恢复（遗留数据场景）。
-    await preferences.setString(
+    await leftoverLegacyData.preferences.setString(
       chatConversationsStorageKey,
       _legacyPayload('conv-duplicate'),
     );
-    // 标志仍为 true。
     expect(
-      preferences.getBool(chatConversationsSqliteMigrationFlagKey),
+      leftoverLegacyData.preferences.getBool(chatConversationsSqliteMigrationFlagKey),
       isTrue,
     );
-
-    // 再次迁移：应清除 SP，不重复写入 SQLite。
     await migrateLegacyChatConversations(
-      preferences: preferences,
-      repository: repository,
+      preferences: leftoverLegacyData.preferences,
+      repository: leftoverLegacyData.repository,
+    );
+    expect(leftoverLegacyData.repository.loadAll(), hasLength(1));
+    expect(
+      leftoverLegacyData.preferences.getString(chatConversationsStorageKey),
+      isNull,
     );
 
-    // 仍然只有原来那 1 条，不增加。
-    expect(repository.loadAll(), hasLength(1));
-    expect(preferences.getString(chatConversationsStorageKey), isNull);
-  });
-
-  // ── 路径 3：SQLite 已有数据 ───────────────────────────────────────────────
-
-  test('路径3：SQLite 已有数据 + SP 有旧数据 → 跳过导入，清除 SP，置位标志', () async {
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final repository = SqliteChatConversationRepository(database);
-
-    // 先向 SQLite 写入一条数据（模拟其他设备同步场景）。
-    SharedPreferences.setMockInitialValues({
+    final sqliteAlreadySeeded = await createMigrationContext({
       chatConversationsStorageKey: _legacyPayload(),
     });
-    var preferences = await SharedPreferences.getInstance();
     await migrateLegacyChatConversations(
-      preferences: preferences,
-      repository: repository,
+      preferences: sqliteAlreadySeeded.preferences,
+      repository: sqliteAlreadySeeded.repository,
     );
-    // 重置标志，模拟"标志丢失但 SQLite 已有数据"。
-    await preferences.remove(chatConversationsSqliteMigrationFlagKey);
-
-    // SP 重新写入旧数据（不同 id，确保不是同一条）。
-    await preferences.setString(
+    await sqliteAlreadySeeded.preferences.remove(
+      chatConversationsSqliteMigrationFlagKey,
+    );
+    await sqliteAlreadySeeded.preferences.setString(
       chatConversationsStorageKey,
       _legacyPayload('conv-other-device'),
     );
-
     await migrateLegacyChatConversations(
-      preferences: preferences,
-      repository: repository,
+      preferences: sqliteAlreadySeeded.preferences,
+      repository: sqliteAlreadySeeded.repository,
     );
-
-    // SQLite 仍然只有第一次写入的那 1 条。
-    expect(repository.loadAll(), hasLength(1));
-    expect(repository.loadAll().single.id, 'conv-1');
-    // SP 旧数据已清除，标志已置位。
-    expect(preferences.getString(chatConversationsStorageKey), isNull);
+    expect(sqliteAlreadySeeded.repository.loadAll(), hasLength(1));
+    expect(sqliteAlreadySeeded.repository.loadAll().single.id, 'conv-1');
     expect(
-      preferences.getBool(chatConversationsSqliteMigrationFlagKey),
+      sqliteAlreadySeeded.preferences.getString(chatConversationsStorageKey),
+      isNull,
+    );
+    expect(
+      sqliteAlreadySeeded.preferences.getBool(
+        chatConversationsSqliteMigrationFlagKey,
+      ),
       isTrue,
     );
   });
 
-  // ── 路径 4：全新安装（SP 无数据，SQLite 为空）────────────────────────────
-
-  test('路径4：全新安装 → 不导入，直接置位标志', () async {
-    SharedPreferences.setMockInitialValues({});
-    final preferences = await SharedPreferences.getInstance();
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final repository = SqliteChatConversationRepository(database);
-
+  test('全新安装会直接置位标志而不导入任何数据', () async {
+    final context = await createMigrationContext({});
     await migrateLegacyChatConversations(
-      preferences: preferences,
-      repository: repository,
+      preferences: context.preferences,
+      repository: context.repository,
     );
 
-    expect(repository.loadAll(), isEmpty);
+    expect(context.repository.loadAll(), isEmpty);
     expect(
-      preferences.getBool(chatConversationsSqliteMigrationFlagKey),
+      context.preferences.getBool(chatConversationsSqliteMigrationFlagKey),
       isTrue,
     );
   });

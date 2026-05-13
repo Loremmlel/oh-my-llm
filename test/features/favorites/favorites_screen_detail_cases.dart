@@ -40,7 +40,7 @@ void registerFavoriteDetailScreenTests() {
   });
 
   testWidgets(
-    'favorites detail shows go-to-conversation button when source set',
+    'favorites detail shows source link and can jump back to chat',
     (tester) async {
       final preferences = await createEmptyPreferences();
       final database = await createTestDatabase(preferences);
@@ -63,12 +63,17 @@ void registerFavoriteDetailScreenTests() {
       await tester.tap(find.text('有来源的问题'));
       await tester.pumpAndSettle();
 
-      expect(find.byTooltip('跳转到来源对话'), findsOneWidget);
+      expect(find.text('原始对话'), findsOneWidget);
+
+      await tester.tap(find.text('原始对话'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('聊天落点'), findsOneWidget);
     },
   );
 
   testWidgets(
-    'favorites detail without source conversation has no go-to button',
+    'favorites detail hides source metadata when source is absent',
     (tester) async {
       final preferences = await createEmptyPreferences();
       final database = await createTestDatabase(preferences);
@@ -89,7 +94,7 @@ void registerFavoriteDetailScreenTests() {
       await tester.tap(find.text('无来源的问题'));
       await tester.pumpAndSettle();
 
-      expect(find.byTooltip('跳转到来源对话'), findsNothing);
+      expect(find.text('原始对话'), findsNothing);
     },
   );
 

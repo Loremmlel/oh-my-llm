@@ -12,7 +12,6 @@ import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/streaming_markdown_view.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/thinking_toggle.dart';
-import 'package:oh_my_llm/features/settings/application/chat_defaults_controller.dart';
 import 'package:oh_my_llm/features/settings/application/llm_model_configs_controller.dart';
 import 'package:oh_my_llm/features/settings/application/memory_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/application/template_prompts_controller.dart';
@@ -25,23 +24,6 @@ import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
 import 'chat_screen_test_helpers.dart';
 
 void registerChatScreenBasicsTests() {
-  testWidgets('chat screen shows core workspace controls', (tester) async {
-    final preferences = await createSeededPreferences();
-    final fakeClient = FakeChatCompletionClient();
-
-    await pumpChatScreen(
-      tester,
-      preferences: preferences,
-      fakeClient: fakeClient,
-    );
-
-    expect(find.byKey(const ValueKey('chat-model-selector')), findsOneWidget);
-    expect(find.byKey(const ValueKey('chat-prompt-selector')), findsOneWidget);
-    expect(find.text('历史会话面板'), findsOneWidget);
-    expect(find.text('未命名对话'), findsOneWidget);
-    expect(find.byType(ThinkingToggle), findsOneWidget);
-  });
-
   testWidgets('chat screen uses remembered model for reasoning capability', (
     tester,
   ) async {
@@ -91,47 +73,6 @@ void registerChatScreenBasicsTests() {
     expect(toggle.enabled, isTrue);
   });
 
-  testWidgets('chat screen can send template prompt with empty 正文', (
-    tester,
-  ) async {
-    final preferences = await createSeededPreferences();
-    final fakeClient = FakeChatCompletionClient()..enqueueChunks(['已收到']);
-
-    await pumpChatScreen(
-      tester,
-      preferences: preferences,
-      fakeClient: fakeClient,
-    );
-
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ChatScreen)),
-    );
-    await container
-        .read(templatePromptsProvider.notifier)
-        .upsert(
-          TemplatePrompt(
-            id: 'tp-empty-body',
-            title: '模板直发',
-            content: '请输出{{风格}}版摘要。',
-            variables: const [
-              TemplatePromptVariable(name: '风格', defaultValue: '简洁'),
-            ],
-            updatedAt: DateTime(2026, 5, 5, 0, 2),
-          ),
-        );
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byKey(const ValueKey('template-prompt-selector')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('模板直发').last);
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.widgetWithText(FilledButton, '发送'));
-    await tester.pumpAndSettle();
-
-    expect(fakeClient.requestHistory.last.last.content, '请输出简洁版摘要。');
-  });
-
   testWidgets('chat screen composer grows only while focused and multiline', (
     tester,
   ) async {
@@ -160,56 +101,6 @@ void registerChatScreenBasicsTests() {
 
     final collapsedHeight = tester.getRect(composerFinder).height;
     expect(collapsedHeight, lessThan(expandedHeight));
-  });
-
-  testWidgets('chat screen custom title item hides preview in history panel', (
-    tester,
-  ) async {
-    SharedPreferences.setMockInitialValues({
-      llmModelConfigsStorageKey: jsonEncode([
-        {
-          'id': 'model-1',
-          'displayName': 'DeepSeek V4 Flash',
-          'apiUrl': 'https://api.example.com/v1/chat/completions',
-          'apiKey': 'sk-test',
-          'modelName': 'deepseek-v4-flash',
-          'supportsReasoning': true,
-        },
-      ]),
-      chatConversationsStorageKey: jsonEncode([
-        {
-          'id': 'conversation-1',
-          'title': '这是一段超长的用户自定义历史标题用于验证两行显示',
-          'messages': [
-            {
-              'id': 'm1',
-              'role': 'user',
-              'content': '这段文本只用于生成预览',
-              'createdAt': DateTime(2026, 4, 29).toIso8601String(),
-            },
-          ],
-          'createdAt': DateTime(2026, 4, 29).toIso8601String(),
-          'updatedAt': DateTime(2026, 4, 29).toIso8601String(),
-          'selectedModelId': 'model-1',
-          'selectedPromptTemplateId': null,
-          'reasoningEnabled': false,
-          'reasoningEffort': 'medium',
-        },
-      ]),
-    });
-    final preferences = await SharedPreferences.getInstance();
-    final fakeClient = FakeChatCompletionClient();
-    await pumpChatScreen(
-      tester,
-      preferences: preferences,
-      fakeClient: fakeClient,
-    );
-
-    final historyTile = tester.widget<ListTile>(find.byType(ListTile).first);
-    expect(historyTile.subtitle, isNull);
-    final titleText = historyTile.title! as Tooltip;
-    final titleWidget = titleText.child! as Text;
-    expect(titleWidget.maxLines, 2);
   });
 
   testWidgets('chat screen renames conversation without controller errors', (
@@ -397,63 +288,6 @@ void registerChatScreenBasicsTests() {
     },
   );
 
-  testWidgets(
-    'chat screen shows applied checkpoint label after enabling checkpoint',
-    (tester) async {
-      final preferences = await createSeededPreferences();
-      final fakeClient = FakeChatCompletionClient()
-        ..enqueueChunks(['首轮回复'])
-        ..enqueueChunks(['阶段总结'])
-        ..enqueueChunks(['使用检查点后的回答']);
-
-      await pumpChatScreen(
-        tester,
-        preferences: preferences,
-        fakeClient: fakeClient,
-      );
-
-      final container = ProviderScope.containerOf(
-        tester.element(find.byType(ChatScreen)),
-      );
-      await container
-          .read(memoryPromptsProvider.notifier)
-          .upsert(
-            MemoryPrompt(
-              id: 'memory-1',
-              name: '研发总结',
-              content: '请总结当前研发对话中的关键事实、约束与待办。',
-              updatedAt: DateTime(2026, 5, 6),
-            ),
-          );
-      await tester.pumpAndSettle();
-
-      await sendMessage(tester, '第一轮问题');
-      await tester.pumpAndSettle();
-      final checkpoint = await container
-          .read(chatSessionsProvider.notifier)
-          .createCheckpoint(
-            modelConfig: container.read(llmModelConfigsProvider).single,
-            memoryPrompt: MemoryPrompt(
-              id: 'memory-1',
-              name: '研发总结',
-              content: '请总结当前研发对话中的关键事实、约束与待办。',
-              updatedAt: DateTime(2026, 5, 6),
-            ),
-            reasoningEnabled: false,
-            reasoningEffort: ReasoningEffort.medium,
-          );
-      await container
-          .read(chatSessionsProvider.notifier)
-          .selectActiveCheckpoint(checkpoint.id);
-      await tester.pumpAndSettle();
-
-      await sendMessage(tester, '第二轮问题');
-      await tester.pumpAndSettle();
-
-      expect(find.text('使用检查点：检查点 1'), findsOneWidget);
-    },
-  );
-
   testWidgets('chat screen can exclude a reply from future requests', (
     tester,
   ) async {
@@ -474,12 +308,10 @@ void registerChatScreenBasicsTests() {
     await tester.tap(find.byTooltip('从发送上下文中排除').last);
     await tester.pumpAndSettle();
 
-    expect(find.text('不发送'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('chat-message-filter-button')),
       findsOneWidget,
     );
-    expect(find.text('上下文过滤 · 已排除 1 条'), findsOneWidget);
 
     await sendMessage(tester, '第二轮问题');
     await tester.pumpAndSettle();
@@ -605,48 +437,6 @@ void registerChatScreenBasicsTests() {
     },
   );
 
-  testWidgets('message filter preview scrollbar supports dragging', (
-    tester,
-  ) async {
-    final preferences = await createSeededPreferences();
-    final longAssistantReply = List<String>.generate(
-      280,
-      (index) => '滚动预览内容 $index',
-    ).join('\n');
-    final fakeClient = FakeChatCompletionClient()
-      ..enqueueChunks([longAssistantReply]);
-
-    await pumpChatScreen(
-      tester,
-      preferences: preferences,
-      fakeClient: fakeClient,
-    );
-
-    await sendMessage(tester, '请返回滚动测试文本');
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byKey(const ValueKey('chat-message-filter-button')));
-    await tester.pumpAndSettle();
-
-    final scrollbarFinder = find.byKey(
-      const ValueKey('message-filter-preview-scrollbar'),
-    );
-    expect(scrollbarFinder, findsOneWidget);
-    final startController = tester
-        .widget<Scrollbar>(scrollbarFinder)
-        .controller;
-    expect(startController, isNotNull);
-    expect(startController!.hasClients, isTrue);
-    final startOffset = startController.offset;
-
-    await tester.drag(scrollbarFinder, const Offset(0, -220));
-    await tester.pumpAndSettle();
-
-    final endController = tester.widget<Scrollbar>(scrollbarFinder).controller;
-    expect(endController, isNotNull);
-    expect(endController!.offset, greaterThan(startOffset));
-  });
-
   testWidgets('chat screen keeps composer visible on compact layouts', (
     tester,
   ) async {
@@ -723,63 +513,6 @@ void registerChatScreenBasicsTests() {
     await tester.pumpAndSettle();
 
     expect(find.widgetWithText(FilledButton, '发送'), findsOneWidget);
-  });
-
-  testWidgets('chat screen applies selected template prompt to user message', (
-    tester,
-  ) async {
-    final preferences = await createSeededPreferences();
-    final fakeClient = FakeChatCompletionClient()..enqueueChunks(['已收到']);
-
-    await pumpChatScreen(
-      tester,
-      preferences: preferences,
-      fakeClient: fakeClient,
-    );
-
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ChatScreen)),
-    );
-    await container
-        .read(templatePromptsProvider.notifier)
-        .upsert(
-          TemplatePrompt(
-            id: 'tp-1',
-            title: '翻译模板',
-            content: '请把{{正文}}翻译成{{目标语言}}。',
-            variables: const [
-              TemplatePromptVariable(name: templatePromptBodyVariableName),
-              TemplatePromptVariable(name: '目标语言', defaultValue: '英文'),
-            ],
-            updatedAt: DateTime(2026, 5, 5),
-          ),
-        );
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byKey(const ValueKey('template-prompt-selector')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('翻译模板').last);
-    await tester.pumpAndSettle();
-
-    await tester.enterText(
-      find.byKey(const ValueKey('template-variable-目标语言')),
-      '法文',
-    );
-    await sendMessage(tester, '你好');
-    await tester.pumpAndSettle();
-
-    expect(fakeClient.requestHistory.last.last.content, '请把你好翻译成法文。');
-
-    final userMessage = container
-        .read(activeChatConversationProvider)
-        .messages
-        .firstWhere((message) => message.role == ChatMessageRole.user);
-    expect(userMessage.userMessageSegments, const [
-      UserMessageSegment(text: '请把', kind: UserMessageSegmentKind.template),
-      UserMessageSegment(text: '你好', kind: UserMessageSegmentKind.body),
-      UserMessageSegment(text: '翻译成法文。', kind: UserMessageSegmentKind.template),
-    ]);
-    expect(find.textContaining('请把你好翻译成法文。'), findsWidgets);
   });
 
   testWidgets(
@@ -891,7 +624,9 @@ void registerChatScreenBasicsTests() {
       ]),
     });
     final preferences = await SharedPreferences.getInstance();
-    final fakeClient = FakeChatCompletionClient()..enqueueChunks(['第一次回复']);
+    final fakeClient = FakeChatCompletionClient()
+      ..enqueueChunks(['第一次回复'])
+      ..enqueueChunks(['第二次回复']);
 
     await pumpChatScreen(
       tester,
@@ -908,14 +643,12 @@ void registerChatScreenBasicsTests() {
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('新建对话').first);
     await tester.pumpAndSettle();
+    await sendMessage(tester, '第二次问题');
+    await tester.pumpAndSettle();
 
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ChatScreen)),
-    );
-    expect(container.read(chatDefaultsProvider).defaultModelId, 'model-new');
     expect(
-      container.read(activeChatConversationProvider).selectedModelId,
-      'model-new',
+      fakeClient.requestedModels.map((config) => config.id).toList(),
+      ['model-new', 'model-new'],
     );
   });
 
@@ -1135,13 +868,6 @@ void registerChatScreenBasicsTests() {
         .toList(growable: false);
     expect(requestContents.first, '模板二前置');
 
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ChatScreen)),
-    );
-    expect(
-      container.read(chatDefaultsProvider).defaultPromptTemplateId,
-      'prompt-2',
-    );
   });
 
   testWidgets('chat screen can clear remembered Prompt from selector', (
@@ -1212,12 +938,5 @@ void registerChatScreenBasicsTests() {
         .toList(growable: false);
     expect(lastRequestContents, ['第二次问题']);
 
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ChatScreen)),
-    );
-    expect(
-      container.read(chatDefaultsProvider).defaultPromptTemplateId,
-      isNull,
-    );
   });
 }

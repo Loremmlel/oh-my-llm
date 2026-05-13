@@ -358,15 +358,26 @@ void main() {
     expect(messages[1].content, '你好！');
   });
 
-  test('sendMessage 自动裁剪前后空白', () async {
+  test('sendMessage 会裁剪有效输入并忽略纯空白内容', () async {
     fakeClient.enqueueChunks(['回复']);
     await sendMsg('  你好  ');
+
+    final notifier = container.read(chatSessionsProvider.notifier);
+    await notifier.sendMessage(
+      content: '   ',
+      modelConfig: _testModel,
+      promptTemplate: null,
+      reasoningEnabled: false,
+      reasoningEffort: ReasoningEffort.medium,
+    );
 
     final messages = container
         .read(chatSessionsProvider)
         .activeConversation
         .messages;
+    expect(messages, hasLength(2));
     expect(messages[0].content, '你好');
+    expect(messages[1].content, '回复');
   });
 
   test('setMessagesExcluded 会把排除状态保存到当前会话', () async {
@@ -409,22 +420,6 @@ void main() {
     expect(
       fakeClient.requestHistory.last.map((message) => message.content).toList(),
       ['第一轮问题', '第二轮问题'],
-    );
-  });
-
-  test('sendMessage 纯空白内容为空操作', () async {
-    await container
-        .read(chatSessionsProvider.notifier)
-        .sendMessage(
-          content: '   ',
-          modelConfig: _testModel,
-          promptTemplate: null,
-          reasoningEnabled: false,
-          reasoningEffort: ReasoningEffort.medium,
-        );
-    expect(
-      container.read(chatSessionsProvider).activeConversation.hasMessages,
-      isFalse,
     );
   });
 

@@ -17,114 +17,119 @@ PromptTemplate _template(String id) {
   );
 }
 
+class _MigrationContext {
+  const _MigrationContext({
+    required this.preferences,
+    required this.repository,
+  });
+
+  final SharedPreferences preferences;
+  final SqlitePromptTemplateRepository repository;
+}
+
+Future<_MigrationContext> _createMigrationContext({
+  Map<String, Object> initialValues = const <String, Object>{},
+  List<PromptTemplate> legacyTemplates = const <PromptTemplate>[],
+  List<PromptTemplate> sqliteTemplates = const <PromptTemplate>[],
+}) async {
+  SharedPreferences.setMockInitialValues(initialValues);
+  final preferences = await SharedPreferences.getInstance();
+  final database = AppDatabase.inMemory();
+  addTearDown(database.close);
+  final repository = SqlitePromptTemplateRepository(database);
+
+  if (sqliteTemplates.isNotEmpty) {
+    await repository.saveAll(sqliteTemplates);
+  }
+  if (legacyTemplates.isNotEmpty) {
+    await saveLegacyPromptTemplatesForTest(preferences, legacyTemplates);
+  }
+
+  return _MigrationContext(preferences: preferences, repository: repository);
+}
+
 void main() {
-  // ── 路径 1：SP 有旧数据，SQLite 为空，未迁移 ─────────────────────────────
-
-  test('路径1：SP 有旧数据，导入 SQLite 并清除 SP、置位标志', () async {
-    SharedPreferences.setMockInitialValues({});
-    final preferences = await SharedPreferences.getInstance();
-    await saveLegacyPromptTemplatesForTest(preferences, [_template('tpl-1')]);
-
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final repository = SqlitePromptTemplateRepository(database);
-
-    await migrateLegacyPromptTemplates(
-      preferences: preferences,
-      repository: repository,
+  test('迁移会导入旧版模板、清理 SP，并置位标志', () async {
+    final context = await _createMigrationContext(
+      legacyTemplates: [_template('tpl-1')],
     );
 
-    expect(repository.loadAll(), hasLength(1));
-    expect(repository.loadAll().single.id, 'tpl-1');
-    expect(preferences.getString(promptTemplatesStorageKey), isNull);
-    expect(preferences.getBool(promptTemplatesSqliteMigrationFlagKey), isTrue);
+    await migrateLegacyPromptTemplates(
+      preferences: context.preferences,
+      repository: context.repository,
+    );
+
+    expect(context.repository.loadAll(), hasLength(1));
+    expect(context.repository.loadAll().single.id, 'tpl-1');
+    expect(context.preferences.getString(promptTemplatesStorageKey), isNull);
+    expect(
+      context.preferences.getBool(promptTemplatesSqliteMigrationFlagKey),
+      isTrue,
+    );
   });
 
-  // ── 路径 2：迁移标志已置位 ────────────────────────────────────────────────
-
-  test('路径2：迁移标志已置位，无残留 SP → 直接返回，SQLite 保持不变', () async {
-    SharedPreferences.setMockInitialValues({
-      promptTemplatesSqliteMigrationFlagKey: true,
-    });
-    final preferences = await SharedPreferences.getInstance();
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final repository = SqlitePromptTemplateRepository(database);
-
-    await migrateLegacyPromptTemplates(
-      preferences: preferences,
-      repository: repository,
+  test('已满足迁移条件时保持幂等，并清理残留 SP 数据', () async {
+    final migratedContext = await _createMigrationContext(
+      initialValues: <String, Object>{
+        promptTemplatesSqliteMigrationFlagKey: true,
+      },
     );
 
-    expect(repository.loadAll(), isEmpty);
+    await migrateLegacyPromptTemplates(
+      preferences: migratedContext.preferences,
+      repository: migratedContext.repository,
+    );
+
+    expect(migratedContext.repository.loadAll(), isEmpty);
+
+    final residueContext = await _createMigrationContext(
+      initialValues: <String, Object>{
+        promptTemplatesSqliteMigrationFlagKey: true,
+      },
+      legacyTemplates: [_template('tpl-residue')],
+    );
+
+    await migrateLegacyPromptTemplates(
+      preferences: residueContext.preferences,
+      repository: residueContext.repository,
+    );
+
+    expect(residueContext.repository.loadAll(), isEmpty);
+    expect(residueContext.preferences.getString(promptTemplatesStorageKey), isNull);
   });
 
-  test('路径2b：迁移标志已置位，但 SP 仍有残留 → 清除 SP，不重复导入', () async {
-    SharedPreferences.setMockInitialValues({
-      promptTemplatesSqliteMigrationFlagKey: true,
-    });
-    final preferences = await SharedPreferences.getInstance();
-    // 向 SP 写入残留数据。
-    await saveLegacyPromptTemplatesForTest(preferences, [
-      _template('tpl-residue'),
-    ]);
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final repository = SqlitePromptTemplateRepository(database);
-
-    await migrateLegacyPromptTemplates(
-      preferences: preferences,
-      repository: repository,
+  test('SQLite 已有模板时保留现有数据并标记迁移完成', () async {
+    final context = await _createMigrationContext(
+      legacyTemplates: [_template('tpl-legacy')],
+      sqliteTemplates: [_template('tpl-existing')],
     );
 
-    // 残留数据未被导入，SP 已清除。
-    expect(repository.loadAll(), isEmpty);
-    expect(preferences.getString(promptTemplatesStorageKey), isNull);
+    await migrateLegacyPromptTemplates(
+      preferences: context.preferences,
+      repository: context.repository,
+    );
+
+    expect(context.repository.loadAll(), hasLength(1));
+    expect(context.repository.loadAll().single.id, 'tpl-existing');
+    expect(context.preferences.getString(promptTemplatesStorageKey), isNull);
+    expect(
+      context.preferences.getBool(promptTemplatesSqliteMigrationFlagKey),
+      isTrue,
+    );
   });
 
-  // ── 路径 3：SQLite 已有数据 ───────────────────────────────────────────────
-
-  test('路径3：SQLite 已有数据 + SP 有旧数据 → 跳过导入，清除 SP，置位标志', () async {
-    SharedPreferences.setMockInitialValues({});
-    final preferences = await SharedPreferences.getInstance();
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final repository = SqlitePromptTemplateRepository(database);
-
-    // 先向 SQLite 写入数据（模拟其他设备同步）。
-    await repository.saveAll([_template('tpl-existing')]);
-    // 再向 SP 写入旧数据。
-    await saveLegacyPromptTemplatesForTest(preferences, [
-      _template('tpl-legacy'),
-    ]);
+  test('全新安装会直接置位迁移标志', () async {
+    final context = await _createMigrationContext();
 
     await migrateLegacyPromptTemplates(
-      preferences: preferences,
-      repository: repository,
+      preferences: context.preferences,
+      repository: context.repository,
     );
 
-    // SQLite 仍只有原始数据，旧数据未被覆盖。
-    expect(repository.loadAll(), hasLength(1));
-    expect(repository.loadAll().single.id, 'tpl-existing');
-    expect(preferences.getString(promptTemplatesStorageKey), isNull);
-    expect(preferences.getBool(promptTemplatesSqliteMigrationFlagKey), isTrue);
-  });
-
-  // ── 路径 4：全新安装 ──────────────────────────────────────────────────────
-
-  test('路径4：全新安装（SP 和 SQLite 均为空）→ 直接置位标志', () async {
-    SharedPreferences.setMockInitialValues({});
-    final preferences = await SharedPreferences.getInstance();
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final repository = SqlitePromptTemplateRepository(database);
-
-    await migrateLegacyPromptTemplates(
-      preferences: preferences,
-      repository: repository,
+    expect(context.repository.loadAll(), isEmpty);
+    expect(
+      context.preferences.getBool(promptTemplatesSqliteMigrationFlagKey),
+      isTrue,
     );
-
-    expect(repository.loadAll(), isEmpty);
-    expect(preferences.getBool(promptTemplatesSqliteMigrationFlagKey), isTrue);
   });
 }

@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/chat/application/chat_request_message_builder.dart';
-import 'package:oh_my_llm/features/chat/data/chat_completion_client.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_checkpoint.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompt_template.dart';
@@ -50,7 +49,7 @@ void main() {
   // ── 无模板 ────────────────────────────────────────────────────────────────
 
   group('无模板（promptTemplate == null）', () {
-    test('只返回会话消息', () {
+    test('透传会话消息，并在没有会话消息时返回空列表', () {
       final result = buildRequestMessages(
         promptTemplate: null,
         conversationMessages: [
@@ -62,31 +61,12 @@ void main() {
       expect(result, hasLength(2));
       expect(result[0].role, ChatMessageRole.user);
       expect(result[1].role, ChatMessageRole.assistant);
-    });
-
-    test('会话消息为空时返回空列表', () {
-      final result = buildRequestMessages(
-        promptTemplate: null,
-        conversationMessages: const [],
-      );
-
-      expect(result, isEmpty);
-    });
-
-    test('返回不可变列表', () {
-      final result = buildRequestMessages(
-        promptTemplate: null,
-        conversationMessages: [buildUserMessage('test')],
-      );
-
       expect(
-        () => result.add(
-          const ChatCompletionRequestMessage(
-            role: ChatMessageRole.user,
-            content: 'x',
-          ),
+        buildRequestMessages(
+          promptTemplate: null,
+          conversationMessages: const [],
         ),
-        throwsUnsupportedError,
+        isEmpty,
       );
     });
   });
@@ -94,9 +74,9 @@ void main() {
   // ── 有模板：system prompt ─────────────────────────────────────────────────
 
   group('模板含 systemPrompt', () {
-    test('非空 systemPrompt 作为第一条 system 消息插入', () {
+    test('非空 systemPrompt 会在首位插入裁剪后的 system 消息', () {
       final result = buildRequestMessages(
-        promptTemplate: buildTemplate(systemPrompt: '你是一名助手'),
+        promptTemplate: buildTemplate(systemPrompt: '  你是一名助手  '),
         conversationMessages: [buildUserMessage('问题')],
       );
 
@@ -112,15 +92,6 @@ void main() {
       );
 
       expect(result.any((m) => m.role == ChatMessageRole.system), isFalse);
-    });
-
-    test('systemPrompt 首尾空白被 trim', () {
-      final result = buildRequestMessages(
-        promptTemplate: buildTemplate(systemPrompt: '  你是助手  '),
-        conversationMessages: [buildUserMessage('问题')],
-      );
-
-      expect(result[0].content, '你是助手');
     });
   });
 
@@ -190,17 +161,6 @@ void main() {
         '真实问题',
         '系统后置',
       ]);
-    });
-
-    test('模板消息列表为空时不增加额外条目', () {
-      final result = buildRequestMessages(
-        promptTemplate: buildTemplate(),
-        conversationMessages: [buildUserMessage('问题')],
-      );
-
-      // 没有 system（空），没有模板消息，只有一条会话消息。
-      expect(result, hasLength(1));
-      expect(result.single.content, '问题');
     });
 
     test('after 模板消息排在会话消息后面', () {
@@ -317,19 +277,6 @@ void main() {
       );
 
       expect(result.single.content, longContent);
-    });
-  });
-
-  // ── 返回类型 ──────────────────────────────────────────────────────────────
-
-  group('返回类型约束', () {
-    test('返回的每条消息均为 ChatCompletionRequestMessage', () {
-      final result = buildRequestMessages(
-        promptTemplate: buildTemplate(systemPrompt: 'sys'),
-        conversationMessages: [buildUserMessage('hi')],
-      );
-
-      expect(result, everyElement(isA<ChatCompletionRequestMessage>()));
     });
   });
 

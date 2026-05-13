@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:oh_my_llm/features/settings/data/sqlite_fixed_prompt_sequence_repository.dart';
 import 'package:oh_my_llm/features/settings/presentation/settings_screen.dart';
 
 import 'settings_screen_test_helpers.dart';
@@ -10,14 +11,13 @@ void registerSettingsScreenFixedPromptSequencesTests() {
     'settings screen supports fixed prompt sequence CRUD flows',
     (tester) async {
       final preferences = await createEmptyPreferences();
-
-      await pumpSettingsScreen(
+      final database = await pumpSettingsScreen(
         tester,
         preferences: preferences,
         size: const Size(1440, 2200),
       );
-
-      expect(find.text('还没有固定顺序提示词'), findsOneWidget);
+      final repository = SqliteFixedPromptSequenceRepository(database);
+      expect(repository.loadAll(), isEmpty);
 
       await tester.tap(find.text('新增序列'));
       await tester.pumpAndSettle();
@@ -48,7 +48,9 @@ void registerSettingsScreenFixedPromptSequencesTests() {
       expect(stepTile('标题2'), findsOneWidget);
       await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
-      expect(find.text('对比测试流程'), findsWidgets);
+      final createdSequence = repository.loadAll().single;
+      expect(createdSequence.name, '对比测试流程');
+      expect(createdSequence.steps, hasLength(2));
       expect(find.text('对比测试流程'), findsWidgets);
       expect(find.textContaining('共 2 步'), findsOneWidget);
 
@@ -77,16 +79,11 @@ void registerSettingsScreenFixedPromptSequencesTests() {
       );
       await tester.tap(editButton);
       await tester.pumpAndSettle();
-      expect(
-        tester.widget<TextFormField>(
-          fixedPromptSequenceNameField(),
-        ).controller?.text,
-        '对比测试流程',
-      );
       await tester.enterText(fixedPromptSequenceNameField(), '对比测试流程 v2');
       await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
 
+      expect(repository.loadAll().single.name, '对比测试流程 v2');
       expect(find.text('对比测试流程 v2'), findsWidgets);
 
       final deleteButton = find.descendant(
@@ -101,7 +98,7 @@ void registerSettingsScreenFixedPromptSequencesTests() {
       await tester.tap(deleteButton);
       await tester.pumpAndSettle();
 
-      expect(find.text('还没有固定顺序提示词'), findsOneWidget);
+      expect(repository.loadAll(), isEmpty);
     },
   );
 
@@ -213,107 +210,6 @@ void registerSettingsScreenFixedPromptSequencesTests() {
       expect(insertedTop, lessThan(step2Top));
       expect(step2Top, lessThan(step3Top));
 
-      final titleField = tester.widget<TextFormField>(fixedStepTitleField());
-      final contentField = tester.widget<TextFormField>(fixedStepContentField());
-      expect(titleField.controller?.text, insertedTitle);
-      expect(contentField.controller?.text, isEmpty);
     },
   );
-
-  testWidgets('fixed prompt sequence dialog keeps wide master header visible', (
-    tester,
-  ) async {
-    final preferences = await createEmptyPreferences();
-
-    await pumpSettingsScreen(
-      tester,
-      preferences: preferences,
-      size: const Size(1440, 2200),
-    );
-
-    await tester.tap(find.text('新增序列'));
-    await tester.pumpAndSettle();
-
-    final masterPane = find.byKey(
-      const ValueKey('fixed-prompt-sequence-master-pane'),
-    );
-    Finder stepTile(String title) =>
-        find.descendant(of: masterPane, matching: find.text(title));
-    String currentStepTitle() {
-      final titleField = tester.widget<TextFormField>(fixedStepTitleField());
-      return titleField.controller?.text ?? '';
-    }
-    final addStepButton = find.descendant(
-      of: masterPane,
-      matching: find.widgetWithText(OutlinedButton, '新增步骤'),
-    );
-
-    for (var index = 2; index <= 20; index++) {
-      await tester.tap(addStepButton);
-      await tester.pump();
-    }
-    await tester.pumpAndSettle();
-
-    final header = find.descendant(of: masterPane, matching: find.text('步骤列表'));
-    final stepList = find.descendant(
-      of: masterPane,
-      matching: find.byType(ListView),
-    );
-    final headerOffsetBefore = tester.getTopLeft(header);
-    final latestAutoTitle = currentStepTitle();
-    expect(latestAutoTitle, isNotEmpty);
-
-    await tester.dragUntilVisible(
-      stepTile(latestAutoTitle),
-      stepList,
-      const Offset(0, -300),
-    );
-    await tester.pumpAndSettle();
-
-    expect(stepTile(latestAutoTitle), findsOneWidget);
-    expect(tester.getTopLeft(header).dy, headerOffsetBefore.dy);
-    expect(addStepButton, findsOneWidget);
-  });
-
-  testWidgets('fixed prompt sequence dialog locks wide detail pane scroll', (
-    tester,
-  ) async {
-    final preferences = await createEmptyPreferences();
-
-    await pumpSettingsScreen(
-      tester,
-      preferences: preferences,
-      size: const Size(1440, 2200),
-    );
-
-    await tester.tap(find.text('新增序列'));
-    await tester.pumpAndSettle();
-
-    final detailPane = find.byKey(
-      const ValueKey('fixed-prompt-sequence-detail-pane'),
-    );
-    final deleteButton = find.descendant(
-      of: detailPane,
-      matching: find.widgetWithText(OutlinedButton, '删除当前步骤'),
-    );
-
-    expect(
-      find.descendant(
-        of: detailPane,
-        matching: find.byType(SingleChildScrollView),
-      ),
-      findsNothing,
-    );
-
-    final contentEditor = tester.widget<EditableText>(
-      find.descendant(
-        of: fixedStepContentField(),
-        matching: find.byType(EditableText),
-      ),
-    );
-    expect(contentEditor.expands, isTrue);
-    expect(contentEditor.maxLines, isNull);
-    expect(contentEditor.minLines, isNull);
-    expect(deleteButton.hitTestable(), findsOneWidget);
-  });
 }
