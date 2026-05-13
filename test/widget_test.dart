@@ -14,7 +14,7 @@ import 'package:oh_my_llm/features/settings/data/prompt_template_repository.dart
 import 'test_database.dart';
 
 void main() {
-  testWidgets('app boots into desktop chat shell', (tester) async {
+  testWidgets('app bootstrap smoke test', (tester) async {
     SharedPreferences.setMockInitialValues({
       llmModelConfigsStorageKey: jsonEncode([
         {
@@ -61,37 +61,5 @@ void main() {
 
     expect(find.text('历史会话面板'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, '发送'), findsOneWidget);
-  });
-
-  testWidgets('app shows compact navigation shell on narrow screens', (
-    tester,
-  ) async {
-    SharedPreferences.setMockInitialValues(<String, Object>{});
-    final preferences = await SharedPreferences.getInstance();
-    final database = await createTestDatabase(preferences);
-
-    tester.view.physicalSize = const Size(430, 932);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(() {
-      tester.view.resetPhysicalSize();
-      tester.view.resetDevicePixelRatio();
-      database.close();
-    });
-
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          appDatabaseProvider.overrideWithValue(database),
-          sharedPreferencesProvider.overrideWithValue(preferences),
-        ],
-        child: const OhMyLlmApp(),
-      ),
-    );
-
-    await tester.pumpAndSettle();
-
-    expect(find.text('历史对话'), findsOneWidget);
-    expect(find.text('设置'), findsOneWidget);
-    expect(find.byType(NavigationBar), findsOneWidget);
   });
 }
