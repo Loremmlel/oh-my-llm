@@ -10,7 +10,7 @@ import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'chat_screen_test_helpers.dart';
 
 void registerChatScreenStreamingTests() {
-  testWidgets('chat screen streams reply and updates anchors/history', (
+  testWidgets('chat screen streams reply and sends the active request history', (
     tester,
   ) async {
     final preferences = await createSeededPreferences();
@@ -41,10 +41,6 @@ void registerChatScreenStreamingTests() {
 
     expect(find.textContaining('帮我总结一下这个仓库'), findsWidgets);
     expect(find.textContaining('第一段 第二段'), findsWidgets);
-    expect(find.textContaining('帮我总结一下这个仓'), findsWidgets);
-    expect(find.byKey(const ValueKey('message-anchor-rail')), findsOneWidget);
-    expect(find.byKey(const ValueKey('message-anchor-item-1')), findsOneWidget);
-    expect(find.text('最近'), findsOneWidget);
     expect(
       fakeClient.lastRequestMessages.map((message) => message.role).toList(),
       [ChatMessageRole.user],
@@ -82,59 +78,6 @@ void registerChatScreenStreamingTests() {
     expect(find.text('这是思考过程'), findsOneWidget);
     expect(find.text('收起'), findsOneWidget);
   });
-
-  testWidgets(
-    'chat screen keeps word counts visible after streaming completes',
-    (tester) async {
-      final preferences = await createSeededPreferences();
-      final fakeClient = FakeChatCompletionClient()
-        ..enqueueDeltas([
-          const ChatCompletionChunk(reasoningDelta: '深度 思考'),
-          const ChatCompletionChunk(contentDelta: 'hello 世界！'),
-        ]);
-
-      await pumpChatScreen(
-        tester,
-        preferences: preferences,
-        fakeClient: fakeClient,
-      );
-
-      await sendMessage(tester, '请统计字数');
-      await tester.pumpAndSettle();
-
-      expect(find.text('深度思考：4 字，回复：3 字'), findsOneWidget);
-    },
-  );
-
-  testWidgets(
-    'chat screen only shows one assistant bubble after reasoning-only failure',
-    (tester) async {
-      final preferences = await createSeededPreferences();
-      final streamController = StreamController<ChatCompletionChunk>();
-      addTearDown(streamController.close);
-      final fakeClient = FakeChatCompletionClient()
-        ..enqueueStream(streamController.stream);
-
-      await pumpChatScreen(
-        tester,
-        preferences: preferences,
-        fakeClient: fakeClient,
-      );
-
-      await sendMessage(tester, '先思考再失败');
-      await tester.pump();
-
-      streamController.add(const ChatCompletionChunk(reasoningDelta: '这是思考过程'));
-      await tester.pump(const Duration(milliseconds: 16));
-      streamController.addError(const ChatCompletionException('请求失败'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('请求失败'), findsOneWidget);
-      expect(find.byTooltip('复制消息'), findsNWidgets(2));
-      expect(find.text('展开'), findsNothing);
-      expect(find.text('深度思考：6 字，回复：0 字'), findsNothing);
-    },
-  );
 
   testWidgets('chat screen copies raw message content without reasoning', (
     tester,

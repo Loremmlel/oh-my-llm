@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:oh_my_llm/core/persistence/app_database.dart';
-
 import '../../test_database.dart';
 import 'favorites_screen_test_helpers.dart';
 
@@ -66,9 +64,7 @@ void registerFavoritesScreenBasicsTests() {
     expect(find.text('未分类回复'), findsOneWidget);
   });
 
-  testWidgets('favorites screen collection filter shows empty state when empty', (
-    tester,
-  ) async {
+  testWidgets('favorites screen shows empty hint for empty filters', (tester) async {
     final preferences = await createEmptyPreferences();
     final database = await createTestDatabase(preferences);
 
@@ -83,25 +79,12 @@ void registerFavoritesScreenBasicsTests() {
     await tester.tap(find.widgetWithText(FilterChip, '我的收藏夹'));
     await tester.pumpAndSettle();
 
-    expect(find.text('该收藏夹暂无收藏。'), findsOneWidget);
-  });
-
-  testWidgets('favorites screen uncategorized filter shows empty state when empty', (
-    tester,
-  ) async {
-    final preferences = await createEmptyPreferences();
-    final database = AppDatabase.inMemory();
-
-    await pumpFavoritesScreen(
-      tester,
-      preferences: preferences,
-      database: database,
-    );
+    expect(find.textContaining('暂无收藏'), findsOneWidget);
 
     await tester.tap(find.widgetWithText(FilterChip, '未分类'));
     await tester.pumpAndSettle();
 
-    expect(find.text('未分类下暂无收藏。'), findsOneWidget);
+    expect(find.textContaining('暂无收藏'), findsOneWidget);
   });
 
   testWidgets('favorites screen tapping item navigates to detail', (

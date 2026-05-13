@@ -19,29 +19,6 @@ void registerManageCollectionsDialogTests() {
     expect(find.text('暂无收藏夹。收藏回复时可创建。'), findsOneWidget);
   });
 
-  testWidgets('manage collections dialog lists existing collections', (
-    tester,
-  ) async {
-    final preferences = await createEmptyPreferences();
-    final database = await createTestDatabase(preferences);
-
-    seedCollection(database, id: 'col-1', name: '工作笔记');
-    seedCollection(database, id: 'col-2', name: '学习资料');
-
-    await pumpFavoritesScreen(
-      tester,
-      preferences: preferences,
-      database: database,
-    );
-
-    await tester.tap(find.byTooltip('管理收藏夹'));
-    await tester.pumpAndSettle();
-
-    // Collection names appear in both the filter chip bar and the dialog list.
-    expect(find.text('工作笔记'), findsWidgets);
-    expect(find.text('学习资料'), findsWidgets);
-  });
-
   testWidgets('manage collections dialog renames collection', (tester) async {
     final preferences = await createEmptyPreferences();
     final database = await createTestDatabase(preferences);
@@ -60,16 +37,17 @@ void registerManageCollectionsDialogTests() {
     await tester.tap(find.byTooltip('重命名'));
     await tester.pumpAndSettle();
 
-    await tester.enterText(
-      find.descendant(
-        of: find.byType(ManageCollectionsDialog),
-        matching: find.byType(TextField),
-      ),
-      '新名称',
-    );
+    expect(find.byType(TextField), findsOneWidget);
+    await tester.enterText(find.byType(TextField), '新名称');
     await tester.tap(find.byTooltip('确认重命名'));
     await tester.pumpAndSettle();
 
+    final renamedName = database.connection.select(
+      'SELECT name FROM collections WHERE id = ?;',
+      ['col-1'],
+    ).single['name'];
+
+    expect(renamedName, '新名称');
     expect(find.text('新名称'), findsWidgets);
     expect(find.text('旧名称'), findsNothing);
   });

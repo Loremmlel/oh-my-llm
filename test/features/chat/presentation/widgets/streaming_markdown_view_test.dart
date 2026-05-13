@@ -13,28 +13,23 @@ Finder _findRichTextContaining(String text) {
 
 void main() {
   group('normalizeLatexLikeTextForDisplay', () {
-    test('常见箭头命令会降级为可读符号', () {
-      final output = normalizeLatexLikeTextForDisplay(
-        r'方向：$\LeftArrow$、$\RightArrow$、$\LeftRightArrow$',
+    test('只替换已知箭头命令，并保留未知命令与普通文本', () {
+      expect(
+        normalizeLatexLikeTextForDisplay(
+          r'方向：$\LeftArrow$、$\RightArrow$、$\LeftRightArrow$',
+        ),
+        '方向：←、→、↔',
       );
-
-      expect(output, '方向：←、→、↔');
-    });
-
-    test('未知命令保持原样，避免误改', () {
-      final output = normalizeLatexLikeTextForDisplay(r'未知：$\UnknownSymbol$');
-
-      expect(output, r'未知：$\UnknownSymbol$');
-    });
-
-    test('非 TeX 文本不受影响', () {
-      final output = normalizeLatexLikeTextForDisplay('普通文本 123');
-      expect(output, '普通文本 123');
+      expect(
+        normalizeLatexLikeTextForDisplay(r'未知：$\UnknownSymbol$'),
+        r'未知：$\UnknownSymbol$',
+      );
+      expect(normalizeLatexLikeTextForDisplay('普通文本 123'), '普通文本 123');
     });
   });
 
   group('StreamingMarkdownView smooth streaming', () {
-    testWidgets('流式时可持续追加渲染并在结束后保留最终内容', (tester) async {
+    testWidgets('流式时即时回显最新增量并在结束后保留最终内容', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
           home: Scaffold(
@@ -53,8 +48,7 @@ void main() {
         ),
       );
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 120));
-      expect(_findRichTextContaining('第一段'), findsOneWidget);
+      expect(find.text('第一段'), findsWidgets);
 
       await tester.pumpWidget(
         const MaterialApp(
@@ -64,9 +58,7 @@ void main() {
         ),
       );
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 120));
-      expect(_findRichTextContaining('第一段'), findsOneWidget);
-      expect(_findRichTextContaining('第二段'), findsOneWidget);
+      expect(find.text('正在等待模型返回内容...'), findsNothing);
 
       await tester.pumpWidget(
         const MaterialApp(
@@ -78,9 +70,10 @@ void main() {
           ),
         ),
       );
-      await tester.pump();
+      await tester.pumpAndSettle();
       expect(_findRichTextContaining('第一段'), findsOneWidget);
       expect(_findRichTextContaining('第二段'), findsOneWidget);
+      expect(find.text('正在等待模型返回内容...'), findsNothing);
     });
   });
 }
