@@ -387,8 +387,6 @@ class SettingsScreen extends ConsumerWidget {
                 final template = PromptTemplate(
                   id: initialValue?.id ?? generateEntityId(),
                   name: formData.name,
-                  systemPromptTitle: formData.systemPromptTitle,
-                  systemPrompt: formData.systemPrompt,
                   messages: formData.messages,
                   updatedAt: DateTime.now(),
                 );

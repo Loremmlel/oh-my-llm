@@ -626,6 +626,35 @@ void registerChatScreenBasicsTests() {
     );
   });
 
+  testWidgets('message filter preview fills detail width for short content', (
+    tester,
+  ) async {
+    final preferences = await createSeededPreferences();
+    final fakeClient = FakeChatCompletionClient()..enqueueChunks(['好。']);
+
+    await pumpChatScreen(
+      tester,
+      preferences: preferences,
+      fakeClient: fakeClient,
+    );
+
+    await sendMessage(tester, '短消息');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('chat-message-filter-button')));
+    await tester.pumpAndSettle();
+
+    final dialog = find.widgetWithText(AlertDialog, '上下文过滤');
+    final previewContainer = find.descendant(
+      of: dialog,
+      matching: find.byKey(const ValueKey('message-filter-preview-container')),
+    );
+    final dialogRect = tester.getRect(dialog);
+    final previewRect = tester.getRect(previewContainer);
+
+    expect(previewRect.width, greaterThan(dialogRect.width * 0.3));
+  });
+
   testWidgets(
     'message filter dialog uses the same word-count rule as checkpoints',
     (tester) async {

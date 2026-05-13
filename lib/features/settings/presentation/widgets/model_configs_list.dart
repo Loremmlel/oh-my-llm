@@ -145,12 +145,29 @@ class _ProviderTileState extends ConsumerState<_ProviderTile> {
                   const SizedBox(height: 12),
                   actionButtons,
                 ] else
-                  Row(
+                  Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(child: _ProviderInfo(provider: provider)),
-                      const SizedBox(width: 12),
-                      Flexible(child: actionButtons),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              provider.name,
+                              style: theme.textTheme.titleMedium,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Flexible(
+                            child: Align(
+                              alignment: Alignment.topRight,
+                              child: actionButtons,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      _ProviderInfoBody(provider: provider),
                     ],
                   ),
                 const SizedBox(height: 12),
@@ -276,12 +293,29 @@ class _ProviderModelTile extends ConsumerWidget {
                   const SizedBox(height: 12),
                   actionButtons,
                 ] else
-                  Row(
+                  Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(child: _ProviderModelInfo(model: model)),
-                      const SizedBox(width: 8),
-                      Flexible(child: actionButtons),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              model.displayName,
+                              style: theme.textTheme.titleSmall,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Align(
+                              alignment: Alignment.topRight,
+                              child: actionButtons,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      _ProviderModelInfoBody(model: model),
                     ],
                   ),
               ],
@@ -307,6 +341,24 @@ class _ProviderInfo extends StatelessWidget {
       children: [
         Text(provider.name, style: theme.textTheme.titleMedium),
         const SizedBox(height: 8),
+        _ProviderInfoBody(provider: provider),
+      ],
+    );
+  }
+}
+
+class _ProviderInfoBody extends StatelessWidget {
+  const _ProviderInfoBody({required this.provider});
+
+  final LlmProviderConfig provider;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
         Wrap(
           spacing: 8,
           runSpacing: 8,
@@ -385,21 +437,32 @@ class _ProviderModelInfo extends StatelessWidget {
       children: [
         Text(model.displayName, style: theme.textTheme.titleSmall),
         const SizedBox(height: 6),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            _ProviderMetaChip(
-              icon: Icons.memory_rounded,
-              label: 'API 模型名称：${model.modelName}',
-            ),
-            if (model.supportsReasoning)
-              const _ProviderMetaChip(
-                icon: Icons.psychology_alt_outlined,
-                label: '支持深度思考',
-              ),
-          ],
+        _ProviderModelInfoBody(model: model),
+      ],
+    );
+  }
+}
+
+class _ProviderModelInfoBody extends StatelessWidget {
+  const _ProviderModelInfoBody({required this.model});
+
+  final LlmProviderModelConfig model;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        _ProviderMetaChip(
+          icon: Icons.memory_rounded,
+          label: 'API 模型名称：${model.modelName}',
         ),
+        if (model.supportsReasoning)
+          const _ProviderMetaChip(
+            icon: Icons.psychology_alt_outlined,
+            label: '支持深度思考',
+          ),
       ],
     );
   }
