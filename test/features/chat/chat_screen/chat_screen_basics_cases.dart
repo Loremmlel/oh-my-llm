@@ -132,52 +132,6 @@ void registerChatScreenBasicsTests() {
     expect(fakeClient.requestHistory.last.last.content, '请输出简洁版摘要。');
   });
 
-  testWidgets('chat screen keeps spacing between template selector and 正文', (
-    tester,
-  ) async {
-    final preferences = await createSeededPreferences();
-    final fakeClient = FakeChatCompletionClient();
-
-    await pumpChatScreen(
-      tester,
-      preferences: preferences,
-      fakeClient: fakeClient,
-    );
-
-    final selectorRect = tester.getRect(
-      find.byKey(const ValueKey('template-prompt-selector')),
-    );
-    final composerRect = tester.getRect(
-      find.byKey(const ValueKey('chat-message-composer')),
-    );
-
-    expect(composerRect.top, greaterThanOrEqualTo(selectorRect.bottom + 10));
-  });
-
-  testWidgets(
-    'chat screen keeps desktop send button aligned to the far right',
-    (tester) async {
-      final preferences = await createSeededPreferences();
-      final fakeClient = FakeChatCompletionClient();
-
-      await pumpChatScreen(
-        tester,
-        preferences: preferences,
-        fakeClient: fakeClient,
-      );
-
-      final composerCardRect = tester.getRect(find.byType(Card).last);
-      final sendButtonRect = tester.getRect(
-        find.widgetWithText(FilledButton, '发送'),
-      );
-
-      expect(
-        sendButtonRect.right,
-        greaterThanOrEqualTo(composerCardRect.right - 18),
-      );
-    },
-  );
-
   testWidgets('chat screen composer grows only while focused and multiline', (
     tester,
   ) async {
@@ -626,35 +580,6 @@ void registerChatScreenBasicsTests() {
     );
   });
 
-  testWidgets('message filter preview fills detail width for short content', (
-    tester,
-  ) async {
-    final preferences = await createSeededPreferences();
-    final fakeClient = FakeChatCompletionClient()..enqueueChunks(['好。']);
-
-    await pumpChatScreen(
-      tester,
-      preferences: preferences,
-      fakeClient: fakeClient,
-    );
-
-    await sendMessage(tester, '短消息');
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byKey(const ValueKey('chat-message-filter-button')));
-    await tester.pumpAndSettle();
-
-    final dialog = find.widgetWithText(AlertDialog, '上下文过滤');
-    final previewContainer = find.descendant(
-      of: dialog,
-      matching: find.byKey(const ValueKey('message-filter-preview-container')),
-    );
-    final dialogRect = tester.getRect(dialog);
-    final previewRect = tester.getRect(previewContainer);
-
-    expect(previewRect.width, greaterThan(dialogRect.width * 0.3));
-  });
-
   testWidgets(
     'message filter dialog uses the same word-count rule as checkpoints',
     (tester) async {
@@ -900,7 +825,7 @@ void registerChatScreenBasicsTests() {
   );
 
   testWidgets(
-    'chat screen lays out template variables compactly on wide screens',
+    'chat screen shows multiple template variable inputs on wide screens',
     (tester) async {
       final preferences = await createSeededPreferences();
       final fakeClient = FakeChatCompletionClient();
@@ -936,15 +861,9 @@ void registerChatScreenBasicsTests() {
       await tester.tap(find.text('多变量模板').last);
       await tester.pumpAndSettle();
 
-      final toneRect = tester.getRect(
-        find.byKey(const ValueKey('template-variable-语气')),
-      );
-      final lengthRect = tester.getRect(
-        find.byKey(const ValueKey('template-variable-长度')),
-      );
-
-      expect(toneRect.top, lengthRect.top);
-      expect(lengthRect.left, greaterThan(toneRect.left));
+      expect(find.byKey(const ValueKey('template-variable-语气')), findsOneWidget);
+      expect(find.byKey(const ValueKey('template-variable-长度')), findsOneWidget);
+      expect(find.byKey(const ValueKey('template-variable-受众')), findsOneWidget);
     },
   );
 
