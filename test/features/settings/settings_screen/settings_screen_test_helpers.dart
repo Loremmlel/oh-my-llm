@@ -103,3 +103,54 @@ Future<SharedPreferences> createDefaultsSeededPreferences() async {
   });
   return SharedPreferences.getInstance();
 }
+
+Finder providerNameField() =>
+    find.byKey(const ValueKey('model-provider-name-field'));
+
+Finder providerApiUrlField() =>
+    find.byKey(const ValueKey('model-provider-api-url-field'));
+
+Finder providerApiKeyField() =>
+    find.byKey(const ValueKey('model-provider-api-key-field'));
+
+Finder modelDisplayNameField() =>
+    find.byKey(const ValueKey('model-config-display-name-field'));
+
+Finder modelApiNameField() =>
+    find.byKey(const ValueKey('model-config-api-name-field'));
+
+Finder modelSupportsReasoningField() =>
+    find.byKey(const ValueKey('model-config-supports-reasoning-field'));
+
+Finder presetPromptNameField() =>
+    find.byKey(const ValueKey('preset-prompt-name-field'));
+
+Finder presetPromptTitleField() =>
+    find.byKey(const ValueKey('preset-prompt-title-field'));
+
+Finder presetPromptContentField() =>
+    find.byKey(const ValueKey('preset-prompt-content-field'));
+
+Finder fixedPromptSequenceNameField() =>
+    find.byKey(const ValueKey('fixed-prompt-sequence-name-field'));
+
+Finder fixedStepTitleField() =>
+    find.byKey(const ValueKey('fixed-step-title-field'));
+
+Finder fixedStepContentField() =>
+    find.byKey(const ValueKey('fixed-step-content-field'));
+
+Finder templatePromptTitleField() =>
+    find.byKey(const ValueKey('template-prompt-title-field'));
+
+Finder templatePromptContentField() =>
+    find.byKey(const ValueKey('template-prompt-content-field'));
+
+Finder templatePromptVariableField(String variableName) =>
+    find.byKey(ValueKey('template-prompt-variable-field-$variableName'));
+
+Finder memoryPromptNameField() =>
+    find.byKey(const ValueKey('memory-prompt-name-field'));
+
+Finder memoryPromptContentField() =>
+    find.byKey(const ValueKey('memory-prompt-content-field'));

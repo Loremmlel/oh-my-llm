@@ -107,6 +107,7 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           TextFormField(
+            key: const ValueKey('template-prompt-title-field'),
             controller: _titleController,
             decoration: const InputDecoration(
               labelText: '标题',
@@ -116,6 +117,7 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
           ),
           const SizedBox(height: 12),
           TextFormField(
+            key: const ValueKey('template-prompt-content-field'),
             controller: _contentController,
             minLines: 5,
             maxLines: 10,
@@ -144,6 +146,9 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: TextFormField(
+                    key: ValueKey(
+                      'template-prompt-variable-field-${variable.name}',
+                    ),
                     controller: _variableControllers[variable.name],
                     decoration: InputDecoration(
                       labelText: variable.name,

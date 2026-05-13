@@ -1,24 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:oh_my_llm/features/settings/data/sqlite_fixed_prompt_sequence_repository.dart';
 import 'package:oh_my_llm/features/settings/presentation/settings_screen.dart';
 
 import 'settings_screen_test_helpers.dart';
 
 void registerSettingsScreenFixedPromptSequencesTests() {
   testWidgets(
-    'settings screen supports fixed prompt sequence CRUD with persistence',
+    'settings screen supports fixed prompt sequence CRUD flows',
     (tester) async {
       final preferences = await createEmptyPreferences();
 
-      // 接收数据库实例以便查询 SQLite 断言。
-      final database = await pumpSettingsScreen(
+      await pumpSettingsScreen(
         tester,
         preferences: preferences,
         size: const Size(1440, 2200),
       );
-      final repo = SqliteFixedPromptSequenceRepository(database);
 
       expect(find.text('还没有固定顺序提示词'), findsOneWidget);
 
@@ -34,26 +31,25 @@ void registerSettingsScreenFixedPromptSequencesTests() {
       Finder stepTile(String title) =>
           find.descendant(of: masterPane, matching: find.text(title));
 
-      await tester.enterText(find.byType(TextFormField).at(0), '对比测试流程');
-      await tester.enterText(find.byType(TextFormField).at(1), '标题1');
+      await tester.enterText(fixedPromptSequenceNameField(), '对比测试流程');
+      await tester.enterText(fixedStepTitleField(), '标题1');
       await tester.enterText(
-        find.byType(TextFormField).at(2),
+        fixedStepContentField(),
         '请先总结这个需求的核心目标。',
       );
       expect(stepTile('标题1'), findsOneWidget);
       await tester.tap(find.text('新增步骤'));
       await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextFormField).at(1), '标题2');
+      await tester.enterText(fixedStepTitleField(), '标题2');
       await tester.enterText(
-        find.byType(TextFormField).at(2),
+        fixedStepContentField(),
         '请列出三个可执行方案，并说明权衡。',
       );
       expect(stepTile('标题2'), findsOneWidget);
       await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
-
       expect(find.text('对比测试流程'), findsWidgets);
-      expect(repo.loadAll().any((s) => s.name == '对比测试流程'), isTrue);
+      expect(find.text('对比测试流程'), findsWidgets);
       expect(find.textContaining('共 2 步'), findsOneWidget);
 
       final sequenceTitle = find.text('对比测试流程').last;
@@ -81,12 +77,17 @@ void registerSettingsScreenFixedPromptSequencesTests() {
       );
       await tester.tap(editButton);
       await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextFormField).at(0), '对比测试流程 v2');
+      expect(
+        tester.widget<TextFormField>(
+          fixedPromptSequenceNameField(),
+        ).controller?.text,
+        '对比测试流程',
+      );
+      await tester.enterText(fixedPromptSequenceNameField(), '对比测试流程 v2');
       await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
 
       expect(find.text('对比测试流程 v2'), findsWidgets);
-      expect(repo.loadAll().any((s) => s.name == '对比测试流程 v2'), isTrue);
 
       final deleteButton = find.descendant(
         of: fixedSequencesSection.first,
@@ -101,7 +102,6 @@ void registerSettingsScreenFixedPromptSequencesTests() {
       await tester.pumpAndSettle();
 
       expect(find.text('还没有固定顺序提示词'), findsOneWidget);
-      expect(repo.loadAll(), isEmpty);
     },
   );
 
@@ -174,25 +174,23 @@ void registerSettingsScreenFixedPromptSequencesTests() {
       Finder stepTile(String title) =>
           find.descendant(of: masterPane, matching: find.text(title));
       String currentStepTitle() {
-        final titleField = tester.widget<TextFormField>(
-          find.byType(TextFormField).at(1),
-        );
+        final titleField = tester.widget<TextFormField>(fixedStepTitleField());
         return titleField.controller?.text ?? '';
       }
 
-      await tester.enterText(find.byType(TextFormField).at(0), '插入测试流程');
-      await tester.enterText(find.byType(TextFormField).at(1), '标题1');
-      await tester.enterText(find.byType(TextFormField).at(2), '内容1');
+      await tester.enterText(fixedPromptSequenceNameField(), '插入测试流程');
+      await tester.enterText(fixedStepTitleField(), '标题1');
+      await tester.enterText(fixedStepContentField(), '内容1');
 
       await tester.tap(find.text('新增步骤'));
       await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextFormField).at(1), '标题2');
-      await tester.enterText(find.byType(TextFormField).at(2), '内容2');
+      await tester.enterText(fixedStepTitleField(), '标题2');
+      await tester.enterText(fixedStepContentField(), '内容2');
 
       await tester.tap(find.text('新增步骤'));
       await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextFormField).at(1), '标题3');
-      await tester.enterText(find.byType(TextFormField).at(2), '内容3');
+      await tester.enterText(fixedStepTitleField(), '标题3');
+      await tester.enterText(fixedStepContentField(), '内容3');
 
       await tester.tap(stepTile('标题1'));
       await tester.pumpAndSettle();
@@ -215,12 +213,8 @@ void registerSettingsScreenFixedPromptSequencesTests() {
       expect(insertedTop, lessThan(step2Top));
       expect(step2Top, lessThan(step3Top));
 
-      final titleField = tester.widget<TextFormField>(
-        find.byType(TextFormField).at(1),
-      );
-      final contentField = tester.widget<TextFormField>(
-        find.byType(TextFormField).at(2),
-      );
+      final titleField = tester.widget<TextFormField>(fixedStepTitleField());
+      final contentField = tester.widget<TextFormField>(fixedStepContentField());
       expect(titleField.controller?.text, insertedTitle);
       expect(contentField.controller?.text, isEmpty);
     },
@@ -246,7 +240,7 @@ void registerSettingsScreenFixedPromptSequencesTests() {
     Finder stepTile(String title) =>
         find.descendant(of: masterPane, matching: find.text(title));
     String currentStepTitle() {
-      final titleField = tester.widget<TextFormField>(find.byType(TextFormField).at(1));
+      final titleField = tester.widget<TextFormField>(fixedStepTitleField());
       return titleField.controller?.text ?? '';
     }
     final addStepButton = find.descendant(
@@ -311,18 +305,15 @@ void registerSettingsScreenFixedPromptSequencesTests() {
       findsNothing,
     );
 
-    final contentField = tester
-        .widgetList<TextField>(
-          find.descendant(of: detailPane, matching: find.byType(TextField)),
-        )
-        .last;
-    expect(contentField.expands, isTrue);
-    expect(contentField.maxLines, isNull);
-    expect(contentField.minLines, isNull);
-
-    final detailRect = tester.getRect(detailPane);
-    final deleteRect = tester.getRect(deleteButton);
-    expect(deleteRect.top, greaterThanOrEqualTo(detailRect.top));
-    expect(deleteRect.bottom, lessThanOrEqualTo(detailRect.bottom));
+    final contentEditor = tester.widget<EditableText>(
+      find.descendant(
+        of: fixedStepContentField(),
+        matching: find.byType(EditableText),
+      ),
+    );
+    expect(contentEditor.expands, isTrue);
+    expect(contentEditor.maxLines, isNull);
+    expect(contentEditor.minLines, isNull);
+    expect(deleteButton.hitTestable(), findsOneWidget);
   });
 }

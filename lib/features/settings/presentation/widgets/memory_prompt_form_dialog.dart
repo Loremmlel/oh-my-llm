@@ -63,6 +63,7 @@ class _MemoryPromptFormDialogState extends State<MemoryPromptFormDialog>
         mainAxisSize: MainAxisSize.min,
         children: [
           TextFormField(
+            key: const ValueKey('memory-prompt-name-field'),
             controller: _nameController,
             decoration: const InputDecoration(
               labelText: '名称',
@@ -72,6 +73,7 @@ class _MemoryPromptFormDialogState extends State<MemoryPromptFormDialog>
           ),
           const SizedBox(height: 12),
           TextFormField(
+            key: const ValueKey('memory-prompt-content-field'),
             controller: _contentController,
             minLines: 6,
             maxLines: 12,

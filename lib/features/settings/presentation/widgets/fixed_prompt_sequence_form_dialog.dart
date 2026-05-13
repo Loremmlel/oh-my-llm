@@ -266,7 +266,7 @@ class _FixedPromptSequenceFormDialogState
     }
 
     final contentField = TextFormField(
-      key: ValueKey('fixed-step-content-${selected.id}'),
+      key: const ValueKey('fixed-step-content-field'),
       controller: selected.contentController,
       minLines: isWide ? null : 8,
       maxLines: isWide ? null : 16,
@@ -289,7 +289,7 @@ class _FixedPromptSequenceFormDialogState
         ),
         const SizedBox(height: 16),
         TextFormField(
-          key: ValueKey('fixed-step-title-${selected.id}'),
+          key: const ValueKey('fixed-step-title-field'),
           controller: selected.titleController,
           decoration: const InputDecoration(
             labelText: '步骤标题',
@@ -313,6 +313,7 @@ class _FixedPromptSequenceFormDialogState
 
   Widget _buildNameField() {
     return TextFormField(
+      key: const ValueKey('fixed-prompt-sequence-name-field'),
       controller: _nameController,
       decoration: const InputDecoration(
         labelText: '序列名称',

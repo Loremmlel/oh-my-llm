@@ -72,6 +72,7 @@ class _ModelConfigFormDialogState extends State<ModelConfigFormDialog>
         mainAxisSize: MainAxisSize.min,
         children: [
           TextFormField(
+            key: const ValueKey('model-config-display-name-field'),
             controller: _displayNameController,
             decoration: const InputDecoration(
               labelText: '显示名称',
@@ -81,6 +82,7 @@ class _ModelConfigFormDialogState extends State<ModelConfigFormDialog>
           ),
           const SizedBox(height: 12),
           TextFormField(
+            key: const ValueKey('model-config-api-name-field'),
             controller: _modelNameController,
             decoration: const InputDecoration(
               labelText: 'API 模型名称',
@@ -90,6 +92,7 @@ class _ModelConfigFormDialogState extends State<ModelConfigFormDialog>
           ),
           const SizedBox(height: 12),
           SwitchListTile.adaptive(
+            key: const ValueKey('model-config-supports-reasoning-field'),
             contentPadding: EdgeInsets.zero,
             value: _supportsReasoning,
             title: const Text('支持深度思考'),
