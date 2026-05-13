@@ -75,6 +75,7 @@ class _ModelProviderFormDialogState extends State<ModelProviderFormDialog>
         mainAxisSize: MainAxisSize.min,
         children: [
           TextFormField(
+            key: const ValueKey('model-provider-name-field'),
             controller: _nameController,
             decoration: const InputDecoration(
               labelText: '服务商名称',
@@ -84,6 +85,7 @@ class _ModelProviderFormDialogState extends State<ModelProviderFormDialog>
           ),
           const SizedBox(height: 12),
           TextFormField(
+            key: const ValueKey('model-provider-api-url-field'),
             controller: _apiUrlController,
             decoration: const InputDecoration(
               labelText: 'API URL',
@@ -94,6 +96,7 @@ class _ModelProviderFormDialogState extends State<ModelProviderFormDialog>
           ),
           const SizedBox(height: 12),
           TextFormField(
+            key: const ValueKey('model-provider-api-key-field'),
             controller: _apiKeyController,
             decoration: const InputDecoration(labelText: 'API Key'),
             obscureText: true,

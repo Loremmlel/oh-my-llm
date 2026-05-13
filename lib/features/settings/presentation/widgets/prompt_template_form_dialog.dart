@@ -363,6 +363,7 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
 
   Widget _buildNameField() {
     return TextFormField(
+      key: const ValueKey('preset-prompt-name-field'),
       controller: _nameController,
       decoration: const InputDecoration(
         labelText: '预设 Prompt 名称',
