@@ -16,15 +16,6 @@ List<ChatCompletionRequestMessage> buildRequestMessages({
   final requestMessages = <ChatCompletionRequestMessage>[];
   final filteredMessages = filter.apply(conversationMessages);
 
-  if (promptTemplate != null && promptTemplate.systemPrompt.trim().isNotEmpty) {
-    requestMessages.add(
-      ChatCompletionRequestMessage(
-        role: ChatMessageRole.system,
-        content: promptTemplate.systemPrompt.trim(),
-      ),
-    );
-  }
-
   if (checkpointChain.isNotEmpty) {
     requestMessages.addAll(buildCheckpointMemoryMessages(checkpointChain));
   }
@@ -88,18 +79,17 @@ void appendTemplateMessages({
   if (promptTemplate == null) {
     return;
   }
-  final messages = promptTemplate.messages.where(
-    (message) => message.placement == placement,
-  );
+  final messages = promptTemplate.messagesForPlacement(placement);
   buffer.addAll(
     messages.map((message) {
       return ChatCompletionRequestMessage(
-        role: message.role == PromptMessageRole.user
-            ? ChatMessageRole.user
-            : ChatMessageRole.assistant,
+        role: switch (message.role) {
+          PromptMessageRole.system => ChatMessageRole.system,
+          PromptMessageRole.user => ChatMessageRole.user,
+          PromptMessageRole.assistant => ChatMessageRole.assistant,
+        },
         content: message.content,
       );
     }),
   );
 }
-

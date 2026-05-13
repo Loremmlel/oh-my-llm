@@ -125,8 +125,10 @@ void main() {
         });
 
         expect(decoded.systemPromptTitle, 'system');
-        expect(decoded.messages[0].title, '前置user1');
-        expect(decoded.messages[1].title, '后置assistant1');
+        expect(decoded.messages[0].role, PromptMessageRole.system);
+        expect(decoded.messages[0].title, 'system');
+        expect(decoded.messages[1].title, '前置user1');
+        expect(decoded.messages[2].title, '后置assistant1');
       },
     );
   });
