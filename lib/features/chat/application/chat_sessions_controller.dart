@@ -68,6 +68,13 @@ final chatErrorMessageProvider = Provider<String?>((ref) {
   return ref.watch(chatSessionsProvider.select((state) => state.errorMessage));
 });
 
+/// 当前错误提示所关联的 assistant 消息 ID。
+final chatErrorMessageAssistantIdProvider = Provider<String?>((ref) {
+  return ref.watch(
+    chatSessionsProvider.select((state) => state.errorMessageAssistantId),
+  );
+});
+
 /// 历史列表变更计数器，每次会话增删改时递增，供历史页触发重新查询。
 final chatHistoryRevisionProvider = Provider<int>((ref) {
   return ref.watch(
@@ -590,6 +597,42 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     final requestMessages = activePath
         .take(latestAssistantIndex)
         .toList(growable: false);
+    final errorAssistantId = state.errorMessageAssistantId;
+    if (errorAssistantId != null && errorAssistantId == latestAssistant.id) {
+      final nextTree = removeNodeFromTree(
+        treeState: tree,
+        nodeId: latestAssistant.id,
+      );
+      final baseConversation = currentConversation.copyWith(
+        messageNodes: nextTree.nodes,
+        selectedChildByParentId: nextTree.selections,
+        updatedAt: DateTime.now(),
+      );
+      state = state.copyWith(
+        conversations: replaceConversation(baseConversation),
+        clearErrorMessage: true,
+        incrementHistoryRevision: true,
+      );
+      await saveAllConversations();
+
+      final checkpointContext = resolveCheckpointContext(
+        conversation: baseConversation,
+        conversationMessages: requestMessages,
+      );
+
+      await streamAssistantReply(
+        conversation: baseConversation,
+        modelConfig: modelConfig,
+        promptTemplate: promptTemplate,
+        requestConversationMessages: checkpointContext.tailMessages,
+        requestCheckpointChain: checkpointContext.checkpointChain,
+        parentMessageId: parentId == rootConversationParentId ? null : parentId,
+        reasoningEnabled: baseConversation.reasoningEnabled,
+        reasoningEffort: baseConversation.reasoningEffort,
+        appliedCheckpointTitle: checkpointContext.activeCheckpoint?.title ?? '',
+      );
+      return;
+    }
     final nextSelections = Map<String, String>.from(tree.selections);
     nextSelections.remove(parentId);
     final baseConversation = currentConversation.copyWith(

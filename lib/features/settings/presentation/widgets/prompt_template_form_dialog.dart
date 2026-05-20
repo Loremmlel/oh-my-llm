@@ -266,7 +266,7 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
       _PresetPromptEditorRole.user => 'User 条目',
       _PresetPromptEditorRole.assistant => 'Assistant 条目',
     };
-    final contentField = TextFormField(
+    final contentField = TextField(
       key: const ValueKey('preset-prompt-content-field'),
       controller: selected.contentController,
       minLines: isWide ? null : 8,

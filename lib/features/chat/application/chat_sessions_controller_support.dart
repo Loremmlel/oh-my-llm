@@ -156,6 +156,6 @@ mixin ChatSessionsControllerSupport on Notifier<ChatSessionsState> {
   }
 
   void setErrorMessage(String message) {
-    state = state.copyWith(errorMessage: message);
+    state = state.copyWith(errorMessage: message, errorMessageAssistantId: null);
   }
 }

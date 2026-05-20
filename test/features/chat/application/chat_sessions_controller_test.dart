@@ -438,20 +438,21 @@ void main() {
     expect(state.isStreaming, isFalse);
   });
 
-  test('sendMessage 错误且无部分内容时清除占位 assistant 节点', () async {
+  test('sendMessage 错误且无部分内容时保留占位 assistant 节点', () async {
     fakeClient.enqueueError(ChatCompletionException('请求失败'));
     await sendMsg('触发错误');
 
-    // 空流失败后 assistant 占位节点应被移除，只剩 user 消息
-    final messages = container
-        .read(chatSessionsProvider)
-        .activeConversation
-        .messages;
-    expect(messages.length, 1);
+    // 空流失败后 assistant 占位节点仍保留，用于展示错误信息
+    final state = container.read(chatSessionsProvider);
+    final messages = state.activeConversation.messages;
+    expect(messages.length, 2);
     expect(messages.first.role, ChatMessageRole.user);
+    expect(messages.last.role, ChatMessageRole.assistant);
+    expect(messages.last.content, isEmpty);
+    expect(state.errorMessageAssistantId, messages.last.id);
   });
 
-  test('sendMessage 仅收到 reasoning 后失败时也清除占位 assistant 节点', () async {
+  test('sendMessage 仅收到 reasoning 后失败时保留占位 assistant 节点', () async {
     final streamController = StreamController<ChatCompletionChunk>();
     addTearDown(streamController.close);
     fakeClient.enqueueStream(streamController.stream);
@@ -465,8 +466,10 @@ void main() {
 
     final state = container.read(chatSessionsProvider);
     expect(state.errorMessage, '请求失败');
-    expect(state.activeConversation.messages, hasLength(1));
-    expect(state.activeConversation.messages.single.role, ChatMessageRole.user);
+    expect(state.activeConversation.messages, hasLength(2));
+    expect(state.activeConversation.messages.last.role, ChatMessageRole.assistant);
+    expect(state.activeConversation.messages.last.reasoningContent, '思考中');
+    expect(state.errorMessageAssistantId, state.activeConversation.messages.last.id);
   });
 
   test('createCheckpoint 保存检查点并记录来源提示词名称', () async {
@@ -705,13 +708,14 @@ void main() {
     expect(container.read(chatSessionsProvider).errorMessage, isNotNull);
   });
 
-  test('retryLatestAssistant 可重试失败后未落树的最新用户消息', () async {
+  test('retryLatestAssistant 可重试失败后的最新助手消息', () async {
     fakeClient.enqueueError(ChatCompletionException('503 unavailable'));
     await sendMsg('先失败后重试');
-    expect(
-      container.read(chatSessionsProvider).activeConversation.messages,
-      hasLength(1),
-    );
+    final failureState = container.read(chatSessionsProvider);
+    expect(failureState.activeConversation.messages, hasLength(2));
+    final failedAssistant = failureState.activeConversation.messages.last;
+    expect(failedAssistant.role, ChatMessageRole.assistant);
+    expect(failureState.errorMessageAssistantId, failedAssistant.id);
 
     fakeClient.enqueueChunks(['重试成功回复']);
     await container.read(chatSessionsProvider.notifier).retryLatestAssistant();
@@ -723,6 +727,7 @@ void main() {
     expect(messages[1].role, ChatMessageRole.assistant);
     expect(messages[1].content, '重试成功回复');
     expect(state.errorMessage, isNull);
+    expect(state.errorMessageAssistantId, isNull);
 
     final userMessage = messages.first;
     final assistantChildren = state.activeConversation.messageNodes

@@ -74,18 +74,15 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
     required String assistantMessageId,
     required String errorMessage,
   }) async {
-    final hasPartialContent = streamingReply.content.trim().isNotEmpty;
     final tree = resolveMessageTreeState(conversation);
 
-    final nextTree = hasPartialContent
-        ? replaceAssistantMessageInTree(
-            treeState: tree,
-            assistantMessageId: assistantMessageId,
-            nextContent: streamingReply.content,
-            nextReasoningContent: streamingReply.reasoningContent,
-            isStreaming: false,
-          )
-        : removeNodeFromTree(treeState: tree, nodeId: assistantMessageId);
+    final nextTree = replaceAssistantMessageInTree(
+      treeState: tree,
+      assistantMessageId: assistantMessageId,
+      nextContent: streamingReply.content,
+      nextReasoningContent: streamingReply.reasoningContent,
+      isStreaming: false,
+    );
 
     final nextConversation = conversation.copyWith(
       messageNodes: nextTree.nodes,
@@ -97,6 +94,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
       conversations: replaceConversation(nextConversation),
       isStreaming: false,
       errorMessage: errorMessage,
+      errorMessageAssistantId: assistantMessageId,
       clearStreamingReply: true,
       incrementHistoryRevision: true,
     );
@@ -147,7 +145,6 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
     final completer = Completer<ChatConversation?>();
     activeStreamingCompleter = completer;
     latestStreamingReply = streamingReply;
-    streamStopRequested = false;
 
     state = state.copyWith(
       conversations: replaceConversation(streamingConversation),
@@ -157,6 +154,12 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
       incrementHistoryRevision: true,
     );
     await saveAllConversations();
+    if (completer.isCompleted ||
+        activeStreamingCompleter != completer ||
+        !state.isStreaming) {
+      return completer.future;
+    }
+    streamStopRequested = false;
 
     final responseBuffer = StringBuffer();
     final reasoningBuffer = StringBuffer();
