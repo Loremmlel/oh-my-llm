@@ -80,6 +80,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final isStreaming = ref.watch(isChatStreamingProvider);
     final isBusy = ref.watch(isChatBusyProvider);
     final errorMessage = ref.watch(chatErrorMessageProvider);
+    final errorMessageAssistantId = ref.watch(
+      chatErrorMessageAssistantIdProvider,
+    );
     final rememberedSelections = ref.watch(chatDefaultsProvider);
     final fixedPromptSequences = ref.watch(fixedPromptSequencesProvider);
     final modelProviders = ref.watch(llmProviderConfigsProvider);
@@ -245,6 +248,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     isBusy: isBusy,
                     isStreaming: isStreaming,
                     errorMessage: errorMessage,
+                    errorMessageAssistantId: errorMessageAssistantId,
                     errorModelDisplayName: selectedModel?.displayName ?? '模型',
                     showScrollToBottom: _scroll.showScrollToBottom,
                     excludedMessageCount: excludedVisibleMessageCount,

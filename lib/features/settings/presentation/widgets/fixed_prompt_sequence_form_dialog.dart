@@ -265,7 +265,7 @@ class _FixedPromptSequenceFormDialogState
       return const Text('请先选择左侧步骤。');
     }
 
-    final contentField = TextFormField(
+    final contentField = TextField(
       key: const ValueKey('fixed-step-content-field'),
       controller: selected.contentController,
       minLines: isWide ? null : 8,

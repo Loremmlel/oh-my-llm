@@ -38,6 +38,7 @@ class ChatWorkspace extends StatelessWidget {
     required this.isBusy,
     required this.isStreaming,
     required this.errorMessage,
+    required this.errorMessageAssistantId,
     required this.errorModelDisplayName,
     required this.showScrollToBottom,
     required this.excludedMessageCount,
@@ -89,6 +90,7 @@ class ChatWorkspace extends StatelessWidget {
   final bool isBusy;
   final bool isStreaming;
   final String? errorMessage;
+  final String? errorMessageAssistantId;
   final String errorModelDisplayName;
   final bool showScrollToBottom;
   final int excludedMessageCount;
@@ -135,6 +137,7 @@ class ChatWorkspace extends StatelessWidget {
             messageItemPositionsListener: messageItemPositionsListener,
             isBusy: isBusy,
             errorMessage: errorMessage,
+            errorMessageAssistantId: errorMessageAssistantId,
             errorModelDisplayName: errorModelDisplayName,
             showScrollToBottom: showScrollToBottom,
             onEditMessage: onEditMessage,

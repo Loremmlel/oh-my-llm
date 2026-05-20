@@ -22,6 +22,7 @@ class ChatMessagesPanel extends StatelessWidget {
     required this.messageItemPositionsListener,
     required this.isBusy,
     required this.errorMessage,
+    required this.errorMessageAssistantId,
     required this.errorModelDisplayName,
     required this.showScrollToBottom,
     required this.onEditMessage,
@@ -45,6 +46,7 @@ class ChatMessagesPanel extends StatelessWidget {
   final ItemPositionsListener messageItemPositionsListener;
   final bool isBusy;
   final String? errorMessage;
+  final String? errorMessageAssistantId;
   final String errorModelDisplayName;
   final bool showScrollToBottom;
   final ValueChanged<ChatMessage> onEditMessage;
@@ -66,6 +68,7 @@ class ChatMessagesPanel extends StatelessWidget {
         ? displayMessages.lastOrNull
         : null;
     final versionInfoByMessageId = _buildMessageVersionInfoMap();
+    final normalizedError = errorMessage?.trim();
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -90,11 +93,18 @@ class ChatMessagesPanel extends StatelessWidget {
                     final message = displayMessages[index];
                     final isTransientError =
                         message.id == transientErrorMessageId;
+                    final inlineErrorMessage =
+                        normalizedError != null &&
+                            normalizedError.isNotEmpty &&
+                            errorMessageAssistantId == message.id
+                        ? normalizedError
+                        : null;
 
                     return KeyedSubtree(
                       key: ValueKey(message.id),
                       child: CachedChatMessageBubble(
                         message: message,
+                        inlineErrorMessage: inlineErrorMessage,
                         canEdit:
                             !isBusy && message.role == ChatMessageRole.user,
                         canRetry:
@@ -187,6 +197,10 @@ class ChatMessagesPanel extends StatelessWidget {
   List<ChatMessage> _buildDisplayMessages() {
     final normalizedError = errorMessage?.trim();
     if (normalizedError == null || normalizedError.isEmpty) {
+      return messages;
+    }
+    if (errorMessageAssistantId != null &&
+        errorMessageAssistantId!.trim().isNotEmpty) {
       return messages;
     }
     return [
