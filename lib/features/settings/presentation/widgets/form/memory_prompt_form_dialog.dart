@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../domain/models/memory_prompt.dart';
-import 'settings_form_dialog_scaffold.dart';
-import 'settings_form_dialog_state_mixin.dart';
+import '../../../domain/models/memory_prompt.dart';
+import '../settings_form_dialog_scaffold.dart';
+import '../settings_form_dialog_state_mixin.dart';
 
 /// 记忆总结提示词表单提交数据。
 class MemoryPromptFormData {

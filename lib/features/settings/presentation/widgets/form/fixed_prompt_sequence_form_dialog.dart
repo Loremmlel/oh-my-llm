@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/utils/id_generator.dart';
-import '../../../../core/widgets/adaptive_master_detail_layout.dart';
-import '../../domain/models/fixed_prompt_sequence.dart';
-import 'settings_form_dialog_scaffold.dart';
-import 'settings_form_dialog_state_mixin.dart';
+import '../../../../../core/utils/id_generator.dart';
+import '../../../../../core/widgets/adaptive_master_detail_layout.dart';
+import '../../../domain/models/fixed_prompt_sequence.dart';
+import '../settings_form_dialog_scaffold.dart';
+import '../settings_form_dialog_state_mixin.dart';
 
 /// 固定顺序提示词表单提交数据。
 class FixedPromptSequenceFormData {

@@ -2,10 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../domain/models/template_prompt.dart';
-import '../../domain/template_prompt_parser.dart';
-import 'settings_form_dialog_scaffold.dart';
-import 'settings_form_dialog_state_mixin.dart';
+import '../../../domain/models/template_prompt.dart';
+import '../../../domain/template_prompt_parser.dart';
+import '../settings_form_dialog_scaffold.dart';
+import '../settings_form_dialog_state_mixin.dart';
 
 /// 模板提示词表单提交数据。
 class TemplatePromptFormData {

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../domain/models/memory_prompt.dart';
-import 'memory_prompts_list.dart';
-import 'settings_section_card.dart';
+import '../../../domain/models/memory_prompt.dart';
+import '../list/memory_prompts_list.dart';
+import '../settings_section_card.dart';
 
 /// 设置页中的记忆总结提示词分区。
 class MemoryPromptsSection extends StatelessWidget {

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../domain/models/fixed_prompt_sequence.dart';
-import 'fixed_prompt_sequences_list.dart';
-import 'settings_section_card.dart';
+import '../../../domain/models/fixed_prompt_sequence.dart';
+import '../list/fixed_prompt_sequences_list.dart';
+import '../settings_section_card.dart';
 
 /// 设置页中的固定顺序提示词分区。
 class FixedPromptSequencesSection extends StatelessWidget {

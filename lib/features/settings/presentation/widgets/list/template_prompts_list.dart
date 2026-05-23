@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../application/template_prompts_controller.dart';
-import '../../domain/models/template_prompt.dart';
-import 'settings_card_grid.dart';
-import 'settings_empty_state.dart';
+import '../../../application/template_prompts_controller.dart';
+import '../../../domain/models/template_prompt.dart';
+import '../settings_card_grid.dart';
+import '../settings_empty_state.dart';
 
 /// 模板提示词列表，负责展示、编辑和删除模板。
 class TemplatePromptsList extends ConsumerWidget {
