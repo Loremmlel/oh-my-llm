@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../domain/models/prompt_template.dart';
-import 'prompt_templates_list.dart';
-import 'settings_section_card.dart';
+import '../../../domain/models/prompt_template.dart';
+import '../list/prompt_templates_list.dart';
+import '../settings_section_card.dart';
 
 /// 设置页中的预设 Prompt 分区。
 class PromptTemplatesSection extends StatelessWidget {

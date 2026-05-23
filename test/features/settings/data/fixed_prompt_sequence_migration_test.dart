@@ -3,7 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/persistence/sqlite_entity_repository.dart';
-import 'package:oh_my_llm/features/settings/data/fixed_prompt_sequence_migration.dart';
+import 'package:oh_my_llm/features/settings/data/migrations/fixed_prompt_sequence_migration.dart';
 import 'package:oh_my_llm/features/settings/data/fixed_prompt_sequence_repository.dart';
 import 'package:oh_my_llm/features/settings/domain/models/fixed_prompt_sequence.dart';
 

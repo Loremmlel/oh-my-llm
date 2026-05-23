@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/utils/id_generator.dart';
-import '../../../../core/widgets/adaptive_master_detail_layout.dart';
-import '../../domain/models/prompt_template.dart';
-import 'settings_form_dialog_scaffold.dart';
-import 'settings_form_dialog_state_mixin.dart';
+import '../../../../../core/utils/id_generator.dart';
+import '../../../../../core/widgets/adaptive_master_detail_layout.dart';
+import '../../../domain/models/prompt_template.dart';
+import '../settings_form_dialog_scaffold.dart';
+import '../settings_form_dialog_state_mixin.dart';
+import 'editable_preset_prompt_item.dart';
+import 'preset_prompt_editor_role.dart';
+import 'preset_prompt_list_tile.dart';
 
 /// 预设 Prompt 表单提交数据。
 class PromptTemplateFormData {
@@ -30,13 +33,11 @@ class PromptTemplateFormDialog extends StatefulWidget {
       _PromptTemplateFormDialogState();
 }
 
-enum _PresetPromptEditorRole { system, user, assistant }
-
 /// 预设 Prompt 表单的输入与选中状态。
 class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
     with SettingsFormDialogStateMixin {
   late final TextEditingController _nameController;
-  late final List<_EditablePresetPromptItem> _items;
+  late final List<EditablePresetPromptItem> _items;
   String? _selectedItemId;
 
   @override
@@ -242,7 +243,7 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
   }
 
   Widget _buildMasterListTile(int index, int selectedIndex) {
-    return _PresetPromptListTile(
+    return PresetPromptListTile(
       item: _items[index],
       isSelected: index == selectedIndex,
       onTap: () {
@@ -260,9 +261,9 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
     }
 
     final titleLabel = switch (selected.role) {
-      _PresetPromptEditorRole.system => 'System 条目',
-      _PresetPromptEditorRole.user => 'User 条目',
-      _PresetPromptEditorRole.assistant => 'Assistant 条目',
+      PresetPromptEditorRole.system => 'System 条目',
+      PresetPromptEditorRole.user => 'User 条目',
+      PresetPromptEditorRole.assistant => 'Assistant 条目',
     };
     final contentField = TextField(
       key: const ValueKey('preset-prompt-content-field'),
@@ -296,20 +297,20 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
           ),
         ),
         const SizedBox(height: 12),
-        DropdownButtonFormField<_PresetPromptEditorRole>(
+        DropdownButtonFormField<PresetPromptEditorRole>(
           key: const ValueKey('preset-prompt-role-field'),
           initialValue: selected.role,
           items: const [
             DropdownMenuItem(
-              value: _PresetPromptEditorRole.system,
+              value: PresetPromptEditorRole.system,
               child: Text('System'),
             ),
             DropdownMenuItem(
-              value: _PresetPromptEditorRole.user,
+              value: PresetPromptEditorRole.user,
               child: Text('User'),
             ),
             DropdownMenuItem(
-              value: _PresetPromptEditorRole.assistant,
+              value: PresetPromptEditorRole.assistant,
               child: Text('Assistant'),
             ),
           ],
@@ -370,7 +371,7 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
     );
   }
 
-  List<_EditablePresetPromptItem> _buildInitialItems(PromptTemplate? template) {
+  List<EditablePresetPromptItem> _buildInitialItems(PromptTemplate? template) {
     return (template?.messages ?? const <PromptMessage>[])
         .where((message) => message.placement == PromptMessagePlacement.before)
         .followedBy(
@@ -379,12 +380,12 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
           ),
         )
         .map((message) {
-          return _EditablePresetPromptItem(
+          return EditablePresetPromptItem(
             id: message.id,
             role: switch (message.role) {
-              PromptMessageRole.system => _PresetPromptEditorRole.system,
-              PromptMessageRole.user => _PresetPromptEditorRole.user,
-              PromptMessageRole.assistant => _PresetPromptEditorRole.assistant,
+              PromptMessageRole.system => PresetPromptEditorRole.system,
+              PromptMessageRole.user => PresetPromptEditorRole.user,
+              PromptMessageRole.assistant => PresetPromptEditorRole.assistant,
             },
             placement: message.placement,
             titleController: TextEditingController(text: message.title),
@@ -394,7 +395,7 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
         .toList(growable: true);
   }
 
-  _EditablePresetPromptItem? get _selectedItem {
+  EditablePresetPromptItem? get _selectedItem {
     final selectedItemId = _selectedItemId;
     if (selectedItemId == null) {
       return null;
@@ -416,7 +417,7 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
   }
 
   PromptMessagePlacement _resolveNewItemPlacement(
-    _EditablePresetPromptItem? selected,
+    EditablePresetPromptItem? selected,
   ) {
     if (selected == null) {
       return PromptMessagePlacement.before;
@@ -425,7 +426,7 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
   }
 
   int _resolveNewItemInsertIndex({
-    required _EditablePresetPromptItem? selected,
+    required EditablePresetPromptItem? selected,
     required PromptMessagePlacement placement,
   }) {
     final selectedIndex = _selectedIndex;
@@ -440,9 +441,9 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
   void _addMessageItem() {
     final selected = _selectedItem;
     final placement = _resolveNewItemPlacement(selected);
-    final newItem = _EditablePresetPromptItem(
+    final newItem = EditablePresetPromptItem(
       id: generateEntityId(),
-      role: _PresetPromptEditorRole.user,
+      role: PresetPromptEditorRole.user,
       placement: placement,
       titleController: TextEditingController(
         text: _buildNextGeneratedTitle(
@@ -547,7 +548,7 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
     });
   }
 
-  void _replaceSelected(_EditablePresetPromptItem item) {
+  void _replaceSelected(EditablePresetPromptItem item) {
     final index = _selectedIndex;
     if (index < 0) {
       return;
@@ -596,11 +597,11 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
     );
   }
 
-  _PresetPromptEditorRole _toEditorRole(PromptMessageRole role) {
+  PresetPromptEditorRole _toEditorRole(PromptMessageRole role) {
     return switch (role) {
-      PromptMessageRole.system => _PresetPromptEditorRole.system,
-      PromptMessageRole.user => _PresetPromptEditorRole.user,
-      PromptMessageRole.assistant => _PresetPromptEditorRole.assistant,
+      PromptMessageRole.system => PresetPromptEditorRole.system,
+      PromptMessageRole.user => PresetPromptEditorRole.user,
+      PromptMessageRole.assistant => PresetPromptEditorRole.assistant,
     };
   }
 
@@ -630,9 +631,9 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
           return PromptMessage(
             id: item.id,
             role: switch (item.role) {
-              _PresetPromptEditorRole.system => PromptMessageRole.system,
-              _PresetPromptEditorRole.user => PromptMessageRole.user,
-              _PresetPromptEditorRole.assistant => PromptMessageRole.assistant,
+              PresetPromptEditorRole.system => PromptMessageRole.system,
+              PresetPromptEditorRole.user => PromptMessageRole.user,
+              PresetPromptEditorRole.assistant => PromptMessageRole.assistant,
             },
             title: item.titleController.text.trim(),
             content: item.contentController.text.trim(),
@@ -646,84 +647,5 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
         PromptTemplateFormData(name: name, messages: messages),
       );
     });
-  }
-}
-
-/// 左侧的预设 Prompt 标题项。
-class _PresetPromptListTile extends StatelessWidget {
-  const _PresetPromptListTile({
-    required this.item,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  final _EditablePresetPromptItem item;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: item.titleController,
-      builder: (context, child) {
-        final theme = Theme.of(context);
-        final colorScheme = theme.colorScheme;
-
-        return Material(
-          color: isSelected
-              ? colorScheme.secondaryContainer
-              : colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
-          borderRadius: BorderRadius.circular(16),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(16),
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Text(
-                item.titleController.text.trim().isEmpty
-                    ? '未命名条目'
-                    : item.titleController.text.trim(),
-                style: theme.textTheme.titleSmall,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-/// 表单内使用的可编辑预设 Prompt 条目。
-class _EditablePresetPromptItem {
-  const _EditablePresetPromptItem({
-    required this.id,
-    required this.role,
-    required this.titleController,
-    required this.contentController,
-    this.placement,
-  });
-
-  final String id;
-  final _PresetPromptEditorRole role;
-  final PromptMessagePlacement? placement;
-  final TextEditingController titleController;
-  final TextEditingController contentController;
-
-  _EditablePresetPromptItem copyWith({
-    String? id,
-    _PresetPromptEditorRole? role,
-    PromptMessagePlacement? placement,
-    TextEditingController? titleController,
-    TextEditingController? contentController,
-  }) {
-    return _EditablePresetPromptItem(
-      id: id ?? this.id,
-      role: role ?? this.role,
-      placement: placement ?? this.placement,
-      titleController: titleController ?? this.titleController,
-      contentController: contentController ?? this.contentController,
-    );
   }
 }

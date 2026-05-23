@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../domain/models/llm_provider_config.dart';
-import 'settings_form_dialog_scaffold.dart';
-import 'settings_form_dialog_state_mixin.dart';
+import '../../../domain/models/llm_provider_config.dart';
+import '../settings_form_dialog_scaffold.dart';
+import '../settings_form_dialog_state_mixin.dart';
 
 /// 服务商表单提交数据。
 class ModelProviderFormData {

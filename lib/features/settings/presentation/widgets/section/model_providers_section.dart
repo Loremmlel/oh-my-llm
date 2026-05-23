@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../domain/models/llm_provider_config.dart';
-import 'model_configs_list.dart';
-import 'settings_section_card.dart';
+import '../../../domain/models/llm_provider_config.dart';
+import '../list/model_configs_list.dart';
+import '../settings_section_card.dart';
 
 /// 设置页中的服务商与模型配置分区。
 class ModelProvidersSection extends StatelessWidget {

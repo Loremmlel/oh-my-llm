@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../application/chat_defaults_controller.dart';
-import '../../application/prompt_templates_controller.dart';
-import '../../domain/models/prompt_template.dart';
-import 'settings_card_grid.dart';
-import 'settings_empty_state.dart';
+import '../../../application/chat_defaults_controller.dart';
+import '../../../application/prompt_templates_controller.dart';
+import '../../../domain/models/prompt_template.dart';
+import '../settings_card_grid.dart';
+import '../settings_empty_state.dart';
 
 /// Prompt 模板列表，负责展示、编辑和删除模板。
 class PromptTemplatesList extends ConsumerWidget {

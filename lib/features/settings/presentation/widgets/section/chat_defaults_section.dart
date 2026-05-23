@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../application/chat_defaults_controller.dart';
-import '../../domain/models/llm_model_config.dart';
-import '../../domain/models/prompt_template.dart';
+import '../../../application/chat_defaults_controller.dart';
+import '../../../domain/models/llm_model_config.dart';
+import '../../../domain/models/prompt_template.dart';
 
 const String noPromptTemplateValue = '__no_prompt_template__';
 

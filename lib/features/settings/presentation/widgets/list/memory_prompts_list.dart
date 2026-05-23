@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../application/memory_prompts_controller.dart';
-import '../../domain/models/memory_prompt.dart';
-import 'settings_card_grid.dart';
-import 'settings_empty_state.dart';
+import '../../../application/memory_prompts_controller.dart';
+import '../../../domain/models/memory_prompt.dart';
+import '../settings_card_grid.dart';
+import '../settings_empty_state.dart';
 
 /// 记忆总结提示词列表。
 class MemoryPromptsList extends ConsumerWidget {

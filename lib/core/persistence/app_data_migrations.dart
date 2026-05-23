@@ -2,8 +2,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../features/chat/data/chat_conversation_migration.dart';
 import '../../features/chat/data/sqlite_chat_conversation_repository.dart';
-import '../../features/settings/data/fixed_prompt_sequence_migration.dart';
-import '../../features/settings/data/prompt_template_migration.dart';
+import '../../features/settings/data/migrations/fixed_prompt_sequence_migration.dart';
+import '../../features/settings/data/migrations/prompt_template_migration.dart';
 import '../../features/settings/data/sqlite_fixed_prompt_sequence_repository.dart';
 import '../../features/settings/data/sqlite_prompt_template_repository.dart';
 import 'app_database.dart';
