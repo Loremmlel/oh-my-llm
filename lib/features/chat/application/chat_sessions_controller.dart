@@ -58,7 +58,7 @@ final isChatCheckpointingProvider = Provider<bool>((ref) {
 final isChatBusyProvider = Provider<bool>((ref) {
   return ref.watch(
     chatSessionsProvider.select(
-      (state) => state.isStreaming || state.isCheckpointing,
+      (state) => state.isStreaming || state.isCheckpointing || state.isAutoRetryWaiting,
     ),
   );
 });
@@ -109,6 +109,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
   Completer<ChatConversation?>? _activeStreamingCompleter;
   ChatStreamingReply? _latestStreamingReply;
   bool _streamStopRequested = false;
+  bool _autoRetryCancelled = false;
 
   @override
   StreamSubscription<ChatCompletionChunk>? get activeStreamingSubscription =>
@@ -146,7 +147,15 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     _streamStopRequested = value;
   }
 
-  bool get _isBusy => state.isStreaming || state.isCheckpointing;
+  @override
+  bool get autoRetryCancelled => _autoRetryCancelled;
+
+  @override
+  set autoRetryCancelled(bool value) {
+    _autoRetryCancelled = value;
+  }
+
+  bool get _isBusy => state.isStreaming || state.isCheckpointing || state.isAutoRetryWaiting;
 
   // ── 生命周期 ────────────────────────────────────────────────────────────────
 
@@ -296,6 +305,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     String? selectedPromptTemplateId,
     bool? reasoningEnabled,
     ReasoningEffort? reasoningEffort,
+    bool? autoRetryEnabled,
     bool clearSelectedCheckpointId = false,
     bool clearSelectedPromptTemplateId = false,
   }) {
@@ -309,6 +319,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         selectedPromptTemplateId: selectedPromptTemplateId,
         reasoningEnabled: reasoningEnabled,
         reasoningEffort: reasoningEffort,
+        autoRetryEnabled: autoRetryEnabled,
         clearSelectedCheckpointId: clearSelectedCheckpointId,
         clearSelectedPromptTemplateId: clearSelectedPromptTemplateId,
       ),
@@ -707,6 +718,26 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       reasoningEnabled: reasoningEnabled,
       reasoningEffort: reasoningEffort,
     );
+
+    if (currentConversation.autoRetryEnabled) {
+      final checkpointContext = resolveCheckpointContext(
+        conversation: pendingConversation,
+        conversationMessages: pendingConversation.messages,
+      );
+      await sendMessageWithAutoRetry(
+        pendingConversation: pendingConversation,
+        modelConfig: modelConfig,
+        promptTemplate: promptTemplate,
+        requestConversationMessages: checkpointContext.tailMessages,
+        requestCheckpointChain: checkpointContext.checkpointChain,
+        parentMessageId: userMessage.id,
+        reasoningEnabled: reasoningEnabled,
+        reasoningEffort: reasoningEffort,
+        appliedCheckpointTitle: checkpointContext.activeCheckpoint?.title ?? '',
+      );
+      return;
+    }
+
     final checkpointContext = resolveCheckpointContext(
       conversation: pendingConversation,
       conversationMessages: pendingConversation.messages,

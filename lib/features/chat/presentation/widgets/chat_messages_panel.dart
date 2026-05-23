@@ -25,6 +25,7 @@ class ChatMessagesPanel extends StatelessWidget {
     required this.errorMessageAssistantId,
     required this.errorModelDisplayName,
     required this.showScrollToBottom,
+    this.autoRetryCount = 0,
     required this.onEditMessage,
     required this.onRetryLatestAssistant,
     required this.onDeleteMessage,
@@ -49,6 +50,7 @@ class ChatMessagesPanel extends StatelessWidget {
   final String? errorMessageAssistantId;
   final String errorModelDisplayName;
   final bool showScrollToBottom;
+  final int autoRetryCount;
   final ValueChanged<ChatMessage> onEditMessage;
   final Future<void> Function() onRetryLatestAssistant;
   final ValueChanged<ChatMessage> onDeleteMessage;
@@ -67,6 +69,14 @@ class ChatMessagesPanel extends StatelessWidget {
         displayMessages.lastOrNull?.role == ChatMessageRole.assistant
         ? displayMessages.lastOrNull
         : null;
+    final lastUserMessageId = displayMessages.isEmpty
+        ? null
+        : displayMessages
+            .lastWhere(
+              (m) => m.role == ChatMessageRole.user,
+              orElse: () => displayMessages.last,
+            )
+            .id;
     final versionInfoByMessageId = _buildMessageVersionInfoMap();
     final normalizedError = errorMessage?.trim();
 
@@ -145,6 +155,11 @@ class ChatMessagesPanel extends StatelessWidget {
                             favoritedAssistantContents.contains(
                               message.content,
                             ),
+                        autoRetryCount:
+                            lastUserMessageId != null &&
+                                message.id == lastUserMessageId
+                                ? autoRetryCount
+                                : 0,
                         versionInfo: versionInfoByMessageId[message.id],
                         onSwitchVersion: (targetMessageId) async {
                           final versionInfo =

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import '../../../core/utils/id_generator.dart';
 import '../../settings/domain/models/llm_model_config.dart';
@@ -31,6 +32,9 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
   bool get streamStopRequested;
   set streamStopRequested(bool value);
 
+  bool get autoRetryCancelled;
+  set autoRetryCancelled(bool value);
+
   /// 终止当前流式回复，并保留已收到的部分内容。
   ///
   /// 通过取消 [StreamSubscription] 实现：取消信号向下传播至 `async*` 生成器，
@@ -40,6 +44,16 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
   /// OpenAI 兼容接口没有显式的"停止生成"API 端点，关闭 TCP 连接是唯一的
   /// 标准方式。主流 LLM 服务（OpenAI、DeepSeek、Google 等）均支持此机制。
   Future<ChatConversation?> stopStreaming() async {
+    if (state.isAutoRetryWaiting) {
+      autoRetryCancelled = true;
+      state = state.copyWith(
+        isAutoRetryWaiting: false,
+        clearAutoRetryCount: true,
+        clearErrorMessage: true,
+      );
+      return null;
+    }
+
     if (!state.isStreaming) {
       return null;
     }
@@ -315,6 +329,107 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
     activeStreamingCompleter = null;
     latestStreamingReply = null;
     streamStopRequested = false;
+  }
+
+  /// 在自动重试模式下发送消息：出错时自动等待下分钟的 0-15 秒窗口后重试，
+  /// 直到成功或用户手动终止。
+  Future<void> sendMessageWithAutoRetry({
+    required ChatConversation pendingConversation,
+    required LlmModelConfig modelConfig,
+    required PromptTemplate? promptTemplate,
+    required List<ChatMessage> requestConversationMessages,
+    required List<ChatCheckpoint> requestCheckpointChain,
+    required String parentMessageId,
+    required bool reasoningEnabled,
+    required ReasoningEffort reasoningEffort,
+    required String appliedCheckpointTitle,
+  }) async {
+    autoRetryCancelled = false;
+    state = state.copyWith(
+      conversations: replaceConversation(pendingConversation),
+      clearErrorMessage: true,
+      clearAutoRetryCount: true,
+      incrementHistoryRevision: true,
+    );
+    await saveAllConversations();
+
+    var isFirstAttempt = true;
+    while (true) {
+      if (autoRetryCancelled) {
+        state = state.copyWith(
+          clearAutoRetryCount: true,
+          clearErrorMessage: true,
+        );
+        return;
+      }
+
+      await _waitForRetryWindow(isFirstAttempt: isFirstAttempt);
+      isFirstAttempt = false;
+
+      if (autoRetryCancelled) {
+        state = state.copyWith(
+          clearAutoRetryCount: true,
+          clearErrorMessage: true,
+        );
+        return;
+      }
+
+      state = state.copyWith(
+        conversations: replaceConversation(pendingConversation),
+        isAutoRetryWaiting: false,
+        autoRetryCount: state.autoRetryCount + 1,
+        clearErrorMessage: true,
+        clearStreamingReply: true,
+        incrementHistoryRevision: true,
+      );
+      await saveAllConversations();
+
+      final result = await streamAssistantReply(
+        conversation: pendingConversation,
+        modelConfig: modelConfig,
+        promptTemplate: promptTemplate,
+        requestConversationMessages: requestConversationMessages,
+        requestCheckpointChain: requestCheckpointChain,
+        parentMessageId: parentMessageId,
+        reasoningEnabled: reasoningEnabled,
+        reasoningEffort: reasoningEffort,
+        appliedCheckpointTitle: appliedCheckpointTitle,
+      );
+
+      if (result != null) {
+        state = state.copyWith(clearAutoRetryCount: true);
+        return;
+      }
+
+      if (autoRetryCancelled) {
+        state = state.copyWith(clearAutoRetryCount: true);
+        return;
+      }
+
+      // 仍旧检查 auto-retry 是否还开着（可能在流式期间被用户关闭）
+      final currentConversation = state.activeConversation;
+      if (!currentConversation.autoRetryEnabled) {
+        state = state.copyWith(clearAutoRetryCount: true);
+        return;
+      }
+    }
+  }
+
+  /// 等待到下一个发送窗口（每分钟 0-15 秒之间的随机毫秒）。
+  Future<void> _waitForRetryWindow({required bool isFirstAttempt}) async {
+    final now = DateTime.now();
+    final currentSecond = now.second;
+
+    if (isFirstAttempt && currentSecond >= 0 && currentSecond <= 15) {
+      final jitterMs = Random().nextInt(15000);
+      state = state.copyWith(isAutoRetryWaiting: true);
+      await Future.delayed(Duration(milliseconds: jitterMs));
+    } else {
+      final msToNextMinute = (60 - currentSecond) * 1000 - now.millisecond;
+      final jitterMs = Random().nextInt(15000);
+      state = state.copyWith(isAutoRetryWaiting: true);
+      await Future.delayed(Duration(milliseconds: msToNextMinute + jitterMs));
+    }
   }
 
   /// 保留原始异常并附加堆栈，方便开发者直接定位问题。

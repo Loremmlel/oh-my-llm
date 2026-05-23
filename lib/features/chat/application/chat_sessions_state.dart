@@ -62,6 +62,8 @@ class ChatSessionsState extends Equatable {
     required this.activeConversationId,
     this.isStreaming = false,
     this.isCheckpointing = false,
+    this.isAutoRetryWaiting = false,
+    this.autoRetryCount = 0,
     this.errorMessage,
     this.errorMessageAssistantId,
     this.streamingReply,
@@ -79,6 +81,12 @@ class ChatSessionsState extends Equatable {
 
   /// 是否正在创建检查点。
   final bool isCheckpointing;
+
+  /// 是否正在等待自动重试的发送窗口。
+  final bool isAutoRetryWaiting;
+
+  /// 当前自动重试的尝试次数，成功回复后清零。
+  final int autoRetryCount;
 
   /// 最近一次错误的用户可读描述，正常时为 `null`。
   final String? errorMessage;
@@ -106,6 +114,9 @@ class ChatSessionsState extends Equatable {
     String? activeConversationId,
     bool? isStreaming,
     bool? isCheckpointing,
+    bool? isAutoRetryWaiting,
+    int? autoRetryCount,
+    bool clearAutoRetryCount = false,
     String? errorMessage,
     bool clearErrorMessage = false,
     String? errorMessageAssistantId,
@@ -119,6 +130,10 @@ class ChatSessionsState extends Equatable {
       activeConversationId: activeConversationId ?? this.activeConversationId,
       isStreaming: isStreaming ?? this.isStreaming,
       isCheckpointing: isCheckpointing ?? this.isCheckpointing,
+      isAutoRetryWaiting: isAutoRetryWaiting ?? this.isAutoRetryWaiting,
+      autoRetryCount: clearAutoRetryCount
+          ? 0
+          : autoRetryCount ?? this.autoRetryCount,
       errorMessage: clearErrorMessage
           ? null
           : errorMessage ?? this.errorMessage,
@@ -140,6 +155,8 @@ class ChatSessionsState extends Equatable {
     activeConversationId,
     isStreaming,
     isCheckpointing,
+    isAutoRetryWaiting,
+    autoRetryCount,
     errorMessage,
     errorMessageAssistantId,
     streamingReply,

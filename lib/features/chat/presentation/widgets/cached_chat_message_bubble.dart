@@ -20,6 +20,7 @@ class CachedChatMessageBubble extends StatefulWidget {
     this.inlineErrorMessage,
     this.versionInfo,
     this.onSwitchVersion,
+    this.autoRetryCount = 0,
     super.key,
   });
 
@@ -34,6 +35,7 @@ class CachedChatMessageBubble extends StatefulWidget {
   final VoidCallback? onFavoritePressed;
   final bool isFavorited;
   final String? inlineErrorMessage;
+  final int autoRetryCount;
   final MessageVersionInfo? versionInfo;
   final Future<void> Function(String targetMessageId)? onSwitchVersion;
 
@@ -74,6 +76,7 @@ class _CachedChatMessageBubbleState extends State<CachedChatMessageBubble> {
         oldWidget.isExcludedFromRequest == widget.isExcludedFromRequest &&
         oldWidget.isFavorited == widget.isFavorited &&
         oldWidget.inlineErrorMessage == widget.inlineErrorMessage &&
+        oldWidget.autoRetryCount == widget.autoRetryCount &&
         _sameVersionInfo(oldWidget.versionInfo, widget.versionInfo);
   }
 
@@ -115,6 +118,7 @@ class _CachedChatMessageBubbleState extends State<CachedChatMessageBubble> {
       onFavoritePressed: widget.onFavoritePressed,
       isFavorited: widget.isFavorited,
       inlineErrorMessage: widget.inlineErrorMessage,
+      autoRetryCount: widget.autoRetryCount,
       versionInfo: widget.versionInfo,
       onSwitchVersion: widget.onSwitchVersion,
     );

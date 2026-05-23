@@ -25,6 +25,7 @@ class ChatConversation extends Equatable {
     this.selectedPromptTemplateId,
     this.reasoningEnabled = false,
     this.reasoningEffort = ReasoningEffort.medium,
+    this.autoRetryEnabled = false,
     this.excludedMessageIds = const [],
   }) : _messages = messages;
 
@@ -41,6 +42,7 @@ class ChatConversation extends Equatable {
   final String? selectedPromptTemplateId;
   final bool reasoningEnabled;
   final ReasoningEffort reasoningEffort;
+  final bool autoRetryEnabled;
   final List<String> excludedMessageIds;
 
   /// 当前会话实际展示的消息序列。
@@ -100,6 +102,7 @@ class ChatConversation extends Equatable {
     String? selectedPromptTemplateId,
     bool? reasoningEnabled,
     ReasoningEffort? reasoningEffort,
+    bool? autoRetryEnabled,
     List<String>? excludedMessageIds,
     bool clearSelectedModelId = false,
     bool clearSelectedCheckpointId = false,
@@ -126,6 +129,7 @@ class ChatConversation extends Equatable {
           : selectedPromptTemplateId ?? this.selectedPromptTemplateId,
       reasoningEnabled: reasoningEnabled ?? this.reasoningEnabled,
       reasoningEffort: reasoningEffort ?? this.reasoningEffort,
+      autoRetryEnabled: autoRetryEnabled ?? this.autoRetryEnabled,
       excludedMessageIds: excludedMessageIds ?? this.excludedMessageIds,
     );
   }
@@ -157,6 +161,7 @@ class ChatConversation extends Equatable {
           .toList(),
       'reasoningEnabled': reasoningEnabled,
       'reasoningEffort': reasoningEffort.apiValue,
+      'autoRetryEnabled': autoRetryEnabled,
       'excludedMessageIds': excludedMessageIds,
     };
   }
@@ -216,6 +221,7 @@ class ChatConversation extends Equatable {
         (effort) => effort.apiValue == json['reasoningEffort'],
         orElse: () => ReasoningEffort.medium,
       ),
+      autoRetryEnabled: json['autoRetryEnabled'] as bool? ?? false,
       excludedMessageIds: rawExcludedMessageIds
           .whereType<String>()
           .toSet()
@@ -310,6 +316,7 @@ class ChatConversation extends Equatable {
     selectedPromptTemplateId,
     reasoningEnabled,
     reasoningEffort,
+    autoRetryEnabled,
     excludedMessageIds,
   ];
 }

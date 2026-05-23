@@ -7,6 +7,7 @@ import '../../../settings/domain/models/llm_model_config.dart';
 import '../../../settings/domain/models/llm_provider_config.dart';
 import '../../../settings/domain/models/prompt_template.dart';
 import '../../../settings/domain/models/template_prompt.dart';
+import 'auto_retry_toggle.dart';
 import 'thinking_toggle.dart';
 
 /// 聊天工作区中的输入与设置面板。
@@ -38,8 +39,10 @@ class ChatComposerCard extends StatelessWidget {
     required this.onPromptTemplateSelected,
     required this.onTemplatePromptSelected,
     required this.onToggleComposerCollapsed,
+    required this.autoRetryEnabled,
     required this.onReasoningEnabledChanged,
     required this.onReasoningEffortChanged,
+    required this.onAutoRetryEnabledChanged,
     required this.onOpenFixedPromptSequenceRunner,
     required this.onOpenMessageFilter,
     required this.onSendPressed,
@@ -71,8 +74,10 @@ class ChatComposerCard extends StatelessWidget {
   final ValueChanged<String?> onPromptTemplateSelected;
   final ValueChanged<String?> onTemplatePromptSelected;
   final VoidCallback onToggleComposerCollapsed;
+  final bool autoRetryEnabled;
   final ValueChanged<bool>? onReasoningEnabledChanged;
   final ValueChanged<ReasoningEffort>? onReasoningEffortChanged;
+  final ValueChanged<bool>? onAutoRetryEnabledChanged;
   final Future<void> Function() onOpenFixedPromptSequenceRunner;
   final Future<void> Function() onOpenMessageFilter;
   final Future<void> Function()? onSendPressed;
@@ -164,6 +169,7 @@ class ChatComposerCard extends StatelessWidget {
                     supportsReasoning: supportsReasoning,
                     reasoningEnabled: reasoningEnabled,
                     reasoningEffort: reasoningEffort,
+                    autoRetryEnabled: autoRetryEnabled,
                     selectedPromptTemplate: selectedPromptTemplate,
                     excludedMessageCount: excludedMessageCount,
                     onOpenSettings: () {
@@ -179,12 +185,14 @@ class ChatComposerCard extends StatelessWidget {
                     supportsReasoning: supportsReasoning,
                     reasoningEnabled: reasoningEnabled,
                     reasoningEffort: reasoningEffort,
+                    autoRetryEnabled: autoRetryEnabled,
                     promptTemplates: promptTemplates,
                     selectedPromptTemplate: selectedPromptTemplate,
                     isBusy: isBusy,
                     isStreaming: isStreaming,
                     onReasoningEnabledChanged: onReasoningEnabledChanged,
                     onReasoningEffortChanged: onReasoningEffortChanged,
+                    onAutoRetryEnabledChanged: onAutoRetryEnabledChanged,
                     onPromptTemplateSelected: onPromptTemplateSelected,
                     onOpenFixedPromptSequenceRunner:
                         onOpenFixedPromptSequenceRunner,
@@ -234,6 +242,12 @@ class ChatComposerCard extends StatelessWidget {
                               onReasoningEnabledChanged?.call(value);
                             }
                           : null,
+                    ),
+                    const SizedBox(height: 8),
+                    AutoRetryToggle(
+                      enabled: true,
+                      value: autoRetryEnabled,
+                      onChanged: onAutoRetryEnabledChanged,
                     ),
                     if (supportsReasoning && localReasoningEnabled) ...[
                       const SizedBox(height: 12),
@@ -538,12 +552,14 @@ class _DesktopSecondarySettingsRow extends StatelessWidget {
     required this.supportsReasoning,
     required this.reasoningEnabled,
     required this.reasoningEffort,
+    required this.autoRetryEnabled,
     required this.promptTemplates,
     required this.selectedPromptTemplate,
     required this.isBusy,
     required this.isStreaming,
     required this.onReasoningEnabledChanged,
     required this.onReasoningEffortChanged,
+    required this.onAutoRetryEnabledChanged,
     required this.onPromptTemplateSelected,
     required this.onOpenFixedPromptSequenceRunner,
     required this.onOpenMessageFilter,
@@ -557,12 +573,14 @@ class _DesktopSecondarySettingsRow extends StatelessWidget {
   final bool supportsReasoning;
   final bool reasoningEnabled;
   final ReasoningEffort reasoningEffort;
+  final bool autoRetryEnabled;
   final List<PromptTemplate> promptTemplates;
   final PromptTemplate? selectedPromptTemplate;
   final bool isBusy;
   final bool isStreaming;
   final ValueChanged<bool>? onReasoningEnabledChanged;
   final ValueChanged<ReasoningEffort>? onReasoningEffortChanged;
+  final ValueChanged<bool>? onAutoRetryEnabledChanged;
   final ValueChanged<String?> onPromptTemplateSelected;
   final Future<void> Function() onOpenFixedPromptSequenceRunner;
   final Future<void> Function() onOpenMessageFilter;
@@ -594,6 +612,11 @@ class _DesktopSecondarySettingsRow extends StatelessWidget {
                   reasoningEffort: reasoningEffort,
                   onReasoningEffortChanged: onReasoningEffortChanged,
                 ),
+              AutoRetryToggle(
+                enabled: true,
+                value: autoRetryEnabled,
+                onChanged: onAutoRetryEnabledChanged,
+              ),
               ConstrainedBox(
                 constraints: const BoxConstraints.tightFor(width: 248),
                 child: DropdownButtonFormField<String>(
@@ -672,6 +695,7 @@ class _CompactActionRow extends StatelessWidget {
     required this.supportsReasoning,
     required this.reasoningEnabled,
     required this.reasoningEffort,
+    required this.autoRetryEnabled,
     required this.selectedPromptTemplate,
     required this.excludedMessageCount,
     required this.onOpenSettings,
@@ -685,6 +709,7 @@ class _CompactActionRow extends StatelessWidget {
   final bool supportsReasoning;
   final bool reasoningEnabled;
   final ReasoningEffort reasoningEffort;
+  final bool autoRetryEnabled;
   final PromptTemplate? selectedPromptTemplate;
   final int excludedMessageCount;
   final VoidCallback onOpenSettings;
@@ -724,6 +749,7 @@ class _CompactActionRow extends StatelessWidget {
           ? _effortLabel(reasoningEffort)
           : '思考关',
     );
+    parts.add(autoRetryEnabled ? '重试开' : '重试关');
     parts.add(selectedPromptTemplate?.name ?? '无 Prompt');
     if (excludedMessageCount > 0) {
       parts.add('过滤 $excludedMessageCount 条');
