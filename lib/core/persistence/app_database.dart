@@ -40,7 +40,7 @@ class AppDatabase {
 
   /// 关闭数据库连接。
   void close() {
-    _connection.dispose();
+    _connection.close();
   }
 
   void _configure() {

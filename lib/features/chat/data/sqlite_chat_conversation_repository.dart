@@ -358,10 +358,10 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
           }
         }
       } finally {
-        conversationStatement.dispose();
-        messageStatement.dispose();
-        selectionStatement.dispose();
-        checkpointStatement.dispose();
+        conversationStatement.close();
+        messageStatement.close();
+        selectionStatement.close();
+        checkpointStatement.close();
       }
 
       _database.connection.execute('COMMIT;');
