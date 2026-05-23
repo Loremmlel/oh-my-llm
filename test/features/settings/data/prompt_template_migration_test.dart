@@ -11,8 +11,14 @@ PromptTemplate _template(String id) {
   return PromptTemplate(
     id: id,
     name: '测试模板 $id',
-    systemPrompt: '系统指令 $id',
-    messages: const [],
+    messages: [
+      PromptMessage(
+        id: '_legacy-system-message',
+        role: PromptMessageRole.system,
+        title: defaultSystemPromptTitle,
+        content: '系统指令 $id',
+      ),
+    ],
     updatedAt: DateTime(2026, 1, 1),
   );
 }

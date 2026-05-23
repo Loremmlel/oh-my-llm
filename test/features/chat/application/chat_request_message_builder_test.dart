@@ -26,11 +26,21 @@ void main() {
     String systemPrompt = '',
     List<PromptMessage> messages = const [],
   }) {
+    final effectiveMessages = systemPrompt.trim().isNotEmpty
+        ? <PromptMessage>[
+            PromptMessage(
+              id: '_legacy-system-message',
+              role: PromptMessageRole.system,
+              title: defaultSystemPromptTitle,
+              content: systemPrompt.trim(),
+            ),
+            ...messages,
+          ]
+        : messages;
     return PromptTemplate(
       id: 'tpl-1',
       name: '测试模板',
-      systemPrompt: systemPrompt,
-      messages: messages,
+      messages: effectiveMessages,
       updatedAt: DateTime(2026),
     );
   }

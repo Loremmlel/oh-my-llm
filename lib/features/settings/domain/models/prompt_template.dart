@@ -135,39 +135,17 @@ class PromptMessage extends Equatable {
 
 /// 可复用的 Prompt 模板，使用统一消息列表表示 system / user / assistant 条目。
 class PromptTemplate extends Equatable {
-  PromptTemplate({
+  const PromptTemplate({
     required this.id,
     required this.name,
-    required List<PromptMessage> messages,
+    required this.messages,
     required this.updatedAt,
-    String systemPrompt = '',
-    String systemPromptTitle = defaultSystemPromptTitle,
-  }) : messages = _normalizePromptTemplateMessages(
-         messages,
-         legacySystemPrompt: systemPrompt,
-         legacySystemPromptTitle: systemPromptTitle,
-       );
+  });
 
   final String id;
   final String name;
   final List<PromptMessage> messages;
   final DateTime updatedAt;
-
-  /// 为旧代码提供兼容读取：返回第一条 system 消息内容。
-  String get systemPrompt => _firstSystemMessage?.content ?? '';
-
-  /// 为旧代码提供兼容读取：返回第一条 system 消息标题。
-  String get systemPromptTitle =>
-      _firstSystemMessage?.title ?? defaultSystemPromptTitle;
-
-  PromptMessage? get _firstSystemMessage {
-    for (final message in messages) {
-      if (message.role == PromptMessageRole.system) {
-        return message;
-      }
-    }
-    return null;
-  }
 
   Iterable<PromptMessage> messagesForPlacement(
     PromptMessagePlacement placement,
@@ -176,30 +154,16 @@ class PromptTemplate extends Equatable {
   }
 
   /// 复制模板，并允许覆盖标题、消息和更新时间。
-  ///
-  /// `systemPrompt` / `systemPromptTitle` 仅保留给旧调用方，语义为“替换第一条
-  /// system 消息”；新的实现应直接传入完整的 `messages`。
   PromptTemplate copyWith({
     String? id,
     String? name,
-    String? systemPrompt,
     List<PromptMessage>? messages,
     DateTime? updatedAt,
-    String? systemPromptTitle,
   }) {
-    final nextMessages = messages ?? this.messages;
-    final shouldReplaceLegacySystem =
-        systemPrompt != null || systemPromptTitle != null;
     return PromptTemplate(
       id: id ?? this.id,
       name: name ?? this.name,
-      messages: shouldReplaceLegacySystem
-          ? _replaceLegacySystemMessage(
-              nextMessages,
-              systemPrompt: systemPrompt ?? this.systemPrompt,
-              systemPromptTitle: systemPromptTitle ?? this.systemPromptTitle,
-            )
-          : nextMessages,
+      messages: messages ?? this.messages,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
@@ -209,8 +173,6 @@ class PromptTemplate extends Equatable {
     return {
       'id': id,
       'name': name,
-      'systemPrompt': systemPrompt,
-      'systemPromptTitle': systemPromptTitle,
       'messages': messages.map((message) => message.toJson()).toList(),
       'updatedAt': updatedAt.toIso8601String(),
     };
@@ -224,17 +186,32 @@ class PromptTemplate extends Equatable {
       (message) => message.role == PromptMessageRole.system,
     );
 
+    List<PromptMessage> effectiveMessages = messages;
+    if (!hasSystemMessages) {
+      final legacySystemPrompt =
+          (json['systemPrompt'] as String?)?.trim() ?? '';
+      if (legacySystemPrompt.isNotEmpty) {
+        final title =
+            (json['systemPromptTitle'] as String?)?.trim().isNotEmpty == true
+                ? json['systemPromptTitle'] as String
+                : defaultSystemPromptTitle;
+        effectiveMessages = [
+          PromptMessage(
+            id: '_legacy-system-message',
+            role: PromptMessageRole.system,
+            title: title,
+            content: legacySystemPrompt,
+            placement: PromptMessagePlacement.before,
+          ),
+          ...messages,
+        ];
+      }
+    }
+
     return PromptTemplate(
       id: json['id'] as String,
       name: json['name'] as String,
-      systemPrompt: hasSystemMessages
-          ? ''
-          : (json['systemPrompt'] as String? ?? ''),
-      systemPromptTitle:
-          (json['systemPromptTitle'] as String?)?.trim().isNotEmpty == true
-          ? json['systemPromptTitle'] as String
-          : defaultSystemPromptTitle,
-      messages: messages,
+      messages: effectiveMessages,
       updatedAt: DateTime.parse(json['updatedAt'] as String),
     );
   }
@@ -253,71 +230,6 @@ class PromptTemplate extends Equatable {
 
   @override
   List<Object> get props => [id, name, messages, updatedAt];
-}
-
-List<PromptMessage> _normalizePromptTemplateMessages(
-  List<PromptMessage> messages, {
-  required String legacySystemPrompt,
-  required String legacySystemPromptTitle,
-}) {
-  final normalizedMessages = List<PromptMessage>.unmodifiable(messages);
-  if (normalizedMessages.any(
-    (message) => message.role == PromptMessageRole.system,
-  )) {
-    return normalizedMessages;
-  }
-
-  final trimmedLegacySystemPrompt = legacySystemPrompt.trim();
-  if (trimmedLegacySystemPrompt.isEmpty) {
-    return normalizedMessages;
-  }
-
-  final title = legacySystemPromptTitle.trim().isEmpty
-      ? defaultSystemPromptTitle
-      : legacySystemPromptTitle.trim();
-  return List<PromptMessage>.unmodifiable([
-    PromptMessage(
-      id: '_legacy-system-message',
-      role: PromptMessageRole.system,
-      title: title,
-      content: trimmedLegacySystemPrompt,
-      placement: PromptMessagePlacement.before,
-    ),
-    ...normalizedMessages,
-  ]);
-}
-
-List<PromptMessage> _replaceLegacySystemMessage(
-  List<PromptMessage> messages, {
-  required String systemPrompt,
-  required String systemPromptTitle,
-}) {
-  final mutableMessages = List<PromptMessage>.from(messages);
-  final systemIndex = mutableMessages.indexWhere(
-    (message) => message.role == PromptMessageRole.system,
-  );
-  final existingSystemId = systemIndex == -1
-      ? '_legacy-system-message'
-      : mutableMessages.removeAt(systemIndex).id;
-  final trimmedSystemPrompt = systemPrompt.trim();
-  if (trimmedSystemPrompt.isEmpty) {
-    return List<PromptMessage>.unmodifiable(mutableMessages);
-  }
-
-  final title = systemPromptTitle.trim().isEmpty
-      ? defaultSystemPromptTitle
-      : systemPromptTitle.trim();
-  mutableMessages.insert(
-    0,
-    PromptMessage(
-      id: existingSystemId,
-      role: PromptMessageRole.system,
-      title: title,
-      content: trimmedSystemPrompt,
-      placement: PromptMessagePlacement.before,
-    ),
-  );
-  return List<PromptMessage>.unmodifiable(mutableMessages);
 }
 
 List<PromptMessage> _deserializePromptMessages(List<dynamic> rawMessages) {
