@@ -170,12 +170,15 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                     ],
                   ],
                 ),
-                const SizedBox(height: 4),
-                Wrap(
-                  spacing: 4,
-                  runSpacing: 2,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
+                const SizedBox(height: 2),
+                SizedBox(
+                  width: double.infinity,
+                  child: Wrap(
+                    spacing: 4,
+                    runSpacing: 2,
+                    alignment: WrapAlignment.end,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
                     IconButton(
                       onPressed: () {
                         _copyMessage(context);
@@ -223,7 +226,8 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                         tooltip: '删除消息',
                         icon: const Icon(Icons.delete_outline_rounded),
                       ),
-                  ],
+                    ],
+                  ),
                 ),
                 if (!isUser &&
                     widget.inlineErrorMessage != null &&
