@@ -42,19 +42,14 @@ class _ModelConfigFormDialogState extends State<ModelConfigFormDialog>
   @override
   void initState() {
     super.initState();
-    _displayNameController = TextEditingController(
-      text: widget.initialValue?.displayName ?? '',
-    );
-    _modelNameController = TextEditingController(
-      text: widget.initialValue?.modelName ?? '',
-    );
+    _displayNameController = initController(widget.initialValue?.displayName ?? '');
+    _modelNameController = initController(widget.initialValue?.modelName ?? '');
     _supportsReasoning = widget.initialValue?.supportsReasoning ?? false;
   }
 
   @override
   void dispose() {
-    _displayNameController.dispose();
-    _modelNameController.dispose();
+    disposeAllControllers();
     super.dispose();
   }
 

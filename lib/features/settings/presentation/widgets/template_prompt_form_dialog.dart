@@ -62,12 +62,8 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
   @override
   void initState() {
     super.initState();
-    _titleController = TextEditingController(
-      text: widget.initialValue?.title ?? '',
-    );
-    _contentController = TextEditingController(
-      text: widget.initialValue?.content ?? '',
-    );
+    _titleController = initController(widget.initialValue?.title ?? '');
+    _contentController = initController(widget.initialValue?.content ?? '');
     _variables = reconcileTemplatePromptVariables(
       content: _contentController.text,
       existingVariables: widget.initialValue?.variables ?? const [],
@@ -82,13 +78,11 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
   void dispose() {
     _variableReconcileDebounceTimer?.cancel();
     _variableReconcileThrottleTimer?.cancel();
-    _titleController.dispose();
-    _contentController
-      ..removeListener(_handleContentChanged)
-      ..dispose();
+    _contentController.removeListener(_handleContentChanged);
     for (final controller in _variableControllers.values) {
       controller.dispose();
     }
+    disposeAllControllers();
     super.dispose();
   }
 

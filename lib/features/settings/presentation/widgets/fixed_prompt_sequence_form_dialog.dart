@@ -41,9 +41,7 @@ class _FixedPromptSequenceFormDialogState
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(
-      text: widget.initialValue?.name ?? '',
-    );
+    _nameController = initController(widget.initialValue?.name ?? '');
     _steps = (widget.initialValue?.steps ?? const <FixedPromptSequenceStep>[])
         .map((step) {
           return _EditableFixedPromptSequenceStep(
@@ -69,11 +67,11 @@ class _FixedPromptSequenceFormDialogState
 
   @override
   void dispose() {
-    _nameController.dispose();
     for (final step in _steps) {
       step.titleController.dispose();
       step.contentController.dispose();
     }
+    disposeAllControllers();
     super.dispose();
   }
 
