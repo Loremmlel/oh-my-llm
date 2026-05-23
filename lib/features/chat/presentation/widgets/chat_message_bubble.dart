@@ -5,8 +5,10 @@ import '../../domain/chat_word_counter.dart';
 import '../../domain/models/chat_message.dart';
 import 'message_version_info.dart';
 import 'message_version_navigator.dart';
+import 'chat_inline_error_card.dart';
 import 'reasoning_panel.dart';
 import 'streaming_markdown_view.dart';
+import 'user_message_collapse.dart';
 
 /// 单条聊天消息气泡，负责正文、推理内容和消息操作。
 class ChatMessageBubble extends StatefulWidget {
@@ -59,7 +61,6 @@ class ChatMessageBubble extends StatefulWidget {
 class _ChatMessageBubbleState extends State<ChatMessageBubble> {
   final _reasoningCounter = StreamingChatWordCounter();
   final _contentCounter = StreamingChatWordCounter();
-  static const _maxUserMessageLines = 20;
   bool _isUserMessageCollapsed = true;
 
   /// 将消息正文复制到剪贴板。
@@ -104,15 +105,15 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
     final theme = Theme.of(context);
     final message = widget.message;
     final isUser = message.role == ChatMessageRole.user;
-    final shouldCollapseUserMessage = _shouldCollapseUserMessage(message);
-    final isUserCollapsed = shouldCollapseUserMessage && _isUserMessageCollapsed;
+    final needsCollapse = shouldCollapseUserMessage(message);
+    final isUserCollapsed = needsCollapse && _isUserMessageCollapsed;
     final userContent = isUserCollapsed
-        ? _truncateContentToLines(message.content, _maxUserMessageLines)
+        ? truncateContentToLines(message.content, maxUserMessageLines)
         : message.content;
     final userSegments = message.userMessageSegments;
     final displaySegments = userSegments.isNotEmpty
         ? (isUserCollapsed
-            ? _truncateUserMessageSegments(userSegments, userContent.length)
+            ? truncateUserMessageSegments(userSegments, userContent.length)
             : userSegments)
         : const <UserMessageSegment>[];
 
@@ -233,9 +234,8 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                     widget.inlineErrorMessage != null &&
                     widget.inlineErrorMessage!.trim().isNotEmpty) ...[
                   const SizedBox(height: 8),
-                  _buildInlineErrorCard(
-                    theme,
-                    widget.inlineErrorMessage!.trim(),
+                  ChatInlineErrorCard(
+                    message: widget.inlineErrorMessage!.trim(),
                   ),
                 ],
                 if (!isUser && message.appliedCheckpointTitle.trim().isNotEmpty)
@@ -277,7 +277,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                     ],
                   ),
                 ],
-                if (isUser && shouldCollapseUserMessage) ...[
+                if (isUser && needsCollapse) ...[
                   const SizedBox(height: 8),
                   Align(
                     alignment: Alignment.centerLeft,
@@ -382,24 +382,6 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
     );
   }
 
-  Widget _buildInlineErrorCard(ThemeData theme, String message) {
-    return Card(
-      margin: EdgeInsets.zero,
-      color: theme.colorScheme.errorContainer.withValues(alpha: 0.72),
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Text(
-          message,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onErrorContainer,
-          ),
-        ),
-      ),
-    );
-  }
-
   /// 判断当前助手消息是否需要显示字数统计。
   bool _shouldShowWordCount(ChatMessage message) {
     return message.content.trim().isNotEmpty ||
@@ -446,61 +428,13 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
     );
   }
 
-  bool _shouldCollapseUserMessage(ChatMessage message) {
-    if (message.role != ChatMessageRole.user) {
-      return false;
-    }
-    return _countExplicitLines(message.content) > _maxUserMessageLines;
-  }
-
   void _syncUserMessageCollapse(ChatMessage message, {bool reset = false}) {
-    if (!_shouldCollapseUserMessage(message)) {
+    if (!shouldCollapseUserMessage(message)) {
       _isUserMessageCollapsed = false;
       return;
     }
     if (reset) {
       _isUserMessageCollapsed = true;
     }
-  }
-
-  int _countExplicitLines(String content) {
-    if (content.isEmpty) {
-      return 1;
-    }
-    return '\n'.allMatches(content).length + 1;
-  }
-
-  String _truncateContentToLines(String content, int maxLines) {
-    final lines = content.split('\n');
-    if (lines.length <= maxLines) {
-      return content;
-    }
-    return lines.take(maxLines).join('\n');
-  }
-
-  List<UserMessageSegment> _truncateUserMessageSegments(
-    List<UserMessageSegment> segments,
-    int maxLength,
-  ) {
-    var remaining = maxLength;
-    final result = <UserMessageSegment>[];
-    for (final segment in segments) {
-      if (remaining <= 0) {
-        break;
-      }
-      if (segment.text.length <= remaining) {
-        result.add(segment);
-        remaining -= segment.text.length;
-        continue;
-      }
-      result.add(
-        UserMessageSegment(
-          text: segment.text.substring(0, remaining),
-          kind: segment.kind,
-        ),
-      );
-      break;
-    }
-    return result;
   }
 }
