@@ -510,7 +510,6 @@ void main() {
           PromptTemplate(
             id: 'prompt-1',
             name: '模板一',
-            systemPrompt: '',
             messages: const [
               PromptMessage(
                 id: 'prompt-1-message-1',

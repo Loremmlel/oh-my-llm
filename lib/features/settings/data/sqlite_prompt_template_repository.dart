@@ -66,13 +66,29 @@ class SqlitePromptTemplateRepository {
     final hasSystemMessages = messages.any(
       (message) => message.role == PromptMessageRole.system,
     );
+
+    List<PromptMessage> effectiveMessages = messages;
+    if (!hasSystemMessages) {
+      final legacyPrompt =
+          (row['system_prompt'] as String?)?.trim() ?? '';
+      if (legacyPrompt.isNotEmpty) {
+        effectiveMessages = [
+          PromptMessage(
+            id: '_legacy-system-message',
+            role: PromptMessageRole.system,
+            title: defaultSystemPromptTitle,
+            content: legacyPrompt,
+            placement: PromptMessagePlacement.before,
+          ),
+          ...messages,
+        ];
+      }
+    }
+
     return PromptTemplate(
       id: row['id'] as String,
       name: row['name'] as String,
-      systemPrompt: hasSystemMessages
-          ? ''
-          : row['system_prompt'] as String? ?? '',
-      messages: messages,
+      messages: effectiveMessages,
       updatedAt: DateTime.parse(row['updated_at'] as String),
     );
   }

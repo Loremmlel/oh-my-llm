@@ -13,10 +13,14 @@ import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
 PromptTemplate template(String id, {DateTime? updatedAt}) => PromptTemplate(
   id: id,
   name: '模板 $id',
-  systemPromptTitle: 'system',
-  systemPrompt: '系统 $id',
-  messages: const [
+  messages: [
     PromptMessage(
+      id: '_legacy-system-message',
+      role: PromptMessageRole.system,
+      title: defaultSystemPromptTitle,
+      content: '系统 $id',
+    ),
+    const PromptMessage(
       id: 'msg-1',
       role: PromptMessageRole.user,
       title: '前置user1',
@@ -69,9 +73,13 @@ void main() {
       final original = PromptTemplate(
         id: 'full',
         name: '全字段',
-        systemPromptTitle: 'system',
-        systemPrompt: '系统指令',
         messages: const [
+          PromptMessage(
+            id: 'msg-sys',
+            role: PromptMessageRole.system,
+            title: defaultSystemPromptTitle,
+            content: '系统指令',
+          ),
           PromptMessage(
             id: 'msg-1',
             role: PromptMessageRole.user,
@@ -124,9 +132,9 @@ void main() {
           'updatedAt': '2026-01-01T00:00:00.000',
         });
 
-        expect(decoded.systemPromptTitle, 'system');
         expect(decoded.messages[0].role, PromptMessageRole.system);
         expect(decoded.messages[0].title, 'system');
+        expect(decoded.messages[0].content, '系统指令');
         expect(decoded.messages[1].title, '前置user1');
         expect(decoded.messages[2].title, '后置assistant1');
       },
