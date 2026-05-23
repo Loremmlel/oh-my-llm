@@ -17,7 +17,7 @@ void replaceAllRowsInTable<T>({
         statement.execute(buildValues(item));
       }
     } finally {
-      statement.dispose();
+      statement.close();
     }
     connection.execute('COMMIT;');
   } catch (_) {
