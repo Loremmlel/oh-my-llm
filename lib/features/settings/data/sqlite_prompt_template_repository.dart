@@ -2,60 +2,15 @@ import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/persistence/app_database.dart';
-import '../../../core/persistence/app_database_provider.dart';
-import '../../../core/persistence/sqlite_replace_all.dart';
+import '../../../core/persistence/sqlite_entity_repository.dart';
 import '../domain/models/prompt_template.dart';
 
-/// Prompt 模板的 SQLite 仓库 Provider。
-final promptTemplateRepositoryProvider =
-    Provider<SqlitePromptTemplateRepository>(
-      (ref) => SqlitePromptTemplateRepository(ref.watch(appDatabaseProvider)),
-    );
-
-/// Prompt 模板的 SQLite 读写仓库。
-///
-/// 每条模板以一行记录存储；嵌套的 [PromptMessage] 列表序列化为 JSON 字符串列。
-/// 数据始终整体读写，无需按子消息单独查询，因此 JSON 列比规范化表更简单高效。
-class SqlitePromptTemplateRepository {
-  const SqlitePromptTemplateRepository(this._database);
-
-  final AppDatabase _database;
-
-  /// 按更新时间降序返回全部 Prompt 模板。
-  List<PromptTemplate> loadAll() {
-    final rows = _database.connection.select(
-      'SELECT id, name, system_prompt, messages_json, updated_at '
-      'FROM prompt_templates '
-      'ORDER BY updated_at DESC;',
-    );
-
-    return rows.map(_rowToTemplate).toList(growable: false);
-  }
-
-  /// 以事务方式将 [templates] 全量写入数据库（先清空再插入）。
-  ///
-  /// 采用 DELETE + INSERT 而非 UPSERT，保证磁盘上的顺序与传入列表一致，
-  /// 同时避免遗留已删除条目。
-  Future<void> saveAll(List<PromptTemplate> templates) async {
-    replaceAllRowsInTable(
-      connection: _database.connection,
-      deleteSql: 'DELETE FROM prompt_templates;',
-      insertSql:
-          'INSERT INTO prompt_templates (id, name, system_prompt, messages_json, updated_at) '
-          'VALUES (?, ?, ?, ?, ?);',
-      items: templates,
-      buildValues: (template) => [
-        template.id,
-        template.name,
-        '',
-        jsonEncode(template.messages.map((m) => m.toJson()).toList()),
-        template.updatedAt.toIso8601String(),
-      ],
-    );
-  }
-
-  PromptTemplate _rowToTemplate(Map<String, dynamic> row) {
+final promptTemplateRepository = SqliteEntityRepository<PromptTemplate>(
+  tableName: 'prompt_templates',
+  selectColumns: 'id, name, system_prompt, messages_json, updated_at',
+  insertColumns: 'id, name, system_prompt, messages_json, updated_at',
+  insertPlaceholders: '?, ?, ?, ?, ?',
+  rowToEntity: (row) {
     final rawMessages = jsonDecode(row['messages_json'] as String) as List;
     final messages = rawMessages
         .map(
@@ -69,8 +24,7 @@ class SqlitePromptTemplateRepository {
 
     List<PromptMessage> effectiveMessages = messages;
     if (!hasSystemMessages) {
-      final legacyPrompt =
-          (row['system_prompt'] as String?)?.trim() ?? '';
+      final legacyPrompt = (row['system_prompt'] as String?)?.trim() ?? '';
       if (legacyPrompt.isNotEmpty) {
         effectiveMessages = [
           PromptMessage(
@@ -91,5 +45,17 @@ class SqlitePromptTemplateRepository {
       messages: effectiveMessages,
       updatedAt: DateTime.parse(row['updated_at'] as String),
     );
-  }
-}
+  },
+  entityToValues: (t) => [
+    t.id,
+    t.name,
+    '',
+    jsonEncode(t.messages.map((m) => m.toJson()).toList()),
+    t.updatedAt.toIso8601String(),
+  ],
+);
+
+final promptTemplateRepositoryProvider =
+    Provider<SqliteEntityRepository<PromptTemplate>>(
+      (ref) => promptTemplateRepository,
+    );

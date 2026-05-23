@@ -111,8 +111,8 @@ void registerSettingsScreenModelsAndPromptsTests() {
     (tester) async {
       final preferences = await createEmptyPreferences();
       final database = await pumpSettingsScreen(tester, preferences: preferences);
-      final repository = SqlitePromptTemplateRepository(database);
-      expect(repository.loadAll(), isEmpty);
+      final repository = promptTemplateRepository;
+      expect(repository.loadAll(database), isEmpty);
 
       await tester.tap(find.text('新增预设'));
       await tester.pumpAndSettle();
@@ -134,7 +134,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
       await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
 
-      final createdTemplate = repository.loadAll().single;
+      final createdTemplate = repository.loadAll(database).single;
       expect(createdTemplate.name, '代码审阅');
       expect(createdTemplate.messages, hasLength(1));
       expect(createdTemplate.messages.single.title, '前置要求');
@@ -147,13 +147,13 @@ void registerSettingsScreenModelsAndPromptsTests() {
       await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
 
-      expect(repository.loadAll().single.name, '代码审阅 v2');
+      expect(repository.loadAll(database).single.name, '代码审阅 v2');
       expect(find.text('代码审阅 v2'), findsWidgets);
 
       await tester.tap(find.text('删除'));
       await tester.pumpAndSettle();
 
-      expect(repository.loadAll(), isEmpty);
+      expect(repository.loadAll(database), isEmpty);
     },
   );
 
@@ -469,8 +469,8 @@ void registerSettingsScreenModelsAndPromptsTests() {
     (tester) async {
       final preferences = await createEmptyPreferences();
       final database = await pumpSettingsScreen(tester, preferences: preferences);
-      final repository = SqliteTemplatePromptRepository(database);
-      expect(repository.loadAll(), isEmpty);
+      final repository = templatePromptRepository;
+      expect(repository.loadAll(database), isEmpty);
 
       await tester.tap(find.text('新增模板提示词'));
       await tester.pumpAndSettle();
@@ -486,7 +486,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
       await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
 
-      final createdTemplate = repository.loadAll().single;
+      final createdTemplate = repository.loadAll(database).single;
       expect(createdTemplate.title, '翻译模板');
       expect(createdTemplate.variables.map((variable) => variable.name), [
         templatePromptBodyVariableName,
@@ -501,13 +501,13 @@ void registerSettingsScreenModelsAndPromptsTests() {
       await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
 
-      expect(repository.loadAll().single.title, '翻译模板 v2');
+      expect(repository.loadAll(database).single.title, '翻译模板 v2');
       expect(find.text('翻译模板 v2'), findsWidgets);
 
       await tester.tap(find.text('删除'));
       await tester.pumpAndSettle();
 
-      expect(repository.loadAll(), isEmpty);
+      expect(repository.loadAll(database), isEmpty);
     },
   );
 
@@ -541,8 +541,8 @@ void registerSettingsScreenModelsAndPromptsTests() {
   ) async {
     final preferences = await createEmptyPreferences();
     final database = await pumpSettingsScreen(tester, preferences: preferences);
-    final repository = SqliteMemoryPromptRepository(database);
-    expect(repository.loadAll(), isEmpty);
+    final repository = memoryPromptRepository;
+    expect(repository.loadAll(database), isEmpty);
 
     await tester.tap(find.text('新增记忆提示词'));
     await tester.pumpAndSettle();
@@ -555,7 +555,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
     await tester.tap(find.text('保存'));
     await tester.pumpAndSettle();
 
-    final createdPrompt = repository.loadAll().single;
+    final createdPrompt = repository.loadAll(database).single;
     expect(createdPrompt.name, '研发任务总结');
     expect(createdPrompt.content, '请总结当前研发任务中的决定、约束与待办。');
     expect(find.text('研发任务总结'), findsWidgets);
@@ -566,13 +566,13 @@ void registerSettingsScreenModelsAndPromptsTests() {
     await tester.tap(find.text('保存'));
     await tester.pumpAndSettle();
 
-    expect(repository.loadAll().single.name, '研发任务总结 v2');
+    expect(repository.loadAll(database).single.name, '研发任务总结 v2');
     expect(find.text('研发任务总结 v2'), findsWidgets);
 
     await tester.tap(find.text('删除'));
     await tester.pumpAndSettle();
 
-    expect(repository.loadAll(), isEmpty);
+    expect(repository.loadAll(database), isEmpty);
   });
 
   testWidgets(

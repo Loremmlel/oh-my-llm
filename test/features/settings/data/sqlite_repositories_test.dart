@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/core/persistence/app_database.dart';
+import 'package:oh_my_llm/core/persistence/sqlite_entity_repository.dart';
 import 'package:oh_my_llm/features/settings/data/sqlite_fixed_prompt_sequence_repository.dart';
 import 'package:oh_my_llm/features/settings/data/sqlite_memory_prompt_repository.dart';
 import 'package:oh_my_llm/features/settings/data/sqlite_prompt_template_repository.dart';
@@ -58,13 +59,13 @@ MemoryPrompt memoryPrompt(String id, {DateTime? updatedAt}) => MemoryPrompt(
 );
 
 void main() {
-  group('SqlitePromptTemplateRepository', () {
+  group('SqliteEntityRepository<PromptTemplate>', () {
     late AppDatabase database;
-    late SqlitePromptTemplateRepository repo;
+    late SqliteEntityRepository<PromptTemplate> repo;
 
     setUp(() {
       database = AppDatabase.inMemory();
-      repo = SqlitePromptTemplateRepository(database);
+      repo = promptTemplateRepository;
     });
 
     tearDown(() => database.close());
@@ -98,9 +99,9 @@ void main() {
         updatedAt: DateTime(2026, 3, 15),
       );
 
-      await repo.saveAll([original]);
+      await repo.saveAll(database, [original]);
 
-      expect(repo.loadAll().single, original);
+      expect(repo.loadAll(database).single, original);
     });
 
     test('legacy prompt message defaults placement to before', () {
@@ -141,13 +142,13 @@ void main() {
     );
   });
 
-  group('SqliteFixedPromptSequenceRepository', () {
+  group('SqliteEntityRepository<FixedPromptSequence>', () {
     late AppDatabase database;
-    late SqliteFixedPromptSequenceRepository repo;
+    late SqliteEntityRepository<FixedPromptSequence> repo;
 
     setUp(() {
       database = AppDatabase.inMemory();
-      repo = SqliteFixedPromptSequenceRepository(database);
+      repo = fixedPromptSequenceRepository;
     });
 
     tearDown(() => database.close());
@@ -163,9 +164,9 @@ void main() {
         updatedAt: DateTime(2026, 5, 20),
       );
 
-      await repo.saveAll([original]);
+      await repo.saveAll(database, [original]);
 
-      expect(repo.loadAll().single, original);
+      expect(repo.loadAll(database).single, original);
     });
 
     test('legacy fixed sequence generates fallback step titles', () {
@@ -184,13 +185,13 @@ void main() {
     });
   });
 
-  group('SqliteTemplatePromptRepository', () {
+  group('SqliteEntityRepository<TemplatePrompt>', () {
     late AppDatabase database;
-    late SqliteTemplatePromptRepository repo;
+    late SqliteEntityRepository<TemplatePrompt> repo;
 
     setUp(() {
       database = AppDatabase.inMemory();
-      repo = SqliteTemplatePromptRepository(database);
+      repo = templatePromptRepository;
     });
 
     tearDown(() => database.close());
@@ -198,19 +199,19 @@ void main() {
     test('round-trip preserves content and variables', () async {
       final original = templatePrompt('full', updatedAt: DateTime(2026, 3, 15));
 
-      await repo.saveAll([original]);
+      await repo.saveAll(database, [original]);
 
-      expect(repo.loadAll().single, original);
+      expect(repo.loadAll(database).single, original);
     });
   });
 
-  group('SqliteMemoryPromptRepository', () {
+  group('SqliteEntityRepository<MemoryPrompt>', () {
     late AppDatabase database;
-    late SqliteMemoryPromptRepository repo;
+    late SqliteEntityRepository<MemoryPrompt> repo;
 
     setUp(() {
       database = AppDatabase.inMemory();
-      repo = SqliteMemoryPromptRepository(database);
+      repo = memoryPromptRepository;
     });
 
     tearDown(() => database.close());
@@ -221,9 +222,9 @@ void main() {
         updatedAt: DateTime(2026, 3, 15),
       );
 
-      await repo.saveAll([original]);
+      await repo.saveAll(database, [original]);
 
-      expect(repo.loadAll().single, original);
+      expect(repo.loadAll(database).single, original);
     });
   });
 }
