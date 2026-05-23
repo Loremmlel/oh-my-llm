@@ -42,20 +42,18 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(
-      text: widget.initialValue?.name ?? '',
-    );
+    _nameController = initController(widget.initialValue?.name ?? '');
     _items = _buildInitialItems(widget.initialValue);
     _selectedItemId = _items.isEmpty ? null : _items.first.id;
   }
 
   @override
   void dispose() {
-    _nameController.dispose();
     for (final item in _items) {
       item.titleController.dispose();
       item.contentController.dispose();
     }
+    disposeAllControllers();
     super.dispose();
   }
 

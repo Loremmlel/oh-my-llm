@@ -42,22 +42,14 @@ class _ModelProviderFormDialogState extends State<ModelProviderFormDialog>
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(
-      text: widget.initialValue?.name ?? '',
-    );
-    _apiUrlController = TextEditingController(
-      text: widget.initialValue?.apiUrl ?? '',
-    );
-    _apiKeyController = TextEditingController(
-      text: widget.initialValue?.apiKey ?? '',
-    );
+    _nameController = initController(widget.initialValue?.name ?? '');
+    _apiUrlController = initController(widget.initialValue?.apiUrl ?? '');
+    _apiKeyController = initController(widget.initialValue?.apiKey ?? '');
   }
 
   @override
   void dispose() {
-    _nameController.dispose();
-    _apiUrlController.dispose();
-    _apiKeyController.dispose();
+    disposeAllControllers();
     super.dispose();
   }
 

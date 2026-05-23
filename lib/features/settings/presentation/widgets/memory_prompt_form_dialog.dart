@@ -35,18 +35,13 @@ class _MemoryPromptFormDialogState extends State<MemoryPromptFormDialog>
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(
-      text: widget.initialValue?.name ?? '',
-    );
-    _contentController = TextEditingController(
-      text: widget.initialValue?.content ?? '',
-    );
+    _nameController = initController(widget.initialValue?.name ?? '');
+    _contentController = initController(widget.initialValue?.content ?? '');
   }
 
   @override
   void dispose() {
-    _nameController.dispose();
-    _contentController.dispose();
+    disposeAllControllers();
     super.dispose();
   }
 
