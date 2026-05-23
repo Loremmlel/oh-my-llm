@@ -1,14 +1,7 @@
 import 'dart:convert';
 
 import 'chat_completion_client.dart';
-
-/// SSE data 块的解析结果，包含从正文和 delta 中提取出的正文与推理文本。
-class ChunkTextExtraction {
-  const ChunkTextExtraction({this.content = '', this.reasoning = ''});
-
-  final String content;
-  final String reasoning;
-}
+import 'chunk_parse_strategy.dart';
 
 /// 内联 reasoning 标签分割结果。
 class InlineReasoningSplitResult {
@@ -102,9 +95,7 @@ class InlineReasoningTagSplitter {
 
   /// 刷新缓冲区中残留的不完整标签内容。
   ChatCompletionChunk? flushRemainder() {
-    if (_tail.isEmpty) {
-      return null;
-    }
+    if (_tail.isEmpty) return null;
 
     final remainder = _tail;
     _tail = '';
@@ -117,13 +108,23 @@ class InlineReasoningTagSplitter {
 
 /// 从单个 SSE delta/message payload 提取正文与推理增量。
 ///
-/// 兼容以下厂商的返回格式：
+/// 通过 [ChunkParseStrategy] 策略链兼容以下厂商格式：
 /// - 标准 OpenAI：`delta.content` 为字符串
 /// - DeepSeek：`delta.reasoning_content` 或 `delta.reasoning`
 /// - Gemini parts：`delta.content` 为含 `{text, thought}` 的列表
 /// - Gemma-IT 内联标签：由 [InlineReasoningTagSplitter] 处理
+///
+/// 传入自定义 [strategies] 可扩展支持新的厂商格式，默认开启全部内置策略。
 class ChatChunkParser {
-  const ChatChunkParser();
+  static const _defaultStrategies = [
+    GeminiPartsChunkStrategy(),
+    DeepSeekChunkStrategy(),
+    StandardOpenAiChunkStrategy(),
+  ];
+
+  const ChatChunkParser({this.strategies = _defaultStrategies});
+
+  final List<ChunkParseStrategy> strategies;
 
   /// 解析完整的 SSE data 块（JSON 字符串），返回补全增量。
   ///
@@ -132,9 +133,7 @@ class ChatChunkParser {
     String rawChunk, {
     required InlineReasoningTagSplitter inlineReasoningSplitter,
   }) {
-    if (rawChunk == '[DONE]') {
-      return null;
-    }
+    if (rawChunk == '[DONE]') return null;
 
     late final Object? decoded;
     try {
@@ -143,9 +142,7 @@ class ChatChunkParser {
       throw const ChatCompletionException('服务端返回了无法解析的流式数据。');
     }
 
-    if (decoded is! Map) {
-      return const ChatCompletionChunk();
-    }
+    if (decoded is! Map) return const ChatCompletionChunk();
 
     final error = decoded['error'];
     if (error is String && error.trim().isNotEmpty) {
@@ -179,148 +176,24 @@ class ChatChunkParser {
         reasoningDelta: splitResult.reasoning,
       );
     }
-    if (payload is! Map) {
-      return const ChatCompletionChunk();
+    if (payload is! Map) return const ChatCompletionChunk();
+
+    final delta = Map<String, dynamic>.from(payload);
+    ChunkTextExtraction extraction = const ChunkTextExtraction();
+    for (final strategy in strategies) {
+      if (strategy.canHandle(delta)) {
+        extraction = strategy.extract(delta);
+        break;
+      }
     }
 
-    final extractedContent = _extractContentPayload(payload['content']);
     final splitResult = inlineReasoningSplitter.splitContent(
-      extractedContent.content,
-    );
-    final explicitReasoning = _extractTextPayload(
-      payload['reasoning_content'] ?? payload['reasoning'],
+      extraction.content,
     );
 
     return ChatCompletionChunk(
       contentDelta: splitResult.content,
-      reasoningDelta:
-          '$explicitReasoning${extractedContent.reasoning}${splitResult.reasoning}',
+      reasoningDelta: '${extraction.reasoning}${splitResult.reasoning}',
     );
-  }
-
-  /// 提取 content 字段中的正文与思考摘要（part.thought=true）。
-  ChunkTextExtraction _extractContentPayload(
-    Object? payload, {
-    bool forceReasoning = false,
-  }) {
-    if (payload is String) {
-      return forceReasoning
-          ? ChunkTextExtraction(reasoning: payload)
-          : ChunkTextExtraction(content: payload);
-    }
-    if (payload is List) {
-      final contentBuffer = StringBuffer();
-      final reasoningBuffer = StringBuffer();
-      for (final segment in payload) {
-        final extracted = _extractContentPayload(
-          segment,
-          forceReasoning: forceReasoning,
-        );
-        contentBuffer.write(extracted.content);
-        reasoningBuffer.write(extracted.reasoning);
-      }
-      return ChunkTextExtraction(
-        content: contentBuffer.toString(),
-        reasoning: reasoningBuffer.toString(),
-      );
-    }
-    if (payload is! Map) {
-      return const ChunkTextExtraction();
-    }
-
-    final thoughtEnabled = _isThoughtPart(payload['thought']);
-    final nextForceReasoning = forceReasoning || thoughtEnabled;
-    final contentBuffer = StringBuffer();
-    final reasoningBuffer = StringBuffer();
-
-    final text = payload['text'];
-    if (text is String) {
-      if (nextForceReasoning) {
-        reasoningBuffer.write(text);
-      } else {
-        contentBuffer.write(text);
-      }
-    }
-
-    final nestedContent = _extractContentPayload(
-      payload['content'],
-      forceReasoning: nextForceReasoning,
-    );
-    contentBuffer.write(nestedContent.content);
-    reasoningBuffer.write(nestedContent.reasoning);
-
-    final nestedParts = _extractContentPayload(
-      payload['parts'],
-      forceReasoning: nextForceReasoning,
-    );
-    contentBuffer.write(nestedParts.content);
-    reasoningBuffer.write(nestedParts.reasoning);
-
-    return ChunkTextExtraction(
-      content: contentBuffer.toString(),
-      reasoning: reasoningBuffer.toString(),
-    );
-  }
-
-  bool _isThoughtPart(Object? value) {
-    if (value is bool) {
-      return value;
-    }
-    if (value is String) {
-      return value.toLowerCase() == 'true';
-    }
-    return false;
-  }
-
-  /// 兼容字符串、数组和嵌套对象形式的文本字段。
-  String _extractTextPayload(Object? payload) {
-    if (payload is String) {
-      return payload;
-    }
-    if (payload is List) {
-      return payload.map(_extractSegmentText).join();
-    }
-    if (payload is! Map) {
-      return '';
-    }
-
-    final text = payload['text'];
-    if (text is String) {
-      return text;
-    }
-
-    final nestedText = payload['content'];
-    if (nestedText is String) {
-      return nestedText;
-    }
-    if (nestedText is List) {
-      return nestedText.map(_extractSegmentText).join();
-    }
-
-    return '';
-  }
-
-  String _extractSegmentText(Object? segment) {
-    if (segment is String) {
-      return segment;
-    }
-    if (segment is! Map) {
-      return '';
-    }
-
-    final text = segment['text'];
-    if (text is String) {
-      return text;
-    }
-
-    final nestedText = segment['content'];
-    if (nestedText is String) {
-      return nestedText;
-    }
-    if (nestedText is List) {
-      return nestedText.map(_extractSegmentText).join();
-    }
-
-    return '';
   }
 }
