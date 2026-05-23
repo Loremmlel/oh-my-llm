@@ -2,11 +2,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/core/persistence/app_database.dart';
+import 'package:oh_my_llm/core/persistence/sqlite_entity_repository.dart';
 import 'package:oh_my_llm/features/settings/data/prompt_template_migration.dart';
 import 'package:oh_my_llm/features/settings/data/prompt_template_repository.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompt_template.dart';
 
-/// 构造一条测试用 Prompt 模板。
 PromptTemplate _template(String id) {
   return PromptTemplate(
     id: id,
@@ -27,10 +27,12 @@ class _MigrationContext {
   const _MigrationContext({
     required this.preferences,
     required this.repository,
+    required this.database,
   });
 
   final SharedPreferences preferences;
-  final SqlitePromptTemplateRepository repository;
+  final SqliteEntityRepository<PromptTemplate> repository;
+  final AppDatabase database;
 }
 
 Future<_MigrationContext> _createMigrationContext({
@@ -42,16 +44,20 @@ Future<_MigrationContext> _createMigrationContext({
   final preferences = await SharedPreferences.getInstance();
   final database = AppDatabase.inMemory();
   addTearDown(database.close);
-  final repository = SqlitePromptTemplateRepository(database);
+  final repository = promptTemplateRepository;
 
   if (sqliteTemplates.isNotEmpty) {
-    await repository.saveAll(sqliteTemplates);
+    await repository.saveAll(database, sqliteTemplates);
   }
   if (legacyTemplates.isNotEmpty) {
     await saveLegacyPromptTemplatesForTest(preferences, legacyTemplates);
   }
 
-  return _MigrationContext(preferences: preferences, repository: repository);
+  return _MigrationContext(
+    preferences: preferences,
+    repository: repository,
+    database: database,
+  );
 }
 
 void main() {
@@ -63,10 +69,11 @@ void main() {
     await migrateLegacyPromptTemplates(
       preferences: context.preferences,
       repository: context.repository,
+      database: context.database,
     );
 
-    expect(context.repository.loadAll(), hasLength(1));
-    expect(context.repository.loadAll().single.id, 'tpl-1');
+    expect(context.repository.loadAll(context.database), hasLength(1));
+    expect(context.repository.loadAll(context.database).single.id, 'tpl-1');
     expect(context.preferences.getString(promptTemplatesStorageKey), isNull);
     expect(
       context.preferences.getBool(promptTemplatesSqliteMigrationFlagKey),
@@ -84,9 +91,10 @@ void main() {
     await migrateLegacyPromptTemplates(
       preferences: migratedContext.preferences,
       repository: migratedContext.repository,
+      database: migratedContext.database,
     );
 
-    expect(migratedContext.repository.loadAll(), isEmpty);
+    expect(migratedContext.repository.loadAll(migratedContext.database), isEmpty);
 
     final residueContext = await _createMigrationContext(
       initialValues: <String, Object>{
@@ -98,10 +106,14 @@ void main() {
     await migrateLegacyPromptTemplates(
       preferences: residueContext.preferences,
       repository: residueContext.repository,
+      database: residueContext.database,
     );
 
-    expect(residueContext.repository.loadAll(), isEmpty);
-    expect(residueContext.preferences.getString(promptTemplatesStorageKey), isNull);
+    expect(residueContext.repository.loadAll(residueContext.database), isEmpty);
+    expect(
+      residueContext.preferences.getString(promptTemplatesStorageKey),
+      isNull,
+    );
   });
 
   test('SQLite 已有模板时保留现有数据并标记迁移完成', () async {
@@ -113,10 +125,11 @@ void main() {
     await migrateLegacyPromptTemplates(
       preferences: context.preferences,
       repository: context.repository,
+      database: context.database,
     );
 
-    expect(context.repository.loadAll(), hasLength(1));
-    expect(context.repository.loadAll().single.id, 'tpl-existing');
+    expect(context.repository.loadAll(context.database), hasLength(1));
+    expect(context.repository.loadAll(context.database).single.id, 'tpl-existing');
     expect(context.preferences.getString(promptTemplatesStorageKey), isNull);
     expect(
       context.preferences.getBool(promptTemplatesSqliteMigrationFlagKey),
@@ -130,9 +143,10 @@ void main() {
     await migrateLegacyPromptTemplates(
       preferences: context.preferences,
       repository: context.repository,
+      database: context.database,
     );
 
-    expect(context.repository.loadAll(), isEmpty);
+    expect(context.repository.loadAll(context.database), isEmpty);
     expect(
       context.preferences.getBool(promptTemplatesSqliteMigrationFlagKey),
       isTrue,

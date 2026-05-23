@@ -8,7 +8,6 @@ import '../../features/settings/data/sqlite_fixed_prompt_sequence_repository.dar
 import '../../features/settings/data/sqlite_prompt_template_repository.dart';
 import 'app_database.dart';
 
-/// 执行应用启动时需要保留的一次性旧数据迁移。
 Future<void> runAppDataMigrations({
   required SharedPreferences preferences,
   required AppDatabase database,
@@ -19,10 +18,12 @@ Future<void> runAppDataMigrations({
   );
   await migrateLegacyPromptTemplates(
     preferences: preferences,
-    repository: SqlitePromptTemplateRepository(database),
+    repository: promptTemplateRepository,
+    database: database,
   );
   await migrateLegacyFixedPromptSequences(
     preferences: preferences,
-    repository: SqliteFixedPromptSequenceRepository(database),
+    repository: fixedPromptSequenceRepository,
+    database: database,
   );
 }

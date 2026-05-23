@@ -16,8 +16,8 @@ void registerSettingsScreenFixedPromptSequencesTests() {
         preferences: preferences,
         size: const Size(1440, 2200),
       );
-      final repository = SqliteFixedPromptSequenceRepository(database);
-      expect(repository.loadAll(), isEmpty);
+      final repository = fixedPromptSequenceRepository;
+      expect(repository.loadAll(database), isEmpty);
 
       await tester.tap(find.text('新增序列'));
       await tester.pumpAndSettle();
@@ -48,7 +48,7 @@ void registerSettingsScreenFixedPromptSequencesTests() {
       expect(stepTile('标题2'), findsOneWidget);
       await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
-      final createdSequence = repository.loadAll().single;
+      final createdSequence = repository.loadAll(database).single;
       expect(createdSequence.name, '对比测试流程');
       expect(createdSequence.steps, hasLength(2));
       expect(find.text('对比测试流程'), findsWidgets);
@@ -83,7 +83,7 @@ void registerSettingsScreenFixedPromptSequencesTests() {
       await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
 
-      expect(repository.loadAll().single.name, '对比测试流程 v2');
+      expect(repository.loadAll(database).single.name, '对比测试流程 v2');
       expect(find.text('对比测试流程 v2'), findsWidgets);
 
       final deleteButton = find.descendant(
@@ -98,7 +98,7 @@ void registerSettingsScreenFixedPromptSequencesTests() {
       await tester.tap(deleteButton);
       await tester.pumpAndSettle();
 
-      expect(repository.loadAll(), isEmpty);
+      expect(repository.loadAll(database), isEmpty);
     },
   );
 

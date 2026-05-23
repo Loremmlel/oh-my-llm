@@ -7,7 +7,7 @@ import 'sqlite_fixed_prompt_sequence_repository.dart';
 
 export 'sqlite_fixed_prompt_sequence_repository.dart'
     show
-        SqliteFixedPromptSequenceRepository,
+        fixedPromptSequenceRepository,
         fixedPromptSequenceRepositoryProvider;
 
 /// SharedPreferences 中旧版固定顺序提示词数据的键名，仅供迁移时使用。
@@ -16,7 +16,7 @@ const String fixedPromptSequencesStorageKey = 'settings.fixed_prompt_sequences';
 /// 旧版 SharedPreferences 固定顺序提示词仓库，仅供一次性数据迁移使用。
 ///
 /// 正式读写请使用 [fixedPromptSequenceRepositoryProvider] 对应的
-/// [SqliteFixedPromptSequenceRepository]。
+/// [SqliteEntityRepository]。
 class LegacyFixedPromptSequenceRepository {
   const LegacyFixedPromptSequenceRepository(this._sharedPreferences);
 
@@ -35,7 +35,7 @@ class LegacyFixedPromptSequenceRepository {
 
 /// 仅供测试使用：通过 SharedPreferences 保存固定顺序提示词序列（用于迁移路径测试）。
 ///
-/// 生产代码不应调用此方法，数据写入应通过 [SqliteFixedPromptSequenceRepository.saveAll]。
+/// 生产代码不应调用此方法，数据写入应通过 [SqliteEntityRepository.saveAll]。
 @visibleForTesting
 Future<void> saveLegacyFixedPromptSequencesForTest(
   SharedPreferences preferences,
