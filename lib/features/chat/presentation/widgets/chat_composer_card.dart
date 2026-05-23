@@ -8,6 +8,7 @@ import '../../../settings/domain/models/llm_provider_config.dart';
 import '../../../settings/domain/models/prompt_template.dart';
 import '../../../settings/domain/models/template_prompt.dart';
 import 'auto_retry_toggle.dart';
+import 'composer_data.dart';
 import 'thinking_toggle.dart';
 
 /// 聊天工作区中的输入与设置面板。
@@ -15,78 +16,22 @@ class ChatComposerCard extends StatelessWidget {
   static const compactComposerBreakpoint = 680.0;
 
   const ChatComposerCard({
-    required this.hasModels,
-    required this.modelProviders,
-    required this.modelConfigs,
-    required this.selectedProviderId,
-    required this.selectedModel,
-    required this.promptTemplates,
-    required this.selectedPromptTemplate,
+    required this.data,
+    required this.callbacks,
     required this.messageController,
     required this.messageFocusNode,
-    required this.templatePrompts,
-    required this.selectedTemplatePrompt,
-    required this.templateVariableControllers,
-    required this.isComposerCollapsed,
-    required this.reasoningEnabled,
-    required this.reasoningEffort,
-    required this.supportsReasoning,
-    required this.isBusy,
-    required this.isStreaming,
-    required this.excludedMessageCount,
-    required this.onProviderSelected,
-    required this.onModelSelected,
-    required this.onPromptTemplateSelected,
-    required this.onTemplatePromptSelected,
-    required this.onToggleComposerCollapsed,
-    required this.autoRetryEnabled,
-    required this.onReasoningEnabledChanged,
-    required this.onReasoningEffortChanged,
-    required this.onAutoRetryEnabledChanged,
-    required this.onOpenFixedPromptSequenceRunner,
-    required this.onOpenMessageFilter,
-    required this.onSendPressed,
-    required this.onStopStreaming,
     super.key,
   });
 
-  final bool hasModels;
-  final List<LlmProviderConfig> modelProviders;
-  final List<LlmModelConfig> modelConfigs;
-  final String? selectedProviderId;
-  final LlmModelConfig? selectedModel;
-  final List<PromptTemplate> promptTemplates;
-  final PromptTemplate? selectedPromptTemplate;
+  final ComposerData data;
+  final ComposerCallbacks callbacks;
   final TextEditingController messageController;
   final FocusNode messageFocusNode;
-  final List<TemplatePrompt> templatePrompts;
-  final TemplatePrompt? selectedTemplatePrompt;
-  final Map<String, TextEditingController> templateVariableControllers;
-  final bool isComposerCollapsed;
-  final bool reasoningEnabled;
-  final ReasoningEffort reasoningEffort;
-  final bool supportsReasoning;
-  final bool isBusy;
-  final bool isStreaming;
-  final int excludedMessageCount;
-  final ValueChanged<String> onProviderSelected;
-  final ValueChanged<String> onModelSelected;
-  final ValueChanged<String?> onPromptTemplateSelected;
-  final ValueChanged<String?> onTemplatePromptSelected;
-  final VoidCallback onToggleComposerCollapsed;
-  final bool autoRetryEnabled;
-  final ValueChanged<bool>? onReasoningEnabledChanged;
-  final ValueChanged<ReasoningEffort>? onReasoningEffortChanged;
-  final ValueChanged<bool>? onAutoRetryEnabledChanged;
-  final Future<void> Function() onOpenFixedPromptSequenceRunner;
-  final Future<void> Function() onOpenMessageFilter;
-  final Future<void> Function()? onSendPressed;
-  final Future<void> Function()? onStopStreaming;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    if (isComposerCollapsed) {
+    if (data.isComposerCollapsed) {
       return Card(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -100,7 +45,7 @@ class ChatComposerCard extends StatelessWidget {
               Tooltip(
                 message: '展开输入区',
                 child: OutlinedButton.icon(
-                  onPressed: onToggleComposerCollapsed,
+                  onPressed: callbacks.onToggleComposerCollapsed,
                   icon: const Icon(Icons.keyboard_arrow_down_rounded),
                   label: const Text('展开'),
                 ),
@@ -122,22 +67,22 @@ class ChatComposerCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _TemplateHeader(
-                  selectedTemplatePrompt: selectedTemplatePrompt,
-                  templatePrompts: templatePrompts,
-                  isBusy: isBusy,
-                  onTemplatePromptSelected: onTemplatePromptSelected,
-                  onToggleComposerCollapsed: onToggleComposerCollapsed,
+                  selectedTemplatePrompt: data.selectedTemplatePrompt,
+                  templatePrompts: data.templatePrompts,
+                  isBusy: data.isBusy,
+                  onTemplatePromptSelected: callbacks.onTemplatePromptSelected,
+                  onToggleComposerCollapsed: callbacks.onToggleComposerCollapsed,
                 ),
-                if (selectedTemplatePrompt != null) ...[
+                if (data.selectedTemplatePrompt != null) ...[
                   const SizedBox(height: 10),
-                  if (selectedTemplatePrompt!.inputVariables.isEmpty)
+                  if (data.selectedTemplatePrompt!.inputVariables.isEmpty)
                     Text('当前模板没有额外变量。', style: theme.textTheme.bodySmall)
                   else
                     _TemplateVariableFields(
-                      selectedTemplatePrompt: selectedTemplatePrompt!,
-                      templateVariableControllers: templateVariableControllers,
+                      selectedTemplatePrompt: data.selectedTemplatePrompt!,
+                      templateVariableControllers: data.templateVariableControllers,
                     ),
-                  if (!selectedTemplatePrompt!.containsBodyVariable) ...[
+                  if (!data.selectedTemplatePrompt!.containsBodyVariable) ...[
                     const SizedBox(height: 4),
                     Text('正文会在发送时插入模板提示词上方。', style: theme.textTheme.bodySmall),
                   ],
@@ -146,60 +91,60 @@ class ChatComposerCard extends StatelessWidget {
                 _MessageComposerField(
                   messageController: messageController,
                   messageFocusNode: messageFocusNode,
-                  selectedTemplatePrompt: selectedTemplatePrompt,
-                  onSendPressed: onSendPressed,
+                  selectedTemplatePrompt: data.selectedTemplatePrompt,
+                  onSendPressed: callbacks.onSendPressed,
                 ),
                 const SizedBox(height: 8),
                 _ProviderAndModelRow(
-                  hasModels: hasModels,
-                  modelProviders: modelProviders,
-                  modelConfigs: modelConfigs,
-                  selectedProviderId: selectedProviderId,
-                  selectedModel: selectedModel,
-                  isBusy: isBusy,
-                  onProviderSelected: onProviderSelected,
-                  onModelSelected: onModelSelected,
+                  hasModels: data.hasModels,
+                  modelProviders: data.modelProviders,
+                  modelConfigs: data.modelConfigs,
+                  selectedProviderId: data.selectedProviderId,
+                  selectedModel: data.selectedModel,
+                  isBusy: data.isBusy,
+                  onProviderSelected: callbacks.onProviderSelected,
+                  onModelSelected: callbacks.onModelSelected,
                 ),
                 const SizedBox(height: 6),
                 if (isCompact)
                   _CompactActionRow(
-                    hasModels: hasModels,
-                    isBusy: isBusy,
-                    isStreaming: isStreaming,
-                    supportsReasoning: supportsReasoning,
-                    reasoningEnabled: reasoningEnabled,
-                    reasoningEffort: reasoningEffort,
-                    autoRetryEnabled: autoRetryEnabled,
-                    selectedPromptTemplate: selectedPromptTemplate,
-                    excludedMessageCount: excludedMessageCount,
+                    hasModels: data.hasModels,
+                    isBusy: data.isBusy,
+                    isStreaming: data.isStreaming,
+                    supportsReasoning: data.supportsReasoning,
+                    reasoningEnabled: data.reasoningEnabled,
+                    reasoningEffort: data.reasoningEffort,
+                    autoRetryEnabled: data.autoRetryEnabled,
+                    selectedPromptTemplate: data.selectedPromptTemplate,
+                    excludedMessageCount: data.excludedMessageCount,
                     onOpenSettings: () {
                       _showCompactSecondarySettingsSheet(context, theme);
                     },
-                    onSendPressed: onSendPressed,
-                    onStopStreaming: onStopStreaming,
+                    onSendPressed: callbacks.onSendPressed,
+                    onStopStreaming: callbacks.onStopStreaming,
                   )
                 else
                   _DesktopSecondarySettingsRow(
                     theme: theme,
-                    hasModels: hasModels,
-                    supportsReasoning: supportsReasoning,
-                    reasoningEnabled: reasoningEnabled,
-                    reasoningEffort: reasoningEffort,
-                    autoRetryEnabled: autoRetryEnabled,
-                    promptTemplates: promptTemplates,
-                    selectedPromptTemplate: selectedPromptTemplate,
-                    isBusy: isBusy,
-                    isStreaming: isStreaming,
-                    onReasoningEnabledChanged: onReasoningEnabledChanged,
-                    onReasoningEffortChanged: onReasoningEffortChanged,
-                    onAutoRetryEnabledChanged: onAutoRetryEnabledChanged,
-                    onPromptTemplateSelected: onPromptTemplateSelected,
+                    hasModels: data.hasModels,
+                    supportsReasoning: data.supportsReasoning,
+                    reasoningEnabled: data.reasoningEnabled,
+                    reasoningEffort: data.reasoningEffort,
+                    autoRetryEnabled: data.autoRetryEnabled,
+                    promptTemplates: data.promptTemplates,
+                    selectedPromptTemplate: data.selectedPromptTemplate,
+                    isBusy: data.isBusy,
+                    isStreaming: data.isStreaming,
+                    onReasoningEnabledChanged: callbacks.onReasoningEnabledChanged,
+                    onReasoningEffortChanged: callbacks.onReasoningEffortChanged,
+                    onAutoRetryEnabledChanged: callbacks.onAutoRetryEnabledChanged,
+                    onPromptTemplateSelected: callbacks.onPromptTemplateSelected,
                     onOpenFixedPromptSequenceRunner:
-                        onOpenFixedPromptSequenceRunner,
-                    onOpenMessageFilter: onOpenMessageFilter,
-                    excludedMessageCount: excludedMessageCount,
-                    onSendPressed: onSendPressed,
-                    onStopStreaming: onStopStreaming,
+                        callbacks.onOpenFixedPromptSequenceRunner,
+                    onOpenMessageFilter: callbacks.onOpenMessageFilter,
+                    excludedMessageCount: data.excludedMessageCount,
+                    onSendPressed: callbacks.onSendPressed,
+                    onStopStreaming: callbacks.onStopStreaming,
                   ),
               ],
             ),
@@ -213,8 +158,8 @@ class ChatComposerCard extends StatelessWidget {
     BuildContext context,
     ThemeData theme,
   ) {
-    var localReasoningEnabled = supportsReasoning && reasoningEnabled;
-    var localEffort = reasoningEffort;
+    var localReasoningEnabled = data.supportsReasoning && data.reasoningEnabled;
+    var localEffort = data.reasoningEffort;
 
     return showModalBottomSheet<void>(
       context: context,
@@ -232,24 +177,24 @@ class ChatComposerCard extends StatelessWidget {
                     Text('更多设置', style: theme.textTheme.titleMedium),
                     const SizedBox(height: 12),
                     ThinkingToggle(
-                      enabled: supportsReasoning,
+                      enabled: data.supportsReasoning,
                       value: localReasoningEnabled,
-                      onChanged: supportsReasoning
+                      onChanged: data.supportsReasoning
                           ? (value) {
                               setModalState(() {
                                 localReasoningEnabled = value;
                               });
-                              onReasoningEnabledChanged?.call(value);
+                              callbacks.onReasoningEnabledChanged?.call(value);
                             }
                           : null,
                     ),
                     const SizedBox(height: 8),
                     AutoRetryToggle(
                       enabled: true,
-                      value: autoRetryEnabled,
-                      onChanged: onAutoRetryEnabledChanged,
+                      value: data.autoRetryEnabled,
+                      onChanged: callbacks.onAutoRetryEnabledChanged,
                     ),
-                    if (supportsReasoning && localReasoningEnabled) ...[
+                    if (data.supportsReasoning && localReasoningEnabled) ...[
                       const SizedBox(height: 12),
                       Text('思考强度', style: theme.textTheme.labelLarge),
                       const SizedBox(height: 8),
@@ -265,7 +210,7 @@ class ChatComposerCard extends StatelessWidget {
                                 setModalState(() {
                                   localEffort = effort;
                                 });
-                                onReasoningEffortChanged?.call(effort);
+                                callbacks.onReasoningEffortChanged?.call(effort);
                               },
                             ),
                         ],
@@ -275,7 +220,7 @@ class ChatComposerCard extends StatelessWidget {
                     DropdownButtonFormField<String>(
                       key: const ValueKey('chat-prompt-selector'),
                       initialValue:
-                          selectedPromptTemplate?.id ??
+                          data.selectedPromptTemplate?.id ??
                           noPromptTemplateSelectedId,
                       isExpanded: true,
                       decoration: const InputDecoration(labelText: '预设 Prompt'),
@@ -284,7 +229,7 @@ class ChatComposerCard extends StatelessWidget {
                           value: noPromptTemplateSelectedId,
                           child: Text('不使用预设 Prompt'),
                         ),
-                        ...promptTemplates.map((template) {
+                        ...data.promptTemplates.map((template) {
                           return DropdownMenuItem<String>(
                             value: template.id,
                             child: Text(
@@ -294,13 +239,13 @@ class ChatComposerCard extends StatelessWidget {
                           );
                         }),
                       ],
-                      onChanged: isBusy
+                      onChanged: data.isBusy
                           ? null
                           : (value) {
                               if (value == null) {
                                 return;
                               }
-                              onPromptTemplateSelected(
+                              callbacks.onPromptTemplateSelected(
                                 value == noPromptTemplateSelectedId
                                     ? null
                                     : value,
@@ -313,11 +258,11 @@ class ChatComposerCard extends StatelessWidget {
                       child: Tooltip(
                         message: '固定顺序提示词',
                         child: OutlinedButton.icon(
-                          onPressed: isBusy
+                          onPressed: data.isBusy
                               ? null
                               : () async {
                                   Navigator.of(bottomSheetContext).pop();
-                                  await onOpenFixedPromptSequenceRunner();
+                                  await callbacks.onOpenFixedPromptSequenceRunner();
                                 },
                           icon: const Icon(Icons.playlist_play_rounded),
                           label: const Text('固定顺序提示词'),
@@ -329,14 +274,14 @@ class ChatComposerCard extends StatelessWidget {
                       width: double.infinity,
                       child: OutlinedButton.icon(
                         key: const ValueKey('chat-message-filter-button'),
-                        onPressed: isBusy
+                        onPressed: data.isBusy
                             ? null
                             : () async {
                                 Navigator.of(bottomSheetContext).pop();
-                                await onOpenMessageFilter();
+                                await callbacks.onOpenMessageFilter();
                               },
                         icon: const Icon(Icons.filter_alt_outlined),
-                        label: Text(_messageFilterLabel(excludedMessageCount)),
+                        label: Text(_messageFilterLabel(data.excludedMessageCount)),
                       ),
                     ),
                   ],
