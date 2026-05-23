@@ -35,12 +35,14 @@ class ChatWorkspace extends StatelessWidget {
     required this.reasoningEnabled,
     required this.reasoningEffort,
     required this.supportsReasoning,
+    required this.autoRetryEnabled,
     required this.isBusy,
     required this.isStreaming,
     required this.errorMessage,
     required this.errorMessageAssistantId,
     required this.errorModelDisplayName,
     required this.showScrollToBottom,
+    required this.autoRetryCount,
     required this.excludedMessageCount,
     required this.onEditMessage,
     required this.onRetryLatestAssistant,
@@ -53,6 +55,7 @@ class ChatWorkspace extends StatelessWidget {
     required this.onToggleComposerCollapsed,
     required this.onReasoningEnabledChanged,
     required this.onReasoningEffortChanged,
+    required this.onAutoRetryEnabledChanged,
     required this.onOpenFixedPromptSequenceRunner,
     required this.onOpenMessageFilter,
     required this.onScrollToBottomPressed,
@@ -87,12 +90,14 @@ class ChatWorkspace extends StatelessWidget {
   final bool reasoningEnabled;
   final ReasoningEffort reasoningEffort;
   final bool supportsReasoning;
+  final bool autoRetryEnabled;
   final bool isBusy;
   final bool isStreaming;
   final String? errorMessage;
   final String? errorMessageAssistantId;
   final String errorModelDisplayName;
   final bool showScrollToBottom;
+  final int autoRetryCount;
   final int excludedMessageCount;
   final ValueChanged<ChatMessage> onEditMessage;
   final Future<void> Function() onRetryLatestAssistant;
@@ -105,6 +110,7 @@ class ChatWorkspace extends StatelessWidget {
   final VoidCallback onToggleComposerCollapsed;
   final ValueChanged<bool>? onReasoningEnabledChanged;
   final ValueChanged<ReasoningEffort>? onReasoningEffortChanged;
+  final ValueChanged<bool>? onAutoRetryEnabledChanged;
   final Future<void> Function() onOpenFixedPromptSequenceRunner;
   final Future<void> Function() onOpenMessageFilter;
   final VoidCallback onScrollToBottomPressed;
@@ -140,6 +146,7 @@ class ChatWorkspace extends StatelessWidget {
             errorMessageAssistantId: errorMessageAssistantId,
             errorModelDisplayName: errorModelDisplayName,
             showScrollToBottom: showScrollToBottom,
+            autoRetryCount: autoRetryCount,
             onEditMessage: onEditMessage,
             onRetryLatestAssistant: onRetryLatestAssistant,
             onDeleteMessage: onDeleteMessage,
@@ -169,6 +176,7 @@ class ChatWorkspace extends StatelessWidget {
           reasoningEnabled: reasoningEnabled,
           reasoningEffort: reasoningEffort,
           supportsReasoning: supportsReasoning,
+          autoRetryEnabled: autoRetryEnabled,
           isBusy: isBusy,
           isStreaming: isStreaming,
           excludedMessageCount: excludedMessageCount,
@@ -179,6 +187,7 @@ class ChatWorkspace extends StatelessWidget {
           onToggleComposerCollapsed: onToggleComposerCollapsed,
           onReasoningEnabledChanged: onReasoningEnabledChanged,
           onReasoningEffortChanged: onReasoningEffortChanged,
+          onAutoRetryEnabledChanged: onAutoRetryEnabledChanged,
           onOpenFixedPromptSequenceRunner: onOpenFixedPromptSequenceRunner,
           onOpenMessageFilter: onOpenMessageFilter,
           onSendPressed: onSendPressed,

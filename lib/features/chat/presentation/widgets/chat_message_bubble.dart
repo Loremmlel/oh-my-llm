@@ -24,6 +24,7 @@ class ChatMessageBubble extends StatefulWidget {
     this.inlineErrorMessage,
     this.versionInfo,
     this.onSwitchVersion,
+    this.autoRetryCount = 0,
     super.key,
   });
 
@@ -44,6 +45,9 @@ class ChatMessageBubble extends StatefulWidget {
 
   /// 需要在该消息中展示的错误提示。
   final String? inlineErrorMessage;
+
+  /// 当前自动重试次数，大于 0 时在用户消息中展示重试提示。
+  final int autoRetryCount;
 
   final MessageVersionInfo? versionInfo;
   final Future<void> Function(String targetMessageId)? onSwitchVersion;
@@ -164,6 +168,14 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       ),
                     ],
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Wrap(
+                  spacing: 4,
+                  runSpacing: 2,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
                     IconButton(
                       onPressed: () {
                         _copyMessage(context);
@@ -241,6 +253,26 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                   content: isUser ? userContent : message.content,
                   segments: isUser ? displaySegments : const [],
                 ),
+                if (isUser && widget.autoRetryCount > 0) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.refresh_rounded,
+                        size: 14,
+                        color: theme.colorScheme.primary,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '第 ${widget.autoRetryCount} 次重试中...',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
                 if (isUser && shouldCollapseUserMessage) ...[
                   const SizedBox(height: 8),
                   Align(

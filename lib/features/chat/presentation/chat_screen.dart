@@ -79,6 +79,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final activeConversationId = ref.watch(activeConversationIdProvider);
     final isStreaming = ref.watch(isChatStreamingProvider);
     final isBusy = ref.watch(isChatBusyProvider);
+    final autoRetryCount = ref.watch(
+      chatSessionsProvider.select((state) => state.autoRetryCount),
+    );
     final errorMessage = ref.watch(chatErrorMessageProvider);
     final errorMessageAssistantId = ref.watch(
       chatErrorMessageAssistantIdProvider,
@@ -245,12 +248,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         supportsReasoning && conversation.reasoningEnabled,
                     reasoningEffort: conversation.reasoningEffort,
                     supportsReasoning: supportsReasoning,
+                    autoRetryEnabled: conversation.autoRetryEnabled,
                     isBusy: isBusy,
                     isStreaming: isStreaming,
                     errorMessage: errorMessage,
                     errorMessageAssistantId: errorMessageAssistantId,
                     errorModelDisplayName: selectedModel?.displayName ?? '模型',
                     showScrollToBottom: _scroll.showScrollToBottom,
+                    autoRetryCount: autoRetryCount,
                     excludedMessageCount: excludedVisibleMessageCount,
                     onEditMessage: (message) async {
                       await _showEditMessageDialog(
@@ -311,6 +316,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                 );
                           }
                         : null,
+                    onAutoRetryEnabledChanged: (value) {
+                      ref
+                          .read(chatSessionsProvider.notifier)
+                          .updateActiveConversationPreferences(
+                            autoRetryEnabled: value,
+                          );
+                    },
                     onOpenFixedPromptSequenceRunner: () async {
                       await _showFixedPromptSequenceRunnerDialog(
                         context,
