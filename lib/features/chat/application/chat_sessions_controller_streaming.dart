@@ -343,6 +343,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
     required bool reasoningEnabled,
     required ReasoningEffort reasoningEffort,
     required String appliedCheckpointTitle,
+    Duration? retryDelay,
   }) async {
     autoRetryCancelled = false;
     state = state.copyWith(
@@ -363,7 +364,10 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
         return;
       }
 
-      await _waitForRetryWindow(isFirstAttempt: isFirstAttempt);
+      await _waitForRetryWindow(
+        isFirstAttempt: isFirstAttempt,
+        overrideDelay: retryDelay,
+      );
       isFirstAttempt = false;
 
       if (autoRetryCancelled) {
@@ -416,7 +420,16 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
   }
 
   /// 等待到下一个发送窗口（每分钟 0-15 秒之间的随机毫秒）。
-  Future<void> _waitForRetryWindow({required bool isFirstAttempt}) async {
+  Future<void> _waitForRetryWindow({
+    required bool isFirstAttempt,
+    Duration? overrideDelay,
+  }) async {
+    if (overrideDelay != null) {
+      state = state.copyWith(isAutoRetryWaiting: true);
+      await Future.delayed(overrideDelay);
+      return;
+    }
+
     final now = DateTime.now();
     final currentSecond = now.second;
 
