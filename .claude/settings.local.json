@@ -6,5 +6,6 @@
       "Bash(dart analyze *)",
       "Bash(flutter pub *)"
     ]
-  }
+  },
+  "outputStyle": "猫娘"
 }
