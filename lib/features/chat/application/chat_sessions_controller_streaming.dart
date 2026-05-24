@@ -339,7 +339,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
     required PresetPrompt? presetPrompt,
     required List<ChatMessage> requestConversationMessages,
     required List<ChatCheckpoint> requestCheckpointChain,
-    required String parentMessageId,
+    required String? parentMessageId,
     required bool reasoningEnabled,
     required ReasoningEffort reasoningEffort,
     required String appliedCheckpointTitle,
@@ -446,10 +446,8 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
     final now = DateTime.now();
     final currentSecond = now.second;
 
-    if (isFirstAttempt && currentSecond >= 0 && currentSecond <= 15) {
-      final jitterMs = maxJitterMs > 0 ? Random().nextInt(maxJitterMs) : 0;
-      state = state.copyWith(isAutoRetryWaiting: true);
-      await Future.delayed(Duration(milliseconds: jitterMs));
+    if (isFirstAttempt) {
+      return;
     } else {
       final msToNextMinute = (60 - currentSecond) * 1000 - now.millisecond;
       final jitterMs = maxJitterMs > 0 ? Random().nextInt(maxJitterMs) : 0;
