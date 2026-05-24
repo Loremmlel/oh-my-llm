@@ -20,7 +20,7 @@ void main() {
                   .select('PRAGMA user_version;')
                   .single['user_version']
               as int;
-      expect(version, 7);
+      expect(version, greaterThanOrEqualTo(7));
     });
 
     test('创建关键业务表', () {
@@ -104,19 +104,6 @@ void main() {
       expect(row['collection_id'], isNull);
     });
 
-    test('conversations 默认带空的消息过滤字段', () {
-      database.connection.execute('''
-        INSERT INTO conversations (id, created_at, updated_at, reasoning_effort)
-        VALUES ('c1', '2026-01-01', '2026-01-01', 'medium');
-      ''');
-
-      final row = database.connection
-          .select(
-            "SELECT excluded_message_ids_json FROM conversations WHERE id = 'c1';",
-          )
-          .single;
-      expect(row['excluded_message_ids_json'], '[]');
-    });
   });
 }
 

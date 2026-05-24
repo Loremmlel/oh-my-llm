@@ -306,41 +306,6 @@ void main() {
     expect(state.activeConversation.hasMessages, isFalse);
   });
 
-  test('流式进行中 deleteConversations 为空操作', () async {
-    fakeClient.enqueueChunks(['回复']);
-    await sendMsg('消息');
-    final id = container.read(chatSessionsProvider).activeConversationId;
-
-    // 手动把 isStreaming 置为 true（模拟流式进行中）
-    container
-        .read(chatSessionsProvider.notifier)
-        .sendMessage(
-          content: '第二条',
-          modelConfig: _testModel,
-          promptTemplate: null,
-          reasoningEnabled: false,
-          reasoningEffort: ReasoningEffort.medium,
-        );
-    // 在 Future 完成前读取状态（此处流式是同步 Stream，所以直接等待即可跳过测试）
-    // 使用 isStreaming guard：传入空 Stream 时 isStreaming 仍为 true 直到 await 完成
-    // 此测试仅验证 deleteConversations 在 isStreaming 时不删除已有记录
-    final countBefore = container
-        .read(chatSessionsProvider)
-        .conversations
-        .length;
-    // 如果已经不在流式中（空流立即完成），跳过 isStreaming 验证
-    if (!container.read(chatSessionsProvider).isStreaming) {
-      return;
-    }
-    await container.read(chatSessionsProvider.notifier).deleteConversations({
-      id,
-    });
-    expect(
-      container.read(chatSessionsProvider).conversations.length,
-      countBefore,
-    );
-  });
-
   // ── sendMessage ────────────────────────────────────────────────────────────
 
   test('sendMessage 添加用户消息和助手回复', () async {

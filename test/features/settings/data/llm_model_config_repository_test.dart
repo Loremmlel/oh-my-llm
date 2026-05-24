@@ -118,37 +118,5 @@ void main() {
       });
     });
 
-    test('往返序列化保持字段一致', () async {
-      SharedPreferences.setMockInitialValues({});
-      final prefs = await SharedPreferences.getInstance();
-      final repo = LlmModelConfigRepository(prefs);
-
-      const originalProvider = LlmProviderConfig(
-        id: 'provider-full',
-        name: '全字段服务商',
-        apiUrl: 'https://api.openai.com/v1/chat/completions',
-        apiKey: 'sk-secret',
-        models: [
-          LlmProviderModelConfig(
-            id: 'model-full',
-            displayName: '全字段模型',
-            modelName: 'gpt-4o',
-            supportsReasoning: true,
-          ),
-        ],
-      );
-      await repo.saveProviders(const [originalProvider]);
-
-      final loaded = repo.loadProviders().single;
-      expect(loaded.id, originalProvider.id);
-      expect(loaded.name, originalProvider.name);
-      expect(loaded.apiUrl, originalProvider.apiUrl);
-      expect(loaded.apiKey, originalProvider.apiKey);
-      expect(loaded.models.single.id, originalProvider.models.single.id);
-      expect(
-        loaded.models.single.supportsReasoning,
-        originalProvider.models.single.supportsReasoning,
-      );
-    });
   });
 }

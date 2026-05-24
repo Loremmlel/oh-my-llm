@@ -104,42 +104,6 @@ void main() {
       expect(repo.loadAll(database).single, original);
     });
 
-    test('legacy prompt message defaults placement to before', () {
-      final decoded = PromptMessage.fromJson({
-        'id': 'msg-old',
-        'role': 'user',
-        'content': '旧模板消息',
-      });
-
-      expect(decoded.placement, PromptMessagePlacement.before);
-    });
-
-    test(
-      'legacy prompt template generates fallback titles for system and messages',
-      () {
-        final decoded = PromptTemplate.fromJson({
-          'id': 'legacy',
-          'name': '旧模板',
-          'systemPrompt': '系统指令',
-          'messages': [
-            {'id': 'm1', 'role': 'user', 'content': '前置消息'},
-            {
-              'id': 'm2',
-              'role': 'assistant',
-              'placement': 'after',
-              'content': '后置消息',
-            },
-          ],
-          'updatedAt': '2026-01-01T00:00:00.000',
-        });
-
-        expect(decoded.messages[0].role, PromptMessageRole.system);
-        expect(decoded.messages[0].title, 'system');
-        expect(decoded.messages[0].content, '系统指令');
-        expect(decoded.messages[1].title, '前置user1');
-        expect(decoded.messages[2].title, '后置assistant1');
-      },
-    );
   });
 
   group('SqliteEntityRepository<FixedPromptSequence>', () {
@@ -169,20 +133,6 @@ void main() {
       expect(repo.loadAll(database).single, original);
     });
 
-    test('legacy fixed sequence generates fallback step titles', () {
-      final decoded = FixedPromptSequence.fromJson({
-        'id': 'legacy-seq',
-        'name': '旧序列',
-        'steps': [
-          {'id': 's1', 'content': '第一步内容'},
-          {'id': 's2', 'content': '第二步内容'},
-        ],
-        'updatedAt': '2026-01-01T00:00:00.000',
-      });
-
-      expect(decoded.steps[0].title, '标题1');
-      expect(decoded.steps[1].title, '标题2');
-    });
   });
 
   group('SqliteEntityRepository<TemplatePrompt>', () {

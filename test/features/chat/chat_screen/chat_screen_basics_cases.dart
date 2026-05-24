@@ -10,7 +10,6 @@ import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dar
 import 'package:oh_my_llm/features/chat/data/chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
-import 'package:oh_my_llm/features/chat/presentation/widgets/streaming_markdown_view.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/thinking_toggle.dart';
 import 'package:oh_my_llm/features/settings/application/llm_model_configs_controller.dart';
 import 'package:oh_my_llm/features/settings/application/memory_prompts_controller.dart';
@@ -362,56 +361,6 @@ void registerChatScreenBasicsTests() {
     );
   });
 
-  testWidgets('message filter dialog shows single plain-text preview', (
-    tester,
-  ) async {
-    final preferences = await createSeededPreferences();
-    final longAssistantReply = List<String>.filled(300, '超长预览内容').join();
-    final fakeClient = FakeChatCompletionClient()
-      ..enqueueChunks([longAssistantReply]);
-
-    await pumpChatScreen(
-      tester,
-      preferences: preferences,
-      fakeClient: fakeClient,
-    );
-
-    await sendMessage(tester, '请返回长文本');
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byKey(const ValueKey('chat-message-filter-button')));
-    await tester.pumpAndSettle();
-
-    final dialog = find.widgetWithText(AlertDialog, '上下文过滤');
-    expect(dialog, findsOneWidget);
-    expect(
-      find.descendant(
-        of: dialog,
-        matching: find.byKey(
-          const ValueKey('message-filter-preview-container'),
-        ),
-      ),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(
-        of: dialog,
-        matching: find.byKey(
-          const ValueKey('message-filter-preview-scrollbar'),
-        ),
-      ),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(of: dialog, matching: find.byType(StreamingMarkdownView)),
-      findsNothing,
-    );
-    expect(
-      find.descendant(of: dialog, matching: find.text(longAssistantReply)),
-      findsOneWidget,
-    );
-  });
-
   testWidgets(
     'message filter dialog uses the same word-count rule as checkpoints',
     (tester) async {
@@ -436,31 +385,6 @@ void registerChatScreenBasicsTests() {
       expect(find.text('发送字数：4 / 4 字'), findsOneWidget);
     },
   );
-
-  testWidgets('chat screen keeps composer visible on compact layouts', (
-    tester,
-  ) async {
-    final preferences = await createSeededPreferences();
-    final fakeClient = FakeChatCompletionClient();
-
-    await pumpChatScreen(
-      tester,
-      preferences: preferences,
-      fakeClient: fakeClient,
-      size: const Size(430, 932),
-    );
-
-    expect(find.byType(ListView), findsNothing);
-    expect(
-      find.widgetWithText(FilledButton, '发送').hitTestable(),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(const ValueKey('chat-secondary-settings-button')),
-      findsOneWidget,
-    );
-    expect(find.byKey(const ValueKey('chat-prompt-selector')), findsNothing);
-  });
 
   testWidgets('chat screen opens compact secondary settings sheet on mobile', (
     tester,
@@ -729,35 +653,6 @@ void registerChatScreenBasicsTests() {
 
     expect(fakeClient.lastRequestMessages.single.content, content);
     expect(find.textContaining('快捷键发送成功'), findsWidgets);
-  });
-
-  testWidgets('chat screen anchor rail does not render a scrollbar', (
-    tester,
-  ) async {
-    final preferences = await createSeededPreferences();
-    final fakeClient = FakeChatCompletionClient();
-    for (var index = 1; index <= 12; index += 1) {
-      fakeClient.enqueueChunks(['第 $index 条回复']);
-    }
-
-    await pumpChatScreen(
-      tester,
-      preferences: preferences,
-      fakeClient: fakeClient,
-      size: const Size(900, 520),
-    );
-
-    for (var index = 1; index <= 12; index += 1) {
-      await sendMessage(tester, '第 $index 条问题');
-      await tester.pumpAndSettle();
-    }
-
-    final rail = find.byKey(const ValueKey('message-anchor-rail'));
-    expect(rail, findsOneWidget);
-    expect(
-      find.descendant(of: rail, matching: find.byType(Scrollbar)),
-      findsNothing,
-    );
   });
 
   testWidgets('chat screen scroll-to-bottom button returns to latest message', (

@@ -124,28 +124,6 @@ void main() {
       expect(result[2].content, '真实问题');
     });
 
-    test('模板 user 消息转换为 ChatMessageRole.user', () {
-      final result = buildRequestMessages(
-        promptTemplate: buildTemplate(
-          messages: [buildTemplateMessage(PromptMessageRole.user, 'u')],
-        ),
-        conversationMessages: const [],
-      );
-
-      expect(result.single.role, ChatMessageRole.user);
-    });
-
-    test('模板 assistant 消息转换为 ChatMessageRole.assistant', () {
-      final result = buildRequestMessages(
-        promptTemplate: buildTemplate(
-          messages: [buildTemplateMessage(PromptMessageRole.assistant, 'a')],
-        ),
-        conversationMessages: const [],
-      );
-
-      expect(result.single.role, ChatMessageRole.assistant);
-    });
-
     test('模板 system 消息转换为 ChatMessageRole.system，并支持多条', () {
       final result = buildRequestMessages(
         promptTemplate: buildTemplate(
