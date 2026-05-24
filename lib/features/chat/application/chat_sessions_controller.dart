@@ -684,6 +684,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     required bool reasoningEnabled,
     required ReasoningEffort reasoningEffort,
     List<UserMessageSegment> userMessageSegments = const [],
+    Duration? retryDelay,
   }) async {
     if (_isBusy) {
       return;
@@ -734,6 +735,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         reasoningEnabled: reasoningEnabled,
         reasoningEffort: reasoningEffort,
         appliedCheckpointTitle: checkpointContext.activeCheckpoint?.title ?? '',
+        retryDelay: retryDelay,
       );
       return;
     }
