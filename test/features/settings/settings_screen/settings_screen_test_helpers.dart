@@ -15,12 +15,24 @@ import 'package:oh_my_llm/features/settings/presentation/settings_screen.dart';
 
 import '../../../test_database.dart';
 
+const settingsLastTabIndexKey = 'settings.tab.last_index';
+
+const tabLabels = ['服务商', '预设', '提示词', '其它'];
+
+/// 切换到指定标签页。
+Future<void> switchToTab(WidgetTester tester, int index) async {
+  await tester.tap(find.text(tabLabels[index]));
+  await tester.pumpAndSettle();
+}
+
 /// 挂载设置页并返回测试用数据库实例，供断言查询 SQLite 数据。
 Future<AppDatabase> pumpSettingsScreen(
   WidgetTester tester, {
   required SharedPreferences preferences,
   Size size = const Size(1440, 1500),
+  int initialTabIndex = 0,
 }) async {
+  await preferences.setInt(settingsLastTabIndexKey, initialTabIndex);
   final database = await createTestDatabase(preferences);
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;

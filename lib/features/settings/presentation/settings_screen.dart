@@ -4,12 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/navigation/app_destination.dart';
 import '../../../app/shell/app_shell_scaffold.dart';
+import '../../../core/persistence/shared_preferences_provider.dart';
 import '../../../core/utils/id_generator.dart';
-import '../application/settings_import_deduplicator.dart';
+import '../application/auto_retry_settings_controller.dart';
 import '../application/fixed_prompt_sequences_controller.dart';
 import '../application/llm_model_configs_controller.dart';
 import '../application/memory_prompts_controller.dart';
 import '../application/prompt_templates_controller.dart';
+import '../application/settings_import_deduplicator.dart';
 import '../application/template_prompts_controller.dart';
 import '../domain/models/fixed_prompt_sequence.dart';
 import '../domain/models/llm_provider_config.dart';
@@ -19,22 +21,69 @@ import '../domain/models/settings_export_data.dart';
 import '../domain/models/template_prompt.dart';
 import 'widgets/import_confirm_dialog.dart';
 import 'widgets/settings_widgets.dart';
+import 'widgets/tab/other_settings_tab.dart';
 
-/// 设置页入口，集中管理服务商、前置 Prompt、模板提示词和固定序列。
-class SettingsScreen extends ConsumerWidget {
+const _settingsLastTabIndexKey = 'settings.tab.last_index';
+
+const _tabProviders = 0;
+const _tabPresets = 1;
+const _tabPrompts = 2;
+const _tabOther = 3;
+
+const _tabLabelProviders = '服务商';
+const _tabLabelPresets = '预设 Prompt';
+const _tabLabelPrompts = '提示词';
+const _tabLabelOther = '其它设置';
+
+/// 设置页入口，使用标签页组织服务商、预设、提示词和其它设置。
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
+  @override
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends ConsumerState<SettingsScreen>
+    with TickerProviderStateMixin {
   static const _importDeduplicator = SettingsImportDeduplicator();
   static final _promptTemplateCopySuffixPattern = RegExp(
     r'^(.+?)（副本(?: \d+)?）$',
   );
-  static const _savedAllConfigMessage = '已复制全部配置到剪贴板';
-  static const _duplicateImportMessage = '剪贴板中的配置在本地均已存在，无需导入';
-  static const _importSuccessMessage = '配置已成功导入';
+
+  late final TabController _tabController;
 
   @override
-  /// 构建设置页的各类配置区域，顶部附导出/导入操作栏。
-  Widget build(BuildContext context, WidgetRef ref) {
+  void initState() {
+    super.initState();
+    final initialIndex = ref
+        .read(sharedPreferencesProvider)
+        .getInt(_settingsLastTabIndexKey) ??
+        0;
+    _tabController = TabController(
+      initialIndex: initialIndex.clamp(0, 3),
+      length: 4,
+      vsync: this,
+    );
+    _tabController.addListener(_onTabChanged);
+  }
+
+  @override
+  void dispose() {
+    _tabController.removeListener(_onTabChanged);
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  void _onTabChanged() {
+    if (!_tabController.indexIsChanging) {
+      ref
+          .read(sharedPreferencesProvider)
+          .setInt(_settingsLastTabIndexKey, _tabController.index);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final fixedPromptSequences = ref.watch(fixedPromptSequencesProvider);
     final modelProviders = ref.watch(llmProviderConfigsProvider);
     final memoryPrompts = ref.watch(memoryPromptsProvider);
@@ -43,107 +92,313 @@ class SettingsScreen extends ConsumerWidget {
 
     return AppShellScaffold(
       currentDestination: AppDestination.settings,
-      title: '设置页',
-      body: ListView(
-        padding: const EdgeInsets.all(16),
+      title: '设置',
+      actions: [
+        IconButton(
+          onPressed: () => _importToCurrentTab(),
+          icon: const Icon(Icons.download_rounded),
+          tooltip: '导入$_currentTabLabel',
+        ),
+        IconButton(
+          onPressed: () => _exportCurrentTab(),
+          icon: const Icon(Icons.upload_rounded),
+          tooltip: '导出$_currentTabLabel',
+        ),
+      ],
+      body: Column(
         children: [
-          // 导出按钮：将三类配置序列化为 JSON 并写入剪贴板
-          Align(
-            alignment: Alignment.centerRight,
-            child: OutlinedButton.icon(
-              onPressed: () => _exportToClipboard(context, ref),
-              icon: const Icon(Icons.upload_rounded),
-              label: const Text('导出全部配置'),
-            ),
+          TabBar(
+            controller: _tabController,
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
+            tabs: const [
+              Tab(text: '服务商'),
+              Tab(text: '预设'),
+              Tab(text: '提示词'),
+              Tab(text: '其它'),
+            ],
           ),
-          const SizedBox(height: 12),
-          ModelProvidersSection(
-            providers: modelProviders,
-            onAddPressed: () => _handleAddPressed(
-              context,
-              ref,
-              () => _showModelProviderDialog(context, ref),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                // 服务商
+                ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    ModelProvidersSection(
+                      providers: modelProviders,
+                      onAddPressed: () =>
+                          _showModelProviderDialog(context, ref),
+                      onEditProviderRequested: (provider) {
+                        _showModelProviderDialog(
+                          context,
+                          ref,
+                          initialValue: provider,
+                        );
+                      },
+                      onAddModelRequested: (provider) {
+                        _showModelConfigDialog(context, ref, provider: provider);
+                      },
+                      onEditModelRequested: (provider, model) {
+                        _showModelConfigDialog(
+                          context,
+                          ref,
+                          provider: provider,
+                          initialValue: model,
+                        );
+                      },
+                    ),
+                  ],
+                ),
+                // 预设
+                ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    PromptTemplatesSection(
+                      templates: promptTemplates,
+                      onAddPressed: () =>
+                          _showPromptTemplateDialog(context, ref),
+                      onDuplicateRequested: (template) {
+                        return _duplicatePromptTemplate(context, ref, template);
+                      },
+                      onEditRequested: (template) {
+                        _showPromptTemplateDialog(
+                          context,
+                          ref,
+                          initialValue: template,
+                        );
+                      },
+                    ),
+                  ],
+                ),
+                // 提示词
+                ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    MemoryPromptsSection(
+                      memoryPrompts: memoryPrompts,
+                      onAddPressed: () =>
+                          _showMemoryPromptDialog(context, ref),
+                      onEditRequested: (memoryPrompt) {
+                        _showMemoryPromptDialog(
+                          context,
+                          ref,
+                          initialValue: memoryPrompt,
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TemplatePromptsSection(
+                      templatePrompts: templatePrompts,
+                      onAddPressed: () =>
+                          _showTemplatePromptDialog(context, ref),
+                      onEditRequested: (templatePrompt) {
+                        _showTemplatePromptDialog(
+                          context,
+                          ref,
+                          initialValue: templatePrompt,
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    FixedPromptSequencesSection(
+                      sequences: fixedPromptSequences,
+                      onAddPressed: () =>
+                          _showFixedPromptSequenceDialog(context, ref),
+                      onEditRequested: (sequence) {
+                        _showFixedPromptSequenceDialog(
+                          context,
+                          ref,
+                          initialValue: sequence,
+                        );
+                      },
+                    ),
+                  ],
+                ),
+                // 其它
+                const OtherSettingsTab(),
+              ],
             ),
-            onEditProviderRequested: (provider) {
-              _showModelProviderDialog(context, ref, initialValue: provider);
-            },
-            onAddModelRequested: (provider) {
-              _showModelConfigDialog(context, ref, provider: provider);
-            },
-            onEditModelRequested: (provider, model) {
-              _showModelConfigDialog(
-                context,
-                ref,
-                provider: provider,
-                initialValue: model,
-              );
-            },
-          ),
-          const SizedBox(height: 16),
-          MemoryPromptsSection(
-            memoryPrompts: memoryPrompts,
-            onAddPressed: () => _handleAddPressed(
-              context,
-              ref,
-              () => _showMemoryPromptDialog(context, ref),
-            ),
-            onEditRequested: (memoryPrompt) {
-              _showMemoryPromptDialog(context, ref, initialValue: memoryPrompt);
-            },
-          ),
-          const SizedBox(height: 16),
-          PromptTemplatesSection(
-            templates: promptTemplates,
-            onAddPressed: () => _handleAddPressed(
-              context,
-              ref,
-              () => _showPromptTemplateDialog(context, ref),
-            ),
-            onDuplicateRequested: (template) {
-              return _duplicatePromptTemplate(context, ref, template);
-            },
-            onEditRequested: (template) {
-              _showPromptTemplateDialog(context, ref, initialValue: template);
-            },
-          ),
-          const SizedBox(height: 16),
-          TemplatePromptsSection(
-            templatePrompts: templatePrompts,
-            onAddPressed: () => _handleAddPressed(
-              context,
-              ref,
-              () => _showTemplatePromptDialog(context, ref),
-            ),
-            onEditRequested: (templatePrompt) {
-              _showTemplatePromptDialog(
-                context,
-                ref,
-                initialValue: templatePrompt,
-              );
-            },
-          ),
-          const SizedBox(height: 16),
-          FixedPromptSequencesSection(
-            sequences: fixedPromptSequences,
-            onAddPressed: () => _handleAddPressed(
-              context,
-              ref,
-              () => _showFixedPromptSequenceDialog(context, ref),
-            ),
-            onEditRequested: (sequence) {
-              _showFixedPromptSequenceDialog(
-                context,
-                ref,
-                initialValue: sequence,
-              );
-            },
           ),
         ],
       ),
     );
   }
 
-  /// 复制一个预设 Prompt，并立即保存为新条目。
+  String get _currentTabLabel {
+    switch (_tabController.index) {
+      case _tabProviders:
+        return _tabLabelProviders;
+      case _tabPresets:
+        return _tabLabelPresets;
+      case _tabPrompts:
+        return _tabLabelPrompts;
+      case _tabOther:
+        return _tabLabelOther;
+      default:
+        return '';
+    }
+  }
+
+  // ── 导出/导入 ──────────────────────────────────────────────────
+
+  Future<void> _exportCurrentTab() async {
+    final index = _tabController.index;
+    final exportData = _buildTabExportData(index);
+    if (exportData == null) {
+      _showSettingsSnackBar(context, '$_currentTabLabel 没有可导出的数据');
+      return;
+    }
+
+    await Clipboard.setData(ClipboardData(text: exportData.toJsonString()));
+    if (mounted) {
+      _showSettingsSnackBar(context, '已复制$_currentTabLabel到剪贴板');
+    }
+  }
+
+  SettingsExportData? _buildTabExportData(int index) {
+    switch (index) {
+      case _tabProviders:
+        final providers = ref.read(llmProviderConfigsProvider);
+        if (providers.isEmpty) return null;
+        return SettingsExportData(
+          modelProviders: providers,
+          memoryPrompts: const [],
+          promptTemplates: const [],
+          templatePrompts: const [],
+          fixedPromptSequences: const [],
+        );
+      case _tabPresets:
+        final templates = ref.read(promptTemplatesProvider);
+        if (templates.isEmpty) return null;
+        return SettingsExportData(
+          modelProviders: const [],
+          memoryPrompts: const [],
+          promptTemplates: templates,
+          templatePrompts: const [],
+          fixedPromptSequences: const [],
+        );
+      case _tabPrompts:
+        final memoryPrompts = ref.read(memoryPromptsProvider);
+        final templatePrompts = ref.read(templatePromptsProvider);
+        final sequences = ref.read(fixedPromptSequencesProvider);
+        if (memoryPrompts.isEmpty &&
+            templatePrompts.isEmpty &&
+            sequences.isEmpty) {
+          return null;
+        }
+        return SettingsExportData(
+          modelProviders: const [],
+          memoryPrompts: memoryPrompts,
+          promptTemplates: const [],
+          templatePrompts: templatePrompts,
+          fixedPromptSequences: sequences,
+        );
+      case _tabOther:
+        final settings = ref.read(autoRetrySettingsProvider);
+        return SettingsExportData(
+          modelProviders: const [],
+          memoryPrompts: const [],
+          promptTemplates: const [],
+          templatePrompts: const [],
+          fixedPromptSequences: const [],
+          autoRetrySettings: settings,
+        );
+      default:
+        return null;
+    }
+  }
+
+  Future<void> _importToCurrentTab() async {
+    final clipboardData = await Clipboard.getData(Clipboard.kTextPlain);
+    final exportData = SettingsExportData.tryParseJson(clipboardData?.text);
+
+    if (exportData == null || !exportData.hasContent) {
+      if (mounted) {
+        _showSettingsSnackBar(context, '剪贴板中没有可识别的配置数据');
+      }
+      return;
+    }
+
+    final index = _tabController.index;
+    if (!_dataMatchesTab(exportData, index)) {
+      if (mounted) {
+        _showSettingsSnackBar(context, '剪贴板数据与$_currentTabLabel不匹配，请切换到对应标签');
+      }
+      return;
+    }
+
+    // 去重
+    final dedupedData = _importDeduplicator.deduplicate(
+      data: exportData,
+      existingProviders: ref.read(llmProviderConfigsProvider),
+      existingMemoryPrompts: ref.read(memoryPromptsProvider),
+      existingTemplates: ref.read(promptTemplatesProvider),
+      existingTemplatePrompts: ref.read(templatePromptsProvider),
+      existingSequences: ref.read(fixedPromptSequencesProvider),
+    );
+
+    // 处理自动重试设置（不需要去重，直接覆盖）
+    final hasAutoRetry = exportData.autoRetrySettings != null &&
+        dedupedData.modelProviders.isEmpty &&
+        dedupedData.memoryPrompts.isEmpty &&
+        dedupedData.promptTemplates.isEmpty &&
+        dedupedData.templatePrompts.isEmpty &&
+        dedupedData.fixedPromptSequences.isEmpty;
+
+    if (!dedupedData.hasContent && !hasAutoRetry) {
+      if (mounted) {
+        _showSettingsSnackBar(context, '剪贴板中的配置在本地均已存在，无需导入');
+      }
+      return;
+    }
+
+    // 自动重试设置直接覆盖，不弹对话框
+    if (hasAutoRetry) {
+      await ref
+          .read(autoRetrySettingsProvider.notifier)
+          .save(exportData.autoRetrySettings!);
+      if (mounted) {
+        _showSettingsSnackBar(context, '自动重试设置已导入');
+      }
+      return;
+    }
+
+    if (!mounted) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return ImportConfirmDialog(exportData: dedupedData);
+      },
+    );
+
+    if (confirmed == true && mounted) {
+      _showSettingsSnackBar(context, '$_currentTabLabel已成功导入');
+    }
+  }
+
+  /// 检查导出数据是否匹配当前标签页。
+  bool _dataMatchesTab(SettingsExportData data, int index) {
+    switch (index) {
+      case _tabProviders:
+        return data.modelProviders.isNotEmpty;
+      case _tabPresets:
+        return data.promptTemplates.isNotEmpty;
+      case _tabPrompts:
+        return data.memoryPrompts.isNotEmpty ||
+            data.templatePrompts.isNotEmpty ||
+            data.fixedPromptSequences.isNotEmpty;
+      case _tabOther:
+        return data.autoRetrySettings != null;
+      default:
+        return false;
+    }
+  }
+
+  // ── 复制预设 ──────────────────────────────────────────────────
+
   Future<void> _duplicatePromptTemplate(
     BuildContext context,
     WidgetRef ref,
@@ -201,98 +456,8 @@ class SettingsScreen extends ConsumerWidget {
     return baseName;
   }
 
-  /// 将当前全部配置序列化为 JSON 并复制到剪贴板。
-  Future<void> _exportToClipboard(BuildContext context, WidgetRef ref) async {
-    final modelProviders = ref.read(llmProviderConfigsProvider);
-    final memoryPrompts = ref.read(memoryPromptsProvider);
-    final promptTemplates = ref.read(promptTemplatesProvider);
-    final templatePrompts = ref.read(templatePromptsProvider);
-    final fixedPromptSequences = ref.read(fixedPromptSequencesProvider);
+  // ── Dialog 方法 ───────────────────────────────────────────────
 
-    final exportData = SettingsExportData(
-      modelProviders: modelProviders,
-      memoryPrompts: memoryPrompts,
-      promptTemplates: promptTemplates,
-      templatePrompts: templatePrompts,
-      fixedPromptSequences: fixedPromptSequences,
-    );
-
-    await Clipboard.setData(ClipboardData(text: exportData.toJsonString()));
-
-    if (context.mounted) {
-      _showSettingsSnackBar(context, _savedAllConfigMessage);
-    }
-  }
-
-  Future<void> _handleAddPressed(
-    BuildContext context,
-    WidgetRef ref,
-    Future<void> Function() openDialog,
-  ) async {
-    final handled = await _tryImportFromClipboard(context, ref);
-    if (!handled && context.mounted) {
-      await openDialog();
-    }
-  }
-
-  /// 读取剪贴板，检测是否含有本应用的配置导出数据。
-  ///
-  /// 若检测到，先去重过滤掉本地已存在的内容相同的条目，再弹出 [ImportConfirmDialog]；
-  /// 确认后批量写入并返回 true。若未检测到、全部重复或用户取消，则返回 false，
-  /// 调用方继续显示常规表单。
-  Future<bool> _tryImportFromClipboard(
-    BuildContext context,
-    WidgetRef ref,
-  ) async {
-    // 仅读取一次剪贴板，不在 build 或监听器中重复读取
-    final clipboardData = await Clipboard.getData(Clipboard.kTextPlain);
-    final exportData = SettingsExportData.tryParseJson(clipboardData?.text);
-
-    if (exportData == null || !exportData.hasContent) {
-      return false;
-    }
-
-    // 去重：过滤掉与本地内容等价的条目
-    final existingProviders = ref.read(llmProviderConfigsProvider);
-    final existingMemoryPrompts = ref.read(memoryPromptsProvider);
-    final existingTemplates = ref.read(promptTemplatesProvider);
-    final existingTemplatePrompts = ref.read(templatePromptsProvider);
-    final existingSequences = ref.read(fixedPromptSequencesProvider);
-    final dedupedData = _importDeduplicator.deduplicate(
-      data: exportData,
-      existingProviders: existingProviders,
-      existingMemoryPrompts: existingMemoryPrompts,
-      existingTemplates: existingTemplates,
-      existingTemplatePrompts: existingTemplatePrompts,
-      existingSequences: existingSequences,
-    );
-
-    if (!context.mounted) {
-      return false;
-    }
-
-    // 全部重复时不弹对话框，提示用户后返回 true（视为已处理，不打开表单）
-    if (!dedupedData.hasContent) {
-      _showSettingsSnackBar(context, _duplicateImportMessage);
-      return true;
-    }
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return ImportConfirmDialog(exportData: dedupedData);
-      },
-    );
-
-    if (confirmed == true && context.mounted) {
-      _showSettingsSnackBar(context, _importSuccessMessage);
-    }
-
-    // 无论确认还是取消，只要弹过对话框就算"已处理"，不再打开表单
-    return true;
-  }
-
-  /// 弹出服务商对话框，并把提交结果写回控制器。
   Future<void> _showModelProviderDialog(
     BuildContext context,
     WidgetRef ref, {
@@ -329,7 +494,6 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  /// 弹出模型对话框，并把提交结果写回指定服务商。
   Future<void> _showModelConfigDialog(
     BuildContext context,
     WidgetRef ref, {
@@ -366,7 +530,6 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  /// 弹出 Prompt 模板对话框，并把提交结果写回控制器。
   Future<void> _showPromptTemplateDialog(
     BuildContext context,
     WidgetRef ref, {
@@ -402,7 +565,6 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  /// 弹出记忆总结提示词对话框，并把提交结果写回控制器。
   Future<void> _showMemoryPromptDialog(
     BuildContext context,
     WidgetRef ref, {
@@ -438,7 +600,6 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  /// 弹出模板提示词对话框，并把提交结果写回控制器。
   Future<void> _showTemplatePromptDialog(
     BuildContext context,
     WidgetRef ref, {
@@ -475,7 +636,6 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  /// 弹出固定顺序提示词序列对话框，并把提交结果写回控制器。
   Future<void> _showFixedPromptSequenceDialog(
     BuildContext context,
     WidgetRef ref, {

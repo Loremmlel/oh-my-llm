@@ -344,6 +344,8 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
     required ReasoningEffort reasoningEffort,
     required String appliedCheckpointTitle,
     Duration? retryDelay,
+    int maxRetryCount = 0,
+    int maxJitterMs = 15000,
   }) async {
     autoRetryCancelled = false;
     state = state.copyWith(
@@ -367,6 +369,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
       await _waitForRetryWindow(
         isFirstAttempt: isFirstAttempt,
         overrideDelay: retryDelay,
+        maxJitterMs: maxJitterMs,
       );
       isFirstAttempt = false;
 
@@ -387,6 +390,15 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
         incrementHistoryRevision: true,
       );
       await saveAllConversations();
+
+      if (maxRetryCount > 0 &&
+          state.autoRetryCount > maxRetryCount) {
+        state = state.copyWith(
+          clearAutoRetryCount: true,
+          errorMessage: '自动重试已达上限（$maxRetryCount 次），请检查网络或调整重试设置',
+        );
+        return;
+      }
 
       final result = await streamAssistantReply(
         conversation: pendingConversation,
@@ -423,6 +435,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
   Future<void> _waitForRetryWindow({
     required bool isFirstAttempt,
     Duration? overrideDelay,
+    int maxJitterMs = 15000,
   }) async {
     if (overrideDelay != null) {
       state = state.copyWith(isAutoRetryWaiting: true);
@@ -434,12 +447,12 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
     final currentSecond = now.second;
 
     if (isFirstAttempt && currentSecond >= 0 && currentSecond <= 15) {
-      final jitterMs = Random().nextInt(15000);
+      final jitterMs = maxJitterMs > 0 ? Random().nextInt(maxJitterMs) : 0;
       state = state.copyWith(isAutoRetryWaiting: true);
       await Future.delayed(Duration(milliseconds: jitterMs));
     } else {
       final msToNextMinute = (60 - currentSecond) * 1000 - now.millisecond;
-      final jitterMs = Random().nextInt(15000);
+      final jitterMs = maxJitterMs > 0 ? Random().nextInt(maxJitterMs) : 0;
       state = state.copyWith(isAutoRetryWaiting: true);
       await Future.delayed(Duration(milliseconds: msToNextMinute + jitterMs));
     }

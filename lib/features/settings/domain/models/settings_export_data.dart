@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'auto_retry_settings.dart';
 import 'fixed_prompt_sequence.dart';
 import 'llm_model_config.dart';
 import 'llm_provider_config.dart';
@@ -32,6 +33,7 @@ class SettingsExportData {
     required this.promptTemplates,
     required this.templatePrompts,
     required this.fixedPromptSequences,
+    this.autoRetrySettings,
   });
 
   /// 用于识别剪贴板内容是否为本应用导出数据的标识符。
@@ -45,6 +47,7 @@ class SettingsExportData {
   final List<PromptTemplate> promptTemplates;
   final List<TemplatePrompt> templatePrompts;
   final List<FixedPromptSequence> fixedPromptSequences;
+  final AutoRetrySettings? autoRetrySettings;
 
   List<LlmModelConfig> get modelConfigs {
     return modelProviders
@@ -54,7 +57,7 @@ class SettingsExportData {
 
   /// 将导出数据序列化为 JSON 字符串（含标识符和版本号）。
   String toJsonString() {
-    return jsonEncode({
+    final map = <String, dynamic>{
       'identifier': identifier,
       'version': formatVersion,
       'modelProviders': modelProviders.map((p) => p.toJson()).toList(),
@@ -64,7 +67,14 @@ class SettingsExportData {
       'fixedPromptSequences': fixedPromptSequences
           .map((s) => s.toJson())
           .toList(),
-    });
+    };
+
+    final autoRetry = autoRetrySettings;
+    if (autoRetry != null) {
+      map['autoRetrySettings'] = autoRetry.toJson();
+    }
+
+    return jsonEncode(map);
   }
 
   /// 尝试从字符串解析导出数据；若格式不匹配或解析失败则返回 null。
@@ -102,6 +112,8 @@ class SettingsExportData {
               raw['modelConfigs'] as List<dynamic>? ?? const [],
             );
 
+      final rawAutoRetry = raw['autoRetrySettings'] as Map<String, dynamic>?;
+
       return SettingsExportData(
         modelProviders: modelProviders,
         memoryPrompts: rawMemoryPrompts
@@ -131,6 +143,9 @@ class SettingsExportData {
               ),
             )
             .toList(growable: false),
+        autoRetrySettings: rawAutoRetry != null
+            ? AutoRetrySettings.fromJson(rawAutoRetry)
+            : null,
       );
     } catch (_) {
       // 任何解析错误都视为非本应用的剪贴板内容，静默忽略。
@@ -144,7 +159,8 @@ class SettingsExportData {
       memoryPrompts.isNotEmpty ||
       promptTemplates.isNotEmpty ||
       templatePrompts.isNotEmpty ||
-      fixedPromptSequences.isNotEmpty;
+      fixedPromptSequences.isNotEmpty ||
+      autoRetrySettings != null;
 
   static List<LlmProviderConfig> _parseLegacyModelProviders(
     List<dynamic> rawModels,

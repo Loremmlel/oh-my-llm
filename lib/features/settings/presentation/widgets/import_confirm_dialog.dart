@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../application/auto_retry_settings_controller.dart';
 import '../../application/fixed_prompt_sequences_controller.dart';
 import '../../application/llm_model_configs_controller.dart';
 import '../../application/memory_prompts_controller.dart';
@@ -148,6 +149,11 @@ class _ImportConfirmDialogState extends ConsumerState<ImportConfirmDialog> {
       await ref
           .read(fixedPromptSequencesProvider.notifier)
           .upsertAll(data.fixedPromptSequences);
+    }
+    if (data.autoRetrySettings != null) {
+      await ref
+          .read(autoRetrySettingsProvider.notifier)
+          .save(data.autoRetrySettings!);
     }
 
     if (mounted) {
