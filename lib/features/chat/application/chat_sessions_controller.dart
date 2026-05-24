@@ -490,6 +490,50 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     );
   }
 
+  /// 根据对话的 autoRetryEnabled 标志，选择直接发送或自动重试发送。
+  Future<void> _sendWithOptionalAutoRetry({
+    required ChatConversation conversation,
+    required LlmModelConfig modelConfig,
+    required PresetPrompt? presetPrompt,
+    required List<ChatMessage> requestConversationMessages,
+    required List<ChatCheckpoint> requestCheckpointChain,
+    required String? parentMessageId,
+    required bool reasoningEnabled,
+    required ReasoningEffort reasoningEffort,
+    required String appliedCheckpointTitle,
+    Duration? retryDelay,
+  }) async {
+    if (conversation.autoRetryEnabled) {
+      final autoRetrySettings = ref.read(autoRetrySettingsProvider);
+      await sendMessageWithAutoRetry(
+        pendingConversation: conversation,
+        modelConfig: modelConfig,
+        presetPrompt: presetPrompt,
+        requestConversationMessages: requestConversationMessages,
+        requestCheckpointChain: requestCheckpointChain,
+        parentMessageId: parentMessageId,
+        reasoningEnabled: reasoningEnabled,
+        reasoningEffort: reasoningEffort,
+        appliedCheckpointTitle: appliedCheckpointTitle,
+        retryDelay: retryDelay,
+        maxRetryCount: autoRetrySettings.maxRetryCount,
+        maxJitterMs: autoRetrySettings.maxJitterSeconds * 1000,
+      );
+    } else {
+      await streamAssistantReply(
+        conversation: conversation,
+        modelConfig: modelConfig,
+        presetPrompt: presetPrompt,
+        requestConversationMessages: requestConversationMessages,
+        requestCheckpointChain: requestCheckpointChain,
+        parentMessageId: parentMessageId,
+        reasoningEnabled: reasoningEnabled,
+        reasoningEffort: reasoningEffort,
+        appliedCheckpointTitle: appliedCheckpointTitle,
+      );
+    }
+  }
+
   /// 编辑一条用户消息并从该节点重新生成后续回复。
   Future<void> editMessage({
     required String messageId,
@@ -540,7 +584,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       conversation: rebuiltConversation,
       conversationMessages: rebuiltConversation.messages,
     );
-    await streamAssistantReply(
+    await _sendWithOptionalAutoRetry(
       conversation: rebuiltConversation,
       modelConfig: modelConfig,
       presetPrompt: presetPrompt,
@@ -580,7 +624,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         conversation: currentConversation,
         conversationMessages: activePath,
       );
-      await streamAssistantReply(
+      await _sendWithOptionalAutoRetry(
         conversation: currentConversation.copyWith(updatedAt: DateTime.now()),
         modelConfig: modelConfig,
         presetPrompt: presetPrompt,
@@ -623,7 +667,6 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       state = state.copyWith(
         conversations: replaceConversation(baseConversation),
         clearErrorMessage: true,
-        incrementHistoryRevision: true,
       );
       await saveAllConversations();
 
@@ -632,7 +675,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         conversationMessages: requestMessages,
       );
 
-      await streamAssistantReply(
+      await _sendWithOptionalAutoRetry(
         conversation: baseConversation,
         modelConfig: modelConfig,
         presetPrompt: presetPrompt,
@@ -655,7 +698,6 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     state = state.copyWith(
       conversations: replaceConversation(baseConversation),
       clearErrorMessage: true,
-      incrementHistoryRevision: true,
     );
     await saveAllConversations();
 
@@ -664,7 +706,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       conversationMessages: requestMessages,
     );
 
-    await streamAssistantReply(
+    await _sendWithOptionalAutoRetry(
       conversation: baseConversation,
       modelConfig: modelConfig,
       presetPrompt: presetPrompt,
@@ -721,34 +763,11 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       reasoningEffort: reasoningEffort,
     );
 
-    if (currentConversation.autoRetryEnabled) {
-      final checkpointContext = resolveCheckpointContext(
-        conversation: pendingConversation,
-        conversationMessages: pendingConversation.messages,
-      );
-      final autoRetrySettings = ref.read(autoRetrySettingsProvider);
-      await sendMessageWithAutoRetry(
-        pendingConversation: pendingConversation,
-        modelConfig: modelConfig,
-        presetPrompt: presetPrompt,
-        requestConversationMessages: checkpointContext.tailMessages,
-        requestCheckpointChain: checkpointContext.checkpointChain,
-        parentMessageId: userMessage.id,
-        reasoningEnabled: reasoningEnabled,
-        reasoningEffort: reasoningEffort,
-        appliedCheckpointTitle: checkpointContext.activeCheckpoint?.title ?? '',
-        retryDelay: retryDelay,
-        maxRetryCount: autoRetrySettings.maxRetryCount,
-        maxJitterMs: autoRetrySettings.maxJitterSeconds * 1000,
-      );
-      return;
-    }
-
     final checkpointContext = resolveCheckpointContext(
       conversation: pendingConversation,
       conversationMessages: pendingConversation.messages,
     );
-    await streamAssistantReply(
+    await _sendWithOptionalAutoRetry(
       conversation: pendingConversation,
       modelConfig: modelConfig,
       presetPrompt: presetPrompt,
@@ -758,6 +777,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       reasoningEnabled: reasoningEnabled,
       reasoningEffort: reasoningEffort,
       appliedCheckpointTitle: checkpointContext.activeCheckpoint?.title ?? '',
+      retryDelay: retryDelay,
     );
   }
 
