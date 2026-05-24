@@ -15,6 +15,7 @@ void registerSettingsScreenFixedPromptSequencesTests() {
         tester,
         preferences: preferences,
         size: const Size(1440, 2200),
+        initialTabIndex: 2,
       );
       final repository = fixedPromptSequenceRepository;
       expect(repository.loadAll(database), isEmpty);
@@ -111,6 +112,7 @@ void registerSettingsScreenFixedPromptSequencesTests() {
         tester,
         preferences: preferences,
         size: const Size(1440, 2200),
+        initialTabIndex: 2,
       );
 
       await tester.tap(find.text('新增序列'));
@@ -128,6 +130,7 @@ void registerSettingsScreenFixedPromptSequencesTests() {
         tester,
         preferences: preferences,
         size: const Size(430, 932),
+        initialTabIndex: 2,
       );
 
       final settingsList = find.descendant(
@@ -161,6 +164,7 @@ void registerSettingsScreenFixedPromptSequencesTests() {
         tester,
         preferences: preferences,
         size: const Size(1440, 2200),
+        initialTabIndex: 2,
       );
 
       await tester.tap(find.text('新增序列'));

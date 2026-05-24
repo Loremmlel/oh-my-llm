@@ -109,7 +109,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
     'settings screen supports prompt template CRUD flows',
     (tester) async {
       final preferences = await createEmptyPreferences();
-      final database = await pumpSettingsScreen(tester, preferences: preferences);
+      final database = await pumpSettingsScreen(tester, preferences: preferences, initialTabIndex: 1);
       final repository = promptTemplateRepository;
       expect(repository.loadAll(database), isEmpty);
 
@@ -160,7 +160,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
     'settings screen can duplicate prompt template with incremental suffix',
     (tester) async {
       final preferences = await createEmptyPreferences();
-      await pumpSettingsScreen(tester, preferences: preferences);
+      await pumpSettingsScreen(tester, preferences: preferences, initialTabIndex: 1);
 
       await tester.tap(find.text('新增预设'));
       await tester.pumpAndSettle();
@@ -182,7 +182,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
     tester,
   ) async {
     final preferences = await createEmptyPreferences();
-    await pumpSettingsScreen(tester, preferences: preferences);
+    await pumpSettingsScreen(tester, preferences: preferences, initialTabIndex: 1);
 
     await tester.tap(find.text('新增预设'));
     await tester.pumpAndSettle();
@@ -220,6 +220,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
         tester,
         preferences: preferences,
         size: const Size(1440, 2200),
+        initialTabIndex: 1,
       );
       final masterPane = find.byKey(
         const ValueKey('preset-prompt-master-pane'),
@@ -329,6 +330,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
         tester,
         preferences: preferences,
         size: const Size(1440, 2200),
+        initialTabIndex: 1,
       );
 
       await tester.tap(find.text('新增预设'));
@@ -346,6 +348,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
         tester,
         preferences: preferences,
         size: const Size(430, 932),
+        initialTabIndex: 1,
       );
 
       final settingsList = find.descendant(
@@ -379,6 +382,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
       tester,
       preferences: preferences,
       size: const Size(1440, 2200),
+      initialTabIndex: 1,
     );
 
     await tester.tap(find.text('新增预设'));
@@ -425,7 +429,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
     'settings screen supports template prompt CRUD flows',
     (tester) async {
       final preferences = await createEmptyPreferences();
-      final database = await pumpSettingsScreen(tester, preferences: preferences);
+      final database = await pumpSettingsScreen(tester, preferences: preferences, initialTabIndex: 2);
       final repository = templatePromptRepository;
       expect(repository.loadAll(database), isEmpty);
 
@@ -472,7 +476,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
     'template prompt variable reconcile uses throttle and stays consistent',
     (tester) async {
       final preferences = await createEmptyPreferences();
-      await pumpSettingsScreen(tester, preferences: preferences);
+      await pumpSettingsScreen(tester, preferences: preferences, initialTabIndex: 2);
 
       await tester.tap(find.text('新增模板提示词'));
       await tester.pumpAndSettle();
@@ -497,7 +501,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
     tester,
   ) async {
     final preferences = await createEmptyPreferences();
-    final database = await pumpSettingsScreen(tester, preferences: preferences);
+    final database = await pumpSettingsScreen(tester, preferences: preferences, initialTabIndex: 2);
     final repository = memoryPromptRepository;
     expect(repository.loadAll(database), isEmpty);
 

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/utils/id_generator.dart';
+import '../../settings/application/auto_retry_settings_controller.dart';
 import '../../settings/domain/models/llm_model_config.dart';
 import '../../settings/domain/models/memory_prompt.dart';
 import '../../settings/domain/models/prompt_template.dart';
@@ -725,6 +726,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         conversation: pendingConversation,
         conversationMessages: pendingConversation.messages,
       );
+      final autoRetrySettings = ref.read(autoRetrySettingsProvider);
       await sendMessageWithAutoRetry(
         pendingConversation: pendingConversation,
         modelConfig: modelConfig,
@@ -736,6 +738,8 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         reasoningEffort: reasoningEffort,
         appliedCheckpointTitle: checkpointContext.activeCheckpoint?.title ?? '',
         retryDelay: retryDelay,
+        maxRetryCount: autoRetrySettings.maxRetryCount,
+        maxJitterMs: autoRetrySettings.maxJitterSeconds * 1000,
       );
       return;
     }
