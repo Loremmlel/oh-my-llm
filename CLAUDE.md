@@ -19,7 +19,7 @@ flutter build apk                # Build Android APK
 
 ## Architecture
 
-This is a Flutter desktop/mobile LLM chat client (`oh_my_llm`, v2.8.2) targeting Windows and Android. It uses **Riverpod** for state management, **GoRouter** for navigation, **SQLite** (via `sqlite3` + `sqlite3_flutter_libs`) for chat history/favorites/templates, and **SharedPreferences** JSON for provider/model configs.
+This is a Flutter desktop/mobile LLM chat client (`oh_my_llm`) targeting Windows and Android. It uses **Riverpod** for state management, **GoRouter** for navigation, **SQLite** (via `sqlite3` v3 with native build hooks) for chat history/favorites/templates, and **SharedPreferences** JSON for provider/model configs.
 
 ### Boot sequence
 
@@ -70,6 +70,7 @@ Legacy SharedPreferences data auto-migrates to SQLite on first launch; old keys 
 - **Comment style**: Simplified Chinese. `///` for doc comments, `//` for inline ("why", not "what"). Large classes use `// ── Category ────...` dividers.
 - **File splitting**: Use `import`/`export` boundaries, never `part`/`part of`.
 - **Commits**: Each feature/fix as a separate commit. Don't batch unrelated changes.
+- **After `flutter upgrade`**: Run `flutter clean` before `flutter test`. Stale shader caches cause spurious Asset manifest failures.
 
 ## Test patterns
 
@@ -101,3 +102,23 @@ fake.enqueueError(exception);  // enqueue an error
 - Database tests use `AppDatabase.inMemory()` or `createTestDatabase(preferences)` which runs the full V1→V3 migration stack.
 - When chat history, favorites, or collections are involved, always override `appDatabaseProvider`.
 - Assert on business results, persisted data, or final request content — avoid asserting on widget implementation details, tooltip text, or private keys.
+
+### Test anti-patterns — what NOT to test
+
+- **Don't duplicate across layers**: Test behavior at the source of truth. If a repository method is a thin pass-through to the database, test it at the database/repository layer, not the controller. ON DELETE SET NULL cascade belongs in schema tests, not controller tests.
+- **Don't assert widget implementation details**: No `find.byKey` for internal keys, no `findsNothing` on widget types, no exact pixel positions, no widget property values (`expands`, `maxLines`, `minLines`). These break on any refactoring.
+- **Don't test trivial mappings**: Enum-to-enum conversions, default values, and generated `copyWith`/`toJson` boilerplate don't need dedicated tests — they're implicitly covered by integration-level tests.
+- **Don't write conditional-early-return tests**: A test that can `return` without hitting any `expect` is structurally meaningless.
+- **Don't write meta-tests**: Tests that verify two functions produce identical output test implementation consistency, not correctness.
+- **Prefer `>=` over `==` for version numbers**: Schema/user_version assertions should use `greaterThanOrEqualTo(N)`.
+
+### What's worth testing at each layer
+
+| Layer | Test focus |
+|-------|-----------|
+| Domain/model | Non-trivial pure logic: tree manipulation, message building, template parsing |
+| Data/repository | Save/load round-trips, query filtering, migration correctness |
+| Controller | State transitions, error handling, streaming lifecycle |
+| Widget | User-visible behavior: CRUD flows, navigation, dialog interactions |
+
+Pattern duplication across entity types (e.g., CRUD tests for different entities) is acceptable when the entities differ in schema and UX.
