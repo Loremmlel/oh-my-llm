@@ -24,7 +24,7 @@ String _legacyPayload([String id = 'conv-1']) => jsonEncode([
     'createdAt': '2026-01-01T00:00:00.000',
     'updatedAt': '2026-01-01T00:00:00.000',
     'selectedModelId': null,
-    'selectedPromptTemplateId': null,
+    'selectedPresetPromptId': null,
     'reasoningEnabled': false,
     'reasoningEffort': 'medium',
   },

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../../core/utils/id_generator.dart';
 import '../../../../../core/widgets/adaptive_master_detail_layout.dart';
-import '../../../domain/models/prompt_template.dart';
+import '../../../domain/models/preset_prompt.dart';
 import '../settings_form_dialog_scaffold.dart';
 import '../settings_form_dialog_state_mixin.dart';
 import 'editable_preset_prompt_item.dart';
@@ -10,31 +10,31 @@ import 'preset_prompt_editor_role.dart';
 import 'preset_prompt_list_tile.dart';
 
 /// 预设 Prompt 表单提交数据。
-class PromptTemplateFormData {
-  const PromptTemplateFormData({required this.name, required this.messages});
+class PresetPromptFormData {
+  const PresetPromptFormData({required this.name, required this.messages});
 
   final String name;
   final List<PromptMessage> messages;
 }
 
 /// 新增或编辑预设 Prompt 的对话框。
-class PromptTemplateFormDialog extends StatefulWidget {
-  const PromptTemplateFormDialog({
+class PresetPromptFormDialog extends StatefulWidget {
+  const PresetPromptFormDialog({
     required this.onSubmit,
     this.initialValue,
     super.key,
   });
 
-  final Future<void> Function(PromptTemplateFormData formData) onSubmit;
-  final PromptTemplate? initialValue;
+  final Future<void> Function(PresetPromptFormData formData) onSubmit;
+  final PresetPrompt? initialValue;
 
   @override
-  State<PromptTemplateFormDialog> createState() =>
-      _PromptTemplateFormDialogState();
+  State<PresetPromptFormDialog> createState() =>
+      _PresetPromptFormDialogState();
 }
 
 /// 预设 Prompt 表单的输入与选中状态。
-class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
+class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
     with SettingsFormDialogStateMixin {
   late final TextEditingController _nameController;
   late final List<EditablePresetPromptItem> _items;
@@ -371,7 +371,7 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
     );
   }
 
-  List<EditablePresetPromptItem> _buildInitialItems(PromptTemplate? template) {
+  List<EditablePresetPromptItem> _buildInitialItems(PresetPrompt? template) {
     return (template?.messages ?? const <PromptMessage>[])
         .where((message) => message.placement == PromptMessagePlacement.before)
         .followedBy(
@@ -644,7 +644,7 @@ class _PromptTemplateFormDialogState extends State<PromptTemplateFormDialog>
 
     await submitAndClose(() {
       return widget.onSubmit(
-        PromptTemplateFormData(name: name, messages: messages),
+        PresetPromptFormData(name: name, messages: messages),
       );
     });
   }

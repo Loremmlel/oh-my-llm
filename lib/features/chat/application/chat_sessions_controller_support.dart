@@ -3,9 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/utils/id_generator.dart';
 import '../../settings/application/chat_defaults_controller.dart';
 import '../../settings/application/llm_model_configs_controller.dart';
-import '../../settings/application/prompt_templates_controller.dart';
+import '../../settings/application/preset_prompts_controller.dart';
 import '../../settings/domain/models/llm_model_config.dart';
-import '../../settings/domain/models/prompt_template.dart';
+import '../../settings/domain/models/preset_prompt.dart';
 import '../data/chat_conversation_repository.dart';
 import '../domain/models/chat_checkpoint.dart';
 import '../domain/models/chat_conversation.dart';
@@ -21,19 +21,19 @@ mixin ChatSessionsControllerSupport on Notifier<ChatSessionsState> {
     final now = DateTime.now();
     final rememberedSelections = ref.read(chatDefaultsProvider);
     final modelConfigs = ref.read(llmModelConfigsProvider);
-    final promptTemplates = ref.read(promptTemplatesProvider);
+    final presetPrompts = ref.read(presetPromptsProvider);
     final rememberedModelId =
         modelConfigs.any(
           (config) => config.id == rememberedSelections.defaultModelId,
         )
         ? rememberedSelections.defaultModelId
         : modelConfigs.firstOrNull?.id;
-    final rememberedPromptTemplateId =
-        promptTemplates.any(
+    final rememberedPresetPromptId =
+        presetPrompts.any(
           (template) =>
-              template.id == rememberedSelections.defaultPromptTemplateId,
+              template.id == rememberedSelections.defaultPresetPromptId,
         )
-        ? rememberedSelections.defaultPromptTemplateId
+        ? rememberedSelections.defaultPresetPromptId
         : null;
     return ChatConversation(
       id: generateEntityId(),
@@ -41,7 +41,7 @@ mixin ChatSessionsControllerSupport on Notifier<ChatSessionsState> {
       createdAt: now,
       updatedAt: now,
       selectedModelId: rememberedModelId,
-      selectedPromptTemplateId: rememberedPromptTemplateId,
+      selectedPresetPromptId: rememberedPresetPromptId,
       reasoningEffort: ReasoningEffort.medium,
     );
   }
@@ -130,28 +130,28 @@ mixin ChatSessionsControllerSupport on Notifier<ChatSessionsState> {
     return modelConfigs.first;
   }
 
-  PromptTemplate? resolvePromptTemplate(ChatConversation conversation) {
-    final promptTemplates = ref.read(promptTemplatesProvider);
-    if (promptTemplates.isEmpty) {
+  PresetPrompt? resolvePresetPrompt(ChatConversation conversation) {
+    final presetPrompts = ref.read(presetPromptsProvider);
+    if (presetPrompts.isEmpty) {
       return null;
     }
 
-    if (conversation.selectedPromptTemplateId == noPromptTemplateSelectedId) {
+    if (conversation.selectedPresetPromptId == noPresetPromptSelectedId) {
       return null;
     }
 
-    final conversationSelected = promptTemplates.where((template) {
-      return template.id == conversation.selectedPromptTemplateId;
+    final conversationSelected = presetPrompts.where((template) {
+      return template.id == conversation.selectedPresetPromptId;
     }).firstOrNull;
     if (conversationSelected != null) {
       return conversationSelected;
     }
 
-    final defaultPromptTemplateId = ref
+    final defaultPresetPromptId = ref
         .read(chatDefaultsProvider)
-        .defaultPromptTemplateId;
-    return promptTemplates.where((template) {
-      return template.id == defaultPromptTemplateId;
+        .defaultPresetPromptId;
+    return presetPrompts.where((template) {
+      return template.id == defaultPresetPromptId;
     }).firstOrNull;
   }
 

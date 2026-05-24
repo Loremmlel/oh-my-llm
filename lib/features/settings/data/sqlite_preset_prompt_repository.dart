@@ -3,10 +3,10 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/persistence/sqlite_entity_repository.dart';
-import '../domain/models/prompt_template.dart';
+import '../domain/models/preset_prompt.dart';
 
-final promptTemplateRepository = SqliteEntityRepository<PromptTemplate>(
-  tableName: 'prompt_templates',
+final presetPromptRepository = SqliteEntityRepository<PresetPrompt>(
+  tableName: 'preset_prompts',
   selectColumns: 'id, name, system_prompt, messages_json, updated_at',
   insertColumns: 'id, name, system_prompt, messages_json, updated_at',
   insertPlaceholders: '?, ?, ?, ?, ?',
@@ -39,7 +39,7 @@ final promptTemplateRepository = SqliteEntityRepository<PromptTemplate>(
       }
     }
 
-    return PromptTemplate(
+    return PresetPrompt(
       id: row['id'] as String,
       name: row['name'] as String,
       messages: effectiveMessages,
@@ -55,7 +55,7 @@ final promptTemplateRepository = SqliteEntityRepository<PromptTemplate>(
   ],
 );
 
-final promptTemplateRepositoryProvider =
-    Provider<SqliteEntityRepository<PromptTemplate>>(
-      (ref) => promptTemplateRepository,
+final presetPromptRepositoryProvider =
+    Provider<SqliteEntityRepository<PresetPrompt>>(
+      (ref) => presetPromptRepository,
     );

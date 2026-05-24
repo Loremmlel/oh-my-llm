@@ -13,8 +13,8 @@ export 'prompt_message_role.dart';
 const defaultSystemPromptTitle = 'system';
 
 /// 可复用的 Prompt 模板，使用统一消息列表表示 system / user / assistant 条目。
-class PromptTemplate extends Equatable {
-  const PromptTemplate({
+class PresetPrompt extends Equatable {
+  const PresetPrompt({
     required this.id,
     required this.name,
     required this.messages,
@@ -33,13 +33,13 @@ class PromptTemplate extends Equatable {
   }
 
   /// 复制模板，并允许覆盖标题、消息和更新时间。
-  PromptTemplate copyWith({
+  PresetPrompt copyWith({
     String? id,
     String? name,
     List<PromptMessage>? messages,
     DateTime? updatedAt,
   }) {
-    return PromptTemplate(
+    return PresetPrompt(
       id: id ?? this.id,
       name: name ?? this.name,
       messages: messages ?? this.messages,
@@ -58,7 +58,7 @@ class PromptTemplate extends Equatable {
   }
 
   /// 从 JSON 反序列化模板。
-  factory PromptTemplate.fromJson(Map<String, dynamic> json) {
+  factory PresetPrompt.fromJson(Map<String, dynamic> json) {
     final rawMessages = json['messages'] as List<dynamic>? ?? const [];
     final messages = _deserializePromptMessages(rawMessages);
     final hasSystemMessages = messages.any(
@@ -87,7 +87,7 @@ class PromptTemplate extends Equatable {
       }
     }
 
-    return PromptTemplate(
+    return PresetPrompt(
       id: json['id'] as String,
       name: json['name'] as String,
       messages: effectiveMessages,

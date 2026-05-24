@@ -79,7 +79,7 @@ void main() {
       updatedAt: DateTime(2026, 4, 27, 10, 2),
       selectedModelId: 'model-1',
       selectedCheckpointId: 'checkpoint-1',
-      selectedPromptTemplateId: 'prompt-1',
+      selectedPresetPromptId: 'prompt-1',
       checkpoints: [
         ChatCheckpoint(
           id: 'checkpoint-1',

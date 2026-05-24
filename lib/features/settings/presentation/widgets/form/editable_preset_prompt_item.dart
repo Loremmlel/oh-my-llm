@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../domain/models/prompt_template.dart';
+import '../../../domain/models/preset_prompt.dart';
 import 'preset_prompt_editor_role.dart';
 
 /// 表单内使用的可编辑预设 Prompt 条目。

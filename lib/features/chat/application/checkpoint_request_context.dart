@@ -2,7 +2,7 @@ import '../data/chat_completion_client.dart';
 import '../domain/models/chat_checkpoint.dart';
 import '../domain/models/chat_message.dart';
 import '../../settings/domain/models/memory_prompt.dart';
-import '../../settings/domain/models/prompt_template.dart';
+import '../../settings/domain/models/preset_prompt.dart';
 import 'chat_request_message_builder.dart';
 
 /// 选中检查点后，真正参与请求拼装的上下文视图。
@@ -100,7 +100,7 @@ List<ChatCompletionRequestMessage> buildCheckpointSummaryMessages({
   required MemoryPrompt memoryPrompt,
   required List<ChatMessage> conversationMessages,
   List<ChatCheckpoint> checkpointChain = const [],
-  PromptTemplate? promptTemplate,
+  PresetPrompt? presetPrompt,
   RequestMessageFilter filter = RequestMessageFilter.passthrough,
 }) {
   final requestMessages = <ChatCompletionRequestMessage>[];
@@ -119,7 +119,7 @@ List<ChatCompletionRequestMessage> buildCheckpointSummaryMessages({
 
   appendTemplateMessages(
     buffer: requestMessages,
-    promptTemplate: promptTemplate,
+    presetPrompt: presetPrompt,
     placement: PromptMessagePlacement.before,
   );
 
@@ -141,7 +141,7 @@ List<ChatCompletionRequestMessage> buildCheckpointSummaryMessages({
 
   appendTemplateMessages(
     buffer: requestMessages,
-    promptTemplate: promptTemplate,
+    presetPrompt: presetPrompt,
     placement: PromptMessagePlacement.after,
   );
 

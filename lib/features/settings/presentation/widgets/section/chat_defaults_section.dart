@@ -3,24 +3,24 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../application/chat_defaults_controller.dart';
 import '../../../domain/models/llm_model_config.dart';
-import '../../../domain/models/prompt_template.dart';
+import '../../../domain/models/preset_prompt.dart';
 
-const String noPromptTemplateValue = '__no_prompt_template__';
+const String noPresetPromptValue = '__no_preset_prompt__';
 
 /// 聊天页最近一次选择记忆设置区。
 class ChatDefaultsSection extends ConsumerWidget {
   const ChatDefaultsSection({
     required this.modelConfigs,
-    required this.promptTemplates,
+    required this.presetPrompts,
     required this.defaultModelId,
-    required this.defaultPromptTemplateId,
+    required this.defaultPresetPromptId,
     super.key,
   });
 
   final List<LlmModelConfig> modelConfigs;
-  final List<PromptTemplate> promptTemplates;
+  final List<PresetPrompt> presetPrompts;
   final String? defaultModelId;
-  final String? defaultPromptTemplateId;
+  final String? defaultPresetPromptId;
 
   @override
   /// 构建最近一次模型和预设 Prompt 记忆的两个下拉选择器。
@@ -32,11 +32,11 @@ class ChatDefaultsSection extends ConsumerWidget {
         ? defaultModelId
         : modelConfigs.firstOrNull?.id;
     final resolvedPromptValue =
-        promptTemplates.any((template) {
-          return template.id == defaultPromptTemplateId;
+        presetPrompts.any((template) {
+          return template.id == defaultPresetPromptId;
         })
-        ? defaultPromptTemplateId
-        : noPromptTemplateValue;
+        ? defaultPresetPromptId
+        : noPresetPromptValue;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -75,10 +75,10 @@ class ChatDefaultsSection extends ConsumerWidget {
           isExpanded: true,
           items: [
             const DropdownMenuItem(
-              value: noPromptTemplateValue,
+              value: noPresetPromptValue,
               child: Text('不使用'),
             ),
-            ...promptTemplates.map((template) {
+            ...presetPrompts.map((template) {
               return DropdownMenuItem(
                 value: template.id,
                 child: Text(template.name, overflow: TextOverflow.ellipsis),
@@ -88,8 +88,8 @@ class ChatDefaultsSection extends ConsumerWidget {
           onChanged: (value) async {
             await ref
                 .read(chatDefaultsProvider.notifier)
-                .rememberPromptTemplateId(
-                  value == noPromptTemplateValue ? null : value,
+                .rememberPresetPromptId(
+                  value == noPresetPromptValue ? null : value,
                 );
           },
           decoration: const InputDecoration(

@@ -4,14 +4,14 @@ import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/persistence/sqlite_entity_repository.dart';
 import 'package:oh_my_llm/features/settings/data/sqlite_fixed_prompt_sequence_repository.dart';
 import 'package:oh_my_llm/features/settings/data/sqlite_memory_prompt_repository.dart';
-import 'package:oh_my_llm/features/settings/data/sqlite_prompt_template_repository.dart';
+import 'package:oh_my_llm/features/settings/data/sqlite_preset_prompt_repository.dart';
 import 'package:oh_my_llm/features/settings/data/sqlite_template_prompt_repository.dart';
 import 'package:oh_my_llm/features/settings/domain/models/fixed_prompt_sequence.dart';
 import 'package:oh_my_llm/features/settings/domain/models/memory_prompt.dart';
-import 'package:oh_my_llm/features/settings/domain/models/prompt_template.dart';
+import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
 
-PromptTemplate template(String id, {DateTime? updatedAt}) => PromptTemplate(
+PresetPrompt template(String id, {DateTime? updatedAt}) => PresetPrompt(
   id: id,
   name: '模板 $id',
   messages: [
@@ -59,19 +59,19 @@ MemoryPrompt memoryPrompt(String id, {DateTime? updatedAt}) => MemoryPrompt(
 );
 
 void main() {
-  group('SqliteEntityRepository<PromptTemplate>', () {
+  group('SqliteEntityRepository<PresetPrompt>', () {
     late AppDatabase database;
-    late SqliteEntityRepository<PromptTemplate> repo;
+    late SqliteEntityRepository<PresetPrompt> repo;
 
     setUp(() {
       database = AppDatabase.inMemory();
-      repo = promptTemplateRepository;
+      repo = presetPromptRepository;
     });
 
     tearDown(() => database.close());
 
     test('round-trip preserves prompt template fields', () async {
-      final original = PromptTemplate(
+      final original = PresetPrompt(
         id: 'full',
         name: '全字段',
         messages: const [

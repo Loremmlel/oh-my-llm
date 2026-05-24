@@ -2,31 +2,31 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/persistence/legacy_preferences_json_storage.dart';
-import '../domain/models/prompt_template.dart';
-import 'sqlite_prompt_template_repository.dart';
+import '../domain/models/preset_prompt.dart';
+import 'sqlite_preset_prompt_repository.dart';
 
-export 'sqlite_prompt_template_repository.dart'
-    show promptTemplateRepository, promptTemplateRepositoryProvider;
+export 'sqlite_preset_prompt_repository.dart'
+    show presetPromptRepository, presetPromptRepositoryProvider;
 
 /// SharedPreferences 中旧版 Prompt 模板数据的键名，仅供迁移时使用。
-const String promptTemplatesStorageKey = 'settings.prompt_templates';
+const String presetPromptsStorageKey = 'settings.preset_prompts';
 
 /// 旧版 SharedPreferences Prompt 模板仓库，仅供一次性数据迁移使用。
 ///
-/// 正式读写请使用 [promptTemplateRepositoryProvider] 对应的
+/// 正式读写请使用 [presetPromptRepositoryProvider] 对应的
 /// [SqliteEntityRepository]。
-class LegacyPromptTemplateRepository {
-  const LegacyPromptTemplateRepository(this._sharedPreferences);
+class LegacyPresetPromptRepository {
+  const LegacyPresetPromptRepository(this._sharedPreferences);
 
   final SharedPreferences _sharedPreferences;
 
   /// 从 SharedPreferences 读取旧版全部 Prompt 模板。
-  List<PromptTemplate> loadAll() {
+  List<PresetPrompt> loadAll() {
     return loadLegacyPreferenceCollection(
       preferences: _sharedPreferences,
-      storageKey: promptTemplatesStorageKey,
+      storageKey: presetPromptsStorageKey,
       subject: 'prompt templates',
-      fromJson: PromptTemplate.fromJson,
+      fromJson: PresetPrompt.fromJson,
     );
   }
 }
@@ -35,13 +35,13 @@ class LegacyPromptTemplateRepository {
 ///
 /// 生产代码不应调用此方法，数据写入应通过 [SqliteEntityRepository.saveAll]。
 @visibleForTesting
-Future<void> saveLegacyPromptTemplatesForTest(
+Future<void> saveLegacyPresetPromptsForTest(
   SharedPreferences preferences,
-  List<PromptTemplate> templates,
+  List<PresetPrompt> templates,
 ) async {
   await saveLegacyPreferenceCollectionForTest(
     preferences: preferences,
-    storageKey: promptTemplatesStorageKey,
+    storageKey: presetPromptsStorageKey,
     items: templates,
     toJson: (template) => template.toJson(),
   );

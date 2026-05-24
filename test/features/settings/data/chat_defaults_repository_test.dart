@@ -23,7 +23,7 @@ void main() {
 
       const original = ChatDefaults(
         defaultModelId: 'model-1',
-        defaultPromptTemplateId: 'tpl-1',
+        defaultPresetPromptId: 'tpl-1',
       );
       await repo.save(original);
 

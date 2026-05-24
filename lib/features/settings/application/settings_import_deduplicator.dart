@@ -1,7 +1,7 @@
 import '../domain/models/fixed_prompt_sequence.dart';
 import '../domain/models/llm_provider_config.dart';
 import '../domain/models/memory_prompt.dart';
-import '../domain/models/prompt_template.dart';
+import '../domain/models/preset_prompt.dart';
 import '../domain/models/settings_export_data.dart';
 import '../domain/models/template_prompt.dart';
 
@@ -25,12 +25,12 @@ class MemoryPromptImportComparator
   }
 }
 
-class PromptTemplateImportComparator
-    extends SettingsImportComparator<PromptTemplate> {
-  const PromptTemplateImportComparator();
+class PresetPromptImportComparator
+    extends SettingsImportComparator<PresetPrompt> {
+  const PresetPromptImportComparator();
 
   @override
-  bool isEquivalent(PromptTemplate existing, PromptTemplate incoming) {
+  bool isEquivalent(PresetPrompt existing, PresetPrompt incoming) {
     if (existing.messages.length != incoming.messages.length) {
       return false;
     }
@@ -125,14 +125,14 @@ class FixedPromptSequenceImportComparator
 final class SettingsImportDeduplicator {
   const SettingsImportDeduplicator({
     this.memoryPromptComparator = const MemoryPromptImportComparator(),
-    this.promptTemplateComparator = const PromptTemplateImportComparator(),
+    this.presetPromptComparator = const PresetPromptImportComparator(),
     this.templatePromptComparator = const TemplatePromptImportComparator(),
     this.fixedPromptSequenceComparator =
         const FixedPromptSequenceImportComparator(),
   });
 
   final SettingsImportComparator<MemoryPrompt> memoryPromptComparator;
-  final SettingsImportComparator<PromptTemplate> promptTemplateComparator;
+  final SettingsImportComparator<PresetPrompt> presetPromptComparator;
   final SettingsImportComparator<TemplatePrompt> templatePromptComparator;
   final SettingsImportComparator<FixedPromptSequence>
   fixedPromptSequenceComparator;
@@ -141,7 +141,7 @@ final class SettingsImportDeduplicator {
     required SettingsExportData data,
     required List<LlmProviderConfig> existingProviders,
     required List<MemoryPrompt> existingMemoryPrompts,
-    required List<PromptTemplate> existingTemplates,
+    required List<PresetPrompt> existingTemplates,
     required List<TemplatePrompt> existingTemplatePrompts,
     required List<FixedPromptSequence> existingSequences,
   }) {
@@ -174,11 +174,11 @@ final class SettingsImportDeduplicator {
         })
         .toList(growable: false);
 
-    final newTemplates = data.promptTemplates
+    final newTemplates = data.presetPrompts
         .where((incoming) {
           return !existingTemplates.any(
             (existing) =>
-                promptTemplateComparator.isEquivalent(existing, incoming),
+                presetPromptComparator.isEquivalent(existing, incoming),
           );
         })
         .toList(growable: false);
@@ -204,7 +204,7 @@ final class SettingsImportDeduplicator {
     return SettingsExportData(
       modelProviders: newProviders,
       memoryPrompts: newMemoryPrompts,
-      promptTemplates: newTemplates,
+      presetPrompts: newTemplates,
       templatePrompts: newTemplatePrompts,
       fixedPromptSequences: newSequences,
     );

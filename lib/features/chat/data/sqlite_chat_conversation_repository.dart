@@ -23,7 +23,7 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
         updated_at,
         selected_model_id,
         selected_checkpoint_id,
-        selected_prompt_template_id,
+        selected_preset_prompt_id,
         reasoning_enabled,
         reasoning_effort,
         excluded_message_ids_json
@@ -154,8 +154,8 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
             updatedAt: DateTime.parse(row['updated_at'] as String),
             selectedModelId: row['selected_model_id'] as String?,
             selectedCheckpointId: row['selected_checkpoint_id'] as String?,
-            selectedPromptTemplateId:
-                row['selected_prompt_template_id'] as String?,
+            selectedPresetPromptId:
+                row['selected_preset_prompt_id'] as String?,
             reasoningEnabled: (row['reasoning_enabled'] as int) == 1,
             reasoningEffort: ReasoningEffort.values.firstWhere(
               (effort) => effort.apiValue == row['reasoning_effort'],
@@ -255,7 +255,7 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
           updated_at,
           selected_model_id,
           selected_checkpoint_id,
-          selected_prompt_template_id,
+          selected_preset_prompt_id,
           reasoning_enabled,
           reasoning_effort,
           excluded_message_ids_json
@@ -307,7 +307,7 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
             normalizedConversation.updatedAt.toIso8601String(),
             normalizedConversation.selectedModelId,
             normalizedConversation.selectedCheckpointId,
-            normalizedConversation.selectedPromptTemplateId,
+            normalizedConversation.selectedPresetPromptId,
             normalizedConversation.reasoningEnabled ? 1 : 0,
             normalizedConversation.reasoningEffort.apiValue,
             jsonEncode(normalizedConversation.excludedMessageIds),

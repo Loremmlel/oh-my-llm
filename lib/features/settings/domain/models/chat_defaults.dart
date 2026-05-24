@@ -2,25 +2,25 @@ import 'package:equatable/equatable.dart';
 
 /// 聊天页最近一次使用的模型与前置 Prompt 记忆。
 class ChatDefaults extends Equatable {
-  const ChatDefaults({this.defaultModelId, this.defaultPromptTemplateId});
+  const ChatDefaults({this.defaultModelId, this.defaultPresetPromptId});
 
   final String? defaultModelId;
-  final String? defaultPromptTemplateId;
+  final String? defaultPresetPromptId;
 
   /// 复制默认项，并允许单独覆盖或清空字段。
   ChatDefaults copyWith({
     String? defaultModelId,
-    String? defaultPromptTemplateId,
+    String? defaultPresetPromptId,
     bool clearDefaultModelId = false,
-    bool clearDefaultPromptTemplateId = false,
+    bool clearDefaultPresetPromptId = false,
   }) {
     return ChatDefaults(
       defaultModelId: clearDefaultModelId
           ? null
           : defaultModelId ?? this.defaultModelId,
-      defaultPromptTemplateId: clearDefaultPromptTemplateId
+      defaultPresetPromptId: clearDefaultPresetPromptId
           ? null
-          : defaultPromptTemplateId ?? this.defaultPromptTemplateId,
+          : defaultPresetPromptId ?? this.defaultPresetPromptId,
     );
   }
 
@@ -28,7 +28,7 @@ class ChatDefaults extends Equatable {
   Map<String, dynamic> toJson() {
     return {
       'defaultModelId': defaultModelId,
-      'defaultPromptTemplateId': defaultPromptTemplateId,
+      'defaultPresetPromptId': defaultPresetPromptId,
     };
   }
 
@@ -36,10 +36,12 @@ class ChatDefaults extends Equatable {
   factory ChatDefaults.fromJson(Map<String, dynamic> json) {
     return ChatDefaults(
       defaultModelId: json['defaultModelId'] as String?,
-      defaultPromptTemplateId: json['defaultPromptTemplateId'] as String?,
+      defaultPresetPromptId:
+          json['defaultPresetPromptId'] as String? ??
+          json['defaultPromptTemplateId'] as String?,
     );
   }
 
   @override
-  List<Object?> get props => [defaultModelId, defaultPromptTemplateId];
+  List<Object?> get props => [defaultModelId, defaultPresetPromptId];
 }

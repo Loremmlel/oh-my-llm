@@ -76,6 +76,9 @@ class AppDatabase {
     if (currentVersion < 7) {
       _migrateV7();
     }
+    if (currentVersion < 8) {
+      _migrateV8();
+    }
   }
 
   /// 初始 schema：聊天记录相关表。
@@ -263,5 +266,16 @@ class AppDatabase {
       ADD COLUMN excluded_message_ids_json TEXT NOT NULL DEFAULT '[]';
     ''');
     _connection.execute('PRAGMA user_version = 7;');
+  }
+
+  /// 重命名 prompt_templates 表为 preset_prompts，列名同步更新。
+  void _migrateV8() {
+    _connection.execute(
+      'ALTER TABLE prompt_templates RENAME TO preset_prompts;',
+    );
+    _connection.execute(
+      'ALTER TABLE conversations RENAME COLUMN selected_prompt_template_id TO selected_preset_prompt_id;',
+    );
+    _connection.execute('PRAGMA user_version = 8;');
   }
 }

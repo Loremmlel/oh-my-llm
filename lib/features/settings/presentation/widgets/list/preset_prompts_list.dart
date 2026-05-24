@@ -2,23 +2,23 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../application/chat_defaults_controller.dart';
-import '../../../application/prompt_templates_controller.dart';
-import '../../../domain/models/prompt_template.dart';
+import '../../../application/preset_prompts_controller.dart';
+import '../../../domain/models/preset_prompt.dart';
 import '../settings_card_grid.dart';
 import '../settings_empty_state.dart';
 
 /// Prompt 模板列表，负责展示、编辑和删除模板。
-class PromptTemplatesList extends ConsumerWidget {
-  const PromptTemplatesList({
+class PresetPromptsList extends ConsumerWidget {
+  const PresetPromptsList({
     required this.templates,
     required this.onDuplicateRequested,
     required this.onEditRequested,
     super.key,
   });
 
-  final List<PromptTemplate> templates;
-  final Future<void> Function(PromptTemplate template) onDuplicateRequested;
-  final ValueChanged<PromptTemplate> onEditRequested;
+  final List<PresetPrompt> templates;
+  final Future<void> Function(PresetPrompt template) onDuplicateRequested;
+  final ValueChanged<PresetPrompt> onEditRequested;
 
   @override
   /// 构建模板列表；空列表时显示空状态提示。宽度足够时一行展示多列。
@@ -34,7 +34,7 @@ class PromptTemplatesList extends ConsumerWidget {
     return SettingsCardGrid(
       children: [
         for (final template in templates)
-          _PromptTemplateTile(
+          _PresetPromptTile(
             template: template,
             onDuplicateRequested: onDuplicateRequested,
             onEditRequested: onEditRequested,
@@ -45,16 +45,16 @@ class PromptTemplatesList extends ConsumerWidget {
 }
 
 /// 单个 Prompt 模板卡片。
-class _PromptTemplateTile extends ConsumerWidget {
-  const _PromptTemplateTile({
+class _PresetPromptTile extends ConsumerWidget {
+  const _PresetPromptTile({
     required this.template,
     required this.onDuplicateRequested,
     required this.onEditRequested,
   });
 
-  final PromptTemplate template;
-  final Future<void> Function(PromptTemplate template) onDuplicateRequested;
-  final ValueChanged<PromptTemplate> onEditRequested;
+  final PresetPrompt template;
+  final Future<void> Function(PresetPrompt template) onDuplicateRequested;
+  final ValueChanged<PresetPrompt> onEditRequested;
 
   @override
   /// 构建模板摘要、附加消息预览和操作按钮。
@@ -109,11 +109,11 @@ class _PromptTemplateTile extends ConsumerWidget {
                 OutlinedButton.icon(
                   onPressed: () async {
                     await ref
-                        .read(promptTemplatesProvider.notifier)
+                        .read(presetPromptsProvider.notifier)
                         .deleteById(template.id);
                     await ref
                         .read(chatDefaultsProvider.notifier)
-                        .clearRememberedPromptTemplateIdIfMatches(template.id);
+                        .clearRememberedPresetPromptIdIfMatches(template.id);
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('预设 Prompt 已删除')),

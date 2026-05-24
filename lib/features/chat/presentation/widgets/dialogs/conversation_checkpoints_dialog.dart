@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/widgets/adaptive_master_detail_layout.dart';
 import '../../../../settings/application/memory_prompts_controller.dart';
 import '../../../../settings/domain/models/llm_model_config.dart';
-import '../../../../settings/domain/models/prompt_template.dart';
+import '../../../../settings/domain/models/preset_prompt.dart';
 import '../../../application/chat_sessions_controller.dart';
 import '../../../application/checkpoint_request_context.dart';
 import '../../../domain/chat_word_counter.dart';
@@ -18,13 +18,13 @@ import 'checkpoint_selection_tile.dart';
 class ConversationCheckpointsDialog extends ConsumerStatefulWidget {
   const ConversationCheckpointsDialog({
     required this.selectedModel,
-    required this.selectedPromptTemplate,
+    required this.selectedPresetPrompt,
     required this.supportsReasoning,
     super.key,
   });
 
   final LlmModelConfig? selectedModel;
-  final PromptTemplate? selectedPromptTemplate;
+  final PresetPrompt? selectedPresetPrompt;
   final bool supportsReasoning;
 
   @override
@@ -91,9 +91,9 @@ class _ConversationCheckpointsDialogState
               ),
               const SizedBox(height: 4),
               Text(
-                widget.selectedPromptTemplate == null
+                widget.selectedPresetPrompt == null
                     ? '当前总结不会附带预设 Prompt。'
-                    : '当前总结会附带预设 Prompt：${widget.selectedPromptTemplate!.name}',
+                    : '当前总结会附带预设 Prompt：${widget.selectedPresetPrompt!.name}',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
               const SizedBox(height: 16),

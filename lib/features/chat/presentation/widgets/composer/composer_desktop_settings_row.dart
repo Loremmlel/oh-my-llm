@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../domain/models/chat_conversation.dart';
 import '../../../domain/models/chat_message.dart';
-import '../../../../settings/domain/models/prompt_template.dart';
+import '../../../../settings/domain/models/preset_prompt.dart';
 import '../auto_retry_toggle.dart';
 import '../thinking_toggle.dart';
 import 'composer_effort_pill.dart';
@@ -17,14 +17,14 @@ class ComposerDesktopSettingsRow extends StatelessWidget {
     required this.reasoningEnabled,
     required this.reasoningEffort,
     required this.autoRetryEnabled,
-    required this.promptTemplates,
-    required this.selectedPromptTemplate,
+    required this.presetPrompts,
+    required this.selectedPresetPrompt,
     required this.isBusy,
     required this.isStreaming,
     required this.onReasoningEnabledChanged,
     required this.onReasoningEffortChanged,
     required this.onAutoRetryEnabledChanged,
-    required this.onPromptTemplateSelected,
+    required this.onPresetPromptSelected,
     required this.onOpenFixedPromptSequenceRunner,
     required this.onOpenMessageFilter,
     required this.excludedMessageCount,
@@ -39,14 +39,14 @@ class ComposerDesktopSettingsRow extends StatelessWidget {
   final bool reasoningEnabled;
   final ReasoningEffort reasoningEffort;
   final bool autoRetryEnabled;
-  final List<PromptTemplate> promptTemplates;
-  final PromptTemplate? selectedPromptTemplate;
+  final List<PresetPrompt> presetPrompts;
+  final PresetPrompt? selectedPresetPrompt;
   final bool isBusy;
   final bool isStreaming;
   final ValueChanged<bool>? onReasoningEnabledChanged;
   final ValueChanged<ReasoningEffort>? onReasoningEffortChanged;
   final ValueChanged<bool>? onAutoRetryEnabledChanged;
-  final ValueChanged<String?> onPromptTemplateSelected;
+  final ValueChanged<String?> onPresetPromptSelected;
   final Future<void> Function() onOpenFixedPromptSequenceRunner;
   final Future<void> Function() onOpenMessageFilter;
   final int excludedMessageCount;
@@ -87,15 +87,15 @@ class ComposerDesktopSettingsRow extends StatelessWidget {
                 child: DropdownButtonFormField<String>(
                   key: const ValueKey('chat-prompt-selector'),
                   initialValue:
-                      selectedPromptTemplate?.id ?? noPromptTemplateSelectedId,
+                      selectedPresetPrompt?.id ?? noPresetPromptSelectedId,
                   isExpanded: true,
                   decoration: const InputDecoration(labelText: '预设 Prompt'),
                   items: [
                     const DropdownMenuItem<String>(
-                      value: noPromptTemplateSelectedId,
+                      value: noPresetPromptSelectedId,
                       child: Text('不使用预设 Prompt'),
                     ),
-                    ...promptTemplates.map((template) {
+                    ...presetPrompts.map((template) {
                       return DropdownMenuItem<String>(
                         value: template.id,
                         child: Text(
@@ -111,8 +111,8 @@ class ComposerDesktopSettingsRow extends StatelessWidget {
                           if (value == null) {
                             return;
                           }
-                          onPromptTemplateSelected(
-                            value == noPromptTemplateSelectedId ? null : value,
+                          onPresetPromptSelected(
+                            value == noPresetPromptSelectedId ? null : value,
                           );
                         },
                 ),

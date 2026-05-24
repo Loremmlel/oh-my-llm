@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/features/chat/application/chat_request_message_builder.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_checkpoint.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
-import 'package:oh_my_llm/features/settings/domain/models/prompt_template.dart';
+import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
 
 void main() {
   // ── 辅助函数 ─────────────────────────────────────────────────────────────
@@ -22,7 +22,7 @@ void main() {
     createdAt: DateTime(2026),
   );
 
-  PromptTemplate buildTemplate({
+  PresetPrompt buildTemplate({
     String systemPrompt = '',
     List<PromptMessage> messages = const [],
   }) {
@@ -37,7 +37,7 @@ void main() {
             ...messages,
           ]
         : messages;
-    return PromptTemplate(
+    return PresetPrompt(
       id: 'tpl-1',
       name: '测试模板',
       messages: effectiveMessages,
@@ -58,10 +58,10 @@ void main() {
 
   // ── 无模板 ────────────────────────────────────────────────────────────────
 
-  group('无模板（promptTemplate == null）', () {
+  group('无模板（presetPrompt == null）', () {
     test('透传会话消息，并在没有会话消息时返回空列表', () {
       final result = buildRequestMessages(
-        promptTemplate: null,
+        presetPrompt: null,
         conversationMessages: [
           buildUserMessage('你好'),
           buildAssistantMessage('你好！'),
@@ -73,7 +73,7 @@ void main() {
       expect(result[1].role, ChatMessageRole.assistant);
       expect(
         buildRequestMessages(
-          promptTemplate: null,
+          presetPrompt: null,
           conversationMessages: const [],
         ),
         isEmpty,
@@ -86,7 +86,7 @@ void main() {
   group('模板含 systemPrompt', () {
     test('非空 systemPrompt 会在首位插入裁剪后的 system 消息', () {
       final result = buildRequestMessages(
-        promptTemplate: buildTemplate(systemPrompt: '  你是一名助手  '),
+        presetPrompt: buildTemplate(systemPrompt: '  你是一名助手  '),
         conversationMessages: [buildUserMessage('问题')],
       );
 
@@ -97,7 +97,7 @@ void main() {
 
     test('纯空白 systemPrompt 不插入 system 消息', () {
       final result = buildRequestMessages(
-        promptTemplate: buildTemplate(systemPrompt: '   '),
+        presetPrompt: buildTemplate(systemPrompt: '   '),
         conversationMessages: [buildUserMessage('问题')],
       );
 
@@ -110,7 +110,7 @@ void main() {
   group('模板含 messages', () {
     test('模板消息排在会话消息前面', () {
       final result = buildRequestMessages(
-        promptTemplate: buildTemplate(
+        presetPrompt: buildTemplate(
           messages: [
             buildTemplateMessage(PromptMessageRole.user, '示例问题'),
             buildTemplateMessage(PromptMessageRole.assistant, '示例回答'),
@@ -126,7 +126,7 @@ void main() {
 
     test('模板 system 消息转换为 ChatMessageRole.system，并支持多条', () {
       final result = buildRequestMessages(
-        promptTemplate: buildTemplate(
+        presetPrompt: buildTemplate(
           messages: [
             buildTemplateMessage(PromptMessageRole.system, '系统前置'),
             buildTemplateMessage(
@@ -153,7 +153,7 @@ void main() {
 
     test('after 模板消息排在会话消息后面', () {
       final result = buildRequestMessages(
-        promptTemplate: buildTemplate(
+        presetPrompt: buildTemplate(
           messages: [
             buildTemplateMessage(
               PromptMessageRole.assistant,
@@ -172,7 +172,7 @@ void main() {
 
     test('filter 只会跳过被排除的会话消息', () {
       final result = buildRequestMessages(
-        promptTemplate: buildTemplate(
+        presetPrompt: buildTemplate(
           systemPrompt: '系统指令',
           messages: [
             buildTemplateMessage(PromptMessageRole.user, '模板前置'),
@@ -200,7 +200,7 @@ void main() {
 
     test('before 和 after 混用时，顺序为 before -> 会话 -> after', () {
       final result = buildRequestMessages(
-        promptTemplate: buildTemplate(
+        presetPrompt: buildTemplate(
           messages: [
             buildTemplateMessage(PromptMessageRole.user, '前置-1'),
             buildTemplateMessage(
@@ -228,7 +228,7 @@ void main() {
   group('完整组合：system + template messages + 会话消息', () {
     test('顺序为 system → 模板消息 → 会话消息', () {
       final result = buildRequestMessages(
-        promptTemplate: buildTemplate(
+        presetPrompt: buildTemplate(
           systemPrompt: '系统指令',
           messages: [
             buildTemplateMessage(PromptMessageRole.user, '示例用户'),
@@ -253,7 +253,7 @@ void main() {
     test('会话消息的 content 原样透传', () {
       const longContent = '这是一段比较长的内容，包含换行\n和特殊字符！@#\$%^';
       final result = buildRequestMessages(
-        promptTemplate: null,
+        presetPrompt: null,
         conversationMessages: [
           ChatMessage(
             id: 'u',
@@ -270,7 +270,7 @@ void main() {
 
   test('启用检查点时会在会话消息前插入检查点 system 消息', () {
     final result = buildRequestMessages(
-      promptTemplate: null,
+      presetPrompt: null,
       checkpointChain: [
         ChatCheckpoint(
           id: 'cp-1',
@@ -290,7 +290,7 @@ void main() {
 
   test('filter 不影响检查点 system 消息，只过滤会话消息', () {
     final result = buildRequestMessages(
-      promptTemplate: null,
+      presetPrompt: null,
       checkpointChain: [
         ChatCheckpoint(
           id: 'cp-1',

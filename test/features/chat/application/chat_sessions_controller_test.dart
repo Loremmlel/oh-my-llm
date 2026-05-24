@@ -14,11 +14,11 @@ import 'package:oh_my_llm/features/chat/data/openai_compatible_chat_client.dart'
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dart';
-import 'package:oh_my_llm/features/settings/data/prompt_template_repository.dart';
-import 'package:oh_my_llm/features/settings/application/prompt_templates_controller.dart';
+import 'package:oh_my_llm/features/settings/data/preset_prompt_repository.dart';
+import 'package:oh_my_llm/features/settings/application/preset_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/memory_prompt.dart';
-import 'package:oh_my_llm/features/settings/domain/models/prompt_template.dart';
+import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
 
 import '../chat_screen/chat_screen_test_helpers.dart';
 
@@ -57,7 +57,7 @@ void main() {
           'supportsReasoning': false,
         },
       ]),
-      promptTemplatesStorageKey: jsonEncode([
+      presetPromptsStorageKey: jsonEncode([
         {
           'id': 'prompt-1',
           'name': '模板一',
@@ -112,7 +112,7 @@ void main() {
       container.read(chatSessionsProvider.notifier).sendMessage(
             content: content,
             modelConfig: _testModel,
-            promptTemplate: null,
+            presetPrompt: null,
             reasoningEnabled: false,
             reasoningEffort: ReasoningEffort.medium,
             retryDelay: retryDelay,
@@ -334,7 +334,7 @@ void main() {
     await notifier.sendMessage(
       content: '   ',
       modelConfig: _testModel,
-      promptTemplate: null,
+      presetPrompt: null,
       reasoningEnabled: false,
       reasoningEffort: ReasoningEffort.medium,
     );
@@ -473,9 +473,9 @@ void main() {
     fakeClient.enqueueChunks(['首轮回复']);
     await sendMsg('需要带前置提示词的上下文');
     await container
-        .read(promptTemplatesProvider.notifier)
+        .read(presetPromptsProvider.notifier)
         .upsert(
-          PromptTemplate(
+          PresetPrompt(
             id: 'prompt-1',
             name: '模板一',
             messages: const [
@@ -492,7 +492,7 @@ void main() {
     await container
         .read(chatSessionsProvider.notifier)
         .updateActiveConversationPreferences(
-          selectedPromptTemplateId: 'prompt-1',
+          selectedPresetPromptId: 'prompt-1',
         );
 
     fakeClient.enqueueChunks(['检查点总结']);
