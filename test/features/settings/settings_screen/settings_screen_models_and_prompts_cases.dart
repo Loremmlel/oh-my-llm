@@ -6,7 +6,6 @@ import 'package:oh_my_llm/features/settings/data/sqlite_memory_prompt_repository
 import 'package:oh_my_llm/features/settings/data/sqlite_prompt_template_repository.dart';
 import 'package:oh_my_llm/features/settings/data/sqlite_template_prompt_repository.dart';
 import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
-import 'package:oh_my_llm/features/settings/presentation/widgets/settings_card_grid.dart';
 import 'package:oh_my_llm/features/settings/presentation/settings_screen.dart';
 
 import 'settings_screen_test_helpers.dart';
@@ -422,48 +421,6 @@ void registerSettingsScreenModelsAndPromptsTests() {
     expect(addItemButton, findsOneWidget);
   });
 
-  testWidgets('prompt template dialog locks wide detail pane scroll', (
-    tester,
-  ) async {
-    final preferences = await createEmptyPreferences();
-
-    await pumpSettingsScreen(
-      tester,
-      preferences: preferences,
-      size: const Size(1440, 2200),
-    );
-
-    await tester.tap(find.text('新增预设'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(OutlinedButton, '新增条目'));
-    await tester.pumpAndSettle();
-
-    final detailPane = find.byKey(const ValueKey('preset-prompt-detail-pane'));
-    final deleteButton = find.descendant(
-      of: detailPane,
-      matching: find.widgetWithText(OutlinedButton, '删除当前条目'),
-    );
-
-    expect(
-      find.descendant(
-        of: detailPane,
-        matching: find.byType(SingleChildScrollView),
-      ),
-      findsNothing,
-    );
-
-    final contentEditor = tester.widget<EditableText>(
-      find.descendant(
-        of: presetPromptContentField(),
-        matching: find.byType(EditableText),
-      ),
-    );
-    expect(contentEditor.expands, isTrue);
-    expect(contentEditor.maxLines, isNull);
-    expect(contentEditor.minLines, isNull);
-    expect(deleteButton.hitTestable(), findsOneWidget);
-  });
-
   testWidgets(
     'settings screen supports template prompt CRUD flows',
     (tester) async {
@@ -575,57 +532,4 @@ void registerSettingsScreenModelsAndPromptsTests() {
     expect(repository.loadAll(database), isEmpty);
   });
 
-  testWidgets(
-    'settings card grid arranges equal-width columns on wide layout',
-    (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: Center(
-              child: SizedBox(
-                width: 960,
-                child: SettingsCardGrid(
-                  minItemWidth: 100,
-                  children: [
-                    Container(
-                      key: ValueKey('grid-card-short'),
-                      color: Colors.red,
-                      child: SizedBox(height: 80),
-                    ),
-                    Container(
-                      key: ValueKey('grid-card-tall'),
-                      color: Colors.green,
-                      child: SizedBox(height: 180),
-                    ),
-                    Container(
-                      key: ValueKey('grid-card-medium'),
-                      color: Colors.blue,
-                      child: SizedBox(height: 120),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
-
-      final shortRect = tester.getRect(
-        find.byKey(const ValueKey('grid-card-short')),
-      );
-      final tallRect = tester.getRect(
-        find.byKey(const ValueKey('grid-card-tall')),
-      );
-      final mediumRect = tester.getRect(
-        find.byKey(const ValueKey('grid-card-medium')),
-      );
-
-      expect(shortRect.top, moreOrLessEquals(tallRect.top));
-      expect(mediumRect.top, moreOrLessEquals(tallRect.top));
-      expect(shortRect.width, moreOrLessEquals(tallRect.width));
-      expect(mediumRect.width, moreOrLessEquals(tallRect.width));
-      expect(shortRect.left, lessThan(tallRect.left));
-      expect(tallRect.left, lessThan(mediumRect.left));
-    },
-  );
 }

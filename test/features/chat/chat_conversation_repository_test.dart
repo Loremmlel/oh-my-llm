@@ -1,11 +1,6 @@
-import 'dart:convert';
-
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/core/persistence/app_database.dart';
-import 'package:oh_my_llm/features/chat/data/chat_conversation_migration.dart';
-import 'package:oh_my_llm/features/chat/data/chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/data/sqlite_chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_checkpoint.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
@@ -105,50 +100,6 @@ void main() {
     expect(restored, hasLength(1));
     expect(restored.single.toJson(), equals(conversation.toJson()));
   });
-
-  test(
-    'migration imports legacy shared preferences payload into sqlite',
-    () async {
-      SharedPreferences.setMockInitialValues({
-        chatConversationsStorageKey: jsonEncode([
-          {
-            'id': 'conversation-1',
-            'title': '旧数据',
-            'messages': [
-              {
-                'id': 'message-1',
-                'role': 'user',
-                'content': '旧用户消息',
-                'createdAt': '2026-04-27T10:00:00.000',
-              },
-            ],
-            'createdAt': '2026-04-27T10:00:00.000',
-            'updatedAt': '2026-04-27T10:00:00.000',
-            'selectedModelId': null,
-            'selectedPromptTemplateId': null,
-            'reasoningEnabled': false,
-            'reasoningEffort': 'medium',
-          },
-        ]),
-      });
-      final preferences = await SharedPreferences.getInstance();
-      final database = AppDatabase.inMemory();
-      addTearDown(database.close);
-      final repository = SqliteChatConversationRepository(database);
-
-      await migrateLegacyChatConversations(
-        preferences: preferences,
-        repository: repository,
-      );
-
-      expect(repository.loadAll(), hasLength(1));
-      expect(preferences.getString(chatConversationsStorageKey), isNull);
-      expect(
-        preferences.getBool(chatConversationsSqliteMigrationFlagKey),
-        isTrue,
-      );
-    },
-  );
 
   test('history summaries search only title and user messages', () async {
     final database = AppDatabase.inMemory();

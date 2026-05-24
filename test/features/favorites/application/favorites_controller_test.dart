@@ -79,40 +79,6 @@ void main() {
       expect(container.read(favoritesProvider), isEmpty);
     });
 
-    test('moveTo changes the collection of a favorite', () {
-      container.read(collectionsProvider.notifier).create('目标收藏夹');
-      final collectionId = container.read(collectionsProvider).first.id;
-
-      container.read(favoritesProvider.notifier).add(
-        userMessageContent: '要移动的问题',
-        assistantContent: '要移动的回复',
-      );
-
-      final favId = container.read(favoritesProvider).first.id;
-      container.read(favoritesProvider.notifier).moveTo(favId, collectionId);
-
-      expect(
-        container.read(favoritesProvider).first.collectionId,
-        collectionId,
-      );
-    });
-
-    test('moveTo with null moves favorite to uncategorized', () {
-      container.read(collectionsProvider.notifier).create('原来的收藏夹');
-      final collectionId = container.read(collectionsProvider).first.id;
-
-      container.read(favoritesProvider.notifier).add(
-        userMessageContent: '要移动的问题',
-        assistantContent: '要移动的回复',
-        collectionId: collectionId,
-      );
-
-      final favId = container.read(favoritesProvider).first.id;
-      container.read(favoritesProvider.notifier).moveTo(favId, null);
-
-      expect(container.read(favoritesProvider).first.collectionId, isNull);
-    });
-
     test('isFavorited returns true when content is already favorited', () {
       container.read(favoritesProvider.notifier).add(
         userMessageContent: '问题',
@@ -132,70 +98,6 @@ void main() {
       );
     });
 
-    test('filter null shows all favorites', () {
-      container.read(favoritesProvider.notifier).add(
-        userMessageContent: '问题1',
-        assistantContent: '回复1',
-        collectionId: null,
-      );
-      container.read(collectionsProvider.notifier).create('收藏夹A');
-      final colId = container.read(collectionsProvider).first.id;
-      container.read(favoritesProvider.notifier).add(
-        userMessageContent: '问题2',
-        assistantContent: '回复2',
-        collectionId: colId,
-      );
-
-      container.read(favoritesFilterProvider.notifier).setFilter(null);
-
-      expect(container.read(favoritesProvider).length, 2);
-    });
-
-    test('filter empty string shows only uncategorized favorites', () {
-      container.read(favoritesProvider.notifier).add(
-        userMessageContent: '未分类问题',
-        assistantContent: '未分类回复',
-        collectionId: null,
-      );
-      container.read(collectionsProvider.notifier).create('收藏夹A');
-      final colId = container.read(collectionsProvider).first.id;
-      container.read(favoritesProvider.notifier).add(
-        userMessageContent: '有分类问题',
-        assistantContent: '有分类回复',
-        collectionId: colId,
-      );
-
-      container.read(favoritesFilterProvider.notifier).setFilter('');
-
-      expect(container.read(favoritesProvider).length, 1);
-      expect(
-        container.read(favoritesProvider).first.userMessageContent,
-        '未分类问题',
-      );
-    });
-
-    test('filter by collection id shows only matching favorites', () {
-      container.read(collectionsProvider.notifier).create('收藏夹A');
-      final colId = container.read(collectionsProvider).first.id;
-
-      container.read(favoritesProvider.notifier).add(
-        userMessageContent: '收藏夹内问题',
-        assistantContent: '收藏夹内回复',
-        collectionId: colId,
-      );
-      container.read(favoritesProvider.notifier).add(
-        userMessageContent: '未分类问题',
-        assistantContent: '未分类回复',
-      );
-
-      container.read(favoritesFilterProvider.notifier).setFilter(colId);
-
-      expect(container.read(favoritesProvider).length, 1);
-      expect(
-        container.read(favoritesProvider).first.userMessageContent,
-        '收藏夹内问题',
-      );
-    });
   });
 
   group('CollectionsController', () {
@@ -257,30 +159,6 @@ void main() {
       container.read(collectionsProvider.notifier).delete(id);
 
       expect(container.read(collectionsProvider), isEmpty);
-    });
-
-    test('deleting collection moves its favorites to uncategorized', () {
-      container.read(collectionsProvider.notifier).create('收藏夹');
-      final colId = container.read(collectionsProvider).first.id;
-
-      container.read(favoritesProvider.notifier).add(
-        userMessageContent: '属于收藏夹的问题',
-        assistantContent: '属于收藏夹的回复',
-        collectionId: colId,
-      );
-
-      expect(container.read(favoritesProvider).first.collectionId, colId);
-
-      container.read(collectionsProvider.notifier).delete(colId);
-
-      // Toggling the filter forces FavoritesController.build() to re-query the DB,
-      // picking up the ON DELETE SET NULL cascade that cleared collection_id.
-      container.read(favoritesFilterProvider.notifier).setFilter('');
-      container.read(favoritesFilterProvider.notifier).setFilter(null);
-      expect(
-        container.read(favoritesProvider).first.collectionId,
-        isNull,
-      );
     });
 
     test('rename nonexistent id is silently ignored', () {

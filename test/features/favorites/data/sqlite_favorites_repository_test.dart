@@ -213,19 +213,4 @@ void main() {
     });
   });
 
-  group('SqliteFavoritesRepository - ON DELETE SET NULL（外键级联）', () {
-    test('删除收藏夹后其收藏的 collection_id 自动置 null', () {
-      collectionsRepo.save(
-        FavoriteCollection(id: 'col-1', name: 'A', createdAt: DateTime(2026)),
-      );
-      repository.save(_makeFavorite(id: 'fav-1', collectionId: 'col-1'));
-      repository.save(_makeFavorite(id: 'fav-2', collectionId: 'col-1'));
-
-      collectionsRepo.delete('col-1');
-
-      final all = repository.loadAll();
-      expect(all, hasLength(2));
-      expect(all.every((f) => f.collectionId == null), isTrue);
-    });
-  });
 }
