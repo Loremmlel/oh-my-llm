@@ -5,7 +5,7 @@ import 'fixed_prompt_sequence.dart';
 import 'llm_model_config.dart';
 import 'llm_provider_config.dart';
 import 'memory_prompt.dart';
-import 'prompt_template.dart';
+import 'preset_prompt.dart';
 import 'template_prompt.dart';
 
 /// 配置导出/导入的数据包，包含三类设置项的完整快照。
@@ -22,7 +22,7 @@ import 'template_prompt.dart';
 ///   "version": 2,
 ///   "modelProviders": [...],
 ///   "memoryPrompts": [...],
-///   "promptTemplates": [...],
+///   "presetPrompts": [...],
 ///   "fixedPromptSequences": [...]
 /// }
 /// ```
@@ -30,7 +30,7 @@ class SettingsExportData {
   const SettingsExportData({
     required this.modelProviders,
     required this.memoryPrompts,
-    required this.promptTemplates,
+    required this.presetPrompts,
     required this.templatePrompts,
     required this.fixedPromptSequences,
     this.autoRetrySettings,
@@ -44,7 +44,7 @@ class SettingsExportData {
 
   final List<LlmProviderConfig> modelProviders;
   final List<MemoryPrompt> memoryPrompts;
-  final List<PromptTemplate> promptTemplates;
+  final List<PresetPrompt> presetPrompts;
   final List<TemplatePrompt> templatePrompts;
   final List<FixedPromptSequence> fixedPromptSequences;
   final AutoRetrySettings? autoRetrySettings;
@@ -62,7 +62,7 @@ class SettingsExportData {
       'version': formatVersion,
       'modelProviders': modelProviders.map((p) => p.toJson()).toList(),
       'memoryPrompts': memoryPrompts.map((p) => p.toJson()).toList(),
-      'promptTemplates': promptTemplates.map((t) => t.toJson()).toList(),
+      'presetPrompts': presetPrompts.map((t) => t.toJson()).toList(),
       'templatePrompts': templatePrompts.map((t) => t.toJson()).toList(),
       'fixedPromptSequences': fixedPromptSequences
           .map((s) => s.toJson())
@@ -94,7 +94,9 @@ class SettingsExportData {
       final rawProviders = raw['modelProviders'] as List<dynamic>? ?? const [];
       final rawMemoryPrompts =
           raw['memoryPrompts'] as List<dynamic>? ?? const [];
-      final rawTemplates = raw['promptTemplates'] as List<dynamic>? ?? const [];
+      final rawTemplates = (raw['presetPrompts'] ?? raw['promptTemplates'])
+              as List<dynamic>? ??
+          const [];
       final rawTemplatePrompts =
           raw['templatePrompts'] as List<dynamic>? ?? const [];
       final rawSequences =
@@ -122,9 +124,9 @@ class SettingsExportData {
                   MemoryPrompt.fromJson(Map<String, dynamic>.from(item as Map)),
             )
             .toList(growable: false),
-        promptTemplates: rawTemplates
+        presetPrompts: rawTemplates
             .map(
-              (item) => PromptTemplate.fromJson(
+              (item) => PresetPrompt.fromJson(
                 Map<String, dynamic>.from(item as Map),
               ),
             )
@@ -157,7 +159,7 @@ class SettingsExportData {
   bool get hasContent =>
       modelProviders.isNotEmpty ||
       memoryPrompts.isNotEmpty ||
-      promptTemplates.isNotEmpty ||
+      presetPrompts.isNotEmpty ||
       templatePrompts.isNotEmpty ||
       fixedPromptSequences.isNotEmpty ||
       autoRetrySettings != null;

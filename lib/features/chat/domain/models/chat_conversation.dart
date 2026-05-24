@@ -7,7 +7,7 @@ import 'chat_checkpoint.dart';
 import 'chat_message.dart';
 
 const rootConversationParentId = '__root__';
-const noPromptTemplateSelectedId = '__no_prompt_template_selected__';
+const noPresetPromptSelectedId = '__no_preset_prompt_selected__';
 
 /// 单个会话及其消息树状态。
 class ChatConversation extends Equatable {
@@ -22,7 +22,7 @@ class ChatConversation extends Equatable {
     this.checkpoints = const [],
     this.selectedModelId,
     this.selectedCheckpointId,
-    this.selectedPromptTemplateId,
+    this.selectedPresetPromptId,
     this.reasoningEnabled = false,
     this.reasoningEffort = ReasoningEffort.medium,
     this.autoRetryEnabled = false,
@@ -39,7 +39,7 @@ class ChatConversation extends Equatable {
   final DateTime updatedAt;
   final String? selectedModelId;
   final String? selectedCheckpointId;
-  final String? selectedPromptTemplateId;
+  final String? selectedPresetPromptId;
   final bool reasoningEnabled;
   final ReasoningEffort reasoningEffort;
   final bool autoRetryEnabled;
@@ -99,14 +99,14 @@ class ChatConversation extends Equatable {
     DateTime? updatedAt,
     String? selectedModelId,
     String? selectedCheckpointId,
-    String? selectedPromptTemplateId,
+    String? selectedPresetPromptId,
     bool? reasoningEnabled,
     ReasoningEffort? reasoningEffort,
     bool? autoRetryEnabled,
     List<String>? excludedMessageIds,
     bool clearSelectedModelId = false,
     bool clearSelectedCheckpointId = false,
-    bool clearSelectedPromptTemplateId = false,
+    bool clearSelectedPresetPromptId = false,
   }) {
     return ChatConversation(
       id: id ?? this.id,
@@ -124,9 +124,9 @@ class ChatConversation extends Equatable {
       selectedCheckpointId: clearSelectedCheckpointId
           ? null
           : selectedCheckpointId ?? this.selectedCheckpointId,
-      selectedPromptTemplateId: clearSelectedPromptTemplateId
+      selectedPresetPromptId: clearSelectedPresetPromptId
           ? null
-          : selectedPromptTemplateId ?? this.selectedPromptTemplateId,
+          : selectedPresetPromptId ?? this.selectedPresetPromptId,
       reasoningEnabled: reasoningEnabled ?? this.reasoningEnabled,
       reasoningEffort: reasoningEffort ?? this.reasoningEffort,
       autoRetryEnabled: autoRetryEnabled ?? this.autoRetryEnabled,
@@ -155,7 +155,7 @@ class ChatConversation extends Equatable {
       'updatedAt': updatedAt.toIso8601String(),
       'selectedModelId': selectedModelId,
       'selectedCheckpointId': selectedCheckpointId,
-      'selectedPromptTemplateId': selectedPromptTemplateId,
+      'selectedPresetPromptId': selectedPresetPromptId,
       'checkpoints': checkpoints
           .map((checkpoint) => checkpoint.toJson())
           .toList(),
@@ -215,7 +215,7 @@ class ChatConversation extends Equatable {
       updatedAt: DateTime.parse(json['updatedAt'] as String),
       selectedModelId: json['selectedModelId'] as String?,
       selectedCheckpointId: json['selectedCheckpointId'] as String?,
-      selectedPromptTemplateId: json['selectedPromptTemplateId'] as String?,
+      selectedPresetPromptId: json['selectedPresetPromptId'] as String?,
       reasoningEnabled: json['reasoningEnabled'] as bool? ?? false,
       reasoningEffort: ReasoningEffort.values.firstWhere(
         (effort) => effort.apiValue == json['reasoningEffort'],
@@ -313,7 +313,7 @@ class ChatConversation extends Equatable {
     updatedAt,
     selectedModelId,
     selectedCheckpointId,
-    selectedPromptTemplateId,
+    selectedPresetPromptId,
     reasoningEnabled,
     reasoningEffort,
     autoRetryEnabled,

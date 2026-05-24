@@ -10,13 +10,13 @@ import '../application/auto_retry_settings_controller.dart';
 import '../application/fixed_prompt_sequences_controller.dart';
 import '../application/llm_model_configs_controller.dart';
 import '../application/memory_prompts_controller.dart';
-import '../application/prompt_templates_controller.dart';
+import '../application/preset_prompts_controller.dart';
 import '../application/settings_import_deduplicator.dart';
 import '../application/template_prompts_controller.dart';
 import '../domain/models/fixed_prompt_sequence.dart';
 import '../domain/models/llm_provider_config.dart';
 import '../domain/models/memory_prompt.dart';
-import '../domain/models/prompt_template.dart';
+import '../domain/models/preset_prompt.dart';
 import '../domain/models/settings_export_data.dart';
 import '../domain/models/template_prompt.dart';
 import 'widgets/import_confirm_dialog.dart';
@@ -46,7 +46,7 @@ class SettingsScreen extends ConsumerStatefulWidget {
 class _SettingsScreenState extends ConsumerState<SettingsScreen>
     with TickerProviderStateMixin {
   static const _importDeduplicator = SettingsImportDeduplicator();
-  static final _promptTemplateCopySuffixPattern = RegExp(
+  static final _presetPromptCopySuffixPattern = RegExp(
     r'^(.+?)（副本(?: \d+)?）$',
   );
 
@@ -75,6 +75,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   }
 
   void _onTabChanged() {
+    setState(() {});
     if (!_tabController.indexIsChanging) {
       ref
           .read(sharedPreferencesProvider)
@@ -87,7 +88,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     final fixedPromptSequences = ref.watch(fixedPromptSequencesProvider);
     final modelProviders = ref.watch(llmProviderConfigsProvider);
     final memoryPrompts = ref.watch(memoryPromptsProvider);
-    final promptTemplates = ref.watch(promptTemplatesProvider);
+    final presetPrompts = ref.watch(presetPromptsProvider);
     final templatePrompts = ref.watch(templatePromptsProvider);
 
     return AppShellScaffold(
@@ -155,15 +156,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                 ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
-                    PromptTemplatesSection(
-                      templates: promptTemplates,
+                    PresetPromptsSection(
+                      templates: presetPrompts,
                       onAddPressed: () =>
-                          _showPromptTemplateDialog(context, ref),
+                          _showPresetPromptDialog(context, ref),
                       onDuplicateRequested: (template) {
-                        return _duplicatePromptTemplate(context, ref, template);
+                        return _duplicatePresetPrompt(context, ref, template);
                       },
                       onEditRequested: (template) {
-                        _showPromptTemplateDialog(
+                        _showPresetPromptDialog(
                           context,
                           ref,
                           initialValue: template,
@@ -265,17 +266,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
         return SettingsExportData(
           modelProviders: providers,
           memoryPrompts: const [],
-          promptTemplates: const [],
+          presetPrompts: const [],
           templatePrompts: const [],
           fixedPromptSequences: const [],
         );
       case _tabPresets:
-        final templates = ref.read(promptTemplatesProvider);
+        final templates = ref.read(presetPromptsProvider);
         if (templates.isEmpty) return null;
         return SettingsExportData(
           modelProviders: const [],
           memoryPrompts: const [],
-          promptTemplates: templates,
+          presetPrompts: templates,
           templatePrompts: const [],
           fixedPromptSequences: const [],
         );
@@ -291,7 +292,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
         return SettingsExportData(
           modelProviders: const [],
           memoryPrompts: memoryPrompts,
-          promptTemplates: const [],
+          presetPrompts: const [],
           templatePrompts: templatePrompts,
           fixedPromptSequences: sequences,
         );
@@ -300,7 +301,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
         return SettingsExportData(
           modelProviders: const [],
           memoryPrompts: const [],
-          promptTemplates: const [],
+          presetPrompts: const [],
           templatePrompts: const [],
           fixedPromptSequences: const [],
           autoRetrySettings: settings,
@@ -334,7 +335,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
       data: exportData,
       existingProviders: ref.read(llmProviderConfigsProvider),
       existingMemoryPrompts: ref.read(memoryPromptsProvider),
-      existingTemplates: ref.read(promptTemplatesProvider),
+      existingTemplates: ref.read(presetPromptsProvider),
       existingTemplatePrompts: ref.read(templatePromptsProvider),
       existingSequences: ref.read(fixedPromptSequencesProvider),
     );
@@ -343,7 +344,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     final hasAutoRetry = exportData.autoRetrySettings != null &&
         dedupedData.modelProviders.isEmpty &&
         dedupedData.memoryPrompts.isEmpty &&
-        dedupedData.promptTemplates.isEmpty &&
+        dedupedData.presetPrompts.isEmpty &&
         dedupedData.templatePrompts.isEmpty &&
         dedupedData.fixedPromptSequences.isEmpty;
 
@@ -385,7 +386,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
       case _tabProviders:
         return data.modelProviders.isNotEmpty;
       case _tabPresets:
-        return data.promptTemplates.isNotEmpty;
+        return data.presetPrompts.isNotEmpty;
       case _tabPrompts:
         return data.memoryPrompts.isNotEmpty ||
             data.templatePrompts.isNotEmpty ||
@@ -399,16 +400,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
 
   // ── 复制预设 ──────────────────────────────────────────────────
 
-  Future<void> _duplicatePromptTemplate(
+  Future<void> _duplicatePresetPrompt(
     BuildContext context,
     WidgetRef ref,
-    PromptTemplate source,
+    PresetPrompt source,
   ) async {
-    final existingTemplates = ref.read(promptTemplatesProvider);
+    final existingTemplates = ref.read(presetPromptsProvider);
     final existingNames = existingTemplates
         .map((template) => template.name.trim())
         .toSet();
-    final duplicatedName = _buildDuplicatedPromptTemplateName(
+    final duplicatedName = _buildDuplicatedPresetPromptName(
       sourceName: source.name,
       existingNames: existingNames,
     );
@@ -420,18 +421,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
           .map((message) => message.copyWith(id: generateEntityId()))
           .toList(growable: false),
     );
-    await ref.read(promptTemplatesProvider.notifier).upsert(duplicatedTemplate);
+    await ref.read(presetPromptsProvider.notifier).upsert(duplicatedTemplate);
     if (context.mounted) {
       _showSettingsSnackBar(context, '预设 Prompt 已复制');
     }
   }
 
-  String _buildDuplicatedPromptTemplateName({
+  String _buildDuplicatedPresetPromptName({
     required String sourceName,
     required Set<String> existingNames,
   }) {
     final normalizedSource = sourceName.trim();
-    final sourceCoreName = _extractPromptTemplateCopyCoreName(normalizedSource);
+    final sourceCoreName = _extractPresetPromptCopyCoreName(normalizedSource);
     final firstCandidate = '$sourceCoreName（副本）';
     if (!existingNames.contains(firstCandidate)) {
       return firstCandidate;
@@ -447,8 +448,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     }
   }
 
-  String _extractPromptTemplateCopyCoreName(String name) {
-    final match = _promptTemplateCopySuffixPattern.firstMatch(name);
+  String _extractPresetPromptCopyCoreName(String name) {
+    final match = _presetPromptCopySuffixPattern.firstMatch(name);
     final baseName = match?.group(1)?.trim();
     if (baseName == null || baseName.isEmpty) {
       return name;
@@ -530,15 +531,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     );
   }
 
-  Future<void> _showPromptTemplateDialog(
+  Future<void> _showPresetPromptDialog(
     BuildContext context,
     WidgetRef ref, {
-    PromptTemplate? initialValue,
+    PresetPrompt? initialValue,
   }) {
     return showDialog<void>(
       context: context,
       builder: (dialogContext) {
-        return PromptTemplateFormDialog(
+        return PresetPromptFormDialog(
           initialValue: initialValue,
           onSubmit: (formData) async {
             await _saveSettingsItem(
@@ -547,7 +548,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
               createdMessage: '预设 Prompt 已保存',
               updatedMessage: '预设 Prompt 已更新',
               onSave: () {
-                final template = PromptTemplate(
+                final template = PresetPrompt(
                   id: initialValue?.id ?? generateEntityId(),
                   name: formData.name,
                   messages: formData.messages,
@@ -555,7 +556,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                 );
 
                 return ref
-                    .read(promptTemplatesProvider.notifier)
+                    .read(presetPromptsProvider.notifier)
                     .upsert(template);
               },
             );

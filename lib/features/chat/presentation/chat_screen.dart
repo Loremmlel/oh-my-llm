@@ -7,12 +7,12 @@ import '../../../core/constants/app_breakpoints.dart';
 import '../../settings/application/chat_defaults_controller.dart';
 import '../../settings/application/fixed_prompt_sequences_controller.dart';
 import '../../settings/application/llm_model_configs_controller.dart';
-import '../../settings/application/prompt_templates_controller.dart';
+import '../../settings/application/preset_prompts_controller.dart';
 import '../../settings/application/template_prompts_controller.dart';
 import '../../settings/domain/models/fixed_prompt_sequence.dart';
 import '../../settings/domain/models/llm_model_config.dart';
 import '../../settings/domain/models/llm_provider_config.dart';
-import '../../settings/domain/models/prompt_template.dart';
+import '../../settings/domain/models/preset_prompt.dart';
 import '../../settings/domain/models/template_prompt.dart';
 import '../application/chat_message_tree.dart';
 import '../application/chat_sessions_controller.dart';
@@ -90,7 +90,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final fixedPromptSequences = ref.watch(fixedPromptSequencesProvider);
     final modelProviders = ref.watch(llmProviderConfigsProvider);
     final modelConfigs = ref.watch(llmModelConfigsProvider);
-    final promptTemplates = ref.watch(promptTemplatesProvider);
+    final presetPrompts = ref.watch(presetPromptsProvider);
     final templatePrompts = ref.watch(templatePromptsProvider);
     final activeMessages = conversation.messages;
     final excludedVisibleMessageCount = activeMessages.where((message) {
@@ -118,10 +118,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 return config.providerId == selectedProviderId;
               })
               .toList(growable: false);
-    final selectedPromptTemplate = _resolveSelectedPromptTemplate(
-      promptTemplates,
-      conversation.selectedPromptTemplateId,
-      rememberedSelections.defaultPromptTemplateId,
+    final selectedPresetPrompt = _resolveSelectedPresetPrompt(
+      presetPrompts,
+      conversation.selectedPresetPromptId,
+      rememberedSelections.defaultPresetPromptId,
     );
     final selectedTemplatePrompt = _resolveSelectedTemplatePrompt(
       templatePrompts,
@@ -177,7 +177,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               : () => _showCheckpointsDialog(
                   context,
                   selectedModel: selectedModel,
-                  selectedPromptTemplate: selectedPromptTemplate,
+                  selectedPresetPrompt: selectedPresetPrompt,
                   supportsReasoning: supportsReasoning,
                 ),
           tooltip: '对话检查点',
@@ -232,8 +232,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     modelConfigs: selectableModels,
                     selectedProviderId: selectedProviderId,
                     selectedModel: selectedModel,
-                    promptTemplates: promptTemplates,
-                    selectedPromptTemplate: selectedPromptTemplate,
+                    presetPrompts: presetPrompts,
+                    selectedPresetPrompt: selectedPresetPrompt,
                     userMessages: userMessages,
                     activeAnchorMessageId: _scroll.activeAnchorMessageId,
                     messageController: _messageController,
@@ -288,8 +288,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     onModelSelected: (modelId) {
                       _handleModelSelected(modelId);
                     },
-                    onPromptTemplateSelected: (promptTemplateId) {
-                      _handlePromptTemplateSelected(promptTemplateId);
+                    onPresetPromptSelected: (presetPromptId) {
+                      _handlePresetPromptSelected(presetPromptId);
                     },
                     onTemplatePromptSelected: (templatePromptId) {
                       _handleTemplatePromptSelected(
@@ -328,7 +328,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         context,
                         fixedPromptSequences: fixedPromptSequences,
                         selectedModel: selectedModel,
-                        selectedPromptTemplate: selectedPromptTemplate,
+                        selectedPresetPrompt: selectedPresetPrompt,
                         conversation: conversation,
                         supportsReasoning: supportsReasoning,
                         isBusy: isBusy,
@@ -367,7 +367,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               userMessageSegments:
                                   templatedMessage.userMessageSegments,
                               modelConfig: selectedModel,
-                              promptTemplate: selectedPromptTemplate,
+                              presetPrompt: selectedPresetPrompt,
                               conversation: conversation,
                               supportsReasoning: supportsReasoning,
                               isBusy: isBusy,
@@ -449,24 +449,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   /// 解析当前会话应使用的前置 Prompt，并在缺省时回退到最近一次选择。
-  PromptTemplate? _resolveSelectedPromptTemplate(
-    List<PromptTemplate> promptTemplates,
-    String? selectedPromptTemplateId,
-    String? rememberedPromptTemplateId,
+  PresetPrompt? _resolveSelectedPresetPrompt(
+    List<PresetPrompt> presetPrompts,
+    String? selectedPresetPromptId,
+    String? rememberedPresetPromptId,
   ) {
-    if (selectedPromptTemplateId == noPromptTemplateSelectedId) {
+    if (selectedPresetPromptId == noPresetPromptSelectedId) {
       return null;
     }
 
-    final conversationSelected = promptTemplates.where((template) {
-      return template.id == selectedPromptTemplateId;
+    final conversationSelected = presetPrompts.where((template) {
+      return template.id == selectedPresetPromptId;
     }).firstOrNull;
     if (conversationSelected != null) {
       return conversationSelected;
     }
 
-    return promptTemplates.where((template) {
-      return template.id == rememberedPromptTemplateId;
+    return presetPrompts.where((template) {
+      return template.id == rememberedPresetPromptId;
     }).firstOrNull;
   }
 
@@ -546,16 +546,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     await _handleModelSelected(targetModelId);
   }
 
-  Future<void> _handlePromptTemplateSelected(String? promptTemplateId) async {
+  Future<void> _handlePresetPromptSelected(String? presetPromptId) async {
     await ref
         .read(chatSessionsProvider.notifier)
         .updateActiveConversationPreferences(
-          selectedPromptTemplateId:
-              promptTemplateId ?? noPromptTemplateSelectedId,
+          selectedPresetPromptId:
+              presetPromptId ?? noPresetPromptSelectedId,
         );
     await ref
         .read(chatDefaultsProvider.notifier)
-        .rememberPromptTemplateId(promptTemplateId);
+        .rememberPresetPromptId(presetPromptId);
   }
 
   Map<String, String> _resolveTemplatePromptValues(
@@ -580,7 +580,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     BuildContext context, {
     required List<FixedPromptSequence> fixedPromptSequences,
     required LlmModelConfig? selectedModel,
-    required PromptTemplate? selectedPromptTemplate,
+    required PresetPrompt? selectedPresetPrompt,
     required ChatConversation conversation,
     required bool supportsReasoning,
     required bool isBusy,
@@ -618,7 +618,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         await _sendMessageContent(
           content: result.content,
           modelConfig: selectedModel,
-          promptTemplate: selectedPromptTemplate,
+          presetPrompt: selectedPresetPrompt,
           conversation: conversation,
           supportsReasoning: supportsReasoning,
           isBusy: isBusy,
@@ -632,7 +632,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Future<void> _sendMessageContent({
     required String content,
     required LlmModelConfig? modelConfig,
-    required PromptTemplate? promptTemplate,
+    required PresetPrompt? presetPrompt,
     required ChatConversation conversation,
     required bool supportsReasoning,
     required bool isBusy,
@@ -649,7 +649,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           content: trimmedContent,
           userMessageSegments: userMessageSegments,
           modelConfig: modelConfig,
-          promptTemplate: promptTemplate,
+          presetPrompt: presetPrompt,
           reasoningEnabled: supportsReasoning && conversation.reasoningEnabled,
           reasoningEffort: conversation.reasoningEffort,
         );
@@ -658,7 +658,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Future<void> _showCheckpointsDialog(
     BuildContext context, {
     required LlmModelConfig? selectedModel,
-    required PromptTemplate? selectedPromptTemplate,
+    required PresetPrompt? selectedPresetPrompt,
     required bool supportsReasoning,
   }) {
     return showDialog<void>(
@@ -666,7 +666,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       builder: (context) {
         return ConversationCheckpointsDialog(
           selectedModel: selectedModel,
-          selectedPromptTemplate: selectedPromptTemplate,
+          selectedPresetPrompt: selectedPresetPrompt,
           supportsReasoning: supportsReasoning,
         );
       },

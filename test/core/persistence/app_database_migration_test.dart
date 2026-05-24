@@ -31,7 +31,7 @@ void main() {
           'conversations',
           'messages',
           'conversation_branch_selections',
-          'prompt_templates',
+          'preset_prompts',
           'fixed_prompt_sequences',
           'collections',
           'favorites',

@@ -6,7 +6,7 @@ import '../../../core/utils/id_generator.dart';
 import '../../settings/application/auto_retry_settings_controller.dart';
 import '../../settings/domain/models/llm_model_config.dart';
 import '../../settings/domain/models/memory_prompt.dart';
-import '../../settings/domain/models/prompt_template.dart';
+import '../../settings/domain/models/preset_prompt.dart';
 import 'chat_request_message_builder.dart';
 import 'chat_sessions_controller_streaming.dart';
 import 'chat_sessions_controller_support.dart';
@@ -303,12 +303,12 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
   Future<void> updateActiveConversationPreferences({
     String? selectedModelId,
     String? selectedCheckpointId,
-    String? selectedPromptTemplateId,
+    String? selectedPresetPromptId,
     bool? reasoningEnabled,
     ReasoningEffort? reasoningEffort,
     bool? autoRetryEnabled,
     bool clearSelectedCheckpointId = false,
-    bool clearSelectedPromptTemplateId = false,
+    bool clearSelectedPresetPromptId = false,
   }) {
     if (_isBusy) {
       return Future.value();
@@ -317,12 +317,12 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       state.activeConversation.copyWith(
         selectedModelId: selectedModelId,
         selectedCheckpointId: selectedCheckpointId,
-        selectedPromptTemplateId: selectedPromptTemplateId,
+        selectedPresetPromptId: selectedPresetPromptId,
         reasoningEnabled: reasoningEnabled,
         reasoningEffort: reasoningEffort,
         autoRetryEnabled: autoRetryEnabled,
         clearSelectedCheckpointId: clearSelectedCheckpointId,
-        clearSelectedPromptTemplateId: clearSelectedPromptTemplateId,
+        clearSelectedPresetPromptId: clearSelectedPresetPromptId,
       ),
     );
   }
@@ -390,7 +390,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     }
 
     final currentConversation = state.activeConversation;
-    final promptTemplate = resolvePromptTemplate(currentConversation);
+    final presetPrompt = resolvePresetPrompt(currentConversation);
     final sourceContext = resolveCheckpointRequestContext(
       checkpoints: currentConversation.checkpoints,
       selectedCheckpointId: sourceCheckpointId,
@@ -415,7 +415,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
           memoryPrompt: memoryPrompt,
           conversationMessages: summaryMessages,
           checkpointChain: sourceContext.checkpointChain,
-          promptTemplate: promptTemplate,
+          presetPrompt: presetPrompt,
           filter: ExcludeByIdMessageFilter(
             currentConversation.excludedMessageIds.toSet(),
           ),
@@ -519,7 +519,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       return;
     }
 
-    final promptTemplate = resolvePromptTemplate(currentConversation);
+    final presetPrompt = resolvePresetPrompt(currentConversation);
     final branchUserMessage = ChatMessage(
       id: generateEntityId(),
       role: ChatMessageRole.user,
@@ -543,7 +543,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     await streamAssistantReply(
       conversation: rebuiltConversation,
       modelConfig: modelConfig,
-      promptTemplate: promptTemplate,
+      presetPrompt: presetPrompt,
       requestConversationMessages: checkpointContext.tailMessages,
       requestCheckpointChain: checkpointContext.checkpointChain,
       parentMessageId: branchUserMessage.id,
@@ -573,7 +573,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       return;
     }
 
-    final promptTemplate = resolvePromptTemplate(currentConversation);
+    final presetPrompt = resolvePresetPrompt(currentConversation);
     if (latestMessage.role == ChatMessageRole.user &&
         state.errorMessage != null) {
       final checkpointContext = resolveCheckpointContext(
@@ -583,7 +583,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       await streamAssistantReply(
         conversation: currentConversation.copyWith(updatedAt: DateTime.now()),
         modelConfig: modelConfig,
-        promptTemplate: promptTemplate,
+        presetPrompt: presetPrompt,
         requestConversationMessages: checkpointContext.tailMessages,
         requestCheckpointChain: checkpointContext.checkpointChain,
         parentMessageId: latestMessage.id,
@@ -635,7 +635,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       await streamAssistantReply(
         conversation: baseConversation,
         modelConfig: modelConfig,
-        promptTemplate: promptTemplate,
+        presetPrompt: presetPrompt,
         requestConversationMessages: checkpointContext.tailMessages,
         requestCheckpointChain: checkpointContext.checkpointChain,
         parentMessageId: parentId == rootConversationParentId ? null : parentId,
@@ -667,7 +667,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     await streamAssistantReply(
       conversation: baseConversation,
       modelConfig: modelConfig,
-      promptTemplate: promptTemplate,
+      presetPrompt: presetPrompt,
       requestConversationMessages: checkpointContext.tailMessages,
       requestCheckpointChain: checkpointContext.checkpointChain,
       parentMessageId: parentId == rootConversationParentId ? null : parentId,
@@ -681,7 +681,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
   Future<void> sendMessage({
     required String content,
     required LlmModelConfig modelConfig,
-    required PromptTemplate? promptTemplate,
+    required PresetPrompt? presetPrompt,
     required bool reasoningEnabled,
     required ReasoningEffort reasoningEffort,
     List<UserMessageSegment> userMessageSegments = const [],
@@ -730,7 +730,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       await sendMessageWithAutoRetry(
         pendingConversation: pendingConversation,
         modelConfig: modelConfig,
-        promptTemplate: promptTemplate,
+        presetPrompt: presetPrompt,
         requestConversationMessages: checkpointContext.tailMessages,
         requestCheckpointChain: checkpointContext.checkpointChain,
         parentMessageId: userMessage.id,
@@ -751,7 +751,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     await streamAssistantReply(
       conversation: pendingConversation,
       modelConfig: modelConfig,
-      promptTemplate: promptTemplate,
+      presetPrompt: presetPrompt,
       requestConversationMessages: checkpointContext.tailMessages,
       requestCheckpointChain: checkpointContext.checkpointChain,
       parentMessageId: userMessage.id,

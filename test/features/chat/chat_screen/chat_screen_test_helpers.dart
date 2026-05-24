@@ -15,7 +15,7 @@ import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
 import 'package:oh_my_llm/features/settings/data/fixed_prompt_sequence_repository.dart';
 import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dart';
-import 'package:oh_my_llm/features/settings/data/prompt_template_repository.dart';
+import 'package:oh_my_llm/features/settings/data/preset_prompt_repository.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
 
 import '../../../test_database.dart';
@@ -32,7 +32,7 @@ Future<SharedPreferences> createSeededPreferences() async {
         'supportsReasoning': true,
       },
     ]),
-    promptTemplatesStorageKey: jsonEncode([
+    presetPromptsStorageKey: jsonEncode([
       {
         'id': 'prompt-1',
         'name': '代码助手',

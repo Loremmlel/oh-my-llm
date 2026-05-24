@@ -117,7 +117,7 @@ class ChatComposerCard extends StatelessWidget {
                     reasoningEnabled: data.reasoningEnabled,
                     reasoningEffort: data.reasoningEffort,
                     autoRetryEnabled: data.autoRetryEnabled,
-                    selectedPromptTemplate: data.selectedPromptTemplate,
+                    selectedPresetPrompt: data.selectedPresetPrompt,
                     excludedMessageCount: data.excludedMessageCount,
                     onOpenSettings: () {
                       _showCompactSecondarySettingsSheet(context, theme);
@@ -133,14 +133,14 @@ class ChatComposerCard extends StatelessWidget {
                     reasoningEnabled: data.reasoningEnabled,
                     reasoningEffort: data.reasoningEffort,
                     autoRetryEnabled: data.autoRetryEnabled,
-                    promptTemplates: data.promptTemplates,
-                    selectedPromptTemplate: data.selectedPromptTemplate,
+                    presetPrompts: data.presetPrompts,
+                    selectedPresetPrompt: data.selectedPresetPrompt,
                     isBusy: data.isBusy,
                     isStreaming: data.isStreaming,
                     onReasoningEnabledChanged: callbacks.onReasoningEnabledChanged,
                     onReasoningEffortChanged: callbacks.onReasoningEffortChanged,
                     onAutoRetryEnabledChanged: callbacks.onAutoRetryEnabledChanged,
-                    onPromptTemplateSelected: callbacks.onPromptTemplateSelected,
+                    onPresetPromptSelected: callbacks.onPresetPromptSelected,
                     onOpenFixedPromptSequenceRunner:
                         callbacks.onOpenFixedPromptSequenceRunner,
                     onOpenMessageFilter: callbacks.onOpenMessageFilter,
@@ -222,16 +222,16 @@ class ChatComposerCard extends StatelessWidget {
                     DropdownButtonFormField<String>(
                       key: const ValueKey('chat-prompt-selector'),
                       initialValue:
-                          data.selectedPromptTemplate?.id ??
-                          noPromptTemplateSelectedId,
+                          data.selectedPresetPrompt?.id ??
+                          noPresetPromptSelectedId,
                       isExpanded: true,
                       decoration: const InputDecoration(labelText: '预设 Prompt'),
                       items: [
                         const DropdownMenuItem<String>(
-                          value: noPromptTemplateSelectedId,
+                          value: noPresetPromptSelectedId,
                           child: Text('不使用预设 Prompt'),
                         ),
-                        ...data.promptTemplates.map((template) {
+                        ...data.presetPrompts.map((template) {
                           return DropdownMenuItem<String>(
                             value: template.id,
                             child: Text(
@@ -247,8 +247,8 @@ class ChatComposerCard extends StatelessWidget {
                               if (value == null) {
                                 return;
                               }
-                              callbacks.onPromptTemplateSelected(
-                                value == noPromptTemplateSelectedId
+                              callbacks.onPresetPromptSelected(
+                                value == noPresetPromptSelectedId
                                     ? null
                                     : value,
                               );

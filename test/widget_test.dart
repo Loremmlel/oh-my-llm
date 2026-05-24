@@ -9,7 +9,7 @@ import 'package:oh_my_llm/app/app.dart';
 import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dart';
-import 'package:oh_my_llm/features/settings/data/prompt_template_repository.dart';
+import 'package:oh_my_llm/features/settings/data/preset_prompt_repository.dart';
 
 import 'test_database.dart';
 
@@ -26,7 +26,7 @@ void main() {
           'supportsReasoning': true,
         },
       ]),
-      promptTemplatesStorageKey: jsonEncode([
+      presetPromptsStorageKey: jsonEncode([
         {
           'id': 'prompt-1',
           'name': '代码助手',

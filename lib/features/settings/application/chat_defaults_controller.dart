@@ -29,10 +29,10 @@ class ChatDefaultsController extends Notifier<ChatDefaults> {
   }
 
   /// 记住最近一次使用的前置 Prompt；传入空值时会清除记忆。
-  Future<void> rememberPromptTemplateId(String? promptTemplateId) async {
+  Future<void> rememberPresetPromptId(String? presetPromptId) async {
     state = state.copyWith(
-      defaultPromptTemplateId: promptTemplateId,
-      clearDefaultPromptTemplateId: promptTemplateId == null,
+      defaultPresetPromptId: presetPromptId,
+      clearDefaultPresetPromptId: presetPromptId == null,
     );
     await _repository.save(state);
   }
@@ -47,13 +47,13 @@ class ChatDefaultsController extends Notifier<ChatDefaults> {
   }
 
   /// 当指定模板恰好是最近一次使用的前置 Prompt 时，清除对应记忆。
-  Future<void> clearRememberedPromptTemplateIdIfMatches(
-    String promptTemplateId,
+  Future<void> clearRememberedPresetPromptIdIfMatches(
+    String presetPromptId,
   ) async {
-    if (state.defaultPromptTemplateId != promptTemplateId) {
+    if (state.defaultPresetPromptId != presetPromptId) {
       return;
     }
 
-    await rememberPromptTemplateId(null);
+    await rememberPresetPromptId(null);
   }
 }

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../domain/models/chat_message.dart';
-import '../../../../settings/domain/models/prompt_template.dart';
+import '../../../../settings/domain/models/preset_prompt.dart';
 import 'composer_helpers.dart';
 import 'composer_send_button.dart';
 
@@ -14,7 +14,7 @@ class ComposerCompactActionRow extends StatelessWidget {
     required this.reasoningEnabled,
     required this.reasoningEffort,
     required this.autoRetryEnabled,
-    required this.selectedPromptTemplate,
+    required this.selectedPresetPrompt,
     required this.excludedMessageCount,
     required this.onOpenSettings,
     required this.onSendPressed,
@@ -29,7 +29,7 @@ class ComposerCompactActionRow extends StatelessWidget {
   final bool reasoningEnabled;
   final ReasoningEffort reasoningEffort;
   final bool autoRetryEnabled;
-  final PromptTemplate? selectedPromptTemplate;
+  final PresetPrompt? selectedPresetPrompt;
   final int excludedMessageCount;
   final VoidCallback onOpenSettings;
   final Future<void> Function()? onSendPressed;
@@ -69,7 +69,7 @@ class ComposerCompactActionRow extends StatelessWidget {
           : '思考关',
     );
     parts.add(autoRetryEnabled ? '重试开' : '重试关');
-    parts.add(selectedPromptTemplate?.name ?? '无 Prompt');
+    parts.add(selectedPresetPrompt?.name ?? '无 Prompt');
     if (excludedMessageCount > 0) {
       parts.add('过滤 $excludedMessageCount 条');
     }

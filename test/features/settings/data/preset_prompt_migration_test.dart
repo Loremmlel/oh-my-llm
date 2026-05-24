@@ -3,12 +3,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/persistence/sqlite_entity_repository.dart';
-import 'package:oh_my_llm/features/settings/data/migrations/prompt_template_migration.dart';
-import 'package:oh_my_llm/features/settings/data/prompt_template_repository.dart';
-import 'package:oh_my_llm/features/settings/domain/models/prompt_template.dart';
+import 'package:oh_my_llm/features/settings/data/migrations/preset_prompt_migration.dart';
+import 'package:oh_my_llm/features/settings/data/preset_prompt_repository.dart';
+import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
 
-PromptTemplate _template(String id) {
-  return PromptTemplate(
+PresetPrompt _template(String id) {
+  return PresetPrompt(
     id: id,
     name: '测试模板 $id',
     messages: [
@@ -31,26 +31,26 @@ class _MigrationContext {
   });
 
   final SharedPreferences preferences;
-  final SqliteEntityRepository<PromptTemplate> repository;
+  final SqliteEntityRepository<PresetPrompt> repository;
   final AppDatabase database;
 }
 
 Future<_MigrationContext> _createMigrationContext({
   Map<String, Object> initialValues = const <String, Object>{},
-  List<PromptTemplate> legacyTemplates = const <PromptTemplate>[],
-  List<PromptTemplate> sqliteTemplates = const <PromptTemplate>[],
+  List<PresetPrompt> legacyTemplates = const <PresetPrompt>[],
+  List<PresetPrompt> sqliteTemplates = const <PresetPrompt>[],
 }) async {
   SharedPreferences.setMockInitialValues(initialValues);
   final preferences = await SharedPreferences.getInstance();
   final database = AppDatabase.inMemory();
   addTearDown(database.close);
-  final repository = promptTemplateRepository;
+  final repository = presetPromptRepository;
 
   if (sqliteTemplates.isNotEmpty) {
     await repository.saveAll(database, sqliteTemplates);
   }
   if (legacyTemplates.isNotEmpty) {
-    await saveLegacyPromptTemplatesForTest(preferences, legacyTemplates);
+    await saveLegacyPresetPromptsForTest(preferences, legacyTemplates);
   }
 
   return _MigrationContext(
@@ -66,7 +66,7 @@ void main() {
       legacyTemplates: [_template('tpl-1')],
     );
 
-    await migrateLegacyPromptTemplates(
+    await migrateLegacyPresetPrompts(
       preferences: context.preferences,
       repository: context.repository,
       database: context.database,
@@ -74,9 +74,9 @@ void main() {
 
     expect(context.repository.loadAll(context.database), hasLength(1));
     expect(context.repository.loadAll(context.database).single.id, 'tpl-1');
-    expect(context.preferences.getString(promptTemplatesStorageKey), isNull);
+    expect(context.preferences.getString(presetPromptsStorageKey), isNull);
     expect(
-      context.preferences.getBool(promptTemplatesSqliteMigrationFlagKey),
+      context.preferences.getBool(presetPromptsSqliteMigrationFlagKey),
       isTrue,
     );
   });
@@ -84,11 +84,11 @@ void main() {
   test('已满足迁移条件时保持幂等，并清理残留 SP 数据', () async {
     final migratedContext = await _createMigrationContext(
       initialValues: <String, Object>{
-        promptTemplatesSqliteMigrationFlagKey: true,
+        presetPromptsSqliteMigrationFlagKey: true,
       },
     );
 
-    await migrateLegacyPromptTemplates(
+    await migrateLegacyPresetPrompts(
       preferences: migratedContext.preferences,
       repository: migratedContext.repository,
       database: migratedContext.database,
@@ -98,12 +98,12 @@ void main() {
 
     final residueContext = await _createMigrationContext(
       initialValues: <String, Object>{
-        promptTemplatesSqliteMigrationFlagKey: true,
+        presetPromptsSqliteMigrationFlagKey: true,
       },
       legacyTemplates: [_template('tpl-residue')],
     );
 
-    await migrateLegacyPromptTemplates(
+    await migrateLegacyPresetPrompts(
       preferences: residueContext.preferences,
       repository: residueContext.repository,
       database: residueContext.database,
@@ -111,7 +111,7 @@ void main() {
 
     expect(residueContext.repository.loadAll(residueContext.database), isEmpty);
     expect(
-      residueContext.preferences.getString(promptTemplatesStorageKey),
+      residueContext.preferences.getString(presetPromptsStorageKey),
       isNull,
     );
   });
@@ -122,7 +122,7 @@ void main() {
       sqliteTemplates: [_template('tpl-existing')],
     );
 
-    await migrateLegacyPromptTemplates(
+    await migrateLegacyPresetPrompts(
       preferences: context.preferences,
       repository: context.repository,
       database: context.database,
@@ -130,9 +130,9 @@ void main() {
 
     expect(context.repository.loadAll(context.database), hasLength(1));
     expect(context.repository.loadAll(context.database).single.id, 'tpl-existing');
-    expect(context.preferences.getString(promptTemplatesStorageKey), isNull);
+    expect(context.preferences.getString(presetPromptsStorageKey), isNull);
     expect(
-      context.preferences.getBool(promptTemplatesSqliteMigrationFlagKey),
+      context.preferences.getBool(presetPromptsSqliteMigrationFlagKey),
       isTrue,
     );
   });
@@ -140,7 +140,7 @@ void main() {
   test('全新安装会直接置位迁移标志', () async {
     final context = await _createMigrationContext();
 
-    await migrateLegacyPromptTemplates(
+    await migrateLegacyPresetPrompts(
       preferences: context.preferences,
       repository: context.repository,
       database: context.database,
@@ -148,7 +148,7 @@ void main() {
 
     expect(context.repository.loadAll(context.database), isEmpty);
     expect(
-      context.preferences.getBool(promptTemplatesSqliteMigrationFlagKey),
+      context.preferences.getBool(presetPromptsSqliteMigrationFlagKey),
       isTrue,
     );
   });

@@ -5,7 +5,7 @@ import '../../application/auto_retry_settings_controller.dart';
 import '../../application/fixed_prompt_sequences_controller.dart';
 import '../../application/llm_model_configs_controller.dart';
 import '../../application/memory_prompts_controller.dart';
-import '../../application/prompt_templates_controller.dart';
+import '../../application/preset_prompts_controller.dart';
 import '../../application/template_prompts_controller.dart';
 import '../../domain/models/settings_export_data.dart';
 
@@ -54,12 +54,12 @@ class _ImportConfirmDialogState extends ConsumerState<ImportConfirmDialog> {
               label: '记忆总结提示词',
               count: data.memoryPrompts.length,
             ),
-          if (data.promptTemplates.isNotEmpty)
+          if (data.presetPrompts.isNotEmpty)
             _buildCountRow(
               context,
               icon: Icons.text_snippet_outlined,
               label: '预设 Prompt',
-              count: data.promptTemplates.length,
+              count: data.presetPrompts.length,
             ),
           if (data.templatePrompts.isNotEmpty)
             _buildCountRow(
@@ -135,10 +135,10 @@ class _ImportConfirmDialogState extends ConsumerState<ImportConfirmDialog> {
     if (data.memoryPrompts.isNotEmpty) {
       await ref.read(memoryPromptsProvider.notifier).upsertAll(data.memoryPrompts);
     }
-    if (data.promptTemplates.isNotEmpty) {
+    if (data.presetPrompts.isNotEmpty) {
       await ref
-          .read(promptTemplatesProvider.notifier)
-          .upsertAll(data.promptTemplates);
+          .read(presetPromptsProvider.notifier)
+          .upsertAll(data.presetPrompts);
     }
     if (data.templatePrompts.isNotEmpty) {
       await ref

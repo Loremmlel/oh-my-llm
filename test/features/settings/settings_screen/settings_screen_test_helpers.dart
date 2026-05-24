@@ -10,7 +10,7 @@ import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dart';
-import 'package:oh_my_llm/features/settings/data/prompt_template_repository.dart';
+import 'package:oh_my_llm/features/settings/data/preset_prompt_repository.dart';
 import 'package:oh_my_llm/features/settings/presentation/settings_screen.dart';
 
 import '../../../test_database.dart';
@@ -103,7 +103,7 @@ Future<SharedPreferences> createDefaultsSeededPreferences() async {
       },
     ]),
     // Prompt 模板以旧版 SP 格式写入，由迁移流程搬到 SQLite。
-    promptTemplatesStorageKey: jsonEncode([
+    presetPromptsStorageKey: jsonEncode([
       {
         'id': 'prompt-1',
         'name': '代码助手',

@@ -1,4 +1,4 @@
-import '../../settings/domain/models/prompt_template.dart';
+import '../../settings/domain/models/preset_prompt.dart';
 import '../data/chat_completion_client.dart';
 import '../domain/models/chat_checkpoint.dart';
 import '../domain/models/chat_message.dart';
@@ -8,7 +8,7 @@ export 'request_message_filter.dart';
 
 /// 把提示词模板与会话消息拼装成模型请求消息列表。
 List<ChatCompletionRequestMessage> buildRequestMessages({
-  required PromptTemplate? promptTemplate,
+  required PresetPrompt? presetPrompt,
   required List<ChatMessage> conversationMessages,
   List<ChatCheckpoint> checkpointChain = const [],
   RequestMessageFilter filter = RequestMessageFilter.passthrough,
@@ -22,7 +22,7 @@ List<ChatCompletionRequestMessage> buildRequestMessages({
 
   appendTemplateMessages(
     buffer: requestMessages,
-    promptTemplate: promptTemplate,
+    presetPrompt: presetPrompt,
     placement: PromptMessagePlacement.before,
   );
 
@@ -37,7 +37,7 @@ List<ChatCompletionRequestMessage> buildRequestMessages({
 
   appendTemplateMessages(
     buffer: requestMessages,
-    promptTemplate: promptTemplate,
+    presetPrompt: presetPrompt,
     placement: PromptMessagePlacement.after,
   );
 
@@ -70,16 +70,16 @@ List<ChatCompletionRequestMessage> buildCheckpointMemoryMessages(
   ];
 }
 
-/// 将 [PromptTemplate] 中指定位置的消息追加到 [buffer]。
+/// 将 [PresetPrompt] 中指定位置的消息追加到 [buffer]。
 void appendTemplateMessages({
   required List<ChatCompletionRequestMessage> buffer,
-  required PromptTemplate? promptTemplate,
+  required PresetPrompt? presetPrompt,
   required PromptMessagePlacement placement,
 }) {
-  if (promptTemplate == null) {
+  if (presetPrompt == null) {
     return;
   }
-  final messages = promptTemplate.messagesForPlacement(placement);
+  final messages = presetPrompt.messagesForPlacement(placement);
   buffer.addAll(
     messages.map((message) {
       return ChatCompletionRequestMessage(

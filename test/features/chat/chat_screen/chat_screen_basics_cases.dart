@@ -16,7 +16,7 @@ import 'package:oh_my_llm/features/settings/application/memory_prompts_controlle
 import 'package:oh_my_llm/features/settings/application/template_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/data/chat_defaults_repository.dart';
 import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dart';
-import 'package:oh_my_llm/features/settings/data/prompt_template_repository.dart';
+import 'package:oh_my_llm/features/settings/data/preset_prompt_repository.dart';
 import 'package:oh_my_llm/features/settings/domain/models/memory_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
 
@@ -54,7 +54,7 @@ void registerChatScreenBasicsTests() {
           'createdAt': DateTime(2026, 4, 29).toIso8601String(),
           'updatedAt': DateTime(2026, 4, 29).toIso8601String(),
           'selectedModelId': null,
-          'selectedPromptTemplateId': null,
+          'selectedPresetPromptId': null,
           'reasoningEnabled': false,
           'reasoningEffort': 'medium',
         },
@@ -207,7 +207,7 @@ void registerChatScreenBasicsTests() {
       await container
           .read(chatSessionsProvider.notifier)
           .updateActiveConversationPreferences(
-            selectedPromptTemplateId: 'prompt-1',
+            selectedPresetPromptId: 'prompt-1',
           );
       await tester.pumpAndSettle();
 
@@ -702,7 +702,7 @@ void registerChatScreenBasicsTests() {
           'supportsReasoning': true,
         },
       ]),
-      promptTemplatesStorageKey: jsonEncode([
+      presetPromptsStorageKey: jsonEncode([
         {
           'id': 'prompt-1',
           'name': '模板一',
@@ -779,7 +779,7 @@ void registerChatScreenBasicsTests() {
           'supportsReasoning': true,
         },
       ]),
-      promptTemplatesStorageKey: jsonEncode([
+      presetPromptsStorageKey: jsonEncode([
         {
           'id': 'prompt-1',
           'name': '模板一',
@@ -796,7 +796,7 @@ void registerChatScreenBasicsTests() {
         },
       ]),
       chatDefaultsStorageKey: jsonEncode({
-        'defaultPromptTemplateId': 'prompt-1',
+        'defaultPresetPromptId': 'prompt-1',
       }),
     });
     final preferences = await SharedPreferences.getInstance();

@@ -3,7 +3,7 @@ import 'dart:math';
 
 import '../../../core/utils/id_generator.dart';
 import '../../settings/domain/models/llm_model_config.dart';
-import '../../settings/domain/models/prompt_template.dart';
+import '../../settings/domain/models/preset_prompt.dart';
 import '../data/chat_completion_client.dart';
 import '../domain/models/chat_checkpoint.dart';
 import '../domain/models/chat_conversation.dart';
@@ -119,7 +119,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
   Future<ChatConversation?> streamAssistantReply({
     required ChatConversation conversation,
     required LlmModelConfig modelConfig,
-    required PromptTemplate? promptTemplate,
+    required PresetPrompt? presetPrompt,
     required List<ChatMessage> requestConversationMessages,
     List<ChatCheckpoint> requestCheckpointChain = const [],
     required String? parentMessageId,
@@ -230,7 +230,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
         .streamCompletion(
           modelConfig: modelConfig,
           messages: buildRequestMessages(
-            promptTemplate: promptTemplate,
+            presetPrompt: presetPrompt,
             conversationMessages: requestConversationMessages,
             checkpointChain: requestCheckpointChain,
             filter: ExcludeByIdMessageFilter(
@@ -336,7 +336,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
   Future<void> sendMessageWithAutoRetry({
     required ChatConversation pendingConversation,
     required LlmModelConfig modelConfig,
-    required PromptTemplate? promptTemplate,
+    required PresetPrompt? presetPrompt,
     required List<ChatMessage> requestConversationMessages,
     required List<ChatCheckpoint> requestCheckpointChain,
     required String parentMessageId,
@@ -403,7 +403,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
       final result = await streamAssistantReply(
         conversation: pendingConversation,
         modelConfig: modelConfig,
-        promptTemplate: promptTemplate,
+        presetPrompt: presetPrompt,
         requestConversationMessages: requestConversationMessages,
         requestCheckpointChain: requestCheckpointChain,
         parentMessageId: parentMessageId,

@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dart';
 import 'package:oh_my_llm/features/settings/data/sqlite_memory_prompt_repository.dart';
-import 'package:oh_my_llm/features/settings/data/sqlite_prompt_template_repository.dart';
+import 'package:oh_my_llm/features/settings/data/sqlite_preset_prompt_repository.dart';
 import 'package:oh_my_llm/features/settings/data/sqlite_template_prompt_repository.dart';
 import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
 import 'package:oh_my_llm/features/settings/presentation/settings_screen.dart';
@@ -110,7 +110,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
     (tester) async {
       final preferences = await createEmptyPreferences();
       final database = await pumpSettingsScreen(tester, preferences: preferences, initialTabIndex: 1);
-      final repository = promptTemplateRepository;
+      final repository = presetPromptRepository;
       expect(repository.loadAll(database), isEmpty);
 
       await tester.tap(find.text('新增预设'));

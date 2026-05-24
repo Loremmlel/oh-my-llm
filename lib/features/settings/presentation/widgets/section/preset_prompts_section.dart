@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
-import '../../../domain/models/prompt_template.dart';
-import '../list/prompt_templates_list.dart';
+import '../../../domain/models/preset_prompt.dart';
+import '../list/preset_prompts_list.dart';
 import '../settings_section_card.dart';
 
 /// 设置页中的预设 Prompt 分区。
-class PromptTemplatesSection extends StatelessWidget {
-  const PromptTemplatesSection({
+class PresetPromptsSection extends StatelessWidget {
+  const PresetPromptsSection({
     required this.templates,
     required this.onAddPressed,
     required this.onDuplicateRequested,
@@ -14,10 +14,10 @@ class PromptTemplatesSection extends StatelessWidget {
     super.key,
   });
 
-  final List<PromptTemplate> templates;
+  final List<PresetPrompt> templates;
   final VoidCallback onAddPressed;
-  final Future<void> Function(PromptTemplate template) onDuplicateRequested;
-  final ValueChanged<PromptTemplate> onEditRequested;
+  final Future<void> Function(PresetPrompt template) onDuplicateRequested;
+  final ValueChanged<PresetPrompt> onEditRequested;
 
   @override
   Widget build(BuildContext context) {
@@ -29,7 +29,7 @@ class PromptTemplatesSection extends StatelessWidget {
         icon: const Icon(Icons.add_rounded),
         label: const Text('新增预设'),
       ),
-      child: PromptTemplatesList(
+      child: PresetPromptsList(
         templates: templates,
         onDuplicateRequested: onDuplicateRequested,
         onEditRequested: onEditRequested,

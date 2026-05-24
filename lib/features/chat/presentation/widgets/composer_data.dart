@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../domain/models/chat_message.dart';
 import '../../../settings/domain/models/llm_model_config.dart';
 import '../../../settings/domain/models/llm_provider_config.dart';
-import '../../../settings/domain/models/prompt_template.dart';
+import '../../../settings/domain/models/preset_prompt.dart';
 import '../../../settings/domain/models/template_prompt.dart';
 
 class ComposerData {
@@ -13,8 +13,8 @@ class ComposerData {
     required this.modelConfigs,
     required this.selectedProviderId,
     required this.selectedModel,
-    required this.promptTemplates,
-    required this.selectedPromptTemplate,
+    required this.presetPrompts,
+    required this.selectedPresetPrompt,
     required this.templatePrompts,
     required this.selectedTemplatePrompt,
     required this.templateVariableControllers,
@@ -33,8 +33,8 @@ class ComposerData {
   final List<LlmModelConfig> modelConfigs;
   final String? selectedProviderId;
   final LlmModelConfig? selectedModel;
-  final List<PromptTemplate> promptTemplates;
-  final PromptTemplate? selectedPromptTemplate;
+  final List<PresetPrompt> presetPrompts;
+  final PresetPrompt? selectedPresetPrompt;
   final List<TemplatePrompt> templatePrompts;
   final TemplatePrompt? selectedTemplatePrompt;
   final Map<String, TextEditingController> templateVariableControllers;
@@ -52,7 +52,7 @@ class ComposerCallbacks {
   const ComposerCallbacks({
     required this.onProviderSelected,
     required this.onModelSelected,
-    required this.onPromptTemplateSelected,
+    required this.onPresetPromptSelected,
     required this.onTemplatePromptSelected,
     required this.onToggleComposerCollapsed,
     this.onReasoningEnabledChanged,
@@ -66,7 +66,7 @@ class ComposerCallbacks {
 
   final ValueChanged<String> onProviderSelected;
   final ValueChanged<String> onModelSelected;
-  final ValueChanged<String?> onPromptTemplateSelected;
+  final ValueChanged<String?> onPresetPromptSelected;
   final ValueChanged<String?> onTemplatePromptSelected;
   final VoidCallback onToggleComposerCollapsed;
   final ValueChanged<bool>? onReasoningEnabledChanged;
