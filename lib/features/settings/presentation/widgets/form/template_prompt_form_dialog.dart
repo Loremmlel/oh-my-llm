@@ -41,12 +41,8 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
     with SettingsFormDialogStateMixin {
   static const _largeContentThreshold = 6000;
   static const _variableReconcileDebounce = Duration(milliseconds: 220);
-  static const _variableReconcileThrottle = Duration(milliseconds: 80);
   static const _variableReconcileDebounceForLargeContent = Duration(
     milliseconds: 320,
-  );
-  static const _variableReconcileThrottleForLargeContent = Duration(
-    milliseconds: 140,
   );
 
   late final TextEditingController _titleController;
@@ -54,8 +50,6 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
   final Map<String, TextEditingController> _variableControllers = {};
   late List<TemplatePromptVariable> _variables;
   Timer? _variableReconcileDebounceTimer;
-  Timer? _variableReconcileThrottleTimer;
-  DateTime? _lastVariableReconcileAt;
   String _pendingContent = '';
   String _lastReconciledContent = '';
 
@@ -77,7 +71,6 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
   @override
   void dispose() {
     _variableReconcileDebounceTimer?.cancel();
-    _variableReconcileThrottleTimer?.cancel();
     _contentController.removeListener(_handleContentChanged);
     for (final controller in _variableControllers.values) {
       controller.dispose();
@@ -188,22 +181,9 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
     _scheduleVariableReconcile();
   }
 
-  /// 对模板变量重算做“节流 + 防抖”双调度，减少高频输入卡顿。
+  /// 防抖调度：每次按键重置 timer，停止输入后才触发变量重算。
   void _scheduleVariableReconcile() {
     final debounceWindow = _resolveDebounceWindow(_pendingContent.length);
-    final throttleWindow = _resolveThrottleWindow(_pendingContent.length);
-    final now = DateTime.now();
-    final last = _lastVariableReconcileAt;
-    final canRunLeading =
-        last == null || now.difference(last) >= throttleWindow;
-    if (canRunLeading) {
-      _variableReconcileThrottleTimer?.cancel();
-      _runVariableReconcile();
-    } else if (!(_variableReconcileThrottleTimer?.isActive ?? false)) {
-      final remaining = throttleWindow - now.difference(last);
-      _variableReconcileThrottleTimer = Timer(remaining, _runVariableReconcile);
-    }
-
     _variableReconcileDebounceTimer?.cancel();
     _variableReconcileDebounceTimer = Timer(
       debounceWindow,
@@ -213,17 +193,15 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
 
   void _flushVariableReconcile() {
     _variableReconcileDebounceTimer?.cancel();
-    _variableReconcileThrottleTimer?.cancel();
-    _runVariableReconcile(force: true);
+    _runVariableReconcile();
   }
 
-  void _runVariableReconcile({bool force = false}) {
+  void _runVariableReconcile() {
     final nextContent = _pendingContent;
-    if (!force && nextContent == _lastReconciledContent) {
+    if (nextContent == _lastReconciledContent) {
       return;
     }
     _lastReconciledContent = nextContent;
-    _lastVariableReconcileAt = DateTime.now();
 
     final nextVariables = reconcileTemplatePromptVariables(
       content: nextContent,
@@ -259,12 +237,6 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
     return contentLength > _largeContentThreshold
         ? _variableReconcileDebounceForLargeContent
         : _variableReconcileDebounce;
-  }
-
-  Duration _resolveThrottleWindow(int contentLength) {
-    return contentLength > _largeContentThreshold
-        ? _variableReconcileThrottleForLargeContent
-        : _variableReconcileThrottle;
   }
 
   List<TemplatePromptVariable> _buildVariablesFromControllers() {

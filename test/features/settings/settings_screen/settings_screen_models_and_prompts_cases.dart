@@ -441,7 +441,9 @@ void registerSettingsScreenModelsAndPromptsTests() {
         templatePromptContentField(),
         '请把{{正文}}翻译成{{目标语言}}。',
       );
-      await tester.pumpAndSettle();
+      // 等待防抖窗口（220ms）过后变量字段出现。
+      await tester.pump(const Duration(milliseconds: 250));
+      await tester.pump();
 
       await tester.enterText(templatePromptVariableField('目标语言'), '英文');
       await tester.tap(find.text('保存'));
@@ -473,7 +475,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
   );
 
   testWidgets(
-    'template prompt variable reconcile uses throttle and stays consistent',
+    'template prompt variable reconcile uses debounce',
     (tester) async {
       final preferences = await createEmptyPreferences();
       await pumpSettingsScreen(tester, preferences: preferences, initialTabIndex: 2);
@@ -481,17 +483,24 @@ void registerSettingsScreenModelsAndPromptsTests() {
       await tester.tap(find.text('新增模板提示词'));
       await tester.pumpAndSettle();
 
-      await tester.enterText(templatePromptTitleField(), '调度测试');
+      await tester.enterText(templatePromptTitleField(), '防抖测试');
       await tester.enterText(templatePromptContentField(), '请处理{{变量A}}。');
+      // 仅 pump 一帧（16ms），防抖 220ms 未到，变量不出现。
       await tester.pump();
+      expect(find.text('变量A'), findsNothing);
+
+      // pump 过防抖窗口，变量出现。
+      await tester.pump(const Duration(milliseconds: 250));
       expect(find.text('变量A'), findsOneWidget);
 
+      // 替换为另一变量，未到防抖窗口时仍显示旧变量。
       await tester.enterText(templatePromptContentField(), '请处理{{变量B}}。');
-      await tester.pump(const Duration(milliseconds: 20));
+      await tester.pump(const Duration(milliseconds: 50));
       expect(find.text('变量A'), findsOneWidget);
       expect(find.text('变量B'), findsNothing);
 
-      await tester.pump(const Duration(milliseconds: 140));
+      // pump 过防抖窗口后切换到新变量。
+      await tester.pump(const Duration(milliseconds: 250));
       expect(find.text('变量A'), findsNothing);
       expect(find.text('变量B'), findsOneWidget);
     },
