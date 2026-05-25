@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/utils/id_generator.dart';
@@ -111,6 +112,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
   ChatStreamingReply? _latestStreamingReply;
   bool _streamStopRequested = false;
   bool _autoRetryCancelled = false;
+  Timer? _preferencesSaveTimer;
 
   @override
   StreamSubscription<ChatCompletionChunk>? get activeStreamingSubscription =>
@@ -167,6 +169,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
   ChatSessionsState build() {
     ref.onDispose(() {
       activeStreamingSubscription?.cancel();
+      _preferencesSaveTimer?.cancel();
     });
     final conversations = sortConversations(repository.loadAll());
     final initialConversation = conversations.isEmpty
@@ -324,7 +327,26 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         clearSelectedCheckpointId: clearSelectedCheckpointId,
         clearSelectedPresetPromptId: clearSelectedPresetPromptId,
       ),
-    );
+      incrementHistoryRevision: false,
+      saveToDb: false,
+    ).then((_) {
+      _preferencesSaveTimer?.cancel();
+      _preferencesSaveTimer = Timer(const Duration(milliseconds: 500), () {
+        _savePreferencesWithRetry();
+      });
+    });
+  }
+
+  Future<void> _savePreferencesWithRetry() async {
+    try {
+      await saveAllConversations();
+    } catch (_) {
+      try {
+        await saveAllConversations();
+      } catch (_) {
+        debugPrint('[ChatSessionsController] 偏好保存失败，已重试一次。');
+      }
+    }
   }
 
   /// 更新当前会话启用的检查点。

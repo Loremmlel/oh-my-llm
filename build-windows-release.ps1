@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
   [string]$OutputDir = "artifacts\windows"
 )
@@ -25,7 +25,7 @@ $pubspecPath = Join-Path $repoRoot "pubspec.yaml"
 $projectVersion = Get-ProjectVersion -PubspecPath $pubspecPath
 $safeVersion = $projectVersion -replace '[^0-9A-Za-z\.\-_+]', '_'
 $artifactRoot = Join-Path $repoRoot $OutputDir
-$stagingRoot = Join-Path $artifactRoot "oh_my_llm-windows-$safeVersion"
+$latestDir = Join-Path $artifactRoot "oh_my_llm-windows-latest"
 $zipPath = Join-Path $artifactRoot "oh_my_llm-windows-$safeVersion.zip"
 $releaseDir = Join-Path $repoRoot "build\windows\x64\runner\Release"
 
@@ -51,16 +51,21 @@ if (-not (Test-Path $releaseDir)) {
 }
 
 New-Item -ItemType Directory -Path $artifactRoot -Force | Out-Null
-if (Test-Path $stagingRoot) {
-  Remove-Item -Path $stagingRoot -Recurse -Force
-}
-if (Test-Path $zipPath) {
-  Remove-Item -Path $zipPath -Force
-}
 
-Copy-Item -Path $releaseDir -Destination $stagingRoot -Recurse
-Compress-Archive -Path $stagingRoot -DestinationPath $zipPath -Force
+# 清理旧版本文件夹（只保留 latest）
+Get-ChildItem -Path $artifactRoot -Directory -Filter "oh_my_llm-windows-*" -ErrorAction SilentlyContinue |
+  Remove-Item -Recurse -Force
+
+# 覆盖 latest 文件夹
+if (Test-Path $latestDir) {
+  Remove-Item -Path $latestDir -Recurse -Force
+}
+Copy-Item -Path $releaseDir -Destination $latestDir -Recurse
+
+# 生成当前版本 zip
+Compress-Archive -Path $latestDir -DestinationPath $zipPath -Force
 
 Write-Host ""
-Write-Host "Windows 压缩包已生成："
-Write-Host "  $zipPath"
+Write-Host "Windows Release 输出："
+Write-Host "  latest 文件夹: $latestDir"
+Write-Host "  版本压缩包:    $zipPath"

@@ -533,7 +533,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     await ref
         .read(chatSessionsProvider.notifier)
         .updateActiveConversationPreferences(selectedModelId: modelId);
-    await ref.read(chatDefaultsProvider.notifier).rememberModelId(modelId);
+    ref.read(chatDefaultsProvider.notifier).rememberModelId(modelId);
   }
 
   Future<void> _handleProviderSelected(
@@ -557,7 +557,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           selectedPresetPromptId:
               presetPromptId ?? noPresetPromptSelectedId,
         );
-    await ref
+    ref
         .read(chatDefaultsProvider.notifier)
         .rememberPresetPromptId(presetPromptId);
   }
