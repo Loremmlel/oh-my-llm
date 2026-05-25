@@ -21,6 +21,7 @@ class ComposerDesktopSettingsRow extends StatelessWidget {
     required this.selectedPresetPrompt,
     required this.isBusy,
     required this.isStreaming,
+    required this.isAutoRetryWaiting,
     required this.onReasoningEnabledChanged,
     required this.onReasoningEffortChanged,
     required this.onAutoRetryEnabledChanged,
@@ -43,6 +44,7 @@ class ComposerDesktopSettingsRow extends StatelessWidget {
   final PresetPrompt? selectedPresetPrompt;
   final bool isBusy;
   final bool isStreaming;
+  final bool isAutoRetryWaiting;
   final ValueChanged<bool>? onReasoningEnabledChanged;
   final ValueChanged<ReasoningEffort>? onReasoningEffortChanged;
   final ValueChanged<bool>? onAutoRetryEnabledChanged;
@@ -141,6 +143,7 @@ class ComposerDesktopSettingsRow extends StatelessWidget {
             theme: theme,
             isBusy: isBusy,
             isStreaming: isStreaming,
+            isAutoRetryWaiting: isAutoRetryWaiting,
             hasModels: hasModels,
             expandLabel: false,
             onSendPressed: onSendPressed,

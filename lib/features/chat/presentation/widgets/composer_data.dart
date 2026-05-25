@@ -25,6 +25,7 @@ class ComposerData {
     required this.autoRetryEnabled,
     required this.isBusy,
     required this.isStreaming,
+    required this.isAutoRetryWaiting,
     required this.excludedMessageCount,
   });
 
@@ -45,6 +46,7 @@ class ComposerData {
   final bool autoRetryEnabled;
   final bool isBusy;
   final bool isStreaming;
+  final bool isAutoRetryWaiting;
   final int excludedMessageCount;
 }
 
