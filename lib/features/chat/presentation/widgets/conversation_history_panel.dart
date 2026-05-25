@@ -13,7 +13,7 @@ class ConversationHistoryPanel extends StatelessWidget {
     super.key,
   });
 
-  final List<ChatConversationGroup> groups;
+  final List<ChatConversationSummaryGroup> groups;
   final String activeConversationId;
   final bool hasDraftConversation;
   final VoidCallback? onCreateConversation;
@@ -90,13 +90,7 @@ class ConversationHistoryPanel extends StatelessWidget {
                                   subtitle: conversation.hasCustomTitle
                                       ? null
                                       : Text(
-                                          conversation
-                                                  .messages
-                                                  .lastOrNull
-                                                  ?.content
-                                                  .trim()
-                                                  .replaceAll('\n', ' ') ??
-                                              '暂无内容',
+                                          conversation.previewText,
                                           maxLines: 2,
                                           overflow: TextOverflow.ellipsis,
                                         ),

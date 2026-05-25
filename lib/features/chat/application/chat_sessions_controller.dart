@@ -18,6 +18,7 @@ import '../data/chat_conversation_repository.dart';
 import '../data/openai_compatible_chat_client.dart';
 import '../domain/models/chat_checkpoint.dart';
 import '../domain/models/chat_conversation.dart';
+import '../domain/models/chat_conversation_summary.dart';
 import '../domain/models/chat_message.dart';
 
 export 'chat_sessions_state.dart';
@@ -34,6 +35,14 @@ final chatSessionsProvider =
 /// 当前所有聊天会话列表（仅在会话增删改时重建）。
 final chatConversationsProvider = Provider<List<ChatConversation>>((ref) {
   return ref.watch(chatSessionsProvider.select((state) => state.conversations));
+});
+
+/// 全量会话的轻量摘要列表，供侧栏分组渲染。
+final chatConversationSummariesProvider =
+    Provider<List<ChatConversationSummary>>((ref) {
+  return ref.watch(
+    chatSessionsProvider.select((state) => state.conversationSummaries),
+  );
 });
 
 /// 当前活动会话的 ID（仅在切换会话时重建）。
@@ -167,16 +176,33 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     ref.onDispose(() {
       activeStreamingSubscription?.cancel();
     });
-    final conversations = sortConversations(repository.loadAll());
-    final initialConversation = conversations.isEmpty
-        ? buildEmptyConversation()
-        : conversations.first;
+
+    final summaries = repository.loadHistorySummaries();
+
+    if (summaries.isEmpty) {
+      final initialConversation = buildEmptyConversation();
+      return ChatSessionsState(
+        conversations: [initialConversation],
+        conversationSummaries: const [],
+        activeConversationId: initialConversation.id,
+      );
+    }
+
+    final activeConversation = repository.loadConversation(summaries.first.id);
+
+    if (activeConversation == null) {
+      final fallback = buildEmptyConversation();
+      return ChatSessionsState(
+        conversations: [fallback],
+        conversationSummaries: summaries,
+        activeConversationId: fallback.id,
+      );
+    }
 
     return ChatSessionsState(
-      conversations: conversations.isEmpty
-          ? [initialConversation]
-          : List.unmodifiable(conversations),
-      activeConversationId: initialConversation.id,
+      conversations: [activeConversation],
+      conversationSummaries: summaries,
+      activeConversationId: activeConversation.id,
     );
   }
 
@@ -207,14 +233,26 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     if (_isBusy) {
       return;
     }
-    final hasMatch = state.conversations.any((conversation) {
-      return conversation.id == id;
-    });
-    if (!hasMatch || state.activeConversationId == id) {
+
+    final summaryExists = state.conversationSummaries.any((s) => s.id == id);
+    if (!summaryExists || state.activeConversationId == id) {
       return;
     }
 
-    state = state.copyWith(activeConversationId: id, clearErrorMessage: true);
+    final isLoaded = state.conversations.any((c) => c.id == id);
+    if (!isLoaded) {
+      final fullConv = repository.loadConversation(id);
+      if (fullConv == null) {
+        return;
+      }
+      state = state.copyWith(
+        conversations: [fullConv, ...state.conversations],
+        activeConversationId: id,
+        clearErrorMessage: true,
+      );
+    } else {
+      state = state.copyWith(activeConversationId: id, clearErrorMessage: true);
+    }
   }
 
   /// 重命名当前活动会话。
@@ -248,19 +286,28 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       return;
     }
 
-    final targetConversation = state.conversations.where((conversation) {
+    var targetConversation = state.conversations.where((conversation) {
       return conversation.id == conversationId;
     }).firstOrNull;
+
     if (targetConversation == null) {
-      return;
+      final loaded = repository.loadConversation(conversationId);
+      if (loaded == null) {
+        return;
+      }
+      targetConversation = loaded;
     }
 
+    final renamed = targetConversation.copyWith(
+      title: nextTitle,
+      updatedAt: DateTime.now(),
+    );
+
     state = state.copyWith(
-      conversations: replaceConversation(
-        targetConversation.copyWith(
-          title: nextTitle,
-          updatedAt: DateTime.now(),
-        ),
+      conversations: replaceConversation(renamed),
+      conversationSummaries: replaceOrAddSummary(
+        state.conversationSummaries,
+        summaryFromConversation(renamed),
       ),
       incrementHistoryRevision: true,
     );
@@ -286,6 +333,9 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       conversations: remainingConversations.isEmpty
           ? [fallbackConversation]
           : remainingConversations,
+      conversationSummaries: state.conversationSummaries
+          .where((s) => !conversationIds.contains(s.id))
+          .toList(growable: false),
       activeConversationId:
           remainingConversations.any((conversation) {
             return conversation.id == state.activeConversationId;
@@ -446,6 +496,10 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
 
       state = state.copyWith(
         conversations: replaceConversation(nextConversation),
+        conversationSummaries: replaceOrAddSummary(
+          state.conversationSummaries,
+          summaryFromConversation(nextConversation),
+        ),
         isCheckpointing: false,
         clearErrorMessage: true,
         incrementHistoryRevision: true,

@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 
 import '../domain/models/chat_conversation.dart';
+import '../domain/models/chat_conversation_summary.dart';
 import 'chat_message_tree.dart';
 
 /// 当前流式中的 assistant 消息增量。
@@ -59,6 +60,7 @@ class ChatStreamingReply extends Equatable {
 class ChatSessionsState extends Equatable {
   const ChatSessionsState({
     required this.conversations,
+    required this.conversationSummaries,
     required this.activeConversationId,
     this.isStreaming = false,
     this.isCheckpointing = false,
@@ -72,6 +74,9 @@ class ChatSessionsState extends Equatable {
 
   /// 所有持久化会话（按 [updatedAt] 倒序排列）。
   final List<ChatConversation> conversations;
+
+  /// 全量会话的轻量摘要，供侧栏/历史页分组渲染。
+  final List<ChatConversationSummary> conversationSummaries;
 
   /// 当前正在查看的会话 ID。
   final String activeConversationId;
@@ -111,6 +116,7 @@ class ChatSessionsState extends Equatable {
   /// 复制状态并按需替换会话列表、活动会话和错误信息。
   ChatSessionsState copyWith({
     List<ChatConversation>? conversations,
+    List<ChatConversationSummary>? conversationSummaries,
     String? activeConversationId,
     bool? isStreaming,
     bool? isCheckpointing,
@@ -127,6 +133,8 @@ class ChatSessionsState extends Equatable {
   }) {
     return ChatSessionsState(
       conversations: conversations ?? this.conversations,
+      conversationSummaries:
+          conversationSummaries ?? this.conversationSummaries,
       activeConversationId: activeConversationId ?? this.activeConversationId,
       isStreaming: isStreaming ?? this.isStreaming,
       isCheckpointing: isCheckpointing ?? this.isCheckpointing,
@@ -152,6 +160,7 @@ class ChatSessionsState extends Equatable {
   @override
   List<Object?> get props => [
     conversations,
+    conversationSummaries,
     activeConversationId,
     isStreaming,
     isCheckpointing,

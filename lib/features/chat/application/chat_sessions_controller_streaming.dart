@@ -69,6 +69,10 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
     );
     state = state.copyWith(
       conversations: replaceConversation(stoppedConversation),
+      conversationSummaries: replaceOrAddSummary(
+        state.conversationSummaries,
+        summaryFromConversation(stoppedConversation),
+      ),
       isStreaming: false,
       clearStreamingReply: true,
       clearErrorMessage: true,
@@ -106,6 +110,10 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
 
     state = state.copyWith(
       conversations: replaceConversation(nextConversation),
+      conversationSummaries: replaceOrAddSummary(
+        state.conversationSummaries,
+        summaryFromConversation(nextConversation),
+      ),
       isStreaming: false,
       errorMessage: errorMessage,
       errorMessageAssistantId: assistantMessageId,
@@ -162,6 +170,10 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
 
     state = state.copyWith(
       conversations: replaceConversation(streamingConversation),
+      conversationSummaries: replaceOrAddSummary(
+        state.conversationSummaries,
+        summaryFromConversation(streamingConversation),
+      ),
       isStreaming: true,
       streamingReply: streamingReply,
       clearErrorMessage: true,
@@ -199,6 +211,10 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
 
       state = state.copyWith(
         conversations: replaceConversation(completedConversation),
+        conversationSummaries: replaceOrAddSummary(
+          state.conversationSummaries,
+          summaryFromConversation(completedConversation),
+        ),
         isStreaming: false,
         clearStreamingReply: true,
         incrementHistoryRevision: true,
@@ -350,6 +366,10 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
     autoRetryCancelled = false;
     state = state.copyWith(
       conversations: replaceConversation(pendingConversation),
+      conversationSummaries: replaceOrAddSummary(
+        state.conversationSummaries,
+        summaryFromConversation(pendingConversation),
+      ),
       clearErrorMessage: true,
       clearAutoRetryCount: true,
       incrementHistoryRevision: true,
@@ -383,6 +403,10 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
 
       state = state.copyWith(
         conversations: replaceConversation(pendingConversation),
+        conversationSummaries: replaceOrAddSummary(
+          state.conversationSummaries,
+          summaryFromConversation(pendingConversation),
+        ),
         isAutoRetryWaiting: false,
         autoRetryCount: state.autoRetryCount + 1,
         clearErrorMessage: true,
