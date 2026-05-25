@@ -489,7 +489,7 @@ void main() {
             updatedAt: DateTime(2026, 4, 30),
           ),
         );
-    await container
+    container
         .read(chatSessionsProvider.notifier)
         .updateActiveConversationPreferences(
           selectedPresetPromptId: 'prompt-1',
@@ -557,7 +557,7 @@ void main() {
           reasoningEffort: ReasoningEffort.medium,
         );
 
-    await container
+    container
         .read(chatSessionsProvider.notifier)
         .selectActiveCheckpoint(checkpoint.id);
 
@@ -586,7 +586,7 @@ void main() {
           reasoningEnabled: false,
           reasoningEffort: ReasoningEffort.medium,
         );
-    await container
+    container
         .read(chatSessionsProvider.notifier)
         .selectActiveCheckpoint(checkpoint.id);
 
@@ -904,7 +904,7 @@ void main() {
   // ── 自动重试 ─────────────────────────────────────────────────────────────────
 
   test('autoRetryEnabled=true 时正常发送并收到回复', () async {
-    await container
+    container
         .read(chatSessionsProvider.notifier)
         .updateActiveConversationPreferences(autoRetryEnabled: true);
     fakeClient.enqueueChunks(['自动重试回复']);
@@ -922,7 +922,7 @@ void main() {
   });
 
   test('sendMessageWithAutoRetry 首次失败后重试成功', () async {
-    await container
+    container
         .read(chatSessionsProvider.notifier)
         .updateActiveConversationPreferences(autoRetryEnabled: true);
     fakeClient.enqueueError(ChatCompletionException('连接超时'));
@@ -939,7 +939,7 @@ void main() {
   });
 
   test('sendMessageWithAutoRetry 连续两次失败后第三次成功', () async {
-    await container
+    container
         .read(chatSessionsProvider.notifier)
         .updateActiveConversationPreferences(autoRetryEnabled: true);
     fakeClient.enqueueError(ChatCompletionException('第一次失败'));
@@ -956,7 +956,7 @@ void main() {
   });
 
   test('stopStreaming 在 auto-retry 等待期间取消重试', () async {
-    await container
+    container
         .read(chatSessionsProvider.notifier)
         .updateActiveConversationPreferences(autoRetryEnabled: true);
 
@@ -977,7 +977,7 @@ void main() {
   });
 
   test('sendMessageWithAutoRetry 成功后清除之前的错误信息', () async {
-    await container
+    container
         .read(chatSessionsProvider.notifier)
         .updateActiveConversationPreferences(autoRetryEnabled: true);
     fakeClient.enqueueError(ChatCompletionException('请求失败'));
@@ -991,7 +991,7 @@ void main() {
   });
 
   test('autoRetryWaiting 期间 sendMessage 被 _isBusy 阻止', () async {
-    await container
+    container
         .read(chatSessionsProvider.notifier)
         .updateActiveConversationPreferences(autoRetryEnabled: true);
 
@@ -1011,7 +1011,7 @@ void main() {
   });
 
   test('autoRetryCount 在重试过程中递增并在成功后重置', () async {
-    await container
+    container
         .read(chatSessionsProvider.notifier)
         .updateActiveConversationPreferences(autoRetryEnabled: true);
     // 使用 StreamController 控制时序，以便在中间状态断言

@@ -46,18 +46,15 @@ mixin ChatSessionsControllerSupport on Notifier<ChatSessionsState> {
     );
   }
 
-  Future<void> updateActiveConversation(
+  void updateActiveConversation(
     ChatConversation conversation, {
     bool incrementHistoryRevision = true,
-    bool saveToDb = true,
-  }) async {
+  }) {
     state = state.copyWith(
       conversations: replaceConversation(conversation),
       incrementHistoryRevision: incrementHistoryRevision,
     );
-    if (saveToDb) {
-      await saveAllConversations();
-    }
+    saveAllConversations();
   }
 
   List<ChatConversation> replaceConversation(ChatConversation conversation) {
@@ -85,8 +82,8 @@ mixin ChatSessionsControllerSupport on Notifier<ChatSessionsState> {
     return List.unmodifiable(sortedConversations);
   }
 
-  Future<void> saveAllConversations() {
-    return repository.saveAll(
+  void saveAllConversations() {
+    repository.saveAll(
       state.conversations
           .where((conversation) {
             return conversation.hasMessages ||

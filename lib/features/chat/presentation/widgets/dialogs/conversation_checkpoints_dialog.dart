@@ -498,8 +498,8 @@ class _ConversationCheckpointsDialogState
     return '$chainLabel · $promptLabel · $timeLabel';
   }
 
-  Future<void> _selectCheckpoint(String? checkpointId) async {
-    await ref
+  void _selectCheckpoint(String? checkpointId) {
+    ref
         .read(chatSessionsProvider.notifier)
         .selectActiveCheckpoint(checkpointId);
   }

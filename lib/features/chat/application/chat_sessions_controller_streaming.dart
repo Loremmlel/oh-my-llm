@@ -74,7 +74,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
       clearErrorMessage: true,
       incrementHistoryRevision: true,
     );
-    await saveAllConversations();
+    saveAllConversations();
 
     completeActiveStreaming(stoppedConversation);
     clearActiveStreamingSession();
@@ -112,7 +112,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
       clearStreamingReply: true,
       incrementHistoryRevision: true,
     );
-    await saveAllConversations();
+    saveAllConversations();
   }
 
   /// 把 assistant 回复以流式方式写回当前会话。
@@ -167,7 +167,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
       clearErrorMessage: true,
       incrementHistoryRevision: true,
     );
-    await saveAllConversations();
+    saveAllConversations();
     if (completer.isCompleted ||
         activeStreamingCompleter != completer ||
         !state.isStreaming) {
@@ -203,7 +203,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
         clearStreamingReply: true,
         incrementHistoryRevision: true,
       );
-      await saveAllConversations();
+      saveAllConversations();
       completeActiveStreaming(completedConversation);
       clearActiveStreamingSession();
     }
@@ -354,7 +354,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
       clearAutoRetryCount: true,
       incrementHistoryRevision: true,
     );
-    await saveAllConversations();
+    saveAllConversations();
 
     var isFirstAttempt = true;
     while (true) {
@@ -389,7 +389,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
         clearStreamingReply: true,
         incrementHistoryRevision: true,
       );
-      await saveAllConversations();
+      saveAllConversations();
 
       if (maxRetryCount > 0 &&
           state.autoRetryCount > maxRetryCount) {
