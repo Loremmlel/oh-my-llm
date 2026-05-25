@@ -78,6 +78,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final conversations = ref.watch(chatConversationsProvider);
     final activeConversationId = ref.watch(activeConversationIdProvider);
     final isStreaming = ref.watch(isChatStreamingProvider);
+    final isAutoRetryWaiting = ref.watch(
+      chatSessionsProvider.select((state) => state.isAutoRetryWaiting),
+    );
     final isBusy = ref.watch(isChatBusyProvider);
     final autoRetryCount = ref.watch(
       chatSessionsProvider.select((state) => state.autoRetryCount),
@@ -251,6 +254,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     autoRetryEnabled: conversation.autoRetryEnabled,
                     isBusy: isBusy,
                     isStreaming: isStreaming,
+                    isAutoRetryWaiting: isAutoRetryWaiting,
                     errorMessage: errorMessage,
                     errorMessageAssistantId: errorMessageAssistantId,
                     errorModelDisplayName: selectedModel?.displayName ?? '模型',
@@ -373,7 +377,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               isBusy: isBusy,
                             );
                           },
-                    onStopStreaming: isStreaming
+                    onStopStreaming: isStreaming || isAutoRetryWaiting
                         ? () async {
                             await _showStopStreamingDialog(context);
                           }

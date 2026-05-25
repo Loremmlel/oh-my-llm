@@ -820,9 +820,15 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
           return (message.parentId ?? rootConversationParentId) == parentId;
         })
         .toList(growable: false);
+    final deletedIndex = siblingIds.indexOf(messageId);
     final nextSelections = Map<String, String>.from(nextTree.selections);
     if (remainingSiblings.isEmpty) {
       nextSelections.remove(parentId);
+    } else if (deletedIndex > 0) {
+      final prevId = siblingIds[deletedIndex - 1];
+      final prevRemaining =
+          remainingSiblings.where((m) => m.id == prevId).firstOrNull;
+      nextSelections[parentId] = prevRemaining?.id ?? remainingSiblings.first.id;
     } else {
       nextSelections[parentId] = remainingSiblings.first.id;
     }

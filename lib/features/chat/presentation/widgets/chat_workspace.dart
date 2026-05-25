@@ -39,6 +39,7 @@ class ChatWorkspace extends StatelessWidget {
     required this.autoRetryEnabled,
     required this.isBusy,
     required this.isStreaming,
+    required this.isAutoRetryWaiting,
     required this.errorMessage,
     required this.errorMessageAssistantId,
     required this.errorModelDisplayName,
@@ -94,6 +95,7 @@ class ChatWorkspace extends StatelessWidget {
   final bool autoRetryEnabled;
   final bool isBusy;
   final bool isStreaming;
+  final bool isAutoRetryWaiting;
   final String? errorMessage;
   final String? errorMessageAssistantId;
   final String errorModelDisplayName;
@@ -179,6 +181,7 @@ class ChatWorkspace extends StatelessWidget {
             autoRetryEnabled: autoRetryEnabled,
             isBusy: isBusy,
             isStreaming: isStreaming,
+            isAutoRetryWaiting: isAutoRetryWaiting,
             excludedMessageCount: excludedMessageCount,
           ),
           callbacks: ComposerCallbacks(

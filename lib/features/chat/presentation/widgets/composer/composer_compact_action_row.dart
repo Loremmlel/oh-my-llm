@@ -10,6 +10,7 @@ class ComposerCompactActionRow extends StatelessWidget {
     required this.hasModels,
     required this.isBusy,
     required this.isStreaming,
+    required this.isAutoRetryWaiting,
     required this.supportsReasoning,
     required this.reasoningEnabled,
     required this.reasoningEffort,
@@ -25,6 +26,7 @@ class ComposerCompactActionRow extends StatelessWidget {
   final bool hasModels;
   final bool isBusy;
   final bool isStreaming;
+  final bool isAutoRetryWaiting;
   final bool supportsReasoning;
   final bool reasoningEnabled;
   final ReasoningEffort reasoningEffort;
@@ -52,6 +54,7 @@ class ComposerCompactActionRow extends StatelessWidget {
           theme: Theme.of(context),
           isBusy: isBusy,
           isStreaming: isStreaming,
+          isAutoRetryWaiting: isAutoRetryWaiting,
           hasModels: hasModels,
           expandLabel: true,
           onSendPressed: onSendPressed,
