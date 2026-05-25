@@ -204,7 +204,7 @@ void registerChatScreenBasicsTests() {
       final container = ProviderScope.containerOf(
         tester.element(find.byType(ChatScreen)),
       );
-      await container
+      container
           .read(chatSessionsProvider.notifier)
           .updateActiveConversationPreferences(
             selectedPresetPromptId: 'prompt-1',

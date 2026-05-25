@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/persistence/app_database_provider.dart';
 import '../domain/models/chat_conversation.dart';
 import '../domain/models/chat_conversation_summary.dart';
+import 'background_chat_repository.dart';
 import 'sqlite_chat_conversation_repository.dart';
 
 /// SharedPreferences 中旧版聊天记录的存储键（已废弃，仅供迁移读取）。
@@ -15,7 +16,8 @@ const chatConversationsSqliteMigrationFlagKey =
 final chatConversationRepositoryProvider = Provider<ChatConversationRepository>(
   (ref) {
     final database = ref.watch(appDatabaseProvider);
-    return SqliteChatConversationRepository(database);
+    final inner = SqliteChatConversationRepository(database);
+    return BackgroundChatConversationRepository(inner, database.path);
   },
 );
 

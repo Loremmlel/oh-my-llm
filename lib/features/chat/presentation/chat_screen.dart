@@ -529,17 +529,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
   }
 
-  Future<void> _handleModelSelected(String modelId) async {
-    await ref
+  void _handleModelSelected(String modelId) {
+    ref
         .read(chatSessionsProvider.notifier)
         .updateActiveConversationPreferences(selectedModelId: modelId);
     ref.read(chatDefaultsProvider.notifier).rememberModelId(modelId);
   }
 
-  Future<void> _handleProviderSelected(
+  void _handleProviderSelected(
     String providerId,
     List<LlmProviderConfig> providers,
-  ) async {
+  ) {
     final provider = providers
         .where((item) => item.id == providerId)
         .firstOrNull;
@@ -547,11 +547,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (targetModelId == null) {
       return;
     }
-    await _handleModelSelected(targetModelId);
+    _handleModelSelected(targetModelId);
   }
 
-  Future<void> _handlePresetPromptSelected(String? presetPromptId) async {
-    await ref
+  void _handlePresetPromptSelected(String? presetPromptId) {
+    ref
         .read(chatSessionsProvider.notifier)
         .updateActiveConversationPreferences(
           selectedPresetPromptId:

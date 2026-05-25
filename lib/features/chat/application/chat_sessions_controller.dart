@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/utils/id_generator.dart';
@@ -112,8 +111,6 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
   ChatStreamingReply? _latestStreamingReply;
   bool _streamStopRequested = false;
   bool _autoRetryCancelled = false;
-  Timer? _preferencesSaveTimer;
-
   @override
   StreamSubscription<ChatCompletionChunk>? get activeStreamingSubscription =>
       _activeStreamingSubscription;
@@ -169,7 +166,6 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
   ChatSessionsState build() {
     ref.onDispose(() {
       activeStreamingSubscription?.cancel();
-      _preferencesSaveTimer?.cancel();
     });
     final conversations = sortConversations(repository.loadAll());
     final initialConversation = conversations.isEmpty
@@ -203,7 +199,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       clearErrorMessage: true,
       incrementHistoryRevision: true,
     );
-    await saveAllConversations();
+    saveAllConversations();
   }
 
   /// 选择一个已存在的会话作为活动会话。
@@ -231,7 +227,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       return;
     }
 
-    await updateActiveConversation(
+    updateActiveConversation(
       state.activeConversation.copyWith(
         title: nextTitle,
         updatedAt: DateTime.now(),
@@ -268,7 +264,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       ),
       incrementHistoryRevision: true,
     );
-    await saveAllConversations();
+    saveAllConversations();
   }
 
   /// 删除一组会话，必要时回退到新的空会话。
@@ -299,11 +295,11 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       clearErrorMessage: true,
       incrementHistoryRevision: true,
     );
-    await saveAllConversations();
+    saveAllConversations();
   }
 
   /// 更新当前会话的模型、前置 Prompt 和思考偏好。
-  Future<void> updateActiveConversationPreferences({
+  void updateActiveConversationPreferences({
     String? selectedModelId,
     String? selectedCheckpointId,
     String? selectedPresetPromptId,
@@ -314,9 +310,9 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     bool clearSelectedPresetPromptId = false,
   }) {
     if (_isBusy) {
-      return Future.value();
+      return;
     }
-    return updateActiveConversation(
+    updateActiveConversation(
       state.activeConversation.copyWith(
         selectedModelId: selectedModelId,
         selectedCheckpointId: selectedCheckpointId,
@@ -328,29 +324,11 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         clearSelectedPresetPromptId: clearSelectedPresetPromptId,
       ),
       incrementHistoryRevision: false,
-      saveToDb: false,
-    ).then((_) {
-      _preferencesSaveTimer?.cancel();
-      _preferencesSaveTimer = Timer(const Duration(milliseconds: 500), () {
-        _savePreferencesWithRetry();
-      });
-    });
-  }
-
-  Future<void> _savePreferencesWithRetry() async {
-    try {
-      await saveAllConversations();
-    } catch (_) {
-      try {
-        await saveAllConversations();
-      } catch (_) {
-        debugPrint('[ChatSessionsController] 偏好保存失败，已重试一次。');
-      }
-    }
+    );
   }
 
   /// 更新当前会话启用的检查点。
-  Future<void> selectActiveCheckpoint(String? checkpointId) {
+  void selectActiveCheckpoint(String? checkpointId) {
     return updateActiveConversationPreferences(
       selectedCheckpointId: checkpointId,
       clearSelectedCheckpointId: checkpointId == null,
@@ -394,7 +372,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         .where((message) => nextExcludedIds.contains(message.id))
         .map((message) => message.id)
         .toList(growable: false);
-    await updateActiveConversation(
+    updateActiveConversation(
       currentConversation.copyWith(excludedMessageIds: orderedExcludedIds),
     );
   }
@@ -472,7 +450,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         clearErrorMessage: true,
         incrementHistoryRevision: true,
       );
-      await saveAllConversations();
+      saveAllConversations();
       return nextCheckpoint;
     } catch (_) {
       state = state.copyWith(isCheckpointing: false);
@@ -503,7 +481,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
 
     final nextSelections = Map<String, String>.from(tree.selections);
     nextSelections[parentId] = messageId;
-    await updateActiveConversation(
+    updateActiveConversation(
       currentConversation.copyWith(
         messageNodes: tree.nodes,
         selectedChildByParentId: nextSelections,
@@ -690,7 +668,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         conversations: replaceConversation(baseConversation),
         clearErrorMessage: true,
       );
-      await saveAllConversations();
+      saveAllConversations();
 
       final checkpointContext = resolveCheckpointContext(
         conversation: baseConversation,
@@ -721,7 +699,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       conversations: replaceConversation(baseConversation),
       clearErrorMessage: true,
     );
-    await saveAllConversations();
+    saveAllConversations();
 
     final checkpointContext = resolveCheckpointContext(
       conversation: baseConversation,
@@ -855,7 +833,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       nextSelections[parentId] = remainingSiblings.first.id;
     }
 
-    await updateActiveConversation(
+    updateActiveConversation(
       currentConversation.copyWith(
         messageNodes: nextTree.nodes,
         selectedChildByParentId: nextSelections,
