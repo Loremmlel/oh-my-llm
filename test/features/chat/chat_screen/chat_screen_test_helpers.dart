@@ -1,96 +1,63 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
-import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
-import 'package:oh_my_llm/core/persistence/versioned_json_storage.dart';
+import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/chat/data/chat_completion_client.dart';
 import 'package:oh_my_llm/features/chat/data/openai_compatible_chat_client.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
-import 'package:oh_my_llm/features/settings/data/fixed_prompt_sequence_repository.dart';
-import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dart';
-import 'package:oh_my_llm/features/settings/data/preset_prompt_repository.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
 
-import '../../../test_database.dart';
+import '../../../helpers/fixtures.dart';
+import '../../../helpers/test_harness.dart';
 
+/// 创建包含聊天页所需种子数据的 SharedPreferences。
 Future<SharedPreferences> createSeededPreferences() async {
-  SharedPreferences.setMockInitialValues({
-    llmModelConfigsStorageKey: jsonEncode([
-      {
-        'id': 'model-1',
-        'displayName': 'GPT-4.1',
-        'apiUrl': 'https://api.example.com/v1/chat/completions',
-        'apiKey': 'sk-test-12345678',
-        'modelName': 'gpt-4.1',
-        'supportsReasoning': true,
-      },
-    ]),
-    presetPromptsStorageKey: jsonEncode([
-      {
-        'id': 'prompt-1',
-        'name': '代码助手',
-        'systemPrompt': '你是代码助手',
-        'messages': [
-          {'id': 'message-1', 'role': 'user', 'content': '请优先关注实现细节。'},
+  return TestFixtures.seedPreferences(
+    models: [TestFixtures.gpt41()],
+    prompts: [TestFixtures.codeAssistantPrompt()],
+    sequences: [
+      TestFixtures.fixedSequence(
+        id: 'sequence-1',
+        name: '对比测试流程',
+        steps: [
+          TestFixtures.sequenceStep(
+            id: 'step-1',
+            content: '请先总结当前实现的核心目标。',
+          ),
+          TestFixtures.sequenceStep(
+            id: 'step-2',
+            content: '请列出三个可执行方案，并说明权衡。',
+          ),
         ],
-        'updatedAt': DateTime(2026, 4, 26).toIso8601String(),
-      },
-    ]),
-    fixedPromptSequencesStorageKey: jsonEncode({
-      'version': VersionedJsonStorage.currentSchemaVersion,
-      'items': [
-        {
-          'id': 'sequence-1',
-          'name': '对比测试流程',
-          'steps': [
-            {'id': 'step-1', 'content': '请先总结当前实现的核心目标。'},
-            {'id': 'step-2', 'content': '请列出三个可执行方案，并说明权衡。'},
-          ],
-          'updatedAt': DateTime(2026, 4, 27).toIso8601String(),
-        },
-      ],
-    }),
-  });
-
-  return SharedPreferences.getInstance();
+        updatedAt: DateTime(2026, 4, 27),
+      ),
+    ],
+  );
 }
 
-Future<void> pumpChatScreen(
+/// 挂载 ChatScreen 到标准测试环境并返回数据库实例。
+Future<AppDatabase> pumpChatScreen(
   WidgetTester tester, {
   required SharedPreferences preferences,
   required FakeChatCompletionClient fakeClient,
   Size size = const Size(1440, 1600),
 }) async {
-  final database = await createTestDatabase(preferences);
-  tester.view.physicalSize = size;
-  tester.view.devicePixelRatio = 1;
-  addTearDown(() {
-    tester.view.resetPhysicalSize();
-    tester.view.resetDevicePixelRatio();
-    database.close();
-  });
-
-  await tester.pumpWidget(
-    ProviderScope(
-      overrides: [
-        appDatabaseProvider.overrideWithValue(database),
-        sharedPreferencesProvider.overrideWithValue(preferences),
-        chatCompletionClientProvider.overrideWithValue(fakeClient),
-      ],
-      child: const MaterialApp(home: ChatScreen()),
-    ),
+  return pumpTestApp(
+    tester,
+    child: const ChatScreen(),
+    preferences: preferences,
+    viewportSize: size,
+    extraOverrides: [
+      chatCompletionClientProvider.overrideWithValue(fakeClient),
+    ],
   );
-
-  await tester.pumpAndSettle();
 }
 
+/// 在聊天输入框中填入内容并点击发送按钮。
 Future<void> sendMessage(WidgetTester tester, String content) async {
   await tester.enterText(
     find.byKey(const ValueKey('chat-message-composer')),
@@ -102,12 +69,10 @@ Future<void> sendMessage(WidgetTester tester, String content) async {
   await tester.pump();
 }
 
-class FakeChatCompletionClient implements ChatCompletionClient {
+class FakeChatCompletionClient extends ChatCompletionClient {
   final List<List<ChatCompletionRequestMessage>> requestHistory = [];
   final List<LlmModelConfig> requestedModels = [];
   final List<Stream<ChatCompletionChunk>> _queuedStreams = [];
-  final List<ChatCompletionResult> completedResults = [];
-
   List<ChatCompletionRequestMessage> lastRequestMessages = const [];
   LlmModelConfig? lastModelConfig;
 
@@ -126,37 +91,6 @@ class FakeChatCompletionClient implements ChatCompletionClient {
     }
 
     return _queuedStreams.removeAt(0);
-  }
-
-  @override
-  Future<ChatCompletionResult> complete({
-    required LlmModelConfig modelConfig,
-    required List<ChatCompletionRequestMessage> messages,
-    ReasoningEffort? reasoningEffort,
-  }) async {
-    lastModelConfig = modelConfig;
-    lastRequestMessages = List.unmodifiable(messages);
-    requestHistory.add(lastRequestMessages);
-    requestedModels.add(modelConfig);
-    if (_queuedStreams.isNotEmpty) {
-      final stream = _queuedStreams.removeAt(0);
-      final contentBuffer = StringBuffer();
-      final reasoningBuffer = StringBuffer();
-      await for (final chunk in stream) {
-        contentBuffer.write(chunk.contentDelta);
-        reasoningBuffer.write(chunk.reasoningDelta);
-      }
-      final result = ChatCompletionResult(
-        content: contentBuffer.toString(),
-        reasoningContent: reasoningBuffer.toString(),
-      );
-      completedResults.add(result);
-      return result;
-    }
-
-    const result = ChatCompletionResult();
-    completedResults.add(result);
-    return result;
   }
 
   void enqueueError(Object error) {
