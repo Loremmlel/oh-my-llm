@@ -26,6 +26,10 @@ abstract interface class ChatConversationRepository {
   /// 读取全部会话；空存储会返回空列表。
   List<ChatConversation> loadAll();
 
+  /// 读取单个会话的完整数据（消息树、分支选择、检查点）。
+  /// 找不到时返回 `null`。
+  ChatConversation? loadConversation(String id);
+
   /// 按历史页需求读取会话摘要，并支持按标题和用户消息搜索。
   List<ChatConversationSummary> loadHistorySummaries({String keyword = ''});
 

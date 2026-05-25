@@ -19,6 +19,7 @@ import '../application/chat_sessions_controller.dart';
 import '../application/templated_user_message_builder.dart';
 import '../domain/chat_conversation_groups.dart';
 import '../domain/models/chat_conversation.dart';
+import '../domain/models/chat_conversation_summary.dart';
 import '../domain/models/chat_message.dart';
 import '../../favorites/application/favorites_controller.dart';
 import 'chat_scroll_controller.dart';
@@ -75,7 +76,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// 构建聊天页的整体布局与交互入口。
   Widget build(BuildContext context) {
     final conversation = ref.watch(activeChatConversationProvider);
-    final conversations = ref.watch(chatConversationsProvider);
+    final conversationSummaries = ref.watch(chatConversationSummariesProvider);
     final activeConversationId = ref.watch(activeConversationIdProvider);
     final isStreaming = ref.watch(isChatStreamingProvider);
     final isAutoRetryWaiting = ref.watch(
@@ -151,7 +152,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: ConversationHistoryPanel(
-            groups: _buildConversationGroups(conversations),
+            groups: _buildConversationGroups(conversationSummaries),
             activeConversationId: activeConversationId,
             hasDraftConversation: !conversation.hasMessages,
             onCreateConversation: isBusy
@@ -208,7 +209,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   SizedBox(
                     width: 220,
                     child: ConversationHistoryPanel(
-                      groups: _buildConversationGroups(conversations),
+                      groups: _buildConversationGroups(conversationSummaries),
                       activeConversationId: activeConversationId,
                       hasDraftConversation: !conversation.hasMessages,
                       onCreateConversation: isBusy
@@ -398,16 +399,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
-  /// 过滤出可展示的会话分组，隐藏空草稿会话。
-  List<ChatConversationGroup> _buildConversationGroups(
-    List<ChatConversation> conversations,
+  /// 按时间分组会话摘要，供侧栏渲染。
+  List<ChatConversationSummaryGroup> _buildConversationGroups(
+    List<ChatConversationSummary> summaries,
   ) {
-    final visibleConversations = conversations
-        .where((conversation) {
-          return conversation.hasMessages;
-        })
-        .toList(growable: false);
-    return groupConversationsByUpdatedAt(visibleConversations);
+    return groupConversationSummariesByUpdatedAt(summaries);
   }
 
   /// 解析当前会话应使用的模型配置，并在缺省时回退到默认项。

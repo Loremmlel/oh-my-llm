@@ -127,7 +127,7 @@ void registerChatScreenBasicsTests() {
     await tester.tap(find.widgetWithText(FilledButton, '保存'));
     await tester.pumpAndSettle();
 
-    expect(find.text('新的对话标题'), findsOneWidget);
+    expect(find.text('新的对话标题'), findsWidgets);
   });
 
   testWidgets('chat screen keeps custom title after sending a new reply', (

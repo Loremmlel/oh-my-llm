@@ -9,6 +9,7 @@ import '../../settings/domain/models/preset_prompt.dart';
 import '../data/chat_conversation_repository.dart';
 import '../domain/models/chat_checkpoint.dart';
 import '../domain/models/chat_conversation.dart';
+import '../domain/models/chat_conversation_summary.dart';
 import '../domain/models/chat_message.dart';
 import 'checkpoint_request_context.dart';
 import 'chat_sessions_state.dart';
@@ -52,6 +53,10 @@ mixin ChatSessionsControllerSupport on Notifier<ChatSessionsState> {
   }) {
     state = state.copyWith(
       conversations: replaceConversation(conversation),
+      conversationSummaries: replaceOrAddSummary(
+        state.conversationSummaries,
+        summaryFromConversation(conversation),
+      ),
       incrementHistoryRevision: incrementHistoryRevision,
     );
     saveAllConversations();
@@ -83,12 +88,34 @@ mixin ChatSessionsControllerSupport on Notifier<ChatSessionsState> {
   }
 
   void saveAllConversations() {
+    final loadedById = {for (final c in state.conversations) c.id: c};
+    final summaryIds = state.conversationSummaries.map((s) => s.id).toSet();
+
+    final allForSave = <ChatConversation>[];
+
+    for (final summary in state.conversationSummaries) {
+      if (loadedById.containsKey(summary.id)) {
+        allForSave.add(loadedById[summary.id]!);
+      } else {
+        final fromDb = repository.loadConversation(summary.id);
+        if (fromDb != null) {
+          allForSave.add(fromDb);
+        }
+      }
+    }
+
+    for (final conv in state.conversations) {
+      if (!summaryIds.contains(conv.id)) {
+        allForSave.add(conv);
+      }
+    }
+
     repository.saveAll(
-      state.conversations
-          .where((conversation) {
-            return conversation.hasMessages ||
-                conversation.checkpoints.isNotEmpty ||
-                (conversation.title?.trim().isNotEmpty ?? false);
+      allForSave
+          .where((c) {
+            return c.hasMessages ||
+                c.checkpoints.isNotEmpty ||
+                (c.title?.trim().isNotEmpty ?? false);
           })
           .toList(growable: false),
     );
@@ -160,5 +187,33 @@ mixin ChatSessionsControllerSupport on Notifier<ChatSessionsState> {
 
   void setErrorMessage(String message) {
     state = state.copyWith(errorMessage: message, errorMessageAssistantId: null);
+  }
+
+  ChatConversationSummary summaryFromConversation(ChatConversation conv) {
+    final userMessages = conv.messages
+        .where((m) => m.role == ChatMessageRole.user)
+        .toList();
+    return ChatConversationSummary(
+      id: conv.id,
+      title: conv.title,
+      updatedAt: conv.updatedAt,
+      firstUserMessagePreview: userMessages.firstOrNull?.content ?? '',
+      latestUserMessagePreview: userMessages.lastOrNull?.content ?? '',
+    );
+  }
+
+  List<ChatConversationSummary> replaceOrAddSummary(
+    List<ChatConversationSummary> summaries,
+    ChatConversationSummary summary,
+  ) {
+    final result = [...summaries];
+    final index = result.indexWhere((s) => s.id == summary.id);
+    if (index == -1) {
+      result.add(summary);
+    } else {
+      result[index] = summary;
+    }
+    result.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    return List.unmodifiable(result);
   }
 }

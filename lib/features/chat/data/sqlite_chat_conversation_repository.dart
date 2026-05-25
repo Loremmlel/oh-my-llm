@@ -133,43 +133,175 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
     }
 
     return conversationRows
-        .map((row) {
-          final nodes =
-              nodesByConversationId[row['id'] as String] ??
-              const <ChatMessage>[];
-          final selections =
-              selectionsByConversationId[row['id'] as String] ??
-              const <String, String>{};
-          final checkpoints =
-              checkpointsByConversationId[row['id'] as String] ??
-              const <ChatCheckpoint>[];
-          return ChatConversation(
-            id: row['id'] as String,
-            title: row['title'] as String?,
-            messages: const <ChatMessage>[],
-            messageNodes: List.unmodifiable(nodes),
-            selectedChildByParentId: Map.unmodifiable(selections),
-            checkpoints: List.unmodifiable(checkpoints),
-            createdAt: DateTime.parse(row['created_at'] as String),
-            updatedAt: DateTime.parse(row['updated_at'] as String),
-            selectedModelId: row['selected_model_id'] as String?,
-            selectedCheckpointId: row['selected_checkpoint_id'] as String?,
-            selectedPresetPromptId:
-                row['selected_preset_prompt_id'] as String?,
-            reasoningEnabled: (row['reasoning_enabled'] as int) == 1,
-            reasoningEffort: ReasoningEffort.values.firstWhere(
-              (effort) => effort.apiValue == row['reasoning_effort'],
-              orElse: () => ReasoningEffort.medium,
-            ),
-            excludedMessageIds:
-                (jsonDecode(row['excluded_message_ids_json'] as String? ?? '[]')
-                        as List)
-                    .whereType<String>()
-                    .toSet()
-                    .toList(growable: false),
-          );
-        })
+        .map((row) => _buildConversation(
+              row: row,
+              nodes:
+                  nodesByConversationId[row['id'] as String] ??
+                  const <ChatMessage>[],
+              selections:
+                  selectionsByConversationId[row['id'] as String] ??
+                  const <String, String>{},
+              checkpoints:
+                  checkpointsByConversationId[row['id'] as String] ??
+                  const <ChatCheckpoint>[],
+            ))
         .toList(growable: false);
+  }
+
+  @override
+  ChatConversation? loadConversation(String id) {
+    final rows = _database.connection.select(
+      '''
+      SELECT
+        id,
+        title,
+        created_at,
+        updated_at,
+        selected_model_id,
+        selected_checkpoint_id,
+        selected_preset_prompt_id,
+        reasoning_enabled,
+        reasoning_effort,
+        excluded_message_ids_json
+      FROM conversations
+      WHERE id = ?
+      ''',
+      [id],
+    );
+    if (rows.isEmpty) {
+      return null;
+    }
+    final conversationRow = rows.first;
+
+    final messageRows = _database.connection.select(
+      '''
+      SELECT
+        id,
+        conversation_id,
+        node_index,
+        parent_id,
+        role,
+        content,
+        reasoning_content,
+        assistant_model_display_name,
+        applied_checkpoint_title,
+        user_message_segments_json,
+        created_at
+      FROM messages
+      WHERE conversation_id = ?
+      ORDER BY node_index
+      ''',
+      [id],
+    );
+    final nodes = messageRows
+        .map(
+          (row) => ChatMessage(
+            id: row['id'] as String,
+            role: ChatMessageRole.values.firstWhere(
+              (role) => role.apiValue == row['role'],
+            ),
+            content: row['content'] as String,
+            createdAt: DateTime.parse(row['created_at'] as String),
+            parentId: row['parent_id'] as String?,
+            reasoningContent: row['reasoning_content'] as String? ?? '',
+            assistantModelDisplayName:
+                row['assistant_model_display_name'] as String? ?? '',
+            appliedCheckpointTitle:
+                row['applied_checkpoint_title'] as String? ?? '',
+            userMessageSegments:
+                (jsonDecode(
+                          row['user_message_segments_json'] as String? ?? '[]',
+                        )
+                        as List)
+                    .map(
+                      (segment) => UserMessageSegment.fromJson(
+                        Map<String, dynamic>.from(segment as Map),
+                      ),
+                    )
+                    .toList(growable: false),
+          ),
+        )
+        .toList(growable: false);
+
+    final selectionRows = _database.connection.select(
+      'SELECT conversation_id, parent_id, child_id FROM conversation_branch_selections WHERE conversation_id = ?',
+      [id],
+    );
+    final selections = <String, String>{};
+    for (final row in selectionRows) {
+      selections[row['parent_id'] as String] = row['child_id'] as String;
+    }
+
+    final checkpointRows = _database.connection.select(
+      '''
+      SELECT
+        id,
+        conversation_id,
+        title,
+        content,
+        parent_checkpoint_id,
+        covered_until_message_id,
+        source_memory_prompt_name,
+        created_at
+      FROM conversation_checkpoints
+      WHERE conversation_id = ?
+      ORDER BY created_at ASC
+      ''',
+      [id],
+    );
+    final checkpoints = checkpointRows
+        .map(
+          (row) => ChatCheckpoint(
+            id: row['id'] as String,
+            title: row['title'] as String,
+            content: row['content'] as String,
+            createdAt: DateTime.parse(row['created_at'] as String),
+            parentCheckpointId: row['parent_checkpoint_id'] as String?,
+            coveredUntilMessageId: row['covered_until_message_id'] as String?,
+            sourceMemoryPromptName:
+                row['source_memory_prompt_name'] as String? ?? '',
+          ),
+        )
+        .toList(growable: false);
+
+    return _buildConversation(
+      row: conversationRow,
+      nodes: nodes,
+      selections: selections,
+      checkpoints: checkpoints,
+    );
+  }
+
+  ChatConversation _buildConversation({
+    required Map<String, dynamic> row,
+    required List<ChatMessage> nodes,
+    required Map<String, String> selections,
+    required List<ChatCheckpoint> checkpoints,
+  }) {
+    return ChatConversation(
+      id: row['id'] as String,
+      title: row['title'] as String?,
+      messages: const <ChatMessage>[],
+      messageNodes: List.unmodifiable(nodes),
+      selectedChildByParentId: Map.unmodifiable(selections),
+      checkpoints: List.unmodifiable(checkpoints),
+      createdAt: DateTime.parse(row['created_at'] as String),
+      updatedAt: DateTime.parse(row['updated_at'] as String),
+      selectedModelId: row['selected_model_id'] as String?,
+      selectedCheckpointId: row['selected_checkpoint_id'] as String?,
+      selectedPresetPromptId: row['selected_preset_prompt_id'] as String?,
+      reasoningEnabled: (row['reasoning_enabled'] as int) == 1,
+      reasoningEffort: ReasoningEffort.values.firstWhere(
+        (effort) => effort.apiValue == row['reasoning_effort'],
+        orElse: () => ReasoningEffort.medium,
+      ),
+      excludedMessageIds:
+          (jsonDecode(row['excluded_message_ids_json'] as String? ?? '[]')
+                  as List)
+              .whereType<String>()
+              .toSet()
+              .toList(growable: false),
+    );
   }
 
   @override
@@ -200,10 +332,17 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
           LIMIT 1
         ), '') AS latest_user_message_preview
       FROM conversations c
-      WHERE EXISTS (
-        SELECT 1
-        FROM messages m
-        WHERE m.conversation_id = c.id
+      WHERE (
+        EXISTS (
+          SELECT 1
+          FROM messages m
+          WHERE m.conversation_id = c.id
+        )
+        OR EXISTS (
+          SELECT 1
+          FROM conversation_checkpoints ch
+          WHERE ch.conversation_id = c.id
+        )
       )
         AND (
           ? = 0
