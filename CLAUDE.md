@@ -74,34 +74,66 @@ Legacy SharedPreferences data auto-migrates to SQLite on first launch; old keys 
 
 ## Test patterns
 
-Tests use Riverpod's `ProviderContainer` + `ProviderScope` for dependency injection. Key patterns:
+### Test infrastructure
+
+Tests use a three-layer abstraction to eliminate boilerplate:
+
+| Layer | File | Purpose |
+|-------|------|---------|
+| Harness | `test/helpers/test_harness.dart` | `pumpTestApp()` — unified DB creation, viewport setup, ProviderScope injection, tearDown cleanup |
+| Fixtures | `test/helpers/fixtures.dart` | `TestFixtures` — typed factory methods for all model classes + `seedPreferences()` batch seeder |
+| Barrel | `test/test_utils.dart` | Single import for `test_database`, harness, fixtures, matchers |
+| Matchers | `test/helpers/matchers.dart` | Custom matchers (e.g., `findsBetween`) |
+| Config | `dart_test.yaml` | 120s timeout, 4 concurrency |
 
 ```dart
-// Widget tests: seed storage + override providers
-SharedPreferences.setMockInitialValues({...});
-await tester.pumpWidget(
-  ProviderScope(
-    overrides: [appDatabaseProvider.overrideWith((ref) => testDb)],
-    child: const MaterialApp(home: WidgetUnderTest()),
-  ),
+// Widget tests: one-line pump via harness
+final preferences = await TestFixtures.seedPreferences(
+  models: [TestFixtures.gpt41()],
+  prompts: [TestFixtures.codeAssistantPrompt()],
 );
+final fakeClient = FakeChatCompletionClient()..enqueueChunks(['回复']);
+await pumpTestApp(tester, child: const ChatScreen(), preferences: preferences,
+  extraOverrides: [chatCompletionClientProvider.overrideWithValue(fakeClient)]);
 
-// Unit tests: create container + read notifiers
+// Widget tests with GoRouter (favorites/history): router replaces child
+await pumpTestApp(tester, preferences: preferences, router: goRouter);
+
+// Unit tests: ProviderContainer + in-memory DB
 final container = ProviderContainer(
-  overrides: [appDatabaseProvider.overrideWith((ref) => AppDatabase.inMemory())],
+  overrides: [appDatabaseProvider.overrideWithValue(AppDatabase.inMemory())],
 );
 final controller = container.read(chatSessionsControllerProvider.notifier);
 
-// Fake streaming client
-final fake = FakeChatCompletionClient();
-fake.enqueueChunks([...]);  // enqueue streaming chunks
-fake.enqueueError(exception);  // enqueue an error
+// Seeding data: use Repository API, not raw SQL
+seedFavorite(database, id: 'f-1', userMessageContent: '...', assistantContent: '...');
+seedCollection(database, id: 'col-1', name: '收藏夹');
 ```
 
-- Test files use a single `*_test.dart` entry point; shared cases go into `*_cases.dart` helper files (not discovered as test targets).
-- Database tests use `AppDatabase.inMemory()` or `createTestDatabase(preferences)` which runs the full V1→V3 migration stack.
-- When chat history, favorites, or collections are involved, always override `appDatabaseProvider`.
-- Assert on business results, persisted data, or final request content — avoid asserting on widget implementation details, tooltip text, or private keys.
+- **`pumpTestApp` always returns `AppDatabase`** — capture the return value when direct SQL verification is needed. Feature helpers (`pumpChatScreen`, `pumpFavoritesScreen`, etc.) forward this return value.
+- **`FakeChatCompletionClient extends ChatCompletionClient`** — only overrides `streamCompletion()`. `complete()` is inherited from the base class and delegates to `streamCompletion()`. Never re-implement `complete()`.
+- **Setup uses `pump()` not `pumpAndSettle()`** — the data layer is fully synchronous (sqlite3, SharedPreferences getters), so a single frame suffices. Reserve `pumpAndSettle()` for test bodies that need to wait for specific animations.
+- **`TestFixtures.seedPreferences()` wraps `SharedPreferences.setMockInitialValues()`** — build models with typed factories (`gpt41()`, `codeAssistantPrompt()`, etc.), then pass to `seedPreferences()` for batch storage.
+- **Feature helpers are thin wrappers** around `pumpTestApp` — they only add feature-specific overrides and router setup. Viewport/DB/tearDown is centralized.
+
+### File organization
+
+Test files use a **case-file decomposition** pattern:
+
+```
+test/features/chat/
+  chat_screen_test.dart          ← thin entry: imports cases, calls register*()
+  chat_screen/
+    chat_screen_test_helpers.dart ← pumpChatScreen, FakeChatCompletionClient, sendMessage
+    chat_screen_basics_cases.dart ← registerChatScreenBasicsTests()
+    chat_screen_streaming_cases.dart
+    chat_screen_branching_cases.dart
+    chat_screen_favorites_cases.dart
+```
+
+- `*_test.dart` — entry point (discovered by test runner), imports `_cases.dart` and calls `register*()` in `main()`.
+- `*_cases.dart` — actual `testWidgets`/`test` calls inside `register*()` functions. Not auto-discovered.
+- `*_test_helpers.dart` — pump helpers, Fake implementations, seed functions, Finder factories for the feature.
 
 ### Test anti-patterns — what NOT to test
 
@@ -111,6 +143,8 @@ fake.enqueueError(exception);  // enqueue an error
 - **Don't write conditional-early-return tests**: A test that can `return` without hitting any `expect` is structurally meaningless.
 - **Don't write meta-tests**: Tests that verify two functions produce identical output test implementation consistency, not correctness.
 - **Prefer `>=` over `==` for version numbers**: Schema/user_version assertions should use `greaterThanOrEqualTo(N)`.
+- **Don't use raw SQL for seeding in widget tests**: Use `seedFavorite()`/`seedCollection()` which go through the Repository, ensuring test data follows the same path as production data.
+- **Don't write JSON by hand for test data**: Use `TestFixtures` factories. Hand-written JSON maps silently rot when model fields change.
 
 ### What's worth testing at each layer
 
