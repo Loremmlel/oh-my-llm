@@ -28,6 +28,7 @@ class BackgroundChatConversationRepository
 
   List<Map<String, dynamic>>? _pendingWrite;
   Timer? _debounceTimer;
+  final Set<String> _pendingDeletes = {};
 
   final ReceivePort _mainReceivePort = ReceivePort();
 
@@ -46,7 +47,16 @@ class BackgroundChatConversationRepository
         final pending = _pendingWrite;
         if (pending != null) {
           _pendingWrite = null;
-          message.send(pending);
+          final deletes = _pendingDeletes.toSet();
+          _pendingDeletes.clear();
+          if (deletes.isNotEmpty) {
+            pending.removeWhere(
+              (j) => deletes.contains(j['id'] as String?),
+            );
+          }
+          if (pending.isNotEmpty) {
+            message.send(pending);
+          }
         }
       }
     });
@@ -64,10 +74,15 @@ class BackgroundChatConversationRepository
   }
 
   @override
-  Future<void> saveAll(List<ChatConversation> conversations) {
+  Future<void> deleteConversations(List<String> ids) {
+    _pendingDeletes.addAll(ids);
+    return _inner.deleteConversations(ids);
+  }
+
+  @override
+  Future<void> saveConversations(List<ChatConversation> conversations) {
     if (_databasePath == ':memory:') {
-      _inner.saveAll(conversations);
-      return Future.value();
+      return _inner.saveConversations(conversations);
     }
     _pendingWrite =
         conversations.map((c) => c.toJson()).toList(growable: false);
@@ -82,6 +97,16 @@ class BackgroundChatConversationRepository
       return;
     }
     _pendingWrite = null;
+    final deletes = _pendingDeletes.toSet();
+    _pendingDeletes.clear();
+    if (deletes.isNotEmpty) {
+      data.removeWhere(
+        (j) => deletes.contains(j['id'] as String?),
+      );
+    }
+    if (data.isEmpty) {
+      return;
+    }
     _sendToWorker(data);
   }
 
@@ -90,21 +115,21 @@ class BackgroundChatConversationRepository
       try {
         _workerCommandPort!.send(data);
       } catch (_) {
-        _writeWithInner(data); // 降级：Isolate 失效，主线程直接写入
+        _writeWithInner(data);
         _isolateReady = false;
         _workerCommandPort = null;
         _isolateFailed = true;
       }
     } else if (_isolateFailed) {
-      _writeWithInner(data); // 降级：Isolate 创建失败，直接写入
+      _writeWithInner(data);
     } else {
-      _pendingWrite = data; // Isolate 尚未就绪，重新缓冲
+      _pendingWrite = data;
     }
   }
 
   void _writeWithInner(List<Map<String, dynamic>> data) {
     _inner
-        .saveAll(
+        .saveConversations(
           data
               .map(
                 (j) =>

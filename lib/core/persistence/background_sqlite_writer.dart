@@ -26,8 +26,9 @@ void chatWriterEntryPoint(SendPort mainSendPort) {
         if (message != ':memory:') {
           currentDb.execute('PRAGMA journal_mode = WAL;');
         }
+        currentDb.execute('PRAGMA busy_timeout = 5000;');
         for (final pending in pendingWrites) {
-          _executeSaveAll(currentDb, pending);
+          _executeSaveConversations(currentDb, pending);
         }
         pendingWrites.clear();
       } catch (_) {
@@ -38,7 +39,7 @@ void chatWriterEntryPoint(SendPort mainSendPort) {
       final currentDb = db;
       if (currentDb != null) {
         try {
-          _executeSaveAll(currentDb, message);
+          _executeSaveConversations(currentDb, message);
         } catch (e) {
           // ignore: avoid_print
           print('[BackgroundWriter] 写入失败: $e');
@@ -50,24 +51,32 @@ void chatWriterEntryPoint(SendPort mainSendPort) {
   });
 }
 
-void _executeSaveAll(sqlite.Database db, List<dynamic> conversationsJson) {
+void _executeSaveConversations(sqlite.Database db, List<dynamic> conversationsJson) {
   final conversations = conversationsJson
       .map((j) => ChatConversation.fromJson(Map<String, dynamic>.from(j as Map)))
       .toList(growable: false);
 
+  if (conversations.isEmpty) {
+    return;
+  }
+
   db.execute('BEGIN IMMEDIATE;');
   try {
-    db.execute('DELETE FROM conversation_branch_selections;');
-    db.execute('DELETE FROM conversation_checkpoints;');
-    db.execute('DELETE FROM messages;');
-    db.execute('DELETE FROM conversations;');
-
     final conversationStatement = db.prepare('''
       INSERT INTO conversations (
-        id, title, created_at, updated_at, selected_model_id,
-        selected_checkpoint_id, selected_preset_prompt_id,
+        id, title, created_at, updated_at,
+        selected_model_id, selected_checkpoint_id, selected_preset_prompt_id,
         reasoning_enabled, reasoning_effort, excluded_message_ids_json
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        title = excluded.title,
+        updated_at = excluded.updated_at,
+        selected_model_id = excluded.selected_model_id,
+        selected_checkpoint_id = excluded.selected_checkpoint_id,
+        selected_preset_prompt_id = excluded.selected_preset_prompt_id,
+        reasoning_enabled = excluded.reasoning_enabled,
+        reasoning_effort = excluded.reasoning_effort,
+        excluded_message_ids_json = excluded.excluded_message_ids_json
     ''');
     final messageStatement = db.prepare('''
       INSERT INTO messages (
@@ -91,6 +100,7 @@ void _executeSaveAll(sqlite.Database db, List<dynamic> conversationsJson) {
     try {
       for (final conversation in conversations) {
         final normalized = ChatConversation.fromJson(conversation.toJson());
+
         conversationStatement.execute([
           normalized.id,
           normalized.title,
@@ -103,6 +113,20 @@ void _executeSaveAll(sqlite.Database db, List<dynamic> conversationsJson) {
           normalized.reasoningEffort.apiValue,
           jsonEncode(normalized.excludedMessageIds),
         ]);
+
+        db.execute(
+          'DELETE FROM messages WHERE conversation_id = ?',
+          [normalized.id],
+        );
+        db.execute(
+          'DELETE FROM conversation_branch_selections WHERE conversation_id = ?',
+          [normalized.id],
+        );
+        db.execute(
+          'DELETE FROM conversation_checkpoints WHERE conversation_id = ?',
+          [normalized.id],
+        );
+
         for (
           var nodeIndex = 0;
           nodeIndex < normalized.messageNodes.length;

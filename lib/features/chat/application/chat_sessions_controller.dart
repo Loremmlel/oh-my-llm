@@ -320,6 +320,8 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       return;
     }
 
+    await repository.deleteConversations(conversationIds.toList());
+
     final remainingConversations = state.conversations
         .where((conversation) {
           return !conversationIds.contains(conversation.id);

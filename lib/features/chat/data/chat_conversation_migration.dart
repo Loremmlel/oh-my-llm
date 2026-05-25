@@ -24,7 +24,7 @@ Future<void> migrateLegacyChatConversations({
     loadLegacyItems: SharedPreferencesChatConversationRepository(
       preferences,
     ).loadAll,
-    saveCurrentItems: repository.saveAll,
+    saveCurrentItems: repository.saveConversations,
     requireCurrentDataBeforeClearingMigratedPayload: true,
   ).migrate();
 }
