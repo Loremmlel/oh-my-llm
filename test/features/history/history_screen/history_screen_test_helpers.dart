@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -7,36 +5,17 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/app/navigation/app_destination.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
-import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
-import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
-import 'package:oh_my_llm/features/chat/data/chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/history/presentation/history_screen.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../test_database.dart';
+import '../../../helpers/fixtures.dart';
+import '../../../helpers/test_harness.dart';
 
-Future<void> pumpHistoryScreen(
+/// 挂载 HistoryScreen 到标准测试环境。
+Future<AppDatabase> pumpHistoryScreen(
   WidgetTester tester, {
   required SharedPreferences preferences,
 }) async {
-  final database = await createTestDatabase(preferences);
-  tester.view.physicalSize = const Size(1440, 1200);
-  tester.view.devicePixelRatio = 1;
-  addTearDown(() {
-    tester.view.resetPhysicalSize();
-    tester.view.resetDevicePixelRatio();
-    database.close();
-  });
-
-  await tester.pumpWidget(buildHistoryApp(preferences, database: database));
-  await tester.pumpAndSettle();
-}
-
-Widget buildHistoryApp(
-  SharedPreferences preferences, {
-  required AppDatabase database,
-}) {
   final router = GoRouter(
     initialLocation: AppDestination.history.path,
     routes: [
@@ -46,9 +25,8 @@ Widget buildHistoryApp(
       ),
       GoRoute(
         path: AppDestination.chat.path,
-        builder: (context, state) {
-          return const Scaffold(body: Center(child: Text('聊天落点')));
-        },
+        builder: (context, state) =>
+            const Scaffold(body: Center(child: Text('聊天落点'))),
       ),
       GoRoute(
         path: AppDestination.settings.path,
@@ -57,99 +35,68 @@ Widget buildHistoryApp(
     ],
   );
 
-  return ProviderScope(
-    overrides: [
-      appDatabaseProvider.overrideWithValue(database),
-      sharedPreferencesProvider.overrideWithValue(preferences),
-    ],
-    child: MaterialApp.router(routerConfig: router),
+  return pumpTestApp(
+    tester,
+    preferences: preferences,
+    viewportSize: const Size(1440, 1200),
+    router: router,
   );
 }
 
 Future<SharedPreferences> createSeededPreferences() async {
-  SharedPreferences.setMockInitialValues({
-    chatConversationsStorageKey: jsonEncode([
-      {
-        'id': 'conversation-1',
-        'title': 'Rust 重构计划',
-        'messages': [
-          {
-            'id': 'message-1',
-            'role': 'user',
-            'content': '帮我整理 Rust 模块边界',
-            'createdAt': DateTime(2026, 4, 26, 20, 0).toIso8601String(),
-          },
-          {
-            'id': 'message-2',
-            'role': 'assistant',
-            'content': '这里包含不应匹配的 assistant 内容',
-            'createdAt': DateTime(2026, 4, 26, 20, 1).toIso8601String(),
-          },
-        ],
-        'createdAt': DateTime(2026, 4, 26, 20, 0).toIso8601String(),
-        'updatedAt': DateTime(2026, 4, 26, 20, 1).toIso8601String(),
-        'selectedModelId': 'model-1',
-        'selectedPresetPromptId': null,
-        'reasoningEnabled': false,
-        'reasoningEffort': 'medium',
-      },
-      {
-        'id': 'conversation-2',
-        'title': 'Flutter 路线图',
-        'messages': [
-          {
-            'id': 'message-3',
-            'role': 'user',
-            'content': '请给我一份 Widget 测试清单',
-            'createdAt': DateTime(2026, 4, 26, 18, 0).toIso8601String(),
-          },
-          {
-            'id': 'message-4',
-            'role': 'assistant',
-            'content': '当然可以',
-            'createdAt': DateTime(2026, 4, 26, 18, 1).toIso8601String(),
-          },
-        ],
-        'createdAt': DateTime(2026, 4, 26, 18, 0).toIso8601String(),
-        'updatedAt': DateTime(2026, 4, 26, 18, 1).toIso8601String(),
-        'selectedModelId': 'model-1',
-        'selectedPresetPromptId': null,
-        'reasoningEnabled': false,
-        'reasoningEffort': 'medium',
-      },
-      {
-        'id': 'conversation-3',
-        'title': '项目复盘',
-        'messages': [
-          {
-            'id': 'message-5',
-            'role': 'user',
-            'content': '请总结本周推进情况',
-            'createdAt': DateTime(2026, 4, 20, 10, 0).toIso8601String(),
-          },
-          {
-            'id': 'message-6',
-            'role': 'assistant',
-            'content': '这里是总结',
-            'createdAt': DateTime(2026, 4, 20, 10, 1).toIso8601String(),
-          },
-        ],
-        'createdAt': DateTime(2026, 4, 20, 10, 0).toIso8601String(),
-        'updatedAt': DateTime(2026, 4, 20, 10, 1).toIso8601String(),
-        'selectedModelId': 'model-1',
-        'selectedPresetPromptId': null,
-        'reasoningEnabled': false,
-        'reasoningEffort': 'medium',
-      },
-    ]),
-  });
-
-  return SharedPreferences.getInstance();
+  return TestFixtures.seedPreferences(
+    conversations: [
+      _conversation(
+        id: 'conversation-1',
+        title: 'Rust 重构计划',
+        userMessage: ('message-1', '帮我整理 Rust 模块边界', DateTime(2026, 4, 26, 20, 0)),
+        assistantMessage: (
+          'message-2',
+          '这里包含不应匹配的 assistant 内容',
+          DateTime(2026, 4, 26, 20, 1),
+        ),
+        createdAt: DateTime(2026, 4, 26, 20, 0),
+        updatedAt: DateTime(2026, 4, 26, 20, 1),
+      ),
+      _conversation(
+        id: 'conversation-2',
+        title: 'Flutter 路线图',
+        userMessage: (
+          'message-3',
+          '请给我一份 Widget 测试清单',
+          DateTime(2026, 4, 26, 18, 0),
+        ),
+        assistantMessage: (
+          'message-4',
+          '当然可以',
+          DateTime(2026, 4, 26, 18, 1),
+        ),
+        createdAt: DateTime(2026, 4, 26, 18, 0),
+        updatedAt: DateTime(2026, 4, 26, 18, 1),
+      ),
+      _conversation(
+        id: 'conversation-3',
+        title: '项目复盘',
+        userMessage: (
+          'message-5',
+          '请总结本周推进情况',
+          DateTime(2026, 4, 20, 10, 0),
+        ),
+        assistantMessage: (
+          'message-6',
+          '这里是总结',
+          DateTime(2026, 4, 20, 10, 1),
+        ),
+        createdAt: DateTime(2026, 4, 20, 10, 0),
+        updatedAt: DateTime(2026, 4, 20, 10, 1),
+      ),
+    ],
+  );
 }
 
 Future<SharedPreferences> createTreeSeededPreferences() async {
-  SharedPreferences.setMockInitialValues({
-    chatConversationsStorageKey: jsonEncode([
+  return TestFixtures.seedPreferences(
+    conversations: [
       {
         'id': 'conversation-tree',
         'title': '树状会话',
@@ -185,8 +132,43 @@ Future<SharedPreferences> createTreeSeededPreferences() async {
         'reasoningEnabled': false,
         'reasoningEffort': 'medium',
       },
-    ]),
-  });
+    ],
+  );
+}
 
-  return SharedPreferences.getInstance();
+Map<String, dynamic> _conversation({
+  required String id,
+  required String title,
+  required (String, String, DateTime) userMessage,
+  required (String, String, DateTime) assistantMessage,
+  required DateTime createdAt,
+  required DateTime updatedAt,
+}) {
+  final (uId, uContent, uTime) = userMessage;
+  final (aId, aContent, aTime) = assistantMessage;
+
+  return {
+    'id': id,
+    'title': title,
+    'messages': [
+      {
+        'id': uId,
+        'role': 'user',
+        'content': uContent,
+        'createdAt': uTime.toIso8601String(),
+      },
+      {
+        'id': aId,
+        'role': 'assistant',
+        'content': aContent,
+        'createdAt': aTime.toIso8601String(),
+      },
+    ],
+    'createdAt': createdAt.toIso8601String(),
+    'updatedAt': updatedAt.toIso8601String(),
+    'selectedModelId': 'model-1',
+    'selectedPresetPromptId': null,
+    'reasoningEnabled': false,
+    'reasoningEffort': 'medium',
+  };
 }

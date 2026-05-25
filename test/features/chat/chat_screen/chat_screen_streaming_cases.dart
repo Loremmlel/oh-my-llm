@@ -185,4 +185,28 @@ void registerChatScreenStreamingTests() {
     expect(find.widgetWithText(FilledButton, '终止回答'), findsOneWidget);
     expect(find.textContaining('已生成部分'), findsWidgets);
   });
+
+  testWidgets('mobile layout renders composer and sends message', (
+    tester,
+  ) async {
+    final preferences = await createSeededPreferences();
+    final fakeClient = FakeChatCompletionClient()
+      ..enqueueChunks(['移动端回复']);
+
+    await pumpChatScreen(
+      tester,
+      preferences: preferences,
+      fakeClient: fakeClient,
+      size: const Size(390, 844),
+    );
+
+    // 移动端应使用紧凑布局的输入区
+    expect(find.byType(TextField), findsOneWidget);
+
+    await sendMessage(tester, '移动端测试消息');
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('移动端测试消息'), findsWidgets);
+    expect(find.textContaining('移动端回复'), findsWidgets);
+  });
 }
