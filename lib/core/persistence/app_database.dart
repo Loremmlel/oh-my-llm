@@ -48,6 +48,7 @@ class AppDatabase {
     if (path != ':memory:') {
       _connection.execute('PRAGMA journal_mode = WAL;');
     }
+    _connection.execute('PRAGMA busy_timeout = 5000;');
   }
 
   void _migrate() {

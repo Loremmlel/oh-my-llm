@@ -305,6 +305,39 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
   }
 
   @override
+  Future<void> deleteConversations(List<String> ids) async {
+    if (ids.isEmpty) {
+      return;
+    }
+    final db = _database.connection;
+    final placeholders = ids.map((_) => '?').join(',');
+    final params = List<dynamic>.from(ids);
+    db.execute('BEGIN IMMEDIATE;');
+    try {
+      db.execute(
+        'DELETE FROM conversation_checkpoints WHERE conversation_id IN ($placeholders)',
+        params,
+      );
+      db.execute(
+        'DELETE FROM conversation_branch_selections WHERE conversation_id IN ($placeholders)',
+        params,
+      );
+      db.execute(
+        'DELETE FROM messages WHERE conversation_id IN ($placeholders)',
+        params,
+      );
+      db.execute(
+        'DELETE FROM conversations WHERE id IN ($placeholders)',
+        params,
+      );
+      db.execute('COMMIT;');
+    } catch (_) {
+      db.execute('ROLLBACK;');
+      rethrow;
+    }
+  }
+
+  @override
   List<ChatConversationSummary> loadHistorySummaries({String keyword = ''}) {
     final normalizedKeyword = keyword.trim().toLowerCase();
     final hasKeyword = normalizedKeyword.isNotEmpty;
@@ -376,90 +409,88 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
   }
 
   @override
-  Future<void> saveAll(List<ChatConversation> conversations) async {
-    _database.connection.execute('BEGIN IMMEDIATE;');
-    try {
-      _database.connection.execute(
-        'DELETE FROM conversation_branch_selections;',
-      );
-      _database.connection.execute('DELETE FROM conversation_checkpoints;');
-      _database.connection.execute('DELETE FROM messages;');
-      _database.connection.execute('DELETE FROM conversations;');
+  Future<void> saveConversations(List<ChatConversation> conversations) async {
+    if (conversations.isEmpty) {
+      return;
+    }
 
-      final conversationStatement = _database.connection.prepare('''
+    final db = _database.connection;
+    db.execute('BEGIN IMMEDIATE;');
+    try {
+      final conversationStatement = db.prepare('''
         INSERT INTO conversations (
-          id,
-          title,
-          created_at,
-          updated_at,
-          selected_model_id,
-          selected_checkpoint_id,
-          selected_preset_prompt_id,
-          reasoning_enabled,
-          reasoning_effort,
-          excluded_message_ids_json
+          id, title, created_at, updated_at,
+          selected_model_id, selected_checkpoint_id, selected_preset_prompt_id,
+          reasoning_enabled, reasoning_effort, excluded_message_ids_json
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          title = excluded.title,
+          updated_at = excluded.updated_at,
+          selected_model_id = excluded.selected_model_id,
+          selected_checkpoint_id = excluded.selected_checkpoint_id,
+          selected_preset_prompt_id = excluded.selected_preset_prompt_id,
+          reasoning_enabled = excluded.reasoning_enabled,
+          reasoning_effort = excluded.reasoning_effort,
+          excluded_message_ids_json = excluded.excluded_message_ids_json
       ''');
-      final messageStatement = _database.connection.prepare('''
+      final messageStatement = db.prepare('''
         INSERT INTO messages (
-          id,
-          conversation_id,
-          node_index,
-          parent_id,
-          role,
-          content,
-          reasoning_content,
-          assistant_model_display_name,
-          applied_checkpoint_title,
-          user_message_segments_json,
-          created_at
+          id, conversation_id, node_index, parent_id, role,
+          content, reasoning_content, assistant_model_display_name,
+          applied_checkpoint_title, user_message_segments_json, created_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ''');
-      final selectionStatement = _database.connection.prepare('''
+      final selectionStatement = db.prepare('''
         INSERT INTO conversation_branch_selections (
-          conversation_id,
-          parent_id,
-          child_id
+          conversation_id, parent_id, child_id
         ) VALUES (?, ?, ?)
       ''');
-      final checkpointStatement = _database.connection.prepare('''
+      final checkpointStatement = db.prepare('''
         INSERT INTO conversation_checkpoints (
-          id,
-          conversation_id,
-          title,
-          content,
-          parent_checkpoint_id,
-          covered_until_message_id,
-          source_memory_prompt_name,
-          created_at
+          id, conversation_id, title, content,
+          parent_checkpoint_id, covered_until_message_id,
+          source_memory_prompt_name, created_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       ''');
       try {
         for (final conversation in conversations) {
-          final normalizedConversation = ChatConversation.fromJson(
-            conversation.toJson(),
-          );
+          final normalized = ChatConversation.fromJson(conversation.toJson());
+
           conversationStatement.execute([
-            normalizedConversation.id,
-            normalizedConversation.title,
-            normalizedConversation.createdAt.toIso8601String(),
-            normalizedConversation.updatedAt.toIso8601String(),
-            normalizedConversation.selectedModelId,
-            normalizedConversation.selectedCheckpointId,
-            normalizedConversation.selectedPresetPromptId,
-            normalizedConversation.reasoningEnabled ? 1 : 0,
-            normalizedConversation.reasoningEffort.apiValue,
-            jsonEncode(normalizedConversation.excludedMessageIds),
+            normalized.id,
+            normalized.title,
+            normalized.createdAt.toIso8601String(),
+            normalized.updatedAt.toIso8601String(),
+            normalized.selectedModelId,
+            normalized.selectedCheckpointId,
+            normalized.selectedPresetPromptId,
+            normalized.reasoningEnabled ? 1 : 0,
+            normalized.reasoningEffort.apiValue,
+            jsonEncode(normalized.excludedMessageIds),
           ]);
+
+          db.execute(
+            'DELETE FROM messages WHERE conversation_id = ?',
+            [normalized.id],
+          );
+          db.execute(
+            'DELETE FROM conversation_branch_selections WHERE conversation_id = ?',
+            [normalized.id],
+          );
+          db.execute(
+            'DELETE FROM conversation_checkpoints WHERE conversation_id = ?',
+            [normalized.id],
+          );
+
           for (
             var nodeIndex = 0;
-            nodeIndex < normalizedConversation.messageNodes.length;
+            nodeIndex < normalized.messageNodes.length;
             nodeIndex += 1
           ) {
-            final message = normalizedConversation.messageNodes[nodeIndex];
+            final message = normalized.messageNodes[nodeIndex];
             messageStatement.execute([
               message.id,
-              normalizedConversation.id,
+              normalized.id,
               nodeIndex,
               message.parentId,
               message.role.apiValue,
@@ -476,17 +507,17 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
             ]);
           }
           for (final entry
-              in normalizedConversation.selectedChildByParentId.entries) {
+              in normalized.selectedChildByParentId.entries) {
             selectionStatement.execute([
-              normalizedConversation.id,
+              normalized.id,
               entry.key,
               entry.value,
             ]);
           }
-          for (final checkpoint in normalizedConversation.checkpoints) {
+          for (final checkpoint in normalized.checkpoints) {
             checkpointStatement.execute([
               checkpoint.id,
-              normalizedConversation.id,
+              normalized.id,
               checkpoint.title,
               checkpoint.content,
               checkpoint.parentCheckpointId,
@@ -503,9 +534,9 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
         checkpointStatement.close();
       }
 
-      _database.connection.execute('COMMIT;');
+      db.execute('COMMIT;');
     } catch (_) {
-      _database.connection.execute('ROLLBACK;');
+      db.execute('ROLLBACK;');
       rethrow;
     }
   }

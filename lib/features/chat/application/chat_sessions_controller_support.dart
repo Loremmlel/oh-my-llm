@@ -88,37 +88,14 @@ mixin ChatSessionsControllerSupport on Notifier<ChatSessionsState> {
   }
 
   void saveAllConversations() {
-    final loadedById = {for (final c in state.conversations) c.id: c};
-    final summaryIds = state.conversationSummaries.map((s) => s.id).toSet();
-
-    final allForSave = <ChatConversation>[];
-
-    for (final summary in state.conversationSummaries) {
-      if (loadedById.containsKey(summary.id)) {
-        allForSave.add(loadedById[summary.id]!);
-      } else {
-        final fromDb = repository.loadConversation(summary.id);
-        if (fromDb != null) {
-          allForSave.add(fromDb);
-        }
-      }
-    }
-
-    for (final conv in state.conversations) {
-      if (!summaryIds.contains(conv.id)) {
-        allForSave.add(conv);
-      }
-    }
-
-    repository.saveAll(
-      allForSave
-          .where((c) {
-            return c.hasMessages ||
-                c.checkpoints.isNotEmpty ||
-                (c.title?.trim().isNotEmpty ?? false);
-          })
-          .toList(growable: false),
-    );
+    final toSave = state.conversations
+        .where((c) {
+          return c.hasMessages ||
+              c.checkpoints.isNotEmpty ||
+              (c.title?.trim().isNotEmpty ?? false);
+        })
+        .toList(growable: false);
+    repository.saveConversations(toSave);
   }
 
   CheckpointRequestContext resolveCheckpointContext({

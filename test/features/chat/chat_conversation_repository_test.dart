@@ -94,7 +94,7 @@ void main() {
       reasoningEffort: ReasoningEffort.high,
     );
 
-    await repository.saveAll([conversation]);
+    await repository.saveConversations([conversation]);
     final restored = repository.loadAll();
 
     expect(restored, hasLength(1));
@@ -106,7 +106,7 @@ void main() {
     addTearDown(database.close);
     final repository = SqliteChatConversationRepository(database);
 
-    await repository.saveAll([
+    await repository.saveConversations([
       ChatConversation(
         id: 'conversation-1',
         title: 'Rust 重构计划',
@@ -171,7 +171,7 @@ void main() {
     addTearDown(database.close);
     final repository = SqliteChatConversationRepository(database);
 
-    await repository.saveAll([
+    await repository.saveConversations([
       ChatConversation(
         id: 'conversation-tree',
         title: '树状会话',
