@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/persistence/legacy_preferences_json_storage.dart';
@@ -33,18 +32,3 @@ class LegacyFixedPromptSequenceRepository {
   }
 }
 
-/// 仅供测试使用：通过 SharedPreferences 保存固定顺序提示词序列（用于迁移路径测试）。
-///
-/// 生产代码不应调用此方法，数据写入应通过 [SqliteEntityRepository.saveAll]。
-@visibleForTesting
-Future<void> saveLegacyFixedPromptSequencesForTest(
-  SharedPreferences preferences,
-  List<FixedPromptSequence> sequences,
-) async {
-  await saveLegacyPreferenceCollectionForTest(
-    preferences: preferences,
-    storageKey: fixedPromptSequencesStorageKey,
-    items: sequences,
-    toJson: (sequence) => sequence.toJson(),
-  );
-}

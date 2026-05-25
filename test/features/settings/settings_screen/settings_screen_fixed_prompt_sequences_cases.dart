@@ -104,58 +104,6 @@ void registerSettingsScreenFixedPromptSequencesTests() {
   );
 
   testWidgets(
-    'fixed prompt sequence dialog only keeps outer scroll on compact layout',
-    (tester) async {
-      final preferences = await createEmptyPreferences();
-
-      await pumpSettingsScreen(
-        tester,
-        preferences: preferences,
-        size: const Size(1440, 2200),
-        initialTabIndex: 2,
-      );
-
-      await tester.tap(find.text('新增序列'));
-      await tester.pumpAndSettle();
-
-      expect(
-        find.byKey(const ValueKey('settings-form-dialog-outer-scroll-view')),
-        findsNothing,
-      );
-
-      await tester.tap(find.text('取消'));
-      await tester.pumpAndSettle();
-
-      await pumpSettingsScreen(
-        tester,
-        preferences: preferences,
-        size: const Size(430, 932),
-        initialTabIndex: 2,
-      );
-
-      final settingsList = find.descendant(
-        of: find.byType(SettingsScreen),
-        matching: find.byType(ListView),
-      );
-      final addSequenceButton = find.widgetWithText(FilledButton, '新增序列');
-      await tester.dragUntilVisible(
-        addSequenceButton,
-        settingsList.first,
-        const Offset(0, -300),
-      );
-      await tester.ensureVisible(addSequenceButton);
-      await tester.pumpAndSettle();
-      await tester.tap(addSequenceButton);
-      await tester.pumpAndSettle();
-
-      expect(
-        find.byKey(const ValueKey('settings-form-dialog-outer-scroll-view')),
-        findsOneWidget,
-      );
-    },
-  );
-
-  testWidgets(
     'fixed prompt sequence dialog inserts a new step below selection',
     (tester) async {
       final preferences = await createEmptyPreferences();

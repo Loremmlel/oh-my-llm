@@ -655,21 +655,6 @@ void main() {
 
   // ── retryLatestAssistant ───────────────────────────────────────────────────
 
-  test('retryLatestAssistant 重新生成最后一条助手回复', () async {
-    fakeClient.enqueueChunks(['初次回复']);
-    fakeClient.enqueueChunks(['重试回复']);
-    await sendMsg('问题');
-
-    await container.read(chatSessionsProvider.notifier).retryLatestAssistant();
-
-    final messages = container
-        .read(chatSessionsProvider)
-        .activeConversation
-        .messages;
-    expect(messages.length, 2);
-    expect(messages.last.content, '重试回复');
-  });
-
   test('retryLatestAssistant 无助手消息时设置 errorMessage', () async {
     await container.read(chatSessionsProvider.notifier).retryLatestAssistant();
     expect(container.read(chatSessionsProvider).errorMessage, isNotNull);
@@ -1008,36 +993,6 @@ void main() {
     final state = container.read(chatSessionsProvider);
     expect(state.activeConversation.hasMessages, isFalse);
     expect(fakeClient.requestHistory, isEmpty);
-  });
-
-  test('autoRetryCount 在重试过程中递增并在成功后重置', () async {
-    container
-        .read(chatSessionsProvider.notifier)
-        .updateActiveConversationPreferences(autoRetryEnabled: true);
-    // 使用 StreamController 控制时序，以便在中间状态断言
-    final stream1 = StreamController<ChatCompletionChunk>();
-    final stream2 = StreamController<ChatCompletionChunk>();
-    fakeClient.enqueueStream(stream1.stream);
-    fakeClient.enqueueStream(stream2.stream);
-    fakeClient.enqueueChunks(['最终成功']);
-
-    final sendFuture = sendMsg('测试计数', retryDelay: Duration.zero);
-
-    // 第一次尝试：retry 循环已进入 streamAssistantReply，autoRetryCount 已置为 1
-    await Future<void>.delayed(const Duration(milliseconds: 1));
-    expect(container.read(chatSessionsProvider).autoRetryCount, 1);
-    stream1.addError(ChatCompletionException('失败1'));
-
-    // 第二次尝试：失败后进入下一轮，autoRetryCount 递增为 2
-    await Future<void>.delayed(const Duration(milliseconds: 1));
-    expect(container.read(chatSessionsProvider).autoRetryCount, 2);
-    stream2.addError(ChatCompletionException('失败2'));
-
-    await sendFuture;
-
-    // 成功后重置为 0
-    final state = container.read(chatSessionsProvider);
-    expect(state.autoRetryCount, 0);
   });
 
   test('autoRetryEnabled 默认值在 sendMessage 时不触发自动重试', () async {

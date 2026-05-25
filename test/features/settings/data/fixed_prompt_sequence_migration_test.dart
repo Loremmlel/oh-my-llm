@@ -7,6 +7,8 @@ import 'package:oh_my_llm/features/settings/data/migrations/fixed_prompt_sequenc
 import 'package:oh_my_llm/features/settings/data/fixed_prompt_sequence_repository.dart';
 import 'package:oh_my_llm/features/settings/domain/models/fixed_prompt_sequence.dart';
 
+import '../../../helpers/legacy_preferences_test_helpers.dart';
+
 FixedPromptSequence _sequence(String id) {
   return FixedPromptSequence(
     id: id,
@@ -43,13 +45,25 @@ Future<_MigrationContext> _createMigrationContext({
     await repository.saveAll(database, sqliteSequences);
   }
   if (legacySequences.isNotEmpty) {
-    await saveLegacyFixedPromptSequencesForTest(preferences, legacySequences);
+    await _saveLegacyFixedPromptSequencesForTest(preferences, legacySequences);
   }
 
   return _MigrationContext(
     preferences: preferences,
     repository: repository,
     database: database,
+  );
+}
+
+Future<void> _saveLegacyFixedPromptSequencesForTest(
+  SharedPreferences preferences,
+  List<FixedPromptSequence> sequences,
+) async {
+  await saveLegacyPreferenceCollectionForTest(
+    preferences: preferences,
+    storageKey: fixedPromptSequencesStorageKey,
+    items: sequences,
+    toJson: (sequence) => sequence.toJson(),
   );
 }
 
