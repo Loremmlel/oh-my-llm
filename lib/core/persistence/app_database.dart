@@ -80,6 +80,9 @@ class AppDatabase {
     if (currentVersion < 8) {
       _migrateV8();
     }
+    if (currentVersion < 9) {
+      _migrateV9();
+    }
   }
 
   /// 初始 schema：聊天记录相关表。
@@ -278,5 +281,14 @@ class AppDatabase {
       'ALTER TABLE conversations RENAME COLUMN selected_prompt_template_id TO selected_preset_prompt_id;',
     );
     _connection.execute('PRAGMA user_version = 8;');
+  }
+
+  /// 为会话加入自动重试开关持久化。
+  void _migrateV9() {
+    _connection.execute('''
+      ALTER TABLE conversations
+      ADD COLUMN auto_retry_enabled INTEGER NOT NULL DEFAULT 0;
+    ''');
+    _connection.execute('PRAGMA user_version = 9;');
   }
 }
