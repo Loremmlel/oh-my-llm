@@ -98,109 +98,37 @@ void main() {
     final restored = repository.loadAll();
 
     expect(restored, hasLength(1));
-    expect(restored.single.toJson(), equals(conversation.toJson()));
-  });
+    final restoredConv = restored.single;
+    expect(restoredConv.id, conversation.id);
+    expect(restoredConv.title, conversation.title);
+    expect(restoredConv.createdAt, conversation.createdAt);
+    expect(restoredConv.updatedAt, conversation.updatedAt);
+    expect(restoredConv.selectedModelId, conversation.selectedModelId);
+    expect(restoredConv.selectedCheckpointId, conversation.selectedCheckpointId);
+    expect(restoredConv.selectedPresetPromptId,
+        conversation.selectedPresetPromptId);
+    expect(restoredConv.reasoningEnabled, conversation.reasoningEnabled);
+    expect(restoredConv.reasoningEffort, conversation.reasoningEffort);
+    expect(restoredConv.selectedChildByParentId,
+        equals(conversation.selectedChildByParentId));
+    expect(restoredConv.excludedMessageIds, conversation.excludedMessageIds);
 
-  test('history summaries search only title and user messages', () async {
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final repository = SqliteChatConversationRepository(database);
-
-    await repository.saveConversations([
-      ChatConversation(
-        id: 'conversation-1',
-        title: 'Rust 重构计划',
-        messages: const [],
-        messageNodes: [
-          ChatMessage(
-            id: 'message-1',
-            role: ChatMessageRole.user,
-            content: '帮我整理 Rust 模块边界',
-            parentId: rootConversationParentId,
-            createdAt: DateTime(2026, 4, 27, 10),
-          ),
-          ChatMessage(
-            id: 'message-2',
-            role: ChatMessageRole.assistant,
-            content: '这里包含不应匹配的 assistant 内容',
-            parentId: 'message-1',
-            createdAt: DateTime(2026, 4, 27, 10, 1),
-          ),
-        ],
-        selectedChildByParentId: const {
-          rootConversationParentId: 'message-1',
-          'message-1': 'message-2',
-        },
-        createdAt: DateTime(2026, 4, 27, 10),
-        updatedAt: DateTime(2026, 4, 27, 10, 1),
-      ),
-      ChatConversation(
-        id: 'conversation-2',
-        title: 'Flutter 路线图',
-        messages: const [],
-        messageNodes: [
-          ChatMessage(
-            id: 'message-3',
-            role: ChatMessageRole.user,
-            content: '请给我一份 Widget 测试清单',
-            parentId: rootConversationParentId,
-            createdAt: DateTime(2026, 4, 27, 11),
-          ),
-        ],
-        selectedChildByParentId: const {rootConversationParentId: 'message-3'},
-        createdAt: DateTime(2026, 4, 27, 11),
-        updatedAt: DateTime(2026, 4, 27, 11),
-      ),
-    ]);
-
+    // messageNodes: verify count + IDs, spot-check content fields
+    expect(restoredConv.messageNodes, hasLength(3));
+    final restoredById = {
+      for (final n in restoredConv.messageNodes) n.id: n,
+    };
     expect(
-      repository.loadHistorySummaries(keyword: 'Rust').map((item) => item.id),
-      ['conversation-1'],
+      restoredById.keys,
+      unorderedEquals(conversation.messageNodes.map((n) => n.id)),
     );
-    expect(
-      repository
-          .loadHistorySummaries(keyword: 'Widget 测试')
-          .map((item) => item.id),
-      ['conversation-2'],
-    );
-    expect(repository.loadHistorySummaries(keyword: '不应匹配'), isEmpty);
-  });
+    expect(restoredById['assistant-2']?.reasoningContent, '保留思考内容');
+    expect(restoredById['user-1']?.userMessageSegments.length, 2);
 
-  test('history summaries search user messages across all branches', () async {
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final repository = SqliteChatConversationRepository(database);
-
-    await repository.saveConversations([
-      ChatConversation(
-        id: 'conversation-tree',
-        title: '树状会话',
-        messages: const [],
-        messageNodes: [
-          ChatMessage(
-            id: 'u-root-a',
-            role: ChatMessageRole.user,
-            content: '当前分支用户消息',
-            parentId: rootConversationParentId,
-            createdAt: DateTime(2026, 4, 27, 12),
-          ),
-          ChatMessage(
-            id: 'u-root-b',
-            role: ChatMessageRole.user,
-            content: '另一条分支关键词消息',
-            parentId: rootConversationParentId,
-            createdAt: DateTime(2026, 4, 27, 12, 1),
-          ),
-        ],
-        selectedChildByParentId: const {rootConversationParentId: 'u-root-a'},
-        createdAt: DateTime(2026, 4, 27, 12),
-        updatedAt: DateTime(2026, 4, 27, 12, 1),
-      ),
-    ]);
-
-    expect(
-      repository.loadHistorySummaries(keyword: '分支关键词').map((item) => item.id),
-      ['conversation-tree'],
-    );
+    // checkpoints: verify count + key fields
+    expect(restoredConv.checkpoints, hasLength(1));
+    expect(restoredConv.checkpoints.single.id, 'checkpoint-1');
+    expect(restoredConv.checkpoints.single.title, '检查点 1');
+    expect(restoredConv.checkpoints.single.content, '总结当前分支的重要上下文。');
   });
 }

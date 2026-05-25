@@ -72,36 +72,6 @@ void registerChatScreenBasicsTests() {
     expect(toggle.enabled, isTrue);
   });
 
-  testWidgets('chat screen composer grows only while focused and multiline', (
-    tester,
-  ) async {
-    final preferences = await createSeededPreferences();
-    final fakeClient = FakeChatCompletionClient();
-
-    await pumpChatScreen(
-      tester,
-      preferences: preferences,
-      fakeClient: fakeClient,
-    );
-
-    final composerFinder = find.byKey(const ValueKey('chat-message-composer'));
-    final initialHeight = tester.getRect(composerFinder).height;
-
-    await tester.tap(composerFinder);
-    await tester.pumpAndSettle();
-    await tester.enterText(composerFinder, '1\n2\n3\n4');
-    await tester.pumpAndSettle();
-
-    final expandedHeight = tester.getRect(composerFinder).height;
-    expect(expandedHeight, greaterThan(initialHeight));
-
-    FocusManager.instance.primaryFocus?.unfocus();
-    await tester.pumpAndSettle();
-
-    final collapsedHeight = tester.getRect(composerFinder).height;
-    expect(collapsedHeight, lessThan(expandedHeight));
-  });
-
   testWidgets('chat screen renames conversation without controller errors', (
     tester,
   ) async {

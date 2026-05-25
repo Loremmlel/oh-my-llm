@@ -7,6 +7,8 @@ import 'package:oh_my_llm/features/settings/data/migrations/preset_prompt_migrat
 import 'package:oh_my_llm/features/settings/data/preset_prompt_repository.dart';
 import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
 
+import '../../../helpers/legacy_preferences_test_helpers.dart';
+
 PresetPrompt _template(String id) {
   return PresetPrompt(
     id: id,
@@ -50,13 +52,25 @@ Future<_MigrationContext> _createMigrationContext({
     await repository.saveAll(database, sqliteTemplates);
   }
   if (legacyTemplates.isNotEmpty) {
-    await saveLegacyPresetPromptsForTest(preferences, legacyTemplates);
+    await _saveLegacyPresetPromptsForTest(preferences, legacyTemplates);
   }
 
   return _MigrationContext(
     preferences: preferences,
     repository: repository,
     database: database,
+  );
+}
+
+Future<void> _saveLegacyPresetPromptsForTest(
+  SharedPreferences preferences,
+  List<PresetPrompt> templates,
+) async {
+  await saveLegacyPreferenceCollectionForTest(
+    preferences: preferences,
+    storageKey: presetPromptsStorageKey,
+    items: templates,
+    toJson: (template) => template.toJson(),
   );
 }
 

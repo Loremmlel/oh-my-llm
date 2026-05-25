@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/persistence/legacy_preferences_json_storage.dart';
@@ -31,18 +30,3 @@ class LegacyPresetPromptRepository {
   }
 }
 
-/// 仅供测试使用：通过 SharedPreferences 保存 Prompt 模板（用于迁移路径测试）。
-///
-/// 生产代码不应调用此方法，数据写入应通过 [SqliteEntityRepository.saveAll]。
-@visibleForTesting
-Future<void> saveLegacyPresetPromptsForTest(
-  SharedPreferences preferences,
-  List<PresetPrompt> templates,
-) async {
-  await saveLegacyPreferenceCollectionForTest(
-    preferences: preferences,
-    storageKey: presetPromptsStorageKey,
-    items: templates,
-    toJson: (template) => template.toJson(),
-  );
-}
