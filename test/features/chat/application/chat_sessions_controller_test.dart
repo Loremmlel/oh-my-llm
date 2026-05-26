@@ -324,6 +324,7 @@ void main() {
     expect(messages[0].content, '你好');
     expect(messages[1].role, ChatMessageRole.assistant);
     expect(messages[1].content, '你好！');
+    expect(container.read(chatSessionsProvider).isStreaming, isFalse);
   });
 
   test('sendMessage 会裁剪有效输入并忽略纯空白内容', () async {
@@ -389,12 +390,6 @@ void main() {
       fakeClient.requestHistory.last.map((message) => message.content).toList(),
       ['第一轮问题', '第二轮问题'],
     );
-  });
-
-  test('sendMessage 完成后 isStreaming 为 false', () async {
-    fakeClient.enqueueChunks(['回复']);
-    await sendMsg('你好');
-    expect(container.read(chatSessionsProvider).isStreaming, isFalse);
   });
 
   test('sendMessage 错误时设置 errorMessage 并清除 isStreaming', () async {

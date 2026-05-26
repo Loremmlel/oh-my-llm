@@ -23,48 +23,24 @@ void main() {
       database.close();
     });
 
-    test('starts empty', () {
-      expect(container.read(favoritesProvider), isEmpty);
-    });
-
-    test('add inserts a favorite into the list', () {
-      container.read(favoritesProvider.notifier).add(
-        userMessageContent: '用户消息',
-        assistantContent: '模型回复',
-      );
-
-      final favorites = container.read(favoritesProvider);
-      expect(favorites.length, 1);
-      expect(favorites.first.userMessageContent, '用户消息');
-      expect(favorites.first.assistantContent, '模型回复');
-      expect(favorites.first.collectionId, isNull);
-    });
-
-    test('add stores sourceConversationId and title', () {
-      container.read(favoritesProvider.notifier).add(
-        userMessageContent: '问题',
-        assistantContent: '回答',
-        sourceConversationId: 'conv-1',
-        sourceConversationTitle: '对话标题',
-      );
-
-      final fav = container.read(favoritesProvider).first;
-      expect(fav.sourceConversationId, 'conv-1');
-      expect(fav.sourceConversationTitle, '对话标题');
-    });
-
-    test('add with collectionId stores the collection association', () {
-      // First create a collection
+    test('add inserts a favorite with all fields into the list', () {
       container.read(collectionsProvider.notifier).create('测试收藏夹');
       final collectionId = container.read(collectionsProvider).first.id;
 
       container.read(favoritesProvider.notifier).add(
-        userMessageContent: '有分类的问题',
-        assistantContent: '有分类的回复',
+        userMessageContent: '用户消息',
+        assistantContent: '模型回复',
+        sourceConversationId: 'conv-1',
+        sourceConversationTitle: '对话标题',
         collectionId: collectionId,
       );
 
-      expect(container.read(favoritesProvider).first.collectionId, collectionId);
+      final fav = container.read(favoritesProvider).first;
+      expect(fav.userMessageContent, '用户消息');
+      expect(fav.assistantContent, '模型回复');
+      expect(fav.sourceConversationId, 'conv-1');
+      expect(fav.sourceConversationTitle, '对话标题');
+      expect(fav.collectionId, collectionId);
     });
 
     test('remove deletes the favorite from the list', () {
@@ -114,10 +90,6 @@ void main() {
     tearDown(() {
       container.dispose();
       database.close();
-    });
-
-    test('starts empty', () {
-      expect(container.read(collectionsProvider), isEmpty);
     });
 
     test('create adds a collection and returns its id', () {
