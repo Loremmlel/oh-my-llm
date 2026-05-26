@@ -23,11 +23,12 @@ void registerSettingsScreenFixedPromptSequencesTests() {
       await tester.tap(find.text('新增序列'));
       await tester.pumpAndSettle();
       expect(
-        find.byKey(const ValueKey('fixed-prompt-sequence-form-layout')),
+        find.text('新增固定顺序提示词'),
         findsOneWidget,
       );
-      final masterPane = find.byKey(
-        const ValueKey('fixed-prompt-sequence-master-pane'),
+      final masterPane = find.ancestor(
+        of: find.text('步骤列表'),
+        matching: find.byType(DecoratedBox),
       );
       Finder stepTile(String title) =>
           find.descendant(of: masterPane, matching: find.text(title));
@@ -117,8 +118,9 @@ void registerSettingsScreenFixedPromptSequencesTests() {
 
       await tester.tap(find.text('新增序列'));
       await tester.pumpAndSettle();
-      final masterPane = find.byKey(
-        const ValueKey('fixed-prompt-sequence-master-pane'),
+      final masterPane = find.ancestor(
+        of: find.text('步骤列表'),
+        matching: find.byType(DecoratedBox),
       );
       Finder stepTile(String title) =>
           find.descendant(of: masterPane, matching: find.text(title));
