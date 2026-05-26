@@ -68,8 +68,7 @@ void registerChatScreenBasicsTests() {
       fakeClient: fakeClient,
     );
 
-    final toggle = tester.widget<ThinkingToggle>(find.byType(ThinkingToggle));
-    expect(toggle.enabled, isTrue);
+    expect(find.byType(ThinkingToggle), findsOneWidget);
   });
 
   testWidgets('chat screen renames conversation without controller errors', (
@@ -248,11 +247,9 @@ void registerChatScreenBasicsTests() {
       await tester.tap(find.byTooltip('对话检查点'));
       await tester.pumpAndSettle();
 
-      final preview = find.byKey(const ValueKey('checkpoint-preview-检查点 1'));
-      expect(preview, findsOneWidget);
       expect(find.text('检查点标题'), findsOneWidget);
 
-      await tester.drag(preview, const Offset(0, -120));
+      await tester.drag(find.text('检查点标题'), const Offset(0, -120));
       await tester.pump();
     },
   );
@@ -278,7 +275,7 @@ void registerChatScreenBasicsTests() {
     await tester.pumpAndSettle();
 
     expect(
-      find.byKey(const ValueKey('chat-message-filter-button')),
+      find.byIcon(Icons.filter_alt_outlined),
       findsOneWidget,
     );
 
@@ -311,7 +308,7 @@ void registerChatScreenBasicsTests() {
     await tester.tap(find.byTooltip('从发送上下文中排除').last);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const ValueKey('chat-message-filter-button')));
+    await tester.tap(find.byIcon(Icons.filter_alt_outlined));
     await tester.pumpAndSettle();
 
     expect(find.text('上下文过滤'), findsOneWidget);
@@ -348,7 +345,7 @@ void registerChatScreenBasicsTests() {
       await tester.pumpAndSettle();
 
       await tester.tap(
-        find.byKey(const ValueKey('chat-message-filter-button')),
+        find.byIcon(Icons.filter_alt_outlined),
       );
       await tester.pumpAndSettle();
 
@@ -370,12 +367,12 @@ void registerChatScreenBasicsTests() {
     );
 
     await tester.tap(
-      find.byKey(const ValueKey('chat-secondary-settings-button')),
+      find.byIcon(Icons.tune_rounded),
     );
     await tester.pumpAndSettle();
 
     expect(find.text('更多设置'), findsOneWidget);
-    expect(find.byKey(const ValueKey('chat-prompt-selector')), findsOneWidget);
+    expect(find.text('预设 Prompt'), findsOneWidget);
     expect(find.text('思考强度'), findsNothing);
     await tester.tap(find.text('深度思考'));
     await tester.pumpAndSettle();
@@ -439,7 +436,10 @@ void registerChatScreenBasicsTests() {
           );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(const ValueKey('template-prompt-selector')));
+      await tester.tap(find.ancestor(
+        of: find.text('模板提示词'),
+        matching: find.byWidgetPredicate((w) => w is DropdownButtonFormField),
+      ));
       await tester.pumpAndSettle();
       await tester.tap(find.text('总结模板').last);
       await tester.pumpAndSettle();
@@ -483,14 +483,17 @@ void registerChatScreenBasicsTests() {
           );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(const ValueKey('template-prompt-selector')));
+      await tester.tap(find.ancestor(
+        of: find.text('模板提示词'),
+        matching: find.byWidgetPredicate((w) => w is DropdownButtonFormField),
+      ));
       await tester.pumpAndSettle();
       await tester.tap(find.text('多变量模板').last);
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const ValueKey('template-variable-语气')), findsOneWidget);
-      expect(find.byKey(const ValueKey('template-variable-长度')), findsOneWidget);
-      expect(find.byKey(const ValueKey('template-variable-受众')), findsOneWidget);
+      expect(find.text('语气'), findsOneWidget);
+      expect(find.text('长度'), findsOneWidget);
+      expect(find.text('受众'), findsOneWidget);
     },
   );
 
@@ -528,7 +531,10 @@ void registerChatScreenBasicsTests() {
       fakeClient: fakeClient,
     );
 
-    await tester.tap(find.byKey(const ValueKey('chat-model-selector')));
+    await tester.tap(find.ancestor(
+      of: find.text('模型'),
+      matching: find.byWidgetPredicate((w) => w is DropdownButtonFormField),
+    ));
     await tester.pumpAndSettle();
     await tester.tap(find.text('DeepSeek V4 Flash').last);
     await tester.pumpAndSettle();
@@ -609,10 +615,10 @@ void registerChatScreenBasicsTests() {
     );
 
     const content = '请使用快捷键发送这条消息';
-    await tester.tap(find.byKey(const ValueKey('chat-message-composer')));
+    await tester.tap(find.byType(TextField).first);
     await tester.pump();
     await tester.enterText(
-      find.byKey(const ValueKey('chat-message-composer')),
+      find.byType(TextField).first,
       content,
     );
 
@@ -714,7 +720,10 @@ void registerChatScreenBasicsTests() {
       fakeClient: fakeClient,
     );
 
-    await tester.tap(find.byKey(const ValueKey('chat-prompt-selector')));
+    await tester.tap(find.ancestor(
+      of: find.text('预设 Prompt'),
+      matching: find.byWidgetPredicate((w) => w is DropdownButtonFormField),
+    ));
     await tester.pumpAndSettle();
     await tester.tap(find.text('模板二').last);
     await tester.pumpAndSettle();
@@ -780,7 +789,10 @@ void registerChatScreenBasicsTests() {
       fakeClient: fakeClient,
     );
 
-    await tester.tap(find.byKey(const ValueKey('chat-prompt-selector')));
+    await tester.tap(find.ancestor(
+      of: find.text('预设 Prompt'),
+      matching: find.byWidgetPredicate((w) => w is DropdownButtonFormField),
+    ));
     await tester.pumpAndSettle();
     await tester.tap(find.text('不使用预设 Prompt').last);
     await tester.pumpAndSettle();

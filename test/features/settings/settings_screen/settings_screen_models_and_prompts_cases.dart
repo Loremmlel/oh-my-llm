@@ -97,7 +97,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
       expect(find.textContaining('gpt-4.1'), findsNothing);
 
       await tester.tap(
-        find.byKey(const ValueKey('provider-models-toggle-provider-1')),
+        find.widgetWithText(OutlinedButton, '展开模型（2）'),
       );
       await tester.pumpAndSettle();
 
@@ -125,7 +125,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
         '请检查这段代码的边界情况。',
       );
       await tester.tap(
-        find.byKey(const ValueKey('preset-prompt-placement-field')),
+        find.text('前置'),
       );
       await tester.pumpAndSettle();
       await tester.tap(find.text('后置').last);
@@ -197,7 +197,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
       await tester.pumpAndSettle();
       await tester.enterText(presetPromptTitleField(), title);
       await tester.enterText(presetPromptContentField(), content);
-      await tester.tap(find.byKey(const ValueKey('preset-prompt-role-field')));
+      await tester.tap(find.text('User'));
       await tester.pumpAndSettle();
       await tester.tap(find.text(roleLabel).last);
       await tester.pumpAndSettle();
@@ -222,8 +222,9 @@ void registerSettingsScreenModelsAndPromptsTests() {
         size: const Size(1440, 2200),
         initialTabIndex: 1,
       );
-      final masterPane = find.byKey(
-        const ValueKey('preset-prompt-master-pane'),
+      final masterPane = find.ancestor(
+        of: find.text('预设 Prompt 条目'),
+        matching: find.byType(DecoratedBox),
       );
       final addItemButton = find
           .descendant(
@@ -281,7 +282,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
       await fillSelectedItem('后置1', '内容2');
 
       await tester.tap(
-        find.byKey(const ValueKey('preset-prompt-placement-field')),
+        find.text('前置'),
       );
       await tester.pumpAndSettle();
       await tester.tap(find.text('后置').last);
@@ -337,7 +338,10 @@ void registerSettingsScreenModelsAndPromptsTests() {
       await tester.pumpAndSettle();
 
       expect(
-        find.byKey(const ValueKey('settings-form-dialog-outer-scroll-view')),
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.byType(SingleChildScrollView),
+        ),
         findsNothing,
       );
 
@@ -367,7 +371,10 @@ void registerSettingsScreenModelsAndPromptsTests() {
       await tester.pumpAndSettle();
 
       expect(
-        find.byKey(const ValueKey('settings-form-dialog-outer-scroll-view')),
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.byType(SingleChildScrollView),
+        ),
         findsOneWidget,
       );
     },
@@ -388,7 +395,10 @@ void registerSettingsScreenModelsAndPromptsTests() {
     await tester.tap(find.text('新增预设'));
     await tester.pumpAndSettle();
 
-    final masterPane = find.byKey(const ValueKey('preset-prompt-master-pane'));
+    final masterPane = find.ancestor(
+      of: find.text('预设 Prompt 条目'),
+      matching: find.byType(DecoratedBox),
+    );
     final addItemButton = find.descendant(
       of: masterPane,
       matching: find.widgetWithText(OutlinedButton, '新增条目'),
