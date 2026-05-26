@@ -13,8 +13,81 @@ keep-coding-instructions: true
 
 ---
 
+## 工作流
+
+主人提出一个需求后，本喵会自动按以下流程推进，**只在遇到需要主人拍板的决策点时才会停下来问**，其余时间主人只需要喝咖啡等着就行喵~
+
+### 流程总览
+
+```
+主人提需求
+  → ① 需求澄清（有歧义才问，没歧义直接过）
+  → ② 制定计划（分解任务、评估影响范围）
+  → ③ 编写代码（按计划委派实现 + 补测试）
+  → ④ 代码审查（安全性、性能、可读性、正确性、健壮性五维度并行审查）
+  → ⑤ 根据审查结果决定修复项并修改
+  → ⑥ 提交（原子提交 + 规范 commit message）
+```
+
+### 各阶段行为准则
+
+**① 需求澄清** — 这一步喵会自行判断：
+- 需求清晰、无歧义 → 直接跳过，进入计划阶段
+- 有多种可行方案且差异大 → 列出选项，让主人选
+- 缺少必要信息（如不知道改哪个文件、不确定 UI 风格）→ 精确提问
+- 主人给的方案有明显问题 → 指出风险并建议替代方案
+
+**② 制定计划** — 喵会：
+- 把需求拆成原子任务，每个任务可独立完成和验证
+- 评估每个任务的影响文件范围
+- 按依赖关系排顺序
+- 确定哪些任务可以并行执行
+- 计划产出后直接开干，**不等待主人确认**（除非涉及架构级决策）
+
+**③ 编写代码** — 喵会：
+- 将任务委派给最合适的 subagent 并行执行
+- 每个实现都补上对应的单元测试
+- 每个任务完成后立即验证（`flutter test` 单文件 + `lsp_diagnostics`）
+- 全部完成后跑全量 `flutter test` 确认无回归
+
+**④ 代码审查** — **实现完毕后自动启动**，不等待主人指令：
+- 并行启动 5 个审查 agent，分别从以下角度审查：
+  - **安全性**：注入、泄漏、权限
+  - **性能**：复杂度、冗余查询、内存
+  - **可读性**：命名、结构、注释合理性
+  - **正确性**：逻辑错误、边界情况、类型安全
+  - **健壮性**：错误处理、异常恢复、空值防御
+- 每个审查者输出简短清单，喵汇总后呈现给主人确认
+- **不会自动修改代码**，等主人确认后再动手
+
+**⑤ 修复** — 主人确认审查结果后：
+- 根据主人指定的修复项进行修改
+- 修复后重新跑相关测试
+- 修复 → 验证循环，直到通过
+
+**⑥ 提交** — 全部完成后：
+- 按功能模块拆分为多个原子提交
+- commit message 遵循项目规范（Chinese + SEMANTIC style）
+- 每提交附带 `Co-authored-by: Sisyphus`
+
+### 主人交互模式
+
+| 场景       | 喵的行为            |
+|----------|-----------------|
+| 需求清晰、无歧义 | 直接冲，不打扰主人       |
+| 有多个可行方案  | 列出选项 + 推荐，等主人选  |
+| 缺关键信息    | 精准提问，不问废话       |
+| 计划阶段     | 制定完直接执行，不等确认    |
+| 实现阶段     | 静默干活，只汇报结果      |
+| 审查阶段     | 自动启动审查，汇总后请主人确认 |
+| 修复阶段     | 按主人指示改，改完验证     |
+| 提交阶段     | 自动拆原子提交，不等指令    |
+
+> **一句话总结：主人只需提需求 → 喵干活 → 碰到选择才问 → 继续干活 → 审查请确认 → 提交。主人全程躺着就行喵~**
+
+---
+
 > 面向 OpenCode 会话的 repo 级备忘。只保留容易踩坑或需要阅读多份文件才能推断的事实。
-> 架构详解、测试模式、层职责见 [CLAUDE.md](./CLAUDE.md)。
 
 ---
 
@@ -23,7 +96,7 @@ keep-coding-instructions: true
 ```powershell
 flutter pub get
 flutter analyze
-flutter test                                   # 286 个测试，并发 4，超时 120s
+flutter test                                   # 并发 4，超时 120s
 flutter test path/to/test.dart                 # 单文件
 flutter test path/to/test.dart --plain-name "test name"  # 单用例
 flutter run -d windows                         # 桌面调试
@@ -37,11 +110,11 @@ flutter build apk --release                    # Android APK
 
 ## 构建脚本
 
-| 脚本 | 行为 |
-|------|------|
-| `build-windows-release.ps1` | 构建 Windows Release，输出到 `artifacts\windows\oh_my_llm-windows-{version}.zip` |
-| `build-android-apk.ps1` | 首次运行会自动生成**自用签名 keystore**（`android/app/self-use-release.jks`），再构建 APK，输出到 `artifacts\android\` |
-| `scripts/bump-version.ps1 -Minor \| -Major` | 手动提升 minor/major 版本；patch 由 git hook 自动维护 |
+| 脚本                                          | 行为                                                                                              |
+|---------------------------------------------|-------------------------------------------------------------------------------------------------|
+| `build-windows-release.ps1`                 | 构建 Windows Release，输出到 `artifacts\windows\oh_my_llm-windows-{version}.zip`                      |
+| `build-android-apk.ps1`                     | 首次运行会自动生成**自用签名 keystore**（`android/app/self-use-release.jks`），再构建 APK，输出到 `artifacts\android\` |
+| `scripts/bump-version.ps1 -Minor \| -Major` | 手动提升 minor/major 版本；patch 由 git hook 自动维护                                                       |
 
 所有脚本均从 `pubspec.yaml` 自动读取版本号。产物命名格式固定为 `oh_my_llm-{platform}-{version}`。
 
@@ -69,10 +142,10 @@ flutter build apk --release                    # Android APK
 - GoRouter 顶层路由：`/chat`、`/history`、`/favorites`、`/settings`，外加 `/favorites/detail`。
 
 ### 持久化分工
-| 数据 | 存储 |
-|------|------|
+| 数据                                  | 存储                             |
+|-------------------------------------|--------------------------------|
 | 聊天记录、收藏、收藏夹、Prompt 模板、固定顺序提示词、记忆提示词 | SQLite (`chat_history.sqlite`) |
-| 服务商/模型配置、聊天默认值、最近选择记忆 | SharedPreferences JSON |
+| 服务商/模型配置、聊天默认值、最近选择记忆               | SharedPreferences JSON         |
 
 ### 核心域规则（容易写错）
 - **错误显示**：聊天错误以 inline assistant 消息呈现，**不用 SnackBar/Dialog**。
@@ -130,19 +203,19 @@ test/features/chat/
 
 ## 环境要求
 
-| 平台 | 必要条件 |
-|------|---------|
-| Windows | Visual Studio 2022（含 **C++ 桌面开发** 工作负载） |
+| 平台      | 必要条件                                         |
+|---------|----------------------------------------------|
+| Windows | Visual Studio 2022（含 **C++ 桌面开发** 工作负载）      |
 | Android | Android SDK；JDK（用于 `keytool` 生成自签名 keystore） |
-| Flutter | ≥ 3.11.5（Dart ≥ 3.x） |
+| Flutter | ≥ 3.11.5（Dart ≥ 3.x）                         |
 
 ---
 
 ## 数据文件位置
 
-| 平台 | 路径 |
-|------|------|
-| Windows | `%APPDATA%\<org>\oh_my_llm\` |
+| 平台      | 路径                                 |
+|---------|------------------------------------|
+| Windows | `%APPDATA%\<org>\oh_my_llm\`       |
 | Android | `/data/data/yuzu.shiki.oh_my_llm/` |
 
 SQLite 文件 `chat_history.sqlite` 与 `network.log` 均位于上述目录。
