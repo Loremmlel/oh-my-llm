@@ -50,14 +50,26 @@ void main() {
       expect(repository.loadAll(), isEmpty);
     });
 
-    test('save 后 loadAll 返回该收藏记录', () {
-      final fav = _makeFavorite(id: 'fav-1', assistantContent: '很棒的回答');
+    test('save 后 loadAll 返回完整的收藏记录', () {
+      final fav = _makeFavorite(
+        id: 'fav-1',
+        userMessageContent: '用户消息',
+        assistantContent: '模型回复',
+        assistantReasoningContent: '思考过程',
+        sourceConversationId: 'conv-1',
+        sourceConversationTitle: '对话标题',
+        assistantModelDisplayName: 'GPT-4.1',
+      );
       repository.save(fav);
 
-      final result = repository.loadAll();
-      expect(result, hasLength(1));
-      expect(result.first.id, 'fav-1');
-      expect(result.first.assistantContent, '很棒的回答');
+      final result = repository.loadAll().first;
+      expect(result.id, 'fav-1');
+      expect(result.userMessageContent, '用户消息');
+      expect(result.assistantContent, '模型回复');
+      expect(result.assistantReasoningContent, '思考过程');
+      expect(result.sourceConversationId, 'conv-1');
+      expect(result.sourceConversationTitle, '对话标题');
+      expect(result.assistantModelDisplayName, 'GPT-4.1');
     });
 
     test('loadAll 按 created_at 降序排列', () {
@@ -126,41 +138,7 @@ void main() {
       expect(repository.loadAll(), isEmpty);
     });
 
-    test('保存带推理内容的收藏记录后正确还原', () {
-      final fav = _makeFavorite(
-        id: 'fav-1',
-        assistantReasoningContent: '深度思考过程...',
-      );
-      repository.save(fav);
 
-      final result = repository.loadAll().first;
-      expect(result.assistantReasoningContent, '深度思考过程...');
-      expect(result.hasReasoning, isTrue);
-    });
-
-    test('保存含来源对话信息的收藏后正确还原', () {
-      final fav = _makeFavorite(
-        id: 'fav-1',
-        sourceConversationId: 'conv-123',
-        sourceConversationTitle: '关于 Dart 的讨论',
-      );
-      repository.save(fav);
-
-      final result = repository.loadAll().first;
-      expect(result.sourceConversationId, 'conv-123');
-      expect(result.sourceConversationTitle, '关于 Dart 的讨论');
-    });
-
-    test('保存模型显示名后正确还原', () {
-      final fav = _makeFavorite(
-        id: 'fav-1',
-        assistantModelDisplayName: 'Gemini 3.1 Flash Lite',
-      );
-      repository.save(fav);
-
-      final result = repository.loadAll().first;
-      expect(result.assistantModelDisplayName, 'Gemini 3.1 Flash Lite');
-    });
   });
 
   group('SqliteFavoritesRepository - moveToCollection', () {
