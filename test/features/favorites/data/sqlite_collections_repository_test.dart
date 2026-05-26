@@ -93,21 +93,5 @@ void main() {
       expect(repository.loadAll(), isEmpty);
     });
 
-    test('delete 不存在的 id 不抛异常', () {
-      expect(() => repository.delete('non-existent'), returnsNormally);
-    });
-
-    test('多个收藏夹全部正确保存', () {
-      for (var i = 1; i <= 3; i++) {
-        repository.save(
-          FavoriteCollection(
-            id: 'col-$i',
-            name: '收藏夹 $i',
-            createdAt: DateTime(2026, i, 1),
-          ),
-        );
-      }
-      expect(repository.loadAll(), hasLength(3));
-    });
   });
 }

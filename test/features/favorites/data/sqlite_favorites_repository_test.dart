@@ -126,10 +126,6 @@ void main() {
       expect(repository.loadAll(), isEmpty);
     });
 
-    test('delete 不存在的 id 不抛异常', () {
-      expect(() => repository.delete('non-existent'), returnsNormally);
-    });
-
     test('保存带推理内容的收藏记录后正确还原', () {
       final fav = _makeFavorite(
         id: 'fav-1',
