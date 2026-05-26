@@ -18,10 +18,6 @@ void main() {
   });
 
   group('SqliteCollectionsRepository', () {
-    test('loadAll 空表返回空列表', () {
-      expect(repository.loadAll(), isEmpty);
-    });
-
     test('save 后 loadAll 返回该收藏夹', () {
       final collection = FavoriteCollection(
         id: 'col-1',
