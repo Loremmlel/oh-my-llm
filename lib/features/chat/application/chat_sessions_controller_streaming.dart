@@ -93,14 +93,20 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
     required String errorMessage,
   }) async {
     final tree = resolveMessageTreeState(conversation);
-
-    final nextTree = replaceAssistantMessageInTree(
-      treeState: tree,
-      assistantMessageId: assistantMessageId,
-      nextContent: streamingReply.content,
-      nextReasoningContent: streamingReply.reasoningContent,
-      isStreaming: false,
-    );
+    final isEmpty = streamingReply.content.trim().isEmpty &&
+        streamingReply.reasoningContent.trim().isEmpty;
+    final nextTree = isEmpty
+        ? removeNodeFromTree(
+            treeState: tree,
+            nodeId: assistantMessageId,
+          )
+        : replaceAssistantMessageInTree(
+            treeState: tree,
+            assistantMessageId: assistantMessageId,
+            nextContent: streamingReply.content,
+            nextReasoningContent: streamingReply.reasoningContent,
+            isStreaming: false,
+          );
 
     final nextConversation = conversation.copyWith(
       messageNodes: nextTree.nodes,
@@ -202,6 +208,36 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
       );
       latestStreamingReply = streamingReply;
       replaceStreamingReplyInMemory(streamingReply);
+
+      // 空回复：移除空白占位节点，走失败路径触发重试
+      if (_isEmptyStreamingReply(streamingReply: streamingReply)) {
+        final tree = resolveMessageTreeState(streamingConversation);
+        final nextTree = removeNodeFromTree(
+          treeState: tree,
+          nodeId: assistantMessage.id,
+        );
+        final cleanedConversation = streamingConversation.copyWith(
+          messageNodes: nextTree.nodes,
+          selectedChildByParentId: nextTree.selections,
+          updatedAt: DateTime.now(),
+        );
+        state = state.copyWith(
+          conversations: replaceConversation(cleanedConversation),
+          conversationSummaries: replaceOrAddSummary(
+            state.conversationSummaries,
+            summaryFromConversation(cleanedConversation),
+          ),
+          isStreaming: false,
+          errorMessage: '模型返回了空回复，自动重试继续',
+          errorMessageAssistantId: assistantMessage.id,
+          clearStreamingReply: true,
+          incrementHistoryRevision: true,
+        );
+        saveAllConversations();
+        completeActiveStreaming(null);
+        clearActiveStreamingSession();
+        return;
+      }
 
       final completedConversation = applyStreamingReplyToConversation(
         conversation: streamingConversation,
@@ -308,8 +344,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
     }
 
     final hasPartialContent =
-        streamingReply.content.trim().isNotEmpty ||
-        streamingReply.reasoningContent.trim().isNotEmpty;
+        !_isEmptyStreamingReply(streamingReply: streamingReply);
     final tree = resolveMessageTreeState(conversation);
     final nextTree = hasPartialContent
         ? replaceAssistantMessageInTree(
@@ -329,6 +364,14 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
       selectedChildByParentId: nextTree.selections,
       updatedAt: DateTime.now(),
     );
+  }
+
+  /// 检查流式回复是否为空（无正文内容且无推理内容）。
+  static bool _isEmptyStreamingReply({
+    required ChatStreamingReply streamingReply,
+  }) {
+    return streamingReply.content.trim().isEmpty &&
+        streamingReply.reasoningContent.trim().isEmpty;
   }
 
   void completeActiveStreaming(ChatConversation? conversation) {
