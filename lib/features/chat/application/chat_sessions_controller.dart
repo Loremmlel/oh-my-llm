@@ -710,7 +710,11 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         .take(latestAssistantIndex)
         .toList(growable: false);
     final errorAssistantId = state.errorMessageAssistantId;
-    if (errorAssistantId != null && errorAssistantId == latestAssistant.id) {
+    final isEmptyReply = latestAssistant.content.trim().isEmpty &&
+        latestAssistant.reasoningContent.trim().isEmpty;
+    final shouldRemoveNode = (errorAssistantId != null && errorAssistantId == latestAssistant.id)
+        || isEmptyReply;
+    if (shouldRemoveNode) {
       final nextTree = removeNodeFromTree(
         treeState: tree,
         nodeId: latestAssistant.id,
