@@ -332,7 +332,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
       return;
     }
 
-    state = state.copyWith(streamingReply: streamingReply, isStreaming: true);
+    state = state.copyWith(streamingReply: streamingReply);
   }
 
   ChatConversation buildConversationAfterStreamingInterrupt({
