@@ -401,18 +401,17 @@ void main() {
     expect(state.isStreaming, isFalse);
   });
 
-  test('sendMessage 错误且无部分内容时保留占位 assistant 节点', () async {
+  test('sendMessage 错误且无部分内容时删除空白占位节点', () async {
     fakeClient.enqueueError(ChatCompletionException('请求失败'));
     await sendMsg('触发错误');
 
-    // 空流失败后 assistant 占位节点仍保留，用于展示错误信息
+    // 空流失败后空白 assistant 节点被删除，仅保留用户消息
     final state = container.read(chatSessionsProvider);
     final messages = state.activeConversation.messages;
-    expect(messages.length, 2);
+    expect(messages.length, 1);
     expect(messages.first.role, ChatMessageRole.user);
-    expect(messages.last.role, ChatMessageRole.assistant);
-    expect(messages.last.content, isEmpty);
-    expect(state.errorMessageAssistantId, messages.last.id);
+    expect(state.errorMessage, isNotNull);
+    expect(state.errorMessageAssistantId, isNotNull);
   });
 
   test('sendMessage 仅收到 reasoning 后失败时保留占位 assistant 节点', () async {
@@ -659,10 +658,10 @@ void main() {
     fakeClient.enqueueError(ChatCompletionException('503 unavailable'));
     await sendMsg('先失败后重试');
     final failureState = container.read(chatSessionsProvider);
-    expect(failureState.activeConversation.messages, hasLength(2));
-    final failedAssistant = failureState.activeConversation.messages.last;
-    expect(failedAssistant.role, ChatMessageRole.assistant);
-    expect(failureState.errorMessageAssistantId, failedAssistant.id);
+    // 空内容失败后空白节点被删除，仅剩用户消息
+    expect(failureState.activeConversation.messages, hasLength(1));
+    expect(failureState.errorMessage, isNotNull);
+    expect(failureState.errorMessageAssistantId, isNotNull);
 
     fakeClient.enqueueChunks(['重试成功回复']);
     await container.read(chatSessionsProvider.notifier).retryLatestAssistant();
@@ -1002,5 +1001,82 @@ void main() {
     expect(state.autoRetryCount, 0);
     expect(state.isAutoRetryWaiting, isFalse);
     expect(fakeClient.requestHistory.length, 1);
+  });
+
+  // ── 空回复 ──────────────────────────────────────────────────────────────────
+
+  test('autoRetry 遇到空回复继续重试直到成功', () async {
+    container
+        .read(chatSessionsProvider.notifier)
+        .updateActiveConversationPreferences(autoRetryEnabled: true);
+    fakeClient.enqueueChunks(['']);        // 首次：空回复
+    fakeClient.enqueueChunks(['终于成功']); // 重试：正常回复
+
+    await sendMsg('测试空回复重试', retryDelay: Duration.zero);
+
+    final state = container.read(chatSessionsProvider);
+    expect(state.activeConversation.messages.last.content, '终于成功');
+    expect(fakeClient.requestHistory.length, 2);
+    expect(state.errorMessage, isNull);
+  });
+
+  test('autoRetry 连续空回复达到上限退出', () async {
+    container
+        .read(chatSessionsProvider.notifier)
+        .updateActiveConversationPreferences(autoRetryEnabled: true);
+
+    // 设置 maxRetryCount=2，3 次空回复后触发上限
+    final prefs = container.read(sharedPreferencesProvider);
+    await prefs.setString(
+      'settings.auto_retry',
+      '{"maxJitterSeconds":0,"maxRetryCount":2}',
+    );
+    fakeClient.enqueueChunks(['']); // 第 1 次空
+    fakeClient.enqueueChunks(['']); // 第 2 次空
+    fakeClient.enqueueChunks(['']); // 第 3 次空（超出上限）
+
+    await sendMsg('测试上限', retryDelay: Duration.zero);
+
+    final state = container.read(chatSessionsProvider);
+    expect(state.errorMessage, contains('重试已达上限'));
+  });
+
+  test('手动重试空回复时删除空节点并重试', () async {
+    fakeClient.enqueueChunks(['']);        // 空回复
+    fakeClient.enqueueChunks(['重试回复']);
+
+    await sendMsg('测试空回复');
+
+    await container.read(chatSessionsProvider.notifier).retryLatestAssistant();
+
+    final state = container.read(chatSessionsProvider);
+    expect(state.activeConversation.messages.length, 2); // user + new assistant
+    expect(state.activeConversation.messages.last.content, '重试回复');
+    expect(state.errorMessage, isNull);
+  });
+
+  test('流式错误且空内容时删除空节点保留错误信息', () async {
+    fakeClient.enqueueError(ChatCompletionException('模拟流式错误'));
+
+    await sendMsg('触发错误');
+
+    final state = container.read(chatSessionsProvider);
+    expect(state.errorMessage, isNotNull);
+    // 空白 assistant 节点不应出现在消息列表中
+    final hasEmptyAssistant = state.activeConversation.messages.any(
+      (m) => m.role == ChatMessageRole.assistant && m.content.isEmpty,
+    );
+    expect(hasEmptyAssistant, isFalse);
+  });
+
+  test('空回复且无自动重试时不自动重试', () async {
+    // autoRetryEnabled 默认 false
+    fakeClient.enqueueChunks(['']);
+
+    await sendMsg('测试');
+
+    final state = container.read(chatSessionsProvider);
+    expect(state.errorMessage, isNotNull);
+    expect(fakeClient.requestHistory.length, 1); // 仅一次，不重试
   });
 }
