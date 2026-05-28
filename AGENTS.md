@@ -118,7 +118,7 @@ flutter build apk --release                    # Android APK
 |---------------------------------------------|-------------------------------------------------------------------------------------------------|
 | `build-windows-release.ps1`                 | 构建 Windows Release，输出到 `artifacts\windows\oh_my_llm-windows-{version}.zip`                      |
 | `build-android-apk.ps1`                     | 首次运行会自动生成**自用签名 keystore**（`android/app/self-use-release.jks`），再构建 APK，输出到 `artifacts\android\` |
-| `scripts/bump-version.ps1 -Minor \| -Major` | 手动提升 minor/major 版本；patch 由 git hook 自动维护                                                       |
+| `scripts/bump-version.ps1 -Minor \| -Major` | 手动提升 minor/major 版本；日常 patch/minor/major 由 pre-commit hook 根据 commit message 自动管理               |
 
 所有脚本均从 `pubspec.yaml` 自动读取版本号。产物命名格式固定为 `oh_my_llm-{platform}-{version}`。
 
@@ -126,7 +126,7 @@ flutter build apk --release                    # Android APK
 
 ## Git 工作流
 
-- **pre-commit hook**：安装方式 `git config core.hooksPath .githooks`。每次提交前自动将 `pubspec.yaml` 的 patch 版本 +1 并暂存。patch 无需手动维护。
+- **pre-commit hook**：安装方式 `git config core.hooksPath .githooks`。每次提交前根据 commit message 第一行语义自动更新版本号：`feat:` → minor+1、`type!:` → major+1、其他 → patch+1。仅 `git commit -m` 生效（编辑器提交因 message 尚未写入，默认退化为 patch+1）。改动 >500 行且无标准前缀时提醒但不阻塞。
 - **提交粒度**：每个功能点 / 修复单独提交，不批量合并无关改动。
 
 ---
@@ -138,8 +138,7 @@ flutter build apk --release                    # Android APK
 1. `SharedPreferences.getInstance()`
 2. `AppDatabase.open()`（SQLite，文件位于应用 Support 目录）
 3. `AppNetworkLogger.create()`（日志写入 `{db_parent}/network.log`）
-4. `runAppDataMigrations()`（一次性将旧版 SharedPreferences 数据迁移到 SQLite，完成后删除旧键）
-5. 注入三个 Riverpod override 后启动 `ProviderScope`
+4. 注入三个 Riverpod override 后启动 `ProviderScope`
 
 ### 导航与响应式
 - `lib/app/shell/app_shell_scaffold.dart` 是响应式导航壳。**断点 ≥ 840dp** 用 `NavigationRail`，否则用 `NavigationBar` + `endDrawer`。
