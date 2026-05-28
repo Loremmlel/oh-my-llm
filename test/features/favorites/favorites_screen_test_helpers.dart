@@ -104,6 +104,6 @@ FavoriteCollection seedCollection(
   return collection;
 }
 
-Future<SharedPreferences> createEmptyPreferences() async {
-  return TestFixtures.seedPreferences();
+Future<SharedPreferences> createEmptyPreferences(AppDatabase database) async {
+  return TestFixtures.seedPreferences(database: database);
 }

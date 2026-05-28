@@ -14,9 +14,13 @@ import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart'
 import '../../../helpers/fixtures.dart';
 import '../../../helpers/test_harness.dart';
 
-/// 创建包含聊天页所需种子数据的 SharedPreferences。
-Future<SharedPreferences> createSeededPreferences() async {
+/// 将默认种子数据写入 SQLite 数据库。
+///
+/// 种子数据包括：GPT-4.1 模型、代码助手提示词、对比测试流程固定序列。
+/// 模型配置写入 SharedPreferences，提示词和序列写入 SQLite。
+Future<SharedPreferences> seedDefaultTestData(AppDatabase database) async {
   return TestFixtures.seedPreferences(
+    database: database,
     models: [TestFixtures.gpt41()],
     prompts: [TestFixtures.codeAssistantPrompt()],
     sequences: [
@@ -40,16 +44,29 @@ Future<SharedPreferences> createSeededPreferences() async {
 }
 
 /// 挂载 ChatScreen 到标准测试环境并返回数据库实例。
+///
+/// 自动创建内存数据库、种子默认数据并注入 ProviderScope。
+/// 可通过 [database] 传入已种子数据的外部数据库实例。
 Future<AppDatabase> pumpChatScreen(
   WidgetTester tester, {
-  required SharedPreferences preferences,
   required FakeChatCompletionClient fakeClient,
+  SharedPreferences? preferences,
+  AppDatabase? database,
   Size size = const Size(1440, 1600),
 }) async {
+  final db = database ?? AppDatabase.inMemory();
+  final ownsDatabase = database == null;
+  if (ownsDatabase) {
+    addTearDown(db.close);
+  }
+
+  final prefs = preferences ?? await seedDefaultTestData(db);
+
   return pumpTestApp(
     tester,
     child: const ChatScreen(),
-    preferences: preferences,
+    preferences: prefs,
+    database: db,
     viewportSize: size,
     extraOverrides: [
       chatCompletionClientProvider.overrideWithValue(fakeClient),

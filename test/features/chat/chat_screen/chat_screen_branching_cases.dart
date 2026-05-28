@@ -14,16 +14,14 @@ void registerChatScreenBranchingTests() {
   testWidgets(
     'chat screen edits user message and regenerates following replies',
     (tester) async {
-      final preferences = await createSeededPreferences();
-      final fakeClient = FakeChatCompletionClient()
+        final fakeClient = FakeChatCompletionClient()
         ..enqueueChunks(['原始回复一'])
         ..enqueueChunks(['原始回复二'])
         ..enqueueChunks(['原始回复三']);
 
       await pumpChatScreen(
         tester,
-        preferences: preferences,
-        fakeClient: fakeClient,
+          fakeClient: fakeClient,
       );
 
       await sendMessage(tester, '第一条原始问题');
@@ -70,14 +68,12 @@ void registerChatScreenBranchingTests() {
   );
 
   testWidgets('chat screen retries latest assistant reply', (tester) async {
-    final preferences = await createSeededPreferences();
     final fakeClient = FakeChatCompletionClient()
       ..enqueueChunks(['原始回复'])
       ..enqueueChunks(['重试后的回复']);
 
     await pumpChatScreen(
       tester,
-      preferences: preferences,
       fakeClient: fakeClient,
     );
 
@@ -96,14 +92,12 @@ void registerChatScreenBranchingTests() {
   });
 
   testWidgets('retry keeps assistant sibling versions in tree', (tester) async {
-    final preferences = await createSeededPreferences();
     final fakeClient = FakeChatCompletionClient()
       ..enqueueChunks(['首次回复'])
       ..enqueueChunks(['重试后回复']);
 
     await pumpChatScreen(
       tester,
-      preferences: preferences,
       fakeClient: fakeClient,
     );
 
@@ -149,15 +143,13 @@ void registerChatScreenBranchingTests() {
   testWidgets(
     'failed request shows inline error bubble and retries without 2/2',
     (tester) async {
-      final preferences = await createSeededPreferences();
-      final fakeClient = FakeChatCompletionClient()
+        final fakeClient = FakeChatCompletionClient()
         ..enqueueError(ChatCompletionException('HTTP 503: unavailable'))
         ..enqueueChunks(['重试恢复成功']);
 
       await pumpChatScreen(
         tester,
-        preferences: preferences,
-        fakeClient: fakeClient,
+          fakeClient: fakeClient,
       );
 
       await sendMessage(tester, '先触发一次错误');
@@ -177,7 +169,6 @@ void registerChatScreenBranchingTests() {
   testWidgets('editing user message creates switchable root branches', (
     tester,
   ) async {
-    final preferences = await createSeededPreferences();
     final fakeClient = FakeChatCompletionClient()
       ..enqueueChunks(['原始回复一'])
       ..enqueueChunks(['原始回复二'])
@@ -185,7 +176,6 @@ void registerChatScreenBranchingTests() {
 
     await pumpChatScreen(
       tester,
-      preferences: preferences,
       fakeClient: fakeClient,
     );
 
@@ -234,14 +224,12 @@ void registerChatScreenBranchingTests() {
   testWidgets('delete message dialog offers current branch or all versions', (
     tester,
   ) async {
-    final preferences = await createSeededPreferences();
     final fakeClient = FakeChatCompletionClient()
       ..enqueueChunks(['首次回复'])
       ..enqueueChunks(['重试后回复']);
 
     await pumpChatScreen(
       tester,
-      preferences: preferences,
       fakeClient: fakeClient,
     );
 
@@ -268,14 +256,12 @@ void registerChatScreenBranchingTests() {
   testWidgets('delete all assistant versions removes the reply node', (
     tester,
   ) async {
-    final preferences = await createSeededPreferences();
     final fakeClient = FakeChatCompletionClient()
       ..enqueueChunks(['首次回复'])
       ..enqueueChunks(['重试后回复']);
 
     await pumpChatScreen(
       tester,
-      preferences: preferences,
       fakeClient: fakeClient,
     );
 

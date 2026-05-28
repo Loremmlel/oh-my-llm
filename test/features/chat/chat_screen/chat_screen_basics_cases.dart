@@ -1,52 +1,43 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
-import 'package:oh_my_llm/features/chat/data/chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/thinking_toggle.dart';
 import 'package:oh_my_llm/features/settings/application/llm_model_configs_controller.dart';
 import 'package:oh_my_llm/features/settings/application/memory_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/application/template_prompts_controller.dart';
-import 'package:oh_my_llm/features/settings/data/chat_defaults_repository.dart';
-import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dart';
-import 'package:oh_my_llm/features/settings/data/preset_prompt_repository.dart';
 import 'package:oh_my_llm/features/settings/domain/models/memory_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
 
+import '../../../helpers/fixtures.dart';
 import 'chat_screen_test_helpers.dart';
 
 void registerChatScreenBasicsTests() {
   testWidgets('chat screen uses remembered model for reasoning capability', (
     tester,
   ) async {
-    SharedPreferences.setMockInitialValues({
-      llmModelConfigsStorageKey: jsonEncode([
-        {
-          'id': 'model-legacy',
-          'displayName': 'Legacy',
-          'apiUrl': 'https://api.example.com/v1/chat/completions',
-          'apiKey': 'sk-test',
-          'modelName': 'legacy',
-          'supportsReasoning': false,
-        },
-        {
-          'id': 'model-new',
-          'displayName': 'DeepSeek V4 Flash',
-          'apiUrl': 'https://api.example.com/v1/chat/completions',
-          'apiKey': 'sk-test',
-          'modelName': 'deepseek-v4-flash',
-          'supportsReasoning': true,
-        },
-      ]),
-      chatDefaultsStorageKey: jsonEncode({'defaultModelId': 'model-new'}),
-      chatConversationsStorageKey: jsonEncode([
+    final database = AppDatabase.inMemory();
+    addTearDown(database.close);
+
+    final preferences = await TestFixtures.seedPreferences(
+      database: database,
+      models: [
+        TestFixtures.model(
+          id: 'model-legacy',
+          displayName: 'Legacy',
+          modelName: 'legacy',
+          supportsReasoning: false,
+        ),
+        TestFixtures.deepSeekV4().copyWith(id: 'model-new'),
+      ],
+      chatDefaults: {'defaultModelId': 'model-new'},
+      conversations: [
         {
           'id': 'conversation-1',
           'title': '旧会话',
@@ -58,13 +49,14 @@ void registerChatScreenBasicsTests() {
           'reasoningEnabled': false,
           'reasoningEffort': 'medium',
         },
-      ]),
-    });
-    final preferences = await SharedPreferences.getInstance();
+      ],
+    );
+
     final fakeClient = FakeChatCompletionClient();
     await pumpChatScreen(
       tester,
       preferences: preferences,
+      database: database,
       fakeClient: fakeClient,
     );
 
@@ -74,12 +66,10 @@ void registerChatScreenBasicsTests() {
   testWidgets('chat screen renames conversation without controller errors', (
     tester,
   ) async {
-    final preferences = await createSeededPreferences();
     final fakeClient = FakeChatCompletionClient();
 
     await pumpChatScreen(
       tester,
-      preferences: preferences,
       fakeClient: fakeClient,
     );
 
@@ -102,12 +92,10 @@ void registerChatScreenBasicsTests() {
   testWidgets('chat screen keeps custom title after sending a new reply', (
     tester,
   ) async {
-    final preferences = await createSeededPreferences();
     final fakeClient = FakeChatCompletionClient()..enqueueChunks(['新的回答']);
 
     await pumpChatScreen(
       tester,
-      preferences: preferences,
       fakeClient: fakeClient,
     );
     final container = ProviderScope.containerOf(
@@ -138,12 +126,10 @@ void registerChatScreenBasicsTests() {
   testWidgets(
     'chat screen opens checkpoints dialog and shows current word count',
     (tester) async {
-      final preferences = await createSeededPreferences();
-      final fakeClient = FakeChatCompletionClient()..enqueueChunks(['已收到']);
+        final fakeClient = FakeChatCompletionClient()..enqueueChunks(['已收到']);
 
       await pumpChatScreen(
         tester,
-        preferences: preferences,
         fakeClient: fakeClient,
       );
 
@@ -161,12 +147,10 @@ void registerChatScreenBasicsTests() {
   testWidgets(
     'chat screen checkpoints dialog shows current prompt template usage',
     (tester) async {
-      final preferences = await createSeededPreferences();
-      final fakeClient = FakeChatCompletionClient();
+        final fakeClient = FakeChatCompletionClient();
 
       await pumpChatScreen(
         tester,
-        preferences: preferences,
         fakeClient: fakeClient,
       );
 
@@ -190,8 +174,7 @@ void registerChatScreenBasicsTests() {
   testWidgets(
     'chat screen checkpoints dialog renders markdown preview in scrollable area',
     (tester) async {
-      final preferences = await createSeededPreferences();
-      final fakeClient = FakeChatCompletionClient()
+        final fakeClient = FakeChatCompletionClient()
         ..enqueueChunks(['首轮回复'])
         ..enqueueChunks([
           '# 检查点标题\n\n'
@@ -207,7 +190,6 @@ void registerChatScreenBasicsTests() {
 
       await pumpChatScreen(
         tester,
-        preferences: preferences,
         fakeClient: fakeClient,
       );
 
@@ -257,14 +239,12 @@ void registerChatScreenBasicsTests() {
   testWidgets('chat screen can exclude a reply from future requests', (
     tester,
   ) async {
-    final preferences = await createSeededPreferences();
     final fakeClient = FakeChatCompletionClient()
       ..enqueueChunks(['首轮回复'])
       ..enqueueChunks(['第二轮回复']);
 
     await pumpChatScreen(
       tester,
-      preferences: preferences,
       fakeClient: fakeClient,
     );
 
@@ -291,14 +271,12 @@ void registerChatScreenBasicsTests() {
   testWidgets('chat screen can restore excluded messages from filter dialog', (
     tester,
   ) async {
-    final preferences = await createSeededPreferences();
     final fakeClient = FakeChatCompletionClient()
       ..enqueueChunks(['首轮回复'])
       ..enqueueChunks(['第二轮回复']);
 
     await pumpChatScreen(
       tester,
-      preferences: preferences,
       fakeClient: fakeClient,
     );
 
@@ -331,13 +309,11 @@ void registerChatScreenBasicsTests() {
   testWidgets(
     'message filter dialog uses the same word-count rule as checkpoints',
     (tester) async {
-      final preferences = await createSeededPreferences();
-      final fakeClient = FakeChatCompletionClient()
+        final fakeClient = FakeChatCompletionClient()
         ..enqueueChunks(['done 456']);
 
       await pumpChatScreen(
         tester,
-        preferences: preferences,
         fakeClient: fakeClient,
       );
 
@@ -356,12 +332,10 @@ void registerChatScreenBasicsTests() {
   testWidgets('chat screen opens compact secondary settings sheet on mobile', (
     tester,
   ) async {
-    final preferences = await createSeededPreferences();
     final fakeClient = FakeChatCompletionClient();
 
     await pumpChatScreen(
       tester,
-      preferences: preferences,
       fakeClient: fakeClient,
       size: const Size(430, 932),
     );
@@ -383,12 +357,10 @@ void registerChatScreenBasicsTests() {
   testWidgets('chat screen can collapse and expand the composer', (
     tester,
   ) async {
-    final preferences = await createSeededPreferences();
     final fakeClient = FakeChatCompletionClient();
 
     await pumpChatScreen(
       tester,
-      preferences: preferences,
       fakeClient: fakeClient,
     );
 
@@ -409,12 +381,10 @@ void registerChatScreenBasicsTests() {
   testWidgets(
     'chat screen inserts body above template when 正文 placeholder is absent',
     (tester) async {
-      final preferences = await createSeededPreferences();
-      final fakeClient = FakeChatCompletionClient()..enqueueChunks(['已收到']);
+        final fakeClient = FakeChatCompletionClient()..enqueueChunks(['已收到']);
 
       await pumpChatScreen(
         tester,
-        preferences: preferences,
         fakeClient: fakeClient,
       );
 
@@ -454,12 +424,10 @@ void registerChatScreenBasicsTests() {
   testWidgets(
     'chat screen shows multiple template variable inputs on wide screens',
     (tester) async {
-      final preferences = await createSeededPreferences();
-      final fakeClient = FakeChatCompletionClient();
+        final fakeClient = FakeChatCompletionClient();
 
       await pumpChatScreen(
         tester,
-        preferences: preferences,
         fakeClient: fakeClient,
       );
 
@@ -500,27 +468,22 @@ void registerChatScreenBasicsTests() {
   testWidgets('chat screen remembers selected model for new conversations', (
     tester,
   ) async {
-    SharedPreferences.setMockInitialValues({
-      llmModelConfigsStorageKey: jsonEncode([
-        {
-          'id': 'model-legacy',
-          'displayName': 'Legacy',
-          'apiUrl': 'https://api.example.com/v1/chat/completions',
-          'apiKey': 'sk-test',
-          'modelName': 'legacy',
-          'supportsReasoning': false,
-        },
-        {
-          'id': 'model-new',
-          'displayName': 'DeepSeek V4 Flash',
-          'apiUrl': 'https://api.example.com/v1/chat/completions',
-          'apiKey': 'sk-test',
-          'modelName': 'deepseek-v4-flash',
-          'supportsReasoning': true,
-        },
-      ]),
-    });
-    final preferences = await SharedPreferences.getInstance();
+    final database = AppDatabase.inMemory();
+    addTearDown(database.close);
+
+    final preferences = await TestFixtures.seedPreferences(
+      database: database,
+      models: [
+        TestFixtures.model(
+          id: 'model-legacy',
+          displayName: 'Legacy',
+          modelName: 'legacy',
+          supportsReasoning: false,
+        ),
+        TestFixtures.deepSeekV4().copyWith(id: 'model-new'),
+      ],
+    );
+
     final fakeClient = FakeChatCompletionClient()
       ..enqueueChunks(['第一次回复'])
       ..enqueueChunks(['第二次回复']);
@@ -528,6 +491,7 @@ void registerChatScreenBasicsTests() {
     await pumpChatScreen(
       tester,
       preferences: preferences,
+      database: database,
       fakeClient: fakeClient,
     );
 
@@ -555,12 +519,10 @@ void registerChatScreenBasicsTests() {
   testWidgets('chat screen fills composer from fixed prompt sequence runner', (
     tester,
   ) async {
-    final preferences = await createSeededPreferences();
     final fakeClient = FakeChatCompletionClient();
 
     await pumpChatScreen(
       tester,
-      preferences: preferences,
       fakeClient: fakeClient,
     );
 
@@ -579,14 +541,12 @@ void registerChatScreenBasicsTests() {
   testWidgets('chat screen sends fixed prompt sequence step and advances', (
     tester,
   ) async {
-    final preferences = await createSeededPreferences();
     final fakeClient = FakeChatCompletionClient()..enqueueChunks(['已收到']);
 
-    await pumpChatScreen(
-      tester,
-      preferences: preferences,
-      fakeClient: fakeClient,
-    );
+      await pumpChatScreen(
+        tester,
+        fakeClient: fakeClient,
+      );
 
     await tester.tap(find.byTooltip('固定顺序提示词'));
     await tester.pumpAndSettle();
@@ -605,12 +565,10 @@ void registerChatScreenBasicsTests() {
   testWidgets('chat screen sends message with Ctrl+Enter shortcut', (
     tester,
   ) async {
-    final preferences = await createSeededPreferences();
     final fakeClient = FakeChatCompletionClient()..enqueueChunks(['快捷键发送成功']);
 
     await pumpChatScreen(
       tester,
-      preferences: preferences,
       fakeClient: fakeClient,
     );
 
@@ -634,7 +592,6 @@ void registerChatScreenBasicsTests() {
   testWidgets('chat screen scroll-to-bottom button returns to latest message', (
     tester,
   ) async {
-    final preferences = await createSeededPreferences();
     final fakeClient = FakeChatCompletionClient();
     for (var index = 1; index <= 8; index += 1) {
       fakeClient.enqueueChunks(['第 $index 条回复：${'内容 ' * 20}']);
@@ -642,7 +599,6 @@ void registerChatScreenBasicsTests() {
 
     await pumpChatScreen(
       tester,
-      preferences: preferences,
       fakeClient: fakeClient,
       size: const Size(900, 520),
     );
@@ -667,49 +623,42 @@ void registerChatScreenBasicsTests() {
   testWidgets('chat screen remembers selected Prompt for new conversations', (
     tester,
   ) async {
-    SharedPreferences.setMockInitialValues({
-      llmModelConfigsStorageKey: jsonEncode([
-        {
-          'id': 'model-1',
-          'displayName': 'GPT-4.1',
-          'apiUrl': 'https://api.example.com/v1/chat/completions',
-          'apiKey': 'sk-test-12345678',
-          'modelName': 'gpt-4.1',
-          'supportsReasoning': true,
-        },
-      ]),
-      presetPromptsStorageKey: jsonEncode([
-        {
-          'id': 'prompt-1',
-          'name': '模板一',
-          'systemPrompt': '',
-          'messages': [
-            {
-              'id': 'prompt-1-message-1',
-              'role': 'user',
-              'content': '模板一前置',
-              'placement': 'before',
-            },
+    final database = AppDatabase.inMemory();
+    addTearDown(database.close);
+
+    final preferences = await TestFixtures.seedPreferences(
+      database: database,
+      models: [TestFixtures.gpt41()],
+      prompts: [
+        TestFixtures.presetPrompt(
+          id: 'prompt-1',
+          name: '模板一',
+          messages: const [
+            PromptMessage(
+              id: 'prompt-1-message-1',
+              role: PromptMessageRole.user,
+              content: '模板一前置',
+              placement: PromptMessagePlacement.before,
+            ),
           ],
-          'updatedAt': DateTime(2026, 4, 30).toIso8601String(),
-        },
-        {
-          'id': 'prompt-2',
-          'name': '模板二',
-          'systemPrompt': '',
-          'messages': [
-            {
-              'id': 'prompt-2-message-1',
-              'role': 'user',
-              'content': '模板二前置',
-              'placement': 'before',
-            },
+          updatedAt: DateTime(2026, 4, 30),
+        ),
+        TestFixtures.presetPrompt(
+          id: 'prompt-2',
+          name: '模板二',
+          messages: const [
+            PromptMessage(
+              id: 'prompt-2-message-1',
+              role: PromptMessageRole.user,
+              content: '模板二前置',
+              placement: PromptMessagePlacement.before,
+            ),
           ],
-          'updatedAt': DateTime(2026, 4, 30, 0, 1).toIso8601String(),
-        },
-      ]),
-    });
-    final preferences = await SharedPreferences.getInstance();
+          updatedAt: DateTime(2026, 4, 30, 0, 1),
+        ),
+      ],
+    );
+
     final fakeClient = FakeChatCompletionClient()
       ..enqueueChunks(['第一次回复'])
       ..enqueueChunks(['第二次回复']);
@@ -717,6 +666,7 @@ void registerChatScreenBasicsTests() {
     await pumpChatScreen(
       tester,
       preferences: preferences,
+      database: database,
       fakeClient: fakeClient,
     );
 
@@ -747,38 +697,30 @@ void registerChatScreenBasicsTests() {
   testWidgets('chat screen can clear remembered Prompt from selector', (
     tester,
   ) async {
-    SharedPreferences.setMockInitialValues({
-      llmModelConfigsStorageKey: jsonEncode([
-        {
-          'id': 'model-1',
-          'displayName': 'GPT-4.1',
-          'apiUrl': 'https://api.example.com/v1/chat/completions',
-          'apiKey': 'sk-test-12345678',
-          'modelName': 'gpt-4.1',
-          'supportsReasoning': true,
-        },
-      ]),
-      presetPromptsStorageKey: jsonEncode([
-        {
-          'id': 'prompt-1',
-          'name': '模板一',
-          'systemPrompt': '',
-          'messages': [
-            {
-              'id': 'prompt-1-message-1',
-              'role': 'user',
-              'content': '模板一前置',
-              'placement': 'before',
-            },
+    final database = AppDatabase.inMemory();
+    addTearDown(database.close);
+
+    final preferences = await TestFixtures.seedPreferences(
+      database: database,
+      models: [TestFixtures.gpt41()],
+      prompts: [
+        TestFixtures.presetPrompt(
+          id: 'prompt-1',
+          name: '模板一',
+          messages: const [
+            PromptMessage(
+              id: 'prompt-1-message-1',
+              role: PromptMessageRole.user,
+              content: '模板一前置',
+              placement: PromptMessagePlacement.before,
+            ),
           ],
-          'updatedAt': DateTime(2026, 4, 30).toIso8601String(),
-        },
-      ]),
-      chatDefaultsStorageKey: jsonEncode({
-        'defaultPresetPromptId': 'prompt-1',
-      }),
-    });
-    final preferences = await SharedPreferences.getInstance();
+          updatedAt: DateTime(2026, 4, 30),
+        ),
+      ],
+      chatDefaults: {'defaultPresetPromptId': 'prompt-1'},
+    );
+
     final fakeClient = FakeChatCompletionClient()
       ..enqueueChunks(['第一次回复'])
       ..enqueueChunks(['第二次回复']);
@@ -786,6 +728,7 @@ void registerChatScreenBasicsTests() {
     await pumpChatScreen(
       tester,
       preferences: preferences,
+      database: database,
       fakeClient: fakeClient,
     );
 

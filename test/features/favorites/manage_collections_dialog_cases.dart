@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/favorites/presentation/widgets/dialogs/manage_collections_dialog.dart';
 
-import '../../test_database.dart';
 import 'favorites_screen_test_helpers.dart';
 
 void registerManageCollectionsDialogTests() {
   testWidgets('manage collections dialog shows empty state', (tester) async {
-    final preferences = await createEmptyPreferences();
+    final database = AppDatabase.inMemory();
+    addTearDown(database.close);
+    final preferences = await createEmptyPreferences(database);
 
-    await pumpFavoritesScreen(tester, preferences: preferences);
+    await pumpFavoritesScreen(tester, preferences: preferences, database: database);
 
     await tester.tap(find.byTooltip('管理收藏夹'));
     await tester.pumpAndSettle();
@@ -20,8 +22,9 @@ void registerManageCollectionsDialogTests() {
   });
 
   testWidgets('manage collections dialog renames collection', (tester) async {
-    final preferences = await createEmptyPreferences();
-    final database = await createTestDatabase(preferences);
+    final database = AppDatabase.inMemory();
+    addTearDown(database.close);
+    final preferences = await createEmptyPreferences(database);
 
     seedCollection(database, id: 'col-1', name: '旧名称');
 
@@ -55,8 +58,9 @@ void registerManageCollectionsDialogTests() {
   testWidgets('manage collections dialog deletes collection after confirmation', (
     tester,
   ) async {
-    final preferences = await createEmptyPreferences();
-    final database = await createTestDatabase(preferences);
+    final database = AppDatabase.inMemory();
+    addTearDown(database.close);
+    final preferences = await createEmptyPreferences(database);
 
     seedCollection(database, id: 'col-1', name: '要删除的收藏夹');
 
@@ -82,8 +86,9 @@ void registerManageCollectionsDialogTests() {
   testWidgets('manage collections dialog cancel delete keeps collection', (
     tester,
   ) async {
-    final preferences = await createEmptyPreferences();
-    final database = await createTestDatabase(preferences);
+    final database = AppDatabase.inMemory();
+    addTearDown(database.close);
+    final preferences = await createEmptyPreferences(database);
 
     seedCollection(database, id: 'col-1', name: '保留的收藏夹');
 

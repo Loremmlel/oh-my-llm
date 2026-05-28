@@ -57,39 +57,38 @@ void main() {
           'supportsReasoning': false,
         },
       ]),
-      presetPromptsStorageKey: jsonEncode([
-        {
-          'id': 'prompt-1',
-          'name': '模板一',
-          'systemPrompt': '',
-          'messages': [
-            {
-              'id': 'prompt-1-message-1',
-              'role': 'user',
-              'content': '模板一前置',
-              'placement': 'before',
-            },
-          ],
-          'updatedAt': DateTime(2026, 4, 30).toIso8601String(),
-        },
-        {
-          'id': 'prompt-2',
-          'name': '模板二',
-          'systemPrompt': '',
-          'messages': [
-            {
-              'id': 'prompt-2-message-1',
-              'role': 'user',
-              'content': '模板二前置',
-              'placement': 'before',
-            },
-          ],
-          'updatedAt': DateTime(2026, 4, 30, 0, 1).toIso8601String(),
-        },
-      ]),
     });
     preferences = await SharedPreferences.getInstance();
     database = AppDatabase.inMemory();
+    // 通过 Repository API 将预设提示词写入 SQLite
+    await presetPromptRepository.saveAll(database, [
+      PresetPrompt(
+        id: 'prompt-1',
+        name: '模板一',
+        messages: const [
+          PromptMessage(
+            id: 'prompt-1-message-1',
+            role: PromptMessageRole.user,
+            content: '模板一前置',
+            placement: PromptMessagePlacement.before,
+          ),
+        ],
+        updatedAt: DateTime(2026, 4, 30),
+      ),
+      PresetPrompt(
+        id: 'prompt-2',
+        name: '模板二',
+        messages: const [
+          PromptMessage(
+            id: 'prompt-2-message-1',
+            role: PromptMessageRole.user,
+            content: '模板二前置',
+            placement: PromptMessagePlacement.before,
+          ),
+        ],
+        updatedAt: DateTime(2026, 4, 30, 0, 1),
+      ),
+    ]);
     fakeClient = FakeChatCompletionClient();
     container = ProviderContainer(
       overrides: [

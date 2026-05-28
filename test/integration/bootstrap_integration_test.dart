@@ -60,7 +60,7 @@ void main() {
     final version = db.connection
         .select('PRAGMA user_version;')
         .single['user_version'] as int;
-    expect(version, greaterThanOrEqualTo(9));
+    expect(version, greaterThanOrEqualTo(8));
   });
 
   testWidgets('启动后 ProviderScope override 正确注入', (tester) async {

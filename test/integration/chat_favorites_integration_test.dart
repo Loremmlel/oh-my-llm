@@ -43,7 +43,6 @@ void main() {
           'supportsReasoning': false,
         },
       ]),
-      presetPromptsStorageKey: jsonEncode(<Map<String, dynamic>>[]),
     });
     preferences = await SharedPreferences.getInstance();
     database = AppDatabase.inMemory();

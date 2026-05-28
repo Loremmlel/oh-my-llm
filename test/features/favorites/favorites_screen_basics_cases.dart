@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../test_database.dart';
+import 'package:oh_my_llm/core/persistence/app_database.dart';
+
 import 'favorites_screen_test_helpers.dart';
 
 void registerFavoritesScreenBasicsTests() {
   testWidgets('favorites screen shows empty state message', (tester) async {
-    final preferences = await createEmptyPreferences();
+    final database = AppDatabase.inMemory();
+    addTearDown(database.close);
+    final preferences = await createEmptyPreferences(database);
 
-    await pumpFavoritesScreen(tester, preferences: preferences);
+    await pumpFavoritesScreen(tester, preferences: preferences, database: database);
 
     expect(
       find.text('暂无收藏。在聊天页点击模型回复的书签图标开始收藏。'),
@@ -17,8 +20,9 @@ void registerFavoritesScreenBasicsTests() {
   });
 
   testWidgets('favorites screen renders favorites list items', (tester) async {
-    final preferences = await createEmptyPreferences();
-    final database = await createTestDatabase(preferences);
+    final database = AppDatabase.inMemory();
+    addTearDown(database.close);
+    final preferences = await createEmptyPreferences(database);
 
     seedFavorite(
       database,
@@ -40,8 +44,9 @@ void registerFavoritesScreenBasicsTests() {
   testWidgets('favorites screen uncategorized filter shows correct items', (
     tester,
   ) async {
-    final preferences = await createEmptyPreferences();
-    final database = await createTestDatabase(preferences);
+    final database = AppDatabase.inMemory();
+    addTearDown(database.close);
+    final preferences = await createEmptyPreferences(database);
 
     seedFavorite(
       database,
@@ -65,8 +70,9 @@ void registerFavoritesScreenBasicsTests() {
   });
 
   testWidgets('favorites screen shows empty hint for empty filters', (tester) async {
-    final preferences = await createEmptyPreferences();
-    final database = await createTestDatabase(preferences);
+    final database = AppDatabase.inMemory();
+    addTearDown(database.close);
+    final preferences = await createEmptyPreferences(database);
 
     seedCollection(database, id: 'col-1', name: '我的收藏夹');
 
@@ -90,8 +96,9 @@ void registerFavoritesScreenBasicsTests() {
   testWidgets('favorites screen tapping item navigates to detail', (
     tester,
   ) async {
-    final preferences = await createEmptyPreferences();
-    final database = await createTestDatabase(preferences);
+    final database = AppDatabase.inMemory();
+    addTearDown(database.close);
+    final preferences = await createEmptyPreferences(database);
 
     seedFavorite(
       database,

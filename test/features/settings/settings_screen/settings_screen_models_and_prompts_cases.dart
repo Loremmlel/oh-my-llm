@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dart';
 import 'package:oh_my_llm/features/settings/data/sqlite_memory_prompt_repository.dart';
 import 'package:oh_my_llm/features/settings/data/sqlite_preset_prompt_repository.dart';
@@ -14,10 +15,12 @@ void registerSettingsScreenModelsAndPromptsTests() {
   testWidgets(
     'settings screen supports provider and model CRUD flows',
     (tester) async {
-      final preferences = await createEmptyPreferences();
+      final database = AppDatabase.inMemory();
+      addTearDown(database.close);
+      final preferences = await createEmptyPreferences(database);
       final repository = LlmModelConfigRepository(preferences);
 
-      await pumpSettingsScreen(tester, preferences: preferences);
+      await pumpSettingsScreen(tester, preferences: preferences, database: database);
       expect(repository.loadProviders(), isEmpty);
 
       await tester.tap(find.text('新增服务商'));
@@ -86,11 +89,14 @@ void registerSettingsScreenModelsAndPromptsTests() {
   testWidgets(
     'settings screen keeps model list collapsed by default and expands on demand',
     (tester) async {
-      final preferences = await createDefaultsSeededPreferences();
+      final database = AppDatabase.inMemory();
+      addTearDown(database.close);
+      final preferences = await createDefaultsSeededPreferences(database);
 
       await pumpSettingsScreen(
         tester,
         preferences: preferences,
+        database: database,
         size: const Size(430, 932),
       );
 
@@ -108,8 +114,10 @@ void registerSettingsScreenModelsAndPromptsTests() {
   testWidgets(
     'settings screen supports prompt template CRUD flows',
     (tester) async {
-      final preferences = await createEmptyPreferences();
-      final database = await pumpSettingsScreen(tester, preferences: preferences, initialTabIndex: 1);
+      final database = AppDatabase.inMemory();
+      addTearDown(database.close);
+      final preferences = await createEmptyPreferences(database);
+      await pumpSettingsScreen(tester, preferences: preferences, database: database, initialTabIndex: 1);
       final repository = presetPromptRepository;
       expect(repository.loadAll(database), isEmpty);
 
@@ -159,8 +167,10 @@ void registerSettingsScreenModelsAndPromptsTests() {
   testWidgets(
     'settings screen can duplicate prompt template with incremental suffix',
     (tester) async {
-      final preferences = await createEmptyPreferences();
-      await pumpSettingsScreen(tester, preferences: preferences, initialTabIndex: 1);
+      final database = AppDatabase.inMemory();
+      addTearDown(database.close);
+      final preferences = await createEmptyPreferences(database);
+      await pumpSettingsScreen(tester, preferences: preferences, database: database, initialTabIndex: 1);
 
       await tester.tap(find.text('新增预设'));
       await tester.pumpAndSettle();
@@ -181,8 +191,10 @@ void registerSettingsScreenModelsAndPromptsTests() {
   testWidgets('prompt template dialog accepts multiple system messages', (
     tester,
   ) async {
-    final preferences = await createEmptyPreferences();
-    await pumpSettingsScreen(tester, preferences: preferences, initialTabIndex: 1);
+    final database = AppDatabase.inMemory();
+    addTearDown(database.close);
+    final preferences = await createEmptyPreferences(database);
+    await pumpSettingsScreen(tester, preferences: preferences, database: database, initialTabIndex: 1);
 
     await tester.tap(find.text('新增预设'));
     await tester.pumpAndSettle();
@@ -214,11 +226,14 @@ void registerSettingsScreenModelsAndPromptsTests() {
   testWidgets(
     'prompt template dialog inserts a new item below selection and keeps groups ordered',
     (tester) async {
-      final preferences = await createEmptyPreferences();
+      final database = AppDatabase.inMemory();
+      addTearDown(database.close);
+      final preferences = await createEmptyPreferences(database);
 
       await pumpSettingsScreen(
         tester,
         preferences: preferences,
+        database: database,
         size: const Size(1440, 2200),
         initialTabIndex: 1,
       );
@@ -325,11 +340,14 @@ void registerSettingsScreenModelsAndPromptsTests() {
   testWidgets(
     'prompt template dialog only keeps outer scroll on compact layout',
     (tester) async {
-      final preferences = await createEmptyPreferences();
+      final database = AppDatabase.inMemory();
+      addTearDown(database.close);
+      final preferences = await createEmptyPreferences(database);
 
       await pumpSettingsScreen(
         tester,
         preferences: preferences,
+        database: database,
         size: const Size(1440, 2200),
         initialTabIndex: 1,
       );
@@ -351,6 +369,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
       await pumpSettingsScreen(
         tester,
         preferences: preferences,
+        database: database,
         size: const Size(430, 932),
         initialTabIndex: 1,
       );
@@ -383,11 +402,14 @@ void registerSettingsScreenModelsAndPromptsTests() {
   testWidgets('prompt template dialog keeps wide master header visible', (
     tester,
   ) async {
-    final preferences = await createEmptyPreferences();
+    final database = AppDatabase.inMemory();
+    addTearDown(database.close);
+    final preferences = await createEmptyPreferences(database);
 
     await pumpSettingsScreen(
       tester,
       preferences: preferences,
+        database: database,
       size: const Size(1440, 2200),
       initialTabIndex: 1,
     );
@@ -438,8 +460,10 @@ void registerSettingsScreenModelsAndPromptsTests() {
   testWidgets(
     'settings screen supports template prompt CRUD flows',
     (tester) async {
-      final preferences = await createEmptyPreferences();
-      final database = await pumpSettingsScreen(tester, preferences: preferences, initialTabIndex: 2);
+      final database = AppDatabase.inMemory();
+      addTearDown(database.close);
+      final preferences = await createEmptyPreferences(database);
+      await pumpSettingsScreen(tester, preferences: preferences, database: database, initialTabIndex: 2);
       final repository = templatePromptRepository;
       expect(repository.loadAll(database), isEmpty);
 
@@ -487,8 +511,10 @@ void registerSettingsScreenModelsAndPromptsTests() {
   testWidgets(
     'template prompt variable reconcile uses debounce',
     (tester) async {
-      final preferences = await createEmptyPreferences();
-      await pumpSettingsScreen(tester, preferences: preferences, initialTabIndex: 2);
+      final database = AppDatabase.inMemory();
+      addTearDown(database.close);
+      final preferences = await createEmptyPreferences(database);
+      await pumpSettingsScreen(tester, preferences: preferences, database: database, initialTabIndex: 2);
 
       await tester.tap(find.text('新增模板提示词'));
       await tester.pumpAndSettle();
@@ -519,8 +545,10 @@ void registerSettingsScreenModelsAndPromptsTests() {
   testWidgets('settings screen supports memory prompt CRUD with persistence', (
     tester,
   ) async {
-    final preferences = await createEmptyPreferences();
-    final database = await pumpSettingsScreen(tester, preferences: preferences, initialTabIndex: 2);
+    final database = AppDatabase.inMemory();
+    addTearDown(database.close);
+    final preferences = await createEmptyPreferences(database);
+    await pumpSettingsScreen(tester, preferences: preferences, database: database, initialTabIndex: 2);
     final repository = memoryPromptRepository;
     expect(repository.loadAll(database), isEmpty);
 
