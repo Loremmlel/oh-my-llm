@@ -122,7 +122,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
       ),
       isStreaming: false,
       errorMessage: errorMessage,
-      errorMessageAssistantId: assistantMessageId,
+      errorMessageAssistantId: isEmpty ? null : assistantMessageId,
       clearStreamingReply: true,
       incrementHistoryRevision: true,
     );
@@ -229,7 +229,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
           ),
           isStreaming: false,
           errorMessage: '模型返回了空回复，自动重试继续',
-          errorMessageAssistantId: assistantMessage.id,
+          errorMessageAssistantId: null,
           clearStreamingReply: true,
           incrementHistoryRevision: true,
         );
