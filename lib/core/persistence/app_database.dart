@@ -80,9 +80,6 @@ class AppDatabase {
     if (currentVersion < 8) {
       _migrateV8();
     }
-    if (currentVersion < 9) {
-      _migrateV9();
-    }
   }
 
   /// 初始 schema：聊天记录相关表。
@@ -94,7 +91,7 @@ class AppDatabase {
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         selected_model_id TEXT,
-        selected_prompt_template_id TEXT,
+        selected_preset_prompt_id TEXT,
         reasoning_enabled INTEGER NOT NULL DEFAULT 0,
         reasoning_effort TEXT NOT NULL
       );
@@ -142,7 +139,7 @@ class AppDatabase {
   /// 无需按子项单独查询。
   void _migrateV2() {
     _connection.execute('''
-      CREATE TABLE IF NOT EXISTS prompt_templates (
+      CREATE TABLE IF NOT EXISTS preset_prompts (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         system_prompt TEXT NOT NULL DEFAULT '',
@@ -272,23 +269,12 @@ class AppDatabase {
     _connection.execute('PRAGMA user_version = 7;');
   }
 
-  /// 重命名 prompt_templates 表为 preset_prompts，列名同步更新。
-  void _migrateV8() {
-    _connection.execute(
-      'ALTER TABLE prompt_templates RENAME TO preset_prompts;',
-    );
-    _connection.execute(
-      'ALTER TABLE conversations RENAME COLUMN selected_prompt_template_id TO selected_preset_prompt_id;',
-    );
-    _connection.execute('PRAGMA user_version = 8;');
-  }
-
   /// 为会话加入自动重试开关持久化。
-  void _migrateV9() {
+  void _migrateV8() {
     _connection.execute('''
       ALTER TABLE conversations
       ADD COLUMN auto_retry_enabled INTEGER NOT NULL DEFAULT 0;
     ''');
-    _connection.execute('PRAGMA user_version = 9;');
+    _connection.execute('PRAGMA user_version = 8;');
   }
 }
