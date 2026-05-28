@@ -2,9 +2,10 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:oh_my_llm/core/persistence/versioned_json_storage.dart';
-import 'package:oh_my_llm/features/chat/data/chat_conversation_repository.dart';
+import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/chat/data/chat_completion_client.dart';
+import 'package:oh_my_llm/features/chat/data/sqlite_chat_conversation_repository.dart';
+import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/settings/data/chat_defaults_repository.dart';
 import 'package:oh_my_llm/features/settings/data/fixed_prompt_sequence_repository.dart';
@@ -214,14 +215,38 @@ class TestFixtures {
 
   // ── 批量种子 SharedPreferences ────────────────────────────
 
-  /// 将模型配置和提示词数据写入 SharedPreferences mock。
+  /// 将模型配置和提示词数据写入 SharedPreferences mock 与 SQLite。
+  ///
+  /// [database] 用于通过 Repository API 写入 SQLite（预设提示词、固定序列、聊天会话）。
+  /// 服务商模型配置和聊天默认值仍写入 SharedPreferences。
   static Future<SharedPreferences> seedPreferences({
+    required AppDatabase database,
     List<LlmModelConfig> models = const [],
     List<PresetPrompt> prompts = const [],
     Map<String, dynamic>? chatDefaults,
     List<FixedPromptSequence> sequences = const [],
     List<Map<String, dynamic>> conversations = const [],
   }) async {
+    // ── SQLite 写入（通过 Repository API） ──────────────────
+
+    if (prompts.isNotEmpty) {
+      await presetPromptRepository.saveAll(database, prompts);
+    }
+
+    if (sequences.isNotEmpty) {
+      await fixedPromptSequenceRepository.saveAll(database, sequences);
+    }
+
+    if (conversations.isNotEmpty) {
+      await SqliteChatConversationRepository(database).saveConversations(
+        conversations
+            .map((c) => ChatConversation.fromJson(c))
+            .toList(growable: false),
+      );
+    }
+
+    // ── SharedPreferences 写入（服务商配置 + 聊天默认值） ────
+
     final values = <String, String>{};
 
     if (models.isNotEmpty) {
@@ -230,26 +255,8 @@ class TestFixtures {
       );
     }
 
-    if (prompts.isNotEmpty) {
-      values[presetPromptsStorageKey] = jsonEncode(
-        prompts.map((p) => p.toJson()).toList(),
-      );
-    }
-
     if (chatDefaults != null) {
       values[chatDefaultsStorageKey] = jsonEncode(chatDefaults);
-    }
-
-    if (sequences.isNotEmpty) {
-      values[fixedPromptSequencesStorageKey] =
-          VersionedJsonStorage.encodeObjectList(
-        items: sequences,
-        toJson: (s) => s.toJson(),
-      );
-    }
-
-    if (conversations.isNotEmpty) {
-      values[chatConversationsStorageKey] = jsonEncode(conversations);
     }
 
     SharedPreferences.setMockInitialValues(values);
