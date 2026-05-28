@@ -11,13 +11,11 @@ void registerChatScreenFavoritesTests() {
   testWidgets('chat screen bookmark tap shows add to favorites dialog', (
     tester,
   ) async {
-    final preferences = await createSeededPreferences();
     final fakeClient = FakeChatCompletionClient()
       ..enqueueChunks(['收藏对话框测试回复']);
 
     await pumpChatScreen(
       tester,
-      preferences: preferences,
       fakeClient: fakeClient,
     );
 
@@ -35,13 +33,11 @@ void registerChatScreenFavoritesTests() {
   testWidgets('chat screen cancel favorites dialog does not add favorite', (
     tester,
   ) async {
-    final preferences = await createSeededPreferences();
     final fakeClient = FakeChatCompletionClient()
       ..enqueueChunks(['取消收藏测试回复']);
 
     await pumpChatScreen(
       tester,
-      preferences: preferences,
       fakeClient: fakeClient,
     );
 
@@ -65,13 +61,11 @@ void registerChatScreenFavoritesTests() {
   testWidgets('chat screen favorites to uncategorized saves favorite and updates icon', (
     tester,
   ) async {
-    final preferences = await createSeededPreferences();
     final fakeClient = FakeChatCompletionClient()
       ..enqueueChunks(['收藏成功测试回复']);
 
     await pumpChatScreen(
       tester,
-      preferences: preferences,
       fakeClient: fakeClient,
     );
 
@@ -98,13 +92,11 @@ void registerChatScreenFavoritesTests() {
   testWidgets('chat screen second bookmark tap removes favorite and restores icon', (
     tester,
   ) async {
-    final preferences = await createSeededPreferences();
     final fakeClient = FakeChatCompletionClient()
       ..enqueueChunks(['取消收藏流程测试']);
 
     await pumpChatScreen(
       tester,
-      preferences: preferences,
       fakeClient: fakeClient,
     );
 
@@ -136,13 +128,11 @@ void registerChatScreenFavoritesTests() {
   testWidgets('chat screen favorite dialog creates new collection and saves', (
     tester,
   ) async {
-    final preferences = await createSeededPreferences();
     final fakeClient = FakeChatCompletionClient()
       ..enqueueChunks(['新建收藏夹测试回复']);
 
     await pumpChatScreen(
       tester,
-      preferences: preferences,
       fakeClient: fakeClient,
     );
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/settings/data/sqlite_fixed_prompt_sequence_repository.dart';
 import 'package:oh_my_llm/features/settings/presentation/settings_screen.dart';
 
@@ -10,10 +11,13 @@ void registerSettingsScreenFixedPromptSequencesTests() {
   testWidgets(
     'settings screen supports fixed prompt sequence CRUD flows',
     (tester) async {
-      final preferences = await createEmptyPreferences();
-      final database = await pumpSettingsScreen(
+      final database = AppDatabase.inMemory();
+      addTearDown(database.close);
+      final preferences = await createEmptyPreferences(database);
+      await pumpSettingsScreen(
         tester,
         preferences: preferences,
+        database: database,
         size: const Size(1440, 2200),
         initialTabIndex: 2,
       );
@@ -107,14 +111,17 @@ void registerSettingsScreenFixedPromptSequencesTests() {
   testWidgets(
     'fixed prompt sequence dialog inserts a new step below selection',
     (tester) async {
-      final preferences = await createEmptyPreferences();
+    final database = AppDatabase.inMemory();
+    addTearDown(database.close);
+    final preferences = await createEmptyPreferences(database);
 
-      await pumpSettingsScreen(
-        tester,
-        preferences: preferences,
-        size: const Size(1440, 2200),
-        initialTabIndex: 2,
-      );
+    await pumpSettingsScreen(
+      tester,
+      preferences: preferences,
+      database: database,
+      size: const Size(1440, 2200),
+      initialTabIndex: 2,
+    );
 
       await tester.tap(find.text('新增序列'));
       await tester.pumpAndSettle();

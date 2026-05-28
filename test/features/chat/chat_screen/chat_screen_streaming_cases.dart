@@ -13,7 +13,6 @@ void registerChatScreenStreamingTests() {
   testWidgets('chat screen streams reply and sends the active request history', (
     tester,
   ) async {
-    final preferences = await createSeededPreferences();
     final fakeClient = FakeChatCompletionClient();
     fakeClient.enqueueChunks([
       '第一段 ',
@@ -22,7 +21,6 @@ void registerChatScreenStreamingTests() {
 
     await pumpChatScreen(
       tester,
-      preferences: preferences,
       fakeClient: fakeClient,
     );
 
@@ -52,7 +50,6 @@ void registerChatScreenStreamingTests() {
   testWidgets('chat screen shows reasoning in a collapsible panel', (
     tester,
   ) async {
-    final preferences = await createSeededPreferences();
     final fakeClient = FakeChatCompletionClient()
       ..enqueueDeltas([
         const ChatCompletionChunk(reasoningDelta: '这是思考过程'),
@@ -61,7 +58,6 @@ void registerChatScreenStreamingTests() {
 
     await pumpChatScreen(
       tester,
-      preferences: preferences,
       fakeClient: fakeClient,
     );
 
@@ -82,7 +78,6 @@ void registerChatScreenStreamingTests() {
   testWidgets('chat screen copies raw message content without reasoning', (
     tester,
   ) async {
-    final preferences = await createSeededPreferences();
     final fakeClient = FakeChatCompletionClient()
       ..enqueueDeltas([
         const ChatCompletionChunk(reasoningDelta: '这是思考过程'),
@@ -110,7 +105,6 @@ void registerChatScreenStreamingTests() {
 
     await pumpChatScreen(
       tester,
-      preferences: preferences,
       fakeClient: fakeClient,
     );
 
@@ -137,13 +131,11 @@ void registerChatScreenStreamingTests() {
   testWidgets('chat screen keeps user message markdown syntax as raw text', (
     tester,
   ) async {
-    final preferences = await createSeededPreferences();
     final fakeClient = FakeChatCompletionClient()..enqueueChunks(['收到']);
     const userMessage = '**保留原样**\n- 这不是列表';
 
     await pumpChatScreen(
       tester,
-      preferences: preferences,
       fakeClient: fakeClient,
     );
 
@@ -157,7 +149,6 @@ void registerChatScreenStreamingTests() {
   testWidgets('chat screen shows a confirmation dialog before stopping', (
     tester,
   ) async {
-    final preferences = await createSeededPreferences();
     final fakeClient = FakeChatCompletionClient();
     final streamController = StreamController<ChatCompletionChunk>();
     addTearDown(streamController.close);
@@ -165,7 +156,6 @@ void registerChatScreenStreamingTests() {
 
     await pumpChatScreen(
       tester,
-      preferences: preferences,
       fakeClient: fakeClient,
     );
 
@@ -189,13 +179,11 @@ void registerChatScreenStreamingTests() {
   testWidgets('mobile layout renders composer and sends message', (
     tester,
   ) async {
-    final preferences = await createSeededPreferences();
     final fakeClient = FakeChatCompletionClient()
       ..enqueueChunks(['移动端回复']);
 
     await pumpChatScreen(
       tester,
-      preferences: preferences,
       fakeClient: fakeClient,
       size: const Size(390, 844),
     );

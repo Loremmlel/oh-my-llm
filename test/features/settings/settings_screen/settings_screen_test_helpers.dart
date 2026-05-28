@@ -23,6 +23,7 @@ Future<void> switchToTab(WidgetTester tester, int index) async {
 Future<AppDatabase> pumpSettingsScreen(
   WidgetTester tester, {
   required SharedPreferences preferences,
+  AppDatabase? database,
   Size size = const Size(1440, 1500),
   int initialTabIndex = 0,
 }) async {
@@ -49,17 +50,19 @@ Future<AppDatabase> pumpSettingsScreen(
     tester,
     child: const SettingsScreen(),
     preferences: preferences,
+    database: database,
     viewportSize: size,
   );
 }
 
-Future<SharedPreferences> createEmptyPreferences() async {
-  return TestFixtures.seedPreferences();
+Future<SharedPreferences> createEmptyPreferences(AppDatabase database) async {
+  return TestFixtures.seedPreferences(database: database);
 }
 
 /// 创建包含默认种子数据的 SharedPreferences 实例。
-Future<SharedPreferences> createDefaultsSeededPreferences() async {
+Future<SharedPreferences> createDefaultsSeededPreferences(AppDatabase database) async {
   return TestFixtures.seedPreferences(
+    database: database,
     models: [
       TestFixtures.gpt41(),
       TestFixtures.claudeSonnet(),

@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../test_database.dart';
+import 'package:oh_my_llm/core/persistence/app_database.dart';
+
 import 'favorites_screen_test_helpers.dart';
 
 void registerFavoriteDetailScreenTests() {
   testWidgets('favorites detail shows user message and assistant content', (
     tester,
   ) async {
-    final preferences = await createEmptyPreferences();
-    final database = await createTestDatabase(preferences);
+    final database = AppDatabase.inMemory();
+    addTearDown(database.close);
+    final preferences = await createEmptyPreferences(database);
 
     seedFavorite(
       database,
@@ -42,8 +44,9 @@ void registerFavoriteDetailScreenTests() {
   testWidgets(
     'favorites detail shows source link and can jump back to chat',
     (tester) async {
-      final preferences = await createEmptyPreferences();
-      final database = await createTestDatabase(preferences);
+      final database = AppDatabase.inMemory();
+      addTearDown(database.close);
+      final preferences = await createEmptyPreferences(database);
 
       seedFavorite(
         database,
@@ -75,8 +78,9 @@ void registerFavoriteDetailScreenTests() {
   testWidgets(
     'favorites detail hides source metadata when source is absent',
     (tester) async {
-      final preferences = await createEmptyPreferences();
-      final database = await createTestDatabase(preferences);
+      final database = AppDatabase.inMemory();
+      addTearDown(database.close);
+      final preferences = await createEmptyPreferences(database);
 
       seedFavorite(
         database,
@@ -101,8 +105,9 @@ void registerFavoriteDetailScreenTests() {
   testWidgets('favorites detail does not overflow on narrow mobile width', (
     tester,
   ) async {
-    final preferences = await createEmptyPreferences();
-    final database = await createTestDatabase(preferences);
+    final database = AppDatabase.inMemory();
+    addTearDown(database.close);
+    final preferences = await createEmptyPreferences(database);
 
     seedFavorite(
       database,
@@ -132,8 +137,9 @@ void registerFavoriteDetailScreenTests() {
   testWidgets('favorites detail delete removes favorite and returns to list', (
     tester,
   ) async {
-    final preferences = await createEmptyPreferences();
-    final database = await createTestDatabase(preferences);
+    final database = AppDatabase.inMemory();
+    addTearDown(database.close);
+    final preferences = await createEmptyPreferences(database);
 
     seedFavorite(
       database,

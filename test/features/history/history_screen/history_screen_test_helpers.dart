@@ -15,6 +15,7 @@ import '../../../helpers/test_harness.dart';
 Future<AppDatabase> pumpHistoryScreen(
   WidgetTester tester, {
   required SharedPreferences preferences,
+  AppDatabase? database,
 }) async {
   final router = GoRouter(
     initialLocation: AppDestination.history.path,
@@ -38,13 +39,15 @@ Future<AppDatabase> pumpHistoryScreen(
   return pumpTestApp(
     tester,
     preferences: preferences,
+    database: database,
     viewportSize: const Size(1440, 1200),
     router: router,
   );
 }
 
-Future<SharedPreferences> createSeededPreferences() async {
+Future<SharedPreferences> createSeededPreferences(AppDatabase database) async {
   return TestFixtures.seedPreferences(
+    database: database,
     conversations: [
       _conversation(
         id: 'conversation-1',
@@ -94,8 +97,9 @@ Future<SharedPreferences> createSeededPreferences() async {
   );
 }
 
-Future<SharedPreferences> createTreeSeededPreferences() async {
+Future<SharedPreferences> createTreeSeededPreferences(AppDatabase database) async {
   return TestFixtures.seedPreferences(
+    database: database,
     conversations: [
       {
         'id': 'conversation-tree',
