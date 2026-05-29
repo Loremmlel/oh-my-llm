@@ -176,7 +176,7 @@ class _MessageAnchorRailState extends State<MessageAnchorRail> {
                                           color: isActive
                                               ? theme.colorScheme.primary
                                               : theme.colorScheme.outline,
-                                          borderRadius: BorderRadius.circular(999),
+borderRadius: BorderRadius.circular(14),
                                         ),
                                       ),
                                     ),
