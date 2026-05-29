@@ -441,8 +441,8 @@ void main() {
     expect(state.activeConversation.messages.last.role, ChatMessageRole.assistant);
     expect(state.activeConversation.messages.last.content, isEmpty);
     expect(state.emptyReplyAssistantId, state.activeConversation.messages.last.id);
-    expect(state.errorMessage, isNull);
-    expect(state.errorMessageAssistantId, isNull);
+    expect(state.errorMessage, contains('空回复'));
+    expect(state.errorMessageAssistantId, state.activeConversation.messages.last.id);
     expect(state.isStreaming, isFalse);
   });
 
@@ -1030,6 +1030,7 @@ void main() {
     expect(state.activeConversation.messages.last.content, '终于成功');
     expect(fakeClient.requestHistory.length, 2);
     expect(state.errorMessage, isNull);
+    expect(state.emptyReplyAssistantId, isNull);
   });
 
   test('autoRetry 连续空回复达到上限退出', () async {
@@ -1074,6 +1075,7 @@ void main() {
 
     final state = container.read(chatSessionsProvider);
     expect(state.errorMessage, isNotNull);
+    expect(state.emptyReplyAssistantId, isNull);
     // 空白 assistant 节点保留在树中，errorMessageAssistantId 指向它
     expect(state.activeConversation.messages, hasLength(2));
     expect(state.errorMessageAssistantId, state.activeConversation.messages.last.id);
@@ -1089,7 +1091,143 @@ void main() {
 
     final state = container.read(chatSessionsProvider);
     expect(state.emptyReplyAssistantId, isNotNull);
-    expect(state.errorMessage, isNull);
+    expect(state.errorMessage, isNotNull);
     expect(fakeClient.requestHistory.length, 1); // 仅一次，不重试
+  });
+
+  // ── emptyReplyAssistantId 边界 ──────────────────────────────────────────
+
+  test('切换会话清除 emptyReplyAssistantId', () async {
+    // 准备两个会话
+    fakeClient.enqueueChunks(['回复1']);
+    await sendMsg('第一条消息');
+    final firstId = container.read(chatSessionsProvider).activeConversationId;
+
+    fakeClient.enqueueChunks(['回复2']);
+    await container.read(chatSessionsProvider.notifier).createConversation();
+    await sendMsg('第二条消息');
+    final secondId = container.read(chatSessionsProvider).activeConversationId;
+    expect(firstId, isNot(secondId));
+
+    final notifier = container.read(chatSessionsProvider.notifier);
+    notifier.state = notifier.state.copyWith(emptyReplyAssistantId: 'test-id');
+    expect(container.read(chatSessionsProvider).emptyReplyAssistantId, 'test-id');
+
+    // 切换到第一个会话应清除 emptyReplyAssistantId
+    notifier.selectConversation(firstId);
+    expect(container.read(chatSessionsProvider).emptyReplyAssistantId, isNull);
+  });
+
+  test('空回后手动重试清除 emptyReplyAssistantId', () async {
+    fakeClient.enqueueChunks(['']);
+    await sendMsg('触发空回复');
+
+    var state = container.read(chatSessionsProvider);
+    expect(state.emptyReplyAssistantId, isNotNull);
+    expect(state.errorMessage, isNotNull);
+
+    fakeClient.enqueueChunks(['重试回复']);
+    await container.read(chatSessionsProvider.notifier).retryLatestAssistant();
+
+    state = container.read(chatSessionsProvider);
+    expect(state.emptyReplyAssistantId, isNull);
+    expect(state.errorMessage, isNull);
+    expect(state.activeConversation.messages.last.content, '重试回复');
+  });
+
+  test('handleStreamingFailure 空内容不设 emptyReplyAssistantId', () async {
+    fakeClient.enqueueError(ChatCompletionException('模拟流式错误'));
+    await sendMsg('触发错误');
+
+    final state = container.read(chatSessionsProvider);
+    expect(state.errorMessageAssistantId, isNotNull);
+    expect(state.emptyReplyAssistantId, isNull);
+    expect(state.activeConversation.messages.last.content, isEmpty);
+  });
+
+  test('stopStreaming 清除 emptyReplyAssistantId', () async {
+    final streamController = StreamController<ChatCompletionChunk>();
+    addTearDown(streamController.close);
+    fakeClient.enqueueStream(streamController.stream);
+
+    final sendFuture = sendMsg('开始流式');
+    await Future<void>.delayed(const Duration(milliseconds: 1));
+
+    // 手动设置 emptyReplyAssistantId
+    final notifier = container.read(chatSessionsProvider.notifier);
+    notifier.state = notifier.state.copyWith(emptyReplyAssistantId: 'test-id');
+    expect(container.read(chatSessionsProvider).emptyReplyAssistantId, 'test-id');
+
+    await notifier.stopStreaming();
+    await sendFuture;
+
+    expect(container.read(chatSessionsProvider).emptyReplyAssistantId, isNull);
+  });
+
+  test('createConversation 清除 emptyReplyAssistantId', () async {
+    fakeClient.enqueueChunks(['回复']);
+    await sendMsg('先发消息');
+
+    final notifier = container.read(chatSessionsProvider.notifier);
+    notifier.state = notifier.state.copyWith(emptyReplyAssistantId: 'test-id');
+    expect(container.read(chatSessionsProvider).emptyReplyAssistantId, 'test-id');
+
+    await notifier.createConversation();
+
+    expect(container.read(chatSessionsProvider).emptyReplyAssistantId, isNull);
+  });
+
+  test('deleteConversations 清除 emptyReplyAssistantId', () async {
+    fakeClient.enqueueChunks(['回复1']);
+    fakeClient.enqueueChunks(['回复2']);
+    await sendMsg('消息1');
+
+    await container.read(chatSessionsProvider.notifier).createConversation();
+    await sendMsg('消息2');
+
+    var state = container.read(chatSessionsProvider);
+    expect(state.conversations.length, 2);
+
+    final notifier = container.read(chatSessionsProvider.notifier);
+    notifier.state = notifier.state.copyWith(emptyReplyAssistantId: 'test-id');
+
+    final activeId = state.activeConversationId;
+    await notifier.deleteConversations({activeId});
+
+    expect(container.read(chatSessionsProvider).emptyReplyAssistantId, isNull);
+  });
+
+  test('同一时间只有 emptyReplyAssistantId 或 errorMessageAssistantId 之一被设置', () async {
+    // 先模拟错误 → errorMessageAssistantId 设置，emptyReplyAssistantId 为空
+    fakeClient.enqueueError(ChatCompletionException('模拟错误'));
+    await sendMsg('触发错误');
+
+    var state = container.read(chatSessionsProvider);
+    expect(state.errorMessageAssistantId, isNotNull);
+    expect(state.emptyReplyAssistantId, isNull);
+
+    // 再模拟空回复 → emptyReplyAssistantId 设置，errorMessageAssistantId 被清除
+    fakeClient.enqueueChunks(['']);
+    await sendMsg('触发空回复');
+
+    state = container.read(chatSessionsProvider);
+    expect(state.emptyReplyAssistantId, isNotNull);
+    expect(state.errorMessageAssistantId, isNotNull);
+  });
+
+  test('连续两次空回不会残留前一次的 emptyReplyAssistantId', () async {
+    fakeClient.enqueueChunks(['']); // 第一次空回复
+    await sendMsg('第一条');
+
+    var state = container.read(chatSessionsProvider);
+    final firstId = state.emptyReplyAssistantId;
+    expect(firstId, isNotNull);
+
+    fakeClient.enqueueChunks(['']); // 第二次空回复
+    await sendMsg('第二条');
+
+    state = container.read(chatSessionsProvider);
+    expect(state.emptyReplyAssistantId, isNotNull);
+    expect(state.emptyReplyAssistantId, isNot(firstId));
   });
 }
