@@ -50,6 +50,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
         isAutoRetryWaiting: false,
         clearAutoRetryCount: true,
         clearErrorMessage: true,
+        clearEmptyReply: true,
       );
       return null;
     }
@@ -76,6 +77,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
       isStreaming: false,
       clearStreamingReply: true,
       clearErrorMessage: true,
+      clearEmptyReply: true,
       incrementHistoryRevision: true,
     );
     saveAllConversations();
@@ -186,6 +188,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
       isStreaming: true,
       streamingReply: streamingReply,
       clearErrorMessage: true,
+      clearEmptyReply: true,
       incrementHistoryRevision: true,
     );
     saveAllConversations();
@@ -234,8 +237,8 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
             summaryFromConversation(cleanedConversation),
           ),
           isStreaming: false,
-          errorMessage: '模型返回了空回复',
-          errorMessageAssistantId: assistantMessage.id,
+          emptyReplyAssistantId: assistantMessage.id,
+          clearErrorMessage: true,
           clearStreamingReply: true,
           incrementHistoryRevision: true,
         );
@@ -420,6 +423,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
         summaryFromConversation(pendingConversation),
       ),
       clearErrorMessage: true,
+      clearEmptyReply: true,
       clearAutoRetryCount: true,
       incrementHistoryRevision: true,
     );
@@ -431,6 +435,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
         state = state.copyWith(
           clearAutoRetryCount: true,
           clearErrorMessage: true,
+          clearEmptyReply: true,
         );
         return;
       }
@@ -446,6 +451,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
         state = state.copyWith(
           clearAutoRetryCount: true,
           clearErrorMessage: true,
+          clearEmptyReply: true,
         );
         return;
       }
@@ -459,6 +465,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
         isAutoRetryWaiting: false,
         autoRetryCount: state.autoRetryCount + 1,
         clearErrorMessage: true,
+        clearEmptyReply: true,
         clearStreamingReply: true,
         incrementHistoryRevision: true,
       );
