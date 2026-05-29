@@ -35,6 +35,7 @@ class ChatMessagesPanel extends StatelessWidget {
     required this.onSelectMessageVersion,
     this.onFavoritePressed,
     this.favoritedAssistantContents = const {},
+    this.onScroll,
     super.key,
   });
 
@@ -61,6 +62,7 @@ class ChatMessagesPanel extends StatelessWidget {
   onSelectMessageVersion;
   final ValueChanged<ChatMessage>? onFavoritePressed;
   final Set<String> favoritedAssistantContents;
+  final VoidCallback? onScroll;
 
   @override
   Widget build(BuildContext context) {
@@ -82,7 +84,7 @@ class ChatMessagesPanel extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final anchorRightPadding = userMessages.isEmpty ? 14.0 : 52.0;
+        const anchorRightPadding = 14.0;
 
         return Card(
           clipBehavior: Clip.antiAlias,
@@ -188,6 +190,7 @@ class ChatMessagesPanel extends StatelessWidget {
                       activeMessageId: activeAnchorMessageId,
                       maxHeight: constraints.maxHeight * 0.5,
                       onSelectMessage: onSelectMessage,
+                      onScroll: onScroll,
                     ),
                   ),
                 ),

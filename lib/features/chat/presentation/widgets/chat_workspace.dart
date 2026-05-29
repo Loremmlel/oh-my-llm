@@ -67,6 +67,7 @@ class ChatWorkspace extends StatelessWidget {
     required this.onStopStreaming,
     this.onFavoritePressed,
     this.favoritedAssistantContents = const {},
+    this.onScroll,
     super.key,
   });
 
@@ -129,6 +130,9 @@ class ChatWorkspace extends StatelessWidget {
   /// 已收藏的助手消息内容集合，用于显示收藏高亮状态。
   final Set<String> favoritedAssistantContents;
 
+  /// 滚动时的回调，用于触发 State 重建（如锚点折起）。
+  final VoidCallback? onScroll;
+
   @override
   /// 构建消息区、错误提示和输入区的整体布局。
   Widget build(BuildContext context) {
@@ -159,6 +163,7 @@ class ChatWorkspace extends StatelessWidget {
             onSelectMessageVersion: onSelectMessageVersion,
             onFavoritePressed: onFavoritePressed,
             favoritedAssistantContents: favoritedAssistantContents,
+            onScroll: onScroll,
           ),
         ),
         const SizedBox(height: 12),
