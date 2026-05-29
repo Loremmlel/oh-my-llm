@@ -238,7 +238,8 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
           ),
           isStreaming: false,
           emptyReplyAssistantId: assistantMessage.id,
-          clearErrorMessage: true,
+          errorMessage: '模型返回了空回复，请重试',
+          errorMessageAssistantId: assistantMessage.id,
           clearStreamingReply: true,
           incrementHistoryRevision: true,
         );
