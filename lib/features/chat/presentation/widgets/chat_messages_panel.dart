@@ -23,6 +23,7 @@ class ChatMessagesPanel extends StatelessWidget {
     required this.isBusy,
     required this.errorMessage,
     required this.errorMessageAssistantId,
+    this.emptyReplyAssistantId,
     required this.errorModelDisplayName,
     required this.showScrollToBottom,
     this.autoRetryCount = 0,
@@ -49,6 +50,7 @@ class ChatMessagesPanel extends StatelessWidget {
   final bool isBusy;
   final String? errorMessage;
   final String? errorMessageAssistantId;
+  final String? emptyReplyAssistantId;
   final String errorModelDisplayName;
   final bool showScrollToBottom;
   final int autoRetryCount;
@@ -111,12 +113,15 @@ class ChatMessagesPanel extends StatelessWidget {
                             errorMessageAssistantId == message.id
                         ? normalizedError
                         : null;
+                    final isEmptyReply = emptyReplyAssistantId != null &&
+                        emptyReplyAssistantId == message.id;
 
                     return KeyedSubtree(
                       key: ValueKey(message.id),
                       child: CachedChatMessageBubble(
                         message: message,
                         inlineErrorMessage: inlineErrorMessage,
+                        isEmptyReply: isEmptyReply,
                         canEdit:
                             !isBusy && message.role == ChatMessageRole.user,
                         canRetry:
