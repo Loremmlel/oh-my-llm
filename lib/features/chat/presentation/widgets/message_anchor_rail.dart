@@ -114,8 +114,7 @@ class _MessageAnchorRailState extends State<MessageAnchorRail> {
               child: DecoratedBox(
                 key: const ValueKey('message-anchor-rail'),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.surface.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(999),
+                  borderRadius: BorderRadius.circular(14),
                   border: Border.all(
                     color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
                   ),
