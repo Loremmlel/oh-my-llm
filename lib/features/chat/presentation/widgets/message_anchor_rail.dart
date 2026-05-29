@@ -121,21 +121,24 @@ class _MessageAnchorRailState extends State<MessageAnchorRail> {
         key: ValueKey('preview-bubble-$messageId'),
         opacity: _isExpanded ? 1.0 : 0.0,
         duration: const Duration(milliseconds: 167),
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 200),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surface.withValues(alpha: 0.92),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.75),
+        child: IgnorePointer(
+          ignoring: !_isExpanded,
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 200),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
+              ),
             ),
-          ),
-          child: Text(
-            previewText,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodySmall,
+            child: Text(
+              previewText,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall,
+            ),
           ),
         ),
       ),
@@ -158,10 +161,10 @@ class _MessageAnchorRailState extends State<MessageAnchorRail> {
       child: DecoratedBox(
         key: const ValueKey('message-anchor-rail'),
         decoration: BoxDecoration(
-          color: theme.colorScheme.surface.withValues(alpha: 0.92),
+          color: theme.colorScheme.surface.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(999),
           border: Border.all(
-            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.75),
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
           ),
         ),
         child: Padding(
