@@ -91,48 +91,6 @@ class _MessageAnchorRailState extends State<MessageAnchorRail> {
     _collapseExpand();
   }
 
-  // ── 预览气泡 ────────────────────────────────────────────────
-
-  /// 构建毛玻璃预览气泡。
-  ///
-  /// 在指示器左侧显示消息预览文本，通过 [AnimatedOpacity] 实现展开/折叠动画。
-  Widget _buildPreviewBubble(
-    BuildContext context,
-    String content,
-  ) {
-    final theme = Theme.of(context);
-    final previewText = MessageAnchorRail.extractPreviewText(content);
-    if (previewText.isEmpty) return const SizedBox.shrink();
-
-    return Positioned(
-      right: 24,
-      child: AnimatedOpacity(
-        opacity: _isExpanded ? 1.0 : 0.0,
-        duration: const Duration(milliseconds: 167),
-        child: IgnorePointer(
-          ignoring: !_isExpanded,
-          child: Container(
-            constraints: const BoxConstraints(maxWidth: 200),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surface.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
-              ),
-            ),
-            child: Text(
-              previewText,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   // ── 构建 ────────────────────────────────────────────────────
 
   @override
@@ -176,42 +134,55 @@ class _MessageAnchorRailState extends State<MessageAnchorRail> {
               itemBuilder: (context, index) {
                 final message = widget.userMessages[index];
                 final isActive = message.id == widget.activeMessageId;
+                final previewText = MessageAnchorRail.extractPreviewText(message.content);
 
-                return Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    _buildPreviewBubble(
-                      context,
-                      message.content,
-                    ),
-                    Semantics(
-                      button: true,
-                      selected: isActive,
-                      label: '定位到第 ${index + 1} 条用户消息',
-                      child: InkWell(
-                        key: ValueKey('message-anchor-item-${index + 1}'),
-                        borderRadius: BorderRadius.circular(999),
-                        onTap: () => widget.onSelectMessage(message.id),
-                        child: SizedBox(
-                          width: 20,
-                          height: 18,
-                          child: Center(
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 167),
-                              width: isActive ? 14 : 10,
-                              height: isActive ? 6 : 4,
-                              decoration: BoxDecoration(
-                                color: isActive
-                                    ? theme.colorScheme.primary
-                                    : theme.colorScheme.outline,
-                                borderRadius: BorderRadius.circular(999),
+                return Semantics(
+                  button: true,
+                  selected: isActive,
+                  label: '定位到第 ${index + 1} 条用户消息',
+                  child: InkWell(
+                    key: ValueKey('message-anchor-item-${index + 1}'),
+                    borderRadius: BorderRadius.circular(999),
+                    onTap: () => widget.onSelectMessage(message.id),
+                    child: SizedBox(
+                      height: 18,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (_isExpanded && previewText.isNotEmpty)
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: Text(
+                                  previewText,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.bodySmall,
+                                  textAlign: TextAlign.right,
+                                ),
+                              ),
+                            ),
+                          SizedBox(
+                            width: 20,
+                            height: 18,
+                            child: Center(
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 167),
+                                width: isActive ? 14 : 10,
+                                height: isActive ? 6 : 4,
+                                decoration: BoxDecoration(
+                                  color: isActive
+                                      ? theme.colorScheme.primary
+                                      : theme.colorScheme.outline,
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
                               ),
                             ),
                           ),
-                        ),
+                        ],
                       ),
                     ),
-                  ],
+                  ),
                 );
               },
             ),
