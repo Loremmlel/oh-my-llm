@@ -226,12 +226,13 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     }
 
     final nextConversation = buildEmptyConversation();
-    state = state.copyWith(
-      conversations: [nextConversation, ...state.conversations],
-      activeConversationId: nextConversation.id,
-      clearErrorMessage: true,
-      incrementHistoryRevision: true,
-    );
+      state = state.copyWith(
+        conversations: [nextConversation, ...state.conversations],
+        activeConversationId: nextConversation.id,
+        clearErrorMessage: true,
+        clearEmptyReply: true,
+        incrementHistoryRevision: true,
+      );
     saveAllConversations();
   }
 
@@ -256,9 +257,10 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         conversations: [fullConv, ...state.conversations],
         activeConversationId: id,
         clearErrorMessage: true,
+        clearEmptyReply: true,
       );
     } else {
-      state = state.copyWith(activeConversationId: id, clearErrorMessage: true);
+      state = state.copyWith(activeConversationId: id, clearErrorMessage: true, clearEmptyReply: true);
     }
   }
 
@@ -352,6 +354,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
           ? state.activeConversationId
           : fallbackConversation.id,
       clearErrorMessage: true,
+      clearEmptyReply: true,
       incrementHistoryRevision: true,
     );
     saveAllConversations();
@@ -466,7 +469,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       throw const ChatCompletionException('当前没有可用于创建检查点的新上下文。');
     }
 
-    state = state.copyWith(isCheckpointing: true, clearErrorMessage: true);
+    state = state.copyWith(isCheckpointing: true, clearErrorMessage: true, clearEmptyReply: true);
     try {
       final result = await chatClient.complete(
         modelConfig: modelConfig,
@@ -511,6 +514,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         ),
         isCheckpointing: false,
         clearErrorMessage: true,
+        clearEmptyReply: true,
         incrementHistoryRevision: true,
       );
       saveAllConversations();
@@ -717,9 +721,11 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         .take(latestAssistantIndex)
         .toList(growable: false);
     final errorAssistantId = state.errorMessageAssistantId;
+    final isEmptyReplyNode = state.emptyReplyAssistantId != null && state.emptyReplyAssistantId == latestAssistant.id;
     final isEmptyReply = latestAssistant.content.trim().isEmpty &&
         latestAssistant.reasoningContent.trim().isEmpty;
     final shouldRemoveNode = (errorAssistantId != null && errorAssistantId == latestAssistant.id)
+        || isEmptyReplyNode
         || isEmptyReply;
     if (shouldRemoveNode) {
       final nextTree = removeNodeFromTree(
@@ -734,6 +740,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       state = state.copyWith(
         conversations: replaceConversation(baseConversation),
         clearErrorMessage: true,
+        clearEmptyReply: true,
       );
       saveAllConversations();
 
@@ -765,6 +772,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     state = state.copyWith(
       conversations: replaceConversation(baseConversation),
       clearErrorMessage: true,
+      clearEmptyReply: true,
     );
     saveAllConversations();
 

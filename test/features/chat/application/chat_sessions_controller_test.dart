@@ -440,8 +440,9 @@ void main() {
     final state = container.read(chatSessionsProvider);
     expect(state.activeConversation.messages.last.role, ChatMessageRole.assistant);
     expect(state.activeConversation.messages.last.content, isEmpty);
-    expect(state.errorMessageAssistantId, state.activeConversation.messages.last.id);
-    expect(state.errorMessage, contains('空回复'));
+    expect(state.emptyReplyAssistantId, state.activeConversation.messages.last.id);
+    expect(state.errorMessage, isNull);
+    expect(state.errorMessageAssistantId, isNull);
     expect(state.isStreaming, isFalse);
   });
 
@@ -1087,7 +1088,8 @@ void main() {
     await sendMsg('测试');
 
     final state = container.read(chatSessionsProvider);
-    expect(state.errorMessage, isNotNull);
+    expect(state.emptyReplyAssistantId, isNotNull);
+    expect(state.errorMessage, isNull);
     expect(fakeClient.requestHistory.length, 1); // 仅一次，不重试
   });
 }
