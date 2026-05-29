@@ -400,14 +400,14 @@ void main() {
     expect(state.isStreaming, isFalse);
   });
 
-  test('sendMessage 错误且无部分内容时删除空白占位节点', () async {
+  test('sendMessage 错误且无部分内容时保留空白占位节点', () async {
     fakeClient.enqueueError(ChatCompletionException('请求失败'));
     await sendMsg('触发错误');
 
-    // 空流失败后空白 assistant 节点被删除，仅保留用户消息
+    // 空流失败后空白 assistant 节点保留在树中，用户消息 + 占位节点共 2 条
     final state = container.read(chatSessionsProvider);
     final messages = state.activeConversation.messages;
-    expect(messages.length, 1);
+    expect(messages.length, 2);
     expect(messages.first.role, ChatMessageRole.user);
     expect(state.errorMessage, isNotNull);
     expect(state.errorMessageAssistantId, isNotNull);
@@ -431,6 +431,18 @@ void main() {
     expect(state.activeConversation.messages.last.role, ChatMessageRole.assistant);
     expect(state.activeConversation.messages.last.reasoningContent, '思考中');
     expect(state.errorMessageAssistantId, state.activeConversation.messages.last.id);
+  });
+
+  test('sendMessage 空回复时保留助手占位节点并设置内联错误', () async {
+    fakeClient.enqueueChunks(['']);
+    await sendMsg('触发空回复');
+
+    final state = container.read(chatSessionsProvider);
+    expect(state.activeConversation.messages.last.role, ChatMessageRole.assistant);
+    expect(state.activeConversation.messages.last.content, isEmpty);
+    expect(state.errorMessageAssistantId, state.activeConversation.messages.last.id);
+    expect(state.errorMessage, contains('空回复'));
+    expect(state.isStreaming, isFalse);
   });
 
   test('createCheckpoint 保存检查点并记录来源提示词名称', () async {
@@ -657,8 +669,8 @@ void main() {
     fakeClient.enqueueError(ChatCompletionException('503 unavailable'));
     await sendMsg('先失败后重试');
     final failureState = container.read(chatSessionsProvider);
-    // 空内容失败后空白节点被删除，仅剩用户消息
-    expect(failureState.activeConversation.messages, hasLength(1));
+    // 空内容失败后空白节点保留在树中，用户消息 + 占位节点共 2 条
+    expect(failureState.activeConversation.messages, hasLength(2));
     expect(failureState.errorMessage, isNotNull);
     expect(failureState.errorMessageAssistantId, isNotNull);
 
@@ -1054,18 +1066,18 @@ void main() {
     expect(state.errorMessage, isNull);
   });
 
-  test('流式错误且空内容时删除空节点保留错误信息', () async {
+  test('流式错误且空内容时保留空占位节点并设置内联错误', () async {
     fakeClient.enqueueError(ChatCompletionException('模拟流式错误'));
 
     await sendMsg('触发错误');
 
     final state = container.read(chatSessionsProvider);
     expect(state.errorMessage, isNotNull);
-    // 空白 assistant 节点不应出现在消息列表中
-    final hasEmptyAssistant = state.activeConversation.messages.any(
-      (m) => m.role == ChatMessageRole.assistant && m.content.isEmpty,
-    );
-    expect(hasEmptyAssistant, isFalse);
+    // 空白 assistant 节点保留在树中，errorMessageAssistantId 指向它
+    expect(state.activeConversation.messages, hasLength(2));
+    expect(state.errorMessageAssistantId, state.activeConversation.messages.last.id);
+    expect(state.activeConversation.messages.last.role, ChatMessageRole.assistant);
+    expect(state.activeConversation.messages.last.content, isEmpty);
   });
 
   test('空回复且无自动重试时不自动重试', () async {
