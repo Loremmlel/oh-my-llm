@@ -61,33 +61,23 @@ class _MessageAnchorRailState extends State<MessageAnchorRail> {
   // ── 状态 ────────────────────────────────────────────────────
 
   bool _isExpanded = false;
-  String? _expandedMessageId;
 
   // ── 展开/折叠 ──────────────────────────────────────────────
 
-  /// 切换指定消息的展开状态。
-  ///
-  /// 再次点击同一条已展开消息时折叠，否则切换到新消息展开。
-  void _toggleExpand(String messageId) {
+  /// 展开锚点条。
+  void _toggleExpand() {
     // ≤3 条消息时不展开，保持紧凑模式
     if (widget.userMessages.length <= 3) return;
     setState(() {
-      if (_expandedMessageId == messageId && _isExpanded) {
-        _isExpanded = false;
-        _expandedMessageId = null;
-      } else {
-        _expandedMessageId = messageId;
-        _isExpanded = true;
-      }
+      _isExpanded = true;
     });
   }
 
-  /// 折叠当前展开的消息。
+  /// 折叠当前展开的锚点条。
   void _collapseExpand() {
     if (!_isExpanded) return;
     setState(() {
       _isExpanded = false;
-      _expandedMessageId = null;
     });
   }
 
@@ -109,7 +99,6 @@ class _MessageAnchorRailState extends State<MessageAnchorRail> {
   Widget _buildPreviewBubble(
     BuildContext context,
     String content,
-    String messageId,
   ) {
     final theme = Theme.of(context);
     final previewText = MessageAnchorRail.extractPreviewText(content);
@@ -118,7 +107,6 @@ class _MessageAnchorRailState extends State<MessageAnchorRail> {
     return Positioned(
       right: 24,
       child: AnimatedOpacity(
-        key: ValueKey('preview-bubble-$messageId'),
         opacity: _isExpanded ? 1.0 : 0.0,
         duration: const Duration(milliseconds: 167),
         child: IgnorePointer(
@@ -152,13 +140,18 @@ class _MessageAnchorRailState extends State<MessageAnchorRail> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return ConstrainedBox(
-      constraints: BoxConstraints(
-        maxHeight: widget.maxHeight,
-        minWidth: 28,
-        maxWidth: 28,
-      ),
-      child: DecoratedBox(
+    return GestureDetector(
+      onLongPress: () => _toggleExpand(),
+      child: MouseRegion(
+        onEnter: (_) => _toggleExpand(),
+        onExit: (_) => _collapseExpand(),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 167),
+          width: _isExpanded ? 228 : 28,
+          constraints: BoxConstraints(
+            maxHeight: widget.maxHeight,
+          ),
+          child: DecoratedBox(
         key: const ValueKey('message-anchor-rail'),
         decoration: BoxDecoration(
           color: theme.colorScheme.surface.withValues(alpha: 0.15),
@@ -184,55 +177,49 @@ class _MessageAnchorRailState extends State<MessageAnchorRail> {
                 final message = widget.userMessages[index];
                 final isActive = message.id == widget.activeMessageId;
 
-                return GestureDetector(
-                  onLongPress: () => _toggleExpand(message.id),
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      _buildPreviewBubble(
-                        context,
-                        message.content,
-                        message.id,
-                      ),
-                      MouseRegion(
-                        onEnter: (_) => _toggleExpand(message.id),
-                        onExit: (_) => _collapseExpand(),
-                        child: Semantics(
-                          button: true,
-                          selected: isActive,
-                          label: '定位到第 ${index + 1} 条用户消息',
-                          child: InkWell(
-                            key: ValueKey('message-anchor-item-${index + 1}'),
-                            borderRadius: BorderRadius.circular(999),
-                            onTap: () => widget.onSelectMessage(message.id),
-                            child: SizedBox(
-                              width: 20,
-                              height: 18,
-                              child: Center(
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 167),
-                                  width: isActive ? 14 : 10,
-                                  height: isActive ? 6 : 4,
-                                  decoration: BoxDecoration(
-                                    color: isActive
-                                        ? theme.colorScheme.primary
-                                        : theme.colorScheme.outline,
-                                    borderRadius: BorderRadius.circular(999),
-                                  ),
-                                ),
+                return Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    _buildPreviewBubble(
+                      context,
+                      message.content,
+                    ),
+                    Semantics(
+                      button: true,
+                      selected: isActive,
+                      label: '定位到第 ${index + 1} 条用户消息',
+                      child: InkWell(
+                        key: ValueKey('message-anchor-item-${index + 1}'),
+                        borderRadius: BorderRadius.circular(999),
+                        onTap: () => widget.onSelectMessage(message.id),
+                        child: SizedBox(
+                          width: 20,
+                          height: 18,
+                          child: Center(
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 167),
+                              width: isActive ? 14 : 10,
+                              height: isActive ? 6 : 4,
+                              decoration: BoxDecoration(
+                                color: isActive
+                                    ? theme.colorScheme.primary
+                                    : theme.colorScheme.outline,
+                                borderRadius: BorderRadius.circular(999),
                               ),
                             ),
                           ),
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 );
               },
             ),
           ),
         ),
       ),
-    );
+    ),
+  ),
+);
   }
 }
