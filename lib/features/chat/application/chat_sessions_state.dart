@@ -68,6 +68,7 @@ class ChatSessionsState extends Equatable {
     this.autoRetryCount = 0,
     this.errorMessage,
     this.errorMessageAssistantId,
+    this.emptyReplyAssistantId,
     this.streamingReply,
     this.historyRevision = 0,
   });
@@ -99,6 +100,9 @@ class ChatSessionsState extends Equatable {
   /// 需要展示错误提示的 assistant 消息 ID。
   final String? errorMessageAssistantId;
 
+  /// 需要展示空回复提示的 assistant 消息 ID。
+  final String? emptyReplyAssistantId;
+
   /// 正在进行中的流式增量，流结束后清空。
   final ChatStreamingReply? streamingReply;
 
@@ -126,6 +130,8 @@ class ChatSessionsState extends Equatable {
     String? errorMessage,
     bool clearErrorMessage = false,
     String? errorMessageAssistantId,
+    String? emptyReplyAssistantId,
+    bool clearEmptyReply = false,
     ChatStreamingReply? streamingReply,
     bool clearStreamingReply = false,
     int? historyRevision,
@@ -148,6 +154,9 @@ class ChatSessionsState extends Equatable {
       errorMessageAssistantId: clearErrorMessage
           ? null
           : errorMessageAssistantId ?? this.errorMessageAssistantId,
+      emptyReplyAssistantId: clearEmptyReply
+          ? null
+          : emptyReplyAssistantId ?? this.emptyReplyAssistantId,
       streamingReply: clearStreamingReply
           ? null
           : streamingReply ?? this.streamingReply,
@@ -168,6 +177,7 @@ class ChatSessionsState extends Equatable {
     autoRetryCount,
     errorMessage,
     errorMessageAssistantId,
+    emptyReplyAssistantId,
     streamingReply,
     historyRevision,
   ];
