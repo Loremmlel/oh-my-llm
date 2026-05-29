@@ -96,9 +96,12 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
     final isEmpty = streamingReply.content.trim().isEmpty &&
         streamingReply.reasoningContent.trim().isEmpty;
     final nextTree = isEmpty
-        ? removeNodeFromTree(
+        ? replaceAssistantMessageInTree(
             treeState: tree,
-            nodeId: assistantMessageId,
+            assistantMessageId: assistantMessageId,
+            nextContent: '',
+            nextReasoningContent: '',
+            isStreaming: false,
           )
         : replaceAssistantMessageInTree(
             treeState: tree,
@@ -122,7 +125,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
       ),
       isStreaming: false,
       errorMessage: errorMessage,
-      errorMessageAssistantId: isEmpty ? null : assistantMessageId,
+      errorMessageAssistantId: assistantMessageId,
       clearStreamingReply: true,
       incrementHistoryRevision: true,
     );
@@ -212,9 +215,12 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
       // 空回复：移除空白占位节点，走失败路径触发重试
       if (_isEmptyStreamingReply(streamingReply: streamingReply)) {
         final tree = resolveMessageTreeState(streamingConversation);
-        final nextTree = removeNodeFromTree(
+        final nextTree = replaceAssistantMessageInTree(
           treeState: tree,
-          nodeId: assistantMessage.id,
+          assistantMessageId: assistantMessage.id,
+          nextContent: '',
+          nextReasoningContent: '',
+          isStreaming: false,
         );
         final cleanedConversation = streamingConversation.copyWith(
           messageNodes: nextTree.nodes,
@@ -228,8 +234,8 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
             summaryFromConversation(cleanedConversation),
           ),
           isStreaming: false,
-          errorMessage: '模型返回了空回复，自动重试继续',
-          errorMessageAssistantId: null,
+          errorMessage: '模型返回了空回复',
+          errorMessageAssistantId: assistantMessage.id,
           clearStreamingReply: true,
           incrementHistoryRevision: true,
         );
