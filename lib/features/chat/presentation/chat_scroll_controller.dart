@@ -30,11 +30,14 @@ class ChatScrollController {
   ChatScrollController({
     required VoidCallback onStateChange,
     required bool Function() isMounted,
-  }) : _onStateChange = onStateChange,
-       _isMounted = isMounted;
+    VoidCallback? onScroll,
+  })  : _onStateChange = onStateChange,
+        _isMounted = isMounted,
+        _onScroll = onScroll;
 
   final VoidCallback _onStateChange;
   final bool Function() _isMounted;
+  final VoidCallback? _onScroll;
 
   final ItemScrollController itemScrollController = ItemScrollController();
   final ItemPositionsListener itemPositionsListener =
@@ -196,6 +199,7 @@ class ChatScrollController {
     showScrollToBottom = nextShowScrollToBottom;
     activeAnchorMessageId = nextActiveAnchorMessageId;
     _onStateChange();
+    _onScroll?.call();
   }
 
   /// 在主动滚动后补一次可见项同步，避免按钮状态滞后到下一次滚动事件。

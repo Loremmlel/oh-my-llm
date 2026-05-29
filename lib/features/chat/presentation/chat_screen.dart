@@ -53,6 +53,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _scroll = ChatScrollController(
       onStateChange: () => setState(() {}),
       isMounted: () => mounted,
+      onScroll: _handleScroll,
     );
     _scroll.itemPositionsListener.itemPositions.addListener(
       _scroll.handleVisibleItemsChanged,
@@ -389,6 +390,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       conversation,
                     ),
                     favoritedAssistantContents: favoritedContents,
+                    onScroll: _handleScroll,
                   ),
                 ),
               ],
@@ -523,6 +525,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     setState(() {
       _isComposerCollapsed = !_isComposerCollapsed;
     });
+  }
+
+  void _handleScroll() {
+    setState(() {});
   }
 
   void _handleModelSelected(String modelId) {
