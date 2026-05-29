@@ -43,7 +43,7 @@ class MessageAnchorRail extends StatefulWidget {
     if (cleaned.isEmpty) return '';
 
     // 步骤 2 & 3: 在第一个标点符号处截断，最多 15 字符
-    const punctuation = '.。！？，,﹖﹔；：!?,;: +\n';
+    const punctuation = '.。！？，,﹖﹔；：!?,;:+\n';
     const limit = 15;
     for (int i = 0; i < cleaned.length && i < limit; i++) {
       if (punctuation.contains(cleaned[i])) {
