@@ -164,6 +164,7 @@ class ChatComposerCard extends StatelessWidget {
   ) {
     var localReasoningEnabled = data.supportsReasoning && data.reasoningEnabled;
     var localEffort = data.reasoningEffort;
+    var localAutoRetryEnabled = data.autoRetryEnabled;
 
     return showModalBottomSheet<void>(
       context: context,
@@ -195,8 +196,13 @@ class ChatComposerCard extends StatelessWidget {
                     const SizedBox(height: 8),
                     AutoRetryToggle(
                       enabled: true,
-                      value: data.autoRetryEnabled,
-                      onChanged: callbacks.onAutoRetryEnabledChanged,
+                      value: localAutoRetryEnabled,
+                      onChanged: (value) {
+                        setModalState(() {
+                          localAutoRetryEnabled = value;
+                        });
+                        callbacks.onAutoRetryEnabledChanged?.call(value);
+                      },
                     ),
                     if (data.supportsReasoning && localReasoningEnabled) ...[
                       const SizedBox(height: 12),
