@@ -5,6 +5,7 @@ import '../../domain/chat_word_counter.dart';
 import '../../domain/models/chat_message.dart';
 import 'message_version_info.dart';
 import 'message_version_navigator.dart';
+import 'chat_inline_empty_reply_card.dart';
 import 'chat_inline_error_card.dart';
 import 'reasoning_panel.dart';
 import 'streaming_markdown_view.dart';
@@ -27,6 +28,7 @@ class ChatMessageBubble extends StatefulWidget {
     this.versionInfo,
     this.onSwitchVersion,
     this.autoRetryCount = 0,
+    this.isEmptyReply = false,
     super.key,
   });
 
@@ -50,6 +52,9 @@ class ChatMessageBubble extends StatefulWidget {
 
   /// 当前自动重试次数，大于 0 时在用户消息中展示重试提示。
   final int autoRetryCount;
+
+  /// 是否为模型返回的空回复错误。
+  final bool isEmptyReply;
 
   final MessageVersionInfo? versionInfo;
   final Future<void> Function(String targetMessageId)? onSwitchVersion;
@@ -234,9 +239,14 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                     widget.inlineErrorMessage != null &&
                     widget.inlineErrorMessage!.trim().isNotEmpty) ...[
                   const SizedBox(height: 8),
-                  ChatInlineErrorCard(
-                    message: widget.inlineErrorMessage!.trim(),
-                  ),
+                  if (widget.isEmptyReply)
+                    ChatInlineEmptyReplyCard(
+                      message: widget.inlineErrorMessage!.trim(),
+                    )
+                  else
+                    ChatInlineErrorCard(
+                      message: widget.inlineErrorMessage!.trim(),
+                    ),
                 ],
                 if (!isUser && message.appliedCheckpointTitle.trim().isNotEmpty)
                   _buildCheckpointUsageRow(

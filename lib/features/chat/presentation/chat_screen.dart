@@ -91,6 +91,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final errorMessageAssistantId = ref.watch(
       chatErrorMessageAssistantIdProvider,
     );
+    final emptyReplyAssistantId = ref.watch(
+      chatSessionsProvider.select((state) => state.emptyReplyAssistantId),
+    );
     final rememberedSelections = ref.watch(chatDefaultsProvider);
     final fixedPromptSequences = ref.watch(fixedPromptSequencesProvider);
     final modelProviders = ref.watch(llmProviderConfigsProvider);
@@ -259,6 +262,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     isAutoRetryWaiting: isAutoRetryWaiting,
                     errorMessage: errorMessage,
                     errorMessageAssistantId: errorMessageAssistantId,
+                    emptyReplyAssistantId: emptyReplyAssistantId,
                     errorModelDisplayName: selectedModel?.displayName ?? '模型',
                     showScrollToBottom: _scroll.showScrollToBottom,
                     autoRetryCount: autoRetryCount,

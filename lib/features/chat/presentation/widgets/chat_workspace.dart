@@ -42,6 +42,7 @@ class ChatWorkspace extends StatelessWidget {
     required this.isAutoRetryWaiting,
     required this.errorMessage,
     required this.errorMessageAssistantId,
+    this.emptyReplyAssistantId,
     required this.errorModelDisplayName,
     required this.showScrollToBottom,
     required this.autoRetryCount,
@@ -99,6 +100,7 @@ class ChatWorkspace extends StatelessWidget {
   final bool isAutoRetryWaiting;
   final String? errorMessage;
   final String? errorMessageAssistantId;
+  final String? emptyReplyAssistantId;
   final String errorModelDisplayName;
   final bool showScrollToBottom;
   final int autoRetryCount;
@@ -151,6 +153,7 @@ class ChatWorkspace extends StatelessWidget {
             isBusy: isBusy,
             errorMessage: errorMessage,
             errorMessageAssistantId: errorMessageAssistantId,
+            emptyReplyAssistantId: emptyReplyAssistantId,
             errorModelDisplayName: errorModelDisplayName,
             showScrollToBottom: showScrollToBottom,
             autoRetryCount: autoRetryCount,
