@@ -85,6 +85,13 @@ final chatErrorMessageAssistantIdProvider = Provider<String?>((ref) {
   );
 });
 
+/// 当前空回复提示所关联的 assistant 消息 ID。
+final chatEmptyReplyAssistantIdProvider = Provider<String?>((ref) {
+  return ref.watch(
+    chatSessionsProvider.select((state) => state.emptyReplyAssistantId),
+  );
+});
+
 /// 历史列表变更计数器，每次会话增删改时递增，供历史页触发重新查询。
 final chatHistoryRevisionProvider = Provider<int>((ref) {
   return ref.watch(
