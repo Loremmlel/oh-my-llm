@@ -7,6 +7,8 @@ import 'package:oh_my_llm/features/chat/data/chat_completion_client.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
+import 'package:oh_my_llm/features/chat/presentation/widgets/chat_inline_empty_reply_card.dart';
+import 'package:oh_my_llm/features/chat/presentation/widgets/chat_inline_error_card.dart';
 
 import 'chat_screen_test_helpers.dart';
 
@@ -279,4 +281,42 @@ void registerChatScreenBranchingTests() {
     expect(find.textContaining('重试后回复'), findsNothing);
     expect(find.textContaining('测试全部删除'), findsWidgets);
   });
+
+  testWidgets(
+    '空回复时渲染 ChatInlineEmptyReplyCard 而非 ChatInlineErrorCard',
+    (tester) async {
+      final fakeClient = FakeChatCompletionClient()
+        ..enqueueChunks([]);
+
+      await pumpChatScreen(
+        tester,
+        fakeClient: fakeClient,
+      );
+
+      await sendMessage(tester, '触发空回复');
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ChatInlineEmptyReplyCard), findsOneWidget);
+      expect(find.byType(ChatInlineErrorCard), findsNothing);
+    },
+  );
+
+  testWidgets(
+    '真实错误时渲染 ChatInlineErrorCard 而非 ChatInlineEmptyReplyCard',
+    (tester) async {
+      final fakeClient = FakeChatCompletionClient()
+        ..enqueueError(ChatCompletionException('测试网络错误'));
+
+      await pumpChatScreen(
+        tester,
+        fakeClient: fakeClient,
+      );
+
+      await sendMessage(tester, '触发错误');
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ChatInlineErrorCard), findsOneWidget);
+      expect(find.byType(ChatInlineEmptyReplyCard), findsNothing);
+    },
+  );
 }
