@@ -100,97 +100,101 @@ class _MessageAnchorRailState extends State<MessageAnchorRail> {
 
     return GestureDetector(
       onLongPress: () => _toggleExpand(),
-      child: MouseRegion(
-        onEnter: (_) => _toggleExpand(),
-        onExit: (_) => _collapseExpand(),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 167),
-          width: _isExpanded ? 228 : 28,
-          constraints: BoxConstraints(
-            maxHeight: widget.maxHeight,
-          ),
-          child: DecoratedBox(
-        key: const ValueKey('message-anchor-rail'),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surface.withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
-          ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-          child: ScrollConfiguration(
-            behavior: ScrollConfiguration.of(context).copyWith(
-              scrollbars: false,
+      child: Align(
+        alignment: Alignment.centerRight,
+        child: MouseRegion(
+          onEnter: (_) => _toggleExpand(),
+          onExit: (_) => _collapseExpand(),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: widget.maxHeight,
             ),
-            child: ListView.separated(
-              primary: false,
-              padding: EdgeInsets.zero,
-              itemCount: widget.userMessages.length,
-              separatorBuilder: (context, index) {
-                return const SizedBox(height: 8);
-              },
-              itemBuilder: (context, index) {
-                final message = widget.userMessages[index];
-                final isActive = message.id == widget.activeMessageId;
-                final previewText = MessageAnchorRail.extractPreviewText(message.content);
+            child: SizedBox(
+              width: _isExpanded ? 228 : 28,
+              child: DecoratedBox(
+                key: const ValueKey('message-anchor-rail'),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                  child: ScrollConfiguration(
+                    behavior: ScrollConfiguration.of(context).copyWith(
+                      scrollbars: false,
+                    ),
+                    child: ListView.separated(
+                      primary: false,
+                      padding: EdgeInsets.zero,
+                      itemCount: widget.userMessages.length,
+                      separatorBuilder: (context, index) {
+                        return const SizedBox(height: 8);
+                      },
+                      itemBuilder: (context, index) {
+                        final message = widget.userMessages[index];
+                        final isActive = message.id == widget.activeMessageId;
+                        final previewText = MessageAnchorRail.extractPreviewText(message.content);
 
-                return Semantics(
-                  button: true,
-                  selected: isActive,
-                  label: '定位到第 ${index + 1} 条用户消息',
-                  child: InkWell(
-                    key: ValueKey('message-anchor-item-${index + 1}'),
-                    borderRadius: BorderRadius.circular(999),
-                    onTap: () => widget.onSelectMessage(message.id),
-                    child: SizedBox(
-                      height: 18,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (_isExpanded && previewText.isNotEmpty)
-                            Expanded(
-                              child: Padding(
-                                padding: const EdgeInsets.only(right: 8),
-                                child: Text(
-                                  previewText,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: theme.textTheme.bodySmall,
-                                  textAlign: TextAlign.right,
-                                ),
-                              ),
-                            ),
-                          SizedBox(
-                            width: 20,
-                            height: 18,
-                            child: Center(
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 167),
-                                width: isActive ? 14 : 10,
-                                height: isActive ? 6 : 4,
-                                decoration: BoxDecoration(
-                                  color: isActive
-                                      ? theme.colorScheme.primary
-                                      : theme.colorScheme.outline,
-                                  borderRadius: BorderRadius.circular(999),
-                                ),
+                        return Semantics(
+                          button: true,
+                          selected: isActive,
+                          label: '定位到第 ${index + 1} 条用户消息',
+                          child: InkWell(
+                            key: ValueKey('message-anchor-item-${index + 1}'),
+                            borderRadius: BorderRadius.circular(999),
+                            onTap: () => widget.onSelectMessage(message.id),
+                            child: SizedBox(
+                              height: 18,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (_isExpanded && previewText.isNotEmpty)
+                                    Expanded(
+                                      child: Padding(
+                                        padding: const EdgeInsets.only(right: 8),
+                                        child: Text(
+                                          previewText,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: theme.textTheme.bodySmall,
+                                          textAlign: TextAlign.right,
+                                        ),
+                                      ),
+                                    ),
+                                  SizedBox(
+                                    width: 20,
+                                    height: 18,
+                                    child: Center(
+                                      child: AnimatedContainer(
+                                        duration: const Duration(milliseconds: 167),
+                                        width: isActive ? 14 : 10,
+                                        height: isActive ? 6 : 4,
+                                        decoration: BoxDecoration(
+                                          color: isActive
+                                              ? theme.colorScheme.primary
+                                              : theme.colorScheme.outline,
+                                          borderRadius: BorderRadius.circular(999),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
-                        ],
-                      ),
+                        );
+                      },
                     ),
                   ),
-                );
-              },
+                ),
+              ),
             ),
           ),
         ),
       ),
-    ),
-  ),
-);
+    );
   }
 }
