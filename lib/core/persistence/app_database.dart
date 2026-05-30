@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:meta/meta.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqlite3/sqlite3.dart' as sqlite;
 
@@ -33,6 +34,15 @@ class AppDatabase {
     return AppDatabase._(
       connection: sqlite.sqlite3.openInMemory(),
       path: ':memory:',
+    );
+  }
+
+  /// 打开指定路径的文件数据库，用于需要跨 Isolate 共享的测试场景。
+  @visibleForTesting
+  factory AppDatabase.forPath(String path) {
+    return AppDatabase._(
+      connection: sqlite.sqlite3.open(path),
+      path: path,
     );
   }
 

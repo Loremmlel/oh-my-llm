@@ -28,7 +28,7 @@ void chatWriterEntryPoint(SendPort mainSendPort) {
         }
         currentDb.execute('PRAGMA busy_timeout = 5000;');
         for (final pending in pendingWrites) {
-          _executeSaveConversations(currentDb, pending);
+          executeSaveConversations(currentDb, pending);
         }
         pendingWrites.clear();
       } catch (_) {
@@ -39,7 +39,7 @@ void chatWriterEntryPoint(SendPort mainSendPort) {
       final currentDb = db;
       if (currentDb != null) {
         try {
-          _executeSaveConversations(currentDb, message);
+          executeSaveConversations(currentDb, message);
         } catch (e) {
           // ignore: avoid_print
           print('[BackgroundWriter] 写入失败: $e');
@@ -51,7 +51,11 @@ void chatWriterEntryPoint(SendPort mainSendPort) {
   });
 }
 
-void _executeSaveConversations(sqlite.Database db, List<dynamic> conversationsJson) {
+/// 供测试直接调用的全量保存函数。
+///
+/// 对每个会话先 UPSERT conversations 行，再 DELETE 旧消息/分支选择/检查点，
+/// 最后 INSERT 当前消息树。整个操作在 BEGIN IMMEDIATE 事务中完成。
+void executeSaveConversations(sqlite.Database db, List<dynamic> conversationsJson) {
   final conversations = conversationsJson
       .map((j) => ChatConversation.fromJson(Map<String, dynamic>.from(j as Map)))
       .toList(growable: false);
