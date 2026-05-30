@@ -28,6 +28,9 @@ abstract interface class ChatConversationRepository {
   /// 将指定会话列表增量写回持久层（不存在则插入，存在则更新）。
   Future<void> saveConversations(List<ChatConversation> conversations);
 
+  /// 保存单条会话，空会话（无消息、无检查点、无标题）将被跳过。
+  Future<void> saveConversation(ChatConversation conversation);
+
   /// 从持久层删除指定 ID 的会话及其所有关联数据。
   Future<void> deleteConversations(List<String> ids);
 }
