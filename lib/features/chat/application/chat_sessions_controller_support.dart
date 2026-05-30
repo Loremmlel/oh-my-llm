@@ -98,6 +98,14 @@ mixin ChatSessionsControllerSupport on Notifier<ChatSessionsState> {
     repository.saveConversations(toSave);
   }
 
+  /// 保存单个会话到持久层。
+  ///
+  /// 空会话（无消息、无检查点、无标题）将被跳过，详见
+  /// [BackgroundChatConversationRepository.saveConversation]。
+  void saveConversation(ChatConversation conversation) {
+    repository.saveConversation(conversation);
+  }
+
   CheckpointRequestContext resolveCheckpointContext({
     required ChatConversation conversation,
     required List<ChatMessage> conversationMessages,

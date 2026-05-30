@@ -80,7 +80,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
       clearEmptyReply: true,
       incrementHistoryRevision: true,
     );
-    saveAllConversations();
+    saveConversation(stoppedConversation);
 
     completeActiveStreaming(stoppedConversation);
     clearActiveStreamingSession();
@@ -131,7 +131,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
       clearStreamingReply: true,
       incrementHistoryRevision: true,
     );
-    saveAllConversations();
+    saveConversation(nextConversation);
   }
 
   /// 把 assistant 回复以流式方式写回当前会话。
@@ -191,7 +191,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
       clearEmptyReply: true,
       incrementHistoryRevision: true,
     );
-    saveAllConversations();
+    saveConversation(streamingConversation);
     if (completer.isCompleted ||
         activeStreamingCompleter != completer ||
         !state.isStreaming) {
@@ -243,7 +243,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
           clearStreamingReply: true,
           incrementHistoryRevision: true,
         );
-        saveAllConversations();
+        saveConversation(cleanedConversation);
         completeActiveStreaming(null);
         clearActiveStreamingSession();
         return;
@@ -265,7 +265,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
         clearStreamingReply: true,
         incrementHistoryRevision: true,
       );
-      saveAllConversations();
+      saveConversation(completedConversation);
       completeActiveStreaming(completedConversation);
       clearActiveStreamingSession();
     }
@@ -428,7 +428,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
       clearAutoRetryCount: true,
       incrementHistoryRevision: true,
     );
-    saveAllConversations();
+    saveConversation(pendingConversation);
 
     var isFirstAttempt = true;
     while (true) {
@@ -470,7 +470,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
         clearStreamingReply: true,
         incrementHistoryRevision: true,
       );
-      saveAllConversations();
+      saveConversation(pendingConversation);
 
       if (maxRetryCount > 0 &&
           state.autoRetryCount > maxRetryCount) {
