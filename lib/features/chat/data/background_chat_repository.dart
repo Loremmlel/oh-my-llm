@@ -26,7 +26,7 @@ class BackgroundChatConversationRepository
   bool _isolateReady = false;
   bool _isolateFailed = false;
 
-  List<Map<String, dynamic>>? _pendingWrite;
+  Map<String, Map<String, dynamic>>? _pendingWrite;
   Timer? _debounceTimer;
   final Set<String> _pendingDeletes = {};
 
@@ -50,12 +50,10 @@ class BackgroundChatConversationRepository
           final deletes = _pendingDeletes.toSet();
           _pendingDeletes.clear();
           if (deletes.isNotEmpty) {
-            pending.removeWhere(
-              (j) => deletes.contains(j['id'] as String?),
-            );
+            deletes.forEach((id) => pending.remove(id));
           }
           if (pending.isNotEmpty) {
-            message.send(pending);
+            message.send(pending.values.toList(growable: false));
           }
         }
       }
@@ -84,8 +82,10 @@ class BackgroundChatConversationRepository
     if (_databasePath == ':memory:') {
       return _inner.saveConversations(conversations);
     }
-    _pendingWrite =
-        conversations.map((c) => c.toJson()).toList(growable: false);
+    _pendingWrite ??= {};
+    for (final c in conversations) {
+      _pendingWrite![c.id] = c.toJson();
+    }
     _debounceTimer?.cancel();
     _debounceTimer = Timer(_debounceDuration, _flushWrite);
     return Future.value();
@@ -97,26 +97,26 @@ class BackgroundChatConversationRepository
         conversation.checkpoints.isNotEmpty ||
         (conversation.title?.trim().isNotEmpty ?? false);
     if (!shouldSave) return;
-    await saveConversations([conversation]);
+    if (_databasePath == ':memory:') {
+      return _inner.saveConversations([conversation]);
+    }
+    _pendingWrite ??= {};
+    _pendingWrite![conversation.id] = conversation.toJson();
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(_debounceDuration, _flushWrite);
+    return Future.value();
   }
 
   void _flushWrite() {
     final data = _pendingWrite;
-    if (data == null) {
-      return;
-    }
     _pendingWrite = null;
     final deletes = _pendingDeletes.toSet();
     _pendingDeletes.clear();
     if (deletes.isNotEmpty) {
-      data.removeWhere(
-        (j) => deletes.contains(j['id'] as String?),
-      );
+      deletes.forEach((id) => data?.remove(id));
     }
-    if (data.isEmpty) {
-      return;
-    }
-    _sendToWorker(data);
+    if (data == null || data.isEmpty) return;
+    _sendToWorker(data.values.toList(growable: false));
   }
 
   void _sendToWorker(List<Map<String, dynamic>> data) {
@@ -132,7 +132,7 @@ class BackgroundChatConversationRepository
     } else if (_isolateFailed) {
       _writeWithInner(data);
     } else {
-      _pendingWrite = data;
+      _pendingWrite = {for (final j in data) j['id'] as String: j};
     }
   }
 
