@@ -231,8 +231,9 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         activeConversationId: nextConversation.id,
         clearErrorMessage: true,
         clearEmptyReply: true,
-        incrementHistoryRevision: true,
+      incrementHistoryRevision: true,
       );
+    // 创建新会话时需要同时保存新旧两个会话，因此必须使用 saveAllConversations
     saveAllConversations();
   }
 
@@ -320,7 +321,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       ),
       incrementHistoryRevision: true,
     );
-    saveAllConversations();
+    saveConversation(renamed);
   }
 
   /// 删除一组会话，必要时回退到新的空会话。
@@ -357,7 +358,6 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       clearEmptyReply: true,
       incrementHistoryRevision: true,
     );
-    saveAllConversations();
   }
 
   /// 更新当前会话的模型、前置 Prompt 和思考偏好。
@@ -517,7 +517,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         clearEmptyReply: true,
         incrementHistoryRevision: true,
       );
-      saveAllConversations();
+      saveConversation(nextConversation);
       return nextCheckpoint;
     } catch (_) {
       state = state.copyWith(isCheckpointing: false);
@@ -742,7 +742,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         clearErrorMessage: true,
         clearEmptyReply: true,
       );
-      saveAllConversations();
+      saveConversation(baseConversation);
 
       final checkpointContext = resolveCheckpointContext(
         conversation: baseConversation,
@@ -774,7 +774,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       clearErrorMessage: true,
       clearEmptyReply: true,
     );
-    saveAllConversations();
+    saveConversation(baseConversation);
 
     final checkpointContext = resolveCheckpointContext(
       conversation: baseConversation,
