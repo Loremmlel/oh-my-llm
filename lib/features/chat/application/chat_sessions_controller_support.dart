@@ -59,7 +59,7 @@ mixin ChatSessionsControllerSupport on Notifier<ChatSessionsState> {
       ),
       incrementHistoryRevision: incrementHistoryRevision,
     );
-    saveAllConversations();
+    saveConversation(conversation);
   }
 
   List<ChatConversation> replaceConversation(ChatConversation conversation) {
@@ -87,6 +87,7 @@ mixin ChatSessionsControllerSupport on Notifier<ChatSessionsState> {
     return List.unmodifiable(sortedConversations);
   }
 
+  @Deprecated('仅 newConversation 场景使用，其他操作请使用 saveConversation')
   void saveAllConversations() {
     final toSave = state.conversations
         .where((c) {
