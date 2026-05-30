@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'app_log_store.dart';
+import 'json_truncator.dart';
 import 'network_log_redactor.dart';
 import 'network_logger.dart';
 
@@ -46,10 +47,11 @@ final class AppNetworkLogger implements NetworkLogger {
     await _safeWrite(() async {
       final redactedHeaders = _redactor.redactHeaders(headers);
       final redactedPayload = _redactor.redactPayload(payload);
+      final truncatedPayload = truncateJsonValues(redactedPayload);
       await _store.appendLine(
         '[${DateTime.now().toIso8601String()}] [request] $method $uri'
         ' headers=${_redactor.toJson(redactedHeaders)}'
-        ' payload=${_redactor.toJson(redactedPayload)}',
+        ' payload=${_redactor.toJson(truncatedPayload)}',
       );
     });
   }
@@ -78,9 +80,12 @@ final class AppNetworkLogger implements NetworkLogger {
   }) async {
     await _safeWrite(() async {
       final redactedBody = _redactor.redactPayload(body);
-      final serializedBody = redactedBody is String
-          ? redactedBody
-          : _redactor.toJson(redactedBody);
+      final truncatedBody = redactedBody is String
+          ? (redactedBody.length > 500 ? '${redactedBody.substring(0, 500)}...[truncated]' : redactedBody)
+          : truncateJsonValues(redactedBody);
+      final serializedBody = truncatedBody is String
+          ? truncatedBody
+          : _redactor.toJson(truncatedBody);
       await _store.appendLine(
         '[${DateTime.now().toIso8601String()}] [response-body] $uri'
         ' body=$serializedBody',
@@ -91,9 +96,18 @@ final class AppNetworkLogger implements NetworkLogger {
   @override
   Future<void> logSseLine({required Uri uri, required String line}) async {
     await _safeWrite(() async {
-      final trimmed = line.length > 1000 ? '${line.substring(0, 1000)}…' : line;
+      String processLine(String line) {
+        try {
+          final decoded = jsonDecode(line);
+          final truncated = truncateJsonValues(decoded);
+          return jsonEncode(truncated);
+        } catch (_) {
+          return line.length > 500 ? '${line.substring(0, 500)}...[truncated]' : line;
+        }
+      }
+      final processed = processLine(line);
       await _store.appendLine(
-        '[${DateTime.now().toIso8601String()}] [sse] $uri ${_redactor.redactText(trimmed)}',
+        '[${DateTime.now().toIso8601String()}] [sse] $uri ${_redactor.redactText(processed)}',
       );
     });
   }
