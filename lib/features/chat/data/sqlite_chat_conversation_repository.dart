@@ -546,4 +546,13 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
       rethrow;
     }
   }
+
+  @override
+  Future<void> saveConversation(ChatConversation conversation) async {
+    final shouldSave = conversation.hasMessages ||
+        conversation.checkpoints.isNotEmpty ||
+        (conversation.title?.trim().isNotEmpty ?? false);
+    if (!shouldSave) return;
+    await saveConversations([conversation]);
+  }
 }
