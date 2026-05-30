@@ -86,17 +86,34 @@ void _executeSaveConversations(sqlite.Database db, List<dynamic> conversationsJs
         content, reasoning_content, assistant_model_display_name,
         applied_checkpoint_title, user_message_segments_json, created_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        node_index = excluded.node_index,
+        content = excluded.content,
+        reasoning_content = excluded.reasoning_content,
+        assistant_model_display_name = excluded.assistant_model_display_name,
+        applied_checkpoint_title = excluded.applied_checkpoint_title,
+        user_message_segments_json = excluded.user_message_segments_json,
+        created_at = excluded.created_at
     ''');
     final selectionStatement = db.prepare('''
       INSERT INTO conversation_branch_selections (
         conversation_id, parent_id, child_id
       ) VALUES (?, ?, ?)
+      ON CONFLICT(conversation_id, parent_id) DO UPDATE SET
+        child_id = excluded.child_id
     ''');
     final checkpointStatement = db.prepare('''
       INSERT INTO conversation_checkpoints (
         id, conversation_id, title, content, parent_checkpoint_id,
         covered_until_message_id, source_memory_prompt_name, created_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        title = excluded.title,
+        content = excluded.content,
+        parent_checkpoint_id = excluded.parent_checkpoint_id,
+        covered_until_message_id = excluded.covered_until_message_id,
+        source_memory_prompt_name = excluded.source_memory_prompt_name,
+        created_at = excluded.created_at
     ''');
 
     try {
