@@ -35,6 +35,9 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
   bool get autoRetryCancelled;
   set autoRetryCancelled(bool value);
 
+  int get requestGeneration;
+  set requestGeneration(int value);
+
   /// 终止当前流式回复，并保留已收到的部分内容。
   ///
   /// 通过取消 [StreamSubscription] 实现：取消信号向下传播至 `async*` 生成器，
@@ -436,6 +439,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
     int maxRetryCount = 0,
     int maxJitterMs = 15000,
   }) async {
+    final capturedGeneration = ++requestGeneration;
     autoRetryCancelled = false;
     state = state.copyWith(
       conversations: replaceConversation(pendingConversation),
@@ -452,6 +456,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
 
     var isFirstAttempt = true;
     while (true) {
+      if (capturedGeneration != requestGeneration) return;
       if (autoRetryCancelled) {
         state = state.copyWith(
           clearAutoRetryCount: true,
@@ -468,6 +473,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
       );
       isFirstAttempt = false;
 
+      if (capturedGeneration != requestGeneration) return;
       if (autoRetryCancelled) {
         state = state.copyWith(
           clearAutoRetryCount: true,
@@ -500,6 +506,8 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
         );
         return;
       }
+
+      if (capturedGeneration != requestGeneration) return;
 
       final result = await streamAssistantReply(
         conversation: pendingConversation,
