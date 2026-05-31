@@ -426,7 +426,7 @@ void main() {
     await sendFuture;
 
     final state = container.read(chatSessionsProvider);
-    expect(state.errorMessage, '请求失败');
+    expect(state.errorMessage, '[ERR] 请求失败');
     expect(state.activeConversation.messages, hasLength(2));
     expect(state.activeConversation.messages.last.role, ChatMessageRole.assistant);
     expect(state.activeConversation.messages.last.reasoningContent, '思考中');
@@ -1015,6 +1015,42 @@ void main() {
     expect(fakeClient.requestHistory.length, 1);
   });
 
+  test('stopStreaming 在过渡窗口期间被调用后旧重试不继续', () async {
+    container
+        .read(chatSessionsProvider.notifier)
+        .updateActiveConversationPreferences(autoRetryEnabled: true);
+
+    // 第一次请求会失败，重试会有一个 50ms 的可控窗口期
+    fakeClient.enqueueError(ChatCompletionException('首次失败'));
+
+    // 用非零 retryDelay 创造可控的重试窗口：
+    // - 第一个 _waitForRetryWindow(50ms) 是首次请求的延迟，50ms 后发出
+    // - 第二个 _waitForRetryWindow(50ms) 是重试的等待窗口
+    final sendFuture = sendMsg('test A', retryDelay: const Duration(milliseconds: 50));
+
+    // 等第一个请求的 50ms 延迟结束、请求发出并失败、重试循环进入第二个等待窗口
+    await Future<void>.delayed(const Duration(milliseconds: 70));
+
+    // 此时旧重试在等待窗口中（isAutoRetryWaiting = true），调用 stopStreaming 取消
+    await container.read(chatSessionsProvider.notifier).stopStreaming();
+
+    // _isBusy 已为 false（isAutoRetryWaiting 被清除），发送新消息
+    fakeClient.enqueueChunks(['回复 B']);
+    await sendMsg('test B');
+
+    // 等待旧重试循环退出
+    await sendFuture;
+
+    // 只有 2 次请求：test A 的首次失败 + test B 的成功
+    // 旧重试循环在恢复后通过 autoRetryCancelled / requestGeneration 检查退出，未发出额外请求
+    expect(fakeClient.requestHistory.length, 2);
+
+    final state = container.read(chatSessionsProvider);
+    expect(state.activeConversation.messages.last.content, '回复 B');
+    expect(state.errorMessage, isNull);
+    expect(state.isStreaming, isFalse);
+  });
+
   // ── 空回复 ──────────────────────────────────────────────────────────────────
 
   test('autoRetry 遇到空回复继续重试直到成功', () async {
@@ -1229,5 +1265,27 @@ void main() {
     state = container.read(chatSessionsProvider);
     expect(state.emptyReplyAssistantId, isNotNull);
     expect(state.emptyReplyAssistantId, isNot(firstId));
+  });
+
+  test('HTTP 429 错误显示为错误消息而非空回复', () async {
+    fakeClient.enqueueError(
+      ChatCompletionException('请求失败（429）：rate limit exceeded'),
+    );
+    await sendMsg('触发 429 错误');
+
+    final state = container.read(chatSessionsProvider);
+    expect(state.errorMessage, contains('429'));
+    expect(state.errorMessage, contains('rate limit exceeded'));
+    expect(state.errorMessageAssistantId, isNotNull);
+    expect(state.emptyReplyAssistantId, isNull);
+  });
+
+  test('真正空回复仍走 emptyReplyAssistantId 路径', () async {
+    fakeClient.enqueueChunks(['']);
+    await sendMsg('触发空回复');
+
+    final state = container.read(chatSessionsProvider);
+    expect(state.emptyReplyAssistantId, isNotNull);
+    expect(state.errorMessage, contains('模型返回了空回复'));
   });
 }
