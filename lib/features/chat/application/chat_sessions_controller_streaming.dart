@@ -91,6 +91,22 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
     return stoppedConversation;
   }
 
+  /// 根据 HTTP 状态码或错误类型为错误消息添加分类前缀。
+  /// - [5xx] 服务端错误（500-599）
+  /// - [4xx] 客户端错误（400-499，含 429）
+  /// - [ERR] 未知/无法分类的错误
+  String _classifyError(String errorMessage) {
+    // 已经加过前缀则跳过
+    if (errorMessage.startsWith('[')) return errorMessage;
+    final statusMatch = RegExp(r'请求失败（(\d{3})）').firstMatch(errorMessage);
+    if (statusMatch != null) {
+      final code = int.parse(statusMatch.group(1)!);
+      if (code >= 500 && code < 600) return '[5xx] $errorMessage';
+      if (code >= 400 && code < 500) return '[4xx] $errorMessage';
+    }
+    return '[ERR] $errorMessage';
+  }
+
   /// 在流式请求失败时，保留已生成内容或清除空白占位节点。
   Future<void> handleStreamingFailure({
     required ChatConversation conversation,
@@ -98,6 +114,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
     required String assistantMessageId,
     required String errorMessage,
   }) async {
+    errorMessage = _classifyError(errorMessage);
     final tree = resolveMessageTreeState(conversation);
     final isEmpty = streamingReply.content.trim().isEmpty &&
         streamingReply.reasoningContent.trim().isEmpty;
@@ -245,7 +262,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
             ),
             isStreaming: false,
             emptyReplyAssistantId: assistantMessage.id,
-            errorMessage: '模型返回了空回复，请重试',
+            errorMessage: '[EMPTY] 模型返回了空回复，请重试',
             errorMessageAssistantId: assistantMessage.id,
             clearStreamingReply: true,
             incrementHistoryRevision: true,
@@ -259,7 +276,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
               summaryFromConversation(cleanedConversation),
             ),
             isStreaming: false,
-            errorMessage: '请求未返回有效内容，请检查网络或重试',
+            errorMessage: '[ERR] 请求未返回有效内容，请检查网络或重试',
             errorMessageAssistantId: assistantMessage.id,
             clearStreamingReply: true,
             incrementHistoryRevision: true,
