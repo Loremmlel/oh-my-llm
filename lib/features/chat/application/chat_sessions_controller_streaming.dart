@@ -56,6 +56,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
     }
 
     if (!state.isStreaming) {
+      autoRetryCancelled = true;
       return null;
     }
 
@@ -178,6 +179,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
     final completer = Completer<ChatConversation?>();
     activeStreamingCompleter = completer;
     latestStreamingReply = streamingReply;
+    var anyChunkYielded = false;
 
     state = state.copyWith(
       conversations: replaceConversation(streamingConversation),
@@ -230,19 +232,36 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
           selectedChildByParentId: nextTree.selections,
           updatedAt: DateTime.now(),
         );
-        state = state.copyWith(
-          conversations: replaceConversation(cleanedConversation),
-          conversationSummaries: replaceOrAddSummary(
-            state.conversationSummaries,
-            summaryFromConversation(cleanedConversation),
-          ),
-          isStreaming: false,
-          emptyReplyAssistantId: assistantMessage.id,
-          errorMessage: '模型返回了空回复，请重试',
-          errorMessageAssistantId: assistantMessage.id,
-          clearStreamingReply: true,
-          incrementHistoryRevision: true,
-        );
+        if (anyChunkYielded) {
+          // 收到过内容但最终为空 → 模型侧返回了空回复
+          state = state.copyWith(
+            conversations: replaceConversation(cleanedConversation),
+            conversationSummaries: replaceOrAddSummary(
+              state.conversationSummaries,
+              summaryFromConversation(cleanedConversation),
+            ),
+            isStreaming: false,
+            emptyReplyAssistantId: assistantMessage.id,
+            errorMessage: '模型返回了空回复，请重试',
+            errorMessageAssistantId: assistantMessage.id,
+            clearStreamingReply: true,
+            incrementHistoryRevision: true,
+          );
+        } else {
+          // 从未收到任何有效 chunk → 网络/服务端错误（如 429）
+          state = state.copyWith(
+            conversations: replaceConversation(cleanedConversation),
+            conversationSummaries: replaceOrAddSummary(
+              state.conversationSummaries,
+              summaryFromConversation(cleanedConversation),
+            ),
+            isStreaming: false,
+            errorMessage: '请求未返回有效内容，请检查网络或重试',
+            errorMessageAssistantId: assistantMessage.id,
+            clearStreamingReply: true,
+            incrementHistoryRevision: true,
+          );
+        }
         saveConversation(cleanedConversation);
         completeActiveStreaming(null);
         clearActiveStreamingSession();
@@ -305,6 +324,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
         )
         .listen(
           (chunk) {
+            anyChunkYielded = true;
             if (chunk.isEmpty || streamStopRequested) {
               return;
             }
