@@ -127,6 +127,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
   ChatStreamingReply? _latestStreamingReply;
   bool _streamStopRequested = false;
   bool _autoRetryCancelled = false;
+  int _requestGeneration = 0;
   @override
   StreamSubscription<ChatCompletionChunk>? get activeStreamingSubscription =>
       _activeStreamingSubscription;
@@ -169,6 +170,14 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
   @override
   set autoRetryCancelled(bool value) {
     _autoRetryCancelled = value;
+  }
+
+  @override
+  int get requestGeneration => _requestGeneration;
+
+  @override
+  set requestGeneration(int value) {
+    _requestGeneration = value;
   }
 
   bool get _isBusy => state.isStreaming || state.isCheckpointing || state.isAutoRetryWaiting;
