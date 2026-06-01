@@ -1,4 +1,6 @@
 export 'cached_chat_message_bubble.dart';
+export 'chat_activity_bar.dart';
+export 'chat_sidebar_panel.dart';
 export 'chat_message_bubble.dart';
 export 'chat_workspace.dart';
 export 'conversation_history_panel.dart';

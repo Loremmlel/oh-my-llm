@@ -109,14 +109,10 @@ class _DesktopNavigationRail extends StatelessWidget {
         context.go(destination.path);
       },
       labelType: NavigationRailLabelType.all,
-      minWidth: 96,
+      minWidth: 68,
       minExtendedWidth: 220,
       useIndicator: true,
       backgroundColor: theme.scaffoldBackgroundColor,
-      leading: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
-        child: Text('Oh My LLM', style: theme.textTheme.titleLarge),
-      ),
       destinations: [
         for (final destination in AppDestination.values)
           NavigationRailDestination(
