@@ -107,3 +107,24 @@ FavoriteCollection seedCollection(
 Future<SharedPreferences> createEmptyPreferences(AppDatabase database) async {
   return TestFixtures.seedPreferences(database: database);
 }
+
+/// 标准收藏页面测试环境：内存 DB、种子数据、挂载 FavoritesScreen。
+/// [seed] 回调用于预先写入收藏/收藏夹数据，[viewportSize] 控制视口尺寸。
+/// 返回 [AppDatabase] 供后续验证使用。
+Future<AppDatabase> setUpFavoritesScreen(
+  WidgetTester tester, {
+  Size viewportSize = const Size(1440, 1200),
+  void Function(AppDatabase database)? seed,
+}) async {
+  final database = AppDatabase.inMemory();
+  addTearDown(database.close);
+  seed?.call(database);
+  final preferences = await createEmptyPreferences(database);
+  await pumpFavoritesScreen(
+    tester,
+    preferences: preferences,
+    database: database,
+    viewportSize: viewportSize,
+  );
+  return database;
+}

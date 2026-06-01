@@ -138,6 +138,13 @@ void main() {
       expect(repository.loadAll(), isEmpty);
     });
 
+    test('delete 不存在的 id 不抛出异常', () {
+      repository.save(_makeFavorite(id: 'fav-1'));
+
+      repository.delete('nonexistent');
+
+      expect(repository.loadAll(), hasLength(1));
+    });
 
   });
 

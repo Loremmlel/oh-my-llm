@@ -1,19 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:oh_my_llm/core/persistence/app_database.dart';
-
 import 'history_screen_test_helpers.dart';
 
 void registerHistoryScreenSearchTests() {
   testWidgets('history screen searches only title and user messages', (
     tester,
   ) async {
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final preferences = await createSeededPreferences(database);
-
-    await pumpHistoryScreen(tester, preferences: preferences, database: database);
+    await setUpHistoryScreen(tester);
 
     await tester.enterText(find.byType(TextField).first, 'Rust');
     await tester.pump(const Duration(milliseconds: 300));
@@ -39,11 +33,7 @@ void registerHistoryScreenSearchTests() {
   testWidgets('history search matches user messages across all branches', (
     tester,
   ) async {
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final preferences = await createTreeSeededPreferences(database);
-
-    await pumpHistoryScreen(tester, preferences: preferences, database: database);
+    await setUpHistoryScreenWithTree(tester);
 
     await tester.enterText(find.byType(TextField).first, '分支关键词');
     await tester.pump(const Duration(milliseconds: 300));

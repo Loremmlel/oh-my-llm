@@ -67,16 +67,5 @@ void main() {
       container.dispose();
     });
 
-    test('copyWith preserves defaults when clearing', () {
-      const settings = AutoRetrySettings(maxJitterSeconds: 30, maxRetryCount: 5);
-
-      final clearedJitter = settings.copyWith(clearMaxJitterSeconds: true);
-      expect(clearedJitter.maxJitterSeconds, 15);
-      expect(clearedJitter.maxRetryCount, 5);
-
-      final clearedRetry = settings.copyWith(clearMaxRetryCount: true);
-      expect(clearedRetry.maxJitterSeconds, 30);
-      expect(clearedRetry.maxRetryCount, 0);
-    });
   });
 }

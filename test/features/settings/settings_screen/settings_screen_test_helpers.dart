@@ -59,6 +59,31 @@ Future<SharedPreferences> createEmptyPreferences(AppDatabase database) async {
   return TestFixtures.seedPreferences(database: database);
 }
 
+/// 标准设置页面测试环境：内存 DB、种子 Preferences、挂载 SettingsScreen。
+/// [seed] 控制种子数据类型（null=空，defaults=含模型和提示词），
+/// [size] 和 [initialTabIndex] 控制视口和初始标签页。
+/// 返回 [AppDatabase] 供后续验证使用。
+Future<AppDatabase> setUpSettingsScreen(
+  WidgetTester tester, {
+  Size size = const Size(1440, 1500),
+  int initialTabIndex = 0,
+  bool useDefaultsSeed = false,
+}) async {
+  final database = AppDatabase.inMemory();
+  addTearDown(database.close);
+  final preferences = useDefaultsSeed
+      ? await createDefaultsSeededPreferences(database)
+      : await createEmptyPreferences(database);
+  await pumpSettingsScreen(
+    tester,
+    preferences: preferences,
+    database: database,
+    size: size,
+    initialTabIndex: initialTabIndex,
+  );
+  return database;
+}
+
 /// 创建包含默认种子数据的 SharedPreferences 实例。
 Future<SharedPreferences> createDefaultsSeededPreferences(AppDatabase database) async {
   return TestFixtures.seedPreferences(

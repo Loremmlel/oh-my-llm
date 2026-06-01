@@ -74,6 +74,12 @@ void main() {
       );
     });
 
+    test('remove nonexistent id is silently ignored', () {
+      container.read(favoritesProvider.notifier).remove('nonexistent');
+
+      expect(container.read(favoritesProvider), isEmpty);
+    });
+
   });
 
   group('CollectionsController', () {
@@ -138,5 +144,16 @@ void main() {
 
       expect(container.read(collectionsProvider), isEmpty);
     });
+
+    test('delete nonexistent id is silently ignored', () {
+      container.read(collectionsProvider.notifier).create('保留');
+      final id = container.read(collectionsProvider).first.id;
+
+      container.read(collectionsProvider.notifier).delete('nonexistent');
+
+      expect(container.read(collectionsProvider), hasLength(1));
+      expect(container.read(collectionsProvider).first.id, id);
+    });
+
   });
 }
