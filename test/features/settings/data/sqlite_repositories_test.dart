@@ -58,123 +58,78 @@ MemoryPrompt memoryPrompt(String id, {DateTime? updatedAt}) => MemoryPrompt(
   updatedAt: updatedAt ?? DateTime(2026, 1, 1),
 );
 
+/// 通用 round-trip 辅助：save + load 后断言实体原样保留
+Future<void> _testRoundTrip<T>(
+  AppDatabase database,
+  SqliteEntityRepository<T> repo,
+  T original,
+) async {
+  await repo.saveAll(database, [original]);
+  expect(repo.loadAll(database).single, original);
+}
+
 void main() {
-  group('SqliteEntityRepository<PresetPrompt>', () {
-    late AppDatabase database;
-    late SqliteEntityRepository<PresetPrompt> repo;
+  late AppDatabase database;
 
-    setUp(() {
-      database = AppDatabase.inMemory();
-      repo = presetPromptRepository;
-    });
-
-    tearDown(() => database.close());
-
-    test('round-trip preserves prompt template fields', () async {
-      final original = PresetPrompt(
-        id: 'full',
-        name: '全字段',
-        messages: const [
-          PromptMessage(
-            id: 'msg-sys',
-            role: PromptMessageRole.system,
-            title: defaultSystemPromptTitle,
-            content: '系统指令',
-          ),
-          PromptMessage(
-            id: 'msg-1',
-            role: PromptMessageRole.user,
-            title: '前置user1',
-            content: '用户提问',
-            placement: PromptMessagePlacement.before,
-          ),
-          PromptMessage(
-            id: 'msg-2',
-            role: PromptMessageRole.assistant,
-            title: '后置assistant1',
-            content: '助手回答',
-            placement: PromptMessagePlacement.after,
-          ),
-        ],
-        updatedAt: DateTime(2026, 3, 15),
-      );
-
-      await repo.saveAll(database, [original]);
-
-      expect(repo.loadAll(database).single, original);
-    });
-
+  setUp(() {
+    database = AppDatabase.inMemory();
   });
 
-  group('SqliteEntityRepository<FixedPromptSequence>', () {
-    late AppDatabase database;
-    late SqliteEntityRepository<FixedPromptSequence> repo;
+  tearDown(() => database.close());
 
-    setUp(() {
-      database = AppDatabase.inMemory();
-      repo = fixedPromptSequenceRepository;
-    });
+  test('PresetPrompt round-trip', () async {
+    final original = PresetPrompt(
+      id: 'full',
+      name: '全字段',
+      messages: const [
+        PromptMessage(
+          id: 'msg-sys',
+          role: PromptMessageRole.system,
+          title: defaultSystemPromptTitle,
+          content: '系统指令',
+        ),
+        PromptMessage(
+          id: 'msg-1',
+          role: PromptMessageRole.user,
+          title: '前置user1',
+          content: '用户提问',
+          placement: PromptMessagePlacement.before,
+        ),
+        PromptMessage(
+          id: 'msg-2',
+          role: PromptMessageRole.assistant,
+          title: '后置assistant1',
+          content: '助手回答',
+          placement: PromptMessagePlacement.after,
+        ),
+      ],
+      updatedAt: DateTime(2026, 3, 15),
+    );
 
-    tearDown(() => database.close());
-
-    test('round-trip preserves sequence steps', () async {
-      final original = FixedPromptSequence(
-        id: 'full-seq',
-        name: '全字段序列',
-        steps: const [
-          FixedPromptSequenceStep(id: 's1', title: '标题1', content: '第一步内容'),
-          FixedPromptSequenceStep(id: 's2', title: '标题2', content: '第二步内容'),
-        ],
-        updatedAt: DateTime(2026, 5, 20),
-      );
-
-      await repo.saveAll(database, [original]);
-
-      expect(repo.loadAll(database).single, original);
-    });
-
+    await _testRoundTrip(database, presetPromptRepository, original);
   });
 
-  group('SqliteEntityRepository<TemplatePrompt>', () {
-    late AppDatabase database;
-    late SqliteEntityRepository<TemplatePrompt> repo;
+  test('FixedPromptSequence round-trip', () async {
+    final original = FixedPromptSequence(
+      id: 'full-seq',
+      name: '全字段序列',
+      steps: const [
+        FixedPromptSequenceStep(id: 's1', title: '标题1', content: '第一步内容'),
+        FixedPromptSequenceStep(id: 's2', title: '标题2', content: '第二步内容'),
+      ],
+      updatedAt: DateTime(2026, 5, 20),
+    );
 
-    setUp(() {
-      database = AppDatabase.inMemory();
-      repo = templatePromptRepository;
-    });
-
-    tearDown(() => database.close());
-
-    test('round-trip preserves content and variables', () async {
-      final original = templatePrompt('full', updatedAt: DateTime(2026, 3, 15));
-
-      await repo.saveAll(database, [original]);
-
-      expect(repo.loadAll(database).single, original);
-    });
+    await _testRoundTrip(database, fixedPromptSequenceRepository, original);
   });
 
-  group('SqliteEntityRepository<MemoryPrompt>', () {
-    late AppDatabase database;
-    late SqliteEntityRepository<MemoryPrompt> repo;
+  test('TemplatePrompt round-trip', () async {
+    final original = templatePrompt('full', updatedAt: DateTime(2026, 3, 15));
+    await _testRoundTrip(database, templatePromptRepository, original);
+  });
 
-    setUp(() {
-      database = AppDatabase.inMemory();
-      repo = memoryPromptRepository;
-    });
-
-    tearDown(() => database.close());
-
-    test('round-trip preserves memory prompt fields', () async {
-      final original = memoryPrompt(
-        'memory-full',
-        updatedAt: DateTime(2026, 3, 15),
-      );
-
-      await repo.saveAll(database, [original]);
-
-      expect(repo.loadAll(database).single, original);
-    });
+  test('MemoryPrompt round-trip', () async {
+    final original = memoryPrompt('memory-full', updatedAt: DateTime(2026, 3, 15));
+    await _testRoundTrip(database, memoryPromptRepository, original);
   });
 }
