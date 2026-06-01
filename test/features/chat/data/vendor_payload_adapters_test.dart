@@ -13,21 +13,14 @@ void main() {
     ]);
 
     group('matches', () {
-      test('返回 true — 配置的主机', () {
+      test('配置的主机返回 true（大小写不敏感）', () {
         expect(adapter.matches('api.deepseek.com'), isTrue);
-        expect(adapter.matches('ark.cn-beijing.volces.com'), isTrue);
-      });
-
-      test('返回 true — 主机名大小写不敏感', () {
         expect(adapter.matches('API.DEEPSEEK.COM'), isTrue);
         expect(adapter.matches('Ark.CN-Beijing.Volces.COM'), isTrue);
       });
 
-      test('返回 false — 未知主机', () {
+      test('未知主机或空字符串返回 false', () {
         expect(adapter.matches('api.openai.com'), isFalse);
-      });
-
-      test('返回 false — 空字符串', () {
         expect(adapter.matches(''), isFalse);
       });
     });
@@ -59,21 +52,18 @@ void main() {
     const adapter = GoogleOpenAiCompatibleAdapter();
 
     group('matches', () {
-      test('返回 true — generativelanguage.googleapis.com', () {
+      test('generativelanguage.googleapis.com 返回 true（大小写不敏感）', () {
         expect(
           adapter.matches('generativelanguage.googleapis.com'),
           isTrue,
         );
-      });
-
-      test('大小写不敏感', () {
         expect(
           adapter.matches('GENERATIVELANGUAGE.GOOGLEAPIS.COM'),
           isTrue,
         );
       });
 
-      test('返回 false — 相似但不完全相同的主机', () {
+      test('相似但不完全相同的主机返回 false', () {
         expect(adapter.matches('googleapis.com'), isFalse);
         expect(
           adapter.matches('generativelanguage.googleapis.co.jp'),
@@ -160,46 +150,13 @@ void main() {
         expect(result, isA<GoogleOpenAiCompatibleAdapter>());
       });
 
-      test('未知主机 → DefaultPayloadAdapter', () {
-        final result = VendorPayloadAdapterRegistry.standard
-            .resolve('api.openai.com');
-
-        expect(result, isA<DefaultPayloadAdapter>());
-      });
-
-      test('空字符串 → DefaultPayloadAdapter（兜底）', () {
-        final result =
-            VendorPayloadAdapterRegistry.standard.resolve('');
-
-        expect(result, isA<DefaultPayloadAdapter>());
-      });
-    });
-
-    group('standard 静态实例', () {
-      test('包含预期的适配器，顺序正确', () {
-        const registry = VendorPayloadAdapterRegistry.standard;
-
-        // DeepSeek 解析为 ThinkingTogglePayloadAdapter
+      test('未知主机或空字符串 → DefaultPayloadAdapter', () {
         expect(
-          registry.resolve('api.deepseek.com'),
-          isA<ThinkingTogglePayloadAdapter>(),
+          VendorPayloadAdapterRegistry.standard.resolve('api.openai.com'),
+          isA<DefaultPayloadAdapter>(),
         );
-
-        // Ark 解析为 ThinkingTogglePayloadAdapter
         expect(
-          registry.resolve('ark.cn-beijing.volces.com'),
-          isA<ThinkingTogglePayloadAdapter>(),
-        );
-
-        // Gemini 解析为 GoogleOpenAiCompatibleAdapter
-        expect(
-          registry.resolve('generativelanguage.googleapis.com'),
-          isA<GoogleOpenAiCompatibleAdapter>(),
-        );
-
-        // 其他主机兜底为 DefaultPayloadAdapter
-        expect(
-          registry.resolve('any.other.host'),
+          VendorPayloadAdapterRegistry.standard.resolve(''),
           isA<DefaultPayloadAdapter>(),
         );
       });
