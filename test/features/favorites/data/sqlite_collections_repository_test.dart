@@ -52,8 +52,8 @@ void main() {
     test('loadAll 按 created_at 升序排列', () {
       repository.save(
         FavoriteCollection(
-          id: 'col-b',
-          name: 'B',
+          id: 'col-c',
+          name: 'C',
           createdAt: DateTime(2026, 3, 1),
         ),
       );
@@ -66,14 +66,15 @@ void main() {
       );
       repository.save(
         FavoriteCollection(
-          id: 'col-c',
-          name: 'C',
+          id: 'col-b',
+          name: 'B',
           createdAt: DateTime(2026, 5, 1),
         ),
       );
 
       final ids = repository.loadAll().map((c) => c.id).toList();
-      expect(ids, ['col-a', 'col-b', 'col-c']);
+      // ID 顺序不按字母排列，确保按 created_at 而非 ID 排序
+      expect(ids, ['col-a', 'col-c', 'col-b']);
     });
 
     test('delete 后收藏夹不再出现', () {

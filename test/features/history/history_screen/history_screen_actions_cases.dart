@@ -1,19 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:oh_my_llm/core/persistence/app_database.dart';
-
 import 'history_screen_test_helpers.dart';
 
 void registerHistoryScreenActionsTests() {
   testWidgets('history screen renames and batch deletes conversations', (
     tester,
   ) async {
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final preferences = await createSeededPreferences(database);
-
-    await pumpHistoryScreen(tester, preferences: preferences, database: database);
+    await setUpHistoryScreen(tester);
 
     await tester.tap(find.byTooltip('重命名会话').first);
     await tester.pumpAndSettle();
@@ -48,11 +42,7 @@ void registerHistoryScreenActionsTests() {
   testWidgets('history screen jumps back to chat with selected conversation', (
     tester,
   ) async {
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final preferences = await createSeededPreferences(database);
-
-    await pumpHistoryScreen(tester, preferences: preferences, database: database);
+    await setUpHistoryScreen(tester);
 
     await tester.tap(find.text('Flutter 路线图'));
     await tester.pumpAndSettle();
@@ -63,11 +53,7 @@ void registerHistoryScreenActionsTests() {
   testWidgets('history screen checkbox selects without triggering navigation', (
     tester,
   ) async {
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final preferences = await createSeededPreferences(database);
-
-    await pumpHistoryScreen(tester, preferences: preferences, database: database);
+    await setUpHistoryScreen(tester);
 
     await tester.tap(find.byType(Checkbox).first);
     await tester.pumpAndSettle();

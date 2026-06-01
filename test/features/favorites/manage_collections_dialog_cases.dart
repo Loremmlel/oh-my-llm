@@ -1,18 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:oh_my_llm/core/persistence/app_database.dart';
+import 'package:oh_my_llm/features/favorites/data/sqlite_collections_repository.dart';
 import 'package:oh_my_llm/features/favorites/presentation/widgets/dialogs/manage_collections_dialog.dart';
 
 import 'favorites_screen_test_helpers.dart';
 
 void registerManageCollectionsDialogTests() {
   testWidgets('manage collections dialog shows empty state', (tester) async {
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final preferences = await createEmptyPreferences(database);
-
-    await pumpFavoritesScreen(tester, preferences: preferences, database: database);
+    await setUpFavoritesScreen(tester);
 
     await tester.tap(find.byTooltip('管理收藏夹'));
     await tester.pumpAndSettle();
@@ -22,17 +18,9 @@ void registerManageCollectionsDialogTests() {
   });
 
   testWidgets('manage collections dialog renames collection', (tester) async {
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final preferences = await createEmptyPreferences(database);
-
-    seedCollection(database, id: 'col-1', name: '旧名称');
-
-    await pumpFavoritesScreen(
-      tester,
-      preferences: preferences,
-      database: database,
-    );
+    final database = await setUpFavoritesScreen(tester, seed: (db) {
+      seedCollection(db, id: 'col-1', name: '旧名称');
+    });
 
     await tester.tap(find.byTooltip('管理收藏夹'));
     await tester.pumpAndSettle();
@@ -45,12 +33,8 @@ void registerManageCollectionsDialogTests() {
     await tester.tap(find.byTooltip('确认重命名'));
     await tester.pumpAndSettle();
 
-    final renamedName = database.connection.select(
-      'SELECT name FROM collections WHERE id = ?;',
-      ['col-1'],
-    ).single['name'];
-
-    expect(renamedName, '新名称');
+    final renamed = SqliteCollectionsRepository(database).loadAll().single;
+    expect(renamed.name, '新名称');
     expect(find.text('新名称'), findsWidgets);
     expect(find.text('旧名称'), findsNothing);
   });
@@ -58,17 +42,9 @@ void registerManageCollectionsDialogTests() {
   testWidgets('manage collections dialog deletes collection after confirmation', (
     tester,
   ) async {
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final preferences = await createEmptyPreferences(database);
-
-    seedCollection(database, id: 'col-1', name: '要删除的收藏夹');
-
-    await pumpFavoritesScreen(
-      tester,
-      preferences: preferences,
-      database: database,
-    );
+    await setUpFavoritesScreen(tester, seed: (db) {
+      seedCollection(db, id: 'col-1', name: '要删除的收藏夹');
+    });
 
     await tester.tap(find.byTooltip('管理收藏夹'));
     await tester.pumpAndSettle();
@@ -86,17 +62,9 @@ void registerManageCollectionsDialogTests() {
   testWidgets('manage collections dialog cancel delete keeps collection', (
     tester,
   ) async {
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final preferences = await createEmptyPreferences(database);
-
-    seedCollection(database, id: 'col-1', name: '保留的收藏夹');
-
-    await pumpFavoritesScreen(
-      tester,
-      preferences: preferences,
-      database: database,
-    );
+    await setUpFavoritesScreen(tester, seed: (db) {
+      seedCollection(db, id: 'col-1', name: '保留的收藏夹');
+    });
 
     await tester.tap(find.byTooltip('管理收藏夹'));
     await tester.pumpAndSettle();

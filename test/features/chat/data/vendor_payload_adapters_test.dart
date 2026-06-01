@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/features/chat/data/vendor_payload_adapters.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 
+typedef _ResolveCase = ({String host, String label, TypeMatcher matcher});
+
 void main() {
   // ── ThinkingTogglePayloadAdapter ──────────────────────────────────
 
@@ -129,37 +131,23 @@ void main() {
 
   group('VendorPayloadAdapterRegistry', () {
     group('resolve', () {
-      test('DeepSeek 主机 → ThinkingTogglePayloadAdapter', () {
-        final result = VendorPayloadAdapterRegistry.standard
-            .resolve('api.deepseek.com');
+      final resolveCases = <_ResolveCase>[
+        (host: 'api.deepseek.com', label: 'DeepSeek 主机', matcher: isA<ThinkingTogglePayloadAdapter>()),
+        (host: 'ark.cn-beijing.volces.com', label: 'Ark 主机', matcher: isA<ThinkingTogglePayloadAdapter>()),
+        (host: 'generativelanguage.googleapis.com', label: 'Gemini 主机', matcher: isA<GoogleOpenAiCompatibleAdapter>()),
+        (host: 'api.openai.com', label: '未知主机', matcher: isA<DefaultPayloadAdapter>()),
+        (host: '', label: '空字符串', matcher: isA<DefaultPayloadAdapter>()),
+      ];
+      for (final entry in resolveCases) {
+        test('${entry.label} → 正确解析', () {
+          expect(
+            VendorPayloadAdapterRegistry.standard.resolve(entry.host),
+            entry.matcher,
+          );
+        });
+      }
 
-        expect(result, isA<ThinkingTogglePayloadAdapter>());
-      });
-
-      test('Ark 主机 → ThinkingTogglePayloadAdapter', () {
-        final result = VendorPayloadAdapterRegistry.standard
-            .resolve('ark.cn-beijing.volces.com');
-
-        expect(result, isA<ThinkingTogglePayloadAdapter>());
-      });
-
-      test('Gemini 主机 → GoogleOpenAiCompatibleAdapter', () {
-        final result = VendorPayloadAdapterRegistry.standard
-            .resolve('generativelanguage.googleapis.com');
-
-        expect(result, isA<GoogleOpenAiCompatibleAdapter>());
-      });
-
-      test('未知主机或空字符串 → DefaultPayloadAdapter', () {
-        expect(
-          VendorPayloadAdapterRegistry.standard.resolve('api.openai.com'),
-          isA<DefaultPayloadAdapter>(),
-        );
-        expect(
-          VendorPayloadAdapterRegistry.standard.resolve(''),
-          isA<DefaultPayloadAdapter>(),
-        );
-      });
+      // ── 自定义注册表 ─────────────────────────────────
     });
 
     group('自定义注册表', () {

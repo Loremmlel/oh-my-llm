@@ -140,6 +140,25 @@ Future<SharedPreferences> createTreeSeededPreferences(AppDatabase database) asyn
   );
 }
 
+/// 标准历史页面测试环境：内存 DB、种子对话数据、挂载 HistoryScreen。
+/// 返回 [AppDatabase] 供后续验证使用。
+Future<AppDatabase> setUpHistoryScreen(WidgetTester tester) async {
+  final database = AppDatabase.inMemory();
+  addTearDown(database.close);
+  final preferences = await createSeededPreferences(database);
+  await pumpHistoryScreen(tester, preferences: preferences, database: database);
+  return database;
+}
+
+/// 同 [setUpHistoryScreen]，但使用树状分支种子数据。
+Future<AppDatabase> setUpHistoryScreenWithTree(WidgetTester tester) async {
+  final database = AppDatabase.inMemory();
+  addTearDown(database.close);
+  final preferences = await createTreeSeededPreferences(database);
+  await pumpHistoryScreen(tester, preferences: preferences, database: database);
+  return database;
+}
+
 Map<String, dynamic> _conversation({
   required String id,
   required String title,

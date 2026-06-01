@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/core/persistence/app_database.dart';
-import 'package:oh_my_llm/core/persistence/sqlite_entity_repository.dart';
 import 'package:oh_my_llm/features/settings/data/sqlite_fixed_prompt_sequence_repository.dart';
 import 'package:oh_my_llm/features/settings/data/sqlite_memory_prompt_repository.dart';
 import 'package:oh_my_llm/features/settings/data/sqlite_preset_prompt_repository.dart';
@@ -58,16 +57,6 @@ MemoryPrompt memoryPrompt(String id, {DateTime? updatedAt}) => MemoryPrompt(
   updatedAt: updatedAt ?? DateTime(2026, 1, 1),
 );
 
-/// 通用 round-trip 辅助：save + load 后断言实体原样保留
-Future<void> _testRoundTrip<T>(
-  AppDatabase database,
-  SqliteEntityRepository<T> repo,
-  T original,
-) async {
-  await repo.saveAll(database, [original]);
-  expect(repo.loadAll(database).single, original);
-}
-
 void main() {
   late AppDatabase database;
 
@@ -106,7 +95,8 @@ void main() {
       updatedAt: DateTime(2026, 3, 15),
     );
 
-    await _testRoundTrip(database, presetPromptRepository, original);
+    await presetPromptRepository.saveAll(database, [original]);
+    expect(presetPromptRepository.loadAll(database).single, original);
   });
 
   test('FixedPromptSequence round-trip', () async {
@@ -120,16 +110,19 @@ void main() {
       updatedAt: DateTime(2026, 5, 20),
     );
 
-    await _testRoundTrip(database, fixedPromptSequenceRepository, original);
+    await fixedPromptSequenceRepository.saveAll(database, [original]);
+    expect(fixedPromptSequenceRepository.loadAll(database).single, original);
   });
 
   test('TemplatePrompt round-trip', () async {
     final original = templatePrompt('full', updatedAt: DateTime(2026, 3, 15));
-    await _testRoundTrip(database, templatePromptRepository, original);
+    await templatePromptRepository.saveAll(database, [original]);
+    expect(templatePromptRepository.loadAll(database).single, original);
   });
 
   test('MemoryPrompt round-trip', () async {
     final original = memoryPrompt('memory-full', updatedAt: DateTime(2026, 3, 15));
-    await _testRoundTrip(database, memoryPromptRepository, original);
+    await memoryPromptRepository.saveAll(database, [original]);
+    expect(memoryPromptRepository.loadAll(database).single, original);
   });
 }
