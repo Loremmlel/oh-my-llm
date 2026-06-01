@@ -200,9 +200,16 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
     required bool stream,
     ReasoningEffort? reasoningEffort,
   }) {
-    final uri = Uri.tryParse(modelConfig.apiUrl);
-    if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
-      throw const ChatCompletionException('API URL 无效，请在设置页检查模型配置。');
+    Uri uri;
+    try {
+      uri = Uri.parse(modelConfig.apiUrl);
+    } on FormatException catch (e) {
+      throw ChatCompletionException('API URL 格式无效：${e.message}');
+    }
+    if (uri.scheme != 'http' && uri.scheme != 'https') {
+      throw ChatCompletionException(
+        'API URL 协议不支持（需要 http/https）：${modelConfig.apiUrl}',
+      );
     }
 
     final patch = _adapters.resolve(uri.host).buildPatch(reasoningEffort);

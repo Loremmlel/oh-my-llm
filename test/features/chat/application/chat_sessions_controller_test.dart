@@ -426,7 +426,7 @@ void main() {
     await sendFuture;
 
     final state = container.read(chatSessionsProvider);
-    expect(state.errorMessage, '[ERR] 请求失败');
+    expect(state.errorMessage, '请求失败');
     expect(state.activeConversation.messages, hasLength(2));
     expect(state.activeConversation.messages.last.role, ChatMessageRole.assistant);
     expect(state.activeConversation.messages.last.reasoningContent, '思考中');

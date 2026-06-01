@@ -619,12 +619,6 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
         showFormSnackBar('请填写每条预设 Prompt 的标题');
         return;
       }
-      if (item.contentController.text.trim().isEmpty) {
-        _selectedItemId = item.id;
-        setState(() {});
-        showFormSnackBar('请填写每条预设 Prompt 的内容');
-        return;
-      }
     }
     // 保留原始消息的 enabled 状态，防止设置页编辑后丢失聊天页的开关设置
     final originalEnabledById = <String, bool>{};
