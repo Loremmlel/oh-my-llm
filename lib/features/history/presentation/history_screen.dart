@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../app/navigation/app_destination.dart';
 import '../../../app/shell/app_shell_scaffold.dart';
+import '../../../core/widgets/app_confirm_dialog.dart';
 import '../../chat/application/chat_sessions_controller.dart';
 import '../../chat/data/chat_conversation_repository.dart';
 import '../../chat/domain/chat_conversation_groups.dart';
@@ -252,19 +253,18 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('删除选中的对话'),
-          content: Text('将删除 ${_selectedConversationIds.length} 个会话，此操作不可撤销。'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('确认删除'),
-            ),
-          ],
+        final count = _selectedConversationIds.length;
+        if (count == 0) {
+          return const AppConfirmDialog(
+            title: '删除选中的对话',
+            message: '没有选中任何会话。',
+            confirmLabel: '确认',
+          );
+        }
+        return AppConfirmDialog(
+          title: '删除选中的对话',
+          message: '将删除 $count 个会话，此操作不可撤销。',
+          confirmLabel: '确认删除',
         );
       },
     );
@@ -276,6 +276,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     await ref
         .read(chatSessionsProvider.notifier)
         .deleteConversations(_selectedConversationIds);
+    if (!mounted) return;
     _clearSelection();
   }
 }

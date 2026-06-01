@@ -811,7 +811,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final nextTitle = await showDialog<String>(
       context: context,
       builder: (context) {
-        return RenameConversationDialog(initialTitle: initialTitle);
+        return RenameConversationDialog(
+          initialTitle: initialTitle,
+          title: '修改对话标题',
+          labelText: '对话标题',
+        );
       },
     );
 
@@ -821,7 +825,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     await ref
         .read(chatSessionsProvider.notifier)
-        .renameActiveConversation(nextTitle.trim());
+        .renameActiveConversation(nextTitle);
   }
 
   /// 新建会话后把输入框清空，并把视图滚回底部。
