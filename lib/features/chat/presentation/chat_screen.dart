@@ -155,21 +155,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       endDrawer: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(12),
-          child: ConversationHistoryPanel(
-            groups: _buildConversationGroups(conversationSummaries),
+          child: _buildHistoryPanel(
+            conversationSummaries,
             activeConversationId: activeConversationId,
             hasDraftConversation: !conversation.hasMessages,
-            onCreateConversation: isBusy
-                ? null
-                : () => _createConversationAndScroll(),
-            onConversationSelected: (conversationId) {
-              if (isBusy) {
-                return;
-              }
-              ref
-                  .read(chatSessionsProvider.notifier)
-                  .selectConversation(conversationId);
-            },
+            isBusy: isBusy,
           ),
         ),
       ),
@@ -201,8 +191,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       ],
       body: LayoutBuilder(
         builder: (context, constraints) {
+          // 使用 MediaQuery 获取窗口物理宽度，与 AppShellScaffold 的
+          // LayoutBuilder 判断保持一致，避免因 NavigationRail 占位导致
+          // 内层宽度缩水 69px 而产生判断偏差。
           final showSidePanels =
-              constraints.maxWidth >= AppBreakpoints.expanded;
+              MediaQuery.of(context).size.width >= AppBreakpoints.compact;
 
           return Padding(
             padding: const EdgeInsets.all(12),
@@ -210,23 +203,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (showSidePanels) ...[
-                  SizedBox(
-                    width: 220,
-                    child: ConversationHistoryPanel(
-                      groups: _buildConversationGroups(conversationSummaries),
+                  const ChatActivityBar(),
+                  ChatSidebarPanel(
+                    content: _buildHistoryPanel(
+                      conversationSummaries,
                       activeConversationId: activeConversationId,
                       hasDraftConversation: !conversation.hasMessages,
-                      onCreateConversation: isBusy
-                          ? null
-                          : () => _createConversationAndScroll(),
-                      onConversationSelected: (conversationId) {
-                        if (isBusy) {
-                          return;
-                        }
-                        ref
-                            .read(chatSessionsProvider.notifier)
-                            .selectConversation(conversationId);
-                      },
+                      isBusy: isBusy,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -410,6 +393,31 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     List<ChatConversationSummary> summaries,
   ) {
     return groupConversationSummariesByUpdatedAt(summaries);
+  }
+
+  /// 构建历史会话面板，供 endDrawer（紧凑模式）和 ChatSidebarPanel
+  /// （宽屏模式）共享使用。
+  Widget _buildHistoryPanel(
+    List<ChatConversationSummary> conversationSummaries, {
+    required String activeConversationId,
+    required bool hasDraftConversation,
+    required bool isBusy,
+  }) {
+    return ConversationHistoryPanel(
+      groups: _buildConversationGroups(conversationSummaries),
+      activeConversationId: activeConversationId,
+      hasDraftConversation: hasDraftConversation,
+      onCreateConversation:
+          isBusy ? null : () => _createConversationAndScroll(),
+      onConversationSelected: (conversationId) {
+        if (isBusy) {
+          return;
+        }
+        ref
+            .read(chatSessionsProvider.notifier)
+            .selectConversation(conversationId);
+      },
+    );
   }
 
   /// 解析当前会话应使用的模型配置，并在缺省时回退到默认项。
