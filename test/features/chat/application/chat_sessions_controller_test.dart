@@ -1233,7 +1233,7 @@ void main() {
     expect(container.read(chatSessionsProvider).emptyReplyAssistantId, isNull);
   });
 
-  test('同一时间只有 emptyReplyAssistantId 或 errorMessageAssistantId 之一被设置', () async {
+  test('空回复时 errorMessageAssistantId 不会被清除', () async {
     // 先模拟错误 → errorMessageAssistantId 设置，emptyReplyAssistantId 为空
     fakeClient.enqueueError(ChatCompletionException('模拟错误'));
     await sendMsg('触发错误');

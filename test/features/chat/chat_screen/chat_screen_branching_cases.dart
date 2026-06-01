@@ -7,8 +7,6 @@ import 'package:oh_my_llm/features/chat/data/chat_completion_client.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
-import 'package:oh_my_llm/features/chat/presentation/widgets/chat_inline_empty_reply_card.dart';
-import 'package:oh_my_llm/features/chat/presentation/widgets/chat_inline_error_card.dart';
 
 import 'chat_screen_test_helpers.dart';
 
@@ -223,22 +221,25 @@ void registerChatScreenBranchingTests() {
     expect(find.textContaining('原始回复二'), findsWidgets);
   });
 
-  testWidgets('delete message dialog offers current branch or all versions', (
-    tester,
-  ) async {
+  // ── 删除分支测试共享 setup ──────────────────
+
+  /// 创建一个有 2 个版本 assistant 回复的对话供删除测试使用
+  Future<void> setupDeleteScenario(WidgetTester tester) async {
     final fakeClient = FakeChatCompletionClient()
       ..enqueueChunks(['首次回复'])
       ..enqueueChunks(['重试后回复']);
 
-    await pumpChatScreen(
-      tester,
-      fakeClient: fakeClient,
-    );
-
+    await pumpChatScreen(tester, fakeClient: fakeClient);
     await sendMessage(tester, '测试删除弹窗');
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('重试回复'));
     await tester.pumpAndSettle();
+  }
+
+  testWidgets('delete message dialog offers current branch or all versions', (
+    tester,
+  ) async {
+    await setupDeleteScenario(tester);
 
     await tester.tap(find.byTooltip('删除消息').last);
     await tester.pumpAndSettle();
@@ -258,19 +259,7 @@ void registerChatScreenBranchingTests() {
   testWidgets('delete all assistant versions removes the reply node', (
     tester,
   ) async {
-    final fakeClient = FakeChatCompletionClient()
-      ..enqueueChunks(['首次回复'])
-      ..enqueueChunks(['重试后回复']);
-
-    await pumpChatScreen(
-      tester,
-      fakeClient: fakeClient,
-    );
-
-    await sendMessage(tester, '测试全部删除');
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('重试回复'));
-    await tester.pumpAndSettle();
+    await setupDeleteScenario(tester);
 
     await tester.tap(find.byTooltip('删除消息').last);
     await tester.pumpAndSettle();
@@ -279,14 +268,15 @@ void registerChatScreenBranchingTests() {
 
     expect(find.textContaining('首次回复'), findsNothing);
     expect(find.textContaining('重试后回复'), findsNothing);
-    expect(find.textContaining('测试全部删除'), findsWidgets);
+    expect(find.textContaining('测试删除弹窗'), findsWidgets);
   });
 
   testWidgets(
     '空回复时渲染 ChatInlineEmptyReplyCard 而非 ChatInlineErrorCard',
     (tester) async {
       final fakeClient = FakeChatCompletionClient()
-        ..enqueueChunks([]);
+        // 空字符串 chunk 触发空回复路径（anyChunkYielded=true + content 为空）
+        ..enqueueChunks(['']);
 
       await pumpChatScreen(
         tester,
@@ -296,8 +286,8 @@ void registerChatScreenBranchingTests() {
       await sendMessage(tester, '触发空回复');
       await tester.pumpAndSettle();
 
-      expect(find.byType(ChatInlineEmptyReplyCard), findsOneWidget);
-      expect(find.byType(ChatInlineErrorCard), findsNothing);
+      expect(find.textContaining('[EMPTY]'), findsOneWidget);
+      expect(find.textContaining('[ERR]'), findsNothing);
     },
   );
 
@@ -315,8 +305,8 @@ void registerChatScreenBranchingTests() {
       await sendMessage(tester, '触发错误');
       await tester.pumpAndSettle();
 
-      expect(find.byType(ChatInlineErrorCard), findsOneWidget);
-      expect(find.byType(ChatInlineEmptyReplyCard), findsNothing);
+      expect(find.textContaining('测试网络错误'), findsOneWidget);
+      expect(find.textContaining('[EMPTY]'), findsNothing);
     },
   );
 }
