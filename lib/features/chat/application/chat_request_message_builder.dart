@@ -81,7 +81,8 @@ void appendTemplateMessages({
   }
   final messages = presetPrompt
       .messagesForPlacement(placement)
-      .where((m) => m.enabled);
+      .where((m) => m.enabled)
+      .where((m) => m.content.trim().isNotEmpty);
   buffer.addAll(
     messages.map((message) {
       return ChatCompletionRequestMessage(

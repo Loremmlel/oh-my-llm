@@ -139,7 +139,9 @@ class ChatChunkParser {
     try {
       decoded = jsonDecode(rawChunk);
     } on FormatException {
-      throw const ChatCompletionException('服务端返回了无法解析的流式数据。');
+      throw ChatCompletionException(
+        'SSE 数据解析失败（${rawChunk.length > 200 ? '${rawChunk.substring(0, 200)}...' : rawChunk}）',
+      );
     }
 
     if (decoded is! Map) return const ChatCompletionChunk();
