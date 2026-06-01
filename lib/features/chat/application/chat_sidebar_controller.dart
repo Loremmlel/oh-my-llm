@@ -10,8 +10,7 @@ import '../../../core/persistence/shared_preferences_provider.dart';
 /// 未来新增功能只需在此枚举中添加成员即可。
 enum ChatSidebarFunction {
   history(icon: Icons.history_rounded, label: '历史会话'),
-  // 未来扩展：
-  // collections(icon: Icons.folder_rounded, label: '收藏夹'),
+  preset(icon: Icons.tune_rounded, label: '预设 Prompt'),
   ;
 
   const ChatSidebarFunction({

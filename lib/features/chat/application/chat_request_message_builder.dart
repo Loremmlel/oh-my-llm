@@ -79,7 +79,9 @@ void appendTemplateMessages({
   if (presetPrompt == null) {
     return;
   }
-  final messages = presetPrompt.messagesForPlacement(placement);
+  final messages = presetPrompt
+      .messagesForPlacement(placement)
+      .where((m) => m.enabled);
   buffer.addAll(
     messages.map((message) {
       return ChatCompletionRequestMessage(

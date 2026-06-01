@@ -12,7 +12,6 @@ import 'package:oh_my_llm/features/settings/application/llm_model_configs_contro
 import 'package:oh_my_llm/features/settings/application/memory_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/application/template_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/memory_prompt.dart';
-import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
 
 import '../../../helpers/fixtures.dart';
@@ -346,7 +345,6 @@ void registerChatScreenBasicsTests() {
     await tester.pumpAndSettle();
 
     expect(find.text('更多设置'), findsOneWidget);
-    expect(find.text('预设 Prompt'), findsOneWidget);
     expect(find.text('思考强度'), findsNothing);
     await tester.tap(find.text('深度思考'));
     await tester.pumpAndSettle();
@@ -618,145 +616,5 @@ void registerChatScreenBasicsTests() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('第 8 条回复'), findsWidgets);
-  });
-
-  testWidgets('chat screen remembers selected Prompt for new conversations', (
-    tester,
-  ) async {
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-
-    final preferences = await TestFixtures.seedPreferences(
-      database: database,
-      models: [TestFixtures.gpt41()],
-      prompts: [
-        TestFixtures.presetPrompt(
-          id: 'prompt-1',
-          name: '模板一',
-          messages: const [
-            PromptMessage(
-              id: 'prompt-1-message-1',
-              role: PromptMessageRole.user,
-              content: '模板一前置',
-              placement: PromptMessagePlacement.before,
-            ),
-          ],
-          updatedAt: DateTime(2026, 4, 30),
-        ),
-        TestFixtures.presetPrompt(
-          id: 'prompt-2',
-          name: '模板二',
-          messages: const [
-            PromptMessage(
-              id: 'prompt-2-message-1',
-              role: PromptMessageRole.user,
-              content: '模板二前置',
-              placement: PromptMessagePlacement.before,
-            ),
-          ],
-          updatedAt: DateTime(2026, 4, 30, 0, 1),
-        ),
-      ],
-    );
-
-    final fakeClient = FakeChatCompletionClient()
-      ..enqueueChunks(['第一次回复'])
-      ..enqueueChunks(['第二次回复']);
-
-    await pumpChatScreen(
-      tester,
-      preferences: preferences,
-      database: database,
-      fakeClient: fakeClient,
-    );
-
-    await tester.tap(find.ancestor(
-      of: find.text('预设 Prompt'),
-      matching: find.byWidgetPredicate((w) => w is DropdownButtonFormField),
-    ));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('模板二').last);
-    await tester.pumpAndSettle();
-
-    await sendMessage(tester, '第一次问题');
-    await tester.pumpAndSettle();
-    expect(fakeClient.requestHistory.first.first.content, '模板二前置');
-
-    await tester.tap(find.byTooltip('新建对话').first);
-    await tester.pumpAndSettle();
-    await sendMessage(tester, '第二次问题');
-    await tester.pumpAndSettle();
-
-    final requestContents = fakeClient.requestHistory.last
-        .map((message) => message.content)
-        .toList(growable: false);
-    expect(requestContents.first, '模板二前置');
-
-  });
-
-  testWidgets('chat screen can clear remembered Prompt from selector', (
-    tester,
-  ) async {
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-
-    final preferences = await TestFixtures.seedPreferences(
-      database: database,
-      models: [TestFixtures.gpt41()],
-      prompts: [
-        TestFixtures.presetPrompt(
-          id: 'prompt-1',
-          name: '模板一',
-          messages: const [
-            PromptMessage(
-              id: 'prompt-1-message-1',
-              role: PromptMessageRole.user,
-              content: '模板一前置',
-              placement: PromptMessagePlacement.before,
-            ),
-          ],
-          updatedAt: DateTime(2026, 4, 30),
-        ),
-      ],
-      chatDefaults: {'defaultPresetPromptId': 'prompt-1'},
-    );
-
-    final fakeClient = FakeChatCompletionClient()
-      ..enqueueChunks(['第一次回复'])
-      ..enqueueChunks(['第二次回复']);
-
-    await pumpChatScreen(
-      tester,
-      preferences: preferences,
-      database: database,
-      fakeClient: fakeClient,
-    );
-
-    await tester.tap(find.ancestor(
-      of: find.text('预设 Prompt'),
-      matching: find.byWidgetPredicate((w) => w is DropdownButtonFormField),
-    ));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('不使用预设 Prompt').last);
-    await tester.pumpAndSettle();
-
-    await sendMessage(tester, '第一次问题');
-    await tester.pumpAndSettle();
-
-    final firstRequestContents = fakeClient.requestHistory.first
-        .map((message) => message.content)
-        .toList(growable: false);
-    expect(firstRequestContents, ['第一次问题']);
-
-    await tester.tap(find.byTooltip('新建对话').first);
-    await tester.pumpAndSettle();
-    await sendMessage(tester, '第二次问题');
-    await tester.pumpAndSettle();
-
-    final lastRequestContents = fakeClient.requestHistory.last
-        .map((message) => message.content)
-        .toList(growable: false);
-    expect(lastRequestContents, ['第二次问题']);
-
   });
 }

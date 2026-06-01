@@ -16,6 +16,7 @@ import '../../settings/domain/models/preset_prompt.dart';
 import '../../settings/domain/models/template_prompt.dart';
 import '../application/chat_message_tree.dart';
 import '../application/chat_sessions_controller.dart';
+import '../application/chat_sidebar_controller.dart';
 import '../application/templated_user_message_builder.dart';
 import '../domain/chat_conversation_groups.dart';
 import '../domain/models/chat_conversation.dart';
@@ -42,6 +43,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   String? _selectedFixedPromptSequenceId;
   String? _selectedTemplatePromptId;
+  String? _selectedPresetPromptId;
   int _selectedFixedPromptStepIndex = 0;
   bool _isComposerCollapsed = false;
 
@@ -126,11 +128,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 return config.providerId == selectedProviderId;
               })
               .toList(growable: false);
-    final selectedPresetPrompt = _resolveSelectedPresetPrompt(
-      presetPrompts,
-      conversation.selectedPresetPromptId,
-      rememberedSelections.defaultPresetPromptId,
-    );
+    final selectedPresetPrompt =
+        _resolveSelectedPresetPrompt(presetPrompts, conversation);
     final selectedTemplatePrompt = _resolveSelectedTemplatePrompt(
       templatePrompts,
       _selectedTemplatePromptId,
@@ -149,17 +148,37 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       isStreaming: isStreaming,
     );
 
+    // 监听对话切换，同步本地 _selectedPresetPromptId
+    ref.listen<String?>(activeConversationIdProvider, (prev, next) {
+      if (prev != next && next != null) {
+        final nextConversation = ref.read(activeChatConversationProvider);
+        final id = nextConversation.selectedPresetPromptId;
+        setState(() {
+          _selectedPresetPromptId =
+              id == noPresetPromptSelectedId ? null : id;
+        });
+      }
+    });
+
+    final sidebarState = ref.watch(chatSidebarProvider);
+
     return AppShellScaffold(
       currentDestination: AppDestination.chat,
       title: conversation.resolvedTitle,
       endDrawer: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(12),
-          child: _buildHistoryPanel(
-            conversationSummaries,
-            activeConversationId: activeConversationId,
-            hasDraftConversation: !conversation.hasMessages,
-            isBusy: isBusy,
+          child: ChatCompactPanel(
+            historyPanel: _buildHistoryPanel(
+              conversationSummaries,
+              activeConversationId: activeConversationId,
+              hasDraftConversation: !conversation.hasMessages,
+              isBusy: isBusy,
+            ),
+            presetPanel: PresetPromptPanel(
+              selectedPresetPromptId: _selectedPresetPromptId,
+              onPresetPromptSelected: _handlePresetPromptSelected,
+            ),
           ),
         ),
       ),
@@ -205,8 +224,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 if (showSidePanels) ...[
                   const ChatActivityBar(),
                   ChatSidebarPanel(
-                    content: _buildHistoryPanel(
-                      conversationSummaries,
+                    content: _buildSidebarContent(
+                      sidebarState.activeFunction ??
+                          ChatSidebarFunction.history,
+                      conversationSummaries: conversationSummaries,
                       activeConversationId: activeConversationId,
                       hasDraftConversation: !conversation.hasMessages,
                       isBusy: isBusy,
@@ -223,8 +244,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     modelConfigs: selectableModels,
                     selectedProviderId: selectedProviderId,
                     selectedModel: selectedModel,
-                    presetPrompts: presetPrompts,
-                    selectedPresetPrompt: selectedPresetPrompt,
                     userMessages: userMessages,
                     activeAnchorMessageId: _scroll.activeAnchorMessageId,
                     messageController: _messageController,
@@ -280,9 +299,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     },
                     onModelSelected: (modelId) {
                       _handleModelSelected(modelId);
-                    },
-                    onPresetPromptSelected: (presetPromptId) {
-                      _handlePresetPromptSelected(presetPromptId);
                     },
                     onTemplatePromptSelected: (templatePromptId) {
                       _handleTemplatePromptSelected(
@@ -420,6 +436,28 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
+  /// 根据当前激活的侧栏功能，构建对应的内容面板。
+  Widget _buildSidebarContent(
+    ChatSidebarFunction function, {
+    required List<ChatConversationSummary> conversationSummaries,
+    required String activeConversationId,
+    required bool hasDraftConversation,
+    required bool isBusy,
+  }) {
+    return switch (function) {
+      ChatSidebarFunction.history => _buildHistoryPanel(
+          conversationSummaries,
+          activeConversationId: activeConversationId,
+          hasDraftConversation: hasDraftConversation,
+          isBusy: isBusy,
+        ),
+      ChatSidebarFunction.preset => PresetPromptPanel(
+          selectedPresetPromptId: _selectedPresetPromptId,
+          onPresetPromptSelected: _handlePresetPromptSelected,
+        ),
+    };
+  }
+
   /// 解析当前会话应使用的模型配置，并在缺省时回退到默认项。
   LlmModelConfig? _resolveSelectedModel(
     List<LlmModelConfig> modelConfigs,
@@ -462,26 +500,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     return providers.first.id;
   }
 
-  /// 解析当前会话应使用的前置 Prompt，并在缺省时回退到最近一次选择。
+  /// 解析当前会话应使用的预设 Prompt。
+  ///
+  /// 优先使用本地状态，其次回退到会话级记录，
+  /// 以保证直接写入 conversation 的代码路径（如测试、或历史恢复）也能正确解析。
   PresetPrompt? _resolveSelectedPresetPrompt(
     List<PresetPrompt> presetPrompts,
-    String? selectedPresetPromptId,
-    String? rememberedPresetPromptId,
+    ChatConversation conversation,
   ) {
-    if (selectedPresetPromptId == noPresetPromptSelectedId) {
+    final effectiveId =
+        _selectedPresetPromptId ?? conversation.selectedPresetPromptId;
+    if (effectiveId == null || effectiveId == noPresetPromptSelectedId) {
       return null;
     }
-
-    final conversationSelected = presetPrompts.where((template) {
-      return template.id == selectedPresetPromptId;
-    }).firstOrNull;
-    if (conversationSelected != null) {
-      return conversationSelected;
-    }
-
-    return presetPrompts.where((template) {
-      return template.id == rememberedPresetPromptId;
-    }).firstOrNull;
+    return presetPrompts
+        .where((p) => p.id == effectiveId)
+        .firstOrNull;
   }
 
   TemplatePrompt? _resolveSelectedTemplatePrompt(
@@ -565,15 +599,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   void _handlePresetPromptSelected(String? presetPromptId) {
+    _selectedPresetPromptId = presetPromptId;
+    // 写入 conversation，保证 editMessage/retry/checkpoint 等内部操作能读取到。
+    // updateActiveConversationPreferences 触发 rebuild，无需额外 setState。
     ref
         .read(chatSessionsProvider.notifier)
         .updateActiveConversationPreferences(
           selectedPresetPromptId:
               presetPromptId ?? noPresetPromptSelectedId,
         );
-    ref
-        .read(chatDefaultsProvider.notifier)
-        .rememberPresetPromptId(presetPromptId);
   }
 
   Map<String, String> _resolveTemplatePromptValues(
@@ -797,6 +831,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       return;
     }
 
+    setState(() {
+      _selectedPresetPromptId = null;
+    });
     _messageController.clear();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scroll.scrollToBottom(jump: true);

@@ -23,6 +23,7 @@ class PromptMessage extends Equatable {
     required this.content,
     this.title = '',
     this.placement = PromptMessagePlacement.before,
+    this.enabled = true,
   });
 
   final String id;
@@ -30,6 +31,7 @@ class PromptMessage extends Equatable {
   final String content;
   final String title;
   final PromptMessagePlacement placement;
+  final bool enabled;
 
   /// 复制消息，并允许覆盖常用字段。
   PromptMessage copyWith({
@@ -38,6 +40,7 @@ class PromptMessage extends Equatable {
     String? content,
     String? title,
     PromptMessagePlacement? placement,
+    bool? enabled,
   }) {
     return PromptMessage(
       id: id ?? this.id,
@@ -45,6 +48,7 @@ class PromptMessage extends Equatable {
       content: content ?? this.content,
       title: title ?? this.title,
       placement: placement ?? this.placement,
+      enabled: enabled ?? this.enabled,
     );
   }
 
@@ -56,6 +60,7 @@ class PromptMessage extends Equatable {
       'title': title,
       'content': content,
       'placement': placement.apiValue,
+      'enabled': enabled,
     };
   }
 
@@ -75,9 +80,10 @@ class PromptMessage extends Equatable {
         (json['placement'] as String?) ??
             PromptMessagePlacement.before.apiValue,
       ),
+      enabled: (json['enabled'] as bool?) ?? true,
     );
   }
 
   @override
-  List<Object> get props => [id, role, title, content, placement];
+  List<Object> get props => [id, role, title, content, placement, enabled];
 }

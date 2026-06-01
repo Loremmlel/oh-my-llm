@@ -626,6 +626,14 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
         return;
       }
     }
+    // 保留原始消息的 enabled 状态，防止设置页编辑后丢失聊天页的开关设置
+    final originalEnabledById = <String, bool>{};
+    if (widget.initialValue != null) {
+      for (final m in widget.initialValue!.messages) {
+        originalEnabledById[m.id] = m.enabled;
+      }
+    }
+
     final messages = _items
         .map((item) {
           return PromptMessage(
@@ -638,6 +646,7 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
             title: item.titleController.text.trim(),
             content: item.contentController.text.trim(),
             placement: item.placement ?? PromptMessagePlacement.before,
+            enabled: originalEnabledById[item.id] ?? true,
           );
         })
         .toList(growable: false);

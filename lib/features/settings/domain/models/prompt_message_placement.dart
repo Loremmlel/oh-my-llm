@@ -9,8 +9,8 @@ enum PromptMessagePlacement {
 
   /// 返回更适合界面展示的位置标签。
   String get label => switch (this) {
-    PromptMessagePlacement.before => '会话前',
-    PromptMessagePlacement.after => '会话后',
+    PromptMessagePlacement.before => '前置',
+    PromptMessagePlacement.after => '后置',
   };
 
   /// 从持久化字符串解析位置枚举。

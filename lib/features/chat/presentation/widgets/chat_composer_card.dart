@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../domain/models/chat_conversation.dart';
 import '../../domain/models/chat_message.dart';
 import 'auto_retry_toggle.dart';
 import 'composer/composer_compact_action_row.dart';
@@ -118,7 +117,6 @@ class ChatComposerCard extends StatelessWidget {
                     reasoningEnabled: data.reasoningEnabled,
                     reasoningEffort: data.reasoningEffort,
                     autoRetryEnabled: data.autoRetryEnabled,
-                    selectedPresetPrompt: data.selectedPresetPrompt,
                     excludedMessageCount: data.excludedMessageCount,
                     onOpenSettings: () {
                       _showCompactSecondarySettingsSheet(context, theme);
@@ -134,15 +132,12 @@ class ChatComposerCard extends StatelessWidget {
                     reasoningEnabled: data.reasoningEnabled,
                     reasoningEffort: data.reasoningEffort,
                     autoRetryEnabled: data.autoRetryEnabled,
-                    presetPrompts: data.presetPrompts,
-                    selectedPresetPrompt: data.selectedPresetPrompt,
                     isBusy: data.isBusy,
                     isStreaming: data.isStreaming,
                     isAutoRetryWaiting: data.isAutoRetryWaiting,
                     onReasoningEnabledChanged: callbacks.onReasoningEnabledChanged,
                     onReasoningEffortChanged: callbacks.onReasoningEffortChanged,
                     onAutoRetryEnabledChanged: callbacks.onAutoRetryEnabledChanged,
-                    onPresetPromptSelected: callbacks.onPresetPromptSelected,
                     onOpenFixedPromptSequenceRunner:
                         callbacks.onOpenFixedPromptSequenceRunner,
                     onOpenMessageFilter: callbacks.onOpenMessageFilter,
@@ -226,42 +221,6 @@ class ChatComposerCard extends StatelessWidget {
                         ],
                       ),
                     ],
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      key: const ValueKey('chat-prompt-selector'),
-                      initialValue:
-                          data.selectedPresetPrompt?.id ??
-                          noPresetPromptSelectedId,
-                      isExpanded: true,
-                      decoration: const InputDecoration(labelText: '预设 Prompt'),
-                      items: [
-                        const DropdownMenuItem<String>(
-                          value: noPresetPromptSelectedId,
-                          child: Text('不使用预设 Prompt'),
-                        ),
-                        ...data.presetPrompts.map((template) {
-                          return DropdownMenuItem<String>(
-                            value: template.id,
-                            child: Text(
-                              template.name,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          );
-                        }),
-                      ],
-                      onChanged: data.isBusy
-                          ? null
-                          : (value) {
-                              if (value == null) {
-                                return;
-                              }
-                              callbacks.onPresetPromptSelected(
-                                value == noPresetPromptSelectedId
-                                    ? null
-                                    : value,
-                              );
-                            },
-                    ),
                     const SizedBox(height: 12),
                     SizedBox(
                       width: double.infinity,

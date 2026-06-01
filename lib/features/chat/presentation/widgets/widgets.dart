@@ -1,5 +1,6 @@
 export 'cached_chat_message_bubble.dart';
 export 'chat_activity_bar.dart';
+export 'chat_compact_panel.dart';
 export 'chat_sidebar_panel.dart';
 export 'chat_message_bubble.dart';
 export 'chat_workspace.dart';
@@ -8,6 +9,9 @@ export 'empty_conversation_view.dart';
 export 'message_anchor_rail.dart';
 export 'message_version_info.dart';
 export 'message_version_navigator.dart';
+export 'preset_prompt_message_card.dart';
+export 'preset_prompt_message_detail_dialog.dart';
+export 'preset_prompt_panel.dart';
 export 'reasoning_panel.dart';
 export 'streaming_markdown_view.dart';
 export 'thinking_toggle.dart';
