@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:test/test.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/chat/data/background_chat_repository.dart';
@@ -34,7 +34,7 @@ void main() {
   });
 
   /// 创建一个带有一条用户消息的最小测试会话。
-  ChatConversation _makeConv(String id, String content) {
+  ChatConversation makeConv(String id, String content) {
     return ChatConversation(
       id: id,
       messages: [
@@ -56,7 +56,7 @@ void main() {
       final inner = SqliteChatConversationRepository(db);
       final bg = BackgroundChatConversationRepository(inner, tempDbPath);
 
-      final conv = _makeConv('isolate_test', 'Hello from Isolate');
+      final conv = makeConv('isolate_test', 'Hello from Isolate');
       await bg.saveConversation(conv);
 
       // 等待 debounce（80 ms）+ Isolate 跨线程打开 DB 并写入
@@ -74,8 +74,8 @@ void main() {
       final inner = SqliteChatConversationRepository(db);
       final bg = BackgroundChatConversationRepository(inner, tempDbPath);
 
-      final convA = _makeConv('conv_a', 'Content A');
-      final convB = _makeConv('conv_b', 'Content B');
+      final convA = makeConv('conv_a', 'Content A');
+      final convB = makeConv('conv_b', 'Content B');
 
       // 在 80 ms 窗口内快速连续写入两条不同 ID 的会话
       await bg.saveConversation(convA);
@@ -97,8 +97,8 @@ void main() {
       final inner = SqliteChatConversationRepository(db);
       final bg = BackgroundChatConversationRepository(inner, tempDbPath);
 
-      final convOrig = _makeConv('same_conv', 'Original content');
-      final convModified = _makeConv('same_conv', 'Modified content');
+      final convOrig = makeConv('same_conv', 'Original content');
+      final convModified = makeConv('same_conv', 'Modified content');
 
       // 同一 ID 的两次写入，Map 应覆盖前者
       await bg.saveConversation(convOrig);
@@ -122,7 +122,7 @@ void main() {
       final bg = BackgroundChatConversationRepository(inner, tempDbPath);
 
       // 构造后立即调用 saveConversation —— Isolate 大概率尚未就绪
-      final conv = _makeConv('pending_test', 'Pending write');
+      final conv = makeConv('pending_test', 'Pending write');
       await bg.saveConversation(conv);
 
       // 留出充足时间：Isolate 启动 → 接收 pending 数据 → 写入 DB
@@ -139,7 +139,7 @@ void main() {
       final inner = SqliteChatConversationRepository(db);
       final bg = BackgroundChatConversationRepository(inner, tempDbPath);
 
-      final conv = _makeConv('to_delete', 'Will be deleted');
+      final conv = makeConv('to_delete', 'Will be deleted');
       await bg.saveConversation(conv);
 
       // 在 debounce 触发前立即删除
@@ -161,7 +161,7 @@ void main() {
       final inner = SqliteChatConversationRepository(memDb);
       final bg = BackgroundChatConversationRepository(inner, ':memory:');
 
-      final conv = _makeConv('mem_test', 'Memory fallback');
+      final conv = makeConv('mem_test', 'Memory fallback');
       await bg.saveConversation(conv);
 
       // 无 Isolate 延迟，内层仓库应立即持久化

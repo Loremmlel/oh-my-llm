@@ -5,9 +5,6 @@ import 'package:oh_my_llm/features/settings/domain/models/fixed_prompt_sequence.
 import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/memory_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
-import 'package:oh_my_llm/features/settings/domain/models/prompt_message.dart';
-import 'package:oh_my_llm/features/settings/domain/models/prompt_message_placement.dart';
-import 'package:oh_my_llm/features/settings/domain/models/prompt_message_role.dart';
 import 'package:oh_my_llm/features/settings/domain/models/settings_export_data.dart';
 import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
 
@@ -16,7 +13,7 @@ void main() {
 
   // ── 工厂辅助函数 ──────...──────────...──────────...──────────
 
-  MemoryPrompt _mem({
+  MemoryPrompt mem({
     String id = 'mem-1',
     String name = '测试记忆',
     String content = 'hello world',
@@ -24,7 +21,7 @@ void main() {
     return MemoryPrompt(id: id, name: name, content: content, updatedAt: testDate);
   }
 
-  PromptMessage _msg({
+  PromptMessage msg({
     String id = 'msg-1',
     PromptMessageRole role = PromptMessageRole.user,
     String title = '前置user1',
@@ -34,22 +31,22 @@ void main() {
     return PromptMessage(id: id, role: role, title: title, content: content, placement: placement);
   }
 
-  PresetPrompt _preset({
+  PresetPrompt preset({
     String id = 'pst-1',
     String name = '测试模板',
     List<PromptMessage>? messages,
   }) {
-    return PresetPrompt(id: id, name: name, messages: messages ?? [_msg()], updatedAt: testDate);
+    return PresetPrompt(id: id, name: name, messages: messages ?? [msg()], updatedAt: testDate);
   }
 
-  TemplatePromptVariable _var({
+  TemplatePromptVariable tplVar({
     String name = '变量1',
     String defaultValue = '默认值',
   }) {
     return TemplatePromptVariable(name: name, defaultValue: defaultValue);
   }
 
-  TemplatePrompt _tpl({
+  TemplatePrompt tpl({
     String id = 'tpl-1',
     String title = '测试模板',
     String content = '请处理{{正文}}',
@@ -59,12 +56,12 @@ void main() {
       id: id,
       title: title,
       content: content,
-      variables: variables ?? [_var()],
+      variables: variables ?? [tplVar()],
       updatedAt: testDate,
     );
   }
 
-  FixedPromptSequenceStep _step({
+  FixedPromptSequenceStep step({
     String id = 'step-1',
     String title = '步骤1',
     String content = '第一步内容',
@@ -72,15 +69,15 @@ void main() {
     return FixedPromptSequenceStep(id: id, title: title, content: content);
   }
 
-  FixedPromptSequence _seq({
+  FixedPromptSequence seq({
     String id = 'seq-1',
     String name = '测试序列',
     List<FixedPromptSequenceStep>? steps,
   }) {
-    return FixedPromptSequence(id: id, name: name, steps: steps ?? [_step()], updatedAt: testDate);
+    return FixedPromptSequence(id: id, name: name, steps: steps ?? [step()], updatedAt: testDate);
   }
 
-  LlmProviderModelConfig _model({
+  LlmProviderModelConfig model({
     String id = 'model-1',
     String displayName = 'GPT-4',
     String modelName = 'gpt-4',
@@ -94,17 +91,17 @@ void main() {
     );
   }
 
-  LlmProviderConfig _provider({
+  LlmProviderConfig provider({
     String id = 'pvd-1',
     String name = 'OpenAI',
     String apiUrl = 'https://api.openai.com/v1',
     String apiKey = 'sk-abc123',
     List<LlmProviderModelConfig>? models,
   }) {
-    return LlmProviderConfig(id: id, name: name, apiUrl: apiUrl, apiKey: apiKey, models: models ?? [_model()]);
+    return LlmProviderConfig(id: id, name: name, apiUrl: apiUrl, apiKey: apiKey, models: models ?? [model()]);
   }
 
-  SettingsExportData _export({
+  SettingsExportData export({
     List<LlmProviderConfig> modelProviders = const [],
     List<MemoryPrompt> memoryPrompts = const [],
     List<PresetPrompt> presetPrompts = const [],
@@ -126,22 +123,22 @@ void main() {
     const comparator = MemoryPromptImportComparator();
 
     test('内容相同时 isEquivalent 返回 true', () {
-      final existing = _mem(content: 'hello');
-      final incoming = _mem(content: 'hello');
+      final existing = mem(content: 'hello');
+      final incoming = mem(content: 'hello');
 
       expect(comparator.isEquivalent(existing, incoming), isTrue);
     });
 
     test('内容不同时 isEquivalent 返回 false（同长度，测内容比较）', () {
-      final existing = _mem(content: 'abc');
-      final incoming = _mem(content: 'def');
+      final existing = mem(content: 'abc');
+      final incoming = mem(content: 'def');
 
       expect(comparator.isEquivalent(existing, incoming), isFalse);
     });
 
     test('内容长度不同时 isEquivalent 通过长度守卫返回 false', () {
-      final existing = _mem(content: 'a');
-      final incoming = _mem(content: 'abcdef');
+      final existing = mem(content: 'a');
+      final incoming = mem(content: 'abcdef');
 
       expect(comparator.isEquivalent(existing, incoming), isFalse);
     });
@@ -153,37 +150,37 @@ void main() {
     const comparator = PresetPromptImportComparator();
 
     test('消息完全相同时 isEquivalent 返回 true', () {
-      final messages = [_msg(content: 'hello', role: PromptMessageRole.user)];
-      final existing = _preset(messages: messages);
-      final incoming = _preset(messages: messages.map((m) => m).toList());
+      final messages = [msg(content: 'hello', role: PromptMessageRole.user)];
+      final existing = preset(messages: messages);
+      final incoming = preset(messages: messages.map((m) => m).toList());
 
       expect(comparator.isEquivalent(existing, incoming), isTrue);
     });
 
     test('消息数量不同时 isEquivalent 返回 false', () {
-      final existing = _preset(messages: [_msg()]);
-      final incoming = _preset(messages: [_msg(), _msg(id: 'msg-2', content: '第二条')]);
+      final existing = preset(messages: [msg()]);
+      final incoming = preset(messages: [msg(), msg(id: 'msg-2', content: '第二条')]);
 
       expect(comparator.isEquivalent(existing, incoming), isFalse);
     });
 
     test('消息标题不同时 isEquivalent 返回 false', () {
-      final existing = _preset(messages: [_msg(title: '标题A')]);
-      final incoming = _preset(messages: [_msg(title: '标题B')]);
+      final existing = preset(messages: [msg(title: '标题A')]);
+      final incoming = preset(messages: [msg(title: '标题B')]);
 
       expect(comparator.isEquivalent(existing, incoming), isFalse);
     });
 
     test('消息正文不同时 isEquivalent 返回 false', () {
-      final existing = _preset(messages: [_msg(content: '旧正文')]);
-      final incoming = _preset(messages: [_msg(content: '新正文')]);
+      final existing = preset(messages: [msg(content: '旧正文')]);
+      final incoming = preset(messages: [msg(content: '新正文')]);
 
       expect(comparator.isEquivalent(existing, incoming), isFalse);
     });
 
     test('消息角色不同时 isEquivalent 返回 false', () {
-      final existing = _preset(messages: [_msg(role: PromptMessageRole.user)]);
-      final incoming = _preset(messages: [_msg(role: PromptMessageRole.assistant)]);
+      final existing = preset(messages: [msg(role: PromptMessageRole.user)]);
+      final incoming = preset(messages: [msg(role: PromptMessageRole.assistant)]);
 
       expect(comparator.isEquivalent(existing, incoming), isFalse);
     });
@@ -195,32 +192,32 @@ void main() {
     const comparator = TemplatePromptImportComparator();
 
     test('内容与变量完全相同时 isEquivalent 返回 true', () {
-      final variables = [_var(name: '语气', defaultValue: '正式')];
-      final existing = _tpl(content: '请用{{语气}}回复', variables: variables);
-      final incoming = _tpl(content: '请用{{语气}}回复', variables: [
-        _var(name: '语气', defaultValue: '正式'),
+      final variables = [tplVar(name: '语气', defaultValue: '正式')];
+      final existing = tpl(content: '请用{{语气}}回复', variables: variables);
+      final incoming = tpl(content: '请用{{语气}}回复', variables: [
+        tplVar(name: '语气', defaultValue: '正式'),
       ]);
 
       expect(comparator.isEquivalent(existing, incoming), isTrue);
     });
 
     test('内容不同时 isEquivalent 返回 false', () {
-      final existing = _tpl(content: '翻译{{正文}}');
-      final incoming = _tpl(content: '改写{{正文}}');
+      final existing = tpl(content: '翻译{{正文}}');
+      final incoming = tpl(content: '改写{{正文}}');
 
       expect(comparator.isEquivalent(existing, incoming), isFalse);
     });
 
     test('变量数量不同时 isEquivalent 返回 false', () {
-      final existing = _tpl(variables: [_var(name: '语气')]);
-      final incoming = _tpl(variables: [_var(name: '语气'), _var(name: '长度')]);
+      final existing = tpl(variables: [tplVar(name: '语气')]);
+      final incoming = tpl(variables: [tplVar(name: '语气'), tplVar(name: '长度')]);
 
       expect(comparator.isEquivalent(existing, incoming), isFalse);
     });
 
     test('变量名称或默认值不同时 isEquivalent 返回 false', () {
-      final existing = _tpl(variables: [_var(name: '语气', defaultValue: '正式')]);
-      final incoming = _tpl(variables: [_var(name: '风格', defaultValue: '轻松')]);
+      final existing = tpl(variables: [tplVar(name: '语气', defaultValue: '正式')]);
+      final incoming = tpl(variables: [tplVar(name: '风格', defaultValue: '轻松')]);
 
       expect(comparator.isEquivalent(existing, incoming), isFalse);
     });
@@ -232,16 +229,16 @@ void main() {
     const comparator = FixedPromptSequenceImportComparator();
 
     test('步骤完全相同时 isEquivalent 返回 true', () {
-      final steps = [_step(title: '步骤1', content: '你好')];
-      final existing = _seq(steps: steps);
-      final incoming = _seq(steps: [_step(title: '步骤1', content: '你好')]);
+      final steps = [step(title: '步骤1', content: '你好')];
+      final existing = seq(steps: steps);
+      final incoming = seq(steps: [step(title: '步骤1', content: '你好')]);
 
       expect(comparator.isEquivalent(existing, incoming), isTrue);
     });
 
     test('步骤不同时 isEquivalent 返回 false', () {
-      final existing = _seq(steps: [_step(title: '步骤1', content: '你好')]);
-      final incoming = _seq(steps: [_step(title: '步骤2', content: '再见')]);
+      final existing = seq(steps: [step(title: '步骤1', content: '你好')]);
+      final incoming = seq(steps: [step(title: '步骤2', content: '再见')]);
 
       expect(comparator.isEquivalent(existing, incoming), isFalse);
     });
@@ -255,8 +252,8 @@ void main() {
     test('按 apiUrl+apiKey+modelName 过滤已存在的模型服务商', () {
       // 已有服务商：url1/key1 下有 gpt-4
       final existingProviders = [
-        _provider(apiUrl: 'https://url1.example.com', apiKey: 'key1', models: [
-          _model(modelName: 'gpt-4'),
+        provider(apiUrl: 'https://url1.example.com', apiKey: 'key1', models: [
+          model(modelName: 'gpt-4'),
         ]),
       ];
 
@@ -264,16 +261,16 @@ void main() {
       // p1: 相同 url1/key1，包含 gpt-4（重复）和 gpt-3.5（新）
       // p2: 相同 url1/key1，仅含 gpt-4（全部重复，整个服务商应被移除）
       // p3: 不同 url2/key2，含 gpt-4（不同服务商，不重复）
-      final data = _export(modelProviders: [
-        _provider(id: 'pvd-import-1', apiUrl: 'https://url1.example.com', apiKey: 'key1', models: [
-          _model(modelName: 'gpt-4'),
-          _model(id: 'model-2', displayName: 'GPT-3.5', modelName: 'gpt-3.5'),
+      final data = export(modelProviders: [
+        provider(id: 'pvd-import-1', apiUrl: 'https://url1.example.com', apiKey: 'key1', models: [
+          model(modelName: 'gpt-4'),
+          model(id: 'model-2', displayName: 'GPT-3.5', modelName: 'gpt-3.5'),
         ]),
-        _provider(id: 'pvd-import-2', apiUrl: 'https://url1.example.com', apiKey: 'key1', models: [
-          _model(modelName: 'gpt-4'),
+        provider(id: 'pvd-import-2', apiUrl: 'https://url1.example.com', apiKey: 'key1', models: [
+          model(modelName: 'gpt-4'),
         ]),
-        _provider(id: 'pvd-import-3', apiUrl: 'https://url2.example.com', apiKey: 'key2', models: [
-          _model(modelName: 'gpt-4'),
+        provider(id: 'pvd-import-3', apiUrl: 'https://url2.example.com', apiKey: 'key2', models: [
+          model(modelName: 'gpt-4'),
         ]),
       ]);
 
@@ -296,10 +293,10 @@ void main() {
     });
 
     test('过滤已存在的记忆提示词', () {
-      final existingMemoryPrompts = [_mem(id: 'e-1', content: '常见的记忆内容')];
-      final data = _export(memoryPrompts: [
-        _mem(id: 'i-1', content: '常见的记忆内容'), // 重复
-        _mem(id: 'i-2', content: '全新的记忆内容'), // 新
+      final existingMemoryPrompts = [mem(id: 'e-1', content: '常见的记忆内容')];
+      final data = export(memoryPrompts: [
+        mem(id: 'i-1', content: '常见的记忆内容'), // 重复
+        mem(id: 'i-2', content: '全新的记忆内容'), // 新
       ]);
 
       final result = deduplicator.deduplicate(
@@ -317,11 +314,11 @@ void main() {
 
     test('过滤已存在的预设提示词模板', () {
       final existingTemplates = [
-        _preset(messages: [_msg(content: '已有系统指令', role: PromptMessageRole.system)]),
+        preset(messages: [msg(content: '已有系统指令', role: PromptMessageRole.system)]),
       ];
-      final data = _export(presetPrompts: [
-        _preset(messages: [_msg(content: '已有系统指令', role: PromptMessageRole.system)]), // 重复
-        _preset(id: 'pst-new', messages: [_msg(content: '全新系统指令', role: PromptMessageRole.system)]), // 新
+      final data = export(presetPrompts: [
+        preset(messages: [msg(content: '已有系统指令', role: PromptMessageRole.system)]), // 重复
+        preset(id: 'pst-new', messages: [msg(content: '全新系统指令', role: PromptMessageRole.system)]), // 新
       ]);
 
       final result = deduplicator.deduplicate(
@@ -339,11 +336,11 @@ void main() {
 
     test('过滤已存在的模板提示词', () {
       final existingTemplatePrompts = [
-        _tpl(content: '翻译成{{语言}}', variables: [_var(name: '语言', defaultValue: '英文')]),
+        tpl(content: '翻译成{{语言}}', variables: [tplVar(name: '语言', defaultValue: '英文')]),
       ];
-      final data = _export(templatePrompts: [
-        _tpl(content: '翻译成{{语言}}', variables: [_var(name: '语言', defaultValue: '英文')]), // 重复
-        _tpl(id: 'tpl-new', content: '改写成{{风格}}', variables: [_var(name: '风格', defaultValue: '轻松')]), // 新
+      final data = export(templatePrompts: [
+        tpl(content: '翻译成{{语言}}', variables: [tplVar(name: '语言', defaultValue: '英文')]), // 重复
+        tpl(id: 'tpl-new', content: '改写成{{风格}}', variables: [tplVar(name: '风格', defaultValue: '轻松')]), // 新
       ]);
 
       final result = deduplicator.deduplicate(
@@ -361,11 +358,11 @@ void main() {
 
     test('过滤已存在的固定顺序提示词', () {
       final existingSequences = [
-        _seq(steps: [_step(title: '步骤1', content: '启动')]),
+        seq(steps: [step(title: '步骤1', content: '启动')]),
       ];
-      final data = _export(fixedPromptSequences: [
-        _seq(steps: [_step(title: '步骤1', content: '启动')]), // 重复
-        _seq(id: 'seq-new', steps: [_step(title: '步骤A', content: '初始化')]), // 新
+      final data = export(fixedPromptSequences: [
+        seq(steps: [step(title: '步骤1', content: '启动')]), // 重复
+        seq(id: 'seq-new', steps: [step(title: '步骤A', content: '初始化')]), // 新
       ]);
 
       final result = deduplicator.deduplicate(
@@ -383,7 +380,7 @@ void main() {
 
     test('输入数据为空时返回空结果', () {
       final result = deduplicator.deduplicate(
-        data: _export(),
+        data: export(),
         existingProviders: const [],
         existingMemoryPrompts: const [],
         existingTemplates: const [],
@@ -399,16 +396,16 @@ void main() {
     });
 
     test('所有已有数据均匹配时返回全空分类', () {
-      final existingMemoryPrompts = [_mem(content: '内容A')];
-      final existingTemplates = [_preset(messages: [_msg(content: '消息A')])];
-      final existingTemplatePrompts = [_tpl(content: '模板A')];
-      final existingSequences = [_seq(steps: [_step(title: '步A', content: '内容A')])];
+      final existingMemoryPrompts = [mem(content: '内容A')];
+      final existingTemplates = [preset(messages: [msg(content: '消息A')])];
+      final existingTemplatePrompts = [tpl(content: '模板A')];
+      final existingSequences = [seq(steps: [step(title: '步A', content: '内容A')])];
 
-      final data = _export(
-        memoryPrompts: [_mem(content: '内容A')],
-        presetPrompts: [_preset(messages: [_msg(content: '消息A')])],
-        templatePrompts: [_tpl(content: '模板A')],
-        fixedPromptSequences: [_seq(steps: [_step(title: '步A', content: '内容A')])],
+      final data = export(
+        memoryPrompts: [mem(content: '内容A')],
+        presetPrompts: [preset(messages: [msg(content: '消息A')])],
+        templatePrompts: [tpl(content: '模板A')],
+        fixedPromptSequences: [seq(steps: [step(title: '步A', content: '内容A')])],
       );
 
       final result = deduplicator.deduplicate(

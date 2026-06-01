@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/features/chat/application/checkpoint_request_context.dart';
 import 'package:oh_my_llm/features/chat/application/chat_request_message_builder.dart';
 import 'package:oh_my_llm/features/chat/application/request_message_filter.dart';
-import 'package:oh_my_llm/features/chat/data/chat_completion_client.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_checkpoint.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/settings/domain/models/memory_prompt.dart';

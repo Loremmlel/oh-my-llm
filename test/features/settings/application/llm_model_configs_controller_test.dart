@@ -4,7 +4,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/features/settings/application/llm_model_configs_controller.dart';
 import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dart';
-import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
 
 // ── 工厂函数 ────────────────────────────────────────────────────────────────
@@ -63,7 +62,7 @@ void main() {
     });
 
     // 辅助：创建新 container 验证持久化（从同一 SharedPreferences 实例读取）
-    List<LlmProviderConfig> _readPersisted() {
+    List<LlmProviderConfig> readPersisted() {
       final verifyContainer = ProviderContainer(
         overrides: [
           llmModelConfigRepositoryProvider.overrideWithValue(
@@ -93,7 +92,7 @@ void main() {
       );
       await controller.upsertProvider(provider);
 
-      final persisted = _readPersisted();
+      final persisted = readPersisted();
       expect(persisted.length, 1);
       expect(persisted.first.id, 'p-1');
       expect(persisted.first.name, 'DeepSeek');
@@ -114,7 +113,7 @@ void main() {
       expect(state.first.name, 'OpenAI');
 
       // 验证持久化
-      expect(_readPersisted().length, 1);
+      expect(readPersisted().length, 1);
     });
 
     test('upsertProvider() updates existing provider by id', () async {
@@ -144,7 +143,7 @@ void main() {
       expect(state.first.models.first.id, 'm-2');
 
       // 验证持久化：新容器读到更新后的数据
-      final persisted = _readPersisted();
+      final persisted = readPersisted();
       expect(persisted.first.name, 'OpenAI-Updated');
     });
 
@@ -169,7 +168,7 @@ void main() {
       final names =
           container.read(llmProviderConfigsProvider).map((p) => p.name).toList();
       expect(names, ['Alpha', 'Beta']);
-      expect(_readPersisted().length, 2);
+      expect(readPersisted().length, 2);
     });
 
     test('upsertAllProviders() updates existing and adds new in one call', () async {
@@ -188,7 +187,7 @@ void main() {
       expect(state.length, 2);
       expect(state.firstWhere((p) => p.id == 'p-1').name, 'New Name');
       expect(state.firstWhere((p) => p.id == 'p-2').name, 'Brand New');
-      expect(_readPersisted().length, 2);
+      expect(readPersisted().length, 2);
     });
 
     // ── mergeImportedProviders() ────────────────────────────────────────────
@@ -282,7 +281,7 @@ void main() {
       final state = container.read(llmProviderConfigsProvider);
       expect(state.length, 1);
       expect(state.first.id, 'p-2');
-      expect(_readPersisted().length, 1);
+      expect(readPersisted().length, 1);
     });
 
     test('deleteProviderById() is no-op for non-existent id', () async {
@@ -307,7 +306,7 @@ void main() {
       expect(state.first.models.length, 1);
       expect(state.first.models.first.id, 'm-new');
       expect(state.first.models.first.modelName, 'gpt-4o');
-      expect(_readPersisted().first.models.length, 1);
+      expect(readPersisted().first.models.length, 1);
     });
 
     test('upsertModel() updates existing model by id', () async {
@@ -325,7 +324,7 @@ void main() {
       final model = container.read(llmProviderConfigsProvider).first.models.first;
       expect(model.displayName, 'New');
       expect(model.modelName, 'new-model');
-      expect(_readPersisted().first.models.first.displayName, 'New');
+      expect(readPersisted().first.models.first.displayName, 'New');
     });
 
     test('upsertModel() is no-op for unknown provider', () async {
@@ -354,7 +353,7 @@ void main() {
       final models = container.read(llmProviderConfigsProvider).first.models;
       expect(models.length, 1);
       expect(models.first.id, 'm-2');
-      expect(_readPersisted().first.models.length, 1);
+      expect(readPersisted().first.models.length, 1);
     });
 
     test('deleteModel() is no-op for unknown provider', () async {

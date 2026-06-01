@@ -50,7 +50,9 @@ class BackgroundChatConversationRepository
           final deletes = _pendingDeletes.toSet();
           _pendingDeletes.clear();
           if (deletes.isNotEmpty) {
-            deletes.forEach((id) => pending.remove(id));
+            for (final id in deletes) {
+              pending.remove(id);
+            }
           }
           if (pending.isNotEmpty) {
             message.send(pending.values.toList(growable: false));
@@ -113,7 +115,9 @@ class BackgroundChatConversationRepository
     final deletes = _pendingDeletes.toSet();
     _pendingDeletes.clear();
     if (deletes.isNotEmpty) {
-      deletes.forEach((id) => data?.remove(id));
+      for (final id in deletes) {
+        data?.remove(id);
+      }
     }
     if (data == null || data.isEmpty) return;
     _sendToWorker(data.values.toList(growable: false));

@@ -3,6 +3,7 @@
 /// 验证对话数据的完整持久化链路：创建 → 写入 SQLite → 容器重建（模拟重启）→ 数据完整恢复。
 /// 覆盖消息持久化、分支编辑保留、检查点保留和流异常后的错误保留。
 /// 所有测试在 ProviderContainer 级别运行，不涉及 UI。
+library;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
