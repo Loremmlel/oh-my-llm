@@ -2,6 +2,7 @@
 ///
 /// 验证应用完整启动流程：初始化 → 数据迁移 → Provider 注入 → UI 渲染。
 /// 所有测试均使用内存数据库和空操作日志记录器，不依赖文件系统或网络。
+library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

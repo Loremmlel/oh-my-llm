@@ -9,7 +9,7 @@ void main() {
   // ── 辅助工厂 ─────────────────────────────────────────────
 
   /// 创建测试用 [ChatMessage]。
-  ChatMessage _msg({
+  ChatMessage createMsg({
     required String id,
     required ChatMessageRole role,
     required String content,
@@ -30,7 +30,7 @@ void main() {
 
   /// 创建测试用 [ChatConversation]，messageNodes 同时作为 messages 传入，
   /// 避免 fromJson 补全线性树逻辑干扰测试。
-  ChatConversation _conv({
+  ChatConversation createConv({
     required String id,
     required List<ChatMessage> messageNodes,
     Map<String, String>? selections,
@@ -46,7 +46,7 @@ void main() {
   }
 
   /// 创建测试用 [ChatSessionsState]。
-  ChatSessionsState _state({
+  ChatSessionsState createState({
     List<ChatConversation>? conversations,
     String activeConversationId = 'conv-1',
     int autoRetryCount = 0,
@@ -57,7 +57,7 @@ void main() {
   }) {
     return ChatSessionsState(
       conversations:
-          conversations ?? [_conv(id: 'conv-1', messageNodes: [])],
+          conversations ?? [createConv(id: 'conv-1', messageNodes: [])],
       conversationSummaries: <ChatConversationSummary>[],
       activeConversationId: activeConversationId,
       autoRetryCount: autoRetryCount,
@@ -69,7 +69,7 @@ void main() {
   }
 
   /// 创建测试用 [ChatStreamingReply]。
-  ChatStreamingReply _reply({
+  ChatStreamingReply createReply({
     String conversationId = 'conv-1',
     String assistantMessageId = 'a1',
     String content = '流式内容',
@@ -87,49 +87,49 @@ void main() {
 
   group('ChatSessionsState.copyWith', () {
     test('clearAutoRetryCount 将 autoRetryCount 重置为 0', () {
-      final state = _state(autoRetryCount: 5);
+      final state = createState(autoRetryCount: 5);
       final result = state.copyWith(clearAutoRetryCount: true);
 
       expect(result.autoRetryCount, 0);
     });
 
     test('clearErrorMessage 将 errorMessage 设置为 null', () {
-      final state = _state(errorMessage: '请求失败');
+      final state = createState(errorMessage: '请求失败');
       final result = state.copyWith(clearErrorMessage: true);
 
       expect(result.errorMessage, isNull);
     });
 
     test('clearStreamingReply 将 streamingReply 设置为 null', () {
-      final state = _state(streamingReply: _reply());
+      final state = createState(streamingReply: createReply());
       final result = state.copyWith(clearStreamingReply: true);
 
       expect(result.streamingReply, isNull);
     });
 
     test('incrementHistoryRevision 将 historyRevision 加 1', () {
-      final state = _state(historyRevision: 3);
+      final state = createState(historyRevision: 3);
       final result = state.copyWith(incrementHistoryRevision: true);
 
       expect(result.historyRevision, 4);
     });
 
     test('clearAutoRetryCount=false 时显式的 autoRetryCount 优先于原值', () {
-      final state = _state(autoRetryCount: 3);
+      final state = createState(autoRetryCount: 3);
       final result = state.copyWith(autoRetryCount: 7);
 
       expect(result.autoRetryCount, 7);
     });
 
     test('clearErrorMessage=false 时显式的 errorMessage 优先于原值', () {
-      final state = _state(errorMessage: '旧错误');
+      final state = createState(errorMessage: '旧错误');
       final result = state.copyWith(errorMessage: '新错误');
 
       expect(result.errorMessage, '新错误');
     });
 
     test('clearErrorMessage + clearAutoRetryCount 同时生效', () {
-      final state = _state(
+      final state = createState(
         errorMessage: '错误发生',
         errorMessageAssistantId: 'a1',
         autoRetryCount: 5,
@@ -150,10 +150,10 @@ void main() {
 
   group('applyStreamingReplyToConversation', () {
     test('streamingReply 为 null 时返回原会话不变', () {
-      final conv = _conv(
+      final conv = createConv(
         id: 'conv-1',
         messageNodes: [
-          _msg(id: 'u1', role: ChatMessageRole.user, content: '你好'),
+          createMsg(id: 'u1', role: ChatMessageRole.user, content: '你好'),
         ],
       );
 
@@ -166,16 +166,16 @@ void main() {
     });
 
     test('streamingReply.conversationId 与会话 id 不匹配时返回原会话', () {
-      final conv = _conv(
+      final conv = createConv(
         id: 'conv-1',
         messageNodes: [
-          _msg(id: 'a1', role: ChatMessageRole.assistant, content: '原内容'),
+          createMsg(id: 'a1', role: ChatMessageRole.assistant, content: '原内容'),
         ],
       );
 
       final result = applyStreamingReplyToConversation(
         conversation: conv,
-        streamingReply: _reply(
+        streamingReply: createReply(
           conversationId: 'conv-other',
           assistantMessageId: 'a1',
         ),
@@ -185,10 +185,10 @@ void main() {
     });
 
     test('匹配的 reply 更新 assistant 消息 content', () {
-      final conv = _conv(
+      final conv = createConv(
         id: 'conv-1',
         messageNodes: [
-          _msg(
+          createMsg(
             id: 'a1',
             role: ChatMessageRole.assistant,
             content: '旧内容',
@@ -199,7 +199,7 @@ void main() {
 
       final result = applyStreamingReplyToConversation(
         conversation: conv,
-        streamingReply: _reply(content: '新内容'),
+        streamingReply: createReply(content: '新内容'),
       );
 
       final replacedNode =
@@ -209,10 +209,10 @@ void main() {
     });
 
     test('匹配的 reply 更新 assistant 消息 reasoningContent', () {
-      final conv = _conv(
+      final conv = createConv(
         id: 'conv-1',
         messageNodes: [
-          _msg(
+          createMsg(
             id: 'a1',
             role: ChatMessageRole.assistant,
             content: '正文',
@@ -224,7 +224,7 @@ void main() {
 
       final result = applyStreamingReplyToConversation(
         conversation: conv,
-        streamingReply: _reply(
+        streamingReply: createReply(
           content: '正文更新',
           reasoningContent: '新推理',
         ),
@@ -237,10 +237,10 @@ void main() {
     });
 
     test('isStreaming=true 时消息上的 isStreaming 标记为 true', () {
-      final conv = _conv(
+      final conv = createConv(
         id: 'conv-1',
         messageNodes: [
-          _msg(
+          createMsg(
             id: 'a1',
             role: ChatMessageRole.assistant,
             content: '',
@@ -252,7 +252,7 @@ void main() {
 
       final result = applyStreamingReplyToConversation(
         conversation: conv,
-        streamingReply: _reply(content: '流式内容...'),
+        streamingReply: createReply(content: '流式内容...'),
         isStreaming: true,
       );
 
@@ -262,10 +262,10 @@ void main() {
     });
 
     test('isStreaming=false 时消息上的 isStreaming 标记为 false', () {
-      final conv = _conv(
+      final conv = createConv(
         id: 'conv-1',
         messageNodes: [
-          _msg(
+          createMsg(
             id: 'a1',
             role: ChatMessageRole.assistant,
             content: '完整的回复',
@@ -277,7 +277,7 @@ void main() {
 
       final result = applyStreamingReplyToConversation(
         conversation: conv,
-        streamingReply: _reply(content: '完整的回复'),
+        streamingReply: createReply(content: '完整的回复'),
         isStreaming: false,
       );
 
@@ -287,10 +287,10 @@ void main() {
     });
 
     test('空 content 和 reasoningContent 正常执行不抛异常', () {
-      final conv = _conv(
+      final conv = createConv(
         id: 'conv-1',
         messageNodes: [
-          _msg(
+          createMsg(
             id: 'a1',
             role: ChatMessageRole.assistant,
             content: '已有内容',
@@ -301,7 +301,7 @@ void main() {
 
       final result = applyStreamingReplyToConversation(
         conversation: conv,
-        streamingReply: _reply(content: '', reasoningContent: ''),
+        streamingReply: createReply(content: '', reasoningContent: ''),
       );
 
       final replacedNode =

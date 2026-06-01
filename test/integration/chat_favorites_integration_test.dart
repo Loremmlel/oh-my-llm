@@ -2,6 +2,8 @@
 ///
 /// 验证从对话消息到收藏记录的完整数据流，确保收藏功能的核心用户路径
 /// 不会因单侧变动而断裂。所有测试在 ProviderContainer 级别运行，不涉及 UI。
+library;
+
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,14 +15,11 @@ import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/data/openai_compatible_chat_client.dart';
-import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/favorites/application/collections_controller.dart';
 import 'package:oh_my_llm/features/favorites/application/favorites_controller.dart';
 import 'package:oh_my_llm/features/favorites/data/sqlite_collections_repository.dart';
 import 'package:oh_my_llm/features/favorites/data/sqlite_favorites_repository.dart';
-import 'package:oh_my_llm/features/favorites/domain/models/favorite.dart';
 import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dart';
-import 'package:oh_my_llm/features/settings/data/preset_prompt_repository.dart';
 
 import '../features/chat/chat_screen/chat_screen_test_helpers.dart';
 import '../helpers/integration_test_helpers.dart';
