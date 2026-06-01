@@ -7,6 +7,7 @@ import '../../chat/application/chat_sessions_controller.dart';
 import '../application/favorites_controller.dart';
 import '../application/collections_controller.dart';
 import '../domain/models/favorite.dart';
+import '../../../core/widgets/app_confirm_dialog.dart';
 import 'widgets/favorite_card.dart';
 
 /// 单条收藏的详情页，展示完整对话内容。
@@ -54,19 +55,10 @@ class FavoriteDetailScreen extends ConsumerWidget {
   Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('删除收藏'),
-        content: const Text('确定要删除这条收藏记录吗？'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('删除'),
-          ),
-        ],
+      builder: (ctx) => const AppConfirmDialog(
+        title: '删除收藏',
+        message: '确定要删除这条收藏记录吗？',
+        confirmLabel: '删除',
       ),
     );
 

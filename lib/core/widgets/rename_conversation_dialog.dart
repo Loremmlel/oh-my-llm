@@ -1,17 +1,31 @@
 import 'package:flutter/material.dart';
 
-/// 用于重命名历史会话标题的对话框。
+/// 重命名会话标题的对话框。
+///
+/// 供聊天页和历史页共用，避免代码重复。
 class RenameConversationDialog extends StatefulWidget {
-  const RenameConversationDialog({super.key, required this.initialTitle});
+  const RenameConversationDialog({
+    required this.initialTitle,
+    this.title = '重命名会话',
+    this.labelText = '会话标题',
+    super.key,
+  });
 
+  /// 当前标题，作为输入框初始值。
   final String initialTitle;
+
+  /// 弹窗标题文案。
+  final String title;
+
+  /// 输入框标签文案。
+  final String labelText;
 
   @override
   State<RenameConversationDialog> createState() =>
       _RenameConversationDialogState();
 }
 
-/// 重命名会话对话框的输入状态。
+/// 重命名对话框的输入与提交状态。
 class _RenameConversationDialogState extends State<RenameConversationDialog> {
   late final TextEditingController _titleController;
 
@@ -28,13 +42,12 @@ class _RenameConversationDialogState extends State<RenameConversationDialog> {
   }
 
   @override
-  /// 构建会话标题输入框和保存操作。
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('重命名会话'),
+      title: Text(widget.title),
       content: TextField(
         controller: _titleController,
-        decoration: const InputDecoration(labelText: '会话标题'),
+        decoration: InputDecoration(labelText: widget.labelText),
         autofocus: true,
       ),
       actions: [
@@ -48,7 +61,6 @@ class _RenameConversationDialogState extends State<RenameConversationDialog> {
             if (nextTitle.isEmpty) {
               return;
             }
-
             Navigator.of(context).pop(nextTitle);
           },
           child: const Text('保存'),
