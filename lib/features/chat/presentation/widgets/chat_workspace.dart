@@ -5,7 +5,6 @@ import '../../domain/models/chat_conversation.dart';
 import '../../domain/models/chat_message.dart';
 import '../../../settings/domain/models/llm_model_config.dart';
 import '../../../settings/domain/models/llm_provider_config.dart';
-import '../../../settings/domain/models/preset_prompt.dart';
 import '../../../settings/domain/models/template_prompt.dart';
 import 'chat_composer_card.dart';
 import 'chat_messages_panel.dart';
@@ -21,8 +20,6 @@ class ChatWorkspace extends StatelessWidget {
     required this.modelConfigs,
     required this.selectedProviderId,
     required this.selectedModel,
-    required this.presetPrompts,
-    required this.selectedPresetPrompt,
     required this.userMessages,
     required this.activeAnchorMessageId,
     required this.messageController,
@@ -53,7 +50,6 @@ class ChatWorkspace extends StatelessWidget {
     required this.onToggleRequestExclusion,
     required this.onProviderSelected,
     required this.onModelSelected,
-    required this.onPresetPromptSelected,
     required this.onTemplatePromptSelected,
     required this.onToggleComposerCollapsed,
     required this.onReasoningEnabledChanged,
@@ -79,8 +75,6 @@ class ChatWorkspace extends StatelessWidget {
   final List<LlmModelConfig> modelConfigs;
   final String? selectedProviderId;
   final LlmModelConfig? selectedModel;
-  final List<PresetPrompt> presetPrompts;
-  final PresetPrompt? selectedPresetPrompt;
   final List<ChatMessage> userMessages;
   final String? activeAnchorMessageId;
   final TextEditingController messageController;
@@ -111,7 +105,6 @@ class ChatWorkspace extends StatelessWidget {
   final ValueChanged<ChatMessage> onToggleRequestExclusion;
   final ValueChanged<String> onProviderSelected;
   final ValueChanged<String> onModelSelected;
-  final ValueChanged<String?> onPresetPromptSelected;
   final ValueChanged<String?> onTemplatePromptSelected;
   final VoidCallback onToggleComposerCollapsed;
   final ValueChanged<bool>? onReasoningEnabledChanged;
@@ -177,8 +170,6 @@ class ChatWorkspace extends StatelessWidget {
             modelConfigs: modelConfigs,
             selectedProviderId: selectedProviderId,
             selectedModel: selectedModel,
-            presetPrompts: presetPrompts,
-            selectedPresetPrompt: selectedPresetPrompt,
             templatePrompts: templatePrompts,
             selectedTemplatePrompt: selectedTemplatePrompt,
             templateVariableControllers: templateVariableControllers,
@@ -195,7 +186,6 @@ class ChatWorkspace extends StatelessWidget {
           callbacks: ComposerCallbacks(
             onProviderSelected: onProviderSelected,
             onModelSelected: onModelSelected,
-            onPresetPromptSelected: onPresetPromptSelected,
             onTemplatePromptSelected: onTemplatePromptSelected,
             onToggleComposerCollapsed: onToggleComposerCollapsed,
             onReasoningEnabledChanged: onReasoningEnabledChanged,
