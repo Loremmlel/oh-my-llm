@@ -36,9 +36,7 @@ class ChatDefaults extends Equatable {
   factory ChatDefaults.fromJson(Map<String, dynamic> json) {
     return ChatDefaults(
       defaultModelId: json['defaultModelId'] as String?,
-      defaultPresetPromptId:
-          json['defaultPresetPromptId'] as String? ??
-          json['defaultPromptTemplateId'] as String?,
+      defaultPresetPromptId: json['defaultPresetPromptId'] as String?,
     );
   }
 

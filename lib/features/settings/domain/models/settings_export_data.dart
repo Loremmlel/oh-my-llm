@@ -94,25 +94,20 @@ class SettingsExportData {
       final rawProviders = raw['modelProviders'] as List<dynamic>? ?? const [];
       final rawMemoryPrompts =
           raw['memoryPrompts'] as List<dynamic>? ?? const [];
-      final rawTemplates = (raw['presetPrompts'] ?? raw['promptTemplates'])
-              as List<dynamic>? ??
-          const [];
+      final rawTemplates =
+          raw['presetPrompts'] as List<dynamic>? ?? const [];
       final rawTemplatePrompts =
           raw['templatePrompts'] as List<dynamic>? ?? const [];
       final rawSequences =
           raw['fixedPromptSequences'] as List<dynamic>? ?? const [];
 
-      final modelProviders = rawProviders.isNotEmpty
-          ? rawProviders
-                .map(
-                  (item) => LlmProviderConfig.fromJson(
-                    Map<String, dynamic>.from(item as Map),
-                  ),
-                )
-                .toList(growable: false)
-          : _parseLegacyModelProviders(
-              raw['modelConfigs'] as List<dynamic>? ?? const [],
-            );
+      final modelProviders = rawProviders
+          .map(
+            (item) => LlmProviderConfig.fromJson(
+              Map<String, dynamic>.from(item as Map),
+            ),
+          )
+          .toList(growable: false);
 
       final rawAutoRetry = raw['autoRetrySettings'] as Map<String, dynamic>?;
 
@@ -164,19 +159,4 @@ class SettingsExportData {
       fixedPromptSequences.isNotEmpty ||
       autoRetrySettings != null;
 
-  static List<LlmProviderConfig> _parseLegacyModelProviders(
-    List<dynamic> rawModels,
-  ) {
-    final legacyModels = rawModels
-        .map(
-          (item) =>
-              LlmModelConfig.fromJson(Map<String, dynamic>.from(item as Map)),
-        )
-        .toList(growable: false);
-    if (legacyModels.isEmpty) {
-      return const [];
-    }
-
-    return migrateLegacyModelsToProviders(legacyModels);
-  }
 }

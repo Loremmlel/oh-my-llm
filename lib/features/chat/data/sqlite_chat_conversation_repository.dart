@@ -84,15 +84,14 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
               content: row['content'] as String,
               createdAt: DateTime.parse(row['created_at'] as String),
               parentId: row['parent_id'] as String?,
-              reasoningContent: row['reasoning_content'] as String? ?? '',
+              reasoningContent: row['reasoning_content'] as String,
               assistantModelDisplayName:
-                  row['assistant_model_display_name'] as String? ?? '',
+                  row['assistant_model_display_name'] as String,
               appliedCheckpointTitle:
-                  row['applied_checkpoint_title'] as String? ?? '',
+                  row['applied_checkpoint_title'] as String,
               userMessageSegments:
                   (jsonDecode(
-                            row['user_message_segments_json'] as String? ??
-                                '[]',
+                            row['user_message_segments_json'] as String,
                           )
                           as List)
                       .map(
@@ -128,7 +127,7 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
               parentCheckpointId: row['parent_checkpoint_id'] as String?,
               coveredUntilMessageId: row['covered_until_message_id'] as String?,
               sourceMemoryPromptName:
-                  row['source_memory_prompt_name'] as String? ?? '',
+                  row['source_memory_prompt_name'] as String,
             ),
           );
     }
@@ -205,14 +204,14 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
             content: row['content'] as String,
             createdAt: DateTime.parse(row['created_at'] as String),
             parentId: row['parent_id'] as String?,
-            reasoningContent: row['reasoning_content'] as String? ?? '',
+            reasoningContent: row['reasoning_content'] as String,
             assistantModelDisplayName:
-                row['assistant_model_display_name'] as String? ?? '',
+                row['assistant_model_display_name'] as String,
             appliedCheckpointTitle:
-                row['applied_checkpoint_title'] as String? ?? '',
+                row['applied_checkpoint_title'] as String,
             userMessageSegments:
                 (jsonDecode(
-                          row['user_message_segments_json'] as String? ?? '[]',
+                          row['user_message_segments_json'] as String,
                         )
                         as List)
                     .map(
@@ -261,7 +260,7 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
             parentCheckpointId: row['parent_checkpoint_id'] as String?,
             coveredUntilMessageId: row['covered_until_message_id'] as String?,
             sourceMemoryPromptName:
-                row['source_memory_prompt_name'] as String? ?? '',
+                row['source_memory_prompt_name'] as String,
           ),
         )
         .toList(growable: false);
@@ -283,7 +282,6 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
     return ChatConversation(
       id: row['id'] as String,
       title: row['title'] as String?,
-      messages: const <ChatMessage>[],
       messageNodes: List.unmodifiable(nodes),
       selectedChildByParentId: Map.unmodifiable(selections),
       checkpoints: List.unmodifiable(checkpoints),
@@ -298,12 +296,12 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
         orElse: () => ReasoningEffort.medium,
       ),
       excludedMessageIds:
-          (jsonDecode(row['excluded_message_ids_json'] as String? ?? '[]')
+          (jsonDecode(row['excluded_message_ids_json'] as String)
                   as List)
               .whereType<String>()
               .toSet()
               .toList(growable: false),
-      autoRetryEnabled: (row['auto_retry_enabled'] as int?) == 1,
+      autoRetryEnabled: (row['auto_retry_enabled'] as int) == 1,
     );
   }
 

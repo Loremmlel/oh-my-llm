@@ -21,7 +21,7 @@ class LlmModelConfigRepository {
 
   final SharedPreferences _sharedPreferences;
 
-  /// 读取全部服务商配置，并兼容旧版平铺模型结构。
+  /// 读取全部服务商配置。
   List<LlmProviderConfig> loadProviders() {
     final rawJson = _sharedPreferences.getString(llmModelConfigsStorageKey);
     if (rawJson == null || rawJson.isEmpty) {
@@ -36,12 +36,8 @@ class LlmModelConfigRepository {
       return const [];
     }
 
-    final isProviderShape = items.any((item) => item['models'] is List);
-    final providers = isProviderShape
-        ? items.map(LlmProviderConfig.fromJson).toList(growable: false)
-        : migrateLegacyModelsToProviders(
-            items.map((item) => LlmModelConfig.fromJson(item)),
-          );
+    final providers =
+        items.map(LlmProviderConfig.fromJson).toList(growable: false);
     return _sortProviders(providers);
   }
 

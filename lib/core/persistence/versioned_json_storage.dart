@@ -4,8 +4,6 @@ import 'dart:convert';
 typedef JsonMap = Map<String, dynamic>;
 
 /// 用于已版本化对象列表的 JSON 编解码工具。
-///
-/// 该格式同时兼容当前版本化包裹结构和旧版原始数组，避免旧数据无法读取。
 final class VersionedJsonStorage {
   const VersionedJsonStorage._();
 
@@ -22,19 +20,15 @@ final class VersionedJsonStorage {
     });
   }
 
-  /// 解析旧版 JSON 数组或版本化对象包裹。
+  /// 解析版本化对象包裹。
   static List<JsonMap> decodeObjectList({
     required String rawJson,
     required String subject,
   }) {
     final decoded = jsonDecode(rawJson);
-    if (decoded is List) {
-      return _decodeItems(decoded, subject: subject);
-    }
-
     if (decoded is! Map) {
       throw FormatException(
-        'Stored $subject payload must be a JSON array or versioned object.',
+        'Stored $subject payload must be a versioned object.',
       );
     }
 
