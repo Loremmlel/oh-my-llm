@@ -242,8 +242,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         clearEmptyReply: true,
       incrementHistoryRevision: true,
       );
-    // 创建新会话时需要同时保存新旧两个会话，因此必须使用 saveAllConversations
-    saveAllConversations();
+    saveConversation(currentConversation);
   }
 
   /// 选择一个已存在的会话作为活动会话。
