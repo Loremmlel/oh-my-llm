@@ -4,8 +4,6 @@
 /// 不会因单侧变动而断裂。所有测试在 ProviderContainer 级别运行，不涉及 UI。
 library;
 
-import 'dart:convert';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -13,6 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
+import 'package:oh_my_llm/core/persistence/versioned_json_storage.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/data/openai_compatible_chat_client.dart';
 import 'package:oh_my_llm/features/favorites/application/collections_controller.dart';
@@ -20,6 +19,7 @@ import 'package:oh_my_llm/features/favorites/application/favorites_controller.da
 import 'package:oh_my_llm/features/favorites/data/sqlite_collections_repository.dart';
 import 'package:oh_my_llm/features/favorites/data/sqlite_favorites_repository.dart';
 import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dart';
+import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
 
 import '../features/chat/chat_screen/chat_screen_test_helpers.dart';
 import '../helpers/integration_test_helpers.dart';
@@ -32,16 +32,25 @@ void main() {
 
   setUp(() async {
     SharedPreferences.setMockInitialValues({
-      llmModelConfigsStorageKey: jsonEncode([
-        {
-          'id': 'model-1',
-          'displayName': 'Test Model',
-          'apiUrl': 'https://api.example.com/v1/chat/completions',
-          'apiKey': 'sk-test',
-          'modelName': 'test-model',
-          'supportsReasoning': false,
-        },
-      ]),
+      llmModelConfigsStorageKey: VersionedJsonStorage.encodeObjectList(
+        items: const [
+          LlmProviderConfig(
+            id: 'provider-1',
+            name: 'Test Provider',
+            apiUrl: 'https://api.example.com/v1/chat/completions',
+            apiKey: 'sk-test',
+            models: [
+              LlmProviderModelConfig(
+                id: 'model-1',
+                displayName: 'Test Model',
+                modelName: 'test-model',
+                supportsReasoning: false,
+              ),
+            ],
+          ),
+        ],
+        toJson: (provider) => provider.toJson(),
+      ),
     });
     preferences = await SharedPreferences.getInstance();
     database = AppDatabase.inMemory();

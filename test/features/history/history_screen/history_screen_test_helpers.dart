@@ -104,14 +104,6 @@ Future<SharedPreferences> createTreeSeededPreferences(AppDatabase database) asyn
       {
         'id': 'conversation-tree',
         'title': '树状会话',
-        'messages': [
-          {
-            'id': 'u-root-a',
-            'role': 'user',
-            'content': '当前分支用户消息',
-            'createdAt': DateTime(2026, 4, 26, 20, 0).toIso8601String(),
-          },
-        ],
         'messageNodes': [
           {
             'id': 'u-root-a',
@@ -173,20 +165,23 @@ Map<String, dynamic> _conversation({
   return {
     'id': id,
     'title': title,
-    'messages': [
+    'messageNodes': [
       {
         'id': uId,
         'role': 'user',
         'content': uContent,
+        'parentId': rootConversationParentId,
         'createdAt': uTime.toIso8601String(),
       },
       {
         'id': aId,
         'role': 'assistant',
         'content': aContent,
+        'parentId': uId,
         'createdAt': aTime.toIso8601String(),
       },
     ],
+    'selectedChildByParentId': {rootConversationParentId: uId, uId: aId},
     'createdAt': createdAt.toIso8601String(),
     'updatedAt': updatedAt.toIso8601String(),
     'selectedModelId': 'model-1',

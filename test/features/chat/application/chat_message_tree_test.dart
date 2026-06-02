@@ -50,16 +50,14 @@ void main() {
         .copyWith(parentId: parentId);
   }
 
-  /// 创建基本会话（仅有 messages，无 messageNodes）。
+  /// 创建基本会话。
   ChatConversation conv({
     required String id,
-    List<ChatMessage> messages = const [],
     List<ChatMessage> messageNodes = const [],
     Map<String, String> selectedChildByParentId = const {},
   }) {
     return ChatConversation(
       id: id,
-      messages: messages,
       messageNodes: messageNodes,
       selectedChildByParentId: selectedChildByParentId,
       createdAt: baseTime,
@@ -75,7 +73,6 @@ void main() {
   }) {
     return ChatConversation(
       id: id,
-      messages: const [],
       messageNodes: messageNodes,
       selectedChildByParentId: selectedChildByParentId,
       createdAt: baseTime,
@@ -119,24 +116,6 @@ void main() {
       expect(result.selections['u1'], 'a1');
       // 验证深拷贝：修改返回结果不影响原始会话
       expect(identical(result.nodes, tree.messageNodes), isFalse);
-    });
-
-    test('messageNodes 为空时从 messages 线性构建节点和选择映射', () {
-      final c = conv(
-        id: 'c2',
-        messages: [userMsg('u1', '消息1'), assistantMsg('a1', '回复1')],
-      );
-
-      final result = resolveMessageTreeState(c);
-
-      expect(result.nodes.length, 2);
-      expect(result.nodes[0].id, 'u1');
-      expect(result.nodes[0].parentId, rootConversationParentId);
-      expect(result.nodes[1].id, 'a1');
-      expect(result.nodes[1].parentId, 'u1');
-      expect(result.selections.length, 2);
-      expect(result.selections[rootConversationParentId], 'u1');
-      expect(result.selections['u1'], 'a1');
     });
 
     test('空会话返回空的节点列表和空选择映射', () {

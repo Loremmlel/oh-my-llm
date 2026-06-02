@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/core/persistence/app_database.dart';
+import 'package:oh_my_llm/core/persistence/versioned_json_storage.dart';
 import 'package:oh_my_llm/features/chat/data/chat_completion_client.dart';
 import 'package:oh_my_llm/features/chat/data/sqlite_chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
@@ -13,6 +14,7 @@ import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dar
 import 'package:oh_my_llm/features/settings/data/preset_prompt_repository.dart';
 import 'package:oh_my_llm/features/settings/domain/models/fixed_prompt_sequence.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
+import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/memory_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
@@ -250,8 +252,32 @@ class TestFixtures {
     final values = <String, String>{};
 
     if (models.isNotEmpty) {
-      values[llmModelConfigsStorageKey] = jsonEncode(
-        models.map((m) => m.toJson()).toList(),
+      final providerMap = <String, List<LlmModelConfig>>{};
+      for (final m in models) {
+        final key = '${m.apiUrl}||${m.apiKey}';
+        providerMap.putIfAbsent(key, () => []).add(m);
+      }
+      final providers = providerMap.entries.map((entry) {
+        final group = entry.value;
+        final first = group.first;
+        return LlmProviderConfig(
+          id: first.providerId.isEmpty ? 'provider-${first.id}' : first.providerId,
+          name: first.providerName.isEmpty ? first.displayName : first.providerName,
+          apiUrl: first.apiUrl,
+          apiKey: first.apiKey,
+          models: group
+              .map((m) => LlmProviderModelConfig(
+                    id: m.id,
+                    displayName: m.displayName,
+                    modelName: m.modelName,
+                    supportsReasoning: m.supportsReasoning,
+                  ))
+              .toList(growable: false),
+        );
+      }).toList(growable: false);
+      values[llmModelConfigsStorageKey] = VersionedJsonStorage.encodeObjectList(
+        items: providers,
+        toJson: (p) => p.toJson(),
       );
     }
 

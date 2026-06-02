@@ -40,7 +40,6 @@ void registerChatScreenBasicsTests() {
         {
           'id': 'conversation-1',
           'title': '旧会话',
-          'messages': [],
           'createdAt': DateTime(2026, 4, 29).toIso8601String(),
           'updatedAt': DateTime(2026, 4, 29).toIso8601String(),
           'selectedModelId': null,

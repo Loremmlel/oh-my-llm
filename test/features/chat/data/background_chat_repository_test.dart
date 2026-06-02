@@ -35,16 +35,17 @@ void main() {
 
   /// 创建一个带有一条用户消息的最小测试会话。
   ChatConversation makeConv(String id, String content) {
+    final msg = ChatMessage(
+      id: '${id}_msg',
+      role: ChatMessageRole.user,
+      content: content,
+      createdAt: DateTime.now(),
+      parentId: rootConversationParentId,
+    );
     return ChatConversation(
       id: id,
-      messages: [
-        ChatMessage(
-          id: '${id}_msg',
-          role: ChatMessageRole.user,
-          content: content,
-          createdAt: DateTime.now(),
-        ),
-      ],
+      messageNodes: [msg],
+      selectedChildByParentId: {rootConversationParentId: msg.id},
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
     );

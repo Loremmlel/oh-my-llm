@@ -37,7 +37,6 @@ void main() {
   }) {
     return ChatConversation(
       id: id,
-      messages: messageNodes,
       messageNodes: messageNodes,
       selectedChildByParentId: selections ?? {},
       createdAt: DateTime(2026, 1, 1),

@@ -1,12 +1,12 @@
-import 'dart:convert';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:oh_my_llm/core/persistence/versioned_json_storage.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
+import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/memory_prompt.dart';
 
 /// 集成测试共享夹具：测试用模型配置。
@@ -32,16 +32,25 @@ final testMemoryPrompt = MemoryPrompt(
 /// 创建带有模型配置种子数据的 SharedPreferences 实例。
 Future<SharedPreferences> createSeededPreferences() async {
   SharedPreferences.setMockInitialValues({
-    llmModelConfigsStorageKey: jsonEncode([
-      {
-        'id': 'model-1',
-        'displayName': 'Test Model',
-        'apiUrl': 'https://api.example.com/v1/chat/completions',
-        'apiKey': 'sk-test',
-        'modelName': 'test-model',
-        'supportsReasoning': false,
-      },
-    ]),
+    llmModelConfigsStorageKey: VersionedJsonStorage.encodeObjectList(
+      items: const [
+        LlmProviderConfig(
+          id: 'provider-1',
+          name: 'Test Provider',
+          apiUrl: 'https://api.example.com/v1/chat/completions',
+          apiKey: 'sk-test',
+          models: [
+            LlmProviderModelConfig(
+              id: 'model-1',
+              displayName: 'Test Model',
+              modelName: 'test-model',
+              supportsReasoning: false,
+            ),
+          ],
+        ),
+      ],
+      toJson: (provider) => provider.toJson(),
+    ),
   });
   return SharedPreferences.getInstance();
 }
