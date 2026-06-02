@@ -46,6 +46,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   String? _selectedPresetPromptId;
   int _selectedFixedPromptStepIndex = 0;
   bool _isComposerCollapsed = false;
+  bool _presetPromptNeedsInit = true;
 
   @override
   void initState() {
@@ -79,6 +80,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// 构建聊天页的整体布局与交互入口。
   Widget build(BuildContext context) {
     final conversation = ref.watch(activeChatConversationProvider);
+    // 页面重入（导航切换）时本地状态会丢失，需从 conversation 恢复。
+    // ref.listen 仅在 ID 变化时触发，无法覆盖「回到同一会话」的场景。
+    if (_presetPromptNeedsInit) {
+      _presetPromptNeedsInit = false;
+      final convPresetId = conversation.selectedPresetPromptId;
+      if (convPresetId != null && convPresetId != noPresetPromptSelectedId) {
+        _selectedPresetPromptId = convPresetId;
+      }
+    }
     final conversationSummaries = ref.watch(chatConversationSummariesProvider);
     final activeConversationId = ref.watch(activeConversationIdProvider);
     final isStreaming = ref.watch(isChatStreamingProvider);
@@ -599,9 +609,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   void _handlePresetPromptSelected(String? presetPromptId) {
-    _selectedPresetPromptId = presetPromptId;
+    setState(() {
+      _selectedPresetPromptId = presetPromptId;
+    });
     // 写入 conversation，保证 editMessage/retry/checkpoint 等内部操作能读取到。
-    // updateActiveConversationPreferences 触发 rebuild，无需额外 setState。
+    // 当预设 ID 与 conversation 中已持久化的值相同时，ChatConversation 和
+    // ChatSessionsState 的 Equatable 判定相等，Riverpod 可能不触发重建，
+    // 因此需要 setState 保证 UI 更新。
     ref
         .read(chatSessionsProvider.notifier)
         .updateActiveConversationPreferences(
