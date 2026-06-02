@@ -96,7 +96,7 @@ flutter build apk --release                    # Android APK
 - 网络层用原始 `package:http`，无官方 SDK。
 - `vendor_payload_adapters.dart` 用 Strategy 模式处理各厂商 API 差异（OpenAI 官方、Google AI、DeepSeek、默认兼容）。
 - SSE 解析在 `chat_chunk_parser.dart`：支持 `<thought>` XML 标签、300 ms 节流合并窗口、多种 thinking 字段累积。
-- Markdown 双引擎：`flutter_smooth_markdown`（默认，流式原生）与 legacy `flutter_markdown_plus`（回滚路径），切换在 `chat_markdown_engine.dart`。
+- Markdown 渲染使用 `flutter_smooth_markdown`，流式与静态共用同一引擎。
 
 ---
 
