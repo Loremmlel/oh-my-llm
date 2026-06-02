@@ -14,31 +14,6 @@ void main() {
     final conversation = ChatConversation(
       id: 'conversation-1',
       title: '分支会话',
-      messages: [
-        ChatMessage(
-          id: 'user-1',
-          role: ChatMessageRole.user,
-          content: '当前用户分支',
-          parentId: rootConversationParentId,
-          createdAt: DateTime(2026, 4, 27, 10),
-          userMessageSegments: const [
-            UserMessageSegment(
-              text: '当前',
-              kind: UserMessageSegmentKind.template,
-            ),
-            UserMessageSegment(text: '用户分支', kind: UserMessageSegmentKind.body),
-          ],
-        ),
-        ChatMessage(
-          id: 'assistant-2',
-          role: ChatMessageRole.assistant,
-          content: '当前助手分支',
-          parentId: 'user-1',
-          reasoningContent: '保留思考内容',
-          appliedCheckpointTitle: '检查点 1',
-          createdAt: DateTime(2026, 4, 27, 10, 2),
-        ),
-      ],
       messageNodes: [
         ChatMessage(
           id: 'user-1',
@@ -144,29 +119,6 @@ void main() {
     final original = ChatConversation(
       id: 'conv-idempotent',
       title: '更改前标题',
-      messages: [
-        ChatMessage(
-          id: 'msg-1',
-          role: ChatMessageRole.user,
-          content: '用户消息',
-          parentId: rootConversationParentId,
-          createdAt: DateTime(2026, 5, 1, 10),
-        ),
-        ChatMessage(
-          id: 'msg-2',
-          role: ChatMessageRole.assistant,
-          content: '原始回复',
-          parentId: 'msg-1',
-          createdAt: DateTime(2026, 5, 1, 10, 1),
-        ),
-        ChatMessage(
-          id: 'msg-3',
-          role: ChatMessageRole.assistant,
-          content: '另一个回复',
-          parentId: 'msg-1',
-          createdAt: DateTime(2026, 5, 1, 10, 2),
-        ),
-      ],
       messageNodes: [
         ChatMessage(
           id: 'msg-1',
@@ -245,29 +197,6 @@ void main() {
     final withThree = ChatConversation(
       id: 'conv-ghost',
       title: '三消息会话',
-      messages: [
-        ChatMessage(
-          id: 'a',
-          role: ChatMessageRole.user,
-          content: 'A',
-          parentId: rootConversationParentId,
-          createdAt: DateTime(2026, 5, 2, 10),
-        ),
-        ChatMessage(
-          id: 'b',
-          role: ChatMessageRole.assistant,
-          content: 'B',
-          parentId: 'a',
-          createdAt: DateTime(2026, 5, 2, 10, 1),
-        ),
-        ChatMessage(
-          id: 'c',
-          role: ChatMessageRole.assistant,
-          content: 'C',
-          parentId: 'b',
-          createdAt: DateTime(2026, 5, 2, 10, 2),
-        ),
-      ],
       messageNodes: [
         ChatMessage(
           id: 'a',
@@ -344,29 +273,6 @@ void main() {
     final withChild1 = ChatConversation(
       id: 'conv-branch',
       title: '分支选择',
-      messages: [
-        ChatMessage(
-          id: 'u1',
-          role: ChatMessageRole.user,
-          content: '根消息',
-          parentId: rootConversationParentId,
-          createdAt: DateTime(2026, 5, 3, 10),
-        ),
-        ChatMessage(
-          id: 'a1',
-          role: ChatMessageRole.assistant,
-          content: '分支一',
-          parentId: 'u1',
-          createdAt: DateTime(2026, 5, 3, 10, 1),
-        ),
-        ChatMessage(
-          id: 'a2',
-          role: ChatMessageRole.assistant,
-          content: '分支二',
-          parentId: 'u1',
-          createdAt: DateTime(2026, 5, 3, 10, 2),
-        ),
-      ],
       messageNodes: [
         ChatMessage(
           id: 'u1',
@@ -437,7 +343,6 @@ void main() {
     final empty = ChatConversation(
       id: 'conv-empty',
       title: null,
-      messages: const [],
       messageNodes: const [],
       createdAt: DateTime(2026, 5, 4, 10),
       updatedAt: DateTime(2026, 5, 4, 10),
@@ -492,7 +397,6 @@ void main() {
       return ChatConversation(
         id: id,
         title: title,
-        messages: List.from(nodes),
         messageNodes: List.from(nodes),
         selectedChildByParentId: Map.from(selections),
         createdAt: DateTime(2026, 5, 5, 10),
@@ -562,29 +466,6 @@ void main() {
     final original = ChatConversation(
       id: 'conv-index',
       title: '索引测试',
-      messages: [
-        ChatMessage(
-          id: 'idx-first',
-          role: ChatMessageRole.user,
-          content: '第一条',
-          parentId: rootConversationParentId,
-          createdAt: DateTime(2026, 5, 6, 10),
-        ),
-        ChatMessage(
-          id: 'idx-second',
-          role: ChatMessageRole.assistant,
-          content: '第二条',
-          parentId: 'idx-first',
-          createdAt: DateTime(2026, 5, 6, 10, 1),
-        ),
-        ChatMessage(
-          id: 'idx-third',
-          role: ChatMessageRole.assistant,
-          content: '第三条',
-          parentId: 'idx-second',
-          createdAt: DateTime(2026, 5, 6, 10, 2),
-        ),
-      ],
       messageNodes: [
         ChatMessage(
           id: 'idx-first',

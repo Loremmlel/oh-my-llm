@@ -7,7 +7,6 @@ void main() {
   ChatConversation conv(String id, DateTime updatedAt) {
     return ChatConversation(
       id: id,
-      messages: const [],
       createdAt: updatedAt,
       updatedAt: updatedAt,
     );

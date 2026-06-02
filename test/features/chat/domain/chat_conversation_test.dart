@@ -2,56 +2,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 
 void main() {
-  test('migrates legacy linear messages into tree storage', () {
-    final conversation = ChatConversation.fromJson({
-      'id': 'c1',
-      'title': 'legacy',
-      'messages': [
-        {
-          'id': 'u1',
-          'role': 'user',
-          'content': '用户1',
-          'createdAt': DateTime(2026, 4, 27, 10, 0).toIso8601String(),
-        },
-        {
-          'id': 'a1',
-          'role': 'assistant',
-          'content': '模型1',
-          'createdAt': DateTime(2026, 4, 27, 10, 1).toIso8601String(),
-        },
-        {
-          'id': 'u2',
-          'role': 'user',
-          'content': '用户2',
-          'createdAt': DateTime(2026, 4, 27, 10, 2).toIso8601String(),
-        },
-      ],
-      'createdAt': DateTime(2026, 4, 27, 10, 0).toIso8601String(),
-      'updatedAt': DateTime(2026, 4, 27, 10, 2).toIso8601String(),
-      'reasoningEnabled': false,
-      'reasoningEffort': 'medium',
-    });
-
-    expect(conversation.messageNodes.length, 3);
-    expect(
-      conversation.selectedChildByParentId[rootConversationParentId],
-      'u1',
-    );
-    expect(conversation.selectedChildByParentId['u1'], 'a1');
-    expect(conversation.selectedChildByParentId['a1'], 'u2');
-    expect(conversation.messages.map((message) => message.id).toList(), [
-      'u1',
-      'a1',
-      'u2',
-    ]);
-    expect(conversation.excludedMessageIds, isEmpty);
-  });
-
   test('resolves active path from tree selections', () {
     final conversation = ChatConversation.fromJson({
       'id': 'c2',
       'title': 'tree',
-      'messages': [],
       'messageNodes': [
         {
           'id': 'u1a',

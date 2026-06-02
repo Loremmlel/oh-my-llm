@@ -94,10 +94,25 @@ ChatConversation _buildConversation({
   List<String> excludedMessageIds = const [],
 }) {
   final now = DateTime.now();
+  String parentId = rootConversationParentId;
+  final nodes = messages
+      .map((message) {
+        final next = message.copyWith(parentId: parentId);
+        parentId = next.id;
+        return next;
+      })
+      .toList(growable: false);
+  final selections = <String, String>{};
+  var selParentId = rootConversationParentId;
+  for (final node in nodes) {
+    selections[selParentId] = node.id;
+    selParentId = node.id;
+  }
   return ChatConversation(
     id: id,
     title: title,
-    messages: messages,
+    messageNodes: nodes,
+    selectedChildByParentId: selections,
     createdAt: createdAt ?? now,
     updatedAt: updatedAt ?? now,
     selectedModelId: selectedModelId,
