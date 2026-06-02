@@ -14,13 +14,13 @@ void main() {
       database.close();
     });
 
-    test('user_version 在迁移完成后为 8', () {
+    test('user_version 在迁移完成后为 9', () {
       final version =
           database.connection
                   .select('PRAGMA user_version;')
                   .single['user_version']
               as int;
-      expect(version, greaterThanOrEqualTo(8));
+      expect(version, greaterThanOrEqualTo(9));
     });
 
     test('创建关键业务表', () {
@@ -89,6 +89,14 @@ void main() {
           .map((row) => row['name'] as String)
           .toList();
       expect(columns, contains('selected_preset_prompt_id'));
+    });
+
+    test('preset_prompts 表不含 system_prompt 列', () {
+      final columns = database.connection
+          .select('PRAGMA table_info(preset_prompts);')
+          .map((row) => row['name'] as String)
+          .toList();
+      expect(columns, isNot(contains('system_prompt')));
     });
 
     test('删除 collection 后 favorites.collection_id 置为 NULL', () {
