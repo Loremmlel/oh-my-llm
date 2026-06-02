@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:meta/meta.dart';
@@ -65,35 +66,61 @@ class AppDatabase {
     final currentVersion =
         _connection.select('PRAGMA user_version;').single['user_version']
             as int;
-
-    if (currentVersion < 1) {
-      _migrateV1();
-    }
-    if (currentVersion < 2) {
-      _migrateV2();
-    }
-    if (currentVersion < 3) {
-      _migrateV3();
-    }
-    if (currentVersion < 4) {
-      _migrateV4();
-    }
-    if (currentVersion < 5) {
-      _migrateV5();
-    }
-    if (currentVersion < 6) {
-      _migrateV6();
-    }
-    if (currentVersion < 7) {
-      _migrateV7();
-    }
-    if (currentVersion < 8) {
-      _migrateV8();
+    if (currentVersion < 9) {
+      _migrateV9(currentVersion);
     }
   }
 
-  /// 初始 schema：聊天记录相关表。
-  void _migrateV1() {
+  /// V9：移除 preset_prompts.system_prompt 列。
+  ///
+  /// 全新安装直接建表；已有数据库先合并旧 system_prompt 数据再删列。
+  void _migrateV9(int fromVersion) {
+    if (fromVersion == 0) {
+      _createSchema();
+    } else {
+      _mergeLegacySystemPrompts();
+      _connection.execute(
+        'ALTER TABLE preset_prompts DROP COLUMN system_prompt;',
+      );
+    }
+    _connection.execute('PRAGMA user_version = 9;');
+  }
+
+  /// 将 preset_prompts 中非空的 system_prompt 合并到 messages_json 头部。
+  void _mergeLegacySystemPrompts() {
+    final rows = _connection.select('''
+      SELECT id, system_prompt, messages_json
+      FROM preset_prompts
+      WHERE system_prompt != '' AND system_prompt IS NOT NULL;
+    ''');
+
+    for (final row in rows) {
+      final messagesJson = row['messages_json'] as String;
+      final messages = jsonDecode(messagesJson) as List;
+      final hasSystem = messages.any(
+        (item) => item is Map && item['role'] == 'system',
+      );
+      if (hasSystem) continue;
+
+      final systemMessage = {
+        'id': '_legacy-system-message',
+        'role': 'system',
+        'title': 'system',
+        'content': row['system_prompt'] as String,
+        'placement': 'before',
+        'enabled': true,
+      };
+      final updated = [systemMessage, ...messages];
+      final id = row['id'] as String;
+      _connection.execute(
+        'UPDATE preset_prompts SET messages_json = ? WHERE id = ?;',
+        [jsonEncode(updated), id],
+      );
+    }
+  }
+
+  /// 创建全部业务表和索引（全新安装时使用）。
+  void _createSchema() {
     _connection.execute('''
       CREATE TABLE IF NOT EXISTS conversations (
         id TEXT PRIMARY KEY,
@@ -103,7 +130,10 @@ class AppDatabase {
         selected_model_id TEXT,
         selected_preset_prompt_id TEXT,
         reasoning_enabled INTEGER NOT NULL DEFAULT 0,
-        reasoning_effort TEXT NOT NULL
+        reasoning_effort TEXT NOT NULL,
+        selected_checkpoint_id TEXT,
+        excluded_message_ids_json TEXT NOT NULL DEFAULT '[]',
+        auto_retry_enabled INTEGER NOT NULL DEFAULT 0
       );
     ''');
     _connection.execute('''
@@ -116,6 +146,9 @@ class AppDatabase {
         content TEXT NOT NULL,
         reasoning_content TEXT NOT NULL DEFAULT '',
         created_at TEXT NOT NULL,
+        assistant_model_display_name TEXT NOT NULL DEFAULT '匿名模型',
+        user_message_segments_json TEXT NOT NULL DEFAULT '[]',
+        applied_checkpoint_title TEXT NOT NULL DEFAULT '',
         FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
       );
     ''');
@@ -140,19 +173,10 @@ class AppDatabase {
       CREATE INDEX IF NOT EXISTS idx_messages_conversation_parent
       ON messages(conversation_id, parent_id);
     ''');
-    _connection.execute('PRAGMA user_version = 1;');
-  }
-
-  /// 新增 Prompt 模板和固定顺序提示词序列表。
-  ///
-  /// 子项（messages / steps）以 JSON 数组字符串存储，因为它们始终作为整体读写，
-  /// 无需按子项单独查询。
-  void _migrateV2() {
     _connection.execute('''
       CREATE TABLE IF NOT EXISTS preset_prompts (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
-        system_prompt TEXT NOT NULL DEFAULT '',
         messages_json TEXT NOT NULL DEFAULT '[]',
         updated_at TEXT NOT NULL
       );
@@ -165,11 +189,6 @@ class AppDatabase {
         updated_at TEXT NOT NULL
       );
     ''');
-    _connection.execute('PRAGMA user_version = 2;');
-  }
-
-  /// 新增收藏夹和收藏记录表。
-  void _migrateV3() {
     _connection.execute('''
       CREATE TABLE IF NOT EXISTS collections (
         id TEXT PRIMARY KEY,
@@ -187,6 +206,7 @@ class AppDatabase {
         source_conversation_id TEXT,
         source_conversation_title TEXT,
         created_at TEXT NOT NULL,
+        assistant_model_display_name TEXT NOT NULL DEFAULT '匿名模型',
         FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE SET NULL
       );
     ''');
@@ -198,24 +218,6 @@ class AppDatabase {
       CREATE INDEX IF NOT EXISTS idx_favorites_collection_id
       ON favorites(collection_id);
     ''');
-    _connection.execute('PRAGMA user_version = 3;');
-  }
-
-  /// 为消息与收藏补充助手模型显示名快照列。
-  void _migrateV4() {
-    _connection.execute('''
-      ALTER TABLE messages
-      ADD COLUMN assistant_model_display_name TEXT NOT NULL DEFAULT '匿名模型';
-    ''');
-    _connection.execute('''
-      ALTER TABLE favorites
-      ADD COLUMN assistant_model_display_name TEXT NOT NULL DEFAULT '匿名模型';
-    ''');
-    _connection.execute('PRAGMA user_version = 4;');
-  }
-
-  /// 新增模板提示词表，并为用户消息补充分段展示元数据列。
-  void _migrateV5() {
     _connection.execute('''
       CREATE TABLE IF NOT EXISTS template_prompts (
         id TEXT PRIMARY KEY,
@@ -225,15 +227,6 @@ class AppDatabase {
         updated_at TEXT NOT NULL
       );
     ''');
-    _connection.execute('''
-      ALTER TABLE messages
-      ADD COLUMN user_message_segments_json TEXT NOT NULL DEFAULT '[]';
-    ''');
-    _connection.execute('PRAGMA user_version = 5;');
-  }
-
-  /// 新增记忆总结提示词、对话检查点，以及会话当前启用检查点字段。
-  void _migrateV6() {
     _connection.execute('''
       CREATE TABLE IF NOT EXISTS memory_prompts (
         id TEXT PRIMARY KEY,
@@ -259,32 +252,5 @@ class AppDatabase {
       CREATE INDEX IF NOT EXISTS idx_conversation_checkpoints_conversation_created_at
       ON conversation_checkpoints(conversation_id, created_at DESC);
     ''');
-    _connection.execute('''
-      ALTER TABLE conversations
-      ADD COLUMN selected_checkpoint_id TEXT;
-    ''');
-    _connection.execute('''
-      ALTER TABLE messages
-      ADD COLUMN applied_checkpoint_title TEXT NOT NULL DEFAULT '';
-    ''');
-    _connection.execute('PRAGMA user_version = 6;');
-  }
-
-  /// 为会话增加“消息不发送”过滤状态。
-  void _migrateV7() {
-    _connection.execute('''
-      ALTER TABLE conversations
-      ADD COLUMN excluded_message_ids_json TEXT NOT NULL DEFAULT '[]';
-    ''');
-    _connection.execute('PRAGMA user_version = 7;');
-  }
-
-  /// 为会话加入自动重试开关持久化。
-  void _migrateV8() {
-    _connection.execute('''
-      ALTER TABLE conversations
-      ADD COLUMN auto_retry_enabled INTEGER NOT NULL DEFAULT 0;
-    ''');
-    _connection.execute('PRAGMA user_version = 8;');
   }
 }
