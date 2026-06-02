@@ -6,26 +6,6 @@ import 'package:oh_my_llm/core/persistence/versioned_json_storage.dart';
 
 void main() {
   group('decodeObjectList', () {
-    test('supports legacy empty array', () {
-      final decoded = VersionedJsonStorage.decodeObjectList(
-        rawJson: '[]',
-        subject: 'test items',
-      );
-      expect(decoded, isEmpty);
-    });
-
-    test('supports legacy array payloads', () {
-      final decoded = VersionedJsonStorage.decodeObjectList(
-        rawJson: jsonEncode([
-          {'id': 'item-1'},
-        ]),
-        subject: 'test items',
-      );
-      expect(decoded, [
-        {'id': 'item-1'},
-      ]);
-    });
-
     test('supports current versioned format with empty items', () {
       final decoded = VersionedJsonStorage.decodeObjectList(
         rawJson: jsonEncode({
@@ -104,10 +84,22 @@ void main() {
       );
     });
 
-    test('rejects non-array non-object JSON', () {
+    test('rejects non-object JSON', () {
       expect(
         () => VersionedJsonStorage.decodeObjectList(
           rawJson: jsonEncode('plain string'),
+          subject: 'test items',
+        ),
+        throwsFormatException,
+      );
+    });
+
+    test('rejects plain array JSON', () {
+      expect(
+        () => VersionedJsonStorage.decodeObjectList(
+          rawJson: jsonEncode([
+            {'id': 'item-1'},
+          ]),
           subject: 'test items',
         ),
         throwsFormatException,

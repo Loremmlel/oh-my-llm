@@ -95,9 +95,9 @@ class SqliteFavoritesRepository {
       userMessageContent: row['user_message_content'] as String,
       assistantContent: row['assistant_content'] as String,
       assistantReasoningContent:
-          (row['assistant_reasoning_content'] as String?) ?? '',
+          row['assistant_reasoning_content'] as String,
       assistantModelDisplayName:
-          (row['assistant_model_display_name'] as String?) ?? '匿名模型',
+          row['assistant_model_display_name'] as String,
       sourceConversationId: row['source_conversation_id'] as String?,
       sourceConversationTitle: row['source_conversation_title'] as String?,
       createdAt: DateTime.parse(row['created_at'] as String),

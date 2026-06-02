@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -66,56 +64,6 @@ void main() {
         loadedModels.every((model) => model.providerId == 'provider-1'),
         isTrue,
       );
-    });
-
-    test('loadProviders 会按相同 URL 和 Key 聚合旧版模型配置', () async {
-      SharedPreferences.setMockInitialValues({
-        llmModelConfigsStorageKey: jsonEncode([
-          {
-            'id': 'model-1',
-            'displayName': 'DeepSeek V4 Flash',
-            'apiUrl': 'https://api.deepseek.com/v1/chat/completions',
-            'apiKey': 'sk-deepseek',
-            'modelName': 'deepseek-v4-flash',
-            'supportsReasoning': true,
-          },
-          {
-            'id': 'model-2',
-            'displayName': 'DeepSeek V3',
-            'apiUrl': 'https://api.deepseek.com/v1/chat/completions',
-            'apiKey': 'sk-deepseek',
-            'modelName': 'deepseek-v3',
-            'supportsReasoning': false,
-          },
-          {
-            'id': 'model-3',
-            'displayName': 'Gemini 2.5 Flash',
-            'apiUrl':
-                'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
-            'apiKey': 'sk-google',
-            'modelName': 'gemini-2.5-flash',
-            'supportsReasoning': true,
-          },
-        ]),
-      });
-      final prefs = await SharedPreferences.getInstance();
-      final repo = LlmModelConfigRepository(prefs);
-
-      final providers = repo.loadProviders();
-      expect(providers, hasLength(2));
-      expect(
-        providers[0].models.map((model) => model.id),
-        containsAll(['model-1', 'model-2']),
-      );
-      expect(providers[1].models.single.id, 'model-3');
-
-      final flattened = repo.loadAll();
-      final deepSeekModels = flattened.where(
-        (model) => model.apiKey == 'sk-deepseek',
-      );
-      expect(deepSeekModels.map((model) => model.providerName).toSet(), {
-        '服务商1',
-      });
     });
 
   });

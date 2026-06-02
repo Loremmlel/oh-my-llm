@@ -61,36 +61,11 @@ class PresetPrompt extends Equatable {
   factory PresetPrompt.fromJson(Map<String, dynamic> json) {
     final rawMessages = json['messages'] as List<dynamic>? ?? const [];
     final messages = _deserializePromptMessages(rawMessages);
-    final hasSystemMessages = messages.any(
-      (message) => message.role == PromptMessageRole.system,
-    );
-
-    List<PromptMessage> effectiveMessages = messages;
-    if (!hasSystemMessages) {
-      final legacySystemPrompt =
-          (json['systemPrompt'] as String?)?.trim() ?? '';
-      if (legacySystemPrompt.isNotEmpty) {
-        final title =
-            (json['systemPromptTitle'] as String?)?.trim().isNotEmpty == true
-                ? json['systemPromptTitle'] as String
-                : defaultSystemPromptTitle;
-        effectiveMessages = [
-          PromptMessage(
-            id: '_legacy-system-message',
-            role: PromptMessageRole.system,
-            title: title,
-            content: legacySystemPrompt,
-            placement: PromptMessagePlacement.before,
-          ),
-          ...messages,
-        ];
-      }
-    }
 
     return PresetPrompt(
       id: json['id'] as String,
       name: json['name'] as String,
-      messages: effectiveMessages,
+      messages: messages,
       updatedAt: DateTime.parse(json['updatedAt'] as String),
     );
   }
