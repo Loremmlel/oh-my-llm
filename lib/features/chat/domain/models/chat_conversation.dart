@@ -13,7 +13,6 @@ const noPresetPromptSelectedId = '__no_preset_prompt_selected__';
 class ChatConversation extends Equatable {
   const ChatConversation({
     required this.id,
-    required List<ChatMessage> messages,
     required this.createdAt,
     required this.updatedAt,
     this.title,
@@ -27,11 +26,10 @@ class ChatConversation extends Equatable {
     this.reasoningEffort = ReasoningEffort.medium,
     this.autoRetryEnabled = false,
     this.excludedMessageIds = const [],
-  }) : _messages = messages;
+  });
 
   final String id;
   final String? title;
-  final List<ChatMessage> _messages;
   final List<ChatMessage> messageNodes;
   final Map<String, String> selectedChildByParentId;
   final List<ChatCheckpoint> checkpoints;
@@ -46,17 +44,10 @@ class ChatConversation extends Equatable {
   final List<String> excludedMessageIds;
 
   /// 当前会话实际展示的消息序列。
-  List<ChatMessage> get messages {
-    if (messageNodes.isEmpty) {
-      return _messages;
-    }
-
-    final resolvedPath = _resolveActivePath(
-      nodes: messageNodes,
-      selectedChildByParentId: selectedChildByParentId,
-    );
-    return resolvedPath.isEmpty ? _messages : resolvedPath;
-  }
+  List<ChatMessage> get messages => _resolveActivePath(
+    nodes: messageNodes,
+    selectedChildByParentId: selectedChildByParentId,
+  );
 
   /// 会话是否包含任何消息。
   bool get hasMessages => messages.isNotEmpty;
@@ -91,7 +82,6 @@ class ChatConversation extends Equatable {
   ChatConversation copyWith({
     String? id,
     String? title,
-    List<ChatMessage>? messages,
     List<ChatMessage>? messageNodes,
     Map<String, String>? selectedChildByParentId,
     List<ChatCheckpoint>? checkpoints,
@@ -111,7 +101,6 @@ class ChatConversation extends Equatable {
     return ChatConversation(
       id: id ?? this.id,
       title: title ?? this.title,
-      messages: messages ?? this.messages,
       messageNodes: messageNodes ?? this.messageNodes,
       selectedChildByParentId:
           selectedChildByParentId ?? this.selectedChildByParentId,
@@ -136,21 +125,13 @@ class ChatConversation extends Equatable {
 
   /// 将会话序列化为持久化 JSON。
   Map<String, dynamic> toJson() {
-    final effectiveNodes = messageNodes.isEmpty
-        ? _buildLinearMessageNodes(_messages)
-        : messageNodes;
-    final effectiveSelections = messageNodes.isEmpty
-        ? _buildLinearSelections(effectiveNodes)
-        : selectedChildByParentId;
-
     return {
       'id': id,
       'title': title,
-      'messages': messages.map((message) => message.toJson()).toList(),
-      'messageNodes': effectiveNodes
+      'messageNodes': messageNodes
           .map((message) => message.toJson())
           .toList(),
-      'selectedChildByParentId': effectiveSelections,
+      'selectedChildByParentId': selectedChildByParentId,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
       'selectedModelId': selectedModelId,
@@ -168,42 +149,25 @@ class ChatConversation extends Equatable {
 
   /// 从持久化 JSON 反序列化会话。
   factory ChatConversation.fromJson(Map<String, dynamic> json) {
-    final rawMessages = json['messages'] as List<dynamic>? ?? const [];
     final rawMessageNodes = json['messageNodes'] as List<dynamic>? ?? const [];
     final rawSelections =
         json['selectedChildByParentId'] as Map<String, dynamic>? ?? const {};
     final rawCheckpoints = json['checkpoints'] as List<dynamic>? ?? const [];
     final rawExcludedMessageIds =
         json['excludedMessageIds'] as List<dynamic>? ?? const [];
-    final parsedMessages = rawMessages
-        .map((message) {
-          return ChatMessage.fromJson(
-            Map<String, dynamic>.from(message as Map),
-          );
-        })
-        .toList(growable: false);
-    final parsedMessageNodes = rawMessageNodes
-        .map((message) {
-          return ChatMessage.fromJson(
-            Map<String, dynamic>.from(message as Map),
-          );
-        })
-        .toList(growable: false);
-
-    final hasTreeData = parsedMessageNodes.isNotEmpty;
-    final effectiveNodes = hasTreeData
-        ? parsedMessageNodes
-        : _buildLinearMessageNodes(parsedMessages);
-    final effectiveSelections = hasTreeData
-        ? rawSelections.map((key, value) => MapEntry(key, value as String))
-        : _buildLinearSelections(effectiveNodes);
 
     return ChatConversation(
       id: json['id'] as String,
       title: json['title'] as String?,
-      messages: parsedMessages,
-      messageNodes: effectiveNodes,
-      selectedChildByParentId: effectiveSelections,
+      messageNodes: rawMessageNodes
+          .map(
+            (message) => ChatMessage.fromJson(
+              Map<String, dynamic>.from(message as Map),
+            ),
+          )
+          .toList(growable: false),
+      selectedChildByParentId:
+          rawSelections.map((key, value) => MapEntry(key, value as String)),
       checkpoints: rawCheckpoints
           .map(
             (checkpoint) => ChatCheckpoint.fromJson(
@@ -266,44 +230,10 @@ class ChatConversation extends Equatable {
     return List.unmodifiable(path);
   }
 
-  /// 把线性消息序列补成单链消息树。
-  static List<ChatMessage> _buildLinearMessageNodes(
-    List<ChatMessage> messages,
-  ) {
-    if (messages.isEmpty) {
-      return const [];
-    }
-
-    String parentId = rootConversationParentId;
-    final nodes = messages
-        .map((message) {
-          final next = message.copyWith(parentId: parentId);
-          parentId = next.id;
-          return next;
-        })
-        .toList(growable: false);
-    return List.unmodifiable(nodes);
-  }
-
-  /// 为线性消息树生成默认选择映射。
-  static Map<String, String> _buildLinearSelections(List<ChatMessage> nodes) {
-    if (nodes.isEmpty) {
-      return const {};
-    }
-
-    final selections = <String, String>{};
-    for (final node in nodes) {
-      final parentId = node.parentId ?? rootConversationParentId;
-      selections[parentId] = node.id;
-    }
-    return Map.unmodifiable(selections);
-  }
-
   @override
   List<Object?> get props => [
     id,
     title,
-    _messages,
     messageNodes,
     selectedChildByParentId.entries
         .map((entry) => '${entry.key}:${entry.value}')

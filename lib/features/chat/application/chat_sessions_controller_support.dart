@@ -38,7 +38,6 @@ mixin ChatSessionsControllerSupport on Notifier<ChatSessionsState> {
         : null;
     return ChatConversation(
       id: generateEntityId(),
-      messages: const [],
       createdAt: now,
       updatedAt: now,
       selectedModelId: rememberedModelId,

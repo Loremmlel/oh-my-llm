@@ -11,25 +11,12 @@ class ChatMessageTreeState {
 
 /// 从会话中恢复可编辑的消息树状态。
 ChatMessageTreeState resolveMessageTreeState(ChatConversation conversation) {
-  if (conversation.messageNodes.isNotEmpty) {
-    return ChatMessageTreeState(
-      nodes: List<ChatMessage>.from(conversation.messageNodes),
-      selections: Map<String, String>.from(
-        conversation.selectedChildByParentId,
-      ),
-    );
-  }
-
-  final nodes = <ChatMessage>[];
-  final selections = <String, String>{};
-  var parentId = rootConversationParentId;
-  for (final message in conversation.messages) {
-    final node = message.copyWith(parentId: parentId);
-    nodes.add(node);
-    selections[parentId] = node.id;
-    parentId = node.id;
-  }
-  return ChatMessageTreeState(nodes: nodes, selections: selections);
+  return ChatMessageTreeState(
+    nodes: List<ChatMessage>.from(conversation.messageNodes),
+    selections: Map<String, String>.from(
+      conversation.selectedChildByParentId,
+    ),
+  );
 }
 
 /// 向当前消息树追加一个节点，并同步更新选中分支。
