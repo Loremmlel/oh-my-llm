@@ -80,21 +80,12 @@ class ChatSidebarController extends Notifier<ChatSidebarState> {
   ChatSidebarState build() {
     final prefs = ref.watch(sharedPreferencesProvider);
     final rawFunction = prefs.getString(_prefsKeyActiveFunction);
-    // 优先按名称匹配；兼容旧版本按索引持久化的数据。
-    ChatSidebarFunction? activeFunction =
+    final activeFunction =
         ChatSidebarFunction.values.cast<ChatSidebarFunction?>().firstWhere(
-          (f) => f?.name == rawFunction,
-          orElse: () => null,
-        );
-    if (activeFunction == null) {
-      final legacyIndex = int.tryParse(rawFunction ?? '');
-      if (legacyIndex != null &&
-          legacyIndex >= 0 &&
-          legacyIndex < ChatSidebarFunction.values.length) {
-        activeFunction = ChatSidebarFunction.values[legacyIndex];
-      }
-    }
-    activeFunction ??= ChatSidebarFunction.history;
+              (f) => f?.name == rawFunction,
+              orElse: () => null,
+            ) ??
+            ChatSidebarFunction.history;
 
     final isExpanded = prefs.getBool(_prefsKeyIsExpanded) ?? true;
     final panelWidth =

@@ -86,18 +86,6 @@ mixin ChatSessionsControllerSupport on Notifier<ChatSessionsState> {
     return List.unmodifiable(sortedConversations);
   }
 
-  @Deprecated('仅 newConversation 场景使用，其他操作请使用 saveConversation')
-  void saveAllConversations() {
-    final toSave = state.conversations
-        .where((c) {
-          return c.hasMessages ||
-              c.checkpoints.isNotEmpty ||
-              (c.title?.trim().isNotEmpty ?? false);
-        })
-        .toList(growable: false);
-    repository.saveConversations(toSave);
-  }
-
   /// 保存单个会话到持久层。
   ///
   /// 空会话（无消息、无检查点、无标题）将被跳过，详见
