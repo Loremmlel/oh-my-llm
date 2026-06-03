@@ -38,13 +38,13 @@ class LlmModelConfigRepository {
 
     final providers =
         items.map(LlmProviderConfig.fromJson).toList(growable: false);
-    return _sortProviders(providers);
+    return sortProviderConfigs(providers);
   }
 
   /// 保存全部服务商配置。
   Future<void> saveProviders(List<LlmProviderConfig> providers) async {
     final rawJson = VersionedJsonStorage.encodeObjectList(
-      items: _sortProviders(providers),
+      items: sortProviderConfigs(providers),
       toJson: (provider) => provider.toJson(),
     );
     await _sharedPreferences.setString(llmModelConfigsStorageKey, rawJson);
@@ -56,23 +56,25 @@ class LlmModelConfigRepository {
         .expand((provider) => provider.resolvedModels)
         .toList(growable: false);
   }
+}
 
-  List<LlmProviderConfig> _sortProviders(List<LlmProviderConfig> providers) {
-    final normalized =
-        providers
-            .map((provider) {
-              final models = [...provider.models]
-                ..sort((left, right) {
-                  return left.displayName.toLowerCase().compareTo(
-                    right.displayName.toLowerCase(),
-                  );
-                });
-              return provider.copyWith(models: List.unmodifiable(models));
-            })
-            .toList(growable: false)
+/// 对服务商列表及其下属模型按名称排序，返回不可变列表。
+List<LlmProviderConfig> sortProviderConfigs(
+  List<LlmProviderConfig> providers,
+) {
+  final sorted = providers
+      .map((provider) {
+        final models = [...provider.models]
           ..sort((left, right) {
-            return left.name.toLowerCase().compareTo(right.name.toLowerCase());
+            return left.displayName
+                .toLowerCase()
+                .compareTo(right.displayName.toLowerCase());
           });
-    return List.unmodifiable(normalized);
-  }
+        return provider.copyWith(models: List.unmodifiable(models));
+      })
+      .toList(growable: false)
+    ..sort((left, right) {
+      return left.name.toLowerCase().compareTo(right.name.toLowerCase());
+    });
+  return List.unmodifiable(sorted);
 }

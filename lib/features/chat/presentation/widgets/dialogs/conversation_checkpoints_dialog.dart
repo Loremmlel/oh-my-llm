@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../../core/utils/date_formatting.dart';
 import '../../../../../core/widgets/adaptive_master_detail_layout.dart';
 import '../../../../settings/application/memory_prompts_controller.dart';
 import '../../../../settings/domain/models/llm_model_config.dart';
@@ -492,9 +493,7 @@ class _ConversationCheckpointsDialogState
     final memoryPromptName = checkpoint.sourceMemoryPromptName.trim();
     final chainLabel = chain.length <= 1 ? '根检查点' : '祖先链 ${chain.length} 条';
     final promptLabel = memoryPromptName.isEmpty ? '未记录提示词' : memoryPromptName;
-    final timeLabel =
-        '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} '
-        '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+    final timeLabel = formatDateTime(date);
     return '$chainLabel · $promptLabel · $timeLabel';
   }
 

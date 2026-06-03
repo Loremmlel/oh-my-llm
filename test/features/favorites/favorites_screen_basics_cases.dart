@@ -8,7 +8,7 @@ void registerFavoritesScreenBasicsTests() {
     await setUpFavoritesScreen(tester);
 
     expect(
-      find.text('暂无收藏。在聊天页点击模型回复的书签图标开始收藏。'),
+      find.text('暂无收藏'),
       findsOneWidget,
     );
   });

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../application/chat_defaults_controller.dart';
 import '../../../application/llm_model_configs_controller.dart';
 import '../../../domain/models/llm_provider_config.dart';
+import '../settings_helpers.dart';
 import 'provider_info.dart';
 import 'provider_info_body.dart';
 import 'provider_model_tile.dart';
@@ -74,11 +75,8 @@ class _ProviderTileState extends ConsumerState<ProviderTile> {
                   .read(chatDefaultsProvider.notifier)
                   .clearRememberedModelIdIfMatches(model.id);
             }
-            if (context.mounted) {
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(const SnackBar(content: Text('服务商已删除')));
-            }
+            // ignore: use_build_context_synchronously
+            showSettingsSnackbar(context, '服务商已删除');
           },
           icon: const Icon(Icons.delete_outline_rounded),
           label: const Text('删除服务商'),

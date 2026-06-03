@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:equatable/equatable.dart';
 
+import '../../../../core/utils/text_formatting.dart';
+
 /// 记忆总结提示词，用于为检查点生成不同风格的总结。
 class MemoryPrompt extends Equatable {
   const MemoryPrompt({
@@ -17,16 +19,8 @@ class MemoryPrompt extends Equatable {
   final DateTime updatedAt;
 
   /// 返回便于列表快速浏览的摘要。
-  String get summary {
-    final normalized = content.trim().replaceAll('\n', ' ');
-    if (normalized.isEmpty) {
-      return '内容为空';
-    }
-    if (normalized.length <= 36) {
-      return normalized;
-    }
-    return '${normalized.substring(0, 36)}...';
-  }
+  String get summary =>
+      summarizeText(content, maxLength: 36, emptyText: '内容为空');
 
   MemoryPrompt copyWith({
     String? id,

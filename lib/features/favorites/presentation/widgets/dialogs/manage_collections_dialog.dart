@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../../core/widgets/app_confirm_dialog.dart';
 import '../../../application/collections_controller.dart';
 import '../../../domain/models/collection.dart';
 
@@ -149,24 +150,12 @@ class _ManageCollectionsDialogState
   ) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('删除收藏夹'),
-          content: Text(
+      builder: (context) => AppConfirmDialog(
+        title: '删除收藏夹',
+        message:
             '删除"${collection.name}"后，其中的收藏将移入未分类。确定删除吗？',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('删除'),
-            ),
-          ],
-        );
-      },
+        confirmLabel: '删除',
+      ),
     );
 
     if (confirmed == true) {

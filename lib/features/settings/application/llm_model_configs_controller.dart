@@ -35,7 +35,7 @@ class LlmProviderConfigsController extends Notifier<List<LlmProviderConfig>> {
     } else {
       providers[existingIndex] = provider;
     }
-    state = _sortProviders(providers);
+    state = sortProviderConfigs(providers);
     await _repository.saveProviders(state);
   }
 
@@ -50,7 +50,7 @@ class LlmProviderConfigsController extends Notifier<List<LlmProviderConfig>> {
         updated[index] = provider;
       }
     }
-    state = _sortProviders(updated);
+    state = sortProviderConfigs(updated);
     await _repository.saveProviders(state);
   }
 
@@ -79,7 +79,7 @@ class LlmProviderConfigsController extends Notifier<List<LlmProviderConfig>> {
       }
       updated[existingIndex] = existingProvider.copyWith(models: mergedModels);
     }
-    state = _sortProviders(updated);
+    state = sortProviderConfigs(updated);
     await _repository.saveProviders(state);
   }
 
@@ -110,10 +110,8 @@ class LlmProviderConfigsController extends Notifier<List<LlmProviderConfig>> {
     } else {
       models[modelIndex] = model;
     }
-    providers[providerIndex] = provider.copyWith(
-      models: _sortModels(models),
-    );
-    state = _sortProviders(providers);
+    providers[providerIndex] = provider.copyWith(models: models);
+    state = sortProviderConfigs(providers);
     await _repository.saveProviders(state);
   }
 
@@ -134,26 +132,7 @@ class LlmProviderConfigsController extends Notifier<List<LlmProviderConfig>> {
           .where((model) => model.id != modelId)
           .toList(growable: false),
     );
-    state = _sortProviders(providers);
+    state = sortProviderConfigs(providers);
     await _repository.saveProviders(state);
-  }
-
-  List<LlmProviderConfig> _sortProviders(List<LlmProviderConfig> providers) {
-    final sorted = providers
-        .map((provider) => provider.copyWith(models: _sortModels(provider.models)))
-        .toList(growable: false)
-      ..sort((left, right) {
-        return left.name.toLowerCase().compareTo(right.name.toLowerCase());
-      });
-    return List.unmodifiable(sorted);
-  }
-
-  List<LlmProviderModelConfig> _sortModels(List<LlmProviderModelConfig> models) {
-    final sorted = [...models]..sort((left, right) {
-      return left.displayName.toLowerCase().compareTo(
-        right.displayName.toLowerCase(),
-      );
-    });
-    return List.unmodifiable(sorted);
   }
 }

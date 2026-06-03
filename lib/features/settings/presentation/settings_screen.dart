@@ -127,28 +127,40 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                 ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
-                    ModelProvidersSection(
-                      providers: modelProviders,
-                      onAddPressed: () =>
-                          _showModelProviderDialog(context, ref),
-                      onEditProviderRequested: (provider) {
-                        _showModelProviderDialog(
-                          context,
-                          ref,
-                          initialValue: provider,
-                        );
-                      },
-                      onAddModelRequested: (provider) {
-                        _showModelConfigDialog(context, ref, provider: provider);
-                      },
-                      onEditModelRequested: (provider, model) {
-                        _showModelConfigDialog(
-                          context,
-                          ref,
-                          provider: provider,
-                          initialValue: model,
-                        );
-                      },
+                    SettingsSectionCard(
+                      title: '服务商设置',
+                      description: '管理服务商与其下模型。聊天页会记住最近一次使用的模型。',
+                      action: FilledButton.icon(
+                        onPressed: () =>
+                            _showModelProviderDialog(context, ref),
+                        icon: const Icon(Icons.add_rounded),
+                        label: const Text('新增服务商'),
+                      ),
+                      child: ModelConfigsList(
+                        providers: modelProviders,
+                        onEditProviderRequested: (provider) {
+                          _showModelProviderDialog(
+                            context,
+                            ref,
+                            initialValue: provider,
+                          );
+                        },
+                        onAddModelRequested: (provider) {
+                          _showModelConfigDialog(
+                            context,
+                            ref,
+                            provider: provider,
+                          );
+                        },
+                        onEditModelRequested: (provider, model) {
+                          _showModelConfigDialog(
+                            context,
+                            ref,
+                            provider: provider,
+                            initialValue: model,
+                          );
+                        },
+                      ),
                     ),
                   ],
                 ),
@@ -156,20 +168,33 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                 ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
-                    PresetPromptsSection(
-                      templates: presetPrompts,
-                      onAddPressed: () =>
-                          _showPresetPromptDialog(context, ref),
-                      onDuplicateRequested: (template) {
-                        return _duplicatePresetPrompt(context, ref, template);
-                      },
-                      onEditRequested: (template) {
-                        _showPresetPromptDialog(
-                          context,
-                          ref,
-                          initialValue: template,
-                        );
-                      },
+                    SettingsSectionCard(
+                      title: '预设 Prompt',
+                      description:
+                          '配置可在聊天页选择的预设 Prompt，支持 system、前置与后置上下文，并记住最近一次使用的选择。',
+                      action: FilledButton.icon(
+                        onPressed: () =>
+                            _showPresetPromptDialog(context, ref),
+                        icon: const Icon(Icons.add_rounded),
+                        label: const Text('新增预设'),
+                      ),
+                      child: PresetPromptsList(
+                        templates: presetPrompts,
+                        onDuplicateRequested: (template) {
+                          return _duplicatePresetPrompt(
+                            context,
+                            ref,
+                            template,
+                          );
+                        },
+                        onEditRequested: (template) {
+                          _showPresetPromptDialog(
+                            context,
+                            ref,
+                            initialValue: template,
+                          );
+                        },
+                      ),
                     ),
                   ],
                 ),
@@ -177,43 +202,70 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                 ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
-                    MemoryPromptsSection(
-                      memoryPrompts: memoryPrompts,
-                      onAddPressed: () =>
-                          _showMemoryPromptDialog(context, ref),
-                      onEditRequested: (memoryPrompt) {
-                        _showMemoryPromptDialog(
-                          context,
-                          ref,
-                          initialValue: memoryPrompt,
-                        );
-                      },
+                    SettingsSectionCard(
+                      title: '记忆总结提示词',
+                      description:
+                          '配置聊天页创建检查点时可选择的总结提示词，用于适配不同场景下的记忆沉淀方式。',
+                      action: FilledButton.icon(
+                        onPressed: () =>
+                            _showMemoryPromptDialog(context, ref),
+                        icon: const Icon(Icons.add_rounded),
+                        label: const Text('新增记忆提示词'),
+                      ),
+                      child: MemoryPromptsList(
+                        memoryPrompts: memoryPrompts,
+                        onEditRequested: (memoryPrompt) {
+                          _showMemoryPromptDialog(
+                            context,
+                            ref,
+                            initialValue: memoryPrompt,
+                          );
+                        },
+                      ),
                     ),
                     const SizedBox(height: 16),
-                    TemplatePromptsSection(
-                      templatePrompts: templatePrompts,
-                      onAddPressed: () =>
-                          _showTemplatePromptDialog(context, ref),
-                      onEditRequested: (templatePrompt) {
-                        _showTemplatePromptDialog(
-                          context,
-                          ref,
-                          initialValue: templatePrompt,
-                        );
-                      },
+                    SettingsSectionCard(
+                      title: '模板提示词',
+                      description:
+                          '配置可在聊天页临时应用的变量模板。使用 {{变量名}} 声明注入位，{{正文}} 对应主输入框。',
+                      action: FilledButton.icon(
+                        onPressed: () =>
+                            _showTemplatePromptDialog(context, ref),
+                        icon: const Icon(Icons.add_rounded),
+                        label: const Text('新增模板提示词'),
+                      ),
+                      child: TemplatePromptsList(
+                        templatePrompts: templatePrompts,
+                        onEditRequested: (templatePrompt) {
+                          _showTemplatePromptDialog(
+                            context,
+                            ref,
+                            initialValue: templatePrompt,
+                          );
+                        },
+                      ),
                     ),
                     const SizedBox(height: 16),
-                    FixedPromptSequencesSection(
-                      sequences: fixedPromptSequences,
-                      onAddPressed: () =>
-                          _showFixedPromptSequenceDialog(context, ref),
-                      onEditRequested: (sequence) {
-                        _showFixedPromptSequenceDialog(
-                          context,
-                          ref,
-                          initialValue: sequence,
-                        );
-                      },
+                    SettingsSectionCard(
+                      title: '固定顺序提示词',
+                      description:
+                          '配置可逐步发送的用户提示词序列，适合做模型对比测试，不会自动整组连发。',
+                      action: FilledButton.icon(
+                        onPressed: () =>
+                            _showFixedPromptSequenceDialog(context, ref),
+                        icon: const Icon(Icons.add_rounded),
+                        label: const Text('新增序列'),
+                      ),
+                      child: FixedPromptSequencesList(
+                        sequences: fixedPromptSequences,
+                        onEditRequested: (sequence) {
+                          _showFixedPromptSequenceDialog(
+                            context,
+                            ref,
+                            initialValue: sequence,
+                          );
+                        },
+                      ),
                     ),
                   ],
                 ),
@@ -248,13 +300,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     final index = _tabController.index;
     final exportData = _buildTabExportData(index);
     if (exportData == null) {
-      _showSettingsSnackBar(context, '$_currentTabLabel 没有可导出的数据');
+      showSettingsSnackbar(context, '$_currentTabLabel 没有可导出的数据');
       return;
     }
 
     await Clipboard.setData(ClipboardData(text: exportData.toJsonString()));
     if (mounted) {
-      _showSettingsSnackBar(context, '已复制$_currentTabLabel到剪贴板');
+      showSettingsSnackbar(context, '已复制$_currentTabLabel到剪贴板');
     }
   }
 
@@ -317,7 +369,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
 
     if (exportData == null || !exportData.hasContent) {
       if (mounted) {
-        _showSettingsSnackBar(context, '剪贴板中没有可识别的配置数据');
+        showSettingsSnackbar(context, '剪贴板中没有可识别的配置数据');
       }
       return;
     }
@@ -325,7 +377,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     final index = _tabController.index;
     if (!_dataMatchesTab(exportData, index)) {
       if (mounted) {
-        _showSettingsSnackBar(context, '剪贴板数据与$_currentTabLabel不匹配，请切换到对应标签');
+        showSettingsSnackbar(context, '剪贴板数据与$_currentTabLabel不匹配，请切换到对应标签');
       }
       return;
     }
@@ -350,7 +402,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
 
     if (!dedupedData.hasContent && !hasAutoRetry) {
       if (mounted) {
-        _showSettingsSnackBar(context, '剪贴板中的配置在本地均已存在，无需导入');
+        showSettingsSnackbar(context, '剪贴板中的配置在本地均已存在，无需导入');
       }
       return;
     }
@@ -361,7 +413,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
           .read(autoRetrySettingsProvider.notifier)
           .save(exportData.autoRetrySettings!);
       if (mounted) {
-        _showSettingsSnackBar(context, '自动重试设置已导入');
+        showSettingsSnackbar(context, '自动重试设置已导入');
       }
       return;
     }
@@ -376,7 +428,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     );
 
     if (confirmed == true && mounted) {
-      _showSettingsSnackBar(context, '$_currentTabLabel已成功导入');
+      showSettingsSnackbar(context, '$_currentTabLabel已成功导入');
     }
   }
 
@@ -423,7 +475,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     );
     await ref.read(presetPromptsProvider.notifier).upsert(duplicatedTemplate);
     if (context.mounted) {
-      _showSettingsSnackBar(context, '预设 Prompt 已复制');
+      showSettingsSnackbar(context, '预设 Prompt 已复制');
     }
   }
 
@@ -681,16 +733,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   }) async {
     await onSave();
     if (context.mounted) {
-      _showSettingsSnackBar(
+      showSettingsSnackbar(
         context,
         isEditing ? updatedMessage : createdMessage,
       );
     }
-  }
-
-  void _showSettingsSnackBar(BuildContext context, String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
   }
 }

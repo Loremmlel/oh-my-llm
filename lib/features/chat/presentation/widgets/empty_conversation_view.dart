@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/navigation/app_destination.dart';
+import '../../../../core/widgets/app_empty_state.dart';
 
 /// 聊天页空状态提示，必要时引导用户去设置服务商与模型。
 class EmptyConversationView extends StatelessWidget {
@@ -10,10 +11,7 @@ class EmptyConversationView extends StatelessWidget {
   final bool hasModels;
 
   @override
-  /// 构建空对话提示和可选的设置跳转按钮。
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return LayoutBuilder(
       builder: (context, constraints) {
         return SingleChildScrollView(
@@ -21,36 +19,21 @@ class EmptyConversationView extends StatelessWidget {
           child: ConstrainedBox(
             constraints: BoxConstraints(minHeight: constraints.maxHeight),
             child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.chat_bubble_outline_rounded,
-                    size: 48,
-                    color: theme.colorScheme.primary,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    hasModels ? '开始一段新对话' : '先准备服务商与模型',
-                    style: theme.textTheme.headlineSmall,
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    hasModels
-                        ? '输入你的第一条消息后，这里会显示真实的流式回复，同时左侧历史列表和右侧悬浮定位条会一起工作。'
-                        : '你还没有配置服务商与模型。先去设置页添加服务商，并在其下新增至少一个模型，聊天页才能真正发起请求。',
-                    textAlign: TextAlign.center,
-                  ),
-                  if (!hasModels) ...[
-                    const SizedBox(height: 16),
-                    FilledButton.icon(
-                      onPressed: () => context.go(AppDestination.settings.path),
-                      icon: const Icon(Icons.settings_rounded),
-                      label: const Text('前往设置页'),
-                    ),
-                  ],
-                ],
+              child: AppEmptyState(
+                icon: Icons.chat_bubble_outline_rounded,
+                iconSize: 48,
+                title: hasModels ? '开始一段新对话' : '先准备服务商与模型',
+                description: hasModels
+                    ? '输入你的第一条消息后，这里会显示真实的流式回复，同时左侧历史列表和右侧悬浮定位条会一起工作。'
+                    : '你还没有配置服务商与模型。先去设置页添加服务商，并在其下新增至少一个模型，聊天页才能真正发起请求。',
+                action: hasModels
+                    ? null
+                    : FilledButton.icon(
+                        onPressed: () =>
+                            context.go(AppDestination.settings.path),
+                        icon: const Icon(Icons.settings_rounded),
+                        label: const Text('前往设置页'),
+                      ),
               ),
             ),
           ),
