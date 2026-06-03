@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../../core/utils/text_formatting.dart';
 import '../../../application/fixed_prompt_sequences_controller.dart';
 import '../../../domain/models/fixed_prompt_sequence.dart';
 import '../settings_card_grid.dart';
 import '../settings_empty_state.dart';
+import '../settings_entity_card.dart';
+import '../settings_helpers.dart';
 
 /// 固定顺序提示词列表，负责展示、编辑和删除序列。
 class FixedPromptSequencesList extends ConsumerWidget {
@@ -18,7 +21,6 @@ class FixedPromptSequencesList extends ConsumerWidget {
   final ValueChanged<FixedPromptSequence> onEditRequested;
 
   @override
-  /// 构建序列列表；空列表时显示空状态提示。宽度足够时一行展示多列。
   Widget build(BuildContext context, WidgetRef ref) {
     if (sequences.isEmpty) {
       return const SettingsEmptyState(
@@ -51,78 +53,47 @@ class _FixedPromptSequenceTile extends ConsumerWidget {
   final ValueChanged<FixedPromptSequence> onEditRequested;
 
   @override
-  /// 构建序列摘要、步骤预览和操作按钮。
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(sequence.name, style: theme.textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Text(sequence.summary),
-            if (sequence.steps.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              for (
-                var index = 0;
-                index < sequence.steps.length && index < 3;
-                index++
-              )
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Text(
-                    '${index + 1}. ${sequence.steps[index].title.isEmpty ? _summarize(sequence.steps[index].content) : sequence.steps[index].title}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-            ],
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: () => onEditRequested(sequence),
-                  icon: const Icon(Icons.edit_outlined),
-                  label: const Text('编辑'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: () async {
-                    await ref
-                        .read(fixedPromptSequencesProvider.notifier)
-                        .deleteById(sequence.id);
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('固定顺序提示词已删除')),
-                      );
-                    }
-                  },
-                  icon: const Icon(Icons.delete_outline_rounded),
-                  label: const Text('删除'),
-                ),
-              ],
+    return SettingsEntityCard(
+      title: sequence.name,
+      body: [
+        const SizedBox(height: 8),
+        Text(sequence.summary),
+        if (sequence.steps.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          for (
+            var index = 0;
+            index < sequence.steps.length && index < 3;
+            index++
+          )
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(
+                '${index + 1}. ${sequence.steps[index].title.isEmpty ? summarizeText(sequence.steps[index].content) : sequence.steps[index].title}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
-          ],
+        ],
+      ],
+      actions: [
+        OutlinedButton.icon(
+          onPressed: () => onEditRequested(sequence),
+          icon: const Icon(Icons.edit_outlined),
+          label: const Text('编辑'),
         ),
-      ),
+        OutlinedButton.icon(
+          onPressed: () async {
+            await ref
+                .read(fixedPromptSequencesProvider.notifier)
+                .deleteById(sequence.id);
+            // ignore: use_build_context_synchronously
+            showSettingsSnackbar(context, '固定顺序提示词已删除');
+          },
+          icon: const Icon(Icons.delete_outline_rounded),
+          label: const Text('删除'),
+        ),
+      ],
     );
-  }
-
-  /// 把长文本截断为适合列表显示的摘要。
-  String _summarize(String content) {
-    final normalized = content.trim().replaceAll('\n', ' ');
-    if (normalized.length <= 30) {
-      return normalized;
-    }
-
-    return '${normalized.substring(0, 30)}...';
   }
 }

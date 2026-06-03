@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/utils/date_formatting.dart';
 import '../../../chat/presentation/widgets/reasoning_panel.dart';
 import '../../../chat/presentation/widgets/streaming_markdown_view.dart';
 import '../../domain/models/favorite.dart';
@@ -65,7 +66,7 @@ class FavoriteCard extends StatelessWidget {
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
                       Text(
-                        _formatDate(favorite.createdAt),
+                        formatDateTime(favorite.createdAt),
                         style: theme.textTheme.labelSmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
@@ -187,11 +188,4 @@ class FavoriteCard extends StatelessWidget {
     );
   }
 
-  String _formatDate(DateTime dateTime) {
-    return '${dateTime.year}-'
-        '${dateTime.month.toString().padLeft(2, '0')}-'
-        '${dateTime.day.toString().padLeft(2, '0')} '
-        '${dateTime.hour.toString().padLeft(2, '0')}:'
-        '${dateTime.minute.toString().padLeft(2, '0')}';
-  }
 }

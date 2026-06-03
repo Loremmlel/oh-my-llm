@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../app/navigation/app_destination.dart';
 import '../../../app/shell/app_shell_scaffold.dart';
+import '../../../core/widgets/app_empty_state.dart';
 import '../application/collections_controller.dart';
 import '../application/favorites_controller.dart';
 import '../domain/models/collection.dart';
@@ -46,7 +47,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
           // ── 收藏列表 ────────────────────────────────────────────────────
           Expanded(
             child: favorites.isEmpty
-                ? _buildEmptyView(theme, filter)
+                ? _buildEmptyView(filter)
                 : _buildFavoritesList(favorites, collections),
           ),
         ],
@@ -119,35 +120,19 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
     );
   }
 
-  Widget _buildEmptyView(ThemeData theme, String? filter) {
-    final message = filter == null
-        ? '暂无收藏。在聊天页点击模型回复的书签图标开始收藏。'
+  Widget _buildEmptyView(String? filter) {
+    final title = filter == null ? '暂无收藏' : '该收藏夹暂无收藏';
+    final description = filter == null
+        ? '在聊天页点击模型回复的书签图标开始收藏。'
         : filter.isEmpty
-        ? '未分类下暂无收藏。'
-        : '该收藏夹暂无收藏。';
+        ? '未分类下暂时没有收藏。'
+        : '可以先在聊天页收藏回复，再将其归入该收藏夹。';
 
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.bookmark_border_rounded,
-              size: 64,
-              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              message,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
+    return AppEmptyState(
+      icon:
+          filter == null ? Icons.bookmark_border_rounded : Icons.folder_outlined,
+      title: title,
+      description: description,
     );
   }
 

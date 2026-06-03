@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:equatable/equatable.dart';
 
+import '../../../../core/utils/text_formatting.dart';
+
 /// 对话级检查点，保存某一阶段的记忆总结。
 class ChatCheckpoint extends Equatable {
   const ChatCheckpoint({
@@ -23,16 +25,8 @@ class ChatCheckpoint extends Equatable {
   final String sourceMemoryPromptName;
 
   /// 返回用于列表预览的简短摘要。
-  String get summary {
-    final normalized = content.trim().replaceAll('\n', ' ');
-    if (normalized.isEmpty) {
-      return '该检查点为空。';
-    }
-    if (normalized.length <= 42) {
-      return normalized;
-    }
-    return '${normalized.substring(0, 42)}...';
-  }
+  String get summary =>
+      summarizeText(content, maxLength: 42, emptyText: '该检查点为空。');
 
   ChatCheckpoint copyWith({
     String? id,

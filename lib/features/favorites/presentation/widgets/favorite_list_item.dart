@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/utils/date_formatting.dart';
 import '../../domain/models/favorite.dart';
 
 /// 收藏列表中的单行条目，仅展示摘要信息。
@@ -100,7 +101,7 @@ class FavoriteListItem extends StatelessWidget {
                               ),
                             ],
                           ),
-                          Text(_formatDate(favorite.createdAt)),
+                          Text(formatDateOnly(favorite.createdAt)),
                         ],
                       ),
                     ),
@@ -127,11 +128,5 @@ class FavoriteListItem extends StatelessWidget {
     final chars = text.characters;
     if (chars.length <= 10) return text;
     return '${chars.take(10)}…';
-  }
-
-  String _formatDate(DateTime dt) {
-    return '${dt.year}-'
-        '${dt.month.toString().padLeft(2, '0')}-'
-        '${dt.day.toString().padLeft(2, '0')}';
   }
 }
