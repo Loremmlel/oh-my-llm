@@ -23,7 +23,12 @@ enum SyncCategory {
   };
 
   /// 协议中使用的传输标识。
-  String get payloadKey => name;
+  String get payloadKey => switch (this) {
+    providers => 'providers',
+    presets => 'presets',
+    prompts => 'prompts',
+    other => 'other',
+  };
 }
 
 /// 同步协议错误码。

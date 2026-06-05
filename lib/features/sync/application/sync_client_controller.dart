@@ -80,6 +80,7 @@ class SyncClientController extends Notifier<SyncClientState> {
     _discoverySubscription = SyncUdpDiscovery.listenForServers().listen(
       (server) {
         _discoverySubscription?.cancel();
+        _discoverySubscription = null;
         state = state.copyWith(
           phase: SyncPhase.connected,
           server: server,
@@ -120,6 +121,7 @@ class SyncClientController extends Notifier<SyncClientState> {
   }
 
   Future<void> requestSync() async {
+    if (state.phase == SyncPhase.syncing) return;
     final server = state.server;
     if (server == null || state.selectedCategories.isEmpty) return;
 
@@ -236,7 +238,7 @@ class SyncClientController extends Notifier<SyncClientState> {
       data: data,
       existingProviders: ref.read(llmProviderConfigsProvider),
       existingMemoryPrompts: ref.read(memoryPromptsProvider),
-      existingTemplates: ref.read(presetPromptsProvider),
+      existingPresetPrompts: ref.read(presetPromptsProvider),
       existingTemplatePrompts: ref.read(templatePromptsProvider),
       existingSequences: ref.read(fixedPromptSequencesProvider),
     );

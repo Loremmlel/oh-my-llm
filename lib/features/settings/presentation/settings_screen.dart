@@ -387,7 +387,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
       data: exportData,
       existingProviders: ref.read(llmProviderConfigsProvider),
       existingMemoryPrompts: ref.read(memoryPromptsProvider),
-      existingTemplates: ref.read(presetPromptsProvider),
+      existingPresetPrompts: ref.read(presetPromptsProvider),
       existingTemplatePrompts: ref.read(templatePromptsProvider),
       existingSequences: ref.read(fixedPromptSequencesProvider),
     );

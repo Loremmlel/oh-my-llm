@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../settings/presentation/widgets/settings_section_card.dart';
 import '../../application/sync_server_controller.dart';
+import 'interface_selector.dart';
 
 /// 同步页面中服务端模式的控制面板。
 class SyncServerPanel extends ConsumerStatefulWidget {
@@ -53,6 +54,11 @@ class _SyncServerPanelState extends ConsumerState<SyncServerPanel> {
             },
           ),
           const SizedBox(height: 16),
+          // 仅未运行时显示网卡选择器
+          if (!serverState.isRunning) ...[
+            const InterfaceSelector(),
+            const SizedBox(height: 16),
+          ],
           if (serverState.isRunning) ...[
             Row(
               children: [
@@ -77,6 +83,20 @@ class _SyncServerPanelState extends ConsumerState<SyncServerPanel> {
               Text(
                 '服务端口：${serverState.httpPort}',
                 style: theme.textTheme.bodyMedium,
+              ),
+            ],
+            if (serverState.selectedInterface != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                '广播网卡：${serverState.selectedInterface!.label}',
+                style: theme.textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '广播地址：${serverState.selectedInterface!.broadcast}',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
             ],
             if (serverState.servedRequestCount > 0) ...[
