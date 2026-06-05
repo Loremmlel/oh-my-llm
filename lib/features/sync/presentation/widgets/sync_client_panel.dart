@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../settings/domain/models/settings_export_data.dart';
 import '../../../settings/presentation/widgets/settings_section_card.dart';
+import '../../application/network_interface_provider.dart';
 import '../../application/sync_client_controller.dart';
 import '../../domain/models/sync_types.dart';
 import 'sync_import_confirm_dialog.dart';
@@ -31,7 +32,7 @@ class SyncClientPanel extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildPhaseStatus(context, clientState),
+          _buildPhaseStatus(context, ref, clientState),
           const SizedBox(height: 16),
           _buildActionButtons(context, ref, clientState),
           if (clientState.phase == SyncPhase.connected) ...[
@@ -51,22 +52,33 @@ class SyncClientPanel extends ConsumerWidget {
     );
   }
 
-  Widget _buildPhaseStatus(BuildContext context, SyncClientState state) {
+  Widget _buildPhaseStatus(
+    BuildContext context,
+    WidgetRef ref,
+    SyncClientState state,
+  ) {
     final theme = Theme.of(context);
 
     switch (state.phase) {
       case SyncPhase.idle:
         return const SizedBox.shrink();
       case SyncPhase.discovering:
-        return Row(
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2),
+            Row(
+              children: [
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                const SizedBox(width: 12),
+                Text('正在搜索服务端...', style: theme.textTheme.bodyMedium),
+              ],
             ),
-            const SizedBox(width: 12),
-            Text('正在搜索服务端...', style: theme.textTheme.bodyMedium),
+            // 显示当前监听接口
+            _buildListeningInterfaces(context, ref),
           ],
         );
       case SyncPhase.connected:
@@ -269,6 +281,29 @@ class SyncClientPanel extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildListeningInterfaces(
+    BuildContext context,
+    WidgetRef ref,
+  ) {
+    final interfacesAsync = ref.watch(availableInterfacesProvider);
+    return interfacesAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, _) => const SizedBox.shrink(),
+      data: (interfaces) {
+        if (interfaces.isEmpty) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Text(
+            '监听于: ${interfaces.map((i) => i.ip).join(', ')}',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+          ),
+        );
+      },
     );
   }
 

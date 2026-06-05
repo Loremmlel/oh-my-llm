@@ -36,7 +36,10 @@ class SyncHttpServer {
       }
 
       try {
-        final body = await utf8.decoder.bind(request).join();
+        final body = await utf8.decoder
+            .bind(request)
+            .join()
+            .timeout(const Duration(seconds: 30));
         final message = SyncMessageCodec.tryDecode(body);
         if (message == null) {
           final error = SyncMessage.error(
@@ -48,8 +51,16 @@ class SyncHttpServer {
           return;
         }
 
-        final response = await onRequest(message);
+        final response =
+            await onRequest(message).timeout(const Duration(seconds: 15));
         _writeJsonResponse(request, response);
+      } on TimeoutException {
+        final error = SyncMessage.error(
+          requestId: '',
+          code: SyncErrorCode.timeout,
+          message: '请求处理超时',
+        );
+        _writeJsonResponse(request, error);
       } catch (e) {
         debugPrint('同步服务端处理异常: $e');
         final error = SyncMessage.error(

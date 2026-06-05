@@ -13,60 +13,17 @@ import 'template_prompts_controller.dart';
 /// 将去重后的 [SettingsExportData] 按分类写入各 controller，
 /// 被 `ImportConfirmDialog` 与 `SyncClientController.executeImport` 共同复用。
 ///
-/// 由于 Riverpod 的 [Ref]（Notifier 上下文）与 [WidgetRef]（widget 上下文）
-/// 不共享公共接口，本类提供两个方法：
-///
-/// - [executeImport]     接收 [Ref]，供 Notifier / ProviderContainer 使用。
-/// - [executeImportFromWidget] 接收 [WidgetRef]，供 widget 使用。
-///
-/// 两者行为完全一致。每个分类仅在数据非空时写入，避免无意义的覆盖。
+/// 每个分类仅在数据非空时写入，避免无意义的覆盖。
 /// 返回 `true` 表示至少写入了一项，`false` 表示全部跳过。
+///
+/// [ref] 接受 [Ref] 类型——在 Riverpod 3.x 中 [WidgetRef] 是 [Ref] 的子类型，
+/// 因此 Widget 和 Notifier 均可直接传入 `ref` 调用本方法。
 class SettingsImportExecutor {
   const SettingsImportExecutor();
 
-  Future<bool> executeImport(Ref ref, {required SettingsExportData data}) async {
-    var wrote = false;
-    if (data.modelProviders.isNotEmpty) {
-      await ref
-          .read(llmProviderConfigsProvider.notifier)
-          .mergeImportedProviders(data.modelProviders);
-      wrote = true;
-    }
-    if (data.memoryPrompts.isNotEmpty) {
-      await ref.read(memoryPromptsProvider.notifier).upsertAll(data.memoryPrompts);
-      wrote = true;
-    }
-    if (data.presetPrompts.isNotEmpty) {
-      await ref
-          .read(presetPromptsProvider.notifier)
-          .upsertAll(data.presetPrompts);
-      wrote = true;
-    }
-    if (data.templatePrompts.isNotEmpty) {
-      await ref
-          .read(templatePromptsProvider.notifier)
-          .upsertAll(data.templatePrompts);
-      wrote = true;
-    }
-    if (data.fixedPromptSequences.isNotEmpty) {
-      await ref
-          .read(fixedPromptSequencesProvider.notifier)
-          .upsertAll(data.fixedPromptSequences);
-      wrote = true;
-    }
-    if (data.autoRetrySettings != null) {
-      await ref
-          .read(autoRetrySettingsProvider.notifier)
-          .save(data.autoRetrySettings!);
-      wrote = true;
-    }
-    return wrote;
-  }
-
-  Future<bool> executeImportFromWidget(
-    WidgetRef ref, {
-    required SettingsExportData data,
-  }) async {
+  /// [ref] 接受 [Ref]（Notifier 内）或 [WidgetRef]（Widget 内）。Riverpod 3.x
+  /// 中两者运行时行为等价但类型层次不同，故使用 `dynamic` 以兼顾两个调用方。
+  Future<bool> executeImport(dynamic ref, {required SettingsExportData data}) async {
     var wrote = false;
     if (data.modelProviders.isNotEmpty) {
       await ref

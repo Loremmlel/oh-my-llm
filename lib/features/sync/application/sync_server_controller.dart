@@ -12,8 +12,10 @@ import '../../settings/application/template_prompts_controller.dart';
 import '../../settings/domain/models/settings_export_data.dart';
 import '../data/sync_http_server.dart';
 import '../data/sync_udp_discovery.dart';
+import '../domain/models/network_interface_info.dart';
 import '../domain/models/sync_message.dart';
 import '../domain/models/sync_types.dart';
+import 'network_interface_provider.dart';
 
 const String _deviceNameKey = 'sync.device_name';
 
@@ -26,6 +28,7 @@ class SyncServerState {
     this.httpPort,
     this.servedRequestCount = 0,
     this.lastError,
+    this.selectedInterface,
   });
 
   final bool isRunning;
@@ -33,6 +36,7 @@ class SyncServerState {
   final int? httpPort;
   final int servedRequestCount;
   final String? lastError;
+  final NetworkInterfaceInfo? selectedInterface;
 
   SyncServerState copyWith({
     bool? isRunning,
@@ -40,6 +44,7 @@ class SyncServerState {
     Object? httpPort = _sentinel,
     int? servedRequestCount,
     Object? lastError = _sentinel,
+    Object? selectedInterface = _sentinel,
   }) {
     return SyncServerState(
       isRunning: isRunning ?? this.isRunning,
@@ -47,6 +52,7 @@ class SyncServerState {
       httpPort: identical(httpPort, _sentinel) ? this.httpPort : httpPort as int?,
       servedRequestCount: servedRequestCount ?? this.servedRequestCount,
       lastError: identical(lastError, _sentinel) ? this.lastError : lastError as String?,
+      selectedInterface: identical(selectedInterface, _sentinel) ? this.selectedInterface : selectedInterface as NetworkInterfaceInfo?,
     );
   }
 }
@@ -77,19 +83,38 @@ class SyncServerController extends Notifier<SyncServerState> {
     if (state.isRunning) return;
 
     try {
+      // 获取用户选择的网络接口
+      final interfaces = await ref.read(availableInterfacesProvider.future);
+      final selectedIndex = ref.read(selectedInterfaceIndexProvider);
+      NetworkInterfaceInfo? selectedIface;
+      InternetAddress? broadcastAddr;
+
+      if (interfaces.isNotEmpty) {
+        selectedIface =
+            interfaces[selectedIndex.clamp(0, interfaces.length - 1)];
+        broadcastAddr = InternetAddress(selectedIface.broadcast);
+      }
+
       final port = await _httpServer.start(onRequest: _handleRequest);
       _stopBroadcasting = await SyncUdpDiscovery.startBroadcasting(
         httpPort: port,
         deviceName: state.deviceName,
+        broadcastAddress: broadcastAddr,
       );
       state = state.copyWith(
         isRunning: true,
         httpPort: port,
         lastError: null,
+        selectedInterface: selectedIface,
       );
     } catch (e) {
       await _cleanup();
-      state = state.copyWith(isRunning: false, httpPort: null, lastError: '启动失败: $e');
+      state = state.copyWith(
+        isRunning: false,
+        httpPort: null,
+        lastError: '启动失败: $e',
+        selectedInterface: null,
+      );
     }
   }
 

@@ -53,16 +53,26 @@ class SyncUdpDiscovery {
   static const int _version = 1;
 
   /// 开始周期性 UDP 广播，返回停止函数。
+  ///
+  /// [broadcastAddress] 可选的定向广播地址；未传入时回退到 255.255.255.255。
   static Future<Future<void> Function()> startBroadcasting({
     required int httpPort,
     required String deviceName,
+    InternetAddress? broadcastAddress,
   }) async {
     await _acquireMulticastLock();
 
-    final socket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
+    final RawDatagramSocket socket;
+    try {
+      socket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
+    } catch (e) {
+      await _releaseMulticastLock();
+      rethrow;
+    }
     socket.broadcastEnabled = true;
 
-    final broadcastAddress = InternetAddress('255.255.255.255');
+    final targetAddress =
+        broadcastAddress ?? InternetAddress('255.255.255.255');
     final payload = utf8.encode(
       jsonEncode({
         'app': _appId,
@@ -74,7 +84,7 @@ class SyncUdpDiscovery {
 
     void sendBroadcast() {
       try {
-        socket.send(payload, broadcastAddress, discoveryPort);
+        socket.send(payload, targetAddress, discoveryPort);
       } catch (e) {
         debugPrint('UDP 广播发送失败: $e');
       }
@@ -132,7 +142,10 @@ class SyncUdpDiscovery {
 
         void resetTimeout() {
           timeoutTimer?.cancel();
-          timeoutTimer = Timer(timeout, () {
+          timeoutTimer = Timer(timeout, () async {
+            socketSub?.cancel();
+            socket?.close();
+            await _releaseMulticastLock();
             controller.close();
           });
         }
@@ -152,7 +165,7 @@ class SyncUdpDiscovery {
             final server = DiscoveredServer(
               deviceName: json['deviceName'] as String? ?? '未知设备',
               ip: datagram.address.address,
-              httpPort: json['httpPort'] as int,
+              httpPort: (json['httpPort'] as num).toInt(),
             );
             controller.add(server);
             resetTimeout();

@@ -281,7 +281,7 @@ void main() {
         data: data,
         existingProviders: existingProviders,
         existingMemoryPrompts: const [],
-        existingTemplates: const [],
+        existingPresetPrompts: const [],
         existingTemplatePrompts: const [],
         existingSequences: const [],
       );
@@ -306,7 +306,7 @@ void main() {
         data: data,
         existingProviders: const [],
         existingMemoryPrompts: existingMemoryPrompts,
-        existingTemplates: const [],
+        existingPresetPrompts: const [],
         existingTemplatePrompts: const [],
         existingSequences: const [],
       );
@@ -316,7 +316,7 @@ void main() {
     });
 
     test('过滤已存在的预设提示词模板', () {
-      final existingTemplates = [
+      final existingPresetPrompts = [
         preset(messages: [msg(content: '已有系统指令', role: PromptMessageRole.system)]),
       ];
       final data = export(presetPrompts: [
@@ -328,7 +328,7 @@ void main() {
         data: data,
         existingProviders: const [],
         existingMemoryPrompts: const [],
-        existingTemplates: existingTemplates,
+        existingPresetPrompts: existingPresetPrompts,
         existingTemplatePrompts: const [],
         existingSequences: const [],
       );
@@ -350,7 +350,7 @@ void main() {
         data: data,
         existingProviders: const [],
         existingMemoryPrompts: const [],
-        existingTemplates: const [],
+        existingPresetPrompts: const [],
         existingTemplatePrompts: existingTemplatePrompts,
         existingSequences: const [],
       );
@@ -372,7 +372,7 @@ void main() {
         data: data,
         existingProviders: const [],
         existingMemoryPrompts: const [],
-        existingTemplates: const [],
+        existingPresetPrompts: const [],
         existingTemplatePrompts: const [],
         existingSequences: existingSequences,
       );
@@ -386,7 +386,7 @@ void main() {
         data: export(),
         existingProviders: const [],
         existingMemoryPrompts: const [],
-        existingTemplates: const [],
+        existingPresetPrompts: const [],
         existingTemplatePrompts: const [],
         existingSequences: const [],
       );
@@ -400,7 +400,7 @@ void main() {
 
     test('所有已有数据均匹配时返回全空分类', () {
       final existingMemoryPrompts = [mem(content: '内容A')];
-      final existingTemplates = [preset(messages: [msg(content: '消息A')])];
+      final existingPresetPrompts = [preset(messages: [msg(content: '消息A')])];
       final existingTemplatePrompts = [tpl(content: '模板A')];
       final existingSequences = [seq(steps: [step(title: '步A', content: '内容A')])];
 
@@ -415,7 +415,7 @@ void main() {
         data: data,
         existingProviders: const [],
         existingMemoryPrompts: existingMemoryPrompts,
-        existingTemplates: existingTemplates,
+        existingPresetPrompts: existingPresetPrompts,
         existingTemplatePrompts: existingTemplatePrompts,
         existingSequences: existingSequences,
       );
@@ -438,7 +438,7 @@ void main() {
         data: data,
         existingProviders: const [],
         existingMemoryPrompts: const [],
-        existingTemplates: const [],
+        existingPresetPrompts: const [],
         existingTemplatePrompts: const [],
         existingSequences: const [],
       );
@@ -459,7 +459,7 @@ void main() {
         data: data,
         existingProviders: const [],
         existingMemoryPrompts: const [],
-        existingTemplates: const [],
+        existingPresetPrompts: const [],
         existingTemplatePrompts: const [],
         existingSequences: const [],
       );

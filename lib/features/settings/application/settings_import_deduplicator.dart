@@ -141,7 +141,7 @@ final class SettingsImportDeduplicator {
     required SettingsExportData data,
     required List<LlmProviderConfig> existingProviders,
     required List<MemoryPrompt> existingMemoryPrompts,
-    required List<PresetPrompt> existingTemplates,
+    required List<PresetPrompt> existingPresetPrompts,
     required List<TemplatePrompt> existingTemplatePrompts,
     required List<FixedPromptSequence> existingSequences,
   }) {
@@ -176,7 +176,7 @@ final class SettingsImportDeduplicator {
 
     final newTemplates = data.presetPrompts
         .where((incoming) {
-          return !existingTemplates.any(
+          return !existingPresetPrompts.any(
             (existing) =>
                 presetPromptComparator.isEquivalent(existing, incoming),
           );
