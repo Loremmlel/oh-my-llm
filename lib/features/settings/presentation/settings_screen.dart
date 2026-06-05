@@ -382,7 +382,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
       return;
     }
 
-    // 去重
+    // 去重（autoRetrySettings 不需要去重，deduplicator 会直接透传）。
     final dedupedData = _importDeduplicator.deduplicate(
       data: exportData,
       existingProviders: ref.read(llmProviderConfigsProvider),
@@ -392,28 +392,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
       existingSequences: ref.read(fixedPromptSequencesProvider),
     );
 
-    // 处理自动重试设置（不需要去重，直接覆盖）
-    final hasAutoRetry = exportData.autoRetrySettings != null &&
-        dedupedData.modelProviders.isEmpty &&
-        dedupedData.memoryPrompts.isEmpty &&
-        dedupedData.presetPrompts.isEmpty &&
-        dedupedData.templatePrompts.isEmpty &&
-        dedupedData.fixedPromptSequences.isEmpty;
-
-    if (!dedupedData.hasContent && !hasAutoRetry) {
+    if (!dedupedData.hasContent) {
       if (mounted) {
-        showSettingsSnackbar(context, '剪贴板中的配置在本地均已存在，无需导入');
-      }
-      return;
-    }
-
-    // 自动重试设置直接覆盖，不弹对话框
-    if (hasAutoRetry) {
-      await ref
-          .read(autoRetrySettingsProvider.notifier)
-          .save(exportData.autoRetrySettings!);
-      if (mounted) {
-        showSettingsSnackbar(context, '自动重试设置已导入');
+        showSettingsSnackbar(context, '剪贴板中的配置在本地均已存在，无可导入项');
       }
       return;
     }
