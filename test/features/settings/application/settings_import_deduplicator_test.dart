@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/settings/application/settings_import_deduplicator.dart';
+import 'package:oh_my_llm/features/settings/domain/models/auto_retry_settings.dart';
 import 'package:oh_my_llm/features/settings/domain/models/fixed_prompt_sequence.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/memory_prompt.dart';
@@ -107,6 +108,7 @@ void main() {
     List<PresetPrompt> presetPrompts = const [],
     List<TemplatePrompt> templatePrompts = const [],
     List<FixedPromptSequence> fixedPromptSequences = const [],
+    AutoRetrySettings? autoRetrySettings,
   }) {
     return SettingsExportData(
       modelProviders: modelProviders,
@@ -114,6 +116,7 @@ void main() {
       presetPrompts: presetPrompts,
       templatePrompts: templatePrompts,
       fixedPromptSequences: fixedPromptSequences,
+      autoRetrySettings: autoRetrySettings,
     );
   }
 
@@ -422,6 +425,47 @@ void main() {
       expect(result.presetPrompts, isEmpty);
       expect(result.templatePrompts, isEmpty);
       expect(result.fixedPromptSequences, isEmpty);
+    });
+
+    test('保留 autoRetrySettings（透传，不做去重）', () {
+      const autoRetry = AutoRetrySettings(maxJitterSeconds: 20, maxRetryCount: 5);
+      final data = export(
+        memoryPrompts: [mem(content: '新记忆')],
+        autoRetrySettings: autoRetry,
+      );
+
+      final result = deduplicator.deduplicate(
+        data: data,
+        existingProviders: const [],
+        existingMemoryPrompts: const [],
+        existingTemplates: const [],
+        existingTemplatePrompts: const [],
+        existingSequences: const [],
+      );
+
+      expect(result.autoRetrySettings, isNotNull);
+      expect(result.autoRetrySettings!.maxJitterSeconds, 20);
+      expect(result.autoRetrySettings!.maxRetryCount, 5);
+      // 不影响其他分类
+      expect(result.memoryPrompts.length, 1);
+    });
+
+    test('在 data 仅含 autoRetry 时 hasContent 为 true', () {
+      final data = export(
+        autoRetrySettings: const AutoRetrySettings(),
+      );
+
+      final result = deduplicator.deduplicate(
+        data: data,
+        existingProviders: const [],
+        existingMemoryPrompts: const [],
+        existingTemplates: const [],
+        existingTemplatePrompts: const [],
+        existingSequences: const [],
+      );
+
+      expect(result.hasContent, isTrue);
+      expect(result.autoRetrySettings, isNotNull);
     });
   });
 }

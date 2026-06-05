@@ -1,40 +1,48 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../application/settings_import_executor.dart';
-import '../../domain/models/settings_export_data.dart';
+import '../../../settings/domain/models/settings_export_data.dart';
+import '../../application/sync_client_controller.dart';
 
-/// 配置导入确认对话框。
+/// 同步导入确认对话框。
 ///
-/// 当检测到剪贴板中含有本应用导出的配置数据（标识符匹配）时弹出，
-/// 展示将要导入的各类条目数量，由用户决定是否继续导入。
-class ImportConfirmDialog extends ConsumerStatefulWidget {
-  const ImportConfirmDialog({required this.exportData, super.key});
+/// 展示来自远端设备的配置数据摘要，由用户确认是否覆盖本地配置。
+/// 导入逻辑与 [ImportConfirmDialog] 保持一致。
+class SyncImportConfirmDialog extends ConsumerStatefulWidget {
+  const SyncImportConfirmDialog({
+    required this.exportData,
+    this.sourceDeviceName,
+    super.key,
+  });
 
-  /// 已从剪贴板解析出的待导入数据。
   final SettingsExportData exportData;
+  final String? sourceDeviceName;
 
   @override
-  ConsumerState<ImportConfirmDialog> createState() =>
-      _ImportConfirmDialogState();
+  ConsumerState<SyncImportConfirmDialog> createState() =>
+      _SyncImportConfirmDialogState();
 }
 
-class _ImportConfirmDialogState extends ConsumerState<ImportConfirmDialog> {
+class _SyncImportConfirmDialogState
+    extends ConsumerState<SyncImportConfirmDialog> {
   bool _isImporting = false;
 
   @override
-  /// 构建导入确认对话框，展示各类条目数量并提供确认/取消按钮。
   Widget build(BuildContext context) {
     final data = widget.exportData;
 
     return AlertDialog(
-      title: const Text('检测到配置导入数据'),
+      title: const Text('确认同步配置'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('剪贴板中包含本应用的配置数据，是否导入？'),
-          const SizedBox(height: 16),
+          if (widget.sourceDeviceName != null) ...[
+            Text('来源设备：${widget.sourceDeviceName}'),
+            const SizedBox(height: 12),
+          ],
+          const Text('即将覆盖本机以下配置：'),
+          const SizedBox(height: 12),
           if (data.modelProviders.isNotEmpty)
             _buildCountRow(
               context,
@@ -70,16 +78,23 @@ class _ImportConfirmDialogState extends ConsumerState<ImportConfirmDialog> {
               label: '固定顺序提示词',
               count: data.fixedPromptSequences.length,
             ),
+          if (data.autoRetrySettings != null)
+            _buildCountRow(
+              context,
+              icon: Icons.refresh_rounded,
+              label: '自动重试设置',
+              count: 1,
+            ),
           const SizedBox(height: 12),
           Text(
-            '与本地内容重复的条目已被过滤，以下均为新增项，导入后不影响已有配置。',
+            '与本地内容重复的条目已被过滤，以上均为新增项，导入后不影响已有配置。',
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ],
       ),
       actions: [
         TextButton(
-          onPressed: _isImporting ? null : () => Navigator.of(context).pop(),
+          onPressed: _isImporting ? null : () => Navigator.of(context).pop(false),
           child: const Text('取消'),
         ),
         FilledButton(
@@ -90,7 +105,6 @@ class _ImportConfirmDialogState extends ConsumerState<ImportConfirmDialog> {
     );
   }
 
-  /// 构建单行条目数量展示（图标 + 标签 + 数量）。
   Widget _buildCountRow(
     BuildContext context, {
     required IconData icon,
@@ -116,17 +130,21 @@ class _ImportConfirmDialogState extends ConsumerState<ImportConfirmDialog> {
     );
   }
 
-  /// 批量写入各类配置并关闭对话框。
   Future<void> _handleImport() async {
     setState(() => _isImporting = true);
 
-    await const SettingsImportExecutor().executeImportFromWidget(
-      ref,
-      data: widget.exportData,
-    );
+    try {
+      final success = await ref
+          .read(syncClientControllerProvider.notifier)
+          .executeImport();
 
-    if (mounted) {
-      Navigator.of(context).pop(true);
+      if (mounted) {
+        Navigator.of(context).pop(success);
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isImporting = false);
+      }
     }
   }
 }

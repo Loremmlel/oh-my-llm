@@ -27,6 +27,12 @@ enum AppDestination {
     label: '设置',
     icon: Icons.settings_outlined,
     selectedIcon: Icons.settings_rounded,
+  ),
+  sync(
+    path: '/sync',
+    label: '同步',
+    icon: Icons.sync_outlined,
+    selectedIcon: Icons.sync_rounded,
   );
 
   const AppDestination({
