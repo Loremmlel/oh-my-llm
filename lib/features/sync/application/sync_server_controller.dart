@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 
 import '../../../core/persistence/shared_preferences_provider.dart';
 import '../../settings/application/auto_retry_settings_controller.dart';
@@ -67,6 +68,7 @@ class SyncServerController extends Notifier<SyncServerState> {
   final SyncHttpServer _httpServer = SyncHttpServer();
   Future<void> Function()? _stopBroadcasting;
   Future<void>? _pendingRestart;
+  KeepAliveLink? _keepAliveLink;
 
   @override
   SyncServerState build() {
@@ -107,6 +109,7 @@ class SyncServerController extends Notifier<SyncServerState> {
         lastError: null,
         selectedInterface: selectedIface,
       );
+      _keepAliveLink = ref.keepAlive();
     } catch (e) {
       await _cleanup();
       state = state.copyWith(
@@ -119,6 +122,8 @@ class SyncServerController extends Notifier<SyncServerState> {
   }
 
   Future<void> stop() async {
+    _keepAliveLink?.close();
+    _keepAliveLink = null;
     await _cleanup();
     state = state.copyWith(
       isRunning: false,
