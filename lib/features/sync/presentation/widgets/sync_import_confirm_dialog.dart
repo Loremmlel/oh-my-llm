@@ -26,6 +26,7 @@ class SyncImportConfirmDialog extends ConsumerStatefulWidget {
 class _SyncImportConfirmDialogState
     extends ConsumerState<SyncImportConfirmDialog> {
   bool _isImporting = false;
+  String? _errorMessage;
 
   @override
   Widget build(BuildContext context) {
@@ -90,6 +91,15 @@ class _SyncImportConfirmDialogState
             '与本地内容重复的条目已被过滤，以上均为新增项，导入后不影响已有配置。',
             style: Theme.of(context).textTheme.bodySmall,
           ),
+          if (_errorMessage != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              _errorMessage!,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+            ),
+          ],
         ],
       ),
       actions: [
@@ -131,7 +141,10 @@ class _SyncImportConfirmDialogState
   }
 
   Future<void> _handleImport() async {
-    setState(() => _isImporting = true);
+    setState(() {
+      _isImporting = true;
+      _errorMessage = null;
+    });
 
     try {
       final success = await ref
@@ -141,9 +154,12 @@ class _SyncImportConfirmDialogState
       if (mounted) {
         Navigator.of(context).pop(success);
       }
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
-        setState(() => _isImporting = false);
+        setState(() {
+          _isImporting = false;
+          _errorMessage = '导入失败: $e';
+        });
       }
     }
   }

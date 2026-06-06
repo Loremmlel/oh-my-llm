@@ -15,7 +15,7 @@ import '../data/sync_udp_discovery.dart';
 import '../domain/models/sync_message.dart';
 import '../domain/models/sync_types.dart';
 
-enum SyncPhase { idle, discovering, connected, syncing, received, noNewData, done, error }
+enum SyncPhase { idle, discovering, connected, syncing, received, noNewData, imported, error }
 
 const Object _sentinel = Object();
 
@@ -211,11 +211,19 @@ class SyncClientController extends Notifier<SyncClientState> {
     final data = state.deduplicatedData;
     if (data == null) return false;
 
-    final success = await const SettingsImportExecutor().executeImport(ref, data: data);
-    if (success) {
-      state = state.copyWith(phase: SyncPhase.done);
+    try {
+      final success = await const SettingsImportExecutor().executeImport(ref, data: data);
+      if (success) {
+        state = state.copyWith(phase: SyncPhase.imported);
+      }
+      return success;
+    } catch (e) {
+      state = state.copyWith(
+        phase: SyncPhase.error,
+        errorMessage: '导入失败: $e',
+      );
+      return false;
     }
-    return success;
   }
 
   void resetToConnected() {

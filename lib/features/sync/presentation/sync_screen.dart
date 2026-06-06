@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../app/shell/app_shell_scaffold.dart';
+import '../../../core/persistence/shared_preferences_provider.dart';
 import '../../../app/navigation/app_destination.dart';
+import '../../../app/shell/app_shell_scaffold.dart';
 import '../application/sync_client_controller.dart';
 import '../application/sync_server_controller.dart';
-import 'widgets/sync_client_panel.dart';
-import 'widgets/sync_server_panel.dart';
+import 'widgets/sync_connection_tab.dart';
+import 'widgets/sync_operation_tab.dart';
 
-/// 同步页面，支持服务端广播和客户端同步两种模式。
+const _syncLastTabIndexKey = 'sync.tab.last_index';
+
+/// 同步页面，使用选项卡布局：Tab 1 连接管理，Tab 2 同步操作。
 class SyncScreen extends ConsumerStatefulWidget {
   const SyncScreen({super.key});
 
@@ -17,38 +20,54 @@ class SyncScreen extends ConsumerStatefulWidget {
 }
 
 class _SyncScreenState extends ConsumerState<SyncScreen>
-    with WidgetsBindingObserver {
-  bool _isServerMode = false;
-  bool _wasRunningBeforePause = false;
+    with TickerProviderStateMixin, WidgetsBindingObserver {
+  late final TabController _tabController;
+  bool _wasServerRunningBeforePause = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    final initialIndex = ref
+        .read(sharedPreferencesProvider)
+        .getInt(_syncLastTabIndexKey) ??
+        0;
+    _tabController = TabController(
+      initialIndex: initialIndex.clamp(0, 1),
+      length: 2,
+      vsync: this,
+    );
+    _tabController.addListener(_onTabChanged);
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _tabController.removeListener(_onTabChanged);
+    _tabController.dispose();
     super.dispose();
+  }
+
+  void _onTabChanged() {
+    if (!_tabController.indexIsChanging) {
+      ref
+          .read(sharedPreferencesProvider)
+          .setInt(_syncLastTabIndexKey, _tabController.index);
+    }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
-      _wasRunningBeforePause =
+      _wasServerRunningBeforePause =
           ref.read(syncServerControllerProvider).isRunning;
-      _cleanupResources();
+      ref.read(syncServerControllerProvider.notifier).stop();
+      ref.read(syncClientControllerProvider.notifier).cancelAndReset();
     } else if (state == AppLifecycleState.resumed) {
-      if (_isServerMode && _wasRunningBeforePause) {
+      if (_wasServerRunningBeforePause) {
         ref.read(syncServerControllerProvider.notifier).start();
       }
     }
-  }
-
-  void _cleanupResources() {
-    ref.read(syncServerControllerProvider.notifier).stop();
-    ref.read(syncClientControllerProvider.notifier).cancelAndReset();
   }
 
   @override
@@ -56,31 +75,28 @@ class _SyncScreenState extends ConsumerState<SyncScreen>
     return AppShellScaffold(
       currentDestination: AppDestination.sync,
       title: '局域网同步',
-      body: ListView(
-        padding: const EdgeInsets.all(16),
+      body: Column(
         children: [
-          _buildModeSelector(context),
-          const SizedBox(height: 16),
-          if (_isServerMode)
-            const SyncServerPanel()
-          else
-            const SyncClientPanel(),
+          TabBar(
+            controller: _tabController,
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
+            tabs: const [
+              Tab(text: '连接'),
+              Tab(text: '同步'),
+            ],
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: const [
+                SyncConnectionTab(),
+                SyncOperationTab(),
+              ],
+            ),
+          ),
         ],
       ),
-    );
-  }
-
-  Widget _buildModeSelector(BuildContext context) {
-    return SegmentedButton<bool>(
-      segments: const [
-        ButtonSegment(value: false, label: Text('作为客户端'), icon: Icon(Icons.download_rounded)),
-        ButtonSegment(value: true, label: Text('作为服务端'), icon: Icon(Icons.upload_rounded)),
-      ],
-      selected: {_isServerMode},
-      onSelectionChanged: (selected) {
-        _cleanupResources();
-        setState(() => _isServerMode = selected.first);
-      },
     );
   }
 }
