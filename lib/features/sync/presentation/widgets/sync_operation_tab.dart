@@ -41,6 +41,14 @@ class _SyncOperationTabState extends ConsumerState<SyncOperationTab>
             _showImportDialog(context, ref, next.deduplicatedData!, next.sourceDeviceName);
           }
         });
+      } else if (next.phase == SyncPhase.noNewData) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('远端配置与本机完全一致，无需导入')),
+            );
+          }
+        });
       }
     });
 
@@ -62,12 +70,6 @@ class _SyncOperationTabState extends ConsumerState<SyncOperationTab>
           if (clientState.phase == SyncPhase.imported) ...[
             const SizedBox(height: 16),
             _buildImportedMessage(context),
-          ],
-          if (clientState.phase == SyncPhase.noNewData) ...[
-            const SizedBox(height: 16),
-            _buildNoNewDataMessage(context),
-            const SizedBox(height: 12),
-            _buildResyncButton(context, ref),
           ],
         ],
       ],
@@ -265,27 +267,6 @@ class _SyncOperationTabState extends ConsumerState<SyncOperationTab>
           Text(
             '配置已成功导入',
             style: TextStyle(color: successColor),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNoNewDataMessage(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.orange.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.info_outline, color: Colors.orange.shade700),
-          const SizedBox(width: 8),
-          Text(
-            '远端配置与本机完全一致，无需导入',
-            style: TextStyle(color: Colors.orange.shade700),
           ),
         ],
       ),
