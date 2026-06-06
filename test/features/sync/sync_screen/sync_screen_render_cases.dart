@@ -12,15 +12,17 @@ void registerSyncScreenRenderTests() {
       preferences = await SharedPreferences.getInstance();
     });
 
-    testWidgets('渲染标题和模式选择器', (tester) async {
+    testWidgets('渲染标题、标签页和连接模式选择器', (tester) async {
       await pumpSyncScreen(tester, preferences: preferences);
 
       expect(find.text('局域网同步'), findsOneWidget);
+      expect(find.text('连接'), findsWidgets);
+      expect(find.text('同步'), findsWidgets);
       expect(find.text('作为客户端'), findsOneWidget);
       expect(find.text('作为服务端'), findsOneWidget);
     });
 
-    testWidgets('默认显示客户端面板', (tester) async {
+    testWidgets('默认显示连接标签页', (tester) async {
       await pumpSyncScreen(tester, preferences: preferences);
 
       expect(find.text('发现服务端'), findsWidgets);

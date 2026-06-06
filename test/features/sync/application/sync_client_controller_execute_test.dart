@@ -150,7 +150,7 @@ void main() {
       expect(container.read(memoryPromptsProvider), isEmpty);
     });
 
-    test('在 deduplicatedData 非空时写入全部六类数据并推进到 done', () async {
+    test('在 deduplicatedData 非空时写入全部六类数据并推进到 imported', () async {
       final container = buildContainer(
         seed: SyncClientState(
           phase: SyncPhase.received,
@@ -166,7 +166,7 @@ void main() {
       expect(result, isTrue);
       expect(
         container.read(syncClientControllerProvider).phase,
-        SyncPhase.done,
+        SyncPhase.imported,
       );
 
       // 服务商
@@ -216,6 +216,28 @@ void main() {
       // 仅 autoRetrySettings 被写入。
       final autoRetry = container.read(autoRetrySettingsProvider);
       expect(autoRetry.maxRetryCount, 5);
+    });
+
+    test('导入异常时设置 error phase 和 errorMessage', () async {
+      final container = buildContainer(
+        seed: SyncClientState(
+          phase: SyncPhase.received,
+          deduplicatedData: _buildFullData(),
+        ),
+      );
+
+      // 关闭数据库强制写入失败
+      database.close();
+
+      final result = await container
+          .read(syncClientControllerProvider.notifier)
+          .executeImport();
+
+      expect(result, isFalse);
+      final state = container.read(syncClientControllerProvider);
+      expect(state.phase, SyncPhase.error);
+      expect(state.errorMessage, isNotNull);
+      expect(state.errorMessage, contains('导入失败'));
     });
   });
 }
