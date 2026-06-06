@@ -38,7 +38,6 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
 
   void _onModeChanged(bool serverMode) {
     if (serverMode == _isServerMode) return;
-    ref.read(syncServerControllerProvider.notifier).stop();
     ref.read(syncClientControllerProvider.notifier).cancelAndReset();
     setState(() => _isServerMode = serverMode);
   }
