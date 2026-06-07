@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -13,7 +14,10 @@ import 'widgets/sync_operation_tab.dart';
 
 const _syncLastTabIndexKey = 'sync.tab.last_index';
 
-/// 同步页面，使用选项卡布局：Tab 1 连接管理，Tab 2 同步操作。
+/// 同步页面，使用选项卡布局。
+///
+/// Android：连接 / 同步 / 媒体（3 Tab）
+/// 其他平台：连接 / 同步（2 Tab，无媒体浏览器）
 class SyncScreen extends ConsumerStatefulWidget {
   const SyncScreen({super.key});
 
@@ -26,6 +30,12 @@ class _SyncScreenState extends ConsumerState<SyncScreen>
   late final TabController _tabController;
   bool _wasServerRunningBeforePause = false;
 
+  /// 媒体浏览器仅 Android 客户端启用。
+  bool get _hasMediaTab =>
+      defaultTargetPlatform == TargetPlatform.android;
+
+  int get _tabCount => _hasMediaTab ? 3 : 2;
+
   @override
   void initState() {
     super.initState();
@@ -35,12 +45,14 @@ class _SyncScreenState extends ConsumerState<SyncScreen>
         .getInt(_syncLastTabIndexKey) ??
         0;
     _tabController = TabController(
-      initialIndex: initialIndex.clamp(0, 2),
-      length: 3,
+      initialIndex: initialIndex.clamp(0, _tabCount - 1),
+      length: _tabCount,
       vsync: this,
     );
     _tabController.addListener(_onTabChanged);
-    _tabController.addListener(_onMediaTabListener);
+    if (_hasMediaTab) {
+      _tabController.addListener(_onMediaTabListener);
+    }
   }
 
   void _onMediaTabListener() {
@@ -58,7 +70,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _tabController.removeListener(_onTabChanged);
-    _tabController.removeListener(_onMediaTabListener);
+    if (_hasMediaTab) {
+      _tabController.removeListener(_onMediaTabListener);
+    }
     _tabController.dispose();
     super.dispose();
   }
@@ -87,6 +101,23 @@ class _SyncScreenState extends ConsumerState<SyncScreen>
 
   @override
   Widget build(BuildContext context) {
+    final tabs = <Widget>[
+      const Tab(text: '连接'),
+      const Tab(text: '同步'),
+      if (_hasMediaTab) const Tab(text: '媒体'),
+    ];
+
+    final tabViews = <Widget>[
+      const SyncConnectionTab(),
+      const SyncOperationTab(),
+      if (_hasMediaTab)
+        MediaBrowserTab(
+          onExitMediaBrowser: () {
+            _tabController.animateTo(0);
+          },
+        ),
+    ];
+
     return AppShellScaffold(
       currentDestination: AppDestination.sync,
       title: '局域网同步',
@@ -96,24 +127,12 @@ class _SyncScreenState extends ConsumerState<SyncScreen>
             controller: _tabController,
             isScrollable: true,
             tabAlignment: TabAlignment.start,
-            tabs: const [
-              Tab(text: '连接'),
-              Tab(text: '同步'),
-              Tab(text: '媒体'),
-            ],
+            tabs: tabs,
           ),
           Expanded(
             child: TabBarView(
               controller: _tabController,
-              children: [
-                const SyncConnectionTab(),
-                const SyncOperationTab(),
-                MediaBrowserTab(
-                  onExitMediaBrowser: () {
-                    _tabController.animateTo(0);
-                  },
-                ),
-              ],
+              children: tabViews,
             ),
           ),
         ],
