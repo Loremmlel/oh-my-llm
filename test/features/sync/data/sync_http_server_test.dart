@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 
+import 'package:oh_my_llm/features/sync/data/sync_http_handler.dart';
 import 'package:oh_my_llm/features/sync/data/sync_http_server.dart';
 import 'package:oh_my_llm/features/sync/domain/models/sync_message.dart';
 import 'package:oh_my_llm/features/sync/domain/models/sync_types.dart';
@@ -19,8 +20,8 @@ void main() {
       }
     });
 
-    Future<int> startWithEcho() async {
-      return server.start(
+    SyncHttpHandler createEchoHandler() {
+      return SyncHttpHandler(
         onRequest: (request) async {
           return SyncMessage.response(
             type: '${request.type}_echo',
@@ -29,6 +30,10 @@ void main() {
           );
         },
       );
+    }
+
+    Future<int> startWithEcho() async {
+      return server.start(handlers: [createEchoHandler()]);
     }
 
     test('start 绑定随机端口并返回端口号，isRunning 为 true', () async {
@@ -46,7 +51,7 @@ void main() {
       expect(server.isRunning, isFalse);
     });
 
-    test('POST /sync 请求被路由到 onRequest 回调，响应包含回调返回的 SyncMessage',
+    test('POST /sync 请求被路由到 SyncHttpHandler，响应包含回调返回的 SyncMessage',
         () async {
       final port = await startWithEcho();
       final request = SyncMessage.request(
@@ -68,14 +73,14 @@ void main() {
       expect(decoded.payload['echo'], request.payload);
     });
 
-    test('非 POST 请求或非 /sync 路径返回 404', () async {
+    test('无匹配 handler 的请求返回 404', () async {
       final port = await startWithEcho();
 
-      // GET /sync → 404
+      // GET /sync → 不存在匹配的 handler（SyncHttpHandler 只匹配 POST /sync）
       final getResp = await http.get(Uri.parse('http://127.0.0.1:$port/sync'));
       expect(getResp.statusCode, 404);
 
-      // POST /other → 404
+      // POST /other → 不存在匹配的 handler
       final postResp = await http.post(
         Uri.parse('http://127.0.0.1:$port/other'),
         headers: const {'Content-Type': 'application/json'},

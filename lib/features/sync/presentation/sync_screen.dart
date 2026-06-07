@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/persistence/shared_preferences_provider.dart';
 import '../../../app/navigation/app_destination.dart';
 import '../../../app/shell/app_shell_scaffold.dart';
+import '../../media/application/media_browser_controller.dart';
+import '../../media/presentation/media_browser_tab.dart';
 import '../application/sync_client_controller.dart';
 import '../application/sync_server_controller.dart';
 import 'widgets/sync_connection_tab.dart';
@@ -33,17 +35,30 @@ class _SyncScreenState extends ConsumerState<SyncScreen>
         .getInt(_syncLastTabIndexKey) ??
         0;
     _tabController = TabController(
-      initialIndex: initialIndex.clamp(0, 1),
-      length: 2,
+      initialIndex: initialIndex.clamp(0, 2),
+      length: 3,
       vsync: this,
     );
     _tabController.addListener(_onTabChanged);
+    _tabController.addListener(_onMediaTabListener);
+  }
+
+  void _onMediaTabListener() {
+    if (_tabController.index == 2 && !_tabController.indexIsChanging) {
+      final server = ref.read(syncClientControllerProvider).server;
+      if (server != null) {
+        ref
+            .read(mediaBrowserControllerProvider.notifier)
+            .initWithServer(server);
+      }
+    }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _tabController.removeListener(_onTabChanged);
+    _tabController.removeListener(_onMediaTabListener);
     _tabController.dispose();
     super.dispose();
   }
@@ -84,14 +99,20 @@ class _SyncScreenState extends ConsumerState<SyncScreen>
             tabs: const [
               Tab(text: '连接'),
               Tab(text: '同步'),
+              Tab(text: '媒体'),
             ],
           ),
           Expanded(
             child: TabBarView(
               controller: _tabController,
-              children: const [
-                SyncConnectionTab(),
-                SyncOperationTab(),
+              children: [
+                const SyncConnectionTab(),
+                const SyncOperationTab(),
+                MediaBrowserTab(
+                  onExitMediaBrowser: () {
+                    _tabController.animateTo(0);
+                  },
+                ),
               ],
             ),
           ),
