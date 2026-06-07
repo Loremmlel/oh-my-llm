@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import '../domain/models/file_item.dart';
+import 'media_mime_types.dart';
 
 /// 路径穿越异常。
 class PathTraversalException implements Exception {
@@ -114,11 +115,18 @@ class MediaDirectoryScanner {
       final relativePath = '/${relToRoot.replaceAll('\\', '/')}'
           .replaceAll(RegExp(r'/+'), '/');
 
+      final hasThumbnail = !isDir && (isImageFile(name) || isVideoFile(name));
+
       items.add(FileItem(
         name: name,
         isDirectory: isDir,
         sizeBytes: isDir ? 0 : stat.size,
         relativePath: relativePath,
+        lastModified: stat.modified.millisecondsSinceEpoch,
+        mimeType: isDir ? null : mimeTypeFromExtension(name),
+        thumbnailUrl: hasThumbnail
+            ? '/api/media/thumbnail$relativePath'
+            : null,
       ));
     }
 
