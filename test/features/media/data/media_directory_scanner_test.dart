@@ -140,5 +140,20 @@ void main() {
         throwsA(isA<FileSystemException>()),
       );
     });
+
+    test('FileItem 包含 lastModified/mimeType/thumbnailUrl', () async {
+      final items = await scanner.scan('/');
+
+      final videoItem = items.firstWhere((i) => i.name == 'bbb.mp4');
+      expect(videoItem.lastModified, isNonZero);
+      expect(videoItem.mimeType, 'video/mp4');
+      expect(videoItem.thumbnailUrl, isNotNull);
+      expect(videoItem.thumbnailUrl, contains('/api/media/thumbnail/'));
+
+      // 文件夹不应有 mimeType 和 thumbnailUrl
+      final folderItem = items.firstWhere((i) => i.isDirectory);
+      expect(folderItem.mimeType, isNull);
+      expect(folderItem.thumbnailUrl, isNull);
+    });
   });
 }
