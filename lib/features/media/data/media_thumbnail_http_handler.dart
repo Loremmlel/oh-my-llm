@@ -69,11 +69,15 @@ class MediaThumbnailHttpHandler implements HttpRouteHandler {
       // — 生成缩略图 —
       final jpegBytes = await _generator.generate(relativePath);
 
-      // — 写入缓存 —
-      await _cache.put(relativePath, fileSize, lastModified, jpegBytes);
-
       // — 返回 —
       await _sendJpegResponse(request.response, jpegBytes, jpegBytes.length);
+
+      // — 写入缓存（响应已发送，缓存失败不影响客户端） —
+      try {
+        await _cache.put(relativePath, fileSize, lastModified, jpegBytes);
+      } catch (_) {
+        // 缓存写入失败不阻塞——客户端已收到缩略图
+      }
     } on PathTraversalException catch (e) {
       writeJsonError(
           request.response, HttpStatus.forbidden, '路径穿越被拒绝: $e');

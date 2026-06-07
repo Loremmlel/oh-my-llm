@@ -30,6 +30,7 @@ Future<({SyncHttpServer server, int port})> _startTestServer({
 void main() {
   group('MediaThumbnailHttpHandler 集成测试', () {
     late Directory tempDir;
+    late Directory cacheTempDir; // 缓存独立目录，避免 Windows 文件锁导致 tearDown 失败
     late MediaDirectoryScanner scanner;
     late MediaThumbnailCache cache;
     late MediaThumbnailGenerator generator;
@@ -38,9 +39,10 @@ void main() {
 
     setUp(() {
       tempDir = Directory.systemTemp.createTempSync('thumbnail_http_test_');
+      cacheTempDir = Directory.systemTemp.createTempSync('thumbnail_http_cache_');
       scanner = MediaDirectoryScanner(tempDir.path);
       cache = MediaThumbnailCache.custom(
-        Directory('${tempDir.path}/.cache/thumbnails'),
+        Directory('${cacheTempDir.path}/.cache/thumbnails'),
       );
       generator = MediaThumbnailGenerator(scanner: scanner);
       handler = MediaThumbnailHttpHandler(
@@ -52,7 +54,9 @@ void main() {
     });
 
     tearDown(() {
-      tempDir.deleteSync(recursive: true);
+      // try-catch 防御 Windows 文件锁：缓存文件可能尚未被 OS 释放
+      try { tempDir.deleteSync(recursive: true); } catch (_) {}
+      try { cacheTempDir.deleteSync(recursive: true); } catch (_) {}
     });
 
     group('handle — 图片缩略图', () {
