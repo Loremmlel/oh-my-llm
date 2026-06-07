@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -266,8 +268,9 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
             },
           ),
           const SizedBox(height: 16),
-          // 媒体根目录配置（原生文件夹选择器）
-          TextField(
+          // 媒体根目录配置 — 仅 Windows 服务端
+          if (Platform.isWindows)
+            TextField(
             controller: _rootDirController,
             readOnly: true,
             decoration: InputDecoration(

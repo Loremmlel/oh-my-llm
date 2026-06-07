@@ -104,9 +104,12 @@ class SyncServerController extends Notifier<SyncServerState> {
       final handlers = <HttpRouteHandler>[
         SyncHttpHandler(onRequest: _handleRequest),
       ];
-      final rootDir = ref.read(mediaRootDirectoryProvider);
-      if (rootDir != null && rootDir.isNotEmpty) {
-        handlers.add(MediaHttpHandler(rootDirectory: rootDir));
+      // 媒体文件服务仅在 Windows 服务端启用
+      if (Platform.isWindows) {
+        final rootDir = ref.read(mediaRootDirectoryProvider);
+        if (rootDir != null && rootDir.isNotEmpty) {
+          handlers.add(MediaHttpHandler(rootDirectory: rootDir));
+        }
       }
       final port = await _httpServer.start(handlers: handlers);
       _stopBroadcasting = await SyncUdpDiscovery.startBroadcasting(
