@@ -61,15 +61,34 @@ class _MediaBrowserTabState extends ConsumerState<MediaBrowserTab> {
                 if (item.isDirectory) {
                   controller.navigateTo(item.relativePath);
                 } else if (isImageFile(item.name)) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ImageViewerPage(
-                        imageUrl: _buildMediaUrl('image', item.relativePath),
-                        fileName: item.name,
-                      ),
-                    ),
-                  );
+                  // 收集当前目录下所有图片 URL，定位到当前项
+                  // 提前校验 server，避免注入空字符串 URL
+                  final server = state.server;
+                  if (server != null) {
+                    final baseUrl =
+                        'http://${server.ip}:${server.httpPort}/api/media/image/';
+                    final imageItems = state.items
+                        .where((i) => isImageFile(i.name))
+                        .toList();
+                    final imageUrls = imageItems
+                        .map((i) =>
+                            '$baseUrl${encodeMediaPath(i.relativePath)}')
+                        .toList();
+                    final initialIndex = imageItems.indexWhere(
+                      (i) => i.relativePath == item.relativePath,
+                    );
+                    if (initialIndex >= 0) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ImageViewerPage(
+                            imageUrls: imageUrls,
+                            initialIndex: initialIndex,
+                          ),
+                        ),
+                      );
+                    }
+                  }
                 } else if (isVideoFile(item.name)) {
                   Navigator.push(
                     context,
