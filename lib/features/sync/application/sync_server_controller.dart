@@ -17,6 +17,9 @@ import '../../media/data/media_directory_scanner.dart';
 import '../../media/data/media_http_handler.dart';
 import '../../media/data/media_image_http_handler.dart';
 import '../../media/data/media_video_http_handler.dart';
+import '../../media/data/media_thumbnail_cache.dart';
+import '../../media/data/media_thumbnail_generator.dart';
+import '../../media/data/media_thumbnail_http_handler.dart';
 import '../data/sync_http_handler.dart';
 import '../data/sync_http_server.dart';
 import '../data/sync_udp_discovery.dart';
@@ -116,6 +119,12 @@ class SyncServerController extends Notifier<SyncServerState> {
           handlers.add(MediaHttpHandler(scanner: scanner));
           handlers.add(MediaImageHttpHandler(scanner: scanner));
           handlers.add(MediaVideoHttpHandler(scanner: scanner));
+          final thumbnailCache = MediaThumbnailCache.defaultLocation();
+          handlers.add(MediaThumbnailHttpHandler(
+            scanner: scanner,
+            generator: MediaThumbnailGenerator(scanner: scanner),
+            cache: thumbnailCache,
+          ));
         }
       }
       final port = await _httpServer.start(handlers: handlers);
