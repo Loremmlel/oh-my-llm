@@ -1,0 +1,86 @@
+#!/bin/sh
+# commit-msg: 根据 commit message 语义自动更新 pubspec.yaml 版本号。
+#
+# 相比 pre-commit 读取 .git/COMMIT_EDITMSG（可能读到旧消息），
+# commit-msg 通过 $1 接收 Git 显式传入的当前消息文件路径，100% 可靠。
+#
+# 安装方式：
+#   git config core.hooksPath .githooks
+#
+# 版本策略（基于 Conventional Commits 第一行前缀）：
+#   - type! 或 type(scope)!: → MAJOR+1, MINOR/PATCH 归零（breaking change）
+#   - feat: 或 feat(scope):  → MINOR+1, PATCH 归零
+#   - 其他（fix/docs/refactor 等）→ PATCH+1（默认）
+
+PUBSPEC="pubspec.yaml"
+COMMIT_MSG_FILE="$1"
+
+# ═══════════════════════════════════════════════════════════════
+# 1. 读取 commit message 第一行
+# ═══════════════════════════════════════════════════════════════
+COMMIT_MSG=""
+if [ -f "$COMMIT_MSG_FILE" ]; then
+    COMMIT_MSG=$(head -1 "$COMMIT_MSG_FILE" 2>/dev/null)
+fi
+
+# ═══════════════════════════════════════════════════════════════
+# 2. 提取当前版本号（格式：x.y.z+n）
+# ═══════════════════════════════════════════════════════════════
+CURRENT_LINE=$(grep '^version:' "$PUBSPEC" | head -1)
+CURRENT_VERSION=$(echo "$CURRENT_LINE" | sed 's/^version:[[:space:]]*//')
+
+SEMVER=$(echo "$CURRENT_VERSION" | cut -d'+' -f1)
+BUILD=$(echo "$CURRENT_VERSION" | cut -d'+' -f2)
+
+MAJOR=$(echo "$SEMVER" | cut -d'.' -f1)
+MINOR=$(echo "$SEMVER" | cut -d'.' -f2)
+PATCH=$(echo "$SEMVER" | cut -d'.' -f3)
+
+# ═══════════════════════════════════════════════════════════════
+# 3. 根据 commit message 前缀决定版本策略
+# ═══════════════════════════════════════════════════════════════
+BUMP_TYPE="patch"
+
+if [ -n "$COMMIT_MSG" ]; then
+    # breaking change: type! 或 type(scope)! 前缀
+    if echo "$COMMIT_MSG" | grep -qE '^[a-zA-Z]+(\([^)]*\))?!:' ; then
+        BUMP_TYPE="major"
+    # feat: 或 feat(scope): 前缀
+    elif echo "$COMMIT_MSG" | grep -qE '^feat(\([^)]*\))?:' ; then
+        BUMP_TYPE="minor"
+    fi
+fi
+
+# ═══════════════════════════════════════════════════════════════
+# 4. 执行版本递增
+# ═══════════════════════════════════════════════════════════════
+case "$BUMP_TYPE" in
+    major)
+        MAJOR=$((MAJOR + 1))
+        MINOR=0
+        PATCH=0
+        ;;
+    minor)
+        MINOR=$((MINOR + 1))
+        PATCH=0
+        ;;
+    *)
+        PATCH=$((PATCH + 1))
+        ;;
+esac
+
+NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}+${BUILD}"
+
+# 替换 pubspec.yaml 中的版本号（兼容 GNU sed 和 macOS BSD sed）
+sed -i.bak "s/^version: .*/version: ${NEW_VERSION}/" "$PUBSPEC"
+rm -f "${PUBSPEC}.bak"
+
+# 将修改后的 pubspec.yaml 加入暂存区，随本次提交写入
+git add "$PUBSPEC"
+
+# ═══════════════════════════════════════════════════════════════
+# 5. 输出变更信息
+# ═══════════════════════════════════════════════════════════════
+if [ "$CURRENT_VERSION" != "$NEW_VERSION" ]; then
+    echo "[commit-msg] Version bumped: ${CURRENT_VERSION} -> ${NEW_VERSION} (${BUMP_TYPE})"
+fi

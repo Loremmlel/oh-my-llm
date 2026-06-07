@@ -1,26 +1,13 @@
 #!/bin/sh
-# pre-commit: 每次提交前根据 commit message 语义自动更新 pubspec.yaml 版本号。
+# pre-commit: 提交前检查。版本号自动更新已移至 commit-msg hook。
 #
 # 安装方式：
 #   git config core.hooksPath .githooks
 #
-# 版本策略（基于 Conventional Commits 第一行前缀）：
-#   - type! 或 type(scope)!: → MAJOR+1, MINOR/PATCH 归零（breaking change）
-#   - feat: 或 feat(scope):  → MINOR+1, PATCH 归零
-#   - 其他（fix/docs/refactor 等）→ PATCH+1（默认）
-#
-# 注意：
-#   - 该钩子会修改并暂存 pubspec.yaml，版本变更随本次提交一同进入历史。
-#   - 仅在使用 git commit -m 时能读取到 commit message；
-#     通过编辑器提交时因 message 尚未写入，默认按 patch+1 处理。
-#   - 大改动（>500 行）且无标准前缀时会输出提醒，但不阻塞提交。
-
-PUBSPEC="pubspec.yaml"
+# 大改动（>500 行）且无标准前缀时会输出提醒，但不阻塞提交。
 
 # ═══════════════════════════════════════════════════════════════
-# 1. 读取 commit message 第一行
-#    - git commit -m "..." → .git/COMMIT_EDITMSG 已写入，可读
-#    - git commit（编辑器） → 文件为空或残留上次内容 → 退化为 patch+1
+# 1. 读取 commit message 第一行（用于大改动提醒，非关键路径）
 # ═══════════════════════════════════════════════════════════════
 COMMIT_MSG_FILE=".git/COMMIT_EDITMSG"
 COMMIT_MSG=""
@@ -29,49 +16,19 @@ if [ -f "$COMMIT_MSG_FILE" ]; then
 fi
 
 # ═══════════════════════════════════════════════════════════════
-# 2. 提取当前版本号（格式：x.y.z+n）
-# ═══════════════════════════════════════════════════════════════
-CURRENT_LINE=$(grep '^version:' "$PUBSPEC" | head -1)
-CURRENT_VERSION=$(echo "$CURRENT_LINE" | sed 's/^version:[[:space:]]*//')
-
-SEMVER=$(echo "$CURRENT_VERSION" | cut -d'+' -f1)
-BUILD=$(echo "$CURRENT_VERSION" | cut -d'+' -f2)
-
-MAJOR=$(echo "$SEMVER" | cut -d'.' -f1)
-MINOR=$(echo "$SEMVER" | cut -d'.' -f2)
-PATCH=$(echo "$SEMVER" | cut -d'.' -f3)
-
-# ═══════════════════════════════════════════════════════════════
-# 3. 根据 commit message 前缀决定版本策略
-# ═══════════════════════════════════════════════════════════════
-BUMP_TYPE="patch"
-
-if [ -n "$COMMIT_MSG" ]; then
-    # breaking change: type! 或 type(scope)! 前缀
-    if echo "$COMMIT_MSG" | grep -qE '^[a-zA-Z]+(\([^)]*\))?!:' ; then
-        BUMP_TYPE="major"
-    # feat: 或 feat(scope): 前缀
-    elif echo "$COMMIT_MSG" | grep -qE '^feat(\([^)]*\))?:' ; then
-        BUMP_TYPE="minor"
-    fi
-fi
-
-# ═══════════════════════════════════════════════════════════════
-# 4. 计算暂存区改动行数，大改动时提醒
+# 2. 计算暂存区改动行数，大改动时提醒
 # ═══════════════════════════════════════════════════════════════
 CHANGED_LINES=$(git diff --cached --numstat 2>/dev/null | awk '{s+=$1+$2} END {print s+0}')
 THRESHOLD=500
 
-if [ "$CHANGED_LINES" -gt "$THRESHOLD" ] && [ "$BUMP_TYPE" = "patch" ]; then
+if [ "$CHANGED_LINES" -gt "$THRESHOLD" ]; then
     HAS_PREFIX="no"
     if [ -n "$COMMIT_MSG" ]; then
         if echo "$COMMIT_MSG" | grep -qE '^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)(\([^)]*\))?!?:' ; then
             HAS_PREFIX="yes"
         fi
     fi
-    #
-    # 仅在没有标准前缀时才提醒；有前缀说明用户已经按语义写了
-    #
+
     if [ "$HAS_PREFIX" = "no" ]; then
         echo ""
         echo "╔══════════════════════════════════════════════════════════╗"
@@ -87,38 +44,4 @@ if [ "$CHANGED_LINES" -gt "$THRESHOLD" ] && [ "$BUMP_TYPE" = "patch" ]; then
         echo "╚══════════════════════════════════════════════════════════╝"
         echo ""
     fi
-fi
-
-# ═══════════════════════════════════════════════════════════════
-# 5. 执行版本递增
-# ═══════════════════════════════════════════════════════════════
-case "$BUMP_TYPE" in
-    major)
-        MAJOR=$((MAJOR + 1))
-        MINOR=0
-        PATCH=0
-        ;;
-    minor)
-        MINOR=$((MINOR + 1))
-        PATCH=0
-        ;;
-    *)
-        PATCH=$((PATCH + 1))
-        ;;
-esac
-
-NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}+${BUILD}"
-
-# 替换 pubspec.yaml 中的版本号（兼容 GNU sed 和 macOS BSD sed）
-sed -i.bak "s/^version: .*/version: ${NEW_VERSION}/" "$PUBSPEC"
-rm -f "${PUBSPEC}.bak"
-
-# 将修改后的 pubspec.yaml 加入本次暂存区
-git add "$PUBSPEC"
-
-# ═══════════════════════════════════════════════════════════════
-# 6. 输出变更信息
-# ═══════════════════════════════════════════════════════════════
-if [ "$CURRENT_VERSION" != "$NEW_VERSION" ]; then
-    echo "[pre-commit] Version bumped: ${CURRENT_VERSION} -> ${NEW_VERSION} (${BUMP_TYPE})"
 fi
