@@ -163,9 +163,8 @@ class MediaThumbnailGenerator {
       final ffprobeResult = await Process.run('ffprobe', ['-version'])
           .timeout(const Duration(seconds: 5));
       _ffmpegAvailable = ffmpegResult.exitCode == 0 && ffprobeResult.exitCode == 0;
-    } on ProcessException {
-      _ffmpegAvailable = false;
-    } on TimeoutException {
+    } catch (_) {
+      // ProcessException（未安装）或 TimeoutException（超时）均视为不可用
       _ffmpegAvailable = false;
     }
 
