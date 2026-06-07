@@ -119,7 +119,7 @@ class SyncServerController extends Notifier<SyncServerState> {
           handlers.add(MediaHttpHandler(scanner: scanner));
           handlers.add(MediaImageHttpHandler(scanner: scanner));
           handlers.add(MediaVideoHttpHandler(scanner: scanner));
-          final thumbnailCache = MediaThumbnailCache.defaultLocation();
+          final thumbnailCache = await MediaThumbnailCache.defaultLocation();
           handlers.add(MediaThumbnailHttpHandler(
             scanner: scanner,
             generator: MediaThumbnailGenerator(scanner: scanner),

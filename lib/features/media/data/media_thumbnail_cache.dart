@@ -2,20 +2,23 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
+import 'package:path_provider/path_provider.dart';
 
 /// 缩略图缓存管理器。
 ///
-/// 缓存目录: `{可执行文件目录}/.cache/thumbnails/`
+/// 缓存目录: `{应用 Support 目录}/.cache/thumbnails/`
 /// 缓存 Key: `MD5(relativePath|fileSize|lastModified)` → `.jpg`
 ///
 /// 首次访问时自动创建缓存目录。
 class MediaThumbnailCache {
   final Directory _cacheDir;
 
-  /// 使用默认缓存路径（`Platform.resolvedExecutable` 所在目录下的 `.cache/thumbnails/`）。
-  factory MediaThumbnailCache.defaultLocation() {
-    final exeDir = File(Platform.resolvedExecutable).parent;
-    final cacheDir = Directory('${exeDir.path}/.cache/thumbnails');
+  /// 使用默认缓存路径（应用 Support 目录下的 `.cache/thumbnails/`）。
+  ///
+  /// 与数据库和日志同在一个父目录，确保有写入权限。
+  static Future<MediaThumbnailCache> defaultLocation() async {
+    final supportDir = await getApplicationSupportDirectory();
+    final cacheDir = Directory('${supportDir.path}/.cache/thumbnails');
     return MediaThumbnailCache._(cacheDir);
   }
 
