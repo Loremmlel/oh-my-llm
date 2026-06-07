@@ -188,6 +188,9 @@ class _ZoomableImagePageState extends State<_ZoomableImagePage> {
   /// 双击缩放动画监听器引用，用于在添加新监听器前移除旧监听器。
   VoidCallback? _animationListener;
 
+  /// 最近一次双击的落点位置，用于将缩放焦点对准点击处。
+  Offset? _lastDoubleTapPosition;
+
   @override
   void initState() {
     super.initState();
@@ -271,9 +274,18 @@ class _ZoomableImagePageState extends State<_ZoomableImagePage> {
     }
 
     final targetIsZoomed = !widget.isZoomed;
-    final Matrix4 target = targetIsZoomed
-        ? Matrix4.diagonal3Values(2.5, 2.5, 1)
-        : Matrix4.identity();
+    final Matrix4 target;
+    if (targetIsZoomed) {
+      // 放大：以双击落点为中心缩放
+      final pos = _lastDoubleTapPosition ?? Offset.zero;
+      target = Matrix4.identity()
+        ..translate(pos.dx, pos.dy, 0.0)
+        ..scale(2.5, 2.5, 1.0)
+        ..translate(-pos.dx, -pos.dy, 0.0);
+    } else {
+      // 恢复：直接回到 identity
+      target = Matrix4.identity();
+    }
 
     // 捕获固定的起始矩阵（clone 避免后续帧覆盖）
     final Matrix4 start = _transformController.value.clone();
@@ -339,6 +351,8 @@ class _ZoomableImagePageState extends State<_ZoomableImagePage> {
       // 未缩放时禁用手势，消除与 PageView 的手势竞技场竞争
       panEnabled: widget.isZoomed,
       child: GestureDetector(
+        onDoubleTapDown: (details) =>
+            _lastDoubleTapPosition = details.localPosition,
         onDoubleTap: _onDoubleTap,
         behavior: HitTestBehavior.translucent,
         child: Center(
