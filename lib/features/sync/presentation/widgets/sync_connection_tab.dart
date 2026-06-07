@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -39,6 +40,14 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
     _nameController.dispose();
     _rootDirController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickMediaRootDirectory() async {
+    final result = await FilePicker.getDirectoryPath();
+    if (result != null && mounted) {
+      _rootDirController.text = result;
+      ref.read(mediaRootDirectoryProvider.notifier).setDirectory(result);
+    }
   }
 
   void _onModeChanged(bool serverMode) {
@@ -257,20 +266,23 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
             },
           ),
           const SizedBox(height: 16),
-          // 媒体根目录配置
+          // 媒体根目录配置（原生文件夹选择器）
           TextField(
             controller: _rootDirController,
-            decoration: const InputDecoration(
+            readOnly: true,
+            decoration: InputDecoration(
               labelText: '媒体根目录（可选）',
-              hintText: '例如 D:\\Media',
-              border: OutlineInputBorder(),
+              hintText: '点击选择文件夹',
+              border: const OutlineInputBorder(),
+              suffixIcon: IconButton(
+                icon: const Icon(Icons.folder_open),
+                onPressed:
+                    serverState.isRunning ? null : _pickMediaRootDirectory,
+                tooltip: '选择文件夹',
+              ),
             ),
             enabled: !serverState.isRunning,
-            onSubmitted: (value) {
-              ref
-                  .read(mediaRootDirectoryProvider.notifier)
-                  .setDirectory(value);
-            },
+            onTap: _pickMediaRootDirectory,
           ),
           const SizedBox(height: 16),
           if (!serverState.isRunning) ...[
