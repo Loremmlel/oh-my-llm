@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../application/media_browser_controller.dart';
 import '../../data/media_mime_types.dart';
 import '../../domain/models/file_item.dart';
 
@@ -113,26 +114,12 @@ class MediaFileTile extends StatelessWidget {
   /// 构建缩略图完整 URL。
   String? _thumbnailFullUrl() {
     if (item.thumbnailUrl == null || thumbnailBaseUrl == null) return null;
-    // item.thumbnailUrl 如 "/api/media/thumbnail/sister/cat.mp4"（未编码）
-    // 路径每段需要编码以支持中文
-    final encodedPath = _encodeThumbnailPath(item.thumbnailUrl!);
-    return '$thumbnailBaseUrl$encodedPath';
-  }
-
-  /// 对 thumbnailUrl 中的路径段进行 URI 编码。
-  ///
-  /// 输入 "/api/media/thumbnail/sister/视频/cat.mp4"
-  /// 输出 "/api/media/thumbnail/sister/%E8%A7%86%E9%A2%91/cat.mp4"
-  String _encodeThumbnailPath(String url) {
+    final url = item.thumbnailUrl!;
+    // item.thumbnailUrl 如 "/api/media/thumbnail/sister/视频/cat.mp4"（未编码）
     const prefix = '/api/media/thumbnail/';
-    if (!url.startsWith(prefix)) return url;
+    if (!url.startsWith(prefix)) return '$thumbnailBaseUrl$url';
     final path = url.substring(prefix.length);
-    if (path.isEmpty) return url;
-    final encoded = path
-        .split('/')
-        .map(Uri.encodeComponent)
-        .join('/');
-    return '$prefix$encoded';
+    return '$thumbnailBaseUrl$prefix${encodeMediaPath(path)}';
   }
 
   /// 缩略图不可用时的回退图标。

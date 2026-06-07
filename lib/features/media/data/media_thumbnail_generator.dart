@@ -42,7 +42,7 @@ class MediaThumbnailGenerator {
       throw FileSystemException('文件不存在', resolvedPath);
     }
 
-    final ext = _extension(relativePath).toLowerCase();
+    final ext = extensionFromFileName(relativePath);
     if (isImageFile(relativePath)) {
       return _generateImageThumbnail(resolvedPath);
     } else if (isVideoFile(relativePath)) {
@@ -150,12 +150,12 @@ class MediaThumbnailGenerator {
     return duration;
   }
 
-  /// 检测 ffmpeg 和 ffprobe 是否在 PATH 中可用（仅执行一次）。
+  /// 检测 ffmpeg 和 ffprobe 是否在 PATH 中可用。
+  ///
+  /// 成功结果缓存到 [_ffmpegAvailable]，后续调用直接返回。
+  /// 失败结果不缓存——下次调用会重新检测，允许运行时安装 ffmpeg 后自动恢复。
   Future<void> _ensureFfmpegAvailable() async {
     if (_ffmpegAvailable == true) return;
-    if (_ffmpegAvailable == false) {
-      throw ThumbnailException('ffmpeg 未安装，无法生成视频缩略图');
-    }
 
     try {
       final ffmpegResult = await Process.run('ffmpeg', ['-version'])
@@ -163,9 +163,11 @@ class MediaThumbnailGenerator {
       final ffprobeResult = await Process.run('ffprobe', ['-version'])
           .timeout(const Duration(seconds: 5));
       _ffmpegAvailable = ffmpegResult.exitCode == 0 && ffprobeResult.exitCode == 0;
-    } catch (_) {
-      // ProcessException（未安装）或 TimeoutException（超时）均视为不可用
-      _ffmpegAvailable = false;
+    } on ProcessException catch (e) {
+      // 仅缓存成功结果，失败时保留原始错误信息供诊断
+      throw ThumbnailException('ffmpeg 未安装或无法启动: ${e.message}');
+    } on Exception catch (e) {
+      throw ThumbnailException('ffmpeg 检测失败: $e');
     }
 
     if (!_ffmpegAvailable!) {
@@ -173,12 +175,6 @@ class MediaThumbnailGenerator {
     }
   }
 
-  // ── 辅助 ──
-
-  String _extension(String fileName) {
-    final dot = fileName.lastIndexOf('.');
-    return dot >= 0 ? fileName.substring(dot + 1) : '';
-  }
 }
 
 /// 缩略图生成异常。
