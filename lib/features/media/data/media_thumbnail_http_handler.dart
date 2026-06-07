@@ -1,0 +1,112 @@
+import 'dart:io';
+
+import 'package:oh_my_llm/core/http/http_response_writer.dart';
+import 'package:oh_my_llm/core/http/http_route_handler.dart';
+
+import 'media_directory_scanner.dart';
+import 'media_thumbnail_cache.dart';
+import 'media_thumbnail_generator.dart';
+
+/// 处理 `GET /api/media/thumbnail/{path}` 请求的 Handler。
+///
+/// 流程：路径校验 → 查缓存 → 缓存未命中则生成 → 写缓存 → 返回 JPEG。
+///
+/// 缩略图是派生数据（可从原文件重新生成），因此设置 `Cache-Control: public, max-age=86400`
+/// 允许客户端缓存。原始媒体文件 handler 不设置此头以保持安全约束。
+class MediaThumbnailHttpHandler implements HttpRouteHandler {
+  final MediaDirectoryScanner _scanner;
+  final MediaThumbnailGenerator _generator;
+  final MediaThumbnailCache _cache;
+
+  MediaThumbnailHttpHandler({
+    required MediaDirectoryScanner scanner,
+    required MediaThumbnailGenerator generator,
+    required MediaThumbnailCache cache,
+  })  : _scanner = scanner,
+        _generator = generator,
+        _cache = cache;
+
+  @override
+  bool canHandle(HttpRequest request) =>
+      request.method == 'GET' &&
+      request.uri.path.startsWith('/api/media/thumbnail/');
+
+  @override
+  Future<void> handle(HttpRequest request) async {
+    try {
+      // 提取相对路径
+      final rawPath =
+          request.uri.path.substring('/api/media/thumbnail'.length);
+      if (rawPath.isEmpty || rawPath == '/') {
+        writeJsonError(request.response, HttpStatus.badRequest, '缺少文件路径');
+        return;
+      }
+      final relativePath = Uri.decodeComponent(rawPath);
+
+      // 安全校验
+      final resolvedPath = _scanner.resolvePath(relativePath);
+
+      // 检查文件存在性（单次 stat 调用，fileSize 后续复用）
+      final file = File(resolvedPath);
+      if (!file.existsSync()) {
+        writeJsonError(request.response, HttpStatus.notFound, '文件不存在');
+        return;
+      }
+
+      final stat = file.statSync();
+      final fileSize = stat.size;
+      final lastModified = stat.modified.millisecondsSinceEpoch;
+
+      // — 缓存命中 —
+      final cached = _cache.get(relativePath, fileSize, lastModified);
+      if (cached != null) {
+        await _serveFile(request.response, cached, fileSize);
+        return;
+      }
+
+      // — 生成缩略图 —
+      final jpegBytes = await _generator.generate(relativePath);
+
+      // — 写入缓存 —
+      final cacheFile =
+          await _cache.put(relativePath, fileSize, lastModified, jpegBytes);
+
+      // — 返回 —
+      await _serveFile(request.response, cacheFile, fileSize);
+    } on PathTraversalException catch (e) {
+      writeJsonError(
+          request.response, HttpStatus.forbidden, '路径穿越被拒绝: $e');
+    } on ProcessException catch (e) {
+      // ffmpeg/ffprobe 未安装或无法启动
+      writeJsonError(
+          request.response, HttpStatus.internalServerError, '外部工具调用失败（ffmpeg 可能未安装）: ${e.message}');
+    } on ThumbnailException catch (e) {
+      writeJsonError(
+          request.response, HttpStatus.internalServerError, '缩略图生成失败: ${e.message}');
+    } on FileSystemException catch (e) {
+      final status = e.osError?.errorCode == 2
+          ? HttpStatus.notFound
+          : HttpStatus.internalServerError;
+      writeJsonError(request.response, status, '文件访问失败: ${e.message}');
+    } catch (e) {
+      writeJsonError(
+          request.response, HttpStatus.internalServerError, '服务端错误: $e');
+    }
+  }
+
+  /// 流式返回 JPEG 文件。
+  ///
+  /// [contentLength] 由调用方预先获取，避免重复 `stat` 系统调用。
+  Future<void> _serveFile(HttpResponse response, File file, int contentLength) async {
+    final stream = file.openRead();
+    response
+      ..statusCode = HttpStatus.ok
+      ..headers.contentType = ContentType('image', 'jpeg')
+      ..headers.set('Content-Length', contentLength.toString())
+      // 缩略图是派生缓存数据，允许客户端缓存 24 小时
+      ..headers.set('Cache-Control', 'public, max-age=86400')
+      ..headers.set('Access-Control-Allow-Origin', '*');
+    await response.addStream(stream);
+    await response.close();
+  }
+}
