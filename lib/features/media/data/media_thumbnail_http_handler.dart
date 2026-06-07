@@ -60,7 +60,9 @@ class MediaThumbnailHttpHandler implements HttpRouteHandler {
       // — 缓存命中 —
       final cached = _cache.get(relativePath, fileSize, lastModified);
       if (cached != null) {
-        await _serveFile(request.response, cached, fileSize);
+        // 从缓存文件读取字节，避免流式传输中文件锁问题
+        final cachedBytes = await cached.readAsBytes();
+        await _sendJpegResponse(request.response, cachedBytes, cachedBytes.length);
         return;
       }
 
@@ -68,11 +70,10 @@ class MediaThumbnailHttpHandler implements HttpRouteHandler {
       final jpegBytes = await _generator.generate(relativePath);
 
       // — 写入缓存 —
-      final cacheFile =
-          await _cache.put(relativePath, fileSize, lastModified, jpegBytes);
+      await _cache.put(relativePath, fileSize, lastModified, jpegBytes);
 
       // — 返回 —
-      await _serveFile(request.response, cacheFile, fileSize);
+      await _sendJpegResponse(request.response, jpegBytes, jpegBytes.length);
     } on PathTraversalException catch (e) {
       writeJsonError(
           request.response, HttpStatus.forbidden, '路径穿越被拒绝: $e');
@@ -94,19 +95,18 @@ class MediaThumbnailHttpHandler implements HttpRouteHandler {
     }
   }
 
-  /// 流式返回 JPEG 文件。
+  /// 发送 JPEG 响应（从内存字节数组）。
   ///
-  /// [contentLength] 由调用方预先获取，避免重复 `stat` 系统调用。
-  Future<void> _serveFile(HttpResponse response, File file, int contentLength) async {
-    final stream = file.openRead();
+  /// 直接从内存写入，避免流式传输中的文件锁问题。
+  Future<void> _sendJpegResponse(HttpResponse response, List<int> bytes, int contentLength) async {
     response
       ..statusCode = HttpStatus.ok
       ..headers.contentType = ContentType('image', 'jpeg')
       ..headers.set('Content-Length', contentLength.toString())
       // 缩略图是派生缓存数据，允许客户端缓存 24 小时
       ..headers.set('Cache-Control', 'public, max-age=86400')
-      ..headers.set('Access-Control-Allow-Origin', '*');
-    await response.addStream(stream);
+      ..headers.set('Access-Control-Allow-Origin', '*')
+      ..add(bytes);
     await response.close();
   }
 }
