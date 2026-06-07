@@ -44,8 +44,52 @@ flutter build apk --release                    # Android APK
 
 ## Git 工作流
 
-- **pre-commit hook**：安装方式 `git config core.hooksPath .githooks`。每次提交前根据 commit message 第一行语义自动更新版本号：`feat:` → minor+1、`type!:` → major+1、其他 → patch+1。仅 `git commit -m` 生效（编辑器提交因 message 尚未写入，默认退化为 patch+1）。改动 >500 行且无标准前缀时提醒但不阻塞。
-- **提交粒度**：每个功能点 / 修复单独提交，不批量合并无关改动。
+### Pre-commit Hook
+
+安装方式 `git config core.hooksPath .githooks`。每次提交前根据 commit message **第一行**语义自动更新版本号：
+
+| 前缀 | 版本策略 |
+|------|---------|
+| `feat:` 或 `feat(scope):` | minor+1, patch 归零 |
+| `type!:` 或 `type(scope)!:` | major+1, minor/patch 归零 |
+| 其他（fix/docs/refactor 等） | patch+1（默认） |
+
+仅 `git commit -m` 生效（编辑器提交因 message 尚未写入，默认退化为 patch+1）。改动 >500 行且无标准前缀时提醒但不阻塞。
+
+### Commit Message 格式（务必遵守）
+
+**本项目的 Claude Code 工作在 Bash 工具中运行 `git commit`，绝不能在 Bash 中使用 PowerShell here-string（`@'...'@`）！**
+
+Bash 不认识 `@'` 语法，会把它当作普通字符串写入 `.git/COMMIT_EDITMSG` 第一行。Hook 的 `head -1` 读到 `@` 字符，匹配不上 Conventional Commits 前缀，版本号错误退化为 patch+1。
+
+**多行 commit message 正确写法**（Bash 兼容）：
+
+```bash
+# 方案 1：多个 -m 逐段追加（推荐）
+git commit -m "feat: 简短描述（hook 只看第一行）" \
+           -m "详细 body 段落一" \
+           -m "详细 body 段落二"
+
+# 方案 2：Bash here-doc（复杂消息）
+git commit -m "$(cat <<'EOF'
+feat: 简短描述
+
+详细 body 段落一
+
+详细 body 段落二
+EOF
+)"
+```
+
+**Commit message 必须以 End-of-message trailer 结尾**：
+
+```
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+```
+
+### 提交粒度
+
+每个功能点 / 修复单独提交，不批量合并无关改动。
 
 ---
 
