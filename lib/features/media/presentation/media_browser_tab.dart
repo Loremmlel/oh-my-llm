@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../application/media_browser_controller.dart';
+import '../data/media_mime_types.dart';
+import 'pages/image_viewer_page.dart';
+import 'pages/video_player_page.dart';
 import 'widgets/media_grid_view.dart';
 import 'widgets/media_path_bar.dart';
 
@@ -50,12 +53,44 @@ class _MediaBrowserTabState extends ConsumerState<MediaBrowserTab> {
               onItemTap: (item) {
                 if (item.isDirectory) {
                   controller.navigateTo(item.relativePath);
+                } else if (isImageFile(item.name)) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ImageViewerPage(
+                        imageUrl: _buildMediaUrl('image', item.relativePath),
+                        fileName: item.name,
+                      ),
+                    ),
+                  );
+                } else if (isVideoFile(item.name)) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => VideoPlayerPage(
+                        videoUrl: _buildMediaUrl('video', item.relativePath),
+                        fileName: item.name,
+                      ),
+                    ),
+                  );
                 }
+                // 其他类型文件：无操作
               },
             ),
           ),
         ],
       ),
     );
+  }
+
+  /// 构建媒体资源访问 URL。
+  ///
+  /// 路径每段单独编码以支持中文。
+  /// 返回空字符串若 server 未就绪（防御性编程）。
+  String _buildMediaUrl(String type, String relativePath) {
+    final server = ref.read(mediaBrowserControllerProvider).server;
+    if (server == null) return '';
+    final encodedPath = encodeMediaPath(relativePath);
+    return 'http://${server.ip}:${server.httpPort}/api/media/$type/$encodedPath';
   }
 }

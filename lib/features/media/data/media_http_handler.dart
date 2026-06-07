@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:oh_my_llm/core/http/http_response_writer.dart';
 import 'package:oh_my_llm/core/http/http_route_handler.dart';
 
 import 'media_directory_scanner.dart';
@@ -12,8 +13,8 @@ import 'media_directory_scanner.dart';
 class MediaHttpHandler implements HttpRouteHandler {
   final MediaDirectoryScanner _scanner;
 
-  MediaHttpHandler({required String rootDirectory})
-      : _scanner = MediaDirectoryScanner(rootDirectory);
+  MediaHttpHandler({required MediaDirectoryScanner scanner})
+      : _scanner = scanner;
 
   @override
   bool canHandle(HttpRequest request) =>
@@ -46,24 +47,15 @@ class MediaHttpHandler implements HttpRouteHandler {
         ..write(json)
         ..close();
     } on PathTraversalException catch (e) {
-      _writeError(request, HttpStatus.forbidden, '路径穿越被拒绝: $e');
+      writeJsonError(request.response, HttpStatus.forbidden, '路径穿越被拒绝: $e');
     } on FileSystemException catch (e) {
       // errno 2 = ENOENT (No such file or directory)
       final status = e.osError?.errorCode == 2
           ? HttpStatus.notFound
           : HttpStatus.internalServerError;
-      _writeError(request, status, '目录访问失败: ${e.message}');
+      writeJsonError(request.response, status, '目录访问失败: ${e.message}');
     } catch (e) {
-      _writeError(request, HttpStatus.internalServerError, '服务端错误: $e');
+      writeJsonError(request.response, HttpStatus.internalServerError, '服务端错误: $e');
     }
-  }
-
-  void _writeError(HttpRequest request, int status, String message) {
-    request.response
-      ..statusCode = status
-      ..headers.contentType = ContentType.json
-      ..headers.set('Access-Control-Allow-Origin', '*')
-      ..write(jsonEncode({'error': message}))
-      ..close();
   }
 }
