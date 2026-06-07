@@ -12,6 +12,7 @@ import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/settings_export_data.dart';
 import 'package:oh_my_llm/features/sync/application/sync_client_controller.dart';
+import 'package:oh_my_llm/features/sync/data/sync_http_handler.dart';
 import 'package:oh_my_llm/features/sync/data/sync_http_server.dart';
 import 'package:oh_my_llm/features/sync/data/sync_udp_discovery.dart';
 import 'package:oh_my_llm/features/sync/domain/models/sync_message.dart';
@@ -49,9 +50,10 @@ class _SyncHttpTestServer {
 
   Future<void> start({required SyncMessage Function(SyncMessage) handler}) async {
     _server = SyncHttpServer();
-    port = await _server.start(
+    final syncHandler = SyncHttpHandler(
       onRequest: (request) async => handler(request),
     );
+    port = await _server.start(handlers: [syncHandler]);
   }
 
   Future<void> close() async {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../media/application/media_root_directory_controller.dart';
 import '../../../settings/presentation/widgets/settings_section_card.dart';
 import '../../application/network_interface_provider.dart';
 import '../../application/sync_client_controller.dart';
@@ -19,6 +20,7 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
     with AutomaticKeepAliveClientMixin {
   bool _isServerMode = false;
   late TextEditingController _nameController;
+  late TextEditingController _rootDirController;
 
   @override
   bool get wantKeepAlive => true;
@@ -28,11 +30,14 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
     super.initState();
     final serverState = ref.read(syncServerControllerProvider);
     _nameController = TextEditingController(text: serverState.deviceName);
+    final rootDir = ref.read(mediaRootDirectoryProvider);
+    _rootDirController = TextEditingController(text: rootDir ?? '');
   }
 
   @override
   void dispose() {
     _nameController.dispose();
+    _rootDirController.dispose();
     super.dispose();
   }
 
@@ -249,6 +254,22 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
               ref
                   .read(syncServerControllerProvider.notifier)
                   .updateDeviceName(value);
+            },
+          ),
+          const SizedBox(height: 16),
+          // 媒体根目录配置
+          TextField(
+            controller: _rootDirController,
+            decoration: const InputDecoration(
+              labelText: '媒体根目录（可选）',
+              hintText: '例如 D:\\Media',
+              border: OutlineInputBorder(),
+            ),
+            enabled: !serverState.isRunning,
+            onSubmitted: (value) {
+              ref
+                  .read(mediaRootDirectoryProvider.notifier)
+                  .setDirectory(value);
             },
           ),
           const SizedBox(height: 16),

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 
+import '../../../core/http/http_route_handler.dart';
 import '../../../core/persistence/shared_preferences_provider.dart';
 import '../../settings/application/auto_retry_settings_controller.dart';
 import '../../settings/application/fixed_prompt_sequences_controller.dart';
@@ -11,6 +12,9 @@ import '../../settings/application/memory_prompts_controller.dart';
 import '../../settings/application/preset_prompts_controller.dart';
 import '../../settings/application/template_prompts_controller.dart';
 import '../../settings/domain/models/settings_export_data.dart';
+import '../../media/application/media_root_directory_controller.dart';
+import '../../media/data/media_http_handler.dart';
+import '../data/sync_http_handler.dart';
 import '../data/sync_http_server.dart';
 import '../data/sync_udp_discovery.dart';
 import '../domain/models/network_interface_info.dart';
@@ -97,7 +101,14 @@ class SyncServerController extends Notifier<SyncServerState> {
         broadcastAddr = InternetAddress(selectedIface.broadcast);
       }
 
-      final port = await _httpServer.start(onRequest: _handleRequest);
+      final handlers = <HttpRouteHandler>[
+        SyncHttpHandler(onRequest: _handleRequest),
+      ];
+      final rootDir = ref.read(mediaRootDirectoryProvider);
+      if (rootDir != null && rootDir.isNotEmpty) {
+        handlers.add(MediaHttpHandler(rootDirectory: rootDir));
+      }
+      final port = await _httpServer.start(handlers: handlers);
       _stopBroadcasting = await SyncUdpDiscovery.startBroadcasting(
         httpPort: port,
         deviceName: state.deviceName,
