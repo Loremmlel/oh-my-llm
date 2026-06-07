@@ -26,6 +26,12 @@ class _MediaBrowserTabState extends ConsumerState<MediaBrowserTab> {
   Widget build(BuildContext context) {
     final state = ref.watch(mediaBrowserControllerProvider);
     final controller = ref.read(mediaBrowserControllerProvider.notifier);
+    final server = state.server;
+
+    // 构建缩略图 base URL（server 未就绪时为 null，回退到图标模式）
+    final thumbnailBase = (server != null)
+        ? 'http://${server.ip}:${server.httpPort}'
+        : null;
 
     return PopScope(
       canPop: false,
@@ -50,6 +56,7 @@ class _MediaBrowserTabState extends ConsumerState<MediaBrowserTab> {
               items: state.items,
               isLoading: state.isLoading,
               errorMessage: state.errorMessage,
+              thumbnailBaseUrl: thumbnailBase,
               onItemTap: (item) {
                 if (item.isDirectory) {
                   controller.navigateTo(item.relativePath);
