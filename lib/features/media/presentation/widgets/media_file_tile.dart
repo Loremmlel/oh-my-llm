@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../data/media_mime_types.dart';
 import '../../domain/models/file_item.dart';
 
 /// 单个文件/文件夹卡片。
@@ -62,11 +63,8 @@ class MediaFileTile extends StatelessWidget {
   }
 
   IconData _fileIcon() {
-    final ext = item.name.split('.').last.toLowerCase();
-    return switch (ext) {
-      'jpg' || 'jpeg' || 'png' || 'webp' || 'gif' => Icons.image,
-      'mp4' || 'mkv' || 'mov' || 'avi' || 'webm' => Icons.movie,
-      _ => Icons.insert_drive_file,
-    };
+    if (isImageFile(item.name)) return Icons.image;
+    if (isVideoFile(item.name)) return Icons.movie;
+    return Icons.insert_drive_file;
   }
 }

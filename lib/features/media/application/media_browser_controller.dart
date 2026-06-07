@@ -8,6 +8,18 @@ import '../domain/models/file_item.dart';
 
 const Object _sentinel = Object();
 
+/// 对媒体路径的每段进行 URI 编码，以支持中文等非 ASCII 字符。
+///
+/// 根路径 `/` 返回空字符串。
+String encodeMediaPath(String path) {
+  if (path == '/') return '';
+  return path
+      .split('/')
+      .where((s) => s.isNotEmpty)
+      .map(Uri.encodeComponent)
+      .join('/');
+}
+
 /// 媒体浏览器状态。
 class MediaBrowserState {
   const MediaBrowserState({
@@ -89,13 +101,7 @@ class MediaBrowserController extends Notifier<MediaBrowserState> {
 
     try {
       // 路径每段单独编码以支持中文
-      final encodedPath = path == '/'
-          ? ''
-          : path
-              .split('/')
-              .where((s) => s.isNotEmpty)
-              .map(Uri.encodeComponent)
-              .join('/');
+      final encodedPath = encodeMediaPath(path);
       final url = Uri.parse(
         'http://${server.ip}:${server.httpPort}/api/media/list/$encodedPath',
       );

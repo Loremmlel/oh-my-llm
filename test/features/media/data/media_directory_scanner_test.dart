@@ -1,0 +1,144 @@
+import 'dart:io';
+
+import 'package:flutter_test/flutter_test.dart';
+
+import 'package:oh_my_llm/features/media/data/media_directory_scanner.dart';
+
+void main() {
+  group('MediaDirectoryScanner.resolvePath', () {
+    late Directory tempRoot;
+    late MediaDirectoryScanner scanner;
+    late Directory subDir;
+
+    setUp(() {
+      tempRoot = Directory.systemTemp.createTempSync('media_scanner_test_');
+      subDir = Directory('${tempRoot.path}${Platform.pathSeparator}subdir');
+      subDir.createSync();
+      File('${subDir.path}${Platform.pathSeparator}test.jpg').writeAsStringSync(
+        'fake image content',
+      );
+    });
+
+    tearDown(() {
+      tempRoot.deleteSync(recursive: true);
+    });
+
+    MediaDirectoryScanner _createScanner() {
+      return MediaDirectoryScanner(tempRoot.path);
+    }
+
+    test('正常路径解析返回绝对路径', () {
+      scanner = _createScanner();
+      final resolved = scanner.resolvePath('/');
+      expect(resolved.toLowerCase(), tempRoot.absolute.path.toLowerCase());
+    });
+
+    test('子目录路径解析正确', () {
+      scanner = _createScanner();
+      final resolved = scanner.resolvePath('/subdir');
+      expect(
+        resolved.toLowerCase(),
+        subDir.absolute.path.toLowerCase(),
+      );
+    });
+
+    test('中文路径正常解析', () {
+      final chineseDir = Directory(
+        '${tempRoot.path}${Platform.pathSeparator}妹妹',
+      );
+      chineseDir.createSync();
+      File('${chineseDir.path}${Platform.pathSeparator}照片.jpg')
+          .writeAsStringSync('photo');
+
+      scanner = _createScanner();
+      final resolved = scanner.resolvePath('/妹妹');
+      expect(
+        resolved.toLowerCase(),
+        chineseDir.absolute.path.toLowerCase(),
+      );
+    });
+
+    group('路径穿越检测', () {
+      setUp(() {
+        scanner = _createScanner();
+      });
+
+      test('../ 穿越被拒绝', () {
+        expect(
+          () => scanner.resolvePath('/../etc'),
+          throwsA(isA<PathTraversalException>()),
+        );
+      });
+
+      test('多层 ../ 穿越被拒绝', () {
+        expect(
+          () => scanner.resolvePath('/subdir/../../../'),
+          throwsA(isA<PathTraversalException>()),
+        );
+      });
+
+      test('以 / 开头但含 .. 被拒绝', () {
+        expect(
+          () => scanner.resolvePath('/../..'),
+          throwsA(isA<PathTraversalException>()),
+        );
+      });
+    });
+
+    test('不检查路径存在性（调用方自行判断）', () {
+      scanner = _createScanner();
+      // 不存在的路径不会抛异常（仅有路径穿越才抛）
+      final resolved = scanner.resolvePath('/不存在的路径');
+      expect(resolved, isNotEmpty);
+      // 但文件/目录确实不存在
+      expect(File(resolved).existsSync(), isFalse);
+    });
+  });
+
+  group('MediaDirectoryScanner.scan', () {
+    late Directory tempRoot;
+    late MediaDirectoryScanner scanner;
+
+    setUp(() {
+      tempRoot = Directory.systemTemp.createTempSync('media_scan_test_');
+      scanner = MediaDirectoryScanner(tempRoot.path);
+
+      // 创建测试目录结构
+      Directory('${tempRoot.path}${Platform.pathSeparator}folderB').createSync();
+      Directory('${tempRoot.path}${Platform.pathSeparator}folderA').createSync();
+      File('${tempRoot.path}${Platform.pathSeparator}bbb.mp4').writeAsStringSync(
+        'video',
+      );
+      File('${tempRoot.path}${Platform.pathSeparator}aaa.mp4').writeAsStringSync(
+        'video',
+      );
+    });
+
+    tearDown(() {
+      tempRoot.deleteSync(recursive: true);
+    });
+
+    test('排序：文件夹在前，文件在后，同类型按名称升序', () async {
+      final items = await scanner.scan('/');
+
+      expect(items.length, 4);
+      // 前两个是文件夹（字母序）
+      expect(items[0].name, 'folderA');
+      expect(items[0].isDirectory, isTrue);
+      expect(items[1].name, 'folderB');
+      expect(items[1].isDirectory, isTrue);
+      // 后两个是文件（字母序）
+      expect(items[2].name, 'aaa.mp4');
+      expect(items[2].isDirectory, isFalse);
+      expect(items[3].name, 'bbb.mp4');
+      expect(items[3].isDirectory, isFalse);
+    });
+
+    test('扫描不存在的目录抛出 FileSystemException', () async {
+      expect(
+        () => scanner.scan('/不存在的目录'),
+        throwsA(isA<FileSystemException>()),
+      );
+    });
+  });
+}

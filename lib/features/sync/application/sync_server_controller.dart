@@ -13,7 +13,10 @@ import '../../settings/application/preset_prompts_controller.dart';
 import '../../settings/application/template_prompts_controller.dart';
 import '../../settings/domain/models/settings_export_data.dart';
 import '../../media/application/media_root_directory_controller.dart';
+import '../../media/data/media_directory_scanner.dart';
 import '../../media/data/media_http_handler.dart';
+import '../../media/data/media_image_http_handler.dart';
+import '../../media/data/media_video_http_handler.dart';
 import '../data/sync_http_handler.dart';
 import '../data/sync_http_server.dart';
 import '../data/sync_udp_discovery.dart';
@@ -108,7 +111,11 @@ class SyncServerController extends Notifier<SyncServerState> {
       if (Platform.isWindows) {
         final rootDir = ref.read(mediaRootDirectoryProvider);
         if (rootDir != null && rootDir.isNotEmpty) {
-          handlers.add(MediaHttpHandler(rootDirectory: rootDir));
+          // 三个 Handler 共享同一个 scanner 实例，避免重复解析符号链接
+          final scanner = MediaDirectoryScanner(rootDir);
+          handlers.add(MediaHttpHandler(scanner: scanner));
+          handlers.add(MediaImageHttpHandler(scanner: scanner));
+          handlers.add(MediaVideoHttpHandler(scanner: scanner));
         }
       }
       final port = await _httpServer.start(handlers: handlers);
