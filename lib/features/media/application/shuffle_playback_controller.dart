@@ -75,13 +75,19 @@ class ShufflePlaybackController extends Notifier<ShufflePlaybackState> {
         const Duration(seconds: 15),
       );
 
-      if (response.statusCode != 200) return null;
+      if (response.statusCode != 200) {
+        state = const ShufflePlaybackIdle();
+        return null;
+      }
 
       final list = (jsonDecode(response.body) as List)
           .map((e) => VideoItem.fromJson(e as Map<String, dynamic>))
           .toList();
 
-      if (list.isEmpty) return null;
+      if (list.isEmpty) {
+        state = const ShufflePlaybackIdle();
+        return null;
+      }
 
       // Fisher-Yates shuffle（只对 ≥2 个项有意义）
       if (list.length >= 2) list.shuffle(_random);
