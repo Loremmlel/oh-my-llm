@@ -17,6 +17,7 @@ import '../../media/data/media_directory_scanner.dart';
 import '../../media/data/media_http_handler.dart';
 import '../../media/data/media_image_http_handler.dart';
 import '../../media/data/media_video_http_handler.dart';
+import '../../media/data/media_recursive_videos_handler.dart';
 import '../../media/data/media_thumbnail_cache.dart';
 import '../../media/data/media_thumbnail_generator.dart';
 import '../../media/data/media_thumbnail_http_handler.dart';
@@ -119,6 +120,7 @@ class SyncServerController extends Notifier<SyncServerState> {
           handlers.add(MediaHttpHandler(scanner: scanner));
           handlers.add(MediaImageHttpHandler(scanner: scanner));
           handlers.add(MediaVideoHttpHandler(scanner: scanner));
+          handlers.add(MediaRecursiveVideosHandler(scanner: scanner));
           final thumbnailCache = await MediaThumbnailCache.defaultLocation();
           handlers.add(MediaThumbnailHttpHandler(
             scanner: scanner,
