@@ -211,8 +211,10 @@ void main() {
       final videos = await scanner.scanRecursiveVideos('/');
 
       final deepVideo = videos.firstWhere((v) => v.name == 'video3.avi');
-      expect(deepVideo.relativePath.toLowerCase(),
-          contains('deep/video3.avi'.toLowerCase()));
+      expect(
+        deepVideo.relativePath.toLowerCase(),
+        endsWith('/sub/deep/video3.avi'.toLowerCase()),
+      );
     });
 
     test('空目录返回空列表', () async {
@@ -244,6 +246,11 @@ void main() {
         () => scanner.scanRecursiveVideos('/../etc'),
         throwsA(isA<PathTraversalException>()),
       );
+    });
+
+    test('VideoItem toJson/fromJson 往返一致', () {
+      const item = VideoItem(name: 'test.mp4', relativePath: '/sub/test.mp4');
+      expect(VideoItem.fromJson(item.toJson()), equals(item));
     });
   });
 }
