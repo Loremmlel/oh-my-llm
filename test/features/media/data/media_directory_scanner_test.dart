@@ -156,4 +156,94 @@ void main() {
       expect(folderItem.thumbnailUrl, isNull);
     });
   });
+
+  group('MediaDirectoryScanner.scanRecursiveVideos', () {
+    late Directory tempRoot;
+    late MediaDirectoryScanner scanner;
+
+    setUp(() {
+      tempRoot = Directory.systemTemp.createTempSync('media_recursive_test_');
+      scanner = MediaDirectoryScanner(tempRoot.path);
+
+      // 嵌套目录结构：
+      // root/
+      //   video1.mp4
+      //   sub/
+      //     video2.mkv
+      //     deep/
+      //       video3.avi
+      //   images/
+      //     photo.jpg
+      //   empty/
+      Directory('${tempRoot.path}${Platform.pathSeparator}sub'
+              '${Platform.pathSeparator}deep')
+          .createSync(recursive: true);
+      Directory('${tempRoot.path}${Platform.pathSeparator}images').createSync();
+      Directory('${tempRoot.path}${Platform.pathSeparator}empty').createSync();
+
+      File('${tempRoot.path}${Platform.pathSeparator}video1.mp4')
+          .writeAsStringSync('video1');
+      File('${tempRoot.path}${Platform.pathSeparator}sub'
+              '${Platform.pathSeparator}video2.mkv')
+          .writeAsStringSync('video2');
+      File('${tempRoot.path}${Platform.pathSeparator}sub'
+              '${Platform.pathSeparator}deep${Platform.pathSeparator}video3.avi')
+          .writeAsStringSync('video3');
+      File('${tempRoot.path}${Platform.pathSeparator}images'
+              '${Platform.pathSeparator}photo.jpg')
+          .writeAsStringSync('photo');
+    });
+
+    tearDown(() {
+      tempRoot.deleteSync(recursive: true);
+    });
+
+    test('递归收集所有视频文件，按名称排序', () async {
+      final videos = await scanner.scanRecursiveVideos('/');
+
+      expect(videos.length, 3);
+      expect(videos[0].name, 'video1.mp4');
+      expect(videos[1].name, 'video2.mkv');
+      expect(videos[2].name, 'video3.avi');
+    });
+
+    test('每个视频条目包含 name 和 relativePath', () async {
+      final videos = await scanner.scanRecursiveVideos('/');
+
+      final deepVideo = videos.firstWhere((v) => v.name == 'video3.avi');
+      expect(deepVideo.relativePath.toLowerCase(),
+          contains('deep/video3.avi'.toLowerCase()));
+    });
+
+    test('空目录返回空列表', () async {
+      final videos = await scanner.scanRecursiveVideos('/empty');
+      expect(videos, isEmpty);
+    });
+
+    test('纯图片目录返回空列表', () async {
+      final videos = await scanner.scanRecursiveVideos('/images');
+      expect(videos, isEmpty);
+    });
+
+    test('隐藏文件被过滤', () async {
+      File('${tempRoot.path}${Platform.pathSeparator}.hidden.mp4')
+          .writeAsStringSync('hidden');
+      final videos = await scanner.scanRecursiveVideos('/');
+      expect(videos.any((v) => v.name == '.hidden.mp4'), isFalse);
+    });
+
+    test('不存在的目录抛出 FileSystemException', () async {
+      expect(
+        () => scanner.scanRecursiveVideos('/不存在的目录'),
+        throwsA(isA<FileSystemException>()),
+      );
+    });
+
+    test('路径穿越被拒绝', () async {
+      expect(
+        () => scanner.scanRecursiveVideos('/../etc'),
+        throwsA(isA<PathTraversalException>()),
+      );
+    });
+  });
 }
