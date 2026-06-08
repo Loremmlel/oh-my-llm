@@ -1,5 +1,25 @@
 import 'package:flutter/material.dart';
 
+// ── 中央提示类型 ────────────────────────────────────────────────────
+
+/// 视频播放器中央提示类型（Phase 6 手势系统使用）。
+enum CenterHintType {
+  /// 无提示（默认）
+  none,
+
+  /// 快进 15s >>
+  fastForward,
+
+  /// << 15s 快退
+  rewind,
+
+  /// 拖动 seek，显示目标时间
+  seek,
+
+  /// 长按倍速 3.0x
+  speed,
+}
+
 // ── 时间格式化 ──────────────────────────────────────────────────────
 
 /// 将 Duration 格式化为显示字符串。
@@ -331,17 +351,80 @@ class VideoBottomBar extends StatelessWidget {
 
 /// 视频播放器中央提示区域。
 ///
-/// 圆角矩形半透明背景，尺寸仅包裹内容。用于显示暂停/播放结束图标。
-/// Phase 6 可扩展为快进/快退/Seek/倍速提示。
+/// 圆角矩形半透明背景，尺寸仅包裹内容。
+/// 支持多种提示类型：暂停/播放结束图标、快进/快退提示、Seek 时间预览、倍速提示。
 class VideoCenterHint extends StatelessWidget {
-  /// 是否显示（仅在暂停或播放结束时为 true）
+  /// 是否显示
   final bool visible;
 
-  const VideoCenterHint({super.key, required this.visible});
+  /// 提示类型（Phase 6）
+  final CenterHintType hintType;
+
+  /// Seek 预览时间（[hintType] 为 [CenterHintType.seek] 时有效）
+  final Duration? seekPosition;
+
+  /// 是否在无手势提示时显示暂停图标
+  final bool showPauseIcon;
+
+  const VideoCenterHint({
+    super.key,
+    required this.visible,
+    this.hintType = CenterHintType.none,
+    this.seekPosition,
+    this.showPauseIcon = true,
+  });
 
   @override
   Widget build(BuildContext context) {
     if (!visible) return const SizedBox.shrink();
+
+    Widget content;
+    switch (hintType) {
+      case CenterHintType.fastForward:
+        content = const _HintContent(
+          icon: Icons.fast_forward,
+          label: '15s',
+          iconFirst: true,
+        );
+      case CenterHintType.rewind:
+        content = const _HintContent(
+          icon: Icons.fast_rewind,
+          label: '15s',
+          iconFirst: false,
+        );
+      case CenterHintType.seek:
+        content = Text(
+          formatVideoDuration(seekPosition ?? Duration.zero),
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        );
+      case CenterHintType.speed:
+        content = const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.speed, color: Colors.white, size: 24),
+            SizedBox(width: 4),
+            Text(
+              '3.0x',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        );
+      case CenterHintType.none:
+        if (showPauseIcon) {
+          content =
+              const Icon(Icons.play_arrow, color: Colors.white, size: 48);
+        } else {
+          return const SizedBox.shrink();
+        }
+    }
 
     return Center(
       child: Container(
@@ -351,8 +434,39 @@ class VideoCenterHint extends StatelessWidget {
           color: Colors.black.withValues(alpha: 0.25),
           borderRadius: BorderRadius.circular(16),
         ),
-        child: const Icon(Icons.play_arrow, color: Colors.white, size: 48),
+        child: content,
       ),
+    );
+  }
+}
+
+/// 快进/快退提示内容：图标 + 文字。
+///
+/// [iconFirst] 控制图标是否在文字前面。
+class _HintContent extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool iconFirst;
+
+  const _HintContent({
+    required this.icon,
+    required this.label,
+    required this.iconFirst,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final iconWidget = Icon(icon, color: Colors.white, size: 24);
+    final labelWidget = Text(
+      label,
+      style: const TextStyle(color: Colors.white, fontSize: 16),
+    );
+    final gap = const SizedBox(width: 4);
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children:
+          iconFirst ? [iconWidget, gap, labelWidget] : [labelWidget, gap, iconWidget],
     );
   }
 }
