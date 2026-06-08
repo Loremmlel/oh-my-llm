@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../application/media_browser_controller.dart';
+import '../application/shuffle_playback_controller.dart';
 import '../data/media_mime_types.dart';
 import 'pages/image_viewer_page.dart';
 import 'pages/video_player_page.dart';
@@ -25,6 +26,14 @@ class _MediaBrowserTabState extends ConsumerState<MediaBrowserTab> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(mediaBrowserControllerProvider);
+    // 监听目录切换 -> 清空随机播放列表
+    ref.listen<MediaBrowserState>(mediaBrowserControllerProvider, (prev, next) {
+      if (prev != null && prev.currentPath != next.currentPath) {
+        ref
+            .read(shufflePlaybackControllerProvider.notifier)
+            .clearIfDirectoryChanged(next.currentPath);
+      }
+    });
     final controller = ref.read(mediaBrowserControllerProvider.notifier);
     final server = state.server;
 
