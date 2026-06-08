@@ -141,6 +141,36 @@ class MediaDirectoryScanner {
     return items;
   }
 
+  /// 递归扫描目录树下所有视频文件，返回扁平 [VideoItem] 列表。
+  ///
+  /// 跳过隐藏文件、仅收集扩展名在 [videoExtensions] 中的文件、
+  /// 按名称升序排列。
+  Future<List<VideoItem>> scanRecursiveVideos(String relativePath) async {
+    final resolvedPath = resolvePath(relativePath);
+    final dir = Directory(resolvedPath);
+    if (!dir.existsSync()) {
+      throw FileSystemException('目录不存在', resolvedPath);
+    }
+
+    final videos = <VideoItem>[];
+    await for (final entity in dir.list(recursive: true)) {
+      if (entity is! File) continue;
+      final name = _fileName(entity.path);
+      if (name.startsWith('.')) continue;
+      if (_isWindowsHidden(entity)) continue;
+      if (!isVideoFile(name)) continue;
+
+      final relToRoot = entity.absolute.path.substring(resolvedRoot.length);
+      final relPath =
+          '/${relToRoot.replaceAll('\\', '/')}'.replaceAll(RegExp(r'/+'), '/');
+
+      videos.add(VideoItem(name: name, relativePath: relPath));
+    }
+
+    videos.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    return videos;
+  }
+
   /// 检查是否是 Windows 隐藏文件（FILE_ATTRIBUTE_HIDDEN）。
   ///
   /// 仅当运行在 Windows 上时检查；其他平台始终返回 false。
@@ -193,4 +223,34 @@ class MediaDirectoryScanner {
     }
     return idx;
   }
+}
+
+/// 递归扫描返回的轻量级视频条目。
+class VideoItem {
+  final String name;
+  final String relativePath;
+
+  const VideoItem({required this.name, required this.relativePath});
+
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        'relativePath': relativePath,
+      };
+
+  factory VideoItem.fromJson(Map<String, dynamic> json) {
+    return VideoItem(
+      name: json['name'] as String,
+      relativePath: json['relativePath'] as String,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is VideoItem &&
+          name == other.name &&
+          relativePath == other.relativePath;
+
+  @override
+  int get hashCode => Object.hash(name, relativePath);
 }
