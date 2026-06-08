@@ -7,6 +7,7 @@ import '../../../app/navigation/app_destination.dart';
 import '../../../app/shell/app_shell_scaffold.dart';
 import '../../media/application/media_browser_controller.dart';
 import '../../media/presentation/media_browser_tab.dart';
+import '../../media/presentation/widgets/shuffle_appbar_actions.dart';
 import '../application/sync_client_controller.dart';
 import '../application/sync_server_controller.dart';
 import 'widgets/sync_connection_tab.dart';
@@ -82,6 +83,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen>
       ref
           .read(sharedPreferencesProvider)
           .setInt(_syncLastTabIndexKey, _tabController.index);
+      setState(() {}); // 触发 rebuild 以更新 AppBar actions 可见性
     }
   }
 
@@ -118,9 +120,22 @@ class _SyncScreenState extends ConsumerState<SyncScreen>
         ),
     ];
 
+    // 仅在媒体 Tab 选中且有连接 server 时显示随机播放按钮
+    final mediaState = ref.watch(mediaBrowserControllerProvider);
+    final showShuffleActions = _hasMediaTab &&
+        _tabController.index == 2 &&
+        mediaState.server != null;
+
     return AppShellScaffold(
       currentDestination: AppDestination.sync,
       title: '局域网同步',
+      actions: showShuffleActions
+          ? [
+              ShuffleAppBarActions(
+                currentDirectoryPath: mediaState.currentPath,
+              ),
+            ]
+          : null,
       body: Column(
         children: [
           TabBar(
