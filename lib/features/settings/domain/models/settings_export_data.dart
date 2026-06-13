@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'auto_retry_settings.dart';
+import 'custom_headers_config.dart';
 import 'fixed_prompt_sequence.dart';
 import 'llm_model_config.dart';
 import 'llm_provider_config.dart';
@@ -34,13 +35,14 @@ class SettingsExportData {
     required this.templatePrompts,
     required this.fixedPromptSequences,
     this.autoRetrySettings,
+    this.customHeadersConfig,
   });
 
   /// 用于识别剪贴板内容是否为本应用导出数据的标识符。
   static const String identifier = 'shikiyuzu-oh-my-llm';
 
   /// 当前导出格式版本，未来格式变更时递增。
-  static const int formatVersion = 3;
+  static const int formatVersion = 4;
 
   final List<LlmProviderConfig> modelProviders;
   final List<MemoryPrompt> memoryPrompts;
@@ -48,6 +50,7 @@ class SettingsExportData {
   final List<TemplatePrompt> templatePrompts;
   final List<FixedPromptSequence> fixedPromptSequences;
   final AutoRetrySettings? autoRetrySettings;
+  final CustomHeadersConfig? customHeadersConfig;
 
   List<LlmModelConfig> get modelConfigs {
     return modelProviders
@@ -72,6 +75,11 @@ class SettingsExportData {
     final autoRetry = autoRetrySettings;
     if (autoRetry != null) {
       map['autoRetrySettings'] = autoRetry.toJson();
+    }
+
+    final customHeaders = customHeadersConfig;
+    if (customHeaders != null) {
+      map['customHeaders'] = customHeaders.toJson();
     }
 
     return jsonEncode(map);
@@ -110,6 +118,7 @@ class SettingsExportData {
           .toList(growable: false);
 
       final rawAutoRetry = raw['autoRetrySettings'] as Map<String, dynamic>?;
+      final rawCustomHeaders = raw['customHeaders'] as Map<String, dynamic>?;
 
       return SettingsExportData(
         modelProviders: modelProviders,
@@ -143,6 +152,9 @@ class SettingsExportData {
         autoRetrySettings: rawAutoRetry != null
             ? AutoRetrySettings.fromJson(rawAutoRetry)
             : null,
+        customHeadersConfig: rawCustomHeaders != null
+            ? CustomHeadersConfig.fromJson(rawCustomHeaders)
+            : null,
       );
     } catch (_) {
       // 任何解析错误都视为非本应用的剪贴板内容，静默忽略。
@@ -157,6 +169,7 @@ class SettingsExportData {
       presetPrompts.isNotEmpty ||
       templatePrompts.isNotEmpty ||
       fixedPromptSequences.isNotEmpty ||
-      autoRetrySettings != null;
+      autoRetrySettings != null ||
+      (customHeadersConfig != null && customHeadersConfig!.headers.isNotEmpty);
 
 }

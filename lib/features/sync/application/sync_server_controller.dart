@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/misc.dart';
 import '../../../core/http/http_route_handler.dart';
 import '../../../core/persistence/shared_preferences_provider.dart';
 import '../../settings/application/auto_retry_settings_controller.dart';
+import '../../settings/application/custom_headers_controller.dart';
 import '../../settings/application/fixed_prompt_sequences_controller.dart';
 import '../../settings/application/llm_model_configs_controller.dart';
 import '../../settings/application/memory_prompts_controller.dart';
@@ -240,6 +241,9 @@ class SyncServerController extends Notifier<SyncServerState> {
           : const [],
       autoRetrySettings: categories.contains(SyncCategory.other.payloadKey)
           ? ref.read(autoRetrySettingsProvider)
+          : null,
+      customHeadersConfig: categories.contains(SyncCategory.other.payloadKey)
+          ? ref.read(customHeadersProvider)
           : null,
     );
   }

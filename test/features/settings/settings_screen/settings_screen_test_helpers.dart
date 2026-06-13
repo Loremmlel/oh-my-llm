@@ -11,7 +11,7 @@ import '../../../helpers/test_harness.dart';
 
 const settingsLastTabIndexKey = 'settings.tab.last_index';
 
-const tabLabels = ['服务商', '预设', '提示词', '其它'];
+const tabLabels = ['服务商', '预设', '提示词', '其它', '网络'];
 
 /// 切换到指定标签页。
 Future<void> switchToTab(WidgetTester tester, int index) async {

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
+import '../../../core/http/http_client_provider.dart';
 import '../../sync/data/sync_udp_discovery.dart';
 import '../domain/models/file_item.dart';
 
@@ -70,6 +71,8 @@ final mediaBrowserControllerProvider =
 ///
 /// 管理浏览状态并通过 HTTP 调用服务端 API 获取目录内容。
 class MediaBrowserController extends Notifier<MediaBrowserState> {
+  http.Client get _httpClient => ref.read(httpClientProvider);
+
   @override
   MediaBrowserState build() {
     return const MediaBrowserState();
@@ -106,7 +109,7 @@ class MediaBrowserController extends Notifier<MediaBrowserState> {
         'http://${server.ip}:${server.httpPort}/api/media/list/$encodedPath',
       );
 
-      final response = await http.get(url).timeout(
+      final response = await _httpClient.get(url).timeout(
         const Duration(seconds: 10),
       );
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/http/http_client_provider.dart';
 import 'router/app_router.dart';
 import 'theme/app_theme.dart';
 
@@ -19,6 +20,10 @@ class _OhMyLlmAppState extends ConsumerState<OhMyLlmApp> {
   /// 构建顶层 MaterialApp，并交由路由配置管理页面切换。
   @override
   Widget build(BuildContext context) {
+    // 在应用根层 watch，确保 customHeadersSyncProvider 在冷启动后立即可用，
+    // 不依赖用户是否访问过设置页。
+    ref.watch(customHeadersSyncProvider);
+
     final router = ref.watch(appRouterProvider);
 
     return MaterialApp.router(

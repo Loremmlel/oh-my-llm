@@ -3,13 +3,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'settings_screen_test_helpers.dart';
 
 void registerSettingsScreenTabNavigationTests() {
-  testWidgets('settings screen shows tab bar with four tabs', (tester) async {
+  testWidgets('settings screen shows tab bar with five tabs', (tester) async {
     await setUpSettingsScreen(tester);
 
     expect(find.text('服务商'), findsOneWidget);
     expect(find.text('预设'), findsOneWidget);
     expect(find.text('提示词'), findsOneWidget);
     expect(find.text('其它'), findsOneWidget);
+    expect(find.text('网络'), findsOneWidget);
   });
 
   testWidgets('settings screen starts on persisted tab index', (tester) async {
@@ -33,6 +34,9 @@ void registerSettingsScreenTabNavigationTests() {
 
     await switchToTab(tester, 3);
     expect(find.text('自动重试'), findsOneWidget);
+
+    await switchToTab(tester, 4);
+    expect(find.text('请求头定义'), findsOneWidget);
 
     await switchToTab(tester, 0);
     expect(find.text('服务商设置'), findsOneWidget);
