@@ -7,6 +7,7 @@ import '../../../app/shell/app_shell_scaffold.dart';
 import '../../../core/persistence/shared_preferences_provider.dart';
 import '../../../core/utils/id_generator.dart';
 import '../application/auto_retry_settings_controller.dart';
+import '../application/custom_headers_controller.dart';
 import '../application/fixed_prompt_sequences_controller.dart';
 import '../application/llm_model_configs_controller.dart';
 import '../application/memory_prompts_controller.dart';
@@ -21,6 +22,7 @@ import '../domain/models/settings_export_data.dart';
 import '../domain/models/template_prompt.dart';
 import 'widgets/import_confirm_dialog.dart';
 import 'widgets/settings_widgets.dart';
+import 'widgets/tab/network_settings_tab.dart';
 import 'widgets/tab/other_settings_tab.dart';
 
 const _settingsLastTabIndexKey = 'settings.tab.last_index';
@@ -29,11 +31,13 @@ const _tabProviders = 0;
 const _tabPresets = 1;
 const _tabPrompts = 2;
 const _tabOther = 3;
+const _tabNetwork = 4;
 
 const _tabLabelProviders = '服务商';
 const _tabLabelPresets = '预设 Prompt';
 const _tabLabelPrompts = '提示词';
 const _tabLabelOther = '其它设置';
+const _tabLabelNetwork = '网络';
 
 /// 设置页入口，使用标签页组织服务商、预设、提示词和其它设置。
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -60,8 +64,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
         .getInt(_settingsLastTabIndexKey) ??
         0;
     _tabController = TabController(
-      initialIndex: initialIndex.clamp(0, 3),
-      length: 4,
+      initialIndex: initialIndex.clamp(0, 4),
+      length: 5,
       vsync: this,
     );
     _tabController.addListener(_onTabChanged);
@@ -117,6 +121,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
               Tab(text: '预设'),
               Tab(text: '提示词'),
               Tab(text: '其它'),
+              Tab(text: '网络'),
             ],
           ),
           Expanded(
@@ -271,6 +276,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                 ),
                 // 其它
                 const OtherSettingsTab(),
+                // 网络
+                const NetworkSettingsTab(),
               ],
             ),
           ),
@@ -289,6 +296,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
         return _tabLabelPrompts;
       case _tabOther:
         return _tabLabelOther;
+      case _tabNetwork:
+        return _tabLabelNetwork;
       default:
         return '';
     }
@@ -358,6 +367,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
           fixedPromptSequences: const [],
           autoRetrySettings: settings,
         );
+      case _tabNetwork:
+        final headers = ref.read(customHeadersProvider);
+        if (headers.headers.isEmpty) return null;
+        return SettingsExportData(
+          modelProviders: const [],
+          memoryPrompts: const [],
+          presetPrompts: const [],
+          templatePrompts: const [],
+          fixedPromptSequences: const [],
+          customHeadersConfig: headers,
+        );
       default:
         return null;
     }
@@ -426,6 +446,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
             data.fixedPromptSequences.isNotEmpty;
       case _tabOther:
         return data.autoRetrySettings != null;
+      case _tabNetwork:
+        return data.customHeadersConfig != null &&
+            data.customHeadersConfig!.headers.isNotEmpty;
       default:
         return false;
     }

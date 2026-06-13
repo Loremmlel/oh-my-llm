@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
+import '../../../core/http/http_client_provider.dart';
 import '../../settings/application/fixed_prompt_sequences_controller.dart';
 import '../../settings/application/llm_model_configs_controller.dart';
 import '../../settings/application/memory_prompts_controller.dart';
@@ -63,6 +64,8 @@ final syncClientControllerProvider =
 /// 同步客户端控制器，管理设备发现、同步请求和数据导入流程。
 class SyncClientController extends Notifier<SyncClientState> {
   StreamSubscription<DiscoveredServer>? _discoverySubscription;
+
+  http.Client get _httpClient => ref.read(httpClientProvider);
 
   @override
   SyncClientState build() {
@@ -143,7 +146,7 @@ class SyncClientController extends Notifier<SyncClientState> {
       final uri = Uri.parse('http://${server.ip}:${server.httpPort}/sync');
       final body = SyncMessageCodec.encode(request);
 
-      final response = await http
+      final response = await _httpClient
           .post(uri, body: body, headers: {'Content-Type': 'application/json'})
           .timeout(const Duration(seconds: 30));
 

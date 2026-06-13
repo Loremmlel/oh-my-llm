@@ -4,8 +4,10 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
+import '../../../core/http/http_client_provider.dart';
 import '../../../core/logging/app_network_logger_provider.dart';
 import '../../../core/logging/network_logger.dart';
+import '../../settings/application/custom_headers_controller.dart';
 import '../../settings/domain/models/llm_model_config.dart';
 import '../domain/models/chat_message.dart';
 import 'chat_chunk_parser.dart';
@@ -14,10 +16,16 @@ import 'vendor_payload_adapters.dart';
 
 /// OpenAI 兼容接口的 HTTP 流式客户端提供者。
 final chatCompletionClientProvider = Provider<ChatCompletionClient>((ref) {
-  final httpClient = http.Client();
-  ref.onDispose(httpClient.close);
+  final httpClient = ref.read(httpClientProvider);
   final logger = ref.watch(appNetworkLoggerProvider);
-  return OpenAiCompatibleChatClient(httpClient: httpClient, logger: logger);
+  // 在请求构建阶段获取自定义 header，确保在 logRequest 之前已附加到请求上。
+  Map<String, String> extraHeadersFactory() =>
+      ref.read(customHeadersProvider).toHeaderMap();
+  return OpenAiCompatibleChatClient(
+    httpClient: httpClient,
+    logger: logger,
+    extraHeadersFactory: extraHeadersFactory,
+  );
 });
 
 /// 直接使用 HTTP 请求读取 SSE 流，并把返回内容拆成补全增量。
@@ -27,13 +35,16 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
     NetworkLogger logger = const NoopNetworkLogger(),
     VendorPayloadAdapterRegistry adapters =
         VendorPayloadAdapterRegistry.standard,
+    Map<String, String> Function()? extraHeadersFactory,
   }) : _httpClient = httpClient,
        _logger = logger,
-       _adapters = adapters;
+       _adapters = adapters,
+       _extraHeadersFactory = extraHeadersFactory;
 
   final http.Client _httpClient;
   final NetworkLogger _logger;
   final VendorPayloadAdapterRegistry _adapters;
+  final Map<String, String> Function()? _extraHeadersFactory;
   static const _parser = ChatChunkParser();
 
   @override
@@ -235,7 +246,15 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
       })
       ..body = jsonEncode(payload);
 
-    return _OpenAiRequestContext(uri: uri, payload: payload, request: request);
+    // 读取自定义 header 供日志使用；实际注入由 CustomHeadersHttpClient.send() 统一处理。
+    final extraHeaders = _extraHeadersFactory?.call() ?? const {};
+
+    return _OpenAiRequestContext(
+      uri: uri,
+      payload: payload,
+      request: request,
+      extraHeaders: extraHeaders,
+    );
   }
 
   Future<http.StreamedResponse> _sendRequest(
@@ -245,7 +264,11 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
       _logger.logRequest(
         uri: context.uri,
         method: context.request.method,
-        headers: context.request.headers,
+        // 合并自定义 header 以便日志完整反映实际发出的请求头。
+        headers: {
+          ...context.request.headers,
+          ...context.extraHeaders,
+        },
         payload: context.payload,
       ),
     );
@@ -296,9 +319,11 @@ class _OpenAiRequestContext {
     required this.uri,
     required this.payload,
     required this.request,
+    this.extraHeaders = const {},
   });
 
   final Uri uri;
   final Map<String, Object> payload;
   final http.Request request;
+  final Map<String, String> extraHeaders;
 }

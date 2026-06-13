@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/settings/domain/models/auto_retry_settings.dart';
+import 'package:oh_my_llm/features/settings/domain/models/custom_headers_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/fixed_prompt_sequence.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/memory_prompt.dart';
@@ -70,6 +71,11 @@ SettingsExportData _buildFullData() {
       maxJitterSeconds: 20,
       maxRetryCount: 5,
     ),
+    customHeadersConfig: const CustomHeadersConfig(
+      headers: [
+        CustomHeaderEntry(key: 'X-Test', value: 'test-value'),
+      ],
+    ),
   );
 }
 
@@ -94,10 +100,10 @@ void main() {
       expect(jsonMap['identifier'], SettingsExportData.identifier);
       expect(jsonMap['identifier'], 'shikiyuzu-oh-my-llm');
       expect(jsonMap['version'], SettingsExportData.formatVersion);
-      expect(jsonMap['version'], 3);
+      expect(jsonMap['version'], 4);
     });
 
-    test('toJsonString 再 tryParseJson 可还原完整数据（6 个分类）', () {
+    test('toJsonString 再 tryParseJson 可还原完整数据（7 个分类）', () {
       final original = _buildFullData();
       final parsed = SettingsExportData.tryParseJson(original.toJsonString());
 
@@ -115,6 +121,10 @@ void main() {
       expect(parsed.autoRetrySettings, isNotNull);
       expect(parsed.autoRetrySettings!.maxJitterSeconds, 20);
       expect(parsed.autoRetrySettings!.maxRetryCount, 5);
+      expect(parsed.customHeadersConfig, isNotNull);
+      expect(parsed.customHeadersConfig!.headers.length, 1);
+      expect(parsed.customHeadersConfig!.headers.first.key, 'X-Test');
+      expect(parsed.customHeadersConfig!.headers.first.value, 'test-value');
     });
 
     test('tryParseJson 在 null / 空字符串 / 非法 JSON / 错误 identifier 时返回 null',
@@ -133,7 +143,7 @@ void main() {
       expect(SettingsExportData.tryParseJson(wrongId), isNull);
     });
 
-    test('hasContent 在全空时为 false，在任一分类非空（含 autoRetry）时为 true', () {
+    test('hasContent 在全空时为 false，在任一分类非空（含 autoRetry / customHeaders）时为 true', () {
       expect(_buildEmptyData().hasContent, isFalse);
 
       expect(
@@ -155,6 +165,20 @@ void main() {
           templatePrompts: const [],
           fixedPromptSequences: const [],
           autoRetrySettings: const AutoRetrySettings(),
+        ).hasContent,
+        isTrue,
+      );
+
+      expect(
+        const SettingsExportData(
+          modelProviders: [],
+          memoryPrompts: [],
+          presetPrompts: [],
+          templatePrompts: [],
+          fixedPromptSequences: [],
+          customHeadersConfig: CustomHeadersConfig(
+            headers: [CustomHeaderEntry(key: 'X-Test', value: 'v')],
+          ),
         ).hasContent,
         isTrue,
       );
