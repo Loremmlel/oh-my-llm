@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../application/auto_retry_settings_controller.dart';
+import '../../../application/font_size_settings_controller.dart';
 import '../settings_section_card.dart';
 
 /// 其它设置标签页，包含自动重试等杂项配置。
@@ -12,10 +13,49 @@ class OtherSettingsTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(autoRetrySettingsProvider);
+    final fontSizeSettings = ref.watch(fontSizeSettingsProvider);
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        SettingsSectionCard(
+          title: '显示',
+          description:
+              '调整正文字号。修改后全局生效，影响聊天消息、Markdown 渲染及所有使用 body 字体的界面文字。',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Text('正文字号'),
+                  const Spacer(),
+                  Text(
+                    '${fontSizeSettings.bodyFontSize.toInt()}',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ],
+              ),
+              Slider(
+                value: fontSizeSettings.bodyFontSize,
+                min: 12,
+                max: 24,
+                divisions: 12,
+                label: '${fontSizeSettings.bodyFontSize.toInt()}',
+                onChanged: (value) {
+                  ref.read(fontSizeSettingsProvider.notifier).updateLocal(
+                    fontSizeSettings.copyWith(bodyFontSize: value),
+                  );
+                },
+                onChangeEnd: (value) {
+                  ref.read(fontSizeSettingsProvider.notifier).save(
+                    fontSizeSettings.copyWith(bodyFontSize: value),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
         SettingsSectionCard(
           title: '自动重试',
           description: '当请求失败时自动重试的间隔与次数控制。'

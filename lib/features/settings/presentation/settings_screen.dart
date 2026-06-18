@@ -8,6 +8,7 @@ import '../../../core/persistence/shared_preferences_provider.dart';
 import '../../../core/utils/id_generator.dart';
 import '../application/auto_retry_settings_controller.dart';
 import '../application/custom_headers_controller.dart';
+import '../application/font_size_settings_controller.dart';
 import '../application/fixed_prompt_sequences_controller.dart';
 import '../application/llm_model_configs_controller.dart';
 import '../application/memory_prompts_controller.dart';
@@ -26,12 +27,23 @@ import 'widgets/tab/network_settings_tab.dart';
 import 'widgets/tab/other_settings_tab.dart';
 
 const _settingsLastTabIndexKey = 'settings.tab.last_index';
+const _settingsTabVersionKey = 'settings.tab.version';
+const _currentTabVersion = 2;
+
+/// 将升级前保存的旧 tab 索引（v1: 其它=3, 网络=4）
+/// 重新映射到新的顺序（v2: 网络=3, 其它=4）。
+int _migrateTabIndex(int savedIndex) {
+  // v1 → v2: 交换索引 3 和 4
+  if (savedIndex == 3) return 4;
+  if (savedIndex == 4) return 3;
+  return savedIndex;
+}
 
 const _tabProviders = 0;
 const _tabPresets = 1;
 const _tabPrompts = 2;
-const _tabOther = 3;
-const _tabNetwork = 4;
+const _tabNetwork = 3;
+const _tabOther = 4;
 
 const _tabLabelProviders = '服务商';
 const _tabLabelPresets = '预设 Prompt';
@@ -59,12 +71,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   @override
   void initState() {
     super.initState();
-    final initialIndex = ref
-        .read(sharedPreferencesProvider)
-        .getInt(_settingsLastTabIndexKey) ??
-        0;
+    final prefs = ref.read(sharedPreferencesProvider);
+    final savedVersion = prefs.getInt(_settingsTabVersionKey) ?? 1;
+    var savedIndex = prefs.getInt(_settingsLastTabIndexKey) ?? 0;
+
+    if (savedVersion < _currentTabVersion) {
+      savedIndex = _migrateTabIndex(savedIndex);
+      prefs.setInt(_settingsLastTabIndexKey, savedIndex);
+      prefs.setInt(_settingsTabVersionKey, _currentTabVersion);
+    }
+
     _tabController = TabController(
-      initialIndex: initialIndex.clamp(0, 4),
+      initialIndex: savedIndex.clamp(0, 4),
       length: 5,
       vsync: this,
     );
@@ -120,8 +138,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
               Tab(text: '服务商'),
               Tab(text: '预设'),
               Tab(text: '提示词'),
-              Tab(text: '其它'),
               Tab(text: '网络'),
+              Tab(text: '其它'),
             ],
           ),
           Expanded(
@@ -274,10 +292,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                     ),
                   ],
                 ),
-                // 其它
-                const OtherSettingsTab(),
                 // 网络
                 const NetworkSettingsTab(),
+                // 其它
+                const OtherSettingsTab(),
               ],
             ),
           ),
@@ -358,14 +376,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
           fixedPromptSequences: sequences,
         );
       case _tabOther:
-        final settings = ref.read(autoRetrySettingsProvider);
+        final retry = ref.read(autoRetrySettingsProvider);
+        final fontSize = ref.read(fontSizeSettingsProvider);
         return SettingsExportData(
           modelProviders: const [],
           memoryPrompts: const [],
           presetPrompts: const [],
           templatePrompts: const [],
           fixedPromptSequences: const [],
-          autoRetrySettings: settings,
+          autoRetrySettings: retry,
+          fontSizeSettings: fontSize,
         );
       case _tabNetwork:
         final headers = ref.read(customHeadersProvider);
@@ -445,7 +465,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
             data.templatePrompts.isNotEmpty ||
             data.fixedPromptSequences.isNotEmpty;
       case _tabOther:
-        return data.autoRetrySettings != null;
+        return data.autoRetrySettings != null ||
+            data.fontSizeSettings != null;
       case _tabNetwork:
         return data.customHeadersConfig != null &&
             data.customHeadersConfig!.headers.isNotEmpty;

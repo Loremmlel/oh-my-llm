@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -122,10 +124,16 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
             : userSegments)
         : const <UserMessageSegment>[];
 
-    return Align(
-      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 760),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bubbleMaxWidth = min(
+            constraints.maxWidth * (isUser ? 0.65 : 0.75),
+            900.0,
+          );
+        return Align(
+          alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: bubbleMaxWidth),
         child: DecoratedBox(
           decoration: BoxDecoration(
             color: isUser
@@ -342,7 +350,9 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
             ),
           ),
         ),
-      ),
+        ),
+      );
+    },
     );
   }
 

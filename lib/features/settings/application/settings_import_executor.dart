@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../domain/models/settings_export_data.dart';
 import 'auto_retry_settings_controller.dart';
 import 'custom_headers_controller.dart';
+import 'font_size_settings_controller.dart';
 import 'fixed_prompt_sequences_controller.dart';
 import 'llm_model_configs_controller.dart';
 import 'memory_prompts_controller.dart';
@@ -64,6 +65,12 @@ class SettingsImportExecutor {
       await ref
           .read(customHeadersProvider.notifier)
           .save(data.customHeadersConfig!);
+      wrote = true;
+    }
+    if (data.fontSizeSettings != null) {
+      await ref
+          .read(fontSizeSettingsProvider.notifier)
+          .save(data.fontSizeSettings!);
       wrote = true;
     }
     return wrote;

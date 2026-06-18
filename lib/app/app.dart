@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/http/http_client_provider.dart';
+import '../features/settings/application/font_size_settings_controller.dart';
 import 'router/app_router.dart';
 import 'theme/app_theme.dart';
 
@@ -24,13 +25,16 @@ class _OhMyLlmAppState extends ConsumerState<OhMyLlmApp> {
     // 不依赖用户是否访问过设置页。
     ref.watch(customHeadersSyncProvider);
 
+    final fontSizeSettings = ref.watch(fontSizeSettingsProvider);
+    final bodyFontSize = fontSizeSettings.bodyFontSize;
+
     final router = ref.watch(appRouterProvider);
 
     return MaterialApp.router(
       title: 'Oh My LLM',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
+      theme: AppTheme.lightTheme(bodyFontSize: bodyFontSize),
+      darkTheme: AppTheme.darkTheme(bodyFontSize: bodyFontSize),
       themeMode: ThemeMode.system,
       routerConfig: router,
     );
