@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'auto_retry_settings.dart';
 import 'custom_headers_config.dart';
 import 'fixed_prompt_sequence.dart';
+import 'font_size_settings.dart';
 import 'llm_model_config.dart';
 import 'llm_provider_config.dart';
 import 'memory_prompt.dart';
@@ -36,6 +37,7 @@ class SettingsExportData {
     required this.fixedPromptSequences,
     this.autoRetrySettings,
     this.customHeadersConfig,
+    this.fontSizeSettings,
   });
 
   /// 用于识别剪贴板内容是否为本应用导出数据的标识符。
@@ -51,6 +53,7 @@ class SettingsExportData {
   final List<FixedPromptSequence> fixedPromptSequences;
   final AutoRetrySettings? autoRetrySettings;
   final CustomHeadersConfig? customHeadersConfig;
+  final FontSizeSettings? fontSizeSettings;
 
   List<LlmModelConfig> get modelConfigs {
     return modelProviders
@@ -80,6 +83,11 @@ class SettingsExportData {
     final customHeaders = customHeadersConfig;
     if (customHeaders != null) {
       map['customHeaders'] = customHeaders.toJson();
+    }
+
+    final fontSize = fontSizeSettings;
+    if (fontSize != null) {
+      map['fontSizeSettings'] = fontSize.toJson();
     }
 
     return jsonEncode(map);
@@ -119,6 +127,7 @@ class SettingsExportData {
 
       final rawAutoRetry = raw['autoRetrySettings'] as Map<String, dynamic>?;
       final rawCustomHeaders = raw['customHeaders'] as Map<String, dynamic>?;
+      final rawFontSize = raw['fontSizeSettings'] as Map<String, dynamic>?;
 
       return SettingsExportData(
         modelProviders: modelProviders,
@@ -155,6 +164,9 @@ class SettingsExportData {
         customHeadersConfig: rawCustomHeaders != null
             ? CustomHeadersConfig.fromJson(rawCustomHeaders)
             : null,
+        fontSizeSettings: rawFontSize != null
+            ? FontSizeSettings.fromJson(rawFontSize)
+            : null,
       );
     } catch (_) {
       // 任何解析错误都视为非本应用的剪贴板内容，静默忽略。
@@ -170,6 +182,7 @@ class SettingsExportData {
       templatePrompts.isNotEmpty ||
       fixedPromptSequences.isNotEmpty ||
       autoRetrySettings != null ||
+      fontSizeSettings != null ||
       (customHeadersConfig != null && customHeadersConfig!.headers.isNotEmpty);
 
 }
