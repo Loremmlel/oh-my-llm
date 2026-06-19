@@ -30,6 +30,7 @@ final class AppTheme {
       useMaterial3: true,
       brightness: brightness,
       colorScheme: colorScheme,
+      fontFamily: 'Noto Sans SC',
       textTheme: _defaultM3TextTheme.copyWith(
         bodyMedium: _defaultM3TextTheme.bodyMedium?.copyWith(
           fontSize: bodyFontSize,
