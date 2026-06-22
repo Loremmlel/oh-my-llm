@@ -593,6 +593,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         retryDelay: retryDelay,
         maxRetryCount: autoRetrySettings.maxRetryCount,
         maxJitterMs: autoRetrySettings.maxJitterSeconds * 1000,
+        retryMode: autoRetrySettings.retryMode,
       );
     } else {
       await streamAssistantReply(
