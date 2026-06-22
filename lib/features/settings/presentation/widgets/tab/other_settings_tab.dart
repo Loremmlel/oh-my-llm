@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../application/auto_retry_settings_controller.dart';
 import '../../../application/font_size_settings_controller.dart';
+import '../../../domain/models/auto_retry_settings.dart';
 import '../settings_section_card.dart';
 
 /// 其它设置标签页，包含自动重试等杂项配置。
@@ -59,13 +60,36 @@ class OtherSettingsTab extends ConsumerWidget {
         SettingsSectionCard(
           title: '自动重试',
           description: '当请求失败时自动重试的间隔与次数控制。'
-              '最大重试间隔对应每分钟内的随机抖动上限；'
+              '每分钟窗口：每分钟在前 n 秒内随机一个毫秒发起重试；'
+              '固定间隔：每 n 秒 + 随机 1000ms 抖动发起重试。'
               '最大次数设为 0 表示不限。',
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              SegmentedButton<RetryMode>(
+                segments: const [
+                  ButtonSegment<RetryMode>(
+                    value: RetryMode.perMinuteWindow,
+                    label: Text('每分钟窗口'),
+                  ),
+                  ButtonSegment<RetryMode>(
+                    value: RetryMode.fixedInterval,
+                    label: Text('固定间隔'),
+                  ),
+                ],
+                selected: {settings.retryMode},
+                onSelectionChanged: (selected) {
+                  ref
+                      .read(autoRetrySettingsProvider.notifier)
+                      .save(settings.copyWith(retryMode: selected.first));
+                },
+              ),
+              const SizedBox(height: 16),
               _AutoRetryNumberField(
                 key: const ValueKey('auto-retry-max-jitter-field'),
-                label: '最大重试间隔（秒）',
+                label: settings.retryMode == RetryMode.fixedInterval
+                    ? '重试间隔（秒）'
+                    : '最大重试间隔（秒）',
                 value: settings.maxJitterSeconds,
                 min: 0,
                 max: 60,

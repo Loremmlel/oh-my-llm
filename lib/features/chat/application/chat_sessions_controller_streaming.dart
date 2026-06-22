@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import '../../../core/utils/id_generator.dart';
+import '../../settings/domain/models/auto_retry_settings.dart';
 import '../../settings/domain/models/llm_model_config.dart';
 import '../../settings/domain/models/preset_prompt.dart';
 import '../data/chat_completion_client.dart';
@@ -438,6 +439,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
     Duration? retryDelay,
     int maxRetryCount = 0,
     int maxJitterMs = 15000,
+    RetryMode retryMode = RetryMode.perMinuteWindow,
   }) async {
     final capturedGeneration = ++requestGeneration;
     autoRetryCancelled = false;
@@ -470,6 +472,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
         isFirstAttempt: isFirstAttempt,
         overrideDelay: retryDelay,
         maxJitterMs: maxJitterMs,
+        retryMode: retryMode,
       );
       isFirstAttempt = false;
 
@@ -540,11 +543,15 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
     }
   }
 
-  /// 等待到下一个发送窗口（每分钟 0-15 秒之间的随机毫秒）。
+  /// 等待到下一个发送窗口。
+  ///
+  /// [RetryMode.perMinuteWindow] 下：每分钟在前 [maxJitterMs] 毫秒内随机一个时刻重试。
+  /// [RetryMode.fixedInterval] 下：每隔 [maxJitterMs] 毫秒 + 随机 1000ms 抖动重试。
   Future<void> _waitForRetryWindow({
     required bool isFirstAttempt,
     Duration? overrideDelay,
     int maxJitterMs = 15000,
+    RetryMode retryMode = RetryMode.perMinuteWindow,
   }) async {
     if (overrideDelay != null) {
       state = state.copyWith(isAutoRetryWaiting: true);
@@ -552,15 +559,22 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
       return;
     }
 
-    final now = DateTime.now();
-    final currentSecond = now.second;
-
     if (isFirstAttempt) {
       return;
+    }
+
+    state = state.copyWith(isAutoRetryWaiting: true);
+
+    if (retryMode == RetryMode.fixedInterval) {
+      // 固定间隔：基础间隔 + 0-999ms 随机抖动
+      final jitterMs = Random().nextInt(1000);
+      await Future.delayed(Duration(milliseconds: maxJitterMs + jitterMs));
     } else {
+      // 每分钟窗口：对齐下一分钟 + 0-(maxJitterMs-1)ms 随机抖动
+      final now = DateTime.now();
+      final currentSecond = now.second;
       final msToNextMinute = (60 - currentSecond) * 1000 - now.millisecond;
       final jitterMs = maxJitterMs > 0 ? Random().nextInt(maxJitterMs) : 0;
-      state = state.copyWith(isAutoRetryWaiting: true);
       await Future.delayed(Duration(milliseconds: msToNextMinute + jitterMs));
     }
   }

@@ -21,6 +21,9 @@ import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.da
 import 'package:oh_my_llm/features/settings/domain/models/memory_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
 
+import 'package:oh_my_llm/features/settings/application/auto_retry_settings_controller.dart';
+import 'package:oh_my_llm/features/settings/domain/models/auto_retry_settings.dart';
+
 import '../chat_screen/chat_screen_test_helpers.dart';
 
 /// 测试用模型配置，和 SharedPreferences 中的 id 一致，确保 _resolveModelConfig 能找到它。
@@ -1297,5 +1300,44 @@ void main() {
     final state = container.read(chatSessionsProvider);
     expect(state.emptyReplyAssistantId, isNotNull);
     expect(state.errorMessage, contains('模型返回了空回复'));
+  });
+
+  test('fixedInterval 模式首次失败后重试成功', () async {
+    // 切换到固定间隔模式
+    await container.read(autoRetrySettingsProvider.notifier).save(
+      const AutoRetrySettings(retryMode: RetryMode.fixedInterval),
+    );
+    container
+        .read(chatSessionsProvider.notifier)
+        .updateActiveConversationPreferences(autoRetryEnabled: true);
+    fakeClient.enqueueError(ChatCompletionException('连接超时'));
+    fakeClient.enqueueChunks(['固定间隔重试成功']);
+
+    await sendMsg('测试固定间隔重试', retryDelay: Duration.zero);
+
+    final state = container.read(chatSessionsProvider);
+    expect(state.activeConversation.messages.last.content, '固定间隔重试成功');
+    expect(state.errorMessage, isNull);
+    expect(state.autoRetryCount, 0);
+  });
+
+  test('fixedInterval 模式连续失败后第三次成功', () async {
+    await container.read(autoRetrySettingsProvider.notifier).save(
+      const AutoRetrySettings(retryMode: RetryMode.fixedInterval),
+    );
+    container
+        .read(chatSessionsProvider.notifier)
+        .updateActiveConversationPreferences(autoRetryEnabled: true);
+    fakeClient.enqueueError(ChatCompletionException('第一次失败'));
+    fakeClient.enqueueError(ChatCompletionException('第二次失败'));
+    fakeClient.enqueueChunks(['第三次成功']);
+
+    await sendMsg('固定间隔多次重试', retryDelay: Duration.zero);
+
+    final state = container.read(chatSessionsProvider);
+    expect(state.activeConversation.messages.last.content, '第三次成功');
+    expect(state.errorMessage, isNull);
+    expect(state.autoRetryCount, 0);
+    expect(fakeClient.requestHistory.length, 3);
   });
 }
