@@ -130,10 +130,19 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
             constraints.maxWidth * (isUser ? 0.65 : 0.75),
             900.0,
           );
+        // 手机上屏幕窄，百分比宽度可能过小，给一个最小宽度兜底
+        // 但不能超过 maxWidth，否则 ConstrainedBox 约束冲突
+        final bubbleMinWidth = min(
+          min(280.0, constraints.maxWidth - 32),
+          bubbleMaxWidth,
+        );
         return Align(
           alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
           child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: bubbleMaxWidth),
+            constraints: BoxConstraints(
+              maxWidth: bubbleMaxWidth,
+              minWidth: bubbleMinWidth,
+            ),
         child: DecoratedBox(
           decoration: BoxDecoration(
             color: isUser
