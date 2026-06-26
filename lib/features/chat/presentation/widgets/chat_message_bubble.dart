@@ -126,11 +126,11 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        // 百分比宽度（桌面端体验好），和最小宽度（手机端不局促）取较大值
-        final bubbleWidth = max(
-          min(constraints.maxWidth * (isUser ? 0.65 : 0.75), 900.0),
-          min(280.0, constraints.maxWidth - 16),
-        );
+        // 窄屏（手机）直接充满只留 margin，宽屏（桌面）用百分比宽度
+        final isNarrow = constraints.maxWidth < 600;
+        final bubbleWidth = isNarrow
+            ? constraints.maxWidth - 16
+            : min(constraints.maxWidth * (isUser ? 0.65 : 0.75), 900.0);
         return Align(
           alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
           child: ConstrainedBox(
