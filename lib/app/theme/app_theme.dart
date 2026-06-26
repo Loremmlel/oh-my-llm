@@ -4,10 +4,9 @@ import 'package:flutter/services.dart';
 final class AppTheme {
   const AppTheme._();
 
-  /// M3 默认 textTheme，light 和 dark 共用同一套字号层级
-  /// （颜色由 ColorScheme 驱动而非 textStyle.color）。
-  static final _defaultM3TextTheme =
-      ThemeData(brightness: Brightness.light, useMaterial3: true).textTheme;
+  /// 按 brightness 生成 M3 默认 textTheme，确保 light/dark 各自拿到正确的文字颜色。
+  static TextTheme _m3TextTheme(Brightness brightness) =>
+      ThemeData(brightness: brightness, useMaterial3: true).textTheme;
 
   static ThemeData lightTheme({double bodyFontSize = 14}) =>
       _buildTheme(Brightness.light, bodyFontSize: bodyFontSize);
@@ -24,21 +23,22 @@ final class AppTheme {
       brightness: brightness,
     );
 
-    // 基于缓存的 M3 默认 textTheme，按用户设置覆盖正文三级字号。
+    // 按用户设置覆盖正文三级字号，其他层级沿用 M3 默认值。
+    final defaultTextTheme = _m3TextTheme(brightness);
 
     return ThemeData(
       useMaterial3: true,
       brightness: brightness,
       colorScheme: colorScheme,
       fontFamily: 'Noto Sans SC',
-      textTheme: _defaultM3TextTheme.copyWith(
-        bodyMedium: _defaultM3TextTheme.bodyMedium?.copyWith(
+      textTheme: defaultTextTheme.copyWith(
+        bodyMedium: defaultTextTheme.bodyMedium?.copyWith(
           fontSize: bodyFontSize,
         ),
-        bodyLarge: _defaultM3TextTheme.bodyLarge?.copyWith(
+        bodyLarge: defaultTextTheme.bodyLarge?.copyWith(
           fontSize: bodyFontSize + 2,
         ),
-        bodySmall: _defaultM3TextTheme.bodySmall?.copyWith(
+        bodySmall: defaultTextTheme.bodySmall?.copyWith(
           fontSize: bodyFontSize - 2,
         ),
       ),
