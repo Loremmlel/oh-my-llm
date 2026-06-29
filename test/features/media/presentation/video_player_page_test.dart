@@ -116,7 +116,7 @@ Widget _wrapWithMaterialApp(Widget child) {
   return MaterialApp(
     home: Navigator(
       pages: [MaterialPage(child: child)],
-      onPopPage: (route, result) => route.didPop(result),
+      onDidRemovePage: (page) {},
     ),
   );
 }

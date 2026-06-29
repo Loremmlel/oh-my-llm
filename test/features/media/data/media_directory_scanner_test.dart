@@ -23,18 +23,18 @@ void main() {
       tempRoot.deleteSync(recursive: true);
     });
 
-    MediaDirectoryScanner _createScanner() {
+    MediaDirectoryScanner createScanner() {
       return MediaDirectoryScanner(tempRoot.path);
     }
 
     test('正常路径解析返回绝对路径', () {
-      scanner = _createScanner();
+      scanner = createScanner();
       final resolved = scanner.resolvePath('/');
       expect(resolved.toLowerCase(), tempRoot.absolute.path.toLowerCase());
     });
 
     test('子目录路径解析正确', () {
-      scanner = _createScanner();
+      scanner = createScanner();
       final resolved = scanner.resolvePath('/subdir');
       expect(
         resolved.toLowerCase(),
@@ -50,7 +50,7 @@ void main() {
       File('${chineseDir.path}${Platform.pathSeparator}照片.jpg')
           .writeAsStringSync('photo');
 
-      scanner = _createScanner();
+      scanner = createScanner();
       final resolved = scanner.resolvePath('/妹妹');
       expect(
         resolved.toLowerCase(),
@@ -60,7 +60,7 @@ void main() {
 
     group('路径穿越检测', () {
       setUp(() {
-        scanner = _createScanner();
+        scanner = createScanner();
       });
 
       test('../ 穿越被拒绝', () {
@@ -86,7 +86,7 @@ void main() {
     });
 
     test('不检查路径存在性（调用方自行判断）', () {
-      scanner = _createScanner();
+      scanner = createScanner();
       // 不存在的路径不会抛异常（仅有路径穿越才抛）
       final resolved = scanner.resolvePath('/不存在的路径');
       expect(resolved, isNotEmpty);

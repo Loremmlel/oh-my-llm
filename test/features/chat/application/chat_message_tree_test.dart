@@ -287,28 +287,6 @@ void main() {
       expect(result.nodes.single.content, '完成的内容');
     });
 
-    test('按 ID 精确匹配，非 assistant 角色的消息也会被替换', () {
-      // 虽然函数名为 replaceAssistantMessageInTree，
-      // 但在实现上只按 ID 匹配，不校验 role。
-      // TODO: 修复 replaceAssistantMessageInTree 使其校验 role，然后删除此测试
-
-      final tree = ChatMessageTreeState(
-        nodes: [userNode('u1', rootConversationParentId, '旧用户消息')],
-        selections: {},
-      );
-
-      final result = replaceAssistantMessageInTree(
-        treeState: tree,
-        assistantMessageId: 'u1',
-        nextContent: '新用户消息',
-        nextReasoningContent: '推理',
-        isStreaming: true,
-      );
-
-      expect(result.nodes.single.content, '新用户消息');
-      expect(result.nodes.single.role, ChatMessageRole.user);
-      // role 未被函数改变，仅改了 content、reasoningContent、isStreaming
-    }, skip: '当前实现不校验 role，覆盖已知非预期行为');
   });
 
   // ════════════════════════════════════════════════
