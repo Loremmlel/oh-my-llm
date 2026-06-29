@@ -99,6 +99,7 @@ class _FakeHttpRequest extends Fake implements HttpRequest {
 
 /// 收集写入数据的假 HttpResponse。
 class _FakeHttpResponse extends Fake implements HttpResponse {
+  @override
   int statusCode = 200;
   final _buffer = StringBuffer();
 

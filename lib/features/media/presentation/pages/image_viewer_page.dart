@@ -279,9 +279,9 @@ class _ZoomableImagePageState extends State<_ZoomableImagePage> {
       // 放大：以双击落点为中心缩放
       final pos = _lastDoubleTapPosition ?? Offset.zero;
       target = Matrix4.identity()
-        ..translate(pos.dx, pos.dy, 0.0)
-        ..scale(2.5, 2.5, 1.0)
-        ..translate(-pos.dx, -pos.dy, 0.0);
+        ..translateByDouble(pos.dx, pos.dy, 0.0, 1.0)
+        ..scaleByDouble(2.5, 2.5, 1.0, 1.0)
+        ..translateByDouble(-pos.dx, -pos.dy, 0.0, 1.0);
     } else {
       // 恢复：直接回到 identity
       target = Matrix4.identity();

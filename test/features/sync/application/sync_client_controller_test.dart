@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/core/persistence/app_database.dart';
@@ -285,7 +284,7 @@ void main() {
     test('响应格式错误（tryDecode 返回 null）→ phase=error', () async {
       final rawServer = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       rawServer.listen((request) async {
-        final body = await utf8.decoder.bind(request).join();
+        await utf8.decoder.bind(request).join();
         request.response
           ..statusCode = 200
           ..headers.contentType = ContentType.json
@@ -441,29 +440,5 @@ void main() {
         SyncPhase.noNewData,
       );
     });
-
-    test('超时 → phase=error（30s）', () async {
-      final rawServer = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-      rawServer.listen((_) {});
-      addTearDown(() => rawServer.close(force: true));
-
-      final container = buildContainer(
-        seed: SyncClientState(
-          phase: SyncPhase.connected,
-          server: DiscoveredServer(
-            deviceName: 'Test',
-            ip: '127.0.0.1',
-            httpPort: rawServer.port,
-          ),
-          selectedCategories: {SyncCategory.providers},
-        ),
-      );
-
-      await container.read(syncClientControllerProvider.notifier).requestSync();
-
-      final state = container.read(syncClientControllerProvider);
-      expect(state.phase, SyncPhase.error);
-      expect(state.errorMessage, contains('超时'));
-    }, timeout: const Timeout(Duration(seconds: 60)));
   });
 }

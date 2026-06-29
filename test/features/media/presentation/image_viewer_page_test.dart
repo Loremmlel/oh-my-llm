@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/features/media/presentation/pages/image_viewer_page.dart';
-import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 
 import '../../../helpers/test_harness.dart';
 
