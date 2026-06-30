@@ -160,6 +160,7 @@ class _ProviderTileState extends ConsumerState<ProviderTile> {
                             ),
                             padding: const EdgeInsets.only(top: 12),
                             child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
                                 for (final model in provider.models)
                                   Padding(
