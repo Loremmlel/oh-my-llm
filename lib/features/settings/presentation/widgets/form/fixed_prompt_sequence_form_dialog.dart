@@ -202,21 +202,45 @@ class _FixedPromptSequenceFormDialogState
       children: [
         _buildMasterHeader(context),
         const SizedBox(height: 16),
-        for (var index = 0; index < _steps.length; index++) ...[
-          _FixedPromptStepListTile(
-            step: _steps[index],
-            index: index,
-            isSelected: _steps[index].id == _selectedStepId,
-            onTap: () {
-              setState(() {
-                _selectedStepId = _steps[index].id;
-              });
-            },
-          ),
-          if (index != _steps.length - 1) const SizedBox(height: 8),
-        ],
+        _buildCompactStepSelector(context),
       ],
     );
+  }
+
+  /// 紧凑模式下用下拉菜单替代步骤列表，节省垂直空间，
+  /// 避免用户编辑正文前需要滚动经过所有步骤标题。
+  Widget _buildCompactStepSelector(BuildContext context) {
+    return DropdownButtonFormField<int>(
+      key: ValueKey('compact-step-selector-$_selectedStepId'),
+      initialValue: _selectedStepIndex,
+      isExpanded: true,
+      items: [
+        for (var index = 0; index < _steps.length; index++)
+          DropdownMenuItem(
+            value: index,
+            child: Text(
+              '${index + 1}. ${_buildCompactStepTitle(_steps[index])}',
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+      ],
+      onChanged: (value) {
+        if (value != null) {
+          setState(() {
+            _selectedStepId = _steps[value].id;
+          });
+        }
+      },
+      decoration: const InputDecoration(
+        labelText: '选择步骤',
+      ),
+    );
+  }
+
+  /// 构建步骤标题，空标题时使用 fallback。
+  String _buildCompactStepTitle(_EditableFixedPromptSequenceStep step) {
+    final title = step.titleController.text.trim();
+    return title.isNotEmpty ? title : '未命名步骤';
   }
 
   Widget _buildMasterHeader(BuildContext context) {

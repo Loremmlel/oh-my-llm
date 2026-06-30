@@ -173,7 +173,7 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
       children: [
         _buildMasterHeader(context),
         const SizedBox(height: 16),
-        _buildMasterListContent(),
+        _buildCompactItemSelector(context),
       ],
     );
   }
@@ -230,16 +230,40 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
     );
   }
 
-  Widget _buildMasterListContent() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (var index = 0; index < _items.length; index++) ...[
-          _buildMasterListTile(index, _selectedIndex),
-          if (index != _items.length - 1) const SizedBox(height: 8),
-        ],
+  /// 紧凑模式下用下拉菜单替代条目列表，节省垂直空间，
+  /// 避免用户编辑正文前需要滚动经过所有条目标题。
+  Widget _buildCompactItemSelector(BuildContext context) {
+    return DropdownButtonFormField<int>(
+      key: ValueKey('compact-item-selector-$_selectedItemId'),
+      initialValue: _selectedIndex,
+      isExpanded: true,
+      items: [
+        for (var index = 0; index < _items.length; index++)
+          DropdownMenuItem(
+            value: index,
+            child: Text(
+              '${index + 1}. ${_buildCompactItemTitle(_items[index])}',
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
       ],
+      onChanged: (value) {
+        if (value != null) {
+          setState(() {
+            _selectedItemId = _items[value].id;
+          });
+        }
+      },
+      decoration: const InputDecoration(
+        labelText: '选择条目',
+      ),
     );
+  }
+
+  /// 构建条目标题，空标题时使用 fallback。
+  String _buildCompactItemTitle(EditablePresetPromptItem item) {
+    final title = item.titleController.text.trim();
+    return title.isNotEmpty ? title : '未命名条目';
   }
 
   Widget _buildMasterListTile(int index, int selectedIndex) {
