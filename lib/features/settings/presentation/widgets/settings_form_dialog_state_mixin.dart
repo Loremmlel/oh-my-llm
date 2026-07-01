@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/widgets/notification_bubble_context_ext.dart';
+
 /// 设置页表单对话框共享的提交状态、校验与控制器生命周期管理。
 mixin SettingsFormDialogStateMixin<T extends StatefulWidget> on State<T> {
   final formKey = GlobalKey<FormState>();
@@ -32,11 +34,10 @@ mixin SettingsFormDialogStateMixin<T extends StatefulWidget> on State<T> {
     return null;
   }
 
+  /// 在表单对话框内显示一条通知。默认为 info 类型，调用方可覆盖。
   @protected
   void showFormSnackBar(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    context.showBubble(message);
   }
 
   @protected

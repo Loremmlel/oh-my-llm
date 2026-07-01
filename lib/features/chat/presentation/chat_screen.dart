@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/navigation/app_destination.dart';
 import '../../../app/shell/app_shell_scaffold.dart';
 import '../../../core/constants/app_breakpoints.dart';
+import '../../../core/providers/notification_bubble_provider.dart';
+import '../../../core/widgets/notification_bubble_data.dart';
 import '../../settings/application/chat_defaults_controller.dart';
 import '../../settings/application/fixed_prompt_sequences_controller.dart';
 import '../../settings/application/llm_model_configs_controller.dart';
@@ -757,20 +759,38 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     // 如果已收藏，提示取消
     final favoritesController = ref.read(favoritesProvider.notifier);
     if (favoritesController.isFavorited(assistantMessage.content)) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('已取消收藏'),
-          action: SnackBarAction(label: '撤销', onPressed: () {}),
-        ),
-      );
       // 找到并删除对应收藏
       final allFavorites = ref.read(favoritesProvider);
       final existing = allFavorites
           .where((f) => f.assistantContent == assistantMessage.content)
           .firstOrNull;
       if (existing != null) {
+        // 删除前保存数据供撤销使用
+        final removedFavorite = existing;
         favoritesController.remove(existing.id);
+
+        if (!context.mounted) return;
+        ref.read(notificationBubblesProvider.notifier).show(
+          message: '已取消收藏',
+          action: NotificationBubbleAction(
+            label: '撤销',
+            onPressed: () {
+              // 重新添加被删除的收藏
+              favoritesController.add(
+                userMessageContent: removedFavorite.userMessageContent,
+                assistantContent: removedFavorite.assistantContent,
+                assistantReasoningContent:
+                    removedFavorite.assistantReasoningContent,
+                assistantModelDisplayName:
+                    removedFavorite.assistantModelDisplayName,
+                collectionId: removedFavorite.collectionId,
+                sourceConversationId: removedFavorite.sourceConversationId,
+                sourceConversationTitle:
+                    removedFavorite.sourceConversationTitle,
+              );
+            },
+          ),
+        );
       }
       return;
     }
@@ -780,7 +800,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final assistantIndex = messages.indexWhere(
       (m) => m.id == assistantMessage.id,
     );
-    final messenger = ScaffoldMessenger.of(context);
     final userMessage = assistantIndex > 0
         ? messages
               .sublist(0, assistantIndex)
@@ -814,7 +833,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
 
     if (!mounted) return;
-    messenger.showSnackBar(const SnackBar(content: Text('已收藏')));
+    ref.read(notificationBubblesProvider.notifier).show(
+      message: '已收藏',
+      type: NotificationBubbleType.success,
+    );
   }
 
   /// 弹出会话重命名对话框并提交新标题。

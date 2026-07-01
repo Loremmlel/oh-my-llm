@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/http/http_client_provider.dart';
+import '../core/widgets/notification_bubble_stack.dart';
 import '../features/settings/application/font_size_settings_controller.dart';
 import 'router/app_router.dart';
 import 'theme/app_theme.dart';
@@ -37,6 +38,14 @@ class _OhMyLlmAppState extends ConsumerState<OhMyLlmApp> {
       darkTheme: AppTheme.darkTheme(bodyFontSize: bodyFontSize),
       themeMode: ThemeMode.system,
       routerConfig: router,
+      builder: (context, child) {
+        return Stack(
+          children: [
+            child!,
+            const NotificationBubbleStack(),
+          ],
+        );
+      },
     );
   }
 }
