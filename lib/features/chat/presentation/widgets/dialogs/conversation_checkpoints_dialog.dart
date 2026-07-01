@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../../core/utils/date_formatting.dart';
+import '../../../../../core/widgets/notification_bubble_context_ext.dart';
 import '../../../../../core/widgets/adaptive_master_detail_layout.dart';
 import '../../../../settings/application/memory_prompts_controller.dart';
 import '../../../../settings/domain/models/llm_model_config.dart';
@@ -517,8 +518,6 @@ class _ConversationCheckpointsDialogState
     if (selectedMemoryPrompt == null || widget.selectedModel == null) {
       return;
     }
-    final messenger = ScaffoldMessenger.of(context);
-
     setState(() {
       _isCreating = true;
     });
@@ -540,14 +539,12 @@ class _ConversationCheckpointsDialogState
         _selectedSourceCheckpointId = checkpoint.id;
         _focusedCheckpointId = checkpoint.id;
       });
-      messenger.showSnackBar(
-        SnackBar(content: Text('${checkpoint.title} 已创建')),
-      );
+      context.showSuccessBubble('${checkpoint.title} 已创建');
     } catch (error) {
       if (!mounted) {
         return;
       }
-      messenger.showSnackBar(SnackBar(content: Text(error.toString())));
+      context.showErrorBubble(error.toString());
     } finally {
       if (mounted) {
         setState(() {

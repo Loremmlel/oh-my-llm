@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../settings/domain/models/settings_export_data.dart';
+import '../../../../core/widgets/notification_bubble_context_ext.dart';
 import '../../../settings/presentation/widgets/settings_section_card.dart';
 import '../../application/sync_client_controller.dart';
 import '../../domain/models/sync_types.dart';
@@ -44,9 +45,7 @@ class _SyncOperationTabState extends ConsumerState<SyncOperationTab>
       } else if (next.phase == SyncPhase.noNewData) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('远端配置与本机完全一致，无需导入')),
-            );
+            context.showBubble('远端配置与本机完全一致，无需导入');
           }
         });
       }
@@ -290,9 +289,7 @@ class _SyncOperationTabState extends ConsumerState<SyncOperationTab>
 
     if (confirmed == true) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('配置已导入')),
-        );
+        context.showSuccessBubble('配置已导入');
       }
     } else {
       final currentPhase = ref.read(syncClientControllerProvider).phase;

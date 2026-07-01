@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
+import 'package:oh_my_llm/core/widgets/notification_bubble_stack.dart';
 
 import '../test_database.dart';
 
@@ -51,8 +52,18 @@ Future<AppDatabase> pumpTestApp(
         ...extraOverrides,
       ],
       child: router != null
-          ? MaterialApp.router(routerConfig: router)
-          : MaterialApp(home: child),
+          ? MaterialApp.router(
+              routerConfig: router,
+              builder: (context, child) => Stack(
+                children: [child!, const NotificationBubbleStack()],
+              ),
+            )
+          : MaterialApp(
+              home: child,
+              builder: (context, child) => Stack(
+                children: [child!, const NotificationBubbleStack()],
+              ),
+            ),
     ),
   );
   await tester.pump();

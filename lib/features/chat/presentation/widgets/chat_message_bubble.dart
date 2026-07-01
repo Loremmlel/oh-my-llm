@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../../core/widgets/notification_bubble_context_ext.dart';
 import '../../domain/chat_word_counter.dart';
 import '../../domain/models/chat_message.dart';
 import 'message_version_info.dart';
@@ -74,9 +75,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
   Future<void> _copyMessage(BuildContext context) async {
     await Clipboard.setData(ClipboardData(text: widget.message.content));
     if (!context.mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('已复制消息内容')));
+    context.showBubble('已复制消息内容');
   }
 
   @override

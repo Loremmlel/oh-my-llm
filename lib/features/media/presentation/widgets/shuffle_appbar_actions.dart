@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/widgets/notification_bubble_context_ext.dart';
 import '../../application/shuffle_playback_controller.dart';
 import '../pages/video_player_page.dart';
 
@@ -57,9 +58,7 @@ class ShuffleAppBarActions extends ConsumerWidget {
     if (videoUrl != null && state is ShufflePlaybackActive) {
       _navigateToPlayer(context, videoUrl, state.currentVideo.name, controller);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('当前目录下未找到视频文件')),
-      );
+      context.showWarningBubble('当前目录下未找到视频文件');
     }
   }
 
