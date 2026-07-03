@@ -139,46 +139,34 @@ class _FixedPromptSequenceRunnerDialogState
                           const SizedBox(height: 12),
                           if (sequence != null &&
                               sequence.steps.isNotEmpty) ...[
-                            Row(
-                              children: [
-                                Chip(
-                                  label: Text(
-                                    '${_stepIndex + 1}. ${_buildStepTitle(currentStep)}',
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: DropdownButtonFormField<int>(
-                                    initialValue: _stepIndex,
-                                    isExpanded: true,
-                                    items: [
-                                      for (
-                                        var index = 0;
-                                        index < sequence.steps.length;
-                                        index += 1
-                                      )
-                                        DropdownMenuItem(
-                                          value: index,
-                                          child: Text(
-                                            '${index + 1}. ${_buildStepTitle(sequence.steps[index])}',
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                    ],
-                                    onChanged: (value) {
-                                      if (value == null) {
-                                        return;
-                                      }
-                                      setState(() {
-                                        _stepIndex = value;
-                                      });
-                                    },
-                                    decoration: const InputDecoration(
-                                      labelText: '定位',
+                            DropdownButtonFormField<int>(
+                              initialValue: _stepIndex,
+                              isExpanded: true,
+                              items: [
+                                for (
+                                  var index = 0;
+                                  index < sequence.steps.length;
+                                  index += 1
+                                )
+                                  DropdownMenuItem(
+                                    value: index,
+                                    child: Text(
+                                      '${index + 1}. ${_buildStepTitle(sequence.steps[index])}',
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
-                                ),
                               ],
+                              onChanged: (value) {
+                                if (value == null) {
+                                  return;
+                                }
+                                setState(() {
+                                  _stepIndex = value;
+                                });
+                              },
+                              decoration: const InputDecoration(
+                                labelText: '定位',
+                              ),
                             ),
                             const SizedBox(height: 12),
                             Text(
