@@ -9,32 +9,7 @@ import 'package:oh_my_llm/features/chat/application/history_pagination_controlle
 import 'package:oh_my_llm/features/chat/data/chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation_summary.dart';
 
-/// 测试用 mock 仓库，按调用顺序返回预设页面。
-class FakeHistoryRepository implements ChatConversationRepository {
-  FakeHistoryRepository({required this.pages});
-
-  final List<({List<ChatConversationSummary> summaries, bool hasMore})> pages;
-  int _index = 0;
-  final List<({String keyword, int? limit, int? offset})> calls = [];
-
-  int get callCount => _index;
-
-  @override
-  ({List<ChatConversationSummary> summaries, bool hasMore}) loadHistorySummaries({
-    String keyword = '',
-    int? limit,
-    int? offset,
-  }) {
-    calls.add((keyword: keyword, limit: limit, offset: offset));
-    if (_index >= pages.length) {
-      return (summaries: const [], hasMore: false);
-    }
-    return pages[_index++];
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => null;
-}
+import '../../../helpers/fake_history_repository.dart';
 
 void main() {
   late AppDatabase database;
@@ -48,7 +23,7 @@ void main() {
     addTearDown(database.close);
   });
 
-  ProviderContainer createContainer(ChatConversationRepository repo) {
+  ProviderContainer createContainer(FakeHistoryRepository repo) {
     final c = ProviderContainer(
       overrides: [
         appDatabaseProvider.overrideWithValue(database),
@@ -161,7 +136,7 @@ void main() {
       container.read(historyPaginationProvider.notifier).loadMore();
       container.read(historyPaginationProvider.notifier).loadMore();
 
-      // 仅触发一次 loadMore（第二次被守卫拦截）。
+      // 仅触发一次 loadMore（第二次被 isLoading 守卫拦截）。
       expect(repo.callCount, 2);
       final state = container.read(historyPaginationProvider);
       expect(state.conversations, hasLength(80));
