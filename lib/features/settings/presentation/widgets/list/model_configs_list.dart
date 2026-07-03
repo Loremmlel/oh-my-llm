@@ -32,6 +32,7 @@ class ModelConfigsList extends ConsumerWidget {
     }
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         for (final provider in providers)
           Padding(
