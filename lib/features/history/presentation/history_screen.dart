@@ -30,11 +30,23 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   /// 搜索输入防抖时长，避免每次按键都触发分页重置。
   static const _searchDebounce = Duration(milliseconds: 300);
 
+  /// 自动追加的 epsilon 死区：当列表可滚动范围 ≤ viewport + 此值时
+  /// 仍触发追加。单位 px。设置后可避免"列表高度恰好等于视口时
+  /// maxScrollExtent == 0 引起的 1px 边界抖动反复触发 problem；
+  /// 同时确保"完全不可滚动"（maxScrollExtent == 0）时仍能触发。
+  static const autoFillDeadZone = 48.0;
+
   late final TextEditingController _searchController;
   Timer? _searchDebounceTimer;
 
   final Set<String> _selectedConversationIds = <String>{};
   late final ScrollController _scrollController;
+
+  /// 自动填充调度标记：当需要追加加载时，在一次布局完成后触发检查。
+  /// 与直接在 build 内注册 post-frame 回调相比，此字段保证每个
+  /// "loadMore → rebuild → 继续检查"循环周期内仅注册一次新回调，
+  /// 避免 callback 堆积放大。
+  bool _autoFillScheduled = false;
 
   bool get _selectionMode => _selectedConversationIds.isNotEmpty;
 
@@ -43,11 +55,12 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     super.initState();
     _searchController = TextEditingController();
     _scrollController = ScrollController()..addListener(_onScroll);
-    // 首帧后触发首次分页加载，并在布局完成后检查是否需要自动填满视口
-    // （避免内容不足一屏时底部 loading 永远转，见 _autoFillIfNeeded）。
+    // 首帧后触发首次分页加载；loadInitial 同步完成后，再通过
+    // _scheduleAutoFill 在下一帧布局后检查是否需要自动填满视口
+    // （避免内容不足一屏时底部 loading 永远转）。
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(historyPaginationProvider.notifier).loadInitial();
-      WidgetsBinding.instance.addPostFrameCallback((_) => _autoFillIfNeeded());
+      _scheduleAutoFill();
     });
   }
 
@@ -63,26 +76,46 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
 
   /// 距底部 200px 以内时触发预加载。
   void _onScroll() {
-    if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent - 200) {
+    if (_scrollController.hasClients &&
+        _scrollController.position.pixels >=
+            _scrollController.position.maxScrollExtent - 200) {
       ref.read(historyPaginationProvider.notifier).loadMore();
     }
   }
 
-  /// 数据不足以填满视口时自动追加加载，避免底部 loading 永远转。
+  /// 注册一次性的"布局完成后检查"回调。
+  ///
+  /// 仅当尚未注册时才调度，避免多次 rebuild 内堆积大量 pending callback。
+  /// 回调执行后清除标记，允许 loadMore 触发的下次 rebuild 重新注册。
+  void _scheduleAutoFill() {
+    if (_autoFillScheduled) return;
+    _autoFillScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _autoFillScheduled = false;
+      _autoFillIfNeeded();
+    });
+  }
+
+  /// 数据不足以填满视口（加上 [autoFillDeadZone] 的 epsilon 死区）时自动
+  /// 追加加载，避免底部 loading 永远转。
   ///
   /// 与 [_onScroll] 互补：像素阈值只对"能滚得动"的情况有效；当内容不足
   /// 一屏时，[_onScroll] 永远达不到触发条件， spinner 就会 fixed 在底部的
   /// Column 上不停转，必须由本方法显式打破死锁。
+  ///
+  /// 此方法被设计为幂等守卫（mounted / hasClients / isLoading / hasMore
+  /// 四重检查），无论被 _onScroll 还是 post-frame 回调调用都安全。
   void _autoFillIfNeeded() {
     if (!mounted) return;
     if (!_scrollController.hasClients) return;
     final position = _scrollController.position;
     final state = ref.read(historyPaginationProvider);
-    if (position.maxScrollExtent <= position.viewportDimension &&
+    if (position.maxScrollExtent + autoFillDeadZone <= position.viewportDimension &&
         state.hasMore &&
         !state.isLoading) {
       ref.read(historyPaginationProvider.notifier).loadMore();
+      // loadMore 会同步更新 state 并触发 rebuild；让 rebuild 的
+      // _scheduleAutoFill 继续尝试追加，直到填满视口或 hasMore=false。
     }
   }
 
@@ -162,15 +195,18 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       paginationState.conversations,
     );
 
+    // 每次列表重建（分页追加后）都安排一次布局完成后的检查，
+    // 以继续追加直到填满视口或 hasMore=false。
+    // 放在 if 分支之前，确保"空列表 + hasMore=true"的极端场景
+    // 也能在下一帧尝试自动追加，而不是永远卡在空状态页。
+    _scheduleAutoFill();
+
     if (groups.isEmpty && !paginationState.isLoading) {
       return EmptyHistoryView(
         hasConversations: paginationState.hasAnyConversations,
         searchKeyword: _searchController.text,
       );
     }
-
-    // 每次列表重建（分页追加后）都检查是否需要继续追加，以填满视口。
-    WidgetsBinding.instance.addPostFrameCallback((_) => _autoFillIfNeeded());
 
     return Column(
       children: [
