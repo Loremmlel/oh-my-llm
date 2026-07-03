@@ -43,9 +43,11 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     super.initState();
     _searchController = TextEditingController();
     _scrollController = ScrollController()..addListener(_onScroll);
-    // 首帧后触发首次分页加载。
+    // 首帧后触发首次分页加载，并在布局完成后检查是否需要自动填满视口
+    // （避免内容不足一屏时底部 loading 永远转，见 _autoFillIfNeeded）。
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(historyPaginationProvider.notifier).loadInitial();
+      WidgetsBinding.instance.addPostFrameCallback((_) => _autoFillIfNeeded());
     });
   }
 
@@ -63,6 +65,23 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   void _onScroll() {
     if (_scrollController.position.pixels >=
         _scrollController.position.maxScrollExtent - 200) {
+      ref.read(historyPaginationProvider.notifier).loadMore();
+    }
+  }
+
+  /// 数据不足以填满视口时自动追加加载，避免底部 loading 永远转。
+  ///
+  /// 与 [_onScroll] 互补：像素阈值只对"能滚得动"的情况有效；当内容不足
+  /// 一屏时，[_onScroll] 永远达不到触发条件， spinner 就会 fixed 在底部的
+  /// Column 上不停转，必须由本方法显式打破死锁。
+  void _autoFillIfNeeded() {
+    if (!mounted) return;
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    final state = ref.read(historyPaginationProvider);
+    if (position.maxScrollExtent <= position.viewportDimension &&
+        state.hasMore &&
+        !state.isLoading) {
       ref.read(historyPaginationProvider.notifier).loadMore();
     }
   }
@@ -150,6 +169,9 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       );
     }
 
+    // 每次列表重建（分页追加后）都检查是否需要继续追加，以填满视口。
+    WidgetsBinding.instance.addPostFrameCallback((_) => _autoFillIfNeeded());
+
     return Column(
       children: [
         Expanded(
@@ -188,7 +210,9 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
             },
           ),
         ),
-        // 底部加载指示器（hasMore 时显示）
+        // 底部加载指示器（hasMore 时显示）。
+        // 仅当数据量已足以让用户主动滚近底部、或已加载完（hasMore=false）
+        // 时才会消失；不满一屏的中间状态由 _autoFillIfNeeded 自动追加填满。
         if (paginationState.hasMore)
           const Padding(
             padding: EdgeInsets.all(16),
