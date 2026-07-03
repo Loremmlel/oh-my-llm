@@ -5,6 +5,8 @@ import 'package:meta/meta.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqlite3/sqlite3.dart' as sqlite;
 
+import 'sqlite_replace_all.dart';
+
 const chatDatabaseFileName = 'chat_history.sqlite';
 
 /// 应用级 SQLite 数据库，负责打开文件并维护基础 schema。
@@ -55,11 +57,7 @@ class AppDatabase {
   }
 
   void _configure() {
-    _connection.execute('PRAGMA foreign_keys = ON;');
-    if (path != ':memory:') {
-      _connection.execute('PRAGMA journal_mode = WAL;');
-    }
-    _connection.execute('PRAGMA busy_timeout = 5000;');
+    configureSqlitePragmas(_connection, isInMemory: path == ':memory:');
   }
 
   void _migrate() {
