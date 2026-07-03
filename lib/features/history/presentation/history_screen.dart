@@ -8,13 +8,12 @@ import '../../../app/navigation/app_destination.dart';
 import '../../../app/shell/app_shell_scaffold.dart';
 import '../../../core/widgets/app_confirm_dialog.dart';
 import '../../chat/application/chat_sessions_controller.dart';
-import '../../chat/data/chat_conversation_repository.dart';
+import '../../chat/application/history_pagination_controller.dart';
 import '../../chat/domain/chat_conversation_groups.dart';
+import '../../chat/domain/history_pagination_state.dart';
 import '../../chat/domain/models/chat_conversation_summary.dart';
+import '../../chat/presentation/widgets/grouped_conversation_list.dart';
 import 'widgets/history_widgets.dart';
-
-/// 搜索输入防抖时长，避免每次按键都触发数据库查询。
-const _historySearchDebounceDuration = Duration(milliseconds: 300);
 
 /// 历史对话页入口，支持搜索、批量选择、删除和重命名。
 class HistoryScreen extends ConsumerStatefulWidget {
@@ -24,13 +23,18 @@ class HistoryScreen extends ConsumerStatefulWidget {
   ConsumerState<HistoryScreen> createState() => _HistoryScreenState();
 }
 
-/// 历史页状态层，负责搜索、选择和会话跳转。
+/// 历史页 UI 层：负责搜索输入、选择模式、滚动监听。
+///
+/// 分页数据由 [HistoryPaginationController] 持有，本层纯 view。
 class _HistoryScreenState extends ConsumerState<HistoryScreen> {
+  /// 搜索输入防抖时长，避免每次按键都触发分页重置。
+  static const _searchDebounce = Duration(milliseconds: 300);
+
   late final TextEditingController _searchController;
   Timer? _searchDebounceTimer;
 
   final Set<String> _selectedConversationIds = <String>{};
-  String _debouncedSearchKeyword = '';
+  late final ScrollController _scrollController;
 
   bool get _selectionMode => _selectedConversationIds.isNotEmpty;
 
@@ -38,25 +42,42 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   void initState() {
     super.initState();
     _searchController = TextEditingController();
+    _scrollController = ScrollController()..addListener(_onScroll);
+    // 首帧后触发首次分页加载。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(historyPaginationProvider.notifier).loadInitial();
+    });
   }
 
   @override
   void dispose() {
     _searchDebounceTimer?.cancel();
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
-  /// 构建历史页的搜索区和分组列表。
+  // ── 滚动监听 ──────────────────────────────────────────────────────────────
+
+  /// 距底部 200px 以内时触发预加载。
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      ref.read(historyPaginationProvider.notifier).loadMore();
+    }
+  }
+
+  // ── 构建 ─────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
+    // 每次写操作（create/rename/delete）后重建；分页 controller 内部
+    // 已通过 afterRename/afterDelete 做本地修正，revision 变化不会
+    // 丢弃已加载的分页数据。
     ref.watch(chatHistoryRevisionProvider);
-    final repository = ref.read(chatConversationRepositoryProvider);
-    final allConversations = repository.loadHistorySummaries();
-    final filteredConversations = _debouncedSearchKeyword.isEmpty
-        ? allConversations
-        : repository.loadHistorySummaries(keyword: _debouncedSearchKeyword);
-    final groups = groupConversationSummariesByUpdatedAt(filteredConversations);
+
+    final paginationState = ref.watch(historyPaginationProvider);
+    final conversations = paginationState.conversations;
 
     return AppShellScaffold(
       currentDestination: AppDestination.history,
@@ -87,19 +108,15 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                 HistoryToolbar(
                   searchController: _searchController,
                   selectedCount: _selectedConversationIds.length,
-                  hasConversations: allConversations.isNotEmpty,
+                  hasConversations: paginationState.hasAnyConversations,
                   onSearchChanged: _handleSearchChanged,
-                  onSelectAllPressed: filteredConversations.isEmpty
+                  onSelectAllPressed: conversations.isEmpty
                       ? null
                       : () {
                           setState(() {
                             _selectedConversationIds
                               ..clear()
-                              ..addAll(
-                                filteredConversations.map((conversation) {
-                                  return conversation.id;
-                                }),
-                              );
+                              ..addAll(conversations.map((c) => c.id));
                           });
                         },
                   onDeletePressed: _selectedConversationIds.isEmpty
@@ -108,69 +125,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                 ),
                 const SizedBox(height: 20),
                 Expanded(
-                  child: groups.isEmpty
-                      ? EmptyHistoryView(
-                          hasConversations: allConversations.isNotEmpty,
-                          searchKeyword: _searchController.text,
-                        )
-                      : ListView.separated(
-                          itemCount: groups.length,
-                          separatorBuilder: (context, index) {
-                            return const SizedBox(height: 20);
-                          },
-                          itemBuilder: (context, index) {
-                            final group = groups[index];
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  group.bucket.label,
-                                  style: Theme.of(
-                                    context,
-                                  ).textTheme.titleMedium,
-                                ),
-                                const SizedBox(height: 10),
-                                ...group.conversations.map((conversation) {
-                                  final isSelected = _selectedConversationIds
-                                      .contains(conversation.id);
-
-                                  return Padding(
-                                    padding: const EdgeInsets.only(bottom: 10),
-                                    child: HistoryConversationTile(
-                                      conversation: conversation,
-                                      selected: isSelected,
-                                      onTap: () {
-                                        if (_selectionMode) {
-                                          _toggleSelection(conversation.id);
-                                          return;
-                                        }
-
-                                        ref
-                                            .read(chatSessionsProvider.notifier)
-                                            .selectConversation(
-                                              conversation.id,
-                                            );
-                                        context.go(AppDestination.chat.path);
-                                      },
-                                      onLongPress: () {
-                                        _toggleSelection(conversation.id);
-                                      },
-                                      onRenamePressed: () {
-                                        _showRenameDialog(
-                                          context,
-                                          conversation: conversation,
-                                        );
-                                      },
-                                      onSelectionChanged: (value) {
-                                        _toggleSelection(conversation.id);
-                                      },
-                                    ),
-                                  );
-                                }),
-                              ],
-                            );
-                          },
-                        ),
+                  child: _buildConversationList(context, paginationState),
                 ),
               ],
             ),
@@ -180,7 +135,73 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     );
   }
 
-  /// 切换某个会话的选中状态。
+  Widget _buildConversationList(
+    BuildContext context,
+    HistoryPaginationState paginationState,
+  ) {
+    final groups = groupConversationSummariesByUpdatedAt(
+      paginationState.conversations,
+    );
+
+    if (groups.isEmpty && !paginationState.isLoading) {
+      return EmptyHistoryView(
+        hasConversations: paginationState.hasAnyConversations,
+        searchKeyword: _searchController.text,
+      );
+    }
+
+    return Column(
+      children: [
+        Expanded(
+          child: GroupedConversationList(
+            groups: groups,
+            scrollController: _scrollController,
+            itemBuilder: (context, conversation) {
+              final isSelected = _selectedConversationIds.contains(
+                conversation.id,
+              );
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: HistoryConversationTile(
+                  conversation: conversation,
+                  selected: isSelected,
+                  onTap: () {
+                    if (_selectionMode) {
+                      _toggleSelection(conversation.id);
+                      return;
+                    }
+                    ref
+                        .read(chatSessionsProvider.notifier)
+                        .selectConversation(conversation.id);
+                    context.go(AppDestination.chat.path);
+                  },
+                  onLongPress: () => _toggleSelection(conversation.id),
+                  onRenamePressed: () => _showRenameDialog(
+                    context,
+                    conversation: conversation,
+                  ),
+                  onSelectionChanged: (_) => _toggleSelection(
+                    conversation.id,
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        // 底部加载指示器（hasMore 时显示）
+        if (paginationState.hasMore)
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: Center(
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+      ],
+    );
+  }
+
+  // ── 选择 ─────────────────────────────────────────────────────────────────
+
   void _toggleSelection(String conversationId) {
     setState(() {
       if (_selectedConversationIds.contains(conversationId)) {
@@ -191,64 +212,59 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     });
   }
 
-  /// 清空全部选中项。
   void _clearSelection() {
-    setState(() {
-      _selectedConversationIds.clear();
-    });
+    setState(() => _selectedConversationIds.clear());
   }
 
-  /// 将搜索输入和真正执行查询的关键字解耦，避免每次按键都立即查库。
+  // ── 搜索 ─────────────────────────────────────────────────────────────────
+
   void _handleSearchChanged(String value) {
     _searchDebounceTimer?.cancel();
     final nextKeyword = value.trim();
 
-    if (nextKeyword.isEmpty) {
-      if (_debouncedSearchKeyword.isEmpty) {
-        return;
-      }
+    if (nextKeyword.isEmpty && _currentKeyword().isEmpty) return;
 
-      setState(() {
-        _debouncedSearchKeyword = '';
-      });
-      return;
-    }
-
-    _searchDebounceTimer = Timer(_historySearchDebounceDuration, () {
-      if (!mounted || _debouncedSearchKeyword == nextKeyword) {
-        return;
-      }
-
-      setState(() {
-        _debouncedSearchKeyword = nextKeyword;
-      });
+    _searchDebounceTimer = Timer(_searchDebounce, () {
+      if (!mounted || _currentKeyword() == nextKeyword) return;
+      ref.read(historyPaginationProvider.notifier).setKeyword(nextKeyword);
     });
   }
 
-  /// 弹出重命名对话框，并把结果提交给控制器。
+  String _currentKeyword() =>
+      ref.read(historyPaginationProvider).keyword;
+
+  // ── 重命名 ───────────────────────────────────────────────────────────────
+
   Future<void> _showRenameDialog(
     BuildContext context, {
     required ChatConversationSummary conversation,
   }) async {
     final nextTitle = await showDialog<String>(
       context: context,
-      builder: (context) {
-        return RenameConversationDialog(
-          initialTitle: conversation.resolvedTitle,
-        );
-      },
+      builder: (context) => RenameConversationDialog(
+        initialTitle: conversation.resolvedTitle,
+      ),
     );
 
-    if (!mounted || nextTitle == null || nextTitle.trim().isEmpty) {
-      return;
-    }
+    if (!mounted || nextTitle == null || nextTitle.trim().isEmpty) return;
 
     await ref
         .read(chatSessionsProvider.notifier)
-        .renameConversation(conversationId: conversation.id, title: nextTitle);
+        .renameConversation(
+          conversationId: conversation.id,
+          title: nextTitle,
+        );
+
+    // 等 DB 落盘后本地刷新标题（controller 已处理 revision 递增触发 watch，
+    // 但此处提前本地更新可避免 80ms debounce 窗口期的 UI 闪烁）。
+    ref.read(historyPaginationProvider.notifier).afterRename(
+      conversation.id,
+      nextTitle,
+    );
   }
 
-  /// 确认并删除当前选中的历史会话。
+  // ── 删除 ─────────────────────────────────────────────────────────────────
+
   Future<void> _confirmDeleteSelected() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -269,14 +285,18 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       },
     );
 
-    if (confirmed != true || !mounted) {
-      return;
-    }
+    if (confirmed != true || !mounted) return;
+
+    final deletedIds = _selectedConversationIds.toSet();
 
     await ref
         .read(chatSessionsProvider.notifier)
-        .deleteConversations(_selectedConversationIds);
+        .deleteConversations(deletedIds);
+
     if (!mounted) return;
     _clearSelection();
+
+    // 本地移除已删除项，避免全量刷新丢失滚动位置。
+    ref.read(historyPaginationProvider.notifier).afterDelete(deletedIds);
   }
 }
