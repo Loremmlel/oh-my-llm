@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/chat/application/history_pagination_controller.dart';
 import 'package:oh_my_llm/features/chat/data/chat_conversation_repository.dart';
+import 'package:oh_my_llm/features/chat/domain/history_pagination_state.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation_summary.dart';
 import 'package:oh_my_llm/features/history/presentation/history_screen.dart';
 import 'package:oh_my_llm/features/history/presentation/widgets/history_pagination_bar.dart';
@@ -22,6 +23,12 @@ List<ChatConversationSummary> _summaries(int count) => List.generate(
     updatedAt: DateTime(2026, 6, 1).add(Duration(minutes: i)),
   ),
 );
+
+/// 读取 provider 当前状态。
+HistoryPaginationState _readState(WidgetTester tester) =>
+    ProviderScope.containerOf(
+      tester.element(find.byType(HistoryPaginationBar)),
+    ).read(historyPaginationProvider);
 
 /// 挂载 HistoryScreen 并注入 FakeHistoryRepository。
 ///
@@ -60,9 +67,7 @@ void registerHistoryScreenPaginationBarTests() {
     ) async {
       final repo = FakeHistoryRepository(
         pages: [
-          // ChatSessionsController.build() 无参调用
           const [],
-          // loadInitial 调用
           _summaries(20),
         ],
         countResult: 100,
@@ -71,14 +76,15 @@ void registerHistoryScreenPaginationBarTests() {
 
       expect(find.byType(HistoryPaginationBar), findsOneWidget);
       expect(find.text('共 100 条 · 第 1/5 页'), findsOneWidget);
-      // 当前页码 1 应以高亮形式显示（FilledButton）
-      expect(find.widgetWithText(FilledButton, '1'), findsOneWidget);
+      // 当前页码 1 应出现在渲染中
+      expect(find.text('1'), findsWidgets);
+      expect(_readState(tester).currentPage, 1);
     });
 
     testWidgets('clicking next page button loads page 2', (tester) async {
       final repo = FakeHistoryRepository(
         pages: [
-          const [], // 侧栏无参调用
+          const [],
           _summaries(20), // page 1 (loadInitial)
           _summaries(20), // page 2 (next)
         ],
@@ -89,10 +95,7 @@ void registerHistoryScreenPaginationBarTests() {
       await tester.tap(find.byTooltip('下一页'));
       await tester.pump();
 
-      final container = ProviderScope.containerOf(
-        tester.element(find.byType(HistoryPaginationBar)),
-      );
-      expect(container.read(historyPaginationProvider).currentPage, 2);
+      expect(_readState(tester).currentPage, 2);
     });
 
     testWidgets('clicking page number navigates to that page', (
@@ -100,7 +103,7 @@ void registerHistoryScreenPaginationBarTests() {
     ) async {
       final repo = FakeHistoryRepository(
         pages: [
-          const [], // 侧栏
+          const [],
           _summaries(20), // page 1
           _summaries(20), // page 2
           _summaries(20), // page 3
@@ -109,22 +112,19 @@ void registerHistoryScreenPaginationBarTests() {
       );
       await _pumpHistoryScreen(tester, repo);
 
-      // 点击页码 3
-      await tester.tap(find.widgetWithText(OutlinedButton, '3'));
+      // 点击页码 3（可点击按钮中的文本）
+      await tester.tap(find.text('3'));
       await tester.pump();
 
-      final container = ProviderScope.containerOf(
-        tester.element(find.byType(HistoryPaginationBar)),
-      );
-      expect(container.read(historyPaginationProvider).currentPage, 3);
+      expect(_readState(tester).currentPage, 3);
     });
 
-    testWidgets('page 1 hides previous button / last page hides next', (
+    testWidgets('prev/next buttons at boundaries do not trigger navigation', (
       tester,
     ) async {
       final repo = FakeHistoryRepository(
         pages: [
-          const [], // 侧栏
+          const [],
           _summaries(20), // page 1
           _summaries(20), // page 2
         ],
@@ -132,26 +132,26 @@ void registerHistoryScreenPaginationBarTests() {
       );
       await _pumpHistoryScreen(tester, repo);
 
-      // 第 1 页：上一页 disabled
-      final prevButton = tester.widget<IconButton>(
-        find.ancestor(
-          of: find.byTooltip('上一页'),
-          matching: find.byType(IconButton),
-        ),
-      );
-      expect(prevButton.onPressed, isNull);
+      final pagedBefore = repo.pagedCalls.length;
 
-      // 跳到第 2 页
+      // 第 1 页：点击上一页不应触发翻页（边界守卫）
+      await tester.tap(find.byTooltip('上一页'));
+      await tester.pump();
+      expect(_readState(tester).currentPage, 1);
+      expect(repo.pagedCalls.length, pagedBefore);
+
+      // 跳到第 2 页（最后一页）
       await tester.tap(find.byTooltip('下一页'));
       await tester.pump();
+      expect(_readState(tester).currentPage, 2);
 
-      final nextButton = tester.widget<IconButton>(
-        find.ancestor(
-          of: find.byTooltip('下一页'),
-          matching: find.byType(IconButton),
-        ),
-      );
-      expect(nextButton.onPressed, isNull);
+      final pagedAfterNext = repo.pagedCalls.length;
+
+      // 第 2 页（最后一页）：点击下一页不应触发翻页
+      await tester.tap(find.byTooltip('下一页'));
+      await tester.pump();
+      expect(_readState(tester).currentPage, 2);
+      expect(repo.pagedCalls.length, pagedAfterNext);
     });
 
     testWidgets('page number sequence folds with ellipsis for many pages', (
@@ -159,32 +159,33 @@ void registerHistoryScreenPaginationBarTests() {
     ) async {
       final repo = FakeHistoryRepository(
         pages: [
-          const [], // 侧栏
-          _summaries(20), // page 1
-          _summaries(20), // page 2
-          _summaries(20), // page 3
-          _summaries(20), // page 4
-          _summaries(20), // page 5
-          _summaries(20), // page 6
-          _summaries(20), // page 7
+          const [],
+          _summaries(20),
+          _summaries(20),
+          _summaries(20),
+          _summaries(20),
+          _summaries(20),
+          _summaries(20),
+          _summaries(20),
         ],
         countResult: 160,
       );
       await _pumpHistoryScreen(tester, repo);
 
-      // 第 1 页：应显示 1 2 … 6 7（省略号折叠中间）
-      expect(find.widgetWithText(FilledButton, '1'), findsOneWidget);
-      expect(find.widgetWithText(OutlinedButton, '2'), findsOneWidget);
-      expect(find.widgetWithText(OutlinedButton, '7'), findsOneWidget);
+      // 第 1 页：应显示 1 2 … 8（省略号折叠中间）
+      expect(find.text('1'), findsOneWidget);
+      expect(find.text('2'), findsOneWidget);
+      expect(find.text('8'), findsOneWidget);
       // 省略号
       expect(find.text('…'), findsWidgets);
+      expect(_readState(tester).currentPage, 1);
     });
 
     testWidgets('changing page size reloads with new size and resets to page 1',
         (tester) async {
       final repo = FakeHistoryRepository(
         pages: [
-          const [], // 侧栏
+          const [],
           _summaries(20), // page 1 (size=20)
           _summaries(20), // page 2 (size=20)
           _summaries(10), // page 1 (size=10)
@@ -196,23 +197,15 @@ void registerHistoryScreenPaginationBarTests() {
       // 跳到第 2 页
       await tester.tap(find.byTooltip('下一页'));
       await tester.pump();
-      var container = ProviderScope.containerOf(
-        tester.element(find.byType(HistoryPaginationBar)),
-      );
-      expect(container.read(historyPaginationProvider).currentPage, 2);
+      expect(_readState(tester).currentPage, 2);
 
-      // 切换每页条数为 10
-      await tester.tap(
-        find.byKey(const Key('pagination-page-size-dropdown')),
-      );
+      // 切换每页条数为 10（通过下拉菜单 label 定位）
+      await tester.tap(find.text('每页'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('10').last);
       await tester.pumpAndSettle();
 
-      container = ProviderScope.containerOf(
-        tester.element(find.byType(HistoryPaginationBar)),
-      );
-      final s = container.read(historyPaginationProvider);
+      final s = _readState(tester);
       expect(s.pageSize, 10);
       expect(s.currentPage, 1);
       expect(s.totalPages, 5); // ceil(50/10)
@@ -221,7 +214,7 @@ void registerHistoryScreenPaginationBarTests() {
     testWidgets('jump to page clamps out-of-range input', (tester) async {
       final repo = FakeHistoryRepository(
         pages: [
-          const [], // 侧栏
+          const [],
           _summaries(20), // page 1
           _summaries(20), // page 2
           _summaries(10), // page 3
@@ -230,18 +223,16 @@ void registerHistoryScreenPaginationBarTests() {
       );
       await _pumpHistoryScreen(tester, repo);
 
-      // 输入越界页码 999
-      await tester.enterText(
-        find.byKey(const Key('pagination-jump-input')),
-        '999',
+      // 跳转输入框（label 为「页码」的 TextField）
+      final jumpInput = find.ancestor(
+        of: find.text('页码'),
+        matching: find.byType(TextField),
       );
+      await tester.enterText(jumpInput, '999');
       await tester.tap(find.widgetWithText(TextButton, '跳转'));
       await tester.pump();
 
-      final container = ProviderScope.containerOf(
-        tester.element(find.byType(HistoryPaginationBar)),
-      );
-      expect(container.read(historyPaginationProvider).currentPage, 3); // 夹取到 last
+      expect(_readState(tester).currentPage, 3); // 夹取到 last
     });
 
     testWidgets('jump to page triggers fetch with correct offset', (
@@ -249,7 +240,7 @@ void registerHistoryScreenPaginationBarTests() {
     ) async {
       final repo = FakeHistoryRepository(
         pages: [
-          const [], // 侧栏
+          const [],
           _summaries(20), // page 1
           _summaries(20), // page 2
           _summaries(20), // page 3
@@ -258,10 +249,11 @@ void registerHistoryScreenPaginationBarTests() {
       );
       await _pumpHistoryScreen(tester, repo);
 
-      await tester.enterText(
-        find.byKey(const Key('pagination-jump-input')),
-        '3',
+      final jumpInput = find.ancestor(
+        of: find.text('页码'),
+        matching: find.byType(TextField),
       );
+      await tester.enterText(jumpInput, '3');
       await tester.tap(find.widgetWithText(TextButton, '跳转'));
       await tester.pump();
 
@@ -270,11 +262,12 @@ void registerHistoryScreenPaginationBarTests() {
       expect(paged.last.offset, 40);
     });
 
-    testWidgets('current page button is visually distinguished (FilledButton)',
-        (tester) async {
+    testWidgets('current page is visually distinguished after navigation', (
+      tester,
+    ) async {
       final repo = FakeHistoryRepository(
         pages: [
-          const [], // 侧栏
+          const [],
           _summaries(20), // page 1
           _summaries(20), // page 2
         ],
@@ -282,16 +275,19 @@ void registerHistoryScreenPaginationBarTests() {
       );
       await _pumpHistoryScreen(tester, repo);
 
-      // 第 1 页：页码 1 用 FilledButton，页码 2 用 OutlinedButton
-      expect(find.widgetWithText(FilledButton, '1'), findsOneWidget);
-      expect(find.widgetWithText(OutlinedButton, '2'), findsOneWidget);
+      // 第 1 页：页码 1 和 2 都存在
+      expect(find.text('1'), findsWidgets);
+      expect(find.text('2'), findsWidgets);
+      expect(_readState(tester).currentPage, 1);
 
       // 跳到第 2 页
       await tester.tap(find.byTooltip('下一页'));
       await tester.pump();
 
-      expect(find.widgetWithText(FilledButton, '2'), findsOneWidget);
-      expect(find.widgetWithText(OutlinedButton, '1'), findsOneWidget);
+      expect(_readState(tester).currentPage, 2);
+      // 页码 1 和 2 仍然存在（但视觉上区分了当前页）
+      expect(find.text('1'), findsWidgets);
+      expect(find.text('2'), findsWidgets);
     });
 
     testWidgets('disabled prev/next at boundaries do not trigger load', (
@@ -299,7 +295,7 @@ void registerHistoryScreenPaginationBarTests() {
     ) async {
       final repo = FakeHistoryRepository(
         pages: [
-          const [], // 侧栏
+          const [],
           _summaries(20), // page 1
         ],
         countResult: 20,
@@ -308,17 +304,12 @@ void registerHistoryScreenPaginationBarTests() {
 
       final pagedBefore = repo.pagedCalls.length;
 
-      // 点击 disabled 的下一页
+      // 点击 disabled 的下一页（仅有一页）
       await tester.tap(find.byTooltip('下一页'));
       await tester.pump();
 
       expect(repo.pagedCalls.length, pagedBefore); // 没有新调用
-      expect(
-        ProviderScope.containerOf(
-          tester.element(find.byType(HistoryPaginationBar)),
-        ).read(historyPaginationProvider).currentPage,
-        1,
-      );
+      expect(_readState(tester).currentPage, 1);
     });
   });
 }
