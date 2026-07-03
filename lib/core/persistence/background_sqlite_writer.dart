@@ -4,6 +4,7 @@ import 'dart:isolate';
 import 'package:sqlite3/sqlite3.dart' as sqlite;
 
 import '../../features/chat/domain/models/chat_conversation.dart';
+import 'sqlite_replace_all.dart';
 
 /// 后台 Isolate 入口：打开独立 sqlite3 连接，处理全量写入请求。
 @pragma('vm:entry-point')
@@ -22,11 +23,7 @@ void chatWriterEntryPoint(SendPort mainSendPort) {
       try {
         db = sqlite.sqlite3.open(message);
         final currentDb = db!;
-        currentDb.execute('PRAGMA foreign_keys = ON;');
-        if (message != ':memory:') {
-          currentDb.execute('PRAGMA journal_mode = WAL;');
-        }
-        currentDb.execute('PRAGMA busy_timeout = 5000;');
+        configureSqlitePragmas(currentDb, isInMemory: message == ':memory:');
         for (final pending in pendingWrites) {
           executeSaveConversations(currentDb, pending);
         }
@@ -122,44 +119,42 @@ void executeSaveConversations(sqlite.Database db, List<dynamic> conversationsJso
 
     try {
       for (final conversation in conversations) {
-        final normalized = ChatConversation.fromJson(conversation.toJson());
-
         conversationStatement.execute([
-          normalized.id,
-          normalized.title,
-          normalized.createdAt.toIso8601String(),
-          normalized.updatedAt.toIso8601String(),
-          normalized.selectedModelId,
-          normalized.selectedCheckpointId,
-          normalized.selectedPresetPromptId,
-          normalized.reasoningEnabled ? 1 : 0,
-          normalized.reasoningEffort.apiValue,
-          jsonEncode(normalized.excludedMessageIds),
-          normalized.autoRetryEnabled ? 1 : 0,
+          conversation.id,
+          conversation.title,
+          conversation.createdAt.toIso8601String(),
+          conversation.updatedAt.toIso8601String(),
+          conversation.selectedModelId,
+          conversation.selectedCheckpointId,
+          conversation.selectedPresetPromptId,
+          conversation.reasoningEnabled ? 1 : 0,
+          conversation.reasoningEffort.apiValue,
+          jsonEncode(conversation.excludedMessageIds),
+          conversation.autoRetryEnabled ? 1 : 0,
         ]);
 
         db.execute(
           'DELETE FROM messages WHERE conversation_id = ?',
-          [normalized.id],
+          [conversation.id],
         );
         db.execute(
           'DELETE FROM conversation_branch_selections WHERE conversation_id = ?',
-          [normalized.id],
+          [conversation.id],
         );
         db.execute(
           'DELETE FROM conversation_checkpoints WHERE conversation_id = ?',
-          [normalized.id],
+          [conversation.id],
         );
 
         for (
           var nodeIndex = 0;
-          nodeIndex < normalized.messageNodes.length;
+          nodeIndex < conversation.messageNodes.length;
           nodeIndex += 1
         ) {
-          final message = normalized.messageNodes[nodeIndex];
+          final message = conversation.messageNodes[nodeIndex];
           messageStatement.execute([
             message.id,
-            normalized.id,
+            conversation.id,
             nodeIndex,
             message.parentId,
             message.role.apiValue,
@@ -175,17 +170,17 @@ void executeSaveConversations(sqlite.Database db, List<dynamic> conversationsJso
             message.createdAt.toIso8601String(),
           ]);
         }
-        for (final entry in normalized.selectedChildByParentId.entries) {
+        for (final entry in conversation.selectedChildByParentId.entries) {
           selectionStatement.execute([
-            normalized.id,
+            conversation.id,
             entry.key,
             entry.value,
           ]);
         }
-        for (final checkpoint in normalized.checkpoints) {
+        for (final checkpoint in conversation.checkpoints) {
           checkpointStatement.execute([
             checkpoint.id,
-            normalized.id,
+            conversation.id,
             checkpoint.title,
             checkpoint.content,
             checkpoint.parentCheckpointId,
