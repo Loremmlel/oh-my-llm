@@ -4,10 +4,10 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
+import '../../../core/http/custom_headers_provider.dart';
 import '../../../core/http/http_client_provider.dart';
 import '../../../core/logging/app_network_logger_provider.dart';
 import '../../../core/logging/network_logger.dart';
-import '../../settings/application/custom_headers_controller.dart';
 import '../../settings/domain/models/llm_model_config.dart';
 import '../domain/models/chat_message.dart';
 import 'chat_chunk_parser.dart';
@@ -20,7 +20,7 @@ final chatCompletionClientProvider = Provider<ChatCompletionClient>((ref) {
   final logger = ref.watch(appNetworkLoggerProvider);
   // 在请求构建阶段获取自定义 header，确保在 logRequest 之前已附加到请求上。
   Map<String, String> extraHeadersFactory() =>
-      ref.read(customHeadersProvider).toHeaderMap();
+      ref.read(customHeadersMapProvider);
   return OpenAiCompatibleChatClient(
     httpClient: httpClient,
     logger: logger,

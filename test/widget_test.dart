@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:oh_my_llm/app/app.dart';
+import 'package:oh_my_llm/core/http/custom_headers_provider.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
@@ -32,6 +33,7 @@ void main() {
         overrides: [
           appDatabaseProvider.overrideWithValue(database),
           sharedPreferencesProvider.overrideWithValue(preferences),
+          customHeadersMapProvider.overrideWith((ref) => const {}),
         ],
         child: const OhMyLlmApp(),
       ),

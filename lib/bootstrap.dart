@@ -5,12 +5,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app/app.dart';
+import 'core/http/custom_headers_provider.dart';
 import 'core/logging/app_network_logger.dart';
 import 'core/logging/app_network_logger_provider.dart';
 import 'core/logging/network_logger.dart';
 import 'core/persistence/app_database.dart';
 import 'core/persistence/app_database_provider.dart';
 import 'core/persistence/shared_preferences_provider.dart';
+import 'features/settings/application/custom_headers_controller.dart';
 
 /// 应用启动入口：初始化持久化层，最后启动 Flutter 应用。
 ///
@@ -42,6 +44,10 @@ Future<void> bootstrap({
         sharedPreferencesProvider.overrideWithValue(preferences),
         appDatabaseProvider.overrideWithValue(appDatabase),
         appNetworkLoggerProvider.overrideWithValue(logger),
+        // 将 feature 层的 CustomHeadersConfig 映射为 core 层所需的 Map。
+        customHeadersMapProvider.overrideWith(
+          (ref) => ref.watch(customHeadersProvider).toHeaderMap(),
+        ),
       ],
       child: const OhMyLlmApp(),
     ),
