@@ -1,5 +1,7 @@
 /// 对 JSON 树中所有 String 值做长度截断，保留完整结构。
-const int _maxLogValueLength = 500;
+
+/// 日志字符串截断默认阈值（字符数）。
+const int defaultMaxLogValueLength = 500;
 
 /// 递归遍历 JSON-like Dart 对象，将所有超过 [maxLength] 的字符串值截断。
 ///
@@ -9,7 +11,10 @@ const int _maxLogValueLength = 500;
 /// - Map → 递归处理所有 value
 /// - List → 递归处理所有元素
 /// - 其他类型（int/bool/double 等）→ 原样返回
-Object? truncateJsonValues(Object? input, {int maxLength = _maxLogValueLength}) {
+Object? truncateJsonValues(
+  Object? input, {
+  int maxLength = defaultMaxLogValueLength,
+}) {
   if (input == null) {
     return null;
   }

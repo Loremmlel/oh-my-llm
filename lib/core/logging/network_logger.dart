@@ -1,46 +1,13 @@
 import 'dart:async';
 
 /// 网络日志接口：用于记录请求、响应、流式行与异常。
-abstract interface class NetworkLogger {
-  Future<void> onAppLaunch();
-
-  Future<void> onAppDetached();
-
-  Future<void> logRequest({
-    required Uri uri,
-    required String method,
-    required Map<String, String> headers,
-    required Object? payload,
-  });
-
-  Future<void> logResponse({
-    required Uri uri,
-    required int statusCode,
-    required Map<String, String> headers,
-    required Duration elapsed,
-  });
-
-  Future<void> logResponseBody({required Uri uri, required Object? body});
-
-  Future<void> logSseLine({required Uri uri, required String line});
-
-  Future<void> logError({
-    required Uri uri,
-    required Object error,
-    StackTrace? stackTrace,
-  });
-}
-
-final class NoopNetworkLogger implements NetworkLogger {
-  const NoopNetworkLogger();
-
-  @override
+///
+/// 所有方法均有默认 no-op 实现，使用者只需 override 需要的方法。
+mixin NetworkLogger {
   Future<void> onAppLaunch() async {}
 
-  @override
   Future<void> onAppDetached() async {}
 
-  @override
   Future<void> logRequest({
     required Uri uri,
     required String method,
@@ -48,7 +15,6 @@ final class NoopNetworkLogger implements NetworkLogger {
     required Object? payload,
   }) async {}
 
-  @override
   Future<void> logResponse({
     required Uri uri,
     required int statusCode,
@@ -56,19 +22,20 @@ final class NoopNetworkLogger implements NetworkLogger {
     required Duration elapsed,
   }) async {}
 
-  @override
-  Future<void> logResponseBody({
-    required Uri uri,
-    required Object? body,
-  }) async {}
+  Future<void> logResponseBody({required Uri uri, required Object? body}) async {}
 
-  @override
   Future<void> logSseLine({required Uri uri, required String line}) async {}
 
-  @override
   Future<void> logError({
     required Uri uri,
     required Object error,
     StackTrace? stackTrace,
   }) async {}
+}
+
+/// 空操作日志实现——所有方法均为 no-op。
+///
+/// 用于不需要日志的场景（如测试、禁用日志时）。
+final class NoopNetworkLogger with NetworkLogger {
+  const NoopNetworkLogger();
 }

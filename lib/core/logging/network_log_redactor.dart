@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 /// 网络日志脱敏工具：仅对 API Key（含 Bearer token）做遮罩。
 final class NetworkLogRedactor {
   static final RegExp _bearerPattern = RegExp(
@@ -53,10 +51,6 @@ final class NetworkLogRedactor {
     return bearerRedacted.replaceAllMapped(_apiKeyFieldPattern, (match) {
       return '${match.group(1)}***${match.group(3)}';
     });
-  }
-
-  String toJson(Object? value) {
-    return jsonEncode(value);
   }
 
   bool _looksLikeApiKeyField(String key) {

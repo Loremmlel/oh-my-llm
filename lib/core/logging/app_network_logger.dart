@@ -7,7 +7,7 @@ import 'network_log_redactor.dart';
 import 'network_logger.dart';
 
 /// 应用级网络日志实现，仅依赖文件阈值轮转，不在退出或重启时主动清空。
-final class AppNetworkLogger implements NetworkLogger {
+final class AppNetworkLogger with NetworkLogger {
   AppNetworkLogger({
     required AppLogStore store,
     NetworkLogRedactor redactor = const NetworkLogRedactor(),
@@ -26,16 +26,8 @@ final class AppNetworkLogger implements NetworkLogger {
 
   @override
   Future<void> onAppLaunch() async {
-    try {
-      final now = DateTime.now().toIso8601String();
-      await _store.appendLine('[$now] [app-launch] logger initialized.');
-    } catch (error, stackTrace) {
-      stderr.writeln('[network-log] launch init failed: $error\n$stackTrace');
-    }
+    await _writeLog('[app-launch] logger initialized.');
   }
-
-  @override
-  Future<void> onAppDetached() async {}
 
   @override
   Future<void> logRequest({
@@ -44,16 +36,11 @@ final class AppNetworkLogger implements NetworkLogger {
     required Map<String, String> headers,
     required Object? payload,
   }) async {
-    await _safeWrite(() async {
-      final redactedHeaders = _redactor.redactHeaders(headers);
-      final redactedPayload = _redactor.redactPayload(payload);
-      final truncatedPayload = truncateJsonValues(redactedPayload);
-      await _store.appendLine(
-        '[${DateTime.now().toIso8601String()}] [request] $method $uri'
-        ' headers=${_redactor.toJson(redactedHeaders)}'
-        ' payload=${_redactor.toJson(truncatedPayload)}',
-      );
-    });
+    final h = _redactor.redactHeaders(headers);
+    final p = truncateJsonValues(_redactor.redactPayload(payload));
+    await _writeLog(
+      '[request] $method $uri headers=${jsonEncode(h)} payload=${jsonEncode(p)}',
+    );
   }
 
   @override
@@ -63,14 +50,11 @@ final class AppNetworkLogger implements NetworkLogger {
     required Map<String, String> headers,
     required Duration elapsed,
   }) async {
-    await _safeWrite(() async {
-      final redactedHeaders = _redactor.redactHeaders(headers);
-      await _store.appendLine(
-        '[${DateTime.now().toIso8601String()}] [response] $uri'
-        ' status=$statusCode elapsedMs=${elapsed.inMilliseconds}'
-        ' headers=${jsonEncode(redactedHeaders)}',
-      );
-    });
+    final h = _redactor.redactHeaders(headers);
+    await _writeLog(
+      '[response] $uri status=$statusCode elapsedMs=${elapsed.inMilliseconds}'
+      ' headers=${jsonEncode(h)}',
+    );
   }
 
   @override
@@ -78,38 +62,27 @@ final class AppNetworkLogger implements NetworkLogger {
     required Uri uri,
     required Object? body,
   }) async {
-    await _safeWrite(() async {
-      final redactedBody = _redactor.redactPayload(body);
-      final truncatedBody = redactedBody is String
-          ? (redactedBody.length > 500 ? '${redactedBody.substring(0, 500)}...[truncated]' : redactedBody)
-          : truncateJsonValues(redactedBody);
-      final serializedBody = truncatedBody is String
-          ? truncatedBody
-          : _redactor.toJson(truncatedBody);
-      await _store.appendLine(
-        '[${DateTime.now().toIso8601String()}] [response-body] $uri'
-        ' body=$serializedBody',
-      );
-    });
+    final redactedBody = _redactor.redactPayload(body);
+    final truncatedBody = redactedBody is String
+        ? _truncateText(redactedBody)
+        : truncateJsonValues(redactedBody);
+    final serialized = truncatedBody is String
+        ? truncatedBody
+        : jsonEncode(truncatedBody);
+    await _writeLog('[response-body] $uri body=$serialized');
   }
 
   @override
   Future<void> logSseLine({required Uri uri, required String line}) async {
-    await _safeWrite(() async {
-      String processLine(String line) {
-        try {
-          final decoded = jsonDecode(line);
-          final truncated = truncateJsonValues(decoded);
-          return jsonEncode(truncated);
-        } catch (_) {
-          return line.length > 500 ? '${line.substring(0, 500)}...[truncated]' : line;
-        }
+    String processLine(String s) {
+      try {
+        return jsonEncode(truncateJsonValues(jsonDecode(s)));
+      } catch (_) {
+        return _truncateText(s);
       }
-      final processed = processLine(line);
-      await _store.appendLine(
-        '[${DateTime.now().toIso8601String()}] [sse] $uri ${_redactor.redactText(processed)}',
-      );
-    });
+    }
+
+    await _writeLog('[sse] $uri ${_redactor.redactText(processLine(line))}');
   }
 
   @override
@@ -118,25 +91,26 @@ final class AppNetworkLogger implements NetworkLogger {
     required Object error,
     StackTrace? stackTrace,
   }) async {
-    await _safeWrite(() async {
-      final message = _redactor.redactText(error.toString());
-      await _store.appendLine(
-        '[${DateTime.now().toIso8601String()}] [error] $uri $message',
-      );
-      if (stackTrace != null) {
-        final stackLines = stackTrace.toString().split('\n');
-        for (final stackLine in stackLines.take(12)) {
-          await _store.appendLine('  $stackLine');
-        }
+    await _writeLog('[error] $uri ${_redactor.redactText(error.toString())}');
+    if (stackTrace != null) {
+      for (final stackLine in stackTrace.toString().split('\n').take(12)) {
+        await _writeLog('  $stackLine');
       }
-    });
+    }
   }
 
-  Future<void> _safeWrite(Future<void> Function() callback) async {
+  // ── 内部方法 ──────────────────────────────────────────────────────
+
+  Future<void> _writeLog(String line) async {
     try {
-      await callback();
+      await _store.appendLine('[${DateTime.now().toIso8601String()}] $line');
     } catch (error, stackTrace) {
       stderr.writeln('[network-log] write failed: $error\n$stackTrace');
     }
+  }
+
+  String _truncateText(String s) {
+    if (s.length <= defaultMaxLogValueLength) return s;
+    return '${s.substring(0, defaultMaxLogValueLength)}...[truncated]';
   }
 }
