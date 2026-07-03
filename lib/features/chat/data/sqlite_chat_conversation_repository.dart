@@ -339,12 +339,22 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
   }
 
   @override
-  List<ChatConversationSummary> loadHistorySummaries({String keyword = ''}) {
+  ({List<ChatConversationSummary> summaries, bool hasMore})
+  loadHistorySummaries({String keyword = '', int? limit, int? offset}) {
     final normalizedKeyword = keyword.trim().toLowerCase();
     final hasKeyword = normalizedKeyword.isNotEmpty;
-    final likeKeyword = '%$normalizedKeyword%';
-    final rows = _database.connection.select(
-      '''
+    // 转义 LIKE 通配符，避免用户输入 % 或 _ 被当作通配符
+    final escapedKeyword = normalizedKeyword
+        .replaceAll('\\', '\\\\')
+        .replaceAll('%', '\\%')
+        .replaceAll('_', '\\_');
+    final likeKeyword = '%$escapedKeyword%';
+
+    // 当指定 limit 时多查一行，用于判断 hasMore
+    final effectiveLimit = limit != null ? limit + 1 : null;
+
+    final sql = StringBuffer()
+      ..write('''
       SELECT
         c.id,
         c.title,
@@ -380,33 +390,43 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
       )
         AND (
           ? = 0
-          OR LOWER(COALESCE(c.title, '')) LIKE ?
+          OR LOWER(COALESCE(c.title, '')) LIKE ? ESCAPE '\\'
           OR EXISTS (
             SELECT 1
             FROM messages m
             WHERE m.conversation_id = c.id
               AND m.role = 'user'
-              AND LOWER(m.content) LIKE ?
+              AND LOWER(m.content) LIKE ? ESCAPE '\\'
           )
         )
-      ORDER BY c.updated_at DESC
-      ''',
-      [hasKeyword ? 1 : 0, likeKeyword, likeKeyword],
-    );
+      ORDER BY c.updated_at DESC, c.id DESC
+      ''');
 
-    return rows
-        .map((row) {
-          return ChatConversationSummary(
-            id: row['id'] as String,
-            title: row['title'] as String?,
-            updatedAt: DateTime.parse(row['updated_at'] as String),
-            firstUserMessagePreview:
-                row['first_user_message_preview'] as String? ?? '',
-            latestUserMessagePreview:
-                row['latest_user_message_preview'] as String? ?? '',
-          );
-        })
-        .toList(growable: false);
+    final params = <dynamic>[hasKeyword ? 1 : 0, likeKeyword, likeKeyword];
+
+    if (effectiveLimit != null) {
+      sql.write(' LIMIT ? OFFSET ?');
+      params.add(effectiveLimit);
+      params.add(offset ?? 0);
+    }
+
+    final rows = _database.connection.select(sql.toString(), params);
+    final hasMore = limit != null && rows.length > limit;
+
+    final rowsToMap = rows.take(limit ?? rows.length).toList();
+    final summaries = rowsToMap.map((row) {
+      return ChatConversationSummary(
+        id: row['id'] as String,
+        title: row['title'] as String?,
+        updatedAt: DateTime.parse(row['updated_at'] as String),
+        firstUserMessagePreview:
+            row['first_user_message_preview'] as String? ?? '',
+        latestUserMessagePreview:
+            row['latest_user_message_preview'] as String? ?? '',
+      );
+    }).toList();
+
+    return (summaries: summaries, hasMore: hasMore);
   }
 
   @override
