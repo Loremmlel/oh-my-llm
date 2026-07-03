@@ -113,6 +113,8 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                 ),
                 const SizedBox(height: 12),
                 const HistoryPaginationBar(),
+                if (paginationState.isLoading)
+                  const LinearProgressIndicator(),
                 const SizedBox(height: 12),
                 Expanded(
                   child: _buildConversationList(context, paginationState),
