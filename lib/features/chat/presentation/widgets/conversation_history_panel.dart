@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../domain/chat_conversation_groups.dart';
+import 'grouped_conversation_list.dart';
 
 /// 聊天页侧边历史面板，用于快速切换会话。
 class ConversationHistoryPanel extends StatelessWidget {
@@ -51,55 +52,40 @@ class ConversationHistoryPanel extends StatelessWidget {
             Expanded(
               child: groups.isEmpty
                   ? const Center(child: Text('还没有已保存的会话记录。'))
-                  : ListView.separated(
-                      itemCount: groups.length,
-                      separatorBuilder: (context, index) {
-                        return const SizedBox(height: 16);
-                      },
-                      itemBuilder: (context, index) {
-                        final group = groups[index];
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              group.bucket.label,
-                              style: theme.textTheme.titleMedium,
+                  : GroupedConversationList(
+                      groups: groups,
+                      itemBuilder: (context, conversation) {
+                        final theme = Theme.of(context);
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: ListTile(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
                             ),
-                            const SizedBox(height: 8),
-                            for (final conversation in group.conversations)
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 8),
-                                child: ListTile(
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(14),
-                                  ),
-                                  tileColor:
-                                      conversation.id == activeConversationId
-                                      ? theme.colorScheme.primaryContainer
-                                      : theme.colorScheme.surfaceContainerLow,
-                                  title: Tooltip(
-                                    message: conversation.resolvedTitle,
-                                    child: Text(
-                                      conversation.resolvedTitle,
-                                      maxLines: conversation.hasCustomTitle
-                                          ? 2
-                                          : 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  subtitle: conversation.hasCustomTitle
-                                      ? null
-                                      : Text(
-                                          conversation.previewText,
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                  onTap: () {
-                                    onConversationSelected(conversation.id);
-                                  },
-                                ),
+                            tileColor:
+                                conversation.id == activeConversationId
+                                    ? theme.colorScheme.primaryContainer
+                                    : theme.colorScheme.surfaceContainerLow,
+                            title: Tooltip(
+                              message: conversation.resolvedTitle,
+                              child: Text(
+                                conversation.resolvedTitle,
+                                maxLines:
+                                    conversation.hasCustomTitle ? 2 : 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                          ],
+                            ),
+                            subtitle: conversation.hasCustomTitle
+                                ? null
+                                : Text(
+                                    conversation.previewText,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                            onTap: () => onConversationSelected(
+                              conversation.id,
+                            ),
+                          ),
                         );
                       },
                     ),
