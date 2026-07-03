@@ -2,6 +2,9 @@ import 'package:equatable/equatable.dart';
 
 import 'models/chat_conversation_summary.dart';
 
+/// 默认每页显示的对话数量。
+const defaultPageSize = 20;
+
 /// 历史页分页栏的状态快照。
 ///
 /// 与旧版「无限累积窗口」模型不同，本状态仅描述**当前页**的数据窗口；
@@ -17,7 +20,7 @@ class HistoryPaginationState extends Equatable {
     this.keyword = '',
     this.hasAnyConversations = false,
     this.currentPage = 1,
-    this.pageSize = 20,
+    this.pageSize = defaultPageSize,
     this.totalItems = 0,
   });
 

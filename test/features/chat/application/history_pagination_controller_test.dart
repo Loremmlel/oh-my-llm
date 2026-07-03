@@ -111,7 +111,7 @@ void main() {
       final s = c.read(historyPaginationProvider);
       expect(s.currentPage, 3);
       expect(repo.pagedCalls.last.offset, 40); // (3-1) * 20
-      expect(repo.countCallCount, 0); // goToPage 不计 count
+      expect(repo.countCallCount, 1); // goToPage 刷新总数
     });
 
     test('goToPage 夹取越界页码（<1 视为 1，>totalPages 视为 totalPages）',
@@ -212,13 +212,15 @@ void main() {
       c.read(historyPaginationProvider.notifier).goToPage(3);
       expect(c.read(historyPaginationProvider).currentPage, 3);
 
+      // 重置计数，只关注 setPageSize 本身
+      repo.countCallCount = 0;
       c.read(historyPaginationProvider.notifier).setPageSize(10);
 
       final s = c.read(historyPaginationProvider);
       expect(s.pageSize, 10);
       expect(s.currentPage, 1);
       expect(s.totalPages, 5); // ceil(50/10)
-      expect(repo.countCallCount, 2); // loadInitial + setPageSize
+      expect(repo.countCallCount, 1); // loadInitial 内部 count
     });
 
     test('setPageSize 非法值不生效', () {

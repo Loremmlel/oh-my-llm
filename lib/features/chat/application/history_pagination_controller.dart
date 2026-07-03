@@ -4,9 +4,6 @@ import '../data/chat_conversation_repository.dart';
 import '../domain/history_pagination_state.dart';
 import '../domain/models/chat_conversation_summary.dart';
 
-/// 默认每页显示的对话数量。
-const defaultPageSize = 20;
-
 /// 可供用户选择的每页条数选项。
 const availablePageSizes = <int>[10, 20, 50];
 
@@ -29,25 +26,28 @@ class HistoryPaginationController extends Notifier<HistoryPaginationState> {
   ChatConversationRepository get _repository =>
       ref.read(chatConversationRepositoryProvider);
 
+  /// 判断「是否有任何会话」：非空串 keyword 下不应打扰用户空状态展示，
+  /// 否则跟随 totalItems。
+  bool _calcHasAny(String keyword, int totalItems) =>
+      keyword.isNotEmpty || totalItems > 0;
+
   /// 首次加载（或搜索重置后）的分页查询。
   ///
   /// 重置到第 1 页，同时拉取总数和当前页数据。
   void loadInitial({String keyword = ''}) {
-    final pageSize = state.pageSize;
     final totalItems = _repository.countHistorySummaries(keyword: keyword);
     final result = _repository.loadHistorySummaries(
       keyword: keyword,
-      limit: pageSize,
+      limit: state.pageSize,
       offset: 0,
     );
-    state = HistoryPaginationState(
+    state = state.copyWith(
       conversations: result,
       isLoading: false,
       keyword: keyword,
-      hasAnyConversations:
-          keyword.isEmpty ? totalItems > 0 : true,
+      hasAnyConversations: _calcHasAny(keyword, totalItems),
       currentPage: 1,
-      pageSize: pageSize,
+      pageSize: state.pageSize,
       totalItems: totalItems,
     );
   }
@@ -63,6 +63,8 @@ class HistoryPaginationController extends Notifier<HistoryPaginationState> {
 
     state = state.copyWith(isLoading: true);
 
+    // 刷新总数（可能有外部写入），确保分页信息准确
+    final totalItems = _repository.countHistorySummaries(keyword: state.keyword);
     final result = _repository.loadHistorySummaries(
       keyword: state.keyword,
       limit: state.pageSize,
@@ -72,6 +74,7 @@ class HistoryPaginationController extends Notifier<HistoryPaginationState> {
       conversations: result,
       isLoading: false,
       currentPage: clamped,
+      totalItems: totalItems,
     );
   }
 
@@ -94,19 +97,9 @@ class HistoryPaginationController extends Notifier<HistoryPaginationState> {
     if (!availablePageSizes.contains(size)) return;
     if (size == state.pageSize) return;
 
-    final totalItems = _repository.countHistorySummaries(keyword: state.keyword);
-    final result = _repository.loadHistorySummaries(
-      keyword: state.keyword,
-      limit: size,
-      offset: 0,
-    );
-    state = state.copyWith(
-      conversations: result,
-      isLoading: false,
-      currentPage: 1,
-      pageSize: size,
-      totalItems: totalItems,
-    );
+    // 先更新 pageSize，loadInitial 内部读取 state.pageSize
+    state = state.copyWith(pageSize: size);
+    loadInitial(keyword: state.keyword);
   }
 
   /// 变更搜索关键词并重置到第 1 页。
@@ -138,7 +131,8 @@ class HistoryPaginationController extends Notifier<HistoryPaginationState> {
   /// 删除后从当前页本地列表中移除。
   ///
   /// 若删除后当前页码超出新的总页数（例如删光最后一页的条目），
-  /// 自动回退到新的最后一页并重新拉取。
+  /// 自动回退到新的最后一页并重新拉取。若当前页条目全被删除但页码
+  /// 仍有效（跨页条目移位落入当前窗口），同样触发重新拉取而非展示空白页。
   void afterDelete(Set<String> deletedIds) {
     final remaining =
         state.conversations
@@ -151,44 +145,39 @@ class HistoryPaginationController extends Notifier<HistoryPaginationState> {
         ? 0
         : (newTotalItems / state.pageSize).ceil();
 
-    if (newTotalPages <= 0) {
-      // 库被清空。
-      state = state.copyWith(
-        conversations: const [],
-        hasAnyConversations: state.keyword.isEmpty ? false : true,
-        currentPage: 1,
-        totalItems: 0,
-      );
-      return;
-    }
+    // 计算删除后应展示的页码
+    final targetPage = newTotalPages <= 0
+        ? 1
+        : state.currentPage.clamp(1, newTotalPages);
 
-    if (state.currentPage <= newTotalPages) {
-      // 当前页仍有效，仅本地移除。
+    // 需要重新拉取的场景：
+    // - 库被清空（newTotalPages == 0）
+    // - 当前页越界（currentPage > newTotalPages）
+    // - 当前页条目全删但仍有其他数据（条目从后续页移位落入当前窗口）
+    final needsRefetch = newTotalPages <= 0 ||
+        state.currentPage > newTotalPages ||
+        (remaining.isEmpty && newTotalItems > 0);
+
+    if (needsRefetch) {
+      final result = _repository.loadHistorySummaries(
+        keyword: state.keyword,
+        limit: state.pageSize,
+        offset: (targetPage - 1) * state.pageSize,
+      );
       state = state.copyWith(
-        conversations: remaining,
-        hasAnyConversations: state.keyword.isEmpty
-            ? newTotalItems > 0
-            : true,
+        conversations: result,
+        hasAnyConversations: _calcHasAny(state.keyword, newTotalItems),
+        currentPage: targetPage,
         totalItems: newTotalItems,
       );
-      return;
+    } else {
+      // 当前页仍有效，仅本地移除
+      state = state.copyWith(
+        conversations: remaining,
+        hasAnyConversations: _calcHasAny(state.keyword, newTotalItems),
+        totalItems: newTotalItems,
+      );
     }
-
-    // 当前页已越界，回退到最后一页并重新拉取。
-    final target = newTotalPages;
-    final result = _repository.loadHistorySummaries(
-      keyword: state.keyword,
-      limit: state.pageSize,
-      offset: (target - 1) * state.pageSize,
-    );
-    state = state.copyWith(
-      conversations: result,
-      hasAnyConversations: state.keyword.isEmpty
-          ? newTotalItems > 0
-          : true,
-      currentPage: target,
-      totalItems: newTotalItems,
-    );
   }
 }
 
