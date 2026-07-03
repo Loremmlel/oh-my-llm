@@ -95,20 +95,23 @@ class _NotificationBubbleStackState
 
     final oldIds = oldList.map((d) => d.id).toList();
     final newIds = newList.map((d) => d.id).toList();
+    final oldIdSet = oldIds.toSet();
+    final newIdSet = newIds.toSet();
 
-    for (var i = oldIds.length - 1; i >= 0; i--) {
-      if (!newIds.contains(oldIds[i])) {
-        final removed = oldList[i];
+    // 倒序移除：从后往前删除，避免索引错位。
+    for (var i = oldIds.length - 1; i >= 0; i -= 1) {
+      if (!newIdSet.contains(oldIds[i])) {
         listState.removeItem(
           i,
-          (context, animation) => _buildRemoveItem(removed, animation),
+          (context, animation) => _buildRemoveItem(oldList[i], animation),
           duration: const Duration(milliseconds: 200),
         );
       }
     }
 
-    for (var i = 0; i < newIds.length; i++) {
-      if (!oldIds.contains(newIds[i])) {
+    // 正序插入。
+    for (var i = 0; i < newIds.length; i += 1) {
+      if (!oldIdSet.contains(newIds[i])) {
         listState.insertItem(
           i,
           duration: const Duration(milliseconds: 300),
