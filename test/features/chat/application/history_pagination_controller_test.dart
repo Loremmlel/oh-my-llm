@@ -57,7 +57,6 @@ void main() {
       expect(s.totalItems, 10);
       expect(s.totalPages, 1);
       expect(s.currentPage, 1);
-      expect(s.totalPages, 1);
       expect(repo.countCallCount, 1);
     });
 
