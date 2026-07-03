@@ -338,9 +338,13 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
     }
   }
 
-  @override
-  ({List<ChatConversationSummary> summaries, bool hasMore})
-  loadHistorySummaries({String keyword = '', int? limit, int? offset}) {
+  /// 构建历史摘要查询的 WHERE 子句与参数（供 load / count 共享）。
+  ///
+  /// 过滤条件：排除无消息且无 checkpoint 的空会话，并对 title + 用户消息
+  /// 做 keyword 的 LIKE 匹配（大小写不敏感、转义通配符）。
+  ({String whereClause, List<dynamic> params}) _buildHistoryWhereClause(
+    String keyword,
+  ) {
     final normalizedKeyword = keyword.trim().toLowerCase();
     final hasKeyword = normalizedKeyword.isNotEmpty;
     // 转义 LIKE 通配符，避免用户输入 % 或 _ 被当作通配符
@@ -349,6 +353,41 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
         .replaceAll('%', '\\%')
         .replaceAll('_', '\\_');
     final likeKeyword = '%$escapedKeyword%';
+
+    const whereClause = '''
+      WHERE (
+        EXISTS (
+          SELECT 1
+          FROM messages m
+          WHERE m.conversation_id = c.id
+        )
+        OR EXISTS (
+          SELECT 1
+          FROM conversation_checkpoints ch
+          WHERE ch.conversation_id = c.id
+        )
+      )
+        AND (
+          ? = 0
+          OR LOWER(COALESCE(c.title, '')) LIKE ? ESCAPE '\\'
+          OR EXISTS (
+            SELECT 1
+            FROM messages m
+            WHERE m.conversation_id = c.id
+              AND m.role = 'user'
+              AND LOWER(m.content) LIKE ? ESCAPE '\\'
+          )
+        )
+    ''';
+
+    final params = <dynamic>[hasKeyword ? 1 : 0, likeKeyword, likeKeyword];
+    return (whereClause: whereClause, params: params);
+  }
+
+  @override
+  ({List<ChatConversationSummary> summaries, bool hasMore})
+  loadHistorySummaries({String keyword = '', int? limit, int? offset}) {
+    final where = _buildHistoryWhereClause(keyword);
 
     // 当指定 limit 时多查一行，用于判断 hasMore
     final effectiveLimit = limit != null ? limit + 1 : null;
@@ -376,33 +415,11 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
           LIMIT 1
         ), '') AS latest_user_message_preview
       FROM conversations c
-      WHERE (
-        EXISTS (
-          SELECT 1
-          FROM messages m
-          WHERE m.conversation_id = c.id
-        )
-        OR EXISTS (
-          SELECT 1
-          FROM conversation_checkpoints ch
-          WHERE ch.conversation_id = c.id
-        )
-      )
-        AND (
-          ? = 0
-          OR LOWER(COALESCE(c.title, '')) LIKE ? ESCAPE '\\'
-          OR EXISTS (
-            SELECT 1
-            FROM messages m
-            WHERE m.conversation_id = c.id
-              AND m.role = 'user'
-              AND LOWER(m.content) LIKE ? ESCAPE '\\'
-          )
-        )
+      ${where.whereClause}
       ORDER BY c.updated_at DESC, c.id DESC
       ''');
 
-    final params = <dynamic>[hasKeyword ? 1 : 0, likeKeyword, likeKeyword];
+    final params = [...where.params];
 
     if (effectiveLimit != null) {
       sql.write(' LIMIT ? OFFSET ?');
@@ -427,6 +444,16 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
     }).toList();
 
     return (summaries: summaries, hasMore: hasMore);
+  }
+
+  @override
+  int countHistorySummaries({String keyword = ''}) {
+    final where = _buildHistoryWhereClause(keyword);
+    final row = _database.connection.select(
+      'SELECT COUNT(*) AS total FROM conversations c ${where.whereClause}',
+      where.params,
+    ).first;
+    return row['total'] as int;
   }
 
   @override
