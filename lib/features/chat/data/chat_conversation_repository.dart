@@ -23,7 +23,11 @@ abstract interface class ChatConversationRepository {
   ChatConversation? loadConversation(String id);
 
   /// 按历史页需求读取会话摘要，并支持按标题和用户消息搜索。
-  List<ChatConversationSummary> loadHistorySummaries({String keyword = ''});
+  ///
+  /// 传入 [limit] 时会同时返回 [hasMore] 标记（通过多查一行判断）。
+  /// 不传 [limit] 时返回全部数据，[hasMore] 固定为 `false`。
+  ({List<ChatConversationSummary> summaries, bool hasMore})
+  loadHistorySummaries({String keyword = '', int? limit, int? offset});
 
   /// 将指定会话列表增量写回持久层（不存在则插入，存在则更新）。
   Future<void> saveConversations(List<ChatConversation> conversations);

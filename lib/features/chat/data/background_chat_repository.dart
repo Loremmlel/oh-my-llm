@@ -69,8 +69,9 @@ class BackgroundChatConversationRepository
   ChatConversation? loadConversation(String id) => _inner.loadConversation(id);
 
   @override
-  List<ChatConversationSummary> loadHistorySummaries({String keyword = ''}) {
-    return _inner.loadHistorySummaries(keyword: keyword);
+  ({List<ChatConversationSummary> summaries, bool hasMore})
+  loadHistorySummaries({String keyword = '', int? limit, int? offset}) {
+    return _inner.loadHistorySummaries(keyword: keyword, limit: limit, offset: offset);
   }
 
   @override
