@@ -535,4 +535,171 @@ void main() {
     expect(loaded!.messageNodes.map((n) => n.id),
         ['idx-second', 'idx-third', 'idx-first']);
   });
+
+  // ── 7. countHistorySummaries ────────────────────────────────────────
+
+  /// 构造一条带 user 消息 + assistant 对话分支的测试会话。
+  ChatConversation buildConv(
+    String id, {
+    String title = '',
+    String userMessageContent = 'hello',
+    String assistantContent = 'hi',
+    DateTime? updatedAt,
+  }) {
+    final now = updatedAt ?? DateTime(2026, 6, 1);
+    return ChatConversation(
+      id: id,
+      title: title,
+      messageNodes: [
+        ChatMessage(
+          id: '$id-user',
+          role: ChatMessageRole.user,
+          content: userMessageContent,
+          parentId: rootConversationParentId,
+          createdAt: now,
+        ),
+        ChatMessage(
+          id: '$id-assistant',
+          role: ChatMessageRole.assistant,
+          content: assistantContent,
+          parentId: '$id-user',
+          createdAt: now.add(const Duration(minutes: 1)),
+        ),
+      ],
+      selectedChildByParentId: {
+        rootConversationParentId: '$id-user',
+        '$id-user': '$id-assistant',
+      },
+      createdAt: now,
+      updatedAt: now.add(const Duration(minutes: 1)),
+    );
+  }
+
+  test('countHistorySummaries returns 0 on empty db', () {
+    final database = AppDatabase.inMemory();
+    addTearDown(database.close);
+    final repository = SqliteChatConversationRepository(database);
+
+    expect(repository.countHistorySummaries(), 0);
+    expect(repository.countHistorySummaries(keyword: ''), 0);
+    expect(repository.countHistorySummaries(keyword: '不存在的词'), 0);
+  });
+
+  test('countHistorySummaries counts all conversations when keyword empty',
+      () async {
+    final database = AppDatabase.inMemory();
+    addTearDown(database.close);
+    final repository = SqliteChatConversationRepository(database);
+    await repository.saveConversations([
+      buildConv('a'),
+      buildConv('b'),
+      buildConv('c'),
+    ]);
+
+    expect(repository.countHistorySummaries(), 3);
+  });
+
+  test('countHistorySummaries matches title keyword case-insensitively',
+      () async {
+    final database = AppDatabase.inMemory();
+    addTearDown(database.close);
+    final repository = SqliteChatConversationRepository(database);
+    await repository.saveConversations([
+      buildConv('a', title: 'Rust 重构计划'),
+      buildConv('b', title: 'Flutter 路线图'),
+      buildConv('c', title: '项目复盘'),
+    ]);
+
+    expect(repository.countHistorySummaries(keyword: 'rust'), 1);
+    expect(repository.countHistorySummaries(keyword: 'FLUTTER'), 1);
+    expect(repository.countHistorySummaries(keyword: '计划'), 1);
+    expect(repository.countHistorySummaries(keyword: '不存在的标题'), 0);
+  });
+
+  test('countHistorySummaries matches user message content across branches',
+      () async {
+    final database = AppDatabase.inMemory();
+    addTearDown(database.close);
+    final repository = SqliteChatConversationRepository(database);
+    await repository.saveConversations([
+      buildConv('a', userMessageContent: '帮我整理 Rust 模块边界'),
+      buildConv('b', userMessageContent: '请给我一份 Widget 测试清单'),
+      buildConv('c', userMessageContent: '请总结本周推进情况'),
+    ]);
+
+    expect(repository.countHistorySummaries(keyword: 'rust'), 1);
+    expect(repository.countHistorySummaries(keyword: 'widget'), 1);
+    expect(repository.countHistorySummaries(keyword: '总结'), 1);
+    expect(repository.countHistorySummaries(keyword: '模块边界'), 1);
+  });
+
+  test('countHistorySummaries escapes LIKE wildcards (% and _)', () async {
+    final database = AppDatabase.inMemory();
+    addTearDown(database.close);
+    final repository = SqliteChatConversationRepository(database);
+    await repository.saveConversations([
+      buildConv('pct', title: '进度 50%'),
+      buildConv('us', title: '评分_优秀'),
+      buildConv('a', title: '正常标题'),
+    ]);
+
+    // '50%' 含通配符%，ESCAPE 子句应被当作普通 '%' 字符匹配。
+    expect(repository.countHistorySummaries(keyword: '50%'), 1);
+
+    // '评分_优秀' 精确匹配——下划线被转义，不作为 LIKE 通配符
+    expect(repository.countHistorySummaries(keyword: '评分_优秀'), 1);
+
+    // 若 _ 未被转义，'评分_' 应能模糊匹配；但转义后只精确匹配原文。
+    // 原文是 '评分_优秀'，三个字符依次是 评分_优秀。
+    // 搜索 '评分'（不含下划线）仍然通过前缀匹配命中 '评分_优秀'。
+    expect(repository.countHistorySummaries(keyword: '评分'), 1);
+  });
+
+  test(
+      'countHistorySummaries excludes conversations without messages/checkpoints',
+      () async {
+    final database = AppDatabase.inMemory();
+    addTearDown(database.close);
+    final repository = SqliteChatConversationRepository(database);
+
+    // 带消息的会话 -> 计入
+    await repository.saveConversations([buildConv('with-msg')]);
+
+    // 无消息、无 checkpoint、空 title 的会话 -> 被 saveConversation 跳过
+    // （skip rule），不能直接用 saveConversation 写入；改用 raw insert。
+    database.connection.execute(
+      'INSERT INTO conversations (id, title, created_at, updated_at, '
+      'reasoning_enabled, reasoning_effort, excluded_message_ids_json, '
+      'auto_retry_enabled) '
+      'VALUES (?, ?, ?, ?, 0, \'medium\', \'[]\', 0)',
+      ['ghost', null, DateTime(2026, 1, 1).toIso8601String(), DateTime(2026, 1, 1).toIso8601String()],
+    );
+
+    expect(repository.countHistorySummaries(), 1);
+    expect(
+      repository.countHistorySummaries(keyword: 'ghost'),
+      0,
+    );
+  });
+
+  test(
+      'countHistorySummaries result equals loadHistorySummaries pagination sum',
+      () async {
+    final database = AppDatabase.inMemory();
+    addTearDown(database.close);
+    final repository = SqliteChatConversationRepository(database);
+    final convs = List.generate(7, (i) => buildConv('c$i'));
+    await repository.saveConversations(convs);
+
+    expect(repository.countHistorySummaries(), 7);
+
+    // limit=3 翻页，应该得到 7 条的总和
+    var fetched = 0;
+    const pageSize = 3;
+    for (var offset = 0; offset < 7; offset += pageSize) {
+      final page = repository.loadHistorySummaries(limit: pageSize, offset: offset);
+      fetched += page.length;
+    }
+    expect(fetched, repository.countHistorySummaries());
+  });
 }

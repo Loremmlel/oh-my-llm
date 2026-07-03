@@ -69,10 +69,14 @@ class BackgroundChatConversationRepository
   ChatConversation? loadConversation(String id) => _inner.loadConversation(id);
 
   @override
-  ({List<ChatConversationSummary> summaries, bool hasMore})
+  List<ChatConversationSummary>
   loadHistorySummaries({String keyword = '', int? limit, int? offset}) {
     return _inner.loadHistorySummaries(keyword: keyword, limit: limit, offset: offset);
   }
+
+  @override
+  int countHistorySummaries({String keyword = ''}) =>
+      _inner.countHistorySummaries(keyword: keyword);
 
   @override
   Future<void> deleteConversations(List<String> ids) {
