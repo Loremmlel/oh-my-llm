@@ -134,3 +134,18 @@ ConversationTimeBucket _resolveBucket(Duration age) {
 
   return ConversationTimeBucket.older;
 }
+
+/// 将会话分组扁平化为 [ConversationTimeBucket] 和 [ChatConversationSummary]
+/// 交错排列的列表，供 [ListView.builder] 按条目级别虚拟化渲染。
+///
+/// 消费方根据运行时类型区分组标题与对话条目。
+List<Object> flattenConversationSummaryGroups(
+  List<ChatConversationSummaryGroup> groups,
+) {
+  final result = <Object>[];
+  for (final group in groups) {
+    result.add(group.bucket);
+    result.addAll(group.conversations);
+  }
+  return result;
+}
