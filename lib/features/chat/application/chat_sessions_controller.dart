@@ -193,8 +193,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       activeStreamingSubscription?.cancel();
     });
 
-    final result = repository.loadHistorySummaries();
-    final summaries = result.summaries;
+    final summaries = repository.loadHistorySummaries();
 
     if (summaries.isEmpty) {
       final initialConversation = buildEmptyConversation();

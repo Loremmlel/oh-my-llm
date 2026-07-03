@@ -24,10 +24,13 @@ abstract interface class ChatConversationRepository {
 
   /// 按历史页需求读取会话摘要，并支持按标题和用户消息搜索。
   ///
-  /// 传入 [limit] 时会同时返回 [hasMore] 标记（通过多查一行判断）。
-  /// 不传 [limit] 时返回全部数据，[hasMore] 固定为 `false`。
-  ({List<ChatConversationSummary> summaries, bool hasMore})
+  /// 传入 [limit] 时分页返回；不传时返回全部数据。
+  List<ChatConversationSummary>
   loadHistorySummaries({String keyword = '', int? limit, int? offset});
+
+  /// 返回满足 [keyword] 条件的会话总数（与 [loadHistorySummaries] 的
+  /// 过滤语义一致：标题 + 用户消息，忽略无消息/无 checkpoint 的空会话）。
+  int countHistorySummaries({String keyword = ''});
 
   /// 将指定会话列表增量写回持久层（不存在则插入，存在则更新）。
   Future<void> saveConversations(List<ChatConversation> conversations);

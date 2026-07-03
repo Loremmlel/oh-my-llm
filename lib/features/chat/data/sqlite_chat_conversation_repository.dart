@@ -385,12 +385,9 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
   }
 
   @override
-  ({List<ChatConversationSummary> summaries, bool hasMore})
+  List<ChatConversationSummary>
   loadHistorySummaries({String keyword = '', int? limit, int? offset}) {
     final where = _buildHistoryWhereClause(keyword);
-
-    // 当指定 limit 时多查一行，用于判断 hasMore
-    final effectiveLimit = limit != null ? limit + 1 : null;
 
     final sql = StringBuffer()
       ..write('''
@@ -421,17 +418,14 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
 
     final params = [...where.params];
 
-    if (effectiveLimit != null) {
+    if (limit != null) {
       sql.write(' LIMIT ? OFFSET ?');
-      params.add(effectiveLimit);
+      params.add(limit);
       params.add(offset ?? 0);
     }
 
     final rows = _database.connection.select(sql.toString(), params);
-    final hasMore = limit != null && rows.length > limit;
-
-    final rowsToMap = rows.take(limit ?? rows.length).toList();
-    final summaries = rowsToMap.map((row) {
+    return rows.map((row) {
       return ChatConversationSummary(
         id: row['id'] as String,
         title: row['title'] as String?,
@@ -442,8 +436,6 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
             row['latest_user_message_preview'] as String? ?? '',
       );
     }).toList();
-
-    return (summaries: summaries, hasMore: hasMore);
   }
 
   @override

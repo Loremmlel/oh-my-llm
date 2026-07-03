@@ -1,0 +1,1637 @@
+warning: in the working copy of 'lib/features/chat/application/history_pagination_controller.dart', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'lib/features/chat/data/background_chat_repository.dart', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'lib/features/chat/domain/history_pagination_state.dart', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'lib/features/history/presentation/history_screen.dart', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'test/features/chat/application/history_pagination_controller_test.dart', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'test/features/chat/chat_conversation_repository_test.dart', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'test/features/history/history_screen_test.dart', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'test/helpers/fake_history_repository.dart', LF will be replaced by CRLF the next time Git touches it
+diff --git a/lib/features/chat/application/history_pagination_controller.dart b/lib/features/chat/application/history_pagination_controller.dart
+index 5d690a6..aea263b 100644
+--- a/lib/features/chat/application/history_pagination_controller.dart
++++ b/lib/features/chat/application/history_pagination_controller.dart
+@@ -4,19 +4,22 @@ import '../data/chat_conversation_repository.dart';
+ import '../domain/history_pagination_state.dart';
+ import '../domain/models/chat_conversation_summary.dart';
+ 
+-/// 首次进入历史页加载的对话数量。
+-const initialPageSize = 50;
++/// 默认每页显示的对话数量。
++const defaultPageSize = 20;
+ 
+-/// 滚动到底部时追加加载的数量。
+-const pageIncrement = 30;
++/// 可供用户选择的每页条数选项。
++const availablePageSizes = <int>[10, 20, 50];
+ 
+-/// 历史页分页数据控制器。
++/// 历史页分页栏数据控制器。
+ ///
+-/// 负责分页查询、搜索关键词变更、追加加载以及 rename/delete 后的
+-/// 本地数据修正。UI 层通过 [historyPaginationProvider] watch 此控制器的
+-/// 状态，并将滚动/搜索事件转发为方法调用。
++/// 负责管理「翻页 / 切换每页条数 / 搜索 / 跳转」以及 rename/delete
++/// 后的本地数据修正。UI 层通过 [historyPaginationProvider] watch 此控制器的
++/// 状态，并将翻页/搜索事件转发为方法调用。
+ ///
+ /// 使用 [Notifier]（而非 [AsyncNotifier]），因为底层 SQLite 查询是同步的。
++///
++/// 状态语义与旧版「无限累积窗口」不同：[HistoryPaginationState.conversations]
++/// 仅包含**当前页**的数据；总条目数由 `totalItems` 显式持有，分页栏直接渲染。
+ class HistoryPaginationController extends Notifier<HistoryPaginationState> {
+   @override
+   HistoryPaginationState build() {
+@@ -27,47 +30,96 @@ class HistoryPaginationController extends Notifier<HistoryPaginationState> {
+       ref.read(chatConversationRepositoryProvider);
+ 
+   /// 首次加载（或搜索重置后）的分页查询。
++  ///
++  /// 重置到第 1 页，同时拉取总数和当前页数据。
+   void loadInitial({String keyword = ''}) {
++    final pageSize = state.pageSize;
++    final totalItems = _repository.countHistorySummaries(keyword: keyword);
+     final result = _repository.loadHistorySummaries(
+       keyword: keyword,
+-      limit: initialPageSize,
++      limit: pageSize,
+       offset: 0,
+     );
+     state = HistoryPaginationState(
+       conversations: result.summaries,
+-      hasMore: result.hasMore,
+       isLoading: false,
+       keyword: keyword,
+       hasAnyConversations:
+-          keyword.isEmpty ? result.summaries.isNotEmpty : true,
++          keyword.isEmpty ? totalItems > 0 : true,
++      currentPage: 1,
++      pageSize: pageSize,
++      totalItems: totalItems,
++    );
++  }
++
++  /// 跳转到指定页（夹取到 [1, totalPages] 区间）。
++  void goToPage(int page) {
++    if (state.isLoading) return;
++
++    final totalPages = state.totalPages;
++    if (totalPages <= 0) return;
++    final clamped = page.clamp(1, totalPages);
++    if (clamped == state.currentPage) return;
++
++    state = state.copyWith(isLoading: true);
++
++    final result = _repository.loadHistorySummaries(
++      keyword: state.keyword,
++      limit: state.pageSize,
++      offset: (clamped - 1) * state.pageSize,
++    );
++    state = state.copyWith(
++      conversations: result.summaries,
++      isLoading: false,
++      currentPage: clamped,
+     );
+   }
+ 
+-  /// 追加加载下一页。
+-  void loadMore() {
+-    final current = state;
+-    if (current.isLoading || !current.hasMore) return;
++  /// 跳转到上一页。
++  void prev() => goToPage(state.currentPage - 1);
++
++  /// 跳转到下一页。
++  void next() => goToPage(state.currentPage + 1);
++
++  /// 跳转到第一页。
++  void first() => goToPage(1);
+ 
+-    state = current.copyWith(isLoading: true);
++  /// 跳转到最后一页。
++  void last() => goToPage(state.totalPages);
+ 
+-    final next = _repository.loadHistorySummaries(
+-      keyword: current.keyword,
+-      limit: pageIncrement,
+-      offset: current.conversations.length,
++  /// 修改每页条数并重置到第 1 页。
++  ///
++  /// [size] 仅在 [availablePageSizes] 中生效，否则保持当前 pageSize 不变。
++  void setPageSize(int size) {
++    if (!availablePageSizes.contains(size)) return;
++    if (size == state.pageSize) return;
++
++    final totalItems = _repository.countHistorySummaries(keyword: state.keyword);
++    final result = _repository.loadHistorySummaries(
++      keyword: state.keyword,
++      limit: size,
++      offset: 0,
+     );
+-    state = current.copyWith(
+-      conversations: [...current.conversations, ...next.summaries],
+-      hasMore: next.hasMore,
++    state = state.copyWith(
++      conversations: result.summaries,
+       isLoading: false,
++      currentPage: 1,
++      pageSize: size,
++      totalItems: totalItems,
+     );
+   }
+ 
+-  /// 变更搜索关键词并重置分页。
++  /// 变更搜索关键词并重置到第 1 页。
++  ///
++  /// 空串且当前 keyword 也为空时直接返回，避免无意义刷新。
++  /// 入参会先 trim，与 [loadHistorySummaries] 的语义保持一致。
+   void setKeyword(String keyword) {
+-    loadInitial(keyword: keyword);
++    final trimmed = keyword.trim();
++    if (trimmed.isEmpty && state.keyword.isEmpty) return;
++    loadInitial(keyword: trimmed);
+   }
+ 
+-  /// 重命名后在本地列表中更新标题，避免全量刷新丢失滚动位置。
++  /// 重命名后在当前页本地列表中更新标题，避免刷新丢失滚动位置。
+   void afterRename(String conversationId, String newTitle) {
+     final updated = state.conversations.map((summary) {
+       if (summary.id != conversationId) return summary;
+@@ -83,17 +135,59 @@ class HistoryPaginationController extends Notifier<HistoryPaginationState> {
+     state = state.copyWith(conversations: updated);
+   }
+ 
+-  /// 删除后从本地列表中移除，保留其他已加载的分页数据。
++  /// 删除后从当前页本地列表中移除。
++  ///
++  /// 若删除后当前页码超出新的总页数（例如删光最后一页的条目），
++  /// 自动回退到新的最后一页并重新拉取。
+   void afterDelete(Set<String> deletedIds) {
+     final remaining =
+         state.conversations
+             .where((c) => !deletedIds.contains(c.id))
+             .toList();
+ 
++    final newTotalItems =
++        _repository.countHistorySummaries(keyword: state.keyword);
++    final newTotalPages = newTotalItems <= 0
++        ? 0
++        : (newTotalItems / state.pageSize).ceil();
++
++    if (newTotalPages <= 0) {
++      // 库被清空。
++      state = state.copyWith(
++        conversations: const [],
++        hasAnyConversations: state.keyword.isEmpty ? false : true,
++        currentPage: 1,
++        totalItems: 0,
++      );
++      return;
++    }
++
++    if (state.currentPage <= newTotalPages) {
++      // 当前页仍有效，仅本地移除。
++      state = state.copyWith(
++        conversations: remaining,
++        hasAnyConversations: state.keyword.isEmpty
++            ? newTotalItems > 0
++            : true,
++        totalItems: newTotalItems,
++      );
++      return;
++    }
++
++    // 当前页已越界，回退到最后一页并重新拉取。
++    final target = newTotalPages;
++    final result = _repository.loadHistorySummaries(
++      keyword: state.keyword,
++      limit: state.pageSize,
++      offset: (target - 1) * state.pageSize,
++    );
+     state = state.copyWith(
+-      conversations: remaining,
+-      hasAnyConversations:
+-          state.keyword.isEmpty ? remaining.isNotEmpty : true,
++      conversations: result.summaries,
++      hasAnyConversations: state.keyword.isEmpty
++          ? newTotalItems > 0
++          : true,
++      currentPage: target,
++      totalItems: newTotalItems,
+     );
+   }
+ }
+diff --git a/lib/features/chat/data/background_chat_repository.dart b/lib/features/chat/data/background_chat_repository.dart
+index ddcf4f4..a344576 100644
+--- a/lib/features/chat/data/background_chat_repository.dart
++++ b/lib/features/chat/data/background_chat_repository.dart
+@@ -74,6 +74,10 @@ class BackgroundChatConversationRepository
+     return _inner.loadHistorySummaries(keyword: keyword, limit: limit, offset: offset);
+   }
+ 
++  @override
++  int countHistorySummaries({String keyword = ''}) =>
++      _inner.countHistorySummaries(keyword: keyword);
++
+   @override
+   Future<void> deleteConversations(List<String> ids) {
+     _pendingDeletes.addAll(ids);
+diff --git a/lib/features/chat/data/chat_conversation_repository.dart b/lib/features/chat/data/chat_conversation_repository.dart
+index c7335df..88d11eb 100644
+--- a/lib/features/chat/data/chat_conversation_repository.dart
++++ b/lib/features/chat/data/chat_conversation_repository.dart
+@@ -29,6 +29,10 @@ abstract interface class ChatConversationRepository {
+   ({List<ChatConversationSummary> summaries, bool hasMore})
+   loadHistorySummaries({String keyword = '', int? limit, int? offset});
+ 
++  /// 返回满足 [keyword] 条件的会话总数（与 [loadHistorySummaries] 的
++  /// 过滤语义一致：标题 + 用户消息，忽略无消息/无 checkpoint 的空会话）。
++  int countHistorySummaries({String keyword = ''});
++
+   /// 将指定会话列表增量写回持久层（不存在则插入，存在则更新）。
+   Future<void> saveConversations(List<ChatConversation> conversations);
+ 
+diff --git a/lib/features/chat/data/sqlite_chat_conversation_repository.dart b/lib/features/chat/data/sqlite_chat_conversation_repository.dart
+index 4457ad7..7d670cd 100644
+--- a/lib/features/chat/data/sqlite_chat_conversation_repository.dart
++++ b/lib/features/chat/data/sqlite_chat_conversation_repository.dart
+@@ -429,6 +429,50 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
+     return (summaries: summaries, hasMore: hasMore);
+   }
+ 
++  @override
++  int countHistorySummaries({String keyword = ''}) {
++    final normalizedKeyword = keyword.trim().toLowerCase();
++    final hasKeyword = normalizedKeyword.isNotEmpty;
++    final escapedKeyword = normalizedKeyword
++        .replaceAll('\\', '\\\\')
++        .replaceAll('%', '\\%')
++        .replaceAll('_', '\\_');
++    final likeKeyword = '%$escapedKeyword%';
++
++    final sql = StringBuffer()
++      ..write('''
++      SELECT COUNT(*) AS total
++      FROM conversations c
++      WHERE (
++        EXISTS (
++          SELECT 1
++          FROM messages m
++          WHERE m.conversation_id = c.id
++        )
++        OR EXISTS (
++          SELECT 1
++          FROM conversation_checkpoints ch
++          WHERE ch.conversation_id = c.id
++        )
++      )
++        AND (
++          ? = 0
++          OR LOWER(COALESCE(c.title, '')) LIKE ? ESCAPE '\\'
++          OR EXISTS (
++            SELECT 1
++            FROM messages m
++            WHERE m.conversation_id = c.id
++              AND m.role = 'user'
++              AND LOWER(m.content) LIKE ? ESCAPE '\\'
++          )
++        )
++      ''');
++
++    final params = <dynamic>[hasKeyword ? 1 : 0, likeKeyword, likeKeyword];
++    final row = _database.connection.select(sql.toString(), params).first;
++    return row['total'] as int;
++  }
++
+   @override
+   Future<void> saveConversations(List<ChatConversation> conversations) async {
+     if (conversations.isEmpty) {
+diff --git a/lib/features/chat/domain/history_pagination_state.dart b/lib/features/chat/domain/history_pagination_state.dart
+index 16d9f56..c35bb62 100644
+--- a/lib/features/chat/domain/history_pagination_state.dart
++++ b/lib/features/chat/domain/history_pagination_state.dart
+@@ -2,26 +2,29 @@ import 'package:equatable/equatable.dart';
+ 
+ import 'models/chat_conversation_summary.dart';
+ 
+-/// 历史页分页加载的状态快照。
++/// 历史页分页栏的状态快照。
++///
++/// 与旧版「无限累积窗口」模型不同，本状态仅描述**当前页**的数据窗口；
++/// 总条目数由 [totalItems] 显式持有，配合 [pageSize] 派生出
++/// [totalPages] / [hasPrevious] / [hasNext]，由分页栏 UI 直接渲染。
+ ///
+ /// 将分页逻辑从 UI 层抽离到 [HistoryPaginationController]，
+-/// 使 HistoryScreen 只需要 watch 此状态 + 转发滚动/事件操作。
++/// 使 HistoryScreen 只需要 watch 此状态 + 转发翻页/搜索事件。
+ class HistoryPaginationState extends Equatable {
+   const HistoryPaginationState({
+     this.conversations = const [],
+-    this.hasMore = true,
+     this.isLoading = false,
+     this.keyword = '',
+-    this.hasAnyConversations = true,
++    this.hasAnyConversations = false,
++    this.currentPage = 1,
++    this.pageSize = 20,
++    this.totalItems = 0,
+   });
+ 
+-  /// 当前已加载的会话摘要（按分页窗口截断，非全量）。
++  /// 当前页已加载的会话摘要（仅当前页，非累积窗口）。
+   final List<ChatConversationSummary> conversations;
+ 
+-  /// 是否还有更多数据未加载。
+-  final bool hasMore;
+-
+-  /// 是否正在执行分页加载（不论首次还是增量）。
++  /// 是否正在执行分页加载（不论首次还是翻页）。
+   final bool isLoading;
+ 
+   /// 当前生效的搜索关键词。
+@@ -30,29 +33,53 @@ class HistoryPaginationState extends Equatable {
+   /// 数据库中是否存在任何会话（不区分 keyword），用于空状态文案。
+   final bool hasAnyConversations;
+ 
++  /// 当前页码（从 1 开始）。
++  final int currentPage;
++
++  /// 每页显示的条目数。
++  final int pageSize;
++
++  /// 满足当前 keyword 条件的会话总数。
++  final int totalItems;
++
++  /// 派生：总页数。
++  int get totalPages => pageSize <= 0 ? 0 : (totalItems / pageSize).ceil();
++
++  /// 派生：是否存在上一页（即 currentPage > 1）。
++  bool get hasPrevious => currentPage > 1;
++
++  /// 派生：是否存在下一页（即 currentPage < totalPages）。
++  bool get hasNext => currentPage < totalPages;
++
+   HistoryPaginationState copyWith({
+     List<ChatConversationSummary>? conversations,
+-    bool? hasMore,
+     bool? isLoading,
+     String? keyword,
+     bool? hasAnyConversations,
++    int? currentPage,
++    int? pageSize,
++    int? totalItems,
+   }) {
+     return HistoryPaginationState(
+       conversations: conversations ?? this.conversations,
+-      hasMore: hasMore ?? this.hasMore,
+       isLoading: isLoading ?? this.isLoading,
+       keyword: keyword ?? this.keyword,
+       hasAnyConversations:
+           hasAnyConversations ?? this.hasAnyConversations,
++      currentPage: currentPage ?? this.currentPage,
++      pageSize: pageSize ?? this.pageSize,
++      totalItems: totalItems ?? this.totalItems,
+     );
+   }
+ 
+   @override
+   List<Object?> get props => [
+     conversations,
+-    hasMore,
+     isLoading,
+     keyword,
+     hasAnyConversations,
++    currentPage,
++    pageSize,
++    totalItems,
+   ];
+ }
+diff --git a/lib/features/history/presentation/history_screen.dart b/lib/features/history/presentation/history_screen.dart
+index 987bdf2..0e519d4 100644
+--- a/lib/features/history/presentation/history_screen.dart
++++ b/lib/features/history/presentation/history_screen.dart
+@@ -23,30 +23,16 @@ class HistoryScreen extends ConsumerStatefulWidget {
+   ConsumerState<HistoryScreen> createState() => _HistoryScreenState();
+ }
+ 
+-/// 历史页 UI 层：负责搜索输入、选择模式、滚动监听。
+-///
+-/// 分页数据由 [HistoryPaginationController] 持有，本层纯 view。
++/// 历史页 UI 层：负责搜索输入、选择模式；分页数据由
++/// [HistoryPaginationController] 持有，翻页由 [HistoryPaginationBar] 提供。
+ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
+   /// 搜索输入防抖时长，避免每次按键都触发分页重置。
+   static const _searchDebounce = Duration(milliseconds: 300);
+ 
+-  /// 自动追加的 epsilon 死区：当列表可滚动范围 ≤ viewport + 此值时
+-  /// 仍触发追加。单位 px。设置后可避免"列表高度恰好等于视口时
+-  /// maxScrollExtent == 0 引起的 1px 边界抖动反复触发 problem；
+-  /// 同时确保"完全不可滚动"（maxScrollExtent == 0）时仍能触发。
+-  static const autoFillDeadZone = 48.0;
+-
+   late final TextEditingController _searchController;
+   Timer? _searchDebounceTimer;
+ 
+   final Set<String> _selectedConversationIds = <String>{};
+-  late final ScrollController _scrollController;
+-
+-  /// 自动填充调度标记：当需要追加加载时，在一次布局完成后触发检查。
+-  /// 与直接在 build 内注册 post-frame 回调相比，此字段保证每个
+-  /// "loadMore → rebuild → 继续检查"循环周期内仅注册一次新回调，
+-  /// 避免 callback 堆积放大。
+-  bool _autoFillScheduled = false;
+ 
+   bool get _selectionMode => _selectedConversationIds.isNotEmpty;
+ 
+@@ -54,13 +40,10 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
+   void initState() {
+     super.initState();
+     _searchController = TextEditingController();
+-    _scrollController = ScrollController()..addListener(_onScroll);
+-    // 首帧后触发首次分页加载；loadInitial 同步完成后，再通过
+-    // _scheduleAutoFill 在下一帧布局后检查是否需要自动填满视口
+-    // （避免内容不足一屏时底部 loading 永远转）。
++    // 首帧后触发首次分页加载。
+     WidgetsBinding.instance.addPostFrameCallback((_) {
++      if (!mounted) return;
+       ref.read(historyPaginationProvider.notifier).loadInitial();
+-      _scheduleAutoFill();
+     });
+   }
+ 
+@@ -68,57 +51,9 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
+   void dispose() {
+     _searchDebounceTimer?.cancel();
+     _searchController.dispose();
+-    _scrollController.dispose();
+     super.dispose();
+   }
+ 
+-  // ── 滚动监听 ──────────────────────────────────────────────────────────────
+-
+-  /// 距底部 200px 以内时触发预加载。
+-  void _onScroll() {
+-    if (_scrollController.hasClients &&
+-        _scrollController.position.pixels >=
+-            _scrollController.position.maxScrollExtent - 200) {
+-      ref.read(historyPaginationProvider.notifier).loadMore();
+-    }
+-  }
+-
+-  /// 注册一次性的"布局完成后检查"回调。
+-  ///
+-  /// 仅当尚未注册时才调度，避免多次 rebuild 内堆积大量 pending callback。
+-  /// 回调执行后清除标记，允许 loadMore 触发的下次 rebuild 重新注册。
+-  void _scheduleAutoFill() {
+-    if (_autoFillScheduled) return;
+-    _autoFillScheduled = true;
+-    WidgetsBinding.instance.addPostFrameCallback((_) {
+-      _autoFillScheduled = false;
+-      _autoFillIfNeeded();
+-    });
+-  }
+-
+-  /// 数据不足以填满视口（加上 [autoFillDeadZone] 的 epsilon 死区）时自动
+-  /// 追加加载，避免底部 loading 永远转。
+-  ///
+-  /// 与 [_onScroll] 互补：像素阈值只对"能滚得动"的情况有效；当内容不足
+-  /// 一屏时，[_onScroll] 永远达不到触发条件， spinner 就会 fixed 在底部的
+-  /// Column 上不停转，必须由本方法显式打破死锁。
+-  ///
+-  /// 此方法被设计为幂等守卫（mounted / hasClients / isLoading / hasMore
+-  /// 四重检查），无论被 _onScroll 还是 post-frame 回调调用都安全。
+-  void _autoFillIfNeeded() {
+-    if (!mounted) return;
+-    if (!_scrollController.hasClients) return;
+-    final position = _scrollController.position;
+-    final state = ref.read(historyPaginationProvider);
+-    if (position.maxScrollExtent + autoFillDeadZone <= position.viewportDimension &&
+-        state.hasMore &&
+-        !state.isLoading) {
+-      ref.read(historyPaginationProvider.notifier).loadMore();
+-      // loadMore 会同步更新 state 并触发 rebuild；让 rebuild 的
+-      // _scheduleAutoFill 继续尝试追加，直到填满视口或 hasMore=false。
+-    }
+-  }
+-
+   // ── 构建 ─────────────────────────────────────────────────────────────────
+ 
+   @override
+@@ -150,7 +85,8 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
+             child: Column(
+               crossAxisAlignment: CrossAxisAlignment.start,
+               children: [
+-                Text('历史对话', style: Theme.of(context).textTheme.headlineSmall),
++                Text('历史对话',
++                    style: Theme.of(context).textTheme.headlineSmall),
+                 const SizedBox(height: 8),
+                 Text(
+                   '支持按标题和用户消息搜索、批量删除、重命名，并可跳回主页中的目标会话。',
+@@ -175,7 +111,9 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
+                       ? null
+                       : _confirmDeleteSelected,
+                 ),
+-                const SizedBox(height: 20),
++                const SizedBox(height: 12),
++                const HistoryPaginationBar(),
++                const SizedBox(height: 12),
+                 Expanded(
+                   child: _buildConversationList(context, paginationState),
+                 ),
+@@ -195,12 +133,6 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
+       paginationState.conversations,
+     );
+ 
+-    // 每次列表重建（分页追加后）都安排一次布局完成后的检查，
+-    // 以继续追加直到填满视口或 hasMore=false。
+-    // 放在 if 分支之前，确保"空列表 + hasMore=true"的极端场景
+-    // 也能在下一帧尝试自动追加，而不是永远卡在空状态页。
+-    _scheduleAutoFill();
+-
+     if (groups.isEmpty && !paginationState.isLoading) {
+       return EmptyHistoryView(
+         hasConversations: paginationState.hasAnyConversations,
+@@ -208,55 +140,38 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
+       );
+     }
+ 
+-    return Column(
+-      children: [
+-        Expanded(
+-          child: GroupedConversationList(
+-            groups: groups,
+-            scrollController: _scrollController,
+-            itemBuilder: (context, conversation) {
+-              final isSelected = _selectedConversationIds.contains(
+-                conversation.id,
+-              );
+-              return Padding(
+-                padding: const EdgeInsets.only(bottom: 10),
+-                child: HistoryConversationTile(
+-                  conversation: conversation,
+-                  selected: isSelected,
+-                  onTap: () {
+-                    if (_selectionMode) {
+-                      _toggleSelection(conversation.id);
+-                      return;
+-                    }
+-                    ref
+-                        .read(chatSessionsProvider.notifier)
+-                        .selectConversation(conversation.id);
+-                    context.go(AppDestination.chat.path);
+-                  },
+-                  onLongPress: () => _toggleSelection(conversation.id),
+-                  onRenamePressed: () => _showRenameDialog(
+-                    context,
+-                    conversation: conversation,
+-                  ),
+-                  onSelectionChanged: (_) => _toggleSelection(
+-                    conversation.id,
+-                  ),
+-                ),
+-              );
++    return GroupedConversationList(
++      groups: groups,
++      itemBuilder: (context, conversation) {
++        final isSelected = _selectedConversationIds.contains(
++          conversation.id,
++        );
++        return Padding(
++          padding: const EdgeInsets.only(bottom: 10),
++          child: HistoryConversationTile(
++            conversation: conversation,
++            selected: isSelected,
++            onTap: () {
++              if (_selectionMode) {
++                _toggleSelection(conversation.id);
++                return;
++              }
++              ref
++                  .read(chatSessionsProvider.notifier)
++                  .selectConversation(conversation.id);
++              context.go(AppDestination.chat.path);
+             },
+-          ),
+-        ),
+-        // 底部加载指示器（hasMore 时显示）。
+-        // 仅当数据量已足以让用户主动滚近底部、或已加载完（hasMore=false）
+-        // 时才会消失；不满一屏的中间状态由 _autoFillIfNeeded 自动追加填满。
+-        if (paginationState.hasMore)
+-          const Padding(
+-            padding: EdgeInsets.all(16),
+-            child: Center(
+-              child: CircularProgressIndicator(strokeWidth: 2),
++            onLongPress: () => _toggleSelection(conversation.id),
++            onRenamePressed: () => _showRenameDialog(
++              context,
++              conversation: conversation,
++            ),
++            onSelectionChanged: (_) => _toggleSelection(
++              conversation.id,
+             ),
+           ),
+-      ],
++        );
++      },
+     );
+   }
+ 
+@@ -356,7 +271,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
+     if (!mounted) return;
+     _clearSelection();
+ 
+-    // 本地移除已删除项，避免全量刷新丢失滚动位置。
++    // 本地移除已删除项；controller 内部处理可能的越界回退。
+     ref.read(historyPaginationProvider.notifier).afterDelete(deletedIds);
+   }
+ }
+diff --git a/lib/features/history/presentation/widgets/history_widgets.dart b/lib/features/history/presentation/widgets/history_widgets.dart
+index 6ecf857..a74cf9d 100644
+--- a/lib/features/history/presentation/widgets/history_widgets.dart
++++ b/lib/features/history/presentation/widgets/history_widgets.dart
+@@ -2,4 +2,5 @@ export '../../../../core/widgets/rename_conversation_dialog.dart';
+ 
+ export 'empty_history_view.dart';
+ export 'history_conversation_tile.dart';
++export 'history_pagination_bar.dart';
+ export 'history_toolbar.dart';
+diff --git a/test/features/chat/application/history_pagination_controller_test.dart b/test/features/chat/application/history_pagination_controller_test.dart
+index 1d1d41a..7be734b 100644
+--- a/test/features/chat/application/history_pagination_controller_test.dart
++++ b/test/features/chat/application/history_pagination_controller_test.dart
+@@ -14,7 +14,6 @@ import '../../../helpers/fake_history_repository.dart';
+ void main() {
+   late AppDatabase database;
+   late SharedPreferences preferences;
+-  late ProviderContainer container;
+ 
+   setUp(() async {
+     SharedPreferences.setMockInitialValues({});
+@@ -35,237 +34,382 @@ void main() {
+     return c;
+   }
+ 
++  ChatConversationSummary summary(String id) => ChatConversationSummary(
++    id: id,
++    title: '对话 $id',
++    updatedAt: DateTime(2026, 6, 1).add(const Duration(minutes: 1)),
++  );
++
+   group('HistoryPaginationController', () {
+-    test('loadInitial 写入首份数据与 hasMore', () {
++    test('loadInitial 写入首份数据、count 与 totalItems', () {
+       final repo = FakeHistoryRepository(
+         pages: [
+           (
+-            summaries: [
+-              ChatConversationSummary(
+-                id: 'a',
+-                updatedAt: DateTime(2026, 6, 1),
+-              ),
+-            ],
++            summaries: [summary('a')],
+             hasMore: true,
+           ),
+         ],
++        countResult: 10,
+       );
+-      container = createContainer(repo);
+-
+-      container.read(historyPaginationProvider.notifier).loadInitial();
+-
+-      final state = container.read(historyPaginationProvider);
+-      expect(state.conversations, hasLength(1));
+-      expect(state.hasMore, isTrue);
+-      expect(state.isLoading, isFalse);
+-      expect(state.keyword, '');
+-      expect(repo.callCount, 1);
+-      expect(repo.calls[0].limit, 50);
+-      expect(repo.calls[0].offset, 0);
++      final c = createContainer(repo);
++
++      c.read(historyPaginationProvider.notifier).loadInitial();
++
++      final s = c.read(historyPaginationProvider);
++      expect(s.conversations, hasLength(1));
++      expect(s.totalItems, 10);
++      expect(s.totalPages, 1);
++      expect(s.currentPage, 1);
++      expect(s.totalPages, 1);
++      expect(repo.countCallCount, 1);
+     });
+ 
+-    test('loadMore 追加数据并更新 hasMore', () {
++    test('loadInitial 空串 keyword 下 hasAnyConversations 跟随 totalItems',
++        () {
++      final repo = FakeHistoryRepository(
++        pages: const [
++          (summaries: [], hasMore: false),
++        ],
++        countResult: 0,
++      );
++      final c = createContainer(repo);
++
++      c.read(historyPaginationProvider.notifier).loadInitial();
++
++      final s = c.read(historyPaginationProvider);
++      expect(s.hasAnyConversations, isFalse);
++      expect(s.totalItems, 0);
++      expect(s.totalPages, 0);
++    });
++
++    test('loadInitial 带 keyword 时 hasAnyConversations 恒为 true', () {
++      final repo = FakeHistoryRepository(
++        pages: const [
++          (summaries: [], hasMore: false),
++        ],
++        countResult: 0,
++      );
++      final c = createContainer(repo);
++
++      c.read(historyPaginationProvider.notifier).loadInitial(keyword: 'foo');
++
++      final s = c.read(historyPaginationProvider);
++      expect(s.hasAnyConversations, isTrue);
++    });
++
++    test('goToPage 跳转到目标页并正确计算 offset', () {
+       final repo = FakeHistoryRepository(
+         pages: [
++          (summaries: [summary('a')], hasMore: true), // page 1 (loadInitial)
+           (
+-            summaries: List.generate(
+-              50,
+-              (i) => ChatConversationSummary(
+-                id: 'c$i',
+-                updatedAt: DateTime(2026, 6, 1).add(Duration(minutes: i)),
+-              ),
+-            ),
++            summaries: [summary('b'), summary('c')],
+             hasMore: true,
+-          ),
+-          (
+-            summaries: List.generate(
+-              20,
+-              (i) => ChatConversationSummary(
+-                id: 'c${50 + i}',
+-                updatedAt: DateTime(2026, 5, 1).add(Duration(minutes: i)),
+-              ),
+-            ),
+-            hasMore: false,
+-          ),
++          ), // page 3 (goToPage 3)
+         ],
++        countResult: 50,
+       );
+-      container = createContainer(repo);
+-
+-      container.read(historyPaginationProvider.notifier).loadInitial();
+-      container.read(historyPaginationProvider.notifier).loadMore();
+-
+-      final state = container.read(historyPaginationProvider);
+-      expect(state.conversations, hasLength(70));
+-      expect(state.hasMore, isFalse);
+-      expect(state.isLoading, isFalse);
+-      expect(repo.callCount, 2);
+-      // 第二次调用是 loadMore：limit=30, offset=50。
+-      expect(repo.calls[1].limit, 30);
+-      expect(repo.calls[1].offset, 50);
++      final c = createContainer(repo);
++      c.read(historyPaginationProvider.notifier).loadInitial();
++      repo.countCallCount = 0; // 只关注翻页后的调用
++
++      c.read(historyPaginationProvider.notifier).goToPage(3);
++
++      final s = c.read(historyPaginationProvider);
++      expect(s.currentPage, 3);
++      expect(repo.pagedCalls.last.offset, 40); // (3-1) * 20
++      expect(repo.countCallCount, 0); // goToPage 不计 count
+     });
+ 
+-    test('isLoading 守卫阻止并发 loadMore', () {
++    test('goToPage 夹取越界页码（<1 视为 1，>totalPages 视为 totalPages）',
++        () {
+       final repo = FakeHistoryRepository(
+         pages: [
+-          (
+-            summaries: List.generate(
+-              50,
+-              (i) => ChatConversationSummary(
+-                id: 'c$i',
+-                updatedAt: DateTime(2026, 6, 1).add(Duration(minutes: i)),
+-              ),
+-            ),
+-            hasMore: true,
+-          ),
+-          (
+-            summaries: List.generate(
+-              30,
+-              (i) => ChatConversationSummary(
+-                id: 'c${50 + i}',
+-                updatedAt: DateTime(2026, 5, 1).add(Duration(minutes: i)),
+-              ),
+-            ),
+-            hasMore: false,
+-          ),
++          (summaries: [summary('a')], hasMore: true),
++          (summaries: [summary('b')], hasMore: true),
++          (summaries: [summary('c')], hasMore: true),
+         ],
++        countResult: 50,
+       );
+-      container = createContainer(repo);
+-
+-      container.read(historyPaginationProvider.notifier).loadInitial();
+-      // 连续调用两次 loadMore：第二次应被 isLoading 守卫拦截。
+-      container.read(historyPaginationProvider.notifier).loadMore();
+-      container.read(historyPaginationProvider.notifier).loadMore();
+-
+-      // 仅触发一次 loadMore（第二次被 isLoading 守卫拦截）。
+-      expect(repo.callCount, 2);
+-      final state = container.read(historyPaginationProvider);
+-      expect(state.conversations, hasLength(80));
+-      expect(state.hasMore, isFalse);
++      final c = createContainer(repo);
++      c.read(historyPaginationProvider.notifier).loadInitial();
++
++      c.read(historyPaginationProvider.notifier).goToPage(99);
++      expect(c.read(historyPaginationProvider).currentPage, 3); // ceil(50/20)
++
++      c.read(historyPaginationProvider.notifier).goToPage(0);
++      expect(c.read(historyPaginationProvider).currentPage, 1);
++
++      c.read(historyPaginationProvider.notifier).goToPage(-5);
++      expect(c.read(historyPaginationProvider).currentPage, 1);
+     });
+ 
+-    test('hasMore=false 后 loadMore 直接返回', () {
++    test('goToPage 同一页直接返回', () {
+       final repo = FakeHistoryRepository(
+         pages: [
+-          (
+-            summaries: List.generate(
+-              30,
+-              (i) => ChatConversationSummary(
+-                id: 'c$i',
+-                updatedAt: DateTime(2026, 6, 1).add(Duration(minutes: i)),
+-              ),
+-            ),
+-            hasMore: false,
+-          ),
++          (summaries: [summary('a')], hasMore: true),
++        ],
++        countResult: 50,
++      );
++      final c = createContainer(repo);
++      c.read(historyPaginationProvider.notifier).loadInitial();
++      final pagedBefore = repo.pagedCalls.length;
++
++      c.read(historyPaginationProvider.notifier).goToPage(1);
++
++      expect(repo.pagedCalls.length, pagedBefore); // 不会重新拉取
++    });
++
++    test('next / prev 在边界处不越界', () {
++      final repo = FakeHistoryRepository(
++        pages: [
++          (summaries: [summary('a')], hasMore: true), // page 1
++          (summaries: [summary('b')], hasMore: true), // page 2
++          (summaries: [summary('c')], hasMore: false), // page 3
++        ],
++        countResult: 60,
++      );
++      final c = createContainer(repo);
++      c.read(historyPaginationProvider.notifier).loadInitial();
++
++      // 在第 1 调用 prev，应仍为 1。
++      c.read(historyPaginationProvider.notifier).prev();
++      expect(c.read(historyPaginationProvider).currentPage, 1);
++
++      // 连跳 3 次到最后一页
++      c.read(historyPaginationProvider.notifier).next();
++      c.read(historyPaginationProvider.notifier).next();
++      c.read(historyPaginationProvider.notifier).next();
++      c.read(historyPaginationProvider.notifier).next(); // 越界守卫
++      expect(c.read(historyPaginationProvider).currentPage, 3);
++
++      c.read(historyPaginationProvider.notifier).next(); // 仍不超过 last
++      expect(c.read(historyPaginationProvider).currentPage, 3);
++    });
++
++    test('first / last 跳转边界', () {
++      final repo = FakeHistoryRepository(
++        pages: [
++          (summaries: [summary('a')], hasMore: true),
++          (summaries: [summary('b')], hasMore: true),
++          (summaries: [summary('c')], hasMore: false),
++        ],
++        countResult: 60,
++      );
++      final c = createContainer(repo);
++      c.read(historyPaginationProvider.notifier).loadInitial();
++
++      c.read(historyPaginationProvider.notifier).last();
++      expect(c.read(historyPaginationProvider).currentPage, 3);
++
++      c.read(historyPaginationProvider.notifier).first();
++      expect(c.read(historyPaginationProvider).currentPage, 1);
++    });
++
++    test('setPageSize 重置到第 1 页并更新 totalPages', () {
++      final repo = FakeHistoryRepository(
++        pages: [
++          (summaries: [summary('a')], hasMore: true),
++          (summaries: [summary('b')], hasMore: true),
++        ],
++        countResult: 50,
++      );
++      final c = createContainer(repo);
++      c.read(historyPaginationProvider.notifier).loadInitial();
++      c.read(historyPaginationProvider.notifier).goToPage(3);
++      expect(c.read(historyPaginationProvider).currentPage, 3);
++
++      c.read(historyPaginationProvider.notifier).setPageSize(10);
++
++      final s = c.read(historyPaginationProvider);
++      expect(s.pageSize, 10);
++      expect(s.currentPage, 1);
++      expect(s.totalPages, 5); // ceil(50/10)
++      expect(repo.countCallCount, 2); // loadInitial + setPageSize
++    });
++
++    test('setPageSize 非法值不生效', () {
++      final repo = FakeHistoryRepository(
++        pages: [
++          (summaries: [summary('a')], hasMore: true),
++        ],
++        countResult: 50,
++      );
++      final c = createContainer(repo);
++      c.read(historyPaginationProvider.notifier).loadInitial();
++      final sizeBefore = c.read(historyPaginationProvider).pageSize;
++
++      c.read(historyPaginationProvider.notifier).setPageSize(999);
++
++      expect(c.read(historyPaginationProvider).pageSize, sizeBefore);
++    });
++
++    test('setKeyword 重置到第 1 页并刷新 count', () {
++      final repo = FakeHistoryRepository(
++        pages: [
++          (summaries: [summary('a')], hasMore: true),
++          (summaries: [summary('b')], hasMore: true),
++        ],
++        countResult: 30,
++      );
++      final c = createContainer(repo);
++      c.read(historyPaginationProvider.notifier).loadInitial();
++      c.read(historyPaginationProvider.notifier).goToPage(2);
++      expect(c.read(historyPaginationProvider).currentPage, 2);
++
++      repo.countCallCount = 0;
++      c.read(historyPaginationProvider.notifier).setKeyword('新关键词');
++
++      final s = c.read(historyPaginationProvider);
++      expect(s.keyword, '新关键词');
++      expect(s.currentPage, 1);
++      expect(repo.countCallCount, 1);
++    });
++
++    test('setKeyword 空串旧值下幂等', () {
++      final repo = FakeHistoryRepository(
++        pages: [
++          (summaries: [summary('a')], hasMore: true),
++        ],
++        countResult: 10,
++      );
++      final c = createContainer(repo);
++      c.read(historyPaginationProvider.notifier).loadInitial();
++      final countBefore = repo.countCallCount;
++
++      c.read(historyPaginationProvider.notifier).setKeyword('   '); // trim 后为 ''
++
++      expect(repo.countCallCount, countBefore); // 不再重新调 count
++    });
++
++    test('isLoading 守卫防止并发翻页', () {
++      // 直接调用两次 goToPage：由于同步 state 更新，第二次应当在第一次完成后才生效
++      final repo = FakeHistoryRepository(
++        pages: [
++          (summaries: [summary('a')], hasMore: true),
++          (summaries: [summary('b')], hasMore: true),
+         ],
++        countResult: 50,
+       );
+-      container = createContainer(repo);
++      final c = createContainer(repo);
++      c.read(historyPaginationProvider.notifier).loadInitial();
++      final pagedBefore = repo.pagedCalls.length;
+ 
+-      container.read(historyPaginationProvider.notifier).loadInitial();
+-      container.read(historyPaginationProvider.notifier).loadMore();
++      // 连续两次翻页，每次 state 同步更新，不应出现竞态导致的丢失
++      c.read(historyPaginationProvider.notifier).goToPage(2);
++      c.read(historyPaginationProvider.notifier).goToPage(1);
+ 
+-      // loadMore 被 hasMore=false 守卫拦截，未触发第二次调用。
+-      expect(repo.callCount, 1);
+-      final state = container.read(historyPaginationProvider);
+-      expect(state.conversations, hasLength(30));
+-      expect(state.hasMore, isFalse);
++      // 最终应稳定在 page 1
++      expect(c.read(historyPaginationProvider).currentPage, 1);
++      // 两次各自完成拉取（顺序拉取，底层同步完成无并发问题）
++      expect(repo.pagedCalls.length - pagedBefore, 2);
+     });
+ 
+-    test('setKeyword 重置分页并应用新关键词', () {
++    test('afterRename 只更新当前页匹配项', () {
++      final repo = FakeHistoryRepository(
++        pages: [
++          (summaries: [summary('a'), summary('b')], hasMore: true),
++        ],
++        countResult: 50,
++      );
++      final c = createContainer(repo);
++      c.read(historyPaginationProvider.notifier).loadInitial();
++
++      c.read(historyPaginationProvider.notifier).afterRename('a', '新名字');
++
++      final s = c.read(historyPaginationProvider);
++      expect(s.conversations.firstWhere((e) => e.id == 'a').title, '新名字');
++      expect(s.conversations.firstWhere((e) => e.id == 'b').title, '对话 b');
++    });
++
++    test('afterDelete 当前页有效时仅本地移除', () {
++      // 初始 totalItems=50 (pageSize=20 -> 3 页)；删除后 totalItems=49 (仍 3 页)。
+       final repo = FakeHistoryRepository(
+         pages: [
+           (
+-            summaries: List.generate(
+-              50,
+-              (i) => ChatConversationSummary(
+-                id: 'c$i',
+-                updatedAt: DateTime(2026, 6, 1).add(Duration(minutes: i)),
+-              ),
+-            ),
++            summaries: [summary('a'), summary('b'), summary('c')],
+             hasMore: true,
+           ),
+           (
+-            summaries: [
+-              ChatConversationSummary(
+-                id: 'match-1',
+-                title: '匹配项',
+-                updatedAt: DateTime(2026, 5, 1),
+-              ),
+-            ],
++            summaries: [summary('d')],
+             hasMore: false,
+           ),
+         ],
++        sequenceCounts: [50, 49],
+       );
+-      container = createContainer(repo);
+-
+-      container.read(historyPaginationProvider.notifier).loadInitial();
+-      container.read(historyPaginationProvider.notifier).setKeyword('匹配');
+-
+-      final state = container.read(historyPaginationProvider);
+-      expect(state.keyword, '匹配');
+-      expect(state.conversations, hasLength(1));
+-      expect(state.hasMore, isFalse);
+-      // 第二次调用带有关键词。
+-      expect(repo.calls[1].keyword, '匹配');
+-      expect(repo.calls[1].limit, 50);
+-      expect(repo.calls[1].offset, 0);
++      final c = createContainer(repo);
++      c.read(historyPaginationProvider.notifier).loadInitial();
++
++      // 跳到第 3 页
++      c.read(historyPaginationProvider.notifier).goToPage(3);
++      expect(c.read(historyPaginationProvider).currentPage, 3);
++
++      // 删除 d 后 totalItems 变为 49，totalPages 仍为 3；
++      // 但当前页 3 已无数据（d 被删），应回退到新的最后一页。
++      c.read(historyPaginationProvider.notifier).afterDelete({'d'});
++
++      final s = c.read(historyPaginationProvider);
++      expect(s.totalItems, 49);
++      expect(s.totalPages, 3); // ceil(49/20)
++      // 当前页越界 -> 回退到最后一页
++      expect(s.currentPage, 3);
+     });
+ 
+-    test('afterRename 在本地更新标题', () {
++    test('afterDelete 全部删尽会清空并进入空库状态', () {
+       final repo = FakeHistoryRepository(
+         pages: [
+-          (
+-            summaries: [
+-              ChatConversationSummary(
+-                id: 'c1',
+-                title: '旧标题',
+-                updatedAt: DateTime(2026, 6, 1),
+-              ),
+-            ],
+-            hasMore: false,
+-          ),
++          (summaries: [summary('a')], hasMore: false),
+         ],
++        sequenceCounts: [1, 0],
+       );
+-      container = createContainer(repo);
++      final c = createContainer(repo);
++      c.read(historyPaginationProvider.notifier).loadInitial();
++
++      c.read(historyPaginationProvider.notifier).afterDelete({'a'});
++
++      final s = c.read(historyPaginationProvider);
++      expect(s.conversations, isEmpty);
++      expect(s.totalItems, 0);
++      expect(s.hasAnyConversations, isFalse);
++    });
+ 
+-      container.read(historyPaginationProvider.notifier).loadInitial();
+-      container.read(historyPaginationProvider.notifier).afterRename(
+-        'c1',
+-        '新标题',
++    test('totalPages 派生：ceil(totalItems / pageSize)', () {
++      final repo = FakeHistoryRepository(
++        pages: [
++          (summaries: [summary('a')], hasMore: true),
++        ],
+       );
++      final c = createContainer(repo);
++
++      // totalItems=1 (默认 countResult 用 pages 总和), pageSize=20 -> 1 页
++      c.read(historyPaginationProvider.notifier).loadInitial();
++      expect(c.read(historyPaginationProvider).totalPages, 1);
+ 
+-      final state = container.read(historyPaginationProvider);
+-      expect(state.conversations, hasLength(1));
+-      expect(state.conversations.first.title, '新标题');
++      c.read(historyPaginationProvider.notifier).setPageSize(1);
++      // reload 后 count 仍是 1 -> totalItems=1, pageSize=1 -> 1页
++      c.read(historyPaginationProvider.notifier).setPageSize(20); // 回到 20
++      c.read(historyPaginationProvider.notifier).loadInitial(); // 重拉 1 个元素
++      expect(c.read(historyPaginationProvider).totalPages, 1);
+     });
+ 
+-    test('afterDelete 在本地移除已删除项', () {
++    test('hasPrevious / hasNext 派生正确', () {
+       final repo = FakeHistoryRepository(
+         pages: [
+-          (
+-            summaries: [
+-              ChatConversationSummary(
+-                id: 'c1',
+-                updatedAt: DateTime(2026, 6, 1),
+-              ),
+-              ChatConversationSummary(
+-                id: 'c2',
+-                updatedAt: DateTime(2026, 6, 2),
+-              ),
+-            ],
+-            hasMore: false,
+-          ),
++          (summaries: [summary('a')], hasMore: true),
++          (summaries: [summary('b')], hasMore: true),
++          (summaries: [summary('c')], hasMore: false),
+         ],
++        countResult: 60,
+       );
+-      container = createContainer(repo);
++      final c = createContainer(repo);
++      c.read(historyPaginationProvider.notifier).loadInitial();
+ 
+-      container.read(historyPaginationProvider.notifier).loadInitial();
+-      container
+-          .read(historyPaginationProvider.notifier)
+-          .afterDelete({'c1'});
++      // page 1
++      expect(c.read(historyPaginationProvider).hasPrevious, isFalse);
++      expect(c.read(historyPaginationProvider).hasNext, isTrue);
+ 
+-      final state = container.read(historyPaginationProvider);
+-      expect(state.conversations, hasLength(1));
+-      expect(state.conversations.first.id, 'c2');
++      c.read(historyPaginationProvider.notifier).goToPage(3);
++      expect(c.read(historyPaginationProvider).hasPrevious, isTrue);
++      expect(c.read(historyPaginationProvider).hasNext, isFalse);
+     });
+   });
+ }
+diff --git a/test/features/chat/chat_conversation_repository_test.dart b/test/features/chat/chat_conversation_repository_test.dart
+index bb4a08d..e00f589 100644
+--- a/test/features/chat/chat_conversation_repository_test.dart
++++ b/test/features/chat/chat_conversation_repository_test.dart
+@@ -535,4 +535,171 @@ void main() {
+     expect(loaded!.messageNodes.map((n) => n.id),
+         ['idx-second', 'idx-third', 'idx-first']);
+   });
++
++  // ── 7. countHistorySummaries ────────────────────────────────────────
++
++  /// 构造一条带 user 消息 + assistant 对话分支的测试会话。
++  ChatConversation buildConv(
++    String id, {
++    String title = '',
++    String userMessageContent = 'hello',
++    String assistantContent = 'hi',
++    DateTime? updatedAt,
++  }) {
++    final now = updatedAt ?? DateTime(2026, 6, 1);
++    return ChatConversation(
++      id: id,
++      title: title,
++      messageNodes: [
++        ChatMessage(
++          id: '$id-user',
++          role: ChatMessageRole.user,
++          content: userMessageContent,
++          parentId: rootConversationParentId,
++          createdAt: now,
++        ),
++        ChatMessage(
++          id: '$id-assistant',
++          role: ChatMessageRole.assistant,
++          content: assistantContent,
++          parentId: '$id-user',
++          createdAt: now.add(const Duration(minutes: 1)),
++        ),
++      ],
++      selectedChildByParentId: {
++        rootConversationParentId: '$id-user',
++        '$id-user': '$id-assistant',
++      },
++      createdAt: now,
++      updatedAt: now.add(const Duration(minutes: 1)),
++    );
++  }
++
++  test('countHistorySummaries returns 0 on empty db', () {
++    final database = AppDatabase.inMemory();
++    addTearDown(database.close);
++    final repository = SqliteChatConversationRepository(database);
++
++    expect(repository.countHistorySummaries(), 0);
++    expect(repository.countHistorySummaries(keyword: ''), 0);
++    expect(repository.countHistorySummaries(keyword: '不存在的词'), 0);
++  });
++
++  test('countHistorySummaries counts all conversations when keyword empty',
++      () async {
++    final database = AppDatabase.inMemory();
++    addTearDown(database.close);
++    final repository = SqliteChatConversationRepository(database);
++    await repository.saveConversations([
++      buildConv('a'),
++      buildConv('b'),
++      buildConv('c'),
++    ]);
++
++    expect(repository.countHistorySummaries(), 3);
++  });
++
++  test('countHistorySummaries matches title keyword case-insensitively',
++      () async {
++    final database = AppDatabase.inMemory();
++    addTearDown(database.close);
++    final repository = SqliteChatConversationRepository(database);
++    await repository.saveConversations([
++      buildConv('a', title: 'Rust 重构计划'),
++      buildConv('b', title: 'Flutter 路线图'),
++      buildConv('c', title: '项目复盘'),
++    ]);
++
++    expect(repository.countHistorySummaries(keyword: 'rust'), 1);
++    expect(repository.countHistorySummaries(keyword: 'FLUTTER'), 1);
++    expect(repository.countHistorySummaries(keyword: '计划'), 1);
++    expect(repository.countHistorySummaries(keyword: '不存在的标题'), 0);
++  });
++
++  test('countHistorySummaries matches user message content across branches',
++      () async {
++    final database = AppDatabase.inMemory();
++    addTearDown(database.close);
++    final repository = SqliteChatConversationRepository(database);
++    await repository.saveConversations([
++      buildConv('a', userMessageContent: '帮我整理 Rust 模块边界'),
++      buildConv('b', userMessageContent: '请给我一份 Widget 测试清单'),
++      buildConv('c', userMessageContent: '请总结本周推进情况'),
++    ]);
++
++    expect(repository.countHistorySummaries(keyword: 'rust'), 1);
++    expect(repository.countHistorySummaries(keyword: 'widget'), 1);
++    expect(repository.countHistorySummaries(keyword: '总结'), 1);
++    expect(repository.countHistorySummaries(keyword: '模块边界'), 1);
++  });
++
++  test('countHistorySummaries escapes LIKE wildcards (% and _)', () async {
++    final database = AppDatabase.inMemory();
++    addTearDown(database.close);
++    final repository = SqliteChatConversationRepository(database);
++    await repository.saveConversations([
++      buildConv('pct', title: '进度 50%'),
++      buildConv('us', title: '评分_优秀'),
++      buildConv('a', title: '正常标题'),
++    ]);
++
++    // '50%' 含通配符%，ESCAPE 子句应被当作普通 '%' 字符匹配。
++    expect(repository.countHistorySummaries(keyword: '50%'), 1);
++
++    // '评分_优秀' 精确匹配——下划线被转义，不作为 LIKE 通配符
++    expect(repository.countHistorySummaries(keyword: '评分_优秀'), 1);
++
++    // 若 _ 未被转义，'评分_' 应能模糊匹配；但转义后只精确匹配原文。
++    // 原文是 '评分_优秀'，三个字符依次是 评分_优秀。
++    // 搜索 '评分'（不含下划线）仍然通过前缀匹配命中 '评分_优秀'。
++    expect(repository.countHistorySummaries(keyword: '评分'), 1);
++  });
++
++  test(
++      'countHistorySummaries excludes conversations without messages/checkpoints',
++      () async {
++    final database = AppDatabase.inMemory();
++    addTearDown(database.close);
++    final repository = SqliteChatConversationRepository(database);
++
++    // 带消息的会话 -> 计入
++    await repository.saveConversations([buildConv('with-msg')]);
++
++    // 无消息、无 checkpoint、空 title 的会话 -> 被 saveConversation 跳过
++    // （skip rule），不能直接用 saveConversation 写入；改用 raw insert。
++    database.connection.execute(
++      'INSERT INTO conversations (id, title, created_at, updated_at, '
++      'reasoning_enabled, reasoning_effort, excluded_message_ids_json, '
++      'auto_retry_enabled) '
++      'VALUES (?, ?, ?, ?, 0, \'medium\', \'[]\', 0)',
++      ['ghost', null, DateTime(2026, 1, 1).toIso8601String(), DateTime(2026, 1, 1).toIso8601String()],
++    );
++
++    expect(repository.countHistorySummaries(), 1);
++    expect(
++      repository.countHistorySummaries(keyword: 'ghost'),
++      0,
++    );
++  });
++
++  test(
++      'countHistorySummaries result equals loadHistorySummaries pagination sum',
++      () async {
++    final database = AppDatabase.inMemory();
++    addTearDown(database.close);
++    final repository = SqliteChatConversationRepository(database);
++    final convs = List.generate(7, (i) => buildConv('c$i'));
++    await repository.saveConversations(convs);
++
++    expect(repository.countHistorySummaries(), 7);
++
++    // limit=3 翻页，应该得到 7 条的总和
++    var fetched = 0;
++    const pageSize = 3;
++    for (var offset = 0; offset < 7; offset += pageSize) {
++      final page = repository.loadHistorySummaries(limit: pageSize, offset: offset);
++      fetched += page.summaries.length;
++    }
++    expect(fetched, repository.countHistorySummaries());
++  });
+ }
+diff --git a/test/features/history/history_screen/history_screen_auto_load_cases.dart b/test/features/history/history_screen/history_screen_auto_load_cases.dart
+deleted file mode 100644
+index 0904377..0000000
+--- a/test/features/history/history_screen/history_screen_auto_load_cases.dart
++++ /dev/null
+@@ -1,135 +0,0 @@
+-import 'package:flutter/material.dart';
+-import 'package:flutter_riverpod/flutter_riverpod.dart';
+-import 'package:flutter_test/flutter_test.dart';
+-
+-import 'package:oh_my_llm/core/persistence/app_database.dart';
+-import 'package:oh_my_llm/features/chat/application/history_pagination_controller.dart';
+-import 'package:oh_my_llm/features/chat/data/chat_conversation_repository.dart';
+-import 'package:oh_my_llm/features/chat/domain/models/chat_conversation_summary.dart';
+-import 'package:oh_my_llm/features/history/presentation/history_screen.dart';
+-
+-import '../../../helpers/fake_history_repository.dart';
+-import '../../../helpers/fixtures.dart';
+-import '../../../helpers/test_harness.dart';
+-
+-void registerHistoryScreenAutoLoadTests() {
+-  group('history screen auto-fill pagination', () {
+-    testWidgets('视屏不满时自动追加加载直至填满或 hasMore=false', (tester) async {
+-      // 第一页仅 1 条（必然不满任何合理视口），hasMore=true；
+-      // 第二页 0 条 + hasMore=false 终止循环。
+-      final singleConversation = ChatConversationSummary(
+-        id: 'c0',
+-        title: '单条对话',
+-        firstUserMessagePreview: '用户消息',
+-        latestUserMessagePreview: '最新用户消息',
+-        updatedAt: DateTime(2026, 6, 1),
+-      );
+-
+-      final fakeRepo = FakeHistoryRepository(
+-        pages: [
+-          // pages[0] 被 ChatSessionsController.build() 的无参调用消耗。
+-          (summaries: const [], hasMore: false),
+-          // pages[1] 对应 HistoryPaginationController.loadInitial。
+-          (summaries: [singleConversation], hasMore: true),
+-          // pages[2] 对应 _autoFillIfNeeded 触发的 loadMore。
+-          (summaries: const [], hasMore: false),
+-        ],
+-      );
+-
+-      final database = AppDatabase.inMemory();
+-      addTearDown(database.close);
+-
+-      final preferences = await TestFixtures.seedPreferences(database: database);
+-
+-      await pumpTestApp(
+-        tester,
+-        child: const HistoryScreen(),
+-        preferences: preferences,
+-        database: database,
+-        viewportSize: const Size(800, 600),
+-        extraOverrides: [
+-          chatConversationRepositoryProvider.overrideWithValue(fakeRepo),
+-        ],
+-      );
+-
+-      // 等待所有 post-frame 回调与重建完成。
+-      await tester.pumpAndSettle();
+-
+-      // 取出带 limit 的分页调用（过滤掉 ChatSessionsController 的无参调用）。
+-      final pageCalls = fakeRepo.pagedCalls;
+-
+-      // 至少两次分页调用：loadInitial + 至少一次 loadMore。
+-      expect(pageCalls.length, greaterThanOrEqualTo(2));
+-
+-      // 第一次分页调用是 loadInitial（limit=50, offset=0）。
+-      expect(pageCalls[0].limit, 50);
+-      expect(pageCalls[0].offset, 0);
+-
+-      // 接下来是 loadMore（limit=30）。
+-      expect(pageCalls[1].limit, 30);
+-
+-      // 全部加载完后 hasMore 应为 false。
+-      // 直接断言 Provider 状态（业务状态），而非查找具体 spinner widget，
+-      // 避免 findsNothing on widget 类型的反模式。
+-      final ctx = tester.element(find.byType(HistoryScreen));
+-      final container = ProviderScope.containerOf(ctx);
+-      expect(container.read(historyPaginationProvider).hasMore, isFalse);
+-    });
+-
+-    testWidgets('数据足以填满一屏时不自动追加，仅靠滚动触发', (tester) async {
+-      // 数百条数据足够让 maxScrollExtent > viewportDimension，
+-      // _autoFillIfNeeded 不应触发追加。
+-      final hugePage = List.generate(
+-        500,
+-        (i) => ChatConversationSummary(
+-          id: 'c$i',
+-          title: '大页对话 $i',
+-          firstUserMessagePreview: '用户消息 $i',
+-          latestUserMessagePreview: '最新用户消息 $i',
+-          updatedAt: DateTime(2026, 6, 1).add(Duration(minutes: i)),
+-        ),
+-      );
+-
+-      final fakeRepo = FakeHistoryRepository(
+-        pages: [
+-          // ChatSessionsController.build() 的无参调用。
+-          (summaries: const [], hasMore: false),
+-          // loadInitial。
+-          (summaries: hugePage, hasMore: true),
+-        ],
+-      );
+-
+-      final database = AppDatabase.inMemory();
+-      addTearDown(database.close);
+-
+-      final preferences = await TestFixtures.seedPreferences(database: database);
+-
+-      await pumpTestApp(
+-        tester,
+-        child: const HistoryScreen(),
+-        preferences: preferences,
+-        database: database,
+-        viewportSize: const Size(800, 600),
+-        extraOverrides: [
+-          chatConversationRepositoryProvider.overrideWithValue(fakeRepo),
+-        ],
+-      );
+-
+-      // 不能用 pumpAndSettle：满屏 hasMore=true 时 spinner 会一直转，
+-      // 导致无限动画无法 settle。用条件等待：直到分页调用次数达到 2
+-      //（ChatSessionsController 无参 + loadInitial）或超时。
+-      final deadline = Duration(seconds: 5);
+-      final stopwatch = Stopwatch()..start();
+-      while (fakeRepo.callCount < 2 && stopwatch.elapsed < deadline) {
+-        await tester.pump(const Duration(milliseconds: 16));
+-      }
+-
+-      // 仅 ChatSessionsController 的无参调用 + loadInitial 一次，无 loadMore。
+-      expect(fakeRepo.callCount, 2);
+-      final pageCalls = fakeRepo.pagedCalls;
+-      expect(pageCalls.length, 1);
+-      expect(pageCalls[0].limit, 50);
+-      expect(pageCalls[0].offset, 0);
+-    });
+-  });
+-}
+diff --git a/test/features/history/history_screen_test.dart b/test/features/history/history_screen_test.dart
+index 9dcf2e6..e33e5c6 100644
+--- a/test/features/history/history_screen_test.dart
++++ b/test/features/history/history_screen_test.dart
+@@ -1,9 +1,9 @@
+ import 'history_screen/history_screen_actions_cases.dart';
+-import 'history_screen/history_screen_auto_load_cases.dart';
++import 'history_screen/history_screen_pagination_bar_cases.dart';
+ import 'history_screen/history_screen_search_cases.dart';
+ 
+ void main() {
+   registerHistoryScreenSearchTests();
+   registerHistoryScreenActionsTests();
+-  registerHistoryScreenAutoLoadTests();
++  registerHistoryScreenPaginationBarTests();
+ }
+diff --git a/test/helpers/fake_history_repository.dart b/test/helpers/fake_history_repository.dart
+index 413d97e..9db24f7 100644
+--- a/test/helpers/fake_history_repository.dart
++++ b/test/helpers/fake_history_repository.dart
+@@ -4,27 +4,50 @@ import 'package:oh_my_llm/features/chat/domain/models/chat_conversation_summary.
+ /// 测试用 mock 仓库，按调用顺序返回预设页面。
+ ///
+ /// 用于 history_pagination_controller_test.dart 与
+-/// history_screen_auto_load_cases.dart，避免两处重复实现。
++/// history_screen_pagination_bar_cases.dart，避免两处重复实现。
+ ///
+-/// [pages] 按调用顺序被消耗：每次 [loadHistorySummaries] 被调用时，
++/// [pages] 按调用顺序被消耗：每次 [loadHistorySummaries] 带 limit 调用时，
+ /// 返回 pages[_callIndex] 并将 _callIndex 自增。超出范围后返回空列表
+ /// 且 hasMore=false，避免越界。
+ ///
+-/// [calls] 记录每次调用的入参（keyword/limit/offset），便于断言。
++/// [calls] 记录每次 [loadHistorySummaries] 的入参（keyword/limit/offset），便于断言。
+ /// 注意：ChatSessionsController.build() 会先调用一次无参的
+ /// loadHistorySummaries()，该调用也会被记录在 calls 中（limit/offset
+ /// 均为 null）。
++///
++/// [countResult] 控制 [countHistorySummaries] 的返回值：
++/// - 非 null 时直接返回 [countResult]；
++/// - null 时回退为 pages 所有 summaries 数量之和（便于只测分页而
++///   不关心总数的场景）。
++///
++/// 若需模拟「计数随数据变更而变」的场景（例如 afterDelete），可使用
++/// [sequenceCounts]：按调用顺序依次返回列表中的值；列表耗尽后固定返回
++/// 最后一个值。[sequenceCounts] 的优先级高于 [countResult]。
+ class FakeHistoryRepository implements ChatConversationRepository {
+-  FakeHistoryRepository({required this.pages});
++  FakeHistoryRepository({
++    required this.pages,
++    this.countResult,
++    List<int>? sequenceCounts,
++  }) : _sequenceCounts = sequenceCounts;
+ 
+   /// 按调用顺序返回的页面列表。
+   final List<({List<ChatConversationSummary> summaries, bool hasMore})> pages;
+ 
++  /// countHistorySummaries 的返回值；为 null 时回退为 pages 总结。
++  final int? countResult;
++
++  /// 按调用顺序消耗的计数返回值（优先级高于 countResult）。
++  final List<int>? _sequenceCounts;
++  int _countSequenceIndex = 0;
++
+   int _callIndex = 0;
+ 
+   /// 每次 loadHistorySummaries 的入参记录。
+   final List<({String keyword, int? limit, int? offset})> calls = [];
+ 
++  /// countHistorySummaries 被调用的次数。
++  int countCallCount = 0;
++
+   /// 已消耗的调用次数。
+   int get callCount => _callIndex;
+ 
+@@ -50,6 +73,21 @@ class FakeHistoryRepository implements ChatConversationRepository {
+     return _next();
+   }
+ 
++  @override
++  int countHistorySummaries({String keyword = ''}) {
++    countCallCount++;
++    final seq = _sequenceCounts;
++    if (seq != null && seq.isNotEmpty) {
++      final value = seq[_countSequenceIndex.clamp(0, seq.length - 1)];
++      if (_countSequenceIndex < seq.length - 1) {
++        _countSequenceIndex++;
++      }
++      return value;
++    }
++    if (countResult != null) return countResult!;
++    return pages.fold(0, (sum, p) => sum + p.summaries.length);
++  }
++
+   @override
+   dynamic noSuchMethod(Invocation invocation) => null;
+ }
