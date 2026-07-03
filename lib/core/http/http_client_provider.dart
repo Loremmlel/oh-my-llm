@@ -1,8 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
-import '../../features/settings/application/custom_headers_controller.dart';
 import 'custom_headers_http_client.dart';
+import 'custom_headers_provider.dart';
 
 /// 全局 HTTP Client 单例 Provider。
 ///
@@ -16,12 +16,12 @@ final httpClientProvider = Provider<CustomHeadersHttpClient>((ref) {
   return client;
 });
 
-/// 同步 Provider：监听 [customHeadersProvider] 变化并同步到全局 HTTP Client。
+/// 同步 Provider：监听 [customHeadersMapProvider] 变化并同步到全局 HTTP Client。
 ///
 /// 非 autoDispose Provider，创建后在整个应用生命周期内保持存活。
 /// 在应用根组件 [OhMyLlmApp.build()] 中被 watch 以触发初始创建和持续同步。
 final customHeadersSyncProvider = Provider<void>((ref) {
-  final config = ref.watch(customHeadersProvider);
+  final headers = ref.watch(customHeadersMapProvider);
   final client = ref.read(httpClientProvider);
-  client.updateHeaders(config.toHeaderMap());
+  client.updateHeaders(headers);
 });

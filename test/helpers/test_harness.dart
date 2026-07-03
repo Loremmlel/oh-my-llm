@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:oh_my_llm/core/http/custom_headers_provider.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
@@ -49,6 +50,7 @@ Future<AppDatabase> pumpTestApp(
       overrides: [
         appDatabaseProvider.overrideWithValue(db),
         sharedPreferencesProvider.overrideWithValue(preferences),
+        customHeadersMapProvider.overrideWith((ref) => const {}),
         ...extraOverrides,
       ],
       child: router != null
