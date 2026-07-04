@@ -19,6 +19,8 @@ import '../data/openai_compatible_chat_client.dart';
 import '../domain/models/chat_checkpoint.dart';
 import '../domain/models/chat_conversation.dart';
 import '../domain/models/chat_conversation_summary.dart';
+import '../domain/chat_error_messages.dart';
+import '../domain/chat_message_parent.dart';
 import '../domain/models/chat_message.dart';
 
 export 'chat_sessions_state.dart';
@@ -456,7 +458,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     String? sourceCheckpointId,
   }) async {
     if (_isBusy) {
-      throw const ChatCompletionException('当前仍有请求在进行，请稍后再试。');
+      throw const ChatCompletionException(ChatErrorMessages.busy);
     }
 
     final currentConversation = state.activeConversation;
@@ -467,14 +469,14 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       conversationMessages: currentConversation.messages,
     );
     if (sourceCheckpointId != null && sourceContext.checkpointChain.isEmpty) {
-      throw const ChatCompletionException('所选检查点与当前分支不兼容，请重新选择。');
+      throw const ChatCompletionException(ChatErrorMessages.incompatibleCheckpoint);
     }
 
     final summaryMessages = sourceCheckpointId == null
         ? currentConversation.messages
         : sourceContext.tailMessages;
     if (summaryMessages.isEmpty) {
-      throw const ChatCompletionException('当前没有可用于创建检查点的新上下文。');
+      throw const ChatCompletionException(ChatErrorMessages.noCheckpointContext);
     }
 
     state = state.copyWith(isCheckpointing: true, clearErrorMessage: true, clearEmptyReply: true);
@@ -546,7 +548,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     final tree = resolveMessageTreeState(currentConversation);
     final siblings = tree.nodes
         .where((node) {
-          return (node.parentId ?? rootConversationParentId) == parentId;
+          return node.effectiveParentId == parentId;
         })
         .toList(growable: false);
     final hasTarget = siblings.any((node) => node.id == messageId);
@@ -635,7 +637,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
 
     final modelConfig = resolveModelConfig(currentConversation);
     if (modelConfig == null) {
-      setErrorMessage('无法重算：当前对话没有可用模型，请先检查模型设置。');
+      setErrorMessage(ChatErrorMessages.noModelConfigForRecalc);
       return;
     }
 
@@ -649,7 +651,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     );
     final nextNodes = [...tree.nodes, branchUserMessage];
     final nextSelections = Map<String, String>.from(tree.selections);
-    final branchParentId = targetMessage.parentId ?? rootConversationParentId;
+    final branchParentId = targetMessage.effectiveParentId;
     nextSelections[branchParentId] = branchUserMessage.id;
     final rebuiltConversation = currentConversation.copyWith(
       messageNodes: nextNodes,
@@ -669,7 +671,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       parentMessageId: branchUserMessage.id,
       reasoningEnabled: rebuiltConversation.reasoningEnabled,
       reasoningEffort: rebuiltConversation.reasoningEffort,
-      appliedCheckpointTitle: checkpointContext.activeCheckpoint?.title ?? '',
+      appliedCheckpointTitle: checkpointContext.activeCheckpointTitle,
     );
   }
 
@@ -683,13 +685,13 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     final activePath = currentConversation.messages;
     final latestMessage = activePath.lastOrNull;
     if (latestMessage == null) {
-      setErrorMessage('只能重试当前对话中的最新模型回复。');
+      setErrorMessage(ChatErrorMessages.retryOnlyLatest);
       return;
     }
 
     final modelConfig = resolveModelConfig(currentConversation);
     if (modelConfig == null) {
-      setErrorMessage('无法重试：当前对话没有可用模型，请先检查模型设置。');
+      setErrorMessage(ChatErrorMessages.noModelConfigForRetry);
       return;
     }
 
@@ -709,7 +711,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         parentMessageId: latestMessage.id,
         reasoningEnabled: currentConversation.reasoningEnabled,
         reasoningEffort: currentConversation.reasoningEffort,
-        appliedCheckpointTitle: checkpointContext.activeCheckpoint?.title ?? '',
+        appliedCheckpointTitle: checkpointContext.activeCheckpointTitle,
       );
       return;
     }
@@ -719,13 +721,13 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     });
     if (latestAssistantIndex == -1 ||
         latestAssistantIndex != activePath.length - 1) {
-      setErrorMessage('只能重试当前对话中的最新模型回复。');
+      setErrorMessage(ChatErrorMessages.retryOnlyLatest);
       return;
     }
 
     final tree = resolveMessageTreeState(currentConversation);
     final latestAssistant = activePath[latestAssistantIndex];
-    final parentId = latestAssistant.parentId ?? rootConversationParentId;
+    final parentId = latestAssistant.effectiveParentId;
     final requestMessages = activePath
         .take(latestAssistantIndex)
         .toList(growable: false);
@@ -767,7 +769,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         parentMessageId: parentId == rootConversationParentId ? null : parentId,
         reasoningEnabled: baseConversation.reasoningEnabled,
         reasoningEffort: baseConversation.reasoningEffort,
-        appliedCheckpointTitle: checkpointContext.activeCheckpoint?.title ?? '',
+        appliedCheckpointTitle: checkpointContext.activeCheckpointTitle,
       );
       return;
     }
@@ -799,7 +801,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       parentMessageId: parentId == rootConversationParentId ? null : parentId,
       reasoningEnabled: baseConversation.reasoningEnabled,
       reasoningEffort: baseConversation.reasoningEffort,
-      appliedCheckpointTitle: checkpointContext.activeCheckpoint?.title ?? '',
+      appliedCheckpointTitle: checkpointContext.activeCheckpointTitle,
     );
   }
 
@@ -860,7 +862,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       parentMessageId: userMessage.id,
       reasoningEnabled: reasoningEnabled,
       reasoningEffort: reasoningEffort,
-      appliedCheckpointTitle: checkpointContext.activeCheckpoint?.title ?? '',
+      appliedCheckpointTitle: checkpointContext.activeCheckpointTitle,
       retryDelay: retryDelay,
     );
   }
@@ -883,10 +885,10 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       return;
     }
 
-    final parentId = targetMessage.parentId ?? rootConversationParentId;
+    final parentId = targetMessage.effectiveParentId;
     final siblingIds = tree.nodes
         .where((message) {
-          return (message.parentId ?? rootConversationParentId) == parentId;
+          return message.effectiveParentId == parentId;
         })
         .map((message) => message.id)
         .toList(growable: false);
@@ -901,7 +903,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
 
     final remainingSiblings = nextTree.nodes
         .where((message) {
-          return (message.parentId ?? rootConversationParentId) == parentId;
+          return message.effectiveParentId == parentId;
         })
         .toList(growable: false);
     final deletedIndex = siblingIds.indexOf(messageId);

@@ -17,6 +17,9 @@ class CheckpointRequestContext {
 
   bool get hasCheckpoint => checkpointChain.isNotEmpty;
   ChatCheckpoint? get activeCheckpoint => checkpointChain.lastOrNull;
+
+  /// 当前激活检查点的标题，无检查点时返回空字符串。
+  String get activeCheckpointTitle => activeCheckpoint?.title ?? '';
 }
 
 /// 解析当前请求可用的检查点链与其后的增量消息。

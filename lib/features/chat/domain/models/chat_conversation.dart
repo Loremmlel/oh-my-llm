@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:characters/characters.dart';
 import 'package:equatable/equatable.dart';
 
+import '../chat_message_parent.dart';
 import 'chat_checkpoint.dart';
 import 'chat_message.dart';
 
@@ -207,7 +208,7 @@ class ChatConversation extends Equatable {
 
     final childrenByParent = <String, List<ChatMessage>>{};
     for (final node in nodes) {
-      final parentId = node.parentId ?? rootConversationParentId;
+      final parentId = node.effectiveParentId;
       childrenByParent.putIfAbsent(parentId, () => <ChatMessage>[]).add(node);
     }
 
