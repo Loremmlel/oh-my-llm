@@ -5,8 +5,12 @@ final class AppTheme {
   const AppTheme._();
 
   /// 按 brightness 生成 M3 默认 textTheme，确保 light/dark 各自拿到正确的文字颜色。
-  static TextTheme _m3TextTheme(Brightness brightness) =>
-      ThemeData(brightness: brightness, useMaterial3: true).textTheme;
+  /// 同时注入 fontFamily，使所有 TextStyle 默认携带思源黑体（外层 ThemeData.fontFamily 不会向显式 textTheme 内部回退）。
+  static TextTheme _m3TextTheme(Brightness brightness) => ThemeData(
+        brightness: brightness,
+        useMaterial3: true,
+        fontFamily: 'Noto Sans SC',
+      ).textTheme;
 
   static ThemeData lightTheme({double bodyFontSize = 14}) =>
       _buildTheme(Brightness.light, bodyFontSize: bodyFontSize);
