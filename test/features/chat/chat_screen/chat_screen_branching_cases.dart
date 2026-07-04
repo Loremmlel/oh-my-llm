@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/data/chat_completion_client.dart';
+import 'package:oh_my_llm/features/chat/domain/chat_error_messages.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
@@ -286,8 +287,8 @@ void registerChatScreenBranchingTests() {
       await sendMessage(tester, '触发空回复');
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('[EMPTY]'), findsOneWidget);
-      expect(find.textContaining('[ERR]'), findsNothing);
+      expect(find.textContaining(ChatErrorMessages.emptyReply), findsOneWidget);
+      expect(find.textContaining(ChatErrorMessages.noValidContent), findsNothing);
     },
   );
 
@@ -306,7 +307,7 @@ void registerChatScreenBranchingTests() {
       await tester.pumpAndSettle();
 
       expect(find.textContaining('测试网络错误'), findsOneWidget);
-      expect(find.textContaining('[EMPTY]'), findsNothing);
+      expect(find.textContaining(ChatErrorMessages.emptyReply), findsNothing);
     },
   );
 }

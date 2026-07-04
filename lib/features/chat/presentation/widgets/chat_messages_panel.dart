@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import '../../domain/models/chat_conversation.dart';
+import '../../domain/chat_message_parent.dart';
 import '../../domain/models/chat_message.dart';
 import 'cached_chat_message_bubble.dart';
 import 'empty_conversation_view.dart';
@@ -103,85 +104,14 @@ class ChatMessagesPanel extends StatelessWidget {
                   separatorBuilder: (context, index) {
                     return const SizedBox(height: 12);
                   },
-                  itemBuilder: (context, index) {
-                    final message = displayMessages[index];
-                    final isTransientError =
-                        message.id == transientErrorMessageId;
-                    final inlineErrorMessage =
-                        normalizedError != null &&
-                            normalizedError.isNotEmpty &&
-                            errorMessageAssistantId == message.id
-                        ? normalizedError
-                        : null;
-                    final isEmptyReply = emptyReplyAssistantId != null &&
-                        emptyReplyAssistantId == message.id;
-
-                    return KeyedSubtree(
-                      key: ValueKey(message.id),
-                      child: CachedChatMessageBubble(
-                        message: message,
-                        inlineErrorMessage: inlineErrorMessage,
-                        isEmptyReply: isEmptyReply,
-                        canEdit:
-                            !isBusy && message.role == ChatMessageRole.user,
-                        canRetry:
-                            !isBusy && latestAssistantMessage?.id == message.id,
-                        onEditPressed: message.role == ChatMessageRole.user
-                            ? () {
-                                onEditMessage(message);
-                              }
-                            : null,
-                        onRetryPressed: latestAssistantMessage?.id == message.id
-                            ? () {
-                                onRetryLatestAssistant();
-                              }
-                            : null,
-                        onDeletePressed: !isBusy && !isTransientError
-                            ? () {
-                                onDeleteMessage(message);
-                              }
-                            : null,
-                        isExcludedFromRequest:
-                            !isTransientError &&
-                            conversation.isMessageExcluded(message.id),
-                        onToggleRequestExclusionPressed:
-                            !isBusy && !isTransientError && !message.isStreaming
-                            ? () {
-                                onToggleRequestExclusion(message);
-                              }
-                            : null,
-                        onFavoritePressed:
-                            !isTransientError &&
-                                message.role == ChatMessageRole.assistant &&
-                                onFavoritePressed != null
-                            ? () => onFavoritePressed!(message)
-                            : null,
-                        isFavorited:
-                            !isTransientError &&
-                            message.role == ChatMessageRole.assistant &&
-                            favoritedAssistantContents.contains(
-                              message.content,
-                            ),
-                        autoRetryCount:
-                            lastUserMessageId != null &&
-                                message.id == lastUserMessageId
-                                ? autoRetryCount
-                                : 0,
-                        versionInfo: versionInfoByMessageId[message.id],
-                        onSwitchVersion: (targetMessageId) async {
-                          final versionInfo =
-                              versionInfoByMessageId[message.id];
-                          if (versionInfo == null) {
-                            return;
-                          }
-                          await onSelectMessageVersion(
-                            versionInfo.parentId,
-                            targetMessageId,
-                          );
-                        },
+                  itemBuilder: (context, index) =>
+                      _buildBubbleItem(
+                        displayMessages[index],
+                        normalizedError: normalizedError,
+                        latestAssistantMessage: latestAssistantMessage,
+                        lastUserMessageId: lastUserMessageId,
+                        versionInfoByMessageId: versionInfoByMessageId,
                       ),
-                    );
-                  },
                 ),
               if (userMessages.isNotEmpty)
                 Positioned(
@@ -247,13 +177,13 @@ class ChatMessagesPanel extends StatelessWidget {
 
     final siblingsByParent = <String, List<ChatMessage>>{};
     for (final node in conversation.messageNodes) {
-      final parentId = node.parentId ?? rootConversationParentId;
+      final parentId = node.effectiveParentId;
       siblingsByParent.putIfAbsent(parentId, () => <ChatMessage>[]).add(node);
     }
 
     final result = <String, MessageVersionInfo>{};
     for (final message in messages) {
-      final parentId = message.parentId ?? rootConversationParentId;
+      final parentId = message.effectiveParentId;
       final siblings = siblingsByParent[parentId] ?? const <ChatMessage>[];
       if (siblings.length <= 1) {
         continue;
@@ -269,5 +199,65 @@ class ChatMessagesPanel extends StatelessWidget {
       );
     }
     return result;
+  }
+
+  /// 构建单条消息气泡，封装 canEdit / canRetry 等权限判断与回调绑定。
+  Widget _buildBubbleItem(
+    ChatMessage message, {
+    required String? normalizedError,
+    required ChatMessage? latestAssistantMessage,
+    required String? lastUserMessageId,
+    required Map<String, MessageVersionInfo> versionInfoByMessageId,
+  }) {
+    final isTransientError = message.id == transientErrorMessageId;
+    final isUser = message.role == ChatMessageRole.user;
+    final isAssistant = message.role == ChatMessageRole.assistant;
+    final inlineErrorMessage = normalizedError != null &&
+            normalizedError.isNotEmpty &&
+            errorMessageAssistantId == message.id
+        ? normalizedError
+        : null;
+
+    return KeyedSubtree(
+      key: ValueKey(message.id),
+      child: CachedChatMessageBubble(
+        message: message,
+        inlineErrorMessage: inlineErrorMessage,
+        isEmptyReply: emptyReplyAssistantId != null &&
+            emptyReplyAssistantId == message.id,
+        canEdit: !isBusy && isUser,
+        canRetry: !isBusy && latestAssistantMessage?.id == message.id,
+        onEditPressed: isUser ? () => onEditMessage(message) : null,
+        onRetryPressed: latestAssistantMessage?.id == message.id
+            ? () => onRetryLatestAssistant()
+            : null,
+        onDeletePressed:
+            !isBusy && !isTransientError ? () => onDeleteMessage(message) : null,
+        isExcludedFromRequest:
+            !isTransientError && conversation.isMessageExcluded(message.id),
+        onToggleRequestExclusionPressed:
+            !isBusy && !isTransientError && !message.isStreaming
+                ? () => onToggleRequestExclusion(message)
+                : null,
+        onFavoritePressed: !isTransientError &&
+                isAssistant &&
+                onFavoritePressed != null
+            ? () => onFavoritePressed!(message)
+            : null,
+        isFavorited: !isTransientError &&
+            isAssistant &&
+            favoritedAssistantContents.contains(message.content),
+        autoRetryCount:
+            lastUserMessageId != null && message.id == lastUserMessageId
+                ? autoRetryCount
+                : 0,
+        versionInfo: versionInfoByMessageId[message.id],
+        onSwitchVersion: (targetMessageId) async {
+          final versionInfo = versionInfoByMessageId[message.id];
+          if (versionInfo == null) return;
+          await onSelectMessageVersion(versionInfo.parentId, targetMessageId);
+        },
+      ),
+    );
   }
 }

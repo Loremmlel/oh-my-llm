@@ -1,3 +1,4 @@
+import '../domain/chat_message_parent.dart';
 import '../domain/models/chat_conversation.dart';
 import '../domain/models/chat_message.dart';
 
@@ -65,7 +66,7 @@ ChatMessageTreeState removeNodeFromTree({
 }) {
   final childIdsByParent = <String, List<String>>{};
   for (final node in treeState.nodes) {
-    final parentId = node.parentId ?? rootConversationParentId;
+    final parentId = node.effectiveParentId;
     childIdsByParent.putIfAbsent(parentId, () => <String>[]).add(node.id);
   }
 

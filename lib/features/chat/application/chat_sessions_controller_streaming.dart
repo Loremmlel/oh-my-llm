@@ -8,6 +8,7 @@ import '../../settings/domain/models/preset_prompt.dart';
 import '../data/chat_completion_client.dart';
 import '../domain/models/chat_checkpoint.dart';
 import '../domain/models/chat_conversation.dart';
+import '../domain/chat_error_messages.dart';
 import '../domain/models/chat_message.dart';
 import 'chat_message_tree.dart';
 import 'chat_request_message_builder.dart';
@@ -246,7 +247,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
             ),
             isStreaming: false,
             emptyReplyAssistantId: assistantMessage.id,
-            errorMessage: '[EMPTY] 模型返回了空回复，请重试',
+            errorMessage: ChatErrorMessages.emptyReply,
             errorMessageAssistantId: assistantMessage.id,
             clearStreamingReply: true,
             incrementHistoryRevision: true,
@@ -260,7 +261,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
               summaryFromConversation(cleanedConversation),
             ),
             isStreaming: false,
-            errorMessage: '[ERR] 请求未返回有效内容，请检查网络或重试',
+            errorMessage: ChatErrorMessages.noValidContent,
             errorMessageAssistantId: assistantMessage.id,
             clearStreamingReply: true,
             incrementHistoryRevision: true,

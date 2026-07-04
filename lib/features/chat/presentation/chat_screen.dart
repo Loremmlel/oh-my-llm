@@ -21,6 +21,7 @@ import '../application/chat_sessions_controller.dart';
 import '../application/chat_sidebar_controller.dart';
 import '../application/templated_user_message_builder.dart';
 import '../domain/chat_conversation_groups.dart';
+import '../domain/chat_message_parent.dart';
 import '../domain/models/chat_conversation.dart';
 import '../domain/models/chat_conversation_summary.dart';
 import '../domain/models/chat_message.dart';
@@ -77,6 +78,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
     super.dispose();
   }
+
+  // ── Build ──────────────────────────────────────────────────────────────────
 
   @override
   /// 构建聊天页的整体布局与交互入口。
@@ -177,244 +180,369 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     return AppShellScaffold(
       currentDestination: AppDestination.chat,
       title: conversation.resolvedTitle,
-      endDrawer: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: ChatCompactPanel(
-            historyPanel: _buildHistoryPanel(
-              conversationSummaries,
-              activeConversationId: activeConversationId,
-              hasDraftConversation: !conversation.hasMessages,
-              isBusy: isBusy,
-            ),
-            presetPanel: PresetPromptPanel(
-              selectedPresetPromptId: _selectedPresetPromptId,
-              onPresetPromptSelected: _handlePresetPromptSelected,
-            ),
-          ),
-        ),
+      endDrawer: _buildEndDrawer(
+        conversationSummaries: conversationSummaries,
+        activeConversationId: activeConversationId,
+        hasDraft: !conversation.hasMessages,
+        isBusy: isBusy,
       ),
-      actions: [
-        IconButton(
-          onPressed: isBusy ? null : _createConversationAndScroll,
-          tooltip: '新建对话',
-          icon: const Icon(Icons.add_comment_outlined),
-        ),
-        IconButton(
-          onPressed: isBusy
-              ? null
-              : () => _showCheckpointsDialog(
-                  context,
-                  selectedModel: selectedModel,
-                  selectedPresetPrompt: selectedPresetPrompt,
-                  supportsReasoning: supportsReasoning,
-                ),
-          tooltip: '对话检查点',
-          icon: const Icon(Icons.memory_rounded),
-        ),
-        IconButton(
-          onPressed: isBusy
-              ? null
-              : () => _showRenameDialog(context, conversation.resolvedTitle),
-          tooltip: '修改对话标题',
-          icon: const Icon(Icons.edit_outlined),
-        ),
-      ],
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          // 使用 MediaQuery 获取窗口物理宽度，与 AppShellScaffold 的
-          // LayoutBuilder 判断保持一致，避免因 NavigationRail 占位导致
-          // 内层宽度缩水 69px 而产生判断偏差。
-          final showSidePanels =
-              MediaQuery.of(context).size.width >= AppBreakpoints.compact;
-
-          return Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (showSidePanels) ...[
-                  const ChatActivityBar(),
-                  ChatSidebarPanel(
-                    content: _buildSidebarContent(
-                      sidebarState.activeFunction ??
-                          ChatSidebarFunction.history,
-                      conversationSummaries: conversationSummaries,
-                      activeConversationId: activeConversationId,
-                      hasDraftConversation: !conversation.hasMessages,
-                      isBusy: isBusy,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                ],
-                Expanded(
-                  child: ChatWorkspace(
-                    conversation: conversation,
-                    messages: activeMessages,
-                    hasModels: modelConfigs.isNotEmpty,
-                    modelProviders: selectableProviders,
-                    modelConfigs: selectableModels,
-                    selectedProviderId: selectedProviderId,
-                    selectedModel: selectedModel,
-                    userMessages: userMessages,
-                    activeAnchorMessageId: _scroll.activeAnchorMessageId,
-                    messageController: _messageController,
-                    messageFocusNode: _messageFocusNode,
-                    templatePrompts: templatePrompts,
-                    selectedTemplatePrompt: selectedTemplatePrompt,
-                    templateVariableControllers: _templateVariableControllers,
-                    messageItemScrollController: _scroll.itemScrollController,
-                    messageItemPositionsListener: _scroll.itemPositionsListener,
-                    isComposerCollapsed: _isComposerCollapsed,
-                    reasoningEnabled:
-                        supportsReasoning && conversation.reasoningEnabled,
-                    reasoningEffort: conversation.reasoningEffort,
-                    supportsReasoning: supportsReasoning,
-                    autoRetryEnabled: conversation.autoRetryEnabled,
-                    isBusy: isBusy,
-                    isStreaming: isStreaming,
-                    isAutoRetryWaiting: isAutoRetryWaiting,
-                    errorMessage: errorMessage,
-                    errorMessageAssistantId: errorMessageAssistantId,
-                    emptyReplyAssistantId: emptyReplyAssistantId,
-                    errorModelDisplayName: selectedModel?.displayName ?? '模型',
-                    showScrollToBottom: _scroll.showScrollToBottom,
-                    autoRetryCount: autoRetryCount,
-                    excludedMessageCount: excludedVisibleMessageCount,
-                    onEditMessage: (message) async {
-                      await _showEditMessageDialog(
-                        context,
-                        messageId: message.id,
-                        initialContent: message.content,
-                      );
-                    },
-                    onRetryLatestAssistant: () async {
-                      await ref
-                          .read(chatSessionsProvider.notifier)
-                          .retryLatestAssistant();
-                    },
-                    onDeleteMessage: (message) async {
-                      await _showDeleteMessageDialog(context, message);
-                    },
-                    onToggleRequestExclusion: (message) {
-                      ref
-                          .read(chatSessionsProvider.notifier)
-                          .setMessagesExcluded(
-                            messageIds: [message.id],
-                            excluded: !conversation.isMessageExcluded(
-                              message.id,
-                            ),
-                          );
-                    },
-                    onProviderSelected: (providerId) {
-                      _handleProviderSelected(providerId, selectableProviders);
-                    },
-                    onModelSelected: (modelId) {
-                      _handleModelSelected(modelId);
-                    },
-                    onTemplatePromptSelected: (templatePromptId) {
-                      _handleTemplatePromptSelected(
-                        templatePromptId,
-                        templatePrompts,
-                      );
-                    },
-                    onToggleComposerCollapsed: _toggleComposerCollapsed,
-                    onReasoningEnabledChanged: supportsReasoning
-                        ? (value) {
-                            ref
-                                .read(chatSessionsProvider.notifier)
-                                .updateActiveConversationPreferences(
-                                  reasoningEnabled: value,
-                                );
-                          }
-                        : null,
-                    onReasoningEffortChanged: supportsReasoning
-                        ? (value) {
-                            ref
-                                .read(chatSessionsProvider.notifier)
-                                .updateActiveConversationPreferences(
-                                  reasoningEffort: value,
-                                );
-                          }
-                        : null,
-                    onAutoRetryEnabledChanged: (value) {
-                      ref
-                          .read(chatSessionsProvider.notifier)
-                          .updateActiveConversationPreferences(
-                            autoRetryEnabled: value,
-                          );
-                    },
-                    onOpenFixedPromptSequenceRunner: () async {
-                      await _showFixedPromptSequenceRunnerDialog(
-                        context,
-                        fixedPromptSequences: fixedPromptSequences,
-                        selectedModel: selectedModel,
-                        selectedPresetPrompt: selectedPresetPrompt,
-                        conversation: conversation,
-                        supportsReasoning: supportsReasoning,
-                        isBusy: isBusy,
-                      );
-                    },
-                    onOpenMessageFilter: () async {
-                      await _showMessageRequestFilterDialog(context);
-                    },
-                    onScrollToBottomPressed: _scroll.scrollToBottom,
-                    onSelectMessage: _scroll.scrollToMessage,
-                    onSelectMessageVersion: (parentId, messageId) async {
-                      await ref
-                          .read(chatSessionsProvider.notifier)
-                          .selectMessageVersion(
-                            parentId: parentId,
-                            messageId: messageId,
-                          );
-                    },
-                    onSendPressed: selectedModel == null || isBusy
-                        ? null
-                        : () async {
-                            final templatedMessage = buildTemplatedUserMessage(
-                              body: _messageController.text,
-                              templatePrompt: selectedTemplatePrompt,
-                              variableValues: _resolveTemplatePromptValues(
-                                selectedTemplatePrompt,
-                              ),
-                            );
-                            if (templatedMessage.content.trim().isEmpty) {
-                              return;
-                            }
-
-                            _messageController.clear();
-                            await _sendMessageContent(
-                              content: templatedMessage.content,
-                              userMessageSegments:
-                                  templatedMessage.userMessageSegments,
-                              modelConfig: selectedModel,
-                              presetPrompt: selectedPresetPrompt,
-                              conversation: conversation,
-                              supportsReasoning: supportsReasoning,
-                              isBusy: isBusy,
-                            );
-                          },
-                    onStopStreaming: isStreaming || isAutoRetryWaiting
-                        ? () async {
-                            await _showStopStreamingDialog(context);
-                          }
-                        : null,
-                    onFavoritePressed: (message) => _showAddToFavoritesDialog(
-                      context,
-                      message,
-                      conversation,
-                    ),
-                    favoritedAssistantContents: favoritedContents,
-                    onScroll: _handleScroll,
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
+      actions: _buildActions(
+        isBusy: isBusy,
+        selectedModel: selectedModel,
+        selectedPresetPrompt: selectedPresetPrompt,
+        supportsReasoning: supportsReasoning,
+        conversation: conversation,
+      ),
+      body: _buildBody(
+        sidebarState: sidebarState,
+        conversationSummaries: conversationSummaries,
+        activeConversationId: activeConversationId,
+        hasDraft: !conversation.hasMessages,
+        isBusy: isBusy,
+        conversation: conversation,
+        activeMessages: activeMessages,
+        modelConfigs: modelConfigs,
+        selectableProviders: selectableProviders,
+        selectableModels: selectableModels,
+        selectedProviderId: selectedProviderId,
+        selectedModel: selectedModel,
+        userMessages: userMessages,
+        selectedPresetPrompt: selectedPresetPrompt,
+        selectedTemplatePrompt: selectedTemplatePrompt,
+        templatePrompts: templatePrompts,
+        supportsReasoning: supportsReasoning,
+        isStreaming: isStreaming,
+        isAutoRetryWaiting: isAutoRetryWaiting,
+        errorMessage: errorMessage,
+        errorMessageAssistantId: errorMessageAssistantId,
+        emptyReplyAssistantId: emptyReplyAssistantId,
+        autoRetryCount: autoRetryCount,
+        excludedVisibleMessageCount: excludedVisibleMessageCount,
+        fixedPromptSequences: fixedPromptSequences,
+        favoritedContents: favoritedContents,
       ),
     );
   }
+
+  /// 构建紧凑模式下的 endDrawer，包含历史会话面板和预设 Prompt 面板。
+  Widget _buildEndDrawer({
+    required List<ChatConversationSummary> conversationSummaries,
+    required String activeConversationId,
+    required bool hasDraft,
+    required bool isBusy,
+  }) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: ChatCompactPanel(
+          historyPanel: _buildHistoryPanel(
+            conversationSummaries,
+            activeConversationId: activeConversationId,
+            hasDraftConversation: hasDraft,
+            isBusy: isBusy,
+          ),
+          presetPanel: PresetPromptPanel(
+            selectedPresetPromptId: _selectedPresetPromptId,
+            onPresetPromptSelected: _handlePresetPromptSelected,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 构建 AppBar 操作按钮区：新建对话、检查点、重命名。
+  List<Widget> _buildActions({
+    required bool isBusy,
+    required LlmModelConfig? selectedModel,
+    required PresetPrompt? selectedPresetPrompt,
+    required bool supportsReasoning,
+    required ChatConversation conversation,
+  }) {
+    return [
+      IconButton(
+        onPressed: isBusy ? null : _createConversationAndScroll,
+        tooltip: '新建对话',
+        icon: const Icon(Icons.add_comment_outlined),
+      ),
+      IconButton(
+        onPressed: isBusy
+            ? null
+            : () => _showCheckpointsDialog(
+                context,
+                selectedModel: selectedModel,
+                selectedPresetPrompt: selectedPresetPrompt,
+                supportsReasoning: supportsReasoning,
+              ),
+        tooltip: '对话检查点',
+        icon: const Icon(Icons.memory_rounded),
+      ),
+      IconButton(
+        onPressed: isBusy
+            ? null
+            : () => _showRenameDialog(context, conversation.resolvedTitle),
+        tooltip: '修改对话标题',
+        icon: const Icon(Icons.edit_outlined),
+      ),
+    ];
+  }
+
+  /// 构建页面主体布局：根据视口宽度决定侧栏显窄，并在宽屏模式下
+  /// 通过 LayoutBuilder 保持与 AppShellScaffold 断点判定一致。
+  Widget _buildBody({
+    required ChatSidebarState sidebarState,
+    required List<ChatConversationSummary> conversationSummaries,
+    required String activeConversationId,
+    required bool hasDraft,
+    required bool isBusy,
+    required ChatConversation conversation,
+    required List<ChatMessage> activeMessages,
+    required List<LlmModelConfig> modelConfigs,
+    required List<LlmProviderConfig> selectableProviders,
+    required List<LlmModelConfig> selectableModels,
+    required String? selectedProviderId,
+    required LlmModelConfig? selectedModel,
+    required List<ChatMessage> userMessages,
+    required PresetPrompt? selectedPresetPrompt,
+    required TemplatePrompt? selectedTemplatePrompt,
+    required List<TemplatePrompt> templatePrompts,
+    required bool supportsReasoning,
+    required bool isStreaming,
+    required bool isAutoRetryWaiting,
+    required String? errorMessage,
+    required String? errorMessageAssistantId,
+    required String? emptyReplyAssistantId,
+    required int autoRetryCount,
+    required int excludedVisibleMessageCount,
+    required List<FixedPromptSequence> fixedPromptSequences,
+    required Set<String> favoritedContents,
+  }) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // 使用 MediaQuery 获取窗口物理宽度，与 AppShellScaffold 的
+        // LayoutBuilder 判断保持一致，避免因 NavigationRail 占位导致
+        // 内层宽度缩水 69px 而产生判断偏差。
+        final showSidePanels =
+            MediaQuery.of(context).size.width >= AppBreakpoints.compact;
+
+        return Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (showSidePanels) ...[
+                const ChatActivityBar(),
+                ChatSidebarPanel(
+                  content: _buildSidebarContent(
+                    sidebarState.activeFunction ?? ChatSidebarFunction.history,
+                    conversationSummaries: conversationSummaries,
+                    activeConversationId: activeConversationId,
+                    hasDraftConversation: hasDraft,
+                    isBusy: isBusy,
+                  ),
+                ),
+                const SizedBox(width: 12),
+              ],
+              Expanded(
+                child: _buildWorkspace(
+                  conversation: conversation,
+                  activeMessages: activeMessages,
+                  modelConfigs: modelConfigs,
+                  selectableProviders: selectableProviders,
+                  selectableModels: selectableModels,
+                  selectedProviderId: selectedProviderId,
+                  selectedModel: selectedModel,
+                  userMessages: userMessages,
+                  selectedPresetPrompt: selectedPresetPrompt,
+                  selectedTemplatePrompt: selectedTemplatePrompt,
+                  templatePrompts: templatePrompts,
+                  supportsReasoning: supportsReasoning,
+                  isStreaming: isStreaming,
+                  isAutoRetryWaiting: isAutoRetryWaiting,
+                  errorMessage: errorMessage,
+                  errorMessageAssistantId: errorMessageAssistantId,
+                  emptyReplyAssistantId: emptyReplyAssistantId,
+                  autoRetryCount: autoRetryCount,
+                  excludedVisibleMessageCount: excludedVisibleMessageCount,
+                  fixedPromptSequences: fixedPromptSequences,
+                  favoritedContents: favoritedContents,
+                  isBusy: isBusy,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// 构建聊天主工作区，包含消息列表、输入框和所有消息操作回调。
+  ///
+  /// 将 [selectedPresetPrompt] 以 build 时快照传入，避免回调触发时
+  /// 因外部 preset 列表变化而导致发送使用了与 build 时不同的 preset。
+  Widget _buildWorkspace({
+    required ChatConversation conversation,
+    required List<ChatMessage> activeMessages,
+    required List<LlmModelConfig> modelConfigs,
+    required List<LlmProviderConfig> selectableProviders,
+    required List<LlmModelConfig> selectableModels,
+    required String? selectedProviderId,
+    required LlmModelConfig? selectedModel,
+    required List<ChatMessage> userMessages,
+    required PresetPrompt? selectedPresetPrompt,
+    required TemplatePrompt? selectedTemplatePrompt,
+    required List<TemplatePrompt> templatePrompts,
+    required bool supportsReasoning,
+    required bool isStreaming,
+    required bool isAutoRetryWaiting,
+    required String? errorMessage,
+    required String? errorMessageAssistantId,
+    required String? emptyReplyAssistantId,
+    required int autoRetryCount,
+    required int excludedVisibleMessageCount,
+    required List<FixedPromptSequence> fixedPromptSequences,
+    required Set<String> favoritedContents,
+    required bool isBusy,
+  }) {
+    return ChatWorkspace(
+      conversation: conversation,
+      messages: activeMessages,
+      hasModels: modelConfigs.isNotEmpty,
+      modelProviders: selectableProviders,
+      modelConfigs: selectableModels,
+      selectedProviderId: selectedProviderId,
+      selectedModel: selectedModel,
+      userMessages: userMessages,
+      activeAnchorMessageId: _scroll.activeAnchorMessageId,
+      messageController: _messageController,
+      messageFocusNode: _messageFocusNode,
+      templatePrompts: templatePrompts,
+      selectedTemplatePrompt: selectedTemplatePrompt,
+      templateVariableControllers: _templateVariableControllers,
+      messageItemScrollController: _scroll.itemScrollController,
+      messageItemPositionsListener: _scroll.itemPositionsListener,
+      isComposerCollapsed: _isComposerCollapsed,
+      reasoningEnabled: supportsReasoning && conversation.reasoningEnabled,
+      reasoningEffort: conversation.reasoningEffort,
+      supportsReasoning: supportsReasoning,
+      autoRetryEnabled: conversation.autoRetryEnabled,
+      isBusy: isBusy,
+      isStreaming: isStreaming,
+      isAutoRetryWaiting: isAutoRetryWaiting,
+      errorMessage: errorMessage,
+      errorMessageAssistantId: errorMessageAssistantId,
+      emptyReplyAssistantId: emptyReplyAssistantId,
+      errorModelDisplayName: selectedModel?.displayName ?? '模型',
+      showScrollToBottom: _scroll.showScrollToBottom,
+      autoRetryCount: autoRetryCount,
+      excludedMessageCount: excludedVisibleMessageCount,
+      onEditMessage: (message) async {
+        await _showEditMessageDialog(
+          context,
+          messageId: message.id,
+          initialContent: message.content,
+        );
+      },
+      onRetryLatestAssistant: () async {
+        await ref.read(chatSessionsProvider.notifier).retryLatestAssistant();
+      },
+      onDeleteMessage: (message) async {
+        await _showDeleteMessageDialog(context, message);
+      },
+      onToggleRequestExclusion: (message) {
+        ref.read(chatSessionsProvider.notifier).setMessagesExcluded(
+              messageIds: [message.id],
+              excluded: !conversation.isMessageExcluded(message.id),
+            );
+      },
+      onProviderSelected: (providerId) {
+        _handleProviderSelected(providerId, selectableProviders);
+      },
+      onModelSelected: _handleModelSelected,
+      onTemplatePromptSelected: (templatePromptId) {
+        _handleTemplatePromptSelected(templatePromptId, templatePrompts);
+      },
+      onToggleComposerCollapsed: _toggleComposerCollapsed,
+      onReasoningEnabledChanged: supportsReasoning
+          ? (value) {
+              ref
+                  .read(chatSessionsProvider.notifier)
+                  .updateActiveConversationPreferences(reasoningEnabled: value);
+            }
+          : null,
+      onReasoningEffortChanged: supportsReasoning
+          ? (value) {
+              ref
+                  .read(chatSessionsProvider.notifier)
+                  .updateActiveConversationPreferences(reasoningEffort: value);
+            }
+          : null,
+      onAutoRetryEnabledChanged: (value) {
+        ref
+            .read(chatSessionsProvider.notifier)
+            .updateActiveConversationPreferences(autoRetryEnabled: value);
+      },
+      onOpenFixedPromptSequenceRunner: () async {
+        await _showFixedPromptSequenceRunnerDialog(
+          context,
+          fixedPromptSequences: fixedPromptSequences,
+          selectedModel: selectedModel,
+          selectedPresetPrompt: selectedPresetPrompt,
+          conversation: conversation,
+          supportsReasoning: supportsReasoning,
+          isBusy: isBusy,
+        );
+      },
+      onOpenMessageFilter: () async {
+        await _showMessageRequestFilterDialog(context);
+      },
+      onScrollToBottomPressed: _scroll.scrollToBottom,
+      onSelectMessage: _scroll.scrollToMessage,
+      onSelectMessageVersion: (parentId, messageId) async {
+        await ref
+            .read(chatSessionsProvider.notifier)
+            .selectMessageVersion(parentId: parentId, messageId: messageId);
+      },
+      onSendPressed: selectedModel == null || isBusy
+          ? null
+          : () async {
+              final templatedMessage = buildTemplatedUserMessage(
+                body: _messageController.text,
+                templatePrompt: selectedTemplatePrompt,
+                variableValues: _resolveTemplatePromptValues(
+                  selectedTemplatePrompt,
+                ),
+              );
+              if (templatedMessage.content.trim().isEmpty) {
+                return;
+              }
+
+              _messageController.clear();
+              await _sendMessageContent(
+                content: templatedMessage.content,
+                userMessageSegments: templatedMessage.userMessageSegments,
+                modelConfig: selectedModel,
+                presetPrompt: selectedPresetPrompt,
+                conversation: conversation,
+                supportsReasoning: supportsReasoning,
+                isBusy: isBusy,
+              );
+            },
+      onStopStreaming: isStreaming || isAutoRetryWaiting
+          ? () async {
+              await _showStopStreamingDialog(context);
+            }
+          : null,
+      onFavoritePressed: (message) => _showAddToFavoritesDialog(
+        context,
+        message,
+        conversation,
+      ),
+      favoritedAssistantContents: favoritedContents,
+      onScroll: _handleScroll,
+    );
+  }
+
+  // ── Panels ─────────────────────────────────────────────────────────────────
 
   /// 按时间分组会话摘要，供侧栏渲染。
   List<ChatConversationSummaryGroup> _buildConversationGroups(
@@ -469,6 +597,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ),
     };
   }
+
+  // ── Resolvers ──────────────────────────────────────────────────────────────
 
   /// 解析当前会话应使用的模型配置，并在缺省时回退到默认项。
   LlmModelConfig? _resolveSelectedModel(
@@ -642,6 +772,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         })(),
     };
   }
+
+  // ── Dialogs & Actions ──────────────────────────────────────────────────────
 
   /// 弹出固定顺序提示词运行器，并在关闭后同步输入框或直接发送当前步骤。
   Future<void> _showFixedPromptSequenceRunnerDialog(
@@ -924,9 +1056,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final tree = resolveMessageTreeState(
       ref.read(activeChatConversationProvider),
     );
-    final parentId = message.parentId ?? rootConversationParentId;
+    final parentId = message.effectiveParentId;
     final siblingCount = tree.nodes.where((node) {
-      return (node.parentId ?? rootConversationParentId) == parentId;
+      return node.effectiveParentId == parentId;
     }).length;
     final scope = await showDialog<ChatMessageDeletionScope>(
       context: context,

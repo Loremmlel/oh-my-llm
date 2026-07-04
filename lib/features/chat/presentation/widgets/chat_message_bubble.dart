@@ -78,6 +78,48 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
     context.showBubble('已复制消息内容');
   }
 
+  Widget _copyButton(BuildContext context) {
+    return _iconButton(
+      onPressed: () => _copyMessage(context),
+      tooltip: '复制消息',
+      icon: Icons.content_copy_rounded,
+    );
+  }
+
+  Widget _exclusionButton() {
+    return _iconButton(
+      onPressed: widget.onToggleRequestExclusionPressed,
+      tooltip: widget.isExcludedFromRequest
+          ? '重新加入发送上下文'
+          : '从发送上下文中排除',
+      icon: widget.isExcludedFromRequest
+          ? Icons.add_circle_outline_rounded
+          : Icons.remove_circle_outline_rounded,
+    );
+  }
+
+  Widget _favoriteButton() {
+    return _iconButton(
+      onPressed: widget.onFavoritePressed,
+      tooltip: widget.isFavorited ? '已收藏' : '收藏回复',
+      icon: widget.isFavorited
+          ? Icons.bookmark_rounded
+          : Icons.bookmark_border_rounded,
+    );
+  }
+
+  Widget _iconButton({
+    required VoidCallback? onPressed,
+    required String tooltip,
+    required IconData icon,
+  }) {
+    return IconButton(
+      onPressed: onPressed,
+      tooltip: tooltip,
+      icon: Icon(icon),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -193,53 +235,29 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                     alignment: WrapAlignment.end,
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                    IconButton(
-                      onPressed: () {
-                        _copyMessage(context);
-                      },
-                      tooltip: '复制消息',
-                      icon: const Icon(Icons.content_copy_rounded),
-                    ),
-                    if (widget.onToggleRequestExclusionPressed != null)
-                      IconButton(
-                        onPressed: widget.onToggleRequestExclusionPressed,
-                        tooltip: widget.isExcludedFromRequest
-                            ? '重新加入发送上下文'
-                            : '从发送上下文中排除',
-                        icon: Icon(
-                          widget.isExcludedFromRequest
-                              ? Icons.add_circle_outline_rounded
-                              : Icons.remove_circle_outline_rounded,
+                      _copyButton(context),
+                      if (widget.onToggleRequestExclusionPressed != null)
+                        _exclusionButton(),
+                      if (widget.onFavoritePressed != null)
+                        _favoriteButton(),
+                      if (widget.canEdit)
+                        _iconButton(
+                          onPressed: widget.onEditPressed,
+                          tooltip: '编辑消息',
+                          icon: Icons.edit_outlined,
                         ),
-                      ),
-                    if (widget.onFavoritePressed != null)
-                      IconButton(
-                        onPressed: widget.onFavoritePressed,
-                        tooltip: widget.isFavorited ? '已收藏' : '收藏回复',
-                        icon: Icon(
-                          widget.isFavorited
-                              ? Icons.bookmark_rounded
-                              : Icons.bookmark_border_rounded,
+                      if (widget.canRetry)
+                        _iconButton(
+                          onPressed: widget.onRetryPressed,
+                          tooltip: '重试回复',
+                          icon: Icons.refresh_rounded,
                         ),
-                      ),
-                    if (widget.canEdit)
-                      IconButton(
-                        onPressed: widget.onEditPressed,
-                        tooltip: '编辑消息',
-                        icon: const Icon(Icons.edit_outlined),
-                      ),
-                    if (widget.canRetry)
-                      IconButton(
-                        onPressed: widget.onRetryPressed,
-                        tooltip: '重试回复',
-                        icon: const Icon(Icons.refresh_rounded),
-                      ),
-                    if (widget.onDeletePressed != null)
-                      IconButton(
-                        onPressed: widget.onDeletePressed,
-                        tooltip: '删除消息',
-                        icon: const Icon(Icons.delete_outline_rounded),
-                      ),
+                      if (widget.onDeletePressed != null)
+                        _iconButton(
+                          onPressed: widget.onDeletePressed,
+                          tooltip: '删除消息',
+                          icon: Icons.delete_outline_rounded,
+                        ),
                     ],
                   ),
                 ),
