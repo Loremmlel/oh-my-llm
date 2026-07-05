@@ -63,17 +63,10 @@ class FileItem {
   }
 
   /// 从 JSON 反序列化。
-  ///
-  /// 兼容旧格式（`isDirectory`/`sizeBytes`）和新格式（`type`/`size`）。
   factory FileItem.fromJson(Map<String, dynamic> json) {
-    // 兼容新旧两种 type/isDirectory 字段
     final type = json['type'] as String?;
-    final isDir = type != null
-        ? type == 'directory'
-        : (json['isDirectory'] as bool? ?? false);
-
-    // 兼容新旧两种 size/sizeBytes 字段
-    final size = (json['size'] ?? json['sizeBytes']) as int? ?? 0;
+    final isDir = type == 'directory';
+    final size = json['size'] as int? ?? 0;
 
     return FileItem(
       name: json['name'] as String,

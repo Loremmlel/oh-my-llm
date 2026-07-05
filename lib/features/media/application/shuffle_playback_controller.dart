@@ -5,7 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../core/http/http_client_provider.dart';
-import '../data/media_directory_scanner.dart'; // VideoItem 在此定义
+import '../utils/path_utils.dart';
+import '../domain/models/video_item.dart';
 import 'media_browser_controller.dart';
 
 // ── 状态定义 ────────────────────────────────────────────

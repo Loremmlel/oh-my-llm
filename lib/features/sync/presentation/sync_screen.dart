@@ -6,6 +6,7 @@ import '../../../core/persistence/shared_preferences_provider.dart';
 import '../../../app/navigation/app_destination.dart';
 import '../../../app/shell/app_shell_scaffold.dart';
 import '../../media/application/media_browser_controller.dart';
+import '../../media/domain/models/media_server_info.dart';
 import '../../media/presentation/media_browser_tab.dart';
 import '../../media/presentation/widgets/shuffle_appbar_actions.dart';
 import '../application/sync_client_controller.dart';
@@ -62,7 +63,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen>
       if (server != null) {
         ref
             .read(mediaBrowserControllerProvider.notifier)
-            .initWithServer(server);
+            .initWithServer(MediaServerInfo(ip: server.ip, httpPort: server.httpPort));
       }
     }
   }

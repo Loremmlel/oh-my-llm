@@ -1,9 +1,8 @@
 import 'dart:io';
 
 import 'package:oh_my_llm/core/http/http_response_writer.dart';
-import 'package:oh_my_llm/core/http/http_route_handler.dart';
 
-import 'media_directory_scanner.dart';
+import 'media_http_handler_base.dart';
 import 'media_mime_types.dart';
 
 /// Range 请求解析结果。
@@ -20,87 +19,57 @@ class _ParsedRange {
 ///
 /// 支持 HTTP Range 请求，正确返回 206 Partial Content。
 /// 使用流式传输避免阻塞事件循环。
-class MediaVideoHttpHandler implements HttpRouteHandler {
-  final MediaDirectoryScanner _scanner;
-
-  MediaVideoHttpHandler({required MediaDirectoryScanner scanner})
-      : _scanner = scanner;
+class MediaVideoHttpHandler extends MediaHttpHandlerBase {
+  MediaVideoHttpHandler({required super.scanner})
+      : super(urlPrefix: '/api/media/video/');
 
   @override
-  bool canHandle(HttpRequest request) =>
-      request.method == 'GET' &&
-      request.uri.path.startsWith('/api/media/video/');
+  Future<void> handleSafe(HttpRequest request, String relativePath) async {
+    if (relativePath == '/') {
+      writeJsonError(request.response, HttpStatus.badRequest, '缺少文件路径');
+      return;
+    }
 
-  @override
-  Future<void> handle(HttpRequest request) async {
-    try {
-      // 提取相对路径：/api/media/video/sister/cat.mp4 → /sister/cat.mp4
-      final rawPath = request.uri.path.substring('/api/media/video'.length);
-      if (rawPath.isEmpty || rawPath == '/') {
-        writeJsonError(request.response, HttpStatus.badRequest, '缺少文件路径');
-        return;
-      }
-      // request.uri.path 保留了 percent-encoding，必须解码以支持中文路径
-      final relativePath = Uri.decodeComponent(rawPath);
+    final resolvedPath = scanner.resolvePath(relativePath);
+    final file = File(resolvedPath);
+    if (!file.existsSync()) {
+      writeJsonError(request.response, HttpStatus.notFound, '文件不存在');
+      return;
+    }
 
-      // 安全校验
-      final resolvedPath = _scanner.resolvePath(relativePath);
+    final fileSize = file.lengthSync();
+    final mimeType = mimeTypeFromExtension(relativePath);
 
-      final file = File(resolvedPath);
-      if (!file.existsSync()) {
-        writeJsonError(request.response, HttpStatus.notFound, '文件不存在');
-        return;
-      }
+    final rangeHeader = request.headers['range']?.single;
+    final range = rangeHeader != null ? _parseRange(rangeHeader, fileSize) : null;
 
-      final fileSize = file.lengthSync();
-      final mimeType = mimeTypeFromExtension(relativePath);
+    if (rangeHeader != null && range == null) {
+      _writeRangeNotSatisfiable(request.response, fileSize);
+      return;
+    }
 
-      // 解析 Range 头
-      final rangeHeader = request.headers['range']?.single;
-      final range = rangeHeader != null ? _parseRange(rangeHeader, fileSize) : null;
-
-      if (rangeHeader != null && range == null) {
-        // Range 头存在但解析失败 → 416
-        _writeRangeNotSatisfiable(request.response, fileSize);
-        return;
-      }
-
-      if (range != null) {
-        // ── 206 Partial Content ──
-        final length = range.end - range.start + 1;
-        final stream = file.openRead(range.start, range.end + 1);
-        request.response
-          ..statusCode = HttpStatus.partialContent
-          ..headers.contentType = ContentType.parse(mimeType)
-          ..headers.set('Content-Range', 'bytes ${range.start}-${range.end}/$fileSize')
-          ..headers.set('Content-Length', length.toString())
-          ..headers.set('Accept-Ranges', 'bytes')
-          ..headers.set('Access-Control-Allow-Origin', '*');
-
-        await request.response.addStream(stream);
-        await request.response.close();
-      } else {
-        // ── 200 OK（完整文件）──
-        final stream = file.openRead();
-        request.response
-          ..statusCode = HttpStatus.ok
-          ..headers.contentType = ContentType.parse(mimeType)
-          ..headers.set('Content-Length', fileSize.toString())
-          ..headers.set('Accept-Ranges', 'bytes')
-          ..headers.set('Access-Control-Allow-Origin', '*');
-
-        await request.response.addStream(stream);
-        await request.response.close();
-      }
-    } on PathTraversalException catch (e) {
-      writeJsonError(request.response, HttpStatus.forbidden, '路径穿越被拒绝: $e');
-    } on FileSystemException catch (e) {
-      final status = e.osError?.errorCode == 2
-          ? HttpStatus.notFound
-          : HttpStatus.internalServerError;
-      writeJsonError(request.response, status, '文件访问失败: ${e.message}');
-    } catch (e) {
-      writeJsonError(request.response, HttpStatus.internalServerError, '服务端错误: $e');
+    if (range != null) {
+      final length = range.end - range.start + 1;
+      final stream = file.openRead(range.start, range.end + 1);
+      request.response
+        ..statusCode = HttpStatus.partialContent
+        ..headers.contentType = ContentType.parse(mimeType)
+        ..headers.set('Content-Range', 'bytes ${range.start}-${range.end}/$fileSize')
+        ..headers.set('Content-Length', length.toString())
+        ..headers.set('Accept-Ranges', 'bytes')
+        ..headers.set('Access-Control-Allow-Origin', '*');
+      await request.response.addStream(stream);
+      await request.response.close();
+    } else {
+      final stream = file.openRead();
+      request.response
+        ..statusCode = HttpStatus.ok
+        ..headers.contentType = ContentType.parse(mimeType)
+        ..headers.set('Content-Length', fileSize.toString())
+        ..headers.set('Accept-Ranges', 'bytes')
+        ..headers.set('Access-Control-Allow-Origin', '*');
+      await request.response.addStream(stream);
+      await request.response.close();
     }
   }
 
@@ -118,8 +87,6 @@ class MediaVideoHttpHandler implements HttpRouteHandler {
 
     final rangesPart = header.substring('bytes='.length).trim();
     if (rangesPart.isEmpty) return null;
-
-    // 不支持多 Range
     if (rangesPart.contains(',')) return null;
 
     try {
@@ -133,9 +100,8 @@ class MediaVideoHttpHandler implements HttpRouteHandler {
       int end;
 
       if (startStr.isEmpty && endStr.isEmpty) {
-        return null; // 格式错误
+        return null;
       } else if (startStr.isEmpty) {
-        // bytes=-<suffix>
         final suffix = int.parse(endStr);
         if (suffix <= 0) return null;
         start = (fileSize - suffix).clamp(0, fileSize - 1);
@@ -146,24 +112,19 @@ class MediaVideoHttpHandler implements HttpRouteHandler {
         if (endStr.isNotEmpty) {
           end = int.parse(endStr);
         } else {
-          // bytes=<start>-
           end = fileSize - 1;
         }
       }
 
-      // 修正 end 越界
       if (end >= fileSize) end = fileSize - 1;
-
-      // 无效范围
       if (start >= fileSize || start > end) return null;
 
       return _ParsedRange(start, end);
     } on FormatException {
-      return null; // 非数字值 → 无效
+      return null;
     }
   }
 
-  /// 写入 416 Range Not Satisfiable 响应。
   void _writeRangeNotSatisfiable(HttpResponse response, int fileSize) {
     response
       ..statusCode = HttpStatus.requestedRangeNotSatisfiable

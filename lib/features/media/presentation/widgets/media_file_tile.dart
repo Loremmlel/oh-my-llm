@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../application/media_browser_controller.dart';
 import '../../data/media_mime_types.dart';
+import '../../utils/path_utils.dart';
 import '../../domain/models/file_item.dart';
 
 /// 单个文件/文件夹卡片。
