@@ -1,10 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/utils/id_generator.dart';
-import '../data/sqlite_favorites_repository.dart';
+import '../data/favorites_repository.dart';
 import '../domain/models/favorite.dart';
 
-/// 收藏列表过滤条件 Notifier。
+/// 收藏列表过滤条件。
 ///
 /// null = 全部，'' = 未分类，其他 = 指定收藏夹 ID。
 final favoritesFilterProvider =
@@ -30,7 +30,7 @@ final favoritesProvider = NotifierProvider<FavoritesController, List<Favorite>>(
 ///
 /// 维护当前过滤条件下的收藏列表，支持新增、删除和移动收藏夹。
 class FavoritesController extends Notifier<List<Favorite>> {
-  SqliteFavoritesRepository get _repo => ref.read(favoritesRepositoryProvider);
+  FavoritesRepository get _repo => ref.read(favoritesRepositoryProvider);
 
   @override
   List<Favorite> build() {
