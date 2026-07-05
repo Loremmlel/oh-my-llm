@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../application/media_browser_controller.dart';
 import '../application/shuffle_playback_controller.dart';
 import '../data/media_mime_types.dart';
+import '../utils/path_utils.dart';
 import 'pages/image_viewer_page.dart';
 import 'pages/video_player_page.dart';
 import 'widgets/media_grid_view.dart';

@@ -4,22 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../core/http/http_client_provider.dart';
-import '../../sync/data/sync_udp_discovery.dart';
+import '../utils/path_utils.dart';
 import '../domain/models/file_item.dart';
+import '../domain/models/media_server_info.dart';
 
 const Object _sentinel = Object();
-
-/// 对媒体路径的每段进行 URI 编码，以支持中文等非 ASCII 字符。
-///
-/// 根路径 `/` 返回空字符串。
-String encodeMediaPath(String path) {
-  if (path == '/') return '';
-  return path
-      .split('/')
-      .where((s) => s.isNotEmpty)
-      .map(Uri.encodeComponent)
-      .join('/');
-}
 
 /// 媒体浏览器状态。
 class MediaBrowserState {
@@ -37,7 +26,7 @@ class MediaBrowserState {
   final List<String> pathHistory;
   final bool isLoading;
   final String? errorMessage;
-  final DiscoveredServer? server;
+  final MediaServerInfo? server;
 
   MediaBrowserState copyWith({
     List<FileItem>? items,
@@ -54,7 +43,7 @@ class MediaBrowserState {
       isLoading: isLoading ?? this.isLoading,
       errorMessage:
           identical(errorMessage, _sentinel) ? this.errorMessage : errorMessage as String?,
-      server: identical(server, _sentinel) ? this.server : server as DiscoveredServer?,
+      server: identical(server, _sentinel) ? this.server : server as MediaServerInfo?,
     );
   }
 
@@ -79,7 +68,7 @@ class MediaBrowserController extends Notifier<MediaBrowserState> {
   }
 
   /// 初始化：从同步客户端状态获取服务端地址。
-  void initWithServer(DiscoveredServer server) {
+  void initWithServer(MediaServerInfo server) {
     // server 未变且正在加载或有数据 → 跳过
     if (state.server?.ip == server.ip &&
         state.server?.httpPort == server.httpPort) {

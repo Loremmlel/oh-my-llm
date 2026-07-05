@@ -1,10 +1,4 @@
-/// 媒体文件扩展名与 MIME 类型共享常量与工具函数。
-///
-/// 供以下模块使用：
-/// - [MediaFileTile] 图标选择
-/// - [MediaBrowserTab] 点击导航判断
-/// - [MediaImageHttpHandler] / [MediaVideoHttpHandler] Content-Type 设置
-library;
+// 媒体文件扩展名与 MIME 类型共享常量与工具函数。
 
 /// 支持的图片扩展名（小写）。
 const imageExtensions = {'jpg', 'jpeg', 'png', 'webp', 'gif'};
