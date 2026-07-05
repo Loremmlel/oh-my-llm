@@ -76,24 +76,19 @@ class _FixedPromptSequenceTile extends ConsumerWidget {
             ),
         ],
       ],
-      actions: [
-        OutlinedButton.icon(
-          onPressed: () => onEditRequested(sequence),
-          icon: const Icon(Icons.edit_outlined),
-          label: const Text('编辑'),
-        ),
-        OutlinedButton.icon(
-          onPressed: () async {
-            await ref
-                .read(fixedPromptSequencesProvider.notifier)
-                .deleteById(sequence.id);
-            // ignore: use_build_context_synchronously
-            showSettingsSnackbar(context, '固定顺序提示词已删除');
-          },
-          icon: const Icon(Icons.delete_outline_rounded),
-          label: const Text('删除'),
-        ),
-      ],
+      actions: editDeleteActions(
+        onEdit: () => onEditRequested(sequence),
+        onDelete: () {
+          ref
+              .read(fixedPromptSequencesProvider.notifier)
+              .deleteById(sequence.id)
+              .then((_) {
+                if (context.mounted) {
+                  showSettingsSnackbar(context, '固定顺序提示词已删除');
+                }
+              });
+        },
+      ),
     );
   }
 }

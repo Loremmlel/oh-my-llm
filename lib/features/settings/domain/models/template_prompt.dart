@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:equatable/equatable.dart';
 
+import '../../../../core/persistence/has_id_and_updated_at.dart';
+
 /// 模板提示词中用于承载主输入框正文的保留变量名。
 const templatePromptBodyVariableName = '正文';
 
@@ -50,7 +52,7 @@ class TemplatePromptVariable extends Equatable {
 }
 
 /// 可在聊天页临时注入变量的模板提示词。
-class TemplatePrompt extends Equatable {
+class TemplatePrompt extends Equatable with HasIdAndUpdatedAt {
   const TemplatePrompt({
     required this.id,
     required this.title,
@@ -59,10 +61,12 @@ class TemplatePrompt extends Equatable {
     required this.updatedAt,
   });
 
+  @override
   final String id;
   final String title;
   final String content;
   final List<TemplatePromptVariable> variables;
+  @override
   final DateTime updatedAt;
 
   /// 模板中除“正文”外的变量列表。

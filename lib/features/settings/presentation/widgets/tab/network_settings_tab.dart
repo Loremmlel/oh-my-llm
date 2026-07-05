@@ -5,6 +5,7 @@ import '../../../application/custom_headers_controller.dart';
 import '../../../domain/models/custom_headers_config.dart';
 import '../settings_helpers.dart';
 import '../settings_section_card.dart';
+import 'header_form_dialog.dart';
 
 /// 网络设置标签页，包含自定义请求头规则等网络层配置。
 class NetworkSettingsTab extends ConsumerWidget {
@@ -24,7 +25,10 @@ class NetworkSettingsTab extends ConsumerWidget {
               '同名请求头会覆盖应用的默认值。'
               '注意：Host 请求头可能被系统底层覆盖，不一定生效。',
           action: FilledButton.icon(
-            onPressed: () => _showHeaderFormDialog(context, controller),
+            onPressed: () => showDialog(
+              context: context,
+              builder: (_) => const HeaderFormDialog(),
+            ),
             icon: const Icon(Icons.add_rounded),
             label: const Text('新增请求头'),
           ),
@@ -44,12 +48,13 @@ class NetworkSettingsTab extends ConsumerWidget {
                       _HeaderEntryTile(
                         index: i,
                         entry: config.headers[i],
-                        onEdit: () => _showHeaderFormDialog(
-                          context,
-                          controller,
-                          index: i,
-                          initialKey: config.headers[i].key,
-                          initialValue: config.headers[i].value,
+                        onEdit: () => showDialog(
+                          context: context,
+                          builder: (_) => HeaderFormDialog(
+                            index: i,
+                            initialKey: config.headers[i].key,
+                            initialValue: config.headers[i].value,
+                          ),
                         ),
                         onDelete: () => _confirmDelete(
                           context,
@@ -62,100 +67,6 @@ class NetworkSettingsTab extends ConsumerWidget {
                 ),
         ),
       ],
-    );
-  }
-
-  Future<void> _showHeaderFormDialog(
-    BuildContext context,
-    CustomHeadersController controller, {
-    int? index,
-    String initialKey = '',
-    String initialValue = '',
-  }) {
-    final isEditing = index != null;
-    final keyController = TextEditingController(text: initialKey);
-    final valueController = TextEditingController(text: initialValue);
-    final formKey = GlobalKey<FormState>();
-
-    return showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: Text(isEditing ? '编辑请求头' : '新增请求头'),
-          content: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  controller: keyController,
-                  decoration: const InputDecoration(
-                    labelText: '请求头键',
-                    hintText: '如 User-Agent、X-Custom',
-                    border: OutlineInputBorder(),
-                  ),
-                  autofocus: true,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return '请输入请求头键名';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: valueController,
-                  decoration: const InputDecoration(
-                    labelText: '请求头值',
-                    hintText: '自定义的值',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return '请输入请求头值';
-                    }
-                    return null;
-                  },
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                keyController.dispose();
-                valueController.dispose();
-                Navigator.of(dialogContext).pop();
-              },
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () async {
-                if (!formKey.currentState!.validate()) return;
-                final key = keyController.text.trim();
-                final value = valueController.text.trim();
-                if (isEditing) {
-                  await controller.updateHeader(index, key, value);
-                  if (dialogContext.mounted) {
-                    showSettingsSnackbar(dialogContext, '请求头已更新');
-                  }
-                } else {
-                  await controller.addHeader(key, value);
-                  if (dialogContext.mounted) {
-                    showSettingsSnackbar(dialogContext, '请求头已添加');
-                  }
-                }
-                keyController.dispose();
-                valueController.dispose();
-                if (dialogContext.mounted) {
-                  Navigator.of(dialogContext).pop();
-                }
-              },
-              child: const Text('保存'),
-            ),
-          ],
-        );
-      },
     );
   }
 

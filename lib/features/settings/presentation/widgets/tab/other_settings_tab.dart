@@ -146,7 +146,7 @@ class _AutoRetryNumberField extends StatelessWidget {
       ),
       keyboardType: TextInputType.number,
       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-      onFieldSubmitted: (text) {
+      onChanged: (text) {
         final parsed = int.tryParse(text);
         if (parsed != null) {
           onChanged(parsed.clamp(min, max));

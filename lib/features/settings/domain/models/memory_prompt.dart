@@ -2,10 +2,11 @@ import 'dart:convert';
 
 import 'package:equatable/equatable.dart';
 
+import '../../../../core/persistence/has_id_and_updated_at.dart';
 import '../../../../core/utils/text_formatting.dart';
 
 /// 记忆总结提示词，用于为检查点生成不同风格的总结。
-class MemoryPrompt extends Equatable {
+class MemoryPrompt extends Equatable with HasIdAndUpdatedAt {
   const MemoryPrompt({
     required this.id,
     required this.name,
@@ -13,9 +14,11 @@ class MemoryPrompt extends Equatable {
     required this.updatedAt,
   });
 
+  @override
   final String id;
   final String name;
   final String content;
+  @override
   final DateTime updatedAt;
 
   /// 返回便于列表快速浏览的摘要。
