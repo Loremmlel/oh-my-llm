@@ -23,8 +23,7 @@ import 'template_prompts_controller.dart';
 class SettingsImportExecutor {
   const SettingsImportExecutor();
 
-  /// [ref] 接受 [Ref]（Notifier 内）或 [WidgetRef]（Widget 内）。Riverpod 3.x
-  /// 中两者运行时行为等价但类型层次不同，故使用 `dynamic` 以兼顾两个调用方。
+  /// [ref] 同时兼容 [Ref]（Notifier 内）与 [WidgetRef]（Widget 内）。
   Future<bool> executeImport(dynamic ref, {required SettingsExportData data}) async {
     var wrote = false;
     if (data.modelProviders.isNotEmpty) {

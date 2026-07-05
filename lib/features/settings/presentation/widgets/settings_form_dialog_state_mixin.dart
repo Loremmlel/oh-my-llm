@@ -45,9 +45,17 @@ mixin SettingsFormDialogStateMixin<T extends StatefulWidget> on State<T> {
     setState(() {
       isSaving = true;
     });
-    await onSubmit();
-    if (mounted) {
-      Navigator.of(context).pop();
+    try {
+      await onSubmit();
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          isSaving = false;
+        });
+      }
     }
   }
 }

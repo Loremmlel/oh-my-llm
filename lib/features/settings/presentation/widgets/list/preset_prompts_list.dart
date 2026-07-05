@@ -92,24 +92,23 @@ class _PresetPromptTile extends ConsumerWidget {
           icon: const Icon(Icons.content_copy_rounded),
           label: const Text('复制'),
         ),
-        OutlinedButton.icon(
-          onPressed: () => onEditRequested(template),
-          icon: const Icon(Icons.edit_outlined),
-          label: const Text('编辑'),
-        ),
-        OutlinedButton.icon(
-          onPressed: () async {
-            await ref
+        ...editDeleteActions(
+          onEdit: () => onEditRequested(template),
+          onDelete: () {
+            ref
                 .read(presetPromptsProvider.notifier)
-                .deleteById(template.id);
-            await ref
-                .read(chatDefaultsProvider.notifier)
-                .clearRememberedPresetPromptIdIfMatches(template.id);
-            // ignore: use_build_context_synchronously
-            showSettingsSnackbar(context, '预设 Prompt 已删除');
+                .deleteById(template.id)
+                .then((_) {
+                  ref
+                      .read(chatDefaultsProvider.notifier)
+                      .clearRememberedPresetPromptIdIfMatches(template.id)
+                      .then((_) {
+                        if (context.mounted) {
+                          showSettingsSnackbar(context, '预设 Prompt 已删除');
+                        }
+                      });
+                });
           },
-          icon: const Icon(Icons.delete_outline_rounded),
-          label: const Text('删除'),
         ),
       ],
     );

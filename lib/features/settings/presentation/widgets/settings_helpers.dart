@@ -9,3 +9,20 @@ void showSettingsSnackbar(BuildContext context, String message) {
   if (!context.mounted) return;
   context.showBubble(message);
 }
+
+/// 设置实体卡片通用的编辑/删除操作按钮组。
+List<Widget> editDeleteActions({
+  required VoidCallback onEdit,
+  required VoidCallback onDelete,
+}) => [
+  OutlinedButton.icon(
+    onPressed: onEdit,
+    icon: const Icon(Icons.edit_outlined),
+    label: const Text('编辑'),
+  ),
+  OutlinedButton.icon(
+    onPressed: onDelete,
+    icon: const Icon(Icons.delete_outline_rounded),
+    label: const Text('删除'),
+  ),
+];

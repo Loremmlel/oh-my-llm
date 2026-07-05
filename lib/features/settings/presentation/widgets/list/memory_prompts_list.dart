@@ -62,24 +62,19 @@ class _MemoryPromptTile extends ConsumerWidget {
           overflow: TextOverflow.ellipsis,
         ),
       ],
-      actions: [
-        OutlinedButton.icon(
-          onPressed: () => onEditRequested(memoryPrompt),
-          icon: const Icon(Icons.edit_outlined),
-          label: const Text('编辑'),
-        ),
-        OutlinedButton.icon(
-          onPressed: () async {
-            await ref
-                .read(memoryPromptsProvider.notifier)
-                .deleteById(memoryPrompt.id);
-            // ignore: use_build_context_synchronously
-            showSettingsSnackbar(context, '记忆总结提示词已删除');
-          },
-          icon: const Icon(Icons.delete_outline_rounded),
-          label: const Text('删除'),
-        ),
-      ],
+      actions: editDeleteActions(
+        onEdit: () => onEditRequested(memoryPrompt),
+        onDelete: () {
+          ref
+              .read(memoryPromptsProvider.notifier)
+              .deleteById(memoryPrompt.id)
+              .then((_) {
+                if (context.mounted) {
+                  showSettingsSnackbar(context, '记忆总结提示词已删除');
+                }
+              });
+        },
+      ),
     );
   }
 }

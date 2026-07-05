@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:equatable/equatable.dart';
 
+import '../../../../core/persistence/has_id_and_updated_at.dart';
+
 String buildFixedPromptStepFallbackTitle(int sequence) => '标题$sequence';
 
 /// 固定顺序提示词中的单个步骤。
@@ -53,7 +55,7 @@ class FixedPromptSequenceStep extends Equatable {
 }
 
 /// 供聊天页按顺序逐步发送的固定提示词序列。
-class FixedPromptSequence extends Equatable {
+class FixedPromptSequence extends Equatable with HasIdAndUpdatedAt {
   const FixedPromptSequence({
     required this.id,
     required this.name,
@@ -61,9 +63,11 @@ class FixedPromptSequence extends Equatable {
     required this.updatedAt,
   });
 
+  @override
   final String id;
   final String name;
   final List<FixedPromptSequenceStep> steps;
+  @override
   final DateTime updatedAt;
 
   /// 复制序列并允许覆盖常用字段。

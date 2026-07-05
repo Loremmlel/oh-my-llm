@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:equatable/equatable.dart';
 
+import '../../../../core/persistence/has_id_and_updated_at.dart';
 import 'prompt_message.dart';
 import 'prompt_message_placement.dart';
 import 'prompt_message_role.dart';
@@ -13,7 +14,7 @@ export 'prompt_message_role.dart';
 const defaultSystemPromptTitle = 'system';
 
 /// 可复用的 Prompt 模板，使用统一消息列表表示 system / user / assistant 条目。
-class PresetPrompt extends Equatable {
+class PresetPrompt extends Equatable with HasIdAndUpdatedAt {
   const PresetPrompt({
     required this.id,
     required this.name,
@@ -21,9 +22,11 @@ class PresetPrompt extends Equatable {
     required this.updatedAt,
   });
 
+  @override
   final String id;
   final String name;
   final List<PromptMessage> messages;
+  @override
   final DateTime updatedAt;
 
   Iterable<PromptMessage> messagesForPlacement(
