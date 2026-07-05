@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/utils/id_generator.dart';
-import '../data/sqlite_collections_repository.dart';
+import '../data/collections_repository.dart';
 import '../domain/models/collection.dart';
 
 /// 收藏夹状态 Provider。
@@ -14,8 +14,7 @@ final collectionsProvider =
 ///
 /// 维护全部收藏夹列表，支持新建、重命名与删除（删除时内部收藏移入未分类）。
 class CollectionsController extends Notifier<List<FavoriteCollection>> {
-  SqliteCollectionsRepository get _repo =>
-      ref.read(collectionsRepositoryProvider);
+  CollectionsRepository get _repo => ref.read(collectionsRepositoryProvider);
 
   @override
   List<FavoriteCollection> build() {

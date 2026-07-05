@@ -209,6 +209,26 @@ test/features/chat/
 - 不要写条件 early-return 测试：测试必须能执行到 `expect`，否则无意义。
 - schema / user_version 断言用 `>=`，不用 `==`。
 
+### 测试粒度三原则
+
+1. **测行为，不测实现**：测试外部契约（输入→输出/状态变更），不测内部细节（中间状态、调用顺序）。`copyWith` 应随数据类模型测试，不随 Controller 测试。
+2. **测不可变契约，不测可变布局**：Widget 测试用逻辑 finder（`findsOneWidget`、`findsWidgets`、`hasLength`），不用像素定位（`getTopLeft().dy`、`getRect()`）。
+3. **测决策树分支，不测框架行为**：每个测试验证一个独立的执行路径。空列表上查不到内容 → 不需要测试；框架创建了 4 个 tab → 不需要测试「显示了 4 个 tab」。
+
+### 测试结构规范
+
+- **可合并的重复测试**：结构相同的 round-trip、error-type、比较器测试用循环或 `for` 参数化，不手动复制 4+ 次。
+- **setup 只写一次**：同一文件内重复的 setUp 逻辑（如 `AppDatabase.inMemory()` + `createXXXPreferences` + `pumpXXXScreen`）必须提取到 `setUp` 或共享 helper。
+- **避免长线性测试**：Widget 测试中超过 30 行的线性操作测试应拆分；一个测试只验证一个交互场景。
+- **敏感字段全覆盖**：redactor/脱敏类测试必须覆盖所有已知敏感字段键名。
+
+### 脆弱测试红线
+
+以下模式在 CI 评审中应被标记：
+- ❌ `getTopLeft().dy` / `getRect()` 比较
+- ❌ 依赖 ID 字母顺序与时间顺序巧合一致的排序测试
+- ❌ `chunkDelay` + `pump(delay+2ms)` 的微秒级 timing 依赖
+
 ---
 
 ## 环境要求
