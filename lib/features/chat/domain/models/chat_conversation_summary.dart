@@ -49,6 +49,24 @@ class ChatConversationSummary extends Equatable {
     return resolvedTitle;
   }
 
+  ChatConversationSummary copyWith({
+    String? id,
+    String? title,
+    DateTime? updatedAt,
+    String? firstUserMessagePreview,
+    String? latestUserMessagePreview,
+  }) {
+    return ChatConversationSummary(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      updatedAt: updatedAt ?? this.updatedAt,
+      firstUserMessagePreview:
+          firstUserMessagePreview ?? this.firstUserMessagePreview,
+      latestUserMessagePreview:
+          latestUserMessagePreview ?? this.latestUserMessagePreview,
+    );
+  }
+
   @override
   List<Object?> get props => [
     id,

@@ -2,7 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/chat_conversation_repository.dart';
 import '../domain/history_pagination_state.dart';
-import '../domain/models/chat_conversation_summary.dart';
 
 /// 可供用户选择的每页条数选项。
 const availablePageSizes = <int>[10, 20, 50];
@@ -116,13 +115,7 @@ class HistoryPaginationController extends Notifier<HistoryPaginationState> {
   void afterRename(String conversationId, String newTitle) {
     final updated = state.conversations.map((summary) {
       if (summary.id != conversationId) return summary;
-      return ChatConversationSummary(
-        id: summary.id,
-        updatedAt: summary.updatedAt,
-        title: newTitle,
-        firstUserMessagePreview: summary.firstUserMessagePreview,
-        latestUserMessagePreview: summary.latestUserMessagePreview,
-      );
+      return summary.copyWith(title: newTitle);
     }).toList();
 
     state = state.copyWith(conversations: updated);

@@ -1,4 +1,3 @@
-import 'models/chat_conversation.dart';
 import 'models/chat_conversation_summary.dart';
 
 /// 历史会话分组所使用的时间桶。
@@ -15,17 +14,6 @@ enum ConversationTimeBucket {
   final String label;
 }
 
-/// 按更新时间分组后的会话集合。
-class ChatConversationGroup {
-  const ChatConversationGroup({
-    required this.bucket,
-    required this.conversations,
-  });
-
-  final ConversationTimeBucket bucket;
-  final List<ChatConversation> conversations;
-}
-
 /// 按更新时间分组后的轻量会话摘要集合。
 class ChatConversationSummaryGroup {
   const ChatConversationSummaryGroup({
@@ -35,27 +23,6 @@ class ChatConversationSummaryGroup {
 
   final ConversationTimeBucket bucket;
   final List<ChatConversationSummary> conversations;
-}
-
-/// 按更新时间把会话拆分到不同时间桶中。
-List<ChatConversationGroup> groupConversationsByUpdatedAt(
-  List<ChatConversation> conversations, {
-  DateTime? now,
-}) {
-  final grouped = _groupItemsByUpdatedAt(
-    conversations,
-    now: now,
-    updatedAtOf: (conversation) => conversation.updatedAt,
-  );
-
-  return grouped
-      .map((group) {
-        return ChatConversationGroup(
-          bucket: group.bucket,
-          conversations: group.items,
-        );
-      })
-      .toList(growable: false);
 }
 
 /// 按更新时间把会话摘要拆分到不同时间桶中。

@@ -20,7 +20,6 @@ class HistoryToolbar extends StatelessWidget {
   final VoidCallback? onDeletePressed;
 
   @override
-  /// 构建搜索框和批量操作按钮。
   Widget build(BuildContext context) {
     return Wrap(
       spacing: 12,
