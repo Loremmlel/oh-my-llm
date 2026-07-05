@@ -7,13 +7,6 @@ import '../../../chat/application/history_pagination_controller.dart';
 /// 分页栏中显示的页码项：具体页码或省略标记。
 typedef _PageNumberItem = ({int? page, bool isEllipsis});
 
-/// 可供用户选择的每页条数下拉选项。
-const _pageSizeDropdownItems = <DropdownMenuItem<int>>[
-  DropdownMenuItem<int>(value: 10, child: Text('10')),
-  DropdownMenuItem<int>(value: 20, child: Text('20')),
-  DropdownMenuItem<int>(value: 50, child: Text('50')),
-];
-
 /// 历史页的固定翻页栏。
 ///
 /// 位于 HistoryToolbar 与可滚动列表之间，始终固定、不参与列表滚动。
@@ -95,6 +88,34 @@ class _HistoryPaginationBarState extends ConsumerState<HistoryPaginationBar> {
     _jumpController.clear();
   }
 
+  Widget _buildPageButton(
+    int pageNumber, {
+    required bool isActive,
+    required bool disabled,
+  }) {
+    final onTap = disabled ? null : () => ref
+        .read(historyPaginationProvider.notifier)
+        .goToPage(pageNumber);
+    if (isActive) {
+      return FilledButton(
+        onPressed: onTap,
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(40, 40),
+          padding: EdgeInsets.zero,
+        ),
+        child: Text('$pageNumber'),
+      );
+    }
+    return OutlinedButton(
+      onPressed: onTap,
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size(40, 40),
+        padding: EdgeInsets.zero,
+      ),
+      child: Text('$pageNumber'),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(historyPaginationProvider);
@@ -143,16 +164,10 @@ class _HistoryPaginationBarState extends ConsumerState<HistoryPaginationBar> {
                   child: Text('…', style: theme.textTheme.bodyMedium),
                 )
               else
-                _PageNumberButton(
-                  pageNumber: item.page!,
+                _buildPageButton(
+                  item.page!,
                   isActive: item.page == state.currentPage,
                   disabled: disabled,
-                  onPressed:
-                      !disabled && item.page != state.currentPage
-                          ? () => ref
-                              .read(historyPaginationProvider.notifier)
-                              .goToPage(item.page!)
-                          : null,
                 ),
             // 下一页
             IconButton(
@@ -182,7 +197,10 @@ class _HistoryPaginationBarState extends ConsumerState<HistoryPaginationBar> {
                     vertical: 10,
                   ),
                 ),
-                items: _pageSizeDropdownItems,
+                items: [
+                  for (final size in availablePageSizes)
+                    DropdownMenuItem<int>(value: size, child: Text('$size')),
+                ],
                 onChanged: disabled
                     ? null
                     : (value) {
@@ -221,44 +239,6 @@ class _HistoryPaginationBarState extends ConsumerState<HistoryPaginationBar> {
           ],
         ),
       ],
-    );
-  }
-}
-
-/// 单个页码按钮：当前页用 [FilledButton]，其余用 [OutlinedButton]。
-class _PageNumberButton extends StatelessWidget {
-  const _PageNumberButton({
-    required this.pageNumber,
-    required this.isActive,
-    required this.disabled,
-    required this.onPressed,
-  });
-
-  final int pageNumber;
-  final bool isActive;
-  final bool disabled;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final effectiveOnPressed = disabled ? null : onPressed;
-    if (isActive) {
-      return FilledButton(
-        onPressed: effectiveOnPressed,
-        style: FilledButton.styleFrom(
-          minimumSize: const Size(40, 40),
-          padding: EdgeInsets.zero,
-        ),
-        child: Text('$pageNumber'),
-      );
-    }
-    return OutlinedButton(
-      onPressed: effectiveOnPressed,
-      style: OutlinedButton.styleFrom(
-        minimumSize: const Size(40, 40),
-        padding: EdgeInsets.zero,
-      ),
-      child: Text('$pageNumber'),
     );
   }
 }

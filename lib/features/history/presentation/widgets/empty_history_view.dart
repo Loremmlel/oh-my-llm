@@ -12,7 +12,6 @@ class EmptyHistoryView extends StatelessWidget {
   final String searchKeyword;
 
   @override
-  /// 构建无结果提示文本。
   Widget build(BuildContext context) {
     return Center(
       child: Text(
