@@ -1,4 +1,4 @@
-import 'dart:io' show Platform;
+import 'dart:io' show InternetAddress, Platform;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../media/application/media_root_directory_controller.dart';
 import '../../../settings/presentation/widgets/settings_section_card.dart';
+import '../../application/broadcast_prefix_length_provider.dart';
 import '../../application/network_interface_provider.dart';
 import '../../application/sync_client_controller.dart';
 import '../../application/sync_server_controller.dart';
@@ -325,11 +326,21 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
                 style: theme.textTheme.bodyMedium,
               ),
               const SizedBox(height: 4),
-              Text(
-                '广播地址：${serverState.selectedInterface!.broadcast}',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
+              Builder(
+                builder: (context) {
+                  final prefix = ref.watch(selectedBroadcastPrefixLengthProvider);
+                  final broadcastAddr = prefix
+                      .computeBroadcast(
+                        InternetAddress(serverState.selectedInterface!.ip),
+                      )
+                      .address;
+                  return Text(
+                    '广播地址：$broadcastAddr（${prefix.label}）',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  );
+                },
               ),
             ],
             if (serverState.servedRequestCount > 0) ...[

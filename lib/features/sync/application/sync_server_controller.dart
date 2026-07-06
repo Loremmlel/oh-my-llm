@@ -28,6 +28,7 @@ import '../data/sync_udp_discovery.dart';
 import '../domain/models/network_interface_info.dart';
 import '../domain/models/sync_message.dart';
 import '../domain/models/sync_types.dart';
+import 'broadcast_prefix_length_provider.dart';
 import 'network_interface_provider.dart';
 
 const String _deviceNameKey = 'sync.device_name';
@@ -75,6 +76,14 @@ final syncServerControllerProvider =
       SyncServerController.new,
     );
 
+/// 同步服务端是否正在广播的派生 Provider。
+///
+/// 只在 [SyncServerState.isRunning] 变化时通知监听者，
+/// 避免 widget 因 deviceName、httpPort 等无关字段变化而重建。
+final isSyncServerRunningProvider = Provider<bool>(
+  (ref) => ref.watch(syncServerControllerProvider.select((s) => s.isRunning)),
+);
+
 /// 同步服务端控制器，管理 HTTP 服务端和 UDP 广播的生命周期。
 class SyncServerController extends Notifier<SyncServerState> {
   final SyncHttpServer _httpServer = SyncHttpServer();
@@ -97,16 +106,18 @@ class SyncServerController extends Notifier<SyncServerState> {
     if (state.isRunning) return;
 
     try {
-      // 获取用户选择的网络接口
+      // 获取用户选择的网络接口与子网掩码，计算子网广播地址
       final interfaces = await ref.read(availableInterfacesProvider.future);
       final selectedIndex = ref.read(selectedInterfaceIndexProvider);
+      final prefix = ref.read(selectedBroadcastPrefixLengthProvider);
       NetworkInterfaceInfo? selectedIface;
       InternetAddress? broadcastAddr;
 
       if (interfaces.isNotEmpty) {
         selectedIface =
             interfaces[selectedIndex.clamp(0, interfaces.length - 1)];
-        broadcastAddr = InternetAddress(selectedIface.broadcast);
+        broadcastAddr =
+            prefix.computeBroadcast(InternetAddress(selectedIface.ip));
       }
 
       final handlers = <HttpRouteHandler>[
