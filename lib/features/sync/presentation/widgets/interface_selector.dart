@@ -1,12 +1,18 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../application/broadcast_prefix_length_provider.dart';
 import '../../application/network_interface_provider.dart';
+import '../../application/sync_server_controller.dart';
+import '../../domain/models/broadcast_prefix_length.dart';
 
-/// 网络接口选择器，用于在服务端模式下选择广播的网段。
+/// 网络接口选择器 + 子网掩码选择器，用于在服务端模式下选择广播的网段。
 ///
-/// 列出本机所有 IPv4 接口（名称、IP、广播地址），默认选中第一个。
-/// 无接口时显示警告提示。
+/// 列出本机所有 IPv4 接口（名称、IP），并提供 /8 /16 /24 子网掩码切换。
+/// 广播地址由 [selectedBroadcastPrefixLengthProvider] 配合选中网卡 IP 实时推算。
+/// 服务端运行时禁用子网掩码切换（需要先停止广播）。
 class InterfaceSelector extends ConsumerWidget {
   const InterfaceSelector({super.key});
 
@@ -63,6 +69,12 @@ class InterfaceSelector extends ConsumerWidget {
         final selectedIndex = ref.watch(selectedInterfaceIndexProvider);
         final safeIndex = selectedIndex.clamp(0, interfaces.length - 1);
         final selectedIface = interfaces[safeIndex];
+        final selectedPrefix = ref.watch(selectedBroadcastPrefixLengthProvider);
+        final isServerRunning = ref.watch(isSyncServerRunningProvider);
+
+        final broadcastAddr = selectedPrefix
+            .computeBroadcast(InternetAddress(selectedIface.ip))
+            .address;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -83,7 +95,7 @@ class InterfaceSelector extends ConsumerWidget {
                     return DropdownMenuItem(
                       value: i,
                       child: Tooltip(
-                        message: '广播地址: ${iface.broadcast}',
+                        message: 'IP: ${iface.ip}\n广播地址: $broadcastAddr',
                         child: Text(
                           '${iface.name} — ${iface.ip}',
                           overflow: TextOverflow.ellipsis,
@@ -101,9 +113,42 @@ class InterfaceSelector extends ConsumerWidget {
                 ),
               ),
             ),
+            const SizedBox(height: 12),
+            Text(
+              '子网掩码',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+            ),
+            const SizedBox(height: 4),
+            SegmentedButton<BroadcastPrefixLength>(
+              segments: const [
+                ButtonSegment(
+                    value: BroadcastPrefixLength.p8, label: Text('/8')),
+                ButtonSegment(
+                    value: BroadcastPrefixLength.p16, label: Text('/16')),
+                ButtonSegment(
+                    value: BroadcastPrefixLength.p24, label: Text('/24')),
+              ],
+              selected: {selectedPrefix},
+              onSelectionChanged: isServerRunning
+                  ? null
+                  : (s) => ref
+                      .read(selectedBroadcastPrefixLengthProvider.notifier)
+                      .select(s.first),
+            ),
+            if (isServerRunning) ...[
+              const SizedBox(height: 6),
+              Text(
+                '运行中，请先停止广播后再修改',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+              ),
+            ],
             const SizedBox(height: 4),
             Text(
-              '广播地址: ${selectedIface.broadcast}',
+              '广播地址: $broadcastAddr',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
