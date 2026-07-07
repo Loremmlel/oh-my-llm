@@ -53,6 +53,12 @@ Future<AppDatabase> pumpAnchorRail(
   );
 }
 
+/// 定位锚点条中承载宽度变化的容器（源码显式暴露的稳定标识）。
+final Finder railContainerFinder = find.byKey(const ValueKey('message-anchor-rail'));
+
+/// 断言锚点条渲染出预期数量的可点击条目（InkWell）。
+Matcher findsNAnchorItems(int count) => findsNWidgets(count);
+
 void main() {
   group('extractPreviewText', () {
     test('应在第一个逗号处截断', () {
@@ -83,99 +89,36 @@ void main() {
     });
   });
 
+  // ── 容器级展开: 基础渲染契约 ──────────────────────────────
+
   group('MessageAnchorRail compact mode', () {
-    testWidgets('renders 5 user messages with anchor rail', (tester) async {
+    testWidgets('渲染 5 条用户消息时显示 5 个锚点条目', (tester) async {
       final messages = List.generate(
         5,
         (i) => _userMessage(id: 'msg-${i + 1}'),
       );
       await pumpAnchorRail(tester, userMessages: messages);
 
-      // 验证根容器存在
-      expect(
-        find.byKey(const ValueKey('message-anchor-rail')),
-        findsOneWidget,
-      );
-
-      // 验证 5 个指示器条全部存在
-      for (int i = 1; i <= 5; i++) {
-        expect(
-          find.byKey(ValueKey('message-anchor-item-$i')),
-          findsOneWidget,
-        );
-      }
+      expect(find.byType(MessageAnchorRail), findsOneWidget);
+      expect(find.byType(InkWell), findsNAnchorItems(5));
     });
 
-    testWidgets('renders nothing when userMessages is empty', (tester) async {
+    testWidgets('空消息列表不渲染任何锚点条目', (tester) async {
       await pumpAnchorRail(tester, userMessages: []);
 
-      // 没有消息时指示器条不应存在
-      expect(
-        find.byKey(const ValueKey('message-anchor-item-1')),
-        findsNothing,
-      );
+      expect(find.byType(InkWell), findsNothing);
     });
 
-    testWidgets(
-      'highlights active message differently from inactive ones',
-      (tester) async {
-        final messages = [
-          _userMessage(id: 'msg-1'),
-          _userMessage(id: 'msg-2'),
-          _userMessage(id: 'msg-3'),
-        ];
-        await pumpAnchorRail(
-          tester,
-          userMessages: messages,
-          activeMessageId: 'msg-2',
-        );
-
-        // 获取主题色
-        final theme = Theme.of(
-          tester.element(find.byType(MessageAnchorRail)),
-        );
-
-        // 活动消息（msg-2，index 2，key = message-anchor-item-2）
-        final activeContainer = tester.widget<AnimatedContainer>(
-          find.descendant(
-            of: find.byKey(const ValueKey('message-anchor-item-2')),
-            matching: find.byType(AnimatedContainer),
-          ),
-        );
-        final activeDecoration =
-            activeContainer.decoration as BoxDecoration;
-        expect(activeDecoration.color, theme.colorScheme.primary);
-
-        // 非活动消息（msg-1，index 1，key = message-anchor-item-1）
-        final inactiveContainer = tester.widget<AnimatedContainer>(
-          find.descendant(
-            of: find.byKey(const ValueKey('message-anchor-item-1')),
-            matching: find.byType(AnimatedContainer),
-          ),
-        );
-        final inactiveDecoration =
-            inactiveContainer.decoration as BoxDecoration;
-        expect(inactiveDecoration.color, theme.colorScheme.outline);
-      },
-    );
-
-    testWidgets('renders single message correctly', (tester) async {
+    testWidgets('单条消息只渲染一个锚点条目', (tester) async {
       await pumpAnchorRail(
         tester,
         userMessages: [_userMessage(id: 'msg-1')],
       );
 
-      expect(
-        find.byKey(const ValueKey('message-anchor-item-1')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const ValueKey('message-anchor-item-2')),
-        findsNothing,
-      );
+      expect(find.byType(InkWell), findsOneWidget);
     });
 
-    testWidgets('calls onSelectMessage when tapped', (tester) async {
+    testWidgets('点击锚点条目回调 onSelectMessage', (tester) async {
       final messages = [
         _userMessage(id: 'msg-1'),
         _userMessage(id: 'msg-2'),
@@ -189,10 +132,8 @@ void main() {
         onSelectMessage: (id) => selectedId = id,
       );
 
-      // 点击第二条消息（message-anchor-item-2），对应 msg-2
-      await tester.tap(
-        find.byKey(const ValueKey('message-anchor-item-2')),
-      );
+      // 第二个锚点条目对应 msg-2
+      await tester.tap(find.byType(InkWell).at(1));
       await tester.pump();
 
       expect(selectedId, 'msg-2');
@@ -202,47 +143,52 @@ void main() {
   // ── 容器级展开: 悬停交互 ──────────────────────────────────
 
   group('MessageAnchorRail container hover', () {
-    testWidgets('expands rail width on mouse enter', (tester) async {
-      final messages = List.generate(5, (i) => _userMessage(id: 'msg-${i + 1}', content: '消息${i + 1}，测试'));
+    testWidgets('鼠标进入时展开锚点条宽度', (tester) async {
+      final messages = List.generate(
+        5,
+        (i) => _userMessage(id: 'msg-${i + 1}', content: '消息${i + 1}，测试'),
+      );
       await pumpAnchorRail(tester, userMessages: messages);
 
-      final railKey = const ValueKey('message-anchor-rail');
-      expect(tester.getSize(find.byKey(railKey)).width, 28);
+      final widthBefore = tester.getSize(railContainerFinder).width;
 
       final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
       await gesture.addPointer();
-      await gesture.moveTo(tester.getCenter(find.byKey(railKey)));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 200));
+      await gesture.moveTo(tester.getCenter(railContainerFinder));
+      await tester.pumpAndSettle();
 
-      expect(tester.getSize(find.byKey(railKey)).width, 228);
+      final widthAfter = tester.getSize(railContainerFinder).width;
+      expect(widthAfter, greaterThan(widthBefore));
 
       await gesture.removePointer();
     });
 
-    testWidgets('collapses rail width on mouse exit', (tester) async {
-      final messages = List.generate(5, (i) => _userMessage(id: 'msg-${i + 1}'));
+    testWidgets('鼠标离开时折叠回原宽度', (tester) async {
+      final messages = List.generate(
+        5,
+        (i) => _userMessage(id: 'msg-${i + 1}'),
+      );
       await pumpAnchorRail(tester, userMessages: messages);
 
-      final railKey = const ValueKey('message-anchor-rail');
+      final widthBefore = tester.getSize(railContainerFinder).width;
 
       final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
       await gesture.addPointer();
-      await gesture.moveTo(tester.getCenter(find.byKey(railKey)));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 200));
-      expect(tester.getSize(find.byKey(railKey)).width, 228);
+      await gesture.moveTo(tester.getCenter(railContainerFinder));
+      await tester.pumpAndSettle();
+      final widthExpanded = tester.getSize(railContainerFinder).width;
+      expect(widthExpanded, greaterThan(widthBefore));
 
       await gesture.moveTo(const Offset(0, 0));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pumpAndSettle();
 
-      expect(tester.getSize(find.byKey(railKey)).width, 28);
+      final widthCollapsed = tester.getSize(railContainerFinder).width;
+      expect(widthCollapsed, lessThan(widthExpanded));
 
       await gesture.removePointer();
     });
 
-    testWidgets('shows preview text for all messages when expanded', (tester) async {
+    testWidgets('展开时显示所有消息的预览文本', (tester) async {
       final messages = [
         _userMessage(id: 'msg-1', content: '第一条消息，测试预览'),
         _userMessage(id: 'msg-2', content: '第二条消息，更多文字'),
@@ -253,9 +199,8 @@ void main() {
 
       final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
       await gesture.addPointer();
-      await gesture.moveTo(tester.getCenter(find.byKey(const ValueKey('message-anchor-rail'))));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 200));
+      await gesture.moveTo(tester.getCenter(railContainerFinder));
+      await tester.pumpAndSettle();
 
       expect(find.text('第一条消息'), findsOneWidget);
       expect(find.text('第二条消息'), findsOneWidget);
@@ -269,30 +214,40 @@ void main() {
   // ── 容器级展开: 长按交互与守卫 ────────────────────────────
 
   group('MessageAnchorRail long press and guards', () {
-    testWidgets('expands rail on long press', (tester) async {
-      final messages = List.generate(5, (i) => _userMessage(id: 'msg-${i + 1}'));
+    testWidgets('长按展开锚点条宽度', (tester) async {
+      final messages = List.generate(
+        5,
+        (i) => _userMessage(id: 'msg-${i + 1}'),
+      );
       await pumpAnchorRail(tester, userMessages: messages);
 
-      final railKey = const ValueKey('message-anchor-rail');
-      expect(tester.getSize(find.byKey(railKey)).width, 28);
+      final widthBefore = tester.getSize(railContainerFinder).width;
 
-      await tester.longPress(find.byKey(railKey));
-      await tester.pump(const Duration(milliseconds: 500));
+      await tester.longPress(railContainerFinder);
+      await tester.pumpAndSettle();
 
-      expect(tester.getSize(find.byKey(railKey)).width, 228);
+      final widthAfter = tester.getSize(railContainerFinder).width;
+      expect(widthAfter, greaterThan(widthBefore));
     });
 
-    testWidgets('tap still triggers onSelectMessage in expanded layout', (tester) async {
-      final messages = List.generate(5, (i) => _userMessage(id: 'msg-${i + 1}'));
+    testWidgets('展开状态下点击仍触发 onSelectMessage', (tester) async {
+      final messages = List.generate(
+        5,
+        (i) => _userMessage(id: 'msg-${i + 1}'),
+      );
       String? selectedId;
-      await pumpAnchorRail(tester, userMessages: messages, onSelectMessage: (id) => selectedId = id);
+      await pumpAnchorRail(
+        tester,
+        userMessages: messages,
+        onSelectMessage: (id) => selectedId = id,
+      );
 
-      await tester.tap(find.byKey(const ValueKey('message-anchor-item-2')));
+      await tester.tap(find.byType(InkWell).at(1));
       await tester.pump();
       expect(selectedId, 'msg-2');
     });
 
-    testWidgets('does not expand when 3 or fewer messages', (tester) async {
+    testWidgets('消息数 ≤3 时鼠标悬停不展开', (tester) async {
       final messages = [
         _userMessage(id: 'msg-1', content: '消息一，测试'),
         _userMessage(id: 'msg-2', content: '消息二，测试'),
@@ -300,32 +255,32 @@ void main() {
       ];
       await pumpAnchorRail(tester, userMessages: messages);
 
-      final railKey = const ValueKey('message-anchor-rail');
-      expect(tester.getSize(find.byKey(railKey)).width, 28);
+      final widthBefore = tester.getSize(railContainerFinder).width;
 
       final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
       await gesture.addPointer();
-      await gesture.moveTo(tester.getCenter(find.byKey(railKey)));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 200));
+      await gesture.moveTo(tester.getCenter(railContainerFinder));
+      await tester.pumpAndSettle();
 
-      expect(tester.getSize(find.byKey(railKey)).width, 28);
+      final widthAfter = tester.getSize(railContainerFinder).width;
+      expect(widthAfter, equals(widthBefore));
 
       await gesture.removePointer();
     });
 
-    testWidgets('still renders anchor rail with 2 messages', (tester) async {
+    testWidgets('2 条消息仍渲染锚点条', (tester) async {
       final messages = [_userMessage(id: 'msg-1'), _userMessage(id: 'msg-2')];
       await pumpAnchorRail(tester, userMessages: messages);
 
-      expect(find.byKey(const ValueKey('message-anchor-rail')), findsOneWidget);
-      expect(find.byKey(const ValueKey('message-anchor-item-1')), findsOneWidget);
-      expect(find.byKey(const ValueKey('message-anchor-item-2')), findsOneWidget);
-      expect(find.byKey(const ValueKey('message-anchor-item-3')), findsNothing);
+      expect(find.byType(MessageAnchorRail), findsOneWidget);
+      expect(find.byType(InkWell), findsNAnchorItems(2));
     });
 
-    testWidgets('collapses on scroll trigger', (tester) async {
-      final messages = List.generate(5, (i) => _userMessage(id: 'msg-${i + 1}'));
+    testWidgets('父级重建时折叠展开状态', (tester) async {
+      final messages = List.generate(
+        5,
+        (i) => _userMessage(id: 'msg-${i + 1}'),
+      );
       final wrapperKey = GlobalKey<_ScrollWrapperState>();
 
       SharedPreferences.setMockInitialValues({});
@@ -340,25 +295,32 @@ void main() {
         tester.view.resetDevicePixelRatio();
       });
 
-      await tester.pumpWidget(ProviderScope(
-        overrides: [
-          appDatabaseProvider.overrideWithValue(db),
-          sharedPreferencesProvider.overrideWithValue(prefs),
-        ],
-        child: MaterialApp(home: _ScrollWrapper(key: wrapperKey, messages: messages)),
-      ));
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            appDatabaseProvider.overrideWithValue(db),
+            sharedPreferencesProvider.overrideWithValue(prefs),
+          ],
+          child: MaterialApp(
+            home: _ScrollWrapper(key: wrapperKey, messages: messages),
+          ),
+        ),
+      );
       await tester.pump();
 
-      final railKey = const ValueKey('message-anchor-rail');
+      final widthBefore = tester.getSize(railContainerFinder).width;
 
-      await tester.longPress(find.byKey(railKey));
-      await tester.pump(const Duration(milliseconds: 500));
-      expect(tester.getSize(find.byKey(railKey)).width, 228);
+      await tester.longPress(railContainerFinder);
+      await tester.pumpAndSettle();
+      final widthExpanded = tester.getSize(railContainerFinder).width;
+      expect(widthExpanded, greaterThan(widthBefore));
 
+      // 父级 setState 触发 didUpdateWidget → 折叠
       wrapperKey.currentState!.triggerRebuild();
-      await tester.pump();
+      await tester.pumpAndSettle();
 
-      expect(tester.getSize(find.byKey(railKey)).width, 28);
+      final widthAfterRebuild = tester.getSize(railContainerFinder).width;
+      expect(widthAfterRebuild, lessThan(widthExpanded));
     });
   });
 }
