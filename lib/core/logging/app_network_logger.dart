@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:characters/characters.dart';
+
 import 'app_log_store.dart';
 import 'json_truncator.dart';
 import 'network_log_redactor.dart';
@@ -110,7 +112,8 @@ final class AppNetworkLogger with NetworkLogger {
   }
 
   String _truncateText(String s) {
-    if (s.length <= defaultMaxLogValueLength) return s;
-    return '${s.substring(0, defaultMaxLogValueLength)}...[truncated]';
+    final characters = s.characters;
+    if (characters.length <= defaultMaxLogValueLength) return s;
+    return '${characters.take(defaultMaxLogValueLength).toString()}...[truncated]';
   }
 }
