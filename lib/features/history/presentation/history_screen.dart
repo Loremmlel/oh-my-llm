@@ -86,14 +86,6 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('历史对话',
-                    style: Theme.of(context).textTheme.headlineSmall),
-                const SizedBox(height: 8),
-                Text(
-                  '支持按标题和用户消息搜索、批量删除、重命名，并可跳回主页中的目标会话。',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-                const SizedBox(height: 20),
                 HistoryToolbar(
                   searchController: _searchController,
                   selectedCount: _selectedConversationIds.length,
