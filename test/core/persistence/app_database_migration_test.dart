@@ -1,4 +1,8 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sqlite3/sqlite3.dart' as sqlite;
 
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 
@@ -120,6 +124,141 @@ void main() {
       expect(row['collection_id'], isNull);
     });
 
+  });
+
+  // ────────────────────────────────────────────
+  // V9 迁移：从旧版 v8 数据库升级
+  // ────────────────────────────────────────────
+  group('V9 migration from legacy v8', () {
+    late Directory tempDir;
+    late String dbPath;
+
+    setUp(() async {
+      tempDir = await Directory.systemTemp.createTemp('v8-migration-test-');
+      dbPath = '${tempDir.path}${Platform.pathSeparator}migration.sqlite';
+    });
+
+    tearDown(() async {
+      if (await tempDir.exists()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    /// 构造一个 v8 旧版数据库：preset_prompts 表含 system_prompt 列。
+    sqlite.Database createLegacyV8Db() {
+      final db = sqlite.sqlite3.open(dbPath);
+      db.execute('PRAGMA foreign_keys = ON;');
+      // 仅创建迁移所需的最小表结构（旧版形态）
+      db.execute('''
+        CREATE TABLE preset_prompts (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          messages_json TEXT NOT NULL DEFAULT '[]',
+          system_prompt TEXT NOT NULL DEFAULT '',
+          updated_at TEXT NOT NULL
+        );
+      ''');
+      db.execute('PRAGMA user_version = 8;');
+      return db;
+    }
+
+    test('merges non-empty system_prompt into messages_json and drops column', () {
+      // 行 A：system_prompt 非空 + messages_json 无 system 消息 → 应被合并
+      final messagesA = [
+        {'id': 'u1', 'role': 'user', 'title': 'user', 'content': '你好', 'placement': 'before', 'enabled': true},
+      ];
+      // 行 B：system_prompt 非空 + messages_json 已有 system 消息 → 应跳过
+      final messagesB = [
+        {'id': 's0', 'role': 'system', 'title': 'system', 'content': '已有系统', 'placement': 'before', 'enabled': true},
+        {'id': 'u2', 'role': 'user', 'title': 'user', 'content': '你好B', 'placement': 'before', 'enabled': true},
+      ];
+      // 行 C：system_prompt 为空 → 不动
+      final messagesC = [
+        {'id': 'u3', 'role': 'user', 'title': 'user', 'content': '你好C', 'placement': 'before', 'enabled': true},
+      ];
+
+      final legacyDb = createLegacyV8Db();
+      legacyDb.execute(
+        "INSERT INTO preset_prompts (id, name, messages_json, system_prompt, updated_at) "
+        "VALUES ('a', 'A', ?, '你是助手', '2026-01-01');",
+        [jsonEncode(messagesA)],
+      );
+      legacyDb.execute(
+        "INSERT INTO preset_prompts (id, name, messages_json, system_prompt, updated_at) "
+        "VALUES ('b', 'B', ?, '你是助手B', '2026-01-01');",
+        [jsonEncode(messagesB)],
+      );
+      legacyDb.execute(
+        "INSERT INTO preset_prompts (id, name, messages_json, system_prompt, updated_at) "
+        "VALUES ('c', 'C', ?, '', '2026-01-01');",
+        [jsonEncode(messagesC)],
+      );
+      legacyDb.close();
+
+      // 重新打开同一文件，触发 _migrate → _migrateV9 的 else 分支
+      final migrated = AppDatabase.forPath(dbPath);
+      addTearDown(migrated.close);
+
+      // user_version 升到 >= 9
+      final version = migrated.connection
+          .select('PRAGMA user_version;')
+          .single['user_version'] as int;
+      expect(version, greaterThanOrEqualTo(9));
+
+      // system_prompt 列已被 DROP
+      final columns = migrated.connection
+          .select('PRAGMA table_info(preset_prompts);')
+          .map((row) => row['name'] as String)
+          .toList();
+      expect(columns, isNot(contains('system_prompt')));
+
+      // 行 A：system_prompt 被合并到 messages_json 头部
+      final rowA = migrated.connection
+          .select("SELECT messages_json FROM preset_prompts WHERE id = 'a';")
+          .single;
+      final decodedA = jsonDecode(rowA['messages_json'] as String) as List;
+      expect(decodedA.length, equals(2));
+      expect(decodedA[0]['role'], equals('system'));
+      expect(decodedA[0]['content'], equals('你是助手'));
+      expect(decodedA[1]['role'], equals('user'));
+
+      // 行 B：已有 system 消息，未被重复合并
+      final rowB = migrated.connection
+          .select("SELECT messages_json FROM preset_prompts WHERE id = 'b';")
+          .single;
+      final decodedB = jsonDecode(rowB['messages_json'] as String) as List;
+      expect(decodedB.length, equals(2));
+      expect(decodedB[0]['content'], equals('已有系统'));
+      expect(decodedB[1]['role'], equals('user'));
+
+      // 行 C：system_prompt 为空，messages_json 不变
+      final rowC = migrated.connection
+          .select("SELECT messages_json FROM preset_prompts WHERE id = 'c';")
+          .single;
+      final decodedC = jsonDecode(rowC['messages_json'] as String) as List;
+      expect(decodedC.length, equals(1));
+      expect(decodedC[0]['role'], equals('user'));
+    });
+
+    test('handles legacy db with empty preset_prompts table', () {
+      // 旧库无任何 preset_prompts 行，迁移应正常完成
+      final legacyDb = createLegacyV8Db();
+      legacyDb.close();
+
+      final migrated = AppDatabase.forPath(dbPath);
+      addTearDown(migrated.close);
+
+      final version = migrated.connection
+          .select('PRAGMA user_version;')
+          .single['user_version'] as int;
+      expect(version, greaterThanOrEqualTo(9));
+
+      final columns = migrated.connection
+          .select('PRAGMA table_info(preset_prompts);')
+          .map((row) => row['name'] as String)
+          .toList();
+      expect(columns, isNot(contains('system_prompt')));
+    });
   });
 }
 
