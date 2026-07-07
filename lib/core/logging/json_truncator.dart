@@ -1,3 +1,5 @@
+import 'package:characters/characters.dart';
+
 /// 对 JSON 树中所有 String 值做长度截断，保留完整结构。
 
 /// 日志字符串截断默认阈值（字符数）。
@@ -11,6 +13,9 @@ const int defaultMaxLogValueLength = 500;
 /// - Map → 递归处理所有 value
 /// - List → 递归处理所有元素
 /// - 其他类型（int/bool/double 等）→ 原样返回
+///
+/// 截断以 Unicode 字符（grapheme cluster）为单位，避免在 surrogate pair
+/// 中间切断导致产出含孤立代理对的无效字符串。
 Object? truncateJsonValues(
   Object? input, {
   int maxLength = defaultMaxLogValueLength,
@@ -27,10 +32,16 @@ Object? truncateJsonValues(
     return input.map((e) => truncateJsonValues(e, maxLength: maxLength)).toList(growable: false);
   }
   if (input is String) {
-    if (input.length > maxLength) {
-      return '${input.substring(0, maxLength)}...[truncated]';
-    }
-    return input;
+    return _truncateString(input, maxLength);
   }
   return input;
+}
+
+/// 按 grapheme cluster 截断字符串，避免切断 surrogate pair。
+String _truncateString(String input, int maxLength) {
+  final characters = input.characters;
+  if (characters.length <= maxLength) {
+    return input;
+  }
+  return '${characters.take(maxLength).toString()}...[truncated]';
 }
