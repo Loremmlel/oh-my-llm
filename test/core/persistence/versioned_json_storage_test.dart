@@ -115,6 +115,44 @@ void main() {
         throwsFormatException,
       );
     });
+
+    // ── version 边界契约 ─────────────
+
+    test('accepts missing version field', () {
+      final decoded = VersionedJsonStorage.decodeObjectList(
+        rawJson: jsonEncode({'items': <dynamic>[]}),
+        subject: 'test items',
+      );
+      expect(decoded, isEmpty);
+    });
+
+    test('accepts version 0', () {
+      final decoded = VersionedJsonStorage.decodeObjectList(
+        rawJson: jsonEncode({
+          'version': 0,
+          'items': [
+            {'id': 'a'},
+          ],
+        }),
+        subject: 'test items',
+      );
+      expect(decoded, hasLength(1));
+      expect(decoded.first['id'], 'a');
+    });
+
+    test('accepts negative version', () {
+      final decoded = VersionedJsonStorage.decodeObjectList(
+        rawJson: jsonEncode({
+          'version': -1,
+          'items': [
+            {'id': 'a'},
+          ],
+        }),
+        subject: 'test items',
+      );
+      expect(decoded, hasLength(1));
+      expect(decoded.first['id'], 'a');
+    });
   });
 
   group('encodeObjectList', () {
