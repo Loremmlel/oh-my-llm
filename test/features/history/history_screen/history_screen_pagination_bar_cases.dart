@@ -75,7 +75,7 @@ void registerHistoryScreenPaginationBarTests() {
       await _pumpHistoryScreen(tester, repo);
 
       expect(find.byType(HistoryPaginationBar), findsOneWidget);
-      expect(find.text('共 100 条 · 第 1/5 页'), findsOneWidget);
+      expect(find.text('共 100 条 · 1/5 页'), findsOneWidget);
       // 当前页码 1 应出现在渲染中
       expect(find.text('1'), findsWidgets);
       expect(_readState(tester).currentPage, 1);
