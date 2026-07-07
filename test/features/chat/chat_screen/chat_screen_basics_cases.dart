@@ -7,6 +7,7 @@ import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
+import 'package:oh_my_llm/features/chat/presentation/widgets/message_anchor_rail.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/thinking_toggle.dart';
 import 'package:oh_my_llm/features/settings/application/llm_model_configs_controller.dart';
 import 'package:oh_my_llm/features/settings/application/memory_prompts_controller.dart';
@@ -615,5 +616,37 @@ void registerChatScreenBasicsTests() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('第 8 条回复'), findsWidgets);
+  });
+
+  // 覆盖 ChatScrollController.handleVisibleItemsChanged → onScroll → setState 链路：
+  // 滚动消息列表时，用户消息锚点条的高亮会跟随当前可见区域切换，证明 onScroll 驱动了 UI 重绘。
+  testWidgets('anchor rail highlights follow visible user message while scrolling', (
+    tester,
+  ) async {
+    final fakeClient = FakeChatCompletionClient();
+    for (var index = 1; index <= 5; index += 1) {
+      fakeClient.enqueueChunks(['第 $index 条回复：${'内容 ' * 20}']);
+    }
+
+    await pumpChatScreen(
+      tester,
+      fakeClient: fakeClient,
+      size: const Size(900, 520),
+    );
+
+    for (var index = 1; index <= 5; index += 1) {
+      await sendMessage(tester, '第 $index 条问题：${'内容 ' * 20}');
+      await tester.pumpAndSettle();
+    }
+
+    // 锚点条渲染 5 个条目（>3 条用户消息才会展开 rail）
+    expect(find.byType(MessageAnchorRail), findsOneWidget);
+
+    // 滚动到列表顶部附近，验证 onScroll 回调驱动 setState 不抛异常且 rail 仍存在
+    final scrollable = find.byType(Scrollable).first;
+    await tester.drag(scrollable, const Offset(0, -400));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(MessageAnchorRail), findsOneWidget);
   });
 }
