@@ -136,9 +136,14 @@ class _HistoryPaginationBarState extends ConsumerState<HistoryPaginationBar> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isCompact = constraints.maxWidth < AppBreakpoints.compact;
-        final spacing = isCompact ? 4.0 : 8.0;
+        final spacing = isCompact ? 2.0 : 8.0;
         final iconVisualDensity =
             isCompact ? VisualDensity.compact : VisualDensity.standard;
+        final iconConstraints = isCompact
+            ? const BoxConstraints(minWidth: 32, minHeight: 32)
+            : null;
+        final iconPadding =
+            isCompact ? EdgeInsets.zero : null;
         final pageSizeWidth = isCompact ? 72.0 : 96.0;
         final pageSizePadding = isCompact
             ? const EdgeInsets.symmetric(horizontal: 8, vertical: 6)
@@ -174,6 +179,8 @@ class _HistoryPaginationBarState extends ConsumerState<HistoryPaginationBar> {
               tooltip: '上一页',
               icon: const Icon(Icons.chevron_left_rounded),
               visualDensity: iconVisualDensity,
+              constraints: iconConstraints,
+              padding: iconPadding,
               onPressed:
                   !disabled && state.hasPrevious
                       ? () =>
@@ -206,6 +213,8 @@ class _HistoryPaginationBarState extends ConsumerState<HistoryPaginationBar> {
               tooltip: '下一页',
               icon: const Icon(Icons.chevron_right_rounded),
               visualDensity: iconVisualDensity,
+              constraints: iconConstraints,
+              padding: iconPadding,
               onPressed:
                   !disabled && state.hasNext
                       ? () =>
