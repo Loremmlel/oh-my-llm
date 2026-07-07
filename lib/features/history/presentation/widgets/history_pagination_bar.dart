@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../chat/application/history_pagination_controller.dart';
+import '../../../../core/constants/app_breakpoints.dart';
 
 /// 分页栏中显示的页码项：具体页码或省略标记。
 typedef _PageNumberItem = ({int? page, bool isEllipsis});
@@ -92,17 +93,20 @@ class _HistoryPaginationBarState extends ConsumerState<HistoryPaginationBar> {
     int pageNumber, {
     required bool isActive,
     required bool disabled,
+    required bool compact,
   }) {
     final onTap = disabled ? null : () => ref
         .read(historyPaginationProvider.notifier)
         .goToPage(pageNumber);
+    final minSize = compact ? const Size(32, 32) : const Size(40, 40);
+    final textStyle = compact ? const TextStyle(fontSize: 13) : null;
     if (isActive) {
       return FilledButton(
         onPressed: onTap,
         style: FilledButton.styleFrom(
-          minimumSize: const Size(32, 32),
+          minimumSize: minSize,
           padding: EdgeInsets.zero,
-          textStyle: const TextStyle(fontSize: 13),
+          textStyle: textStyle,
         ),
         child: Text('$pageNumber'),
       );
@@ -110,9 +114,9 @@ class _HistoryPaginationBarState extends ConsumerState<HistoryPaginationBar> {
     return OutlinedButton(
       onPressed: onTap,
       style: OutlinedButton.styleFrom(
-        minimumSize: const Size(32, 32),
+        minimumSize: minSize,
         padding: EdgeInsets.zero,
-        textStyle: const TextStyle(fontSize: 13),
+        textStyle: textStyle,
       ),
       child: Text('$pageNumber'),
     );
@@ -129,113 +133,139 @@ class _HistoryPaginationBarState extends ConsumerState<HistoryPaginationBar> {
 
     final visiblePages = _visiblePageNumbers(totalPages, state.currentPage);
 
-    return Wrap(
-      spacing: 4,
-      runSpacing: 4,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        Text(
-          '共 ${state.totalItems} 条 · ${state.currentPage}/$totalPages 页',
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-        const SizedBox(width: 8),
-        IconButton(
-          tooltip: '上一页',
-          icon: const Icon(Icons.chevron_left_rounded),
-          visualDensity: VisualDensity.compact,
-          onPressed:
-              !disabled && state.hasPrevious
-                  ? () =>
-                      ref
-                          .read(historyPaginationProvider.notifier)
-                          .prev()
-                  : null,
-        ),
-        for (final item in visiblePages)
-          if (item.isEllipsis)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 2),
-              child: Text('…', style: theme.textTheme.bodySmall),
-            )
-          else
-            _buildPageButton(
-              item.page!,
-              isActive: item.page == state.currentPage,
-              disabled: disabled,
-            ),
-        IconButton(
-          tooltip: '下一页',
-          icon: const Icon(Icons.chevron_right_rounded),
-          visualDensity: VisualDensity.compact,
-          onPressed:
-              !disabled && state.hasNext
-                  ? () =>
-                      ref
-                          .read(historyPaginationProvider.notifier)
-                          .next()
-                  : null,
-        ),
-        const SizedBox(width: 4),
-        SizedBox(
-          width: 72,
-          child: DropdownButtonFormField<int>(
-            initialValue: state.pageSize,
-            isExpanded: true,
-            decoration: const InputDecoration(
-              labelText: '每页',
-              border: OutlineInputBorder(),
-              isDense: true,
-              contentPadding: EdgeInsets.symmetric(
-                horizontal: 8,
-                vertical: 6,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < AppBreakpoints.compact;
+        final spacing = isCompact ? 4.0 : 8.0;
+        final iconVisualDensity =
+            isCompact ? VisualDensity.compact : VisualDensity.standard;
+        final pageSizeWidth = isCompact ? 72.0 : 96.0;
+        final pageSizePadding = isCompact
+            ? const EdgeInsets.symmetric(horizontal: 8, vertical: 6)
+            : const EdgeInsets.symmetric(horizontal: 12, vertical: 10);
+        final jumpWidth = isCompact ? 48.0 : 64.0;
+        final jumpContentPadding = isCompact
+            ? const EdgeInsets.symmetric(horizontal: 4, vertical: 6)
+            : const EdgeInsets.symmetric(horizontal: 8, vertical: 10);
+        final jumpTextStyle =
+            isCompact ? const TextStyle(fontSize: 13) : null;
+        final jumpButtonStyle = isCompact
+            ? TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+              )
+            : null;
+        final jumpButtonTextStyle =
+            isCompact ? const TextStyle(fontSize: 13) : null;
+
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Text(
+              '共 ${state.totalItems} 条 · ${state.currentPage}/$totalPages 页',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
-            items: [
-              for (final size in availablePageSizes)
-                DropdownMenuItem<int>(value: size, child: Text('$size')),
-            ],
-            onChanged: disabled
-                ? null
-                : (value) {
-                    if (value == null) return;
-                    ref
-                        .read(historyPaginationProvider.notifier)
-                        .setPageSize(value);
-                  },
-          ),
-        ),
-        SizedBox(
-          width: 48,
-          child: TextField(
-            controller: _jumpController,
-            enabled: !disabled,
-            keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 13),
-            decoration: const InputDecoration(
-              labelText: '页码',
-              border: OutlineInputBorder(),
-              isDense: true,
-              contentPadding: EdgeInsets.symmetric(
-                horizontal: 4,
-                vertical: 6,
+            SizedBox(width: spacing),
+            IconButton(
+              tooltip: '上一页',
+              icon: const Icon(Icons.chevron_left_rounded),
+              visualDensity: iconVisualDensity,
+              onPressed:
+                  !disabled && state.hasPrevious
+                      ? () =>
+                          ref
+                              .read(historyPaginationProvider.notifier)
+                              .prev()
+                      : null,
+            ),
+            for (final item in visiblePages)
+              if (item.isEllipsis)
+                Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isCompact ? 2 : 4,
+                  ),
+                  child: Text(
+                    '…',
+                    style: isCompact
+                        ? theme.textTheme.bodySmall
+                        : theme.textTheme.bodyMedium,
+                  ),
+                )
+              else
+                _buildPageButton(
+                  item.page!,
+                  isActive: item.page == state.currentPage,
+                  disabled: disabled,
+                  compact: isCompact,
+                ),
+            IconButton(
+              tooltip: '下一页',
+              icon: const Icon(Icons.chevron_right_rounded),
+              visualDensity: iconVisualDensity,
+              onPressed:
+                  !disabled && state.hasNext
+                      ? () =>
+                          ref
+                              .read(historyPaginationProvider.notifier)
+                              .next()
+                      : null,
+            ),
+            SizedBox(width: spacing),
+            SizedBox(
+              width: pageSizeWidth,
+              child: DropdownButtonFormField<int>(
+                initialValue: state.pageSize,
+                isExpanded: true,
+                decoration: InputDecoration(
+                  labelText: '每页',
+                  border: const OutlineInputBorder(),
+                  isDense: true,
+                  contentPadding: pageSizePadding,
+                ),
+                items: [
+                  for (final size in availablePageSizes)
+                    DropdownMenuItem<int>(value: size, child: Text('$size')),
+                ],
+                onChanged: disabled
+                    ? null
+                    : (value) {
+                        if (value == null) return;
+                        ref
+                            .read(historyPaginationProvider.notifier)
+                            .setPageSize(value);
+                      },
               ),
             ),
-            onSubmitted: (_) => _onJump(),
-          ),
-        ),
-        TextButton(
-          onPressed: disabled ? null : _onJump,
-          style: TextButton.styleFrom(
-            visualDensity: VisualDensity.compact,
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-          ),
-          child: const Text('跳转', style: TextStyle(fontSize: 13)),
-        ),
-      ],
+            SizedBox(
+              width: jumpWidth,
+              child: TextField(
+                controller: _jumpController,
+                enabled: !disabled,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                textAlign: TextAlign.center,
+                style: jumpTextStyle,
+                decoration: InputDecoration(
+                  labelText: '页码',
+                  border: const OutlineInputBorder(),
+                  isDense: true,
+                  contentPadding: jumpContentPadding,
+                ),
+                onSubmitted: (_) => _onJump(),
+              ),
+            ),
+            TextButton(
+              onPressed: disabled ? null : _onJump,
+              style: jumpButtonStyle,
+              child: Text('跳转', style: jumpButtonTextStyle),
+            ),
+          ],
+        );
+      },
     );
   }
 }
