@@ -79,10 +79,10 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
           ),
       ],
       body: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(12),
         child: Card(
           child: Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -104,11 +104,11 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                       ? null
                       : _confirmDeleteSelected,
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 const HistoryPaginationBar(),
                 if (paginationState.isLoading)
                   const LinearProgressIndicator(),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 Expanded(
                   child: _buildConversationList(context, paginationState),
                 ),
@@ -142,7 +142,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
           conversation.id,
         );
         return Padding(
-          padding: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.only(bottom: 6),
           child: HistoryConversationTile(
             conversation: conversation,
             selected: isSelected,
