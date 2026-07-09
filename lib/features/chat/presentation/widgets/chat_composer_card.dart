@@ -70,9 +70,9 @@ class ChatComposerCard extends StatelessWidget {
                 ComposerTemplateHeader(
                   selectedTemplatePrompt: data.selectedTemplatePrompt,
                   templatePrompts: data.templatePrompts,
-                  isBusy: data.isBusy,
                   onTemplatePromptSelected: callbacks.onTemplatePromptSelected,
-                  onToggleComposerCollapsed: callbacks.onToggleComposerCollapsed,
+                  onToggleComposerCollapsed:
+                      callbacks.onToggleComposerCollapsed,
                 ),
                 if (data.selectedTemplatePrompt != null) ...[
                   const SizedBox(height: 10),
@@ -81,7 +81,8 @@ class ChatComposerCard extends StatelessWidget {
                   else
                     ComposerTemplateVariableFields(
                       selectedTemplatePrompt: data.selectedTemplatePrompt!,
-                      templateVariableControllers: data.templateVariableControllers,
+                      templateVariableControllers:
+                          data.templateVariableControllers,
                     ),
                   if (!data.selectedTemplatePrompt!.containsBodyVariable) ...[
                     const SizedBox(height: 4),
@@ -102,7 +103,6 @@ class ChatComposerCard extends StatelessWidget {
                   modelConfigs: data.modelConfigs,
                   selectedProviderId: data.selectedProviderId,
                   selectedModel: data.selectedModel,
-                  isBusy: data.isBusy,
                   onProviderSelected: callbacks.onProviderSelected,
                   onModelSelected: callbacks.onModelSelected,
                 ),
@@ -135,9 +135,12 @@ class ChatComposerCard extends StatelessWidget {
                     isBusy: data.isBusy,
                     isStreaming: data.isStreaming,
                     isAutoRetryWaiting: data.isAutoRetryWaiting,
-                    onReasoningEnabledChanged: callbacks.onReasoningEnabledChanged,
-                    onReasoningEffortChanged: callbacks.onReasoningEffortChanged,
-                    onAutoRetryEnabledChanged: callbacks.onAutoRetryEnabledChanged,
+                    onReasoningEnabledChanged:
+                        callbacks.onReasoningEnabledChanged,
+                    onReasoningEffortChanged:
+                        callbacks.onReasoningEffortChanged,
+                    onAutoRetryEnabledChanged:
+                        callbacks.onAutoRetryEnabledChanged,
                     onOpenFixedPromptSequenceRunner:
                         callbacks.onOpenFixedPromptSequenceRunner,
                     onOpenMessageFilter: callbacks.onOpenMessageFilter,
@@ -215,7 +218,9 @@ class ChatComposerCard extends StatelessWidget {
                                 setModalState(() {
                                   localEffort = effort;
                                 });
-                                callbacks.onReasoningEffortChanged?.call(effort);
+                                callbacks.onReasoningEffortChanged?.call(
+                                  effort,
+                                );
                               },
                             ),
                         ],
@@ -231,7 +236,8 @@ class ChatComposerCard extends StatelessWidget {
                               ? null
                               : () async {
                                   Navigator.of(bottomSheetContext).pop();
-                                  await callbacks.onOpenFixedPromptSequenceRunner();
+                                  await callbacks
+                                      .onOpenFixedPromptSequenceRunner();
                                 },
                           icon: const Icon(Icons.playlist_play_rounded),
                           label: const Text('固定顺序提示词'),
@@ -250,7 +256,9 @@ class ChatComposerCard extends StatelessWidget {
                                 await callbacks.onOpenMessageFilter();
                               },
                         icon: const Icon(Icons.filter_alt_outlined),
-                        label: Text(messageFilterLabel(data.excludedMessageCount)),
+                        label: Text(
+                          messageFilterLabel(data.excludedMessageCount),
+                        ),
                       ),
                     ),
                   ],
