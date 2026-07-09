@@ -7,15 +7,14 @@ import '../domain/models/chat_message.dart';
 ///
 /// 封装消息列表的 [ItemScrollController] 和 [ItemPositionsListener]，
 /// 以及「滚到底部」按钮和用户消息锚点的推导逻辑。
-/// 通过 [onStateChange] 回调通知宿主 [State] 触发 [setState]，
-/// 通过 [isMounted] 回调检查宿主 State 是否仍挂载在树上。
+///
+/// [showScrollToBottomNotifier] 和 [activeAnchorMessageIdNotifier] 用
+/// [ValueNotifier] 暴露状态，消费方通过 [ValueListenableBuilder] 局部监听，
+/// 避免滚动时高频触发宿主 [State] 的 [setState] 导致整页重建。
 ///
 /// 宿主在 [State.initState] 里创建本对象并注册监听：
 /// ```dart
-/// _scroll = ChatScrollController(
-///   onStateChange: () => setState(() {}),
-///   isMounted: () => mounted,
-/// );
+/// _scroll = ChatScrollController();
 /// _scroll.itemPositionsListener.itemPositions.addListener(
 ///   _scroll.handleVisibleItemsChanged,
 /// );
@@ -27,27 +26,23 @@ import '../domain/models/chat_message.dart';
 /// );
 /// ```
 class ChatScrollController {
-  ChatScrollController({
-    required VoidCallback onStateChange,
-    required bool Function() isMounted,
-    VoidCallback? onScroll,
-  })  : _onStateChange = onStateChange,
-        _isMounted = isMounted,
-        _onScroll = onScroll;
-
-  final VoidCallback _onStateChange;
-  final bool Function() _isMounted;
-  final VoidCallback? _onScroll;
+  ChatScrollController();
 
   final ItemScrollController itemScrollController = ItemScrollController();
   final ItemPositionsListener itemPositionsListener =
       ItemPositionsListener.create();
 
   /// 当前是否需要显示「滚到底部」按钮。
-  bool showScrollToBottom = false;
+  final ValueNotifier<bool> showScrollToBottomNotifier = ValueNotifier<bool>(
+    false,
+  );
 
   /// 当前高亮的用户消息锚点 ID。
-  String? activeAnchorMessageId;
+  final ValueNotifier<String?> activeAnchorMessageIdNotifier =
+      ValueNotifier<String?>(null);
+
+  bool get showScrollToBottom => showScrollToBottomNotifier.value;
+  String? get activeAnchorMessageId => activeAnchorMessageIdNotifier.value;
 
   String? _lastConversationId;
   String? _lastRenderSignature;
@@ -62,6 +57,16 @@ class ChatScrollController {
 
   /// 上一帧中最后一条消息的 trailing edge（viewport 分数）。
   double _lastItemTrailingEdge = 0;
+
+  /// 是否已释放，防止 post-frame 回调在 dispose 后触发状态写入。
+  bool _disposed = false;
+
+  /// 释放持有的 [ValueNotifier] 资源，由宿主在 [State.dispose] 调用。
+  void dispose() {
+    _disposed = true;
+    showScrollToBottomNotifier.dispose();
+    activeAnchorMessageIdNotifier.dispose();
+  }
 
   // ── 元数据缓存 ──────────────────────────────────────────────────────────────
 
@@ -101,13 +106,13 @@ class ChatScrollController {
     if (_lastConversationId != conversationId) {
       _lastConversationId = conversationId;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!_isMounted()) return;
+        if (!itemScrollController.isAttached) return;
         scrollToBottom(jump: true);
       });
     } else if (_lastRenderSignature != signature) {
       final shouldAutoScroll = !showScrollToBottom;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!_isMounted()) return;
+        if (!itemScrollController.isAttached) return;
         if (shouldAutoScroll) scrollToBottom();
       });
     }
@@ -171,18 +176,22 @@ class ChatScrollController {
   // ── 可见性监听 ──────────────────────────────────────────────────────────────
 
   /// 根据当前可见项更新「滚到底部」按钮和激活锚点，并更新最后一条消息的位置缓存。
+  ///
+  /// 通过 [ValueNotifier] 更新状态，消费方局部监听，不再触发宿主 setState。
   void handleVisibleItemsChanged() {
-    if (!_isMounted()) return;
+    if (_disposed || _latestMessages.isEmpty) return;
 
-    final positions = itemPositionsListener.itemPositions.value
-        .where((p) => p.index >= 0 && p.index < _latestMessages.length)
-        .toList(growable: false)
-      ..sort((l, r) => l.index.compareTo(r.index));
+    final positions =
+        itemPositionsListener.itemPositions.value
+            .where((p) => p.index >= 0 && p.index < _latestMessages.length)
+            .toList(growable: false)
+          ..sort((l, r) => l.index.compareTo(r.index));
 
     // 更新最后一条消息的位置缓存，供 _computeScrollAlignment 使用。
     final lastRealIndex = _latestMessages.length - 1;
-    final lastItemPos =
-        positions.where((p) => p.index == lastRealIndex).firstOrNull;
+    final lastItemPos = positions
+        .where((p) => p.index == lastRealIndex)
+        .firstOrNull;
     if (lastItemPos != null) {
       _lastItemLeadingEdge = lastItemPos.itemLeadingEdge;
       _lastItemTrailingEdge = lastItemPos.itemTrailingEdge;
@@ -196,16 +205,14 @@ class ChatScrollController {
       return;
     }
 
-    showScrollToBottom = nextShowScrollToBottom;
-    activeAnchorMessageId = nextActiveAnchorMessageId;
-    _onStateChange();
-    _onScroll?.call();
+    showScrollToBottomNotifier.value = nextShowScrollToBottom;
+    activeAnchorMessageIdNotifier.value = nextActiveAnchorMessageId;
   }
 
   /// 在主动滚动后补一次可见项同步，避免按钮状态滞后到下一次滚动事件。
   void _scheduleVisibleItemsSync() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_isMounted()) return;
+      if (_disposed || !itemScrollController.isAttached) return;
       handleVisibleItemsChanged();
     });
   }

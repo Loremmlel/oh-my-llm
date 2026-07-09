@@ -67,10 +67,7 @@ void registerChatScreenBasicsTests() {
   ) async {
     final fakeClient = FakeChatCompletionClient();
 
-    await pumpChatScreen(
-      tester,
-      fakeClient: fakeClient,
-    );
+    await pumpChatScreen(tester, fakeClient: fakeClient);
 
     await tester.tap(find.byTooltip('修改对话标题'));
     await tester.pumpAndSettle();
@@ -93,10 +90,7 @@ void registerChatScreenBasicsTests() {
   ) async {
     final fakeClient = FakeChatCompletionClient()..enqueueChunks(['新的回答']);
 
-    await pumpChatScreen(
-      tester,
-      fakeClient: fakeClient,
-    );
+    await pumpChatScreen(tester, fakeClient: fakeClient);
     final container = ProviderScope.containerOf(
       tester.element(find.byType(ChatScreen)),
     );
@@ -125,12 +119,9 @@ void registerChatScreenBasicsTests() {
   testWidgets(
     'chat screen opens checkpoints dialog and shows current word count',
     (tester) async {
-        final fakeClient = FakeChatCompletionClient()..enqueueChunks(['已收到']);
+      final fakeClient = FakeChatCompletionClient()..enqueueChunks(['已收到']);
 
-      await pumpChatScreen(
-        tester,
-        fakeClient: fakeClient,
-      );
+      await pumpChatScreen(tester, fakeClient: fakeClient);
 
       await sendMessage(tester, '你好');
       await tester.pumpAndSettle();
@@ -146,12 +137,9 @@ void registerChatScreenBasicsTests() {
   testWidgets(
     'chat screen checkpoints dialog shows current prompt template usage',
     (tester) async {
-        final fakeClient = FakeChatCompletionClient();
+      final fakeClient = FakeChatCompletionClient();
 
-      await pumpChatScreen(
-        tester,
-        fakeClient: fakeClient,
-      );
+      await pumpChatScreen(tester, fakeClient: fakeClient);
 
       final container = ProviderScope.containerOf(
         tester.element(find.byType(ChatScreen)),
@@ -173,7 +161,7 @@ void registerChatScreenBasicsTests() {
   testWidgets(
     'chat screen checkpoints dialog renders markdown preview in scrollable area',
     (tester) async {
-        final fakeClient = FakeChatCompletionClient()
+      final fakeClient = FakeChatCompletionClient()
         ..enqueueChunks(['首轮回复'])
         ..enqueueChunks([
           '# 检查点标题\n\n'
@@ -187,10 +175,7 @@ void registerChatScreenBasicsTests() {
               '${List.generate(24, (index) => '第 ${index + 1} 行详细内容。').join('\n\n')}',
         ]);
 
-      await pumpChatScreen(
-        tester,
-        fakeClient: fakeClient,
-      );
+      await pumpChatScreen(tester, fakeClient: fakeClient);
 
       final container = ProviderScope.containerOf(
         tester.element(find.byType(ChatScreen)),
@@ -242,10 +227,7 @@ void registerChatScreenBasicsTests() {
       ..enqueueChunks(['首轮回复'])
       ..enqueueChunks(['第二轮回复']);
 
-    await pumpChatScreen(
-      tester,
-      fakeClient: fakeClient,
-    );
+    await pumpChatScreen(tester, fakeClient: fakeClient);
 
     await sendMessage(tester, '第一轮问题');
     await tester.pumpAndSettle();
@@ -253,10 +235,7 @@ void registerChatScreenBasicsTests() {
     await tester.tap(find.byTooltip('从发送上下文中排除').last);
     await tester.pumpAndSettle();
 
-    expect(
-      find.byIcon(Icons.filter_alt_outlined),
-      findsOneWidget,
-    );
+    expect(find.byIcon(Icons.filter_alt_outlined), findsOneWidget);
 
     await sendMessage(tester, '第二轮问题');
     await tester.pumpAndSettle();
@@ -274,10 +253,7 @@ void registerChatScreenBasicsTests() {
       ..enqueueChunks(['首轮回复'])
       ..enqueueChunks(['第二轮回复']);
 
-    await pumpChatScreen(
-      tester,
-      fakeClient: fakeClient,
-    );
+    await pumpChatScreen(tester, fakeClient: fakeClient);
 
     await sendMessage(tester, '第一轮问题');
     await tester.pumpAndSettle();
@@ -308,20 +284,15 @@ void registerChatScreenBasicsTests() {
   testWidgets(
     'message filter dialog uses the same word-count rule as checkpoints',
     (tester) async {
-        final fakeClient = FakeChatCompletionClient()
+      final fakeClient = FakeChatCompletionClient()
         ..enqueueChunks(['done 456']);
 
-      await pumpChatScreen(
-        tester,
-        fakeClient: fakeClient,
-      );
+      await pumpChatScreen(tester, fakeClient: fakeClient);
 
       await sendMessage(tester, 'hello 123 世界');
       await tester.pumpAndSettle();
 
-      await tester.tap(
-        find.byIcon(Icons.filter_alt_outlined),
-      );
+      await tester.tap(find.byIcon(Icons.filter_alt_outlined));
       await tester.pumpAndSettle();
 
       expect(find.text('发送字数：4 / 4 字'), findsOneWidget);
@@ -339,9 +310,7 @@ void registerChatScreenBasicsTests() {
       size: const Size(430, 932),
     );
 
-    await tester.tap(
-      find.byIcon(Icons.tune_rounded),
-    );
+    await tester.tap(find.byIcon(Icons.tune_rounded));
     await tester.pumpAndSettle();
 
     expect(find.text('更多设置'), findsOneWidget);
@@ -357,10 +326,7 @@ void registerChatScreenBasicsTests() {
   ) async {
     final fakeClient = FakeChatCompletionClient();
 
-    await pumpChatScreen(
-      tester,
-      fakeClient: fakeClient,
-    );
+    await pumpChatScreen(tester, fakeClient: fakeClient);
 
     expect(find.widgetWithText(FilledButton, '发送'), findsOneWidget);
 
@@ -379,12 +345,9 @@ void registerChatScreenBasicsTests() {
   testWidgets(
     'chat screen inserts body above template when 正文 placeholder is absent',
     (tester) async {
-        final fakeClient = FakeChatCompletionClient()..enqueueChunks(['已收到']);
+      final fakeClient = FakeChatCompletionClient()..enqueueChunks(['已收到']);
 
-      await pumpChatScreen(
-        tester,
-        fakeClient: fakeClient,
-      );
+      await pumpChatScreen(tester, fakeClient: fakeClient);
 
       final container = ProviderScope.containerOf(
         tester.element(find.byType(ChatScreen)),
@@ -404,10 +367,12 @@ void registerChatScreenBasicsTests() {
           );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.ancestor(
-        of: find.text('模板提示词'),
-        matching: find.byWidgetPredicate((w) => w is DropdownButtonFormField),
-      ));
+      await tester.tap(
+        find.ancestor(
+          of: find.text('模板提示词'),
+          matching: find.byWidgetPredicate((w) => w is DropdownButtonFormField),
+        ),
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.text('总结模板').last);
       await tester.pumpAndSettle();
@@ -422,12 +387,9 @@ void registerChatScreenBasicsTests() {
   testWidgets(
     'chat screen shows multiple template variable inputs on wide screens',
     (tester) async {
-        final fakeClient = FakeChatCompletionClient();
+      final fakeClient = FakeChatCompletionClient();
 
-      await pumpChatScreen(
-        tester,
-        fakeClient: fakeClient,
-      );
+      await pumpChatScreen(tester, fakeClient: fakeClient);
 
       final container = ProviderScope.containerOf(
         tester.element(find.byType(ChatScreen)),
@@ -449,10 +411,12 @@ void registerChatScreenBasicsTests() {
           );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.ancestor(
-        of: find.text('模板提示词'),
-        matching: find.byWidgetPredicate((w) => w is DropdownButtonFormField),
-      ));
+      await tester.tap(
+        find.ancestor(
+          of: find.text('模板提示词'),
+          matching: find.byWidgetPredicate((w) => w is DropdownButtonFormField),
+        ),
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.text('多变量模板').last);
       await tester.pumpAndSettle();
@@ -493,10 +457,12 @@ void registerChatScreenBasicsTests() {
       fakeClient: fakeClient,
     );
 
-    await tester.tap(find.ancestor(
-      of: find.text('模型'),
-      matching: find.byWidgetPredicate((w) => w is DropdownButtonFormField),
-    ));
+    await tester.tap(
+      find.ancestor(
+        of: find.text('模型'),
+        matching: find.byWidgetPredicate((w) => w is DropdownButtonFormField),
+      ),
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.text('DeepSeek V4 Flash').last);
     await tester.pumpAndSettle();
@@ -508,10 +474,10 @@ void registerChatScreenBasicsTests() {
     await sendMessage(tester, '第二次问题');
     await tester.pumpAndSettle();
 
-    expect(
-      fakeClient.requestedModels.map((config) => config.id).toList(),
-      ['model-new', 'model-new'],
-    );
+    expect(fakeClient.requestedModels.map((config) => config.id).toList(), [
+      'model-new',
+      'model-new',
+    ]);
   });
 
   testWidgets('chat screen fills composer from fixed prompt sequence runner', (
@@ -519,10 +485,7 @@ void registerChatScreenBasicsTests() {
   ) async {
     final fakeClient = FakeChatCompletionClient();
 
-    await pumpChatScreen(
-      tester,
-      fakeClient: fakeClient,
-    );
+    await pumpChatScreen(tester, fakeClient: fakeClient);
 
     await tester.tap(find.byTooltip('固定顺序提示词'));
     await tester.pumpAndSettle();
@@ -541,10 +504,7 @@ void registerChatScreenBasicsTests() {
   ) async {
     final fakeClient = FakeChatCompletionClient()..enqueueChunks(['已收到']);
 
-      await pumpChatScreen(
-        tester,
-        fakeClient: fakeClient,
-      );
+    await pumpChatScreen(tester, fakeClient: fakeClient);
 
     await tester.tap(find.byTooltip('固定顺序提示词'));
     await tester.pumpAndSettle();
@@ -565,18 +525,12 @@ void registerChatScreenBasicsTests() {
   ) async {
     final fakeClient = FakeChatCompletionClient()..enqueueChunks(['快捷键发送成功']);
 
-    await pumpChatScreen(
-      tester,
-      fakeClient: fakeClient,
-    );
+    await pumpChatScreen(tester, fakeClient: fakeClient);
 
     const content = '请使用快捷键发送这条消息';
     await tester.tap(find.byType(TextField).first);
     await tester.pump();
-    await tester.enterText(
-      find.byType(TextField).first,
-      content,
-    );
+    await tester.enterText(find.byType(TextField).first, content);
 
     await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
@@ -618,35 +572,37 @@ void registerChatScreenBasicsTests() {
     expect(find.textContaining('第 8 条回复'), findsWidgets);
   });
 
-  // 覆盖 ChatScrollController.handleVisibleItemsChanged → onScroll → setState 链路：
-  // 滚动消息列表时，用户消息锚点条的高亮会跟随当前可见区域切换，证明 onScroll 驱动了 UI 重绘。
-  testWidgets('anchor rail highlights follow visible user message while scrolling', (
-    tester,
-  ) async {
-    final fakeClient = FakeChatCompletionClient();
-    for (var index = 1; index <= 5; index += 1) {
-      fakeClient.enqueueChunks(['第 $index 条回复：${'内容 ' * 20}']);
-    }
+  // 覆盖 ChatScrollController.handleVisibleItemsChanged -> ValueNotifier 链路：
+  // 滚动消息列表时，用户消息锚点条的高亮会跟随当前可见区域切换，证明
+  // ValueListenableBuilder 驱动了 UI 重绘（不再依赖宿主 setState）。
+  testWidgets(
+    'anchor rail highlights follow visible user message while scrolling',
+    (tester) async {
+      final fakeClient = FakeChatCompletionClient();
+      for (var index = 1; index <= 5; index += 1) {
+        fakeClient.enqueueChunks(['第 $index 条回复：${'内容 ' * 20}']);
+      }
 
-    await pumpChatScreen(
-      tester,
-      fakeClient: fakeClient,
-      size: const Size(900, 520),
-    );
+      await pumpChatScreen(
+        tester,
+        fakeClient: fakeClient,
+        size: const Size(900, 520),
+      );
 
-    for (var index = 1; index <= 5; index += 1) {
-      await sendMessage(tester, '第 $index 条问题：${'内容 ' * 20}');
+      for (var index = 1; index <= 5; index += 1) {
+        await sendMessage(tester, '第 $index 条问题：${'内容 ' * 20}');
+        await tester.pumpAndSettle();
+      }
+
+      // 锚点条渲染 5 个条目（>3 条用户消息才会展开 rail）
+      expect(find.byType(MessageAnchorRail), findsOneWidget);
+
+      // 滚动到列表顶部附近，验证锚点高亮经 ValueNotifier 更新不抛异常且 rail 仍存在
+      final scrollable = find.byType(Scrollable).first;
+      await tester.drag(scrollable, const Offset(0, -400));
       await tester.pumpAndSettle();
-    }
 
-    // 锚点条渲染 5 个条目（>3 条用户消息才会展开 rail）
-    expect(find.byType(MessageAnchorRail), findsOneWidget);
-
-    // 滚动到列表顶部附近，验证 onScroll 回调驱动 setState 不抛异常且 rail 仍存在
-    final scrollable = find.byType(Scrollable).first;
-    await tester.drag(scrollable, const Offset(0, -400));
-    await tester.pumpAndSettle();
-
-    expect(find.byType(MessageAnchorRail), findsOneWidget);
-  });
+      expect(find.byType(MessageAnchorRail), findsOneWidget);
+    },
+  );
 }

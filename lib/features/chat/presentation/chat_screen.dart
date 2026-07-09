@@ -18,6 +18,7 @@ import '../../settings/domain/models/preset_prompt.dart';
 import '../../settings/domain/models/template_prompt.dart';
 import '../application/chat_message_tree.dart';
 import '../application/chat_sessions_controller.dart';
+import '../application/chat_template_prompt_selection_controller.dart';
 import '../application/chat_sidebar_controller.dart';
 import '../application/templated_user_message_builder.dart';
 import '../domain/chat_conversation_groups.dart';
@@ -45,7 +46,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final Map<String, TextEditingController> _templateVariableControllers = {};
 
   String? _selectedFixedPromptSequenceId;
-  String? _selectedTemplatePromptId;
   String? _selectedPresetPromptId;
   int _selectedFixedPromptStepIndex = 0;
   bool _isComposerCollapsed = false;
@@ -56,11 +56,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     super.initState();
     _messageController = TextEditingController();
     _messageFocusNode = FocusNode();
-    _scroll = ChatScrollController(
-      onStateChange: () => setState(() {}),
-      isMounted: () => mounted,
-      onScroll: _handleScroll,
-    );
+    _scroll = ChatScrollController();
     _scroll.itemPositionsListener.itemPositions.addListener(
       _scroll.handleVisibleItemsChanged,
     );
@@ -76,6 +72,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _scroll.itemPositionsListener.itemPositions.removeListener(
       _scroll.handleVisibleItemsChanged,
     );
+    _scroll.dispose();
     super.dispose();
   }
 
@@ -117,6 +114,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final modelConfigs = ref.watch(llmModelConfigsProvider);
     final presetPrompts = ref.watch(presetPromptsProvider);
     final templatePrompts = ref.watch(templatePromptsProvider);
+    // 模板提示词选择走全局内存级 provider，跨页面切换不丢失。
+    final selectedTemplatePromptId = ref.watch(
+      chatTemplatePromptSelectionProvider,
+    );
     final activeMessages = conversation.messages;
     final excludedVisibleMessageCount = activeMessages.where((message) {
       return conversation.isMessageExcluded(message.id);
@@ -143,11 +144,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 return config.providerId == selectedProviderId;
               })
               .toList(growable: false);
-    final selectedPresetPrompt =
-        _resolveSelectedPresetPrompt(presetPrompts, conversation);
+    final selectedPresetPrompt = _resolveSelectedPresetPrompt(
+      presetPrompts,
+      conversation,
+    );
     final selectedTemplatePrompt = _resolveSelectedTemplatePrompt(
       templatePrompts,
-      _selectedTemplatePromptId,
+      selectedTemplatePromptId,
     );
     _syncTemplateVariableControllers(selectedTemplatePrompt);
     final supportsReasoning = selectedModel?.supportsReasoning ?? false;
@@ -169,9 +172,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         final nextConversation = ref.read(activeChatConversationProvider);
         final id = nextConversation.selectedPresetPromptId;
         setState(() {
-          _selectedPresetPromptId =
-              id == noPresetPromptSelectedId ? null : id;
+          _selectedPresetPromptId = id == noPresetPromptSelectedId ? null : id;
         });
+        // 切换会话时清空模板提示词选择，避免上一会话的模板残留到新会话。
+        ref.read(chatTemplatePromptSelectionProvider.notifier).clear();
       }
     });
 
@@ -412,7 +416,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       selectedProviderId: selectedProviderId,
       selectedModel: selectedModel,
       userMessages: userMessages,
-      activeAnchorMessageId: _scroll.activeAnchorMessageId,
+      activeAnchorMessageIdListenable: _scroll.activeAnchorMessageIdNotifier,
       messageController: _messageController,
       messageFocusNode: _messageFocusNode,
       templatePrompts: templatePrompts,
@@ -432,7 +436,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       errorMessageAssistantId: errorMessageAssistantId,
       emptyReplyAssistantId: emptyReplyAssistantId,
       errorModelDisplayName: selectedModel?.displayName ?? '模型',
-      showScrollToBottom: _scroll.showScrollToBottom,
+      showScrollToBottomListenable: _scroll.showScrollToBottomNotifier,
       autoRetryCount: autoRetryCount,
       excludedMessageCount: excludedVisibleMessageCount,
       onEditMessage: (message) async {
@@ -449,7 +453,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         await _showDeleteMessageDialog(context, message);
       },
       onToggleRequestExclusion: (message) {
-        ref.read(chatSessionsProvider.notifier).setMessagesExcluded(
+        ref
+            .read(chatSessionsProvider.notifier)
+            .setMessagesExcluded(
               messageIds: [message.id],
               excluded: !conversation.isMessageExcluded(message.id),
             );
@@ -532,13 +538,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               await _showStopStreamingDialog(context);
             }
           : null,
-      onFavoritePressed: (message) => _showAddToFavoritesDialog(
-        context,
-        message,
-        conversation,
-      ),
+      onFavoritePressed: (message) =>
+          _showAddToFavoritesDialog(context, message, conversation),
       favoritedAssistantContents: favoritedContents,
-      onScroll: _handleScroll,
     );
   }
 
@@ -563,8 +565,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       groups: _buildConversationGroups(conversationSummaries),
       activeConversationId: activeConversationId,
       hasDraftConversation: hasDraftConversation,
-      onCreateConversation:
-          isBusy ? null : () => _createConversationAndScroll(),
+      onCreateConversation: isBusy
+          ? null
+          : () => _createConversationAndScroll(),
       onConversationSelected: (conversationId) {
         if (isBusy) {
           return;
@@ -586,15 +589,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }) {
     return switch (function) {
       ChatSidebarFunction.history => _buildHistoryPanel(
-          conversationSummaries,
-          activeConversationId: activeConversationId,
-          hasDraftConversation: hasDraftConversation,
-          isBusy: isBusy,
-        ),
+        conversationSummaries,
+        activeConversationId: activeConversationId,
+        hasDraftConversation: hasDraftConversation,
+        isBusy: isBusy,
+      ),
       ChatSidebarFunction.preset => PresetPromptPanel(
-          selectedPresetPromptId: _selectedPresetPromptId,
-          onPresetPromptSelected: _handlePresetPromptSelected,
-        ),
+        selectedPresetPromptId: _selectedPresetPromptId,
+        onPresetPromptSelected: _handlePresetPromptSelected,
+      ),
     };
   }
 
@@ -655,9 +658,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (effectiveId == null || effectiveId == noPresetPromptSelectedId) {
       return null;
     }
-    return presetPrompts
-        .where((p) => p.id == effectiveId)
-        .firstOrNull;
+    return presetPrompts.where((p) => p.id == effectiveId).firstOrNull;
   }
 
   TemplatePrompt? _resolveSelectedTemplatePrompt(
@@ -701,22 +702,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     String? templatePromptId,
     List<TemplatePrompt> templatePrompts,
   ) {
-    setState(() {
-      _selectedTemplatePromptId = templatePromptId;
-      _syncTemplateVariableControllers(
-        _resolveSelectedTemplatePrompt(templatePrompts, templatePromptId),
-      );
-    });
+    ref
+        .read(chatTemplatePromptSelectionProvider.notifier)
+        .select(templatePromptId);
+    _syncTemplateVariableControllers(
+      _resolveSelectedTemplatePrompt(templatePrompts, templatePromptId),
+    );
   }
 
   void _toggleComposerCollapsed() {
     setState(() {
       _isComposerCollapsed = !_isComposerCollapsed;
     });
-  }
-
-  void _handleScroll() {
-    setState(() {});
   }
 
   void _handleModelSelected(String modelId) {
@@ -751,8 +748,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     ref
         .read(chatSessionsProvider.notifier)
         .updateActiveConversationPreferences(
-          selectedPresetPromptId:
-              presetPromptId ?? noPresetPromptSelectedId,
+          selectedPresetPromptId: presetPromptId ?? noPresetPromptSelectedId,
         );
   }
 
@@ -902,27 +898,29 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         favoritesController.remove(existing.id);
 
         if (!context.mounted) return;
-        ref.read(notificationBubblesProvider.notifier).show(
-          message: '已取消收藏',
-          action: NotificationBubbleAction(
-            label: '撤销',
-            onPressed: () {
-              // 重新添加被删除的收藏
-              favoritesController.add(
-                userMessageContent: removedFavorite.userMessageContent,
-                assistantContent: removedFavorite.assistantContent,
-                assistantReasoningContent:
-                    removedFavorite.assistantReasoningContent,
-                assistantModelDisplayName:
-                    removedFavorite.assistantModelDisplayName,
-                collectionId: removedFavorite.collectionId,
-                sourceConversationId: removedFavorite.sourceConversationId,
-                sourceConversationTitle:
-                    removedFavorite.sourceConversationTitle,
-              );
-            },
-          ),
-        );
+        ref
+            .read(notificationBubblesProvider.notifier)
+            .show(
+              message: '已取消收藏',
+              action: NotificationBubbleAction(
+                label: '撤销',
+                onPressed: () {
+                  // 重新添加被删除的收藏
+                  favoritesController.add(
+                    userMessageContent: removedFavorite.userMessageContent,
+                    assistantContent: removedFavorite.assistantContent,
+                    assistantReasoningContent:
+                        removedFavorite.assistantReasoningContent,
+                    assistantModelDisplayName:
+                        removedFavorite.assistantModelDisplayName,
+                    collectionId: removedFavorite.collectionId,
+                    sourceConversationId: removedFavorite.sourceConversationId,
+                    sourceConversationTitle:
+                        removedFavorite.sourceConversationTitle,
+                  );
+                },
+              ),
+            );
       }
       return;
     }
@@ -965,10 +963,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
 
     if (!mounted) return;
-    ref.read(notificationBubblesProvider.notifier).show(
-      message: '已收藏',
-      type: NotificationBubbleType.success,
-    );
+    ref
+        .read(notificationBubblesProvider.notifier)
+        .show(message: '已收藏', type: NotificationBubbleType.success);
   }
 
   /// 弹出会话重命名对话框并提交新标题。
@@ -1006,6 +1003,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     setState(() {
       _selectedPresetPromptId = null;
     });
+    // 新建会话清空模板提示词选择。
+    ref.read(chatTemplatePromptSelectionProvider.notifier).clear();
     _messageController.clear();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scroll.scrollToBottom(jump: true);

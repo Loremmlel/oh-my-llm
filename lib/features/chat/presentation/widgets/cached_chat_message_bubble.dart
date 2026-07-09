@@ -55,11 +55,10 @@ class _CachedChatMessageBubbleState extends State<CachedChatMessageBubble> {
     _cachedChild = _buildChild();
   }
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _cachedChild = _buildChild();
-  }
+  // 不在 didChangeDependencies 里无条件重建缓存子树。
+  // 缓存的 widget 实例仍挂在树中，Theme/MediaQuery 等 InheritedWidget
+  // 变化时子树自身会收到通知并重建，无需此处主动失效缓存；
+  // 否则每次父级 rebuild（如流式 300ms）都会绕过 _canReuseChild 让缓存形同虚设。
 
   @override
   void didUpdateWidget(covariant CachedChatMessageBubble oldWidget) {
