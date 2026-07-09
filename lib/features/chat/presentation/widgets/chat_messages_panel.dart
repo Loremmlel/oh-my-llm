@@ -180,18 +180,24 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
   ///
   /// 仅当 conversation/error/errorAssistantId 变化时重算，否则复用缓存。
   /// 用 [widget.conversation]（Equatable 值比较）作 key，而非
-  /// [widget.messages]--后者由 getter 每次返回全新 List，identity 比较
+  /// [widget.messages]——后者由 getter 每次返回全新 List，identity 比较
   /// 永不相等会导致缓存 100% miss。
   ///
-  /// 流式期间即使 provider 每 300ms 重建一次，只要 conversation 的字段
-  /// （含 messageNodes/selectedChildByParentId）未实际变化，值比较仍命中
-  /// 缓存，避免无新 token 时的重复拷贝。
+  /// 缓存命中分两层：
+  /// - [identical] 快速路径：非流式 rebuild（如 setState）下 conversation
+  ///   引用未变，O(1) 直接命中，跳过 Equatable 深度比较。
+  /// - `==` 值比较路径：流式期间 provider 每 300ms 通过 copyWith 产生新实例，
+  ///   identical 必然 false，此时降级到 Equatable 值比较。props 含
+  ///   messageNodes，长对话下为 O(n)，但只要字段未变即命中，避免无新 token
+  ///   时的重复拷贝。真正的 O(n) 优化需 props 精简，本次不做。
   List<ChatMessage> _resolveDisplayMessages() {
     final normalizedError = widget.errorMessage?.trim();
     final hasError = normalizedError != null && normalizedError.isNotEmpty;
     final errorAssistantId = widget.errorMessageAssistantId;
 
-    if (_displayMessagesConversation == widget.conversation &&
+    final conversation = widget.conversation;
+    if ((identical(_displayMessagesConversation, conversation) ||
+            _displayMessagesConversation == conversation) &&
         _displayMessagesError == normalizedError &&
         _displayMessagesErrorAssistantId == errorAssistantId &&
         _displayMessagesCache != null) {
@@ -217,7 +223,7 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
           ),
         );
     }
-    _displayMessagesConversation = widget.conversation;
+    _displayMessagesConversation = conversation;
     _displayMessagesError = normalizedError;
     _displayMessagesErrorAssistantId = errorAssistantId;
     _displayMessagesCache = List.unmodifiable(result);
@@ -228,6 +234,7 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
   ///
   /// 仅当 conversation 变化时重算。conversation 是 Equatable，值比较能
   /// 正确命中缓存；messages getter 每次返回新 List 不可作 key。
+  /// 同 [_resolveDisplayMessages]，先 [identical] 快速路径再降级 `==`。
   Map<String, MessageVersionInfo> _resolveVersionInfoMap() {
     final conversation = widget.conversation;
     final messages = widget.messages;
@@ -237,7 +244,9 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
       return _versionInfoCache!;
     }
 
-    if (_versionInfoConversation == conversation && _versionInfoCache != null) {
+    if ((identical(_versionInfoConversation, conversation) ||
+            _versionInfoConversation == conversation) &&
+        _versionInfoCache != null) {
       return _versionInfoCache!;
     }
 
