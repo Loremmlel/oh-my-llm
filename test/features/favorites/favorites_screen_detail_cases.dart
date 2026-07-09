@@ -95,6 +95,8 @@ void registerFavoriteDetailScreenTests() {
     await tester.pumpAndSettle();
 
     expect(find.text('收藏详情'), findsOneWidget);
+    // 回归测试：防止窄屏下收藏详情溢出。
+    // takeException() 仅捕获当帧异常，若 Flutter 溢出处理机制变更需更新。
     expect(tester.takeException(), isNull);
   });
 
@@ -118,5 +120,48 @@ void registerFavoriteDetailScreenTests() {
 
     expect(find.text('收藏详情'), findsNothing);
     expect(find.text('暂无收藏'), findsOneWidget);
+  });
+
+  testWidgets('favorites detail shows reasoning content when present', (
+    tester,
+  ) async {
+    await setUpFavoritesScreen(tester, seed: (db) {
+      seedFavorite(
+        db,
+        id: 'fav-reasoning',
+        userMessageContent: '有推理的问题',
+        assistantContent: '有推理的回复',
+        assistantReasoningContent: '这是深度思考的推理过程',
+      );
+    });
+
+    await tester.tap(find.text('有推理的问题'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('深度思考'), findsOneWidget);
+
+    await tester.tap(find.text('展开'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('这是深度思考的推理过程'), findsOneWidget);
+  });
+
+  testWidgets('favorites detail hides reasoning panel when absent', (
+    tester,
+  ) async {
+    await setUpFavoritesScreen(tester, seed: (db) {
+      seedFavorite(
+        db,
+        id: 'fav-no-reasoning',
+        userMessageContent: '无推理的问题',
+        assistantContent: '无推理的回复',
+        assistantReasoningContent: '',
+      );
+    });
+
+    await tester.tap(find.text('无推理的问题'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('无推理的回复'), findsOneWidget);
   });
 }
