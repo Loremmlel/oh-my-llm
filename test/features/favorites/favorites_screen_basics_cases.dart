@@ -64,4 +64,32 @@ void registerFavoritesScreenBasicsTests() {
 
     expect(find.text('收藏详情'), findsOneWidget);
   });
+
+  testWidgets('favorites screen 全部 filter shows all items', (tester) async {
+    await setUpFavoritesScreen(tester, seed: (db) {
+      seedCollection(db, id: 'col-1', name: '我的收藏夹');
+      seedFavorite(db, id: 'fav-1', userMessageContent: '分类问题', assistantContent: '分类回复', collectionId: 'col-1');
+      seedFavorite(db, id: 'fav-2', userMessageContent: '未分类问题', assistantContent: '未分类回复', collectionId: null);
+    });
+
+    // "全部" 是默认选中状态，应显示所有收藏
+    expect(find.text('分类问题'), findsOneWidget);
+    expect(find.text('未分类问题'), findsOneWidget);
+  });
+
+  testWidgets('favorites screen collection filter shows correct items', (
+    tester,
+  ) async {
+    await setUpFavoritesScreen(tester, seed: (db) {
+      seedCollection(db, id: 'col-1', name: '技术笔记');
+      seedFavorite(db, id: 'fav-1', userMessageContent: '技术问题', assistantContent: '技术回复', collectionId: 'col-1');
+      seedFavorite(db, id: 'fav-2', userMessageContent: '其他问题', assistantContent: '其他回复', collectionId: null);
+    });
+
+    await tester.tap(find.widgetWithText(FilterChip, '技术笔记'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('技术问题'), findsOneWidget);
+    expect(find.text('其他问题'), findsNothing);
+  });
 }
