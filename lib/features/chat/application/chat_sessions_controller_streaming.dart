@@ -63,12 +63,18 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
 
     // complete completer，避免 streamAssistantReply 的 future 永久挂起。
     final streamingReply = latestStreamingReply ?? state.streamingReply;
-    final stoppedConversation = buildConversationAfterStreamingInterrupt(
-      conversation: state.activeConversation,
-      streamingReply: streamingReply,
-    );
-
     final wasStreaming = state.isStreaming;
+
+    // 非流式且无回复（自动重试等待中点停止）时无需重建 conversation 或落盘：
+    // 重建只会 copyWith(updatedAt) 干扰按更新时间排序的历史列表。
+    final shouldSave = wasStreaming || streamingReply != null;
+    final stoppedConversation = shouldSave
+        ? buildConversationAfterStreamingInterrupt(
+            conversation: state.activeConversation,
+            streamingReply: streamingReply,
+          )
+        : state.activeConversation;
+
     final assistantMessageId = streamingReply?.assistantMessageId;
 
     // 未收到任何模型内容时，保留空占位节点并标记空回复，便于用户重试；
@@ -98,7 +104,9 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
       clearErrorMessage: !shouldMarkEmptyReply,
       clearEmptyReply: !shouldMarkEmptyReply,
     );
-    saveConversation(stoppedConversation);
+    if (shouldSave) {
+      saveConversation(stoppedConversation);
+    }
 
     // 仅在确有流式会话时 complete 并清理，否则只清理残留标志。
     completeActiveStreaming(wasStreaming ? stoppedConversation : null);

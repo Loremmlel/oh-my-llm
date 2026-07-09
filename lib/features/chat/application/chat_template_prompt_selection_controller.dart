@@ -9,6 +9,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// 在 GoRouter 页面切换（销毁重建 ChatScreen）后仍能恢复，避免每次回到
 /// 聊天页都要重新选择模板。切换会话或新建会话时由调用方主动清空，
 /// 避免上一会话的模板选择残留到新会话。
+///
+/// 注意：当前为全局单例，多窗口/多实例场景下共享同一选择状态。
+/// 若未来支持多窗口并行聊天，需改为 family provider 或 scoped override。
 class ChatTemplatePromptSelectionController extends Notifier<String?> {
   @override
   String? build() => null;
