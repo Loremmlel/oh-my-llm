@@ -80,6 +80,39 @@ void main() {
       expect(container.read(favoritesProvider), isEmpty);
     });
 
+    test('moveTo updates collectionId of the favorite', () {
+      container.read(collectionsProvider.notifier).create('目标收藏夹');
+      final collectionId = container.read(collectionsProvider).first.id;
+
+      container.read(favoritesProvider.notifier).add(
+        userMessageContent: '问题',
+        assistantContent: '回答',
+      );
+      final favId = container.read(favoritesProvider).first.id;
+
+      container.read(favoritesProvider.notifier).moveTo(favId, collectionId);
+
+      final moved = container.read(favoritesProvider).first;
+      expect(moved.collectionId, collectionId);
+    });
+
+    test('moveTo with null moves favorite to uncategorized', () {
+      container.read(collectionsProvider.notifier).create('收藏夹');
+      final collectionId = container.read(collectionsProvider).first.id;
+
+      container.read(favoritesProvider.notifier).add(
+        userMessageContent: '问题',
+        assistantContent: '回答',
+        collectionId: collectionId,
+      );
+      final favId = container.read(favoritesProvider).first.id;
+
+      container.read(favoritesProvider.notifier).moveTo(favId, null);
+
+      final moved = container.read(favoritesProvider).first;
+      expect(moved.collectionId, isNull);
+    });
+
   });
 
   group('CollectionsController', () {
@@ -155,5 +188,65 @@ void main() {
       expect(container.read(collectionsProvider).first.id, id);
     });
 
+  });
+
+  group('FavoritesFilterNotifier', () {
+    late AppDatabase database;
+    late ProviderContainer container;
+
+    setUp(() {
+      database = AppDatabase.inMemory();
+      container = ProviderContainer(
+        overrides: [appDatabaseProvider.overrideWithValue(database)],
+      );
+    });
+
+    tearDown(() {
+      container.dispose();
+      database.close();
+    });
+
+    test('初始状态为 null（全部）', () {
+      expect(container.read(favoritesFilterProvider), isNull);
+    });
+
+    test('setFilter 更新过滤条件', () {
+      container.read(favoritesFilterProvider.notifier).setFilter('col-1');
+      expect(container.read(favoritesFilterProvider), 'col-1');
+    });
+
+    test('setFilter(null) 恢复为全部', () {
+      container.read(favoritesFilterProvider.notifier).setFilter('col-1');
+      container.read(favoritesFilterProvider.notifier).setFilter(null);
+      expect(container.read(favoritesFilterProvider), isNull);
+    });
+
+    test('filter 变更后 favoritesProvider 重新读取列表', () {
+      container.read(collectionsProvider.notifier).create('收藏夹A');
+      final collectionId = container.read(collectionsProvider).first.id;
+
+      container.read(favoritesProvider.notifier).add(
+        userMessageContent: '分类问题',
+        assistantContent: '分类回答',
+        collectionId: collectionId,
+      );
+      container.read(favoritesProvider.notifier).add(
+        userMessageContent: '未分类问题',
+        assistantContent: '未分类回答',
+      );
+
+      // 初始 filter=null，应返回全部
+      expect(container.read(favoritesProvider), hasLength(2));
+
+      // 切换到未分类
+      container.read(favoritesFilterProvider.notifier).setFilter('');
+      expect(container.read(favoritesProvider), hasLength(1));
+      expect(container.read(favoritesProvider).first.userMessageContent, '未分类问题');
+
+      // 切换到具体收藏夹
+      container.read(favoritesFilterProvider.notifier).setFilter(collectionId);
+      expect(container.read(favoritesProvider), hasLength(1));
+      expect(container.read(favoritesProvider).first.userMessageContent, '分类问题');
+    });
   });
 }
