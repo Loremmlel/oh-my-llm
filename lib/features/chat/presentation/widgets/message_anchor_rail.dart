@@ -59,6 +59,29 @@ class _MessageAnchorRailState extends State<MessageAnchorRail> {
   // ── 状态 ────────────────────────────────────────────────────
 
   bool _isExpanded = false;
+  final ScrollController _scrollController = ScrollController();
+
+  // ── 生命周期 ────────────────────────────────────────────────
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToBottom();
+    });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  /// 将锚点列表滚动到底部（最新消息）。
+  void _scrollToBottom() {
+    if (!_scrollController.hasClients) return;
+    _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+  }
 
   // ── 展开/折叠 ──────────────────────────────────────────────
 
@@ -127,6 +150,7 @@ class _MessageAnchorRailState extends State<MessageAnchorRail> {
                       context,
                     ).copyWith(scrollbars: false),
                     child: ListView.separated(
+                      controller: _scrollController,
                       primary: false,
                       padding: EdgeInsets.zero,
                       itemCount: widget.userMessages.length,
@@ -146,7 +170,9 @@ class _MessageAnchorRailState extends State<MessageAnchorRail> {
                           selected: isActive,
                           label: '定位到第 ${index + 1} 条用户消息',
                           child: InkWell(
-                            key: ValueKey('message-anchor-item-${index + 1}'),
+                            key: ValueKey(
+                              'message-anchor-item-${index + 1}',
+                            ),
                             borderRadius: BorderRadius.circular(999),
                             onTap: () => widget.onSelectMessage(message.id),
                             child: SizedBox(
