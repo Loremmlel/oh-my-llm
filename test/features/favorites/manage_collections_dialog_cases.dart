@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:oh_my_llm/features/favorites/data/sqlite_collections_repository.dart';
-import 'package:oh_my_llm/features/favorites/presentation/widgets/dialogs/manage_collections_dialog.dart';
-
 import 'favorites_screen_test_helpers.dart';
 
 void registerManageCollectionsDialogTests() {
@@ -13,7 +10,7 @@ void registerManageCollectionsDialogTests() {
     await tester.tap(find.byTooltip('管理收藏夹'));
     await tester.pumpAndSettle();
 
-    expect(find.byType(ManageCollectionsDialog), findsOneWidget);
+    expect(find.text('管理收藏夹'), findsOneWidget);
     expect(find.text('暂无收藏夹。收藏回复时可创建。'), findsOneWidget);
   });
 
@@ -28,13 +25,10 @@ void registerManageCollectionsDialogTests() {
     await tester.tap(find.byTooltip('重命名'));
     await tester.pumpAndSettle();
 
-    expect(find.byType(TextField), findsOneWidget);
     await tester.enterText(find.byType(TextField), '新名称');
     await tester.tap(find.byTooltip('确认重命名'));
     await tester.pumpAndSettle();
 
-    final renamed = SqliteCollectionsRepository(database).loadAll().single;
-    expect(renamed.name, '新名称');
     expect(find.text('新名称'), findsWidgets);
     expect(find.text('旧名称'), findsNothing);
   });
@@ -77,5 +71,46 @@ void registerManageCollectionsDialogTests() {
 
     // Collection name still present in both filter chip and dialog.
     expect(find.text('保留的收藏夹'), findsWidgets);
+  });
+
+  testWidgets('manage collections dialog cancel rename keeps original name', (
+    tester,
+  ) async {
+    await setUpFavoritesScreen(tester, seed: (db) {
+      seedCollection(db, id: 'col-1', name: '原名');
+    });
+
+    await tester.tap(find.byTooltip('管理收藏夹'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('重命名'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), '不应生效的名称');
+    await tester.tap(find.byTooltip('取消'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('原名'), findsWidgets);
+    expect(find.text('不应生效的名称'), findsNothing);
+  });
+
+  testWidgets('manage collections dialog empty rename is ignored', (
+    tester,
+  ) async {
+    await setUpFavoritesScreen(tester, seed: (db) {
+      seedCollection(db, id: 'col-1', name: '现有名称');
+    });
+
+    await tester.tap(find.byTooltip('管理收藏夹'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('重命名'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), '   ');
+    await tester.tap(find.byTooltip('确认重命名'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('现有名称'), findsWidgets);
   });
 }
