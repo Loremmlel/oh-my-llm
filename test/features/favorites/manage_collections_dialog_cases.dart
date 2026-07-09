@@ -15,7 +15,7 @@ void registerManageCollectionsDialogTests() {
   });
 
   testWidgets('manage collections dialog renames collection', (tester) async {
-    final database = await setUpFavoritesScreen(tester, seed: (db) {
+    await setUpFavoritesScreen(tester, seed: (db) {
       seedCollection(db, id: 'col-1', name: '旧名称');
     });
 
