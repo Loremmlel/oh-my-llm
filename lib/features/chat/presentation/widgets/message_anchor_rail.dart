@@ -11,7 +11,6 @@ class MessageAnchorRail extends StatefulWidget {
     required this.activeMessageId,
     required this.maxHeight,
     required this.onSelectMessage,
-    this.onScroll,
     super.key,
   });
 
@@ -19,7 +18,6 @@ class MessageAnchorRail extends StatefulWidget {
   final String? activeMessageId;
   final double maxHeight;
   final ValueChanged<String> onSelectMessage;
-  final VoidCallback? onScroll;
 
   @override
   State<MessageAnchorRail> createState() => _MessageAnchorRailState();
@@ -106,9 +104,7 @@ class _MessageAnchorRailState extends State<MessageAnchorRail> {
           onEnter: (_) => _toggleExpand(),
           onExit: (_) => _collapseExpand(),
           child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxHeight: widget.maxHeight,
-            ),
+            constraints: BoxConstraints(maxHeight: widget.maxHeight),
             child: SizedBox(
               width: _isExpanded ? 228 : 28,
               child: DecoratedBox(
@@ -116,15 +112,20 @@ class _MessageAnchorRailState extends State<MessageAnchorRail> {
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
-                    color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
+                    color: theme.colorScheme.outlineVariant.withValues(
+                      alpha: 0.4,
+                    ),
                   ),
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 8,
+                  ),
                   child: ScrollConfiguration(
-                    behavior: ScrollConfiguration.of(context).copyWith(
-                      scrollbars: false,
-                    ),
+                    behavior: ScrollConfiguration.of(
+                      context,
+                    ).copyWith(scrollbars: false),
                     child: ListView.separated(
                       primary: false,
                       padding: EdgeInsets.zero,
@@ -135,7 +136,10 @@ class _MessageAnchorRailState extends State<MessageAnchorRail> {
                       itemBuilder: (context, index) {
                         final message = widget.userMessages[index];
                         final isActive = message.id == widget.activeMessageId;
-                        final previewText = MessageAnchorRail.extractPreviewText(message.content);
+                        final previewText =
+                            MessageAnchorRail.extractPreviewText(
+                              message.content,
+                            );
 
                         return Semantics(
                           button: true,
@@ -153,7 +157,9 @@ class _MessageAnchorRailState extends State<MessageAnchorRail> {
                                   if (_isExpanded && previewText.isNotEmpty)
                                     Expanded(
                                       child: Padding(
-                                        padding: const EdgeInsets.only(right: 8),
+                                        padding: const EdgeInsets.only(
+                                          right: 8,
+                                        ),
                                         child: Text(
                                           previewText,
                                           maxLines: 1,
@@ -168,14 +174,18 @@ class _MessageAnchorRailState extends State<MessageAnchorRail> {
                                     height: 18,
                                     child: Center(
                                       child: AnimatedContainer(
-                                        duration: const Duration(milliseconds: 167),
+                                        duration: const Duration(
+                                          milliseconds: 167,
+                                        ),
                                         width: isActive ? 14 : 10,
                                         height: isActive ? 6 : 4,
                                         decoration: BoxDecoration(
                                           color: isActive
                                               ? theme.colorScheme.primary
                                               : theme.colorScheme.outline,
-borderRadius: BorderRadius.circular(14),
+                                          borderRadius: BorderRadius.circular(
+                                            14,
+                                          ),
                                         ),
                                       ),
                                     ),

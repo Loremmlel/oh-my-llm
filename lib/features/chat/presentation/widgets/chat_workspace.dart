@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
@@ -21,7 +22,7 @@ class ChatWorkspace extends StatelessWidget {
     required this.selectedProviderId,
     required this.selectedModel,
     required this.userMessages,
-    required this.activeAnchorMessageId,
+    required this.activeAnchorMessageIdListenable,
     required this.messageController,
     required this.messageFocusNode,
     required this.templatePrompts,
@@ -39,9 +40,9 @@ class ChatWorkspace extends StatelessWidget {
     required this.isAutoRetryWaiting,
     required this.errorMessage,
     required this.errorMessageAssistantId,
-    this.emptyReplyAssistantId,
+    required this.emptyReplyAssistantId,
     required this.errorModelDisplayName,
-    required this.showScrollToBottom,
+    required this.showScrollToBottomListenable,
     required this.autoRetryCount,
     required this.excludedMessageCount,
     required this.onEditMessage,
@@ -64,7 +65,6 @@ class ChatWorkspace extends StatelessWidget {
     required this.onStopStreaming,
     this.onFavoritePressed,
     this.favoritedAssistantContents = const {},
-    this.onScroll,
     super.key,
   });
 
@@ -76,7 +76,7 @@ class ChatWorkspace extends StatelessWidget {
   final String? selectedProviderId;
   final LlmModelConfig? selectedModel;
   final List<ChatMessage> userMessages;
-  final String? activeAnchorMessageId;
+  final ValueListenable<String?> activeAnchorMessageIdListenable;
   final TextEditingController messageController;
   final FocusNode messageFocusNode;
   final List<TemplatePrompt> templatePrompts;
@@ -96,7 +96,7 @@ class ChatWorkspace extends StatelessWidget {
   final String? errorMessageAssistantId;
   final String? emptyReplyAssistantId;
   final String errorModelDisplayName;
-  final bool showScrollToBottom;
+  final ValueListenable<bool> showScrollToBottomListenable;
   final int autoRetryCount;
   final int excludedMessageCount;
   final ValueChanged<ChatMessage> onEditMessage;
@@ -125,9 +125,6 @@ class ChatWorkspace extends StatelessWidget {
   /// 已收藏的助手消息内容集合，用于显示收藏高亮状态。
   final Set<String> favoritedAssistantContents;
 
-  /// 滚动时的回调，用于触发 State 重建（如锚点折起）。
-  final VoidCallback? onScroll;
-
   @override
   /// 构建消息区、错误提示和输入区的整体布局。
   Widget build(BuildContext context) {
@@ -140,7 +137,7 @@ class ChatWorkspace extends StatelessWidget {
             messages: messages,
             userMessages: userMessages,
             hasModels: hasModels,
-            activeAnchorMessageId: activeAnchorMessageId,
+            activeAnchorMessageIdListenable: activeAnchorMessageIdListenable,
             messageItemScrollController: messageItemScrollController,
             messageItemPositionsListener: messageItemPositionsListener,
             isBusy: isBusy,
@@ -148,7 +145,7 @@ class ChatWorkspace extends StatelessWidget {
             errorMessageAssistantId: errorMessageAssistantId,
             emptyReplyAssistantId: emptyReplyAssistantId,
             errorModelDisplayName: errorModelDisplayName,
-            showScrollToBottom: showScrollToBottom,
+            showScrollToBottomListenable: showScrollToBottomListenable,
             autoRetryCount: autoRetryCount,
             onEditMessage: onEditMessage,
             onRetryLatestAssistant: onRetryLatestAssistant,
@@ -159,7 +156,6 @@ class ChatWorkspace extends StatelessWidget {
             onSelectMessageVersion: onSelectMessageVersion,
             onFavoritePressed: onFavoritePressed,
             favoritedAssistantContents: favoritedAssistantContents,
-            onScroll: onScroll,
           ),
         ),
         const SizedBox(height: 12),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/utils/date_formatting.dart';
 import '../../../chat/domain/models/chat_conversation_summary.dart';
 
 /// 历史页中的单个会话条目。
@@ -60,9 +61,19 @@ class HistoryConversationTile extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 6),
-                    Text(
-                      '更新时间：${conversation.updatedAt.toLocal()}',
-                      style: theme.textTheme.bodySmall,
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.schedule_rounded,
+                          size: 14,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          formatDateTime(conversation.updatedAt.toLocal()),
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ],
                     ),
                   ],
                 ),
