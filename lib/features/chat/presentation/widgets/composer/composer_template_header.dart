@@ -6,7 +6,6 @@ class ComposerTemplateHeader extends StatelessWidget {
   const ComposerTemplateHeader({
     required this.selectedTemplatePrompt,
     required this.templatePrompts,
-    required this.isBusy,
     required this.onTemplatePromptSelected,
     required this.onToggleComposerCollapsed,
     super.key,
@@ -14,7 +13,6 @@ class ComposerTemplateHeader extends StatelessWidget {
 
   final TemplatePrompt? selectedTemplatePrompt;
   final List<TemplatePrompt> templatePrompts;
-  final bool isBusy;
   final ValueChanged<String?> onTemplatePromptSelected;
   final VoidCallback onToggleComposerCollapsed;
 
@@ -40,7 +38,8 @@ class ComposerTemplateHeader extends StatelessWidget {
                 );
               }),
             ],
-            onChanged: isBusy ? null : onTemplatePromptSelected,
+            // 流式期间切换模板不影响进行中的请求，仅作用于下次发送。
+            onChanged: onTemplatePromptSelected,
           ),
         ),
         const SizedBox(width: 6),

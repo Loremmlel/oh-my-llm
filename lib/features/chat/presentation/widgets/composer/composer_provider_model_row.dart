@@ -10,7 +10,6 @@ class ComposerProviderModelRow extends StatelessWidget {
     required this.modelConfigs,
     required this.selectedProviderId,
     required this.selectedModel,
-    required this.isBusy,
     required this.onProviderSelected,
     required this.onModelSelected,
     super.key,
@@ -21,7 +20,6 @@ class ComposerProviderModelRow extends StatelessWidget {
   final List<LlmModelConfig> modelConfigs;
   final String? selectedProviderId;
   final LlmModelConfig? selectedModel;
-  final bool isBusy;
   final ValueChanged<String> onProviderSelected;
   final ValueChanged<String> onModelSelected;
 
@@ -46,7 +44,8 @@ class ComposerProviderModelRow extends StatelessWidget {
                   );
                 })
                 .toList(growable: false),
-            onChanged: isBusy || modelProviders.isEmpty
+            // 流式期间切换服务商/模型只影响下次发送，进行中的请求使用发送时快照。
+            onChanged: modelProviders.isEmpty
                 ? null
                 : (value) {
                     if (value == null) {
@@ -83,7 +82,7 @@ class ComposerProviderModelRow extends StatelessWidget {
                   );
                 })
                 .toList(growable: false),
-            onChanged: isBusy || modelConfigs.isEmpty
+            onChanged: modelConfigs.isEmpty
                 ? null
                 : (value) {
                     if (value == null) {

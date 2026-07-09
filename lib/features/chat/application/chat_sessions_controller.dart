@@ -42,10 +42,10 @@ final chatConversationsProvider = Provider<List<ChatConversation>>((ref) {
 /// 全量会话的轻量摘要列表，供侧栏分组渲染。
 final chatConversationSummariesProvider =
     Provider<List<ChatConversationSummary>>((ref) {
-  return ref.watch(
-    chatSessionsProvider.select((state) => state.conversationSummaries),
-  );
-});
+      return ref.watch(
+        chatSessionsProvider.select((state) => state.conversationSummaries),
+      );
+    });
 
 /// 当前活动会话的 ID（仅在切换会话时重建）。
 final activeConversationIdProvider = Provider<String>((ref) {
@@ -70,7 +70,10 @@ final isChatCheckpointingProvider = Provider<bool>((ref) {
 final isChatBusyProvider = Provider<bool>((ref) {
   return ref.watch(
     chatSessionsProvider.select(
-      (state) => state.isStreaming || state.isCheckpointing || state.isAutoRetryWaiting,
+      (state) =>
+          state.isStreaming ||
+          state.isCheckpointing ||
+          state.isAutoRetryWaiting,
     ),
   );
 });
@@ -106,6 +109,10 @@ final chatHistoryRevisionProvider = Provider<int>((ref) {
 /// 流式进行期间，此 provider 每次 [_streamUiFlushInterval] 重建一次，
 /// 而 [chatConversationsProvider] 和 [chatHistoryRevisionProvider] 保持静止，
 /// 以此隔离高频重建的影响范围。
+///
+/// 消息列表消费方（如 [ChatMessagesPanel]）必须监听此 provider 以逐 token
+/// 刷新；配置字段（模型/预设等）读取虽也走此 provider，但相关 O(n) 计算
+/// 已在消费侧用指纹 memoize 缓解，无需单独的配置视图 provider。
 final activeChatConversationProvider = Provider<ChatConversation>((ref) {
   final state = ref.watch(chatSessionsProvider);
   return applyStreamingReplyToConversation(
@@ -182,7 +189,8 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     _requestGeneration = value;
   }
 
-  bool get _isBusy => state.isStreaming || state.isCheckpointing || state.isAutoRetryWaiting;
+  bool get _isBusy =>
+      state.isStreaming || state.isCheckpointing || state.isAutoRetryWaiting;
 
   // ── 生命周期 ────────────────────────────────────────────────────────────────
 
@@ -237,13 +245,13 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     }
 
     final nextConversation = buildEmptyConversation();
-      state = state.copyWith(
-        conversations: [nextConversation, ...state.conversations],
-        activeConversationId: nextConversation.id,
-        clearErrorMessage: true,
-        clearEmptyReply: true,
+    state = state.copyWith(
+      conversations: [nextConversation, ...state.conversations],
+      activeConversationId: nextConversation.id,
+      clearErrorMessage: true,
+      clearEmptyReply: true,
       incrementHistoryRevision: true,
-      );
+    );
     saveConversation(currentConversation);
   }
 
@@ -271,7 +279,11 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         clearEmptyReply: true,
       );
     } else {
-      state = state.copyWith(activeConversationId: id, clearErrorMessage: true, clearEmptyReply: true);
+      state = state.copyWith(
+        activeConversationId: id,
+        clearErrorMessage: true,
+        clearEmptyReply: true,
+      );
     }
   }
 
@@ -371,6 +383,9 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
   }
 
   /// 更新当前会话的模型、前置 Prompt 和思考偏好。
+  ///
+  /// 这些字段仅影响下次发送的请求构造，不干预进行中的流式请求，
+  /// 因此不做忙碌态守卫；流式期间写入后，流式落盘时会合并保留这些改动。
   void updateActiveConversationPreferences({
     String? selectedModelId,
     String? selectedCheckpointId,
@@ -381,9 +396,6 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     bool clearSelectedCheckpointId = false,
     bool clearSelectedPresetPromptId = false,
   }) {
-    if (_isBusy) {
-      return;
-    }
     updateActiveConversation(
       state.activeConversation.copyWith(
         selectedModelId: selectedModelId,
@@ -408,14 +420,13 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
   }
 
   /// 更新一组消息是否参与后续请求上下文。
+  ///
+  /// 标记排除状态只影响下次发送的请求上下文，不会干预进行中的流式请求，
+  /// 因此不做忙碌态守卫。
   Future<void> setMessagesExcluded({
     required Iterable<String> messageIds,
     required bool excluded,
   }) async {
-    if (_isBusy) {
-      return;
-    }
-
     final currentConversation = state.activeConversation;
     final validMessageIds = currentConversation.messageNodes
         .map((message) => message.id)
@@ -469,17 +480,25 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       conversationMessages: currentConversation.messages,
     );
     if (sourceCheckpointId != null && sourceContext.checkpointChain.isEmpty) {
-      throw const ChatCompletionException(ChatErrorMessages.incompatibleCheckpoint);
+      throw const ChatCompletionException(
+        ChatErrorMessages.incompatibleCheckpoint,
+      );
     }
 
     final summaryMessages = sourceCheckpointId == null
         ? currentConversation.messages
         : sourceContext.tailMessages;
     if (summaryMessages.isEmpty) {
-      throw const ChatCompletionException(ChatErrorMessages.noCheckpointContext);
+      throw const ChatCompletionException(
+        ChatErrorMessages.noCheckpointContext,
+      );
     }
 
-    state = state.copyWith(isCheckpointing: true, clearErrorMessage: true, clearEmptyReply: true);
+    state = state.copyWith(
+      isCheckpointing: true,
+      clearErrorMessage: true,
+      clearEmptyReply: true,
+    );
     try {
       final result = await chatClient.complete(
         modelConfig: modelConfig,
@@ -732,12 +751,16 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         .take(latestAssistantIndex)
         .toList(growable: false);
     final errorAssistantId = state.errorMessageAssistantId;
-    final isEmptyReplyNode = state.emptyReplyAssistantId != null && state.emptyReplyAssistantId == latestAssistant.id;
-    final isEmptyReply = latestAssistant.content.trim().isEmpty &&
+    final isEmptyReplyNode =
+        state.emptyReplyAssistantId != null &&
+        state.emptyReplyAssistantId == latestAssistant.id;
+    final isEmptyReply =
+        latestAssistant.content.trim().isEmpty &&
         latestAssistant.reasoningContent.trim().isEmpty;
-    final shouldRemoveNode = (errorAssistantId != null && errorAssistantId == latestAssistant.id)
-        || isEmptyReplyNode
-        || isEmptyReply;
+    final shouldRemoveNode =
+        (errorAssistantId != null && errorAssistantId == latestAssistant.id) ||
+        isEmptyReplyNode ||
+        isEmptyReply;
     if (shouldRemoveNode) {
       final nextTree = removeNodeFromTree(
         treeState: tree,
@@ -912,9 +935,11 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       nextSelections.remove(parentId);
     } else if (deletedIndex > 0) {
       final prevId = siblingIds[deletedIndex - 1];
-      final prevRemaining =
-          remainingSiblings.where((m) => m.id == prevId).firstOrNull;
-      nextSelections[parentId] = prevRemaining?.id ?? remainingSiblings.first.id;
+      final prevRemaining = remainingSiblings
+          .where((m) => m.id == prevId)
+          .firstOrNull;
+      nextSelections[parentId] =
+          prevRemaining?.id ?? remainingSiblings.first.id;
     } else {
       nextSelections[parentId] = remainingSiblings.first.id;
     }

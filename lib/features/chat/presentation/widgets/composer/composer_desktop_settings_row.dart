@@ -86,7 +86,8 @@ class ComposerDesktopSettingsRow extends StatelessWidget {
               ),
               OutlinedButton.icon(
                 key: const ValueKey('chat-message-filter-button'),
-                onPressed: isBusy ? null : onOpenMessageFilter,
+                // 过滤对话框只是查看/标记，不影响进行中的请求。
+                onPressed: onOpenMessageFilter,
                 icon: const Icon(Icons.filter_alt_outlined),
                 label: Text(messageFilterLabel(excludedMessageCount)),
               ),

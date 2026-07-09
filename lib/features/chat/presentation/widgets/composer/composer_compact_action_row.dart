@@ -41,7 +41,8 @@ class ComposerCompactActionRow extends StatelessWidget {
         Expanded(
           child: OutlinedButton.icon(
             key: const ValueKey('chat-secondary-settings-button'),
-            onPressed: isBusy ? null : onOpenSettings,
+            // 打开"更多设置"面板本身不影响进行中的请求。
+            onPressed: onOpenSettings,
             icon: const Icon(Icons.tune_rounded),
             label: Text(_compactSettingsSummary()),
           ),

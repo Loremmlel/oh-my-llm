@@ -53,7 +53,6 @@ class _MessageRequestFilterDialogState
   @override
   Widget build(BuildContext context) {
     final conversation = ref.watch(activeChatConversationProvider);
-    final isBusy = ref.watch(isChatBusyProvider);
     final visibleMessages = conversation.messages;
     final excludedMessageIds = conversation.excludedMessageIds.toSet();
     final stats = _MessageFilterStats.compute(
@@ -107,14 +106,12 @@ class _MessageRequestFilterDialogState
                   messages: visibleMessages,
                   excludedMessageIds: excludedMessageIds,
                   excludedCount: stats.excludedCount,
-                  isBusy: isBusy,
                   scrollController: _compactScrollController,
                 ),
                 master: _buildMasterPane(
                   context,
                   messages: visibleMessages,
                   excludedMessageIds: excludedMessageIds,
-                  isBusy: isBusy,
                   excludedCount: stats.excludedCount,
                   focusedMessageId: focusedMessageId,
                   scrollController: _masterScrollController,
@@ -173,7 +170,6 @@ class _MessageRequestFilterDialogState
     required List<ChatMessage> messages,
     required Set<String> excludedMessageIds,
     required int excludedCount,
-    required bool isBusy,
     required ScrollController scrollController,
   }) {
     if (messages.isEmpty) {
@@ -192,7 +188,8 @@ class _MessageRequestFilterDialogState
             return Align(
               alignment: Alignment.centerLeft,
               child: FilledButton.tonalIcon(
-                onPressed: isBusy || excludedCount == 0
+                // 标记排除状态只影响下次请求上下文，不影响进行中的流。
+                onPressed: excludedCount == 0
                     ? null
                     : () => _setMessagesExcluded(
                         messageIds: messages.map((message) => message.id),
@@ -214,14 +211,12 @@ class _MessageRequestFilterDialogState
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
-            onChanged: isBusy
-                ? null
-                : (included) {
-                    _setMessagesExcluded(
-                      messageIds: [message.id],
-                      excluded: !included,
-                    );
-                  },
+            onChanged: (included) {
+              _setMessagesExcluded(
+                messageIds: [message.id],
+                excluded: !included,
+              );
+            },
           );
         },
       ),
@@ -232,7 +227,6 @@ class _MessageRequestFilterDialogState
     BuildContext context, {
     required List<ChatMessage> messages,
     required Set<String> excludedMessageIds,
-    required bool isBusy,
     required int excludedCount,
     required String? focusedMessageId,
     required ScrollController scrollController,
@@ -276,7 +270,7 @@ class _MessageRequestFilterDialogState
                       ),
                     ),
                     FilledButton.tonal(
-                      onPressed: isBusy || excludedCount == 0
+                      onPressed: excludedCount == 0
                           ? null
                           : () => _setMessagesExcluded(
                               messageIds: messages.map((message) => message.id),
@@ -310,14 +304,12 @@ class _MessageRequestFilterDialogState
                           _focusedMessageId = message.id;
                         });
                       },
-                      onChanged: isBusy
-                          ? null
-                          : (included) {
-                              _setMessagesExcluded(
-                                messageIds: [message.id],
-                                excluded: !included,
-                              );
-                            },
+                      onChanged: (included) {
+                        _setMessagesExcluded(
+                          messageIds: [message.id],
+                          excluded: !included,
+                        );
+                      },
                     );
                   },
                 ),
