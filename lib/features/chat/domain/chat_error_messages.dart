@@ -27,4 +27,7 @@ class ChatErrorMessages {
 
   /// 请求未返回有效内容
   static const noValidContent = '[ERR] 请求未返回有效内容，请检查网络或重试';
+
+  /// 用户手动终止了回答
+  static const stoppedByUser = '已手动终止，点此重试';
 }

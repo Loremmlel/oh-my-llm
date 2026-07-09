@@ -61,6 +61,36 @@ mixin ChatSessionsControllerSupport on Notifier<ChatSessionsState> {
     saveConversation(conversation);
   }
 
+  /// 把流式结果（消息树）合并进当前活动会话，保留用户在流式期间
+  /// 对模型/预设/思考偏好等配置的修改。
+  ///
+  /// 流式发送时以快照 [streamingConversation] 为基底构建消息树，但流式期间
+  /// 用户可能解锁了配置下拉并改动了 [state.activeConversation] 的 modelId/
+  /// presetId/reasoning 等字段。落盘时若直接用 [streamingConversation] 覆盖，
+  /// 会丢失这些改动。因此以当前活动会话为基底，只替换消息树与时间戳。
+  ///
+  /// 调用契约：[streamingConversation] 必须是发起流式时的活动会话，且流式
+  /// 期间活动会话不可被切换（由 [ChatSessionsController] 的会话切换守卫
+  /// 保证）。下方 assert 仅在 debug 模式校验此契约；若 release 下违反，
+  /// 消息树会写入当前活动会话（可能非流式发起方），属调用方 bug。
+  ChatConversation mergeStreamingResultIntoActive({
+    required ChatConversation streamingConversation,
+    required List<ChatMessage> messageNodes,
+    required Map<String, String> selectedChildByParentId,
+  }) {
+    final active = state.activeConversation;
+    assert(
+      streamingConversation.id == active.id,
+      'streamingConversation 必须属于当前活动会话；'
+      '流式期间切换活动会话会导致消息树写入错误会话',
+    );
+    return active.copyWith(
+      messageNodes: messageNodes,
+      selectedChildByParentId: selectedChildByParentId,
+      updatedAt: DateTime.now(),
+    );
+  }
+
   List<ChatConversation> replaceConversation(ChatConversation conversation) {
     final conversations = [...state.conversations];
     final index = conversations.indexWhere(
@@ -159,7 +189,10 @@ mixin ChatSessionsControllerSupport on Notifier<ChatSessionsState> {
   }
 
   void setErrorMessage(String message) {
-    state = state.copyWith(errorMessage: message, errorMessageAssistantId: null);
+    state = state.copyWith(
+      errorMessage: message,
+      errorMessageAssistantId: null,
+    );
   }
 
   ChatConversationSummary summaryFromConversation(ChatConversation conv) {

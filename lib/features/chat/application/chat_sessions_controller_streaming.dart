@@ -48,32 +48,36 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
   ///
   /// OpenAI 兼容接口没有显式的"停止生成"API 端点，关闭 TCP 连接是唯一的
   /// 标准方式。主流 LLM 服务（OpenAI、DeepSeek、Google 等）均支持此机制。
+  ///
+  /// 统一处理三种终止场景：自动重试等待中、流式间隙、流式进行中。
+  /// 无论哪种场景，都会取消可能存在的 subscription 并 complete 对应 completer，
+  /// 避免 [sendMessageWithAutoRetry] 的 await 永久挂起，从而一次点击即可终止。
   Future<ChatConversation?> stopStreaming() async {
-    if (state.isAutoRetryWaiting) {
-      autoRetryCancelled = true;
-      state = state.copyWith(
-        isAutoRetryWaiting: false,
-        clearAutoRetryCount: true,
-        clearErrorMessage: true,
-        clearEmptyReply: true,
-      );
-      return null;
-    }
-
-    if (!state.isStreaming) {
-      autoRetryCancelled = true;
-      return null;
-    }
-
+    autoRetryCancelled = true;
     streamStopRequested = true;
+
+    // 取消可能存在的流式订阅（流式进行中才有值；间隙/等待态下为 null）。
     final subscription = activeStreamingSubscription;
     activeStreamingSubscription = null;
     await subscription?.cancel();
 
+    // complete completer，避免 streamAssistantReply 的 future 永久挂起。
+    final streamingReply = latestStreamingReply ?? state.streamingReply;
     final stoppedConversation = buildConversationAfterStreamingInterrupt(
       conversation: state.activeConversation,
-      streamingReply: latestStreamingReply ?? state.streamingReply,
+      streamingReply: streamingReply,
     );
+
+    final wasStreaming = state.isStreaming;
+    final assistantMessageId = streamingReply?.assistantMessageId;
+
+    // 未收到任何模型内容时，保留空占位节点并标记空回复，便于用户重试；
+    // 收到部分内容则保留已生成内容。
+    final isEmpty = streamingReply == null ||
+        (streamingReply.content.trim().isEmpty &&
+            streamingReply.reasoningContent.trim().isEmpty);
+    final shouldMarkEmptyReply = isEmpty && assistantMessageId != null;
+
     state = state.copyWith(
       conversations: replaceConversation(stoppedConversation),
       conversationSummaries: replaceOrAddSummary(
@@ -81,14 +85,23 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
         summaryFromConversation(stoppedConversation),
       ),
       isStreaming: false,
+      isAutoRetryWaiting: false,
+      clearAutoRetryCount: true,
       clearStreamingReply: true,
-      clearErrorMessage: true,
-      clearEmptyReply: true,
       incrementHistoryRevision: true,
+      // 未收到内容时标记空回复 + 终止错误，让气泡显示提示卡片与重试入口。
+      emptyReplyAssistantId: shouldMarkEmptyReply ? assistantMessageId : null,
+      errorMessage: shouldMarkEmptyReply ? ChatErrorMessages.stoppedByUser : null,
+      errorMessageAssistantId:
+          shouldMarkEmptyReply ? assistantMessageId : null,
+      // 收到部分内容时清空错误/空回复标记。
+      clearErrorMessage: !shouldMarkEmptyReply,
+      clearEmptyReply: !shouldMarkEmptyReply,
     );
     saveConversation(stoppedConversation);
 
-    completeActiveStreaming(stoppedConversation);
+    // 仅在确有流式会话时 complete 并清理，否则只清理残留标志。
+    completeActiveStreaming(wasStreaming ? stoppedConversation : null);
     clearActiveStreamingSession();
     return stoppedConversation;
   }
@@ -119,10 +132,10 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
             isStreaming: false,
           );
 
-    final nextConversation = conversation.copyWith(
+    final nextConversation = mergeStreamingResultIntoActive(
+      streamingConversation: conversation,
       messageNodes: nextTree.nodes,
       selectedChildByParentId: nextTree.selections,
-      updatedAt: DateTime.now(),
     );
 
     state = state.copyWith(
@@ -224,18 +237,19 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
 
       // 空回复：移除空白占位节点，走失败路径触发重试
       if (_isEmptyStreamingReply(streamingReply: streamingReply)) {
-        final tree = resolveMessageTreeState(streamingConversation);
+        final cleanedTree = resolveMessageTreeState(streamingConversation);
         final nextTree = replaceAssistantMessageInTree(
-          treeState: tree,
+          treeState: cleanedTree,
           assistantMessageId: assistantMessage.id,
           nextContent: '',
           nextReasoningContent: '',
           isStreaming: false,
         );
-        final cleanedConversation = streamingConversation.copyWith(
+        // 以当前活动会话为基底合并，保留用户在流式期间改动的配置。
+        final cleanedConversation = mergeStreamingResultIntoActive(
+          streamingConversation: streamingConversation,
           messageNodes: nextTree.nodes,
           selectedChildByParentId: nextTree.selections,
-          updatedAt: DateTime.now(),
         );
         if (anyChunkYielded) {
           // 收到过内容但最终为空 → 模型侧返回了空回复
@@ -273,11 +287,17 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
         return;
       }
 
-      final completedConversation = applyStreamingReplyToConversation(
+      final streamingTree = applyStreamingReplyToConversation(
         conversation: streamingConversation,
         streamingReply: streamingReply,
         isStreaming: false,
-      ).copyWith(updatedAt: DateTime.now());
+      );
+      // 以当前活动会话为基底合并，保留用户在流式期间改动的模型/预设等配置。
+      final completedConversation = mergeStreamingResultIntoActive(
+        streamingConversation: streamingConversation,
+        messageNodes: streamingTree.messageNodes,
+        selectedChildByParentId: streamingTree.selectedChildByParentId,
+      );
 
       state = state.copyWith(
         conversations: replaceConversation(completedConversation),
@@ -378,26 +398,22 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
       return conversation.copyWith(updatedAt: DateTime.now());
     }
 
-    final hasPartialContent =
-        !_isEmptyStreamingReply(streamingReply: streamingReply);
     final tree = resolveMessageTreeState(conversation);
-    final nextTree = hasPartialContent
-        ? replaceAssistantMessageInTree(
-            treeState: tree,
-            assistantMessageId: streamingReply.assistantMessageId,
-            nextContent: streamingReply.content,
-            nextReasoningContent: streamingReply.reasoningContent,
-            isStreaming: false,
-          )
-        : removeNodeFromTree(
-            treeState: tree,
-            nodeId: streamingReply.assistantMessageId,
-          );
+    // 无论是否收到内容，都保留助手占位节点：有内容则写入部分内容，
+    // 无内容则写空并标记 isStreaming=false，让 UI 显示终止提示卡片与重试入口，
+    // 避免直接删除节点导致用户无法重试。
+    final nextTree = replaceAssistantMessageInTree(
+      treeState: tree,
+      assistantMessageId: streamingReply.assistantMessageId,
+      nextContent: streamingReply.content,
+      nextReasoningContent: streamingReply.reasoningContent,
+      isStreaming: false,
+    );
 
-    return conversation.copyWith(
+    return mergeStreamingResultIntoActive(
+      streamingConversation: conversation,
       messageNodes: nextTree.nodes,
       selectedChildByParentId: nextTree.selections,
-      updatedAt: DateTime.now(),
     );
   }
 
