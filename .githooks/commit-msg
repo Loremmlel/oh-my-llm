@@ -25,9 +25,12 @@ fi
 
 # ═══════════════════════════════════════════════════════════════
 # 2. 提取当前版本号（格式：x.y.z+n）
+#    优先从 HEAD 读取，避免暂存区已有手动改动时重复递增。
 # ═══════════════════════════════════════════════════════════════
-CURRENT_LINE=$(grep '^version:' "$PUBSPEC" | head -1)
-CURRENT_VERSION=$(echo "$CURRENT_LINE" | sed 's/^version:[[:space:]]*//')
+CURRENT_VERSION=$(git show HEAD:"$PUBSPEC" 2>/dev/null | grep '^version:' | head -1 | sed 's/^version:[[:space:]]*//')
+if [ -z "$CURRENT_VERSION" ]; then
+    CURRENT_VERSION=$(grep '^version:' "$PUBSPEC" | head -1 | sed 's/^version:[[:space:]]*//')
+fi
 
 SEMVER=$(echo "$CURRENT_VERSION" | cut -d'+' -f1)
 BUILD=$(echo "$CURRENT_VERSION" | cut -d'+' -f2)
