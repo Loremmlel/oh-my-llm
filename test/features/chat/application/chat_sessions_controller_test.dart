@@ -741,7 +741,7 @@ void main() {
     expect(state.activeConversation.messages.last.isStreaming, isFalse);
   });
 
-  test('stopStreaming 在无内容时移除空白助手占位', () async {
+  test('stopStreaming 在无内容时保留空助手占位以便重试', () async {
     final streamController = StreamController<ChatCompletionChunk>();
     addTearDown(streamController.close);
     fakeClient.enqueueStream(streamController.stream);
@@ -752,12 +752,17 @@ void main() {
     await container.read(chatSessionsProvider.notifier).stopStreaming();
     await sendFuture;
 
-    final messages = container
-        .read(chatSessionsProvider)
-        .activeConversation
-        .messages;
-    expect(messages, hasLength(1));
-    expect(messages.single.role, ChatMessageRole.user);
+    final state = container.read(chatSessionsProvider);
+    final messages = state.activeConversation.messages;
+    // 终止后保留空助手占位节点，便于用户重试。
+    expect(messages, hasLength(2));
+    expect(messages.first.role, ChatMessageRole.user);
+    expect(messages.last.role, ChatMessageRole.assistant);
+    expect(messages.last.content, isEmpty);
+    expect(messages.last.isStreaming, isFalse);
+    // 空回复标记指向该助手节点，UI 可显示终止提示卡片。
+    expect(state.emptyReplyAssistantId, messages.last.id);
+    expect(state.errorMessageAssistantId, messages.last.id);
   });
 
   test('deleteMessage 删除当前助手分支后回退到剩余版本', () async {
@@ -1194,7 +1199,7 @@ void main() {
     expect(state.activeConversation.messages.last.content, isEmpty);
   });
 
-  test('stopStreaming 清除 emptyReplyAssistantId', () async {
+  test('stopStreaming 将 emptyReplyAssistantId 指向当前流式占位', () async {
     final streamController = StreamController<ChatCompletionChunk>();
     addTearDown(streamController.close);
     fakeClient.enqueueStream(streamController.stream);
@@ -1202,7 +1207,7 @@ void main() {
     final sendFuture = sendMsg('开始流式');
     await Future<void>.delayed(const Duration(milliseconds: 1));
 
-    // 手动设置 emptyReplyAssistantId
+    // 手动设置一个伪造的 emptyReplyAssistantId，模拟残留状态。
     final notifier = container.read(chatSessionsProvider.notifier);
     notifier.state = notifier.state.copyWith(emptyReplyAssistantId: 'test-id');
     expect(container.read(chatSessionsProvider).emptyReplyAssistantId, 'test-id');
@@ -1210,7 +1215,15 @@ void main() {
     await notifier.stopStreaming();
     await sendFuture;
 
-    expect(container.read(chatSessionsProvider).emptyReplyAssistantId, isNull);
+    final state = container.read(chatSessionsProvider);
+    // 流式未收到任何内容即被终止，emptyReplyAssistantId 被重置为当前
+    // 流式占位节点 id，以便 UI 显示终止提示卡片与重试入口。
+    final assistantId = state.streamingReply?.assistantMessageId ??
+        state.activeConversation.messages
+            .lastWhere((m) => m.role == ChatMessageRole.assistant)
+            .id;
+    expect(state.emptyReplyAssistantId, assistantId);
+    expect(state.isStreaming, isFalse);
   });
 
   test('createConversation 清除 emptyReplyAssistantId', () async {
