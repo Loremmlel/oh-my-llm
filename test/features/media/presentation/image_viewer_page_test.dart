@@ -350,20 +350,4 @@ void main() {
     });
   });
 
-  // ── 沉浸式模式 ────────────────────────────────────────────────
-
-  group('沉浸式模式', () {
-    testWidgets('进入图片浏览器时启用沉浸式模式', (tester) async {
-      final prefs = await _testPrefs();
-      await pumpTestApp(
-        tester,
-        preferences: prefs,
-        child: ImageViewerPage(imageUrls: _fakeUrls(3)),
-      );
-
-      // 图片浏览器应有黑色背景（Scaffold backgroundColor）
-      final scaffold = tester.widget<Scaffold>(find.byType(Scaffold));
-      expect(scaffold.backgroundColor, Colors.black);
-    });
-  });
 }

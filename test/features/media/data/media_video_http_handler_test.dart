@@ -163,12 +163,6 @@ void main() {
 
     // ── 安全 ──
 
-    test('路径穿越在 scanner 层面被拦截（HTTP 级归 scanner 覆盖）', () {
-      // 穿越检测的核心逻辑在 MediaDirectoryScanner.resolvePath 中已测试
-      // HTTP 层面因 Uri.parse / http 包会规范化 .. 路径，无法发送原始 .. 请求
-      // 安全覆盖由 media_directory_scanner_test.dart 保证
-    }, skip: false);
-
     test('不存在的文件返回 404', () async {
       final response = await http.get(
         Uri.parse('http://127.0.0.1:$port/api/media/video/不存在.mp4'),

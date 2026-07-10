@@ -162,6 +162,24 @@ void _resetTracking(FakeVideoPlayerController c) {
   c.pauseCallCount = 0;
 }
 
+/// 视频区域左四分之一处（用于双击快退）。
+Offset _leftHalf(WidgetTester tester) {
+  final rect = tester.getRect(find.byType(VideoPlayerPage));
+  return Offset(rect.left + rect.width * 0.25, rect.center.dy);
+}
+
+/// 视频区域右四分之一处（用于双击快进）。
+Offset _rightHalf(WidgetTester tester) {
+  final rect = tester.getRect(find.byType(VideoPlayerPage));
+  return Offset(rect.left + rect.width * 0.75, rect.center.dy);
+}
+
+/// 视频区域中心（用于长按/拖动）。
+Offset _center(WidgetTester tester) {
+  final rect = tester.getRect(find.byType(VideoPlayerPage));
+  return rect.center;
+}
+
 /// 排出 DoubleTapGestureRecognizer 的挂起计时器。
 ///
 /// Phase 6 新增了 onDoubleTap 后，每次 tap 都会启动 ~300ms 的
@@ -256,9 +274,9 @@ void main() {
       await _pumpInit(tester, controller: fakeController);
 
       // 点击左半屏双击
-      await tester.tapAt(const Offset(200, 300));
+      await tester.tapAt(_leftHalf(tester));
       await tester.pump(const Duration(milliseconds: 100));
-      await tester.tapAt(const Offset(200, 300));
+      await tester.tapAt(_leftHalf(tester));
       await tester.pump(const Duration(milliseconds: 100));
 
       expect(fakeController.seekToCalls, isNotEmpty);
@@ -273,9 +291,9 @@ void main() {
           _buildTestPageWithFake(fakeController: fakeController));
       await _pumpInit(tester, controller: fakeController);
 
-      await tester.tapAt(const Offset(600, 300));
+      await tester.tapAt(_rightHalf(tester));
       await tester.pump(const Duration(milliseconds: 100));
-      await tester.tapAt(const Offset(600, 300));
+      await tester.tapAt(_rightHalf(tester));
       await tester.pump(const Duration(milliseconds: 100));
 
       expect(fakeController.seekToCalls, isNotEmpty);
@@ -290,9 +308,9 @@ void main() {
           _buildTestPageWithFake(fakeController: fakeController));
       await _pumpInit(tester, controller: fakeController);
 
-      await tester.tapAt(const Offset(200, 300));
+      await tester.tapAt(_leftHalf(tester));
       await tester.pump(const Duration(milliseconds: 100));
-      await tester.tapAt(const Offset(200, 300));
+      await tester.tapAt(_leftHalf(tester));
       await tester.pump(const Duration(milliseconds: 100));
 
       expect(fakeController.seekToCalls.last, Duration.zero);
@@ -306,9 +324,9 @@ void main() {
           _buildTestPageWithFake(fakeController: fakeController));
       await _pumpInit(tester, controller: fakeController);
 
-      await tester.tapAt(const Offset(600, 300));
+      await tester.tapAt(_rightHalf(tester));
       await tester.pump(const Duration(milliseconds: 100));
-      await tester.tapAt(const Offset(600, 300));
+      await tester.tapAt(_rightHalf(tester));
       await tester.pump(const Duration(milliseconds: 100));
 
       expect(fakeController.seekToCalls.last, fakeController.fakeDuration);
@@ -321,9 +339,9 @@ void main() {
           _buildTestPageWithFake(fakeController: fakeController));
       await _pumpInit(tester, controller: fakeController);
 
-      await tester.tapAt(const Offset(600, 300));
+      await tester.tapAt(_rightHalf(tester));
       await tester.pump(const Duration(milliseconds: 100));
-      await tester.tapAt(const Offset(600, 300));
+      await tester.tapAt(_rightHalf(tester));
       await tester.pump(const Duration(milliseconds: 100));
 
       // 中央提示显示 "15s" 文字
@@ -337,9 +355,9 @@ void main() {
           _buildTestPageWithFake(fakeController: fakeController));
       await _pumpInit(tester, controller: fakeController);
 
-      await tester.tapAt(const Offset(600, 300));
+      await tester.tapAt(_rightHalf(tester));
       await tester.pump(const Duration(milliseconds: 100));
-      await tester.tapAt(const Offset(600, 300));
+      await tester.tapAt(_rightHalf(tester));
       await tester.pump(const Duration(milliseconds: 100));
 
       expect(find.text('15s'), findsOneWidget);
@@ -363,7 +381,7 @@ void main() {
           _buildTestPageWithFake(fakeController: fakeController));
       await _pumpInit(tester, controller: fakeController);
 
-      final gesture = await tester.startGesture(const Offset(400, 300));
+      final gesture = await tester.startGesture(_center(tester));
       await tester.pump(const Duration(milliseconds: 600));
 
       expect(fakeController.setPlaybackSpeedCalls, isNotEmpty);
@@ -380,7 +398,7 @@ void main() {
           _buildTestPageWithFake(fakeController: fakeController));
       await _pumpInit(tester, controller: fakeController);
 
-      final gesture = await tester.startGesture(const Offset(400, 300));
+      final gesture = await tester.startGesture(_center(tester));
       await tester.pump(const Duration(milliseconds: 600));
       await gesture.up();
       await tester.pump();
@@ -398,7 +416,7 @@ void main() {
           _buildTestPageWithFake(fakeController: fakeController));
       await _pumpInit(tester, controller: fakeController);
 
-      final gesture = await tester.startGesture(const Offset(400, 300));
+      final gesture = await tester.startGesture(_center(tester));
       await tester.pump(const Duration(milliseconds: 600));
 
       expect(find.text('3.0x'), findsOneWidget);
@@ -419,7 +437,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
       await _flushGestureTimers(tester);
 
-      final gesture = await tester.startGesture(const Offset(400, 300));
+      final gesture = await tester.startGesture(_center(tester));
       await tester.pump(const Duration(milliseconds: 600));
 
       // setPlaybackSpeed 不应被调用
@@ -438,7 +456,7 @@ void main() {
           _buildTestPageWithFake(fakeController: fakeController));
       await _pumpInit(tester, controller: fakeController);
 
-      final gesture = await tester.startGesture(const Offset(400, 300));
+      final gesture = await tester.startGesture(_center(tester));
       await tester.pump(const Duration(milliseconds: 600));
 
       // 播放结束后 _hasEnded=true，长按不应触发 setPlaybackSpeed
@@ -464,7 +482,7 @@ void main() {
 
       // 使用 dragFrom 在 Scaffold 区域拖动（避开不可 hit test 的 VideoPlayer）
       await tester.dragFrom(
-        const Offset(400, 300),
+        _center(tester),
         const Offset(100, 0),
       );
       await tester.pump();
@@ -482,7 +500,7 @@ void main() {
       await _pumpInit(tester, controller: fakeController);
 
       await tester.dragFrom(
-        const Offset(400, 300),
+        _center(tester),
         const Offset(-200, 0),
       );
       await tester.pump();
@@ -501,7 +519,7 @@ void main() {
       expect(find.byIcon(Icons.arrow_back), findsOneWidget);
 
       await tester.dragFrom(
-        const Offset(400, 300),
+        _center(tester),
         const Offset(100, 0),
       );
       await tester.pump();
@@ -525,9 +543,9 @@ void main() {
 
       expect(find.byIcon(Icons.arrow_back), findsOneWidget);
 
-      await tester.tapAt(const Offset(600, 300));
+      await tester.tapAt(_rightHalf(tester));
       await tester.pump(const Duration(milliseconds: 100));
-      await tester.tapAt(const Offset(600, 300));
+      await tester.tapAt(_rightHalf(tester));
       await tester.pump(const Duration(milliseconds: 100));
 
       // 中央提示显示了（说明手势已触发）
@@ -541,9 +559,9 @@ void main() {
           _buildTestPageWithFake(fakeController: fakeController));
       await _pumpInit(tester, controller: fakeController);
 
-      await tester.tapAt(const Offset(600, 300));
+      await tester.tapAt(_rightHalf(tester));
       await tester.pump(const Duration(milliseconds: 100));
-      await tester.tapAt(const Offset(600, 300));
+      await tester.tapAt(_rightHalf(tester));
       await tester.pump(const Duration(milliseconds: 100));
 
       expect(find.text('15s'), findsOneWidget);
@@ -561,7 +579,7 @@ void main() {
           _buildTestPageWithFake(fakeController: fakeController));
       await _pumpInit(tester, controller: fakeController);
 
-      final gesture = await tester.startGesture(const Offset(400, 300));
+      final gesture = await tester.startGesture(_center(tester));
       await tester.pump(const Duration(milliseconds: 600));
 
       expect(find.text('3.0x'), findsOneWidget);
@@ -610,9 +628,9 @@ void main() {
           _buildTestPageWithFake(fakeController: fakeController));
       await _pumpInit(tester, controller: fakeController);
 
-      await tester.tapAt(const Offset(600, 300));
+      await tester.tapAt(_rightHalf(tester));
       await tester.pump(const Duration(milliseconds: 100));
-      await tester.tapAt(const Offset(600, 300));
+      await tester.tapAt(_rightHalf(tester));
       await tester.pump(const Duration(milliseconds: 100));
 
       // 播放图标不应该出现（showPauseIcon=false when _isPlaying=true）
@@ -644,7 +662,7 @@ void main() {
       await _pumpInit(tester, controller: fakeController);
 
       // 点击视频区域（由于 onTap 有 300ms double-tap delay，需要等待）
-      await tester.tapAt(const Offset(400, 300));
+      await tester.tapAt(_center(tester));
       await tester.pump(const Duration(milliseconds: 500));
 
       // Slider 仍在树中（AnimatedOpacity 控制可见性，不从树中移除）
