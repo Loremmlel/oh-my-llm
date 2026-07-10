@@ -16,7 +16,6 @@ import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/core/persistence/versioned_json_storage.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
-import 'package:oh_my_llm/features/chat/data/chat_completion_client.dart';
 import 'package:oh_my_llm/features/chat/data/openai_compatible_chat_client.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/settings/application/preset_prompts_controller.dart';
@@ -24,9 +23,6 @@ import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dar
 import 'package:oh_my_llm/features/settings/data/preset_prompt_repository.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
-import 'package:oh_my_llm/features/settings/domain/models/prompt_message.dart';
-import 'package:oh_my_llm/features/settings/domain/models/prompt_message_placement.dart';
-import 'package:oh_my_llm/features/settings/domain/models/prompt_message_role.dart';
 
 import '../features/chat/chat_screen/chat_screen_test_helpers.dart';
 import '../helpers/integration_test_helpers.dart';
