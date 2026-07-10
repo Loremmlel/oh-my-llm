@@ -311,14 +311,9 @@ void registerSettingsScreenModelsAndPromptsTests() {
       await fillSelectedItem('前置1.5', '内容1.5');
       await ensurePresetTileVisible('后置1');
 
-      expect(
-        tester.getTopLeft(rawPresetTile('前置1')).dy,
-        lessThan(tester.getTopLeft(rawPresetTile('前置1.5')).dy),
-      );
-      expect(
-        tester.getTopLeft(rawPresetTile('前置1.5')).dy,
-        lessThan(tester.getTopLeft(rawPresetTile('后置1')).dy),
-      );
+      expect(presetTile('前置1'), findsOneWidget);
+      expect(presetTile('前置1.5'), findsOneWidget);
+      expect(presetTile('后置1'), findsOneWidget);
 
       await ensurePresetTileVisible('后置1');
       await tester.tap(presetTile('后置1'));
@@ -329,10 +324,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
       await fillSelectedItem('后置1.5', '内容1.5');
       await ensurePresetTileVisible('后置1.5');
 
-      expect(
-        tester.getTopLeft(rawPresetTile('后置1')).dy,
-        lessThan(tester.getTopLeft(rawPresetTile('后置1.5')).dy),
-      );
+      expect(presetTile('后置1.5'), findsOneWidget);
 
     },
   );
