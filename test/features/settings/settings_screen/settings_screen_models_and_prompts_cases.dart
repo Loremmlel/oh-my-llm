@@ -7,7 +7,6 @@ import 'package:oh_my_llm/features/settings/data/sqlite_memory_prompt_repository
 import 'package:oh_my_llm/features/settings/data/sqlite_preset_prompt_repository.dart';
 import 'package:oh_my_llm/features/settings/data/sqlite_template_prompt_repository.dart';
 import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
-import 'package:oh_my_llm/features/settings/presentation/settings_screen.dart';
 
 import 'settings_screen_test_helpers.dart';
 
