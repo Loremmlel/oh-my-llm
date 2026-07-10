@@ -4,10 +4,13 @@ import 'package:oh_my_llm/features/settings/domain/models/chat_defaults.dart';
 void main() {
   group('ChatDefaults', () {
     test('copyWith 清空 defaultModelId', () {
-      const defaults = ChatDefaults(defaultModelId: 'model-1');
+      const defaults = ChatDefaults(
+        defaultModelId: 'model-1',
+        defaultPresetPromptId: 'preset-1',
+      );
       final cleared = defaults.copyWith(clearDefaultModelId: true);
       expect(cleared.defaultModelId, isNull);
-      expect(cleared.defaultPresetPromptId, isNull);
+      expect(cleared.defaultPresetPromptId, 'preset-1');
     });
 
     test('copyWith 清空 defaultPresetPromptId', () {
