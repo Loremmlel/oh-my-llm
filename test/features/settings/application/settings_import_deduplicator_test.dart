@@ -6,6 +6,7 @@ import 'package:oh_my_llm/features/settings/domain/models/fixed_prompt_sequence.
 import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/memory_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/models/font_size_settings.dart';
 import 'package:oh_my_llm/features/settings/domain/models/settings_export_data.dart';
 import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
 
@@ -109,6 +110,7 @@ void main() {
     List<TemplatePrompt> templatePrompts = const [],
     List<FixedPromptSequence> fixedPromptSequences = const [],
     AutoRetrySettings? autoRetrySettings,
+    FontSizeSettings? fontSizeSettings,
   }) {
     return SettingsExportData(
       modelProviders: modelProviders,
@@ -117,6 +119,7 @@ void main() {
       templatePrompts: templatePrompts,
       fixedPromptSequences: fixedPromptSequences,
       autoRetrySettings: autoRetrySettings,
+      fontSizeSettings: fontSizeSettings,
     );
   }
 
@@ -466,6 +469,21 @@ void main() {
 
       expect(result.hasContent, isTrue);
       expect(result.autoRetrySettings, isNotNull);
+    });
+
+    test('保留 fontSizeSettings（透传，不做去重）', () {
+      final data = export(
+        fontSizeSettings: const FontSizeSettings(bodyFontSize: 18),
+      );
+      final result = deduplicator.deduplicate(
+        data: data,
+        existingProviders: const [],
+        existingMemoryPrompts: const [],
+        existingPresetPrompts: const [],
+        existingTemplatePrompts: const [],
+        existingSequences: const [],
+      );
+      expect(result.fontSizeSettings?.bodyFontSize, 18);
     });
   });
 }
