@@ -73,34 +73,34 @@ class _SeededSyncClientController extends SyncClientController {
 // ── 测试主体 ────────────────────────────────────────────────────────────────
 
 void main() {
-  group('SyncClientController 状态机', () {
-    late SharedPreferences preferences;
-    late AppDatabase database;
+  late SharedPreferences preferences;
+  late AppDatabase database;
 
-    setUp(() async {
-      SharedPreferences.setMockInitialValues({});
-      preferences = await SharedPreferences.getInstance();
-      database = AppDatabase.inMemory();
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    preferences = await SharedPreferences.getInstance();
+    database = AppDatabase.inMemory();
+  });
+
+  ProviderContainer buildContainer({SyncClientState? seed}) {
+    final container = ProviderContainer(
+      overrides: [
+        appDatabaseProvider.overrideWithValue(database),
+        sharedPreferencesProvider.overrideWithValue(preferences),
+        if (seed != null)
+          syncClientControllerProvider.overrideWith(
+            () => _SeededSyncClientController(seed),
+          ),
+      ],
+    );
+    addTearDown(() {
+      container.dispose();
+      database.close();
     });
+    return container;
+  }
 
-    ProviderContainer buildContainer({SyncClientState? seed}) {
-      final container = ProviderContainer(
-        overrides: [
-          appDatabaseProvider.overrideWithValue(database),
-          sharedPreferencesProvider.overrideWithValue(preferences),
-          if (seed != null)
-            syncClientControllerProvider.overrideWith(
-              () => _SeededSyncClientController(seed),
-            ),
-        ],
-      );
-      addTearDown(() {
-        container.dispose();
-        database.close();
-      });
-      return container;
-    }
-
+  group('SyncClientController 状态机', () {
     test('build 初始状态为 idle', () {
       final container = buildContainer();
       final state = container.read(syncClientControllerProvider);
@@ -185,33 +185,6 @@ void main() {
   });
 
   group('SyncClientController.requestSync 分支', () {
-    late SharedPreferences preferences;
-    late AppDatabase database;
-
-    setUp(() async {
-      SharedPreferences.setMockInitialValues({});
-      preferences = await SharedPreferences.getInstance();
-      database = AppDatabase.inMemory();
-    });
-
-    ProviderContainer buildContainer({SyncClientState? seed}) {
-      final container = ProviderContainer(
-        overrides: [
-          appDatabaseProvider.overrideWithValue(database),
-          sharedPreferencesProvider.overrideWithValue(preferences),
-          if (seed != null)
-            syncClientControllerProvider.overrideWith(
-              () => _SeededSyncClientController(seed),
-            ),
-        ],
-      );
-      addTearDown(() {
-        container.dispose();
-        database.close();
-      });
-      return container;
-    }
-
     test('无 server 时提前返回，phase 不变', () async {
       final container = buildContainer(
         seed: SyncClientState(

@@ -1,13 +1,11 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/memory_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/settings_export_data.dart';
-import 'package:oh_my_llm/features/sync/presentation/widgets/sync_import_confirm_dialog.dart';
 
-import '../../../helpers/test_harness.dart';
+import 'sync_screen_test_helpers.dart';
 
 void registerSyncScreenImportDialogTests() {
   group('SyncImportConfirmDialog', () {
@@ -51,27 +49,11 @@ void registerSyncScreenImportDialogTests() {
     }
 
     testWidgets('显示来源设备名和各分类数量', (tester) async {
-      await pumpTestApp(
+      await pumpImportDialog(
         tester,
         preferences: preferences,
-        child: Builder(
-          builder: (context) => ElevatedButton(
-            onPressed: () {
-              showDialog<void>(
-                context: context,
-                builder: (_) => SyncImportConfirmDialog(
-                  exportData: buildTestData(),
-                  sourceDeviceName: 'TestPC',
-                ),
-              );
-            },
-            child: const Text('打开对话框'),
-          ),
-        ),
+        exportData: buildTestData(),
       );
-
-      await tester.tap(find.text('打开对话框'));
-      await tester.pumpAndSettle();
 
       expect(find.text('确认同步配置'), findsOneWidget);
       expect(find.textContaining('TestPC'), findsOneWidget);
@@ -80,32 +62,17 @@ void registerSyncScreenImportDialogTests() {
     });
 
     testWidgets('取消按钮关闭对话框', (tester) async {
-      await pumpTestApp(
+      await pumpImportDialog(
         tester,
         preferences: preferences,
-        child: Builder(
-          builder: (context) => ElevatedButton(
-            onPressed: () {
-              showDialog<void>(
-                context: context,
-                builder: (_) => const SyncImportConfirmDialog(
-                  exportData: SettingsExportData(
-                    modelProviders: [],
-                    memoryPrompts: [],
-                    presetPrompts: [],
-                    templatePrompts: [],
-                    fixedPromptSequences: [],
-                  ),
-                ),
-              );
-            },
-            child: const Text('打开对话框'),
-          ),
+        exportData: const SettingsExportData(
+          modelProviders: [],
+          memoryPrompts: [],
+          presetPrompts: [],
+          templatePrompts: [],
+          fixedPromptSequences: [],
         ),
       );
-
-      await tester.tap(find.text('打开对话框'));
-      await tester.pumpAndSettle();
       expect(find.text('确认同步配置'), findsOneWidget);
 
       await tester.tap(find.text('取消'));

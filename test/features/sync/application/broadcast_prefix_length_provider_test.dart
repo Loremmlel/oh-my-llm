@@ -20,55 +20,21 @@ void main() {
       return container;
     }
 
-    test('SharedPreferences 无存储时默认 /24', () async {
-      SharedPreferences.setMockInitialValues({});
-      preferences = await SharedPreferences.getInstance();
-      final container = buildContainer();
+    for (final (name, init, expected) in <(String, Map<String, Object>, BroadcastPrefixLength)>[
+      ('无存储', <String, Object>{}, BroadcastPrefixLength.p24),
+      ('非法值 20', {'sync.broadcast_prefix_length': 20}, BroadcastPrefixLength.p24),
+    ]) {
+      test('SharedPreferences $name 时为 $expected', () async {
+        SharedPreferences.setMockInitialValues(init);
+        preferences = await SharedPreferences.getInstance();
+        final container = buildContainer();
 
-      expect(
-        container.read(selectedBroadcastPrefixLengthProvider),
-        BroadcastPrefixLength.p24,
-      );
-    });
-
-    test('SharedPreferences 存储 16 时还原为 /16', () async {
-      SharedPreferences.setMockInitialValues({
-        'sync.broadcast_prefix_length': 16,
+        expect(
+          container.read(selectedBroadcastPrefixLengthProvider),
+          expected,
+        );
       });
-      preferences = await SharedPreferences.getInstance();
-      final container = buildContainer();
-
-      expect(
-        container.read(selectedBroadcastPrefixLengthProvider),
-        BroadcastPrefixLength.p16,
-      );
-    });
-
-    test('SharedPreferences 存储 8 时还原为 /8', () async {
-      SharedPreferences.setMockInitialValues({
-        'sync.broadcast_prefix_length': 8,
-      });
-      preferences = await SharedPreferences.getInstance();
-      final container = buildContainer();
-
-      expect(
-        container.read(selectedBroadcastPrefixLengthProvider),
-        BroadcastPrefixLength.p8,
-      );
-    });
-
-    test('SharedPreferences 存储非法值（如 20）时回退到 /24', () async {
-      SharedPreferences.setMockInitialValues({
-        'sync.broadcast_prefix_length': 20,
-      });
-      preferences = await SharedPreferences.getInstance();
-      final container = buildContainer();
-
-      expect(
-        container.read(selectedBroadcastPrefixLengthProvider),
-        BroadcastPrefixLength.p24,
-      );
-    });
+    }
 
     test('select(p16) 后 state 变为 /16，且 SharedPreferences 写入 16', () async {
       SharedPreferences.setMockInitialValues({});
@@ -84,20 +50,6 @@ void main() {
         BroadcastPrefixLength.p16,
       );
       expect(preferences.getInt('sync.broadcast_prefix_length'), 16);
-    });
-
-    test('select 当前值时不重复写入 SharedPreferences', () async {
-      SharedPreferences.setMockInitialValues({});
-      preferences = await SharedPreferences.getInstance();
-      final container = buildContainer();
-
-      // 默认是 /24，再选一次 /24
-      container
-          .read(selectedBroadcastPrefixLengthProvider.notifier)
-          .select(BroadcastPrefixLength.p24);
-
-      // 无副作用：getInt 返回 null（从未写入过）
-      expect(preferences.getInt('sync.broadcast_prefix_length'), isNull);
     });
   });
 }

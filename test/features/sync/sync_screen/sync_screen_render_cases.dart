@@ -16,8 +16,8 @@ void registerSyncScreenRenderTests() {
       await pumpSyncScreen(tester, preferences: preferences);
 
       expect(find.text('局域网同步'), findsOneWidget);
-      expect(find.text('连接'), findsWidgets);
-      expect(find.text('同步'), findsWidgets);
+      expect(find.text('连接'), findsAtLeast(1));
+      expect(find.text('同步'), findsAtLeast(1));
       expect(find.text('作为客户端'), findsOneWidget);
       expect(find.text('作为服务端'), findsOneWidget);
     });
