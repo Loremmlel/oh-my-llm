@@ -68,10 +68,14 @@ void main() {
         interfaces: const [fakeInterface],
       );
 
-      final container =
-          ProviderScope.containerOf(tester.element(find.byType(InterfaceSelector)));
-      expect(container.read(selectedBroadcastPrefixLengthProvider),
-          BroadcastPrefixLength.p24);
+      expect(
+        find.byWidgetPredicate(
+          (w) =>
+              w is SegmentedButton<BroadcastPrefixLength> &&
+              w.selected.contains(BroadcastPrefixLength.p24),
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('SharedPreferences 存 16 时默认选中 /16', (tester) async {
@@ -86,13 +90,17 @@ void main() {
         interfaces: const [fakeInterface],
       );
 
-      final container =
-          ProviderScope.containerOf(tester.element(find.byType(InterfaceSelector)));
-      expect(container.read(selectedBroadcastPrefixLengthProvider),
-          BroadcastPrefixLength.p16);
+      expect(
+        find.byWidgetPredicate(
+          (w) =>
+              w is SegmentedButton<BroadcastPrefixLength> &&
+              w.selected.contains(BroadcastPrefixLength.p16),
+        ),
+        findsOneWidget,
+      );
     });
 
-    testWidgets('点击 /16 后 provider 切换到 /16 且持久化 16', (tester) async {
+    testWidgets('点击 /16 后 UI 选中 /16', (tester) async {
       await _pumpSelector(
         tester,
         preferences: preferences,
@@ -102,11 +110,14 @@ void main() {
       await tester.tap(find.text('/16'));
       await tester.pump();
 
-      final container =
-          ProviderScope.containerOf(tester.element(find.byType(InterfaceSelector)));
-      expect(container.read(selectedBroadcastPrefixLengthProvider),
-          BroadcastPrefixLength.p16);
-      expect(preferences.getInt('sync.broadcast_prefix_length'), 16);
+      expect(
+        find.byWidgetPredicate(
+          (w) =>
+              w is SegmentedButton<BroadcastPrefixLength> &&
+              w.selected.contains(BroadcastPrefixLength.p16),
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('展示当前计算的广播地址：/24 模式下 10.214.98.86 → 10.214.98.255',

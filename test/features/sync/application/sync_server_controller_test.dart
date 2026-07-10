@@ -168,7 +168,8 @@ void main() {
       expect(message.payload['code'], SyncErrorCode.unknownType);
     });
 
-    test('POST settingsSyncRequest 返回对应分类数据，servedRequestCount 递增', () async {
+    test('POST settingsSyncRequest 返回 settingsSyncResponse 且 payload 含 providers',
+        () async {
       final provider = _provider();
       SharedPreferences.setMockInitialValues({
         'settings.llm_model_configs': VersionedJsonStorage.encodeObjectList(
@@ -201,6 +202,33 @@ void main() {
       final data = jsonDecode(dataJson) as Map<String, dynamic>;
       final providers = data['modelProviders'] as List;
       expect(providers, isNotEmpty);
+    });
+
+    test('POST settingsSyncRequest 后 servedRequestCount 递增', () async {
+      final provider = _provider();
+      SharedPreferences.setMockInitialValues({
+        'settings.llm_model_configs': VersionedJsonStorage.encodeObjectList(
+          items: [provider],
+          toJson: (p) => p.toJson(),
+        ),
+      });
+      preferences = await SharedPreferences.getInstance();
+      final container = buildContainer();
+      final notifier = container.read(syncServerControllerProvider.notifier);
+      await notifier.start();
+      final port = container.read(syncServerControllerProvider).httpPort!;
+
+      final request = SyncMessage.request(
+        type: SyncMessageType.settingsSyncRequest,
+        payload: {
+          'categories': [SyncCategory.providers.payloadKey],
+        },
+      );
+      await http.post(
+        Uri.parse('http://127.0.0.1:$port/sync'),
+        headers: {'Content-Type': 'application/json'},
+        body: SyncMessageCodec.encode(request),
+      );
 
       expect(container.read(syncServerControllerProvider).servedRequestCount, 1);
     });

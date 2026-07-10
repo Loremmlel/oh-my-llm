@@ -150,7 +150,7 @@ void main() {
       expect(container.read(memoryPromptsProvider), isEmpty);
     });
 
-    test('在 deduplicatedData 非空时写入全部六类数据并推进到 imported', () async {
+    test('在 deduplicatedData 非空时推进到 imported', () async {
       final container = buildContainer(
         seed: SyncClientState(
           phase: SyncPhase.received,
@@ -168,20 +168,31 @@ void main() {
         container.read(syncClientControllerProvider).phase,
         SyncPhase.imported,
       );
+    });
 
-      // 服务商
+    test('在 deduplicatedData 非空时写入全部六类数据', () async {
+      final container = buildContainer(
+        seed: SyncClientState(
+          phase: SyncPhase.received,
+          deduplicatedData: _buildFullData(),
+          sourceDeviceName: 'Test-PC',
+        ),
+      );
+
+      await container
+          .read(syncClientControllerProvider.notifier)
+          .executeImport();
+
       final providers = container.read(llmProviderConfigsProvider);
       expect(providers.length, 1);
       expect(providers.first.id, 'provider-1');
 
-      // 四类提示词
       expect(container.read(memoryPromptsProvider).length, 1);
       expect(container.read(memoryPromptsProvider).first.id, 'mem-1');
       expect(container.read(presetPromptsProvider).length, 1);
       expect(container.read(templatePromptsProvider).length, 1);
       expect(container.read(fixedPromptSequencesProvider).length, 1);
 
-      // 自动重试设置
       final autoRetry = container.read(autoRetrySettingsProvider);
       expect(autoRetry.maxJitterSeconds, 20);
       expect(autoRetry.maxRetryCount, 5);

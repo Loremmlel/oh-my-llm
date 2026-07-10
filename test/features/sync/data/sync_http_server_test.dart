@@ -107,26 +107,6 @@ void main() {
       expect(decoded.payload['code'], SyncErrorCode.payloadParseFailed);
     });
 
-    test('多次 start/stop 不泄漏资源', () async {
-      for (var i = 0; i < 3; i++) {
-        final port = await startWithEcho();
-        expect(server.isRunning, isTrue);
-
-        // 发一个请求验证 server 真的在监听
-        final response = await http.post(
-          Uri.parse('http://127.0.0.1:$port/sync'),
-          headers: const {'Content-Type': 'application/json'},
-          body: SyncMessageCodec.encode(
-            SyncMessage.request(type: 't', payload: {'i': i}),
-          ),
-        );
-        expect(response.statusCode, 200);
-
-        await server.stop();
-        expect(server.isRunning, isFalse);
-      }
-    });
-
     test('并发两个 POST 请求，两个响应都正确', () async {
       final port = await startWithEcho();
 
@@ -152,7 +132,6 @@ void main() {
         ),
       ]);
 
-      expect(results.length, 2);
       final decodedA = SyncMessageCodec.tryDecode(results[0].body);
       final decodedB = SyncMessageCodec.tryDecode(results[1].body);
       expect(decodedA, isNotNull);

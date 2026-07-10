@@ -20,36 +20,16 @@ void main() {
       expect(json['payload'], {'k': 'v'});
     });
 
-    test('tryFromJson 在缺少 type / requestId / payload 任一字段时返回 null',
-        () {
-      // 缺 type
-      expect(
-        SyncMessage.tryFromJson({'requestId': 'r', 'payload': <String, dynamic>{}}),
-        isNull,
-      );
-      // 缺 requestId
-      expect(
-        SyncMessage.tryFromJson({
-          'type': 't',
-          'payload': <String, dynamic>{},
-        }),
-        isNull,
-      );
-      // 缺 payload
-      expect(
-        SyncMessage.tryFromJson({'type': 't', 'requestId': 'r'}),
-        isNull,
-      );
-      // 字段类型不符
-      expect(
-        SyncMessage.tryFromJson({
-          'type': 123,
-          'requestId': 'r',
-          'payload': <String, dynamic>{},
-        }),
-        isNull,
-      );
-    });
+    for (final (name, json) in <(String, Map<String, dynamic>)>[
+      ('缺 type', {'requestId': 'r', 'payload': <String, dynamic>{}}),
+      ('缺 requestId', {'type': 't', 'payload': <String, dynamic>{}}),
+      ('缺 payload', {'type': 't', 'requestId': 'r'}),
+      ('type 类型不符', {'type': 123, 'requestId': 'r', 'payload': <String, dynamic>{}}),
+    ]) {
+      test('tryFromJson $name 返回 null', () {
+        expect(SyncMessage.tryFromJson(json), isNull);
+      });
+    }
 
     test('tryFromJson 在 version 缺失时默认 1', () {
       final message = SyncMessage.tryFromJson({
@@ -115,18 +95,16 @@ void main() {
       expect(decoded.version, original.version);
     });
 
-    test('tryDecode 在非法 JSON / 非 Map / 缺字段时返回 null', () {
-      // 非法 JSON
-      expect(SyncMessageCodec.tryDecode('not a json'), isNull);
-      // 合法 JSON 但非 Map
-      expect(SyncMessageCodec.tryDecode('"hello"'), isNull);
-      expect(SyncMessageCodec.tryDecode('[1,2,3]'), isNull);
-      // Map 但缺字段
-      expect(SyncMessageCodec.tryDecode('{"type":"t"}'), isNull);
-      expect(
-        SyncMessageCodec.tryDecode('{"type":"t","requestId":"r"}'),
-        isNull,
-      );
-    });
+    for (final (name, input) in <(String, String)>[
+      ('非法 JSON', 'not a json'),
+      ('合法 JSON 但非 Map（字符串）', '"hello"'),
+      ('合法 JSON 但非 Map（数组）', '[1,2,3]'),
+      ('Map 但缺 requestId 和 payload', '{"type":"t"}'),
+      ('Map 但缺 payload', '{"type":"t","requestId":"r"}'),
+    ]) {
+      test('tryDecode $name 返回 null', () {
+        expect(SyncMessageCodec.tryDecode(input), isNull);
+      });
+    }
   });
 }
