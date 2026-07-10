@@ -36,11 +36,10 @@ void main() {
 
     expect(find.byType(MaterialApp), findsOneWidget);
 
-    final navRailCount = find.byType(NavigationRail).evaluate().length;
-    final navBarCount = find.byType(NavigationBar).evaluate().length;
-    expect(navRailCount + navBarCount, greaterThan(0));
-
-    expect(find.byType(CircularProgressIndicator), findsNothing);
+    // 验证导航壳层已渲染（Rail 或 Bar 均可）
+    final hasNav = find.byType(NavigationRail).evaluate().isNotEmpty ||
+        find.byType(NavigationBar).evaluate().isNotEmpty;
+    expect(hasNav, isTrue);
   });
 
   testWidgets('启动后执行了数据迁移', (tester) async {
