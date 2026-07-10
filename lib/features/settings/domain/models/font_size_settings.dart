@@ -19,7 +19,9 @@ class FontSizeSettings extends Equatable {
 
   factory FontSizeSettings.fromJson(Map<String, dynamic> json) {
     return FontSizeSettings(
-      bodyFontSize: (json['bodyFontSize'] as num?)?.toDouble() ?? 14,
+      bodyFontSize: (json['bodyFontSize'] is num)
+          ? (json['bodyFontSize'] as num).toDouble()
+          : 14,
     );
   }
 

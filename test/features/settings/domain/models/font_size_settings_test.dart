@@ -18,11 +18,9 @@ void main() {
       expect(settings.bodyFontSize, 14);
     });
 
-    test('fromJson 非 num 值抛出类型错误', () {
-      expect(
-        () => FontSizeSettings.fromJson({'bodyFontSize': 'invalid'}),
-        throwsA(isA<TypeError>()),
-      );
+    test('fromJson 非 num 值默认为 14', () {
+      final settings = FontSizeSettings.fromJson({'bodyFontSize': 'invalid'});
+      expect(settings.bodyFontSize, 14);
     });
 
     test('toJson → fromJson round-trip', () {
