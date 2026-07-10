@@ -24,7 +24,9 @@ void main() {
         messages: [beforeMsg, afterMsg],
         updatedAt: now,
       );
-      final result = preset.messagesForPlacement(PromptMessagePlacement.before);
+      final result = preset
+          .messagesForPlacement(PromptMessagePlacement.before)
+          .toList();
       expect(result, [beforeMsg]);
     });
 
@@ -35,8 +37,23 @@ void main() {
         messages: [beforeMsg, afterMsg],
         updatedAt: now,
       );
-      final result = preset.messagesForPlacement(PromptMessagePlacement.after);
+      final result = preset
+          .messagesForPlacement(PromptMessagePlacement.after)
+          .toList();
       expect(result, [afterMsg]);
+    });
+
+    test('messagesForPlacement 空列表返回空', () {
+      final preset = PresetPrompt(
+        id: 'p1',
+        name: '测试',
+        messages: [],
+        updatedAt: now,
+      );
+      expect(
+        preset.messagesForPlacement(PromptMessagePlacement.before).toList(),
+        isEmpty,
+      );
     });
   });
 }
