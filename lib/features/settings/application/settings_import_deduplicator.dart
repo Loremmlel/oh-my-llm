@@ -209,6 +209,7 @@ final class SettingsImportDeduplicator {
       fixedPromptSequences: newSequences,
       autoRetrySettings: data.autoRetrySettings,
       customHeadersConfig: data.customHeadersConfig,
+      fontSizeSettings: data.fontSizeSettings,
     );
   }
 }
