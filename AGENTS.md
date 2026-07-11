@@ -15,7 +15,7 @@ keep-coding-instructions: true
 
 ## 开发命令
 
-**所有命令使用 PowerShell 语法，不用 Bash。**
+**所有命令使用 PowerShell 语法，不用 Bash。** 无论 Shell 工具的名称叫什么，底层 shell 是 `pwsh`，必须用 PowerShell 语法：`$LASTEXITCODE` 而非 `$?`，`Get-Content -Tail` 而非 `tail`，`Out-File` 而非 `>`，`Select-String` 而非 `grep`，依此类推。
 
 ```powershell
 flutter pub get
@@ -133,8 +133,8 @@ EOF
 
 始终使用以下**单条复合命令**，禁止分步操作：
 
-```bash
-flutter test --reporter compact 2>&1 > fltest.log; E=$?; echo "EXIT=$E"; tail -150 fltest.log
+```powershell
+flutter test --reporter compact 2>&1 | Out-File -Encoding utf8 fltest.log; $E = $LASTEXITCODE; Write-Host "EXIT=$E"; Get-Content -Tail 150 fltest.log
 ```
 
 ### 判断结果
@@ -144,25 +144,24 @@ flutter test --reporter compact 2>&1 > fltest.log; E=$?; echo "EXIT=$E"; tail -1
 
 ### 查看失败详情
 
-```bash
-grep -A 30 "失败测试的关键词" fltest.log    # 完整堆栈
-grep -E " -[1-9]" fltest.log               # 仅失败测试名
+```powershell
+Select-String -Pattern "失败测试的关键词" -Path fltest.log -Context 0,30    # 完整堆栈
+Select-String -Pattern " -[1-9]" -Path fltest.log                           # 仅失败测试名
 ```
 
 ### 只跑特定测试时
 
 同样遵守重定向模式：
 
-```bash
-flutter test --reporter compact test/foo_test.dart 2>&1 > fltest.log; E=$?; echo "EXIT=$E"; tail -150 fltest.log
+```powershell
+flutter test --reporter compact test/foo_test.dart 2>&1 | Out-File -Encoding utf8 fltest.log; $E = $LASTEXITCODE; Write-Host "EXIT=$E"; Get-Content -Tail 150 fltest.log
 ```
 
 ### 禁止事项
 
 - ❌ 禁止不重定向直接运行 `flutter test`（输出400+测试必被截断）
 - ❌ 禁止用 `tee`（同样截断）
-- ❌ 禁止多步试探：先运行测试 → 再 grep → 再 tail → 再写文件 → 再读文件
-- ✅ 全量输出已在 `fltest.log`，直接从该文件 grep/tail 即可
+- ✅ 全量输出已在 `fltest.log`，直接从该文件 `Select-String` / `Get-Content -Tail` 即可
 
 ## 测试规范
 
