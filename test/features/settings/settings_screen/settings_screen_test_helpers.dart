@@ -99,6 +99,9 @@ Future<SharedPreferences> createDefaultsSeededPreferences(AppDatabase database) 
 }
 
 // ── Finder 工厂 ────────────────────────────────────────────
+//
+// 以下 finder 依赖源码中显式声明的 ValueKey（标注 // test-key）。
+// 重命名 key 时需同步更新此处及对应源码。
 
 Finder providerNameField() =>
     find.byKey(const ValueKey('model-provider-name-field'));
@@ -150,3 +153,16 @@ Finder memoryPromptNameField() =>
 
 Finder memoryPromptContentField() =>
     find.byKey(const ValueKey('memory-prompt-content-field'));
+
+Future<void> createTestProvider(WidgetTester tester) async {
+  await tester.tap(find.text('新增服务商'));
+  await tester.pumpAndSettle();
+  await tester.enterText(providerNameField(), 'OpenAI 官方');
+  await tester.enterText(
+    providerApiUrlField(),
+    'https://api.example.com/v1/chat/completions',
+  );
+  await tester.enterText(providerApiKeyField(), 'sk-test-12345678');
+  await tester.tap(find.text('保存'));
+  await tester.pumpAndSettle();
+}

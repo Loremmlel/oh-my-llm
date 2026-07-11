@@ -34,7 +34,7 @@ class ComposerMessageField extends StatelessWidget {
                 onSendPressed?.call(),
           },
           child: TextField(
-            key: const ValueKey('chat-message-composer'),
+            key: const ValueKey('chat-message-composer'), // test-key
             controller: messageController,
             focusNode: messageFocusNode,
             minLines: 2,

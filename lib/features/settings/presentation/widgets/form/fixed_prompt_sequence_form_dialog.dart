@@ -90,7 +90,7 @@ class _FixedPromptSequenceFormDialogState
       shouldScrollContent: (constraints) =>
           constraints.maxWidth < masterDetailBreakpoint,
       child: AdaptiveMasterDetailLayout(
-        key: const ValueKey('fixed-prompt-sequence-form-layout'),
+        key: const ValueKey('fixed-prompt-sequence-form-layout'), // test-key
         breakpoint: masterDetailBreakpoint,
         masterWidth: 340,
         minHeight: 620,
@@ -98,7 +98,7 @@ class _FixedPromptSequenceFormDialogState
         master: _buildWideMasterPane(context),
         detail: _buildWidePane(
           context: context,
-          key: const ValueKey('fixed-prompt-sequence-detail-pane'),
+          key: const ValueKey('fixed-prompt-sequence-detail-pane'), // test-key
           child: _buildDetailContent(context, isWide: true),
         ),
       ),
@@ -114,7 +114,7 @@ class _FixedPromptSequenceFormDialogState
         const SizedBox(height: 16),
         _buildCompactPane(
           context: context,
-          key: const ValueKey('fixed-prompt-sequence-detail-pane'),
+          key: const ValueKey('fixed-prompt-sequence-detail-pane'), // test-key
           child: _buildDetailContent(context, isWide: false),
         ),
       ],
@@ -140,7 +140,7 @@ class _FixedPromptSequenceFormDialogState
 
   Widget _buildWideMasterPane(BuildContext context) {
     return DecoratedBox(
-      key: const ValueKey('fixed-prompt-sequence-master-pane'),
+      key: const ValueKey('fixed-prompt-sequence-master-pane'), // test-key
       decoration: BoxDecoration(
         color: Theme.of(
           context,
@@ -288,7 +288,7 @@ class _FixedPromptSequenceFormDialogState
     }
 
     final contentField = TextField(
-      key: const ValueKey('fixed-step-content-field'),
+      key: const ValueKey('fixed-step-content-field'), // test-key
       controller: selected.contentController,
       minLines: isWide ? null : 8,
       maxLines: isWide ? null : 16,
@@ -311,7 +311,7 @@ class _FixedPromptSequenceFormDialogState
         ),
         const SizedBox(height: 16),
         TextFormField(
-          key: const ValueKey('fixed-step-title-field'),
+          key: const ValueKey('fixed-step-title-field'), // test-key
           controller: selected.titleController,
           decoration: const InputDecoration(
             labelText: '步骤标题',
@@ -335,7 +335,7 @@ class _FixedPromptSequenceFormDialogState
 
   Widget _buildNameField() {
     return TextFormField(
-      key: const ValueKey('fixed-prompt-sequence-name-field'),
+      key: const ValueKey('fixed-prompt-sequence-name-field'), // test-key
       controller: _nameController,
       decoration: const InputDecoration(
         labelText: '序列名称',

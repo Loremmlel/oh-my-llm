@@ -73,18 +73,18 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
       shouldScrollContent: (constraints) =>
           constraints.maxWidth < masterDetailBreakpoint,
       child: AdaptiveMasterDetailLayout(
-        key: const ValueKey('preset-prompt-form-layout'),
+        key: const ValueKey('preset-prompt-form-layout'), // test-key
         breakpoint: masterDetailBreakpoint,
         masterWidth: 340,
         minHeight: 620,
         compactChild: _buildCompactLayout(context),
         master: _buildWideMasterPane(
           context: context,
-          key: const ValueKey('preset-prompt-master-pane'),
+          key: const ValueKey('preset-prompt-master-pane'), // test-key
         ),
         detail: _buildWidePane(
           context: context,
-          key: const ValueKey('preset-prompt-detail-pane'),
+          key: const ValueKey('preset-prompt-detail-pane'), // test-key
           child: _buildDetailContent(context, isWide: true),
         ),
       ),
@@ -100,7 +100,7 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
         const SizedBox(height: 16),
         _buildCompactPane(
           context: context,
-          key: const ValueKey('preset-prompt-detail-pane'),
+          key: const ValueKey('preset-prompt-detail-pane'), // test-key
           child: _buildDetailContent(context, isWide: false),
         ),
       ],
@@ -290,7 +290,7 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
       PresetPromptEditorRole.assistant => 'Assistant 条目',
     };
     final contentField = TextField(
-      key: const ValueKey('preset-prompt-content-field'),
+      key: const ValueKey('preset-prompt-content-field'), // test-key
       controller: selected.contentController,
       minLines: isWide ? null : 8,
       maxLines: isWide ? null : 16,
@@ -313,7 +313,7 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
         ),
         const SizedBox(height: 16),
         TextFormField(
-          key: const ValueKey('preset-prompt-title-field'),
+          key: const ValueKey('preset-prompt-title-field'), // test-key
           controller: selected.titleController,
           decoration: const InputDecoration(
             labelText: '标题',
@@ -322,7 +322,7 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
         ),
         const SizedBox(height: 12),
         DropdownButtonFormField<PresetPromptEditorRole>(
-          key: const ValueKey('preset-prompt-role-field'),
+          key: const ValueKey('preset-prompt-role-field'), // test-key
           initialValue: selected.role,
           items: const [
             DropdownMenuItem(
@@ -349,7 +349,7 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
         ),
         const SizedBox(height: 12),
         DropdownButtonFormField<PromptMessagePlacement>(
-          key: const ValueKey('preset-prompt-placement-field'),
+          key: const ValueKey('preset-prompt-placement-field'), // test-key
           initialValue: selected.placement,
           items: PromptMessagePlacement.values
               .map((placement) {
@@ -386,7 +386,7 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
 
   Widget _buildNameField() {
     return TextFormField(
-      key: const ValueKey('preset-prompt-name-field'),
+      key: const ValueKey('preset-prompt-name-field'), // test-key
       controller: _nameController,
       decoration: const InputDecoration(
         labelText: '预设 Prompt 名称',
