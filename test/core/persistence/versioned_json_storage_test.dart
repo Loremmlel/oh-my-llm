@@ -37,7 +37,7 @@ void main() {
         () => VersionedJsonStorage.decodeObjectList(
           rawJson: jsonEncode({
             'version': VersionedJsonStorage.currentSchemaVersion + 1,
-            'items': const [],
+            'items': const <dynamic>[],
           }),
           subject: 'test items',
         ),
@@ -45,66 +45,25 @@ void main() {
       );
     });
 
-    test('rejects non-integer version', () {
-      expect(
-        () => VersionedJsonStorage.decodeObjectList(
-          rawJson: jsonEncode({
-            'version': 'v1',
-            'items': const [],
-          }),
-          subject: 'test items',
-        ),
-        throwsFormatException,
-      );
-    });
+    const _rejectionCases = <(String, Object)>[
+      ('non-integer version', {'version': 'v1', 'items': <dynamic>[]}),
+      ('non-list items', {'version': 1, 'items': 'not-a-list'}),
+      ('items containing non-map entries', {'version': 1, 'items': [null]}),
+      ('non-object JSON', 'plain string'),
+      ('plain array JSON', [{'id': 'item-1'}]),
+    ];
 
-    test('rejects non-list items', () {
-      expect(
-        () => VersionedJsonStorage.decodeObjectList(
-          rawJson: jsonEncode({
-            'version': 1,
-            'items': 'not-a-list',
-          }),
-          subject: 'test items',
-        ),
-        throwsFormatException,
-      );
-    });
-
-    test('rejects items containing non-map entries', () {
-      expect(
-        () => VersionedJsonStorage.decodeObjectList(
-          rawJson: jsonEncode({
-            'version': 1,
-            'items': [null],
-          }),
-          subject: 'test items',
-        ),
-        throwsFormatException,
-      );
-    });
-
-    test('rejects non-object JSON', () {
-      expect(
-        () => VersionedJsonStorage.decodeObjectList(
-          rawJson: jsonEncode('plain string'),
-          subject: 'test items',
-        ),
-        throwsFormatException,
-      );
-    });
-
-    test('rejects plain array JSON', () {
-      expect(
-        () => VersionedJsonStorage.decodeObjectList(
-          rawJson: jsonEncode([
-            {'id': 'item-1'},
-          ]),
-          subject: 'test items',
-        ),
-        throwsFormatException,
-      );
-    });
+    for (final (name, payload) in _rejectionCases) {
+      test('rejects $name', () {
+        expect(
+          () => VersionedJsonStorage.decodeObjectList(
+            rawJson: jsonEncode(payload),
+            subject: 'test items',
+          ),
+          throwsFormatException,
+        );
+      });
+    }
 
     test('rejects invalid JSON string', () {
       expect(
