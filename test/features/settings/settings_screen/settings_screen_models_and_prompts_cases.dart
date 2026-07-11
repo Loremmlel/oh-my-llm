@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/core/persistence/app_database.dart';
@@ -7,6 +8,7 @@ import 'package:oh_my_llm/features/settings/data/sqlite_memory_prompt_repository
 import 'package:oh_my_llm/features/settings/data/sqlite_preset_prompt_repository.dart';
 import 'package:oh_my_llm/features/settings/data/sqlite_template_prompt_repository.dart';
 import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
+import 'package:oh_my_llm/features/settings/presentation/settings_screen.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/form/template_prompt_form_dialog.dart';
 
 import 'settings_screen_test_helpers.dart';
@@ -15,12 +17,10 @@ void registerSettingsScreenModelsAndPromptsTests() {
   testWidgets(
     'settings screen creates a provider and verifies persistence',
     (tester) async {
-      final database = AppDatabase.inMemory();
-      addTearDown(database.close);
-      final preferences = await createEmptyPreferences(database);
-      final repository = LlmModelConfigRepository(preferences);
-
-      await pumpSettingsScreen(tester, preferences: preferences, database: database);
+      await setUpSettingsScreen(tester);
+      final repository = ProviderScope.containerOf(
+        tester.element(find.byType(SettingsScreen)),
+      ).read(llmModelConfigRepositoryProvider);
       expect(repository.loadProviders(), isEmpty);
 
       await tester.tap(find.text('新增服务商'));
@@ -45,12 +45,11 @@ void registerSettingsScreenModelsAndPromptsTests() {
   testWidgets(
     'settings screen creates a model under a provider',
     (tester) async {
-      final database = AppDatabase.inMemory();
-      addTearDown(database.close);
-      final preferences = await createEmptyPreferences(database);
-      final repository = LlmModelConfigRepository(preferences);
+      await setUpSettingsScreen(tester);
+      final repository = ProviderScope.containerOf(
+        tester.element(find.byType(SettingsScreen)),
+      ).read(llmModelConfigRepositoryProvider);
 
-      await pumpSettingsScreen(tester, preferences: preferences, database: database);
       await createTestProvider(tester);
 
       await tester.tap(find.text('新增模型'));
@@ -74,12 +73,11 @@ void registerSettingsScreenModelsAndPromptsTests() {
   testWidgets(
     'settings screen edits provider and model names',
     (tester) async {
-      final database = AppDatabase.inMemory();
-      addTearDown(database.close);
-      final preferences = await createEmptyPreferences(database);
-      final repository = LlmModelConfigRepository(preferences);
+      await setUpSettingsScreen(tester);
+      final repository = ProviderScope.containerOf(
+        tester.element(find.byType(SettingsScreen)),
+      ).read(llmModelConfigRepositoryProvider);
 
-      await pumpSettingsScreen(tester, preferences: preferences, database: database);
       await createTestProvider(tester);
 
       await tester.tap(find.text('新增模型'));
@@ -112,12 +110,11 @@ void registerSettingsScreenModelsAndPromptsTests() {
   testWidgets(
     'settings screen deletes model then provider',
     (tester) async {
-      final database = AppDatabase.inMemory();
-      addTearDown(database.close);
-      final preferences = await createEmptyPreferences(database);
-      final repository = LlmModelConfigRepository(preferences);
+      await setUpSettingsScreen(tester);
+      final repository = ProviderScope.containerOf(
+        tester.element(find.byType(SettingsScreen)),
+      ).read(llmModelConfigRepositoryProvider);
 
-      await pumpSettingsScreen(tester, preferences: preferences, database: database);
       await createTestProvider(tester);
 
       await tester.tap(find.text('新增模型'));
