@@ -163,5 +163,7 @@ void registerFavoriteDetailScreenTests() {
     await tester.pumpAndSettle();
 
     expect(find.text('无推理的回复'), findsOneWidget);
+    expect(find.text('深度思考'), findsNothing);
+    expect(find.text('展开'), findsNothing);
   });
 }

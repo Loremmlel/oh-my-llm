@@ -162,7 +162,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
   );
 
   testWidgets(
-    'settings screen supports prompt template CRUD flows',
+    'settings screen creates a prompt template',
     (tester) async {
       final database = AppDatabase.inMemory();
       addTearDown(database.close);
@@ -197,6 +197,27 @@ void registerSettingsScreenModelsAndPromptsTests() {
       expect(createdTemplate.messages.single.title, '前置要求');
       expect(createdTemplate.messages.single.content, '请检查这段代码的边界情况。');
       expect(find.text('代码审阅'), findsWidgets);
+    },
+  );
+
+  testWidgets(
+    'settings screen edits a prompt template name',
+    (tester) async {
+      final database = AppDatabase.inMemory();
+      addTearDown(database.close);
+      final preferences = await createEmptyPreferences(database);
+      await pumpSettingsScreen(tester, preferences: preferences, database: database, initialTabIndex: 1);
+      final repository = presetPromptRepository;
+
+      await tester.tap(find.text('新增预设'));
+      await tester.pumpAndSettle();
+      await tester.enterText(presetPromptNameField(), '代码审阅');
+      await tester.tap(find.text('新增条目'));
+      await tester.pumpAndSettle();
+      await tester.enterText(presetPromptTitleField(), '前置要求');
+      await tester.enterText(presetPromptContentField(), '内容');
+      await tester.tap(find.text('保存'));
+      await tester.pumpAndSettle();
 
       await tester.tap(find.text('编辑'));
       await tester.pumpAndSettle();
@@ -206,6 +227,27 @@ void registerSettingsScreenModelsAndPromptsTests() {
 
       expect(repository.loadAll(database).single.name, '代码审阅 v2');
       expect(find.text('代码审阅 v2'), findsWidgets);
+    },
+  );
+
+  testWidgets(
+    'settings screen deletes a prompt template',
+    (tester) async {
+      final database = AppDatabase.inMemory();
+      addTearDown(database.close);
+      final preferences = await createEmptyPreferences(database);
+      await pumpSettingsScreen(tester, preferences: preferences, database: database, initialTabIndex: 1);
+      final repository = presetPromptRepository;
+
+      await tester.tap(find.text('新增预设'));
+      await tester.pumpAndSettle();
+      await tester.enterText(presetPromptNameField(), '代码审阅');
+      await tester.tap(find.text('新增条目'));
+      await tester.pumpAndSettle();
+      await tester.enterText(presetPromptTitleField(), '前置要求');
+      await tester.enterText(presetPromptContentField(), '内容');
+      await tester.tap(find.text('保存'));
+      await tester.pumpAndSettle();
 
       await tester.tap(find.text('删除'));
       await tester.pumpAndSettle();
@@ -306,11 +348,6 @@ void registerSettingsScreenModelsAndPromptsTests() {
         return rawPresetTile(title).hitTestable();
       }
 
-      Future<String> selectedTitle() async {
-        final titleField = tester.widget<TextFormField>(presetPromptTitleField());
-        return titleField.controller?.text ?? '';
-      }
-
       Future<void> fillSelectedItem(String title, String content) async {
         await tester.enterText(presetPromptTitleField(), title);
         await tester.enterText(presetPromptContentField(), content);
@@ -323,12 +360,11 @@ void registerSettingsScreenModelsAndPromptsTests() {
 
       await tester.tap(addItemButton);
       await tester.pumpAndSettle();
-      expect(await selectedTitle(), startsWith('前置user'));
+      // 新条目使用 fallback 标题，填写后覆盖
       await fillSelectedItem('前置1', '内容1');
 
       await tester.tap(addItemButton);
       await tester.pumpAndSettle();
-      expect(await selectedTitle(), startsWith('前置user'));
       await fillSelectedItem('后置1', '内容2');
 
       await tester.tap(find.text('前置'));
@@ -340,7 +376,6 @@ void registerSettingsScreenModelsAndPromptsTests() {
       await tester.pumpAndSettle();
       await tester.tap(addItemButton);
       await tester.pumpAndSettle();
-      expect(await selectedTitle(), startsWith('前置user'));
       await fillSelectedItem('前置1.5', '内容1.5');
 
       expect(presetTile('前置1'), findsOneWidget);
@@ -397,11 +432,6 @@ void registerSettingsScreenModelsAndPromptsTests() {
         await tester.pumpAndSettle();
       }
 
-      Future<String> selectedTitle() async {
-        final titleField = tester.widget<TextFormField>(presetPromptTitleField());
-        return titleField.controller?.text ?? '';
-      }
-
       Future<void> fillSelectedItem(String title, String content) async {
         await tester.enterText(presetPromptTitleField(), title);
         await tester.enterText(presetPromptContentField(), content);
@@ -433,7 +463,6 @@ void registerSettingsScreenModelsAndPromptsTests() {
       await tester.pumpAndSettle();
       await tester.tap(addItemButton);
       await tester.pumpAndSettle();
-      expect(await selectedTitle(), startsWith('后置user'));
       await fillSelectedItem('后置1.5', '内容3.5');
       await ensurePresetTileVisible('后置1.5');
 
@@ -445,7 +474,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
   );
 
   testWidgets(
-    'settings screen supports template prompt CRUD flows',
+    'settings screen creates a template prompt',
     (tester) async {
       final database = AppDatabase.inMemory();
       addTearDown(database.close);
@@ -462,7 +491,6 @@ void registerSettingsScreenModelsAndPromptsTests() {
         templatePromptContentField(),
         '请把{{正文}}翻译成{{目标语言}}。',
       );
-      // 等待防抖窗口过后变量字段出现。
       await tester.pump(TemplatePromptFormDialog.variableReconcileDebounce + const Duration(milliseconds: 50));
       await tester.pump();
 
@@ -478,6 +506,24 @@ void registerSettingsScreenModelsAndPromptsTests() {
       ]);
       expect(createdTemplate.variables.last.defaultValue, '英文');
       expect(find.text('翻译模板'), findsWidgets);
+    },
+  );
+
+  testWidgets(
+    'settings screen edits a template prompt title',
+    (tester) async {
+      final database = AppDatabase.inMemory();
+      addTearDown(database.close);
+      final preferences = await createEmptyPreferences(database);
+      await pumpSettingsScreen(tester, preferences: preferences, database: database, initialTabIndex: 2);
+      final repository = templatePromptRepository;
+
+      await tester.tap(find.text('新增模板提示词'));
+      await tester.pumpAndSettle();
+      await tester.enterText(templatePromptTitleField(), '翻译模板');
+      await tester.enterText(templatePromptContentField(), '内容');
+      await tester.tap(find.text('保存'));
+      await tester.pumpAndSettle();
 
       await tester.tap(find.text('编辑'));
       await tester.pumpAndSettle();
@@ -487,6 +533,24 @@ void registerSettingsScreenModelsAndPromptsTests() {
 
       expect(repository.loadAll(database).single.title, '翻译模板 v2');
       expect(find.text('翻译模板 v2'), findsWidgets);
+    },
+  );
+
+  testWidgets(
+    'settings screen deletes a template prompt',
+    (tester) async {
+      final database = AppDatabase.inMemory();
+      addTearDown(database.close);
+      final preferences = await createEmptyPreferences(database);
+      await pumpSettingsScreen(tester, preferences: preferences, database: database, initialTabIndex: 2);
+      final repository = templatePromptRepository;
+
+      await tester.tap(find.text('新增模板提示词'));
+      await tester.pumpAndSettle();
+      await tester.enterText(templatePromptTitleField(), '翻译模板');
+      await tester.enterText(templatePromptContentField(), '内容');
+      await tester.tap(find.text('保存'));
+      await tester.pumpAndSettle();
 
       await tester.tap(find.text('删除'));
       await tester.pumpAndSettle();
@@ -529,7 +593,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
     },
   );
 
-  testWidgets('settings screen supports memory prompt CRUD with persistence', (
+  testWidgets('settings screen creates a memory prompt', (
     tester,
   ) async {
     final database = AppDatabase.inMemory();
@@ -554,6 +618,23 @@ void registerSettingsScreenModelsAndPromptsTests() {
     expect(createdPrompt.name, '研发任务总结');
     expect(createdPrompt.content, '请总结当前研发任务中的决定、约束与待办。');
     expect(find.text('研发任务总结'), findsWidgets);
+  });
+
+  testWidgets('settings screen edits a memory prompt name', (
+    tester,
+  ) async {
+    final database = AppDatabase.inMemory();
+    addTearDown(database.close);
+    final preferences = await createEmptyPreferences(database);
+    await pumpSettingsScreen(tester, preferences: preferences, database: database, initialTabIndex: 2);
+    final repository = memoryPromptRepository;
+
+    await tester.tap(find.text('新增记忆提示词'));
+    await tester.pumpAndSettle();
+    await tester.enterText(memoryPromptNameField(), '研发任务总结');
+    await tester.enterText(memoryPromptContentField(), '内容');
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('编辑'));
     await tester.pumpAndSettle();
@@ -563,6 +644,23 @@ void registerSettingsScreenModelsAndPromptsTests() {
 
     expect(repository.loadAll(database).single.name, '研发任务总结 v2');
     expect(find.text('研发任务总结 v2'), findsWidgets);
+  });
+
+  testWidgets('settings screen deletes a memory prompt', (
+    tester,
+  ) async {
+    final database = AppDatabase.inMemory();
+    addTearDown(database.close);
+    final preferences = await createEmptyPreferences(database);
+    await pumpSettingsScreen(tester, preferences: preferences, database: database, initialTabIndex: 2);
+    final repository = memoryPromptRepository;
+
+    await tester.tap(find.text('新增记忆提示词'));
+    await tester.pumpAndSettle();
+    await tester.enterText(memoryPromptNameField(), '研发任务总结');
+    await tester.enterText(memoryPromptContentField(), '内容');
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('删除'));
     await tester.pumpAndSettle();

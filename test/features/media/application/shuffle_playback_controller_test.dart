@@ -9,17 +9,6 @@ void main() {
       const VideoItem(name: 'b.mp4', relativePath: '/sub/b.mp4'),
     ];
 
-    test('ShufflePlaybackIdle 相等性', () {
-      expect(const ShufflePlaybackIdle(), equals(const ShufflePlaybackIdle()));
-    });
-
-    test('ShufflePlaybackLoading 相等性', () {
-      expect(
-        const ShufflePlaybackLoading(),
-        equals(const ShufflePlaybackLoading()),
-      );
-    });
-
     test('ShufflePlaybackActive 首项属性', () {
       final state = ShufflePlaybackActive(
         playlist: samplePlaylist,

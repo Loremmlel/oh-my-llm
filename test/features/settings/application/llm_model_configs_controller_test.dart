@@ -207,39 +207,37 @@ void main() {
         name: 'My API',
         apiUrl: 'https://same.url/api',
         apiKey: 'same-key',
-        models: [_modelConfig(id: 'm-1', displayName: 'Model-A', modelName: 'model-a')],
+        models: [_modelConfig(id: 'm-1', displayName: 'Charlie', modelName: 'model-a')],
       ));
 
       // 导入同 URL+Key 的服务商，带有额外模型
+      // displayName 与 ID 顺序不一致，验证排序按 displayName 而非插入顺序
       await controller.mergeImportedProviders([
         _providerConfig(
           id: 'imported',
-          name: 'Different Name', // 名称不同，但同 URL+Key
+          name: 'Different Name',
           apiUrl: 'https://same.url/api',
           apiKey: 'same-key',
           models: [
-            _modelConfig(id: 'm-2', displayName: 'Model-B', modelName: 'model-b'),
-            _modelConfig(id: 'm-3', displayName: 'Model-C', modelName: 'model-c'),
+            _modelConfig(id: 'm-2', displayName: 'Alpha', modelName: 'model-b'),
+            _modelConfig(id: 'm-3', displayName: 'Bravo', modelName: 'model-c'),
           ],
         ),
       ]);
 
       final state = container.read(llmProviderConfigsProvider);
-      // 不会新增服务商，因为 URL+Key 匹配
       expect(state.length, 1);
       final mergedProvider = state.first;
-      // 保留原有 id/name
       expect(mergedProvider.id, 'existing');
       expect(mergedProvider.name, 'My API');
-      // 模型合并
       expect(mergedProvider.models.length, 3);
       final modelIds = mergedProvider.models.map((m) => m.id).toSet();
       expect(modelIds, {'m-1', 'm-2', 'm-3'});
-      // 模型按 displayName 排序
+      // 模型按 displayName 排序：Alpha < Bravo < Charlie
       expect(mergedProvider.models.map((m) => m.displayName).toList(), [
-        'Model-A',
-        'Model-B',
-        'Model-C',
+        'Alpha',
+        'Bravo',
+        'Charlie',
       ]);
     });
 

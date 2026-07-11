@@ -1038,18 +1038,23 @@ void main() {
         .read(chatSessionsProvider.notifier)
         .updateActiveConversationPreferences(autoRetryEnabled: true);
 
-    // 第一次请求会失败，重试会有一个 50ms 的可控窗口期
+    // 第一次请求会失败，重试会有一个可控的等待窗口
     fakeClient.enqueueError(ChatCompletionException('首次失败'));
 
-    // 用非零 retryDelay 创造可控的重试窗口：
-    // - 第一个 _waitForRetryWindow(50ms) 是首次请求的延迟，50ms 后发出
-    // - 第二个 _waitForRetryWindow(50ms) 是重试的等待窗口
-    final sendFuture = sendMsg('test A', retryDelay: const Duration(milliseconds: 50));
+    // 用较大的 retryDelay 创造宽余的重试窗口，避免 CI timing 脆弱
+    final sendFuture = sendMsg('test A', retryDelay: const Duration(seconds: 1));
 
-    // 等第一个请求的 50ms 延迟结束、请求发出并失败、重试循环进入第二个等待窗口
-    await Future<void>.delayed(const Duration(milliseconds: 70));
+    // 等第一个请求发出并失败，重试循环进入等待窗口
+    // 轮询等待 isAutoRetryWaiting 变为 true，最多等 5 秒
+    bool waiting = false;
+    for (int i = 0; i < 50; i++) {
+      waiting = container.read(chatSessionsProvider).isAutoRetryWaiting;
+      if (waiting) break;
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+    expect(waiting, isTrue);
 
-    // 此时旧重试在等待窗口中（isAutoRetryWaiting = true），调用 stopStreaming 取消
+    // 此时旧重试在等待窗口中，调用 stopStreaming 取消
     await container.read(chatSessionsProvider.notifier).stopStreaming();
 
     // _isBusy 已为 false（isAutoRetryWaiting 被清除），发送新消息
