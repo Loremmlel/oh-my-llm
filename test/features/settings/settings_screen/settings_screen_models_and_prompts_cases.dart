@@ -13,7 +13,7 @@ import 'settings_screen_test_helpers.dart';
 
 void registerSettingsScreenModelsAndPromptsTests() {
   testWidgets(
-    'settings screen supports provider and model CRUD flows',
+    'settings screen creates a provider and verifies persistence',
     (tester) async {
       final database = AppDatabase.inMemory();
       addTearDown(database.close);
@@ -39,6 +39,19 @@ void registerSettingsScreenModelsAndPromptsTests() {
       expect(createdProvider.name, 'OpenAI 官方');
       expect(repository.loadAll(), isEmpty);
       expect(find.text('OpenAI 官方'), findsWidgets);
+    },
+  );
+
+  testWidgets(
+    'settings screen creates a model under a provider',
+    (tester) async {
+      final database = AppDatabase.inMemory();
+      addTearDown(database.close);
+      final preferences = await createEmptyPreferences(database);
+      final repository = LlmModelConfigRepository(preferences);
+
+      await pumpSettingsScreen(tester, preferences: preferences, database: database);
+      await createTestProvider(tester);
 
       await tester.tap(find.text('新增模型'));
       await tester.pumpAndSettle();
@@ -55,6 +68,26 @@ void registerSettingsScreenModelsAndPromptsTests() {
       expect(createdModel.modelName, 'gpt-4.1');
       expect(createdModel.supportsReasoning, isTrue);
       expect(find.text('OpenAI 4.1'), findsWidgets);
+    },
+  );
+
+  testWidgets(
+    'settings screen edits provider and model names',
+    (tester) async {
+      final database = AppDatabase.inMemory();
+      addTearDown(database.close);
+      final preferences = await createEmptyPreferences(database);
+      final repository = LlmModelConfigRepository(preferences);
+
+      await pumpSettingsScreen(tester, preferences: preferences, database: database);
+      await createTestProvider(tester);
+
+      await tester.tap(find.text('新增模型'));
+      await tester.pumpAndSettle();
+      await tester.enterText(modelDisplayNameField(), 'OpenAI 4.1');
+      await tester.enterText(modelApiNameField(), 'gpt-4.1');
+      await tester.tap(find.text('保存'));
+      await tester.pumpAndSettle();
 
       await tester.tap(find.text('编辑服务商'));
       await tester.pumpAndSettle();
@@ -73,6 +106,26 @@ void registerSettingsScreenModelsAndPromptsTests() {
 
       expect(repository.loadAll().single.displayName, 'OpenAI 4.1 Turbo');
       expect(find.text('OpenAI 4.1 Turbo'), findsWidgets);
+    },
+  );
+
+  testWidgets(
+    'settings screen deletes model then provider',
+    (tester) async {
+      final database = AppDatabase.inMemory();
+      addTearDown(database.close);
+      final preferences = await createEmptyPreferences(database);
+      final repository = LlmModelConfigRepository(preferences);
+
+      await pumpSettingsScreen(tester, preferences: preferences, database: database);
+      await createTestProvider(tester);
+
+      await tester.tap(find.text('新增模型'));
+      await tester.pumpAndSettle();
+      await tester.enterText(modelDisplayNameField(), 'OpenAI 4.1');
+      await tester.enterText(modelApiNameField(), 'gpt-4.1');
+      await tester.tap(find.text('保存'));
+      await tester.pumpAndSettle();
 
       await tester.tap(find.widgetWithText(OutlinedButton, '删除').last);
       await tester.pumpAndSettle();
@@ -224,7 +277,83 @@ void registerSettingsScreenModelsAndPromptsTests() {
   });
 
   testWidgets(
-    'prompt template dialog inserts a new item below selection and keeps groups ordered',
+    'prompt template dialog inserts a new item below the selected item',
+    (tester) async {
+      final database = AppDatabase.inMemory();
+      addTearDown(database.close);
+      final preferences = await createEmptyPreferences(database);
+
+      await pumpSettingsScreen(
+        tester,
+        preferences: preferences,
+        database: database,
+        size: const Size(1440, 2200),
+        initialTabIndex: 1,
+      );
+      final masterPane = find.ancestor(
+        of: find.text('预设 Prompt 条目'),
+        matching: find.byType(DecoratedBox),
+      );
+      final addItemButton = find
+          .descendant(
+            of: masterPane,
+            matching: find.widgetWithText(OutlinedButton, '新增条目'),
+          )
+          .hitTestable();
+
+      Finder rawPresetTile(String title) {
+        return find.descendant(of: masterPane, matching: find.text(title));
+      }
+
+      Finder presetTile(String title) {
+        return rawPresetTile(title).hitTestable();
+      }
+
+      Future<String> selectedTitle() async {
+        final titleField = tester.widget<TextFormField>(presetPromptTitleField());
+        return titleField.controller?.text ?? '';
+      }
+
+      Future<void> fillSelectedItem(String title, String content) async {
+        await tester.enterText(presetPromptTitleField(), title);
+        await tester.enterText(presetPromptContentField(), content);
+        await tester.pump();
+      }
+
+      await tester.tap(find.text('新增预设'));
+      await tester.pumpAndSettle();
+      await tester.enterText(presetPromptNameField(), '插入测试模板');
+
+      await tester.tap(addItemButton);
+      await tester.pumpAndSettle();
+      expect(await selectedTitle(), startsWith('前置user'));
+      await fillSelectedItem('前置1', '内容1');
+
+      await tester.tap(addItemButton);
+      await tester.pumpAndSettle();
+      expect(await selectedTitle(), startsWith('前置user'));
+      await fillSelectedItem('后置1', '内容2');
+
+      await tester.tap(find.text('前置'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('后置').last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(presetTile('前置1'));
+      await tester.pumpAndSettle();
+      await tester.tap(addItemButton);
+      await tester.pumpAndSettle();
+      expect(await selectedTitle(), startsWith('前置user'));
+      await fillSelectedItem('前置1.5', '内容1.5');
+
+      expect(presetTile('前置1'), findsOneWidget);
+      expect(presetTile('前置1.5'), findsOneWidget);
+      expect(presetTile('后置1'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'prompt template dialog inserts items and keeps them ordered',
     (tester) async {
       final database = AppDatabase.inMemory();
       addTearDown(database.close);
@@ -284,48 +413,37 @@ void registerSettingsScreenModelsAndPromptsTests() {
 
       await tester.tap(find.text('新增预设'));
       await tester.pumpAndSettle();
-      await tester.enterText(presetPromptNameField(), '插入测试模板');
+      await tester.enterText(presetPromptNameField(), '排序测试模板');
 
       await tester.tap(addItemButton);
       await tester.pumpAndSettle();
-      expect(await selectedTitle(), startsWith('前置user'));
       await fillSelectedItem('前置1', '内容1');
 
       await tester.tap(addItemButton);
       await tester.pumpAndSettle();
-      expect(await selectedTitle(), startsWith('前置user'));
-      await fillSelectedItem('后置1', '内容2');
+      await fillSelectedItem('前置2', '内容2');
 
-      await tester.tap(
-        find.text('前置'),
-      );
+      await tester.tap(addItemButton);
+      await tester.pumpAndSettle();
+      await fillSelectedItem('后置1', '内容3');
+
+      await tester.tap(find.text('前置'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('后置').last);
       await tester.pumpAndSettle();
 
-      await tester.tap(presetTile('前置1'));
-      await tester.pumpAndSettle();
-      await tester.tap(addItemButton);
-      await tester.pumpAndSettle();
-      expect(await selectedTitle(), startsWith('前置user'));
-      await fillSelectedItem('前置1.5', '内容1.5');
-      await ensurePresetTileVisible('后置1');
-
-      expect(presetTile('前置1'), findsOneWidget);
-      expect(presetTile('前置1.5'), findsOneWidget);
-      expect(presetTile('后置1'), findsOneWidget);
-
-      await ensurePresetTileVisible('后置1');
       await tester.tap(presetTile('后置1'));
       await tester.pumpAndSettle();
       await tester.tap(addItemButton);
       await tester.pumpAndSettle();
       expect(await selectedTitle(), startsWith('后置user'));
-      await fillSelectedItem('后置1.5', '内容1.5');
+      await fillSelectedItem('后置1.5', '内容3.5');
       await ensurePresetTileVisible('后置1.5');
 
+      expect(presetTile('前置1'), findsOneWidget);
+      expect(presetTile('前置2'), findsOneWidget);
+      expect(presetTile('后置1'), findsOneWidget);
       expect(presetTile('后置1.5'), findsOneWidget);
-
     },
   );
 
