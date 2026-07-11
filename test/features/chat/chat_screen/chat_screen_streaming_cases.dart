@@ -14,10 +14,10 @@ void registerChatScreenStreamingTests() {
     tester,
   ) async {
     final fakeClient = FakeChatCompletionClient();
-    fakeClient.enqueueChunks([
-      '第一段 ',
-      '第二段',
-    ]);
+    fakeClient.enqueueDeltas([
+      const ChatCompletionChunk(contentDelta: '第一段 '),
+      const ChatCompletionChunk(contentDelta: '第二段'),
+    ], chunkDelay: const Duration(milliseconds: 200));
 
     await pumpChatScreen(
       tester,
@@ -28,6 +28,13 @@ void registerChatScreenStreamingTests() {
     final sendButton = find.widgetWithText(FilledButton, '发送');
     await tester.ensureVisible(sendButton);
     await tester.tap(sendButton);
+    await tester.pump();
+
+    await tester.pump(const Duration(milliseconds: 250));
+
+    expect(find.textContaining('第一段'), findsWidgets);
+    expect(find.widgetWithText(FilledButton, '终止回答'), findsOneWidget);
+
     await tester.pumpAndSettle();
 
     expect(find.textContaining('帮我总结一下这个仓库'), findsWidgets);
