@@ -4,12 +4,9 @@
 /// 编辑用户消息创建分支 -> 切换回旧分支 -> 重启 -> 验证选中的仍是旧分支。
 library;
 
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/core/persistence/app_database.dart';
-import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
-import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/data/openai_compatible_chat_client.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
@@ -26,12 +23,10 @@ void main() {
     final preferences = await createSeededPreferences();
     final fakeClient = FakeChatCompletionClient();
 
-    final containerA = ProviderContainer(
-      overrides: [
-        appDatabaseProvider.overrideWithValue(database),
-        sharedPreferencesProvider.overrideWithValue(preferences),
-        chatCompletionClientProvider.overrideWithValue(fakeClient),
-      ],
+    final containerA = createTestContainer(
+      database: database,
+      preferences: preferences,
+      fakeClient: fakeClient,
     );
     addTearDown(database.close);
 
@@ -82,12 +77,10 @@ void main() {
     containerA.dispose();
 
     // 模拟重启
-    final containerB = ProviderContainer(
-      overrides: [
-        appDatabaseProvider.overrideWithValue(database),
-        sharedPreferencesProvider.overrideWithValue(preferences),
-        chatCompletionClientProvider.overrideWithValue(FakeChatCompletionClient()),
-      ],
+    final containerB = createTestContainer(
+      database: database,
+      preferences: preferences,
+      fakeClient: FakeChatCompletionClient(),
     );
     addTearDown(containerB.dispose);
 
@@ -108,12 +101,10 @@ void main() {
     final preferences = await createSeededPreferences();
     final fakeClient = FakeChatCompletionClient();
 
-    final containerA = ProviderContainer(
-      overrides: [
-        appDatabaseProvider.overrideWithValue(database),
-        sharedPreferencesProvider.overrideWithValue(preferences),
-        chatCompletionClientProvider.overrideWithValue(fakeClient),
-      ],
+    final containerA = createTestContainer(
+      database: database,
+      preferences: preferences,
+      fakeClient: fakeClient,
     );
     addTearDown(database.close);
 
@@ -143,12 +134,10 @@ void main() {
     containerA.dispose();
 
     // 模拟重启
-    final containerB = ProviderContainer(
-      overrides: [
-        appDatabaseProvider.overrideWithValue(database),
-        sharedPreferencesProvider.overrideWithValue(preferences),
-        chatCompletionClientProvider.overrideWithValue(FakeChatCompletionClient()),
-      ],
+    final containerB = createTestContainer(
+      database: database,
+      preferences: preferences,
+      fakeClient: FakeChatCompletionClient(),
     );
     addTearDown(containerB.dispose);
 
