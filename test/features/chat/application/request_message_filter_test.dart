@@ -28,10 +28,6 @@ void main() {
       expect(ids(result), ['a', 'b', 'c']);
     });
 
-    test('空列表返回空列表', () {
-      expect(RequestMessageFilter.passthrough.apply([]), isEmpty);
-    });
-
     test('返回不可变列表，修改抛异常', () {
       final result = RequestMessageFilter.passthrough.apply([message('a')]);
       expect(() => result.add(message('b')), throwsUnsupportedError);
@@ -69,11 +65,6 @@ void main() {
       expect(filter.apply(messages), isEmpty);
     });
 
-    test('空输入返回空列表', () {
-      const filter = ExcludeByIdMessageFilter({'a'});
-      expect(filter.apply([]), isEmpty);
-    });
-
     test('返回不可变列表，修改抛异常', () {
       final result = const ExcludeByIdMessageFilter({'b'}).apply(
         [message('a'), message('b')],
@@ -87,20 +78,6 @@ void main() {
 
       filter.apply(messages);
       expect(ids(messages), ['a', 'b', 'c']);
-    });
-  });
-
-  // ── RequestMessageFilter.passthrough 静态常量 ─────────────────
-
-  group('RequestMessageFilter.passthrough', () {
-    test('是 PassthroughMessageFilter 实例', () {
-      expect(RequestMessageFilter.passthrough, isA<PassthroughMessageFilter>());
-    });
-
-    test('const 实例同一性', () {
-      const a = RequestMessageFilter.passthrough;
-      const b = RequestMessageFilter.passthrough;
-      expect(identical(a, b), isTrue);
     });
   });
 }

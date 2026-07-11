@@ -133,7 +133,6 @@ void main() {
           httpClient: okMockClient(_videoListJson(videos)),
           browserState: const MediaBrowserState(server: testServer),
         );
-        addTearDown(container.dispose);
 
         final controller =
             container.read(shufflePlaybackControllerProvider.notifier);
@@ -145,6 +144,7 @@ void main() {
         if (shuffledPaths.join(',') != originalPaths.join(',')) {
           wasShuffled = true;
         }
+        container.dispose();
       }
       expect(wasShuffled, isTrue);
     });
