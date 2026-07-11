@@ -20,6 +20,9 @@ import 'widgets/history_widgets.dart';
 class HistoryScreen extends ConsumerStatefulWidget {
   const HistoryScreen({super.key});
 
+  /// 搜索输入防抖时长，避免每次按键都触发分页重置。
+  static const searchDebounce = Duration(milliseconds: 300);
+
   @override
   ConsumerState<HistoryScreen> createState() => _HistoryScreenState();
 }
@@ -27,8 +30,6 @@ class HistoryScreen extends ConsumerStatefulWidget {
 /// 历史页 UI 层：负责搜索输入、选择模式；分页数据由
 /// [HistoryPaginationController] 持有，翻页由 [HistoryPaginationBar] 提供。
 class _HistoryScreenState extends ConsumerState<HistoryScreen> {
-  /// 搜索输入防抖时长，避免每次按键都触发分页重置。
-  static const _searchDebounce = Duration(milliseconds: 300);
 
   late final TextEditingController _searchController;
   Timer? _searchDebounceTimer;
@@ -194,7 +195,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
 
     if (nextKeyword.isEmpty && _currentKeyword().isEmpty) return;
 
-    _searchDebounceTimer = Timer(_searchDebounce, () {
+    _searchDebounceTimer = Timer(HistoryScreen.searchDebounce, () {
       if (!mounted || _currentKeyword() == nextKeyword) return;
       ref.read(historyPaginationProvider.notifier).setKeyword(nextKeyword);
     });

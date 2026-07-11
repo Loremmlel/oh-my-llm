@@ -14,10 +14,9 @@ void registerChatScreenStreamingTests() {
     tester,
   ) async {
     final fakeClient = FakeChatCompletionClient();
-    fakeClient.enqueueChunks([
-      '第一段 ',
-      '第二段',
-    ], chunkDelay: const Duration(milliseconds: 10));
+    final streamController = StreamController<ChatCompletionChunk>();
+    addTearDown(streamController.close);
+    fakeClient.enqueueStream(streamController.stream);
 
     await pumpChatScreen(
       tester,
@@ -30,7 +29,10 @@ void registerChatScreenStreamingTests() {
     await tester.tap(sendButton);
     await tester.pump();
 
-    await tester.pump(const Duration(milliseconds: 12));
+    streamController.add(const ChatCompletionChunk(contentDelta: '第一段 '));
+    await tester.pump();
+    streamController.add(const ChatCompletionChunk(contentDelta: '第二段'));
+    await tester.pump();
 
     expect(find.textContaining('第一段'), findsWidgets);
     expect(find.widgetWithText(FilledButton, '终止回答'), findsOneWidget);
@@ -163,7 +165,7 @@ void registerChatScreenStreamingTests() {
     await tester.pump();
 
     streamController.add(const ChatCompletionChunk(contentDelta: '已生成部分'));
-    await tester.pump(const Duration(milliseconds: 16));
+    await tester.pump();
 
     await tester.tap(find.widgetWithText(FilledButton, '终止回答'));
     await tester.pump();

@@ -7,6 +7,7 @@ import 'package:oh_my_llm/features/settings/data/sqlite_memory_prompt_repository
 import 'package:oh_my_llm/features/settings/data/sqlite_preset_prompt_repository.dart';
 import 'package:oh_my_llm/features/settings/data/sqlite_template_prompt_repository.dart';
 import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
+import 'package:oh_my_llm/features/settings/presentation/widgets/form/template_prompt_form_dialog.dart';
 
 import 'settings_screen_test_helpers.dart';
 
@@ -346,8 +347,8 @@ void registerSettingsScreenModelsAndPromptsTests() {
         templatePromptContentField(),
         '请把{{正文}}翻译成{{目标语言}}。',
       );
-      // 等待防抖窗口（220ms）过后变量字段出现。
-      await tester.pump(const Duration(milliseconds: 250));
+      // 等待防抖窗口过后变量字段出现。
+      await tester.pump(TemplatePromptFormDialog.variableReconcileDebounce + const Duration(milliseconds: 50));
       await tester.pump();
 
       await tester.enterText(templatePromptVariableField('目标语言'), '英文');
@@ -397,7 +398,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
       expect(find.text('变量A'), findsNothing);
 
       // pump 过防抖窗口，变量出现。
-      await tester.pump(const Duration(milliseconds: 250));
+      await tester.pump(TemplatePromptFormDialog.variableReconcileDebounce + const Duration(milliseconds: 50));
       expect(find.text('变量A'), findsOneWidget);
 
       // 替换为另一变量，未到防抖窗口时仍显示旧变量。
@@ -407,7 +408,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
       expect(find.text('变量B'), findsNothing);
 
       // pump 过防抖窗口后切换到新变量。
-      await tester.pump(const Duration(milliseconds: 250));
+      await tester.pump(TemplatePromptFormDialog.variableReconcileDebounce + const Duration(milliseconds: 50));
       expect(find.text('变量A'), findsNothing);
       expect(find.text('变量B'), findsOneWidget);
     },

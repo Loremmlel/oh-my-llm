@@ -31,6 +31,11 @@ class TemplatePromptFormDialog extends StatefulWidget {
   final Future<void> Function(TemplatePromptFormData formData) onSubmit;
   final TemplatePrompt? initialValue;
 
+  static const variableReconcileDebounce = Duration(milliseconds: 220);
+  static const variableReconcileDebounceForLargeContent = Duration(
+    milliseconds: 320,
+  );
+
   @override
   State<TemplatePromptFormDialog> createState() =>
       _TemplatePromptFormDialogState();
@@ -40,10 +45,6 @@ class TemplatePromptFormDialog extends StatefulWidget {
 class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
     with SettingsFormDialogStateMixin {
   static const _largeContentThreshold = 6000;
-  static const _variableReconcileDebounce = Duration(milliseconds: 220);
-  static const _variableReconcileDebounceForLargeContent = Duration(
-    milliseconds: 320,
-  );
 
   late final TextEditingController _titleController;
   late final TextEditingController _contentController;
@@ -235,8 +236,8 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
 
   Duration _resolveDebounceWindow(int contentLength) {
     return contentLength > _largeContentThreshold
-        ? _variableReconcileDebounceForLargeContent
-        : _variableReconcileDebounce;
+        ? TemplatePromptFormDialog.variableReconcileDebounceForLargeContent
+        : TemplatePromptFormDialog.variableReconcileDebounce;
   }
 
   List<TemplatePromptVariable> _buildVariablesFromControllers() {
