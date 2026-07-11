@@ -131,7 +131,7 @@ class _MessageAnchorRailState extends State<MessageAnchorRail> {
             child: SizedBox(
               width: _isExpanded ? 228 : 28,
               child: DecoratedBox(
-                key: const ValueKey('message-anchor-rail'),
+                key: const ValueKey('message-anchor-rail'), // test-key
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
