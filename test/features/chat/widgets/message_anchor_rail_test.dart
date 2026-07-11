@@ -106,7 +106,7 @@ void main() {
     testWidgets('空消息列表不渲染任何锚点条目', (tester) async {
       await pumpAnchorRail(tester, userMessages: []);
 
-      expect(find.byType(InkWell), findsNothing);
+      expect(find.byType(InkWell), findsNAnchorItems(0));
     });
 
     testWidgets('单条消息只渲染一个锚点条目', (tester) async {
@@ -143,47 +143,43 @@ void main() {
   // ── 容器级展开: 悬停交互 ──────────────────────────────────
 
   group('MessageAnchorRail container hover', () {
-    testWidgets('鼠标进入时展开锚点条宽度', (tester) async {
+    testWidgets('鼠标进入时展开并显示消息预览文本', (tester) async {
       final messages = List.generate(
         5,
         (i) => _userMessage(id: 'msg-${i + 1}', content: '消息${i + 1}，测试'),
       );
       await pumpAnchorRail(tester, userMessages: messages);
 
-      final widthBefore = tester.getSize(railContainerFinder).width;
+      expect(find.text('消息1'), findsNothing);
 
       final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
       await gesture.addPointer();
       await gesture.moveTo(tester.getCenter(railContainerFinder));
       await tester.pumpAndSettle();
 
-      final widthAfter = tester.getSize(railContainerFinder).width;
-      expect(widthAfter, greaterThan(widthBefore));
+      expect(find.text('消息1'), findsOneWidget);
 
       await gesture.removePointer();
     });
 
-    testWidgets('鼠标离开时折叠回原宽度', (tester) async {
+    testWidgets('鼠标离开时折叠并隐藏预览文本', (tester) async {
       final messages = List.generate(
         5,
-        (i) => _userMessage(id: 'msg-${i + 1}'),
+        (i) => _userMessage(id: 'msg-${i + 1}', content: '消息${i + 1}，测试'),
       );
       await pumpAnchorRail(tester, userMessages: messages);
-
-      final widthBefore = tester.getSize(railContainerFinder).width;
 
       final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
       await gesture.addPointer();
       await gesture.moveTo(tester.getCenter(railContainerFinder));
       await tester.pumpAndSettle();
-      final widthExpanded = tester.getSize(railContainerFinder).width;
-      expect(widthExpanded, greaterThan(widthBefore));
+
+      expect(find.text('消息1'), findsOneWidget);
 
       await gesture.moveTo(const Offset(0, 0));
       await tester.pumpAndSettle();
 
-      final widthCollapsed = tester.getSize(railContainerFinder).width;
-      expect(widthCollapsed, lessThan(widthExpanded));
+      expect(find.text('消息1'), findsNothing);
 
       await gesture.removePointer();
     });
@@ -214,20 +210,19 @@ void main() {
   // ── 容器级展开: 长按交互与守卫 ────────────────────────────
 
   group('MessageAnchorRail long press and guards', () {
-    testWidgets('长按展开锚点条宽度', (tester) async {
+    testWidgets('长按展开并显示消息预览文本', (tester) async {
       final messages = List.generate(
         5,
-        (i) => _userMessage(id: 'msg-${i + 1}'),
+        (i) => _userMessage(id: 'msg-${i + 1}', content: '消息${i + 1}，测试'),
       );
       await pumpAnchorRail(tester, userMessages: messages);
 
-      final widthBefore = tester.getSize(railContainerFinder).width;
+      expect(find.text('消息1'), findsNothing);
 
       await tester.longPress(railContainerFinder);
       await tester.pumpAndSettle();
 
-      final widthAfter = tester.getSize(railContainerFinder).width;
-      expect(widthAfter, greaterThan(widthBefore));
+      expect(find.text('消息1'), findsOneWidget);
     });
 
     testWidgets('展开状态下点击仍触发 onSelectMessage', (tester) async {
@@ -255,6 +250,7 @@ void main() {
       ];
       await pumpAnchorRail(tester, userMessages: messages);
 
+      // ≤3 条时无预览文本可断言，宽度不变是唯一可验证"不展开"的方式
       final widthBefore = tester.getSize(railContainerFinder).width;
 
       final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
@@ -279,7 +275,7 @@ void main() {
     testWidgets('父级重建时折叠展开状态', (tester) async {
       final messages = List.generate(
         5,
-        (i) => _userMessage(id: 'msg-${i + 1}'),
+        (i) => _userMessage(id: 'msg-${i + 1}', content: '消息${i + 1}，测试'),
       );
       final wrapperKey = GlobalKey<_ScrollWrapperState>();
 
@@ -308,19 +304,17 @@ void main() {
       );
       await tester.pump();
 
-      final widthBefore = tester.getSize(railContainerFinder).width;
+      expect(find.text('消息1'), findsNothing);
 
       await tester.longPress(railContainerFinder);
       await tester.pumpAndSettle();
-      final widthExpanded = tester.getSize(railContainerFinder).width;
-      expect(widthExpanded, greaterThan(widthBefore));
 
-      // 父级 setState 触发 didUpdateWidget → 折叠
+      expect(find.text('消息1'), findsOneWidget);
+
       wrapperKey.currentState!.triggerRebuild();
       await tester.pumpAndSettle();
 
-      final widthAfterRebuild = tester.getSize(railContainerFinder).width;
-      expect(widthAfterRebuild, lessThan(widthExpanded));
+      expect(find.text('消息1'), findsNothing);
     });
   });
 }
