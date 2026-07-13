@@ -1,0 +1,17 @@
+# 统一行尾：仓库与工作区均使用 LF，避免 Windows 下 autocrlf 产生的幽灵改动
+* text=auto eol=lf
+
+# 构建产物与二进制不转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.sqlite binary
+*.jar binary
+*.keystore binary
