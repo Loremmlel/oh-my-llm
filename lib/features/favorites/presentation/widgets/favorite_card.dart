@@ -50,14 +50,16 @@ class FavoriteCard extends StatelessWidget {
                     runSpacing: 2,
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      if (collectionName != null) ...[
+                      if (collectionName != null || onMoveToCollection != null) ...[
                         Icon(
-                          Icons.folder_outlined,
+                          collectionName != null
+                              ? Icons.folder_outlined
+                              : Icons.folder_off_outlined,
                           size: 14,
                           color: theme.colorScheme.primary,
                         ),
                         Text(
-                          collectionName!,
+                          collectionName ?? '未分类',
                           style: theme.textTheme.labelSmall?.copyWith(
                             color: theme.colorScheme.primary,
                           ),
