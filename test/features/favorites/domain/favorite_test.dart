@@ -94,5 +94,54 @@ void main() {
       );
       expect(a, isNot(equals(b)));
     });
+
+    test('displayTitle 使用自定义标题', () {
+      final favorite = Favorite(
+        id: 'fav-1',
+        userMessageContent: '这是一段很长的用户消息内容',
+        assistantContent: '回复',
+        createdAt: DateTime(2025, 1, 1),
+        title: '我的自定义标题',
+      );
+
+      expect(favorite.displayTitle, '我的自定义标题');
+    });
+
+    test('displayTitle 在无自定义标题时 fallback 到 userMessageContent', () {
+      final favorite = Favorite(
+        id: 'fav-1',
+        userMessageContent: '用户消息原文',
+        assistantContent: '回复',
+        createdAt: DateTime(2025, 1, 1),
+      );
+
+      expect(favorite.displayTitle, '用户消息原文');
+    });
+
+    test('copyWith 更新 title', () {
+      final favorite = Favorite(
+        id: 'fav-1',
+        userMessageContent: '消息',
+        assistantContent: '回复',
+        createdAt: DateTime(2025, 1, 1),
+      );
+
+      final updated = favorite.copyWith(title: '新标题');
+      expect(updated.title, '新标题');
+      expect(updated.userMessageContent, '消息');
+    });
+
+    test('copyWith + clearTitle 将 title 置为 null', () {
+      final favorite = Favorite(
+        id: 'fav-1',
+        userMessageContent: '消息',
+        assistantContent: '回复',
+        createdAt: DateTime(2025, 1, 1),
+        title: '旧标题',
+      );
+
+      final cleared = favorite.copyWith(clearTitle: true);
+      expect(cleared.title, isNull);
+    });
   });
 }

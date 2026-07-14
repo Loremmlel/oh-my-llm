@@ -12,6 +12,7 @@ class FavoriteCard extends StatelessWidget {
     required this.collectionName,
     required this.onDeletePressed,
     required this.onGoToConversation,
+    this.onMoveToCollection,
     super.key,
   });
 
@@ -25,6 +26,9 @@ class FavoriteCard extends StatelessWidget {
 
   /// 跳转到来源对话；当来源对话不存在时为 null。
   final VoidCallback? onGoToConversation;
+
+  /// 移动到其它收藏夹；为 null 时不显示移动按钮。
+  final VoidCallback? onMoveToCollection;
 
   @override
   Widget build(BuildContext context) {
@@ -58,6 +62,23 @@ class FavoriteCard extends StatelessWidget {
                             color: theme.colorScheme.primary,
                           ),
                         ),
+                        if (onMoveToCollection != null) ...[
+                          InkWell(
+                            borderRadius: BorderRadius.circular(4),
+                            onTap: onMoveToCollection,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 2,
+                                vertical: 2,
+                              ),
+                              child: Icon(
+                                Icons.drive_file_move_outline,
+                                size: 14,
+                                color: theme.colorScheme.primary,
+                              ),
+                            ),
+                          ),
+                        ],
                         const SizedBox(width: 8),
                       ],
                       Icon(
