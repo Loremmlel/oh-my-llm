@@ -4,9 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
-import 'package:oh_my_llm/features/sync/application/broadcast_prefix_length_provider.dart';
 import 'package:oh_my_llm/features/sync/application/network_interface_provider.dart';
-import 'package:oh_my_llm/features/sync/domain/models/broadcast_prefix_length.dart';
 import 'package:oh_my_llm/features/sync/domain/models/network_interface_info.dart';
 import 'package:oh_my_llm/features/sync/presentation/widgets/interface_selector.dart';
 
