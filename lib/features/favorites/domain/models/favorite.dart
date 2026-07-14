@@ -17,6 +17,7 @@ class Favorite extends Equatable {
     this.assistantModelDisplayName = anonymousAssistantModelDisplayName,
     this.sourceConversationId,
     this.sourceConversationTitle,
+    this.title,
   });
 
   final String id;
@@ -42,6 +43,12 @@ class Favorite extends Equatable {
   /// 收藏时来源对话的标题副本。
   final String? sourceConversationTitle;
 
+  /// 自定义标题；为 null 时列表展示用 [userMessageContent] 前缀。
+  final String? title;
+
+  /// 列表展示用标题：有自定义标题则用，否则取 [userMessageContent]。
+  String get displayTitle => title ?? userMessageContent;
+
   /// 收藏时间。
   final DateTime createdAt;
 
@@ -58,8 +65,10 @@ class Favorite extends Equatable {
     String? assistantModelDisplayName,
     String? sourceConversationId,
     String? sourceConversationTitle,
+    String? title,
     DateTime? createdAt,
     bool clearCollectionId = false,
+    bool clearTitle = false,
   }) {
     return Favorite(
       id: id ?? this.id,
@@ -75,6 +84,7 @@ class Favorite extends Equatable {
       sourceConversationId: sourceConversationId ?? this.sourceConversationId,
       sourceConversationTitle:
           sourceConversationTitle ?? this.sourceConversationTitle,
+      title: clearTitle ? null : title ?? this.title,
       createdAt: createdAt ?? this.createdAt,
     );
   }
@@ -89,6 +99,7 @@ class Favorite extends Equatable {
     assistantModelDisplayName,
     sourceConversationId,
     sourceConversationTitle,
+    title,
     createdAt,
   ];
 }

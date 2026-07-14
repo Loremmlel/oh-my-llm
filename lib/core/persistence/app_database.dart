@@ -67,6 +67,9 @@ class AppDatabase {
     if (currentVersion < 9) {
       _migrateV9(currentVersion);
     }
+    if (currentVersion < 10) {
+      _migrateV10(currentVersion);
+    }
   }
 
   /// V9：移除 preset_prompts.system_prompt 列。
@@ -115,6 +118,26 @@ class AppDatabase {
         [jsonEncode(updated), id],
       );
     }
+  }
+
+  /// V10：favorites 表新增 title 列，用于自定义收藏标题。
+  void _migrateV10(int fromVersion) {
+    if (fromVersion == 0) {
+      // 全新安装，_createSchema 已包含 title 列
+    } else {
+      // 旧版数据库可能没有 favorites 表（如 v8 测试库），先确保表存在
+      final hasFavorites = _connection
+          .select(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'favorites';",
+          )
+          .isNotEmpty;
+      if (hasFavorites) {
+        _connection.execute(
+          'ALTER TABLE favorites ADD COLUMN title TEXT;',
+        );
+      }
+    }
+    _connection.execute('PRAGMA user_version = 10;');
   }
 
   /// 创建全部业务表和索引（全新安装时使用）。
@@ -205,6 +228,7 @@ class AppDatabase {
         source_conversation_title TEXT,
         created_at TEXT NOT NULL,
         assistant_model_display_name TEXT NOT NULL DEFAULT '匿名模型',
+        title TEXT,
         FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE SET NULL
       );
     ''');

@@ -114,6 +114,32 @@ void main() {
       expect(moved.collectionId, isNull);
     });
 
+    test('rename updates favorite title', () {
+      final id = container.read(favoritesProvider.notifier).add(
+        userMessageContent: '用户消息',
+        assistantContent: '回复',
+      );
+
+      container.read(favoritesProvider.notifier).rename(id, '新标题');
+
+      final favorites = container.read(favoritesProvider);
+      final fav = favorites.firstWhere((f) => f.id == id);
+      expect(fav.title, '新标题');
+    });
+
+    test('rename with null clears custom title', () {
+      final id = container.read(favoritesProvider.notifier).add(
+        userMessageContent: '用户消息',
+        assistantContent: '回复',
+      );
+      container.read(favoritesProvider.notifier).rename(id, '临时标题');
+      container.read(favoritesProvider.notifier).rename(id, null);
+
+      final favorites = container.read(favoritesProvider);
+      final fav = favorites.firstWhere((f) => f.id == id);
+      expect(fav.title, isNull);
+    });
+
   });
 
   group('CollectionsController', () {
