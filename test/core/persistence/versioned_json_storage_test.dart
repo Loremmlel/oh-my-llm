@@ -45,7 +45,7 @@ void main() {
       );
     });
 
-    const _rejectionCases = <(String, Object)>[
+    const rejectionCases = <(String, Object)>[
       ('non-integer version', {'version': 'v1', 'items': <dynamic>[]}),
       ('non-list items', {'version': 1, 'items': 'not-a-list'}),
       ('items containing non-map entries', {'version': 1, 'items': [null]}),
@@ -53,7 +53,7 @@ void main() {
       ('plain array JSON', [{'id': 'item-1'}]),
     ];
 
-    for (final (name, payload) in _rejectionCases) {
+    for (final (name, payload) in rejectionCases) {
       test('rejects $name', () {
         expect(
           () => VersionedJsonStorage.decodeObjectList(
