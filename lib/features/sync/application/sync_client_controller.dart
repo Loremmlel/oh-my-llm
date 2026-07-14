@@ -4,6 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../core/http/http_client_provider.dart';
+import '../../settings/application/auto_retry_settings_controller.dart';
+import '../../settings/application/custom_headers_controller.dart';
+import '../../settings/application/font_size_settings_controller.dart';
 import '../../settings/application/fixed_prompt_sequences_controller.dart';
 import '../../settings/application/llm_model_configs_controller.dart';
 import '../../settings/application/memory_prompts_controller.dart';
@@ -252,6 +255,9 @@ class SyncClientController extends Notifier<SyncClientState> {
       existingPresetPrompts: ref.read(presetPromptsProvider),
       existingTemplatePrompts: ref.read(templatePromptsProvider),
       existingSequences: ref.read(fixedPromptSequencesProvider),
+      existingAutoRetrySettings: ref.read(autoRetrySettingsProvider),
+      existingCustomHeadersConfig: ref.read(customHeadersProvider),
+      existingFontSizeSettings: ref.read(fontSizeSettingsProvider),
     );
   }
 }
