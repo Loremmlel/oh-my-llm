@@ -63,26 +63,14 @@ void main() {
         scanner = createScanner();
       });
 
-      test('../ 穿越被拒绝', () {
-        expect(
-          () => scanner.resolvePath('/../etc'),
-          throwsA(isA<PathTraversalException>()),
-        );
-      });
-
-      test('多层 ../ 穿越被拒绝', () {
-        expect(
-          () => scanner.resolvePath('/subdir/../../../'),
-          throwsA(isA<PathTraversalException>()),
-        );
-      });
-
-      test('以 / 开头但含 .. 被拒绝', () {
-        expect(
-          () => scanner.resolvePath('/../..'),
-          throwsA(isA<PathTraversalException>()),
-        );
-      });
+      for (final path in ['/../etc', '/subdir/../../../', '/../..']) {
+        test('路径穿越被拒绝: $path', () {
+          expect(
+            () => scanner.resolvePath(path),
+            throwsA(isA<PathTraversalException>()),
+          );
+        });
+      }
     });
 
     test('不检查路径存在性（调用方自行判断）', () {

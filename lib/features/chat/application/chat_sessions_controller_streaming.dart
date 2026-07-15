@@ -232,7 +232,12 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
     var lastUiFlushAt = timestamp.subtract(streamUiFlushInterval);
 
     Future<void> completeWithSuccess() async {
-      if (streamStopRequested || completer.isCompleted) {
+      // 双重守卫：streamStopRequested 拦截用户主动终止后的延迟回调；
+      // activeStreamingCompleter != completer 拦截已被 stopStreaming 清理的旧会话；
+      // completer.isCompleted 兜底防止重复完成。
+      if (streamStopRequested ||
+          activeStreamingCompleter != completer ||
+          completer.isCompleted) {
         return;
       }
 
@@ -323,7 +328,11 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
     }
 
     Future<void> completeWithError(Object error, StackTrace stackTrace) async {
-      if (streamStopRequested || completer.isCompleted) {
+      // 双重守卫：与 completeWithSuccess 保持一致，防止延迟到达的 onError
+      // 在 stopStreaming 清理后绕过检查。
+      if (streamStopRequested ||
+          activeStreamingCompleter != completer ||
+          completer.isCompleted) {
         return;
       }
 
@@ -357,8 +366,11 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
         )
         .listen(
           (chunk) {
+            if (streamStopRequested) {
+              return;
+            }
             anyChunkYielded = true;
-            if (chunk.isEmpty || streamStopRequested) {
+            if (chunk.isEmpty) {
               return;
             }
 
@@ -446,7 +458,9 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
     activeStreamingSubscription = null;
     activeStreamingCompleter = null;
     latestStreamingReply = null;
-    streamStopRequested = false;
+    // 不在此重置 streamStopRequested：延迟到达的 onDone/onError 回调仍需要
+    // 该标志拦截。streamStopRequested 在下次 streamAssistantReply 开始时
+    // （第 228 行）重置为 false，确保新一轮流式正常工作。
   }
 
   /// 在自动重试模式下发送消息：出错时自动等待下分钟的 0-15 秒窗口后重试，

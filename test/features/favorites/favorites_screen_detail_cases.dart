@@ -146,6 +146,34 @@ void registerFavoriteDetailScreenTests() {
     expect(find.text('这是深度思考的推理过程'), findsOneWidget);
   });
 
+  testWidgets(
+    'favorites detail shows move button for uncategorized favorite',
+    (tester) async {
+      await setUpFavoritesScreen(tester, seed: (db) {
+        seedFavorite(
+          db,
+          id: 'fav-uncategorized',
+          userMessageContent: '未分类的收藏问题',
+          assistantContent: '未分类的回复',
+        );
+        seedCollection(db, id: 'col-1', name: '技术收藏');
+      });
+
+      await tester.tap(find.text('未分类的收藏问题'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('未分类'), findsOneWidget);
+      expect(find.byIcon(Icons.drive_file_move_outline), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.drive_file_move_outline));
+      await tester.pumpAndSettle();
+
+      expect(find.text('移动到收藏夹'), findsOneWidget);
+      expect(find.text('未分类'), findsWidgets);
+      expect(find.text('技术收藏'), findsOneWidget);
+    },
+  );
+
   testWidgets('favorites detail hides reasoning panel when absent', (
     tester,
   ) async {
@@ -163,5 +191,7 @@ void registerFavoriteDetailScreenTests() {
     await tester.pumpAndSettle();
 
     expect(find.text('无推理的回复'), findsOneWidget);
+    expect(find.text('深度思考'), findsNothing);
+    expect(find.text('展开'), findsNothing);
   });
 }

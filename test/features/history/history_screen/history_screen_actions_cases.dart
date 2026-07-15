@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'history_screen_test_helpers.dart';
 
 void registerHistoryScreenActionsTests() {
-  testWidgets('history screen renames and batch deletes conversations', (
+  testWidgets('history screen renames a conversation', (
     tester,
   ) async {
     await setUpHistoryScreen(tester);
@@ -23,10 +23,16 @@ void registerHistoryScreenActionsTests() {
     await tester.pumpAndSettle();
 
     expect(find.text('新的历史标题'), findsOneWidget);
+  });
 
-    await tester.longPress(find.text('新的历史标题'));
-    await tester.pumpAndSettle();
+  testWidgets('history screen batch selects and deletes conversations', (
+    tester,
+  ) async {
+    await setUpHistoryScreen(tester);
+
     await tester.longPress(find.text('Flutter 路线图'));
+    await tester.pumpAndSettle();
+    await tester.longPress(find.text('项目复盘'));
     await tester.pumpAndSettle();
 
     await tester.tap(find.widgetWithText(FilledButton, '删除 2 项'));
@@ -34,9 +40,9 @@ void registerHistoryScreenActionsTests() {
     await tester.tap(find.widgetWithText(FilledButton, '确认删除'));
     await tester.pumpAndSettle();
 
-    expect(find.text('新的历史标题'), findsNothing);
     expect(find.text('Flutter 路线图'), findsNothing);
-    expect(find.text('项目复盘'), findsOneWidget);
+    expect(find.text('项目复盘'), findsNothing);
+    expect(find.text('Rust 重构计划'), findsOneWidget);
   });
 
   testWidgets('history screen jumps back to chat with selected conversation', (

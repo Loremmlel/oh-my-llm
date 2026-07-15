@@ -539,11 +539,14 @@ class _ConversationCheckpointsDialogState
         _selectedSourceCheckpointId = checkpoint.id;
         _focusedCheckpointId = checkpoint.id;
       });
+      if (!mounted) return;
+      // ignore: use_build_context_synchronously
       context.showSuccessBubble('${checkpoint.title} 已创建');
     } catch (error) {
       if (!mounted) {
         return;
       }
+      // ignore: use_build_context_synchronously
       context.showErrorBubble(error.toString());
     } finally {
       if (mounted) {

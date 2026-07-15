@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/settings/data/sqlite_fixed_prompt_sequence_repository.dart';
-import 'package:oh_my_llm/features/settings/domain/models/fixed_prompt_sequence.dart';
 import 'package:oh_my_llm/features/settings/presentation/settings_screen.dart';
 
 import 'settings_screen_test_helpers.dart';
@@ -173,12 +172,11 @@ void registerSettingsScreenFixedPromptSequencesTests() {
 
       await tester.tap(find.text('新增步骤'));
       await tester.pumpAndSettle();
-      // 依赖 buildFixedPromptStepFallbackTitle 的 fallback 标题生成规则
-      final insertedTitle = buildFixedPromptStepFallbackTitle(4);
-      expect(insertedTitle, isNotEmpty);
 
+      // 新插入的步骤使用 fallback 标题，验证它在列表中显示
+      // 硬编码期望值而非调用生产函数，避免循环测试
       expect(stepTile('标题1'), findsOneWidget);
-      expect(stepTile(insertedTitle), findsOneWidget);
+      expect(stepTile('标题4'), findsOneWidget);
       expect(stepTile('标题2'), findsOneWidget);
       expect(stepTile('标题3'), findsOneWidget);
 

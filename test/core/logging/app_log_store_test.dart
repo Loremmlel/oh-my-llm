@@ -6,24 +6,24 @@ import 'package:oh_my_llm/core/logging/app_network_logger.dart';
 import 'package:oh_my_llm/core/logging/app_log_store.dart';
 
 void main() {
-  late Directory _directory;
-  late File _logFile;
+  late Directory directory;
+  late File logFile;
 
   setUp(() async {
-    _directory = await Directory.systemTemp.createTemp('log-store-test-');
+    directory = await Directory.systemTemp.createTemp('log-store-test-');
     addTearDown(() async {
-      if (await _directory.exists()) {
-        await _directory.delete(recursive: true);
+      if (await directory.exists()) {
+        await directory.delete(recursive: true);
       }
     });
-    _logFile = File(
-      '${_directory.path}${Platform.pathSeparator}network.log',
+    logFile = File(
+      '${directory.path}${Platform.pathSeparator}network.log',
     );
   });
 
   test('AppLogStore rotates file when size exceeds max bytes', () async {
     final store = await AppLogStore.open(
-      directoryPath: _directory.path,
+      directoryPath: directory.path,
       fileName: 'network.log',
       maxBytes: 40,
     );
@@ -32,7 +32,7 @@ void main() {
     await store.appendLine('abcdefghij');
     await store.appendLine('xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx');
 
-    final content = await _logFile.readAsString();
+    final content = await logFile.readAsString();
     expect(content, contains('[log-rotated]'));
   });
 
@@ -40,7 +40,7 @@ void main() {
     'AppNetworkLogger keeps request logs across relaunches and detach',
     () async {
       final logger = AppNetworkLogger(
-        store: await AppLogStore.open(directoryPath: _directory.path),
+        store: await AppLogStore.open(directoryPath: directory.path),
       );
 
       await logger.onAppLaunch();
@@ -61,11 +61,11 @@ void main() {
       await logger.onAppDetached();
 
       final relaunchedLogger = AppNetworkLogger(
-        store: await AppLogStore.open(directoryPath: _directory.path),
+        store: await AppLogStore.open(directoryPath: directory.path),
       );
       await relaunchedLogger.onAppLaunch();
 
-      final content = await _logFile.readAsString();
+      final content = await logFile.readAsString();
       expect(
         content,
         contains('[request] POST https://api.example.com/v1/chat/completions'),
@@ -77,7 +77,7 @@ void main() {
 
   test('AppNetworkLogger writes non-stream response bodies', () async {
     final logger = AppNetworkLogger(
-      store: await AppLogStore.open(directoryPath: _directory.path),
+      store: await AppLogStore.open(directoryPath: directory.path),
     );
 
     await logger.logResponseBody(
@@ -91,26 +91,26 @@ void main() {
       },
     );
 
-    final content = await _logFile.readAsString();
+    final content = await logFile.readAsString();
     expect(content, contains('[response-body]'));
     expect(content, contains('完整回复'));
     expect(content, contains('完整思考'));
   });
 
   test('AppLogStore.clear writes log-cleared marker with reason', () async {
-    final store = await AppLogStore.open(directoryPath: _directory.path);
+    final store = await AppLogStore.open(directoryPath: directory.path);
 
     await store.appendLine('first line');
     await store.clear(reason: 'test rotation');
 
-    final content = await _logFile.readAsString();
+    final content = await logFile.readAsString();
     expect(content, contains('[log-cleared] test rotation'));
     expect(content, isNot(contains('first line')));
   });
 
   test('AppNetworkLogger.logResponse writes status and elapsed', () async {
     final logger = AppNetworkLogger(
-      store: await AppLogStore.open(directoryPath: _directory.path),
+      store: await AppLogStore.open(directoryPath: directory.path),
     );
 
     await logger.logResponse(
@@ -120,7 +120,7 @@ void main() {
       elapsed: const Duration(milliseconds: 42),
     );
 
-    final content = await _logFile.readAsString();
+    final content = await logFile.readAsString();
     expect(content, contains('[response]'));
     expect(content, contains('status=200'));
     expect(content, contains('elapsedMs=42'));
@@ -128,7 +128,7 @@ void main() {
 
   test('AppNetworkLogger.logSseLine parses JSON line', () async {
     final logger = AppNetworkLogger(
-      store: await AppLogStore.open(directoryPath: _directory.path),
+      store: await AppLogStore.open(directoryPath: directory.path),
     );
 
     await logger.logSseLine(
@@ -136,14 +136,14 @@ void main() {
       line: '{"content":"hello"}',
     );
 
-    final content = await _logFile.readAsString();
+    final content = await logFile.readAsString();
     expect(content, contains('[sse]'));
     expect(content, contains('hello'));
   });
 
   test('AppNetworkLogger.logSseLine falls back to text for invalid JSON', () async {
     final logger = AppNetworkLogger(
-      store: await AppLogStore.open(directoryPath: _directory.path),
+      store: await AppLogStore.open(directoryPath: directory.path),
     );
 
     await logger.logSseLine(
@@ -151,14 +151,14 @@ void main() {
       line: 'not-json-at-all',
     );
 
-    final content = await _logFile.readAsString();
+    final content = await logFile.readAsString();
     expect(content, contains('[sse]'));
     expect(content, contains('not-json-at-all'));
   });
 
   test('AppNetworkLogger.logError truncates stack trace to 12 lines', () async {
     final logger = AppNetworkLogger(
-      store: await AppLogStore.open(directoryPath: _directory.path),
+      store: await AppLogStore.open(directoryPath: directory.path),
     );
 
     // 构造一个 20 行的 StackTrace
@@ -171,7 +171,7 @@ void main() {
       stackTrace: stackTrace,
     );
 
-    final content = await _logFile.readAsString();
+    final content = await logFile.readAsString();
     expect(content, contains('[error]'));
     expect(content, contains('test error'));
     // 前 12 行被写入，第 13 行（#12）不应出现

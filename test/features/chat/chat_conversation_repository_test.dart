@@ -7,10 +7,17 @@ import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 
 void main() {
+  late AppDatabase database;
+  late SqliteChatConversationRepository repository;
+
+  setUp(() {
+    database = AppDatabase.inMemory();
+    repository = SqliteChatConversationRepository(database);
+  });
+
+  tearDown(() => database.close());
+
   test('sqlite repository saves and restores branched conversations', () async {
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final repository = SqliteChatConversationRepository(database);
     final conversation = ChatConversation(
       id: 'conversation-1',
       title: '分支会话',
@@ -111,9 +118,6 @@ void main() {
 
   test('UPSERT idempotency: re-saving with modified content updates fields without changing count',
       () async {
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final repository = SqliteChatConversationRepository(database);
 
     // Save initial conversation with 3 messages
     final original = ChatConversation(
@@ -189,9 +193,6 @@ void main() {
 
   test('ghost row cleanup: removing a node from messageNodes removes it from DB',
       () async {
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final repository = SqliteChatConversationRepository(database);
 
     // Save with A → B → C
     final withThree = ChatConversation(
@@ -265,9 +266,6 @@ void main() {
 
   test('branch selection upsert: re-saving with different child replaces old selection',
       () async {
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final repository = SqliteChatConversationRepository(database);
 
     // Save conversation with parent → child1 selection
     final withChild1 = ChatConversation(
@@ -335,9 +333,6 @@ void main() {
 
   test('empty conversation filter: saveConversation with no messages, no checkpoints, no title is skipped',
       () async {
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final repository = SqliteChatConversationRepository(database);
 
     // Build an empty conversation
     final empty = ChatConversation(
@@ -366,9 +361,6 @@ void main() {
 
   test('cross-conversation isolation: saving convA does not affect convB messages',
       () async {
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final repository = SqliteChatConversationRepository(database);
 
     // Helper to build a simple conversation
     ChatConversation makeConv(String id, String title, List<String> contents) {
@@ -458,9 +450,6 @@ void main() {
 
   test('node_index update: reordering messageNodes updates node_index values',
       () async {
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final repository = SqliteChatConversationRepository(database);
 
     // Save conversation with messages at indexes 0, 1, 2
     final original = ChatConversation(
@@ -576,9 +565,6 @@ void main() {
   }
 
   test('countHistorySummaries returns 0 on empty db', () {
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final repository = SqliteChatConversationRepository(database);
 
     expect(repository.countHistorySummaries(), 0);
     expect(repository.countHistorySummaries(keyword: ''), 0);
@@ -587,9 +573,6 @@ void main() {
 
   test('countHistorySummaries counts all conversations when keyword empty',
       () async {
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final repository = SqliteChatConversationRepository(database);
     await repository.saveConversations([
       buildConv('a'),
       buildConv('b'),
@@ -601,9 +584,6 @@ void main() {
 
   test('countHistorySummaries matches title keyword case-insensitively',
       () async {
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final repository = SqliteChatConversationRepository(database);
     await repository.saveConversations([
       buildConv('a', title: 'Rust 重构计划'),
       buildConv('b', title: 'Flutter 路线图'),
@@ -618,9 +598,6 @@ void main() {
 
   test('countHistorySummaries matches user message content across branches',
       () async {
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final repository = SqliteChatConversationRepository(database);
     await repository.saveConversations([
       buildConv('a', userMessageContent: '帮我整理 Rust 模块边界'),
       buildConv('b', userMessageContent: '请给我一份 Widget 测试清单'),
@@ -634,9 +611,6 @@ void main() {
   });
 
   test('countHistorySummaries escapes LIKE wildcards (% and _)', () async {
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final repository = SqliteChatConversationRepository(database);
     await repository.saveConversations([
       buildConv('pct', title: '进度 50%'),
       buildConv('us', title: '评分_优秀'),
@@ -658,9 +632,6 @@ void main() {
   test(
       'countHistorySummaries excludes conversations without messages/checkpoints',
       () async {
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final repository = SqliteChatConversationRepository(database);
 
     // 带消息的会话 -> 计入
     await repository.saveConversations([buildConv('with-msg')]);
@@ -685,9 +656,6 @@ void main() {
   test(
       'countHistorySummaries result equals loadHistorySummaries pagination sum',
       () async {
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final repository = SqliteChatConversationRepository(database);
     final convs = List.generate(7, (i) => buildConv('c$i'));
     await repository.saveConversations(convs);
 

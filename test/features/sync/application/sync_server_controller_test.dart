@@ -58,13 +58,13 @@ void main() {
       return container;
     }
 
-    test('build 从 SharedPreferences 读取 deviceName，无存储时回退到 hostname', () async {
-      // 无存储时回退到 Platform.localHostname
+    test('无存储时 deviceName 回退到 hostname', () async {
       final c1 = buildContainer();
       expect(c1.read(syncServerControllerProvider).deviceName, Platform.localHostname);
       c1.dispose();
+    });
 
-      // 有存储时使用存储值
+    test('有存储时 deviceName 读取存储值', () async {
       SharedPreferences.setMockInitialValues({'sync.device_name': '我的设备'});
       preferences = await SharedPreferences.getInstance();
       final c2 = buildContainer();
@@ -128,6 +128,7 @@ void main() {
       final state = container.read(syncServerControllerProvider);
       expect(state.isRunning, isTrue);
       expect(state.deviceName, '新名字');
+      // 重启绑定新端口，证明服务确实重启了
       expect(state.httpPort, isNot(port1));
     });
 

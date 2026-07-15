@@ -1038,18 +1038,23 @@ void main() {
         .read(chatSessionsProvider.notifier)
         .updateActiveConversationPreferences(autoRetryEnabled: true);
 
-    // 第一次请求会失败，重试会有一个 50ms 的可控窗口期
+    // 第一次请求会失败，重试会有一个可控的等待窗口
     fakeClient.enqueueError(ChatCompletionException('首次失败'));
 
-    // 用非零 retryDelay 创造可控的重试窗口：
-    // - 第一个 _waitForRetryWindow(50ms) 是首次请求的延迟，50ms 后发出
-    // - 第二个 _waitForRetryWindow(50ms) 是重试的等待窗口
-    final sendFuture = sendMsg('test A', retryDelay: const Duration(milliseconds: 50));
+    // 用较大的 retryDelay 创造宽余的重试窗口，避免 CI timing 脆弱
+    final sendFuture = sendMsg('test A', retryDelay: const Duration(seconds: 1));
 
-    // 等第一个请求的 50ms 延迟结束、请求发出并失败、重试循环进入第二个等待窗口
-    await Future<void>.delayed(const Duration(milliseconds: 70));
+    // 等第一个请求发出并失败，重试循环进入等待窗口
+    // 轮询等待 isAutoRetryWaiting 变为 true，最多等 5 秒
+    bool waiting = false;
+    for (int i = 0; i < 50; i++) {
+      waiting = container.read(chatSessionsProvider).isAutoRetryWaiting;
+      if (waiting) break;
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+    expect(waiting, isTrue);
 
-    // 此时旧重试在等待窗口中（isAutoRetryWaiting = true），调用 stopStreaming 取消
+    // 此时旧重试在等待窗口中，调用 stopStreaming 取消
     await container.read(chatSessionsProvider.notifier).stopStreaming();
 
     // _isBusy 已为 false（isAutoRetryWaiting 被清除），发送新消息
@@ -1352,5 +1357,115 @@ void main() {
     expect(state.errorMessage, isNull);
     expect(state.autoRetryCount, 0);
     expect(fakeClient.requestHistory.length, 3);
+  });
+
+  // ── stopStreaming 竞态条件 ──────────────────────────────────────────────
+
+  test('stopStreaming 后延迟到达的 onDone 不改变状态', () async {
+    // 使用 StreamController 模拟可控的流式生命周期
+    final streamController = StreamController<ChatCompletionChunk>();
+    addTearDown(streamController.close);
+    fakeClient.enqueueStream(streamController.stream);
+
+    final sendFuture = sendMsg('测试 onDone 竞态');
+    await Future<void>.delayed(const Duration(milliseconds: 1));
+    streamController.add(const ChatCompletionChunk(contentDelta: '部分内容'));
+    await Future<void>.delayed(const Duration(milliseconds: 1));
+
+    // 终止流式
+    await container.read(chatSessionsProvider.notifier).stopStreaming();
+    await sendFuture;
+
+    final stateAfterStop = container.read(chatSessionsProvider);
+    expect(stateAfterStop.isStreaming, isFalse);
+    final contentAfterStop = stateAfterStop.activeConversation.messages.last.content;
+
+    // 模拟延迟到达的 onDone：关闭流控制器（触发 Stream onDone）
+    streamController.add(const ChatCompletionChunk(contentDelta: '延迟内容'));
+    await streamController.close();
+    // 让微任务队列执行
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+
+    final stateAfterDelayed = container.read(chatSessionsProvider);
+    expect(stateAfterDelayed.isStreaming, isFalse);
+    // 延迟到达的 chunk 不应改变已有内容
+    expect(
+      stateAfterDelayed.activeConversation.messages.last.content,
+      contentAfterStop,
+    );
+  });
+
+  test('stopStreaming 后延迟到达的 onError 不改变状态', () async {
+    final streamController = StreamController<ChatCompletionChunk>();
+    addTearDown(streamController.close);
+    fakeClient.enqueueStream(streamController.stream);
+
+    final sendFuture = sendMsg('测试 onError 竞态');
+    await Future<void>.delayed(const Duration(milliseconds: 1));
+    streamController.add(const ChatCompletionChunk(contentDelta: '已有内容'));
+    await Future<void>.delayed(const Duration(milliseconds: 1));
+
+    await container.read(chatSessionsProvider.notifier).stopStreaming();
+    await sendFuture;
+
+    final stateAfterStop = container.read(chatSessionsProvider);
+    expect(stateAfterStop.isStreaming, isFalse);
+    final errorMessageAfterStop = stateAfterStop.errorMessage;
+
+    // 模拟延迟到达的 onError
+    streamController.addError(Exception('延迟错误'));
+    await streamController.close();
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+
+    final stateAfterDelayed = container.read(chatSessionsProvider);
+    expect(stateAfterDelayed.isStreaming, isFalse);
+    // 延迟到达的错误不应覆盖 stopStreaming 设置的 errorMessage
+    expect(stateAfterDelayed.errorMessage, errorMessageAfterStop);
+  });
+
+  test('stopStreaming 后 streamStopRequested 保持 true 直到下次流式开始', () async {
+    final streamController = StreamController<ChatCompletionChunk>();
+    addTearDown(streamController.close);
+    fakeClient.enqueueStream(streamController.stream);
+
+    final sendFuture = sendMsg('测试标志保持');
+    await Future<void>.delayed(const Duration(milliseconds: 1));
+
+    await container.read(chatSessionsProvider.notifier).stopStreaming();
+    await sendFuture;
+
+    // stopStreaming 后 streamStopRequested 应保持 true
+    // （不在 clearActiveStreamingSession 中重置）
+    final notifier = container.read(chatSessionsProvider.notifier);
+    expect(notifier.streamStopRequested, isTrue);
+
+    // 开始新一轮流式时应重置为 false
+    fakeClient.enqueueChunks(['新回复']);
+    await sendMsg('新消息');
+
+    expect(notifier.streamStopRequested, isFalse);
+    final state = container.read(chatSessionsProvider);
+    expect(state.isStreaming, isFalse);
+    expect(state.activeConversation.messages.last.content, '新回复');
+  });
+
+  test('连续两次 stopStreaming 不产生异常', () async {
+    final streamController = StreamController<ChatCompletionChunk>();
+    fakeClient.enqueueStream(streamController.stream);
+
+    final sendFuture = sendMsg('测试双击停止');
+    await Future<void>.delayed(const Duration(milliseconds: 1));
+    streamController.add(const ChatCompletionChunk(contentDelta: '部分内容'));
+    await Future<void>.delayed(const Duration(milliseconds: 1));
+
+    await container.read(chatSessionsProvider.notifier).stopStreaming();
+    // 立即再次调用 stopStreaming（模拟用户快速双击）
+    await container.read(chatSessionsProvider.notifier).stopStreaming();
+    await sendFuture;
+
+    final state = container.read(chatSessionsProvider);
+    expect(state.isStreaming, isFalse);
+    expect(state.errorMessage, isNull);
+    expect(state.activeConversation.messages.last.content, '部分内容');
   });
 }

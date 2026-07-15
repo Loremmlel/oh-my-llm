@@ -53,7 +53,7 @@ Future<AppDatabase> pumpAnchorRail(
   );
 }
 
-/// 定位锚点条中承载宽度变化的容器（源码显式暴露的稳定标识）。
+/// 定位锚点条中承载交互的容器（源码显式标注 `// test-key` 的稳定标识）。
 final Finder railContainerFinder = find.byKey(const ValueKey('message-anchor-rail'));
 
 /// 断言锚点条渲染出预期数量的可点击条目（InkWell）。
@@ -250,16 +250,15 @@ void main() {
       ];
       await pumpAnchorRail(tester, userMessages: messages);
 
-      // ≤3 条时无预览文本可断言，宽度不变是唯一可验证"不展开"的方式
-      final widthBefore = tester.getSize(railContainerFinder).width;
+      // ≤3 条时悬停后预览文本仍不可见
+      expect(find.text('消息一'), findsNothing);
 
       final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
       await gesture.addPointer();
       await gesture.moveTo(tester.getCenter(railContainerFinder));
       await tester.pumpAndSettle();
 
-      final widthAfter = tester.getSize(railContainerFinder).width;
-      expect(widthAfter, equals(widthBefore));
+      expect(find.text('消息一'), findsNothing);
 
       await gesture.removePointer();
     });

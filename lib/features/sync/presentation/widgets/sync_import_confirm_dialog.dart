@@ -86,6 +86,21 @@ class _SyncImportConfirmDialogState
               label: '自动重试设置',
               count: 1,
             ),
+          if (data.customHeadersConfig != null &&
+              data.customHeadersConfig!.headers.isNotEmpty)
+            _buildCountRow(
+              context,
+              icon: Icons.http_outlined,
+              label: '自定义请求头',
+              count: data.customHeadersConfig!.headers.length,
+            ),
+          if (data.fontSizeSettings != null)
+            _buildCountRow(
+              context,
+              icon: Icons.format_size_rounded,
+              label: '正文字号设置',
+              count: 1,
+            ),
           const SizedBox(height: 12),
           Text(
             '与本地内容重复的条目已被过滤，以上均为新增项，导入后不影响已有配置。',

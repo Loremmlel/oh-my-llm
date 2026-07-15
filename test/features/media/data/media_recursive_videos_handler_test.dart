@@ -29,15 +29,15 @@ void main() {
       tempRoot.deleteSync(recursive: true);
     });
 
-    test('canHandle 匹配 GET /api/media/videos/recursive', () {
-      final req = _FakeHttpRequest('GET', '/api/media/videos/recursive/sister');
-      expect(handler.canHandle(req), isTrue);
-    });
-
-    test('canHandle 匹配根路径 GET /api/media/videos/recursive', () {
-      final req = _FakeHttpRequest('GET', '/api/media/videos/recursive');
-      expect(handler.canHandle(req), isTrue);
-    });
+    for (final path in [
+      '/api/media/videos/recursive/sister',
+      '/api/media/videos/recursive',
+    ]) {
+      test('canHandle 匹配 GET $path', () {
+        final req = _FakeHttpRequest('GET', path);
+        expect(handler.canHandle(req), isTrue);
+      });
+    }
 
     test('canHandle 拒绝 POST 请求', () {
       final req = _FakeHttpRequest('POST', '/api/media/videos/recursive/sister');

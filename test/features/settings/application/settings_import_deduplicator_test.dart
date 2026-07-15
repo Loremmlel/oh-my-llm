@@ -6,6 +6,7 @@ import 'package:oh_my_llm/features/settings/domain/models/fixed_prompt_sequence.
 import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/memory_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/models/custom_headers_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/font_size_settings.dart';
 import 'package:oh_my_llm/features/settings/domain/models/settings_export_data.dart';
 import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
@@ -111,6 +112,7 @@ void main() {
     List<FixedPromptSequence> fixedPromptSequences = const [],
     AutoRetrySettings? autoRetrySettings,
     FontSizeSettings? fontSizeSettings,
+    CustomHeadersConfig? customHeadersConfig,
   }) {
     return SettingsExportData(
       modelProviders: modelProviders,
@@ -120,6 +122,7 @@ void main() {
       fixedPromptSequences: fixedPromptSequences,
       autoRetrySettings: autoRetrySettings,
       fontSizeSettings: fontSizeSettings,
+      customHeadersConfig: customHeadersConfig,
     );
   }
 
@@ -430,7 +433,7 @@ void main() {
       expect(result.fixedPromptSequences, isEmpty);
     });
 
-    test('保留 autoRetrySettings（透传，不做去重）', () {
+    test('不传 existingAutoRetrySettings 时 autoRetrySettings 透传', () {
       const autoRetry = AutoRetrySettings(maxJitterSeconds: 20, maxRetryCount: 5);
       final data = export(
         memoryPrompts: [mem(content: '新记忆')],
@@ -453,7 +456,7 @@ void main() {
       expect(result.memoryPrompts.length, 1);
     });
 
-    test('在 data 仅含 autoRetry 时 hasContent 为 true', () {
+    test('不传 existingAutoRetrySettings 时 data 仅含 autoRetry 则 hasContent 为 true', () {
       final data = export(
         autoRetrySettings: const AutoRetrySettings(),
       );
@@ -471,7 +474,7 @@ void main() {
       expect(result.autoRetrySettings, isNotNull);
     });
 
-    test('保留 fontSizeSettings（透传，不做去重）', () {
+    test('不传 existingFontSizeSettings 时 fontSizeSettings 透传', () {
       final data = export(
         fontSizeSettings: const FontSizeSettings(bodyFontSize: 18),
       );
@@ -484,6 +487,194 @@ void main() {
         existingSequences: const [],
       );
       expect(result.fontSizeSettings?.bodyFontSize, 18);
+    });
+
+    // ── 标量型配置去重 ──────────────────────────────────────────────
+
+    test('autoRetrySettings 与本地一致时去重后为 null', () {
+      const autoRetry = AutoRetrySettings(maxJitterSeconds: 20, maxRetryCount: 5);
+      final data = export(autoRetrySettings: autoRetry);
+
+      final result = deduplicator.deduplicate(
+        data: data,
+        existingProviders: const [],
+        existingMemoryPrompts: const [],
+        existingPresetPrompts: const [],
+        existingTemplatePrompts: const [],
+        existingSequences: const [],
+        existingAutoRetrySettings: autoRetry,
+      );
+
+      expect(result.autoRetrySettings, isNull);
+    });
+
+    test('autoRetrySettings 与本地不同时保留远端值', () {
+      const existing = AutoRetrySettings(maxJitterSeconds: 15, maxRetryCount: 0);
+      const incoming = AutoRetrySettings(maxJitterSeconds: 30, maxRetryCount: 5);
+      final data = export(autoRetrySettings: incoming);
+
+      final result = deduplicator.deduplicate(
+        data: data,
+        existingProviders: const [],
+        existingMemoryPrompts: const [],
+        existingPresetPrompts: const [],
+        existingTemplatePrompts: const [],
+        existingSequences: const [],
+        existingAutoRetrySettings: existing,
+      );
+
+      expect(result.autoRetrySettings, isNotNull);
+      expect(result.autoRetrySettings!.maxJitterSeconds, 30);
+      expect(result.autoRetrySettings!.maxRetryCount, 5);
+    });
+
+    test('customHeadersConfig 与本地一致时去重后为 null', () {
+      const config = CustomHeadersConfig(headers: [
+        CustomHeaderEntry(key: 'X-Custom', value: 'test'),
+      ]);
+      final data = export(customHeadersConfig: config);
+
+      final result = deduplicator.deduplicate(
+        data: data,
+        existingProviders: const [],
+        existingMemoryPrompts: const [],
+        existingPresetPrompts: const [],
+        existingTemplatePrompts: const [],
+        existingSequences: const [],
+        existingCustomHeadersConfig: config,
+      );
+
+      expect(result.customHeadersConfig, isNull);
+    });
+
+    test('customHeadersConfig 与本地不同时保留远端值', () {
+      const existing = CustomHeadersConfig(headers: [
+        CustomHeaderEntry(key: 'X-Old', value: 'old'),
+      ]);
+      const incoming = CustomHeadersConfig(headers: [
+        CustomHeaderEntry(key: 'X-New', value: 'new'),
+      ]);
+      final data = export(customHeadersConfig: incoming);
+
+      final result = deduplicator.deduplicate(
+        data: data,
+        existingProviders: const [],
+        existingMemoryPrompts: const [],
+        existingPresetPrompts: const [],
+        existingTemplatePrompts: const [],
+        existingSequences: const [],
+        existingCustomHeadersConfig: existing,
+      );
+
+      expect(result.customHeadersConfig, isNotNull);
+      expect(result.customHeadersConfig!.headers.first.key, 'X-New');
+    });
+
+    test('customHeadersConfig 远端为空列表时去重后为 null', () {
+      const incoming = CustomHeadersConfig(headers: []);
+      final data = export(customHeadersConfig: incoming);
+
+      final result = deduplicator.deduplicate(
+        data: data,
+        existingProviders: const [],
+        existingMemoryPrompts: const [],
+        existingPresetPrompts: const [],
+        existingTemplatePrompts: const [],
+        existingSequences: const [],
+        existingCustomHeadersConfig: const CustomHeadersConfig(),
+      );
+
+      expect(result.customHeadersConfig, isNull);
+    });
+
+    test('fontSizeSettings 与本地一致时去重后为 null', () {
+      const fontSize = FontSizeSettings(bodyFontSize: 18);
+      final data = export(fontSizeSettings: fontSize);
+
+      final result = deduplicator.deduplicate(
+        data: data,
+        existingProviders: const [],
+        existingMemoryPrompts: const [],
+        existingPresetPrompts: const [],
+        existingTemplatePrompts: const [],
+        existingSequences: const [],
+        existingFontSizeSettings: fontSize,
+      );
+
+      expect(result.fontSizeSettings, isNull);
+    });
+
+    test('fontSizeSettings 与本地不同时保留远端值', () {
+      const existing = FontSizeSettings(bodyFontSize: 14);
+      const incoming = FontSizeSettings(bodyFontSize: 20);
+      final data = export(fontSizeSettings: incoming);
+
+      final result = deduplicator.deduplicate(
+        data: data,
+        existingProviders: const [],
+        existingMemoryPrompts: const [],
+        existingPresetPrompts: const [],
+        existingTemplatePrompts: const [],
+        existingSequences: const [],
+        existingFontSizeSettings: existing,
+      );
+
+      expect(result.fontSizeSettings, isNotNull);
+      expect(result.fontSizeSettings!.bodyFontSize, 20);
+    });
+
+    test('全部标量配置与本地一致时 hasContent 为 false', () {
+      const autoRetry = AutoRetrySettings(maxJitterSeconds: 20, maxRetryCount: 5);
+      const customHeaders = CustomHeadersConfig(headers: [
+        CustomHeaderEntry(key: 'X-Custom', value: 'test'),
+      ]);
+      const fontSize = FontSizeSettings(bodyFontSize: 18);
+      final data = export(
+        autoRetrySettings: autoRetry,
+        customHeadersConfig: customHeaders,
+        fontSizeSettings: fontSize,
+      );
+
+      final result = deduplicator.deduplicate(
+        data: data,
+        existingProviders: const [],
+        existingMemoryPrompts: const [],
+        existingPresetPrompts: const [],
+        existingTemplatePrompts: const [],
+        existingSequences: const [],
+        existingAutoRetrySettings: autoRetry,
+        existingCustomHeadersConfig: customHeaders,
+        existingFontSizeSettings: fontSize,
+      );
+
+      expect(result.hasContent, isFalse);
+    });
+
+    test('混合场景：部分一致部分不一致', () {
+      const existingAutoRetry = AutoRetrySettings(maxJitterSeconds: 15);
+      const incomingAutoRetry = AutoRetrySettings(maxJitterSeconds: 15);
+      const existingFontSize = FontSizeSettings(bodyFontSize: 14);
+      const incomingFontSize = FontSizeSettings(bodyFontSize: 20);
+      final data = export(
+        autoRetrySettings: incomingAutoRetry,
+        fontSizeSettings: incomingFontSize,
+      );
+
+      final result = deduplicator.deduplicate(
+        data: data,
+        existingProviders: const [],
+        existingMemoryPrompts: const [],
+        existingPresetPrompts: const [],
+        existingTemplatePrompts: const [],
+        existingSequences: const [],
+        existingAutoRetrySettings: existingAutoRetry,
+        existingFontSizeSettings: existingFontSize,
+      );
+
+      expect(result.autoRetrySettings, isNull);
+      expect(result.fontSizeSettings, isNotNull);
+      expect(result.fontSizeSettings!.bodyFontSize, 20);
+      expect(result.hasContent, isTrue);
     });
   });
 }

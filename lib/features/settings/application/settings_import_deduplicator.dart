@@ -1,4 +1,7 @@
+import '../domain/models/auto_retry_settings.dart';
+import '../domain/models/custom_headers_config.dart';
 import '../domain/models/fixed_prompt_sequence.dart';
+import '../domain/models/font_size_settings.dart';
 import '../domain/models/llm_provider_config.dart';
 import '../domain/models/memory_prompt.dart';
 import '../domain/models/preset_prompt.dart';
@@ -144,6 +147,9 @@ final class SettingsImportDeduplicator {
     required List<PresetPrompt> existingPresetPrompts,
     required List<TemplatePrompt> existingTemplatePrompts,
     required List<FixedPromptSequence> existingSequences,
+    AutoRetrySettings? existingAutoRetrySettings,
+    CustomHeadersConfig? existingCustomHeadersConfig,
+    FontSizeSettings? existingFontSizeSettings,
   }) {
     final existingModels = existingProviders
         .expand((provider) => provider.resolvedModels)
@@ -201,15 +207,31 @@ final class SettingsImportDeduplicator {
         })
         .toList(growable: false);
 
+    // ── 标量型配置去重：两端一致时置 null ──────────────────────────
+    final dedupAutoRetry = (data.autoRetrySettings != null &&
+            data.autoRetrySettings == existingAutoRetrySettings)
+        ? null
+        : data.autoRetrySettings;
+
+    final dedupCustomHeaders = (data.customHeadersConfig != null &&
+            data.customHeadersConfig == existingCustomHeadersConfig)
+        ? null
+        : data.customHeadersConfig;
+
+    final dedupFontSize = (data.fontSizeSettings != null &&
+            data.fontSizeSettings == existingFontSizeSettings)
+        ? null
+        : data.fontSizeSettings;
+
     return SettingsExportData(
       modelProviders: newProviders,
       memoryPrompts: newMemoryPrompts,
       presetPrompts: newTemplates,
       templatePrompts: newTemplatePrompts,
       fixedPromptSequences: newSequences,
-      autoRetrySettings: data.autoRetrySettings,
-      customHeadersConfig: data.customHeadersConfig,
-      fontSizeSettings: data.fontSizeSettings,
+      autoRetrySettings: dedupAutoRetry,
+      customHeadersConfig: dedupCustomHeaders,
+      fontSizeSettings: dedupFontSize,
     );
   }
 }

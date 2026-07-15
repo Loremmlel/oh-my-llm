@@ -4,9 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
-import 'package:oh_my_llm/features/sync/application/broadcast_prefix_length_provider.dart';
 import 'package:oh_my_llm/features/sync/application/network_interface_provider.dart';
-import 'package:oh_my_llm/features/sync/domain/models/broadcast_prefix_length.dart';
 import 'package:oh_my_llm/features/sync/domain/models/network_interface_info.dart';
 import 'package:oh_my_llm/features/sync/presentation/widgets/interface_selector.dart';
 
@@ -68,14 +66,8 @@ void main() {
         interfaces: const [fakeInterface],
       );
 
-      expect(
-        find.byWidgetPredicate(
-          (w) =>
-              w is SegmentedButton<BroadcastPrefixLength> &&
-              w.selected.contains(BroadcastPrefixLength.p24),
-        ),
-        findsOneWidget,
-      );
+      // /24 模式下广播地址以 .255 结尾，间接验证 /24 被默认选中
+      expect(find.textContaining('10.214.98.255'), findsOneWidget);
     });
 
     testWidgets('SharedPreferences 存 16 时默认选中 /16', (tester) async {
@@ -90,14 +82,8 @@ void main() {
         interfaces: const [fakeInterface],
       );
 
-      expect(
-        find.byWidgetPredicate(
-          (w) =>
-              w is SegmentedButton<BroadcastPrefixLength> &&
-              w.selected.contains(BroadcastPrefixLength.p16),
-        ),
-        findsOneWidget,
-      );
+      // /16 模式下广播地址为 10.214.255.255，间接验证 /16 被选中
+      expect(find.textContaining('10.214.255.255'), findsOneWidget);
     });
 
     testWidgets('点击 /16 后 UI 选中 /16', (tester) async {
@@ -107,17 +93,14 @@ void main() {
         interfaces: const [fakeInterface],
       );
 
+      // 默认 /24 -> 广播地址 10.214.98.255
+      expect(find.textContaining('10.214.98.255'), findsOneWidget);
+
       await tester.tap(find.text('/16'));
       await tester.pump();
 
-      expect(
-        find.byWidgetPredicate(
-          (w) =>
-              w is SegmentedButton<BroadcastPrefixLength> &&
-              w.selected.contains(BroadcastPrefixLength.p16),
-        ),
-        findsOneWidget,
-      );
+      // 切换到 /16 后广播地址变为 10.214.255.255
+      expect(find.textContaining('10.214.255.255'), findsOneWidget);
     });
 
     testWidgets('展示当前计算的广播地址：/24 模式下 10.214.98.86 → 10.214.98.255',

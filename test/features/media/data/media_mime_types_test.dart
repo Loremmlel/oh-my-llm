@@ -3,10 +3,11 @@ import 'package:oh_my_llm/features/media/data/media_mime_types.dart';
 
 void main() {
   group('extensionFromFileName', () {
-    test('常见扩展名提取', () {
-      expect(extensionFromFileName('photo.jpg'), 'jpg');
-      expect(extensionFromFileName('video.mp4'), 'mp4');
-    });
+    for (final entry in {'photo.jpg': 'jpg', 'video.mp4': 'mp4'}.entries) {
+      test('${entry.key} -> ${entry.value}', () {
+        expect(extensionFromFileName(entry.key), entry.value);
+      });
+    }
 
     test('大小写不敏感', () {
       expect(extensionFromFileName('photo.JPG'), 'jpg');
