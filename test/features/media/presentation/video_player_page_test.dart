@@ -200,7 +200,7 @@ void main() {
   // ═══════════════════════════════════════════════════════════════════
 
   group('静态渲染', () {
-    testWidgets('黑色背景 Scaffold', (tester) async {
+    testWidgets('页面正常渲染', (tester) async {
       await tester.pumpWidget(
           _buildTestPageWithFake(fakeController: fakeController));
       await _pumpInit(tester, controller: fakeController);
@@ -252,13 +252,15 @@ void main() {
       expect(find.byIcon(Icons.error_outline), findsOneWidget);
       expect(find.text('重试'), findsOneWidget);
 
-      // 点击重试按钮
+      // 点击重试按钮，验证不崩溃且重试流程走通
       await tester.tap(find.text('重试'));
       await tester.pump();
-      // 排出 double-tap countdown timer
       await _flushGestureTimers(tester);
+      await tester.pumpAndSettle(const Duration(seconds: 5));
 
-      // 不崩溃即为通过
+      // 重试后仍处于错误状态（测试环境无法真正加载视频），
+      // 但重试按钮仍可用，说明重试流程完整执行
+      expect(find.text('重试'), findsOneWidget);
     });
   });
 

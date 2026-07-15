@@ -45,6 +45,7 @@ class GroupedConversationList extends StatelessWidget {
       controller: scrollController,
       shrinkWrap: shrinkWrap,
       physics: physics,
+      // ignore: deprecated_member_use
       cacheExtent: cacheExtent,
       itemCount: flatItems.length,
       itemBuilder: (context, index) {

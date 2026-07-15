@@ -96,15 +96,15 @@ List<dynamic> _jsonifyMany(List<ChatConversation> conversations) {
 
 void main() {
   group('executeSaveConversations UPSERT & cleanup', () {
-    late AppDatabase _appDb;
-    late sqlite.Database _db;
-    late DateTime _now;
+    late AppDatabase appDb;
+    late sqlite.Database db;
+    late DateTime now;
 
     setUp(() {
-      _appDb = AppDatabase.inMemory();
-      addTearDown(_appDb.close);
-      _db = _appDb.connection;
-      _now = DateTime.now();
+      appDb = AppDatabase.inMemory();
+      addTearDown(appDb.close);
+      db = appDb.connection;
+      now = DateTime.now();
     });
 
     // ────────────────────────────────────────────
@@ -114,61 +114,61 @@ void main() {
       final conv = _buildConversation(
         id: 'conv-1',
         title: '测试对话',
-        createdAt: _now,
-        updatedAt: _now,
+        createdAt: now,
+        updatedAt: now,
         messages: [
           _buildMessage(
             id: 'msg-1',
             role: ChatMessageRole.user,
             content: '你好',
-            createdAt: _now,
+            createdAt: now,
           ),
           _buildMessage(
             id: 'msg-2',
             role: ChatMessageRole.assistant,
             content: '你好！有什么可以帮助你的？',
-            createdAt: _now.add(const Duration(seconds: 1)),
+            createdAt: now.add(const Duration(seconds: 1)),
           ),
         ],
       );
 
       // 第一次写入
-      executeSaveConversations(_db, _jsonify(conv));
+      executeSaveConversations(db, _jsonify(conv));
 
       final modifiedConv = _buildConversation(
         id: 'conv-1',
         title: '测试对话',
-        createdAt: _now,
-        updatedAt: _now.add(const Duration(minutes: 1)),
+        createdAt: now,
+        updatedAt: now.add(const Duration(minutes: 1)),
         messages: [
           _buildMessage(
             id: 'msg-1',
             role: ChatMessageRole.user,
             content: '你好',
-            createdAt: _now,
+            createdAt: now,
           ),
           _buildMessage(
             id: 'msg-2',
             role: ChatMessageRole.assistant,
             content: '你好主人喵~',
-            createdAt: _now.add(const Duration(seconds: 1)),
+            createdAt: now.add(const Duration(seconds: 1)),
           ),
         ],
       );
 
-      executeSaveConversations(_db, _jsonify(modifiedConv));
+      executeSaveConversations(db, _jsonify(modifiedConv));
 
-      final rowCount = _db
+      final rowCount = db
           .select("SELECT COUNT(*) AS cnt FROM messages WHERE conversation_id = 'conv-1';")
           .single['cnt'] as int;
       expect(rowCount, equals(2));
 
-      final updatedMsg = _db
+      final updatedMsg = db
           .select("SELECT content FROM messages WHERE id = 'msg-2';")
           .single;
       expect(updatedMsg['content'], equals('你好主人喵~'));
 
-      final convCount = _db
+      final convCount = db
           .select("SELECT COUNT(*) AS cnt FROM conversations WHERE id = 'conv-1';")
           .single['cnt'] as int;
       expect(convCount, equals(1));
@@ -181,33 +181,33 @@ void main() {
       final conv = _buildConversation(
         id: 'conv-1',
         title: '三消息对话',
-        createdAt: _now,
-        updatedAt: _now,
+        createdAt: now,
+        updatedAt: now,
         messages: [
           _buildMessage(
             id: 'msg-a',
             role: ChatMessageRole.user,
             content: 'Hello',
-            createdAt: _now,
+            createdAt: now,
           ),
           _buildMessage(
             id: 'msg-b',
             role: ChatMessageRole.assistant,
             content: 'Hi!',
-            createdAt: _now.add(const Duration(seconds: 1)),
+            createdAt: now.add(const Duration(seconds: 1)),
           ),
           _buildMessage(
             id: 'msg-c',
             role: ChatMessageRole.user,
             content: 'How are you?',
-            createdAt: _now.add(const Duration(seconds: 2)),
+            createdAt: now.add(const Duration(seconds: 2)),
           ),
         ],
       );
 
-      executeSaveConversations(_db, _jsonify(conv));
+      executeSaveConversations(db, _jsonify(conv));
       expect(
-        _db
+        db
             .select("SELECT COUNT(*) AS cnt FROM messages WHERE conversation_id = 'conv-1';")
             .single['cnt'],
         equals(3),
@@ -216,38 +216,38 @@ void main() {
       final slimConv = _buildConversation(
         id: 'conv-1',
         title: '两消息对话',
-        createdAt: _now,
-        updatedAt: _now.add(const Duration(minutes: 1)),
+        createdAt: now,
+        updatedAt: now.add(const Duration(minutes: 1)),
         messages: [
           _buildMessage(
             id: 'msg-a',
             role: ChatMessageRole.user,
             content: 'Hello',
-            createdAt: _now,
+            createdAt: now,
           ),
           _buildMessage(
             id: 'msg-b',
             role: ChatMessageRole.assistant,
             content: 'Hi!',
-            createdAt: _now.add(const Duration(seconds: 1)),
+            createdAt: now.add(const Duration(seconds: 1)),
           ),
         ],
       );
 
-      executeSaveConversations(_db, _jsonify(slimConv));
+      executeSaveConversations(db, _jsonify(slimConv));
 
-      final remaining = _db
+      final remaining = db
           .select("SELECT id FROM messages WHERE conversation_id = 'conv-1' ORDER BY node_index;");
       expect(remaining.length, equals(2));
       expect(remaining[0]['id'], equals('msg-a'));
       expect(remaining[1]['id'], equals('msg-b'));
 
-      final ghost = _db
+      final ghost = db
           .select("SELECT COUNT(*) AS cnt FROM messages WHERE id = 'msg-c';")
           .single['cnt'] as int;
       expect(ghost, equals(0));
 
-      final branchCount = _db
+      final branchCount = db
           .select("SELECT COUNT(*) AS cnt FROM conversation_branch_selections WHERE conversation_id = 'conv-1';")
           .single['cnt'] as int;
       expect(branchCount, equals(2));
@@ -260,33 +260,33 @@ void main() {
       final conv = _buildConversation(
         id: 'conv-1',
         title: '索引测试',
-        createdAt: _now,
-        updatedAt: _now,
+        createdAt: now,
+        updatedAt: now,
         messages: [
           _buildMessage(
             id: 'm1',
             role: ChatMessageRole.user,
             content: 'First',
-            createdAt: _now,
+            createdAt: now,
           ),
           _buildMessage(
             id: 'm2',
             role: ChatMessageRole.assistant,
             content: 'Second',
-            createdAt: _now.add(const Duration(seconds: 1)),
+            createdAt: now.add(const Duration(seconds: 1)),
           ),
           _buildMessage(
             id: 'm3',
             role: ChatMessageRole.user,
             content: 'Third',
-            createdAt: _now.add(const Duration(seconds: 2)),
+            createdAt: now.add(const Duration(seconds: 2)),
           ),
         ],
       );
 
-      executeSaveConversations(_db, _jsonify(conv));
+      executeSaveConversations(db, _jsonify(conv));
 
-      final rows = _db
+      final rows = db
           .select("SELECT id, node_index FROM messages WHERE conversation_id = 'conv-1' ORDER BY node_index;");
       expect(rows[0]['id'], equals('m1'));
       expect(rows[0]['node_index'], equals(0));
@@ -303,62 +303,62 @@ void main() {
       final conv = _buildConversation(
         id: 'conv-1',
         title: '索引测试',
-        createdAt: _now,
-        updatedAt: _now,
+        createdAt: now,
+        updatedAt: now,
         messages: [
           _buildMessage(
             id: 'm1',
             role: ChatMessageRole.user,
             content: 'First',
-            createdAt: _now,
+            createdAt: now,
           ),
           _buildMessage(
             id: 'm2',
             role: ChatMessageRole.assistant,
             content: 'Second',
-            createdAt: _now.add(const Duration(seconds: 1)),
+            createdAt: now.add(const Duration(seconds: 1)),
           ),
           _buildMessage(
             id: 'm3',
             role: ChatMessageRole.user,
             content: 'Third',
-            createdAt: _now.add(const Duration(seconds: 2)),
+            createdAt: now.add(const Duration(seconds: 2)),
           ),
         ],
       );
 
-      executeSaveConversations(_db, _jsonify(conv));
+      executeSaveConversations(db, _jsonify(conv));
 
       final modifiedConv = _buildConversation(
         id: 'conv-1',
         title: '索引测试',
-        createdAt: _now,
-        updatedAt: _now.add(const Duration(minutes: 1)),
+        createdAt: now,
+        updatedAt: now.add(const Duration(minutes: 1)),
         messages: [
           _buildMessage(
             id: 'm1',
             role: ChatMessageRole.user,
             content: 'First',
-            createdAt: _now,
+            createdAt: now,
           ),
           _buildMessage(
             id: 'm2',
             role: ChatMessageRole.assistant,
             content: 'Second (edited)',
-            createdAt: _now.add(const Duration(seconds: 1)),
+            createdAt: now.add(const Duration(seconds: 1)),
           ),
           _buildMessage(
             id: 'm3',
             role: ChatMessageRole.user,
             content: 'Third',
-            createdAt: _now.add(const Duration(seconds: 2)),
+            createdAt: now.add(const Duration(seconds: 2)),
           ),
         ],
       );
 
-      executeSaveConversations(_db, _jsonify(modifiedConv));
+      executeSaveConversations(db, _jsonify(modifiedConv));
 
-      final rows = _db
+      final rows = db
           .select("SELECT id, node_index, content FROM messages WHERE conversation_id = 'conv-1' ORDER BY node_index;");
       expect(rows.length, equals(3));
       expect(rows[0]['node_index'], equals(0));
@@ -374,43 +374,43 @@ void main() {
       final conv = _buildConversation(
         id: 'conv-tx',
         title: '原子性测试',
-        createdAt: _now,
-        updatedAt: _now,
+        createdAt: now,
+        updatedAt: now,
         messages: [
           _buildMessage(
             id: 'tx-msg-1',
             role: ChatMessageRole.user,
             content: 'Atomic test',
-            createdAt: _now,
+            createdAt: now,
           ),
           _buildMessage(
             id: 'tx-msg-2',
             role: ChatMessageRole.assistant,
             content: 'Response',
-            createdAt: _now.add(const Duration(seconds: 1)),
+            createdAt: now.add(const Duration(seconds: 1)),
           ),
         ],
       );
 
-      executeSaveConversations(_db, _jsonify(conv));
+      executeSaveConversations(db, _jsonify(conv));
 
-      final convRow = _db
+      final convRow = db
           .select("SELECT * FROM conversations WHERE id = 'conv-tx';");
       expect(convRow.length, equals(1));
       expect(convRow.single['title'], equals('原子性测试'));
 
-      final msgRows = _db
+      final msgRows = db
           .select("SELECT * FROM messages WHERE conversation_id = 'conv-tx';");
       expect(msgRows.length, equals(2));
       expect(msgRows[0]['id'], equals('tx-msg-1'));
       expect(msgRows[1]['id'], equals('tx-msg-2'));
 
-      executeSaveConversations(_db, _jsonify(conv));
-      final convCount = _db
+      executeSaveConversations(db, _jsonify(conv));
+      final convCount = db
           .select("SELECT COUNT(*) AS cnt FROM conversations WHERE id = 'conv-tx';")
           .single['cnt'] as int;
       expect(convCount, equals(1));
-      final msgCount = _db
+      final msgCount = db
           .select("SELECT COUNT(*) AS cnt FROM messages WHERE conversation_id = 'conv-tx';")
           .single['cnt'] as int;
       expect(msgCount, equals(2));
@@ -495,20 +495,20 @@ void main() {
       final convA = _buildConversation(
         id: 'conv-a',
         title: '会话 A',
-        createdAt: _now,
-        updatedAt: _now,
+        createdAt: now,
+        updatedAt: now,
         messages: [
           _buildMessage(
             id: 'a-msg-1',
             role: ChatMessageRole.user,
             content: 'Message A1',
-            createdAt: _now,
+            createdAt: now,
           ),
           _buildMessage(
             id: 'a-msg-2',
             role: ChatMessageRole.assistant,
             content: 'Reply A1',
-            createdAt: _now.add(const Duration(seconds: 1)),
+            createdAt: now.add(const Duration(seconds: 1)),
           ),
         ],
       );
@@ -516,33 +516,33 @@ void main() {
       final convB = _buildConversation(
         id: 'conv-b',
         title: '会话 B',
-        createdAt: _now.add(const Duration(hours: 1)),
-        updatedAt: _now.add(const Duration(hours: 1)),
+        createdAt: now.add(const Duration(hours: 1)),
+        updatedAt: now.add(const Duration(hours: 1)),
         messages: [
           _buildMessage(
             id: 'b-msg-1',
             role: ChatMessageRole.user,
             content: 'Message B1',
-            createdAt: _now.add(const Duration(hours: 1)),
+            createdAt: now.add(const Duration(hours: 1)),
           ),
           _buildMessage(
             id: 'b-msg-2',
             role: ChatMessageRole.assistant,
             content: 'Reply B1',
-            createdAt: _now.add(const Duration(hours: 1, seconds: 1)),
+            createdAt: now.add(const Duration(hours: 1, seconds: 1)),
           ),
           _buildMessage(
             id: 'b-msg-3',
             role: ChatMessageRole.user,
             content: 'Message B2',
-            createdAt: _now.add(const Duration(hours: 1, seconds: 2)),
+            createdAt: now.add(const Duration(hours: 1, seconds: 2)),
           ),
         ],
       );
 
-      executeSaveConversations(_db, _jsonifyMany([convA, convB]));
+      executeSaveConversations(db, _jsonifyMany([convA, convB]));
 
-      final convRows = _db.select(
+      final convRows = db.select(
         "SELECT id, title FROM conversations ORDER BY id;",
       );
       expect(convRows.length, equals(2));
@@ -551,13 +551,13 @@ void main() {
       expect(convRows[1]['id'], equals('conv-b'));
       expect(convRows[1]['title'], equals('会话 B'));
 
-      final msgsA = _db
+      final msgsA = db
           .select("SELECT id, content FROM messages WHERE conversation_id = 'conv-a' ORDER BY node_index;");
       expect(msgsA.length, equals(2));
       expect(msgsA[0]['content'], equals('Message A1'));
       expect(msgsA[1]['content'], equals('Reply A1'));
 
-      final msgsB = _db
+      final msgsB = db
           .select("SELECT id, content FROM messages WHERE conversation_id = 'conv-b' ORDER BY node_index;");
       expect(msgsB.length, equals(3));
       expect(msgsB[0]['content'], equals('Message B1'));
@@ -572,14 +572,14 @@ void main() {
       final conv = _buildConversation(
         id: 'conv-cp',
         title: '检查点测试',
-        createdAt: _now,
-        updatedAt: _now,
+        createdAt: now,
+        updatedAt: now,
         messages: [
           _buildMessage(
             id: 'cp-msg-1',
             role: ChatMessageRole.user,
             content: 'hi',
-            createdAt: _now,
+            createdAt: now,
           ),
         ],
         checkpoints: [
@@ -587,7 +587,7 @@ void main() {
             id: 'cp-1',
             title: '检查点 1',
             content: '摘要 1',
-            createdAt: _now,
+            createdAt: now,
             parentCheckpointId: null,
             coveredUntilMessageId: 'cp-msg-1',
             sourceMemoryPromptName: '记忆源 A',
@@ -596,7 +596,7 @@ void main() {
             id: 'cp-2',
             title: '检查点 2',
             content: '摘要 2',
-            createdAt: _now.add(const Duration(minutes: 1)),
+            createdAt: now.add(const Duration(minutes: 1)),
             parentCheckpointId: 'cp-1',
             coveredUntilMessageId: null,
             sourceMemoryPromptName: '',
@@ -604,9 +604,9 @@ void main() {
         ],
       );
 
-      executeSaveConversations(_db, _jsonify(conv));
+      executeSaveConversations(db, _jsonify(conv));
 
-      final cpRows = _db.select(
+      final cpRows = db.select(
         "SELECT id, title, content, parent_checkpoint_id, covered_until_message_id, source_memory_prompt_name FROM conversation_checkpoints WHERE conversation_id = 'conv-cp' ORDER BY id;",
       );
       expect(cpRows.length, equals(2));
@@ -623,21 +623,21 @@ void main() {
       final slimConv = _buildConversation(
         id: 'conv-cp',
         title: '检查点测试',
-        createdAt: _now,
-        updatedAt: _now.add(const Duration(minutes: 2)),
+        createdAt: now,
+        updatedAt: now.add(const Duration(minutes: 2)),
         messages: [
           _buildMessage(
             id: 'cp-msg-1',
             role: ChatMessageRole.user,
             content: 'hi',
-            createdAt: _now,
+            createdAt: now,
           ),
         ],
         checkpoints: const [],
       );
-      executeSaveConversations(_db, _jsonify(slimConv));
+      executeSaveConversations(db, _jsonify(slimConv));
 
-      final cpCount = _db
+      final cpCount = db
           .select("SELECT COUNT(*) AS cnt FROM conversation_checkpoints WHERE conversation_id = 'conv-cp';")
           .single['cnt'] as int;
       expect(cpCount, equals(0));
@@ -648,18 +648,18 @@ void main() {
     // ────────────────────────────────────────────
     test('empty conversations list is a no-op', () {
       expect(
-        _db.select("SELECT COUNT(*) AS cnt FROM conversations;").single['cnt'],
+        db.select("SELECT COUNT(*) AS cnt FROM conversations;").single['cnt'],
         equals(0),
       );
 
-      executeSaveConversations(_db, const []);
+      executeSaveConversations(db, const []);
 
       expect(
-        _db.select("SELECT COUNT(*) AS cnt FROM conversations;").single['cnt'],
+        db.select("SELECT COUNT(*) AS cnt FROM conversations;").single['cnt'],
         equals(0),
       );
       expect(
-        _db.select("SELECT COUNT(*) AS cnt FROM messages;").single['cnt'],
+        db.select("SELECT COUNT(*) AS cnt FROM messages;").single['cnt'],
         equals(0),
       );
     });
@@ -671,8 +671,8 @@ void main() {
       final conv = _buildConversation(
         id: 'conv-full',
         title: '全字段',
-        createdAt: _now,
-        updatedAt: _now,
+        createdAt: now,
+        updatedAt: now,
         selectedModelId: 'model-x',
         selectedCheckpointId: 'cp-x',
         selectedPresetPromptId: 'pp-x',
@@ -685,14 +685,14 @@ void main() {
             id: 'full-msg-1',
             role: ChatMessageRole.user,
             content: 'full',
-            createdAt: _now,
+            createdAt: now,
           ),
         ],
       );
 
-      executeSaveConversations(_db, _jsonify(conv));
+      executeSaveConversations(db, _jsonify(conv));
 
-      final row = _db
+      final row = db
           .select("SELECT * FROM conversations WHERE id = 'conv-full';")
           .single;
       expect(row['selected_model_id'], equals('model-x'));

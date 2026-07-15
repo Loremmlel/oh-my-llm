@@ -8,6 +8,7 @@ import '../../../core/persistence/shared_preferences_provider.dart';
 import '../../settings/application/auto_retry_settings_controller.dart';
 import '../../settings/application/custom_headers_controller.dart';
 import '../../settings/application/fixed_prompt_sequences_controller.dart';
+import '../../settings/application/font_size_settings_controller.dart';
 import '../../settings/application/llm_model_configs_controller.dart';
 import '../../settings/application/memory_prompts_controller.dart';
 import '../../settings/application/preset_prompts_controller.dart';
@@ -255,6 +256,9 @@ class SyncServerController extends Notifier<SyncServerState> {
           : null,
       customHeadersConfig: categories.contains(SyncCategory.other.payloadKey)
           ? ref.read(customHeadersProvider)
+          : null,
+      fontSizeSettings: categories.contains(SyncCategory.other.payloadKey)
+          ? ref.read(fontSizeSettingsProvider)
           : null,
     );
   }

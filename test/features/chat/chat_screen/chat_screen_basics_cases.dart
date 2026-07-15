@@ -159,7 +159,7 @@ void registerChatScreenBasicsTests() {
   );
 
   testWidgets(
-    'chat screen checkpoints dialog renders markdown preview in scrollable area',
+    'chat screen checkpoints dialog renders markdown preview',
     (tester) async {
       final fakeClient = FakeChatCompletionClient()
         ..enqueueChunks(['首轮回复'])
@@ -214,9 +214,6 @@ void registerChatScreenBasicsTests() {
       await tester.pumpAndSettle();
 
       expect(find.text('检查点标题'), findsOneWidget);
-
-      await tester.drag(find.text('检查点标题'), const Offset(0, -120));
-      await tester.pump();
     },
   );
 

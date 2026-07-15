@@ -7,21 +7,22 @@ import 'package:oh_my_llm/features/favorites/application/collections_controller.
 import 'package:oh_my_llm/features/favorites/application/favorites_controller.dart';
 
 void main() {
+  late AppDatabase database;
+  late ProviderContainer container;
+
+  setUp(() {
+    database = AppDatabase.inMemory();
+    container = ProviderContainer(
+      overrides: [appDatabaseProvider.overrideWithValue(database)],
+    );
+  });
+
+  tearDown(() {
+    container.dispose();
+    database.close();
+  });
+
   group('FavoritesController', () {
-    late AppDatabase database;
-    late ProviderContainer container;
-
-    setUp(() {
-      database = AppDatabase.inMemory();
-      container = ProviderContainer(
-        overrides: [appDatabaseProvider.overrideWithValue(database)],
-      );
-    });
-
-    tearDown(() {
-      container.dispose();
-      database.close();
-    });
 
     test('add inserts a favorite with all fields into the list', () {
       container.read(collectionsProvider.notifier).create('测试收藏夹');
@@ -113,23 +114,35 @@ void main() {
       expect(moved.collectionId, isNull);
     });
 
+    test('rename updates favorite title', () {
+      final id = container.read(favoritesProvider.notifier).add(
+        userMessageContent: '用户消息',
+        assistantContent: '回复',
+      );
+
+      container.read(favoritesProvider.notifier).rename(id, '新标题');
+
+      final favorites = container.read(favoritesProvider);
+      final fav = favorites.firstWhere((f) => f.id == id);
+      expect(fav.title, '新标题');
+    });
+
+    test('rename with null clears custom title', () {
+      final id = container.read(favoritesProvider.notifier).add(
+        userMessageContent: '用户消息',
+        assistantContent: '回复',
+      );
+      container.read(favoritesProvider.notifier).rename(id, '临时标题');
+      container.read(favoritesProvider.notifier).rename(id, null);
+
+      final favorites = container.read(favoritesProvider);
+      final fav = favorites.firstWhere((f) => f.id == id);
+      expect(fav.title, isNull);
+    });
+
   });
 
   group('CollectionsController', () {
-    late AppDatabase database;
-    late ProviderContainer container;
-
-    setUp(() {
-      database = AppDatabase.inMemory();
-      container = ProviderContainer(
-        overrides: [appDatabaseProvider.overrideWithValue(database)],
-      );
-    });
-
-    tearDown(() {
-      container.dispose();
-      database.close();
-    });
 
     test('create adds a collection and returns its id', () {
       final id = container.read(collectionsProvider.notifier).create('我的笔记');
@@ -191,20 +204,6 @@ void main() {
   });
 
   group('FavoritesFilterNotifier', () {
-    late AppDatabase database;
-    late ProviderContainer container;
-
-    setUp(() {
-      database = AppDatabase.inMemory();
-      container = ProviderContainer(
-        overrides: [appDatabaseProvider.overrideWithValue(database)],
-      );
-    });
-
-    tearDown(() {
-      container.dispose();
-      database.close();
-    });
 
     test('初始状态为 null（全部）', () {
       expect(container.read(favoritesFilterProvider), isNull);

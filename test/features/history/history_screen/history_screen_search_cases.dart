@@ -6,7 +6,7 @@ import 'package:oh_my_llm/features/history/presentation/history_screen.dart';
 import 'history_screen_test_helpers.dart';
 
 void registerHistoryScreenSearchTests() {
-  testWidgets('history screen searches only title and user messages', (
+  testWidgets('history search matches conversation title', (
     tester,
   ) async {
     await setUpHistoryScreen(tester);
@@ -17,6 +17,12 @@ void registerHistoryScreenSearchTests() {
 
     expect(find.text('Rust 重构计划'), findsOneWidget);
     expect(find.text('Flutter 路线图'), findsNothing);
+  });
+
+  testWidgets('history search matches user messages', (
+    tester,
+  ) async {
+    await setUpHistoryScreen(tester);
 
     await tester.enterText(find.byType(TextField).first, 'Widget 测试');
     await tester.pump(HistoryScreen.searchDebounce + const Duration(milliseconds: 50));
@@ -24,6 +30,12 @@ void registerHistoryScreenSearchTests() {
 
     expect(find.text('Flutter 路线图'), findsOneWidget);
     expect(find.text('Rust 重构计划'), findsNothing);
+  });
+
+  testWidgets('history search does not match assistant replies', (
+    tester,
+  ) async {
+    await setUpHistoryScreen(tester);
 
     await tester.enterText(find.byType(TextField).first, '不应匹配');
     await tester.pump(HistoryScreen.searchDebounce + const Duration(milliseconds: 50));

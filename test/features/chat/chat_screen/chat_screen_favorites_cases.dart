@@ -73,7 +73,6 @@ void registerChatScreenFavoritesTests() {
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('收藏回复'));
     await tester.pumpAndSettle();
-    await tester.pumpAndSettle();
     final container = ProviderScope.containerOf(
       tester.element(find.byType(AddToFavoritesDialog)),
     );

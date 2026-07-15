@@ -422,7 +422,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
       return;
     }
 
-    // 去重（autoRetrySettings 不需要去重，deduplicator 会直接透传）。
     final dedupedData = _importDeduplicator.deduplicate(
       data: exportData,
       existingProviders: ref.read(llmProviderConfigsProvider),
@@ -430,6 +429,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
       existingPresetPrompts: ref.read(presetPromptsProvider),
       existingTemplatePrompts: ref.read(templatePromptsProvider),
       existingSequences: ref.read(fixedPromptSequencesProvider),
+      existingAutoRetrySettings: ref.read(autoRetrySettingsProvider),
+      existingCustomHeadersConfig: ref.read(customHeadersProvider),
+      existingFontSizeSettings: ref.read(fontSizeSettingsProvider),
     );
 
     if (!dedupedData.hasContent) {

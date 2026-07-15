@@ -194,4 +194,32 @@ void main() {
     });
   });
 
+  group('SqliteFavoritesRepository - updateTitle', () {
+    test('设置自定义标题后 loadAll 返回的记录包含 title', () {
+      repository.save(_makeFavorite(id: 'fav-1'));
+
+      repository.updateTitle('fav-1', '我的标题');
+
+      final loaded = repository.loadAll();
+      expect(loaded.single.title, '我的标题');
+    });
+
+    test('清除自定义标题后 title 为 null', () {
+      repository.save(_makeFavorite(id: 'fav-1').copyWith(title: '旧标题'));
+
+      repository.updateTitle('fav-1', null);
+
+      final loaded = repository.loadAll();
+      expect(loaded.single.title, isNull);
+    });
+
+    test('save 保留 title 字段 round-trip', () {
+      final fav = _makeFavorite(id: 'fav-1').copyWith(title: '持久化标题');
+      repository.save(fav);
+
+      final loaded = repository.loadAll();
+      expect(loaded.single.title, '持久化标题');
+    });
+  });
+
 }

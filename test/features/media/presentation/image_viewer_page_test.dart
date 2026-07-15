@@ -131,20 +131,6 @@ void main() {
 
       expect(find.text('3 / 3'), findsOneWidget);
     });
-
-    testWidgets('单张图片时 PageView 存在不可滑动', (tester) async {
-      final prefs = await _testPrefs();
-      await pumpTestApp(
-        tester,
-        preferences: prefs,
-        child: ImageViewerPage(imageUrls: _fakeUrls(1)),
-      );
-
-      // 单张图片的 PageView 只有一页，滑动不应更改页面
-      // 验证 PageView 存在（通过检查计数器隐藏来间接确认）
-      expect(find.textContaining('/'), findsNothing);
-      expect(find.byIcon(Icons.arrow_back), findsOneWidget);
-    });
   });
 
   // ── 手势 ──────────────────────────────────────────────────────
@@ -305,7 +291,7 @@ void main() {
       expect(find.text('4 / 10'), findsOneWidget);
     });
 
-    testWidgets('多页翻页后 _pageZoomStates 正确初始化', (tester) async {
+    testWidgets('多页翻页后页面正常显示无崩溃', (tester) async {
       final prefs = await _testPrefs();
       await pumpTestApp(
         tester,

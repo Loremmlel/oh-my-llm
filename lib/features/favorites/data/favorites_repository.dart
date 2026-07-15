@@ -22,6 +22,9 @@ abstract interface class FavoritesRepository {
   /// 将指定收藏移动到另一个收藏夹（null 表示未分类）。
   void moveToCollection(String favoriteId, String? collectionId);
 
+  /// 更新指定收藏的自定义标题（null 表示清除自定义标题）。
+  void updateTitle(String favoriteId, String? title);
+
   /// 检查指定助手消息内容是否已存在收藏。
   bool existsByAssistantContent(String assistantContent);
 }

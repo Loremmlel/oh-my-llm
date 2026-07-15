@@ -18,13 +18,13 @@ void main() {
       database.close();
     });
 
-    test('user_version 在迁移完成后为 9', () {
+    test('user_version 在迁移完成后为 10', () {
       final version =
           database.connection
                   .select('PRAGMA user_version;')
                   .single['user_version']
               as int;
-      expect(version, greaterThanOrEqualTo(9));
+      expect(version, greaterThanOrEqualTo(10));
     });
 
     test('创建关键业务表', () {
@@ -199,11 +199,11 @@ void main() {
       final migrated = AppDatabase.forPath(dbPath);
       addTearDown(migrated.close);
 
-      // user_version 升到 >= 9
+      // user_version 升到 >= 10
       final version = migrated.connection
           .select('PRAGMA user_version;')
           .single['user_version'] as int;
-      expect(version, greaterThanOrEqualTo(9));
+      expect(version, greaterThanOrEqualTo(10));
 
       // system_prompt 列已被 DROP
       final columns = migrated.connection
@@ -251,13 +251,104 @@ void main() {
       final version = migrated.connection
           .select('PRAGMA user_version;')
           .single['user_version'] as int;
-      expect(version, greaterThanOrEqualTo(9));
+      expect(version, greaterThanOrEqualTo(10));
 
       final columns = migrated.connection
           .select('PRAGMA table_info(preset_prompts);')
           .map((row) => row['name'] as String)
           .toList();
       expect(columns, isNot(contains('system_prompt')));
+    });
+  });
+
+  group('V10 迁移', () {
+    test('迁移后 favorites 表包含 title 列', () {
+      final db = AppDatabase.inMemory();
+      addTearDown(db.close);
+
+      final columns = db.connection.select('PRAGMA table_info(favorites);');
+      final columnNames = columns.map((row) => row['name'] as String).toList();
+
+      expect(columnNames, contains('title'));
+    });
+
+    test('迁移后 user_version >= 10', () {
+      final db = AppDatabase.inMemory();
+      addTearDown(db.close);
+
+      final version =
+          db.connection.select('PRAGMA user_version;').single['user_version']
+              as int;
+      expect(version, greaterThanOrEqualTo(10));
+    });
+
+    test('全新安装 favorites 表含 title 列且默认为 NULL', () {
+      final db = AppDatabase.inMemory();
+      addTearDown(db.close);
+
+      db.connection.execute(
+        "INSERT INTO favorites (id, user_message_content, assistant_content, created_at) "
+        "VALUES ('fav-1', 'hello', 'world', '2025-01-01T00:00:00.000');",
+      );
+
+      final rows = db.connection.select('SELECT title FROM favorites WHERE id = ?;', ['fav-1']);
+      expect(rows.length, 1);
+      expect(rows.first['title'], isNull);
+    });
+
+    test('从 v9 升级时 ALTER TABLE 添加 title 列且已有数据保留', () {
+      final tempDir = Directory.systemTemp.createTempSync('v9-migration-test-');
+      addTearDown(() {
+        if (tempDir.existsSync()) {
+          tempDir.deleteSync(recursive: true);
+        }
+      });
+      final dbPath = '${tempDir.path}${Platform.pathSeparator}test_v9.db';
+
+      // 构造一个 v9 数据库：favorites 表无 title 列
+      final legacyDb = sqlite.sqlite3.open(dbPath);
+      legacyDb.execute('PRAGMA foreign_keys = ON;');
+      legacyDb.execute('''
+        CREATE TABLE favorites (
+          id TEXT PRIMARY KEY,
+          collection_id TEXT,
+          user_message_content TEXT NOT NULL,
+          assistant_content TEXT NOT NULL,
+          assistant_reasoning_content TEXT NOT NULL DEFAULT '',
+          source_conversation_id TEXT,
+          source_conversation_title TEXT,
+          created_at TEXT NOT NULL,
+          assistant_model_display_name TEXT NOT NULL DEFAULT '匿名模型'
+        );
+      ''');
+      legacyDb.execute(
+        "INSERT INTO favorites (id, user_message_content, assistant_content, created_at) "
+        "VALUES ('fav-old', '旧消息', '旧回复', '2025-01-01T00:00:00.000');",
+      );
+      legacyDb.execute('PRAGMA user_version = 9;');
+      legacyDb.close();
+
+      // 重新打开触发 _migrateV10 的 ALTER TABLE 路径
+      final migrated = AppDatabase.forPath(dbPath);
+      addTearDown(migrated.close);
+
+      // user_version 升到 10
+      final version = migrated.connection
+          .select('PRAGMA user_version;')
+          .single['user_version'] as int;
+      expect(version, greaterThanOrEqualTo(10));
+
+      // favorites 表包含 title 列
+      final columns = migrated.connection
+          .select('PRAGMA table_info(favorites);')
+          .map((row) => row['name'] as String)
+          .toList();
+      expect(columns, contains('title'));
+
+      // 旧数据保留，title 默认为 NULL
+      final rows = migrated.connection.select('SELECT id, title FROM favorites WHERE id = ?;', ['fav-old']);
+      expect(rows.length, 1);
+      expect(rows.first['title'], isNull);
     });
   });
 }

@@ -26,7 +26,7 @@ class FavoriteListItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final userSnippet = _snippet(favorite.userMessageContent);
+    final userSnippet = _snippet(favorite.displayTitle);
     final assistantSnippet = _snippet(favorite.assistantContent);
 
     return Card(

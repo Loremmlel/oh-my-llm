@@ -15,7 +15,6 @@ import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/core/persistence/versioned_json_storage.dart';
 import 'package:oh_my_llm/features/settings/application/auto_retry_settings_controller.dart';
-import 'package:oh_my_llm/features/settings/application/custom_headers_controller.dart';
 import 'package:oh_my_llm/features/settings/application/llm_model_configs_controller.dart';
 import 'package:oh_my_llm/features/settings/application/memory_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/application/preset_prompts_controller.dart';
@@ -26,7 +25,6 @@ import 'package:oh_my_llm/features/sync/application/sync_client_controller.dart'
 import 'package:oh_my_llm/features/sync/application/sync_server_controller.dart';
 import 'package:oh_my_llm/features/sync/data/sync_udp_discovery.dart';
 import 'package:oh_my_llm/features/sync/domain/models/sync_types.dart';
-import 'package:oh_my_llm/features/settings/domain/models/auto_retry_settings.dart';
 
 // ── 工厂函数 ────────────────────────────────────────────────────────────────
 
@@ -202,7 +200,7 @@ void main() {
 
   // ── other 品类端到端 ────────────────────────────────────────────────────────
 
-  test('other 品类 -> 客户端导入后自动重试和自定义头已更新', () async {
+  test('other 品类 -> 两端配置一致时同步识别为无新数据', () async {
     // SharedPreferences 是单例，服务端写入后客户端也能读到
     await prefs.setString(
       'settings.auto_retry',
@@ -225,9 +223,8 @@ void main() {
     await serverContainer.read(syncServerControllerProvider.notifier).start();
     final httpPort = serverContainer.read(syncServerControllerProvider).httpPort!;
 
-    // 客户端需要清除 SharedPreferences 中的数据以验证导入
-    // 由于 SharedPreferences 是单例，客户端能读到服务端写入的数据
-    // 去重逻辑由 SyncClientController 内部处理
+    // 由于 SharedPreferences 是单例，客户端与服务端读到相同配置。
+    // 去重后应识别为"两端一致，无新数据"。
     final clientContainer = buildClientContainer(
       seed: SyncClientState(
         phase: SyncPhase.connected,
@@ -246,22 +243,8 @@ void main() {
 
     expect(
       clientContainer.read(syncClientControllerProvider).phase,
-      SyncPhase.received,
+      SyncPhase.noNewData,
     );
-
-    await clientContainer
-        .read(syncClientControllerProvider.notifier)
-        .executeImport();
-
-    final retrySettings = clientContainer.read(autoRetrySettingsProvider);
-    expect(retrySettings.maxRetryCount, 5);
-    expect(retrySettings.maxJitterSeconds, 10);
-    expect(retrySettings.retryMode, RetryMode.fixedInterval);
-
-    final headersConfig = clientContainer.read(customHeadersProvider);
-    expect(headersConfig.headers, hasLength(1));
-    expect(headersConfig.headers.first.key, 'X-Custom-Header');
-    expect(headersConfig.headers.first.value, 'test-value');
   });
 
   // ── 多品类同时同步 ──────────────────────────────────────────────────────────
