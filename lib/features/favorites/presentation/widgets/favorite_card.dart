@@ -50,39 +50,37 @@ class FavoriteCard extends StatelessWidget {
                     runSpacing: 2,
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      if (collectionName != null || onMoveToCollection != null) ...[
-                        Icon(
-                          collectionName != null
-                              ? Icons.folder_outlined
-                              : Icons.folder_off_outlined,
-                          size: 14,
+                      Icon(
+                        collectionName != null
+                            ? Icons.folder_outlined
+                            : Icons.folder_off_outlined,
+                        size: 14,
+                        color: theme.colorScheme.primary,
+                      ),
+                      Text(
+                        collectionName ?? '未分类',
+                        style: theme.textTheme.labelSmall?.copyWith(
                           color: theme.colorScheme.primary,
                         ),
-                        Text(
-                          collectionName ?? '未分类',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: theme.colorScheme.primary,
-                          ),
-                        ),
-                        if (onMoveToCollection != null) ...[
-                          InkWell(
-                            borderRadius: BorderRadius.circular(4),
-                            onTap: onMoveToCollection,
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 2,
-                                vertical: 2,
-                              ),
-                              child: Icon(
-                                Icons.drive_file_move_outline,
-                                size: 14,
-                                color: theme.colorScheme.primary,
-                              ),
+                      ),
+                      if (onMoveToCollection != null) ...[
+                        InkWell(
+                          borderRadius: BorderRadius.circular(4),
+                          onTap: onMoveToCollection,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 2,
+                              vertical: 2,
+                            ),
+                            child: Icon(
+                              Icons.drive_file_move_outline,
+                              size: 14,
+                              color: theme.colorScheme.primary,
                             ),
                           ),
-                        ],
-                        const SizedBox(width: 8),
+                        ),
                       ],
+                      const SizedBox(width: 8),
                       Icon(
                         Icons.access_time_rounded,
                         size: 14,
