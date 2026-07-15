@@ -118,7 +118,8 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
           ),
           const SizedBox(height: 8),
           Text(
-            '使用 {{变量名}} 声明可注入变量；其中 {{正文}} 对应聊天页主输入框，不设置默认值。',
+            '使用 {{变量名}} 声明可注入变量；其中 {{正文}} 对应聊天页主输入框，不设置默认值。\n'
+            '使用 {{变量名:number}} 声明数字变量，默认为 1，聊天页提供箭头微调。',
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 20),
@@ -130,6 +131,21 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
             for (final variable in _variables) ...[
               if (variable.isBody)
                 _buildBodyVariableHint(context, variable)
+              else if (variable.isNumber)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: TextFormField(
+                    key: ValueKey(
+                      'template-prompt-variable-field-${variable.name}',
+                    ),
+                    controller: _variableControllers[variable.name],
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: '${variable.name}（数字）',
+                      hintText: '默认为 1',
+                    ),
+                  ),
+                )
               else
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12),
@@ -227,7 +243,8 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
     }
     for (var index = 0; index < current.length; index += 1) {
       if (current[index].name != next[index].name ||
-          current[index].isBody != next[index].isBody) {
+          current[index].isBody != next[index].isBody ||
+          current[index].type != next[index].type) {
         return false;
       }
     }
@@ -252,6 +269,7 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
             name: variable.name,
             defaultValue:
                 _variableControllers[variable.name]?.text.trim() ?? '',
+            type: variable.type,
           );
         })
         .toList(growable: false);

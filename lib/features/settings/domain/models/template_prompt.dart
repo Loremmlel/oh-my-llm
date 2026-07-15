@@ -7,27 +7,56 @@ import '../../../../core/persistence/has_id_and_updated_at.dart';
 /// 模板提示词中用于承载主输入框正文的保留变量名。
 const templatePromptBodyVariableName = '正文';
 
+/// 模板提示词变量的类型。
+enum TemplatePromptVariableType {
+  /// 纯文本变量（默认）。
+  text,
+  /// 数字变量，支持上下箭头微调。
+  number;
+
+  /// 从字符串解析变量类型，未知值回退为 [text]。
+  static TemplatePromptVariableType fromString(String? raw) {
+    return switch (raw?.toLowerCase()) {
+      'number' => TemplatePromptVariableType.number,
+      _ => TemplatePromptVariableType.text,
+    };
+  }
+
+  @override
+  String toString() => switch (this) {
+        TemplatePromptVariableType.text => 'text',
+        TemplatePromptVariableType.number => 'number',
+      };
+}
+
 /// 模板提示词中的一个占位变量及其默认值。
 class TemplatePromptVariable extends Equatable {
   const TemplatePromptVariable({
     required this.name,
     this.defaultValue = '',
+    this.type = TemplatePromptVariableType.text,
   });
 
   final String name;
   final String defaultValue;
+  final TemplatePromptVariableType type;
 
-  /// 当前变量是否为主输入框对应的“正文”变量。
+  /// 当前变量是否为主输入框对应的"正文"变量。
   bool get isBody => name == templatePromptBodyVariableName;
+
+  /// 当前变量是否为数字类型。
+  bool get isNumber => type == TemplatePromptVariableType.number;
 
   /// 复制变量并允许覆盖字段。
   TemplatePromptVariable copyWith({
     String? name,
     String? defaultValue,
+    TemplatePromptVariableType? type,
   }) {
     return TemplatePromptVariable(
       name: name ?? this.name,
       defaultValue: defaultValue ?? this.defaultValue,
+      type: type ?? this.type,
     );
   }
 
@@ -36,6 +65,7 @@ class TemplatePromptVariable extends Equatable {
     return {
       'name': name,
       'defaultValue': defaultValue,
+      'type': type.toString(),
     };
   }
 
@@ -44,11 +74,14 @@ class TemplatePromptVariable extends Equatable {
     return TemplatePromptVariable(
       name: json['name'] as String,
       defaultValue: json['defaultValue'] as String? ?? '',
+      type: TemplatePromptVariableType.fromString(
+        json['type'] as String?,
+      ),
     );
   }
 
   @override
-  List<Object> get props => [name, defaultValue];
+  List<Object> get props => [name, defaultValue, type];
 }
 
 /// 可在聊天页临时注入变量的模板提示词。
@@ -69,12 +102,12 @@ class TemplatePrompt extends Equatable with HasIdAndUpdatedAt {
   @override
   final DateTime updatedAt;
 
-  /// 模板中除“正文”外的变量列表。
+  /// 模板中除"正文"外的变量列表。
   List<TemplatePromptVariable> get inputVariables {
     return variables.where((variable) => !variable.isBody).toList(growable: false);
   }
 
-  /// 模板是否显式包含“正文”占位符。
+  /// 模板是否显式包含"正文"占位符。
   bool get containsBodyVariable {
     return variables.any((variable) => variable.isBody);
   }

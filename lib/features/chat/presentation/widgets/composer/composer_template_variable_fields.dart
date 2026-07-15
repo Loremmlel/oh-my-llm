@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../settings/domain/models/template_prompt.dart';
+import 'number_variable_field.dart';
 
 class ComposerTemplateVariableFields extends StatelessWidget {
   const ComposerTemplateVariableFields({
@@ -33,19 +34,26 @@ class ComposerTemplateVariableFields extends StatelessWidget {
           runSpacing: gap,
           children: [
             for (final variable in selectedTemplatePrompt.inputVariables)
-              SizedBox(
-                width: itemWidth,
-                child: TextField(
-                  key: ValueKey('template-variable-${variable.name}'),
-                  controller: templateVariableControllers[variable.name],
-                  decoration: InputDecoration(
-                    labelText: variable.name,
-                    hintText: variable.defaultValue.isEmpty
-                        ? '未设置默认值'
-                        : variable.defaultValue,
+              if (variable.isNumber)
+                NumberVariableField(
+                  key: ValueKey('number-variable-${variable.name}'),
+                  controller: templateVariableControllers[variable.name]!,
+                  labelText: variable.name,
+                )
+              else
+                SizedBox(
+                  width: itemWidth,
+                  child: TextField(
+                    key: ValueKey('template-variable-${variable.name}'),
+                    controller: templateVariableControllers[variable.name]!,
+                    decoration: InputDecoration(
+                      labelText: variable.name,
+                      hintText: variable.defaultValue.isEmpty
+                          ? '未设置默认值'
+                          : variable.defaultValue,
+                    ),
                   ),
                 ),
-              ),
           ],
         );
       },

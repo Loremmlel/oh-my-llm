@@ -693,7 +693,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     for (final variable in templatePrompt.inputVariables) {
       _templateVariableControllers.putIfAbsent(
         variable.name,
-        () => TextEditingController(),
+        () => TextEditingController(text: variable.defaultValue),
       );
     }
   }
