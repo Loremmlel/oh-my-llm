@@ -93,4 +93,52 @@ void main() {
       ),
     ]);
   });
+
+  test('buildTemplatedUserMessage 正确替换 :number 类型变量', () {
+    final result = buildTemplatedUserMessage(
+      body: '翻译这段文字',
+      templatePrompt: TemplatePrompt(
+        id: 'tp-4',
+        title: '数字模板',
+        content: '从{{起始:number}}开始，{{正文}}。',
+        variables: const [
+          TemplatePromptVariable(
+            name: '起始',
+            defaultValue: '1',
+            type: TemplatePromptVariableType.number,
+          ),
+          TemplatePromptVariable(name: templatePromptBodyVariableName),
+        ],
+        updatedAt: DateTime(2026),
+      ),
+      variableValues: const {'起始': '5'},
+    );
+
+    expect(result.content, '从5开始，翻译这段文字。');
+  });
+
+  test('buildTemplatedUserMessage :number 变量未提供值时替换为空', () {
+    // builder 只查 variableValues map，不做默认值回退（由 chat_screen 负责）
+    final result = buildTemplatedUserMessage(
+      body: '翻译这段文字',
+      templatePrompt: TemplatePrompt(
+        id: 'tp-5',
+        title: '数字模板',
+        content: '从{{起始:number}}开始，{{正文}}。',
+        variables: const [
+          TemplatePromptVariable(
+            name: '起始',
+            defaultValue: '1',
+            type: TemplatePromptVariableType.number,
+          ),
+          TemplatePromptVariable(name: templatePromptBodyVariableName),
+        ],
+        updatedAt: DateTime(2026),
+      ),
+      variableValues: const {},
+    );
+
+    // variableValues 中没有 '起始'，替换为空字符串
+    expect(result.content, '从开始，翻译这段文字。');
+  });
 }

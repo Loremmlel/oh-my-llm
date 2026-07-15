@@ -56,7 +56,8 @@ TemplatedUserMessage buildTemplatedUserMessage({
         );
       }
 
-      final variableName = match.group(1)?.trim() ?? '';
+      final spec = parseVariableSpec(match.group(1)?.trim() ?? '');
+      final variableName = spec.name;
       if (variableName == templatePromptBodyVariableName) {
         appendSegment(normalizedBody, UserMessageSegmentKind.body);
       } else {

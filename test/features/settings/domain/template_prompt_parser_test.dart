@@ -20,6 +20,77 @@ void main() {
         ['正常'],
       );
     });
+
+    test('从带类型标记的占位符中提取纯变量名', () {
+      expect(
+        extractTemplatePromptVariableNames(
+          '从{{起始:number}}到{{结束:number}}，语言为{{语言}}。',
+        ),
+        ['起始', '结束', '语言'],
+      );
+    });
+  });
+
+  group('parseVariableSpec', () {
+    test('纯变量名解析为 text 类型', () {
+      final spec = parseVariableSpec('目标语言');
+      expect(spec.name, '目标语言');
+      expect(spec.type, TemplatePromptVariableType.text);
+    });
+
+    test(':number 标记解析为 number 类型', () {
+      final spec = parseVariableSpec('起始:number');
+      expect(spec.name, '起始');
+      expect(spec.type, TemplatePromptVariableType.number);
+    });
+
+    test('空格被正确 trim', () {
+      final spec = parseVariableSpec('  起始 : number  ');
+      expect(spec.name, '起始');
+      expect(spec.type, TemplatePromptVariableType.number);
+    });
+
+    test('未知类型回退为 text', () {
+      final spec = parseVariableSpec('变量:unknown');
+      expect(spec.name, '变量');
+      expect(spec.type, TemplatePromptVariableType.text);
+    });
+
+    test('空冒号后缀回退为 text', () {
+      final spec = parseVariableSpec('变量:');
+      expect(spec.name, '变量');
+      expect(spec.type, TemplatePromptVariableType.text);
+    });
+
+    test('无冒号分隔符时整体作为变量名', () {
+      final spec = parseVariableSpec('普通变量');
+      expect(spec.name, '普通变量');
+      expect(spec.type, TemplatePromptVariableType.text);
+    });
+  });
+
+  group('extractTemplatePromptVariableSpecs', () {
+    test('返回带类型的完整规格列表', () {
+      final specs = extractTemplatePromptVariableSpecs(
+        '从{{起始:number}}到{{结束:number}}，语言为{{语言}}。',
+      );
+      expect(specs.length, 3);
+      expect(specs[0].name, '起始');
+      expect(specs[0].type, TemplatePromptVariableType.number);
+      expect(specs[1].name, '结束');
+      expect(specs[1].type, TemplatePromptVariableType.number);
+      expect(specs[2].name, '语言');
+      expect(specs[2].type, TemplatePromptVariableType.text);
+    });
+
+    test('同名变量去重时保留首次出现的类型', () {
+      final specs = extractTemplatePromptVariableSpecs(
+        '{{计数:number}}，再次{{计数}}。',
+      );
+      expect(specs.length, 1);
+      expect(specs[0].name, '计数');
+      expect(specs[0].type, TemplatePromptVariableType.number);
+    });
   });
 
   group('reconcileTemplatePromptVariables', () {
@@ -52,6 +123,60 @@ void main() {
         result,
         const [TemplatePromptVariable(name: templatePromptBodyVariableName)],
       );
+    });
+
+    test('number 类型新变量默认值为 1', () {
+      final result = reconcileTemplatePromptVariables(
+        content: '从{{起始:number}}开始。',
+        existingVariables: const [],
+      );
+
+      expect(result.length, 1);
+      expect(result[0].name, '起始');
+      expect(result[0].type, TemplatePromptVariableType.number);
+      expect(result[0].defaultValue, '1');
+    });
+
+    test('number 类型保留已有默认值', () {
+      final result = reconcileTemplatePromptVariables(
+        content: '从{{起始:number}}开始。',
+        existingVariables: const [
+          TemplatePromptVariable(
+            name: '起始',
+            defaultValue: '10',
+            type: TemplatePromptVariableType.number,
+          ),
+        ],
+      );
+
+      expect(result[0].defaultValue, '10');
+      expect(result[0].type, TemplatePromptVariableType.number);
+    });
+
+    test('text 类型新变量默认值为空', () {
+      final result = reconcileTemplatePromptVariables(
+        content: '语言为{{语言}}。',
+        existingVariables: const [],
+      );
+
+      expect(result[0].name, '语言');
+      expect(result[0].type, TemplatePromptVariableType.text);
+      expect(result[0].defaultValue, '');
+    });
+
+    test('混合 text 和 number 变量', () {
+      final result = reconcileTemplatePromptVariables(
+        content: '从{{起始:number}}到{{目标语言}}。',
+        existingVariables: const [],
+      );
+
+      expect(result.length, 2);
+      expect(result[0].name, '起始');
+      expect(result[0].type, TemplatePromptVariableType.number);
+      expect(result[0].defaultValue, '1');
+      expect(result[1].name, '目标语言');
+      expect(result[1].type, TemplatePromptVariableType.text);
+      expect(result[1].defaultValue, '');
     });
   });
 }
