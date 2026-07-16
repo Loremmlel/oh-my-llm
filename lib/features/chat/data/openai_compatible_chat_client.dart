@@ -67,7 +67,9 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
         .transform(const LineSplitter());
 
     final dataLines = <String>[];
+    final rawSseData = <String>[];
     final inlineReasoningSplitter = InlineReasoningTagSplitter();
+    var hadContent = false;
 
     // SSE 事件以空行分隔；这里先收集 data 行，再按事件边界解析。
     await for (final line in lineStream) {
@@ -86,6 +88,9 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
             inlineReasoningSplitter: inlineReasoningSplitter,
           );
           if (parsed != null) {
+            if (!parsed.isEmpty) {
+              hadContent = true;
+            }
             yield parsed;
           }
         } catch (error, stackTrace) {
@@ -104,6 +109,7 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
       if (line.startsWith('data:')) {
         final dataLine = line.substring(5).trimLeft();
         dataLines.add(dataLine);
+        rawSseData.add(dataLine);
         _fireAndForget(
           _logger.logSseLine(uri: requestContext.uri, line: dataLine),
         );
@@ -118,6 +124,9 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
           inlineReasoningSplitter: inlineReasoningSplitter,
         );
         if (parsed != null) {
+          if (!parsed.isEmpty) {
+            hadContent = true;
+          }
           yield parsed;
         }
       } catch (error, stackTrace) {
@@ -134,7 +143,16 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
 
     final trailingInlineReasoning = inlineReasoningSplitter.flushRemainder();
     if (trailingInlineReasoning != null && !trailingInlineReasoning.isEmpty) {
+      hadContent = true;
       yield trailingInlineReasoning;
+    }
+
+    if (!hadContent) {
+      throw ChatCompletionException(
+        '请求未返回有效内容（HTTP ${response.statusCode}）',
+        statusCode: response.statusCode,
+        responseBody: rawSseData.isEmpty ? null : rawSseData.join('\n'),
+      );
     }
   }
 

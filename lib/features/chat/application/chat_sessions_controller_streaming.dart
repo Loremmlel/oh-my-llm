@@ -212,7 +212,6 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
     final completer = Completer<ChatConversation?>();
     activeStreamingCompleter = completer;
     latestStreamingReply = streamingReply;
-    var anyChunkYielded = false;
 
     state = state.copyWith(
       conversations: replaceConversation(streamingConversation),
@@ -271,36 +270,19 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
           messageNodes: nextTree.nodes,
           selectedChildByParentId: nextTree.selections,
         );
-        if (anyChunkYielded) {
-          // 收到过内容但最终为空 → 模型侧返回了空回复
-          state = state.copyWith(
-            conversations: replaceConversation(cleanedConversation),
-            conversationSummaries: replaceOrAddSummary(
-              state.conversationSummaries,
-              summaryFromConversation(cleanedConversation),
-            ),
-            isStreaming: false,
-            emptyReplyAssistantId: assistantMessage.id,
-            errorMessage: ChatErrorMessages.emptyReply,
-            errorMessageAssistantId: assistantMessage.id,
-            clearStreamingReply: true,
-            incrementHistoryRevision: true,
-          );
-        } else {
-          // 从未收到任何有效 chunk → 网络/服务端错误（如 429）
-          state = state.copyWith(
-            conversations: replaceConversation(cleanedConversation),
-            conversationSummaries: replaceOrAddSummary(
-              state.conversationSummaries,
-              summaryFromConversation(cleanedConversation),
-            ),
-            isStreaming: false,
-            errorMessage: ChatErrorMessages.noValidContent,
-            errorMessageAssistantId: assistantMessage.id,
-            clearStreamingReply: true,
-            incrementHistoryRevision: true,
-          );
-        }
+        state = state.copyWith(
+          conversations: replaceConversation(cleanedConversation),
+          conversationSummaries: replaceOrAddSummary(
+            state.conversationSummaries,
+            summaryFromConversation(cleanedConversation),
+          ),
+          isStreaming: false,
+          emptyReplyAssistantId: assistantMessage.id,
+          errorMessage: ChatErrorMessages.emptyReply,
+          errorMessageAssistantId: assistantMessage.id,
+          clearStreamingReply: true,
+          incrementHistoryRevision: true,
+        );
         saveConversation(cleanedConversation);
         completeActiveStreaming(null);
         clearActiveStreamingSession();
@@ -412,7 +394,6 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
             if (streamStopRequested) {
               return;
             }
-            anyChunkYielded = true;
             if (chunk.isEmpty) {
               return;
             }

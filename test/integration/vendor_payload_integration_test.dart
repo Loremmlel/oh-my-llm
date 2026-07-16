@@ -24,7 +24,12 @@ void main() {
         capturedPayload =
             jsonDecode((request as http.Request).body) as Map<String, dynamic>;
         return http.StreamedResponse(
-          Stream.fromIterable([utf8.encode('data: [DONE]\n\n')]),
+          Stream.fromIterable([
+            utf8.encode(
+              'data: {"choices":[{"delta":{"content":"test"}}]}\n\n',
+            ),
+            utf8.encode('data: [DONE]\n\n'),
+          ]),
           200,
         );
       }),
@@ -57,7 +62,12 @@ void main() {
         capturedPayload =
             jsonDecode((request as http.Request).body) as Map<String, dynamic>;
         return http.StreamedResponse(
-          Stream.fromIterable([utf8.encode('data: [DONE]\n\n')]),
+          Stream.fromIterable([
+            utf8.encode(
+              'data: {"choices":[{"delta":{"content":"test"}}]}\n\n',
+            ),
+            utf8.encode('data: [DONE]\n\n'),
+          ]),
           200,
         );
       }),
@@ -88,7 +98,12 @@ void main() {
         capturedPayload =
             jsonDecode((request as http.Request).body) as Map<String, dynamic>;
         return http.StreamedResponse(
-          Stream.fromIterable([utf8.encode('data: [DONE]\n\n')]),
+          Stream.fromIterable([
+            utf8.encode(
+              'data: {"choices":[{"delta":{"content":"test"}}]}\n\n',
+            ),
+            utf8.encode('data: [DONE]\n\n'),
+          ]),
           200,
         );
       }),
@@ -120,7 +135,12 @@ void main() {
         capturedPayload =
             jsonDecode((request as http.Request).body) as Map<String, dynamic>;
         return http.StreamedResponse(
-          Stream.fromIterable([utf8.encode('data: [DONE]\n\n')]),
+          Stream.fromIterable([
+            utf8.encode(
+              'data: {"choices":[{"delta":{"content":"test"}}]}\n\n',
+            ),
+            utf8.encode('data: [DONE]\n\n'),
+          ]),
           200,
         );
       }),

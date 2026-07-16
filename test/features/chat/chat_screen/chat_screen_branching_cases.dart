@@ -288,7 +288,6 @@ void registerChatScreenBranchingTests() {
       await tester.pumpAndSettle();
 
       expect(find.textContaining(ChatErrorMessages.emptyReply), findsOneWidget);
-      expect(find.textContaining(ChatErrorMessages.noValidContent), findsNothing);
     },
   );
 
