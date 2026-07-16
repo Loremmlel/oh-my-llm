@@ -147,7 +147,12 @@ void main() {
           expect(payload.containsKey('extra_body'), isFalse);
 
           return http.StreamedResponse(
-            Stream.fromIterable([utf8.encode('data: [DONE]\n\n')]),
+            Stream.fromIterable([
+            utf8.encode(
+              'data: {"choices":[{"delta":{"content":"ok"}}]}\n\n',
+            ),
+            utf8.encode('data: [DONE]\n\n'),
+          ]),
             200,
           );
         }),
@@ -177,7 +182,12 @@ void main() {
         expect(payload.containsKey('extra_body'), isFalse);
 
         return http.StreamedResponse(
-          Stream.fromIterable([utf8.encode('data: [DONE]\n\n')]),
+          Stream.fromIterable([
+            utf8.encode(
+              'data: {"choices":[{"delta":{"content":"ok"}}]}\n\n',
+            ),
+            utf8.encode('data: [DONE]\n\n'),
+          ]),
           200,
         );
       }),
@@ -212,7 +222,12 @@ void main() {
         expect(thinkingConfig['include_thoughts'], isTrue);
 
         return http.StreamedResponse(
-          Stream.fromIterable([utf8.encode('data: [DONE]\n\n')]),
+          Stream.fromIterable([
+            utf8.encode(
+              'data: {"choices":[{"delta":{"content":"ok"}}]}\n\n',
+            ),
+            utf8.encode('data: [DONE]\n\n'),
+          ]),
           200,
         );
       }),
@@ -413,7 +428,7 @@ void main() {
     );
   });
 
-  test('streamCompletion yields empty chunks for non-message SSE payloads', () async {
+  test('streamCompletion throws when SSE stream yields no valid content', () async {
     final client = OpenAiCompatibleChatClient(
       httpClient: _FakeStreamingHttpClient((request) async {
         return http.StreamedResponse(
@@ -427,20 +442,25 @@ void main() {
       }),
     );
 
-    final chunks = await client
-        .streamCompletion(
-          modelConfig: _modelConfig(),
-          messages: const [
-            ChatCompletionRequestMessage(
-              role: ChatMessageRole.user,
-              content: '你好',
-            ),
-          ],
-        )
-        .toList();
-
-    expect(chunks, hasLength(2));
-    expect(chunks.every((chunk) => chunk.isEmpty), isTrue);
+    try {
+      await client
+          .streamCompletion(
+            modelConfig: _modelConfig(),
+            messages: const [
+              ChatCompletionRequestMessage(
+                role: ChatMessageRole.user,
+                content: '你好',
+              ),
+            ],
+          )
+          .drain<void>();
+      fail('Expected ChatCompletionException');
+    } on ChatCompletionException catch (e) {
+      expect(e.statusCode, 200);
+      expect(e.responseBody, contains('[1, 2, 3]'));
+      expect(e.responseBody, contains('{"model":"gpt-4"}'));
+      expect(e.message, contains('HTTP 200'));
+    }
   });
 
   test('streamCompletion parses string-type error in SSE payload', () async {
@@ -494,7 +514,12 @@ void main() {
                   as Map<String, dynamic>;
           sentEffort = payload['reasoning_effort'] as String?;
           return http.StreamedResponse(
-            Stream.fromIterable([utf8.encode('data: [DONE]\n\n')]),
+            Stream.fromIterable([
+            utf8.encode(
+              'data: {"choices":[{"delta":{"content":"ok"}}]}\n\n',
+            ),
+            utf8.encode('data: [DONE]\n\n'),
+          ]),
             200,
           );
         }),
@@ -535,7 +560,12 @@ void main() {
           sentEffort = payload['reasoning_effort'] as String?;
           hasThinking = payload.containsKey('thinking');
           return http.StreamedResponse(
-            Stream.fromIterable([utf8.encode('data: [DONE]\n\n')]),
+            Stream.fromIterable([
+            utf8.encode(
+              'data: {"choices":[{"delta":{"content":"ok"}}]}\n\n',
+            ),
+            utf8.encode('data: [DONE]\n\n'),
+          ]),
             200,
           );
         }),

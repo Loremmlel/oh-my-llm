@@ -25,9 +25,6 @@ class ChatErrorMessages {
   /// 模型返回了空回复
   static const emptyReply = '[EMPTY] 模型返回了空回复，请重试';
 
-  /// 请求未返回有效内容
-  static const noValidContent = '[ERR] 请求未返回有效内容，请检查网络或重试';
-
   /// 输出正则规则把非空回复处理成了空内容
   static const outputRuleEmptied =
       '[ERR] 输出处理规则把模型回复清空了，请检查设置中的「输出处理」正则规则';
