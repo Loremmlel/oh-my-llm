@@ -57,9 +57,14 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
     streamStopRequested = true;
 
     // 取消可能存在的流式订阅（流式进行中才有值；间隙/等待态下为 null）。
+    // 不 await cancel：token 空闲间隙时 socket 无数据流动，cancel() 返回的 Future
+    // 可能迟迟不完成，会阻塞后续 UI 状态重置，导致按钮停留在「终止」态、需点两次。
+    // streamStopRequested 已置 true，配合 onData/完成回调守卫可安全地让 socket 后台关闭。
     final subscription = activeStreamingSubscription;
     activeStreamingSubscription = null;
-    await subscription?.cancel();
+    if (subscription != null) {
+      unawaited(subscription.cancel().catchError((Object _) {}));
+    }
 
     // complete completer，避免 streamAssistantReply 的 future 永久挂起。
     final streamingReply = latestStreamingReply ?? state.streamingReply;
