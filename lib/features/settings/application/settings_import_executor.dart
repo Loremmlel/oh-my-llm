@@ -7,6 +7,7 @@ import 'font_size_settings_controller.dart';
 import 'fixed_prompt_sequences_controller.dart';
 import 'llm_model_configs_controller.dart';
 import 'memory_prompts_controller.dart';
+import 'output_processing_settings_controller.dart';
 import 'preset_prompts_controller.dart';
 import 'template_prompts_controller.dart';
 
@@ -70,6 +71,12 @@ class SettingsImportExecutor {
       await ref
           .read(fontSizeSettingsProvider.notifier)
           .save(data.fontSizeSettings!);
+      wrote = true;
+    }
+    if (data.outputProcessingSettings != null) {
+      await ref
+          .read(outputProcessingSettingsProvider.notifier)
+          .save(data.outputProcessingSettings!);
       wrote = true;
     }
     return wrote;

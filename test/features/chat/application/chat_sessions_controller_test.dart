@@ -11,6 +11,7 @@ import 'package:oh_my_llm/core/persistence/versioned_json_storage.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/data/chat_completion_client.dart';
 import 'package:oh_my_llm/features/chat/data/openai_compatible_chat_client.dart';
+import 'package:oh_my_llm/features/chat/domain/chat_error_messages.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dart';
@@ -23,6 +24,8 @@ import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
 
 import 'package:oh_my_llm/features/settings/application/auto_retry_settings_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/auto_retry_settings.dart';
+import 'package:oh_my_llm/features/settings/application/output_processing_settings_controller.dart';
+import 'package:oh_my_llm/features/settings/domain/models/output_processing_settings.dart';
 
 import '../chat_screen/chat_screen_test_helpers.dart';
 
@@ -439,7 +442,7 @@ void main() {
     await sendFuture;
 
     final state = container.read(chatSessionsProvider);
-    expect(state.errorMessage, '请求失败');
+    expect(state.errorMessage, startsWith('请求失败'));
     expect(state.activeConversation.messages, hasLength(2));
     expect(state.activeConversation.messages.last.role, ChatMessageRole.assistant);
     expect(state.activeConversation.messages.last.reasoningContent, '思考中');
@@ -1496,4 +1499,96 @@ void main() {
     expect(state.isStreaming, isFalse);
     expect(state.activeConversation.messages.last.content, '部分内容');
   });
+
+  group('formatStreamingError', () {
+    test('ChatCompletionException 展开状态码与响应体', () {
+      final controller = container.read(chatSessionsProvider.notifier);
+      final message = controller.formatStreamingError(
+        const ChatCompletionException(
+          '请求失败',
+          statusCode: 429,
+          responseBody: '{"error":"rate limit"}',
+        ),
+        StackTrace.current,
+      );
+
+      expect(message, startsWith('请求失败'));
+      expect(message, contains('429'));
+      expect(message, contains('rate limit'));
+    });
+
+    test('超长响应体被截断并附省略提示', () {
+      final controller = container.read(chatSessionsProvider.notifier);
+      final hugeBody = 'x' * 5000;
+      final message = controller.formatStreamingError(
+        ChatCompletionException('请求失败', statusCode: 500, responseBody: hugeBody),
+        StackTrace.current,
+      );
+
+      expect(message, contains('已截断'));
+      expect(message.length, lessThan(hugeBody.length));
+    });
+
+    test('携带源异常时展开 cause', () {
+      final controller = container.read(chatSessionsProvider.notifier);
+      final message = controller.formatStreamingError(
+        ChatCompletionException(
+          '连接失败',
+          cause: const SocketExceptionStub('连接被重置'),
+          causeStackTrace: StackTrace.current,
+        ),
+        StackTrace.current,
+      );
+
+      expect(message, startsWith('连接失败'));
+      expect(message, contains('连接被重置'));
+    });
+
+    test('非 ChatCompletionException 降级为 toString + 堆栈', () {
+      final controller = container.read(chatSessionsProvider.notifier);
+      final message = controller.formatStreamingError(
+        StateError('未知错误'),
+        StackTrace.current,
+      );
+
+      expect(message, contains('未知错误'));
+      expect(message, contains('```text'));
+    });
+  });
+
+  group('输出处理正则清空回复', () {
+    test('规则把非空正文清空时提示错误且不触发自动重试', () async {
+      await container.read(outputProcessingSettingsProvider.notifier).save(
+            const OutputProcessingSettings(
+              rules: [
+                OutputRegexRule(
+                  id: 'rule-1',
+                  title: '删除全部',
+                  pattern: '你好',
+                  replacement: '',
+                  order: 0,
+                  enabled: true,
+                ),
+              ],
+            ),
+          );
+
+      fakeClient.enqueueChunks(['你好']);
+      await sendMsg('触发清空');
+
+      final state = container.read(chatSessionsProvider);
+      expect(state.errorMessage, ChatErrorMessages.outputRuleEmptied);
+      expect(state.emptyReplyAssistantId, isNull);
+      expect(state.errorMessageAssistantId, isNotNull);
+      expect(state.isStreaming, isFalse);
+    });
+  });
+}
+
+/// 测试用源异常桩，验证 cause 展开。
+class SocketExceptionStub implements Exception {
+  const SocketExceptionStub(this.message);
+  final String message;
+  @override
+  String toString() => message;
 }

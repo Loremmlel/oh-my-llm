@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import '../../../core/utils/id_generator.dart';
+import '../../settings/application/output_processing_settings_controller.dart';
 import '../../settings/domain/models/auto_retry_settings.dart';
 import '../../settings/domain/models/llm_model_config.dart';
 import '../../settings/domain/models/preset_prompt.dart';
@@ -14,6 +15,7 @@ import 'chat_message_tree.dart';
 import 'chat_request_message_builder.dart';
 import 'chat_sessions_controller_support.dart';
 import 'chat_sessions_state.dart';
+import 'output_regex_processor.dart';
 
 /// 为 [ChatSessionsController] 提供流式回复生命周期管理。
 mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
@@ -305,6 +307,44 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
         return;
       }
 
+      // 落盘前对正文应用输出正则规则；推理内容保持原样。
+      final processedContent = applyOutputProcessing(streamingReply.content);
+      // 规则把原本非空的正文清空 → 提示用户检查输出处理规则，并保留占位节点。
+      // 不走 emptyReply 自动重试路径：重试仍会被同一规则清空，形成死循环。
+      if (processedContent.trim().isEmpty &&
+          streamingReply.content.trim().isNotEmpty) {
+        final cleanedTree = resolveMessageTreeState(streamingConversation);
+        final nextTree = replaceAssistantMessageInTree(
+          treeState: cleanedTree,
+          assistantMessageId: assistantMessage.id,
+          nextContent: '',
+          nextReasoningContent: streamingReply.reasoningContent,
+          isStreaming: false,
+        );
+        final cleanedConversation = mergeStreamingResultIntoActive(
+          streamingConversation: streamingConversation,
+          messageNodes: nextTree.nodes,
+          selectedChildByParentId: nextTree.selections,
+        );
+        state = state.copyWith(
+          conversations: replaceConversation(cleanedConversation),
+          conversationSummaries: replaceOrAddSummary(
+            state.conversationSummaries,
+            summaryFromConversation(cleanedConversation),
+          ),
+          isStreaming: false,
+          errorMessage: ChatErrorMessages.outputRuleEmptied,
+          errorMessageAssistantId: assistantMessage.id,
+          clearStreamingReply: true,
+          incrementHistoryRevision: true,
+        );
+        saveConversation(cleanedConversation);
+        completeActiveStreaming(null);
+        clearActiveStreamingSession();
+        return;
+      }
+
+      streamingReply = streamingReply.copyWith(content: processedContent);
       final streamingTree = applyStreamingReplyToConversation(
         conversation: streamingConversation,
         streamingReply: streamingReply,
@@ -341,9 +381,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
         return;
       }
 
-      final errorMessage = error is ChatCompletionException
-          ? error.message
-          : formatUnexpectedStreamingError(error, stackTrace);
+      final errorMessage = formatStreamingError(error, stackTrace);
       await handleStreamingFailure(
         conversation: streamingConversation,
         streamingReply: streamingReply,
@@ -391,7 +429,11 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
               return;
             }
 
-            replaceStreamingReplyInMemory(streamingReply);
+            replaceStreamingReplyInMemory(
+              streamingReply.copyWith(
+                content: applyOutputProcessing(streamingReply.content),
+              ),
+            );
             lastUiFlushAt = now;
           },
           onDone: () {
@@ -430,7 +472,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
     final nextTree = replaceAssistantMessageInTree(
       treeState: tree,
       assistantMessageId: streamingReply.assistantMessageId,
-      nextContent: streamingReply.content,
+      nextContent: applyOutputProcessing(streamingReply.content),
       nextReasoningContent: streamingReply.reasoningContent,
       isStreaming: false,
     );
@@ -448,6 +490,15 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
   }) {
     return streamingReply.content.trim().isEmpty &&
         streamingReply.reasoningContent.trim().isEmpty;
+  }
+
+  /// 对模型正文应用用户配置的输出正则规则（过滤/替换）。
+  ///
+  /// 仅作用于正文 content，推理内容不处理。空回判定使用原始 content，
+  /// 因此规则删除全部内容不会被误判为空回。
+  String applyOutputProcessing(String content) {
+    final rules = ref.read(outputProcessingSettingsProvider).rules;
+    return applyOutputRegexRules(content, rules);
   }
 
   void completeActiveStreaming(ChatConversation? conversation) {
@@ -631,5 +682,48 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
         ? '请求未完成，请检查网络、API URL 或模型配置。'
         : normalizedError;
     return '$header\n\n```text\n$stackTrace\n```';
+  }
+
+  /// 统一将流式错误格式化为面向开发者的详细文本（原始信息 + 堆栈）。
+  ///
+  /// 不做「傻瓜友好」简化：`ChatCompletionException` 附带的 HTTP 状态码、
+  /// 响应体、源异常与源堆栈都会展开；其余异常直接展示 `toString()` + 堆栈。
+  String formatStreamingError(Object error, StackTrace stackTrace) {
+    if (error is! ChatCompletionException) {
+      return formatUnexpectedStreamingError(error, stackTrace);
+    }
+
+    final buffer = StringBuffer(error.message);
+    if (error.statusCode != null) {
+      buffer.write('\n\nHTTP 状态码：${error.statusCode}');
+    }
+    final responseBody = error.responseBody?.trim();
+    if (responseBody != null && responseBody.isNotEmpty) {
+      buffer.write('\n\n响应体：\n```text\n${_truncateForError(responseBody)}\n```');
+    }
+    final cause = error.cause;
+    if (cause != null) {
+      buffer.write('\n\n源异常：${cause.toString().trim()}');
+    }
+    final causeStack = error.causeStackTrace;
+    if (causeStack != null) {
+      buffer.write('\n\n```text\n$causeStack\n```');
+    } else if (error.statusCode == null && responseBody == null) {
+      // 无额外诊断字段时，附上当前堆栈以便定位。
+      buffer.write('\n\n```text\n$stackTrace\n```');
+    }
+    return buffer.toString();
+  }
+
+  /// 响应体上限，防止超长错误体撑爆错误卡片。
+  static const _maxErrorBodyLength = 4000;
+
+  /// 截断过长文本，超出上限时保留头部并附省略提示。
+  static String _truncateForError(String text) {
+    if (text.length <= _maxErrorBodyLength) {
+      return text;
+    }
+    final omitted = text.length - _maxErrorBodyLength;
+    return '${text.substring(0, _maxErrorBodyLength)}\n…（已截断 $omitted 字符）';
   }
 }
