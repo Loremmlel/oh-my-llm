@@ -1468,4 +1468,32 @@ void main() {
     expect(state.errorMessage, isNull);
     expect(state.activeConversation.messages.last.content, '部分内容');
   });
+
+  test('stopStreaming 在 cancel() 挂起时仍能一次终止', () async {
+    // 模拟 token 空闲间隙：底层订阅的 cancel() 永不完成（socket 无数据）。
+    // 修复前 stopStreaming 会 await 该 cancel 而永久挂起，状态无法重置，
+    // 需第二次点击才生效；修复后 cancel 即发即忘，单次调用即可终止。
+    final streamController = StreamController<ChatCompletionChunk>(
+      onCancel: () => Completer<void>().future,
+    );
+    addTearDown(() => streamController.onCancel = null);
+    fakeClient.enqueueStream(streamController.stream);
+
+    final sendFuture = sendMsg('测试挂起 cancel');
+    await Future<void>.delayed(const Duration(milliseconds: 1));
+    streamController.add(const ChatCompletionChunk(contentDelta: '部分内容'));
+    await Future<void>.delayed(const Duration(milliseconds: 1));
+
+    // 用 timeout 作为快速失败守卫：修复前 stopStreaming 会 await 挂起的 cancel
+    // 而永不返回，2 秒内即报 TimeoutException；修复后单次调用瞬间完成，不会真等 2 秒。
+    await container
+        .read(chatSessionsProvider.notifier)
+        .stopStreaming()
+        .timeout(const Duration(seconds: 2));
+    await sendFuture;
+
+    final state = container.read(chatSessionsProvider);
+    expect(state.isStreaming, isFalse);
+    expect(state.activeConversation.messages.last.content, '部分内容');
+  });
 }
