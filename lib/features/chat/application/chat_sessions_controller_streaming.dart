@@ -689,8 +689,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
     final causeStack = error.causeStackTrace;
     if (causeStack != null) {
       buffer.write('\n\n```text\n$causeStack\n```');
-    } else if (error.statusCode == null && responseBody == null) {
-      // 无额外诊断字段时，附上当前堆栈以便定位。
+    } else {
       buffer.write('\n\n```text\n$stackTrace\n```');
     }
     return buffer.toString();

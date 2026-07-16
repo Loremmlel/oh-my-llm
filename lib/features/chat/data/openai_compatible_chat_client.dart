@@ -180,8 +180,12 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
       responseBody,
       inlineReasoningSplitter: InlineReasoningTagSplitter(),
     );
-    if (parsed == null) {
-      return const ChatCompletionResult();
+    if (parsed == null || parsed.isEmpty) {
+      throw ChatCompletionException(
+        '请求未返回有效内容（HTTP ${response.statusCode}）',
+        statusCode: response.statusCode,
+        responseBody: responseBody.trim().isEmpty ? null : responseBody.trim(),
+      );
     }
     return ChatCompletionResult(
       content: parsed.contentDelta,
