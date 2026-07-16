@@ -7,6 +7,7 @@ import 'font_size_settings.dart';
 import 'llm_model_config.dart';
 import 'llm_provider_config.dart';
 import 'memory_prompt.dart';
+import 'output_processing_settings.dart';
 import 'preset_prompt.dart';
 import 'template_prompt.dart';
 
@@ -38,13 +39,14 @@ class SettingsExportData {
     this.autoRetrySettings,
     this.customHeadersConfig,
     this.fontSizeSettings,
+    this.outputProcessingSettings,
   });
 
   /// 用于识别剪贴板内容是否为本应用导出数据的标识符。
   static const String identifier = 'shikiyuzu-oh-my-llm';
 
   /// 当前导出格式版本，未来格式变更时递增。
-  static const int formatVersion = 4;
+  static const int formatVersion = 5;
 
   final List<LlmProviderConfig> modelProviders;
   final List<MemoryPrompt> memoryPrompts;
@@ -54,6 +56,7 @@ class SettingsExportData {
   final AutoRetrySettings? autoRetrySettings;
   final CustomHeadersConfig? customHeadersConfig;
   final FontSizeSettings? fontSizeSettings;
+  final OutputProcessingSettings? outputProcessingSettings;
 
   List<LlmModelConfig> get modelConfigs {
     return modelProviders
@@ -88,6 +91,11 @@ class SettingsExportData {
     final fontSize = fontSizeSettings;
     if (fontSize != null) {
       map['fontSizeSettings'] = fontSize.toJson();
+    }
+
+    final outputProcessing = outputProcessingSettings;
+    if (outputProcessing != null) {
+      map['outputProcessing'] = outputProcessing.toJson();
     }
 
     return jsonEncode(map);
@@ -128,6 +136,8 @@ class SettingsExportData {
       final rawAutoRetry = raw['autoRetrySettings'] as Map<String, dynamic>?;
       final rawCustomHeaders = raw['customHeaders'] as Map<String, dynamic>?;
       final rawFontSize = raw['fontSizeSettings'] as Map<String, dynamic>?;
+      final rawOutputProcessing =
+          raw['outputProcessing'] as Map<String, dynamic>?;
 
       return SettingsExportData(
         modelProviders: modelProviders,
@@ -167,6 +177,9 @@ class SettingsExportData {
         fontSizeSettings: rawFontSize != null
             ? FontSizeSettings.fromJson(rawFontSize)
             : null,
+        outputProcessingSettings: rawOutputProcessing != null
+            ? OutputProcessingSettings.fromJson(rawOutputProcessing)
+            : null,
       );
     } catch (_) {
       // 任何解析错误都视为非本应用的剪贴板内容，静默忽略。
@@ -183,6 +196,8 @@ class SettingsExportData {
       fixedPromptSequences.isNotEmpty ||
       autoRetrySettings != null ||
       fontSizeSettings != null ||
-      (customHeadersConfig != null && customHeadersConfig!.headers.isNotEmpty);
+      (customHeadersConfig != null && customHeadersConfig!.headers.isNotEmpty) ||
+      (outputProcessingSettings != null &&
+          outputProcessingSettings!.rules.isNotEmpty);
 
 }

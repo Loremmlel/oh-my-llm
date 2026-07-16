@@ -12,6 +12,7 @@ import '../application/font_size_settings_controller.dart';
 import '../application/fixed_prompt_sequences_controller.dart';
 import '../application/llm_model_configs_controller.dart';
 import '../application/memory_prompts_controller.dart';
+import '../application/output_processing_settings_controller.dart';
 import '../application/preset_prompts_controller.dart';
 import '../application/settings_import_deduplicator.dart';
 import '../application/template_prompts_controller.dart';
@@ -25,18 +26,26 @@ import 'widgets/import_confirm_dialog.dart';
 import 'widgets/settings_widgets.dart';
 import 'widgets/tab/network_settings_tab.dart';
 import 'widgets/tab/other_settings_tab.dart';
+import 'widgets/tab/output_processing_tab.dart';
 
 const _settingsLastTabIndexKey = 'settings.tab.last_index';
 const _settingsTabVersionKey = 'settings.tab.version';
-const _currentTabVersion = 2;
+const _currentTabVersion = 3;
 
-/// 将升级前保存的旧 tab 索引（v1: 其它=3, 网络=4）
-/// 重新映射到新的顺序（v2: 网络=3, 其它=4）。
-int _migrateTabIndex(int savedIndex) {
-  // v1 → v2: 交换索引 3 和 4
-  if (savedIndex == 3) return 4;
-  if (savedIndex == 4) return 3;
-  return savedIndex;
+/// 按保存的版本逐级迁移旧的 tab 索引到当前顺序。
+///
+/// v1 → v2：交换索引 3 和 4（网络=4/其它=3 → 网络=3/其它=4）。
+/// v2 → v3：「输出处理」tab 追加在末尾，旧索引无需重映射。
+int _migrateTabIndex(int savedIndex, int savedVersion) {
+  var index = savedIndex;
+  if (savedVersion < 2) {
+    if (index == 3) {
+      index = 4;
+    } else if (index == 4) {
+      index = 3;
+    }
+  }
+  return index;
 }
 
 const _tabProviders = 0;
@@ -44,12 +53,14 @@ const _tabPresets = 1;
 const _tabPrompts = 2;
 const _tabNetwork = 3;
 const _tabOther = 4;
+const _tabOutputProcessing = 5;
 
 const _tabLabelProviders = '服务商';
 const _tabLabelPresets = '预设 Prompt';
 const _tabLabelPrompts = '提示词';
 const _tabLabelOther = '其它设置';
 const _tabLabelNetwork = '网络';
+const _tabLabelOutputProcessing = '输出处理';
 
 /// 设置页入口，使用标签页组织服务商、预设、提示词和其它设置。
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -76,14 +87,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     var savedIndex = prefs.getInt(_settingsLastTabIndexKey) ?? 0;
 
     if (savedVersion < _currentTabVersion) {
-      savedIndex = _migrateTabIndex(savedIndex);
+      savedIndex = _migrateTabIndex(savedIndex, savedVersion);
       prefs.setInt(_settingsLastTabIndexKey, savedIndex);
       prefs.setInt(_settingsTabVersionKey, _currentTabVersion);
     }
 
     _tabController = TabController(
-      initialIndex: savedIndex.clamp(0, 4),
-      length: 5,
+      initialIndex: savedIndex.clamp(0, 5),
+      length: 6,
       vsync: this,
     );
     _tabController.addListener(_onTabChanged);
@@ -140,6 +151,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
               Tab(text: '提示词'),
               Tab(text: '网络'),
               Tab(text: '其它'),
+              Tab(text: '输出处理'),
             ],
           ),
           Expanded(
@@ -296,6 +308,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                 const NetworkSettingsTab(),
                 // 其它
                 const OtherSettingsTab(),
+                // 输出处理
+                const OutputProcessingTab(),
               ],
             ),
           ),
@@ -316,6 +330,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
         return _tabLabelOther;
       case _tabNetwork:
         return _tabLabelNetwork;
+      case _tabOutputProcessing:
+        return _tabLabelOutputProcessing;
       default:
         return '';
     }
@@ -398,6 +414,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
           fixedPromptSequences: const [],
           customHeadersConfig: headers,
         );
+      case _tabOutputProcessing:
+        final outputProcessing = ref.read(outputProcessingSettingsProvider);
+        if (outputProcessing.rules.isEmpty) return null;
+        return SettingsExportData(
+          modelProviders: const [],
+          memoryPrompts: const [],
+          presetPrompts: const [],
+          templatePrompts: const [],
+          fixedPromptSequences: const [],
+          outputProcessingSettings: outputProcessing,
+        );
       default:
         return null;
     }
@@ -432,6 +459,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
       existingAutoRetrySettings: ref.read(autoRetrySettingsProvider),
       existingCustomHeadersConfig: ref.read(customHeadersProvider),
       existingFontSizeSettings: ref.read(fontSizeSettingsProvider),
+      existingOutputProcessingSettings: ref.read(
+        outputProcessingSettingsProvider,
+      ),
     );
 
     if (!dedupedData.hasContent) {
@@ -472,6 +502,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
       case _tabNetwork:
         return data.customHeadersConfig != null &&
             data.customHeadersConfig!.headers.isNotEmpty;
+      case _tabOutputProcessing:
+        return data.outputProcessingSettings != null &&
+            data.outputProcessingSettings!.rules.isNotEmpty;
       default:
         return false;
     }

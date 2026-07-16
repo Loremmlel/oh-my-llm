@@ -4,6 +4,7 @@ import '../domain/models/fixed_prompt_sequence.dart';
 import '../domain/models/font_size_settings.dart';
 import '../domain/models/llm_provider_config.dart';
 import '../domain/models/memory_prompt.dart';
+import '../domain/models/output_processing_settings.dart';
 import '../domain/models/preset_prompt.dart';
 import '../domain/models/settings_export_data.dart';
 import '../domain/models/template_prompt.dart';
@@ -150,6 +151,7 @@ final class SettingsImportDeduplicator {
     AutoRetrySettings? existingAutoRetrySettings,
     CustomHeadersConfig? existingCustomHeadersConfig,
     FontSizeSettings? existingFontSizeSettings,
+    OutputProcessingSettings? existingOutputProcessingSettings,
   }) {
     final existingModels = existingProviders
         .expand((provider) => provider.resolvedModels)
@@ -223,6 +225,11 @@ final class SettingsImportDeduplicator {
         ? null
         : data.fontSizeSettings;
 
+    final dedupOutputProcessing = (data.outputProcessingSettings != null &&
+            data.outputProcessingSettings == existingOutputProcessingSettings)
+        ? null
+        : data.outputProcessingSettings;
+
     return SettingsExportData(
       modelProviders: newProviders,
       memoryPrompts: newMemoryPrompts,
@@ -232,6 +239,7 @@ final class SettingsImportDeduplicator {
       autoRetrySettings: dedupAutoRetry,
       customHeadersConfig: dedupCustomHeaders,
       fontSizeSettings: dedupFontSize,
+      outputProcessingSettings: dedupOutputProcessing,
     );
   }
 }

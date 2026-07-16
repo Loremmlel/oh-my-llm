@@ -7,6 +7,7 @@ import 'package:oh_my_llm/features/settings/domain/models/custom_headers_config.
 import 'package:oh_my_llm/features/settings/domain/models/fixed_prompt_sequence.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/memory_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/models/output_processing_settings.dart';
 import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/settings_export_data.dart';
 import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
@@ -100,7 +101,7 @@ void main() {
       expect(jsonMap['identifier'], SettingsExportData.identifier);
       expect(jsonMap['identifier'], 'shikiyuzu-oh-my-llm');
       expect(jsonMap['version'], SettingsExportData.formatVersion);
-      expect(jsonMap['version'], 4);
+      expect(jsonMap['version'], 5);
     });
 
     test('toJsonString 再 tryParseJson 可还原完整数据（7 个分类）', () {
@@ -182,6 +183,36 @@ void main() {
         ).hasContent,
         isTrue,
       );
+    });
+
+    test('outputProcessingSettings 可 round-trip 且驱动 hasContent', () {
+      const data = SettingsExportData(
+        modelProviders: [],
+        memoryPrompts: [],
+        presetPrompts: [],
+        templatePrompts: [],
+        fixedPromptSequences: [],
+        outputProcessingSettings: OutputProcessingSettings(
+          rules: [
+            OutputRegexRule(
+              id: 'rule-1',
+              title: '过滤极其',
+              pattern: '极其',
+              replacement: '',
+              order: 0,
+            ),
+          ],
+        ),
+      );
+
+      expect(data.hasContent, isTrue);
+
+      final parsed = SettingsExportData.tryParseJson(data.toJsonString());
+      expect(parsed, isNotNull);
+      expect(parsed!.outputProcessingSettings, isNotNull);
+      expect(parsed.outputProcessingSettings!.rules.length, 1);
+      expect(parsed.outputProcessingSettings!.rules.first.pattern, '极其');
+      expect(parsed.outputProcessingSettings!.rules.first.title, '过滤极其');
     });
   });
 }
