@@ -30,12 +30,13 @@ import 'widgets/tab/output_processing_tab.dart';
 
 const _settingsLastTabIndexKey = 'settings.tab.last_index';
 const _settingsTabVersionKey = 'settings.tab.version';
-const _currentTabVersion = 3;
+const _currentTabVersion = 4;
 
 /// 按保存的版本逐级迁移旧的 tab 索引到当前顺序。
 ///
 /// v1 → v2：交换索引 3 和 4（网络=4/其它=3 → 网络=3/其它=4）。
 /// v2 → v3：「输出处理」tab 追加在末尾，旧索引无需重映射。
+/// v3 → v4：交换索引 4 和 5（输出处理=5/其它=4 → 输出处理=4/其它=5）。
 int _migrateTabIndex(int savedIndex, int savedVersion) {
   var index = savedIndex;
   if (savedVersion < 2) {
@@ -45,6 +46,13 @@ int _migrateTabIndex(int savedIndex, int savedVersion) {
       index = 3;
     }
   }
+  if (savedVersion < 4) {
+    if (index == 4) {
+      index = 5;
+    } else if (index == 5) {
+      index = 4;
+    }
+  }
   return index;
 }
 
@@ -52,8 +60,8 @@ const _tabProviders = 0;
 const _tabPresets = 1;
 const _tabPrompts = 2;
 const _tabNetwork = 3;
-const _tabOther = 4;
-const _tabOutputProcessing = 5;
+const _tabOutputProcessing = 4;
+const _tabOther = 5;
 
 const _tabLabelProviders = '服务商';
 const _tabLabelPresets = '预设 Prompt';
@@ -150,8 +158,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
               Tab(text: '预设'),
               Tab(text: '提示词'),
               Tab(text: '网络'),
-              Tab(text: '其它'),
               Tab(text: '输出处理'),
+              Tab(text: '其它'),
             ],
           ),
           Expanded(
@@ -306,10 +314,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                 ),
                 // 网络
                 const NetworkSettingsTab(),
-                // 其它
-                const OtherSettingsTab(),
                 // 输出处理
                 const OutputProcessingTab(),
+                // 其它
+                const OtherSettingsTab(),
               ],
             ),
           ),

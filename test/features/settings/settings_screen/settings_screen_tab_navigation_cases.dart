@@ -23,10 +23,13 @@ void registerSettingsScreenTabNavigationTests() {
     expect(find.text('记忆总结提示词'), findsOneWidget);
 
     await switchToTab(tester, 3);
-    expect(find.text('自动重试'), findsOneWidget);
+    expect(find.text('请求头定义'), findsOneWidget);
 
     await switchToTab(tester, 4);
-    expect(find.text('请求头定义'), findsOneWidget);
+    expect(find.text('输出正则处理'), findsOneWidget);
+
+    await switchToTab(tester, 5);
+    expect(find.text('自动重试'), findsOneWidget);
 
     await switchToTab(tester, 0);
     expect(find.text('服务商设置'), findsOneWidget);

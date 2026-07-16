@@ -38,7 +38,7 @@ class NumberVariableField extends StatelessWidget {
     final theme = Theme.of(context);
 
     return SizedBox(
-      width: 150,
+      width: 165,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -61,8 +61,7 @@ class NumberVariableField extends StatelessWidget {
               ],
               decoration: InputDecoration(
                 labelText: labelText,
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12), // 取消 isDense 后保持略紧凑的行高
               ),
               textAlign: TextAlign.center,
             ),
