@@ -20,6 +20,7 @@ import '../application/chat_message_tree.dart';
 import '../application/chat_sessions_controller.dart';
 import '../application/chat_template_prompt_selection_controller.dart';
 import '../application/chat_sidebar_controller.dart';
+import '../application/composer_draft_controller.dart';
 import '../application/templated_user_message_builder.dart';
 import '../domain/chat_conversation_groups.dart';
 import '../domain/chat_message_parent.dart';
@@ -51,6 +52,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   bool _isComposerCollapsed = false;
   bool _presetPromptNeedsInit = true;
 
+  /// 当前正文草稿归属的会话 ID，草稿按会话隔离持久化。
+  String? _draftConversationId;
+
+  /// 已完成草稿恢复的会话 ID，避免流式重建时反复覆盖输入框。
+  String? _restoredDraftForConversationId;
+
+  /// 正在以编程方式恢复草稿，期间抑制回写，避免 build 中修改 provider。
+  bool _isRestoringDraft = false;
+
   @override
   void initState() {
     super.initState();
@@ -60,10 +70,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _scroll.itemPositionsListener.itemPositions.addListener(
       _scroll.handleVisibleItemsChanged,
     );
+    _messageController.addListener(_persistBodyDraft);
   }
 
   @override
   void dispose() {
+    _messageController.removeListener(_persistBodyDraft);
     _messageFocusNode.dispose();
     _messageController.dispose();
     for (final controller in _templateVariableControllers.values) {
@@ -74,6 +86,32 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
     _scroll.dispose();
     super.dispose();
+  }
+
+  /// 将当前正文写入内存草稿，供跨页面切换恢复。
+  void _persistBodyDraft() {
+    if (_isRestoringDraft) return;
+    final conversationId = _draftConversationId;
+    if (conversationId == null) return;
+    ref
+        .read(composerDraftProvider.notifier)
+        .setBody(conversationId, _messageController.text);
+  }
+
+  /// 会话首次挂载或切换时，从内存草稿恢复正文；流式重建（同一会话）时跳过。
+  void _restoreBodyDraftIfNeeded(String? conversationId) {
+    if (conversationId == null) return;
+    if (_restoredDraftForConversationId == conversationId) return;
+    _restoredDraftForConversationId = conversationId;
+    _draftConversationId = conversationId;
+    final draftBody =
+        ref.read(composerDraftProvider.notifier).readBody(conversationId) ?? '';
+    if (_messageController.text == draftBody) return;
+    _isRestoringDraft = true;
+    _messageController
+      ..text = draftBody
+      ..selection = TextSelection.collapsed(offset: draftBody.length);
+    _isRestoringDraft = false;
   }
 
   // ── Build ──────────────────────────────────────────────────────────────────
@@ -93,6 +131,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
     final conversationSummaries = ref.watch(chatConversationSummariesProvider);
     final activeConversationId = ref.watch(activeConversationIdProvider);
+    // 草稿恢复会写 _messageController.text，禁止在 build 期直接执行（帧内副作用）。
+    // 改为帧后回调；_restoreBodyDraftIfNeeded 自身幂等，重复调度无害。
+    if (_restoredDraftForConversationId != activeConversationId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _restoreBodyDraftIfNeeded(activeConversationId);
+      });
+    }
     final isStreaming = ref.watch(isChatStreamingProvider);
     final isAutoRetryWaiting = ref.watch(
       chatSessionsProvider.select((state) => state.isAutoRetryWaiting),
@@ -523,6 +569,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               }
 
               _messageController.clear();
+              ref
+                  .read(composerDraftProvider.notifier)
+                  .clearBody(conversation.id);
               await _sendMessageContent(
                 content: templatedMessage.content,
                 userMessageSegments: templatedMessage.userMessageSegments,
@@ -690,11 +739,27 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       return;
     }
 
+    final draftController = ref.read(composerDraftProvider.notifier);
+    final templateId = templatePrompt.id;
     for (final variable in templatePrompt.inputVariables) {
-      _templateVariableControllers.putIfAbsent(
+      if (_templateVariableControllers.containsKey(variable.name)) {
+        continue;
+      }
+      final draftValue = draftController.readTemplateVariable(
+        templateId,
         variable.name,
-        () => TextEditingController(text: variable.defaultValue),
       );
+      final controller = TextEditingController(
+        text: draftValue ?? variable.defaultValue,
+      );
+      controller.addListener(() {
+        draftController.setTemplateVariable(
+          templateId,
+          variable.name,
+          controller.text,
+        );
+      });
+      _templateVariableControllers[variable.name] = controller;
     }
   }
 
