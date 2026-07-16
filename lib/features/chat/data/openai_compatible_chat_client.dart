@@ -285,7 +285,12 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
           stackTrace: stackTrace,
         ),
       );
-      rethrow;
+      // 包装源异常并保留原始堆栈，供上层展示完整诊断信息。
+      throw ChatCompletionException(
+        error.toString(),
+        cause: error,
+        causeStackTrace: stackTrace,
+      );
     }
 
     _fireAndForget(
@@ -298,15 +303,18 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
     );
     if (response.statusCode < 200 || response.statusCode >= 300) {
       final responseBody = await response.stream.bytesToString();
+      final trimmedBody = responseBody.trim();
       _fireAndForget(
         _logger.logError(
           uri: context.uri,
           error:
-              'HTTP ${response.statusCode}: ${responseBody.trim().isEmpty ? "服务端未返回错误详情" : responseBody.trim()}',
+              'HTTP ${response.statusCode}: ${trimmedBody.isEmpty ? "服务端未返回错误详情" : trimmedBody}',
         ),
       );
       throw ChatCompletionException(
-        '请求失败（${response.statusCode}）：${responseBody.trim().isEmpty ? "服务端未返回错误详情" : responseBody.trim()}',
+        '请求失败（${response.statusCode}）：${trimmedBody.isEmpty ? "服务端未返回错误详情" : trimmedBody}',
+        statusCode: response.statusCode,
+        responseBody: trimmedBody.isEmpty ? null : trimmedBody,
       );
     }
 

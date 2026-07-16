@@ -140,7 +140,8 @@ class ChatChunkParser {
       decoded = jsonDecode(rawChunk);
     } on FormatException {
       throw ChatCompletionException(
-        'SSE 数据解析失败（${rawChunk.length > 200 ? '${rawChunk.substring(0, 200)}...' : rawChunk}）',
+        'SSE 数据解析失败',
+        responseBody: rawChunk,
       );
     }
 
@@ -148,12 +149,15 @@ class ChatChunkParser {
 
     final error = decoded['error'];
     if (error is String && error.trim().isNotEmpty) {
-      throw ChatCompletionException(error.trim());
+      throw ChatCompletionException(error.trim(), responseBody: rawChunk);
     }
     if (error is Map) {
       final message = error['message'];
       if (message is String && message.trim().isNotEmpty) {
-        throw ChatCompletionException(message.trim());
+        throw ChatCompletionException(
+          message.trim(),
+          responseBody: rawChunk,
+        );
       }
     }
 

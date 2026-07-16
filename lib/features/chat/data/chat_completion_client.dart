@@ -2,10 +2,31 @@ import '../domain/models/chat_message.dart';
 import '../../settings/domain/models/llm_model_config.dart';
 
 /// 流式补全请求失败时抛出的业务异常。
+///
+/// 面向开发者：尽量携带原始诊断信息（HTTP 状态码、响应体、源异常与堆栈），
+/// 由上层格式化为可复制的错误详情，而非「傻瓜友好」文案。
 class ChatCompletionException implements Exception {
-  const ChatCompletionException(this.message);
+  const ChatCompletionException(
+    this.message, {
+    this.statusCode,
+    this.responseBody,
+    this.cause,
+    this.causeStackTrace,
+  });
 
   final String message;
+
+  /// HTTP 状态码（非 2xx 响应时可用）。
+  final int? statusCode;
+
+  /// 原始响应体（HTTP 错误或 SSE 解析失败时的原文）。
+  final String? responseBody;
+
+  /// 被包装的源异常（连接中断、TLS 握手失败等）。
+  final Object? cause;
+
+  /// 源异常对应的堆栈。
+  final StackTrace? causeStackTrace;
 
   @override
   String toString() => message;

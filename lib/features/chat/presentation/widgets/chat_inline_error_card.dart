@@ -16,10 +16,12 @@ class ChatInlineErrorCard extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(12),
-        child: Text(
+        child: SelectableText(
           message,
           style: theme.textTheme.bodySmall?.copyWith(
             color: theme.colorScheme.onErrorContainer,
+            fontFamilyFallback: const ['monospace'],
+            height: 1.4,
           ),
         ),
       ),
