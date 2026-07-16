@@ -140,7 +140,7 @@ class ChatChunkParser {
       decoded = jsonDecode(rawChunk);
     } on FormatException {
       throw ChatCompletionException(
-        'SSE 数据解析失败',
+        'SSE 数据解析失败：${rawChunk.length > 100 ? '${rawChunk.substring(0, 100)}…' : rawChunk}',
         responseBody: rawChunk,
       );
     }
