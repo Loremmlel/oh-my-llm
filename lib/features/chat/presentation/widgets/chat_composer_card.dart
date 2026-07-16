@@ -232,13 +232,11 @@ class ChatComposerCard extends StatelessWidget {
                       child: Tooltip(
                         message: '固定顺序提示词',
                         child: OutlinedButton.icon(
-                          onPressed: data.isBusy
-                              ? null
-                              : () async {
-                                  Navigator.of(bottomSheetContext).pop();
-                                  await callbacks
-                                      .onOpenFixedPromptSequenceRunner();
-                                },
+                          // 流式中仍可打开：仅对话框内「发送当前步骤」按 !isBusy 锁定。
+                          onPressed: () async {
+                            Navigator.of(bottomSheetContext).pop();
+                            await callbacks.onOpenFixedPromptSequenceRunner();
+                          },
                           icon: const Icon(Icons.playlist_play_rounded),
                           label: const Text('固定顺序提示词'),
                         ),
@@ -249,12 +247,11 @@ class ChatComposerCard extends StatelessWidget {
                       width: double.infinity,
                       child: OutlinedButton.icon(
                         key: const ValueKey('chat-message-filter-button'),
-                        onPressed: data.isBusy
-                            ? null
-                            : () async {
-                                Navigator.of(bottomSheetContext).pop();
-                                await callbacks.onOpenMessageFilter();
-                              },
+                        // 上下文过滤只影响下次发送，流式中无需锁定。
+                        onPressed: () async {
+                          Navigator.of(bottomSheetContext).pop();
+                          await callbacks.onOpenMessageFilter();
+                        },
                         icon: const Icon(Icons.filter_alt_outlined),
                         label: Text(
                           messageFilterLabel(data.excludedMessageCount),
