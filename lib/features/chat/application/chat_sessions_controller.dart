@@ -287,6 +287,52 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     }
   }
 
+  /// 选择会话并导航到指定消息，调整分支路径使目标消息可见。
+  void selectConversationAndNavigateToMessage(
+    String conversationId, {
+    String? messageId,
+  }) {
+    selectConversation(conversationId);
+
+    if (messageId == null) return;
+
+    final conversation = state.conversations
+        .where((c) => c.id == conversationId)
+        .firstOrNull;
+    if (conversation == null) return;
+
+    final targetNode = conversation.messageNodes
+        .where((m) => m.id == messageId)
+        .firstOrNull;
+    if (targetNode == null) return;
+
+    final ancestorPath = _resolveAncestorPath(
+      conversation.messageNodes,
+      targetId: messageId,
+    );
+    if (ancestorPath.isEmpty) return;
+
+    final nextSelections = Map<String, String>.from(
+      conversation.selectedChildByParentId,
+    );
+    for (var i = 0; i < ancestorPath.length; i += 1) {
+      final parentId = i == 0
+          ? rootConversationParentId
+          : ancestorPath[i - 1];
+      nextSelections[parentId] = ancestorPath[i];
+    }
+
+    final updatedConversation = conversation.copyWith(
+      selectedChildByParentId: nextSelections,
+      updatedAt: conversation.updatedAt,
+    );
+    state = state.copyWith(
+      conversations: replaceConversation(updatedConversation),
+      pendingScrollToMessageId: messageId,
+    );
+    saveConversation(updatedConversation);
+  }
+
   /// 重命名当前活动会话。
   Future<void> renameActiveConversation(String title) async {
     if (_isBusy) {
@@ -956,5 +1002,29 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
             .toList(growable: false),
       ),
     );
+  }
+
+  List<String> _resolveAncestorPath(
+    List<ChatMessage> nodes, {
+    required String targetId,
+  }) {
+    final nodeById = <String, ChatMessage>{
+      for (final node in nodes) node.id: node,
+    };
+
+    if (!nodeById.containsKey(targetId)) return const [];
+
+    final path = <String>[];
+    var currentId = targetId;
+    while (true) {
+      final node = nodeById[currentId];
+      if (node == null) break;
+      path.add(currentId);
+      final parentId = node.effectiveParentId;
+      if (parentId == rootConversationParentId) break;
+      currentId = parentId;
+    }
+
+    return path.reversed.toList(growable: false);
   }
 }
