@@ -682,6 +682,9 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
   Future<void> editMessage({
     required String messageId,
     required String nextContent,
+    List<UserMessageSegment> userMessageSegments = const [],
+    String? templatePromptId,
+    Map<String, String> templateVariableValues = const {},
   }) async {
     if (_isBusy) {
       return;
@@ -714,6 +717,9 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       content: trimmedContent,
       createdAt: DateTime.now(),
       parentId: targetMessage.parentId,
+      userMessageSegments: userMessageSegments,
+      templatePromptId: templatePromptId,
+      templateVariableValues: templateVariableValues,
     );
     final nextNodes = [...tree.nodes, branchUserMessage];
     final nextSelections = Map<String, String>.from(tree.selections);
