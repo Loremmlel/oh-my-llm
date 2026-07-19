@@ -212,6 +212,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       isStreaming: isStreaming,
     );
 
+    final pendingScrollId = ref.watch(
+      chatSessionsProvider.select((state) => state.pendingScrollToMessageId),
+    );
+    if (pendingScrollId != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _scroll.scrollToMessage(pendingScrollId);
+        ref.read(chatSessionsProvider.notifier).clearPendingScrollToMessageId();
+      });
+    }
+
     // 监听对话切换，同步本地 _selectedPresetPromptId
     ref.listen<String?>(activeConversationIdProvider, (prev, next) {
       if (prev != next && next != null) {
