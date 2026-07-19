@@ -171,12 +171,19 @@ class AppDatabase {
     if (fromVersion == 0) {
       // 全新安装，_createSchema 已包含新列
     } else {
-      _connection.execute(
-        'ALTER TABLE messages ADD COLUMN template_prompt_id TEXT DEFAULT NULL;',
-      );
-      _connection.execute(
-        "ALTER TABLE messages ADD COLUMN template_variable_values_json TEXT NOT NULL DEFAULT '{}';",
-      );
+      final hasMessages = _connection
+          .select(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'messages';",
+          )
+          .isNotEmpty;
+      if (hasMessages) {
+        _connection.execute(
+          'ALTER TABLE messages ADD COLUMN template_prompt_id TEXT DEFAULT NULL;',
+        );
+        _connection.execute(
+          "ALTER TABLE messages ADD COLUMN template_variable_values_json TEXT NOT NULL DEFAULT '{}';",
+        );
+      }
     }
     _connection.execute('PRAGMA user_version = 12;');
   }
