@@ -73,6 +73,9 @@ class AppDatabase {
     if (currentVersion < 11) {
       _migrateV11(currentVersion);
     }
+    if (currentVersion < 12) {
+      _migrateV12(currentVersion);
+    }
   }
 
   /// V9：移除 preset_prompts.system_prompt 列。
@@ -162,6 +165,22 @@ class AppDatabase {
     _connection.execute('PRAGMA user_version = 11;');
   }
 
+  /// V12：messages 表新增 template_prompt_id 和 template_variable_values_json 列，
+  /// 用于持久化用户消息使用的模板提示词信息。
+  void _migrateV12(int fromVersion) {
+    if (fromVersion == 0) {
+      // 全新安装，_createSchema 已包含新列
+    } else {
+      _connection.execute(
+        'ALTER TABLE messages ADD COLUMN template_prompt_id TEXT DEFAULT NULL;',
+      );
+      _connection.execute(
+        "ALTER TABLE messages ADD COLUMN template_variable_values_json TEXT NOT NULL DEFAULT '{}';",
+      );
+    }
+    _connection.execute('PRAGMA user_version = 12;');
+  }
+
   /// 创建全部业务表和索引（全新安装时使用）。
   void _createSchema() {
     _connection.execute('''
@@ -192,6 +211,8 @@ class AppDatabase {
         assistant_model_display_name TEXT NOT NULL DEFAULT '匿名模型',
         user_message_segments_json TEXT NOT NULL DEFAULT '[]',
         applied_checkpoint_title TEXT NOT NULL DEFAULT '',
+        template_prompt_id TEXT DEFAULT NULL,
+        template_variable_values_json TEXT NOT NULL DEFAULT '{}',
         FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
       );
     ''');
