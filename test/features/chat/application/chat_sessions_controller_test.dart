@@ -342,6 +342,31 @@ void main() {
     expect(container.read(chatSessionsProvider).isStreaming, isFalse);
   });
 
+  test('sendMessage 携带模板元数据', () async {
+    fakeClient.enqueueChunks(['回复']);
+    await container.read(chatSessionsProvider.notifier).sendMessage(
+      content: '问题',
+      modelConfig: _testModel,
+      presetPrompt: null,
+      reasoningEnabled: false,
+      reasoningEffort: ReasoningEffort.medium,
+      templatePromptId: 'tpl-1',
+      templateVariableValues: {'key': 'val'},
+      userMessageSegments: [
+        const UserMessageSegment(text: '问题', kind: UserMessageSegmentKind.body),
+      ],
+    );
+
+    final userMsg = container
+        .read(chatSessionsProvider)
+        .activeConversation
+        .messages
+        .first;
+    expect(userMsg.templatePromptId, 'tpl-1');
+    expect(userMsg.templateVariableValues, {'key': 'val'});
+    expect(userMsg.userMessageSegments, hasLength(1));
+  });
+
   test('sendMessage 会裁剪有效输入并忽略纯空白内容', () async {
     fakeClient.enqueueChunks(['回复']);
     await sendMsg('  你好  ');
