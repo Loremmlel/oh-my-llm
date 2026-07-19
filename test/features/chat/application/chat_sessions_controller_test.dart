@@ -1500,6 +1500,115 @@ void main() {
     expect(state.activeConversation.messages.last.content, '部分内容');
   });
 
+  group('selectConversationAndNavigateToMessage', () {
+    test('messageId 为 null 时退化为普通 selectConversation', () {
+      final controller = container.read(chatSessionsProvider.notifier);
+      final state = container.read(chatSessionsProvider);
+      final convId = state.activeConversationId;
+
+      controller.selectConversationAndNavigateToMessage(convId);
+
+      final afterState = container.read(chatSessionsProvider);
+      expect(afterState.activeConversationId, convId);
+      expect(afterState.pendingScrollToMessageId, isNull);
+    });
+
+    test('目标消息在线性路径上时设置 pendingScrollToMessageId', () async {
+      fakeClient.enqueueChunks(['你好！']);
+      await sendMsg('你好');
+
+      final controller = container.read(chatSessionsProvider.notifier);
+      final state = container.read(chatSessionsProvider);
+      final conv = state.activeConversation;
+      final assistantMsg = conv.messages.lastWhere(
+        (m) => m.role == ChatMessageRole.assistant,
+      );
+
+      controller.selectConversationAndNavigateToMessage(
+        conv.id,
+        messageId: assistantMsg.id,
+      );
+
+      final afterState = container.read(chatSessionsProvider);
+      expect(afterState.pendingScrollToMessageId, assistantMsg.id);
+    });
+
+    test('目标消息在另一分支时 selectedChildByParentId 切换到正确分支', () async {
+      fakeClient.enqueueChunks(['第一轮回复']);
+      await sendMsg('第一轮');
+
+      final controller = container.read(chatSessionsProvider.notifier);
+      var conv = container.read(chatSessionsProvider).activeConversation;
+
+      final firstUserMsg = conv.messages.firstWhere(
+        (m) => m.role == ChatMessageRole.user,
+      );
+
+      final branchUserMsg = ChatMessage(
+        id: 'branch-user-1',
+        role: ChatMessageRole.user,
+        content: '分支问题',
+        parentId: firstUserMsg.parentId,
+        createdAt: DateTime.now(),
+      );
+      final branchAssistantMsg = ChatMessage(
+        id: 'branch-assistant-1',
+        role: ChatMessageRole.assistant,
+        content: '分支回复',
+        parentId: branchUserMsg.id,
+        createdAt: DateTime.now(),
+        assistantModelDisplayName: 'Test Model',
+      );
+
+      conv = conv.copyWith(
+        messageNodes: [...conv.messageNodes, branchUserMsg, branchAssistantMsg],
+      );
+      controller.updateActiveConversation(conv);
+
+      expect(
+        conv.messages.where((m) => m.id == branchAssistantMsg.id),
+        isEmpty,
+      );
+
+      controller.selectConversationAndNavigateToMessage(
+        conv.id,
+        messageId: branchAssistantMsg.id,
+      );
+
+      final afterState = container.read(chatSessionsProvider);
+      expect(afterState.pendingScrollToMessageId, branchAssistantMsg.id);
+
+      final afterConv = afterState.activeConversation;
+      expect(
+        afterConv.messages.where((m) => m.id == branchAssistantMsg.id),
+        isNotEmpty,
+      );
+    });
+
+    test('目标消息不在 messageNodes 中时不修改状态', () async {
+      fakeClient.enqueueChunks(['回复']);
+      await sendMsg('测试消息');
+
+      final controller = container.read(chatSessionsProvider.notifier);
+      final stateBefore = container.read(chatSessionsProvider);
+      final convId = stateBefore.activeConversationId;
+      final selectionsBefore =
+          stateBefore.activeConversation.selectedChildByParentId;
+
+      controller.selectConversationAndNavigateToMessage(
+        convId,
+        messageId: 'nonexistent-message-id',
+      );
+
+      final stateAfter = container.read(chatSessionsProvider);
+      expect(stateAfter.pendingScrollToMessageId, isNull);
+      expect(
+        stateAfter.activeConversation.selectedChildByParentId,
+        selectionsBefore,
+      );
+    });
+  });
+
   group('formatStreamingError', () {
     test('ChatCompletionException 展开状态码与响应体', () {
       final controller = container.read(chatSessionsProvider.notifier);
