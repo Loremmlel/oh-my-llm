@@ -301,10 +301,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         .firstOrNull;
     if (conversation == null) return;
 
-    final targetNode = conversation.messageNodes
-        .where((m) => m.id == messageId)
-        .firstOrNull;
-    if (targetNode == null) return;
+    if (!conversation.messageNodes.any((m) => m.id == messageId)) return;
 
     final ancestorPath = _resolveAncestorPath(
       conversation.messageNodes,
