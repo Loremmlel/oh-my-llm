@@ -143,5 +143,18 @@ void main() {
       final cleared = favorite.copyWith(clearTitle: true);
       expect(cleared.title, isNull);
     });
+
+    test('copyWith 保留 sourceAssistantMessageId', () {
+      final fav = Favorite(
+        id: 'f1',
+        userMessageContent: 'q',
+        assistantContent: 'a',
+        sourceAssistantMessageId: 'msg-42',
+        createdAt: DateTime(2026),
+      );
+      expect(fav.sourceAssistantMessageId, 'msg-42');
+      expect(fav.copyWith().sourceAssistantMessageId, 'msg-42');
+      expect(fav.copyWith(sourceAssistantMessageId: 'msg-99').sourceAssistantMessageId, 'msg-99');
+    });
   });
 }
