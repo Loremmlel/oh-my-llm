@@ -209,7 +209,10 @@ class _FavoriteDetailScreenState extends ConsumerState<FavoriteDetailScreen> {
   void _goToConversation(BuildContext context) {
     ref
         .read(chatSessionsProvider.notifier)
-        .selectConversation(_favorite.sourceConversationId!);
+        .selectConversationAndNavigateToMessage(
+          _favorite.sourceConversationId!,
+          messageId: _favorite.sourceAssistantMessageId,
+        );
     context.go(AppDestination.chat.path);
   }
 }
