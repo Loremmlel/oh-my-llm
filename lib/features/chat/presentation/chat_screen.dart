@@ -40,12 +40,26 @@ class ChatScreen extends ConsumerStatefulWidget {
 }
 
 class _ComposerSnapshot {
-  const _ComposerSnapshot({
+  const _ComposerSnapshot._({
     required this.bodyText,
     required this.templatePromptId,
     required this.templateVariableValues,
     required this.isComposerCollapsed,
   });
+
+  factory _ComposerSnapshot({
+    required String bodyText,
+    required String? templatePromptId,
+    required Map<String, String> templateVariableValues,
+    required bool isComposerCollapsed,
+  }) {
+    return _ComposerSnapshot._(
+      bodyText: bodyText,
+      templatePromptId: templatePromptId,
+      templateVariableValues: Map.unmodifiable(templateVariableValues),
+      isComposerCollapsed: isComposerCollapsed,
+    );
+  }
 
   final String bodyText;
   final String? templatePromptId;
@@ -828,6 +842,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   void _toggleComposerCollapsed() {
+    if (_editingMessageId != null && !_isComposerCollapsed) return;
     setState(() {
       _isComposerCollapsed = !_isComposerCollapsed;
     });
