@@ -265,10 +265,12 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
               name: templatePromptBodyVariableName,
             );
           }
+          final rawDefault =
+              _variableControllers[variable.name]?.text.trim() ?? '';
           return TemplatePromptVariable(
             name: variable.name,
             defaultValue:
-                _variableControllers[variable.name]?.text.trim() ?? '',
+                variable.isNumber && rawDefault.isEmpty ? '1' : rawDefault,
             type: variable.type,
           );
         })
