@@ -889,6 +889,8 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     required bool reasoningEnabled,
     required ReasoningEffort reasoningEffort,
     List<UserMessageSegment> userMessageSegments = const [],
+    String? templatePromptId,
+    Map<String, String> templateVariableValues = const {},
     Duration? retryDelay,
   }) async {
     if (_isBusy) {
@@ -912,6 +914,8 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       createdAt: timestamp,
       parentId: parentId ?? rootConversationParentId,
       userMessageSegments: userMessageSegments,
+      templatePromptId: templatePromptId,
+      templateVariableValues: templateVariableValues,
     );
     final pendingNodes = [...tree.nodes, userMessage];
     final pendingSelections = Map<String, String>.from(tree.selections);

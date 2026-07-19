@@ -593,6 +593,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 conversation: conversation,
                 supportsReasoning: supportsReasoning,
                 isBusy: isBusy,
+                templatePromptId: selectedTemplatePrompt?.id,
+                templateVariableValues: _resolveTemplatePromptValues(
+                  selectedTemplatePrompt,
+                ),
               );
             },
       onStopStreaming: isStreaming || isAutoRetryWaiting
@@ -911,6 +915,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     required bool supportsReasoning,
     required bool isBusy,
     List<UserMessageSegment> userMessageSegments = const [],
+    String? templatePromptId,
+    Map<String, String> templateVariableValues = const {},
   }) async {
     final trimmedContent = content.trim();
     if (trimmedContent.isEmpty || modelConfig == null || isBusy) {
@@ -926,6 +932,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           presetPrompt: presetPrompt,
           reasoningEnabled: supportsReasoning && conversation.reasoningEnabled,
           reasoningEffort: conversation.reasoningEffort,
+          templatePromptId: templatePromptId,
+          templateVariableValues: templateVariableValues,
         );
   }
 
