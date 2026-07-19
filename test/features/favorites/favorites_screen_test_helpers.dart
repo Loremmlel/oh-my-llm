@@ -71,6 +71,7 @@ Favorite seedFavorite(
   String? collectionId,
   String? sourceConversationId,
   String? sourceConversationTitle,
+  String? sourceAssistantMessageId,
   DateTime? createdAt,
 }) {
   final favorite = Favorite(
@@ -82,6 +83,7 @@ Favorite seedFavorite(
     collectionId: collectionId,
     sourceConversationId: sourceConversationId,
     sourceConversationTitle: sourceConversationTitle,
+    sourceAssistantMessageId: sourceAssistantMessageId,
     createdAt: createdAt ?? DateTime(2026, 4, 28),
   );
   SqliteFavoritesRepository(database).save(favorite);
