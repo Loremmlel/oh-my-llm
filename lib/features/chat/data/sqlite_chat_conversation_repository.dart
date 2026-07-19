@@ -47,6 +47,8 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
         assistant_model_display_name,
         applied_checkpoint_title,
         user_message_segments_json,
+        template_prompt_id,
+        template_variable_values_json,
         created_at
       FROM messages
       ORDER BY conversation_id, node_index
@@ -100,6 +102,11 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
                         ),
                       )
                       .toList(growable: false),
+              templatePromptId: row['template_prompt_id'] as String?,
+              templateVariableValues: (jsonDecode(
+                row['template_variable_values_json'] as String,
+              ) as Map<String, dynamic>)
+                  .map((k, v) => MapEntry(k, v as String)),
             ),
           );
     }
@@ -187,6 +194,8 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
         assistant_model_display_name,
         applied_checkpoint_title,
         user_message_segments_json,
+        template_prompt_id,
+        template_variable_values_json,
         created_at
       FROM messages
       WHERE conversation_id = ?
@@ -220,6 +229,11 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
                       ),
                     )
                     .toList(growable: false),
+            templatePromptId: row['template_prompt_id'] as String?,
+            templateVariableValues: (jsonDecode(
+              row['template_variable_values_json'] as String,
+            ) as Map<String, dynamic>)
+                .map((k, v) => MapEntry(k, v as String)),
           ),
         )
         .toList(growable: false);
@@ -479,8 +493,10 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
         INSERT INTO messages (
           id, conversation_id, node_index, parent_id, role,
           content, reasoning_content, assistant_model_display_name,
-          applied_checkpoint_title, user_message_segments_json, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          applied_checkpoint_title, user_message_segments_json,
+          template_prompt_id, template_variable_values_json,
+          created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           node_index = excluded.node_index,
           content = excluded.content,
@@ -488,6 +504,8 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
           assistant_model_display_name = excluded.assistant_model_display_name,
           applied_checkpoint_title = excluded.applied_checkpoint_title,
           user_message_segments_json = excluded.user_message_segments_json,
+          template_prompt_id = excluded.template_prompt_id,
+          template_variable_values_json = excluded.template_variable_values_json,
           created_at = excluded.created_at
       ''');
       final selectionStatement = db.prepare('''
@@ -563,6 +581,8 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
                     .map((segment) => segment.toJson())
                     .toList(),
               ),
+              message.templatePromptId,
+              jsonEncode(message.templateVariableValues),
               message.createdAt.toIso8601String(),
             ]);
           }
