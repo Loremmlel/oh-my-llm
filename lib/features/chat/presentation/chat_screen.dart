@@ -206,19 +206,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         })
         .toList(growable: false);
     _scroll.cacheVisibleMessageMetadata(activeMessages, userMessages);
+    final pendingScrollId = ref.watch(
+      chatSessionsProvider.select((state) => state.pendingScrollToMessageId),
+    );
     _scroll.scheduleScrollSync(
       conversationId: conversation.id,
       messages: activeMessages,
       isStreaming: isStreaming,
+      skipJumpToBottom: pendingScrollId != null,
     );
 
-    final pendingScrollId = ref.watch(
-      chatSessionsProvider.select((state) => state.pendingScrollToMessageId),
-    );
     if (pendingScrollId != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
         if (!mounted) return;
-        _scroll.scrollToMessage(pendingScrollId);
+        await _scroll.scrollToMessage(pendingScrollId);
+        if (!mounted) return;
         ref.read(chatSessionsProvider.notifier).clearPendingScrollToMessageId();
       });
     }

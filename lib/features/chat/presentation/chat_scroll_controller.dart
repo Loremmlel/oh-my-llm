@@ -94,6 +94,7 @@ class ChatScrollController {
     required String conversationId,
     required List<ChatMessage> messages,
     required bool isStreaming,
+    bool skipJumpToBottom = false,
   }) {
     final signature = [
       conversationId,
@@ -105,10 +106,12 @@ class ChatScrollController {
 
     if (_lastConversationId != conversationId) {
       _lastConversationId = conversationId;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!itemScrollController.isAttached) return;
-        scrollToBottom(jump: true);
-      });
+      if (!skipJumpToBottom) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!itemScrollController.isAttached) return;
+          scrollToBottom(jump: true);
+        });
+      }
     } else if (_lastRenderSignature != signature) {
       final shouldAutoScroll = !showScrollToBottom;
       WidgetsBinding.instance.addPostFrameCallback((_) {
