@@ -675,6 +675,66 @@ void main() {
     expect(messages[0].content, '原始问题');
   });
 
+  test('editMessage 新分支消息携带模板元数据', () async {
+    fakeClient.enqueueChunks(['第一次回复']);
+    fakeClient.enqueueChunks(['重新生成的回复']);
+    await sendMsg('原始问题');
+
+    final userMessageId = container
+        .read(chatSessionsProvider)
+        .activeConversation
+        .messages
+        .first
+        .id;
+
+    await container.read(chatSessionsProvider.notifier).editMessage(
+      messageId: userMessageId,
+      nextContent: '修改后的问题',
+      userMessageSegments: [
+        const UserMessageSegment(
+          text: '修改后的问题',
+          kind: UserMessageSegmentKind.body,
+        ),
+      ],
+      templatePromptId: 'tpl-1',
+      templateVariableValues: {'lang': 'Dart'},
+    );
+
+    final messages = container
+        .read(chatSessionsProvider)
+        .activeConversation
+        .messages;
+    expect(messages[0].templatePromptId, 'tpl-1');
+    expect(messages[0].templateVariableValues, {'lang': 'Dart'});
+    expect(messages[0].userMessageSegments, hasLength(1));
+    expect(messages[0].userMessageSegments.first.kind, UserMessageSegmentKind.body);
+  });
+
+  test('editMessage 默认不携带模板元数据（向后兼容）', () async {
+    fakeClient.enqueueChunks(['第一次回复']);
+    fakeClient.enqueueChunks(['重新生成的回复']);
+    await sendMsg('原始问题');
+
+    final userMessageId = container
+        .read(chatSessionsProvider)
+        .activeConversation
+        .messages
+        .first
+        .id;
+
+    await container
+        .read(chatSessionsProvider.notifier)
+        .editMessage(messageId: userMessageId, nextContent: '修改后的问题');
+
+    final messages = container
+        .read(chatSessionsProvider)
+        .activeConversation
+        .messages;
+    expect(messages[0].templatePromptId, isNull);
+    expect(messages[0].templateVariableValues, isEmpty);
+    expect(messages[0].userMessageSegments, isEmpty);
+  });
+
   // ── retryLatestAssistant ───────────────────────────────────────────────────
 
   test('retryLatestAssistant 无助手消息时设置 errorMessage', () async {
