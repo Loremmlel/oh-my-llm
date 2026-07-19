@@ -71,6 +71,7 @@ class ChatSessionsState extends Equatable {
     this.emptyReplyAssistantId,
     this.streamingReply,
     this.historyRevision = 0,
+    this.pendingScrollToMessageId,
   });
 
   /// 所有持久化会话（按 [updatedAt] 倒序排列）。
@@ -109,6 +110,9 @@ class ChatSessionsState extends Equatable {
   /// 历史列表变更版本号，每次写入会话时递增，供历史页触发重新查询。
   final int historyRevision;
 
+  /// 导航后需要滚动到的消息 ID，消费后应清空。
+  final String? pendingScrollToMessageId;
+
   /// 获取当前正在展示的会话；找不到时回退到列表首项。
   ChatConversation get activeConversation {
     return conversations.firstWhere(
@@ -136,6 +140,8 @@ class ChatSessionsState extends Equatable {
     bool clearStreamingReply = false,
     int? historyRevision,
     bool incrementHistoryRevision = false,
+    String? pendingScrollToMessageId,
+    bool clearPendingScrollToMessageId = false,
   }) {
     return ChatSessionsState(
       conversations: conversations ?? this.conversations,
@@ -163,6 +169,9 @@ class ChatSessionsState extends Equatable {
       historyRevision: incrementHistoryRevision
           ? this.historyRevision + 1
           : historyRevision ?? this.historyRevision,
+      pendingScrollToMessageId: clearPendingScrollToMessageId
+          ? null
+          : pendingScrollToMessageId ?? this.pendingScrollToMessageId,
     );
   }
 
@@ -180,6 +189,7 @@ class ChatSessionsState extends Equatable {
     emptyReplyAssistantId,
     streamingReply,
     historyRevision,
+    pendingScrollToMessageId,
   ];
 }
 
