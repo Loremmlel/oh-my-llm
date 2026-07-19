@@ -333,6 +333,10 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     saveConversation(updatedConversation);
   }
 
+  void clearPendingScrollToMessageId() {
+    state = state.copyWith(clearPendingScrollToMessageId: true);
+  }
+
   /// 重命名当前活动会话。
   Future<void> renameActiveConversation(String title) async {
     if (_isBusy) {
