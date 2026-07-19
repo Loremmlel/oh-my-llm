@@ -18,7 +18,6 @@ export 'thinking_toggle.dart';
 export 'dialogs/add_to_favorites_dialog.dart';
 export 'dialogs/conversation_checkpoints_dialog.dart';
 export 'dialogs/delete_message_dialog.dart';
-export 'dialogs/edit_message_dialog.dart';
 export 'dialogs/fixed_prompt_sequence_runner_dialog.dart';
 export 'dialogs/message_request_filter_dialog.dart';
 export '../../../../core/widgets/rename_conversation_dialog.dart';
