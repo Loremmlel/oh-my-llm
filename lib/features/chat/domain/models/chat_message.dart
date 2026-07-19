@@ -86,6 +86,8 @@ class ChatMessage extends Equatable {
     this.assistantModelDisplayName = '',
     this.appliedCheckpointTitle = '',
     this.userMessageSegments = const [],
+    this.templatePromptId,
+    this.templateVariableValues = const {},
   });
 
   final String id;
@@ -98,6 +100,8 @@ class ChatMessage extends Equatable {
   final String assistantModelDisplayName;
   final String appliedCheckpointTitle;
   final List<UserMessageSegment> userMessageSegments;
+  final String? templatePromptId;
+  final Map<String, String> templateVariableValues;
 
   /// 复制消息，并允许覆盖常用字段。
   ChatMessage copyWith({
@@ -111,6 +115,8 @@ class ChatMessage extends Equatable {
     String? assistantModelDisplayName,
     String? appliedCheckpointTitle,
     List<UserMessageSegment>? userMessageSegments,
+    String? templatePromptId,
+    Map<String, String>? templateVariableValues,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -125,6 +131,8 @@ class ChatMessage extends Equatable {
       appliedCheckpointTitle:
           appliedCheckpointTitle ?? this.appliedCheckpointTitle,
       userMessageSegments: userMessageSegments ?? this.userMessageSegments,
+      templatePromptId: templatePromptId ?? this.templatePromptId,
+      templateVariableValues: templateVariableValues ?? this.templateVariableValues,
     );
   }
 
@@ -141,6 +149,8 @@ class ChatMessage extends Equatable {
       'appliedCheckpointTitle': appliedCheckpointTitle,
       'userMessageSegments':
           userMessageSegments.map((segment) => segment.toJson()).toList(),
+      'templatePromptId': templatePromptId,
+      'templateVariableValues': templateVariableValues,
     };
   }
 
@@ -170,6 +180,11 @@ class ChatMessage extends Equatable {
             ),
           )
           .toList(growable: false),
+      templatePromptId: json['templatePromptId'] as String?,
+      templateVariableValues:
+          (json['templateVariableValues'] as Map<String, dynamic>?)
+              ?.map((k, v) => MapEntry(k, v as String)) ??
+          const {},
     );
   }
 
@@ -191,5 +206,7 @@ class ChatMessage extends Equatable {
     assistantModelDisplayName,
     appliedCheckpointTitle,
     userMessageSegments,
+    templatePromptId,
+    templateVariableValues,
   ];
 }
