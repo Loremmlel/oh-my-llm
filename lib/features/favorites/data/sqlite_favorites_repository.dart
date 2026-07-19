@@ -37,8 +37,8 @@ class SqliteFavoritesRepository implements FavoritesRepository {
       'INSERT OR REPLACE INTO favorites '
       '(id, collection_id, user_message_content, assistant_content, '
       'assistant_reasoning_content, assistant_model_display_name, source_conversation_id, '
-      'source_conversation_title, title, created_at) '
-      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);',
+      'source_conversation_title, source_assistant_message_id, title, created_at) '
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);',
       [
         favorite.id,
         favorite.collectionId,
@@ -48,6 +48,7 @@ class SqliteFavoritesRepository implements FavoritesRepository {
         favorite.assistantModelDisplayName,
         favorite.sourceConversationId,
         favorite.sourceConversationTitle,
+        favorite.sourceAssistantMessageId,
         favorite.title,
         favorite.createdAt.toIso8601String(),
       ],
@@ -98,6 +99,8 @@ class SqliteFavoritesRepository implements FavoritesRepository {
           row['assistant_model_display_name'] as String,
       sourceConversationId: row['source_conversation_id'] as String?,
       sourceConversationTitle: row['source_conversation_title'] as String?,
+      sourceAssistantMessageId:
+          row['source_assistant_message_id'] as String?,
       title: row['title'] as String?,
       createdAt: DateTime.parse(row['created_at'] as String),
     );

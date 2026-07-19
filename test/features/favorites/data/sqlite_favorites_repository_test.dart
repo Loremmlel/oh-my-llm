@@ -15,6 +15,7 @@ Favorite _makeFavorite({
   String assistantModelDisplayName = '匿名模型',
   String? sourceConversationId,
   String? sourceConversationTitle,
+  String? sourceAssistantMessageId,
   DateTime? createdAt,
 }) {
   return Favorite(
@@ -26,6 +27,7 @@ Favorite _makeFavorite({
     assistantModelDisplayName: assistantModelDisplayName,
     sourceConversationId: sourceConversationId,
     sourceConversationTitle: sourceConversationTitle,
+    sourceAssistantMessageId: sourceAssistantMessageId,
     createdAt: createdAt ?? DateTime(2026, 1, 1),
   );
 }
@@ -191,6 +193,23 @@ void main() {
       repository.save(_makeFavorite(id: 'fav-1', assistantContent: '某段精彩回答'));
       repository.delete('fav-1');
       expect(repository.existsByAssistantContent('某段精彩回答'), isFalse);
+    });
+  });
+
+  group('SqliteFavoritesRepository - sourceAssistantMessageId', () {
+    test('save 后 loadAll 返回 sourceAssistantMessageId', () {
+      repository.save(_makeFavorite(
+        id: 'fav-msg-id',
+        sourceAssistantMessageId: 'msg-42',
+      ));
+      final result = repository.loadAll().first;
+      expect(result.sourceAssistantMessageId, 'msg-42');
+    });
+
+    test('旧记录无 sourceAssistantMessageId 时返回 null', () {
+      repository.save(_makeFavorite(id: 'fav-legacy'));
+      final result = repository.loadAll().first;
+      expect(result.sourceAssistantMessageId, isNull);
     });
   });
 

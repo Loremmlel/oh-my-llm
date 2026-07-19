@@ -226,6 +226,7 @@ class AppDatabase {
         assistant_reasoning_content TEXT NOT NULL DEFAULT '',
         source_conversation_id TEXT,
         source_conversation_title TEXT,
+        source_assistant_message_id TEXT,
         created_at TEXT NOT NULL,
         assistant_model_display_name TEXT NOT NULL DEFAULT '匿名模型',
         title TEXT,
