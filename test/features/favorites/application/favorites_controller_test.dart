@@ -140,6 +140,17 @@ void main() {
       expect(fav.title, isNull);
     });
 
+    test('add 保存 sourceAssistantMessageId', () {
+      container.read(favoritesProvider.notifier).add(
+        userMessageContent: '问题',
+        assistantContent: '回答',
+        sourceConversationId: 'conv-1',
+        sourceAssistantMessageId: 'msg-42',
+      );
+      final fav = container.read(favoritesProvider).first;
+      expect(fav.sourceAssistantMessageId, 'msg-42');
+    });
+
   });
 
   group('CollectionsController', () {

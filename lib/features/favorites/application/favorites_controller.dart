@@ -49,6 +49,7 @@ class FavoritesController extends Notifier<List<Favorite>> {
     String? collectionId,
     String? sourceConversationId,
     String? sourceConversationTitle,
+    String? sourceAssistantMessageId,
   }) {
     final favorite = Favorite(
       id: generateEntityId(),
@@ -59,6 +60,7 @@ class FavoritesController extends Notifier<List<Favorite>> {
       assistantModelDisplayName: assistantModelDisplayName,
       sourceConversationId: sourceConversationId,
       sourceConversationTitle: sourceConversationTitle,
+      sourceAssistantMessageId: sourceAssistantMessageId,
       createdAt: DateTime.now(),
     );
     _repo.save(favorite);
