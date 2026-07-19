@@ -979,6 +979,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     assistantModelDisplayName:
                         removedFavorite.assistantModelDisplayName,
                     collectionId: removedFavorite.collectionId,
+                    sourceAssistantMessageId:
+                        removedFavorite.sourceAssistantMessageId,
                     sourceConversationId: removedFavorite.sourceConversationId,
                     sourceConversationTitle:
                         removedFavorite.sourceConversationTitle,
@@ -1023,6 +1025,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           assistantMessage.resolvedAssistantModelDisplayName,
       // '' 表示用户选择了未分类
       collectionId: selectedCollectionId.isEmpty ? null : selectedCollectionId,
+      sourceAssistantMessageId: assistantMessage.id,
       sourceConversationId: conversation.id,
       sourceConversationTitle: conversation.resolvedTitle,
     );
