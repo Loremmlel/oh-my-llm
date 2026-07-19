@@ -70,6 +70,9 @@ class AppDatabase {
     if (currentVersion < 10) {
       _migrateV10(currentVersion);
     }
+    if (currentVersion < 11) {
+      _migrateV11(currentVersion);
+    }
   }
 
   /// V9：移除 preset_prompts.system_prompt 列。
@@ -138,6 +141,25 @@ class AppDatabase {
       }
     }
     _connection.execute('PRAGMA user_version = 10;');
+  }
+
+  /// V11：favorites 表新增 source_assistant_message_id 列，用于收藏跳转定位。
+  void _migrateV11(int fromVersion) {
+    if (fromVersion == 0) {
+      // 全新安装，_createSchema 已包含新列
+    } else {
+      final hasFavorites = _connection
+          .select(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'favorites';",
+          )
+          .isNotEmpty;
+      if (hasFavorites) {
+        _connection.execute(
+          'ALTER TABLE favorites ADD COLUMN source_assistant_message_id TEXT;',
+        );
+      }
+    }
+    _connection.execute('PRAGMA user_version = 11;');
   }
 
   /// 创建全部业务表和索引（全新安装时使用）。
