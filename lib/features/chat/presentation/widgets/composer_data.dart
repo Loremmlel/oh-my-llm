@@ -24,6 +24,7 @@ class ComposerData {
     required this.isStreaming,
     required this.isAutoRetryWaiting,
     required this.excludedMessageCount,
+    required this.isEditingMessage,
   });
 
   final bool hasModels;
@@ -43,6 +44,7 @@ class ComposerData {
   final bool isStreaming;
   final bool isAutoRetryWaiting;
   final int excludedMessageCount;
+  final bool isEditingMessage;
 }
 
 class ComposerCallbacks {
@@ -58,6 +60,7 @@ class ComposerCallbacks {
     required this.onOpenMessageFilter,
     this.onSendPressed,
     this.onStopStreaming,
+    this.onCancelEdit,
   });
 
   final ValueChanged<String> onProviderSelected;
@@ -71,4 +74,5 @@ class ComposerCallbacks {
   final Future<void> Function() onOpenMessageFilter;
   final Future<void> Function()? onSendPressed;
   final Future<void> Function()? onStopStreaming;
+  final VoidCallback? onCancelEdit;
 }

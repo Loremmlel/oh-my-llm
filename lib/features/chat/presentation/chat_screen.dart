@@ -517,6 +517,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       showScrollToBottomListenable: _scroll.showScrollToBottomNotifier,
       autoRetryCount: autoRetryCount,
       excludedMessageCount: excludedVisibleMessageCount,
+      isEditingMessage: _editingMessageId != null,
       onEditMessage: (message) {
         _enterEditMode(message);
       },
@@ -637,6 +638,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               await _showStopStreamingDialog(context);
             }
           : null,
+      onCancelEdit: _editingMessageId != null ? _cancelEditMode : null,
       onFavoritePressed: (message) =>
           _showAddToFavoritesDialog(context, message, conversation),
       favoritedAssistantContents: favoritedContents,

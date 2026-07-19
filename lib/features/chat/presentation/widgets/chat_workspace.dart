@@ -45,6 +45,7 @@ class ChatWorkspace extends StatelessWidget {
     required this.showScrollToBottomListenable,
     required this.autoRetryCount,
     required this.excludedMessageCount,
+    required this.isEditingMessage,
     required this.onEditMessage,
     required this.onRetryLatestAssistant,
     required this.onDeleteMessage,
@@ -63,6 +64,7 @@ class ChatWorkspace extends StatelessWidget {
     required this.onSelectMessageVersion,
     required this.onSendPressed,
     required this.onStopStreaming,
+    this.onCancelEdit,
     this.onFavoritePressed,
     this.favoritedAssistantContents = const {},
     super.key,
@@ -99,6 +101,7 @@ class ChatWorkspace extends StatelessWidget {
   final ValueListenable<bool> showScrollToBottomListenable;
   final int autoRetryCount;
   final int excludedMessageCount;
+  final bool isEditingMessage;
   final ValueChanged<ChatMessage> onEditMessage;
   final Future<void> Function() onRetryLatestAssistant;
   final ValueChanged<ChatMessage> onDeleteMessage;
@@ -118,6 +121,7 @@ class ChatWorkspace extends StatelessWidget {
   onSelectMessageVersion;
   final Future<void> Function()? onSendPressed;
   final Future<void> Function()? onStopStreaming;
+  final VoidCallback? onCancelEdit;
 
   /// 点击收藏按钮时的回调（仅助手消息），为 null 则不显示收藏按钮。
   final ValueChanged<ChatMessage>? onFavoritePressed;
@@ -178,6 +182,7 @@ class ChatWorkspace extends StatelessWidget {
             isStreaming: isStreaming,
             isAutoRetryWaiting: isAutoRetryWaiting,
             excludedMessageCount: excludedMessageCount,
+            isEditingMessage: isEditingMessage,
           ),
           callbacks: ComposerCallbacks(
             onProviderSelected: onProviderSelected,
@@ -191,6 +196,7 @@ class ChatWorkspace extends StatelessWidget {
             onOpenMessageFilter: onOpenMessageFilter,
             onSendPressed: onSendPressed,
             onStopStreaming: onStopStreaming,
+            onCancelEdit: onCancelEdit,
           ),
           messageController: messageController,
           messageFocusNode: messageFocusNode,
