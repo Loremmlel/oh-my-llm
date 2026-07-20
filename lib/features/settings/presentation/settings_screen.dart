@@ -214,7 +214,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                     SettingsSectionCard(
                       title: '预设 Prompt',
                       description:
-                          '配置可在聊天页选择的预设 Prompt，支持 system、前置与后置上下文，并记住最近一次使用的选择。',
+                          '配置可在聊天页选择的预设 Prompt，支持 system、前置、最新输入前与后置上下文，并记住最近一次使用的选择。',
                       action: FilledButton.icon(
                         onPressed: () =>
                             _showPresetPromptDialog(context, ref),

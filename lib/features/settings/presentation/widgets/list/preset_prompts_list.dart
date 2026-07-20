@@ -117,6 +117,7 @@ class _PresetPromptTile extends ConsumerWidget {
   String _placementLabel(PromptMessagePlacement placement) {
     return switch (placement) {
       PromptMessagePlacement.before => '前置',
+      PromptMessagePlacement.beforeLatestInput => '最新输入前',
       PromptMessagePlacement.after => '后置',
     };
   }
