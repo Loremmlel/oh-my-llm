@@ -6,7 +6,7 @@ import 'package:oh_my_llm/features/chat/domain/models/chat_checkpoint.dart';
 void main() {
   final now = DateTime(2026, 7, 1, 12, 0);
 
-  ChatCheckpoint _checkpoint({
+  ChatCheckpoint buildCheckpoint({
     String id = 'cp-1',
     String title = '阶段总结',
     String content = '本次对话讨论了架构设计。',
@@ -28,7 +28,7 @@ void main() {
 
   group('ChatCheckpoint', () {
     test('toJson → fromJson round-trip 保留全部字段', () {
-      final original = _checkpoint(
+      final original = buildCheckpoint(
         parentCheckpointId: 'cp-0',
         coveredUntilMessageId: 'msg-10',
         sourceMemoryPromptName: '研发总结',
@@ -59,7 +59,7 @@ void main() {
     });
 
     test('copyWith 部分覆盖', () {
-      final original = _checkpoint();
+      final original = buildCheckpoint();
       final updated = original.copyWith(title: '新标题', content: '新内容');
 
       expect(updated.title, '新标题');
@@ -71,34 +71,34 @@ void main() {
 
     test('summary 正常文本截断', () {
       final longContent = 'A' * 50;
-      final checkpoint = _checkpoint(content: longContent);
+      final checkpoint = buildCheckpoint(content: longContent);
       expect(checkpoint.summary.length, lessThanOrEqualTo(45));
       expect(checkpoint.summary, contains('...'));
     });
 
     test('summary 短文本不截断', () {
-      final checkpoint = _checkpoint(content: '短文本');
+      final checkpoint = buildCheckpoint(content: '短文本');
       expect(checkpoint.summary, '短文本');
     });
 
     test('summary 空内容返回占位文本', () {
       for (final empty in ['', '   ', '  \n  ']) {
-        final checkpoint = _checkpoint(content: empty);
+        final checkpoint = buildCheckpoint(content: empty);
         expect(checkpoint.summary, '该检查点为空。');
       }
     });
 
     test('Equatable 相等性', () {
-      final a = _checkpoint(id: 'cp-x', title: '相同');
-      final b = _checkpoint(id: 'cp-x', title: '相同');
-      final c = _checkpoint(id: 'cp-x', title: '不同');
+      final a = buildCheckpoint(id: 'cp-x', title: '相同');
+      final b = buildCheckpoint(id: 'cp-x', title: '相同');
+      final c = buildCheckpoint(id: 'cp-x', title: '不同');
 
       expect(a, equals(b));
       expect(a, isNot(equals(c)));
     });
 
     test('toString 返回可解析的 JSON', () {
-      final checkpoint = _checkpoint();
+      final checkpoint = buildCheckpoint();
       final parsed = jsonDecode(checkpoint.toString()) as Map<String, dynamic>;
 
       expect(parsed['id'], checkpoint.id);
