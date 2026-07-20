@@ -351,6 +351,126 @@ void main() {
       expect(rows.first['title'], isNull);
     });
   });
+
+  group('V13 迁移', () {
+    test('迁移后 messages 表包含 finish_reason 列', () {
+      final db = AppDatabase.inMemory();
+      addTearDown(db.close);
+
+      final columns = db.connection.select('PRAGMA table_info(messages);');
+      final columnNames = columns.map((row) => row['name'] as String).toList();
+
+      expect(columnNames, contains('finish_reason'));
+    });
+
+    test('迁移后 user_version >= 13', () {
+      final db = AppDatabase.inMemory();
+      addTearDown(db.close);
+
+      final version =
+          db.connection.select('PRAGMA user_version;').single['user_version']
+              as int;
+      expect(version, greaterThanOrEqualTo(13));
+    });
+
+    test('全新安装 messages 表含 finish_reason 列且默认为 NULL', () {
+      final db = AppDatabase.inMemory();
+      addTearDown(db.close);
+
+      db.connection.execute(
+        "INSERT INTO conversations (id, created_at, updated_at, reasoning_effort) "
+        "VALUES ('c1', '2026-01-01', '2026-01-01', 'medium');",
+      );
+      db.connection.execute(
+        "INSERT INTO messages (id, conversation_id, node_index, role, content, created_at) "
+        "VALUES ('m1', 'c1', 0, 'user', 'hello', '2026-01-01');",
+      );
+
+      final rows = db.connection.select('SELECT finish_reason FROM messages WHERE id = ?;', ['m1']);
+      expect(rows.length, 1);
+      expect(rows.first['finish_reason'], isNull);
+    });
+
+    test('从 v12 升级时 ALTER TABLE 添加 finish_reason 列且已有数据保留', () {
+      final tempDir = Directory.systemTemp.createTempSync('v12-migration-test-');
+      addTearDown(() {
+        if (tempDir.existsSync()) {
+          tempDir.deleteSync(recursive: true);
+        }
+      });
+      final dbPath = '${tempDir.path}${Platform.pathSeparator}test_v12.db';
+
+      // 构造一个 v12 数据库：messages 表无 finish_reason 列（含 V12 新增的模板列）
+      final legacyDb = sqlite.sqlite3.open(dbPath);
+      legacyDb.execute('PRAGMA foreign_keys = ON;');
+      legacyDb.execute('''
+        CREATE TABLE conversations (
+          id TEXT PRIMARY KEY,
+          title TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          selected_model_id TEXT,
+          selected_preset_prompt_id TEXT,
+          reasoning_enabled INTEGER NOT NULL DEFAULT 0,
+          reasoning_effort TEXT NOT NULL,
+          selected_checkpoint_id TEXT,
+          excluded_message_ids_json TEXT NOT NULL DEFAULT '[]',
+          auto_retry_enabled INTEGER NOT NULL DEFAULT 0
+        );
+      ''');
+      legacyDb.execute('''
+        CREATE TABLE messages (
+          id TEXT PRIMARY KEY,
+          conversation_id TEXT NOT NULL,
+          node_index INTEGER NOT NULL,
+          parent_id TEXT,
+          role TEXT NOT NULL,
+          content TEXT NOT NULL,
+          reasoning_content TEXT NOT NULL DEFAULT '',
+          created_at TEXT NOT NULL,
+          assistant_model_display_name TEXT NOT NULL DEFAULT '匿名模型',
+          user_message_segments_json TEXT NOT NULL DEFAULT '[]',
+          applied_checkpoint_title TEXT NOT NULL DEFAULT '',
+          template_prompt_id TEXT DEFAULT NULL,
+          template_variable_values_json TEXT NOT NULL DEFAULT '{}',
+          FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
+        );
+      ''');
+      legacyDb.execute(
+        "INSERT INTO conversations (id, created_at, updated_at, reasoning_effort) "
+        "VALUES ('c1', '2026-01-01', '2026-01-01', 'medium');",
+      );
+      legacyDb.execute(
+        "INSERT INTO messages (id, conversation_id, node_index, role, content, created_at) "
+        "VALUES ('m-old', 'c1', 0, 'user', '旧消息内容', '2026-01-01');",
+      );
+      legacyDb.execute('PRAGMA user_version = 12;');
+      legacyDb.close();
+
+      // 重新打开触发 _migrateV13 的 ALTER TABLE 路径
+      final migrated = AppDatabase.forPath(dbPath);
+      addTearDown(migrated.close);
+
+      // user_version 升到 >= 13
+      final version = migrated.connection
+          .select('PRAGMA user_version;')
+          .single['user_version'] as int;
+      expect(version, greaterThanOrEqualTo(13));
+
+      // messages 表包含 finish_reason 列
+      final columns = migrated.connection
+          .select('PRAGMA table_info(messages);')
+          .map((row) => row['name'] as String)
+          .toList();
+      expect(columns, contains('finish_reason'));
+
+      // 旧数据保留，content 不变，finish_reason 默认为 NULL
+      final rows = migrated.connection.select('SELECT id, content, finish_reason FROM messages WHERE id = ?;', ['m-old']);
+      expect(rows.length, 1);
+      expect(rows.first['content'], equals('旧消息内容'));
+      expect(rows.first['finish_reason'], isNull);
+    });
+  });
 }
 
 List<String> _tableNames(AppDatabase database) {
