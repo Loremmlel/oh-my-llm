@@ -112,15 +112,30 @@ class _ModelConfigFormDialogState extends State<ModelConfigFormDialog>
         mainAxisSize: MainAxisSize.min,
         children: [
           if (!_isEditing) _buildModeSwitch(),
-          if (!_isEditing && _mode == _FormMode.fetch) ...[
-            ModelFetchSection(
-              key: _fetchSectionKey,
-              provider: widget.provider,
-              fetchModels: widget.fetchModels,
-              onSelectionChanged: () => setState(() {}),
-            ),
-          ] else
+          if (_isEditing) ...[
             ..._buildManualForm(),
+          ] else ...[
+            // 始终构建两个区块但用 Visibility 控制可见性，
+            // 这样切换模式时 ModelFetchSection 的 State（含已拉取的模型列表）会被保留。
+            Visibility(
+              visible: _mode == _FormMode.manual,
+              maintainState: true,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: _buildManualForm(),
+              ),
+            ),
+            Visibility(
+              visible: _mode == _FormMode.fetch,
+              maintainState: true,
+              child: ModelFetchSection(
+                key: _fetchSectionKey,
+                provider: widget.provider,
+                fetchModels: widget.fetchModels,
+                onSelectionChanged: () => setState(() {}),
+              ),
+            ),
+          ],
         ],
       ),
     );
