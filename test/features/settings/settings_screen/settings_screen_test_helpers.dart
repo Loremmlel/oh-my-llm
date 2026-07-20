@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:oh_my_llm/core/logging/app_network_logger_provider.dart';
+import 'package:oh_my_llm/core/logging/network_logger.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/settings/presentation/settings_screen.dart';
 
@@ -52,6 +54,10 @@ Future<AppDatabase> pumpSettingsScreen(
     preferences: preferences,
     database: database,
     viewportSize: size,
+    extraOverrides: [
+      appNetworkLoggerProvider
+          .overrideWithValue(const NoopNetworkLogger()),
+    ],
   );
 }
 

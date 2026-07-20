@@ -231,9 +231,16 @@ class ModelFetchSectionState extends State<ModelFetchSection> {
           ),
         );
       case _FetchStatus.loading:
-        return const Padding(
-          padding: EdgeInsets.symmetric(vertical: 24),
-          child: Center(child: CircularProgressIndicator()),
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 24),
+          child: Center(
+            child: Text(
+              '正在拉取模型列表...',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
         );
       case _FetchStatus.error:
         return Padding(

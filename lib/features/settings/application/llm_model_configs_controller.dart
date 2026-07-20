@@ -140,6 +140,7 @@ class LlmProviderConfigsController extends Notifier<List<LlmProviderConfig>> {
     for (final model in models) {
       if (!existingModelNames.contains(model.modelName)) {
         mergedModels.add(model);
+        existingModelNames.add(model.modelName);
       }
     }
     providers[providerIndex] = provider.copyWith(models: mergedModels);
