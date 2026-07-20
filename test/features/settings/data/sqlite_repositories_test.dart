@@ -91,6 +91,13 @@ void main() {
           content: '助手回答',
           placement: PromptMessagePlacement.after,
         ),
+        PromptMessage(
+          id: 'msg-3',
+          role: PromptMessageRole.user,
+          title: '最新输入前user1',
+          content: '输入前提醒',
+          placement: PromptMessagePlacement.beforeLatestInput,
+        ),
       ],
       updatedAt: DateTime(2026, 3, 15),
     );

@@ -520,11 +520,10 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
       return false;
     }
     final selected = _items[index];
-    return switch (selected.placement) {
+    return switch (selected.placement!) {
       PromptMessagePlacement.before => index > 0,
       PromptMessagePlacement.beforeLatestInput => index > _firstBeforeLatestInputIndex,
       PromptMessagePlacement.after => index > _firstAfterIndex,
-      _ => false,
     };
   }
 
@@ -534,11 +533,10 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
       return false;
     }
     final selected = _items[index];
-    return switch (selected.placement) {
+    return switch (selected.placement!) {
       PromptMessagePlacement.before => index < _lastBeforeIndex,
       PromptMessagePlacement.beforeLatestInput => index < _lastBeforeLatestInputIndex,
       PromptMessagePlacement.after => index < _items.length - 1,
-      _ => false,
     };
   }
 
@@ -624,14 +622,14 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
     final index = _items.lastIndexWhere(
       (item) => item.placement == PromptMessagePlacement.before,
     );
-    return index <= 0 ? 0 : index;
+    return index < 0 ? 0 : index;
   }
 
   int get _lastBeforeLatestInputIndex {
     final index = _items.lastIndexWhere(
       (item) => item.placement == PromptMessagePlacement.beforeLatestInput,
     );
-    return index <= 0 ? 0 : index;
+    return index < 0 ? 0 : index;
   }
 
   String _buildNextGeneratedTitle({

@@ -4,7 +4,7 @@
 /// PresetPrompt -> ChatSessionsController.resolvePresetPrompt
 /// -> buildRequestMessages -> ChatClient.streamCompletion 收到的消息。
 ///
-/// 拼接顺序：before 模板消息 -> 对话消息 -> after 模板消息。
+/// 拼接顺序：before 模板消息 -> 对话消息 -> beforeLatestInput 模板消息 -> after 模板消息。
 library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -98,7 +98,7 @@ void main() {
     addTearDown(database.close);
   });
 
-  // ── before + after 模板消息正确拼接到请求 ──────────────────────────────────────
+  // ── before + beforeLatestInput + after 模板消息正确拼接到请求 ─────────────────────────────
 
   test('发送消息时 before/beforeLatestInput/after 模板消息按正确顺序拼入请求', () async {
     final preset = container

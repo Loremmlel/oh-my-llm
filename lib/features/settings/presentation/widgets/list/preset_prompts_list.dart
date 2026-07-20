@@ -74,7 +74,7 @@ class _PresetPromptTile extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.only(bottom: 4),
               child: Text(
-                '${_placementLabel(message.placement)} · ${message.role.label} · ${message.title}：${summarizeText(message.content)}',
+                '${message.placement.label} · ${message.role.label} · ${message.title}：${summarizeText(message.content)}',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -114,11 +114,4 @@ class _PresetPromptTile extends ConsumerWidget {
     );
   }
 
-  String _placementLabel(PromptMessagePlacement placement) {
-    return switch (placement) {
-      PromptMessagePlacement.before => '前置',
-      PromptMessagePlacement.beforeLatestInput => '最新输入前',
-      PromptMessagePlacement.after => '后置',
-    };
-  }
 }
