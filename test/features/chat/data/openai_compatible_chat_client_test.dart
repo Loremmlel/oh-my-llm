@@ -105,7 +105,7 @@ void main() {
           return http.StreamedResponse(
             Stream.fromIterable([
               utf8.encode(
-                '{"choices":[{"message":{"content":"完整回复","reasoning_content":"完整思考"}}]}',
+                '{"choices":[{"message":{"content":"完整回复","reasoning_content":"完整思考"},"finish_reason":"stop"}]}',
               ),
             ]),
             200,
@@ -127,6 +127,7 @@ void main() {
 
       expect(result.content, '完整回复');
       expect(result.reasoningContent, '完整思考');
+      expect(result.finishReason, 'stop');
       expect(logger.requestCount, 1);
       expect(logger.responseCount, 1);
       expect(logger.responseBodyCount, 1);
