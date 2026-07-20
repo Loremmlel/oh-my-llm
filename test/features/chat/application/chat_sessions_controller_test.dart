@@ -1750,6 +1750,64 @@ void main() {
     });
   });
 
+  group('finishReason 传递', () {
+    test('正常完成时 finishReason 写入消息', () async {
+      // 模拟 chunk 序列：content chunk（无 finishReason）-> 空 chunk 带 finishReason
+      fakeClient.enqueueDeltas(const [
+        ChatCompletionChunk(contentDelta: '你好'),
+        ChatCompletionChunk(finishReason: 'stop'),
+      ]);
+      await sendMsg('测试 finishReason');
+
+      final state = container.read(chatSessionsProvider);
+      final assistant = state.activeConversation.messages.last;
+      expect(assistant.role, ChatMessageRole.assistant);
+      expect(assistant.content, '你好');
+      expect(assistant.finishReason, 'stop');
+    });
+
+    test('空回复时 finishReason 仍保留', () async {
+      // 空内容 chunk 带 finishReason，走 emptyReply 路径
+      fakeClient.enqueueDeltas(const [
+        ChatCompletionChunk(finishReason: 'stop'),
+      ]);
+      await sendMsg('空回复带 finishReason');
+
+      final state = container.read(chatSessionsProvider);
+      final assistant = state.activeConversation.messages.last;
+      expect(assistant.role, ChatMessageRole.assistant);
+      expect(assistant.content, isEmpty);
+      // 空回复路径仍通过 replaceAssistantMessageInTree 传入 finishReason
+      expect(assistant.finishReason, 'stop');
+      expect(state.emptyReplyAssistantId, assistant.id);
+    });
+
+    test('stopStreaming 路径保留已收到的 finishReason', () async {
+      final streamController = StreamController<ChatCompletionChunk>();
+      addTearDown(streamController.close);
+      fakeClient.enqueueStream(streamController.stream);
+
+      final sendFuture = sendMsg('测试中断 finishReason');
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+      // 发送带 finishReason 的 chunk，随后中断流式
+      streamController.add(const ChatCompletionChunk(
+        contentDelta: '部分内容',
+        finishReason: 'stop',
+      ));
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+
+      await container.read(chatSessionsProvider.notifier).stopStreaming();
+      await sendFuture;
+
+      final state = container.read(chatSessionsProvider);
+      final assistant = state.activeConversation.messages.last;
+      expect(assistant.role, ChatMessageRole.assistant);
+      expect(assistant.content, '部分内容');
+      // stopStreaming 通过 buildConversationAfterStreamingInterrupt 保留 finishReason
+      expect(assistant.finishReason, 'stop');
+    });
+  });
+
   group('输出处理正则清空回复', () {
     test('规则把非空正文清空时提示错误且不触发自动重试', () async {
       await container.read(outputProcessingSettingsProvider.notifier).save(
