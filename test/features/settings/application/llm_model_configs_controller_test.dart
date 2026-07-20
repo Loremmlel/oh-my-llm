@@ -366,5 +366,82 @@ void main() {
       expect(container.read(llmProviderConfigsProvider).first.models.length, 1);
     });
 
+    // ── upsertModels() ─────────────────────────────────────────────────────
+
+    test('upsertModels() adds multiple models to existing provider', () async {
+      await controller.upsertProvider(_providerConfig(id: 'p-1', name: 'OpenAI'));
+
+      await controller.upsertModels(
+        providerId: 'p-1',
+        models: [
+          _modelConfig(id: 'm-1', displayName: 'GPT-4o', modelName: 'gpt-4o'),
+          _modelConfig(id: 'm-2', displayName: 'GPT-4o-mini', modelName: 'gpt-4o-mini'),
+        ],
+      );
+
+      final models = container.read(llmProviderConfigsProvider).first.models;
+      expect(models.length, 2);
+      expect(models.map((m) => m.id).toSet(), {'m-1', 'm-2'});
+      expect(readPersisted().first.models.length, 2);
+    });
+
+    test('upsertModels() skips models with duplicate modelName', () async {
+      await controller.upsertProvider(_providerConfig(
+        id: 'p-1',
+        name: 'OpenAI',
+        models: [_modelConfig(id: 'm-existing', displayName: 'Old', modelName: 'gpt-4o')],
+      ));
+
+      await controller.upsertModels(
+        providerId: 'p-1',
+        models: [
+          _modelConfig(id: 'm-new-1', displayName: 'GPT-4o New', modelName: 'gpt-4o'), // 重复 modelName -> 跳过
+          _modelConfig(id: 'm-new-2', displayName: 'GPT-4o-mini', modelName: 'gpt-4o-mini'),
+        ],
+      );
+
+      final models = container.read(llmProviderConfigsProvider).first.models;
+      expect(models.length, 2); // 原 1 个 + 新增 1 个
+      expect(models.map((m) => m.modelName).toSet(), {'gpt-4o', 'gpt-4o-mini'});
+    });
+
+    test('upsertModels() is no-op for unknown provider', () async {
+      await controller.upsertModels(
+        providerId: 'non-existent',
+        models: [_modelConfig(id: 'm-1')],
+      );
+
+      expect(container.read(llmProviderConfigsProvider), isEmpty);
+    });
+
+    test('upsertModels() with empty list does not modify state', () async {
+      await controller.upsertProvider(_providerConfig(
+        id: 'p-1',
+        name: 'OpenAI',
+        models: [_modelConfig(id: 'm-1', displayName: 'Existing')],
+      ));
+
+      await controller.upsertModels(providerId: 'p-1', models: []);
+
+      final models = container.read(llmProviderConfigsProvider).first.models;
+      expect(models.length, 1);
+      expect(models.first.id, 'm-1');
+    });
+
+    test('upsertModels() persists changes', () async {
+      await controller.upsertProvider(_providerConfig(id: 'p-1', name: 'OpenAI'));
+
+      await controller.upsertModels(
+        providerId: 'p-1',
+        models: [
+          _modelConfig(id: 'm-1', displayName: 'GPT-4o', modelName: 'gpt-4o'),
+        ],
+      );
+
+      final persisted = readPersisted();
+      expect(persisted.first.models.length, 1);
+      expect(persisted.first.models.first.id, 'm-1');
+    });
+
   });
 }
