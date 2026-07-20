@@ -444,5 +444,49 @@ void main() {
       expect(beforeSystemIndex, lessThan(dialogIndex));
       expect(dialogIndex, lessThan(afterAssistantIndex));
     });
+
+    test('presetPrompt beforeLatestInput placement 排在会话消息之后、after 之前', () {
+      final memoryPrompt = buildMemoryPrompt();
+      final conversationMessages = [
+        buildMessage(id: 'm1', content: '对话'),
+      ];
+      final presetPrompt = buildPresetPrompt(
+        messages: [
+          buildPromptMessage(
+            role: PromptMessageRole.system,
+            content: '前置系统消息',
+            placement: PromptMessagePlacement.before,
+          ),
+          buildPromptMessage(
+            role: PromptMessageRole.user,
+            content: '最新输入前消息',
+            placement: PromptMessagePlacement.beforeLatestInput,
+          ),
+          buildPromptMessage(
+            role: PromptMessageRole.assistant,
+            content: '后置助手消息',
+            placement: PromptMessagePlacement.after,
+          ),
+        ],
+      );
+
+      final result = buildCheckpointSummaryMessages(
+        memoryPrompt: memoryPrompt,
+        conversationMessages: conversationMessages,
+        checkpointChain: const [],
+        presetPrompt: presetPrompt,
+      );
+
+      final contents = result.map((m) => m.content).toList();
+
+      final beforeIndex = contents.indexOf('前置系统消息');
+      final dialogIndex = contents.indexOf('对话');
+      final beforeLatestInputIndex = contents.indexOf('最新输入前消息');
+      final afterIndex = contents.indexOf('后置助手消息');
+
+      expect(beforeIndex, lessThan(dialogIndex));
+      expect(dialogIndex, lessThan(beforeLatestInputIndex));
+      expect(beforeLatestInputIndex, lessThan(afterIndex));
+    });
   });
 }

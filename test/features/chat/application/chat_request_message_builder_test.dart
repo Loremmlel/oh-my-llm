@@ -221,6 +221,70 @@ void main() {
         '后置-1',
       ]);
     });
+
+    test('beforeLatestInput 模板消息排在会话消息之后、after 模板消息之前', () {
+      final result = buildRequestMessages(
+        presetPrompt: buildTemplate(
+          messages: [
+            buildTemplateMessage(PromptMessageRole.system, '前置消息'),
+            buildTemplateMessage(
+              PromptMessageRole.user,
+              '最新输入前消息',
+              placement: PromptMessagePlacement.beforeLatestInput,
+            ),
+            buildTemplateMessage(
+              PromptMessageRole.assistant,
+              '后置消息',
+              placement: PromptMessagePlacement.after,
+            ),
+          ],
+        ),
+        conversationMessages: [buildUserMessage('真实问题')],
+      );
+
+      expect(result.map((m) => m.content).toList(), [
+        '前置消息',
+        '真实问题',
+        '最新输入前消息',
+        '后置消息',
+      ]);
+    });
+
+    test('三种位置混用时，顺序为 before -> 会话 -> beforeLatestInput -> after', () {
+      final result = buildRequestMessages(
+        presetPrompt: buildTemplate(
+          messages: [
+            buildTemplateMessage(PromptMessageRole.user, '前置-1'),
+            buildTemplateMessage(
+              PromptMessageRole.system,
+              '最新输入前-1',
+              placement: PromptMessagePlacement.beforeLatestInput,
+            ),
+            buildTemplateMessage(
+              PromptMessageRole.assistant,
+              '后置-1',
+              placement: PromptMessagePlacement.after,
+            ),
+            buildTemplateMessage(PromptMessageRole.assistant, '前置-2'),
+            buildTemplateMessage(
+              PromptMessageRole.user,
+              '最新输入前-2',
+              placement: PromptMessagePlacement.beforeLatestInput,
+            ),
+          ],
+        ),
+        conversationMessages: [buildUserMessage('真实问题')],
+      );
+
+      expect(result.map((m) => m.content).toList(), [
+        '前置-1',
+        '前置-2',
+        '真实问题',
+        '最新输入前-1',
+        '最新输入前-2',
+        '后置-1',
+      ]);
+    });
   });
 
   // ── 完整组合 ──────────────────────────────────────────────────────────────

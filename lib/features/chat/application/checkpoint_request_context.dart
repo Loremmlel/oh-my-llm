@@ -135,6 +135,12 @@ List<ChatCompletionRequestMessage> buildCheckpointSummaryMessages({
     }),
   );
 
+  appendTemplateMessages(
+    buffer: requestMessages,
+    presetPrompt: presetPrompt,
+    placement: PromptMessagePlacement.beforeLatestInput,
+  );
+
   requestMessages.add(
     ChatCompletionRequestMessage(
       role: ChatMessageRole.user,
