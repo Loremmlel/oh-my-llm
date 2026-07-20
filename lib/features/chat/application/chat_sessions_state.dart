@@ -15,6 +15,7 @@ class ChatStreamingReply extends Equatable {
     required this.assistantMessageId,
     this.content = '',
     this.reasoningContent = '',
+    this.finishReason,
   });
 
   /// 正在流式回复的会话 ID，用于校验当前 reply 是否属于活动会话。
@@ -29,17 +30,22 @@ class ChatStreamingReply extends Equatable {
   /// 已累积的推理过程文本（thinking 内容）。
   final String reasoningContent;
 
+  /// 流式结束原因（如 "stop"、"length"），流式进行中为 `null`。
+  final String? finishReason;
+
   ChatStreamingReply copyWith({
     String? conversationId,
     String? assistantMessageId,
     String? content,
     String? reasoningContent,
+    String? finishReason,
   }) {
     return ChatStreamingReply(
       conversationId: conversationId ?? this.conversationId,
       assistantMessageId: assistantMessageId ?? this.assistantMessageId,
       content: content ?? this.content,
       reasoningContent: reasoningContent ?? this.reasoningContent,
+      finishReason: finishReason ?? this.finishReason,
     );
   }
 
@@ -49,6 +55,7 @@ class ChatStreamingReply extends Equatable {
     assistantMessageId,
     content,
     reasoningContent,
+    finishReason,
   ];
 }
 
