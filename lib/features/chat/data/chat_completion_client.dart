@@ -49,6 +49,7 @@ abstract class ChatCompletionClient {
   }) async {
     final contentBuffer = StringBuffer();
     final reasoningBuffer = StringBuffer();
+    String? finishReason;
     await for (final chunk in streamCompletion(
       modelConfig: modelConfig,
       messages: messages,
@@ -56,20 +57,27 @@ abstract class ChatCompletionClient {
     )) {
       contentBuffer.write(chunk.contentDelta);
       reasoningBuffer.write(chunk.reasoningDelta);
+      if (chunk.finishReason != null) {
+        finishReason = chunk.finishReason;
+      }
     }
     return ChatCompletionResult(
       content: contentBuffer.toString(),
       reasoningContent: reasoningBuffer.toString(),
+      finishReason: finishReason,
     );
   }
 }
 
 /// 流式返回的一段补全增量。
 class ChatCompletionChunk {
-  const ChatCompletionChunk({this.contentDelta = '', this.reasoningDelta = ''});
+  const ChatCompletionChunk({this.contentDelta = '', this.reasoningDelta = '', this.finishReason});
 
   final String contentDelta;
   final String reasoningDelta;
+
+  /// 模型返回的停止原因（如 "stop"、"length"），仅最后一个 chunk 非空。
+  final String? finishReason;
 
   /// 当内容增量和推理增量都为空时，说明这段 chunk 没有有效内容。
   bool get isEmpty => contentDelta.isEmpty && reasoningDelta.isEmpty;
@@ -77,10 +85,13 @@ class ChatCompletionChunk {
 
 /// 一次性请求返回的完整结果。
 class ChatCompletionResult {
-  const ChatCompletionResult({this.content = '', this.reasoningContent = ''});
+  const ChatCompletionResult({this.content = '', this.reasoningContent = '', this.finishReason});
 
   final String content;
   final String reasoningContent;
+
+  /// 模型返回的停止原因（如 "stop"、"length"）。
+  final String? finishReason;
 }
 
 /// 发给模型 API 的单条请求消息。
