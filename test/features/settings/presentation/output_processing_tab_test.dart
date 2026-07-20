@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/features/settings/application/output_processing_settings_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/output_processing_settings.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/tab/output_processing_tab.dart';
@@ -26,10 +25,6 @@ OutputRegexRule _rule({
     order: order,
     enabled: enabled,
   );
-}
-
-Finder _findRuleTile(OutputRegexRule rule) {
-  return find.widgetWithText(Card, rule.title.isEmpty ? '未命名规则' : rule.title);
 }
 
 void main() {
