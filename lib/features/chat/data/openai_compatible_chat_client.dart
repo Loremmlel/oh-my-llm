@@ -190,6 +190,7 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
     return ChatCompletionResult(
       content: parsed.contentDelta,
       reasoningContent: parsed.reasoningDelta,
+      finishReason: parsed.finishReason,
     );
   }
 
