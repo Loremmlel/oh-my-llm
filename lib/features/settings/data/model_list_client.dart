@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../core/http/http_client_provider.dart';
+import '../../../core/logging/app_network_logger_provider.dart';
 import '../../../core/logging/network_logger.dart';
 
 /// 从 /models 端点拉取的模型信息（传输对象，不持久化）。
@@ -40,6 +41,7 @@ class ModelListException implements Exception {
 final modelListClientProvider = Provider<ModelListClient>((ref) {
   return ModelListClient(
     httpClient: ref.watch(httpClientProvider),
+    logger: ref.watch(appNetworkLoggerProvider),
   );
 });
 
