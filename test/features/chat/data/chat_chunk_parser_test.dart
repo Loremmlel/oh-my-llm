@@ -180,6 +180,40 @@ void main() {
       expect(result, isNotNull);
       expect(result!.contentDelta, '完整回复');
     });
+
+    test('choices[0].finish_reason 为 "stop" → chunk.finishReason 为 "stop"', () {
+      final result = parse(
+        '{"choices":[{"delta":{"content":"hi"},"finish_reason":"stop"}]}',
+      );
+      expect(result, isNotNull);
+      expect(result!.finishReason, 'stop');
+      expect(result!.contentDelta, 'hi');
+    });
+
+    test('finish_reason 为 null 时 chunk.finishReason 为 null', () {
+      final result = parse(
+        '{"choices":[{"delta":{"content":"hi"},"finish_reason":null}]}',
+      );
+      expect(result, isNotNull);
+      expect(result!.finishReason, isNull);
+    });
+
+    test('无 finish_reason 字段时 chunk.finishReason 为 null', () {
+      final result = parse(
+        '{"choices":[{"delta":{"content":"hi"}}]}',
+      );
+      expect(result, isNotNull);
+      expect(result!.finishReason, isNull);
+    });
+
+    test('finish_reason 为 "length" → chunk.finishReason 为 "length"', () {
+      final result = parse(
+        '{"choices":[{"delta":{},"finish_reason":"length"}]}',
+      );
+      expect(result, isNotNull);
+      expect(result!.finishReason, 'length');
+      expect(result!.isEmpty, isTrue);
+    });
   });
 
   // ── InlineReasoningTagSplitter ────────────────────────────────

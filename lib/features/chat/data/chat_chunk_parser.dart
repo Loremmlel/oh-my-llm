@@ -168,21 +168,28 @@ class ChatChunkParser {
 
     final firstChoice = Map<String, dynamic>.from(choices.first as Map);
     final delta = firstChoice['delta'] ?? firstChoice['message'];
-    return _extractChunk(delta, inlineReasoningSplitter: inlineReasoningSplitter);
+    final finishReason = firstChoice['finish_reason'] as String?;
+    return _extractChunk(
+      delta,
+      inlineReasoningSplitter: inlineReasoningSplitter,
+      finishReason: finishReason,
+    );
   }
 
   ChatCompletionChunk _extractChunk(
     Object? payload, {
     required InlineReasoningTagSplitter inlineReasoningSplitter,
+    String? finishReason,
   }) {
     if (payload is String) {
       final splitResult = inlineReasoningSplitter.splitContent(payload);
       return ChatCompletionChunk(
         contentDelta: splitResult.content,
         reasoningDelta: splitResult.reasoning,
+        finishReason: finishReason,
       );
     }
-    if (payload is! Map) return const ChatCompletionChunk();
+    if (payload is! Map) return ChatCompletionChunk(finishReason: finishReason);
 
     final delta = Map<String, dynamic>.from(payload);
     ChunkTextExtraction extraction = const ChunkTextExtraction();
@@ -200,6 +207,7 @@ class ChatChunkParser {
     return ChatCompletionChunk(
       contentDelta: splitResult.content,
       reasoningDelta: '${extraction.reasoning}${splitResult.reasoning}',
+      finishReason: finishReason,
     );
   }
 }
