@@ -38,6 +38,12 @@ List<ChatCompletionRequestMessage> buildRequestMessages({
   appendTemplateMessages(
     buffer: requestMessages,
     presetPrompt: presetPrompt,
+    placement: PromptMessagePlacement.beforeLatestInput,
+  );
+
+  appendTemplateMessages(
+    buffer: requestMessages,
+    presetPrompt: presetPrompt,
     placement: PromptMessagePlacement.after,
   );
 
