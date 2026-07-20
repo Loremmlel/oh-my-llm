@@ -47,6 +47,12 @@ void main() {
           placement: PromptMessagePlacement.before,
         ),
         PromptMessage(
+          id: 'before-latest-input-1',
+          role: PromptMessageRole.user,
+          content: '最新输入前指令',
+          placement: PromptMessagePlacement.beforeLatestInput,
+        ),
+        PromptMessage(
           id: 'after-1',
           role: PromptMessageRole.user,
           content: '系统后置指令',
@@ -94,7 +100,7 @@ void main() {
 
   // ── before + after 模板消息正确拼接到请求 ──────────────────────────────────────
 
-  test('发送消息时 before/after 模板消息按正确顺序拼入请求', () async {
+  test('发送消息时 before/beforeLatestInput/after 模板消息按正确顺序拼入请求', () async {
     final preset = container
         .read(presetPromptsProvider)
         .firstWhere((p) => p.id == 'preset-1');
@@ -119,9 +125,13 @@ void main() {
     expect(messages[1].role, ChatMessageRole.user);
     expect(messages[1].content, '用户消息');
 
-    // 第 3 条：after 模板消息（user）
+    // 第 3 条：beforeLatestInput 模板消息（user）
     expect(messages[2].role, ChatMessageRole.user);
-    expect(messages[2].content, '系统后置指令');
+    expect(messages[2].content, '最新输入前指令');
+
+    // 第 4 条：after 模板消息（user）
+    expect(messages[3].role, ChatMessageRole.user);
+    expect(messages[3].content, '系统后置指令');
   });
 
   // ── 无 PresetPrompt 时只有对话消息 ──────────────────────────────────────────
