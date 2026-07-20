@@ -10,6 +10,7 @@ String buildPresetPromptMessageFallbackTitle({
 }) {
   final placementLabel = switch (placement) {
     PromptMessagePlacement.before => '前置',
+    PromptMessagePlacement.beforeLatestInput => '最新输入前',
     PromptMessagePlacement.after => '后置',
   };
   return '$placementLabel${role.apiValue}$sequence';
