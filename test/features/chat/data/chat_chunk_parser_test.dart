@@ -186,8 +186,9 @@ void main() {
         '{"choices":[{"delta":{"content":"hi"},"finish_reason":"stop"}]}',
       );
       expect(result, isNotNull);
-      expect(result!.finishReason, 'stop');
-      expect(result!.contentDelta, 'hi');
+      final chunk = result!;
+      expect(chunk.finishReason, 'stop');
+      expect(chunk.contentDelta, 'hi');
     });
 
     test('finish_reason 为 null 时 chunk.finishReason 为 null', () {
@@ -211,8 +212,9 @@ void main() {
         '{"choices":[{"delta":{},"finish_reason":"length"}]}',
       );
       expect(result, isNotNull);
-      expect(result!.finishReason, 'length');
-      expect(result!.isEmpty, isTrue);
+      final chunk = result!;
+      expect(chunk.finishReason, 'length');
+      expect(chunk.isEmpty, isTrue);
     });
   });
 
