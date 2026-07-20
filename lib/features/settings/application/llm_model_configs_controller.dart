@@ -116,18 +116,20 @@ class LlmProviderConfigsController extends Notifier<List<LlmProviderConfig>> {
   }
 
   /// 在指定服务商下批量新增模型，跳过已存在同 modelName 的模型。
-  Future<void> upsertModels({
+  ///
+  /// 返回实际新增的模型数量（跳过重复项后的净增量）。
+  Future<int> upsertModels({
     required String providerId,
     required List<LlmProviderModelConfig> models,
   }) async {
     if (models.isEmpty) {
-      return;
+      return 0;
     }
 
     final providers = [...state];
     final providerIndex = providers.indexWhere((item) => item.id == providerId);
     if (providerIndex == -1) {
-      return;
+      return 0;
     }
 
     final provider = providers[providerIndex];
@@ -143,6 +145,7 @@ class LlmProviderConfigsController extends Notifier<List<LlmProviderConfig>> {
     providers[providerIndex] = provider.copyWith(models: mergedModels);
     state = sortProviderConfigs(providers);
     await _repository.saveProviders(state);
+    return mergedModels.length - provider.models.length;
   }
 
   /// 删除服务商下的单个模型。

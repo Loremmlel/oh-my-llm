@@ -371,7 +371,7 @@ void main() {
     test('upsertModels() adds multiple models to existing provider', () async {
       await controller.upsertProvider(_providerConfig(id: 'p-1', name: 'OpenAI'));
 
-      await controller.upsertModels(
+      final addedCount = await controller.upsertModels(
         providerId: 'p-1',
         models: [
           _modelConfig(id: 'm-1', displayName: 'GPT-4o', modelName: 'gpt-4o'),
@@ -379,6 +379,7 @@ void main() {
         ],
       );
 
+      expect(addedCount, 2);
       final models = container.read(llmProviderConfigsProvider).first.models;
       expect(models.length, 2);
       expect(models.map((m) => m.id).toSet(), {'m-1', 'm-2'});
@@ -392,7 +393,7 @@ void main() {
         models: [_modelConfig(id: 'm-existing', displayName: 'Old', modelName: 'gpt-4o')],
       ));
 
-      await controller.upsertModels(
+      final addedCount = await controller.upsertModels(
         providerId: 'p-1',
         models: [
           _modelConfig(id: 'm-new-1', displayName: 'GPT-4o New', modelName: 'gpt-4o'), // 重复 modelName -> 跳过
@@ -400,29 +401,32 @@ void main() {
         ],
       );
 
+      expect(addedCount, 1); // 只新增了 1 个
       final models = container.read(llmProviderConfigsProvider).first.models;
       expect(models.length, 2); // 原 1 个 + 新增 1 个
       expect(models.map((m) => m.modelName).toSet(), {'gpt-4o', 'gpt-4o-mini'});
     });
 
-    test('upsertModels() is no-op for unknown provider', () async {
-      await controller.upsertModels(
+    test('upsertModels() returns 0 for unknown provider', () async {
+      final addedCount = await controller.upsertModels(
         providerId: 'non-existent',
         models: [_modelConfig(id: 'm-1')],
       );
 
+      expect(addedCount, 0);
       expect(container.read(llmProviderConfigsProvider), isEmpty);
     });
 
-    test('upsertModels() with empty list does not modify state', () async {
+    test('upsertModels() returns 0 for empty list', () async {
       await controller.upsertProvider(_providerConfig(
         id: 'p-1',
         name: 'OpenAI',
         models: [_modelConfig(id: 'm-1', displayName: 'Existing')],
       ));
 
-      await controller.upsertModels(providerId: 'p-1', models: []);
+      final addedCount = await controller.upsertModels(providerId: 'p-1', models: []);
 
+      expect(addedCount, 0);
       final models = container.read(llmProviderConfigsProvider).first.models;
       expect(models.length, 1);
       expect(models.first.id, 'm-1');

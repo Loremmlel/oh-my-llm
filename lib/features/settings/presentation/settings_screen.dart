@@ -650,27 +650,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
             );
           },
           onBatchAdd: (items) async {
-            await _saveSettingsItem(
-              context,
-              isEditing: false,
-              createdMessage: '已添加 ${items.length} 个模型',
-              updatedMessage: '已添加 ${items.length} 个模型',
-              onSave: () {
-                final models = items
-                    .map((item) => LlmProviderModelConfig(
-                          id: generateEntityId(),
-                          displayName: item.displayName,
-                          modelName: item.modelName,
-                          supportsReasoning: false,
-                        ))
-                    .toList();
+            final models = items
+                .map((item) => LlmProviderModelConfig(
+                      id: generateEntityId(),
+                      displayName: item.displayName,
+                      modelName: item.modelName,
+                      supportsReasoning: false,
+                    ))
+                .toList();
 
-                return ref
-                    .read(llmProviderConfigsProvider.notifier)
-                    .upsertModels(
-                        providerId: provider.id, models: models);
-              },
-            );
+            final addedCount = await ref
+                .read(llmProviderConfigsProvider.notifier)
+                .upsertModels(providerId: provider.id, models: models);
+
+            if (context.mounted) {
+              showSettingsSnackbar(context, '已添加 $addedCount 个模型');
+            }
           },
         );
       },
