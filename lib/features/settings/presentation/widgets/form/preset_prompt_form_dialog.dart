@@ -212,7 +212,7 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
         ),
         const SizedBox(height: 12),
         Text(
-          '左侧仅显示条目标题；system / user / assistant 都可自由增删，后置消息始终排在前置消息之后。',
+          '左侧仅显示条目标题；system / user / assistant 都可自由增删，最新输入前消息排在已有对话之后、新输入之前，后置消息排在最后。',
           style: Theme.of(context).textTheme.bodySmall,
         ),
       ],
@@ -317,7 +317,7 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
           controller: selected.titleController,
           decoration: const InputDecoration(
             labelText: '标题',
-            hintText: '例如：前置约束、后置收尾说明',
+            hintText: '例如：前置约束、最新输入前提醒、后置收尾说明',
           ),
         ),
         const SizedBox(height: 12),
@@ -357,6 +357,7 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
                   value: placement,
                   child: Text(switch (placement) {
                     PromptMessagePlacement.before => '前置',
+                    PromptMessagePlacement.beforeLatestInput => '最新输入前',
                     PromptMessagePlacement.after => '后置',
                   }),
                 );
@@ -398,6 +399,11 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
   List<EditablePresetPromptItem> _buildInitialItems(PresetPrompt? template) {
     return (template?.messages ?? const <PromptMessage>[])
         .where((message) => message.placement == PromptMessagePlacement.before)
+        .followedBy(
+          (template?.messages ?? const <PromptMessage>[]).where(
+            (message) => message.placement == PromptMessagePlacement.beforeLatestInput,
+          ),
+        )
         .followedBy(
           (template?.messages ?? const <PromptMessage>[]).where(
             (message) => message.placement == PromptMessagePlacement.after,
@@ -455,9 +461,11 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
   }) {
     final selectedIndex = _selectedIndex;
     if (selected == null || selectedIndex < 0) {
-      return placement == PromptMessagePlacement.before
-          ? _firstAfterIndex
-          : _items.length;
+      return switch (placement) {
+        PromptMessagePlacement.before => _firstBeforeLatestInputIndex,
+        PromptMessagePlacement.beforeLatestInput => _firstAfterIndex,
+        PromptMessagePlacement.after => _items.length,
+      };
     }
     return selectedIndex + 1;
   }
@@ -512,10 +520,12 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
       return false;
     }
     final selected = _items[index];
-    if (selected.placement == PromptMessagePlacement.before) {
-      return index > 0;
-    }
-    return index > _firstAfterIndex;
+    return switch (selected.placement) {
+      PromptMessagePlacement.before => index > 0,
+      PromptMessagePlacement.beforeLatestInput => index > _firstBeforeLatestInputIndex,
+      PromptMessagePlacement.after => index > _firstAfterIndex,
+      _ => false,
+    };
   }
 
   bool _canMoveSelectedDown() {
@@ -524,10 +534,12 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
       return false;
     }
     final selected = _items[index];
-    if (selected.placement == PromptMessagePlacement.before) {
-      return index < _lastBeforeIndex;
-    }
-    return index < _items.length - 1;
+    return switch (selected.placement) {
+      PromptMessagePlacement.before => index < _lastBeforeIndex,
+      PromptMessagePlacement.beforeLatestInput => index < _lastBeforeLatestInputIndex,
+      PromptMessagePlacement.after => index < _items.length - 1,
+      _ => false,
+    };
   }
 
   void _moveSelected(int delta) {
@@ -562,12 +574,12 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
 
     setState(() {
       final current = _items.removeAt(index).copyWith(placement: placement);
-      if (placement == PromptMessagePlacement.before) {
-        final insertIndex = _firstAfterIndexAfterRemoval;
-        _items.insert(insertIndex, current);
-      } else {
-        _items.add(current);
-      }
+      final insertIndex = switch (placement) {
+        PromptMessagePlacement.before => _firstBeforeLatestInputIndexAfterRemoval,
+        PromptMessagePlacement.beforeLatestInput => _firstAfterIndexAfterRemoval,
+        PromptMessagePlacement.after => _items.length,
+      };
+      _items.insert(insertIndex, current);
       _selectedItemId = current.id;
     });
   }
@@ -580,11 +592,25 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
     _items[index] = item;
   }
 
+  int get _firstBeforeLatestInputIndex {
+    final index = _items.indexWhere(
+      (item) => item.placement == PromptMessagePlacement.beforeLatestInput,
+    );
+    return index == -1 ? _firstAfterIndex : index;
+  }
+
   int get _firstAfterIndex {
     final index = _items.indexWhere(
       (item) => item.placement == PromptMessagePlacement.after,
     );
     return index == -1 ? _items.length : index;
+  }
+
+  int get _firstBeforeLatestInputIndexAfterRemoval {
+    final index = _items.indexWhere(
+      (item) => item.placement == PromptMessagePlacement.beforeLatestInput,
+    );
+    return index == -1 ? _firstAfterIndexAfterRemoval : index;
   }
 
   int get _firstAfterIndexAfterRemoval {
@@ -597,6 +623,13 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
   int get _lastBeforeIndex {
     final index = _items.lastIndexWhere(
       (item) => item.placement == PromptMessagePlacement.before,
+    );
+    return index <= 0 ? 0 : index;
+  }
+
+  int get _lastBeforeLatestInputIndex {
+    final index = _items.lastIndexWhere(
+      (item) => item.placement == PromptMessagePlacement.beforeLatestInput,
     );
     return index <= 0 ? 0 : index;
   }
