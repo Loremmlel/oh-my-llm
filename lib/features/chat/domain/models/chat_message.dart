@@ -88,6 +88,7 @@ class ChatMessage extends Equatable {
     this.userMessageSegments = const [],
     this.templatePromptId,
     this.templateVariableValues = const {},
+    this.finishReason,
   });
 
   final String id;
@@ -102,6 +103,7 @@ class ChatMessage extends Equatable {
   final List<UserMessageSegment> userMessageSegments;
   final String? templatePromptId;
   final Map<String, String> templateVariableValues;
+  final String? finishReason;
 
   /// 复制消息，并允许覆盖常用字段。
   ChatMessage copyWith({
@@ -117,6 +119,7 @@ class ChatMessage extends Equatable {
     List<UserMessageSegment>? userMessageSegments,
     String? templatePromptId,
     Map<String, String>? templateVariableValues,
+    String? finishReason,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -133,6 +136,7 @@ class ChatMessage extends Equatable {
       userMessageSegments: userMessageSegments ?? this.userMessageSegments,
       templatePromptId: templatePromptId ?? this.templatePromptId,
       templateVariableValues: templateVariableValues ?? this.templateVariableValues,
+      finishReason: finishReason ?? this.finishReason,
     );
   }
 
@@ -151,6 +155,7 @@ class ChatMessage extends Equatable {
           userMessageSegments.map((segment) => segment.toJson()).toList(),
       'templatePromptId': templatePromptId,
       'templateVariableValues': templateVariableValues,
+      'finishReason': finishReason,
     };
   }
 
@@ -185,6 +190,7 @@ class ChatMessage extends Equatable {
           (json['templateVariableValues'] as Map<String, dynamic>?)
               ?.map((k, v) => MapEntry(k, v as String)) ??
           const {},
+      finishReason: json['finishReason'] as String?,
     );
   }
 
@@ -208,5 +214,6 @@ class ChatMessage extends Equatable {
     userMessageSegments,
     templatePromptId,
     templateVariableValues,
+    finishReason,
   ];
 }

@@ -76,6 +76,9 @@ class AppDatabase {
     if (currentVersion < 12) {
       _migrateV12(currentVersion);
     }
+    if (currentVersion < 13) {
+      _migrateV13(currentVersion);
+    }
   }
 
   /// V9：移除 preset_prompts.system_prompt 列。
@@ -188,6 +191,25 @@ class AppDatabase {
     _connection.execute('PRAGMA user_version = 12;');
   }
 
+  /// V13：messages 表新增 finish_reason 列，用于持久化 assistant 消息的流式结束原因。
+  void _migrateV13(int fromVersion) {
+    if (fromVersion == 0) {
+      // 全新安装，_createSchema 已包含新列
+    } else {
+      final hasMessages = _connection
+          .select(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'messages';",
+          )
+          .isNotEmpty;
+      if (hasMessages) {
+        _connection.execute(
+          'ALTER TABLE messages ADD COLUMN finish_reason TEXT DEFAULT NULL;',
+        );
+      }
+    }
+    _connection.execute('PRAGMA user_version = 13;');
+  }
+
   /// 创建全部业务表和索引（全新安装时使用）。
   void _createSchema() {
     _connection.execute('''
@@ -220,6 +242,7 @@ class AppDatabase {
         applied_checkpoint_title TEXT NOT NULL DEFAULT '',
         template_prompt_id TEXT DEFAULT NULL,
         template_variable_values_json TEXT NOT NULL DEFAULT '{}',
+        finish_reason TEXT DEFAULT NULL,
         FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
       );
     ''');

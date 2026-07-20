@@ -221,6 +221,7 @@ ChatConversation applyStreamingReplyToConversation({
     nextContent: streamingReply.content,
     nextReasoningContent: streamingReply.reasoningContent,
     isStreaming: isStreaming,
+    finishReason: streamingReply.finishReason,
   );
   return conversation.copyWith(
     messageNodes: nextTree.nodes,

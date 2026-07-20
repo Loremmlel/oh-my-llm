@@ -49,6 +49,7 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
         user_message_segments_json,
         template_prompt_id,
         template_variable_values_json,
+        finish_reason,
         created_at
       FROM messages
       ORDER BY conversation_id, node_index
@@ -107,6 +108,7 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
                 row['template_variable_values_json'] as String,
               ) as Map<String, dynamic>)
                   .map((k, v) => MapEntry(k, v as String)),
+              finishReason: row['finish_reason'] as String?,
             ),
           );
     }
@@ -495,8 +497,8 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
           content, reasoning_content, assistant_model_display_name,
           applied_checkpoint_title, user_message_segments_json,
           template_prompt_id, template_variable_values_json,
-          created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          finish_reason, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           node_index = excluded.node_index,
           content = excluded.content,
@@ -506,6 +508,7 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
           user_message_segments_json = excluded.user_message_segments_json,
           template_prompt_id = excluded.template_prompt_id,
           template_variable_values_json = excluded.template_variable_values_json,
+          finish_reason = excluded.finish_reason,
           created_at = excluded.created_at
       ''');
       final selectionStatement = db.prepare('''
@@ -583,6 +586,7 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
               ),
               message.templatePromptId,
               jsonEncode(message.templateVariableValues),
+              message.finishReason,
               message.createdAt.toIso8601String(),
             ]);
           }
