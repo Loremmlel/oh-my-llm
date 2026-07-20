@@ -85,8 +85,10 @@ void executeSaveConversations(sqlite.Database db, List<dynamic> conversationsJso
       INSERT INTO messages (
         id, conversation_id, node_index, parent_id, role,
         content, reasoning_content, assistant_model_display_name,
-        applied_checkpoint_title, user_message_segments_json, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        applied_checkpoint_title, user_message_segments_json,
+        template_prompt_id, template_variable_values_json,
+        finish_reason, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         node_index = excluded.node_index,
         content = excluded.content,
@@ -94,6 +96,9 @@ void executeSaveConversations(sqlite.Database db, List<dynamic> conversationsJso
         assistant_model_display_name = excluded.assistant_model_display_name,
         applied_checkpoint_title = excluded.applied_checkpoint_title,
         user_message_segments_json = excluded.user_message_segments_json,
+        template_prompt_id = excluded.template_prompt_id,
+        template_variable_values_json = excluded.template_variable_values_json,
+        finish_reason = excluded.finish_reason,
         created_at = excluded.created_at
     ''');
     final selectionStatement = db.prepare('''
@@ -167,6 +172,9 @@ void executeSaveConversations(sqlite.Database db, List<dynamic> conversationsJso
                   .map((segment) => segment.toJson())
                   .toList(),
             ),
+            message.templatePromptId,
+            jsonEncode(message.templateVariableValues),
+            message.finishReason,
             message.createdAt.toIso8601String(),
           ]);
         }

@@ -138,6 +138,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
             nextContent: '',
             nextReasoningContent: '',
             isStreaming: false,
+            finishReason: streamingReply.finishReason,
           )
         : replaceAssistantMessageInTree(
             treeState: tree,
@@ -145,6 +146,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
             nextContent: streamingReply.content,
             nextReasoningContent: streamingReply.reasoningContent,
             isStreaming: false,
+            finishReason: streamingReply.finishReason,
           );
 
     final nextConversation = mergeStreamingResultIntoActive(
@@ -263,6 +265,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
           nextContent: '',
           nextReasoningContent: '',
           isStreaming: false,
+          finishReason: streamingReply.finishReason,
         );
         // 以当前活动会话为基底合并，保留用户在流式期间改动的配置。
         final cleanedConversation = mergeStreamingResultIntoActive(
@@ -302,6 +305,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
           nextContent: '',
           nextReasoningContent: streamingReply.reasoningContent,
           isStreaming: false,
+          finishReason: streamingReply.finishReason,
         );
         final cleanedConversation = mergeStreamingResultIntoActive(
           streamingConversation: streamingConversation,
@@ -394,7 +398,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
             if (streamStopRequested) {
               return;
             }
-            if (chunk.isEmpty) {
+            if (chunk.isEmpty && chunk.finishReason == null) {
               return;
             }
 
@@ -403,6 +407,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
             streamingReply = streamingReply.copyWith(
               content: responseBuffer.toString(),
               reasoningContent: reasoningBuffer.toString(),
+              finishReason: chunk.finishReason ?? streamingReply.finishReason,
             );
             latestStreamingReply = streamingReply;
             final now = DateTime.now();
@@ -456,6 +461,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
       nextContent: applyOutputProcessing(streamingReply.content),
       nextReasoningContent: streamingReply.reasoningContent,
       isStreaming: false,
+      finishReason: streamingReply.finishReason,
     );
 
     return mergeStreamingResultIntoActive(
