@@ -86,4 +86,66 @@ void main() {
       expect(copied.content, 'hello');
     });
   });
+
+  group('ChatMessage finishReason 字段', () {
+    test('默认 finishReason 为 null', () {
+      final message = ChatMessage(
+        id: 'test',
+        role: ChatMessageRole.user,
+        content: 'hello',
+        createdAt: DateTime(2026),
+      );
+      expect(message.finishReason, isNull);
+    });
+
+    test('fromJson 反序列化 finishReason', () {
+      final json = {
+        'id': 'test',
+        'role': 'user',
+        'content': 'hello',
+        'createdAt': '2026-01-01T00:00:00.000',
+        'userMessageSegments': [],
+        'finishReason': 'stop',
+      };
+      final message = ChatMessage.fromJson(json);
+      expect(message.finishReason, 'stop');
+    });
+
+    test('fromJson 缺失 finishReason 时回退 null', () {
+      final json = {
+        'id': 'test',
+        'role': 'user',
+        'content': 'hello',
+        'createdAt': '2026-01-01T00:00:00.000',
+        'userMessageSegments': [],
+      };
+      final message = ChatMessage.fromJson(json);
+      expect(message.finishReason, isNull);
+    });
+
+    test('toJson 包含 finishReason', () {
+      final message = ChatMessage(
+        id: 'test',
+        role: ChatMessageRole.user,
+        content: 'hello',
+        createdAt: DateTime(2026),
+        finishReason: 'length',
+      );
+      final json = message.toJson();
+      expect(json['finishReason'], 'length');
+    });
+
+    test('copyWith 支持 finishReason', () {
+      final original = ChatMessage(
+        id: 'test',
+        role: ChatMessageRole.user,
+        content: 'hello',
+        createdAt: DateTime(2026),
+      );
+      final copied = original.copyWith(finishReason: 'stop');
+      expect(copied.finishReason, 'stop');
+      expect(copied.id, 'test');
+      expect(copied.content, 'hello');
+    });
+  });
 }
