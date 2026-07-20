@@ -113,12 +113,10 @@ class ModelListClient {
     );
 
     if (response.statusCode != 200) {
-      final body = response.body;
-      final snippet = body.length > 200 ? '${body.substring(0, 200)}...' : body;
       throw ModelListException(
         '服务器返回错误（${response.statusCode}）',
         statusCode: response.statusCode,
-        responseBody: snippet,
+        responseBody: _truncateBody(response.body),
       );
     }
 
@@ -127,23 +125,34 @@ class ModelListClient {
       final json = jsonDecode(response.body) as Map<String, dynamic>;
       data = json['data'] as List<dynamic>? ?? const [];
     } catch (e) {
-      final body = response.body;
-      final snippet = body.length > 200 ? '${body.substring(0, 200)}...' : body;
       throw ModelListException(
         '响应解析失败',
-        responseBody: snippet,
+        responseBody: _truncateBody(response.body),
         cause: e,
       );
     }
 
-    return data
-        .map((item) {
-          final map = item as Map<String, dynamic>;
-          return RemoteModelInfo(
-            id: map['id'] as String,
-            ownedBy: map['owned_by'] as String?,
-          );
-        })
-        .toList(growable: false);
+    final models = <RemoteModelInfo>[];
+    for (final item in data) {
+      try {
+        final map = item as Map<String, dynamic>;
+        final id = map['id'];
+        if (id is! String || id.isEmpty) continue;
+        models.add(RemoteModelInfo(
+          id: id,
+          ownedBy: map['owned_by'] as String?,
+        ));
+      } catch (_) {
+        // 跳过格式异常的条目，而非整个列表失败
+        continue;
+      }
+    }
+    return models;
   }
+}
+
+/// 截断响应体到指定长度，超长时追加省略号。
+String _truncateBody(String body, [int max = 200]) {
+  if (body.length > max) return '${body.substring(0, max)}...';
+  return body;
 }

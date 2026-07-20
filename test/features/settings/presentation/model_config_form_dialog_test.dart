@@ -156,8 +156,8 @@ void main() {
         await tester.tap(find.byKey(const ValueKey('model-fetch-button')));
         await tester.pump();
 
-        expect(find.byType(CircularProgressIndicator), findsWidgets);
-        expect(find.text('正在拉取...'), findsOneWidget);
+        expect(find.byType(CircularProgressIndicator), findsOneWidget);
+        expect(find.text('正在拉取模型列表...'), findsOneWidget);
 
         completer.complete([]);
         await tester.pumpAndSettle();

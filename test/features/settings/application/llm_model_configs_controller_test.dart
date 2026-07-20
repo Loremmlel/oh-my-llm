@@ -447,5 +447,22 @@ void main() {
       expect(persisted.first.models.first.id, 'm-1');
     });
 
+    test('upsertModels() deduplicates within input list', () async {
+      await controller.upsertProvider(_providerConfig(id: 'p-1', name: 'OpenAI'));
+
+      final addedCount = await controller.upsertModels(
+        providerId: 'p-1',
+        models: [
+          _modelConfig(id: 'm-1', displayName: 'First', modelName: 'gpt-4o'),
+          _modelConfig(id: 'm-2', displayName: 'Second', modelName: 'gpt-4o'), // 同 modelName -> 跳过
+        ],
+      );
+
+      expect(addedCount, 1);
+      final models = container.read(llmProviderConfigsProvider).first.models;
+      expect(models.length, 1);
+      expect(models.first.id, 'm-1');
+    });
+
   });
 }
