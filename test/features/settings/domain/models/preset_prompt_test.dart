@@ -43,6 +43,25 @@ void main() {
       expect(result, [afterMsg]);
     });
 
+    test('messagesForPlacement 过滤最新输入前消息', () {
+      final beforeLatestInputMsg = PromptMessage(
+        id: '3',
+        role: PromptMessageRole.user,
+        content: '最新输入前消息',
+        placement: PromptMessagePlacement.beforeLatestInput,
+      );
+      final preset = PresetPrompt(
+        id: 'p1',
+        name: '测试',
+        messages: [beforeMsg, beforeLatestInputMsg, afterMsg],
+        updatedAt: now,
+      );
+      final result = preset
+          .messagesForPlacement(PromptMessagePlacement.beforeLatestInput)
+          .toList();
+      expect(result, [beforeLatestInputMsg]);
+    });
+
     test('messagesForPlacement 空列表返回空', () {
       final preset = PresetPrompt(
         id: 'p1',
