@@ -293,6 +293,10 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                   content: isUser ? userContent : message.content,
                   segments: isUser ? displaySegments : const [],
                 ),
+                if (!isUser &&
+                    message.finishReason != null &&
+                    !message.isStreaming)
+                  _buildFinishReasonChip(theme, message),
                 if (isUser && widget.autoRetryCount > 0) ...[
                   const SizedBox(height: 8),
                   Row(
@@ -371,6 +375,56 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
         ),
       );
     },
+    );
+  }
+
+  static Color _finishReasonColor(String reason, ColorScheme colorScheme) {
+    switch (reason) {
+      case 'stop':
+        return colorScheme.tertiaryContainer;
+      case 'length':
+        return const Color.fromRGBO(255, 167, 38, 0.15);
+      case 'content_filter':
+        return const Color.fromRGBO(244, 67, 54, 0.15);
+      default:
+        return colorScheme.surfaceContainerHighest;
+    }
+  }
+
+  static Color _finishReasonTextColor(
+    String reason,
+    ColorScheme colorScheme,
+  ) {
+    switch (reason) {
+      case 'stop':
+        return colorScheme.onTertiaryContainer;
+      case 'length':
+        return const Color.fromRGBO(230, 120, 0, 1.0);
+      case 'content_filter':
+        return const Color.fromRGBO(200, 40, 30, 1.0);
+      default:
+        return colorScheme.onSurfaceVariant;
+    }
+  }
+
+  Widget _buildFinishReasonChip(ThemeData theme, ChatMessage message) {
+    final reason = message.finishReason!;
+    final colorScheme = theme.colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: BoxDecoration(
+          color: _finishReasonColor(reason, colorScheme),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Text(
+          reason,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: _finishReasonTextColor(reason, colorScheme),
+          ),
+        ),
+      ),
     );
   }
 
