@@ -16,6 +16,7 @@ import '../application/output_processing_settings_controller.dart';
 import '../application/preset_prompts_controller.dart';
 import '../application/settings_import_deduplicator.dart';
 import '../application/template_prompts_controller.dart';
+import '../data/model_list_client.dart';
 import '../domain/models/fixed_prompt_sequence.dart';
 import '../domain/models/llm_provider_config.dart';
 import '../domain/models/memory_prompt.dart';
@@ -625,7 +626,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
       context: context,
       builder: (dialogContext) {
         return ModelConfigFormDialog(
+          provider: provider,
           initialValue: initialValue,
+          fetchModels: ref.read(modelListClientProvider).fetchModels,
           onSubmit: (formData) async {
             await _saveSettingsItem(
               context,
@@ -643,6 +646,29 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                 return ref
                     .read(llmProviderConfigsProvider.notifier)
                     .upsertModel(providerId: provider.id, model: model);
+              },
+            );
+          },
+          onBatchAdd: (items) async {
+            await _saveSettingsItem(
+              context,
+              isEditing: false,
+              createdMessage: '已添加 ${items.length} 个模型',
+              updatedMessage: '已添加 ${items.length} 个模型',
+              onSave: () {
+                final models = items
+                    .map((item) => LlmProviderModelConfig(
+                          id: generateEntityId(),
+                          displayName: item.displayName,
+                          modelName: item.modelName,
+                          supportsReasoning: false,
+                        ))
+                    .toList();
+
+                return ref
+                    .read(llmProviderConfigsProvider.notifier)
+                    .upsertModels(
+                        providerId: provider.id, models: models);
               },
             );
           },

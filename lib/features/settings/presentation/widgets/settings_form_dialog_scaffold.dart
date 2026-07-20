@@ -11,6 +11,7 @@ class SettingsFormDialogScaffold extends StatelessWidget {
     this.width = 720,
     this.submitLabel = '保存',
     this.savingLabel = '保存中...',
+    this.submitEnabled = true,
     this.shouldScrollContent = _alwaysScrollContent,
     super.key,
   });
@@ -25,6 +26,7 @@ class SettingsFormDialogScaffold extends StatelessWidget {
   final double width;
   final String submitLabel;
   final String savingLabel;
+  final bool submitEnabled;
   final bool Function(BoxConstraints constraints) shouldScrollContent;
 
   @override
@@ -55,7 +57,7 @@ class SettingsFormDialogScaffold extends StatelessWidget {
           child: const Text('取消'),
         ),
         FilledButton(
-          onPressed: isSaving ? null : onSubmit,
+          onPressed: (isSaving || !submitEnabled) ? null : onSubmit,
           child: Text(isSaving ? savingLabel : submitLabel),
         ),
       ],

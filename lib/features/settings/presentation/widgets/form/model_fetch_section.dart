@@ -28,11 +28,11 @@ class ModelSelectionEntry {
 /// 拉取模式的 UI 区块。
 ///
 /// 负责发起 /models 请求、展示返回的模型列表、管理勾选和显示名输入。
-/// 通过 [onSelectionChanged] 通知父级当前可提交的状态。
 class ModelFetchSection extends StatefulWidget {
   const ModelFetchSection({
     required this.provider,
     required this.fetchModels,
+    this.onSelectionChanged,
     super.key,
   });
 
@@ -43,16 +43,19 @@ class ModelFetchSection extends StatefulWidget {
     required String apiKey,
   }) fetchModels;
 
+  /// 当勾选状态或显示名变化时通知父级刷新。
+  final void Function()? onSelectionChanged;
+
   @override
-  State<ModelFetchSection> createState() => _ModelFetchSectionState();
+  State<ModelFetchSection> createState() => ModelFetchSectionState();
 }
 
 enum _FetchStatus { idle, loading, loaded, error }
 
-class _ModelFetchSectionState extends State<ModelFetchSection> {
+class ModelFetchSectionState extends State<ModelFetchSection> {
   _FetchStatus _status = _FetchStatus.idle;
   String? _errorMessage;
-  List<ModelSelectionEntry> _entries = [];
+  List<ModelSelectionEntry> entries = [];
   String _editedUrl = '';
   bool _isUrlEdited = false;
   bool _showAdvanced = false;
@@ -69,7 +72,7 @@ class _ModelFetchSectionState extends State<ModelFetchSection> {
 
   @override
   void dispose() {
-    for (final entry in _entries) {
+    for (final entry in entries) {
       entry.dispose();
     }
     super.dispose();
@@ -81,7 +84,7 @@ class _ModelFetchSectionState extends State<ModelFetchSection> {
       _errorMessage = null;
     });
 
-    for (final entry in _entries) {
+    for (final entry in entries) {
       entry.dispose();
     }
 
@@ -95,8 +98,9 @@ class _ModelFetchSectionState extends State<ModelFetchSection> {
           .map((m) => m.modelName)
           .toSet();
 
+      if (!mounted) return;
       setState(() {
-        _entries = models
+        entries = models
             .map((m) => ModelSelectionEntry(
                   remoteModel: m,
                   controller: TextEditingController(text: m.id),
@@ -106,7 +110,9 @@ class _ModelFetchSectionState extends State<ModelFetchSection> {
             .toList();
         _status = _FetchStatus.loaded;
       });
+      widget.onSelectionChanged?.call();
     } on ModelListException catch (e) {
+      if (!mounted) return;
       setState(() {
         _status = _FetchStatus.error;
         _errorMessage = e.message;
@@ -115,6 +121,7 @@ class _ModelFetchSectionState extends State<ModelFetchSection> {
         }
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _status = _FetchStatus.error;
         _errorMessage = '未知错误：$e';
@@ -254,7 +261,7 @@ class _ModelFetchSectionState extends State<ModelFetchSection> {
           ),
         );
       case _FetchStatus.loaded:
-        if (_entries.isEmpty) {
+        if (entries.isEmpty) {
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: 24),
             child: Center(
@@ -276,7 +283,7 @@ class _ModelFetchSectionState extends State<ModelFetchSection> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (final entry in _entries) _buildModelRow(theme, entry),
+        for (final entry in entries) _buildModelRow(theme, entry),
       ],
     );
   }
@@ -294,6 +301,7 @@ class _ModelFetchSectionState extends State<ModelFetchSection> {
               setState(() {
                 entry.selected = value ?? false;
               });
+              widget.onSelectionChanged?.call();
             },
           ),
           Expanded(
@@ -346,7 +354,10 @@ class _ModelFetchSectionState extends State<ModelFetchSection> {
                     isDense: true,
                     border: OutlineInputBorder(),
                   ),
-                  onChanged: (_) => setState(() {}),
+                  onChanged: (_) {
+                    setState(() {});
+                    widget.onSelectionChanged?.call();
+                  },
                 ),
               ],
             ),
