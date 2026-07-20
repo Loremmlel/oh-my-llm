@@ -71,6 +71,9 @@ ChatMessage _buildMessage({
   String reasoningContent = '',
   String assistantModelDisplayName = '',
   String appliedCheckpointTitle = '',
+  String? templatePromptId,
+  Map<String, String> templateVariableValues = const {},
+  String? finishReason,
 }) {
   return ChatMessage(
     id: id,
@@ -81,6 +84,9 @@ ChatMessage _buildMessage({
     reasoningContent: reasoningContent,
     assistantModelDisplayName: assistantModelDisplayName,
     appliedCheckpointTitle: appliedCheckpointTitle,
+    templatePromptId: templatePromptId,
+    templateVariableValues: templateVariableValues,
+    finishReason: finishReason,
   );
 }
 
@@ -667,8 +673,7 @@ void main() {
     // ────────────────────────────────────────────
     // 10. 全字段非默认值往返持久化
     // ────────────────────────────────────────────
-    test('conversation fields round-trip persistence', () {
-      final conv = _buildConversation(
+    test('conversation fields round-trip persistence', () {      final conv = _buildConversation(
         id: 'conv-full',
         title: '全字段',
         createdAt: now,
@@ -704,6 +709,114 @@ void main() {
       expect(
         row['excluded_message_ids_json'],
         equals('["excluded-1","excluded-2"]'),
+      );
+    });
+
+    // ────────────────────────────────────────────
+    // 11. finishReason round-trip：stop / length / null
+    // ────────────────────────────────────────────
+    test('finish_reason round-trip: stop, length, and default null', () {
+      final conv = _buildConversation(
+        id: 'conv-finish',
+        title: 'finish_reason 往返',
+        createdAt: now,
+        updatedAt: now,
+        messages: [
+          _buildMessage(
+            id: 'msg-stop',
+            role: ChatMessageRole.assistant,
+            content: 'stop 回复',
+            createdAt: now,
+            finishReason: 'stop',
+          ),
+          _buildMessage(
+            id: 'msg-length',
+            role: ChatMessageRole.assistant,
+            content: 'length 回复',
+            createdAt: now.add(const Duration(seconds: 1)),
+            finishReason: 'length',
+          ),
+          _buildMessage(
+            id: 'msg-default',
+            role: ChatMessageRole.assistant,
+            content: '默认无 finish_reason',
+            createdAt: now.add(const Duration(seconds: 2)),
+          ),
+        ],
+      );
+
+      executeSaveConversations(db, _jsonify(conv));
+
+      final stopRow = db
+          .select("SELECT finish_reason FROM messages WHERE id = 'msg-stop';")
+          .single;
+      expect(stopRow['finish_reason'], equals('stop'));
+
+      final lengthRow = db
+          .select("SELECT finish_reason FROM messages WHERE id = 'msg-length';")
+          .single;
+      expect(lengthRow['finish_reason'], equals('length'));
+
+      final defaultRow = db
+          .select("SELECT finish_reason FROM messages WHERE id = 'msg-default';")
+          .single;
+      expect(defaultRow['finish_reason'], isNull);
+    });
+
+    // ────────────────────────────────────────────
+    // 12. template 字段 round-trip：V12 bug 修复验证
+    // ────────────────────────────────────────────
+    test('template_prompt_id and template_variable_values round-trip', () {
+      final conv = _buildConversation(
+        id: 'conv-tpl',
+        title: '模板字段往返',
+        createdAt: now,
+        updatedAt: now,
+        messages: [
+          _buildMessage(
+            id: 'msg-tpl',
+            role: ChatMessageRole.user,
+            content: '基于模板的消息',
+            createdAt: now,
+            templatePromptId: 'tpl-001',
+            templateVariableValues: const {
+              'language': 'Dart',
+              'framework': 'Flutter',
+            },
+          ),
+          _buildMessage(
+            id: 'msg-notpl',
+            role: ChatMessageRole.assistant,
+            content: '无模板回复',
+            createdAt: now.add(const Duration(seconds: 1)),
+          ),
+        ],
+      );
+
+      executeSaveConversations(db, _jsonify(conv));
+
+      final tplRow = db
+          .select(
+            "SELECT template_prompt_id, template_variable_values_json "
+            "FROM messages WHERE id = 'msg-tpl';",
+          )
+          .single;
+      expect(tplRow['template_prompt_id'], equals('tpl-001'));
+      expect(
+        tplRow['template_variable_values_json'],
+        equals('{"language":"Dart","framework":"Flutter"}'),
+      );
+
+      final noTplRow = db
+          .select(
+            "SELECT template_prompt_id, template_variable_values_json "
+            "FROM messages WHERE id = 'msg-notpl';",
+          )
+          .single;
+      expect(noTplRow['template_prompt_id'], isNull);
+      expect(
+        noTplRow['template_variable_values_json'],
+        equals('{}'),
       );
     });
   });
