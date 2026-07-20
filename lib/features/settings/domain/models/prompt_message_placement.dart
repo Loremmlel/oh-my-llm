@@ -1,6 +1,7 @@
 /// Prompt 模板附加消息在请求中的拼接位置。
 enum PromptMessagePlacement {
   before('before'),
+  beforeLatestInput('beforeLatestInput'),
   after('after');
 
   const PromptMessagePlacement(this.apiValue);
@@ -10,6 +11,7 @@ enum PromptMessagePlacement {
   /// 返回更适合界面展示的位置标签。
   String get label => switch (this) {
     PromptMessagePlacement.before => '前置',
+    PromptMessagePlacement.beforeLatestInput => '最新输入前',
     PromptMessagePlacement.after => '后置',
   };
 
