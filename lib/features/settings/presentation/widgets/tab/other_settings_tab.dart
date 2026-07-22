@@ -112,6 +112,20 @@ class OtherSettingsTab extends ConsumerWidget {
                       .save(settings.copyWith(maxRetryCount: value));
                 },
               ),
+              const SizedBox(height: 16),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('异常 finish_reason 重试'),
+                subtitle: const Text(
+                  '当模型返回的 finish_reason 不是 stop 或 tool_calls 时自动重试',
+                ),
+                value: settings.retryOnAbnormalFinishReason,
+                onChanged: (value) {
+                  ref
+                      .read(autoRetrySettingsProvider.notifier)
+                      .save(settings.copyWith(retryOnAbnormalFinishReason: value));
+                },
+              ),
             ],
           ),
         ),
