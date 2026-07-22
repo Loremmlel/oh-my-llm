@@ -1447,6 +1447,79 @@ void main() {
     expect(fakeClient.requestHistory.length, 3);
   });
 
+  // ── 异常 finish_reason 重试 ──────────────────────────────────────────────
+
+  test('retryOnAbnormalFinishReason=true 时异常 finish_reason 触发重试', () async {
+    container
+        .read(chatSessionsProvider.notifier)
+        .updateActiveConversationPreferences(autoRetryEnabled: true);
+
+    // 保存带 retryOnAbnormalFinishReason=true 的设置
+    await container.read(autoRetrySettingsProvider.notifier).save(
+          const AutoRetrySettings(
+            maxJitterSeconds: 0,
+            maxRetryCount: 0,
+            retryOnAbnormalFinishReason: true,
+          ),
+        );
+
+    // 第一次返回 length（异常），第二次返回 stop（正常）
+    fakeClient.enqueueDeltas([
+      const ChatCompletionChunk(contentDelta: '部分内容', finishReason: 'length'),
+    ]);
+    fakeClient.enqueueChunks(['重试成功']);
+
+    await sendMsg('测试异常 finish', retryDelay: Duration.zero);
+
+    final state = container.read(chatSessionsProvider);
+    expect(state.activeConversation.messages.last.content, '重试成功');
+    expect(state.errorMessage, isNull);
+    expect(fakeClient.requestHistory.length, 2);
+  });
+
+  test('retryOnAbnormalFinishReason=false 时异常 finish_reason 不触发重试', () async {
+    container
+        .read(chatSessionsProvider.notifier)
+        .updateActiveConversationPreferences(autoRetryEnabled: true);
+
+    // retryOnAbnormalFinishReason 保持默认 false
+    fakeClient.enqueueDeltas([
+      const ChatCompletionChunk(contentDelta: '部分内容', finishReason: 'length'),
+    ]);
+
+    await sendMsg('测试不重试');
+
+    final state = container.read(chatSessionsProvider);
+    // 不重试，保留异常 finish_reason 的回复
+    expect(state.activeConversation.messages.last.content, '部分内容');
+    expect(fakeClient.requestHistory.length, 1);
+  });
+
+  test('stop 和 tool_calls 不触发异常 finish_reason 重试', () async {
+    container
+        .read(chatSessionsProvider.notifier)
+        .updateActiveConversationPreferences(autoRetryEnabled: true);
+
+    await container.read(autoRetrySettingsProvider.notifier).save(
+          const AutoRetrySettings(
+            maxJitterSeconds: 0,
+            maxRetryCount: 0,
+            retryOnAbnormalFinishReason: true,
+          ),
+        );
+
+    // stop — 正常完成，不重试
+    fakeClient.enqueueDeltas([
+      const ChatCompletionChunk(contentDelta: '正常回复', finishReason: 'stop'),
+    ]);
+
+    await sendMsg('测试 stop');
+
+    final state = container.read(chatSessionsProvider);
+    expect(state.activeConversation.messages.last.content, '正常回复');
+    expect(fakeClient.requestHistory.length, 1);
+  });
+
   // ── stopStreaming 竞态条件 ──────────────────────────────────────────────
 
   test('stopStreaming 后延迟到达的 onDone 不改变状态', () async {
