@@ -294,13 +294,52 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
       }
 
       // 异常 finish_reason：如果启用且 finish_reason 不是正常值，走失败路径触发重试。
+      // 但先检查输出规则是否清空了正文：重试仍会被同一规则清空，形成死循环，
+      // 此时走输出规则清空路径（不重试）优先级更高。
       if (retryOnAbnormalFinishReason &&
           isAbnormalFinishReason(streamingReply.finishReason)) {
+        final processedContent = applyOutputProcessing(streamingReply.content);
+        if (processedContent.trim().isEmpty &&
+            streamingReply.content.trim().isNotEmpty) {
+          // 输出规则清空了正文 → 不走重试路径，提示用户检查输出处理规则。
+          final cleanedTree = resolveMessageTreeState(streamingConversation);
+          final nextTree = replaceAssistantMessageInTree(
+            treeState: cleanedTree,
+            assistantMessageId: assistantMessage.id,
+            nextContent: '',
+            nextReasoningContent: streamingReply.reasoningContent,
+            isStreaming: false,
+            finishReason: streamingReply.finishReason,
+          );
+          final cleanedConversation = mergeStreamingResultIntoActive(
+            streamingConversation: streamingConversation,
+            messageNodes: nextTree.nodes,
+            selectedChildByParentId: nextTree.selections,
+          );
+          state = state.copyWith(
+            conversations: replaceConversation(cleanedConversation),
+            conversationSummaries: replaceOrAddSummary(
+              state.conversationSummaries,
+              summaryFromConversation(cleanedConversation),
+            ),
+            isStreaming: false,
+            errorMessage: ChatErrorMessages.outputRuleEmptied,
+            errorMessageAssistantId: assistantMessage.id,
+            clearStreamingReply: true,
+            incrementHistoryRevision: true,
+          );
+          saveConversation(cleanedConversation);
+          // 返回非 null 值，阻止自动重试循环继续（重试仍会被同一规则清空）。
+          completeActiveStreaming(cleanedConversation);
+          clearActiveStreamingSession();
+          return;
+        }
+
         final abnormalTree = resolveMessageTreeState(streamingConversation);
         final nextTree = replaceAssistantMessageInTree(
           treeState: abnormalTree,
           assistantMessageId: assistantMessage.id,
-          nextContent: applyOutputProcessing(streamingReply.content),
+          nextContent: processedContent,
           nextReasoningContent: streamingReply.reasoningContent,
           isStreaming: false,
           finishReason: streamingReply.finishReason,
@@ -362,7 +401,8 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
           incrementHistoryRevision: true,
         );
         saveConversation(cleanedConversation);
-        completeActiveStreaming(null);
+        // 返回非 null 值，阻止自动重试循环继续（重试仍会被同一规则清空）。
+        completeActiveStreaming(cleanedConversation);
         clearActiveStreamingSession();
         return;
       }

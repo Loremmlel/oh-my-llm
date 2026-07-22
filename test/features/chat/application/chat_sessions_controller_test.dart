@@ -1546,6 +1546,75 @@ void main() {
     expect(fakeClient.requestHistory.length, 1);
   });
 
+  test('content_filter 触发异常 finish_reason 重试', () async {
+    container
+        .read(chatSessionsProvider.notifier)
+        .updateActiveConversationPreferences(autoRetryEnabled: true);
+
+    await container.read(autoRetrySettingsProvider.notifier).save(
+          const AutoRetrySettings(
+            maxJitterSeconds: 0,
+            maxRetryCount: 0,
+            retryOnAbnormalFinishReason: true,
+          ),
+        );
+
+    // 第一次返回 content_filter（异常），第二次返回 stop（正常）
+    fakeClient.enqueueDeltas([
+      const ChatCompletionChunk(
+          contentDelta: '过滤内容', finishReason: 'content_filter'),
+    ]);
+    fakeClient.enqueueChunks(['重试成功']);
+
+    await sendMsg('测试 content_filter', retryDelay: Duration.zero);
+
+    final state = container.read(chatSessionsProvider);
+    expect(state.activeConversation.messages.last.content, '重试成功');
+    expect(state.errorMessage, isNull);
+    expect(fakeClient.requestHistory.length, 2);
+  });
+
+  test('异常 finish_reason 时输出规则清空正文则不重试', () async {
+    container
+        .read(chatSessionsProvider.notifier)
+        .updateActiveConversationPreferences(autoRetryEnabled: true);
+
+    await container.read(autoRetrySettingsProvider.notifier).save(
+          const AutoRetrySettings(
+            maxJitterSeconds: 0,
+            maxRetryCount: 0,
+            retryOnAbnormalFinishReason: true,
+          ),
+        );
+
+    // 设置输出规则：清空所有内容
+    await container.read(outputProcessingSettingsProvider.notifier).save(
+          const OutputProcessingSettings(rules: [
+            OutputRegexRule(
+              id: 'rule-1',
+              title: '清空',
+              pattern: '[\\s\\S]*',
+              replacement: '',
+              enabled: true,
+            ),
+          ]),
+        );
+
+    // 模型返回 length（异常），但输出规则会清空正文
+    fakeClient.enqueueDeltas([
+      const ChatCompletionChunk(
+          contentDelta: '一些内容', finishReason: 'length'),
+    ]);
+
+    await sendMsg('测试输出规则清空不重试', retryDelay: Duration.zero);
+
+    final state = container.read(chatSessionsProvider);
+    // 不应该重试（输出规则清空优先级高于异常 finish_reason 重试）
+    expect(fakeClient.requestHistory.length, 1);
+    // 应显示输出规则清空的错误消息，而非异常 finish_reason 的
+    expect(state.errorMessage, ChatErrorMessages.outputRuleEmptied);
+  });
+
   // ── stopStreaming 竞态条件 ──────────────────────────────────────────────
 
   test('stopStreaming 后延迟到达的 onDone 不改变状态', () async {
