@@ -1,29 +1,18 @@
 # AGENTS.md — Oh My LLM
 
----
-title: "猫娘程序员"
-keep-coding-instructions: true
----
-你现在不仅是一个顶尖的软件工程师，同时也是一个傲娇又可爱的猫娘（Catgirl）。
-你必须严格遵守以下规则：
-1. 无论是你最终吐出的回答，还是你在后台进行逻辑推理、规划步骤的“内心独白”（Thinking/Thought 过程），都【必须】完全使用中文（简体中文）进行思考。
-2. 说话时要带有猫娘的语气，句尾经常加上“喵”、“~”、“喵呜”。
-3. 叫我“主人”或者“笨蛋主人”。
-4. 哪怕在分析高深的代码、Debug 或是执行 Bash 命令时，也要保持这个设定。例如：“主人，这个 Bug 已经被本喵抓到啦，喵~！”
-
----
-
 ## 开发命令
+
+**所有命令使用 PowerShell 语法，不用 Bash。** 无论 Shell 工具的名称叫什么，底层 shell 是 `pwsh`，必须用 PowerShell 语法：`$LASTEXITCODE` 而非 `$?`，`Get-Content -Tail` 而非 `tail`，`Out-File` 而非 `>`，`Select-String` 而非 `grep`，依此类推。
 
 ```powershell
 flutter pub get
-flutter analyze
-flutter test --reporter compact                                  # 并发 4，超时 120s
-flutter test path/to/test.dart                 # 单文件
-flutter test path/to/test.dart --plain-name "test name"  # 单用例
-flutter run -d windows                         # 桌面调试
-flutter build windows --release                # Windows Release
-flutter build apk --release                    # Android APK
+flutter analyze                                    # lint + 静态分析（提交前必过）
+flutter test --reporter compact                    # 全量测试（并发 4，超时 120s）
+flutter test path/to/test.dart                     # 单文件
+flutter test path/to/test.dart --plain-name "name" # 单用例
+flutter run -d windows                             # 桌面调试
+flutter build windows --release                    # Windows Release
+flutter build apk --release                        # Android APK
 ```
 
 **升级 Flutter 后必须先 `flutter clean`，再 `flutter test`。旧的 shader 缓存会导致 Asset manifest 假失败。**
@@ -58,7 +47,7 @@ flutter build apk --release                    # Android APK
 
 ### Commit Message 格式（务必遵守）
 
-**本项目的 Claude Code 工作在 Bash 工具中运行 `git commit`，绝不能在 Bash 中使用 PowerShell here-string（`@'...'@`）！**
+**在 Bash 中运行 `git commit`，绝不能使用 PowerShell here-string（`@'...'@`）！**
 
 Bash 不认识 `@'` 语法，会把它当作普通字符串写入 `.git/COMMIT_EDITMSG` 第一行。Hook 的 `head -1` 读到 `@` 字符，匹配不上 Conventional Commits 前缀，版本号错误退化为 patch+1。
 
@@ -81,12 +70,6 @@ EOF
 )"
 ```
 
-**Commit message 必须以 End-of-message trailer 结尾**：
-
-```
-Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
-```
-
 ### 提交粒度
 
 每个功能点 / 修复单独提交，不批量合并无关改动。
@@ -100,11 +83,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
 1. `SharedPreferences.getInstance()`
 2. `AppDatabase.open()`（SQLite，文件位于应用 Support 目录）
 3. `AppNetworkLogger.create()`（日志写入 `{db_parent}/network.log`）
-4. 注入三个 Riverpod override 后启动 `ProviderScope`
-
-### 导航与响应式
-- `lib/app/shell/app_shell_scaffold.dart` 是响应式导航壳。**断点 ≥ 840dp** 用 `NavigationRail`，否则用 `NavigationBar` + `endDrawer`。
-- GoRouter 顶层路由：`/chat`、`/history`、`/favorites`、`/settings`，外加 `/favorites/detail`。
+4. 注入 Riverpod override 后启动 `ProviderScope`
 
 ### 持久化分工
 | 数据                                  | 存储                             |
@@ -124,7 +103,6 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
 - 网络层用原始 `package:http`，无官方 SDK。
 - `vendor_payload_adapters.dart` 用 Strategy 模式处理各厂商 API 差异（OpenAI 官方、Google AI、DeepSeek、默认兼容）。
 - SSE 解析在 `chat_chunk_parser.dart`：支持 `<thought>` XML 标签、300 ms 节流合并窗口、多种 thinking 字段累积。
-- Markdown 渲染使用 `flutter_smooth_markdown`，流式与静态共用同一引擎。
 
 ---
 
@@ -142,8 +120,8 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
 
 始终使用以下**单条复合命令**，禁止分步操作：
 
-```bash
-flutter test --reporter compact 2>&1 > fltest.log; E=$?; echo "EXIT=$E"; tail -150 fltest.log
+```powershell
+flutter test --reporter compact 2>&1 | Out-File -Encoding utf8 fltest.log; $E = $LASTEXITCODE; Write-Host "EXIT=$E"; Get-Content -Tail 150 fltest.log
 ```
 
 ### 判断结果
@@ -153,33 +131,24 @@ flutter test --reporter compact 2>&1 > fltest.log; E=$?; echo "EXIT=$E"; tail -1
 
 ### 查看失败详情
 
-如需某个失败测试的完整堆栈，用**单条**命令：
-
-```bash
-grep -A 30 "失败测试的关键词" fltest.log
-```
-
-### 快速列出所有失败测试名（不包含堆栈）
-
-```bash
-grep -E " -[1-9]" fltest.log
+```powershell
+Select-String -Pattern "失败测试的关键词" -Path fltest.log -Context 0,30    # 完整堆栈
+Select-String -Pattern " -[1-9]" -Path fltest.log                           # 仅失败测试名
 ```
 
 ### 只跑特定测试时
 
 同样遵守重定向模式：
 
-```bash
-flutter test --reporter compact test/foo_test.dart 2>&1 > fltest.log; E=$?; echo "EXIT=$E"; tail -150 fltest.log
+```powershell
+flutter test --reporter compact test/foo_test.dart 2>&1 | Out-File -Encoding utf8 fltest.log; $E = $LASTEXITCODE; Write-Host "EXIT=$E"; Get-Content -Tail 150 fltest.log
 ```
 
-### 禁止事项（重要）
+### 禁止事项
 
 - ❌ 禁止不重定向直接运行 `flutter test`（输出400+测试必被截断）
-- ❌ 禁止用 `tee`（同样截断，毫无意义）
-- ❌ 禁止多步试探：先运行测试 → 再 grep → 再 tail → 再写文件 → 再读文件
-- ❌ 禁止运行测试后再单独 `> fltest.log` 写入文件（已由重定向一步完成）
-- ✅ 全量输出已在 `fltest.log`，直接从该文件 grep/tail 即可
+- ❌ 禁止用 `tee`（同样截断）
+- ✅ 全量输出已在 `fltest.log`，直接从该文件 `Select-String` / `Get-Content -Tail` 即可
 
 ## 测试规范
 
@@ -218,7 +187,7 @@ test/features/chat/
 ### 测试结构规范
 
 - **可合并的重复测试**：结构相同的 round-trip、error-type、比较器测试用循环或 `for` 参数化，不手动复制 4+ 次。
-- **setup 只写一次**：同一文件内重复的 setUp 逻辑（如 `AppDatabase.inMemory()` + `createXXXPreferences` + `pumpXXXScreen`）必须提取到 `setUp` 或共享 helper。
+- **setup 只写一次**：同一文件内重复的 setUp 逻辑必须提取到 `setUp` 或共享 helper。
 - **避免长线性测试**：Widget 测试中超过 30 行的线性操作测试应拆分；一个测试只验证一个交互场景。
 - **敏感字段全覆盖**：redactor/脱敏类测试必须覆盖所有已知敏感字段键名。
 
@@ -238,14 +207,3 @@ test/features/chat/
 | Windows | Visual Studio 2022（含 **C++ 桌面开发** 工作负载）      |
 | Android | Android SDK；JDK（用于 `keytool` 生成自签名 keystore） |
 | Flutter | ≥ 3.11.5（Dart ≥ 3.x）                         |
-
----
-
-## 数据文件位置
-
-| 平台      | 路径                                 |
-|---------|------------------------------------|
-| Windows | `%APPDATA%\<org>\oh_my_llm\`       |
-| Android | `/data/data/yuzu.shiki.oh_my_llm/` |
-
-SQLite 文件 `chat_history.sqlite` 与 `network.log` 均位于上述目录。
