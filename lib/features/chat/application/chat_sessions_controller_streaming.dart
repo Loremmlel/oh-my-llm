@@ -181,6 +181,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
     required bool reasoningEnabled,
     required ReasoningEffort reasoningEffort,
     String appliedCheckpointTitle = '',
+    bool retryOnAbnormalFinishReason = false,
   }) async {
     final timestamp = DateTime.now();
     final tree = resolveMessageTreeState(conversation);
@@ -287,6 +288,42 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
           incrementHistoryRevision: true,
         );
         saveConversation(cleanedConversation);
+        completeActiveStreaming(null);
+        clearActiveStreamingSession();
+        return;
+      }
+
+      // 异常 finish_reason：如果启用且 finish_reason 不是正常值，走失败路径触发重试。
+      if (retryOnAbnormalFinishReason &&
+          isAbnormalFinishReason(streamingReply.finishReason)) {
+        final abnormalTree = resolveMessageTreeState(streamingConversation);
+        final nextTree = replaceAssistantMessageInTree(
+          treeState: abnormalTree,
+          assistantMessageId: assistantMessage.id,
+          nextContent: applyOutputProcessing(streamingReply.content),
+          nextReasoningContent: streamingReply.reasoningContent,
+          isStreaming: false,
+          finishReason: streamingReply.finishReason,
+        );
+        final abnormalConversation = mergeStreamingResultIntoActive(
+          streamingConversation: streamingConversation,
+          messageNodes: nextTree.nodes,
+          selectedChildByParentId: nextTree.selections,
+        );
+        state = state.copyWith(
+          conversations: replaceConversation(abnormalConversation),
+          conversationSummaries: replaceOrAddSummary(
+            state.conversationSummaries,
+            summaryFromConversation(abnormalConversation),
+          ),
+          isStreaming: false,
+          errorMessage:
+              '模型返回异常停止原因（finish_reason: ${streamingReply.finishReason}），正在自动重试...',
+          errorMessageAssistantId: assistantMessage.id,
+          clearStreamingReply: true,
+          incrementHistoryRevision: true,
+        );
+        saveConversation(abnormalConversation);
         completeActiveStreaming(null);
         clearActiveStreamingSession();
         return;
@@ -522,6 +559,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
     int maxRetryCount = 0,
     int maxJitterMs = 15000,
     RetryMode retryMode = RetryMode.perMinuteWindow,
+    bool retryOnAbnormalFinishReason = false,
   }) async {
     final capturedGeneration = ++requestGeneration;
     autoRetryCancelled = false;
@@ -604,6 +642,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
         reasoningEnabled: reasoningEnabled,
         reasoningEffort: reasoningEffort,
         appliedCheckpointTitle: appliedCheckpointTitle,
+        retryOnAbnormalFinishReason: retryOnAbnormalFinishReason,
       );
 
       if (result != null) {
