@@ -48,5 +48,53 @@ void main() {
       final restored = AutoRetrySettings.fromJson(settings.toJson());
       expect(restored, settings);
     });
+
+    test('copyWith clearRetryOnAbnormalFinishReason 重置为默认值 false', () {
+      const settings = AutoRetrySettings(retryOnAbnormalFinishReason: true);
+      final cleared = settings.copyWith(clearRetryOnAbnormalFinishReason: true);
+      expect(cleared.retryOnAbnormalFinishReason, isFalse);
+    });
+
+    test('fromJson 缺失 retryOnAbnormalFinishReason 使用默认值 false', () {
+      final settings = AutoRetrySettings.fromJson({
+        'maxJitterSeconds': 15,
+        'maxRetryCount': 0,
+        'retryMode': 'perMinuteWindow',
+      });
+      expect(settings.retryOnAbnormalFinishReason, isFalse);
+    });
+
+    test('retryOnAbnormalFinishReason round-trip', () {
+      const settings = AutoRetrySettings(retryOnAbnormalFinishReason: true);
+      final restored = AutoRetrySettings.fromJson(settings.toJson());
+      expect(restored.retryOnAbnormalFinishReason, isTrue);
+      expect(restored, settings);
+    });
+  });
+
+  group('isAbnormalFinishReason', () {
+    test('stop 不算异常', () {
+      expect(isAbnormalFinishReason('stop'), isFalse);
+    });
+
+    test('tool_calls 不算异常', () {
+      expect(isAbnormalFinishReason('tool_calls'), isFalse);
+    });
+
+    test('length 算异常', () {
+      expect(isAbnormalFinishReason('length'), isTrue);
+    });
+
+    test('content_filter 算异常', () {
+      expect(isAbnormalFinishReason('content_filter'), isTrue);
+    });
+
+    test('null 不算异常', () {
+      expect(isAbnormalFinishReason(null), isFalse);
+    });
+
+    test('未知值算异常', () {
+      expect(isAbnormalFinishReason('unknown_reason'), isTrue);
+    });
   });
 }

@@ -15,6 +15,7 @@ class AutoRetrySettings extends Equatable {
     this.maxJitterSeconds = 15,
     this.maxRetryCount = 0,
     this.retryMode = RetryMode.perMinuteWindow,
+    this.retryOnAbnormalFinishReason = false,
   });
 
   /// 随机抖动上限秒数，范围 0-60，默认 15。
@@ -28,13 +29,18 @@ class AutoRetrySettings extends Equatable {
   /// 重试间隔模式，默认 [RetryMode.perMinuteWindow]。
   final RetryMode retryMode;
 
+  /// 当 finish_reason 不是正常值（stop、tool_calls）时是否自动重试。
+  final bool retryOnAbnormalFinishReason;
+
   AutoRetrySettings copyWith({
     int? maxJitterSeconds,
     int? maxRetryCount,
     RetryMode? retryMode,
+    bool? retryOnAbnormalFinishReason,
     bool clearMaxJitterSeconds = false,
     bool clearMaxRetryCount = false,
     bool clearRetryMode = false,
+    bool clearRetryOnAbnormalFinishReason = false,
   }) {
     return AutoRetrySettings(
       maxJitterSeconds: clearMaxJitterSeconds
@@ -46,6 +52,9 @@ class AutoRetrySettings extends Equatable {
       retryMode: clearRetryMode
           ? RetryMode.perMinuteWindow
           : retryMode ?? this.retryMode,
+      retryOnAbnormalFinishReason: clearRetryOnAbnormalFinishReason
+          ? false
+          : retryOnAbnormalFinishReason ?? this.retryOnAbnormalFinishReason,
     );
   }
 
@@ -54,6 +63,7 @@ class AutoRetrySettings extends Equatable {
       'maxJitterSeconds': maxJitterSeconds,
       'maxRetryCount': maxRetryCount,
       'retryMode': retryMode.name,
+      'retryOnAbnormalFinishReason': retryOnAbnormalFinishReason,
     };
   }
 
@@ -72,9 +82,24 @@ class AutoRetrySettings extends Equatable {
       maxJitterSeconds: (json['maxJitterSeconds'] as int?) ?? 15,
       maxRetryCount: (json['maxRetryCount'] as int?) ?? 0,
       retryMode: parsedMode,
+      retryOnAbnormalFinishReason:
+          (json['retryOnAbnormalFinishReason'] as bool?) ?? false,
     );
   }
 
   @override
-  List<Object?> get props => [maxJitterSeconds, maxRetryCount, retryMode];
+  List<Object?> get props =>
+      [maxJitterSeconds, maxRetryCount, retryMode, retryOnAbnormalFinishReason];
+}
+
+/// finish_reason 的正常值：模型正常完成或请求工具调用。
+const normalFinishReasons = {'stop', 'tool_calls'};
+
+/// 判断 [finishReason] 是否为异常值。
+///
+/// `stop` 和 `tool_calls` 为正常值，`null` 视为正常（流未结束时为 null），
+/// 其余所有值（如 `length`、`content_filter`）均视为异常。
+bool isAbnormalFinishReason(String? finishReason) {
+  if (finishReason == null) return false;
+  return !normalFinishReasons.contains(finishReason);
 }
