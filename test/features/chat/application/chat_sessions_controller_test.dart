@@ -1495,7 +1495,7 @@ void main() {
     expect(fakeClient.requestHistory.length, 1);
   });
 
-  test('stop 和 tool_calls 不触发异常 finish_reason 重试', () async {
+  test('stop 不触发异常 finish_reason 重试', () async {
     container
         .read(chatSessionsProvider.notifier)
         .updateActiveConversationPreferences(autoRetryEnabled: true);
@@ -1517,6 +1517,32 @@ void main() {
 
     final state = container.read(chatSessionsProvider);
     expect(state.activeConversation.messages.last.content, '正常回复');
+    expect(fakeClient.requestHistory.length, 1);
+  });
+
+  test('tool_calls 不触发异常 finish_reason 重试', () async {
+    container
+        .read(chatSessionsProvider.notifier)
+        .updateActiveConversationPreferences(autoRetryEnabled: true);
+
+    await container.read(autoRetrySettingsProvider.notifier).save(
+          const AutoRetrySettings(
+            maxJitterSeconds: 0,
+            maxRetryCount: 0,
+            retryOnAbnormalFinishReason: true,
+          ),
+        );
+
+    // tool_calls — 正常完成，不重试
+    fakeClient.enqueueDeltas([
+      const ChatCompletionChunk(
+          contentDelta: '工具调用', finishReason: 'tool_calls'),
+    ]);
+
+    await sendMsg('测试 tool_calls');
+
+    final state = container.read(chatSessionsProvider);
+    expect(state.activeConversation.messages.last.content, '工具调用');
     expect(fakeClient.requestHistory.length, 1);
   });
 
