@@ -98,6 +98,7 @@ class FakeChatCompletionClient extends ChatCompletionClient {
     required LlmModelConfig modelConfig,
     required List<ChatCompletionRequestMessage> messages,
     ReasoningEffort? reasoningEffort,
+    Duration? streamIdleTimeout,
   }) {
     lastModelConfig = modelConfig;
     lastRequestMessages = List.unmodifiable(messages);

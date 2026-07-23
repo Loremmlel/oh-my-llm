@@ -53,6 +53,7 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
     required LlmModelConfig modelConfig,
     required List<ChatCompletionRequestMessage> messages,
     ReasoningEffort? reasoningEffort,
+    Duration? streamIdleTimeout,
   }) async* {
     final requestContext = _buildRequestContext(
       modelConfig: modelConfig,
@@ -66,13 +67,30 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
         .transform(utf8.decoder)
         .transform(const LineSplitter());
 
+    // 超时包装：仅在 data: 行到达时重置计时器，
+    // 避免服务器发送 SSE 注释行（keepalive）导致超时失效。
+    final effectiveLineStream = streamIdleTimeout != null
+        ? _applySseIdleTimeout(
+            lineStream,
+            streamIdleTimeout,
+            onTimeout: (exception) {
+              _fireAndForget(
+                _logger.logError(
+                  uri: requestContext.uri,
+                  error: exception,
+                ),
+              );
+            },
+          )
+        : lineStream;
+
     final dataLines = <String>[];
     final rawSseData = <String>[];
     final inlineReasoningSplitter = InlineReasoningTagSplitter();
     var hadContent = false;
 
     // SSE 事件以空行分隔；这里先收集 data 行，再按事件边界解析。
-    await for (final line in lineStream) {
+    await for (final line in effectiveLineStream) {
       if (line.isEmpty) {
         final chunk = _consumeEventData(dataLines);
         if (chunk == null) {
@@ -343,6 +361,77 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
 
     return response;
   }
+}
+
+/// 对 SSE 行流应用空闲超时，仅在 `data:` 行到达时重置计时器。
+///
+/// 与直接使用 [Stream.timeout] 不同，SSE 注释行（`:` 前缀）和空行
+/// 不会重置计时器，避免服务器发送 keepalive 但不产出实际数据时超时失效。
+Stream<String> _applySseIdleTimeout(
+  Stream<String> lineStream,
+  Duration timeout, {
+  required void Function(ChatCompletionException) onTimeout,
+}) {
+  late StreamController<String> controller;
+  late StreamSubscription<String> subscription;
+  Timer? idleTimer;
+
+  void fireTimeout() {
+    // 保留原始 TimeoutException 作为 cause，供上层诊断链追踪。
+    final cause = TimeoutException(
+      'SSE stream idle timeout after ${timeout.inSeconds}s',
+      timeout,
+    );
+    final exception = ChatCompletionException(
+      '服务器在 ${timeout.inSeconds} 秒内没有响应，连接超时',
+      cause: cause,
+    );
+    onTimeout(exception);
+    controller.addError(exception);
+    subscription.cancel();
+    controller.close();
+  }
+
+  void resetTimer() {
+    idleTimer?.cancel();
+    idleTimer = Timer(timeout, fireTimeout);
+  }
+
+  controller = StreamController<String>(
+    onListen: () {
+      resetTimer();
+      subscription = lineStream.listen(
+        (line) {
+          if (controller.isClosed) return;
+          controller.add(line);
+          // 仅 data: 行代表服务器产出了有效内容，重置超时计时器。
+          if (line.startsWith('data:')) {
+            resetTimer();
+          }
+        },
+        onError: (Object error, StackTrace stackTrace) {
+          if (!controller.isClosed) {
+            controller.addError(error, stackTrace);
+          }
+        },
+        onDone: () {
+          idleTimer?.cancel();
+          if (!controller.isClosed) {
+            controller.close();
+          }
+        },
+        cancelOnError: false,
+      );
+    },
+    onPause: () => subscription.pause(),
+    onResume: () => subscription.resume(),
+    onCancel: () {
+      idleTimer?.cancel();
+      return subscription.cancel();
+    },
+  );
+
+  return controller.stream;
 }
 
 class _OpenAiRequestContext {

@@ -126,6 +126,35 @@ class OtherSettingsTab extends ConsumerWidget {
                       .save(settings.copyWith(retryOnAbnormalFinishReason: value));
                 },
               ),
+              const SizedBox(height: 16),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('超时自动重试'),
+                subtitle: const Text(
+                  '当服务器在指定时间内没有响应时自动断开并重试',
+                ),
+                value: settings.retryOnTimeout,
+                onChanged: (value) {
+                  ref
+                      .read(autoRetrySettingsProvider.notifier)
+                      .save(settings.copyWith(retryOnTimeout: value));
+                },
+              ),
+              if (settings.retryOnTimeout) ...[
+                const SizedBox(height: 16),
+                _AutoRetryNumberField(
+                  key: const ValueKey('auto-retry-timeout-seconds-field'),
+                  label: '超时时间（秒）',
+                  value: settings.timeoutSeconds,
+                  min: 1,
+                  max: 300,
+                  onChanged: (value) {
+                    ref
+                        .read(autoRetrySettingsProvider.notifier)
+                        .save(settings.copyWith(timeoutSeconds: value));
+                  },
+                ),
+              ],
             ],
           ),
         ),

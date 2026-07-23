@@ -16,6 +16,8 @@ class AutoRetrySettings extends Equatable {
     this.maxRetryCount = 0,
     this.retryMode = RetryMode.perMinuteWindow,
     this.retryOnAbnormalFinishReason = false,
+    this.retryOnTimeout = false,
+    this.timeoutSeconds = 30,
   });
 
   /// 随机抖动上限秒数，范围 0-60，默认 15。
@@ -32,15 +34,30 @@ class AutoRetrySettings extends Equatable {
   /// 当 finish_reason 不是正常值（stop、tool_calls）时是否自动重试。
   final bool retryOnAbnormalFinishReason;
 
+  /// 是否启用超时自动重试。
+  ///
+  /// 开启后，若 SSE 流在 [timeoutSeconds] 秒内没有任何新数据，
+  /// 则自动断开连接并重试。仅在自动重试模式下生效。
+  final bool retryOnTimeout;
+
+  /// SSE 流空闲超时秒数，范围 1-300，默认 30。
+  ///
+  /// 仅当 [retryOnTimeout] 为 true 时有意义。
+  final int timeoutSeconds;
+
   AutoRetrySettings copyWith({
     int? maxJitterSeconds,
     int? maxRetryCount,
     RetryMode? retryMode,
     bool? retryOnAbnormalFinishReason,
+    bool? retryOnTimeout,
+    int? timeoutSeconds,
     bool clearMaxJitterSeconds = false,
     bool clearMaxRetryCount = false,
     bool clearRetryMode = false,
     bool clearRetryOnAbnormalFinishReason = false,
+    bool clearRetryOnTimeout = false,
+    bool clearTimeoutSeconds = false,
   }) {
     return AutoRetrySettings(
       maxJitterSeconds: clearMaxJitterSeconds
@@ -55,6 +72,12 @@ class AutoRetrySettings extends Equatable {
       retryOnAbnormalFinishReason: clearRetryOnAbnormalFinishReason
           ? false
           : retryOnAbnormalFinishReason ?? this.retryOnAbnormalFinishReason,
+      retryOnTimeout: clearRetryOnTimeout
+          ? false
+          : retryOnTimeout ?? this.retryOnTimeout,
+      timeoutSeconds: clearTimeoutSeconds
+          ? 30
+          : timeoutSeconds ?? this.timeoutSeconds,
     );
   }
 
@@ -64,6 +87,8 @@ class AutoRetrySettings extends Equatable {
       'maxRetryCount': maxRetryCount,
       'retryMode': retryMode.name,
       'retryOnAbnormalFinishReason': retryOnAbnormalFinishReason,
+      'retryOnTimeout': retryOnTimeout,
+      'timeoutSeconds': timeoutSeconds,
     };
   }
 
@@ -84,12 +109,20 @@ class AutoRetrySettings extends Equatable {
       retryMode: parsedMode,
       retryOnAbnormalFinishReason:
           (json['retryOnAbnormalFinishReason'] as bool?) ?? false,
+      retryOnTimeout: (json['retryOnTimeout'] as bool?) ?? false,
+      timeoutSeconds: ((json['timeoutSeconds'] as int?) ?? 30).clamp(1, 300),
     );
   }
 
   @override
-  List<Object?> get props =>
-      [maxJitterSeconds, maxRetryCount, retryMode, retryOnAbnormalFinishReason];
+  List<Object?> get props => [
+        maxJitterSeconds,
+        maxRetryCount,
+        retryMode,
+        retryOnAbnormalFinishReason,
+        retryOnTimeout,
+        timeoutSeconds,
+      ];
 }
 
 /// finish_reason 的正常值：模型正常完成或请求工具调用。
