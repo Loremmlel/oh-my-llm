@@ -35,10 +35,14 @@ class ChatCompletionException implements Exception {
 /// 聊天补全客户端抽象。
 abstract class ChatCompletionClient {
   /// 以流式方式拉取模型回复增量。
+  ///
+  /// [streamIdleTimeout] 非空时，若 SSE 流在该时长内没有任何新数据，
+  /// 则抛出 [ChatCompletionException] 并关闭流。
   Stream<ChatCompletionChunk> streamCompletion({
     required LlmModelConfig modelConfig,
     required List<ChatCompletionRequestMessage> messages,
     ReasoningEffort? reasoningEffort,
+    Duration? streamIdleTimeout,
   });
 
   /// 以一次性方式获取完整回复。

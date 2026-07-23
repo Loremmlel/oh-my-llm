@@ -182,6 +182,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
     required ReasoningEffort reasoningEffort,
     String appliedCheckpointTitle = '',
     bool retryOnAbnormalFinishReason = false,
+    Duration? streamIdleTimeout,
   }) async {
     final timestamp = DateTime.now();
     final tree = resolveMessageTreeState(conversation);
@@ -469,6 +470,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
           reasoningEffort: reasoningEnabled && modelConfig.supportsReasoning
               ? reasoningEffort
               : null,
+          streamIdleTimeout: streamIdleTimeout,
         )
         .listen(
           (chunk) {
@@ -600,6 +602,8 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
     int maxJitterMs = 15000,
     RetryMode retryMode = RetryMode.perMinuteWindow,
     bool retryOnAbnormalFinishReason = false,
+    bool retryOnTimeout = false,
+    int timeoutSeconds = 30,
   }) async {
     final capturedGeneration = ++requestGeneration;
     autoRetryCancelled = false;
@@ -683,6 +687,9 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
         reasoningEffort: reasoningEffort,
         appliedCheckpointTitle: appliedCheckpointTitle,
         retryOnAbnormalFinishReason: retryOnAbnormalFinishReason,
+        streamIdleTimeout: retryOnTimeout
+            ? Duration(seconds: timeoutSeconds.clamp(1, 300))
+            : null,
       );
 
       if (result != null) {
