@@ -8,7 +8,6 @@
 
 ## 1. 命令
 
-> **所有命令用 PowerShell 语法。** 底层 shell 是 `pwsh`：用 `$LASTEXITCODE` 而非 `$?`，`Get-Content -Tail` 而非 `tail`，`Out-File` 而非 `>`，`Select-String` 而非 `grep`。
 
 ```powershell
 flutter pub get
@@ -56,11 +55,11 @@ flutter test --reporter compact 2>&1 | Out-File -Encoding utf8 fltest.log; $E = 
 
 commit-msg 通过 `$1` 接收 Git 传入的消息文件，对 `git commit -m` 与编辑器提交都可靠。它从 `HEAD:pubspec.yaml` 读当前版本（避免暂存区已改时重复递增），改完 `git add pubspec.yaml` 随本次提交写入。
 
-| 第一行前缀 | 版本策略 |
-|------|------|
-| `type!:` / `type(scope)!:` | major+1，minor/patch 归零 |
-| `feat:` / `feat(scope):` | minor+1，patch 归零 |
-| 其他（fix/docs/refactor/test/chore 等） | patch+1（默认） |
+| 第一行前缀                              | 版本策略                   |
+|------------------------------------|------------------------|
+| `type!:` / `type(scope)!:`         | major+1，minor/patch 归零 |
+| `feat:` / `feat(scope):`           | minor+1，patch 归零       |
+| 其他（fix/docs/refactor/test/chore 等） | patch+1（默认）            |
 
 ### commit message 格式
 
@@ -122,10 +121,10 @@ lib/
 
 ### 持久化分工
 
-| 数据 | 存储 |
-|------|------|
-| 聊天记录、消息树选择、收藏、收藏夹、Prompt 模板、固定顺序提示词、记忆提示词、检查点 | SQLite（`chat_history.sqlite`） |
-| 服务商/模型配置、聊天默认值、最近选择记忆 | SharedPreferences JSON（经 `VersionedJsonStorage` 带版本号编解码） |
+| 数据                                            | 存储                                                       |
+|-----------------------------------------------|----------------------------------------------------------|
+| 聊天记录、消息树选择、收藏、收藏夹、Prompt 模板、固定顺序提示词、记忆提示词、检查点 | SQLite（`chat_history.sqlite`）                            |
+| 服务商/模型配置、聊天默认值、最近选择记忆                         | SharedPreferences JSON（经 `VersionedJsonStorage` 带版本号编解码） |
 
 **SQLite 基础设施**（`core/persistence/`）：
 - `AppDatabase`：`.open()`（生产，`getApplicationSupportDirectory`）/ `.inMemory()`（测试）/ `.forPath()`（跨 Isolate）。构造自动 `_configure()`（PRAGMA）+ `_migrate()`。
@@ -260,8 +259,8 @@ test/features/chat/
 
 ## 8. 环境要求
 
-| 平台 | 必要条件 |
-|------|------|
-| Windows | Visual Studio 2022（含 **C++ 桌面开发** 工作负载） |
+| 平台      | 必要条件                                      |
+|---------|-------------------------------------------|
+| Windows | Visual Studio 2022（含 **C++ 桌面开发** 工作负载）   |
 | Android | Android SDK；JDK（`keytool` 生成自签名 keystore） |
-| Flutter | ≥ 3.11.5（Dart ≥ 3.x） |
+| Flutter | ≥ 3.11.5（Dart ≥ 3.x）                      |
