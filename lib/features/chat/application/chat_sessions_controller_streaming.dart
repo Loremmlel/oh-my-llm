@@ -445,6 +445,20 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
         return;
       }
 
+      // 必须在 await 之前先把 completer 完成为 null（失败）。
+      // 超时/网络错误场景下，SSE 流会先发 onError 再发 onDone（见
+      // _applySseIdleTimeout 的 fireTimeout：addError 后 close）。若不在此先
+      // 标记完成，下方 await handleStreamingFailure 会让出执行权，onDone 的
+      // completeWithSuccess 会趁虚走成功/空回复路径自己 complete completer——
+      // 超时前已收到部分内容时会完成为非 null，导致自动重试循环误判成功而
+      // 终止（红气泡仍显示超时文案却不重试）。
+      // complete 与 clearActiveStreamingSession 必须原子：若 complete 提前而
+      // clear 留到 await 之后，sendMsg 会因 completer 已完成而提前返回，下一轮
+      // streamAssistantReply 设置的 activeStreamingCompleter 会被旧轮延迟执行的
+      // clear 清空，导致新轮回调守卫全部失效、completer 永不完成而挂起。
+      completeActiveStreaming(null);
+      clearActiveStreamingSession();
+
       final errorMessage = formatStreamingError(error, stackTrace);
       await handleStreamingFailure(
         conversation: streamingConversation,
@@ -452,8 +466,6 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
         assistantMessageId: assistantMessage.id,
         errorMessage: errorMessage,
       );
-      completeActiveStreaming(null);
-      clearActiveStreamingSession();
     }
 
     activeStreamingSubscription = chatClient
