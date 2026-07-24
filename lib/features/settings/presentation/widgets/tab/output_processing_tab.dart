@@ -5,6 +5,7 @@ import '../../../../../core/utils/id_generator.dart';
 import '../../../application/output_processing_settings_controller.dart';
 import '../../../domain/models/output_processing_settings.dart';
 import '../settings_helpers.dart';
+import '../settings_empty_state.dart';
 import '../settings_section_card.dart';
 
 /// 输出处理标签页：管理作用于模型回复正文的正则过滤/替换规则。
@@ -32,14 +33,10 @@ class OutputProcessingTab extends ConsumerWidget {
             label: const Text('新增规则'),
           ),
           child: rules.isEmpty
-              ? const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 24),
-                  child: Center(
-                    child: Text(
-                      '暂无正则规则，点击上方按钮添加',
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  ),
+              ? const SettingsEmptyState(
+                  icon: Icons.rule_folder_rounded,
+                  title: '还没有正则规则',
+                  description: '点击右上角的「新增规则」按钮开始添加。',
                 )
               : Column(
                   children: [

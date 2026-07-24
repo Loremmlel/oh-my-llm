@@ -57,7 +57,7 @@ void main() {
 
     testWidgets('空规则时显示占位文本', (tester) async {
       await pumpTab(tester);
-      expect(find.text('暂无正则规则，点击上方按钮添加'), findsOneWidget);
+      expect(find.text('还没有正则规则'), findsOneWidget);
     });
 
     testWidgets('已有规则时显示规则卡片', (tester) async {
