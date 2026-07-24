@@ -21,6 +21,7 @@ class ChatComposerCard extends StatelessWidget {
     required this.callbacks,
     required this.messageController,
     required this.messageFocusNode,
+    this.isCompact = false,
     super.key,
   });
 
@@ -28,42 +29,70 @@ class ChatComposerCard extends StatelessWidget {
   final ComposerCallbacks callbacks;
   final TextEditingController messageController;
   final FocusNode messageFocusNode;
+  /// 移动端紧凑布局：缩小输入区卡片内边距。
+  final bool isCompact;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    if (data.isComposerCollapsed) {
-      return Card(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          child: Row(
-            children: [
-              const Icon(Icons.keyboard_arrow_up_rounded),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text('输入区已隐藏', style: theme.textTheme.bodyMedium),
-              ),
-              Tooltip(
-                message: '展开输入区',
-                child: OutlinedButton.icon(
-                  onPressed: callbacks.onToggleComposerCollapsed,
-                  icon: const Icon(Icons.keyboard_arrow_down_rounded),
-                  label: const Text('展开'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
+    // 用 AnimatedCrossFade 同步驱动高度过渡与内容淡入淡出，避免
+    // AnimatedSize+AnimatedSwitcher 组合时 fade 期间旧 child 仍占满高度、
+    // 高度动画延迟到 fade 结束才触发的「dead zone」中间态。
+    return AnimatedCrossFade(
+      duration: const Duration(milliseconds: 220),
+      firstChild: _buildCollapsed(theme),
+      secondChild: _buildExpanded(theme),
+      crossFadeState: data.isComposerCollapsed
+          ? CrossFadeState.showFirst
+          : CrossFadeState.showSecond,
+      firstCurve: Curves.easeOut,
+      secondCurve: Curves.easeIn,
+      sizeCurve: Curves.easeInOutCubic,
+      alignment: Alignment.topCenter,
+    );
+  }
 
+  /// 折叠态：仅显示一行提示与展开按钮。
+  Widget _buildCollapsed(ThemeData theme) {
+    return Card(
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: isCompact ? 10 : 14,
+          vertical: isCompact ? 8 : 10,
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.keyboard_arrow_up_rounded),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text('输入区已隐藏', style: theme.textTheme.bodyMedium),
+            ),
+            Tooltip(
+              message: '展开输入区',
+              child: OutlinedButton.icon(
+                onPressed: callbacks.onToggleComposerCollapsed,
+                icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                label: const Text('展开'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 展开态：完整的模板/输入框/操作行。
+  Widget _buildExpanded(ThemeData theme) {
     return Card(
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final isCompact = constraints.maxWidth < compactComposerBreakpoint;
+          // isCompactComposer 是输入区自身的 680 断点，决定操作行紧凑/桌面布局；
+          // 与外层 [isCompact]（移动端 720 断点，影响 padding）含义不同，不可混用。
+          final isCompactComposer =
+              constraints.maxWidth < compactComposerBreakpoint;
 
           return Padding(
-            padding: const EdgeInsets.all(12),
+            padding: EdgeInsets.all(isCompact ? 8 : 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -155,7 +184,7 @@ class ChatComposerCard extends StatelessWidget {
                   onModelSelected: callbacks.onModelSelected,
                 ),
                 const SizedBox(height: 6),
-                if (isCompact)
+                if (isCompactComposer)
                   ComposerCompactActionRow(
                     hasModels: data.hasModels,
                     isBusy: data.isBusy,
