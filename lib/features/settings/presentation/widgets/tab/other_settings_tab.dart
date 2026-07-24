@@ -7,6 +7,13 @@ import '../../../application/font_size_settings_controller.dart';
 import '../../../domain/models/auto_retry_settings.dart';
 import '../settings_section_card.dart';
 
+/// 自动重试卡片内 Switch 项的统一形状：hover 高亮带圆角。
+/// contentPadding 保持 EdgeInsets.zero，让 title 与上方
+/// SegmentedButton / 数字输入框的左基线对齐。
+const _switchTileShape = RoundedRectangleBorder(
+  borderRadius: BorderRadius.all(Radius.circular(12)),
+);
+
 /// 其它设置标签页，包含自动重试等杂项配置。
 class OtherSettingsTab extends ConsumerWidget {
   const OtherSettingsTab({super.key});
@@ -115,6 +122,7 @@ class OtherSettingsTab extends ConsumerWidget {
               const SizedBox(height: 16),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
+                shape: _switchTileShape,
                 title: const Text('异常 finish_reason 重试'),
                 subtitle: const Text(
                   '当模型返回的 finish_reason 不是 stop 或 tool_calls 时自动重试',
@@ -129,6 +137,7 @@ class OtherSettingsTab extends ConsumerWidget {
               const SizedBox(height: 16),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
+                shape: _switchTileShape,
                 title: const Text('超时自动重试'),
                 subtitle: const Text(
                   '当服务器在指定时间内没有响应时自动断开并重试',
