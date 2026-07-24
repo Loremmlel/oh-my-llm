@@ -1,0 +1,109 @@
+#!/bin/sh
+# post-commit: 按 commit message 语义自动 bump pubspec 版本号，
+# 并用 git commit --amend --no-edit 把版本号并回本次提交（同批次写入）。
+#
+# 为什么用 post-commit 而非 commit-msg：
+#   只有 pre-commit 的 git add 能进入本次提交 tree，但 pre-commit 运行时
+#   拿不到 commit message；commit-msg / prepare-commit-msg 能拿到 message，
+#   但它们的 git add 不进本次 tree（Git 主进程用内存 index 快照、不重读
+#   磁盘，改动会滞后到下一个 commit）。post-commit 在提交完成后读本次
+#   message 并 amend 把版本号并回，兼顾「按 message 语义」与「同批次」。
+#
+# 安装：git config core.hooksPath .githooks
+# 版本策略（Conventional Commits 第一行前缀）：
+#   type!/type(scope)!:  MAJOR+1，MINOR/PATCH 归零
+#   feat/feat(scope):    MINOR+1，PATCH 归零
+#   其他:                 PATCH+1（默认）
+#
+# 边界：
+#   - 防递归：amend 会再触发 post-commit，用 OMLL_BUMPING 切断。
+#   - 逃生舱：OMLL_SKIP_BUMP=1 git commit ... 跳过本次自动 bump。
+#   - cherry-pick / rebase / merge 场景跳过，避免重放时逐个 bump+amend 跳号。
+#   - 幂等：对比第一 parent 版本判断「已为本次 message bump 过」则跳过，
+#     手动 git commit --amend（不改 message）不会重复 bump。
+#   - amend 失败时告警，避免版本号已改工作区却没并入提交还误报成功。
+
+PUBSPEC="pubspec.yaml"
+
+# ── 1. 防递归 / 逃生舱 ───────────────────────────────────────────
+[ -n "$OMLL_BUMPING" ] && exit 0
+[ -n "$OMLL_SKIP_BUMP" ] && exit 0
+
+# ── 2. 重放/复制场景跳过（cherry-pick / rebase / merge）──────────
+# 这些操作会重放或复制 commit 并触发 post-commit，逐个 bump+amend 会导致
+# 版本号跳号并干扰重放流程；merge 则避免破坏 merge 结构。检测到即跳过。
+GD=$(git rev-parse --git-dir)
+if git rev-parse --verify -q CHERRY_PICK_HEAD >/dev/null 2>&1; then
+  exit 0
+fi
+if [ -d "$GD/rebase-merge" ] || [ -d "$GD/rebase-apply" ]; then
+  exit 0
+fi
+# merge commit（HEAD 多 parent）：git rev-list --parents -n 1 HEAD 输出 <HEAD> <p1> [p2]...，word 数 = 1 + parent 数
+PARENT_COUNT=$(git rev-list --parents -n 1 HEAD 2>/dev/null | wc -w)
+if [ "$PARENT_COUNT" -gt 2 ]; then
+  exit 0
+fi
+
+# ── 3. 本次 commit message 第一行 ────────────────────────────────
+COMMIT_MSG=$(git log -1 --format=%s)
+
+# ── 4. 版本号解析 + bump 计算 ────────────────────────────────────
+# compute_bumped <当前版本> <message> -> bump 后完整版本号
+compute_bumped() {
+  _v="$1"; _msg="$2"
+  _semver=$(echo "$_v" | cut -d'+' -f1)
+  _build=$(echo "$_v" | cut -d'+' -f2)
+  _major=$(echo "$_semver" | cut -d'.' -f1)
+  _minor=$(echo "$_semver" | cut -d'.' -f2)
+  _patch=$(echo "$_semver" | cut -d'.' -f3)
+  _bt="patch"
+  if echo "$_msg" | grep -qE '^[a-zA-Z]+(\([^)]*\))?!:'; then
+    _bt="major"
+  elif echo "$_msg" | grep -qE '^feat(\([^)]*\))?:'; then
+    _bt="minor"
+  fi
+  case "$_bt" in
+    major) _major=$((_major + 1)); _minor=0; _patch=0 ;;
+    minor) _minor=$((_minor + 1)); _patch=0 ;;
+    *)     _patch=$((_patch + 1)) ;;
+  esac
+  echo "${_major}.${_minor}.${_patch}+${_build}"
+}
+
+read_version_from_ref() {
+  git show "$1:$PUBSPEC" 2>/dev/null | grep '^version:' | head -1 | sed 's/^version:[[:space:]]*//'
+}
+
+CURRENT_VERSION=$(read_version_from_ref HEAD)
+[ -z "$CURRENT_VERSION" ] && CURRENT_VERSION=$(grep '^version:' "$PUBSPEC" | head -1 | sed 's/^version:[[:space:]]*//')
+
+# ── 5. 幂等：对比第一 parent，判断是否已为本次 message bump 过 ─────
+PARENT_HASH=$(git rev-parse --verify HEAD^1 2>/dev/null || true)
+if [ -n "$PARENT_HASH" ]; then
+  PARENT_VERSION=$(read_version_from_ref "$PARENT_HASH")
+  if [ -n "$PARENT_VERSION" ]; then
+    EXPECTED_VERSION=$(compute_bumped "$PARENT_VERSION" "$COMMIT_MSG")
+    if [ "$CURRENT_VERSION" = "$EXPECTED_VERSION" ]; then
+      exit 0
+    fi
+  fi
+fi
+
+# ── 6. 执行 bump 并 amend 并回本次提交 ────────────────────────────
+NEW_VERSION=$(compute_bumped "$CURRENT_VERSION" "$COMMIT_MSG")
+[ "$CURRENT_VERSION" = "$NEW_VERSION" ] && exit 0
+
+# 兼容 GNU sed 与 macOS BSD sed
+sed -i.bak "s/^version: .*/version: ${NEW_VERSION}/" "$PUBSPEC"
+rm -f "${PUBSPEC}.bak"
+git add "$PUBSPEC"
+
+# --no-verify 跳过 pre-commit/commit-msg（版本逻辑已在本 hook 完成），
+# OMLL_BUMPING 切断 amend 递归触发的 post-commit。检查退出码，避免版本号
+# 已写入工作区却没并入提交、还误报成功。
+if OMLL_BUMPING=1 git commit --amend --no-edit --no-verify >/dev/null 2>&1; then
+  echo "[post-commit] Version bumped: ${CURRENT_VERSION} -> ${NEW_VERSION} | ${COMMIT_MSG}"
+else
+  echo "[post-commit] amend 失败：版本号 ${NEW_VERSION} 已写入 pubspec.yaml 但未并入提交，请手动检查" >&2
+fi
