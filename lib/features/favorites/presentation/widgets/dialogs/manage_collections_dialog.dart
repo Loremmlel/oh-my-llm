@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../../core/widgets/app_confirm_dialog.dart';
+import '../../../../../core/widgets/app_empty_state.dart';
 import '../../../application/collections_controller.dart';
 import '../../../domain/models/collection.dart';
 
@@ -42,15 +43,11 @@ class _ManageCollectionsDialogState
       content: SizedBox(
         width: double.maxFinite,
         child: collections.isEmpty
-            ? Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                child: Text(
-                  '暂无收藏夹。收藏回复时可创建。',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
+            ? const AppEmptyState(
+                icon: Icons.folder_open_rounded,
+                title: '暂无收藏夹',
+                description: '收藏回复时可以在弹窗中创建新收藏夹。',
+                iconSize: 32,
               )
             : ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: 360),

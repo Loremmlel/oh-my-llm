@@ -11,7 +11,7 @@ void registerManageCollectionsDialogTests() {
     await tester.pumpAndSettle();
 
     expect(find.text('管理收藏夹'), findsOneWidget);
-    expect(find.text('暂无收藏夹。收藏回复时可创建。'), findsOneWidget);
+    expect(find.text('暂无收藏夹'), findsOneWidget);
   });
 
   testWidgets('manage collections dialog renames collection', (tester) async {
@@ -50,7 +50,7 @@ void registerManageCollectionsDialogTests() {
     await tester.pumpAndSettle();
 
     expect(find.text('要删除的收藏夹'), findsNothing);
-    expect(find.text('暂无收藏夹。收藏回复时可创建。'), findsOneWidget);
+    expect(find.text('暂无收藏夹'), findsOneWidget);
   });
 
   testWidgets('manage collections dialog cancel delete keeps collection', (

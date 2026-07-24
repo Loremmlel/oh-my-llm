@@ -258,7 +258,7 @@ class _ConversationCheckpointsDialogState
               if (conversation.checkpoints.isEmpty)
                 const Padding(
                   padding: EdgeInsets.only(top: 8),
-                  child: Text('当前对话还没有检查点。'),
+                  child: Center(child: Text('当前对话还没有检查点。')),
                 )
               else
                 for (final checkpoint in conversation.checkpoints.reversed)

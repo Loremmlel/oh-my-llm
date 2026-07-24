@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../application/custom_headers_controller.dart';
 import '../../../domain/models/custom_headers_config.dart';
 import '../settings_helpers.dart';
+import '../settings_empty_state.dart';
 import '../settings_section_card.dart';
 import 'header_form_dialog.dart';
 
@@ -33,14 +34,10 @@ class NetworkSettingsTab extends ConsumerWidget {
             label: const Text('新增请求头'),
           ),
           child: config.headers.isEmpty
-              ? const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 24),
-                  child: Center(
-                    child: Text(
-                      '暂无自定义请求头，点击上方按钮添加',
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  ),
+              ? const SettingsEmptyState(
+                  icon: Icons.dns_outlined,
+                  title: '还没有自定义请求头',
+                  description: '点击右上角的「新增请求头」按钮开始添加。',
                 )
               : Column(
                   children: [
