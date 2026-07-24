@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/core/persistence/app_database.dart';
@@ -132,6 +134,28 @@ void main() {
             reasoningEffort: ReasoningEffort.medium,
             retryDelay: retryDelay,
           );
+
+  /// 用真实 [OpenAiCompatibleChatClient] 构造一条会触发 SSE idle 超时的流，
+  /// 保留 async* 生成器对 error/done 事件的真实调度时序。
+  ///
+  /// mock HTTP 返回的 SSE 流先发一条 data 行（部分内容）后永不结束，配合短
+  /// [idleTimeout] 触发 `_applySseIdleTimeout` 的 fireTimeout：在同一同步栈内对
+  /// async StreamController 连续 addError + close。error 与 done 经 streamCompletion
+  /// 的 async* 生成器投递，时序与生产环境一致。手工构造的 StreamController 或
+  /// `Stream.error` 复现不出此 bug：事件不经 async* 生成器调度。
+  Stream<ChatCompletionChunk> realIdleTimeoutStream({
+    Duration idleTimeout = const Duration(milliseconds: 50),
+  }) {
+    final httpClient = _IdleTimeoutHttpClient();
+    final client = OpenAiCompatibleChatClient(httpClient: httpClient);
+    return client.streamCompletion(
+      modelConfig: _testModel,
+      messages: const [
+        ChatCompletionRequestMessage(role: ChatMessageRole.user, content: 'hi'),
+      ],
+      streamIdleTimeout: idleTimeout,
+    );
+  }
 
   // ── 初始化 ─────────────────────────────────────────────────────────────────
 
@@ -1050,6 +1074,27 @@ void main() {
     expect(state.errorMessage, isNull);
     expect(state.autoRetryCount, 0);
     expect(fakeClient.requestHistory.length, 3);
+  });
+
+  test('超时前已收到部分内容仍触发自动重试', () async {
+    container
+        .read(chatSessionsProvider.notifier)
+        .updateActiveConversationPreferences(autoRetryEnabled: true);
+    // 用真实 OpenAiCompatibleChatClient 复现 SSE idle 超时的 async* 时序：
+    // 先收到部分内容，再经 fireTimeout 同步 addError + close。修复前
+    // completeWithSuccess（onDone）会在 completeWithError（onError）的 await
+    // 间隙执行，走成功路径把 completer 完成为非 null，导致自动重试循环误判
+    // 成功而终止（红气泡仍显示超时文案却不重试）。
+    fakeClient.enqueueStream(realIdleTimeoutStream());
+    fakeClient.enqueueChunks(['重试成功']);
+
+    await sendMsg('测试超时重试', retryDelay: Duration.zero);
+
+    final state = container.read(chatSessionsProvider);
+    expect(state.activeConversation.messages.last.content, '重试成功');
+    expect(fakeClient.requestHistory.length, 2);
+    expect(state.errorMessage, isNull);
+    expect(state.isStreaming, isFalse);
   });
 
   test('stopStreaming 在 auto-retry 等待期间取消重试', () async {
@@ -2011,4 +2056,21 @@ class SocketExceptionStub implements Exception {
   final String message;
   @override
   String toString() => message;
+}
+
+/// 返回一条先发一条 data 行后永不结束的 SSE 流，用于触发 idle 超时。
+///
+/// 配合 [OpenAiCompatibleChatClient] 的短 `streamIdleTimeout`，模拟服务器
+/// 发送部分内容后长时间无响应的场景，迫使 `_applySseIdleTimeout` 触发
+/// fireTimeout（在同一同步栈内连续 addError + close）。
+class _IdleTimeoutHttpClient extends http.BaseClient {
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    final sseController = StreamController<List<int>>();
+    sseController.add(
+      utf8.encode('data: {"choices":[{"delta":{"content":"部分内容"}}]}\n\n'),
+    );
+    // 故意不 close：永不结束，迫使 idle 超时触发 fireTimeout。
+    return http.StreamedResponse(sseController.stream, 200);
+  }
 }
