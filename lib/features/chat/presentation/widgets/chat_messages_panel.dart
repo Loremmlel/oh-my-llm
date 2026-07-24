@@ -33,6 +33,7 @@ class ChatMessagesPanel extends StatefulWidget {
     required this.errorModelDisplayName,
     required this.showScrollToBottomListenable,
     this.autoRetryCount = 0,
+    this.isCompact = false,
     required this.onEditMessage,
     required this.onRetryLatestAssistant,
     required this.onDeleteMessage,
@@ -59,6 +60,8 @@ class ChatMessagesPanel extends StatefulWidget {
   final String errorModelDisplayName;
   final ValueListenable<bool> showScrollToBottomListenable;
   final int autoRetryCount;
+  /// 移动端紧凑布局：缩小消息列表四周内边距。
+  final bool isCompact;
   final ValueChanged<ChatMessage> onEditMessage;
   final Future<void> Function() onRetryLatestAssistant;
   final ValueChanged<ChatMessage> onDeleteMessage;
@@ -106,7 +109,8 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        const anchorRightPadding = 14.0;
+        // 移动端紧凑布局下整体缩小内边距，让消息气泡更宽。
+        final listPadding = widget.isCompact ? 10.0 : 14.0;
 
         return Card(
           clipBehavior: Clip.antiAlias,
@@ -118,7 +122,7 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
                 ScrollablePositionedList.separated(
                   itemScrollController: widget.messageItemScrollController,
                   itemPositionsListener: widget.messageItemPositionsListener,
-                  padding: EdgeInsets.fromLTRB(14, 14, anchorRightPadding, 14),
+                  padding: EdgeInsets.all(listPadding),
                   itemCount: displayMessages.length,
                   separatorBuilder: (context, index) {
                     return const SizedBox(height: 12);

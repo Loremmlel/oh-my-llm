@@ -20,6 +20,7 @@ import '../application/chat_message_tree.dart';
 import '../application/chat_sessions_controller.dart';
 import '../application/chat_template_prompt_selection_controller.dart';
 import '../application/chat_sidebar_controller.dart';
+import '../application/composer_collapsed_controller.dart';
 import '../application/composer_draft_controller.dart';
 import '../application/templated_user_message_builder.dart';
 import '../domain/chat_conversation_groups.dart';
@@ -77,7 +78,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   String? _selectedFixedPromptSequenceId;
   String? _selectedPresetPromptId;
   int _selectedFixedPromptStepIndex = 0;
-  bool _isComposerCollapsed = false;
   bool _presetPromptNeedsInit = true;
 
   /// 当前正文草稿归属的会话 ID，草稿按会话隔离持久化。
@@ -419,9 +419,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         // 内层宽度缩水 69px 而产生判断偏差。
         final showSidePanels =
             MediaQuery.of(context).size.width >= AppBreakpoints.compact;
+        // 移动端（紧凑布局）缩小四周 Padding，给消息区与输入区让出更多宽度。
+        final isCompact = !showSidePanels;
 
         return Padding(
-          padding: const EdgeInsets.all(12),
+          padding: EdgeInsets.all(isCompact ? 6 : 12),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -462,6 +464,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   fixedPromptSequences: fixedPromptSequences,
                   favoritedContents: favoritedContents,
                   isBusy: isBusy,
+                  isCompact: isCompact,
                 ),
               ),
             ],
@@ -498,7 +501,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     required List<FixedPromptSequence> fixedPromptSequences,
     required Set<String> favoritedContents,
     required bool isBusy,
+    required bool isCompact,
   }) {
+    // 在 _buildWorkspace 内订阅折叠状态：它处于 build 调用链中，
+    // provider 变化会触发 ChatScreen rebuild 从而重新读到最新值。
+    final isComposerCollapsed = ref.watch(composerCollapsedProvider);
     return ChatWorkspace(
       conversation: conversation,
       messages: activeMessages,
@@ -516,7 +523,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       templateVariableControllers: _templateVariableControllers,
       messageItemScrollController: _scroll.itemScrollController,
       messageItemPositionsListener: _scroll.itemPositionsListener,
-      isComposerCollapsed: _isComposerCollapsed,
+      isComposerCollapsed: isComposerCollapsed,
+      isCompact: isCompact,
       reasoningEnabled: supportsReasoning && conversation.reasoningEnabled,
       reasoningEffort: conversation.reasoningEffort,
       supportsReasoning: supportsReasoning,
@@ -842,10 +850,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   void _toggleComposerCollapsed() {
-    if (_editingMessageId != null && !_isComposerCollapsed) return;
-    setState(() {
-      _isComposerCollapsed = !_isComposerCollapsed;
-    });
+    // 编辑中且当前展开时禁止折叠，避免输入区被收起后看不到编辑内容。
+    if (_editingMessageId != null &&
+        !ref.read(composerCollapsedProvider)) {
+      return;
+    }
+    ref.read(composerCollapsedProvider.notifier).toggle();
   }
 
   void _handleModelSelected(String modelId) {
@@ -925,7 +935,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         bodyText: currentBody,
         templatePromptId: currentTemplateId,
         templateVariableValues: currentVariableValues,
-        isComposerCollapsed: _isComposerCollapsed,
+        isComposerCollapsed: ref.read(composerCollapsedProvider),
       );
       _editingMessageId = message.id;
     });
@@ -1012,9 +1022,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       snapshot.bodyText,
     );
 
-    if (_isComposerCollapsed != snapshot.isComposerCollapsed) {
-      _toggleComposerCollapsed();
-    }
+    // 直接恢复到快照值，语义清晰且不绕过编辑保护逻辑。
+    ref
+        .read(composerCollapsedProvider.notifier)
+        .setCollapsed(snapshot.isComposerCollapsed);
   }
 
   // ── Dialogs & Actions ──────────────────────────────────────────────────────
