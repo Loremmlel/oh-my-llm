@@ -8,10 +8,12 @@ import 'package:oh_my_llm/core/logging/sse_log_buffer.dart';
 void main() {
   late AppLogStore store;
   late String tempDir;
+  late String logFilePath;
 
   setUp(() async {
     tempDir =
         '${Directory.systemTemp.path}${Platform.pathSeparator}sse_buffer_test_${DateTime.now().millisecondsSinceEpoch}';
+    logFilePath = '$tempDir${Platform.pathSeparator}network.log';
     store = await AppLogStore.open(
       directoryPath: tempDir,
       maxBytes: 1024 * 1024,
@@ -33,9 +35,7 @@ void main() {
       buffer.enqueue('line-2');
       await buffer.flush();
 
-      final content = await File(
-        '${tempDir}${Platform.pathSeparator}network.log',
-      ).readAsString();
+      final content = await File(logFilePath).readAsString();
       expect(content, contains('line-1'));
       expect(content, contains('line-2'));
     });
@@ -49,9 +49,7 @@ void main() {
       buffer.enqueue('line-4'); // 溢出，line-1 被丢弃
       await buffer.drain();
 
-      final content = await File(
-        '${tempDir}${Platform.pathSeparator}network.log',
-      ).readAsString();
+      final content = await File(logFilePath).readAsString();
       expect(content, contains('line-2'));
       expect(content, contains('line-3'));
       expect(content, contains('line-4'));
@@ -67,9 +65,7 @@ void main() {
       buffer.enqueue('line-4'); // 丢弃 line-2
       await buffer.drain();
 
-      final content = await File(
-        '${tempDir}${Platform.pathSeparator}network.log',
-      ).readAsString();
+      final content = await File(logFilePath).readAsString();
       expect(content, contains('[sse-dropped] 2 lines dropped'));
     });
 
@@ -83,9 +79,7 @@ void main() {
       // drain 后入队应被忽略
       buffer.enqueue('line-C');
 
-      final content = await File(
-        '${tempDir}${Platform.pathSeparator}network.log',
-      ).readAsString();
+      final content = await File(logFilePath).readAsString();
       expect(content, contains('line-A'));
       expect(content, contains('line-B'));
       expect(content, isNot(contains('line-C')));
@@ -101,9 +95,7 @@ void main() {
       // 给异步 flush 一点时间
       await Future<void>.delayed(const Duration(milliseconds: 50));
 
-      final content = await File(
-        '${tempDir}${Platform.pathSeparator}network.log',
-      ).readAsString();
+      final content = await File(logFilePath).readAsString();
       expect(content, contains('line-1'));
       expect(content, contains('line-3'));
 
@@ -116,7 +108,7 @@ void main() {
       // 空 buffer flush
       await buffer.flush();
 
-      final file = File('${tempDir}${Platform.pathSeparator}network.log');
+      final file = File(logFilePath);
       // 文件可能不存在或为空
       if (await file.exists()) {
         final content = await file.readAsString();
