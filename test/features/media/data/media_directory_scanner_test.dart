@@ -30,7 +30,13 @@ void main() {
     test('正常路径解析返回绝对路径', () {
       scanner = createScanner();
       final resolved = scanner.resolvePath('/');
-      expect(resolved.toLowerCase(), tempRoot.absolute.path.toLowerCase());
+      // 用 resolveSymbolicLinksSync 归一化真实路径：本机 %TEMP% 可能是 8.3 短名
+      // (如 hinana~1)，而 resolvePath 内部走 resolveSymbolicLinksSync 返回长名，
+      // 直接比 absolute.path 会在短名/长名不一致时误判（Win11 默认禁用 8.3 短名生成）。
+      expect(
+        resolved.toLowerCase(),
+        tempRoot.resolveSymbolicLinksSync().toLowerCase(),
+      );
     });
 
     test('子目录路径解析正确', () {
@@ -38,7 +44,7 @@ void main() {
       final resolved = scanner.resolvePath('/subdir');
       expect(
         resolved.toLowerCase(),
-        subDir.absolute.path.toLowerCase(),
+        subDir.resolveSymbolicLinksSync().toLowerCase(),
       );
     });
 
@@ -54,7 +60,7 @@ void main() {
       final resolved = scanner.resolvePath('/妹妹');
       expect(
         resolved.toLowerCase(),
-        chineseDir.absolute.path.toLowerCase(),
+        chineseDir.resolveSymbolicLinksSync().toLowerCase(),
       );
     });
 
