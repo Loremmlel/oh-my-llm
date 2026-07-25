@@ -9,8 +9,7 @@ String deriveModelsUrl(String chatCompletionsUrl) {
   }
 
   final uri = Uri.parse(chatCompletionsUrl);
-  if (!uri.hasScheme ||
-      (uri.scheme != 'http' && uri.scheme != 'https')) {
+  if (!uri.hasScheme || (uri.scheme != 'http' && uri.scheme != 'https')) {
     throw FormatException('URL 协议不支持（需要 http/https）：$chatCompletionsUrl');
   }
 
@@ -26,11 +25,16 @@ String deriveModelsUrl(String chatCompletionsUrl) {
   }
 
   if (path.endsWith(chatCompletionsSuffix)) {
-    final basePath = path.substring(0, path.length - chatCompletionsSuffix.length);
+    final basePath = path.substring(
+      0,
+      path.length - chatCompletionsSuffix.length,
+    );
     return uri.replace(path: '$basePath/models').toString();
   }
 
   // 兜底：路径不以 /chat/completions 结尾，追加 /models
-  final normalizedPath = path.endsWith('/') ? path.substring(0, path.length - 1) : path;
+  final normalizedPath = path.endsWith('/')
+      ? path.substring(0, path.length - 1)
+      : path;
   return uri.replace(path: '$normalizedPath/models').toString();
 }

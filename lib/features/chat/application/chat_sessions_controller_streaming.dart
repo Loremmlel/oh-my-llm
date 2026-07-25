@@ -86,7 +86,8 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
 
     // 未收到任何模型内容时，保留空占位节点并标记空回复，便于用户重试；
     // 收到部分内容则保留已生成内容。
-    final isEmpty = streamingReply == null ||
+    final isEmpty =
+        streamingReply == null ||
         (streamingReply.content.trim().isEmpty &&
             streamingReply.reasoningContent.trim().isEmpty);
     final shouldMarkEmptyReply = isEmpty && assistantMessageId != null;
@@ -104,9 +105,10 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
       incrementHistoryRevision: true,
       // 未收到内容时标记空回复 + 终止错误，让气泡显示提示卡片与重试入口。
       emptyReplyAssistantId: shouldMarkEmptyReply ? assistantMessageId : null,
-      errorMessage: shouldMarkEmptyReply ? ChatErrorMessages.stoppedByUser : null,
-      errorMessageAssistantId:
-          shouldMarkEmptyReply ? assistantMessageId : null,
+      errorMessage: shouldMarkEmptyReply
+          ? ChatErrorMessages.stoppedByUser
+          : null,
+      errorMessageAssistantId: shouldMarkEmptyReply ? assistantMessageId : null,
       // 收到部分内容时清空错误/空回复标记。
       clearErrorMessage: !shouldMarkEmptyReply,
       clearEmptyReply: !shouldMarkEmptyReply,
@@ -129,7 +131,8 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
     required String errorMessage,
   }) async {
     final tree = resolveMessageTreeState(conversation);
-    final isEmpty = streamingReply.content.trim().isEmpty &&
+    final isEmpty =
+        streamingReply.content.trim().isEmpty &&
         streamingReply.reasoningContent.trim().isEmpty;
     final nextTree = isEmpty
         ? replaceAssistantMessageInTree(
@@ -677,8 +680,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
       );
       saveConversation(pendingConversation);
 
-      if (maxRetryCount > 0 &&
-          state.autoRetryCount > maxRetryCount) {
+      if (maxRetryCount > 0 && state.autoRetryCount > maxRetryCount) {
         state = state.copyWith(
           clearAutoRetryCount: true,
           errorMessage: '自动重试已达上限（$maxRetryCount 次），请检查网络或调整重试设置',
@@ -784,7 +786,9 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
     }
     final responseBody = error.responseBody?.trim();
     if (responseBody != null && responseBody.isNotEmpty) {
-      buffer.write('\n\n响应体：\n```text\n${_truncateForError(responseBody)}\n```');
+      buffer.write(
+        '\n\n响应体：\n```text\n${_truncateForError(responseBody)}\n```',
+      );
     }
     final cause = error.cause;
     if (cause != null) {

@@ -18,7 +18,8 @@ final notificationBubblesProvider =
 /// 通知气泡状态管理器。
 ///
 /// 负责通知的增删、最多 3 条堆叠限制、自动消失计时。
-class NotificationBubbleNotifier extends Notifier<List<NotificationBubbleData>> {
+class NotificationBubbleNotifier
+    extends Notifier<List<NotificationBubbleData>> {
   /// 各通知的自动消失计时器，按 ID 索引。
   final Map<String, Timer> _timers = {};
 

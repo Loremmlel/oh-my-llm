@@ -22,7 +22,8 @@ class NetworkSettingsTab extends ConsumerWidget {
       children: [
         SettingsSectionCard(
           title: '请求头定义',
-          description: '自定义 HTTP 请求头，会附加到所有发出的请求中。'
+          description:
+              '自定义 HTTP 请求头，会附加到所有发出的请求中。'
               '同名请求头会覆盖应用的默认值。'
               '注意：Host 请求头可能被系统底层覆盖，不一定生效。',
           action: FilledButton.icon(

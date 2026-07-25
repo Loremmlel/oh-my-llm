@@ -64,10 +64,7 @@ void main() {
         final badData = List<int>.generate(256, (i) => i % 256);
         await imgFile.writeAsBytes(badData);
 
-        expect(
-          () => generator.generate('/bad.png'),
-          throwsA(isA<Exception>()),
-        );
+        expect(() => generator.generate('/bad.png'), throwsA(isA<Exception>()));
       });
 
       test('不支持的文件类型抛出异常', () async {

@@ -41,9 +41,12 @@ class MediaBrowserState {
       currentPath: currentPath ?? this.currentPath,
       pathHistory: pathHistory ?? this.pathHistory,
       isLoading: isLoading ?? this.isLoading,
-      errorMessage:
-          identical(errorMessage, _sentinel) ? this.errorMessage : errorMessage as String?,
-      server: identical(server, _sentinel) ? this.server : server as MediaServerInfo?,
+      errorMessage: identical(errorMessage, _sentinel)
+          ? this.errorMessage
+          : errorMessage as String?,
+      server: identical(server, _sentinel)
+          ? this.server
+          : server as MediaServerInfo?,
     );
   }
 
@@ -53,8 +56,8 @@ class MediaBrowserState {
 
 final mediaBrowserControllerProvider =
     NotifierProvider<MediaBrowserController, MediaBrowserState>(
-  MediaBrowserController.new,
-);
+      MediaBrowserController.new,
+    );
 
 /// 客户端媒体浏览器控制器。
 ///
@@ -82,10 +85,7 @@ class MediaBrowserController extends Notifier<MediaBrowserState> {
   Future<void> loadDirectory(String path) async {
     final server = state.server;
     if (server == null) {
-      state = state.copyWith(
-        isLoading: false,
-        errorMessage: '未连接到服务端',
-      );
+      state = state.copyWith(isLoading: false, errorMessage: '未连接到服务端');
       return;
     }
 
@@ -98,9 +98,9 @@ class MediaBrowserController extends Notifier<MediaBrowserState> {
         'http://${server.ip}:${server.httpPort}/api/media/list/$encodedPath',
       );
 
-      final response = await _httpClient.get(url).timeout(
-        const Duration(seconds: 10),
-      );
+      final response = await _httpClient
+          .get(url)
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final items = FileItem.listFromJson(response.body);
@@ -112,10 +112,7 @@ class MediaBrowserController extends Notifier<MediaBrowserState> {
       } else {
         final body = jsonDecode(response.body) as Map<String, dynamic>?;
         final error = body?['error'] as String? ?? '未知错误';
-        state = state.copyWith(
-          isLoading: false,
-          errorMessage: error,
-        );
+        state = state.copyWith(isLoading: false, errorMessage: error);
       }
     } on http.ClientException catch (e) {
       state = state.copyWith(
@@ -123,10 +120,7 @@ class MediaBrowserController extends Notifier<MediaBrowserState> {
         errorMessage: '网络错误: ${e.message}',
       );
     } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        errorMessage: '加载失败: $e',
-      );
+      state = state.copyWith(isLoading: false, errorMessage: '加载失败: $e');
     }
   }
 
@@ -139,9 +133,7 @@ class MediaBrowserController extends Notifier<MediaBrowserState> {
     await loadDirectory(path);
     // 只有成功加载（currentPath 已更新到 path）时才推入历史
     if (state.currentPath == path && state.errorMessage == null) {
-      state = state.copyWith(
-        pathHistory: [...state.pathHistory, previousPath],
-      );
+      state = state.copyWith(pathHistory: [...state.pathHistory, previousPath]);
     }
   }
 

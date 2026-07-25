@@ -8,9 +8,10 @@ import '../domain/models/output_processing_settings.dart';
 const String outputProcessingSettingsStorageKey = 'settings.output_processing';
 
 final outputProcessingSettingsProvider =
-    NotifierProvider<OutputProcessingSettingsController, OutputProcessingSettings>(
-      OutputProcessingSettingsController.new,
-    );
+    NotifierProvider<
+      OutputProcessingSettingsController,
+      OutputProcessingSettings
+    >(OutputProcessingSettingsController.new);
 
 /// 输出正则处理的全局设置控制器。
 class OutputProcessingSettingsController

@@ -75,7 +75,11 @@ abstract class ChatCompletionClient {
 
 /// 流式返回的一段补全增量。
 class ChatCompletionChunk {
-  const ChatCompletionChunk({this.contentDelta = '', this.reasoningDelta = '', this.finishReason});
+  const ChatCompletionChunk({
+    this.contentDelta = '',
+    this.reasoningDelta = '',
+    this.finishReason,
+  });
 
   final String contentDelta;
   final String reasoningDelta;
@@ -89,7 +93,11 @@ class ChatCompletionChunk {
 
 /// 一次性请求返回的完整结果。
 class ChatCompletionResult {
-  const ChatCompletionResult({this.content = '', this.reasoningContent = '', this.finishReason});
+  const ChatCompletionResult({
+    this.content = '',
+    this.reasoningContent = '',
+    this.finishReason,
+  });
 
   final String content;
   final String reasoningContent;

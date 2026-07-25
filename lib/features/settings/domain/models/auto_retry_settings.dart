@@ -116,13 +116,13 @@ class AutoRetrySettings extends Equatable {
 
   @override
   List<Object?> get props => [
-        maxJitterSeconds,
-        maxRetryCount,
-        retryMode,
-        retryOnAbnormalFinishReason,
-        retryOnTimeout,
-        timeoutSeconds,
-      ];
+    maxJitterSeconds,
+    maxRetryCount,
+    retryMode,
+    retryOnAbnormalFinishReason,
+    retryOnTimeout,
+    timeoutSeconds,
+  ];
 }
 
 /// finish_reason 的正常值：模型正常完成或请求工具调用。

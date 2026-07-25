@@ -61,8 +61,7 @@ class ComposerPillToggle extends StatelessWidget {
                 const SizedBox(width: 4),
                 Text(
                   label,
-                  style:
-                      theme.textTheme.bodySmall?.copyWith(color: labelColor),
+                  style: theme.textTheme.bodySmall?.copyWith(color: labelColor),
                 ),
               ],
             ),

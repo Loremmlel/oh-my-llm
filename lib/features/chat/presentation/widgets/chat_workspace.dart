@@ -88,6 +88,7 @@ class ChatWorkspace extends StatelessWidget {
   final ItemScrollController messageItemScrollController;
   final ItemPositionsListener messageItemPositionsListener;
   final bool isComposerCollapsed;
+
   /// 移动端紧凑布局：缩窄消息列表与输入区的内边距，让主体更宽。
   final bool isCompact;
   final bool reasoningEnabled;

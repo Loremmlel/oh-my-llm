@@ -10,8 +10,7 @@ final presetPromptsProvider =
       PresetPromptsController.new,
     );
 
-class PresetPromptsController
-    extends SettingsEntityController<PresetPrompt> {
+class PresetPromptsController extends SettingsEntityController<PresetPrompt> {
   @override
   SqliteEntityRepository<PresetPrompt> get repository =>
       ref.read(presetPromptRepositoryProvider);

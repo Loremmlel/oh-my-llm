@@ -53,11 +53,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
     ],
     errorBuilder: (context, state) {
-      return Scaffold(
-        body: Center(
-          child: Text('未找到页面：${state.uri}'),
-        ),
-      );
+      return Scaffold(body: Center(child: Text('未找到页面：${state.uri}')));
     },
   );
 });

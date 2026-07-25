@@ -10,13 +10,9 @@ import '../../../core/persistence/shared_preferences_provider.dart';
 /// 未来新增功能只需在此枚举中添加成员即可。
 enum ChatSidebarFunction {
   history(icon: Icons.history_rounded, label: '历史会话'),
-  preset(icon: Icons.tune_rounded, label: '预设 Prompt'),
-  ;
+  preset(icon: Icons.tune_rounded, label: '预设 Prompt');
 
-  const ChatSidebarFunction({
-    required this.icon,
-    required this.label,
-  });
+  const ChatSidebarFunction({required this.icon, required this.label});
 
   final IconData icon;
   final String label;
@@ -82,15 +78,16 @@ class ChatSidebarController extends Notifier<ChatSidebarState> {
     final rawFunction = prefs.getString(_prefsKeyActiveFunction);
     final activeFunction =
         ChatSidebarFunction.values.cast<ChatSidebarFunction?>().firstWhere(
-              (f) => f?.name == rawFunction,
-              orElse: () => null,
-            ) ??
-            ChatSidebarFunction.history;
+          (f) => f?.name == rawFunction,
+          orElse: () => null,
+        ) ??
+        ChatSidebarFunction.history;
 
     final isExpanded = prefs.getBool(_prefsKeyIsExpanded) ?? true;
-    final panelWidth =
-        (prefs.getDouble(_prefsKeyPanelWidth) ?? 260.0)
-            .clamp(_minPanelWidth, _maxPanelWidth);
+    final panelWidth = (prefs.getDouble(_prefsKeyPanelWidth) ?? 260.0).clamp(
+      _minPanelWidth,
+      _maxPanelWidth,
+    );
 
     return ChatSidebarState(
       activeFunction: activeFunction,

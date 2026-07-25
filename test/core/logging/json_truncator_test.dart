@@ -61,10 +61,7 @@ void main() {
 
   group('容器嵌套截断', () {
     test('Map 嵌套超长值', () {
-      final input = <String, dynamic>{
-        'a': '短',
-        'b': 'x' * 600,
-      };
+      final input = <String, dynamic>{'a': '短', 'b': 'x' * 600};
       final result = truncateJsonValues(input) as Map<String, dynamic>;
       expect(result['a'], '短');
       expect(result['b'], _isTruncatedValue('x' * _maxLen));
@@ -80,14 +77,13 @@ void main() {
     test('深层嵌套 Map 中的值也会被截断', () {
       final input = <String, dynamic>{
         'level1': <String, dynamic>{
-          'level2': <String, dynamic>{
-            'level3': 'x' * 600,
-          },
+          'level2': <String, dynamic>{'level3': 'x' * 600},
         },
       };
       final result = truncateJsonValues(input) as Map<String, dynamic>;
-      final level3 = (result['level1'] as Map<String, dynamic>)['level2']
-          as Map<String, dynamic>?;
+      final level3 =
+          (result['level1'] as Map<String, dynamic>)['level2']
+              as Map<String, dynamic>?;
       expect(level3, isNotNull);
       expect(level3!['level3'], _isTruncatedValue('x' * _maxLen));
     });

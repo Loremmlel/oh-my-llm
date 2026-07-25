@@ -149,8 +149,7 @@ class _ManageCollectionsDialogState
       context: context,
       builder: (context) => AppConfirmDialog(
         title: '删除收藏夹',
-        message:
-            '删除"${collection.name}"后，其中的收藏将移入未分类。确定删除吗？',
+        message: '删除"${collection.name}"后，其中的收藏将移入未分类。确定删除吗？',
         confirmLabel: '删除',
       ),
     );

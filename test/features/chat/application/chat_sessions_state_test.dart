@@ -201,8 +201,7 @@ void main() {
         streamingReply: createReply(content: '新内容'),
       );
 
-      final replacedNode =
-          result.messageNodes.firstWhere((m) => m.id == 'a1');
+      final replacedNode = result.messageNodes.firstWhere((m) => m.id == 'a1');
       expect(replacedNode.content, '新内容');
       expect(replacedNode.reasoningContent, '');
     });
@@ -223,14 +222,10 @@ void main() {
 
       final result = applyStreamingReplyToConversation(
         conversation: conv,
-        streamingReply: createReply(
-          content: '正文更新',
-          reasoningContent: '新推理',
-        ),
+        streamingReply: createReply(content: '正文更新', reasoningContent: '新推理'),
       );
 
-      final replacedNode =
-          result.messageNodes.firstWhere((m) => m.id == 'a1');
+      final replacedNode = result.messageNodes.firstWhere((m) => m.id == 'a1');
       expect(replacedNode.reasoningContent, '新推理');
       expect(replacedNode.content, '正文更新');
     });
@@ -255,8 +250,7 @@ void main() {
         isStreaming: true,
       );
 
-      final replacedNode =
-          result.messageNodes.firstWhere((m) => m.id == 'a1');
+      final replacedNode = result.messageNodes.firstWhere((m) => m.id == 'a1');
       expect(replacedNode.isStreaming, isTrue);
     });
 
@@ -280,8 +274,7 @@ void main() {
         isStreaming: false,
       );
 
-      final replacedNode =
-          result.messageNodes.firstWhere((m) => m.id == 'a1');
+      final replacedNode = result.messageNodes.firstWhere((m) => m.id == 'a1');
       expect(replacedNode.isStreaming, isFalse);
     });
 
@@ -303,8 +296,7 @@ void main() {
         streamingReply: createReply(content: '', reasoningContent: ''),
       );
 
-      final replacedNode =
-          result.messageNodes.firstWhere((m) => m.id == 'a1');
+      final replacedNode = result.messageNodes.firstWhere((m) => m.id == 'a1');
       // 空值被正确应用，不会抛异常
       expect(replacedNode.content, '');
       expect(replacedNode.reasoningContent, '');

@@ -29,8 +29,7 @@ class PresetPromptsList extends ConsumerWidget {
       return const SettingsEmptyState(
         icon: Icons.notes_rounded,
         title: '还没有预设 Prompt',
-        description:
-            '添加后，聊天页就可以把它们作为 system、前置或后置上下文插入到对话里。',
+        description: '添加后，聊天页就可以把它们作为 system、前置或后置上下文插入到对话里。',
       );
     }
 
@@ -113,5 +112,4 @@ class _PresetPromptTile extends ConsumerWidget {
       ],
     );
   }
-
 }

@@ -54,7 +54,9 @@ Future<AppDatabase> pumpAnchorRail(
 }
 
 /// 定位锚点条中承载交互的容器（源码显式标注 `// test-key` 的稳定标识）。
-final Finder railContainerFinder = find.byKey(const ValueKey('message-anchor-rail'));
+final Finder railContainerFinder = find.byKey(
+  const ValueKey('message-anchor-rail'),
+);
 
 /// 断言锚点条渲染出预期数量的可点击条目（InkWell）。
 Matcher findsNAnchorItems(int count) => findsNWidgets(count);
@@ -110,10 +112,7 @@ void main() {
     });
 
     testWidgets('单条消息只渲染一个锚点条目', (tester) async {
-      await pumpAnchorRail(
-        tester,
-        userMessages: [_userMessage(id: 'msg-1')],
-      );
+      await pumpAnchorRail(tester, userMessages: [_userMessage(id: 'msg-1')]);
 
       expect(find.byType(InkWell), findsOneWidget);
     });
@@ -322,10 +321,7 @@ void main() {
 ///
 /// 通过 [triggerRebuild] 模拟父级重建，触发 [MessageAnchorRail.didUpdateWidget]。
 class _ScrollWrapper extends StatefulWidget {
-  const _ScrollWrapper({
-    required this.messages,
-    super.key,
-  });
+  const _ScrollWrapper({required this.messages, super.key});
 
   final List<ChatMessage> messages;
 

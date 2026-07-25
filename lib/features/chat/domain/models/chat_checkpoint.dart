@@ -43,7 +43,8 @@ class ChatCheckpoint extends Equatable {
       content: content ?? this.content,
       createdAt: createdAt ?? this.createdAt,
       parentCheckpointId: parentCheckpointId ?? this.parentCheckpointId,
-      coveredUntilMessageId: coveredUntilMessageId ?? this.coveredUntilMessageId,
+      coveredUntilMessageId:
+          coveredUntilMessageId ?? this.coveredUntilMessageId,
       sourceMemoryPromptName:
           sourceMemoryPromptName ?? this.sourceMemoryPromptName,
     );

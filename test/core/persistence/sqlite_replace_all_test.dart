@@ -33,7 +33,9 @@ void main() {
       configureSqlitePragmas(db, isInMemory: true);
 
       // 内存数据库不应启用 WAL（仅对文件数据库有效）
-      final journalMode = db.select('PRAGMA journal_mode;').single['journal_mode'];
+      final journalMode = db
+          .select('PRAGMA journal_mode;')
+          .single['journal_mode'];
       expect(journalMode, isNot(equals('wal')));
     });
   });
@@ -75,7 +77,9 @@ void main() {
       addTearDown(db.close);
 
       // 先插入一条基线数据
-      db.execute("INSERT INTO test_items (id, name) VALUES ('baseline', 'baseline-name');");
+      db.execute(
+        "INSERT INTO test_items (id, name) VALUES ('baseline', 'baseline-name');",
+      );
 
       // 构造一个会在第二项抛异常的 buildValues，触发事务回滚
       final items = <String>['x1', 'x2'];
@@ -117,7 +121,9 @@ void main() {
         buildValues: (item) => [item, item],
       );
 
-      final count = db.select('SELECT COUNT(*) AS cnt FROM test_items;').single['cnt'];
+      final count = db
+          .select('SELECT COUNT(*) AS cnt FROM test_items;')
+          .single['cnt'];
       expect(count, equals(0));
     });
 
@@ -129,10 +135,7 @@ void main() {
         connection: db,
         deleteSql: 'DELETE FROM test_items;',
         insertSql: 'INSERT INTO test_items (id, name) VALUES (?, ?);',
-        items: const [
-          MapEntry('a', 'a-name'),
-          MapEntry('b', 'b-name'),
-        ],
+        items: const [MapEntry('a', 'a-name'), MapEntry('b', 'b-name')],
         buildValues: (item) => [item.key, item.value],
       );
 

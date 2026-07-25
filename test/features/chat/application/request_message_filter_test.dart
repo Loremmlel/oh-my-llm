@@ -66,9 +66,9 @@ void main() {
     });
 
     test('返回不可变列表，修改抛异常', () {
-      final result = const ExcludeByIdMessageFilter({'b'}).apply(
-        [message('a'), message('b')],
-      );
+      final result = const ExcludeByIdMessageFilter({
+        'b',
+      }).apply([message('a'), message('b')]);
       expect(() => result.add(message('c')), throwsUnsupportedError);
     });
 

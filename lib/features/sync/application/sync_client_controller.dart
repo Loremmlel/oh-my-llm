@@ -19,7 +19,16 @@ import '../data/sync_udp_discovery.dart';
 import '../domain/models/sync_message.dart';
 import '../domain/models/sync_types.dart';
 
-enum SyncPhase { idle, discovering, connected, syncing, received, noNewData, imported, error }
+enum SyncPhase {
+  idle,
+  discovering,
+  connected,
+  syncing,
+  received,
+  noNewData,
+  imported,
+  error,
+}
 
 const Object _sentinel = Object();
 
@@ -50,11 +59,19 @@ class SyncClientState {
   }) {
     return SyncClientState(
       phase: phase ?? this.phase,
-      server: identical(server, _sentinel) ? this.server : server as DiscoveredServer?,
+      server: identical(server, _sentinel)
+          ? this.server
+          : server as DiscoveredServer?,
       selectedCategories: selectedCategories ?? this.selectedCategories,
-      errorMessage: identical(errorMessage, _sentinel) ? this.errorMessage : errorMessage as String?,
-      deduplicatedData: identical(deduplicatedData, _sentinel) ? this.deduplicatedData : deduplicatedData as SettingsExportData?,
-      sourceDeviceName: identical(sourceDeviceName, _sentinel) ? this.sourceDeviceName : sourceDeviceName as String?,
+      errorMessage: identical(errorMessage, _sentinel)
+          ? this.errorMessage
+          : errorMessage as String?,
+      deduplicatedData: identical(deduplicatedData, _sentinel)
+          ? this.deduplicatedData
+          : deduplicatedData as SettingsExportData?,
+      sourceDeviceName: identical(sourceDeviceName, _sentinel)
+          ? this.sourceDeviceName
+          : sourceDeviceName as String?,
     );
   }
 }
@@ -140,8 +157,9 @@ class SyncClientController extends Notifier<SyncClientState> {
     final request = SyncMessage.request(
       type: SyncMessageType.settingsSyncRequest,
       payload: {
-        'categories':
-            state.selectedCategories.map((c) => c.payloadKey).toList(),
+        'categories': state.selectedCategories
+            .map((c) => c.payloadKey)
+            .toList(),
       },
     );
 
@@ -155,18 +173,15 @@ class SyncClientController extends Notifier<SyncClientState> {
 
       final responseMessage = SyncMessageCodec.tryDecode(response.body);
       if (responseMessage == null) {
-        state = state.copyWith(
-          phase: SyncPhase.error,
-          errorMessage: '响应格式错误',
-        );
+        state = state.copyWith(phase: SyncPhase.error, errorMessage: '响应格式错误');
         return;
       }
 
       if (responseMessage.type == SyncMessageType.error) {
         state = state.copyWith(
           phase: SyncPhase.error,
-          errorMessage: responseMessage.payload['message'] as String? ??
-              '服务端返回错误',
+          errorMessage:
+              responseMessage.payload['message'] as String? ?? '服务端返回错误',
         );
         return;
       }
@@ -182,10 +197,7 @@ class SyncClientController extends Notifier<SyncClientState> {
       final dataJson = responseMessage.payload['data'] as String?;
       final exportData = SettingsExportData.tryParseJson(dataJson);
       if (exportData == null) {
-        state = state.copyWith(
-          phase: SyncPhase.error,
-          errorMessage: '数据解析失败',
-        );
+        state = state.copyWith(phase: SyncPhase.error, errorMessage: '数据解析失败');
         return;
       }
 
@@ -205,10 +217,7 @@ class SyncClientController extends Notifier<SyncClientState> {
         errorMessage: '请求超时，请检查网络连接',
       );
     } catch (e) {
-      state = state.copyWith(
-        phase: SyncPhase.error,
-        errorMessage: '同步失败: $e',
-      );
+      state = state.copyWith(phase: SyncPhase.error, errorMessage: '同步失败: $e');
     }
   }
 
@@ -218,16 +227,16 @@ class SyncClientController extends Notifier<SyncClientState> {
     if (data == null) return false;
 
     try {
-      final success = await const SettingsImportExecutor().executeImport(ref, data: data);
+      final success = await const SettingsImportExecutor().executeImport(
+        ref,
+        data: data,
+      );
       if (success) {
         state = state.copyWith(phase: SyncPhase.imported);
       }
       return success;
     } catch (e) {
-      state = state.copyWith(
-        phase: SyncPhase.error,
-        errorMessage: '导入失败: $e',
-      );
+      state = state.copyWith(phase: SyncPhase.error, errorMessage: '导入失败: $e');
       return false;
     }
   }

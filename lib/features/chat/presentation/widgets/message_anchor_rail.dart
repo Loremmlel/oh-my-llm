@@ -170,9 +170,7 @@ class _MessageAnchorRailState extends State<MessageAnchorRail> {
                           selected: isActive,
                           label: '定位到第 ${index + 1} 条用户消息',
                           child: InkWell(
-                            key: ValueKey(
-                              'message-anchor-item-${index + 1}',
-                            ),
+                            key: ValueKey('message-anchor-item-${index + 1}'),
                             borderRadius: BorderRadius.circular(999),
                             onTap: () => widget.onSelectMessage(message.id),
                             child: SizedBox(

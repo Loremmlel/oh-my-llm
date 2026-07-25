@@ -40,16 +40,16 @@ void main() {
     final originalAssistantId = stateA.activeConversation.messages
         .firstWhere((m) => m.role == ChatMessageRole.assistant)
         .id;
-    final userMessage = stateA.activeConversation.messages
-        .firstWhere((m) => m.id == userMessageId);
+    final userMessage = stateA.activeConversation.messages.firstWhere(
+      (m) => m.id == userMessageId,
+    );
     final parentId = userMessage.effectiveParentId;
 
     // 编辑用户消息，创建新分支
     fakeClient.enqueueChunks(['编辑后的回复']);
-    await containerA.read(chatSessionsProvider.notifier).editMessage(
-          messageId: userMessageId,
-          nextContent: '修改后的问题',
-        );
+    await containerA
+        .read(chatSessionsProvider.notifier)
+        .editMessage(messageId: userMessageId, nextContent: '修改后的问题');
 
     // 验证新分支被选中
     final messagesAfterEdit = containerA
@@ -60,10 +60,9 @@ void main() {
     expect(messagesAfterEdit[1].content, '编辑后的回复');
 
     // 切换回旧版本
-    containerA.read(chatSessionsProvider.notifier).selectMessageVersion(
-          parentId: parentId,
-          messageId: userMessageId,
-        );
+    containerA
+        .read(chatSessionsProvider.notifier)
+        .selectMessageVersion(parentId: parentId, messageId: userMessageId);
 
     // 验证旧版本被选中
     final messagesAfterSwitch = containerA
@@ -117,10 +116,9 @@ void main() {
 
     // 编辑创建新分支
     fakeClient.enqueueChunks(['新分支回复']);
-    await containerA.read(chatSessionsProvider.notifier).editMessage(
-          messageId: userMessageId,
-          nextContent: '编辑后的问题',
-        );
+    await containerA
+        .read(chatSessionsProvider.notifier)
+        .editMessage(messageId: userMessageId, nextContent: '编辑后的问题');
 
     // 验证新分支被选中
     final messagesAfterEdit = containerA

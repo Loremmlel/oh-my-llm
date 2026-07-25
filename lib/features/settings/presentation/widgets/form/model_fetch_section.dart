@@ -41,7 +41,8 @@ class ModelFetchSection extends StatefulWidget {
   final Future<List<RemoteModelInfo>> Function({
     required String modelsUrl,
     required String apiKey,
-  }) fetchModels;
+  })
+  fetchModels;
 
   /// 当勾选状态或显示名变化时通知父级刷新。
   final void Function()? onSelectionChanged;
@@ -101,12 +102,13 @@ class ModelFetchSectionState extends State<ModelFetchSection> {
       if (!mounted) return;
       setState(() {
         entries = models
-            .map((m) => ModelSelectionEntry(
-                  remoteModel: m,
-                  controller: TextEditingController(text: m.id),
-                  alreadyExists:
-                      existingModelNames.contains(m.id),
-                ))
+            .map(
+              (m) => ModelSelectionEntry(
+                remoteModel: m,
+                controller: TextEditingController(text: m.id),
+                alreadyExists: existingModelNames.contains(m.id),
+              ),
+            )
             .toList();
         _status = _FetchStatus.loaded;
       });
@@ -289,9 +291,7 @@ class ModelFetchSectionState extends State<ModelFetchSection> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (final entry in entries) _buildModelRow(theme, entry),
-      ],
+      children: [for (final entry in entries) _buildModelRow(theme, entry)],
     );
   }
 

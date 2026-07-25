@@ -13,13 +13,10 @@ class ImageViewerPage extends StatefulWidget {
   /// 被点击图片在 [imageUrls] 中的索引。
   final int initialIndex;
 
-  ImageViewerPage({
-    super.key,
-    required this.imageUrls,
-    this.initialIndex = 0,
-  }) : assert(initialIndex >= 0),
-       assert(imageUrls.isNotEmpty),
-       assert(initialIndex < imageUrls.length);
+  ImageViewerPage({super.key, required this.imageUrls, this.initialIndex = 0})
+    : assert(initialIndex >= 0),
+      assert(imageUrls.isNotEmpty),
+      assert(initialIndex < imageUrls.length);
 
   @override
   State<ImageViewerPage> createState() => _ImageViewerPageState();
@@ -93,10 +90,9 @@ class _ImageViewerPageState extends State<ImageViewerPage>
           // ── 图片 PageView ──
           PageView.builder(
             controller: _pageController,
-            physics:
-                _anyZoomed
-                    ? const NeverScrollableScrollPhysics()
-                    : const PageScrollPhysics(),
+            physics: _anyZoomed
+                ? const NeverScrollableScrollPhysics()
+                : const PageScrollPhysics(),
             itemCount: widget.imageUrls.length,
             onPageChanged: (index) {
               setState(() {
@@ -140,10 +136,7 @@ class _ImageViewerPageState extends State<ImageViewerPage>
                 ),
                 child: Text(
                   '${_currentIndex + 1} / ${widget.imageUrls.length}',
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 14,
-                  ),
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
                 ),
               ),
             ),
@@ -362,10 +355,9 @@ class _ZoomableImagePageState extends State<_ZoomableImagePage> {
             loadingBuilder: (context, child, loadingProgress) {
               if (loadingProgress == null) return child;
               final total = loadingProgress.expectedTotalBytes;
-              final progress =
-                  total != null
-                      ? loadingProgress.cumulativeBytesLoaded / total
-                      : null;
+              final progress = total != null
+                  ? loadingProgress.cumulativeBytesLoaded / total
+                  : null;
               return Center(
                 child: CircularProgressIndicator(
                   value: progress,

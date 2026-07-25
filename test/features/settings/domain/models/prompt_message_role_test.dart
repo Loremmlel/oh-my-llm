@@ -4,9 +4,15 @@ import 'package:oh_my_llm/features/settings/domain/models/prompt_message_role.da
 void main() {
   group('PromptMessageRole', () {
     test('fromApiValue 已知值正确解析', () {
-      expect(PromptMessageRole.fromApiValue('system'), PromptMessageRole.system);
+      expect(
+        PromptMessageRole.fromApiValue('system'),
+        PromptMessageRole.system,
+      );
       expect(PromptMessageRole.fromApiValue('user'), PromptMessageRole.user);
-      expect(PromptMessageRole.fromApiValue('assistant'), PromptMessageRole.assistant);
+      expect(
+        PromptMessageRole.fromApiValue('assistant'),
+        PromptMessageRole.assistant,
+      );
     });
 
     test('fromApiValue 未知值回退到 user', () {

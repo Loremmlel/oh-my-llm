@@ -154,10 +154,7 @@ class ChatChunkParser {
     if (error is Map) {
       final message = error['message'];
       if (message is String && message.trim().isNotEmpty) {
-        throw ChatCompletionException(
-          message.trim(),
-          responseBody: rawChunk,
-        );
+        throw ChatCompletionException(message.trim(), responseBody: rawChunk);
       }
     }
 

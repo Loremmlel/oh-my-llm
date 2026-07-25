@@ -25,7 +25,10 @@ class GroupedConversationList extends StatelessWidget {
   final List<ChatConversationSummaryGroup> groups;
 
   /// 对话条目的 builder。
-  final Widget Function(BuildContext context, ChatConversationSummary conversation)
+  final Widget Function(
+    BuildContext context,
+    ChatConversationSummary conversation,
+  )
   itemBuilder;
 
   /// 组标题的 builder（可选；默认渲染为 `Text(bucket.label)`）。

@@ -235,8 +235,8 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
           child: Text(
             '监听于: ${interfaces.map((i) => i.ip).join(', ')}',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
         );
       },
@@ -272,22 +272,23 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
           // 媒体根目录配置 — 仅 Windows 服务端
           if (Platform.isWindows)
             TextField(
-            controller: _rootDirController,
-            readOnly: true,
-            decoration: InputDecoration(
-              labelText: '媒体根目录（可选）',
-              hintText: '点击选择文件夹',
-              border: const OutlineInputBorder(),
-              suffixIcon: IconButton(
-                icon: const Icon(Icons.folder_open),
-                onPressed:
-                    serverState.isRunning ? null : _pickMediaRootDirectory,
-                tooltip: '选择文件夹',
+              controller: _rootDirController,
+              readOnly: true,
+              decoration: InputDecoration(
+                labelText: '媒体根目录（可选）',
+                hintText: '点击选择文件夹',
+                border: const OutlineInputBorder(),
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.folder_open),
+                  onPressed: serverState.isRunning
+                      ? null
+                      : _pickMediaRootDirectory,
+                  tooltip: '选择文件夹',
+                ),
               ),
+              enabled: !serverState.isRunning,
+              onTap: _pickMediaRootDirectory,
             ),
-            enabled: !serverState.isRunning,
-            onTap: _pickMediaRootDirectory,
-          ),
           const SizedBox(height: 16),
           if (!serverState.isRunning) ...[
             const InterfaceSelector(),
@@ -328,7 +329,9 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
               const SizedBox(height: 4),
               Builder(
                 builder: (context) {
-                  final prefix = ref.watch(selectedBroadcastPrefixLengthProvider);
+                  final prefix = ref.watch(
+                    selectedBroadcastPrefixLengthProvider,
+                  );
                   final broadcastAddr = prefix
                       .computeBroadcast(
                         InternetAddress(serverState.selectedInterface!.ip),

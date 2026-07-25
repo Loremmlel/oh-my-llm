@@ -32,7 +32,8 @@ Future<void> bootstrap({
   final preferences =
       sharedPreferences ?? await SharedPreferences.getInstance();
   final appDatabase = database ?? await AppDatabase.open();
-  final logger = networkLogger ??
+  final logger =
+      networkLogger ??
       await AppNetworkLogger.create(
         directoryPath: File(appDatabase.path).parent.path,
       );

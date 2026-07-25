@@ -25,7 +25,10 @@ class SettingsImportExecutor {
   const SettingsImportExecutor();
 
   /// [ref] 同时兼容 [Ref]（Notifier 内）与 [WidgetRef]（Widget 内）。
-  Future<bool> executeImport(dynamic ref, {required SettingsExportData data}) async {
+  Future<bool> executeImport(
+    dynamic ref, {
+    required SettingsExportData data,
+  }) async {
     var wrote = false;
     if (data.modelProviders.isNotEmpty) {
       await ref
@@ -34,7 +37,9 @@ class SettingsImportExecutor {
       wrote = true;
     }
     if (data.memoryPrompts.isNotEmpty) {
-      await ref.read(memoryPromptsProvider.notifier).upsertAll(data.memoryPrompts);
+      await ref
+          .read(memoryPromptsProvider.notifier)
+          .upsertAll(data.memoryPrompts);
       wrote = true;
     }
     if (data.presetPrompts.isNotEmpty) {

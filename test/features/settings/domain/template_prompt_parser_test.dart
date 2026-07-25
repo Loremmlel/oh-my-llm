@@ -15,10 +15,9 @@ void main() {
     });
 
     test('忽略空变量和不完整占位符', () {
-      expect(
-        extractTemplatePromptVariableNames('abc {{  }} {{未闭合} {{正常}}'),
-        ['正常'],
-      );
+      expect(extractTemplatePromptVariableNames('abc {{  }} {{未闭合} {{正常}}'), [
+        '正常',
+      ]);
     });
 
     test('从带类型标记的占位符中提取纯变量名', () {
@@ -119,10 +118,9 @@ void main() {
         ],
       );
 
-      expect(
-        result,
-        const [TemplatePromptVariable(name: templatePromptBodyVariableName)],
-      );
+      expect(result, const [
+        TemplatePromptVariable(name: templatePromptBodyVariableName),
+      ]);
     });
 
     test('number 类型新变量默认值为 1', () {

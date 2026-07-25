@@ -13,9 +13,7 @@ void main() {
       SharedPreferences preferences,
     ) async {
       return ProviderContainer(
-        overrides: [
-          sharedPreferencesProvider.overrideWithValue(preferences),
-        ],
+        overrides: [sharedPreferencesProvider.overrideWithValue(preferences)],
       );
     }
 
@@ -50,35 +48,37 @@ void main() {
       container.dispose();
     });
 
-    test('loads old JSON without retryMode defaults to perMinuteWindow',
-        () async {
-      SharedPreferences.setMockInitialValues({
-        'settings.auto_retry':
-            '{"maxJitterSeconds": 20, "maxRetryCount": 2}',
-      });
-      final preferences = await SharedPreferences.getInstance();
-      final container = await createContainer(preferences);
+    test(
+      'loads old JSON without retryMode defaults to perMinuteWindow',
+      () async {
+        SharedPreferences.setMockInitialValues({
+          'settings.auto_retry': '{"maxJitterSeconds": 20, "maxRetryCount": 2}',
+        });
+        final preferences = await SharedPreferences.getInstance();
+        final container = await createContainer(preferences);
 
-      final settings = container.read(autoRetrySettingsProvider);
-      expect(settings.retryMode, RetryMode.perMinuteWindow);
+        final settings = container.read(autoRetrySettingsProvider);
+        expect(settings.retryMode, RetryMode.perMinuteWindow);
 
-      container.dispose();
-    });
+        container.dispose();
+      },
+    );
 
-    test('loads old JSON without retryOnAbnormalFinishReason defaults to false',
-        () async {
-      SharedPreferences.setMockInitialValues({
-        'settings.auto_retry':
-            '{"maxJitterSeconds": 20, "maxRetryCount": 2}',
-      });
-      final preferences = await SharedPreferences.getInstance();
-      final container = await createContainer(preferences);
+    test(
+      'loads old JSON without retryOnAbnormalFinishReason defaults to false',
+      () async {
+        SharedPreferences.setMockInitialValues({
+          'settings.auto_retry': '{"maxJitterSeconds": 20, "maxRetryCount": 2}',
+        });
+        final preferences = await SharedPreferences.getInstance();
+        final container = await createContainer(preferences);
 
-      final settings = container.read(autoRetrySettingsProvider);
-      expect(settings.retryOnAbnormalFinishReason, isFalse);
+        final settings = container.read(autoRetrySettingsProvider);
+        expect(settings.retryOnAbnormalFinishReason, isFalse);
 
-      container.dispose();
-    });
+        container.dispose();
+      },
+    );
 
     test('save round-trips correctly', () async {
       SharedPreferences.setMockInitialValues({});
@@ -86,12 +86,14 @@ void main() {
       final container = await createContainer(preferences);
 
       final notifier = container.read(autoRetrySettingsProvider.notifier);
-      await notifier.save(const AutoRetrySettings(
-        maxJitterSeconds: 10,
-        maxRetryCount: 3,
-        retryMode: RetryMode.fixedInterval,
-        retryOnAbnormalFinishReason: true,
-      ));
+      await notifier.save(
+        const AutoRetrySettings(
+          maxJitterSeconds: 10,
+          maxRetryCount: 3,
+          retryMode: RetryMode.fixedInterval,
+          retryOnAbnormalFinishReason: true,
+        ),
+      );
 
       final settings = container.read(autoRetrySettingsProvider);
       expect(settings.maxJitterSeconds, 10);
@@ -108,6 +110,5 @@ void main() {
 
       container.dispose();
     });
-
   });
 }

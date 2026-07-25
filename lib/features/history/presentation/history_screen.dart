@@ -30,7 +30,6 @@ class HistoryScreen extends ConsumerStatefulWidget {
 /// 历史页 UI 层：负责搜索输入、选择模式；分页数据由
 /// [HistoryPaginationController] 持有，翻页由 [HistoryPaginationBar] 提供。
 class _HistoryScreenState extends ConsumerState<HistoryScreen> {
-
   late final TextEditingController _searchController;
   Timer? _searchDebounceTimer;
 
@@ -107,8 +106,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                 ),
                 const SizedBox(height: 8),
                 const HistoryPaginationBar(),
-                if (paginationState.isLoading)
-                  const LinearProgressIndicator(),
+                if (paginationState.isLoading) const LinearProgressIndicator(),
                 const SizedBox(height: 8),
                 Expanded(
                   child: _buildConversationList(context, paginationState),
@@ -139,9 +137,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     return GroupedConversationList(
       groups: groups,
       itemBuilder: (context, conversation) {
-        final isSelected = _selectedConversationIds.contains(
-          conversation.id,
-        );
+        final isSelected = _selectedConversationIds.contains(conversation.id);
         return Padding(
           padding: const EdgeInsets.only(bottom: 6),
           child: HistoryConversationTile(
@@ -158,13 +154,9 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
               context.go(AppDestination.chat.path);
             },
             onLongPress: () => _toggleSelection(conversation.id),
-            onRenamePressed: () => _showRenameDialog(
-              context,
-              conversation: conversation,
-            ),
-            onSelectionChanged: (_) => _toggleSelection(
-              conversation.id,
-            ),
+            onRenamePressed: () =>
+                _showRenameDialog(context, conversation: conversation),
+            onSelectionChanged: (_) => _toggleSelection(conversation.id),
           ),
         );
       },
@@ -201,8 +193,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     });
   }
 
-  String _currentKeyword() =>
-      ref.read(historyPaginationProvider).keyword;
+  String _currentKeyword() => ref.read(historyPaginationProvider).keyword;
 
   // ── 重命名 ───────────────────────────────────────────────────────────────
 
@@ -212,26 +203,21 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   }) async {
     final nextTitle = await showDialog<String>(
       context: context,
-      builder: (context) => RenameConversationDialog(
-        initialTitle: conversation.resolvedTitle,
-      ),
+      builder: (context) =>
+          RenameConversationDialog(initialTitle: conversation.resolvedTitle),
     );
 
     if (!mounted || nextTitle == null || nextTitle.trim().isEmpty) return;
 
     await ref
         .read(chatSessionsProvider.notifier)
-        .renameConversation(
-          conversationId: conversation.id,
-          title: nextTitle,
-        );
+        .renameConversation(conversationId: conversation.id, title: nextTitle);
 
     // 等 DB 落盘后本地刷新标题（controller 已处理 revision 递增触发 watch，
     // 但此处提前本地更新可避免 80ms debounce 窗口期的 UI 闪烁）。
-    ref.read(historyPaginationProvider.notifier).afterRename(
-      conversation.id,
-      nextTitle,
-    );
+    ref
+        .read(historyPaginationProvider.notifier)
+        .afterRename(conversation.id, nextTitle);
   }
 
   // ── 删除 ─────────────────────────────────────────────────────────────────

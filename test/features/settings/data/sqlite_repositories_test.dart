@@ -128,7 +128,10 @@ void main() {
   });
 
   test('MemoryPrompt round-trip', () async {
-    final original = memoryPrompt('memory-full', updatedAt: DateTime(2026, 3, 15));
+    final original = memoryPrompt(
+      'memory-full',
+      updatedAt: DateTime(2026, 3, 15),
+    );
     await memoryPromptRepository.saveAll(database, [original]);
     expect(memoryPromptRepository.loadAll(database).single, original);
   });

@@ -46,8 +46,10 @@ class PresetPromptPanel extends ConsumerWidget {
             decoration: const InputDecoration(
               labelText: '预设 Prompt',
               border: OutlineInputBorder(),
-              contentPadding:
-                  EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 10,
+              ),
             ),
             isDense: true,
             isExpanded: true,
@@ -59,24 +61,18 @@ class PresetPromptPanel extends ConsumerWidget {
               for (final preset in presetPrompts)
                 DropdownMenuItem<String>(
                   value: preset.id,
-                  child: Text(
-                    preset.name,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  child: Text(preset.name, overflow: TextOverflow.ellipsis),
                 ),
             ],
             onChanged: (value) {
-              final mapped =
-                  value == noPresetPromptSelectedId ? null : value;
+              final mapped = value == noPresetPromptSelectedId ? null : value;
               onPresetPromptSelected(mapped);
             },
           ),
         ),
         const Divider(height: 1),
         // ── 消息列表 / 空状态 ──────────────
-        Expanded(
-          child: _buildMessageList(theme, selectedPreset),
-        ),
+        Expanded(child: _buildMessageList(theme, selectedPreset)),
       ],
     );
   }

@@ -84,10 +84,9 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
             _FilterChip(
               label: collection.name,
               selected: filter == collection.id,
-              onSelected: () =>
-                  ref.read(favoritesFilterProvider.notifier).setFilter(
-                    collection.id,
-                  ),
+              onSelected: () => ref
+                  .read(favoritesFilterProvider.notifier)
+                  .setFilter(collection.id),
             ),
           ],
         ],
@@ -129,8 +128,9 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
         : '可以先在聊天页收藏回复，再将其归入该收藏夹。';
 
     return AppEmptyState(
-      icon:
-          filter == null ? Icons.bookmark_border_rounded : Icons.folder_outlined,
+      icon: filter == null
+          ? Icons.bookmark_border_rounded
+          : Icons.folder_outlined,
       title: title,
       description: description,
     );

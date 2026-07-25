@@ -52,9 +52,14 @@ void chatWriterEntryPoint(SendPort mainSendPort) {
 ///
 /// 对每个会话先 UPSERT conversations 行，再 DELETE 旧消息/分支选择/检查点，
 /// 最后 INSERT 当前消息树。整个操作在 BEGIN IMMEDIATE 事务中完成。
-void executeSaveConversations(sqlite.Database db, List<dynamic> conversationsJson) {
+void executeSaveConversations(
+  sqlite.Database db,
+  List<dynamic> conversationsJson,
+) {
   final conversations = conversationsJson
-      .map((j) => ChatConversation.fromJson(Map<String, dynamic>.from(j as Map)))
+      .map(
+        (j) => ChatConversation.fromJson(Map<String, dynamic>.from(j as Map)),
+      )
       .toList(growable: false);
 
   if (conversations.isEmpty) {
@@ -138,10 +143,9 @@ void executeSaveConversations(sqlite.Database db, List<dynamic> conversationsJso
           conversation.autoRetryEnabled ? 1 : 0,
         ]);
 
-        db.execute(
-          'DELETE FROM messages WHERE conversation_id = ?',
-          [conversation.id],
-        );
+        db.execute('DELETE FROM messages WHERE conversation_id = ?', [
+          conversation.id,
+        ]);
         db.execute(
           'DELETE FROM conversation_branch_selections WHERE conversation_id = ?',
           [conversation.id],
@@ -179,11 +183,7 @@ void executeSaveConversations(sqlite.Database db, List<dynamic> conversationsJso
           ]);
         }
         for (final entry in conversation.selectedChildByParentId.entries) {
-          selectionStatement.execute([
-            conversation.id,
-            entry.key,
-            entry.value,
-          ]);
+          selectionStatement.execute([conversation.id, entry.key, entry.value]);
         }
         for (final checkpoint in conversation.checkpoints) {
           checkpointStatement.execute([

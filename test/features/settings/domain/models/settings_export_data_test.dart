@@ -73,9 +73,7 @@ SettingsExportData _buildFullData() {
       maxRetryCount: 5,
     ),
     customHeadersConfig: const CustomHeadersConfig(
-      headers: [
-        CustomHeaderEntry(key: 'X-Test', value: 'test-value'),
-      ],
+      headers: [CustomHeaderEntry(key: 'X-Test', value: 'test-value')],
     ),
   );
 }
@@ -128,8 +126,7 @@ void main() {
       expect(parsed.customHeadersConfig!.headers.first.value, 'test-value');
     });
 
-    test('tryParseJson 在 null / 空字符串 / 非法 JSON / 错误 identifier 时返回 null',
-        () {
+    test('tryParseJson 在 null / 空字符串 / 非法 JSON / 错误 identifier 时返回 null', () {
       expect(SettingsExportData.tryParseJson(null), isNull);
       expect(SettingsExportData.tryParseJson(''), isNull);
       expect(SettingsExportData.tryParseJson('   '), isNull);
@@ -144,46 +141,49 @@ void main() {
       expect(SettingsExportData.tryParseJson(wrongId), isNull);
     });
 
-    test('hasContent 在全空时为 false，在任一分类非空（含 autoRetry / customHeaders）时为 true', () {
-      expect(_buildEmptyData().hasContent, isFalse);
+    test(
+      'hasContent 在全空时为 false，在任一分类非空（含 autoRetry / customHeaders）时为 true',
+      () {
+        expect(_buildEmptyData().hasContent, isFalse);
 
-      expect(
-        SettingsExportData(
-          modelProviders: [_provider()],
-          memoryPrompts: const [],
-          presetPrompts: const [],
-          templatePrompts: const [],
-          fixedPromptSequences: const [],
-        ).hasContent,
-        isTrue,
-      );
+        expect(
+          SettingsExportData(
+            modelProviders: [_provider()],
+            memoryPrompts: const [],
+            presetPrompts: const [],
+            templatePrompts: const [],
+            fixedPromptSequences: const [],
+          ).hasContent,
+          isTrue,
+        );
 
-      expect(
-        SettingsExportData(
-          modelProviders: const [],
-          memoryPrompts: const [],
-          presetPrompts: const [],
-          templatePrompts: const [],
-          fixedPromptSequences: const [],
-          autoRetrySettings: const AutoRetrySettings(),
-        ).hasContent,
-        isTrue,
-      );
+        expect(
+          SettingsExportData(
+            modelProviders: const [],
+            memoryPrompts: const [],
+            presetPrompts: const [],
+            templatePrompts: const [],
+            fixedPromptSequences: const [],
+            autoRetrySettings: const AutoRetrySettings(),
+          ).hasContent,
+          isTrue,
+        );
 
-      expect(
-        const SettingsExportData(
-          modelProviders: [],
-          memoryPrompts: [],
-          presetPrompts: [],
-          templatePrompts: [],
-          fixedPromptSequences: [],
-          customHeadersConfig: CustomHeadersConfig(
-            headers: [CustomHeaderEntry(key: 'X-Test', value: 'v')],
-          ),
-        ).hasContent,
-        isTrue,
-      );
-    });
+        expect(
+          const SettingsExportData(
+            modelProviders: [],
+            memoryPrompts: [],
+            presetPrompts: [],
+            templatePrompts: [],
+            fixedPromptSequences: [],
+            customHeadersConfig: CustomHeadersConfig(
+              headers: [CustomHeaderEntry(key: 'X-Test', value: 'v')],
+            ),
+          ).hasContent,
+          isTrue,
+        );
+      },
+    );
 
     test('outputProcessingSettings 可 round-trip 且驱动 hasContent', () {
       const data = SettingsExportData(

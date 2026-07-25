@@ -29,6 +29,7 @@ class ChatComposerCard extends StatelessWidget {
   final ComposerCallbacks callbacks;
   final TextEditingController messageController;
   final FocusNode messageFocusNode;
+
   /// 移动端紧凑布局：缩小输入区卡片内边距。
   final bool isCompact;
 
@@ -64,9 +65,7 @@ class ChatComposerCard extends StatelessWidget {
           children: [
             const Icon(Icons.keyboard_arrow_up_rounded),
             const SizedBox(width: 8),
-            Expanded(
-              child: Text('输入区已隐藏', style: theme.textTheme.bodyMedium),
-            ),
+            Expanded(child: Text('输入区已隐藏', style: theme.textTheme.bodyMedium)),
             Tooltip(
               message: '展开输入区',
               child: OutlinedButton.icon(
@@ -134,8 +133,7 @@ class ChatComposerCard extends StatelessWidget {
                                 child: Icon(
                                   Icons.close_rounded,
                                   size: 18,
-                                  color:
-                                      theme.colorScheme.onSecondaryContainer,
+                                  color: theme.colorScheme.onSecondaryContainer,
                                 ),
                               ),
                             ),

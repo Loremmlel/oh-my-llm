@@ -29,7 +29,9 @@ class LlmProviderConfigsController extends Notifier<List<LlmProviderConfig>> {
   /// 新增或更新一个服务商。
   Future<void> upsertProvider(LlmProviderConfig provider) async {
     final providers = [...state];
-    final existingIndex = providers.indexWhere((item) => item.id == provider.id);
+    final existingIndex = providers.indexWhere(
+      (item) => item.id == provider.id,
+    );
     if (existingIndex == -1) {
       providers.add(provider);
     } else {

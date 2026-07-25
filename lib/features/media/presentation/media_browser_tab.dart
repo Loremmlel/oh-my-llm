@@ -81,8 +81,9 @@ class _MediaBrowserTabState extends ConsumerState<MediaBrowserTab> {
                         .where((i) => isImageFile(i.name))
                         .toList();
                     final imageUrls = imageItems
-                        .map((i) =>
-                            '$baseUrl${encodeMediaPath(i.relativePath)}')
+                        .map(
+                          (i) => '$baseUrl${encodeMediaPath(i.relativePath)}',
+                        )
                         .toList();
                     final initialIndex = imageItems.indexWhere(
                       (i) => i.relativePath == item.relativePath,

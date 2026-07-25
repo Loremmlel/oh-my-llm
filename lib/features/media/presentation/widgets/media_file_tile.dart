@@ -12,6 +12,7 @@ import '../../domain/models/file_item.dart';
 /// 缩略图加载失败时回退到图标显示。
 class MediaFileTile extends StatelessWidget {
   final FileItem item;
+
   /// 缩略图服务端 base URL（如 "http://192.168.1.5:12345"）。
   /// 为 null 时不请求缩略图（回退到图标模式）。
   final String? thumbnailBaseUrl;
@@ -38,9 +39,7 @@ class MediaFileTile extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               // 缩略图 / 图标区域
-              Expanded(
-                child: _buildThumbnail(theme),
-              ),
+              Expanded(child: _buildThumbnail(theme)),
               const SizedBox(height: 4),
               // 文件名
               Text(
@@ -72,11 +71,7 @@ class MediaFileTile extends StatelessWidget {
   Widget _buildThumbnail(ThemeData theme) {
     // 文件夹 → 图标
     if (item.isDirectory) {
-      return Icon(
-        Icons.folder,
-        size: 48,
-        color: theme.colorScheme.primary,
-      );
+      return Icon(Icons.folder, size: 48, color: theme.colorScheme.primary);
     }
 
     // 有缩略图 URL 且 base URL 已提供 → Image.network
@@ -96,13 +91,12 @@ class MediaFileTile extends StatelessWidget {
                 strokeWidth: 2,
                 value: loadingProgress.expectedTotalBytes != null
                     ? loadingProgress.cumulativeBytesLoaded /
-                        loadingProgress.expectedTotalBytes!
+                          loadingProgress.expectedTotalBytes!
                     : null,
               ),
             );
           },
-          errorBuilder: (context, error, stackTrace) =>
-              _fallbackIcon(theme),
+          errorBuilder: (context, error, stackTrace) => _fallbackIcon(theme),
         ),
       );
     }

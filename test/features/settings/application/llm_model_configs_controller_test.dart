@@ -88,7 +88,13 @@ void main() {
         name: 'DeepSeek',
         apiUrl: 'https://api.deepseek.com/v1/chat/completions',
         apiKey: 'sk-deepseek',
-        models: [_modelConfig(id: 'm-1', displayName: 'DeepSeek-V3', modelName: 'deepseek-chat')],
+        models: [
+          _modelConfig(
+            id: 'm-1',
+            displayName: 'DeepSeek-V3',
+            modelName: 'deepseek-chat',
+          ),
+        ],
       );
       await controller.upsertProvider(provider);
 
@@ -148,12 +154,20 @@ void main() {
     });
 
     test('upsertProvider() sorts providers alphabetically by name', () async {
-      await controller.upsertProvider(_providerConfig(id: 'p-3', name: 'Charlie'));
-      await controller.upsertProvider(_providerConfig(id: 'p-1', name: 'Alpha'));
-      await controller.upsertProvider(_providerConfig(id: 'p-2', name: 'Bravo'));
+      await controller.upsertProvider(
+        _providerConfig(id: 'p-3', name: 'Charlie'),
+      );
+      await controller.upsertProvider(
+        _providerConfig(id: 'p-1', name: 'Alpha'),
+      );
+      await controller.upsertProvider(
+        _providerConfig(id: 'p-2', name: 'Bravo'),
+      );
 
-      final names =
-          container.read(llmProviderConfigsProvider).map((p) => p.name).toList();
+      final names = container
+          .read(llmProviderConfigsProvider)
+          .map((p) => p.name)
+          .toList();
       expect(names, ['Alpha', 'Bravo', 'Charlie']);
     });
 
@@ -165,30 +179,43 @@ void main() {
         _providerConfig(id: 'p-1', name: 'Alpha'),
       ]);
 
-      final names =
-          container.read(llmProviderConfigsProvider).map((p) => p.name).toList();
+      final names = container
+          .read(llmProviderConfigsProvider)
+          .map((p) => p.name)
+          .toList();
       expect(names, ['Alpha', 'Beta']);
       expect(readPersisted().length, 2);
     });
 
-    test('upsertAllProviders() updates existing and adds new in one call', () async {
-      // 先添加一个已存在的
-      await controller.upsertProvider(
-        _providerConfig(id: 'p-1', name: 'Old Name', apiUrl: 'https://old.url'),
-      );
+    test(
+      'upsertAllProviders() updates existing and adds new in one call',
+      () async {
+        // 先添加一个已存在的
+        await controller.upsertProvider(
+          _providerConfig(
+            id: 'p-1',
+            name: 'Old Name',
+            apiUrl: 'https://old.url',
+          ),
+        );
 
-      // 批量调用：更新 p-1 + 新增 p-2
-      await controller.upsertAllProviders([
-        _providerConfig(id: 'p-1', name: 'New Name', apiUrl: 'https://new.url'),
-        _providerConfig(id: 'p-2', name: 'Brand New'),
-      ]);
+        // 批量调用：更新 p-1 + 新增 p-2
+        await controller.upsertAllProviders([
+          _providerConfig(
+            id: 'p-1',
+            name: 'New Name',
+            apiUrl: 'https://new.url',
+          ),
+          _providerConfig(id: 'p-2', name: 'Brand New'),
+        ]);
 
-      final state = container.read(llmProviderConfigsProvider);
-      expect(state.length, 2);
-      expect(state.firstWhere((p) => p.id == 'p-1').name, 'New Name');
-      expect(state.firstWhere((p) => p.id == 'p-2').name, 'Brand New');
-      expect(readPersisted().length, 2);
-    });
+        final state = container.read(llmProviderConfigsProvider);
+        expect(state.length, 2);
+        expect(state.firstWhere((p) => p.id == 'p-1').name, 'New Name');
+        expect(state.firstWhere((p) => p.id == 'p-2').name, 'Brand New');
+        expect(readPersisted().length, 2);
+      },
+    );
 
     // ── mergeImportedProviders() ────────────────────────────────────────────
 
@@ -200,55 +227,76 @@ void main() {
       expect(container.read(llmProviderConfigsProvider).length, 1);
     });
 
-    test('mergeImportedProviders() merges models for same API URL+Key', () async {
-      // 先有一个服务商，带一个模型
-      await controller.upsertProvider(_providerConfig(
-        id: 'existing',
-        name: 'My API',
-        apiUrl: 'https://same.url/api',
-        apiKey: 'same-key',
-        models: [_modelConfig(id: 'm-1', displayName: 'Charlie', modelName: 'model-a')],
-      ));
+    test(
+      'mergeImportedProviders() merges models for same API URL+Key',
+      () async {
+        // 先有一个服务商，带一个模型
+        await controller.upsertProvider(
+          _providerConfig(
+            id: 'existing',
+            name: 'My API',
+            apiUrl: 'https://same.url/api',
+            apiKey: 'same-key',
+            models: [
+              _modelConfig(
+                id: 'm-1',
+                displayName: 'Charlie',
+                modelName: 'model-a',
+              ),
+            ],
+          ),
+        );
 
-      // 导入同 URL+Key 的服务商，带有额外模型
-      // displayName 与 ID 顺序不一致，验证排序按 displayName 而非插入顺序
-      await controller.mergeImportedProviders([
-        _providerConfig(
-          id: 'imported',
-          name: 'Different Name',
-          apiUrl: 'https://same.url/api',
-          apiKey: 'same-key',
-          models: [
-            _modelConfig(id: 'm-2', displayName: 'Alpha', modelName: 'model-b'),
-            _modelConfig(id: 'm-3', displayName: 'Bravo', modelName: 'model-c'),
-          ],
-        ),
-      ]);
+        // 导入同 URL+Key 的服务商，带有额外模型
+        // displayName 与 ID 顺序不一致，验证排序按 displayName 而非插入顺序
+        await controller.mergeImportedProviders([
+          _providerConfig(
+            id: 'imported',
+            name: 'Different Name',
+            apiUrl: 'https://same.url/api',
+            apiKey: 'same-key',
+            models: [
+              _modelConfig(
+                id: 'm-2',
+                displayName: 'Alpha',
+                modelName: 'model-b',
+              ),
+              _modelConfig(
+                id: 'm-3',
+                displayName: 'Bravo',
+                modelName: 'model-c',
+              ),
+            ],
+          ),
+        ]);
 
-      final state = container.read(llmProviderConfigsProvider);
-      expect(state.length, 1);
-      final mergedProvider = state.first;
-      expect(mergedProvider.id, 'existing');
-      expect(mergedProvider.name, 'My API');
-      expect(mergedProvider.models.length, 3);
-      final modelIds = mergedProvider.models.map((m) => m.id).toSet();
-      expect(modelIds, {'m-1', 'm-2', 'm-3'});
-      // 模型按 displayName 排序：Alpha < Bravo < Charlie
-      expect(mergedProvider.models.map((m) => m.displayName).toList(), [
-        'Alpha',
-        'Bravo',
-        'Charlie',
-      ]);
-    });
+        final state = container.read(llmProviderConfigsProvider);
+        expect(state.length, 1);
+        final mergedProvider = state.first;
+        expect(mergedProvider.id, 'existing');
+        expect(mergedProvider.name, 'My API');
+        expect(mergedProvider.models.length, 3);
+        final modelIds = mergedProvider.models.map((m) => m.id).toSet();
+        expect(modelIds, {'m-1', 'm-2', 'm-3'});
+        // 模型按 displayName 排序：Alpha < Bravo < Charlie
+        expect(mergedProvider.models.map((m) => m.displayName).toList(), [
+          'Alpha',
+          'Bravo',
+          'Charlie',
+        ]);
+      },
+    );
 
     test('mergeImportedProviders() skips duplicate models', () async {
-      await controller.upsertProvider(_providerConfig(
-        id: 'existing',
-        name: 'API',
-        apiUrl: 'https://api.example.com',
-        apiKey: 'key-1',
-        models: [_modelConfig(id: 'm-1', modelName: 'model-a')],
-      ));
+      await controller.upsertProvider(
+        _providerConfig(
+          id: 'existing',
+          name: 'API',
+          apiUrl: 'https://api.example.com',
+          apiKey: 'key-1',
+          models: [_modelConfig(id: 'm-1', modelName: 'model-a')],
+        ),
+      );
 
       // 导入含同 modelName 的模型
       await controller.mergeImportedProviders([
@@ -258,7 +306,10 @@ void main() {
           apiUrl: 'https://api.example.com',
           apiKey: 'key-1',
           models: [
-            _modelConfig(id: 'm-duplicate', modelName: 'model-a'), // 同 modelName → 跳过
+            _modelConfig(
+              id: 'm-duplicate',
+              modelName: 'model-a',
+            ), // 同 modelName → 跳过
             _modelConfig(id: 'm-2', modelName: 'model-b'),
           ],
         ),
@@ -271,7 +322,9 @@ void main() {
     // ── deleteProviderById() ────────────────────────────────────────────────
 
     test('deleteProviderById() removes provider', () async {
-      await controller.upsertProvider(_providerConfig(id: 'p-1', name: 'ToDelete'));
+      await controller.upsertProvider(
+        _providerConfig(id: 'p-1', name: 'ToDelete'),
+      );
       await controller.upsertProvider(_providerConfig(id: 'p-2', name: 'Keep'));
 
       await controller.deleteProviderById('p-1');
@@ -293,11 +346,17 @@ void main() {
     // ── upsertModel() ───────────────────────────────────────────────────────
 
     test('upsertModel() adds model to existing provider', () async {
-      await controller.upsertProvider(_providerConfig(id: 'p-1', name: 'OpenAI'));
+      await controller.upsertProvider(
+        _providerConfig(id: 'p-1', name: 'OpenAI'),
+      );
 
       await controller.upsertModel(
         providerId: 'p-1',
-        model: _modelConfig(id: 'm-new', displayName: 'GPT-4o', modelName: 'gpt-4o'),
+        model: _modelConfig(
+          id: 'm-new',
+          displayName: 'GPT-4o',
+          modelName: 'gpt-4o',
+        ),
       );
 
       final state = container.read(llmProviderConfigsProvider);
@@ -308,18 +367,30 @@ void main() {
     });
 
     test('upsertModel() updates existing model by id', () async {
-      await controller.upsertProvider(_providerConfig(
-        id: 'p-1',
-        name: 'OpenAI',
-        models: [_modelConfig(id: 'm-1', displayName: 'Old', modelName: 'old-model')],
-      ));
+      await controller.upsertProvider(
+        _providerConfig(
+          id: 'p-1',
+          name: 'OpenAI',
+          models: [
+            _modelConfig(id: 'm-1', displayName: 'Old', modelName: 'old-model'),
+          ],
+        ),
+      );
 
       await controller.upsertModel(
         providerId: 'p-1',
-        model: _modelConfig(id: 'm-1', displayName: 'New', modelName: 'new-model'),
+        model: _modelConfig(
+          id: 'm-1',
+          displayName: 'New',
+          modelName: 'new-model',
+        ),
       );
 
-      final model = container.read(llmProviderConfigsProvider).first.models.first;
+      final model = container
+          .read(llmProviderConfigsProvider)
+          .first
+          .models
+          .first;
       expect(model.displayName, 'New');
       expect(model.modelName, 'new-model');
       expect(readPersisted().first.models.first.displayName, 'New');
@@ -337,14 +408,16 @@ void main() {
     // ── deleteModel() ───────────────────────────────────────────────────────
 
     test('deleteModel() removes model from provider', () async {
-      await controller.upsertProvider(_providerConfig(
-        id: 'p-1',
-        name: 'OpenAI',
-        models: [
-          _modelConfig(id: 'm-1', displayName: 'GPT-4'),
-          _modelConfig(id: 'm-2', displayName: 'GPT-3.5'),
-        ],
-      ));
+      await controller.upsertProvider(
+        _providerConfig(
+          id: 'p-1',
+          name: 'OpenAI',
+          models: [
+            _modelConfig(id: 'm-1', displayName: 'GPT-4'),
+            _modelConfig(id: 'm-2', displayName: 'GPT-3.5'),
+          ],
+        ),
+      );
 
       await controller.deleteModel(providerId: 'p-1', modelId: 'm-1');
 
@@ -355,11 +428,13 @@ void main() {
     });
 
     test('deleteModel() is no-op for unknown provider', () async {
-      await controller.upsertProvider(_providerConfig(
-        id: 'p-1',
-        name: 'OpenAI',
-        models: [_modelConfig(id: 'm-1')],
-      ));
+      await controller.upsertProvider(
+        _providerConfig(
+          id: 'p-1',
+          name: 'OpenAI',
+          models: [_modelConfig(id: 'm-1')],
+        ),
+      );
 
       await controller.deleteModel(providerId: 'non-existent', modelId: 'm-1');
 
@@ -369,13 +444,19 @@ void main() {
     // ── upsertModels() ─────────────────────────────────────────────────────
 
     test('upsertModels() adds multiple models to existing provider', () async {
-      await controller.upsertProvider(_providerConfig(id: 'p-1', name: 'OpenAI'));
+      await controller.upsertProvider(
+        _providerConfig(id: 'p-1', name: 'OpenAI'),
+      );
 
       final addedCount = await controller.upsertModels(
         providerId: 'p-1',
         models: [
           _modelConfig(id: 'm-1', displayName: 'GPT-4o', modelName: 'gpt-4o'),
-          _modelConfig(id: 'm-2', displayName: 'GPT-4o-mini', modelName: 'gpt-4o-mini'),
+          _modelConfig(
+            id: 'm-2',
+            displayName: 'GPT-4o-mini',
+            modelName: 'gpt-4o-mini',
+          ),
         ],
       );
 
@@ -387,17 +468,33 @@ void main() {
     });
 
     test('upsertModels() skips models with duplicate modelName', () async {
-      await controller.upsertProvider(_providerConfig(
-        id: 'p-1',
-        name: 'OpenAI',
-        models: [_modelConfig(id: 'm-existing', displayName: 'Old', modelName: 'gpt-4o')],
-      ));
+      await controller.upsertProvider(
+        _providerConfig(
+          id: 'p-1',
+          name: 'OpenAI',
+          models: [
+            _modelConfig(
+              id: 'm-existing',
+              displayName: 'Old',
+              modelName: 'gpt-4o',
+            ),
+          ],
+        ),
+      );
 
       final addedCount = await controller.upsertModels(
         providerId: 'p-1',
         models: [
-          _modelConfig(id: 'm-new-1', displayName: 'GPT-4o New', modelName: 'gpt-4o'), // 重复 modelName -> 跳过
-          _modelConfig(id: 'm-new-2', displayName: 'GPT-4o-mini', modelName: 'gpt-4o-mini'),
+          _modelConfig(
+            id: 'm-new-1',
+            displayName: 'GPT-4o New',
+            modelName: 'gpt-4o',
+          ), // 重复 modelName -> 跳过
+          _modelConfig(
+            id: 'm-new-2',
+            displayName: 'GPT-4o-mini',
+            modelName: 'gpt-4o-mini',
+          ),
         ],
       );
 
@@ -418,13 +515,18 @@ void main() {
     });
 
     test('upsertModels() returns 0 for empty list', () async {
-      await controller.upsertProvider(_providerConfig(
-        id: 'p-1',
-        name: 'OpenAI',
-        models: [_modelConfig(id: 'm-1', displayName: 'Existing')],
-      ));
+      await controller.upsertProvider(
+        _providerConfig(
+          id: 'p-1',
+          name: 'OpenAI',
+          models: [_modelConfig(id: 'm-1', displayName: 'Existing')],
+        ),
+      );
 
-      final addedCount = await controller.upsertModels(providerId: 'p-1', models: []);
+      final addedCount = await controller.upsertModels(
+        providerId: 'p-1',
+        models: [],
+      );
 
       expect(addedCount, 0);
       final models = container.read(llmProviderConfigsProvider).first.models;
@@ -433,7 +535,9 @@ void main() {
     });
 
     test('upsertModels() persists changes', () async {
-      await controller.upsertProvider(_providerConfig(id: 'p-1', name: 'OpenAI'));
+      await controller.upsertProvider(
+        _providerConfig(id: 'p-1', name: 'OpenAI'),
+      );
 
       await controller.upsertModels(
         providerId: 'p-1',
@@ -448,13 +552,19 @@ void main() {
     });
 
     test('upsertModels() deduplicates within input list', () async {
-      await controller.upsertProvider(_providerConfig(id: 'p-1', name: 'OpenAI'));
+      await controller.upsertProvider(
+        _providerConfig(id: 'p-1', name: 'OpenAI'),
+      );
 
       final addedCount = await controller.upsertModels(
         providerId: 'p-1',
         models: [
           _modelConfig(id: 'm-1', displayName: 'First', modelName: 'gpt-4o'),
-          _modelConfig(id: 'm-2', displayName: 'Second', modelName: 'gpt-4o'), // 同 modelName -> 跳过
+          _modelConfig(
+            id: 'm-2',
+            displayName: 'Second',
+            modelName: 'gpt-4o',
+          ), // 同 modelName -> 跳过
         ],
       );
 
@@ -463,6 +573,5 @@ void main() {
       expect(models.length, 1);
       expect(models.first.id, 'm-1');
     });
-
   });
 }

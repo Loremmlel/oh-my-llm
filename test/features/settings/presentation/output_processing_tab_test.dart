@@ -47,8 +47,9 @@ void main() {
         extraOverrides: initialRules.isEmpty
             ? const []
             : [
-                outputProcessingSettingsProvider
-                    .overrideWith(() => _FakeController(initialRules)),
+                outputProcessingSettingsProvider.overrideWith(
+                  () => _FakeController(initialRules),
+                ),
               ],
       );
     }
@@ -110,14 +111,8 @@ void main() {
       await tester.tap(find.byIcon(Icons.add_rounded));
       await tester.pumpAndSettle();
 
-      await tester.enterText(
-        find.widgetWithText(TextField, '标题'),
-        '新规则',
-      );
-      await tester.enterText(
-        find.widgetWithText(TextField, '正则表达式'),
-        r'\d+',
-      );
+      await tester.enterText(find.widgetWithText(TextField, '标题'), '新规则');
+      await tester.enterText(find.widgetWithText(TextField, '正则表达式'), r'\d+');
       await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
 

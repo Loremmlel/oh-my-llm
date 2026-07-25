@@ -111,15 +111,17 @@ class _SyncImportConfirmDialogState
             Text(
               _errorMessage!,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.error,
-                  ),
+                color: Theme.of(context).colorScheme.error,
+              ),
             ),
           ],
         ],
       ),
       actions: [
         TextButton(
-          onPressed: _isImporting ? null : () => Navigator.of(context).pop(false),
+          onPressed: _isImporting
+              ? null
+              : () => Navigator.of(context).pop(false),
           child: const Text('取消'),
         ),
         FilledButton(
@@ -146,9 +148,9 @@ class _SyncImportConfirmDialogState
           const Spacer(),
           Text(
             '$count 项',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
           ),
         ],
       ),

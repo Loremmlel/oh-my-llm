@@ -47,14 +47,13 @@ void main() {
     updatedAt: DateTime(2026),
   );
 
-  PresetPrompt buildPresetPrompt({
-    List<PromptMessage> messages = const [],
-  }) => PresetPrompt(
-    id: 'tpl-1',
-    name: '测试模板',
-    messages: messages,
-    updatedAt: DateTime(2026),
-  );
+  PresetPrompt buildPresetPrompt({List<PromptMessage> messages = const []}) =>
+      PresetPrompt(
+        id: 'tpl-1',
+        name: '测试模板',
+        messages: messages,
+        updatedAt: DateTime(2026),
+      );
 
   PromptMessage buildPromptMessage({
     required PromptMessageRole role,
@@ -87,9 +86,7 @@ void main() {
     });
 
     test('selectedCheckpointId 在 checkpoints 中不存在时返回空 chain 和所有消息', () {
-      final messages = [
-        buildMessage(id: 'm1', content: '消息'),
-      ];
+      final messages = [buildMessage(id: 'm1', content: '消息')];
 
       final result = resolveCheckpointRequestContext(
         checkpoints: [buildCheckpoint(id: 'cp-1')],
@@ -125,9 +122,7 @@ void main() {
     });
 
     test('有效 checkpoint 无 coveredUntilMessageId → chain + 所有消息', () {
-      final messages = [
-        buildMessage(id: 'm1', content: '消息'),
-      ];
+      final messages = [buildMessage(id: 'm1', content: '消息')];
       final checkpoint = buildCheckpoint(id: 'cp-1');
 
       final result = resolveCheckpointRequestContext(
@@ -140,63 +135,67 @@ void main() {
       expect(result.tailMessages, messages);
     });
 
-    test('coveredUntilMessageId 在 conversationMessages 中找不到 → chain + 所有消息', () {
-      final messages = [
-        buildMessage(id: 'm1', content: '消息'),
-      ];
-      final checkpoint = buildCheckpoint(
-        id: 'cp-1',
-        coveredUntilMessageId: 'm-not-found',
-      );
+    test(
+      'coveredUntilMessageId 在 conversationMessages 中找不到 → chain + 所有消息',
+      () {
+        final messages = [buildMessage(id: 'm1', content: '消息')];
+        final checkpoint = buildCheckpoint(
+          id: 'cp-1',
+          coveredUntilMessageId: 'm-not-found',
+        );
 
-      final result = resolveCheckpointRequestContext(
-        checkpoints: [checkpoint],
-        selectedCheckpointId: 'cp-1',
-        conversationMessages: messages,
-      );
+        final result = resolveCheckpointRequestContext(
+          checkpoints: [checkpoint],
+          selectedCheckpointId: 'cp-1',
+          conversationMessages: messages,
+        );
 
-      // 注意：coveredId 找不到时 chain 不返回
-      expect(result.checkpointChain, isEmpty);
-      expect(result.tailMessages, messages);
-    });
+        // 注意：coveredId 找不到时 chain 不返回
+        expect(result.checkpointChain, isEmpty);
+        expect(result.tailMessages, messages);
+      },
+    );
 
-    test('多级链：grandparent → parent → selected，tail 基于最深检查点的 coveredUntilMessageId', () {
-      final messages = [
-        buildMessage(id: 'm1', content: '第 1 条'),
-        buildMessage(id: 'm2', content: '第 2 条'),
-        buildMessage(id: 'm3', content: '第 3 条'),
-        buildMessage(id: 'm4', content: '第 4 条'),
-      ];
-      final grandparent = buildCheckpoint(
-        id: 'cp-grand',
-        title: '祖检查点',
-        coveredUntilMessageId: 'm1',
-      );
-      final parent = buildCheckpoint(
-        id: 'cp-parent',
-        title: '父检查点',
-        parentCheckpointId: 'cp-grand',
-        coveredUntilMessageId: 'm2',
-      );
-      final selected = buildCheckpoint(
-        id: 'cp-selected',
-        title: '选中检查点',
-        parentCheckpointId: 'cp-parent',
-        coveredUntilMessageId: 'm3',
-      );
+    test(
+      '多级链：grandparent → parent → selected，tail 基于最深检查点的 coveredUntilMessageId',
+      () {
+        final messages = [
+          buildMessage(id: 'm1', content: '第 1 条'),
+          buildMessage(id: 'm2', content: '第 2 条'),
+          buildMessage(id: 'm3', content: '第 3 条'),
+          buildMessage(id: 'm4', content: '第 4 条'),
+        ];
+        final grandparent = buildCheckpoint(
+          id: 'cp-grand',
+          title: '祖检查点',
+          coveredUntilMessageId: 'm1',
+        );
+        final parent = buildCheckpoint(
+          id: 'cp-parent',
+          title: '父检查点',
+          parentCheckpointId: 'cp-grand',
+          coveredUntilMessageId: 'm2',
+        );
+        final selected = buildCheckpoint(
+          id: 'cp-selected',
+          title: '选中检查点',
+          parentCheckpointId: 'cp-parent',
+          coveredUntilMessageId: 'm3',
+        );
 
-      final result = resolveCheckpointRequestContext(
-        checkpoints: [grandparent, parent, selected],
-        selectedCheckpointId: 'cp-selected',
-        conversationMessages: messages,
-      );
+        final result = resolveCheckpointRequestContext(
+          checkpoints: [grandparent, parent, selected],
+          selectedCheckpointId: 'cp-selected',
+          conversationMessages: messages,
+        );
 
-      // chain 应为祖先顺序
-      expect(result.checkpointChain, [grandparent, parent, selected]);
-      // tail 是 m3 之后的消息
-      expect(result.tailMessages, hasLength(1));
-      expect(result.tailMessages.single.id, 'm4');
-    });
+        // chain 应为祖先顺序
+        expect(result.checkpointChain, [grandparent, parent, selected]);
+        // tail 是 m3 之后的消息
+        expect(result.tailMessages, hasLength(1));
+        expect(result.tailMessages.single.id, 'm4');
+      },
+    );
   });
 
   // ── resolveCheckpointChain ─────────────────────────────────────────────────
@@ -282,9 +281,7 @@ void main() {
   group('buildCheckpointSummaryMessages', () {
     test('空 chain（根检查点）使用根检查点中文 system prompt', () {
       final memoryPrompt = buildMemoryPrompt();
-      final conversationMessages = [
-        buildMessage(id: 'm1', content: '对话消息'),
-      ];
+      final conversationMessages = [buildMessage(id: 'm1', content: '对话消息')];
 
       final result = buildCheckpointSummaryMessages(
         memoryPrompt: memoryPrompt,
@@ -295,10 +292,7 @@ void main() {
       expect(result, isNotEmpty);
       // 第一条是 system 消息，包含根检查点提示
       expect(result.first.role, ChatMessageRole.system);
-      expect(
-        result.first.content,
-        contains('你正在为当前对话创建根检查点'),
-      );
+      expect(result.first.content, contains('你正在为当前对话创建根检查点'));
     });
 
     test('非空 chain（后续检查点）使用链式检查点中文 system prompt', () {
@@ -306,9 +300,7 @@ void main() {
       final chain = [
         buildCheckpoint(id: 'cp-1', title: '已有检查点', content: '已有内容'),
       ];
-      final conversationMessages = [
-        buildMessage(id: 'm1', content: '新对话消息'),
-      ];
+      final conversationMessages = [buildMessage(id: 'm1', content: '新对话消息')];
 
       final result = buildCheckpointSummaryMessages(
         memoryPrompt: memoryPrompt,
@@ -318,15 +310,9 @@ void main() {
 
       expect(result, isNotEmpty);
       expect(result.first.role, ChatMessageRole.system);
-      expect(
-        result.first.content,
-        contains('你正在为当前对话创建新的链式检查点'),
-      );
+      expect(result.first.content, contains('你正在为当前对话创建新的链式检查点'));
       // 不包含"根检查点"
-      expect(
-        result.first.content,
-        isNot(contains('根检查点')),
-      );
+      expect(result.first.content, isNot(contains('根检查点')));
     });
 
     test('非空 chain 的消息中包含检查点记忆内容', () {
@@ -373,9 +359,7 @@ void main() {
       );
 
       // 在 system prompt + 对话消息 + 末尾指令中查找
-      final userMessages = result.where(
-        (m) => m.role == ChatMessageRole.user,
-      );
+      final userMessages = result.where((m) => m.role == ChatMessageRole.user);
       final contents = userMessages.map((m) => m.content).toList();
       expect(contents, contains('保留消息'));
       expect(contents, isNot(contains('排除消息')));
@@ -392,18 +376,14 @@ void main() {
       );
 
       // 最后一条 user 消息是记忆总结提示词
-      final lastUser = result.lastWhere(
-        (m) => m.role == ChatMessageRole.user,
-      );
+      final lastUser = result.lastWhere((m) => m.role == ChatMessageRole.user);
       expect(lastUser.content, contains('请用简洁的语言总结'));
       expect(lastUser.content, contains('记忆总结提示词'));
     });
 
     test('presetPrompt before/after placement 正确放置消息', () {
       final memoryPrompt = buildMemoryPrompt();
-      final conversationMessages = [
-        buildMessage(id: 'm1', content: '对话'),
-      ];
+      final conversationMessages = [buildMessage(id: 'm1', content: '对话')];
       final presetPrompt = buildPresetPrompt(
         messages: [
           buildPromptMessage(
@@ -426,17 +406,15 @@ void main() {
         presetPrompt: presetPrompt,
       );
 
-      final rolesAndContents = result.map(
-        (m) => '${m.role.apiValue}:${m.content}',
-      ).toList();
+      final rolesAndContents = result
+          .map((m) => '${m.role.apiValue}:${m.content}')
+          .toList();
 
       // 前置 system 消息应在对话消息之前
       final beforeSystemIndex = rolesAndContents.indexWhere(
         (rc) => rc == 'system:前置系统消息',
       );
-      final dialogIndex = rolesAndContents.indexWhere(
-        (rc) => rc == 'user:对话',
-      );
+      final dialogIndex = rolesAndContents.indexWhere((rc) => rc == 'user:对话');
       final afterAssistantIndex = rolesAndContents.indexWhere(
         (rc) => rc == 'assistant:后置助手消息',
       );
@@ -447,9 +425,7 @@ void main() {
 
     test('presetPrompt beforeLatestInput placement 排在会话消息之后、after 之前', () {
       final memoryPrompt = buildMemoryPrompt();
-      final conversationMessages = [
-        buildMessage(id: 'm1', content: '对话'),
-      ];
+      final conversationMessages = [buildMessage(id: 'm1', content: '对话')];
       final presetPrompt = buildPresetPrompt(
         messages: [
           buildPromptMessage(

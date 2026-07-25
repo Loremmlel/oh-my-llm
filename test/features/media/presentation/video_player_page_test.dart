@@ -100,9 +100,11 @@ class FakeVideoPlayerController extends VideoPlayerController {
               DurationRange(
                 Duration.zero,
                 Duration(
-                  milliseconds: (fakeDuration.inMilliseconds * fakeBufferedPercent).round(),
+                  milliseconds:
+                      (fakeDuration.inMilliseconds * fakeBufferedPercent)
+                          .round(),
                 ),
-              )
+              ),
             ]
           : const [],
     );
@@ -122,7 +124,9 @@ Widget _wrapWithMaterialApp(Widget child) {
 }
 
 /// 创建使用 FakeController 的测试页面。
-Widget _buildTestPageWithFake({required FakeVideoPlayerController fakeController}) {
+Widget _buildTestPageWithFake({
+  required FakeVideoPlayerController fakeController,
+}) {
   return _wrapWithMaterialApp(
     VideoPlayerPage(
       videoUrl: 'http://localhost/test.mp4',
@@ -145,8 +149,10 @@ Widget _buildTestPage() {
 /// 等待初始化完成，并可选清除 init 过程产生的追踪记录。
 ///
 /// 传入 [controller] 可在 init 完成后自动清除追踪列表。
-Future<void> _pumpInit(WidgetTester tester,
-    {FakeVideoPlayerController? controller}) async {
+Future<void> _pumpInit(
+  WidgetTester tester, {
+  FakeVideoPlayerController? controller,
+}) async {
   await tester.pump(); // build 帧
   await tester.pump(); // initState 异步
   await tester.pump(const Duration(milliseconds: 100)); // 初始化完成
@@ -202,7 +208,8 @@ void main() {
   group('静态渲染', () {
     testWidgets('页面正常渲染', (tester) async {
       await tester.pumpWidget(
-          _buildTestPageWithFake(fakeController: fakeController));
+        _buildTestPageWithFake(fakeController: fakeController),
+      );
       await _pumpInit(tester, controller: fakeController);
       expect(find.byType(Scaffold), findsOneWidget);
       await _flushGestureTimers(tester);
@@ -210,7 +217,8 @@ void main() {
 
     testWidgets('返回按钮存在', (tester) async {
       await tester.pumpWidget(
-          _buildTestPageWithFake(fakeController: fakeController));
+        _buildTestPageWithFake(fakeController: fakeController),
+      );
       await _pumpInit(tester, controller: fakeController);
       expect(find.byIcon(Icons.arrow_back), findsOneWidget);
       await _flushGestureTimers(tester);
@@ -218,7 +226,8 @@ void main() {
 
     testWidgets('倍速按钮存在', (tester) async {
       await tester.pumpWidget(
-          _buildTestPageWithFake(fakeController: fakeController));
+        _buildTestPageWithFake(fakeController: fakeController),
+      );
       await _pumpInit(tester, controller: fakeController);
       expect(find.text('1.0x'), findsOneWidget);
       await _flushGestureTimers(tester);
@@ -272,7 +281,8 @@ void main() {
     testWidgets('双击左半屏 seek 后退 15s', (tester) async {
       fakeController.fakePosition = const Duration(seconds: 30);
       await tester.pumpWidget(
-          _buildTestPageWithFake(fakeController: fakeController));
+        _buildTestPageWithFake(fakeController: fakeController),
+      );
       await _pumpInit(tester, controller: fakeController);
 
       // 点击左半屏双击
@@ -282,15 +292,15 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
 
       expect(fakeController.seekToCalls, isNotEmpty);
-      expect(fakeController.seekToCalls.last,
-          const Duration(seconds: 15));
+      expect(fakeController.seekToCalls.last, const Duration(seconds: 15));
       await _flushGestureTimers(tester);
     });
 
     testWidgets('双击右半屏 seek 前进 15s', (tester) async {
       fakeController.fakePosition = const Duration(seconds: 30);
       await tester.pumpWidget(
-          _buildTestPageWithFake(fakeController: fakeController));
+        _buildTestPageWithFake(fakeController: fakeController),
+      );
       await _pumpInit(tester, controller: fakeController);
 
       await tester.tapAt(_rightHalf(tester));
@@ -299,15 +309,15 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
 
       expect(fakeController.seekToCalls, isNotEmpty);
-      expect(fakeController.seekToCalls.last,
-          const Duration(seconds: 45));
+      expect(fakeController.seekToCalls.last, const Duration(seconds: 45));
       await _flushGestureTimers(tester);
     });
 
     testWidgets('双击左半屏在开头 clamp 到 0', (tester) async {
       fakeController.fakePosition = const Duration(seconds: 5);
       await tester.pumpWidget(
-          _buildTestPageWithFake(fakeController: fakeController));
+        _buildTestPageWithFake(fakeController: fakeController),
+      );
       await _pumpInit(tester, controller: fakeController);
 
       await tester.tapAt(_leftHalf(tester));
@@ -323,7 +333,8 @@ void main() {
       fakeController.fakePosition =
           const Duration(minutes: 5) - const Duration(seconds: 5);
       await tester.pumpWidget(
-          _buildTestPageWithFake(fakeController: fakeController));
+        _buildTestPageWithFake(fakeController: fakeController),
+      );
       await _pumpInit(tester, controller: fakeController);
 
       await tester.tapAt(_rightHalf(tester));
@@ -338,7 +349,8 @@ void main() {
     testWidgets('双击显示快进提示', (tester) async {
       fakeController.fakePosition = const Duration(seconds: 30);
       await tester.pumpWidget(
-          _buildTestPageWithFake(fakeController: fakeController));
+        _buildTestPageWithFake(fakeController: fakeController),
+      );
       await _pumpInit(tester, controller: fakeController);
 
       await tester.tapAt(_rightHalf(tester));
@@ -354,7 +366,8 @@ void main() {
     testWidgets('双击后提示 1 秒后消失', (tester) async {
       fakeController.fakePosition = const Duration(seconds: 30);
       await tester.pumpWidget(
-          _buildTestPageWithFake(fakeController: fakeController));
+        _buildTestPageWithFake(fakeController: fakeController),
+      );
       await _pumpInit(tester, controller: fakeController);
 
       await tester.tapAt(_rightHalf(tester));
@@ -380,7 +393,8 @@ void main() {
     testWidgets('长按时切换到 3x', (tester) async {
       fakeController.fakeIsPlaying = true;
       await tester.pumpWidget(
-          _buildTestPageWithFake(fakeController: fakeController));
+        _buildTestPageWithFake(fakeController: fakeController),
+      );
       await _pumpInit(tester, controller: fakeController);
 
       final gesture = await tester.startGesture(_center(tester));
@@ -397,7 +411,8 @@ void main() {
     testWidgets('松手恢复原倍速（默认 1.0）', (tester) async {
       fakeController.fakeIsPlaying = true;
       await tester.pumpWidget(
-          _buildTestPageWithFake(fakeController: fakeController));
+        _buildTestPageWithFake(fakeController: fakeController),
+      );
       await _pumpInit(tester, controller: fakeController);
 
       final gesture = await tester.startGesture(_center(tester));
@@ -406,8 +421,10 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
 
-      expect(fakeController.setPlaybackSpeedCalls.length,
-          greaterThanOrEqualTo(2));
+      expect(
+        fakeController.setPlaybackSpeedCalls.length,
+        greaterThanOrEqualTo(2),
+      );
       expect(fakeController.setPlaybackSpeedCalls.last, 1.0);
       await _flushGestureTimers(tester);
     });
@@ -415,7 +432,8 @@ void main() {
     testWidgets('长按显示倍速提示', (tester) async {
       fakeController.fakeIsPlaying = true;
       await tester.pumpWidget(
-          _buildTestPageWithFake(fakeController: fakeController));
+        _buildTestPageWithFake(fakeController: fakeController),
+      );
       await _pumpInit(tester, controller: fakeController);
 
       final gesture = await tester.startGesture(_center(tester));
@@ -431,7 +449,8 @@ void main() {
     testWidgets('暂停时长按不生效', (tester) async {
       // 先初始化（默认播放中），再通过 pause 暂停
       await tester.pumpWidget(
-          _buildTestPageWithFake(fakeController: fakeController));
+        _buildTestPageWithFake(fakeController: fakeController),
+      );
       await _pumpInit(tester, controller: fakeController);
 
       // 点击暂停按钮使视频暂停
@@ -455,7 +474,8 @@ void main() {
       fakeController.fakeIsPlaying = false;
       fakeController.fakePosition = fakeController.fakeDuration;
       await tester.pumpWidget(
-          _buildTestPageWithFake(fakeController: fakeController));
+        _buildTestPageWithFake(fakeController: fakeController),
+      );
       await _pumpInit(tester, controller: fakeController);
 
       final gesture = await tester.startGesture(_center(tester));
@@ -479,14 +499,12 @@ void main() {
       fakeController.fakePosition = const Duration(seconds: 30);
       fakeController.fakeDuration = const Duration(minutes: 5);
       await tester.pumpWidget(
-          _buildTestPageWithFake(fakeController: fakeController));
+        _buildTestPageWithFake(fakeController: fakeController),
+      );
       await _pumpInit(tester, controller: fakeController);
 
       // 使用 dragFrom 在 Scaffold 区域拖动（避开不可 hit test 的 VideoPlayer）
-      await tester.dragFrom(
-        _center(tester),
-        const Offset(100, 0),
-      );
+      await tester.dragFrom(_center(tester), const Offset(100, 0));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
 
@@ -498,13 +516,11 @@ void main() {
     testWidgets('向左拖动超过起始位置 clamp 到 0', (tester) async {
       fakeController.fakePosition = const Duration(seconds: 5);
       await tester.pumpWidget(
-          _buildTestPageWithFake(fakeController: fakeController));
+        _buildTestPageWithFake(fakeController: fakeController),
+      );
       await _pumpInit(tester, controller: fakeController);
 
-      await tester.dragFrom(
-        _center(tester),
-        const Offset(-200, 0),
-      );
+      await tester.dragFrom(_center(tester), const Offset(-200, 0));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
 
@@ -515,15 +531,13 @@ void main() {
     testWidgets('水平拖动后控制栏恢复', (tester) async {
       fakeController.fakePosition = const Duration(seconds: 30);
       await tester.pumpWidget(
-          _buildTestPageWithFake(fakeController: fakeController));
+        _buildTestPageWithFake(fakeController: fakeController),
+      );
       await _pumpInit(tester, controller: fakeController);
 
       expect(find.byIcon(Icons.arrow_back), findsOneWidget);
 
-      await tester.dragFrom(
-        _center(tester),
-        const Offset(100, 0),
-      );
+      await tester.dragFrom(_center(tester), const Offset(100, 0));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
 
@@ -540,7 +554,8 @@ void main() {
     testWidgets('双击期间隐藏控制栏', (tester) async {
       fakeController.fakePosition = const Duration(seconds: 30);
       await tester.pumpWidget(
-          _buildTestPageWithFake(fakeController: fakeController));
+        _buildTestPageWithFake(fakeController: fakeController),
+      );
       await _pumpInit(tester, controller: fakeController);
 
       expect(find.byIcon(Icons.arrow_back), findsOneWidget);
@@ -558,7 +573,8 @@ void main() {
     testWidgets('双击后等待提示消失控制栏恢复', (tester) async {
       fakeController.fakePosition = const Duration(seconds: 30);
       await tester.pumpWidget(
-          _buildTestPageWithFake(fakeController: fakeController));
+        _buildTestPageWithFake(fakeController: fakeController),
+      );
       await _pumpInit(tester, controller: fakeController);
 
       await tester.tapAt(_rightHalf(tester));
@@ -578,7 +594,8 @@ void main() {
     testWidgets('长按期间隐藏控制栏', (tester) async {
       fakeController.fakeIsPlaying = true;
       await tester.pumpWidget(
-          _buildTestPageWithFake(fakeController: fakeController));
+        _buildTestPageWithFake(fakeController: fakeController),
+      );
       await _pumpInit(tester, controller: fakeController);
 
       final gesture = await tester.startGesture(_center(tester));
@@ -600,7 +617,8 @@ void main() {
     testWidgets('播放中无手势时提示隐藏', (tester) async {
       fakeController.fakeIsPlaying = true;
       await tester.pumpWidget(
-          _buildTestPageWithFake(fakeController: fakeController));
+        _buildTestPageWithFake(fakeController: fakeController),
+      );
       await _pumpInit(tester, controller: fakeController);
 
       expect(find.byIcon(Icons.play_arrow), findsNothing);
@@ -611,7 +629,8 @@ void main() {
 
     testWidgets('暂停时显示播放图标', (tester) async {
       await tester.pumpWidget(
-          _buildTestPageWithFake(fakeController: fakeController));
+        _buildTestPageWithFake(fakeController: fakeController),
+      );
       await _pumpInit(tester, controller: fakeController);
 
       // 点击暂停按钮使视频暂停
@@ -627,7 +646,8 @@ void main() {
       fakeController.fakeIsPlaying = true;
       fakeController.fakePosition = const Duration(seconds: 30);
       await tester.pumpWidget(
-          _buildTestPageWithFake(fakeController: fakeController));
+        _buildTestPageWithFake(fakeController: fakeController),
+      );
       await _pumpInit(tester, controller: fakeController);
 
       await tester.tapAt(_rightHalf(tester));
@@ -650,7 +670,8 @@ void main() {
   group('控制栏', () {
     testWidgets('初始控制栏可见', (tester) async {
       await tester.pumpWidget(
-          _buildTestPageWithFake(fakeController: fakeController));
+        _buildTestPageWithFake(fakeController: fakeController),
+      );
       await _pumpInit(tester, controller: fakeController);
 
       expect(find.byType(Slider), findsOneWidget);
@@ -660,7 +681,8 @@ void main() {
 
     testWidgets('点击视频区域切换控制栏显隐', (tester) async {
       await tester.pumpWidget(
-          _buildTestPageWithFake(fakeController: fakeController));
+        _buildTestPageWithFake(fakeController: fakeController),
+      );
       await _pumpInit(tester, controller: fakeController);
 
       // 点击视频区域（由于 onTap 有 300ms double-tap delay，需要等待）
@@ -680,7 +702,8 @@ void main() {
   group('返回按钮', () {
     testWidgets('点击返回按钮关闭页面', (tester) async {
       await tester.pumpWidget(
-          _buildTestPageWithFake(fakeController: fakeController));
+        _buildTestPageWithFake(fakeController: fakeController),
+      );
       await _pumpInit(tester, controller: fakeController);
 
       // 点击返回按钮。
@@ -689,7 +712,9 @@ void main() {
       // 使用显式 pump 而非 pumpAndSettle，避免 pending timer 干扰。
       await tester.tap(find.byIcon(Icons.arrow_back));
       await tester.pump(); // 处理 tap + Navigator.pop
-      await tester.pump(const Duration(milliseconds: 500)); // 等待 pop 动画 + double-tap timer 过期
+      await tester.pump(
+        const Duration(milliseconds: 500),
+      ); // 等待 pop 动画 + double-tap timer 过期
       await _flushGestureTimers(tester);
 
       // VideoPlayerPage 应已从导航栈弹出
@@ -704,15 +729,16 @@ void main() {
   group('时间格式化', () {
     test('formatVideoDuration mm:ss 格式', () {
       expect(
-          formatVideoDuration(const Duration(minutes: 5, seconds: 30)),
-          '05:30');
+        formatVideoDuration(const Duration(minutes: 5, seconds: 30)),
+        '05:30',
+      );
     });
 
     test('formatVideoDuration h:mm:ss 格式', () {
       expect(
-          formatVideoDuration(
-              const Duration(hours: 1, minutes: 23, seconds: 45)),
-          '1:23:45');
+        formatVideoDuration(const Duration(hours: 1, minutes: 23, seconds: 45)),
+        '1:23:45',
+      );
     });
 
     test('formatVideoDuration 零时长', () {

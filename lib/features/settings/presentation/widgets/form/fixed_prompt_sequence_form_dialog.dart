@@ -231,9 +231,7 @@ class _FixedPromptSequenceFormDialogState
           });
         }
       },
-      decoration: const InputDecoration(
-        labelText: '选择步骤',
-      ),
+      decoration: const InputDecoration(labelText: '选择步骤'),
     );
   }
 

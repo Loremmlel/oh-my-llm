@@ -19,10 +19,12 @@ void main() {
 
       // 创建测试视频
       Directory('${tempRoot.path}${Platform.pathSeparator}sub').createSync();
-      File('${tempRoot.path}${Platform.pathSeparator}video1.mp4')
-          .writeAsStringSync('v1');
-      File('${tempRoot.path}${Platform.pathSeparator}sub${Platform.pathSeparator}video2.mp4')
-          .writeAsStringSync('v2');
+      File(
+        '${tempRoot.path}${Platform.pathSeparator}video1.mp4',
+      ).writeAsStringSync('v1');
+      File(
+        '${tempRoot.path}${Platform.pathSeparator}sub${Platform.pathSeparator}video2.mp4',
+      ).writeAsStringSync('v2');
     });
 
     tearDown(() {
@@ -40,7 +42,10 @@ void main() {
     }
 
     test('canHandle 拒绝 POST 请求', () {
-      final req = _FakeHttpRequest('POST', '/api/media/videos/recursive/sister');
+      final req = _FakeHttpRequest(
+        'POST',
+        '/api/media/videos/recursive/sister',
+      );
       expect(handler.canHandle(req), isFalse);
     });
 

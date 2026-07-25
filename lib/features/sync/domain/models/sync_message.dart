@@ -69,11 +69,7 @@ class SyncMessage {
     required String requestId,
     required Map<String, dynamic> payload,
   }) {
-    return SyncMessage(
-      type: type,
-      requestId: requestId,
-      payload: payload,
-    );
+    return SyncMessage(type: type, requestId: requestId, payload: payload);
   }
 
   /// 构建一条错误消息。

@@ -21,10 +21,7 @@ class NetworkInterfaceUtils {
     for (final iface in interfaces) {
       for (final addr in iface.addresses) {
         if (addr.isLoopback || addr.isLinkLocal) continue;
-        result.add(NetworkInterfaceInfo(
-          name: iface.name,
-          ip: addr.address,
-        ));
+        result.add(NetworkInterfaceInfo(name: iface.name, ip: addr.address));
       }
     }
     return result;

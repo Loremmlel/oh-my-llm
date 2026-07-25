@@ -4,13 +4,25 @@ import 'package:oh_my_llm/features/settings/domain/models/prompt_message_placeme
 void main() {
   group('PromptMessagePlacement', () {
     test('fromApiValue 已知值正确解析', () {
-      expect(PromptMessagePlacement.fromApiValue('before'), PromptMessagePlacement.before);
-      expect(PromptMessagePlacement.fromApiValue('beforeLatestInput'), PromptMessagePlacement.beforeLatestInput);
-      expect(PromptMessagePlacement.fromApiValue('after'), PromptMessagePlacement.after);
+      expect(
+        PromptMessagePlacement.fromApiValue('before'),
+        PromptMessagePlacement.before,
+      );
+      expect(
+        PromptMessagePlacement.fromApiValue('beforeLatestInput'),
+        PromptMessagePlacement.beforeLatestInput,
+      );
+      expect(
+        PromptMessagePlacement.fromApiValue('after'),
+        PromptMessagePlacement.after,
+      );
     });
 
     test('fromApiValue 未知值回退到 before', () {
-      expect(PromptMessagePlacement.fromApiValue('unknown'), PromptMessagePlacement.before);
+      expect(
+        PromptMessagePlacement.fromApiValue('unknown'),
+        PromptMessagePlacement.before,
+      );
     });
 
     test('label 返回正确的展示文本', () {

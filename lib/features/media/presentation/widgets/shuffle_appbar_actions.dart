@@ -16,10 +16,7 @@ import '../pages/video_player_page.dart';
 class ShuffleAppBarActions extends ConsumerWidget {
   final String currentDirectoryPath;
 
-  const ShuffleAppBarActions({
-    super.key,
-    required this.currentDirectoryPath,
-  });
+  const ShuffleAppBarActions({super.key, required this.currentDirectoryPath});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -28,20 +25,24 @@ class ShuffleAppBarActions extends ConsumerWidget {
 
     return switch (state) {
       ShufflePlaybackIdle() => IconButton(
-          icon: const Icon(Icons.shuffle),
-          tooltip: '随机播放',
-          onPressed: () => _onShufflePressed(context, ref, controller),
-        ),
+        icon: const Icon(Icons.shuffle),
+        tooltip: '随机播放',
+        onPressed: () => _onShufflePressed(context, ref, controller),
+      ),
       ShufflePlaybackLoading() => const Padding(
-          padding: EdgeInsets.all(12.0),
-          child: SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
+        padding: EdgeInsets.all(12.0),
+        child: SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(strokeWidth: 2),
         ),
-      ShufflePlaybackActive() =>
-        _buildActiveButtons(context, ref, state, controller),
+      ),
+      ShufflePlaybackActive() => _buildActiveButtons(
+        context,
+        ref,
+        state,
+        controller,
+      ),
     };
   }
 
@@ -129,10 +130,7 @@ class ShuffleAppBarActions extends ConsumerWidget {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => VideoPlayerPage(
-          videoUrl: videoUrl,
-          fileName: fileName,
-        ),
+        builder: (_) => VideoPlayerPage(videoUrl: videoUrl, fileName: fileName),
       ),
     );
     if (context.mounted) {

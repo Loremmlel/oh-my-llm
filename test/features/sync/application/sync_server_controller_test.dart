@@ -60,7 +60,10 @@ void main() {
 
     test('无存储时 deviceName 回退到 hostname', () async {
       final c1 = buildContainer();
-      expect(c1.read(syncServerControllerProvider).deviceName, Platform.localHostname);
+      expect(
+        c1.read(syncServerControllerProvider).deviceName,
+        Platform.localHostname,
+      );
       c1.dispose();
     });
 
@@ -80,20 +83,23 @@ void main() {
       expect(state.httpPort, isNotNull);
     });
 
-    test('stop 后 isRunning=false, httpPort=null, servedRequestCount=0', () async {
-      final container = buildContainer();
-      final notifier = container.read(syncServerControllerProvider.notifier);
+    test(
+      'stop 后 isRunning=false, httpPort=null, servedRequestCount=0',
+      () async {
+        final container = buildContainer();
+        final notifier = container.read(syncServerControllerProvider.notifier);
 
-      await notifier.start();
-      expect(container.read(syncServerControllerProvider).isRunning, isTrue);
+        await notifier.start();
+        expect(container.read(syncServerControllerProvider).isRunning, isTrue);
 
-      await notifier.stop();
+        await notifier.stop();
 
-      final state = container.read(syncServerControllerProvider);
-      expect(state.isRunning, isFalse);
-      expect(state.httpPort, isNull);
-      expect(state.servedRequestCount, 0);
-    });
+        final state = container.read(syncServerControllerProvider);
+        expect(state.isRunning, isFalse);
+        expect(state.httpPort, isNull);
+        expect(state.servedRequestCount, 0);
+      },
+    );
 
     test('重复 start 是幂等的', () async {
       final container = buildContainer();
@@ -110,7 +116,9 @@ void main() {
 
     test('updateDeviceName 持久化到 SharedPreferences', () async {
       final container = buildContainer();
-      await container.read(syncServerControllerProvider.notifier).updateDeviceName('新设备名');
+      await container
+          .read(syncServerControllerProvider.notifier)
+          .updateDeviceName('新设备名');
 
       expect(preferences.getString('sync.device_name'), '新设备名');
       expect(container.read(syncServerControllerProvider).deviceName, '新设备名');
@@ -154,10 +162,7 @@ void main() {
       await notifier.start();
       final port = container.read(syncServerControllerProvider).httpPort!;
 
-      final request = SyncMessage.request(
-        type: 'unknown_type',
-        payload: {},
-      );
+      final request = SyncMessage.request(type: 'unknown_type', payload: {});
       final response = await http.post(
         Uri.parse('http://127.0.0.1:$port/sync'),
         headers: {'Content-Type': 'application/json'},
@@ -169,41 +174,43 @@ void main() {
       expect(message.payload['code'], SyncErrorCode.unknownType);
     });
 
-    test('POST settingsSyncRequest 返回 settingsSyncResponse 且 payload 含 providers',
-        () async {
-      final provider = _provider();
-      SharedPreferences.setMockInitialValues({
-        'settings.llm_model_configs': VersionedJsonStorage.encodeObjectList(
-          items: [provider],
-          toJson: (p) => p.toJson(),
-        ),
-      });
-      preferences = await SharedPreferences.getInstance();
-      final container = buildContainer();
-      final notifier = container.read(syncServerControllerProvider.notifier);
-      await notifier.start();
-      final port = container.read(syncServerControllerProvider).httpPort!;
+    test(
+      'POST settingsSyncRequest 返回 settingsSyncResponse 且 payload 含 providers',
+      () async {
+        final provider = _provider();
+        SharedPreferences.setMockInitialValues({
+          'settings.llm_model_configs': VersionedJsonStorage.encodeObjectList(
+            items: [provider],
+            toJson: (p) => p.toJson(),
+          ),
+        });
+        preferences = await SharedPreferences.getInstance();
+        final container = buildContainer();
+        final notifier = container.read(syncServerControllerProvider.notifier);
+        await notifier.start();
+        final port = container.read(syncServerControllerProvider).httpPort!;
 
-      final request = SyncMessage.request(
-        type: SyncMessageType.settingsSyncRequest,
-        payload: {
-          'categories': [SyncCategory.providers.payloadKey],
-        },
-      );
-      final response = await http.post(
-        Uri.parse('http://127.0.0.1:$port/sync'),
-        headers: {'Content-Type': 'application/json'},
-        body: SyncMessageCodec.encode(request),
-      );
+        final request = SyncMessage.request(
+          type: SyncMessageType.settingsSyncRequest,
+          payload: {
+            'categories': [SyncCategory.providers.payloadKey],
+          },
+        );
+        final response = await http.post(
+          Uri.parse('http://127.0.0.1:$port/sync'),
+          headers: {'Content-Type': 'application/json'},
+          body: SyncMessageCodec.encode(request),
+        );
 
-      final message = SyncMessageCodec.tryDecode(response.body)!;
-      expect(message.type, SyncMessageType.settingsSyncResponse);
+        final message = SyncMessageCodec.tryDecode(response.body)!;
+        expect(message.type, SyncMessageType.settingsSyncResponse);
 
-      final dataJson = message.payload['data'] as String;
-      final data = jsonDecode(dataJson) as Map<String, dynamic>;
-      final providers = data['modelProviders'] as List;
-      expect(providers, isNotEmpty);
-    });
+        final dataJson = message.payload['data'] as String;
+        final data = jsonDecode(dataJson) as Map<String, dynamic>;
+        final providers = data['modelProviders'] as List;
+        expect(providers, isNotEmpty);
+      },
+    );
 
     test('POST settingsSyncRequest 后 servedRequestCount 递增', () async {
       final provider = _provider();
@@ -231,7 +238,10 @@ void main() {
         body: SyncMessageCodec.encode(request),
       );
 
-      expect(container.read(syncServerControllerProvider).servedRequestCount, 1);
+      expect(
+        container.read(syncServerControllerProvider).servedRequestCount,
+        1,
+      );
     });
   });
 }

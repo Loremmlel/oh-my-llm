@@ -9,8 +9,8 @@ const String mediaRootDirectoryStorageKey = 'media.root_directory';
 /// 仅服务端使用，客户端此值为 null。
 final mediaRootDirectoryProvider =
     NotifierProvider<MediaRootDirectoryController, String?>(
-  MediaRootDirectoryController.new,
-);
+      MediaRootDirectoryController.new,
+    );
 
 /// 媒体根目录配置控制器。
 ///

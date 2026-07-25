@@ -14,9 +14,7 @@ class ChatMessageTreeState {
 ChatMessageTreeState resolveMessageTreeState(ChatConversation conversation) {
   return ChatMessageTreeState(
     nodes: List<ChatMessage>.from(conversation.messageNodes),
-    selections: Map<String, String>.from(
-      conversation.selectedChildByParentId,
-    ),
+    selections: Map<String, String>.from(conversation.selectedChildByParentId),
   );
 }
 

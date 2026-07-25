@@ -24,7 +24,10 @@ void main() {
       ('缺 type', {'requestId': 'r', 'payload': <String, dynamic>{}}),
       ('缺 requestId', {'type': 't', 'payload': <String, dynamic>{}}),
       ('缺 payload', {'type': 't', 'requestId': 'r'}),
-      ('type 类型不符', {'type': 123, 'requestId': 'r', 'payload': <String, dynamic>{}}),
+      (
+        'type 类型不符',
+        {'type': 123, 'requestId': 'r', 'payload': <String, dynamic>{}},
+      ),
     ]) {
       test('tryFromJson $name 返回 null', () {
         expect(SyncMessage.tryFromJson(json), isNull);
@@ -82,7 +85,9 @@ void main() {
       const original = SyncMessage(
         type: 'settings_sync_request',
         requestId: 'r-1',
-        payload: {'categories': ['providers', 'prompts']},
+        payload: {
+          'categories': ['providers', 'prompts'],
+        },
       );
 
       final encoded = SyncMessageCodec.encode(original);

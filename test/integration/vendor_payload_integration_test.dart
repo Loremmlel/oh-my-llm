@@ -16,167 +16,191 @@ import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
 
 void main() {
-  test('DeepSeek 主机 + reasoningEffort=medium -> thinking=enabled 且 reasoning_effort=medium', () async {
-    Map<String, dynamic>? capturedPayload;
+  test(
+    'DeepSeek 主机 + reasoningEffort=medium -> thinking=enabled 且 reasoning_effort=medium',
+    () async {
+      Map<String, dynamic>? capturedPayload;
 
-    final client = OpenAiCompatibleChatClient(
-      httpClient: _FakeHttpClient((request) async {
-        capturedPayload =
-            jsonDecode((request as http.Request).body) as Map<String, dynamic>;
-        return http.StreamedResponse(
-          Stream.fromIterable([
-            utf8.encode(
-              'data: {"choices":[{"delta":{"content":"test"}}]}\n\n',
+      final client = OpenAiCompatibleChatClient(
+        httpClient: _FakeHttpClient((request) async {
+          capturedPayload =
+              jsonDecode((request as http.Request).body)
+                  as Map<String, dynamic>;
+          return http.StreamedResponse(
+            Stream.fromIterable([
+              utf8.encode(
+                'data: {"choices":[{"delta":{"content":"test"}}]}\n\n',
+              ),
+              utf8.encode('data: [DONE]\n\n'),
+            ]),
+            200,
+          );
+        }),
+      );
+
+      await client
+          .streamCompletion(
+            modelConfig: _modelConfig(
+              apiUrl: 'https://api.deepseek.com/v1/chat/completions',
             ),
-            utf8.encode('data: [DONE]\n\n'),
-          ]),
-          200,
-        );
-      }),
-    );
+            messages: const [
+              ChatCompletionRequestMessage(
+                role: ChatMessageRole.user,
+                content: '你好',
+              ),
+            ],
+            reasoningEffort: ReasoningEffort.medium,
+          )
+          .drain<void>();
 
-    await client.streamCompletion(
-      modelConfig: _modelConfig(
-        apiUrl: 'https://api.deepseek.com/v1/chat/completions',
-      ),
-      messages: const [
-        ChatCompletionRequestMessage(
-          role: ChatMessageRole.user,
-          content: '你好',
-        ),
-      ],
-      reasoningEffort: ReasoningEffort.medium,
-    ).drain<void>();
+      expect(capturedPayload, isNotNull);
+      expect(capturedPayload!['thinking'], {'type': 'enabled'});
+      expect(capturedPayload!['reasoning_effort'], 'medium');
+      expect(capturedPayload!.containsKey('extra_body'), isFalse);
+    },
+  );
 
-    expect(capturedPayload, isNotNull);
-    expect(capturedPayload!['thinking'], {'type': 'enabled'});
-    expect(capturedPayload!['reasoning_effort'], 'medium');
-    expect(capturedPayload!.containsKey('extra_body'), isFalse);
-  });
+  test(
+    'DeepSeek 主机 + reasoningEffort=null -> thinking=disabled 且无 reasoning_effort',
+    () async {
+      Map<String, dynamic>? capturedPayload;
 
-  test('DeepSeek 主机 + reasoningEffort=null -> thinking=disabled 且无 reasoning_effort', () async {
-    Map<String, dynamic>? capturedPayload;
+      final client = OpenAiCompatibleChatClient(
+        httpClient: _FakeHttpClient((request) async {
+          capturedPayload =
+              jsonDecode((request as http.Request).body)
+                  as Map<String, dynamic>;
+          return http.StreamedResponse(
+            Stream.fromIterable([
+              utf8.encode(
+                'data: {"choices":[{"delta":{"content":"test"}}]}\n\n',
+              ),
+              utf8.encode('data: [DONE]\n\n'),
+            ]),
+            200,
+          );
+        }),
+      );
 
-    final client = OpenAiCompatibleChatClient(
-      httpClient: _FakeHttpClient((request) async {
-        capturedPayload =
-            jsonDecode((request as http.Request).body) as Map<String, dynamic>;
-        return http.StreamedResponse(
-          Stream.fromIterable([
-            utf8.encode(
-              'data: {"choices":[{"delta":{"content":"test"}}]}\n\n',
+      await client
+          .streamCompletion(
+            modelConfig: _modelConfig(
+              apiUrl: 'https://api.deepseek.com/v1/chat/completions',
             ),
-            utf8.encode('data: [DONE]\n\n'),
-          ]),
-          200,
-        );
-      }),
-    );
+            messages: const [
+              ChatCompletionRequestMessage(
+                role: ChatMessageRole.user,
+                content: '你好',
+              ),
+            ],
+          )
+          .drain<void>();
 
-    await client.streamCompletion(
-      modelConfig: _modelConfig(
-        apiUrl: 'https://api.deepseek.com/v1/chat/completions',
-      ),
-      messages: const [
-        ChatCompletionRequestMessage(
-          role: ChatMessageRole.user,
-          content: '你好',
-        ),
-      ],
-    ).drain<void>();
+      expect(capturedPayload, isNotNull);
+      expect(capturedPayload!['thinking'], {'type': 'disabled'});
+      expect(capturedPayload!.containsKey('reasoning_effort'), isFalse);
+    },
+  );
 
-    expect(capturedPayload, isNotNull);
-    expect(capturedPayload!['thinking'], {'type': 'disabled'});
-    expect(capturedPayload!.containsKey('reasoning_effort'), isFalse);
-  });
+  test(
+    'Ark 主机 + reasoningEffort=high -> thinking=enabled 且 reasoning_effort=high',
+    () async {
+      Map<String, dynamic>? capturedPayload;
 
-  test('Ark 主机 + reasoningEffort=high -> thinking=enabled 且 reasoning_effort=high', () async {
-    Map<String, dynamic>? capturedPayload;
+      final client = OpenAiCompatibleChatClient(
+        httpClient: _FakeHttpClient((request) async {
+          capturedPayload =
+              jsonDecode((request as http.Request).body)
+                  as Map<String, dynamic>;
+          return http.StreamedResponse(
+            Stream.fromIterable([
+              utf8.encode(
+                'data: {"choices":[{"delta":{"content":"test"}}]}\n\n',
+              ),
+              utf8.encode('data: [DONE]\n\n'),
+            ]),
+            200,
+          );
+        }),
+      );
 
-    final client = OpenAiCompatibleChatClient(
-      httpClient: _FakeHttpClient((request) async {
-        capturedPayload =
-            jsonDecode((request as http.Request).body) as Map<String, dynamic>;
-        return http.StreamedResponse(
-          Stream.fromIterable([
-            utf8.encode(
-              'data: {"choices":[{"delta":{"content":"test"}}]}\n\n',
+      await client
+          .streamCompletion(
+            modelConfig: _modelConfig(
+              apiUrl:
+                  'https://ark.cn-beijing.volces.com/api/v3/chat/completions',
             ),
-            utf8.encode('data: [DONE]\n\n'),
-          ]),
-          200,
-        );
-      }),
-    );
+            messages: const [
+              ChatCompletionRequestMessage(
+                role: ChatMessageRole.user,
+                content: '你好',
+              ),
+            ],
+            reasoningEffort: ReasoningEffort.high,
+          )
+          .drain<void>();
 
-    await client.streamCompletion(
-      modelConfig: _modelConfig(
-        apiUrl: 'https://ark.cn-beijing.volces.com/api/v3/chat/completions',
-      ),
-      messages: const [
-        ChatCompletionRequestMessage(
-          role: ChatMessageRole.user,
-          content: '你好',
-        ),
-      ],
-      reasoningEffort: ReasoningEffort.high,
-    ).drain<void>();
+      expect(capturedPayload, isNotNull);
+      expect(capturedPayload!['thinking'], {'type': 'enabled'});
+      expect(capturedPayload!['reasoning_effort'], 'high');
+    },
+  );
 
-    expect(capturedPayload, isNotNull);
-    expect(capturedPayload!['thinking'], {'type': 'enabled'});
-    expect(capturedPayload!['reasoning_effort'], 'high');
-  });
+  test(
+    '默认兼容主机 + reasoningEffort=low -> 无 thinking 无 extra_body，有 reasoning_effort',
+    () async {
+      Map<String, dynamic>? capturedPayload;
 
-  test('默认兼容主机 + reasoningEffort=low -> 无 thinking 无 extra_body，有 reasoning_effort', () async {
-    Map<String, dynamic>? capturedPayload;
+      final client = OpenAiCompatibleChatClient(
+        httpClient: _FakeHttpClient((request) async {
+          capturedPayload =
+              jsonDecode((request as http.Request).body)
+                  as Map<String, dynamic>;
+          return http.StreamedResponse(
+            Stream.fromIterable([
+              utf8.encode(
+                'data: {"choices":[{"delta":{"content":"test"}}]}\n\n',
+              ),
+              utf8.encode('data: [DONE]\n\n'),
+            ]),
+            200,
+          );
+        }),
+      );
 
-    final client = OpenAiCompatibleChatClient(
-      httpClient: _FakeHttpClient((request) async {
-        capturedPayload =
-            jsonDecode((request as http.Request).body) as Map<String, dynamic>;
-        return http.StreamedResponse(
-          Stream.fromIterable([
-            utf8.encode(
-              'data: {"choices":[{"delta":{"content":"test"}}]}\n\n',
+      await client
+          .streamCompletion(
+            modelConfig: _modelConfig(
+              apiUrl: 'https://api.example.com/v1/chat/completions',
             ),
-            utf8.encode('data: [DONE]\n\n'),
-          ]),
-          200,
-        );
-      }),
-    );
+            messages: const [
+              ChatCompletionRequestMessage(
+                role: ChatMessageRole.user,
+                content: '你好',
+              ),
+            ],
+            reasoningEffort: ReasoningEffort.low,
+          )
+          .drain<void>();
 
-    await client.streamCompletion(
-      modelConfig: _modelConfig(
-        apiUrl: 'https://api.example.com/v1/chat/completions',
-      ),
-      messages: const [
-        ChatCompletionRequestMessage(
-          role: ChatMessageRole.user,
-          content: '你好',
-        ),
-      ],
-      reasoningEffort: ReasoningEffort.low,
-    ).drain<void>();
-
-    expect(capturedPayload, isNotNull);
-    expect(capturedPayload!.containsKey('thinking'), isFalse);
-    expect(capturedPayload!.containsKey('extra_body'), isFalse);
-    expect(capturedPayload!['reasoning_effort'], 'low');
-  });
+      expect(capturedPayload, isNotNull);
+      expect(capturedPayload!.containsKey('thinking'), isFalse);
+      expect(capturedPayload!.containsKey('extra_body'), isFalse);
+      expect(capturedPayload!['reasoning_effort'], 'low');
+    },
+  );
 }
 
 LlmModelConfig _modelConfig({
   String apiUrl = 'https://api.example.com/v1/chat/completions',
-}) =>
-    LlmModelConfig(
-      id: 'model-1',
-      displayName: 'Test Model',
-      apiUrl: apiUrl,
-      apiKey: 'sk-test',
-      modelName: 'test-model',
-      supportsReasoning: true,
-    );
+}) => LlmModelConfig(
+  id: 'model-1',
+  displayName: 'Test Model',
+  apiUrl: apiUrl,
+  apiKey: 'sk-test',
+  modelName: 'test-model',
+  supportsReasoning: true,
+);
 
 class _FakeHttpClient extends http.BaseClient {
   _FakeHttpClient(this._handler);

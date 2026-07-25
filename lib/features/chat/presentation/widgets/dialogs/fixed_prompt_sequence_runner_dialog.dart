@@ -106,177 +106,169 @@ class _FixedPromptSequenceRunnerDialogState
             // 头部（序列选择、步骤指示器、定位下拉）固定不滚动，
             // Flexible 包裹的步骤内容区域独立滚动，Wrap 按钮固定在底部不参与滚动。
             : ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxHeight: screenHeight * 0.65,
-                ),
+                constraints: BoxConstraints(maxHeight: screenHeight * 0.65),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     DropdownButtonFormField<String>(
-                            initialValue: sequence?.id,
-                            isExpanded: true,
-                            items: widget.sequences
-                                .map((item) {
-                                  return DropdownMenuItem(
-                                    value: item.id,
-                                    child: Text(
-                                      item.name,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  );
-                                })
-                                .toList(growable: false),
-                            onChanged: (value) {
-                              setState(() {
-                                _selectedSequenceId = value;
-                                _stepIndex = 0;
-                              });
-                            },
-                            decoration: const InputDecoration(
-                              labelText: '选择序列',
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          if (sequence != null &&
-                              sequence.steps.isNotEmpty) ...[
-                            DropdownButtonFormField<int>(
-                              initialValue: _stepIndex,
-                              isExpanded: true,
-                              items: [
-                                for (
-                                  var index = 0;
-                                  index < sequence.steps.length;
-                                  index += 1
-                                )
-                                  DropdownMenuItem(
-                                    value: index,
-                                    child: Text(
-                                      '${index + 1}. ${_buildStepTitle(sequence.steps[index])}',
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                              ],
-                              onChanged: (value) {
-                                if (value == null) {
-                                  return;
-                                }
-                                setState(() {
-                                  _stepIndex = value;
-                                });
-                              },
-                              decoration: const InputDecoration(
-                                labelText: '定位',
+                      initialValue: sequence?.id,
+                      isExpanded: true,
+                      items: widget.sequences
+                          .map((item) {
+                            return DropdownMenuItem(
+                              value: item.id,
+                              child: Text(
+                                item.name,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            );
+                          })
+                          .toList(growable: false),
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedSequenceId = value;
+                          _stepIndex = 0;
+                        });
+                      },
+                      decoration: const InputDecoration(labelText: '选择序列'),
+                    ),
+                    const SizedBox(height: 12),
+                    if (sequence != null && sequence.steps.isNotEmpty) ...[
+                      DropdownButtonFormField<int>(
+                        initialValue: _stepIndex,
+                        isExpanded: true,
+                        items: [
+                          for (
+                            var index = 0;
+                            index < sequence.steps.length;
+                            index += 1
+                          )
+                            DropdownMenuItem(
+                              value: index,
+                              child: Text(
+                                '${index + 1}. ${_buildStepTitle(sequence.steps[index])}',
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                            const SizedBox(height: 12),
-                            Text(
-                              '当前步骤内容',
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                            const SizedBox(height: 8),
-                            Flexible(
-                              child: SingleChildScrollView(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    DecoratedBox(
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(16),
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .surfaceContainerHighest
-                                            .withValues(alpha: 0.4),
-                                      ),
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(16),
-                                        child: SelectableText(
-                                          currentStep?.content ?? '',
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      '你可以先填入输入框再改，也可以直接发送当前步骤；发送后只会把当前位置前进到下一步，不会自动连发。',
-                                      style: Theme.of(context).textTheme.bodySmall,
-                                    ),
-                                  ],
+                        ],
+                        onChanged: (value) {
+                          if (value == null) {
+                            return;
+                          }
+                          setState(() {
+                            _stepIndex = value;
+                          });
+                        },
+                        decoration: const InputDecoration(labelText: '定位'),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        '当前步骤内容',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      Flexible(
+                        child: SingleChildScrollView(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              DecoratedBox(
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(16),
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .surfaceContainerHighest
+                                      .withValues(alpha: 0.4),
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: SelectableText(
+                                    currentStep?.content ?? '',
+                                  ),
                                 ),
                               ),
+                              const SizedBox(height: 8),
+                              Text(
+                                '你可以先填入输入框再改，也可以直接发送当前步骤；发送后只会把当前位置前进到下一步，不会自动连发。',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      // 操作按钮固定在内容底部，Wrap 在窄屏上自动换行为 2×2 布局
+                      if (currentStep != null) ...[
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            OutlinedButton.icon(
+                              onPressed: _stepIndex > 0
+                                  ? () {
+                                      setState(() {
+                                        _stepIndex -= 1;
+                                      });
+                                    }
+                                  : null,
+                              icon: const Icon(Icons.arrow_back_rounded),
+                              label: const Text('上一步'),
                             ),
-                            // 操作按钮固定在内容底部，Wrap 在窄屏上自动换行为 2×2 布局
-                            if (currentStep != null) ...[
-                              const SizedBox(height: 12),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: [
-                                  OutlinedButton.icon(
-                                    onPressed: _stepIndex > 0
-                                        ? () {
-                                            setState(() {
-                                              _stepIndex -= 1;
-                                            });
-                                          }
-                                        : null,
-                                    icon: const Icon(Icons.arrow_back_rounded),
-                                    label: const Text('上一步'),
+                            OutlinedButton.icon(
+                              onPressed:
+                                  _stepIndex <
+                                      (_selectedSequence?.steps.length ?? 0) - 1
+                                  ? () {
+                                      setState(() {
+                                        _stepIndex += 1;
+                                      });
+                                    }
+                                  : null,
+                              icon: const Icon(Icons.arrow_forward_rounded),
+                              label: const Text('下一步'),
+                            ),
+                            OutlinedButton.icon(
+                              onPressed: () {
+                                Navigator.of(context).pop(
+                                  FixedPromptSequenceRunnerResult(
+                                    action: FixedPromptSequenceRunnerAction
+                                        .fillComposer,
+                                    content: currentStep.content,
+                                    nextStepIndex: _stepIndex,
+                                    selectedSequenceId: _selectedSequence?.id,
                                   ),
-                                  OutlinedButton.icon(
-                                    onPressed:
-                                        _stepIndex <
-                                            (_selectedSequence?.steps.length ?? 0) - 1
-                                        ? () {
-                                            setState(() {
-                                              _stepIndex += 1;
-                                            });
-                                          }
-                                        : null,
-                                    icon: const Icon(Icons.arrow_forward_rounded),
-                                    label: const Text('下一步'),
-                                  ),
-                                  OutlinedButton.icon(
-                                    onPressed: () {
+                                );
+                              },
+                              icon: const Icon(Icons.edit_note_rounded),
+                              label: const Text('填入输入框'),
+                            ),
+                            FilledButton.icon(
+                              onPressed: widget.canSendDirectly
+                                  ? () {
                                       Navigator.of(context).pop(
                                         FixedPromptSequenceRunnerResult(
                                           action:
-                                              FixedPromptSequenceRunnerAction.fillComposer,
+                                              FixedPromptSequenceRunnerAction
+                                                  .sendStep,
                                           content: currentStep.content,
-                                          nextStepIndex: _stepIndex,
-                                          selectedSequenceId: _selectedSequence?.id,
+                                          nextStepIndex:
+                                              _resolveNextStepIndex(),
+                                          selectedSequenceId:
+                                              _selectedSequence?.id,
                                         ),
                                       );
-                                    },
-                                    icon: const Icon(Icons.edit_note_rounded),
-                                    label: const Text('填入输入框'),
-                                  ),
-                                  FilledButton.icon(
-                                    onPressed: widget.canSendDirectly
-                                        ? () {
-                                            Navigator.of(context).pop(
-                                              FixedPromptSequenceRunnerResult(
-                                                action:
-                                                    FixedPromptSequenceRunnerAction
-                                                        .sendStep,
-                                                content: currentStep.content,
-                                                nextStepIndex: _resolveNextStepIndex(),
-                                                selectedSequenceId:
-                                                    _selectedSequence?.id,
-                                              ),
-                                            );
-                                          }
-                                        : null,
-                                    icon: const Icon(Icons.send_rounded),
-                                    label: const Text('发送当前步骤'),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ] else ...[
-                            const Text(
-                              '这个序列还没有步骤，请先去设置页补充内容。',
+                                    }
+                                  : null,
+                              icon: const Icon(Icons.send_rounded),
+                              label: const Text('发送当前步骤'),
                             ),
                           ],
+                        ),
+                      ],
+                    ] else ...[
+                      const Text('这个序列还没有步骤，请先去设置页补充内容。'),
+                    ],
                   ],
                 ),
               ),

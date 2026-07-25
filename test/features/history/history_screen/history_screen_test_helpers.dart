@@ -52,7 +52,11 @@ Future<SharedPreferences> createSeededPreferences(AppDatabase database) async {
       _conversation(
         id: 'conversation-1',
         title: 'Rust 重构计划',
-        userMessage: ('message-1', '帮我整理 Rust 模块边界', DateTime(2026, 4, 26, 20, 0)),
+        userMessage: (
+          'message-1',
+          '帮我整理 Rust 模块边界',
+          DateTime(2026, 4, 26, 20, 0),
+        ),
         assistantMessage: (
           'message-2',
           '这里包含不应匹配的 assistant 内容',
@@ -69,27 +73,15 @@ Future<SharedPreferences> createSeededPreferences(AppDatabase database) async {
           '请给我一份 Widget 测试清单',
           DateTime(2026, 4, 26, 18, 0),
         ),
-        assistantMessage: (
-          'message-4',
-          '当然可以',
-          DateTime(2026, 4, 26, 18, 1),
-        ),
+        assistantMessage: ('message-4', '当然可以', DateTime(2026, 4, 26, 18, 1)),
         createdAt: DateTime(2026, 4, 26, 18, 0),
         updatedAt: DateTime(2026, 4, 26, 18, 1),
       ),
       _conversation(
         id: 'conversation-3',
         title: '项目复盘',
-        userMessage: (
-          'message-5',
-          '请总结本周推进情况',
-          DateTime(2026, 4, 20, 10, 0),
-        ),
-        assistantMessage: (
-          'message-6',
-          '这里是总结',
-          DateTime(2026, 4, 20, 10, 1),
-        ),
+        userMessage: ('message-5', '请总结本周推进情况', DateTime(2026, 4, 20, 10, 0)),
+        assistantMessage: ('message-6', '这里是总结', DateTime(2026, 4, 20, 10, 1)),
         createdAt: DateTime(2026, 4, 20, 10, 0),
         updatedAt: DateTime(2026, 4, 20, 10, 1),
       ),
@@ -97,7 +89,9 @@ Future<SharedPreferences> createSeededPreferences(AppDatabase database) async {
   );
 }
 
-Future<SharedPreferences> createTreeSeededPreferences(AppDatabase database) async {
+Future<SharedPreferences> createTreeSeededPreferences(
+  AppDatabase database,
+) async {
   return TestFixtures.seedPreferences(
     database: database,
     conversations: [

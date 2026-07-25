@@ -47,10 +47,9 @@ void main() {
   // ── 删除收藏夹 -> 关联收藏变为未分类 ────────────────────────────────────────
 
   test('删除收藏夹后关联收藏自动变为未分类', () async {
-    final favId = container.read(favoritesProvider.notifier).add(
-          userMessageContent: '用户消息',
-          assistantContent: '助手回复',
-        );
+    final favId = container
+        .read(favoritesProvider.notifier)
+        .add(userMessageContent: '用户消息', assistantContent: '助手回复');
     final collectionId = container
         .read(collectionsProvider.notifier)
         .create('测试收藏夹');
@@ -76,10 +75,9 @@ void main() {
   // ── 删除收藏夹 -> 未分类筛选中能看到落回的收藏 ─────────────────────────────────
 
   test('删除收藏夹后落回的收藏在未分类筛选中可见', () async {
-    final favId = container.read(favoritesProvider.notifier).add(
-          userMessageContent: '消息',
-          assistantContent: '回复',
-        );
+    final favId = container
+        .read(favoritesProvider.notifier)
+        .add(userMessageContent: '消息', assistantContent: '回复');
     final collectionId = container
         .read(collectionsProvider.notifier)
         .create('待删收藏夹');
@@ -99,14 +97,12 @@ void main() {
   // ── 多个收藏夹中仅删一个 -> 其他收藏夹的收藏不受影响 ──────────────────────────
 
   test('删除一个收藏夹不影响其他收藏夹中的收藏', () async {
-    final fav1Id = container.read(favoritesProvider.notifier).add(
-          userMessageContent: '消息1',
-          assistantContent: '回复1',
-        );
-    final fav2Id = container.read(favoritesProvider.notifier).add(
-          userMessageContent: '消息2',
-          assistantContent: '回复2',
-        );
+    final fav1Id = container
+        .read(favoritesProvider.notifier)
+        .add(userMessageContent: '消息1', assistantContent: '回复1');
+    final fav2Id = container
+        .read(favoritesProvider.notifier)
+        .add(userMessageContent: '消息2', assistantContent: '回复2');
 
     final colA = container.read(collectionsProvider.notifier).create('收藏夹A');
     final colB = container.read(collectionsProvider.notifier).create('收藏夹B');

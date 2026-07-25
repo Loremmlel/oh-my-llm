@@ -28,7 +28,7 @@ class MediaThumbnailGenerator {
   bool? _ffmpegAvailable;
 
   MediaThumbnailGenerator({required MediaDirectoryScanner scanner})
-      : _scanner = scanner;
+    : _scanner = scanner;
 
   /// 生成缩略图，返回 JPEG 字节数组。
   ///
@@ -86,32 +86,36 @@ class MediaThumbnailGenerator {
     final seekSeconds = duration < 10 ? duration / 2.0 : 5.0;
 
     // 3. 调用 ffmpeg 取帧，输出到 stdout
-    final result = await Process.run(
-      'ffmpeg',
-      [
-        '-ss', seekSeconds.toStringAsFixed(1),
-        '-i', resolvedPath,
-        '-vframes', '1',
-        '-f', 'image2pipe',
-        '-vcodec', 'mjpeg',
-        '-q:v', '3',           // 质量等级 2-5，3 = 接近原图
-        '-loglevel', 'error',   // 只输出错误
-        '-y',                   // 覆盖输出
-        '-',
-      ],
-      stdoutEncoding: null, // raw bytes
-    ).timeout(
-      const Duration(seconds: ffmpegTimeoutSeconds),
-      onTimeout: () => throw ThumbnailException('ffmpeg 执行超时（${ffmpegTimeoutSeconds}s）'),
-    );
+    final result =
+        await Process.run(
+          'ffmpeg',
+          [
+            '-ss', seekSeconds.toStringAsFixed(1),
+            '-i', resolvedPath,
+            '-vframes', '1',
+            '-f', 'image2pipe',
+            '-vcodec', 'mjpeg',
+            '-q:v', '3', // 质量等级 2-5，3 = 接近原图
+            '-loglevel', 'error', // 只输出错误
+            '-y', // 覆盖输出
+            '-',
+          ],
+          stdoutEncoding: null, // raw bytes
+        ).timeout(
+          const Duration(seconds: ffmpegTimeoutSeconds),
+          onTimeout: () =>
+              throw ThumbnailException('ffmpeg 执行超时（${ffmpegTimeoutSeconds}s）'),
+        );
 
     if (result.exitCode != 0) {
       final stderrMsg = result.stderr is String
           ? result.stderr as String
           : (result.stderr is List<int>
-              ? String.fromCharCodes(result.stderr as List<int>)
-              : '');
-      throw ThumbnailException('ffmpeg 失败 (exit=${result.exitCode}): $stderrMsg');
+                ? String.fromCharCodes(result.stderr as List<int>)
+                : '');
+      throw ThumbnailException(
+        'ffmpeg 失败 (exit=${result.exitCode}): $stderrMsg',
+      );
     }
 
     final stdoutBytes = result.stdout as List<int>;
@@ -124,18 +128,19 @@ class MediaThumbnailGenerator {
 
   /// 通过 ffprobe 获取视频时长（秒）。
   Future<double> _getVideoDuration(String filePath) async {
-    final result = await Process.run(
-      'ffprobe',
-      [
-        '-v', 'error',
-        '-show_entries', 'format=duration',
-        '-of', 'default=noprint_wrappers=1:nokey=1',
-        filePath,
-      ],
-    ).timeout(
-      const Duration(seconds: ffmpegTimeoutSeconds),
-      onTimeout: () => throw ThumbnailException('ffprobe 执行超时'),
-    );
+    final result =
+        await Process.run('ffprobe', [
+          '-v',
+          'error',
+          '-show_entries',
+          'format=duration',
+          '-of',
+          'default=noprint_wrappers=1:nokey=1',
+          filePath,
+        ]).timeout(
+          const Duration(seconds: ffmpegTimeoutSeconds),
+          onTimeout: () => throw ThumbnailException('ffprobe 执行超时'),
+        );
 
     if (result.exitCode != 0) {
       throw ThumbnailException('无法获取视频时长');
@@ -158,11 +163,14 @@ class MediaThumbnailGenerator {
     if (_ffmpegAvailable == true) return;
 
     try {
-      final ffmpegResult = await Process.run('ffmpeg', ['-version'])
-          .timeout(const Duration(seconds: 5));
-      final ffprobeResult = await Process.run('ffprobe', ['-version'])
-          .timeout(const Duration(seconds: 5));
-      _ffmpegAvailable = ffmpegResult.exitCode == 0 && ffprobeResult.exitCode == 0;
+      final ffmpegResult = await Process.run('ffmpeg', [
+        '-version',
+      ]).timeout(const Duration(seconds: 5));
+      final ffprobeResult = await Process.run('ffprobe', [
+        '-version',
+      ]).timeout(const Duration(seconds: 5));
+      _ffmpegAvailable =
+          ffmpegResult.exitCode == 0 && ffprobeResult.exitCode == 0;
     } on ProcessException catch (e) {
       // 仅缓存成功结果，失败时保留原始错误信息供诊断
       throw ThumbnailException('ffmpeg 未安装或无法启动: ${e.message}');
@@ -174,7 +182,6 @@ class MediaThumbnailGenerator {
       throw ThumbnailException('ffmpeg 未安装，无法生成视频缩略图');
     }
   }
-
 }
 
 /// 缩略图生成异常。

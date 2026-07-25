@@ -56,8 +56,10 @@ class VideoTopBar extends StatelessWidget {
   final VoidCallback onBack;
   final ValueChanged<double> onSpeedChanged;
   final ValueChanged<double> onVolumeChanged;
+
   /// 弹窗打开时调用（用于取消自动隐藏计时器）
   final VoidCallback? onInteractionStarted;
+
   /// 弹窗关闭时调用（用于重启自动隐藏计时器）
   final VoidCallback? onInteractionEnded;
 
@@ -118,10 +120,7 @@ class VideoTopBar extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      '${speed}x',
-                      style: const TextStyle(fontSize: 15),
-                    ),
+                    Text('${speed}x', style: const TextStyle(fontSize: 15)),
                     if ((speed - playbackSpeed).abs() < 0.001)
                       const Padding(
                         padding: EdgeInsets.only(left: 8),
@@ -226,10 +225,13 @@ class VideoBottomBar extends StatelessWidget {
   final bool isDragging;
   final Duration dragPosition;
   final VoidCallback onPlayPause;
+
   /// 开始拖动进度条，参数为归一化位置 0.0-1.0
   final ValueChanged<double> onSeekStart;
+
   /// 拖动进度条中，参数为归一化位置 0.0-1.0
   final ValueChanged<double> onSeekUpdate;
+
   /// 松手执行 seek
   final VoidCallback onSeekEnd;
 
@@ -256,8 +258,7 @@ class VideoBottomBar extends StatelessWidget {
     // 归一化进度值 (0.0 - 1.0)，无时长时置零
     final totalMs = totalDuration.inMilliseconds.toDouble();
     final normalizedValue = hasDuration
-        ? (displayPosition.inMilliseconds.toDouble() / totalMs)
-            .clamp(0.0, 1.0)
+        ? (displayPosition.inMilliseconds.toDouble() / totalMs).clamp(0.0, 1.0)
         : 0.0;
 
     // 播放/暂停图标：播放结束或暂停时显示播放图标
@@ -307,16 +308,12 @@ class VideoBottomBar extends StatelessWidget {
                   SliderTheme(
                     data: const SliderThemeData(
                       trackHeight: 4,
-                      thumbShape: RoundSliderThumbShape(
-                        enabledThumbRadius: 7,
-                      ),
+                      thumbShape: RoundSliderThumbShape(enabledThumbRadius: 7),
                       activeTrackColor: Colors.white,
                       inactiveTrackColor: Colors.white30,
                       thumbColor: Colors.white,
                       overlayColor: Colors.white24,
-                      overlayShape: RoundSliderOverlayShape(
-                        overlayRadius: 14,
-                      ),
+                      overlayShape: RoundSliderOverlayShape(overlayRadius: 14),
                     ),
                     child: Slider(
                       value: normalizedValue,
@@ -419,8 +416,7 @@ class VideoCenterHint extends StatelessWidget {
         );
       case CenterHintType.none:
         if (showPauseIcon) {
-          content =
-              const Icon(Icons.play_arrow, color: Colors.white, size: 48);
+          content = const Icon(Icons.play_arrow, color: Colors.white, size: 48);
         } else {
           return const SizedBox.shrink();
         }
@@ -465,8 +461,9 @@ class _HintContent extends StatelessWidget {
 
     return Row(
       mainAxisSize: MainAxisSize.min,
-      children:
-          iconFirst ? [iconWidget, gap, labelWidget] : [labelWidget, gap, iconWidget],
+      children: iconFirst
+          ? [iconWidget, gap, labelWidget]
+          : [labelWidget, gap, iconWidget],
     );
   }
 }

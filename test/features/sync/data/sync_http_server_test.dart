@@ -51,12 +51,13 @@ void main() {
       expect(server.isRunning, isFalse);
     });
 
-    test('POST /sync 请求被路由到 SyncHttpHandler，响应包含回调返回的 SyncMessage',
-        () async {
+    test('POST /sync 请求被路由到 SyncHttpHandler，响应包含回调返回的 SyncMessage', () async {
       final port = await startWithEcho();
       final request = SyncMessage.request(
         type: SyncMessageType.settingsSyncRequest,
-        payload: const {'categories': ['providers']},
+        payload: const {
+          'categories': ['providers'],
+        },
       );
 
       final response = await http.post(
@@ -137,7 +138,10 @@ void main() {
       expect(decodedA, isNotNull);
       expect(decodedB, isNotNull);
       // 顺序可能交换，按 requestId 匹配
-      final byId = {decodedA!.requestId: decodedA, decodedB!.requestId: decodedB};
+      final byId = {
+        decodedA!.requestId: decodedA,
+        decodedB!.requestId: decodedB,
+      };
       expect(byId[requestA.requestId]!.type, 'type_a_echo');
       expect(byId[requestB.requestId]!.type, 'type_b_echo');
     });

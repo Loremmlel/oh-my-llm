@@ -24,7 +24,8 @@ class OutputProcessingTab extends ConsumerWidget {
       children: [
         SettingsSectionCard(
           title: '输出正则处理',
-          description: '在模型回复正文落盘与展示前，按顺序应用正则规则做过滤或替换。'
+          description:
+              '在模型回复正文落盘与展示前，按顺序应用正则规则做过滤或替换。'
               '替换字为空表示删除匹配内容。仅作用于正文，不影响推理过程；'
               '无效表达式会被静默跳过。',
           action: FilledButton.icon(
@@ -50,12 +51,8 @@ class OutputProcessingTab extends ConsumerWidget {
                           rules,
                           editIndex: i,
                         ),
-                        onToggle: (enabled) => _toggleRule(
-                          controller,
-                          rules,
-                          i,
-                          enabled,
-                        ),
+                        onToggle: (enabled) =>
+                            _toggleRule(controller, rules, i, enabled),
                         onMoveUp: i > 0
                             ? () => _moveRule(controller, rules, i, i - 1)
                             : null,
@@ -91,9 +88,7 @@ class OutputProcessingTab extends ConsumerWidget {
     } else {
       next.add(result.copyWith(order: rules.length));
     }
-    await controller.save(
-      OutputProcessingSettings(rules: _reindex(next)),
-    );
+    await controller.save(OutputProcessingSettings(rules: _reindex(next)));
     if (context.mounted) {
       showSettingsSnackbar(context, editIndex != null ? '规则已更新' : '规则已添加');
     }
@@ -163,9 +158,7 @@ class OutputProcessingTab extends ConsumerWidget {
 
   /// 按列表顺序重排 order，保证连续。
   List<OutputRegexRule> _reindex(List<OutputRegexRule> rules) {
-    return [
-      for (var i = 0; i < rules.length; i++) rules[i].copyWith(order: i),
-    ];
+    return [for (var i = 0; i < rules.length; i++) rules[i].copyWith(order: i)];
   }
 }
 
@@ -290,10 +283,12 @@ class _RuleFormDialogState extends State<_RuleFormDialog> {
   void initState() {
     super.initState();
     _titleController = TextEditingController(text: widget.initial?.title ?? '');
-    _patternController =
-        TextEditingController(text: widget.initial?.pattern ?? '');
-    _replacementController =
-        TextEditingController(text: widget.initial?.replacement ?? '');
+    _patternController = TextEditingController(
+      text: widget.initial?.pattern ?? '',
+    );
+    _replacementController = TextEditingController(
+      text: widget.initial?.replacement ?? '',
+    );
   }
 
   @override
@@ -363,9 +358,7 @@ class _RuleFormDialogState extends State<_RuleFormDialog> {
             const SizedBox(height: 12),
             TextField(
               controller: _replacementController,
-              decoration: const InputDecoration(
-                labelText: '替换字（留空表示删除匹配）',
-              ),
+              decoration: const InputDecoration(labelText: '替换字（留空表示删除匹配）'),
             ),
           ],
         ),

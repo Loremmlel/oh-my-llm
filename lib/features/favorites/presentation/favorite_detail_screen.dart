@@ -104,10 +104,9 @@ class _FavoriteDetailScreenState extends ConsumerState<FavoriteDetailScreen> {
 
     if (result == null) return;
     final trimmed = result.trim();
-    ref.read(favoritesProvider.notifier).rename(
-          _favorite.id,
-          trimmed.isEmpty ? null : trimmed,
-        );
+    ref
+        .read(favoritesProvider.notifier)
+        .rename(_favorite.id, trimmed.isEmpty ? null : trimmed);
     _refreshFavorite();
   }
 
@@ -132,8 +131,7 @@ class _FavoriteDetailScreenState extends ConsumerState<FavoriteDetailScreen> {
                   label: '未分类',
                   icon: Icons.folder_off_outlined,
                   selected: selectedCollectionId == null,
-                  onTap: () =>
-                      setState(() => selectedCollectionId = null),
+                  onTap: () => setState(() => selectedCollectionId = null),
                 ),
                 if (collections.isNotEmpty) ...[
                   const Divider(height: 16),
@@ -235,7 +233,9 @@ class _MoveCollectionTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Material(
-      color: selected ? theme.colorScheme.secondaryContainer : Colors.transparent,
+      color: selected
+          ? theme.colorScheme.secondaryContainer
+          : Colors.transparent,
       borderRadius: BorderRadius.circular(8),
       child: InkWell(
         borderRadius: BorderRadius.circular(8),

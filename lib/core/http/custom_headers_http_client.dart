@@ -9,7 +9,7 @@ import 'package:http/http.dart' as http;
 /// 注意：[Host] 请求头可能被 dart:io 底层 [HttpClient] 基于 URL 强制覆盖。
 class CustomHeadersHttpClient extends http.BaseClient {
   CustomHeadersHttpClient(this._inner, Map<String, String> initialHeaders)
-      : _headers = Map<String, String>.from(initialHeaders);
+    : _headers = Map<String, String>.from(initialHeaders);
 
   final http.Client _inner;
   Map<String, String> _headers;
@@ -21,7 +21,8 @@ class CustomHeadersHttpClient extends http.BaseClient {
   }
 
   /// 当前生效的 header 映射。
-  Map<String, String> get currentHeaders => Map<String, String>.unmodifiable(_headers);
+  Map<String, String> get currentHeaders =>
+      Map<String, String>.unmodifiable(_headers);
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) {

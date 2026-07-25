@@ -18,12 +18,14 @@ void main() {
       return jsonEncode({
         'object': 'list',
         'data': modelIds
-            .map((id) => {
-                  'id': id,
-                  'object': 'model',
-                  'created': 1715367049,
-                  'owned_by': 'openai',
-                })
+            .map(
+              (id) => {
+                'id': id,
+                'object': 'model',
+                'created': 1715367049,
+                'owned_by': 'openai',
+              },
+            )
             .toList(),
       });
     }
@@ -50,10 +52,7 @@ void main() {
 
     test('fetchModels returns empty list when data is empty', () async {
       final mockClient = MockClient((request) async {
-        return http.Response(
-          jsonEncode({'object': 'list', 'data': []}),
-          200,
-        );
+        return http.Response(jsonEncode({'object': 'list', 'data': []}), 200);
       });
       client = createClient(mockClient);
 
@@ -67,10 +66,7 @@ void main() {
 
     test('fetchModels returns empty list when data field is missing', () async {
       final mockClient = MockClient((request) async {
-        return http.Response(
-          jsonEncode({'object': 'list'}),
-          200,
-        );
+        return http.Response(jsonEncode({'object': 'list'}), 200);
       });
       client = createClient(mockClient);
 
@@ -129,8 +125,11 @@ void main() {
           apiKey: 'sk-test',
         ),
         throwsA(
-          isA<ModelListException>()
-              .having((e) => e.message, 'message', contains('解析失败')),
+          isA<ModelListException>().having(
+            (e) => e.message,
+            'message',
+            contains('解析失败'),
+          ),
         ),
       );
     });
@@ -147,8 +146,11 @@ void main() {
           apiKey: 'sk-test',
         ),
         throwsA(
-          isA<ModelListException>()
-              .having((e) => e.message, 'message', contains('网络请求失败')),
+          isA<ModelListException>().having(
+            (e) => e.message,
+            'message',
+            contains('网络请求失败'),
+          ),
         ),
       );
     });
@@ -160,35 +162,38 @@ void main() {
       client = createClient(mockClient);
 
       expect(
-        () => client.fetchModels(
-          modelsUrl: 'not a url',
-          apiKey: 'sk-test',
-        ),
+        () => client.fetchModels(modelsUrl: 'not a url', apiKey: 'sk-test'),
         throwsA(
-          isA<ModelListException>()
-              .having((e) => e.message, 'message', contains('URL 格式无效')),
+          isA<ModelListException>().having(
+            (e) => e.message,
+            'message',
+            contains('URL 格式无效'),
+          ),
         ),
       );
     });
 
-    test('fetchModels truncates long error response body in exception', () async {
-      final longBody = 'x' * 500;
-      final mockClient = MockClient((request) async {
-        return http.Response(longBody, 500);
-      });
-      client = createClient(mockClient);
+    test(
+      'fetchModels truncates long error response body in exception',
+      () async {
+        final longBody = 'x' * 500;
+        final mockClient = MockClient((request) async {
+          return http.Response(longBody, 500);
+        });
+        client = createClient(mockClient);
 
-      try {
-        await client.fetchModels(
-          modelsUrl: 'https://api.openai.com/v1/models',
-          apiKey: 'sk-test',
-        );
-        fail('Should have thrown');
-      } on ModelListException catch (e) {
-        expect(e.responseBody, isNotNull);
-        expect(e.responseBody!.length, lessThanOrEqualTo(203));
-        expect(e.responseBody, contains('...'));
-      }
-    });
+        try {
+          await client.fetchModels(
+            modelsUrl: 'https://api.openai.com/v1/models',
+            apiKey: 'sk-test',
+          );
+          fail('Should have thrown');
+        } on ModelListException catch (e) {
+          expect(e.responseBody, isNotNull);
+          expect(e.responseBody!.length, lessThanOrEqualTo(203));
+          expect(e.responseBody, contains('...'));
+        }
+      },
+    );
   });
 }

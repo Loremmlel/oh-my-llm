@@ -11,6 +11,7 @@ const templatePromptBodyVariableName = '正文';
 enum TemplatePromptVariableType {
   /// 纯文本变量（默认）。
   text,
+
   /// 数字变量，支持上下箭头微调。
   number;
 
@@ -24,9 +25,9 @@ enum TemplatePromptVariableType {
 
   @override
   String toString() => switch (this) {
-        TemplatePromptVariableType.text => 'text',
-        TemplatePromptVariableType.number => 'number',
-      };
+    TemplatePromptVariableType.text => 'text',
+    TemplatePromptVariableType.number => 'number',
+  };
 }
 
 /// 模板提示词中的一个占位变量及其默认值。
@@ -74,9 +75,7 @@ class TemplatePromptVariable extends Equatable {
     return TemplatePromptVariable(
       name: json['name'] as String,
       defaultValue: json['defaultValue'] as String? ?? '',
-      type: TemplatePromptVariableType.fromString(
-        json['type'] as String?,
-      ),
+      type: TemplatePromptVariableType.fromString(json['type'] as String?),
     );
   }
 
@@ -104,7 +103,9 @@ class TemplatePrompt extends Equatable with HasIdAndUpdatedAt {
 
   /// 模板中除"正文"外的变量列表。
   List<TemplatePromptVariable> get inputVariables {
-    return variables.where((variable) => !variable.isBody).toList(growable: false);
+    return variables
+        .where((variable) => !variable.isBody)
+        .toList(growable: false);
   }
 
   /// 模板是否显式包含"正文"占位符。

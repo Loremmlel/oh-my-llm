@@ -15,15 +15,12 @@ void registerChatScreenBranchingTests() {
   testWidgets(
     'chat screen edits user message and regenerates following replies',
     (tester) async {
-        final fakeClient = FakeChatCompletionClient()
+      final fakeClient = FakeChatCompletionClient()
         ..enqueueChunks(['原始回复一'])
         ..enqueueChunks(['原始回复二'])
         ..enqueueChunks(['原始回复三']);
 
-      await pumpChatScreen(
-        tester,
-          fakeClient: fakeClient,
-      );
+      await pumpChatScreen(tester, fakeClient: fakeClient);
 
       await sendMessage(tester, '第一条原始问题');
       await tester.pumpAndSettle();
@@ -62,7 +59,9 @@ void registerChatScreenBranchingTests() {
       expect(find.textContaining('第三条问题'), findsNothing);
       expect(find.textContaining('原始回复三'), findsNothing);
       expect(
-        fakeClient.requestHistory.last.map((message) => message.content).toList(),
+        fakeClient.requestHistory.last
+            .map((message) => message.content)
+            .toList(),
         ['第一条原始问题', '原始回复一', '第二条已修改问题'],
       );
     },
@@ -73,10 +72,7 @@ void registerChatScreenBranchingTests() {
       ..enqueueChunks(['原始回复'])
       ..enqueueChunks(['重试后的回复']);
 
-    await pumpChatScreen(
-      tester,
-      fakeClient: fakeClient,
-    );
+    await pumpChatScreen(tester, fakeClient: fakeClient);
 
     await sendMessage(tester, '帮我重试一下');
     await tester.pumpAndSettle();
@@ -97,10 +93,7 @@ void registerChatScreenBranchingTests() {
       ..enqueueChunks(['首次回复'])
       ..enqueueChunks(['重试后回复']);
 
-    await pumpChatScreen(
-      tester,
-      fakeClient: fakeClient,
-    );
+    await pumpChatScreen(tester, fakeClient: fakeClient);
 
     await sendMessage(tester, '测试重试分支');
     await tester.pumpAndSettle();
@@ -144,14 +137,11 @@ void registerChatScreenBranchingTests() {
   testWidgets(
     'failed request shows inline error bubble and retries without 2/2',
     (tester) async {
-        final fakeClient = FakeChatCompletionClient()
+      final fakeClient = FakeChatCompletionClient()
         ..enqueueError(ChatCompletionException('HTTP 503: unavailable'))
         ..enqueueChunks(['重试恢复成功']);
 
-      await pumpChatScreen(
-        tester,
-          fakeClient: fakeClient,
-      );
+      await pumpChatScreen(tester, fakeClient: fakeClient);
 
       await sendMessage(tester, '先触发一次错误');
       await tester.pumpAndSettle();
@@ -175,10 +165,7 @@ void registerChatScreenBranchingTests() {
       ..enqueueChunks(['原始回复二'])
       ..enqueueChunks(['编辑后回复一']);
 
-    await pumpChatScreen(
-      tester,
-      fakeClient: fakeClient,
-    );
+    await pumpChatScreen(tester, fakeClient: fakeClient);
 
     await sendMessage(tester, '原始用户1');
     await tester.pumpAndSettle();
@@ -272,41 +259,33 @@ void registerChatScreenBranchingTests() {
     expect(find.textContaining('测试删除弹窗'), findsWidgets);
   });
 
-  testWidgets(
-    '空回复时渲染 ChatInlineEmptyReplyCard 而非 ChatInlineErrorCard',
-    (tester) async {
-      final fakeClient = FakeChatCompletionClient()
-        // 空字符串 chunk 触发空回复路径（anyChunkYielded=true + content 为空）
-        ..enqueueChunks(['']);
+  testWidgets('空回复时渲染 ChatInlineEmptyReplyCard 而非 ChatInlineErrorCard', (
+    tester,
+  ) async {
+    final fakeClient = FakeChatCompletionClient()
+      // 空字符串 chunk 触发空回复路径（anyChunkYielded=true + content 为空）
+      ..enqueueChunks(['']);
 
-      await pumpChatScreen(
-        tester,
-        fakeClient: fakeClient,
-      );
+    await pumpChatScreen(tester, fakeClient: fakeClient);
 
-      await sendMessage(tester, '触发空回复');
-      await tester.pumpAndSettle();
+    await sendMessage(tester, '触发空回复');
+    await tester.pumpAndSettle();
 
-      expect(find.textContaining(ChatErrorMessages.emptyReply), findsOneWidget);
-    },
-  );
+    expect(find.textContaining(ChatErrorMessages.emptyReply), findsOneWidget);
+  });
 
-  testWidgets(
-    '真实错误时渲染 ChatInlineErrorCard 而非 ChatInlineEmptyReplyCard',
-    (tester) async {
-      final fakeClient = FakeChatCompletionClient()
-        ..enqueueError(ChatCompletionException('测试网络错误'));
+  testWidgets('真实错误时渲染 ChatInlineErrorCard 而非 ChatInlineEmptyReplyCard', (
+    tester,
+  ) async {
+    final fakeClient = FakeChatCompletionClient()
+      ..enqueueError(ChatCompletionException('测试网络错误'));
 
-      await pumpChatScreen(
-        tester,
-        fakeClient: fakeClient,
-      );
+    await pumpChatScreen(tester, fakeClient: fakeClient);
 
-      await sendMessage(tester, '触发错误');
-      await tester.pumpAndSettle();
+    await sendMessage(tester, '触发错误');
+    await tester.pumpAndSettle();
 
-      expect(find.textContaining('测试网络错误'), findsOneWidget);
-      expect(find.textContaining(ChatErrorMessages.emptyReply), findsNothing);
-    },
-  );
+    expect(find.textContaining('测试网络错误'), findsOneWidget);
+    expect(find.textContaining(ChatErrorMessages.emptyReply), findsNothing);
+  });
 }

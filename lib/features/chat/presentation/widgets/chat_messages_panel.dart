@@ -60,6 +60,7 @@ class ChatMessagesPanel extends StatefulWidget {
   final String errorModelDisplayName;
   final ValueListenable<bool> showScrollToBottomListenable;
   final int autoRetryCount;
+
   /// 移动端紧凑布局：缩小消息列表四周内边距。
   final bool isCompact;
   final ValueChanged<ChatMessage> onEditMessage;

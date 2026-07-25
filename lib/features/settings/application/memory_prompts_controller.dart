@@ -10,8 +10,7 @@ final memoryPromptsProvider =
       MemoryPromptsController.new,
     );
 
-class MemoryPromptsController
-    extends SettingsEntityController<MemoryPrompt> {
+class MemoryPromptsController extends SettingsEntityController<MemoryPrompt> {
   @override
   SqliteEntityRepository<MemoryPrompt> get repository =>
       ref.read(memoryPromptRepositoryProvider);

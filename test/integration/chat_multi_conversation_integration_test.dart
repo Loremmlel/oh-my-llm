@@ -42,13 +42,15 @@ void main() {
     fakeClient.enqueueChunks(['A 的第二条回复']);
     await sendMsg(container, content: 'A2');
 
-    final conversationAId =
-        container.read(chatSessionsProvider).activeConversationId;
+    final conversationAId = container
+        .read(chatSessionsProvider)
+        .activeConversationId;
 
     // 创建对话 B
     await container.read(chatSessionsProvider.notifier).createConversation();
-    final conversationBId =
-        container.read(chatSessionsProvider).activeConversationId;
+    final conversationBId = container
+        .read(chatSessionsProvider)
+        .activeConversationId;
     expect(conversationBId, isNot(equals(conversationAId)));
 
     // 对话 B：发一条消息
@@ -56,18 +58,24 @@ void main() {
     await sendMsg(container, content: 'B1');
 
     // 验证 B 有 2 条消息（1 user + 1 assistant）
-    final messagesB =
-        container.read(chatSessionsProvider).activeConversation.messages;
+    final messagesB = container
+        .read(chatSessionsProvider)
+        .activeConversation
+        .messages;
     expect(messagesB.length, 2);
     expect(messagesB[0].content, 'B1');
     expect(messagesB[1].content, 'B 的回复');
 
     // 切换回 A
-    container.read(chatSessionsProvider.notifier).selectConversation(conversationAId);
+    container
+        .read(chatSessionsProvider.notifier)
+        .selectConversation(conversationAId);
 
     // 验证 A 有 4 条消息（2 user + 2 assistant）
-    final messagesA =
-        container.read(chatSessionsProvider).activeConversation.messages;
+    final messagesA = container
+        .read(chatSessionsProvider)
+        .activeConversation
+        .messages;
     expect(messagesA.length, 4);
     expect(messagesA[0].content, 'A1');
     expect(messagesA[1].content, 'A 的第一条回复');
@@ -110,7 +118,9 @@ void main() {
       overrides: [
         appDatabaseProvider.overrideWithValue(database),
         sharedPreferencesProvider.overrideWithValue(preferences),
-        chatCompletionClientProvider.overrideWithValue(FakeChatCompletionClient()),
+        chatCompletionClientProvider.overrideWithValue(
+          FakeChatCompletionClient(),
+        ),
       ],
     );
     addTearDown(containerB.dispose);
@@ -143,16 +153,18 @@ void main() {
     fakeClient.enqueueChunks(['A 回复']);
     await sendMsg(containerA, content: 'A 消息');
 
-    final conversationAId =
-        containerA.read(chatSessionsProvider).activeConversationId;
+    final conversationAId = containerA
+        .read(chatSessionsProvider)
+        .activeConversationId;
 
     // 创建对话 B 并发消息
     await containerA.read(chatSessionsProvider.notifier).createConversation();
     fakeClient.enqueueChunks(['B 回复']);
     await sendMsg(containerA, content: 'B 消息');
 
-    final conversationBId =
-        containerA.read(chatSessionsProvider).activeConversationId;
+    final conversationBId = containerA
+        .read(chatSessionsProvider)
+        .activeConversationId;
 
     containerA.dispose();
 
@@ -161,25 +173,26 @@ void main() {
       overrides: [
         appDatabaseProvider.overrideWithValue(database),
         sharedPreferencesProvider.overrideWithValue(preferences),
-        chatCompletionClientProvider.overrideWithValue(FakeChatCompletionClient()),
+        chatCompletionClientProvider.overrideWithValue(
+          FakeChatCompletionClient(),
+        ),
       ],
     );
     addTearDown(containerB.dispose);
 
     // 切换到另一个对话（触发懒加载）
-    final activeId =
-        containerB.read(chatSessionsProvider).activeConversationId;
-    final targetId =
-        activeId == conversationAId ? conversationBId : conversationAId;
+    final activeId = containerB.read(chatSessionsProvider).activeConversationId;
+    final targetId = activeId == conversationAId
+        ? conversationBId
+        : conversationAId;
 
     containerB.read(chatSessionsProvider.notifier).selectConversation(targetId);
 
-    final messages =
-        containerB.read(chatSessionsProvider).activeConversation.messages;
+    final messages = containerB
+        .read(chatSessionsProvider)
+        .activeConversation
+        .messages;
     expect(messages, isNotEmpty);
-    expect(
-      messages.any((m) => m.role == ChatMessageRole.user),
-      isTrue,
-    );
+    expect(messages.any((m) => m.role == ChatMessageRole.user), isTrue);
   });
 }

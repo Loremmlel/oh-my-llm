@@ -21,19 +21,18 @@ void main() {
 
       // 创建测试目录结构
       Directory('${tempRoot.path}${Platform.pathSeparator}subdir').createSync();
-      File('${tempRoot.path}${Platform.pathSeparator}photo.jpg').writeAsStringSync(
-        'fake image',
-      );
-      File('${tempRoot.path}${Platform.pathSeparator}video.mp4').writeAsStringSync(
-        'fake video',
-      );
-      File('${tempRoot.path}${Platform.pathSeparator}subdir${Platform.pathSeparator}nested.png')
-          .writeAsStringSync('nested image');
+      File(
+        '${tempRoot.path}${Platform.pathSeparator}photo.jpg',
+      ).writeAsStringSync('fake image');
+      File(
+        '${tempRoot.path}${Platform.pathSeparator}video.mp4',
+      ).writeAsStringSync('fake video');
+      File(
+        '${tempRoot.path}${Platform.pathSeparator}subdir${Platform.pathSeparator}nested.png',
+      ).writeAsStringSync('nested image');
 
       server = SyncHttpServer();
-      port = await server.start(
-        handlers: [MediaHttpHandler(scanner: scanner)],
-      );
+      port = await server.start(handlers: [MediaHttpHandler(scanner: scanner)]);
     });
 
     tearDown(() async {
@@ -98,10 +97,13 @@ void main() {
     });
 
     test('中文路径正常工作', () async {
-      final chineseDir = Directory('${tempRoot.path}${Platform.pathSeparator}妹妹');
+      final chineseDir = Directory(
+        '${tempRoot.path}${Platform.pathSeparator}妹妹',
+      );
       chineseDir.createSync();
-      File('${chineseDir.path}${Platform.pathSeparator}照片.jpg')
-          .writeAsStringSync('chinese photo');
+      File(
+        '${chineseDir.path}${Platform.pathSeparator}照片.jpg',
+      ).writeAsStringSync('chinese photo');
 
       final encodedPath = '/%E5%A6%B9%E5%A6%B9';
       final response = await http.get(

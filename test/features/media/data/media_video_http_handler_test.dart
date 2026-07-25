@@ -19,12 +19,12 @@ void main() {
       scanner = MediaDirectoryScanner(tempRoot.path);
 
       // 创建测试视频文件（8200 字节的可控内容）
-      File('${tempRoot.path}${Platform.pathSeparator}test.mp4').writeAsBytesSync(
-        List.generate(8200, (i) => i % 256),
-      );
-      File('${tempRoot.path}${Platform.pathSeparator}small.mkv').writeAsBytesSync(
-        [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
-      );
+      File(
+        '${tempRoot.path}${Platform.pathSeparator}test.mp4',
+      ).writeAsBytesSync(List.generate(8200, (i) => i % 256));
+      File(
+        '${tempRoot.path}${Platform.pathSeparator}small.mkv',
+      ).writeAsBytesSync([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
 
       server = SyncHttpServer();
       port = await server.start(

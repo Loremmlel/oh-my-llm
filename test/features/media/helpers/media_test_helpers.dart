@@ -17,9 +17,8 @@ export 'package:oh_my_llm/features/media/domain/models/media_server_info.dart';
 
 const testServer = MediaServerInfo(ip: '192.168.1.5', httpPort: 8080);
 
-String fileListJson(List<FileItem> items) => jsonEncode(
-      items.map((i) => i.toJson()).toList(),
-    );
+String fileListJson(List<FileItem> items) =>
+    jsonEncode(items.map((i) => i.toJson()).toList());
 
 http.Client okMockClient(String body) =>
     MockClient((_) async => http.Response(body, 200));

@@ -138,22 +138,17 @@ void main() {
       return ProviderScope.containerOf(element);
     }
 
-    testWidgets('点"导入"后写入 providers / memory / preset / template / sequence',
-        (tester) async {
+    testWidgets('点"导入"后写入 providers / memory / preset / template / sequence', (
+      tester,
+    ) async {
       final container = await pumpHost(tester, _buildFullData());
       await _openDialog(tester, _buildFullData());
 
       await tester.tap(find.text('导入'));
       await tester.pumpAndSettle();
 
-      expect(
-        container.read(llmProviderConfigsProvider).length,
-        1,
-      );
-      expect(
-        container.read(llmProviderConfigsProvider).first.id,
-        'provider-1',
-      );
+      expect(container.read(llmProviderConfigsProvider).length, 1);
+      expect(container.read(llmProviderConfigsProvider).first.id, 'provider-1');
       expect(container.read(memoryPromptsProvider).length, 1);
       expect(container.read(memoryPromptsProvider).first.id, 'mem-1');
       expect(container.read(presetPromptsProvider).length, 1);
@@ -166,8 +161,9 @@ void main() {
     // 由于对话框直接从 exportData 读取，不经过 deduplicator，预期会通过。
     // 真正的 bug 在 SettingsImportDeduplicator.deduplicate() 返回时未传递 autoRetrySettings，
     // 后续在 settings_import_deduplicator_test.dart 中用 @Skip 标记该路径。
-    testWidgets('点"导入"后 autoRetrySettingsProvider 写入 autoRetrySettings',
-        (tester) async {
+    testWidgets('点"导入"后 autoRetrySettingsProvider 写入 autoRetrySettings', (
+      tester,
+    ) async {
       final container = await pumpHost(tester, _buildFullData());
       await _openDialog(tester, _buildFullData());
 

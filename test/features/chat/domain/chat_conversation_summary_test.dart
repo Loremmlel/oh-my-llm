@@ -63,8 +63,14 @@ void main() {
     });
 
     test('无标题无 preview → 未命名对话', () {
-      expect(summary(title: null, firstUserMessagePreview: '').resolvedTitle, '未命名对话');
-      expect(summary(title: '  ', firstUserMessagePreview: '  ').resolvedTitle, '未命名对话');
+      expect(
+        summary(title: null, firstUserMessagePreview: '').resolvedTitle,
+        '未命名对话',
+      );
+      expect(
+        summary(title: '  ', firstUserMessagePreview: '  ').resolvedTitle,
+        '未命名对话',
+      );
     });
 
     test('超长 preview 按字符截断到 15 个', () {

@@ -37,38 +37,37 @@ class TestFixtures {
     String apiKey = 'sk-test',
     String providerId = '',
     String providerName = '',
-  }) =>
-      LlmModelConfig(
-        id: id,
-        displayName: displayName,
-        apiUrl: apiUrl,
-        apiKey: apiKey,
-        modelName: modelName,
-        supportsReasoning: supportsReasoning,
-        providerId: providerId,
-        providerName: providerName,
-      );
+  }) => LlmModelConfig(
+    id: id,
+    displayName: displayName,
+    apiUrl: apiUrl,
+    apiKey: apiKey,
+    modelName: modelName,
+    supportsReasoning: supportsReasoning,
+    providerId: providerId,
+    providerName: providerName,
+  );
 
   static LlmModelConfig gpt41() => model(
-        id: 'model-gpt',
-        displayName: 'GPT-4.1',
-        modelName: 'gpt-4.1',
-        supportsReasoning: true,
-      );
+    id: 'model-gpt',
+    displayName: 'GPT-4.1',
+    modelName: 'gpt-4.1',
+    supportsReasoning: true,
+  );
 
   static LlmModelConfig claudeSonnet() => model(
-        id: 'model-claude',
-        displayName: 'Claude Sonnet',
-        modelName: 'claude-sonnet',
-        supportsReasoning: false,
-      );
+    id: 'model-claude',
+    displayName: 'Claude Sonnet',
+    modelName: 'claude-sonnet',
+    supportsReasoning: false,
+  );
 
   static LlmModelConfig deepSeekV4() => model(
-        id: 'model-deepseek',
-        displayName: 'DeepSeek V4 Flash',
-        modelName: 'deepseek-v4-flash',
-        supportsReasoning: true,
-      );
+    id: 'model-deepseek',
+    displayName: 'DeepSeek V4 Flash',
+    modelName: 'deepseek-v4-flash',
+    supportsReasoning: true,
+  );
 
   // ── 预设提示词 ────────────────────────────────────────────
 
@@ -78,40 +77,38 @@ class TestFixtures {
     String content = '测试消息',
     String title = '',
     PromptMessagePlacement placement = PromptMessagePlacement.before,
-  }) =>
-      PromptMessage(
-        id: id,
-        role: role,
-        content: content,
-        title: title,
-        placement: placement,
-      );
+  }) => PromptMessage(
+    id: id,
+    role: role,
+    content: content,
+    title: title,
+    placement: placement,
+  );
 
   static PresetPrompt presetPrompt({
     required String id,
     String name = '测试提示词',
     List<PromptMessage> messages = const [],
     DateTime? updatedAt,
-  }) =>
-      PresetPrompt(
-        id: id,
-        name: name,
-        messages: messages,
-        updatedAt: updatedAt ?? DateTime(2026, 1, 1),
-      );
+  }) => PresetPrompt(
+    id: id,
+    name: name,
+    messages: messages,
+    updatedAt: updatedAt ?? DateTime(2026, 1, 1),
+  );
 
   static PresetPrompt codeAssistantPrompt() => presetPrompt(
-        id: 'prompt-1',
-        name: '代码助手',
-        messages: [
-          promptMessage(
-            id: 'message-1',
-            role: PromptMessageRole.user,
-            content: '请优先关注实现细节。',
-          ),
-        ],
-        updatedAt: DateTime(2026, 4, 26),
-      );
+    id: 'prompt-1',
+    name: '代码助手',
+    messages: [
+      promptMessage(
+        id: 'message-1',
+        role: PromptMessageRole.user,
+        content: '请优先关注实现细节。',
+      ),
+    ],
+    updatedAt: DateTime(2026, 4, 26),
+  );
 
   // ── 聊天消息 ──────────────────────────────────────────────
 
@@ -120,14 +117,13 @@ class TestFixtures {
     String content = '你好',
     DateTime? createdAt,
     String? parentId,
-  }) =>
-      ChatMessage(
-        id: id,
-        role: ChatMessageRole.user,
-        content: content,
-        createdAt: createdAt ?? DateTime(2026, 1, 1),
-        parentId: parentId,
-      );
+  }) => ChatMessage(
+    id: id,
+    role: ChatMessageRole.user,
+    content: content,
+    createdAt: createdAt ?? DateTime(2026, 1, 1),
+    parentId: parentId,
+  );
 
   static ChatMessage assistantMessage({
     required String id,
@@ -136,16 +132,15 @@ class TestFixtures {
     String assistantModelDisplayName = '匿名模型',
     DateTime? createdAt,
     String? parentId,
-  }) =>
-      ChatMessage(
-        id: id,
-        role: ChatMessageRole.assistant,
-        content: content,
-        reasoningContent: reasoningContent,
-        assistantModelDisplayName: assistantModelDisplayName,
-        createdAt: createdAt ?? DateTime(2026, 1, 1),
-        parentId: parentId,
-      );
+  }) => ChatMessage(
+    id: id,
+    role: ChatMessageRole.assistant,
+    content: content,
+    reasoningContent: reasoningContent,
+    assistantModelDisplayName: assistantModelDisplayName,
+    createdAt: createdAt ?? DateTime(2026, 1, 1),
+    parentId: parentId,
+  );
 
   // ── 流式补全 ──────────────────────────────────────────────
 
@@ -161,29 +156,26 @@ class TestFixtures {
     required String id,
     String content = '步骤内容',
     String title = '',
-  }) =>
-      FixedPromptSequenceStep(id: id, content: content, title: title);
+  }) => FixedPromptSequenceStep(id: id, content: content, title: title);
 
   static FixedPromptSequence fixedSequence({
     required String id,
     String name = '测试序列',
     List<FixedPromptSequenceStep> steps = const [],
     DateTime? updatedAt,
-  }) =>
-      FixedPromptSequence(
-        id: id,
-        name: name,
-        steps: steps,
-        updatedAt: updatedAt ?? DateTime(2026, 1, 1),
-      );
+  }) => FixedPromptSequence(
+    id: id,
+    name: name,
+    steps: steps,
+    updatedAt: updatedAt ?? DateTime(2026, 1, 1),
+  );
 
   // ── 模板提示词 ────────────────────────────────────────────
 
   static TemplatePromptVariable templateVariable({
     required String name,
     String defaultValue = '',
-  }) =>
-      TemplatePromptVariable(name: name, defaultValue: defaultValue);
+  }) => TemplatePromptVariable(name: name, defaultValue: defaultValue);
 
   static TemplatePrompt templatePrompt({
     required String id,
@@ -191,14 +183,13 @@ class TestFixtures {
     String content = '请处理{{正文}}',
     List<TemplatePromptVariable> variables = const [],
     DateTime? updatedAt,
-  }) =>
-      TemplatePrompt(
-        id: id,
-        title: title,
-        content: content,
-        variables: variables,
-        updatedAt: updatedAt ?? DateTime(2026, 1, 1),
-      );
+  }) => TemplatePrompt(
+    id: id,
+    title: title,
+    content: content,
+    variables: variables,
+    updatedAt: updatedAt ?? DateTime(2026, 1, 1),
+  );
 
   // ── 记忆提示词 ────────────────────────────────────────────
 
@@ -207,13 +198,12 @@ class TestFixtures {
     String name = '测试记忆',
     String content = '请总结当前对话的关键事实与待办。',
     DateTime? updatedAt,
-  }) =>
-      MemoryPrompt(
-        id: id,
-        name: name,
-        content: content,
-        updatedAt: updatedAt ?? DateTime(2026, 1, 1),
-      );
+  }) => MemoryPrompt(
+    id: id,
+    name: name,
+    content: content,
+    updatedAt: updatedAt ?? DateTime(2026, 1, 1),
+  );
 
   // ── 批量种子 SharedPreferences ────────────────────────────
 
@@ -257,24 +247,32 @@ class TestFixtures {
         final key = '${m.apiUrl}||${m.apiKey}';
         providerMap.putIfAbsent(key, () => []).add(m);
       }
-      final providers = providerMap.entries.map((entry) {
-        final group = entry.value;
-        final first = group.first;
-        return LlmProviderConfig(
-          id: first.providerId.isEmpty ? 'provider-${first.id}' : first.providerId,
-          name: first.providerName.isEmpty ? first.displayName : first.providerName,
-          apiUrl: first.apiUrl,
-          apiKey: first.apiKey,
-          models: group
-              .map((m) => LlmProviderModelConfig(
-                    id: m.id,
-                    displayName: m.displayName,
-                    modelName: m.modelName,
-                    supportsReasoning: m.supportsReasoning,
-                  ))
-              .toList(growable: false),
-        );
-      }).toList(growable: false);
+      final providers = providerMap.entries
+          .map((entry) {
+            final group = entry.value;
+            final first = group.first;
+            return LlmProviderConfig(
+              id: first.providerId.isEmpty
+                  ? 'provider-${first.id}'
+                  : first.providerId,
+              name: first.providerName.isEmpty
+                  ? first.displayName
+                  : first.providerName,
+              apiUrl: first.apiUrl,
+              apiKey: first.apiKey,
+              models: group
+                  .map(
+                    (m) => LlmProviderModelConfig(
+                      id: m.id,
+                      displayName: m.displayName,
+                      modelName: m.modelName,
+                      supportsReasoning: m.supportsReasoning,
+                    ),
+                  )
+                  .toList(growable: false),
+            );
+          })
+          .toList(growable: false);
       values[llmModelConfigsStorageKey] = VersionedJsonStorage.encodeObjectList(
         items: providers,
         toJson: (p) => p.toJson(),

@@ -45,20 +45,14 @@ enum UserMessageSegmentKind {
 
 /// 用户消息展示时的一个文本片段。
 class UserMessageSegment extends Equatable {
-  const UserMessageSegment({
-    required this.text,
-    required this.kind,
-  });
+  const UserMessageSegment({required this.text, required this.kind});
 
   final String text;
   final UserMessageSegmentKind kind;
 
   /// 将片段序列化为持久化 JSON。
   Map<String, dynamic> toJson() {
-    return {
-      'text': text,
-      'kind': kind.apiValue,
-    };
+    return {'text': text, 'kind': kind.apiValue};
   }
 
   /// 从持久化 JSON 反序列化片段。
@@ -135,7 +129,8 @@ class ChatMessage extends Equatable {
           appliedCheckpointTitle ?? this.appliedCheckpointTitle,
       userMessageSegments: userMessageSegments ?? this.userMessageSegments,
       templatePromptId: templatePromptId ?? this.templatePromptId,
-      templateVariableValues: templateVariableValues ?? this.templateVariableValues,
+      templateVariableValues:
+          templateVariableValues ?? this.templateVariableValues,
       finishReason: finishReason ?? this.finishReason,
     );
   }
@@ -151,8 +146,9 @@ class ChatMessage extends Equatable {
       'reasoningContent': reasoningContent,
       'assistantModelDisplayName': assistantModelDisplayName,
       'appliedCheckpointTitle': appliedCheckpointTitle,
-      'userMessageSegments':
-          userMessageSegments.map((segment) => segment.toJson()).toList(),
+      'userMessageSegments': userMessageSegments
+          .map((segment) => segment.toJson())
+          .toList(),
       'templatePromptId': templatePromptId,
       'templateVariableValues': templateVariableValues,
       'finishReason': finishReason,
@@ -164,7 +160,8 @@ class ChatMessage extends Equatable {
     final role = ChatMessageRole.values.firstWhere(
       (role) => role.apiValue == json['role'],
     );
-    final rawSegments = json['userMessageSegments'] as List<dynamic>? ?? const [];
+    final rawSegments =
+        json['userMessageSegments'] as List<dynamic>? ?? const [];
     return ChatMessage(
       id: json['id'] as String,
       role: role,
@@ -187,8 +184,9 @@ class ChatMessage extends Equatable {
           .toList(growable: false),
       templatePromptId: json['templatePromptId'] as String?,
       templateVariableValues:
-          (json['templateVariableValues'] as Map<String, dynamic>?)
-              ?.map((k, v) => MapEntry(k, v as String)) ??
+          (json['templateVariableValues'] as Map<String, dynamic>?)?.map(
+            (k, v) => MapEntry(k, v as String),
+          ) ??
           const {},
       finishReason: json['finishReason'] as String?,
     );

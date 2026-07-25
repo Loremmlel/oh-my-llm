@@ -4,9 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'history_screen_test_helpers.dart';
 
 void registerHistoryScreenActionsTests() {
-  testWidgets('history screen renames a conversation', (
-    tester,
-  ) async {
+  testWidgets('history screen renames a conversation', (tester) async {
     await setUpHistoryScreen(tester);
 
     await tester.tap(find.byTooltip('重命名会话').first);

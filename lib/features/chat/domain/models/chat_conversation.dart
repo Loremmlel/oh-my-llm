@@ -129,9 +129,7 @@ class ChatConversation extends Equatable {
     return {
       'id': id,
       'title': title,
-      'messageNodes': messageNodes
-          .map((message) => message.toJson())
-          .toList(),
+      'messageNodes': messageNodes.map((message) => message.toJson()).toList(),
       'selectedChildByParentId': selectedChildByParentId,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
@@ -162,13 +160,13 @@ class ChatConversation extends Equatable {
       title: json['title'] as String?,
       messageNodes: rawMessageNodes
           .map(
-            (message) => ChatMessage.fromJson(
-              Map<String, dynamic>.from(message as Map),
-            ),
+            (message) =>
+                ChatMessage.fromJson(Map<String, dynamic>.from(message as Map)),
           )
           .toList(growable: false),
-      selectedChildByParentId:
-          rawSelections.map((key, value) => MapEntry(key, value as String)),
+      selectedChildByParentId: rawSelections.map(
+        (key, value) => MapEntry(key, value as String),
+      ),
       checkpoints: rawCheckpoints
           .map(
             (checkpoint) => ChatCheckpoint.fromJson(

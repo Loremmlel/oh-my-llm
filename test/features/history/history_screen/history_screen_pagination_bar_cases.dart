@@ -66,10 +66,7 @@ void registerHistoryScreenPaginationBarTests() {
       tester,
     ) async {
       final repo = FakeHistoryRepository(
-        pages: [
-          const [],
-          _summaries(20),
-        ],
+        pages: [const [], _summaries(20)],
         countResult: 100,
       );
       await _pumpHistoryScreen(tester, repo);
@@ -97,9 +94,7 @@ void registerHistoryScreenPaginationBarTests() {
       expect(_readState(tester).currentPage, 2);
     });
 
-    testWidgets('clicking page number navigates to that page', (
-      tester,
-    ) async {
+    testWidgets('clicking page number navigates to that page', (tester) async {
       final repo = FakeHistoryRepository(
         pages: [
           const [],
@@ -180,8 +175,9 @@ void registerHistoryScreenPaginationBarTests() {
       expect(_readState(tester).currentPage, 1);
     });
 
-    testWidgets('changing page size reloads with new size and resets to page 1',
-        (tester) async {
+    testWidgets('changing page size reloads with new size and resets to page 1', (
+      tester,
+    ) async {
       final repo = FakeHistoryRepository(
         pages: [
           const [],
@@ -199,7 +195,10 @@ void registerHistoryScreenPaginationBarTests() {
       expect(_readState(tester).currentPage, 2);
 
       // 切换每页条数为 10（通过下拉菜单 label 定位）
-      await tester.tap(find.text('每页'), warnIfMissed: false); // 左标签文本会因 button 内边距偏移到 decoration 区域，tap 坐标落在 DropdownButton 装饰层属正常行为
+      await tester.tap(
+        find.text('每页'),
+        warnIfMissed: false,
+      ); // 左标签文本会因 button 内边距偏移到 decoration 区域，tap 坐标落在 DropdownButton 装饰层属正常行为
       await tester.pumpAndSettle();
       await tester.tap(find.text('10'));
       await tester.pumpAndSettle();

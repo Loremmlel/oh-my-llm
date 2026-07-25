@@ -43,10 +43,7 @@ class AppDatabase {
   /// 打开指定路径的文件数据库，用于需要跨 Isolate 共享的测试场景。
   @visibleForTesting
   factory AppDatabase.forPath(String path) {
-    return AppDatabase._(
-      connection: sqlite.sqlite3.open(path),
-      path: path,
-    );
+    return AppDatabase._(connection: sqlite.sqlite3.open(path), path: path);
   }
 
   sqlite.Database get connection => _connection;
@@ -141,9 +138,7 @@ class AppDatabase {
           )
           .isNotEmpty;
       if (hasFavorites) {
-        _connection.execute(
-          'ALTER TABLE favorites ADD COLUMN title TEXT;',
-        );
+        _connection.execute('ALTER TABLE favorites ADD COLUMN title TEXT;');
       }
     }
     _connection.execute('PRAGMA user_version = 10;');

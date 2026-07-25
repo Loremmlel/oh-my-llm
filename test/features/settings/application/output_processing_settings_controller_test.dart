@@ -59,7 +59,13 @@ void main() {
       final persisted = OutputProcessingSettings(
         rules: [
           _rule(id: 'a', title: '规则 A', order: 0),
-          _rule(id: 'b', title: '规则 B', pattern: r'\d+', replacement: 'N', order: 1),
+          _rule(
+            id: 'b',
+            title: '规则 B',
+            pattern: r'\d+',
+            replacement: 'N',
+            order: 1,
+          ),
         ],
       );
       await boot({});

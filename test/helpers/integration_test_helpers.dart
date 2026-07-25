@@ -65,14 +65,15 @@ Future<void> sendMsg(
   ProviderContainer container, {
   required String content,
   LlmModelConfig? modelConfig,
-}) =>
-    container.read(chatSessionsProvider.notifier).sendMessage(
-          content: content,
-          modelConfig: modelConfig ?? testModel,
-          presetPrompt: null,
-          reasoningEnabled: false,
-          reasoningEffort: ReasoningEffort.medium,
-        );
+}) => container
+    .read(chatSessionsProvider.notifier)
+    .sendMessage(
+      content: content,
+      modelConfig: modelConfig ?? testModel,
+      presetPrompt: null,
+      reasoningEnabled: false,
+      reasoningEffort: ReasoningEffort.medium,
+    );
 
 /// 创建带有标准集成测试 override 的 ProviderContainer。
 ProviderContainer createTestContainer({

@@ -28,8 +28,7 @@ class OtherSettingsTab extends ConsumerWidget {
       children: [
         SettingsSectionCard(
           title: '显示',
-          description:
-              '调整正文字号。修改后全局生效，影响聊天消息、Markdown 渲染及所有使用 body 字体的界面文字。',
+          description: '调整正文字号。修改后全局生效，影响聊天消息、Markdown 渲染及所有使用 body 字体的界面文字。',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -50,14 +49,16 @@ class OtherSettingsTab extends ConsumerWidget {
                 divisions: 12,
                 label: '${fontSizeSettings.bodyFontSize.toInt()}',
                 onChanged: (value) {
-                  ref.read(fontSizeSettingsProvider.notifier).updateLocal(
-                    fontSizeSettings.copyWith(bodyFontSize: value),
-                  );
+                  ref
+                      .read(fontSizeSettingsProvider.notifier)
+                      .updateLocal(
+                        fontSizeSettings.copyWith(bodyFontSize: value),
+                      );
                 },
                 onChangeEnd: (value) {
-                  ref.read(fontSizeSettingsProvider.notifier).save(
-                    fontSizeSettings.copyWith(bodyFontSize: value),
-                  );
+                  ref
+                      .read(fontSizeSettingsProvider.notifier)
+                      .save(fontSizeSettings.copyWith(bodyFontSize: value));
                 },
               ),
             ],
@@ -66,7 +67,8 @@ class OtherSettingsTab extends ConsumerWidget {
         const SizedBox(height: 16),
         SettingsSectionCard(
           title: '自动重试',
-          description: '当请求失败时自动重试的间隔与次数控制。'
+          description:
+              '当请求失败时自动重试的间隔与次数控制。'
               '每分钟窗口：每分钟在前 n 秒内随机一个毫秒发起重试；'
               '固定间隔：每 n 秒 + 随机 1000ms 抖动发起重试。'
               '最大次数设为 0 表示不限。',
@@ -131,7 +133,9 @@ class OtherSettingsTab extends ConsumerWidget {
                 onChanged: (value) {
                   ref
                       .read(autoRetrySettingsProvider.notifier)
-                      .save(settings.copyWith(retryOnAbnormalFinishReason: value));
+                      .save(
+                        settings.copyWith(retryOnAbnormalFinishReason: value),
+                      );
                 },
               ),
               const SizedBox(height: 16),
@@ -139,9 +143,7 @@ class OtherSettingsTab extends ConsumerWidget {
                 contentPadding: EdgeInsets.zero,
                 shape: _switchTileShape,
                 title: const Text('超时自动重试'),
-                subtitle: const Text(
-                  '当服务器在指定时间内没有响应时自动断开并重试',
-                ),
+                subtitle: const Text('当服务器在指定时间内没有响应时自动断开并重试'),
                 value: settings.retryOnTimeout,
                 onChanged: (value) {
                   ref

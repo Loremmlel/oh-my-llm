@@ -25,11 +25,16 @@ Object? truncateJsonValues(
   }
   if (input is Map) {
     return input.map((key, value) {
-      return MapEntry(key.toString(), truncateJsonValues(value, maxLength: maxLength));
+      return MapEntry(
+        key.toString(),
+        truncateJsonValues(value, maxLength: maxLength),
+      );
     });
   }
   if (input is List) {
-    return input.map((e) => truncateJsonValues(e, maxLength: maxLength)).toList(growable: false);
+    return input
+        .map((e) => truncateJsonValues(e, maxLength: maxLength))
+        .toList(growable: false);
   }
   if (input is String) {
     return _truncateString(input, maxLength);

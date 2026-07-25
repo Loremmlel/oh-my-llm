@@ -106,7 +106,9 @@ void main() {
         .firstWhere((p) => p.id == 'preset-1');
 
     fakeClient.enqueueChunks(['回复内容']);
-    await container.read(chatSessionsProvider.notifier).sendMessage(
+    await container
+        .read(chatSessionsProvider.notifier)
+        .sendMessage(
           content: '用户消息',
           modelConfig: testModel,
           presetPrompt: preset,
@@ -155,7 +157,9 @@ void main() {
 
     // 第一轮
     fakeClient.enqueueChunks(['第一轮回复']);
-    await container.read(chatSessionsProvider.notifier).sendMessage(
+    await container
+        .read(chatSessionsProvider.notifier)
+        .sendMessage(
           content: '第一轮问题',
           modelConfig: testModel,
           presetPrompt: preset,
@@ -170,7 +174,9 @@ void main() {
 
     // 第二轮
     fakeClient.enqueueChunks(['第二轮回复']);
-    await container.read(chatSessionsProvider.notifier).sendMessage(
+    await container
+        .read(chatSessionsProvider.notifier)
+        .sendMessage(
           content: '第二轮问题',
           modelConfig: testModel,
           presetPrompt: preset,

@@ -210,22 +210,26 @@ final class SettingsImportDeduplicator {
         .toList(growable: false);
 
     // ── 标量型配置去重：两端一致时置 null ──────────────────────────
-    final dedupAutoRetry = (data.autoRetrySettings != null &&
+    final dedupAutoRetry =
+        (data.autoRetrySettings != null &&
             data.autoRetrySettings == existingAutoRetrySettings)
         ? null
         : data.autoRetrySettings;
 
-    final dedupCustomHeaders = (data.customHeadersConfig != null &&
+    final dedupCustomHeaders =
+        (data.customHeadersConfig != null &&
             data.customHeadersConfig == existingCustomHeadersConfig)
         ? null
         : data.customHeadersConfig;
 
-    final dedupFontSize = (data.fontSizeSettings != null &&
+    final dedupFontSize =
+        (data.fontSizeSettings != null &&
             data.fontSizeSettings == existingFontSizeSettings)
         ? null
         : data.fontSizeSettings;
 
-    final dedupOutputProcessing = (data.outputProcessingSettings != null &&
+    final dedupOutputProcessing =
+        (data.outputProcessingSettings != null &&
             data.outputProcessingSettings == existingOutputProcessingSettings)
         ? null
         : data.outputProcessingSettings;

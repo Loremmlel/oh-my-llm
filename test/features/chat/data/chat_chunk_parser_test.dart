@@ -102,9 +102,7 @@ void main() {
     });
 
     test('标准 OpenAI delta.content 字符串 → contentDelta', () {
-      final result = parse(
-        '{"choices":[{"delta":{"content":"hello"}}]}',
-      );
+      final result = parse('{"choices":[{"delta":{"content":"hello"}}]}');
       expect(result, isNotNull);
       expect(result!.contentDelta, 'hello');
       expect(result.reasoningDelta, isEmpty);
@@ -120,9 +118,7 @@ void main() {
     });
 
     test('DeepSeek delta.reasoning 别名 → reasoningDelta', () {
-      final result = parse(
-        '{"choices":[{"delta":{"reasoning":"别名推理"}}]}',
-      );
+      final result = parse('{"choices":[{"delta":{"reasoning":"别名推理"}}]}');
       expect(result, isNotNull);
       expect(result!.reasoningDelta, '别名推理');
     });
@@ -136,8 +132,7 @@ void main() {
       expect(result.reasoningDelta, '推理');
     });
 
-    test('Gemini content 为带 thought 的 parts 列表 → 拆分 content/reasoning',
-        () {
+    test('Gemini content 为带 thought 的 parts 列表 → 拆分 content/reasoning', () {
       final result = parse(
         '{"choices":[{"delta":{"content":['
         '{"text":"最终答案"},'
@@ -160,9 +155,7 @@ void main() {
     });
 
     test('delta 为 String 类型 → 经 inline splitter 处理', () {
-      final result = parse(
-        '{"choices":[{"delta":"纯文本 delta"}]}',
-      );
+      final result = parse('{"choices":[{"delta":"纯文本 delta"}]}');
       expect(result, isNotNull);
       expect(result!.contentDelta, '纯文本 delta');
     });
@@ -174,9 +167,7 @@ void main() {
     });
 
     test('使用 message 而非 delta 字段（一次性响应）也能提取', () {
-      final result = parse(
-        '{"choices":[{"message":{"content":"完整回复"}}]}',
-      );
+      final result = parse('{"choices":[{"message":{"content":"完整回复"}}]}');
       expect(result, isNotNull);
       expect(result!.contentDelta, '完整回复');
     });
@@ -200,9 +191,7 @@ void main() {
     });
 
     test('无 finish_reason 字段时 chunk.finishReason 为 null', () {
-      final result = parse(
-        '{"choices":[{"delta":{"content":"hi"}}]}',
-      );
+      final result = parse('{"choices":[{"delta":{"content":"hi"}}]}');
       expect(result, isNotNull);
       expect(result!.finishReason, isNull);
     });
@@ -284,9 +273,7 @@ void main() {
 
     test('标签内外的文本正确分流到对应通道', () {
       final splitter = InlineReasoningTagSplitter();
-      final result = splitter.splitContent(
-        '<thought>推理内容</thought>正文内容',
-      );
+      final result = splitter.splitContent('<thought>推理内容</thought>正文内容');
       expect(result.content, '正文内容');
       expect(result.reasoning, '推理内容');
       expect(splitter.flushRemainder(), isNull);
