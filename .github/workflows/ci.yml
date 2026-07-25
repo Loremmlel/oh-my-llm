@@ -40,7 +40,7 @@ jobs:
       - name: test
         run: |
           set +e
-          flutter test --exclude-tags=udp --reporter compact > fltest.log 2>&1
+          flutter test --exclude-tags=udp --coverage --reporter compact > fltest.log 2>&1
           CODE=$?
           set -e
           echo "EXIT=$CODE" >> fltest.log
@@ -54,4 +54,22 @@ jobs:
         with:
           name: test-log
           path: fltest.log
+          retention-days: 14
+
+      # 4) coverage 生成与聚焦报告（application/data，剔除 presentation/domain 噪声）
+      - name: coverage report
+        if: always()
+        run: bash scripts/coverage-report.sh
+
+      - name: upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: |
+            coverage/lcov.info
+            coverage/lcov.filtered.info
+            coverage/html/
+            coverage/diff-report.html
+            coverage/summary.txt
           retention-days: 14
