@@ -41,7 +41,7 @@ flutter test --reporter compact 2>&1 | Out-File -Encoding utf8 fltest.log; $E = 
 |------|------|
 | `build-windows-release.ps1` | Windows Release -> `artifacts\windows\oh_my_llm-windows-{version}.zip` |
 | `build-android-apk.ps1` | 首次自动生成自签名 keystore（`android/app/self-use-release.jks`），构建 APK -> `artifacts\android\` |
-| `scripts/bump-version.ps1 -Minor \| -Major` | 手动升 minor/major；日常 patch/minor/major 由 commit-msg hook 自动管理 |
+| `scripts/bump-version.ps1 -Minor \| -Major` | 手动升 minor/major；日常 patch/minor/major 由 post-commit hook 自动管理 |
 
 产物命名固定 `oh_my_llm-{platform}-{version}`，版本号从 `pubspec.yaml` 读取。
 
@@ -49,11 +49,18 @@ flutter test --reporter compact 2>&1 | Out-File -Encoding utf8 fltest.log; $E = 
 
 ## 2. Git 工作流
 
-### 版本号自动 bump（commit-msg hook）
+### 版本号自动 bump（post-commit hook）
 
-安装：`git config core.hooksPath .githooks`。**版本号由 `commit-msg` hook 根据 commit message 第一行语义自动更新**（pre-commit 仅做大改动提醒，不碰版本号）。
+安装：`git config core.hooksPath .githooks`。**版本号由 `post-commit` hook 根据 commit message 第一行语义自动 bump，再用 `git commit --amend --no-edit` 并回本次提交**（同批次写入，版本号与本次 commit 语义一致）。`pre-commit` 仅做 >500 行大改动提醒，不碰版本号。
 
-commit-msg 通过 `$1` 接收 Git 传入的消息文件，对 `git commit -m` 与编辑器提交都可靠。它从 `HEAD:pubspec.yaml` 读当前版本（避免暂存区已改时重复递增），改完 `git add pubspec.yaml` 随本次提交写入。
+为什么不是 `commit-msg`：只有 `pre-commit` 的 `git add` 能进入本次提交 tree，但 `pre-commit` 运行时拿不到 commit message；`commit-msg` / `prepare-commit-msg` 能拿到 message，但它们的 `git add` 不进本次 tree（Git 主进程用内存 index 快照、不重读磁盘，改动滞后到下一个 commit）。`post-commit` 在提交完成后读本次 message 并 amend 把版本号并回，兼顾两者。
+
+行为细节：
+- 读 `HEAD:pubspec.yaml` 当前版本 + 本次 message，按前缀算新版本，`sed` 改 `pubspec.yaml`，`git add` 后 `git commit --amend --no-edit --no-verify` 并入本次提交。
+- **幂等**：对比第一 parent 版本判断「已为本次 message bump 过」则跳过--手动 `git commit --amend`（不改 message）不会重复 bump。
+- **merge commit 跳过**：HEAD 有多个 parent 时不 bump，避免破坏 merge 结构。
+- **逃生舱**：`OMLL_SKIP_BUMP=1 git commit ...` 跳过自动 bump。
+- 内部用 `OMLL_BUMPING` 环境变量切断 amend 递归触发 post-commit。
 
 | 第一行前缀                              | 版本策略                   |
 |------------------------------------|------------------------|

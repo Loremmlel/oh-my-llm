@@ -1,5 +1,5 @@
 #!/bin/sh
-# pre-commit: 提交前检查。版本号自动更新已移至 commit-msg hook。
+# pre-commit: 提交前检查。版本号自动更新由 post-commit hook 负责（本钩子仅做大改动提醒）。
 #
 # 安装方式：
 #   git config core.hooksPath .githooks
