@@ -35,6 +35,24 @@ final class AppLogStore {
     return _operation;
   }
 
+  /// 批量追加多行日志，单次文件写入和 flush。
+  ///
+  /// 适用于 SSE 缓冲区批量落盘场景，减少磁盘 I/O。
+  Future<void> appendLines(List<String> lines) {
+    if (lines.isEmpty) return _operation;
+    _operation = _operation.then((_) async {
+      await _ensureExists();
+      await _rotateIfExceeded();
+      await _file.writeAsString(
+        lines.map((l) => '$l\n').join(),
+        mode: FileMode.append,
+        flush: true,
+      );
+      await _rotateIfExceeded();
+    });
+    return _operation;
+  }
+
   Future<void> clear({String? reason}) {
     _operation = _operation.then((_) async {
       await _ensureExists();
