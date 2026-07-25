@@ -1,0 +1,57 @@
+name: ci
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+# 同一分支的新推送取消旧运行，节省额度
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.6'
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      # 1) format 门禁：代码必须已按 dart format 规范化
+      - name: format check
+        run: dart format --set-exit-if-changed lib test
+
+      # 2) analyze 门禁：静态分析零告警
+      - name: analyze
+        run: flutter analyze
+
+      # 3) test 门禁：排除 UDP（CI 网络环境不可靠），重定向完整日志避免终端截断
+      - name: test
+        run: |
+          set +e
+          flutter test --exclude-tags=udp --reporter compact > fltest.log 2>&1
+          CODE=$?
+          set -e
+          echo "EXIT=$CODE" >> fltest.log
+          tail -n 150 fltest.log
+          exit $CODE
+
+      # 失败时仍上传完整日志，便于从 fltest.log 查失败摘要
+      - name: upload test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-log
+          path: fltest.log
+          retention-days: 14
