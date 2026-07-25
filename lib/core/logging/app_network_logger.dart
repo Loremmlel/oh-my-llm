@@ -7,6 +7,7 @@ import 'app_log_store.dart';
 import 'json_truncator.dart';
 import 'network_log_redactor.dart';
 import 'network_logger.dart';
+import 'sse_log_buffer.dart';
 
 /// 应用级网络日志实现，仅依赖文件阈值轮转，不在退出或重启时主动清空。
 final class AppNetworkLogger with NetworkLogger {
@@ -14,16 +15,20 @@ final class AppNetworkLogger with NetworkLogger {
     required AppLogStore store,
     NetworkLogRedactor redactor = const NetworkLogRedactor(),
   }) : _store = store,
-       _redactor = redactor;
+       _redactor = redactor,
+       _sseBuffer = SseLogBuffer(store: store);
 
   final AppLogStore _store;
   final NetworkLogRedactor _redactor;
+  final SseLogBuffer _sseBuffer;
 
   static Future<AppNetworkLogger> create({
     required String directoryPath,
   }) async {
     final store = await AppLogStore.open(directoryPath: directoryPath);
-    return AppNetworkLogger(store: store);
+    final logger = AppNetworkLogger(store: store);
+    logger._sseBuffer.startPeriodicFlush();
+    return logger;
   }
 
   @override
@@ -32,17 +37,29 @@ final class AppNetworkLogger with NetworkLogger {
   }
 
   @override
+  Future<void> onAppDetached() async {
+    await drain();
+  }
+
+  @override
   Future<void> logRequest({
     required Uri uri,
     required String method,
     required Map<String, String> headers,
     required Object? payload,
+    bool logBody = false,
   }) async {
     final h = _redactor.redactHeaders(headers);
-    final p = truncateJsonValues(_redactor.redactPayload(payload));
-    await _writeLog(
-      '[request] $method $uri headers=${jsonEncode(h)} payload=${jsonEncode(p)}',
-    );
+    if (logBody) {
+      final p = truncateJsonValues(_redactor.redactPayload(payload));
+      await _writeLog(
+        '[request] $method $uri headers=${jsonEncode(h)} payload=${jsonEncode(p)}',
+      );
+    } else {
+      await _writeLog(
+        '[request] $method $uri headers=${jsonEncode(h)}',
+      );
+    }
   }
 
   @override
@@ -63,7 +80,10 @@ final class AppNetworkLogger with NetworkLogger {
   Future<void> logResponseBody({
     required Uri uri,
     required Object? body,
+    bool logBody = false,
   }) async {
+    if (!logBody) return;
+
     final redactedBody = _redactor.redactPayload(body);
     final truncatedBody = redactedBody is String
         ? _truncateText(redactedBody)
@@ -84,7 +104,9 @@ final class AppNetworkLogger with NetworkLogger {
       }
     }
 
-    await _writeLog('[sse] $uri ${_redactor.redactText(processLine(line))}');
+    final now = DateTime.now().toIso8601String();
+    final processed = _redactor.redactText(processLine(line));
+    _sseBuffer.enqueue('[$now] [sse] $uri $processed');
   }
 
   @override
@@ -101,11 +123,19 @@ final class AppNetworkLogger with NetworkLogger {
     }
   }
 
+  @override
+  Future<void> drain() async {
+    await _sseBuffer.drain();
+    await _writeLog('[drain] SSE buffer flushed.');
+  }
+
   // ── 内部方法 ──────────────────────────────────────────────────────
 
   Future<void> _writeLog(String line) async {
     try {
-      await _store.appendLine('[${DateTime.now().toIso8601String()}] $line');
+      await _store.appendLine(
+        '[${DateTime.now().toIso8601String()}] $line',
+      );
     } catch (error, stackTrace) {
       stderr.writeln('[network-log] write failed: $error\n$stackTrace');
     }

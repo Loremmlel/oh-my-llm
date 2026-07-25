@@ -55,6 +55,7 @@ void main() {
             {'role': 'user', 'content': 'hello'},
           ],
         },
+        logBody: true,
       );
       await logger.onAppDetached();
 
@@ -73,7 +74,7 @@ void main() {
     },
   );
 
-  test('AppNetworkLogger writes non-stream response bodies', () async {
+  test('AppNetworkLogger writes non-stream response bodies when logBody=true', () async {
     final logger = AppNetworkLogger(
       store: await AppLogStore.open(directoryPath: directory.path),
     );
@@ -87,6 +88,7 @@ void main() {
           },
         ],
       },
+      logBody: true,
     );
 
     final content = await logFile.readAsString();
@@ -133,6 +135,7 @@ void main() {
       uri: Uri.parse('https://api.example.com/v1/chat/completions'),
       line: '{"content":"hello"}',
     );
+    await logger.drain();
 
     final content = await logFile.readAsString();
     expect(content, contains('[sse]'));
@@ -150,6 +153,7 @@ void main() {
         uri: Uri.parse('https://api.example.com/v1/chat/completions'),
         line: 'not-json-at-all',
       );
+      await logger.drain();
 
       final content = await logFile.readAsString();
       expect(content, contains('[sse]'));
@@ -178,5 +182,50 @@ void main() {
     // 前 12 行被写入，第 13 行（#12）不应出现
     expect(content, contains('#11 some-frame'));
     expect(content, isNot(contains('#12 some-frame')));
+  });
+
+  test('AppLogStore.appendLines writes multiple lines in one flush', () async {
+    final store = await AppLogStore.open(directoryPath: directory.path);
+
+    await store.appendLines(['line-A', 'line-B', 'line-C']);
+
+    final content = await logFile.readAsString();
+    expect(content, contains('line-A'));
+    expect(content, contains('line-B'));
+    expect(content, contains('line-C'));
+  });
+
+  test('AppNetworkLogger.logResponseBody skips when logBody=false', () async {
+    final logger = AppNetworkLogger(
+      store: await AppLogStore.open(directoryPath: directory.path),
+    );
+
+    await logger.logResponseBody(
+      uri: Uri.parse('https://api.example.com/v1/chat/completions'),
+      body: const {'secret': 'should-not-appear'},
+      logBody: false,
+    );
+
+    final content = await logFile.readAsString();
+    expect(content, isNot(contains('[response-body]')));
+    expect(content, isNot(contains('should-not-appear')));
+  });
+
+  test('AppNetworkLogger.logRequest omits payload when logBody=false', () async {
+    final logger = AppNetworkLogger(
+      store: await AppLogStore.open(directoryPath: directory.path),
+    );
+
+    await logger.logRequest(
+      uri: Uri.parse('https://api.example.com/v1/chat/completions'),
+      method: 'POST',
+      headers: const {'Content-Type': 'application/json'},
+      payload: const {'model': 'gpt-4'},
+      logBody: false,
+    );
+
+    final content = await logFile.readAsString();
+    expect(content, contains('[request]'));
+    expect(content, isNot(contains('payload=')));
   });
 }

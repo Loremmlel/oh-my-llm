@@ -888,6 +888,7 @@ final class _FakeNetworkLogger implements NetworkLogger {
     required String method,
     required Map<String, String> headers,
     required Object? payload,
+    bool logBody = false,
   }) async {
     requestCount += 1;
   }
@@ -906,6 +907,7 @@ final class _FakeNetworkLogger implements NetworkLogger {
   Future<void> logResponseBody({
     required Uri uri,
     required Object? body,
+    bool logBody = false,
   }) async {
     responseBodyCount += 1;
     responseBodies.add(body);
@@ -915,4 +917,7 @@ final class _FakeNetworkLogger implements NetworkLogger {
   Future<void> logSseLine({required Uri uri, required String line}) async {
     sseCount += 1;
   }
+
+  @override
+  Future<void> drain() async {}
 }

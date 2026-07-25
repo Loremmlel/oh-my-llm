@@ -13,6 +13,7 @@ mixin NetworkLogger {
     required String method,
     required Map<String, String> headers,
     required Object? payload,
+    bool logBody = false,
   }) async {}
 
   Future<void> logResponse({
@@ -25,6 +26,7 @@ mixin NetworkLogger {
   Future<void> logResponseBody({
     required Uri uri,
     required Object? body,
+    bool logBody = false,
   }) async {}
 
   Future<void> logSseLine({required Uri uri, required String line}) async {}
@@ -34,6 +36,9 @@ mixin NetworkLogger {
     required Object error,
     StackTrace? stackTrace,
   }) async {}
+
+  /// 排空所有缓冲日志条目（如 SSE 缓冲区），用于应用退出前确保持久化。
+  Future<void> drain() async {}
 }
 
 /// 空操作日志实现——所有方法均为 no-op。
