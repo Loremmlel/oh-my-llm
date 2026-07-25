@@ -74,7 +74,12 @@ void main() {
 
       // 等待 listen 超时关闭（4s）。
       await Future<void>.delayed(const Duration(seconds: 5));
-      expect(received, isEmpty);
+      // stop 后本广播源(Gone-PC)不应再发包。并发测试或本机真实 app 也可能
+      // 往 47280 广播(deviceName 不同)，那是环境噪声，不算本契约违反。
+      expect(
+        received.where((s) => s.deviceName == 'Gone-PC'),
+        isEmpty,
+      );
     });
   });
 }
