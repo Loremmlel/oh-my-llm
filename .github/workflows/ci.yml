@@ -36,7 +36,11 @@ jobs:
       - name: analyze
         run: flutter analyze
 
-      # 3) test 门禁：排除 UDP（CI 网络环境不可靠），重定向完整日志避免终端截断
+      # 3) version hook 契约验证（Phase 2，不依赖 flutter，快速失败）
+      - name: verify version hook
+        run: bash scripts/verify-version-hook.sh
+
+      # 4) test 门禁：排除 UDP（CI 网络环境不可靠），重定向完整日志避免终端截断
       - name: test
         run: |
           set +e
@@ -56,7 +60,7 @@ jobs:
           path: fltest.log
           retention-days: 14
 
-      # 4) coverage 生成与聚焦报告（application/data，剔除 presentation/domain 噪声）
+      # 5) coverage 生成与聚焦报告（application/data，剔除 presentation/domain 噪声）
       - name: coverage report
         if: always()
         run: bash scripts/coverage-report.sh
