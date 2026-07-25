@@ -9,7 +9,7 @@
     - 升级 major 版本时，minor 和 patch 均归零（例如 1.2.3 -> 2.0.0）。
     - build 号（+N 部分）保持不变。
 
-    patch 版本的日常自动递增由 git pre-commit 钩子（.githooks/pre-commit）负责，
+    patch 版本的日常自动递增由 git post-commit 钩子（.githooks/post-commit）负责，
     无需通过本脚本手动处理。
 
 .PARAMETER Minor
