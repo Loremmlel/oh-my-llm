@@ -190,7 +190,8 @@ void main() {
           fail('Should have thrown');
         } on ModelListException catch (e) {
           expect(e.responseBody, isNotNull);
-          expect(e.responseBody!.length, lessThanOrEqualTo(203));
+          // truncateJsonValues 截断到 200 字符后追加 ...[truncated]
+          expect(e.responseBody!.length, lessThanOrEqualTo(220));
           expect(e.responseBody, contains('...'));
         }
       },

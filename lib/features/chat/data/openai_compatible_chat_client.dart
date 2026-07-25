@@ -189,6 +189,7 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
       _logger.logResponseBody(
         uri: requestContext.uri,
         body: _decodeResponseBodyForLogging(responseBody),
+        logBody: true,
       ),
     );
     final parsed = _parser.parseRawChunk(
@@ -305,6 +306,7 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
         // 合并自定义 header 以便日志完整反映实际发出的请求头。
         headers: {...context.request.headers, ...context.extraHeaders},
         payload: context.payload,
+        logBody: true,
       ),
     );
 
