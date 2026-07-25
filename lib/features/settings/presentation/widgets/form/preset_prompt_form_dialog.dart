@@ -29,8 +29,7 @@ class PresetPromptFormDialog extends StatefulWidget {
   final PresetPrompt? initialValue;
 
   @override
-  State<PresetPromptFormDialog> createState() =>
-      _PresetPromptFormDialogState();
+  State<PresetPromptFormDialog> createState() => _PresetPromptFormDialogState();
 }
 
 /// 预设 Prompt 表单的输入与选中状态。
@@ -254,9 +253,7 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
           });
         }
       },
-      decoration: const InputDecoration(
-        labelText: '选择条目',
-      ),
+      decoration: const InputDecoration(labelText: '选择条目'),
     );
   }
 
@@ -401,7 +398,8 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
         .where((message) => message.placement == PromptMessagePlacement.before)
         .followedBy(
           (template?.messages ?? const <PromptMessage>[]).where(
-            (message) => message.placement == PromptMessagePlacement.beforeLatestInput,
+            (message) =>
+                message.placement == PromptMessagePlacement.beforeLatestInput,
           ),
         )
         .followedBy(
@@ -522,7 +520,8 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
     final selected = _items[index];
     return switch (selected.placement!) {
       PromptMessagePlacement.before => index > 0,
-      PromptMessagePlacement.beforeLatestInput => index > _firstBeforeLatestInputIndex,
+      PromptMessagePlacement.beforeLatestInput =>
+        index > _firstBeforeLatestInputIndex,
       PromptMessagePlacement.after => index > _firstAfterIndex,
     };
   }
@@ -535,7 +534,8 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
     final selected = _items[index];
     return switch (selected.placement!) {
       PromptMessagePlacement.before => index < _lastBeforeIndex,
-      PromptMessagePlacement.beforeLatestInput => index < _lastBeforeLatestInputIndex,
+      PromptMessagePlacement.beforeLatestInput =>
+        index < _lastBeforeLatestInputIndex,
       PromptMessagePlacement.after => index < _items.length - 1,
     };
   }
@@ -573,8 +573,10 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
     setState(() {
       final current = _items.removeAt(index).copyWith(placement: placement);
       final insertIndex = switch (placement) {
-        PromptMessagePlacement.before => _firstBeforeLatestInputIndexAfterRemoval,
-        PromptMessagePlacement.beforeLatestInput => _firstAfterIndexAfterRemoval,
+        PromptMessagePlacement.before =>
+          _firstBeforeLatestInputIndexAfterRemoval,
+        PromptMessagePlacement.beforeLatestInput =>
+          _firstAfterIndexAfterRemoval,
         PromptMessagePlacement.after => _items.length,
       };
       _items.insert(insertIndex, current);

@@ -55,38 +55,31 @@ void main() {
 
     group('matches', () {
       test('generativelanguage.googleapis.com 返回 true（大小写不敏感）', () {
-        expect(
-          adapter.matches('generativelanguage.googleapis.com'),
-          isTrue,
-        );
-        expect(
-          adapter.matches('GENERATIVELANGUAGE.GOOGLEAPIS.COM'),
-          isTrue,
-        );
+        expect(adapter.matches('generativelanguage.googleapis.com'), isTrue);
+        expect(adapter.matches('GENERATIVELANGUAGE.GOOGLEAPIS.COM'), isTrue);
       });
 
       test('相似但不完全相同的主机返回 false', () {
         expect(adapter.matches('googleapis.com'), isFalse);
-        expect(
-          adapter.matches('generativelanguage.googleapis.co.jp'),
-          isFalse,
-        );
+        expect(adapter.matches('generativelanguage.googleapis.co.jp'), isFalse);
         expect(adapter.matches(''), isFalse);
       });
     });
 
     group('buildPatch', () {
-      test('effort 非 null → skipStandardReasoningEffort=true + extraBody 含 google.thinking_config', () {
-        final patch = adapter.buildPatch(ReasoningEffort.high);
+      test(
+        'effort 非 null → skipStandardReasoningEffort=true + extraBody 含 google.thinking_config',
+        () {
+          final patch = adapter.buildPatch(ReasoningEffort.high);
 
-        expect(patch.skipStandardReasoningEffort, isTrue);
-        expect(patch.thinkingConfig, isNull);
-        expect(patch.extraBody, isNotNull);
-        expect(
-          patch.extraBody!['google'],
-          {'thinking_config': {'include_thoughts': true}},
-        );
-      });
+          expect(patch.skipStandardReasoningEffort, isTrue);
+          expect(patch.thinkingConfig, isNull);
+          expect(patch.extraBody, isNotNull);
+          expect(patch.extraBody!['google'], {
+            'thinking_config': {'include_thoughts': true},
+          });
+        },
+      );
 
       test('effort 为 null → 空 patch', () {
         final patch = adapter.buildPatch(null);
@@ -132,10 +125,26 @@ void main() {
   group('VendorPayloadAdapterRegistry', () {
     group('resolve', () {
       final resolveCases = <_ResolveCase>[
-        (host: 'api.deepseek.com', label: 'DeepSeek 主机', matcher: isA<ThinkingTogglePayloadAdapter>()),
-        (host: 'ark.cn-beijing.volces.com', label: 'Ark 主机', matcher: isA<ThinkingTogglePayloadAdapter>()),
-        (host: 'generativelanguage.googleapis.com', label: 'Gemini 主机', matcher: isA<GoogleOpenAiCompatibleAdapter>()),
-        (host: 'api.openai.com', label: '未知主机', matcher: isA<DefaultPayloadAdapter>()),
+        (
+          host: 'api.deepseek.com',
+          label: 'DeepSeek 主机',
+          matcher: isA<ThinkingTogglePayloadAdapter>(),
+        ),
+        (
+          host: 'ark.cn-beijing.volces.com',
+          label: 'Ark 主机',
+          matcher: isA<ThinkingTogglePayloadAdapter>(),
+        ),
+        (
+          host: 'generativelanguage.googleapis.com',
+          label: 'Gemini 主机',
+          matcher: isA<GoogleOpenAiCompatibleAdapter>(),
+        ),
+        (
+          host: 'api.openai.com',
+          label: '未知主机',
+          matcher: isA<DefaultPayloadAdapter>(),
+        ),
         (host: '', label: '空字符串', matcher: isA<DefaultPayloadAdapter>()),
       ];
       for (final entry in resolveCases) {
@@ -164,14 +173,8 @@ void main() {
           registry.resolve('generativelanguage.googleapis.com'),
           isA<DefaultPayloadAdapter>(),
         );
-        expect(
-          registry.resolve('any.host'),
-          isA<DefaultPayloadAdapter>(),
-        );
-        expect(
-          registry.resolve(''),
-          isA<DefaultPayloadAdapter>(),
-        );
+        expect(registry.resolve('any.host'), isA<DefaultPayloadAdapter>());
+        expect(registry.resolve(''), isA<DefaultPayloadAdapter>());
       });
     });
   });

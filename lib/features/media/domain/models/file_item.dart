@@ -8,10 +8,13 @@ class FileItem {
   final bool isDirectory;
   final int sizeBytes;
   final String relativePath;
+
   /// 文件最后修改时间（毫秒时间戳）；文件夹为 0。
   final int lastModified;
+
   /// MIME 类型（如 "video/mp4"）；文件夹为 null。
   final String? mimeType;
+
   /// 缩略图相对 API 路径（如 "/api/media/thumbnail/sister/cat.mp4"）；
   /// 文件夹和非图片/视频文件为 null。
   /// 此字段存储未编码的原始路径——客户端负责在发起 HTTP 请求前对路径段进行 URI 编码。

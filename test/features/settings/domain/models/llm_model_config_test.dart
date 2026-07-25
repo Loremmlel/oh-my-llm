@@ -17,16 +17,23 @@ void main() {
 
     test('fromJson supportsReasoning 默认 false', () {
       final config = LlmModelConfig.fromJson({
-        'id': 'm1', 'displayName': 'D', 'apiUrl': 'url',
-        'apiKey': 'key', 'modelName': 'n',
+        'id': 'm1',
+        'displayName': 'D',
+        'apiUrl': 'url',
+        'apiKey': 'key',
+        'modelName': 'n',
       });
       expect(config.supportsReasoning, isFalse);
     });
 
     test('toJson 不序列化空的 providerId/providerName', () {
       const config = LlmModelConfig(
-        id: 'm1', displayName: 'D', apiUrl: 'url',
-        apiKey: 'key', modelName: 'n', supportsReasoning: false,
+        id: 'm1',
+        displayName: 'D',
+        apiUrl: 'url',
+        apiKey: 'key',
+        modelName: 'n',
+        supportsReasoning: false,
       );
       final json = config.toJson();
       expect(json.containsKey('providerId'), isFalse);
@@ -35,9 +42,14 @@ void main() {
 
     test('toJson 序列化非空的 providerId/providerName', () {
       const config = LlmModelConfig(
-        id: 'm1', displayName: 'D', apiUrl: 'url',
-        apiKey: 'key', modelName: 'n', supportsReasoning: false,
-        providerId: 'p1', providerName: 'P',
+        id: 'm1',
+        displayName: 'D',
+        apiUrl: 'url',
+        apiKey: 'key',
+        modelName: 'n',
+        supportsReasoning: false,
+        providerId: 'p1',
+        providerName: 'P',
       );
       final json = config.toJson();
       expect(json['providerId'], 'p1');

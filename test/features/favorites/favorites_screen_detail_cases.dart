@@ -7,15 +7,18 @@ void registerFavoriteDetailScreenTests() {
   testWidgets('favorites detail shows user message and assistant content', (
     tester,
   ) async {
-    await setUpFavoritesScreen(tester, seed: (db) {
-      seedFavorite(
-        db,
-        id: 'fav-detail',
-        userMessageContent: '这是完整的用户消息内容，用于详情测试',
-        assistantContent: '这是完整的模型回复内容，用于详情测试',
-        assistantModelDisplayName: 'DeepSeek V4 Flash',
-      );
-    });
+    await setUpFavoritesScreen(
+      tester,
+      seed: (db) {
+        seedFavorite(
+          db,
+          id: 'fav-detail',
+          userMessageContent: '这是完整的用户消息内容，用于详情测试',
+          assistantContent: '这是完整的模型回复内容，用于详情测试',
+          assistantModelDisplayName: 'DeepSeek V4 Flash',
+        );
+      },
+    );
 
     await tester.tap(find.textContaining('这是完整的用户'));
     await tester.pumpAndSettle();
@@ -26,10 +29,12 @@ void registerFavoriteDetailScreenTests() {
     expect(find.text('DeepSeek V4 Flash'), findsOneWidget);
   });
 
-  testWidgets(
-    'favorites detail shows source link and can jump back to chat',
-    (tester) async {
-      await setUpFavoritesScreen(tester, seed: (db) {
+  testWidgets('favorites detail shows source link and can jump back to chat', (
+    tester,
+  ) async {
+    await setUpFavoritesScreen(
+      tester,
+      seed: (db) {
         seedFavorite(
           db,
           id: 'fav-with-source',
@@ -38,38 +43,40 @@ void registerFavoriteDetailScreenTests() {
           sourceConversationId: 'conv-123',
           sourceConversationTitle: '原始对话',
         );
-      });
+      },
+    );
 
-      await tester.tap(find.text('有来源的问题'));
-      await tester.pumpAndSettle();
+    await tester.tap(find.text('有来源的问题'));
+    await tester.pumpAndSettle();
 
-      expect(find.text('原始对话'), findsOneWidget);
+    expect(find.text('原始对话'), findsOneWidget);
 
-      await tester.tap(find.text('原始对话'));
-      await tester.pumpAndSettle();
+    await tester.tap(find.text('原始对话'));
+    await tester.pumpAndSettle();
 
-      expect(find.text('聊天落点'), findsOneWidget);
-    },
-  );
+    expect(find.text('聊天落点'), findsOneWidget);
+  });
 
-  testWidgets(
-    'favorites detail hides source metadata when source is absent',
-    (tester) async {
-      await setUpFavoritesScreen(tester, seed: (db) {
+  testWidgets('favorites detail hides source metadata when source is absent', (
+    tester,
+  ) async {
+    await setUpFavoritesScreen(
+      tester,
+      seed: (db) {
         seedFavorite(
           db,
           id: 'fav-no-source',
           userMessageContent: '无来源的问题',
           assistantContent: '无来源的回复',
         );
-      });
+      },
+    );
 
-      await tester.tap(find.text('无来源的问题'));
-      await tester.pumpAndSettle();
+    await tester.tap(find.text('无来源的问题'));
+    await tester.pumpAndSettle();
 
-      expect(find.text('原始对话'), findsNothing);
-    },
-  );
+    expect(find.text('原始对话'), findsNothing);
+  });
 
   testWidgets('favorites detail does not overflow on narrow mobile width', (
     tester,
@@ -103,9 +110,17 @@ void registerFavoriteDetailScreenTests() {
   testWidgets('favorites detail delete removes favorite and returns to list', (
     tester,
   ) async {
-    await setUpFavoritesScreen(tester, seed: (db) {
-      seedFavorite(db, id: 'fav-to-delete', userMessageContent: '要删除的问题', assistantContent: '要删除的回复');
-    });
+    await setUpFavoritesScreen(
+      tester,
+      seed: (db) {
+        seedFavorite(
+          db,
+          id: 'fav-to-delete',
+          userMessageContent: '要删除的问题',
+          assistantContent: '要删除的回复',
+        );
+      },
+    );
 
     await tester.tap(find.text('要删除的问题'));
     await tester.pumpAndSettle();
@@ -125,15 +140,18 @@ void registerFavoriteDetailScreenTests() {
   testWidgets('favorites detail shows reasoning content when present', (
     tester,
   ) async {
-    await setUpFavoritesScreen(tester, seed: (db) {
-      seedFavorite(
-        db,
-        id: 'fav-reasoning',
-        userMessageContent: '有推理的问题',
-        assistantContent: '有推理的回复',
-        assistantReasoningContent: '这是深度思考的推理过程',
-      );
-    });
+    await setUpFavoritesScreen(
+      tester,
+      seed: (db) {
+        seedFavorite(
+          db,
+          id: 'fav-reasoning',
+          userMessageContent: '有推理的问题',
+          assistantContent: '有推理的回复',
+          assistantReasoningContent: '这是深度思考的推理过程',
+        );
+      },
+    );
 
     await tester.tap(find.text('有推理的问题'));
     await tester.pumpAndSettle();
@@ -146,10 +164,12 @@ void registerFavoriteDetailScreenTests() {
     expect(find.text('这是深度思考的推理过程'), findsOneWidget);
   });
 
-  testWidgets(
-    'favorites detail shows move button for uncategorized favorite',
-    (tester) async {
-      await setUpFavoritesScreen(tester, seed: (db) {
+  testWidgets('favorites detail shows move button for uncategorized favorite', (
+    tester,
+  ) async {
+    await setUpFavoritesScreen(
+      tester,
+      seed: (db) {
         seedFavorite(
           db,
           id: 'fav-uncategorized',
@@ -157,35 +177,38 @@ void registerFavoriteDetailScreenTests() {
           assistantContent: '未分类的回复',
         );
         seedCollection(db, id: 'col-1', name: '技术收藏');
-      });
+      },
+    );
 
-      await tester.tap(find.text('未分类的收藏问题'));
-      await tester.pumpAndSettle();
+    await tester.tap(find.text('未分类的收藏问题'));
+    await tester.pumpAndSettle();
 
-      expect(find.text('未分类'), findsOneWidget);
-      expect(find.byIcon(Icons.drive_file_move_outline), findsOneWidget);
+    expect(find.text('未分类'), findsOneWidget);
+    expect(find.byIcon(Icons.drive_file_move_outline), findsOneWidget);
 
-      await tester.tap(find.byIcon(Icons.drive_file_move_outline));
-      await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.drive_file_move_outline));
+    await tester.pumpAndSettle();
 
-      expect(find.text('移动到收藏夹'), findsOneWidget);
-      expect(find.text('未分类'), findsWidgets);
-      expect(find.text('技术收藏'), findsOneWidget);
-    },
-  );
+    expect(find.text('移动到收藏夹'), findsOneWidget);
+    expect(find.text('未分类'), findsWidgets);
+    expect(find.text('技术收藏'), findsOneWidget);
+  });
 
   testWidgets('favorites detail hides reasoning panel when absent', (
     tester,
   ) async {
-    await setUpFavoritesScreen(tester, seed: (db) {
-      seedFavorite(
-        db,
-        id: 'fav-no-reasoning',
-        userMessageContent: '无推理的问题',
-        assistantContent: '无推理的回复',
-        assistantReasoningContent: '',
-      );
-    });
+    await setUpFavoritesScreen(
+      tester,
+      seed: (db) {
+        seedFavorite(
+          db,
+          id: 'fav-no-reasoning',
+          userMessageContent: '无推理的问题',
+          assistantContent: '无推理的回复',
+          assistantReasoningContent: '',
+        );
+      },
+    );
 
     await tester.tap(find.text('无推理的问题'));
     await tester.pumpAndSettle();

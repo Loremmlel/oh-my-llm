@@ -48,10 +48,7 @@ void main() {
     });
 
     test('throws ArgumentError for empty string', () {
-      expect(
-        () => deriveModelsUrl(''),
-        throwsA(isA<ArgumentError>()),
-      );
+      expect(() => deriveModelsUrl(''), throwsA(isA<ArgumentError>()));
     });
   });
 }

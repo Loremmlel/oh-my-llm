@@ -68,34 +68,30 @@ void main() {
     });
 
     test('边界值：刚好 1d 落入 withinThreeDays', () {
-      final groups = groupConversationSummariesByUpdatedAt(
-        [conv('boundary-1d', age: const Duration(days: 1))],
-        now: now,
-      );
+      final groups = groupConversationSummariesByUpdatedAt([
+        conv('boundary-1d', age: const Duration(days: 1)),
+      ], now: now);
       expect(groups.single.bucket, ConversationTimeBucket.withinThreeDays);
     });
 
     test('边界值：刚好 3d 落入 withinWeek', () {
-      final groups = groupConversationSummariesByUpdatedAt(
-        [conv('boundary-3d', age: const Duration(days: 3))],
-        now: now,
-      );
+      final groups = groupConversationSummariesByUpdatedAt([
+        conv('boundary-3d', age: const Duration(days: 3)),
+      ], now: now);
       expect(groups.single.bucket, ConversationTimeBucket.withinWeek);
     });
 
     test('边界值：刚好 7d 落入 withinMonth', () {
-      final groups = groupConversationSummariesByUpdatedAt(
-        [conv('boundary-7d', age: const Duration(days: 7))],
-        now: now,
-      );
+      final groups = groupConversationSummariesByUpdatedAt([
+        conv('boundary-7d', age: const Duration(days: 7)),
+      ], now: now);
       expect(groups.single.bucket, ConversationTimeBucket.withinMonth);
     });
 
     test('边界值：刚好 30d 落入 older', () {
-      final groups = groupConversationSummariesByUpdatedAt(
-        [conv('boundary-30d', age: const Duration(days: 30))],
-        now: now,
-      );
+      final groups = groupConversationSummariesByUpdatedAt([
+        conv('boundary-30d', age: const Duration(days: 30)),
+      ], now: now);
       expect(groups.single.bucket, ConversationTimeBucket.older);
     });
 
@@ -112,10 +108,11 @@ void main() {
       );
 
       expect(groups.single.bucket, ConversationTimeBucket.withinDay);
-      expect(
-        groups.single.conversations.map((c) => c.id).toList(),
-        ['new', 'mid', 'old'],
-      );
+      expect(groups.single.conversations.map((c) => c.id).toList(), [
+        'new',
+        'mid',
+        'old',
+      ]);
     });
 
     test('空桶不出现在结果中', () {
@@ -149,9 +146,9 @@ void main() {
 
     test('未提供 now 时回退到 DateTime.now() 且不抛异常', () {
       expect(
-        () => groupConversationSummariesByUpdatedAt(
-          [conv('c1', age: const Duration(minutes: 5))],
-        ),
+        () => groupConversationSummariesByUpdatedAt([
+          conv('c1', age: const Duration(minutes: 5)),
+        ]),
         returnsNormally,
       );
     });
@@ -216,7 +213,10 @@ void main() {
     });
 
     test('枚举顺序从新到旧', () {
-      expect(ConversationTimeBucket.values.first, ConversationTimeBucket.recent);
+      expect(
+        ConversationTimeBucket.values.first,
+        ConversationTimeBucket.recent,
+      );
       expect(ConversationTimeBucket.values.last, ConversationTimeBucket.older);
     });
   });

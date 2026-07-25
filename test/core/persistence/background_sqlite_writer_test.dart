@@ -164,9 +164,13 @@ void main() {
 
       executeSaveConversations(db, _jsonify(modifiedConv));
 
-      final rowCount = db
-          .select("SELECT COUNT(*) AS cnt FROM messages WHERE conversation_id = 'conv-1';")
-          .single['cnt'] as int;
+      final rowCount =
+          db
+                  .select(
+                    "SELECT COUNT(*) AS cnt FROM messages WHERE conversation_id = 'conv-1';",
+                  )
+                  .single['cnt']
+              as int;
       expect(rowCount, equals(2));
 
       final updatedMsg = db
@@ -174,9 +178,13 @@ void main() {
           .single;
       expect(updatedMsg['content'], equals('你好主人喵~'));
 
-      final convCount = db
-          .select("SELECT COUNT(*) AS cnt FROM conversations WHERE id = 'conv-1';")
-          .single['cnt'] as int;
+      final convCount =
+          db
+                  .select(
+                    "SELECT COUNT(*) AS cnt FROM conversations WHERE id = 'conv-1';",
+                  )
+                  .single['cnt']
+              as int;
       expect(convCount, equals(1));
     });
 
@@ -214,7 +222,9 @@ void main() {
       executeSaveConversations(db, _jsonify(conv));
       expect(
         db
-            .select("SELECT COUNT(*) AS cnt FROM messages WHERE conversation_id = 'conv-1';")
+            .select(
+              "SELECT COUNT(*) AS cnt FROM messages WHERE conversation_id = 'conv-1';",
+            )
             .single['cnt'],
         equals(3),
       );
@@ -242,20 +252,29 @@ void main() {
 
       executeSaveConversations(db, _jsonify(slimConv));
 
-      final remaining = db
-          .select("SELECT id FROM messages WHERE conversation_id = 'conv-1' ORDER BY node_index;");
+      final remaining = db.select(
+        "SELECT id FROM messages WHERE conversation_id = 'conv-1' ORDER BY node_index;",
+      );
       expect(remaining.length, equals(2));
       expect(remaining[0]['id'], equals('msg-a'));
       expect(remaining[1]['id'], equals('msg-b'));
 
-      final ghost = db
-          .select("SELECT COUNT(*) AS cnt FROM messages WHERE id = 'msg-c';")
-          .single['cnt'] as int;
+      final ghost =
+          db
+                  .select(
+                    "SELECT COUNT(*) AS cnt FROM messages WHERE id = 'msg-c';",
+                  )
+                  .single['cnt']
+              as int;
       expect(ghost, equals(0));
 
-      final branchCount = db
-          .select("SELECT COUNT(*) AS cnt FROM conversation_branch_selections WHERE conversation_id = 'conv-1';")
-          .single['cnt'] as int;
+      final branchCount =
+          db
+                  .select(
+                    "SELECT COUNT(*) AS cnt FROM conversation_branch_selections WHERE conversation_id = 'conv-1';",
+                  )
+                  .single['cnt']
+              as int;
       expect(branchCount, equals(2));
     });
 
@@ -292,8 +311,9 @@ void main() {
 
       executeSaveConversations(db, _jsonify(conv));
 
-      final rows = db
-          .select("SELECT id, node_index FROM messages WHERE conversation_id = 'conv-1' ORDER BY node_index;");
+      final rows = db.select(
+        "SELECT id, node_index FROM messages WHERE conversation_id = 'conv-1' ORDER BY node_index;",
+      );
       expect(rows[0]['id'], equals('m1'));
       expect(rows[0]['node_index'], equals(0));
       expect(rows[1]['id'], equals('m2'));
@@ -364,8 +384,9 @@ void main() {
 
       executeSaveConversations(db, _jsonify(modifiedConv));
 
-      final rows = db
-          .select("SELECT id, node_index, content FROM messages WHERE conversation_id = 'conv-1' ORDER BY node_index;");
+      final rows = db.select(
+        "SELECT id, node_index, content FROM messages WHERE conversation_id = 'conv-1' ORDER BY node_index;",
+      );
       expect(rows.length, equals(3));
       expect(rows[0]['node_index'], equals(0));
       expect(rows[1]['node_index'], equals(1));
@@ -400,25 +421,35 @@ void main() {
 
       executeSaveConversations(db, _jsonify(conv));
 
-      final convRow = db
-          .select("SELECT * FROM conversations WHERE id = 'conv-tx';");
+      final convRow = db.select(
+        "SELECT * FROM conversations WHERE id = 'conv-tx';",
+      );
       expect(convRow.length, equals(1));
       expect(convRow.single['title'], equals('原子性测试'));
 
-      final msgRows = db
-          .select("SELECT * FROM messages WHERE conversation_id = 'conv-tx';");
+      final msgRows = db.select(
+        "SELECT * FROM messages WHERE conversation_id = 'conv-tx';",
+      );
       expect(msgRows.length, equals(2));
       expect(msgRows[0]['id'], equals('tx-msg-1'));
       expect(msgRows[1]['id'], equals('tx-msg-2'));
 
       executeSaveConversations(db, _jsonify(conv));
-      final convCount = db
-          .select("SELECT COUNT(*) AS cnt FROM conversations WHERE id = 'conv-tx';")
-          .single['cnt'] as int;
+      final convCount =
+          db
+                  .select(
+                    "SELECT COUNT(*) AS cnt FROM conversations WHERE id = 'conv-tx';",
+                  )
+                  .single['cnt']
+              as int;
       expect(convCount, equals(1));
-      final msgCount = db
-          .select("SELECT COUNT(*) AS cnt FROM messages WHERE conversation_id = 'conv-tx';")
-          .single['cnt'] as int;
+      final msgCount =
+          db
+                  .select(
+                    "SELECT COUNT(*) AS cnt FROM messages WHERE conversation_id = 'conv-tx';",
+                  )
+                  .single['cnt']
+              as int;
       expect(msgCount, equals(2));
     });
 
@@ -478,19 +509,31 @@ void main() {
       // 重新打开同一文件，验证失败的会话未残留任何行
       final reopened = AppDatabase.forPath(dbPath);
       addTearDown(reopened.close);
-      final failingCount = reopened.connection
-          .select("SELECT COUNT(*) AS cnt FROM conversations WHERE id = 'conv-failing';")
-          .single['cnt'] as int;
+      final failingCount =
+          reopened.connection
+                  .select(
+                    "SELECT COUNT(*) AS cnt FROM conversations WHERE id = 'conv-failing';",
+                  )
+                  .single['cnt']
+              as int;
       expect(failingCount, equals(0));
-      final failingMsgCount = reopened.connection
-          .select("SELECT COUNT(*) AS cnt FROM messages WHERE conversation_id = 'conv-failing';")
-          .single['cnt'] as int;
+      final failingMsgCount =
+          reopened.connection
+                  .select(
+                    "SELECT COUNT(*) AS cnt FROM messages WHERE conversation_id = 'conv-failing';",
+                  )
+                  .single['cnt']
+              as int;
       expect(failingMsgCount, equals(0));
 
       // 基线数据仍完好
-      final baselineCount = reopened.connection
-          .select("SELECT COUNT(*) AS cnt FROM conversations WHERE id = 'conv-baseline';")
-          .single['cnt'] as int;
+      final baselineCount =
+          reopened.connection
+                  .select(
+                    "SELECT COUNT(*) AS cnt FROM conversations WHERE id = 'conv-baseline';",
+                  )
+                  .single['cnt']
+              as int;
       expect(baselineCount, equals(1));
     });
 
@@ -557,14 +600,16 @@ void main() {
       expect(convRows[1]['id'], equals('conv-b'));
       expect(convRows[1]['title'], equals('会话 B'));
 
-      final msgsA = db
-          .select("SELECT id, content FROM messages WHERE conversation_id = 'conv-a' ORDER BY node_index;");
+      final msgsA = db.select(
+        "SELECT id, content FROM messages WHERE conversation_id = 'conv-a' ORDER BY node_index;",
+      );
       expect(msgsA.length, equals(2));
       expect(msgsA[0]['content'], equals('Message A1'));
       expect(msgsA[1]['content'], equals('Reply A1'));
 
-      final msgsB = db
-          .select("SELECT id, content FROM messages WHERE conversation_id = 'conv-b' ORDER BY node_index;");
+      final msgsB = db.select(
+        "SELECT id, content FROM messages WHERE conversation_id = 'conv-b' ORDER BY node_index;",
+      );
       expect(msgsB.length, equals(3));
       expect(msgsB[0]['content'], equals('Message B1'));
       expect(msgsB[1]['content'], equals('Reply B1'));
@@ -643,9 +688,13 @@ void main() {
       );
       executeSaveConversations(db, _jsonify(slimConv));
 
-      final cpCount = db
-          .select("SELECT COUNT(*) AS cnt FROM conversation_checkpoints WHERE conversation_id = 'conv-cp';")
-          .single['cnt'] as int;
+      final cpCount =
+          db
+                  .select(
+                    "SELECT COUNT(*) AS cnt FROM conversation_checkpoints WHERE conversation_id = 'conv-cp';",
+                  )
+                  .single['cnt']
+              as int;
       expect(cpCount, equals(0));
     });
 
@@ -673,7 +722,8 @@ void main() {
     // ────────────────────────────────────────────
     // 10. 全字段非默认值往返持久化
     // ────────────────────────────────────────────
-    test('conversation fields round-trip persistence', () {      final conv = _buildConversation(
+    test('conversation fields round-trip persistence', () {
+      final conv = _buildConversation(
         id: 'conv-full',
         title: '全字段',
         createdAt: now,
@@ -758,7 +808,9 @@ void main() {
       expect(lengthRow['finish_reason'], equals('length'));
 
       final defaultRow = db
-          .select("SELECT finish_reason FROM messages WHERE id = 'msg-default';")
+          .select(
+            "SELECT finish_reason FROM messages WHERE id = 'msg-default';",
+          )
           .single;
       expect(defaultRow['finish_reason'], isNull);
     });
@@ -814,10 +866,7 @@ void main() {
           )
           .single;
       expect(noTplRow['template_prompt_id'], isNull);
-      expect(
-        noTplRow['template_variable_values_json'],
-        equals('{}'),
-      );
+      expect(noTplRow['template_variable_values_json'], equals('{}'));
     });
   });
 }

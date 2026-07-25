@@ -28,14 +28,8 @@ Future<SharedPreferences> seedDefaultTestData(AppDatabase database) async {
         id: 'sequence-1',
         name: '对比测试流程',
         steps: [
-          TestFixtures.sequenceStep(
-            id: 'step-1',
-            content: '请先总结当前实现的核心目标。',
-          ),
-          TestFixtures.sequenceStep(
-            id: 'step-2',
-            content: '请列出三个可执行方案，并说明权衡。',
-          ),
+          TestFixtures.sequenceStep(id: 'step-1', content: '请先总结当前实现的核心目标。'),
+          TestFixtures.sequenceStep(id: 'step-2', content: '请列出三个可执行方案，并说明权衡。'),
         ],
         updatedAt: DateTime(2026, 4, 27),
       ),

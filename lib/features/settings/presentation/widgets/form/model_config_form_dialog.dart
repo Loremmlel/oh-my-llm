@@ -52,7 +52,8 @@ class ModelConfigFormDialog extends StatefulWidget {
   final Future<List<RemoteModelInfo>> Function({
     required String modelsUrl,
     required String apiKey,
-  }) fetchModels;
+  })
+  fetchModels;
 
   final LlmProviderModelConfig? initialValue;
 
@@ -73,10 +74,10 @@ class _ModelConfigFormDialogState extends State<ModelConfigFormDialog>
   @override
   void initState() {
     super.initState();
-    _displayNameController =
-        initController(widget.initialValue?.displayName ?? '');
-    _modelNameController =
-        initController(widget.initialValue?.modelName ?? '');
+    _displayNameController = initController(
+      widget.initialValue?.displayName ?? '',
+    );
+    _modelNameController = initController(widget.initialValue?.modelName ?? '');
     _supportsReasoning = widget.initialValue?.supportsReasoning ?? false;
   }
 
@@ -230,10 +231,12 @@ class _ModelConfigFormDialogState extends State<ModelConfigFormDialog>
     if (selectedEntries.isEmpty) return;
 
     final items = selectedEntries
-        .map((e) => ModelBatchFormData(
-              displayName: e.controller.text.trim(),
-              modelName: e.remoteModel.id,
-            ))
+        .map(
+          (e) => ModelBatchFormData(
+            displayName: e.controller.text.trim(),
+            modelName: e.remoteModel.id,
+          ),
+        )
         .toList();
 
     await submitAndClose(() {

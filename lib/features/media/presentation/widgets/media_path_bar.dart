@@ -36,15 +36,17 @@ class MediaPathBar extends StatelessWidget {
             ),
             // 每级路径
             for (var i = 0; i < segments.length; i++)
-              Row(children: [
-                Text(' / ', style: theme.textTheme.bodySmall),
-                _PathChip(
-                  label: segments[i].name,
-                  onTap: () => onPathSelected(segments[i].path),
-                  isActive: segments[i].path == currentPath,
-                  theme: theme,
-                ),
-              ]),
+              Row(
+                children: [
+                  Text(' / ', style: theme.textTheme.bodySmall),
+                  _PathChip(
+                    label: segments[i].name,
+                    onTap: () => onPathSelected(segments[i].path),
+                    isActive: segments[i].path == currentPath,
+                    theme: theme,
+                  ),
+                ],
+              ),
           ],
         ),
       ),
@@ -54,10 +56,7 @@ class MediaPathBar extends StatelessWidget {
   List<_PathSegment> _buildSegments() {
     if (currentPath == '/' || currentPath.isEmpty) return [];
 
-    final parts = currentPath
-        .split('/')
-        .where((s) => s.isNotEmpty)
-        .toList();
+    final parts = currentPath.split('/').where((s) => s.isNotEmpty).toList();
     final segments = <_PathSegment>[];
     var accumulated = '';
     for (final part in parts) {

@@ -69,9 +69,16 @@ class BackgroundChatConversationRepository
   ChatConversation? loadConversation(String id) => _inner.loadConversation(id);
 
   @override
-  List<ChatConversationSummary>
-  loadHistorySummaries({String keyword = '', int? limit, int? offset}) {
-    return _inner.loadHistorySummaries(keyword: keyword, limit: limit, offset: offset);
+  List<ChatConversationSummary> loadHistorySummaries({
+    String keyword = '',
+    int? limit,
+    int? offset,
+  }) {
+    return _inner.loadHistorySummaries(
+      keyword: keyword,
+      limit: limit,
+      offset: offset,
+    );
   }
 
   @override
@@ -100,7 +107,8 @@ class BackgroundChatConversationRepository
 
   @override
   Future<void> saveConversation(ChatConversation conversation) async {
-    final shouldSave = conversation.hasMessages ||
+    final shouldSave =
+        conversation.hasMessages ||
         conversation.checkpoints.isNotEmpty ||
         (conversation.title?.trim().isNotEmpty ?? false);
     if (!shouldSave) return;
@@ -150,13 +158,11 @@ class BackgroundChatConversationRepository
         .saveConversations(
           data
               .map(
-                (j) =>
-                    ChatConversation.fromJson(Map<String, dynamic>.from(j)),
+                (j) => ChatConversation.fromJson(Map<String, dynamic>.from(j)),
               )
               .toList(growable: false),
         )
         // ignore: avoid_print
         .catchError((e) => print('[BackgroundWriter] 降级写入失败: $e'));
   }
-
 }

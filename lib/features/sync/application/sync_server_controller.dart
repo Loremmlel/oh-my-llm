@@ -64,10 +64,16 @@ class SyncServerState {
     return SyncServerState(
       isRunning: isRunning ?? this.isRunning,
       deviceName: deviceName ?? this.deviceName,
-      httpPort: identical(httpPort, _sentinel) ? this.httpPort : httpPort as int?,
+      httpPort: identical(httpPort, _sentinel)
+          ? this.httpPort
+          : httpPort as int?,
       servedRequestCount: servedRequestCount ?? this.servedRequestCount,
-      lastError: identical(lastError, _sentinel) ? this.lastError : lastError as String?,
-      selectedInterface: identical(selectedInterface, _sentinel) ? this.selectedInterface : selectedInterface as NetworkInterfaceInfo?,
+      lastError: identical(lastError, _sentinel)
+          ? this.lastError
+          : lastError as String?,
+      selectedInterface: identical(selectedInterface, _sentinel)
+          ? this.selectedInterface
+          : selectedInterface as NetworkInterfaceInfo?,
     );
   }
 }
@@ -117,8 +123,9 @@ class SyncServerController extends Notifier<SyncServerState> {
       if (interfaces.isNotEmpty) {
         selectedIface =
             interfaces[selectedIndex.clamp(0, interfaces.length - 1)];
-        broadcastAddr =
-            prefix.computeBroadcast(InternetAddress(selectedIface.ip));
+        broadcastAddr = prefix.computeBroadcast(
+          InternetAddress(selectedIface.ip),
+        );
       }
 
       final handlers = <HttpRouteHandler>[
@@ -135,11 +142,13 @@ class SyncServerController extends Notifier<SyncServerState> {
           handlers.add(MediaVideoHttpHandler(scanner: scanner));
           handlers.add(MediaRecursiveVideosHandler(scanner: scanner));
           final thumbnailCache = await MediaThumbnailCache.defaultLocation();
-          handlers.add(MediaThumbnailHttpHandler(
-            scanner: scanner,
-            generator: MediaThumbnailGenerator(scanner: scanner),
-            cache: thumbnailCache,
-          ));
+          handlers.add(
+            MediaThumbnailHttpHandler(
+              scanner: scanner,
+              generator: MediaThumbnailGenerator(scanner: scanner),
+              cache: thumbnailCache,
+            ),
+          );
         }
       }
       final port = await _httpServer.start(handlers: handlers);
@@ -191,7 +200,9 @@ class SyncServerController extends Notifier<SyncServerState> {
     await prefs.setString(_deviceNameKey, trimmed);
 
     if (state.isRunning) {
-      _pendingRestart = (_pendingRestart ?? Future<void>.value()).then((_) async {
+      _pendingRestart = (_pendingRestart ?? Future<void>.value()).then((
+        _,
+      ) async {
         if (!state.isRunning) return;
         await _cleanup();
         state = state.copyWith(isRunning: false, httpPort: null);
@@ -215,17 +226,15 @@ class SyncServerController extends Notifier<SyncServerState> {
   }
 
   Future<SyncMessage> _handleSettingsSyncRequest(SyncMessage request) async {
-    final categories = (request.payload['categories'] as List<dynamic>?)
-            ?.cast<String>() ??
+    final categories =
+        (request.payload['categories'] as List<dynamic>?)?.cast<String>() ??
         const [];
     final categorySet = categories.toSet();
 
     final exportData = _buildExportData(categorySet);
     final json = exportData.toJsonString();
 
-    state = state.copyWith(
-      servedRequestCount: state.servedRequestCount + 1,
-    );
+    state = state.copyWith(servedRequestCount: state.servedRequestCount + 1);
 
     return SyncMessage.response(
       type: SyncMessageType.settingsSyncResponse,

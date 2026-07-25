@@ -8,10 +8,7 @@ import '../../../../favorites/domain/models/collection.dart';
 ///
 /// 返回用户选择的收藏夹 ID（'' 表示未分类）或 null（取消）。
 class AddToFavoritesDialog extends ConsumerStatefulWidget {
-  const AddToFavoritesDialog({
-    required this.assistantContent,
-    super.key,
-  });
+  const AddToFavoritesDialog({required this.assistantContent, super.key});
 
   /// 当前助手消息内容，用于判断是否已被收藏。
   final String assistantContent;
@@ -95,8 +92,7 @@ class _AddToFavoritesDialogState extends ConsumerState<AddToFavoritesDialog> {
               )
             else
               TextButton.icon(
-                onPressed: () =>
-                    setState(() => _showNewCollectionField = true),
+                onPressed: () => setState(() => _showNewCollectionField = true),
                 icon: const Icon(Icons.create_new_folder_outlined),
                 label: const Text('新建收藏夹'),
                 style: TextButton.styleFrom(
@@ -155,7 +151,9 @@ class _CollectionTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Material(
-      color: selected ? theme.colorScheme.secondaryContainer : Colors.transparent,
+      color: selected
+          ? theme.colorScheme.secondaryContainer
+          : Colors.transparent,
       borderRadius: BorderRadius.circular(8),
       child: InkWell(
         borderRadius: BorderRadius.circular(8),
@@ -179,8 +177,7 @@ class _CollectionTile extends StatelessWidget {
                     color: selected
                         ? theme.colorScheme.onSecondaryContainer
                         : null,
-                    fontWeight:
-                        selected ? FontWeight.w600 : FontWeight.normal,
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
                   ),
                 ),
               ),

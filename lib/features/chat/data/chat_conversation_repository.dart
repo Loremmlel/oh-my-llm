@@ -5,6 +5,7 @@ import '../domain/models/chat_conversation.dart';
 import '../domain/models/chat_conversation_summary.dart';
 import 'background_chat_repository.dart';
 import 'sqlite_chat_conversation_repository.dart';
+
 final chatConversationRepositoryProvider = Provider<ChatConversationRepository>(
   (ref) {
     final database = ref.watch(appDatabaseProvider);
@@ -25,8 +26,11 @@ abstract interface class ChatConversationRepository {
   /// 按历史页需求读取会话摘要，并支持按标题和用户消息搜索。
   ///
   /// 传入 [limit] 时分页返回；不传时返回全部数据。
-  List<ChatConversationSummary>
-  loadHistorySummaries({String keyword = '', int? limit, int? offset});
+  List<ChatConversationSummary> loadHistorySummaries({
+    String keyword = '',
+    int? limit,
+    int? offset,
+  });
 
   /// 返回满足 [keyword] 条件的会话总数（与 [loadHistorySummaries] 的
   /// 过滤语义一致：标题 + 用户消息，忽略无消息/无 checkpoint 的空会话）。

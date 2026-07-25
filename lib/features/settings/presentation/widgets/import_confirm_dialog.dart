@@ -107,9 +107,9 @@ class _ImportConfirmDialogState extends ConsumerState<ImportConfirmDialog> {
           const Spacer(),
           Text(
             '$count 项',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
           ),
         ],
       ),

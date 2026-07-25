@@ -45,8 +45,8 @@ class ShufflePlaybackActive extends ShufflePlaybackState {
 
 final shufflePlaybackControllerProvider =
     NotifierProvider<ShufflePlaybackController, ShufflePlaybackState>(
-  ShufflePlaybackController.new,
-);
+      ShufflePlaybackController.new,
+    );
 
 /// 随机播放控制器。
 ///
@@ -75,9 +75,9 @@ class ShufflePlaybackController extends Notifier<ShufflePlaybackState> {
       final url = Uri.parse(
         'http://${server.ip}:${server.httpPort}/api/media/videos/recursive/$encodedPath',
       );
-      final response = await _httpClient.get(url).timeout(
-        const Duration(seconds: 15),
-      );
+      final response = await _httpClient
+          .get(url)
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode != 200) {
         state = const ShufflePlaybackIdle();

@@ -29,7 +29,9 @@ void main() {
 
     test('fromJson supportsReasoning 默认 false', () {
       final model = LlmProviderModelConfig.fromJson({
-        'id': 'm1', 'displayName': 'D', 'modelName': 'n',
+        'id': 'm1',
+        'displayName': 'D',
+        'modelName': 'n',
       });
       expect(model.supportsReasoning, isFalse);
     });
@@ -37,15 +39,24 @@ void main() {
 
   group('LlmProviderConfig', () {
     const model1 = LlmProviderModelConfig(
-      id: 'm1', displayName: 'M1', modelName: 'model-1', supportsReasoning: false,
+      id: 'm1',
+      displayName: 'M1',
+      modelName: 'model-1',
+      supportsReasoning: false,
     );
     const model2 = LlmProviderModelConfig(
-      id: 'm2', displayName: 'M2', modelName: 'model-2', supportsReasoning: true,
+      id: 'm2',
+      displayName: 'M2',
+      modelName: 'model-2',
+      supportsReasoning: true,
     );
 
     test('resolvedModels 展开所有模型', () {
       const provider = LlmProviderConfig(
-        id: 'p1', name: 'P', apiUrl: 'url', apiKey: 'key',
+        id: 'p1',
+        name: 'P',
+        apiUrl: 'url',
+        apiKey: 'key',
         models: [model1, model2],
       );
       final resolved = provider.resolvedModels;
@@ -57,21 +68,30 @@ void main() {
 
     test('resolvedModels 空模型列表返回空', () {
       const provider = LlmProviderConfig(
-        id: 'p1', name: 'P', apiUrl: 'url', apiKey: 'key',
+        id: 'p1',
+        name: 'P',
+        apiUrl: 'url',
+        apiKey: 'key',
       );
       expect(provider.resolvedModels, isEmpty);
     });
 
     test('fromJson models 为 null 时回退为空列表', () {
       final provider = LlmProviderConfig.fromJson({
-        'id': 'p1', 'name': 'P', 'apiUrl': 'url', 'apiKey': 'key',
+        'id': 'p1',
+        'name': 'P',
+        'apiUrl': 'url',
+        'apiKey': 'key',
       });
       expect(provider.models, isEmpty);
     });
 
     test('toJson → fromJson round-trip', () {
       const provider = LlmProviderConfig(
-        id: 'p1', name: 'P', apiUrl: 'url', apiKey: 'key',
+        id: 'p1',
+        name: 'P',
+        apiUrl: 'url',
+        apiKey: 'key',
         models: [model1],
       );
       final restored = LlmProviderConfig.fromJson(provider.toJson());

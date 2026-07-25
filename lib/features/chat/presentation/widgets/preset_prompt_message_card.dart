@@ -23,10 +23,10 @@ class PresetPromptMessageCard extends ConsumerWidget {
   final PromptMessage message;
 
   IconData get _roleIcon => switch (message.role) {
-        PromptMessageRole.system => Icons.smart_toy_outlined,
-        PromptMessageRole.user => Icons.person_outline_rounded,
-        PromptMessageRole.assistant => Icons.psychology_outlined,
-      };
+    PromptMessageRole.system => Icons.smart_toy_outlined,
+    PromptMessageRole.user => Icons.person_outline_rounded,
+    PromptMessageRole.assistant => Icons.psychology_outlined,
+  };
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

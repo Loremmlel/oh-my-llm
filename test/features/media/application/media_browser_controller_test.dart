@@ -31,7 +31,14 @@ void main() {
     test('copyWith 保留未指定字段', () {
       const state = MediaBrowserState(
         currentPath: '/sub',
-        items: [FileItem(name: 'a.mp4', isDirectory: false, sizeBytes: 100, relativePath: '/a.mp4')],
+        items: [
+          FileItem(
+            name: 'a.mp4',
+            isDirectory: false,
+            sizeBytes: 100,
+            relativePath: '/a.mp4',
+          ),
+        ],
       );
       final updated = state.copyWith(isLoading: true);
       expect(updated.currentPath, '/sub');
@@ -42,7 +49,9 @@ void main() {
 
   group('MediaBrowserController', () {
     test('build() 初始状态', () {
-      final container = createMediaTestContainer(httpClient: okMockClient('[]'));
+      final container = createMediaTestContainer(
+        httpClient: okMockClient('[]'),
+      );
       addTearDown(container.dispose);
       final state = container.read(mediaBrowserControllerProvider);
       expect(state.currentPath, '/');
@@ -53,9 +62,16 @@ void main() {
 
     test('initWithServer 设置 server 并加载根目录', () async {
       final items = [
-        const FileItem(name: 'test.mp4', isDirectory: false, sizeBytes: 100, relativePath: '/test.mp4'),
+        const FileItem(
+          name: 'test.mp4',
+          isDirectory: false,
+          sizeBytes: 100,
+          relativePath: '/test.mp4',
+        ),
       ];
-      final container = createMediaTestContainer(httpClient: okMockClient(fileListJson(items)));
+      final container = createMediaTestContainer(
+        httpClient: okMockClient(fileListJson(items)),
+      );
       addTearDown(container.dispose);
 
       await initBrowserAndWait(container);
@@ -65,10 +81,14 @@ void main() {
     });
 
     test('loadDirectory server null → errorMessage', () async {
-      final container = createMediaTestContainer(httpClient: okMockClient('[]'));
+      final container = createMediaTestContainer(
+        httpClient: okMockClient('[]'),
+      );
       addTearDown(container.dispose);
 
-      final controller = container.read(mediaBrowserControllerProvider.notifier);
+      final controller = container.read(
+        mediaBrowserControllerProvider.notifier,
+      );
       await controller.loadDirectory('/');
       final state = container.read(mediaBrowserControllerProvider);
       expect(state.errorMessage, '未连接到服务端');
@@ -77,10 +97,22 @@ void main() {
 
     test('loadDirectory HTTP 200 → items 更新', () async {
       final items = [
-        const FileItem(name: 'a.mp4', isDirectory: false, sizeBytes: 100, relativePath: '/a.mp4'),
-        const FileItem(name: 'sub', isDirectory: true, sizeBytes: 0, relativePath: '/sub'),
+        const FileItem(
+          name: 'a.mp4',
+          isDirectory: false,
+          sizeBytes: 100,
+          relativePath: '/a.mp4',
+        ),
+        const FileItem(
+          name: 'sub',
+          isDirectory: true,
+          sizeBytes: 0,
+          relativePath: '/sub',
+        ),
       ];
-      final container = createMediaTestContainer(httpClient: okMockClient(fileListJson(items)));
+      final container = createMediaTestContainer(
+        httpClient: okMockClient(fileListJson(items)),
+      );
       addTearDown(container.dispose);
 
       await initBrowserAndWait(container);
@@ -92,7 +124,9 @@ void main() {
     });
 
     test('loadDirectory HTTP 非 200 → errorMessage', () async {
-      final container = createMediaTestContainer(httpClient: statusMockClient(500));
+      final container = createMediaTestContainer(
+        httpClient: statusMockClient(500),
+      );
       addTearDown(container.dispose);
 
       await initBrowserAndWait(container);
@@ -102,7 +136,9 @@ void main() {
     });
 
     test('loadDirectory 网络异常 → 包含错误信息', () async {
-      final container = createMediaTestContainer(httpClient: throwingMockClient());
+      final container = createMediaTestContainer(
+        httpClient: throwingMockClient(),
+      );
       addTearDown(container.dispose);
 
       await initBrowserAndWait(container);
@@ -113,10 +149,20 @@ void main() {
 
     test('navigateTo 成功 → pathHistory 推入', () async {
       final rootItems = [
-        const FileItem(name: 'sub', isDirectory: true, sizeBytes: 0, relativePath: '/sub'),
+        const FileItem(
+          name: 'sub',
+          isDirectory: true,
+          sizeBytes: 0,
+          relativePath: '/sub',
+        ),
       ];
       final subItems = [
-        const FileItem(name: 'a.mp4', isDirectory: false, sizeBytes: 100, relativePath: '/sub/a.mp4'),
+        const FileItem(
+          name: 'a.mp4',
+          isDirectory: false,
+          sizeBytes: 100,
+          relativePath: '/sub/a.mp4',
+        ),
       ];
       final client = MockClient((request) async {
         if (request.url.path.contains('sub')) {
@@ -130,7 +176,9 @@ void main() {
 
       await initBrowserAndWait(container);
 
-      final controller = container.read(mediaBrowserControllerProvider.notifier);
+      final controller = container.read(
+        mediaBrowserControllerProvider.notifier,
+      );
       await controller.navigateTo('/sub');
       final state = container.read(mediaBrowserControllerProvider);
       expect(state.currentPath, '/sub');
@@ -139,12 +187,16 @@ void main() {
     });
 
     test('navigateTo 失败 → pathHistory 不变', () async {
-      final container = createMediaTestContainer(httpClient: statusMockClient(500));
+      final container = createMediaTestContainer(
+        httpClient: statusMockClient(500),
+      );
       addTearDown(container.dispose);
 
       await initBrowserAndWait(container);
 
-      final controller = container.read(mediaBrowserControllerProvider.notifier);
+      final controller = container.read(
+        mediaBrowserControllerProvider.notifier,
+      );
       await controller.navigateTo('/sub');
       final state = container.read(mediaBrowserControllerProvider);
       expect(state.pathHistory, isEmpty);
@@ -152,7 +204,12 @@ void main() {
 
     test('goBack 有历史 → 返回 true 并恢复路径', () async {
       final rootItems = [
-        const FileItem(name: 'sub', isDirectory: true, sizeBytes: 0, relativePath: '/sub'),
+        const FileItem(
+          name: 'sub',
+          isDirectory: true,
+          sizeBytes: 0,
+          relativePath: '/sub',
+        ),
       ];
       final client = MockClient((request) async {
         return http.Response(fileListJson(rootItems), 200);
@@ -163,7 +220,9 @@ void main() {
 
       await initBrowserAndWait(container);
 
-      final controller = container.read(mediaBrowserControllerProvider.notifier);
+      final controller = container.read(
+        mediaBrowserControllerProvider.notifier,
+      );
       await controller.navigateTo('/sub');
       final result = await controller.goBack();
       expect(result, isTrue);
@@ -172,10 +231,14 @@ void main() {
     });
 
     test('goBack 无历史 → 返回 false', () async {
-      final container = createMediaTestContainer(httpClient: okMockClient('[]'));
+      final container = createMediaTestContainer(
+        httpClient: okMockClient('[]'),
+      );
       addTearDown(container.dispose);
 
-      final controller = container.read(mediaBrowserControllerProvider.notifier);
+      final controller = container.read(
+        mediaBrowserControllerProvider.notifier,
+      );
       final result = await controller.goBack();
       expect(result, isFalse);
     });

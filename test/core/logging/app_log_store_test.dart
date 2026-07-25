@@ -16,9 +16,7 @@ void main() {
         await directory.delete(recursive: true);
       }
     });
-    logFile = File(
-      '${directory.path}${Platform.pathSeparator}network.log',
-    );
+    logFile = File('${directory.path}${Platform.pathSeparator}network.log');
   });
 
   test('AppLogStore rotates file when size exceeds max bytes', () async {
@@ -141,20 +139,23 @@ void main() {
     expect(content, contains('hello'));
   });
 
-  test('AppNetworkLogger.logSseLine falls back to text for invalid JSON', () async {
-    final logger = AppNetworkLogger(
-      store: await AppLogStore.open(directoryPath: directory.path),
-    );
+  test(
+    'AppNetworkLogger.logSseLine falls back to text for invalid JSON',
+    () async {
+      final logger = AppNetworkLogger(
+        store: await AppLogStore.open(directoryPath: directory.path),
+      );
 
-    await logger.logSseLine(
-      uri: Uri.parse('https://api.example.com/v1/chat/completions'),
-      line: 'not-json-at-all',
-    );
+      await logger.logSseLine(
+        uri: Uri.parse('https://api.example.com/v1/chat/completions'),
+        line: 'not-json-at-all',
+      );
 
-    final content = await logFile.readAsString();
-    expect(content, contains('[sse]'));
-    expect(content, contains('not-json-at-all'));
-  });
+      final content = await logFile.readAsString();
+      expect(content, contains('[sse]'));
+      expect(content, contains('not-json-at-all'));
+    },
+  );
 
   test('AppNetworkLogger.logError truncates stack trace to 12 lines', () async {
     final logger = AppNetworkLogger(

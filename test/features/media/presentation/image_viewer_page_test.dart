@@ -31,10 +31,7 @@ void main() {
       await pumpTestApp(
         tester,
         preferences: prefs,
-        child: ImageViewerPage(
-          imageUrls: _fakeUrls(5),
-          initialIndex: 2,
-        ),
+        child: ImageViewerPage(imageUrls: _fakeUrls(5), initialIndex: 2),
       );
 
       // 计数器在右上角
@@ -80,10 +77,7 @@ void main() {
       await pumpTestApp(
         tester,
         preferences: prefs,
-        child: ImageViewerPage(
-          imageUrls: _fakeUrls(5),
-          initialIndex: 3,
-        ),
+        child: ImageViewerPage(imageUrls: _fakeUrls(5), initialIndex: 3),
       );
 
       // 计数器应反映 initialIndex = 3（显示为 4 / 5）
@@ -142,10 +136,7 @@ void main() {
         tester,
         preferences: prefs,
         viewportSize: const Size(400, 800),
-        child: ImageViewerPage(
-          imageUrls: _fakeUrls(5),
-          initialIndex: 0,
-        ),
+        child: ImageViewerPage(imageUrls: _fakeUrls(5), initialIndex: 0),
       );
       await tester.pump(); // 让 errorBuilder 回调执行
 
@@ -153,11 +144,7 @@ void main() {
       expect(find.text('1 / 5'), findsOneWidget);
 
       // 向左滑动切换到第 2 页
-      await tester.fling(
-        find.byType(PageView),
-        const Offset(-200, 0),
-        1000,
-      );
+      await tester.fling(find.byType(PageView), const Offset(-200, 0), 1000);
       await tester.pumpAndSettle();
 
       // 计数器应更新为 2 / 5
@@ -170,10 +157,7 @@ void main() {
         tester,
         preferences: prefs,
         viewportSize: const Size(400, 800),
-        child: ImageViewerPage(
-          imageUrls: _fakeUrls(3),
-          initialIndex: 0,
-        ),
+        child: ImageViewerPage(imageUrls: _fakeUrls(3), initialIndex: 0),
       );
       await tester.pump();
 
@@ -181,11 +165,7 @@ void main() {
       expect(find.text('1 / 3'), findsOneWidget);
 
       // 在首页向右滑动（应被 clamp，不翻页）
-      await tester.fling(
-        find.byType(PageView),
-        const Offset(200, 0),
-        1000,
-      );
+      await tester.fling(find.byType(PageView), const Offset(200, 0), 1000);
       await tester.pumpAndSettle();
 
       // 仍在第 1 页
@@ -198,10 +178,7 @@ void main() {
         tester,
         preferences: prefs,
         viewportSize: const Size(400, 800),
-        child: ImageViewerPage(
-          imageUrls: _fakeUrls(3),
-          initialIndex: 2,
-        ),
+        child: ImageViewerPage(imageUrls: _fakeUrls(3), initialIndex: 2),
       );
       await tester.pump();
 
@@ -209,11 +186,7 @@ void main() {
       expect(find.text('3 / 3'), findsOneWidget);
 
       // 在末页向左滑动（应被 clamp）
-      await tester.fling(
-        find.byType(PageView),
-        const Offset(-200, 0),
-        1000,
-      );
+      await tester.fling(find.byType(PageView), const Offset(-200, 0), 1000);
       await tester.pumpAndSettle();
 
       // 仍在最后一页
@@ -270,20 +243,13 @@ void main() {
         tester,
         preferences: prefs,
         viewportSize: const Size(400, 800),
-        child: ImageViewerPage(
-          imageUrls: _fakeUrls(10),
-          initialIndex: 0,
-        ),
+        child: ImageViewerPage(imageUrls: _fakeUrls(10), initialIndex: 0),
       );
       await tester.pump();
 
       // 连续快速滑动 3 次
       for (int i = 0; i < 3; i++) {
-        await tester.fling(
-          find.byType(PageView),
-          const Offset(-200, 0),
-          1000,
-        );
+        await tester.fling(find.byType(PageView), const Offset(-200, 0), 1000);
         await tester.pumpAndSettle();
       }
 
@@ -297,37 +263,22 @@ void main() {
         tester,
         preferences: prefs,
         viewportSize: const Size(400, 800),
-        child: ImageViewerPage(
-          imageUrls: _fakeUrls(5),
-          initialIndex: 0,
-        ),
+        child: ImageViewerPage(imageUrls: _fakeUrls(5), initialIndex: 0),
       );
       await tester.pump();
 
       // 翻到第 3 页
-      await tester.fling(
-        find.byType(PageView),
-        const Offset(-200, 0),
-        1000,
-      );
+      await tester.fling(find.byType(PageView), const Offset(-200, 0), 1000);
       await tester.pumpAndSettle();
       expect(find.text('2 / 5'), findsOneWidget);
 
       // 再翻一页
-      await tester.fling(
-        find.byType(PageView),
-        const Offset(-200, 0),
-        1000,
-      );
+      await tester.fling(find.byType(PageView), const Offset(-200, 0), 1000);
       await tester.pumpAndSettle();
       expect(find.text('3 / 5'), findsOneWidget);
 
       // 翻回第 1 页
-      await tester.fling(
-        find.byType(PageView),
-        const Offset(200, 0),
-        1000,
-      );
+      await tester.fling(find.byType(PageView), const Offset(200, 0), 1000);
       await tester.pumpAndSettle();
       expect(find.text('2 / 5'), findsOneWidget);
 
@@ -335,5 +286,4 @@ void main() {
       expect(find.byIcon(Icons.arrow_back), findsOneWidget);
     });
   });
-
 }

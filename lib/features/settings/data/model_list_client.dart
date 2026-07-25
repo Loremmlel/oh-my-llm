@@ -52,8 +52,8 @@ class ModelListClient {
   ModelListClient({
     required http.Client httpClient,
     NetworkLogger logger = const NoopNetworkLogger(),
-  })  : _httpClient = httpClient,
-        _logger = logger;
+  }) : _httpClient = httpClient,
+       _logger = logger;
 
   final http.Client _httpClient;
   final NetworkLogger _logger;
@@ -73,9 +73,7 @@ class ModelListClient {
       throw ModelListException('API URL 格式无效：${e.message}');
     }
     if (uri.scheme != 'http' && uri.scheme != 'https') {
-      throw ModelListException(
-        'API URL 格式无效（需要 http/https）：$modelsUrl',
-      );
+      throw ModelListException('API URL 格式无效（需要 http/https）：$modelsUrl');
     }
 
     await _logger.logRequest(
@@ -90,18 +88,28 @@ class ModelListClient {
 
     http.Response response;
     try {
-      response = await _httpClient.get(
-        uri,
-        headers: {
-          'Authorization': 'Bearer $apiKey',
-          'Accept': 'application/json',
-        },
-      ).timeout(const Duration(seconds: 30));
+      response = await _httpClient
+          .get(
+            uri,
+            headers: {
+              'Authorization': 'Bearer $apiKey',
+              'Accept': 'application/json',
+            },
+          )
+          .timeout(const Duration(seconds: 30));
     } on http.ClientException catch (e) {
-      await _logger.logError(uri: uri, error: e, stackTrace: StackTrace.current);
+      await _logger.logError(
+        uri: uri,
+        error: e,
+        stackTrace: StackTrace.current,
+      );
       throw ModelListException('网络请求失败：${e.message}', cause: e);
     } catch (e) {
-      await _logger.logError(uri: uri, error: e, stackTrace: StackTrace.current);
+      await _logger.logError(
+        uri: uri,
+        error: e,
+        stackTrace: StackTrace.current,
+      );
       throw ModelListException('网络请求失败：$e', cause: e);
     }
 
@@ -138,10 +146,9 @@ class ModelListClient {
         final map = item as Map<String, dynamic>;
         final id = map['id'];
         if (id is! String || id.isEmpty) continue;
-        models.add(RemoteModelInfo(
-          id: id,
-          ownedBy: map['owned_by'] as String?,
-        ));
+        models.add(
+          RemoteModelInfo(id: id, ownedBy: map['owned_by'] as String?),
+        );
       } catch (_) {
         // 跳过格式异常的条目，而非整个列表失败
         continue;

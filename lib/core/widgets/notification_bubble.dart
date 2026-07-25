@@ -65,10 +65,7 @@ class NotificationBubbleContent extends StatelessWidget {
               Flexible(
                 child: Text(
                   data.message,
-                  style: TextStyle(
-                    color: cs.onInverseSurface,
-                    fontSize: 14,
-                  ),
+                  style: TextStyle(color: cs.onInverseSurface, fontSize: 14),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),

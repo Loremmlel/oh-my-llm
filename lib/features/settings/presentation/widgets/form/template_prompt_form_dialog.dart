@@ -269,8 +269,9 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
               _variableControllers[variable.name]?.text.trim() ?? '';
           return TemplatePromptVariable(
             name: variable.name,
-            defaultValue:
-                variable.isNumber && rawDefault.isEmpty ? '1' : rawDefault,
+            defaultValue: variable.isNumber && rawDefault.isEmpty
+                ? '1'
+                : rawDefault,
             type: variable.type,
           );
         })

@@ -11,42 +11,43 @@ import 'package:oh_my_llm/features/chat/presentation/widgets/reasoning_panel.dar
 import 'chat_screen_test_helpers.dart';
 
 void registerChatScreenStreamingTests() {
-  testWidgets('chat screen streams reply and sends the active request history', (
-    tester,
-  ) async {
-    final fakeClient = FakeChatCompletionClient();
-    fakeClient.enqueueDeltas([
-      const ChatCompletionChunk(contentDelta: '第一段 '),
-      const ChatCompletionChunk(contentDelta: '第二段'),
-    ], chunkDelay: const Duration(milliseconds: 200));
+  testWidgets(
+    'chat screen streams reply and sends the active request history',
+    (tester) async {
+      final fakeClient = FakeChatCompletionClient();
+      fakeClient.enqueueDeltas([
+        const ChatCompletionChunk(contentDelta: '第一段 '),
+        const ChatCompletionChunk(contentDelta: '第二段'),
+      ], chunkDelay: const Duration(milliseconds: 200));
 
-    await pumpChatScreen(
-      tester,
-      fakeClient: fakeClient,
-    );
+      await pumpChatScreen(tester, fakeClient: fakeClient);
 
-    await tester.enterText(find.byType(TextField), '帮我总结一下这个仓库的结构和当前能力');
-    final sendButton = find.widgetWithText(FilledButton, '发送');
-    await tester.ensureVisible(sendButton);
-    await tester.tap(sendButton);
-    await tester.pump();
+      await tester.enterText(find.byType(TextField), '帮我总结一下这个仓库的结构和当前能力');
+      final sendButton = find.widgetWithText(FilledButton, '发送');
+      await tester.ensureVisible(sendButton);
+      await tester.tap(sendButton);
+      await tester.pump();
 
-    await tester.pump(const Duration(milliseconds: 250));
+      await tester.pump(const Duration(milliseconds: 250));
 
-    expect(find.textContaining('第一段'), findsWidgets);
-    expect(find.widgetWithText(FilledButton, '终止回答'), findsOneWidget);
+      expect(find.textContaining('第一段'), findsWidgets);
+      expect(find.widgetWithText(FilledButton, '终止回答'), findsOneWidget);
 
-    await tester.pumpAndSettle();
+      await tester.pumpAndSettle();
 
-    expect(find.textContaining('帮我总结一下这个仓库'), findsWidgets);
-    expect(find.textContaining('第一段 第二段'), findsWidgets);
-    expect(
-      fakeClient.lastRequestMessages.map((message) => message.role).toList(),
-      [ChatMessageRole.user],
-    );
-    expect(fakeClient.lastRequestMessages.single.content, '帮我总结一下这个仓库的结构和当前能力');
-    expect(fakeClient.lastModelConfig?.displayName, equals('GPT-4.1'));
-  });
+      expect(find.textContaining('帮我总结一下这个仓库'), findsWidgets);
+      expect(find.textContaining('第一段 第二段'), findsWidgets);
+      expect(
+        fakeClient.lastRequestMessages.map((message) => message.role).toList(),
+        [ChatMessageRole.user],
+      );
+      expect(
+        fakeClient.lastRequestMessages.single.content,
+        '帮我总结一下这个仓库的结构和当前能力',
+      );
+      expect(fakeClient.lastModelConfig?.displayName, equals('GPT-4.1'));
+    },
+  );
 
   testWidgets('chat screen shows reasoning in a collapsible panel', (
     tester,
@@ -57,10 +58,7 @@ void registerChatScreenStreamingTests() {
         const ChatCompletionChunk(contentDelta: '这是最终回复'),
       ]);
 
-    await pumpChatScreen(
-      tester,
-      fakeClient: fakeClient,
-    );
+    await pumpChatScreen(tester, fakeClient: fakeClient);
 
     await sendMessage(tester, '请回答并返回思考过程');
     await tester.pumpAndSettle();
@@ -110,10 +108,7 @@ void registerChatScreenStreamingTests() {
           .setMockMethodCallHandler(SystemChannels.platform, null);
     });
 
-    await pumpChatScreen(
-      tester,
-      fakeClient: fakeClient,
-    );
+    await pumpChatScreen(tester, fakeClient: fakeClient);
 
     await sendMessage(tester, '请原样复制这条用户消息');
     await tester.pumpAndSettle();
@@ -141,10 +136,7 @@ void registerChatScreenStreamingTests() {
     final fakeClient = FakeChatCompletionClient()..enqueueChunks(['收到']);
     const userMessage = '**保留原样**\n- 这不是列表';
 
-    await pumpChatScreen(
-      tester,
-      fakeClient: fakeClient,
-    );
+    await pumpChatScreen(tester, fakeClient: fakeClient);
 
     await sendMessage(tester, userMessage);
     await tester.pumpAndSettle();
@@ -161,10 +153,7 @@ void registerChatScreenStreamingTests() {
     addTearDown(streamController.close);
     fakeClient.enqueueStream(streamController.stream);
 
-    await pumpChatScreen(
-      tester,
-      fakeClient: fakeClient,
-    );
+    await pumpChatScreen(tester, fakeClient: fakeClient);
 
     await sendMessage(tester, '请开始长回复');
     await tester.pump();
@@ -186,8 +175,7 @@ void registerChatScreenStreamingTests() {
   testWidgets('mobile layout renders composer and sends message', (
     tester,
   ) async {
-    final fakeClient = FakeChatCompletionClient()
-      ..enqueueChunks(['移动端回复']);
+    final fakeClient = FakeChatCompletionClient()..enqueueChunks(['移动端回复']);
 
     await pumpChatScreen(
       tester,

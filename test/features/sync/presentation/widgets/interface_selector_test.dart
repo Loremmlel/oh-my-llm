@@ -23,15 +23,9 @@ Future<void> _pumpSelector(
     ProviderScope(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(preferences),
-        availableInterfacesProvider.overrideWith(
-          (ref) async => interfaces,
-        ),
+        availableInterfacesProvider.overrideWith((ref) async => interfaces),
       ],
-      child: const MaterialApp(
-        home: Scaffold(
-          body: InterfaceSelector(),
-        ),
-      ),
+      child: const MaterialApp(home: Scaffold(body: InterfaceSelector())),
     ),
   );
   await tester.pumpAndSettle();
@@ -40,7 +34,10 @@ Future<void> _pumpSelector(
 void main() {
   group('InterfaceSelector', () {
     late SharedPreferences preferences;
-    const fakeInterface = NetworkInterfaceInfo(name: 'wlan0', ip: '10.214.98.86');
+    const fakeInterface = NetworkInterfaceInfo(
+      name: 'wlan0',
+      ip: '10.214.98.86',
+    );
 
     setUp(() async {
       SharedPreferences.setMockInitialValues({});
@@ -103,8 +100,9 @@ void main() {
       expect(find.textContaining('10.214.255.255'), findsOneWidget);
     });
 
-    testWidgets('展示当前计算的广播地址：/24 模式下 10.214.98.86 → 10.214.98.255',
-        (tester) async {
+    testWidgets('展示当前计算的广播地址：/24 模式下 10.214.98.86 → 10.214.98.255', (
+      tester,
+    ) async {
       // 这正是主人手机热点场景的修复点
       await _pumpSelector(
         tester,

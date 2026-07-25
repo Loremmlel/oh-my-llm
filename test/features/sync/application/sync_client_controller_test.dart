@@ -47,7 +47,9 @@ class _SyncHttpTestServer {
   late SyncHttpServer _server;
   late int port;
 
-  Future<void> start({required SyncMessage Function(SyncMessage) handler}) async {
+  Future<void> start({
+    required SyncMessage Function(SyncMessage) handler,
+  }) async {
     _server = SyncHttpServer();
     final syncHandler = SyncHttpHandler(
       onRequest: (request) async => handler(request),
@@ -114,27 +116,27 @@ void main() {
       final notifier = container.read(syncClientControllerProvider.notifier);
 
       notifier.toggleCategory(SyncCategory.providers);
-      expect(
-        container.read(syncClientControllerProvider).selectedCategories,
-        {SyncCategory.providers},
-      );
+      expect(container.read(syncClientControllerProvider).selectedCategories, {
+        SyncCategory.providers,
+      });
 
       notifier.toggleCategory(SyncCategory.presets);
-      expect(
-        container.read(syncClientControllerProvider).selectedCategories,
-        {SyncCategory.providers, SyncCategory.presets},
-      );
+      expect(container.read(syncClientControllerProvider).selectedCategories, {
+        SyncCategory.providers,
+        SyncCategory.presets,
+      });
 
       notifier.toggleCategory(SyncCategory.providers);
-      expect(
-        container.read(syncClientControllerProvider).selectedCategories,
-        {SyncCategory.presets},
-      );
+      expect(container.read(syncClientControllerProvider).selectedCategories, {
+        SyncCategory.presets,
+      });
     });
 
     test('selectAllCategories 选中所有分类', () {
       final container = buildContainer();
-      container.read(syncClientControllerProvider.notifier).selectAllCategories();
+      container
+          .read(syncClientControllerProvider.notifier)
+          .selectAllCategories();
       expect(
         container.read(syncClientControllerProvider).selectedCategories,
         SyncCategory.values.toSet(),
@@ -161,27 +163,32 @@ void main() {
       expect(state.selectedCategories, isEmpty);
     });
 
-    test('resetToConnected 清除 deduplicatedData 和 errorMessage，phase=connected', () {
-      final container = buildContainer(
-        seed: SyncClientState(
-          phase: SyncPhase.received,
-          errorMessage: 'some error',
-          deduplicatedData: SettingsExportData(
-            modelProviders: [_provider()],
-            memoryPrompts: const [],
-            presetPrompts: const [],
-            templatePrompts: const [],
-            fixedPromptSequences: const [],
+    test(
+      'resetToConnected 清除 deduplicatedData 和 errorMessage，phase=connected',
+      () {
+        final container = buildContainer(
+          seed: SyncClientState(
+            phase: SyncPhase.received,
+            errorMessage: 'some error',
+            deduplicatedData: SettingsExportData(
+              modelProviders: [_provider()],
+              memoryPrompts: const [],
+              presetPrompts: const [],
+              templatePrompts: const [],
+              fixedPromptSequences: const [],
+            ),
           ),
-        ),
-      );
-      container.read(syncClientControllerProvider.notifier).resetToConnected();
+        );
+        container
+            .read(syncClientControllerProvider.notifier)
+            .resetToConnected();
 
-      final state = container.read(syncClientControllerProvider);
-      expect(state.phase, SyncPhase.connected);
-      expect(state.errorMessage, isNull);
-      expect(state.deduplicatedData, isNull);
-    });
+        final state = container.read(syncClientControllerProvider);
+        expect(state.phase, SyncPhase.connected);
+        expect(state.errorMessage, isNull);
+        expect(state.deduplicatedData, isNull);
+      },
+    );
   });
 
   group('SyncClientController.requestSync 分支', () {
@@ -195,7 +202,10 @@ void main() {
 
       await container.read(syncClientControllerProvider.notifier).requestSync();
 
-      expect(container.read(syncClientControllerProvider).phase, SyncPhase.connected);
+      expect(
+        container.read(syncClientControllerProvider).phase,
+        SyncPhase.connected,
+      );
     });
 
     test('空 categories 时提前返回，phase 不变', () async {
@@ -212,7 +222,10 @@ void main() {
 
       await container.read(syncClientControllerProvider.notifier).requestSync();
 
-      expect(container.read(syncClientControllerProvider).phase, SyncPhase.connected);
+      expect(
+        container.read(syncClientControllerProvider).phase,
+        SyncPhase.connected,
+      );
     });
 
     test('正常路径：响应 settingsSyncResponse + 新数据 → phase=received', () async {

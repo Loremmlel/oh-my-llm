@@ -62,16 +62,14 @@ class ConversationHistoryPanel extends StatelessWidget {
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(14),
                             ),
-                            tileColor:
-                                conversation.id == activeConversationId
-                                    ? theme.colorScheme.primaryContainer
-                                    : theme.colorScheme.surfaceContainerLow,
+                            tileColor: conversation.id == activeConversationId
+                                ? theme.colorScheme.primaryContainer
+                                : theme.colorScheme.surfaceContainerLow,
                             title: Tooltip(
                               message: conversation.resolvedTitle,
                               child: Text(
                                 conversation.resolvedTitle,
-                                maxLines:
-                                    conversation.hasCustomTitle ? 2 : 1,
+                                maxLines: conversation.hasCustomTitle ? 2 : 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
@@ -82,9 +80,8 @@ class ConversationHistoryPanel extends StatelessWidget {
                                     maxLines: 2,
                                     overflow: TextOverflow.ellipsis,
                                   ),
-                            onTap: () => onConversationSelected(
-                              conversation.id,
-                            ),
+                            onTap: () =>
+                                onConversationSelected(conversation.id),
                           ),
                         );
                       },

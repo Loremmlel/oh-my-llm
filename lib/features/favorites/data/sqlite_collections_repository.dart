@@ -20,20 +20,15 @@ class SqliteCollectionsRepository implements CollectionsRepository {
   void save(FavoriteCollection collection) {
     _database.connection.execute(
       'INSERT OR REPLACE INTO collections (id, name, created_at) VALUES (?, ?, ?);',
-      [
-        collection.id,
-        collection.name,
-        collection.createdAt.toIso8601String(),
-      ],
+      [collection.id, collection.name, collection.createdAt.toIso8601String()],
     );
   }
 
   @override
   void delete(String collectionId) {
-    _database.connection.execute(
-      'DELETE FROM collections WHERE id = ?;',
-      [collectionId],
-    );
+    _database.connection.execute('DELETE FROM collections WHERE id = ?;', [
+      collectionId,
+    ]);
   }
 
   FavoriteCollection _rowToCollection(Map<String, dynamic> row) {

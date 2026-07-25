@@ -22,7 +22,10 @@ mixin NetworkLogger {
     required Duration elapsed,
   }) async {}
 
-  Future<void> logResponseBody({required Uri uri, required Object? body}) async {}
+  Future<void> logResponseBody({
+    required Uri uri,
+    required Object? body,
+  }) async {}
 
   Future<void> logSseLine({required Uri uri, required String line}) async {}
 

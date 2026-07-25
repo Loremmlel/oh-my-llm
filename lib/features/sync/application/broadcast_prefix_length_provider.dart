@@ -20,11 +20,13 @@ class SelectedBroadcastPrefixLength extends Notifier<BroadcastPrefixLength> {
   void select(BroadcastPrefixLength value) {
     if (state == value) return;
     state = value;
-    ref.read(sharedPreferencesProvider).setInt(_prefixLengthKey, value.toStorage());
+    ref
+        .read(sharedPreferencesProvider)
+        .setInt(_prefixLengthKey, value.toStorage());
   }
 }
 
 final selectedBroadcastPrefixLengthProvider =
     NotifierProvider<SelectedBroadcastPrefixLength, BroadcastPrefixLength>(
-  SelectedBroadcastPrefixLength.new,
-);
+      SelectedBroadcastPrefixLength.new,
+    );

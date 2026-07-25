@@ -123,7 +123,6 @@ void main() {
           .single;
       expect(row['collection_id'], isNull);
     });
-
   });
 
   // ────────────────────────────────────────────
@@ -165,16 +164,44 @@ void main() {
     test('merges non-empty system_prompt into messages_json and drops column', () {
       // 行 A：system_prompt 非空 + messages_json 无 system 消息 → 应被合并
       final messagesA = [
-        {'id': 'u1', 'role': 'user', 'title': 'user', 'content': '你好', 'placement': 'before', 'enabled': true},
+        {
+          'id': 'u1',
+          'role': 'user',
+          'title': 'user',
+          'content': '你好',
+          'placement': 'before',
+          'enabled': true,
+        },
       ];
       // 行 B：system_prompt 非空 + messages_json 已有 system 消息 → 应跳过
       final messagesB = [
-        {'id': 's0', 'role': 'system', 'title': 'system', 'content': '已有系统', 'placement': 'before', 'enabled': true},
-        {'id': 'u2', 'role': 'user', 'title': 'user', 'content': '你好B', 'placement': 'before', 'enabled': true},
+        {
+          'id': 's0',
+          'role': 'system',
+          'title': 'system',
+          'content': '已有系统',
+          'placement': 'before',
+          'enabled': true,
+        },
+        {
+          'id': 'u2',
+          'role': 'user',
+          'title': 'user',
+          'content': '你好B',
+          'placement': 'before',
+          'enabled': true,
+        },
       ];
       // 行 C：system_prompt 为空 → 不动
       final messagesC = [
-        {'id': 'u3', 'role': 'user', 'title': 'user', 'content': '你好C', 'placement': 'before', 'enabled': true},
+        {
+          'id': 'u3',
+          'role': 'user',
+          'title': 'user',
+          'content': '你好C',
+          'placement': 'before',
+          'enabled': true,
+        },
       ];
 
       final legacyDb = createLegacyV8Db();
@@ -200,9 +227,11 @@ void main() {
       addTearDown(migrated.close);
 
       // user_version 升到 >= 10
-      final version = migrated.connection
-          .select('PRAGMA user_version;')
-          .single['user_version'] as int;
+      final version =
+          migrated.connection
+                  .select('PRAGMA user_version;')
+                  .single['user_version']
+              as int;
       expect(version, greaterThanOrEqualTo(10));
 
       // system_prompt 列已被 DROP
@@ -248,9 +277,11 @@ void main() {
       final migrated = AppDatabase.forPath(dbPath);
       addTearDown(migrated.close);
 
-      final version = migrated.connection
-          .select('PRAGMA user_version;')
-          .single['user_version'] as int;
+      final version =
+          migrated.connection
+                  .select('PRAGMA user_version;')
+                  .single['user_version']
+              as int;
       expect(version, greaterThanOrEqualTo(10));
 
       final columns = migrated.connection
@@ -291,7 +322,10 @@ void main() {
         "VALUES ('fav-1', 'hello', 'world', '2025-01-01T00:00:00.000');",
       );
 
-      final rows = db.connection.select('SELECT title FROM favorites WHERE id = ?;', ['fav-1']);
+      final rows = db.connection.select(
+        'SELECT title FROM favorites WHERE id = ?;',
+        ['fav-1'],
+      );
       expect(rows.length, 1);
       expect(rows.first['title'], isNull);
     });
@@ -333,9 +367,11 @@ void main() {
       addTearDown(migrated.close);
 
       // user_version 升到 10
-      final version = migrated.connection
-          .select('PRAGMA user_version;')
-          .single['user_version'] as int;
+      final version =
+          migrated.connection
+                  .select('PRAGMA user_version;')
+                  .single['user_version']
+              as int;
       expect(version, greaterThanOrEqualTo(10));
 
       // favorites 表包含 title 列
@@ -346,7 +382,10 @@ void main() {
       expect(columns, contains('title'));
 
       // 旧数据保留，title 默认为 NULL
-      final rows = migrated.connection.select('SELECT id, title FROM favorites WHERE id = ?;', ['fav-old']);
+      final rows = migrated.connection.select(
+        'SELECT id, title FROM favorites WHERE id = ?;',
+        ['fav-old'],
+      );
       expect(rows.length, 1);
       expect(rows.first['title'], isNull);
     });
@@ -386,13 +425,18 @@ void main() {
         "VALUES ('m1', 'c1', 0, 'user', 'hello', '2026-01-01');",
       );
 
-      final rows = db.connection.select('SELECT finish_reason FROM messages WHERE id = ?;', ['m1']);
+      final rows = db.connection.select(
+        'SELECT finish_reason FROM messages WHERE id = ?;',
+        ['m1'],
+      );
       expect(rows.length, 1);
       expect(rows.first['finish_reason'], isNull);
     });
 
     test('从 v12 升级时 ALTER TABLE 添加 finish_reason 列且已有数据保留', () {
-      final tempDir = Directory.systemTemp.createTempSync('v12-migration-test-');
+      final tempDir = Directory.systemTemp.createTempSync(
+        'v12-migration-test-',
+      );
       addTearDown(() {
         if (tempDir.existsSync()) {
           tempDir.deleteSync(recursive: true);
@@ -452,9 +496,11 @@ void main() {
       addTearDown(migrated.close);
 
       // user_version 升到 >= 13
-      final version = migrated.connection
-          .select('PRAGMA user_version;')
-          .single['user_version'] as int;
+      final version =
+          migrated.connection
+                  .select('PRAGMA user_version;')
+                  .single['user_version']
+              as int;
       expect(version, greaterThanOrEqualTo(13));
 
       // messages 表包含 finish_reason 列
@@ -465,7 +511,10 @@ void main() {
       expect(columns, contains('finish_reason'));
 
       // 旧数据保留，content 不变，finish_reason 默认为 NULL
-      final rows = migrated.connection.select('SELECT id, content, finish_reason FROM messages WHERE id = ?;', ['m-old']);
+      final rows = migrated.connection.select(
+        'SELECT id, content, finish_reason FROM messages WHERE id = ?;',
+        ['m-old'],
+      );
       expect(rows.length, 1);
       expect(rows.first['content'], equals('旧消息内容'));
       expect(rows.first['finish_reason'], isNull);

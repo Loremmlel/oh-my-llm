@@ -1,4 +1,5 @@
-import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -33,8 +34,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen>
   bool _wasServerRunningBeforePause = false;
 
   /// 媒体浏览器仅 Android 客户端启用。
-  bool get _hasMediaTab =>
-      defaultTargetPlatform == TargetPlatform.android;
+  bool get _hasMediaTab => defaultTargetPlatform == TargetPlatform.android;
 
   int get _tabCount => _hasMediaTab ? 3 : 2;
 
@@ -42,10 +42,8 @@ class _SyncScreenState extends ConsumerState<SyncScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    final initialIndex = ref
-        .read(sharedPreferencesProvider)
-        .getInt(_syncLastTabIndexKey) ??
-        0;
+    final initialIndex =
+        ref.read(sharedPreferencesProvider).getInt(_syncLastTabIndexKey) ?? 0;
     _tabController = TabController(
       initialIndex: initialIndex.clamp(0, _tabCount - 1),
       length: _tabCount,
@@ -63,7 +61,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen>
       if (server != null) {
         ref
             .read(mediaBrowserControllerProvider.notifier)
-            .initWithServer(MediaServerInfo(ip: server.ip, httpPort: server.httpPort));
+            .initWithServer(
+              MediaServerInfo(ip: server.ip, httpPort: server.httpPort),
+            );
       }
     }
   }
@@ -91,8 +91,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
-      _wasServerRunningBeforePause =
-          ref.read(syncServerControllerProvider).isRunning;
+      _wasServerRunningBeforePause = ref
+          .read(syncServerControllerProvider)
+          .isRunning;
       ref.read(syncServerControllerProvider.notifier).stop();
       ref.read(syncClientControllerProvider.notifier).cancelAndReset();
     } else if (state == AppLifecycleState.resumed) {
@@ -123,19 +124,14 @@ class _SyncScreenState extends ConsumerState<SyncScreen>
 
     // 仅在媒体 Tab 选中且有连接 server 时显示随机播放按钮
     final mediaState = ref.watch(mediaBrowserControllerProvider);
-    final showShuffleActions = _hasMediaTab &&
-        _tabController.index == 2 &&
-        mediaState.server != null;
+    final showShuffleActions =
+        _hasMediaTab && _tabController.index == 2 && mediaState.server != null;
 
     return AppShellScaffold(
       currentDestination: AppDestination.sync,
       title: '局域网同步',
       actions: showShuffleActions
-          ? [
-              ShuffleAppBarActions(
-                currentDirectoryPath: mediaState.currentPath,
-              ),
-            ]
+          ? [ShuffleAppBarActions(currentDirectoryPath: mediaState.currentPath)]
           : null,
       body: Column(
         children: [
@@ -146,10 +142,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen>
             tabs: tabs,
           ),
           Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: tabViews,
-            ),
+            child: TabBarView(controller: _tabController, children: tabViews),
           ),
         ],
       ),

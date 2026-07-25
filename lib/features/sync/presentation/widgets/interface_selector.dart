@@ -49,8 +49,11 @@ class InterfaceSelector extends ConsumerWidget {
             ),
             child: Row(
               children: [
-                Icon(Icons.warning_amber_rounded,
-                    color: Colors.orange.shade700, size: 18),
+                Icon(
+                  Icons.warning_amber_rounded,
+                  color: Colors.orange.shade700,
+                  size: 18,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -117,41 +120,47 @@ class InterfaceSelector extends ConsumerWidget {
             Text(
               '子网掩码',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: 4),
             SegmentedButton<BroadcastPrefixLength>(
               segments: const [
                 ButtonSegment(
-                    value: BroadcastPrefixLength.p8, label: Text('/8')),
+                  value: BroadcastPrefixLength.p8,
+                  label: Text('/8'),
+                ),
                 ButtonSegment(
-                    value: BroadcastPrefixLength.p16, label: Text('/16')),
+                  value: BroadcastPrefixLength.p16,
+                  label: Text('/16'),
+                ),
                 ButtonSegment(
-                    value: BroadcastPrefixLength.p24, label: Text('/24')),
+                  value: BroadcastPrefixLength.p24,
+                  label: Text('/24'),
+                ),
               ],
               selected: {selectedPrefix},
               onSelectionChanged: isServerRunning
                   ? null
                   : (s) => ref
-                      .read(selectedBroadcastPrefixLengthProvider.notifier)
-                      .select(s.first),
+                        .read(selectedBroadcastPrefixLengthProvider.notifier)
+                        .select(s.first),
             ),
             if (isServerRunning) ...[
               const SizedBox(height: 6),
               Text(
                 '运行中，请先停止广播后再修改',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
+                  color: Theme.of(context).colorScheme.error,
+                ),
               ),
             ],
             const SizedBox(height: 4),
             Text(
               '广播地址: $broadcastAddr',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
         );

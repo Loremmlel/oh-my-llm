@@ -55,8 +55,7 @@ Future<AppDatabase> pumpSettingsScreen(
     database: database,
     viewportSize: size,
     extraOverrides: [
-      appNetworkLoggerProvider
-          .overrideWithValue(const NoopNetworkLogger()),
+      appNetworkLoggerProvider.overrideWithValue(const NoopNetworkLogger()),
     ],
   );
 }
@@ -91,16 +90,13 @@ Future<AppDatabase> setUpSettingsScreen(
 }
 
 /// 创建包含默认种子数据的 SharedPreferences 实例。
-Future<SharedPreferences> createDefaultsSeededPreferences(AppDatabase database) async {
+Future<SharedPreferences> createDefaultsSeededPreferences(
+  AppDatabase database,
+) async {
   return TestFixtures.seedPreferences(
     database: database,
-    models: [
-      TestFixtures.gpt41(),
-      TestFixtures.claudeSonnet(),
-    ],
-    prompts: [
-      TestFixtures.presetPrompt(id: 'prompt-1', name: '代码助手'),
-    ],
+    models: [TestFixtures.gpt41(), TestFixtures.claudeSonnet()],
+    prompts: [TestFixtures.presetPrompt(id: 'prompt-1', name: '代码助手')],
   );
 }
 

@@ -5,10 +5,7 @@ class VideoItem {
 
   const VideoItem({required this.name, required this.relativePath});
 
-  Map<String, dynamic> toJson() => {
-        'name': name,
-        'relativePath': relativePath,
-      };
+  Map<String, dynamic> toJson() => {'name': name, 'relativePath': relativePath};
 
   factory VideoItem.fromJson(Map<String, dynamic> json) {
     return VideoItem(

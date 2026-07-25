@@ -45,10 +45,7 @@ class AppEmptyState extends StatelessWidget {
               style: theme.textTheme.bodyMedium,
               textAlign: TextAlign.center,
             ),
-            if (action != null) ...[
-              const SizedBox(height: 16),
-              action!,
-            ],
+            if (action != null) ...[const SizedBox(height: 16), action!],
           ],
         ),
       ),

@@ -89,6 +89,5 @@ void main() {
 
       expect(repository.loadAll(), isEmpty);
     });
-
   });
 }

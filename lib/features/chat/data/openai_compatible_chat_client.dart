@@ -75,10 +75,7 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
             streamIdleTimeout,
             onTimeout: (exception) {
               _fireAndForget(
-                _logger.logError(
-                  uri: requestContext.uri,
-                  error: exception,
-                ),
+                _logger.logError(uri: requestContext.uri, error: exception),
               );
             },
           )
@@ -306,10 +303,7 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
         uri: context.uri,
         method: context.request.method,
         // 合并自定义 header 以便日志完整反映实际发出的请求头。
-        headers: {
-          ...context.request.headers,
-          ...context.extraHeaders,
-        },
+        headers: {...context.request.headers, ...context.extraHeaders},
         payload: context.payload,
       ),
     );

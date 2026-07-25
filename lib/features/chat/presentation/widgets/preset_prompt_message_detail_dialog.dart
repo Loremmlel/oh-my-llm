@@ -8,10 +8,7 @@ import '../../../settings/domain/models/preset_prompt.dart';
 /// 展示消息标题、角色、位置和内容，不可编辑。内容区支持文本选中复制。
 /// 使用 [DetailDisplayDialog] 确保弹窗尺寸固定，长内容可滚动。
 class PresetPromptMessageDetailDialog extends StatelessWidget {
-  const PresetPromptMessageDetailDialog({
-    required this.message,
-    super.key,
-  });
+  const PresetPromptMessageDetailDialog({required this.message, super.key});
 
   final PromptMessage message;
 

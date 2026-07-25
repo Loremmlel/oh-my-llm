@@ -97,7 +97,9 @@ class OutputProcessingSettings extends Equatable {
     }
     final parsed = rawRules
         .whereType<Map>()
-        .map((item) => OutputRegexRule.fromJson(Map<String, dynamic>.from(item)))
+        .map(
+          (item) => OutputRegexRule.fromJson(Map<String, dynamic>.from(item)),
+        )
         .toList(growable: false);
     return OutputProcessingSettings(rules: parsed);
   }

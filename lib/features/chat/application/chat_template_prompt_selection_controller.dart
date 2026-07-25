@@ -32,5 +32,5 @@ class ChatTemplatePromptSelectionController extends Notifier<String?> {
 /// 当前选中的模板提示词 ID（内存级，跨页面保留，App 重启后重置）。
 final chatTemplatePromptSelectionProvider =
     NotifierProvider<ChatTemplatePromptSelectionController, String?>(
-  ChatTemplatePromptSelectionController.new,
-);
+      ChatTemplatePromptSelectionController.new,
+    );

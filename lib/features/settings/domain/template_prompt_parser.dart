@@ -51,9 +51,9 @@ List<TemplatePromptVariableSpec> extractTemplatePromptVariableSpecs(
 
 /// 提取模板提示词中的变量名，并按首次出现顺序去重返回。
 List<String> extractTemplatePromptVariableNames(String content) {
-  return extractTemplatePromptVariableSpecs(content)
-      .map((spec) => spec.name)
-      .toList(growable: false);
+  return extractTemplatePromptVariableSpecs(
+    content,
+  ).map((spec) => spec.name).toList(growable: false);
 }
 
 /// 根据模板内容重新计算变量列表，并尽量保留同名变量的默认值和类型。
@@ -65,20 +65,25 @@ List<TemplatePromptVariable> reconcileTemplatePromptVariables({
     for (final variable in existingVariables) variable.name: variable,
   };
 
-  return extractTemplatePromptVariableSpecs(content).map((spec) {
-    if (spec.name == templatePromptBodyVariableName) {
-      return const TemplatePromptVariable(name: templatePromptBodyVariableName);
-    }
+  return extractTemplatePromptVariableSpecs(content)
+      .map((spec) {
+        if (spec.name == templatePromptBodyVariableName) {
+          return const TemplatePromptVariable(
+            name: templatePromptBodyVariableName,
+          );
+        }
 
-    final existing = existingByName[spec.name];
-    // 数字类型新变量默认值为 "1"；已有变量保留其默认值
-    final defaultValue = existing?.defaultValue ??
-        (spec.type == TemplatePromptVariableType.number ? '1' : '');
+        final existing = existingByName[spec.name];
+        // 数字类型新变量默认值为 "1"；已有变量保留其默认值
+        final defaultValue =
+            existing?.defaultValue ??
+            (spec.type == TemplatePromptVariableType.number ? '1' : '');
 
-    return TemplatePromptVariable(
-      name: spec.name,
-      defaultValue: defaultValue,
-      type: spec.type,
-    );
-  }).toList(growable: false);
+        return TemplatePromptVariable(
+          name: spec.name,
+          defaultValue: defaultValue,
+          type: spec.type,
+        );
+      })
+      .toList(growable: false);
 }

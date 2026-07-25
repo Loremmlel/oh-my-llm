@@ -37,7 +37,8 @@ void main() {
     expect(find.byType(MaterialApp), findsOneWidget);
 
     // 验证导航壳层已渲染（Rail 或 Bar 均可）
-    final hasNav = find.byType(NavigationRail).evaluate().isNotEmpty ||
+    final hasNav =
+        find.byType(NavigationRail).evaluate().isNotEmpty ||
         find.byType(NavigationBar).evaluate().isNotEmpty;
     expect(hasNav, isTrue);
   });
@@ -57,9 +58,9 @@ void main() {
     await bootstrap(database: db, networkLogger: const NoopNetworkLogger());
     await tester.pumpAndSettle();
 
-    final version = db.connection
-        .select('PRAGMA user_version;')
-        .single['user_version'] as int;
+    final version =
+        db.connection.select('PRAGMA user_version;').single['user_version']
+            as int;
     expect(version, greaterThanOrEqualTo(9));
   });
 

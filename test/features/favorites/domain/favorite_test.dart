@@ -154,7 +154,12 @@ void main() {
       );
       expect(fav.sourceAssistantMessageId, 'msg-42');
       expect(fav.copyWith().sourceAssistantMessageId, 'msg-42');
-      expect(fav.copyWith(sourceAssistantMessageId: 'msg-99').sourceAssistantMessageId, 'msg-99');
+      expect(
+        fav
+            .copyWith(sourceAssistantMessageId: 'msg-99')
+            .sourceAssistantMessageId,
+        'msg-99',
+      );
     });
   });
 }

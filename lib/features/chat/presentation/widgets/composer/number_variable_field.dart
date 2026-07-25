@@ -51,17 +51,16 @@ class NumberVariableField extends StatelessWidget {
             child: TextField(
               key: ValueKey('template-variable-$labelText'),
               controller: controller,
-              keyboardType: const TextInputType.numberWithOptions(
-                signed: true,
-              ),
+              keyboardType: const TextInputType.numberWithOptions(signed: true),
               inputFormatters: [
-                FilteringTextInputFormatter.allow(
-                  RegExp(r'^-?\d*'),
-                ),
+                FilteringTextInputFormatter.allow(RegExp(r'^-?\d*')),
               ],
               decoration: InputDecoration(
                 labelText: labelText,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12), // 取消 isDense 后保持略紧凑的行高
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 12,
+                ), // 取消 isDense 后保持略紧凑的行高
               ),
               textAlign: TextAlign.center,
             ),

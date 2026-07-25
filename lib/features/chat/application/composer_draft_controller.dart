@@ -77,5 +77,5 @@ class ComposerDraftController extends Notifier<ComposerDraftState> {
 /// 聊天输入框草稿（内存级，跨页面保留，App 重启后重置）。
 final composerDraftProvider =
     NotifierProvider<ComposerDraftController, ComposerDraftState>(
-  ComposerDraftController.new,
-);
+      ComposerDraftController.new,
+    );

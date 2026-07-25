@@ -93,14 +93,11 @@ class SqliteFavoritesRepository implements FavoritesRepository {
       collectionId: row['collection_id'] as String?,
       userMessageContent: row['user_message_content'] as String,
       assistantContent: row['assistant_content'] as String,
-      assistantReasoningContent:
-          row['assistant_reasoning_content'] as String,
-      assistantModelDisplayName:
-          row['assistant_model_display_name'] as String,
+      assistantReasoningContent: row['assistant_reasoning_content'] as String,
+      assistantModelDisplayName: row['assistant_model_display_name'] as String,
       sourceConversationId: row['source_conversation_id'] as String?,
       sourceConversationTitle: row['source_conversation_title'] as String?,
-      sourceAssistantMessageId:
-          row['source_assistant_message_id'] as String?,
+      sourceAssistantMessageId: row['source_assistant_message_id'] as String?,
       title: row['title'] as String?,
       createdAt: DateTime.parse(row['created_at'] as String),
     );

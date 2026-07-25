@@ -4,6 +4,7 @@
 /// 覆盖消息持久化、分支编辑保留、检查点保留和流异常后的错误保留。
 /// 所有测试在 ProviderContainer 级别运行，不涉及 UI。
 library;
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/core/persistence/app_database.dart';
@@ -66,7 +67,10 @@ void main() {
     expect(stateB.conversations.length, 1);
     expect(stateB.activeConversation.messages.length, messageCountA);
     expect(stateB.activeConversation.messages[0].content, '你好');
-    expect(stateB.activeConversation.messages[1].content, firstAssistantContent);
+    expect(
+      stateB.activeConversation.messages[1].content,
+      firstAssistantContent,
+    );
   });
 
   // ── 分支编辑后重建容器 — 分支选择保留 ────────────────────────────────────────
@@ -202,7 +206,9 @@ void main() {
     addTearDown(database.close);
 
     fakeClientA.enqueueError(ChatCompletionException('模拟的网络错误'));
-    await containerA.read(chatSessionsProvider.notifier).sendMessage(
+    await containerA
+        .read(chatSessionsProvider.notifier)
+        .sendMessage(
           content: '触发错误',
           modelConfig: testModel,
           presetPrompt: null,

@@ -147,7 +147,6 @@ void main() {
 
       expect(repository.loadAll(), hasLength(1));
     });
-
   });
 
   group('SqliteFavoritesRepository - moveToCollection', () {
@@ -198,10 +197,9 @@ void main() {
 
   group('SqliteFavoritesRepository - sourceAssistantMessageId', () {
     test('save 后 loadAll 返回 sourceAssistantMessageId', () {
-      repository.save(_makeFavorite(
-        id: 'fav-msg-id',
-        sourceAssistantMessageId: 'msg-42',
-      ));
+      repository.save(
+        _makeFavorite(id: 'fav-msg-id', sourceAssistantMessageId: 'msg-42'),
+      );
       final result = repository.loadAll().first;
       expect(result.sourceAssistantMessageId, 'msg-42');
     });
@@ -240,5 +238,4 @@ void main() {
       expect(loaded.single.title, '持久化标题');
     });
   });
-
 }

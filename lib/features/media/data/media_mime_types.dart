@@ -13,10 +13,12 @@ String extensionFromFileName(String fileName) {
 }
 
 /// 根据文件名扩展名判断是否为图片。
-bool isImageFile(String name) => imageExtensions.contains(extensionFromFileName(name));
+bool isImageFile(String name) =>
+    imageExtensions.contains(extensionFromFileName(name));
 
 /// 根据文件名扩展名判断是否为视频。
-bool isVideoFile(String name) => videoExtensions.contains(extensionFromFileName(name));
+bool isVideoFile(String name) =>
+    videoExtensions.contains(extensionFromFileName(name));
 
 /// 根据文件名扩展名返回 MIME 类型（大小写不敏感）。
 ///

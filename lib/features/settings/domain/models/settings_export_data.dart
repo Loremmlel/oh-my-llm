@@ -118,8 +118,7 @@ class SettingsExportData {
       final rawProviders = raw['modelProviders'] as List<dynamic>? ?? const [];
       final rawMemoryPrompts =
           raw['memoryPrompts'] as List<dynamic>? ?? const [];
-      final rawTemplates =
-          raw['presetPrompts'] as List<dynamic>? ?? const [];
+      final rawTemplates = raw['presetPrompts'] as List<dynamic>? ?? const [];
       final rawTemplatePrompts =
           raw['templatePrompts'] as List<dynamic>? ?? const [];
       final rawSequences =
@@ -149,9 +148,8 @@ class SettingsExportData {
             .toList(growable: false),
         presetPrompts: rawTemplates
             .map(
-              (item) => PresetPrompt.fromJson(
-                Map<String, dynamic>.from(item as Map),
-              ),
+              (item) =>
+                  PresetPrompt.fromJson(Map<String, dynamic>.from(item as Map)),
             )
             .toList(growable: false),
         templatePrompts: rawTemplatePrompts
@@ -196,8 +194,8 @@ class SettingsExportData {
       fixedPromptSequences.isNotEmpty ||
       autoRetrySettings != null ||
       fontSizeSettings != null ||
-      (customHeadersConfig != null && customHeadersConfig!.headers.isNotEmpty) ||
+      (customHeadersConfig != null &&
+          customHeadersConfig!.headers.isNotEmpty) ||
       (outputProcessingSettings != null &&
           outputProcessingSettings!.rules.isNotEmpty);
-
 }

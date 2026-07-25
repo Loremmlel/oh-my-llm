@@ -37,7 +37,8 @@ void main() {
     required Future<List<RemoteModelInfo>> Function({
       required String modelsUrl,
       required String apiKey,
-    }) fetchModels,
+    })
+    fetchModels,
     LlmProviderModelConfig? initialValue,
   }) async {
     final sp = await SharedPreferences.getInstance();
@@ -74,8 +75,9 @@ void main() {
         expect(find.text('支持深度思考'), findsOneWidget);
       });
 
-      testWidgets('hides mode switch when editing existing model',
-          (tester) async {
+      testWidgets('hides mode switch when editing existing model', (
+        tester,
+      ) async {
         await pumpDialog(
           tester,
           onSubmit: (_) async {},
@@ -126,8 +128,9 @@ void main() {
     });
 
     group('fetch mode', () {
-      testWidgets('shows fetch section when switching to fetch mode',
-          (tester) async {
+      testWidgets('shows fetch section when switching to fetch mode', (
+        tester,
+      ) async {
         await pumpDialog(
           tester,
           onSubmit: (_) async {},
@@ -138,7 +141,10 @@ void main() {
         await tester.tap(find.text('从 API 拉取'));
         await tester.pump();
 
-        expect(find.byKey(const ValueKey('model-fetch-button')), findsOneWidget);
+        expect(
+          find.byKey(const ValueKey('model-fetch-button')),
+          findsOneWidget,
+        );
       });
 
       testWidgets('shows loading state when fetching', (tester) async {
@@ -147,7 +153,8 @@ void main() {
           tester,
           onSubmit: (_) async {},
           onBatchAdd: (_) async {},
-          fetchModels: ({required modelsUrl, required apiKey}) => completer.future,
+          fetchModels: ({required modelsUrl, required apiKey}) =>
+              completer.future,
         );
 
         await tester.tap(find.text('从 API 拉取'));
@@ -206,8 +213,9 @@ void main() {
         expect(find.text('gpt-4o-mini'), findsWidgets);
       });
 
-      testWidgets('shows already-exists chip for existing models',
-          (tester) async {
+      testWidgets('shows already-exists chip for existing models', (
+        tester,
+      ) async {
         testProvider = const LlmProviderConfig(
           id: 'p-1',
           name: 'TestProvider',
@@ -241,8 +249,9 @@ void main() {
         expect(find.text('已存在'), findsOneWidget);
       });
 
-      testWidgets('disables submit button until models are selected',
-          (tester) async {
+      testWidgets('disables submit button until models are selected', (
+        tester,
+      ) async {
         await pumpDialog(
           tester,
           onSubmit: (_) async {},
@@ -267,8 +276,9 @@ void main() {
         expect(submitButton.onPressed, isNull);
       });
 
-      testWidgets('enables submit when at least one model is selected',
-          (tester) async {
+      testWidgets('enables submit when at least one model is selected', (
+        tester,
+      ) async {
         await pumpDialog(
           tester,
           onSubmit: (_) async {},
@@ -334,8 +344,7 @@ void main() {
         expect(captured!.first.displayName, 'gpt-4o');
       });
 
-      testWidgets('preserves fetch state when switching modes',
-          (tester) async {
+      testWidgets('preserves fetch state when switching modes', (tester) async {
         await pumpDialog(
           tester,
           onSubmit: (_) async {},

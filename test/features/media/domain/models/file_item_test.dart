@@ -85,11 +85,7 @@ void main() {
     });
 
     test('缺失字段使用默认值', () {
-      final json = {
-        'type': 'file',
-        'name': 'a.mp4',
-        'relativePath': '/a.mp4',
-      };
+      final json = {'type': 'file', 'name': 'a.mp4', 'relativePath': '/a.mp4'};
       final item = FileItem.fromJson(json);
       expect(item.sizeBytes, 0);
       expect(item.lastModified, 0);
@@ -101,8 +97,20 @@ void main() {
   group('FileItem.listFromJson', () {
     test('列表反序列化', () {
       final json = jsonEncode([
-        {'type': 'directory', 'name': 'sub', 'relativePath': '/sub', 'size': 0, 'lastModified': 0},
-        {'type': 'file', 'name': 'a.mp4', 'relativePath': '/a.mp4', 'size': 100, 'lastModified': 100},
+        {
+          'type': 'directory',
+          'name': 'sub',
+          'relativePath': '/sub',
+          'size': 0,
+          'lastModified': 0,
+        },
+        {
+          'type': 'file',
+          'name': 'a.mp4',
+          'relativePath': '/a.mp4',
+          'size': 100,
+          'lastModified': 100,
+        },
       ]);
       final items = FileItem.listFromJson(json);
       expect(items.length, 2);
@@ -123,15 +131,18 @@ void main() {
     ];
 
     for (final c in cases) {
-      test('${c.sizeBytes} bytes, isDirectory=${c.isDirectory} → "${c.expected}"', () {
-        final item = FileItem(
-          name: 'test',
-          isDirectory: c.isDirectory,
-          sizeBytes: c.sizeBytes,
-          relativePath: '/test',
-        );
-        expect(item.formattedSize, c.expected);
-      });
+      test(
+        '${c.sizeBytes} bytes, isDirectory=${c.isDirectory} → "${c.expected}"',
+        () {
+          final item = FileItem(
+            name: 'test',
+            isDirectory: c.isDirectory,
+            sizeBytes: c.sizeBytes,
+            relativePath: '/test',
+          );
+          expect(item.formattedSize, c.expected);
+        },
+      );
     }
   });
 }

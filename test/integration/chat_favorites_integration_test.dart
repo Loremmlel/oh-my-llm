@@ -97,7 +97,9 @@ void main() {
     final replyContent = assistantContent();
     expect(replyContent, '这是一条模型的回复');
 
-    final favId = container.read(favoritesProvider.notifier).add(
+    final favId = container
+        .read(favoritesProvider.notifier)
+        .add(
           userMessageContent: '用户的消息',
           assistantContent: replyContent,
           sourceConversationId: conversationId(),
@@ -121,7 +123,9 @@ void main() {
     final replyContent = assistantContent();
     final convId = conversationId();
 
-    container.read(favoritesProvider.notifier).add(
+    container
+        .read(favoritesProvider.notifier)
+        .add(
           userMessageContent: '收藏前的消息',
           assistantContent: replyContent,
           sourceConversationId: convId,
@@ -145,10 +149,9 @@ void main() {
 
     final replyContent = assistantContent();
 
-    final favId = container.read(favoritesProvider.notifier).add(
-          userMessageContent: '测试消息',
-          assistantContent: replyContent,
-        );
+    final favId = container
+        .read(favoritesProvider.notifier)
+        .add(userMessageContent: '测试消息', assistantContent: replyContent);
 
     final collectionId = container
         .read(collectionsProvider.notifier)

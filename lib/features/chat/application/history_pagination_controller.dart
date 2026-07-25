@@ -63,7 +63,9 @@ class HistoryPaginationController extends Notifier<HistoryPaginationState> {
     state = state.copyWith(isLoading: true);
 
     // 刷新总数（可能有外部写入），确保分页信息准确
-    final totalItems = _repository.countHistorySummaries(keyword: state.keyword);
+    final totalItems = _repository.countHistorySummaries(
+      keyword: state.keyword,
+    );
     final result = _repository.loadHistorySummaries(
       keyword: state.keyword,
       limit: state.pageSize,
@@ -127,13 +129,13 @@ class HistoryPaginationController extends Notifier<HistoryPaginationState> {
   /// 自动回退到新的最后一页并重新拉取。若当前页条目全被删除但页码
   /// 仍有效（跨页条目移位落入当前窗口），同样触发重新拉取而非展示空白页。
   void afterDelete(Set<String> deletedIds) {
-    final remaining =
-        state.conversations
-            .where((c) => !deletedIds.contains(c.id))
-            .toList();
+    final remaining = state.conversations
+        .where((c) => !deletedIds.contains(c.id))
+        .toList();
 
-    final newTotalItems =
-        _repository.countHistorySummaries(keyword: state.keyword);
+    final newTotalItems = _repository.countHistorySummaries(
+      keyword: state.keyword,
+    );
     final newTotalPages = newTotalItems <= 0
         ? 0
         : (newTotalItems / state.pageSize).ceil();
@@ -147,7 +149,8 @@ class HistoryPaginationController extends Notifier<HistoryPaginationState> {
     // - 库被清空（newTotalPages == 0）
     // - 当前页越界（currentPage > newTotalPages）
     // - 当前页条目全删但仍有其他数据（条目从后续页移位落入当前窗口）
-    final needsRefetch = newTotalPages <= 0 ||
+    final needsRefetch =
+        newTotalPages <= 0 ||
         state.currentPage > newTotalPages ||
         (remaining.isEmpty && newTotalItems > 0);
 
@@ -177,5 +180,5 @@ class HistoryPaginationController extends Notifier<HistoryPaginationState> {
 /// 历史页分页数据的 notifier provider。
 final historyPaginationProvider =
     NotifierProvider<HistoryPaginationController, HistoryPaginationState>(
-  HistoryPaginationController.new,
-);
+      HistoryPaginationController.new,
+    );

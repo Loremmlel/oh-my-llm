@@ -12,8 +12,8 @@ const _prefsKeyIsComposerCollapsed = 'composer_isCollapsed';
 /// 关闭应用后重新打开时恢复，避免输入区折叠状态在重启后丢失。
 final composerCollapsedProvider =
     NotifierProvider<ComposerCollapsedController, bool>(
-  ComposerCollapsedController.new,
-);
+      ComposerCollapsedController.new,
+    );
 
 /// 输入区折叠状态控制器，负责切换折叠/展开并持久化。
 class ComposerCollapsedController extends Notifier<bool> {

@@ -82,8 +82,9 @@ class FavoritesController extends Notifier<List<Favorite>> {
 
   /// 重命名指定收藏的标题（null 或空字符串表示清除自定义标题）。
   void rename(String favoriteId, String? title) {
-    final normalized =
-        (title == null || title.trim().isEmpty) ? null : title.trim();
+    final normalized = (title == null || title.trim().isEmpty)
+        ? null
+        : title.trim();
     _repo.updateTitle(favoriteId, normalized);
     _refresh();
   }

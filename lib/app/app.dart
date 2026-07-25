@@ -39,12 +39,7 @@ class _OhMyLlmAppState extends ConsumerState<OhMyLlmApp> {
       themeMode: ThemeMode.system,
       routerConfig: router,
       builder: (context, child) {
-        return Stack(
-          children: [
-            child!,
-            const NotificationBubbleStack(),
-          ],
-        );
+        return Stack(children: [child!, const NotificationBubbleStack()]);
       },
     );
   }

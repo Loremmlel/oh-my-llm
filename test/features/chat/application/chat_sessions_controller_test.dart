@@ -122,18 +122,16 @@ void main() {
   });
 
   /// 向活动会话发送一条消息并等待流式回复完成。
-  Future<void> sendMsg(
-    String content, {
-    Duration? retryDelay,
-  }) =>
-      container.read(chatSessionsProvider.notifier).sendMessage(
-            content: content,
-            modelConfig: _testModel,
-            presetPrompt: null,
-            reasoningEnabled: false,
-            reasoningEffort: ReasoningEffort.medium,
-            retryDelay: retryDelay,
-          );
+  Future<void> sendMsg(String content, {Duration? retryDelay}) => container
+      .read(chatSessionsProvider.notifier)
+      .sendMessage(
+        content: content,
+        modelConfig: _testModel,
+        presetPrompt: null,
+        reasoningEnabled: false,
+        reasoningEffort: ReasoningEffort.medium,
+        retryDelay: retryDelay,
+      );
 
   /// 用真实 [OpenAiCompatibleChatClient] 构造一条会触发 SSE idle 超时的流，
   /// 保留 async* 生成器对 error/done 事件的真实调度时序。
@@ -368,18 +366,23 @@ void main() {
 
   test('sendMessage 携带模板元数据', () async {
     fakeClient.enqueueChunks(['回复']);
-    await container.read(chatSessionsProvider.notifier).sendMessage(
-      content: '问题',
-      modelConfig: _testModel,
-      presetPrompt: null,
-      reasoningEnabled: false,
-      reasoningEffort: ReasoningEffort.medium,
-      templatePromptId: 'tpl-1',
-      templateVariableValues: {'key': 'val'},
-      userMessageSegments: [
-        const UserMessageSegment(text: '问题', kind: UserMessageSegmentKind.body),
-      ],
-    );
+    await container
+        .read(chatSessionsProvider.notifier)
+        .sendMessage(
+          content: '问题',
+          modelConfig: _testModel,
+          presetPrompt: null,
+          reasoningEnabled: false,
+          reasoningEffort: ReasoningEffort.medium,
+          templatePromptId: 'tpl-1',
+          templateVariableValues: {'key': 'val'},
+          userMessageSegments: [
+            const UserMessageSegment(
+              text: '问题',
+              kind: UserMessageSegmentKind.body,
+            ),
+          ],
+        );
 
     final userMsg = container
         .read(chatSessionsProvider)
@@ -493,9 +496,15 @@ void main() {
     final state = container.read(chatSessionsProvider);
     expect(state.errorMessage, startsWith('请求失败'));
     expect(state.activeConversation.messages, hasLength(2));
-    expect(state.activeConversation.messages.last.role, ChatMessageRole.assistant);
+    expect(
+      state.activeConversation.messages.last.role,
+      ChatMessageRole.assistant,
+    );
     expect(state.activeConversation.messages.last.reasoningContent, '思考中');
-    expect(state.errorMessageAssistantId, state.activeConversation.messages.last.id);
+    expect(
+      state.errorMessageAssistantId,
+      state.activeConversation.messages.last.id,
+    );
   });
 
   test('sendMessage 空回复时保留助手占位节点并设置内联错误', () async {
@@ -503,11 +512,20 @@ void main() {
     await sendMsg('触发空回复');
 
     final state = container.read(chatSessionsProvider);
-    expect(state.activeConversation.messages.last.role, ChatMessageRole.assistant);
+    expect(
+      state.activeConversation.messages.last.role,
+      ChatMessageRole.assistant,
+    );
     expect(state.activeConversation.messages.last.content, isEmpty);
-    expect(state.emptyReplyAssistantId, state.activeConversation.messages.last.id);
+    expect(
+      state.emptyReplyAssistantId,
+      state.activeConversation.messages.last.id,
+    );
     expect(state.errorMessage, contains('空回复'));
-    expect(state.errorMessageAssistantId, state.activeConversation.messages.last.id);
+    expect(
+      state.errorMessageAssistantId,
+      state.activeConversation.messages.last.id,
+    );
     expect(state.isStreaming, isFalse);
   });
 
@@ -736,18 +754,20 @@ void main() {
         .first
         .id;
 
-    await container.read(chatSessionsProvider.notifier).editMessage(
-      messageId: userMessageId,
-      nextContent: '修改后的问题',
-      userMessageSegments: [
-        const UserMessageSegment(
-          text: '修改后的问题',
-          kind: UserMessageSegmentKind.body,
-        ),
-      ],
-      templatePromptId: 'tpl-1',
-      templateVariableValues: {'lang': 'Dart'},
-    );
+    await container
+        .read(chatSessionsProvider.notifier)
+        .editMessage(
+          messageId: userMessageId,
+          nextContent: '修改后的问题',
+          userMessageSegments: [
+            const UserMessageSegment(
+              text: '修改后的问题',
+              kind: UserMessageSegmentKind.body,
+            ),
+          ],
+          templatePromptId: 'tpl-1',
+          templateVariableValues: {'lang': 'Dart'},
+        );
 
     final messages = container
         .read(chatSessionsProvider)
@@ -756,7 +776,10 @@ void main() {
     expect(messages[0].templatePromptId, 'tpl-1');
     expect(messages[0].templateVariableValues, {'lang': 'Dart'});
     expect(messages[0].userMessageSegments, hasLength(1));
-    expect(messages[0].userMessageSegments.first.kind, UserMessageSegmentKind.body);
+    expect(
+      messages[0].userMessageSegments.first.kind,
+      UserMessageSegmentKind.body,
+    );
   });
 
   test('editMessage 默认不携带模板元数据（向后兼容）', () async {
@@ -1104,11 +1127,13 @@ void main() {
 
     // 手动设置 isAutoRetryWaiting 状态
     final notifier = container.read(chatSessionsProvider.notifier);
-    notifier.state = container.read(chatSessionsProvider).copyWith(
-      isAutoRetryWaiting: true,
-      autoRetryCount: 3,
-      errorMessage: '之前的错误',
-    );
+    notifier.state = container
+        .read(chatSessionsProvider)
+        .copyWith(
+          isAutoRetryWaiting: true,
+          autoRetryCount: 3,
+          errorMessage: '之前的错误',
+        );
 
     await notifier.stopStreaming();
 
@@ -1139,9 +1164,9 @@ void main() {
 
     // 手动设置 isAutoRetryWaiting=true
     final notifier = container.read(chatSessionsProvider.notifier);
-    notifier.state = container.read(chatSessionsProvider).copyWith(
-      isAutoRetryWaiting: true,
-    );
+    notifier.state = container
+        .read(chatSessionsProvider)
+        .copyWith(isAutoRetryWaiting: true);
 
     fakeClient.enqueueChunks(['should not be sent']);
     await sendMsg('不会被发送的消息');
@@ -1175,7 +1200,10 @@ void main() {
     fakeClient.enqueueError(ChatCompletionException('首次失败'));
 
     // 用较大的 retryDelay 创造宽余的重试窗口，避免 CI timing 脆弱
-    final sendFuture = sendMsg('test A', retryDelay: const Duration(seconds: 1));
+    final sendFuture = sendMsg(
+      'test A',
+      retryDelay: const Duration(seconds: 1),
+    );
 
     // 等第一个请求发出并失败，重试循环进入等待窗口
     // 轮询等待 isAutoRetryWaiting 变为 true，最多等 5 秒
@@ -1213,7 +1241,7 @@ void main() {
     container
         .read(chatSessionsProvider.notifier)
         .updateActiveConversationPreferences(autoRetryEnabled: true);
-    fakeClient.enqueueChunks(['']);        // 首次：空回复
+    fakeClient.enqueueChunks(['']); // 首次：空回复
     fakeClient.enqueueChunks(['终于成功']); // 重试：正常回复
 
     await sendMsg('测试空回复重试', retryDelay: Duration.zero);
@@ -1247,7 +1275,7 @@ void main() {
   });
 
   test('手动重试空回复时删除空节点并重试', () async {
-    fakeClient.enqueueChunks(['']);        // 空回复
+    fakeClient.enqueueChunks(['']); // 空回复
     fakeClient.enqueueChunks(['重试回复']);
 
     await sendMsg('测试空回复');
@@ -1270,8 +1298,14 @@ void main() {
     expect(state.emptyReplyAssistantId, isNull);
     // 空白 assistant 节点保留在树中，errorMessageAssistantId 指向它
     expect(state.activeConversation.messages, hasLength(2));
-    expect(state.errorMessageAssistantId, state.activeConversation.messages.last.id);
-    expect(state.activeConversation.messages.last.role, ChatMessageRole.assistant);
+    expect(
+      state.errorMessageAssistantId,
+      state.activeConversation.messages.last.id,
+    );
+    expect(
+      state.activeConversation.messages.last.role,
+      ChatMessageRole.assistant,
+    );
     expect(state.activeConversation.messages.last.content, isEmpty);
   });
 
@@ -1303,7 +1337,10 @@ void main() {
 
     final notifier = container.read(chatSessionsProvider.notifier);
     notifier.state = notifier.state.copyWith(emptyReplyAssistantId: 'test-id');
-    expect(container.read(chatSessionsProvider).emptyReplyAssistantId, 'test-id');
+    expect(
+      container.read(chatSessionsProvider).emptyReplyAssistantId,
+      'test-id',
+    );
 
     // 切换到第一个会话应清除 emptyReplyAssistantId
     notifier.selectConversation(firstId);
@@ -1348,7 +1385,10 @@ void main() {
     // 手动设置一个伪造的 emptyReplyAssistantId，模拟残留状态。
     final notifier = container.read(chatSessionsProvider.notifier);
     notifier.state = notifier.state.copyWith(emptyReplyAssistantId: 'test-id');
-    expect(container.read(chatSessionsProvider).emptyReplyAssistantId, 'test-id');
+    expect(
+      container.read(chatSessionsProvider).emptyReplyAssistantId,
+      'test-id',
+    );
 
     await notifier.stopStreaming();
     await sendFuture;
@@ -1356,7 +1396,8 @@ void main() {
     final state = container.read(chatSessionsProvider);
     // 流式未收到任何内容即被终止，emptyReplyAssistantId 被重置为当前
     // 流式占位节点 id，以便 UI 显示终止提示卡片与重试入口。
-    final assistantId = state.streamingReply?.assistantMessageId ??
+    final assistantId =
+        state.streamingReply?.assistantMessageId ??
         state.activeConversation.messages
             .lastWhere((m) => m.role == ChatMessageRole.assistant)
             .id;
@@ -1370,7 +1411,10 @@ void main() {
 
     final notifier = container.read(chatSessionsProvider.notifier);
     notifier.state = notifier.state.copyWith(emptyReplyAssistantId: 'test-id');
-    expect(container.read(chatSessionsProvider).emptyReplyAssistantId, 'test-id');
+    expect(
+      container.read(chatSessionsProvider).emptyReplyAssistantId,
+      'test-id',
+    );
 
     await notifier.createConversation();
 
@@ -1455,9 +1499,9 @@ void main() {
 
   test('fixedInterval 模式首次失败后重试成功', () async {
     // 切换到固定间隔模式
-    await container.read(autoRetrySettingsProvider.notifier).save(
-      const AutoRetrySettings(retryMode: RetryMode.fixedInterval),
-    );
+    await container
+        .read(autoRetrySettingsProvider.notifier)
+        .save(const AutoRetrySettings(retryMode: RetryMode.fixedInterval));
     container
         .read(chatSessionsProvider.notifier)
         .updateActiveConversationPreferences(autoRetryEnabled: true);
@@ -1473,9 +1517,9 @@ void main() {
   });
 
   test('fixedInterval 模式连续失败后第三次成功', () async {
-    await container.read(autoRetrySettingsProvider.notifier).save(
-      const AutoRetrySettings(retryMode: RetryMode.fixedInterval),
-    );
+    await container
+        .read(autoRetrySettingsProvider.notifier)
+        .save(const AutoRetrySettings(retryMode: RetryMode.fixedInterval));
     container
         .read(chatSessionsProvider.notifier)
         .updateActiveConversationPreferences(autoRetryEnabled: true);
@@ -1500,7 +1544,9 @@ void main() {
         .updateActiveConversationPreferences(autoRetryEnabled: true);
 
     // 保存带 retryOnAbnormalFinishReason=true 的设置
-    await container.read(autoRetrySettingsProvider.notifier).save(
+    await container
+        .read(autoRetrySettingsProvider.notifier)
+        .save(
           const AutoRetrySettings(
             maxJitterSeconds: 0,
             maxRetryCount: 0,
@@ -1545,7 +1591,9 @@ void main() {
         .read(chatSessionsProvider.notifier)
         .updateActiveConversationPreferences(autoRetryEnabled: true);
 
-    await container.read(autoRetrySettingsProvider.notifier).save(
+    await container
+        .read(autoRetrySettingsProvider.notifier)
+        .save(
           const AutoRetrySettings(
             maxJitterSeconds: 0,
             maxRetryCount: 0,
@@ -1570,7 +1618,9 @@ void main() {
         .read(chatSessionsProvider.notifier)
         .updateActiveConversationPreferences(autoRetryEnabled: true);
 
-    await container.read(autoRetrySettingsProvider.notifier).save(
+    await container
+        .read(autoRetrySettingsProvider.notifier)
+        .save(
           const AutoRetrySettings(
             maxJitterSeconds: 0,
             maxRetryCount: 0,
@@ -1581,7 +1631,9 @@ void main() {
     // tool_calls — 正常完成，不重试
     fakeClient.enqueueDeltas([
       const ChatCompletionChunk(
-          contentDelta: '工具调用', finishReason: 'tool_calls'),
+        contentDelta: '工具调用',
+        finishReason: 'tool_calls',
+      ),
     ]);
 
     await sendMsg('测试 tool_calls');
@@ -1596,7 +1648,9 @@ void main() {
         .read(chatSessionsProvider.notifier)
         .updateActiveConversationPreferences(autoRetryEnabled: true);
 
-    await container.read(autoRetrySettingsProvider.notifier).save(
+    await container
+        .read(autoRetrySettingsProvider.notifier)
+        .save(
           const AutoRetrySettings(
             maxJitterSeconds: 0,
             maxRetryCount: 0,
@@ -1607,7 +1661,9 @@ void main() {
     // 第一次返回 content_filter（异常），第二次返回 stop（正常）
     fakeClient.enqueueDeltas([
       const ChatCompletionChunk(
-          contentDelta: '过滤内容', finishReason: 'content_filter'),
+        contentDelta: '过滤内容',
+        finishReason: 'content_filter',
+      ),
     ]);
     fakeClient.enqueueChunks(['重试成功']);
 
@@ -1624,7 +1680,9 @@ void main() {
         .read(chatSessionsProvider.notifier)
         .updateActiveConversationPreferences(autoRetryEnabled: true);
 
-    await container.read(autoRetrySettingsProvider.notifier).save(
+    await container
+        .read(autoRetrySettingsProvider.notifier)
+        .save(
           const AutoRetrySettings(
             maxJitterSeconds: 0,
             maxRetryCount: 0,
@@ -1633,22 +1691,25 @@ void main() {
         );
 
     // 设置输出规则：清空所有内容
-    await container.read(outputProcessingSettingsProvider.notifier).save(
-          const OutputProcessingSettings(rules: [
-            OutputRegexRule(
-              id: 'rule-1',
-              title: '清空',
-              pattern: '[\\s\\S]*',
-              replacement: '',
-              enabled: true,
-            ),
-          ]),
+    await container
+        .read(outputProcessingSettingsProvider.notifier)
+        .save(
+          const OutputProcessingSettings(
+            rules: [
+              OutputRegexRule(
+                id: 'rule-1',
+                title: '清空',
+                pattern: '[\\s\\S]*',
+                replacement: '',
+                enabled: true,
+              ),
+            ],
+          ),
         );
 
     // 模型返回 length（异常），但输出规则会清空正文
     fakeClient.enqueueDeltas([
-      const ChatCompletionChunk(
-          contentDelta: '一些内容', finishReason: 'length'),
+      const ChatCompletionChunk(contentDelta: '一些内容', finishReason: 'length'),
     ]);
 
     await sendMsg('测试输出规则清空不重试', retryDelay: Duration.zero);
@@ -1679,7 +1740,8 @@ void main() {
 
     final stateAfterStop = container.read(chatSessionsProvider);
     expect(stateAfterStop.isStreaming, isFalse);
-    final contentAfterStop = stateAfterStop.activeConversation.messages.last.content;
+    final contentAfterStop =
+        stateAfterStop.activeConversation.messages.last.content;
 
     // 模拟延迟到达的 onDone：关闭流控制器（触发 Stream onDone）
     streamController.add(const ChatCompletionChunk(contentDelta: '延迟内容'));
@@ -1928,7 +1990,11 @@ void main() {
       final controller = container.read(chatSessionsProvider.notifier);
       final hugeBody = 'x' * 5000;
       final message = controller.formatStreamingError(
-        ChatCompletionException('请求失败', statusCode: 500, responseBody: hugeBody),
+        ChatCompletionException(
+          '请求失败',
+          statusCode: 500,
+          responseBody: hugeBody,
+        ),
         StackTrace.current,
       );
 
@@ -2003,10 +2069,9 @@ void main() {
       final sendFuture = sendMsg('测试中断 finishReason');
       await Future<void>.delayed(const Duration(milliseconds: 1));
       // 发送带 finishReason 的 chunk，随后中断流式
-      streamController.add(const ChatCompletionChunk(
-        contentDelta: '部分内容',
-        finishReason: 'stop',
-      ));
+      streamController.add(
+        const ChatCompletionChunk(contentDelta: '部分内容', finishReason: 'stop'),
+      );
       await Future<void>.delayed(const Duration(milliseconds: 1));
 
       await container.read(chatSessionsProvider.notifier).stopStreaming();
@@ -2023,7 +2088,9 @@ void main() {
 
   group('输出处理正则清空回复', () {
     test('规则把非空正文清空时提示错误且不触发自动重试', () async {
-      await container.read(outputProcessingSettingsProvider.notifier).save(
+      await container
+          .read(outputProcessingSettingsProvider.notifier)
+          .save(
             const OutputProcessingSettings(
               rules: [
                 OutputRegexRule(

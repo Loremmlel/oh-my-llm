@@ -67,8 +67,7 @@ class HistoryPaginationState extends Equatable {
       conversations: conversations ?? this.conversations,
       isLoading: isLoading ?? this.isLoading,
       keyword: keyword ?? this.keyword,
-      hasAnyConversations:
-          hasAnyConversations ?? this.hasAnyConversations,
+      hasAnyConversations: hasAnyConversations ?? this.hasAnyConversations,
       currentPage: currentPage ?? this.currentPage,
       pageSize: pageSize ?? this.pageSize,
       totalItems: totalItems ?? this.totalItems,

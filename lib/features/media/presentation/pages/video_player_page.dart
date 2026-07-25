@@ -91,7 +91,8 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
           children: [
             Center(child: _buildBody(s)),
             VideoCenterHint(
-              visible: s.isInitialized &&
+              visible:
+                  s.isInitialized &&
                   !s.hasError &&
                   (!s.isPlaying || s.centerHint != CenterHintType.none),
               hintType: s.centerHint,
@@ -124,8 +125,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
                         onBack: _gesture.onBack,
                         onSpeedChanged: _gesture.changeSpeed,
                         onVolumeChanged: _gesture.setVolume,
-                        onInteractionStarted: () =>
-                            s.hideTimer?.cancel(),
+                        onInteractionStarted: () => s.hideTimer?.cancel(),
                         onInteractionEnded: _gesture.resetHideTimer,
                       ),
                     ),
@@ -159,8 +159,9 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
                         totalDuration: s.totalDuration,
                         bufferedPercent: s.bufferedPercent,
                         isDragging: s.isDragging,
-                        dragPosition:
-                            Duration(milliseconds: s.dragPositionMs.round()),
+                        dragPosition: Duration(
+                          milliseconds: s.dragPositionMs.round(),
+                        ),
                         onPlayPause: _gesture.togglePlayPause,
                         onSeekStart: _gesture.onSeekStart,
                         onSeekUpdate: _gesture.onSeekUpdate,

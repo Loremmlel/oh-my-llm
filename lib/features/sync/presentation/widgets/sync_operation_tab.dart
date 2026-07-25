@@ -39,7 +39,12 @@ class _SyncOperationTabState extends ConsumerState<SyncOperationTab>
       if (next.phase == SyncPhase.received && next.deduplicatedData != null) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (context.mounted) {
-            _showImportDialog(context, ref, next.deduplicatedData!, next.sourceDeviceName);
+            _showImportDialog(
+              context,
+              ref,
+              next.deduplicatedData!,
+              next.sourceDeviceName,
+            );
           }
         });
       } else if (next.phase == SyncPhase.noNewData) {
@@ -186,7 +191,8 @@ class _SyncOperationTabState extends ConsumerState<SyncOperationTab>
     SyncClientState state,
   ) {
     final notifier = ref.read(syncClientControllerProvider.notifier);
-    final allSelected = state.selectedCategories.length == SyncCategory.values.length;
+    final allSelected =
+        state.selectedCategories.length == SyncCategory.values.length;
 
     return SettingsSectionCard(
       title: '同步内容',
@@ -231,7 +237,8 @@ class _SyncOperationTabState extends ConsumerState<SyncOperationTab>
       child: FilledButton.icon(
         onPressed: isSyncing || state.selectedCategories.isEmpty
             ? null
-            : () => ref.read(syncClientControllerProvider.notifier).requestSync(),
+            : () =>
+                  ref.read(syncClientControllerProvider.notifier).requestSync(),
         icon: const Icon(Icons.sync_rounded),
         label: Text(isSyncing ? '同步中...' : '开始同步'),
       ),
@@ -242,7 +249,8 @@ class _SyncOperationTabState extends ConsumerState<SyncOperationTab>
     return SizedBox(
       width: double.infinity,
       child: OutlinedButton.icon(
-        onPressed: () => ref.read(syncClientControllerProvider.notifier).resetToConnected(),
+        onPressed: () =>
+            ref.read(syncClientControllerProvider.notifier).resetToConnected(),
         icon: const Icon(Icons.refresh_rounded),
         label: const Text('重新同步'),
       ),
@@ -263,10 +271,7 @@ class _SyncOperationTabState extends ConsumerState<SyncOperationTab>
         children: [
           Icon(Icons.check_circle_outline, color: successColor),
           const SizedBox(width: 8),
-          Text(
-            '配置已成功导入',
-            style: TextStyle(color: successColor),
-          ),
+          Text('配置已成功导入', style: TextStyle(color: successColor)),
         ],
       ),
     );

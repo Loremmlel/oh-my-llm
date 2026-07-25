@@ -23,18 +23,19 @@ void main() {
   });
 
   group('FavoritesController', () {
-
     test('add inserts a favorite with all fields into the list', () {
       container.read(collectionsProvider.notifier).create('测试收藏夹');
       final collectionId = container.read(collectionsProvider).first.id;
 
-      container.read(favoritesProvider.notifier).add(
-        userMessageContent: '用户消息',
-        assistantContent: '模型回复',
-        sourceConversationId: 'conv-1',
-        sourceConversationTitle: '对话标题',
-        collectionId: collectionId,
-      );
+      container
+          .read(favoritesProvider.notifier)
+          .add(
+            userMessageContent: '用户消息',
+            assistantContent: '模型回复',
+            sourceConversationId: 'conv-1',
+            sourceConversationTitle: '对话标题',
+            collectionId: collectionId,
+          );
 
       final fav = container.read(favoritesProvider).first;
       expect(fav.userMessageContent, '用户消息');
@@ -45,10 +46,9 @@ void main() {
     });
 
     test('remove deletes the favorite from the list', () {
-      container.read(favoritesProvider.notifier).add(
-        userMessageContent: '要删除的消息',
-        assistantContent: '要删除的回复',
-      );
+      container
+          .read(favoritesProvider.notifier)
+          .add(userMessageContent: '要删除的消息', assistantContent: '要删除的回复');
 
       final id = container.read(favoritesProvider).first.id;
       container.read(favoritesProvider.notifier).remove(id);
@@ -57,10 +57,9 @@ void main() {
     });
 
     test('isFavorited returns true when content is already favorited', () {
-      container.read(favoritesProvider.notifier).add(
-        userMessageContent: '问题',
-        assistantContent: '已收藏的内容',
-      );
+      container
+          .read(favoritesProvider.notifier)
+          .add(userMessageContent: '问题', assistantContent: '已收藏的内容');
 
       expect(
         container.read(favoritesProvider.notifier).isFavorited('已收藏的内容'),
@@ -85,10 +84,9 @@ void main() {
       container.read(collectionsProvider.notifier).create('目标收藏夹');
       final collectionId = container.read(collectionsProvider).first.id;
 
-      container.read(favoritesProvider.notifier).add(
-        userMessageContent: '问题',
-        assistantContent: '回答',
-      );
+      container
+          .read(favoritesProvider.notifier)
+          .add(userMessageContent: '问题', assistantContent: '回答');
       final favId = container.read(favoritesProvider).first.id;
 
       container.read(favoritesProvider.notifier).moveTo(favId, collectionId);
@@ -101,11 +99,13 @@ void main() {
       container.read(collectionsProvider.notifier).create('收藏夹');
       final collectionId = container.read(collectionsProvider).first.id;
 
-      container.read(favoritesProvider.notifier).add(
-        userMessageContent: '问题',
-        assistantContent: '回答',
-        collectionId: collectionId,
-      );
+      container
+          .read(favoritesProvider.notifier)
+          .add(
+            userMessageContent: '问题',
+            assistantContent: '回答',
+            collectionId: collectionId,
+          );
       final favId = container.read(favoritesProvider).first.id;
 
       container.read(favoritesProvider.notifier).moveTo(favId, null);
@@ -115,10 +115,9 @@ void main() {
     });
 
     test('rename updates favorite title', () {
-      final id = container.read(favoritesProvider.notifier).add(
-        userMessageContent: '用户消息',
-        assistantContent: '回复',
-      );
+      final id = container
+          .read(favoritesProvider.notifier)
+          .add(userMessageContent: '用户消息', assistantContent: '回复');
 
       container.read(favoritesProvider.notifier).rename(id, '新标题');
 
@@ -128,10 +127,9 @@ void main() {
     });
 
     test('rename with null clears custom title', () {
-      final id = container.read(favoritesProvider.notifier).add(
-        userMessageContent: '用户消息',
-        assistantContent: '回复',
-      );
+      final id = container
+          .read(favoritesProvider.notifier)
+          .add(userMessageContent: '用户消息', assistantContent: '回复');
       container.read(favoritesProvider.notifier).rename(id, '临时标题');
       container.read(favoritesProvider.notifier).rename(id, null);
 
@@ -141,20 +139,20 @@ void main() {
     });
 
     test('add 保存 sourceAssistantMessageId', () {
-      container.read(favoritesProvider.notifier).add(
-        userMessageContent: '问题',
-        assistantContent: '回答',
-        sourceConversationId: 'conv-1',
-        sourceAssistantMessageId: 'msg-42',
-      );
+      container
+          .read(favoritesProvider.notifier)
+          .add(
+            userMessageContent: '问题',
+            assistantContent: '回答',
+            sourceConversationId: 'conv-1',
+            sourceAssistantMessageId: 'msg-42',
+          );
       final fav = container.read(favoritesProvider).first;
       expect(fav.sourceAssistantMessageId, 'msg-42');
     });
-
   });
 
   group('CollectionsController', () {
-
     test('create adds a collection and returns its id', () {
       final id = container.read(collectionsProvider.notifier).create('我的笔记');
 
@@ -211,11 +209,9 @@ void main() {
       expect(container.read(collectionsProvider), hasLength(1));
       expect(container.read(collectionsProvider).first.id, id);
     });
-
   });
 
   group('FavoritesFilterNotifier', () {
-
     test('初始状态为 null（全部）', () {
       expect(container.read(favoritesFilterProvider), isNull);
     });
@@ -235,15 +231,16 @@ void main() {
       container.read(collectionsProvider.notifier).create('收藏夹A');
       final collectionId = container.read(collectionsProvider).first.id;
 
-      container.read(favoritesProvider.notifier).add(
-        userMessageContent: '分类问题',
-        assistantContent: '分类回答',
-        collectionId: collectionId,
-      );
-      container.read(favoritesProvider.notifier).add(
-        userMessageContent: '未分类问题',
-        assistantContent: '未分类回答',
-      );
+      container
+          .read(favoritesProvider.notifier)
+          .add(
+            userMessageContent: '分类问题',
+            assistantContent: '分类回答',
+            collectionId: collectionId,
+          );
+      container
+          .read(favoritesProvider.notifier)
+          .add(userMessageContent: '未分类问题', assistantContent: '未分类回答');
 
       // 初始 filter=null，应返回全部
       expect(container.read(favoritesProvider), hasLength(2));
@@ -251,12 +248,18 @@ void main() {
       // 切换到未分类
       container.read(favoritesFilterProvider.notifier).setFilter('');
       expect(container.read(favoritesProvider), hasLength(1));
-      expect(container.read(favoritesProvider).first.userMessageContent, '未分类问题');
+      expect(
+        container.read(favoritesProvider).first.userMessageContent,
+        '未分类问题',
+      );
 
       // 切换到具体收藏夹
       container.read(favoritesFilterProvider.notifier).setFilter(collectionId);
       expect(container.read(favoritesProvider), hasLength(1));
-      expect(container.read(favoritesProvider).first.userMessageContent, '分类问题');
+      expect(
+        container.read(favoritesProvider).first.userMessageContent,
+        '分类问题',
+      );
     });
   });
 }

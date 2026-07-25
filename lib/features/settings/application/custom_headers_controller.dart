@@ -27,9 +27,7 @@ class CustomHeadersController extends Notifier<CustomHeadersConfig> {
       if (decoded is! Map) {
         return const CustomHeadersConfig();
       }
-      return CustomHeadersConfig.fromJson(
-        Map<String, dynamic>.from(decoded),
-      );
+      return CustomHeadersConfig.fromJson(Map<String, dynamic>.from(decoded));
     } catch (_) {
       return const CustomHeadersConfig();
     }
@@ -41,16 +39,16 @@ class CustomHeadersController extends Notifier<CustomHeadersConfig> {
   /// SharedPreferences 与 state 不一致。
   Future<void> save(CustomHeadersConfig config) async {
     final prefs = ref.read(sharedPreferencesProvider);
-    await prefs.setString(
-      customHeadersStorageKey,
-      jsonEncode(config.toJson()),
-    );
+    await prefs.setString(customHeadersStorageKey, jsonEncode(config.toJson()));
     state = config;
   }
 
   /// 添加一条请求头规则。
   Future<void> addHeader(String key, String value) async {
-    final newHeaders = [...state.headers, CustomHeaderEntry(key: key, value: value)];
+    final newHeaders = [
+      ...state.headers,
+      CustomHeaderEntry(key: key, value: value),
+    ];
     await save(state.copyWith(headers: newHeaders));
   }
 

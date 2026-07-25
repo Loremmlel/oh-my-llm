@@ -13,10 +13,7 @@ void main() {
       ('首尾空白被去除', '  hello  ', 30, '', 'hello'),
     ]) {
       test(tc.$1, () {
-        expect(
-          summarizeText(tc.$2, maxLength: tc.$3, emptyText: tc.$4),
-          tc.$5,
-        );
+        expect(summarizeText(tc.$2, maxLength: tc.$3, emptyText: tc.$4), tc.$5);
       });
     }
 

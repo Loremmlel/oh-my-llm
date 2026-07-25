@@ -51,7 +51,8 @@ class VideoPlayerGestureController {
       ctrl.setPlaybackSpeed(state.currentSpeed);
       ctrl.play();
 
-      final ended = ctrl.value.isCompleted &&
+      final ended =
+          ctrl.value.isCompleted &&
           _isNearEnd(ctrl.value.position, ctrl.value.duration);
       state.isInitialized = true;
       state.hasError = false;
@@ -103,9 +104,9 @@ class VideoPlayerGestureController {
 
     final buffered = value.buffered;
     if (buffered.isNotEmpty && value.duration > Duration.zero) {
-      state.bufferedPercent = (buffered.last.end.inMicroseconds /
-              value.duration.inMicroseconds)
-          .clamp(0.0, 1.0);
+      state.bufferedPercent =
+          (buffered.last.end.inMicroseconds / value.duration.inMicroseconds)
+              .clamp(0.0, 1.0);
     }
 
     final atEnd = _isNearEnd(value.position, value.duration);
@@ -164,9 +165,10 @@ class VideoPlayerGestureController {
   // ── 进度条 Seek ────────────────────────────────────────────────
 
   double fractionToMs(double fraction) {
-    return (state.totalDuration.inMilliseconds * fraction)
-        .toDouble()
-        .clamp(0, state.totalDuration.inMilliseconds.toDouble());
+    return (state.totalDuration.inMilliseconds * fraction).toDouble().clamp(
+      0,
+      state.totalDuration.inMilliseconds.toDouble(),
+    );
   }
 
   void onSeekStart(double fraction) {
@@ -241,8 +243,9 @@ class VideoPlayerGestureController {
 
   void endGesture() {
     if (state.controlsVisibleBeforeGesture != null) {
-      state.controlsVisible =
-          state.hasEnded ? true : state.controlsVisibleBeforeGesture!;
+      state.controlsVisible = state.hasEnded
+          ? true
+          : state.controlsVisibleBeforeGesture!;
       state.controlsVisibleBeforeGesture = null;
       resetHideTimer();
       onStateChanged?.call();
@@ -288,8 +291,8 @@ class VideoPlayerGestureController {
     final clamped = targetPosition < Duration.zero
         ? Duration.zero
         : (targetPosition > state.totalDuration
-            ? state.totalDuration
-            : targetPosition);
+              ? state.totalDuration
+              : targetPosition);
     ctrl.seekTo(clamped);
 
     beginGesture();
@@ -352,10 +355,11 @@ class VideoPlayerGestureController {
 
     final deltaPixels = details.globalPosition.dx - state.dragStartDx;
     final fraction = deltaPixels / state.cachedScreenWidth;
-    final offsetMs =
-        (fraction * state.totalDuration.inMilliseconds).round();
-    final targetMs = (state.dragStartPosition.inMilliseconds + offsetMs)
-        .clamp(0, state.totalDuration.inMilliseconds);
+    final offsetMs = (fraction * state.totalDuration.inMilliseconds).round();
+    final targetMs = (state.dragStartPosition.inMilliseconds + offsetMs).clamp(
+      0,
+      state.totalDuration.inMilliseconds,
+    );
 
     state.seekPreviewPosition = Duration(milliseconds: targetMs);
     state.hintTimer?.cancel();

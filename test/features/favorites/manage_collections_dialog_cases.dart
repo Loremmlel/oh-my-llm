@@ -15,9 +15,12 @@ void registerManageCollectionsDialogTests() {
   });
 
   testWidgets('manage collections dialog renames collection', (tester) async {
-    await setUpFavoritesScreen(tester, seed: (db) {
-      seedCollection(db, id: 'col-1', name: '旧名称');
-    });
+    await setUpFavoritesScreen(
+      tester,
+      seed: (db) {
+        seedCollection(db, id: 'col-1', name: '旧名称');
+      },
+    );
 
     await tester.tap(find.byTooltip('管理收藏夹'));
     await tester.pumpAndSettle();
@@ -33,32 +36,39 @@ void registerManageCollectionsDialogTests() {
     expect(find.text('旧名称'), findsNothing);
   });
 
-  testWidgets('manage collections dialog deletes collection after confirmation', (
-    tester,
-  ) async {
-    await setUpFavoritesScreen(tester, seed: (db) {
-      seedCollection(db, id: 'col-1', name: '要删除的收藏夹');
-    });
+  testWidgets(
+    'manage collections dialog deletes collection after confirmation',
+    (tester) async {
+      await setUpFavoritesScreen(
+        tester,
+        seed: (db) {
+          seedCollection(db, id: 'col-1', name: '要删除的收藏夹');
+        },
+      );
 
-    await tester.tap(find.byTooltip('管理收藏夹'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('管理收藏夹'));
+      await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('删除收藏夹（内部收藏移入未分类）'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('删除收藏夹（内部收藏移入未分类）'));
+      await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(FilledButton, '删除'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, '删除'));
+      await tester.pumpAndSettle();
 
-    expect(find.text('要删除的收藏夹'), findsNothing);
-    expect(find.text('暂无收藏夹'), findsOneWidget);
-  });
+      expect(find.text('要删除的收藏夹'), findsNothing);
+      expect(find.text('暂无收藏夹'), findsOneWidget);
+    },
+  );
 
   testWidgets('manage collections dialog cancel delete keeps collection', (
     tester,
   ) async {
-    await setUpFavoritesScreen(tester, seed: (db) {
-      seedCollection(db, id: 'col-1', name: '保留的收藏夹');
-    });
+    await setUpFavoritesScreen(
+      tester,
+      seed: (db) {
+        seedCollection(db, id: 'col-1', name: '保留的收藏夹');
+      },
+    );
 
     await tester.tap(find.byTooltip('管理收藏夹'));
     await tester.pumpAndSettle();
@@ -76,9 +86,12 @@ void registerManageCollectionsDialogTests() {
   testWidgets('manage collections dialog cancel rename keeps original name', (
     tester,
   ) async {
-    await setUpFavoritesScreen(tester, seed: (db) {
-      seedCollection(db, id: 'col-1', name: '原名');
-    });
+    await setUpFavoritesScreen(
+      tester,
+      seed: (db) {
+        seedCollection(db, id: 'col-1', name: '原名');
+      },
+    );
 
     await tester.tap(find.byTooltip('管理收藏夹'));
     await tester.pumpAndSettle();
@@ -97,9 +110,12 @@ void registerManageCollectionsDialogTests() {
   testWidgets('manage collections dialog empty rename is ignored', (
     tester,
   ) async {
-    await setUpFavoritesScreen(tester, seed: (db) {
-      seedCollection(db, id: 'col-1', name: '现有名称');
-    });
+    await setUpFavoritesScreen(
+      tester,
+      seed: (db) {
+        seedCollection(db, id: 'col-1', name: '现有名称');
+      },
+    );
 
     await tester.tap(find.byTooltip('管理收藏夹'));
     await tester.pumpAndSettle();

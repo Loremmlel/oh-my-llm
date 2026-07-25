@@ -109,7 +109,9 @@ void main() {
       // ── 服务端启动 ──
       final serverContainer = buildServerContainer();
       await serverContainer.read(syncServerControllerProvider.notifier).start();
-      final httpPort = serverContainer.read(syncServerControllerProvider).httpPort!;
+      final httpPort = serverContainer
+          .read(syncServerControllerProvider)
+          .httpPort!;
 
       // ── 客户端连接（跳过 UDP 发现，手动设 server）──
       final clientContainer = buildClientContainer(
@@ -150,7 +152,9 @@ void main() {
       // 服务端无种子数据
       final serverContainer = buildServerContainer();
       await serverContainer.read(syncServerControllerProvider.notifier).start();
-      final httpPort = serverContainer.read(syncServerControllerProvider).httpPort!;
+      final httpPort = serverContainer
+          .read(syncServerControllerProvider)
+          .httpPort!;
 
       final clientContainer = buildClientContainer(
         seed: SyncClientState(
@@ -187,7 +191,9 @@ void main() {
 
       final serverContainer = buildServerContainer();
       await serverContainer.read(syncServerControllerProvider.notifier).start();
-      final httpPort = serverContainer.read(syncServerControllerProvider).httpPort!;
+      final httpPort = serverContainer
+          .read(syncServerControllerProvider)
+          .httpPort!;
 
       final clientContainer = buildClientContainer(
         seed: SyncClientState(

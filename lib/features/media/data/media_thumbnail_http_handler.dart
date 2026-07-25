@@ -17,9 +17,9 @@ class MediaThumbnailHttpHandler extends MediaHttpHandlerBase {
     required super.scanner,
     required MediaThumbnailGenerator generator,
     required MediaThumbnailCache cache,
-  })  : _generator = generator,
-        _cache = cache,
-        super(urlPrefix: '/api/media/thumbnail/');
+  }) : _generator = generator,
+       _cache = cache,
+       super(urlPrefix: '/api/media/thumbnail/');
 
   @override
   Future<void> handleSafe(HttpRequest request, String relativePath) async {
@@ -42,7 +42,11 @@ class MediaThumbnailHttpHandler extends MediaHttpHandlerBase {
     final cached = _cache.get(relativePath, fileSize, lastModified);
     if (cached != null) {
       final cachedBytes = await cached.readAsBytes();
-      await _sendJpegResponse(request.response, cachedBytes, cachedBytes.length);
+      await _sendJpegResponse(
+        request.response,
+        cachedBytes,
+        cachedBytes.length,
+      );
       return;
     }
 
@@ -77,7 +81,11 @@ class MediaThumbnailHttpHandler extends MediaHttpHandlerBase {
     return false;
   }
 
-  Future<void> _sendJpegResponse(HttpResponse response, List<int> bytes, int contentLength) async {
+  Future<void> _sendJpegResponse(
+    HttpResponse response,
+    List<int> bytes,
+    int contentLength,
+  ) async {
     response
       ..statusCode = HttpStatus.ok
       ..headers.contentType = ContentType('image', 'jpeg')

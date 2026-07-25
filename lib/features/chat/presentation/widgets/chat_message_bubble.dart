@@ -89,9 +89,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
   Widget _exclusionButton() {
     return _iconButton(
       onPressed: widget.onToggleRequestExclusionPressed,
-      tooltip: widget.isExcludedFromRequest
-          ? '重新加入发送上下文'
-          : '从发送上下文中排除',
+      tooltip: widget.isExcludedFromRequest ? '重新加入发送上下文' : '从发送上下文中排除',
       icon: widget.isExcludedFromRequest
           ? Icons.add_circle_outline_rounded
           : Icons.remove_circle_outline_rounded,
@@ -113,11 +111,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
     required String tooltip,
     required IconData icon,
   }) {
-    return IconButton(
-      onPressed: onPressed,
-      tooltip: tooltip,
-      icon: Icon(icon),
-    );
+    return IconButton(onPressed: onPressed, tooltip: tooltip, icon: Icon(icon));
   }
 
   @override
@@ -161,8 +155,8 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
     final userSegments = message.userMessageSegments;
     final displaySegments = userSegments.isNotEmpty
         ? (isUserCollapsed
-            ? truncateUserMessageSegments(userSegments, userContent.length)
-            : userSegments)
+              ? truncateUserMessageSegments(userSegments, userContent.length)
+              : userSegments)
         : const <UserMessageSegment>[];
 
     return LayoutBuilder(
@@ -176,205 +170,213 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
           alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
           child: ConstrainedBox(
             constraints: BoxConstraints(maxWidth: bubbleWidth),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: isUser
-                ? theme.colorScheme.primaryContainer
-                : theme.colorScheme.surfaceContainerHighest.withValues(
-                    alpha: 0.55,
-                  ),
-            borderRadius: BorderRadius.circular(22),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: isUser
+                    ? theme.colorScheme.primaryContainer
+                    : theme.colorScheme.surfaceContainerHighest.withValues(
+                        alpha: 0.55,
+                      ),
+                borderRadius: BorderRadius.circular(22),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Tooltip(
-                            message: isUser
-                                ? '你'
-                                : message.resolvedAssistantModelDisplayName,
-                            child: Text(
-                              isUser
-                                  ? '你'
-                                  : message.resolvedAssistantModelDisplayName,
-                              style: theme.textTheme.labelLarge,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Tooltip(
+                                message: isUser
+                                    ? '你'
+                                    : message.resolvedAssistantModelDisplayName,
+                                child: Text(
+                                  isUser
+                                      ? '你'
+                                      : message
+                                            .resolvedAssistantModelDisplayName,
+                                  style: theme.textTheme.labelLarge,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (widget.isExcludedFromRequest) ...[
+                                const SizedBox(height: 4),
+                                _buildRequestExclusionChip(theme, message.id),
+                              ],
+                            ],
                           ),
-                          if (widget.isExcludedFromRequest) ...[
-                            const SizedBox(height: 4),
-                            _buildRequestExclusionChip(theme, message.id),
-                          ],
+                        ),
+                        if (message.isStreaming) ...[
+                          const SizedBox(width: 8),
+                          const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    SizedBox(
+                      width: double.infinity,
+                      child: Wrap(
+                        spacing: 4,
+                        runSpacing: 2,
+                        alignment: WrapAlignment.end,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          _copyButton(context),
+                          if (widget.onToggleRequestExclusionPressed != null)
+                            _exclusionButton(),
+                          if (widget.onFavoritePressed != null)
+                            _favoriteButton(),
+                          if (widget.canEdit)
+                            _iconButton(
+                              onPressed: widget.onEditPressed,
+                              tooltip: '编辑消息',
+                              icon: Icons.edit_outlined,
+                            ),
+                          if (widget.canRetry)
+                            _iconButton(
+                              onPressed: widget.onRetryPressed,
+                              tooltip: '重试回复',
+                              icon: Icons.refresh_rounded,
+                            ),
+                          if (widget.onDeletePressed != null)
+                            _iconButton(
+                              onPressed: widget.onDeletePressed,
+                              tooltip: '删除消息',
+                              icon: Icons.delete_outline_rounded,
+                            ),
                         ],
                       ),
                     ),
-                    if (message.isStreaming) ...[
-                      const SizedBox(width: 8),
-                      const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                    if (!isUser &&
+                        widget.inlineErrorMessage != null &&
+                        widget.inlineErrorMessage!.trim().isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      if (widget.isEmptyReply)
+                        ChatInlineEmptyReplyCard(
+                          message: widget.inlineErrorMessage!.trim(),
+                        )
+                      else
+                        ChatInlineErrorCard(
+                          message: widget.inlineErrorMessage!.trim(),
+                        ),
+                    ],
+                    if (!isUser &&
+                        message.appliedCheckpointTitle.trim().isNotEmpty)
+                      _buildCheckpointUsageRow(
+                        theme,
+                        message.appliedCheckpointTitle,
+                      ),
+                    if (!isUser && _shouldShowWordCount(message))
+                      _buildWordCountRow(theme, message),
+                    if (!isUser &&
+                        message.reasoningContent.trim().isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      ReasoningPanel(content: message.reasoningContent),
+                      const SizedBox(height: 8),
+                    ] else
+                      const SizedBox(height: 8),
+                    _buildMessageContent(
+                      theme,
+                      isUser: isUser,
+                      content: isUser ? userContent : message.content,
+                      segments: isUser ? displaySegments : const [],
+                    ),
+                    if (!isUser &&
+                        message.finishReason != null &&
+                        !message.isStreaming)
+                      _buildFinishReasonChip(theme, message),
+                    if (isUser && widget.autoRetryCount > 0) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.refresh_rounded,
+                            size: 14,
+                            color: theme.colorScheme.primary,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '第 ${widget.autoRetryCount} 次重试中...',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    if (isUser && needsCollapse) ...[
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              _isUserMessageCollapsed =
+                                  !_isUserMessageCollapsed;
+                            });
+                          },
+                          icon: Icon(
+                            isUserCollapsed
+                                ? Icons.unfold_more_rounded
+                                : Icons.unfold_less_rounded,
+                            size: 18,
+                          ),
+                          label: Text(isUserCollapsed ? '展开全文' : '收起内容'),
+                        ),
+                      ),
+                    ],
+                    if (widget.versionInfo != null) ...[
+                      const SizedBox(height: 8),
+                      MessageVersionNavigator(
+                        currentIndex: widget.versionInfo!.currentIndex,
+                        total: widget.versionInfo!.siblings.length,
+                        onPrevious: widget.versionInfo!.currentIndex > 0
+                            ? () {
+                                widget.onSwitchVersion?.call(
+                                  widget
+                                      .versionInfo!
+                                      .siblings[widget
+                                              .versionInfo!
+                                              .currentIndex -
+                                          1]
+                                      .id,
+                                );
+                              }
+                            : null,
+                        onNext:
+                            widget.versionInfo!.currentIndex <
+                                widget.versionInfo!.siblings.length - 1
+                            ? () {
+                                widget.onSwitchVersion?.call(
+                                  widget
+                                      .versionInfo!
+                                      .siblings[widget
+                                              .versionInfo!
+                                              .currentIndex +
+                                          1]
+                                      .id,
+                                );
+                              }
+                            : null,
                       ),
                     ],
                   ],
                 ),
-                const SizedBox(height: 2),
-                SizedBox(
-                  width: double.infinity,
-                  child: Wrap(
-                    spacing: 4,
-                    runSpacing: 2,
-                    alignment: WrapAlignment.end,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      _copyButton(context),
-                      if (widget.onToggleRequestExclusionPressed != null)
-                        _exclusionButton(),
-                      if (widget.onFavoritePressed != null)
-                        _favoriteButton(),
-                      if (widget.canEdit)
-                        _iconButton(
-                          onPressed: widget.onEditPressed,
-                          tooltip: '编辑消息',
-                          icon: Icons.edit_outlined,
-                        ),
-                      if (widget.canRetry)
-                        _iconButton(
-                          onPressed: widget.onRetryPressed,
-                          tooltip: '重试回复',
-                          icon: Icons.refresh_rounded,
-                        ),
-                      if (widget.onDeletePressed != null)
-                        _iconButton(
-                          onPressed: widget.onDeletePressed,
-                          tooltip: '删除消息',
-                          icon: Icons.delete_outline_rounded,
-                        ),
-                    ],
-                  ),
-                ),
-                if (!isUser &&
-                    widget.inlineErrorMessage != null &&
-                    widget.inlineErrorMessage!.trim().isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  if (widget.isEmptyReply)
-                    ChatInlineEmptyReplyCard(
-                      message: widget.inlineErrorMessage!.trim(),
-                    )
-                  else
-                    ChatInlineErrorCard(
-                      message: widget.inlineErrorMessage!.trim(),
-                    ),
-                ],
-                if (!isUser && message.appliedCheckpointTitle.trim().isNotEmpty)
-                  _buildCheckpointUsageRow(
-                    theme,
-                    message.appliedCheckpointTitle,
-                  ),
-                if (!isUser && _shouldShowWordCount(message))
-                  _buildWordCountRow(theme, message),
-                if (!isUser && message.reasoningContent.trim().isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  ReasoningPanel(content: message.reasoningContent),
-                  const SizedBox(height: 8),
-                ] else
-                  const SizedBox(height: 8),
-                _buildMessageContent(
-                  theme,
-                  isUser: isUser,
-                  content: isUser ? userContent : message.content,
-                  segments: isUser ? displaySegments : const [],
-                ),
-                if (!isUser &&
-                    message.finishReason != null &&
-                    !message.isStreaming)
-                  _buildFinishReasonChip(theme, message),
-                if (isUser && widget.autoRetryCount > 0) ...[
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.refresh_rounded,
-                        size: 14,
-                        color: theme.colorScheme.primary,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '第 ${widget.autoRetryCount} 次重试中...',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.primary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-                if (isUser && needsCollapse) ...[
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: TextButton.icon(
-                      onPressed: () {
-                        setState(() {
-                          _isUserMessageCollapsed = !_isUserMessageCollapsed;
-                        });
-                      },
-                      icon: Icon(
-                        isUserCollapsed
-                            ? Icons.unfold_more_rounded
-                            : Icons.unfold_less_rounded,
-                        size: 18,
-                      ),
-                      label: Text(isUserCollapsed ? '展开全文' : '收起内容'),
-                    ),
-                  ),
-                ],
-                if (widget.versionInfo != null) ...[
-                  const SizedBox(height: 8),
-                  MessageVersionNavigator(
-                    currentIndex: widget.versionInfo!.currentIndex,
-                    total: widget.versionInfo!.siblings.length,
-                    onPrevious: widget.versionInfo!.currentIndex > 0
-                        ? () {
-                            widget.onSwitchVersion?.call(
-                              widget
-                                  .versionInfo!
-                                  .siblings[widget.versionInfo!.currentIndex -
-                                      1]
-                                  .id,
-                            );
-                          }
-                        : null,
-                    onNext:
-                        widget.versionInfo!.currentIndex <
-                            widget.versionInfo!.siblings.length - 1
-                        ? () {
-                            widget.onSwitchVersion?.call(
-                              widget
-                                  .versionInfo!
-                                  .siblings[widget.versionInfo!.currentIndex +
-                                      1]
-                                  .id,
-                            );
-                          }
-                        : null,
-                  ),
-                ],
-              ],
+              ),
             ),
           ),
-        ),
-        ),
-      );
-    },
+        );
+      },
     );
   }
 
@@ -391,10 +393,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
     }
   }
 
-  static Color _finishReasonTextColor(
-    String reason,
-    ColorScheme colorScheme,
-  ) {
+  static Color _finishReasonTextColor(String reason, ColorScheme colorScheme) {
     switch (reason) {
       case 'stop':
         return colorScheme.onTertiaryContainer;
@@ -498,14 +497,16 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
         return SelectableText.rich(
           TextSpan(
             style: bodyStyle,
-            children: segments.map((segment) {
-              return TextSpan(
-                text: segment.text,
-                style: segment.kind == UserMessageSegmentKind.body
-                    ? bodyStyle
-                    : templateStyle,
-              );
-            }).toList(growable: false),
+            children: segments
+                .map((segment) {
+                  return TextSpan(
+                    text: segment.text,
+                    style: segment.kind == UserMessageSegmentKind.body
+                        ? bodyStyle
+                        : templateStyle,
+                  );
+                })
+                .toList(growable: false),
           ),
         );
       }

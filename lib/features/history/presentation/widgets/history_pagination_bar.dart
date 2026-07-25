@@ -42,10 +42,7 @@ class _HistoryPaginationBarState extends ConsumerState<HistoryPaginationBar> {
   /// - 否则保留首 2 页 + 末 2 页 + 当前页 ± 1，中间用省略标记。
   List<_PageNumberItem> _visiblePageNumbers(int totalPages, int currentPage) {
     if (totalPages <= 7) {
-      return List.generate(
-        totalPages,
-        (i) => (page: i + 1, isEllipsis: false),
-      );
+      return List.generate(totalPages, (i) => (page: i + 1, isEllipsis: false));
     }
 
     const leftEdge = 2;
@@ -58,9 +55,11 @@ class _HistoryPaginationBarState extends ConsumerState<HistoryPaginationBar> {
       pages.add(p);
     }
     // 当前页窗口
-    for (var p = currentPage - surrounding;
-        p <= currentPage + surrounding;
-        p++) {
+    for (
+      var p = currentPage - surrounding;
+      p <= currentPage + surrounding;
+      p++
+    ) {
       if (p >= 1 && p <= totalPages) pages.add(p);
     }
     // 尾
@@ -95,9 +94,10 @@ class _HistoryPaginationBarState extends ConsumerState<HistoryPaginationBar> {
     required bool disabled,
     required bool compact,
   }) {
-    final onTap = disabled ? null : () => ref
-        .read(historyPaginationProvider.notifier)
-        .goToPage(pageNumber);
+    final onTap = disabled
+        ? null
+        : () =>
+              ref.read(historyPaginationProvider.notifier).goToPage(pageNumber);
     final minSize = compact ? const Size(32, 32) : const Size(40, 40);
     final textStyle = compact ? const TextStyle(fontSize: 13) : null;
     if (isActive) {
@@ -137,13 +137,13 @@ class _HistoryPaginationBarState extends ConsumerState<HistoryPaginationBar> {
       builder: (context, constraints) {
         final isCompact = constraints.maxWidth < AppBreakpoints.compact;
         final spacing = isCompact ? 2.0 : 8.0;
-        final iconVisualDensity =
-            isCompact ? VisualDensity.compact : VisualDensity.standard;
+        final iconVisualDensity = isCompact
+            ? VisualDensity.compact
+            : VisualDensity.standard;
         final iconConstraints = isCompact
             ? const BoxConstraints(minWidth: 32, minHeight: 32)
             : null;
-        final iconPadding =
-            isCompact ? EdgeInsets.zero : null;
+        final iconPadding = isCompact ? EdgeInsets.zero : null;
         final pageSizeWidth = isCompact ? 72.0 : 96.0;
         final pageSizePadding = isCompact
             ? const EdgeInsets.symmetric(horizontal: 8, vertical: 6)
@@ -152,16 +152,16 @@ class _HistoryPaginationBarState extends ConsumerState<HistoryPaginationBar> {
         final jumpContentPadding = isCompact
             ? const EdgeInsets.symmetric(horizontal: 4, vertical: 6)
             : const EdgeInsets.symmetric(horizontal: 8, vertical: 10);
-        final jumpTextStyle =
-            isCompact ? const TextStyle(fontSize: 13) : null;
+        final jumpTextStyle = isCompact ? const TextStyle(fontSize: 13) : null;
         final jumpButtonStyle = isCompact
             ? TextButton.styleFrom(
                 visualDensity: VisualDensity.compact,
                 padding: const EdgeInsets.symmetric(horizontal: 8),
               )
             : null;
-        final jumpButtonTextStyle =
-            isCompact ? const TextStyle(fontSize: 13) : null;
+        final jumpButtonTextStyle = isCompact
+            ? const TextStyle(fontSize: 13)
+            : null;
 
         return Wrap(
           spacing: spacing,
@@ -181,20 +181,14 @@ class _HistoryPaginationBarState extends ConsumerState<HistoryPaginationBar> {
               visualDensity: iconVisualDensity,
               constraints: iconConstraints,
               padding: iconPadding,
-              onPressed:
-                  !disabled && state.hasPrevious
-                      ? () =>
-                          ref
-                              .read(historyPaginationProvider.notifier)
-                              .prev()
-                      : null,
+              onPressed: !disabled && state.hasPrevious
+                  ? () => ref.read(historyPaginationProvider.notifier).prev()
+                  : null,
             ),
             for (final item in visiblePages)
               if (item.isEllipsis)
                 Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isCompact ? 2 : 4,
-                  ),
+                  padding: EdgeInsets.symmetric(horizontal: isCompact ? 2 : 4),
                   child: Text(
                     '…',
                     style: isCompact
@@ -215,13 +209,9 @@ class _HistoryPaginationBarState extends ConsumerState<HistoryPaginationBar> {
               visualDensity: iconVisualDensity,
               constraints: iconConstraints,
               padding: iconPadding,
-              onPressed:
-                  !disabled && state.hasNext
-                      ? () =>
-                          ref
-                              .read(historyPaginationProvider.notifier)
-                              .next()
-                      : null,
+              onPressed: !disabled && state.hasNext
+                  ? () => ref.read(historyPaginationProvider.notifier).next()
+                  : null,
             ),
             SizedBox(width: spacing),
             SizedBox(

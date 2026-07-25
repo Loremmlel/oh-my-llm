@@ -38,8 +38,7 @@ abstract class MediaHttpHandlerBase implements HttpRouteHandler {
       final relativePath = extractPath(request);
       await handleSafe(request, relativePath);
     } on PathTraversalException catch (e) {
-      writeJsonError(
-          request.response, HttpStatus.forbidden, '路径穿越被拒绝: $e');
+      writeJsonError(request.response, HttpStatus.forbidden, '路径穿越被拒绝: $e');
     } on FileSystemException catch (e) {
       final status = e.osError?.errorCode == 2
           ? HttpStatus.notFound
@@ -48,7 +47,10 @@ abstract class MediaHttpHandlerBase implements HttpRouteHandler {
     } catch (e) {
       if (await onUnhandledError(request, e)) return;
       writeJsonError(
-          request.response, HttpStatus.internalServerError, '服务端错误: $e');
+        request.response,
+        HttpStatus.internalServerError,
+        '服务端错误: $e',
+      );
     }
   }
 

@@ -630,15 +630,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   _editingMessageId = null;
                   _preEditSnapshot = null;
                 });
-                await ref.read(chatSessionsProvider.notifier).editMessage(
-                  messageId: editId,
-                  nextContent: templatedMessage.content,
-                  userMessageSegments: templatedMessage.userMessageSegments,
-                  templatePromptId: selectedTemplatePrompt?.id,
-                  templateVariableValues: _resolveTemplatePromptValues(
-                    selectedTemplatePrompt,
-                  ),
-                );
+                await ref
+                    .read(chatSessionsProvider.notifier)
+                    .editMessage(
+                      messageId: editId,
+                      nextContent: templatedMessage.content,
+                      userMessageSegments: templatedMessage.userMessageSegments,
+                      templatePromptId: selectedTemplatePrompt?.id,
+                      templateVariableValues: _resolveTemplatePromptValues(
+                        selectedTemplatePrompt,
+                      ),
+                    );
               } else {
                 await _sendMessageContent(
                   content: templatedMessage.content,
@@ -851,8 +853,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   void _toggleComposerCollapsed() {
     // 编辑中且当前展开时禁止折叠，避免输入区被收起后看不到编辑内容。
-    if (_editingMessageId != null &&
-        !ref.read(composerCollapsedProvider)) {
+    if (_editingMessageId != null && !ref.read(composerCollapsedProvider)) {
       return;
     }
     ref.read(composerCollapsedProvider.notifier).toggle();
@@ -1017,10 +1018,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       ..selection = TextSelection.collapsed(offset: snapshot.bodyText.length);
 
     final conversation = ref.read(activeChatConversationProvider);
-    ref.read(composerDraftProvider.notifier).setBody(
-      conversation.id,
-      snapshot.bodyText,
-    );
+    ref
+        .read(composerDraftProvider.notifier)
+        .setBody(conversation.id, snapshot.bodyText);
 
     // 直接恢复到快照值，语义清晰且不绕过编辑保护逻辑。
     ref

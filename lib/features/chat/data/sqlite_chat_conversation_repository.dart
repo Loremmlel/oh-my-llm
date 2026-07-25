@@ -90,12 +90,9 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
               reasoningContent: row['reasoning_content'] as String,
               assistantModelDisplayName:
                   row['assistant_model_display_name'] as String,
-              appliedCheckpointTitle:
-                  row['applied_checkpoint_title'] as String,
+              appliedCheckpointTitle: row['applied_checkpoint_title'] as String,
               userMessageSegments:
-                  (jsonDecode(
-                            row['user_message_segments_json'] as String,
-                          )
+                  (jsonDecode(row['user_message_segments_json'] as String)
                           as List)
                       .map(
                         (segment) => UserMessageSegment.fromJson(
@@ -104,10 +101,10 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
                       )
                       .toList(growable: false),
               templatePromptId: row['template_prompt_id'] as String?,
-              templateVariableValues: (jsonDecode(
-                row['template_variable_values_json'] as String,
-              ) as Map<String, dynamic>)
-                  .map((k, v) => MapEntry(k, v as String)),
+              templateVariableValues:
+                  (jsonDecode(row['template_variable_values_json'] as String)
+                          as Map<String, dynamic>)
+                      .map((k, v) => MapEntry(k, v as String)),
               finishReason: row['finish_reason'] as String?,
             ),
           );
@@ -142,18 +139,20 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
     }
 
     return conversationRows
-        .map((row) => _buildConversation(
-              row: row,
-              nodes:
-                  nodesByConversationId[row['id'] as String] ??
-                  const <ChatMessage>[],
-              selections:
-                  selectionsByConversationId[row['id'] as String] ??
-                  const <String, String>{},
-              checkpoints:
-                  checkpointsByConversationId[row['id'] as String] ??
-                  const <ChatCheckpoint>[],
-            ))
+        .map(
+          (row) => _buildConversation(
+            row: row,
+            nodes:
+                nodesByConversationId[row['id'] as String] ??
+                const <ChatMessage>[],
+            selections:
+                selectionsByConversationId[row['id'] as String] ??
+                const <String, String>{},
+            checkpoints:
+                checkpointsByConversationId[row['id'] as String] ??
+                const <ChatCheckpoint>[],
+          ),
+        )
         .toList(growable: false);
   }
 
@@ -218,12 +217,9 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
             reasoningContent: row['reasoning_content'] as String,
             assistantModelDisplayName:
                 row['assistant_model_display_name'] as String,
-            appliedCheckpointTitle:
-                row['applied_checkpoint_title'] as String,
+            appliedCheckpointTitle: row['applied_checkpoint_title'] as String,
             userMessageSegments:
-                (jsonDecode(
-                          row['user_message_segments_json'] as String,
-                        )
+                (jsonDecode(row['user_message_segments_json'] as String)
                         as List)
                     .map(
                       (segment) => UserMessageSegment.fromJson(
@@ -232,10 +228,10 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
                     )
                     .toList(growable: false),
             templatePromptId: row['template_prompt_id'] as String?,
-            templateVariableValues: (jsonDecode(
-              row['template_variable_values_json'] as String,
-            ) as Map<String, dynamic>)
-                .map((k, v) => MapEntry(k, v as String)),
+            templateVariableValues:
+                (jsonDecode(row['template_variable_values_json'] as String)
+                        as Map<String, dynamic>)
+                    .map((k, v) => MapEntry(k, v as String)),
           ),
         )
         .toList(growable: false);
@@ -275,8 +271,7 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
             createdAt: DateTime.parse(row['created_at'] as String),
             parentCheckpointId: row['parent_checkpoint_id'] as String?,
             coveredUntilMessageId: row['covered_until_message_id'] as String?,
-            sourceMemoryPromptName:
-                row['source_memory_prompt_name'] as String,
+            sourceMemoryPromptName: row['source_memory_prompt_name'] as String,
           ),
         )
         .toList(growable: false);
@@ -312,8 +307,7 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
         orElse: () => ReasoningEffort.medium,
       ),
       excludedMessageIds:
-          (jsonDecode(row['excluded_message_ids_json'] as String)
-                  as List)
+          (jsonDecode(row['excluded_message_ids_json'] as String) as List)
               .whereType<String>()
               .toSet()
               .toList(growable: false),
@@ -401,8 +395,11 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
   }
 
   @override
-  List<ChatConversationSummary>
-  loadHistorySummaries({String keyword = '', int? limit, int? offset}) {
+  List<ChatConversationSummary> loadHistorySummaries({
+    String keyword = '',
+    int? limit,
+    int? offset,
+  }) {
     final where = _buildHistoryWhereClause(keyword);
 
     final sql = StringBuffer()
@@ -457,10 +454,12 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
   @override
   int countHistorySummaries({String keyword = ''}) {
     final where = _buildHistoryWhereClause(keyword);
-    final row = _database.connection.select(
-      'SELECT COUNT(*) AS total FROM conversations c ${where.whereClause}',
-      where.params,
-    ).first;
+    final row = _database.connection
+        .select(
+          'SELECT COUNT(*) AS total FROM conversations c ${where.whereClause}',
+          where.params,
+        )
+        .first;
     return row['total'] as int;
   }
 
@@ -550,10 +549,9 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
             normalized.autoRetryEnabled ? 1 : 0,
           ]);
 
-          db.execute(
-            'DELETE FROM messages WHERE conversation_id = ?',
-            [normalized.id],
-          );
+          db.execute('DELETE FROM messages WHERE conversation_id = ?', [
+            normalized.id,
+          ]);
           db.execute(
             'DELETE FROM conversation_branch_selections WHERE conversation_id = ?',
             [normalized.id],
@@ -590,13 +588,8 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
               message.createdAt.toIso8601String(),
             ]);
           }
-          for (final entry
-              in normalized.selectedChildByParentId.entries) {
-            selectionStatement.execute([
-              normalized.id,
-              entry.key,
-              entry.value,
-            ]);
+          for (final entry in normalized.selectedChildByParentId.entries) {
+            selectionStatement.execute([normalized.id, entry.key, entry.value]);
           }
           for (final checkpoint in normalized.checkpoints) {
             checkpointStatement.execute([
@@ -627,7 +620,8 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
 
   @override
   Future<void> saveConversation(ChatConversation conversation) async {
-    final shouldSave = conversation.hasMessages ||
+    final shouldSave =
+        conversation.hasMessages ||
         conversation.checkpoints.isNotEmpty ||
         (conversation.title?.trim().isNotEmpty ?? false);
     if (!shouldSave) return;

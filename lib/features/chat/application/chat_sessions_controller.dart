@@ -313,9 +313,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       conversation.selectedChildByParentId,
     );
     for (var i = 0; i < ancestorPath.length; i += 1) {
-      final parentId = i == 0
-          ? rootConversationParentId
-          : ancestorPath[i - 1];
+      final parentId = i == 0 ? rootConversationParentId : ancestorPath[i - 1];
       nextSelections[parentId] = ancestorPath[i];
     }
 

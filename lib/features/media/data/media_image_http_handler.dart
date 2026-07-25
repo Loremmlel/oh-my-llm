@@ -10,7 +10,7 @@ import 'media_mime_types.dart';
 /// 返回原始图片文件，使用流式传输避免大文件 OOM。
 class MediaImageHttpHandler extends MediaHttpHandlerBase {
   MediaImageHttpHandler({required super.scanner})
-      : super(urlPrefix: '/api/media/image/');
+    : super(urlPrefix: '/api/media/image/');
 
   @override
   Future<void> handleSafe(HttpRequest request, String relativePath) async {

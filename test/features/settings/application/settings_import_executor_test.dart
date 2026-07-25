@@ -36,11 +36,16 @@ class _ExecutorHarness extends Notifier<bool> {
   }
 
   Future<bool> triggerImport(SettingsExportData data) {
-    return const SettingsImportExecutor().executeImport(_capturedRef, data: data);
+    return const SettingsImportExecutor().executeImport(
+      _capturedRef,
+      data: data,
+    );
   }
 }
 
-final _harnessProvider = NotifierProvider<_ExecutorHarness, bool>(_ExecutorHarness.new);
+final _harnessProvider = NotifierProvider<_ExecutorHarness, bool>(
+  _ExecutorHarness.new,
+);
 
 // ── 工厂函数 ────────────────────────────────────────────────────────────────
 
@@ -133,27 +138,32 @@ void main() {
       expect(providers.first.id, 'provider-1');
     });
 
-    test('写入 memoryPrompts / presetPrompts / templatePrompts / fixedPromptSequences',
-        () async {
-      final harness = container.read(_harnessProvider.notifier);
-      final data = SettingsExportData(
-        modelProviders: const [],
-        memoryPrompts: [_memory(id: 'm1'), _memory(id: 'm2')],
-        presetPrompts: [_preset()],
-        templatePrompts: [_template()],
-        fixedPromptSequences: [_sequence()],
-      );
+    test(
+      '写入 memoryPrompts / presetPrompts / templatePrompts / fixedPromptSequences',
+      () async {
+        final harness = container.read(_harnessProvider.notifier);
+        final data = SettingsExportData(
+          modelProviders: const [],
+          memoryPrompts: [
+            _memory(id: 'm1'),
+            _memory(id: 'm2'),
+          ],
+          presetPrompts: [_preset()],
+          templatePrompts: [_template()],
+          fixedPromptSequences: [_sequence()],
+        );
 
-      final wrote = await harness.triggerImport(data);
+        final wrote = await harness.triggerImport(data);
 
-      expect(wrote, isTrue);
-      expect(container.read(memoryPromptsProvider).length, 2);
-      expect(container.read(presetPromptsProvider).length, 1);
-      expect(container.read(templatePromptsProvider).length, 1);
-      expect(container.read(fixedPromptSequencesProvider).length, 1);
-      // providers 未被触碰
-      expect(container.read(llmProviderConfigsProvider), isEmpty);
-    });
+        expect(wrote, isTrue);
+        expect(container.read(memoryPromptsProvider).length, 2);
+        expect(container.read(presetPromptsProvider).length, 1);
+        expect(container.read(templatePromptsProvider).length, 1);
+        expect(container.read(fixedPromptSequencesProvider).length, 1);
+        // providers 未被触碰
+        expect(container.read(llmProviderConfigsProvider), isEmpty);
+      },
+    );
 
     test('写入 autoRetrySettings（走 save 路径）', () async {
       final harness = container.read(_harnessProvider.notifier);

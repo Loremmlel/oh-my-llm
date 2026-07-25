@@ -10,13 +10,12 @@ import 'package:oh_my_llm/features/media/domain/models/video_item.dart';
 import '../helpers/media_test_helpers.dart';
 
 List<VideoItem> _videos(int count) => List.generate(
-      count,
-      (i) => VideoItem(name: 'v$i.mp4', relativePath: '/dir/v$i.mp4'),
-    );
+  count,
+  (i) => VideoItem(name: 'v$i.mp4', relativePath: '/dir/v$i.mp4'),
+);
 
-String _videoListJson(List<VideoItem> items) => jsonEncode(
-      items.map((v) => v.toJson()).toList(),
-    );
+String _videoListJson(List<VideoItem> items) =>
+    jsonEncode(items.map((v) => v.toJson()).toList());
 
 ProviderContainer _createContainer({
   required http.Client httpClient,
@@ -27,8 +26,9 @@ ProviderContainer _createContainer({
       httpClientProvider.overrideWithValue(
         CustomHeadersHttpClient(httpClient, {}),
       ),
-      mediaBrowserControllerProvider
-          .overrideWith(() => _StubBrowserController(browserState)),
+      mediaBrowserControllerProvider.overrideWith(
+        () => _StubBrowserController(browserState),
+      ),
     ],
   );
 }
@@ -50,12 +50,15 @@ void main() {
       );
       addTearDown(container.dispose);
 
-      final controller =
-          container.read(shufflePlaybackControllerProvider.notifier);
+      final controller = container.read(
+        shufflePlaybackControllerProvider.notifier,
+      );
       final result = await controller.startShuffle('/dir');
       expect(result, isNull);
-      expect(container.read(shufflePlaybackControllerProvider),
-          isA<ShufflePlaybackIdle>());
+      expect(
+        container.read(shufflePlaybackControllerProvider),
+        isA<ShufflePlaybackIdle>(),
+      );
     });
 
     test('HTTP 200 + 空列表 → 返回 null，回到 Idle', () async {
@@ -65,12 +68,15 @@ void main() {
       );
       addTearDown(container.dispose);
 
-      final controller =
-          container.read(shufflePlaybackControllerProvider.notifier);
+      final controller = container.read(
+        shufflePlaybackControllerProvider.notifier,
+      );
       final result = await controller.startShuffle('/dir');
       expect(result, isNull);
-      expect(container.read(shufflePlaybackControllerProvider),
-          isA<ShufflePlaybackIdle>());
+      expect(
+        container.read(shufflePlaybackControllerProvider),
+        isA<ShufflePlaybackIdle>(),
+      );
     });
 
     test('HTTP 200 + 有视频 → 返回 URL，状态 Active', () async {
@@ -81,8 +87,9 @@ void main() {
       );
       addTearDown(container.dispose);
 
-      final controller =
-          container.read(shufflePlaybackControllerProvider.notifier);
+      final controller = container.read(
+        shufflePlaybackControllerProvider.notifier,
+      );
       final result = await controller.startShuffle('/dir');
       expect(result, isNotNull);
       expect(result, contains('/api/media/video/'));
@@ -100,12 +107,15 @@ void main() {
       );
       addTearDown(container.dispose);
 
-      final controller =
-          container.read(shufflePlaybackControllerProvider.notifier);
+      final controller = container.read(
+        shufflePlaybackControllerProvider.notifier,
+      );
       final result = await controller.startShuffle('/dir');
       expect(result, isNull);
-      expect(container.read(shufflePlaybackControllerProvider),
-          isA<ShufflePlaybackIdle>());
+      expect(
+        container.read(shufflePlaybackControllerProvider),
+        isA<ShufflePlaybackIdle>(),
+      );
     });
 
     test('网络异常 → 回到 Idle', () async {
@@ -115,12 +125,15 @@ void main() {
       );
       addTearDown(container.dispose);
 
-      final controller =
-          container.read(shufflePlaybackControllerProvider.notifier);
+      final controller = container.read(
+        shufflePlaybackControllerProvider.notifier,
+      );
       final result = await controller.startShuffle('/dir');
       expect(result, isNull);
-      expect(container.read(shufflePlaybackControllerProvider),
-          isA<ShufflePlaybackIdle>());
+      expect(
+        container.read(shufflePlaybackControllerProvider),
+        isA<ShufflePlaybackIdle>(),
+      );
     });
 
     // Fisher-Yates 对 20 项 shuffle 后与原始顺序完全相同的概率为 1/20! ≈ 4×10⁻¹⁹，
@@ -134,13 +147,17 @@ void main() {
           browserState: const MediaBrowserState(server: testServer),
         );
 
-        final controller =
-            container.read(shufflePlaybackControllerProvider.notifier);
+        final controller = container.read(
+          shufflePlaybackControllerProvider.notifier,
+        );
         await controller.startShuffle('/dir');
-        final state = container.read(shufflePlaybackControllerProvider)
-            as ShufflePlaybackActive;
+        final state =
+            container.read(shufflePlaybackControllerProvider)
+                as ShufflePlaybackActive;
         final originalPaths = videos.map((v) => v.relativePath).toList();
-        final shuffledPaths = state.playlist.map((v) => v.relativePath).toList();
+        final shuffledPaths = state.playlist
+            .map((v) => v.relativePath)
+            .toList();
         if (shuffledPaths.join(',') != originalPaths.join(',')) {
           wasShuffled = true;
         }
@@ -158,8 +175,9 @@ void main() {
       );
       addTearDown(container.dispose);
 
-      final controller =
-          container.read(shufflePlaybackControllerProvider.notifier);
+      final controller = container.read(
+        shufflePlaybackControllerProvider.notifier,
+      );
       expect(controller.playNext(), isNull);
       expect(controller.playPrevious(), isNull);
     });
@@ -172,13 +190,15 @@ void main() {
       );
       addTearDown(container.dispose);
 
-      final controller =
-          container.read(shufflePlaybackControllerProvider.notifier);
+      final controller = container.read(
+        shufflePlaybackControllerProvider.notifier,
+      );
       await controller.startShuffle('/dir');
       final url = controller.playNext();
       expect(url, isNotNull);
-      final state = container.read(shufflePlaybackControllerProvider)
-          as ShufflePlaybackActive;
+      final state =
+          container.read(shufflePlaybackControllerProvider)
+              as ShufflePlaybackActive;
       expect(state.currentIndex, 1);
     });
 
@@ -190,8 +210,9 @@ void main() {
       );
       addTearDown(container.dispose);
 
-      final controller =
-          container.read(shufflePlaybackControllerProvider.notifier);
+      final controller = container.read(
+        shufflePlaybackControllerProvider.notifier,
+      );
       await controller.startShuffle('/dir');
       controller.playNext();
       controller.playNext();
@@ -206,14 +227,16 @@ void main() {
       );
       addTearDown(container.dispose);
 
-      final controller =
-          container.read(shufflePlaybackControllerProvider.notifier);
+      final controller = container.read(
+        shufflePlaybackControllerProvider.notifier,
+      );
       await controller.startShuffle('/dir');
       controller.playNext();
       final url = controller.playPrevious();
       expect(url, isNotNull);
-      final state = container.read(shufflePlaybackControllerProvider)
-          as ShufflePlaybackActive;
+      final state =
+          container.read(shufflePlaybackControllerProvider)
+              as ShufflePlaybackActive;
       expect(state.currentIndex, 0);
     });
 
@@ -225,8 +248,9 @@ void main() {
       );
       addTearDown(container.dispose);
 
-      final controller =
-          container.read(shufflePlaybackControllerProvider.notifier);
+      final controller = container.read(
+        shufflePlaybackControllerProvider.notifier,
+      );
       await controller.startShuffle('/dir');
       expect(controller.playPrevious(), isNull);
     });
@@ -241,15 +265,18 @@ void main() {
       );
       addTearDown(container.dispose);
 
-      final controller =
-          container.read(shufflePlaybackControllerProvider.notifier);
+      final controller = container.read(
+        shufflePlaybackControllerProvider.notifier,
+      );
       await controller.startShuffle('/dir');
       final state = container.read(shufflePlaybackControllerProvider);
       expect(state, isA<ShufflePlaybackActive>());
       expect((state as ShufflePlaybackActive).isLast, isTrue);
       controller.onPlayerExited();
-      expect(container.read(shufflePlaybackControllerProvider),
-          isA<ShufflePlaybackIdle>());
+      expect(
+        container.read(shufflePlaybackControllerProvider),
+        isA<ShufflePlaybackIdle>(),
+      );
     });
 
     test('非末尾视频退出 → 保持 Active', () async {
@@ -260,12 +287,15 @@ void main() {
       );
       addTearDown(container.dispose);
 
-      final controller =
-          container.read(shufflePlaybackControllerProvider.notifier);
+      final controller = container.read(
+        shufflePlaybackControllerProvider.notifier,
+      );
       await controller.startShuffle('/dir');
       controller.onPlayerExited();
-      expect(container.read(shufflePlaybackControllerProvider),
-          isA<ShufflePlaybackActive>());
+      expect(
+        container.read(shufflePlaybackControllerProvider),
+        isA<ShufflePlaybackActive>(),
+      );
     });
   });
 
@@ -278,14 +308,19 @@ void main() {
       );
       addTearDown(container.dispose);
 
-      final controller =
-          container.read(shufflePlaybackControllerProvider.notifier);
+      final controller = container.read(
+        shufflePlaybackControllerProvider.notifier,
+      );
       await controller.startShuffle('/dir');
-      expect(container.read(shufflePlaybackControllerProvider),
-          isA<ShufflePlaybackActive>());
+      expect(
+        container.read(shufflePlaybackControllerProvider),
+        isA<ShufflePlaybackActive>(),
+      );
       controller.clearIfDirectoryChanged('/other');
-      expect(container.read(shufflePlaybackControllerProvider),
-          isA<ShufflePlaybackIdle>());
+      expect(
+        container.read(shufflePlaybackControllerProvider),
+        isA<ShufflePlaybackIdle>(),
+      );
     });
 
     test('目录相同 → 保持 Active', () async {
@@ -296,12 +331,15 @@ void main() {
       );
       addTearDown(container.dispose);
 
-      final controller =
-          container.read(shufflePlaybackControllerProvider.notifier);
+      final controller = container.read(
+        shufflePlaybackControllerProvider.notifier,
+      );
       await controller.startShuffle('/dir');
       controller.clearIfDirectoryChanged('/dir');
-      expect(container.read(shufflePlaybackControllerProvider),
-          isA<ShufflePlaybackActive>());
+      expect(
+        container.read(shufflePlaybackControllerProvider),
+        isA<ShufflePlaybackActive>(),
+      );
     });
   });
 
@@ -314,14 +352,19 @@ void main() {
       );
       addTearDown(container.dispose);
 
-      final controller =
-          container.read(shufflePlaybackControllerProvider.notifier);
+      final controller = container.read(
+        shufflePlaybackControllerProvider.notifier,
+      );
       await controller.startShuffle('/dir');
-      expect(container.read(shufflePlaybackControllerProvider),
-          isA<ShufflePlaybackActive>());
+      expect(
+        container.read(shufflePlaybackControllerProvider),
+        isA<ShufflePlaybackActive>(),
+      );
       controller.reset();
-      expect(container.read(shufflePlaybackControllerProvider),
-          isA<ShufflePlaybackIdle>());
+      expect(
+        container.read(shufflePlaybackControllerProvider),
+        isA<ShufflePlaybackIdle>(),
+      );
     });
   });
 
@@ -333,8 +376,9 @@ void main() {
       );
       addTearDown(container.dispose);
 
-      final controller =
-          container.read(shufflePlaybackControllerProvider.notifier);
+      final controller = container.read(
+        shufflePlaybackControllerProvider.notifier,
+      );
       expect(controller.buildVideoUrl('/test.mp4'), isNull);
     });
 
@@ -345,8 +389,9 @@ void main() {
       );
       addTearDown(container.dispose);
 
-      final controller =
-          container.read(shufflePlaybackControllerProvider.notifier);
+      final controller = container.read(
+        shufflePlaybackControllerProvider.notifier,
+      );
       final url = controller.buildVideoUrl('/test.mp4');
       expect(url, 'http://192.168.1.5:8080/api/media/video/test.mp4');
     });
@@ -358,8 +403,9 @@ void main() {
       );
       addTearDown(container.dispose);
 
-      final controller =
-          container.read(shufflePlaybackControllerProvider.notifier);
+      final controller = container.read(
+        shufflePlaybackControllerProvider.notifier,
+      );
       final url = controller.buildVideoUrl('/妹妹/视频.mp4');
       expect(url, contains('%E5%A6%B9%E5%A6%B9'));
       expect(url, contains('%E8%A7%86%E9%A2%91'));

@@ -39,7 +39,9 @@ void main() {
 
     setUp(() {
       tempDir = Directory.systemTemp.createTempSync('thumbnail_http_test_');
-      cacheTempDir = Directory.systemTemp.createTempSync('thumbnail_http_cache_');
+      cacheTempDir = Directory.systemTemp.createTempSync(
+        'thumbnail_http_cache_',
+      );
       scanner = MediaDirectoryScanner(tempDir.path);
       cache = MediaThumbnailCache.custom(
         Directory('${cacheTempDir.path}/.cache/thumbnails'),
@@ -55,8 +57,12 @@ void main() {
 
     tearDown(() {
       // try-catch 防御 Windows 文件锁：缓存文件可能尚未被 OS 释放
-      try { tempDir.deleteSync(recursive: true); } catch (_) {}
-      try { cacheTempDir.deleteSync(recursive: true); } catch (_) {}
+      try {
+        tempDir.deleteSync(recursive: true);
+      } catch (_) {}
+      try {
+        cacheTempDir.deleteSync(recursive: true);
+      } catch (_) {}
     });
 
     group('handle — 图片缩略图', () {
@@ -73,12 +79,15 @@ void main() {
           final url = Uri.parse(
             'http://localhost:${serverInfo.port}/api/media/thumbnail/photo.png',
           );
-          final response = await http.get(url).timeout(
-            const Duration(seconds: 10),
-          );
+          final response = await http
+              .get(url)
+              .timeout(const Duration(seconds: 10));
 
-          expect(response.statusCode, 200,
-              reason: 'Response body: ${response.body}');
+          expect(
+            response.statusCode,
+            200,
+            reason: 'Response body: ${response.body}',
+          );
           expect(response.headers['content-type'], contains('image/jpeg'));
           // JPEG 以 0xFF 0xD8 开头
           expect(response.bodyBytes[0], 0xFF);
@@ -151,9 +160,13 @@ void main() {
       });
 
       test('中文路径正常工作', () async {
-        final chineseDir = Directory('${tempDir.path}${Platform.pathSeparator}妹妹');
+        final chineseDir = Directory(
+          '${tempDir.path}${Platform.pathSeparator}妹妹',
+        );
         chineseDir.createSync();
-        final imgFile = File('${chineseDir.path}${Platform.pathSeparator}照片.png');
+        final imgFile = File(
+          '${chineseDir.path}${Platform.pathSeparator}照片.png',
+        );
         await imgFile.writeAsBytes(validPng);
 
         final serverInfo = await _startTestServer(

@@ -56,15 +56,13 @@ Future<AppDatabase> pumpTestApp(
       child: router != null
           ? MaterialApp.router(
               routerConfig: router,
-              builder: (context, child) => Stack(
-                children: [child!, const NotificationBubbleStack()],
-              ),
+              builder: (context, child) =>
+                  Stack(children: [child!, const NotificationBubbleStack()]),
             )
           : MaterialApp(
               home: child,
-              builder: (context, child) => Stack(
-                children: [child!, const NotificationBubbleStack()],
-              ),
+              builder: (context, child) =>
+                  Stack(children: [child!, const NotificationBubbleStack()]),
             ),
     ),
   );

@@ -39,8 +39,9 @@ class SyncHttpHandler implements HttpRouteHandler {
         return;
       }
 
-      final response =
-          await onRequest(message).timeout(const Duration(seconds: 15));
+      final response = await onRequest(
+        message,
+      ).timeout(const Duration(seconds: 15));
       _writeJsonResponse(request, response);
     } on TimeoutException {
       final error = SyncMessage.error(

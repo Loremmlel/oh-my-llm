@@ -25,7 +25,11 @@ extension NotificationBubbleContextExt on BuildContext {
 
   /// 显示成功通知。
   void showSuccessBubble(String message, {Duration? duration}) {
-    showBubble(message, type: NotificationBubbleType.success, duration: duration);
+    showBubble(
+      message,
+      type: NotificationBubbleType.success,
+      duration: duration,
+    );
   }
 
   /// 显示错误通知。
@@ -35,6 +39,10 @@ extension NotificationBubbleContextExt on BuildContext {
 
   /// 显示警告通知。
   void showWarningBubble(String message, {Duration? duration}) {
-    showBubble(message, type: NotificationBubbleType.warning, duration: duration);
+    showBubble(
+      message,
+      type: NotificationBubbleType.warning,
+      duration: duration,
+    );
   }
 }

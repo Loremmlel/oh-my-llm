@@ -14,9 +14,9 @@ void main() {
       tempRoot = Directory.systemTemp.createTempSync('media_scanner_test_');
       subDir = Directory('${tempRoot.path}${Platform.pathSeparator}subdir');
       subDir.createSync();
-      File('${subDir.path}${Platform.pathSeparator}test.jpg').writeAsStringSync(
-        'fake image content',
-      );
+      File(
+        '${subDir.path}${Platform.pathSeparator}test.jpg',
+      ).writeAsStringSync('fake image content');
     });
 
     tearDown(() {
@@ -53,8 +53,9 @@ void main() {
         '${tempRoot.path}${Platform.pathSeparator}妹妹',
       );
       chineseDir.createSync();
-      File('${chineseDir.path}${Platform.pathSeparator}照片.jpg')
-          .writeAsStringSync('photo');
+      File(
+        '${chineseDir.path}${Platform.pathSeparator}照片.jpg',
+      ).writeAsStringSync('photo');
 
       scanner = createScanner();
       final resolved = scanner.resolvePath('/妹妹');
@@ -98,14 +99,18 @@ void main() {
       scanner = MediaDirectoryScanner(tempRoot.path);
 
       // 创建测试目录结构
-      Directory('${tempRoot.path}${Platform.pathSeparator}folderB').createSync();
-      Directory('${tempRoot.path}${Platform.pathSeparator}folderA').createSync();
-      File('${tempRoot.path}${Platform.pathSeparator}bbb.mp4').writeAsStringSync(
-        'video',
-      );
-      File('${tempRoot.path}${Platform.pathSeparator}aaa.mp4').writeAsStringSync(
-        'video',
-      );
+      Directory(
+        '${tempRoot.path}${Platform.pathSeparator}folderB',
+      ).createSync();
+      Directory(
+        '${tempRoot.path}${Platform.pathSeparator}folderA',
+      ).createSync();
+      File(
+        '${tempRoot.path}${Platform.pathSeparator}bbb.mp4',
+      ).writeAsStringSync('video');
+      File(
+        '${tempRoot.path}${Platform.pathSeparator}aaa.mp4',
+      ).writeAsStringSync('video');
     });
 
     tearDown(() {
@@ -169,23 +174,28 @@ void main() {
       //   images/
       //     photo.jpg
       //   empty/
-      Directory('${tempRoot.path}${Platform.pathSeparator}sub'
-              '${Platform.pathSeparator}deep')
-          .createSync(recursive: true);
+      Directory(
+        '${tempRoot.path}${Platform.pathSeparator}sub'
+        '${Platform.pathSeparator}deep',
+      ).createSync(recursive: true);
       Directory('${tempRoot.path}${Platform.pathSeparator}images').createSync();
       Directory('${tempRoot.path}${Platform.pathSeparator}empty').createSync();
 
-      File('${tempRoot.path}${Platform.pathSeparator}video1.mp4')
-          .writeAsStringSync('video1');
-      File('${tempRoot.path}${Platform.pathSeparator}sub'
-              '${Platform.pathSeparator}video2.mkv')
-          .writeAsStringSync('video2');
-      File('${tempRoot.path}${Platform.pathSeparator}sub'
-              '${Platform.pathSeparator}deep${Platform.pathSeparator}video3.avi')
-          .writeAsStringSync('video3');
-      File('${tempRoot.path}${Platform.pathSeparator}images'
-              '${Platform.pathSeparator}photo.jpg')
-          .writeAsStringSync('photo');
+      File(
+        '${tempRoot.path}${Platform.pathSeparator}video1.mp4',
+      ).writeAsStringSync('video1');
+      File(
+        '${tempRoot.path}${Platform.pathSeparator}sub'
+        '${Platform.pathSeparator}video2.mkv',
+      ).writeAsStringSync('video2');
+      File(
+        '${tempRoot.path}${Platform.pathSeparator}sub'
+        '${Platform.pathSeparator}deep${Platform.pathSeparator}video3.avi',
+      ).writeAsStringSync('video3');
+      File(
+        '${tempRoot.path}${Platform.pathSeparator}images'
+        '${Platform.pathSeparator}photo.jpg',
+      ).writeAsStringSync('photo');
     });
 
     tearDown(() {
@@ -222,8 +232,9 @@ void main() {
     });
 
     test('隐藏文件被过滤', () async {
-      File('${tempRoot.path}${Platform.pathSeparator}.hidden.mp4')
-          .writeAsStringSync('hidden');
+      File(
+        '${tempRoot.path}${Platform.pathSeparator}.hidden.mp4',
+      ).writeAsStringSync('hidden');
       final videos = await scanner.scanRecursiveVideos('/');
       expect(videos.any((v) => v.name == '.hidden.mp4'), isFalse);
     });

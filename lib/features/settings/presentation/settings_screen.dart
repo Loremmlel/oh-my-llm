@@ -82,9 +82,7 @@ class SettingsScreen extends ConsumerStatefulWidget {
 class _SettingsScreenState extends ConsumerState<SettingsScreen>
     with TickerProviderStateMixin {
   static const _importDeduplicator = SettingsImportDeduplicator();
-  static final _presetPromptCopySuffixPattern = RegExp(
-    r'^(.+?)（副本(?: \d+)?）$',
-  );
+  static final _presetPromptCopySuffixPattern = RegExp(r'^(.+?)（副本(?: \d+)?）$');
 
   late final TabController _tabController;
 
@@ -175,8 +173,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                       title: '服务商设置',
                       description: '管理服务商与其下模型。聊天页会记住最近一次使用的模型。',
                       action: FilledButton.icon(
-                        onPressed: () =>
-                            _showModelProviderDialog(context, ref),
+                        onPressed: () => _showModelProviderDialog(context, ref),
                         icon: const Icon(Icons.add_rounded),
                         label: const Text('新增服务商'),
                       ),
@@ -217,19 +214,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                       description:
                           '配置可在聊天页选择的预设 Prompt，支持 system、前置、最新输入前与后置上下文，并记住最近一次使用的选择。',
                       action: FilledButton.icon(
-                        onPressed: () =>
-                            _showPresetPromptDialog(context, ref),
+                        onPressed: () => _showPresetPromptDialog(context, ref),
                         icon: const Icon(Icons.add_rounded),
                         label: const Text('新增预设'),
                       ),
                       child: PresetPromptsList(
                         templates: presetPrompts,
                         onDuplicateRequested: (template) {
-                          return _duplicatePresetPrompt(
-                            context,
-                            ref,
-                            template,
-                          );
+                          return _duplicatePresetPrompt(context, ref, template);
                         },
                         onEditRequested: (template) {
                           _showPresetPromptDialog(
@@ -248,11 +240,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                   children: [
                     SettingsSectionCard(
                       title: '记忆总结提示词',
-                      description:
-                          '配置聊天页创建检查点时可选择的总结提示词，用于适配不同场景下的记忆沉淀方式。',
+                      description: '配置聊天页创建检查点时可选择的总结提示词，用于适配不同场景下的记忆沉淀方式。',
                       action: FilledButton.icon(
-                        onPressed: () =>
-                            _showMemoryPromptDialog(context, ref),
+                        onPressed: () => _showMemoryPromptDialog(context, ref),
                         icon: const Icon(Icons.add_rounded),
                         label: const Text('新增记忆提示词'),
                       ),
@@ -292,8 +282,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                     const SizedBox(height: 16),
                     SettingsSectionCard(
                       title: '固定顺序提示词',
-                      description:
-                          '配置可逐步发送的用户提示词序列，适合做模型对比测试，不会自动整组连发。',
+                      description: '配置可逐步发送的用户提示词序列，适合做模型对比测试，不会自动整组连发。',
                       action: FilledButton.icon(
                         onPressed: () =>
                             _showFixedPromptSequenceDialog(context, ref),
@@ -506,8 +495,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
             data.templatePrompts.isNotEmpty ||
             data.fixedPromptSequences.isNotEmpty;
       case _tabOther:
-        return data.autoRetrySettings != null ||
-            data.fontSizeSettings != null;
+        return data.autoRetrySettings != null || data.fontSizeSettings != null;
       case _tabNetwork:
         return data.customHeadersConfig != null &&
             data.customHeadersConfig!.headers.isNotEmpty;
@@ -651,12 +639,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
           },
           onBatchAdd: (items) async {
             final models = items
-                .map((item) => LlmProviderModelConfig(
-                      id: generateEntityId(),
-                      displayName: item.displayName,
-                      modelName: item.modelName,
-                      supportsReasoning: false,
-                    ))
+                .map(
+                  (item) => LlmProviderModelConfig(
+                    id: generateEntityId(),
+                    displayName: item.displayName,
+                    modelName: item.modelName,
+                    supportsReasoning: false,
+                  ),
+                )
                 .toList();
 
             final addedCount = await ref

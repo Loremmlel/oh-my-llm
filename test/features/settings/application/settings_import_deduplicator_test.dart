@@ -21,7 +21,12 @@ void main() {
     String name = '测试记忆',
     String content = 'hello world',
   }) {
-    return MemoryPrompt(id: id, name: name, content: content, updatedAt: testDate);
+    return MemoryPrompt(
+      id: id,
+      name: name,
+      content: content,
+      updatedAt: testDate,
+    );
   }
 
   PromptMessage msg({
@@ -31,7 +36,13 @@ void main() {
     String content = '你好',
     PromptMessagePlacement placement = PromptMessagePlacement.before,
   }) {
-    return PromptMessage(id: id, role: role, title: title, content: content, placement: placement);
+    return PromptMessage(
+      id: id,
+      role: role,
+      title: title,
+      content: content,
+      placement: placement,
+    );
   }
 
   PresetPrompt preset({
@@ -39,7 +50,12 @@ void main() {
     String name = '测试模板',
     List<PromptMessage>? messages,
   }) {
-    return PresetPrompt(id: id, name: name, messages: messages ?? [msg()], updatedAt: testDate);
+    return PresetPrompt(
+      id: id,
+      name: name,
+      messages: messages ?? [msg()],
+      updatedAt: testDate,
+    );
   }
 
   TemplatePromptVariable tplVar({
@@ -77,7 +93,12 @@ void main() {
     String name = '测试序列',
     List<FixedPromptSequenceStep>? steps,
   }) {
-    return FixedPromptSequence(id: id, name: name, steps: steps ?? [step()], updatedAt: testDate);
+    return FixedPromptSequence(
+      id: id,
+      name: name,
+      steps: steps ?? [step()],
+      updatedAt: testDate,
+    );
   }
 
   LlmProviderModelConfig model({
@@ -101,7 +122,13 @@ void main() {
     String apiKey = 'sk-abc123',
     List<LlmProviderModelConfig>? models,
   }) {
-    return LlmProviderConfig(id: id, name: name, apiUrl: apiUrl, apiKey: apiKey, models: models ?? [model()]);
+    return LlmProviderConfig(
+      id: id,
+      name: name,
+      apiUrl: apiUrl,
+      apiKey: apiKey,
+      models: models ?? [model()],
+    );
   }
 
   SettingsExportData export({
@@ -168,7 +195,12 @@ void main() {
 
     test('消息数量不同时 isEquivalent 返回 false', () {
       final existing = preset(messages: [msg()]);
-      final incoming = preset(messages: [msg(), msg(id: 'msg-2', content: '第二条')]);
+      final incoming = preset(
+        messages: [
+          msg(),
+          msg(id: 'msg-2', content: '第二条'),
+        ],
+      );
 
       expect(comparator.isEquivalent(existing, incoming), isFalse);
     });
@@ -189,7 +221,9 @@ void main() {
 
     test('消息角色不同时 isEquivalent 返回 false', () {
       final existing = preset(messages: [msg(role: PromptMessageRole.user)]);
-      final incoming = preset(messages: [msg(role: PromptMessageRole.assistant)]);
+      final incoming = preset(
+        messages: [msg(role: PromptMessageRole.assistant)],
+      );
 
       expect(comparator.isEquivalent(existing, incoming), isFalse);
     });
@@ -203,9 +237,10 @@ void main() {
     test('内容与变量完全相同时 isEquivalent 返回 true', () {
       final variables = [tplVar(name: '语气', defaultValue: '正式')];
       final existing = tpl(content: '请用{{语气}}回复', variables: variables);
-      final incoming = tpl(content: '请用{{语气}}回复', variables: [
-        tplVar(name: '语气', defaultValue: '正式'),
-      ]);
+      final incoming = tpl(
+        content: '请用{{语气}}回复',
+        variables: [tplVar(name: '语气', defaultValue: '正式')],
+      );
 
       expect(comparator.isEquivalent(existing, incoming), isTrue);
     });
@@ -219,14 +254,23 @@ void main() {
 
     test('变量数量不同时 isEquivalent 返回 false', () {
       final existing = tpl(variables: [tplVar(name: '语气')]);
-      final incoming = tpl(variables: [tplVar(name: '语气'), tplVar(name: '长度')]);
+      final incoming = tpl(
+        variables: [
+          tplVar(name: '语气'),
+          tplVar(name: '长度'),
+        ],
+      );
 
       expect(comparator.isEquivalent(existing, incoming), isFalse);
     });
 
     test('变量名称或默认值不同时 isEquivalent 返回 false', () {
-      final existing = tpl(variables: [tplVar(name: '语气', defaultValue: '正式')]);
-      final incoming = tpl(variables: [tplVar(name: '风格', defaultValue: '轻松')]);
+      final existing = tpl(
+        variables: [tplVar(name: '语气', defaultValue: '正式')],
+      );
+      final incoming = tpl(
+        variables: [tplVar(name: '风格', defaultValue: '轻松')],
+      );
 
       expect(comparator.isEquivalent(existing, incoming), isFalse);
     });
@@ -240,14 +284,20 @@ void main() {
     test('步骤完全相同时 isEquivalent 返回 true', () {
       final steps = [step(title: '步骤1', content: '你好')];
       final existing = seq(steps: steps);
-      final incoming = seq(steps: [step(title: '步骤1', content: '你好')]);
+      final incoming = seq(
+        steps: [step(title: '步骤1', content: '你好')],
+      );
 
       expect(comparator.isEquivalent(existing, incoming), isTrue);
     });
 
     test('步骤不同时 isEquivalent 返回 false', () {
-      final existing = seq(steps: [step(title: '步骤1', content: '你好')]);
-      final incoming = seq(steps: [step(title: '步骤2', content: '再见')]);
+      final existing = seq(
+        steps: [step(title: '步骤1', content: '你好')],
+      );
+      final incoming = seq(
+        steps: [step(title: '步骤2', content: '再见')],
+      );
 
       expect(comparator.isEquivalent(existing, incoming), isFalse);
     });
@@ -261,27 +311,46 @@ void main() {
     test('按 apiUrl+apiKey+modelName 过滤已存在的模型服务商', () {
       // 已有服务商：url1/key1 下有 gpt-4
       final existingProviders = [
-        provider(apiUrl: 'https://url1.example.com', apiKey: 'key1', models: [
-          model(modelName: 'gpt-4'),
-        ]),
+        provider(
+          apiUrl: 'https://url1.example.com',
+          apiKey: 'key1',
+          models: [model(modelName: 'gpt-4')],
+        ),
       ];
 
       // 导入数据：
       // p1: 相同 url1/key1，包含 gpt-4（重复）和 gpt-3.5（新）
       // p2: 相同 url1/key1，仅含 gpt-4（全部重复，整个服务商应被移除）
       // p3: 不同 url2/key2，含 gpt-4（不同服务商，不重复）
-      final data = export(modelProviders: [
-        provider(id: 'pvd-import-1', apiUrl: 'https://url1.example.com', apiKey: 'key1', models: [
-          model(modelName: 'gpt-4'),
-          model(id: 'model-2', displayName: 'GPT-3.5', modelName: 'gpt-3.5'),
-        ]),
-        provider(id: 'pvd-import-2', apiUrl: 'https://url1.example.com', apiKey: 'key1', models: [
-          model(modelName: 'gpt-4'),
-        ]),
-        provider(id: 'pvd-import-3', apiUrl: 'https://url2.example.com', apiKey: 'key2', models: [
-          model(modelName: 'gpt-4'),
-        ]),
-      ]);
+      final data = export(
+        modelProviders: [
+          provider(
+            id: 'pvd-import-1',
+            apiUrl: 'https://url1.example.com',
+            apiKey: 'key1',
+            models: [
+              model(modelName: 'gpt-4'),
+              model(
+                id: 'model-2',
+                displayName: 'GPT-3.5',
+                modelName: 'gpt-3.5',
+              ),
+            ],
+          ),
+          provider(
+            id: 'pvd-import-2',
+            apiUrl: 'https://url1.example.com',
+            apiKey: 'key1',
+            models: [model(modelName: 'gpt-4')],
+          ),
+          provider(
+            id: 'pvd-import-3',
+            apiUrl: 'https://url2.example.com',
+            apiKey: 'key2',
+            models: [model(modelName: 'gpt-4')],
+          ),
+        ],
+      );
 
       final result = deduplicator.deduplicate(
         data: data,
@@ -303,10 +372,12 @@ void main() {
 
     test('过滤已存在的记忆提示词', () {
       final existingMemoryPrompts = [mem(id: 'e-1', content: '常见的记忆内容')];
-      final data = export(memoryPrompts: [
-        mem(id: 'i-1', content: '常见的记忆内容'), // 重复
-        mem(id: 'i-2', content: '全新的记忆内容'), // 新
-      ]);
+      final data = export(
+        memoryPrompts: [
+          mem(id: 'i-1', content: '常见的记忆内容'), // 重复
+          mem(id: 'i-2', content: '全新的记忆内容'), // 新
+        ],
+      );
 
       final result = deduplicator.deduplicate(
         data: data,
@@ -323,12 +394,21 @@ void main() {
 
     test('过滤已存在的预设提示词模板', () {
       final existingPresetPrompts = [
-        preset(messages: [msg(content: '已有系统指令', role: PromptMessageRole.system)]),
+        preset(
+          messages: [msg(content: '已有系统指令', role: PromptMessageRole.system)],
+        ),
       ];
-      final data = export(presetPrompts: [
-        preset(messages: [msg(content: '已有系统指令', role: PromptMessageRole.system)]), // 重复
-        preset(id: 'pst-new', messages: [msg(content: '全新系统指令', role: PromptMessageRole.system)]), // 新
-      ]);
+      final data = export(
+        presetPrompts: [
+          preset(
+            messages: [msg(content: '已有系统指令', role: PromptMessageRole.system)],
+          ), // 重复
+          preset(
+            id: 'pst-new',
+            messages: [msg(content: '全新系统指令', role: PromptMessageRole.system)],
+          ), // 新
+        ],
+      );
 
       final result = deduplicator.deduplicate(
         data: data,
@@ -345,12 +425,24 @@ void main() {
 
     test('过滤已存在的模板提示词', () {
       final existingTemplatePrompts = [
-        tpl(content: '翻译成{{语言}}', variables: [tplVar(name: '语言', defaultValue: '英文')]),
+        tpl(
+          content: '翻译成{{语言}}',
+          variables: [tplVar(name: '语言', defaultValue: '英文')],
+        ),
       ];
-      final data = export(templatePrompts: [
-        tpl(content: '翻译成{{语言}}', variables: [tplVar(name: '语言', defaultValue: '英文')]), // 重复
-        tpl(id: 'tpl-new', content: '改写成{{风格}}', variables: [tplVar(name: '风格', defaultValue: '轻松')]), // 新
-      ]);
+      final data = export(
+        templatePrompts: [
+          tpl(
+            content: '翻译成{{语言}}',
+            variables: [tplVar(name: '语言', defaultValue: '英文')],
+          ), // 重复
+          tpl(
+            id: 'tpl-new',
+            content: '改写成{{风格}}',
+            variables: [tplVar(name: '风格', defaultValue: '轻松')],
+          ), // 新
+        ],
+      );
 
       final result = deduplicator.deduplicate(
         data: data,
@@ -367,12 +459,21 @@ void main() {
 
     test('过滤已存在的固定顺序提示词', () {
       final existingSequences = [
-        seq(steps: [step(title: '步骤1', content: '启动')]),
+        seq(
+          steps: [step(title: '步骤1', content: '启动')],
+        ),
       ];
-      final data = export(fixedPromptSequences: [
-        seq(steps: [step(title: '步骤1', content: '启动')]), // 重复
-        seq(id: 'seq-new', steps: [step(title: '步骤A', content: '初始化')]), // 新
-      ]);
+      final data = export(
+        fixedPromptSequences: [
+          seq(
+            steps: [step(title: '步骤1', content: '启动')],
+          ), // 重复
+          seq(
+            id: 'seq-new',
+            steps: [step(title: '步骤A', content: '初始化')],
+          ), // 新
+        ],
+      );
 
       final result = deduplicator.deduplicate(
         data: data,
@@ -406,15 +507,27 @@ void main() {
 
     test('所有已有数据均匹配时返回全空分类', () {
       final existingMemoryPrompts = [mem(content: '内容A')];
-      final existingPresetPrompts = [preset(messages: [msg(content: '消息A')])];
+      final existingPresetPrompts = [
+        preset(messages: [msg(content: '消息A')]),
+      ];
       final existingTemplatePrompts = [tpl(content: '模板A')];
-      final existingSequences = [seq(steps: [step(title: '步A', content: '内容A')])];
+      final existingSequences = [
+        seq(
+          steps: [step(title: '步A', content: '内容A')],
+        ),
+      ];
 
       final data = export(
         memoryPrompts: [mem(content: '内容A')],
-        presetPrompts: [preset(messages: [msg(content: '消息A')])],
+        presetPrompts: [
+          preset(messages: [msg(content: '消息A')]),
+        ],
         templatePrompts: [tpl(content: '模板A')],
-        fixedPromptSequences: [seq(steps: [step(title: '步A', content: '内容A')])],
+        fixedPromptSequences: [
+          seq(
+            steps: [step(title: '步A', content: '内容A')],
+          ),
+        ],
       );
 
       final result = deduplicator.deduplicate(
@@ -434,7 +547,10 @@ void main() {
     });
 
     test('不传 existingAutoRetrySettings 时 autoRetrySettings 透传', () {
-      const autoRetry = AutoRetrySettings(maxJitterSeconds: 20, maxRetryCount: 5);
+      const autoRetry = AutoRetrySettings(
+        maxJitterSeconds: 20,
+        maxRetryCount: 5,
+      );
       final data = export(
         memoryPrompts: [mem(content: '新记忆')],
         autoRetrySettings: autoRetry,
@@ -456,23 +572,24 @@ void main() {
       expect(result.memoryPrompts.length, 1);
     });
 
-    test('不传 existingAutoRetrySettings 时 data 仅含 autoRetry 则 hasContent 为 true', () {
-      final data = export(
-        autoRetrySettings: const AutoRetrySettings(),
-      );
+    test(
+      '不传 existingAutoRetrySettings 时 data 仅含 autoRetry 则 hasContent 为 true',
+      () {
+        final data = export(autoRetrySettings: const AutoRetrySettings());
 
-      final result = deduplicator.deduplicate(
-        data: data,
-        existingProviders: const [],
-        existingMemoryPrompts: const [],
-        existingPresetPrompts: const [],
-        existingTemplatePrompts: const [],
-        existingSequences: const [],
-      );
+        final result = deduplicator.deduplicate(
+          data: data,
+          existingProviders: const [],
+          existingMemoryPrompts: const [],
+          existingPresetPrompts: const [],
+          existingTemplatePrompts: const [],
+          existingSequences: const [],
+        );
 
-      expect(result.hasContent, isTrue);
-      expect(result.autoRetrySettings, isNotNull);
-    });
+        expect(result.hasContent, isTrue);
+        expect(result.autoRetrySettings, isNotNull);
+      },
+    );
 
     test('不传 existingFontSizeSettings 时 fontSizeSettings 透传', () {
       final data = export(
@@ -492,7 +609,10 @@ void main() {
     // ── 标量型配置去重 ──────────────────────────────────────────────
 
     test('autoRetrySettings 与本地一致时去重后为 null', () {
-      const autoRetry = AutoRetrySettings(maxJitterSeconds: 20, maxRetryCount: 5);
+      const autoRetry = AutoRetrySettings(
+        maxJitterSeconds: 20,
+        maxRetryCount: 5,
+      );
       final data = export(autoRetrySettings: autoRetry);
 
       final result = deduplicator.deduplicate(
@@ -509,8 +629,14 @@ void main() {
     });
 
     test('autoRetrySettings 与本地不同时保留远端值', () {
-      const existing = AutoRetrySettings(maxJitterSeconds: 15, maxRetryCount: 0);
-      const incoming = AutoRetrySettings(maxJitterSeconds: 30, maxRetryCount: 5);
+      const existing = AutoRetrySettings(
+        maxJitterSeconds: 15,
+        maxRetryCount: 0,
+      );
+      const incoming = AutoRetrySettings(
+        maxJitterSeconds: 30,
+        maxRetryCount: 5,
+      );
       final data = export(autoRetrySettings: incoming);
 
       final result = deduplicator.deduplicate(
@@ -529,9 +655,9 @@ void main() {
     });
 
     test('customHeadersConfig 与本地一致时去重后为 null', () {
-      const config = CustomHeadersConfig(headers: [
-        CustomHeaderEntry(key: 'X-Custom', value: 'test'),
-      ]);
+      const config = CustomHeadersConfig(
+        headers: [CustomHeaderEntry(key: 'X-Custom', value: 'test')],
+      );
       final data = export(customHeadersConfig: config);
 
       final result = deduplicator.deduplicate(
@@ -548,12 +674,12 @@ void main() {
     });
 
     test('customHeadersConfig 与本地不同时保留远端值', () {
-      const existing = CustomHeadersConfig(headers: [
-        CustomHeaderEntry(key: 'X-Old', value: 'old'),
-      ]);
-      const incoming = CustomHeadersConfig(headers: [
-        CustomHeaderEntry(key: 'X-New', value: 'new'),
-      ]);
+      const existing = CustomHeadersConfig(
+        headers: [CustomHeaderEntry(key: 'X-Old', value: 'old')],
+      );
+      const incoming = CustomHeadersConfig(
+        headers: [CustomHeaderEntry(key: 'X-New', value: 'new')],
+      );
       final data = export(customHeadersConfig: incoming);
 
       final result = deduplicator.deduplicate(
@@ -624,10 +750,13 @@ void main() {
     });
 
     test('全部标量配置与本地一致时 hasContent 为 false', () {
-      const autoRetry = AutoRetrySettings(maxJitterSeconds: 20, maxRetryCount: 5);
-      const customHeaders = CustomHeadersConfig(headers: [
-        CustomHeaderEntry(key: 'X-Custom', value: 'test'),
-      ]);
+      const autoRetry = AutoRetrySettings(
+        maxJitterSeconds: 20,
+        maxRetryCount: 5,
+      );
+      const customHeaders = CustomHeadersConfig(
+        headers: [CustomHeaderEntry(key: 'X-Custom', value: 'test')],
+      );
       const fontSize = FontSizeSettings(bodyFontSize: 18);
       final data = export(
         autoRetrySettings: autoRetry,

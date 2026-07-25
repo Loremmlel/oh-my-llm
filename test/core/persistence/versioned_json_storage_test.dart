@@ -48,9 +48,20 @@ void main() {
     const rejectionCases = <(String, Object)>[
       ('non-integer version', {'version': 'v1', 'items': <dynamic>[]}),
       ('non-list items', {'version': 1, 'items': 'not-a-list'}),
-      ('items containing non-map entries', {'version': 1, 'items': [null]}),
+      (
+        'items containing non-map entries',
+        {
+          'version': 1,
+          'items': [null],
+        },
+      ),
       ('non-object JSON', 'plain string'),
-      ('plain array JSON', [{'id': 'item-1'}]),
+      (
+        'plain array JSON',
+        [
+          {'id': 'item-1'},
+        ],
+      ),
     ];
 
     for (final (name, payload) in rejectionCases) {
@@ -124,7 +135,9 @@ void main() {
       );
       final decoded = jsonDecode(encoded) as Map;
       expect(decoded['version'], VersionedJsonStorage.currentSchemaVersion);
-      expect(decoded['items'], [{'id': 'x'}]);
+      expect(decoded['items'], [
+        {'id': 'x'},
+      ]);
     });
 
     test('encodes empty list', () {

@@ -116,28 +116,31 @@ class MediaDirectoryScanner {
       // 计算相对路径：去除根目录前缀
       final relToRoot = entity.absolute.path.substring(resolvedRoot.length);
       // Windows 反斜杠统一为正斜杠
-      final relativePath = '/${relToRoot.replaceAll('\\', '/')}'
-          .replaceAll(RegExp(r'/+'), '/');
+      final relativePath = '/${relToRoot.replaceAll('\\', '/')}'.replaceAll(
+        RegExp(r'/+'),
+        '/',
+      );
 
       final hasThumbnail = !isDir && (isImageFile(name) || isVideoFile(name));
 
-      items.add(FileItem(
-        name: name,
-        isDirectory: isDir,
-        sizeBytes: isDir ? 0 : stat.size,
-        relativePath: relativePath,
-        lastModified: stat.modified.millisecondsSinceEpoch,
-        mimeType: isDir ? null : mimeTypeFromExtension(name),
-        thumbnailUrl: hasThumbnail
-            ? '/api/media/thumbnail$relativePath'
-            : null,
-      ));
+      items.add(
+        FileItem(
+          name: name,
+          isDirectory: isDir,
+          sizeBytes: isDir ? 0 : stat.size,
+          relativePath: relativePath,
+          lastModified: stat.modified.millisecondsSinceEpoch,
+          mimeType: isDir ? null : mimeTypeFromExtension(name),
+          thumbnailUrl: hasThumbnail
+              ? '/api/media/thumbnail$relativePath'
+              : null,
+        ),
+      );
     }
 
     // 排序：文件夹在前，文件在后；同类型按名称升序（忽略大小写）
     items.sort((a, b) {
-      final dirCmp =
-          (b.isDirectory ? 1 : 0).compareTo(a.isDirectory ? 1 : 0);
+      final dirCmp = (b.isDirectory ? 1 : 0).compareTo(a.isDirectory ? 1 : 0);
       if (dirCmp != 0) return dirCmp;
       return a.name.toLowerCase().compareTo(b.name.toLowerCase());
     });
@@ -165,8 +168,10 @@ class MediaDirectoryScanner {
       if (!isVideoFile(name)) continue;
 
       final relToRoot = entity.absolute.path.substring(resolvedRoot.length);
-      final relPath =
-          '/${relToRoot.replaceAll('\\', '/')}'.replaceAll(RegExp(r'/+'), '/');
+      final relPath = '/${relToRoot.replaceAll('\\', '/')}'.replaceAll(
+        RegExp(r'/+'),
+        '/',
+      );
 
       videos.add(VideoItem(name: name, relativePath: relPath));
     }

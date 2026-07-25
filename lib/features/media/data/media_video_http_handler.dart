@@ -21,7 +21,7 @@ class _ParsedRange {
 /// 使用流式传输避免阻塞事件循环。
 class MediaVideoHttpHandler extends MediaHttpHandlerBase {
   MediaVideoHttpHandler({required super.scanner})
-      : super(urlPrefix: '/api/media/video/');
+    : super(urlPrefix: '/api/media/video/');
 
   @override
   Future<void> handleSafe(HttpRequest request, String relativePath) async {
@@ -41,7 +41,9 @@ class MediaVideoHttpHandler extends MediaHttpHandlerBase {
     final mimeType = mimeTypeFromExtension(relativePath);
 
     final rangeHeader = request.headers['range']?.single;
-    final range = rangeHeader != null ? _parseRange(rangeHeader, fileSize) : null;
+    final range = rangeHeader != null
+        ? _parseRange(rangeHeader, fileSize)
+        : null;
 
     if (rangeHeader != null && range == null) {
       _writeRangeNotSatisfiable(request.response, fileSize);
@@ -54,7 +56,10 @@ class MediaVideoHttpHandler extends MediaHttpHandlerBase {
       request.response
         ..statusCode = HttpStatus.partialContent
         ..headers.contentType = ContentType.parse(mimeType)
-        ..headers.set('Content-Range', 'bytes ${range.start}-${range.end}/$fileSize')
+        ..headers.set(
+          'Content-Range',
+          'bytes ${range.start}-${range.end}/$fileSize',
+        )
         ..headers.set('Content-Length', length.toString())
         ..headers.set('Accept-Ranges', 'bytes')
         ..headers.set('Access-Control-Allow-Origin', '*');

@@ -18,8 +18,9 @@ class DiscoveredServer {
   final int httpPort;
 }
 
-const MethodChannel _multicastChannel =
-    MethodChannel('yuzu.shiki.oh_my_llm/multicast_lock');
+const MethodChannel _multicastChannel = MethodChannel(
+  'yuzu.shiki.oh_my_llm/multicast_lock',
+);
 
 /// Android 上获取 MulticastLock 以允许接收 UDP 广播包。
 Future<void> _acquireMulticastLock() async {
@@ -91,7 +92,10 @@ class SyncUdpDiscovery {
     }
 
     sendBroadcast();
-    final timer = Timer.periodic(const Duration(seconds: 2), (_) => sendBroadcast());
+    final timer = Timer.periodic(
+      const Duration(seconds: 2),
+      (_) => sendBroadcast(),
+    );
 
     return () async {
       timer.cancel();

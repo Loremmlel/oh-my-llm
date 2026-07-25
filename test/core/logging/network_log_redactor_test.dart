@@ -69,7 +69,8 @@ void main() {
           redactor.redactPayload([
                 {'apiKey': 'secret1'},
                 {'api_key': 'secret2'},
-              ]) as List;
+              ])
+              as List;
 
       expect((payload[0] as Map)['apiKey'], '***');
       expect((payload[1] as Map)['api_key'], '***');
@@ -85,9 +86,7 @@ void main() {
     });
 
     test('masks JSON api key fields in text', () {
-      final result = redactor.redactText(
-        '{"apiKey": "sk-visible-in-json"}',
-      );
+      final result = redactor.redactText('{"apiKey": "sk-visible-in-json"}');
       expect(result, '{"apiKey": "***"}');
     });
   });

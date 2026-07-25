@@ -28,8 +28,7 @@ enum BroadcastPrefixLength {
   InternetAddress computeBroadcast(InternetAddress addr) {
     final raw = addr.rawAddress;
     if (raw.length != 4) return addr;
-    final ipInt =
-        (raw[0] << 24) | (raw[1] << 16) | (raw[2] << 8) | raw[3];
+    final ipInt = (raw[0] << 24) | (raw[1] << 16) | (raw[2] << 8) | raw[3];
     final broadcastInt = ipInt | (~maskInt & 0xFFFFFFFF);
     return InternetAddress(
       '${(broadcastInt >> 24) & 0xFF}'

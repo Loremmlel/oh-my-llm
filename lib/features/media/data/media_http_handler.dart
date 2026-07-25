@@ -6,7 +6,7 @@ import 'media_http_handler_base.dart';
 /// 处理 `GET /api/media/list` 及 `GET /api/media/list/*` 请求的 Handler。
 class MediaHttpHandler extends MediaHttpHandlerBase {
   MediaHttpHandler({required super.scanner})
-      : super(urlPrefix: '/api/media/list');
+    : super(urlPrefix: '/api/media/list');
 
   @override
   bool canHandle(HttpRequest request) =>
@@ -18,8 +18,9 @@ class MediaHttpHandler extends MediaHttpHandlerBase {
   Future<void> handleSafe(HttpRequest request, String relativePath) async {
     final items = await scanner.scan(relativePath);
 
-    final json = const JsonEncoder.withIndent(null)
-        .convert(items.map((i) => i.toJson()).toList());
+    final json = const JsonEncoder.withIndent(
+      null,
+    ).convert(items.map((i) => i.toJson()).toList());
     request.response
       ..statusCode = HttpStatus.ok
       ..headers.contentType = ContentType.json

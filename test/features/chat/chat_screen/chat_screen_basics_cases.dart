@@ -158,64 +158,63 @@ void registerChatScreenBasicsTests() {
     },
   );
 
-  testWidgets(
-    'chat screen checkpoints dialog renders markdown preview',
-    (tester) async {
-      final fakeClient = FakeChatCompletionClient()
-        ..enqueueChunks(['首轮回复'])
-        ..enqueueChunks([
-          '# 检查点标题\n\n'
-              '- 第一条\n'
-              '- 第二条\n\n'
-              '```dart\n'
-              'void main() {\n'
-              "  print('hello');\n"
-              '}\n'
-              '```\n\n'
-              '${List.generate(24, (index) => '第 ${index + 1} 行详细内容。').join('\n\n')}',
-        ]);
+  testWidgets('chat screen checkpoints dialog renders markdown preview', (
+    tester,
+  ) async {
+    final fakeClient = FakeChatCompletionClient()
+      ..enqueueChunks(['首轮回复'])
+      ..enqueueChunks([
+        '# 检查点标题\n\n'
+            '- 第一条\n'
+            '- 第二条\n\n'
+            '```dart\n'
+            'void main() {\n'
+            "  print('hello');\n"
+            '}\n'
+            '```\n\n'
+            '${List.generate(24, (index) => '第 ${index + 1} 行详细内容。').join('\n\n')}',
+      ]);
 
-      await pumpChatScreen(tester, fakeClient: fakeClient);
+    await pumpChatScreen(tester, fakeClient: fakeClient);
 
-      final container = ProviderScope.containerOf(
-        tester.element(find.byType(ChatScreen)),
-      );
-      await container
-          .read(memoryPromptsProvider.notifier)
-          .upsert(
-            MemoryPrompt(
-              id: 'memory-1',
-              name: '研发总结',
-              content: '请总结当前研发对话中的关键事实、约束与待办。',
-              updatedAt: DateTime(2026, 5, 6),
-            ),
-          );
-      await tester.pumpAndSettle();
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
+    await container
+        .read(memoryPromptsProvider.notifier)
+        .upsert(
+          MemoryPrompt(
+            id: 'memory-1',
+            name: '研发总结',
+            content: '请总结当前研发对话中的关键事实、约束与待办。',
+            updatedAt: DateTime(2026, 5, 6),
+          ),
+        );
+    await tester.pumpAndSettle();
 
-      await sendMessage(tester, '先生成一点上下文');
-      await tester.pumpAndSettle();
+    await sendMessage(tester, '先生成一点上下文');
+    await tester.pumpAndSettle();
 
-      await container
-          .read(chatSessionsProvider.notifier)
-          .createCheckpoint(
-            modelConfig: container.read(llmModelConfigsProvider).single,
-            memoryPrompt: MemoryPrompt(
-              id: 'memory-1',
-              name: '研发总结',
-              content: '请总结当前研发对话中的关键事实、约束与待办。',
-              updatedAt: DateTime(2026, 5, 6),
-            ),
-            reasoningEnabled: false,
-            reasoningEffort: ReasoningEffort.medium,
-          );
-      await tester.pumpAndSettle();
+    await container
+        .read(chatSessionsProvider.notifier)
+        .createCheckpoint(
+          modelConfig: container.read(llmModelConfigsProvider).single,
+          memoryPrompt: MemoryPrompt(
+            id: 'memory-1',
+            name: '研发总结',
+            content: '请总结当前研发对话中的关键事实、约束与待办。',
+            updatedAt: DateTime(2026, 5, 6),
+          ),
+          reasoningEnabled: false,
+          reasoningEffort: ReasoningEffort.medium,
+        );
+    await tester.pumpAndSettle();
 
-      await tester.tap(find.byTooltip('对话检查点'));
-      await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('对话检查点'));
+    await tester.pumpAndSettle();
 
-      expect(find.text('检查点标题'), findsOneWidget);
-    },
-  );
+    expect(find.text('检查点标题'), findsOneWidget);
+  });
 
   testWidgets('chat screen can exclude a reply from future requests', (
     tester,

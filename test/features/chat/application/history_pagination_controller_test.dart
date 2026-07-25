@@ -60,14 +60,8 @@ void main() {
       expect(repo.countCallCount, 1);
     });
 
-    test('loadInitial 空串 keyword 下 hasAnyConversations 跟随 totalItems',
-        () {
-      final repo = FakeHistoryRepository(
-        pages: const [
-          [],
-        ],
-        countResult: 0,
-      );
+    test('loadInitial 空串 keyword 下 hasAnyConversations 跟随 totalItems', () {
+      final repo = FakeHistoryRepository(pages: const [[]], countResult: 0);
       final c = createContainer(repo);
 
       c.read(historyPaginationProvider.notifier).loadInitial();
@@ -79,12 +73,7 @@ void main() {
     });
 
     test('loadInitial 带 keyword 时 hasAnyConversations 恒为 true', () {
-      final repo = FakeHistoryRepository(
-        pages: const [
-          [],
-        ],
-        countResult: 0,
-      );
+      final repo = FakeHistoryRepository(pages: const [[]], countResult: 0);
       final c = createContainer(repo);
 
       c.read(historyPaginationProvider.notifier).loadInitial(keyword: 'foo');
@@ -113,8 +102,7 @@ void main() {
       expect(repo.countCallCount, 1); // goToPage 刷新总数
     });
 
-    test('goToPage 夹取越界页码（<1 视为 1，>totalPages 视为 totalPages）',
-        () {
+    test('goToPage 夹取越界页码（<1 视为 1，>totalPages 视为 totalPages）', () {
       final repo = FakeHistoryRepository(
         pages: [
           [summary('a')],
@@ -271,7 +259,9 @@ void main() {
       c.read(historyPaginationProvider.notifier).loadInitial();
       final countBefore = repo.countCallCount;
 
-      c.read(historyPaginationProvider.notifier).setKeyword('   '); // trim 后为 ''
+      c
+          .read(historyPaginationProvider.notifier)
+          .setKeyword('   '); // trim 后为 ''
 
       expect(repo.countCallCount, countBefore); // 不再重新调 count
     });

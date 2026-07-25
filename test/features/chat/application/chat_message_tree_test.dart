@@ -46,8 +46,11 @@ void main() {
     String content, {
     String reasoningContent = '',
   }) {
-    return assistantMsg(id, content, reasoningContent: reasoningContent)
-        .copyWith(parentId: parentId);
+    return assistantMsg(
+      id,
+      content,
+      reasoningContent: reasoningContent,
+    ).copyWith(parentId: parentId);
   }
 
   /// 创建基本会话。
@@ -98,10 +101,7 @@ void main() {
           userNode('u1', rootConversationParentId, '你好'),
           assistantNode('a1', 'u1', '你好！'),
         ],
-        selectedChildByParentId: {
-          rootConversationParentId: 'u1',
-          'u1': 'a1',
-        },
+        selectedChildByParentId: {rootConversationParentId: 'u1', 'u1': 'a1'},
       );
 
       final result = resolveMessageTreeState(tree);
@@ -158,10 +158,7 @@ void main() {
           userNode('u1', rootConversationParentId, '你好'),
           assistantNode('a1', 'u1', '回复1'),
         ],
-        selections: {
-          rootConversationParentId: 'u1',
-          'u1': 'a1',
-        },
+        selections: {rootConversationParentId: 'u1', 'u1': 'a1'},
       );
       final branchNode = assistantNode('a2', 'u1', '回复2');
 
@@ -248,10 +245,7 @@ void main() {
           userNode('u1', rootConversationParentId, '你好'),
           assistantNode('a1', 'u1', '旧回复'),
         ],
-        selections: {
-          rootConversationParentId: 'u1',
-          'u1': 'a1',
-        },
+        selections: {rootConversationParentId: 'u1', 'u1': 'a1'},
       );
 
       final result = replaceAssistantMessageInTree(
@@ -269,9 +263,7 @@ void main() {
 
     test('isStreaming 为 false 时正确更新为 false', () {
       final tree = ChatMessageTreeState(
-        nodes: [
-          assistantNode('a1', 'u1', '内容').copyWith(isStreaming: true),
-        ],
+        nodes: [assistantNode('a1', 'u1', '内容').copyWith(isStreaming: true)],
         selections: {},
       );
 
@@ -286,7 +278,6 @@ void main() {
       expect(result.nodes.single.isStreaming, isFalse);
       expect(result.nodes.single.content, '完成的内容');
     });
-
   });
 
   // ════════════════════════════════════════════════
@@ -300,10 +291,7 @@ void main() {
           userNode('u1', rootConversationParentId, '你好'),
           assistantNode('a1', 'u1', '回复1'),
         ],
-        selections: {
-          rootConversationParentId: 'u1',
-          'u1': 'a1',
-        },
+        selections: {rootConversationParentId: 'u1', 'u1': 'a1'},
       );
 
       final result = removeNodeFromTree(treeState: tree, nodeId: 'a1');
@@ -342,10 +330,7 @@ void main() {
           userNode('u1', rootConversationParentId, '你好'),
           assistantNode('a1', 'u1', '回复'),
         ],
-        selections: {
-          rootConversationParentId: 'u1',
-          'u1': 'a1',
-        },
+        selections: {rootConversationParentId: 'u1', 'u1': 'a1'},
       );
 
       final result = removeNodeFromTree(treeState: tree, nodeId: 'a1');
@@ -364,11 +349,7 @@ void main() {
           assistantNode('a1', 'u1', '回复1'),
           userNode('u2', 'a1', '消息2'),
         ],
-        selections: {
-          rootConversationParentId: 'u1',
-          'u1': 'a1',
-          'a1': 'u2',
-        },
+        selections: {rootConversationParentId: 'u1', 'u1': 'a1', 'a1': 'u2'},
       );
 
       final result = removeNodeFromTree(treeState: tree, nodeId: 'u2');

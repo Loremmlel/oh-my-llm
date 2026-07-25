@@ -112,10 +112,7 @@ class _NotificationBubbleStackState
     // 正序插入。
     for (var i = 0; i < newIds.length; i += 1) {
       if (!oldIdSet.contains(newIds[i])) {
-        listState.insertItem(
-          i,
-          duration: const Duration(milliseconds: 300),
-        );
+        listState.insertItem(i, duration: const Duration(milliseconds: 300));
       }
     }
   }
@@ -136,7 +133,11 @@ class _NotificationBubbleStackState
   // ── 列表项构建 ──────────────────────────────────────────────────
 
   /// 入场动画：从右侧滑入 + 淡入，300ms ease-out。
-  Widget _buildInsertItem(BuildContext context, int index, Animation<double> animation) {
+  Widget _buildInsertItem(
+    BuildContext context,
+    int index,
+    Animation<double> animation,
+  ) {
     if (index >= _displayed.length) return const SizedBox.shrink();
     final data = _displayed[index];
 
@@ -146,9 +147,10 @@ class _NotificationBubbleStackState
         end: Offset.zero,
       ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut)),
       child: FadeTransition(
-        opacity: Tween<double>(begin: 0.0, end: 1.0).animate(
-          CurvedAnimation(parent: animation, curve: Curves.easeOut),
-        ),
+        opacity: Tween<double>(
+          begin: 0.0,
+          end: 1.0,
+        ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut)),
         child: NotificationBubbleContent(
           data: data,
           onDismiss: () => _onDismiss(data.id),

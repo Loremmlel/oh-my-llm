@@ -33,7 +33,11 @@ class MediaThumbnailCache {
   /// 计算缓存 Key。
   ///
   /// 格式: `MD5(relativePath|fileSize|lastModified)`
-  static String computeKey(String relativePath, int fileSize, int lastModified) {
+  static String computeKey(
+    String relativePath,
+    int fileSize,
+    int lastModified,
+  ) {
     final input = '$relativePath|$fileSize|$lastModified';
     return md5.convert(utf8.encode(input)).toString();
   }
@@ -48,7 +52,12 @@ class MediaThumbnailCache {
   /// 写入缩略图到缓存。
   ///
   /// 若目录不存在则自动创建。
-  Future<File> put(String relativePath, int fileSize, int lastModified, List<int> jpegBytes) async {
+  Future<File> put(
+    String relativePath,
+    int fileSize,
+    int lastModified,
+    List<int> jpegBytes,
+  ) async {
     if (!_cacheDir.existsSync()) {
       _cacheDir.createSync(recursive: true);
     }

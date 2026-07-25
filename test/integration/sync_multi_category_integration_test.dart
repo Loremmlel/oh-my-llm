@@ -29,19 +29,19 @@ import 'package:oh_my_llm/features/sync/domain/models/sync_types.dart';
 // ── 工厂函数 ────────────────────────────────────────────────────────────────
 
 LlmProviderConfig _provider() => const LlmProviderConfig(
-      id: 'pvd-1',
-      name: 'TestProvider',
-      apiUrl: 'https://api.example.com/v1',
-      apiKey: 'sk-test-key',
-      models: [
-        LlmProviderModelConfig(
-          id: 'model-1',
-          displayName: 'TestModel',
-          modelName: 'test-model',
-          supportsReasoning: false,
-        ),
-      ],
-    );
+  id: 'pvd-1',
+  name: 'TestProvider',
+  apiUrl: 'https://api.example.com/v1',
+  apiKey: 'sk-test-key',
+  models: [
+    LlmProviderModelConfig(
+      id: 'model-1',
+      displayName: 'TestModel',
+      modelName: 'test-model',
+      supportsReasoning: false,
+    ),
+  ],
+);
 
 /// 测试用子类：注入预设 state。
 class _SeededSyncClientController extends SyncClientController {
@@ -108,7 +108,9 @@ void main() {
 
     final serverContainer = buildServerContainer();
     await serverContainer.read(syncServerControllerProvider.notifier).start();
-    final httpPort = serverContainer.read(syncServerControllerProvider).httpPort!;
+    final httpPort = serverContainer
+        .read(syncServerControllerProvider)
+        .httpPort!;
 
     final clientContainer = buildClientContainer(
       seed: SyncClientState(
@@ -162,7 +164,9 @@ void main() {
 
     final serverContainer = buildServerContainer();
     await serverContainer.read(syncServerControllerProvider.notifier).start();
-    final httpPort = serverContainer.read(syncServerControllerProvider).httpPort!;
+    final httpPort = serverContainer
+        .read(syncServerControllerProvider)
+        .httpPort!;
 
     final clientContainer = buildClientContainer(
       seed: SyncClientState(
@@ -194,8 +198,14 @@ void main() {
     expect(clientContainer.read(fixedPromptSequencesProvider), hasLength(1));
 
     expect(clientContainer.read(memoryPromptsProvider).first.id, 'memory-1');
-    expect(clientContainer.read(templatePromptsProvider).first.id, 'template-1');
-    expect(clientContainer.read(fixedPromptSequencesProvider).first.id, 'sequence-1');
+    expect(
+      clientContainer.read(templatePromptsProvider).first.id,
+      'template-1',
+    );
+    expect(
+      clientContainer.read(fixedPromptSequencesProvider).first.id,
+      'sequence-1',
+    );
   });
 
   // ── other 品类端到端 ────────────────────────────────────────────────────────
@@ -214,14 +224,16 @@ void main() {
       'settings.custom_headers',
       jsonEncode({
         'headers': [
-          {'key': 'X-Custom-Header', 'value': 'test-value'}
+          {'key': 'X-Custom-Header', 'value': 'test-value'},
         ],
       }),
     );
 
     final serverContainer = buildServerContainer();
     await serverContainer.read(syncServerControllerProvider.notifier).start();
-    final httpPort = serverContainer.read(syncServerControllerProvider).httpPort!;
+    final httpPort = serverContainer
+        .read(syncServerControllerProvider)
+        .httpPort!;
 
     // 由于 SharedPreferences 是单例，客户端与服务端读到相同配置。
     // 去重后应识别为"两端一致，无新数据"。
@@ -276,7 +288,9 @@ void main() {
 
     final serverContainer = buildServerContainer();
     await serverContainer.read(syncServerControllerProvider.notifier).start();
-    final httpPort = serverContainer.read(syncServerControllerProvider).httpPort!;
+    final httpPort = serverContainer
+        .read(syncServerControllerProvider)
+        .httpPort!;
 
     final clientContainer = buildClientContainer(
       seed: SyncClientState(
