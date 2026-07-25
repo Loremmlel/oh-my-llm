@@ -1,4 +1,11 @@
-/// 网络日志脱敏工具：仅对 API Key（含 Bearer token）做遮罩。
+/// 网络日志脱敏工具：对敏感 Header 和载荷字段做遮罩。
+///
+/// 安全默认策略：
+/// - 敏感 Header 键（authorization / cookie / token / secret 等）的值替换为 `***`
+/// - 敏感 JSON 字段（apikey / token / secret / password / credential）的值替换为 `***`
+/// - Bearer token 内联文本遮罩
+///
+/// 扩展新敏感模式时，更新 [_sensitiveHeaderKeys] 和 [_sensitivePayloadKeys] 即可。
 final class NetworkLogRedactor {
   static final RegExp _bearerPattern = RegExp(
     r'(Bearer\s+)([^\s",]+)',
@@ -10,13 +17,43 @@ final class NetworkLogRedactor {
     caseSensitive: false,
   );
 
+  /// 敏感 Header 键名集合（小写，用于 contains 匹配）。
+  ///
+  /// 任何包含这些子串的 Header 键，其值都会被遮罩。
+  /// 例如 `X-Proxy-Authorization` 包含 `authorization`，会被遮罩。
+  static const _sensitiveHeaderKeys = <String>{
+    'authorization',
+    'cookie',
+    'x-api-key',
+    'token',
+    'secret',
+  };
+
+  /// 敏感 JSON 载荷字段名集合（小写，用于精确匹配）。
+  static const _sensitivePayloadKeys = <String>{
+    'apikey',
+    'api_key',
+    'token',
+    'secret',
+    'password',
+    'credential',
+  };
+
   const NetworkLogRedactor();
+
+  /// 判断 [key] 是否为敏感 Header 键。
+  ///
+  /// 公开方法，供测试断言使用。
+  bool isSensitiveHeader(String key) {
+    final normalized = key.toLowerCase();
+    return _sensitiveHeaderKeys.any(normalized.contains);
+  }
 
   Map<String, String> redactHeaders(Map<String, String> headers) {
     final redacted = <String, String>{};
     for (final entry in headers.entries) {
-      if (entry.key.toLowerCase() == 'authorization') {
-        redacted[entry.key] = _redactBearer(entry.value);
+      if (isSensitiveHeader(entry.key)) {
+        redacted[entry.key] = '***';
         continue;
       }
       redacted[entry.key] = entry.value;
@@ -31,7 +68,7 @@ final class NetworkLogRedactor {
     if (payload is Map) {
       return payload.map((key, value) {
         final keyString = key.toString();
-        if (_looksLikeApiKeyField(keyString)) {
+        if (_looksLikeSensitiveField(keyString)) {
           return MapEntry(keyString, '***');
         }
         return MapEntry(keyString, redactPayload(value));
@@ -53,9 +90,9 @@ final class NetworkLogRedactor {
     });
   }
 
-  bool _looksLikeApiKeyField(String key) {
+  bool _looksLikeSensitiveField(String key) {
     final normalized = key.toLowerCase();
-    return normalized == 'apikey' || normalized == 'api_key';
+    return _sensitivePayloadKeys.contains(normalized);
   }
 
   String _redactBearer(String value) {
