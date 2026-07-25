@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/chat/data/chat_completion_client.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
+import 'package:oh_my_llm/features/chat/presentation/widgets/reasoning_panel.dart';
 
 import 'chat_screen_test_helpers.dart';
 
@@ -64,11 +65,17 @@ void registerChatScreenStreamingTests() {
     await sendMessage(tester, '请回答并返回思考过程');
     await tester.pumpAndSettle();
 
-    expect(find.text('展开'), findsOneWidget);
+    // composer 折叠态常驻 AnimatedCrossFade 的另一侧 child，其「展开」按钮
+    // 文本会与 reasoning 面板的「展开」撞名；限定到 ReasoningPanel 内定位。
+    final reasoningExpand = find.descendant(
+      of: find.byType(ReasoningPanel),
+      matching: find.text('展开'),
+    );
+    expect(reasoningExpand, findsOneWidget);
     expect(find.text('这是思考过程'), findsNothing);
     expect(find.textContaining('这是最终回复'), findsWidgets);
 
-    await tester.tap(find.text('展开'));
+    await tester.tap(reasoningExpand);
     await tester.pumpAndSettle();
 
     expect(find.text('这是思考过程'), findsOneWidget);
