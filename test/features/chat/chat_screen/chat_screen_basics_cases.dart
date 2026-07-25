@@ -331,7 +331,15 @@ void registerChatScreenBasicsTests() {
     await tester.pumpAndSettle();
 
     expect(find.text('输入区已隐藏'), findsOneWidget);
-    expect(find.widgetWithText(FilledButton, '发送'), findsNothing);
+    // AnimatedCrossFade 下展开态 child 常驻树（仅 opacity 置 0），发送按钮
+    // 仍在 widget 树中、findsNothing 不可用；但其 RenderOpacity 命中测试返回
+    // false，折叠后点击不再触发发送--以行为契约替代存在性断言。
+    await tester.tap(
+      find.widgetWithText(FilledButton, '发送'),
+      warnIfMissed: false,
+    );
+    await tester.pumpAndSettle();
+    expect(fakeClient.requestHistory, isEmpty);
 
     await tester.tap(find.byTooltip('展开输入区'));
     await tester.pumpAndSettle();
