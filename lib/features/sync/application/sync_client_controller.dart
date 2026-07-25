@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
-import '../../../core/http/http_client_provider.dart';
+import '../../../core/http/peer_http_client_provider.dart';
 import '../../settings/application/auto_retry_settings_controller.dart';
 import '../../settings/application/custom_headers_controller.dart';
 import '../../settings/application/font_size_settings_controller.dart';
@@ -85,7 +85,7 @@ final syncClientControllerProvider =
 class SyncClientController extends Notifier<SyncClientState> {
   StreamSubscription<DiscoveredServer>? _discoverySubscription;
 
-  http.Client get _httpClient => ref.read(httpClientProvider);
+  http.Client get _httpClient => ref.read(peerHttpClientProvider);
 
   @override
   SyncClientState build() {

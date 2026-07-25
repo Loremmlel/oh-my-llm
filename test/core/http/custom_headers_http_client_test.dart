@@ -116,7 +116,7 @@ void main() {
 
       // 返回的是不可变 map，修改应抛出异常
       expect(
-        () => (headers as Map<String, String>)['X-Hack'] = 'nope',
+        () => headers['X-Hack'] = 'nope',
         throwsUnsupportedError,
       );
 
