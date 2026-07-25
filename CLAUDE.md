@@ -24,7 +24,7 @@ flutter build apk --release                        # Android APK
 
 ### 测试输出重定向（强制）
 
-全量测试 400+ 用例，直接跑会被截断。始终用单条复合命令：
+全量测试用例数随开发增长，直接跑会被截断。始终用单条复合命令：
 
 ```bash
 flutter test --reporter compact > fltest.log 2>&1; E=$?; echo "EXIT=$E"; tail -n 150 fltest.log
