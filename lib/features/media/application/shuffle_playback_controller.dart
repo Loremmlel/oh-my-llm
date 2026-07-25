@@ -4,7 +4,7 @@ import 'dart:math';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
-import '../../../core/http/http_client_provider.dart';
+import '../../../core/http/peer_http_client_provider.dart';
 import '../utils/path_utils.dart';
 import '../domain/models/video_item.dart';
 import 'media_browser_controller.dart';
@@ -53,7 +53,7 @@ final shufflePlaybackControllerProvider =
 /// 管理视频播放列表状态，协调服务端请求和客户端 shuffle。
 /// 通过 [mediaBrowserControllerProvider] 获取服务端地址构建 URL。
 class ShufflePlaybackController extends Notifier<ShufflePlaybackState> {
-  http.Client get _httpClient => ref.read(httpClientProvider);
+  http.Client get _httpClient => ref.read(peerHttpClientProvider);
 
   @override
   ShufflePlaybackState build() => const ShufflePlaybackIdle();

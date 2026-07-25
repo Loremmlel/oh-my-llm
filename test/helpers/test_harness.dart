@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/core/http/custom_headers_provider.dart';
+import 'package:oh_my_llm/core/http/peer_http_client_provider.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
@@ -51,6 +53,7 @@ Future<AppDatabase> pumpTestApp(
         appDatabaseProvider.overrideWithValue(db),
         sharedPreferencesProvider.overrideWithValue(preferences),
         customHeadersMapProvider.overrideWith((ref) => const {}),
+        peerHttpClientProvider.overrideWithValue(http.Client()),
         ...extraOverrides,
       ],
       child: router != null

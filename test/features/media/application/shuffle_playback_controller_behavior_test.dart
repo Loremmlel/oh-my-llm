@@ -23,9 +23,7 @@ ProviderContainer _createContainer({
 }) {
   return ProviderContainer(
     overrides: [
-      httpClientProvider.overrideWithValue(
-        CustomHeadersHttpClient(httpClient, {}),
-      ),
+      peerHttpClientProvider.overrideWithValue(httpClient),
       mediaBrowserControllerProvider.overrideWith(
         () => _StubBrowserController(browserState),
       ),

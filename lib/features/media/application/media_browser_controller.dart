@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
-import '../../../core/http/http_client_provider.dart';
+import '../../../core/http/peer_http_client_provider.dart';
 import '../utils/path_utils.dart';
 import '../domain/models/file_item.dart';
 import '../domain/models/media_server_info.dart';
@@ -63,7 +63,7 @@ final mediaBrowserControllerProvider =
 ///
 /// 管理浏览状态并通过 HTTP 调用服务端 API 获取目录内容。
 class MediaBrowserController extends Notifier<MediaBrowserState> {
-  http.Client get _httpClient => ref.read(httpClientProvider);
+  http.Client get _httpClient => ref.read(peerHttpClientProvider);
 
   @override
   MediaBrowserState build() {

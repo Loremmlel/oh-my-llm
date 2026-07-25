@@ -4,11 +4,12 @@ import 'package:http/http.dart' as http;
 import 'custom_headers_http_client.dart';
 import 'custom_headers_provider.dart';
 
-/// 全局 HTTP Client 单例 Provider。
+/// 外部 LLM 信任域 HTTP Client 单例 Provider。
 ///
 /// 返回同一个 [CustomHeadersHttpClient] 实例，不会被重新构建，
 /// 避免 mid-flight 请求因 client 重建而中断。
-/// 所有需要发起 HTTP 请求的模块都应通过此 provider 获取 client。
+/// 仅外部 LLM 请求（chat / model list）应通过此 provider 获取 client。
+/// 局域网 peer 请求应使用 [peerHttpClientProvider]。
 final httpClientProvider = Provider<CustomHeadersHttpClient>((ref) {
   final inner = http.Client();
   final client = CustomHeadersHttpClient(inner, {});

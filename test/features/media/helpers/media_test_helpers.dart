@@ -4,10 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
-import 'package:oh_my_llm/core/http/custom_headers_http_client.dart';
-export 'package:oh_my_llm/core/http/custom_headers_http_client.dart';
-import 'package:oh_my_llm/core/http/http_client_provider.dart';
-export 'package:oh_my_llm/core/http/http_client_provider.dart';
+import 'package:oh_my_llm/core/http/peer_http_client_provider.dart';
+export 'package:oh_my_llm/core/http/peer_http_client_provider.dart';
 import 'package:oh_my_llm/features/media/application/media_browser_controller.dart';
 export 'package:oh_my_llm/features/media/application/media_browser_controller.dart';
 import 'package:oh_my_llm/features/media/domain/models/file_item.dart';
@@ -32,9 +30,7 @@ http.Client throwingMockClient() =>
 ProviderContainer createMediaTestContainer({required http.Client httpClient}) {
   final container = ProviderContainer(
     overrides: [
-      httpClientProvider.overrideWithValue(
-        CustomHeadersHttpClient(httpClient, {}),
-      ),
+      peerHttpClientProvider.overrideWithValue(httpClient),
     ],
   );
   container.read(mediaBrowserControllerProvider);
