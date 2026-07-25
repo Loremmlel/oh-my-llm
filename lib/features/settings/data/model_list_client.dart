@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,6 +6,7 @@ import 'package:http/http.dart' as http;
 
 import '../../../core/http/http_client_provider.dart';
 import '../../../core/logging/app_network_logger_provider.dart';
+import '../../../core/logging/json_truncator.dart';
 import '../../../core/logging/network_logger.dart';
 
 /// 从 /models 端点拉取的模型信息（传输对象，不持久化）。
@@ -76,26 +78,26 @@ class ModelListClient {
       throw ModelListException('API URL 格式无效（需要 http/https）：$modelsUrl');
     }
 
-    await _logger.logRequest(
-      uri: uri,
-      method: 'GET',
-      headers: {
-        'Authorization': 'Bearer $apiKey',
-        'Accept': 'application/json',
-      },
-      payload: null,
+    final requestHeaders = {
+      'Authorization': 'Bearer $apiKey',
+      'Accept': 'application/json',
+    };
+
+    _fireAndForget(
+      _logger.logRequest(
+        uri: uri,
+        method: 'GET',
+        headers: requestHeaders,
+        payload: null,
+        logBody: false,
+      ),
     );
 
+    final requestStartedAt = DateTime.now();
     http.Response response;
     try {
       response = await _httpClient
-          .get(
-            uri,
-            headers: {
-              'Authorization': 'Bearer $apiKey',
-              'Accept': 'application/json',
-            },
-          )
+          .get(uri, headers: requestHeaders)
           .timeout(const Duration(seconds: 30));
     } on http.ClientException catch (e) {
       await _logger.logError(
@@ -113,11 +115,14 @@ class ModelListClient {
       throw ModelListException('网络请求失败：$e', cause: e);
     }
 
-    await _logger.logResponse(
-      uri: uri,
-      statusCode: response.statusCode,
-      headers: response.headers,
-      elapsed: Duration.zero,
+    final elapsed = DateTime.now().difference(requestStartedAt);
+    _fireAndForget(
+      _logger.logResponse(
+        uri: uri,
+        statusCode: response.statusCode,
+        headers: response.headers,
+        elapsed: elapsed,
+      ),
     );
 
     if (response.statusCode != 200) {
@@ -156,10 +161,14 @@ class ModelListClient {
     }
     return models;
   }
-}
 
-/// 截断响应体到指定长度，超长时追加省略号。
-String _truncateBody(String body, [int max = 200]) {
-  if (body.length > max) return '${body.substring(0, max)}...';
-  return body;
+  void _fireAndForget(Future<void> future) {
+    unawaited(future);
+  }
+
+  /// 截断响应体到指定长度，使用 grapheme-aware 截断。
+  String _truncateBody(String body) {
+    final truncated = truncateJsonValues(body, maxLength: 200);
+    return truncated as String;
+  }
 }
