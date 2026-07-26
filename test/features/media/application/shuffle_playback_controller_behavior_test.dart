@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 
 import 'package:oh_my_llm/features/media/application/shuffle_playback_controller.dart';
 import 'package:oh_my_llm/features/media/domain/models/video_item.dart';
@@ -41,6 +43,35 @@ class _StubBrowserController extends MediaBrowserController {
 
 void main() {
   group('ShufflePlaybackController.startShuffle', () {
+    test('reset 后忽略已失效视频列表响应', () async {
+      final responseCompleter = Completer<http.Response>();
+      final container = _createContainer(
+        httpClient: MockClient((_) => responseCompleter.future),
+        browserState: MediaBrowserState(server: testServer),
+      );
+      addTearDown(container.dispose);
+
+      final controller = container.read(
+        shufflePlaybackControllerProvider.notifier,
+      );
+      final pending = controller.startShuffle('/dir');
+      expect(
+        container.read(shufflePlaybackControllerProvider),
+        const ShufflePlaybackLoading(),
+      );
+
+      controller.reset();
+      responseCompleter.complete(
+        http.Response(_videoListJson(_videos(1)), 200),
+      );
+
+      expect(await pending, isNull);
+      expect(
+        container.read(shufflePlaybackControllerProvider),
+        const ShufflePlaybackIdle(),
+      );
+    });
+
     test('server 为 null → 返回 null，保持 Idle', () async {
       final container = _createContainer(
         httpClient: okMockClient('[]'),

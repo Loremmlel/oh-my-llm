@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -81,6 +83,64 @@ void main() {
   });
 
   group('MediaBrowserController', () {
+    test('reset 后忽略已失效请求的响应', () async {
+      final responseCompleter = Completer<http.Response>();
+      final container = createMediaTestContainer(
+        httpClient: MockClient((_) => responseCompleter.future),
+      );
+      addTearDown(container.dispose);
+
+      final controller = container.read(
+        mediaBrowserControllerProvider.notifier,
+      );
+      controller.initWithServer(testServer);
+      expect(container.read(mediaBrowserControllerProvider).isLoading, isTrue);
+
+      controller.reset();
+      responseCompleter.complete(
+        http.Response(
+          fileListJson([
+            const FileItem(
+              name: 'stale.mp4',
+              isDirectory: false,
+              sizeBytes: 1,
+              relativePath: '/stale.mp4',
+            ),
+          ]),
+          200,
+        ),
+      );
+      await responseCompleter.future;
+      await Future<void>.value();
+
+      expect(
+        container.read(mediaBrowserControllerProvider),
+        MediaBrowserState(),
+      );
+    });
+
+    test('媒体浏览页面会话在观察者释放后重建为空状态', () async {
+      final container = createMediaTestContainer(
+        httpClient: okMockClient('[]'),
+        retainBrowserListener: false,
+      );
+      addTearDown(container.dispose);
+      final subscription = container.listen(
+        mediaBrowserControllerProvider,
+        (_, _) {},
+      );
+      await initBrowserAndWait(container);
+
+      subscription.close();
+      await container.pump();
+
+      expect(container.exists(mediaBrowserControllerProvider), isFalse);
+      expect(
+        container.read(mediaBrowserControllerProvider),
+        MediaBrowserState(),
+      );
+    });
+
     test('build() 初始状态', () {
       final container = createMediaTestContainer(
         httpClient: okMockClient('[]'),

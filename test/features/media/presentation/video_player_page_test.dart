@@ -19,6 +19,7 @@ class FakeVideoPlayerController extends VideoPlayerController {
   final List<double> setVolumeCalls = [];
   int playCallCount = 0;
   int pauseCallCount = 0;
+  int disposeCount = 0;
 
   // ── 可设置的状态（测试驱动用） ──
   Duration fakePosition = Duration.zero;
@@ -80,6 +81,7 @@ class FakeVideoPlayerController extends VideoPlayerController {
   @override
   // ignore: must_call_super
   Future<void> dispose() async {
+    disposeCount++;
     // 不调用平台 dispose（测试中无平台通道）
   }
 
@@ -132,6 +134,30 @@ Widget _buildTestPageWithFake({
       videoUrl: 'http://localhost/test.mp4',
       fileName: 'test-video.mp4',
       controllerFactory: (uri) => fakeController,
+    ),
+  );
+}
+
+/// 以零时长路由推入页面，令 pop 的一帧断言只验证资源释放。
+Widget _buildPushedTestPageWithFake({
+  required FakeVideoPlayerController fakeController,
+}) {
+  return MaterialApp(
+    home: Builder(
+      builder: (context) => ElevatedButton(
+        onPressed: () => Navigator.of(context).push(
+          PageRouteBuilder<void>(
+            pageBuilder: (_, _, _) => VideoPlayerPage(
+              videoUrl: 'http://localhost/test.mp4',
+              fileName: 'test-video.mp4',
+              controllerFactory: (uri) => fakeController,
+            ),
+            transitionDuration: Duration.zero,
+            reverseTransitionDuration: Duration.zero,
+          ),
+        ),
+        child: const Text('打开播放器'),
+      ),
     ),
   );
 }
@@ -700,25 +726,19 @@ void main() {
   // ═══════════════════════════════════════════════════════════════════
 
   group('返回按钮', () {
-    testWidgets('点击返回按钮关闭页面', (tester) async {
+    testWidgets('pop 路由后一帧释放播放器', (tester) async {
       await tester.pumpWidget(
-        _buildTestPageWithFake(fakeController: fakeController),
+        _buildPushedTestPageWithFake(fakeController: fakeController),
       );
+      await tester.tap(find.text('打开播放器'));
       await _pumpInit(tester, controller: fakeController);
 
-      // 点击返回按钮。
-      // 因为 GestureDetector 使用 HitTestBehavior.translucent，点击按钮时
-      // DoubleTapGestureRecognizer 也会收到 tap 事件并启动 ~300ms countdown timer。
-      // 使用显式 pump 而非 pumpAndSettle，避免 pending timer 干扰。
-      await tester.tap(find.byIcon(Icons.arrow_back));
-      await tester.pump(); // 处理 tap + Navigator.pop
-      await tester.pump(
-        const Duration(milliseconds: 500),
-      ); // 等待 pop 动画 + double-tap timer 过期
-      await _flushGestureTimers(tester);
+      Navigator.of(tester.element(find.byType(VideoPlayerPage))).pop();
+      await tester.pump();
 
-      // VideoPlayerPage 应已从导航栈弹出
-      expect(find.byType(VideoPlayerPage), findsNothing);
+      // 路由 pop 后一帧即释放播放器。
+      expect(fakeController.disposeCount, 1);
+      await _flushGestureTimers(tester);
     });
   });
 

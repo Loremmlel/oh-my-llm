@@ -7,6 +7,7 @@ import '../../../core/persistence/shared_preferences_provider.dart';
 import '../../../app/navigation/app_destination.dart';
 import '../../../app/shell/app_shell_scaffold.dart';
 import '../../media/application/media_browser_controller.dart';
+import '../../media/application/shuffle_playback_controller.dart';
 import '../../media/domain/models/media_server_info.dart';
 import '../../media/presentation/media_browser_tab.dart';
 import '../../media/presentation/widgets/shuffle_appbar_actions.dart';
@@ -32,6 +33,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen>
     with TickerProviderStateMixin, WidgetsBindingObserver {
   late final TabController _tabController;
   bool _wasServerRunningBeforePause = false;
+  late int _lastStableTabIndex;
 
   /// 媒体浏览器仅 Android 客户端启用。
   bool get _hasMediaTab => defaultTargetPlatform == TargetPlatform.android;
@@ -49,22 +51,10 @@ class _SyncScreenState extends ConsumerState<SyncScreen>
       length: _tabCount,
       vsync: this,
     );
+    _lastStableTabIndex = _tabController.index;
     _tabController.addListener(_onTabChanged);
-    if (_hasMediaTab) {
-      _tabController.addListener(_onMediaTabListener);
-    }
-  }
-
-  void _onMediaTabListener() {
-    if (_tabController.index == 2 && !_tabController.indexIsChanging) {
-      final server = ref.read(syncClientControllerProvider).server;
-      if (server != null) {
-        ref
-            .read(mediaBrowserControllerProvider.notifier)
-            .initWithServer(
-              MediaServerInfo(ip: server.ip, httpPort: server.httpPort),
-            );
-      }
+    if (_hasMediaTab && _lastStableTabIndex == 2) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _initMediaSession());
     }
   }
 
@@ -72,20 +62,35 @@ class _SyncScreenState extends ConsumerState<SyncScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _tabController.removeListener(_onTabChanged);
-    if (_hasMediaTab) {
-      _tabController.removeListener(_onMediaTabListener);
-    }
     _tabController.dispose();
     super.dispose();
   }
 
   void _onTabChanged() {
     if (!_tabController.indexIsChanging) {
+      final nextIndex = _tabController.index;
+      if (_hasMediaTab && _lastStableTabIndex == 2 && nextIndex != 2) {
+        ref.read(mediaBrowserControllerProvider.notifier).reset();
+        ref.read(shufflePlaybackControllerProvider.notifier).reset();
+      }
+      if (_hasMediaTab && nextIndex == 2) _initMediaSession();
+      _lastStableTabIndex = nextIndex;
       ref
           .read(sharedPreferencesProvider)
-          .setInt(_syncLastTabIndexKey, _tabController.index);
+          .setInt(_syncLastTabIndexKey, nextIndex);
       setState(() {}); // 触发 rebuild 以更新 AppBar actions 可见性
     }
+  }
+
+  void _initMediaSession() {
+    if (!mounted || !_hasMediaTab || _tabController.index != 2) return;
+    final server = ref.read(syncClientControllerProvider).server;
+    if (server == null) return;
+    ref
+        .read(mediaBrowserControllerProvider.notifier)
+        .initWithServer(
+          MediaServerInfo(ip: server.ip, httpPort: server.httpPort),
+        );
   }
 
   @override
@@ -123,15 +128,20 @@ class _SyncScreenState extends ConsumerState<SyncScreen>
     ];
 
     // 仅在媒体 Tab 选中且有连接 server 时显示随机播放按钮
-    final mediaState = ref.watch(mediaBrowserControllerProvider);
-    final showShuffleActions =
-        _hasMediaTab && _tabController.index == 2 && mediaState.server != null;
+    final mediaState = _hasMediaTab && _tabController.index == 2
+        ? ref.watch(mediaBrowserControllerProvider)
+        : null;
+    final showShuffleActions = mediaState?.server != null;
 
     return AppShellScaffold(
       currentDestination: AppDestination.sync,
       title: '局域网同步',
       actions: showShuffleActions
-          ? [ShuffleAppBarActions(currentDirectoryPath: mediaState.currentPath)]
+          ? [
+              ShuffleAppBarActions(
+                currentDirectoryPath: mediaState!.currentPath,
+              ),
+            ]
           : null,
       body: Column(
         children: [

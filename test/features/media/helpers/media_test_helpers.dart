@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
@@ -27,11 +28,22 @@ http.Client statusMockClient(int status) =>
 http.Client throwingMockClient() =>
     MockClient((_) async => throw http.ClientException('网络错误'));
 
-ProviderContainer createMediaTestContainer({required http.Client httpClient}) {
+ProviderContainer createMediaTestContainer({
+  required http.Client httpClient,
+  bool retainBrowserListener = true,
+}) {
   final container = ProviderContainer(
     overrides: [peerHttpClientProvider.overrideWithValue(httpClient)],
   );
-  container.read(mediaBrowserControllerProvider);
+  if (retainBrowserListener) {
+    final subscription = container.listen(
+      mediaBrowserControllerProvider,
+      (_, _) {},
+    );
+    addTearDown(subscription.close);
+  } else {
+    container.read(mediaBrowserControllerProvider);
+  }
   return container;
 }
 
@@ -43,7 +55,7 @@ Future<void> initBrowserAndWait(ProviderContainer container) async {
   final controller = container.read(mediaBrowserControllerProvider.notifier);
   controller.initWithServer(testServer);
   for (int i = 0; i < 50; i++) {
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.value();
     if (!container.read(mediaBrowserControllerProvider).isLoading) break;
   }
 }

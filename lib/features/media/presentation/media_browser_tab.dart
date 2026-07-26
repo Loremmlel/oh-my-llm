@@ -13,6 +13,8 @@ import 'widgets/media_path_bar.dart';
 /// 媒体浏览器 Tab 内容组件。
 ///
 /// 提供目录浏览、路径导航和返回键处理。
+/// TabBarView 离屏保留本组件不代表媒体页面会话仍有效；会话边界由
+/// SyncScreen 在切离媒体 Tab 时统一 reset。
 /// [onExitMediaBrowser] 在根目录按返回键时调用，用于切回同步连接 Tab。
 class MediaBrowserTab extends ConsumerStatefulWidget {
   final VoidCallback onExitMediaBrowser;
