@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../data/model_list_client.dart';
-import '../../../data/model_list_url.dart';
+import '../../../application/model_catalog_workflow.dart';
+import '../../../domain/models/model_catalog_entry.dart';
 import '../../../domain/models/llm_provider_config.dart';
 
 /// 拉取模式中单个模型的选择状态。
@@ -12,7 +12,7 @@ class ModelSelectionEntry {
     this.alreadyExists = false,
   });
 
-  final RemoteModelInfo remoteModel;
+  final ModelCatalogEntry remoteModel;
 
   final TextEditingController controller;
 
@@ -38,10 +38,7 @@ class ModelFetchSection extends StatefulWidget {
 
   final LlmProviderConfig provider;
 
-  final Future<List<RemoteModelInfo>> Function({
-    required String modelsUrl,
-    required String apiKey,
-  })
+  final Future<List<ModelCatalogEntry>> Function(ModelCatalogRequest request)
   fetchModels;
 
   /// 当勾选状态或显示名变化时通知父级刷新。
@@ -61,7 +58,12 @@ class ModelFetchSectionState extends State<ModelFetchSection> {
   bool _isUrlEdited = false;
   bool _showAdvanced = false;
 
-  String get _derivedUrl => deriveModelsUrl(widget.provider.apiUrl);
+  String get _derivedUrl => resolveModelsUrl(
+    ModelCatalogRequest(
+      apiUrl: widget.provider.apiUrl,
+      apiKey: widget.provider.apiKey,
+    ),
+  );
 
   String get _effectiveUrl => _isUrlEdited ? _editedUrl : _derivedUrl;
 
@@ -91,8 +93,11 @@ class ModelFetchSectionState extends State<ModelFetchSection> {
 
     try {
       final models = await widget.fetchModels(
-        modelsUrl: _effectiveUrl,
-        apiKey: widget.provider.apiKey,
+        ModelCatalogRequest(
+          apiUrl: widget.provider.apiUrl,
+          apiKey: widget.provider.apiKey,
+          modelsUrlOverride: _isUrlEdited ? _editedUrl : null,
+        ),
       );
 
       final existingModelNames = widget.provider.models
@@ -113,7 +118,7 @@ class ModelFetchSectionState extends State<ModelFetchSection> {
         _status = _FetchStatus.loaded;
       });
       widget.onSelectionChanged?.call();
-    } on ModelListException catch (e) {
+    } on ModelCatalogFailure catch (e) {
       if (!mounted) return;
       setState(() {
         _status = _FetchStatus.error;

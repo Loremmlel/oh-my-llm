@@ -1,61 +1,30 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/navigation/app_destination.dart';
 import '../../../app/shell/app_shell_scaffold.dart';
-import '../../../core/persistence/shared_preferences_provider.dart';
 import '../../../core/utils/id_generator.dart';
-import '../application/auto_retry_settings_controller.dart';
-import '../application/custom_headers_controller.dart';
-import '../application/font_size_settings_controller.dart';
 import '../application/fixed_prompt_sequences_controller.dart';
 import '../application/llm_model_configs_controller.dart';
 import '../application/memory_prompts_controller.dart';
-import '../application/output_processing_settings_controller.dart';
+import '../application/model_catalog_workflow.dart';
 import '../application/preset_prompts_controller.dart';
-import '../application/settings_import_deduplicator.dart';
+import '../application/settings_tab_preferences.dart';
+import '../application/settings_transfer_workflow.dart';
 import '../application/template_prompts_controller.dart';
-import '../data/model_list_client.dart';
 import '../domain/models/fixed_prompt_sequence.dart';
 import '../domain/models/llm_provider_config.dart';
 import '../domain/models/memory_prompt.dart';
 import '../domain/models/preset_prompt.dart';
-import '../domain/models/settings_export_data.dart';
 import '../domain/models/template_prompt.dart';
 import 'widgets/import_confirm_dialog.dart';
 import 'widgets/settings_widgets.dart';
 import 'widgets/tab/network_settings_tab.dart';
 import 'widgets/tab/other_settings_tab.dart';
 import 'widgets/tab/output_processing_tab.dart';
-
-const _settingsLastTabIndexKey = 'settings.tab.last_index';
-const _settingsTabVersionKey = 'settings.tab.version';
-const _currentTabVersion = 4;
-
-/// 按保存的版本逐级迁移旧的 tab 索引到当前顺序。
-///
-/// v1 → v2：交换索引 3 和 4（网络=4/其它=3 → 网络=3/其它=4）。
-/// v2 → v3：「输出处理」tab 追加在末尾，旧索引无需重映射。
-/// v3 → v4：交换索引 4 和 5（输出处理=5/其它=4 → 输出处理=4/其它=5）。
-int _migrateTabIndex(int savedIndex, int savedVersion) {
-  var index = savedIndex;
-  if (savedVersion < 2) {
-    if (index == 3) {
-      index = 4;
-    } else if (index == 4) {
-      index = 3;
-    }
-  }
-  if (savedVersion < 4) {
-    if (index == 4) {
-      index = 5;
-    } else if (index == 5) {
-      index = 4;
-    }
-  }
-  return index;
-}
 
 const _tabProviders = 0;
 const _tabPresets = 1;
@@ -81,7 +50,6 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen>
     with TickerProviderStateMixin {
-  static const _importDeduplicator = SettingsImportDeduplicator();
   static final _presetPromptCopySuffixPattern = RegExp(r'^(.+?)（副本(?: \d+)?）$');
 
   late final TabController _tabController;
@@ -89,22 +57,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   @override
   void initState() {
     super.initState();
-    final prefs = ref.read(sharedPreferencesProvider);
-    final savedVersion = prefs.getInt(_settingsTabVersionKey) ?? 1;
-    var savedIndex = prefs.getInt(_settingsLastTabIndexKey) ?? 0;
-
-    if (savedVersion < _currentTabVersion) {
-      savedIndex = _migrateTabIndex(savedIndex, savedVersion);
-      prefs.setInt(_settingsLastTabIndexKey, savedIndex);
-      prefs.setInt(_settingsTabVersionKey, _currentTabVersion);
-    }
-
     _tabController = TabController(
-      initialIndex: savedIndex.clamp(0, 5),
+      initialIndex: ref
+          .read(settingsTabPreferencesProvider)
+          .initialIndex(tabCount: 6),
       length: 6,
       vsync: this,
     );
     _tabController.addListener(_onTabChanged);
+    unawaited(_migrateTabPreference());
   }
 
   @override
@@ -117,9 +78,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   void _onTabChanged() {
     setState(() {});
     if (!_tabController.indexIsChanging) {
-      ref
-          .read(sharedPreferencesProvider)
-          .setInt(_settingsLastTabIndexKey, _tabController.index);
+      unawaited(_saveTabIndex());
+    }
+  }
+
+  Future<void> _migrateTabPreference() async {
+    await ref
+        .read(settingsTabPreferencesProvider)
+        .loadInitialIndex(tabCount: _tabController.length);
+  }
+
+  Future<void> _saveTabIndex() async {
+    try {
+      await ref
+          .read(settingsTabPreferencesProvider)
+          .saveIndex(_tabController.index);
+    } catch (_) {
+      // 标签切换不应因偏好写入失败而中断当前操作。
     }
   }
 
@@ -338,8 +313,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   // ── 导出/导入 ──────────────────────────────────────────────────
 
   Future<void> _exportCurrentTab() async {
-    final index = _tabController.index;
-    final exportData = _buildTabExportData(index);
+    final exportData = ref
+        .read(settingsTransferWorkflowProvider)
+        .buildExportData(_currentTransferTab);
     if (exportData == null) {
       showSettingsSnackbar(context, '$_currentTabLabel 没有可导出的数据');
       return;
@@ -351,161 +327,41 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     }
   }
 
-  SettingsExportData? _buildTabExportData(int index) {
-    switch (index) {
-      case _tabProviders:
-        final providers = ref.read(llmProviderConfigsProvider);
-        if (providers.isEmpty) return null;
-        return SettingsExportData(
-          modelProviders: providers,
-          memoryPrompts: const [],
-          presetPrompts: const [],
-          templatePrompts: const [],
-          fixedPromptSequences: const [],
-        );
-      case _tabPresets:
-        final templates = ref.read(presetPromptsProvider);
-        if (templates.isEmpty) return null;
-        return SettingsExportData(
-          modelProviders: const [],
-          memoryPrompts: const [],
-          presetPrompts: templates,
-          templatePrompts: const [],
-          fixedPromptSequences: const [],
-        );
-      case _tabPrompts:
-        final memoryPrompts = ref.read(memoryPromptsProvider);
-        final templatePrompts = ref.read(templatePromptsProvider);
-        final sequences = ref.read(fixedPromptSequencesProvider);
-        if (memoryPrompts.isEmpty &&
-            templatePrompts.isEmpty &&
-            sequences.isEmpty) {
-          return null;
-        }
-        return SettingsExportData(
-          modelProviders: const [],
-          memoryPrompts: memoryPrompts,
-          presetPrompts: const [],
-          templatePrompts: templatePrompts,
-          fixedPromptSequences: sequences,
-        );
-      case _tabOther:
-        final retry = ref.read(autoRetrySettingsProvider);
-        final fontSize = ref.read(fontSizeSettingsProvider);
-        return SettingsExportData(
-          modelProviders: const [],
-          memoryPrompts: const [],
-          presetPrompts: const [],
-          templatePrompts: const [],
-          fixedPromptSequences: const [],
-          autoRetrySettings: retry,
-          fontSizeSettings: fontSize,
-        );
-      case _tabNetwork:
-        final headers = ref.read(customHeadersProvider);
-        if (headers.headers.isEmpty) return null;
-        return SettingsExportData(
-          modelProviders: const [],
-          memoryPrompts: const [],
-          presetPrompts: const [],
-          templatePrompts: const [],
-          fixedPromptSequences: const [],
-          customHeadersConfig: headers,
-        );
-      case _tabOutputProcessing:
-        final outputProcessing = ref.read(outputProcessingSettingsProvider);
-        if (outputProcessing.rules.isEmpty) return null;
-        return SettingsExportData(
-          modelProviders: const [],
-          memoryPrompts: const [],
-          presetPrompts: const [],
-          templatePrompts: const [],
-          fixedPromptSequences: const [],
-          outputProcessingSettings: outputProcessing,
-        );
-      default:
-        return null;
-    }
-  }
-
   Future<void> _importToCurrentTab() async {
     final clipboardData = await Clipboard.getData(Clipboard.kTextPlain);
-    final exportData = SettingsExportData.tryParseJson(clipboardData?.text);
-
-    if (exportData == null || !exportData.hasContent) {
-      if (mounted) {
-        showSettingsSnackbar(context, '剪贴板中没有可识别的配置数据');
-      }
-      return;
-    }
-
-    final index = _tabController.index;
-    if (!_dataMatchesTab(exportData, index)) {
-      if (mounted) {
-        showSettingsSnackbar(context, '剪贴板数据与$_currentTabLabel不匹配，请切换到对应标签');
-      }
-      return;
-    }
-
-    final dedupedData = _importDeduplicator.deduplicate(
-      data: exportData,
-      existingProviders: ref.read(llmProviderConfigsProvider),
-      existingMemoryPrompts: ref.read(memoryPromptsProvider),
-      existingPresetPrompts: ref.read(presetPromptsProvider),
-      existingTemplatePrompts: ref.read(templatePromptsProvider),
-      existingSequences: ref.read(fixedPromptSequencesProvider),
-      existingAutoRetrySettings: ref.read(autoRetrySettingsProvider),
-      existingCustomHeadersConfig: ref.read(customHeadersProvider),
-      existingFontSizeSettings: ref.read(fontSizeSettingsProvider),
-      existingOutputProcessingSettings: ref.read(
-        outputProcessingSettingsProvider,
-      ),
-    );
-
-    if (!dedupedData.hasContent) {
-      if (mounted) {
-        showSettingsSnackbar(context, '剪贴板中的配置在本地均已存在，无可导入项');
-      }
-      return;
-    }
-
-    if (!mounted) return;
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return ImportConfirmDialog(exportData: dedupedData);
-      },
-    );
-
-    if (confirmed == true && mounted) {
-      showSettingsSnackbar(context, '$_currentTabLabel已成功导入');
+    final preparation = ref
+        .read(settingsTransferWorkflowProvider)
+        .prepareImport(
+          tab: _currentTransferTab,
+          clipboardText: clipboardData?.text,
+        );
+    switch (preparation.kind) {
+      case SettingsImportPreparationKind.invalidClipboard:
+        if (mounted) showSettingsSnackbar(context, '剪贴板中没有可识别的配置数据');
+        return;
+      case SettingsImportPreparationKind.tabMismatch:
+        if (mounted) {
+          showSettingsSnackbar(context, '剪贴板数据与$_currentTabLabel不匹配，请切换到对应标签');
+        }
+        return;
+      case SettingsImportPreparationKind.noNewItems:
+        if (mounted) showSettingsSnackbar(context, '剪贴板中的配置在本地均已存在，无可导入项');
+        return;
+      case SettingsImportPreparationKind.ready:
+        final data = preparation.data;
+        if (data == null || !mounted) return;
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => ImportConfirmDialog(exportData: data),
+        );
+        if (confirmed == true && mounted) {
+          showSettingsSnackbar(context, '$_currentTabLabel已成功导入');
+        }
     }
   }
 
-  /// 检查导出数据是否匹配当前标签页。
-  bool _dataMatchesTab(SettingsExportData data, int index) {
-    switch (index) {
-      case _tabProviders:
-        return data.modelProviders.isNotEmpty;
-      case _tabPresets:
-        return data.presetPrompts.isNotEmpty;
-      case _tabPrompts:
-        return data.memoryPrompts.isNotEmpty ||
-            data.templatePrompts.isNotEmpty ||
-            data.fixedPromptSequences.isNotEmpty;
-      case _tabOther:
-        return data.autoRetrySettings != null || data.fontSizeSettings != null;
-      case _tabNetwork:
-        return data.customHeadersConfig != null &&
-            data.customHeadersConfig!.headers.isNotEmpty;
-      case _tabOutputProcessing:
-        return data.outputProcessingSettings != null &&
-            data.outputProcessingSettings!.rules.isNotEmpty;
-      default:
-        return false;
-    }
-  }
+  SettingsTransferTab get _currentTransferTab =>
+      SettingsTransferTab.values[_tabController.index];
 
   // ── 复制预设 ──────────────────────────────────────────────────
 
@@ -616,7 +472,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
         return ModelConfigFormDialog(
           provider: provider,
           initialValue: initialValue,
-          fetchModels: ref.read(modelListClientProvider).fetchModels,
+          fetchModels: ref.read(modelCatalogWorkflowProvider).fetch,
           onSubmit: (formData) async {
             await _saveSettingsItem(
               context,

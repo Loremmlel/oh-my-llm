@@ -4,7 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:oh_my_llm/features/settings/data/model_list_client.dart';
+import 'package:oh_my_llm/features/settings/application/model_catalog_workflow.dart';
+import 'package:oh_my_llm/features/settings/domain/models/model_catalog_entry.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/form/model_config_form_dialog.dart';
 
@@ -34,10 +35,9 @@ void main() {
     WidgetTester tester, {
     required Future<void> Function(ModelConfigFormData) onSubmit,
     required Future<void> Function(List<ModelBatchFormData>) onBatchAdd,
-    required Future<List<RemoteModelInfo>> Function({
-      required String modelsUrl,
-      required String apiKey,
-    })
+    required Future<List<ModelCatalogEntry>> Function(
+      ModelCatalogRequest request,
+    )
     fetchModels,
     LlmProviderModelConfig? initialValue,
   }) async {
@@ -67,7 +67,7 @@ void main() {
           tester,
           onSubmit: (_) async {},
           onBatchAdd: (_) async {},
-          fetchModels: ({required modelsUrl, required apiKey}) async => [],
+          fetchModels: (_) async => [],
         );
 
         expect(find.text('显示名称'), findsOneWidget);
@@ -82,7 +82,7 @@ void main() {
           tester,
           onSubmit: (_) async {},
           onBatchAdd: (_) async {},
-          fetchModels: ({required modelsUrl, required apiKey}) async => [],
+          fetchModels: (_) async => [],
           initialValue: const LlmProviderModelConfig(
             id: 'm-1',
             displayName: 'Existing',
@@ -104,7 +104,7 @@ void main() {
             captured = data;
           },
           onBatchAdd: (_) async {},
-          fetchModels: ({required modelsUrl, required apiKey}) async => [],
+          fetchModels: (_) async => [],
         );
 
         await tester.enterText(
@@ -135,7 +135,7 @@ void main() {
           tester,
           onSubmit: (_) async {},
           onBatchAdd: (_) async {},
-          fetchModels: ({required modelsUrl, required apiKey}) async => [],
+          fetchModels: (_) async => [],
         );
 
         await tester.tap(find.text('从 API 拉取'));
@@ -148,13 +148,12 @@ void main() {
       });
 
       testWidgets('shows loading state when fetching', (tester) async {
-        final completer = Completer<List<RemoteModelInfo>>();
+        final completer = Completer<List<ModelCatalogEntry>>();
         await pumpDialog(
           tester,
           onSubmit: (_) async {},
           onBatchAdd: (_) async {},
-          fetchModels: ({required modelsUrl, required apiKey}) =>
-              completer.future,
+          fetchModels: (_) => completer.future,
         );
 
         await tester.tap(find.text('从 API 拉取'));
@@ -175,8 +174,8 @@ void main() {
           tester,
           onSubmit: (_) async {},
           onBatchAdd: (_) async {},
-          fetchModels: ({required modelsUrl, required apiKey}) async {
-            throw const ModelListException('服务器返回错误（401）', statusCode: 401);
+          fetchModels: (_) async {
+            throw const ModelCatalogFailure('服务器返回错误（401）');
           },
         );
 
@@ -195,10 +194,10 @@ void main() {
           tester,
           onSubmit: (_) async {},
           onBatchAdd: (_) async {},
-          fetchModels: ({required modelsUrl, required apiKey}) async {
+          fetchModels: (_) async {
             return [
-              const RemoteModelInfo(id: 'gpt-4o', ownedBy: 'openai'),
-              const RemoteModelInfo(id: 'gpt-4o-mini', ownedBy: 'openai'),
+              const ModelCatalogEntry(id: 'gpt-4o', ownedBy: 'openai'),
+              const ModelCatalogEntry(id: 'gpt-4o-mini', ownedBy: 'openai'),
             ];
           },
         );
@@ -235,8 +234,8 @@ void main() {
           tester,
           onSubmit: (_) async {},
           onBatchAdd: (_) async {},
-          fetchModels: ({required modelsUrl, required apiKey}) async {
-            return [const RemoteModelInfo(id: 'gpt-4o', ownedBy: 'openai')];
+          fetchModels: (_) async {
+            return [const ModelCatalogEntry(id: 'gpt-4o', ownedBy: 'openai')];
           },
         );
 
@@ -256,8 +255,8 @@ void main() {
           tester,
           onSubmit: (_) async {},
           onBatchAdd: (_) async {},
-          fetchModels: ({required modelsUrl, required apiKey}) async {
-            return [const RemoteModelInfo(id: 'gpt-4o', ownedBy: 'openai')];
+          fetchModels: (_) async {
+            return [const ModelCatalogEntry(id: 'gpt-4o', ownedBy: 'openai')];
           },
         );
 
@@ -283,8 +282,8 @@ void main() {
           tester,
           onSubmit: (_) async {},
           onBatchAdd: (_) async {},
-          fetchModels: ({required modelsUrl, required apiKey}) async {
-            return [const RemoteModelInfo(id: 'gpt-4o', ownedBy: 'openai')];
+          fetchModels: (_) async {
+            return [const ModelCatalogEntry(id: 'gpt-4o', ownedBy: 'openai')];
           },
         );
 
@@ -316,10 +315,10 @@ void main() {
           onBatchAdd: (items) async {
             captured = items;
           },
-          fetchModels: ({required modelsUrl, required apiKey}) async {
+          fetchModels: (_) async {
             return [
-              const RemoteModelInfo(id: 'gpt-4o', ownedBy: 'openai'),
-              const RemoteModelInfo(id: 'gpt-4o-mini', ownedBy: 'openai'),
+              const ModelCatalogEntry(id: 'gpt-4o', ownedBy: 'openai'),
+              const ModelCatalogEntry(id: 'gpt-4o-mini', ownedBy: 'openai'),
             ];
           },
         );
@@ -349,8 +348,8 @@ void main() {
           tester,
           onSubmit: (_) async {},
           onBatchAdd: (_) async {},
-          fetchModels: ({required modelsUrl, required apiKey}) async {
-            return [const RemoteModelInfo(id: 'gpt-4o', ownedBy: 'openai')];
+          fetchModels: (_) async {
+            return [const ModelCatalogEntry(id: 'gpt-4o', ownedBy: 'openai')];
           },
         );
 

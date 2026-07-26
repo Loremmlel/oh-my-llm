@@ -8,15 +8,7 @@ import '../../../core/http/http_client_provider.dart';
 import '../../../core/logging/app_network_logger_provider.dart';
 import '../../../core/logging/json_truncator.dart';
 import '../../../core/logging/network_logger.dart';
-
-/// 从 /models 端点拉取的模型信息（传输对象，不持久化）。
-class RemoteModelInfo {
-  const RemoteModelInfo({required this.id, this.ownedBy});
-
-  final String id;
-
-  final String? ownedBy;
-}
+import '../domain/models/model_catalog_entry.dart';
 
 /// 拉取模型列表失败时抛出的业务异常。
 class ModelListException implements Exception {
@@ -64,7 +56,7 @@ class ModelListClient {
   ///
   /// [modelsUrl] 是推导后的 models 端点 URL。
   /// [apiKey] 用于 Authorization: Bearer 认证。
-  Future<List<RemoteModelInfo>> fetchModels({
+  Future<List<ModelCatalogEntry>> fetchModels({
     required String modelsUrl,
     required String apiKey,
   }) async {
@@ -145,14 +137,14 @@ class ModelListClient {
       );
     }
 
-    final models = <RemoteModelInfo>[];
+    final models = <ModelCatalogEntry>[];
     for (final item in data) {
       try {
         final map = item as Map<String, dynamic>;
         final id = map['id'];
         if (id is! String || id.isEmpty) continue;
         models.add(
-          RemoteModelInfo(id: id, ownedBy: map['owned_by'] as String?),
+          ModelCatalogEntry(id: id, ownedBy: map['owned_by'] as String?),
         );
       } catch (_) {
         // 跳过格式异常的条目，而非整个列表失败
