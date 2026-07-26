@@ -6,8 +6,41 @@ import '../helpers/media_test_helpers.dart';
 
 void main() {
   group('MediaBrowserState', () {
+    test('快照 item 和 history 输入并按值比较', () {
+      final sourceItem = FileItem(
+        name: 'test.mp4',
+        isDirectory: false,
+        sizeBytes: 100,
+        relativePath: '/test.mp4',
+      );
+      final items = <FileItem>[sourceItem];
+      final history = <String>['/'];
+      final state = MediaBrowserState(items: items, pathHistory: history);
+      items.clear();
+      history.add('/movies');
+
+      expect(state.items, [sourceItem]);
+      expect(state.pathHistory, ['/']);
+      expect(() => state.items.clear(), throwsUnsupportedError);
+      expect(() => state.pathHistory.add('/x'), throwsUnsupportedError);
+      expect(
+        state,
+        MediaBrowserState(
+          items: [
+            FileItem(
+              name: 'test.mp4',
+              isDirectory: false,
+              sizeBytes: 100,
+              relativePath: '/test.mp4',
+            ),
+          ],
+          pathHistory: ['/'],
+        ),
+      );
+    });
+
     test('初始状态', () {
-      const state = MediaBrowserState();
+      final state = MediaBrowserState();
       expect(state.currentPath, '/');
       expect(state.items, isEmpty);
       expect(state.isLoading, isFalse);
@@ -18,18 +51,18 @@ void main() {
     });
 
     test('isAtRoot', () {
-      expect(const MediaBrowserState(currentPath: '/').isAtRoot, isTrue);
-      expect(const MediaBrowserState(currentPath: '').isAtRoot, isTrue);
-      expect(const MediaBrowserState(currentPath: '/sub').isAtRoot, isFalse);
+      expect(MediaBrowserState(currentPath: '/').isAtRoot, isTrue);
+      expect(MediaBrowserState(currentPath: '').isAtRoot, isTrue);
+      expect(MediaBrowserState(currentPath: '/sub').isAtRoot, isFalse);
     });
 
     test('canGoBack', () {
-      expect(const MediaBrowserState(pathHistory: []).canGoBack, isFalse);
-      expect(const MediaBrowserState(pathHistory: ['/']).canGoBack, isTrue);
+      expect(MediaBrowserState(pathHistory: []).canGoBack, isFalse);
+      expect(MediaBrowserState(pathHistory: ['/']).canGoBack, isTrue);
     });
 
     test('copyWith 保留未指定字段', () {
-      const state = MediaBrowserState(
+      final state = MediaBrowserState(
         currentPath: '/sub',
         items: [
           FileItem(

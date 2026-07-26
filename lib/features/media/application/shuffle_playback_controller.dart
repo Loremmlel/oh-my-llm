@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
@@ -11,28 +12,37 @@ import 'media_browser_controller.dart';
 
 // ── 状态定义 ────────────────────────────────────────────
 
-sealed class ShufflePlaybackState {
+sealed class ShufflePlaybackState extends Equatable {
   const ShufflePlaybackState();
 }
 
 class ShufflePlaybackIdle extends ShufflePlaybackState {
   const ShufflePlaybackIdle();
+
+  @override
+  List<Object?> get props => const [];
 }
 
 class ShufflePlaybackLoading extends ShufflePlaybackState {
   const ShufflePlaybackLoading();
+
+  @override
+  List<Object?> get props => const [];
 }
 
 class ShufflePlaybackActive extends ShufflePlaybackState {
+  ShufflePlaybackActive({
+    required List<VideoItem> playlist,
+    required this.currentIndex,
+    required this.directoryPath,
+  }) : playlist = List.unmodifiable(playlist);
+
   final List<VideoItem> playlist;
   final int currentIndex;
   final String directoryPath;
 
-  const ShufflePlaybackActive({
-    required this.playlist,
-    required this.currentIndex,
-    required this.directoryPath,
-  });
+  @override
+  List<Object?> get props => [playlist, currentIndex, directoryPath];
 
   bool get isFirst => currentIndex == 0;
   bool get isLast => currentIndex >= playlist.length - 1;

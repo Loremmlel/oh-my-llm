@@ -22,6 +22,33 @@ void main() {
       expect(state.currentVideo, equals(samplePlaylist[0]));
     });
 
+    test('快照播放列表且所有状态按值比较', () {
+      final playlist = <VideoItem>[
+        const VideoItem(name: 'test.mp4', relativePath: '/test.mp4'),
+      ];
+      final active = ShufflePlaybackActive(
+        playlist: playlist,
+        currentIndex: 0,
+        directoryPath: '/',
+      );
+      playlist.clear();
+
+      expect(active.playlist, hasLength(1));
+      expect(() => active.playlist.clear(), throwsUnsupportedError);
+      expect(const ShufflePlaybackIdle(), const ShufflePlaybackIdle());
+      expect(const ShufflePlaybackLoading(), const ShufflePlaybackLoading());
+      expect(
+        active,
+        ShufflePlaybackActive(
+          playlist: const [
+            VideoItem(name: 'test.mp4', relativePath: '/test.mp4'),
+          ],
+          currentIndex: 0,
+          directoryPath: '/',
+        ),
+      );
+    });
+
     test('ShufflePlaybackActive 末项属性', () {
       final state = ShufflePlaybackActive(
         playlist: samplePlaylist,

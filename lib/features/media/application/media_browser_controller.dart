@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
@@ -11,15 +12,16 @@ import '../domain/models/media_server_info.dart';
 const Object _sentinel = Object();
 
 /// 媒体浏览器状态。
-class MediaBrowserState {
-  const MediaBrowserState({
-    this.items = const [],
+class MediaBrowserState extends Equatable {
+  MediaBrowserState({
+    List<FileItem> items = const [],
     this.currentPath = '/',
-    this.pathHistory = const [],
+    List<String> pathHistory = const [],
     this.isLoading = false,
     this.errorMessage,
     this.server,
-  });
+  }) : items = List.unmodifiable(items),
+       pathHistory = List.unmodifiable(pathHistory);
 
   final List<FileItem> items;
   final String currentPath;
@@ -27,6 +29,28 @@ class MediaBrowserState {
   final bool isLoading;
   final String? errorMessage;
   final MediaServerInfo? server;
+
+  @override
+  List<Object?> get props => [
+    items
+        .map(
+          (item) => (
+            item.name,
+            item.isDirectory,
+            item.sizeBytes,
+            item.relativePath,
+            item.lastModified,
+            item.mimeType,
+            item.thumbnailUrl,
+          ),
+        )
+        .toList(),
+    currentPath,
+    pathHistory,
+    isLoading,
+    errorMessage,
+    (server?.ip, server?.httpPort),
+  ];
 
   MediaBrowserState copyWith({
     List<FileItem>? items,
@@ -67,7 +91,7 @@ class MediaBrowserController extends Notifier<MediaBrowserState> {
 
   @override
   MediaBrowserState build() {
-    return const MediaBrowserState();
+    return MediaBrowserState();
   }
 
   /// 初始化：从同步客户端状态获取服务端地址。
