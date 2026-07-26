@@ -454,4 +454,14 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
     if (!shouldSave) return;
     await saveConversations([conversation]);
   }
+
+  @override
+  Future<void> flush() async {
+    // 同步写入，无需排空
+  }
+
+  @override
+  Future<void> close() async {
+    // 同步写入，无需关闭 Isolate
+  }
 }
