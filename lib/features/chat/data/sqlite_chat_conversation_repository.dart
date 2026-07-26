@@ -171,20 +171,7 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
 
     final messageRows = _database.connection.select(
       '''
-      SELECT
-        id,
-        conversation_id,
-        node_index,
-        parent_id,
-        role,
-        content,
-        reasoning_content,
-        assistant_model_display_name,
-        applied_checkpoint_title,
-        user_message_segments_json,
-        template_prompt_id,
-        template_variable_values_json,
-        created_at
+      SELECT $kMessageSelectColumns
       FROM messages
       WHERE conversation_id = ?
       ORDER BY node_index
@@ -219,6 +206,7 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
                 (jsonDecode(row['template_variable_values_json'] as String)
                         as Map<String, dynamic>)
                     .map((k, v) => MapEntry(k, v as String)),
+            finishReason: row['finish_reason'] as String?,
           ),
         )
         .toList(growable: false);
