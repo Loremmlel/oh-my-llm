@@ -53,4 +53,5 @@ app.*.map.json
 
 .omo/
 .claude/
+.opencode/
 .superpowers/
