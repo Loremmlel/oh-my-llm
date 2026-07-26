@@ -227,10 +227,9 @@ class SyncClientController extends Notifier<SyncClientState> {
     if (data == null) return false;
 
     try {
-      final success = await const SettingsImportExecutor().executeImport(
-        ref,
-        data: data,
-      );
+      final success = await ref
+          .read(settingsImportExecutorProvider)
+          .executeImport(data: data);
       if (success) {
         state = state.copyWith(phase: SyncPhase.imported);
       }
