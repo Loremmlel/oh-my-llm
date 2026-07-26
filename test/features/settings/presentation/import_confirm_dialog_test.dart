@@ -8,11 +8,15 @@ import 'package:oh_my_llm/features/settings/application/fixed_prompt_sequences_c
 import 'package:oh_my_llm/features/settings/application/llm_model_configs_controller.dart';
 import 'package:oh_my_llm/features/settings/application/memory_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/application/preset_prompts_controller.dart';
+import 'package:oh_my_llm/features/settings/application/settings_import_executor.dart';
 import 'package:oh_my_llm/features/settings/application/template_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/auto_retry_settings.dart';
+import 'package:oh_my_llm/features/settings/domain/models/custom_headers_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/fixed_prompt_sequence.dart';
+import 'package:oh_my_llm/features/settings/domain/models/font_size_settings.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/memory_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/models/output_processing_settings.dart';
 import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/settings_export_data.dart';
 import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
@@ -96,6 +100,36 @@ Future<void> _openDialog(WidgetTester tester, SettingsExportData data) async {
   // 等待 AlertDialog 入场。
   await tester.pumpAndSettle();
   expect(find.byType(ImportConfirmDialog), findsOneWidget);
+}
+
+final class _FailingImportTargets implements SettingsImportTargets {
+  const _FailingImportTargets();
+
+  Never _fail() => throw StateError('写入失败');
+
+  @override
+  Future<void> mergeImportedProviders(List<LlmProviderConfig> value) async =>
+      _fail();
+  @override
+  Future<void> saveAutoRetrySettings(AutoRetrySettings value) async => _fail();
+  @override
+  Future<void> saveCustomHeaders(CustomHeadersConfig value) async => _fail();
+  @override
+  Future<void> saveFontSize(FontSizeSettings value) async => _fail();
+  @override
+  Future<void> saveOutputProcessing(OutputProcessingSettings value) async =>
+      _fail();
+  @override
+  Future<void> upsertFixedPromptSequences(
+    List<FixedPromptSequence> value,
+  ) async => _fail();
+  @override
+  Future<void> upsertMemoryPrompts(List<MemoryPrompt> value) async => _fail();
+  @override
+  Future<void> upsertPresetPrompts(List<PresetPrompt> value) async => _fail();
+  @override
+  Future<void> upsertTemplatePrompts(List<TemplatePrompt> value) async =>
+      _fail();
 }
 
 // ── 测试主体 ────────────────────────────────────────────────────────────────
@@ -191,6 +225,40 @@ void main() {
         container.read(autoRetrySettingsProvider),
         const AutoRetrySettings(),
       );
+    });
+
+    testWidgets('导入失败时保持对话框打开并恢复导入操作', (tester) async {
+      await pumpTestApp(
+        tester,
+        preferences: preferences,
+        extraOverrides: [
+          settingsImportExecutorProvider.overrideWithValue(
+            SettingsImportExecutor(targets: const _FailingImportTargets()),
+          ),
+        ],
+        child: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () => showDialog<void>(
+                context: context,
+                builder: (_) =>
+                    ImportConfirmDialog(exportData: _buildFullData()),
+              ),
+              child: const Text('打开'),
+            ),
+          ),
+        ),
+      );
+      await _openDialog(tester, _buildFullData());
+
+      await tester.tap(find.text('导入'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ImportConfirmDialog), findsOneWidget);
+      expect(find.text('导入失败：Bad state: 写入失败'), findsOneWidget);
+      await tester.tap(find.text('取消'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ImportConfirmDialog), findsNothing);
     });
   });
 }

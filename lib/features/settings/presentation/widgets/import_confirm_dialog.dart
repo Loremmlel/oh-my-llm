@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../application/settings_import_executor.dart';
 import '../../domain/models/settings_export_data.dart';
+import 'settings_helpers.dart';
 
 /// 配置导入确认对话框。
 ///
@@ -120,12 +121,18 @@ class _ImportConfirmDialogState extends ConsumerState<ImportConfirmDialog> {
   Future<void> _handleImport() async {
     setState(() => _isImporting = true);
 
-    await ref
-        .read(settingsImportExecutorProvider)
-        .executeImport(data: widget.exportData);
+    try {
+      await ref
+          .read(settingsImportExecutorProvider)
+          .executeImport(data: widget.exportData);
 
-    if (mounted) {
-      Navigator.of(context).pop(true);
+      if (mounted) {
+        Navigator.of(context).pop(true);
+      }
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _isImporting = false);
+      showSettingsSnackbar(context, '导入失败：$error');
     }
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../data/model_list_client.dart';
+import '../../../application/model_catalog_workflow.dart';
+import '../../../domain/models/model_catalog_entry.dart';
 import '../../../domain/models/llm_provider_config.dart';
 import '../settings_form_dialog_scaffold.dart';
 import '../settings_form_dialog_state_mixin.dart';
@@ -49,10 +50,7 @@ class ModelConfigFormDialog extends StatefulWidget {
 
   final Future<void> Function(List<ModelBatchFormData> items) onBatchAdd;
 
-  final Future<List<RemoteModelInfo>> Function({
-    required String modelsUrl,
-    required String apiKey,
-  })
+  final Future<List<ModelCatalogEntry>> Function(ModelCatalogRequest request)
   fetchModels;
 
   final LlmProviderModelConfig? initialValue;

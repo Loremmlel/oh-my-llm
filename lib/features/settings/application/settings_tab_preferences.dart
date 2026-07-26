@@ -12,14 +12,29 @@ final class SettingsTabPreferences {
 
   final SettingsKeyValueStore _store;
 
+  /// 同步读取启动所需的索引，避免设置页先显示错误标签再异步跳转。
+  int initialIndex({required int tabCount}) {
+    final savedVersion = _store.getInt(settingsTabVersionKey) ?? 1;
+    final index = _store.getInt(settingsLastTabIndexKey) ?? 0;
+    return _resolveIndex(
+      savedIndex: index,
+      savedVersion: savedVersion,
+      tabCount: tabCount,
+    );
+  }
+
   Future<int> loadInitialIndex({required int tabCount}) async {
     final savedVersion = _store.getInt(settingsTabVersionKey) ?? 1;
-    var index = _store.getInt(settingsLastTabIndexKey) ?? 0;
+    final savedIndex = _store.getInt(settingsLastTabIndexKey) ?? 0;
+    final index = _resolveIndex(
+      savedIndex: savedIndex,
+      savedVersion: savedVersion,
+      tabCount: tabCount,
+    );
     if (savedVersion < settingsCurrentTabVersion) {
-      index = _migrate(index, savedVersion);
       await _saveMigratedIndex(index);
     }
-    return index.clamp(0, tabCount - 1);
+    return index;
   }
 
   Future<void> saveIndex(int index) async {
@@ -55,6 +70,17 @@ final class SettingsTabPreferences {
       }
     }
     return index;
+  }
+
+  int _resolveIndex({
+    required int savedIndex,
+    required int savedVersion,
+    required int tabCount,
+  }) {
+    final migrated = savedVersion < settingsCurrentTabVersion
+        ? _migrate(savedIndex, savedVersion)
+        : savedIndex;
+    return migrated.clamp(0, tabCount - 1);
   }
 }
 
