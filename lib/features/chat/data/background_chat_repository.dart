@@ -1,10 +1,11 @@
 import 'dart:async';
 import 'dart:isolate';
 
-import '../../../core/persistence/background_sqlite_writer.dart';
+import '../../../core/persistence/background_worker_command.dart';
 import '../domain/models/chat_conversation.dart';
 import '../domain/models/chat_conversation_summary.dart';
 import 'chat_conversation_repository.dart';
+import 'chat_writer_entry_point.dart';
 import 'sqlite_chat_conversation_repository.dart';
 
 /// 将全量写入委托给后台 Isolate 的 [ChatConversationRepository] 代理。
@@ -25,41 +26,57 @@ class BackgroundChatConversationRepository
   SendPort? _workerCommandPort;
   bool _isolateReady = false;
   bool _isolateFailed = false;
+  // ignore: unused_field — Commit 4 close() 使用
+  Isolate? _isolate;
 
   Map<String, Map<String, dynamic>>? _pendingWrite;
   Timer? _debounceTimer;
   final Set<String> _pendingDeletes = {};
+  int _nextCommandId = 0;
 
   final ReceivePort _mainReceivePort = ReceivePort();
+  // ignore: unused_field — Commit 4 close() 使用
+  StreamSubscription? _subscription;
 
   void _spawnIsolate() {
     if (_databasePath == ':memory:') {
       return; // 内存数据库无法跨 Isolate 共享
     }
 
-    Isolate.spawn(chatWriterEntryPoint, _mainReceivePort.sendPort);
+    Isolate.spawn(chatWriterEntryPoint, _mainReceivePort.sendPort)
+        .then((isolate) => _isolate = isolate);
 
-    _mainReceivePort.listen((message) {
-      if (message is SendPort) {
-        _workerCommandPort = message;
-        _isolateReady = true;
-        message.send(_databasePath);
-        final pending = _pendingWrite;
-        if (pending != null) {
-          _pendingWrite = null;
-          final deletes = _pendingDeletes.toSet();
-          _pendingDeletes.clear();
-          if (deletes.isNotEmpty) {
-            for (final id in deletes) {
-              pending.remove(id);
-            }
-          }
-          if (pending.isNotEmpty) {
-            message.send(pending.values.toList(growable: false));
+    _subscription = _mainReceivePort.listen(_handleWorkerMessage);
+  }
+
+  void _handleWorkerMessage(dynamic message) {
+    if (message is SendPort) {
+      _workerCommandPort = message;
+      _isolateReady = true;
+      message.send(_databasePath);
+      final pending = _pendingWrite;
+      if (pending != null) {
+        _pendingWrite = null;
+        final deletes = _pendingDeletes.toSet();
+        _pendingDeletes.clear();
+        if (deletes.isNotEmpty) {
+          for (final id in deletes) {
+            pending.remove(id);
           }
         }
+        if (pending.isNotEmpty) {
+          message.send(
+            WriteCommand(
+              id: _nextCommandId++,
+              payload: pending.values.toList(growable: false),
+            ),
+          );
+        }
       }
-    });
+      return;
+    }
+    // ACK/ErrorResponse 在 Commit 4 中处理
+    // 当前保留 fire-and-forget 语义
   }
 
   @override
@@ -139,7 +156,9 @@ class BackgroundChatConversationRepository
   void _sendToWorker(List<Map<String, dynamic>> data) {
     if (_isolateReady && _workerCommandPort != null) {
       try {
-        _workerCommandPort!.send(data);
+        _workerCommandPort!.send(
+          WriteCommand(id: _nextCommandId++, payload: data),
+        );
       } catch (_) {
         _writeWithInner(data);
         _isolateReady = false;
@@ -164,5 +183,15 @@ class BackgroundChatConversationRepository
         )
         // ignore: avoid_print
         .catchError((e) => print('[BackgroundWriter] 降级写入失败: $e'));
+  }
+
+  @override
+  Future<void> flush() async {
+    // Commit 4 实现；当前为 no-op
+  }
+
+  @override
+  Future<void> close() async {
+    // Commit 4 实现；当前为 no-op
   }
 }

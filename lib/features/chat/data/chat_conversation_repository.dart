@@ -44,4 +44,14 @@ abstract interface class ChatConversationRepository {
 
   /// 从持久层删除指定 ID 的会话及其所有关联数据。
   Future<void> deleteConversations(List<String> ids);
+
+  /// 等待所有已排队的写入耐久落盘。
+  ///
+  /// 调用 [saveConversation] 后若需确保数据已写入 SQLite，可 await 此方法。
+  Future<void> flush();
+
+  /// 排空所有待写入并关闭后台 Isolate。
+  ///
+  /// 应在应用退出或 repository 销毁前调用。调用后不应再调用 save* 方法。
+  Future<void> close();
 }
