@@ -7,6 +7,8 @@ import 'video_player_gesture.dart';
 import 'video_player_state.dart';
 
 /// 全屏视频播放器。
+///
+/// 应用暂停只暂停播放；控制器和计时器仅在路由 dispose 时释放。
 class VideoPlayerPage extends StatefulWidget {
   final String videoUrl;
   final String fileName;
