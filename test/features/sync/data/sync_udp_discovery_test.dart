@@ -42,10 +42,15 @@ void main() {
         timeout: const Duration(seconds: 5),
       );
 
-      final first = await stream.first.timeout(
-        const Duration(seconds: 5),
-        onTimeout: () => throw TimeoutException('5s 内未收到广播'),
-      );
+      final first = await stream
+          .firstWhere(
+            (server) =>
+                server.deviceName == 'Test-PC' && server.httpPort == 54321,
+          )
+          .timeout(
+            const Duration(seconds: 5),
+            onTimeout: () => throw TimeoutException('5s 内未收到广播'),
+          );
 
       expect(first.deviceName, 'Test-PC');
       expect(first.httpPort, 54321);
