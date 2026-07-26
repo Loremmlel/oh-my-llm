@@ -58,7 +58,10 @@ void main() {
       // 替换内部 client 为 mock（通过重新构建 provider 不现实，
       // 改为直接验证 CustomHeadersHttpClient 的 currentHeaders）
       final llmClient = container.read(httpClientProvider);
-      expect(llmClient.currentHeaders, containsPair('X-API-Key', 'sk-secret-key'));
+      expect(
+        llmClient.currentHeaders,
+        containsPair('X-API-Key', 'sk-secret-key'),
+      );
     });
 
     test('peer client 请求不携带 LLM 自定义 header', () async {
@@ -87,8 +90,11 @@ void main() {
       final peerClient = container.read(peerHttpClientProvider);
       await peerClient.get(Uri.parse('http://192.168.1.5:8080/sync'));
 
-      expect(peerRequestHadApiKey, isFalse,
-          reason: 'peer 请求不应携带 LLM 自定义 header');
+      expect(
+        peerRequestHadApiKey,
+        isFalse,
+        reason: 'peer 请求不应携带 LLM 自定义 header',
+      );
     });
   });
 }

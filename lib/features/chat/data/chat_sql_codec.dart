@@ -87,41 +87,40 @@ const kMessageSelectColumns = '''
 
 /// 将 [ChatConversation] 编码为 conversations 表行参数。
 List<Object?> conversationToRowParams(ChatConversation c) => [
-      c.id,
-      c.title,
-      c.createdAt.toIso8601String(),
-      c.updatedAt.toIso8601String(),
-      c.selectedModelId,
-      c.selectedCheckpointId,
-      c.selectedPresetPromptId,
-      c.reasoningEnabled ? 1 : 0,
-      c.reasoningEffort.apiValue,
-      jsonEncode(c.excludedMessageIds),
-      c.autoRetryEnabled ? 1 : 0,
-    ];
+  c.id,
+  c.title,
+  c.createdAt.toIso8601String(),
+  c.updatedAt.toIso8601String(),
+  c.selectedModelId,
+  c.selectedCheckpointId,
+  c.selectedPresetPromptId,
+  c.reasoningEnabled ? 1 : 0,
+  c.reasoningEffort.apiValue,
+  jsonEncode(c.excludedMessageIds),
+  c.autoRetryEnabled ? 1 : 0,
+];
 
 /// 将 [ChatMessage] 编码为 messages 表行参数。
 List<Object?> messageToRowParams(
   ChatMessage m,
   String conversationId,
   int nodeIndex,
-) =>
-    [
-      m.id,
-      conversationId,
-      nodeIndex,
-      m.parentId,
-      m.role.apiValue,
-      m.content,
-      m.reasoningContent,
-      m.assistantModelDisplayName,
-      m.appliedCheckpointTitle,
-      jsonEncode(m.userMessageSegments.map((s) => s.toJson()).toList()),
-      m.templatePromptId,
-      jsonEncode(m.templateVariableValues),
-      m.finishReason,
-      m.createdAt.toIso8601String(),
-    ];
+) => [
+  m.id,
+  conversationId,
+  nodeIndex,
+  m.parentId,
+  m.role.apiValue,
+  m.content,
+  m.reasoningContent,
+  m.assistantModelDisplayName,
+  m.appliedCheckpointTitle,
+  jsonEncode(m.userMessageSegments.map((s) => s.toJson()).toList()),
+  m.templatePromptId,
+  jsonEncode(m.templateVariableValues),
+  m.finishReason,
+  m.createdAt.toIso8601String(),
+];
 
 /// 将 [ChatCheckpoint] 编码为 conversation_checkpoints 表行参数。
 List<Object?> checkpointToRowParams(ChatCheckpoint cp, String conversationId) =>
@@ -197,8 +196,7 @@ void executeSaveConversations(
 /// 将 [ChatConversation] 列表序列化为可跨 Isolate 传输的 JSON payload。
 List<Map<String, dynamic>> conversationsToPayload(
   List<ChatConversation> conversations,
-) =>
-    conversations.map((c) => c.toJson()).toList(growable: false);
+) => conversations.map((c) => c.toJson()).toList(growable: false);
 
 /// 从 JSON payload 反序列化并执行保存（供后台 worker Isolate 调用）。
 void executeSaveFromPayload(sqlite.Database db, List<dynamic> payload) {

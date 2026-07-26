@@ -85,22 +85,23 @@ void main() {
     }
   });
 
-  test('save completes with an error when preferences rejects the write', () async {
-    final store = _createStore(
-      _FakeSettingsKeyValueStore(nextWriteResult: false),
-    );
+  test(
+    'save completes with an error when preferences rejects the write',
+    () async {
+      final store = _createStore(
+        _FakeSettingsKeyValueStore(nextWriteResult: false),
+      );
 
-    await expectLater(
-      store.save(const FontSizeSettings(bodyFontSize: 20)),
-      throwsA(isA<StateError>()),
-    );
-  });
+      await expectLater(
+        store.save(const FontSizeSettings(bodyFontSize: 20)),
+        throwsA(isA<StateError>()),
+      );
+    },
+  );
 
   test('save propagates storage errors', () async {
     final error = Exception('disk unavailable');
-    final store = _createStore(
-      _FakeSettingsKeyValueStore(writeError: error),
-    );
+    final store = _createStore(_FakeSettingsKeyValueStore(writeError: error));
 
     await expectLater(
       store.save(const FontSizeSettings(bodyFontSize: 20)),

@@ -55,8 +55,10 @@ class BackgroundChatConversationRepository
       return; // 内存数据库无法跨 Isolate 共享
     }
 
-    Isolate.spawn(chatWriterEntryPoint, _mainReceivePort.sendPort)
-        .then((isolate) => _isolate = isolate);
+    Isolate.spawn(
+      chatWriterEntryPoint,
+      _mainReceivePort.sendPort,
+    ).then((isolate) => _isolate = isolate);
 
     _subscription = _mainReceivePort.listen(_handleWorkerMessage);
   }
@@ -226,10 +228,7 @@ class BackgroundChatConversationRepository
   }
 
   void _sendToWorker(List<Map<String, dynamic>> data) {
-    final command = WriteCommand(
-      id: _nextCommandId++,
-      payload: data,
-    );
+    final command = WriteCommand(id: _nextCommandId++, payload: data);
     _sendWriteCommand(command);
   }
 

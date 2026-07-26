@@ -52,21 +52,23 @@ void main() {
   }
 
   group('BackgroundChatConversationRepository', () {
-    test('saveConversation via Isolate writes and inner repo reads back',
-        () async {
-      final inner = SqliteChatConversationRepository(db);
-      final bg = BackgroundChatConversationRepository(inner, tempDbPath);
+    test(
+      'saveConversation via Isolate writes and inner repo reads back',
+      () async {
+        final inner = SqliteChatConversationRepository(db);
+        final bg = BackgroundChatConversationRepository(inner, tempDbPath);
 
-      final conv = makeConv('isolate_test', 'Hello from Isolate');
-      await bg.saveConversation(conv);
-      // saveConversation 在 ACK 后完成，数据已落盘
-      final loaded = inner.loadConversation('isolate_test');
-      expect(loaded, isNotNull);
-      expect(loaded!.messages.length, 1);
-      expect(loaded.messages.first.content, 'Hello from Isolate');
+        final conv = makeConv('isolate_test', 'Hello from Isolate');
+        await bg.saveConversation(conv);
+        // saveConversation 在 ACK 后完成，数据已落盘
+        final loaded = inner.loadConversation('isolate_test');
+        expect(loaded, isNotNull);
+        expect(loaded!.messages.length, 1);
+        expect(loaded.messages.first.content, 'Hello from Isolate');
 
-      await bg.close();
-    });
+        await bg.close();
+      },
+    );
 
     test('Map merge: two different conversations within debounce window '
         'both persisted', () async {
@@ -131,26 +133,28 @@ void main() {
       await bg.close();
     });
 
-    test('deleteConversations clears pending writes for deleted conversation',
-        () async {
-      final inner = SqliteChatConversationRepository(db);
-      final bg = BackgroundChatConversationRepository(inner, tempDbPath);
+    test(
+      'deleteConversations clears pending writes for deleted conversation',
+      () async {
+        final inner = SqliteChatConversationRepository(db);
+        final bg = BackgroundChatConversationRepository(inner, tempDbPath);
 
-      final conv = makeConv('to_delete', 'Will be deleted');
-      await bg.saveConversation(conv);
+        final conv = makeConv('to_delete', 'Will be deleted');
+        await bg.saveConversation(conv);
 
-      // 在 debounce 触发前立即删除
-      await bg.deleteConversations(['to_delete']);
+        // 在 debounce 触发前立即删除
+        await bg.deleteConversations(['to_delete']);
 
-      await bg.flush();
+        await bg.flush();
 
-      // 内层仓库已同步删除；debounce 触发时 pending write 应被清除，
-      // 不会通过 Isolate 重新写入
-      final loaded = inner.loadConversation('to_delete');
-      expect(loaded, isNull);
+        // 内层仓库已同步删除；debounce 触发时 pending write 应被清除，
+        // 不会通过 Isolate 重新写入
+        final loaded = inner.loadConversation('to_delete');
+        expect(loaded, isNull);
 
-      await bg.close();
-    });
+        await bg.close();
+      },
+    );
 
     test(':memory: database falls back to inner repo synchronously', () async {
       // 内存数据库不走 Isolate 管道，直接委托内层仓库写入

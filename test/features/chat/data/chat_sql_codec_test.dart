@@ -449,8 +449,7 @@ void main() {
       addTearDown(() {
         if (tmpDir.existsSync()) tmpDir.deleteSync(recursive: true);
       });
-      final dbPath =
-          '${tmpDir.path}${Platform.pathSeparator}rollback.sqlite';
+      final dbPath = '${tmpDir.path}${Platform.pathSeparator}rollback.sqlite';
 
       final appDb = AppDatabase.forPath(dbPath);
       addTearDown(appDb.close);
@@ -791,9 +790,7 @@ void main() {
       expect(stopRow['finish_reason'], equals('stop'));
 
       final lengthRow = db
-          .select(
-            "SELECT finish_reason FROM messages WHERE id = 'msg-length';",
-          )
+          .select("SELECT finish_reason FROM messages WHERE id = 'msg-length';")
           .single;
       expect(lengthRow['finish_reason'], equals('length'));
 
