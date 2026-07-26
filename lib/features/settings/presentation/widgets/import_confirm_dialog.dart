@@ -120,10 +120,9 @@ class _ImportConfirmDialogState extends ConsumerState<ImportConfirmDialog> {
   Future<void> _handleImport() async {
     setState(() => _isImporting = true);
 
-    await const SettingsImportExecutor().executeImport(
-      ref,
-      data: widget.exportData,
-    );
+    await ref
+        .read(settingsImportExecutorProvider)
+        .executeImport(data: widget.exportData);
 
     if (mounted) {
       Navigator.of(context).pop(true);
