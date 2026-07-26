@@ -76,7 +76,15 @@ void main() {
           sharedPreferencesProvider.overrideWithValue(serverPrefs),
         ],
       );
-      addTearDown(container.dispose);
+      final subscription = container.listen(
+        syncServerControllerProvider,
+        (_, _) {},
+      );
+      addTearDown(() async {
+        await container.read(syncServerControllerProvider.notifier).stop();
+        subscription.close();
+        container.dispose();
+      });
       return container;
     }
 
@@ -91,7 +99,14 @@ void main() {
             ),
         ],
       );
-      addTearDown(container.dispose);
+      final subscription = container.listen(
+        syncClientControllerProvider,
+        (_, _) {},
+      );
+      addTearDown(() {
+        subscription.close();
+        container.dispose();
+      });
       return container;
     }
 
