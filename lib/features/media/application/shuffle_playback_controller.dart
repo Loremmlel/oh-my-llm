@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
@@ -11,28 +12,37 @@ import 'media_browser_controller.dart';
 
 // ── 状态定义 ────────────────────────────────────────────
 
-sealed class ShufflePlaybackState {
+sealed class ShufflePlaybackState extends Equatable {
   const ShufflePlaybackState();
 }
 
 class ShufflePlaybackIdle extends ShufflePlaybackState {
   const ShufflePlaybackIdle();
+
+  @override
+  List<Object?> get props => const [];
 }
 
 class ShufflePlaybackLoading extends ShufflePlaybackState {
   const ShufflePlaybackLoading();
+
+  @override
+  List<Object?> get props => const [];
 }
 
 class ShufflePlaybackActive extends ShufflePlaybackState {
+  ShufflePlaybackActive({
+    required List<VideoItem> playlist,
+    required this.currentIndex,
+    required this.directoryPath,
+  }) : playlist = List.unmodifiable(playlist);
+
   final List<VideoItem> playlist;
   final int currentIndex;
   final String directoryPath;
 
-  const ShufflePlaybackActive({
-    required this.playlist,
-    required this.currentIndex,
-    required this.directoryPath,
-  });
+  @override
+  List<Object?> get props => [playlist, currentIndex, directoryPath];
 
   bool get isFirst => currentIndex == 0;
   bool get isLast => currentIndex >= playlist.length - 1;
@@ -46,14 +56,17 @@ class ShufflePlaybackActive extends ShufflePlaybackState {
 final shufflePlaybackControllerProvider =
     NotifierProvider<ShufflePlaybackController, ShufflePlaybackState>(
       ShufflePlaybackController.new,
+      isAutoDispose: true,
     );
 
 /// 随机播放控制器。
 ///
 /// 管理视频播放列表状态，协调服务端请求和客户端 shuffle。
 /// 通过 [mediaBrowserControllerProvider] 获取服务端地址构建 URL。
+/// 这是页面级 auto-dispose 会话，不保活；离开媒体页面后重建为 Idle。
 class ShufflePlaybackController extends Notifier<ShufflePlaybackState> {
   http.Client get _httpClient => ref.read(peerHttpClientProvider);
+  int _generation = 0;
 
   @override
   ShufflePlaybackState build() => const ShufflePlaybackIdle();
@@ -64,6 +77,7 @@ class ShufflePlaybackController extends Notifier<ShufflePlaybackState> {
   ///
   /// 返回第一个视频的 URL，或 null（0 个视频 / 请求失败）。
   Future<String?> startShuffle(String directoryPath) async {
+    final generation = ++_generation;
     final browserState = ref.read(mediaBrowserControllerProvider);
     final server = browserState.server;
     if (server == null) return null;
@@ -78,6 +92,7 @@ class ShufflePlaybackController extends Notifier<ShufflePlaybackState> {
       final response = await _httpClient
           .get(url)
           .timeout(const Duration(seconds: 15));
+      if (!_isCurrent(generation)) return null;
 
       if (response.statusCode != 200) {
         state = const ShufflePlaybackIdle();
@@ -96,6 +111,8 @@ class ShufflePlaybackController extends Notifier<ShufflePlaybackState> {
       // Fisher-Yates shuffle（只对 ≥2 个项有意义）
       if (list.length >= 2) list.shuffle(_random);
 
+      if (!_isCurrent(generation)) return null;
+
       state = ShufflePlaybackActive(
         playlist: list,
         currentIndex: 0,
@@ -104,6 +121,7 @@ class ShufflePlaybackController extends Notifier<ShufflePlaybackState> {
 
       return buildVideoUrl(list.first.relativePath);
     } catch (_) {
+      if (!_isCurrent(generation)) return null;
       state = const ShufflePlaybackIdle();
       return null;
     }
@@ -155,6 +173,7 @@ class ShufflePlaybackController extends Notifier<ShufflePlaybackState> {
 
   /// 手动重置为 Idle。
   void reset() {
+    _generation++;
     state = const ShufflePlaybackIdle();
   }
 
@@ -165,4 +184,6 @@ class ShufflePlaybackController extends Notifier<ShufflePlaybackState> {
     final encoded = encodeMediaPath(relativePath);
     return 'http://${server.ip}:${server.httpPort}/api/media/video/$encoded';
   }
+
+  bool _isCurrent(int generation) => ref.mounted && generation == _generation;
 }

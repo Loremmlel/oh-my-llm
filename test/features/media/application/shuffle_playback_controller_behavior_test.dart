@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 
 import 'package:oh_my_llm/features/media/application/shuffle_playback_controller.dart';
 import 'package:oh_my_llm/features/media/domain/models/video_item.dart';
@@ -19,13 +21,13 @@ String _videoListJson(List<VideoItem> items) =>
 
 ProviderContainer _createContainer({
   required http.Client httpClient,
-  MediaBrowserState browserState = const MediaBrowserState(),
+  MediaBrowserState? browserState,
 }) {
   return ProviderContainer(
     overrides: [
       peerHttpClientProvider.overrideWithValue(httpClient),
       mediaBrowserControllerProvider.overrideWith(
-        () => _StubBrowserController(browserState),
+        () => _StubBrowserController(browserState ?? MediaBrowserState()),
       ),
     ],
   );
@@ -41,10 +43,39 @@ class _StubBrowserController extends MediaBrowserController {
 
 void main() {
   group('ShufflePlaybackController.startShuffle', () {
+    test('reset 后忽略已失效视频列表响应', () async {
+      final responseCompleter = Completer<http.Response>();
+      final container = _createContainer(
+        httpClient: MockClient((_) => responseCompleter.future),
+        browserState: MediaBrowserState(server: testServer),
+      );
+      addTearDown(container.dispose);
+
+      final controller = container.read(
+        shufflePlaybackControllerProvider.notifier,
+      );
+      final pending = controller.startShuffle('/dir');
+      expect(
+        container.read(shufflePlaybackControllerProvider),
+        const ShufflePlaybackLoading(),
+      );
+
+      controller.reset();
+      responseCompleter.complete(
+        http.Response(_videoListJson(_videos(1)), 200),
+      );
+
+      expect(await pending, isNull);
+      expect(
+        container.read(shufflePlaybackControllerProvider),
+        const ShufflePlaybackIdle(),
+      );
+    });
+
     test('server 为 null → 返回 null，保持 Idle', () async {
       final container = _createContainer(
         httpClient: okMockClient('[]'),
-        browserState: const MediaBrowserState(),
+        browserState: MediaBrowserState(),
       );
       addTearDown(container.dispose);
 
@@ -62,7 +93,7 @@ void main() {
     test('HTTP 200 + 空列表 → 返回 null，回到 Idle', () async {
       final container = _createContainer(
         httpClient: okMockClient('[]'),
-        browserState: const MediaBrowserState(server: testServer),
+        browserState: MediaBrowserState(server: testServer),
       );
       addTearDown(container.dispose);
 
@@ -81,7 +112,7 @@ void main() {
       final videos = _videos(3);
       final container = _createContainer(
         httpClient: okMockClient(_videoListJson(videos)),
-        browserState: const MediaBrowserState(server: testServer),
+        browserState: MediaBrowserState(server: testServer),
       );
       addTearDown(container.dispose);
 
@@ -101,7 +132,7 @@ void main() {
     test('HTTP 非 200 → 回到 Idle', () async {
       final container = _createContainer(
         httpClient: statusMockClient(500),
-        browserState: const MediaBrowserState(server: testServer),
+        browserState: MediaBrowserState(server: testServer),
       );
       addTearDown(container.dispose);
 
@@ -119,7 +150,7 @@ void main() {
     test('网络异常 → 回到 Idle', () async {
       final container = _createContainer(
         httpClient: throwingMockClient(),
-        browserState: const MediaBrowserState(server: testServer),
+        browserState: MediaBrowserState(server: testServer),
       );
       addTearDown(container.dispose);
 
@@ -142,7 +173,7 @@ void main() {
       for (int attempt = 0; attempt < 5; attempt++) {
         final container = _createContainer(
           httpClient: okMockClient(_videoListJson(videos)),
-          browserState: const MediaBrowserState(server: testServer),
+          browserState: MediaBrowserState(server: testServer),
         );
 
         final controller = container.read(
@@ -169,7 +200,7 @@ void main() {
     test('非活跃状态 → 返回 null', () {
       final container = _createContainer(
         httpClient: okMockClient('[]'),
-        browserState: const MediaBrowserState(server: testServer),
+        browserState: MediaBrowserState(server: testServer),
       );
       addTearDown(container.dispose);
 
@@ -184,7 +215,7 @@ void main() {
       final videos = _videos(3);
       final container = _createContainer(
         httpClient: okMockClient(_videoListJson(videos)),
-        browserState: const MediaBrowserState(server: testServer),
+        browserState: MediaBrowserState(server: testServer),
       );
       addTearDown(container.dispose);
 
@@ -204,7 +235,7 @@ void main() {
       final videos = _videos(3);
       final container = _createContainer(
         httpClient: okMockClient(_videoListJson(videos)),
-        browserState: const MediaBrowserState(server: testServer),
+        browserState: MediaBrowserState(server: testServer),
       );
       addTearDown(container.dispose);
 
@@ -221,7 +252,7 @@ void main() {
       final videos = _videos(3);
       final container = _createContainer(
         httpClient: okMockClient(_videoListJson(videos)),
-        browserState: const MediaBrowserState(server: testServer),
+        browserState: MediaBrowserState(server: testServer),
       );
       addTearDown(container.dispose);
 
@@ -242,7 +273,7 @@ void main() {
       final videos = _videos(3);
       final container = _createContainer(
         httpClient: okMockClient(_videoListJson(videos)),
-        browserState: const MediaBrowserState(server: testServer),
+        browserState: MediaBrowserState(server: testServer),
       );
       addTearDown(container.dispose);
 
@@ -259,7 +290,7 @@ void main() {
       final videos = _videos(1);
       final container = _createContainer(
         httpClient: okMockClient(_videoListJson(videos)),
-        browserState: const MediaBrowserState(server: testServer),
+        browserState: MediaBrowserState(server: testServer),
       );
       addTearDown(container.dispose);
 
@@ -281,7 +312,7 @@ void main() {
       final videos = _videos(3);
       final container = _createContainer(
         httpClient: okMockClient(_videoListJson(videos)),
-        browserState: const MediaBrowserState(server: testServer),
+        browserState: MediaBrowserState(server: testServer),
       );
       addTearDown(container.dispose);
 
@@ -302,7 +333,7 @@ void main() {
       final videos = _videos(3);
       final container = _createContainer(
         httpClient: okMockClient(_videoListJson(videos)),
-        browserState: const MediaBrowserState(server: testServer),
+        browserState: MediaBrowserState(server: testServer),
       );
       addTearDown(container.dispose);
 
@@ -325,7 +356,7 @@ void main() {
       final videos = _videos(3);
       final container = _createContainer(
         httpClient: okMockClient(_videoListJson(videos)),
-        browserState: const MediaBrowserState(server: testServer),
+        browserState: MediaBrowserState(server: testServer),
       );
       addTearDown(container.dispose);
 
@@ -346,7 +377,7 @@ void main() {
       final videos = _videos(3);
       final container = _createContainer(
         httpClient: okMockClient(_videoListJson(videos)),
-        browserState: const MediaBrowserState(server: testServer),
+        browserState: MediaBrowserState(server: testServer),
       );
       addTearDown(container.dispose);
 
@@ -370,7 +401,7 @@ void main() {
     test('server null → 返回 null', () {
       final container = _createContainer(
         httpClient: okMockClient('[]'),
-        browserState: const MediaBrowserState(),
+        browserState: MediaBrowserState(),
       );
       addTearDown(container.dispose);
 
@@ -383,7 +414,7 @@ void main() {
     test('有 server → 正确拼接 URL', () {
       final container = _createContainer(
         httpClient: okMockClient('[]'),
-        browserState: const MediaBrowserState(server: testServer),
+        browserState: MediaBrowserState(server: testServer),
       );
       addTearDown(container.dispose);
 
@@ -397,7 +428,7 @@ void main() {
     test('中文路径正确编码', () {
       final container = _createContainer(
         httpClient: okMockClient('[]'),
-        browserState: const MediaBrowserState(server: testServer),
+        browserState: MediaBrowserState(server: testServer),
       );
       addTearDown(container.dispose);
 

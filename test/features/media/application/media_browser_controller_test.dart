@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -6,8 +8,41 @@ import '../helpers/media_test_helpers.dart';
 
 void main() {
   group('MediaBrowserState', () {
+    test('快照 item 和 history 输入并按值比较', () {
+      final sourceItem = FileItem(
+        name: 'test.mp4',
+        isDirectory: false,
+        sizeBytes: 100,
+        relativePath: '/test.mp4',
+      );
+      final items = <FileItem>[sourceItem];
+      final history = <String>['/'];
+      final state = MediaBrowserState(items: items, pathHistory: history);
+      items.clear();
+      history.add('/movies');
+
+      expect(state.items, [sourceItem]);
+      expect(state.pathHistory, ['/']);
+      expect(() => state.items.clear(), throwsUnsupportedError);
+      expect(() => state.pathHistory.add('/x'), throwsUnsupportedError);
+      expect(
+        state,
+        MediaBrowserState(
+          items: [
+            FileItem(
+              name: 'test.mp4',
+              isDirectory: false,
+              sizeBytes: 100,
+              relativePath: '/test.mp4',
+            ),
+          ],
+          pathHistory: ['/'],
+        ),
+      );
+    });
+
     test('初始状态', () {
-      const state = MediaBrowserState();
+      final state = MediaBrowserState();
       expect(state.currentPath, '/');
       expect(state.items, isEmpty);
       expect(state.isLoading, isFalse);
@@ -18,18 +53,18 @@ void main() {
     });
 
     test('isAtRoot', () {
-      expect(const MediaBrowserState(currentPath: '/').isAtRoot, isTrue);
-      expect(const MediaBrowserState(currentPath: '').isAtRoot, isTrue);
-      expect(const MediaBrowserState(currentPath: '/sub').isAtRoot, isFalse);
+      expect(MediaBrowserState(currentPath: '/').isAtRoot, isTrue);
+      expect(MediaBrowserState(currentPath: '').isAtRoot, isTrue);
+      expect(MediaBrowserState(currentPath: '/sub').isAtRoot, isFalse);
     });
 
     test('canGoBack', () {
-      expect(const MediaBrowserState(pathHistory: []).canGoBack, isFalse);
-      expect(const MediaBrowserState(pathHistory: ['/']).canGoBack, isTrue);
+      expect(MediaBrowserState(pathHistory: []).canGoBack, isFalse);
+      expect(MediaBrowserState(pathHistory: ['/']).canGoBack, isTrue);
     });
 
     test('copyWith 保留未指定字段', () {
-      const state = MediaBrowserState(
+      final state = MediaBrowserState(
         currentPath: '/sub',
         items: [
           FileItem(
@@ -48,6 +83,64 @@ void main() {
   });
 
   group('MediaBrowserController', () {
+    test('reset 后忽略已失效请求的响应', () async {
+      final responseCompleter = Completer<http.Response>();
+      final container = createMediaTestContainer(
+        httpClient: MockClient((_) => responseCompleter.future),
+      );
+      addTearDown(container.dispose);
+
+      final controller = container.read(
+        mediaBrowserControllerProvider.notifier,
+      );
+      controller.initWithServer(testServer);
+      expect(container.read(mediaBrowserControllerProvider).isLoading, isTrue);
+
+      controller.reset();
+      responseCompleter.complete(
+        http.Response(
+          fileListJson([
+            const FileItem(
+              name: 'stale.mp4',
+              isDirectory: false,
+              sizeBytes: 1,
+              relativePath: '/stale.mp4',
+            ),
+          ]),
+          200,
+        ),
+      );
+      await responseCompleter.future;
+      await Future<void>.value();
+
+      expect(
+        container.read(mediaBrowserControllerProvider),
+        MediaBrowserState(),
+      );
+    });
+
+    test('媒体浏览页面会话在观察者释放后重建为空状态', () async {
+      final container = createMediaTestContainer(
+        httpClient: okMockClient('[]'),
+        retainBrowserListener: false,
+      );
+      addTearDown(container.dispose);
+      final subscription = container.listen(
+        mediaBrowserControllerProvider,
+        (_, _) {},
+      );
+      await initBrowserAndWait(container);
+
+      subscription.close();
+      await container.pump();
+
+      expect(container.exists(mediaBrowserControllerProvider), isFalse);
+      expect(
+        container.read(mediaBrowserControllerProvider),
+        MediaBrowserState(),
+      );
+    });
+
     test('build() 初始状态', () {
       final container = createMediaTestContainer(
         httpClient: okMockClient('[]'),

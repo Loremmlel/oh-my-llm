@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -12,6 +13,8 @@ import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/core/persistence/versioned_json_storage.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
 import 'package:oh_my_llm/features/sync/application/sync_server_controller.dart';
+import 'package:oh_my_llm/features/sync/application/network_interface_provider.dart';
+import 'package:oh_my_llm/features/sync/domain/models/network_interface_info.dart';
 import 'package:oh_my_llm/features/sync/domain/models/sync_message.dart';
 import 'package:oh_my_llm/features/sync/domain/models/sync_types.dart';
 
@@ -44,19 +47,190 @@ void main() {
       database = AppDatabase.inMemory();
     });
 
-    ProviderContainer buildContainer() {
+    ProviderContainer buildContainer({
+      Future<List<NetworkInterfaceInfo>> Function()? interfaces,
+    }) {
+      final container = ProviderContainer(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(database),
+          sharedPreferencesProvider.overrideWithValue(preferences),
+          if (interfaces != null)
+            availableInterfacesProvider.overrideWith((ref) => interfaces()),
+        ],
+      );
+      final subscription = container.listen(
+        syncServerControllerProvider,
+        (_, _) {},
+      );
+      addTearDown(() async {
+        if (container.exists(syncServerControllerProvider)) {
+          await container.read(syncServerControllerProvider.notifier).stop();
+        }
+        subscription.close();
+        container.dispose();
+        database.close();
+      });
+      return container;
+    }
+
+    test('SyncServerState 按网卡字段和可观察值比较', () {
+      expect(
+        SyncServerState(
+          isRunning: true,
+          deviceName: '设备',
+          httpPort: 8080,
+          servedRequestCount: 1,
+          selectedInterface: NetworkInterfaceInfo(
+            name: 'Wi-Fi',
+            ip: '192.168.1.2',
+          ),
+        ),
+        SyncServerState(
+          isRunning: true,
+          deviceName: '设备',
+          httpPort: 8080,
+          servedRequestCount: 1,
+          selectedInterface: NetworkInterfaceInfo(
+            name: 'Wi-Fi',
+            ip: '192.168.1.2',
+          ),
+        ),
+      );
+      expect(
+        SyncServerState(servedRequestCount: 1),
+        isNot(SyncServerState(servedRequestCount: 2)),
+      );
+    });
+
+    test('运行中的同步服务在观察者移除后存活，直到显式停止', () async {
       final container = ProviderContainer(
         overrides: [
           appDatabaseProvider.overrideWithValue(database),
           sharedPreferencesProvider.overrideWithValue(preferences),
         ],
       );
-      addTearDown(() {
-        container.dispose();
-        database.close();
-      });
-      return container;
-    }
+      final subscription = container.listen(
+        syncServerControllerProvider,
+        (_, _) {},
+      );
+      final controller = container.read(syncServerControllerProvider.notifier);
+      await controller.start();
+
+      subscription.close();
+      await container.pump();
+      expect(container.exists(syncServerControllerProvider), isTrue);
+
+      await controller.stop();
+      await container.pump();
+      expect(container.exists(syncServerControllerProvider), isFalse);
+      container.dispose();
+    });
+
+    test('container dispose 后原 HTTP 端口不再接受请求', () async {
+      final container = ProviderContainer(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(database),
+          sharedPreferencesProvider.overrideWithValue(preferences),
+        ],
+      );
+      final subscription = container.listen(
+        syncServerControllerProvider,
+        (_, _) {},
+      );
+      await container.read(syncServerControllerProvider.notifier).start();
+      final controller = container.read(syncServerControllerProvider.notifier);
+      final port = container.read(syncServerControllerProvider).httpPort!;
+
+      container.dispose();
+      subscription.close();
+      await controller.shutdownFuture;
+
+      await expectLater(
+        http.get(Uri.parse('http://127.0.0.1:$port/sync')),
+        throwsA(isA<http.ClientException>()),
+      );
+      database.close();
+    });
+
+    test('start 等待网卡枚举时 stop 不会留下运行会话', () async {
+      final interfaces = Completer<List<NetworkInterfaceInfo>>();
+      final container = buildContainer(interfaces: () => interfaces.future);
+      final controller = container.read(syncServerControllerProvider.notifier);
+
+      final starting = controller.start();
+      final stopping = controller.stop();
+      interfaces.complete(const []);
+      await Future.wait([starting, stopping]);
+
+      final state = container.read(syncServerControllerProvider);
+      expect(state.isRunning, isFalse);
+      expect(state.httpPort, isNull);
+    });
+
+    test('停止尚未完成时重新 start 会在清理后恢复运行', () async {
+      final container = buildContainer();
+      final controller = container.read(syncServerControllerProvider.notifier);
+      await controller.start();
+
+      final stopping = controller.stop();
+      final restarting = controller.start();
+      await Future.wait([stopping, restarting]);
+
+      final state = container.read(syncServerControllerProvider);
+      expect(state.isRunning, isTrue);
+      expect(state.httpPort, isNotNull);
+    });
+
+    test('重复 stop 复用同一停止流程并保持空闲状态', () async {
+      final container = buildContainer();
+      final controller = container.read(syncServerControllerProvider.notifier);
+      await controller.start();
+
+      final firstStop = controller.stop();
+      final secondStop = controller.stop();
+      expect(identical(firstStop, secondStop), isTrue);
+      await Future.wait([firstStop, secondStop]);
+
+      final state = container.read(syncServerControllerProvider);
+      expect(state.isRunning, isFalse);
+      expect(state.httpPort, isNull);
+    });
+
+    test('失败的设备名重启释放旧 keep-alive link', () async {
+      var invocationCount = 0;
+      final container = ProviderContainer(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(database),
+          sharedPreferencesProvider.overrideWithValue(preferences),
+          availableInterfacesProvider.overrideWith((ref) {
+            invocationCount++;
+            if (invocationCount == 1) return Future.value(const []);
+            return Future<List<NetworkInterfaceInfo>>.error(
+              StateError('网卡枚举失败'),
+            );
+          }),
+        ],
+      );
+      final subscription = container.listen(
+        syncServerControllerProvider,
+        (_, _) {},
+      );
+      final controller = container.read(syncServerControllerProvider.notifier);
+      await controller.start();
+      container.invalidate(availableInterfacesProvider);
+
+      await controller.updateDeviceName('会失败的重启');
+      expect(
+        container.read(syncServerControllerProvider).lastError,
+        contains('启动失败'),
+      );
+
+      subscription.close();
+      await container.pump();
+      expect(container.exists(syncServerControllerProvider), isFalse);
+      container.dispose();
+      database.close();
+    });
 
     test('无存储时 deviceName 回退到 hostname', () async {
       final c1 = buildContainer();
@@ -64,7 +238,6 @@ void main() {
         c1.read(syncServerControllerProvider).deviceName,
         Platform.localHostname,
       );
-      c1.dispose();
     });
 
     test('有存储时 deviceName 读取存储值', () async {
