@@ -20,6 +20,48 @@ final class VersionedJsonStorage {
     });
   }
 
+  /// 将单个对象编码为当前版本的 JSON 包装结构。
+  static String encodeObject({required JsonMap value}) {
+    return jsonEncode({
+      'version': currentSchemaVersion,
+      'value': value,
+    });
+  }
+
+  /// 解析单个对象包裹，并兼容历史裸对象格式。
+  static JsonMap decodeObject({
+    required String rawJson,
+    required String subject,
+  }) {
+    final decoded = jsonDecode(rawJson);
+    if (decoded is! Map) {
+      throw FormatException('Stored $subject payload must be a JSON object.');
+    }
+
+    final object = Map<String, dynamic>.from(decoded);
+    if (!object.containsKey('value')) {
+      return object;
+    }
+
+    final version = object['version'];
+    if (version is! int) {
+      throw FormatException(
+        'Stored $subject payload version must be an integer.',
+      );
+    }
+    if (version > currentSchemaVersion) {
+      throw FormatException(
+        'Stored $subject payload version $version is not supported.',
+      );
+    }
+
+    final value = object['value'];
+    if (value is! Map) {
+      throw FormatException('Stored $subject payload value must be an object.');
+    }
+    return Map<String, dynamic>.from(value);
+  }
+
   /// 解析版本化对象包裹。
   static List<JsonMap> decodeObjectList({
     required String rawJson,

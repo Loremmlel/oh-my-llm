@@ -5,6 +5,32 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/core/persistence/versioned_json_storage.dart';
 
 void main() {
+  group('object envelope', () {
+    test('encodes and decodes a current versioned object', () {
+      final encoded = VersionedJsonStorage.encodeObject(
+        value: {'bodyFontSize': 18},
+      );
+
+      expect(
+        VersionedJsonStorage.decodeObject(
+          rawJson: encoded,
+          subject: 'font size settings',
+        ),
+        {'bodyFontSize': 18},
+      );
+    });
+
+    test('accepts a legacy object without a version wrapper', () {
+      expect(
+        VersionedJsonStorage.decodeObject(
+          rawJson: '{"bodyFontSize":18}',
+          subject: 'font size settings',
+        ),
+        {'bodyFontSize': 18},
+      );
+    });
+  });
+
   group('decodeObjectList', () {
     test('supports current versioned format with empty items', () {
       final decoded = VersionedJsonStorage.decodeObjectList(
