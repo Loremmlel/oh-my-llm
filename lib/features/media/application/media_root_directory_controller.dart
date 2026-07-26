@@ -7,6 +7,7 @@ const String mediaRootDirectoryStorageKey = 'media.root_directory';
 /// 媒体根目录配置 Provider。
 ///
 /// 仅服务端使用，客户端此值为 null。
+/// 它是持久化应用配置；实际 scanner 的生命周期由同步服务端的 handlers 拥有。
 final mediaRootDirectoryProvider =
     NotifierProvider<MediaRootDirectoryController, String?>(
       MediaRootDirectoryController.new,
