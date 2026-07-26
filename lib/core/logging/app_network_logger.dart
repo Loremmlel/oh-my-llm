@@ -56,9 +56,7 @@ final class AppNetworkLogger with NetworkLogger {
         '[request] $method $uri headers=${jsonEncode(h)} payload=${jsonEncode(p)}',
       );
     } else {
-      await _writeLog(
-        '[request] $method $uri headers=${jsonEncode(h)}',
-      );
+      await _writeLog('[request] $method $uri headers=${jsonEncode(h)}');
     }
   }
 
@@ -133,9 +131,7 @@ final class AppNetworkLogger with NetworkLogger {
 
   Future<void> _writeLog(String line) async {
     try {
-      await _store.appendLine(
-        '[${DateTime.now().toIso8601String()}] $line',
-      );
+      await _store.appendLine('[${DateTime.now().toIso8601String()}] $line');
     } catch (error, stackTrace) {
       stderr.writeln('[network-log] write failed: $error\n$stackTrace');
     }

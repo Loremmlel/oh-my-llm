@@ -756,25 +756,26 @@ void main() {
       final loaded = repository.loadConversation('conv-finish-reason');
       expect(loaded, isNotNull);
 
-      final stopMsg =
-          loaded!.messageNodes.firstWhere((m) => m.id == 'msg-reply-stop');
+      final stopMsg = loaded!.messageNodes.firstWhere(
+        (m) => m.id == 'msg-reply-stop',
+      );
       expect(stopMsg.finishReason, equals('stop'));
 
-      final lengthMsg =
-          loaded.messageNodes.firstWhere((m) => m.id == 'msg-reply-length');
+      final lengthMsg = loaded.messageNodes.firstWhere(
+        (m) => m.id == 'msg-reply-length',
+      );
       expect(lengthMsg.finishReason, equals('length'));
 
-      final nullMsg =
-          loaded.messageNodes.firstWhere((m) => m.id == 'msg-reply-null');
+      final nullMsg = loaded.messageNodes.firstWhere(
+        (m) => m.id == 'msg-reply-null',
+      );
       expect(nullMsg.finishReason, isNull);
 
       // 验证 loadAll() 与 loadConversation() 的 finish_reason 一致
       final allLoaded = repository.loadAll();
-      final allConv =
-          allLoaded.firstWhere((c) => c.id == 'conv-finish-reason');
+      final allConv = allLoaded.firstWhere((c) => c.id == 'conv-finish-reason');
       for (final msg in loaded.messageNodes) {
-        final allMsg =
-            allConv.messageNodes.firstWhere((m) => m.id == msg.id);
+        final allMsg = allConv.messageNodes.firstWhere((m) => m.id == msg.id);
         expect(
           msg.finishReason,
           equals(allMsg.finishReason),

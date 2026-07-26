@@ -35,9 +35,7 @@ void main() {
         {'X-Custom': 'value1', 'Authorization': 'Bearer test-key'},
       );
 
-      await client.send(
-        http.Request('GET', Uri.parse('https://example.com')),
-      );
+      await client.send(http.Request('GET', Uri.parse('https://example.com')));
       client.close();
     });
 
@@ -115,10 +113,7 @@ void main() {
       expect(headers, {'X-Test': 'value'});
 
       // 返回的是不可变 map，修改应抛出异常
-      expect(
-        () => headers['X-Hack'] = 'nope',
-        throwsUnsupportedError,
-      );
+      expect(() => headers['X-Hack'] = 'nope', throwsUnsupportedError);
 
       client.close();
     });
@@ -132,9 +127,8 @@ void main() {
       client.close();
 
       expect(
-        () => client.send(
-          http.Request('GET', Uri.parse('https://example.com')),
-        ),
+        () =>
+            client.send(http.Request('GET', Uri.parse('https://example.com'))),
         throwsA(isA<http.ClientException>()),
       );
     });

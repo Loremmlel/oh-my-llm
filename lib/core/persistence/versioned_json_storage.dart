@@ -22,10 +22,7 @@ final class VersionedJsonStorage {
 
   /// 将单个对象编码为当前版本的 JSON 包装结构。
   static String encodeObject({required JsonMap value}) {
-    return jsonEncode({
-      'version': currentSchemaVersion,
-      'value': value,
-    });
+    return jsonEncode({'version': currentSchemaVersion, 'value': value});
   }
 
   /// 解析单个对象包裹，并兼容历史裸对象格式。

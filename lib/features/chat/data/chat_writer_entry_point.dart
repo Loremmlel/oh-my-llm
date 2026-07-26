@@ -71,6 +71,8 @@ void _executeWrite(
     executeSaveFromPayload(db, command.payload);
     mainSendPort.send(AckResponse(commandId: command.id));
   } catch (e) {
-    mainSendPort.send(ErrorResponse(commandId: command.id, message: e.toString()));
+    mainSendPort.send(
+      ErrorResponse(commandId: command.id, message: e.toString()),
+    );
   }
 }

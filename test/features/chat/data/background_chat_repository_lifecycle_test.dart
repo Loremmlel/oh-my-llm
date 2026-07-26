@@ -49,21 +49,23 @@ void main() {
   }
 
   group('ACK/flush/close lifecycle', () {
-    test('saveConversation Future completes after ACK (data durably on disk)',
-        () async {
-      final inner = SqliteChatConversationRepository(db);
-      final bg = BackgroundChatConversationRepository(inner, tempDbPath);
+    test(
+      'saveConversation Future completes after ACK (data durably on disk)',
+      () async {
+        final inner = SqliteChatConversationRepository(db);
+        final bg = BackgroundChatConversationRepository(inner, tempDbPath);
 
-      final conv = makeConv('ack_test', 'ACK verify');
-      // Future 完成即意味着 ACK 已收到，数据已落盘
-      await bg.saveConversation(conv);
+        final conv = makeConv('ack_test', 'ACK verify');
+        // Future 完成即意味着 ACK 已收到，数据已落盘
+        await bg.saveConversation(conv);
 
-      final loaded = inner.loadConversation('ack_test');
-      expect(loaded, isNotNull);
-      expect(loaded!.messages.first.content, 'ACK verify');
+        final loaded = inner.loadConversation('ack_test');
+        expect(loaded, isNotNull);
+        expect(loaded!.messages.first.content, 'ACK verify');
 
-      await bg.close();
-    });
+        await bg.close();
+      },
+    );
 
     test('flush waits for all pending writes to land', () async {
       final inner = SqliteChatConversationRepository(db);
@@ -94,58 +96,64 @@ void main() {
       expect(inner.loadConversation('close_test'), isNotNull);
     });
 
-    test('debounce merge: multiple saves in same window share one ACK',
-        () async {
-      final inner = SqliteChatConversationRepository(db);
-      final bg = BackgroundChatConversationRepository(inner, tempDbPath);
+    test(
+      'debounce merge: multiple saves in same window share one ACK',
+      () async {
+        final inner = SqliteChatConversationRepository(db);
+        final bg = BackgroundChatConversationRepository(inner, tempDbPath);
 
-      // 快速连续三次 save，应在同一 debounce 窗口内合并
-      final future1 = bg.saveConversation(makeConv('merge_a', 'A'));
-      final future2 = bg.saveConversation(makeConv('merge_b', 'B'));
-      final future3 = bg.saveConversation(makeConv('merge_c', 'C'));
+        // 快速连续三次 save，应在同一 debounce 窗口内合并
+        final future1 = bg.saveConversation(makeConv('merge_a', 'A'));
+        final future2 = bg.saveConversation(makeConv('merge_b', 'B'));
+        final future3 = bg.saveConversation(makeConv('merge_c', 'C'));
 
-      // 全部 await——它们共享同一个 batch Completer
-      await Future.wait([future1, future2, future3]);
+        // 全部 await——它们共享同一个 batch Completer
+        await Future.wait([future1, future2, future3]);
 
-      expect(inner.loadConversation('merge_a'), isNotNull);
-      expect(inner.loadConversation('merge_b'), isNotNull);
-      expect(inner.loadConversation('merge_c'), isNotNull);
+        expect(inner.loadConversation('merge_a'), isNotNull);
+        expect(inner.loadConversation('merge_b'), isNotNull);
+        expect(inner.loadConversation('merge_c'), isNotNull);
 
-      await bg.close();
-    });
+        await bg.close();
+      },
+    );
 
-    test(':memory: path does not spawn Isolate and flush/close are no-ops',
-        () async {
-      final memDb = AppDatabase.inMemory();
-      addTearDown(() => memDb.close());
+    test(
+      ':memory: path does not spawn Isolate and flush/close are no-ops',
+      () async {
+        final memDb = AppDatabase.inMemory();
+        addTearDown(() => memDb.close());
 
-      final inner = SqliteChatConversationRepository(memDb);
-      final bg = BackgroundChatConversationRepository(inner, ':memory:');
+        final inner = SqliteChatConversationRepository(memDb);
+        final bg = BackgroundChatConversationRepository(inner, ':memory:');
 
-      await bg.saveConversation(makeConv('mem_lifecycle', 'In memory'));
-      await bg.flush();
-      await bg.close();
+        await bg.saveConversation(makeConv('mem_lifecycle', 'In memory'));
+        await bg.flush();
+        await bg.close();
 
-      expect(inner.loadConversation('mem_lifecycle'), isNotNull);
-    });
+        expect(inner.loadConversation('mem_lifecycle'), isNotNull);
+      },
+    );
 
-    test('sequential saves across debounce windows each complete independently',
-        () async {
-      final inner = SqliteChatConversationRepository(db);
-      final bg = BackgroundChatConversationRepository(inner, tempDbPath);
+    test(
+      'sequential saves across debounce windows each complete independently',
+      () async {
+        final inner = SqliteChatConversationRepository(db);
+        final bg = BackgroundChatConversationRepository(inner, tempDbPath);
 
-      // 第一次 save
-      await bg.saveConversation(makeConv('seq_1', 'First'));
+        // 第一次 save
+        await bg.saveConversation(makeConv('seq_1', 'First'));
 
-      // 等 debounce 窗口过去再第二次 save
-      await Future.delayed(const Duration(milliseconds: 100));
-      await bg.saveConversation(makeConv('seq_2', 'Second'));
+        // 等 debounce 窗口过去再第二次 save
+        await Future.delayed(const Duration(milliseconds: 100));
+        await bg.saveConversation(makeConv('seq_2', 'Second'));
 
-      expect(inner.loadConversation('seq_1'), isNotNull);
-      expect(inner.loadConversation('seq_2'), isNotNull);
+        expect(inner.loadConversation('seq_1'), isNotNull);
+        expect(inner.loadConversation('seq_2'), isNotNull);
 
-      await bg.close();
-    });
+        await bg.close();
+      },
+    );
 
     test('flush after close is safe', () async {
       final inner = SqliteChatConversationRepository(db);

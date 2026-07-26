@@ -29,9 +29,7 @@ http.Client throwingMockClient() =>
 
 ProviderContainer createMediaTestContainer({required http.Client httpClient}) {
   final container = ProviderContainer(
-    overrides: [
-      peerHttpClientProvider.overrideWithValue(httpClient),
-    ],
+    overrides: [peerHttpClientProvider.overrideWithValue(httpClient)],
   );
   container.read(mediaBrowserControllerProvider);
   return container;

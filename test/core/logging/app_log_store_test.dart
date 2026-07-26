@@ -74,28 +74,31 @@ void main() {
     },
   );
 
-  test('AppNetworkLogger writes non-stream response bodies when logBody=true', () async {
-    final logger = AppNetworkLogger(
-      store: await AppLogStore.open(directoryPath: directory.path),
-    );
+  test(
+    'AppNetworkLogger writes non-stream response bodies when logBody=true',
+    () async {
+      final logger = AppNetworkLogger(
+        store: await AppLogStore.open(directoryPath: directory.path),
+      );
 
-    await logger.logResponseBody(
-      uri: Uri.parse('https://api.example.com/v1/chat/completions'),
-      body: const {
-        'choices': [
-          {
-            'message': {'content': '完整回复', 'reasoning_content': '完整思考'},
-          },
-        ],
-      },
-      logBody: true,
-    );
+      await logger.logResponseBody(
+        uri: Uri.parse('https://api.example.com/v1/chat/completions'),
+        body: const {
+          'choices': [
+            {
+              'message': {'content': '完整回复', 'reasoning_content': '完整思考'},
+            },
+          ],
+        },
+        logBody: true,
+      );
 
-    final content = await logFile.readAsString();
-    expect(content, contains('[response-body]'));
-    expect(content, contains('完整回复'));
-    expect(content, contains('完整思考'));
-  });
+      final content = await logFile.readAsString();
+      expect(content, contains('[response-body]'));
+      expect(content, contains('完整回复'));
+      expect(content, contains('完整思考'));
+    },
+  );
 
   test('AppLogStore.clear writes log-cleared marker with reason', () async {
     final store = await AppLogStore.open(directoryPath: directory.path);
@@ -211,21 +214,24 @@ void main() {
     expect(content, isNot(contains('should-not-appear')));
   });
 
-  test('AppNetworkLogger.logRequest omits payload when logBody=false', () async {
-    final logger = AppNetworkLogger(
-      store: await AppLogStore.open(directoryPath: directory.path),
-    );
+  test(
+    'AppNetworkLogger.logRequest omits payload when logBody=false',
+    () async {
+      final logger = AppNetworkLogger(
+        store: await AppLogStore.open(directoryPath: directory.path),
+      );
 
-    await logger.logRequest(
-      uri: Uri.parse('https://api.example.com/v1/chat/completions'),
-      method: 'POST',
-      headers: const {'Content-Type': 'application/json'},
-      payload: const {'model': 'gpt-4'},
-      logBody: false,
-    );
+      await logger.logRequest(
+        uri: Uri.parse('https://api.example.com/v1/chat/completions'),
+        method: 'POST',
+        headers: const {'Content-Type': 'application/json'},
+        payload: const {'model': 'gpt-4'},
+        logBody: false,
+      );
 
-    final content = await logFile.readAsString();
-    expect(content, contains('[request]'));
-    expect(content, isNot(contains('payload=')));
-  });
+      final content = await logFile.readAsString();
+      expect(content, contains('[request]'));
+      expect(content, isNot(contains('payload=')));
+    },
+  );
 }

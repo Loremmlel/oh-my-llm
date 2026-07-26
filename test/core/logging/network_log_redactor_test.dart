@@ -29,16 +29,12 @@ void main() {
     });
 
     test('masks Cookie header', () {
-      final headers = redactor.redactHeaders({
-        'Cookie': 'session=abc123',
-      });
+      final headers = redactor.redactHeaders({'Cookie': 'session=abc123'});
       expect(headers['Cookie'], '***');
     });
 
     test('masks X-API-Key header', () {
-      final headers = redactor.redactHeaders({
-        'X-API-Key': 'sk-my-key',
-      });
+      final headers = redactor.redactHeaders({'X-API-Key': 'sk-my-key'});
       expect(headers['X-API-Key'], '***');
     });
 
