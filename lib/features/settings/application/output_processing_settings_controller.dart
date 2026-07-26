@@ -1,8 +1,7 @@
-import 'dart:convert';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/persistence/shared_preferences_provider.dart';
+import '../../../core/persistence/settings_key_value_store.dart';
+import '../../../core/persistence/versioned_json_store.dart';
 import '../domain/models/output_processing_settings.dart';
 
 const String outputProcessingSettingsStorageKey = 'settings.output_processing';
@@ -13,36 +12,27 @@ final outputProcessingSettingsProvider =
       OutputProcessingSettings
     >(OutputProcessingSettingsController.new);
 
+final outputProcessingSettingsStoreProvider =
+    Provider<VersionedJsonStore<OutputProcessingSettings>>(
+      (ref) => VersionedJsonStore<OutputProcessingSettings>(
+        storage: ref.watch(settingsKeyValueStoreProvider),
+        key: outputProcessingSettingsStorageKey,
+        subject: 'output processing settings',
+        fallback: () => const OutputProcessingSettings(),
+        fromJson: OutputProcessingSettings.fromJson,
+        toJson: (settings) => settings.toJson(),
+      ),
+    );
+
 /// 输出正则处理的全局设置控制器。
 class OutputProcessingSettingsController
     extends Notifier<OutputProcessingSettings> {
   @override
-  OutputProcessingSettings build() {
-    final prefs = ref.watch(sharedPreferencesProvider);
-    final rawJson = prefs.getString(outputProcessingSettingsStorageKey);
-    if (rawJson == null || rawJson.isEmpty) {
-      return const OutputProcessingSettings();
-    }
-
-    try {
-      final decoded = jsonDecode(rawJson);
-      if (decoded is! Map) {
-        return const OutputProcessingSettings();
-      }
-      return OutputProcessingSettings.fromJson(
-        Map<String, dynamic>.from(decoded),
-      );
-    } catch (_) {
-      return const OutputProcessingSettings();
-    }
-  }
+  OutputProcessingSettings build() =>
+      ref.read(outputProcessingSettingsStoreProvider).load();
 
   Future<void> save(OutputProcessingSettings settings) async {
+    await ref.read(outputProcessingSettingsStoreProvider).save(settings);
     state = settings;
-    final prefs = ref.read(sharedPreferencesProvider);
-    await prefs.setString(
-      outputProcessingSettingsStorageKey,
-      jsonEncode(settings.toJson()),
-    );
   }
 }

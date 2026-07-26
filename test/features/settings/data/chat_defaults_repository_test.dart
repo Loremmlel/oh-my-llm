@@ -30,14 +30,14 @@ void main() {
       expect(repo.load(), original);
     });
 
-    test('load 非 Map JSON 时抛出 FormatException', () async {
+    test('load 非 Map JSON 时回退到默认值', () async {
       SharedPreferences.setMockInitialValues({
         chatDefaultsStorageKey: jsonEncode([1, 2, 3]),
       });
       final prefs = await SharedPreferences.getInstance();
       final repo = ChatDefaultsRepository(prefs);
 
-      expect(() => repo.load(), throwsA(isA<FormatException>()));
+      expect(repo.load(), const ChatDefaults());
     });
   });
 }

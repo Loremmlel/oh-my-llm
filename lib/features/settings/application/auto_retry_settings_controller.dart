@@ -1,8 +1,7 @@
-import 'dart:convert';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/persistence/shared_preferences_provider.dart';
+import '../../../core/persistence/settings_key_value_store.dart';
+import '../../../core/persistence/versioned_json_store.dart';
 import '../domain/models/auto_retry_settings.dart';
 
 const String autoRetrySettingsStorageKey = 'settings.auto_retry';
@@ -12,33 +11,25 @@ final autoRetrySettingsProvider =
       AutoRetrySettingsController.new,
     );
 
+final autoRetrySettingsStoreProvider =
+    Provider<VersionedJsonStore<AutoRetrySettings>>((ref) {
+      return VersionedJsonStore<AutoRetrySettings>(
+        storage: ref.watch(settingsKeyValueStoreProvider),
+        key: autoRetrySettingsStorageKey,
+        subject: 'auto retry settings',
+        fallback: () => const AutoRetrySettings(),
+        fromJson: AutoRetrySettings.fromJson,
+        toJson: (settings) => settings.toJson(),
+      );
+    });
+
 /// 自动重试全局设置控制器。
 class AutoRetrySettingsController extends Notifier<AutoRetrySettings> {
   @override
-  AutoRetrySettings build() {
-    final prefs = ref.watch(sharedPreferencesProvider);
-    final rawJson = prefs.getString(autoRetrySettingsStorageKey);
-    if (rawJson == null || rawJson.isEmpty) {
-      return const AutoRetrySettings();
-    }
-
-    try {
-      final decoded = jsonDecode(rawJson);
-      if (decoded is! Map) {
-        return const AutoRetrySettings();
-      }
-      return AutoRetrySettings.fromJson(Map<String, dynamic>.from(decoded));
-    } catch (_) {
-      return const AutoRetrySettings();
-    }
-  }
+  AutoRetrySettings build() => ref.read(autoRetrySettingsStoreProvider).load();
 
   Future<void> save(AutoRetrySettings settings) async {
+    await ref.read(autoRetrySettingsStoreProvider).save(settings);
     state = settings;
-    final prefs = ref.read(sharedPreferencesProvider);
-    await prefs.setString(
-      autoRetrySettingsStorageKey,
-      jsonEncode(settings.toJson()),
-    );
   }
 }
