@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 
@@ -36,7 +37,7 @@ const String _deviceNameKey = 'sync.device_name';
 
 const Object _sentinel = Object();
 
-class SyncServerState {
+class SyncServerState extends Equatable {
   const SyncServerState({
     this.isRunning = false,
     this.deviceName = '',
@@ -52,6 +53,16 @@ class SyncServerState {
   final int servedRequestCount;
   final String? lastError;
   final NetworkInterfaceInfo? selectedInterface;
+
+  @override
+  List<Object?> get props => [
+    isRunning,
+    deviceName,
+    httpPort,
+    servedRequestCount,
+    lastError,
+    (selectedInterface?.name, selectedInterface?.ip),
+  ];
 
   SyncServerState copyWith({
     bool? isRunning,

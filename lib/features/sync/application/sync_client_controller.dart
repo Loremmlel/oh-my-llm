@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
@@ -32,15 +33,15 @@ enum SyncPhase {
 
 const Object _sentinel = Object();
 
-class SyncClientState {
-  const SyncClientState({
+class SyncClientState extends Equatable {
+  SyncClientState({
     this.phase = SyncPhase.idle,
     this.server,
-    this.selectedCategories = const {},
+    Set<SyncCategory> selectedCategories = const {},
     this.errorMessage,
     this.deduplicatedData,
     this.sourceDeviceName,
-  });
+  }) : selectedCategories = Set.unmodifiable(selectedCategories);
 
   final SyncPhase phase;
   final DiscoveredServer? server;
@@ -48,6 +49,16 @@ class SyncClientState {
   final String? errorMessage;
   final SettingsExportData? deduplicatedData;
   final String? sourceDeviceName;
+
+  @override
+  List<Object?> get props => [
+    phase,
+    (server?.deviceName, server?.ip, server?.httpPort),
+    selectedCategories.map((category) => category.index).toList()..sort(),
+    errorMessage,
+    deduplicatedData?.toJsonString(),
+    sourceDeviceName,
+  ];
 
   SyncClientState copyWith({
     SyncPhase? phase,
@@ -93,12 +104,12 @@ class SyncClientController extends Notifier<SyncClientState> {
       _discoverySubscription?.cancel();
       _discoverySubscription = null;
     });
-    return const SyncClientState();
+    return SyncClientState();
   }
 
   Future<void> startDiscovery() async {
     _discoverySubscription?.cancel();
-    state = const SyncClientState(phase: SyncPhase.discovering);
+    state = SyncClientState(phase: SyncPhase.discovering);
 
     _discoverySubscription = SyncUdpDiscovery.listenForServers().listen(
       (server) {
@@ -251,7 +262,7 @@ class SyncClientController extends Notifier<SyncClientState> {
   void cancelAndReset() {
     _discoverySubscription?.cancel();
     _discoverySubscription = null;
-    state = const SyncClientState();
+    state = SyncClientState();
   }
 
   SettingsExportData _deduplicate(SettingsExportData data) {

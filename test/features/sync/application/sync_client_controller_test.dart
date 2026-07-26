@@ -103,6 +103,57 @@ void main() {
   }
 
   group('SyncClientController 状态机', () {
+    test('SyncClientState 快照 selectedCategories 并按分类值比较', () {
+      final source = <SyncCategory>{SyncCategory.providers};
+      final state = SyncClientState(selectedCategories: source);
+      source.add(SyncCategory.presets);
+
+      expect(state.selectedCategories, {SyncCategory.providers});
+      expect(
+        () => state.selectedCategories.add(SyncCategory.presets),
+        throwsUnsupportedError,
+      );
+      expect(
+        state,
+        SyncClientState(selectedCategories: {SyncCategory.providers}),
+      );
+    });
+
+    test('SyncClientState 按服务端和导出数据值比较', () {
+      final data = SettingsExportData(
+        modelProviders: [],
+        memoryPrompts: [],
+        presetPrompts: [],
+        templatePrompts: [],
+        fixedPromptSequences: [],
+      );
+
+      expect(
+        SyncClientState(
+          server: DiscoveredServer(
+            deviceName: '设备',
+            ip: '192.168.1.2',
+            httpPort: 8080,
+          ),
+          deduplicatedData: data,
+        ),
+        SyncClientState(
+          server: DiscoveredServer(
+            deviceName: '设备',
+            ip: '192.168.1.2',
+            httpPort: 8080,
+          ),
+          deduplicatedData: SettingsExportData(
+            modelProviders: [],
+            memoryPrompts: [],
+            presetPrompts: [],
+            templatePrompts: [],
+            fixedPromptSequences: [],
+          ),
+        ),
+      );
+    });
+
     test('build 初始状态为 idle', () {
       final container = buildContainer();
       final state = container.read(syncClientControllerProvider);

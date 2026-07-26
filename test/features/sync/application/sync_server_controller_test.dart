@@ -12,6 +12,7 @@ import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/core/persistence/versioned_json_storage.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
 import 'package:oh_my_llm/features/sync/application/sync_server_controller.dart';
+import 'package:oh_my_llm/features/sync/domain/models/network_interface_info.dart';
 import 'package:oh_my_llm/features/sync/domain/models/sync_message.dart';
 import 'package:oh_my_llm/features/sync/domain/models/sync_types.dart';
 
@@ -57,6 +58,35 @@ void main() {
       });
       return container;
     }
+
+    test('SyncServerState 按网卡字段和可观察值比较', () {
+      expect(
+        SyncServerState(
+          isRunning: true,
+          deviceName: '设备',
+          httpPort: 8080,
+          servedRequestCount: 1,
+          selectedInterface: NetworkInterfaceInfo(
+            name: 'Wi-Fi',
+            ip: '192.168.1.2',
+          ),
+        ),
+        SyncServerState(
+          isRunning: true,
+          deviceName: '设备',
+          httpPort: 8080,
+          servedRequestCount: 1,
+          selectedInterface: NetworkInterfaceInfo(
+            name: 'Wi-Fi',
+            ip: '192.168.1.2',
+          ),
+        ),
+      );
+      expect(
+        SyncServerState(servedRequestCount: 1),
+        isNot(SyncServerState(servedRequestCount: 2)),
+      );
+    });
 
     test('无存储时 deviceName 回退到 hostname', () async {
       final c1 = buildContainer();
