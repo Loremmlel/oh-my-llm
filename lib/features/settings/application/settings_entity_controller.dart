@@ -16,7 +16,7 @@ abstract class SettingsEntityController<T extends HasIdAndUpdatedAt>
     return repository.loadAll(ref.read(appDatabaseProvider));
   }
 
-  Future<void> upsert(T item) async {
+  Future<void> upsert(T item) {
     final items = [...state];
     final id = item.id;
     final existingIndex = items.indexWhere((i) => i.id == id);
@@ -25,10 +25,10 @@ abstract class SettingsEntityController<T extends HasIdAndUpdatedAt>
     } else {
       items[existingIndex] = item;
     }
-    _commit(items);
+    return _commit(items);
   }
 
-  Future<void> upsertAll(List<T> items) async {
+  Future<void> upsertAll(List<T> items) {
     final updated = [...state];
     for (final item in items) {
       final id = item.id;
@@ -39,17 +39,18 @@ abstract class SettingsEntityController<T extends HasIdAndUpdatedAt>
         updated[i] = item;
       }
     }
-    _commit(updated);
+    return _commit(updated);
   }
 
-  Future<void> deleteById(String id) async {
-    _commit(state.where((i) => i.id != id).toList(growable: false));
+  Future<void> deleteById(String id) {
+    return _commit(state.where((i) => i.id != id).toList(growable: false));
   }
 
   /// 按 updatedAt 降序排列（最新在前）。
   Future<void> _commit(List<T> items) async {
     items.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-    state = List.unmodifiable(items);
-    await repository.saveAll(ref.read(appDatabaseProvider), state);
+    final nextState = List<T>.unmodifiable(items);
+    await repository.saveAll(ref.read(appDatabaseProvider), nextState);
+    state = nextState;
   }
 }
