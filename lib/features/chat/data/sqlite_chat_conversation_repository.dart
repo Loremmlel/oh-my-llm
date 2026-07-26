@@ -6,6 +6,7 @@ import '../domain/models/chat_conversation.dart';
 import '../domain/models/chat_conversation_summary.dart';
 import '../domain/models/chat_message.dart';
 import 'chat_conversation_repository.dart';
+import 'chat_sql_codec.dart';
 
 /// 基于 SQLite 的会话持久化仓库，负责按表保存会话树与分支选择。
 class SqliteChatConversationRepository implements ChatConversationRepository {
@@ -36,21 +37,7 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
     }
 
     final messageRows = _database.connection.select('''
-      SELECT
-        id,
-        conversation_id,
-        node_index,
-        parent_id,
-        role,
-        content,
-        reasoning_content,
-        assistant_model_display_name,
-        applied_checkpoint_title,
-        user_message_segments_json,
-        template_prompt_id,
-        template_variable_values_json,
-        finish_reason,
-        created_at
+      SELECT $kMessageSelectColumns
       FROM messages
       ORDER BY conversation_id, node_index
     ''');
@@ -465,157 +452,9 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
 
   @override
   Future<void> saveConversations(List<ChatConversation> conversations) async {
-    if (conversations.isEmpty) {
-      return;
-    }
+    if (conversations.isEmpty) return;
 
-    final db = _database.connection;
-    db.execute('BEGIN IMMEDIATE;');
-    try {
-      final conversationStatement = db.prepare('''
-        INSERT INTO conversations (
-          id, title, created_at, updated_at,
-          selected_model_id, selected_checkpoint_id, selected_preset_prompt_id,
-          reasoning_enabled, reasoning_effort, excluded_message_ids_json,
-          auto_retry_enabled
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET
-          title = excluded.title,
-          updated_at = excluded.updated_at,
-          selected_model_id = excluded.selected_model_id,
-          selected_checkpoint_id = excluded.selected_checkpoint_id,
-          selected_preset_prompt_id = excluded.selected_preset_prompt_id,
-          reasoning_enabled = excluded.reasoning_enabled,
-          reasoning_effort = excluded.reasoning_effort,
-          excluded_message_ids_json = excluded.excluded_message_ids_json,
-          auto_retry_enabled = excluded.auto_retry_enabled
-      ''');
-      final messageStatement = db.prepare('''
-        INSERT INTO messages (
-          id, conversation_id, node_index, parent_id, role,
-          content, reasoning_content, assistant_model_display_name,
-          applied_checkpoint_title, user_message_segments_json,
-          template_prompt_id, template_variable_values_json,
-          finish_reason, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET
-          node_index = excluded.node_index,
-          content = excluded.content,
-          reasoning_content = excluded.reasoning_content,
-          assistant_model_display_name = excluded.assistant_model_display_name,
-          applied_checkpoint_title = excluded.applied_checkpoint_title,
-          user_message_segments_json = excluded.user_message_segments_json,
-          template_prompt_id = excluded.template_prompt_id,
-          template_variable_values_json = excluded.template_variable_values_json,
-          finish_reason = excluded.finish_reason,
-          created_at = excluded.created_at
-      ''');
-      final selectionStatement = db.prepare('''
-        INSERT INTO conversation_branch_selections (
-          conversation_id, parent_id, child_id
-        ) VALUES (?, ?, ?)
-        ON CONFLICT(conversation_id, parent_id) DO UPDATE SET
-          child_id = excluded.child_id
-      ''');
-      final checkpointStatement = db.prepare('''
-        INSERT INTO conversation_checkpoints (
-          id, conversation_id, title, content,
-          parent_checkpoint_id, covered_until_message_id,
-          source_memory_prompt_name, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET
-          title = excluded.title,
-          content = excluded.content,
-          parent_checkpoint_id = excluded.parent_checkpoint_id,
-          covered_until_message_id = excluded.covered_until_message_id,
-          source_memory_prompt_name = excluded.source_memory_prompt_name,
-          created_at = excluded.created_at
-      ''');
-      try {
-        for (final conversation in conversations) {
-          final normalized = ChatConversation.fromJson(conversation.toJson());
-
-          conversationStatement.execute([
-            normalized.id,
-            normalized.title,
-            normalized.createdAt.toIso8601String(),
-            normalized.updatedAt.toIso8601String(),
-            normalized.selectedModelId,
-            normalized.selectedCheckpointId,
-            normalized.selectedPresetPromptId,
-            normalized.reasoningEnabled ? 1 : 0,
-            normalized.reasoningEffort.apiValue,
-            jsonEncode(normalized.excludedMessageIds),
-            normalized.autoRetryEnabled ? 1 : 0,
-          ]);
-
-          db.execute('DELETE FROM messages WHERE conversation_id = ?', [
-            normalized.id,
-          ]);
-          db.execute(
-            'DELETE FROM conversation_branch_selections WHERE conversation_id = ?',
-            [normalized.id],
-          );
-          db.execute(
-            'DELETE FROM conversation_checkpoints WHERE conversation_id = ?',
-            [normalized.id],
-          );
-
-          for (
-            var nodeIndex = 0;
-            nodeIndex < normalized.messageNodes.length;
-            nodeIndex += 1
-          ) {
-            final message = normalized.messageNodes[nodeIndex];
-            messageStatement.execute([
-              message.id,
-              normalized.id,
-              nodeIndex,
-              message.parentId,
-              message.role.apiValue,
-              message.content,
-              message.reasoningContent,
-              message.assistantModelDisplayName,
-              message.appliedCheckpointTitle,
-              jsonEncode(
-                message.userMessageSegments
-                    .map((segment) => segment.toJson())
-                    .toList(),
-              ),
-              message.templatePromptId,
-              jsonEncode(message.templateVariableValues),
-              message.finishReason,
-              message.createdAt.toIso8601String(),
-            ]);
-          }
-          for (final entry in normalized.selectedChildByParentId.entries) {
-            selectionStatement.execute([normalized.id, entry.key, entry.value]);
-          }
-          for (final checkpoint in normalized.checkpoints) {
-            checkpointStatement.execute([
-              checkpoint.id,
-              normalized.id,
-              checkpoint.title,
-              checkpoint.content,
-              checkpoint.parentCheckpointId,
-              checkpoint.coveredUntilMessageId,
-              checkpoint.sourceMemoryPromptName,
-              checkpoint.createdAt.toIso8601String(),
-            ]);
-          }
-        }
-      } finally {
-        conversationStatement.close();
-        messageStatement.close();
-        selectionStatement.close();
-        checkpointStatement.close();
-      }
-
-      db.execute('COMMIT;');
-    } catch (_) {
-      db.execute('ROLLBACK;');
-      rethrow;
-    }
+    executeSaveConversations(_database.connection, conversations);
   }
 
   @override
