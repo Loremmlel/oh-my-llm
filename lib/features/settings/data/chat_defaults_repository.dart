@@ -1,46 +1,39 @@
-import 'dart:convert';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../../core/persistence/shared_preferences_provider.dart';
+import '../../../core/persistence/settings_key_value_store.dart';
+import '../../../core/persistence/versioned_json_store.dart';
 import '../domain/models/chat_defaults.dart';
 
 const String chatDefaultsStorageKey = 'settings.chat_defaults';
 
 /// 聊天页最近一次选择记忆的 SharedPreferences 仓库。
 final chatDefaultsRepositoryProvider = Provider<ChatDefaultsRepository>((ref) {
-  return ChatDefaultsRepository(ref.watch(sharedPreferencesProvider));
+  return ChatDefaultsRepository.fromStore(
+    ref.watch(settingsKeyValueStoreProvider),
+  );
 });
 
 /// 读取和保存聊天页最近一次选择的模型 / 前置 Prompt。
 class ChatDefaultsRepository {
-  const ChatDefaultsRepository(this._sharedPreferences);
+  ChatDefaultsRepository(SharedPreferences preferences)
+    : this.fromStore(SharedPreferencesSettingsKeyValueStore(preferences));
 
-  final SharedPreferences _sharedPreferences;
+  ChatDefaultsRepository.fromStore(SettingsKeyValueStore storage)
+    : _store = VersionedJsonStore<ChatDefaults>(
+        storage: storage,
+        key: chatDefaultsStorageKey,
+        subject: 'chat defaults',
+        fallback: () => const ChatDefaults(),
+        fromJson: ChatDefaults.fromJson,
+        toJson: (defaults) => defaults.toJson(),
+      );
+
+  final VersionedJsonStore<ChatDefaults> _store;
 
   /// 读取最近一次使用的模型和前置 Prompt 模板。
-  ChatDefaults load() {
-    final rawJson = _sharedPreferences.getString(chatDefaultsStorageKey);
-    if (rawJson == null || rawJson.isEmpty) {
-      return const ChatDefaults();
-    }
-
-    final decoded = jsonDecode(rawJson);
-    if (decoded is! Map) {
-      throw const FormatException(
-        'Stored chat defaults payload must be a JSON object.',
-      );
-    }
-
-    return ChatDefaults.fromJson(Map<String, dynamic>.from(decoded));
-  }
+  ChatDefaults load() => _store.load();
 
   /// 保存当前最近一次选择记忆。
-  Future<void> save(ChatDefaults defaults) async {
-    await _sharedPreferences.setString(
-      chatDefaultsStorageKey,
-      jsonEncode(defaults.toJson()),
-    );
-  }
+  Future<void> save(ChatDefaults defaults) => _store.save(defaults);
 }

@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
+import 'package:oh_my_llm/core/persistence/settings_key_value_store.dart';
 import 'package:oh_my_llm/features/settings/application/custom_headers_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/custom_headers_config.dart';
 
@@ -128,5 +129,34 @@ void main() {
       expect(restored.headers.length, 2);
       expect(restored.toHeaderMap(), {'X-A': '1', 'X-B': '2'});
     });
+
+    test('store 拒绝写入时 save 失败且状态保持原值', () async {
+      final store = _RejectingSettingsKeyValueStore();
+      container = ProviderContainer(
+        overrides: [settingsKeyValueStoreProvider.overrideWithValue(store)],
+      );
+      addTearDown(container.dispose);
+      controller = container.read(customHeadersProvider.notifier);
+
+      await expectLater(
+        controller.addHeader('X-Fail', 'value'),
+        throwsA(isA<StateError>()),
+      );
+      expect(readState().headers, isEmpty);
+    });
   });
+}
+
+final class _RejectingSettingsKeyValueStore implements SettingsKeyValueStore {
+  @override
+  String? getString(String key) => null;
+
+  @override
+  int? getInt(String key) => null;
+
+  @override
+  Future<bool> setInt(String key, int value) async => false;
+
+  @override
+  Future<bool> setString(String key, String value) async => false;
 }

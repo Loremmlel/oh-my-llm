@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -103,6 +105,8 @@ void main() {
 
       // Verify persistence in SharedPreferences
       final storedJson = preferences.getString('settings.auto_retry');
+      expect(jsonDecode(storedJson!), containsPair('version', 1));
+      expect(jsonDecode(storedJson), containsPair('value', isA<Map>()));
       expect(storedJson, contains('"maxJitterSeconds":10'));
       expect(storedJson, contains('"maxRetryCount":3'));
       expect(storedJson, contains('"retryMode":"fixedInterval"'));

@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:oh_my_llm/core/persistence/settings_key_value_store.dart';
 import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
 
@@ -65,5 +66,28 @@ void main() {
         isTrue,
       );
     });
+
+    test('saveProviders 在 store 拒绝写入时失败', () async {
+      const repo = LlmModelConfigRepository.fromStore(
+        _RejectingSettingsKeyValueStore(),
+      );
+
+      await expectLater(
+        repo.saveProviders(const []),
+        throwsA(isA<StateError>()),
+      );
+    });
   });
+}
+
+final class _RejectingSettingsKeyValueStore implements SettingsKeyValueStore {
+  const _RejectingSettingsKeyValueStore();
+  @override
+  String? getString(String key) => null;
+  @override
+  int? getInt(String key) => null;
+  @override
+  Future<bool> setInt(String key, int value) async => false;
+  @override
+  Future<bool> setString(String key, String value) async => false;
 }

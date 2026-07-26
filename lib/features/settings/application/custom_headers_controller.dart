@@ -1,8 +1,7 @@
-import 'dart:convert';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/persistence/shared_preferences_provider.dart';
+import '../../../core/persistence/settings_key_value_store.dart';
+import '../../../core/persistence/versioned_json_store.dart';
 import '../domain/models/custom_headers_config.dart';
 
 const String customHeadersStorageKey = 'settings.custom_headers';
@@ -12,34 +11,29 @@ final customHeadersProvider =
       CustomHeadersController.new,
     );
 
+final customHeadersStoreProvider =
+    Provider<VersionedJsonStore<CustomHeadersConfig>>(
+      (ref) => VersionedJsonStore<CustomHeadersConfig>(
+        storage: ref.watch(settingsKeyValueStoreProvider),
+        key: customHeadersStorageKey,
+        subject: 'custom headers',
+        fallback: () => const CustomHeadersConfig(),
+        fromJson: CustomHeadersConfig.fromJson,
+        toJson: (config) => config.toJson(),
+      ),
+    );
+
 /// 自定义 HTTP 请求头全局控制器。
 class CustomHeadersController extends Notifier<CustomHeadersConfig> {
   @override
-  CustomHeadersConfig build() {
-    final prefs = ref.watch(sharedPreferencesProvider);
-    final rawJson = prefs.getString(customHeadersStorageKey);
-    if (rawJson == null || rawJson.isEmpty) {
-      return const CustomHeadersConfig();
-    }
-
-    try {
-      final decoded = jsonDecode(rawJson);
-      if (decoded is! Map) {
-        return const CustomHeadersConfig();
-      }
-      return CustomHeadersConfig.fromJson(Map<String, dynamic>.from(decoded));
-    } catch (_) {
-      return const CustomHeadersConfig();
-    }
-  }
+  CustomHeadersConfig build() => ref.read(customHeadersStoreProvider).load();
 
   /// 持久化保存配置。
   ///
   /// 先写持久化再更新 state，避免并发 save 时乱序写入导致
   /// SharedPreferences 与 state 不一致。
   Future<void> save(CustomHeadersConfig config) async {
-    final prefs = ref.read(sharedPreferencesProvider);
-    await prefs.setString(customHeadersStorageKey, jsonEncode(config.toJson()));
+    await ref.read(customHeadersStoreProvider).save(config);
     state = config;
   }
 
