@@ -4,6 +4,8 @@ import '../domain/models/network_interface_info.dart';
 import '../domain/models/network_interface_utils.dart';
 
 /// 本机可用的 IPv4 网络接口列表（异步加载）。
+///
+/// 枚举完成后仅作为应用缓存，不持有 socket，因此不随页面观察者释放。
 final availableInterfacesProvider = FutureProvider<List<NetworkInterfaceInfo>>((
   ref,
 ) {
@@ -11,6 +13,7 @@ final availableInterfacesProvider = FutureProvider<List<NetworkInterfaceInfo>>((
 });
 
 /// 用户在服务端模式下选择的广播接口索引。
+/// 这是设置 UI state，不持有网络资源。
 class _SelectedInterfaceIndex extends Notifier<int> {
   @override
   int build() => 0;

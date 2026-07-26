@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:equatable/equatable.dart';
@@ -92,6 +93,7 @@ class SyncServerState extends Equatable {
 final syncServerControllerProvider =
     NotifierProvider<SyncServerController, SyncServerState>(
       SyncServerController.new,
+      isAutoDispose: true,
     );
 
 /// 同步服务端是否正在广播的派生 Provider。
@@ -102,12 +104,23 @@ final isSyncServerRunningProvider = Provider<bool>(
   (ref) => ref.watch(syncServerControllerProvider.select((s) => s.isRunning)),
 );
 
-/// 同步服务端控制器，管理 HTTP 服务端和 UDP 广播的生命周期。
+/// 同步服务端控制器，管理 HTTP 服务端和 UDP 广播的运行会话。
+///
+/// 成功启动后以唯一的 keep-alive link 跨页面保活；显式停止、应用销毁时按
+/// UDP、HTTP 顺序释放。请求 handlers 及其引用的 scanner、缩略图 cache/generator
+/// 都由 [_httpServer] 的运行会话拥有，不是独立全局资源。
 class SyncServerController extends Notifier<SyncServerState> {
   final SyncHttpServer _httpServer = SyncHttpServer();
   Future<void> Function()? _stopBroadcasting;
   Future<void>? _pendingRestart;
+  Future<void>? _startInFlight;
+  Future<void> _shutdownFuture = Future<void>.value();
   KeepAliveLink? _keepAliveLink;
+  int _generation = 0;
+  bool _isStopping = false;
+
+  /// 当前停止流程；容器销毁后可等待它确认 HTTP/UDP 均已释放。
+  Future<void> get shutdownFuture => _shutdownFuture;
 
   @override
   SyncServerState build() {
@@ -115,17 +128,42 @@ class SyncServerController extends Notifier<SyncServerState> {
     final savedName = prefs.getString(_deviceNameKey);
     final deviceName = savedName ?? Platform.localHostname;
 
-    ref.onDispose(_cleanup);
+    ref.onDispose(() {
+      unawaited(_beginStop(publishState: false));
+    });
 
     return SyncServerState(deviceName: deviceName);
   }
 
-  Future<void> start() async {
-    if (state.isRunning) return;
+  Future<void> start() {
+    if (_isStopping) {
+      return _shutdownFuture.then((_) {
+        if (!ref.mounted) return Future<void>.value();
+        return start();
+      });
+    }
+    if (state.isRunning) return Future<void>.value();
+    final pendingStart = _startInFlight;
+    if (pendingStart != null) return pendingStart;
+
+    final generation = ++_generation;
+    late final Future<void> startFuture;
+    startFuture = _start(generation).whenComplete(() {
+      if (identical(_startInFlight, startFuture)) {
+        _startInFlight = null;
+      }
+    });
+    _startInFlight = startFuture;
+    return startFuture;
+  }
+
+  Future<void> _start(int generation) async {
+    if (!_isCurrent(generation)) return;
 
     try {
       // 获取用户选择的网络接口与子网掩码，计算子网广播地址
       final interfaces = await ref.read(availableInterfacesProvider.future);
+      if (!_isCurrent(generation)) return;
       final selectedIndex = ref.read(selectedInterfaceIndexProvider);
       final prefix = ref.read(selectedBroadcastPrefixLengthProvider);
       NetworkInterfaceInfo? selectedIface;
@@ -153,6 +191,7 @@ class SyncServerController extends Notifier<SyncServerState> {
           handlers.add(MediaVideoHttpHandler(scanner: scanner));
           handlers.add(MediaRecursiveVideosHandler(scanner: scanner));
           final thumbnailCache = await MediaThumbnailCache.defaultLocation();
+          if (!_isCurrent(generation)) return;
           handlers.add(
             MediaThumbnailHttpHandler(
               scanner: scanner,
@@ -163,39 +202,78 @@ class SyncServerController extends Notifier<SyncServerState> {
         }
       }
       final port = await _httpServer.start(handlers: handlers);
+      if (!_isCurrent(generation)) {
+        await _cleanup();
+        return;
+      }
       _stopBroadcasting = await SyncUdpDiscovery.startBroadcasting(
         httpPort: port,
         deviceName: state.deviceName,
         broadcastAddress: broadcastAddr,
       );
+      if (!_isCurrent(generation)) {
+        await _cleanup();
+        return;
+      }
+      _keepAliveLink ??= ref.keepAlive();
       state = state.copyWith(
         isRunning: true,
         httpPort: port,
         lastError: null,
         selectedInterface: selectedIface,
       );
-      _keepAliveLink = ref.keepAlive();
     } catch (e) {
       await _cleanup();
+      if (!_isCurrent(generation)) return;
+      final keepAliveLink = _keepAliveLink;
+      _keepAliveLink = null;
       state = state.copyWith(
         isRunning: false,
         httpPort: null,
         lastError: '启动失败: $e',
         selectedInterface: null,
       );
+      keepAliveLink?.close();
     }
   }
 
-  Future<void> stop() async {
-    _keepAliveLink?.close();
+  Future<void> stop() => _beginStop(publishState: true);
+
+  Future<void> _beginStop({required bool publishState}) {
+    if (_isStopping) return _shutdownFuture;
+    _generation++;
+    _isStopping = true;
+    final startInFlight = _startInFlight;
+    final shutdown =
+        _stopAfterStart(
+          startInFlight: startInFlight,
+          publishState: publishState,
+        ).whenComplete(() {
+          _isStopping = false;
+        });
+    _shutdownFuture = shutdown;
+    return shutdown;
+  }
+
+  Future<void> _stopAfterStart({
+    required Future<void>? startInFlight,
+    required bool publishState,
+  }) async {
+    await startInFlight;
+    final keepAliveLink = _keepAliveLink;
     _keepAliveLink = null;
     await _cleanup();
-    state = state.copyWith(
-      isRunning: false,
-      httpPort: null,
-      servedRequestCount: 0,
-    );
+    if (publishState && ref.mounted) {
+      state = state.copyWith(
+        isRunning: false,
+        httpPort: null,
+        servedRequestCount: 0,
+      );
+    }
+    keepAliveLink?.close();
   }
+
+  bool _isCurrent(int generation) => ref.mounted && generation == _generation;
 
   Future<void> _cleanup() async {
     await _stopBroadcasting?.call();
@@ -211,11 +289,13 @@ class SyncServerController extends Notifier<SyncServerState> {
     await prefs.setString(_deviceNameKey, trimmed);
 
     if (state.isRunning) {
+      final restartGeneration = _generation;
       _pendingRestart = (_pendingRestart ?? Future<void>.value()).then((
         _,
       ) async {
-        if (!state.isRunning) return;
+        if (!_isCurrent(restartGeneration) || !state.isRunning) return;
         await _cleanup();
+        if (!_isCurrent(restartGeneration) || !state.isRunning) return;
         state = state.copyWith(isRunning: false, httpPort: null);
         await start();
       });
