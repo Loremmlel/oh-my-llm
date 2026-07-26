@@ -95,7 +95,12 @@ void main() {
           ),
       ],
     );
+    final subscription = container.listen(
+      syncClientControllerProvider,
+      (_, _) {},
+    );
     addTearDown(() {
+      subscription.close();
       container.dispose();
       database.close();
     });
@@ -103,6 +108,82 @@ void main() {
   }
 
   group('SyncClientController 状态机', () {
+    test('空闲客户端在页面监听关闭后释放，并以 idle 状态重建', () async {
+      final container = ProviderContainer(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(database),
+          sharedPreferencesProvider.overrideWithValue(preferences),
+        ],
+      );
+      final subscription = container.listen(
+        syncClientControllerProvider,
+        (_, _) {},
+      );
+      container
+          .read(syncClientControllerProvider.notifier)
+          .toggleCategory(SyncCategory.providers);
+
+      subscription.close();
+      await container.pump();
+
+      expect(container.exists(syncClientControllerProvider), isFalse);
+      final rebuilt = container.read(syncClientControllerProvider);
+      expect(rebuilt.phase, SyncPhase.idle);
+      expect(rebuilt.selectedCategories, isEmpty);
+      container.dispose();
+    });
+
+    test('SyncClientState 快照 selectedCategories 并按分类值比较', () {
+      final source = <SyncCategory>{SyncCategory.providers};
+      final state = SyncClientState(selectedCategories: source);
+      source.add(SyncCategory.presets);
+
+      expect(state.selectedCategories, {SyncCategory.providers});
+      expect(
+        () => state.selectedCategories.add(SyncCategory.presets),
+        throwsUnsupportedError,
+      );
+      expect(
+        state,
+        SyncClientState(selectedCategories: {SyncCategory.providers}),
+      );
+    });
+
+    test('SyncClientState 按服务端和导出数据值比较', () {
+      final data = SettingsExportData(
+        modelProviders: [],
+        memoryPrompts: [],
+        presetPrompts: [],
+        templatePrompts: [],
+        fixedPromptSequences: [],
+      );
+
+      expect(
+        SyncClientState(
+          server: DiscoveredServer(
+            deviceName: '设备',
+            ip: '192.168.1.2',
+            httpPort: 8080,
+          ),
+          deduplicatedData: data,
+        ),
+        SyncClientState(
+          server: DiscoveredServer(
+            deviceName: '设备',
+            ip: '192.168.1.2',
+            httpPort: 8080,
+          ),
+          deduplicatedData: SettingsExportData(
+            modelProviders: [],
+            memoryPrompts: [],
+            presetPrompts: [],
+            templatePrompts: [],
+            fixedPromptSequences: [],
+          ),
+        ),
+      );
+    });
+
     test('build 初始状态为 idle', () {
       final container = buildContainer();
       final state = container.read(syncClientControllerProvider);

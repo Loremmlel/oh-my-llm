@@ -1,5 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'package:oh_my_llm/features/media/application/media_browser_controller.dart';
+import 'package:oh_my_llm/features/media/application/shuffle_playback_controller.dart';
+import 'package:oh_my_llm/features/sync/application/sync_client_controller.dart';
 
 import 'sync_screen_test_helpers.dart';
 
@@ -10,6 +15,11 @@ void registerSyncScreenRenderTests() {
     setUp(() async {
       SharedPreferences.setMockInitialValues({});
       preferences = await SharedPreferences.getInstance();
+      RecordingMediaBrowserController.latest = null;
+      RecordingMediaBrowserController.lastState = null;
+      RecordingMediaBrowserController.totalInitCount = 0;
+      RecordingShufflePlaybackController.latest = null;
+      RecordingShufflePlaybackController.lastState = null;
     });
 
     testWidgets('渲染标题、标签页和连接模式选择器', (tester) async {
@@ -37,6 +47,67 @@ void registerSyncScreenRenderTests() {
 
       expect(find.text('服务端广播'), findsOneWidget);
       expect(find.text('发现服务端'), findsNothing);
+    });
+
+    testWidgets('Android 离开媒体 Tab 重置并重新进入时重新加载根目录', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      await pumpSyncScreen(
+        tester,
+        preferences: preferences,
+        extraOverrides: [
+          syncClientControllerProvider.overrideWith(
+            () => SeededSyncClientController(connectedSyncState()),
+          ),
+          mediaBrowserControllerProvider.overrideWith(
+            RecordingMediaBrowserController.new,
+          ),
+          shufflePlaybackControllerProvider.overrideWith(
+            RecordingShufflePlaybackController.new,
+          ),
+        ],
+      );
+
+      await tester.tap(find.text('媒体'));
+      await tester.pumpAndSettle();
+      expect(RecordingMediaBrowserController.lastState!.server, isNotNull);
+      expect(RecordingMediaBrowserController.totalInitCount, 1);
+      RecordingShufflePlaybackController.latest!.activateForTest();
+
+      await tester.tap(find.text('连接'));
+      await tester.pumpAndSettle();
+      expect(RecordingMediaBrowserController.lastState, MediaBrowserState());
+      expect(
+        RecordingShufflePlaybackController.lastState,
+        const ShufflePlaybackIdle(),
+      );
+
+      await tester.tap(find.text('媒体'));
+      await tester.pumpAndSettle();
+      expect(RecordingMediaBrowserController.totalInitCount, 2);
+      debugDefaultTargetPlatformOverride = null;
+    });
+
+    testWidgets('Android 初始媒体 Tab 会初始化浏览会话', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      await preferences.setInt('sync.tab.last_index', 2);
+      await pumpSyncScreen(
+        tester,
+        preferences: preferences,
+        extraOverrides: [
+          syncClientControllerProvider.overrideWith(
+            () => SeededSyncClientController(connectedSyncState()),
+          ),
+          mediaBrowserControllerProvider.overrideWith(
+            RecordingMediaBrowserController.new,
+          ),
+        ],
+      );
+
+      expect(find.text('媒体'), findsAtLeast(1));
+      expect(RecordingMediaBrowserController.totalInitCount, 1);
+      debugDefaultTargetPlatformOverride = null;
     });
   });
 }

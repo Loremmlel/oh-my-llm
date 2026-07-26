@@ -9,6 +9,7 @@ const String _prefixLengthKey = 'sync.broadcast_prefix_length';
 /// 用户在 UI 选择的广播子网掩码长度，默认为 [BroadcastPrefixLength.p24]。
 ///
 /// 持久化到 SharedPreferences，下次启动自动恢复；非法值或缺失时回退到默认 /24。
+/// 它是应用配置而非资源 Provider，不持有 socket 或需要释放的会话。
 class SelectedBroadcastPrefixLength extends Notifier<BroadcastPrefixLength> {
   @override
   BroadcastPrefixLength build() {

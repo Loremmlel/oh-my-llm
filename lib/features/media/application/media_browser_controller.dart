@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
@@ -11,15 +12,16 @@ import '../domain/models/media_server_info.dart';
 const Object _sentinel = Object();
 
 /// 媒体浏览器状态。
-class MediaBrowserState {
-  const MediaBrowserState({
-    this.items = const [],
+class MediaBrowserState extends Equatable {
+  MediaBrowserState({
+    List<FileItem> items = const [],
     this.currentPath = '/',
-    this.pathHistory = const [],
+    List<String> pathHistory = const [],
     this.isLoading = false,
     this.errorMessage,
     this.server,
-  });
+  }) : items = List.unmodifiable(items),
+       pathHistory = List.unmodifiable(pathHistory);
 
   final List<FileItem> items;
   final String currentPath;
@@ -27,6 +29,28 @@ class MediaBrowserState {
   final bool isLoading;
   final String? errorMessage;
   final MediaServerInfo? server;
+
+  @override
+  List<Object?> get props => [
+    items
+        .map(
+          (item) => (
+            item.name,
+            item.isDirectory,
+            item.sizeBytes,
+            item.relativePath,
+            item.lastModified,
+            item.mimeType,
+            item.thumbnailUrl,
+          ),
+        )
+        .toList(),
+    currentPath,
+    pathHistory,
+    isLoading,
+    errorMessage,
+    (server?.ip, server?.httpPort),
+  ];
 
   MediaBrowserState copyWith({
     List<FileItem>? items,
@@ -57,17 +81,20 @@ class MediaBrowserState {
 final mediaBrowserControllerProvider =
     NotifierProvider<MediaBrowserController, MediaBrowserState>(
       MediaBrowserController.new,
+      isAutoDispose: true,
     );
 
 /// 客户端媒体浏览器控制器。
 ///
 /// 管理浏览状态并通过 HTTP 调用服务端 API 获取目录内容。
+/// 这是页面级 auto-dispose 会话，不保活；离开媒体页面后由 SyncScreen reset。
 class MediaBrowserController extends Notifier<MediaBrowserState> {
   http.Client get _httpClient => ref.read(peerHttpClientProvider);
+  int _generation = 0;
 
   @override
   MediaBrowserState build() {
-    return const MediaBrowserState();
+    return MediaBrowserState();
   }
 
   /// 初始化：从同步客户端状态获取服务端地址。
@@ -77,16 +104,24 @@ class MediaBrowserController extends Notifier<MediaBrowserState> {
         state.server?.httpPort == server.httpPort) {
       if (state.isLoading || state.items.isNotEmpty) return;
     }
-    state = state.copyWith(server: server);
-    loadDirectory('/');
+    final generation = ++_generation;
+    state = MediaBrowserState(server: server);
+    _loadDirectory('/', generation);
   }
 
   /// 加载指定目录。
-  Future<void> loadDirectory(String path) async {
+  Future<bool> loadDirectory(String path) {
+    final generation = ++_generation;
+    return _loadDirectory(path, generation);
+  }
+
+  Future<bool> _loadDirectory(String path, int generation) async {
     final server = state.server;
     if (server == null) {
-      state = state.copyWith(isLoading: false, errorMessage: '未连接到服务端');
-      return;
+      if (_isCurrent(generation)) {
+        state = state.copyWith(isLoading: false, errorMessage: '未连接到服务端');
+      }
+      return false;
     }
 
     state = state.copyWith(isLoading: true, errorMessage: null);
@@ -102,6 +137,8 @@ class MediaBrowserController extends Notifier<MediaBrowserState> {
           .get(url)
           .timeout(const Duration(seconds: 10));
 
+      if (!_isCurrent(generation)) return false;
+
       if (response.statusCode == 200) {
         final items = FileItem.listFromJson(response.body);
         state = state.copyWith(
@@ -109,18 +146,24 @@ class MediaBrowserController extends Notifier<MediaBrowserState> {
           currentPath: path,
           isLoading: false,
         );
+        return true;
       } else {
         final body = jsonDecode(response.body) as Map<String, dynamic>?;
         final error = body?['error'] as String? ?? '未知错误';
         state = state.copyWith(isLoading: false, errorMessage: error);
+        return false;
       }
     } on http.ClientException catch (e) {
+      if (!_isCurrent(generation)) return false;
       state = state.copyWith(
         isLoading: false,
         errorMessage: '网络错误: ${e.message}',
       );
+      return false;
     } catch (e) {
+      if (!_isCurrent(generation)) return false;
       state = state.copyWith(isLoading: false, errorMessage: '加载失败: $e');
+      return false;
     }
   }
 
@@ -130,9 +173,10 @@ class MediaBrowserController extends Notifier<MediaBrowserState> {
   Future<void> navigateTo(String path) async {
     if (state.currentPath == path) return;
     final previousPath = state.currentPath;
-    await loadDirectory(path);
+    final generation = ++_generation;
+    final loaded = await _loadDirectory(path, generation);
     // 只有成功加载（currentPath 已更新到 path）时才推入历史
-    if (state.currentPath == path && state.errorMessage == null) {
+    if (_isCurrent(generation) && loaded) {
       state = state.copyWith(pathHistory: [...state.pathHistory, previousPath]);
     }
   }
@@ -148,7 +192,15 @@ class MediaBrowserController extends Notifier<MediaBrowserState> {
     final history = List<String>.from(state.pathHistory);
     final previousPath = history.removeLast();
     state = state.copyWith(pathHistory: history);
-    await loadDirectory(previousPath);
-    return true;
+    final generation = ++_generation;
+    return _loadDirectory(previousPath, generation);
   }
+
+  /// 结束当前页面会话，令所有在途响应失效。
+  void reset() {
+    _generation++;
+    state = MediaBrowserState();
+  }
+
+  bool _isCurrent(int generation) => ref.mounted && generation == _generation;
 }

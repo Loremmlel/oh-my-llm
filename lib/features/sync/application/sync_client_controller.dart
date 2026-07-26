@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
@@ -32,15 +33,15 @@ enum SyncPhase {
 
 const Object _sentinel = Object();
 
-class SyncClientState {
-  const SyncClientState({
+class SyncClientState extends Equatable {
+  SyncClientState({
     this.phase = SyncPhase.idle,
     this.server,
-    this.selectedCategories = const {},
+    Set<SyncCategory> selectedCategories = const {},
     this.errorMessage,
     this.deduplicatedData,
     this.sourceDeviceName,
-  });
+  }) : selectedCategories = Set.unmodifiable(selectedCategories);
 
   final SyncPhase phase;
   final DiscoveredServer? server;
@@ -48,6 +49,16 @@ class SyncClientState {
   final String? errorMessage;
   final SettingsExportData? deduplicatedData;
   final String? sourceDeviceName;
+
+  @override
+  List<Object?> get props => [
+    phase,
+    (server?.deviceName, server?.ip, server?.httpPort),
+    selectedCategories.map((category) => category.index).toList()..sort(),
+    errorMessage,
+    deduplicatedData?.toJsonString(),
+    sourceDeviceName,
+  ];
 
   SyncClientState copyWith({
     SyncPhase? phase,
@@ -79,29 +90,33 @@ class SyncClientState {
 final syncClientControllerProvider =
     NotifierProvider<SyncClientController, SyncClientState>(
       SyncClientController.new,
+      isAutoDispose: true,
     );
 
-/// 同步客户端控制器，管理设备发现、同步请求和数据导入流程。
+/// 同步客户端控制器，管理 Sync 页面会话内的发现、请求和导入流程。
+///
+/// 该 Provider 是页面级 auto-dispose 状态：页面观察者离开后会取消 UDP
+/// 发现并在下次进入时从 idle 重建。每轮发现或请求都绑定 generation，避免
+/// 已取消会话的异步回调重新写入 state。
 class SyncClientController extends Notifier<SyncClientState> {
   StreamSubscription<DiscoveredServer>? _discoverySubscription;
+  int _generation = 0;
 
   http.Client get _httpClient => ref.read(peerHttpClientProvider);
 
   @override
   SyncClientState build() {
-    ref.onDispose(() {
-      _discoverySubscription?.cancel();
-      _discoverySubscription = null;
-    });
-    return const SyncClientState();
+    ref.onDispose(_invalidateDiscovery);
+    return SyncClientState();
   }
 
   Future<void> startDiscovery() async {
-    _discoverySubscription?.cancel();
-    state = const SyncClientState(phase: SyncPhase.discovering);
+    final generation = _invalidateDiscovery();
+    state = SyncClientState(phase: SyncPhase.discovering);
 
     _discoverySubscription = SyncUdpDiscovery.listenForServers().listen(
       (server) {
+        if (!_isCurrent(generation)) return;
         _discoverySubscription?.cancel();
         _discoverySubscription = null;
         state = state.copyWith(
@@ -111,6 +126,7 @@ class SyncClientController extends Notifier<SyncClientState> {
         );
       },
       onDone: () {
+        if (!_isCurrent(generation)) return;
         if (state.phase == SyncPhase.discovering) {
           state = state.copyWith(
             phase: SyncPhase.error,
@@ -119,6 +135,7 @@ class SyncClientController extends Notifier<SyncClientState> {
         }
       },
       onError: (Object e) {
+        if (!_isCurrent(generation)) return;
         state = state.copyWith(
           phase: SyncPhase.error,
           errorMessage: '发现过程出错: $e',
@@ -147,6 +164,7 @@ class SyncClientController extends Notifier<SyncClientState> {
     if (state.phase == SyncPhase.syncing) return;
     final server = state.server;
     if (server == null || state.selectedCategories.isEmpty) return;
+    final generation = _generation;
 
     state = state.copyWith(
       phase: SyncPhase.syncing,
@@ -170,6 +188,7 @@ class SyncClientController extends Notifier<SyncClientState> {
       final response = await _httpClient
           .post(uri, body: body, headers: {'Content-Type': 'application/json'})
           .timeout(const Duration(seconds: 30));
+      if (!_isCurrent(generation)) return;
 
       final responseMessage = SyncMessageCodec.tryDecode(response.body);
       if (responseMessage == null) {
@@ -212,11 +231,13 @@ class SyncClientController extends Notifier<SyncClientState> {
         deduplicatedData: deduplicated,
       );
     } on TimeoutException {
+      if (!_isCurrent(generation)) return;
       state = state.copyWith(
         phase: SyncPhase.error,
         errorMessage: '请求超时，请检查网络连接',
       );
     } catch (e) {
+      if (!_isCurrent(generation)) return;
       state = state.copyWith(phase: SyncPhase.error, errorMessage: '同步失败: $e');
     }
   }
@@ -225,16 +246,18 @@ class SyncClientController extends Notifier<SyncClientState> {
   Future<bool> executeImport() async {
     final data = state.deduplicatedData;
     if (data == null) return false;
+    final generation = _generation;
 
     try {
       final success = await ref
           .read(settingsImportExecutorProvider)
           .executeImport(data: data);
-      if (success) {
+      if (success && _isCurrent(generation)) {
         state = state.copyWith(phase: SyncPhase.imported);
       }
       return success;
     } catch (e) {
+      if (!_isCurrent(generation)) return false;
       state = state.copyWith(phase: SyncPhase.error, errorMessage: '导入失败: $e');
       return false;
     }
@@ -249,9 +272,20 @@ class SyncClientController extends Notifier<SyncClientState> {
   }
 
   void cancelAndReset() {
+    _invalidateDiscovery();
+    if (!ref.mounted) return;
+    state = SyncClientState();
+  }
+
+  int _invalidateDiscovery() {
+    _generation++;
     _discoverySubscription?.cancel();
     _discoverySubscription = null;
-    state = const SyncClientState();
+    return _generation;
+  }
+
+  bool _isCurrent(int generation) {
+    return ref.mounted && generation == _generation;
   }
 
   SettingsExportData _deduplicate(SettingsExportData data) {
