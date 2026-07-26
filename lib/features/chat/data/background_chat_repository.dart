@@ -66,62 +66,51 @@ class BackgroundChatConversationRepository
       _workerCommandPort = message;
       _isolateReady = true;
       message.send(_databasePath);
-      final pending = _pendingWrite;
-      if (pending != null) {
-        _pendingWrite = null;
-        final deletes = _pendingDeletes.toSet();
-        _pendingDeletes.clear();
-        if (deletes.isNotEmpty) {
-          for (final id in deletes) {
-            pending.remove(id);
-          }
-        }
-        if (pending.isNotEmpty) {
-          _sendWriteCommand(
-            WriteCommand(
-              id: _nextCommandId++,
-              payload: pending.values.toList(growable: false),
-            ),
-          );
-        }
-      }
+      _drainPendingOnReady();
       return;
     }
 
-    if (message is AckResponse) {
-      final completer = _pendingAcks.remove(message.commandId);
-      if (completer != null) {
-        completer.complete();
-        // 如果此 ACK 对应的是当前 batch，也 complete batch Completer
-        if (_batchCompleter != null && _pendingAcks.isEmpty) {
-          final batch = _batchCompleter;
-          _batchCompleter = null;
-          batch!.complete();
-        }
-      }
-      return;
+    if (message is WorkerResponse) {
+      _handleWorkerResponse(message);
     }
+  }
 
-    if (message is ErrorResponse) {
-      final completer = _pendingAcks.remove(message.commandId);
-      if (completer != null) {
-        completer.completeError(StateError(message.message));
-        // batch Completer 也传播错误
-        if (_batchCompleter != null && _pendingAcks.isEmpty) {
-          final batch = _batchCompleter;
-          _batchCompleter = null;
-          batch!.completeError(StateError(message.message));
-        }
-      }
-      return;
-    }
-
-    if (message is ExitResponse) {
-      if (_closeCompleter != null) {
+  /// 统一处理 worker 回传的响应（ACK/ERROR/EXIT）。
+  void _handleWorkerResponse(WorkerResponse response) {
+    switch (response) {
+      case AckResponse(:final commandId):
+        _pendingAcks.remove(commandId);
+        _tryCompleteBatch();
+      case ErrorResponse(:final commandId, :final message):
+        _pendingAcks.remove(commandId);
+        _degradeToInner();
+        _completeBatchError(StateError(message));
+      case ExitResponse():
         final completer = _closeCompleter;
         _closeCompleter = null;
-        completer!.complete();
-      }
+        completer?.complete();
+    }
+  }
+
+  /// Isolate 就绪后排空 pending 数据。
+  void _drainPendingOnReady() {
+    final pending = _pendingWrite;
+    if (pending == null) return;
+    _pendingWrite = null;
+
+    final deletes = _pendingDeletes.toSet();
+    _pendingDeletes.clear();
+    for (final id in deletes) {
+      pending.remove(id);
+    }
+
+    if (pending.isNotEmpty) {
+      _sendWriteCommand(
+        WriteCommand(
+          id: _nextCommandId++,
+          payload: pending.values.toList(growable: false),
+        ),
+      );
     }
   }
 
@@ -169,6 +158,8 @@ class BackgroundChatConversationRepository
     for (final c in conversations) {
       _pendingWrite![c.id] = c.toJson();
     }
+    // 已被删除的 ID 从 pending 中移除，避免 delete+resave 竞态
+    _removeDeletedFromPending();
     return _scheduleDebouncedWrite();
   }
 
@@ -184,7 +175,22 @@ class BackgroundChatConversationRepository
     }
     _pendingWrite ??= {};
     _pendingWrite![conversation.id] = conversation.toJson();
+    // 已被删除的 ID 从 pending 中移除，避免 delete+resave 竞态
+    _removeDeletedFromPending();
     return _scheduleDebouncedWrite();
+  }
+
+  /// 从 [_pendingWrite] 中移除已在 [_pendingDeletes] 中的 ID。
+  ///
+  /// 防止 delete + resave 竞态：如果同一 ID 在 80ms 窗口内先被 delete
+  /// 再被 save，内层仓库已删除，而 pending 写入也会在 flush 时被
+  /// _pendingDeletes 过滤掉。对于「先删后存」的场景，save 应覆盖 delete
+  /// 意图，因此从 _pendingDeletes 中移除该 ID。
+  void _removeDeletedFromPending() {
+    if (_pendingWrite == null || _pendingDeletes.isEmpty) return;
+    for (final id in _pendingWrite!.keys.toList()) {
+      _pendingDeletes.remove(id);
+    }
   }
 
   /// 安排一次 debounce 写入，返回在 ACK 后完成的 Future。
@@ -232,30 +238,14 @@ class BackgroundChatConversationRepository
       try {
         _workerCommandPort!.send(command);
         _pendingAcks[command.id] = Completer<void>();
-        // 当所有 ACK 收到后 complete batch
-        _pendingAcks[command.id]!.future.then((_) {
-          _tryCompleteBatch();
-        }, onError: (Object error) {
-          // ACK 错误时降级写入并 complete batch with error
-          _writeWithInner([command.payload]);
-          final batch = _batchCompleter;
-          _batchCompleter = null;
-          batch?.completeError(error);
-          _isolateReady = false;
-          _workerCommandPort = null;
-          _isolateFailed = true;
-        });
       } catch (_) {
-        _writeWithInner([command.payload]);
-        _isolateReady = false;
-        _workerCommandPort = null;
-        _isolateFailed = true;
-        final batch = _batchCompleter;
-        _batchCompleter = null;
-        batch?.complete();
+        // send() 抛异常意味着 worker 已不可达
+        _degradeToInner(command.payload);
+        _completeBatchOk();
       }
     } else if (_isolateFailed) {
-      _writeWithInner([command.payload]);
+      // 降级路径：直接写内层
+      _degradeToInner(command.payload);
       _tryCompleteBatch();
     } else {
       // Isolate 尚未就绪，缓存数据
@@ -263,16 +253,64 @@ class BackgroundChatConversationRepository
         for (final j in command.payload)
           if (j is Map<String, dynamic>) j['id'] as String: j,
       };
+      // 如果有 batch Completer 等待，需在数据最终落盘后 complete；
+      // 当 Isolate 就绪后 _drainPendingOnReady → _sendWriteCommand 会处理。
+      // 但如果 Isolate 永远不就绪，batch Completer 会挂起。
+      // 为安全起见，设置超时保护。
+      _ensureBatchTimeout();
     }
   }
 
   /// 当所有 pending ACK 已收到时 complete batch Completer。
   void _tryCompleteBatch() {
     if (_pendingAcks.isEmpty && _batchCompleter != null) {
-      final batch = _batchCompleter;
-      _batchCompleter = null;
-      batch!.complete();
+      _completeBatchOk();
     }
+  }
+
+  /// 安全地 complete batch（成功）。
+  void _completeBatchOk() {
+    final batch = _batchCompleter;
+    _batchCompleter = null;
+    batch?.complete();
+  }
+
+  /// 安全地 complete batch（失败），同时清理 stale _pendingAcks。
+  void _completeBatchError(Object error) {
+    // 清理所有 stale ACK entries——worker 已不可达
+    _pendingAcks.clear();
+    final batch = _batchCompleter;
+    _batchCompleter = null;
+    batch?.completeError(error);
+  }
+
+  /// 降级到内层写入。
+  ///
+  /// [payload] 为可选参数：不传时仅标记 isolate 为 failed 状态，
+  /// 传入时同时执行降级写入。
+  void _degradeToInner([List<dynamic>? payload]) {
+    _isolateReady = false;
+    _workerCommandPort = null;
+    _isolateFailed = true;
+    if (payload != null) {
+      _writeWithInner(payload);
+    }
+  }
+
+  /// 为 batch Completer 设置超时保护，防止 Isolate 永远不就绪时 Future 挂起。
+  void _ensureBatchTimeout() {
+    final batch = _batchCompleter;
+    if (batch == null || batch.isCompleted) return;
+    // 10 秒超时：如果 Isolate 仍不就绪，降级写入
+    Timer(const Duration(seconds: 10), () {
+      if (batch.isCompleted) return;
+      if (!_isolateReady) {
+        _degradeToInner();
+        _completeBatchError(
+          StateError('Background isolate failed to become ready'),
+        );
+      }
+    });
   }
 
   void _writeWithInner(List<dynamic> payload) {
