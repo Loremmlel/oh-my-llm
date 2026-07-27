@@ -88,7 +88,7 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
 
     return SettingsSectionCard(
       title: '发现服务端',
-      description: '搜索局域网内正在广播的服务端；发现不等于配对或授权',
+      description: '搜索局域网内正在广播的服务端；输入配对码后即可同步',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -204,29 +204,43 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
     SyncClientState state,
     SyncClientController notifier,
   ) {
-    return Row(
-      children: [
-        Expanded(
-          child: FilledButton(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final narrow = constraints.maxWidth < 560;
+        final buttons = [
+          FilledButton(
             onPressed: () => _showPairingDialog(state),
             child: Text(state.isPaired ? '重新输入配对码' : '输入配对码'),
           ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: OutlinedButton(
+          OutlinedButton(
             onPressed: notifier.cancelAndReset,
             child: const Text('断开连接'),
           ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: OutlinedButton(
+          OutlinedButton(
             onPressed: notifier.startDiscovery,
             child: const Text('重新搜索'),
           ),
-        ),
-      ],
+        ];
+        if (narrow) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var index = 0; index < buttons.length; index++) ...[
+                buttons[index],
+                if (index < buttons.length - 1) const SizedBox(height: 8),
+              ],
+            ],
+          );
+        }
+        return Row(
+          children: [
+            for (var index = 0; index < buttons.length; index++) ...[
+              Expanded(child: buttons[index]),
+              if (index < buttons.length - 1) const SizedBox(width: 8),
+            ],
+          ],
+        );
+      },
     );
   }
 
@@ -292,7 +306,7 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
 
     return SettingsSectionCard(
       title: '服务端广播',
-      description: '启动后设备可被发现；只有配对、会话和授权完成后才能同步配置',
+      description: '启动后设备可被发现；输入本次会话配对码即可同步配置',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -397,33 +411,6 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
               ),
               const SizedBox(height: 16),
             ],
-            OutlinedButton.icon(
-              onPressed: () async {
-                final code = await ref
-                    .read(syncServerControllerProvider.notifier)
-                    .generatePairingCode();
-                if (!mounted || code == null) return;
-                await showDialog<void>(
-                  context: context,
-                  barrierDismissible: false,
-                  builder: (context) => AlertDialog(
-                    title: const Text('本次会话配对码'),
-                    content: Text(
-                      '请仅在本地告知待配对设备。服务端停止前此码持续有效，可重复用于本次会话。\n\n$code',
-                    ),
-                    actions: [
-                      FilledButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('完成'),
-                      ),
-                    ],
-                  ),
-                );
-              },
-              icon: const Icon(Icons.password_rounded),
-              label: const Text('生成配对码'),
-            ),
-            const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
