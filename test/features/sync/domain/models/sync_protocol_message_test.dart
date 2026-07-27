@@ -7,7 +7,7 @@ import 'package:oh_my_llm/features/sync/domain/models/sync_types.dart';
 
 void main() {
   group('SyncProtocolCodec', () {
-    test('v2 encrypted envelope round-trip 且无二次 JSON payload', () {
+    test('v3 encrypted envelope round-trip 且无二次 JSON payload', () {
       const message = EncryptedSyncRequest(
         requestId: 'request-1',
         sessionId: 'session-1',
@@ -85,7 +85,7 @@ void main() {
       expect(decoded, payload);
     });
 
-    test('旧 v2 设置请求缺少敏感确认时按未确认处理', () {
+    test('v3 设置请求缺少敏感确认时按未确认处理', () {
       final decoded = SyncProtocolCodec.tryDecodePayload(
         jsonEncode({
           'kind': 'settingsSyncRequest',

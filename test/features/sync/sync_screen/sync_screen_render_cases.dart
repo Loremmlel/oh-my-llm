@@ -7,6 +7,7 @@ import 'package:oh_my_llm/features/media/application/shuffle_playback_controller
 import 'package:oh_my_llm/features/sync/application/sync_client_controller.dart';
 import 'package:oh_my_llm/features/sync/domain/models/discovered_server.dart';
 import 'package:oh_my_llm/features/sync/domain/models/sync_protocol_version.dart';
+import 'package:oh_my_llm/features/sync/domain/models/sync_types.dart';
 
 import 'sync_screen_test_helpers.dart';
 
@@ -75,9 +76,41 @@ void registerSyncScreenRenderTests() {
         ],
       );
 
-      expect(find.text('配对此设备'), findsOneWidget);
+      expect(find.text('输入配对码'), findsOneWidget);
       expect(find.text('断开连接'), findsOneWidget);
       expect(find.text('重新搜索'), findsOneWidget);
+    });
+
+    testWidgets('修改同步类别不会复用旧的一致性结果弹出消息', (tester) async {
+      await pumpSyncScreen(
+        tester,
+        preferences: preferences,
+        extraOverrides: [
+          syncClientControllerProvider.overrideWith(
+            () => SeededSyncClientController(
+              SyncClientState(
+                phase: SyncPhase.noNewData,
+                server: const DiscoveredServer(
+                  deviceName: 'Test PC',
+                  ip: '192.168.1.2',
+                  httpPort: 8080,
+                  serverId: 'server-id',
+                  protocolRange: SyncProtocolRange.local,
+                ),
+                sourceDeviceName: 'Test PC',
+                isPaired: true,
+              ),
+            ),
+          ),
+        ],
+      );
+
+      await tester.tap(find.text('同步').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(SyncCategory.presets.label));
+      await tester.pump();
+
+      expect(find.text('远端配置与本机完全一致，无需导入'), findsNothing);
     });
 
     testWidgets('Android 离开媒体 Tab 重置并重新进入时重新加载根目录', (tester) async {

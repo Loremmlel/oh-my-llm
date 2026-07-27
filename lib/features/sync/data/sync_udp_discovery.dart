@@ -43,7 +43,7 @@ class SyncUdpDiscovery {
 
   static const int discoveryPort = 47280;
   static const String _appId = 'oh-my-llm';
-  static const int _version = 2;
+  static const int _version = 3;
 
   /// 开始周期性 UDP 广播，返回停止函数。
   ///

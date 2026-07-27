@@ -6,7 +6,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/persistence/versioned_json_storage.dart';
 import '../application/ports/sync_pairing_repository.dart';
 import '../domain/models/sync_pairing.dart';
-import '../domain/models/sync_types.dart';
 
 /// secure-store 的窄适配器，允许测试替换且避免在 application 暴露插件。
 abstract interface class SyncSecureStore {
@@ -57,9 +56,9 @@ final class SecureSyncPairingRepository implements SyncPairingRepository {
   }) : _preferences = preferences,
        _secureStore = secureStore;
 
-  static const _identityKey = 'sync.v2.identity';
-  static const _recordsKey = 'sync.v2.pairings';
-  static const _secretPrefix = 'oh-my-llm.sync.v2.secret.';
+  static const _identityKey = 'sync.v3.identity';
+  static const _recordsKey = 'sync.v3.pairings';
+  static const _secretPrefix = 'oh-my-llm.sync.v3.secret.';
 
   final SharedPreferences _preferences;
   final SyncSecureStore _secureStore;
@@ -172,18 +171,6 @@ final class SecureSyncPairingRepository implements SyncPairingRepository {
       await _deleteMetadata(record.peer.id);
       throw StateError('无法安全保存 Sync 配对：$error');
     }
-  }
-
-  @override
-  Future<void> updateGrants(String peerId, Set<SyncCategory> grants) async {
-    final records = await _metadataRecords();
-    final index = records.indexWhere((item) => item.peer.id == peerId);
-    if (index < 0 || await loadSecret(peerId) == null) {
-      await revoke(peerId);
-      throw StateError('Sync 配对不存在');
-    }
-    records[index] = records[index].copyWith(grantedCategories: grants);
-    await _saveMetadata(records);
   }
 
   @override

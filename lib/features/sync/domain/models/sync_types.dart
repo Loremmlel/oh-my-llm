@@ -38,7 +38,7 @@ extension SyncCategorySecurity on SyncCategory {
       sensitivity == SyncCategorySensitivity.credentialBearing;
 }
 
-/// 仅用于隔离的 v1 rejection fixture；生产 Sync v2 不得引用这些值。
+/// 仅用于隔离的 v1 rejection fixture；生产 Sync v3 不得引用这些值。
 @Deprecated('Sync v1 已被拒绝；请使用 SyncProtocolMessage。')
 final class SyncMessageType {
   const SyncMessageType._();

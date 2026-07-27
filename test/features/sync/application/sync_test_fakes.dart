@@ -3,7 +3,6 @@ import 'package:oh_my_llm/features/sync/application/ports/settings_sync_facade.d
 import 'package:oh_my_llm/features/sync/application/ports/sync_clock.dart';
 import 'package:oh_my_llm/features/sync/application/ports/sync_pairing_repository.dart';
 import 'package:oh_my_llm/features/sync/domain/models/sync_pairing.dart';
-import 'package:oh_my_llm/features/sync/domain/models/sync_types.dart';
 
 final class FakeSyncClock implements SyncClock {
   FakeSyncClock([DateTime? now]) : value = now ?? DateTime(2026, 1, 1);
@@ -44,12 +43,6 @@ final class FakePairingRepository implements SyncPairingRepository {
   }) async {
     records[record.peer.id] = record;
     secrets[record.peer.id] = secret;
-  }
-
-  @override
-  Future<void> updateGrants(String peerId, Set<SyncCategory> grants) async {
-    final record = records[peerId]!;
-    records[peerId] = record.copyWith(grantedCategories: grants);
   }
 }
 

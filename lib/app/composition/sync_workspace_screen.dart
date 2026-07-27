@@ -32,9 +32,8 @@ class SyncWorkspaceScreen extends ConsumerStatefulWidget {
 }
 
 class _SyncWorkspaceScreenState extends ConsumerState<SyncWorkspaceScreen>
-    with TickerProviderStateMixin, WidgetsBindingObserver {
+    with TickerProviderStateMixin {
   late final TabController _tabController;
-  bool _wasServerRunningBeforePause = false;
   late int _lastStableTabIndex;
 
   bool get _hasMediaTab => defaultTargetPlatform == TargetPlatform.android;
@@ -43,7 +42,6 @@ class _SyncWorkspaceScreenState extends ConsumerState<SyncWorkspaceScreen>
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
     final initialIndex = ref
         .read(syncWorkspaceTabPreferenceProvider)
         .clamp(0, _tabCount - 1);
@@ -61,7 +59,6 @@ class _SyncWorkspaceScreenState extends ConsumerState<SyncWorkspaceScreen>
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
     _tabController
       ..removeListener(_onTabChanged)
       ..dispose();
@@ -92,20 +89,6 @@ class _SyncWorkspaceScreenState extends ConsumerState<SyncWorkspaceScreen>
         .initWithServer(
           MediaServerInfo(ip: server.ip, httpPort: server.httpPort),
         );
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState lifecycleState) {
-    if (lifecycleState == AppLifecycleState.paused) {
-      _wasServerRunningBeforePause = ref
-          .read(syncServerControllerProvider)
-          .isRunning;
-      ref.read(syncServerControllerProvider.notifier).stop();
-      ref.read(syncClientControllerProvider.notifier).cancelAndReset();
-    } else if (lifecycleState == AppLifecycleState.resumed &&
-        _wasServerRunningBeforePause) {
-      ref.read(syncServerControllerProvider.notifier).start();
-    }
   }
 
   @override

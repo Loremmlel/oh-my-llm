@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/models/sync_pairing.dart';
-import '../../domain/models/sync_types.dart';
 
 /// 配对 metadata 与 secure secret 的原子边界。
 abstract interface class SyncPairingRepository {
@@ -19,8 +18,6 @@ abstract interface class SyncPairingRepository {
     required SyncPairingRecord record,
     required List<int> secret,
   });
-
-  Future<void> updateGrants(String peerId, Set<SyncCategory> grants);
 
   Future<void> revoke(String peerId);
 }

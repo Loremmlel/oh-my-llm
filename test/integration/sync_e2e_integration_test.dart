@@ -18,7 +18,7 @@ import 'package:oh_my_llm/features/sync/domain/models/sync_types.dart';
 import '../features/sync/application/sync_test_fakes.dart';
 
 void main() {
-  test('loopback v2 已配对、授权 session 才能获得结构化 Settings snapshot', () async {
+  test('loopback v3 配对后直接获得结构化 Settings snapshot', () async {
     final serverStore = FakePairingRepository(
       identity: const SyncPeerIdentity(id: 'server-id', displayName: 'Server'),
     );
@@ -80,31 +80,6 @@ void main() {
       code: pairingCode.toLowerCase(),
       displayName: 'Client',
     );
-    await expectLater(
-      client.requestSettings(
-        server: peer,
-        categories: {SyncCategory.presets},
-        confirmedSensitive: false,
-      ),
-      throwsA(
-        isA<SyncProtocolFailure>().having(
-          (failure) => failure.code,
-          'code',
-          SyncProtocolErrorCode.authorizationRequired,
-        ),
-      ),
-    );
-    expect(serverFacade.exportCount, 0);
-    final pending = serverCoordinator.pendingAuthorizations();
-    expect(pending, hasLength(1));
-    expect(pending.single.peer.id, 'client-id');
-    expect(pending.single.categories, {SyncCategory.presets});
-
-    await serverCoordinator.grant(
-      peerId: 'client-id',
-      categories: {SyncCategory.presets},
-      confirmedSensitive: false,
-    );
     final snapshot = await client.requestSettings(
       server: peer,
       categories: {SyncCategory.presets},
@@ -113,10 +88,9 @@ void main() {
 
     expect(snapshot, isA<SettingsExportData>());
     expect(serverFacade.exportCount, 1);
-    expect(serverCoordinator.pendingAuthorizations(), isEmpty);
   });
 
-  test('敏感分类请求把客户端确认传给服务端待授权队列', () async {
+  test('敏感分类经客户端确认后直接同步', () async {
     final serverStore = FakePairingRepository(
       identity: const SyncPeerIdentity(id: 'server-id', displayName: 'Server'),
     );
@@ -155,23 +129,60 @@ void main() {
     final code = await coordinator.generatePairingCode();
     await client.pair(server: peer, code: code, displayName: 'Client');
 
-    await expectLater(
-      client.requestSettings(
-        server: peer,
-        categories: {SyncCategory.providers},
-        confirmedSensitive: true,
-      ),
-      throwsA(
-        isA<SyncProtocolFailure>().having(
-          (failure) => failure.code,
-          'code',
-          SyncProtocolErrorCode.authorizationRequired,
-        ),
-      ),
+    final snapshot = await client.requestSettings(
+      server: peer,
+      categories: {SyncCategory.providers},
+      confirmedSensitive: true,
     );
+    expect(snapshot, isA<SettingsExportData>());
+  });
 
-    final pending = coordinator.pendingAuthorizations().single;
-    expect(pending.categories, {SyncCategory.providers});
-    expect(pending.confirmedSensitive, isTrue);
+  test('同一服务端会话配对码可供多个客户端重复配对', () async {
+    final serverStore = FakePairingRepository(
+      identity: const SyncPeerIdentity(id: 'server-id', displayName: 'Server'),
+    );
+    final coordinator = SyncServerProtocolCoordinator(
+      pairingRepository: serverStore,
+      crypto: CryptographySyncCrypto(),
+      clock: FakeSyncClock(),
+      settingsFacade: FakeSettingsSyncFacade(),
+    );
+    final server = SyncHttpServer();
+    final port = await server.start(
+      handlers: [
+        SyncHttpHandler(
+          onRequest: (request) async =>
+              (await coordinator.handle(request)).message,
+        ),
+      ],
+    );
+    addTearDown(server.stop);
+    final peer = DiscoveredServer(
+      deviceName: 'Server',
+      ip: InternetAddress.loopbackIPv4.address,
+      httpPort: port,
+      serverId: 'server-id',
+      protocolRange: SyncProtocolRange.local,
+    );
+    final code = await coordinator.generatePairingCode();
+
+    for (final clientId in ['client-a', 'client-b']) {
+      final client = SyncClientProtocolCoordinator(
+        transport: HttpSyncClientTransport(http.Client()),
+        pairingRepository: FakePairingRepository(
+          identity: SyncPeerIdentity(id: clientId, displayName: clientId),
+        ),
+        crypto: CryptographySyncCrypto(),
+        clock: FakeSyncClock(),
+      );
+      await client.pair(
+        server: peer,
+        code: code.toLowerCase(),
+        displayName: clientId,
+      );
+    }
+
+    expect(await coordinator.generatePairingCode(), code);
+    expect(await coordinator.pairedPeers(), hasLength(2));
   });
 }

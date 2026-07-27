@@ -36,7 +36,11 @@ class _SyncOperationTabState extends ConsumerState<SyncOperationTab>
     final clientState = ref.watch(syncClientControllerProvider);
 
     ref.listen<SyncClientState>(syncClientControllerProvider, (prev, next) {
-      if (next.phase == SyncPhase.received && next.deduplicatedData != null) {
+      final enteredReceived =
+          prev?.phase == SyncPhase.syncing && next.phase == SyncPhase.received;
+      final enteredNoNewData =
+          prev?.phase == SyncPhase.syncing && next.phase == SyncPhase.noNewData;
+      if (enteredReceived && next.deduplicatedData != null) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (context.mounted) {
             _showImportDialog(
@@ -47,7 +51,7 @@ class _SyncOperationTabState extends ConsumerState<SyncOperationTab>
             );
           }
         });
-      } else if (next.phase == SyncPhase.noNewData) {
+      } else if (enteredNoNewData) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (context.mounted) {
             context.showBubble('远端配置与本机完全一致，无需导入');

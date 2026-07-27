@@ -8,7 +8,7 @@ import 'sync_protocol_failure.dart';
 import 'sync_protocol_version.dart';
 import 'sync_types.dart';
 
-/// v2 wire message 的封闭类型集合。解析完成后不再向调用方暴露动态 Map。
+/// v3 wire message 的封闭类型集合。解析完成后不再向调用方暴露动态 Map。
 sealed class SyncProtocolMessage extends Equatable {
   const SyncProtocolMessage({
     required this.requestId,
@@ -285,7 +285,7 @@ final class SyncProtocolDecodeFailure extends SyncProtocolDecodeResult {
   final SyncProtocolFailure failure;
 }
 
-/// Sync v2 唯一 JSON 边界。字段类型、ID、base64 和分类均严格验证。
+/// Sync v3 唯一 JSON 边界。字段类型、ID、base64 和分类均严格验证。
 final class SyncProtocolCodec {
   const SyncProtocolCodec._();
 
