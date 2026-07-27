@@ -91,6 +91,10 @@ EOF
 
 每个功能点 / 修复单独提交，不批量合并无关改动。改动 >500 行且无标准前缀时 pre-commit 会提醒，但不阻塞。
 
+### 提交前格式化（强制）
+
+**每次提交前必须对本次改动的所有 Dart 文件执行 `dart format`，并在暂存后再次检查格式。**CI 会严格校验格式，即使仅一行未格式化也会失败。建议流程：先用 `git diff --name-only -- '*.dart'` 确认文件，再执行 `dart format <文件列表>`，随后 `git add` 并运行 `dart format --output=none --set-exit-if-changed <暂存的 Dart 文件列表>`；后者非零退出时不得提交。
+
 ---
 
 ## 3. 架构
