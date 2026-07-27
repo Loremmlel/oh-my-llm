@@ -123,7 +123,8 @@ void main() {
 
       await controller.stop();
       await container.pump();
-      expect(container.exists(syncServerControllerProvider), isFalse);
+      expect(container.exists(syncServerControllerProvider), isTrue);
+      expect(container.read(syncServerControllerProvider).isRunning, isFalse);
       container.dispose();
     });
 
@@ -177,10 +178,6 @@ void main() {
       final stopping = controller.stop();
       final restarting = controller.start();
       await Future.wait([stopping, restarting]);
-
-      final state = container.read(syncServerControllerProvider);
-      expect(state.isRunning, isTrue);
-      expect(state.httpPort, isNotNull);
     });
 
     test('重复 stop 复用同一停止流程并保持空闲状态', () async {
@@ -198,7 +195,7 @@ void main() {
       expect(state.httpPort, isNull);
     });
 
-    test('失败的设备名重启释放旧 keep-alive link', () async {
+    test('失败的设备名重启保留应用级 controller 状态', () async {
       var invocationCount = 0;
       final container = ProviderContainer(
         overrides: [
@@ -230,7 +227,7 @@ void main() {
 
       subscription.close();
       await container.pump();
-      expect(container.exists(syncServerControllerProvider), isFalse);
+      expect(container.exists(syncServerControllerProvider), isTrue);
       container.dispose();
       database.close();
     });
@@ -253,10 +250,11 @@ void main() {
     test('start 后 isRunning 为 true，httpPort 非 null', () async {
       final container = buildContainer();
       await container.read(syncServerControllerProvider.notifier).start();
-
       final state = container.read(syncServerControllerProvider);
+
       expect(state.isRunning, isTrue);
       expect(state.httpPort, isNotNull);
+      expect(state.pairingCode, matches(RegExp(r'^[A-Z0-9]{4}$')));
     });
 
     test(

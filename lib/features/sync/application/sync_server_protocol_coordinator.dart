@@ -12,7 +12,7 @@ import 'ports/sync_crypto.dart';
 import 'ports/sync_pairing_repository.dart';
 import 'sync_session_registry.dart';
 
-/// server protocol 的业务安全闸门；HTTP handler 仅负责编解码和 status 映射。
+/// server protocol 的配对、会话与加密编排；HTTP handler 仅负责编解码和 status 映射。
 final class SyncServerProtocolCoordinator {
   SyncServerProtocolCoordinator({
     required SyncPairingRepository pairingRepository,
@@ -26,8 +26,6 @@ final class SyncServerProtocolCoordinator {
        _settingsFacade = settingsFacade,
        _sessions = sessions ?? SyncSessionRegistry(clock);
 
-  static const pairingCodeLifetime = Duration(minutes: 5);
-  static const _maxPairingAttempts = 5;
   static const _pairingCodeAlphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 
   final SyncPairingRepository _pairingRepository;
@@ -37,10 +35,11 @@ final class SyncServerProtocolCoordinator {
   final SyncSessionRegistry _sessions;
   _PendingPairingCode? _pendingCode;
   final Map<String, _PairingChallenge> _challenges = {};
-  final Map<String, SyncAuthorizationRequest> _pendingAuthorizations = {};
 
-  /// 本地 UI 获取一次性 code。它只存在内存并由调用处本地展示。
+  /// 本地 UI 获取当前服务端会话 code。它只存在内存并由调用处本地展示。
   Future<String> generatePairingCode() async {
+    final current = _pendingCode;
+    if (current != null) return current.code;
     final random = _crypto.randomBytes(4);
     final code = String.fromCharCodes(
       random.map(
@@ -49,10 +48,7 @@ final class SyncServerProtocolCoordinator {
         ),
       ),
     );
-    _pendingCode = _PendingPairingCode(
-      code: code,
-      expiresAt: _clock.now().add(pairingCodeLifetime),
-    );
+    _pendingCode = _PendingPairingCode(code: code);
     _challenges.clear();
     return code;
   }
@@ -78,51 +74,20 @@ final class SyncServerProtocolCoordinator {
     _sessions.clear();
     _pendingCode = null;
     _challenges.clear();
-    _pendingAuthorizations.clear();
   }
 
   Future<List<SyncPairingRecord>> pairedPeers() => _pairingRepository.loadAll();
 
-  List<SyncAuthorizationRequest> pendingAuthorizations() =>
-      List.unmodifiable(_pendingAuthorizations.values);
-
-  Future<void> grant({
-    required String peerId,
-    required Set<SyncCategory> categories,
-    required bool confirmedSensitive,
-  }) async {
-    if (categories.any((item) => item.isCredentialBearing) &&
-        !confirmedSensitive) {
-      throw const SyncProtocolFailure(
-        SyncProtocolErrorCode.sensitiveConfirmationRequired,
-      );
-    }
-    final record = await _pairingRepository.load(peerId);
-    if (record == null) {
-      throw const SyncProtocolFailure(SyncProtocolErrorCode.pairingRequired);
-    }
-    await _pairingRepository.updateGrants(peerId, {
-      ...record.grantedCategories,
-      ...categories,
-    });
-    _pendingAuthorizations.remove(peerId);
-  }
-
-  void denyAuthorization(String peerId) {
-    _pendingAuthorizations.remove(peerId);
-  }
-
   Future<void> revoke(String peerId) async {
     await _pairingRepository.revoke(peerId);
     _sessions.invalidatePeer(peerId);
-    _pendingAuthorizations.remove(peerId);
   }
 
   Future<SyncServerProtocolResult> _challenge(
     PairingChallengeRequest request,
   ) async {
     final pending = _pendingCode;
-    if (pending == null || _clock.now().isAfter(pending.expiresAt)) {
+    if (pending == null) {
       return _failure(request.requestId, SyncProtocolErrorCode.pairingRequired);
     }
     final server = await _localIdentity();
@@ -131,7 +96,6 @@ final class SyncServerProtocolCoordinator {
     _challenges[pairingId] = _PairingChallenge(
       clientId: request.clientIdentity,
       challengeNonce: nonce,
-      createdAt: _clock.now(),
     );
     return SyncServerProtocolResult(
       PairingChallengeResponse(
@@ -148,8 +112,6 @@ final class SyncServerProtocolCoordinator {
     final challenge = _challenges.remove(request.pairingId);
     if (pending == null ||
         challenge == null ||
-        _clock.now().isAfter(pending.expiresAt) ||
-        pending.attempts >= _maxPairingAttempts ||
         challenge.clientId != request.clientIdentity) {
       return _pairingRejected(request.requestId);
     }
@@ -167,13 +129,12 @@ final class SyncServerProtocolCoordinator {
       proof: base64Decode(request.proof),
     );
     if (!valid) {
-      pending.attempts++;
       return _pairingRejected(request.requestId);
     }
     final secret = await _crypto.hkdf(
       secret: utf8.encode(pending.code.toUpperCase()),
       salt: transcript.canonicalBytes,
-      info: utf8.encode('oh-my-llm-sync-v2-pairing'),
+      info: utf8.encode('oh-my-llm-sync-v3-pairing'),
     );
     final now = _clock.now();
     await _pairingRepository.save(
@@ -182,14 +143,11 @@ final class SyncServerProtocolCoordinator {
           id: request.clientIdentity,
           displayName: request.clientDisplayName,
         ),
-        grantedCategories: const {},
         createdAt: now,
         lastUsedAt: now,
       ),
       secret: secret,
     );
-    _pendingCode = null;
-    _challenges.clear();
     final responseProof = await _crypto.hmac(
       secret: secret,
       message: utf8.encode(
@@ -231,7 +189,7 @@ final class SyncServerProtocolCoordinator {
     final key = await _crypto.hkdf(
       secret: secret,
       salt: [...base64Decode(request.clientNonce), ...serverNonce],
-      info: utf8.encode('oh-my-llm-sync-v2-session'),
+      info: utf8.encode('oh-my-llm-sync-v3-session'),
     );
     final now = _clock.now();
     _sessions.open(
@@ -292,18 +250,6 @@ final class SyncServerProtocolCoordinator {
     if (record == null) {
       _sessions.invalidatePeer(session.peerId);
       return _failure(request.requestId, SyncProtocolErrorCode.pairingRequired);
-    }
-    if (!record.grantedCategories.containsAll(payload.categories)) {
-      _pendingAuthorizations[session.peerId] = SyncAuthorizationRequest(
-        peer: record.peer,
-        categories: payload.categories,
-        confirmedSensitive: payload.confirmedSensitive,
-        requestedAt: _clock.now(),
-      );
-      return _failure(
-        request.requestId,
-        SyncProtocolErrorCode.authorizationRequired,
-      );
     }
     if (payload.categories.any((item) => item.isCredentialBearing) &&
         !payload.confirmedSensitive) {
@@ -390,19 +336,15 @@ final class SyncServerProtocolResult {
 }
 
 final class _PendingPairingCode {
-  _PendingPairingCode({required this.code, required this.expiresAt});
+  _PendingPairingCode({required this.code});
   final String code;
-  final DateTime expiresAt;
-  var attempts = 0;
 }
 
 final class _PairingChallenge {
   const _PairingChallenge({
     required this.clientId,
     required this.challengeNonce,
-    required this.createdAt,
   });
   final String clientId;
   final List<int> challengeNonce;
-  final DateTime createdAt;
 }

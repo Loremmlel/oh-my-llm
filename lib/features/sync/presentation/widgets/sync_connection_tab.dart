@@ -9,8 +9,6 @@ import '../../application/broadcast_prefix_length_provider.dart';
 import '../../application/network_interface_provider.dart';
 import '../../application/sync_client_controller.dart';
 import '../../application/sync_server_controller.dart';
-import '../../domain/models/sync_pairing.dart';
-import '../../domain/models/sync_types.dart';
 import 'interface_selector.dart';
 
 /// 同步页面 Tab 1：连接管理，包含服务端广播与客户端发现/连接。
@@ -47,7 +45,6 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
 
   void _onModeChanged(bool serverMode) {
     if (serverMode == _isServerMode) return;
-    ref.read(syncClientControllerProvider.notifier).cancelAndReset();
     setState(() => _isServerMode = serverMode);
   }
 
@@ -209,14 +206,13 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
   ) {
     return Row(
       children: [
-        if (!state.isPaired)
-          Expanded(
-            child: FilledButton(
-              onPressed: () => _showPairingDialog(state),
-              child: const Text('配对此设备'),
-            ),
+        Expanded(
+          child: FilledButton(
+            onPressed: () => _showPairingDialog(state),
+            child: Text(state.isPaired ? '重新输入配对码' : '输入配对码'),
           ),
-        if (!state.isPaired) const SizedBox(width: 8),
+        ),
+        const SizedBox(width: 8),
         Expanded(
           child: OutlinedButton(
             onPressed: notifier.cancelAndReset,
@@ -266,44 +262,6 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
     controller.dispose();
     if (code == null || !mounted) return;
     await ref.read(syncClientControllerProvider.notifier).pairWithCode(code);
-  }
-
-  Future<void> _confirmAuthorization(SyncAuthorizationRequest request) async {
-    final hasSensitive = request.categories.any(
-      (category) => category.isCredentialBearing,
-    );
-    final confirmed = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: Text(hasSensitive ? '授权敏感配置' : '授权同步配置'),
-        content: Text(
-          hasSensitive
-              ? '将允许 ${request.peer.displayName} 读取所选配置中的 API Key 或自定义请求头。客户端已确认接收风险：${request.confirmedSensitive ? '是' : '否'}。'
-              : '允许 ${request.peer.displayName} 读取所选配置类别？',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: hasSensitive && !request.confirmedSensitive
-                ? null
-                : () => Navigator.pop(context, true),
-            child: const Text('确认授权'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-    await ref
-        .read(syncServerControllerProvider.notifier)
-        .grantPeer(
-          request.peer.id,
-          request.categories,
-          confirmedSensitive: hasSensitive,
-        );
   }
 
   Widget _buildListeningInterfaces() {
@@ -420,6 +378,25 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
               ),
             ],
             const SizedBox(height: 16),
+            if (serverState.pairingCode != null) ...[
+              Text('本次会话配对码', style: theme.textTheme.titleSmall),
+              const SizedBox(height: 8),
+              SelectableText(
+                serverState.pairingCode!,
+                style: theme.textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 8,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '停止服务端前持续有效，可供多台客户端配对。',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
             OutlinedButton.icon(
               onPressed: () async {
                 final code = await ref
@@ -430,9 +407,9 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
                   context: context,
                   barrierDismissible: false,
                   builder: (context) => AlertDialog(
-                    title: const Text('一次性配对码'),
+                    title: const Text('本次会话配对码'),
                     content: Text(
-                      '请仅在本地告知待配对设备。此码 5 分钟内有效，成功配对后立即失效。\n\n$code',
+                      '请仅在本地告知待配对设备。服务端停止前此码持续有效，可重复用于本次会话。\n\n$code',
                     ),
                     actions: [
                       FilledButton(
@@ -446,36 +423,6 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
               icon: const Icon(Icons.password_rounded),
               label: const Text('生成配对码'),
             ),
-            if (serverState.pendingAuthorizations.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              Text('待授权请求', style: theme.textTheme.titleSmall),
-              const SizedBox(height: 8),
-              ...serverState.pendingAuthorizations.map(
-                (request) => Card(
-                  child: ListTile(
-                    title: Text(request.peer.displayName),
-                    subtitle: Text(
-                      request.categories.map((item) => item.label).join('、'),
-                    ),
-                    trailing: Wrap(
-                      spacing: 8,
-                      children: [
-                        TextButton(
-                          onPressed: () => ref
-                              .read(syncServerControllerProvider.notifier)
-                              .denyAuthorization(request.peer.id),
-                          child: const Text('拒绝'),
-                        ),
-                        FilledButton(
-                          onPressed: () => _confirmAuthorization(request),
-                          child: const Text('授权'),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
             const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,

@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/misc.dart';
 
 import '../../../core/persistence/shared_preferences_provider.dart';
 import '../domain/models/network_interface_info.dart';
@@ -18,7 +17,6 @@ import 'ports/sync_crypto.dart';
 import 'ports/sync_pairing_repository.dart';
 import 'sync_server_protocol_coordinator.dart';
 import '../domain/models/sync_protocol_message.dart';
-import '../domain/models/sync_types.dart';
 
 const String _deviceNameKey = 'sync.device_name';
 
@@ -33,7 +31,7 @@ class SyncServerState extends Equatable {
     this.lastError,
     this.selectedInterface,
     this.pairedPeers = const [],
-    this.pendingAuthorizations = const [],
+    this.pairingCode,
   });
 
   final bool isRunning;
@@ -43,7 +41,7 @@ class SyncServerState extends Equatable {
   final String? lastError;
   final NetworkInterfaceInfo? selectedInterface;
   final List<SyncPairingRecord> pairedPeers;
-  final List<SyncAuthorizationRequest> pendingAuthorizations;
+  final String? pairingCode;
 
   @override
   List<Object?> get props => [
@@ -54,7 +52,7 @@ class SyncServerState extends Equatable {
     lastError,
     (selectedInterface?.name, selectedInterface?.ip),
     pairedPeers,
-    pendingAuthorizations,
+    pairingCode,
   ];
 
   SyncServerState copyWith({
@@ -65,7 +63,7 @@ class SyncServerState extends Equatable {
     Object? lastError = _sentinel,
     Object? selectedInterface = _sentinel,
     List<SyncPairingRecord>? pairedPeers,
-    List<SyncAuthorizationRequest>? pendingAuthorizations,
+    Object? pairingCode = _sentinel,
   }) {
     return SyncServerState(
       isRunning: isRunning ?? this.isRunning,
@@ -81,8 +79,9 @@ class SyncServerState extends Equatable {
           ? this.selectedInterface
           : selectedInterface as NetworkInterfaceInfo?,
       pairedPeers: pairedPeers ?? this.pairedPeers,
-      pendingAuthorizations:
-          pendingAuthorizations ?? this.pendingAuthorizations,
+      pairingCode: identical(pairingCode, _sentinel)
+          ? this.pairingCode
+          : pairingCode as String?,
     );
   }
 }
@@ -90,7 +89,6 @@ class SyncServerState extends Equatable {
 final syncServerControllerProvider =
     NotifierProvider<SyncServerController, SyncServerState>(
       SyncServerController.new,
-      isAutoDispose: true,
     );
 
 /// 同步服务端是否正在广播的派生 Provider。
@@ -103,8 +101,8 @@ final isSyncServerRunningProvider = Provider<bool>(
 
 /// 同步服务端控制器，管理 HTTP 服务端和 UDP 广播的运行会话。
 ///
-/// 成功启动后以唯一的 keep-alive link 跨页面保活；显式停止、应用销毁时由
-/// transport 按 UDP、HTTP 顺序释放。媒体路由及其 scanner、缩略图 cache/generator
+/// Provider 在应用容器内保持存活；显式停止、应用销毁时由 transport 按 UDP、HTTP
+/// 顺序释放。媒体路由及其 scanner、缩略图 cache/generator
 /// 的组装归 app composition 所有，不是 controller 全局资源。
 class SyncServerController extends Notifier<SyncServerState> {
   late final SyncServerTransport _transport;
@@ -112,7 +110,6 @@ class SyncServerController extends Notifier<SyncServerState> {
   Future<void>? _pendingRestart;
   Future<void>? _startInFlight;
   Future<void> _shutdownFuture = Future<void>.value();
-  KeepAliveLink? _keepAliveLink;
   int _generation = 0;
   bool _isStopping = false;
 
@@ -204,27 +201,25 @@ class SyncServerController extends Notifier<SyncServerState> {
         await _cleanup();
         return;
       }
-      _keepAliveLink ??= ref.keepAlive();
+      final pairingCode = await _protocolCoordinator.generatePairingCode();
       state = state.copyWith(
         isRunning: true,
         httpPort: handle.httpPort,
         lastError: null,
         selectedInterface: selectedIface,
         pairedPeers: await _protocolCoordinator.pairedPeers(),
-        pendingAuthorizations: _protocolCoordinator.pendingAuthorizations(),
+        pairingCode: pairingCode,
       );
     } catch (e) {
       await _cleanup();
       if (!_isCurrent(generation)) return;
-      final keepAliveLink = _keepAliveLink;
-      _keepAliveLink = null;
       state = state.copyWith(
         isRunning: false,
         httpPort: null,
         lastError: '启动失败: $e',
         selectedInterface: null,
+        pairingCode: null,
       );
-      keepAliveLink?.close();
     }
   }
 
@@ -251,18 +246,15 @@ class SyncServerController extends Notifier<SyncServerState> {
     required bool publishState,
   }) async {
     await startInFlight;
-    final keepAliveLink = _keepAliveLink;
-    _keepAliveLink = null;
     await _cleanup();
     if (publishState && ref.mounted) {
       state = state.copyWith(
         isRunning: false,
         httpPort: null,
         servedRequestCount: 0,
-        pendingAuthorizations: const [],
+        pairingCode: null,
       );
     }
-    keepAliveLink?.close();
   }
 
   bool _isCurrent(int generation) => ref.mounted && generation == _generation;
@@ -297,27 +289,9 @@ class SyncServerController extends Notifier<SyncServerState> {
   /// 配对码仅返回给本地 UI；不写入 state、持久化或日志。
   Future<String?> generatePairingCode() async {
     if (!state.isRunning) return null;
-    return _protocolCoordinator.generatePairingCode();
-  }
-
-  Future<void> grantPeer(
-    String peerId,
-    Set<SyncCategory> categories, {
-    required bool confirmedSensitive,
-  }) async {
-    await _protocolCoordinator.grant(
-      peerId: peerId,
-      categories: categories,
-      confirmedSensitive: confirmedSensitive,
-    );
-    await _refreshSecurityState();
-  }
-
-  void denyAuthorization(String peerId) {
-    _protocolCoordinator.denyAuthorization(peerId);
-    state = state.copyWith(
-      pendingAuthorizations: _protocolCoordinator.pendingAuthorizations(),
-    );
+    final code = await _protocolCoordinator.generatePairingCode();
+    if (ref.mounted) state = state.copyWith(pairingCode: code);
+    return code;
   }
 
   Future<void> revokePeer(String peerId) async {
@@ -343,7 +317,6 @@ class SyncServerController extends Notifier<SyncServerState> {
           ? state.servedRequestCount + 1
           : state.servedRequestCount,
       pairedPeers: peers,
-      pendingAuthorizations: _protocolCoordinator.pendingAuthorizations(),
     );
   }
 }

@@ -95,7 +95,7 @@ final class SyncClientProtocolCoordinator {
     final secret = await _crypto.hkdf(
       secret: utf8.encode(normalizedCode),
       salt: transcript.canonicalBytes,
-      info: utf8.encode('oh-my-llm-sync-v2-pairing'),
+      info: utf8.encode('oh-my-llm-sync-v3-pairing'),
     );
     final expectedProof = await _crypto.hmac(
       secret: secret,
@@ -113,7 +113,6 @@ final class SyncClientProtocolCoordinator {
           id: response.serverIdentity,
           displayName: server.deviceName,
         ),
-        grantedCategories: const {},
         createdAt: now,
         lastUsedAt: now,
       ),
@@ -263,7 +262,7 @@ final class SyncClientProtocolCoordinator {
     final key = await _crypto.hkdf(
       secret: secret,
       salt: [...clientNonce, ...base64Decode(response.serverNonce)],
-      info: utf8.encode('oh-my-llm-sync-v2-session'),
+      info: utf8.encode('oh-my-llm-sync-v3-session'),
     );
     final now = _clock.now();
     final session = SyncSession(

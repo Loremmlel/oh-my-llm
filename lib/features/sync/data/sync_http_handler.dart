@@ -78,7 +78,6 @@ class SyncHttpHandler implements HttpRouteHandler {
         SyncProtocolErrorCode.sessionInvalid ||
         SyncProtocolErrorCode.sessionExpired ||
         SyncProtocolErrorCode.replayRejected => HttpStatus.unauthorized,
-        SyncProtocolErrorCode.authorizationRequired ||
         SyncProtocolErrorCode.sensitiveConfirmationRequired =>
           HttpStatus.forbidden,
         SyncProtocolErrorCode.unsupportedSettingsFormat =>

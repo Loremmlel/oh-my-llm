@@ -95,14 +95,11 @@ class SyncClientState extends Equatable {
 final syncClientControllerProvider =
     NotifierProvider<SyncClientController, SyncClientState>(
       SyncClientController.new,
-      isAutoDispose: true,
     );
 
 /// 同步客户端控制器，管理 Sync 页面会话内的发现、请求和导入流程。
 ///
-/// 该 Provider 是页面级 auto-dispose 状态：页面观察者离开后会取消 UDP
-/// 发现并在下次进入时从 idle 重建。每轮发现或请求都绑定 generation，避免
-/// 已取消会话的异步回调重新写入 state。
+/// 该 Provider 在应用生命周期内保持存活，页面切换不会丢失发现与配对状态。
 class SyncClientController extends Notifier<SyncClientState> {
   StreamSubscription<DiscoveredServer>? _discoverySubscription;
   late final SyncClientProtocolCoordinator _protocolCoordinator;
@@ -122,7 +119,11 @@ class SyncClientController extends Notifier<SyncClientState> {
 
   Future<void> startDiscovery() async {
     final generation = _invalidateDiscovery();
-    state = SyncClientState(phase: SyncPhase.discovering);
+    state = state.copyWith(
+      phase: SyncPhase.discovering,
+      errorMessage: null,
+      deduplicatedData: null,
+    );
 
     _discoverySubscription = ref
         .read(syncClientTransportProvider)
@@ -151,11 +152,13 @@ class SyncClientController extends Notifier<SyncClientState> {
           },
           onDone: () {
             if (!_isCurrent(generation)) return;
-            if (state.phase == SyncPhase.discovering) {
+            if (state.phase == SyncPhase.discovering && state.server == null) {
               state = state.copyWith(
                 phase: SyncPhase.error,
                 errorMessage: '未发现服务端，请确认服务端已启动且在同一局域网内',
               );
+            } else if (state.phase == SyncPhase.discovering) {
+              state = state.copyWith(phase: SyncPhase.connected);
             }
           },
           onError: (Object e) {
@@ -175,15 +178,23 @@ class SyncClientController extends Notifier<SyncClientState> {
     } else {
       categories.add(category);
     }
-    state = state.copyWith(selectedCategories: categories);
-    state = state.copyWith(sensitiveRequestConfirmed: false);
+    state = state.copyWith(
+      phase: state.server == null ? state.phase : SyncPhase.connected,
+      selectedCategories: categories,
+      sensitiveRequestConfirmed: false,
+      deduplicatedData: null,
+      errorMessage: null,
+    );
   }
 
   void selectAllCategories() {
     state = state.copyWith(
+      phase: state.server == null ? state.phase : SyncPhase.connected,
       selectedCategories: Set<SyncCategory>.from(SyncCategory.values),
+      sensitiveRequestConfirmed: false,
+      deduplicatedData: null,
+      errorMessage: null,
     );
-    state = state.copyWith(sensitiveRequestConfirmed: false);
   }
 
   /// 仅将本次请求的用户意图保留在内存中；类别或连接变化会清除它。
