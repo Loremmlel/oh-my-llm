@@ -1,7 +1,5 @@
 # Phase 6 - Sync Media 状态与资源生命周期 Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** 固化 sync/media state 的不可变快照和值相等语义，并将同步服务、发现和媒体页面状态的保活与释放责任落实为可验证的 Riverpod 生命周期契约。
 
 **Architecture:** 不新增 transport、backend 或协议抽象。各 Provider 的生命周期直接在其声明与中文 doc comment 中表达：运行中的同步服务是由用户显式启动、可跨页面观察者存活的会话；发现、媒体浏览和随机播放属于页面会话；持久化偏好与一次性网卡枚举属于应用配置/缓存而非可释放资源。公开集合在 state 构造边界复制为不可变快照，state 仅比较可观察字段的值而不依赖模型对象的 identity。

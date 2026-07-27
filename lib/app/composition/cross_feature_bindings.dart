@@ -56,8 +56,7 @@ List<dynamic> appCompositionOverrides() {
                   userMessageContent: favorite.userMessageContent,
                   assistantContent: favorite.assistantContent,
                   assistantReasoningContent: favorite.assistantReasoningContent,
-                  assistantModelDisplayName:
-                      favorite.assistantModelDisplayName,
+                  assistantModelDisplayName: favorite.assistantModelDisplayName,
                   collectionId: favorite.collectionId,
                   sourceAssistantMessageId: favorite.sourceAssistantMessageId,
                   sourceConversationId: favorite.sourceConversationId,
