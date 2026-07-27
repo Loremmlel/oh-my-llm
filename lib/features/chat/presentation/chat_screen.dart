@@ -28,7 +28,7 @@ import '../domain/chat_message_parent.dart';
 import '../domain/models/chat_conversation.dart';
 import '../domain/models/chat_conversation_summary.dart';
 import '../domain/models/chat_message.dart';
-import '../../favorites/application/favorites_controller.dart';
+import '../application/chat_favorites_facade.dart';
 import 'chat_scroll_controller.dart';
 import 'widgets/widgets.dart';
 
@@ -199,8 +199,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final excludedVisibleMessageCount = activeMessages.where((message) {
       return conversation.isMessageExcluded(message.id);
     }).length;
-    final favorites = ref.watch(favoritesProvider);
-    final favoritedContents = favorites.map((f) => f.assistantContent).toSet();
+    final favorites = ref.watch(chatFavoritesFacadeProvider).snapshot;
+    final favoritedContents = favorites.favoritedAssistantContents;
 
     final selectedModel = _resolveSelectedModel(
       modelConfigs,
@@ -1148,45 +1148,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     ChatConversation conversation,
   ) async {
     // 如果已收藏，提示取消
-    final favoritesController = ref.read(favoritesProvider.notifier);
-    if (favoritesController.isFavorited(assistantMessage.content)) {
+    final favoritesFacade = ref.read(chatFavoritesFacadeProvider);
+    final favoriteSnapshot = favoritesFacade.snapshot;
+    final existing = favoriteSnapshot.findByAssistantContent(
+      assistantMessage.content,
+    );
+    if (existing != null) {
       // 找到并删除对应收藏
-      final allFavorites = ref.read(favoritesProvider);
-      final existing = allFavorites
-          .where((f) => f.assistantContent == assistantMessage.content)
-          .firstOrNull;
-      if (existing != null) {
-        // 删除前保存数据供撤销使用
-        final removedFavorite = existing;
-        favoritesController.remove(existing.id);
+      final removedFavorite = existing;
+      favoritesFacade.remove(existing.id);
 
-        if (!context.mounted) return;
-        ref
-            .read(notificationBubblesProvider.notifier)
-            .show(
-              message: '已取消收藏',
-              action: NotificationBubbleAction(
-                label: '撤销',
-                onPressed: () {
-                  // 重新添加被删除的收藏
-                  favoritesController.add(
-                    userMessageContent: removedFavorite.userMessageContent,
-                    assistantContent: removedFavorite.assistantContent,
-                    assistantReasoningContent:
-                        removedFavorite.assistantReasoningContent,
-                    assistantModelDisplayName:
-                        removedFavorite.assistantModelDisplayName,
-                    collectionId: removedFavorite.collectionId,
-                    sourceAssistantMessageId:
-                        removedFavorite.sourceAssistantMessageId,
-                    sourceConversationId: removedFavorite.sourceConversationId,
-                    sourceConversationTitle:
-                        removedFavorite.sourceConversationTitle,
-                  );
-                },
-              ),
-            );
-      }
+      if (!context.mounted) return;
+      ref
+          .read(notificationBubblesProvider.notifier)
+          .show(
+            message: '已取消收藏',
+            action: NotificationBubbleAction(
+              label: '撤销',
+              onPressed: () => favoritesFacade.add(removedFavorite.draft),
+            ),
+          );
       return;
     }
 
@@ -1207,25 +1188,31 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (!context.mounted) return;
     final selectedCollectionId = await showDialog<String>(
       context: context,
-      builder: (context) =>
-          AddToFavoritesDialog(assistantContent: assistantMessage.content),
+      builder: (context) => AddToFavoritesDialog(
+        collections: favoriteSnapshot.collections,
+        onCreateCollection: favoritesFacade.createCollection,
+      ),
     );
 
     if (selectedCollectionId == null || !mounted) {
       return;
     }
 
-    favoritesController.add(
-      userMessageContent: userMessage?.content ?? '',
-      assistantContent: assistantMessage.content,
-      assistantReasoningContent: assistantMessage.reasoningContent,
-      assistantModelDisplayName:
-          assistantMessage.resolvedAssistantModelDisplayName,
-      // '' 表示用户选择了未分类
-      collectionId: selectedCollectionId.isEmpty ? null : selectedCollectionId,
-      sourceAssistantMessageId: assistantMessage.id,
-      sourceConversationId: conversation.id,
-      sourceConversationTitle: conversation.resolvedTitle,
+    favoritesFacade.add(
+      ChatFavoriteDraft(
+        userMessageContent: userMessage?.content ?? '',
+        assistantContent: assistantMessage.content,
+        assistantReasoningContent: assistantMessage.reasoningContent,
+        assistantModelDisplayName:
+            assistantMessage.resolvedAssistantModelDisplayName,
+        // '' 表示用户选择了未分类
+        collectionId: selectedCollectionId.isEmpty
+            ? null
+            : selectedCollectionId,
+        sourceAssistantMessageId: assistantMessage.id,
+        sourceConversationId: conversation.id,
+        sourceConversationTitle: conversation.resolvedTitle,
+      ),
     );
 
     if (!mounted) return;

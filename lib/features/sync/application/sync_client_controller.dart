@@ -2,21 +2,11 @@ import 'dart:async';
 
 import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:http/http.dart' as http;
 
-import '../../../core/http/peer_http_client_provider.dart';
-import '../../settings/application/auto_retry_settings_controller.dart';
-import '../../settings/application/custom_headers_controller.dart';
-import '../../settings/application/font_size_settings_controller.dart';
-import '../../settings/application/fixed_prompt_sequences_controller.dart';
-import '../../settings/application/llm_model_configs_controller.dart';
-import '../../settings/application/memory_prompts_controller.dart';
-import '../../settings/application/preset_prompts_controller.dart';
-import '../../settings/application/settings_import_deduplicator.dart';
-import '../../settings/application/settings_import_executor.dart';
-import '../../settings/application/template_prompts_controller.dart';
 import '../../settings/domain/models/settings_export_data.dart';
-import '../data/sync_udp_discovery.dart';
+import 'ports/settings_sync_facade.dart';
+import 'ports/sync_client_transport.dart';
+import '../domain/models/discovered_server.dart';
 import '../domain/models/sync_message.dart';
 import '../domain/models/sync_types.dart';
 
@@ -102,8 +92,6 @@ class SyncClientController extends Notifier<SyncClientState> {
   StreamSubscription<DiscoveredServer>? _discoverySubscription;
   int _generation = 0;
 
-  http.Client get _httpClient => ref.read(peerHttpClientProvider);
-
   @override
   SyncClientState build() {
     ref.onDispose(_invalidateDiscovery);
@@ -114,34 +102,37 @@ class SyncClientController extends Notifier<SyncClientState> {
     final generation = _invalidateDiscovery();
     state = SyncClientState(phase: SyncPhase.discovering);
 
-    _discoverySubscription = SyncUdpDiscovery.listenForServers().listen(
-      (server) {
-        if (!_isCurrent(generation)) return;
-        _discoverySubscription?.cancel();
-        _discoverySubscription = null;
-        state = state.copyWith(
-          phase: SyncPhase.connected,
-          server: server,
-          sourceDeviceName: server.deviceName,
+    _discoverySubscription = ref
+        .read(syncClientTransportProvider)
+        .discoverServers()
+        .listen(
+          (server) {
+            if (!_isCurrent(generation)) return;
+            _discoverySubscription?.cancel();
+            _discoverySubscription = null;
+            state = state.copyWith(
+              phase: SyncPhase.connected,
+              server: server,
+              sourceDeviceName: server.deviceName,
+            );
+          },
+          onDone: () {
+            if (!_isCurrent(generation)) return;
+            if (state.phase == SyncPhase.discovering) {
+              state = state.copyWith(
+                phase: SyncPhase.error,
+                errorMessage: '未发现服务端，请确认服务端已启动且在同一局域网内',
+              );
+            }
+          },
+          onError: (Object e) {
+            if (!_isCurrent(generation)) return;
+            state = state.copyWith(
+              phase: SyncPhase.error,
+              errorMessage: '发现过程出错: $e',
+            );
+          },
         );
-      },
-      onDone: () {
-        if (!_isCurrent(generation)) return;
-        if (state.phase == SyncPhase.discovering) {
-          state = state.copyWith(
-            phase: SyncPhase.error,
-            errorMessage: '未发现服务端，请确认服务端已启动且在同一局域网内',
-          );
-        }
-      },
-      onError: (Object e) {
-        if (!_isCurrent(generation)) return;
-        state = state.copyWith(
-          phase: SyncPhase.error,
-          errorMessage: '发现过程出错: $e',
-        );
-      },
-    );
   }
 
   void toggleCategory(SyncCategory category) {
@@ -182,19 +173,10 @@ class SyncClientController extends Notifier<SyncClientState> {
     );
 
     try {
-      final uri = Uri.parse('http://${server.ip}:${server.httpPort}/sync');
-      final body = SyncMessageCodec.encode(request);
-
-      final response = await _httpClient
-          .post(uri, body: body, headers: {'Content-Type': 'application/json'})
-          .timeout(const Duration(seconds: 30));
+      final responseMessage = await ref
+          .read(syncClientTransportProvider)
+          .send(server: server, request: request);
       if (!_isCurrent(generation)) return;
-
-      final responseMessage = SyncMessageCodec.tryDecode(response.body);
-      if (responseMessage == null) {
-        state = state.copyWith(phase: SyncPhase.error, errorMessage: '响应格式错误');
-        return;
-      }
 
       if (responseMessage.type == SyncMessageType.error) {
         state = state.copyWith(
@@ -220,7 +202,9 @@ class SyncClientController extends Notifier<SyncClientState> {
         return;
       }
 
-      final deduplicated = _deduplicate(exportData);
+      final deduplicated = ref
+          .read(settingsSyncFacadeProvider)
+          .deduplicateIncoming(exportData);
       if (!deduplicated.hasContent) {
         state = state.copyWith(phase: SyncPhase.noNewData);
         return;
@@ -230,11 +214,11 @@ class SyncClientController extends Notifier<SyncClientState> {
         phase: SyncPhase.received,
         deduplicatedData: deduplicated,
       );
-    } on TimeoutException {
+    } on SyncTransportException catch (e) {
       if (!_isCurrent(generation)) return;
       state = state.copyWith(
         phase: SyncPhase.error,
-        errorMessage: '请求超时，请检查网络连接',
+        errorMessage: e.userMessage,
       );
     } catch (e) {
       if (!_isCurrent(generation)) return;
@@ -250,8 +234,8 @@ class SyncClientController extends Notifier<SyncClientState> {
 
     try {
       final success = await ref
-          .read(settingsImportExecutorProvider)
-          .executeImport(data: data);
+          .read(settingsSyncFacadeProvider)
+          .importDeduplicated(data);
       if (success && _isCurrent(generation)) {
         state = state.copyWith(phase: SyncPhase.imported);
       }
@@ -286,20 +270,5 @@ class SyncClientController extends Notifier<SyncClientState> {
 
   bool _isCurrent(int generation) {
     return ref.mounted && generation == _generation;
-  }
-
-  SettingsExportData _deduplicate(SettingsExportData data) {
-    const deduplicator = SettingsImportDeduplicator();
-    return deduplicator.deduplicate(
-      data: data,
-      existingProviders: ref.read(llmProviderConfigsProvider),
-      existingMemoryPrompts: ref.read(memoryPromptsProvider),
-      existingPresetPrompts: ref.read(presetPromptsProvider),
-      existingTemplatePrompts: ref.read(templatePromptsProvider),
-      existingSequences: ref.read(fixedPromptSequencesProvider),
-      existingAutoRetrySettings: ref.read(autoRetrySettingsProvider),
-      existingCustomHeadersConfig: ref.read(customHeadersProvider),
-      existingFontSizeSettings: ref.read(fontSizeSettingsProvider),
-    );
   }
 }

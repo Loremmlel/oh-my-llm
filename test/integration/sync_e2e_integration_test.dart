@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
+import 'package:oh_my_llm/app/composition/cross_feature_bindings.dart';
 import 'package:oh_my_llm/core/persistence/versioned_json_storage.dart';
 import 'package:oh_my_llm/features/settings/application/llm_model_configs_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
@@ -72,6 +73,7 @@ void main() {
     ProviderContainer buildServerContainer() {
       final container = ProviderContainer(
         overrides: [
+          ...appCompositionOverrides(),
           appDatabaseProvider.overrideWithValue(serverDb),
           sharedPreferencesProvider.overrideWithValue(serverPrefs),
         ],
@@ -91,6 +93,7 @@ void main() {
     ProviderContainer buildClientContainer({SyncClientState? seed}) {
       final container = ProviderContainer(
         overrides: [
+          ...appCompositionOverrides(),
           appDatabaseProvider.overrideWithValue(clientDb),
           sharedPreferencesProvider.overrideWithValue(clientPrefs),
           if (seed != null)

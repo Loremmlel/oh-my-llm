@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app/app.dart';
+import 'app/composition/cross_feature_bindings.dart';
 import 'core/http/custom_headers_provider.dart';
 import 'core/logging/app_network_logger.dart';
 import 'core/logging/app_network_logger_provider.dart';
@@ -49,6 +50,7 @@ Future<void> bootstrap({
         customHeadersMapProvider.overrideWith(
           (ref) => ref.watch(customHeadersProvider).toHeaderMap(),
         ),
+        ...appCompositionOverrides(),
       ],
       child: const OhMyLlmApp(),
     ),

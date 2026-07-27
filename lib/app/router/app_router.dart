@@ -8,7 +8,7 @@ import '../../features/favorites/presentation/favorite_detail_screen.dart';
 import '../../features/favorites/presentation/favorites_screen.dart';
 import '../../features/history/presentation/history_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
-import '../../features/sync/presentation/sync_screen.dart';
+import '../composition/sync_workspace_screen.dart';
 import '../navigation/app_destination.dart';
 
 /// 应用顶层路由配置。
@@ -42,7 +42,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppDestination.sync.path,
         name: AppDestination.sync.name,
-        builder: (context, state) => const SyncScreen(),
+        builder: (context, state) => const SyncWorkspaceScreen(),
       ),
       GoRoute(
         path: '/favorites/detail',

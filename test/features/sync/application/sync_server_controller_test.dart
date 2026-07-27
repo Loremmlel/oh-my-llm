@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
+import 'package:oh_my_llm/app/composition/cross_feature_bindings.dart';
 import 'package:oh_my_llm/core/persistence/versioned_json_storage.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
 import 'package:oh_my_llm/features/sync/application/sync_server_controller.dart';
@@ -52,6 +53,7 @@ void main() {
     }) {
       final container = ProviderContainer(
         overrides: [
+          ...appCompositionOverrides(),
           appDatabaseProvider.overrideWithValue(database),
           sharedPreferencesProvider.overrideWithValue(preferences),
           if (interfaces != null)
@@ -105,6 +107,7 @@ void main() {
     test('运行中的同步服务在观察者移除后存活，直到显式停止', () async {
       final container = ProviderContainer(
         overrides: [
+          ...appCompositionOverrides(),
           appDatabaseProvider.overrideWithValue(database),
           sharedPreferencesProvider.overrideWithValue(preferences),
         ],
@@ -129,6 +132,7 @@ void main() {
     test('container dispose 后原 HTTP 端口不再接受请求', () async {
       final container = ProviderContainer(
         overrides: [
+          ...appCompositionOverrides(),
           appDatabaseProvider.overrideWithValue(database),
           sharedPreferencesProvider.overrideWithValue(preferences),
         ],
@@ -200,6 +204,7 @@ void main() {
       var invocationCount = 0;
       final container = ProviderContainer(
         overrides: [
+          ...appCompositionOverrides(),
           appDatabaseProvider.overrideWithValue(database),
           sharedPreferencesProvider.overrideWithValue(preferences),
           availableInterfacesProvider.overrideWith((ref) {

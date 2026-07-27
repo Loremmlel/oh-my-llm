@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:oh_my_llm/features/media/data/media_mime_types.dart';
+import 'package:oh_my_llm/features/media/domain/media_file_classification.dart';
 
 void main() {
   group('extensionFromFileName', () {

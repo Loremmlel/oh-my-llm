@@ -5,18 +5,9 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-/// 局域网内发现的远端服务端信息。
-class DiscoveredServer {
-  const DiscoveredServer({
-    required this.deviceName,
-    required this.ip,
-    required this.httpPort,
-  });
+import '../domain/models/discovered_server.dart';
 
-  final String deviceName;
-  final String ip;
-  final int httpPort;
-}
+export '../domain/models/discovered_server.dart';
 
 const MethodChannel _multicastChannel = MethodChannel(
   'yuzu.shiki.oh_my_llm/multicast_lock',

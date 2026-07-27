@@ -5,7 +5,7 @@ import 'package:oh_my_llm/features/media/domain/models/video_item.dart';
 export 'package:oh_my_llm/features/media/domain/models/video_item.dart';
 
 import '../domain/models/file_item.dart';
-import 'media_mime_types.dart';
+import '../domain/media_file_classification.dart';
 
 /// 路径穿越异常。
 class PathTraversalException implements Exception {
