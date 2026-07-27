@@ -5,6 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:oh_my_llm/features/media/application/media_browser_controller.dart';
 import 'package:oh_my_llm/features/media/application/shuffle_playback_controller.dart';
 import 'package:oh_my_llm/features/sync/application/sync_client_controller.dart';
+import 'package:oh_my_llm/features/sync/domain/models/discovered_server.dart';
+import 'package:oh_my_llm/features/sync/domain/models/sync_protocol_version.dart';
 
 import 'sync_screen_test_helpers.dart';
 
@@ -47,6 +49,35 @@ void registerSyncScreenRenderTests() {
 
       expect(find.text('服务端广播'), findsOneWidget);
       expect(find.text('发现服务端'), findsNothing);
+    });
+
+    testWidgets('配对失败后保留服务端连接和重新配对入口', (tester) async {
+      await pumpSyncScreen(
+        tester,
+        preferences: preferences,
+        extraOverrides: [
+          syncClientControllerProvider.overrideWith(
+            () => SeededSyncClientController(
+              SyncClientState(
+                phase: SyncPhase.error,
+                server: const DiscoveredServer(
+                  deviceName: 'Test PC',
+                  ip: '192.168.1.2',
+                  httpPort: 8080,
+                  serverId: 'server-id',
+                  protocolRange: SyncProtocolRange.local,
+                ),
+                sourceDeviceName: 'Test PC',
+                errorMessage: '配对失败，请重新生成配对码后重试',
+              ),
+            ),
+          ),
+        ],
+      );
+
+      expect(find.text('配对此设备'), findsOneWidget);
+      expect(find.text('断开连接'), findsOneWidget);
+      expect(find.text('重新搜索'), findsOneWidget);
     });
 
     testWidgets('Android 离开媒体 Tab 重置并重新进入时重新加载根目录', (tester) async {

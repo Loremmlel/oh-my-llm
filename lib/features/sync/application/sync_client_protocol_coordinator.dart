@@ -35,12 +35,20 @@ final class SyncClientProtocolCoordinator {
     return (await _pairingRepository.load(server.serverId)) != null;
   }
 
+  Future<void> forgetPairing(DiscoveredServer server) async {
+    _sessions.remove(server.serverId);
+    if (server.serverId.isNotEmpty) {
+      await _pairingRepository.revoke(server.serverId);
+    }
+  }
+
   Future<void> pair({
     required DiscoveredServer server,
     required String code,
     required String displayName,
   }) async {
     _checkCompatible(server);
+    final normalizedCode = code.trim().toUpperCase();
     final local = await _pairingRepository.ensureLocalIdentity(
       _crypto.randomBytes(16),
     );
@@ -66,7 +74,7 @@ final class SyncClientProtocolCoordinator {
       clientNonce: base64Encode(clientNonce),
     );
     final proof = await _crypto.hmac(
-      secret: utf8.encode(code),
+      secret: utf8.encode(normalizedCode),
       message: transcript.canonicalBytes,
     );
     final proofRequest = PairingProofRequest(
@@ -85,7 +93,7 @@ final class SyncClientProtocolCoordinator {
     );
     final response = _expect<PairingProofResponse>(proofResult);
     final secret = await _crypto.hkdf(
-      secret: utf8.encode(code),
+      secret: utf8.encode(normalizedCode),
       salt: transcript.canonicalBytes,
       info: utf8.encode('oh-my-llm-sync-v2-pairing'),
     );
@@ -131,6 +139,7 @@ final class SyncClientProtocolCoordinator {
     return _requestSettings(
       server: server,
       categories: categories,
+      confirmedSensitive: confirmedSensitive,
       reopen: true,
     );
   }
@@ -138,6 +147,7 @@ final class SyncClientProtocolCoordinator {
   Future<SettingsExportData> _requestSettings({
     required DiscoveredServer server,
     required Set<SyncCategory> categories,
+    required bool confirmedSensitive,
     required bool reopen,
   }) async {
     final session = await _sessionFor(server);
@@ -154,7 +164,12 @@ final class SyncClientProtocolCoordinator {
       key: session.key,
       nonce: nonce,
       plaintext: utf8.encode(
-        SyncProtocolCodec.encodePayload(SettingsSyncRequestPayload(categories)),
+        SyncProtocolCodec.encodePayload(
+          SettingsSyncRequestPayload(
+            categories,
+            confirmedSensitive: confirmedSensitive,
+          ),
+        ),
       ),
       aad: utf8.encode(SyncProtocolCodec.canonicalAad(request)),
     );
@@ -201,6 +216,7 @@ final class SyncClientProtocolCoordinator {
         return _requestSettings(
           server: server,
           categories: categories,
+          confirmedSensitive: confirmedSensitive,
           reopen: false,
         );
       }

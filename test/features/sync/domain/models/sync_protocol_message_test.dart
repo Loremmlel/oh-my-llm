@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/features/sync/domain/models/sync_protocol_failure.dart';
 import 'package:oh_my_llm/features/sync/domain/models/sync_protocol_message.dart';
+import 'package:oh_my_llm/features/sync/domain/models/sync_types.dart';
 
 void main() {
   group('SyncProtocolCodec', () {
@@ -55,6 +56,7 @@ void main() {
           jsonEncode({
             'kind': 'settingsSyncRequest',
             'categories': ['providers', 'providers'],
+            'confirmedSensitive': true,
           }),
         ),
         isNull,
@@ -64,9 +66,37 @@ void main() {
           jsonEncode({
             'kind': 'settingsSyncRequest',
             'categories': ['unknown'],
+            'confirmedSensitive': false,
           }),
         ),
         isNull,
+      );
+    });
+
+    test('设置请求保留客户端敏感数据确认', () {
+      final payload = SettingsSyncRequestPayload({
+        SyncCategory.providers,
+      }, confirmedSensitive: true);
+
+      final decoded = SyncProtocolCodec.tryDecodePayload(
+        SyncProtocolCodec.encodePayload(payload),
+      );
+
+      expect(decoded, payload);
+    });
+
+    test('旧 v2 设置请求缺少敏感确认时按未确认处理', () {
+      final decoded = SyncProtocolCodec.tryDecodePayload(
+        jsonEncode({
+          'kind': 'settingsSyncRequest',
+          'categories': ['presets'],
+        }),
+      );
+
+      expect(decoded, isA<SettingsSyncRequestPayload>());
+      expect(
+        (decoded as SettingsSyncRequestPayload).confirmedSensitive,
+        isFalse,
       );
     });
 
