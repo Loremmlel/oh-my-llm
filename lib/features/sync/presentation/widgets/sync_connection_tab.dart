@@ -204,43 +204,32 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
     SyncClientState state,
     SyncClientController notifier,
   ) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final narrow = constraints.maxWidth < 560;
-        final buttons = [
-          FilledButton(
-            onPressed: () => _showPairingDialog(state),
-            child: Text(state.isPaired ? '重新输入配对码' : '输入配对码'),
-          ),
-          OutlinedButton(
-            onPressed: notifier.cancelAndReset,
-            child: const Text('断开连接'),
-          ),
-          OutlinedButton(
-            onPressed: notifier.startDiscovery,
-            child: const Text('重新搜索'),
-          ),
-        ];
-        if (narrow) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (var index = 0; index < buttons.length; index++) ...[
-                buttons[index],
-                if (index < buttons.length - 1) const SizedBox(height: 8),
-              ],
-            ],
-          );
-        }
-        return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        FilledButton(
+          onPressed: () => _showPairingDialog(state),
+          child: Text(state.isPaired ? '重新输入配对码' : '输入配对码'),
+        ),
+        const SizedBox(height: 8),
+        Row(
           children: [
-            for (var index = 0; index < buttons.length; index++) ...[
-              Expanded(child: buttons[index]),
-              if (index < buttons.length - 1) const SizedBox(width: 8),
-            ],
+            Expanded(
+              child: OutlinedButton(
+                onPressed: notifier.cancelAndReset,
+                child: const Text('断开连接'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: OutlinedButton(
+                onPressed: notifier.startDiscovery,
+                child: const Text('重新搜索'),
+              ),
+            ),
           ],
-        );
-      },
+        ),
+      ],
     );
   }
 
