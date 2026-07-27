@@ -131,8 +131,6 @@ class SyncClientController extends Notifier<SyncClientState> {
         .listen(
           (server) async {
             if (!_isCurrent(generation)) return;
-            _discoverySubscription?.cancel();
-            _discoverySubscription = null;
             if (!server.isProtocolCompatible) {
               state = state.copyWith(
                 phase: SyncPhase.error,
@@ -140,14 +138,21 @@ class SyncClientController extends Notifier<SyncClientState> {
               );
               return;
             }
-            final isPaired = await _protocolCoordinator.isPaired(server);
+            final alreadyConnected = state.server != null;
+            final isPaired = alreadyConnected
+                ? state.isPaired
+                : await _protocolCoordinator.isPaired(server);
             if (!_isCurrent(generation)) return;
+            // 首次发现建立连接后继续保留广播监听，用于检测服务端停止。
+            // 后续广播只更新网络地址，不能打断正在进行的同步流程。
             state = state.copyWith(
-              phase: SyncPhase.connected,
+              phase: state.phase == SyncPhase.discovering
+                  ? SyncPhase.connected
+                  : null,
               server: server,
               sourceDeviceName: server.deviceName,
-              isPaired: isPaired,
-              sensitiveRequestConfirmed: false,
+              isPaired: alreadyConnected ? null : isPaired,
+              sensitiveRequestConfirmed: alreadyConnected ? null : false,
             );
           },
           onDone: () {
@@ -157,8 +162,17 @@ class SyncClientController extends Notifier<SyncClientState> {
                 phase: SyncPhase.error,
                 errorMessage: '未发现服务端，请确认服务端已启动且在同一局域网内',
               );
-            } else if (state.phase == SyncPhase.discovering) {
-              state = state.copyWith(phase: SyncPhase.connected);
+            } else if (state.server != null) {
+              // 服务端广播停止（通常意味着服务端被显式停止或应用退出）。
+              // 清掉会话状态，避免用户继续对已失效的地址发起同步请求。
+              state = state.copyWith(
+                phase: SyncPhase.error,
+                server: null,
+                sourceDeviceName: null,
+                isPaired: false,
+                deduplicatedData: null,
+                errorMessage: '服务端已断开，请重新搜索',
+              );
             }
           },
           onError: (Object e) {

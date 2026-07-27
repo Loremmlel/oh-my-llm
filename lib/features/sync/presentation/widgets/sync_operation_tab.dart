@@ -121,7 +121,7 @@ class _SyncOperationTabState extends ConsumerState<SyncOperationTab>
 
     return SettingsSectionCard(
       title: '连接状态',
-      description: state.isPaired ? '已配对的安全同步连接' : '发现服务端不代表已授权读取配置',
+      description: state.isPaired ? '已配对的安全同步连接' : '请先在连接页输入服务端配对码',
       child: Row(
         children: [
           if (state.phase == SyncPhase.syncing) ...[
