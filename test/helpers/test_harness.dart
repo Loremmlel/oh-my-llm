@@ -11,6 +11,7 @@ import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/core/widgets/notification_bubble_stack.dart';
+import 'package:oh_my_llm/app/composition/cross_feature_bindings.dart';
 
 import '../test_database.dart';
 
@@ -54,6 +55,7 @@ Future<AppDatabase> pumpTestApp(
         sharedPreferencesProvider.overrideWithValue(preferences),
         customHeadersMapProvider.overrideWith((ref) => const {}),
         peerHttpClientProvider.overrideWithValue(http.Client()),
+        ...appCompositionOverrides(),
         ...extraOverrides,
       ],
       child: router != null

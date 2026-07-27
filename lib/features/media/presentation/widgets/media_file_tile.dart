@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../data/media_mime_types.dart';
+import '../../domain/media_file_classification.dart';
 import '../../utils/path_utils.dart';
 import '../../domain/models/file_item.dart';
 

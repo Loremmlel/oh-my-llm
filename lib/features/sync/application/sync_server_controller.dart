@@ -5,34 +5,15 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 
-import '../../../core/http/http_route_handler.dart';
 import '../../../core/persistence/shared_preferences_provider.dart';
-import '../../settings/application/auto_retry_settings_controller.dart';
-import '../../settings/application/custom_headers_controller.dart';
-import '../../settings/application/fixed_prompt_sequences_controller.dart';
-import '../../settings/application/font_size_settings_controller.dart';
-import '../../settings/application/llm_model_configs_controller.dart';
-import '../../settings/application/memory_prompts_controller.dart';
-import '../../settings/application/preset_prompts_controller.dart';
-import '../../settings/application/template_prompts_controller.dart';
-import '../../settings/domain/models/settings_export_data.dart';
-import '../../media/application/media_root_directory_controller.dart';
-import '../../media/data/media_directory_scanner.dart';
-import '../../media/data/media_http_handler.dart';
-import '../../media/data/media_image_http_handler.dart';
-import '../../media/data/media_video_http_handler.dart';
-import '../../media/data/media_recursive_videos_handler.dart';
-import '../../media/data/media_thumbnail_cache.dart';
-import '../../media/data/media_thumbnail_generator.dart';
-import '../../media/data/media_thumbnail_http_handler.dart';
-import '../data/sync_http_handler.dart';
-import '../data/sync_http_server.dart';
-import '../data/sync_udp_discovery.dart';
 import '../domain/models/network_interface_info.dart';
 import '../domain/models/sync_message.dart';
 import '../domain/models/sync_types.dart';
 import 'broadcast_prefix_length_provider.dart';
 import 'network_interface_provider.dart';
+import 'ports/settings_sync_facade.dart';
+import 'ports/sync_media_route_factory.dart';
+import 'ports/sync_server_transport.dart';
 
 const String _deviceNameKey = 'sync.device_name';
 
@@ -106,12 +87,11 @@ final isSyncServerRunningProvider = Provider<bool>(
 
 /// 同步服务端控制器，管理 HTTP 服务端和 UDP 广播的运行会话。
 ///
-/// 成功启动后以唯一的 keep-alive link 跨页面保活；显式停止、应用销毁时按
-/// UDP、HTTP 顺序释放。请求 handlers 及其引用的 scanner、缩略图 cache/generator
-/// 都由 [_httpServer] 的运行会话拥有，不是独立全局资源。
+/// 成功启动后以唯一的 keep-alive link 跨页面保活；显式停止、应用销毁时由
+/// transport 按 UDP、HTTP 顺序释放。媒体路由及其 scanner、缩略图 cache/generator
+/// 的组装归 app composition 所有，不是 controller 全局资源。
 class SyncServerController extends Notifier<SyncServerState> {
-  final SyncHttpServer _httpServer = SyncHttpServer();
-  Future<void> Function()? _stopBroadcasting;
+  late final SyncServerTransport _transport;
   Future<void>? _pendingRestart;
   Future<void>? _startInFlight;
   Future<void> _shutdownFuture = Future<void>.value();
@@ -124,6 +104,7 @@ class SyncServerController extends Notifier<SyncServerState> {
 
   @override
   SyncServerState build() {
+    _transport = ref.read(syncServerTransportProvider);
     final prefs = ref.watch(sharedPreferencesProvider);
     final savedName = prefs.getString(_deviceNameKey);
     final deviceName = savedName ?? Platform.localHostname;
@@ -177,39 +158,17 @@ class SyncServerController extends Notifier<SyncServerState> {
         );
       }
 
-      final handlers = <HttpRouteHandler>[
-        SyncHttpHandler(onRequest: _handleRequest),
-      ];
-      // 媒体文件服务仅在 Windows 服务端启用
-      if (Platform.isWindows) {
-        final rootDir = ref.read(mediaRootDirectoryProvider);
-        if (rootDir != null && rootDir.isNotEmpty) {
-          // 三个 Handler 共享同一个 scanner 实例，避免重复解析符号链接
-          final scanner = MediaDirectoryScanner(rootDir);
-          handlers.add(MediaHttpHandler(scanner: scanner));
-          handlers.add(MediaImageHttpHandler(scanner: scanner));
-          handlers.add(MediaVideoHttpHandler(scanner: scanner));
-          handlers.add(MediaRecursiveVideosHandler(scanner: scanner));
-          final thumbnailCache = await MediaThumbnailCache.defaultLocation();
-          if (!_isCurrent(generation)) return;
-          handlers.add(
-            MediaThumbnailHttpHandler(
-              scanner: scanner,
-              generator: MediaThumbnailGenerator(scanner: scanner),
-              cache: thumbnailCache,
-            ),
-          );
-        }
-      }
-      final port = await _httpServer.start(handlers: handlers);
-      if (!_isCurrent(generation)) {
-        await _cleanup();
-        return;
-      }
-      _stopBroadcasting = await SyncUdpDiscovery.startBroadcasting(
-        httpPort: port,
-        deviceName: state.deviceName,
-        broadcastAddress: broadcastAddr,
+      final mediaRoutes = await ref
+          .read(syncMediaRouteFactoryProvider)
+          .createRoutes();
+      if (!_isCurrent(generation)) return;
+      final handle = await _transport.start(
+        SyncServerStartRequest(
+          deviceName: state.deviceName,
+          broadcastAddress: broadcastAddr,
+          onRequest: _handleRequest,
+          mediaRoutes: mediaRoutes,
+        ),
       );
       if (!_isCurrent(generation)) {
         await _cleanup();
@@ -218,7 +177,7 @@ class SyncServerController extends Notifier<SyncServerState> {
       _keepAliveLink ??= ref.keepAlive();
       state = state.copyWith(
         isRunning: true,
-        httpPort: port,
+        httpPort: handle.httpPort,
         lastError: null,
         selectedInterface: selectedIface,
       );
@@ -276,9 +235,7 @@ class SyncServerController extends Notifier<SyncServerState> {
   bool _isCurrent(int generation) => ref.mounted && generation == _generation;
 
   Future<void> _cleanup() async {
-    await _stopBroadcasting?.call();
-    _stopBroadcasting = null;
-    await _httpServer.stop();
+    await _transport.stop();
   }
 
   Future<void> updateDeviceName(String name) async {
@@ -322,7 +279,16 @@ class SyncServerController extends Notifier<SyncServerState> {
         const [];
     final categorySet = categories.toSet();
 
-    final exportData = _buildExportData(categorySet);
+    final exportData = ref
+        .read(settingsSyncFacadeProvider)
+        .exportSelected(
+          SettingsSyncSelection(
+            providers: categorySet.contains(SyncCategory.providers.payloadKey),
+            presets: categorySet.contains(SyncCategory.presets.payloadKey),
+            prompts: categorySet.contains(SyncCategory.prompts.payloadKey),
+            other: categorySet.contains(SyncCategory.other.payloadKey),
+          ),
+        );
     final json = exportData.toJsonString();
 
     state = state.copyWith(servedRequestCount: state.servedRequestCount + 1);
@@ -331,35 +297,6 @@ class SyncServerController extends Notifier<SyncServerState> {
       type: SyncMessageType.settingsSyncResponse,
       requestId: request.requestId,
       payload: {'data': json},
-    );
-  }
-
-  SettingsExportData _buildExportData(Set<String> categories) {
-    return SettingsExportData(
-      modelProviders: categories.contains(SyncCategory.providers.payloadKey)
-          ? ref.read(llmProviderConfigsProvider)
-          : const [],
-      presetPrompts: categories.contains(SyncCategory.presets.payloadKey)
-          ? ref.read(presetPromptsProvider)
-          : const [],
-      memoryPrompts: categories.contains(SyncCategory.prompts.payloadKey)
-          ? ref.read(memoryPromptsProvider)
-          : const [],
-      templatePrompts: categories.contains(SyncCategory.prompts.payloadKey)
-          ? ref.read(templatePromptsProvider)
-          : const [],
-      fixedPromptSequences: categories.contains(SyncCategory.prompts.payloadKey)
-          ? ref.read(fixedPromptSequencesProvider)
-          : const [],
-      autoRetrySettings: categories.contains(SyncCategory.other.payloadKey)
-          ? ref.read(autoRetrySettingsProvider)
-          : null,
-      customHeadersConfig: categories.contains(SyncCategory.other.payloadKey)
-          ? ref.read(customHeadersProvider)
-          : null,
-      fontSizeSettings: categories.contains(SyncCategory.other.payloadKey)
-          ? ref.read(fontSizeSettingsProvider)
-          : null,
     );
   }
 }

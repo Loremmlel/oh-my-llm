@@ -3,9 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/navigation/app_destination.dart';
-import '../../chat/application/chat_sessions_controller.dart';
 import '../application/favorites_controller.dart';
 import '../application/collections_controller.dart';
+import '../application/favorite_source_conversation_command.dart';
 import '../domain/models/collection.dart';
 import '../domain/models/favorite.dart';
 import '../../../core/widgets/app_confirm_dialog.dart';
@@ -206,10 +206,10 @@ class _FavoriteDetailScreenState extends ConsumerState<FavoriteDetailScreen> {
 
   void _goToConversation(BuildContext context) {
     ref
-        .read(chatSessionsProvider.notifier)
-        .selectConversationAndNavigateToMessage(
-          _favorite.sourceConversationId!,
-          messageId: _favorite.sourceAssistantMessageId,
+        .read(favoriteSourceConversationCommandProvider)
+        .selectSourceConversation(
+          conversationId: _favorite.sourceConversationId!,
+          assistantMessageId: _favorite.sourceAssistantMessageId,
         );
     context.go(AppDestination.chat.path);
   }

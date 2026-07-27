@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
+import 'package:oh_my_llm/app/composition/cross_feature_bindings.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/settings_export_data.dart';
 import 'package:oh_my_llm/features/sync/application/sync_client_controller.dart';
@@ -87,6 +88,7 @@ void main() {
   ProviderContainer buildContainer({SyncClientState? seed}) {
     final container = ProviderContainer(
       overrides: [
+        ...appCompositionOverrides(),
         appDatabaseProvider.overrideWithValue(database),
         sharedPreferencesProvider.overrideWithValue(preferences),
         if (seed != null)
@@ -111,6 +113,7 @@ void main() {
     test('空闲客户端在页面监听关闭后释放，并以 idle 状态重建', () async {
       final container = ProviderContainer(
         overrides: [
+          ...appCompositionOverrides(),
           appDatabaseProvider.overrideWithValue(database),
           sharedPreferencesProvider.overrideWithValue(preferences),
         ],

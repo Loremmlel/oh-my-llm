@@ -1,24 +1,25 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../favorites/application/collections_controller.dart';
-import '../../../../favorites/domain/models/collection.dart';
+import '../../../application/chat_favorites_facade.dart';
 
 /// 点击收藏按钮后弹出的选择/新建收藏夹对话框。
 ///
 /// 返回用户选择的收藏夹 ID（'' 表示未分类）或 null（取消）。
-class AddToFavoritesDialog extends ConsumerStatefulWidget {
-  const AddToFavoritesDialog({required this.assistantContent, super.key});
+class AddToFavoritesDialog extends StatefulWidget {
+  const AddToFavoritesDialog({
+    required this.collections,
+    required this.onCreateCollection,
+    super.key,
+  });
 
-  /// 当前助手消息内容，用于判断是否已被收藏。
-  final String assistantContent;
+  final List<ChatFavoriteCollectionOption> collections;
+  final String Function(String name) onCreateCollection;
 
   @override
-  ConsumerState<AddToFavoritesDialog> createState() =>
-      _AddToFavoritesDialogState();
+  State<AddToFavoritesDialog> createState() => _AddToFavoritesDialogState();
 }
 
-class _AddToFavoritesDialogState extends ConsumerState<AddToFavoritesDialog> {
+class _AddToFavoritesDialogState extends State<AddToFavoritesDialog> {
   String? _selectedCollectionId;
   bool _showNewCollectionField = false;
   late final TextEditingController _newNameController;
@@ -38,7 +39,7 @@ class _AddToFavoritesDialogState extends ConsumerState<AddToFavoritesDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final collections = ref.watch(collectionsProvider);
+    final collections = widget.collections;
 
     return AlertDialog(
       title: const Text('收藏到'),
@@ -123,12 +124,14 @@ class _AddToFavoritesDialogState extends ConsumerState<AddToFavoritesDialog> {
     );
   }
 
-  void _createAndSelect(List<FavoriteCollection> existingCollections) {
+  void _createAndSelect(
+    List<ChatFavoriteCollectionOption> existingCollections,
+  ) {
     final name = _newNameController.text.trim();
     if (name.isEmpty) {
       return;
     }
-    final newId = ref.read(collectionsProvider.notifier).create(name);
+    final newId = widget.onCreateCollection(name);
     Navigator.of(context).pop(newId);
   }
 }

@@ -26,7 +26,6 @@ bool isVideoFile(String name) =>
 String mimeTypeFromExtension(String fileName) {
   final ext = extensionFromFileName(fileName);
   switch (ext) {
-    // ── 图片 ──
     case 'jpg':
     case 'jpeg':
       return 'image/jpeg';
@@ -36,7 +35,6 @@ String mimeTypeFromExtension(String fileName) {
       return 'image/webp';
     case 'gif':
       return 'image/gif';
-    // ── 视频 ──
     case 'mp4':
       return 'video/mp4';
     case 'mkv':
@@ -47,7 +45,6 @@ String mimeTypeFromExtension(String fileName) {
       return 'video/x-msvideo';
     case 'webm':
       return 'video/webm';
-    // ── 默认 ──
     default:
       return 'application/octet-stream';
   }

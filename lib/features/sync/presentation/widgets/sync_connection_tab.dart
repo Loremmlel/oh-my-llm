@@ -1,10 +1,8 @@
-import 'dart:io' show InternetAddress, Platform;
+import 'dart:io' show InternetAddress;
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../media/application/media_root_directory_controller.dart';
 import '../../../settings/presentation/widgets/settings_section_card.dart';
 import '../../application/broadcast_prefix_length_provider.dart';
 import '../../application/network_interface_provider.dart';
@@ -14,7 +12,10 @@ import 'interface_selector.dart';
 
 /// 同步页面 Tab 1：连接管理，包含服务端广播与客户端发现/连接。
 class SyncConnectionTab extends ConsumerStatefulWidget {
-  const SyncConnectionTab({super.key});
+  const SyncConnectionTab({this.serverConfiguration, super.key});
+
+  /// app composition 可注入的服务端附加配置区块。
+  final Widget? serverConfiguration;
 
   @override
   ConsumerState<SyncConnectionTab> createState() => _SyncConnectionTabState();
@@ -24,7 +25,6 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
     with AutomaticKeepAliveClientMixin {
   bool _isServerMode = false;
   late TextEditingController _nameController;
-  late TextEditingController _rootDirController;
 
   @override
   bool get wantKeepAlive => true;
@@ -34,23 +34,12 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
     super.initState();
     final serverState = ref.read(syncServerControllerProvider);
     _nameController = TextEditingController(text: serverState.deviceName);
-    final rootDir = ref.read(mediaRootDirectoryProvider);
-    _rootDirController = TextEditingController(text: rootDir ?? '');
   }
 
   @override
   void dispose() {
     _nameController.dispose();
-    _rootDirController.dispose();
     super.dispose();
-  }
-
-  Future<void> _pickMediaRootDirectory() async {
-    final result = await FilePicker.getDirectoryPath();
-    if (result != null && mounted) {
-      _rootDirController.text = result;
-      ref.read(mediaRootDirectoryProvider.notifier).setDirectory(result);
-    }
   }
 
   void _onModeChanged(bool serverMode) {
@@ -269,27 +258,10 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
             },
           ),
           const SizedBox(height: 16),
-          // 媒体根目录配置 — 仅 Windows 服务端
-          if (Platform.isWindows)
-            TextField(
-              controller: _rootDirController,
-              readOnly: true,
-              decoration: InputDecoration(
-                labelText: '媒体根目录（可选）',
-                hintText: '点击选择文件夹',
-                border: const OutlineInputBorder(),
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.folder_open),
-                  onPressed: serverState.isRunning
-                      ? null
-                      : _pickMediaRootDirectory,
-                  tooltip: '选择文件夹',
-                ),
-              ),
-              enabled: !serverState.isRunning,
-              onTap: _pickMediaRootDirectory,
-            ),
-          const SizedBox(height: 16),
+          if (widget.serverConfiguration case final configuration?) ...[
+            configuration,
+            const SizedBox(height: 16),
+          ],
           if (!serverState.isRunning) ...[
             const InterfaceSelector(),
             const SizedBox(height: 16),

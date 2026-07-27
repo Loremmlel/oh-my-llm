@@ -16,7 +16,10 @@ import '../../chat/domain/models/chat_conversation_summary.dart';
 import '../../chat/presentation/widgets/grouped_conversation_list.dart';
 import 'widgets/history_widgets.dart';
 
-/// 历史对话页入口，支持搜索、批量选择、删除和重命名。
+/// Chat read model 的历史对话页入口，支持搜索、批量选择、删除和重命名。
+///
+/// History 允许依赖 Chat 的 query、pagination 和 selection application API；详细
+/// ownership 见同目录 README，不应将其误拆为独立数据域。
 class HistoryScreen extends ConsumerStatefulWidget {
   const HistoryScreen({super.key});
 

@@ -2,8 +2,9 @@ import 'dart:io';
 
 import 'package:image/image.dart' as img;
 
+import '../domain/media_file_classification.dart';
 import 'media_directory_scanner.dart';
-import 'media_mime_types.dart';
+import 'thumbnail_process_runner.dart';
 
 /// 缩略图生成器。
 ///
@@ -14,6 +15,7 @@ import 'media_mime_types.dart';
 /// 若 ffmpeg 未安装，所有视频缩略图请求将直接抛出 [ThumbnailException]。
 class MediaThumbnailGenerator {
   final MediaDirectoryScanner _scanner;
+  final ThumbnailProcessRunner _processRunner;
 
   /// 缩略图最长边像素。
   static const int thumbnailMaxSize = 256;
@@ -27,8 +29,11 @@ class MediaThumbnailGenerator {
   /// ffmpeg 可用性缓存：null = 未检测，true = 可用，false = 不可用。
   bool? _ffmpegAvailable;
 
-  MediaThumbnailGenerator({required MediaDirectoryScanner scanner})
-    : _scanner = scanner;
+  MediaThumbnailGenerator({
+    required MediaDirectoryScanner scanner,
+    ThumbnailProcessRunner processRunner = const DartThumbnailProcessRunner(),
+  }) : _scanner = scanner,
+       _processRunner = processRunner;
 
   /// 生成缩略图，返回 JPEG 字节数组。
   ///
@@ -86,8 +91,8 @@ class MediaThumbnailGenerator {
     final seekSeconds = duration < 10 ? duration / 2.0 : 5.0;
 
     // 3. 调用 ffmpeg 取帧，输出到 stdout
-    final result =
-        await Process.run(
+    final result = await _processRunner
+        .run(
           'ffmpeg',
           [
             '-ss', seekSeconds.toStringAsFixed(1),
@@ -101,7 +106,8 @@ class MediaThumbnailGenerator {
             '-',
           ],
           stdoutEncoding: null, // raw bytes
-        ).timeout(
+        )
+        .timeout(
           const Duration(seconds: ffmpegTimeoutSeconds),
           onTimeout: () =>
               throw ThumbnailException('ffmpeg 执行超时（${ffmpegTimeoutSeconds}s）'),
@@ -128,8 +134,8 @@ class MediaThumbnailGenerator {
 
   /// 通过 ffprobe 获取视频时长（秒）。
   Future<double> _getVideoDuration(String filePath) async {
-    final result =
-        await Process.run('ffprobe', [
+    final result = await _processRunner
+        .run('ffprobe', [
           '-v',
           'error',
           '-show_entries',
@@ -137,7 +143,8 @@ class MediaThumbnailGenerator {
           '-of',
           'default=noprint_wrappers=1:nokey=1',
           filePath,
-        ]).timeout(
+        ])
+        .timeout(
           const Duration(seconds: ffmpegTimeoutSeconds),
           onTimeout: () => throw ThumbnailException('ffprobe 执行超时'),
         );
@@ -163,12 +170,12 @@ class MediaThumbnailGenerator {
     if (_ffmpegAvailable == true) return;
 
     try {
-      final ffmpegResult = await Process.run('ffmpeg', [
-        '-version',
-      ]).timeout(const Duration(seconds: 5));
-      final ffprobeResult = await Process.run('ffprobe', [
-        '-version',
-      ]).timeout(const Duration(seconds: 5));
+      final ffmpegResult = await _processRunner
+          .run('ffmpeg', ['-version'])
+          .timeout(const Duration(seconds: 5));
+      final ffprobeResult = await _processRunner
+          .run('ffprobe', ['-version'])
+          .timeout(const Duration(seconds: 5));
       _ffmpegAvailable =
           ffmpegResult.exitCode == 0 && ffprobeResult.exitCode == 0;
     } on ProcessException catch (e) {

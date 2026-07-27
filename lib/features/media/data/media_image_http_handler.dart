@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:oh_my_llm/core/http/http_response_writer.dart';
 
 import 'media_http_handler_base.dart';
-import 'media_mime_types.dart';
+import '../domain/media_file_classification.dart';
 
 /// 处理 `GET /api/media/image/{path}` 请求的 Handler。
 ///

@@ -87,7 +87,7 @@ final mediaBrowserControllerProvider =
 /// 客户端媒体浏览器控制器。
 ///
 /// 管理浏览状态并通过 HTTP 调用服务端 API 获取目录内容。
-/// 这是页面级 auto-dispose 会话，不保活；离开媒体页面后由 SyncScreen reset。
+/// 这是页面级 auto-dispose 会话，不保活；离开媒体页面后由 app composition reset。
 class MediaBrowserController extends Notifier<MediaBrowserState> {
   http.Client get _httpClient => ref.read(peerHttpClientProvider);
   int _generation = 0;

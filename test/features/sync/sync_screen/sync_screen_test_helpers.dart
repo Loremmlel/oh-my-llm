@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/settings/domain/models/settings_export_data.dart';
-import 'package:oh_my_llm/features/sync/presentation/sync_screen.dart';
+import 'package:oh_my_llm/app/composition/sync_workspace_screen.dart';
 import 'package:oh_my_llm/features/sync/presentation/widgets/sync_import_confirm_dialog.dart';
 import 'package:oh_my_llm/features/media/application/media_browser_controller.dart';
 import 'package:oh_my_llm/features/media/application/shuffle_playback_controller.dart';
@@ -24,7 +24,7 @@ Future<AppDatabase> pumpSyncScreen(
 }) async {
   return pumpTestApp(
     tester,
-    child: const SyncScreen(),
+    child: const SyncWorkspaceScreen(),
     preferences: preferences,
     database: database,
     viewportSize: size,
