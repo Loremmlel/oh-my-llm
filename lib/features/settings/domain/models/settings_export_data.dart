@@ -9,6 +9,7 @@ import 'llm_provider_config.dart';
 import 'memory_prompt.dart';
 import 'output_processing_settings.dart';
 import 'preset_prompt.dart';
+import 'settings_export_codec.dart';
 import 'template_prompt.dart';
 
 /// 配置导出/导入的数据包，包含三类设置项的完整快照。
@@ -22,7 +23,7 @@ import 'template_prompt.dart';
 /// ```json
 /// {
 ///   "identifier": "shikiyuzu-oh-my-llm",
-///   "version": 2,
+///   "formatVersion": 6,
 ///   "modelProviders": [...],
 ///   "memoryPrompts": [...],
 ///   "presetPrompts": [...],
@@ -46,7 +47,7 @@ class SettingsExportData {
   static const String identifier = 'shikiyuzu-oh-my-llm';
 
   /// 当前导出格式版本，未来格式变更时递增。
-  static const int formatVersion = 5;
+  static const int formatVersion = 6;
 
   final List<LlmProviderConfig> modelProviders;
   final List<MemoryPrompt> memoryPrompts;
@@ -65,124 +66,21 @@ class SettingsExportData {
   }
 
   /// 将导出数据序列化为 JSON 字符串（含标识符和版本号）。
-  String toJsonString() {
-    final map = <String, dynamic>{
-      'identifier': identifier,
-      'version': formatVersion,
-      'modelProviders': modelProviders.map((p) => p.toJson()).toList(),
-      'memoryPrompts': memoryPrompts.map((p) => p.toJson()).toList(),
-      'presetPrompts': presetPrompts.map((t) => t.toJson()).toList(),
-      'templatePrompts': templatePrompts.map((t) => t.toJson()).toList(),
-      'fixedPromptSequences': fixedPromptSequences
-          .map((s) => s.toJson())
-          .toList(),
-    };
+  String toJsonString() => jsonEncode(SettingsExportCodec.encode(this));
 
-    final autoRetry = autoRetrySettings;
-    if (autoRetry != null) {
-      map['autoRetrySettings'] = autoRetry.toJson();
-    }
-
-    final customHeaders = customHeadersConfig;
-    if (customHeaders != null) {
-      map['customHeaders'] = customHeaders.toJson();
-    }
-
-    final fontSize = fontSizeSettings;
-    if (fontSize != null) {
-      map['fontSizeSettings'] = fontSize.toJson();
-    }
-
-    final outputProcessing = outputProcessingSettings;
-    if (outputProcessing != null) {
-      map['outputProcessing'] = outputProcessing.toJson();
-    }
-
-    return jsonEncode(map);
-  }
+  /// 结构化导出，仅供受认证的 Sync snapshot 使用。
+  Map<String, Object?> toJson() => SettingsExportCodec.encode(this);
 
   /// 尝试从字符串解析导出数据；若格式不匹配或解析失败则返回 null。
   ///
   /// 识别逻辑：先检查 `identifier` 字段，再读取各类列表；
   /// 任何字段缺失或类型不符均静默返回 null，不抛出异常。
   static SettingsExportData? tryParseJson(String? text) {
-    if (text == null || text.trim().isEmpty) {
-      return null;
-    }
-
-    try {
-      final raw = jsonDecode(text);
-      if (raw is! Map<String, dynamic>) return null;
-      if (raw['identifier'] != identifier) return null;
-
-      final rawProviders = raw['modelProviders'] as List<dynamic>? ?? const [];
-      final rawMemoryPrompts =
-          raw['memoryPrompts'] as List<dynamic>? ?? const [];
-      final rawTemplates = raw['presetPrompts'] as List<dynamic>? ?? const [];
-      final rawTemplatePrompts =
-          raw['templatePrompts'] as List<dynamic>? ?? const [];
-      final rawSequences =
-          raw['fixedPromptSequences'] as List<dynamic>? ?? const [];
-
-      final modelProviders = rawProviders
-          .map(
-            (item) => LlmProviderConfig.fromJson(
-              Map<String, dynamic>.from(item as Map),
-            ),
-          )
-          .toList(growable: false);
-
-      final rawAutoRetry = raw['autoRetrySettings'] as Map<String, dynamic>?;
-      final rawCustomHeaders = raw['customHeaders'] as Map<String, dynamic>?;
-      final rawFontSize = raw['fontSizeSettings'] as Map<String, dynamic>?;
-      final rawOutputProcessing =
-          raw['outputProcessing'] as Map<String, dynamic>?;
-
-      return SettingsExportData(
-        modelProviders: modelProviders,
-        memoryPrompts: rawMemoryPrompts
-            .map(
-              (item) =>
-                  MemoryPrompt.fromJson(Map<String, dynamic>.from(item as Map)),
-            )
-            .toList(growable: false),
-        presetPrompts: rawTemplates
-            .map(
-              (item) =>
-                  PresetPrompt.fromJson(Map<String, dynamic>.from(item as Map)),
-            )
-            .toList(growable: false),
-        templatePrompts: rawTemplatePrompts
-            .map(
-              (item) => TemplatePrompt.fromJson(
-                Map<String, dynamic>.from(item as Map),
-              ),
-            )
-            .toList(growable: false),
-        fixedPromptSequences: rawSequences
-            .map(
-              (item) => FixedPromptSequence.fromJson(
-                Map<String, dynamic>.from(item as Map),
-              ),
-            )
-            .toList(growable: false),
-        autoRetrySettings: rawAutoRetry != null
-            ? AutoRetrySettings.fromJson(rawAutoRetry)
-            : null,
-        customHeadersConfig: rawCustomHeaders != null
-            ? CustomHeadersConfig.fromJson(rawCustomHeaders)
-            : null,
-        fontSizeSettings: rawFontSize != null
-            ? FontSizeSettings.fromJson(rawFontSize)
-            : null,
-        outputProcessingSettings: rawOutputProcessing != null
-            ? OutputProcessingSettings.fromJson(rawOutputProcessing)
-            : null,
-      );
-    } catch (_) {
-      // 任何解析错误都视为非本应用的剪贴板内容，静默忽略。
-      return null;
-    }
+    final result = SettingsExportCodec.decodeJson(text);
+    return switch (result) {
+      SettingsExportDecodeSuccess(:final data) => data,
+      SettingsExportUnsupportedVersion() || SettingsExportMalformed() => null,
+    };
   }
 
   /// 是否包含任何可导入的条目。

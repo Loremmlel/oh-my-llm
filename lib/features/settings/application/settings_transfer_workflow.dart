@@ -9,6 +9,7 @@ import '../domain/models/memory_prompt.dart';
 import '../domain/models/output_processing_settings.dart';
 import '../domain/models/preset_prompt.dart';
 import '../domain/models/settings_export_data.dart';
+import '../domain/models/settings_export_codec.dart';
 import '../domain/models/template_prompt.dart';
 import 'auto_retry_settings_controller.dart';
 import 'custom_headers_controller.dart';
@@ -32,6 +33,7 @@ enum SettingsTransferTab {
 
 enum SettingsImportPreparationKind {
   invalidClipboard,
+  unsupportedVersion,
   tabMismatch,
   noNewItems,
   ready,
@@ -165,12 +167,18 @@ final class SettingsTransferWorkflow {
     required SettingsTransferTab tab,
     required String? clipboardText,
   }) {
-    final parsed = SettingsExportData.tryParseJson(clipboardText);
-    if (parsed == null || !parsed.hasContent) {
+    final decode = SettingsExportCodec.decodeJson(clipboardText);
+    if (decode is SettingsExportUnsupportedVersion) {
+      return const SettingsImportPreparation(
+        SettingsImportPreparationKind.unsupportedVersion,
+      );
+    }
+    if (decode is! SettingsExportDecodeSuccess || !decode.data.hasContent) {
       return const SettingsImportPreparation(
         SettingsImportPreparationKind.invalidClipboard,
       );
     }
+    final parsed = decode.data;
     if (!_matchesTab(parsed, tab)) {
       return const SettingsImportPreparation(
         SettingsImportPreparationKind.tabMismatch,

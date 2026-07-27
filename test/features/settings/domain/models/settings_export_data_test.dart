@@ -92,14 +92,14 @@ SettingsExportData _buildEmptyData() {
 
 void main() {
   group('SettingsExportData', () {
-    test('toJsonString 输出包含 identifier 和 version', () {
+    test('toJsonString 输出包含 identifier 和 formatVersion', () {
       final data = _buildEmptyData();
       final jsonMap = jsonDecode(data.toJsonString()) as Map<String, dynamic>;
 
       expect(jsonMap['identifier'], SettingsExportData.identifier);
       expect(jsonMap['identifier'], 'shikiyuzu-oh-my-llm');
-      expect(jsonMap['version'], SettingsExportData.formatVersion);
-      expect(jsonMap['version'], 5);
+      expect(jsonMap['formatVersion'], SettingsExportData.formatVersion);
+      expect(jsonMap['formatVersion'], 6);
     });
 
     test('toJsonString 再 tryParseJson 可还原完整数据（7 个分类）', () {
@@ -135,7 +135,7 @@ void main() {
       // identifier 不匹配
       final wrongId = jsonEncode({
         'identifier': 'wrong-id',
-        'version': SettingsExportData.formatVersion,
+        'formatVersion': SettingsExportData.formatVersion,
         'modelProviders': <Map<String, dynamic>>[],
       });
       expect(SettingsExportData.tryParseJson(wrongId), isNull);
