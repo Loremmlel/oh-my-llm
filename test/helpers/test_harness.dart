@@ -55,7 +55,7 @@ Future<AppDatabase> pumpTestApp(
         sharedPreferencesProvider.overrideWithValue(preferences),
         customHeadersMapProvider.overrideWith((ref) => const {}),
         peerHttpClientProvider.overrideWithValue(http.Client()),
-        ...appCompositionOverrides(),
+        ...appCompositionOverrides(useInMemorySyncSecureStore: true),
         ...extraOverrides,
       ],
       child: router != null

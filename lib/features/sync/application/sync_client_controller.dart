@@ -6,9 +6,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../settings/domain/models/settings_export_data.dart';
 import 'ports/settings_sync_facade.dart';
 import 'ports/sync_client_transport.dart';
+import 'ports/sync_clock.dart';
+import 'ports/sync_crypto.dart';
+import 'ports/sync_pairing_repository.dart';
+import 'sync_client_protocol_coordinator.dart';
 import '../domain/models/discovered_server.dart';
-import '../domain/models/sync_message.dart';
 import '../domain/models/sync_types.dart';
+import '../domain/models/sync_protocol_failure.dart';
 
 enum SyncPhase {
   idle,
@@ -31,6 +35,8 @@ class SyncClientState extends Equatable {
     this.errorMessage,
     this.deduplicatedData,
     this.sourceDeviceName,
+    this.isPaired = false,
+    this.sensitiveRequestConfirmed = false,
   }) : selectedCategories = Set.unmodifiable(selectedCategories);
 
   final SyncPhase phase;
@@ -39,6 +45,8 @@ class SyncClientState extends Equatable {
   final String? errorMessage;
   final SettingsExportData? deduplicatedData;
   final String? sourceDeviceName;
+  final bool isPaired;
+  final bool sensitiveRequestConfirmed;
 
   @override
   List<Object?> get props => [
@@ -48,6 +56,8 @@ class SyncClientState extends Equatable {
     errorMessage,
     deduplicatedData?.toJsonString(),
     sourceDeviceName,
+    isPaired,
+    sensitiveRequestConfirmed,
   ];
 
   SyncClientState copyWith({
@@ -57,6 +67,8 @@ class SyncClientState extends Equatable {
     Object? errorMessage = _sentinel,
     Object? deduplicatedData = _sentinel,
     Object? sourceDeviceName = _sentinel,
+    bool? isPaired,
+    bool? sensitiveRequestConfirmed,
   }) {
     return SyncClientState(
       phase: phase ?? this.phase,
@@ -73,6 +85,9 @@ class SyncClientState extends Equatable {
       sourceDeviceName: identical(sourceDeviceName, _sentinel)
           ? this.sourceDeviceName
           : sourceDeviceName as String?,
+      isPaired: isPaired ?? this.isPaired,
+      sensitiveRequestConfirmed:
+          sensitiveRequestConfirmed ?? this.sensitiveRequestConfirmed,
     );
   }
 }
@@ -90,10 +105,17 @@ final syncClientControllerProvider =
 /// 已取消会话的异步回调重新写入 state。
 class SyncClientController extends Notifier<SyncClientState> {
   StreamSubscription<DiscoveredServer>? _discoverySubscription;
+  late final SyncClientProtocolCoordinator _protocolCoordinator;
   int _generation = 0;
 
   @override
   SyncClientState build() {
+    _protocolCoordinator = SyncClientProtocolCoordinator(
+      transport: ref.read(syncClientTransportProvider),
+      pairingRepository: ref.read(syncPairingRepositoryProvider),
+      crypto: ref.read(syncCryptoProvider),
+      clock: ref.read(syncClockProvider),
+    );
     ref.onDispose(_invalidateDiscovery);
     return SyncClientState();
   }
@@ -106,14 +128,25 @@ class SyncClientController extends Notifier<SyncClientState> {
         .read(syncClientTransportProvider)
         .discoverServers()
         .listen(
-          (server) {
+          (server) async {
             if (!_isCurrent(generation)) return;
             _discoverySubscription?.cancel();
             _discoverySubscription = null;
+            if (!server.isProtocolCompatible) {
+              state = state.copyWith(
+                phase: SyncPhase.error,
+                errorMessage: '设备版本不兼容，需要更新',
+              );
+              return;
+            }
+            final isPaired = await _protocolCoordinator.isPaired(server);
+            if (!_isCurrent(generation)) return;
             state = state.copyWith(
               phase: SyncPhase.connected,
               server: server,
               sourceDeviceName: server.deviceName,
+              isPaired: isPaired,
+              sensitiveRequestConfirmed: false,
             );
           },
           onDone: () {
@@ -143,12 +176,47 @@ class SyncClientController extends Notifier<SyncClientState> {
       categories.add(category);
     }
     state = state.copyWith(selectedCategories: categories);
+    state = state.copyWith(sensitiveRequestConfirmed: false);
   }
 
   void selectAllCategories() {
     state = state.copyWith(
       selectedCategories: Set<SyncCategory>.from(SyncCategory.values),
     );
+    state = state.copyWith(sensitiveRequestConfirmed: false);
+  }
+
+  /// 仅将本次请求的用户意图保留在内存中；类别或连接变化会清除它。
+  void confirmSensitiveRequest() {
+    state = state.copyWith(sensitiveRequestConfirmed: true);
+  }
+
+  Future<void> pairWithCode(String code, {String displayName = '本机'}) async {
+    final server = state.server;
+    if (server == null || code.trim().isEmpty) return;
+    final generation = _generation;
+    state = state.copyWith(phase: SyncPhase.syncing, errorMessage: null);
+    try {
+      await _protocolCoordinator.pair(
+        server: server,
+        code: code.trim(),
+        displayName: displayName,
+      );
+      if (!_isCurrent(generation)) return;
+      state = state.copyWith(phase: SyncPhase.connected, isPaired: true);
+    } on SyncProtocolFailure catch (failure) {
+      if (!_isCurrent(generation)) return;
+      state = state.copyWith(
+        phase: SyncPhase.error,
+        errorMessage: failure.userMessage,
+      );
+    } on SyncTransportException catch (failure) {
+      if (!_isCurrent(generation)) return;
+      state = state.copyWith(
+        phase: SyncPhase.error,
+        errorMessage: failure.userMessage,
+      );
+    }
   }
 
   Future<void> requestSync() async {
@@ -163,44 +231,13 @@ class SyncClientController extends Notifier<SyncClientState> {
       deduplicatedData: null,
     );
 
-    final request = SyncMessage.request(
-      type: SyncMessageType.settingsSyncRequest,
-      payload: {
-        'categories': state.selectedCategories
-            .map((c) => c.payloadKey)
-            .toList(),
-      },
-    );
-
     try {
-      final responseMessage = await ref
-          .read(syncClientTransportProvider)
-          .send(server: server, request: request);
+      final exportData = await _protocolCoordinator.requestSettings(
+        server: server,
+        categories: state.selectedCategories,
+        confirmedSensitive: state.sensitiveRequestConfirmed,
+      );
       if (!_isCurrent(generation)) return;
-
-      if (responseMessage.type == SyncMessageType.error) {
-        state = state.copyWith(
-          phase: SyncPhase.error,
-          errorMessage:
-              responseMessage.payload['message'] as String? ?? '服务端返回错误',
-        );
-        return;
-      }
-
-      if (responseMessage.type != SyncMessageType.settingsSyncResponse) {
-        state = state.copyWith(
-          phase: SyncPhase.error,
-          errorMessage: '未知的响应类型: ${responseMessage.type}',
-        );
-        return;
-      }
-
-      final dataJson = responseMessage.payload['data'] as String?;
-      final exportData = SettingsExportData.tryParseJson(dataJson);
-      if (exportData == null) {
-        state = state.copyWith(phase: SyncPhase.error, errorMessage: '数据解析失败');
-        return;
-      }
 
       final deduplicated = ref
           .read(settingsSyncFacadeProvider)
@@ -213,6 +250,12 @@ class SyncClientController extends Notifier<SyncClientState> {
       state = state.copyWith(
         phase: SyncPhase.received,
         deduplicatedData: deduplicated,
+      );
+    } on SyncProtocolFailure catch (e) {
+      if (!_isCurrent(generation)) return;
+      state = state.copyWith(
+        phase: SyncPhase.error,
+        errorMessage: e.userMessage,
       );
     } on SyncTransportException catch (e) {
       if (!_isCurrent(generation)) return;
@@ -252,11 +295,13 @@ class SyncClientController extends Notifier<SyncClientState> {
       phase: SyncPhase.connected,
       deduplicatedData: null,
       errorMessage: null,
+      sensitiveRequestConfirmed: false,
     );
   }
 
   void cancelAndReset() {
     _invalidateDiscovery();
+    _protocolCoordinator.clearSessions();
     if (!ref.mounted) return;
     state = SyncClientState();
   }

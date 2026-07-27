@@ -88,7 +88,7 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
 
     return SettingsSectionCard(
       title: '发现服务端',
-      description: '搜索局域网内正在广播的服务端，同步其配置到本机',
+      description: '搜索局域网内正在广播的服务端；发现不等于配对或授权',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -194,6 +194,14 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
       case SyncPhase.imported:
         return Row(
           children: [
+            if (!state.isPaired)
+              Expanded(
+                child: FilledButton(
+                  onPressed: () => _showPairingDialog(state),
+                  child: const Text('配对此设备'),
+                ),
+              ),
+            if (!state.isPaired) const SizedBox(width: 8),
             Expanded(
               child: OutlinedButton(
                 onPressed: notifier.cancelAndReset,
@@ -210,6 +218,35 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
           ],
         );
     }
+  }
+
+  Future<void> _showPairingDialog(SyncClientState state) async {
+    final controller = TextEditingController();
+    final code = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('配对此设备'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: '输入服务端本地显示的配对码'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('配对'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (code == null || !mounted) return;
+    await ref.read(syncClientControllerProvider.notifier).pairWithCode(code);
   }
 
   Widget _buildListeningInterfaces() {
@@ -240,7 +277,7 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
 
     return SettingsSectionCard(
       title: '服务端广播',
-      description: '启动后，局域网内其他设备可以发现本机并同步配置',
+      description: '启动后设备可被发现；只有配对、会话和授权完成后才能同步配置',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -325,6 +362,33 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
                 style: theme.textTheme.bodyMedium,
               ),
             ],
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: () async {
+                final code = await ref
+                    .read(syncServerControllerProvider.notifier)
+                    .generatePairingCode();
+                if (!mounted || code == null) return;
+                await showDialog<void>(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (context) => AlertDialog(
+                    title: const Text('一次性配对码'),
+                    content: Text(
+                      '请仅在本地告知待配对设备。此码 5 分钟内有效，成功配对后立即失效。\n\n$code',
+                    ),
+                    actions: [
+                      FilledButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('完成'),
+                      ),
+                    ],
+                  ),
+                );
+              },
+              icon: const Icon(Icons.password_rounded),
+              label: const Text('生成配对码'),
+            ),
             const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
