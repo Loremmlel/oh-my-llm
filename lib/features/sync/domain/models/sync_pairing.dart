@@ -91,6 +91,29 @@ final class SyncPairingRecord extends Equatable {
   ];
 }
 
+/// 等待服务端本地确认的分类授权请求，仅保留非秘密元数据。
+final class SyncAuthorizationRequest extends Equatable {
+  SyncAuthorizationRequest({
+    required this.peer,
+    required Set<SyncCategory> categories,
+    required this.confirmedSensitive,
+    required this.requestedAt,
+  }) : categories = Set.unmodifiable(categories);
+
+  final SyncPeerIdentity peer;
+  final Set<SyncCategory> categories;
+  final bool confirmedSensitive;
+  final DateTime requestedAt;
+
+  @override
+  List<Object?> get props => [
+    peer,
+    categories.map((item) => item.index).toList()..sort(),
+    confirmedSensitive,
+    requestedAt,
+  ];
+}
+
 /// pairing proof 和 pairing secret 所依赖的固定 transcript。
 final class SyncPairingTranscript {
   const SyncPairingTranscript({

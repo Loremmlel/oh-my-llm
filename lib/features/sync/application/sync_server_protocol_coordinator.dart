@@ -28,6 +28,7 @@ final class SyncServerProtocolCoordinator {
 
   static const pairingCodeLifetime = Duration(minutes: 5);
   static const _maxPairingAttempts = 5;
+  static const _pairingCodeAlphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 
   final SyncPairingRepository _pairingRepository;
   final SyncCrypto _crypto;
@@ -36,10 +37,18 @@ final class SyncServerProtocolCoordinator {
   final SyncSessionRegistry _sessions;
   _PendingPairingCode? _pendingCode;
   final Map<String, _PairingChallenge> _challenges = {};
+  final Map<String, SyncAuthorizationRequest> _pendingAuthorizations = {};
 
   /// 本地 UI 获取一次性 code。它只存在内存并由调用处本地展示。
   Future<String> generatePairingCode() async {
-    final code = base64UrlEncode(_crypto.randomBytes(20)).replaceAll('=', '');
+    final random = _crypto.randomBytes(4);
+    final code = String.fromCharCodes(
+      random.map(
+        (value) => _pairingCodeAlphabet.codeUnitAt(
+          value % _pairingCodeAlphabet.length,
+        ),
+      ),
+    );
     _pendingCode = _PendingPairingCode(
       code: code,
       expiresAt: _clock.now().add(pairingCodeLifetime),
@@ -65,7 +74,17 @@ final class SyncServerProtocolCoordinator {
     }
   }
 
-  void invalidateAllSessions() => _sessions.clear();
+  void invalidateAllSessions() {
+    _sessions.clear();
+    _pendingCode = null;
+    _challenges.clear();
+    _pendingAuthorizations.clear();
+  }
+
+  Future<List<SyncPairingRecord>> pairedPeers() => _pairingRepository.loadAll();
+
+  List<SyncAuthorizationRequest> pendingAuthorizations() =>
+      List.unmodifiable(_pendingAuthorizations.values);
 
   Future<void> grant({
     required String peerId,
@@ -86,11 +105,17 @@ final class SyncServerProtocolCoordinator {
       ...record.grantedCategories,
       ...categories,
     });
+    _pendingAuthorizations.remove(peerId);
+  }
+
+  void denyAuthorization(String peerId) {
+    _pendingAuthorizations.remove(peerId);
   }
 
   Future<void> revoke(String peerId) async {
     await _pairingRepository.revoke(peerId);
     _sessions.invalidatePeer(peerId);
+    _pendingAuthorizations.remove(peerId);
   }
 
   Future<SyncServerProtocolResult> _challenge(
@@ -137,7 +162,7 @@ final class SyncServerProtocolCoordinator {
       clientNonce: request.clientNonce,
     );
     final valid = await _crypto.verifyHmac(
-      secret: utf8.encode(pending.code),
+      secret: utf8.encode(pending.code.toUpperCase()),
       message: transcript.canonicalBytes,
       proof: base64Decode(request.proof),
     );
@@ -146,7 +171,7 @@ final class SyncServerProtocolCoordinator {
       return _pairingRejected(request.requestId);
     }
     final secret = await _crypto.hkdf(
-      secret: utf8.encode(pending.code),
+      secret: utf8.encode(pending.code.toUpperCase()),
       salt: transcript.canonicalBytes,
       info: utf8.encode('oh-my-llm-sync-v2-pairing'),
     );
@@ -269,9 +294,22 @@ final class SyncServerProtocolCoordinator {
       return _failure(request.requestId, SyncProtocolErrorCode.pairingRequired);
     }
     if (!record.grantedCategories.containsAll(payload.categories)) {
+      _pendingAuthorizations[session.peerId] = SyncAuthorizationRequest(
+        peer: record.peer,
+        categories: payload.categories,
+        confirmedSensitive: payload.confirmedSensitive,
+        requestedAt: _clock.now(),
+      );
       return _failure(
         request.requestId,
         SyncProtocolErrorCode.authorizationRequired,
+      );
+    }
+    if (payload.categories.any((item) => item.isCredentialBearing) &&
+        !payload.confirmedSensitive) {
+      return _failure(
+        request.requestId,
+        SyncProtocolErrorCode.sensitiveConfirmationRequired,
       );
     }
     final export = _settingsFacade.exportSelected(

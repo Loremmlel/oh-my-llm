@@ -253,9 +253,17 @@ class SyncClientController extends Notifier<SyncClientState> {
       );
     } on SyncProtocolFailure catch (e) {
       if (!_isCurrent(generation)) return;
+      final pairingLost =
+          e.code == SyncProtocolErrorCode.pairingRequired ||
+          e.code == SyncProtocolErrorCode.pairingRejected;
+      if (pairingLost) {
+        await _protocolCoordinator.forgetPairing(server);
+        if (!_isCurrent(generation)) return;
+      }
       state = state.copyWith(
         phase: SyncPhase.error,
         errorMessage: e.userMessage,
+        isPaired: pairingLost ? false : null,
       );
     } on SyncTransportException catch (e) {
       if (!_isCurrent(generation)) return;

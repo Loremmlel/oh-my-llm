@@ -56,7 +56,7 @@ class _SyncOperationTabState extends ConsumerState<SyncOperationTab>
       }
     });
 
-    if (!_isConnectedOrError(clientState.phase)) {
+    if (clientState.server == null || !_isConnectedOrError(clientState.phase)) {
       return _buildNotConnectedView(context);
     }
 

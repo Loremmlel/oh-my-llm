@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/misc.dart';
 
 import '../../../core/persistence/shared_preferences_provider.dart';
 import '../domain/models/network_interface_info.dart';
+import '../domain/models/sync_pairing.dart';
 import 'broadcast_prefix_length_provider.dart';
 import 'network_interface_provider.dart';
 import 'ports/settings_sync_facade.dart';
@@ -31,6 +32,8 @@ class SyncServerState extends Equatable {
     this.servedRequestCount = 0,
     this.lastError,
     this.selectedInterface,
+    this.pairedPeers = const [],
+    this.pendingAuthorizations = const [],
   });
 
   final bool isRunning;
@@ -39,6 +42,8 @@ class SyncServerState extends Equatable {
   final int servedRequestCount;
   final String? lastError;
   final NetworkInterfaceInfo? selectedInterface;
+  final List<SyncPairingRecord> pairedPeers;
+  final List<SyncAuthorizationRequest> pendingAuthorizations;
 
   @override
   List<Object?> get props => [
@@ -48,6 +53,8 @@ class SyncServerState extends Equatable {
     servedRequestCount,
     lastError,
     (selectedInterface?.name, selectedInterface?.ip),
+    pairedPeers,
+    pendingAuthorizations,
   ];
 
   SyncServerState copyWith({
@@ -57,6 +64,8 @@ class SyncServerState extends Equatable {
     int? servedRequestCount,
     Object? lastError = _sentinel,
     Object? selectedInterface = _sentinel,
+    List<SyncPairingRecord>? pairedPeers,
+    List<SyncAuthorizationRequest>? pendingAuthorizations,
   }) {
     return SyncServerState(
       isRunning: isRunning ?? this.isRunning,
@@ -71,6 +80,9 @@ class SyncServerState extends Equatable {
       selectedInterface: identical(selectedInterface, _sentinel)
           ? this.selectedInterface
           : selectedInterface as NetworkInterfaceInfo?,
+      pairedPeers: pairedPeers ?? this.pairedPeers,
+      pendingAuthorizations:
+          pendingAuthorizations ?? this.pendingAuthorizations,
     );
   }
 }
@@ -198,6 +210,8 @@ class SyncServerController extends Notifier<SyncServerState> {
         httpPort: handle.httpPort,
         lastError: null,
         selectedInterface: selectedIface,
+        pairedPeers: await _protocolCoordinator.pairedPeers(),
+        pendingAuthorizations: _protocolCoordinator.pendingAuthorizations(),
       );
     } catch (e) {
       await _cleanup();
@@ -245,6 +259,7 @@ class SyncServerController extends Notifier<SyncServerState> {
         isRunning: false,
         httpPort: null,
         servedRequestCount: 0,
+        pendingAuthorizations: const [],
       );
     }
     keepAliveLink?.close();
@@ -289,21 +304,46 @@ class SyncServerController extends Notifier<SyncServerState> {
     String peerId,
     Set<SyncCategory> categories, {
     required bool confirmedSensitive,
-  }) => _protocolCoordinator.grant(
-    peerId: peerId,
-    categories: categories,
-    confirmedSensitive: confirmedSensitive,
-  );
+  }) async {
+    await _protocolCoordinator.grant(
+      peerId: peerId,
+      categories: categories,
+      confirmedSensitive: confirmedSensitive,
+    );
+    await _refreshSecurityState();
+  }
 
-  Future<void> revokePeer(String peerId) => _protocolCoordinator.revoke(peerId);
+  void denyAuthorization(String peerId) {
+    _protocolCoordinator.denyAuthorization(peerId);
+    state = state.copyWith(
+      pendingAuthorizations: _protocolCoordinator.pendingAuthorizations(),
+    );
+  }
+
+  Future<void> revokePeer(String peerId) async {
+    await _protocolCoordinator.revoke(peerId);
+    await _refreshSecurityState();
+  }
 
   Future<SyncProtocolMessage> _handleRequest(
     SyncProtocolMessage request,
   ) async {
     final result = await _protocolCoordinator.handle(request);
-    if (result.servedSnapshot && ref.mounted) {
-      state = state.copyWith(servedRequestCount: state.servedRequestCount + 1);
+    if (ref.mounted) {
+      await _refreshSecurityState(servedSnapshot: result.servedSnapshot);
     }
     return result.message;
+  }
+
+  Future<void> _refreshSecurityState({bool servedSnapshot = false}) async {
+    final peers = await _protocolCoordinator.pairedPeers();
+    if (!ref.mounted) return;
+    state = state.copyWith(
+      servedRequestCount: servedSnapshot
+          ? state.servedRequestCount + 1
+          : state.servedRequestCount,
+      pairedPeers: peers,
+      pendingAuthorizations: _protocolCoordinator.pendingAuthorizations(),
+    );
   }
 }

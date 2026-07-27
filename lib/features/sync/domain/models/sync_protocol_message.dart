@@ -229,16 +229,20 @@ sealed class EncryptedSyncPayload extends Equatable {
 }
 
 final class SettingsSyncRequestPayload extends EncryptedSyncPayload {
-  SettingsSyncRequestPayload(Set<SyncCategory> categories)
-    : categories = Set.unmodifiable(categories);
+  SettingsSyncRequestPayload(
+    Set<SyncCategory> categories, {
+    required this.confirmedSensitive,
+  }) : categories = Set.unmodifiable(categories);
 
   final Set<SyncCategory> categories;
+  final bool confirmedSensitive;
   @override
   String get kind => 'settingsSyncRequest';
 
   @override
   List<Object?> get props => [
     categories.map((item) => item.index).toList()..sort(),
+    confirmedSensitive,
   ];
 }
 
@@ -323,10 +327,15 @@ final class SyncProtocolCodec {
 
   static Map<String, Object?> payloadToJson(EncryptedSyncPayload payload) =>
       switch (payload) {
-        SettingsSyncRequestPayload(:final categories) => {
-          'kind': payload.kind,
-          'categories': categories.map((item) => item.payloadKey).toList(),
-        },
+        SettingsSyncRequestPayload(
+          :final categories,
+          :final confirmedSensitive,
+        ) =>
+          {
+            'kind': payload.kind,
+            'categories': categories.map((item) => item.payloadKey).toList(),
+            'confirmedSensitive': confirmedSensitive,
+          },
         SettingsSyncResponsePayload(:final snapshot) => {
           'kind': payload.kind,
           'snapshot': {
@@ -461,7 +470,14 @@ final class SyncProtocolCodec {
             throw const FormatException();
           }
         }
-        return SettingsSyncRequestPayload(categories);
+        final rawConfirmedSensitive = raw['confirmedSensitive'];
+        if (rawConfirmedSensitive != null && rawConfirmedSensitive is! bool) {
+          throw const FormatException();
+        }
+        return SettingsSyncRequestPayload(
+          categories,
+          confirmedSensitive: rawConfirmedSensitive as bool? ?? false,
+        );
       case 'settingsSyncResponse':
         final snapshot = raw['snapshot'];
         if (snapshot is! Map) throw const FormatException();
