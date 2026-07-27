@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/models/discovered_server.dart';
-import '../../domain/models/sync_message.dart';
+import '../../domain/models/sync_protocol_message.dart';
 
 /// Sync 客户端传输失败。
 ///
@@ -21,9 +21,9 @@ final class SyncTransportException implements Exception {
 abstract interface class SyncClientTransport {
   Stream<DiscoveredServer> discoverServers();
 
-  Future<SyncMessage> send({
+  Future<SyncProtocolMessage> send({
     required DiscoveredServer server,
-    required SyncMessage request,
+    required SyncProtocolMessage request,
   });
 }
 

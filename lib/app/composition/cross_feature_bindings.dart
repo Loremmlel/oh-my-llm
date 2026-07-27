@@ -21,22 +21,40 @@ import '../../features/media/data/media_video_http_handler.dart';
 import '../../features/settings/application/settings_sync_facade.dart';
 import '../../features/sync/application/ports/settings_sync_facade.dart';
 import '../../features/sync/application/ports/sync_client_transport.dart';
+import '../../features/sync/application/ports/sync_clock.dart';
+import '../../features/sync/application/ports/sync_crypto.dart';
 import '../../features/sync/application/ports/sync_media_route_factory.dart';
+import '../../features/sync/application/ports/sync_pairing_repository.dart';
 import '../../features/sync/application/ports/sync_server_transport.dart';
+import '../../features/sync/data/cryptography_sync_crypto.dart';
 import '../../features/sync/data/http_sync_client_transport.dart';
 import '../../features/sync/data/http_udp_sync_server_transport.dart';
+import '../../features/sync/data/secure_sync_pairing_repository.dart';
+import '../../core/persistence/shared_preferences_provider.dart';
 
 /// 组合跨 feature 的 concrete implementation。
 ///
 /// 此处是 Sync transport、Settings snapshot 及媒体服务路由唯一的生产绑定点；
 /// 外层可在该列表之后覆盖任一 port 以注入测试 fake。
-List<dynamic> appCompositionOverrides() {
+List<dynamic> appCompositionOverrides({
+  bool useInMemorySyncSecureStore = false,
+}) {
   return [
     syncClientTransportProvider.overrideWith(
       (ref) => HttpSyncClientTransport(ref.watch(peerHttpClientProvider)),
     ),
     syncServerTransportProvider.overrideWith(
       (ref) => HttpUdpSyncServerTransport(),
+    ),
+    syncClockProvider.overrideWith((ref) => const SystemSyncClock()),
+    syncCryptoProvider.overrideWith((ref) => CryptographySyncCrypto()),
+    syncPairingRepositoryProvider.overrideWith(
+      (ref) => SecureSyncPairingRepository(
+        preferences: ref.watch(sharedPreferencesProvider),
+        secureStore: useInMemorySyncSecureStore
+            ? InMemorySyncSecureStore()
+            : const FlutterSyncSecureStore(),
+      ),
     ),
     settingsSyncFacadeProvider.overrideWith(
       (ref) => RiverpodSettingsSyncFacade(ref),

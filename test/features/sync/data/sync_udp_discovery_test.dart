@@ -35,6 +35,7 @@ void main() {
       stopBroadcasting = await SyncUdpDiscovery.startBroadcasting(
         httpPort: 54321,
         deviceName: 'Test-PC',
+        serverId: 'test-server-id',
       );
 
       // 监听 5s 内应至少收到一次。
@@ -63,6 +64,7 @@ void main() {
       final stop = await SyncUdpDiscovery.startBroadcasting(
         httpPort: 12345,
         deviceName: 'Gone-PC',
+        serverId: 'gone-server-id',
       );
       await stop();
       stopBroadcasting = null; // 避免 tearDown 重复调用

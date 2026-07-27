@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,8 +15,7 @@ import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.da
 import 'package:oh_my_llm/features/sync/application/sync_server_controller.dart';
 import 'package:oh_my_llm/features/sync/application/network_interface_provider.dart';
 import 'package:oh_my_llm/features/sync/domain/models/network_interface_info.dart';
-import 'package:oh_my_llm/features/sync/domain/models/sync_message.dart';
-import 'package:oh_my_llm/features/sync/domain/models/sync_types.dart';
+import 'package:oh_my_llm/features/sync/domain/models/sync_protocol_message.dart';
 
 // ── 工厂函数 ────────────────────────────────────────────────────────────────
 
@@ -334,63 +332,24 @@ void main() {
       expect(state.deviceName, '设备B');
     });
 
-    test('POST 未知消息类型返回 error（code=1）', () async {
+    test('POST 旧协议请求返回 public unsupportedProtocol', () async {
       final container = buildContainer();
       final notifier = container.read(syncServerControllerProvider.notifier);
       await notifier.start();
       final port = container.read(syncServerControllerProvider).httpPort!;
 
-      final request = SyncMessage.request(type: 'unknown_type', payload: {});
       final response = await http.post(
         Uri.parse('http://127.0.0.1:$port/sync'),
         headers: {'Content-Type': 'application/json'},
-        body: SyncMessageCodec.encode(request),
+        body: '{"protocolVersion":1,"kind":"legacy","requestId":"request"}',
       );
 
-      final message = SyncMessageCodec.tryDecode(response.body)!;
-      expect(message.type, SyncMessageType.error);
-      expect(message.payload['code'], SyncErrorCode.unknownType);
+      final decoded = SyncProtocolCodec.decode(response.body);
+      expect(response.statusCode, HttpStatus.upgradeRequired);
+      expect(decoded, isA<SyncProtocolDecodeFailure>());
     });
 
-    test(
-      'POST settingsSyncRequest 返回 settingsSyncResponse 且 payload 含 providers',
-      () async {
-        final provider = _provider();
-        SharedPreferences.setMockInitialValues({
-          'settings.llm_model_configs': VersionedJsonStorage.encodeObjectList(
-            items: [provider],
-            toJson: (p) => p.toJson(),
-          ),
-        });
-        preferences = await SharedPreferences.getInstance();
-        final container = buildContainer();
-        final notifier = container.read(syncServerControllerProvider.notifier);
-        await notifier.start();
-        final port = container.read(syncServerControllerProvider).httpPort!;
-
-        final request = SyncMessage.request(
-          type: SyncMessageType.settingsSyncRequest,
-          payload: {
-            'categories': [SyncCategory.providers.payloadKey],
-          },
-        );
-        final response = await http.post(
-          Uri.parse('http://127.0.0.1:$port/sync'),
-          headers: {'Content-Type': 'application/json'},
-          body: SyncMessageCodec.encode(request),
-        );
-
-        final message = SyncMessageCodec.tryDecode(response.body)!;
-        expect(message.type, SyncMessageType.settingsSyncResponse);
-
-        final dataJson = message.payload['data'] as String;
-        final data = jsonDecode(dataJson) as Map<String, dynamic>;
-        final providers = data['modelProviders'] as List;
-        expect(providers, isNotEmpty);
-      },
-    );
-
-    test('POST settingsSyncRequest 后 servedRequestCount 递增', () async {
+    test('匿名 settings 请求不会暴露 provider API key', () async {
       final provider = _provider();
       SharedPreferences.setMockInitialValues({
         'settings.llm_model_configs': VersionedJsonStorage.encodeObjectList(
@@ -404,21 +363,57 @@ void main() {
       await notifier.start();
       final port = container.read(syncServerControllerProvider).httpPort!;
 
-      final request = SyncMessage.request(
-        type: SyncMessageType.settingsSyncRequest,
-        payload: {
-          'categories': [SyncCategory.providers.payloadKey],
-        },
+      final response = await http.post(
+        Uri.parse('http://127.0.0.1:$port/sync'),
+        headers: {'Content-Type': 'application/json'},
+        body: SyncProtocolCodec.encode(
+          const EncryptedSyncRequest(
+            requestId: 'request',
+            sessionId: 'missing',
+            sessionToken: 'dG9rZW4=',
+            issuedAtMs: 1,
+            nonce: 'MTIzNDU2Nzg5MDEy',
+            ciphertext: 'YQ==',
+          ),
+        ),
       );
+
+      expect(response.statusCode, HttpStatus.unauthorized);
+      expect(response.body, isNot(contains('sk-test-key')));
+    });
+
+    test('匿名 settings 请求不会增加 servedRequestCount', () async {
+      final provider = _provider();
+      SharedPreferences.setMockInitialValues({
+        'settings.llm_model_configs': VersionedJsonStorage.encodeObjectList(
+          items: [provider],
+          toJson: (p) => p.toJson(),
+        ),
+      });
+      preferences = await SharedPreferences.getInstance();
+      final container = buildContainer();
+      final notifier = container.read(syncServerControllerProvider.notifier);
+      await notifier.start();
+      final port = container.read(syncServerControllerProvider).httpPort!;
+
       await http.post(
         Uri.parse('http://127.0.0.1:$port/sync'),
         headers: {'Content-Type': 'application/json'},
-        body: SyncMessageCodec.encode(request),
+        body: SyncProtocolCodec.encode(
+          const EncryptedSyncRequest(
+            requestId: 'request',
+            sessionId: 'missing',
+            sessionToken: 'dG9rZW4=',
+            issuedAtMs: 1,
+            nonce: 'MTIzNDU2Nzg5MDEy',
+            ciphertext: 'YQ==',
+          ),
+        ),
       );
 
       expect(
         container.read(syncServerControllerProvider).servedRequestCount,
-        1,
+        0,
       );
     });
   });

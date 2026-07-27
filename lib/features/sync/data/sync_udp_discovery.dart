@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../domain/models/discovered_server.dart';
+import '../domain/models/sync_protocol_version.dart';
 
 export '../domain/models/discovered_server.dart';
 
@@ -42,7 +43,7 @@ class SyncUdpDiscovery {
 
   static const int discoveryPort = 47280;
   static const String _appId = 'oh-my-llm';
-  static const int _version = 1;
+  static const int _version = 2;
 
   /// 开始周期性 UDP 广播，返回停止函数。
   ///
@@ -50,6 +51,7 @@ class SyncUdpDiscovery {
   static Future<Future<void> Function()> startBroadcasting({
     required int httpPort,
     required String deviceName,
+    required String serverId,
     InternetAddress? broadcastAddress,
   }) async {
     await _acquireMulticastLock();
@@ -69,7 +71,10 @@ class SyncUdpDiscovery {
       jsonEncode({
         'app': _appId,
         'version': _version,
+        'minProtocolVersion': _version,
+        'maxProtocolVersion': _version,
         'deviceName': deviceName,
+        'serverId': serverId,
         'httpPort': httpPort,
       }),
     );
@@ -157,10 +162,33 @@ class SyncUdpDiscovery {
             if (json is! Map<String, dynamic>) return;
             if (json['app'] != _appId) return;
 
+            final version = json['version'];
+            final minimum = json['minProtocolVersion'];
+            final maximum = json['maxProtocolVersion'];
+            final port = json['httpPort'];
+            final serverId = json['serverId'];
+            final deviceName = json['deviceName'];
+            if (version != _version ||
+                minimum is! int ||
+                maximum is! int ||
+                port is! int ||
+                port < 1 ||
+                port > 65535 ||
+                serverId is! String ||
+                serverId.isEmpty ||
+                deviceName is! String ||
+                deviceName.trim().isEmpty) {
+              return;
+            }
             final server = DiscoveredServer(
-              deviceName: json['deviceName'] as String? ?? '未知设备',
+              deviceName: deviceName,
               ip: datagram.address.address,
-              httpPort: (json['httpPort'] as num).toInt(),
+              httpPort: port,
+              serverId: serverId,
+              protocolRange: SyncProtocolRange(
+                minimum: minimum,
+                maximum: maximum,
+              ),
             );
             controller.add(server);
             resetTimeout();

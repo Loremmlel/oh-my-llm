@@ -19,6 +19,7 @@ final class HttpUdpSyncServerTransport implements SyncServerTransport {
       _stopBroadcasting = await SyncUdpDiscovery.startBroadcasting(
         httpPort: httpPort,
         deviceName: request.deviceName,
+        serverId: request.serverId,
         broadcastAddress: request.broadcastAddress,
       );
       return SyncServerHandle(httpPort: httpPort);

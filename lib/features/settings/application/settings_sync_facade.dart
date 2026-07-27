@@ -8,6 +8,7 @@ import 'fixed_prompt_sequences_controller.dart';
 import 'font_size_settings_controller.dart';
 import 'llm_model_configs_controller.dart';
 import 'memory_prompts_controller.dart';
+import 'output_processing_settings_controller.dart';
 import 'preset_prompts_controller.dart';
 import 'settings_import_deduplicator.dart';
 import 'settings_import_executor.dart';
@@ -48,6 +49,9 @@ final class RiverpodSettingsSyncFacade implements SettingsSyncFacade {
       fontSizeSettings: selection.other
           ? _ref.read(fontSizeSettingsProvider)
           : null,
+      outputProcessingSettings: selection.other
+          ? _ref.read(outputProcessingSettingsProvider)
+          : null,
     );
   }
 
@@ -64,6 +68,9 @@ final class RiverpodSettingsSyncFacade implements SettingsSyncFacade {
       existingAutoRetrySettings: _ref.read(autoRetrySettingsProvider),
       existingCustomHeadersConfig: _ref.read(customHeadersProvider),
       existingFontSizeSettings: _ref.read(fontSizeSettingsProvider),
+      existingOutputProcessingSettings: _ref.read(
+        outputProcessingSettingsProvider,
+      ),
     );
   }
 

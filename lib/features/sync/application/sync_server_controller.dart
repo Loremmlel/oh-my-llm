@@ -7,13 +7,17 @@ import 'package:flutter_riverpod/misc.dart';
 
 import '../../../core/persistence/shared_preferences_provider.dart';
 import '../domain/models/network_interface_info.dart';
-import '../domain/models/sync_message.dart';
-import '../domain/models/sync_types.dart';
 import 'broadcast_prefix_length_provider.dart';
 import 'network_interface_provider.dart';
 import 'ports/settings_sync_facade.dart';
 import 'ports/sync_media_route_factory.dart';
 import 'ports/sync_server_transport.dart';
+import 'ports/sync_clock.dart';
+import 'ports/sync_crypto.dart';
+import 'ports/sync_pairing_repository.dart';
+import 'sync_server_protocol_coordinator.dart';
+import '../domain/models/sync_protocol_message.dart';
+import '../domain/models/sync_types.dart';
 
 const String _deviceNameKey = 'sync.device_name';
 
@@ -92,6 +96,7 @@ final isSyncServerRunningProvider = Provider<bool>(
 /// 的组装归 app composition 所有，不是 controller 全局资源。
 class SyncServerController extends Notifier<SyncServerState> {
   late final SyncServerTransport _transport;
+  late final SyncServerProtocolCoordinator _protocolCoordinator;
   Future<void>? _pendingRestart;
   Future<void>? _startInFlight;
   Future<void> _shutdownFuture = Future<void>.value();
@@ -105,6 +110,12 @@ class SyncServerController extends Notifier<SyncServerState> {
   @override
   SyncServerState build() {
     _transport = ref.read(syncServerTransportProvider);
+    _protocolCoordinator = SyncServerProtocolCoordinator(
+      pairingRepository: ref.read(syncPairingRepositoryProvider),
+      crypto: ref.read(syncCryptoProvider),
+      clock: ref.read(syncClockProvider),
+      settingsFacade: ref.read(settingsSyncFacadeProvider),
+    );
     final prefs = ref.watch(sharedPreferencesProvider);
     final savedName = prefs.getString(_deviceNameKey);
     final deviceName = savedName ?? Platform.localHostname;
@@ -165,6 +176,13 @@ class SyncServerController extends Notifier<SyncServerState> {
       final handle = await _transport.start(
         SyncServerStartRequest(
           deviceName: state.deviceName,
+          serverId:
+              (await ref
+                      .read(syncPairingRepositoryProvider)
+                      .ensureLocalIdentity(
+                        ref.read(syncCryptoProvider).randomBytes(16),
+                      ))
+                  .id,
           broadcastAddress: broadcastAddr,
           onRequest: _handleRequest,
           mediaRoutes: mediaRoutes,
@@ -235,6 +253,7 @@ class SyncServerController extends Notifier<SyncServerState> {
   bool _isCurrent(int generation) => ref.mounted && generation == _generation;
 
   Future<void> _cleanup() async {
+    _protocolCoordinator.invalidateAllSessions();
     await _transport.stop();
   }
 
@@ -260,43 +279,31 @@ class SyncServerController extends Notifier<SyncServerState> {
     }
   }
 
-  Future<SyncMessage> _handleRequest(SyncMessage request) async {
-    switch (request.type) {
-      case SyncMessageType.settingsSyncRequest:
-        return _handleSettingsSyncRequest(request);
-      default:
-        return SyncMessage.error(
-          requestId: request.requestId,
-          code: SyncErrorCode.unknownType,
-          message: '不支持的消息类型: ${request.type}',
-        );
-    }
+  /// 配对码仅返回给本地 UI；不写入 state、持久化或日志。
+  Future<String?> generatePairingCode() async {
+    if (!state.isRunning) return null;
+    return _protocolCoordinator.generatePairingCode();
   }
 
-  Future<SyncMessage> _handleSettingsSyncRequest(SyncMessage request) async {
-    final categories =
-        (request.payload['categories'] as List<dynamic>?)?.cast<String>() ??
-        const [];
-    final categorySet = categories.toSet();
+  Future<void> grantPeer(
+    String peerId,
+    Set<SyncCategory> categories, {
+    required bool confirmedSensitive,
+  }) => _protocolCoordinator.grant(
+    peerId: peerId,
+    categories: categories,
+    confirmedSensitive: confirmedSensitive,
+  );
 
-    final exportData = ref
-        .read(settingsSyncFacadeProvider)
-        .exportSelected(
-          SettingsSyncSelection(
-            providers: categorySet.contains(SyncCategory.providers.payloadKey),
-            presets: categorySet.contains(SyncCategory.presets.payloadKey),
-            prompts: categorySet.contains(SyncCategory.prompts.payloadKey),
-            other: categorySet.contains(SyncCategory.other.payloadKey),
-          ),
-        );
-    final json = exportData.toJsonString();
+  Future<void> revokePeer(String peerId) => _protocolCoordinator.revoke(peerId);
 
-    state = state.copyWith(servedRequestCount: state.servedRequestCount + 1);
-
-    return SyncMessage.response(
-      type: SyncMessageType.settingsSyncResponse,
-      requestId: request.requestId,
-      payload: {'data': json},
-    );
+  Future<SyncProtocolMessage> _handleRequest(
+    SyncProtocolMessage request,
+  ) async {
+    final result = await _protocolCoordinator.handle(request);
+    if (result.servedSnapshot && ref.mounted) {
+      state = state.copyWith(servedRequestCount: state.servedRequestCount + 1);
+    }
+    return result.message;
   }
 }

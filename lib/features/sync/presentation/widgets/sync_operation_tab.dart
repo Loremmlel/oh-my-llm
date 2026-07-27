@@ -117,7 +117,7 @@ class _SyncOperationTabState extends ConsumerState<SyncOperationTab>
 
     return SettingsSectionCard(
       title: '连接状态',
-      description: '当前与服务端的连接信息',
+      description: state.isPaired ? '已配对的安全同步连接' : '发现服务端不代表已授权读取配置',
       child: Row(
         children: [
           if (state.phase == SyncPhase.syncing) ...[
@@ -145,7 +145,7 @@ class _SyncOperationTabState extends ConsumerState<SyncOperationTab>
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                '已连接：${state.sourceDeviceName ?? '未知设备'}',
+                '${state.isPaired ? '已配对' : '尚未配对'}：${state.sourceDeviceName ?? '未知设备'}',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   fontWeight: FontWeight.w600,
                 ),
@@ -213,7 +213,11 @@ class _SyncOperationTabState extends ConsumerState<SyncOperationTab>
           const SizedBox(height: 8),
           ...SyncCategory.values.map((category) {
             return CheckboxListTile(
-              title: Text(category.label),
+              title: Text(
+                category.isCredentialBearing
+                    ? '${category.label}（含敏感凭据）'
+                    : category.label,
+              ),
               value: state.selectedCategories.contains(category),
               onChanged: (_) => notifier.toggleCategory(category),
               dense: true,
@@ -231,14 +235,48 @@ class _SyncOperationTabState extends ConsumerState<SyncOperationTab>
     SyncClientState state,
   ) {
     final isSyncing = state.phase == SyncPhase.syncing;
+    final needsSensitiveConfirmation = state.selectedCategories.any(
+      (category) => category.isCredentialBearing,
+    );
 
     return SizedBox(
       width: double.infinity,
       child: FilledButton.icon(
-        onPressed: isSyncing || state.selectedCategories.isEmpty
+        onPressed:
+            isSyncing || state.selectedCategories.isEmpty || !state.isPaired
             ? null
-            : () =>
-                  ref.read(syncClientControllerProvider.notifier).requestSync(),
+            : () async {
+                if (needsSensitiveConfirmation &&
+                    !state.sensitiveRequestConfirmed) {
+                  final confirmed = await showDialog<bool>(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (context) => AlertDialog(
+                      title: const Text('确认接收敏感凭据'),
+                      content: const Text(
+                        '服务商 API Key 或自定义请求头可能包含 token。仅在确认了解风险后继续。',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: const Text('取消'),
+                        ),
+                        FilledButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          child: const Text('确认接收'),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (confirmed != true || !context.mounted) return;
+                  ref
+                      .read(syncClientControllerProvider.notifier)
+                      .confirmSensitiveRequest();
+                }
+                await ref
+                    .read(syncClientControllerProvider.notifier)
+                    .requestSync();
+              },
         icon: const Icon(Icons.sync_rounded),
         label: Text(isSyncing ? '同步中...' : '开始同步'),
       ),

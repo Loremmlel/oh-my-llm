@@ -3,20 +3,23 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/http/http_route_handler.dart';
-import '../../domain/models/sync_message.dart';
+import '../../domain/models/sync_protocol_message.dart';
 
 /// 启动 Sync 服务端所需的运行期参数。
 final class SyncServerStartRequest {
   const SyncServerStartRequest({
     required this.deviceName,
+    required this.serverId,
     required this.broadcastAddress,
     required this.onRequest,
     required this.mediaRoutes,
   });
 
   final String deviceName;
+  final String serverId;
   final InternetAddress? broadcastAddress;
-  final Future<SyncMessage> Function(SyncMessage request) onRequest;
+  final Future<SyncProtocolMessage> Function(SyncProtocolMessage request)
+  onRequest;
   final List<HttpRouteHandler> mediaRoutes;
 }
 

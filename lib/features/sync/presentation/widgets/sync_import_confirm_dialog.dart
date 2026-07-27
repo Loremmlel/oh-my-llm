@@ -26,11 +26,15 @@ class SyncImportConfirmDialog extends ConsumerStatefulWidget {
 class _SyncImportConfirmDialogState
     extends ConsumerState<SyncImportConfirmDialog> {
   bool _isImporting = false;
+  bool _sensitiveAcknowledged = false;
   String? _errorMessage;
 
   @override
   Widget build(BuildContext context) {
     final data = widget.exportData;
+    final hasSensitiveData =
+        data.modelProviders.isNotEmpty ||
+        (data.customHeadersConfig?.headers.isNotEmpty ?? false);
 
     return AlertDialog(
       title: const Text('确认同步配置'),
@@ -43,6 +47,37 @@ class _SyncImportConfirmDialogState
             const SizedBox(height: 12),
           ],
           const Text('即将覆盖本机以下配置：'),
+          if (hasSensitiveData) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.errorContainer,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('包含敏感凭据'),
+                  const SizedBox(height: 4),
+                  const Text('服务商 API Key 或自定义请求头可能包含 token。'),
+                  Row(
+                    children: [
+                      Checkbox(
+                        value: _sensitiveAcknowledged,
+                        onChanged: _isImporting
+                            ? null
+                            : (value) => setState(
+                                () => _sensitiveAcknowledged = value ?? false,
+                              ),
+                      ),
+                      const Expanded(child: Text('我确认导入这些敏感内容')),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           if (data.modelProviders.isNotEmpty)
             _buildCountRow(
@@ -125,7 +160,10 @@ class _SyncImportConfirmDialogState
           child: const Text('取消'),
         ),
         FilledButton(
-          onPressed: _isImporting ? null : _handleImport,
+          onPressed:
+              _isImporting || (hasSensitiveData && !_sensitiveAcknowledged)
+              ? null
+              : _handleImport,
           child: Text(_isImporting ? '导入中...' : '导入'),
         ),
       ],
