@@ -339,6 +339,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
       case SettingsImportPreparationKind.invalidClipboard:
         if (mounted) showSettingsSnackbar(context, '剪贴板中没有可识别的配置数据');
         return;
+      case SettingsImportPreparationKind.unsupportedVersion:
+        if (mounted) showSettingsSnackbar(context, '剪贴板配置版本不受支持，请更新应用后重试');
+        return;
       case SettingsImportPreparationKind.tabMismatch:
         if (mounted) {
           showSettingsSnackbar(context, '剪贴板数据与$_currentTabLabel不匹配，请切换到对应标签');
