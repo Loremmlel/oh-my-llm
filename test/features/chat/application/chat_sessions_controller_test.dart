@@ -1860,6 +1860,63 @@ void main() {
     expect(state.activeConversation.messages.last.content, '部分内容');
   });
 
+  // ── dispose characterization ────────────────────────────────────────────
+  //
+  // 当前 dispose（ref.onDispose 仅 cancel subscription）的安全部分：流式进行中
+  // dispose 后，迟到事件被订阅取消静默丢弃，不产生未处理异常。
+  // 已知限制：dispose 不 complete completer、不取消 Future.delayed 等待窗口，
+  // 由 Task 5 的 coordinator.dispose() 补全；此处仅冻结当前安全契约。
+
+  test('dispose 在流式进行时取消订阅且迟到事件无未处理异常', () async {
+    // 独立 container：测试需主动 dispose 触发 controller onDispose，
+    // 避免与 setUp tearDown 的 container.dispose() 冲突。
+    final disposeContainer = ProviderContainer(
+      overrides: [
+        appDatabaseProvider.overrideWithValue(database),
+        sharedPreferencesProvider.overrideWithValue(preferences),
+        chatCompletionClientProvider.overrideWithValue(fakeClient),
+      ],
+    );
+    var disposed = false;
+    addTearDown(() {
+      if (!disposed) disposeContainer.dispose();
+    });
+
+    final streamController = StreamController<ChatCompletionChunk>();
+    addTearDown(streamController.close);
+    fakeClient.enqueueStream(streamController.stream);
+
+    final unexpected = <Object>[];
+    await runZonedGuarded(() async {
+      // 不 await：dispose 使 completer 永不完成，sendFuture 会挂起，
+      // 属当前已知限制，不阻塞本测试断言。
+      unawaited(
+        disposeContainer
+            .read(chatSessionsProvider.notifier)
+            .sendMessage(
+              content: '测试 dispose',
+              modelConfig: _testModel,
+              presetPrompt: null,
+              reasoningEnabled: false,
+              reasoningEffort: ReasoningEffort.medium,
+            ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+      streamController.add(const ChatCompletionChunk(contentDelta: '部分'));
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+
+      disposeContainer.dispose();
+      disposed = true;
+
+      // 订阅取消后迟到事件应静默丢弃，不触发回调、无未处理异常。
+      streamController.add(const ChatCompletionChunk(contentDelta: '迟到'));
+      await streamController.close();
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }, (error, stack) => unexpected.add(error));
+
+    expect(unexpected, isEmpty);
+  });
+
   group('selectConversationAndNavigateToMessage', () {
     test('messageId 为 null 时退化为普通 selectConversation', () {
       final controller = container.read(chatSessionsProvider.notifier);
