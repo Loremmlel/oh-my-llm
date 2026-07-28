@@ -47,7 +47,10 @@ class ChatGenerationCoordinator {
       observer: observer,
       dispatch: (event) {
         // dispose 后不再向 observer 投递，避免写入已销毁的 state。
-        // 闭包捕获各自 handle 的 observer，避免 supersede 后投递到新 handle。
+        // supersede 后旧 handle 的终态事件（Cancelled）仍需投递，让 observer
+        // 得知旧 generation 结束；是否作用于当前状态由 observer 按 generationId
+        // 自行判定（见 ChatSessionsController.onGenerationEvent）。旧 attempt 的
+        // chunk/complete 由 _GenerationHandle 的 token guard（isActive）拦截，不 dispatch。
         if (_disposed) return;
         observer.onGenerationEvent(event);
       },
@@ -71,6 +74,9 @@ class ChatGenerationCoordinator {
     if (handle == null || !handle.isActive) return;
     handle.cancel(ChatCancelReason.userStop);
   }
+
+  /// 当前是否有活跃的 generation。
+  bool get hasActive => _activeHandle?.isActive ?? false;
 
   /// controller dispose 时调用：取消等待器与订阅，之后任何迟到事件均被忽略。
   void dispose() {
