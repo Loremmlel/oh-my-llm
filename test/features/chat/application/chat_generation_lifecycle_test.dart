@@ -382,8 +382,25 @@ void main() {
           contentDelta: 'x',
           reasoningDelta: '',
         ),
-        ChatGenerationAttemptCompleted(generationId: 7, attempt: 1),
-        ChatGenerationAttemptFailed(generationId: 7, attempt: 1, error: 'err'),
+        ChatGenerationAttemptCompleted(
+          generationId: 7,
+          attempt: 1,
+          outcome: ChatGenerationSuccess(
+            generationId: 7,
+            attempt: 1,
+            content: '',
+            reasoningContent: '',
+          ),
+        ),
+        ChatGenerationAttemptFailed(
+          generationId: 7,
+          attempt: 1,
+          outcome: ChatGenerationFailure(
+            generationId: 7,
+            attempt: 1,
+            error: 'err',
+          ),
+        ),
         ChatGenerationRetryScheduled(
           generationId: 7,
           nextAttempt: 2,

@@ -359,26 +359,32 @@ class ChatGenerationChunk extends ChatGenerationEvent {
   final String? finishReason;
 }
 
-/// 一次 attempt 完成（无论成功/失败/空回复），可用于更新 attempt 计数。
+/// 一次 attempt 正常完成（成功或空回复），携带终态结果供 observer 投影。
 class ChatGenerationAttemptCompleted extends ChatGenerationEvent {
   const ChatGenerationAttemptCompleted({
     required super.generationId,
     required this.attempt,
+    required this.outcome,
   });
 
   final int attempt;
+
+  /// 终态结果（[ChatGenerationSuccess] 或 [ChatGenerationEmptyReply]）。
+  final ChatGenerationOutcome outcome;
 }
 
-/// 一次 attempt 失败，即将进入 retry 等待或终态失败。
+/// 一次 attempt 失败（流错误），携带失败结果供 observer 投影。
 class ChatGenerationAttemptFailed extends ChatGenerationEvent {
   const ChatGenerationAttemptFailed({
     required super.generationId,
     required this.attempt,
-    required this.error,
+    required this.outcome,
   });
 
   final int attempt;
-  final Object error;
+
+  /// 失败结果，含原始异常供 controller 既有 formatter 使用。
+  final ChatGenerationFailure outcome;
 }
 
 /// 已调度下一次 retry，进入等待窗口。
