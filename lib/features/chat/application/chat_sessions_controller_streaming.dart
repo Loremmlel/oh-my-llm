@@ -261,182 +261,15 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
       latestStreamingReply = streamingReply;
       replaceStreamingReplyInMemory(streamingReply);
 
-      // 空回复：移除空白占位节点，走失败路径触发重试
-      if (_isEmptyStreamingReply(streamingReply: streamingReply)) {
-        final cleanedTree = resolveMessageTreeState(streamingConversation);
-        final nextTree = replaceAssistantMessageInTree(
-          treeState: cleanedTree,
-          assistantMessageId: assistantMessage.id,
-          nextContent: '',
-          nextReasoningContent: '',
-          isStreaming: false,
-          finishReason: streamingReply.finishReason,
-        );
-        // 以当前活动会话为基底合并，保留用户在流式期间改动的配置。
-        final cleanedConversation = mergeStreamingResultIntoActive(
-          streamingConversation: streamingConversation,
-          messageNodes: nextTree.nodes,
-          selectedChildByParentId: nextTree.selections,
-        );
-        state = state.copyWith(
-          conversations: replaceConversation(cleanedConversation),
-          conversationSummaries: replaceOrAddSummary(
-            state.conversationSummaries,
-            summaryFromConversation(cleanedConversation),
-          ),
-          isStreaming: false,
-          emptyReplyAssistantId: assistantMessage.id,
-          errorMessage: ChatErrorMessages.emptyReply,
-          errorMessageAssistantId: assistantMessage.id,
-          clearStreamingReply: true,
-          incrementHistoryRevision: true,
-        );
-        saveConversation(cleanedConversation);
-        completeActiveStreaming(null);
-        clearActiveStreamingSession();
-        return;
-      }
-
-      // 异常 finish_reason：如果启用且 finish_reason 不是正常值，走失败路径触发重试。
-      // 但先检查输出规则是否清空了正文：重试仍会被同一规则清空，形成死循环，
-      // 此时走输出规则清空路径（不重试）优先级更高。
-      if (retryOnAbnormalFinishReason &&
-          isAbnormalFinishReason(streamingReply.finishReason)) {
-        final processedContent = applyOutputProcessing(streamingReply.content);
-        if (processedContent.trim().isEmpty &&
-            streamingReply.content.trim().isNotEmpty) {
-          // 输出规则清空了正文 → 不走重试路径，提示用户检查输出处理规则。
-          final cleanedTree = resolveMessageTreeState(streamingConversation);
-          final nextTree = replaceAssistantMessageInTree(
-            treeState: cleanedTree,
-            assistantMessageId: assistantMessage.id,
-            nextContent: '',
-            nextReasoningContent: streamingReply.reasoningContent,
-            isStreaming: false,
-            finishReason: streamingReply.finishReason,
-          );
-          final cleanedConversation = mergeStreamingResultIntoActive(
-            streamingConversation: streamingConversation,
-            messageNodes: nextTree.nodes,
-            selectedChildByParentId: nextTree.selections,
-          );
-          state = state.copyWith(
-            conversations: replaceConversation(cleanedConversation),
-            conversationSummaries: replaceOrAddSummary(
-              state.conversationSummaries,
-              summaryFromConversation(cleanedConversation),
-            ),
-            isStreaming: false,
-            errorMessage: ChatErrorMessages.outputRuleEmptied,
-            errorMessageAssistantId: assistantMessage.id,
-            clearStreamingReply: true,
-            incrementHistoryRevision: true,
-          );
-          saveConversation(cleanedConversation);
-          // 返回非 null 值，阻止自动重试循环继续（重试仍会被同一规则清空）。
-          completeActiveStreaming(cleanedConversation);
-          clearActiveStreamingSession();
-          return;
-        }
-
-        final abnormalTree = resolveMessageTreeState(streamingConversation);
-        final nextTree = replaceAssistantMessageInTree(
-          treeState: abnormalTree,
-          assistantMessageId: assistantMessage.id,
-          nextContent: processedContent,
-          nextReasoningContent: streamingReply.reasoningContent,
-          isStreaming: false,
-          finishReason: streamingReply.finishReason,
-        );
-        final abnormalConversation = mergeStreamingResultIntoActive(
-          streamingConversation: streamingConversation,
-          messageNodes: nextTree.nodes,
-          selectedChildByParentId: nextTree.selections,
-        );
-        state = state.copyWith(
-          conversations: replaceConversation(abnormalConversation),
-          conversationSummaries: replaceOrAddSummary(
-            state.conversationSummaries,
-            summaryFromConversation(abnormalConversation),
-          ),
-          isStreaming: false,
-          errorMessage:
-              '模型返回异常停止原因（finish_reason: ${streamingReply.finishReason}），正在自动重试...',
-          errorMessageAssistantId: assistantMessage.id,
-          clearStreamingReply: true,
-          incrementHistoryRevision: true,
-        );
-        saveConversation(abnormalConversation);
-        completeActiveStreaming(null);
-        clearActiveStreamingSession();
-        return;
-      }
-
-      // 落盘前对正文应用输出正则规则；推理内容保持原样。
-      final processedContent = applyOutputProcessing(streamingReply.content);
-      // 规则把原本非空的正文清空 → 提示用户检查输出处理规则，并保留占位节点。
-      // 不走 emptyReply 自动重试路径：重试仍会被同一规则清空，形成死循环。
-      if (processedContent.trim().isEmpty &&
-          streamingReply.content.trim().isNotEmpty) {
-        final cleanedTree = resolveMessageTreeState(streamingConversation);
-        final nextTree = replaceAssistantMessageInTree(
-          treeState: cleanedTree,
-          assistantMessageId: assistantMessage.id,
-          nextContent: '',
-          nextReasoningContent: streamingReply.reasoningContent,
-          isStreaming: false,
-          finishReason: streamingReply.finishReason,
-        );
-        final cleanedConversation = mergeStreamingResultIntoActive(
-          streamingConversation: streamingConversation,
-          messageNodes: nextTree.nodes,
-          selectedChildByParentId: nextTree.selections,
-        );
-        state = state.copyWith(
-          conversations: replaceConversation(cleanedConversation),
-          conversationSummaries: replaceOrAddSummary(
-            state.conversationSummaries,
-            summaryFromConversation(cleanedConversation),
-          ),
-          isStreaming: false,
-          errorMessage: ChatErrorMessages.outputRuleEmptied,
-          errorMessageAssistantId: assistantMessage.id,
-          clearStreamingReply: true,
-          incrementHistoryRevision: true,
-        );
-        saveConversation(cleanedConversation);
-        // 返回非 null 值，阻止自动重试循环继续（重试仍会被同一规则清空）。
-        completeActiveStreaming(cleanedConversation);
-        clearActiveStreamingSession();
-        return;
-      }
-
-      streamingReply = streamingReply.copyWith(content: processedContent);
-      final streamingTree = applyStreamingReplyToConversation(
-        conversation: streamingConversation,
-        streamingReply: streamingReply,
-        isStreaming: false,
-      );
-      // 以当前活动会话为基底合并，保留用户在流式期间改动的模型/预设等配置。
-      final completedConversation = mergeStreamingResultIntoActive(
+      await finishGenerationSuccess(
         streamingConversation: streamingConversation,
-        messageNodes: streamingTree.messageNodes,
-        selectedChildByParentId: streamingTree.selectedChildByParentId,
+        assistantMessage: assistantMessage,
+        streamingReply: streamingReply,
+        completer: completer,
+        retryOnAbnormalFinishReason: retryOnAbnormalFinishReason,
       );
-
-      state = state.copyWith(
-        conversations: replaceConversation(completedConversation),
-        conversationSummaries: replaceOrAddSummary(
-          state.conversationSummaries,
-          summaryFromConversation(completedConversation),
-        ),
-        isStreaming: false,
-        clearStreamingReply: true,
-        incrementHistoryRevision: true,
-      );
-      saveConversation(completedConversation);
-      completeActiveStreaming(completedConversation);
-      clearActiveStreamingSession();
+      // 旧路径的清理由各分支内部调用 completeActiveStreaming + clearActiveStreamingSession
+      // 完成，finishGenerationSuccess 内部已处理。
     }
 
     Future<void> completeWithError(Object error, StackTrace stackTrace) async {
@@ -462,12 +295,12 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
       completeActiveStreaming(null);
       clearActiveStreamingSession();
 
-      final errorMessage = formatStreamingError(error, stackTrace);
-      await handleStreamingFailure(
-        conversation: streamingConversation,
+      await finishGenerationError(
+        streamingConversation: streamingConversation,
         streamingReply: streamingReply,
-        assistantMessageId: assistantMessage.id,
-        errorMessage: errorMessage,
+        assistantMessage: assistantMessage,
+        error: error,
+        stackTrace: stackTrace,
       );
     }
 
@@ -563,14 +396,6 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
       messageNodes: nextTree.nodes,
       selectedChildByParentId: nextTree.selections,
     );
-  }
-
-  /// 检查流式回复是否为空（无正文内容且无推理内容）。
-  static bool _isEmptyStreamingReply({
-    required ChatStreamingReply streamingReply,
-  }) {
-    return streamingReply.content.trim().isEmpty &&
-        streamingReply.reasoningContent.trim().isEmpty;
   }
 
   /// 对模型正文应用用户配置的输出正则规则（过滤/替换）。
@@ -759,6 +584,222 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
       final jitterMs = maxJitterMs > 0 ? Random().nextInt(maxJitterMs) : 0;
       await Future.delayed(Duration(milliseconds: msToNextMinute + jitterMs));
     }
+  }
+
+  /// 处理流式回复成功完成的决策逻辑（5 分支）。
+  ///
+  /// 包含 5 个分支：
+  /// 1. 空回复
+  /// 2. 异常 finish + 输出规则清空
+  /// 3. 异常 finish + 未清空
+  /// 4. 正常 + 输出规则清空
+  /// 5. 正常完成
+  ///
+  /// [skipEmptyCheck] 为 true 时跳过分支 1，适用于 coordinator 已独立处理
+  /// emptyReply 的场景。
+  Future<void> finishGenerationSuccess({
+    required ChatConversation streamingConversation,
+    required ChatMessage assistantMessage,
+    required ChatStreamingReply streamingReply,
+    required Completer<ChatConversation?> completer,
+    required bool retryOnAbnormalFinishReason,
+    bool skipEmptyCheck = false,
+  }) async {
+    // 分支 1：空回复
+    if (!skipEmptyCheck &&
+        streamingReply.content.trim().isEmpty &&
+        streamingReply.reasoningContent.trim().isEmpty) {
+      final cleanedTree = resolveMessageTreeState(streamingConversation);
+      final nextTree = replaceAssistantMessageInTree(
+        treeState: cleanedTree,
+        assistantMessageId: assistantMessage.id,
+        nextContent: '',
+        nextReasoningContent: '',
+        isStreaming: false,
+        finishReason: streamingReply.finishReason,
+      );
+      final cleanedConversation = mergeStreamingResultIntoActive(
+        streamingConversation: streamingConversation,
+        messageNodes: nextTree.nodes,
+        selectedChildByParentId: nextTree.selections,
+      );
+      state = state.copyWith(
+        conversations: replaceConversation(cleanedConversation),
+        conversationSummaries: replaceOrAddSummary(
+          state.conversationSummaries,
+          summaryFromConversation(cleanedConversation),
+        ),
+        isStreaming: false,
+        emptyReplyAssistantId: assistantMessage.id,
+        errorMessage: ChatErrorMessages.emptyReply,
+        errorMessageAssistantId: assistantMessage.id,
+        clearStreamingReply: true,
+        incrementHistoryRevision: true,
+      );
+      saveConversation(cleanedConversation);
+      completeActiveStreaming(null);
+      clearActiveStreamingSession();
+      return;
+    }
+
+    // 分支 2/3：异常 finish_reason
+    if (retryOnAbnormalFinishReason &&
+        isAbnormalFinishReason(streamingReply.finishReason)) {
+      final processedContent = applyOutputProcessing(streamingReply.content);
+      if (processedContent.trim().isEmpty &&
+          streamingReply.content.trim().isNotEmpty) {
+        // 分支 2：输出规则清空了正文，不走重试路径。
+        final cleanedTree = resolveMessageTreeState(streamingConversation);
+        final nextTree = replaceAssistantMessageInTree(
+          treeState: cleanedTree,
+          assistantMessageId: assistantMessage.id,
+          nextContent: '',
+          nextReasoningContent: streamingReply.reasoningContent,
+          isStreaming: false,
+          finishReason: streamingReply.finishReason,
+        );
+        final cleanedConversation = mergeStreamingResultIntoActive(
+          streamingConversation: streamingConversation,
+          messageNodes: nextTree.nodes,
+          selectedChildByParentId: nextTree.selections,
+        );
+        state = state.copyWith(
+          conversations: replaceConversation(cleanedConversation),
+          conversationSummaries: replaceOrAddSummary(
+            state.conversationSummaries,
+            summaryFromConversation(cleanedConversation),
+          ),
+          isStreaming: false,
+          errorMessage: ChatErrorMessages.outputRuleEmptied,
+          errorMessageAssistantId: assistantMessage.id,
+          clearStreamingReply: true,
+          incrementHistoryRevision: true,
+        );
+        saveConversation(cleanedConversation);
+        completeActiveStreaming(cleanedConversation);
+        clearActiveStreamingSession();
+        return;
+      }
+
+      // 分支 3：异常 finish 未清空，complete(null) 触发 retry。
+      final abnormalTree = resolveMessageTreeState(streamingConversation);
+      final nextTree = replaceAssistantMessageInTree(
+        treeState: abnormalTree,
+        assistantMessageId: assistantMessage.id,
+        nextContent: processedContent,
+        nextReasoningContent: streamingReply.reasoningContent,
+        isStreaming: false,
+        finishReason: streamingReply.finishReason,
+      );
+      final abnormalConversation = mergeStreamingResultIntoActive(
+        streamingConversation: streamingConversation,
+        messageNodes: nextTree.nodes,
+        selectedChildByParentId: nextTree.selections,
+      );
+      state = state.copyWith(
+        conversations: replaceConversation(abnormalConversation),
+        conversationSummaries: replaceOrAddSummary(
+          state.conversationSummaries,
+          summaryFromConversation(abnormalConversation),
+        ),
+        isStreaming: false,
+        errorMessage:
+            '模型返回异常停止原因（finish_reason: ${streamingReply.finishReason}），正在自动重试...',
+        errorMessageAssistantId: assistantMessage.id,
+        clearStreamingReply: true,
+        incrementHistoryRevision: true,
+      );
+      saveConversation(abnormalConversation);
+      completeActiveStreaming(null);
+      clearActiveStreamingSession();
+      return;
+    }
+
+    // 分支 4：正常 + 输出规则清空
+    final processedContent = applyOutputProcessing(streamingReply.content);
+    if (processedContent.trim().isEmpty &&
+        streamingReply.content.trim().isNotEmpty) {
+      final cleanedTree = resolveMessageTreeState(streamingConversation);
+      final nextTree = replaceAssistantMessageInTree(
+        treeState: cleanedTree,
+        assistantMessageId: assistantMessage.id,
+        nextContent: '',
+        nextReasoningContent: streamingReply.reasoningContent,
+        isStreaming: false,
+        finishReason: streamingReply.finishReason,
+      );
+      final cleanedConversation = mergeStreamingResultIntoActive(
+        streamingConversation: streamingConversation,
+        messageNodes: nextTree.nodes,
+        selectedChildByParentId: nextTree.selections,
+      );
+      state = state.copyWith(
+        conversations: replaceConversation(cleanedConversation),
+        conversationSummaries: replaceOrAddSummary(
+          state.conversationSummaries,
+          summaryFromConversation(cleanedConversation),
+        ),
+        isStreaming: false,
+        errorMessage: ChatErrorMessages.outputRuleEmptied,
+        errorMessageAssistantId: assistantMessage.id,
+        clearStreamingReply: true,
+        incrementHistoryRevision: true,
+      );
+      saveConversation(cleanedConversation);
+      completeActiveStreaming(cleanedConversation);
+      clearActiveStreamingSession();
+      return;
+    }
+
+    // 分支 5：正常完成
+    final streamingContent = streamingReply.copyWith(content: processedContent);
+    final streamingTree = applyStreamingReplyToConversation(
+      conversation: streamingConversation,
+      streamingReply: streamingContent,
+      isStreaming: false,
+    );
+    final completedConversation = mergeStreamingResultIntoActive(
+      streamingConversation: streamingConversation,
+      messageNodes: streamingTree.messageNodes,
+      selectedChildByParentId: streamingTree.selectedChildByParentId,
+    );
+    state = state.copyWith(
+      conversations: replaceConversation(completedConversation),
+      conversationSummaries: replaceOrAddSummary(
+        state.conversationSummaries,
+        summaryFromConversation(completedConversation),
+      ),
+      isStreaming: false,
+      clearStreamingReply: true,
+      incrementHistoryRevision: true,
+    );
+    saveConversation(completedConversation);
+    completeActiveStreaming(completedConversation);
+    clearActiveStreamingSession();
+  }
+
+  /// 处理流式回复失败：格式化错误 + handleStreamingFailure。
+  ///
+  /// caller 负责在调用前先 complete completer 并清理会话字段。
+  Future<void> finishGenerationError({
+    required ChatConversation streamingConversation,
+    required ChatStreamingReply? streamingReply,
+    required ChatMessage assistantMessage,
+    required Object error,
+    required StackTrace stackTrace,
+  }) async {
+    final errorMessage = formatStreamingError(error, stackTrace);
+    await handleStreamingFailure(
+      conversation: streamingConversation,
+      streamingReply:
+          streamingReply ??
+          ChatStreamingReply(
+            conversationId: streamingConversation.id,
+            assistantMessageId: assistantMessage.id,
+          ),
+      assistantMessageId: assistantMessage.id,
+      errorMessage: errorMessage,
+    );
   }
 
   /// 保留原始异常并附加堆栈，方便开发者直接定位问题。
