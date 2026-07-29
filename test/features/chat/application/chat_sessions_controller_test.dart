@@ -29,7 +29,7 @@ import 'package:oh_my_llm/features/settings/domain/models/auto_retry_settings.da
 import 'package:oh_my_llm/features/settings/application/output_processing_settings_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/output_processing_settings.dart';
 
-import '../chat_screen/chat_screen_test_helpers.dart';
+import '../../../helpers/fake_chat_completion_client.dart';
 
 /// 测试用模型配置，和 SharedPreferences 中的 id 一致，确保 _resolveModelConfig 能找到它。
 final _testModel = LlmModelConfig(
