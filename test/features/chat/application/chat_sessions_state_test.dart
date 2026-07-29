@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:oh_my_llm/features/chat/application/chat_generation_lifecycle.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_state.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation_summary.dart';
@@ -104,6 +105,50 @@ void main() {
       final result = state.copyWith(clearStreamingReply: true);
 
       expect(result.streamingReply, isNull);
+    });
+
+    test('generation 透传到 copyWith 结果', () {
+      const snapshot = ChatGenerationSnapshot(
+        generationId: 2,
+        conversationId: 'conv-1',
+        attempt: 1,
+        phase: ChatGenerationPhase.finalizing,
+        assistantMessageId: 'a1',
+      );
+      final state = createState().copyWith(generation: snapshot);
+
+      expect(state.generation, snapshot);
+    });
+
+    test('clearGeneration 将 generation 清空为 null', () {
+      const snapshot = ChatGenerationSnapshot(
+        generationId: 1,
+        conversationId: 'conv-1',
+        attempt: 1,
+        phase: ChatGenerationPhase.streaming,
+        assistantMessageId: 'a1',
+      );
+      final state = createState().copyWith(generation: snapshot);
+
+      final result = state.copyWith(clearGeneration: true);
+
+      expect(result.generation, isNull);
+    });
+
+    test('未指定 generation 时 copyWith 保留原值', () {
+      const snapshot = ChatGenerationSnapshot(
+        generationId: 1,
+        conversationId: 'conv-1',
+        attempt: 1,
+        phase: ChatGenerationPhase.streaming,
+      );
+      final state = createState().copyWith(generation: snapshot);
+
+      // 改动无关字段时 generation 应透传保留。
+      final result = state.copyWith(incrementHistoryRevision: true);
+
+      expect(result.generation, snapshot);
+      expect(result.historyRevision, state.historyRevision + 1);
     });
 
     test('incrementHistoryRevision 将 historyRevision 加 1', () {

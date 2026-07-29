@@ -158,8 +158,46 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
   var _coordinatorLastUiFlushAt = DateTime(2000);
   ChatRetryPolicy? _coordinatorRetryPolicy;
 
-  bool get _isBusy =>
-      state.isStreaming || state.isCheckpointing || state.isAutoRetryWaiting;
+  /// 当前 attempt 序号，从 Started/RetryScheduled 事件维护，供 snapshot 投影。
+  int _attempt = 0;
+
+  /// 是否占用（阻止新 generation / 会话切换 / 冲突 CRUD）。
+  ///
+  /// 从 [ChatSessionsState.generation] 的 phase 单向派生，使 attempt 终态后的
+  /// durable save 窗口（`finalizing`）仍保持 busy，阻止新 generation 覆盖桥接
+  /// 字段（P1-3）。无 generation snapshot 时回退到兼容布尔投影，保留对直接
+  /// 设置兼容字段的兼容（如测试只设 `isAutoRetryWaiting` 而未走事件路径）。
+  bool get _isBusy {
+    final phase = state.generation?.phase;
+    if (phase != null) {
+      return phase.isBusy || state.isCheckpointing;
+    }
+    return state.isStreaming ||
+        state.isCheckpointing ||
+        state.isAutoRetryWaiting;
+  }
+
+  /// 切换 generation 生命周期阶段，并把 snapshot 投影进 state.generation。
+  ///
+  /// `isStreaming`/`isAutoRetryWaiting` 等兼容布尔仍由各调用点 copyWith 同步
+  /// 设置，与 phase 在转换点保持一致。`idle` 时清空 snapshot（[_isBusy] 随之
+  /// 回退到兼容布尔投影）。
+  void _setPhase(ChatGenerationPhase next) {
+    if (next == ChatGenerationPhase.idle) {
+      state = state.copyWith(clearGeneration: true);
+      return;
+    }
+    state = state.copyWith(
+      generation: ChatGenerationSnapshot(
+        generationId: _coordinatorGenerationId ?? 0,
+        conversationId:
+            _coordinatorStreamingConversation?.id ?? state.activeConversationId,
+        attempt: _attempt,
+        phase: next,
+        assistantMessageId: _coordinatorAssistantMessage?.id,
+      ),
+    );
+  }
 
   // ── 生命周期 ────────────────────────────────────────────────────────────────
 
@@ -704,6 +742,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       clearEmptyReply: true,
       incrementHistoryRevision: true,
     );
+    _setPhase(ChatGenerationPhase.preparing);
     // pending save：占位 assistant 消息落盘。await durable，失败则在发起任何
     // 网络请求前中止 generation（不 _coordinator.start），避免假成功与重复请求。
     final pendingSaveError = await saveConversationDurable(
@@ -787,6 +826,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       case ChatGenerationStarted():
         // 确立本次 generation 的 id，供后续事件比对与 _cleanupCoordinatorBridge 守卫。
         _coordinatorGenerationId = event.generationId;
+        _attempt = event.attempt;
         // 每轮 attempt 重建空白 streamingReply：ChatStreamingReply.copyWith 用
         // `finishReason ?? this.finishReason`，传 null 不清空，若直接复用上一轮
         // 的 _coordinatorStreamingReply，上一轮的异常 finish_reason（如
@@ -807,6 +847,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
           clearErrorMessage: true,
           clearEmptyReply: true,
         );
+        _setPhase(ChatGenerationPhase.streaming);
         // 重置缓冲区确保不会混入旧 attempt 残留。
         _coordinatorResponseBuffer.clear();
         _coordinatorReasoningBuffer.clear();
@@ -939,6 +980,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
           clearErrorMessage: !shouldMarkEmptyReply,
           clearEmptyReply: !shouldMarkEmptyReply,
         );
+        _setPhase(ChatGenerationPhase.stopping);
         if (shouldSave) {
           // stop 落盘 durable。generation 已 terminal（Cancelled 紧随其后 complete
           // completer + cleanup），此处仅感知落盘失败并投影 persistence 错误；
@@ -965,10 +1007,12 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       case ChatGenerationRetryScheduled():
         // 进入重试等待窗口：标记等待态，累加重试计数。
         // autoRetryCount = nextAttempt - 1（首次 attempt 为 1，首次重试 nextAttempt=2 -> count=1）。
+        _attempt = event.nextAttempt - 1;
         state = state.copyWith(
           isAutoRetryWaiting: true,
           autoRetryCount: event.nextAttempt - 1,
         );
+        _setPhase(ChatGenerationPhase.retryWaiting);
 
       case ChatGenerationPersistenceFailedEvent():
         // persistence 失败由 controller 在 _handleGenerationDecision /
@@ -997,6 +1041,10 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     int generationId,
     ChatConversation? result,
   ) async {
+    // attempt 终态后进入 finalizing：durable save 完成前保持 busy（isStreaming
+    // 已由 finishGenerationSuccess/Error 清 false），阻止新 generation 覆盖
+    // 桥接字段（P1-3）。
+    _setPhase(ChatGenerationPhase.finalizing);
     if (result != null) {
       // 成功终态：durable 落盘。
       final saveError = await saveConversationDurable(result);
@@ -1066,6 +1114,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     if (generationId != null && _coordinatorGenerationId != generationId) {
       return;
     }
+    state = state.copyWith(clearGeneration: true);
     _coordinatorCompleter = null;
     _coordinatorStreamingConversation = null;
     _coordinatorAssistantMessage = null;

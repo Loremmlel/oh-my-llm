@@ -21,6 +21,7 @@ import '../domain/models/chat_message.dart';
 /// | streaming         | true        | false              | true   |
 /// | stopping          | false       | false              | true   |
 /// | retryWaiting      | false       | true               | true   |
+/// | finalizing        | false       | false              | true   |
 /// | succeeded         | false       | false              | false  |
 /// | emptyReply        | false       | false              | false  |
 /// | failed            | false       | false              | false  |
@@ -36,11 +37,26 @@ enum ChatGenerationPhase {
   streaming,
   stopping,
   retryWaiting,
+  finalizing,
   succeeded,
   emptyReply,
   failed,
   cancelled,
-  persistenceFailed,
+  persistenceFailed;
+
+  /// 是否处于占用态（阻止新 generation / 会话切换 / 冲突 CRUD）。
+  ///
+  /// 终态 phase（succeeded/emptyReply/failed/cancelled/persistenceFailed）
+  /// 在 cleanup 转回 idle 前的瞬间为 false——此时 durable save 已完成，
+  /// 不会与新 generation 竞争。`finalizing` 为 attempt 终态后、durable save
+  /// 完成前的窗口：对外 isStreaming/isAutoRetryWaiting 已可归 false，但
+  /// generation 尚未结束，必须保持 busy 以阻止新 generation 覆盖桥接字段。
+  bool get isBusy =>
+      this == preparing ||
+      this == streaming ||
+      this == stopping ||
+      this == retryWaiting ||
+      this == finalizing;
 }
 
 /// generation 被取消的原因。
