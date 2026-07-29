@@ -215,7 +215,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
   final _coordinatorResponseBuffer = StringBuffer();
   final _coordinatorReasoningBuffer = StringBuffer();
   var _coordinatorLastUiFlushAt = DateTime(2000);
-  bool _coordinatorRetryOnAbnormalFinishReason = false;
+  ChatRetryPolicy? _coordinatorRetryPolicy;
 
   bool get _isBusy =>
       state.isStreaming || state.isCheckpointing || state.isAutoRetryWaiting;
@@ -673,40 +673,18 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     required String appliedCheckpointTitle,
     Duration? retryDelay,
   }) async {
-    if (conversation.autoRetryEnabled) {
-      final autoRetrySettings = ref.read(autoRetrySettingsProvider);
-      await sendMessageWithAutoRetry(
-        pendingConversation: conversation,
-        modelConfig: modelConfig,
-        presetPrompt: presetPrompt,
-        requestConversationMessages: requestConversationMessages,
-        requestCheckpointChain: requestCheckpointChain,
-        parentMessageId: parentMessageId,
-        reasoningEnabled: reasoningEnabled,
-        reasoningEffort: reasoningEffort,
-        appliedCheckpointTitle: appliedCheckpointTitle,
-        retryDelay: retryDelay,
-        maxRetryCount: autoRetrySettings.maxRetryCount,
-        maxJitterMs: autoRetrySettings.maxJitterSeconds * 1000,
-        retryMode: autoRetrySettings.retryMode,
-        retryOnAbnormalFinishReason:
-            autoRetrySettings.retryOnAbnormalFinishReason,
-        retryOnTimeout: autoRetrySettings.retryOnTimeout,
-        timeoutSeconds: autoRetrySettings.timeoutSeconds,
-      );
-    } else {
-      await _runGenerationViaCoordinator(
-        conversation: conversation,
-        modelConfig: modelConfig,
-        presetPrompt: presetPrompt,
-        requestConversationMessages: requestConversationMessages,
-        requestCheckpointChain: requestCheckpointChain,
-        parentMessageId: parentMessageId,
-        reasoningEnabled: reasoningEnabled,
-        reasoningEffort: reasoningEffort,
-        appliedCheckpointTitle: appliedCheckpointTitle,
-      );
-    }
+    await _runGenerationViaCoordinator(
+      conversation: conversation,
+      modelConfig: modelConfig,
+      presetPrompt: presetPrompt,
+      requestConversationMessages: requestConversationMessages,
+      requestCheckpointChain: requestCheckpointChain,
+      parentMessageId: parentMessageId,
+      reasoningEnabled: reasoningEnabled,
+      reasoningEffort: reasoningEffort,
+      appliedCheckpointTitle: appliedCheckpointTitle,
+      retryDelay: retryDelay,
+    );
   }
 
   /// 通过 [ChatGenerationCoordinator] 执行一次无自动重试的发送。
@@ -724,8 +702,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     required bool reasoningEnabled,
     required ReasoningEffort reasoningEffort,
     String appliedCheckpointTitle = '',
-    bool retryOnAbnormalFinishReason = false,
-    Duration? streamIdleTimeout,
+    Duration? retryDelay,
   }) async {
     final timestamp = DateTime.now();
     final tree = resolveMessageTreeState(conversation);
@@ -776,7 +753,10 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     _coordinatorLastUiFlushAt = timestamp.subtract(
       ChatSessionsControllerStreaming.streamUiFlushInterval,
     );
-    _coordinatorRetryOnAbnormalFinishReason = retryOnAbnormalFinishReason;
+    _coordinatorRetryPolicy = ChatRetryPolicy.fromSnapshot(
+      conversationAutoRetryEnabled: conversation.autoRetryEnabled,
+      settings: ref.read(autoRetrySettingsProvider),
+    );
 
     state = state.copyWith(
       conversations: replaceConversation(streamingConversation),
@@ -808,11 +788,11 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       reasoningEffort: reasoningEnabled && modelConfig.supportsReasoning
           ? reasoningEffort
           : null,
-      retryPolicy: ChatRetryPolicy.fromSnapshot(
-        conversationAutoRetryEnabled: false,
-        settings: ref.read(autoRetrySettingsProvider),
-      ),
-      streamIdleTimeout: streamIdleTimeout,
+      retryPolicy: _coordinatorRetryPolicy!,
+      streamIdleTimeout: _coordinatorRetryPolicy!.retryOnTimeout
+          ? _coordinatorRetryPolicy!.timeout
+          : null,
+      retryDelay: retryDelay,
     );
     _coordinator.start(request, this);
 
@@ -854,7 +834,27 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       case ChatGenerationStarted():
         // 确立本次 generation 的 id，供后续事件比对与 _cleanupCoordinatorBridge 守卫。
         _coordinatorGenerationId = event.generationId;
-        // 重置缓冲区确保不会混入旧 generation 残留。
+        // 每轮 attempt 重建空白 streamingReply：ChatStreamingReply.copyWith 用
+        // `finishReason ?? this.finishReason`，传 null 不清空，若直接复用上一轮
+        // 的 _coordinatorStreamingReply，上一轮的异常 finish_reason（如
+        // content_filter）会残留到本轮，导致 finishGenerationSuccess 误走 branch 3
+        // 触发无限重试。旧 streamAssistantReply 每次 attempt 新建 streamingReply，
+        // 这里等价。conversationId/assistantMessageId 不变。
+        _coordinatorStreamingReply = ChatStreamingReply(
+          conversationId: _coordinatorStreamingConversation!.id,
+          assistantMessageId: _coordinatorAssistantMessage!.id,
+        );
+        // 重试 attempt 开始：退出等待态（首次 attempt 本就 false，no-op），
+        // 并清除上一轮 attempt 的 inline error/empty 标记--对应旧
+        // sendMessageWithAutoRetry 循环顶部 clearErrorMessage/clearEmptyReply，
+        // 否则上一轮的错误文案会残留到重试成功后仍显示。
+        state = state.copyWith(
+          isAutoRetryWaiting: false,
+          streamingReply: _coordinatorStreamingReply,
+          clearErrorMessage: true,
+          clearEmptyReply: true,
+        );
+        // 重置缓冲区确保不会混入旧 attempt 残留。
         _coordinatorResponseBuffer.clear();
         _coordinatorReasoningBuffer.clear();
         _coordinatorLastUiFlushAt = DateTime.now().subtract(
@@ -898,16 +898,15 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         if (_coordinatorStreamingReply != null) {
           replaceStreamingReplyInMemory(_coordinatorStreamingReply!);
         }
-        await finishGenerationSuccess(
+        final successResult = await finishGenerationSuccess(
           streamingConversation: _coordinatorStreamingConversation!,
           assistantMessage: _coordinatorAssistantMessage!,
           streamingReply: _coordinatorStreamingReply!,
-          completer: _coordinatorCompleter!,
-          retryOnAbnormalFinishReason: _coordinatorRetryOnAbnormalFinishReason,
-          // coordinator 已独立判断 emptyReply，此处跳过空回复检查。
+          retryOnAbnormalFinishReason:
+              _coordinatorRetryPolicy?.retryOnAbnormalFinishReason ?? false,
           skipEmptyCheck: true,
         );
-        _cleanupCoordinatorBridge(event.generationId);
+        await _handleGenerationDecision(event.generationId, successResult);
 
       case ChatGenerationAttemptCompleted(
         outcome: final ChatGenerationEmptyReply outcome,
@@ -919,14 +918,14 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         if (_coordinatorStreamingReply != null) {
           replaceStreamingReplyInMemory(_coordinatorStreamingReply!);
         }
-        await finishGenerationSuccess(
+        final emptyResult = await finishGenerationSuccess(
           streamingConversation: _coordinatorStreamingConversation!,
           assistantMessage: _coordinatorAssistantMessage!,
           streamingReply: _coordinatorStreamingReply!,
-          completer: _coordinatorCompleter!,
-          retryOnAbnormalFinishReason: _coordinatorRetryOnAbnormalFinishReason,
+          retryOnAbnormalFinishReason:
+              _coordinatorRetryPolicy?.retryOnAbnormalFinishReason ?? false,
         );
-        _cleanupCoordinatorBridge(event.generationId);
+        await _handleGenerationDecision(event.generationId, emptyResult);
 
       case ChatGenerationAttemptFailed(
         outcome: final ChatGenerationFailure outcome,
@@ -934,10 +933,6 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         // 搬 completeWithError：先 complete null，再用桥接字段调用
         // handleStreamingFailure，清理必须在 await 之后——否则
         // _coordinatorStreamingConversation 等已被置 null 会导致空指针崩溃。
-        final completer = _coordinatorCompleter;
-        if (completer != null && !completer.isCompleted) {
-          completer.complete(null);
-        }
         await finishGenerationError(
           streamingConversation: _coordinatorStreamingConversation!,
           streamingReply: _coordinatorStreamingReply,
@@ -945,7 +940,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
           error: outcome.error,
           stackTrace: outcome.stackTrace ?? StackTrace.empty,
         );
-        _cleanupCoordinatorBridge(event.generationId);
+        await _handleGenerationDecision(event.generationId, null);
 
       case ChatGenerationStopped():
         // 部分内容落盘。
@@ -1003,8 +998,12 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         _cleanupCoordinatorBridge(event.generationId);
 
       case ChatGenerationRetryScheduled():
-        // Task 4 才用，本 Task 忽略。
-        break;
+        // 进入重试等待窗口：标记等待态，累加重试计数。
+        // autoRetryCount = nextAttempt - 1（首次 attempt 为 1，首次重试 nextAttempt=2 -> count=1）。
+        state = state.copyWith(
+          isAutoRetryWaiting: true,
+          autoRetryCount: event.nextAttempt - 1,
+        );
 
       case ChatGenerationPersistenceFailedEvent():
         // Task 5 才用，本 Task 忽略。
@@ -1014,6 +1013,45 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         // coordinator 理论上不会投递其他组合，此处兜底。
         break;
     }
+  }
+
+  /// attempt 终态后的重试/终态决策。
+  ///
+  /// [result] 非 null 表示终态成功（落盘后的会话），null 表示重试信号
+  /// （空回复 / 异常 finish 未清空 / 失败）。重试信号下若
+  /// [ChatGenerationCoordinator.scheduleRetry] 返回 false（autoRetry 关、达上限
+  /// 或不可重试），按终态 null 完成并清理；否则保持 completer 开启，等待新 attempt。
+  Future<void> _handleGenerationDecision(
+    int generationId,
+    ChatConversation? result,
+  ) async {
+    if (result != null) {
+      // 成功终态：清重试计数，完成 completer。
+      state = state.copyWith(clearAutoRetryCount: true);
+      completeActiveStreaming(result);
+      _coordinator.finalize();
+      _cleanupCoordinatorBridge(generationId);
+      return;
+    }
+    if (!_coordinator.scheduleRetry()) {
+      // 不再重试。autoRetry 开着却不再重试 = 达 maxRetryCount 上限（对应旧
+      // 循环 autoRetryCount > maxRetryCount 分支），覆盖为上限文案；autoRetry
+      // 关着 = 单次失败，保留 attempt 自身的错误文案不动。
+      final policy = _coordinatorRetryPolicy;
+      final reachedLimit = policy?.enabled ?? false;
+      if (reachedLimit) {
+        state = state.copyWith(
+          clearAutoRetryCount: true,
+          errorMessage: '自动重试已达上限（${policy!.maxRetryCount} 次），请检查网络或调整重试设置',
+        );
+      } else {
+        state = state.copyWith(clearAutoRetryCount: true);
+      }
+      completeActiveStreaming(null);
+      _coordinator.finalize();
+      _cleanupCoordinatorBridge(generationId);
+    }
+    // scheduleRetry 成功：等待窗口后新 attempt，不 complete completer。
   }
 
   /// 清理 coordinator 桥接字段。
@@ -1032,7 +1070,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     _coordinatorStreamingReply = null;
     _coordinatorResponseBuffer.clear();
     _coordinatorReasoningBuffer.clear();
-    _coordinatorRetryOnAbnormalFinishReason = false;
+    _coordinatorRetryPolicy = null;
     _coordinatorGenerationId = null;
   }
 

@@ -204,6 +204,7 @@ class ChatGenerationRequest extends Equatable {
     this.parentMessageId,
     this.reasoningEffort,
     this.streamIdleTimeout,
+    this.retryDelay,
   });
 
   final String conversationId;
@@ -226,6 +227,9 @@ class ChatGenerationRequest extends Equatable {
   /// SSE 空闲超时；null 表示不启用。
   final Duration? streamIdleTimeout;
 
+  /// 测试注入的重试等待时长；null 表示按 retryPolicy 计算。
+  final Duration? retryDelay;
+
   @override
   List<Object?> get props => [
     conversationId,
@@ -236,6 +240,7 @@ class ChatGenerationRequest extends Equatable {
     messages,
     retryPolicy,
     streamIdleTimeout,
+    retryDelay,
   ];
 }
 

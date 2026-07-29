@@ -261,15 +261,15 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
       latestStreamingReply = streamingReply;
       replaceStreamingReplyInMemory(streamingReply);
 
-      await finishGenerationSuccess(
+      final result = await finishGenerationSuccess(
         streamingConversation: streamingConversation,
         assistantMessage: assistantMessage,
         streamingReply: streamingReply,
-        completer: completer,
         retryOnAbnormalFinishReason: retryOnAbnormalFinishReason,
       );
-      // 旧路径的清理由各分支内部调用 completeActiveStreaming + clearActiveStreamingSession
-      // 完成，finishGenerationSuccess 内部已处理。
+      // 旧路径用结果 complete completer（null=重试，由 sendMessageWithAutoRetry 循环）。
+      completeActiveStreaming(result);
+      clearActiveStreamingSession();
     }
 
     Future<void> completeWithError(Object error, StackTrace stackTrace) async {
@@ -597,11 +597,10 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
   ///
   /// [skipEmptyCheck] 为 true 时跳过分支 1，适用于 coordinator 已独立处理
   /// emptyReply 的场景。
-  Future<void> finishGenerationSuccess({
+  Future<ChatConversation?> finishGenerationSuccess({
     required ChatConversation streamingConversation,
     required ChatMessage assistantMessage,
     required ChatStreamingReply streamingReply,
-    required Completer<ChatConversation?> completer,
     required bool retryOnAbnormalFinishReason,
     bool skipEmptyCheck = false,
   }) async {
@@ -637,9 +636,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
         incrementHistoryRevision: true,
       );
       saveConversation(cleanedConversation);
-      completeActiveStreaming(null);
-      clearActiveStreamingSession();
-      return;
+      return null;
     }
 
     // 分支 2/3：异常 finish_reason
@@ -676,12 +673,10 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
           incrementHistoryRevision: true,
         );
         saveConversation(cleanedConversation);
-        completeActiveStreaming(cleanedConversation);
-        clearActiveStreamingSession();
-        return;
+        return cleanedConversation;
       }
 
-      // 分支 3：异常 finish 未清空，complete(null) 触发 retry。
+      // 分支 3：异常 finish 未清空，返回 null 触发 caller 重试。
       final abnormalTree = resolveMessageTreeState(streamingConversation);
       final nextTree = replaceAssistantMessageInTree(
         treeState: abnormalTree,
@@ -710,9 +705,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
         incrementHistoryRevision: true,
       );
       saveConversation(abnormalConversation);
-      completeActiveStreaming(null);
-      clearActiveStreamingSession();
-      return;
+      return null;
     }
 
     // 分支 4：正常 + 输出规则清空
@@ -746,9 +739,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
         incrementHistoryRevision: true,
       );
       saveConversation(cleanedConversation);
-      completeActiveStreaming(cleanedConversation);
-      clearActiveStreamingSession();
-      return;
+      return cleanedConversation;
     }
 
     // 分支 5：正常完成
@@ -774,8 +765,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
       incrementHistoryRevision: true,
     );
     saveConversation(completedConversation);
-    completeActiveStreaming(completedConversation);
-    clearActiveStreamingSession();
+    return completedConversation;
   }
 
   /// 处理流式回复失败：格式化错误 + handleStreamingFailure。
