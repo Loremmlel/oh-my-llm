@@ -9,7 +9,11 @@ import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/data/chat_completion_client.dart';
+import 'package:oh_my_llm/features/chat/data/chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/data/openai_compatible_chat_client.dart';
+import 'package:oh_my_llm/features/chat/data/sqlite_chat_conversation_repository.dart';
+import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
+import 'package:oh_my_llm/features/chat/domain/models/chat_conversation_summary.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 
 import '../../../../helpers/fake_chat_completion_client.dart';
@@ -314,14 +318,64 @@ void registerChatSessionsControllerStopCases() {
     expect(state.activeConversation.messages.last.content, '部分内容');
   });
 
+  test('preparing 阶段 stopStreaming 阻止后续网络请求', () async {
+    // 注入 save 被 gate 阻塞的 repository，使 sendMessage 停在 pending save
+    // （preparing），coordinator 尚未 start。此时 stop 应完成 completer 并清理，
+    // 放行 save 后 _runGenerationViaCoordinator 检测桥接字段已清理而不再 start（P1-1）。
+    final slowRepo = _PendingSaveRepository(
+      SqliteChatConversationRepository(database),
+    );
+    final slowContainer = ProviderContainer(
+      overrides: [
+        appDatabaseProvider.overrideWithValue(database),
+        sharedPreferencesProvider.overrideWithValue(preferences),
+        chatCompletionClientProvider.overrideWithValue(fakeClient),
+        chatConversationRepositoryProvider.overrideWithValue(slowRepo),
+      ],
+    );
+    addTearDown(slowContainer.dispose);
+
+    final streamController = StreamController<ChatCompletionChunk>();
+    // preparing 路径下 coordinator 未 start，streamController 不会被 listen；
+    // 单订阅 controller 无消费者时 close 的 done future 不会完成，故 tearDown
+    // 只触发 close、不 await 其 done future。
+    addTearDown(() {
+      streamController.close();
+    });
+    fakeClient.enqueueStream(streamController.stream);
+
+    final sendFuture = slowContainer
+        .read(chatSessionsProvider.notifier)
+        .sendMessage(
+          content: '测试 preparing stop',
+          modelConfig: testModel,
+          presetPrompt: null,
+          reasoningEnabled: false,
+          reasoningEffort: ReasoningEffort.medium,
+        );
+    // 等 sendMessage 到达 pending save（preparing）：桥接字段已就位。
+    await slowRepo.saveReached!.future;
+
+    await slowContainer.read(chatSessionsProvider.notifier).stopStreaming();
+
+    // 放行 pending save：_runGenerationViaCoordinator 返回后不再 _coordinator.start。
+    slowRepo.saveGate!.complete();
+    // timeout 守卫：P1-1 修复后 sendFuture 应立即完成；若仍 start 会在此暴露。
+    await sendFuture.timeout(const Duration(seconds: 10));
+
+    final state = slowContainer.read(chatSessionsProvider);
+    expect(state.isStreaming, isFalse);
+    expect(fakeClient.requestHistory, isEmpty);
+  });
+
   // ── dispose characterization ────────────────────────────────────────────
   //
-  // 当前 dispose（ref.onDispose 仅 cancel subscription）的安全部分：流式进行中
-  // dispose 后，迟到事件被订阅取消静默丢弃，不产生未处理异常。
-  // 已知限制：dispose 不 complete completer、不取消 Future.delayed 等待窗口，
-  // 由 Task 5 的 coordinator.dispose() 补全；此处仅冻结当前安全契约。
+  // dispose（ref.onDispose 先 completeGeneration(null) 再 coordinator.dispose）
+  // 的契约：流式进行中 dispose 后，sendMessage Future 正常完成（不再永久
+  // 挂起），迟到事件被 coordinator 的 _disposed guard 静默丢弃，不写已销毁
+  // 的 state、不产生未处理异常（P1-2）。
 
-  test('dispose 在流式进行时取消订阅且迟到事件无未处理异常', () async {
+  test('dispose 在流式进行时完成 sendMessage Future 且迟到事件无未处理异常', () async {
     // 独立 container：测试需主动 dispose 触发 controller onDispose，
     // 避免与 setUp tearDown 的 container.dispose() 冲突。
     final disposeContainer = ProviderContainer(
@@ -342,25 +396,24 @@ void registerChatSessionsControllerStopCases() {
 
     final unexpected = <Object>[];
     await runZonedGuarded(() async {
-      // 不 await：dispose 使 completer 永不完成，sendFuture 会挂起，
-      // 属当前已知限制，不阻塞本测试断言。
-      unawaited(
-        disposeContainer
-            .read(chatSessionsProvider.notifier)
-            .sendMessage(
-              content: '测试 dispose',
-              modelConfig: testModel,
-              presetPrompt: null,
-              reasoningEnabled: false,
-              reasoningEffort: ReasoningEffort.medium,
-            ),
-      );
+      final sendFuture = disposeContainer
+          .read(chatSessionsProvider.notifier)
+          .sendMessage(
+            content: '测试 dispose',
+            modelConfig: testModel,
+            presetPrompt: null,
+            reasoningEnabled: false,
+            reasoningEffort: ReasoningEffort.medium,
+          );
       await Future<void>.delayed(const Duration(milliseconds: 1));
       streamController.add(const ChatCompletionChunk(contentDelta: '部分'));
       await Future<void>.delayed(const Duration(milliseconds: 1));
 
       disposeContainer.dispose();
       disposed = true;
+
+      // dispose 应完成 sendMessage Future；timeout 守卫确保不再永久挂起（P1-2）。
+      await sendFuture.timeout(const Duration(seconds: 2));
 
       // 订阅取消后迟到事件应静默丢弃，不触发回调、无未处理异常。
       streamController.add(const ChatCompletionChunk(contentDelta: '迟到'));
@@ -370,4 +423,72 @@ void registerChatSessionsControllerStopCases() {
 
     expect(unexpected, isEmpty);
   });
+}
+
+/// 测试用 repository：首次 save 被 [saveGate] 阻塞，用于捕获 preparing 阶段
+/// （pending save 进行中、coordinator 尚未 start）的时间窗口。
+class _PendingSaveRepository implements ChatConversationRepository {
+  _PendingSaveRepository(this._inner);
+
+  final ChatConversationRepository _inner;
+
+  /// 首次 save 完成前阻塞调用方；测试主动 complete 以放行。
+  Completer<void>? saveGate = Completer<void>();
+
+  /// saveConversation 首次被调用时 complete，供测试等待 sendMessage 到达
+  /// pending save（此时桥接字段已就位、phase=preparing），避免依赖固定 delay。
+  Completer<void>? saveReached = Completer<void>();
+
+  @override
+  Future<void> saveConversation(ChatConversation conversation) async {
+    final reached = saveReached;
+    if (reached != null && !reached.isCompleted) {
+      reached.complete();
+    }
+    await _inner.saveConversation(conversation);
+    final gate = saveGate;
+    if (gate != null) {
+      await gate.future;
+    }
+  }
+
+  @override
+  Future<void> saveConversations(List<ChatConversation> conversations) async {
+    await _inner.saveConversations(conversations);
+    final gate = saveGate;
+    if (gate != null) {
+      await gate.future;
+    }
+  }
+
+  @override
+  List<ChatConversation> loadAll() => _inner.loadAll();
+
+  @override
+  ChatConversation? loadConversation(String id) => _inner.loadConversation(id);
+
+  @override
+  List<ChatConversationSummary> loadHistorySummaries({
+    String keyword = '',
+    int? limit,
+    int? offset,
+  }) => _inner.loadHistorySummaries(
+    keyword: keyword,
+    limit: limit,
+    offset: offset,
+  );
+
+  @override
+  int countHistorySummaries({String keyword = ''}) =>
+      _inner.countHistorySummaries(keyword: keyword);
+
+  @override
+  Future<void> deleteConversations(List<String> ids) =>
+      _inner.deleteConversations(ids);
+
+  @override
+  Future<void> flush() => _inner.flush();
+
+  @override
+  Future<void> close() => _inner.close();
 }

@@ -161,6 +161,10 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
   /// 当前 attempt 序号，从 Started/RetryScheduled 事件维护，供 snapshot 投影。
   int _attempt = 0;
 
+  /// controller 是否已 dispose。pending save 返回后据此跳过 [_ChatGenerationCoordinator.start]，
+  /// 避免 dispose 后仍发起网络请求（P1-2）。
+  bool _disposed = false;
+
   /// 是否占用（阻止新 generation / 会话切换 / 冲突 CRUD）。
   ///
   /// 从 [ChatSessionsState.generation] 的 phase 单向派生，使 attempt 终态后的
@@ -207,8 +211,11 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
   @override
   ChatSessionsState build() {
     ref.onDispose(() {
-      // coordinator 内部用 _disposed 守卫拦截迟到回调，并取消等待器/订阅，
-      // 不会在迟到回调中重置已创建的新 coordinator/run。
+      _disposed = true;
+      // 先完成 sendMessage Future（解除 await），再取消 coordinator 订阅；
+      // 之后迟到事件被 coordinator 的 _disposed guard 丢弃，不写已销毁的
+      // state（P1-2：dispose 不再让公开 sendMessage() Future 永久挂起）。
+      _completeGeneration(null);
       _generationCoordinator?.dispose();
     });
 
@@ -755,6 +762,11 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       );
       return completer.future;
     }
+    // preparing 期间被 stop 或 dispose：completer 已完成、桥接字段已清理，
+    // 不再启动网络请求（P1-1/P1-2）。
+    if (_disposed || !identical(_coordinatorCompleter, completer)) {
+      return completer.future;
+    }
 
     final request = ChatGenerationRequest(
       conversationId: streamingConversation.id,
@@ -795,6 +807,24 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       // state（清 isAutoRetryWaiting、落盘部分内容），Cancelled 完成 completer。
       return state.activeConversation;
     }
+    // preparing 阶段：coordinator 尚未 start（hasActive=false），但桥接字段与
+    // preparing snapshot 已就位。完成 completer 并清理桥接字段，使 pending save
+    // 返回后不再启动网络请求（P1-1）。
+    if (_coordinatorCompleter != null) {
+      _completeGeneration(null);
+      _cleanupCoordinatorBridge(null);
+      state = state.copyWith(
+        isStreaming: false,
+        isAutoRetryWaiting: false,
+        clearAutoRetryCount: true,
+        clearStreamingReply: true,
+        clearErrorMessage: true,
+        clearEmptyReply: true,
+        incrementHistoryRevision: true,
+      );
+      return state.activeConversation;
+    }
+    // 无活跃 generation：兜底清残留 retry 等待/错误/流式标记，保证按钮点击幂等。
     state = state.copyWith(
       isStreaming: false,
       isAutoRetryWaiting: false,
