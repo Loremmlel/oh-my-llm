@@ -170,7 +170,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
       clearStreamingReply: true,
       incrementHistoryRevision: true,
     );
-    saveConversation(nextConversation);
+    // durable save 由 _handleGenerationDecision（AttemptFailed -> null 分支）统一 await。
   }
 
   /// 把 assistant 回复以流式方式写回当前会话。
@@ -635,7 +635,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
         clearStreamingReply: true,
         incrementHistoryRevision: true,
       );
-      saveConversation(cleanedConversation);
+      // durable save 由 _handleGenerationDecision 统一 await。
       return null;
     }
 
@@ -672,7 +672,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
           clearStreamingReply: true,
           incrementHistoryRevision: true,
         );
-        saveConversation(cleanedConversation);
+        // durable save 由 _handleGenerationDecision 统一 await。
         return cleanedConversation;
       }
 
@@ -704,7 +704,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
         clearStreamingReply: true,
         incrementHistoryRevision: true,
       );
-      saveConversation(abnormalConversation);
+      // durable save 由 _handleGenerationDecision 统一 await。
       return null;
     }
 
@@ -738,7 +738,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
         clearStreamingReply: true,
         incrementHistoryRevision: true,
       );
-      saveConversation(cleanedConversation);
+      // durable save 由 _handleGenerationDecision 统一 await。
       return cleanedConversation;
     }
 
@@ -764,7 +764,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
       clearStreamingReply: true,
       incrementHistoryRevision: true,
     );
-    saveConversation(completedConversation);
+    // durable save 由 _handleGenerationDecision 统一 await。
     return completedConversation;
   }
 

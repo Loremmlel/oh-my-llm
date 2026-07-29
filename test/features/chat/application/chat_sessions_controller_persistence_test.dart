@@ -1,0 +1,166 @@
+import 'dart:async';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'package:oh_my_llm/core/persistence/app_database.dart';
+import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
+import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
+import 'package:oh_my_llm/core/persistence/versioned_json_storage.dart';
+import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
+import 'package:oh_my_llm/features/chat/data/chat_completion_client.dart';
+import 'package:oh_my_llm/features/chat/data/chat_conversation_repository.dart';
+import 'package:oh_my_llm/features/chat/data/openai_compatible_chat_client.dart';
+import 'package:oh_my_llm/features/chat/domain/chat_error_messages.dart';
+import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
+import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dart';
+import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
+import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
+
+import '../../../helpers/flaky_chat_conversation_repository.dart';
+import '../chat_screen/chat_screen_test_helpers.dart';
+
+/// 测试用模型配置，与 SharedPreferences 中的 id 一致。
+final _testModel = LlmModelConfig(
+  id: 'model-1',
+  displayName: 'Test Model',
+  apiUrl: 'https://api.example.com/v1/chat/completions',
+  apiKey: 'sk-test',
+  modelName: 'test-model',
+  supportsReasoning: false,
+);
+
+void main() {
+  late AppDatabase database;
+  late FlakyChatConversationRepository repository;
+  late FakeChatCompletionClient fakeClient;
+  late ProviderContainer container;
+
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({
+      llmModelConfigsStorageKey: VersionedJsonStorage.encodeObjectList(
+        items: const [
+          LlmProviderConfig(
+            id: 'provider-1',
+            name: 'Test Provider',
+            apiUrl: 'https://api.example.com/v1/chat/completions',
+            apiKey: 'sk-test',
+            models: [
+              LlmProviderModelConfig(
+                id: 'model-1',
+                displayName: 'Test Model',
+                modelName: 'test-model',
+                supportsReasoning: false,
+              ),
+            ],
+          ),
+        ],
+        toJson: (provider) => provider.toJson(),
+      ),
+    });
+    database = AppDatabase.inMemory();
+    repository = FlakyChatConversationRepository(database);
+    fakeClient = FakeChatCompletionClient();
+    container = ProviderContainer(
+      overrides: [
+        appDatabaseProvider.overrideWithValue(database),
+        sharedPreferencesProvider.overrideWithValue(
+          await SharedPreferences.getInstance(),
+        ),
+        chatCompletionClientProvider.overrideWithValue(fakeClient),
+        chatConversationRepositoryProvider.overrideWithValue(repository),
+      ],
+    );
+    addTearDown(() {
+      container.dispose();
+      database.close();
+    });
+  });
+
+  Future<void> sendMsg(String content, {Duration? retryDelay}) => container
+      .read(chatSessionsProvider.notifier)
+      .sendMessage(
+        content: content,
+        modelConfig: _testModel,
+        presetPrompt: null,
+        reasoningEnabled: false,
+        reasoningEffort: ReasoningEffort.medium,
+        retryDelay: retryDelay,
+      );
+
+  // ── pending save 失败 ─────────────────────────────────────────────────────
+
+  test('pending save 失败时不发起网络请求并报 persistence 错误', () async {
+    repository.failOnSaveCallIndex = 1; // 第 1 次 save = pending save
+    fakeClient.enqueueChunks(['回复']); // 不应被消费
+
+    await sendMsg('你好');
+
+    final state = container.read(chatSessionsProvider);
+    expect(fakeClient.requestHistory, isEmpty); // 未发起任何网络请求
+    expect(state.errorMessage, ChatErrorMessages.persistenceFailed);
+    expect(state.isStreaming, isFalse);
+    expect(state.isAutoRetryWaiting, isFalse);
+  });
+
+  // ── terminal success save 失败 ────────────────────────────────────────────
+
+  test('terminal success save 失败时不假成功、不重试', () async {
+    repository.failOnSaveCallIndex = 2; // pending(1) 成功，terminal(2) 失败
+    fakeClient.enqueueChunks(['回复内容']);
+
+    await sendMsg('你好');
+
+    final state = container.read(chatSessionsProvider);
+    expect(fakeClient.requestHistory.length, 1); // 只有一次请求，未重试
+    expect(state.errorMessage, ChatErrorMessages.persistenceFailed);
+    expect(state.isStreaming, isFalse);
+    expect(state.autoRetryCount, 0);
+  });
+
+  // ── retry 中间 save 失败 ──────────────────────────────────────────────────
+
+  test('retry 中间 save 失败时终止重试、不发出下一请求', () async {
+    container
+        .read(chatSessionsProvider.notifier)
+        .updateActiveConversationPreferences(autoRetryEnabled: true);
+    // updateActiveConversationPreferences 自身触发一次 fire-and-forget save，
+    // 重置计数后让第 1 次=pending save（成功）、第 2 次=attempt1 空->中间 save（失败）。
+    repository.saveConversationCallCount = 0;
+    repository.failOnSaveCallIndex = 2;
+    fakeClient.enqueueChunks(['']); // 第 1 次空回复
+    fakeClient.enqueueChunks(['成功']); // 不应被消费
+
+    await sendMsg('测试重试中间持久化失败', retryDelay: Duration.zero);
+
+    final state = container.read(chatSessionsProvider);
+    expect(fakeClient.requestHistory.length, 1); // 重试被终止，未发出第 2 次请求
+    expect(state.errorMessage, ChatErrorMessages.persistenceFailed);
+    expect(state.isStreaming, isFalse);
+    expect(state.isAutoRetryWaiting, isFalse);
+  });
+
+  // ── stop save 失败 ────────────────────────────────────────────────────────
+
+  test('stop save 失败时仍完成停止并报 persistence 错误', () async {
+    repository.failOnSaveCallIndex = 2; // pending(1) 成功，stop save(2) 失败
+    // 手动控制流：先发一个 chunk，再 stop，再 close。
+    final streamController = StreamController<ChatCompletionChunk>();
+    fakeClient.enqueueStream(streamController.stream);
+
+    final sendFuture = sendMsg('测试停止持久化失败');
+    // 等流式启动并收到一个 chunk。
+    streamController.add(const ChatCompletionChunk(contentDelta: '部分内容'));
+    // 让事件循环推进，使 chunk 被消费、isStreaming 为 true。
+    await Future<void>.delayed(Duration.zero);
+
+    await container.read(chatSessionsProvider.notifier).stopStreaming();
+    streamController.close();
+    await sendFuture;
+
+    final state = container.read(chatSessionsProvider);
+    expect(state.isStreaming, isFalse);
+    expect(state.errorMessage, ChatErrorMessages.persistenceFailed);
+  });
+}
