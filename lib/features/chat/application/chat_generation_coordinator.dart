@@ -93,6 +93,16 @@ class ChatGenerationCoordinator {
     _activeHandle?.finalize();
   }
 
+  /// controller 在 generation 关键 checkpoint 的 durable save 失败后调用：
+  /// 标记 generation 进入 persistenceFailed 终态（取消 retry 等待器与订阅，
+  /// 之后迟到回调一律被 token guard 丢弃），不再 retry。幂等。
+  ///
+  /// 不投递 [ChatGenerationPersistenceFailedEvent]--失败由 controller 自身
+  /// 检测并直接投影 state，经 event 往返是冗余；本方法只负责令牌失效与 outcome 记录。
+  void markPersistenceFailure(Object error) {
+    _activeHandle?.markPersistenceFailure(error);
+  }
+
   /// controller dispose 时调用：取消等待器与订阅，之后任何迟到事件均被忽略。
   void dispose() {
     if (_disposed) return;
@@ -300,6 +310,21 @@ class _GenerationHandle {
   void finalize() {
     if (_cancelled || outcome != null) return;
     outcome = _attemptOutcome;
+  }
+
+  /// durable save 失败终态：取消 retry 等待器与订阅，置 persistenceFailed。
+  /// 幂等：已被 cancel 或已进入终态的不覆盖。
+  void markPersistenceFailure(Object error) {
+    if (_cancelled || outcome != null) return;
+    _retryTimer?.cancel();
+    _retryTimer = null;
+    subscription?.cancel();
+    phase = ChatGenerationPhase.persistenceFailed;
+    outcome = ChatGenerationPersistenceFailure(
+      generationId: generationId,
+      attempt: attemptCount,
+      error: error,
+    );
   }
 
   /// controller 决策重试：等待 retry window 后启动新 attempt。

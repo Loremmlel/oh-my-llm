@@ -228,8 +228,11 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
   @override
   ChatSessionsState build() {
     ref.onDispose(() {
-      activeStreamingSubscription?.cancel();
+      // 先让 coordinator invalidate token + cancel 等待器/订阅，再清旧路径
+      // streaming subscription；coordinator 内部已用 _disposed 守卫拦截迟到回调，
+      // 不会在迟到回调中重置已创建的新 coordinator/run。
       _generationCoordinator?.dispose();
+      activeStreamingSubscription?.cancel();
     });
 
     final summaries = repository.loadHistorySummaries();
@@ -770,7 +773,18 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       clearEmptyReply: true,
       incrementHistoryRevision: true,
     );
-    saveConversation(streamingConversation);
+    // pending save：占位 assistant 消息落盘。await durable，失败则在发起任何
+    // 网络请求前中止 generation（不 _coordinator.start），避免假成功与重复请求。
+    final pendingSaveError = await saveConversationDurable(
+      streamingConversation,
+    );
+    if (pendingSaveError != null) {
+      _handleGenerationPersistenceFailure(
+        generationId: null,
+        error: pendingSaveError,
+      );
+      return completer.future;
+    }
 
     final request = ChatGenerationRequest(
       conversationId: streamingConversation.id,
@@ -987,7 +1001,19 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
           clearEmptyReply: !shouldMarkEmptyReply,
         );
         if (shouldSave) {
-          saveConversation(stoppedConversation);
+          // stop 落盘 durable。generation 已 terminal（Cancelled 紧随其后 complete
+          // completer + cleanup），此处仅感知落盘失败并投影 persistence 错误；
+          // 守卫避免 await 让出后新 generation 已起时误覆盖其状态。
+          final saveError = await saveConversationDurable(stoppedConversation);
+          if (saveError != null &&
+              !state.isStreaming &&
+              state.activeConversation.id == stoppedConversation.id) {
+            state = state.copyWith(
+              errorMessage: ChatErrorMessages.persistenceFailed,
+              errorMessageAssistantId: assistantMessageId,
+              clearEmptyReply: true,
+            );
+          }
         }
 
       case ChatGenerationCancelledEvent():
@@ -1006,7 +1032,10 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         );
 
       case ChatGenerationPersistenceFailedEvent():
-        // Task 5 才用，本 Task 忽略。
+        // persistence 失败由 controller 在 _handleGenerationDecision /
+        // _runGenerationViaCoordinator 检测 save Future 时直接处理
+        // （markPersistenceFailure + inline error），不经 event 往返；
+        // coordinator 当前不投递此事件，保留类型供将来 coordinator 自检场景。
         break;
 
       default:
@@ -1017,8 +1046,12 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
 
   /// attempt 终态后的重试/终态决策。
   ///
-  /// [result] 非 null 表示终态成功（落盘后的会话），null 表示重试信号
-  /// （空回复 / 异常 finish 未清空 / 失败）。重试信号下若
+  /// [result] 非 null 表示终态成功（内存已更新的会话），null 表示重试信号
+  /// （空回复 / 异常 finish 未清空 / 失败）。两类都先 durable 落盘：成功终态
+  /// 落盘 result，重试信号落盘本次 attempt 的占位（state.activeConversation）。
+  /// 落盘失败 -> [persistenceFailed] 终态（不假成功、不重试、不重复请求）。
+  ///
+  /// 落盘成功后：成功终态完成 completer(result)；重试信号下若
   /// [ChatGenerationCoordinator.scheduleRetry] 返回 false（autoRetry 关、达上限
   /// 或不可重试），按终态 null 完成并清理；否则保持 completer 开启，等待新 attempt。
   Future<void> _handleGenerationDecision(
@@ -1026,11 +1059,30 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     ChatConversation? result,
   ) async {
     if (result != null) {
-      // 成功终态：清重试计数，完成 completer。
+      // 成功终态：durable 落盘。
+      final saveError = await saveConversationDurable(result);
+      if (saveError != null) {
+        _handleGenerationPersistenceFailure(
+          generationId: generationId,
+          error: saveError,
+        );
+        return;
+      }
       state = state.copyWith(clearAutoRetryCount: true);
       completeActiveStreaming(result);
       _coordinator.finalize();
       _cleanupCoordinatorBridge(generationId);
+      return;
+    }
+    // 重试信号：durable 落盘本次 attempt 的占位（空/异常/错误 assistant 消息）。
+    final intermediateSaveError = await saveConversationDurable(
+      state.activeConversation,
+    );
+    if (intermediateSaveError != null) {
+      _handleGenerationPersistenceFailure(
+        generationId: generationId,
+        error: intermediateSaveError,
+      );
       return;
     }
     if (!_coordinator.scheduleRetry()) {
@@ -1059,10 +1111,14 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
   /// 同时清空旧 streaming session 字段（activeStreamingCompleter /
   /// latestStreamingReply / activeStreamingSubscription）：coordinator 路径下
   /// 它们与 _coordinator* 指向同一对象，统一清理避免残留串入下一轮 generation。
-  void _cleanupCoordinatorBridge(int generationId) {
-    // 仅当仍是本次 generation 活跃时才清理：若 await 期间已被新 generation
-    // 覆盖（_coordinatorGenerationId 变更），不能清掉新 generation 的字段。
-    if (_coordinatorGenerationId != generationId) return;
+  ///
+  /// [generationId] 为 null 时无条件清理（用于 pending save 失败：coordinator
+  /// 尚未 start、_coordinatorGenerationId 仍为 null 的场景）；非 null 时仅当
+  /// 仍是本次 generation 活跃才清理，避免 await 让出后被新 generation 覆盖。
+  void _cleanupCoordinatorBridge(int? generationId) {
+    if (generationId != null && _coordinatorGenerationId != generationId) {
+      return;
+    }
     clearActiveStreamingSession();
     _coordinatorCompleter = null;
     _coordinatorStreamingConversation = null;
@@ -1072,6 +1128,33 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     _coordinatorReasoningBuffer.clear();
     _coordinatorRetryPolicy = null;
     _coordinatorGenerationId = null;
+  }
+
+  /// generation 关键 checkpoint 的 durable save 失败处理。
+  ///
+  /// 标记 persistenceFailed 终态（[generationId] 为 null 表示失败发生在
+  /// [_coordinator.start] 之前的 pending save，coordinator 尚未建立 handle，
+  /// 跳过 [ChatGenerationCoordinator.markPersistenceFailure]），投影 inline error，
+  /// complete completer(null)（不假成功），清理桥接字段。不重试、不重复请求。
+  void _handleGenerationPersistenceFailure({
+    required int? generationId,
+    required Object error,
+  }) {
+    if (generationId != null) {
+      _coordinator.markPersistenceFailure(error);
+    }
+    state = state.copyWith(
+      isStreaming: false,
+      isAutoRetryWaiting: false,
+      clearAutoRetryCount: true,
+      errorMessage: ChatErrorMessages.persistenceFailed,
+      errorMessageAssistantId: _coordinatorAssistantMessage?.id,
+      clearStreamingReply: true,
+      clearEmptyReply: true,
+      incrementHistoryRevision: true,
+    );
+    completeActiveStreaming(null);
+    _cleanupCoordinatorBridge(generationId);
   }
 
   /// 编辑一条用户消息并从该节点重新生成后续回复。

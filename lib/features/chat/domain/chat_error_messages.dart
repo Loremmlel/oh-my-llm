@@ -30,4 +30,7 @@ class ChatErrorMessages {
 
   /// 用户手动终止了回答
   static const stoppedByUser = '已手动终止，点此重试';
+
+  /// 关键持久化失败：generation 的 pending/terminal/stop save 落盘失败。
+  static const persistenceFailed = '[ERR] 回复已生成但保存到本地失败，请重试或检查存储';
 }

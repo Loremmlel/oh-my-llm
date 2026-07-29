@@ -120,8 +120,27 @@ mixin ChatSessionsControllerSupport on Notifier<ChatSessionsState> {
   ///
   /// 空会话（无消息、无检查点、无标题）将被跳过，详见
   /// [BackgroundChatConversationRepository.saveConversation]。
-  void saveConversation(ChatConversation conversation) {
-    repository.saveConversation(conversation);
+  ///
+  /// 返回的 [Future] 在 debounce 触发、worker ACK 后完成（durable）。
+  /// 非 generation 路径的 CRUD 调用点可丢弃此 Future（fire-and-forget）；
+  /// generation 关键 checkpoint 应通过 [_saveDurable] await 以感知落盘失败。
+  Future<void> saveConversation(ChatConversation conversation) {
+    return repository.saveConversation(conversation);
+  }
+
+  /// durable 保存会话并在失败时返回错误对象（不抛出），供 generation 关键
+  /// checkpoint 感知落盘失败。
+  ///
+  /// 调用前应已完成同步 [state] 更新--本方法只负责 durable 落盘，不改 state。
+  /// 返回 `null` 表示成功；非 null 为捕获的异常，由调用方决定如何浮现
+  /// （persistenceFailed / inline error）。
+  Future<Object?> saveConversationDurable(ChatConversation conversation) async {
+    try {
+      await repository.saveConversation(conversation);
+      return null;
+    } catch (error) {
+      return error;
+    }
   }
 
   CheckpointRequestContext resolveCheckpointContext({
