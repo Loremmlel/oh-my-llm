@@ -1226,7 +1226,7 @@ void main() {
     await sendFuture;
 
     // 只有 2 次请求：test A 的首次失败 + test B 的成功
-    // 旧重试循环在恢复后通过 autoRetryCancelled / requestGeneration 检查退出，未发出额外请求
+    // coordinator 以 generation token 守卫，旧重试恢复后不发出额外请求
     expect(fakeClient.requestHistory.length, 2);
 
     final state = container.read(chatSessionsProvider);
@@ -1786,7 +1786,7 @@ void main() {
     expect(stateAfterDelayed.errorMessage, errorMessageAfterStop);
   });
 
-  test('stopStreaming 后 streamStopRequested 保持 true 直到下次流式开始', () async {
+  test('stopStreaming 后再次发送能正常收到新回复', () async {
     final streamController = StreamController<ChatCompletionChunk>();
     addTearDown(streamController.close);
     fakeClient.enqueueStream(streamController.stream);
@@ -1797,16 +1797,10 @@ void main() {
     await container.read(chatSessionsProvider.notifier).stopStreaming();
     await sendFuture;
 
-    // stopStreaming 后 streamStopRequested 应保持 true
-    // （不在 clearActiveStreamingSession 中重置）
-    final notifier = container.read(chatSessionsProvider.notifier);
-    expect(notifier.streamStopRequested, isTrue);
-
-    // 开始新一轮流式时应重置为 false
+    // 开始新一轮流式：旧 generation 的 stop 不应污染新 generation。
     fakeClient.enqueueChunks(['新回复']);
     await sendMsg('新消息');
 
-    expect(notifier.streamStopRequested, isFalse);
     final state = container.read(chatSessionsProvider);
     expect(state.isStreaming, isFalse);
     expect(state.activeConversation.messages.last.content, '新回复');

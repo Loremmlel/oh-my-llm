@@ -131,68 +131,9 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
   ChatConversationRepository get repository =>
       ref.read(chatConversationRepositoryProvider);
 
-  @override
   ChatCompletionClient get chatClient => ref.read(chatCompletionClientProvider);
 
-  StreamSubscription<ChatCompletionChunk>? _activeStreamingSubscription;
-  Completer<ChatConversation?>? _activeStreamingCompleter;
-  ChatStreamingReply? _latestStreamingReply;
-  bool _streamStopRequested = false;
-  bool _autoRetryCancelled = false;
-  int _requestGeneration = 0;
-  @override
-  StreamSubscription<ChatCompletionChunk>? get activeStreamingSubscription =>
-      _activeStreamingSubscription;
-
-  @override
-  set activeStreamingSubscription(
-    StreamSubscription<ChatCompletionChunk>? value,
-  ) {
-    _activeStreamingSubscription = value;
-  }
-
-  @override
-  Completer<ChatConversation?>? get activeStreamingCompleter =>
-      _activeStreamingCompleter;
-
-  @override
-  set activeStreamingCompleter(Completer<ChatConversation?>? value) {
-    _activeStreamingCompleter = value;
-  }
-
-  @override
-  ChatStreamingReply? get latestStreamingReply => _latestStreamingReply;
-
-  @override
-  set latestStreamingReply(ChatStreamingReply? value) {
-    _latestStreamingReply = value;
-  }
-
-  @override
-  bool get streamStopRequested => _streamStopRequested;
-
-  @override
-  set streamStopRequested(bool value) {
-    _streamStopRequested = value;
-  }
-
-  @override
-  bool get autoRetryCancelled => _autoRetryCancelled;
-
-  @override
-  set autoRetryCancelled(bool value) {
-    _autoRetryCancelled = value;
-  }
-
-  @override
-  int get requestGeneration => _requestGeneration;
-
-  @override
-  set requestGeneration(int value) {
-    _requestGeneration = value;
-  }
-
-  // ── ChatGenerationCoordinator 桥接字段（Task 6 清理） ─────────────────────
+  // ── ChatGenerationCoordinator 桥接字段 ────────────────────────────────────
 
   ChatGenerationCoordinator? _generationCoordinator;
 
@@ -228,11 +169,9 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
   @override
   ChatSessionsState build() {
     ref.onDispose(() {
-      // 先让 coordinator invalidate token + cancel 等待器/订阅，再清旧路径
-      // streaming subscription；coordinator 内部已用 _disposed 守卫拦截迟到回调，
+      // coordinator 内部用 _disposed 守卫拦截迟到回调，并取消等待器/订阅，
       // 不会在迟到回调中重置已创建的新 coordinator/run。
       _generationCoordinator?.dispose();
-      activeStreamingSubscription?.cancel();
     });
 
     final summaries = repository.loadHistorySummaries();
@@ -739,15 +678,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     final completer = Completer<ChatConversation?>();
 
     // 初始化桥接字段，供 _handleGenerationEvent 使用。
-    // activeStreamingCompleter 与 _coordinatorCompleter 指向同一 completer：
-    // finishGenerationSuccess 内部靠 completeActiveStreaming 完成它，复用旧
-    // streaming session 字段，避免两条路径的完成/清理逻辑割裂导致 future 挂死。
     _coordinatorCompleter = completer;
-    activeStreamingCompleter = completer;
-    // 重置上一轮 stopStreaming 置位的标志，对应旧路径 streamAssistantReply
-    // 的 streamStopRequested = false，保持「下次流式开始时重置」的公共契约。
-    streamStopRequested = false;
-    autoRetryCancelled = false;
     _coordinatorStreamingConversation = streamingConversation;
     _coordinatorAssistantMessage = assistantMessage;
     _coordinatorStreamingReply = streamingReply;
@@ -813,20 +744,28 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     return completer.future;
   }
 
-  /// 停止通过 coordinator 进行的 generation。
-  @override
+  /// 停止当前 generation。
+  ///
+  /// 有活跃 generation 时由 coordinator 投递 Stopped/Cancelled 事件更新 state；
+  /// 无活跃时兜底清残留 retry 等待/错误/流式标记，保证按钮点击幂等。
   Future<ChatConversation?> stopStreaming() async {
     final coordinator = _generationCoordinator;
     if (coordinator != null && coordinator.hasActive) {
-      // 与旧路径 stopStreaming 保持一致的副作用：streamStopRequested 供延迟
-      // 回调守卫与公共契约使用，autoRetryCancelled 防止残留等待态干扰下一轮。
-      streamStopRequested = true;
-      autoRetryCancelled = true;
       coordinator.stop();
-      // 事件已同步投递，state 已更新。
+      // cancel(userStop) 同步投递 Stopped + Cancelled：Stopped 分支已更新
+      // state（清 isAutoRetryWaiting、落盘部分内容），Cancelled 完成 completer。
       return state.activeConversation;
     }
-    return super.stopStreaming();
+    state = state.copyWith(
+      isStreaming: false,
+      isAutoRetryWaiting: false,
+      clearAutoRetryCount: true,
+      clearStreamingReply: true,
+      clearErrorMessage: true,
+      clearEmptyReply: true,
+      incrementHistoryRevision: true,
+    );
+    return state.activeConversation;
   }
 
   // ── ChatGenerationObserver ───────────────────────────────────────────────
@@ -1069,7 +1008,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         return;
       }
       state = state.copyWith(clearAutoRetryCount: true);
-      completeActiveStreaming(result);
+      _completeGeneration(result);
       _coordinator.finalize();
       _cleanupCoordinatorBridge(generationId);
       return;
@@ -1099,18 +1038,26 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       } else {
         state = state.copyWith(clearAutoRetryCount: true);
       }
-      completeActiveStreaming(null);
+      _completeGeneration(null);
       _coordinator.finalize();
       _cleanupCoordinatorBridge(generationId);
     }
     // scheduleRetry 成功：等待窗口后新 attempt，不 complete completer。
   }
 
-  /// 清理 coordinator 桥接字段。
+  /// 完成当前 generation 的 completer。
   ///
-  /// 同时清空旧 streaming session 字段（activeStreamingCompleter /
-  /// latestStreamingReply / activeStreamingSubscription）：coordinator 路径下
-  /// 它们与 _coordinator* 指向同一对象，统一清理避免残留串入下一轮 generation。
+  /// [result] 非 null 为终态成功（带最终会话），null 为取消/失败/重试耗尽。
+  /// 幂等：completer 为 null 或已完成时直接返回。
+  void _completeGeneration(ChatConversation? result) {
+    final completer = _coordinatorCompleter;
+    if (completer == null || completer.isCompleted) {
+      return;
+    }
+    completer.complete(result);
+  }
+
+  /// 清理 coordinator 桥接字段。
   ///
   /// [generationId] 为 null 时无条件清理（用于 pending save 失败：coordinator
   /// 尚未 start、_coordinatorGenerationId 仍为 null 的场景）；非 null 时仅当
@@ -1119,7 +1066,6 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     if (generationId != null && _coordinatorGenerationId != generationId) {
       return;
     }
-    clearActiveStreamingSession();
     _coordinatorCompleter = null;
     _coordinatorStreamingConversation = null;
     _coordinatorAssistantMessage = null;
@@ -1153,7 +1099,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       clearEmptyReply: true,
       incrementHistoryRevision: true,
     );
-    completeActiveStreaming(null);
+    _completeGeneration(null);
     _cleanupCoordinatorBridge(generationId);
   }
 
