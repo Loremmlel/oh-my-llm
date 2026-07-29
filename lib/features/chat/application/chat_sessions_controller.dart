@@ -151,6 +151,12 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
 
   Completer<ChatConversation?>? _coordinatorCompleter;
 
+  /// Stopped 事件的部分内容落盘 future。Cancelled handler await 它再 complete
+  /// completer + cleanup，使 stopStreaming 的 await completer 等到 stop 落盘（P2-4）。
+  /// 仅 userStop 路径（Stopped + Cancelled）设置；supersede/dispose 走 Cancelled
+  /// 但不投 Stopped，保持 null。
+  Future<Object?>? _stoppedSaveFuture;
+
   /// 当前活跃 generation 的 id。用于丢弃上一轮 _handleGenerationEvent 在 await
   /// 让出后迟到的残留事件，并阻止其 _cleanupCoordinatorBridge 清错新字段。
   int? _coordinatorGenerationId;
@@ -806,9 +812,14 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
   Future<ChatConversation?> stopStreaming() async {
     final coordinator = _generationCoordinator;
     if (coordinator != null && coordinator.hasActive) {
+      final completer = _coordinatorCompleter;
       coordinator.stop();
-      // cancel(userStop) 同步投递 Stopped + Cancelled：Stopped 分支已更新
-      // state（清 isAutoRetryWaiting、落盘部分内容），Cancelled 完成 completer。
+      // cancel(userStop) 同步投递 Stopped（await save 让出）+ Cancelled（await
+      // Stopped 的 save 后 complete completer + cleanup）。await completer 使
+      // stopStreaming 等待部分内容落盘完成（P2-4），返回落盘后的会话。
+      if (completer != null && !completer.isCompleted) {
+        await completer.future;
+      }
       return state.activeConversation;
     }
     // preparing 阶段：coordinator 尚未 start（hasActive=false），但桥接字段与
@@ -1016,10 +1027,16 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         );
         _setPhase(ChatGenerationPhase.stopping);
         if (shouldSave) {
-          // stop 落盘 durable。generation 已 terminal（Cancelled 紧随其后 complete
-          // completer + cleanup），此处仅感知落盘失败并投影 persistence 错误；
-          // 守卫避免 await 让出后新 generation 已起时误覆盖其状态。
-          final saveError = await saveConversationDurable(stoppedConversation);
+          // stop 落盘 durable。先捕获 future 赋给 _stoppedSaveFuture，再 await
+          // 同一 future：await 让出后 Cancelled handler 同步投递时能 await 同一
+          // future，使 stopStreaming 的 await completer 等到 stop 落盘完成（P2-4）。
+          // generation 已 terminal（Cancelled 紧随其后 complete + cleanup），此处
+          // 仅感知落盘失败并投影 persistence 错误；守卫避免 await 让出后新 generation
+          // 已起时误覆盖其状态。
+          final saveFuture = saveConversationDurable(stoppedConversation);
+          _stoppedSaveFuture = saveFuture;
+          final saveError = await saveFuture;
+          _stoppedSaveFuture = null;
           if (saveError != null &&
               !state.isStreaming &&
               state.activeConversation.id == stoppedConversation.id) {
@@ -1032,6 +1049,14 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         }
 
       case ChatGenerationCancelledEvent():
+        // 等 Stopped 的部分内容落盘完成再 complete + cleanup，使 stopStreaming
+        // 的 await completer 等到 stop 落盘（P2-4）。无 Stopped（supersede/dispose
+        // 走本事件但不投 Stopped）时 _stoppedSaveFuture 为 null，立即 complete。
+        final pendingSave = _stoppedSaveFuture;
+        if (pendingSave != null) {
+          await pendingSave;
+          _stoppedSaveFuture = null;
+        }
         final completer = _coordinatorCompleter;
         if (completer != null && !completer.isCompleted) {
           completer.complete(null);

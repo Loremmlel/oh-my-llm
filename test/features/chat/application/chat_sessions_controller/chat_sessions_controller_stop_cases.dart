@@ -368,6 +368,65 @@ void registerChatSessionsControllerStopCases() {
     expect(fakeClient.requestHistory, isEmpty);
   });
 
+  test('stopStreaming 等待 Stopped 落盘完成（P2-4）', () async {
+    // 注入第 2 次 save（stop 落盘）被 stopSaveGate 阻塞的 repository，验证
+    // stopStreaming 在 Stopped 落盘完成前不返回，放行后才返回落盘后的会话。
+    final slowRepo = _PendingSaveRepository(
+      SqliteChatConversationRepository(database),
+    );
+    final slowContainer = ProviderContainer(
+      overrides: [
+        appDatabaseProvider.overrideWithValue(database),
+        sharedPreferencesProvider.overrideWithValue(preferences),
+        chatCompletionClientProvider.overrideWithValue(fakeClient),
+        chatConversationRepositoryProvider.overrideWithValue(slowRepo),
+      ],
+    );
+    addTearDown(slowContainer.dispose);
+
+    final streamController = StreamController<ChatCompletionChunk>();
+    addTearDown(streamController.close);
+    fakeClient.enqueueStream(streamController.stream);
+
+    final sendFuture = slowContainer
+        .read(chatSessionsProvider.notifier)
+        .sendMessage(
+          content: '测试 stop 等待落盘',
+          modelConfig: testModel,
+          presetPrompt: null,
+          reasoningEnabled: false,
+          reasoningEffort: ReasoningEffort.medium,
+        );
+    // 等 sendMessage 到达 pending save（第 1 次）并放行，使 generation 进入 streaming。
+    await slowRepo.saveReached!.future;
+    slowRepo.saveGate!.complete();
+    // 投递部分内容使 streaming 非空，stop 时有内容可落盘。
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+    streamController.add(const ChatCompletionChunk(contentDelta: '部分内容'));
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+
+    final stopFuture = slowContainer
+        .read(chatSessionsProvider.notifier)
+        .stopStreaming();
+    // 等 stop 落盘（第 2 次 save）到达：Stopped handler 已触发 saveFuture，
+    // Cancelled 正在 await 同一 future，stopStreaming 正在 await completer。
+    await slowRepo.stopSaveReached!.future;
+    // stop 落盘被 stopSaveGate 阻塞：stopStreaming 应等待，不返回。
+    await expectLater(
+      stopFuture.timeout(const Duration(milliseconds: 100)),
+      throwsA(isA<TimeoutException>()),
+    );
+    // 放行 stop 落盘：Cancelled complete completer，stopStreaming 返回落盘后的会话。
+    slowRepo.stopSaveGate!.complete();
+    final stopped = await stopFuture.timeout(const Duration(seconds: 2));
+    await sendFuture.timeout(const Duration(seconds: 2));
+
+    final state = slowContainer.read(chatSessionsProvider);
+    expect(state.isStreaming, isFalse);
+    expect(stopped, isNotNull);
+    expect(stopped!.messages.last.content, '部分内容');
+  });
+
   // ── dispose characterization ────────────────────────────────────────────
   //
   // dispose（ref.onDispose 先 completeGeneration(null) 再 coordinator.dispose）
@@ -439,16 +498,41 @@ class _PendingSaveRepository implements ChatConversationRepository {
   /// pending save（此时桥接字段已就位、phase=preparing），避免依赖固定 delay。
   Completer<void>? saveReached = Completer<void>();
 
+  /// 第 2 次 save（stop 落盘）完成前阻塞调用方；测试主动 complete 以放行，
+  /// 用于验证 stopStreaming 等待 Stopped 落盘完成（P2-4）。
+  Completer<void>? stopSaveGate = Completer<void>();
+
+  /// 第 2 次 save 被调用时 complete，供测试等待 stop 落盘到达（Stopped save
+  /// 已触发、stopStreaming 正在 await completer），避免依赖固定 delay。
+  Completer<void>? stopSaveReached = Completer<void>();
+
+  int _saveCount = 0;
+
   @override
   Future<void> saveConversation(ChatConversation conversation) async {
-    final reached = saveReached;
-    if (reached != null && !reached.isCompleted) {
-      reached.complete();
+    _saveCount++;
+    if (_saveCount == 1) {
+      final reached = saveReached;
+      if (reached != null && !reached.isCompleted) {
+        reached.complete();
+      }
+    } else if (_saveCount == 2) {
+      final reached = stopSaveReached;
+      if (reached != null && !reached.isCompleted) {
+        reached.complete();
+      }
     }
     await _inner.saveConversation(conversation);
-    final gate = saveGate;
-    if (gate != null) {
-      await gate.future;
+    if (_saveCount == 1) {
+      final gate = saveGate;
+      if (gate != null) {
+        await gate.future;
+      }
+    } else if (_saveCount == 2) {
+      final gate = stopSaveGate;
+      if (gate != null) {
+        await gate.future;
+      }
     }
   }
 
