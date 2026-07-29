@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 
 import '../domain/models/chat_conversation.dart';
 import '../domain/models/chat_conversation_summary.dart';
+import 'chat_generation_lifecycle.dart';
 import 'chat_message_tree.dart';
 
 /// 当前流式中的 assistant 消息增量。
@@ -79,6 +80,7 @@ class ChatSessionsState extends Equatable {
     this.streamingReply,
     this.historyRevision = 0,
     this.pendingScrollToMessageId,
+    this.generation,
   });
 
   /// 所有持久化会话（按 [updatedAt] 倒序排列）。
@@ -114,6 +116,14 @@ class ChatSessionsState extends Equatable {
   /// 正在进行中的流式增量，流结束后清空。
   final ChatStreamingReply? streamingReply;
 
+  /// 当前 generation 的生命周期快照；无进行中 generation 时为 null。
+  ///
+  /// additive 投影：`isStreaming`/`isAutoRetryWaiting` 仍是 presentation 直接
+  /// 消费的兼容字段，由 controller 在 phase 转换时同步维护，二者始终一致。
+  /// 消费方按需读取 `snapshot.phase` 以获得比布尔更细粒度的生命周期信息，
+  /// 例如区分 `streaming` 与 attempt 终态后等待 durable save 的 `finalizing`。
+  final ChatGenerationSnapshot? generation;
+
   /// 历史列表变更版本号，每次写入会话时递增，供历史页触发重新查询。
   final int historyRevision;
 
@@ -145,6 +155,8 @@ class ChatSessionsState extends Equatable {
     bool clearEmptyReply = false,
     ChatStreamingReply? streamingReply,
     bool clearStreamingReply = false,
+    ChatGenerationSnapshot? generation,
+    bool clearGeneration = false,
     int? historyRevision,
     bool incrementHistoryRevision = false,
     String? pendingScrollToMessageId,
@@ -173,6 +185,7 @@ class ChatSessionsState extends Equatable {
       streamingReply: clearStreamingReply
           ? null
           : streamingReply ?? this.streamingReply,
+      generation: clearGeneration ? null : generation ?? this.generation,
       historyRevision: incrementHistoryRevision
           ? this.historyRevision + 1
           : historyRevision ?? this.historyRevision,
@@ -195,6 +208,7 @@ class ChatSessionsState extends Equatable {
     errorMessageAssistantId,
     emptyReplyAssistantId,
     streamingReply,
+    generation,
     historyRevision,
     pendingScrollToMessageId,
   ];
