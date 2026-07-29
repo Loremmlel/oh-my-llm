@@ -19,7 +19,7 @@ import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart'
 import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
 
 import '../../../helpers/flaky_chat_conversation_repository.dart';
-import '../chat_screen/chat_screen_test_helpers.dart';
+import '../../../helpers/fake_chat_completion_client.dart';
 
 /// 测试用模型配置，与 SharedPreferences 中的 id 一致。
 final _testModel = LlmModelConfig(
