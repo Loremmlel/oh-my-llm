@@ -9,6 +9,28 @@ import 'chat_sessions_controller_support.dart';
 import 'chat_sessions_state.dart';
 import 'output_regex_processor.dart';
 
+/// [finishGenerationSuccess] 的终态判定结果，使 phase/outcome 一一对应（P2-5）。
+sealed class FinishGenerationResult {
+  const FinishGenerationResult();
+}
+
+/// 分支 5：正常完成，conversation 为最终会话。
+class FinishSuccess extends FinishGenerationResult {
+  const FinishSuccess(this.conversation);
+  final ChatConversation conversation;
+}
+
+/// 分支 2/4：输出规则清空正文，终态 error，conversation 为清空后的会话。
+class FinishOutputRuleError extends FinishGenerationResult {
+  const FinishOutputRuleError(this.conversation);
+  final ChatConversation conversation;
+}
+
+/// 分支 1/3：空回复或异常 finish 未清空，重试信号。
+class FinishRetry extends FinishGenerationResult {
+  const FinishRetry();
+}
+
 /// 为 [ChatSessionsController] 提供流式与终态投影辅助。
 ///
 /// 只保留无 generation 状态的纯投影/格式化 helper：流式增量刷新、输出正则、
@@ -116,16 +138,14 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
 
   /// 处理流式回复成功完成的决策逻辑（5 分支）。
   ///
-  /// 包含 5 个分支：
-  /// 1. 空回复
-  /// 2. 异常 finish + 输出规则清空
-  /// 3. 异常 finish + 未清空
-  /// 4. 正常 + 输出规则清空
-  /// 5. 正常完成
+  /// 返回 [FinishGenerationResult]：分支 5 -> [FinishSuccess]；
+  /// 分支 2/4（输出规则清空）-> [FinishOutputRuleError]；分支 1/3（空回复/
+  /// 异常 finish 未清空）-> [FinishRetry]。caller 据此区分成功终态、output
+  /// rule error 终态与重试信号，使 phase/outcome 一一对应（P2-5）。
   ///
   /// [skipEmptyCheck] 为 true 时跳过分支 1，适用于 coordinator 已独立处理
   /// emptyReply 的场景。
-  Future<ChatConversation?> finishGenerationSuccess({
+  Future<FinishGenerationResult> finishGenerationSuccess({
     required ChatConversation streamingConversation,
     required ChatMessage assistantMessage,
     required ChatStreamingReply streamingReply,
@@ -164,7 +184,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
         incrementHistoryRevision: true,
       );
       // durable save 由 _handleGenerationDecision 统一 await。
-      return null;
+      return const FinishRetry();
     }
 
     // 分支 2/3：异常 finish_reason
@@ -201,7 +221,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
           incrementHistoryRevision: true,
         );
         // durable save 由 _handleGenerationDecision 统一 await。
-        return cleanedConversation;
+        return FinishOutputRuleError(cleanedConversation);
       }
 
       // 分支 3：异常 finish 未清空，返回 null 触发 caller 重试。
@@ -233,7 +253,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
         incrementHistoryRevision: true,
       );
       // durable save 由 _handleGenerationDecision 统一 await。
-      return null;
+      return const FinishRetry();
     }
 
     // 分支 4：正常 + 输出规则清空
@@ -267,7 +287,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
         incrementHistoryRevision: true,
       );
       // durable save 由 _handleGenerationDecision 统一 await。
-      return cleanedConversation;
+      return FinishOutputRuleError(cleanedConversation);
     }
 
     // 分支 5：正常完成
@@ -293,7 +313,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
       incrementHistoryRevision: true,
     );
     // durable save 由 _handleGenerationDecision 统一 await。
-    return completedConversation;
+    return FinishSuccess(completedConversation);
   }
 
   /// 处理流式回复失败：格式化错误 + handleStreamingFailure。

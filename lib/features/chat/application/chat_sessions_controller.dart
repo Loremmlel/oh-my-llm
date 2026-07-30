@@ -1080,7 +1080,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         );
         await _handleGenerationDecision(
           event.generationId,
-          null,
+          const FinishRetry(),
           outcome: outcome,
         );
 
@@ -1213,7 +1213,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
   /// 或不可重试），按终态 null 完成并清理；否则保持 completer 开启，等待新 attempt。
   Future<void> _handleGenerationDecision(
     int generationId,
-    ChatConversation? result, {
+    FinishGenerationResult result, {
     ChatGenerationOutcome? outcome,
   }) async {
     // attempt helper 返回后经 `await` 让出，恢复进本方法前容器可能已 dispose：
@@ -1223,66 +1223,114 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     // 已由 finishGenerationSuccess/Error 清 false），阻止新 generation 覆盖
     // 桥接字段（P1-3）。
     _setPhase(ChatGenerationPhase.finalizing);
-    if (result != null) {
-      // 成功终态：durable 落盘。
-      final saveError = await saveConversationDurable(result);
-      if (_disposed) return;
-      if (saveError != null) {
-        _handleGenerationPersistenceFailure(
-          generationId: generationId,
-          error: saveError,
-        );
-        return;
-      }
-      state = state.copyWith(clearAutoRetryCount: true);
-      _projectTerminalSnapshot(
-        outcome is ChatGenerationEmptyReply
-            ? ChatGenerationPhase.emptyReply
-            : ChatGenerationPhase.succeeded,
-        outcome: outcome,
-      );
-      _completeGeneration(result);
-      _coordinator.finalize();
-      _cleanupCoordinatorBridge(generationId);
-      return;
-    }
-    // 重试信号：durable 落盘本次 attempt 的占位（空/异常/错误 assistant 消息）。
-    final intermediateSaveError = await saveConversationDurable(
-      state.activeConversation,
-    );
-    if (_disposed) return;
-    if (intermediateSaveError != null) {
-      _handleGenerationPersistenceFailure(
-        generationId: generationId,
-        error: intermediateSaveError,
-      );
-      return;
-    }
-    if (!_coordinator.scheduleRetry()) {
-      // 不再重试。autoRetry 开着却不再重试 = 达 maxRetryCount 上限（对应旧
-      // 循环 autoRetryCount > maxRetryCount 分支），覆盖为上限文案；autoRetry
-      // 关着 = 单次失败，保留 attempt 自身的错误文案不动。
-      final policy = _coordinatorRetryPolicy;
-      final reachedLimit = policy?.enabled ?? false;
-      if (reachedLimit) {
-        state = state.copyWith(
-          clearAutoRetryCount: true,
-          errorMessage: '自动重试已达上限（${policy!.maxRetryCount} 次），请检查网络或调整重试设置',
-        );
-      } else {
+    switch (result) {
+      case FinishSuccess(:final conversation):
+        // 成功终态：durable 落盘。
+        final saveError = await saveConversationDurable(conversation);
+        if (_disposed) return;
+        if (saveError != null) {
+          _handleGenerationPersistenceFailure(
+            generationId: generationId,
+            error: saveError,
+          );
+          return;
+        }
         state = state.copyWith(clearAutoRetryCount: true);
-      }
-      _projectTerminalSnapshot(
-        outcome is ChatGenerationEmptyReply
-            ? ChatGenerationPhase.emptyReply
-            : ChatGenerationPhase.failed,
-        outcome: outcome,
-      );
-      _completeGeneration(null);
-      _coordinator.finalize();
-      _cleanupCoordinatorBridge(generationId);
+        _projectTerminalSnapshot(
+          ChatGenerationPhase.succeeded,
+          outcome: outcome,
+        );
+        _completeGeneration(conversation);
+        _coordinator.finalize();
+        _cleanupCoordinatorBridge(generationId);
+      case FinishOutputRuleError(:final conversation):
+        // 输出规则清空正文：终态 error，durable 落盘。
+        final saveError = await saveConversationDurable(conversation);
+        if (_disposed) return;
+        if (saveError != null) {
+          _handleGenerationPersistenceFailure(
+            generationId: generationId,
+            error: saveError,
+          );
+          return;
+        }
+        state = state.copyWith(clearAutoRetryCount: true);
+        // phase=failed + outcome=Failure（非 Success），满足一一对应（P2-5）。
+        _projectTerminalSnapshot(
+          ChatGenerationPhase.failed,
+          outcome: ChatGenerationFailure(
+            generationId: generationId,
+            attempt: _attempt,
+            error: ChatErrorMessages.outputRuleEmptied,
+          ),
+        );
+        _completeGeneration(null);
+        _coordinator.finalize();
+        _cleanupCoordinatorBridge(generationId);
+      case FinishRetry():
+        // 重试信号：durable 落盘本次 attempt 的占位（空/异常/错误 assistant 消息）。
+        final intermediateSaveError = await saveConversationDurable(
+          state.activeConversation,
+        );
+        if (_disposed) return;
+        if (intermediateSaveError != null) {
+          _handleGenerationPersistenceFailure(
+            generationId: generationId,
+            error: intermediateSaveError,
+          );
+          return;
+        }
+        if (!_coordinator.scheduleRetry()) {
+          // 不再重试。autoRetry 开着却不再重试 = 达 maxRetryCount 上限（对应旧
+          // 循环 autoRetryCount > maxRetryCount 分支），覆盖为上限文案；autoRetry
+          // 关着 = 单次失败，保留 attempt 自身的错误文案不动。
+          final policy = _coordinatorRetryPolicy;
+          final reachedLimit = policy?.enabled ?? false;
+          if (reachedLimit) {
+            state = state.copyWith(
+              clearAutoRetryCount: true,
+              errorMessage: '自动重试已达上限（${policy!.maxRetryCount} 次），请检查网络或调整重试设置',
+            );
+          } else {
+            state = state.copyWith(clearAutoRetryCount: true);
+          }
+          // 达上限时 outcome 按类型投影：异常 finish（Success）转 Failure，
+          // 空回复（EmptyReply）保留 emptyReply，流错误（Failure）保留 failed（P2-5）。
+          final terminalOutcome = _retryExhaustedOutcome(generationId, outcome);
+          _projectTerminalSnapshot(
+            terminalOutcome is ChatGenerationEmptyReply
+                ? ChatGenerationPhase.emptyReply
+                : ChatGenerationPhase.failed,
+            outcome: terminalOutcome,
+          );
+          _completeGeneration(null);
+          _coordinator.finalize();
+          _cleanupCoordinatorBridge(generationId);
+        }
+      // scheduleRetry 成功：等待窗口后新 attempt，不 complete completer。
     }
-    // scheduleRetry 成功：等待窗口后新 attempt，不 complete completer。
+  }
+
+  /// 重试耗尽时的终态 outcome：异常 finish reason（coordinator 投 Success）
+  /// 达上限转为 Failure，使 phase=failed + outcome=Failure 一一对应；
+  /// 其余 outcome（EmptyReply/Failure）原样保留（P2-5）。
+  ChatGenerationOutcome _retryExhaustedOutcome(
+    int generationId,
+    ChatGenerationOutcome? outcome,
+  ) {
+    if (outcome is ChatGenerationSuccess) {
+      return ChatGenerationFailure(
+        generationId: outcome.generationId,
+        attempt: outcome.attempt,
+        error: '模型返回异常停止原因（finish_reason: ${outcome.finishReason}），自动重试已达上限',
+      );
+    }
+    return outcome ??
+        ChatGenerationFailure(
+          generationId: generationId,
+          attempt: _attempt,
+          error: '未知错误',
+        );
   }
 
   /// 完成当前 generation 的 completer。
