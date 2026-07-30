@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
+import 'package:oh_my_llm/features/chat/application/chat_generation_lifecycle.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/data/chat_completion_client.dart';
 import 'package:oh_my_llm/features/chat/domain/chat_error_messages.dart';
@@ -465,5 +466,67 @@ void registerChatSessionsControllerRetryCases() {
     expect(fakeClient.requestHistory.length, 1);
     // 应显示输出规则清空的错误消息，而非异常 finish_reason 的
     expect(state.errorMessage, ChatErrorMessages.outputRuleEmptied);
+  });
+
+  // ── phase/outcome 一一对应（P2-5） ──────────────────────────────────────────
+
+  test('输出规则清空正文投影 failed + Failure（P2-5）', () async {
+    // 设置输出规则：清空所有内容。
+    await container
+        .read(outputProcessingSettingsProvider.notifier)
+        .save(
+          const OutputProcessingSettings(
+            rules: [
+              OutputRegexRule(
+                id: 'rule-1',
+                title: '清空全部',
+                pattern: '[\\s\\S]*',
+                replacement: '',
+                enabled: true,
+              ),
+            ],
+          ),
+        );
+
+    // 正常 finish（finishReason 默认），但输出规则清空正文 -> 分支 4。
+    fakeClient.enqueueChunks(['正常内容']);
+    await sendMsg('测试规则清空终态');
+
+    final state = container.read(chatSessionsProvider);
+    expect(state.errorMessage, ChatErrorMessages.outputRuleEmptied);
+    // P2-5：输出规则清空正文属于 error，phase=failed + outcome=Failure
+    //（非 succeeded + Success），满足 DTO 一一对应。
+    expect(state.generation?.phase, ChatGenerationPhase.failed);
+    expect(state.generation?.outcome, isA<ChatGenerationFailure>());
+  });
+
+  test('异常 finish_reason 达重试上限投影 failed + Failure（P2-5）', () async {
+    container
+        .read(chatSessionsProvider.notifier)
+        .updateActiveConversationPreferences(autoRetryEnabled: true);
+    await container
+        .read(autoRetrySettingsProvider.notifier)
+        .save(
+          const AutoRetrySettings(
+            maxJitterSeconds: 0,
+            maxRetryCount: 1,
+            retryOnAbnormalFinishReason: true,
+          ),
+        );
+
+    // 异常 finish reason（length），maxRetryCount=1 -> 首次 attempt 即达上限，
+    // 不重试。coordinator 投 AttemptCompleted(Success)，但异常 finish 属 error。
+    fakeClient.enqueueDeltas([
+      const ChatCompletionChunk(contentDelta: '部分内容', finishReason: 'length'),
+    ]);
+
+    await sendMsg('测试异常 finish 上限', retryDelay: Duration.zero);
+
+    final state = container.read(chatSessionsProvider);
+    expect(fakeClient.requestHistory.length, 1);
+    // P2-5：异常 finish（outcome=Success）达上限转 Failure，phase=failed
+    //（非 failed + Success），满足 DTO 一一对应。
+    expect(state.generation?.phase, ChatGenerationPhase.failed);
+    expect(state.generation?.outcome, isA<ChatGenerationFailure>());
   });
 }
