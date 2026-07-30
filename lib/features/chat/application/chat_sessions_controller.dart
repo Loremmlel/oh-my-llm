@@ -860,10 +860,14 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     final coordinator = _generationCoordinator;
     if (coordinator != null && coordinator.hasActive) {
       final completer = _coordinatorCompleter;
-      coordinator.stop();
-      // cancel(userStop) 同步投递 Stopped（await save 让出）+ Cancelled（await
-      // Stopped 的 save 后 complete completer + cleanup）。await completer 使
-      // stopStreaming 等待部分内容落盘完成（P2-4），返回落盘后的会话。
+      // finalizing 期间 attempt 已终态、正在 durable save：coordinator.stop() 会对
+      // 已终态 handle 投 Stopped/Cancelled 覆盖正确终态，并 complete completer +
+      // cleanup 放行 B，使 A 的 save continuation 恢复后劫持 B 的 snapshot/
+      // completer/finalize（P1）。改为不调 stop，await completer 等 finalizing
+      // 自然完成（save 后 complete），保持终态正确、B 不被劫持。
+      if (state.generation?.phase != ChatGenerationPhase.finalizing) {
+        coordinator.stop();
+      }
       if (completer != null && !completer.isCompleted) {
         await completer.future;
       }

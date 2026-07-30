@@ -545,6 +545,83 @@ void registerChatSessionsControllerStopCases() {
     expect(state.errorMessage, ChatErrorMessages.persistenceFailed);
   });
 
+  test('finalizing 期间 stopStreaming 不劫持后续 generation（P1）', () async {
+    // 用可控 repo 阻塞 terminal save，使 A 停在 finalizing（attempt 已终态、
+    // durable save 进行中）。此时 stopStreaming 若调 coordinator.stop() 会对已
+    // 终态 handle 投 Stopped/Cancelled 覆盖 succeeded，并 complete completer +
+    // cleanup 放行 B，A 的 save 恢复后劫持 B 的 snapshot/completer/finalize。
+    // 修复后 finalizing 期间不调 stop，await completer 等 A 自然完成（succeeded）。
+    final slowRepo = _PendingSaveRepository(
+      SqliteChatConversationRepository(database),
+    );
+    final slowContainer = ProviderContainer(
+      overrides: [
+        appDatabaseProvider.overrideWithValue(database),
+        sharedPreferencesProvider.overrideWithValue(preferences),
+        chatCompletionClientProvider.overrideWithValue(fakeClient),
+        chatConversationRepositoryProvider.overrideWithValue(slowRepo),
+      ],
+    );
+    addTearDown(slowContainer.dispose);
+
+    fakeClient.enqueueChunks(['A 回复']);
+    final sendFutureA = slowContainer
+        .read(chatSessionsProvider.notifier)
+        .sendMessage(
+          content: 'A',
+          modelConfig: testModel,
+          presetPrompt: null,
+          reasoningEnabled: false,
+          reasoningEffort: ReasoningEffort.medium,
+        );
+    // pending save（第 1 次）到达并放行，A 进入 streaming。
+    await slowRepo.saveReached!.future;
+    slowRepo.saveGate!.complete();
+    // terminal save（第 2 次）到达：A 在 finalizing，await save 让出。
+    await slowRepo.stopSaveReached!.future.timeout(const Duration(seconds: 5));
+    expect(
+      slowContainer.read(chatSessionsProvider).generation?.phase,
+      ChatGenerationPhase.finalizing,
+    );
+
+    // finalizing 期间 stopStreaming：不调 coordinator.stop，await completer 等 A
+    // 完成。A 在等 stopSaveGate，未放行则 stopFuture 不完成（修复前调 stop ->
+    // Cancelled complete completer，stopFuture 早完成，不 timeout）。
+    final stopFuture = slowContainer
+        .read(chatSessionsProvider.notifier)
+        .stopStreaming();
+    await expectLater(
+      stopFuture.timeout(const Duration(milliseconds: 100)),
+      throwsA(isA<TimeoutException>()),
+    );
+    // 放行 terminal save -> A 恢复 -> succeeded + complete completer ->
+    // stopStreaming 恢复。
+    slowRepo.stopSaveGate!.complete();
+    await stopFuture.timeout(const Duration(seconds: 5));
+    await sendFutureA.timeout(const Duration(seconds: 5));
+
+    // A 走 succeeded（未被 stop 覆盖为 cancelled）。
+    var state = slowContainer.read(chatSessionsProvider);
+    expect(state.generation?.phase, ChatGenerationPhase.succeeded);
+    expect(state.generation?.outcome, isA<ChatGenerationSuccess>());
+
+    // B 不被 A 的 continuation 劫持，正常完成。
+    fakeClient.enqueueChunks(['B 回复']);
+    await slowContainer
+        .read(chatSessionsProvider.notifier)
+        .sendMessage(
+          content: 'B',
+          modelConfig: testModel,
+          presetPrompt: null,
+          reasoningEnabled: false,
+          reasoningEffort: ReasoningEffort.medium,
+        );
+    state = slowContainer.read(chatSessionsProvider);
+    expect(state.activeConversation.messages.last.content, 'B 回复');
+    expect(state.generation?.phase, ChatGenerationPhase.succeeded);
+    expect(state.generation?.outcome, isA<ChatGenerationSuccess>());
+  });
+
   test('stopStreaming 等待 Stopped 落盘完成（P2-4）', () async {
     // 注入第 2 次 save（stop 落盘）被 stopSaveGate 阻塞的 repository，验证
     // stopStreaming 在 Stopped 落盘完成前不返回，放行后才返回落盘后的会话。
