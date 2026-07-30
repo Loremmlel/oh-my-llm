@@ -13,6 +13,7 @@ import 'package:oh_my_llm/features/chat/data/chat_completion_client.dart';
 import 'package:oh_my_llm/features/chat/data/chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/data/openai_compatible_chat_client.dart';
 import 'package:oh_my_llm/features/chat/data/sqlite_chat_conversation_repository.dart';
+import 'package:oh_my_llm/features/chat/domain/chat_error_messages.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation_summary.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
@@ -405,6 +406,17 @@ void registerChatSessionsControllerStopCases() {
     final state = slowContainer.read(chatSessionsProvider);
     expect(state.isStreaming, isFalse);
     expect(fakeClient.requestHistory, isEmpty);
+    // P2-3：占位 assistant 标记 isStreaming=false 并设 stopped inline 状态，
+    // 投影 cancelled 终态快照，避免内存留下仍在流式的空占位导致下次用户消息
+    // 接在占位之后。
+    final messages = state.activeConversation.messages;
+    expect(messages.last.role, ChatMessageRole.assistant);
+    expect(messages.last.isStreaming, isFalse);
+    expect(messages.last.content, isEmpty);
+    expect(state.emptyReplyAssistantId, messages.last.id);
+    expect(state.errorMessage, ChatErrorMessages.stoppedByUser);
+    expect(state.generation?.phase, ChatGenerationPhase.cancelled);
+    expect(state.generation?.cancelReason, ChatCancelReason.userStop);
   });
 
   test('stopStreaming 等待 Stopped 落盘完成（P2-4）', () async {
@@ -675,24 +687,28 @@ class _PendingSaveRepository implements ChatConversationRepository {
   @override
   Future<void> saveConversation(ChatConversation conversation) async {
     _saveCount++;
-    if (_saveCount == 1) {
+    // 捕获本次调用的序号：await 让出后 _saveCount 可能被并发调用递增，用局部
+    // 变量保证 reached/gate 路径与本次序号一致，避免第 1 次 save 误走第 2 次的
+    // stopSaveGate 分支而永久挂起。
+    final myCount = _saveCount;
+    if (myCount == 1) {
       final reached = saveReached;
       if (reached != null && !reached.isCompleted) {
         reached.complete();
       }
-    } else if (_saveCount == 2) {
+    } else if (myCount == 2) {
       final reached = stopSaveReached;
       if (reached != null && !reached.isCompleted) {
         reached.complete();
       }
     }
     await _inner.saveConversation(conversation);
-    if (_saveCount == 1) {
+    if (myCount == 1) {
       final gate = saveGate;
       if (gate != null) {
         await gate.future;
       }
-    } else if (_saveCount == 2) {
+    } else if (myCount == 2) {
       final gate = stopSaveGate;
       if (gate != null) {
         await gate.future;
