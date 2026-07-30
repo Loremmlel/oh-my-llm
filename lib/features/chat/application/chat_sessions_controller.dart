@@ -170,16 +170,25 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
   }
 
   /// 将 [ChatGenerationProgress] 投影到 state：generation snapshot + streamingReply
-  /// + 兼容 bool（从 phase 单向派生）。host.prepare 仍写 isStreaming=true 保持
-  /// preparing 阶段停止按钮可用（Task 4 收口后移除此例外）。
+  /// + 兼容 bool（从 phase 单向派生）。兼容字段（isStreaming / isAutoRetryWaiting
+  /// / autoRetryCount）的唯一写入点，host 方法不再单独写（不变量 10）。
   void _projectProgress(ChatGenerationProgress progress) {
     final snapshot = progress.snapshot;
     final clearStreaming = progress.streamingReply == null;
     final phase = snapshot.phase;
-    final isStreamingPhase = phase == ChatGenerationPhase.streaming;
-    // terminal（outcome 已定）后重试计数归零；重试进行中按 attempt-1 投影
-    // （首次 attempt=1 -> 0，第 N 次重试 attempt=N+1 -> N）。
+    // preparing 也投影 isStreaming=true：ComposerSendButton 的 isStopping 依据
+    // isStreaming，prepare 期间需保持停止按钮可用。由投影统一提供，host.prepare
+    // 不再单独写 isStreaming。
+    final isStreamingLike =
+        phase == ChatGenerationPhase.preparing ||
+        phase == ChatGenerationPhase.streaming;
     final isTerminal = snapshot.outcome != null;
+    // autoRetryCount 仅在 retryWaiting/streaming 投影 attempt-1（显示"第 N 次重试
+    // 中"）；finalizing/stopping/preparing/terminal 投影 0，避免 attempt 终态保存
+    // 窗口误显示重试中。
+    final showsRetry =
+        phase == ChatGenerationPhase.retryWaiting ||
+        phase == ChatGenerationPhase.streaming;
     // persistenceFailed 是终态，但 run 的 _terminal 只投影 phase；错误文字在此
     // 统一补齐，使 save 失败对用户显式可见（不变量：persistence 失败显式报错）。
     final isPersistenceFailed = phase == ChatGenerationPhase.persistenceFailed;
@@ -187,16 +196,16 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       generation: snapshot,
       streamingReply: clearStreaming ? null : progress.streamingReply,
       clearStreamingReply: clearStreaming,
-      isStreaming: isStreamingPhase,
+      isStreaming: isStreamingLike,
       isAutoRetryWaiting: phase == ChatGenerationPhase.retryWaiting,
       autoRetryCount: isTerminal
           ? 0
-          : (snapshot.attempt > 0 ? snapshot.attempt - 1 : 0),
+          : (showsRetry && snapshot.attempt > 0 ? snapshot.attempt - 1 : 0),
       errorMessage: isPersistenceFailed
           ? ChatErrorMessages.persistenceFailed
           : null,
-      clearErrorMessage: isStreamingPhase,
-      clearEmptyReply: isStreamingPhase,
+      clearErrorMessage: isStreamingLike,
+      clearEmptyReply: isStreamingLike,
     );
   }
 
@@ -702,8 +711,10 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
 
   @override
   Future<ChatPrepareResult> prepare(ChatGenerationCommand command) async {
-    // 创建占位 assistant、追加到树、写 state（isStreaming=true 保持停止按钮可用）、
-    // durable pending checkpoint。失败返回 ChatPrepareFailure，run 据此中止、不启动网络。
+    // 创建占位 assistant、追加到树、写 state（conversation/streamingReply 业务
+    // 字段）、durable pending checkpoint。兼容 bool（isStreaming/错误清除）由 run
+    // 的 preparing 投影统一提供，此处不写（不变量 10）。失败返回
+    // ChatPrepareFailure，run 据此中止、不启动网络。
     final timestamp = DateTime.now();
     final tree = resolveMessageTreeState(command.conversation);
     final assistantParentId =
@@ -740,10 +751,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         state.conversationSummaries,
         summaryFromConversation(streamingConversation),
       ),
-      isStreaming: true,
       streamingReply: streamingReply,
-      clearErrorMessage: true,
-      clearEmptyReply: true,
       incrementHistoryRevision: true,
     );
     final pendingError = await saveConversationDurable(streamingConversation);
@@ -847,7 +855,6 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         if (error != null) {
           return ChatAttemptPersistenceFailed(error);
         }
-        state = state.copyWith(clearAutoRetryCount: true);
         return ChatAttemptSucceed(conversation);
       case FinishOutputRuleError(:final conversation):
         final error = await saveConversationDurable(conversation);
@@ -857,7 +864,6 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         if (error != null) {
           return ChatAttemptPersistenceFailed(error);
         }
-        state = state.copyWith(clearAutoRetryCount: true);
         return ChatAttemptOutputRuleFailed(
           conversation,
           ChatGenerationFailure(
@@ -882,16 +888,17 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         final terminalOutcome = _retryExhaustedOutcome(attempt);
         final reachedLimit = retryPolicy.enabled;
         // 终态保留错误：reachedLimit（启用但达上限）设上限消息；否则保留
-        // finishGenerationError 已投影的原始错误。clearErrorMessage=false 避免
-        // 误清刚写入的错误（retry 禁用时清掉 finishGenerationError 的错误是
-        // sendMessage 错误显示丢失的根因）。
-        state = state.copyWith(
-          clearAutoRetryCount: true,
-          errorMessage: reachedLimit
-              ? '自动重试已达上限（${retryPolicy.maxRetryCount} 次），请检查网络或调整重试设置'
-              : null,
-          clearErrorMessage: false,
-        );
+        // finishGenerationError 已投影的原始错误。clearErrorMessage=false 避免误清
+        // 刚写入的错误（retry 禁用时清掉 finishGenerationError 的错误是 sendMessage
+        // 错误显示丢失的根因）。autoRetryCount 由 run terminal 投影归零，此处不写
+        // （不变量 10）。
+        if (reachedLimit) {
+          state = state.copyWith(
+            errorMessage:
+                '自动重试已达上限（${retryPolicy.maxRetryCount} 次），请检查网络或调整重试设置',
+            clearErrorMessage: false,
+          );
+        }
         return ChatAttemptGiveUp(terminalOutcome);
     }
   }
@@ -915,15 +922,15 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     final isEmpty =
         partial.content.trim().isEmpty && partial.reasoning.trim().isEmpty;
     final shouldMarkEmptyReply = isEmpty;
+    // 兼容 bool（isStreaming/isAutoRetryWaiting/autoRetryCount）由 run 的
+    // stopping 投影归位，此处只写终态业务字段（conversation/错误/空回复标记）
+    // 与清流式 reply（停止后不再流式渲染）（不变量 10）。
     state = state.copyWith(
       conversations: replaceConversation(stoppedConversation),
       conversationSummaries: replaceOrAddSummary(
         state.conversationSummaries,
         summaryFromConversation(stoppedConversation),
       ),
-      isStreaming: false,
-      isAutoRetryWaiting: false,
-      clearAutoRetryCount: true,
       clearStreamingReply: true,
       incrementHistoryRevision: true,
       emptyReplyAssistantId: shouldMarkEmptyReply ? assistantMessageId : null,

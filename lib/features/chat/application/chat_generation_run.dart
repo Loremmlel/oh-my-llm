@@ -337,6 +337,14 @@ class ChatGenerationRun {
     // finalizing 期间 stop：completeAttempt 已在前序 terminal，no-op
     // （不变量 7：finalizing 不可取消）。
     if (_outcome != null) return;
+    // 发起 stop 时的阶段（preparing/streaming/retryWaiting），传入 partial 供
+    // host.stop 区分停止来源（ChatPartialSnapshot.phase 契约）。
+    final stopOriginPhase = phase;
+    // stopping 投影：兼容 bool（isStreaming/isAutoRetryWaiting/autoRetryCount）由
+    // 投影统一归位，host.stop 不再单独写（不变量 10）。保留 streamingReply 使已
+    // 生成内容在保存窗口仍可见，host.stop 写终态 conversation 后再清。
+    phase = ChatGenerationPhase.stopping;
+    _project(streamingReply: _streamingReply);
     _subscription?.cancel();
     _retryTimer?.cancel();
     _retryTimer = null;
@@ -350,7 +358,7 @@ class ChatGenerationRun {
       streamingConversation: _streamingConversation!,
       assistantMessage: _assistantMessage!,
       streamingReply: _streamingReply,
-      phase: phase,
+      phase: stopOriginPhase,
     );
     final decision = await host.stop(partial);
     if (_disposed || _outcome != null) return;
