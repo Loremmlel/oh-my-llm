@@ -396,10 +396,16 @@ void registerChatSessionsControllerStopCases() {
     // 等 sendMessage 到达 pending save（preparing）：桥接字段已就位。
     await slowRepo.saveReached!.future;
 
-    await slowContainer.read(chatSessionsProvider.notifier).stopStreaming();
-
-    // 放行 pending save：_runGenerationViaCoordinator 返回后不再 _coordinator.start。
+    // stopStreaming（preparing）：投影 cancelled + complete completer，再 await
+    // pending save（saveGate）+ stop save（stopSaveGate）形成 durable checkpoint（P2-3）。
+    // 不先 await：先放行 saveGate 让 pending save 完成，再放行 stopSaveGate。
+    final stopFuture = slowContainer
+        .read(chatSessionsProvider.notifier)
+        .stopStreaming();
     slowRepo.saveGate!.complete();
+    await slowRepo.stopSaveReached!.future;
+    slowRepo.stopSaveGate!.complete();
+    await stopFuture.timeout(const Duration(seconds: 10));
     // timeout 守卫：P1-1 修复后 sendFuture 应立即完成；若仍 start 会在此暴露。
     await sendFuture.timeout(const Duration(seconds: 10));
 
@@ -450,8 +456,11 @@ void registerChatSessionsControllerStopCases() {
         );
     await repo.firstSaveReached!.future;
 
-    // A stop（preparing 分支）：P2-3 后投影 cancelled，isBusy=false，B 可接管。
-    await slowContainer.read(chatSessionsProvider.notifier).stopStreaming();
+    // A stop（preparing 分支）：投影 cancelled + complete completer，再 await A 的
+    // pending save（firstSaveGate 阻塞）。不先 await：先让 B 接管，再放行 A 的 gate。
+    final stopFuture = slowContainer
+        .read(chatSessionsProvider.notifier)
+        .stopStreaming();
 
     // B 接管：pending save 成功，进入 streaming。
     final sendFutureB = slowContainer
@@ -467,17 +476,73 @@ void registerChatSessionsControllerStopCases() {
     // 放行 A 的 pending save（失败）：A 的 _runGenerationViaCoordinator 恢复，
     // pendingSaveError != null，但 identical(_coordinatorCompleter, A's completer)
     // = false（B 已接管）-> 跳过 _handleGenerationPersistenceFailure，不污染 B（P1-1）。
+    // A 的 stopStreaming 恢复后 _coordinatorGenerationId 已是 B 的 token，守卫 return。
     repo.firstSaveGate!.complete();
     await sendFutureA.timeout(const Duration(seconds: 5));
 
     // B streaming -> 完成。
     await sendFutureB.timeout(const Duration(seconds: 5));
+    await stopFuture.timeout(const Duration(seconds: 5));
 
     expect(fakeClient.requestHistory.length, 1);
     final state = slowContainer.read(chatSessionsProvider);
     expect(state.isStreaming, isFalse);
     expect(state.activeConversation.messages.last.content, 'B 回复');
     expect(state.generation?.phase, ChatGenerationPhase.succeeded);
+  });
+
+  test('preparing stop 落盘失败投影 persistenceFailed（P2-3）', () async {
+    // 注入第 2 次 save（stop 落盘）放行 stopSaveGate 后抛异常的 repository，
+    // 验证 preparing stop 的 stop save durable await 感知失败并投影
+    // persistenceFailed，而非 fire-and-forget 吞掉（P2-3）。
+    final slowRepo = _PendingSaveRepository(
+      SqliteChatConversationRepository(database),
+    );
+    slowRepo.failStopSave = true;
+    final slowContainer = ProviderContainer(
+      overrides: [
+        appDatabaseProvider.overrideWithValue(database),
+        sharedPreferencesProvider.overrideWithValue(preferences),
+        chatCompletionClientProvider.overrideWithValue(fakeClient),
+        chatConversationRepositoryProvider.overrideWithValue(slowRepo),
+      ],
+    );
+    addTearDown(slowContainer.dispose);
+
+    final streamController = StreamController<ChatCompletionChunk>();
+    addTearDown(() {
+      streamController.close();
+    });
+    fakeClient.enqueueStream(streamController.stream);
+
+    final sendFuture = slowContainer
+        .read(chatSessionsProvider.notifier)
+        .sendMessage(
+          content: '测试 preparing stop 落盘失败',
+          modelConfig: testModel,
+          presetPrompt: null,
+          reasoningEnabled: false,
+          reasoningEffort: ReasoningEffort.medium,
+        );
+    await slowRepo.saveReached!.future;
+
+    final stopFuture = slowContainer
+        .read(chatSessionsProvider.notifier)
+        .stopStreaming();
+    slowRepo.saveGate!.complete();
+    await slowRepo.stopSaveReached!.future;
+    // 放行 stop save gate 后第 2 次 save 抛异常。
+    slowRepo.stopSaveGate!.complete();
+    await stopFuture.timeout(const Duration(seconds: 5));
+    await sendFuture.timeout(const Duration(seconds: 5));
+
+    final state = slowContainer.read(chatSessionsProvider);
+    expect(state.isStreaming, isFalse);
+    // P2-3：preparing stop 落盘失败投影 persistenceFailed（非 cancelled），
+    // outcome 为 PersistenceFailure，inline error 为 persistenceFailed。
+    expect(state.generation?.phase, ChatGenerationPhase.persistenceFailed);
+    expect(state.generation?.outcome, isA<ChatGenerationPersistenceFailure>());
+    expect(state.errorMessage, ChatErrorMessages.persistenceFailed);
   });
 
   test('stopStreaming 等待 Stopped 落盘完成（P2-4）', () async {
@@ -854,6 +919,10 @@ class _PendingSaveRepository implements ChatConversationRepository {
 
   int _saveCount = 0;
 
+  /// 第 2 次 save（stop 落盘）放行 stopSaveGate 后是否抛异常，模拟 preparing
+  /// stop 落盘失败（P2-3）。默认 false。
+  bool failStopSave = false;
+
   @override
   Future<void> saveConversation(ChatConversation conversation) async {
     _saveCount++;
@@ -866,23 +935,26 @@ class _PendingSaveRepository implements ChatConversationRepository {
       if (reached != null && !reached.isCompleted) {
         reached.complete();
       }
-    } else if (myCount == 2) {
-      final reached = stopSaveReached;
-      if (reached != null && !reached.isCompleted) {
-        reached.complete();
-      }
-    }
-    await _inner.saveConversation(conversation);
-    if (myCount == 1) {
+      await _inner.saveConversation(conversation);
       final gate = saveGate;
       if (gate != null) {
         await gate.future;
       }
     } else if (myCount == 2) {
+      final reached = stopSaveReached;
+      if (reached != null && !reached.isCompleted) {
+        reached.complete();
+      }
       final gate = stopSaveGate;
       if (gate != null) {
         await gate.future;
       }
+      if (failStopSave) {
+        throw StateError('模拟 preparing stop 落盘失败');
+      }
+      await _inner.saveConversation(conversation);
+    } else {
+      await _inner.saveConversation(conversation);
     }
   }
 
