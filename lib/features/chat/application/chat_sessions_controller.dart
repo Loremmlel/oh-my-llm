@@ -882,6 +882,8 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
 
   @override
   void onGenerationEvent(ChatGenerationEvent event) {
+    // dispose 后丢弃所有迟到事件，不写已销毁的 state（P2-4）。
+    if (_disposed) return;
     // Started 确立当前 generation；其余事件若 generationId 与当前活跃不一致，
     // 说明是上一轮 _handleGenerationEvent 在 await 让出后、新一轮已覆盖字段
     // 期间迟到的残留事件，丢弃以免读写错乱（A 的 async 残留 vs B 的新字段）。
@@ -1079,6 +1081,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
           _stoppedSaveFuture = saveFuture;
           final saveError = await saveFuture;
           _stoppedSaveFuture = null;
+          if (_disposed) return;
           if (saveError != null &&
               !state.isStreaming &&
               state.activeConversation.id == stoppedConversation.id) {
@@ -1099,6 +1102,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
           await pendingSave;
           _stoppedSaveFuture = null;
         }
+        if (_disposed) return;
         _projectTerminalSnapshot(
           ChatGenerationPhase.cancelled,
           cancelReason: event.reason,
@@ -1160,6 +1164,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     if (result != null) {
       // 成功终态：durable 落盘。
       final saveError = await saveConversationDurable(result);
+      if (_disposed) return;
       if (saveError != null) {
         _handleGenerationPersistenceFailure(
           generationId: generationId,
@@ -1183,6 +1188,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     final intermediateSaveError = await saveConversationDurable(
       state.activeConversation,
     );
+    if (_disposed) return;
     if (intermediateSaveError != null) {
       _handleGenerationPersistenceFailure(
         generationId: generationId,
@@ -1260,6 +1266,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     required int? generationId,
     required Object error,
   }) {
+    if (_disposed) return;
     if (generationId != null) {
       _coordinator.markPersistenceFailure(error);
     }
