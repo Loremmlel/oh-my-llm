@@ -596,6 +596,56 @@ void registerChatSessionsControllerStopCases() {
 
     expect(unexpected, isEmpty);
   });
+
+  test('dispose 在 terminal save 期间不写 state 且无未处理异常（P2-4）', () async {
+    final slowRepo = _PendingSaveRepository(
+      SqliteChatConversationRepository(database),
+    );
+    final slowContainer = ProviderContainer(
+      overrides: [
+        appDatabaseProvider.overrideWithValue(database),
+        sharedPreferencesProvider.overrideWithValue(preferences),
+        chatCompletionClientProvider.overrideWithValue(fakeClient),
+        chatConversationRepositoryProvider.overrideWithValue(slowRepo),
+      ],
+    );
+    var disposed = false;
+    addTearDown(() {
+      if (!disposed) slowContainer.dispose();
+    });
+
+    final unexpected = <Object>[];
+    await runZonedGuarded(() async {
+      fakeClient.enqueueChunks(['回复内容']);
+      final sendFuture = slowContainer
+          .read(chatSessionsProvider.notifier)
+          .sendMessage(
+            content: '测试 terminal save dispose',
+            modelConfig: testModel,
+            presetPrompt: null,
+            reasoningEnabled: false,
+            reasoningEffort: ReasoningEffort.medium,
+          );
+      // pending save（第 1 次）到达后放行，generation 进入 streaming。
+      await slowRepo.saveReached!.future;
+      slowRepo.saveGate!.complete();
+      // terminal save（第 2 次，_handleGenerationDecision 落盘 result）到达：
+      // generation 在 finalizing，await save 让出。
+      await slowRepo.stopSaveReached!.future.timeout(
+        const Duration(seconds: 5),
+      );
+
+      slowContainer.dispose();
+      disposed = true;
+      // 放行 terminal save：_handleGenerationDecision 恢复后因 _disposed 守卫
+      // 直接 return，不写已销毁的 state、不抛 Riverpod lifecycle 异常（P2-4）。
+      slowRepo.stopSaveGate!.complete();
+      await sendFuture.timeout(const Duration(seconds: 2));
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }, (error, stack) => unexpected.add(error));
+
+    expect(unexpected, isEmpty);
+  });
 }
 
 /// 测试用 repository：首次 save 被 [saveGate] 阻塞，用于捕获 preparing 阶段
