@@ -886,7 +886,11 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         // 并清除上一轮 attempt 的 inline error/empty 标记--对应旧
         // sendMessageWithAutoRetry 循环顶部 clearErrorMessage/clearEmptyReply，
         // 否则上一轮的错误文案会残留到重试成功后仍显示。
+        // 重试 attempt 恢复流式态：首次 attempt 终态已把 isStreaming 清 false，
+        // 重试 Started 必须恢复 true，否则重试 attempt 进行中停止按钮（依赖
+        // isStreaming || isAutoRetryWaiting）会退化为禁用的发送，用户无法停止（P1-2）。
         state = state.copyWith(
+          isStreaming: true,
           isAutoRetryWaiting: false,
           streamingReply: _coordinatorStreamingReply,
           clearErrorMessage: true,

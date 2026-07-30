@@ -110,6 +110,44 @@ void registerChatSessionsControllerStopCases() {
     expect(state.errorMessage, isNull);
   });
 
+  test('重试 attempt 进行中可被 stop 停止（P1-2）', () async {
+    container
+        .read(chatSessionsProvider.notifier)
+        .updateActiveConversationPreferences(autoRetryEnabled: true);
+
+    // 首次 attempt 失败 -> 重试等待窗口 -> 重试 attempt streaming。
+    fakeClient.enqueueError(ChatCompletionException('首次失败'));
+    final retryStream = StreamController<ChatCompletionChunk>();
+    addTearDown(retryStream.close);
+    fakeClient.enqueueStream(retryStream.stream);
+
+    final sendFuture = sendMsg(
+      'test',
+      retryDelay: const Duration(milliseconds: 50),
+    );
+
+    // 等重试 attempt 发出（requestHistory 第 2 次）：此时 retryStream 已被 listen，
+    // 重试 attempt 正在 streaming。
+    for (var i = 0; i < 50; i++) {
+      if (fakeClient.requestHistory.length >= 2) break;
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }
+    expect(fakeClient.requestHistory.length, 2);
+
+    // P1-2 修复后重试 attempt 进行中 isStreaming 恢复 true；修复前首次 attempt
+    // 终态已清 false 且 Started 不恢复，停止按钮（isStreaming || isAutoRetryWaiting）
+    // 此刻为 false，退化为禁用的发送，用户无法停止。
+    final streamingState = container.read(chatSessionsProvider);
+    expect(streamingState.isStreaming, isTrue);
+    expect(streamingState.isAutoRetryWaiting, isFalse);
+
+    await container.read(chatSessionsProvider.notifier).stopStreaming();
+    await sendFuture;
+
+    final stoppedState = container.read(chatSessionsProvider);
+    expect(stoppedState.isStreaming, isFalse);
+  });
+
   test('stopStreaming 在过渡窗口期间被调用后旧重试不继续', () async {
     container
         .read(chatSessionsProvider.notifier)
