@@ -417,6 +417,10 @@ void registerChatSessionsControllerStopCases() {
     expect(state.errorMessage, ChatErrorMessages.stoppedByUser);
     expect(state.generation?.phase, ChatGenerationPhase.cancelled);
     expect(state.generation?.cancelReason, ChatCancelReason.userStop);
+    // P2-6：preparing snapshot 携带唯一非 0 generationId 与干净 attempt（0），
+    // 不再用 0 或沿用上一轮重试次数。
+    expect(state.generation?.generationId, isNonZero);
+    expect(state.generation?.attempt, 0);
   });
 
   test('preparing pending save 失败不污染后续 generation（P1-1）', () async {
@@ -601,6 +605,8 @@ void registerChatSessionsControllerStopCases() {
     await sendMsg('first');
     var state = container.read(chatSessionsProvider);
     expect(state.generation!.phase, ChatGenerationPhase.succeeded);
+    final firstGenId = state.generation!.generationId;
+    expect(firstGenId, isNonZero);
 
     // 新 generation 开始后 preparing 覆盖旧 terminal 快照。
     fakeClient.enqueueChunks(['第二次回复']);
@@ -608,6 +614,8 @@ void registerChatSessionsControllerStopCases() {
     state = container.read(chatSessionsProvider);
     expect(state.generation!.phase, ChatGenerationPhase.succeeded);
     expect(state.generation!.outcome, isA<ChatGenerationSuccess>());
+    // P2-6：两次 run 的 generationId 单调递增，唯一 token。
+    expect(state.generation!.generationId, greaterThan(firstGenId));
   });
 
   // ── dispose characterization ────────────────────────────────────────────

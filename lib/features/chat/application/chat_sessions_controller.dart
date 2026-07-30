@@ -157,6 +157,11 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
   /// 但不投 Stopped，保持 null。
   Future<Object?>? _stoppedSaveFuture;
 
+  /// controller 侧 generation 计数器：preparing 阶段 coordinator 尚未 start，
+  /// 预分配唯一 token 使 preparing snapshot 的 generationId 非 0；coordinator.start
+  /// 接受该 token，Started 事件回带同一值，preparing/streaming/terminal 全程一致（P2-6）。
+  int _nextGenerationId = 1;
+
   /// 当前活跃 generation 的 id。用于丢弃上一轮 _handleGenerationEvent 在 await
   /// 让出后迟到的残留事件，并阻止其 _cleanupCoordinatorBridge 清错新字段。
   int? _coordinatorGenerationId;
@@ -758,6 +763,12 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     );
     final completer = Completer<ChatConversation?>();
 
+    // 预分配唯一 generation token 并重置 attempt：coordinator 尚未 start，preparing
+    // snapshot 需要非 0 的 generationId 与干净的 attempt，避免沿用上一轮重试次数（P2-6）。
+    // coordinator.start 接受该 token，Started 事件回带同一值，全程 token 一致。
+    _coordinatorGenerationId = _nextGenerationId++;
+    _attempt = 0;
+
     // 初始化桥接字段，供 _handleGenerationEvent 使用。
     _coordinatorCompleter = completer;
     _coordinatorStreamingConversation = streamingConversation;
@@ -832,7 +843,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
           : null,
       retryDelay: retryDelay,
     );
-    _coordinator.start(request, this);
+    _coordinator.start(request, this, generationId: _coordinatorGenerationId);
 
     return completer.future;
   }

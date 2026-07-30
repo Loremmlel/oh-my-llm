@@ -37,14 +37,18 @@ class ChatGenerationCoordinator {
   ///
   /// 若已有 generation 在进行，旧 generation 被 supersede（收到 cancelled
   /// 事件后其迟到回调一律被 token guard 丢弃）。新 generation 立即开始。
-  void start(ChatGenerationRequest request, ChatGenerationObserver observer) {
+  void start(
+    ChatGenerationRequest request,
+    ChatGenerationObserver observer, {
+    int? generationId,
+  }) {
     if (_disposed) return;
 
     final previous = _activeHandle;
     _activeHandle = null;
 
     final handle = _GenerationHandle(
-      generationId: _nextGenerationId++,
+      generationId: generationId ?? _nextGenerationId++,
       request: request,
       observer: observer,
       dispatch: (event) {
