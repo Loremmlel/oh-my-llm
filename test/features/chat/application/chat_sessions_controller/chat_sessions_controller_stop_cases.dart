@@ -419,6 +419,63 @@ void registerChatSessionsControllerStopCases() {
     expect(state.generation?.cancelReason, ChatCancelReason.userStop);
   });
 
+  test('preparing pending save 失败不污染后续 generation（P1-1）', () async {
+    final repo = _PendingFailingFirstRepository(
+      SqliteChatConversationRepository(database),
+    );
+    final slowContainer = ProviderContainer(
+      overrides: [
+        appDatabaseProvider.overrideWithValue(database),
+        sharedPreferencesProvider.overrideWithValue(preferences),
+        chatCompletionClientProvider.overrideWithValue(fakeClient),
+        chatConversationRepositoryProvider.overrideWithValue(repo),
+      ],
+    );
+    addTearDown(slowContainer.dispose);
+
+    fakeClient.enqueueChunks(['B 回复']);
+    // A 的 pending save 被 gate 阻塞，A 停在 preparing。
+    final sendFutureA = slowContainer
+        .read(chatSessionsProvider.notifier)
+        .sendMessage(
+          content: 'A',
+          modelConfig: testModel,
+          presetPrompt: null,
+          reasoningEnabled: false,
+          reasoningEffort: ReasoningEffort.medium,
+        );
+    await repo.firstSaveReached!.future;
+
+    // A stop（preparing 分支）：P2-3 后投影 cancelled，isBusy=false，B 可接管。
+    await slowContainer.read(chatSessionsProvider.notifier).stopStreaming();
+
+    // B 接管：pending save 成功，进入 streaming。
+    final sendFutureB = slowContainer
+        .read(chatSessionsProvider.notifier)
+        .sendMessage(
+          content: 'B',
+          modelConfig: testModel,
+          presetPrompt: null,
+          reasoningEnabled: false,
+          reasoningEffort: ReasoningEffort.medium,
+        );
+
+    // 放行 A 的 pending save（失败）：A 的 _runGenerationViaCoordinator 恢复，
+    // pendingSaveError != null，但 identical(_coordinatorCompleter, A's completer)
+    // = false（B 已接管）-> 跳过 _handleGenerationPersistenceFailure，不污染 B（P1-1）。
+    repo.firstSaveGate!.complete();
+    await sendFutureA.timeout(const Duration(seconds: 5));
+
+    // B streaming -> 完成。
+    await sendFutureB.timeout(const Duration(seconds: 5));
+
+    expect(fakeClient.requestHistory.length, 1);
+    final state = slowContainer.read(chatSessionsProvider);
+    expect(state.isStreaming, isFalse);
+    expect(state.activeConversation.messages.last.content, 'B 回复');
+    expect(state.generation?.phase, ChatGenerationPhase.succeeded);
+  });
+
   test('stopStreaming 等待 Stopped 落盘完成（P2-4）', () async {
     // 注入第 2 次 save（stop 落盘）被 stopSaveGate 阻塞的 repository，验证
     // stopStreaming 在 Stopped 落盘完成前不返回，放行后才返回落盘后的会话。
@@ -724,6 +781,71 @@ class _PendingSaveRepository implements ChatConversationRepository {
       await gate.future;
     }
   }
+
+  @override
+  List<ChatConversation> loadAll() => _inner.loadAll();
+
+  @override
+  ChatConversation? loadConversation(String id) => _inner.loadConversation(id);
+
+  @override
+  List<ChatConversationSummary> loadHistorySummaries({
+    String keyword = '',
+    int? limit,
+    int? offset,
+  }) => _inner.loadHistorySummaries(
+    keyword: keyword,
+    limit: limit,
+    offset: offset,
+  );
+
+  @override
+  int countHistorySummaries({String keyword = ''}) =>
+      _inner.countHistorySummaries(keyword: keyword);
+
+  @override
+  Future<void> deleteConversations(List<String> ids) =>
+      _inner.deleteConversations(ids);
+
+  @override
+  Future<void> flush() => _inner.flush();
+
+  @override
+  Future<void> close() => _inner.close();
+}
+
+/// 测试用 repository：首次 save 被 [firstSaveGate] 阻塞，放行后抛异常，模拟
+/// preparing 阶段 pending save 失败；后续 save 委托内部 repository。用于验证
+/// A 的迟到 pending save 失败不污染已接管的 B generation（P1-1）。
+class _PendingFailingFirstRepository implements ChatConversationRepository {
+  _PendingFailingFirstRepository(this._inner);
+
+  final ChatConversationRepository _inner;
+
+  Completer<void>? firstSaveGate = Completer<void>();
+  Completer<void>? firstSaveReached = Completer<void>();
+  bool _firstFailed = false;
+
+  @override
+  Future<void> saveConversation(ChatConversation conversation) async {
+    if (!_firstFailed) {
+      _firstFailed = true;
+      final reached = firstSaveReached;
+      if (reached != null && !reached.isCompleted) {
+        reached.complete();
+      }
+      final gate = firstSaveGate;
+      if (gate != null) {
+        await gate.future;
+      }
+      throw StateError('模拟 A 的 pending save 失败');
+    }
+    await _inner.saveConversation(conversation);
+  }
+
+  @override
+  Future<void> saveConversations(List<ChatConversation> conversations) =>
+      _inner.saveConversations(conversations);
 
   @override
   List<ChatConversation> loadAll() => _inner.loadAll();

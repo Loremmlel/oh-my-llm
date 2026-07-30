@@ -792,10 +792,16 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       streamingConversation,
     );
     if (pendingSaveError != null) {
-      _handleGenerationPersistenceFailure(
-        generationId: null,
-        error: pendingSaveError,
-      );
+      // 仅当本次 run 仍是活跃 generation 时才投影失败并清理；await 让出期间若已被
+      // stop（completer 完成+清理）或被新 generation 覆盖（B 接管），不碰当前字段，
+      // 避免 A 的迟到失败清掉 B 的桥接（P1-1）。_disposed 已由
+      // _handleGenerationPersistenceFailure 内部守卫，此处互补。
+      if (identical(_coordinatorCompleter, completer)) {
+        _handleGenerationPersistenceFailure(
+          generationId: null,
+          error: pendingSaveError,
+        );
+      }
       return completer.future;
     }
     // preparing 期间被 stop 或 dispose：completer 已完成、桥接字段已清理，
