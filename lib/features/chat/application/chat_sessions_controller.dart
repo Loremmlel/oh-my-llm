@@ -213,6 +213,32 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     );
   }
 
+  /// 投影终态快照到 [ChatSessionsState.generation]，携带取消原因与 typed outcome。
+  ///
+  /// 终态 phase（succeeded/emptyReply/failed/cancelled/persistenceFailed）在
+  /// [_cleanupCoordinatorBridge] 后保留于 state，提供 terminal 可观察性（取消原因、
+  /// 终态结果），直到下一次 generation 的 preparing 经 [_setPhase] 覆盖（P2-5）。
+  /// 终态 phase.isBusy=false，不影响 [_isBusy]。须在 cleanup 之前调用，使桥接字段
+  /// 仍指向本次 generation。
+  void _projectTerminalSnapshot(
+    ChatGenerationPhase phase, {
+    ChatCancelReason? cancelReason,
+    ChatGenerationOutcome? outcome,
+  }) {
+    state = state.copyWith(
+      generation: ChatGenerationSnapshot(
+        generationId: _coordinatorGenerationId ?? 0,
+        conversationId:
+            _coordinatorStreamingConversation?.id ?? state.activeConversationId,
+        attempt: _attempt,
+        phase: phase,
+        assistantMessageId: _coordinatorAssistantMessage?.id,
+        cancelReason: cancelReason,
+        outcome: outcome,
+      ),
+    );
+  }
+
   // ── 生命周期 ────────────────────────────────────────────────────────────────
 
   /// 读取持久化数据并初始化当前会话状态。
@@ -949,7 +975,11 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
               _coordinatorRetryPolicy?.retryOnAbnormalFinishReason ?? false,
           skipEmptyCheck: true,
         );
-        await _handleGenerationDecision(event.generationId, successResult);
+        await _handleGenerationDecision(
+          event.generationId,
+          successResult,
+          outcome: outcome,
+        );
 
       case ChatGenerationAttemptCompleted(
         outcome: final ChatGenerationEmptyReply outcome,
@@ -968,7 +998,11 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
           retryOnAbnormalFinishReason:
               _coordinatorRetryPolicy?.retryOnAbnormalFinishReason ?? false,
         );
-        await _handleGenerationDecision(event.generationId, emptyResult);
+        await _handleGenerationDecision(
+          event.generationId,
+          emptyResult,
+          outcome: outcome,
+        );
 
       case ChatGenerationAttemptFailed(
         outcome: final ChatGenerationFailure outcome,
@@ -983,7 +1017,11 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
           error: outcome.error,
           stackTrace: outcome.stackTrace ?? StackTrace.empty,
         );
-        await _handleGenerationDecision(event.generationId, null);
+        await _handleGenerationDecision(
+          event.generationId,
+          null,
+          outcome: outcome,
+        );
 
       case ChatGenerationStopped():
         // 部分内容落盘。
@@ -1061,6 +1099,16 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
           await pendingSave;
           _stoppedSaveFuture = null;
         }
+        _projectTerminalSnapshot(
+          ChatGenerationPhase.cancelled,
+          cancelReason: event.reason,
+          outcome: ChatGenerationCancelled(
+            generationId: event.generationId,
+            attempt: _attempt,
+            reason: event.reason,
+            partialContent: _coordinatorResponseBuffer.toString(),
+          ),
+        );
         final completer = _coordinatorCompleter;
         if (completer != null && !completer.isCompleted) {
           completer.complete(null);
@@ -1102,8 +1150,9 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
   /// 或不可重试），按终态 null 完成并清理；否则保持 completer 开启，等待新 attempt。
   Future<void> _handleGenerationDecision(
     int generationId,
-    ChatConversation? result,
-  ) async {
+    ChatConversation? result, {
+    ChatGenerationOutcome? outcome,
+  }) async {
     // attempt 终态后进入 finalizing：durable save 完成前保持 busy（isStreaming
     // 已由 finishGenerationSuccess/Error 清 false），阻止新 generation 覆盖
     // 桥接字段（P1-3）。
@@ -1119,6 +1168,12 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         return;
       }
       state = state.copyWith(clearAutoRetryCount: true);
+      _projectTerminalSnapshot(
+        outcome is ChatGenerationEmptyReply
+            ? ChatGenerationPhase.emptyReply
+            : ChatGenerationPhase.succeeded,
+        outcome: outcome,
+      );
       _completeGeneration(result);
       _coordinator.finalize();
       _cleanupCoordinatorBridge(generationId);
@@ -1149,6 +1204,12 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       } else {
         state = state.copyWith(clearAutoRetryCount: true);
       }
+      _projectTerminalSnapshot(
+        outcome is ChatGenerationEmptyReply
+            ? ChatGenerationPhase.emptyReply
+            : ChatGenerationPhase.failed,
+        outcome: outcome,
+      );
       _completeGeneration(null);
       _coordinator.finalize();
       _cleanupCoordinatorBridge(generationId);
@@ -1177,7 +1238,8 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     if (generationId != null && _coordinatorGenerationId != generationId) {
       return;
     }
-    state = state.copyWith(clearGeneration: true);
+    // 不 clearGeneration：保留 terminal snapshot 供观察（P2-5），下次 preparing 经
+    // _setPhase 覆盖。仅清理本次 generation 的桥接字段。
     _coordinatorCompleter = null;
     _coordinatorStreamingConversation = null;
     _coordinatorAssistantMessage = null;
@@ -1210,6 +1272,14 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       clearStreamingReply: true,
       clearEmptyReply: true,
       incrementHistoryRevision: true,
+    );
+    _projectTerminalSnapshot(
+      ChatGenerationPhase.persistenceFailed,
+      outcome: ChatGenerationPersistenceFailure(
+        generationId: generationId ?? 0,
+        attempt: _attempt,
+        error: error,
+      ),
     );
     _completeGeneration(null);
     _cleanupCoordinatorBridge(generationId);

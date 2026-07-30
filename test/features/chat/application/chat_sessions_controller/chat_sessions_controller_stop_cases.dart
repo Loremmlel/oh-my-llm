@@ -8,6 +8,7 @@ import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
+import 'package:oh_my_llm/features/chat/application/chat_generation_lifecycle.dart';
 import 'package:oh_my_llm/features/chat/data/chat_completion_client.dart';
 import 'package:oh_my_llm/features/chat/data/chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/data/openai_compatible_chat_client.dart';
@@ -463,6 +464,81 @@ void registerChatSessionsControllerStopCases() {
     expect(state.isStreaming, isFalse);
     expect(stopped, isNotNull);
     expect(stopped!.messages.last.content, '部分内容');
+  });
+
+  // ── terminal snapshot 投影（P2-5） ─────────────────────────────────────────
+  //
+  // 终态（succeeded/emptyReply/failed/cancelled/persistenceFailed）须投影进
+  // state.generation，携带 cancelReason 与 typed outcome，供观察；snapshot 保留至
+  // 下一次 generation 的 preparing 覆盖，不再被 cleanup 清空。
+
+  test('成功完成投影 succeeded 终态快照（P2-5）', () async {
+    fakeClient.enqueueChunks(['回复内容']);
+    await sendMsg('test');
+
+    final state = container.read(chatSessionsProvider);
+    expect(state.generation, isNotNull);
+    expect(state.generation!.phase, ChatGenerationPhase.succeeded);
+    expect(state.generation!.outcome, isA<ChatGenerationSuccess>());
+    expect(state.generation!.cancelReason, isNull);
+  });
+
+  test('空回复投影 emptyReply 终态快照（P2-5）', () async {
+    // 流式正常完成（finishReason=stop）但无内容 -> coordinator 判 EmptyReply。
+    final streamController = StreamController<ChatCompletionChunk>();
+    addTearDown(streamController.close);
+    fakeClient.enqueueStream(streamController.stream);
+    final sendFuture = sendMsg('test');
+    await Future<void>.delayed(const Duration(milliseconds: 1));
+    streamController.add(const ChatCompletionChunk(finishReason: 'stop'));
+    await streamController.close();
+    await sendFuture;
+
+    final state = container.read(chatSessionsProvider);
+    expect(state.generation, isNotNull);
+    expect(state.generation!.phase, ChatGenerationPhase.emptyReply);
+    expect(state.generation!.outcome, isA<ChatGenerationEmptyReply>());
+  });
+
+  test('失败投影 failed 终态快照（P2-5）', () async {
+    fakeClient.enqueueError(ChatCompletionException('失败'));
+    await sendMsg('test');
+
+    final state = container.read(chatSessionsProvider);
+    expect(state.generation, isNotNull);
+    expect(state.generation!.phase, ChatGenerationPhase.failed);
+    expect(state.generation!.outcome, isA<ChatGenerationFailure>());
+  });
+
+  test('用户 stop 投影 cancelled 终态快照带 userStop 原因（P2-5）', () async {
+    final streamController = StreamController<ChatCompletionChunk>();
+    addTearDown(streamController.close);
+    fakeClient.enqueueStream(streamController.stream);
+
+    final sendFuture = sendMsg('test');
+    await Future<void>.delayed(const Duration(milliseconds: 1));
+    await container.read(chatSessionsProvider.notifier).stopStreaming();
+    await sendFuture;
+
+    final state = container.read(chatSessionsProvider);
+    expect(state.generation, isNotNull);
+    expect(state.generation!.phase, ChatGenerationPhase.cancelled);
+    expect(state.generation!.cancelReason, ChatCancelReason.userStop);
+    expect(state.generation!.outcome, isA<ChatGenerationCancelled>());
+  });
+
+  test('terminal 快照保留至下一次 generation preparing 覆盖（P2-5）', () async {
+    fakeClient.enqueueChunks(['第一次回复']);
+    await sendMsg('first');
+    var state = container.read(chatSessionsProvider);
+    expect(state.generation!.phase, ChatGenerationPhase.succeeded);
+
+    // 新 generation 开始后 preparing 覆盖旧 terminal 快照。
+    fakeClient.enqueueChunks(['第二次回复']);
+    await sendMsg('second');
+    state = container.read(chatSessionsProvider);
+    expect(state.generation!.phase, ChatGenerationPhase.succeeded);
+    expect(state.generation!.outcome, isA<ChatGenerationSuccess>());
   });
 
   // ── dispose characterization ────────────────────────────────────────────
