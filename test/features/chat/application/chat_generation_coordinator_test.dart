@@ -2,362 +2,169 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:oh_my_llm/features/chat/application/chat_generation_contract.dart';
 import 'package:oh_my_llm/features/chat/application/chat_generation_coordinator.dart';
 import 'package:oh_my_llm/features/chat/application/chat_generation_lifecycle.dart';
+import 'package:oh_my_llm/features/chat/application/chat_sessions_state.dart';
 import 'package:oh_my_llm/features/chat/data/chat_completion_client.dart';
+import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/settings/domain/models/auto_retry_settings.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
 
-void main() {
-  // ── 辅助 ─────────────────────────────────────────────────
+import '../../../helpers/fake_chat_completion_client.dart';
 
-  late _FakeCompletionClient fakeClient;
+/// ChatGenerationCoordinator 是 run 的薄包装：start/stop/dispose 转发到 run，
+/// 逻辑由 [ChatGenerationRun] 的 transition matrix 测试覆盖。此处只验证
+/// coordinator 的包装契约：start 返回 completion、stop 返回同一 completion（幂等）、
+/// dispose complete null、hasActive 随 terminal 翻转。
+void main() {
+  late FakeChatCompletionClient fakeClient;
   late ChatGenerationCoordinator coordinator;
 
   setUp(() {
-    fakeClient = _FakeCompletionClient();
+    fakeClient = FakeChatCompletionClient();
     coordinator = ChatGenerationCoordinator(client: fakeClient);
   });
+  // 用 lambda 而非 tear-off：tearDown 在 main 顶层注册，此时 `coordinator`（late）
+  // 尚未由 setUp 初始化；且每个 test 的 setUp 会重赋值 coordinator，tear-off 会绑定
+  // 到首个实例，lambda 才能在实际执行时读取当前实例。
+  tearDown(() => coordinator.dispose());
 
-  ChatGenerationRequest request({
-    String conversationId = 'conv-1',
-    String assistantMessageId = 'a1',
-  }) {
-    return ChatGenerationRequest(
-      conversationId: conversationId,
-      assistantMessageId: assistantMessageId,
-      modelConfig: const LlmModelConfig(
-        id: 'model-1',
-        displayName: 'Test',
-        apiUrl: 'https://api.example.com/v1/chat/completions',
-        apiKey: 'sk-test',
-        modelName: 'test-model',
-        supportsReasoning: true,
+  ChatGenerationCommand newCommand() {
+    return ChatGenerationCommand(
+      conversation: ChatConversation(
+        id: 'c1',
+        createdAt: DateTime(2026, 1, 1),
+        updatedAt: DateTime(2026, 1, 1),
       ),
-      messages: const [
-        ChatCompletionRequestMessage(role: ChatMessageRole.user, content: 'hi'),
-      ],
-      retryPolicy: ChatRetryPolicy.fromSnapshot(
-        conversationAutoRetryEnabled: false,
-        settings: AutoRetrySettings(),
-      ),
+      modelConfig: _testModel,
+      presetPrompt: null,
+      requestConversationMessages: const [],
+      requestCheckpointChain: const [],
+      parentMessageId: null,
+      reasoningEnabled: false,
+      reasoningEffort: ReasoningEffort.medium,
+      appliedCheckpointTitle: '',
+      retryPolicy: _disabledRetry,
     );
   }
 
-  // ── 正常完成 ─────────────────────────────────────────────
+  test('start 返回 completion，run terminal 后 complete 且 hasActive 翻转', () async {
+    fakeClient.enqueueChunks(['hello']);
+    final host = _FakeHost();
+    expect(coordinator.hasActive, isFalse);
 
-  group('正常完成', () {
-    test('投递 started/chunk/attemptCompleted(success)，内容累积', () {
-      final controller = StreamController<ChatCompletionChunk>(sync: true);
-      addTearDown(controller.close);
-      fakeClient.enqueueStream(controller.stream);
+    final completion = coordinator.start(newCommand(), host);
+    expect(coordinator.hasActive, isTrue);
 
-      final observer = _CollectingObserver();
-      coordinator.start(request(), observer);
-
-      controller.add(const ChatCompletionChunk(contentDelta: 'hello'));
-      controller.add(
-        const ChatCompletionChunk(contentDelta: ' world', finishReason: 'stop'),
-      );
-      controller.close();
-
-      final started =
-          observer.events.firstWhere((e) => e is ChatGenerationStarted)
-              as ChatGenerationStarted;
-      expect(started.assistantMessageId, 'a1');
-
-      final chunks = observer.events.whereType<ChatGenerationChunk>().toList();
-      expect(chunks, hasLength(2));
-      expect(chunks[0].contentDelta, 'hello');
-      expect(chunks[1].contentDelta, ' world');
-      expect(chunks[1].finishReason, 'stop');
-
-      final completed = observer.events
-          .whereType<ChatGenerationAttemptCompleted>()
-          .single;
-      expect(completed.outcome, isA<ChatGenerationSuccess>());
-      final success = completed.outcome as ChatGenerationSuccess;
-      expect(success.content, 'hello world');
-      expect(success.finishReason, 'stop');
-    });
-
-    test('reasoning 增量也累积到 success', () {
-      final controller = StreamController<ChatCompletionChunk>(sync: true);
-      addTearDown(controller.close);
-      fakeClient.enqueueStream(controller.stream);
-
-      final observer = _CollectingObserver();
-      coordinator.start(request(), observer);
-
-      controller.add(const ChatCompletionChunk(reasoningDelta: '思考'));
-      controller.add(
-        const ChatCompletionChunk(contentDelta: '正文', finishReason: 'stop'),
-      );
-      controller.close();
-
-      final success =
-          observer.events
-                  .whereType<ChatGenerationAttemptCompleted>()
-                  .single
-                  .outcome
-              as ChatGenerationSuccess;
-      expect(success.content, '正文');
-      expect(success.reasoningContent, '思考');
-    });
+    final result = await completion;
+    expect(result, isNotNull);
+    expect(coordinator.hasActive, isFalse); // terminal 后 hasActive false
+    expect(host.progress.last.snapshot.phase, ChatGenerationPhase.succeeded);
   });
 
-  // ── 空回复 ───────────────────────────────────────────────
+  test('stop 返回同一 completion，最终 cancelled', () async {
+    final sc = StreamController<ChatCompletionChunk>();
+    addTearDown(sc.close);
+    fakeClient.enqueueStream(sc.stream);
+    final host = _FakeHost();
+    final completion = coordinator.start(newCommand(), host);
+    await Future<void>.delayed(Duration.zero);
+    sc.add(const ChatCompletionChunk(contentDelta: '部分'));
+    await Future<void>.delayed(Duration.zero);
 
-  test('空回复投递 attemptCompleted(emptyReply)', () {
-    final controller = StreamController<ChatCompletionChunk>(sync: true);
-    addTearDown(controller.close);
-    fakeClient.enqueueStream(controller.stream);
+    final stopCompletion = coordinator.stop();
+    expect(stopCompletion, same(completion)); // 幂等：返回同一 completion
 
-    final observer = _CollectingObserver();
-    coordinator.start(request(), observer);
-
-    controller.add(const ChatCompletionChunk(finishReason: 'stop'));
-    controller.close();
-
-    final completed = observer.events
-        .whereType<ChatGenerationAttemptCompleted>()
-        .single;
-    expect(completed.outcome, isA<ChatGenerationEmptyReply>());
-    expect(
-      (completed.outcome as ChatGenerationEmptyReply).finishReason,
-      'stop',
-    );
+    expect(await completion, isNull); // cancelled -> null
+    expect(host.progress.last.snapshot.phase, ChatGenerationPhase.cancelled);
   });
 
-  // ── 流错误 ───────────────────────────────────────────────
-
-  test('流错误投递 attemptFailed(failure)', () {
-    final controller = StreamController<ChatCompletionChunk>(sync: true);
-    addTearDown(controller.close);
-    fakeClient.enqueueStream(controller.stream);
-
-    final observer = _CollectingObserver();
-    coordinator.start(request(), observer);
-
-    controller.addError(Exception('boom'));
-
-    final failed = observer.events
-        .whereType<ChatGenerationAttemptFailed>()
-        .single;
-    expect(failed.outcome, isA<ChatGenerationFailure>());
-  });
-
-  // ── 用户 stop ───────────────────────────────────────────
-
-  group('用户 stop', () {
-    test('投递 stopped(部分内容) 与 cancelled(userStop)', () {
-      final controller = StreamController<ChatCompletionChunk>(sync: true);
-      addTearDown(controller.close);
-      fakeClient.enqueueStream(controller.stream);
-
-      final observer = _CollectingObserver();
-      coordinator.start(request(), observer);
-
-      controller.add(const ChatCompletionChunk(contentDelta: '部分'));
-      coordinator.stop();
-
-      final stopped = observer.events.whereType<ChatGenerationStopped>().single;
-      expect(stopped.partialContent, '部分');
-
-      final cancelled = observer.events
-          .whereType<ChatGenerationCancelledEvent>()
-          .single;
-      expect(cancelled.reason, ChatCancelReason.userStop);
-    });
-
-    test('无内容时 stop 的 partialContent 为空串', () {
-      final controller = StreamController<ChatCompletionChunk>(sync: true);
-      addTearDown(controller.close);
-      fakeClient.enqueueStream(controller.stream);
-
-      final observer = _CollectingObserver();
-      coordinator.start(request(), observer);
-
-      coordinator.stop();
-
-      final stopped = observer.events.whereType<ChatGenerationStopped>().single;
-      expect(stopped.partialContent, '');
-    });
-  });
-
-  // ── 竞态：迟到回调 ───────────────────────────────────────
-
-  group('迟到回调 guard', () {
-    test('stop 后延迟到达的 onDone 不产生新事件', () {
-      final controller = StreamController<ChatCompletionChunk>(sync: true);
-      addTearDown(controller.close);
-      fakeClient.enqueueStream(controller.stream);
-
-      final observer = _CollectingObserver();
-      coordinator.start(request(), observer);
-
-      controller.add(const ChatCompletionChunk(contentDelta: '部分'));
-      coordinator.stop();
-      final countBeforeLate = observer.events.length;
-
-      controller.close();
-
-      expect(observer.events.length, countBeforeLate);
-    });
-
-    test('stop 后延迟到达的 onError 不产生新事件', () {
-      final controller = StreamController<ChatCompletionChunk>(sync: true);
-      addTearDown(controller.close);
-      fakeClient.enqueueStream(controller.stream);
-
-      final observer = _CollectingObserver();
-      coordinator.start(request(), observer);
-
-      controller.add(const ChatCompletionChunk(contentDelta: '部分'));
-      coordinator.stop();
-      final countBeforeLate = observer.events.length;
-
-      controller.addError(Exception('延迟错误'));
-
-      expect(observer.events.length, countBeforeLate);
-    });
-
-    test('连续 stop 幂等：只产生一次 cancelled', () {
-      final controller = StreamController<ChatCompletionChunk>(sync: true);
-      addTearDown(controller.close);
-      fakeClient.enqueueStream(controller.stream);
-
-      final observer = _CollectingObserver();
-      coordinator.start(request(), observer);
-
-      controller.add(const ChatCompletionChunk(contentDelta: '部分'));
-      coordinator.stop();
-      final countAfterFirstStop = observer.events.length;
-
-      coordinator.stop();
-
-      expect(observer.events.length, countAfterFirstStop);
-    });
-  });
-
-  // ── supersede ────────────────────────────────────────────
-
-  test('新 generation 启动后旧 attempt 回调被忽略', () {
-    final controller1 = StreamController<ChatCompletionChunk>(sync: true);
-    final controller2 = StreamController<ChatCompletionChunk>(sync: true);
-    addTearDown(controller1.close);
-    addTearDown(controller2.close);
-    fakeClient.enqueueStream(controller1.stream);
-    fakeClient.enqueueStream(controller2.stream);
-
-    final observer = _CollectingObserver();
-    coordinator.start(request(assistantMessageId: 'a1'), observer);
-    controller1.add(const ChatCompletionChunk(contentDelta: '旧'));
-
-    // 启动新 generation，旧被 supersede。
-    coordinator.start(request(assistantMessageId: 'a2'), observer);
-
-    final cancelledForOld = observer.events
-        .whereType<ChatGenerationCancelledEvent>()
-        .where((e) => e.generationId == 1)
-        .single;
-    expect(cancelledForOld.reason, ChatCancelReason.superseded);
-
-    final startedNew = observer.events
-        .whereType<ChatGenerationStarted>()
-        .where((e) => e.generationId == 2)
-        .single;
-    expect(startedNew.assistantMessageId, 'a2');
-
-    // 旧 generation 延迟 onDone 不应投递 attemptCompleted。
-    controller1.close();
-    final oldCompleted = observer.events
-        .whereType<ChatGenerationAttemptCompleted>()
-        .where((e) => e.generationId == 1);
-    expect(oldCompleted, isEmpty);
-
-    // 新 generation 正常完成。
-    controller2.add(const ChatCompletionChunk(contentDelta: '新'));
-    controller2.close();
-    final newCompleted = observer.events
-        .whereType<ChatGenerationAttemptCompleted>()
-        .where((e) => e.generationId == 2)
-        .single;
-    expect(newCompleted.outcome, isA<ChatGenerationSuccess>());
-    expect((newCompleted.outcome as ChatGenerationSuccess).content, '新');
-  });
-
-  // ── dispose ─────────────────────────────────────────────
-
-  test('dispose 后迟到事件被忽略', () {
-    final controller = StreamController<ChatCompletionChunk>(sync: true);
-    addTearDown(controller.close);
-    fakeClient.enqueueStream(controller.stream);
-
-    final observer = _CollectingObserver();
-    coordinator.start(request(), observer);
-    controller.add(const ChatCompletionChunk(contentDelta: '部分'));
+  test('dispose complete null 且 hasActive false', () async {
+    final sc = StreamController<ChatCompletionChunk>();
+    addTearDown(sc.close);
+    fakeClient.enqueueStream(sc.stream);
+    final host = _FakeHost();
+    final completion = coordinator.start(newCommand(), host);
+    await Future<void>.delayed(Duration.zero);
 
     coordinator.dispose();
-    final countBeforeLate = observer.events.length;
-
-    controller.add(const ChatCompletionChunk(contentDelta: '迟到'));
-    controller.close();
-
-    expect(observer.events.length, countBeforeLate);
+    expect(await completion, isNull);
+    expect(coordinator.hasActive, isFalse);
   });
 
-  // ── cancel 挂起 ──────────────────────────────────────────
-
-  test('subscription.cancel() 挂起时不阻塞 stop', () {
-    // 模拟 token 空闲间隙：底层订阅的 cancel() 永不完成。
-    final controller = StreamController<ChatCompletionChunk>(
-      sync: true,
-      onCancel: () => Completer<void>().future,
-    );
-    addTearDown(() => controller.onCancel = null);
-    fakeClient.enqueueStream(controller.stream);
-
-    final observer = _CollectingObserver();
-    coordinator.start(request(), observer);
-    controller.add(const ChatCompletionChunk(contentDelta: '部分'));
-
-    // stop 应同步返回，不阻塞在挂起的 cancel。
-    coordinator.stop();
-
-    expect(
-      observer.events.whereType<ChatGenerationCancelledEvent>().single.reason,
-      ChatCancelReason.userStop,
-    );
+  test('无 run 时 stop 返回同步 null', () async {
+    expect(await coordinator.stop(), isNull);
   });
 }
 
-/// 仅 override [streamCompletion] 的 fake client，[complete] 继承基类默认实现。
-class _FakeCompletionClient extends ChatCompletionClient {
-  final List<Stream<ChatCompletionChunk>> _streams = [];
+final _testModel = LlmModelConfig(
+  id: 'm1',
+  displayName: 'M',
+  apiUrl: 'https://example.com',
+  apiKey: 'k',
+  modelName: 'm',
+  supportsReasoning: false,
+);
 
-  void enqueueStream(Stream<ChatCompletionChunk> stream) {
-    _streams.add(stream);
+final _disabledRetry = ChatRetryPolicy(
+  enabled: false,
+  maxRetryCount: 0,
+  retryMode: RetryMode.fixedInterval,
+  maxJitterSeconds: 0,
+  retryOnAbnormalFinishReason: false,
+  retryOnTimeout: false,
+  timeout: Duration.zero,
+);
+
+/// 最小 host：prepare 返回默认 success，completeAttempt 返回 Succeed，
+/// stop 返回 Cancelled，projectProgress 记录。
+class _FakeHost implements ChatGenerationHost {
+  final List<ChatGenerationProgress> progress = [];
+
+  @override
+  Future<ChatPrepareResult> prepare(ChatGenerationCommand command) async {
+    final assistantMessage = ChatMessage(
+      id: 'a1',
+      role: ChatMessageRole.assistant,
+      content: '',
+      createdAt: DateTime(2026, 1, 1),
+      parentId: command.parentMessageId,
+      isStreaming: true,
+    );
+    final request = ChatGenerationRequest(
+      conversationId: command.conversation.id,
+      assistantMessageId: assistantMessage.id,
+      modelConfig: command.modelConfig,
+      messages: const [],
+      retryPolicy: command.retryPolicy,
+    );
+    return ChatPrepareSuccess(
+      request: request,
+      streamingConversation: command.conversation,
+      assistantMessage: assistantMessage,
+      streamingReply: ChatStreamingReply(
+        conversationId: command.conversation.id,
+        assistantMessageId: assistantMessage.id,
+      ),
+    );
   }
 
   @override
-  Stream<ChatCompletionChunk> streamCompletion({
-    required LlmModelConfig modelConfig,
-    required List<ChatCompletionRequestMessage> messages,
-    ReasoningEffort? reasoningEffort,
-    Duration? streamIdleTimeout,
-  }) {
-    if (_streams.isEmpty) {
-      throw StateError('No stream enqueued');
-    }
-    return _streams.removeAt(0);
+  Future<ChatAttemptDecision> completeAttempt(
+    ChatAttemptSnapshot attempt,
+  ) async {
+    return ChatAttemptSucceed(attempt.streamingConversation);
   }
-}
-
-class _CollectingObserver implements ChatGenerationObserver {
-  final List<ChatGenerationEvent> events = [];
 
   @override
-  void onGenerationEvent(ChatGenerationEvent event) => events.add(event);
+  Future<ChatStopDecision> stop(ChatPartialSnapshot partial) async {
+    return ChatStopCancelled(partial.streamingConversation);
+  }
+
+  @override
+  void projectProgress(ChatGenerationProgress p) {
+    progress.add(p);
+  }
 }
