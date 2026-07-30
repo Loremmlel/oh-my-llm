@@ -852,17 +852,59 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     // preparing snapshot 已就位。完成 completer 并清理桥接字段，使 pending save
     // 返回后不再启动网络请求（P1-1）。
     if (_coordinatorCompleter != null) {
-      _completeGeneration(null);
-      _cleanupCoordinatorBridge(null);
+      // preparing 阶段被 stop：占位 assistant 已追加进树但 coordinator 未 start。
+      // 把占位改为 isStreaming=false 并设 stopped inline 状态，避免内存留下一个
+      // 仍在流式的空 assistant 导致下次用户消息接在占位之后（P2-3）。
+      final assistantMessage = _coordinatorAssistantMessage;
+      final streamingConversation = _coordinatorStreamingConversation;
+      final stoppedConversation =
+          assistantMessage != null && streamingConversation != null
+          ? buildConversationAfterStreamingInterrupt(
+              conversation: streamingConversation,
+              streamingReply: ChatStreamingReply(
+                conversationId: streamingConversation.id,
+                assistantMessageId: assistantMessage.id,
+              ),
+            )
+          : state.activeConversation;
+      final assistantMessageId = assistantMessage?.id;
       state = state.copyWith(
+        conversations: replaceConversation(stoppedConversation),
+        conversationSummaries: replaceOrAddSummary(
+          state.conversationSummaries,
+          summaryFromConversation(stoppedConversation),
+        ),
         isStreaming: false,
         isAutoRetryWaiting: false,
         clearAutoRetryCount: true,
         clearStreamingReply: true,
-        clearErrorMessage: true,
-        clearEmptyReply: true,
+        emptyReplyAssistantId: assistantMessageId,
+        errorMessage: assistantMessageId != null
+            ? ChatErrorMessages.stoppedByUser
+            : null,
+        errorMessageAssistantId: assistantMessageId,
+        clearErrorMessage: assistantMessageId == null,
+        clearEmptyReply: assistantMessageId == null,
         incrementHistoryRevision: true,
       );
+      _projectTerminalSnapshot(
+        ChatGenerationPhase.cancelled,
+        cancelReason: ChatCancelReason.userStop,
+        outcome: ChatGenerationCancelled(
+          generationId: _coordinatorGenerationId ?? 0,
+          attempt: _attempt,
+          reason: ChatCancelReason.userStop,
+          partialContent: _coordinatorResponseBuffer.toString(),
+        ),
+      );
+      _completeGeneration(null);
+      _cleanupCoordinatorBridge(null);
+      if (assistantMessageId != null) {
+        // durable 落盘已停止的占位（isStreaming=false），使重建后恢复停止态而非
+        // 流式占位。fire-and-forget：不阻塞 stopStreaming，pending save 的
+        // isStreaming=true 版本会被本次 isStreaming=false 覆盖（P2-3）。
+        saveConversation(stoppedConversation);
+      }
       return state.activeConversation;
     }
     // 无活跃 generation：兜底清残留 retry 等待/错误/流式标记，保证按钮点击幂等。
