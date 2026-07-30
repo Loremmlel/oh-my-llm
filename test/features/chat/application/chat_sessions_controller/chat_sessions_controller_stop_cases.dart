@@ -723,6 +723,65 @@ void registerChatSessionsControllerStopCases() {
 
     expect(unexpected, isEmpty);
   });
+
+  test('dispose 在 attempt helper 返回后的 async 间隙不抛（P1-2）', () async {
+    // sync: true 使 close() 同步触发 onDone -> AttemptCompleted 投递 ->
+    // _handleGenerationEvent 跑到 `await finishGenerationSuccess` 让出（让出点 A），
+    // 恢复微任务在 close() 返回后排队。dispose 在 close 后、微任务跑前执行，
+    // 命中让出点 A 恢复前的间隙：修复前 _handleGenerationDecision 首行 _setPhase
+    // 写已销毁 state 抛 UnmountedRefException；修复后 _disposed 守卫在 _setPhase
+    // 之前 return（P1-2）。
+    final disposeContainer = ProviderContainer(
+      overrides: [
+        appDatabaseProvider.overrideWithValue(database),
+        sharedPreferencesProvider.overrideWithValue(preferences),
+        chatCompletionClientProvider.overrideWithValue(fakeClient),
+      ],
+    );
+    var disposed = false;
+    addTearDown(() {
+      if (!disposed) disposeContainer.dispose();
+    });
+
+    final unexpected = <Object>[];
+    await runZonedGuarded(() async {
+      final streamController = StreamController<ChatCompletionChunk>(
+        sync: true,
+      );
+      addTearDown(streamController.close);
+      fakeClient.enqueueStream(streamController.stream);
+
+      final sendFuture = disposeContainer
+          .read(chatSessionsProvider.notifier)
+          .sendMessage(
+            content: '测试 dispose 间隙',
+            modelConfig: testModel,
+            presetPrompt: null,
+            reasoningEnabled: false,
+            reasoningEffort: ReasoningEffort.medium,
+          );
+      // 等待 pending save 完成 + coordinator.start + listen 发生。
+      for (var i = 0; i < 50; i++) {
+        if (fakeClient.requestHistory.isNotEmpty) break;
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      expect(fakeClient.requestHistory.length, 1);
+
+      streamController.add(
+        const ChatCompletionChunk(contentDelta: '回复', finishReason: 'stop'),
+      );
+      // sync close 同步触发 onDone -> AttemptCompleted -> 让出点 A（微任务排队）。
+      streamController.close();
+
+      disposeContainer.dispose();
+      disposed = true;
+
+      await sendFuture.timeout(const Duration(seconds: 2));
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }, (error, stack) => unexpected.add(error));
+
+    expect(unexpected, isEmpty);
+  });
 }
 
 /// 测试用 repository：首次 save 被 [saveGate] 阻塞，用于捕获 preparing 阶段
