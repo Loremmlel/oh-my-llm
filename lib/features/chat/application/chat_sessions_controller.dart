@@ -1216,6 +1216,9 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     ChatConversation? result, {
     ChatGenerationOutcome? outcome,
   }) async {
+    // attempt helper 返回后经 `await` 让出，恢复进本方法前容器可能已 dispose：
+    // 守卫在 _setPhase 之前，避免写已销毁 state 抛 UnmountedRefException（P1-2）。
+    if (_disposed) return;
     // attempt 终态后进入 finalizing：durable save 完成前保持 busy（isStreaming
     // 已由 finishGenerationSuccess/Error 清 false），阻止新 generation 覆盖
     // 桥接字段（P1-3）。
