@@ -1130,48 +1130,52 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         );
         _setPhase(ChatGenerationPhase.stopping);
         if (shouldSave) {
-          // stop 落盘 durable。先捕获 future 赋给 _stoppedSaveFuture，再 await
-          // 同一 future：await 让出后 Cancelled handler 同步投递时能 await 同一
-          // future，使 stopStreaming 的 await completer 等到 stop 落盘完成（P2-4）。
-          // generation 已 terminal（Cancelled 紧随其后 complete + cleanup），此处
-          // 仅感知落盘失败并投影 persistence 错误；守卫避免 await 让出后新 generation
-          // 已起时误覆盖其状态。
-          final saveFuture = saveConversationDurable(stoppedConversation);
-          _stoppedSaveFuture = saveFuture;
-          final saveError = await saveFuture;
-          _stoppedSaveFuture = null;
-          if (_disposed) return;
-          if (saveError != null &&
-              !state.isStreaming &&
-              state.activeConversation.id == stoppedConversation.id) {
-            state = state.copyWith(
-              errorMessage: ChatErrorMessages.persistenceFailed,
-              errorMessageAssistantId: assistantMessageId,
-              clearEmptyReply: true,
-            );
-          }
+          // 触发 durable save 供紧随其后的 Cancelled handler await 并处理成功/失败。
+          // 不在此 await：Cancelled 是 stop 落盘失败的唯一终态投影点，避免此处设
+          // inline error 后被 Cancelled 的 cancelled 覆盖（P2-4）。
+          _stoppedSaveFuture = saveConversationDurable(stoppedConversation);
         }
 
       case ChatGenerationCancelledEvent():
         // 等 Stopped 的部分内容落盘完成再 complete + cleanup，使 stopStreaming
-        // 的 await completer 等到 stop 落盘（P2-4）。无 Stopped（supersede/dispose
-        // 走本事件但不投 Stopped）时 _stoppedSaveFuture 为 null，立即 complete。
+        // 的 await completer 等到 stop 落盘（P2-4）。落盘失败投影 persistenceFailed
+        // 而非 cancelled（P2-4）。无 Stopped（supersede/dispose 走本事件但不投
+        // Stopped）时 _stoppedSaveFuture 为 null，立即 complete。
         final pendingSave = _stoppedSaveFuture;
+        Object? stopSaveError;
         if (pendingSave != null) {
-          await pendingSave;
+          stopSaveError = await pendingSave;
           _stoppedSaveFuture = null;
         }
         if (_disposed) return;
-        _projectTerminalSnapshot(
-          ChatGenerationPhase.cancelled,
-          cancelReason: event.reason,
-          outcome: ChatGenerationCancelled(
-            generationId: event.generationId,
-            attempt: _attempt,
-            reason: event.reason,
-            partialContent: _coordinatorResponseBuffer.toString(),
-          ),
-        );
+        final stopAssistantMessageId = _coordinatorAssistantMessage?.id;
+        if (stopSaveError != null) {
+          // stop 落盘失败：投影 persistenceFailed，不覆盖为 cancelled（P2-4）。
+          state = state.copyWith(
+            errorMessage: ChatErrorMessages.persistenceFailed,
+            errorMessageAssistantId: stopAssistantMessageId,
+            clearEmptyReply: true,
+          );
+          _projectTerminalSnapshot(
+            ChatGenerationPhase.persistenceFailed,
+            outcome: ChatGenerationPersistenceFailure(
+              generationId: event.generationId,
+              attempt: _attempt,
+              error: stopSaveError,
+            ),
+          );
+        } else {
+          _projectTerminalSnapshot(
+            ChatGenerationPhase.cancelled,
+            cancelReason: event.reason,
+            outcome: ChatGenerationCancelled(
+              generationId: event.generationId,
+              attempt: _attempt,
+              reason: event.reason,
+              partialContent: _coordinatorResponseBuffer.toString(),
+            ),
+          );
+        }
         final completer = _coordinatorCompleter;
         if (completer != null && !completer.isCompleted) {
           completer.complete(null);

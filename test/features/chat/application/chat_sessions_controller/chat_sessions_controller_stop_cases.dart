@@ -539,6 +539,52 @@ void registerChatSessionsControllerStopCases() {
     expect(stopped!.messages.last.content, '部分内容');
   });
 
+  test('streaming stop 落盘失败投影 persistenceFailed（P2-4）', () async {
+    // 注入第 2 次 save（stop 落盘）失败的 repository：第 1 次 pending save 成功
+    // 使 generation 进入 streaming，stop 时第 2 次 save 抛异常，验证 Cancelled
+    // handler 投影 persistenceFailed 而非 cancelled（P2-4）。
+    final repo = _FailingStopSaveRepository(
+      SqliteChatConversationRepository(database),
+    );
+    final slowContainer = ProviderContainer(
+      overrides: [
+        appDatabaseProvider.overrideWithValue(database),
+        sharedPreferencesProvider.overrideWithValue(preferences),
+        chatCompletionClientProvider.overrideWithValue(fakeClient),
+        chatConversationRepositoryProvider.overrideWithValue(repo),
+      ],
+    );
+    addTearDown(slowContainer.dispose);
+
+    final streamController = StreamController<ChatCompletionChunk>();
+    addTearDown(streamController.close);
+    fakeClient.enqueueStream(streamController.stream);
+
+    final sendFuture = slowContainer
+        .read(chatSessionsProvider.notifier)
+        .sendMessage(
+          content: '测试 stop 落盘失败',
+          modelConfig: testModel,
+          presetPrompt: null,
+          reasoningEnabled: false,
+          reasoningEffort: ReasoningEffort.medium,
+        );
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+    streamController.add(const ChatCompletionChunk(contentDelta: '部分内容'));
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+
+    await slowContainer.read(chatSessionsProvider.notifier).stopStreaming();
+    await sendFuture.timeout(const Duration(seconds: 5));
+
+    final state = slowContainer.read(chatSessionsProvider);
+    expect(state.isStreaming, isFalse);
+    // P2-4：stop 落盘失败投影 persistenceFailed（非 cancelled），outcome 为
+    // PersistenceFailure，inline error 为 persistenceFailed。
+    expect(state.generation?.phase, ChatGenerationPhase.persistenceFailed);
+    expect(state.generation?.outcome, isA<ChatGenerationPersistenceFailure>());
+    expect(state.errorMessage, ChatErrorMessages.persistenceFailed);
+  });
+
   // ── terminal snapshot 投影（P2-5） ─────────────────────────────────────────
   //
   // 终态（succeeded/emptyReply/failed/cancelled/persistenceFailed）须投影进
@@ -906,6 +952,59 @@ class _PendingFailingFirstRepository implements ChatConversationRepository {
         await gate.future;
       }
       throw StateError('模拟 A 的 pending save 失败');
+    }
+    await _inner.saveConversation(conversation);
+  }
+
+  @override
+  Future<void> saveConversations(List<ChatConversation> conversations) =>
+      _inner.saveConversations(conversations);
+
+  @override
+  List<ChatConversation> loadAll() => _inner.loadAll();
+
+  @override
+  ChatConversation? loadConversation(String id) => _inner.loadConversation(id);
+
+  @override
+  List<ChatConversationSummary> loadHistorySummaries({
+    String keyword = '',
+    int? limit,
+    int? offset,
+  }) => _inner.loadHistorySummaries(
+    keyword: keyword,
+    limit: limit,
+    offset: offset,
+  );
+
+  @override
+  int countHistorySummaries({String keyword = ''}) =>
+      _inner.countHistorySummaries(keyword: keyword);
+
+  @override
+  Future<void> deleteConversations(List<String> ids) =>
+      _inner.deleteConversations(ids);
+
+  @override
+  Future<void> flush() => _inner.flush();
+
+  @override
+  Future<void> close() => _inner.close();
+}
+
+/// 测试用 repository：第 2 次 save（stop 落盘）抛异常，第 1 次（pending）成功。
+/// 用于验证 streaming stop 落盘失败投影 persistenceFailed（P2-4）。
+class _FailingStopSaveRepository implements ChatConversationRepository {
+  _FailingStopSaveRepository(this._inner);
+
+  final ChatConversationRepository _inner;
+  int _saveCount = 0;
+
+  @override
+  Future<void> saveConversation(ChatConversation conversation) async {
+    _saveCount++;
+    if (_saveCount == 2) {
+      throw StateError('模拟 stop 落盘失败');
     }
     await _inner.saveConversation(conversation);
   }
