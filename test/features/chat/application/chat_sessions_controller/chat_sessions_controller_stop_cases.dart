@@ -456,13 +456,20 @@ void registerChatSessionsControllerStopCases() {
         );
     await repo.firstSaveReached!.future;
 
-    // A stop（preparing 分支）：投影 cancelled + complete completer，再 await A 的
-    // pending save（firstSaveGate 阻塞）。不先 await：先让 B 接管，再放行 A 的 gate。
+    // A stop（preparing 分支）：记录停止意图，await A 的 completion。
     final stopFuture = slowContainer
         .read(chatSessionsProvider.notifier)
         .stopStreaming();
 
-    // B 接管：pending save 成功，进入 streaming。
+    // 放行 A 的 pending save（失败）：host.prepare 返回 ChatPrepareFailure，
+    // run terminal persistenceFailed，completion complete。新设计去掉 supersede
+    // （决策 4）：旧 run terminal durable 完成前新 command 被 busy guard 拒
+    // （不变量 5），故 B 必须在 A terminal 后才开始，A 的失败不污染 B（P1-1）。
+    repo.firstSaveGate!.complete();
+    await sendFutureA.timeout(const Duration(seconds: 5));
+    await stopFuture.timeout(const Duration(seconds: 5));
+
+    // A 已 terminal，B 接管：pending save 成功，进入 streaming。
     final sendFutureB = slowContainer
         .read(chatSessionsProvider.notifier)
         .sendMessage(
@@ -472,17 +479,7 @@ void registerChatSessionsControllerStopCases() {
           reasoningEnabled: false,
           reasoningEffort: ReasoningEffort.medium,
         );
-
-    // 放行 A 的 pending save（失败）：A 的 _runGenerationViaCoordinator 恢复，
-    // pendingSaveError != null，但 identical(_coordinatorCompleter, A's completer)
-    // = false（B 已接管）-> 跳过 _handleGenerationPersistenceFailure，不污染 B（P1-1）。
-    // A 的 stopStreaming 恢复后 _coordinatorGenerationId 已是 B 的 token，守卫 return。
-    repo.firstSaveGate!.complete();
-    await sendFutureA.timeout(const Duration(seconds: 5));
-
-    // B streaming -> 完成。
     await sendFutureB.timeout(const Duration(seconds: 5));
-    await stopFuture.timeout(const Duration(seconds: 5));
 
     expect(fakeClient.requestHistory.length, 1);
     final state = slowContainer.read(chatSessionsProvider);

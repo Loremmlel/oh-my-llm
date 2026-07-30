@@ -48,7 +48,7 @@ class ChatGenerationRun {
   bool _stopIntent = false;
   bool _disposed = false;
   ChatGenerationOutcome? _outcome; // 非 null 即已 terminal（单一终态 guard）
-  int attempt = 1;
+  int attempt = 0;
 
   // 累积缓冲。
   String _content = '';
@@ -65,6 +65,9 @@ class ChatGenerationRun {
   /// terminal 完成时 complete。成功带最终会话，取消/失败/persistenceFailed 为 null。
   /// 完成即 durable（不变量 4）：complete 前 host 方法已 await 关键 durable save。
   Future<ChatConversation?> get completion => _completion.future;
+
+  /// run 是否已进入 terminal（completion 已 complete）。coordinator 据此判断 hasActive。
+  bool get isTerminal => _completion.isCompleted;
 
   // ── 公开入口 ────────────────────────────────────────────────────────────────
 
@@ -144,6 +147,9 @@ class ChatGenerationRun {
     // stop 不启动网络）。
     if (_stopIntent) return;
 
+    // 首次 attempt：preparing 时 attempt 保持 0（干净 snapshot，未开始尝试），
+    // 进入 streaming 才置 1；重试由 _scheduleRetry 的 attempt++ 递增。
+    attempt = 1;
     phase = ChatGenerationPhase.streaming;
     _project(streamingReply: _streamingReply);
     _startStream();
@@ -173,7 +179,10 @@ class ChatGenerationRun {
           onDone: () => _serialize(_completeAttemptFromDone),
           onError: (Object error, StackTrace stack) =>
               _serialize(() => _completeAttemptFromError(error, stack)),
-          cancelOnError: false,
+          // error 后自动 cancel：避免 Stream.error 的 error+done 双触发导致同一
+          // attempt 被 _completeAttemptFromError 与 _completeAttemptFromDone 各处理
+          // 一次（后者 _outcome guard 拦不住 non-terminal Retry，引发额外重试）。
+          cancelOnError: true,
         );
   }
 
@@ -238,6 +247,11 @@ class ChatGenerationRun {
           ),
       retryPolicy: command.retryPolicy,
     );
+    // finalizing：attempt 终态已定，进入 durable save 窗口。保持 busy 阻止新
+    // generation 覆盖桥接字段，对外 isStreaming=false（finalizing 不可取消，
+    // 不变量 7）。completeAttempt 内的 intermediate/terminal save 均在此窗口内。
+    phase = ChatGenerationPhase.finalizing;
+    _project();
     final decision = await host.completeAttempt(snapshot);
     if (_disposed || _outcome != null) return;
 
