@@ -157,6 +157,10 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
   /// 但不投 Stopped，保持 null。
   Future<Object?>? _stoppedSaveFuture;
 
+  /// preparing 阶段 pending save 的 future。preparing stop 时 await 它，保证
+  /// stop save 落盘在 isStreaming=true 版本之后覆盖（P2-3）。
+  Future<Object?>? _pendingSaveFuture;
+
   /// controller 侧 generation 计数器：preparing 阶段 coordinator 尚未 start，
   /// 预分配唯一 token 使 preparing snapshot 的 generationId 非 0；coordinator.start
   /// 接受该 token，Started 事件回带同一值，preparing/streaming/terminal 全程一致（P2-6）。
@@ -799,9 +803,9 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     _setPhase(ChatGenerationPhase.preparing);
     // pending save：占位 assistant 消息落盘。await durable，失败则在发起任何
     // 网络请求前中止 generation（不 _coordinator.start），避免假成功与重复请求。
-    final pendingSaveError = await saveConversationDurable(
-      streamingConversation,
-    );
+    // future 存入 _pendingSaveFuture 供 preparing stop await 以保证落盘顺序（P2-3）。
+    _pendingSaveFuture = saveConversationDurable(streamingConversation);
+    final pendingSaveError = await _pendingSaveFuture!;
     if (pendingSaveError != null) {
       // 仅当本次 run 仍是活跃 generation 时才投影失败并清理；await 让出期间若已被
       // stop（completer 完成+清理）或被新 generation 覆盖（B 接管），不碰当前字段，
@@ -870,10 +874,18 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     // 返回后不再启动网络请求（P1-1）。
     if (_coordinatorCompleter != null) {
       // preparing 阶段被 stop：占位 assistant 已追加进树但 coordinator 未 start。
-      // 把占位改为 isStreaming=false 并设 stopped inline 状态，避免内存留下一个
-      // 仍在流式的空 assistant 导致下次用户消息接在占位之后（P2-3）。
+      // 先捕获本次 generation 的桥接字段与 token，再构造 stoppedConversation
+      // 并投影 cancelled（isBusy=false，B 可在 await 期间接管），然后 complete
+      // completer + 清 _coordinatorCompleter 使 _runGenerationViaCoordinator 恢复
+      // 后 !identical 不再 start（P1-1）。
+      final generationId = _coordinatorGenerationId;
       final assistantMessage = _coordinatorAssistantMessage;
       final streamingConversation = _coordinatorStreamingConversation;
+      final pendingSave = _pendingSaveFuture;
+      final assistantMessageId = assistantMessage?.id;
+      // 构造 stoppedConversation（isStreaming=false）并写 state + 投影 cancelled：
+      // 把占位改为 stopped，避免内存留下仍在流式的空 assistant 导致下次用户消息
+      // 接在占位之后（P2-3）。
       final stoppedConversation =
           assistantMessage != null && streamingConversation != null
           ? buildConversationAfterStreamingInterrupt(
@@ -884,7 +896,6 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
               ),
             )
           : state.activeConversation;
-      final assistantMessageId = assistantMessage?.id;
       state = state.copyWith(
         conversations: replaceConversation(stoppedConversation),
         conversationSummaries: replaceOrAddSummary(
@@ -908,20 +919,42 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         ChatGenerationPhase.cancelled,
         cancelReason: ChatCancelReason.userStop,
         outcome: ChatGenerationCancelled(
-          generationId: _coordinatorGenerationId ?? 0,
+          generationId: generationId ?? 0,
           attempt: _attempt,
           reason: ChatCancelReason.userStop,
           partialContent: _coordinatorResponseBuffer.toString(),
         ),
       );
       _completeGeneration(null);
-      _cleanupCoordinatorBridge(null);
+      _coordinatorCompleter = null;
+      // 等 pending save 完成：原 pending save 落盘 isStreaming=true 版本，stop save
+      // 必须在其之后落盘覆盖为 isStreaming=false，否则重建后恢复流式占位（P2-3）。
+      // pending save 失败也不影响 stop save（A 已 stop）。
+      if (pendingSave != null) {
+        await pendingSave;
+      }
+      if (_disposed) return state.activeConversation;
+      // B 已接管（token 变更）：B 的 pending save 基于 state（已含 A 的 stopped
+      // 占位 isStreaming=false），A 不再做 stop save，避免覆盖 B（P1-1）。
+      if (generationId == null || _coordinatorGenerationId != generationId) {
+        return state.activeConversation;
+      }
       if (assistantMessageId != null) {
         // durable 落盘已停止的占位（isStreaming=false），使重建后恢复停止态而非
-        // 流式占位。fire-and-forget：不阻塞 stopStreaming，pending save 的
-        // isStreaming=true 版本会被本次 isStreaming=false 覆盖（P2-3）。
-        saveConversation(stoppedConversation);
+        // 流式占位。await durable：失败投影 persistenceFailed，不假成功（P2-3）。
+        final stopSaveError = await saveConversationDurable(
+          stoppedConversation,
+        );
+        if (_disposed) return state.activeConversation;
+        if (stopSaveError != null) {
+          _handleGenerationPersistenceFailure(
+            generationId: null,
+            error: stopSaveError,
+          );
+          return state.activeConversation;
+        }
       }
+      _cleanupCoordinatorBridge(null);
       return state.activeConversation;
     }
     // 无活跃 generation：兜底清残留 retry 等待/错误/流式标记，保证按钮点击幂等。
@@ -1368,6 +1401,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     _coordinatorReasoningBuffer.clear();
     _coordinatorRetryPolicy = null;
     _coordinatorGenerationId = null;
+    _pendingSaveFuture = null;
   }
 
   /// generation 关键 checkpoint 的 durable save 失败处理。
