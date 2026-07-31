@@ -29,6 +29,10 @@ class ChatGenerationCoordinator {
     ChatGenerationHost host,
   ) {
     if (_disposed) return Future.value(null);
+    final currentRun = _currentRun;
+    if (currentRun != null && !currentRun.isTerminal) {
+      return currentRun.completion;
+    }
     final run = ChatGenerationRun(
       generationId: _nextGenerationId++,
       client: _client,

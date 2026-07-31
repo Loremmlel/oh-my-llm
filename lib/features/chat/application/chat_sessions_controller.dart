@@ -160,6 +160,9 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
   /// 字段（不变量 5）。无 generation snapshot 时回退到兼容布尔投影，保留对直接
   /// 设置兼容字段的兼容（如测试只设 `isAutoRetryWaiting` 而未走 run 路径）。
   bool get _isBusy {
+    if (_generationCoordinator?.hasActive ?? false) {
+      return true;
+    }
     final phase = state.generation?.phase;
     if (phase != null) {
       return phase.isBusy || state.isCheckpointing;

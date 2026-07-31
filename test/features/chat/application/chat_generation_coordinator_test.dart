@@ -64,6 +64,21 @@ void main() {
     expect(host.progress.last.snapshot.phase, ChatGenerationPhase.succeeded);
   });
 
+  test('active run 存在时并发 start 返回同一 completion 且不启动第二个 run', () async {
+    fakeClient.enqueueChunks(['hello']);
+    final firstHost = _FakeHost();
+    final secondHost = _FakeHost();
+
+    final firstCompletion = coordinator.start(newCommand(), firstHost);
+    final secondCompletion = coordinator.start(newCommand(), secondHost);
+
+    expect(secondCompletion, same(firstCompletion));
+    await firstCompletion;
+    expect(firstHost.prepareCallCount, 1);
+    expect(secondHost.prepareCallCount, 0);
+    expect(fakeClient.requestHistory, hasLength(1));
+  });
+
   test('stop 返回同一 completion，最终 cancelled', () async {
     final sc = StreamController<ChatCompletionChunk>();
     addTearDown(sc.close);
@@ -122,9 +137,11 @@ final _disabledRetry = ChatRetryPolicy(
 /// stop 返回 Cancelled，projectProgress 记录。
 class _FakeHost implements ChatGenerationHost {
   final List<ChatGenerationProgress> progress = [];
+  int prepareCallCount = 0;
 
   @override
   Future<ChatPrepareResult> prepare(ChatGenerationCommand command) async {
+    prepareCallCount++;
     final assistantMessage = ChatMessage(
       id: 'a1',
       role: ChatMessageRole.assistant,

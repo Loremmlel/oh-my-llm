@@ -423,10 +423,10 @@ void registerChatSessionsControllerStopCases() {
     expect(state.errorMessage, ChatErrorMessages.stoppedByUser);
     expect(state.generation?.phase, ChatGenerationPhase.cancelled);
     expect(state.generation?.cancelReason, ChatCancelReason.userStop);
-    // P2-6：preparing snapshot 携带唯一非 0 generationId 与干净 attempt（0），
-    // 不再用 0 或沿用上一轮重试次数。
+    // P2-6：preparing snapshot 携带唯一非 0 generationId，attempt 从 1 开始，
+    // 不再沿用上一轮重试次数。
     expect(state.generation?.generationId, isNonZero);
-    expect(state.generation?.attempt, 0);
+    expect(state.generation?.attempt, 1);
   });
 
   test('preparing pending save 失败不污染后续 generation（P1-1）', () async {
