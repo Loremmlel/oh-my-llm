@@ -18,7 +18,8 @@ enum ReasoningEffort {
   low('low'),
   medium('medium'),
   high('high'),
-  xhigh('xhigh');
+  xhigh('xhigh'),
+  max('max');
 
   const ReasoningEffort(this.apiValue);
 
