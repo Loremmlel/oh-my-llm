@@ -503,6 +503,7 @@ void main() {
         ReasoningEffort.medium: 'medium',
         ReasoningEffort.high: 'high',
         ReasoningEffort.xhigh: 'xhigh',
+        ReasoningEffort.max: 'max',
       };
 
       for (final entry in expectedEfforts.entries) {
