@@ -7,6 +7,7 @@ import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
+import 'package:oh_my_llm/features/chat/presentation/widgets/composer/composer_helpers.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/message_anchor_rail.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/thinking_toggle.dart';
 import 'package:oh_my_llm/features/settings/application/llm_model_configs_controller.dart';
@@ -316,6 +317,52 @@ void registerChatScreenBasicsTests() {
     expect(find.text('思考强度'), findsOneWidget);
     expect(find.text('固定顺序提示词'), findsOneWidget);
   });
+
+  testWidgets(
+    'chat screen compact settings sheet keeps stable height when switching effort',
+    (tester) async {
+      final fakeClient = FakeChatCompletionClient();
+
+      await pumpChatScreen(
+        tester,
+        fakeClient: fakeClient,
+        size: const Size(430, 932),
+      );
+
+      await tester.tap(find.byIcon(Icons.tune_rounded));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('深度思考'));
+      await tester.pumpAndSettle();
+
+      // 用 descendant 限定，避免与折叠行摘要「更多设置 · med · 重试开」撞名。
+      Finder chipFor(ReasoningEffort effort) => find.descendant(
+        of: find.byType(ChoiceChip),
+        matching: find.text(effortLabel(effort)),
+      );
+      for (final effort in ReasoningEffort.values) {
+        expect(chipFor(effort), findsOneWidget);
+      }
+
+      // 切换档位时弹窗高度保持恒定：checkmark 的 150ms 宽度动画会让 Wrap
+      // 在窄屏跨越换行阈值、内容高度跳变，关闭 checkmark 后应完全稳定。
+      final sheet = find.byType(BottomSheet);
+      final initialHeight = tester.getSize(sheet).height;
+      for (final effort in ReasoningEffort.values) {
+        await tester.tap(chipFor(effort));
+        await tester.pumpAndSettle();
+        expect(
+          tester.getSize(sheet).height,
+          moreOrLessEquals(initialHeight, epsilon: 0.01),
+          reason: '切换思考强度档位（$effort）时弹窗高度不应跳变',
+        );
+      }
+
+      // 选中态经回调正确传播到折叠行摘要。
+      await tester.tap(chipFor(ReasoningEffort.xhigh));
+      await tester.pumpAndSettle();
+      expect(find.text('更多设置 · xhigh · 重试关'), findsOneWidget);
+    },
+  );
 
   testWidgets('chat screen can collapse and expand the composer', (
     tester,
