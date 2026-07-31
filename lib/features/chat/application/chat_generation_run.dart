@@ -48,7 +48,7 @@ class ChatGenerationRun {
   bool _stopIntent = false;
   bool _disposed = false;
   ChatGenerationOutcome? _outcome; // 非 null 即已 terminal（单一终态 guard）
-  int attempt = 0;
+  int attempt = 1;
 
   // 累积缓冲。
   String _content = '';
@@ -147,9 +147,6 @@ class ChatGenerationRun {
     // stop 不启动网络）。
     if (_stopIntent) return;
 
-    // 首次 attempt：preparing 时 attempt 保持 0（干净 snapshot，未开始尝试），
-    // 进入 streaming 才置 1；重试由 _scheduleRetry 的 attempt++ 递增。
-    attempt = 1;
     phase = ChatGenerationPhase.streaming;
     _project(streamingReply: _streamingReply);
     _startStream();

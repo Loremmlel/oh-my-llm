@@ -92,6 +92,38 @@ void main() {
 
   // 整组跳过：待 Task 3 串行 run 切换后启用。修复前为红，切换后转绿。
   group('serialized generation run contract', () {
+    test('同一事件循环并发发送只接纳第一个 command', () async {
+      repository.gateSave(1);
+      fakeClient.enqueueChunks(['A-reply']);
+
+      final sendA = sendMsg('AAA');
+      final sendB = sendMsg('BBB');
+      await sendB.timeout(defaultTimeout);
+      await repository.awaitReached(1);
+
+      var state = container.read(chatSessionsProvider);
+      expect(fakeClient.requestHistory, isEmpty);
+      expect(
+        state.activeConversation.messages.any((m) => m.content == 'BBB'),
+        isFalse,
+      );
+
+      repository.releaseSave(1);
+      await sendA.timeout(defaultTimeout);
+
+      state = container.read(chatSessionsProvider);
+      expect(fakeClient.requestHistory, hasLength(1));
+      expect(
+        state.activeConversation.messages.any((m) => m.content == 'AAA'),
+        isTrue,
+      );
+      expect(
+        state.activeConversation.messages.any((m) => m.content == 'BBB'),
+        isFalse,
+      );
+      expect(state.activeConversation.messages.last.content, 'A-reply');
+    });
+
     // ── 不变量 5：旧 run terminal durable 完成前新 command 被拒 ──────────────────
     test('A preparing stop 的 stop save 期间保持 busy，新 command 被拒', () async {
       repository.gateSave(1); // A pending save
@@ -345,6 +377,7 @@ void main() {
       () async {
         fakeClient.enqueueChunks(['回复']);
         int? preparingId;
+        int? preparingAttempt;
         int? streamingId;
         final sub = container.listen<ChatSessionsState>(chatSessionsProvider, (
           previous,
@@ -353,6 +386,7 @@ void main() {
           final phase = next.generation?.phase;
           if (phase == ChatGenerationPhase.preparing && preparingId == null) {
             preparingId = next.generation?.generationId;
+            preparingAttempt = next.generation?.attempt;
           } else if (phase == ChatGenerationPhase.streaming &&
               streamingId == null) {
             streamingId = next.generation?.generationId;
@@ -364,6 +398,7 @@ void main() {
 
         final state = container.read(chatSessionsProvider);
         expect(preparingId, isNonZero);
+        expect(preparingAttempt, 1);
         expect(preparingId, streamingId); // preparing 与 streaming 同一 token
         expect(
           state.generation?.generationId,

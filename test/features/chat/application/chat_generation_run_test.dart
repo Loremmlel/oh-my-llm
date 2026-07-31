@@ -169,6 +169,7 @@ void main() {
     expect(fakeClient.requestHistory, isEmpty); // 未启动网络
     expect(host.stops, hasLength(1));
     expect(host.stops.single.phase, ChatGenerationPhase.preparing);
+    expect(host.stops.single.attempt, 1);
   });
 
   test('streaming stop: cancelled, partial content retained', () async {
@@ -285,6 +286,8 @@ void main() {
       host.progress.last.snapshot.outcome,
       isA<ChatGenerationPersistenceFailure>(),
     );
+    expect(host.progress.last.snapshot.attempt, 1);
+    expect(host.progress.last.snapshot.outcome?.attempt, 1);
     expect(fakeClient.requestHistory, isEmpty);
   });
 
