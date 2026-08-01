@@ -61,7 +61,7 @@ class _SyncOperationTabState extends ConsumerState<SyncOperationTab>
     });
 
     if (clientState.server == null || !_isConnectedOrError(clientState.phase)) {
-      return _buildNotConnectedView(context);
+      return _buildNotConnectedView(context, clientState);
     }
 
     return ListView(
@@ -84,8 +84,10 @@ class _SyncOperationTabState extends ConsumerState<SyncOperationTab>
     );
   }
 
-  Widget _buildNotConnectedView(BuildContext context) {
+  /// 未连接占位视图；error 态（断开/未发现）展示具体错误文案，其余保持引导文案。
+  Widget _buildNotConnectedView(BuildContext context, SyncClientState state) {
     final theme = Theme.of(context);
+    final disconnected = state.phase == SyncPhase.error;
 
     return Center(
       child: Padding(
@@ -94,15 +96,21 @@ class _SyncOperationTabState extends ConsumerState<SyncOperationTab>
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              Icons.cloud_off_rounded,
+              disconnected ? Icons.error_outline : Icons.cloud_off_rounded,
               size: 48,
-              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+              color: disconnected
+                  ? theme.colorScheme.error
+                  : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
             ),
             const SizedBox(height: 16),
             Text(
-              '请先在「连接」标签页中连接到服务端',
+              disconnected
+                  ? (state.errorMessage ?? '发生未知错误')
+                  : '请先在「连接」标签页中连接到服务端',
               style: theme.textTheme.bodyLarge?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+                color: disconnected
+                    ? theme.colorScheme.error
+                    : theme.colorScheme.onSurfaceVariant,
               ),
               textAlign: TextAlign.center,
             ),

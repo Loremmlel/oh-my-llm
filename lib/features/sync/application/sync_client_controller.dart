@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/providers/notification_bubble_provider.dart';
+import '../../../core/widgets/notification_bubble_data.dart';
 import '../../settings/domain/models/settings_export_data.dart';
 import 'ports/settings_sync_facade.dart';
 import 'ports/sync_client_transport.dart';
@@ -26,6 +28,9 @@ enum SyncPhase {
 }
 
 const Object _sentinel = Object();
+
+/// 服务端断开时的统一提示文案，状态与全局气泡共用。
+const _disconnectedMessage = '服务端已断开，请重新搜索';
 
 class SyncClientState extends Equatable {
   SyncClientState({
@@ -171,8 +176,16 @@ class SyncClientController extends Notifier<SyncClientState> {
                 sourceDeviceName: null,
                 isPaired: false,
                 deduplicatedData: null,
-                errorMessage: '服务端已断开，请重新搜索',
+                errorMessage: _disconnectedMessage,
               );
+              // 全局气泡通知：controller 应用生命周期存活，无论用户停留在哪个
+              // 页面（聊天/设置/其他 Tab）都能感知到服务端断开。
+              ref
+                  .read(notificationBubblesProvider.notifier)
+                  .show(
+                    message: _disconnectedMessage,
+                    type: NotificationBubbleType.error,
+                  );
             }
           },
           onError: (Object e) {
