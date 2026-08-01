@@ -104,7 +104,8 @@ class SyncUdpDiscovery {
   ///
   /// 取消订阅时会同步清理 socket 和 MulticastLock，不会泄漏资源。
   static Stream<DiscoveredServer> listenForServers({
-    Duration timeout = const Duration(seconds: 10),
+    // 服务端每 2s 广播一次，6s 约覆盖 3 个广播周期，用于更快感知服务端停止。
+    Duration timeout = const Duration(seconds: 6),
   }) {
     RawDatagramSocket? socket;
     Timer? timeoutTimer;
