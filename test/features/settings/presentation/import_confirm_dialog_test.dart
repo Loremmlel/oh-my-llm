@@ -98,7 +98,7 @@ Future<void> _openDialog(WidgetTester tester, SettingsExportData data) async {
   await tester.tap(find.text('打开'));
   await tester.pump();
   // 等待 AlertDialog 入场。
-  await tester.pumpAndSettle();
+  await tester.pumpAndSettle(const Duration(milliseconds: 250));
   expect(find.byType(ImportConfirmDialog), findsOneWidget);
 }
 
@@ -179,7 +179,7 @@ void main() {
       await _openDialog(tester, _buildFullData());
 
       await tester.tap(find.text('导入'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(container.read(llmProviderConfigsProvider).length, 1);
       expect(container.read(llmProviderConfigsProvider).first.id, 'provider-1');
@@ -202,7 +202,7 @@ void main() {
       await _openDialog(tester, _buildFullData());
 
       await tester.tap(find.text('导入'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       final settings = container.read(autoRetrySettingsProvider);
       expect(settings.maxJitterSeconds, 20);
@@ -214,7 +214,7 @@ void main() {
       await _openDialog(tester, _buildFullData());
 
       await tester.tap(find.text('取消'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(container.read(llmProviderConfigsProvider), isEmpty);
       expect(container.read(memoryPromptsProvider), isEmpty);
@@ -252,12 +252,12 @@ void main() {
       await _openDialog(tester, _buildFullData());
 
       await tester.tap(find.text('导入'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(find.byType(ImportConfirmDialog), findsOneWidget);
       expect(find.text('导入失败：Bad state: 写入失败'), findsOneWidget);
       await tester.tap(find.text('取消'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
       expect(find.byType(ImportConfirmDialog), findsNothing);
     });
   });

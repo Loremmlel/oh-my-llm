@@ -30,7 +30,7 @@ Future<void> _pumpSelector(
       child: const MaterialApp(home: Scaffold(body: InterfaceSelector())),
     ),
   );
-  await tester.pumpAndSettle();
+  await tester.pumpAndSettle(const Duration(milliseconds: 250));
 }
 
 void main() {

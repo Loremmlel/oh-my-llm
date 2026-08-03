@@ -118,7 +118,7 @@ void main() {
         await tester.pump();
 
         await tester.tap(find.text('保存'));
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
         expect(captured, isNotNull);
         expect(captured!.displayName, 'My Model');
@@ -166,7 +166,7 @@ void main() {
         expect(find.text('正在拉取模型列表...'), findsOneWidget);
 
         completer.complete([]);
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(milliseconds: 250));
       });
 
       testWidgets('shows error message on fetch failure', (tester) async {
@@ -183,7 +183,7 @@ void main() {
         await tester.pump();
 
         await tester.tap(find.byKey(const ValueKey('model-fetch-button')));
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
         expect(find.textContaining('服务器返回错误'), findsOneWidget);
         expect(find.text('重试'), findsOneWidget);
@@ -206,7 +206,7 @@ void main() {
         await tester.pump();
 
         await tester.tap(find.byKey(const ValueKey('model-fetch-button')));
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
         expect(find.text('gpt-4o'), findsWidgets);
         expect(find.text('gpt-4o-mini'), findsWidgets);
@@ -243,7 +243,7 @@ void main() {
         await tester.pump();
 
         await tester.tap(find.byKey(const ValueKey('model-fetch-button')));
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
         expect(find.text('已存在'), findsOneWidget);
       });
@@ -264,7 +264,7 @@ void main() {
         await tester.pump();
 
         await tester.tap(find.byKey(const ValueKey('model-fetch-button')));
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
         final submitButton = tester.widget<FilledButton>(
           find.ancestor(
@@ -291,7 +291,7 @@ void main() {
         await tester.pump();
 
         await tester.tap(find.byKey(const ValueKey('model-fetch-button')));
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
         await tester.tap(
           find.byKey(const ValueKey('model-fetch-checkbox-gpt-4o')),
@@ -327,7 +327,7 @@ void main() {
         await tester.pump();
 
         await tester.tap(find.byKey(const ValueKey('model-fetch-button')));
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
         await tester.tap(
           find.byKey(const ValueKey('model-fetch-checkbox-gpt-4o')),
@@ -335,7 +335,7 @@ void main() {
         await tester.pump();
 
         await tester.tap(find.text('添加所选模型'));
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
         expect(captured, isNotNull);
         expect(captured!.length, 1);
@@ -358,7 +358,7 @@ void main() {
         await tester.pump();
 
         await tester.tap(find.byKey(const ValueKey('model-fetch-button')));
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
         // 切回手动
         await tester.tap(find.text('手动输入'));

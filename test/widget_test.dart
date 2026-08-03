@@ -41,7 +41,7 @@ void main() {
       ),
     );
 
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.text('历史会话面板'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, '发送'), findsOneWidget);

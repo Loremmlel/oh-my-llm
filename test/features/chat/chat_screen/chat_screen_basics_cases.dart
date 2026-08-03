@@ -71,7 +71,7 @@ void registerChatScreenBasicsTests() {
     await pumpChatScreen(tester, fakeClient: fakeClient);
 
     await tester.tap(find.byTooltip('修改对话标题'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     await tester.enterText(
       find.descendant(
@@ -81,7 +81,7 @@ void registerChatScreenBasicsTests() {
       '新的对话标题',
     );
     await tester.tap(find.widgetWithText(FilledButton, '保存'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.text('新的对话标题'), findsWidgets);
   });
@@ -97,7 +97,7 @@ void registerChatScreenBasicsTests() {
     );
 
     await tester.tap(find.byTooltip('修改对话标题'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await tester.enterText(
       find.descendant(
         of: find.byType(AlertDialog),
@@ -106,10 +106,10 @@ void registerChatScreenBasicsTests() {
       '自定义标题',
     );
     await tester.tap(find.widgetWithText(FilledButton, '保存'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     await sendMessage(tester, '发送后不要重置标题');
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(
       container.read(chatSessionsProvider).activeConversation.resolvedTitle,
@@ -125,10 +125,10 @@ void registerChatScreenBasicsTests() {
       await pumpChatScreen(tester, fakeClient: fakeClient);
 
       await sendMessage(tester, '你好');
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       await tester.tap(find.byTooltip('对话检查点'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(find.text('对话检查点'), findsOneWidget);
       expect(find.text('当前上下文字数：5 字（不含预设 Prompt）'), findsOneWidget);
@@ -150,10 +150,10 @@ void registerChatScreenBasicsTests() {
           .updateActiveConversationPreferences(
             selectedPresetPromptId: 'prompt-1',
           );
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       await tester.tap(find.byTooltip('对话检查点'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(find.text('当前总结会附带预设 Prompt：代码助手'), findsOneWidget);
     },
@@ -191,10 +191,10 @@ void registerChatScreenBasicsTests() {
             updatedAt: DateTime(2026, 5, 6),
           ),
         );
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     await sendMessage(tester, '先生成一点上下文');
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     await container
         .read(chatSessionsProvider.notifier)
@@ -209,10 +209,10 @@ void registerChatScreenBasicsTests() {
           reasoningEnabled: false,
           reasoningEffort: ReasoningEffort.medium,
         );
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     await tester.tap(find.byTooltip('对话检查点'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.text('检查点标题'), findsOneWidget);
   });
@@ -227,15 +227,15 @@ void registerChatScreenBasicsTests() {
     await pumpChatScreen(tester, fakeClient: fakeClient);
 
     await sendMessage(tester, '第一轮问题');
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     await tester.tap(find.byTooltip('从发送上下文中排除').last);
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.byIcon(Icons.filter_alt_outlined), findsOneWidget);
 
     await sendMessage(tester, '第二轮问题');
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(
       fakeClient.requestHistory.last.map((message) => message.content).toList(),
@@ -253,24 +253,24 @@ void registerChatScreenBasicsTests() {
     await pumpChatScreen(tester, fakeClient: fakeClient);
 
     await sendMessage(tester, '第一轮问题');
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     await tester.tap(find.byTooltip('从发送上下文中排除').last);
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     await tester.tap(find.byIcon(Icons.filter_alt_outlined));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.text('上下文过滤'), findsOneWidget);
     await tester.tap(find.widgetWithText(FilledButton, '恢复当前分支'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await tester.tap(find.widgetWithText(TextButton, '关闭'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.text('不发送'), findsNothing);
 
     await sendMessage(tester, '第二轮问题');
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(
       fakeClient.requestHistory.last.map((message) => message.content).toList(),
@@ -287,10 +287,10 @@ void registerChatScreenBasicsTests() {
       await pumpChatScreen(tester, fakeClient: fakeClient);
 
       await sendMessage(tester, 'hello 123 世界');
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       await tester.tap(find.byIcon(Icons.filter_alt_outlined));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(find.text('发送字数：4 / 4 字'), findsOneWidget);
     },
@@ -308,12 +308,12 @@ void registerChatScreenBasicsTests() {
     );
 
     await tester.tap(find.byIcon(Icons.tune_rounded));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.text('更多设置'), findsOneWidget);
     expect(find.text('思考强度'), findsNothing);
     await tester.tap(find.text('深度思考'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     expect(find.text('思考强度'), findsOneWidget);
     expect(find.text('固定顺序提示词'), findsOneWidget);
   });
@@ -330,9 +330,9 @@ void registerChatScreenBasicsTests() {
       );
 
       await tester.tap(find.byIcon(Icons.tune_rounded));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
       await tester.tap(find.text('深度思考'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       // 用 descendant 限定，避免与折叠行摘要「更多设置 · med · 重试开」撞名。
       Finder chipFor(ReasoningEffort effort) => find.descendant(
@@ -349,7 +349,7 @@ void registerChatScreenBasicsTests() {
       final initialHeight = tester.getSize(sheet).height;
       for (final effort in ReasoningEffort.values) {
         await tester.tap(chipFor(effort));
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(milliseconds: 250));
         expect(
           tester.getSize(sheet).height,
           moreOrLessEquals(initialHeight, epsilon: 0.01),
@@ -359,7 +359,7 @@ void registerChatScreenBasicsTests() {
 
       // 选中态经回调正确传播到折叠行摘要。
       await tester.tap(chipFor(ReasoningEffort.xhigh));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
       expect(find.text('更多设置 · xhigh · 重试关'), findsOneWidget);
     },
   );
@@ -374,7 +374,7 @@ void registerChatScreenBasicsTests() {
     expect(find.widgetWithText(FilledButton, '发送'), findsOneWidget);
 
     await tester.tap(find.byTooltip('收起输入区'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.text('输入区已隐藏'), findsOneWidget);
     // AnimatedCrossFade 下展开态 child 常驻树（仅 opacity 置 0），发送按钮
@@ -384,11 +384,11 @@ void registerChatScreenBasicsTests() {
       find.widgetWithText(FilledButton, '发送'),
       warnIfMissed: false,
     );
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     expect(fakeClient.requestHistory, isEmpty);
 
     await tester.tap(find.byTooltip('展开输入区'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.widgetWithText(FilledButton, '发送'), findsOneWidget);
   });
@@ -416,7 +416,7 @@ void registerChatScreenBasicsTests() {
               updatedAt: DateTime(2026, 5, 5, 0, 1),
             ),
           );
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       await tester.tap(
         find.ancestor(
@@ -424,12 +424,12 @@ void registerChatScreenBasicsTests() {
           matching: find.byWidgetPredicate((w) => w is DropdownButtonFormField),
         ),
       );
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
       await tester.tap(find.text('总结模板').last);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       await sendMessage(tester, '这是一段原文');
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(fakeClient.requestHistory.last.last.content, '这是一段原文\n请总结成简洁。');
     },
@@ -460,7 +460,7 @@ void registerChatScreenBasicsTests() {
               updatedAt: DateTime(2026, 5, 5, 0, 3),
             ),
           );
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       await tester.tap(
         find.ancestor(
@@ -468,9 +468,9 @@ void registerChatScreenBasicsTests() {
           matching: find.byWidgetPredicate((w) => w is DropdownButtonFormField),
         ),
       );
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
       await tester.tap(find.text('多变量模板').last);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(find.text('语气'), findsOneWidget);
       expect(find.text('长度'), findsOneWidget);
@@ -514,16 +514,16 @@ void registerChatScreenBasicsTests() {
         matching: find.byWidgetPredicate((w) => w is DropdownButtonFormField),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await tester.tap(find.text('DeepSeek V4 Flash').last);
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     await sendMessage(tester, '第一次问题');
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await tester.tap(find.byTooltip('新建对话').first);
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await sendMessage(tester, '第二次问题');
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(fakeClient.requestedModels.map((config) => config.id).toList(), [
       'model-new',
@@ -539,13 +539,13 @@ void registerChatScreenBasicsTests() {
     await pumpChatScreen(tester, fakeClient: fakeClient);
 
     await tester.tap(find.byTooltip('固定顺序提示词'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.text('固定顺序提示词'), findsWidgets);
     expect(find.text('请先总结当前实现的核心目标。'), findsOneWidget);
 
     await tester.tap(find.widgetWithText(OutlinedButton, '填入输入框'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.text('请先总结当前实现的核心目标。'), findsWidgets);
   });
@@ -558,15 +558,15 @@ void registerChatScreenBasicsTests() {
     await pumpChatScreen(tester, fakeClient: fakeClient);
 
     await tester.tap(find.byTooltip('固定顺序提示词'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await tester.tap(find.widgetWithText(FilledButton, '发送当前步骤'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(fakeClient.lastRequestMessages.single.content, '请先总结当前实现的核心目标。');
     expect(find.textContaining('已收到'), findsWidgets);
 
     await tester.tap(find.byTooltip('固定顺序提示词'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.text('请列出三个可执行方案，并说明权衡。'), findsOneWidget);
   });
@@ -586,7 +586,7 @@ void registerChatScreenBasicsTests() {
     await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(fakeClient.lastRequestMessages.single.content, content);
     expect(find.textContaining('快捷键发送成功'), findsWidgets);
@@ -608,17 +608,17 @@ void registerChatScreenBasicsTests() {
 
     for (var index = 1; index <= 8; index += 1) {
       await sendMessage(tester, '第 $index 条问题：${'内容 ' * 20}');
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
     }
 
     final scrollable = find.byType(Scrollable).first;
     await tester.drag(scrollable, const Offset(0, 600));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.byTooltip('滚动到底部'), findsOneWidget);
 
     await tester.tap(find.byTooltip('滚动到底部'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.textContaining('第 8 条回复'), findsWidgets);
   });
@@ -642,7 +642,7 @@ void registerChatScreenBasicsTests() {
 
       for (var index = 1; index <= 5; index += 1) {
         await sendMessage(tester, '第 $index 条问题：${'内容 ' * 20}');
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(milliseconds: 250));
       }
 
       // 锚点条渲染 5 个条目（>3 条用户消息才会展开 rail）
@@ -651,7 +651,7 @@ void registerChatScreenBasicsTests() {
       // 滚动到列表顶部附近，验证锚点高亮经 ValueNotifier 更新不抛异常且 rail 仍存在
       final scrollable = find.byType(Scrollable).first;
       await tester.drag(scrollable, const Offset(0, -400));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(find.byType(MessageAnchorRail), findsOneWidget);
     },

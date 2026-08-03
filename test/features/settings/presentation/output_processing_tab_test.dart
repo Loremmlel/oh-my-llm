@@ -76,14 +76,14 @@ void main() {
     testWidgets('点击新增按钮打开 dialog', (tester) async {
       await pumpTab(tester);
       await tester.tap(find.byIcon(Icons.add_rounded));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
       expect(find.text('新增正则规则'), findsOneWidget);
     });
 
     testWidgets('dialog 中空表达式校验失败', (tester) async {
       await pumpTab(tester);
       await tester.tap(find.byIcon(Icons.add_rounded));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       await tester.tap(find.text('保存'));
       await tester.pump();
@@ -94,7 +94,7 @@ void main() {
     testWidgets('dialog 中无效正则校验失败', (tester) async {
       await pumpTab(tester);
       await tester.tap(find.byIcon(Icons.add_rounded));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       await tester.enterText(
         find.widgetWithText(TextField, '正则表达式'),
@@ -109,12 +109,12 @@ void main() {
     testWidgets('dialog 填写合法值提交后规则出现在列表', (tester) async {
       await pumpTab(tester);
       await tester.tap(find.byIcon(Icons.add_rounded));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       await tester.enterText(find.widgetWithText(TextField, '标题'), '新规则');
       await tester.enterText(find.widgetWithText(TextField, '正则表达式'), r'\d+');
       await tester.tap(find.text('保存'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(find.text('新规则'), findsOneWidget);
     });
@@ -126,7 +126,7 @@ void main() {
       await pumpTab(tester, initialRules: rules);
 
       await tester.tap(find.byIcon(Icons.edit_outlined));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(find.text('编辑正则规则'), findsOneWidget);
     });
@@ -136,12 +136,12 @@ void main() {
       await pumpTab(tester, initialRules: rules);
 
       await tester.tap(find.byIcon(Icons.edit_outlined));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       final titleField = find.widgetWithText(TextField, '标题');
       await tester.enterText(titleField, '新标题');
       await tester.tap(find.text('保存'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(find.text('新标题'), findsOneWidget);
     });
@@ -156,7 +156,7 @@ void main() {
       expect(switchWidget, findsOneWidget);
 
       await tester.tap(switchWidget);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
     });
 
     // ── 移动 ──────────────────────────────────────────────────
@@ -170,7 +170,7 @@ void main() {
 
       final downButtons = find.byIcon(Icons.arrow_downward_rounded);
       await tester.tap(downButtons.first);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(find.text('规则A'), findsOneWidget);
       expect(find.text('规则B'), findsOneWidget);
@@ -183,7 +183,7 @@ void main() {
       await pumpTab(tester, initialRules: rules);
 
       await tester.tap(find.byIcon(Icons.delete_outline));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(find.text('确认删除'), findsOneWidget);
     });
@@ -193,10 +193,10 @@ void main() {
       await pumpTab(tester, initialRules: rules);
 
       await tester.tap(find.byIcon(Icons.delete_outline));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       await tester.tap(find.text('删除'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(find.text('待删除'), findsNothing);
     });
@@ -206,10 +206,10 @@ void main() {
       await pumpTab(tester, initialRules: rules);
 
       await tester.tap(find.byIcon(Icons.delete_outline));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       await tester.tap(find.text('取消'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(find.text('保留规则'), findsOneWidget);
     });

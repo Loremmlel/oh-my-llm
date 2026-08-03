@@ -16,10 +16,10 @@ void registerChatScreenFavoritesTests() {
     await pumpChatScreen(tester, fakeClient: fakeClient);
 
     await sendMessage(tester, '测试问题');
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     await tester.tap(find.byTooltip('收藏回复'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.byType(AddToFavoritesDialog), findsOneWidget);
     expect(find.text('收藏到'), findsOneWidget);
@@ -34,16 +34,16 @@ void registerChatScreenFavoritesTests() {
     await pumpChatScreen(tester, fakeClient: fakeClient);
 
     await sendMessage(tester, '测试问题');
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     await tester.tap(find.byTooltip('收藏回复'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     final container = ProviderScope.containerOf(
       tester.element(find.byType(AddToFavoritesDialog)),
     );
     await tester.tap(find.widgetWithText(TextButton, '取消'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(container.read(favoritesProvider), isEmpty);
     expect(find.byTooltip('收藏回复'), findsOneWidget);
@@ -59,18 +59,18 @@ void registerChatScreenFavoritesTests() {
       await pumpChatScreen(tester, fakeClient: fakeClient);
 
       await sendMessage(tester, '测试问题');
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
       await tester.tap(find.byTooltip('收藏回复'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
       final container = ProviderScope.containerOf(
         tester.element(find.byType(AddToFavoritesDialog)),
       );
 
       await tester.tap(find.text('未分类'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       await tester.tap(find.widgetWithText(FilledButton, '收藏'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(container.read(favoritesProvider), hasLength(1));
       expect(find.byTooltip('已收藏'), findsOneWidget);
@@ -87,24 +87,24 @@ void registerChatScreenFavoritesTests() {
       await pumpChatScreen(tester, fakeClient: fakeClient);
 
       await sendMessage(tester, '测试问题');
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       // First tap: open dialog, select uncategorized, confirm
       await tester.tap(find.byTooltip('收藏回复'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
       final container = ProviderScope.containerOf(
         tester.element(find.byType(AddToFavoritesDialog)),
       );
       await tester.tap(find.text('未分类'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
       await tester.tap(find.widgetWithText(FilledButton, '收藏'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(container.read(favoritesProvider), hasLength(1));
       expect(find.byTooltip('已收藏'), findsOneWidget);
 
       await tester.tap(find.byTooltip('已收藏'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(container.read(favoritesProvider), isEmpty);
       expect(find.byTooltip('收藏回复'), findsOneWidget);
@@ -120,16 +120,16 @@ void registerChatScreenFavoritesTests() {
     await pumpChatScreen(tester, fakeClient: fakeClient);
 
     await sendMessage(tester, '测试问题');
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     await tester.tap(find.byTooltip('收藏回复'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     final container = ProviderScope.containerOf(
       tester.element(find.byType(AddToFavoritesDialog)),
     );
 
     await tester.tap(find.text('新建收藏夹'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     await tester.enterText(
       find.descendant(
@@ -139,7 +139,7 @@ void registerChatScreenFavoritesTests() {
       '我的新收藏夹',
     );
     await tester.tap(find.widgetWithText(FilledButton, '新建并收藏'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.text('已收藏'), findsOneWidget);
     expect(find.byTooltip('已收藏'), findsOneWidget);

@@ -23,11 +23,11 @@ void registerChatScreenBranchingTests() {
       await pumpChatScreen(tester, fakeClient: fakeClient);
 
       await sendMessage(tester, '第一条原始问题');
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
       await sendMessage(tester, '第二条问题');
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
       await sendMessage(tester, '第三条问题');
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       fakeClient.enqueueChunks(['重算后的第二条回复']);
 
@@ -49,7 +49,7 @@ void registerChatScreenBranchingTests() {
             messageId: secondUserMessage.id,
             nextContent: '第二条已修改问题',
           );
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(find.textContaining('第一条原始问题'), findsWidgets);
       expect(find.textContaining('原始回复一'), findsWidgets);
@@ -75,10 +75,10 @@ void registerChatScreenBranchingTests() {
     await pumpChatScreen(tester, fakeClient: fakeClient);
 
     await sendMessage(tester, '帮我重试一下');
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     await tester.tap(find.byTooltip('重试回复'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.textContaining('重试后的回复'), findsWidgets);
     expect(find.textContaining('原始回复'), findsNothing);
@@ -96,10 +96,10 @@ void registerChatScreenBranchingTests() {
     await pumpChatScreen(tester, fakeClient: fakeClient);
 
     await sendMessage(tester, '测试重试分支');
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     await tester.tap(find.byTooltip('重试回复'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     final container = ProviderScope.containerOf(
       tester.element(find.byType(ChatScreen)),
@@ -129,7 +129,7 @@ void registerChatScreenBranchingTests() {
           parentId: rootUser.id,
           messageId: assistantSiblings.first.id,
         );
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.textContaining('首次回复'), findsWidgets);
   });
@@ -144,13 +144,13 @@ void registerChatScreenBranchingTests() {
       await pumpChatScreen(tester, fakeClient: fakeClient);
 
       await sendMessage(tester, '先触发一次错误');
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(find.textContaining('HTTP 503: unavailable'), findsWidgets);
       expect(find.text('2/2'), findsNothing);
 
       await tester.tap(find.byTooltip('重试回复').last);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(find.textContaining('重试恢复成功'), findsWidgets);
       expect(find.text('2/2'), findsNothing);
@@ -168,9 +168,9 @@ void registerChatScreenBranchingTests() {
     await pumpChatScreen(tester, fakeClient: fakeClient);
 
     await sendMessage(tester, '原始用户1');
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await sendMessage(tester, '原始用户2');
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     final container = ProviderScope.containerOf(
       tester.element(find.byType(ChatScreen)),
@@ -189,7 +189,7 @@ void registerChatScreenBranchingTests() {
     await container
         .read(chatSessionsProvider.notifier)
         .editMessage(messageId: originalRootUser.id, nextContent: '编辑后的用户1');
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.textContaining('编辑后的用户1'), findsWidgets);
     expect(find.textContaining('编辑后回复一'), findsWidgets);
@@ -202,7 +202,7 @@ void registerChatScreenBranchingTests() {
           parentId: rootConversationParentId,
           messageId: originalRootUser.id,
         );
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.textContaining('原始用户1'), findsWidgets);
     expect(find.textContaining('原始用户2'), findsWidgets);
@@ -219,9 +219,9 @@ void registerChatScreenBranchingTests() {
 
     await pumpChatScreen(tester, fakeClient: fakeClient);
     await sendMessage(tester, '测试删除弹窗');
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await tester.tap(find.byTooltip('重试回复'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
   }
 
   testWidgets('delete message dialog offers current branch or all versions', (
@@ -230,14 +230,14 @@ void registerChatScreenBranchingTests() {
     await setupDeleteScenario(tester);
 
     await tester.tap(find.byTooltip('删除消息').last);
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.text('删除哪个范围？'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, '删除当前分支'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, '删除全部版本'), findsOneWidget);
 
     await tester.tap(find.widgetWithText(FilledButton, '删除当前分支'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.textContaining('首次回复'), findsWidgets);
     expect(find.textContaining('重试后回复'), findsNothing);
@@ -250,9 +250,9 @@ void registerChatScreenBranchingTests() {
     await setupDeleteScenario(tester);
 
     await tester.tap(find.byTooltip('删除消息').last);
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await tester.tap(find.widgetWithText(FilledButton, '删除全部版本'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.textContaining('首次回复'), findsNothing);
     expect(find.textContaining('重试后回复'), findsNothing);
@@ -269,7 +269,7 @@ void registerChatScreenBranchingTests() {
     await pumpChatScreen(tester, fakeClient: fakeClient);
 
     await sendMessage(tester, '触发空回复');
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.textContaining(ChatErrorMessages.emptyReply), findsOneWidget);
   });
@@ -283,7 +283,7 @@ void registerChatScreenBranchingTests() {
     await pumpChatScreen(tester, fakeClient: fakeClient);
 
     await sendMessage(tester, '触发错误');
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.textContaining('测试网络错误'), findsOneWidget);
     expect(find.textContaining(ChatErrorMessages.emptyReply), findsNothing);

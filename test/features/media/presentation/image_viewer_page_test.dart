@@ -145,7 +145,7 @@ void main() {
 
       // 向左滑动切换到第 2 页
       await tester.fling(find.byType(PageView), const Offset(-200, 0), 1000);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       // 计数器应更新为 2 / 5
       expect(find.text('2 / 5'), findsOneWidget);
@@ -166,7 +166,7 @@ void main() {
 
       // 在首页向右滑动（应被 clamp，不翻页）
       await tester.fling(find.byType(PageView), const Offset(200, 0), 1000);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       // 仍在第 1 页
       expect(find.text('1 / 3'), findsOneWidget);
@@ -187,7 +187,7 @@ void main() {
 
       // 在末页向左滑动（应被 clamp）
       await tester.fling(find.byType(PageView), const Offset(-200, 0), 1000);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       // 仍在最后一页
       expect(find.text('3 / 3'), findsOneWidget);
@@ -229,7 +229,7 @@ void main() {
 
       // 点击返回
       await tester.tap(find.byIcon(Icons.arrow_back));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       // ImageViewerPage 通过 Navigator.push 进入，pop 后应返回上一个路由
       // 在测试中，由于只有这一层页面，pop 后会显示空或前一个路由。
@@ -250,7 +250,7 @@ void main() {
       // 连续快速滑动 3 次
       for (int i = 0; i < 3; i++) {
         await tester.fling(find.byType(PageView), const Offset(-200, 0), 1000);
-        await tester.pumpAndSettle();
+        await tester.pumpAndSettle(const Duration(milliseconds: 250));
       }
 
       // 应在第 4 页
@@ -269,17 +269,17 @@ void main() {
 
       // 翻到第 3 页
       await tester.fling(find.byType(PageView), const Offset(-200, 0), 1000);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
       expect(find.text('2 / 5'), findsOneWidget);
 
       // 再翻一页
       await tester.fling(find.byType(PageView), const Offset(-200, 0), 1000);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
       expect(find.text('3 / 5'), findsOneWidget);
 
       // 翻回第 1 页
       await tester.fling(find.byType(PageView), const Offset(200, 0), 1000);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
       expect(find.text('2 / 5'), findsOneWidget);
 
       // 所有页面都应正确显示，无崩溃

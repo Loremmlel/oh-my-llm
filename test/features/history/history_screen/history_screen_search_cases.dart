@@ -13,7 +13,7 @@ void registerHistoryScreenSearchTests() {
     await tester.pump(
       HistoryScreen.searchDebounce + const Duration(milliseconds: 50),
     );
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.text('Rust 重构计划'), findsOneWidget);
     expect(find.text('Flutter 路线图'), findsNothing);
@@ -26,7 +26,7 @@ void registerHistoryScreenSearchTests() {
     await tester.pump(
       HistoryScreen.searchDebounce + const Duration(milliseconds: 50),
     );
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.text('Flutter 路线图'), findsOneWidget);
     expect(find.text('Rust 重构计划'), findsNothing);
@@ -41,7 +41,7 @@ void registerHistoryScreenSearchTests() {
     await tester.pump(
       HistoryScreen.searchDebounce + const Duration(milliseconds: 50),
     );
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.textContaining('没有匹配'), findsOneWidget);
   });
@@ -55,7 +55,7 @@ void registerHistoryScreenSearchTests() {
     await tester.pump(
       HistoryScreen.searchDebounce + const Duration(milliseconds: 50),
     );
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.text('树状会话'), findsOneWidget);
   });

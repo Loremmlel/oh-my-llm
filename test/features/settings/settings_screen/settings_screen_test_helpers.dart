@@ -18,7 +18,7 @@ const tabLabels = ['服务商', '预设', '提示词', '网络', '输出处理',
 /// 切换到指定标签页。
 Future<void> switchToTab(WidgetTester tester, int index) async {
   await tester.tap(find.text(tabLabels[index]));
-  await tester.pumpAndSettle();
+  await tester.pumpAndSettle(const Duration(milliseconds: 250));
 }
 
 /// 挂载设置页并返回测试用数据库实例。
@@ -158,7 +158,7 @@ Finder memoryPromptContentField() =>
 
 Future<void> createTestProvider(WidgetTester tester) async {
   await tester.tap(find.text('新增服务商'));
-  await tester.pumpAndSettle();
+  await tester.pumpAndSettle(const Duration(milliseconds: 250));
   await tester.enterText(providerNameField(), 'OpenAI 官方');
   await tester.enterText(
     providerApiUrlField(),
@@ -166,5 +166,5 @@ Future<void> createTestProvider(WidgetTester tester) async {
   );
   await tester.enterText(providerApiKeyField(), 'sk-test-12345678');
   await tester.tap(find.text('保存'));
-  await tester.pumpAndSettle();
+  await tester.pumpAndSettle(const Duration(milliseconds: 250));
 }
