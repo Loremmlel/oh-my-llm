@@ -48,11 +48,13 @@ class SyncUdpDiscovery {
   /// 开始周期性 UDP 广播，返回停止函数。
   ///
   /// [broadcastAddress] 可选的定向广播地址；未传入时回退到 255.255.255.255。
+  /// [broadcastInterval] 广播周期；测试可传短周期加速用例，生产保持默认 2s。
   static Future<Future<void> Function()> startBroadcasting({
     required int httpPort,
     required String deviceName,
     required String serverId,
     InternetAddress? broadcastAddress,
+    Duration broadcastInterval = const Duration(seconds: 2),
   }) async {
     await _acquireMulticastLock();
 
@@ -88,10 +90,7 @@ class SyncUdpDiscovery {
     }
 
     sendBroadcast();
-    final timer = Timer.periodic(
-      const Duration(seconds: 2),
-      (_) => sendBroadcast(),
-    );
+    final timer = Timer.periodic(broadcastInterval, (_) => sendBroadcast());
 
     return () async {
       timer.cancel();

@@ -31,16 +31,17 @@ void main() {
     });
 
     test('listenForServers 能收到同机广播', () async {
-      // 先启动广播（会立即发一次，再每 2s 发一次）。
+      // 先启动广播（会立即发一次，再每 300ms 发一次，缩短测试耗时）。
       stopBroadcasting = await SyncUdpDiscovery.startBroadcasting(
         httpPort: 54321,
         deviceName: 'Test-PC',
         serverId: 'test-server-id',
+        broadcastInterval: const Duration(milliseconds: 300),
       );
 
-      // 监听 5s 内应至少收到一次。
+      // 监听 2s 内应至少收到一次。
       final stream = SyncUdpDiscovery.listenForServers(
-        timeout: const Duration(seconds: 5),
+        timeout: const Duration(seconds: 2),
       );
 
       final first = await stream
@@ -49,8 +50,8 @@ void main() {
                 server.deviceName == 'Test-PC' && server.httpPort == 54321,
           )
           .timeout(
-            const Duration(seconds: 5),
-            onTimeout: () => throw TimeoutException('5s 内未收到广播'),
+            const Duration(seconds: 2),
+            onTimeout: () => throw TimeoutException('2s 内未收到广播'),
           );
 
       expect(first.deviceName, 'Test-PC');
@@ -65,22 +66,23 @@ void main() {
         httpPort: 12345,
         deviceName: 'Gone-PC',
         serverId: 'gone-server-id',
+        broadcastInterval: const Duration(milliseconds: 300),
       );
       await stop();
       stopBroadcasting = null; // 避免 tearDown 重复调用
 
-      // 等待超过一个广播周期（2s），确保没有残余包。
-      await Future<void>.delayed(const Duration(seconds: 3));
+      // 等待超过一个广播周期（300ms），确保没有残余包；1s 覆盖 3+ 个周期。
+      await Future<void>.delayed(const Duration(seconds: 1));
 
-      // 新启动一个 listen，4s 内应收不到任何包（广播方已停）。
+      // 新启动一个 listen，1.5s 内应收不到任何包（广播方已停）。
       final stream = SyncUdpDiscovery.listenForServers(
-        timeout: const Duration(seconds: 4),
+        timeout: const Duration(milliseconds: 1500),
       );
       final received = <DiscoveredServer>[];
       listenSub = stream.listen(received.add);
 
-      // 等待 listen 超时关闭（4s）。
-      await Future<void>.delayed(const Duration(seconds: 5));
+      // 等待 listen 超时关闭（1.5s）。
+      await Future<void>.delayed(const Duration(seconds: 2));
       // stop 后本广播源(Gone-PC)不应再发包。并发测试或本机真实 app 也可能
       // 往 47280 广播(deviceName 不同)，那是环境噪声，不算本契约违反。
       expect(received.where((s) => s.deviceName == 'Gone-PC'), isEmpty);
