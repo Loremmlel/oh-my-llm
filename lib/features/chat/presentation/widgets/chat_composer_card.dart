@@ -254,36 +254,47 @@ class ChatComposerCard extends StatelessWidget {
                   children: [
                     Text('更多设置', style: theme.textTheme.titleMedium),
                     const SizedBox(height: 12),
-                    ThinkingToggle(
-                      enabled: data.supportsReasoning,
-                      value: localReasoningEnabled,
-                      onChanged: data.supportsReasoning
-                          ? (value) {
+                    // 深度思考与自动重试自适应分布，不独占整行
+                    Row(
+                      children: [
+                        Flexible(
+                          child: ThinkingToggle(
+                            enabled: data.supportsReasoning,
+                            value: localReasoningEnabled,
+                            onChanged: data.supportsReasoning
+                                ? (value) {
+                                    setModalState(() {
+                                      localReasoningEnabled = value;
+                                    });
+                                    callbacks.onReasoningEnabledChanged?.call(
+                                      value,
+                                    );
+                                  }
+                                : null,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Flexible(
+                          child: AutoRetryToggle(
+                            enabled: true,
+                            value: localAutoRetryEnabled,
+                            onChanged: (value) {
                               setModalState(() {
-                                localReasoningEnabled = value;
+                                localAutoRetryEnabled = value;
                               });
-                              callbacks.onReasoningEnabledChanged?.call(value);
-                            }
-                          : null,
-                    ),
-                    const SizedBox(height: 8),
-                    AutoRetryToggle(
-                      enabled: true,
-                      value: localAutoRetryEnabled,
-                      onChanged: (value) {
-                        setModalState(() {
-                          localAutoRetryEnabled = value;
-                        });
-                        callbacks.onAutoRetryEnabledChanged?.call(value);
-                      },
+                              callbacks.onAutoRetryEnabledChanged?.call(value);
+                            },
+                          ),
+                        ),
+                      ],
                     ),
                     if (data.supportsReasoning && localReasoningEnabled) ...[
                       const SizedBox(height: 12),
                       Text('思考强度', style: theme.textTheme.labelLarge),
                       const SizedBox(height: 8),
                       Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
+                        spacing: 6,
+                        runSpacing: 6,
                         children: [
                           for (final effort in ReasoningEffort.values)
                             ChoiceChip(
@@ -292,6 +303,13 @@ class ChatComposerCard extends StatelessWidget {
                               // 选中态改由背景色与边框区分。
                               showCheckmark: false,
                               label: Text(effortLabel(effort)),
+                              labelPadding: const EdgeInsets.symmetric(
+                                horizontal: 2,
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 0,
+                              ),
                               selected: localEffort == effort,
                               onSelected: (_) {
                                 setModalState(() {
