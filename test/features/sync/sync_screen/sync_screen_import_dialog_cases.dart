@@ -76,7 +76,7 @@ void registerSyncScreenImportDialogTests() {
       expect(find.text('确认同步配置'), findsOneWidget);
 
       await tester.tap(find.text('取消'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
       expect(find.text('确认同步配置'), findsNothing);
     });
   });

@@ -19,18 +19,18 @@ void registerSettingsScreenFixedPromptSequencesTests() {
     expect(repository.loadAll(database), isEmpty);
 
     await tester.tap(find.text('新增序列'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     expect(find.text('新增固定顺序提示词'), findsOneWidget);
 
     await tester.enterText(fixedPromptSequenceNameField(), '对比测试流程');
     await tester.enterText(fixedStepTitleField(), '标题1');
     await tester.enterText(fixedStepContentField(), '请先总结这个需求的核心目标。');
     await tester.tap(find.text('新增步骤'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await tester.enterText(fixedStepTitleField(), '标题2');
     await tester.enterText(fixedStepContentField(), '请列出三个可执行方案，并说明权衡。');
     await tester.tap(find.text('保存'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     final createdSequence = repository.loadAll(database).single;
     expect(createdSequence.name, '对比测试流程');
@@ -49,12 +49,12 @@ void registerSettingsScreenFixedPromptSequencesTests() {
     );
 
     await tester.tap(find.text('新增序列'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await tester.enterText(fixedPromptSequenceNameField(), '对比测试流程');
     await tester.enterText(fixedStepTitleField(), '标题1');
     await tester.enterText(fixedStepContentField(), '内容1');
     await tester.tap(find.text('保存'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     final fixedSequencesSection = find.ancestor(
       of: find.text('固定顺序提示词'),
@@ -74,10 +74,10 @@ void registerSettingsScreenFixedPromptSequencesTests() {
       const Offset(0, -300),
     );
     await tester.tap(editButton);
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await tester.enterText(fixedPromptSequenceNameField(), '对比测试流程 v2');
     await tester.tap(find.text('保存'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(
       fixedPromptSequenceRepository.loadAll(database).single.name,
@@ -96,12 +96,12 @@ void registerSettingsScreenFixedPromptSequencesTests() {
     );
 
     await tester.tap(find.text('新增序列'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await tester.enterText(fixedPromptSequenceNameField(), '对比测试流程');
     await tester.enterText(fixedStepTitleField(), '标题1');
     await tester.enterText(fixedStepContentField(), '内容1');
     await tester.tap(find.text('保存'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     final fixedSequencesSection = find.ancestor(
       of: find.text('固定顺序提示词'),
@@ -121,7 +121,7 @@ void registerSettingsScreenFixedPromptSequencesTests() {
       const Offset(0, -300),
     );
     await tester.tap(deleteButton);
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(fixedPromptSequenceRepository.loadAll(database), isEmpty);
   });
@@ -136,7 +136,7 @@ void registerSettingsScreenFixedPromptSequencesTests() {
       );
 
       await tester.tap(find.text('新增序列'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
       final masterPane = find.ancestor(
         of: find.text('步骤列表'),
         matching: find.byType(DecoratedBox),
@@ -149,20 +149,20 @@ void registerSettingsScreenFixedPromptSequencesTests() {
       await tester.enterText(fixedStepContentField(), '内容1');
 
       await tester.tap(find.text('新增步骤'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
       await tester.enterText(fixedStepTitleField(), '标题2');
       await tester.enterText(fixedStepContentField(), '内容2');
 
       await tester.tap(find.text('新增步骤'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
       await tester.enterText(fixedStepTitleField(), '标题3');
       await tester.enterText(fixedStepContentField(), '内容3');
 
       await tester.tap(stepTile('标题1'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       await tester.tap(find.text('新增步骤'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       // 新插入的步骤使用 fallback 标题，验证它在列表中显示
       // 硬编码期望值而非调用生产函数，避免循环测试

@@ -107,7 +107,7 @@ void registerSyncScreenRenderTests() {
       );
 
       await tester.tap(find.text('同步').last);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
       await tester.tap(find.text(SyncCategory.presets.label));
       await tester.pump();
 
@@ -134,13 +134,13 @@ void registerSyncScreenRenderTests() {
       );
 
       await tester.tap(find.text('媒体'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
       expect(RecordingMediaBrowserController.lastState!.server, isNotNull);
       expect(RecordingMediaBrowserController.totalInitCount, 1);
       RecordingShufflePlaybackController.latest!.activateForTest();
 
       await tester.tap(find.text('连接'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
       expect(RecordingMediaBrowserController.lastState, MediaBrowserState());
       expect(
         RecordingShufflePlaybackController.lastState,
@@ -148,7 +148,7 @@ void registerSyncScreenRenderTests() {
       );
 
       await tester.tap(find.text('媒体'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
       expect(RecordingMediaBrowserController.totalInitCount, 2);
       debugDefaultTargetPlatformOverride = null;
     });
@@ -212,7 +212,7 @@ void registerSyncScreenRenderTests() {
       );
 
       await tester.tap(find.text('同步').last);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(
         find.descendant(

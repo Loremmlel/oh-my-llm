@@ -24,7 +24,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
     expect(repository.loadProviders(), isEmpty);
 
     await tester.tap(find.text('新增服务商'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     await tester.enterText(providerNameField(), 'OpenAI 官方');
     await tester.enterText(
@@ -33,7 +33,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
     );
     await tester.enterText(providerApiKeyField(), 'sk-test-12345678');
     await tester.tap(find.text('保存'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     final createdProvider = repository.loadProviders().single;
     expect(createdProvider.name, 'OpenAI 官方');
@@ -52,14 +52,14 @@ void registerSettingsScreenModelsAndPromptsTests() {
     await createTestProvider(tester);
 
     await tester.tap(find.text('新增模型'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     await tester.enterText(modelDisplayNameField(), 'OpenAI 4.1');
     await tester.enterText(modelApiNameField(), 'gpt-4.1');
     await tester.tap(modelSupportsReasoningField());
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await tester.tap(find.text('保存'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     final createdModel = repository.loadAll().single;
     expect(createdModel.displayName, 'OpenAI 4.1');
@@ -77,26 +77,26 @@ void registerSettingsScreenModelsAndPromptsTests() {
     await createTestProvider(tester);
 
     await tester.tap(find.text('新增模型'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await tester.enterText(modelDisplayNameField(), 'OpenAI 4.1');
     await tester.enterText(modelApiNameField(), 'gpt-4.1');
     await tester.tap(find.text('保存'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     await tester.tap(find.text('编辑服务商'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await tester.enterText(providerNameField(), 'OpenAI 官方 v2');
     await tester.tap(find.text('保存'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(repository.loadProviders().single.name, 'OpenAI 官方 v2');
     expect(find.text('OpenAI 官方 v2'), findsWidgets);
 
     await tester.tap(find.widgetWithText(OutlinedButton, '编辑').last);
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await tester.enterText(modelDisplayNameField(), 'OpenAI 4.1 Turbo');
     await tester.tap(find.text('保存'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(repository.loadAll().single.displayName, 'OpenAI 4.1 Turbo');
     expect(find.text('OpenAI 4.1 Turbo'), findsWidgets);
@@ -111,19 +111,19 @@ void registerSettingsScreenModelsAndPromptsTests() {
     await createTestProvider(tester);
 
     await tester.tap(find.text('新增模型'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await tester.enterText(modelDisplayNameField(), 'OpenAI 4.1');
     await tester.enterText(modelApiNameField(), 'gpt-4.1');
     await tester.tap(find.text('保存'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     await tester.tap(find.widgetWithText(OutlinedButton, '删除').last);
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(repository.loadAll(), isEmpty);
 
     await tester.tap(find.text('删除服务商'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(repository.loadProviders(), isEmpty);
   });
@@ -145,7 +145,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
       expect(find.textContaining('gpt-4.1'), findsNothing);
 
       await tester.tap(find.widgetWithText(OutlinedButton, '展开模型（2）'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(find.textContaining('gpt-4.1'), findsOneWidget);
     },
@@ -165,19 +165,19 @@ void registerSettingsScreenModelsAndPromptsTests() {
     expect(repository.loadAll(database), isEmpty);
 
     await tester.tap(find.text('新增预设'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await tester.enterText(presetPromptNameField(), '代码审阅');
     await tester.tap(find.text('新增条目'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     await tester.enterText(presetPromptTitleField(), '前置要求');
     await tester.enterText(presetPromptContentField(), '请检查这段代码的边界情况。');
     await tester.tap(find.text('前置'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await tester.tap(find.text('后置').last);
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await tester.tap(find.text('保存'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     final createdTemplate = repository.loadAll(database).single;
     expect(createdTemplate.name, '代码审阅');
@@ -200,20 +200,20 @@ void registerSettingsScreenModelsAndPromptsTests() {
     final repository = presetPromptRepository;
 
     await tester.tap(find.text('新增预设'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await tester.enterText(presetPromptNameField(), '代码审阅');
     await tester.tap(find.text('新增条目'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await tester.enterText(presetPromptTitleField(), '前置要求');
     await tester.enterText(presetPromptContentField(), '内容');
     await tester.tap(find.text('保存'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     await tester.tap(find.text('编辑'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await tester.enterText(presetPromptNameField(), '代码审阅 v2');
     await tester.tap(find.text('保存'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(repository.loadAll(database).single.name, '代码审阅 v2');
     expect(find.text('代码审阅 v2'), findsWidgets);
@@ -232,17 +232,17 @@ void registerSettingsScreenModelsAndPromptsTests() {
     final repository = presetPromptRepository;
 
     await tester.tap(find.text('新增预设'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await tester.enterText(presetPromptNameField(), '代码审阅');
     await tester.tap(find.text('新增条目'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await tester.enterText(presetPromptTitleField(), '前置要求');
     await tester.enterText(presetPromptContentField(), '内容');
     await tester.tap(find.text('保存'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     await tester.tap(find.text('删除'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(repository.loadAll(database), isEmpty);
   });
@@ -261,15 +261,15 @@ void registerSettingsScreenModelsAndPromptsTests() {
       );
 
       await tester.tap(find.text('新增预设'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
       await tester.enterText(presetPromptNameField(), '代码审阅');
       await tester.tap(find.text('保存'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       await tester.tap(find.widgetWithText(OutlinedButton, '复制').first);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
       await tester.tap(find.widgetWithText(OutlinedButton, '复制').first);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(find.text('代码审阅（副本）'), findsWidgets);
       expect(find.text('代码审阅（副本 2）'), findsWidgets);
@@ -290,7 +290,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
     );
 
     await tester.tap(find.text('新增预设'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await tester.enterText(presetPromptNameField(), '多 system 模板');
 
     Future<void> fillItem({
@@ -299,19 +299,19 @@ void registerSettingsScreenModelsAndPromptsTests() {
       required String roleLabel,
     }) async {
       await tester.tap(find.text('新增条目'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
       await tester.enterText(presetPromptTitleField(), title);
       await tester.enterText(presetPromptContentField(), content);
       await tester.tap(find.text('User'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
       await tester.tap(find.text(roleLabel).last);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
     }
 
     await fillItem(title: '系统 1', content: '系统内容 1', roleLabel: 'System');
     await fillItem(title: '系统 2', content: '系统内容 2', roleLabel: 'System');
     await tester.tap(find.text('保存'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     expect(find.text('多 system 模板'), findsWidgets);
     expect(find.textContaining('共 2 条消息'), findsOneWidget);
   });
@@ -356,27 +356,27 @@ void registerSettingsScreenModelsAndPromptsTests() {
       }
 
       await tester.tap(find.text('新增预设'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
       await tester.enterText(presetPromptNameField(), '插入测试模板');
 
       await tester.tap(addItemButton);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
       // 新条目使用 fallback 标题，填写后覆盖
       await fillSelectedItem('前置1', '内容1');
 
       await tester.tap(addItemButton);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
       await fillSelectedItem('后置1', '内容2');
 
       await tester.tap(find.text('前置'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
       await tester.tap(find.text('后置').last);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       await tester.tap(presetTile('前置1'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
       await tester.tap(addItemButton);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
       await fillSelectedItem('前置1.5', '内容1.5');
 
       expect(presetTile('前置1'), findsOneWidget);
@@ -430,7 +430,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
         presetList,
         const Offset(0, -240),
       );
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
     }
 
     Future<void> fillSelectedItem(String title, String content) async {
@@ -440,30 +440,30 @@ void registerSettingsScreenModelsAndPromptsTests() {
     }
 
     await tester.tap(find.text('新增预设'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await tester.enterText(presetPromptNameField(), '排序测试模板');
 
     await tester.tap(addItemButton);
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await fillSelectedItem('前置1', '内容1');
 
     await tester.tap(addItemButton);
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await fillSelectedItem('前置2', '内容2');
 
     await tester.tap(addItemButton);
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await fillSelectedItem('后置1', '内容3');
 
     await tester.tap(find.text('前置'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await tester.tap(find.text('后置').last);
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     await tester.tap(presetTile('后置1'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await tester.tap(addItemButton);
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await fillSelectedItem('后置1.5', '内容3.5');
     await ensurePresetTileVisible('后置1.5');
 
@@ -487,7 +487,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
     expect(repository.loadAll(database), isEmpty);
 
     await tester.tap(find.text('新增模板提示词'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     await tester.enterText(templatePromptTitleField(), '翻译模板');
     await tester.enterText(
@@ -502,7 +502,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
 
     await tester.enterText(templatePromptVariableField('目标语言'), '英文');
     await tester.tap(find.text('保存'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     final createdTemplate = repository.loadAll(database).single;
     expect(createdTemplate.title, '翻译模板');
@@ -527,17 +527,17 @@ void registerSettingsScreenModelsAndPromptsTests() {
     final repository = templatePromptRepository;
 
     await tester.tap(find.text('新增模板提示词'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await tester.enterText(templatePromptTitleField(), '翻译模板');
     await tester.enterText(templatePromptContentField(), '内容');
     await tester.tap(find.text('保存'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     await tester.tap(find.text('编辑'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await tester.enterText(templatePromptTitleField(), '翻译模板 v2');
     await tester.tap(find.text('保存'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(repository.loadAll(database).single.title, '翻译模板 v2');
     expect(find.text('翻译模板 v2'), findsWidgets);
@@ -556,14 +556,14 @@ void registerSettingsScreenModelsAndPromptsTests() {
     final repository = templatePromptRepository;
 
     await tester.tap(find.text('新增模板提示词'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await tester.enterText(templatePromptTitleField(), '翻译模板');
     await tester.enterText(templatePromptContentField(), '内容');
     await tester.tap(find.text('保存'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     await tester.tap(find.text('删除'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(repository.loadAll(database), isEmpty);
   });
@@ -582,7 +582,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
     );
 
     await tester.tap(find.text('新增模板提示词'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     await tester.enterText(templatePromptTitleField(), '防抖测试');
     await tester.enterText(templatePromptContentField(), '请处理{{变量A}}。');
@@ -626,12 +626,12 @@ void registerSettingsScreenModelsAndPromptsTests() {
     expect(repository.loadAll(database), isEmpty);
 
     await tester.tap(find.text('新增记忆提示词'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     await tester.enterText(memoryPromptNameField(), '研发任务总结');
     await tester.enterText(memoryPromptContentField(), '请总结当前研发任务中的决定、约束与待办。');
     await tester.tap(find.text('保存'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     final createdPrompt = repository.loadAll(database).single;
     expect(createdPrompt.name, '研发任务总结');
@@ -652,17 +652,17 @@ void registerSettingsScreenModelsAndPromptsTests() {
     final repository = memoryPromptRepository;
 
     await tester.tap(find.text('新增记忆提示词'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await tester.enterText(memoryPromptNameField(), '研发任务总结');
     await tester.enterText(memoryPromptContentField(), '内容');
     await tester.tap(find.text('保存'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     await tester.tap(find.text('编辑'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await tester.enterText(memoryPromptNameField(), '研发任务总结 v2');
     await tester.tap(find.text('保存'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(repository.loadAll(database).single.name, '研发任务总结 v2');
     expect(find.text('研发任务总结 v2'), findsWidgets);
@@ -681,14 +681,14 @@ void registerSettingsScreenModelsAndPromptsTests() {
     final repository = memoryPromptRepository;
 
     await tester.tap(find.text('新增记忆提示词'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await tester.enterText(memoryPromptNameField(), '研发任务总结');
     await tester.enterText(memoryPromptContentField(), '内容');
     await tester.tap(find.text('保存'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     await tester.tap(find.text('删除'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(repository.loadAll(database), isEmpty);
   });

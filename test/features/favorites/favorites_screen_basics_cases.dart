@@ -44,7 +44,7 @@ void registerFavoritesScreenBasicsTests() {
     );
 
     await tester.tap(find.widgetWithText(FilterChip, '未分类'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.text('未分类问题'), findsOneWidget);
     expect(find.text('未分类回复'), findsOneWidget);
@@ -61,12 +61,12 @@ void registerFavoritesScreenBasicsTests() {
     );
 
     await tester.tap(find.widgetWithText(FilterChip, '我的收藏夹'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.textContaining('暂无收藏'), findsOneWidget);
 
     await tester.tap(find.widgetWithText(FilterChip, '未分类'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.textContaining('暂无收藏'), findsOneWidget);
   });
@@ -87,7 +87,7 @@ void registerFavoritesScreenBasicsTests() {
     );
 
     await tester.tap(find.text('导航测试问题'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.text('收藏详情'), findsOneWidget);
   });
@@ -144,7 +144,7 @@ void registerFavoritesScreenBasicsTests() {
     );
 
     await tester.tap(find.widgetWithText(FilterChip, '技术笔记'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.text('技术问题'), findsOneWidget);
     expect(find.text('其他问题'), findsNothing);

@@ -8,7 +8,7 @@ void registerManageCollectionsDialogTests() {
     await setUpFavoritesScreen(tester);
 
     await tester.tap(find.byTooltip('管理收藏夹'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.text('管理收藏夹'), findsOneWidget);
     expect(find.text('暂无收藏夹'), findsOneWidget);
@@ -23,14 +23,14 @@ void registerManageCollectionsDialogTests() {
     );
 
     await tester.tap(find.byTooltip('管理收藏夹'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     await tester.tap(find.byTooltip('重命名'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     await tester.enterText(find.byType(TextField), '新名称');
     await tester.tap(find.byTooltip('确认重命名'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.text('新名称'), findsWidgets);
     expect(find.text('旧名称'), findsNothing);
@@ -47,13 +47,13 @@ void registerManageCollectionsDialogTests() {
       );
 
       await tester.tap(find.byTooltip('管理收藏夹'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       await tester.tap(find.byTooltip('删除收藏夹（内部收藏移入未分类）'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       await tester.tap(find.widgetWithText(FilledButton, '删除'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(find.text('要删除的收藏夹'), findsNothing);
       expect(find.text('暂无收藏夹'), findsOneWidget);
@@ -71,13 +71,13 @@ void registerManageCollectionsDialogTests() {
     );
 
     await tester.tap(find.byTooltip('管理收藏夹'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     await tester.tap(find.byTooltip('删除收藏夹（内部收藏移入未分类）'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     await tester.tap(find.widgetWithText(TextButton, '取消'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     // Collection name still present in both filter chip and dialog.
     expect(find.text('保留的收藏夹'), findsWidgets);
@@ -94,14 +94,14 @@ void registerManageCollectionsDialogTests() {
     );
 
     await tester.tap(find.byTooltip('管理收藏夹'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     await tester.tap(find.byTooltip('重命名'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     await tester.enterText(find.byType(TextField), '不应生效的名称');
     await tester.tap(find.byTooltip('取消'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.text('原名'), findsWidgets);
     expect(find.text('不应生效的名称'), findsNothing);
@@ -118,14 +118,14 @@ void registerManageCollectionsDialogTests() {
     );
 
     await tester.tap(find.byTooltip('管理收藏夹'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     await tester.tap(find.byTooltip('重命名'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     await tester.enterText(find.byType(TextField), '   ');
     await tester.tap(find.byTooltip('确认重命名'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.text('现有名称'), findsWidgets);
   });

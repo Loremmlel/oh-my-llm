@@ -32,7 +32,7 @@ void main() {
     addTearDown(() => db.close());
 
     await bootstrap(database: db, networkLogger: const NoopNetworkLogger());
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.byType(MaterialApp), findsOneWidget);
 
@@ -56,7 +56,7 @@ void main() {
     addTearDown(() => db.close());
 
     await bootstrap(database: db, networkLogger: const NoopNetworkLogger());
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     final version =
         db.connection.select('PRAGMA user_version;').single['user_version']
@@ -77,7 +77,7 @@ void main() {
     addTearDown(() => db.close());
 
     await bootstrap(database: db, networkLogger: const NoopNetworkLogger());
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     final context = tester.element(find.byType(MaterialApp));
     final container = ProviderScope.containerOf(context);

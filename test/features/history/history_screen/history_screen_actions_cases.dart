@@ -8,7 +8,7 @@ void registerHistoryScreenActionsTests() {
     await setUpHistoryScreen(tester);
 
     await tester.tap(find.byTooltip('重命名会话').first);
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     await tester.enterText(
       find.descendant(
@@ -18,7 +18,7 @@ void registerHistoryScreenActionsTests() {
       '新的历史标题',
     );
     await tester.tap(find.widgetWithText(FilledButton, '保存'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.text('新的历史标题'), findsOneWidget);
   });
@@ -29,14 +29,14 @@ void registerHistoryScreenActionsTests() {
     await setUpHistoryScreen(tester);
 
     await tester.longPress(find.text('Flutter 路线图'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await tester.longPress(find.text('项目复盘'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     await tester.tap(find.widgetWithText(FilledButton, '删除 2 项'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
     await tester.tap(find.widgetWithText(FilledButton, '确认删除'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.text('Flutter 路线图'), findsNothing);
     expect(find.text('项目复盘'), findsNothing);
@@ -49,7 +49,7 @@ void registerHistoryScreenActionsTests() {
     await setUpHistoryScreen(tester);
 
     await tester.tap(find.text('Flutter 路线图'));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.text('聊天落点'), findsOneWidget);
   });
@@ -60,7 +60,7 @@ void registerHistoryScreenActionsTests() {
     await setUpHistoryScreen(tester);
 
     await tester.tap(find.byType(Checkbox).first);
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.text('聊天落点'), findsNothing);
     expect(find.widgetWithText(FilledButton, '删除 1 项'), findsOneWidget);

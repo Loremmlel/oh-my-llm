@@ -154,7 +154,7 @@ void main() {
       final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
       await gesture.addPointer();
       await gesture.moveTo(tester.getCenter(railContainerFinder));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(find.text('消息1'), findsOneWidget);
 
@@ -171,12 +171,12 @@ void main() {
       final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
       await gesture.addPointer();
       await gesture.moveTo(tester.getCenter(railContainerFinder));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(find.text('消息1'), findsOneWidget);
 
       await gesture.moveTo(const Offset(0, 0));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(find.text('消息1'), findsNothing);
 
@@ -195,7 +195,7 @@ void main() {
       final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
       await gesture.addPointer();
       await gesture.moveTo(tester.getCenter(railContainerFinder));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(find.text('第一条消息'), findsOneWidget);
       expect(find.text('第二条消息'), findsOneWidget);
@@ -219,7 +219,7 @@ void main() {
       expect(find.text('消息1'), findsNothing);
 
       await tester.longPress(railContainerFinder);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(find.text('消息1'), findsOneWidget);
     });
@@ -255,7 +255,7 @@ void main() {
       final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
       await gesture.addPointer();
       await gesture.moveTo(tester.getCenter(railContainerFinder));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(find.text('消息一'), findsNothing);
 
@@ -305,12 +305,12 @@ void main() {
       expect(find.text('消息1'), findsNothing);
 
       await tester.longPress(railContainerFinder);
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(find.text('消息1'), findsOneWidget);
 
       wrapperKey.currentState!.triggerRebuild();
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(find.text('消息1'), findsNothing);
     });

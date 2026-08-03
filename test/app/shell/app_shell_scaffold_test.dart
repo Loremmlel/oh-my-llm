@@ -40,7 +40,7 @@ Future<void> _pumpShell(
   );
 
   await tester.pumpWidget(MaterialApp.router(routerConfig: router));
-  await tester.pumpAndSettle();
+  await tester.pumpAndSettle(const Duration(milliseconds: 250));
 }
 
 void main() {
@@ -55,7 +55,7 @@ void main() {
         matching: find.text(AppDestination.history.label),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.text('历史对话页面'), findsOneWidget);
   });
@@ -75,7 +75,7 @@ void main() {
         matching: find.text(AppDestination.favorites.label),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.text('收藏页面'), findsOneWidget);
   });

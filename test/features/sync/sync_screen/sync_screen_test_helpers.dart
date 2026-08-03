@@ -127,5 +127,5 @@ Future<void> pumpImportDialog(
     ),
   );
   await tester.tap(find.text('打开对话框'));
-  await tester.pumpAndSettle();
+  await tester.pumpAndSettle(const Duration(milliseconds: 250));
 }

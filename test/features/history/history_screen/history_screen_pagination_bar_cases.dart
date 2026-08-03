@@ -199,9 +199,9 @@ void registerHistoryScreenPaginationBarTests() {
         find.text('每页'),
         warnIfMissed: false,
       ); // 左标签文本会因 button 内边距偏移到 decoration 区域，tap 坐标落在 DropdownButton 装饰层属正常行为
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
       await tester.tap(find.text('10'));
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       final s = _readState(tester);
       expect(s.pageSize, 10);

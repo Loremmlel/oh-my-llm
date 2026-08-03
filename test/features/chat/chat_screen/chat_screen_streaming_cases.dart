@@ -33,7 +33,7 @@ void registerChatScreenStreamingTests() {
       expect(find.textContaining('第一段'), findsWidgets);
       expect(find.widgetWithText(FilledButton, '终止回答'), findsOneWidget);
 
-      await tester.pumpAndSettle();
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(find.textContaining('帮我总结一下这个仓库'), findsWidgets);
       expect(find.textContaining('第一段 第二段'), findsWidgets);
@@ -61,7 +61,7 @@ void registerChatScreenStreamingTests() {
     await pumpChatScreen(tester, fakeClient: fakeClient);
 
     await sendMessage(tester, '请回答并返回思考过程');
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     // composer 折叠态常驻 AnimatedCrossFade 的另一侧 child，其「展开」按钮
     // 文本会与 reasoning 面板的「展开」撞名；限定到 ReasoningPanel 内定位。
@@ -74,7 +74,7 @@ void registerChatScreenStreamingTests() {
     expect(find.textContaining('这是最终回复'), findsWidgets);
 
     await tester.tap(reasoningExpand);
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.text('这是思考过程'), findsOneWidget);
     expect(find.text('收起'), findsOneWidget);
@@ -111,12 +111,12 @@ void registerChatScreenStreamingTests() {
     await pumpChatScreen(tester, fakeClient: fakeClient);
 
     await sendMessage(tester, '请原样复制这条用户消息');
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.byTooltip('复制消息'), findsNWidgets(2));
 
     await tester.tap(find.byTooltip('复制消息').first);
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(
       (await Clipboard.getData('text/plain'))?.text,
@@ -124,7 +124,7 @@ void registerChatScreenStreamingTests() {
     );
 
     await tester.tap(find.byTooltip('复制消息').last);
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect((await Clipboard.getData('text/plain'))?.text, equals('这是最终回复'));
     expect((await Clipboard.getData('text/plain'))?.text, isNot('这是思考过程'));
@@ -139,7 +139,7 @@ void registerChatScreenStreamingTests() {
     await pumpChatScreen(tester, fakeClient: fakeClient);
 
     await sendMessage(tester, userMessage);
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.text(userMessage), findsOneWidget);
     expect(find.textContaining('收到'), findsWidgets);
@@ -187,7 +187,7 @@ void registerChatScreenStreamingTests() {
     expect(find.byType(TextField), findsOneWidget);
 
     await sendMessage(tester, '移动端测试消息');
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(find.textContaining('移动端测试消息'), findsWidgets);
     expect(find.textContaining('移动端回复'), findsWidgets);
