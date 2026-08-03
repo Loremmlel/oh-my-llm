@@ -6,6 +6,7 @@ String effortLabel(ReasoningEffort effort) {
     ReasoningEffort.medium => 'med',
     ReasoningEffort.high => 'high',
     ReasoningEffort.xhigh => 'xhigh',
+    ReasoningEffort.max => 'max',
   };
 }
 

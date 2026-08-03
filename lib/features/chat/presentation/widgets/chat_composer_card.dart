@@ -287,6 +287,10 @@ class ChatComposerCard extends StatelessWidget {
                         children: [
                           for (final effort in ReasoningEffort.values)
                             ChoiceChip(
+                              // 关闭 checkmark：其 150ms 宽度动画会让 Wrap 在窄屏
+                              // 跨越换行阈值，导致弹窗高度随选中项跳变；
+                              // 选中态改由背景色与边框区分。
+                              showCheckmark: false,
                               label: Text(effortLabel(effort)),
                               selected: localEffort == effort,
                               onSelected: (_) {

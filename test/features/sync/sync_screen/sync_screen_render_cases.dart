@@ -8,6 +8,7 @@ import 'package:oh_my_llm/features/sync/application/sync_client_controller.dart'
 import 'package:oh_my_llm/features/sync/domain/models/discovered_server.dart';
 import 'package:oh_my_llm/features/sync/domain/models/sync_protocol_version.dart';
 import 'package:oh_my_llm/features/sync/domain/models/sync_types.dart';
+import 'package:oh_my_llm/features/sync/presentation/widgets/sync_operation_tab.dart';
 
 import 'sync_screen_test_helpers.dart';
 
@@ -172,6 +173,55 @@ void registerSyncScreenRenderTests() {
       expect(find.text('媒体'), findsAtLeast(1));
       expect(RecordingMediaBrowserController.totalInitCount, 1);
       debugDefaultTargetPlatformOverride = null;
+    });
+
+    testWidgets('断开后连接标签页显示断开文案并可重新搜索', (tester) async {
+      await pumpSyncScreen(
+        tester,
+        preferences: preferences,
+        extraOverrides: [
+          syncClientControllerProvider.overrideWith(
+            () => SeededSyncClientController(
+              SyncClientState(
+                phase: SyncPhase.error,
+                errorMessage: '服务端已断开，请重新搜索',
+              ),
+            ),
+          ),
+        ],
+      );
+
+      expect(find.text('服务端已断开，请重新搜索'), findsOneWidget);
+      expect(find.text('发现服务端'), findsWidgets);
+    });
+
+    testWidgets('断开后同步标签页显示断开占位而非通用未连接文案', (tester) async {
+      await pumpSyncScreen(
+        tester,
+        preferences: preferences,
+        extraOverrides: [
+          syncClientControllerProvider.overrideWith(
+            () => SeededSyncClientController(
+              SyncClientState(
+                phase: SyncPhase.error,
+                errorMessage: '服务端已断开，请重新搜索',
+              ),
+            ),
+          ),
+        ],
+      );
+
+      await tester.tap(find.text('同步').last);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.descendant(
+          of: find.byType(SyncOperationTab),
+          matching: find.text('服务端已断开，请重新搜索'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('请先在「连接」标签页中连接到服务端'), findsNothing);
     });
   });
 }
