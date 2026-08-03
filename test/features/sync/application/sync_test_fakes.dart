@@ -1,8 +1,13 @@
+import 'dart:async';
+
 import 'package:oh_my_llm/features/settings/domain/models/settings_export_data.dart';
 import 'package:oh_my_llm/features/sync/application/ports/settings_sync_facade.dart';
+import 'package:oh_my_llm/features/sync/application/ports/sync_client_transport.dart';
 import 'package:oh_my_llm/features/sync/application/ports/sync_clock.dart';
 import 'package:oh_my_llm/features/sync/application/ports/sync_pairing_repository.dart';
+import 'package:oh_my_llm/features/sync/domain/models/discovered_server.dart';
 import 'package:oh_my_llm/features/sync/domain/models/sync_pairing.dart';
+import 'package:oh_my_llm/features/sync/domain/models/sync_protocol_message.dart';
 
 final class FakeSyncClock implements SyncClock {
   FakeSyncClock([DateTime? now]) : value = now ?? DateTime(2026, 1, 1);
@@ -43,6 +48,29 @@ final class FakePairingRepository implements SyncPairingRepository {
   }) async {
     records[record.peer.id] = record;
     secrets[record.peer.id] = secret;
+  }
+}
+
+/// 可手动推送发现事件与关闭流的传输 fake，用于服务端断开检测用例。
+///
+/// 非广播单订阅流：一个用例只调用一次 `startDiscovery`。
+final class FakeSyncClientTransport implements SyncClientTransport {
+  final StreamController<DiscoveredServer> _controller =
+      StreamController<DiscoveredServer>();
+
+  @override
+  Stream<DiscoveredServer> discoverServers() => _controller.stream;
+
+  void add(DiscoveredServer server) => _controller.add(server);
+
+  Future<void> close() => _controller.close();
+
+  @override
+  Future<SyncProtocolMessage> send({
+    required DiscoveredServer server,
+    required SyncProtocolMessage request,
+  }) {
+    throw UnimplementedError('断开检测用例不涉及 HTTP 发送');
   }
 }
 
