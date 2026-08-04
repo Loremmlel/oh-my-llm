@@ -61,7 +61,7 @@ void main() {
       'saveConversation Future completes after ACK (data durably on disk)',
       () async {
         final inner = SqliteChatConversationRepository(db);
-        final bg = BackgroundChatConversationRepository(inner, tempDbPath);
+        bg = BackgroundChatConversationRepository(inner, tempDbPath);
 
         final conv = makeConv('ack_test', 'ACK verify');
         // Future 完成即意味着 ACK 已收到，数据已落盘
@@ -108,7 +108,7 @@ void main() {
       'debounce merge: multiple saves in same window share one ACK',
       () async {
         final inner = SqliteChatConversationRepository(db);
-        final bg = BackgroundChatConversationRepository(inner, tempDbPath);
+        bg = BackgroundChatConversationRepository(inner, tempDbPath);
 
         // 快速连续三次 save，应在同一 debounce 窗口内合并
         final future1 = bg.saveConversation(makeConv('merge_a', 'A'));
@@ -147,7 +147,7 @@ void main() {
       'sequential saves across debounce windows each complete independently',
       () async {
         final inner = SqliteChatConversationRepository(db);
-        final bg = BackgroundChatConversationRepository(inner, tempDbPath);
+        bg = BackgroundChatConversationRepository(inner, tempDbPath);
 
         // 第一次 save
         await bg.saveConversation(makeConv('seq_1', 'First'));
