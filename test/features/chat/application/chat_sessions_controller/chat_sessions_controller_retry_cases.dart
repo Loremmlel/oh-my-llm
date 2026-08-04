@@ -333,6 +333,35 @@ void registerChatSessionsControllerRetryCases() {
     expect(fakeClient.requestHistory.length, 1);
   });
 
+  test('会话关闭自动重试时异常 finish_reason 不触发重试（依赖对话级开关）', () async {
+    // 全局开启异常 finish 重试，但会话级自动重试关闭：不应触发重试，也不应
+    // 残留「正在自动重试...」红色提示（spec 验证方式 3：依赖对话级开关）。
+    await container
+        .read(autoRetrySettingsProvider.notifier)
+        .save(
+          const AutoRetrySettings(
+            maxJitterSeconds: 0,
+            maxRetryCount: 0,
+            retryOnAbnormalFinishReason: true,
+          ),
+        );
+    // 不开 autoRetryEnabled（默认 false）
+
+    fakeClient.enqueueDeltas([
+      const ChatCompletionChunk(contentDelta: '部分内容', finishReason: 'length'),
+    ]);
+
+    await sendMsg('测试会话级开关');
+
+    final state = container.read(chatSessionsProvider);
+    // 保留异常 finish_reason 的回复，不重试
+    expect(state.activeConversation.messages.last.content, '部分内容');
+    expect(fakeClient.requestHistory.length, 1);
+    // 不显示「正在自动重试...」错误提示
+    expect(state.errorMessage, isNull);
+    expect(state.errorMessageAssistantId, isNull);
+  });
+
   test('stop 不触发异常 finish_reason 重试', () async {
     container
         .read(chatSessionsProvider.notifier)

@@ -149,6 +149,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
     required ChatConversation streamingConversation,
     required ChatMessage assistantMessage,
     required ChatStreamingReply streamingReply,
+    required bool autoRetryEnabled,
     required bool retryOnAbnormalFinishReason,
     bool skipEmptyCheck = false,
   }) async {
@@ -187,8 +188,13 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
       return const FinishRetry();
     }
 
-    // 分支 2/3：异常 finish_reason
-    if (retryOnAbnormalFinishReason &&
+    // 分支 2/3：异常 finish_reason。
+    // 依赖会话级自动重试总开关（autoRetryEnabled）与全局子开关
+    // （retryOnAbnormalFinishReason）同时开启：关掉会话级自动重试时即便全局
+    // 开启了异常 finish 重试也不触发，否则会先写入「正在自动重试...」提示、
+    // 随后 _canRetry 又因 enabled=false 不真正重试，形成矛盾的红色提示。
+    if (autoRetryEnabled &&
+        retryOnAbnormalFinishReason &&
         isAbnormalFinishReason(streamingReply.finishReason)) {
       final processedContent = applyOutputProcessing(streamingReply.content);
       if (processedContent.trim().isEmpty &&
