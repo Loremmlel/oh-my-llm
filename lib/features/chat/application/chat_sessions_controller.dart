@@ -172,43 +172,14 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         state.isAutoRetryWaiting;
   }
 
-  /// 将 [ChatGenerationProgress] 投影到 state：generation snapshot + streamingReply
-  /// + 兼容 bool（从 phase 单向派生）。兼容字段（isStreaming / isAutoRetryWaiting
-  /// / autoRetryCount）的唯一写入点，host 方法不再单独写（不变量 10）。
+  /// 将 [ChatGenerationProgress] 投影到 state。委托 [projectGeneration] 纯函数
+  /// （不变量 10：兼容字段唯一写入点）。host 方法不再单独写 isStreaming 等--
+  /// run 在调 host 前预投影 finalizing/stopping。
   void _projectProgress(ChatGenerationProgress progress) {
-    final snapshot = progress.snapshot;
-    final clearStreaming = progress.streamingReply == null;
-    final phase = snapshot.phase;
-    // preparing 也投影 isStreaming=true：ComposerSendButton 的 isStopping 依据
-    // isStreaming，prepare 期间需保持停止按钮可用。由投影统一提供，host.prepare
-    // 不再单独写 isStreaming。
-    final isStreamingLike =
-        phase == ChatGenerationPhase.preparing ||
-        phase == ChatGenerationPhase.streaming;
-    final isTerminal = snapshot.outcome != null;
-    // autoRetryCount 仅在 retryWaiting/streaming 投影 attempt-1（显示"第 N 次重试
-    // 中"）；finalizing/stopping/preparing/terminal 投影 0，避免 attempt 终态保存
-    // 窗口误显示重试中。
-    final showsRetry =
-        phase == ChatGenerationPhase.retryWaiting ||
-        phase == ChatGenerationPhase.streaming;
-    // persistenceFailed 是终态，但 run 的 _terminal 只投影 phase；错误文字在此
-    // 统一补齐，使 save 失败对用户显式可见（不变量：persistence 失败显式报错）。
-    final isPersistenceFailed = phase == ChatGenerationPhase.persistenceFailed;
-    state = state.copyWith(
-      generation: snapshot,
-      streamingReply: clearStreaming ? null : progress.streamingReply,
-      clearStreamingReply: clearStreaming,
-      isStreaming: isStreamingLike,
-      isAutoRetryWaiting: phase == ChatGenerationPhase.retryWaiting,
-      autoRetryCount: isTerminal
-          ? 0
-          : (showsRetry && snapshot.attempt > 0 ? snapshot.attempt - 1 : 0),
-      errorMessage: isPersistenceFailed
-          ? ChatErrorMessages.persistenceFailed
-          : null,
-      clearErrorMessage: isStreamingLike,
-      clearEmptyReply: isStreamingLike,
+    state = projectGeneration(
+      state,
+      progress.snapshot,
+      streamingReply: progress.streamingReply,
     );
   }
 
@@ -782,7 +753,8 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
           ? command.reasoningEffort
           : null,
       retryPolicy: command.retryPolicy,
-      streamIdleTimeout: command.retryPolicy.retryOnTimeout
+      streamIdleTimeout:
+          command.retryPolicy.retryOnTimeout && command.retryPolicy.enabled
           ? command.retryPolicy.timeout
           : null,
       retryDelay: command.retryDelay,
