@@ -820,6 +820,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
           streamingConversation: streamingConversation,
           assistantMessage: assistantMessage,
           streamingReply: updated,
+          autoRetryEnabled: retryPolicy.enabled,
           retryOnAbnormalFinishReason: retryPolicy.retryOnAbnormalFinishReason,
           skipEmptyCheck: true,
         );
@@ -830,6 +831,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
           streamingConversation: streamingConversation,
           assistantMessage: assistantMessage,
           streamingReply: updated,
+          autoRetryEnabled: retryPolicy.enabled,
           retryOnAbnormalFinishReason: retryPolicy.retryOnAbnormalFinishReason,
         );
       case ChatGenerationFailure(:final error, :final stackTrace):
