@@ -237,6 +237,8 @@ class BackgroundChatConversationRepository
       try {
         _workerCommandPort!.send(command);
         _pendingAcks[command.id] = Completer<void>();
+        // 已就绪分支同样需要超时保护：ACK 偶发丢失时避免 batch 永久挂起
+        _ensureBatchTimeout();
       } catch (_) {
         // send() 抛异常意味着 worker 已不可达
         _degradeToInner(command.payload);
@@ -296,19 +298,20 @@ class BackgroundChatConversationRepository
     }
   }
 
-  /// 为 batch Completer 设置超时保护，防止 Isolate 永远不就绪时 Future 挂起。
+  /// 为 batch Completer 设置超时保护：Isolate 未就绪或 ACK 未回均视为 worker
+  /// 不可达，降级写入并 completeError。
+  ///
+  /// 防止 batch Completer 永久挂起导致 flush/close 卡死、进程残留锁住
+  /// native assets dll 引发后续 test 连锁阻塞。
   void _ensureBatchTimeout() {
     final batch = _batchCompleter;
     if (batch == null || batch.isCompleted) return;
-    // 10 秒超时：如果 Isolate 仍不就绪，降级写入
     Timer(const Duration(seconds: 10), () {
       if (batch.isCompleted) return;
-      if (!_isolateReady) {
-        _degradeToInner();
-        _completeBatchError(
-          StateError('Background isolate failed to become ready'),
-        );
-      }
+      _degradeToInner();
+      _completeBatchError(
+        StateError('Background isolate timed out (no ACK within 10s)'),
+      );
     });
   }
 
@@ -331,9 +334,16 @@ class BackgroundChatConversationRepository
     // 取消 debounce timer，立即触发写入
     _debounceTimer?.cancel();
     _flushWrite();
-    // 等待当前 batch（如果有）完成
-    if (_batchCompleter != null) {
-      await _batchCompleter!.future;
+    // 等待当前 batch（如果有）完成。超时或失败均不抛出：
+    // _ensureBatchTimeout 已在超时后降级写入并 completeError，
+    // 这里吞掉错误以保证 flush/close 不会因 batch 卡死而永久挂起。
+    final batch = _batchCompleter;
+    if (batch != null) {
+      try {
+        await batch.future.timeout(const Duration(seconds: 10));
+      } catch (_) {
+        // batch 超时或失败：降级路径已由 _ensureBatchTimeout 处理
+      }
     }
   }
 

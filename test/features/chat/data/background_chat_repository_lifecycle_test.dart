@@ -11,6 +11,9 @@ import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 void main() {
   late String tempDbPath;
   late AppDatabase db;
+  // 顶层持有当前 test 的 bg，供 tearDown 兜底关闭（即便 test 抛异常也清理 Isolate）。
+  // late 非 final：每个 test body 重新赋值；tearDown 用 try-catch 兜底未赋值场景。
+  late BackgroundChatConversationRepository bg;
 
   setUp(() {
     tempDbPath =
@@ -18,7 +21,12 @@ void main() {
     db = AppDatabase.forPath(tempDbPath);
   });
 
-  tearDown(() {
+  tearDown(() async {
+    // 兜底关闭 bg：即使 test 在 bg.close() 前抛异常，也确保 Isolate 被清理，
+    // 避免残留进程锁住 native assets dll 导致后续 test 连锁阻塞。
+    try {
+      await bg.close();
+    } catch (_) {}
     db.close();
     try {
       File(tempDbPath).deleteSync();
@@ -69,7 +77,7 @@ void main() {
 
     test('flush waits for all pending writes to land', () async {
       final inner = SqliteChatConversationRepository(db);
-      final bg = BackgroundChatConversationRepository(inner, tempDbPath);
+      bg = BackgroundChatConversationRepository(inner, tempDbPath);
 
       // 不 await save，fire-and-forget
       bg.saveConversation(makeConv('flush_a', 'Flush A'));
@@ -86,7 +94,7 @@ void main() {
 
     test('close flushes pending writes and shuts down worker', () async {
       final inner = SqliteChatConversationRepository(db);
-      final bg = BackgroundChatConversationRepository(inner, tempDbPath);
+      bg = BackgroundChatConversationRepository(inner, tempDbPath);
 
       bg.saveConversation(makeConv('close_test', 'Before close'));
 
@@ -125,7 +133,7 @@ void main() {
         addTearDown(() => memDb.close());
 
         final inner = SqliteChatConversationRepository(memDb);
-        final bg = BackgroundChatConversationRepository(inner, ':memory:');
+        bg = BackgroundChatConversationRepository(inner, ':memory:');
 
         await bg.saveConversation(makeConv('mem_lifecycle', 'In memory'));
         await bg.flush();
@@ -157,7 +165,7 @@ void main() {
 
     test('flush after close is safe', () async {
       final inner = SqliteChatConversationRepository(db);
-      final bg = BackgroundChatConversationRepository(inner, tempDbPath);
+      bg = BackgroundChatConversationRepository(inner, tempDbPath);
 
       await bg.saveConversation(makeConv('safe_flush', 'Safe'));
       await bg.close();
