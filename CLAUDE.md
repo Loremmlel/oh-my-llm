@@ -35,6 +35,16 @@ flutter test --reporter compact > fltest.log 2>&1; E=$?; echo "EXIT=$E"; tail -n
 - ❌ 禁止不重定向直接 `flutter test`（终端输出会被截断）。全量输出已落在 `fltest.log`，从该文件查即可。
 - 只跑单个文件同样套用重定向模式。
 
+### test 启动卡住排查（Windows）
+
+`flutter test` 卡在启动（连用例都没开始跑）时，先怀疑残留的 dart 进程锁住了 native assets dll。`package:sqlite3` 的 native assets hook 要写 `build\native_assets\windows\sqlite3.dll`，被残留进程 `LoadLibrary` 加载着就写不了（默认不共享写权限）：
+
+```powershell
+./scripts/kill-stale-test-processes.ps1   # 清理残留 dart/flutter_tester 进程
+```
+
+清理后重新 `flutter test`。根因（`BackgroundChatConversationRepository.close()` 超时保护 + 测试 tearDown 兜底 close bg）已在代码层修复，本脚本作缓解层兜底。
+
 ### 构建脚本
 
 | 脚本 | 行为 |
