@@ -74,7 +74,7 @@ final isChatBusyProvider = Provider<bool>((ref) {
   return ref.watch(
     chatSessionsProvider.select((state) {
       // generation phase（如 finalizing 的 durable save 窗口）保持 busy，阻止
-      // UI 在终态落盘期间发送新 generation 覆盖桥接字段（P1-3）；无 snapshot
+      // UI 在终态落盘期间发送新 generation 覆盖桥接字段；无 snapshot
       // 时回退兼容布尔投影，保留对直接设置兼容字段的兼容。
       final phase = state.generation?.phase;
       return (phase?.isBusy ?? false) ||

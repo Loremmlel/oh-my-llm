@@ -266,7 +266,7 @@ ChatSessionsState projectGeneration(
 ///
 /// terminal phase 必有 outcome，non-terminal 不得有 outcome；outcome 的
 /// generationId/attempt 与 snapshot 一致。违反即 throw StateError，暴露
-/// Phase 9 重构的状态机裂缝。
+/// 状态机的不变量裂缝。
 bool _checkGenerationInvariants(ChatGenerationSnapshot snapshot) {
   final phase = snapshot.phase;
   final outcome = snapshot.outcome;
