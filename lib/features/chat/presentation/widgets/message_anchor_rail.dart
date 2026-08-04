@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/constants/app_animations.dart';
 import '../../domain/models/chat_message.dart';
 
 /// 右侧消息锚点条，用于快速跳转到用户消息。
@@ -198,9 +199,7 @@ class _MessageAnchorRailState extends State<MessageAnchorRail> {
                                     height: 18,
                                     child: Center(
                                       child: AnimatedContainer(
-                                        duration: const Duration(
-                                          milliseconds: 167,
-                                        ),
+                                        duration: AppAnimations.quickTransition,
                                         width: isActive ? 14 : 10,
                                         height: isActive ? 6 : 4,
                                         decoration: BoxDecoration(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../../core/constants/app_animations.dart';
 import '../../../domain/models/chat_message.dart';
 import 'composer_helpers.dart';
 
@@ -46,7 +47,7 @@ class ComposerEffortPill extends StatelessWidget {
           )
           .toList(growable: false),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 167),
+        duration: AppAnimations.quickTransition,
         decoration: BoxDecoration(
           color: backgroundColor,
           borderRadius: BorderRadius.circular(16),
