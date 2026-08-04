@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 // ── 中央提示类型 ────────────────────────────────────────────────────
 
-/// 视频播放器中央提示类型（Phase 6 手势系统使用）。
+/// 视频播放器中央提示类型（手势系统使用）。
 enum CenterHintType {
   /// 无提示（默认）
   none,
@@ -354,7 +354,7 @@ class VideoCenterHint extends StatelessWidget {
   /// 是否显示
   final bool visible;
 
-  /// 提示类型（Phase 6）
+  /// 提示类型
   final CenterHintType hintType;
 
   /// Seek 预览时间（[hintType] 为 [CenterHintType.seek] 时有效）

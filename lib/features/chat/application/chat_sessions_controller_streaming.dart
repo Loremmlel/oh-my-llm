@@ -9,7 +9,7 @@ import 'chat_sessions_controller_support.dart';
 import 'chat_sessions_state.dart';
 import 'output_regex_processor.dart';
 
-/// [finishGenerationSuccess] 的终态判定结果，使 phase/outcome 一一对应（P2-5）。
+/// [finishGenerationSuccess] 的终态判定结果，使 phase/outcome 一一对应。
 sealed class FinishGenerationResult {
   const FinishGenerationResult();
 }
@@ -140,7 +140,7 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
   /// 返回 [FinishGenerationResult]：分支 5 -> [FinishSuccess]；
   /// 分支 2/4（输出规则清空）-> [FinishOutputRuleError]；分支 1/3（空回复/
   /// 异常 finish 未清空）-> [FinishRetry]。caller 据此区分成功终态、output
-  /// rule error 终态与重试信号，使 phase/outcome 一一对应（P2-5）。
+  /// rule error 终态与重试信号，使 phase/outcome 一一对应。
   ///
   /// [skipEmptyCheck] 为 true 时跳过分支 1，适用于 coordinator 已独立处理
   /// emptyReply 的场景。

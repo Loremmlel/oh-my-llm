@@ -112,7 +112,7 @@ void registerChatSessionsControllerStopCases() {
     expect(state.errorMessage, isNull);
   });
 
-  test('重试 attempt 进行中可被 stop 停止（P1-2）', () async {
+  test('重试 attempt 进行中可被 stop 停止', () async {
     container
         .read(chatSessionsProvider.notifier)
         .updateActiveConversationPreferences(autoRetryEnabled: true);
@@ -136,8 +136,8 @@ void registerChatSessionsControllerStopCases() {
     }
     expect(fakeClient.requestHistory.length, 2);
 
-    // P1-2 修复后重试 attempt 进行中 isStreaming 恢复 true；修复前首次 attempt
-    // 终态已清 false 且 Started 不恢复，停止按钮（isStreaming || isAutoRetryWaiting）
+    // 重试 attempt 进行中 isStreaming 必须恢复 true：否则首次 attempt 终态已清
+    // false 且 Started 不恢复，停止按钮（isStreaming || isAutoRetryWaiting）
     // 此刻为 false，退化为禁用的发送，用户无法停止。
     final streamingState = container.read(chatSessionsProvider);
     expect(streamingState.isStreaming, isTrue);
@@ -361,7 +361,7 @@ void registerChatSessionsControllerStopCases() {
   test('preparing 阶段 stopStreaming 阻止后续网络请求', () async {
     // 注入 save 被 gate 阻塞的 repository，使 sendMessage 停在 pending save
     // （preparing），coordinator 尚未 start。此时 stop 应完成 completer 并清理，
-    // 放行 save 后 _runGenerationViaCoordinator 检测桥接字段已清理而不再 start（P1-1）。
+    // 放行 save 后 _runGenerationViaCoordinator 检测桥接字段已清理而不再 start。
     final slowRepo = _PendingSaveRepository(
       SqliteChatConversationRepository(database),
     );
@@ -397,7 +397,7 @@ void registerChatSessionsControllerStopCases() {
     await slowRepo.saveReached!.future;
 
     // stopStreaming（preparing）：投影 cancelled + complete completer，再 await
-    // pending save（saveGate）+ stop save（stopSaveGate）形成 durable checkpoint（P2-3）。
+    // pending save（saveGate）+ stop save（stopSaveGate）形成 durable checkpoint。
     // 不先 await：先放行 saveGate 让 pending save 完成，再放行 stopSaveGate。
     final stopFuture = slowContainer
         .read(chatSessionsProvider.notifier)
@@ -406,13 +406,13 @@ void registerChatSessionsControllerStopCases() {
     await slowRepo.stopSaveReached!.future;
     slowRepo.stopSaveGate!.complete();
     await stopFuture.timeout(const Duration(seconds: 10));
-    // timeout 守卫：P1-1 修复后 sendFuture 应立即完成；若仍 start 会在此暴露。
+    // timeout 守卫：sendFuture 应立即完成；若仍 start 会在此暴露。
     await sendFuture.timeout(const Duration(seconds: 10));
 
     final state = slowContainer.read(chatSessionsProvider);
     expect(state.isStreaming, isFalse);
     expect(fakeClient.requestHistory, isEmpty);
-    // P2-3：占位 assistant 标记 isStreaming=false 并设 stopped inline 状态，
+    // 占位 assistant 标记 isStreaming=false 并设 stopped inline 状态，
     // 投影 cancelled 终态快照，避免内存留下仍在流式的空占位导致下次用户消息
     // 接在占位之后。
     final messages = state.activeConversation.messages;
@@ -423,13 +423,13 @@ void registerChatSessionsControllerStopCases() {
     expect(state.errorMessage, ChatErrorMessages.stoppedByUser);
     expect(state.generation?.phase, ChatGenerationPhase.cancelled);
     expect(state.generation?.cancelReason, ChatCancelReason.userStop);
-    // P2-6：preparing snapshot 携带唯一非 0 generationId，attempt 从 1 开始，
+    // preparing snapshot 携带唯一非 0 generationId，attempt 从 1 开始，
     // 不再沿用上一轮重试次数。
     expect(state.generation?.generationId, isNonZero);
     expect(state.generation?.attempt, 1);
   });
 
-  test('preparing pending save 失败不污染后续 generation（P1-1）', () async {
+  test('preparing pending save 失败不污染后续 generation', () async {
     final repo = _PendingFailingFirstRepository(
       SqliteChatConversationRepository(database),
     );
@@ -464,7 +464,7 @@ void registerChatSessionsControllerStopCases() {
     // 放行 A 的 pending save（失败）：host.prepare 返回 ChatPrepareFailure，
     // run terminal persistenceFailed，completion complete。新设计去掉 supersede
     // （决策 4）：旧 run terminal durable 完成前新 command 被 busy guard 拒
-    // （不变量 5），故 B 必须在 A terminal 后才开始，A 的失败不污染 B（P1-1）。
+    // （不变量 5），故 B 必须在 A terminal 后才开始，A 的失败不污染 B。
     repo.firstSaveGate!.complete();
     await sendFutureA.timeout(const Duration(seconds: 5));
     await stopFuture.timeout(const Duration(seconds: 5));
@@ -488,10 +488,10 @@ void registerChatSessionsControllerStopCases() {
     expect(state.generation?.phase, ChatGenerationPhase.succeeded);
   });
 
-  test('preparing stop 落盘失败投影 persistenceFailed（P2-3）', () async {
+  test('preparing stop 落盘失败投影 persistenceFailed', () async {
     // 注入第 2 次 save（stop 落盘）放行 stopSaveGate 后抛异常的 repository，
     // 验证 preparing stop 的 stop save durable await 感知失败并投影
-    // persistenceFailed，而非 fire-and-forget 吞掉（P2-3）。
+    // persistenceFailed，而非 fire-and-forget 吞掉。
     final slowRepo = _PendingSaveRepository(
       SqliteChatConversationRepository(database),
     );
@@ -535,7 +535,7 @@ void registerChatSessionsControllerStopCases() {
 
     final state = slowContainer.read(chatSessionsProvider);
     expect(state.isStreaming, isFalse);
-    // P2-3：preparing stop 落盘失败投影 persistenceFailed（非 cancelled），
+    // preparing stop 落盘失败投影 persistenceFailed（非 cancelled），
     // outcome 为 PersistenceFailure，inline error 为 persistenceFailed。
     expect(state.generation?.phase, ChatGenerationPhase.persistenceFailed);
     expect(state.generation?.outcome, isA<ChatGenerationPersistenceFailure>());
@@ -619,7 +619,7 @@ void registerChatSessionsControllerStopCases() {
     expect(state.generation?.outcome, isA<ChatGenerationSuccess>());
   });
 
-  test('stopStreaming 等待 Stopped 落盘完成（P2-4）', () async {
+  test('stopStreaming 等待 Stopped 落盘完成', () async {
     // 注入第 2 次 save（stop 落盘）被 stopSaveGate 阻塞的 repository，验证
     // stopStreaming 在 Stopped 落盘完成前不返回，放行后才返回落盘后的会话。
     final slowRepo = _PendingSaveRepository(
@@ -678,10 +678,10 @@ void registerChatSessionsControllerStopCases() {
     expect(stopped!.messages.last.content, '部分内容');
   });
 
-  test('streaming stop 落盘失败投影 persistenceFailed（P2-4）', () async {
+  test('streaming stop 落盘失败投影 persistenceFailed', () async {
     // 注入第 2 次 save（stop 落盘）失败的 repository：第 1 次 pending save 成功
     // 使 generation 进入 streaming，stop 时第 2 次 save 抛异常，验证 Cancelled
-    // handler 投影 persistenceFailed 而非 cancelled（P2-4）。
+    // handler 投影 persistenceFailed 而非 cancelled。
     final repo = _FailingStopSaveRepository(
       SqliteChatConversationRepository(database),
     );
@@ -717,20 +717,20 @@ void registerChatSessionsControllerStopCases() {
 
     final state = slowContainer.read(chatSessionsProvider);
     expect(state.isStreaming, isFalse);
-    // P2-4：stop 落盘失败投影 persistenceFailed（非 cancelled），outcome 为
+    // stop 落盘失败投影 persistenceFailed（非 cancelled），outcome 为
     // PersistenceFailure，inline error 为 persistenceFailed。
     expect(state.generation?.phase, ChatGenerationPhase.persistenceFailed);
     expect(state.generation?.outcome, isA<ChatGenerationPersistenceFailure>());
     expect(state.errorMessage, ChatErrorMessages.persistenceFailed);
   });
 
-  // ── terminal snapshot 投影（P2-5） ─────────────────────────────────────────
+  // ── terminal snapshot 投影 ─────────────────────────────────────────
   //
   // 终态（succeeded/emptyReply/failed/cancelled/persistenceFailed）须投影进
   // state.generation，携带 cancelReason 与 typed outcome，供观察；snapshot 保留至
   // 下一次 generation 的 preparing 覆盖，不再被 cleanup 清空。
 
-  test('成功完成投影 succeeded 终态快照（P2-5）', () async {
+  test('成功完成投影 succeeded 终态快照', () async {
     fakeClient.enqueueChunks(['回复内容']);
     await sendMsg('test');
 
@@ -741,7 +741,7 @@ void registerChatSessionsControllerStopCases() {
     expect(state.generation!.cancelReason, isNull);
   });
 
-  test('空回复投影 emptyReply 终态快照（P2-5）', () async {
+  test('空回复投影 emptyReply 终态快照', () async {
     // 流式正常完成（finishReason=stop）但无内容 -> coordinator 判 EmptyReply。
     final streamController = StreamController<ChatCompletionChunk>();
     addTearDown(streamController.close);
@@ -758,7 +758,7 @@ void registerChatSessionsControllerStopCases() {
     expect(state.generation!.outcome, isA<ChatGenerationEmptyReply>());
   });
 
-  test('失败投影 failed 终态快照（P2-5）', () async {
+  test('失败投影 failed 终态快照', () async {
     fakeClient.enqueueError(ChatCompletionException('失败'));
     await sendMsg('test');
 
@@ -768,7 +768,7 @@ void registerChatSessionsControllerStopCases() {
     expect(state.generation!.outcome, isA<ChatGenerationFailure>());
   });
 
-  test('用户 stop 投影 cancelled 终态快照带 userStop 原因（P2-5）', () async {
+  test('用户 stop 投影 cancelled 终态快照带 userStop 原因', () async {
     final streamController = StreamController<ChatCompletionChunk>();
     addTearDown(streamController.close);
     fakeClient.enqueueStream(streamController.stream);
@@ -785,7 +785,7 @@ void registerChatSessionsControllerStopCases() {
     expect(state.generation!.outcome, isA<ChatGenerationCancelled>());
   });
 
-  test('terminal 快照保留至下一次 generation preparing 覆盖（P2-5）', () async {
+  test('terminal 快照保留至下一次 generation preparing 覆盖', () async {
     fakeClient.enqueueChunks(['第一次回复']);
     await sendMsg('first');
     var state = container.read(chatSessionsProvider);
@@ -799,7 +799,7 @@ void registerChatSessionsControllerStopCases() {
     state = container.read(chatSessionsProvider);
     expect(state.generation!.phase, ChatGenerationPhase.succeeded);
     expect(state.generation!.outcome, isA<ChatGenerationSuccess>());
-    // P2-6：两次 run 的 generationId 单调递增，唯一 token。
+    // 两次 run 的 generationId 单调递增，唯一 token。
     expect(state.generation!.generationId, greaterThan(firstGenId));
   });
 
@@ -808,7 +808,7 @@ void registerChatSessionsControllerStopCases() {
   // dispose（ref.onDispose 先 completeGeneration(null) 再 coordinator.dispose）
   // 的契约：流式进行中 dispose 后，sendMessage Future 正常完成（不再永久
   // 挂起），迟到事件被 coordinator 的 _disposed guard 静默丢弃，不写已销毁
-  // 的 state、不产生未处理异常（P1-2）。
+  // 的 state、不产生未处理异常。
 
   test('dispose 在流式进行时完成 sendMessage Future 且迟到事件无未处理异常', () async {
     // 独立 container：测试需主动 dispose 触发 controller onDispose，
@@ -847,7 +847,7 @@ void registerChatSessionsControllerStopCases() {
       disposeContainer.dispose();
       disposed = true;
 
-      // dispose 应完成 sendMessage Future；timeout 守卫确保不再永久挂起（P1-2）。
+      // dispose 应完成 sendMessage Future；timeout 守卫确保不再永久挂起。
       await sendFuture.timeout(const Duration(seconds: 2));
 
       // 订阅取消后迟到事件应静默丢弃，不触发回调、无未处理异常。
@@ -859,7 +859,7 @@ void registerChatSessionsControllerStopCases() {
     expect(unexpected, isEmpty);
   });
 
-  test('dispose 在 terminal save 期间不写 state 且无未处理异常（P2-4）', () async {
+  test('dispose 在 terminal save 期间不写 state 且无未处理异常', () async {
     final slowRepo = _PendingSaveRepository(
       SqliteChatConversationRepository(database),
     );
@@ -891,7 +891,7 @@ void registerChatSessionsControllerStopCases() {
       // pending save（第 1 次）到达后放行，generation 进入 streaming。
       await slowRepo.saveReached!.future;
       slowRepo.saveGate!.complete();
-      // terminal save（第 2 次，_handleGenerationDecision 落盘 result）到达：
+      // terminal save（第 2 次，终态落盘 result）到达：
       // generation 在 finalizing，await save 让出。
       await slowRepo.stopSaveReached!.future.timeout(
         const Duration(seconds: 5),
@@ -899,8 +899,8 @@ void registerChatSessionsControllerStopCases() {
 
       slowContainer.dispose();
       disposed = true;
-      // 放行 terminal save：_handleGenerationDecision 恢复后因 _disposed 守卫
-      // 直接 return，不写已销毁的 state、不抛 Riverpod lifecycle 异常（P2-4）。
+      // 放行 terminal save：恢复后因 _disposed 守卫直接 return，
+      // 不写已销毁的 state、不抛 Riverpod lifecycle 异常。
       slowRepo.stopSaveGate!.complete();
       await sendFuture.timeout(const Duration(seconds: 2));
       await Future<void>.delayed(const Duration(milliseconds: 10));
@@ -909,13 +909,12 @@ void registerChatSessionsControllerStopCases() {
     expect(unexpected, isEmpty);
   });
 
-  test('dispose 在 attempt helper 返回后的 async 间隙不抛（P1-2）', () async {
+  test('dispose 在 attempt helper 返回后的 async 间隙不抛', () async {
     // sync: true 使 close() 同步触发 onDone -> AttemptCompleted 投递 ->
-    // _handleGenerationEvent 跑到 `await finishGenerationSuccess` 让出（让出点 A），
-    // 恢复微任务在 close() 返回后排队。dispose 在 close 后、微任务跑前执行，
-    // 命中让出点 A 恢复前的间隙：修复前 _handleGenerationDecision 首行 _setPhase
-    // 写已销毁 state 抛 UnmountedRefException；修复后 _disposed 守卫在 _setPhase
-    // 之前 return（P1-2）。
+    // coordinator 处理 AttemptCompleted 时跑到 `await finishGenerationSuccess`
+    // 让出（让出点 A），恢复微任务在 close() 返回后排队。dispose 在 close 后、
+    // 微任务跑前执行，命中让出点 A 恢复前的间隙：_disposed 守卫在写终态前
+    // return，不写已销毁的 state。
     final disposeContainer = ProviderContainer(
       overrides: [
         appDatabaseProvider.overrideWithValue(database),
@@ -984,7 +983,7 @@ class _PendingSaveRepository implements ChatConversationRepository {
   Completer<void>? saveReached = Completer<void>();
 
   /// 第 2 次 save（stop 落盘）完成前阻塞调用方；测试主动 complete 以放行，
-  /// 用于验证 stopStreaming 等待 Stopped 落盘完成（P2-4）。
+  /// 用于验证 stopStreaming 等待 Stopped 落盘完成。
   Completer<void>? stopSaveGate = Completer<void>();
 
   /// 第 2 次 save 被调用时 complete，供测试等待 stop 落盘到达（Stopped save
@@ -994,7 +993,7 @@ class _PendingSaveRepository implements ChatConversationRepository {
   int _saveCount = 0;
 
   /// 第 2 次 save（stop 落盘）放行 stopSaveGate 后是否抛异常，模拟 preparing
-  /// stop 落盘失败（P2-3）。默认 false。
+  /// stop 落盘失败。默认 false。
   bool failStopSave = false;
 
   @override
@@ -1075,7 +1074,7 @@ class _PendingSaveRepository implements ChatConversationRepository {
 
 /// 测试用 repository：首次 save 被 [firstSaveGate] 阻塞，放行后抛异常，模拟
 /// preparing 阶段 pending save 失败；后续 save 委托内部 repository。用于验证
-/// A 的迟到 pending save 失败不污染已接管的 B generation（P1-1）。
+/// A 的迟到 pending save 失败不污染已接管的 B generation。
 class _PendingFailingFirstRepository implements ChatConversationRepository {
   _PendingFailingFirstRepository(this._inner);
 
@@ -1139,7 +1138,7 @@ class _PendingFailingFirstRepository implements ChatConversationRepository {
 }
 
 /// 测试用 repository：第 2 次 save（stop 落盘）抛异常，第 1 次（pending）成功。
-/// 用于验证 streaming stop 落盘失败投影 persistenceFailed（P2-4）。
+/// 用于验证 streaming stop 落盘失败投影 persistenceFailed。
 class _FailingStopSaveRepository implements ChatConversationRepository {
   _FailingStopSaveRepository(this._inner);
 

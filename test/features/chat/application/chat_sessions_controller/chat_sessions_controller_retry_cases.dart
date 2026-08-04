@@ -543,9 +543,9 @@ void registerChatSessionsControllerRetryCases() {
     expect(state.errorMessage, ChatErrorMessages.outputRuleEmptied);
   });
 
-  // ── phase/outcome 一一对应（P2-5） ──────────────────────────────────────────
+  // ── phase/outcome 一一对应 ──────────────────────────────────────────
 
-  test('输出规则清空正文投影 failed + Failure（P2-5）', () async {
+  test('输出规则清空正文投影 failed + Failure', () async {
     // 设置输出规则：清空所有内容。
     await container
         .read(outputProcessingSettingsProvider.notifier)
@@ -569,13 +569,13 @@ void registerChatSessionsControllerRetryCases() {
 
     final state = container.read(chatSessionsProvider);
     expect(state.errorMessage, ChatErrorMessages.outputRuleEmptied);
-    // P2-5：输出规则清空正文属于 error，phase=failed + outcome=Failure
+    // 输出规则清空正文属于 error，phase=failed + outcome=Failure
     //（非 succeeded + Success），满足 DTO 一一对应。
     expect(state.generation?.phase, ChatGenerationPhase.failed);
     expect(state.generation?.outcome, isA<ChatGenerationFailure>());
   });
 
-  test('异常 finish_reason 达重试上限投影 failed + Failure（P2-5）', () async {
+  test('异常 finish_reason 达重试上限投影 failed + Failure', () async {
     container
         .read(chatSessionsProvider.notifier)
         .updateActiveConversationPreferences(autoRetryEnabled: true);
@@ -599,7 +599,7 @@ void registerChatSessionsControllerRetryCases() {
 
     final state = container.read(chatSessionsProvider);
     expect(fakeClient.requestHistory.length, 1);
-    // P2-5：异常 finish（outcome=Success）达上限转 Failure，phase=failed
+    // 异常 finish（outcome=Success）达上限转 Failure，phase=failed
     //（非 failed + Success），满足 DTO 一一对应。
     expect(state.generation?.phase, ChatGenerationPhase.failed);
     expect(state.generation?.outcome, isA<ChatGenerationFailure>());
