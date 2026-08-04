@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
+import '../../../../core/constants/app_breakpoints.dart';
 import '../../domain/models/chat_conversation.dart';
 import '../../domain/models/chat_message.dart';
 import '../../../settings/domain/models/llm_model_config.dart';
@@ -31,7 +32,6 @@ class ChatWorkspace extends StatelessWidget {
     required this.messageItemScrollController,
     required this.messageItemPositionsListener,
     required this.isComposerCollapsed,
-    this.isCompact = false,
     required this.reasoningEnabled,
     required this.reasoningEffort,
     required this.supportsReasoning,
@@ -88,9 +88,6 @@ class ChatWorkspace extends StatelessWidget {
   final ItemScrollController messageItemScrollController;
   final ItemPositionsListener messageItemPositionsListener;
   final bool isComposerCollapsed;
-
-  /// 移动端紧凑布局：缩窄消息列表与输入区的内边距，让主体更宽。
-  final bool isCompact;
   final bool reasoningEnabled;
   final ReasoningEffort reasoningEffort;
   final bool supportsReasoning;
@@ -155,7 +152,6 @@ class ChatWorkspace extends StatelessWidget {
             errorModelDisplayName: errorModelDisplayName,
             showScrollToBottomListenable: showScrollToBottomListenable,
             autoRetryCount: autoRetryCount,
-            isCompact: isCompact,
             onEditMessage: onEditMessage,
             onRetryLatestAssistant: onRetryLatestAssistant,
             onDeleteMessage: onDeleteMessage,
@@ -167,7 +163,7 @@ class ChatWorkspace extends StatelessWidget {
             favoritedAssistantContents: favoritedAssistantContents,
           ),
         ),
-        SizedBox(height: isCompact ? 8 : 12),
+        SizedBox(height: AppBreakpoints.isCompact(context) ? 8 : 12),
         ChatComposerCard(
           data: ComposerData(
             hasModels: hasModels,
@@ -189,7 +185,6 @@ class ChatWorkspace extends StatelessWidget {
             excludedMessageCount: excludedMessageCount,
             isEditingMessage: isEditingMessage,
           ),
-          isCompact: isCompact,
           callbacks: ComposerCallbacks(
             onProviderSelected: onProviderSelected,
             onModelSelected: onModelSelected,

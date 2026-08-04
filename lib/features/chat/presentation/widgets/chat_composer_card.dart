@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/constants/app_breakpoints.dart';
 import '../../domain/models/chat_message.dart';
 import 'auto_retry_toggle.dart';
 import 'composer/composer_compact_action_row.dart';
@@ -21,7 +22,6 @@ class ChatComposerCard extends StatelessWidget {
     required this.callbacks,
     required this.messageController,
     required this.messageFocusNode,
-    this.isCompact = false,
     super.key,
   });
 
@@ -29,9 +29,6 @@ class ChatComposerCard extends StatelessWidget {
   final ComposerCallbacks callbacks;
   final TextEditingController messageController;
   final FocusNode messageFocusNode;
-
-  /// 移动端紧凑布局：缩小输入区卡片内边距。
-  final bool isCompact;
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +38,7 @@ class ChatComposerCard extends StatelessWidget {
     // 高度动画延迟到 fade 结束才触发的「dead zone」中间态。
     return AnimatedCrossFade(
       duration: const Duration(milliseconds: 220),
-      firstChild: _buildCollapsed(theme),
+      firstChild: _buildCollapsed(context, theme),
       secondChild: _buildExpanded(theme),
       crossFadeState: data.isComposerCollapsed
           ? CrossFadeState.showFirst
@@ -54,12 +51,12 @@ class ChatComposerCard extends StatelessWidget {
   }
 
   /// 折叠态：仅显示一行提示与展开按钮。
-  Widget _buildCollapsed(ThemeData theme) {
+  Widget _buildCollapsed(BuildContext context, ThemeData theme) {
     return Card(
       child: Padding(
         padding: EdgeInsets.symmetric(
-          horizontal: isCompact ? 10 : 14,
-          vertical: isCompact ? 8 : 10,
+          horizontal: AppBreakpoints.isCompact(context) ? 10 : 14,
+          vertical: AppBreakpoints.isCompact(context) ? 8 : 10,
         ),
         child: Row(
           children: [
@@ -86,12 +83,12 @@ class ChatComposerCard extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, constraints) {
           // isCompactComposer 是输入区自身的 680 断点，决定操作行紧凑/桌面布局；
-          // 与外层 [isCompact]（移动端 720 断点，影响 padding）含义不同，不可混用。
+          // 与 [AppBreakpoints.isCompact]（移动端 720 断点，影响 padding）含义不同，不可混用。
           final isCompactComposer =
               constraints.maxWidth < compactComposerBreakpoint;
 
           return Padding(
-            padding: EdgeInsets.all(isCompact ? 8 : 12),
+            padding: EdgeInsets.all(AppBreakpoints.isCompact(context) ? 8 : 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
