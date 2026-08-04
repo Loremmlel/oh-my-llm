@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
+import '../../../../core/constants/app_breakpoints.dart';
 import '../../domain/models/chat_conversation.dart';
 import '../../domain/chat_message_parent.dart';
 import '../../domain/models/chat_message.dart';
@@ -33,7 +34,6 @@ class ChatMessagesPanel extends StatefulWidget {
     required this.errorModelDisplayName,
     required this.showScrollToBottomListenable,
     this.autoRetryCount = 0,
-    this.isCompact = false,
     required this.onEditMessage,
     required this.onRetryLatestAssistant,
     required this.onDeleteMessage,
@@ -60,9 +60,6 @@ class ChatMessagesPanel extends StatefulWidget {
   final String errorModelDisplayName;
   final ValueListenable<bool> showScrollToBottomListenable;
   final int autoRetryCount;
-
-  /// 移动端紧凑布局：缩小消息列表四周内边距。
-  final bool isCompact;
   final ValueChanged<ChatMessage> onEditMessage;
   final Future<void> Function() onRetryLatestAssistant;
   final ValueChanged<ChatMessage> onDeleteMessage;
@@ -111,7 +108,7 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
     return LayoutBuilder(
       builder: (context, constraints) {
         // 移动端紧凑布局下整体缩小内边距，让消息气泡更宽。
-        final listPadding = widget.isCompact ? 10.0 : 14.0;
+        final listPadding = AppBreakpoints.isCompact(context) ? 10.0 : 14.0;
 
         return Card(
           clipBehavior: Clip.antiAlias,

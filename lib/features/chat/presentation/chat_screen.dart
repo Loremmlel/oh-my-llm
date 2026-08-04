@@ -464,7 +464,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   fixedPromptSequences: fixedPromptSequences,
                   favoritedContents: favoritedContents,
                   isBusy: isBusy,
-                  isCompact: isCompact,
                 ),
               ),
             ],
@@ -501,7 +500,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     required List<FixedPromptSequence> fixedPromptSequences,
     required Set<String> favoritedContents,
     required bool isBusy,
-    required bool isCompact,
   }) {
     // 在 _buildWorkspace 内订阅折叠状态：它处于 build 调用链中，
     // provider 变化会触发 ChatScreen rebuild 从而重新读到最新值。
@@ -524,7 +522,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       messageItemScrollController: _scroll.itemScrollController,
       messageItemPositionsListener: _scroll.itemPositionsListener,
       isComposerCollapsed: isComposerCollapsed,
-      isCompact: isCompact,
       reasoningEnabled: supportsReasoning && conversation.reasoningEnabled,
       reasoningEffort: conversation.reasoningEffort,
       supportsReasoning: supportsReasoning,
