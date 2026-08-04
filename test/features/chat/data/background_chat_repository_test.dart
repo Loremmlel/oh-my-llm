@@ -11,6 +11,9 @@ import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 void main() {
   late String tempDbPath;
   late AppDatabase db;
+  // 顶层持有当前 test 的 bg，供 tearDown 兜底关闭（即便 test 抛异常也清理 Isolate）。
+  // late 非 final：每个 test body 重新赋值；tearDown 用 try-catch 兜底未赋值场景。
+  late BackgroundChatConversationRepository bg;
 
   setUp(() {
     tempDbPath =
@@ -18,7 +21,12 @@ void main() {
     db = AppDatabase.forPath(tempDbPath);
   });
 
-  tearDown(() {
+  tearDown(() async {
+    // 兜底关闭 bg：即使 test 在 bg.close() 前抛异常，也确保 Isolate 被清理，
+    // 避免残留进程锁住 native assets dll 导致后续 test 连锁阻塞。
+    try {
+      await bg.close();
+    } catch (_) {}
     db.close();
     // 清理临时数据库文件及 WAL/SHM 附属文件；Isolate 可能仍持有连接，
     // 因此以 try/catch 静默处理删除失败。
@@ -73,7 +81,7 @@ void main() {
     test('Map merge: two different conversations within debounce window '
         'both persisted', () async {
       final inner = SqliteChatConversationRepository(db);
-      final bg = BackgroundChatConversationRepository(inner, tempDbPath);
+      bg = BackgroundChatConversationRepository(inner, tempDbPath);
 
       final convA = makeConv('conv_a', 'Content A');
       final convB = makeConv('conv_b', 'Content B');
@@ -96,7 +104,7 @@ void main() {
     test('Map merge: same conversation twice within debounce window, '
         'last write wins via Map overwrite', () async {
       final inner = SqliteChatConversationRepository(db);
-      final bg = BackgroundChatConversationRepository(inner, tempDbPath);
+      bg = BackgroundChatConversationRepository(inner, tempDbPath);
 
       final convOrig = makeConv('same_conv', 'Original content');
       final convModified = makeConv('same_conv', 'Modified content');
@@ -119,7 +127,7 @@ void main() {
     test('Pending write management: saveConversation before Isolate ready '
         'still persists data after Isolate initializes', () async {
       final inner = SqliteChatConversationRepository(db);
-      final bg = BackgroundChatConversationRepository(inner, tempDbPath);
+      bg = BackgroundChatConversationRepository(inner, tempDbPath);
 
       // 构造后立即调用 saveConversation —— Isolate 大概率尚未就绪
       final conv = makeConv('pending_test', 'Pending write');
@@ -162,7 +170,7 @@ void main() {
       addTearDown(() => memDb.close());
 
       final inner = SqliteChatConversationRepository(memDb);
-      final bg = BackgroundChatConversationRepository(inner, ':memory:');
+      bg = BackgroundChatConversationRepository(inner, ':memory:');
 
       final conv = makeConv('mem_test', 'Memory fallback');
       await bg.saveConversation(conv);
