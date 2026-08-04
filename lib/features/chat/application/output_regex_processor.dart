@@ -1,4 +1,4 @@
-import '../../settings/domain/models/output_processing_settings.dart';
+import 'package:oh_my_llm/features/settings/domain/models/output_processing_settings.dart';
 
 /// 对模型输出正文应用一组正则规则（过滤或替换）。
 ///

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_smooth_markdown/flutter_smooth_markdown.dart'
     as smooth_md;
 
-import '../../../../core/constants/app_animations.dart';
+import 'package:oh_my_llm/core/constants/app_animations.dart';
 
 /// 折叠式推理内容面板，用于展示模型的深度思考文本。
 class ReasoningPanel extends StatefulWidget {

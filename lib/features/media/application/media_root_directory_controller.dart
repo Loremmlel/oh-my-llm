@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/persistence/shared_preferences_provider.dart';
+import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 
 const String mediaRootDirectoryStorageKey = 'media.root_directory';
 

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../domain/models/chat_message.dart';
-import '../../../settings/domain/models/llm_model_config.dart';
-import '../../../settings/domain/models/llm_provider_config.dart';
-import '../../../settings/domain/models/template_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
+import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
+import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
 
 class ComposerData {
   const ComposerData({

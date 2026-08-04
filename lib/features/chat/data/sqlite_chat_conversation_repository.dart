@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import '../../../core/persistence/app_database.dart';
+import 'package:oh_my_llm/core/persistence/app_database.dart';
 import '../domain/models/chat_checkpoint.dart';
 import '../domain/models/chat_conversation.dart';
 import '../domain/models/chat_conversation_summary.dart';

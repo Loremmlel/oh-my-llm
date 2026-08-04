@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../../core/utils/text_formatting.dart';
+import 'package:oh_my_llm/core/utils/text_formatting.dart';
 import '../../../application/fixed_prompt_sequences_controller.dart';
 import '../../../domain/models/fixed_prompt_sequence.dart';
 import '../settings_card_grid.dart';

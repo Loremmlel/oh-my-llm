@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../../../settings/domain/models/template_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
 
 class ComposerMessageField extends StatelessWidget {
   const ComposerMessageField({

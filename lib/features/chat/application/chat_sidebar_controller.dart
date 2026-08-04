@@ -2,7 +2,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/persistence/shared_preferences_provider.dart';
+import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 
 /// 聊天页侧边面板的功能入口。
 ///

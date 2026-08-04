@@ -2,8 +2,8 @@ import 'dart:convert';
 
 import 'package:equatable/equatable.dart';
 
-import '../../../../core/persistence/has_id_and_updated_at.dart';
-import '../../../../core/utils/text_formatting.dart';
+import 'package:oh_my_llm/core/persistence/has_id_and_updated_at.dart';
+import 'package:oh_my_llm/core/utils/text_formatting.dart';
 
 /// 记忆总结提示词，用于为检查点生成不同风格的总结。
 class MemoryPrompt extends Equatable with HasIdAndUpdatedAt {

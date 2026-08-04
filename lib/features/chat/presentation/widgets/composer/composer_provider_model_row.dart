@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../../settings/domain/models/llm_model_config.dart';
-import '../../../../settings/domain/models/llm_provider_config.dart';
+import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
+import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
 
 class ComposerProviderModelRow extends StatelessWidget {
   const ComposerProviderModelRow({

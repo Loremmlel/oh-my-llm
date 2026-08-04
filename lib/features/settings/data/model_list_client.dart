@@ -4,10 +4,10 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
-import '../../../core/http/http_client_provider.dart';
-import '../../../core/logging/app_network_logger_provider.dart';
-import '../../../core/logging/json_truncator.dart';
-import '../../../core/logging/network_logger.dart';
+import 'package:oh_my_llm/core/http/http_client_provider.dart';
+import 'package:oh_my_llm/core/logging/app_network_logger_provider.dart';
+import 'package:oh_my_llm/core/logging/json_truncator.dart';
+import 'package:oh_my_llm/core/logging/network_logger.dart';
 import '../domain/models/model_catalog_entry.dart';
 
 /// 拉取模型列表失败时抛出的业务异常。

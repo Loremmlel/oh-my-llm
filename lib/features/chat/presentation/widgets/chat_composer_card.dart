@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_breakpoints.dart';
+import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import '../../domain/models/chat_message.dart';
 import 'auto_retry_toggle.dart';
 import 'composer/composer_compact_action_row.dart';

@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:equatable/equatable.dart';
 
-import '../../../../core/persistence/has_id_and_updated_at.dart';
+import 'package:oh_my_llm/core/persistence/has_id_and_updated_at.dart';
 
 /// 模板提示词中用于承载主输入框正文的保留变量名。
 const templatePromptBodyVariableName = '正文';

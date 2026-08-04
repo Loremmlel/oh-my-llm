@@ -1,6 +1,6 @@
 import 'package:equatable/equatable.dart';
 
-import '../../../../core/constants/model_display_name.dart';
+import 'package:oh_my_llm/core/constants/model_display_name.dart';
 
 /// 聊天消息的发送角色。
 enum ChatMessageRole {

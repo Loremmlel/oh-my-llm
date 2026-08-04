@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../../core/utils/date_formatting.dart';
-import '../../../../../core/widgets/notification_bubble_context_ext.dart';
-import '../../../../../core/widgets/adaptive_master_detail_layout.dart';
-import '../../../../settings/application/memory_prompts_controller.dart';
-import '../../../../settings/domain/models/llm_model_config.dart';
-import '../../../../settings/domain/models/preset_prompt.dart';
+import 'package:oh_my_llm/core/utils/date_formatting.dart';
+import 'package:oh_my_llm/core/widgets/notification_bubble_context_ext.dart';
+import 'package:oh_my_llm/core/widgets/adaptive_master_detail_layout.dart';
+import 'package:oh_my_llm/features/settings/application/memory_prompts_controller.dart';
+import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
+import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
 import '../../../application/chat_sessions_controller.dart';
 import '../../../application/checkpoint_request_context.dart';
 import '../../../domain/chat_word_counter.dart';

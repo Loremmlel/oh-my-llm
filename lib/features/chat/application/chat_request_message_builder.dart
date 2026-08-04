@@ -1,4 +1,4 @@
-import '../../settings/domain/models/preset_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
 import '../data/chat_completion_client.dart';
 import '../domain/models/chat_checkpoint.dart';
 import '../domain/models/chat_message.dart';

@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/persistence/shared_preferences_provider.dart';
+import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import '../domain/models/network_interface_info.dart';
 import '../domain/models/sync_pairing.dart';
 import 'broadcast_prefix_length_provider.dart';

@@ -2,12 +2,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
-import '../../../../core/constants/app_breakpoints.dart';
+import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import '../../domain/models/chat_conversation.dart';
 import '../../domain/models/chat_message.dart';
-import '../../../settings/domain/models/llm_model_config.dart';
-import '../../../settings/domain/models/llm_provider_config.dart';
-import '../../../settings/domain/models/template_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
+import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
+import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
 import 'chat_composer_card.dart';
 import 'chat_messages_panel.dart';
 import 'composer_data.dart';

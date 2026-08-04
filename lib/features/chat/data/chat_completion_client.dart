@@ -1,5 +1,5 @@
 import '../domain/models/chat_message.dart';
-import '../../settings/domain/models/llm_model_config.dart';
+import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
 
 /// 流式补全请求失败时抛出的业务异常。
 ///

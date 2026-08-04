@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:equatable/equatable.dart';
 
-import '../../../../core/persistence/has_id_and_updated_at.dart';
+import 'package:oh_my_llm/core/persistence/has_id_and_updated_at.dart';
 import 'prompt_message.dart';
 import 'prompt_message_placement.dart';
 import 'prompt_message_role.dart';

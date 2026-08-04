@@ -4,16 +4,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../app/navigation/app_destination.dart';
-import '../../../app/shell/app_shell_scaffold.dart';
-import '../../../core/widgets/app_confirm_dialog.dart';
-import '../../../core/widgets/rename_conversation_dialog.dart';
-import '../../chat/application/chat_sessions_controller.dart';
-import '../../chat/application/history_pagination_controller.dart';
-import '../../chat/domain/chat_conversation_groups.dart';
-import '../../chat/domain/history_pagination_state.dart';
-import '../../chat/domain/models/chat_conversation_summary.dart';
-import '../../chat/presentation/widgets/grouped_conversation_list.dart';
+import 'package:oh_my_llm/app/navigation/app_destination.dart';
+import 'package:oh_my_llm/app/shell/app_shell_scaffold.dart';
+import 'package:oh_my_llm/core/widgets/app_confirm_dialog.dart';
+import 'package:oh_my_llm/core/widgets/rename_conversation_dialog.dart';
+import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
+import 'package:oh_my_llm/features/chat/application/history_pagination_controller.dart';
+import 'package:oh_my_llm/features/chat/domain/chat_conversation_groups.dart';
+import 'package:oh_my_llm/features/chat/domain/history_pagination_state.dart';
+import 'package:oh_my_llm/features/chat/domain/models/chat_conversation_summary.dart';
+import 'package:oh_my_llm/features/chat/presentation/widgets/grouped_conversation_list.dart';
 import 'widgets/history_widgets.dart';
 
 /// Chat read model 的历史对话页入口，支持搜索、批量选择、删除和重命名。

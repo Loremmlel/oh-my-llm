@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../../../core/constants/app_animations.dart';
+import 'package:oh_my_llm/core/constants/app_animations.dart';
 import '../../../domain/models/chat_message.dart';
 import 'composer_helpers.dart';
 

@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/persistence/app_database_provider.dart';
+import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import '../domain/models/collection.dart';
 import 'sqlite_collections_repository.dart';
 

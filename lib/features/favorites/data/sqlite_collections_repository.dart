@@ -1,4 +1,4 @@
-import '../../../core/persistence/app_database.dart';
+import 'package:oh_my_llm/core/persistence/app_database.dart';
 import '../domain/models/collection.dart';
 import 'collections_repository.dart';
 

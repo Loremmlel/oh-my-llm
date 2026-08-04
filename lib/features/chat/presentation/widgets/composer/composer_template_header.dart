@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../../settings/domain/models/template_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
 
 class ComposerTemplateHeader extends StatelessWidget {
   const ComposerTemplateHeader({

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../../core/utils/text_formatting.dart';
+import 'package:oh_my_llm/core/utils/text_formatting.dart';
 import '../../../application/chat_defaults_controller.dart';
 import '../../../application/preset_prompts_controller.dart';
 import '../../../domain/models/preset_prompt.dart';

@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/persistence/settings_key_value_store.dart';
+import 'package:oh_my_llm/core/persistence/settings_key_value_store.dart';
 
 const settingsLastTabIndexKey = 'settings.tab.last_index';
 const settingsTabVersionKey = 'settings.tab.version';

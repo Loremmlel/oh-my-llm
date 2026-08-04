@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/widgets/notification_bubble_context_ext.dart';
+import 'package:oh_my_llm/core/widgets/notification_bubble_context_ext.dart';
 
 /// 设置页表单对话框共享的提交状态、校验与控制器生命周期管理。
 mixin SettingsFormDialogStateMixin<T extends StatefulWidget> on State<T> {

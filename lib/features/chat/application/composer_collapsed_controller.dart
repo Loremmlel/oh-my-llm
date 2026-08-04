@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/persistence/shared_preferences_provider.dart';
+import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 
 /// SharedPreferences 中存储输入区折叠状态的键名。
 const _prefsKeyIsComposerCollapsed = 'composer_isCollapsed';

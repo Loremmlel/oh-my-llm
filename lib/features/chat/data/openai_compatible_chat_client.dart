@@ -4,11 +4,11 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
-import '../../../core/http/custom_headers_provider.dart';
-import '../../../core/http/http_client_provider.dart';
-import '../../../core/logging/app_network_logger_provider.dart';
-import '../../../core/logging/network_logger.dart';
-import '../../settings/domain/models/llm_model_config.dart';
+import 'package:oh_my_llm/core/http/custom_headers_provider.dart';
+import 'package:oh_my_llm/core/http/http_client_provider.dart';
+import 'package:oh_my_llm/core/logging/app_network_logger_provider.dart';
+import 'package:oh_my_llm/core/logging/network_logger.dart';
+import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
 import '../domain/models/chat_message.dart';
 import 'chat_chunk_parser.dart';
 import 'chat_completion_client.dart';

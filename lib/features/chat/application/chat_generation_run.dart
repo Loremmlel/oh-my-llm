@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
-import '../../settings/domain/models/auto_retry_settings.dart';
+import 'package:oh_my_llm/features/settings/domain/models/auto_retry_settings.dart';
 import '../data/chat_completion_client.dart';
 import '../domain/models/chat_conversation.dart';
 import '../domain/models/chat_message.dart';

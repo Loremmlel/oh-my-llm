@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_animations.dart';
+import 'package:oh_my_llm/core/constants/app_animations.dart';
 
 /// 聊天 composer 区域的通用药丸切换按钮。
 ///
