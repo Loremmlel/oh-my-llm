@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/constants/app_animations.dart';
+
 /// 聊天 composer 区域的通用药丸切换按钮。
 ///
 /// 整个圆角矩形 pill 本身即为开关——根据背景颜色区分启用/禁用状态，
@@ -39,7 +41,7 @@ class ComposerPillToggle extends StatelessWidget {
         : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6);
 
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 167),
+      duration: AppAnimations.quickTransition,
       decoration: BoxDecoration(
         color: backgroundColor,
         borderRadius: BorderRadius.circular(16),

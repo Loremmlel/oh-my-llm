@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../../core/constants/app_animations.dart';
 import '../../../application/chat_defaults_controller.dart';
 import '../../../application/llm_model_configs_controller.dart';
 import '../../../domain/models/llm_provider_config.dart';
@@ -151,7 +152,7 @@ class _ProviderTileState extends ConsumerState<ProviderTile> {
                     ),
                   ),
                   AnimatedSize(
-                    duration: const Duration(milliseconds: 167),
+                    duration: AppAnimations.quickTransition,
                     alignment: Alignment.topCenter,
                     child: _modelsExpanded
                         ? Padding(
