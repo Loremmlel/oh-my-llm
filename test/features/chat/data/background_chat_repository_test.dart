@@ -64,7 +64,7 @@ void main() {
       'saveConversation via Isolate writes and inner repo reads back',
       () async {
         final inner = SqliteChatConversationRepository(db);
-        final bg = BackgroundChatConversationRepository(inner, tempDbPath);
+        bg = BackgroundChatConversationRepository(inner, tempDbPath);
 
         final conv = makeConv('isolate_test', 'Hello from Isolate');
         await bg.saveConversation(conv);
@@ -145,7 +145,7 @@ void main() {
       'deleteConversations clears pending writes for deleted conversation',
       () async {
         final inner = SqliteChatConversationRepository(db);
-        final bg = BackgroundChatConversationRepository(inner, tempDbPath);
+        bg = BackgroundChatConversationRepository(inner, tempDbPath);
 
         final conv = makeConv('to_delete', 'Will be deleted');
         await bg.saveConversation(conv);
