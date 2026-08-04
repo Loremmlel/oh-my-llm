@@ -8,17 +8,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../navigation/app_destination.dart';
 import '../shell/app_shell_scaffold.dart';
-import '../../features/media/application/media_browser_controller.dart';
-import '../../features/media/application/media_root_directory_controller.dart';
-import '../../features/media/application/shuffle_playback_controller.dart';
-import '../../features/media/domain/models/media_server_info.dart';
-import '../../features/media/presentation/media_browser_tab.dart';
-import '../../features/media/presentation/widgets/shuffle_appbar_actions.dart';
-import '../../features/sync/application/sync_client_controller.dart';
-import '../../features/sync/application/sync_server_controller.dart';
-import '../../features/sync/application/sync_workspace_tab_preference_controller.dart';
-import '../../features/sync/presentation/widgets/sync_connection_tab.dart';
-import '../../features/sync/presentation/widgets/sync_operation_tab.dart';
+import 'package:oh_my_llm/features/media/application/media_browser_controller.dart';
+import 'package:oh_my_llm/features/media/application/media_root_directory_controller.dart';
+import 'package:oh_my_llm/features/media/application/shuffle_playback_controller.dart';
+import 'package:oh_my_llm/features/media/domain/models/media_server_info.dart';
+import 'package:oh_my_llm/features/media/presentation/media_browser_tab.dart';
+import 'package:oh_my_llm/features/media/presentation/widgets/shuffle_appbar_actions.dart';
+import 'package:oh_my_llm/features/sync/application/sync_client_controller.dart';
+import 'package:oh_my_llm/features/sync/application/sync_server_controller.dart';
+import 'package:oh_my_llm/features/sync/application/sync_workspace_tab_preference_controller.dart';
+import 'package:oh_my_llm/features/sync/presentation/widgets/sync_connection_tab.dart';
+import 'package:oh_my_llm/features/sync/presentation/widgets/sync_operation_tab.dart';
 
 /// Sync 与 Media 的 app 级组合页面。
 ///

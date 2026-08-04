@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../settings/application/preset_prompts_controller.dart';
-import '../../../settings/domain/models/preset_prompt.dart';
+import 'package:oh_my_llm/features/settings/application/preset_prompts_controller.dart';
+import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
 import 'preset_prompt_message_detail_dialog.dart';
 
 /// 预设 Prompt 单条消息的紧凑卡片。

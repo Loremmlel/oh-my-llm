@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../app/navigation/app_destination.dart';
+import 'package:oh_my_llm/app/navigation/app_destination.dart';
 import '../application/favorites_controller.dart';
 import '../application/collections_controller.dart';
 import '../application/favorite_source_conversation_command.dart';
 import '../domain/models/collection.dart';
 import '../domain/models/favorite.dart';
-import '../../../core/widgets/app_confirm_dialog.dart';
+import 'package:oh_my_llm/core/widgets/app_confirm_dialog.dart';
 import 'widgets/favorite_card.dart';
 
 /// 单条收藏的详情页，展示完整对话内容。

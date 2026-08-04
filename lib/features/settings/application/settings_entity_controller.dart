@@ -1,8 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/persistence/app_database_provider.dart';
-import '../../../core/persistence/has_id_and_updated_at.dart';
-import '../../../core/persistence/sqlite_entity_repository.dart';
+import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
+import 'package:oh_my_llm/core/persistence/has_id_and_updated_at.dart';
+import 'package:oh_my_llm/core/persistence/sqlite_entity_repository.dart';
 
 /// "全量加载 + 全量写入"模式的设置实体控制器基类。
 ///

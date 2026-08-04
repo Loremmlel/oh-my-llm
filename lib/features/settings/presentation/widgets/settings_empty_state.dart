@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/widgets/app_empty_state.dart';
+import 'package:oh_my_llm/core/widgets/app_empty_state.dart';
 
 /// 设置页中的空状态提示组件。
 ///

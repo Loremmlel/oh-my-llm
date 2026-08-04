@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../../../core/utils/id_generator.dart';
-import '../../../../../core/widgets/adaptive_master_detail_layout.dart';
+import 'package:oh_my_llm/core/utils/id_generator.dart';
+import 'package:oh_my_llm/core/widgets/adaptive_master_detail_layout.dart';
 import '../../../domain/models/preset_prompt.dart';
 import '../settings_form_dialog_scaffold.dart';
 import '../settings_form_dialog_state_mixin.dart';

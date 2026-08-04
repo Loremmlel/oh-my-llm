@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/utils/date_formatting.dart';
-import '../../../chat/domain/models/chat_conversation_summary.dart';
+import 'package:oh_my_llm/core/utils/date_formatting.dart';
+import 'package:oh_my_llm/features/chat/domain/models/chat_conversation_summary.dart';
 
 /// 历史页中的单个会话条目。
 class HistoryConversationTile extends StatelessWidget {

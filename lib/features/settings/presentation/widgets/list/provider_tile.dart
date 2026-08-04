@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../../core/constants/app_animations.dart';
+import 'package:oh_my_llm/core/constants/app_animations.dart';
 import '../../../application/chat_defaults_controller.dart';
 import '../../../application/llm_model_configs_controller.dart';
 import '../../../domain/models/llm_provider_config.dart';

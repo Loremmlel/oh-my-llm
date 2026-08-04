@@ -4,9 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../app/navigation/app_destination.dart';
-import '../../../app/shell/app_shell_scaffold.dart';
-import '../../../core/utils/id_generator.dart';
+import 'package:oh_my_llm/app/navigation/app_destination.dart';
+import 'package:oh_my_llm/app/shell/app_shell_scaffold.dart';
+import 'package:oh_my_llm/core/utils/id_generator.dart';
 import '../application/fixed_prompt_sequences_controller.dart';
 import '../application/llm_model_configs_controller.dart';
 import '../application/memory_prompts_controller.dart';

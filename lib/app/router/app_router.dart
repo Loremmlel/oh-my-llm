@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../features/chat/presentation/chat_screen.dart';
-import '../../features/favorites/domain/models/favorite.dart';
-import '../../features/favorites/presentation/favorite_detail_screen.dart';
-import '../../features/favorites/presentation/favorites_screen.dart';
-import '../../features/history/presentation/history_screen.dart';
-import '../../features/settings/presentation/settings_screen.dart';
+import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
+import 'package:oh_my_llm/features/favorites/domain/models/favorite.dart';
+import 'package:oh_my_llm/features/favorites/presentation/favorite_detail_screen.dart';
+import 'package:oh_my_llm/features/favorites/presentation/favorites_screen.dart';
+import 'package:oh_my_llm/features/history/presentation/history_screen.dart';
+import 'package:oh_my_llm/features/settings/presentation/settings_screen.dart';
 import '../composition/sync_workspace_screen.dart';
 import '../navigation/app_destination.dart';
 

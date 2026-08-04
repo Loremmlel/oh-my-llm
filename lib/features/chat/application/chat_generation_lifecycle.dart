@@ -1,7 +1,7 @@
 import 'package:equatable/equatable.dart';
 
-import '../../settings/domain/models/auto_retry_settings.dart';
-import '../../settings/domain/models/llm_model_config.dart';
+import 'package:oh_my_llm/features/settings/domain/models/auto_retry_settings.dart';
+import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
 import '../data/chat_completion_client.dart';
 import '../domain/models/chat_message.dart';
 

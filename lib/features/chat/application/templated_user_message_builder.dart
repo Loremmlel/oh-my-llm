@@ -1,5 +1,5 @@
-import '../../settings/domain/models/template_prompt.dart';
-import '../../settings/domain/template_prompt_parser.dart';
+import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/template_prompt_parser.dart';
 import '../domain/models/chat_message.dart';
 
 /// 发送前组装好的用户消息内容及其展示片段。

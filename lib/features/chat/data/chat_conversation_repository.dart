@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/persistence/app_database_provider.dart';
+import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import '../domain/models/chat_conversation.dart';
 import '../domain/models/chat_conversation_summary.dart';
 import 'background_chat_repository.dart';

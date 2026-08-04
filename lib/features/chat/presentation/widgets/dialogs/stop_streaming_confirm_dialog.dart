@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../../../core/widgets/app_confirm_dialog.dart';
+import 'package:oh_my_llm/core/widgets/app_confirm_dialog.dart';
 
 /// 终止模型回复前的确认弹窗，避免误触。
 class StopStreamingConfirmDialog extends StatelessWidget {

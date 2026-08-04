@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../app/navigation/app_destination.dart';
-import '../../../../core/widgets/app_empty_state.dart';
+import 'package:oh_my_llm/app/navigation/app_destination.dart';
+import 'package:oh_my_llm/core/widgets/app_empty_state.dart';
 
 /// 聊天页空状态提示，必要时引导用户去设置服务商与模型。
 class EmptyConversationView extends StatelessWidget {

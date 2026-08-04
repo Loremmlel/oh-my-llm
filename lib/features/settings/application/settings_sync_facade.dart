@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../sync/application/ports/settings_sync_facade.dart';
+import 'package:oh_my_llm/features/sync/application/ports/settings_sync_facade.dart';
 import '../domain/models/settings_export_data.dart';
 import 'auto_retry_settings_controller.dart';
 import 'custom_headers_controller.dart';

@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import '../../settings/domain/models/settings_export_data.dart';
+import 'package:oh_my_llm/features/settings/domain/models/settings_export_data.dart';
 import '../domain/models/discovered_server.dart';
 import '../domain/models/sync_pairing.dart';
 import '../domain/models/sync_protocol_failure.dart';

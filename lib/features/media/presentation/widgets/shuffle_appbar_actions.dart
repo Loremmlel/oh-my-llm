@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/widgets/notification_bubble_context_ext.dart';
+import 'package:oh_my_llm/core/widgets/notification_bubble_context_ext.dart';
 import '../../application/shuffle_playback_controller.dart';
 import '../pages/video_player_page.dart';
 

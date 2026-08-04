@@ -1,6 +1,6 @@
 import 'package:equatable/equatable.dart';
 
-import '../../../../core/constants/model_display_name.dart';
+import 'package:oh_my_llm/core/constants/model_display_name.dart';
 
 /// 一条收藏记录，保存收藏时刻的用户消息与模型回复内容的完整副本。
 ///

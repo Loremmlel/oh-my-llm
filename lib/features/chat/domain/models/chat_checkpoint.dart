@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:equatable/equatable.dart';
 
-import '../../../../core/utils/text_formatting.dart';
+import 'package:oh_my_llm/core/utils/text_formatting.dart';
 
 /// 对话级检查点，保存某一阶段的记忆总结。
 class ChatCheckpoint extends Equatable {

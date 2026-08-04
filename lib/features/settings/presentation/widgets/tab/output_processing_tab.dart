@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../../core/utils/id_generator.dart';
+import 'package:oh_my_llm/core/utils/id_generator.dart';
 import '../../../application/output_processing_settings_controller.dart';
 import '../../../domain/models/output_processing_settings.dart';
 import '../settings_helpers.dart';

@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../app/navigation/app_destination.dart';
-import '../../../app/shell/app_shell_scaffold.dart';
-import '../../../core/widgets/app_empty_state.dart';
+import 'package:oh_my_llm/app/navigation/app_destination.dart';
+import 'package:oh_my_llm/app/shell/app_shell_scaffold.dart';
+import 'package:oh_my_llm/core/widgets/app_empty_state.dart';
 import '../application/collections_controller.dart';
 import '../application/favorites_controller.dart';
 import '../domain/models/collection.dart';

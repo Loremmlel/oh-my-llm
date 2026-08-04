@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_animations.dart';
+import 'package:oh_my_llm/core/constants/app_animations.dart';
 import '../../domain/models/chat_message.dart';
 
 /// 右侧消息锚点条，用于快速跳转到用户消息。

@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/utils/id_generator.dart';
+import 'package:oh_my_llm/core/utils/id_generator.dart';
 import '../data/collections_repository.dart';
 import '../domain/models/collection.dart';
 

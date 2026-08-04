@@ -2,8 +2,8 @@ import 'dart:isolate';
 
 import 'package:sqlite3/sqlite3.dart' as sqlite;
 
-import '../../../core/persistence/background_worker_command.dart';
-import '../../../core/persistence/sqlite_replace_all.dart';
+import 'package:oh_my_llm/core/persistence/background_worker_command.dart';
+import 'package:oh_my_llm/core/persistence/sqlite_replace_all.dart';
 import 'chat_sql_codec.dart';
 
 /// 后台 Isolate 入口：打开独立 sqlite3 连接，处理 chat 写入请求。

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/constants/app_breakpoints.dart';
+import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import '../navigation/app_destination.dart';
 
 /// 应用顶层页面共用的脚手架。
