@@ -12,6 +12,11 @@ import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart'
 class FakeChatCompletionClient extends ChatCompletionClient {
   final List<List<ChatCompletionRequestMessage>> requestHistory = [];
   final List<LlmModelConfig> requestedModels = [];
+
+  /// 每次 streamCompletion 调用传入的 streamIdleTimeout，供测试断言超时配置
+  /// 是否受会话级自动重试总开关约束。
+  final List<Duration?> requestedStreamIdleTimeouts = [];
+
   final List<Stream<ChatCompletionChunk>> _queuedStreams = [];
   List<ChatCompletionRequestMessage> lastRequestMessages = const [];
   LlmModelConfig? lastModelConfig;
@@ -27,6 +32,7 @@ class FakeChatCompletionClient extends ChatCompletionClient {
     lastRequestMessages = List.unmodifiable(messages);
     requestHistory.add(lastRequestMessages);
     requestedModels.add(modelConfig);
+    requestedStreamIdleTimeouts.add(streamIdleTimeout);
     if (_queuedStreams.isEmpty) {
       return const Stream<ChatCompletionChunk>.empty();
     }

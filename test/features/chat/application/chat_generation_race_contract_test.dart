@@ -90,7 +90,6 @@ void main() {
 
   const defaultTimeout = Duration(seconds: 5);
 
-  // 整组跳过：待 Task 3 串行 run 切换后启用。修复前为红，切换后转绿。
   group('serialized generation run contract', () {
     test('同一事件循环并发发送只接纳第一个 command', () async {
       repository.gateSave(1);

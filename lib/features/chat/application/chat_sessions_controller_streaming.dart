@@ -81,13 +81,12 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
         state.conversationSummaries,
         summaryFromConversation(nextConversation),
       ),
-      isStreaming: false,
       errorMessage: errorMessage,
       errorMessageAssistantId: assistantMessageId,
       clearStreamingReply: true,
       incrementHistoryRevision: true,
     );
-    // durable save 由 _handleGenerationDecision（AttemptFailed -> null 分支）统一 await。
+    // durable save 由 completeAttempt 统一 await。
   }
 
   /// 仅刷新流式增量，不去改动完整会话列表。
@@ -177,14 +176,13 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
           state.conversationSummaries,
           summaryFromConversation(cleanedConversation),
         ),
-        isStreaming: false,
         emptyReplyAssistantId: assistantMessage.id,
         errorMessage: ChatErrorMessages.emptyReply,
         errorMessageAssistantId: assistantMessage.id,
         clearStreamingReply: true,
         incrementHistoryRevision: true,
       );
-      // durable save 由 _handleGenerationDecision 统一 await。
+      // durable save 由 completeAttempt 统一 await。
       return const FinishRetry();
     }
 
@@ -220,13 +218,12 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
             state.conversationSummaries,
             summaryFromConversation(cleanedConversation),
           ),
-          isStreaming: false,
           errorMessage: ChatErrorMessages.outputRuleEmptied,
           errorMessageAssistantId: assistantMessage.id,
           clearStreamingReply: true,
           incrementHistoryRevision: true,
         );
-        // durable save 由 _handleGenerationDecision 统一 await。
+        // durable save 由 completeAttempt 统一 await。
         return FinishOutputRuleError(cleanedConversation);
       }
 
@@ -251,14 +248,13 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
           state.conversationSummaries,
           summaryFromConversation(abnormalConversation),
         ),
-        isStreaming: false,
         errorMessage:
             '模型返回异常停止原因（finish_reason: ${streamingReply.finishReason}），正在自动重试...',
         errorMessageAssistantId: assistantMessage.id,
         clearStreamingReply: true,
         incrementHistoryRevision: true,
       );
-      // durable save 由 _handleGenerationDecision 统一 await。
+      // durable save 由 completeAttempt 统一 await。
       return const FinishRetry();
     }
 
@@ -286,13 +282,12 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
           state.conversationSummaries,
           summaryFromConversation(cleanedConversation),
         ),
-        isStreaming: false,
         errorMessage: ChatErrorMessages.outputRuleEmptied,
         errorMessageAssistantId: assistantMessage.id,
         clearStreamingReply: true,
         incrementHistoryRevision: true,
       );
-      // durable save 由 _handleGenerationDecision 统一 await。
+      // durable save 由 completeAttempt 统一 await。
       return FinishOutputRuleError(cleanedConversation);
     }
 
@@ -314,11 +309,10 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
         state.conversationSummaries,
         summaryFromConversation(completedConversation),
       ),
-      isStreaming: false,
       clearStreamingReply: true,
       incrementHistoryRevision: true,
     );
-    // durable save 由 _handleGenerationDecision 统一 await。
+    // durable save 由 completeAttempt 统一 await。
     return FinishSuccess(completedConversation);
   }
 

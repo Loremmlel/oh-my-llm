@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+import '../domain/chat_error_messages.dart';
 import '../domain/models/chat_conversation.dart';
 import '../domain/models/chat_conversation_summary.dart';
 import 'chat_generation_lifecycle.dart';
@@ -212,6 +213,84 @@ class ChatSessionsState extends Equatable {
     historyRevision,
     pendingScrollToMessageId,
   ];
+}
+
+/// 从 generation snapshot 投影兼容字段到 state（不变量 10：唯一写入点）。
+///
+/// [ChatSessionsState.isStreaming] / [isAutoRetryWaiting] / [autoRetryCount]
+/// 只能由此函数从 [ChatGenerationSnapshot.phase] 单向派生，业务路径不再直接
+/// copyWith 这些字段。durable save 窗口（finalizing/stopping）由 run 在调 host
+/// 方法前预投影，host 方法无需再单独写 isStreaming=false。
+///
+/// debug 模式下经 [_checkGenerationInvariants] 校验 generation 不变量。
+ChatSessionsState projectGeneration(
+  ChatSessionsState current,
+  ChatGenerationSnapshot snapshot, {
+  ChatStreamingReply? streamingReply,
+}) {
+  assert(_checkGenerationInvariants(snapshot));
+  final phase = snapshot.phase;
+  // preparing 也投影 isStreaming=true：ComposerSendButton 的 isStopping 依据
+  // isStreaming，prepare 期间需保持停止按钮可用。
+  final isStreamingLike =
+      phase == ChatGenerationPhase.preparing ||
+      phase == ChatGenerationPhase.streaming;
+  final isTerminal = snapshot.outcome != null;
+  // autoRetryCount 仅在 retryWaiting/streaming 投影 attempt-1（显示"第 N 次重试
+  // 中"）；finalizing/stopping/preparing/terminal 投影 0，避免 attempt 终态保存
+  // 窗口误显示重试中。
+  final showsRetry =
+      phase == ChatGenerationPhase.retryWaiting ||
+      phase == ChatGenerationPhase.streaming;
+  // persistenceFailed 是终态，但 run 的 _terminal 只投影 phase；错误文字在此
+  // 统一补齐，使 save 失败对用户显式可见。
+  final isPersistenceFailed = phase == ChatGenerationPhase.persistenceFailed;
+  return current.copyWith(
+    generation: snapshot,
+    streamingReply: streamingReply,
+    clearStreamingReply: streamingReply == null,
+    isStreaming: isStreamingLike,
+    isAutoRetryWaiting: phase == ChatGenerationPhase.retryWaiting,
+    autoRetryCount: isTerminal
+        ? 0
+        : (showsRetry && snapshot.attempt > 0 ? snapshot.attempt - 1 : 0),
+    errorMessage: isPersistenceFailed
+        ? ChatErrorMessages.persistenceFailed
+        : null,
+    clearErrorMessage: isStreamingLike,
+    clearEmptyReply: isStreamingLike,
+  );
+}
+
+/// 校验 generation snapshot 不变量（debug 模式触发，release 无开销）。
+///
+/// terminal phase 必有 outcome，non-terminal 不得有 outcome；outcome 的
+/// generationId/attempt 与 snapshot 一致。违反即 throw StateError，暴露
+/// Phase 9 重构的状态机裂缝。
+bool _checkGenerationInvariants(ChatGenerationSnapshot snapshot) {
+  final phase = snapshot.phase;
+  final outcome = snapshot.outcome;
+  if (phase.isTerminal && outcome == null) {
+    throw StateError('terminal phase $phase 必须有 outcome');
+  }
+  if (!phase.isTerminal && outcome != null) {
+    throw StateError('non-terminal phase $phase 不得有 outcome');
+  }
+  if (outcome != null) {
+    if (outcome.generationId != snapshot.generationId) {
+      throw StateError(
+        'generationId 不一致：snapshot=${snapshot.generationId}, '
+        'outcome=${outcome.generationId}',
+      );
+    }
+    if (outcome.attempt != snapshot.attempt) {
+      throw StateError(
+        'attempt 不一致：snapshot=${snapshot.attempt}, '
+        'outcome=${outcome.attempt}',
+      );
+    }
+  }
+  return true;
 }
 
 /// 将流式增量合并进 [conversation]，返回一个带最新内容的临时会话快照。

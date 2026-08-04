@@ -110,6 +110,52 @@ void registerChatSessionsControllerRetryCases() {
     expect(state.isStreaming, isFalse);
   });
 
+  test('会话关闭自动重试时 streamIdleTimeout 不生效（依赖对话级开关）', () async {
+    // 全局开启超时重试，但会话级自动重试关闭：streamIdleTimeout 不应传给
+    // client，避免空闲断开后显示超时错误却不重试（与 retryOnAbnormalFinishReason
+    // 同款约束，AutoRetrySettings.retryOnTimeout 文档声明仅在自动重试模式下生效）。
+    await container
+        .read(autoRetrySettingsProvider.notifier)
+        .save(
+          const AutoRetrySettings(
+            maxJitterSeconds: 0,
+            retryOnTimeout: true,
+            timeoutSeconds: 30,
+          ),
+        );
+    // 不开 autoRetryEnabled（默认 false）
+
+    fakeClient.enqueueChunks(['回复']);
+
+    await sendMsg('测试会话级开关');
+
+    expect(fakeClient.requestedStreamIdleTimeouts.last, isNull);
+  });
+
+  test('会话开启自动重试 + retryOnTimeout 时 streamIdleTimeout 生效', () async {
+    container
+        .read(chatSessionsProvider.notifier)
+        .updateActiveConversationPreferences(autoRetryEnabled: true);
+    await container
+        .read(autoRetrySettingsProvider.notifier)
+        .save(
+          const AutoRetrySettings(
+            maxJitterSeconds: 0,
+            retryOnTimeout: true,
+            timeoutSeconds: 30,
+          ),
+        );
+
+    fakeClient.enqueueChunks(['回复']);
+
+    await sendMsg('测试生效');
+
+    expect(
+      fakeClient.requestedStreamIdleTimeouts.last,
+      const Duration(seconds: 30),
+    );
+  });
+
   test('sendMessageWithAutoRetry 成功后清除之前的错误信息', () async {
     container
         .read(chatSessionsProvider.notifier)

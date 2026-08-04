@@ -57,6 +57,17 @@ enum ChatGenerationPhase {
       this == stopping ||
       this == retryWaiting ||
       this == finalizing;
+
+  /// 是否为终态（succeeded/emptyReply/failed/cancelled/persistenceFailed）。
+  ///
+  /// 与 [isBusy] 互补：终态不再占用，durable save 已完成，可接受新 generation。
+  /// invariant 断言据此校验：terminal phase 必有 outcome，non-terminal 不得有。
+  bool get isTerminal =>
+      this == succeeded ||
+      this == emptyReply ||
+      this == failed ||
+      this == cancelled ||
+      this == persistenceFailed;
 }
 
 /// generation 被取消的原因。
