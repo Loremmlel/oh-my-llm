@@ -56,11 +56,42 @@ class LlmProviderConfigsController extends Notifier<List<LlmProviderConfig>> {
     await _repository.saveProviders(state);
   }
 
-  /// 导入服务商配置；遇到同 URL / Key 的服务商时，合并其下新模型。
+  /// 导入服务商配置；遇到同 ID 或同 URL / Key 的服务商时，合并其下新模型。
+  ///
+  /// 匹配优先级：
+  /// 1. **ID 匹配**：同一实体在不同设备上 URL 可能不同但 ID 相同，
+  ///    此时用传入服务商的字段（name、apiUrl、apiKey）覆盖本地，合并模型。
+  /// 2. **URL+Key 匹配**：不同设备各自创建的同凭据服务商，
+  ///    保留本地服务商身份，仅合并模型。
+  /// 3. **无匹配**：作为新服务商添加。
   Future<void> mergeImportedProviders(List<LlmProviderConfig> providers) async {
     final updated = [...state];
     for (final incomingProvider in providers) {
-      final existingIndex = updated.indexWhere((provider) {
+      // 优先按 ID 匹配：同一服务商同步后可能 URL 变了但 ID 不变
+      var existingIndex = updated.indexWhere(
+        (provider) => provider.id == incomingProvider.id,
+      );
+
+      if (existingIndex != -1) {
+        final existingProvider = updated[existingIndex];
+        final mergedModels = [...existingProvider.models];
+        for (final incomingModel in incomingProvider.models) {
+          final alreadyExists = mergedModels.any(
+            (model) => model.modelName == incomingModel.modelName,
+          );
+          if (!alreadyExists) {
+            mergedModels.add(incomingModel);
+          }
+        }
+        // ID 匹配时覆盖服务商字段，确保 URL 等变更同步生效
+        updated[existingIndex] = incomingProvider.copyWith(
+          models: mergedModels,
+        );
+        continue;
+      }
+
+      // ID 未匹配时，按 URL+Key 匹配（兼容不同设备各自创建的同凭据服务商）
+      existingIndex = updated.indexWhere((provider) {
         return provider.apiUrl == incomingProvider.apiUrl &&
             provider.apiKey == incomingProvider.apiKey;
       });
@@ -69,12 +100,13 @@ class LlmProviderConfigsController extends Notifier<List<LlmProviderConfig>> {
         continue;
       }
 
+      // URL+Key 匹配时保留本地服务商身份，仅合并模型
       final existingProvider = updated[existingIndex];
       final mergedModels = [...existingProvider.models];
       for (final incomingModel in incomingProvider.models) {
-        final alreadyExists = mergedModels.any((model) {
-          return model.modelName == incomingModel.modelName;
-        });
+        final alreadyExists = mergedModels.any(
+          (model) => model.modelName == incomingModel.modelName,
+        );
         if (!alreadyExists) {
           mergedModels.add(incomingModel);
         }
