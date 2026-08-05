@@ -36,13 +36,19 @@ Future<AppDatabase> pumpHistoryScreen(
     ],
   );
 
-  return pumpTestApp(
+  final db = await pumpTestApp(
     tester,
     preferences: preferences,
     database: database,
     viewportSize: const Size(1440, 1200),
     router: router,
   );
+  // GroupedConversationList（ListView.builder + AutomaticKeepAlive）在
+  // post-frame 数据注入后，首帧的 KeepAlive child 偶发未完成 layout；
+  // 此时 finder 遍历会触发 "RenderBox was not laid out"（全量并发下更易出现）。
+  // 额外 pump 一帧让 KeepAlive 结算完整，消除该竞态。属渲染层时序，非数据层异步。
+  await tester.pump();
+  return db;
 }
 
 Future<SharedPreferences> createSeededPreferences(AppDatabase database) async {
