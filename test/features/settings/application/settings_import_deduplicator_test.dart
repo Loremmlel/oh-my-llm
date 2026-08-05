@@ -805,5 +805,160 @@ void main() {
       expect(result.fontSizeSettings!.bodyFontSize, 20);
       expect(result.hasContent, isTrue);
     });
+
+    // ── 同 ID 不同 URL 的服务商去重 ────────────────────────────────
+
+    test('同 ID 不同 URL 时按 modelName 去重模型并透传服务商', () {
+      // 本地：id=pvd-1, url=youzi.today, 有 model-a
+      final existingProviders = [
+        provider(
+          id: 'pvd-1',
+          apiUrl: 'https://youzi.today',
+          apiKey: 'key1',
+          models: [model(modelName: 'model-a')],
+        ),
+      ];
+
+      // 导入：同 ID，URL 变为 api.youzi.today，有 model-a（重复）和 model-b（新）
+      final data = export(
+        modelProviders: [
+          provider(
+            id: 'pvd-1',
+            apiUrl: 'https://api.youzi.today',
+            apiKey: 'key1',
+            models: [
+              model(modelName: 'model-a'), // 同 modelName → 去重
+              model(id: 'model-2', displayName: 'B', modelName: 'model-b'),
+            ],
+          ),
+        ],
+      );
+
+      final result = deduplicator.deduplicate(
+        data: data,
+        existingProviders: existingProviders,
+        existingMemoryPrompts: const [],
+        existingPresetPrompts: const [],
+        existingTemplatePrompts: const [],
+        existingSequences: const [],
+      );
+
+      // 服务商保留（有 URL 变更 + 新模型），模型去重后只含 model-b
+      expect(result.modelProviders.length, 1);
+      expect(result.modelProviders[0].id, 'pvd-1');
+      expect(result.modelProviders[0].models.length, 1);
+      expect(result.modelProviders[0].models[0].modelName, 'model-b');
+    });
+
+    test('同 ID 不同 URL 无新模型但有字段变更时仍透传', () {
+      final existingProviders = [
+        provider(
+          id: 'pvd-1',
+          name: 'Old Name',
+          apiUrl: 'https://youzi.today',
+          apiKey: 'key1',
+          models: [model(modelName: 'model-a')],
+        ),
+      ];
+
+      // 导入：同 ID，URL 变了，模型完全重复
+      final data = export(
+        modelProviders: [
+          provider(
+            id: 'pvd-1',
+            name: 'New Name',
+            apiUrl: 'https://api.youzi.today',
+            apiKey: 'key1',
+            models: [model(modelName: 'model-a')],
+          ),
+        ],
+      );
+
+      final result = deduplicator.deduplicate(
+        data: data,
+        existingProviders: existingProviders,
+        existingMemoryPrompts: const [],
+        existingPresetPrompts: const [],
+        existingTemplatePrompts: const [],
+        existingSequences: const [],
+      );
+
+      // URL 变更需透传给 mergeImportedProviders
+      expect(result.modelProviders.length, 1);
+      expect(result.modelProviders[0].apiUrl, 'https://api.youzi.today');
+      expect(result.modelProviders[0].models, isEmpty);
+    });
+
+    test('同 ID 完全相同时被过滤', () {
+      final existingProviders = [
+        provider(
+          id: 'pvd-1',
+          apiUrl: 'https://youzi.today',
+          apiKey: 'key1',
+          models: [model(modelName: 'model-a')],
+        ),
+      ];
+
+      // 导入：同 ID 同 URL 同 Key 同模型 → 完全重复
+      final data = export(
+        modelProviders: [
+          provider(
+            id: 'pvd-1',
+            apiUrl: 'https://youzi.today',
+            apiKey: 'key1',
+            models: [model(modelName: 'model-a')],
+          ),
+        ],
+      );
+
+      final result = deduplicator.deduplicate(
+        data: data,
+        existingProviders: existingProviders,
+        existingMemoryPrompts: const [],
+        existingPresetPrompts: const [],
+        existingTemplatePrompts: const [],
+        existingSequences: const [],
+      );
+
+      expect(result.modelProviders, isEmpty);
+    });
+
+    test('同 ID 不同 URL 与不同 ID 同 URL+Key 互不干扰', () {
+      final existingProviders = [
+        provider(
+          id: 'pvd-local',
+          apiUrl: 'https://shared.url',
+          apiKey: 'key1',
+          models: [model(modelName: 'model-a')],
+        ),
+      ];
+
+      final data = export(
+        modelProviders: [
+          // 不同 ID + 同 URL+Key → 走原有逻辑合并
+          provider(
+            id: 'pvd-remote',
+            apiUrl: 'https://shared.url',
+            apiKey: 'key1',
+            models: [model(modelName: 'model-b')],
+          ),
+        ],
+      );
+
+      final result = deduplicator.deduplicate(
+        data: data,
+        existingProviders: existingProviders,
+        existingMemoryPrompts: const [],
+        existingPresetPrompts: const [],
+        existingTemplatePrompts: const [],
+        existingSequences: const [],
+      );
+
+      // 不同 ID，按 URL+Key+modelName 去重：model-b 不在已有中 → 保留
+      expect(result.modelProviders.length, 1);
+      expect(result.modelProviders[0].id, 'pvd-remote');
+      expect(result.modelProviders[0].models.length, 1);
+      expect(result.modelProviders[0].models[0].modelName, 'model-b');
+    });
   });
 }

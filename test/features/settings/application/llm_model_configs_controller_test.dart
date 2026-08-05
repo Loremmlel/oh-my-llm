@@ -319,6 +319,96 @@ void main() {
       expect(state.first.models.length, 2); // 只加了 model-b
     });
 
+    test(
+      'mergeImportedProviders() matches by ID and updates URL when same ID but different URL',
+      () async {
+        // 本地已有服务商，URL 为 youzi.today
+        await controller.upsertProvider(
+          _providerConfig(
+            id: 'same-id',
+            name: 'My Provider',
+            apiUrl: 'https://youzi.today',
+            apiKey: 'key-1',
+            models: [
+              _modelConfig(
+                id: 'm-1',
+                displayName: 'Model A',
+                modelName: 'model-a',
+              ),
+            ],
+          ),
+        );
+
+        // 导入同 ID 但 URL 不同的服务商
+        await controller.mergeImportedProviders([
+          _providerConfig(
+            id: 'same-id',
+            name: 'My Provider Updated',
+            apiUrl: 'https://api.youzi.today',
+            apiKey: 'key-1',
+            models: [
+              _modelConfig(
+                id: 'm-2',
+                displayName: 'Model B',
+                modelName: 'model-b',
+              ),
+            ],
+          ),
+        ]);
+
+        final state = container.read(llmProviderConfigsProvider);
+        // 不应产生重复
+        expect(state.length, 1);
+        final provider = state.first;
+        // ID 匹配时，服务商字段被覆盖为传入值
+        expect(provider.id, 'same-id');
+        expect(provider.name, 'My Provider Updated');
+        expect(provider.apiUrl, 'https://api.youzi.today');
+        // 模型合并：原有 + 新增
+        expect(provider.models.length, 2);
+        final modelNames = provider.models.map((m) => m.modelName).toSet();
+        expect(modelNames, {'model-a', 'model-b'});
+      },
+    );
+
+    test(
+      'mergeImportedProviders() ID match updates URL even without new models',
+      () async {
+        await controller.upsertProvider(
+          _providerConfig(
+            id: 'p-1',
+            name: 'Old Name',
+            apiUrl: 'https://old.url',
+            apiKey: 'same-key',
+            models: [_modelConfig(id: 'm-1', modelName: 'model-a')],
+          ),
+        );
+
+        // 导入同 ID 同模型但 URL 不同的服务商
+        await controller.mergeImportedProviders([
+          _providerConfig(
+            id: 'p-1',
+            name: 'New Name',
+            apiUrl: 'https://new.url',
+            apiKey: 'same-key',
+            models: [
+              _modelConfig(id: 'm-2', modelName: 'model-a'),
+            ], // 同 modelName → 跳过，但 URL 应更新
+          ),
+        ]);
+
+        final state = container.read(llmProviderConfigsProvider);
+        expect(state.length, 1);
+        final provider = state.first;
+        // 字段更新
+        expect(provider.name, 'New Name');
+        expect(provider.apiUrl, 'https://new.url');
+        // 模型不重复
+        expect(provider.models.length, 1);
+        expect(provider.models.first.modelName, 'model-a');
+      },
+    );
+
     // ── deleteProviderById() ────────────────────────────────────────────────
 
     test('deleteProviderById() removes provider', () async {

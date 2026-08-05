@@ -153,25 +153,56 @@ final class SettingsImportDeduplicator {
     FontSizeSettings? existingFontSizeSettings,
     OutputProcessingSettings? existingOutputProcessingSettings,
   }) {
+    // 按 ID 索引已有服务商，用于优先 ID 匹配
+    final existingById = <String, LlmProviderConfig>{};
+    for (final p in existingProviders) {
+      existingById[p.id] = p;
+    }
+    // 无 ID 匹配时的回退：展开所有已有模型用于 URL+Key+modelName 去重
     final existingModels = existingProviders
         .expand((provider) => provider.resolvedModels)
         .toList(growable: false);
-    final newProviders = data.modelProviders
-        .map((provider) {
-          final nextModels = provider.models
-              .where((model) {
-                return !existingModels.any(
-                  (existing) =>
-                      existing.apiUrl == provider.apiUrl &&
-                      existing.apiKey == provider.apiKey &&
-                      existing.modelName == model.modelName,
-                );
-              })
-              .toList(growable: false);
-          return provider.copyWith(models: nextModels);
-        })
-        .where((provider) => provider.models.isNotEmpty)
-        .toList(growable: false);
+
+    final newProviders = <LlmProviderConfig>[];
+    for (final incomingProvider in data.modelProviders) {
+      final sameIdProvider = existingById[incomingProvider.id];
+
+      if (sameIdProvider != null) {
+        // 同 ID：按 modelName 去重模型（URL 可能已变化，不参与模型匹配）
+        final existingModelNames = sameIdProvider.models
+            .map((m) => m.modelName)
+            .toSet();
+        final nextModels = incomingProvider.models
+            .where((m) => !existingModelNames.contains(m.modelName))
+            .toList(growable: false);
+
+        // 即使所有模型都重复，服务商级字段（URL/Name/Key）变更仍需透传
+        final hasProviderChanges =
+            sameIdProvider.name != incomingProvider.name ||
+            sameIdProvider.apiUrl != incomingProvider.apiUrl ||
+            sameIdProvider.apiKey != incomingProvider.apiKey;
+
+        if (hasProviderChanges || nextModels.isNotEmpty) {
+          newProviders.add(incomingProvider.copyWith(models: nextModels));
+        }
+        continue;
+      }
+
+      // 无同 ID：按 apiUrl+apiKey+modelName 去重（原有逻辑）
+      final nextModels = incomingProvider.models
+          .where((model) {
+            return !existingModels.any(
+              (existing) =>
+                  existing.apiUrl == incomingProvider.apiUrl &&
+                  existing.apiKey == incomingProvider.apiKey &&
+                  existing.modelName == model.modelName,
+            );
+          })
+          .toList(growable: false);
+      if (nextModels.isNotEmpty) {
+        newProviders.add(incomingProvider.copyWith(models: nextModels));
+      }
+    }
 
     final newMemoryPrompts = data.memoryPrompts
         .where((incoming) {
