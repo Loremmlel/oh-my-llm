@@ -38,8 +38,68 @@ Future<AppDatabase> pumpTestApp(
     'pumpTestApp requires at least one of child or router',
   );
   final db = database ?? await createTestDatabase(preferences);
-  final ownsDatabase = database == null;
+  _configureTestView(
+    tester,
+    viewportSize,
+    ownsDatabase: database == null,
+    db: db,
+  );
 
+  await tester.pumpWidget(
+    _buildTestScope(
+      db: db,
+      preferences: preferences,
+      extraOverrides: extraOverrides,
+      child: child,
+      router: router,
+    ),
+  );
+  await tester.pump();
+  return db;
+}
+
+/// 返回一个可复用的 [ProviderScope]（不 pump），供测试在保持同一
+/// ProviderScope/数据库/SharedPreferences 存活的前提下卸载并重挂 widget。
+///
+/// 与 [pumpTestApp] 不同，调用方持有 scope，可先 `tester.pumpWidget(const
+/// SizedBox())` 卸载子树，再 `tester.pumpWidget(scope)` 重挂，同一
+/// ProviderScope 内的内存态（如 composer draft）因此得以保留。
+Future<ProviderScope> pumpTestAppScope(
+  WidgetTester tester, {
+  Widget? child,
+  required SharedPreferences preferences,
+  AppDatabase? database,
+  Size viewportSize = const Size(1440, 1200),
+  List<dynamic> extraOverrides = const [],
+  GoRouter? router,
+}) async {
+  assert(
+    child != null || router != null,
+    'pumpTestAppScope requires at least one of child or router',
+  );
+  final db = database ?? await createTestDatabase(preferences);
+  _configureTestView(
+    tester,
+    viewportSize,
+    ownsDatabase: database == null,
+    db: db,
+  );
+
+  return _buildTestScope(
+    db: db,
+    preferences: preferences,
+    extraOverrides: extraOverrides,
+    child: child,
+    router: router,
+  );
+}
+
+void _configureTestView(
+  WidgetTester tester,
+  Size viewportSize, {
+  required bool ownsDatabase,
+  required AppDatabase db,
+}) {
   tester.view.physicalSize = viewportSize;
   tester.view.devicePixelRatio = 1;
   addTearDown(() {
@@ -47,30 +107,34 @@ Future<AppDatabase> pumpTestApp(
     tester.view.resetDevicePixelRatio();
     if (ownsDatabase) db.close();
   });
+}
 
-  await tester.pumpWidget(
-    ProviderScope(
-      overrides: [
-        appDatabaseProvider.overrideWithValue(db),
-        sharedPreferencesProvider.overrideWithValue(preferences),
-        customHeadersMapProvider.overrideWith((ref) => const {}),
-        peerHttpClientProvider.overrideWithValue(http.Client()),
-        ...appCompositionOverrides(useInMemorySyncSecureStore: true),
-        ...extraOverrides,
-      ],
-      child: router != null
-          ? MaterialApp.router(
-              routerConfig: router,
-              builder: (context, child) =>
-                  Stack(children: [child!, const NotificationBubbleStack()]),
-            )
-          : MaterialApp(
-              home: child,
-              builder: (context, child) =>
-                  Stack(children: [child!, const NotificationBubbleStack()]),
-            ),
-    ),
+ProviderScope _buildTestScope({
+  required AppDatabase db,
+  required SharedPreferences preferences,
+  required List<dynamic> extraOverrides,
+  Widget? child,
+  GoRouter? router,
+}) {
+  return ProviderScope(
+    overrides: [
+      appDatabaseProvider.overrideWithValue(db),
+      sharedPreferencesProvider.overrideWithValue(preferences),
+      customHeadersMapProvider.overrideWith((ref) => const {}),
+      peerHttpClientProvider.overrideWithValue(http.Client()),
+      ...appCompositionOverrides(useInMemorySyncSecureStore: true),
+      ...extraOverrides,
+    ],
+    child: router != null
+        ? MaterialApp.router(
+            routerConfig: router,
+            builder: (context, child) =>
+                Stack(children: [child!, const NotificationBubbleStack()]),
+          )
+        : MaterialApp(
+            home: child,
+            builder: (context, child) =>
+                Stack(children: [child!, const NotificationBubbleStack()]),
+          ),
   );
-  await tester.pump();
-  return db;
 }
