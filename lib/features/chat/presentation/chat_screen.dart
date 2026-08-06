@@ -7,8 +7,6 @@ import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import 'package:oh_my_llm/core/providers/notification_bubble_provider.dart';
 import 'package:oh_my_llm/core/widgets/notification_bubble_data.dart';
 import 'package:oh_my_llm/features/settings/application/chat_defaults_controller.dart';
-import 'package:oh_my_llm/features/settings/application/fixed_prompt_sequences_controller.dart';
-import 'package:oh_my_llm/features/settings/application/llm_model_configs_controller.dart';
 import 'package:oh_my_llm/features/settings/application/preset_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/application/template_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/fixed_prompt_sequence.dart';
@@ -168,81 +166,47 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   /// 构建聊天页的整体布局与交互入口。
   Widget build(BuildContext context) {
-    final conversation = ref.watch(activeChatConversationProvider);
+    // 工作区只读快照：消息面板与 composer 的全部展示值由 read-model 派生，
+    // 页面不再各自 watch 二十多个 provider，也不再维护 preset/template 本地镜像。
+    final readModel = ref.watch(chatWorkspaceReadModelProvider);
+    final conversation = readModel.messages.conversation;
     final conversationSummaries = ref.watch(chatConversationSummariesProvider);
     final activeConversationId = ref.watch(activeConversationIdProvider);
-    final isStreaming = ref.watch(isChatStreamingProvider);
-    final isAutoRetryWaiting = ref.watch(
-      chatSessionsProvider.select((state) => state.isAutoRetryWaiting),
-    );
-    final isBusy = ref.watch(isChatBusyProvider);
-    final autoRetryCount = ref.watch(
-      chatSessionsProvider.select((state) => state.autoRetryCount),
-    );
-    final errorMessage = ref.watch(chatErrorMessageProvider);
-    final errorMessageAssistantId = ref.watch(
-      chatErrorMessageAssistantIdProvider,
-    );
-    final emptyReplyAssistantId = ref.watch(
-      chatSessionsProvider.select((state) => state.emptyReplyAssistantId),
-    );
-    final rememberedSelections = ref.watch(chatDefaultsProvider);
-    final fixedPromptSequences = ref.watch(fixedPromptSequencesProvider);
-    final modelProviders = ref.watch(llmProviderConfigsProvider);
-    final modelConfigs = ref.watch(llmModelConfigsProvider);
+    final isBusy = readModel.messages.isBusy;
+    final selectedModel = readModel.composer.selectedModel;
+    final supportsReasoning = readModel.composer.supportsReasoning;
+    final activeMessages = readModel.messages.messages;
+    final userMessages = readModel.messages.userMessages;
+    final isStreaming = readModel.composer.isStreaming;
+    final selectedTemplatePrompt = readModel.composer.selectedTemplatePrompt;
+    // 预设 Prompt 只用于动作区/对话框（检查点、发送），不属于 read-model，
+    // 仍在页面按 build 快照解析，避免回调触发时使用与 build 时不同的预设。
     final presetPrompts = ref.watch(presetPromptsProvider);
-    final templatePrompts = ref.watch(templatePromptsProvider);
-    // 模板提示词选择读当前会话 draft，跨页面切换按会话恢复；`.select` 派生
-    // 保证只有选择变化才让整个页面 rebuild，正文/变量写入不触发。
-    final selectedTemplatePromptId = ref.watch(
-      composerTemplateSelectionProvider(activeConversationId),
-    );
-    final activeMessages = conversation.messages;
-    final excludedVisibleMessageCount = activeMessages.where((message) {
-      return conversation.isMessageExcluded(message.id);
-    }).length;
-    final favorites = ref.watch(chatFavoritesFacadeProvider).snapshot;
-    final favoritedContents = favorites.favoritedAssistantContents;
-
-    final selectedModel = _resolveSelectedModel(
-      modelConfigs,
-      conversation.selectedModelId,
-      rememberedSelections.defaultModelId,
-    );
-    final selectableProviders = modelProviders
-        .where((provider) => provider.models.isNotEmpty)
-        .toList(growable: false);
-    final selectedProviderId = _resolveSelectedProviderId(
-      selectableProviders,
-      selectedModel,
-    );
-    final selectableModels = selectedProviderId == null
-        ? const <LlmModelConfig>[]
-        : modelConfigs
-              .where((config) {
-                return config.providerId == selectedProviderId;
-              })
-              .toList(growable: false);
     final selectedPresetPrompt = _resolveSelectedPresetPrompt(
       presetPrompts,
       conversation,
     );
-    final selectedTemplatePrompt = _resolveSelectedTemplatePrompt(
-      templatePrompts,
-      selectedTemplatePromptId,
+    // 页面本地编辑草稿在编辑开始前为空；isEditingMessage 单独来自页面编辑态。
+    // 页面编辑草稿引入后，此处改为读取真实草稿以在编辑时覆盖模板选择。
+    final editingDraft = ComposerDraft.empty;
+    final workspaceState = ChatWorkspaceViewState.compose(
+      readModel: readModel,
+      editingDraft: editingDraft,
+      isEditingMessage: _editingMessageId != null,
+      templatePrompts: readModel.composer.templatePrompts,
     );
+    final workspaceBindings = _buildWorkspaceBindings(
+      conversation: conversation,
+      readModel: readModel,
+      selectedPresetPrompt: selectedPresetPrompt,
+    );
+
     _syncTemplateVariableControllers(
       selectedTemplatePrompt,
       draft: ref
           .read(composerDraftProvider.notifier)
           .draftFor(activeConversationId),
     );
-    final supportsReasoning = selectedModel?.supportsReasoning ?? false;
-    final userMessages = activeMessages
-        .where((message) {
-          return message.role == ChatMessageRole.user;
-        })
-        .toList(growable: false);
     _scroll.cacheVisibleMessageMetadata(activeMessages, userMessages);
     final pendingScrollId = ref.watch(
       chatSessionsProvider.select((state) => state.pendingScrollToMessageId),
@@ -287,27 +251,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         activeConversationId: activeConversationId,
         hasDraft: !conversation.hasMessages,
         isBusy: isBusy,
-        conversation: conversation,
-        activeMessages: activeMessages,
-        modelConfigs: modelConfigs,
-        selectableProviders: selectableProviders,
-        selectableModels: selectableModels,
-        selectedProviderId: selectedProviderId,
-        selectedModel: selectedModel,
-        userMessages: userMessages,
-        selectedPresetPrompt: selectedPresetPrompt,
-        selectedTemplatePrompt: selectedTemplatePrompt,
-        templatePrompts: templatePrompts,
-        supportsReasoning: supportsReasoning,
-        isStreaming: isStreaming,
-        isAutoRetryWaiting: isAutoRetryWaiting,
-        errorMessage: errorMessage,
-        errorMessageAssistantId: errorMessageAssistantId,
-        emptyReplyAssistantId: emptyReplyAssistantId,
-        autoRetryCount: autoRetryCount,
-        excludedVisibleMessageCount: excludedVisibleMessageCount,
-        fixedPromptSequences: fixedPromptSequences,
-        favoritedContents: favoritedContents,
+        workspaceState: workspaceState,
+        workspaceBindings: workspaceBindings,
       ),
     );
   }
@@ -384,27 +329,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     required String activeConversationId,
     required bool hasDraft,
     required bool isBusy,
-    required ChatConversation conversation,
-    required List<ChatMessage> activeMessages,
-    required List<LlmModelConfig> modelConfigs,
-    required List<LlmProviderConfig> selectableProviders,
-    required List<LlmModelConfig> selectableModels,
-    required String? selectedProviderId,
-    required LlmModelConfig? selectedModel,
-    required List<ChatMessage> userMessages,
-    required PresetPrompt? selectedPresetPrompt,
-    required TemplatePrompt? selectedTemplatePrompt,
-    required List<TemplatePrompt> templatePrompts,
-    required bool supportsReasoning,
-    required bool isStreaming,
-    required bool isAutoRetryWaiting,
-    required String? errorMessage,
-    required String? errorMessageAssistantId,
-    required String? emptyReplyAssistantId,
-    required int autoRetryCount,
-    required int excludedVisibleMessageCount,
-    required List<FixedPromptSequence> fixedPromptSequences,
-    required Set<String> favoritedContents,
+    required ChatWorkspaceViewState workspaceState,
+    required ChatWorkspaceBindings workspaceBindings,
   }) {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -435,29 +361,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 const SizedBox(width: 12),
               ],
               Expanded(
-                child: _buildWorkspace(
-                  conversation: conversation,
-                  activeMessages: activeMessages,
-                  modelConfigs: modelConfigs,
-                  selectableProviders: selectableProviders,
-                  selectableModels: selectableModels,
-                  selectedProviderId: selectedProviderId,
-                  selectedModel: selectedModel,
-                  userMessages: userMessages,
-                  selectedPresetPrompt: selectedPresetPrompt,
-                  selectedTemplatePrompt: selectedTemplatePrompt,
-                  templatePrompts: templatePrompts,
-                  supportsReasoning: supportsReasoning,
-                  isStreaming: isStreaming,
-                  isAutoRetryWaiting: isAutoRetryWaiting,
-                  errorMessage: errorMessage,
-                  errorMessageAssistantId: errorMessageAssistantId,
-                  emptyReplyAssistantId: emptyReplyAssistantId,
-                  autoRetryCount: autoRetryCount,
-                  excludedVisibleMessageCount: excludedVisibleMessageCount,
-                  fixedPromptSequences: fixedPromptSequences,
-                  favoritedContents: favoritedContents,
-                  isBusy: isBusy,
+                child: ChatWorkspace(
+                  state: workspaceState,
+                  bindings: workspaceBindings,
                 ),
               ),
             ],
@@ -467,196 +373,168 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
-  /// 构建聊天主工作区，包含消息列表、输入框和所有消息操作回调。
+  /// 把工作区 UI 回调与资源按 [ChatWorkspaceBindings] 三分组归拢。
   ///
-  /// 将 [selectedPresetPrompt] 以 build 时快照传入，避免回调触发时
-  /// 因外部 preset 列表变化而导致发送使用了与 build 时不同的 preset。
-  Widget _buildWorkspace({
+  /// bindings 只在 build 时组合、不持久化；每次 build 重建以捕获最新
+  /// 编辑态/会话引用。发送、服务商/模型选择、reasoning/auto-retry 等逻辑
+  /// 与既往一致，仅按分组放置。
+  ChatWorkspaceBindings _buildWorkspaceBindings({
     required ChatConversation conversation,
-    required List<ChatMessage> activeMessages,
-    required List<LlmModelConfig> modelConfigs,
-    required List<LlmProviderConfig> selectableProviders,
-    required List<LlmModelConfig> selectableModels,
-    required String? selectedProviderId,
-    required LlmModelConfig? selectedModel,
-    required List<ChatMessage> userMessages,
+    required ChatWorkspaceReadModel readModel,
     required PresetPrompt? selectedPresetPrompt,
-    required TemplatePrompt? selectedTemplatePrompt,
-    required List<TemplatePrompt> templatePrompts,
-    required bool supportsReasoning,
-    required bool isStreaming,
-    required bool isAutoRetryWaiting,
-    required String? errorMessage,
-    required String? errorMessageAssistantId,
-    required String? emptyReplyAssistantId,
-    required int autoRetryCount,
-    required int excludedVisibleMessageCount,
-    required List<FixedPromptSequence> fixedPromptSequences,
-    required Set<String> favoritedContents,
-    required bool isBusy,
   }) {
-    // 在 _buildWorkspace 内订阅折叠状态：它处于 build 调用链中，
-    // provider 变化会触发 ChatScreen rebuild 从而重新读到最新值。
-    final isComposerCollapsed = ref.watch(composerCollapsedProvider);
-    return ChatWorkspace(
-      conversation: conversation,
-      messages: activeMessages,
-      hasModels: modelConfigs.isNotEmpty,
-      modelProviders: selectableProviders,
-      modelConfigs: selectableModels,
-      selectedProviderId: selectedProviderId,
-      selectedModel: selectedModel,
-      userMessages: userMessages,
-      activeAnchorMessageIdListenable: _scroll.activeAnchorMessageIdNotifier,
-      messageController: _messageController,
-      messageFocusNode: _messageFocusNode,
-      templatePrompts: templatePrompts,
-      selectedTemplatePrompt: selectedTemplatePrompt,
-      templateVariableControllers: _templateVariableControllers,
-      messageItemScrollController: _scroll.itemScrollController,
-      messageItemPositionsListener: _scroll.itemPositionsListener,
-      isComposerCollapsed: isComposerCollapsed,
-      reasoningEnabled: supportsReasoning && conversation.reasoningEnabled,
-      reasoningEffort: conversation.reasoningEffort,
-      supportsReasoning: supportsReasoning,
-      autoRetryEnabled: conversation.autoRetryEnabled,
-      isBusy: isBusy,
-      isStreaming: isStreaming,
-      isAutoRetryWaiting: isAutoRetryWaiting,
-      errorMessage: errorMessage,
-      errorMessageAssistantId: errorMessageAssistantId,
-      emptyReplyAssistantId: emptyReplyAssistantId,
-      errorModelDisplayName: selectedModel?.displayName ?? '模型',
-      showScrollToBottomListenable: _scroll.showScrollToBottomNotifier,
-      autoRetryCount: autoRetryCount,
-      excludedMessageCount: excludedVisibleMessageCount,
-      isEditingMessage: _editingMessageId != null,
-      onEditMessage: (message) {
-        _enterEditMode(message);
-      },
-      onRetryLatestAssistant: () async {
-        await ref.read(chatSessionsProvider.notifier).retryLatestAssistant();
-      },
-      onDeleteMessage: (message) async {
-        await _showDeleteMessageDialog(context, message);
-      },
-      onToggleRequestExclusion: (message) {
-        ref
-            .read(chatSessionsProvider.notifier)
-            .setMessagesExcluded(
-              messageIds: [message.id],
-              excluded: !conversation.isMessageExcluded(message.id),
-            );
-      },
-      onProviderSelected: (providerId) {
-        _handleProviderSelected(providerId, selectableProviders);
-      },
-      onModelSelected: _handleModelSelected,
-      onTemplatePromptSelected: (templatePromptId) {
-        _handleTemplatePromptSelected(templatePromptId);
-      },
-      onToggleComposerCollapsed: _toggleComposerCollapsed,
-      onReasoningEnabledChanged: supportsReasoning
-          ? (value) {
-              ref
-                  .read(chatSessionsProvider.notifier)
-                  .updateActiveConversationPreferences(reasoningEnabled: value);
-            }
-          : null,
-      onReasoningEffortChanged: supportsReasoning
-          ? (value) {
-              ref
-                  .read(chatSessionsProvider.notifier)
-                  .updateActiveConversationPreferences(reasoningEffort: value);
-            }
-          : null,
-      onAutoRetryEnabledChanged: (value) {
-        ref
-            .read(chatSessionsProvider.notifier)
-            .updateActiveConversationPreferences(autoRetryEnabled: value);
-      },
-      onOpenFixedPromptSequenceRunner: () async {
-        await _showFixedPromptSequenceRunnerDialog(
-          context,
-          fixedPromptSequences: fixedPromptSequences,
-          selectedModel: selectedModel,
-          selectedPresetPrompt: selectedPresetPrompt,
-          conversation: conversation,
-          supportsReasoning: supportsReasoning,
-          isBusy: isBusy,
-        );
-      },
-      onOpenMessageFilter: () async {
-        await _showMessageRequestFilterDialog(context);
-      },
-      onScrollToBottomPressed: _scroll.scrollToBottom,
-      onSelectMessage: _scroll.scrollToMessage,
-      onSelectMessageVersion: (parentId, messageId) async {
-        await ref
-            .read(chatSessionsProvider.notifier)
-            .selectMessageVersion(parentId: parentId, messageId: messageId);
-      },
-      onSendPressed: selectedModel == null || isBusy
-          ? null
-          : () async {
-              final templatedMessage = buildTemplatedUserMessage(
-                body: _messageController.text,
-                templatePrompt: selectedTemplatePrompt,
-                variableValues: _resolveTemplatePromptValues(
-                  selectedTemplatePrompt,
-                ),
+    final selectedModel = readModel.composer.selectedModel;
+    final supportsReasoning = readModel.composer.supportsReasoning;
+    final isBusy = readModel.messages.isBusy;
+    final isStreaming = readModel.composer.isStreaming;
+    final isAutoRetryWaiting = readModel.composer.isAutoRetryWaiting;
+    final selectableProviders = readModel.composer.modelProviders;
+    final selectedTemplatePrompt = readModel.composer.selectedTemplatePrompt;
+
+    return ChatWorkspaceBindings(
+      messages: ChatWorkspaceMessageBindings(
+        onEditMessage: (message) {
+          _enterEditMode(message);
+        },
+        onRetryLatestAssistant: () async {
+          await ref.read(chatSessionsProvider.notifier).retryLatestAssistant();
+        },
+        onDeleteMessage: (message) async {
+          await _showDeleteMessageDialog(context, message);
+        },
+        onToggleRequestExclusion: (message) {
+          ref
+              .read(chatSessionsProvider.notifier)
+              .setMessagesExcluded(
+                messageIds: [message.id],
+                excluded: !conversation.isMessageExcluded(message.id),
               );
-              if (templatedMessage.content.trim().isEmpty) {
-                return;
-              }
-
-              _messageController.clear();
-              ref
-                  .read(composerDraftProvider.notifier)
-                  .clearBody(conversation.id);
-
-              if (_editingMessageId != null) {
-                final editId = _editingMessageId!;
-                setState(() {
-                  _editingMessageId = null;
-                  _preEditSnapshot = null;
-                });
-                await ref
+        },
+        onSelectMessageVersion: (parentId, messageId) async {
+          await ref
+              .read(chatSessionsProvider.notifier)
+              .selectMessageVersion(parentId: parentId, messageId: messageId);
+        },
+        onFavoritePressed: (message) =>
+            _showAddToFavoritesDialog(context, message, conversation),
+      ),
+      composer: ChatWorkspaceComposerBindings(
+        messageController: _messageController,
+        messageFocusNode: _messageFocusNode,
+        templateVariableControllers: _templateVariableControllers,
+        onProviderSelected: (providerId) {
+          _handleProviderSelected(providerId, selectableProviders);
+        },
+        onModelSelected: _handleModelSelected,
+        onTemplatePromptSelected: (templatePromptId) {
+          _handleTemplatePromptSelected(templatePromptId);
+        },
+        onToggleComposerCollapsed: _toggleComposerCollapsed,
+        onReasoningEnabledChanged: supportsReasoning
+            ? (value) {
+                ref
                     .read(chatSessionsProvider.notifier)
-                    .editMessage(
-                      messageId: editId,
-                      nextContent: templatedMessage.content,
-                      userMessageSegments: templatedMessage.userMessageSegments,
-                      templatePromptId: selectedTemplatePrompt?.id,
-                      templateVariableValues: _resolveTemplatePromptValues(
-                        selectedTemplatePrompt,
-                      ),
+                    .updateActiveConversationPreferences(
+                      reasoningEnabled: value,
                     );
-              } else {
-                await _sendMessageContent(
-                  content: templatedMessage.content,
-                  userMessageSegments: templatedMessage.userMessageSegments,
-                  modelConfig: selectedModel,
-                  presetPrompt: selectedPresetPrompt,
-                  conversation: conversation,
-                  supportsReasoning: supportsReasoning,
-                  isBusy: isBusy,
-                  templatePromptId: selectedTemplatePrompt?.id,
-                  templateVariableValues: _resolveTemplatePromptValues(
+              }
+            : null,
+        onReasoningEffortChanged: supportsReasoning
+            ? (value) {
+                ref
+                    .read(chatSessionsProvider.notifier)
+                    .updateActiveConversationPreferences(
+                      reasoningEffort: value,
+                    );
+              }
+            : null,
+        onAutoRetryEnabledChanged: (value) {
+          ref
+              .read(chatSessionsProvider.notifier)
+              .updateActiveConversationPreferences(autoRetryEnabled: value);
+        },
+        onOpenFixedPromptSequenceRunner: () async {
+          await _showFixedPromptSequenceRunnerDialog(
+            context,
+            fixedPromptSequences: readModel.composer.fixedPromptSequences,
+            selectedModel: selectedModel,
+            selectedPresetPrompt: selectedPresetPrompt,
+            conversation: conversation,
+            supportsReasoning: supportsReasoning,
+            isBusy: isBusy,
+          );
+        },
+        onOpenMessageFilter: () async {
+          await _showMessageRequestFilterDialog(context);
+        },
+        onSendPressed: selectedModel == null || isBusy
+            ? null
+            : () async {
+                final templatedMessage = buildTemplatedUserMessage(
+                  body: _messageController.text,
+                  templatePrompt: selectedTemplatePrompt,
+                  variableValues: _resolveTemplatePromptValues(
                     selectedTemplatePrompt,
                   ),
                 );
+                if (templatedMessage.content.trim().isEmpty) {
+                  return;
+                }
+
+                _messageController.clear();
+                ref
+                    .read(composerDraftProvider.notifier)
+                    .clearBody(conversation.id);
+
+                if (_editingMessageId != null) {
+                  final editId = _editingMessageId!;
+                  setState(() {
+                    _editingMessageId = null;
+                    _preEditSnapshot = null;
+                  });
+                  await ref
+                      .read(chatSessionsProvider.notifier)
+                      .editMessage(
+                        messageId: editId,
+                        nextContent: templatedMessage.content,
+                        userMessageSegments:
+                            templatedMessage.userMessageSegments,
+                        templatePromptId: selectedTemplatePrompt?.id,
+                        templateVariableValues: _resolveTemplatePromptValues(
+                          selectedTemplatePrompt,
+                        ),
+                      );
+                } else {
+                  await _sendMessageContent(
+                    content: templatedMessage.content,
+                    userMessageSegments: templatedMessage.userMessageSegments,
+                    modelConfig: selectedModel,
+                    presetPrompt: selectedPresetPrompt,
+                    conversation: conversation,
+                    supportsReasoning: supportsReasoning,
+                    isBusy: isBusy,
+                    templatePromptId: selectedTemplatePrompt?.id,
+                    templateVariableValues: _resolveTemplatePromptValues(
+                      selectedTemplatePrompt,
+                    ),
+                  );
+                }
+              },
+        onStopStreaming: isStreaming || isAutoRetryWaiting
+            ? () async {
+                await _showStopStreamingDialog(context);
               }
-            },
-      onStopStreaming: isStreaming || isAutoRetryWaiting
-          ? () async {
-              await _showStopStreamingDialog(context);
-            }
-          : null,
-      onCancelEdit: _editingMessageId != null ? _cancelEditMode : null,
-      onFavoritePressed: (message) =>
-          _showAddToFavoritesDialog(context, message, conversation),
-      favoritedAssistantContents: favoritedContents,
+            : null,
+        onCancelEdit: _editingMessageId != null ? _cancelEditMode : null,
+      ),
+      scroll: ChatWorkspaceScrollBindings(
+        activeAnchorMessageIdListenable: _scroll.activeAnchorMessageIdNotifier,
+        showScrollToBottomListenable: _scroll.showScrollToBottomNotifier,
+        messageItemScrollController: _scroll.itemScrollController,
+        messageItemPositionsListener: _scroll.itemPositionsListener,
+        onScrollToBottomPressed: _scroll.scrollToBottom,
+        onSelectMessage: _scroll.scrollToMessage,
+      ),
     );
   }
 
@@ -720,48 +598,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   // ── Resolvers ──────────────────────────────────────────────────────────────
-
-  /// 解析当前会话应使用的模型配置，并在缺省时回退到默认项。
-  LlmModelConfig? _resolveSelectedModel(
-    List<LlmModelConfig> modelConfigs,
-    String? selectedModelId,
-    String? rememberedModelId,
-  ) {
-    if (modelConfigs.isEmpty) {
-      return null;
-    }
-
-    final conversationSelected = modelConfigs.where((config) {
-      return config.id == selectedModelId;
-    }).firstOrNull;
-    if (conversationSelected != null) {
-      return conversationSelected;
-    }
-
-    final rememberedSelected = modelConfigs.where((config) {
-      return config.id == rememberedModelId;
-    }).firstOrNull;
-
-    if (rememberedSelected != null) {
-      return rememberedSelected;
-    }
-
-    return modelConfigs.first;
-  }
-
-  String? _resolveSelectedProviderId(
-    List<LlmProviderConfig> providers,
-    LlmModelConfig? selectedModel,
-  ) {
-    if (providers.isEmpty) {
-      return null;
-    }
-    if (selectedModel != null &&
-        providers.any((provider) => provider.id == selectedModel.providerId)) {
-      return selectedModel.providerId;
-    }
-    return providers.first.id;
-  }
 
   /// 解析当前会话应使用的预设 Prompt。
   ///
