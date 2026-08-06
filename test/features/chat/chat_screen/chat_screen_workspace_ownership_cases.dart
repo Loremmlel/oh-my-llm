@@ -384,4 +384,78 @@ void registerChatScreenWorkspaceOwnershipTests() {
       '甲',
     );
   });
+
+  testWidgets('同名模板变量跨模板切换：输入写入当前模板，发送不回落默认值', (tester) async {
+    final fakeClient = FakeChatCompletionClient()..enqueueChunks(['模板二回复']);
+    await pumpChatScreen(tester, fakeClient: fakeClient);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
+    final convId = container.read(chatSessionsProvider).activeConversation.id;
+
+    // 两个模板各有同名变量 title，默认值不同，便于区分「用户输入」与「默认值」。
+    await container
+        .read(templatePromptsProvider.notifier)
+        .upsert(
+          TemplatePrompt(
+            id: 'tp-1',
+            title: '模板一',
+            content: '一：{{title}}。',
+            variables: const [
+              TemplatePromptVariable(name: 'title', defaultValue: '默认一'),
+            ],
+            updatedAt: DateTime(2026, 5, 5, 0, 1),
+          ),
+        );
+    await container
+        .read(templatePromptsProvider.notifier)
+        .upsert(
+          TemplatePrompt(
+            id: 'tp-2',
+            title: '模板二',
+            content: '二：{{title}}。',
+            variables: const [
+              TemplatePromptVariable(name: 'title', defaultValue: '默认二'),
+            ],
+            updatedAt: DateTime(2026, 5, 5, 0, 2),
+          ),
+        );
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+
+    final titleField = find.byKey(const ValueKey('template-variable-title'));
+
+    // 模板一：输入 '甲'。
+    await _selectTemplate(tester, '模板一');
+    await tester.pump();
+    await tester.enterText(titleField, '甲');
+    await tester.pump();
+
+    // 切模板二：字段回落到模板二默认值（既有语义），随后输入 '乙'。
+    await _selectTemplate(tester, '模板二');
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    expect(tester.widget<TextField>(titleField).controller!.text, '默认二');
+    await tester.enterText(titleField, '乙');
+    await tester.pump();
+
+    // 发送：请求内容必须包含用户输入的 '乙'，而不是回落 '默认二'。
+    await tester.enterText(_composerFinder, '正文');
+    await tester.pump();
+    await tester.tap(find.widgetWithText(FilledButton, '发送'));
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+
+    // 请求为消息列表：拼接全部消息内容再断言（requestHistory 是 List<List<...>>）。
+    final sent = fakeClient.requestHistory.single
+        .map((m) => m.content)
+        .join('\n');
+    expect(sent, contains('乙'));
+    expect(sent, isNot(contains('默认二')));
+    // draft 变量写入当前模板 tp-2 名下（修复前会错误写入 tp-1）。
+    expect(
+      container
+          .read(composerDraftProvider.notifier)
+          .draftFor(convId)
+          .templateVariableValuesByTemplateId['tp-2']?['title'],
+      '乙',
+    );
+  });
 }
