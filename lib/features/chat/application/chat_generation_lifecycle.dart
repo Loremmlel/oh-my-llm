@@ -11,8 +11,8 @@ import '../domain/models/chat_message.dart';
 /// 在下一次 command 开始时统一转入新的 [preparing]，由 coordinator 单一所有权维护，
 /// 不再由散落的 clear* 布尔标志定义状态机。
 ///
-/// 兼容投影（Task 6 将据此把 `_isBusy` / `ChatSessionsState` 旧字段改为
-/// 从 phase 单向派生，禁止业务代码直接 copyWith 旧 bool 字段）：
+/// 兼容投影（`ChatSessionsState` 的旧 bool 展示字段已由 phase 单向派生，
+/// 业务代码禁止直接 copyWith 旧 bool 字段）：
 ///
 /// | phase             | isStreaming | isAutoRetryWaiting | isBusy |
 /// |-------------------|-------------|--------------------|--------|

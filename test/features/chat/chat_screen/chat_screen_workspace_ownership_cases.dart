@@ -45,7 +45,7 @@ Future<void> _selectTemplate(WidgetTester tester, String title) async {
   await tester.pumpAndSettle(const Duration(milliseconds: 250));
 }
 
-/// 注册「变量模板」（tp-var，变量 title 默认值「默认标题」），返回容器。
+/// 注册「变量模板」（tp-var，变量 title 默认值「默认标题」）并等待渲染。
 Future<void> _seedVariableTemplate(
   WidgetTester tester,
   ProviderContainer container,
