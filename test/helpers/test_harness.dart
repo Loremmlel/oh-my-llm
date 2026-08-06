@@ -32,7 +32,12 @@ Future<AppDatabase> pumpTestApp(
   Size viewportSize = const Size(1440, 1200),
   List<dynamic> extraOverrides = const [],
   GoRouter? router,
+
+  /// 默认 false（与 composition 默认 true 不同是故意的）：widget 测试由
+  /// [extraOverrides] 注入 fake completion，故排除生产绑定。
   bool bindChatCompletionClient = false,
+
+  /// 默认 true：保持 SQLite 生产绑定，与 composition 默认一致。
   bool bindChatConversationRepository = true,
 }) async {
   assert(
@@ -76,7 +81,12 @@ Future<ProviderScope> pumpTestAppScope(
   Size viewportSize = const Size(1440, 1200),
   List<dynamic> extraOverrides = const [],
   GoRouter? router,
+
+  /// 默认 false（与 composition 默认 true 不同是故意的）：widget 测试由
+  /// [extraOverrides] 注入 fake completion，故排除生产绑定。
   bool bindChatCompletionClient = false,
+
+  /// 默认 true：保持 SQLite 生产绑定，与 composition 默认一致。
   bool bindChatConversationRepository = true,
 }) async {
   assert(

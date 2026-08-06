@@ -48,7 +48,9 @@ import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 /// 组合跨 feature 的 concrete implementation。
 ///
 /// 此处是 Sync transport、Settings snapshot 及媒体服务路由唯一的生产绑定点；
-/// 外层可在该列表之后覆盖任一 port 以注入测试 fake。
+/// 外层可在该列表之后覆盖其余 port 以注入测试 fake；chat 两 port
+/// （[chatCompletionClientProvider] / [chatConversationRepositoryProvider]）
+/// 已被本函数绑定，需先以对应 bind 开关排除生产绑定后再覆盖。
 ///
 /// [bindChatCompletionClient] / [bindChatConversationRepository]：测试 harness
 /// 需要以 fake 覆盖对应 port 时传 false——Riverpod 不允许同一容器内重复
