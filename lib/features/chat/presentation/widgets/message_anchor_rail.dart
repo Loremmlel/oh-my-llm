@@ -5,7 +5,7 @@ import '../../domain/models/chat_message.dart';
 
 /// 右侧消息锚点条，用于快速跳转到用户消息。
 ///
-/// 紧凑模式下显示指示点列表，展开模式下可显示消息预览气泡（由 Task 6/7 触发）。
+/// 紧凑模式下显示指示点列表，展开模式下可显示消息预览气泡。
 class MessageAnchorRail extends StatefulWidget {
   const MessageAnchorRail({
     required this.userMessages,

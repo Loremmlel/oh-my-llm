@@ -181,9 +181,11 @@ void main() {
       expect(resolveSelectedPresetPrompt(const [], null), isNull);
     });
 
-    test('sentinel（noPresetPromptSelectedId）返回 null', () {
+    test('sentinel（noPresetPromptSelectedId）返回 null，即使存在同名预设', () {
       expect(
-        resolveSelectedPresetPrompt(const [], noPresetPromptSelectedId),
+        resolveSelectedPresetPrompt([
+          TestFixtures.presetPrompt(id: noPresetPromptSelectedId),
+        ], noPresetPromptSelectedId),
         isNull,
       );
     });
