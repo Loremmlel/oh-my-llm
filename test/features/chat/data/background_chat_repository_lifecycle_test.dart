@@ -75,6 +75,20 @@ void main() {
       },
     );
 
+    test('saveConversation Future 完成时数据必须立即可读（ACK 语义契约）', () async {
+      final inner = SqliteChatConversationRepository(db);
+      bg = BackgroundChatConversationRepository(inner, tempDbPath);
+
+      final conv = makeConv('ack_contract', 'ACK contract');
+      await bg.saveConversation(conv);
+      // Future 完成 = worker 已 ACK = 数据已 COMMIT 落盘（修复后契约成立）
+      final loaded = inner.loadConversation('ack_contract');
+      expect(loaded, isNotNull);
+      expect(loaded!.messages.first.content, 'ACK contract');
+
+      await bg.close();
+    });
+
     test('flush waits for all pending writes to land', () async {
       final inner = SqliteChatConversationRepository(db);
       bg = BackgroundChatConversationRepository(inner, tempDbPath);

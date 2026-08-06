@@ -218,10 +218,13 @@ class BackgroundChatConversationRepository
       }
     }
     if (data == null || data.isEmpty) {
-      // 无数据需要写入，直接 complete 当前 batch
-      final batch = _batchCompleter;
-      _batchCompleter = null;
-      batch?.complete();
+      // 数据可能已被 _drainPendingOnReady 提前发送（ACK 未回）：
+      // 有在途 ACK 时不得提前完成，须等 ACK 回来（见 _tryCompleteBatch）。
+      if (_pendingAcks.isEmpty) {
+        final batch = _batchCompleter;
+        _batchCompleter = null;
+        batch?.complete();
+      }
       return;
     }
     _sendToWorker(data.values.toList(growable: false));
@@ -264,7 +267,11 @@ class BackgroundChatConversationRepository
 
   /// 当所有 pending ACK 已收到时 complete batch Completer。
   void _tryCompleteBatch() {
-    if (_pendingAcks.isEmpty && _batchCompleter != null) {
+    // 只有「无待发数据（_pendingWrite 为空）且无在途 ACK」时 batch 才算完成；
+    // 否则上一个 batch 的迟到 ACK 会错误完成「数据尚未发送」的下一个 batch。
+    if (_pendingWrite == null &&
+        _pendingAcks.isEmpty &&
+        _batchCompleter != null) {
       _completeBatchOk();
     }
   }
