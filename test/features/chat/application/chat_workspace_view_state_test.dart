@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/chat/application/chat_workspace_view_state.dart';
+import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
 
 import '../../../helpers/fixtures.dart';
@@ -128,6 +129,33 @@ void main() {
         resolveSelectedTemplatePrompt([
           TestFixtures.templatePrompt(id: 'tp-1'),
         ], 'tp-missing'),
+        isNull,
+      );
+    });
+  });
+
+  group('resolveSelectedPresetPrompt', () {
+    test('null 选择返回 null', () {
+      expect(resolveSelectedPresetPrompt(const [], null), isNull);
+    });
+
+    test('sentinel（noPresetPromptSelectedId）返回 null', () {
+      expect(
+        resolveSelectedPresetPrompt(const [], noPresetPromptSelectedId),
+        isNull,
+      );
+    });
+
+    test('命中返回对应预设', () {
+      final prompt = TestFixtures.presetPrompt(id: 'preset-1');
+      expect(resolveSelectedPresetPrompt([prompt], prompt.id), same(prompt));
+    });
+
+    test('选择不存在时返回 null', () {
+      expect(
+        resolveSelectedPresetPrompt([
+          TestFixtures.presetPrompt(id: 'preset-1'),
+        ], 'preset-missing'),
         isNull,
       );
     });

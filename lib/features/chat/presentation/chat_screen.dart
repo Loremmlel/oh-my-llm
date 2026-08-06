@@ -126,7 +126,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _messageController.selection = TextSelection.collapsed(
       offset: effectiveDraft.body.length,
     );
-    final template = _resolveSelectedTemplatePrompt(
+    final template = resolveSelectedTemplatePrompt(
       ref.read(templatePromptsProvider),
       effectiveDraft.selectedTemplatePromptId,
     );
@@ -177,9 +177,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     // 预设 Prompt 只用于动作区/对话框（检查点、发送），不属于 read-model，
     // 仍在页面按 build 快照解析，避免回调触发时使用与 build 时不同的预设。
     final presetPrompts = ref.watch(presetPromptsProvider);
-    final selectedPresetPrompt = _resolveSelectedPresetPrompt(
+    final selectedPresetPrompt = resolveSelectedPresetPrompt(
       presetPrompts,
-      conversation,
+      conversation.selectedPresetPromptId,
     );
     // 页面编辑草稿为空时用会话级草稿；编辑中覆盖模板选择由 compose 完成。
     final editingDraft = _editingDraft ?? ComposerDraft.empty;
@@ -536,34 +536,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     };
   }
 
-  // ── Resolvers ──────────────────────────────────────────────────────────────
-
-  /// 解析当前会话应使用的预设 Prompt。
-  ///
-  /// 预设选择只读 conversation 持久字段，不再维护本地镜像，避免双写不同步。
-  PresetPrompt? _resolveSelectedPresetPrompt(
-    List<PresetPrompt> presetPrompts,
-    ChatConversation conversation,
-  ) {
-    final effectiveId = conversation.selectedPresetPromptId;
-    if (effectiveId == null || effectiveId == noPresetPromptSelectedId) {
-      return null;
-    }
-    return presetPrompts.where((p) => p.id == effectiveId).firstOrNull;
-  }
-
-  TemplatePrompt? _resolveSelectedTemplatePrompt(
-    List<TemplatePrompt> templatePrompts,
-    String? selectedTemplatePromptId,
-  ) {
-    if (selectedTemplatePromptId == null) {
-      return null;
-    }
-    return templatePrompts.where((templatePrompt) {
-      return templatePrompt.id == selectedTemplatePromptId;
-    }).firstOrNull;
-  }
-
   void _syncTemplateVariableControllers(
     TemplatePrompt? template, {
     required ComposerDraft draft,
@@ -653,7 +625,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   void _handleTemplatePromptSelected(String? templatePromptId) {
-    final template = _resolveSelectedTemplatePrompt(
+    final template = resolveSelectedTemplatePrompt(
       ref.read(templatePromptsProvider),
       templatePromptId,
     );
@@ -819,9 +791,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   .draftFor(conversation.id),
             ),
       selectedModel: composer.selectedModel,
-      selectedPresetPrompt: _resolveSelectedPresetPrompt(
+      selectedPresetPrompt: resolveSelectedPresetPrompt(
         ref.read(presetPromptsProvider),
-        conversation,
+        conversation.selectedPresetPromptId,
       ),
       reasoningEnabled: composer.reasoningEnabled,
       reasoningEffort: composer.reasoningEffort,

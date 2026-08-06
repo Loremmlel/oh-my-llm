@@ -8,6 +8,7 @@ import 'package:oh_my_llm/features/settings/application/template_prompts_control
 import 'package:oh_my_llm/features/settings/domain/models/fixed_prompt_sequence.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
+import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
 import '../domain/models/chat_conversation.dart';
 import '../domain/models/chat_message.dart';
@@ -298,6 +299,20 @@ TemplatePrompt? resolveSelectedTemplatePrompt(
   if (selectedTemplatePromptId == null) return null;
   return templatePrompts
       .where((templatePrompt) => templatePrompt.id == selectedTemplatePromptId)
+      .firstOrNull;
+}
+
+/// 预设 Prompt 解析：null / sentinel / ID 无效均视为未选。
+PresetPrompt? resolveSelectedPresetPrompt(
+  List<PresetPrompt> presetPrompts,
+  String? selectedPresetPromptId,
+) {
+  if (selectedPresetPromptId == null ||
+      selectedPresetPromptId == noPresetPromptSelectedId) {
+    return null;
+  }
+  return presetPrompts
+      .where((prompt) => prompt.id == selectedPresetPromptId)
       .firstOrNull;
 }
 
