@@ -29,6 +29,20 @@ final class ChatFavoriteDraft {
   final String? sourceAssistantMessageId;
   final String? sourceConversationId;
   final String? sourceConversationTitle;
+
+  /// 复制并替换 collectionId（'' 已在调用方归一为 null 前透传）。
+  ChatFavoriteDraft copyWithCollectionId(String? collectionId) {
+    return ChatFavoriteDraft(
+      userMessageContent: userMessageContent,
+      assistantContent: assistantContent,
+      assistantReasoningContent: assistantReasoningContent,
+      assistantModelDisplayName: assistantModelDisplayName,
+      collectionId: collectionId,
+      sourceAssistantMessageId: sourceAssistantMessageId,
+      sourceConversationId: sourceConversationId,
+      sourceConversationTitle: sourceConversationTitle,
+    );
+  }
 }
 
 /// Chat 侧用于取消收藏和撤销操作的只读条目。

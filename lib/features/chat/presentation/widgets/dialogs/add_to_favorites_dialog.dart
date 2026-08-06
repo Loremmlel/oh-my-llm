@@ -13,7 +13,7 @@ class AddToFavoritesDialog extends StatefulWidget {
   });
 
   final List<ChatFavoriteCollectionOption> collections;
-  final String Function(String name) onCreateCollection;
+  final String? Function(String name) onCreateCollection;
 
   @override
   State<AddToFavoritesDialog> createState() => _AddToFavoritesDialogState();

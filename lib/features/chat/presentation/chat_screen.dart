@@ -23,7 +23,7 @@ import '../domain/chat_message_parent.dart';
 import '../domain/models/chat_conversation.dart';
 import '../domain/models/chat_conversation_summary.dart';
 import '../domain/models/chat_message.dart';
-import '../application/chat_favorites_facade.dart';
+import '../application/chat_favorite_intent_command.dart';
 import 'chat_scroll_controller.dart';
 import 'widgets/widgets.dart';
 
@@ -907,78 +907,44 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     ChatMessage assistantMessage,
     ChatConversation conversation,
   ) async {
-    // 如果已收藏，提示取消
-    final favoritesFacade = ref.read(chatFavoritesFacadeProvider);
-    final favoriteSnapshot = favoritesFacade.snapshot;
-    final existing = favoriteSnapshot.findByAssistantContent(
-      assistantMessage.content,
+    // 收藏 toggle 的准备/移除/恢复/新增编排收敛到 intent command，
+    // 页面只 pattern-match 其结果并驱动 dialog/notification。
+    final command = ref.read(chatFavoriteIntentCommandProvider);
+    final result = command.beginToggle(
+      conversation: conversation,
+      assistantMessage: assistantMessage,
     );
-    if (existing != null) {
-      // 找到并删除对应收藏
-      final removedFavorite = existing;
-      favoritesFacade.remove(existing.id);
-
-      if (!context.mounted) return;
-      ref
-          .read(notificationBubblesProvider.notifier)
-          .show(
-            message: '已取消收藏',
-            action: NotificationBubbleAction(
-              label: '撤销',
-              onPressed: () => favoritesFacade.add(removedFavorite.draft),
-            ),
-          );
-      return;
-    }
-
-    // 查找上一条用户消息
-    final messages = conversation.messages;
-    final assistantIndex = messages.indexWhere(
-      (m) => m.id == assistantMessage.id,
-    );
-    final userMessage = assistantIndex > 0
-        ? messages
-              .sublist(0, assistantIndex)
-              .lastWhere(
-                (m) => m.role == ChatMessageRole.user,
-                orElse: () => messages[0],
-              )
-        : null;
-
     if (!context.mounted) return;
-    final selectedCollectionId = await showDialog<String>(
-      context: context,
-      builder: (context) => AddToFavoritesDialog(
-        collections: favoriteSnapshot.collections,
-        onCreateCollection: favoritesFacade.createCollection,
-      ),
-    );
 
-    if (selectedCollectionId == null || !mounted) {
-      return;
+    switch (result) {
+      case ChatFavoriteRemoved(:final removedEntry):
+        ref
+            .read(notificationBubblesProvider.notifier)
+            .show(
+              message: '已取消收藏',
+              action: NotificationBubbleAction(
+                label: '撤销',
+                onPressed: () => command.restore(removedEntry),
+              ),
+            );
+      case ChatFavoriteNeedsCollection(
+        :final draftWithoutCollection,
+        :final collectionOptions,
+      ):
+        final selectedCollectionId = await showDialog<String>(
+          context: context,
+          builder: (context) => AddToFavoritesDialog(
+            collections: collectionOptions,
+            onCreateCollection: command.createCollection,
+          ),
+        );
+        if (!mounted || selectedCollectionId == null) return;
+        command.addToCollection(draftWithoutCollection, selectedCollectionId);
+        if (!mounted) return;
+        ref
+            .read(notificationBubblesProvider.notifier)
+            .show(message: '已收藏', type: NotificationBubbleType.success);
     }
-
-    favoritesFacade.add(
-      ChatFavoriteDraft(
-        userMessageContent: userMessage?.content ?? '',
-        assistantContent: assistantMessage.content,
-        assistantReasoningContent: assistantMessage.reasoningContent,
-        assistantModelDisplayName:
-            assistantMessage.resolvedAssistantModelDisplayName,
-        // '' 表示用户选择了未分类
-        collectionId: selectedCollectionId.isEmpty
-            ? null
-            : selectedCollectionId,
-        sourceAssistantMessageId: assistantMessage.id,
-        sourceConversationId: conversation.id,
-        sourceConversationTitle: conversation.resolvedTitle,
-      ),
-    );
-
-    if (!mounted) return;
-    ref
-        .read(notificationBubblesProvider.notifier)
-        .show(message: '已收藏', type: NotificationBubbleType.success);
   }
 
   /// 弹出会话重命名对话框并提交新标题。
