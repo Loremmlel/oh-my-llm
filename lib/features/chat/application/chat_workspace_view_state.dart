@@ -180,8 +180,9 @@ class ChatWorkspaceComposerState extends ChatWorkspaceComposerReadModel {
       selectedProviderId: readModel.selectedProviderId,
       selectedModel: readModel.selectedModel,
       templatePrompts: readModel.templatePrompts,
-      selectedTemplatePrompt:
-          selectedTemplatePrompt ?? readModel.selectedTemplatePrompt,
+      // 传入值即最终值：编辑无模板消息时必须显式为 null，不能回退 read-model 的
+      // normal selection，否则 UI 展示会话模板的变量输入框而提交时这些值会被丢弃。
+      selectedTemplatePrompt: selectedTemplatePrompt,
       fixedPromptSequences: readModel.fixedPromptSequences,
       isComposerCollapsed: readModel.isComposerCollapsed,
       reasoningEnabled: readModel.reasoningEnabled,
@@ -227,6 +228,9 @@ class ChatWorkspaceViewState extends Equatable {
   /// 由 [ChatScreen] 用纯 factory 生成：编辑时用页面本地 [editingDraft] 的
   /// template selection 覆盖 read-model 的 normal selection，并显式传
   /// [isEditingMessage]。read-model 不变，仅有效值变化。
+  ///
+  /// 编辑无模板消息时 effective 为 null（不回落会话级模板）：UI 与提交解析
+  /// 共用同一 seam，避免 UI 展示的变量输入框在提交时被静默丢弃。
   factory ChatWorkspaceViewState.compose({
     required ChatWorkspaceReadModel readModel,
     required ComposerDraft editingDraft,
@@ -234,14 +238,18 @@ class ChatWorkspaceViewState extends Equatable {
     required List<TemplatePrompt> templatePrompts,
   }) {
     final editingTemplateId = editingDraft.selectedTemplatePromptId;
-    final effectiveTemplate = isEditingMessage && editingTemplateId != null
-        ? templatePrompts.where((t) => t.id == editingTemplateId).firstOrNull
+    final effectiveTemplate = isEditingMessage
+        ? (editingTemplateId != null
+              ? templatePrompts
+                    .where((t) => t.id == editingTemplateId)
+                    .firstOrNull
+              : null)
         : readModel.composer.selectedTemplatePrompt;
     return ChatWorkspaceViewState(
       messages: readModel.messages,
       composer: ChatWorkspaceComposerState.fromReadModel(
         readModel.composer,
-        selectedTemplatePrompt: isEditingMessage ? effectiveTemplate : null,
+        selectedTemplatePrompt: effectiveTemplate,
         isEditingMessage: isEditingMessage,
       ),
     );

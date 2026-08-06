@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/application/composer_draft_controller.dart';
+import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
 import 'package:oh_my_llm/features/settings/application/template_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
@@ -15,6 +16,21 @@ final _composerFinder = find.byKey(const ValueKey('chat-message-composer'));
 
 String _composerText(WidgetTester tester) =>
     tester.widget<TextField>(_composerFinder).controller!.text;
+
+/// 点击指定消息气泡（按消息 id 定位）的「编辑消息」按钮。
+///
+/// 消息列表经 ScrollablePositionedList 渲染，其元素树遍历顺序与显示顺序相反，
+/// 不能依赖 `find.byTooltip('编辑消息').last` 命中最新消息；用消息 id 的
+/// KeyedSubtree 定位气泡后取其后代编辑按钮，与列表顺序解耦。
+Future<void> _tapEditMessage(WidgetTester tester, String messageId) async {
+  await tester.tap(
+    find.descendant(
+      of: find.byKey(ValueKey<String>(messageId)),
+      matching: find.byTooltip('编辑消息'),
+    ),
+  );
+  await tester.pumpAndSettle(const Duration(milliseconds: 250));
+}
 
 /// 通过模板下拉选择指定名称的模板（沿用既有 cases 的 dropdown finder 手法）。
 Future<void> _selectTemplate(WidgetTester tester, String title) async {
@@ -251,5 +267,121 @@ void registerChatScreenWorkspaceOwnershipTests() {
     expect(_composerText(tester), '   ');
     // 空正文被拒，不新增请求（仅保留初始 sendMessage 的那一次）。
     expect(fakeClient.requestHistory, hasLength(1));
+  });
+
+  testWidgets('编辑带模板消息变量随提交生效；编辑无模板消息不显示会话模板输入', (tester) async {
+    final fakeClient = FakeChatCompletionClient()
+      ..enqueueChunks(['普通回复'])
+      ..enqueueChunks(['普通消息修改回复'])
+      ..enqueueChunks(['模板回复'])
+      ..enqueueChunks(['编辑后模板回复']);
+    await pumpChatScreen(tester, fakeClient: fakeClient);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
+    final convId = container.read(chatSessionsProvider).activeConversation.id;
+
+    // 注册一个带非空默认值的模板变量，便于区分「模板默认值」与「用户输入」。
+    await container
+        .read(templatePromptsProvider.notifier)
+        .upsert(
+          TemplatePrompt(
+            id: 'tp-var',
+            title: '变量模板',
+            content: '请按{{title}}输出。',
+            variables: const [
+              TemplatePromptVariable(name: 'title', defaultValue: '默认标题'),
+            ],
+            updatedAt: DateTime(2026, 5, 5, 0, 1),
+          ),
+        );
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+
+    // ── 路径 B：编辑无模板消息，但会话级 draft 已选中模板 ──
+    await sendMessage(tester, '普通消息');
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    final plainMessageId = container
+        .read(activeChatConversationProvider)
+        .messages
+        .lastWhere((m) => m.role == ChatMessageRole.user)
+        .id;
+
+    // 会话级 draft 选中模板（模拟「session draft 有模板」）。
+    await _selectTemplate(tester, '变量模板');
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+
+    // 编辑无模板消息：不显示会话模板的变量输入框（修复前这里会显示并静默丢弃）。
+    await _tapEditMessage(tester, plainMessageId);
+    expect(find.byKey(const ValueKey('template-variable-title')), findsNothing);
+
+    // 提交编辑：发送纯正文，分支不带模板，会话级模板选择保留。
+    await tester.enterText(_composerFinder, '普通消息修改');
+    await tester.pump();
+    await tester.tap(find.widgetWithText(FilledButton, '发送'));
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+
+    final afterPlainEdit = container.read(activeChatConversationProvider);
+    final plainBranch = afterPlainEdit.messageNodes.firstWhere((m) {
+      return m.role == ChatMessageRole.user && m.content == '普通消息修改';
+    });
+    expect(plainBranch.templatePromptId, isNull);
+    expect(plainBranch.templateVariableValues, isEmpty);
+    expect(
+      container
+          .read(composerDraftProvider.notifier)
+          .draftFor(convId)
+          .selectedTemplatePromptId,
+      'tp-var',
+    );
+
+    // ── 路径 A：编辑带模板的消息，修改变量后提交 ──
+    await tester.enterText(_composerFinder, '模板问题');
+    await tester.pump();
+    final titleField = find.byKey(const ValueKey('template-variable-title'));
+    await tester.enterText(titleField, '甲');
+    await tester.pump();
+    await tester.tap(find.widgetWithText(FilledButton, '发送'));
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+
+    // 发送后：会话级 draft body 清空、模板变量保留 '甲'。
+    expect(
+      container
+          .read(composerDraftProvider.notifier)
+          .draftFor(convId)
+          .templateVariableValuesByTemplateId['tp-var']?['title'],
+      '甲',
+    );
+
+    // 编辑该带模板消息：变量输入框携带已保存值，改为 '乙' 后提交。
+    final templatedMessageId = container
+        .read(activeChatConversationProvider)
+        .messages
+        .lastWhere(
+          (m) =>
+              m.role == ChatMessageRole.user && m.templatePromptId == 'tp-var',
+        )
+        .id;
+    await _tapEditMessage(tester, templatedMessageId);
+    expect(tester.widget<TextField>(titleField).controller!.text, '甲');
+    await tester.enterText(titleField, '乙');
+    await tester.pump();
+    await tester.tap(find.widgetWithText(FilledButton, '发送'));
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+
+    // 新分支携带 '乙' 与模板 id；会话级 draft 变量仍为 '甲'（编辑未污染）。
+    final afterTemplatedEdit = container.read(activeChatConversationProvider);
+    final templatedBranch = afterTemplatedEdit.messageNodes.firstWhere((m) {
+      return m.role == ChatMessageRole.user &&
+          m.templateVariableValues['title'] == '乙';
+    });
+    expect(templatedBranch.templatePromptId, 'tp-var');
+    expect(templatedBranch.templateVariableValues['title'], '乙');
+    expect(
+      container
+          .read(composerDraftProvider.notifier)
+          .draftFor(convId)
+          .templateVariableValuesByTemplateId['tp-var']?['title'],
+      '甲',
+    );
   });
 }
