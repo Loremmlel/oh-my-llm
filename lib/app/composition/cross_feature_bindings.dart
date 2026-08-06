@@ -18,6 +18,10 @@ import 'package:oh_my_llm/features/chat/data/sqlite_chat_conversation_repository
 import 'package:oh_my_llm/features/favorites/application/collections_controller.dart';
 import 'package:oh_my_llm/features/favorites/application/favorite_source_conversation_command.dart';
 import 'package:oh_my_llm/features/favorites/application/favorites_controller.dart';
+import 'package:oh_my_llm/features/favorites/application/ports/collections_repository.dart';
+import 'package:oh_my_llm/features/favorites/application/ports/favorites_repository.dart';
+import 'package:oh_my_llm/features/favorites/data/sqlite_collections_repository.dart';
+import 'package:oh_my_llm/features/favorites/data/sqlite_favorites_repository.dart';
 import 'package:oh_my_llm/features/media/application/media_root_directory_controller.dart';
 import 'package:oh_my_llm/features/media/data/media_directory_scanner.dart';
 import 'package:oh_my_llm/features/media/data/media_http_handler.dart';
@@ -130,6 +134,12 @@ List<dynamic> appCompositionOverrides({
           database.path,
         );
       }),
+    favoritesRepositoryProvider.overrideWith(
+      (ref) => SqliteFavoritesRepository(ref.watch(appDatabaseProvider)),
+    ),
+    collectionsRepositoryProvider.overrideWith(
+      (ref) => SqliteCollectionsRepository(ref.watch(appDatabaseProvider)),
+    ),
   ];
 }
 
