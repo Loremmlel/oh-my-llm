@@ -1,207 +1,58 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
-import '../../domain/models/chat_conversation.dart';
-import '../../domain/models/chat_message.dart';
-import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
-import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
-import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
 import 'chat_composer_card.dart';
 import 'chat_messages_panel.dart';
-import 'composer_data.dart';
+import 'chat_workspace_bindings.dart';
+import '../../application/chat_workspace_view_state.dart';
 
 /// 聊天页主工作区，组合消息列表、锚点条和消息输入区。
 class ChatWorkspace extends StatelessWidget {
-  const ChatWorkspace({
-    required this.conversation,
-    required this.messages,
-    required this.hasModels,
-    required this.modelProviders,
-    required this.modelConfigs,
-    required this.selectedProviderId,
-    required this.selectedModel,
-    required this.userMessages,
-    required this.activeAnchorMessageIdListenable,
-    required this.messageController,
-    required this.messageFocusNode,
-    required this.templatePrompts,
-    required this.selectedTemplatePrompt,
-    required this.templateVariableControllers,
-    required this.messageItemScrollController,
-    required this.messageItemPositionsListener,
-    required this.isComposerCollapsed,
-    required this.reasoningEnabled,
-    required this.reasoningEffort,
-    required this.supportsReasoning,
-    required this.autoRetryEnabled,
-    required this.isBusy,
-    required this.isStreaming,
-    required this.isAutoRetryWaiting,
-    required this.errorMessage,
-    required this.errorMessageAssistantId,
-    required this.emptyReplyAssistantId,
-    required this.errorModelDisplayName,
-    required this.showScrollToBottomListenable,
-    required this.autoRetryCount,
-    required this.excludedMessageCount,
-    required this.isEditingMessage,
-    required this.onEditMessage,
-    required this.onRetryLatestAssistant,
-    required this.onDeleteMessage,
-    required this.onToggleRequestExclusion,
-    required this.onProviderSelected,
-    required this.onModelSelected,
-    required this.onTemplatePromptSelected,
-    required this.onToggleComposerCollapsed,
-    required this.onReasoningEnabledChanged,
-    required this.onReasoningEffortChanged,
-    required this.onAutoRetryEnabledChanged,
-    required this.onOpenFixedPromptSequenceRunner,
-    required this.onOpenMessageFilter,
-    required this.onScrollToBottomPressed,
-    required this.onSelectMessage,
-    required this.onSelectMessageVersion,
-    required this.onSendPressed,
-    required this.onStopStreaming,
-    this.onCancelEdit,
-    this.onFavoritePressed,
-    this.favoritedAssistantContents = const {},
-    super.key,
-  });
+  const ChatWorkspace({required this.state, required this.bindings, super.key});
 
-  final ChatConversation conversation;
-  final List<ChatMessage> messages;
-  final bool hasModels;
-  final List<LlmProviderConfig> modelProviders;
-  final List<LlmModelConfig> modelConfigs;
-  final String? selectedProviderId;
-  final LlmModelConfig? selectedModel;
-  final List<ChatMessage> userMessages;
-  final ValueListenable<String?> activeAnchorMessageIdListenable;
-  final TextEditingController messageController;
-  final FocusNode messageFocusNode;
-  final List<TemplatePrompt> templatePrompts;
-  final TemplatePrompt? selectedTemplatePrompt;
-  final Map<String, TextEditingController> templateVariableControllers;
-  final ItemScrollController messageItemScrollController;
-  final ItemPositionsListener messageItemPositionsListener;
-  final bool isComposerCollapsed;
-  final bool reasoningEnabled;
-  final ReasoningEffort reasoningEffort;
-  final bool supportsReasoning;
-  final bool autoRetryEnabled;
-  final bool isBusy;
-  final bool isStreaming;
-  final bool isAutoRetryWaiting;
-  final String? errorMessage;
-  final String? errorMessageAssistantId;
-  final String? emptyReplyAssistantId;
-  final String errorModelDisplayName;
-  final ValueListenable<bool> showScrollToBottomListenable;
-  final int autoRetryCount;
-  final int excludedMessageCount;
-  final bool isEditingMessage;
-  final ValueChanged<ChatMessage> onEditMessage;
-  final Future<void> Function() onRetryLatestAssistant;
-  final ValueChanged<ChatMessage> onDeleteMessage;
-  final ValueChanged<ChatMessage> onToggleRequestExclusion;
-  final ValueChanged<String> onProviderSelected;
-  final ValueChanged<String> onModelSelected;
-  final ValueChanged<String?> onTemplatePromptSelected;
-  final VoidCallback onToggleComposerCollapsed;
-  final ValueChanged<bool>? onReasoningEnabledChanged;
-  final ValueChanged<ReasoningEffort>? onReasoningEffortChanged;
-  final ValueChanged<bool>? onAutoRetryEnabledChanged;
-  final Future<void> Function() onOpenFixedPromptSequenceRunner;
-  final Future<void> Function() onOpenMessageFilter;
-  final VoidCallback onScrollToBottomPressed;
-  final ValueChanged<String> onSelectMessage;
-  final Future<void> Function(String parentId, String messageId)
-  onSelectMessageVersion;
-  final Future<void> Function()? onSendPressed;
-  final Future<void> Function()? onStopStreaming;
-  final VoidCallback? onCancelEdit;
-
-  /// 点击收藏按钮时的回调（仅助手消息），为 null 则不显示收藏按钮。
-  final ValueChanged<ChatMessage>? onFavoritePressed;
-
-  /// 已收藏的助手消息内容集合，用于显示收藏高亮状态。
-  final Set<String> favoritedAssistantContents;
+  final ChatWorkspaceViewState state;
+  final ChatWorkspaceBindings bindings;
 
   @override
-  /// 构建消息区、错误提示和输入区的整体布局。
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
           child: ChatMessagesPanel(
-            conversation: conversation,
-            messages: messages,
-            userMessages: userMessages,
-            hasModels: hasModels,
-            activeAnchorMessageIdListenable: activeAnchorMessageIdListenable,
-            messageItemScrollController: messageItemScrollController,
-            messageItemPositionsListener: messageItemPositionsListener,
-            isBusy: isBusy,
-            errorMessage: errorMessage,
-            errorMessageAssistantId: errorMessageAssistantId,
-            emptyReplyAssistantId: emptyReplyAssistantId,
-            errorModelDisplayName: errorModelDisplayName,
-            showScrollToBottomListenable: showScrollToBottomListenable,
-            autoRetryCount: autoRetryCount,
-            onEditMessage: onEditMessage,
-            onRetryLatestAssistant: onRetryLatestAssistant,
-            onDeleteMessage: onDeleteMessage,
-            onToggleRequestExclusion: onToggleRequestExclusion,
-            onScrollToBottomPressed: onScrollToBottomPressed,
-            onSelectMessage: onSelectMessage,
-            onSelectMessageVersion: onSelectMessageVersion,
-            onFavoritePressed: onFavoritePressed,
-            favoritedAssistantContents: favoritedAssistantContents,
+            conversation: state.messages.conversation,
+            messages: state.messages.messages,
+            userMessages: state.messages.userMessages,
+            hasModels: state.messages.hasModels,
+            activeAnchorMessageIdListenable:
+                bindings.scroll.activeAnchorMessageIdListenable,
+            messageItemScrollController:
+                bindings.scroll.messageItemScrollController,
+            messageItemPositionsListener:
+                bindings.scroll.messageItemPositionsListener,
+            isBusy: state.messages.isBusy,
+            errorMessage: state.messages.errorMessage,
+            errorMessageAssistantId: state.messages.errorMessageAssistantId,
+            emptyReplyAssistantId: state.messages.emptyReplyAssistantId,
+            errorModelDisplayName: state.messages.errorModelDisplayName,
+            showScrollToBottomListenable:
+                bindings.scroll.showScrollToBottomListenable,
+            autoRetryCount: state.messages.autoRetryCount,
+            onEditMessage: bindings.messages.onEditMessage,
+            onRetryLatestAssistant: bindings.messages.onRetryLatestAssistant,
+            onDeleteMessage: bindings.messages.onDeleteMessage,
+            onToggleRequestExclusion:
+                bindings.messages.onToggleRequestExclusion,
+            onScrollToBottomPressed: bindings.scroll.onScrollToBottomPressed,
+            onSelectMessage: bindings.scroll.onSelectMessage,
+            onSelectMessageVersion: bindings.messages.onSelectMessageVersion,
+            onFavoritePressed: bindings.messages.onFavoritePressed,
+            favoritedAssistantContents:
+                state.messages.favoritedAssistantContents,
           ),
         ),
         SizedBox(height: AppBreakpoints.isCompact(context) ? 8 : 12),
-        ChatComposerCard(
-          data: ComposerData(
-            hasModels: hasModels,
-            modelProviders: modelProviders,
-            modelConfigs: modelConfigs,
-            selectedProviderId: selectedProviderId,
-            selectedModel: selectedModel,
-            templatePrompts: templatePrompts,
-            selectedTemplatePrompt: selectedTemplatePrompt,
-            templateVariableControllers: templateVariableControllers,
-            isComposerCollapsed: isComposerCollapsed,
-            reasoningEnabled: reasoningEnabled,
-            reasoningEffort: reasoningEffort,
-            supportsReasoning: supportsReasoning,
-            autoRetryEnabled: autoRetryEnabled,
-            isBusy: isBusy,
-            isStreaming: isStreaming,
-            isAutoRetryWaiting: isAutoRetryWaiting,
-            excludedMessageCount: excludedMessageCount,
-            isEditingMessage: isEditingMessage,
-          ),
-          callbacks: ComposerCallbacks(
-            onProviderSelected: onProviderSelected,
-            onModelSelected: onModelSelected,
-            onTemplatePromptSelected: onTemplatePromptSelected,
-            onToggleComposerCollapsed: onToggleComposerCollapsed,
-            onReasoningEnabledChanged: onReasoningEnabledChanged,
-            onReasoningEffortChanged: onReasoningEffortChanged,
-            onAutoRetryEnabledChanged: onAutoRetryEnabledChanged,
-            onOpenFixedPromptSequenceRunner: onOpenFixedPromptSequenceRunner,
-            onOpenMessageFilter: onOpenMessageFilter,
-            onSendPressed: onSendPressed,
-            onStopStreaming: onStopStreaming,
-            onCancelEdit: onCancelEdit,
-          ),
-          messageController: messageController,
-          messageFocusNode: messageFocusNode,
-        ),
+        ChatComposerCard(state: state.composer, bindings: bindings.composer),
       ],
     );
   }
