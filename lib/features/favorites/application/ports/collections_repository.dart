@@ -1,12 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
-import '../domain/models/collection.dart';
-import 'sqlite_collections_repository.dart';
+import '../../domain/models/collection.dart';
 
-final collectionsRepositoryProvider = Provider<CollectionsRepository>(
-  (ref) => SqliteCollectionsRepository(ref.watch(appDatabaseProvider)),
-);
+/// 必须由 app composition 或测试显式绑定的收藏夹仓库。
+final collectionsRepositoryProvider = Provider<CollectionsRepository>((ref) {
+  throw StateError('CollectionsRepository 尚未由应用组合层绑定');
+});
 
 /// 收藏夹的读写仓库接口。
 abstract interface class CollectionsRepository {

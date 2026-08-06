@@ -1,6 +1,6 @@
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import '../domain/models/favorite.dart';
-import 'favorites_repository.dart';
+import '../application/ports/favorites_repository.dart';
 
 /// 收藏记录的 SQLite 读写仓库。
 class SqliteFavoritesRepository implements FavoritesRepository {

@@ -5,6 +5,10 @@ import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/features/favorites/application/collections_controller.dart';
 import 'package:oh_my_llm/features/favorites/application/favorites_controller.dart';
+import 'package:oh_my_llm/features/favorites/application/ports/collections_repository.dart';
+import 'package:oh_my_llm/features/favorites/application/ports/favorites_repository.dart';
+import 'package:oh_my_llm/features/favorites/data/sqlite_collections_repository.dart';
+import 'package:oh_my_llm/features/favorites/data/sqlite_favorites_repository.dart';
 
 void main() {
   late AppDatabase database;
@@ -13,7 +17,15 @@ void main() {
   setUp(() {
     database = AppDatabase.inMemory();
     container = ProviderContainer(
-      overrides: [appDatabaseProvider.overrideWithValue(database)],
+      overrides: [
+        appDatabaseProvider.overrideWithValue(database),
+        favoritesRepositoryProvider.overrideWith(
+          (ref) => SqliteFavoritesRepository(database),
+        ),
+        collectionsRepositoryProvider.overrideWith(
+          (ref) => SqliteCollectionsRepository(database),
+        ),
+      ],
     );
   });
 

@@ -1,6 +1,6 @@
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import '../domain/models/collection.dart';
-import 'collections_repository.dart';
+import '../application/ports/collections_repository.dart';
 
 /// 收藏夹的 SQLite 读写仓库。
 class SqliteCollectionsRepository implements CollectionsRepository {

@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:oh_my_llm/core/utils/id_generator.dart';
-import '../data/favorites_repository.dart';
+import 'ports/favorites_repository.dart';
 import '../domain/models/favorite.dart';
 
 /// 收藏列表过滤条件。

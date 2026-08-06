@@ -19,6 +19,10 @@ import 'package:oh_my_llm/features/chat/application/ports/chat_completion_client
 import 'package:oh_my_llm/features/chat/application/ports/chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/data/background_chat_repository.dart';
 import 'package:oh_my_llm/features/chat/data/openai_compatible_chat_client.dart';
+import 'package:oh_my_llm/features/favorites/application/ports/collections_repository.dart';
+import 'package:oh_my_llm/features/favorites/application/ports/favorites_repository.dart';
+import 'package:oh_my_llm/features/favorites/data/sqlite_collections_repository.dart';
+import 'package:oh_my_llm/features/favorites/data/sqlite_favorites_repository.dart';
 
 const _viewportSize = Size(1440, 1024);
 
@@ -100,5 +104,11 @@ void main() {
 
     final conversation = container.read(chatConversationRepositoryProvider);
     expect(conversation, isA<BackgroundChatConversationRepository>());
+
+    final favorites = container.read(favoritesRepositoryProvider);
+    expect(favorites, isA<SqliteFavoritesRepository>());
+
+    final collections = container.read(collectionsRepositoryProvider);
+    expect(collections, isA<SqliteCollectionsRepository>());
   });
 }
