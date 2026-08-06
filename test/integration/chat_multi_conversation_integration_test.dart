@@ -12,7 +12,9 @@ import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
-import 'package:oh_my_llm/features/chat/data/openai_compatible_chat_client.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_completion_client.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_conversation_repository.dart';
+import 'package:oh_my_llm/features/chat/data/sqlite_chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 
 import '../features/chat/chat_screen/chat_screen_test_helpers.dart';
@@ -31,6 +33,9 @@ void main() {
         appDatabaseProvider.overrideWithValue(database),
         sharedPreferencesProvider.overrideWithValue(preferences),
         chatCompletionClientProvider.overrideWithValue(fakeClient),
+        chatConversationRepositoryProvider.overrideWithValue(
+          SqliteChatConversationRepository(database),
+        ),
       ],
     );
     addTearDown(database.close);
@@ -95,6 +100,9 @@ void main() {
         appDatabaseProvider.overrideWithValue(database),
         sharedPreferencesProvider.overrideWithValue(preferences),
         chatCompletionClientProvider.overrideWithValue(fakeClientA),
+        chatConversationRepositoryProvider.overrideWithValue(
+          SqliteChatConversationRepository(database),
+        ),
       ],
     );
     addTearDown(database.close);
@@ -121,6 +129,9 @@ void main() {
         chatCompletionClientProvider.overrideWithValue(
           FakeChatCompletionClient(),
         ),
+        chatConversationRepositoryProvider.overrideWithValue(
+          SqliteChatConversationRepository(database),
+        ),
       ],
     );
     addTearDown(containerB.dispose);
@@ -145,6 +156,9 @@ void main() {
         appDatabaseProvider.overrideWithValue(database),
         sharedPreferencesProvider.overrideWithValue(preferences),
         chatCompletionClientProvider.overrideWithValue(fakeClient),
+        chatConversationRepositoryProvider.overrideWithValue(
+          SqliteChatConversationRepository(database),
+        ),
       ],
     );
     addTearDown(database.close);
@@ -175,6 +189,9 @@ void main() {
         sharedPreferencesProvider.overrideWithValue(preferences),
         chatCompletionClientProvider.overrideWithValue(
           FakeChatCompletionClient(),
+        ),
+        chatConversationRepositoryProvider.overrideWithValue(
+          SqliteChatConversationRepository(database),
         ),
       ],
     );

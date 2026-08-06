@@ -1,16 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
-import '../domain/models/chat_conversation.dart';
-import '../domain/models/chat_conversation_summary.dart';
-import 'background_chat_repository.dart';
-import 'sqlite_chat_conversation_repository.dart';
+import '../../domain/models/chat_conversation.dart';
+import '../../domain/models/chat_conversation_summary.dart';
 
+/// 必须由 app composition 或测试显式绑定的会话持久化仓库。
 final chatConversationRepositoryProvider = Provider<ChatConversationRepository>(
   (ref) {
-    final database = ref.watch(appDatabaseProvider);
-    final inner = SqliteChatConversationRepository(database);
-    return BackgroundChatConversationRepository(inner, database.path);
+    throw StateError('ChatConversationRepository 尚未由应用组合层绑定');
   },
 );
 

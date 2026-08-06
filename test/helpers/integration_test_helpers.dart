@@ -1,13 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:oh_my_llm/app/composition/cross_feature_bindings.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/core/persistence/versioned_json_storage.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
-import 'package:oh_my_llm/features/chat/data/chat_completion_client.dart';
-import 'package:oh_my_llm/features/chat/data/openai_compatible_chat_client.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_completion_client.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
@@ -85,6 +85,12 @@ ProviderContainer createTestContainer({
     overrides: [
       appDatabaseProvider.overrideWithValue(database),
       sharedPreferencesProvider.overrideWithValue(preferences),
+      // 排除 composition 的 completion 绑定（由 fakeClient 接管），
+      // Riverpod 禁止同一容器内对同一 provider 重复 override。
+      ...appCompositionOverrides(
+        useInMemorySyncSecureStore: true,
+        bindChatCompletionClient: false,
+      ),
       chatCompletionClientProvider.overrideWithValue(fakeClient),
     ],
   );

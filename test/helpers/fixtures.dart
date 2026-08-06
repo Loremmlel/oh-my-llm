@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/persistence/versioned_json_storage.dart';
-import 'package:oh_my_llm/features/chat/data/chat_completion_client.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_completion_client.dart';
 import 'package:oh_my_llm/features/chat/data/sqlite_chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';

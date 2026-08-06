@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/chat/data/chat_chunk_parser.dart';
-import 'package:oh_my_llm/features/chat/data/chat_completion_client.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_completion_client.dart';
 
 void main() {
   // ── 辅助工厂 ─────────────────────────────────────────────────

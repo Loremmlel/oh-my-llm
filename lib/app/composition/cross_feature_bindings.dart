@@ -2,10 +2,19 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:oh_my_llm/core/http/custom_headers_provider.dart';
+import 'package:oh_my_llm/core/http/http_client_provider.dart';
 import 'package:oh_my_llm/core/http/http_route_handler.dart';
 import 'package:oh_my_llm/core/http/peer_http_client_provider.dart';
+import 'package:oh_my_llm/core/logging/app_network_logger_provider.dart';
+import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/features/chat/application/chat_favorites_facade.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_completion_client.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_conversation_repository.dart';
+import 'package:oh_my_llm/features/chat/data/background_chat_repository.dart';
+import 'package:oh_my_llm/features/chat/data/openai_compatible_chat_client.dart';
+import 'package:oh_my_llm/features/chat/data/sqlite_chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/favorites/application/collections_controller.dart';
 import 'package:oh_my_llm/features/favorites/application/favorite_source_conversation_command.dart';
 import 'package:oh_my_llm/features/favorites/application/favorites_controller.dart';
@@ -36,8 +45,14 @@ import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 ///
 /// 此处是 Sync transport、Settings snapshot 及媒体服务路由唯一的生产绑定点；
 /// 外层可在该列表之后覆盖任一 port 以注入测试 fake。
+///
+/// [bindChatCompletionClient] / [bindChatConversationRepository]：测试 harness
+/// 需要以 fake 覆盖对应 port 时传 false——Riverpod 不允许同一容器内重复
+/// override 同一 provider，生产绑定与测试 fake 必须由调用方二选一。
 List<dynamic> appCompositionOverrides({
   bool useInMemorySyncSecureStore = false,
+  bool bindChatCompletionClient = true,
+  bool bindChatConversationRepository = true,
 }) {
   return [
     syncClientTransportProvider.overrideWith(
@@ -95,6 +110,26 @@ List<dynamic> appCompositionOverrides({
     favoriteSourceConversationCommandProvider.overrideWith(
       (ref) => _CompositionFavoriteSourceConversationCommand(ref),
     ),
+    if (bindChatCompletionClient)
+      // Chat completion：生产环境绑定 OpenAI 兼容 HTTP 流式客户端。
+      chatCompletionClientProvider.overrideWith(
+        (ref) => OpenAiCompatibleChatClient(
+          httpClient: ref.read(httpClientProvider),
+          logger: ref.watch(appNetworkLoggerProvider),
+          // 在请求构建阶段读取自定义 header，确保 logRequest 之前已附加到请求上。
+          extraHeadersFactory: () => ref.read(customHeadersMapProvider),
+        ),
+      ),
+    if (bindChatConversationRepository)
+      // Chat conversation：SQLite inner + 后台 Isolate 写入代理，
+      // 与迁移前的 data-owned factory 保持相同装配语义。
+      chatConversationRepositoryProvider.overrideWith((ref) {
+        final database = ref.watch(appDatabaseProvider);
+        return BackgroundChatConversationRepository(
+          SqliteChatConversationRepository(database),
+          database.path,
+        );
+      }),
   ];
 }
 

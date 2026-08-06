@@ -1,7 +1,7 @@
-import '../data/chat_completion_client.dart';
 import '../domain/models/chat_conversation.dart';
 import 'chat_generation_contract.dart';
 import 'chat_generation_run.dart';
+import 'ports/chat_completion_client.dart';
 
 /// generation 时序的唯一 owner（不变量 1）。
 ///

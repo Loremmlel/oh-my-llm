@@ -15,6 +15,10 @@ import 'package:oh_my_llm/core/logging/network_logger.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_completion_client.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_conversation_repository.dart';
+import 'package:oh_my_llm/features/chat/data/background_chat_repository.dart';
+import 'package:oh_my_llm/features/chat/data/openai_compatible_chat_client.dart';
 
 const _viewportSize = Size(1440, 1024);
 
@@ -90,5 +94,11 @@ void main() {
 
     final logger = container.read(appNetworkLoggerProvider);
     expect(logger, isA<NoopNetworkLogger>());
+
+    final completion = container.read(chatCompletionClientProvider);
+    expect(completion, isA<OpenAiCompatibleChatClient>());
+
+    final conversation = container.read(chatConversationRepositoryProvider);
+    expect(conversation, isA<BackgroundChatConversationRepository>());
   });
 }

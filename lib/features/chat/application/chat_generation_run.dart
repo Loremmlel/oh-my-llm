@@ -2,12 +2,12 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:oh_my_llm/features/settings/domain/models/auto_retry_settings.dart';
-import '../data/chat_completion_client.dart';
 import '../domain/models/chat_conversation.dart';
 import '../domain/models/chat_message.dart';
 import 'chat_generation_contract.dart';
 import 'chat_generation_lifecycle.dart';
 import 'chat_sessions_state.dart';
+import 'ports/chat_completion_client.dart';
 
 /// 一次 generation 的完整生命周期 owner（不变量 1：单一 owner）。
 ///

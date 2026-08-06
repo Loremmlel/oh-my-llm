@@ -4,8 +4,8 @@ import 'package:oh_my_llm/core/persistence/app_database.dart';
 import '../domain/models/chat_checkpoint.dart';
 import '../domain/models/chat_conversation.dart';
 import '../domain/models/chat_conversation_summary.dart';
+import '../application/ports/chat_conversation_repository.dart';
 import '../domain/models/chat_message.dart';
-import 'chat_conversation_repository.dart';
 import 'chat_sql_codec.dart';
 
 /// 基于 SQLite 的会话持久化仓库，负责按表保存会话树与分支选择。

@@ -1,32 +1,14 @@
 import 'dart:convert';
 import 'dart:async';
 
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
-import 'package:oh_my_llm/core/http/custom_headers_provider.dart';
-import 'package:oh_my_llm/core/http/http_client_provider.dart';
-import 'package:oh_my_llm/core/logging/app_network_logger_provider.dart';
 import 'package:oh_my_llm/core/logging/network_logger.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
+import '../application/ports/chat_completion_client.dart';
 import '../domain/models/chat_message.dart';
 import 'chat_chunk_parser.dart';
-import 'chat_completion_client.dart';
 import 'vendor_payload_adapters.dart';
-
-/// OpenAI 兼容接口的 HTTP 流式客户端提供者。
-final chatCompletionClientProvider = Provider<ChatCompletionClient>((ref) {
-  final httpClient = ref.read(httpClientProvider);
-  final logger = ref.watch(appNetworkLoggerProvider);
-  // 在请求构建阶段获取自定义 header，确保在 logRequest 之前已附加到请求上。
-  Map<String, String> extraHeadersFactory() =>
-      ref.read(customHeadersMapProvider);
-  return OpenAiCompatibleChatClient(
-    httpClient: httpClient,
-    logger: logger,
-    extraHeadersFactory: extraHeadersFactory,
-  );
-});
 
 /// 直接使用 HTTP 请求读取 SSE 流，并把返回内容拆成补全增量。
 class OpenAiCompatibleChatClient implements ChatCompletionClient {

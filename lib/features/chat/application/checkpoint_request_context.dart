@@ -1,9 +1,9 @@
-import '../data/chat_completion_client.dart';
 import '../domain/models/chat_checkpoint.dart';
 import '../domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/settings/domain/models/memory_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
 import 'chat_request_message_builder.dart';
+import 'ports/chat_completion_client.dart';
 
 /// 选中检查点后，真正参与请求拼装的上下文视图。
 class CheckpointRequestContext {

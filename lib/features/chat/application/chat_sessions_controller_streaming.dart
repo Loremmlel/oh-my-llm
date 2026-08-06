@@ -1,6 +1,5 @@
 import 'package:oh_my_llm/features/settings/application/output_processing_settings_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/auto_retry_settings.dart';
-import '../data/chat_completion_client.dart';
 import '../domain/models/chat_conversation.dart';
 import '../domain/chat_error_messages.dart';
 import '../domain/models/chat_message.dart';
@@ -8,6 +7,7 @@ import 'chat_message_tree.dart';
 import 'chat_sessions_controller_support.dart';
 import 'chat_sessions_state.dart';
 import 'output_regex_processor.dart';
+import 'ports/chat_completion_client.dart';
 
 /// [finishGenerationSuccess] 的终态判定结果，使 phase/outcome 一一对应。
 sealed class FinishGenerationResult {

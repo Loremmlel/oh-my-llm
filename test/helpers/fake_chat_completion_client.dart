@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:oh_my_llm/features/chat/data/chat_completion_client.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_completion_client.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
 

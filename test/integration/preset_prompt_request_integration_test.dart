@@ -16,7 +16,9 @@ import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/core/persistence/versioned_json_storage.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
-import 'package:oh_my_llm/features/chat/data/openai_compatible_chat_client.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_completion_client.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_conversation_repository.dart';
+import 'package:oh_my_llm/features/chat/data/sqlite_chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/settings/application/preset_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dart';
@@ -92,6 +94,9 @@ void main() {
         appDatabaseProvider.overrideWithValue(database),
         sharedPreferencesProvider.overrideWithValue(preferences),
         chatCompletionClientProvider.overrideWithValue(fakeClient),
+        chatConversationRepositoryProvider.overrideWithValue(
+          SqliteChatConversationRepository(database),
+        ),
       ],
     );
     addTearDown(container.dispose);

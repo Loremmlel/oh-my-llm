@@ -32,6 +32,8 @@ Future<AppDatabase> pumpTestApp(
   Size viewportSize = const Size(1440, 1200),
   List<dynamic> extraOverrides = const [],
   GoRouter? router,
+  bool bindChatCompletionClient = false,
+  bool bindChatConversationRepository = true,
 }) async {
   assert(
     child != null || router != null,
@@ -52,6 +54,8 @@ Future<AppDatabase> pumpTestApp(
       extraOverrides: extraOverrides,
       child: child,
       router: router,
+      bindChatCompletionClient: bindChatCompletionClient,
+      bindChatConversationRepository: bindChatConversationRepository,
     ),
   );
   await tester.pump();
@@ -72,6 +76,8 @@ Future<ProviderScope> pumpTestAppScope(
   Size viewportSize = const Size(1440, 1200),
   List<dynamic> extraOverrides = const [],
   GoRouter? router,
+  bool bindChatCompletionClient = false,
+  bool bindChatConversationRepository = true,
 }) async {
   assert(
     child != null || router != null,
@@ -91,6 +97,8 @@ Future<ProviderScope> pumpTestAppScope(
     extraOverrides: extraOverrides,
     child: child,
     router: router,
+    bindChatCompletionClient: bindChatCompletionClient,
+    bindChatConversationRepository: bindChatConversationRepository,
   );
 }
 
@@ -115,6 +123,8 @@ ProviderScope _buildTestScope({
   required List<dynamic> extraOverrides,
   Widget? child,
   GoRouter? router,
+  bool bindChatCompletionClient = false,
+  bool bindChatConversationRepository = true,
 }) {
   return ProviderScope(
     overrides: [
@@ -122,7 +132,13 @@ ProviderScope _buildTestScope({
       sharedPreferencesProvider.overrideWithValue(preferences),
       customHeadersMapProvider.overrideWith((ref) => const {}),
       peerHttpClientProvider.overrideWithValue(http.Client()),
-      ...appCompositionOverrides(useInMemorySyncSecureStore: true),
+      // 需要 fake 的 port 从 composition 中排除，由 extraOverrides 接管：
+      // Riverpod 禁止同一容器内对同一 provider 重复 override。
+      ...appCompositionOverrides(
+        useInMemorySyncSecureStore: true,
+        bindChatCompletionClient: bindChatCompletionClient,
+        bindChatConversationRepository: bindChatConversationRepository,
+      ),
       ...extraOverrides,
     ],
     child: router != null

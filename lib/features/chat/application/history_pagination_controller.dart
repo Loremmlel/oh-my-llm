@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../data/chat_conversation_repository.dart';
 import '../domain/history_pagination_state.dart';
+import 'ports/chat_conversation_repository.dart';
 
 /// 可供用户选择的每页条数选项。
 const availablePageSizes = <int>[10, 20, 50];
