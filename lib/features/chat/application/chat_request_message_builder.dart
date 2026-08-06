@@ -1,7 +1,7 @@
 import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
-import '../data/chat_completion_client.dart';
 import '../domain/models/chat_checkpoint.dart';
 import '../domain/models/chat_message.dart';
+import 'ports/chat_completion_client.dart';
 import 'request_message_filter.dart';
 
 export 'request_message_filter.dart';

@@ -1,4 +1,4 @@
-import 'package:oh_my_llm/features/chat/data/chat_conversation_repository.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/data/sqlite_chat_conversation_repository.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';

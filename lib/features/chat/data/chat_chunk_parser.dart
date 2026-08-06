@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'chat_completion_client.dart';
+import '../application/ports/chat_completion_client.dart';
 import 'chunk_parse_strategy.dart';
 
 /// 内联 reasoning 标签分割结果。

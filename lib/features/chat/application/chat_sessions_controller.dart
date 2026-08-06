@@ -16,15 +16,14 @@ import 'chat_sessions_controller_support.dart';
 import 'checkpoint_request_context.dart';
 import 'chat_message_tree.dart';
 import 'chat_sessions_state.dart';
-import '../data/chat_completion_client.dart';
-import '../data/chat_conversation_repository.dart';
-import '../data/openai_compatible_chat_client.dart';
 import '../domain/models/chat_checkpoint.dart';
 import '../domain/models/chat_conversation.dart';
 import '../domain/models/chat_conversation_summary.dart';
 import '../domain/chat_error_messages.dart';
 import '../domain/chat_message_parent.dart';
 import '../domain/models/chat_message.dart';
+import 'ports/chat_completion_client.dart';
+import 'ports/chat_conversation_repository.dart';
 
 export 'chat_sessions_state.dart';
 

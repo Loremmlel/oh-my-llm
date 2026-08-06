@@ -1,5 +1,7 @@
-import '../domain/models/chat_message.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
+import '../../domain/models/chat_message.dart';
 
 /// 流式补全请求失败时抛出的业务异常。
 ///
@@ -121,3 +123,8 @@ class ChatCompletionRequestMessage {
     return {'role': role.apiValue, 'content': content};
   }
 }
+
+/// 必须由 app composition 或测试显式绑定的聊天补全客户端。
+final chatCompletionClientProvider = Provider<ChatCompletionClient>((ref) {
+  throw StateError('ChatCompletionClient 尚未由应用组合层绑定');
+});
