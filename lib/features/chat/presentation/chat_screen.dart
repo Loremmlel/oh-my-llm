@@ -834,9 +834,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         });
         _templateVariableControllers[variable.name] = controller;
       } else {
-        if (savedValue != null && existing.text != savedValue) {
+        // 目标会话没有该变量草稿值时必须回落到模板默认值，不能只覆盖「有值」的情况，
+        // 否则 B 选了同名模板但未输入时，字段会残留 A 会话上一次的值（跨会话泄漏）。
+        final targetValue = savedValue ?? variable.defaultValue;
+        if (existing.text != targetValue) {
           _isApplyingComposerDraft = true;
-          existing.text = savedValue;
+          existing.text = targetValue;
           _isApplyingComposerDraft = false;
         }
       }
