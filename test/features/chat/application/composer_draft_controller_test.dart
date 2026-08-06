@@ -107,5 +107,25 @@ void main() {
       draft = controller.draftFor('conv-a');
       expect(draft, ComposerDraft.empty);
     });
+
+    test('replaceDraft 存入 state 后，外部对原 draft 内层 map 的修改不可见', () {
+      final notifier = container.read(composerDraftProvider.notifier);
+      final mutableInner = <String, String>{'title': '甲'};
+      final draft = ComposerDraft(
+        body: '正文',
+        templateVariableValuesByTemplateId: {'tp-1': mutableInner},
+      );
+      notifier.replaceDraft('conv-a', draft);
+
+      // 修改外部 map：state 内的 draft 不得受影响。
+      mutableInner['title'] = '乙';
+      final stored = notifier.draftFor('conv-a');
+      expect(stored.templateVariableValuesByTemplateId['tp-1']?['title'], '甲');
+      // 且 state 内的内层 map 不可变。
+      expect(
+        () => stored.templateVariableValuesByTemplateId['tp-1']!['title'] = '丙',
+        throwsUnsupportedError,
+      );
+    });
   });
 }

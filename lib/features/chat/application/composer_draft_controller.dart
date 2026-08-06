@@ -144,11 +144,14 @@ class ComposerDraftController extends Notifier<ComposerDraftState> {
   }
 
   /// 整体替换草稿（仅恢复/提交事务使用）。
+  ///
+  /// state 入口处的防御复制：外部构造的 draft 内层 map 可能可变，
+  /// 直接存储会破坏不可变性契约，故先深拷贝再放入 state。
   void replaceDraft(String conversationId, ComposerDraft draft) {
     state = state.copyWith(
       draftsByConversationId: {
         ...state.draftsByConversationId,
-        conversationId: draft,
+        conversationId: draft.copyWith(),
       },
     );
   }
