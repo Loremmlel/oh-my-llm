@@ -18,6 +18,7 @@ import 'package:oh_my_llm/features/settings/application/llm_model_configs_contro
 import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
+import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
 
 import '../../../helpers/controllable_chat_conversation_repository.dart';
 import '../../../helpers/fake_chat_completion_client.dart';
@@ -102,11 +103,15 @@ void main() {
     String? editingMessageId,
     String? conversationId,
     Object? selectedModel = _useDefaultModel,
+    TemplatePrompt? templatePrompt,
+    Map<String, String> variableValues = const {},
   }) {
     return ChatComposerSubmitIntent(
       conversationId:
           conversationId ?? container.read(activeConversationIdProvider),
       body: body,
+      templatePrompt: templatePrompt,
+      variableValues: variableValues,
       selectedModel: identical(selectedModel, _useDefaultModel)
           ? model()
           : selectedModel as LlmModelConfig?,
@@ -122,6 +127,9 @@ void main() {
     container
         .read(composerDraftProvider.notifier)
         .setBody(conversationId, '你好');
+    container
+        .read(composerDraftProvider.notifier)
+        .selectTemplate(conversationId, 'tp-1');
     fakeClient.enqueueChunks(['回复']);
 
     final result = command.dispatch(intentFor('你好'));
@@ -135,6 +143,11 @@ void main() {
           .draftFor(conversationId)
           .body,
       '',
+    );
+    // selection 保留，不被 dispatch 消费。
+    expect(
+      container.read(composerTemplateSelectionProvider(conversationId)),
+      'tp-1',
     );
     await accepted.completion;
     expect(fakeClient.requestHistory, hasLength(1));
@@ -322,4 +335,100 @@ void main() {
       '',
     );
   });
+
+  test('templated dispatch：变量值随 intent 传入，draft 只清 body 保留模板选择', () async {
+    final command = container.read(chatComposerCommandProvider);
+    final conversationId = container.read(activeConversationIdProvider);
+    // 模板变量值由 intent 携带，dispatch 只读 intent，无需注册到 Provider。
+    final template = TemplatePrompt(
+      id: 'tp-1',
+      title: '变量模板',
+      content: '请按{{title}}输出。',
+      variables: [TemplatePromptVariable(name: 'title', defaultValue: '默认标题')],
+      updatedAt: DateTime(2026, 1, 1),
+    );
+    container
+        .read(composerDraftProvider.notifier)
+        .selectTemplate(conversationId, 'tp-1');
+    fakeClient.enqueueChunks(['回复']);
+
+    final result = command.dispatch(
+      intentFor('正文', templatePrompt: template, variableValues: {'title': '甲'}),
+    );
+    expect(result, isA<ChatComposerAccepted>());
+    final accepted = result as ChatComposerAccepted;
+    await accepted.completion;
+
+    final sent = fakeClient.requestHistory.single
+        .map((m) => m.content)
+        .join('\n');
+    expect(sent, contains('甲'));
+    expect(sent, isNot(contains('默认标题')));
+    // accepted 后：body 清空、模板选择保留。
+    final draft = container
+        .read(composerDraftProvider.notifier)
+        .draftFor(conversationId);
+    expect(draft.body, '');
+    expect(draft.selectedTemplatePromptId, 'tp-1');
+  });
+
+  test('dispatchDirect 直接发送步骤文本，不消费 composer draft', () async {
+    final command = container.read(chatComposerCommandProvider);
+    final conversationId = container.read(activeConversationIdProvider);
+    container
+        .read(composerDraftProvider.notifier)
+        .setBody(conversationId, '普通草稿');
+    fakeClient.enqueueChunks(['步骤回复']);
+
+    await command.dispatchDirect(
+      ChatDirectSubmitIntent(
+        conversationId: conversationId,
+        content: '步骤内容',
+        selectedModel: model(),
+        selectedPresetPrompt: null,
+        reasoningEnabled: false,
+        reasoningEffort: ReasoningEffort.medium,
+      ),
+    );
+
+    final sent = fakeClient.requestHistory.single
+        .map((m) => m.content)
+        .join('\n');
+    expect(sent, contains('步骤内容'));
+    // 普通草稿完整保留，不被消费。
+    expect(
+      container
+          .read(composerDraftProvider.notifier)
+          .draftFor(conversationId)
+          .body,
+      '普通草稿',
+    );
+  });
+
+  test(
+    'selectTemplate 只写目标会话 draft；setReasoning/AutoRetry 更新 conversation',
+    () {
+      final command = container.read(chatComposerCommandProvider);
+      final conversationId = container.read(activeConversationIdProvider);
+
+      command.selectTemplate(conversationId, 'tp-1');
+      expect(
+        container.read(composerTemplateSelectionProvider(conversationId)),
+        'tp-1',
+      );
+      // 其他会话不受影响。
+      expect(
+        container.read(composerTemplateSelectionProvider('other-conv')),
+        isNull,
+      );
+
+      command.setReasoningEnabled(true);
+      command.setReasoningEffort(ReasoningEffort.high);
+      command.setAutoRetryEnabled(true);
+      final conversation = container.read(activeChatConversationProvider);
+      expect(conversation.reasoningEnabled, isTrue);
+      expect(conversation.reasoningEffort, ReasoningEffort.high);
+      expect(conversation.autoRetryEnabled, isTrue);
+    },
+  );
 }
