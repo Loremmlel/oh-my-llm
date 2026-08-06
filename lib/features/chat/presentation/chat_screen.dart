@@ -627,7 +627,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (previous != null) {
       controller.removeListener(previous);
     }
-    final listener = () =>
+    void listener() =>
         _onTemplateVariableChanged(templateId, variableName, controller);
     controller.addListener(listener);
     _templateVariableListeners[variableName] = listener;
