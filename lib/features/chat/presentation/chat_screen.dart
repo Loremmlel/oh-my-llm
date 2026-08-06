@@ -42,6 +42,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   late final ChatScrollController _scroll;
   final Map<String, TextEditingController> _templateVariableControllers = {};
 
+  /// 模板变量字段当前绑定的模板 ID（变量名 -> templateId），用于判断是否需要重绑。
+  final Map<String, String> _templateVariableTemplateIds = {};
+
+  /// 模板变量字段当前的 listener（变量名 -> listener），重绑前先解绑旧的。
+  final Map<String, VoidCallback> _templateVariableListeners = {};
+
   String? _selectedFixedPromptSequenceId;
   int _selectedFixedPromptStepIndex = 0;
 
@@ -569,13 +575,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         .toList(growable: false);
     for (final name in removedNames) {
       _templateVariableControllers.remove(name)?.dispose();
+      _templateVariableListeners.remove(name);
+      _templateVariableTemplateIds.remove(name);
     }
 
     if (template == null) {
       return;
     }
 
-    final controllerRef = ref.read(composerDraftProvider.notifier);
     final conversationId = _activeConversationIdOrNull();
     for (final variable in template.inputVariables) {
       final templateId = template.id;
@@ -590,26 +597,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         final controller = TextEditingController(
           text: savedValue ?? variable.defaultValue,
         );
-        controller.addListener(() {
-          if (_isApplyingComposerDraft) return;
-          if (_editingMessageId != null) {
-            // 编辑中只写页面本地草稿，绝不污染会话级 draft。
-            _updateEditingTemplateVariable(
-              templateId,
-              variable.name,
-              controller.text,
-            );
-            return;
-          }
-          final cid = _activeConversationIdOrNull();
-          if (cid == null) return;
-          controllerRef.setTemplateVariable(
-            cid,
-            templateId,
-            variable.name,
-            controller.text,
-          );
-        });
+        _bindTemplateVariableListener(templateId, variable.name, controller);
         _templateVariableControllers[variable.name] = controller;
       } else {
         // 目标会话没有该变量草稿值时必须回落到模板默认值，不能只覆盖「有值」的情况，
@@ -620,8 +608,48 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           existing.text = targetValue;
           _isApplyingComposerDraft = false;
         }
+        // 同名变量可能来自不同模板：模板切换后必须重绑 listener 捕获当前
+        // templateId，否则输入仍写进旧模板名下、发送时被静默替换为默认值。
+        _bindTemplateVariableListener(templateId, variable.name, existing);
       }
     }
+  }
+
+  /// 绑定/重绑模板变量字段的 listener：同一变量名切到新模板时先解绑旧
+  /// listener 再绑定当前 templateId，避免输入写进错误模板名下。
+  void _bindTemplateVariableListener(
+    String templateId,
+    String variableName,
+    TextEditingController controller,
+  ) {
+    if (_templateVariableTemplateIds[variableName] == templateId) return;
+    final previous = _templateVariableListeners[variableName];
+    if (previous != null) {
+      controller.removeListener(previous);
+    }
+    final listener = () =>
+        _onTemplateVariableChanged(templateId, variableName, controller);
+    controller.addListener(listener);
+    _templateVariableListeners[variableName] = listener;
+    _templateVariableTemplateIds[variableName] = templateId;
+  }
+
+  /// 模板变量输入的统一入口：编辑中写页面本地草稿，否则写会话级 draft。
+  void _onTemplateVariableChanged(
+    String templateId,
+    String variableName,
+    TextEditingController controller,
+  ) {
+    if (_isApplyingComposerDraft) return;
+    if (_editingMessageId != null) {
+      _updateEditingTemplateVariable(templateId, variableName, controller.text);
+      return;
+    }
+    final cid = _activeConversationIdOrNull();
+    if (cid == null) return;
+    ref
+        .read(composerDraftProvider.notifier)
+        .setTemplateVariable(cid, templateId, variableName, controller.text);
   }
 
   void _handleTemplatePromptSelected(String? templatePromptId) {
