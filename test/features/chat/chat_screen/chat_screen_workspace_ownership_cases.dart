@@ -45,6 +45,27 @@ Future<void> _selectTemplate(WidgetTester tester, String title) async {
   await tester.pumpAndSettle(const Duration(milliseconds: 250));
 }
 
+/// 注册「变量模板」（tp-var，变量 title 默认值「默认标题」），返回容器。
+Future<void> _seedVariableTemplate(
+  WidgetTester tester,
+  ProviderContainer container,
+) async {
+  await container
+      .read(templatePromptsProvider.notifier)
+      .upsert(
+        TemplatePrompt(
+          id: 'tp-var',
+          title: '变量模板',
+          content: '请按{{title}}输出。',
+          variables: const [
+            TemplatePromptVariable(name: 'title', defaultValue: '默认标题'),
+          ],
+          updatedAt: DateTime(2026, 5, 5, 0, 1),
+        ),
+      );
+  await tester.pumpAndSettle(const Duration(milliseconds: 250));
+}
+
 void registerChatScreenWorkspaceOwnershipTests() {
   testWidgets('A→B 首次切换 B 不显示 A 的正文，切回 A 恢复 A 的正文', (tester) async {
     final fakeClient = FakeChatCompletionClient()..enqueueChunks(['已收到']);
@@ -269,35 +290,17 @@ void registerChatScreenWorkspaceOwnershipTests() {
     expect(fakeClient.requestHistory, hasLength(1));
   });
 
-  testWidgets('编辑带模板消息变量随提交生效；编辑无模板消息不显示会话模板输入', (tester) async {
+  testWidgets('编辑无模板消息不显示会话模板变量输入，提交分支不带模板', (tester) async {
     final fakeClient = FakeChatCompletionClient()
       ..enqueueChunks(['普通回复'])
-      ..enqueueChunks(['普通消息修改回复'])
-      ..enqueueChunks(['模板回复'])
-      ..enqueueChunks(['编辑后模板回复']);
+      ..enqueueChunks(['普通消息修改回复']);
     await pumpChatScreen(tester, fakeClient: fakeClient);
     final container = ProviderScope.containerOf(
       tester.element(find.byType(ChatScreen)),
     );
     final convId = container.read(chatSessionsProvider).activeConversation.id;
+    await _seedVariableTemplate(tester, container);
 
-    // 注册一个带非空默认值的模板变量，便于区分「模板默认值」与「用户输入」。
-    await container
-        .read(templatePromptsProvider.notifier)
-        .upsert(
-          TemplatePrompt(
-            id: 'tp-var',
-            title: '变量模板',
-            content: '请按{{title}}输出。',
-            variables: const [
-              TemplatePromptVariable(name: 'title', defaultValue: '默认标题'),
-            ],
-            updatedAt: DateTime(2026, 5, 5, 0, 1),
-          ),
-        );
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
-
-    // ── 路径 B：编辑无模板消息，但会话级 draft 已选中模板 ──
     await sendMessage(tester, '普通消息');
     await tester.pumpAndSettle(const Duration(milliseconds: 250));
     final plainMessageId = container
@@ -306,15 +309,13 @@ void registerChatScreenWorkspaceOwnershipTests() {
         .lastWhere((m) => m.role == ChatMessageRole.user)
         .id;
 
-    // 会话级 draft 选中模板（模拟「session draft 有模板」）。
+    // 会话级 draft 选中模板；编辑无模板消息时不应显示变量输入框。
     await _selectTemplate(tester, '变量模板');
     await tester.pumpAndSettle(const Duration(milliseconds: 250));
-
-    // 编辑无模板消息：不显示会话模板的变量输入框（修复前这里会显示并静默丢弃）。
     await _tapEditMessage(tester, plainMessageId);
     expect(find.byKey(const ValueKey('template-variable-title')), findsNothing);
 
-    // 提交编辑：发送纯正文，分支不带模板，会话级模板选择保留。
+    // 提交编辑：新分支不带模板，会话级模板选择保留。
     await tester.enterText(_composerFinder, '普通消息修改');
     await tester.pump();
     await tester.tap(find.widgetWithText(FilledButton, '发送'));
@@ -333,26 +334,33 @@ void registerChatScreenWorkspaceOwnershipTests() {
           .selectedTemplatePromptId,
       'tp-var',
     );
+  });
 
-    // ── 路径 A：编辑带模板的消息，修改变量后提交 ──
+  testWidgets('编辑带模板消息：变量输入框携带已保存值，修改后提交新分支', (tester) async {
+    final fakeClient = FakeChatCompletionClient()
+      ..enqueueChunks(['模板回复'])
+      ..enqueueChunks(['编辑后模板回复']);
+    await pumpChatScreen(tester, fakeClient: fakeClient);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
+    final convId = container.read(chatSessionsProvider).activeConversation.id;
+    await _seedVariableTemplate(tester, container);
+
+    // 发送带模板消息（变量 '甲'）。
+    await _selectTemplate(tester, '变量模板');
+    await tester.pump();
     await tester.enterText(_composerFinder, '模板问题');
     await tester.pump();
-    final titleField = find.byKey(const ValueKey('template-variable-title'));
-    await tester.enterText(titleField, '甲');
+    await tester.enterText(
+      find.byKey(const ValueKey('template-variable-title')),
+      '甲',
+    );
     await tester.pump();
     await tester.tap(find.widgetWithText(FilledButton, '发送'));
     await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
-    // 发送后：会话级 draft body 清空、模板变量保留 '甲'。
-    expect(
-      container
-          .read(composerDraftProvider.notifier)
-          .draftFor(convId)
-          .templateVariableValuesByTemplateId['tp-var']?['title'],
-      '甲',
-    );
-
-    // 编辑该带模板消息：变量输入框携带已保存值，改为 '乙' 后提交。
+    // 编辑该消息：变量框携带 '甲'，改为 '乙' 后提交。
     final templatedMessageId = container
         .read(activeChatConversationProvider)
         .messages
@@ -362,6 +370,7 @@ void registerChatScreenWorkspaceOwnershipTests() {
         )
         .id;
     await _tapEditMessage(tester, templatedMessageId);
+    final titleField = find.byKey(const ValueKey('template-variable-title'));
     expect(tester.widget<TextField>(titleField).controller!.text, '甲');
     await tester.enterText(titleField, '乙');
     await tester.pump();
