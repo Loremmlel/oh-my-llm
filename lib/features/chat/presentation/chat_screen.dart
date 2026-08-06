@@ -6,20 +6,18 @@ import 'package:oh_my_llm/app/shell/app_shell_scaffold.dart';
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import 'package:oh_my_llm/core/providers/notification_bubble_provider.dart';
 import 'package:oh_my_llm/core/widgets/notification_bubble_data.dart';
-import 'package:oh_my_llm/features/settings/application/chat_defaults_controller.dart';
 import 'package:oh_my_llm/features/settings/application/preset_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/application/template_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/fixed_prompt_sequence.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
-import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
+import '../application/chat_composer_command.dart';
 import '../application/chat_message_tree.dart';
 import '../application/chat_sessions_controller.dart';
 import '../application/chat_sidebar_controller.dart';
 import '../application/composer_collapsed_controller.dart';
 import '../application/composer_draft_controller.dart';
-import '../application/templated_user_message_builder.dart';
 import '../domain/chat_conversation_groups.dart';
 import '../domain/chat_message_parent.dart';
 import '../domain/models/chat_conversation.dart';
@@ -37,34 +35,6 @@ class ChatScreen extends ConsumerStatefulWidget {
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ComposerSnapshot {
-  const _ComposerSnapshot._({
-    required this.bodyText,
-    required this.templatePromptId,
-    required this.templateVariableValues,
-    required this.isComposerCollapsed,
-  });
-
-  factory _ComposerSnapshot({
-    required String bodyText,
-    required String? templatePromptId,
-    required Map<String, String> templateVariableValues,
-    required bool isComposerCollapsed,
-  }) {
-    return _ComposerSnapshot._(
-      bodyText: bodyText,
-      templatePromptId: templatePromptId,
-      templateVariableValues: Map.unmodifiable(templateVariableValues),
-      isComposerCollapsed: isComposerCollapsed,
-    );
-  }
-
-  final String bodyText;
-  final String? templatePromptId;
-  final Map<String, String> templateVariableValues;
-  final bool isComposerCollapsed;
-}
-
 /// 聊天页状态层，处理滚动同步、锚点定位和编辑弹窗等页面级交互。
 class _ChatScreenState extends ConsumerState<ChatScreen> {
   late final TextEditingController _messageController;
@@ -80,7 +50,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   bool _isApplyingComposerDraft = false;
 
   String? _editingMessageId;
-  _ComposerSnapshot? _preEditSnapshot;
+
+  /// 会话级草稿在进入编辑前的快照，取消编辑时投影回 controllers 恢复。
+  /// 编辑事务为页面瞬态：取消/切换/销毁即丢弃，从不写回会话级草稿。
+  ComposerDraft? _preEditDraft;
+
+  /// 进入编辑前的折叠状态，取消编辑时恢复（绝不放进会话级 ComposerDraft）。
+  bool _preEditCollapsed = false;
+
+  /// 页面本地编辑草稿：编辑期间 body/模板/变量的唯一来源，独立于会话级 draft。
+  ComposerDraft? _editingDraft;
 
   @override
   void initState() {
@@ -92,15 +71,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       _scroll.handleVisibleItemsChanged,
     );
     _messageController.addListener(_onBodyChanged);
-    // 会话切换时把目标 draft 投影到 page controllers。fireImmediately 统一首次
-    // 挂载与会话切换为一个路径；controller 赋值需在首帧后（避免帧内副作用），
-    // 用带 mounted 与 conversationId 校验的 post-frame 调度。
+    // 会话切换时丢弃页面编辑事务（旧会话 session draft 保持原值），再把目标
+    // draft 投影到 page controllers。fireImmediately 统一首次挂载与会话切换为
+    // 一个路径；controller 赋值需在首帧后（避免帧内副作用），用带 mounted 与
+    // conversationId 校验的 post-frame 调度。
     ref.listenManual<String>(activeConversationIdProvider, (prev, next) {
-      if (prev != next) {
-        // 切换会话时退出编辑模式，避免上一个会话的编辑状态残留到新会话。
+      // 切换即丢弃编辑事务；旧会话的 session draft 从未被编辑写入，保持原值。
+      setState(() {
         _editingMessageId = null;
-        _preEditSnapshot = null;
-      }
+        _editingDraft = null;
+        _preEditDraft = null;
+      });
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         final currentId = ref.read(activeConversationIdProvider);
@@ -149,6 +130,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   void _onBodyChanged() {
     if (_isApplyingComposerDraft) return;
+    if (_editingMessageId != null) {
+      // 编辑中只写页面本地草稿，绝不污染会话级 draft。
+      setState(() {
+        _editingDraft = (_editingDraft ?? ComposerDraft.empty).copyWith(
+          body: _messageController.text,
+        );
+      });
+      return;
+    }
     final conversationId = _activeConversationIdOrNull();
     if (conversationId == null) return;
     ref
@@ -178,7 +168,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final activeMessages = readModel.messages.messages;
     final userMessages = readModel.messages.userMessages;
     final isStreaming = readModel.composer.isStreaming;
-    final selectedTemplatePrompt = readModel.composer.selectedTemplatePrompt;
     // 预设 Prompt 只用于动作区/对话框（检查点、发送），不属于 read-model，
     // 仍在页面按 build 快照解析，避免回调触发时使用与 build 时不同的预设。
     final presetPrompts = ref.watch(presetPromptsProvider);
@@ -186,9 +175,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       presetPrompts,
       conversation,
     );
-    // 页面本地编辑草稿在编辑开始前为空；isEditingMessage 单独来自页面编辑态。
-    // 页面编辑草稿引入后，此处改为读取真实草稿以在编辑时覆盖模板选择。
-    final editingDraft = ComposerDraft.empty;
+    // 页面编辑草稿为空时用会话级草稿；编辑中覆盖模板选择由 compose 完成。
+    final editingDraft = _editingDraft ?? ComposerDraft.empty;
     final workspaceState = ChatWorkspaceViewState.compose(
       readModel: readModel,
       editingDraft: editingDraft,
@@ -197,15 +185,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
     final workspaceBindings = _buildWorkspaceBindings(
       conversation: conversation,
-      readModel: readModel,
+      composer: workspaceState.composer,
       selectedPresetPrompt: selectedPresetPrompt,
     );
 
+    // 模板变量输入框跟随 effective（编辑时被覆盖的）模板与对应草稿同步：
+    // 编辑中读页面草稿，否则读会话级草稿，避免编辑期间的变量写入污染会话级 draft。
     _syncTemplateVariableControllers(
-      selectedTemplatePrompt,
-      draft: ref
-          .read(composerDraftProvider.notifier)
-          .draftFor(activeConversationId),
+      workspaceState.composer.selectedTemplatePrompt,
+      draft:
+          _editingDraft ??
+          ref
+              .read(composerDraftProvider.notifier)
+              .draftFor(activeConversationId),
     );
     _scroll.cacheVisibleMessageMetadata(activeMessages, userMessages);
     final pendingScrollId = ref.watch(
@@ -278,7 +270,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             selectedPresetPromptId: ref
                 .read(activeChatConversationProvider)
                 .selectedPresetPromptId,
-            onPresetPromptSelected: _handlePresetPromptSelected,
+            onPresetPromptSelected: (id) =>
+                ref.read(chatComposerCommandProvider).selectPreset(id),
           ),
         ),
       ),
@@ -380,16 +373,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// 与既往一致，仅按分组放置。
   ChatWorkspaceBindings _buildWorkspaceBindings({
     required ChatConversation conversation,
-    required ChatWorkspaceReadModel readModel,
+    required ChatWorkspaceComposerState composer,
     required PresetPrompt? selectedPresetPrompt,
   }) {
-    final selectedModel = readModel.composer.selectedModel;
-    final supportsReasoning = readModel.composer.supportsReasoning;
-    final isBusy = readModel.messages.isBusy;
-    final isStreaming = readModel.composer.isStreaming;
-    final isAutoRetryWaiting = readModel.composer.isAutoRetryWaiting;
-    final selectableProviders = readModel.composer.modelProviders;
-    final selectedTemplatePrompt = readModel.composer.selectedTemplatePrompt;
+    final selectedModel = composer.selectedModel;
+    final supportsReasoning = composer.supportsReasoning;
+    final isBusy = composer.isBusy;
+    final isStreaming = composer.isStreaming;
+    final isAutoRetryWaiting = composer.isAutoRetryWaiting;
 
     return ChatWorkspaceBindings(
       messages: ChatWorkspaceMessageBindings(
@@ -422,41 +413,30 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         messageController: _messageController,
         messageFocusNode: _messageFocusNode,
         templateVariableControllers: _templateVariableControllers,
-        onProviderSelected: (providerId) {
-          _handleProviderSelected(providerId, selectableProviders);
-        },
-        onModelSelected: _handleModelSelected,
+        onProviderSelected: (providerId) =>
+            ref.read(chatComposerCommandProvider).selectProvider(providerId),
+        onModelSelected: (modelId) =>
+            ref.read(chatComposerCommandProvider).selectModel(modelId),
         onTemplatePromptSelected: (templatePromptId) {
           _handleTemplatePromptSelected(templatePromptId);
         },
         onToggleComposerCollapsed: _toggleComposerCollapsed,
         onReasoningEnabledChanged: supportsReasoning
-            ? (value) {
-                ref
-                    .read(chatSessionsProvider.notifier)
-                    .updateActiveConversationPreferences(
-                      reasoningEnabled: value,
-                    );
-              }
+            ? (value) => ref
+                  .read(chatComposerCommandProvider)
+                  .setReasoningEnabled(value)
             : null,
         onReasoningEffortChanged: supportsReasoning
-            ? (value) {
-                ref
-                    .read(chatSessionsProvider.notifier)
-                    .updateActiveConversationPreferences(
-                      reasoningEffort: value,
-                    );
-              }
+            ? (value) => ref
+                  .read(chatComposerCommandProvider)
+                  .setReasoningEffort(value)
             : null,
-        onAutoRetryEnabledChanged: (value) {
-          ref
-              .read(chatSessionsProvider.notifier)
-              .updateActiveConversationPreferences(autoRetryEnabled: value);
-        },
+        onAutoRetryEnabledChanged: (value) =>
+            ref.read(chatComposerCommandProvider).setAutoRetryEnabled(value),
         onOpenFixedPromptSequenceRunner: () async {
           await _showFixedPromptSequenceRunnerDialog(
             context,
-            fixedPromptSequences: readModel.composer.fixedPromptSequences,
+            fixedPromptSequences: composer.fixedPromptSequences,
             selectedModel: selectedModel,
             selectedPresetPrompt: selectedPresetPrompt,
             conversation: conversation,
@@ -470,55 +450,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         onSendPressed: selectedModel == null || isBusy
             ? null
             : () async {
-                final templatedMessage = buildTemplatedUserMessage(
-                  body: _messageController.text,
-                  templatePrompt: selectedTemplatePrompt,
-                  variableValues: _resolveTemplatePromptValues(
-                    selectedTemplatePrompt,
-                  ),
-                );
-                if (templatedMessage.content.trim().isEmpty) {
-                  return;
-                }
-
-                _messageController.clear();
-                ref
-                    .read(composerDraftProvider.notifier)
-                    .clearBody(conversation.id);
-
-                if (_editingMessageId != null) {
-                  final editId = _editingMessageId!;
-                  setState(() {
-                    _editingMessageId = null;
-                    _preEditSnapshot = null;
-                  });
-                  await ref
-                      .read(chatSessionsProvider.notifier)
-                      .editMessage(
-                        messageId: editId,
-                        nextContent: templatedMessage.content,
-                        userMessageSegments:
-                            templatedMessage.userMessageSegments,
-                        templatePromptId: selectedTemplatePrompt?.id,
-                        templateVariableValues: _resolveTemplatePromptValues(
-                          selectedTemplatePrompt,
-                        ),
-                      );
-                } else {
-                  await _sendMessageContent(
-                    content: templatedMessage.content,
-                    userMessageSegments: templatedMessage.userMessageSegments,
-                    modelConfig: selectedModel,
-                    presetPrompt: selectedPresetPrompt,
-                    conversation: conversation,
-                    supportsReasoning: supportsReasoning,
-                    isBusy: isBusy,
-                    templatePromptId: selectedTemplatePrompt?.id,
-                    templateVariableValues: _resolveTemplatePromptValues(
-                      selectedTemplatePrompt,
-                    ),
-                  );
-                }
+                await _handleSendPressed(composer);
               },
         onStopStreaming: isStreaming || isAutoRetryWaiting
             ? () async {
@@ -592,7 +524,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         selectedPresetPromptId: ref
             .read(activeChatConversationProvider)
             .selectedPresetPromptId,
-        onPresetPromptSelected: _handlePresetPromptSelected,
+        onPresetPromptSelected: (id) =>
+            ref.read(chatComposerCommandProvider).selectPreset(id),
       ),
     };
   }
@@ -659,6 +592,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         );
         controller.addListener(() {
           if (_isApplyingComposerDraft) return;
+          if (_editingMessageId != null) {
+            // 编辑中只写页面本地草稿，绝不污染会话级 draft。
+            _updateEditingTemplateVariable(
+              templateId,
+              variable.name,
+              controller.text,
+            );
+            return;
+          }
           final cid = _activeConversationIdOrNull();
           if (cid == null) return;
           controllerRef.setTemplateVariable(
@@ -683,16 +625,32 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   void _handleTemplatePromptSelected(String? templatePromptId) {
+    final template = _resolveSelectedTemplatePrompt(
+      ref.read(templatePromptsProvider),
+      templatePromptId,
+    );
+    if (_editingMessageId != null) {
+      // 编辑中只改页面本地草稿，不写会话级 draft。
+      setState(() {
+        _editingDraft = (_editingDraft ?? ComposerDraft.empty).copyWith(
+          selectedTemplatePromptId: templatePromptId,
+          clearTemplateSelection: templatePromptId == null,
+        );
+      });
+      _syncTemplateVariableControllers(
+        template,
+        draft: _editingDraft ?? ComposerDraft.empty,
+      );
+      return;
+    }
     final conversationId = _activeConversationIdOrNull();
     if (conversationId == null) return;
-    final controllerRef = ref.read(composerDraftProvider.notifier);
-    controllerRef.selectTemplate(conversationId, templatePromptId);
+    ref
+        .read(chatComposerCommandProvider)
+        .selectTemplate(conversationId, templatePromptId);
     _syncTemplateVariableControllers(
-      _resolveSelectedTemplatePrompt(
-        ref.read(templatePromptsProvider),
-        templatePromptId,
-      ),
-      draft: controllerRef.draftFor(conversationId),
+      template,
+      draft: ref.read(composerDraftProvider.notifier).draftFor(conversationId),
     );
   }
 
@@ -704,48 +662,42 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     ref.read(composerCollapsedProvider.notifier).toggle();
   }
 
-  void _handleModelSelected(String modelId) {
-    ref
-        .read(chatSessionsProvider.notifier)
-        .updateActiveConversationPreferences(selectedModelId: modelId);
-    ref.read(chatDefaultsProvider.notifier).rememberModelId(modelId);
-  }
-
-  void _handleProviderSelected(
-    String providerId,
-    List<LlmProviderConfig> providers,
+  /// 编辑中更新页面本地草稿的模板变量值（controller listener 的编辑分支）。
+  void _updateEditingTemplateVariable(
+    String templateId,
+    String variableName,
+    String value,
   ) {
-    final provider = providers
-        .where((item) => item.id == providerId)
-        .firstOrNull;
-    final targetModelId = provider?.models.firstOrNull?.id;
-    if (targetModelId == null) {
-      return;
-    }
-    _handleModelSelected(targetModelId);
+    setState(() {
+      final current = _editingDraft ?? ComposerDraft.empty;
+      final currentById = Map<String, Map<String, String>>.from(
+        current.templateVariableValuesByTemplateId,
+      );
+      final templateVars = Map<String, String>.from(
+        currentById[templateId] ?? const <String, String>{},
+      );
+      templateVars[variableName] = value;
+      currentById[templateId] = Map<String, String>.unmodifiable(templateVars);
+      _editingDraft = current.copyWith(
+        templateVariableValuesByTemplateId: currentById,
+      );
+    });
   }
 
-  void _handlePresetPromptSelected(String? presetPromptId) {
-    // 只写 conversation 持久字段，不维护本地镜像；UI 由 conversation 驱动重建。
-    ref
-        .read(chatSessionsProvider.notifier)
-        .updateActiveConversationPreferences(
-          selectedPresetPromptId: presetPromptId ?? noPresetPromptSelectedId,
-        );
-  }
-
+  /// 从草稿解析发送时的模板变量值：trim 后为空则回落模板默认值。
   Map<String, String> _resolveTemplatePromptValues(
     TemplatePrompt? templatePrompt,
+    ComposerDraft draft,
   ) {
     if (templatePrompt == null) {
       return const {};
     }
-
+    final saved =
+        draft.templateVariableValuesByTemplateId[templatePrompt.id] ?? const {};
     return {
       for (final variable in templatePrompt.inputVariables)
         variable.name: (() {
-          final typedValue =
-              _templateVariableControllers[variable.name]?.text.trim() ?? '';
+          final typedValue = saved[variable.name]?.trim() ?? '';
           return typedValue.isEmpty ? variable.defaultValue : typedValue;
         })(),
     };
@@ -754,122 +706,111 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   // ── Edit Mode ──────────────────────────────────────────────────────────────
 
   void _enterEditMode(ChatMessage message) {
-    final templatePrompts = ref.read(templatePromptsProvider);
-    final currentBody = _messageController.text;
-    final conversationId = _activeConversationIdOrNull();
-    final currentTemplateId = conversationId == null
-        ? null
-        : ref
-              .read(composerDraftProvider.notifier)
-              .draftFor(conversationId)
-              .selectedTemplatePromptId;
-    final currentVariableValues = <String, String>{};
-    if (currentTemplateId != null) {
-      final currentTemplate = _resolveSelectedTemplatePrompt(
-        templatePrompts,
-        currentTemplateId,
-      );
-      if (currentTemplate != null) {
-        currentVariableValues.addAll(
-          _resolveTemplatePromptValues(currentTemplate),
-        );
-      }
-    }
-
-    setState(() {
-      _preEditSnapshot = _ComposerSnapshot(
-        bodyText: currentBody,
-        templatePromptId: currentTemplateId,
-        templateVariableValues: currentVariableValues,
-        isComposerCollapsed: ref.read(composerCollapsedProvider),
-      );
-      _editingMessageId = message.id;
-    });
-
-    final msgTemplateId = message.templatePromptId;
-    if (msgTemplateId != null) {
-      final templateExists = templatePrompts.any((t) => t.id == msgTemplateId);
-      if (templateExists) {
-        _handleTemplatePromptSelected(msgTemplateId);
-        final template = _resolveSelectedTemplatePrompt(
-          templatePrompts,
-          msgTemplateId,
-        );
-        if (template != null) {
-          for (final variable in template.inputVariables) {
-            final savedValue = message.templateVariableValues[variable.name];
-            final controller = _templateVariableControllers[variable.name];
-            if (controller != null && savedValue != null) {
-              controller.text = savedValue;
-            }
-          }
-        }
-      } else {
-        _handleTemplatePromptSelected(null);
-      }
-    } else {
-      _handleTemplatePromptSelected(null);
-    }
-
-    final segments = message.userMessageSegments;
-    String bodyText;
-    if (segments.isNotEmpty) {
-      final bodyParts = segments
-          .where((s) => s.kind == UserMessageSegmentKind.body)
-          .map((s) => s.text);
-      bodyText = bodyParts.join();
-    } else {
-      bodyText = message.content;
-    }
-    _messageController
-      ..text = bodyText
-      ..selection = TextSelection.collapsed(offset: bodyText.length);
-
     final conversation = ref.read(activeChatConversationProvider);
-    ref.read(composerDraftProvider.notifier).setBody(conversation.id, bodyText);
-
+    final currentDraft = ref
+        .read(composerDraftProvider.notifier)
+        .draftFor(conversation.id);
+    setState(() {
+      _preEditDraft = currentDraft;
+      _preEditCollapsed = ref.read(composerCollapsedProvider);
+      _editingMessageId = message.id;
+      _editingDraft = _buildEditingDraft(message, currentDraft);
+    });
+    _applyDraftToControllers(_editingDraft ?? ComposerDraft.empty);
     _messageFocusNode.requestFocus();
   }
 
-  void _cancelEditMode() {
-    final snapshot = _preEditSnapshot;
-    if (snapshot == null) return;
+  /// 从目标 user message 的 segments/模板构造页面本地编辑草稿。
+  ComposerDraft _buildEditingDraft(
+    ChatMessage message,
+    ComposerDraft currentDraft,
+  ) {
+    final segments = message.userMessageSegments;
+    final bodyText = segments.isNotEmpty
+        ? segments
+              .where((s) => s.kind == UserMessageSegmentKind.body)
+              .map((s) => s.text)
+              .join()
+        : message.content;
+    final templateVariables = <String, Map<String, String>>{};
+    final templateId = message.templatePromptId;
+    if (templateId != null && message.templateVariableValues.isNotEmpty) {
+      templateVariables[templateId] = Map.unmodifiable(
+        message.templateVariableValues,
+      );
+    }
+    return ComposerDraft(
+      body: bodyText,
+      selectedTemplatePromptId: templateId,
+      templateVariableValuesByTemplateId: templateVariables,
+    );
+  }
 
+  void _cancelEditMode() {
+    final preEditDraft = _preEditDraft;
     setState(() {
       _editingMessageId = null;
-      _preEditSnapshot = null;
+      _editingDraft = null;
+      _preEditDraft = null;
     });
-
-    _handleTemplatePromptSelected(snapshot.templatePromptId);
-    if (snapshot.templatePromptId != null) {
-      final template = _resolveSelectedTemplatePrompt(
-        ref.read(templatePromptsProvider),
-        snapshot.templatePromptId,
-      );
-      if (template != null) {
-        for (final variable in template.inputVariables) {
-          final savedValue = snapshot.templateVariableValues[variable.name];
-          final controller = _templateVariableControllers[variable.name];
-          if (controller != null && savedValue != null) {
-            controller.text = savedValue;
-          }
-        }
-      }
+    // 会话级草稿从未被编辑写入，故只把快照投影回 controllers，不执行写回。
+    if (preEditDraft != null) {
+      _applyDraftToControllers(preEditDraft);
     }
-
-    _messageController
-      ..text = snapshot.bodyText
-      ..selection = TextSelection.collapsed(offset: snapshot.bodyText.length);
-
-    final conversation = ref.read(activeChatConversationProvider);
-    ref
-        .read(composerDraftProvider.notifier)
-        .setBody(conversation.id, snapshot.bodyText);
-
-    // 直接恢复到快照值，语义清晰且不绕过编辑保护逻辑。
     ref
         .read(composerCollapsedProvider.notifier)
-        .setCollapsed(snapshot.isComposerCollapsed);
+        .setCollapsed(_preEditCollapsed);
+    _preEditCollapsed = false;
+  }
+
+  /// 发送/提交编辑：构造 intent 委托 command，只有 accepted 才清输入、退编辑并
+  /// await completion；rejected 原样保留输入内容与编辑 banner。
+  Future<void> _handleSendPressed(ChatWorkspaceComposerState composer) async {
+    final conversation = ref.read(activeChatConversationProvider);
+    final editingDraft = _editingMessageId != null
+        ? (_editingDraft ?? ComposerDraft.empty)
+        : null;
+    final body = editingDraft?.body ?? _messageController.text;
+    final templatePrompt = editingDraft != null
+        ? resolveSelectedTemplatePrompt(
+            composer.templatePrompts,
+            editingDraft.selectedTemplatePromptId,
+          )
+        : composer.selectedTemplatePrompt;
+    // 编辑与普通发送共用同一模板拼接边界，避免 send 与 UI 展示分叉。
+    final intent = ChatComposerSubmitIntent(
+      conversationId: conversation.id,
+      body: body,
+      templatePrompt: templatePrompt,
+      variableValues: editingDraft != null
+          ? _resolveTemplatePromptValues(templatePrompt, editingDraft)
+          : _resolveTemplatePromptValues(
+              templatePrompt,
+              ref
+                  .read(composerDraftProvider.notifier)
+                  .draftFor(conversation.id),
+            ),
+      selectedModel: composer.selectedModel,
+      selectedPresetPrompt: _resolveSelectedPresetPrompt(
+        ref.read(presetPromptsProvider),
+        conversation,
+      ),
+      reasoningEnabled: composer.reasoningEnabled,
+      reasoningEffort: composer.reasoningEffort,
+      editingMessageId: _editingMessageId,
+    );
+    final result = ref.read(chatComposerCommandProvider).dispatch(intent);
+    if (result is ChatComposerAccepted) {
+      _messageController.clear();
+      if (result.wasEdit) {
+        setState(() {
+          _editingMessageId = null;
+          _editingDraft = null;
+          _preEditDraft = null;
+        });
+      }
+      await result.completion;
+    }
   }
 
   // ── Dialogs & Actions ──────────────────────────────────────────────────────
@@ -911,51 +852,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ..text = result.content
           ..selection = TextSelection.collapsed(offset: result.content.length);
       case FixedPromptSequenceRunnerAction.sendStep:
+        // 若普通正文草稿 trim 后恰好等于步骤 content 才清该正文；否则原草稿保留。
         if (_messageController.text.trim() == result.content.trim()) {
           _messageController.clear();
         }
-        await _sendMessageContent(
-          content: result.content,
-          modelConfig: selectedModel,
-          presetPrompt: selectedPresetPrompt,
-          conversation: conversation,
-          supportsReasoning: supportsReasoning,
-          isBusy: isBusy,
-        );
+        await ref
+            .read(chatComposerCommandProvider)
+            .dispatchDirect(
+              ChatDirectSubmitIntent(
+                conversationId: ref.read(activeConversationIdProvider),
+                content: result.content,
+                selectedModel: selectedModel,
+                selectedPresetPrompt: selectedPresetPrompt,
+                reasoningEnabled:
+                    supportsReasoning && conversation.reasoningEnabled,
+                reasoningEffort: conversation.reasoningEffort,
+              ),
+            );
       case FixedPromptSequenceRunnerAction.none:
         return;
     }
-  }
-
-  /// 复用当前会话配置发送一条用户消息。
-  Future<void> _sendMessageContent({
-    required String content,
-    required LlmModelConfig? modelConfig,
-    required PresetPrompt? presetPrompt,
-    required ChatConversation conversation,
-    required bool supportsReasoning,
-    required bool isBusy,
-    List<UserMessageSegment> userMessageSegments = const [],
-    String? templatePromptId,
-    Map<String, String> templateVariableValues = const {},
-  }) async {
-    final trimmedContent = content.trim();
-    if (trimmedContent.isEmpty || modelConfig == null || isBusy) {
-      return;
-    }
-
-    await ref
-        .read(chatSessionsProvider.notifier)
-        .sendMessage(
-          content: trimmedContent,
-          userMessageSegments: userMessageSegments,
-          modelConfig: modelConfig,
-          presetPrompt: presetPrompt,
-          reasoningEnabled: supportsReasoning && conversation.reasoningEnabled,
-          reasoningEffort: conversation.reasoningEffort,
-          templatePromptId: templatePromptId,
-          templateVariableValues: templateVariableValues,
-        );
   }
 
   Future<void> _showCheckpointsDialog(
@@ -1092,14 +1008,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   /// 新建会话后把输入框清空，并把视图滚回底部。
   Future<void> _createConversationAndScroll() async {
-    await ref.read(chatSessionsProvider.notifier).createConversation();
+    await ref
+        .read(chatComposerCommandProvider)
+        .createConversationAndResetDraft();
     if (!mounted) {
       return;
     }
 
-    // 新建会话显式重置其整个草稿（正文/模板/变量），避免残留到新会话。
-    final activeId = ref.read(activeConversationIdProvider);
-    ref.read(composerDraftProvider.notifier).clearDraft(activeId);
     _messageController.clear();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scroll.scrollToBottom(jump: true);

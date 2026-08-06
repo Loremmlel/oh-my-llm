@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
+import 'package:oh_my_llm/features/chat/application/composer_draft_controller.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
 import 'package:oh_my_llm/features/settings/application/template_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
@@ -131,5 +132,124 @@ void registerChatScreenWorkspaceOwnershipTests() {
     await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(tester.widget<TextField>(titleField).controller!.text, '默认标题');
+  });
+
+  testWidgets('编辑取消恢复编辑前草稿，不污染会话级 draft', (tester) async {
+    final fakeClient = FakeChatCompletionClient()..enqueueChunks(['已收到']);
+    await pumpChatScreen(tester, fakeClient: fakeClient);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
+    final convId = container.read(chatSessionsProvider).activeConversation.id;
+
+    // 先发一条消息，让用户消息气泡提供「编辑消息」入口。
+    await sendMessage(tester, '第一条问题');
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+
+    // 发送 accepted 会清空 body，随后输入普通草稿进入会话级 draft。
+    await tester.enterText(_composerFinder, '普通草稿');
+    await tester.pump();
+
+    // 进入编辑模式：composer 显示消息正文。
+    await tester.tap(find.byTooltip('编辑消息').last);
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+
+    // 编辑中修改正文（只写页面草稿，不写会话级 draft）。
+    await tester.enterText(_composerFinder, '编辑中的修改');
+    await tester.pump();
+
+    // 取消编辑：恢复编辑前草稿，会话级 draft 保持原值。
+    await tester.tap(find.byTooltip('取消编辑'));
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+
+    expect(_composerText(tester), '普通草稿');
+    expect(
+      container.read(composerDraftProvider.notifier).draftFor(convId).body,
+      '普通草稿',
+    );
+  });
+
+  testWidgets('编辑后切换会话不污染旧会话草稿', (tester) async {
+    final fakeClient = FakeChatCompletionClient()..enqueueChunks(['已收到']);
+    await pumpChatScreen(tester, fakeClient: fakeClient);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
+    final convAId = container.read(chatSessionsProvider).activeConversation.id;
+
+    await sendMessage(tester, 'A 的问题');
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+
+    await tester.enterText(_composerFinder, 'A 草稿');
+    await tester.pump();
+
+    await tester.tap(find.byTooltip('编辑消息').last);
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await tester.enterText(_composerFinder, '编辑修改');
+    await tester.pump();
+
+    // 编辑中切换会话：编辑事务被丢弃，旧会话草稿保持原值。
+    await tester.tap(find.byTooltip('新建对话').first);
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    final convBId = container.read(chatSessionsProvider).activeConversation.id;
+    expect(convBId, isNot(convAId));
+
+    // 切回 A：恢复 A 的原草稿，而非编辑中的修改。
+    container.read(chatSessionsProvider.notifier).selectConversation(convAId);
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    expect(_composerText(tester), 'A 草稿');
+    expect(
+      container.read(composerDraftProvider.notifier).draftFor(convAId).body,
+      'A 草稿',
+    );
+  });
+
+  testWidgets('编辑后卸载重挂丢弃编辑模式，草稿恢复为会话级值', (tester) async {
+    final fakeClient = FakeChatCompletionClient()..enqueueChunks(['已收到']);
+    final mount = await pumpChatScreenScope(tester, fakeClient: fakeClient);
+    await tester.pumpWidget(mount.scope);
+    await tester.pump();
+
+    await sendMessage(tester, 'A 的问题');
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+
+    await tester.enterText(_composerFinder, 'A 草稿');
+    await tester.pump();
+
+    await tester.tap(find.byTooltip('编辑消息').last);
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await tester.enterText(_composerFinder, '编辑修改');
+    await tester.pump();
+
+    // 卸载并重挂 ChatScreen：编辑事务随页面销毁丢弃，草稿恢复为会话级值。
+    mount.showChat.value = false;
+    await tester.pump();
+    mount.showChat.value = true;
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+
+    expect(find.byTooltip('取消编辑'), findsNothing);
+    expect(_composerText(tester), 'A 草稿');
+  });
+
+  testWidgets('编辑空正文发送被拒：保留输入与编辑态', (tester) async {
+    final fakeClient = FakeChatCompletionClient()..enqueueChunks(['已收到']);
+    await pumpChatScreen(tester, fakeClient: fakeClient);
+
+    await sendMessage(tester, '第一条问题');
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+
+    await tester.tap(find.byTooltip('编辑消息').last);
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+
+    // 编辑中清空正文 → 发送被 empty 拒绝，编辑态与输入保留。
+    await tester.enterText(_composerFinder, '   ');
+    await tester.pump();
+    await tester.tap(find.widgetWithText(FilledButton, '发送'));
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+
+    expect(find.byTooltip('取消编辑'), findsOneWidget);
+    expect(_composerText(tester), '   ');
+    // 空正文被拒，不新增请求（仅保留初始 sendMessage 的那一次）。
+    expect(fakeClient.requestHistory, hasLength(1));
   });
 }
