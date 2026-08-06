@@ -87,6 +87,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         _editingMessageId = null;
         _editingDraft = null;
         _preEditDraft = null;
+        _preEditCollapsed = false;
       });
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;

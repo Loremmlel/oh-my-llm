@@ -101,30 +101,6 @@ class ChatWorkspaceComposerReadModel extends Equatable {
   final bool isAutoRetryWaiting;
   final int excludedMessageCount;
 
-  ChatWorkspaceComposerReadModel copyWith({
-    TemplatePrompt? selectedTemplatePrompt,
-  }) {
-    return ChatWorkspaceComposerReadModel(
-      modelProviders: modelProviders,
-      modelConfigs: modelConfigs,
-      selectedProviderId: selectedProviderId,
-      selectedModel: selectedModel,
-      templatePrompts: templatePrompts,
-      selectedTemplatePrompt:
-          selectedTemplatePrompt ?? this.selectedTemplatePrompt,
-      fixedPromptSequences: fixedPromptSequences,
-      isComposerCollapsed: isComposerCollapsed,
-      reasoningEnabled: reasoningEnabled,
-      reasoningEffort: reasoningEffort,
-      supportsReasoning: supportsReasoning,
-      autoRetryEnabled: autoRetryEnabled,
-      isBusy: isBusy,
-      isStreaming: isStreaming,
-      isAutoRetryWaiting: isAutoRetryWaiting,
-      excludedMessageCount: excludedMessageCount,
-    );
-  }
-
   @override
   List<Object?> get props => [
     modelProviders,
