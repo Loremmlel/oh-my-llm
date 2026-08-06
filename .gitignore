@@ -55,3 +55,4 @@ app.*.map.json
 .claude/
 .opencode/
 .superpowers/
+docs/superpowers/
