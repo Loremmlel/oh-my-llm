@@ -16,6 +16,16 @@ export 'package:oh_my_llm/features/media/domain/models/media_server_info.dart';
 
 const testServer = MediaServerInfo(ip: '192.168.1.5', httpPort: 8080);
 
+/// 测试用 MediaBrowserController：不发起网络请求，直接返回注入的初始状态。
+class FakeMediaBrowserController extends MediaBrowserController {
+  FakeMediaBrowserController(this.initialState);
+
+  final MediaBrowserState initialState;
+
+  @override
+  MediaBrowserState build() => initialState;
+}
+
 String fileListJson(List<FileItem> items) =>
     jsonEncode(items.map((i) => i.toJson()).toList());
 

@@ -142,4 +142,73 @@ void main() {
     expect(router.routerDelegate.currentConfiguration.uri.path, '/favorites');
     expect(find.text('列表进入的问题'), findsOneWidget);
   });
+
+  testWidgets('pushNamed(mediaImage) 后 URI 携带 path，pop 回 /sync', (
+    tester,
+  ) async {
+    final db = AppDatabase.inMemory();
+    addTearDown(db.close);
+    final prefs = await _testPrefs(db);
+
+    final router = createAppRouter(initialLocation: AppDestination.sync.path);
+    await pumpTestApp(tester, preferences: prefs, database: db, router: router);
+
+    router.pushNamed(
+      AppRouteName.mediaImage,
+      queryParameters: {AppRouteParameter.mediaPath: '/相册/猫.jpg'},
+    );
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+
+    expect(
+      router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
+      '/sync/media/image',
+    );
+    expect(
+      router.routerDelegate.state.uri.queryParameters[AppRouteParameter
+          .mediaPath],
+      '/相册/猫.jpg',
+    );
+    // 未 seed 会话 → 恢复页而非抛异常
+    expect(find.text('媒体会话已失效'), findsOneWidget);
+
+    router.pop();
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    expect(
+      router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
+      '/sync',
+    );
+  });
+
+  testWidgets('pushNamed(mediaVideo) 同理', (tester) async {
+    final db = AppDatabase.inMemory();
+    addTearDown(db.close);
+    final prefs = await _testPrefs(db);
+
+    final router = createAppRouter(initialLocation: AppDestination.sync.path);
+    await pumpTestApp(tester, preferences: prefs, database: db, router: router);
+
+    router.pushNamed(
+      AppRouteName.mediaVideo,
+      queryParameters: {AppRouteParameter.mediaPath: '/视频/demo.mp4'},
+    );
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+
+    expect(
+      router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
+      '/sync/media/video',
+    );
+    expect(find.text('媒体会话已失效'), findsOneWidget);
+  });
+
+  testWidgets('media route 缺 query 仍匹配并显示恢复页，不抛异常', (tester) async {
+    final db = AppDatabase.inMemory();
+    addTearDown(db.close);
+    final prefs = await _testPrefs(db);
+
+    final router = createAppRouter(initialLocation: '/sync/media/image');
+    await pumpTestApp(tester, preferences: prefs, database: db, router: router);
+
+    expect(find.text('媒体链接无效'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

@@ -1,0 +1,208 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'package:oh_my_llm/app/navigation/app_destination.dart';
+import 'package:oh_my_llm/features/media/presentation/media_browser_tab.dart';
+import 'package:oh_my_llm/features/media/presentation/pages/media_route_pages.dart';
+
+import '../../../helpers/test_harness.dart';
+import '../helpers/fake_video_player_controller.dart';
+import '../helpers/media_test_helpers.dart';
+
+Future<SharedPreferences> _testPrefs() async {
+  SharedPreferences.setMockInitialValues({});
+  return SharedPreferences.getInstance();
+}
+
+FileItem _file(String path) => FileItem(
+  name: path.split('/').last,
+  isDirectory: false,
+  sizeBytes: 1,
+  relativePath: path,
+);
+
+FileItem _dir(String path) => FileItem(
+  name: path.split('/').last,
+  isDirectory: true,
+  sizeBytes: 0,
+  relativePath: path,
+);
+
+/// 最小 GoRouter 宿主：/sync 渲染 MediaBrowserTab，media 子路由走生产 routed pages。
+GoRouter _mediaRouter() {
+  return GoRouter(
+    initialLocation: AppDestination.sync.path,
+    routes: [
+      GoRoute(
+        path: AppDestination.sync.path,
+        builder: (context, state) =>
+            Scaffold(body: MediaBrowserTab(onExitMediaBrowser: () {})),
+        routes: [
+          GoRoute(
+            path: 'media/image',
+            name: AppRouteName.mediaImage,
+            builder: (context, state) => MediaImageRoutePage(
+              relativePath:
+                  state.uri.queryParameters[AppRouteParameter.mediaPath],
+            ),
+          ),
+          GoRoute(
+            path: 'media/video',
+            name: AppRouteName.mediaVideo,
+            builder: (context, state) => MediaVideoRoutePage(
+              relativePath:
+                  state.uri.queryParameters[AppRouteParameter.mediaPath],
+              controllerFactory: (uri) => FakeVideoPlayerController(),
+            ),
+          ),
+        ],
+      ),
+    ],
+  );
+}
+
+void main() {
+  testWidgets('点击图片文件名进入 media/image 子路由，back 回浏览列表', (tester) async {
+    final prefs = await _testPrefs();
+    final router = _mediaRouter();
+    await pumpTestApp(
+      tester,
+      preferences: prefs,
+      router: router,
+      extraOverrides: [
+        mediaBrowserControllerProvider.overrideWith(
+          () => FakeMediaBrowserController(
+            MediaBrowserState(
+              server: testServer,
+              items: [_file('/相册/猫.jpg'), _file('/相册/狗.jpg')],
+            ),
+          ),
+        ),
+      ],
+    );
+
+    await tester.tap(find.text('猫.jpg'));
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+
+    expect(
+      router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
+      '/sync/media/image',
+    );
+    expect(
+      router.routerDelegate.state.uri.queryParameters[AppRouteParameter
+          .mediaPath],
+      '/相册/猫.jpg',
+    );
+    expect(find.byType(MediaImageRoutePage), findsOneWidget);
+
+    // viewer 的返回按钮是 IconButton(Icons.arrow_back)，无 tooltip。
+    await tester.tap(find.byIcon(Icons.arrow_back));
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+
+    expect(
+      router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
+      '/sync',
+    );
+    expect(find.text('狗.jpg'), findsOneWidget);
+  });
+
+  testWidgets('点击视频文件名进入 media/video 子路由，back 回浏览页', (tester) async {
+    final prefs = await _testPrefs();
+    final router = _mediaRouter();
+    await pumpTestApp(
+      tester,
+      preferences: prefs,
+      router: router,
+      extraOverrides: [
+        mediaBrowserControllerProvider.overrideWith(
+          () => FakeMediaBrowserController(
+            MediaBrowserState(
+              server: testServer,
+              items: [_file('/视频/demo.mp4'), _file('/视频/other.mp4')],
+            ),
+          ),
+        ),
+      ],
+    );
+
+    await tester.tap(find.text('demo.mp4'));
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+
+    expect(
+      router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
+      '/sync/media/video',
+    );
+    // push 后父浏览页仍在树中：列表 tile 与播放器标题各渲染一次文件名。
+    expect(find.text('demo.mp4'), findsWidgets);
+
+    // VideoTopBar 的返回按钮也是 IconButton(Icons.arrow_back)，无 tooltip。
+    await tester.tap(find.byIcon(Icons.arrow_back));
+    // 播放器页面级 GestureDetector 带 onDoubleTap：tap 后手势竞技场 hold
+    // 300ms 双点窗口才解析按钮按下，须先推进时间再等 pop 动画。
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+
+    expect(
+      router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
+      '/sync',
+    );
+    expect(find.text('other.mp4'), findsOneWidget);
+  });
+
+  testWidgets('点击目录只改变浏览路径，不产生媒体子路由', (tester) async {
+    final prefs = await _testPrefs();
+    final router = _mediaRouter();
+    await pumpTestApp(
+      tester,
+      preferences: prefs,
+      router: router,
+      extraOverrides: [
+        mediaBrowserControllerProvider.overrideWith(
+          () => FakeMediaBrowserController(
+            MediaBrowserState(
+              server: testServer,
+              items: [_dir('/相册'), _file('/相册/猫.jpg')],
+            ),
+          ),
+        ),
+      ],
+    );
+
+    await tester.tap(find.text('相册'));
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+
+    // 目录点击不 push 子路由
+    expect(
+      router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
+      '/sync',
+    );
+  });
+
+  testWidgets('server 缺失时点击媒体文件不导航', (tester) async {
+    final prefs = await _testPrefs();
+    final router = _mediaRouter();
+    await pumpTestApp(
+      tester,
+      preferences: prefs,
+      router: router,
+      extraOverrides: [
+        mediaBrowserControllerProvider.overrideWith(
+          () => FakeMediaBrowserController(
+            MediaBrowserState(items: [_file('/相册/猫.jpg')]),
+          ),
+        ),
+      ],
+    );
+
+    await tester.tap(find.text('猫.jpg'));
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+
+    expect(
+      router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
+      '/sync',
+    );
+    expect(find.byType(MediaImageRoutePage), findsNothing);
+  });
+}
