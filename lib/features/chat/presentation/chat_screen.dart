@@ -334,11 +334,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        // 使用 MediaQuery 获取窗口物理宽度，与 AppShellScaffold 的
-        // LayoutBuilder 判断保持一致，避免因 NavigationRail 占位导致
-        // 内层宽度缩水 69px 而产生判断偏差。
-        final showSidePanels =
-            MediaQuery.of(context).size.width >= AppBreakpoints.compact;
+        // 使用窗口级宽度与 AppShellScaffold 保持一致：父约束已被 NavigationRail
+        // 缩窄，不能拿内层 LayoutBuilder 宽度再判一次 shell。
+        final showSidePanels = !AppBreakpoints.isCompactShell(context);
         // 移动端（紧凑布局）缩小四周 Padding，给消息区与输入区让出更多宽度。
         final isCompact = !showSidePanels;
 

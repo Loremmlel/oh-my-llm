@@ -29,7 +29,7 @@ class AppShellScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isCompact = constraints.maxWidth < AppBreakpoints.compact;
+        final isCompact = AppBreakpoints.useCompactShell(constraints.maxWidth);
 
         return Scaffold(
           appBar: AppBar(

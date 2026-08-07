@@ -135,7 +135,7 @@ class _HistoryPaginationBarState extends ConsumerState<HistoryPaginationBar> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isCompact = constraints.maxWidth < AppBreakpoints.compact;
+        final isCompact = AppBreakpoints.useCompactShell(constraints.maxWidth);
         final spacing = isCompact ? 2.0 : 8.0;
         final iconVisualDensity = isCompact
             ? VisualDensity.compact

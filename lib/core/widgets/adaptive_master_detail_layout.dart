@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 
+import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
+
 /// 自适应主从布局：宽屏双栏，窄屏回退为调用方提供的紧凑布局。
 class AdaptiveMasterDetailLayout extends StatelessWidget {
   const AdaptiveMasterDetailLayout({
     required this.master,
     required this.detail,
     this.compactChild,
-    this.breakpoint = 840,
+    this.breakpoint = AppBreakpoints.contentMasterDetail,
     this.masterWidth = 280,
     this.gap = 16,
     this.minHeight = 360,

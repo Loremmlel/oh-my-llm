@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import 'package:oh_my_llm/core/widgets/notification_bubble_context_ext.dart';
 import '../../domain/chat_word_counter.dart';
 import '../../domain/models/chat_message.dart';
@@ -162,7 +163,9 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
     return LayoutBuilder(
       builder: (context, constraints) {
         // 窄屏（手机）直接充满只留 margin，宽屏（桌面）用百分比宽度
-        final isNarrow = constraints.maxWidth < 600;
+        final isNarrow = AppBreakpoints.useFullWidthMessageBubble(
+          constraints.maxWidth,
+        );
         final bubbleWidth = isNarrow
             ? constraints.maxWidth - 16
             : min(constraints.maxWidth * (isUser ? 0.65 : 0.75), 900.0);

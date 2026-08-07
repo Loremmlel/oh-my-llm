@@ -21,6 +21,10 @@ class ProviderModelTile extends ConsumerWidget {
   final void Function(LlmProviderConfig provider, LlmProviderModelConfig model)
   onEditModelRequested;
 
+  // 嵌套模型卡片的操作区（编辑/删除）按钮更短且父 padding 不同，
+  // 与父服务商卡片的 640 保持独立，不得合并为同一个 form 断点。
+  static const _compactActionsBreakpoint = 560.0;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
@@ -59,7 +63,7 @@ class ProviderModelTile extends ConsumerWidget {
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final isCompact = constraints.maxWidth < 560;
+          final isCompact = constraints.maxWidth < _compactActionsBreakpoint;
 
           return Padding(
             padding: const EdgeInsets.all(12),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import 'package:oh_my_llm/core/widgets/adaptive_master_detail_layout.dart';
 import '../../../application/chat_sessions_controller.dart';
 import '../../../domain/chat_word_counter.dart';
@@ -98,7 +99,7 @@ class _MessageRequestFilterDialogState
             SizedBox(
               height: 420,
               child: AdaptiveMasterDetailLayout(
-                breakpoint: 760,
+                breakpoint: AppBreakpoints.dialogMasterDetail,
                 masterWidth: 320,
                 minHeight: 420,
                 compactChild: _buildCompactList(

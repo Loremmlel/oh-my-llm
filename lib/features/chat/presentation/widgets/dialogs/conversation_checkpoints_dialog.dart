@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import 'package:oh_my_llm/core/utils/date_formatting.dart';
 import 'package:oh_my_llm/core/widgets/notification_bubble_context_ext.dart';
 import 'package:oh_my_llm/core/widgets/adaptive_master_detail_layout.dart';
@@ -181,7 +182,7 @@ class _ConversationCheckpointsDialogState
               Text('当前启用检查点', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 8),
               AdaptiveMasterDetailLayout(
-                breakpoint: 760,
+                breakpoint: AppBreakpoints.dialogMasterDetail,
                 masterWidth: 320,
                 minHeight: 360,
                 compactChild: _buildCompactCheckpointList(
