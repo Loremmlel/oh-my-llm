@@ -140,7 +140,16 @@ void main() {
     await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(router.routerDelegate.currentConfiguration.uri.path, '/favorites');
+    // pop 后 uri 同样恒为 /favorites（uri 排除 imperative match），
+    // 用最后匹配位置的 matchedLocation 验证确实回到列表页。
+    expect(
+      router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
+      '/favorites',
+    );
     expect(find.text('列表进入的问题'), findsOneWidget);
+    // 详情页专属 AppBar 标题不再出现，证明详情已出栈回到列表页。
+    // 不用回复文本区分：回复摘要同样会出现在列表条目中。
+    expect(find.text('收藏详情'), findsNothing);
   });
 
   testWidgets('pushNamed(mediaImage) 后 URI 携带 path，pop 回 /sync', (
