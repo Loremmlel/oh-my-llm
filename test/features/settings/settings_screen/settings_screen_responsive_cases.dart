@@ -52,7 +52,7 @@ void registerSettingsScreenResponsiveTests() {
     await tester.tap(find.text('新增服务商'));
     await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
-    expect(providerNameField(), findsOneWidget);
+    expect(find.text('服务商名称'), findsOneWidget);
     expect(find.text('保存'), findsOneWidget);
     expect(find.text('取消'), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -76,7 +76,7 @@ void registerSettingsScreenResponsiveTests() {
     await tester.tap(find.text('新增预设'));
     await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
-    expect(presetPromptNameField(), findsOneWidget);
+    expect(find.text('预设 Prompt 名称'), findsOneWidget);
     expect(find.text('保存'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
