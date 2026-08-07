@@ -200,11 +200,45 @@ void main() {
 
     expect(find.text('返回局域网同步'), findsOneWidget);
 
-    // 无父 route 可 pop（deep link 直达）→ 点击后 go 回 /sync。
+    // 本场景 media route 嵌套在 /sync 下，deep link 构建 2 层栈 → canPop
+    // 为 true，点击后实际走 pop 分支退回 /sync；go 分支见下方用例。
     await tester.tap(find.text('返回局域网同步'));
     await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
     expect(router.routerDelegate.currentConfiguration.uri.path, '/sync');
+    expect(find.text('同步落点'), findsOneWidget);
+  });
+
+  testWidgets('恢复页按钮顶层 route 直达（单层栈）时 go 回 /sync', (tester) async {
+    final prefs = await _testPrefs();
+    final router = GoRouter(
+      initialLocation: '/media/image',
+      routes: [
+        GoRoute(
+          path: '/sync',
+          builder: (context, state) =>
+              const Scaffold(body: Center(child: Text('同步落点'))),
+        ),
+        GoRoute(
+          path: '/media/image',
+          builder: (context, state) =>
+              const MediaImageRoutePage(relativePath: null),
+        ),
+      ],
+    );
+    await pumpTestApp(tester, preferences: prefs, router: router);
+
+    expect(find.text('返回局域网同步'), findsOneWidget);
+
+    // media route 为顶层绝对路径，直达时仅 1 层栈 → canPop 为 false，
+    // 点击后走 go 分支跳回 /sync。
+    await tester.tap(find.text('返回局域网同步'));
+    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+
+    expect(
+      router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
+      '/sync',
+    );
     expect(find.text('同步落点'), findsOneWidget);
   });
 }
