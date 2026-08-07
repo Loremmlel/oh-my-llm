@@ -16,6 +16,7 @@ Favorite _makeFavorite({
   String? sourceConversationId,
   String? sourceConversationTitle,
   String? sourceAssistantMessageId,
+  String? title,
   DateTime? createdAt,
 }) {
   return Favorite(
@@ -28,6 +29,7 @@ Favorite _makeFavorite({
     sourceConversationId: sourceConversationId,
     sourceConversationTitle: sourceConversationTitle,
     sourceAssistantMessageId: sourceAssistantMessageId,
+    title: title,
     createdAt: createdAt ?? DateTime(2026, 1, 1),
   );
 }
@@ -236,6 +238,59 @@ void main() {
 
       final loaded = repository.loadAll();
       expect(loaded.single.title, '持久化标题');
+    });
+  });
+
+  group('SqliteFavoritesRepository - loadById', () {
+    test('save 后 loadById 返回字段完整对象', () {
+      // favorites.collection_id 有外键约束，需先存在对应收藏夹。
+      collectionsRepo.save(
+        FavoriteCollection(id: 'col-1', name: 'A', createdAt: DateTime(2026)),
+      );
+      repository.save(
+        _makeFavorite(
+          id: 'fav-load-1',
+          collectionId: 'col-1',
+          assistantContent: '助手回复',
+          userMessageContent: '用户消息',
+          assistantReasoningContent: '推理过程',
+          assistantModelDisplayName: 'DeepSeek V4 Flash',
+          sourceConversationId: 'conv-1',
+          sourceConversationTitle: '原始对话',
+          sourceAssistantMessageId: 'msg-1',
+          title: '自定义标题',
+        ),
+      );
+
+      final loaded = repository.loadById('fav-load-1');
+
+      expect(loaded, isNotNull);
+      expect(loaded!.id, 'fav-load-1');
+      expect(loaded.collectionId, 'col-1');
+      expect(loaded.userMessageContent, '用户消息');
+      expect(loaded.assistantContent, '助手回复');
+      expect(loaded.assistantReasoningContent, '推理过程');
+      expect(loaded.assistantModelDisplayName, 'DeepSeek V4 Flash');
+      expect(loaded.sourceConversationId, 'conv-1');
+      expect(loaded.sourceConversationTitle, '原始对话');
+      expect(loaded.sourceAssistantMessageId, 'msg-1');
+      expect(loaded.title, '自定义标题');
+    });
+
+    test('不存在 ID 返回 null', () {
+      expect(repository.loadById('missing-id'), isNull);
+    });
+
+    test('两条记录时按 ID 精确读取，不依赖 createdAt 排序', () {
+      repository.save(
+        _makeFavorite(id: 'older', createdAt: DateTime(2026, 1, 1)),
+      );
+      repository.save(
+        _makeFavorite(id: 'newer', createdAt: DateTime(2026, 1, 2)),
+      );
+
+      expect(repository.loadById('older')!.createdAt, DateTime(2026, 1, 1));
+      expect(repository.loadById('newer')!.createdAt, DateTime(2026, 1, 2));
     });
   });
 }

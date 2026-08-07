@@ -9,6 +9,7 @@ import 'package:oh_my_llm/features/favorites/application/ports/collections_repos
 import 'package:oh_my_llm/features/favorites/application/ports/favorites_repository.dart';
 import 'package:oh_my_llm/features/favorites/data/sqlite_collections_repository.dart';
 import 'package:oh_my_llm/features/favorites/data/sqlite_favorites_repository.dart';
+import 'package:oh_my_llm/features/favorites/domain/models/collection.dart';
 
 void main() {
   late AppDatabase database;
@@ -272,6 +273,95 @@ void main() {
         container.read(favoritesProvider).first.userMessageContent,
         '分类问题',
       );
+    });
+  });
+
+  group('favoriteByIdProvider', () {
+    test('filter 选中 collection A 时仍能读取 collection B 的收藏', () {
+      // favorites.collection_id 有外键约束，先建两个收藏夹再写入收藏。
+      container
+          .read(collectionsRepositoryProvider)
+          .save(
+            FavoriteCollection(
+              id: 'col-a',
+              name: 'A',
+              createdAt: DateTime(2026),
+            ),
+          );
+      container
+          .read(collectionsRepositoryProvider)
+          .save(
+            FavoriteCollection(
+              id: 'col-b',
+              name: 'B',
+              createdAt: DateTime(2026),
+            ),
+          );
+      container
+          .read(favoritesProvider.notifier)
+          .add(
+            userMessageContent: 'B 的问题',
+            assistantContent: 'B 的回复',
+            collectionId: 'col-b',
+          );
+      container
+          .read(favoritesProvider.notifier)
+          .add(
+            userMessageContent: 'A 的问题',
+            assistantContent: 'A 的回复',
+            collectionId: 'col-a',
+          );
+      final bId = container
+          .read(favoritesProvider)
+          .firstWhere((f) => f.collectionId == 'col-b')
+          .id;
+
+      container.read(favoritesFilterProvider.notifier).setFilter('col-a');
+      final favorite = container.read(favoriteByIdProvider(bId));
+
+      expect(favorite, isNotNull);
+      expect(favorite!.userMessageContent, 'B 的问题');
+      expect(favorite.collectionId, 'col-b');
+    });
+
+    test('rename 后 by-ID 标题立即更新', () {
+      final id = container
+          .read(favoritesProvider.notifier)
+          .add(userMessageContent: '问题', assistantContent: '回复');
+
+      container.read(favoritesProvider.notifier).rename(id, '新标题');
+
+      expect(container.read(favoriteByIdProvider(id))!.title, '新标题');
+    });
+
+    test('move 后 by-ID collectionId 立即更新', () {
+      // favorites.collection_id 有外键约束，目标收藏夹需先存在。
+      container
+          .read(collectionsRepositoryProvider)
+          .save(
+            FavoriteCollection(
+              id: 'col-x',
+              name: 'X',
+              createdAt: DateTime(2026),
+            ),
+          );
+      final id = container
+          .read(favoritesProvider.notifier)
+          .add(userMessageContent: '问题', assistantContent: '回复');
+
+      container.read(favoritesProvider.notifier).moveTo(id, 'col-x');
+
+      expect(container.read(favoriteByIdProvider(id))!.collectionId, 'col-x');
+    });
+
+    test('remove 后 by-ID 为 null', () {
+      final id = container
+          .read(favoritesProvider.notifier)
+          .add(userMessageContent: '问题', assistantContent: '回复');
+
+      container.read(favoritesProvider.notifier).remove(id);
+
+      expect(container.read(favoriteByIdProvider(id)), isNull);
     });
   });
 }
