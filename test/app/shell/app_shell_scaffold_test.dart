@@ -5,8 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:oh_my_llm/app/navigation/app_destination.dart';
 import 'package:oh_my_llm/app/shell/app_shell_scaffold.dart';
 
-const _wideSize = Size(1440, 900);
-const _compactSize = Size(600, 900);
+import '../../helpers/responsive_viewport_cases.dart';
 
 Future<void> _pumpShell(
   WidgetTester tester, {
@@ -40,56 +39,54 @@ Future<void> _pumpShell(
   );
 
   await tester.pumpWidget(MaterialApp.router(routerConfig: router));
-  await tester.pumpAndSettle(const Duration(milliseconds: 250));
+  // 初次挂载只 pump；真实导航/抽屉动画之后再 settle。
+  await tester.pump();
 }
 
 void main() {
-  testWidgets('wide layout can navigate with rail destinations', (
-    tester,
-  ) async {
-    await _pumpShell(tester, destination: AppDestination.chat, size: _wideSize);
+  for (final viewport in requiredShellViewports) {
+    testWidgets('${viewport.name}: 目的地导航可达', (tester) async {
+      await _pumpShell(
+        tester,
+        destination: AppDestination.chat,
+        size: viewport.size,
+      );
+      expect(tester.takeException(), isNull);
 
-    await tester.tap(
-      find.descendant(
-        of: find.byType(NavigationRail),
-        matching: find.text(AppDestination.history.label),
-      ),
-    );
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      const target = AppDestination.history;
+      final navLabel = find.text(target.label);
+      if (viewport.shellMode == ShellNavigationMode.bottomBar) {
+        await tester.tap(
+          find.descendant(of: find.byType(NavigationBar), matching: navLabel),
+        );
+      } else {
+        await tester.tap(
+          find.descendant(of: find.byType(NavigationRail), matching: navLabel),
+        );
+      }
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
-    expect(find.text('历史对话页面'), findsOneWidget);
-  });
+      expect(find.text('${target.label}页面'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
 
-  testWidgets('compact layout can navigate with bottom destinations', (
-    tester,
-  ) async {
-    await _pumpShell(
-      tester,
-      destination: AppDestination.chat,
-      size: _compactSize,
-    );
+  for (final viewport in requiredShellViewports.where(
+    (v) => v.shellMode == ShellNavigationMode.bottomBar,
+  )) {
+    testWidgets('${viewport.name}: 抽屉可打开且内容可达', (tester) async {
+      await _pumpShell(
+        tester,
+        destination: AppDestination.chat,
+        size: viewport.size,
+        endDrawer: const Drawer(child: Text('侧边内容')),
+      );
 
-    await tester.tap(
-      find.descendant(
-        of: find.byType(NavigationBar),
-        matching: find.text(AppDestination.favorites.label),
-      ),
-    );
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await tester.tap(find.byTooltip('打开侧边内容'));
+      await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
-    expect(find.text('收藏页面'), findsOneWidget);
-  });
-
-  testWidgets('compact layout exposes drawer action when endDrawer exists', (
-    tester,
-  ) async {
-    await _pumpShell(
-      tester,
-      destination: AppDestination.chat,
-      size: _compactSize,
-      endDrawer: const Drawer(child: Text('侧边内容')),
-    );
-
-    expect(find.byTooltip('打开侧边内容'), findsOneWidget);
-  });
+      expect(find.text('侧边内容'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
 }
