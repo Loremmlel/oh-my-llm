@@ -205,4 +205,99 @@ void main() {
     );
     expect(find.byType(MediaImageRoutePage), findsNothing);
   });
+
+  const mediaSmokeViewports = [
+    Size(390, 844),
+    Size(600, 900),
+    Size(844, 390),
+    Size(1024, 768),
+    Size(1440, 900),
+  ];
+
+  for (final viewportSize in mediaSmokeViewports) {
+    testWidgets(
+      '${viewportSize.width}x${viewportSize.height}: 路径栏与目录/图片/视频可达',
+      (tester) async {
+        final prefs = await _testPrefs();
+        final router = _mediaRouter();
+        await pumpTestApp(
+          tester,
+          preferences: prefs,
+          router: router,
+          viewportSize: viewportSize,
+          extraOverrides: [
+            mediaBrowserControllerProvider.overrideWith(
+              () => FakeMediaBrowserController(
+                MediaBrowserState(
+                  server: testServer,
+                  items: [
+                    _dir('/相册'),
+                    _file('/相册/猫.jpg'),
+                    _file('/视频/demo.mp4'),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+
+        expect(find.text('🏠'), findsOneWidget);
+        expect(find.text('相册'), findsOneWidget);
+        expect(find.text('猫.jpg'), findsOneWidget);
+        expect(find.text('demo.mp4'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  for (final viewportSize in [const Size(390, 844), const Size(844, 390)]) {
+    testWidgets(
+      '${viewportSize.width}x${viewportSize.height}: 图片 route push/back 保持 URI 契约',
+      (tester) async {
+        final prefs = await _testPrefs();
+        final router = _mediaRouter();
+        await pumpTestApp(
+          tester,
+          preferences: prefs,
+          router: router,
+          viewportSize: viewportSize,
+          extraOverrides: [
+            mediaBrowserControllerProvider.overrideWith(
+              () => FakeMediaBrowserController(
+                MediaBrowserState(
+                  server: testServer,
+                  items: [_file('/相册/猫.jpg')],
+                ),
+              ),
+            ),
+          ],
+        );
+
+        await tester.tap(find.text('猫.jpg'));
+        await tester.pumpAndSettle(const Duration(milliseconds: 250));
+        expect(
+          router
+              .routerDelegate
+              .currentConfiguration
+              .matches
+              .last
+              .matchedLocation,
+          '/sync/media/image',
+        );
+
+        await tester.tap(find.byIcon(Icons.arrow_back));
+        await tester.pumpAndSettle(const Duration(milliseconds: 250));
+        expect(
+          router
+              .routerDelegate
+              .currentConfiguration
+              .matches
+              .last
+              .matchedLocation,
+          '/sync',
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 }
