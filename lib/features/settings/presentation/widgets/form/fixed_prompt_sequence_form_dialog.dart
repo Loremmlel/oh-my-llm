@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import 'package:oh_my_llm/core/utils/id_generator.dart';
 import 'package:oh_my_llm/core/widgets/adaptive_master_detail_layout.dart';
 import '../../../domain/models/fixed_prompt_sequence.dart';
@@ -79,7 +80,6 @@ class _FixedPromptSequenceFormDialogState
   /// 构建固定顺序提示词的主从式编辑器。
   Widget build(BuildContext context) {
     final isEditing = widget.initialValue != null;
-    const masterDetailBreakpoint = 900.0;
 
     return SettingsFormDialogScaffold(
       title: isEditing ? '编辑固定顺序提示词' : '新增固定顺序提示词',
@@ -88,10 +88,10 @@ class _FixedPromptSequenceFormDialogState
       onSubmit: _handleSubmit,
       width: 1080,
       shouldScrollContent: (constraints) =>
-          constraints.maxWidth < masterDetailBreakpoint,
+          constraints.maxWidth < AppBreakpoints.formMasterDetail,
       child: AdaptiveMasterDetailLayout(
         key: const ValueKey('fixed-prompt-sequence-form-layout'), // test-key
-        breakpoint: masterDetailBreakpoint,
+        breakpoint: AppBreakpoints.formMasterDetail,
         masterWidth: 340,
         minHeight: 620,
         compactChild: _buildCompactLayout(context),

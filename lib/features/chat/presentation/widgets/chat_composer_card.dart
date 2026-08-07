@@ -16,8 +16,6 @@ import 'thinking_toggle.dart';
 
 /// 聊天工作区中的输入与设置面板。
 class ChatComposerCard extends StatelessWidget {
-  static const compactComposerBreakpoint = 680.0;
-
   const ChatComposerCard({
     required this.state,
     required this.bindings,
@@ -52,8 +50,8 @@ class ChatComposerCard extends StatelessWidget {
     return Card(
       child: Padding(
         padding: EdgeInsets.symmetric(
-          horizontal: AppBreakpoints.isCompact(context) ? 10 : 14,
-          vertical: AppBreakpoints.isCompact(context) ? 8 : 10,
+          horizontal: AppBreakpoints.isCompactShell(context) ? 10 : 14,
+          vertical: AppBreakpoints.isCompactShell(context) ? 8 : 10,
         ),
         child: Row(
           children: [
@@ -82,13 +80,16 @@ class ChatComposerCard extends StatelessWidget {
     return Card(
       child: LayoutBuilder(
         builder: (context, constraints) {
-          // isCompactComposer 是输入区自身的 680 断点，决定操作行紧凑/桌面布局；
-          // 与 [AppBreakpoints.isCompact]（移动端 720 断点，影响 padding）含义不同，不可混用。
-          final isCompactComposer =
-              constraints.maxWidth < compactComposerBreakpoint;
+          // isCompactComposer 是输入区自身的 formActions（680）断点，决定操作行
+          // 紧凑/桌面布局；与 isCompactShell（720，影响 padding）含义不同，不可混用。
+          final isCompactComposer = AppBreakpoints.useCompactFormActions(
+            constraints.maxWidth,
+          );
 
           return Padding(
-            padding: EdgeInsets.all(AppBreakpoints.isCompact(context) ? 8 : 12),
+            padding: EdgeInsets.all(
+              AppBreakpoints.isCompactShell(context) ? 8 : 12,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

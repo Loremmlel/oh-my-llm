@@ -51,7 +51,7 @@ class ChatWorkspace extends StatelessWidget {
                 state.messages.favoritedAssistantContents,
           ),
         ),
-        SizedBox(height: AppBreakpoints.isCompact(context) ? 8 : 12),
+        SizedBox(height: AppBreakpoints.isCompactShell(context) ? 8 : 12),
         ChatComposerCard(state: state.composer, bindings: bindings.composer),
       ],
     );

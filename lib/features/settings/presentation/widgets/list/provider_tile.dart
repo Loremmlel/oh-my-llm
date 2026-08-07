@@ -32,6 +32,10 @@ class ProviderTile extends ConsumerStatefulWidget {
 class _ProviderTileState extends ConsumerState<ProviderTile> {
   bool _modelsExpanded = false;
 
+  // 服务商卡片的长操作区（新增模型/编辑/删除）标签较长，需要在更窄的父约束下
+  // 先纵向堆叠；嵌套模型卡片（560）的按钮更短，不能复用同一阈值。
+  static const _compactActionsBreakpoint = 640.0;
+
   @override
   void didUpdateWidget(covariant ProviderTile oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -92,7 +96,7 @@ class _ProviderTileState extends ConsumerState<ProviderTile> {
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final isCompact = constraints.maxWidth < 640;
+          final isCompact = constraints.maxWidth < _compactActionsBreakpoint;
 
           return Padding(
             padding: const EdgeInsets.all(16),

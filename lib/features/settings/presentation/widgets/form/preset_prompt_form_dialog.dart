@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import 'package:oh_my_llm/core/utils/id_generator.dart';
 import 'package:oh_my_llm/core/widgets/adaptive_master_detail_layout.dart';
 import '../../../domain/models/preset_prompt.dart';
@@ -61,7 +62,6 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
   /// 构建预设 Prompt 的主从式编辑器。
   Widget build(BuildContext context) {
     final isEditing = widget.initialValue != null;
-    const masterDetailBreakpoint = 900.0;
 
     return SettingsFormDialogScaffold(
       title: isEditing ? '编辑预设 Prompt' : '新增预设 Prompt',
@@ -70,10 +70,10 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
       onSubmit: _handleSubmit,
       width: 1120,
       shouldScrollContent: (constraints) =>
-          constraints.maxWidth < masterDetailBreakpoint,
+          constraints.maxWidth < AppBreakpoints.formMasterDetail,
       child: AdaptiveMasterDetailLayout(
         key: const ValueKey('preset-prompt-form-layout'), // test-key
-        breakpoint: masterDetailBreakpoint,
+        breakpoint: AppBreakpoints.formMasterDetail,
         masterWidth: 340,
         minHeight: 620,
         compactChild: _buildCompactLayout(context),
