@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import 'package:oh_my_llm/app/navigation/app_destination.dart';
 import 'package:oh_my_llm/core/widgets/notification_bubble_context_ext.dart';
 import '../../application/shuffle_playback_controller.dart';
-import '../pages/video_player_page.dart';
 
 /// AppBar 随机播放按钮组。
 ///
@@ -57,7 +58,7 @@ class ShuffleAppBarActions extends ConsumerWidget {
 
     final state = ref.read(shufflePlaybackControllerProvider);
     if (videoUrl != null && state is ShufflePlaybackActive) {
-      _navigateToPlayer(context, videoUrl, state.currentVideo.name, controller);
+      _navigateToPlayer(context, state.currentVideo.relativePath, controller);
     } else {
       context.showWarningBubble('当前目录下未找到视频文件');
     }
@@ -104,7 +105,7 @@ class ShuffleAppBarActions extends ConsumerWidget {
     if (videoUrl == null) return;
     final state = ref.read(shufflePlaybackControllerProvider);
     if (state is ShufflePlaybackActive) {
-      _navigateToPlayer(context, videoUrl, state.currentVideo.name, controller);
+      _navigateToPlayer(context, state.currentVideo.relativePath, controller);
     }
   }
 
@@ -117,21 +118,18 @@ class ShuffleAppBarActions extends ConsumerWidget {
     if (videoUrl == null) return;
     final state = ref.read(shufflePlaybackControllerProvider);
     if (state is ShufflePlaybackActive) {
-      _navigateToPlayer(context, videoUrl, state.currentVideo.name, controller);
+      _navigateToPlayer(context, state.currentVideo.relativePath, controller);
     }
   }
 
   Future<void> _navigateToPlayer(
     BuildContext context,
-    String videoUrl,
-    String fileName,
+    String relativePath,
     ShufflePlaybackController controller,
   ) async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => VideoPlayerPage(videoUrl: videoUrl, fileName: fileName),
-      ),
+    await context.pushNamed(
+      AppRouteName.mediaVideo,
+      queryParameters: {AppRouteParameter.mediaPath: relativePath},
     );
     if (context.mounted) {
       controller.onPlayerExited();

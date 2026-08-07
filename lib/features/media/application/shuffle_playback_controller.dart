@@ -181,8 +181,7 @@ class ShufflePlaybackController extends Notifier<ShufflePlaybackState> {
   String? buildVideoUrl(String relativePath) {
     final server = ref.read(mediaBrowserControllerProvider).server;
     if (server == null) return null;
-    final encoded = encodeMediaPath(relativePath);
-    return 'http://${server.ip}:${server.httpPort}/api/media/video/$encoded';
+    return buildMediaResourceUrl(server, 'video', relativePath);
   }
 
   bool _isCurrent(int generation) => ref.mounted && generation == _generation;

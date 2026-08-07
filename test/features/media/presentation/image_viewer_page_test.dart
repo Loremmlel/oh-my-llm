@@ -231,9 +231,8 @@ void main() {
       await tester.tap(find.byIcon(Icons.arrow_back));
       await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
-      // ImageViewerPage 通过 Navigator.push 进入，pop 后应返回上一个路由
-      // 在测试中，由于只有这一层页面，pop 后会显示空或前一个路由。
-      // 直接验证返回到 pumpTestApp 的初始路由（即不再有 ImageViewerPage 的内容）
+      // ImageViewerPage 是路由承载的页面，pop 后应返回父页面。
+      // 在测试中作为唯一页面，pop 后不再有 ImageViewerPage 的内容。
       expect(find.byIcon(Icons.arrow_back), findsNothing);
     });
 

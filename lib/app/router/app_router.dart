@@ -6,6 +6,7 @@ import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
 import 'package:oh_my_llm/features/favorites/presentation/favorite_detail_screen.dart';
 import 'package:oh_my_llm/features/favorites/presentation/favorites_screen.dart';
 import 'package:oh_my_llm/features/history/presentation/history_screen.dart';
+import 'package:oh_my_llm/features/media/presentation/pages/media_route_pages.dart';
 import 'package:oh_my_llm/features/settings/presentation/settings_screen.dart';
 import '../composition/sync_workspace_screen.dart';
 import '../navigation/app_destination.dart';
@@ -62,6 +63,24 @@ GoRouter createAppRouter({String? initialLocation}) {
         path: AppDestination.sync.path,
         name: AppDestination.sync.name,
         builder: (context, state) => const SyncWorkspaceScreen(),
+        routes: [
+          GoRoute(
+            path: 'media/image',
+            name: AppRouteName.mediaImage,
+            builder: (context, state) => MediaImageRoutePage(
+              relativePath:
+                  state.uri.queryParameters[AppRouteParameter.mediaPath],
+            ),
+          ),
+          GoRoute(
+            path: 'media/video',
+            name: AppRouteName.mediaVideo,
+            builder: (context, state) => MediaVideoRoutePage(
+              relativePath:
+                  state.uri.queryParameters[AppRouteParameter.mediaPath],
+            ),
+          ),
+        ],
       ),
     ],
     errorBuilder: (context, state) {

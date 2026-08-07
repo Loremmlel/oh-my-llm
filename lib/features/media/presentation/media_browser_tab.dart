@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import 'package:oh_my_llm/app/navigation/app_destination.dart';
 import '../application/media_browser_controller.dart';
 import '../application/shuffle_playback_controller.dart';
 import '../domain/media_file_classification.dart';
-import '../utils/path_utils.dart';
-import 'pages/image_viewer_page.dart';
-import 'pages/video_player_page.dart';
 import 'widgets/media_grid_view.dart';
 import 'widgets/media_path_bar.dart';
 
@@ -73,44 +72,22 @@ class _MediaBrowserTabState extends ConsumerState<MediaBrowserTab> {
                 if (item.isDirectory) {
                   controller.navigateTo(item.relativePath);
                 } else if (isImageFile(item.name)) {
-                  // 收集当前目录下所有图片 URL，定位到当前项
-                  // 提前校验 server，避免注入空字符串 URL
-                  final server = state.server;
-                  if (server != null) {
-                    final baseUrl =
-                        'http://${server.ip}:${server.httpPort}/api/media/image/';
-                    final imageItems = state.items
-                        .where((i) => isImageFile(i.name))
-                        .toList();
-                    final imageUrls = imageItems
-                        .map(
-                          (i) => '$baseUrl${encodeMediaPath(i.relativePath)}',
-                        )
-                        .toList();
-                    final initialIndex = imageItems.indexWhere(
-                      (i) => i.relativePath == item.relativePath,
-                    );
-                    if (initialIndex >= 0) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => ImageViewerPage(
-                            imageUrls: imageUrls,
-                            initialIndex: initialIndex,
-                          ),
-                        ),
-                      );
-                    }
-                  }
+                  // server 缺失时不导航，保持原有防御行为；
+                  // 图片/视频 URL 由 routed page 从可信会话重建。
+                  if (state.server == null) return;
+                  context.pushNamed(
+                    AppRouteName.mediaImage,
+                    queryParameters: {
+                      AppRouteParameter.mediaPath: item.relativePath,
+                    },
+                  );
                 } else if (isVideoFile(item.name)) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => VideoPlayerPage(
-                        videoUrl: _buildMediaUrl('video', item.relativePath),
-                        fileName: item.name,
-                      ),
-                    ),
+                  if (state.server == null) return;
+                  context.pushNamed(
+                    AppRouteName.mediaVideo,
+                    queryParameters: {
+                      AppRouteParameter.mediaPath: item.relativePath,
+                    },
                   );
                 }
                 // 其他类型文件：无操作
@@ -120,16 +97,5 @@ class _MediaBrowserTabState extends ConsumerState<MediaBrowserTab> {
         ],
       ),
     );
-  }
-
-  /// 构建媒体资源访问 URL。
-  ///
-  /// 路径每段单独编码以支持中文。
-  /// 返回空字符串若 server 未就绪（防御性编程）。
-  String _buildMediaUrl(String type, String relativePath) {
-    final server = ref.read(mediaBrowserControllerProvider).server;
-    if (server == null) return '';
-    final encodedPath = encodeMediaPath(relativePath);
-    return 'http://${server.ip}:${server.httpPort}/api/media/$type/$encodedPath';
   }
 }
