@@ -47,3 +47,18 @@ enum AppDestination {
   final IconData icon;
   final IconData selectedIcon;
 }
+
+/// 非顶层路由的稳定名称与参数键，供 route builder、导航发起方与测试共享。
+///
+/// 详情/媒体页面是顶层页面的子页面，不进入 [AppDestination.values]，
+/// 否则会错误出现在 NavigationRail/NavigationBar。
+abstract final class AppRouteName {
+  static const favoriteDetail = 'favoriteDetail';
+  static const mediaImage = 'mediaImage';
+  static const mediaVideo = 'mediaVideo';
+}
+
+abstract final class AppRouteParameter {
+  static const favoriteId = 'favoriteId';
+  static const mediaPath = 'path';
+}

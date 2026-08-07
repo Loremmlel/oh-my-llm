@@ -24,20 +24,22 @@ Future<AppDatabase> pumpFavoritesScreen(
   required SharedPreferences preferences,
   AppDatabase? database,
   Size viewportSize = const Size(1440, 1200),
+  String? initialLocation,
 }) async {
   final router = GoRouter(
-    initialLocation: AppDestination.favorites.path,
+    initialLocation: initialLocation ?? AppDestination.favorites.path,
     routes: [
       GoRoute(
         path: AppDestination.favorites.path,
+        name: AppDestination.favorites.name,
         builder: (context, state) => const FavoritesScreen(),
       ),
       GoRoute(
-        path: '/favorites/detail',
-        builder: (context, state) {
-          final favorite = state.extra as Favorite;
-          return FavoriteDetailScreen(favorite: favorite);
-        },
+        path: '/favorites/:favoriteId',
+        name: AppRouteName.favoriteDetail,
+        builder: (context, state) => FavoriteDetailScreen(
+          favoriteId: state.pathParameters[AppRouteParameter.favoriteId],
+        ),
       ),
       GoRoute(
         path: AppDestination.chat.path,

@@ -113,7 +113,10 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
         return FavoriteListItem(
           favorite: favorite,
           collectionName: collection?.name,
-          onTap: () => context.push('/favorites/detail', extra: favorite),
+          onTap: () => context.pushNamed(
+            AppRouteName.favoriteDetail,
+            pathParameters: {AppRouteParameter.favoriteId: favorite.id},
+          ),
         );
       },
     );

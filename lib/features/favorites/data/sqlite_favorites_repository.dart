@@ -32,6 +32,16 @@ class SqliteFavoritesRepository implements FavoritesRepository {
   }
 
   @override
+  Favorite? loadById(String favoriteId) {
+    final rows = _database.connection.select(
+      'SELECT * FROM favorites WHERE id = ? LIMIT 1;',
+      [favoriteId],
+    );
+    if (rows.isEmpty) return null;
+    return _rowToFavorite(rows.first);
+  }
+
+  @override
   void save(Favorite favorite) {
     _database.connection.execute(
       'INSERT OR REPLACE INTO favorites '

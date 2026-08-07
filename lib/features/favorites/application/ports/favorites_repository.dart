@@ -12,6 +12,9 @@ abstract interface class FavoritesRepository {
   /// 按收藏时间降序返回全部收藏记录，可选按收藏夹筛选。
   List<Favorite> loadAll({String? collectionId});
 
+  /// 按 ID 读取单条收藏；记录不存在时返回 null。
+  Favorite? loadById(String favoriteId);
+
   /// 保存单条收藏（INSERT OR REPLACE）。
   void save(Favorite favorite);
 

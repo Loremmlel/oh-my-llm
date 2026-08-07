@@ -99,3 +99,13 @@ class FavoritesController extends Notifier<List<Favorite>> {
     state = _repo.loadAll(collectionId: filter);
   }
 }
+
+/// 按 ID 读取单条收藏。
+///
+/// 与 filtered 列表解耦：详情页不依赖当前筛选是否包含该 ID。
+/// [favoritesProvider] 仅作为 add/remove/move/rename 的失效信号，
+/// 真实数据始终来自 repository 精确查询。
+final favoriteByIdProvider = Provider.family<Favorite?, String>((ref, id) {
+  ref.watch(favoritesProvider);
+  return ref.watch(favoritesRepositoryProvider).loadById(id);
+});

@@ -3,9 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:oh_my_llm/app/navigation/app_destination.dart';
-import '../application/favorites_controller.dart';
+import 'package:oh_my_llm/core/widgets/app_empty_state.dart';
 import '../application/collections_controller.dart';
 import '../application/favorite_source_conversation_command.dart';
+import '../application/favorites_controller.dart';
 import '../domain/models/collection.dart';
 import '../domain/models/favorite.dart';
 import 'package:oh_my_llm/core/widgets/app_confirm_dialog.dart';
@@ -13,12 +14,13 @@ import 'widgets/favorite_card.dart';
 
 /// 单条收藏的详情页，展示完整对话内容。
 ///
-/// 通过 GoRouter extra 接收 [Favorite] 对象，读取 collectionsProvider
-/// 获取收藏夹名称。支持重命名收藏标题和移动到其它收藏夹。
+/// 只接收 [favoriteId]（可能为 null/空），实体经 [favoriteByIdProvider]
+/// 按 ID 读取；链接无效或收藏已删除时展示可返回的恢复状态。
+/// 不保存任何 route 传入的 [Favorite] 镜像，避免陈旧数据。
 class FavoriteDetailScreen extends ConsumerStatefulWidget {
-  const FavoriteDetailScreen({required this.favorite, super.key});
+  const FavoriteDetailScreen({required this.favoriteId, super.key});
 
-  final Favorite favorite;
+  final String? favoriteId;
 
   @override
   ConsumerState<FavoriteDetailScreen> createState() =>
@@ -26,49 +28,64 @@ class FavoriteDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _FavoriteDetailScreenState extends ConsumerState<FavoriteDetailScreen> {
-  late Favorite _favorite = widget.favorite;
-
   @override
   Widget build(BuildContext context) {
+    final rawId = widget.favoriteId?.trim() ?? '';
+    final favorite = rawId.isEmpty
+        ? null
+        : ref.watch(favoriteByIdProvider(rawId));
+
+    if (favorite == null) {
+      final invalid = rawId.isEmpty;
+      return _FavoriteDetailRecoveryPage(
+        title: invalid ? '收藏链接无效' : '收藏不存在',
+        description: invalid ? '链接中缺少有效的收藏 ID。' : '这条收藏可能已被删除。',
+      );
+    }
+
     final collections = ref.watch(collectionsProvider);
     final collectionById = {for (final c in collections) c.id: c};
-    final collection = _favorite.collectionId != null
-        ? collectionById[_favorite.collectionId]
+    final collection = favorite.collectionId != null
+        ? collectionById[favorite.collectionId]
         : null;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_favorite.title ?? '收藏详情'),
+        title: Text(favorite.title ?? '收藏详情'),
         actions: [
           IconButton(
             icon: const Icon(Icons.edit_note_rounded),
             tooltip: '重命名',
-            onPressed: () => _showRenameDialog(context),
+            onPressed: () => _showRenameDialog(context, favorite),
           ),
           IconButton(
             icon: const Icon(Icons.delete_outline_rounded),
             tooltip: '删除收藏',
-            onPressed: () => _confirmDelete(context),
+            onPressed: () => _confirmDelete(context, favorite),
           ),
         ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
         child: FavoriteCard(
-          favorite: _favorite,
+          favorite: favorite,
           collectionName: collection?.name,
-          onDeletePressed: () => _confirmDelete(context),
-          onMoveToCollection: () => _showMoveDialog(context, collections),
-          onGoToConversation: _favorite.sourceConversationId != null
-              ? () => _goToConversation(context)
+          onDeletePressed: () => _confirmDelete(context, favorite),
+          onMoveToCollection: () =>
+              _showMoveDialog(context, favorite, collections),
+          onGoToConversation: favorite.sourceConversationId != null
+              ? () => _goToConversation(context, favorite)
               : null,
         ),
       ),
     );
   }
 
-  Future<void> _showRenameDialog(BuildContext context) async {
-    final controller = TextEditingController(text: _favorite.title ?? '');
+  Future<void> _showRenameDialog(
+    BuildContext context,
+    Favorite favorite,
+  ) async {
+    final controller = TextEditingController(text: favorite.title ?? '');
     String? result;
     try {
       result = await showDialog<String>(
@@ -104,17 +121,18 @@ class _FavoriteDetailScreenState extends ConsumerState<FavoriteDetailScreen> {
 
     if (result == null) return;
     final trimmed = result.trim();
+    // 变更后由 favoriteByIdProvider 重读，页面无需本地同步。
     ref
         .read(favoritesProvider.notifier)
-        .rename(_favorite.id, trimmed.isEmpty ? null : trimmed);
-    _refreshFavorite();
+        .rename(favorite.id, trimmed.isEmpty ? null : trimmed);
   }
 
   Future<void> _showMoveDialog(
     BuildContext context,
+    Favorite favorite,
     List<FavoriteCollection> collections,
   ) async {
-    String? selectedCollectionId = _favorite.collectionId;
+    String? selectedCollectionId = favorite.collectionId;
 
     final result = await showDialog<String?>(
       context: context,
@@ -163,7 +181,7 @@ class _FavoriteDetailScreenState extends ConsumerState<FavoriteDetailScreen> {
               child: const Text('取消'),
             ),
             FilledButton(
-              onPressed: selectedCollectionId != _favorite.collectionId
+              onPressed: selectedCollectionId != favorite.collectionId
                   ? () => Navigator.of(context).pop(selectedCollectionId ?? '')
                   : null,
               child: const Text('移动'),
@@ -176,19 +194,10 @@ class _FavoriteDetailScreenState extends ConsumerState<FavoriteDetailScreen> {
     if (result == null) return;
     ref
         .read(favoritesProvider.notifier)
-        .moveTo(_favorite.id, result.isEmpty ? null : result);
-    _refreshFavorite();
+        .moveTo(favorite.id, result.isEmpty ? null : result);
   }
 
-  void _refreshFavorite() {
-    final favorites = ref.read(favoritesProvider);
-    final updated = favorites.where((f) => f.id == _favorite.id).firstOrNull;
-    if (updated != null) {
-      setState(() => _favorite = updated);
-    }
-  }
-
-  Future<void> _confirmDelete(BuildContext context) async {
+  Future<void> _confirmDelete(BuildContext context, Favorite favorite) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => const AppConfirmDialog(
@@ -199,19 +208,53 @@ class _FavoriteDetailScreenState extends ConsumerState<FavoriteDetailScreen> {
     );
 
     if (confirmed == true) {
-      ref.read(favoritesProvider.notifier).remove(_favorite.id);
+      ref.read(favoritesProvider.notifier).remove(favorite.id);
       if (context.mounted) context.pop();
     }
   }
 
-  void _goToConversation(BuildContext context) {
+  void _goToConversation(BuildContext context, Favorite favorite) {
     ref
         .read(favoriteSourceConversationCommandProvider)
         .selectSourceConversation(
-          conversationId: _favorite.sourceConversationId!,
-          assistantMessageId: _favorite.sourceAssistantMessageId,
+          conversationId: favorite.sourceConversationId!,
+          assistantMessageId: favorite.sourceAssistantMessageId,
         );
     context.go(AppDestination.chat.path);
+  }
+}
+
+/// 收藏详情恢复页：参数无效或收藏不存在时的可返回页面级状态。
+class _FavoriteDetailRecoveryPage extends StatelessWidget {
+  const _FavoriteDetailRecoveryPage({
+    required this.title,
+    required this.description,
+  });
+
+  final String title;
+  final String description;
+
+  @override
+  Widget build(BuildContext context) {
+    final router = GoRouter.of(context);
+    return Scaffold(
+      appBar: AppBar(title: const Text('收藏详情')),
+      body: AppEmptyState(
+        icon: Icons.bookmark_remove_rounded,
+        title: title,
+        description: description,
+        action: FilledButton(
+          onPressed: () {
+            if (router.canPop()) {
+              router.pop();
+            } else {
+              router.go(AppDestination.favorites.path);
+            }
+          },
+          child: const Text('返回收藏列表'),
+        ),
+      ),
+    );
   }
 }
 
