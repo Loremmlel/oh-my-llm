@@ -15,9 +15,11 @@ const settingsLastTabIndexKey = 'settings.tab.last_index';
 
 const tabLabels = ['服务商', '预设', '提示词', '网络', '输出处理', '其它'];
 
-/// 切换到指定标签页。
+/// 切换到指定标签页；先确保 tab 在滚动区域内可见再点击。
 Future<void> switchToTab(WidgetTester tester, int index) async {
-  await tester.tap(find.text(tabLabels[index]));
+  final tabFinder = find.text(tabLabels[index]);
+  await tester.ensureVisible(tabFinder);
+  await tester.tap(tabFinder);
   await tester.pumpAndSettle(const Duration(milliseconds: 250));
 }
 
