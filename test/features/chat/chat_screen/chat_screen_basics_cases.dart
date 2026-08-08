@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/core/persistence/app_database.dart';
+import 'package:oh_my_llm/features/chat/application/chat_generation_lifecycle.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
@@ -17,6 +18,7 @@ import 'package:oh_my_llm/features/settings/domain/models/memory_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
 
 import '../../../helpers/fixtures.dart';
+import '../../../helpers/widget_test_animation.dart';
 import 'chat_screen_test_helpers.dart';
 
 void registerChatScreenBasicsTests() {
@@ -71,7 +73,7 @@ void registerChatScreenBasicsTests() {
     await pumpChatScreen(tester, fakeClient: fakeClient);
 
     await tester.tap(find.byTooltip('修改对话标题'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleOverlayTransition(tester);
 
     await tester.enterText(
       find.descendant(
@@ -81,7 +83,7 @@ void registerChatScreenBasicsTests() {
       '新的对话标题',
     );
     await tester.tap(find.widgetWithText(FilledButton, '保存'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleOverlayTransition(tester);
 
     expect(find.text('新的对话标题'), findsWidgets);
   });
@@ -97,7 +99,7 @@ void registerChatScreenBasicsTests() {
     );
 
     await tester.tap(find.byTooltip('修改对话标题'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleOverlayTransition(tester);
     await tester.enterText(
       find.descendant(
         of: find.byType(AlertDialog),
@@ -106,10 +108,15 @@ void registerChatScreenBasicsTests() {
       '自定义标题',
     );
     await tester.tap(find.widgetWithText(FilledButton, '保存'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleOverlayTransition(tester);
 
     await sendMessage(tester, '发送后不要重置标题');
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await waitForChatGeneration(
+      tester,
+      container,
+      (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
+      description: '自定义标题用例生成完成',
+    );
 
     expect(
       container.read(chatSessionsProvider).activeConversation.resolvedTitle,
@@ -123,12 +130,20 @@ void registerChatScreenBasicsTests() {
       final fakeClient = FakeChatCompletionClient()..enqueueChunks(['已收到']);
 
       await pumpChatScreen(tester, fakeClient: fakeClient);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ChatScreen)),
+      );
 
       await sendMessage(tester, '你好');
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await waitForChatGeneration(
+        tester,
+        container,
+        (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
+        description: '检查点字数用例生成完成',
+      );
 
       await tester.tap(find.byTooltip('对话检查点'));
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleOverlayTransition(tester);
 
       expect(find.text('对话检查点'), findsOneWidget);
       expect(find.text('当前上下文字数：5 字（不含预设 Prompt）'), findsOneWidget);
@@ -150,10 +165,11 @@ void registerChatScreenBasicsTests() {
           .updateActiveConversationPreferences(
             selectedPresetPromptId: 'prompt-1',
           );
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      // 会话偏好是同步状态变更，单帧渲染即可。
+      await tester.pump();
 
       await tester.tap(find.byTooltip('对话检查点'));
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleOverlayTransition(tester);
 
       expect(find.text('当前总结会附带预设 Prompt：代码助手'), findsOneWidget);
     },
@@ -191,10 +207,16 @@ void registerChatScreenBasicsTests() {
             updatedAt: DateTime(2026, 5, 6),
           ),
         );
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    // upsert 是同步持久化，单帧渲染即可。
+    await tester.pump();
 
     await sendMessage(tester, '先生成一点上下文');
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await waitForChatGeneration(
+      tester,
+      container,
+      (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
+      description: '检查点预览用例上下文生成完成',
+    );
 
     await container
         .read(chatSessionsProvider.notifier)
@@ -209,10 +231,12 @@ void registerChatScreenBasicsTests() {
           reasoningEnabled: false,
           reasoningEffort: ReasoningEffort.medium,
         );
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    // 检查点走非流式 complete()，await 返回即已提交（内存库同步持久化），
+    // 不走 generation 生命周期，单帧渲染即可。
+    await tester.pump();
 
     await tester.tap(find.byTooltip('对话检查点'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleOverlayTransition(tester);
 
     expect(find.text('检查点标题'), findsOneWidget);
   });
@@ -225,17 +249,31 @@ void registerChatScreenBasicsTests() {
       ..enqueueChunks(['第二轮回复']);
 
     await pumpChatScreen(tester, fakeClient: fakeClient);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
 
     await sendMessage(tester, '第一轮问题');
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await waitForChatGeneration(
+      tester,
+      container,
+      (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
+      description: '排除回复用例首轮生成完成',
+    );
 
+    // 排除是消息树同步变更，单帧渲染即可。
     await tester.tap(find.byTooltip('从发送上下文中排除').last);
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await tester.pump();
 
     expect(find.byIcon(Icons.filter_alt_outlined), findsOneWidget);
 
     await sendMessage(tester, '第二轮问题');
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await waitForChatGeneration(
+      tester,
+      container,
+      (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
+      description: '排除回复用例第二轮生成完成',
+    );
 
     expect(
       fakeClient.requestHistory.last.map((message) => message.content).toList(),
@@ -251,26 +289,41 @@ void registerChatScreenBasicsTests() {
       ..enqueueChunks(['第二轮回复']);
 
     await pumpChatScreen(tester, fakeClient: fakeClient);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
 
     await sendMessage(tester, '第一轮问题');
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await waitForChatGeneration(
+      tester,
+      container,
+      (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
+      description: '恢复排除用例首轮生成完成',
+    );
 
+    // 排除是消息树同步变更，单帧渲染即可。
     await tester.tap(find.byTooltip('从发送上下文中排除').last);
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await tester.pump();
 
     await tester.tap(find.byIcon(Icons.filter_alt_outlined));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleOverlayTransition(tester);
 
     expect(find.text('上下文过滤'), findsOneWidget);
+    // 恢复分支是同步状态变更；关闭按钮走 overlay 过渡。
     await tester.tap(find.widgetWithText(FilledButton, '恢复当前分支'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await tester.pump();
     await tester.tap(find.widgetWithText(TextButton, '关闭'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleOverlayTransition(tester);
 
     expect(find.text('不发送'), findsNothing);
 
     await sendMessage(tester, '第二轮问题');
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await waitForChatGeneration(
+      tester,
+      container,
+      (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
+      description: '恢复排除用例第二轮生成完成',
+    );
 
     expect(
       fakeClient.requestHistory.last.map((message) => message.content).toList(),
@@ -285,12 +338,20 @@ void registerChatScreenBasicsTests() {
         ..enqueueChunks(['done 456']);
 
       await pumpChatScreen(tester, fakeClient: fakeClient);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ChatScreen)),
+      );
 
       await sendMessage(tester, 'hello 123 世界');
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await waitForChatGeneration(
+        tester,
+        container,
+        (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
+        description: '字数规则用例生成完成',
+      );
 
       await tester.tap(find.byIcon(Icons.filter_alt_outlined));
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleOverlayTransition(tester);
 
       expect(find.text('发送字数：4 / 4 字'), findsOneWidget);
     },
@@ -308,12 +369,13 @@ void registerChatScreenBasicsTests() {
     );
 
     await tester.tap(find.byIcon(Icons.tune_rounded));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleOverlayTransition(tester);
 
     expect(find.text('更多设置'), findsOneWidget);
     expect(find.text('思考强度'), findsNothing);
+    // 档位切换触发弹窗内容高度动画（checkmark 宽度过渡），按组件动画等待。
     await tester.tap(find.text('深度思考'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleAnimatedWidgetTransition(tester);
     expect(find.text('思考强度'), findsOneWidget);
     expect(find.text('固定顺序提示词'), findsOneWidget);
   });
@@ -330,9 +392,9 @@ void registerChatScreenBasicsTests() {
       );
 
       await tester.tap(find.byIcon(Icons.tune_rounded));
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleOverlayTransition(tester);
       await tester.tap(find.text('深度思考'));
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleAnimatedWidgetTransition(tester);
 
       // 用 descendant 限定，避免与折叠行摘要「更多设置 · med · 重试开」撞名。
       Finder chipFor(ReasoningEffort effort) => find.descendant(
@@ -349,7 +411,8 @@ void registerChatScreenBasicsTests() {
       final initialHeight = tester.getSize(sheet).height;
       for (final effort in ReasoningEffort.values) {
         await tester.tap(chipFor(effort));
-        await tester.pumpAndSettle(const Duration(milliseconds: 250));
+        // 档位切换的 checkmark 宽度动画结束后弹窗高度应完全稳定。
+        await settleAnimatedWidgetTransition(tester);
         expect(
           tester.getSize(sheet).height,
           moreOrLessEquals(initialHeight, epsilon: 0.01),
@@ -359,7 +422,7 @@ void registerChatScreenBasicsTests() {
 
       // 选中态经回调正确传播到折叠行摘要。
       await tester.tap(chipFor(ReasoningEffort.xhigh));
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleAnimatedWidgetTransition(tester);
       expect(find.text('更多设置 · xhigh · 重试关'), findsOneWidget);
     },
   );
@@ -374,7 +437,7 @@ void registerChatScreenBasicsTests() {
     expect(find.widgetWithText(FilledButton, '发送'), findsOneWidget);
 
     await tester.tap(find.byTooltip('收起输入区'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleAnimatedWidgetTransition(tester);
 
     expect(find.text('输入区已隐藏'), findsOneWidget);
     // AnimatedCrossFade 下展开态 child 常驻树（仅 opacity 置 0），发送按钮
@@ -384,11 +447,12 @@ void registerChatScreenBasicsTests() {
       find.widgetWithText(FilledButton, '发送'),
       warnIfMissed: false,
     );
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    // 折叠态下点击不产生任何请求，单帧处理该 tap 即可。
+    await tester.pump();
     expect(fakeClient.requestHistory, isEmpty);
 
     await tester.tap(find.byTooltip('展开输入区'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleAnimatedWidgetTransition(tester);
 
     expect(find.widgetWithText(FilledButton, '发送'), findsOneWidget);
   });
@@ -416,20 +480,27 @@ void registerChatScreenBasicsTests() {
               updatedAt: DateTime(2026, 5, 5, 0, 1),
             ),
           );
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      // upsert 是同步持久化，单帧渲染即可。
+      await tester.pump();
 
+      // 下拉菜单开合属 overlay 过渡。
       await tester.tap(
         find.ancestor(
           of: find.text('模板提示词'),
           matching: find.byWidgetPredicate((w) => w is DropdownButtonFormField),
         ),
       );
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleOverlayTransition(tester);
       await tester.tap(find.text('总结模板').last);
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleOverlayTransition(tester);
 
       await sendMessage(tester, '这是一段原文');
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await waitForChatGeneration(
+        tester,
+        container,
+        (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
+        description: '正文插入模板用例生成完成',
+      );
 
       expect(fakeClient.requestHistory.last.last.content, '这是一段原文\n请总结成简洁。');
     },
@@ -460,17 +531,19 @@ void registerChatScreenBasicsTests() {
               updatedAt: DateTime(2026, 5, 5, 0, 3),
             ),
           );
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      // upsert 是同步持久化，单帧渲染即可。
+      await tester.pump();
 
+      // 下拉菜单开合属 overlay 过渡。
       await tester.tap(
         find.ancestor(
           of: find.text('模板提示词'),
           matching: find.byWidgetPredicate((w) => w is DropdownButtonFormField),
         ),
       );
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleOverlayTransition(tester);
       await tester.tap(find.text('多变量模板').last);
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleOverlayTransition(tester);
 
       expect(find.text('语气'), findsOneWidget);
       expect(find.text('长度'), findsOneWidget);
@@ -508,22 +581,38 @@ void registerChatScreenBasicsTests() {
       fakeClient: fakeClient,
     );
 
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
+
+    // 模型下拉菜单开合属 overlay 过渡。
     await tester.tap(
       find.ancestor(
         of: find.text('模型'),
         matching: find.byWidgetPredicate((w) => w is DropdownButtonFormField),
       ),
     );
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleOverlayTransition(tester);
     await tester.tap(find.text('DeepSeek V4 Flash').last);
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleOverlayTransition(tester);
 
     await sendMessage(tester, '第一次问题');
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await waitForChatGeneration(
+      tester,
+      container,
+      (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
+      description: '模型记忆用例首轮生成完成',
+    );
+    // 新建对话是同步状态变更，单帧渲染即可。
     await tester.tap(find.byTooltip('新建对话').first);
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await tester.pump();
     await sendMessage(tester, '第二次问题');
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await waitForChatGeneration(
+      tester,
+      container,
+      (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
+      description: '模型记忆用例第二轮生成完成',
+    );
 
     expect(fakeClient.requestedModels.map((config) => config.id).toList(), [
       'model-new',
@@ -539,13 +628,14 @@ void registerChatScreenBasicsTests() {
     await pumpChatScreen(tester, fakeClient: fakeClient);
 
     await tester.tap(find.byTooltip('固定顺序提示词'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleOverlayTransition(tester);
 
     expect(find.text('固定顺序提示词'), findsWidgets);
     expect(find.text('请先总结当前实现的核心目标。'), findsOneWidget);
 
+    // 填入输入框后弹窗关闭，属 overlay 过渡。
     await tester.tap(find.widgetWithText(OutlinedButton, '填入输入框'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleOverlayTransition(tester);
 
     expect(find.text('请先总结当前实现的核心目标。'), findsWidgets);
   });
@@ -556,17 +646,25 @@ void registerChatScreenBasicsTests() {
     final fakeClient = FakeChatCompletionClient()..enqueueChunks(['已收到']);
 
     await pumpChatScreen(tester, fakeClient: fakeClient);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
 
     await tester.tap(find.byTooltip('固定顺序提示词'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleOverlayTransition(tester);
     await tester.tap(find.widgetWithText(FilledButton, '发送当前步骤'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await waitForChatGeneration(
+      tester,
+      container,
+      (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
+      description: '固定顺序发送生成完成',
+    );
 
     expect(fakeClient.lastRequestMessages.single.content, '请先总结当前实现的核心目标。');
     expect(find.textContaining('已收到'), findsWidgets);
 
     await tester.tap(find.byTooltip('固定顺序提示词'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleOverlayTransition(tester);
 
     expect(find.text('请列出三个可执行方案，并说明权衡。'), findsOneWidget);
   });
@@ -577,6 +675,9 @@ void registerChatScreenBasicsTests() {
     final fakeClient = FakeChatCompletionClient()..enqueueChunks(['快捷键发送成功']);
 
     await pumpChatScreen(tester, fakeClient: fakeClient);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
 
     const content = '请使用快捷键发送这条消息';
     await tester.tap(find.byType(TextField).first);
@@ -586,7 +687,12 @@ void registerChatScreenBasicsTests() {
     await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await waitForChatGeneration(
+      tester,
+      container,
+      (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
+      description: '快捷键发送生成完成',
+    );
 
     expect(fakeClient.lastRequestMessages.single.content, content);
     expect(find.textContaining('快捷键发送成功'), findsWidgets);
@@ -605,20 +711,30 @@ void registerChatScreenBasicsTests() {
       fakeClient: fakeClient,
       size: const Size(900, 520),
     );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
 
     for (var index = 1; index <= 8; index += 1) {
       await sendMessage(tester, '第 $index 条问题：${'内容 ' * 20}');
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await waitForChatGeneration(
+        tester,
+        container,
+        (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
+        description: '滚动到底用例第 $index 轮生成完成',
+      );
     }
 
     final scrollable = find.byType(Scrollable).first;
+    // 拖拽后的 ballistic 滚动属滚动运动。
     await tester.drag(scrollable, const Offset(0, 600));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleScrollMotion(tester);
 
     expect(find.byTooltip('滚动到底部'), findsOneWidget);
 
+    // 点击滚动到底部按钮后的回弹滚动同样属滚动运动。
     await tester.tap(find.byTooltip('滚动到底部'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleScrollMotion(tester);
 
     expect(find.textContaining('第 8 条回复'), findsWidgets);
   });
@@ -639,19 +755,28 @@ void registerChatScreenBasicsTests() {
         fakeClient: fakeClient,
         size: const Size(900, 520),
       );
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ChatScreen)),
+      );
 
       for (var index = 1; index <= 5; index += 1) {
         await sendMessage(tester, '第 $index 条问题：${'内容 ' * 20}');
-        await tester.pumpAndSettle(const Duration(milliseconds: 250));
+        await waitForChatGeneration(
+          tester,
+          container,
+          (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
+          description: '锚点高亮用例第 $index 轮生成完成',
+        );
       }
 
       // 锚点条渲染 5 个条目（>3 条用户消息才会展开 rail）
       expect(find.byType(MessageAnchorRail), findsOneWidget);
 
-      // 滚动到列表顶部附近，验证锚点高亮经 ValueNotifier 更新不抛异常且 rail 仍存在
+      // 滚动到列表顶部附近，验证锚点高亮经 ValueNotifier 更新不抛异常且 rail 仍存在。
+      // 拖拽后的 ballistic 滚动属滚动运动。
       final scrollable = find.byType(Scrollable).first;
       await tester.drag(scrollable, const Offset(0, -400));
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleScrollMotion(tester);
 
       expect(find.byType(MessageAnchorRail), findsOneWidget);
     },

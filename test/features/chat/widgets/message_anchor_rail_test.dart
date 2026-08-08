@@ -14,6 +14,7 @@ import 'package:oh_my_llm/features/chat/presentation/widgets/message_anchor_rail
 
 import '../../../helpers/responsive_viewport_cases.dart';
 import '../../../helpers/test_harness.dart';
+import '../../../helpers/widget_test_animation.dart';
 import '../../../test_database.dart';
 
 ChatMessage _userMessage({
@@ -197,7 +198,7 @@ void main() {
       final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
       await gesture.addPointer();
       await gesture.moveTo(tester.getCenter(_firstAnchor('消息1')));
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleAnimatedWidgetTransition(tester);
 
       expect(find.text('消息1'), findsOneWidget);
 
@@ -214,12 +215,12 @@ void main() {
       final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
       await gesture.addPointer();
       await gesture.moveTo(tester.getCenter(_firstAnchor('消息1')));
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleAnimatedWidgetTransition(tester);
 
       expect(find.text('消息1'), findsOneWidget);
 
       await gesture.moveTo(const Offset(0, 0));
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleAnimatedWidgetTransition(tester);
 
       expect(find.text('消息1'), findsNothing);
 
@@ -238,7 +239,7 @@ void main() {
       final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
       await gesture.addPointer();
       await gesture.moveTo(tester.getCenter(_firstAnchor('第一条消息')));
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleAnimatedWidgetTransition(tester);
 
       expect(find.text('第一条消息'), findsOneWidget);
       expect(find.text('第二条消息'), findsOneWidget);
@@ -262,7 +263,7 @@ void main() {
       expect(find.text('消息1'), findsNothing);
 
       await tester.longPress(_firstAnchor('消息1'));
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleAnimatedWidgetTransition(tester);
 
       expect(find.text('消息1'), findsOneWidget);
     });
@@ -298,7 +299,7 @@ void main() {
       final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
       await gesture.addPointer();
       await gesture.moveTo(tester.getCenter(_firstAnchor('消息一')));
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleAnimatedWidgetTransition(tester);
 
       expect(find.text('消息一'), findsNothing);
 
@@ -348,12 +349,12 @@ void main() {
       expect(find.text('消息1'), findsNothing);
 
       await tester.longPress(_firstAnchor('消息1'));
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleAnimatedWidgetTransition(tester);
 
       expect(find.text('消息1'), findsOneWidget);
 
       wrapperKey.currentState!.triggerRebuild();
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleAnimatedWidgetTransition(tester);
 
       expect(find.text('消息1'), findsNothing);
     });
