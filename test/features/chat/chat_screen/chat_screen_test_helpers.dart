@@ -4,9 +4,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/core/persistence/app_database.dart';
+import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_completion_client.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
 
+import '../../../helpers/async_test_signals.dart';
 import '../../../helpers/fake_chat_completion_client.dart';
 import '../../../helpers/fixtures.dart';
 import '../../../helpers/test_harness.dart';
@@ -130,5 +132,21 @@ Future<void> sendMessage(WidgetTester tester, String content) async {
   final sendButton = find.widgetWithText(FilledButton, '发送');
   await tester.ensureVisible(sendButton);
   await tester.tap(sendButton);
+  await tester.pump();
+}
+
+/// 等待生成状态满足条件（转调共享 helper，不复制 listener 逻辑）。
+Future<void> waitForChatGeneration(
+  WidgetTester tester,
+  ProviderContainer container,
+  bool Function(ChatSessionsState state) matches, {
+  required String description,
+}) async {
+  await waitForProviderState(
+    container: container,
+    provider: chatSessionsProvider,
+    matches: matches,
+    description: description,
+  );
   await tester.pump();
 }

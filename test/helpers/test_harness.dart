@@ -24,6 +24,9 @@ import '../test_database.dart';
 ///
 /// 若传入 [database] 参数则使用已有实例（适合预先种子数据的场景），
 /// 否则自动创建内存库并在 tearDown 中关闭。始终返回使用的 [AppDatabase] 实例。
+///
+/// 返回时只保证首帧和同步依赖完成，不承诺动画或异步业务完成；
+/// 需要等待动画/业务状态时由调用方按场景使用专门等待 helper。
 Future<AppDatabase> pumpTestApp(
   WidgetTester tester, {
   Widget? child,

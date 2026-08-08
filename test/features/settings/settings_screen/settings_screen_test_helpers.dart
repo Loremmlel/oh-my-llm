@@ -10,6 +10,7 @@ import 'package:oh_my_llm/features/settings/presentation/settings_screen.dart';
 
 import '../../../helpers/fixtures.dart';
 import '../../../helpers/test_harness.dart';
+import '../../../helpers/widget_test_animation.dart';
 
 const settingsLastTabIndexKey = 'settings.tab.last_index';
 
@@ -20,7 +21,7 @@ Future<void> switchToTab(WidgetTester tester, int index) async {
   final tabFinder = find.text(tabLabels[index]);
   await tester.ensureVisible(tabFinder);
   await tester.tap(tabFinder);
-  await tester.pumpAndSettle(const Duration(milliseconds: 250));
+  await settleTabTransition(tester);
 }
 
 /// 挂载设置页并返回测试用数据库实例。
@@ -160,7 +161,7 @@ Finder memoryPromptContentField() =>
 
 Future<void> createTestProvider(WidgetTester tester) async {
   await tester.tap(find.text('新增服务商'));
-  await tester.pumpAndSettle(const Duration(milliseconds: 250));
+  await settleOverlayTransition(tester);
   await tester.enterText(providerNameField(), 'OpenAI 官方');
   await tester.enterText(
     providerApiUrlField(),
@@ -168,5 +169,5 @@ Future<void> createTestProvider(WidgetTester tester) async {
   );
   await tester.enterText(providerApiKeyField(), 'sk-test-12345678');
   await tester.tap(find.text('保存'));
-  await tester.pumpAndSettle(const Duration(milliseconds: 250));
+  await settleOverlayTransition(tester);
 }
