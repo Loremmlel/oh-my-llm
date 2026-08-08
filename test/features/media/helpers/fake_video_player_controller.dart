@@ -31,14 +31,17 @@ class FakeVideoPlayerController extends VideoPlayerController {
   /// 设置后 [initialize] 递增计数后确定性抛出该错误。
   Object? initializeError;
   int initializeCallCount = 0;
-  final List<Completer<void>> _initializeWaiters = [];
+  final List<({int expected, Completer<void> completer})> _initializeWaiters =
+      [];
 
   /// 等待第 [expected] 次 [initialize] 完成（含失败）。已满足时立即完成，
-  /// 未满足时按调用次数完成，避免复用首次已完成的 Completer。
+  /// 未满足时注册带期望次数的 waiter，由 [initialize] 按计数逐一放行：
+  /// 各等待方携带自己的 expected，互不提前唤醒，避免复用首次已完成的
+  /// Completer。
   Future<void> waitForInitializeCount(int expected) {
     if (initializeCallCount >= expected) return Future<void>.value();
     final completer = Completer<void>();
-    _initializeWaiters.add(completer);
+    _initializeWaiters.add((expected: expected, completer: completer));
     return completer.future.timeout(
       const Duration(seconds: 5),
       onTimeout: () => throw TimeoutException(
@@ -56,10 +59,15 @@ class FakeVideoPlayerController extends VideoPlayerController {
   @override
   Future<void> initialize() async {
     initializeCallCount++;
-    for (final waiter in List.of(_initializeWaiters)) {
-      if (!waiter.isCompleted) waiter.complete();
-    }
-    _initializeWaiters.clear();
+    // 只放行期望次数已达成的 waiter，保证「第 N 次」与调用计数严格对应；
+    // 放行即从列表移除，已完成项不再参与后续遍历。
+    _initializeWaiters.removeWhere((waiter) {
+      if (waiter.expected <= initializeCallCount) {
+        if (!waiter.completer.isCompleted) waiter.completer.complete();
+        return true;
+      }
+      return false;
+    });
     if (initializeError != null) {
       fakeIsInitialized = false;
       _updateValue();

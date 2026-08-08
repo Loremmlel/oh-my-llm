@@ -340,6 +340,10 @@ void registerChatSessionsControllerStopCases() {
       onCancel: () => Completer<void>().future,
     );
     addTearDown(() => streamController.onCancel = null);
+    // close 兜底收口：订阅已在测试体内取消（cancel 同步标记 CANCELED），
+    // close 走 _isCanceled 分支直接返回已完成 future，不会等待永不完成的
+    // onCancel；与 onCancel=null 的 tearDown 配对，逆序执行也互不干扰。
+    addTearDown(streamController.close);
     fakeClient.enqueueStream(streamController.stream);
 
     final sendFuture = sendMsg('测试挂起 cancel');

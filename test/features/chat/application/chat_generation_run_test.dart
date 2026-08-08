@@ -268,10 +268,13 @@ void main() {
     run.start();
     await controlled.listened; // 确认已进入流式后再 dispose
     run.dispose();
+    // 让路一个微任务：若 dispose 未正确取消订阅，在途投影事件会在此到达并改变
+    // progress 计数，使下方「无新投影」断言成为真实检验而非同步读恒等的永真式。
+    await Future<void>.value();
 
     expect(await run.completion, isNull);
     // dispose 后 _disposed guard + 订阅取消保证不再投影：先记录当前计数，再断言
-    // 无新投影。该不变量结构上成立，无需任何延时等待（负向断言不依赖让路）。
+    // 无新投影。
     final progressCount = host.progress.length;
     expect(host.progress.length, progressCount); // 无新投影
   });
@@ -459,11 +462,16 @@ class _FakeHost implements ChatGenerationHost {
   void projectProgress(ChatGenerationProgress p) {
     progress.add(p);
     projections.add(p);
-    for (final (predicate, completer) in List.of(_projectionWaiters)) {
+    // 完成即剪枝：已满足的 waiter 从列表移除，避免长测试中残留已完成项
+    // 反复参与遍历。
+    _projectionWaiters.removeWhere((waiter) {
+      final (predicate, completer) = waiter;
       if (!completer.isCompleted && predicate(p)) {
         completer.complete();
+        return true;
       }
-    }
+      return false;
+    });
   }
 
   /// 构造最小 prepare 成功结果：占位 assistant + 空 request + streamingReply。

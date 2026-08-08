@@ -33,8 +33,9 @@ void registerChatScreenStreamingTests() {
       await tester.pump();
 
       // 受控流：等待 run 开始监听后逐步投递增量，不依赖真实延时。测试环境的
-      // 内存库让 prepare 链路全为微任务，tap+pump 已驱动到监听，故 await 立即完成。
-      await controlled.listened.timeout(const Duration(seconds: 5));
+      // 内存库让 prepare 链路全为微任务，tap+pump 已驱动到监听，故 await 立即完成；
+      // 内层 listened 无超时，外层 timeout 纯属冗余，挂死由 testWidgets 框架超时兜底。
+      await controlled.listened;
       controlled.add(const ChatCompletionChunk(contentDelta: '第一段 '));
       await tester.pump();
 
