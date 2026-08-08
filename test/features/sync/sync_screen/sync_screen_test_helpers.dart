@@ -14,6 +14,7 @@ import 'package:oh_my_llm/features/sync/application/sync_client_controller.dart'
 import 'package:oh_my_llm/features/sync/data/sync_udp_discovery.dart';
 
 import '../../../helpers/test_harness.dart';
+import '../../../helpers/widget_test_animation.dart';
 
 Future<AppDatabase> pumpSyncScreen(
   WidgetTester tester, {
@@ -127,5 +128,5 @@ Future<void> pumpImportDialog(
     ),
   );
   await tester.tap(find.text('打开对话框'));
-  await tester.pumpAndSettle(const Duration(milliseconds: 250));
+  await settleOverlayTransition(tester);
 }
