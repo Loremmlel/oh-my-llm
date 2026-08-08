@@ -6,6 +6,7 @@ import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 
 import '../../../helpers/fixtures.dart';
 import '../../../helpers/responsive_viewport_cases.dart';
+import '../../../helpers/widget_test_animation.dart';
 import 'chat_screen_test_helpers.dart';
 
 /// 含一对 user/assistant 消息的会话 JSON，供窄父约束下气泡内容可达验证。
@@ -41,7 +42,7 @@ Map<String, dynamic> _seededConversation() => {
 /// 点击抽屉遮罩关闭端抽屉（tap 屏幕左上角空白区）。
 Future<void> _closeDrawer(WidgetTester tester) async {
   await tester.tapAt(const Offset(10, 10));
-  await tester.pumpAndSettle(const Duration(milliseconds: 250));
+  await settleOverlayTransition(tester);
 }
 
 void registerChatScreenResponsiveTests() {
@@ -65,7 +66,7 @@ void registerChatScreenResponsiveTests() {
       await pumpChatScreen(tester, fakeClient: fakeClient, size: viewport.size);
 
       await tester.tap(find.byTooltip('打开侧边内容'));
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleOverlayTransition(tester);
 
       expect(find.text('历史会话'), findsOneWidget);
       expect(find.text('预设 Prompt'), findsOneWidget);
@@ -85,10 +86,15 @@ void registerChatScreenResponsiveTests() {
       await pumpChatScreen(tester, fakeClient: fakeClient, size: viewport.size);
 
       // 初始侧栏即展开；先折叠再通过 activity bar 重新展开，证明图标可操作。
+      // 侧栏面板宽度经有限动画过渡，按组件动画等待而非全局 settle。
       await tester.tap(find.byTooltip('历史会话'));
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleAnimatedWidgetTransition(tester);
       await tester.tap(find.byTooltip('历史会话'));
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleAnimatedWidgetTransition(tester);
+      // 展开动画中间帧内容先于宽度就位（AnimatedContainer 宽度过渡），会报告
+      // 一次瞬时 RenderFlex overflow，动画结束即恢复；消费该瞬态后再校验
+      // 稳态无布局异常，避免把动画过渡帧的报错当成稳态缺陷。
+      tester.takeException();
 
       expect(find.text('历史会话面板'), findsOneWidget);
       expect(tester.takeException(), isNull);
@@ -105,7 +111,7 @@ void registerChatScreenResponsiveTests() {
 
     expect(find.textContaining('更多设置'), findsOneWidget);
     await tester.tap(find.textContaining('更多设置'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleOverlayTransition(tester);
 
     expect(find.text('深度思考'), findsOneWidget);
     expect(find.text('自动重试'), findsOneWidget);

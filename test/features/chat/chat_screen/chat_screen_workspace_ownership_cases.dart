@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:oh_my_llm/features/chat/application/chat_generation_lifecycle.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/application/composer_draft_controller.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
@@ -11,6 +12,7 @@ import 'package:oh_my_llm/features/chat/presentation/widgets/composer/composer_t
 import 'package:oh_my_llm/features/settings/application/template_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
 
+import '../../../helpers/widget_test_animation.dart';
 import 'chat_screen_test_helpers.dart';
 
 /// composer 输入框：与 helpers 的 sendMessage 共用同一可见 label 定位，
@@ -39,7 +41,8 @@ Future<void> _tapEditMessage(WidgetTester tester, String messageContent) async {
       matching: find.byTooltip('编辑消息'),
     ),
   );
-  await tester.pumpAndSettle(const Duration(milliseconds: 250));
+  // 进入编辑模式伴随 composer 布局过渡，按组件动画等待。
+  await settleAnimatedWidgetTransition(tester);
 }
 
 /// 通过模板下拉选择指定名称的模板（沿用既有 cases 的 dropdown finder 手法）。
@@ -50,9 +53,10 @@ Future<void> _selectTemplate(WidgetTester tester, String title) async {
       matching: find.byWidgetPredicate((w) => w is DropdownButtonFormField),
     ),
   );
-  await tester.pumpAndSettle(const Duration(milliseconds: 250));
+  // 下拉菜单开合属 overlay 过渡。
+  await settleOverlayTransition(tester);
   await tester.tap(find.text(title).last);
-  await tester.pumpAndSettle(const Duration(milliseconds: 250));
+  await settleOverlayTransition(tester);
 }
 
 /// 注册「变量模板」（tp-var，变量 title 默认值「默认标题」）并等待渲染。
@@ -73,7 +77,8 @@ Future<void> _seedVariableTemplate(
           updatedAt: DateTime(2026, 5, 5, 0, 1),
         ),
       );
-  await tester.pumpAndSettle(const Duration(milliseconds: 250));
+  // upsert 是同步持久化，单帧渲染即可。
+  await tester.pump();
 }
 
 void registerChatScreenWorkspaceOwnershipTests() {
@@ -87,20 +92,25 @@ void registerChatScreenWorkspaceOwnershipTests() {
 
     // 先让 A 有一条消息，否则「新建对话」因当前会话无消息而空操作。
     await sendMessage(tester, '第一条问题');
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await waitForChatGeneration(
+      tester,
+      container,
+      (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
+      description: 'A 首条消息生成完成',
+    );
 
     const draftA = 'A 的正文';
     await tester.enterText(_composerFinder, draftA);
     await tester.pump();
 
-    // 新建会话 B：B 的输入框不应继承 A 的正文草稿。
+    // 新建会话 B：B 的输入框不应继承 A 的正文草稿。会话切换是同步状态变更。
     await tester.tap(find.byTooltip('新建对话').first);
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await tester.pump();
     expect(_composerText(tester), isEmpty);
 
     // 切回 A：A 的正文草稿应恢复。
     container.read(chatSessionsProvider.notifier).selectConversation(convAId);
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await tester.pump();
     expect(_composerText(tester), draftA);
   });
 
@@ -117,9 +127,9 @@ void registerChatScreenWorkspaceOwnershipTests() {
     // 卸载 ChatScreen（ProviderScope 保持存活）。
     mount.showChat.value = false;
     await tester.pump();
-    // 重挂进同一 scope。
+    // 重挂进同一 scope：页面重建后草稿从会话级状态恢复，单帧即可渲染。
     mount.showChat.value = true;
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await tester.pump();
 
     expect(_composerText(tester), draft);
   });
@@ -136,7 +146,12 @@ void registerChatScreenWorkspaceOwnershipTests() {
 
     // 先让 A 有一条消息，否则「新建对话」因当前会话无消息而空操作。
     await sendMessage(tester, 'A 的问题');
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await waitForChatGeneration(
+      tester,
+      container,
+      (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
+      description: 'A 问题生成完成',
+    );
 
     // 注册一个带非空默认值的模板变量，便于区分「模板默认值」与「无值」。
     await container
@@ -152,7 +167,8 @@ void registerChatScreenWorkspaceOwnershipTests() {
             updatedAt: DateTime(2026, 5, 5, 0, 1),
           ),
         );
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    // upsert 是同步持久化，单帧渲染即可。
+    await tester.pump();
 
     final titleField = _variableField('title');
 
@@ -161,22 +177,28 @@ void registerChatScreenWorkspaceOwnershipTests() {
     await tester.enterText(titleField, '甲');
     await tester.pump();
 
-    // 新建 B 并选择同一模板（不输入任何值）。
+    // 新建 B 并选择同一模板（不输入任何值）。新建会话是同步状态变更。
     await tester.tap(find.byTooltip('新建对话').first);
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await tester.pump();
     final convBId = container.read(chatSessionsProvider).activeConversation.id;
     await _selectTemplate(tester, '变量模板');
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    // 新会话的模板变量字段同步渲染，无需额外等待动画。
+    await tester.pump();
 
     // 让 B 也有一条消息，否则 B 不在历史摘要里、selectConversation(B) 空操作。
     await sendMessage(tester, 'B 的问题');
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await waitForChatGeneration(
+      tester,
+      container,
+      (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
+      description: 'B 问题生成完成',
+    );
 
     // 切 A→B→A→B：B 的 title 字段应回落模板默认值，而非残留 A 的 '甲'。
     container.read(chatSessionsProvider.notifier).selectConversation(convAId);
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await tester.pump();
     container.read(chatSessionsProvider.notifier).selectConversation(convBId);
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await tester.pump();
 
     expect(tester.widget<TextField>(titleField).controller!.text, '默认标题');
   });
@@ -191,7 +213,12 @@ void registerChatScreenWorkspaceOwnershipTests() {
 
     // 先发一条消息，让用户消息气泡提供「编辑消息」入口。
     await sendMessage(tester, '第一条问题');
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await waitForChatGeneration(
+      tester,
+      container,
+      (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
+      description: '取消编辑用例生成完成',
+    );
 
     // 发送 accepted 会清空 body，随后输入普通草稿进入会话级 draft。
     await tester.enterText(_composerFinder, '普通草稿');
@@ -199,7 +226,7 @@ void registerChatScreenWorkspaceOwnershipTests() {
 
     // 进入编辑模式：composer 显示消息正文。
     await tester.tap(find.byTooltip('编辑消息').last);
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleAnimatedWidgetTransition(tester);
 
     // 编辑中修改正文（只写页面草稿，不写会话级 draft）。
     await tester.enterText(_composerFinder, '编辑中的修改');
@@ -207,7 +234,7 @@ void registerChatScreenWorkspaceOwnershipTests() {
 
     // 取消编辑：恢复编辑前草稿，会话级 draft 保持原值。
     await tester.tap(find.byTooltip('取消编辑'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleAnimatedWidgetTransition(tester);
 
     expect(_composerText(tester), '普通草稿');
     expect(
@@ -225,25 +252,30 @@ void registerChatScreenWorkspaceOwnershipTests() {
     final convAId = container.read(chatSessionsProvider).activeConversation.id;
 
     await sendMessage(tester, 'A 的问题');
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await waitForChatGeneration(
+      tester,
+      container,
+      (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
+      description: '切换会话用例 A 问题生成完成',
+    );
 
     await tester.enterText(_composerFinder, 'A 草稿');
     await tester.pump();
 
     await tester.tap(find.byTooltip('编辑消息').last);
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleAnimatedWidgetTransition(tester);
     await tester.enterText(_composerFinder, '编辑修改');
     await tester.pump();
 
-    // 编辑中切换会话：编辑事务被丢弃，旧会话草稿保持原值。
+    // 编辑中切换会话：编辑事务被丢弃，旧会话草稿保持原值。会话切换同步生效。
     await tester.tap(find.byTooltip('新建对话').first);
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await tester.pump();
     final convBId = container.read(chatSessionsProvider).activeConversation.id;
     expect(convBId, isNot(convAId));
 
     // 切回 A：恢复 A 的原草稿，而非编辑中的修改。
     container.read(chatSessionsProvider.notifier).selectConversation(convAId);
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await tester.pump();
     expect(_composerText(tester), 'A 草稿');
     expect(
       container.read(composerDraftProvider.notifier).draftFor(convAId).body,
@@ -256,15 +288,23 @@ void registerChatScreenWorkspaceOwnershipTests() {
     final mount = await pumpChatScreenScope(tester, fakeClient: fakeClient);
     await tester.pumpWidget(mount.scope);
     await tester.pump();
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
 
     await sendMessage(tester, 'A 的问题');
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await waitForChatGeneration(
+      tester,
+      container,
+      (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
+      description: '重挂用例 A 问题生成完成',
+    );
 
     await tester.enterText(_composerFinder, 'A 草稿');
     await tester.pump();
 
     await tester.tap(find.byTooltip('编辑消息').last);
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleAnimatedWidgetTransition(tester);
     await tester.enterText(_composerFinder, '编辑修改');
     await tester.pump();
 
@@ -272,7 +312,7 @@ void registerChatScreenWorkspaceOwnershipTests() {
     mount.showChat.value = false;
     await tester.pump();
     mount.showChat.value = true;
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await tester.pump();
 
     expect(find.byTooltip('取消编辑'), findsNothing);
     expect(_composerText(tester), 'A 草稿');
@@ -281,18 +321,27 @@ void registerChatScreenWorkspaceOwnershipTests() {
   testWidgets('编辑空正文发送被拒：保留输入与编辑态', (tester) async {
     final fakeClient = FakeChatCompletionClient()..enqueueChunks(['已收到']);
     await pumpChatScreen(tester, fakeClient: fakeClient);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
 
     await sendMessage(tester, '第一条问题');
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await waitForChatGeneration(
+      tester,
+      container,
+      (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
+      description: '空正文拒发用例生成完成',
+    );
 
     await tester.tap(find.byTooltip('编辑消息').last);
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleAnimatedWidgetTransition(tester);
 
     // 编辑中清空正文 → 发送被 empty 拒绝，编辑态与输入保留。
     await tester.enterText(_composerFinder, '   ');
     await tester.pump();
     await tester.tap(find.widgetWithText(FilledButton, '发送'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    // 空正文在发送入口即被拒绝，不进入生成流程，单帧渲染即可。
+    await tester.pump();
 
     expect(find.byTooltip('取消编辑'), findsOneWidget);
     expect(_composerText(tester), '   ');
@@ -312,11 +361,17 @@ void registerChatScreenWorkspaceOwnershipTests() {
     await _seedVariableTemplate(tester, container);
 
     await sendMessage(tester, '普通消息');
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await waitForChatGeneration(
+      tester,
+      container,
+      (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
+      description: '无模板编辑用例生成完成',
+    );
 
     // 会话级 draft 选中模板；编辑无模板消息时不应显示变量输入框。
     await _selectTemplate(tester, '变量模板');
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    // 模板选择后变量字段同步渲染，单帧即可。
+    await tester.pump();
     await _tapEditMessage(tester, '普通消息');
     expect(_variableField('title'), findsNothing);
 
@@ -324,7 +379,12 @@ void registerChatScreenWorkspaceOwnershipTests() {
     await tester.enterText(_composerFinder, '普通消息修改');
     await tester.pump();
     await tester.tap(find.widgetWithText(FilledButton, '发送'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await waitForChatGeneration(
+      tester,
+      container,
+      (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
+      description: '无模板编辑提交生成完成',
+    );
 
     final afterPlainEdit = container.read(activeChatConversationProvider);
     final plainBranch = afterPlainEdit.messageNodes.firstWhere((m) {
@@ -360,7 +420,12 @@ void registerChatScreenWorkspaceOwnershipTests() {
     await tester.enterText(_variableField('title'), '甲');
     await tester.pump();
     await tester.tap(find.widgetWithText(FilledButton, '发送'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await waitForChatGeneration(
+      tester,
+      container,
+      (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
+      description: '带模板消息首轮生成完成',
+    );
 
     // 编辑该消息：变量框携带 '甲'，改为 '乙' 后提交。气泡按完整可见正文
     // 定位（模板拼接结果为「模板问题\n请按甲输出。」）。
@@ -370,7 +435,12 @@ void registerChatScreenWorkspaceOwnershipTests() {
     await tester.enterText(titleField, '乙');
     await tester.pump();
     await tester.tap(find.widgetWithText(FilledButton, '发送'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await waitForChatGeneration(
+      tester,
+      container,
+      (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
+      description: '带模板消息编辑提交生成完成',
+    );
 
     // 新分支携带 '乙' 与模板 id；会话级 draft 变量仍为 '甲'（编辑未污染）。
     final afterTemplatedEdit = container.read(activeChatConversationProvider);
@@ -424,7 +494,8 @@ void registerChatScreenWorkspaceOwnershipTests() {
             updatedAt: DateTime(2026, 5, 5, 0, 2),
           ),
         );
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    // 批量 upsert 同步持久化，单帧渲染即可。
+    await tester.pump();
 
     final titleField = _variableField('title');
 
@@ -436,7 +507,9 @@ void registerChatScreenWorkspaceOwnershipTests() {
 
     // 切模板二：字段回落到模板二默认值（既有语义），随后输入 '乙'。
     await _selectTemplate(tester, '模板二');
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    // 模板切换会重建变量字段，按组件动画等待新旧字段过渡完成，避免字段
+    // 新旧并存期间 finder 命中两份。
+    await settleAnimatedWidgetTransition(tester);
     expect(tester.widget<TextField>(titleField).controller!.text, '默认二');
     await tester.enterText(titleField, '乙');
     await tester.pump();
@@ -445,7 +518,12 @@ void registerChatScreenWorkspaceOwnershipTests() {
     await tester.enterText(_composerFinder, '正文');
     await tester.pump();
     await tester.tap(find.widgetWithText(FilledButton, '发送'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await waitForChatGeneration(
+      tester,
+      container,
+      (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
+      description: '跨模板切换发送生成完成',
+    );
 
     // 请求为消息列表：拼接全部消息内容再断言（requestHistory 是 List<List<...>>）。
     final sent = fakeClient.requestHistory.single

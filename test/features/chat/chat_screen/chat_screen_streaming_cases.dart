@@ -2,12 +2,16 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:oh_my_llm/features/chat/application/chat_generation_lifecycle.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_completion_client.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
+import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/reasoning_panel.dart';
 
+import '../../../helpers/widget_test_animation.dart';
 import 'chat_screen_test_helpers.dart';
 
 void registerChatScreenStreamingTests() {
@@ -18,6 +22,9 @@ void registerChatScreenStreamingTests() {
       final controlled = fakeClient.enqueueControlledStream();
 
       await pumpChatScreen(tester, fakeClient: fakeClient);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ChatScreen)),
+      );
 
       await tester.enterText(find.byType(TextField), '帮我总结一下这个仓库的结构和当前能力');
       final sendButton = find.widgetWithText(FilledButton, '发送');
@@ -36,7 +43,12 @@ void registerChatScreenStreamingTests() {
 
       controlled.add(const ChatCompletionChunk(contentDelta: '第二段'));
       await controlled.close();
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await waitForChatGeneration(
+        tester,
+        container,
+        (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
+        description: '受控流关闭后生成完成',
+      );
 
       expect(find.textContaining('帮我总结一下这个仓库'), findsWidgets);
       expect(find.textContaining('第一段 第二段'), findsWidgets);
@@ -62,9 +74,17 @@ void registerChatScreenStreamingTests() {
       ]);
 
     await pumpChatScreen(tester, fakeClient: fakeClient);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
 
     await sendMessage(tester, '请回答并返回思考过程');
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await waitForChatGeneration(
+      tester,
+      container,
+      (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
+      description: '推理面板用例生成完成',
+    );
 
     // composer 折叠态常驻 AnimatedCrossFade 的另一侧 child，其「展开」按钮
     // 文本会与 reasoning 面板的「展开」撞名；限定到 ReasoningPanel 内定位。
@@ -77,7 +97,7 @@ void registerChatScreenStreamingTests() {
     expect(find.textContaining('这是最终回复'), findsWidgets);
 
     await tester.tap(reasoningExpand);
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleAnimatedWidgetTransition(tester);
 
     expect(find.text('这是思考过程'), findsOneWidget);
     expect(find.text('收起'), findsOneWidget);
@@ -112,14 +132,23 @@ void registerChatScreenStreamingTests() {
     });
 
     await pumpChatScreen(tester, fakeClient: fakeClient);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
 
     await sendMessage(tester, '请原样复制这条用户消息');
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await waitForChatGeneration(
+      tester,
+      container,
+      (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
+      description: '复制用例生成完成',
+    );
 
     expect(find.byTooltip('复制消息'), findsNWidgets(2));
 
+    // 剪贴板写入是同步 mock 调用，复制动作本身无动画，单帧即可。
     await tester.tap(find.byTooltip('复制消息').first);
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await tester.pump();
 
     expect(
       (await Clipboard.getData('text/plain'))?.text,
@@ -127,7 +156,7 @@ void registerChatScreenStreamingTests() {
     );
 
     await tester.tap(find.byTooltip('复制消息').last);
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await tester.pump();
 
     expect((await Clipboard.getData('text/plain'))?.text, equals('这是最终回复'));
     expect((await Clipboard.getData('text/plain'))?.text, isNot('这是思考过程'));
@@ -140,9 +169,17 @@ void registerChatScreenStreamingTests() {
     const userMessage = '**保留原样**\n- 这不是列表';
 
     await pumpChatScreen(tester, fakeClient: fakeClient);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
 
     await sendMessage(tester, userMessage);
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await waitForChatGeneration(
+      tester,
+      container,
+      (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
+      description: 'markdown 原样保留用例生成完成',
+    );
 
     expect(find.text(userMessage), findsOneWidget);
     expect(find.textContaining('收到'), findsWidgets);
@@ -185,12 +222,20 @@ void registerChatScreenStreamingTests() {
       fakeClient: fakeClient,
       size: const Size(390, 844),
     );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
 
     // 移动端应使用紧凑布局的输入区
     expect(find.byType(TextField), findsOneWidget);
 
     await sendMessage(tester, '移动端测试消息');
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await waitForChatGeneration(
+      tester,
+      container,
+      (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
+      description: '移动端用例生成完成',
+    );
 
     expect(find.textContaining('移动端测试消息'), findsWidgets);
     expect(find.textContaining('移动端回复'), findsWidgets);
