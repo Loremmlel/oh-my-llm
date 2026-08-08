@@ -60,6 +60,27 @@ void main() {
     );
   }
 
+  /// 在模型对话框内按可见 label 定位表单输入框。
+  Finder modelField(String label) => find.descendant(
+    of: find.byType(ModelConfigFormDialog),
+    matching: find.widgetWithText(TextFormField, label),
+  );
+
+  /// 按远端模型名定位所属行的选择框；模型名唯一标识该行。
+  Finder modelCheckbox(String remoteModelId) {
+    final row = find.widgetWithText(Row, remoteModelId);
+    return find.descendant(of: row, matching: find.byType(Checkbox));
+  }
+
+  /// 切换到拉取模式并点击拉取按钮，随后断言按钮进入加载态。
+  Future<void> switchToFetchAndClickFetch(WidgetTester tester) async {
+    await tester.tap(find.text('从 API 拉取'));
+    await tester.pump();
+    await tester.tap(find.widgetWithText(FilledButton, '拉取模型'));
+    await tester.pump();
+    expect(find.text('正在拉取...'), findsOneWidget);
+  }
+
   group('ModelConfigFormDialog', () {
     group('manual mode', () {
       testWidgets('shows manual form by default for new model', (tester) async {
@@ -107,14 +128,8 @@ void main() {
           fetchModels: (_) async => [],
         );
 
-        await tester.enterText(
-          find.byKey(const ValueKey('model-config-display-name-field')),
-          'My Model',
-        );
-        await tester.enterText(
-          find.byKey(const ValueKey('model-config-api-name-field')),
-          'my-model',
-        );
+        await tester.enterText(modelField('显示名称'), 'My Model');
+        await tester.enterText(modelField('API 模型名称'), 'my-model');
         await tester.pump();
 
         await tester.tap(find.text('保存'));
@@ -141,10 +156,7 @@ void main() {
         await tester.tap(find.text('从 API 拉取'));
         await tester.pump();
 
-        expect(
-          find.byKey(const ValueKey('model-fetch-button')),
-          findsOneWidget,
-        );
+        expect(find.widgetWithText(FilledButton, '拉取模型'), findsOneWidget);
       });
 
       testWidgets('shows loading state when fetching', (tester) async {
@@ -156,57 +168,49 @@ void main() {
           fetchModels: (_) => completer.future,
         );
 
-        await tester.tap(find.text('从 API 拉取'));
-        await tester.pump();
-
-        await tester.tap(find.byKey(const ValueKey('model-fetch-button')));
-        await tester.pump();
+        await switchToFetchAndClickFetch(tester);
 
         expect(find.byType(CircularProgressIndicator), findsOneWidget);
         expect(find.text('正在拉取模型列表...'), findsOneWidget);
 
         completer.complete([]);
-        await tester.pumpAndSettle(const Duration(milliseconds: 250));
+        await tester.pump();
       });
 
       testWidgets('shows error message on fetch failure', (tester) async {
+        final completer = Completer<List<ModelCatalogEntry>>();
         await pumpDialog(
           tester,
           onSubmit: (_) async {},
           onBatchAdd: (_) async {},
-          fetchModels: (_) async {
-            throw const ModelCatalogFailure('服务器返回错误（401）');
-          },
+          fetchModels: (_) => completer.future,
         );
 
-        await tester.tap(find.text('从 API 拉取'));
-        await tester.pump();
+        await switchToFetchAndClickFetch(tester);
 
-        await tester.tap(find.byKey(const ValueKey('model-fetch-button')));
-        await tester.pumpAndSettle(const Duration(milliseconds: 250));
+        completer.completeError(const ModelCatalogFailure('服务器返回错误（401）'));
+        await tester.pump();
 
         expect(find.textContaining('服务器返回错误'), findsOneWidget);
         expect(find.text('重试'), findsOneWidget);
       });
 
       testWidgets('shows model list after successful fetch', (tester) async {
+        final completer = Completer<List<ModelCatalogEntry>>();
         await pumpDialog(
           tester,
           onSubmit: (_) async {},
           onBatchAdd: (_) async {},
-          fetchModels: (_) async {
-            return [
-              const ModelCatalogEntry(id: 'gpt-4o', ownedBy: 'openai'),
-              const ModelCatalogEntry(id: 'gpt-4o-mini', ownedBy: 'openai'),
-            ];
-          },
+          fetchModels: (_) => completer.future,
         );
 
-        await tester.tap(find.text('从 API 拉取'));
-        await tester.pump();
+        await switchToFetchAndClickFetch(tester);
 
-        await tester.tap(find.byKey(const ValueKey('model-fetch-button')));
-        await tester.pumpAndSettle(const Duration(milliseconds: 250));
+        completer.complete([
+          const ModelCatalogEntry(id: 'gpt-4o', ownedBy: 'openai'),
+          const ModelCatalogEntry(id: 'gpt-4o-mini', ownedBy: 'openai'),
+        ]);
+        await tester.pump();
 
         expect(find.text('gpt-4o'), findsWidgets);
         expect(find.text('gpt-4o-mini'), findsWidgets);
@@ -229,21 +233,21 @@ void main() {
             ),
           ],
         );
+        final completer = Completer<List<ModelCatalogEntry>>();
 
         await pumpDialog(
           tester,
           onSubmit: (_) async {},
           onBatchAdd: (_) async {},
-          fetchModels: (_) async {
-            return [const ModelCatalogEntry(id: 'gpt-4o', ownedBy: 'openai')];
-          },
+          fetchModels: (_) => completer.future,
         );
 
-        await tester.tap(find.text('从 API 拉取'));
-        await tester.pump();
+        await switchToFetchAndClickFetch(tester);
 
-        await tester.tap(find.byKey(const ValueKey('model-fetch-button')));
-        await tester.pumpAndSettle(const Duration(milliseconds: 250));
+        completer.complete([
+          const ModelCatalogEntry(id: 'gpt-4o', ownedBy: 'openai'),
+        ]);
+        await tester.pump();
 
         expect(find.text('已存在'), findsOneWidget);
       });
@@ -251,20 +255,20 @@ void main() {
       testWidgets('disables submit button until models are selected', (
         tester,
       ) async {
+        final completer = Completer<List<ModelCatalogEntry>>();
         await pumpDialog(
           tester,
           onSubmit: (_) async {},
           onBatchAdd: (_) async {},
-          fetchModels: (_) async {
-            return [const ModelCatalogEntry(id: 'gpt-4o', ownedBy: 'openai')];
-          },
+          fetchModels: (_) => completer.future,
         );
 
-        await tester.tap(find.text('从 API 拉取'));
-        await tester.pump();
+        await switchToFetchAndClickFetch(tester);
 
-        await tester.tap(find.byKey(const ValueKey('model-fetch-button')));
-        await tester.pumpAndSettle(const Duration(milliseconds: 250));
+        completer.complete([
+          const ModelCatalogEntry(id: 'gpt-4o', ownedBy: 'openai'),
+        ]);
+        await tester.pump();
 
         final submitButton = tester.widget<FilledButton>(
           find.ancestor(
@@ -278,24 +282,22 @@ void main() {
       testWidgets('enables submit when at least one model is selected', (
         tester,
       ) async {
+        final completer = Completer<List<ModelCatalogEntry>>();
         await pumpDialog(
           tester,
           onSubmit: (_) async {},
           onBatchAdd: (_) async {},
-          fetchModels: (_) async {
-            return [const ModelCatalogEntry(id: 'gpt-4o', ownedBy: 'openai')];
-          },
+          fetchModels: (_) => completer.future,
         );
 
-        await tester.tap(find.text('从 API 拉取'));
+        await switchToFetchAndClickFetch(tester);
+
+        completer.complete([
+          const ModelCatalogEntry(id: 'gpt-4o', ownedBy: 'openai'),
+        ]);
         await tester.pump();
 
-        await tester.tap(find.byKey(const ValueKey('model-fetch-button')));
-        await tester.pumpAndSettle(const Duration(milliseconds: 250));
-
-        await tester.tap(
-          find.byKey(const ValueKey('model-fetch-checkbox-gpt-4o')),
-        );
+        await tester.tap(modelCheckbox('gpt-4o'));
         await tester.pump();
 
         final submitButton = tester.widget<FilledButton>(
@@ -309,29 +311,25 @@ void main() {
 
       testWidgets('calls onBatchAdd with selected models', (tester) async {
         List<ModelBatchFormData>? captured;
+        final completer = Completer<List<ModelCatalogEntry>>();
         await pumpDialog(
           tester,
           onSubmit: (_) async {},
           onBatchAdd: (items) async {
             captured = items;
           },
-          fetchModels: (_) async {
-            return [
-              const ModelCatalogEntry(id: 'gpt-4o', ownedBy: 'openai'),
-              const ModelCatalogEntry(id: 'gpt-4o-mini', ownedBy: 'openai'),
-            ];
-          },
+          fetchModels: (_) => completer.future,
         );
 
-        await tester.tap(find.text('从 API 拉取'));
+        await switchToFetchAndClickFetch(tester);
+
+        completer.complete([
+          const ModelCatalogEntry(id: 'gpt-4o', ownedBy: 'openai'),
+          const ModelCatalogEntry(id: 'gpt-4o-mini', ownedBy: 'openai'),
+        ]);
         await tester.pump();
 
-        await tester.tap(find.byKey(const ValueKey('model-fetch-button')));
-        await tester.pumpAndSettle(const Duration(milliseconds: 250));
-
-        await tester.tap(
-          find.byKey(const ValueKey('model-fetch-checkbox-gpt-4o')),
-        );
+        await tester.tap(modelCheckbox('gpt-4o'));
         await tester.pump();
 
         await tester.tap(find.text('添加所选模型'));
@@ -344,21 +342,20 @@ void main() {
       });
 
       testWidgets('preserves fetch state when switching modes', (tester) async {
+        final completer = Completer<List<ModelCatalogEntry>>();
         await pumpDialog(
           tester,
           onSubmit: (_) async {},
           onBatchAdd: (_) async {},
-          fetchModels: (_) async {
-            return [const ModelCatalogEntry(id: 'gpt-4o', ownedBy: 'openai')];
-          },
+          fetchModels: (_) => completer.future,
         );
 
-        // 切到拉取模式
-        await tester.tap(find.text('从 API 拉取'));
-        await tester.pump();
+        await switchToFetchAndClickFetch(tester);
 
-        await tester.tap(find.byKey(const ValueKey('model-fetch-button')));
-        await tester.pumpAndSettle(const Duration(milliseconds: 250));
+        completer.complete([
+          const ModelCatalogEntry(id: 'gpt-4o', ownedBy: 'openai'),
+        ]);
+        await tester.pump();
 
         // 切回手动
         await tester.tap(find.text('手动输入'));

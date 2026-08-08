@@ -7,6 +7,12 @@ import 'package:oh_my_llm/core/logging/app_network_logger_provider.dart';
 import 'package:oh_my_llm/core/logging/network_logger.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/settings/presentation/settings_screen.dart';
+import 'package:oh_my_llm/features/settings/presentation/widgets/form/fixed_prompt_sequence_form_dialog.dart';
+import 'package:oh_my_llm/features/settings/presentation/widgets/form/memory_prompt_form_dialog.dart';
+import 'package:oh_my_llm/features/settings/presentation/widgets/form/model_config_form_dialog.dart';
+import 'package:oh_my_llm/features/settings/presentation/widgets/form/model_provider_form_dialog.dart';
+import 'package:oh_my_llm/features/settings/presentation/widgets/form/preset_prompt_form_dialog.dart';
+import 'package:oh_my_llm/features/settings/presentation/widgets/form/template_prompt_form_dialog.dart';
 
 import '../../../helpers/fixtures.dart';
 import '../../../helpers/test_harness.dart';
@@ -105,59 +111,69 @@ Future<SharedPreferences> createDefaultsSeededPreferences(
 
 // ── Finder 工厂 ────────────────────────────────────────────
 //
-// 以下 finder 依赖源码中显式声明的 ValueKey（标注 // test-key）。
-// 重命名 key 时需同步更新此处及对应源码。
+// 以下 finder 按「dialog 类型 + 可见 label」定位输入控件，不再依赖源码中的
+// ValueKey。label 在多个 dialog 重复时（如「标题」「名称」），由泛型参数
+// 限定 dialog 祖先范围消除歧义；禁止全局「第 N 个 TextField」式定位。
 
-Finder providerNameField() =>
-    find.byKey(const ValueKey('model-provider-name-field'));
+/// 在指定 dialog 内按可见 label 定位输入框。
+Finder fieldInDialog<T extends Widget>(
+  String label, {
+  bool wrapsText = false,
+}) => find.descendant(
+  of: find.byType(T),
+  matching: wrapsText
+      ? find.widgetWithText(TextField, label)
+      : find.widgetWithText(TextFormField, label),
+);
+
+Finder providerNameField() => fieldInDialog<ModelProviderFormDialog>('服务商名称');
 
 Finder providerApiUrlField() =>
-    find.byKey(const ValueKey('model-provider-api-url-field'));
+    fieldInDialog<ModelProviderFormDialog>('API URL');
 
 Finder providerApiKeyField() =>
-    find.byKey(const ValueKey('model-provider-api-key-field'));
+    fieldInDialog<ModelProviderFormDialog>('API Key');
 
-Finder modelDisplayNameField() =>
-    find.byKey(const ValueKey('model-config-display-name-field'));
+Finder modelDisplayNameField() => fieldInDialog<ModelConfigFormDialog>('显示名称');
 
-Finder modelApiNameField() =>
-    find.byKey(const ValueKey('model-config-api-name-field'));
+Finder modelApiNameField() => fieldInDialog<ModelConfigFormDialog>('API 模型名称');
 
-Finder modelSupportsReasoningField() =>
-    find.byKey(const ValueKey('model-config-supports-reasoning-field'));
+/// 支持深度思考是 SwitchListTile 的整行标题，点击该文本即可切换开关。
+Finder modelSupportsReasoningField() => find.descendant(
+  of: find.byType(ModelConfigFormDialog),
+  matching: find.text('支持深度思考'),
+);
 
 Finder presetPromptNameField() =>
-    find.byKey(const ValueKey('preset-prompt-name-field'));
+    fieldInDialog<PresetPromptFormDialog>('预设 Prompt 名称');
 
-Finder presetPromptTitleField() =>
-    find.byKey(const ValueKey('preset-prompt-title-field'));
+Finder presetPromptTitleField() => fieldInDialog<PresetPromptFormDialog>('标题');
 
 Finder presetPromptContentField() =>
-    find.byKey(const ValueKey('preset-prompt-content-field'));
+    fieldInDialog<PresetPromptFormDialog>('Prompt 内容', wrapsText: true);
 
 Finder fixedPromptSequenceNameField() =>
-    find.byKey(const ValueKey('fixed-prompt-sequence-name-field'));
+    fieldInDialog<FixedPromptSequenceFormDialog>('序列名称');
 
 Finder fixedStepTitleField() =>
-    find.byKey(const ValueKey('fixed-step-title-field'));
+    fieldInDialog<FixedPromptSequenceFormDialog>('步骤标题');
 
 Finder fixedStepContentField() =>
-    find.byKey(const ValueKey('fixed-step-content-field'));
+    fieldInDialog<FixedPromptSequenceFormDialog>('步骤内容', wrapsText: true);
 
 Finder templatePromptTitleField() =>
-    find.byKey(const ValueKey('template-prompt-title-field'));
+    fieldInDialog<TemplatePromptFormDialog>('标题');
 
 Finder templatePromptContentField() =>
-    find.byKey(const ValueKey('template-prompt-content-field'));
+    fieldInDialog<TemplatePromptFormDialog>('模板提示词');
 
 Finder templatePromptVariableField(String variableName) =>
-    find.byKey(ValueKey('template-prompt-variable-field-$variableName'));
+    fieldInDialog<TemplatePromptFormDialog>(variableName);
 
-Finder memoryPromptNameField() =>
-    find.byKey(const ValueKey('memory-prompt-name-field'));
+Finder memoryPromptNameField() => fieldInDialog<MemoryPromptFormDialog>('名称');
 
 Finder memoryPromptContentField() =>
-    find.byKey(const ValueKey('memory-prompt-content-field'));
+    fieldInDialog<MemoryPromptFormDialog>('记忆总结提示词');
 
 Future<void> createTestProvider(WidgetTester tester) async {
   await tester.tap(find.text('新增服务商'));
