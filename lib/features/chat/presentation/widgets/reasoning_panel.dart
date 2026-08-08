@@ -18,6 +18,13 @@ class ReasoningPanel extends StatefulWidget {
 class _ReasoningPanelState extends State<ReasoningPanel> {
   bool _expanded = false;
 
+  /// 指针与屏幕阅读器共用的展开切换入口。
+  void _toggleExpanded() {
+    setState(() {
+      _expanded = !_expanded;
+    });
+  }
+
   Widget _buildReasoningMarkdown(BuildContext context, ThemeData theme) {
     return smooth_md.SmoothMarkdown(
       data: widget.content,
@@ -43,39 +50,53 @@ class _ReasoningPanelState extends State<ReasoningPanel> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          InkWell(
-            borderRadius: BorderRadius.circular(14),
-            onTap: () {
-              setState(() {
-                _expanded = !_expanded;
-              });
-            },
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              child: Row(
-                children: [
-                  Icon(
-                    _expanded
-                        ? Icons.keyboard_arrow_down_rounded
-                        : Icons.keyboard_arrow_right_rounded,
-                    size: 18,
-                    color: textColor,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    '深度思考',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: textColor,
+          Semantics(
+            label: '深度思考',
+            button: true,
+            expanded: _expanded,
+            hint: _expanded ? '激活以收起' : '激活以展开',
+            child: InkWell(
+              borderRadius: BorderRadius.circular(14),
+              focusColor: theme.colorScheme.primary.withValues(alpha: 0.12),
+              onTap: _toggleExpanded,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                child: Row(
+                  children: [
+                    // 图标与「深度思考/展开/收起」只负责视觉；状态由
+                    // expanded flag 与动态 hint 表达，避免重复播报。
+                    ExcludeSemantics(
+                      child: Icon(
+                        _expanded
+                            ? Icons.keyboard_arrow_down_rounded
+                            : Icons.keyboard_arrow_right_rounded,
+                        size: 18,
+                        color: textColor,
+                      ),
                     ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    _expanded ? '收起' : '展开',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: textColor,
+                    const SizedBox(width: 6),
+                    ExcludeSemantics(
+                      child: Text(
+                        '深度思考',
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: textColor,
+                        ),
+                      ),
                     ),
-                  ),
-                ],
+                    const Spacer(),
+                    ExcludeSemantics(
+                      child: Text(
+                        _expanded ? '收起' : '展开',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: textColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
