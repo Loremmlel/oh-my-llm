@@ -92,14 +92,12 @@ void main() {
       buffer.enqueue('line-2');
       buffer.enqueue('line-3'); // 满 batchSize，触发自动 flush
 
-      // 给异步 flush 一点时间
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+      // 自动 flush 非 await 调用已在途，flush 需等待其落盘
+      await buffer.flush();
 
       final content = await File(logFilePath).readAsString();
       expect(content, contains('line-1'));
       expect(content, contains('line-3'));
-
-      await buffer.drain();
     });
 
     test('空 flush 不写入任何内容', () async {
@@ -114,6 +112,45 @@ void main() {
         final content = await file.readAsString();
         expect(content.trim().isEmpty, isTrue);
       }
+    });
+  });
+
+  group('flush 在途写入完成语义', () {
+    late Directory tempDir;
+    late AppLogStore store;
+    late SseLogBuffer buffer;
+
+    setUp(() async {
+      tempDir = await Directory.systemTemp.createTemp('sse-log-flush-test');
+      store = await AppLogStore.open(directoryPath: tempDir.path);
+    });
+
+    tearDown(() async {
+      await buffer.drain();
+      await tempDir.delete(recursive: true);
+    });
+
+    test('达到阈值后的立即 flush 等待已在途的自动写入', () async {
+      buffer = SseLogBuffer(
+        store: store,
+        batchSize: 2,
+        flushInterval: const Duration(days: 1),
+      );
+      buffer.enqueue('第一行');
+      buffer.enqueue('第二行'); // 达到阈值，自动 flush 已在途
+      await buffer.flush(); // 空 buffer 但存在在途写入，必须等待其完成
+      final content = await File('${tempDir.path}/network.log').readAsString();
+      expect(content, contains('第一行'));
+      expect(content, contains('第二行'));
+    });
+
+    test('无在途写入时 flush 幂等', () async {
+      buffer = SseLogBuffer(store: store, batchSize: 64);
+      buffer.enqueue('一行');
+      await buffer.flush();
+      await buffer.flush(); // 空 buffer、无在途写入，立即返回
+      final content = await File('${tempDir.path}/network.log').readAsString();
+      expect(content, contains('一行'));
     });
   });
 }

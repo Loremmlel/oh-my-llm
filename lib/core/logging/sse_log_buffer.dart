@@ -25,6 +25,10 @@ final class SseLogBuffer {
   Timer? _flushTimer;
   bool _isDrained = false;
 
+  /// 已从内存 buffer 取走、但 append 尚未完成的写入 Future。
+  /// 自动 flush 与手动 flush 共用，保证调用方可以等到"调用前已启动"的落盘。
+  final Set<Future<void>> _inFlightWrites = {};
+
   /// 启动定时 flush。
   void startPeriodicFlush() {
     _flushTimer?.cancel();
@@ -55,7 +59,9 @@ final class SseLogBuffer {
   ///
   /// 若有丢弃的条目，先写入 `[sse-dropped]` 标记。
   Future<void> flush() async {
-    if (_buffer.isEmpty && _droppedCount == 0) return;
+    if (_buffer.isEmpty && _droppedCount == 0 && _inFlightWrites.isEmpty) {
+      return;
+    }
 
     final lines = <String>[];
     if (_droppedCount > 0) {
@@ -66,7 +72,22 @@ final class SseLogBuffer {
     lines.addAll(_buffer);
     _buffer.clear();
 
-    await store.appendLines(lines);
+    if (lines.isNotEmpty) {
+      final write = store.appendLines(lines);
+      _inFlightWrites.add(write);
+      // 成功与失败两条路径都从集合移除；原始错误仍由 write 本身暴露
+      write.then<void>(
+        (_) => _inFlightWrites.remove(write),
+        onError: (Object _, StackTrace _) => _inFlightWrites.remove(write),
+      );
+    }
+
+    // 等待本次 flush 调用前已在途的写入快照；调用后新加入的写入
+    // 不属于本次调用前的工作，不无限追赶
+    final snapshot = List<Future<void>>.of(_inFlightWrites);
+    if (snapshot.isNotEmpty) {
+      await Future.wait(snapshot);
+    }
   }
 
   /// 排空缓冲区并停止定时器。
