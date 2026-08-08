@@ -62,6 +62,10 @@ class _MessageAnchorRailState extends State<MessageAnchorRail> {
   bool _isExpanded = false;
   final ScrollController _scrollController = ScrollController();
 
+  /// rail 祖先焦点节点：只观察 descendant focus（InkWell 的标准焦点
+  /// 生命周期），自身不可请求焦点，避免消息增删时维护错位的 FocusNode 列表。
+  final FocusNode _railFocusNode = FocusNode(canRequestFocus: false);
+
   // ── 生命周期 ────────────────────────────────────────────────
 
   @override
@@ -74,6 +78,7 @@ class _MessageAnchorRailState extends State<MessageAnchorRail> {
 
   @override
   void dispose() {
+    _railFocusNode.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -103,122 +108,148 @@ class _MessageAnchorRailState extends State<MessageAnchorRail> {
     });
   }
 
-  // ── 生命周期 ────────────────────────────────────────────────
-
   @override
   void didUpdateWidget(covariant MessageAnchorRail oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // 父级重建（如 ChatScreen setState 触发）意味着用户可能正在滚动，
-    // 此时应折叠展开状态以保持紧凑模式体验
-    _collapseExpand();
+    // 父级重建（如 ChatScreen setState 触发）时，若键盘焦点仍在 rail 内
+    // 则保持展开，避免打断正在键盘操作的用户；无焦点时沿用旧行为折叠。
+    if (!_railFocusNode.hasFocus) {
+      _collapseExpand();
+    }
   }
 
   // ── 构建 ────────────────────────────────────────────────────
 
   @override
-  /// 构建紧凑模式的锚点指示器列表。
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return GestureDetector(
-      onLongPress: () => _toggleExpand(),
-      child: Align(
-        alignment: Alignment.centerRight,
-        child: MouseRegion(
-          onEnter: (_) => _toggleExpand(),
-          onExit: (_) => _collapseExpand(),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxHeight: widget.maxHeight),
-            child: SizedBox(
-              width: _isExpanded ? 228 : 28,
-              child: DecoratedBox(
-                key: const ValueKey('message-anchor-rail'), // test-key
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: theme.colorScheme.outlineVariant.withValues(
-                      alpha: 0.4,
+    return Focus(
+      focusNode: _railFocusNode,
+      // 键盘焦点进入 rail（任一锚点）时展开；完全离开时折叠。
+      // 锚点间移动时 hasFocus 保持 true，不会中途触发折叠。
+      onFocusChange: (focused) {
+        if (focused) {
+          _toggleExpand();
+        } else {
+          _collapseExpand();
+        }
+      },
+      child: GestureDetector(
+        onLongPress: () => _toggleExpand(),
+        child: Align(
+          alignment: Alignment.centerRight,
+          child: MouseRegion(
+            onEnter: (_) => _toggleExpand(),
+            onExit: (_) {
+              // 鼠标移出但键盘焦点仍在 rail 内时不折叠
+              if (!_railFocusNode.hasFocus) _collapseExpand();
+            },
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: widget.maxHeight),
+              child: SizedBox(
+                width: _isExpanded ? 228 : 28,
+                child: DecoratedBox(
+                  key: const ValueKey('message-anchor-rail'), // test-key
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: theme.colorScheme.outlineVariant.withValues(
+                        alpha: 0.4,
+                      ),
                     ),
                   ),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 4,
-                    vertical: 8,
-                  ),
-                  child: ScrollConfiguration(
-                    behavior: ScrollConfiguration.of(
-                      context,
-                    ).copyWith(scrollbars: false),
-                    child: ListView.separated(
-                      controller: _scrollController,
-                      primary: false,
-                      padding: EdgeInsets.zero,
-                      itemCount: widget.userMessages.length,
-                      separatorBuilder: (context, index) {
-                        return const SizedBox(height: 8);
-                      },
-                      itemBuilder: (context, index) {
-                        final message = widget.userMessages[index];
-                        final isActive = message.id == widget.activeMessageId;
-                        final previewText =
-                            MessageAnchorRail.extractPreviewText(
-                              message.content,
-                            );
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 8,
+                    ),
+                    child: ScrollConfiguration(
+                      behavior: ScrollConfiguration.of(
+                        context,
+                      ).copyWith(scrollbars: false),
+                      child: ListView.separated(
+                        controller: _scrollController,
+                        primary: false,
+                        padding: EdgeInsets.zero,
+                        itemCount: widget.userMessages.length,
+                        separatorBuilder: (context, index) {
+                          return const SizedBox(height: 8);
+                        },
+                        itemBuilder: (context, index) {
+                          final message = widget.userMessages[index];
+                          final isActive = message.id == widget.activeMessageId;
+                          final previewText =
+                              MessageAnchorRail.extractPreviewText(
+                                message.content,
+                              );
 
-                        return Semantics(
-                          button: true,
-                          selected: isActive,
-                          label: '定位到第 ${index + 1} 条用户消息',
-                          child: InkWell(
-                            key: ValueKey('message-anchor-item-${index + 1}'),
-                            borderRadius: BorderRadius.circular(999),
-                            onTap: () => widget.onSelectMessage(message.id),
-                            child: SizedBox(
-                              height: 18,
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  if (_isExpanded && previewText.isNotEmpty)
-                                    Expanded(
-                                      child: Padding(
-                                        padding: const EdgeInsets.only(
-                                          right: 8,
-                                        ),
-                                        child: Text(
-                                          previewText,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: theme.textTheme.bodySmall,
-                                          textAlign: TextAlign.right,
+                          return Semantics(
+                            button: true,
+                            selected: isActive,
+                            value:
+                                '${index + 1} / ${widget.userMessages.length}',
+                            label: previewText.isEmpty
+                                ? '第 ${index + 1} 条用户消息'
+                                : '第 ${index + 1} 条用户消息：$previewText',
+                            child: InkWell(
+                              key: ValueKey('message-anchor-item-${index + 1}'),
+                              borderRadius: BorderRadius.circular(999),
+                              focusColor: theme.colorScheme.primary.withValues(
+                                alpha: 0.12,
+                              ),
+                              onTap: () => widget.onSelectMessage(message.id),
+                              child: SizedBox(
+                                height: 18,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (_isExpanded && previewText.isNotEmpty)
+                                      Expanded(
+                                        child: Padding(
+                                          padding: const EdgeInsets.only(
+                                            right: 8,
+                                          ),
+                                          // 预览文本只负责视觉；语义由父节点
+                                          // 的 label 提供，避免展开后重复播报。
+                                          child: ExcludeSemantics(
+                                            child: Text(
+                                              previewText,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: theme.textTheme.bodySmall,
+                                              textAlign: TextAlign.right,
+                                            ),
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                  SizedBox(
-                                    width: 20,
-                                    height: 18,
-                                    child: Center(
-                                      child: AnimatedContainer(
-                                        duration: AppAnimations.quickTransition,
-                                        width: isActive ? 14 : 10,
-                                        height: isActive ? 6 : 4,
-                                        decoration: BoxDecoration(
-                                          color: isActive
-                                              ? theme.colorScheme.primary
-                                              : theme.colorScheme.outline,
-                                          borderRadius: BorderRadius.circular(
-                                            14,
+                                    SizedBox(
+                                      width: 20,
+                                      height: 18,
+                                      child: Center(
+                                        child: AnimatedContainer(
+                                          duration:
+                                              AppAnimations.quickTransition,
+                                          width: isActive ? 14 : 10,
+                                          height: isActive ? 6 : 4,
+                                          decoration: BoxDecoration(
+                                            color: isActive
+                                                ? theme.colorScheme.primary
+                                                : theme.colorScheme.outline,
+                                            borderRadius: BorderRadius.circular(
+                                              14,
+                                            ),
                                           ),
                                         ),
                                       ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
-                          ),
-                        );
-                      },
+                          );
+                        },
+                      ),
                     ),
                   ),
                 ),
