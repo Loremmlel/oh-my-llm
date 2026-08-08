@@ -51,6 +51,16 @@ enum NotificationBubbleType {
       NotificationBubbleType.error => const Duration(seconds: 6),
     };
   }
+
+  /// 类型对应的屏幕阅读器语义名称（只读，不参与 Equatable props）。
+  String get semanticLabel {
+    return switch (this) {
+      NotificationBubbleType.info => '信息通知',
+      NotificationBubbleType.success => '成功通知',
+      NotificationBubbleType.warning => '警告通知',
+      NotificationBubbleType.error => '错误通知',
+    };
+  }
 }
 
 /// 通知气泡内的操作按钮（如"撤销"）。

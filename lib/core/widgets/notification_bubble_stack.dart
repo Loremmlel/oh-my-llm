@@ -160,22 +160,29 @@ class _NotificationBubbleStackState
   }
 
   /// 出场动画：向右滑出 + 淡出，200ms ease-in。
-  /// 关闭按钮在动画期间隐藏，避免用户点击无响应的死区。
+  /// 退出副本立即退出 pointer/focus/semantics：视觉淡出期间既不能被
+  /// 点击或 Tab 聚焦，也不能被屏幕阅读器再次播报。
   Widget _buildRemoveItem(
     NotificationBubbleData data,
     Animation<double> animation,
   ) {
-    return SlideTransition(
-      position: Tween<Offset>(
-        begin: Offset.zero,
-        end: const Offset(1.0, 0.0),
-      ).animate(CurvedAnimation(parent: animation, curve: Curves.easeIn)),
-      child: FadeTransition(
-        opacity: Tween<double>(begin: 1.0, end: 0.0).animate(animation),
-        child: NotificationBubbleContent(
-          data: data,
-          onDismiss: () {},
-          showCloseButton: false,
+    return IgnorePointer(
+      child: ExcludeFocus(
+        child: ExcludeSemantics(
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: Offset.zero,
+              end: const Offset(1.0, 0.0),
+            ).animate(CurvedAnimation(parent: animation, curve: Curves.easeIn)),
+            child: FadeTransition(
+              opacity: Tween<double>(begin: 1.0, end: 0.0).animate(animation),
+              child: NotificationBubbleContent(
+                data: data,
+                onDismiss: () {},
+                showCloseButton: false,
+              ),
+            ),
+          ),
         ),
       ),
     );

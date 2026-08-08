@@ -35,70 +35,94 @@ class NotificationBubbleContent extends StatelessWidget {
     final iconColor = data.type.iconColor(cs);
     final hasAction = data.action != null;
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Material(
-        color: Colors.transparent,
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 320),
-          decoration: BoxDecoration(
-            color: cs.inverseSurface,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: cs.shadow.withValues(alpha: 0.25),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          padding: EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: hasAction ? 10 : 12,
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Icon(data.type.icon, size: 20, color: iconColor),
-              const SizedBox(width: 10),
-              Flexible(
-                child: Text(
-                  data.message,
-                  style: TextStyle(color: cs.onInverseSurface, fontSize: 14),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              if (hasAction) ...[
-                const SizedBox(width: 8),
-                TextButton(
-                  onPressed: _handleAction,
-                  style: TextButton.styleFrom(
-                    foregroundColor: cs.primary,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    visualDensity: VisualDensity.compact,
-                    textStyle: const TextStyle(fontSize: 14),
-                  ),
-                  child: Text(data.action!.label),
+    // 整条通知是一个完整自足的 live status 节点；装饰 icon 与可见 message
+    // 排除重复语义，action/close 作为独立子节点继续可达。
+    return Semantics(
+      container: true,
+      explicitChildNodes: true,
+      liveRegion: true,
+      label: '${data.type.semanticLabel}：${data.message}',
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 320),
+            decoration: BoxDecoration(
+              color: cs.inverseSurface,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: cs.shadow.withValues(alpha: 0.25),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
                 ),
               ],
-              if (showCloseButton) ...[
-                const SizedBox(width: 4),
-                SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: IconButton(
-                    onPressed: onDismiss,
-                    icon: const Icon(Icons.close, size: 16),
-                    color: cs.onInverseSurface.withValues(alpha: 0.6),
-                    padding: EdgeInsets.zero,
-                    visualDensity: VisualDensity.compact,
-                    splashRadius: 12,
+            ),
+            padding: EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: hasAction ? 10 : 12,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                ExcludeSemantics(
+                  child: Icon(data.type.icon, size: 20, color: iconColor),
+                ),
+                const SizedBox(width: 10),
+                // Flexible 必须直接挂在 Row 下才能接收 FlexParentData，
+                // 语义排除只能包在它内部。
+                Flexible(
+                  child: ExcludeSemantics(
+                    child: Text(
+                      data.message,
+                      style: TextStyle(
+                        color: cs.onInverseSurface,
+                        fontSize: 14,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ),
+                if (hasAction) ...[
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: _handleAction,
+                    style: TextButton.styleFrom(
+                      foregroundColor: cs.primary,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      visualDensity: VisualDensity.compact,
+                      textStyle: const TextStyle(fontSize: 14),
+                    ),
+                    child: Text(data.action!.label),
+                  ),
+                ],
+                if (showCloseButton) ...[
+                  const SizedBox(width: 4),
+                  SizedBox(
+                    width: 24,
+                    height: 24,
+                    // 用 Semantics 携带 tooltip 而非 IconButton.tooltip：后者会构建
+                    // Tooltip 组件，要求 Overlay 祖先，而气泡渲染在 MaterialApp.builder
+                    // 层（Navigator 之外），会触发 No Overlay found 崩溃。注解放在
+                    // IconButton 内部（包住 Icon），语义与按钮节点合并而非新建节点。
+                    child: IconButton(
+                      onPressed: onDismiss,
+                      icon: Semantics(
+                        tooltip: '关闭通知',
+                        child: const Icon(Icons.close, size: 16),
+                      ),
+                      color: cs.onInverseSurface.withValues(alpha: 0.6),
+                      padding: EdgeInsets.zero,
+                      visualDensity: VisualDensity.compact,
+                      splashRadius: 12,
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
