@@ -21,6 +21,7 @@ import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.da
 import 'package:oh_my_llm/features/settings/domain/models/memory_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
 
+import '../../../../helpers/async_test_signals.dart';
 import '../../../../helpers/fake_chat_completion_client.dart';
 
 /// 测试用模型配置，与 SharedPreferences 中的 id 一致，确保 _resolveModelConfig 能找到它。
@@ -123,6 +124,20 @@ class ControllerTestHarness {
   void dispose() {
     container.dispose();
     database.close();
+  }
+
+  /// 等待会话状态满足 [matches]。只转调共享 [waitForProviderState]，不复制
+  /// Riverpod listener 逻辑；[description] 用于失败时定位在等什么。
+  Future<ChatSessionsState> waitForState(
+    bool Function(ChatSessionsState state) matches, {
+    required String description,
+  }) {
+    return waitForProviderState(
+      container: container,
+      provider: chatSessionsProvider,
+      matches: matches,
+      description: description,
+    );
   }
 
   /// 向活动会话发送一条消息并等待流式回复完成。

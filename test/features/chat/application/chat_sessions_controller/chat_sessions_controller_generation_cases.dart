@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -148,15 +146,18 @@ void registerChatSessionsControllerGenerationCases() {
   });
 
   test('sendMessage 仅收到 reasoning 后失败时保留占位 assistant 节点', () async {
-    final streamController = StreamController<ChatCompletionChunk>();
-    addTearDown(streamController.close);
-    fakeClient.enqueueStream(streamController.stream);
+    final controlled = fakeClient.enqueueControlledStream();
+    addTearDown(controlled.close);
 
     final sendFuture = sendMsg('先思考再失败');
-    await Future<void>.delayed(const Duration(milliseconds: 1));
-    streamController.add(const ChatCompletionChunk(reasoningDelta: '思考中'));
-    await Future<void>.delayed(const Duration(milliseconds: 1));
-    streamController.addError(const ChatCompletionException('请求失败'));
+    await controlled.listened;
+    controlled.add(const ChatCompletionChunk(reasoningDelta: '思考中'));
+    // 等推理增量投影到状态再投递错误：错误与增量按序消费。
+    await harness.waitForState(
+      (s) => s.streamingReply?.reasoningContent == '思考中',
+      description: '推理增量达到期望片段',
+    );
+    controlled.addError(const ChatCompletionException('请求失败'));
     await sendFuture;
 
     final state = container.read(chatSessionsProvider);
@@ -391,17 +392,21 @@ void registerChatSessionsControllerGenerationCases() {
     });
 
     test('stopStreaming 路径保留已收到的 finishReason', () async {
-      final streamController = StreamController<ChatCompletionChunk>();
-      addTearDown(streamController.close);
-      fakeClient.enqueueStream(streamController.stream);
+      final controlled = fakeClient.enqueueControlledStream();
+      addTearDown(controlled.close);
 
       final sendFuture = sendMsg('测试中断 finishReason');
-      await Future<void>.delayed(const Duration(milliseconds: 1));
+      await controlled.listened;
       // 发送带 finishReason 的 chunk，随后中断流式
-      streamController.add(
+      controlled.add(
         const ChatCompletionChunk(contentDelta: '部分内容', finishReason: 'stop'),
       );
-      await Future<void>.delayed(const Duration(milliseconds: 1));
+      // 等 chunk 消费完成（run 的累积缓冲含 finishReason）再 stop，
+      // 保证 stop 快照保留 finishReason。
+      await harness.waitForState(
+        (s) => s.streamingReply?.content == '部分内容',
+        description: '流式内容达到期望片段',
+      );
 
       await container.read(chatSessionsProvider.notifier).stopStreaming();
       await sendFuture;

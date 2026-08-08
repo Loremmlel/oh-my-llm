@@ -17,6 +17,7 @@ import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation_summary.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 
+import '../../../../helpers/async_test_signals.dart';
 import '../../../../helpers/fake_chat_completion_client.dart';
 import 'chat_sessions_controller_test_helpers.dart';
 
@@ -44,14 +45,18 @@ void registerChatSessionsControllerStopCases() {
   // ── stopStreaming ────────────────────────────────────────────────────────────
 
   test('stopStreaming 保留已收到的部分回复', () async {
-    final streamController = StreamController<ChatCompletionChunk>();
-    addTearDown(streamController.close);
-    fakeClient.enqueueStream(streamController.stream);
+    final controlled = fakeClient.enqueueControlledStream();
+    addTearDown(controlled.close);
 
     final sendFuture = sendMsg('请开始生成');
-    await Future<void>.delayed(const Duration(milliseconds: 1));
-    streamController.add(const ChatCompletionChunk(contentDelta: '部分回复'));
-    await Future<void>.delayed(const Duration(milliseconds: 1));
+    await controlled.listened;
+    controlled.add(const ChatCompletionChunk(contentDelta: '部分回复'));
+    // 等流式增量到达期望片段再 stop：stop 的快照取自 run 的累积缓冲，
+    // 此刻 chunk 已被消费，快照内容确定。
+    await harness.waitForState(
+      (s) => s.streamingReply?.content == '部分回复',
+      description: '流式内容达到期望片段',
+    );
 
     await container.read(chatSessionsProvider.notifier).stopStreaming();
     await sendFuture;
@@ -65,12 +70,11 @@ void registerChatSessionsControllerStopCases() {
   });
 
   test('stopStreaming 在无内容时保留空助手占位以便重试', () async {
-    final streamController = StreamController<ChatCompletionChunk>();
-    addTearDown(streamController.close);
-    fakeClient.enqueueStream(streamController.stream);
+    final controlled = fakeClient.enqueueControlledStream();
+    addTearDown(controlled.close);
 
     final sendFuture = sendMsg('不要输出任何内容');
-    await Future<void>.delayed(const Duration(milliseconds: 1));
+    await controlled.listened;
 
     await container.read(chatSessionsProvider.notifier).stopStreaming();
     await sendFuture;
@@ -118,21 +122,18 @@ void registerChatSessionsControllerStopCases() {
 
     // 首次 attempt 失败 -> 重试等待窗口 -> 重试 attempt streaming。
     fakeClient.enqueueError(ChatCompletionException('首次失败'));
-    final retryStream = StreamController<ChatCompletionChunk>();
+    // 第二条受控流预排队：重试 attempt 会监听它。
+    final retryStream = fakeClient.enqueueControlledStream();
     addTearDown(retryStream.close);
-    fakeClient.enqueueStream(retryStream.stream);
 
     final sendFuture = sendMsg(
       'test',
       retryDelay: const Duration(milliseconds: 50),
     );
 
-    // 等重试 attempt 发出（requestHistory 第 2 次）：此时 retryStream 已被 listen，
-    // 重试 attempt 正在 streaming。
-    for (var i = 0; i < 50; i++) {
-      if (fakeClient.requestHistory.length >= 2) break;
-      await Future<void>.delayed(const Duration(milliseconds: 10));
-    }
+    // 等重试 attempt 发出：retryStream 已被 listen（第 2 次 streamCompletion 先于
+    // listen 同步写入 requestHistory），重试 attempt 正在 streaming。
+    await retryStream.listened;
     expect(fakeClient.requestHistory.length, 2);
 
     // 重试 attempt 进行中 isStreaming 必须恢复 true：否则首次 attempt 终态已清
@@ -164,14 +165,10 @@ void registerChatSessionsControllerStopCases() {
     );
 
     // 等第一个请求发出并失败，重试循环进入等待窗口
-    // 轮询等待 isAutoRetryWaiting 变为 true，最多等 5 秒
-    bool waiting = false;
-    for (int i = 0; i < 50; i++) {
-      waiting = container.read(chatSessionsProvider).isAutoRetryWaiting;
-      if (waiting) break;
-      await Future<void>.delayed(const Duration(milliseconds: 100));
-    }
-    expect(waiting, isTrue);
+    await harness.waitForState(
+      (s) => s.isAutoRetryWaiting,
+      description: '进入自动重试等待',
+    );
 
     // 此时旧重试在等待窗口中，调用 stopStreaming 取消
     await container.read(chatSessionsProvider.notifier).stopStreaming();
@@ -194,12 +191,11 @@ void registerChatSessionsControllerStopCases() {
   });
 
   test('stopStreaming 将 emptyReplyAssistantId 指向当前流式占位', () async {
-    final streamController = StreamController<ChatCompletionChunk>();
-    addTearDown(streamController.close);
-    fakeClient.enqueueStream(streamController.stream);
+    final controlled = fakeClient.enqueueControlledStream();
+    addTearDown(controlled.close);
 
     final sendFuture = sendMsg('开始流式');
-    await Future<void>.delayed(const Duration(milliseconds: 1));
+    await controlled.listened;
 
     // 手动设置一个伪造的 emptyReplyAssistantId，模拟残留状态。
     final notifier = container.read(chatSessionsProvider.notifier);
@@ -227,15 +223,16 @@ void registerChatSessionsControllerStopCases() {
   // ── stopStreaming 竞态条件 ──────────────────────────────────────────────
 
   test('stopStreaming 后延迟到达的 onDone 不改变状态', () async {
-    // 使用 StreamController 模拟可控的流式生命周期
-    final streamController = StreamController<ChatCompletionChunk>();
-    addTearDown(streamController.close);
-    fakeClient.enqueueStream(streamController.stream);
+    final controlled = fakeClient.enqueueControlledStream();
+    addTearDown(controlled.close);
 
     final sendFuture = sendMsg('测试 onDone 竞态');
-    await Future<void>.delayed(const Duration(milliseconds: 1));
-    streamController.add(const ChatCompletionChunk(contentDelta: '部分内容'));
-    await Future<void>.delayed(const Duration(milliseconds: 1));
+    await controlled.listened;
+    controlled.add(const ChatCompletionChunk(contentDelta: '部分内容'));
+    await harness.waitForState(
+      (s) => s.streamingReply?.content == '部分内容',
+      description: '流式内容达到期望片段',
+    );
 
     // 终止流式
     await container.read(chatSessionsProvider.notifier).stopStreaming();
@@ -246,11 +243,10 @@ void registerChatSessionsControllerStopCases() {
     final contentAfterStop =
         stateAfterStop.activeConversation.messages.last.content;
 
-    // 模拟延迟到达的 onDone：关闭流控制器（触发 Stream onDone）
-    streamController.add(const ChatCompletionChunk(contentDelta: '延迟内容'));
-    await streamController.close();
-    // 让微任务队列执行
-    await Future<void>.delayed(const Duration(milliseconds: 10));
+    // 模拟延迟到达的 onDone：订阅已被 stop 取消，事件不会投递给 run；
+    // await close 收口控制器结算，无需延时。
+    controlled.add(const ChatCompletionChunk(contentDelta: '延迟内容'));
+    await controlled.close();
 
     final stateAfterDelayed = container.read(chatSessionsProvider);
     expect(stateAfterDelayed.isStreaming, isFalse);
@@ -262,14 +258,16 @@ void registerChatSessionsControllerStopCases() {
   });
 
   test('stopStreaming 后延迟到达的 onError 不改变状态', () async {
-    final streamController = StreamController<ChatCompletionChunk>();
-    addTearDown(streamController.close);
-    fakeClient.enqueueStream(streamController.stream);
+    final controlled = fakeClient.enqueueControlledStream();
+    addTearDown(controlled.close);
 
     final sendFuture = sendMsg('测试 onError 竞态');
-    await Future<void>.delayed(const Duration(milliseconds: 1));
-    streamController.add(const ChatCompletionChunk(contentDelta: '已有内容'));
-    await Future<void>.delayed(const Duration(milliseconds: 1));
+    await controlled.listened;
+    controlled.add(const ChatCompletionChunk(contentDelta: '已有内容'));
+    await harness.waitForState(
+      (s) => s.streamingReply?.content == '已有内容',
+      description: '流式内容达到期望片段',
+    );
 
     await container.read(chatSessionsProvider.notifier).stopStreaming();
     await sendFuture;
@@ -278,10 +276,10 @@ void registerChatSessionsControllerStopCases() {
     expect(stateAfterStop.isStreaming, isFalse);
     final errorMessageAfterStop = stateAfterStop.errorMessage;
 
-    // 模拟延迟到达的 onError
-    streamController.addError(Exception('延迟错误'));
-    await streamController.close();
-    await Future<void>.delayed(const Duration(milliseconds: 10));
+    // 模拟延迟到达的 onError：订阅已被 stop 取消，错误不会投递给 run；
+    // await close 收口控制器结算，无需延时。
+    controlled.addError(Exception('延迟错误'));
+    await controlled.close();
 
     final stateAfterDelayed = container.read(chatSessionsProvider);
     expect(stateAfterDelayed.isStreaming, isFalse);
@@ -290,12 +288,11 @@ void registerChatSessionsControllerStopCases() {
   });
 
   test('stopStreaming 后再次发送能正常收到新回复', () async {
-    final streamController = StreamController<ChatCompletionChunk>();
-    addTearDown(streamController.close);
-    fakeClient.enqueueStream(streamController.stream);
+    final controlled = fakeClient.enqueueControlledStream();
+    addTearDown(controlled.close);
 
     final sendFuture = sendMsg('测试标志保持');
-    await Future<void>.delayed(const Duration(milliseconds: 1));
+    await controlled.listened;
 
     await container.read(chatSessionsProvider.notifier).stopStreaming();
     await sendFuture;
@@ -310,13 +307,16 @@ void registerChatSessionsControllerStopCases() {
   });
 
   test('连续两次 stopStreaming 不产生异常', () async {
-    final streamController = StreamController<ChatCompletionChunk>();
-    fakeClient.enqueueStream(streamController.stream);
+    final controlled = fakeClient.enqueueControlledStream();
+    addTearDown(controlled.close);
 
     final sendFuture = sendMsg('测试双击停止');
-    await Future<void>.delayed(const Duration(milliseconds: 1));
-    streamController.add(const ChatCompletionChunk(contentDelta: '部分内容'));
-    await Future<void>.delayed(const Duration(milliseconds: 1));
+    await controlled.listened;
+    controlled.add(const ChatCompletionChunk(contentDelta: '部分内容'));
+    await harness.waitForState(
+      (s) => s.streamingReply?.content == '部分内容',
+      description: '流式内容达到期望片段',
+    );
 
     await container.read(chatSessionsProvider.notifier).stopStreaming();
     // 立即再次调用 stopStreaming（模拟用户快速双击）
@@ -333,16 +333,22 @@ void registerChatSessionsControllerStopCases() {
     // 模拟 token 空闲间隙：底层订阅的 cancel() 永不完成（socket 无数据）。
     // 修复前 stopStreaming 会 await 该 cancel 而永久挂起，状态无法重置，
     // 需第二次点击才生效；修复后 cancel 即发即忘，单次调用即可终止。
+    // 不能直接用 ControlledChatCompletionStream：它不提供永不完成的 onCancel。
+    final listened = Completer<void>();
     final streamController = StreamController<ChatCompletionChunk>(
+      onListen: listened.complete,
       onCancel: () => Completer<void>().future,
     );
     addTearDown(() => streamController.onCancel = null);
     fakeClient.enqueueStream(streamController.stream);
 
     final sendFuture = sendMsg('测试挂起 cancel');
-    await Future<void>.delayed(const Duration(milliseconds: 1));
+    await listened.future;
     streamController.add(const ChatCompletionChunk(contentDelta: '部分内容'));
-    await Future<void>.delayed(const Duration(milliseconds: 1));
+    await harness.waitForState(
+      (s) => s.streamingReply?.content == '部分内容',
+      description: '流式内容达到期望片段',
+    );
 
     // 用 timeout 作为快速失败守卫：修复前 stopStreaming 会 await 挂起的 cancel
     // 而永不返回，2 秒内即报 TimeoutException；修复后单次调用瞬间完成，不会真等 2 秒。
@@ -541,7 +547,7 @@ void registerChatSessionsControllerStopCases() {
     expect(state.errorMessage, ChatErrorMessages.persistenceFailed);
   });
 
-  test('finalizing 期间 stopStreaming 不劫持后续 generation（P1）', () async {
+  test('finalizing 期间 stopStreaming 不劫持后续 generation', () async {
     // 用可控 repo 阻塞 terminal save，使 A 停在 finalizing（attempt 已终态、
     // durable save 进行中）。此时 stopStreaming 若调 coordinator.stop() 会对已
     // 终态 handle 投 Stopped/Cancelled 覆盖 succeeded，并 complete completer +
@@ -634,9 +640,8 @@ void registerChatSessionsControllerStopCases() {
     );
     addTearDown(slowContainer.dispose);
 
-    final streamController = StreamController<ChatCompletionChunk>();
-    addTearDown(streamController.close);
-    fakeClient.enqueueStream(streamController.stream);
+    final controlled = fakeClient.enqueueControlledStream();
+    addTearDown(controlled.close);
 
     final sendFuture = slowContainer
         .read(chatSessionsProvider.notifier)
@@ -651,9 +656,14 @@ void registerChatSessionsControllerStopCases() {
     await slowRepo.saveReached!.future;
     slowRepo.saveGate!.complete();
     // 投递部分内容使 streaming 非空，stop 时有内容可落盘。
-    await Future<void>.delayed(const Duration(milliseconds: 5));
-    streamController.add(const ChatCompletionChunk(contentDelta: '部分内容'));
-    await Future<void>.delayed(const Duration(milliseconds: 5));
+    await controlled.listened;
+    controlled.add(const ChatCompletionChunk(contentDelta: '部分内容'));
+    await waitForProviderState(
+      container: slowContainer,
+      provider: chatSessionsProvider,
+      matches: (s) => s.streamingReply?.content == '部分内容',
+      description: '流式内容达到期望片段',
+    );
 
     final stopFuture = slowContainer
         .read(chatSessionsProvider.notifier)
@@ -694,9 +704,8 @@ void registerChatSessionsControllerStopCases() {
     );
     addTearDown(slowContainer.dispose);
 
-    final streamController = StreamController<ChatCompletionChunk>();
-    addTearDown(streamController.close);
-    fakeClient.enqueueStream(streamController.stream);
+    final controlled = fakeClient.enqueueControlledStream();
+    addTearDown(controlled.close);
 
     final sendFuture = slowContainer
         .read(chatSessionsProvider.notifier)
@@ -707,9 +716,14 @@ void registerChatSessionsControllerStopCases() {
           reasoningEnabled: false,
           reasoningEffort: ReasoningEffort.medium,
         );
-    await Future<void>.delayed(const Duration(milliseconds: 5));
-    streamController.add(const ChatCompletionChunk(contentDelta: '部分内容'));
-    await Future<void>.delayed(const Duration(milliseconds: 5));
+    await controlled.listened;
+    controlled.add(const ChatCompletionChunk(contentDelta: '部分内容'));
+    await waitForProviderState(
+      container: slowContainer,
+      provider: chatSessionsProvider,
+      matches: (s) => s.streamingReply?.content == '部分内容',
+      description: '流式内容达到期望片段',
+    );
 
     await slowContainer.read(chatSessionsProvider.notifier).stopStreaming();
     await sendFuture.timeout(const Duration(seconds: 5));
@@ -742,13 +756,12 @@ void registerChatSessionsControllerStopCases() {
 
   test('空回复投影 emptyReply 终态快照', () async {
     // 流式正常完成（finishReason=stop）但无内容 -> coordinator 判 EmptyReply。
-    final streamController = StreamController<ChatCompletionChunk>();
-    addTearDown(streamController.close);
-    fakeClient.enqueueStream(streamController.stream);
+    final controlled = fakeClient.enqueueControlledStream();
+    addTearDown(controlled.close);
     final sendFuture = sendMsg('test');
-    await Future<void>.delayed(const Duration(milliseconds: 1));
-    streamController.add(const ChatCompletionChunk(finishReason: 'stop'));
-    await streamController.close();
+    await controlled.listened;
+    controlled.add(const ChatCompletionChunk(finishReason: 'stop'));
+    await controlled.close();
     await sendFuture;
 
     final state = container.read(chatSessionsProvider);
@@ -768,12 +781,11 @@ void registerChatSessionsControllerStopCases() {
   });
 
   test('用户 stop 投影 cancelled 终态快照带 userStop 原因', () async {
-    final streamController = StreamController<ChatCompletionChunk>();
-    addTearDown(streamController.close);
-    fakeClient.enqueueStream(streamController.stream);
+    final controlled = fakeClient.enqueueControlledStream();
+    addTearDown(controlled.close);
 
     final sendFuture = sendMsg('test');
-    await Future<void>.delayed(const Duration(milliseconds: 1));
+    await controlled.listened;
     await container.read(chatSessionsProvider.notifier).stopStreaming();
     await sendFuture;
 
@@ -827,9 +839,8 @@ void registerChatSessionsControllerStopCases() {
       if (!disposed) disposeContainer.dispose();
     });
 
-    final streamController = StreamController<ChatCompletionChunk>();
-    addTearDown(streamController.close);
-    fakeClient.enqueueStream(streamController.stream);
+    final controlled = fakeClient.enqueueControlledStream();
+    addTearDown(controlled.close);
 
     final unexpected = <Object>[];
     await runZonedGuarded(() async {
@@ -842,9 +853,14 @@ void registerChatSessionsControllerStopCases() {
             reasoningEnabled: false,
             reasoningEffort: ReasoningEffort.medium,
           );
-      await Future<void>.delayed(const Duration(milliseconds: 1));
-      streamController.add(const ChatCompletionChunk(contentDelta: '部分'));
-      await Future<void>.delayed(const Duration(milliseconds: 1));
+      await controlled.listened;
+      controlled.add(const ChatCompletionChunk(contentDelta: '部分'));
+      await waitForProviderState(
+        container: disposeContainer,
+        provider: chatSessionsProvider,
+        matches: (s) => s.streamingReply?.content == '部分',
+        description: '流式内容达到期望片段',
+      );
 
       disposeContainer.dispose();
       disposed = true;
@@ -853,9 +869,9 @@ void registerChatSessionsControllerStopCases() {
       await sendFuture.timeout(const Duration(seconds: 2));
 
       // 订阅取消后迟到事件应静默丢弃，不触发回调、无未处理异常。
-      streamController.add(const ChatCompletionChunk(contentDelta: '迟到'));
-      await streamController.close();
-      await Future<void>.delayed(const Duration(milliseconds: 10));
+      // await close 收口控制器结算（done 已被取消的订阅丢弃），无需延时。
+      controlled.add(const ChatCompletionChunk(contentDelta: '迟到'));
+      await controlled.close();
     }, (error, stack) => unexpected.add(error));
 
     expect(unexpected, isEmpty);
@@ -903,20 +919,20 @@ void registerChatSessionsControllerStopCases() {
       disposed = true;
       // 放行 terminal save：恢复后因 _disposed 守卫直接 return，
       // 不写已销毁的 state、不抛 Riverpod lifecycle 异常。
+      // await sendFuture 收口整条异步链（save 恢复 -> 守卫 return -> completion），
+      // 无需延时收集错误。
       slowRepo.stopSaveGate!.complete();
       await sendFuture.timeout(const Duration(seconds: 2));
-      await Future<void>.delayed(const Duration(milliseconds: 10));
     }, (error, stack) => unexpected.add(error));
 
     expect(unexpected, isEmpty);
   });
 
   test('dispose 在 attempt helper 返回后的 async 间隙不抛', () async {
-    // sync: true 使 close() 同步触发 onDone -> AttemptCompleted 投递 ->
-    // coordinator 处理 AttemptCompleted 时跑到 `await finishGenerationSuccess`
-    // 让出（让出点 A），恢复微任务在 close() 返回后排队。dispose 在 close 后、
-    // 微任务跑前执行，命中让出点 A 恢复前的间隙：_disposed 守卫在写终态前
-    // return，不写已销毁的 state。
+    // sync: true 使 close() 同步触发 onDone -> _serialize(_completeAttemptFromDone)
+    // 排队（_tail.then 微任务在 close() 返回后执行）。dispose 在 close 后、
+    // 微任务跑前执行：_serialize 的 _disposed 守卫在 action 前 return，
+    // 不写已销毁的 state。
     final disposeContainer = ProviderContainer(
       overrides: [
         appDatabaseProvider.overrideWithValue(database),
@@ -934,8 +950,12 @@ void registerChatSessionsControllerStopCases() {
 
     final unexpected = <Object>[];
     await runZonedGuarded(() async {
+      // sync: true 使 onListen/事件投递同步完成，close() 同步触发 onDone。
+      // 受控流需带 onListen 完成信号（ControlledChatCompletionStream 非 sync）。
+      final listened = Completer<void>();
       final streamController = StreamController<ChatCompletionChunk>(
         sync: true,
+        onListen: listened.complete,
       );
       addTearDown(streamController.close);
       fakeClient.enqueueStream(streamController.stream);
@@ -949,24 +969,22 @@ void registerChatSessionsControllerStopCases() {
             reasoningEnabled: false,
             reasoningEffort: ReasoningEffort.medium,
           );
-      // 等待 pending save 完成 + coordinator.start + listen 发生。
-      for (var i = 0; i < 50; i++) {
-        if (fakeClient.requestHistory.isNotEmpty) break;
-        await Future<void>.delayed(const Duration(milliseconds: 10));
-      }
+      // 等 coordinator.start + listen 发生：onListen 同步完成，第 1 次请求必已发出。
+      await listened.future;
       expect(fakeClient.requestHistory.length, 1);
 
       streamController.add(
         const ChatCompletionChunk(contentDelta: '回复', finishReason: 'stop'),
       );
-      // sync close 同步触发 onDone -> AttemptCompleted -> 让出点 A（微任务排队）。
+      // sync close 同步触发 onDone -> _serialize 排队（微任务在 close() 返回后执行）。
       streamController.close();
 
       disposeContainer.dispose();
       disposed = true;
 
+      // sendFuture 已由 dispose complete(null)；await 收口排队的微任务链
+      // （_serialize 的 _disposed 守卫），无需延时。
       await sendFuture.timeout(const Duration(seconds: 2));
-      await Future<void>.delayed(const Duration(milliseconds: 10));
     }, (error, stack) => unexpected.add(error));
 
     expect(unexpected, isEmpty);

@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -17,6 +15,7 @@ import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dar
 import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
 
+import '../../../helpers/async_test_signals.dart';
 import '../../../helpers/flaky_chat_conversation_repository.dart';
 import '../../../helpers/fake_chat_completion_client.dart';
 
@@ -145,17 +144,22 @@ void main() {
   test('stop save 失败时仍完成停止并报 persistence 错误', () async {
     repository.failOnSaveCallIndex = 2; // pending(1) 成功，stop save(2) 失败
     // 手动控制流：先发一个 chunk，再 stop，再 close。
-    final streamController = StreamController<ChatCompletionChunk>();
-    fakeClient.enqueueStream(streamController.stream);
+    final controlled = fakeClient.enqueueControlledStream();
+    addTearDown(controlled.close);
 
     final sendFuture = sendMsg('测试停止持久化失败');
     // 等流式启动并收到一个 chunk。
-    streamController.add(const ChatCompletionChunk(contentDelta: '部分内容'));
-    // 让事件循环推进，使 chunk 被消费、isStreaming 为 true。
-    await Future<void>.delayed(Duration.zero);
+    await controlled.listened;
+    controlled.add(const ChatCompletionChunk(contentDelta: '部分内容'));
+    await waitForProviderState(
+      container: container,
+      provider: chatSessionsProvider,
+      matches: (s) => s.streamingReply?.content == '部分内容',
+      description: '流式内容达到期望片段',
+    );
 
     await container.read(chatSessionsProvider.notifier).stopStreaming();
-    streamController.close();
+    await controlled.close();
     await sendFuture;
 
     final state = container.read(chatSessionsProvider);
