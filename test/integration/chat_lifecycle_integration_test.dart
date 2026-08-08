@@ -5,14 +5,13 @@
 /// 所有测试在 ProviderContainer 级别运行，不涉及 UI。
 library;
 
-import 'dart:async';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
+import 'package:oh_my_llm/features/chat/application/chat_generation_lifecycle.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_completion_client.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_conversation_repository.dart';
@@ -23,6 +22,7 @@ import 'package:oh_my_llm/features/chat/domain/models/chat_conversation_summary.
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 
 import '../features/chat/chat_screen/chat_screen_test_helpers.dart';
+import '../helpers/async_test_signals.dart';
 import '../helpers/integration_test_helpers.dart';
 
 void main() {
@@ -314,16 +314,20 @@ void main() {
     );
     addTearDown(database.close);
 
-    final streamController = StreamController<ChatCompletionChunk>();
-    addTearDown(() {
-      streamController.close();
-    });
-    fakeClientA.enqueueStream(streamController.stream);
+    final controlled = fakeClientA.enqueueControlledStream();
+    addTearDown(controlled.close);
 
     final sendFuture = sendMsg(containerA, content: '开始生成');
-    await Future<void>.delayed(const Duration(milliseconds: 5));
-    streamController.add(const ChatCompletionChunk(contentDelta: '部分回复'));
-    await Future<void>.delayed(const Duration(milliseconds: 5));
+    await controlled.listened;
+    controlled.add(const ChatCompletionChunk(contentDelta: '部分回复'));
+    // 等增量进入 provider 状态（首 chunk 同步投影到 streamingReply），确保 stop
+    // 前内容已被 run 消费，部分内容可确定性落盘。
+    await waitForProviderState(
+      container: containerA,
+      provider: chatSessionsProvider,
+      matches: (s) => s.streamingReply?.content == '部分回复',
+      description: '等待增量内容进入流式状态',
+    );
 
     await containerA.read(chatSessionsProvider.notifier).stopStreaming();
     await sendFuture;
@@ -410,15 +414,18 @@ void main() {
     addTearDown(container.dispose);
 
     // A：streaming 中 stop，保留部分内容。
-    final streamA = StreamController<ChatCompletionChunk>();
-    addTearDown(() {
-      streamA.close();
-    });
-    fakeClient.enqueueStream(streamA.stream);
+    final controlledA = fakeClient.enqueueControlledStream();
+    addTearDown(controlledA.close);
     final sendA = sendMsg(container, content: '生成 A');
-    await Future<void>.delayed(const Duration(milliseconds: 5));
-    streamA.add(const ChatCompletionChunk(contentDelta: 'A 部分'));
-    await Future<void>.delayed(const Duration(milliseconds: 5));
+    await controlledA.listened;
+    controlledA.add(const ChatCompletionChunk(contentDelta: 'A 部分'));
+    // 等 A 的增量进入 provider 状态后再 stop，确保 stop 前内容已被 run 消费。
+    await waitForProviderState(
+      container: container,
+      provider: chatSessionsProvider,
+      matches: (s) => s.streamingReply?.content == 'A 部分',
+      description: '等待 A 增量进入流式状态',
+    );
     await container.read(chatSessionsProvider.notifier).stopStreaming();
     await sendA;
 
@@ -500,14 +507,18 @@ void main() {
     addTearDown(database.close);
     addTearDown(container.dispose);
 
-    final streamController = StreamController<ChatCompletionChunk>();
-    addTearDown(() {
-      streamController.close();
-    });
-    fakeClient.enqueueStream(streamController.stream);
+    final controlled = fakeClient.enqueueControlledStream();
+    addTearDown(controlled.close);
 
     final sendFuture = sendMsg(container, content: '生成中');
-    await Future<void>.delayed(const Duration(milliseconds: 5));
+    // 明确等 generation 进入 active phase（streaming）后再触发 checkpoint，
+    // 保证忙守卫必然生效，不靠延时。
+    await waitForProviderState(
+      container: container,
+      provider: chatSessionsProvider,
+      matches: (s) => s.generation?.phase == ChatGenerationPhase.streaming,
+      description: '等待 generation 进入 streaming 阶段',
+    );
 
     // generation 进行中（isStreaming），createCheckpoint 应被忙守卫拒绝，不产生 checkpoint。
     expect(
@@ -523,8 +534,8 @@ void main() {
     );
 
     // 放行 generation 完成，验证未受 checkpoint 尝试影响。
-    streamController.add(const ChatCompletionChunk(contentDelta: '生成完成'));
-    await streamController.close();
+    controlled.add(const ChatCompletionChunk(contentDelta: '生成完成'));
+    await controlled.close();
     await sendFuture;
 
     final state = container.read(chatSessionsProvider);

@@ -163,15 +163,22 @@ void main() {
         final inner = SqliteChatConversationRepository(db);
         bg = BackgroundChatConversationRepository(inner, tempDbPath);
 
-        // 第一次 save
+        // 第一次 save：Future 完成即第一批已落盘并 ACK，debounce 窗口随之关闭。
         await bg.saveConversation(makeConv('seq_1', 'First'));
 
-        // 等 debounce 窗口过去再第二次 save
-        await Future.delayed(const Duration(milliseconds: 100));
+        // 各批次行数分别断言：第一批只含 seq_1。若第二次保存被错误并入第一批
+        // （如 ACK 早于落盘的回归），此刻磁盘上就会同时出现两行。
+        var rows = inner.loadAll();
+        expect(rows.length, 1);
+        expect(rows.single.id, 'seq_1');
+
+        // 直接发第二次保存并 await 其 Future：无需等待 debounce 窗口——第一批
+        // ACK 已证明窗口关闭，第二批必然独立成批、独立 ACK。
         await bg.saveConversation(makeConv('seq_2', 'Second'));
 
-        expect(inner.loadConversation('seq_1'), isNotNull);
-        expect(inner.loadConversation('seq_2'), isNotNull);
+        rows = inner.loadAll();
+        expect(rows.length, 2);
+        expect(rows.map((c) => c.id), containsAll(['seq_1', 'seq_2']));
 
         await bg.close();
       },
