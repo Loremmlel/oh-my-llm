@@ -26,10 +26,10 @@ import '../../../helpers/fake_chat_completion_client.dart';
 ///
 /// 这些测试用 [ControllableChatConversationRepository] 的 gate 在 generation
 /// 关键 checkpoint（pending / terminal / stop save）真正写入前精确同步，
-/// 验证《Phase 9 - Generation Lifecycle 修复计划》第四节"必须成立的不变量"。
+/// 验证串行 run 的竞态不变量：并发 command / stop 收敛到单一既定的结果。
 /// 不依赖毫秒级 timing：所有时序由 gate 的 reached / release 决定。
 ///
-/// 修复前这些用例暴露旧 bridge 的竞态（红）；Task 3 切换到串行 run 后启用并转绿。
+/// 修复前这些用例暴露旧 bridge 的竞态；切换到串行 run 后启用并转绿。
 void main() {
   late AppDatabase database;
   late ControllableChatConversationRepository repository;
@@ -123,7 +123,7 @@ void main() {
       expect(state.activeConversation.messages.last.content, 'A-reply');
     });
 
-    // ── 不变量 5：旧 run terminal durable 完成前新 command 被拒 ──────────────────
+    // ── 旧 run terminal durable 完成前新 command 被拒 ────────────────────────
     test('A preparing stop 的 stop save 期间保持 busy，新 command 被拒', () async {
       repository.gateSave(1); // A pending save
       repository.gateSave(2); // A stop save
@@ -145,7 +145,7 @@ void main() {
       repository.releaseSave(1); // pending 完成，run 检测 stopIntent -> stop save
       await repository.awaitReached(2); // A 正在写 stop save，仍 busy
 
-      // 不变量 5：stop save 期间 busy 为 true，新 generation command 必须被拒。
+      // stop save 期间 busy 为 true，新 generation command 必须被拒。
       expect(container.read(isChatBusyProvider), isTrue);
       await sendMsg('BBB'); // 被 busy guard 拒绝，立即返回
       expect(fakeClient.requestHistory, isEmpty); // B 未发起网络请求
@@ -168,7 +168,7 @@ void main() {
       );
     });
 
-    // ── 不变量 6：concurrent stop 返回同一 completion，不重复保存 ─────────────────
+    // ── concurrent stop 返回同一 completion，不重复保存 ───────────────────────
     test(
       'streaming stop save 被 gate 阻塞时并发两次 stop：只发生一次 terminal save',
       () async {
@@ -212,7 +212,7 @@ void main() {
       },
     );
 
-    // ── 不变量 7：finalizing 不可取消，stop 不覆盖既定 outcome ───────────────────
+    // ── finalizing 不可取消，stop 不覆盖既定 outcome ─────────────────────────
     test(
       'attempt completed 到 terminal projection 间 stop：无 cancelled save',
       () async {
@@ -283,7 +283,7 @@ void main() {
       },
     );
 
-    // ── 不变量 2/4：persistence 失败只得到一次 persistenceFailed ─────────────────
+    // ── persistence 失败只得到一次 persistenceFailed ─────────────────────────
     test('pending save 失败：只得到一次 persistenceFailed，不重试不发请求', () async {
       repository.gateSave(1); // pending save
       fakeClient.enqueueChunks(['回复']); // 不应被消费
@@ -345,7 +345,7 @@ void main() {
       expect(state.errorMessage, ChatErrorMessages.persistenceFailed);
     });
 
-    // ── 不变量 1/9：旧 run 迟到回调不写新 run state ───────────────────────────
+    // ── 旧 run 迟到回调不写新 run state ───────────────────────────────────
     test('A stop 后迟到 chunk/error/done 不写 B state 或完成 B Future', () async {
       repository.gateSave(1);
       final controlledA = fakeClient.enqueueControlledStream();
@@ -390,7 +390,7 @@ void main() {
       expect(state.generation?.phase, ChatGenerationPhase.succeeded);
     });
 
-    // ── 不变量 8：token 全程稳定，attempt 从 1 开始 ────────────────────────────
+    // ── token 全程稳定，attempt 从 1 开始 ──────────────────────────────────
     test(
       'preparing/streaming/terminal snapshot 与 outcome identity 一致',
       () async {
