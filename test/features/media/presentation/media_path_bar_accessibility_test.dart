@@ -18,7 +18,7 @@ Widget _wrap(MediaPathBar bar) {
         children: [
           const SizedBox(height: 100),
           bar,
-          const TextField(), // sentinel：验证 disabled/结尾后焦点去向
+          const TextField(), // sentinel：焦点遍历终点，防止 Tab 从末级 chip wrap 回根目录
         ],
       ),
     ),
@@ -27,7 +27,7 @@ Widget _wrap(MediaPathBar bar) {
 
 void main() {
   group('MediaPathBar 语义', () {
-    testWidgets('currentPath=/相册/旅行 时语义顺序为根目录→相册→旅行，末项 selected', (
+    testWidgets('currentPath=/相册/旅行 时根目录/相册/旅行语义完整，末项 selected', (
       tester,
     ) async {
       await tester.pumpWidget(
