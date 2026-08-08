@@ -3,6 +3,7 @@
 // 默认值，需恢复显式 ensureSemantics，否则 find.semantics 查不到节点。
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
@@ -11,6 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/video_player_page.dart';
 
 import '../../../helpers/responsive_viewport_cases.dart';
+import '../../../helpers/widget_test_animation.dart';
 import '../helpers/fake_video_player_controller.dart';
 
 /// 按 tooltip 语义属性定位语义节点（IconButton/PopupMenuButton 的 tooltip 在语义树中为 tooltip 属性）。
@@ -310,7 +312,7 @@ void main() {
       final gesture = await tester.startGesture(
         tester.getCenter(find.byType(VideoPlayerPage)),
       );
-      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pump(kLongPressTimeout);
 
       final status = find.semantics.byLabel('临时三倍速播放');
       expect(status, findsOneWidget);
@@ -412,12 +414,15 @@ void main() {
       expect(focusedNode(), isSemantics(label: '播放进度'));
     });
 
-    testWidgets('控制聚焦时暂停自动隐藏，pump 超过 3 秒仍可见且焦点不变', (tester) async {
+    testWidgets('控制聚焦时暂停自动隐藏，3 秒契约边界仍可见且焦点不变', (tester) async {
       final fake = FakeVideoPlayerController();
       await _pumpVideo(tester, fake);
       await _tab(tester, 2); // 聚焦返回按钮
 
-      await tester.pump(const Duration(seconds: 4));
+      // 焦点进入控制栏取消了自动隐藏计时，精确推进到 3 秒契约边界
+      // 控制栏仍应可见；无淡出动画进行，settle 只用于排出有限动画。
+      await tester.pump(const Duration(seconds: 3));
+      await settleAnimatedWidgetTransition(tester);
       expect(semanticsByTooltip('返回'), findsOneWidget);
       expect(focusedNode(), isSemantics(tooltip: '返回'));
     });
@@ -427,10 +432,10 @@ void main() {
       await _pumpVideo(tester, fake);
       await _tab(tester, 2); // 聚焦返回按钮
 
-      // onTap 受 300ms double-tap 判定延迟，先推进时钟让 tap 生效，
+      // onTap 受双击窗口（kDoubleTapTimeout）判定延迟，先推进窗口让 tap 生效，
       // 再 pump 一帧应用焦点恢复与语义更新。
       await tester.tapAt(tester.getCenter(find.byType(VideoPlayerPage)));
-      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump(kDoubleTapTimeout);
       await tester.pump();
 
       expect(focusedNode(), isSemantics(label: '视频播放器：test-video.mp4'));

@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +9,7 @@ import 'package:oh_my_llm/features/media/presentation/media_browser_tab.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/media_route_pages.dart';
 
 import '../../../helpers/test_harness.dart';
+import '../../../helpers/widget_test_animation.dart';
 import '../helpers/fake_video_player_controller.dart';
 import '../helpers/media_test_helpers.dart';
 
@@ -84,7 +86,7 @@ void main() {
     );
 
     await tester.tap(find.text('猫.jpg'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleRouteTransition(tester);
 
     expect(
       router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
@@ -99,7 +101,7 @@ void main() {
 
     // viewer 的返回按钮是 IconButton(Icons.arrow_back)，无 tooltip。
     await tester.tap(find.byIcon(Icons.arrow_back));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleRouteTransition(tester);
 
     expect(
       router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
@@ -128,7 +130,7 @@ void main() {
     );
 
     await tester.tap(find.text('demo.mp4'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleRouteTransition(tester);
 
     expect(
       router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
@@ -139,10 +141,10 @@ void main() {
 
     // VideoTopBar 的返回按钮也是 IconButton(Icons.arrow_back)，无 tooltip。
     await tester.tap(find.byIcon(Icons.arrow_back));
-    // 播放器页面级 GestureDetector 带 onDoubleTap：tap 后手势竞技场 hold
-    // 300ms 双点窗口才解析按钮按下，须先推进时间再等 pop 动画。
-    await tester.pump(const Duration(milliseconds: 400));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    // 播放器页面级 GestureDetector 带 onDoubleTap：tap 后手势竞技场要等
+    // 双击窗口（kDoubleTapTimeout）结束才解析按钮按下，先推进窗口再等 pop 动画。
+    await tester.pump(kDoubleTapTimeout);
+    await settleRouteTransition(tester);
 
     expect(
       router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
@@ -171,7 +173,10 @@ void main() {
     );
 
     await tester.tap(find.text('相册'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    // 目录切换同步进入加载态；测试中真实 HTTP 请求不保证返回，精确推进
+    // 到请求超时契约（10 秒）让加载落定，避免残留计时器泄漏到用例结束。
+    await tester.pump(const Duration(seconds: 10));
+    await tester.pump();
 
     // 目录点击不 push 子路由
     expect(
@@ -197,7 +202,8 @@ void main() {
     );
 
     await tester.tap(find.text('猫.jpg'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    // server 缺失时点击是空操作，无状态变更与动画，单帧即可
+    await tester.pump();
 
     expect(
       router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
@@ -274,7 +280,7 @@ void main() {
         );
 
         await tester.tap(find.text('猫.jpg'));
-        await tester.pumpAndSettle(const Duration(milliseconds: 250));
+        await settleRouteTransition(tester);
         expect(
           router
               .routerDelegate
@@ -286,7 +292,7 @@ void main() {
         );
 
         await tester.tap(find.byIcon(Icons.arrow_back));
-        await tester.pumpAndSettle(const Duration(milliseconds: 250));
+        await settleRouteTransition(tester);
         expect(
           router
               .routerDelegate

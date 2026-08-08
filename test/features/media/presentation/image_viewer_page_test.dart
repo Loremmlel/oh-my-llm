@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -5,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/image_viewer_page.dart';
 
 import '../../../helpers/test_harness.dart';
+import '../../../helpers/widget_test_animation.dart';
 
 /// 构建一组用于测试的假图片 URL。
 ///
@@ -145,7 +147,7 @@ void main() {
 
       // 向左滑动切换到第 2 页
       await tester.fling(find.byType(PageView), const Offset(-200, 0), 1000);
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleScrollMotion(tester);
 
       // 计数器应更新为 2 / 5
       expect(find.text('2 / 5'), findsOneWidget);
@@ -166,7 +168,7 @@ void main() {
 
       // 在首页向右滑动（应被 clamp，不翻页）
       await tester.fling(find.byType(PageView), const Offset(200, 0), 1000);
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleScrollMotion(tester);
 
       // 仍在第 1 页
       expect(find.text('1 / 3'), findsOneWidget);
@@ -187,7 +189,7 @@ void main() {
 
       // 在末页向左滑动（应被 clamp）
       await tester.fling(find.byType(PageView), const Offset(-200, 0), 1000);
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleScrollMotion(tester);
 
       // 仍在最后一页
       expect(find.text('3 / 3'), findsOneWidget);
@@ -207,9 +209,9 @@ void main() {
 
       // 双击错误组件不应引起异常（_hasError 保护了 _onDoubleTap）
       await tester.tap(find.byIcon(Icons.broken_image));
-      await tester.pump(const Duration(milliseconds: 150));
+      await tester.pump(kDoubleTapMinTime);
       await tester.tap(find.byIcon(Icons.broken_image));
-      await tester.pump(const Duration(milliseconds: 250));
+      await settleAnimatedWidgetTransition(tester);
 
       // 不应有崩溃；页面仍在
       expect(find.byIcon(Icons.arrow_back), findsOneWidget);
@@ -229,7 +231,7 @@ void main() {
 
       // 点击返回
       await tester.tap(find.byIcon(Icons.arrow_back));
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleRouteTransition(tester);
 
       // ImageViewerPage 是路由承载的页面，pop 后应返回父页面。
       // 在测试中作为唯一页面，pop 后不再有 ImageViewerPage 的内容。
@@ -249,7 +251,7 @@ void main() {
       // 连续快速滑动 3 次
       for (int i = 0; i < 3; i++) {
         await tester.fling(find.byType(PageView), const Offset(-200, 0), 1000);
-        await tester.pumpAndSettle(const Duration(milliseconds: 250));
+        await settleScrollMotion(tester);
       }
 
       // 应在第 4 页
@@ -268,17 +270,17 @@ void main() {
 
       // 翻到第 3 页
       await tester.fling(find.byType(PageView), const Offset(-200, 0), 1000);
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleScrollMotion(tester);
       expect(find.text('2 / 5'), findsOneWidget);
 
       // 再翻一页
       await tester.fling(find.byType(PageView), const Offset(-200, 0), 1000);
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleScrollMotion(tester);
       expect(find.text('3 / 5'), findsOneWidget);
 
       // 翻回第 1 页
       await tester.fling(find.byType(PageView), const Offset(200, 0), 1000);
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleScrollMotion(tester);
       expect(find.text('2 / 5'), findsOneWidget);
 
       // 所有页面都应正确显示，无崩溃

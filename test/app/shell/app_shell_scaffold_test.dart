@@ -6,6 +6,7 @@ import 'package:oh_my_llm/app/navigation/app_destination.dart';
 import 'package:oh_my_llm/app/shell/app_shell_scaffold.dart';
 
 import '../../helpers/responsive_viewport_cases.dart';
+import '../../helpers/widget_test_animation.dart';
 
 Future<void> _pumpShell(
   WidgetTester tester, {
@@ -64,7 +65,7 @@ void main() {
           find.descendant(of: find.byType(NavigationRail), matching: navLabel),
         );
       }
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleRouteTransition(tester);
 
       expect(find.text('${target.label}页面'), findsOneWidget);
       expect(tester.takeException(), isNull);
@@ -83,7 +84,7 @@ void main() {
       );
 
       await tester.tap(find.byTooltip('打开侧边内容'));
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleOverlayTransition(tester);
 
       expect(find.text('侧边内容'), findsOneWidget);
       expect(tester.takeException(), isNull);

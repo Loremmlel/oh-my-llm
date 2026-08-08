@@ -1,9 +1,11 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/media/presentation/pages/video_player_page.dart';
 import 'package:oh_my_llm/features/media/presentation/widgets/video_player_controls.dart';
 
+import '../../../helpers/widget_test_animation.dart';
 import '../helpers/fake_video_player_controller.dart';
 
 // ── 测试助手 ─────────────────────────────────────────────────────────
@@ -98,10 +100,10 @@ Offset _center(WidgetTester tester) {
 
 /// 排出 DoubleTapGestureRecognizer 的挂起计时器。
 ///
-/// onDoubleTap 会启动 double-tap countdown timer，测试结束前
-/// 需要排出这些 timer，否则挂起计时器会泄漏到后续用例。
+/// 单击后识别器启动 double-tap countdown timer，需推进双击窗口
+/// （kDoubleTapTimeout）让计时器到期，否则挂起计时器会泄漏到后续用例。
 Future<void> _flushGestureTimers(WidgetTester tester) async {
-  await tester.pump(const Duration(milliseconds: 500));
+  await tester.pump(kDoubleTapTimeout);
 }
 
 void main() {
@@ -222,9 +224,9 @@ void main() {
 
       // 点击左半屏双击
       await tester.tapAt(_leftHalf(tester));
-      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(kDoubleTapMinTime);
       await tester.tapAt(_leftHalf(tester));
-      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(kDoubleTapMinTime);
 
       expect(fakeController.seekToCalls, isNotEmpty);
       expect(fakeController.seekToCalls.last, const Duration(seconds: 15));
@@ -239,9 +241,9 @@ void main() {
       await _pumpInit(tester, controller: fakeController);
 
       await tester.tapAt(_rightHalf(tester));
-      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(kDoubleTapMinTime);
       await tester.tapAt(_rightHalf(tester));
-      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(kDoubleTapMinTime);
 
       expect(fakeController.seekToCalls, isNotEmpty);
       expect(fakeController.seekToCalls.last, const Duration(seconds: 45));
@@ -256,9 +258,9 @@ void main() {
       await _pumpInit(tester, controller: fakeController);
 
       await tester.tapAt(_leftHalf(tester));
-      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(kDoubleTapMinTime);
       await tester.tapAt(_leftHalf(tester));
-      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(kDoubleTapMinTime);
 
       expect(fakeController.seekToCalls.last, Duration.zero);
       await _flushGestureTimers(tester);
@@ -273,9 +275,9 @@ void main() {
       await _pumpInit(tester, controller: fakeController);
 
       await tester.tapAt(_rightHalf(tester));
-      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(kDoubleTapMinTime);
       await tester.tapAt(_rightHalf(tester));
-      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(kDoubleTapMinTime);
 
       expect(fakeController.seekToCalls.last, fakeController.fakeDuration);
       await _flushGestureTimers(tester);
@@ -289,9 +291,9 @@ void main() {
       await _pumpInit(tester, controller: fakeController);
 
       await tester.tapAt(_rightHalf(tester));
-      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(kDoubleTapMinTime);
       await tester.tapAt(_rightHalf(tester));
-      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(kDoubleTapMinTime);
 
       // 中央提示显示 "15s" 文字
       expect(find.text('15s'), findsOneWidget);
@@ -306,9 +308,9 @@ void main() {
       await _pumpInit(tester, controller: fakeController);
 
       await tester.tapAt(_rightHalf(tester));
-      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(kDoubleTapMinTime);
       await tester.tapAt(_rightHalf(tester));
-      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(kDoubleTapMinTime);
 
       expect(find.text('15s'), findsOneWidget);
 
@@ -333,7 +335,7 @@ void main() {
       await _pumpInit(tester, controller: fakeController);
 
       final gesture = await tester.startGesture(_center(tester));
-      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pump(kLongPressTimeout);
 
       expect(fakeController.setPlaybackSpeedCalls, isNotEmpty);
       expect(fakeController.setPlaybackSpeedCalls.first, 3.0);
@@ -351,10 +353,10 @@ void main() {
       await _pumpInit(tester, controller: fakeController);
 
       final gesture = await tester.startGesture(_center(tester));
-      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pump(kLongPressTimeout);
       await gesture.up();
+      // 恢复原倍速是同步 fake 调用，单帧应用即可
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
 
       expect(
         fakeController.setPlaybackSpeedCalls.length,
@@ -372,7 +374,7 @@ void main() {
       await _pumpInit(tester, controller: fakeController);
 
       final gesture = await tester.startGesture(_center(tester));
-      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pump(kLongPressTimeout);
 
       expect(find.text('3.0x'), findsOneWidget);
 
@@ -388,13 +390,13 @@ void main() {
       );
       await _pumpInit(tester, controller: fakeController);
 
-      // 点击暂停按钮使视频暂停
+      // 点击暂停按钮使视频暂停（按钮 tap 在双击窗口中由 flush 排定）
       await tester.tap(find.byIcon(Icons.pause));
-      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump();
       await _flushGestureTimers(tester);
 
       final gesture = await tester.startGesture(_center(tester));
-      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pump(kLongPressTimeout);
 
       // setPlaybackSpeed 不应被调用
       expect(fakeController.setPlaybackSpeedCalls, isEmpty);
@@ -414,7 +416,7 @@ void main() {
       await _pumpInit(tester, controller: fakeController);
 
       final gesture = await tester.startGesture(_center(tester));
-      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pump(kLongPressTimeout);
 
       // 播放结束后 _hasEnded=true，长按不应触发 setPlaybackSpeed
       expect(fakeController.setPlaybackSpeedCalls, isEmpty);
@@ -441,7 +443,6 @@ void main() {
       // 使用 dragFrom 在 Scaffold 区域拖动（避开不可 hit test 的 VideoPlayer）
       await tester.dragFrom(_center(tester), const Offset(100, 0));
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
 
       // seekTo 应被调用一次
       expect(fakeController.seekToCalls.length, 1);
@@ -457,7 +458,6 @@ void main() {
 
       await tester.dragFrom(_center(tester), const Offset(-200, 0));
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
 
       expect(fakeController.seekToCalls.last, Duration.zero);
       await _flushGestureTimers(tester);
@@ -474,7 +474,8 @@ void main() {
 
       await tester.dragFrom(_center(tester), const Offset(100, 0));
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 500));
+      // 拖动结束控制栏重新淡入，等有限淡出/淡入动画结束再断言
+      await settleAnimatedWidgetTransition(tester);
 
       expect(find.byIcon(Icons.arrow_back), findsOneWidget);
       await _flushGestureTimers(tester);
@@ -496,9 +497,9 @@ void main() {
       expect(find.byIcon(Icons.arrow_back), findsOneWidget);
 
       await tester.tapAt(_rightHalf(tester));
-      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(kDoubleTapMinTime);
       await tester.tapAt(_rightHalf(tester));
-      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(kDoubleTapMinTime);
 
       // 中央提示显示了（说明手势已触发）
       expect(find.text('15s'), findsOneWidget);
@@ -513,9 +514,9 @@ void main() {
       await _pumpInit(tester, controller: fakeController);
 
       await tester.tapAt(_rightHalf(tester));
-      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(kDoubleTapMinTime);
       await tester.tapAt(_rightHalf(tester));
-      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(kDoubleTapMinTime);
 
       expect(find.text('15s'), findsOneWidget);
 
@@ -534,7 +535,7 @@ void main() {
       await _pumpInit(tester, controller: fakeController);
 
       final gesture = await tester.startGesture(_center(tester));
-      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pump(kLongPressTimeout);
 
       expect(find.text('3.0x'), findsOneWidget);
 
@@ -586,9 +587,9 @@ void main() {
       await _pumpInit(tester, controller: fakeController);
 
       await tester.tapAt(_rightHalf(tester));
-      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(kDoubleTapMinTime);
       await tester.tapAt(_rightHalf(tester));
-      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(kDoubleTapMinTime);
 
       // 播放图标不应该出现（showPauseIcon=false when _isPlaying=true）
       expect(find.byIcon(Icons.play_arrow), findsNothing);
@@ -620,9 +621,9 @@ void main() {
       );
       await _pumpInit(tester, controller: fakeController);
 
-      // 点击视频区域（由于 onTap 有 300ms double-tap delay，需要等待）
+      // 点击视频区域：onTap 要等双击窗口（kDoubleTapTimeout）结束才解析
       await tester.tapAt(_center(tester));
-      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump(kDoubleTapTimeout);
 
       // Slider 仍在树中（AnimatedOpacity 控制可见性，不从树中移除）
       expect(find.byType(Slider), findsOneWidget);

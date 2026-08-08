@@ -5,6 +5,7 @@ import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.da
 import 'package:oh_my_llm/features/settings/domain/models/memory_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/settings_export_data.dart';
 
+import '../../../helpers/widget_test_animation.dart';
 import 'sync_screen_test_helpers.dart';
 
 void registerSyncScreenImportDialogTests() {
@@ -76,7 +77,7 @@ void registerSyncScreenImportDialogTests() {
       expect(find.text('确认同步配置'), findsOneWidget);
 
       await tester.tap(find.text('取消'));
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleOverlayTransition(tester);
       expect(find.text('确认同步配置'), findsNothing);
     });
   });
