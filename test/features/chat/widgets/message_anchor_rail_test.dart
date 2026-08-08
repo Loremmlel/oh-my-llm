@@ -56,10 +56,12 @@ Future<AppDatabase> pumpAnchorRail(
   );
 }
 
-/// 定位锚点条中承载交互的容器（源码显式标注 `// test-key` 的稳定标识）。
-final Finder railContainerFinder = find.byKey(
-  const ValueKey('message-anchor-rail'),
-);
+/// 定位第 1 条锚点条目的语义节点（label 格式 `第 1 条用户消息：<preview>`）。
+///
+/// hover/longPress 直接施加在语义节点上即可命中 rail 的展开交互区域，
+/// 不再依赖容器级 test-key。
+Finder _firstAnchor(String preview) =>
+    find.bySemanticsLabel('第 1 条用户消息：$preview');
 
 /// 断言锚点条渲染出预期数量的可点击条目（InkWell）。
 Matcher findsNAnchorItems(int count) => findsNWidgets(count);
@@ -194,7 +196,7 @@ void main() {
 
       final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
       await gesture.addPointer();
-      await gesture.moveTo(tester.getCenter(railContainerFinder));
+      await gesture.moveTo(tester.getCenter(_firstAnchor('消息1')));
       await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(find.text('消息1'), findsOneWidget);
@@ -211,7 +213,7 @@ void main() {
 
       final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
       await gesture.addPointer();
-      await gesture.moveTo(tester.getCenter(railContainerFinder));
+      await gesture.moveTo(tester.getCenter(_firstAnchor('消息1')));
       await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(find.text('消息1'), findsOneWidget);
@@ -235,7 +237,7 @@ void main() {
 
       final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
       await gesture.addPointer();
-      await gesture.moveTo(tester.getCenter(railContainerFinder));
+      await gesture.moveTo(tester.getCenter(_firstAnchor('第一条消息')));
       await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(find.text('第一条消息'), findsOneWidget);
@@ -259,7 +261,7 @@ void main() {
 
       expect(find.text('消息1'), findsNothing);
 
-      await tester.longPress(railContainerFinder);
+      await tester.longPress(_firstAnchor('消息1'));
       await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(find.text('消息1'), findsOneWidget);
@@ -295,7 +297,7 @@ void main() {
 
       final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
       await gesture.addPointer();
-      await gesture.moveTo(tester.getCenter(railContainerFinder));
+      await gesture.moveTo(tester.getCenter(_firstAnchor('消息一')));
       await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(find.text('消息一'), findsNothing);
@@ -345,7 +347,7 @@ void main() {
 
       expect(find.text('消息1'), findsNothing);
 
-      await tester.longPress(railContainerFinder);
+      await tester.longPress(_firstAnchor('消息1'));
       await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(find.text('消息1'), findsOneWidget);
