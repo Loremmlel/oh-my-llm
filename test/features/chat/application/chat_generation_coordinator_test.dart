@@ -203,10 +203,15 @@ class _FakeHost implements ChatGenerationHost {
   void projectProgress(ChatGenerationProgress p) {
     progress.add(p);
     projections.add(p);
-    for (final (predicate, completer) in List.of(_projectionWaiters)) {
+    // 完成即剪枝：已满足的 waiter 从列表移除，避免长测试中残留已完成项
+    // 反复参与遍历。
+    _projectionWaiters.removeWhere((waiter) {
+      final (predicate, completer) = waiter;
       if (!completer.isCompleted && predicate(p)) {
         completer.complete();
+        return true;
       }
-    }
+      return false;
+    });
   }
 }

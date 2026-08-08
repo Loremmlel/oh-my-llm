@@ -70,6 +70,8 @@ void main() {
       // 兜底收口：用例中途失败时也先关闭广播流、等 controller 进入终态，
       // 再销毁容器，避免残留的流监听挂在未关闭的 StreamController 上。
       // 注册在 dispose 之后，tearDown 逆序执行，先收口再销毁。
+      // StreamController.close() 对已关闭的 controller 幂等（SDK 保证：
+      // 仅首次调用生效），与用例体内的 transport.close() 双收口安全。
       addTearDown(() async {
         await transport.close();
         await waitForProviderState(
