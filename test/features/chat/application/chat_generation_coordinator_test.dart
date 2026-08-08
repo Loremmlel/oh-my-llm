@@ -80,14 +80,15 @@ void main() {
   });
 
   test('stop 返回同一 completion，最终 cancelled', () async {
-    final sc = StreamController<ChatCompletionChunk>();
-    addTearDown(sc.close);
-    fakeClient.enqueueStream(sc.stream);
+    final controlled = fakeClient.enqueueControlledStream();
+    addTearDown(controlled.close);
     final host = _FakeHost();
     final completion = coordinator.start(newCommand(), host);
-    await Future<void>.delayed(Duration.zero);
-    sc.add(const ChatCompletionChunk(contentDelta: '部分'));
-    await Future<void>.delayed(Duration.zero);
+    await controlled.listened; // 等待 run 开始监听后再投递 chunk
+    controlled.add(const ChatCompletionChunk(contentDelta: '部分'));
+    await host.waitForProjection(
+      (p) => p.streamingReply?.content.contains('部分') ?? false,
+    );
 
     final stopCompletion = coordinator.stop();
     expect(stopCompletion, same(completion)); // 幂等：返回同一 completion
@@ -97,12 +98,11 @@ void main() {
   });
 
   test('dispose complete null 且 hasActive false', () async {
-    final sc = StreamController<ChatCompletionChunk>();
-    addTearDown(sc.close);
-    fakeClient.enqueueStream(sc.stream);
+    final controlled = fakeClient.enqueueControlledStream();
+    addTearDown(controlled.close);
     final host = _FakeHost();
     final completion = coordinator.start(newCommand(), host);
-    await Future<void>.delayed(Duration.zero);
+    await controlled.listened; // 确认已开始监听后再 dispose
 
     coordinator.dispose();
     expect(await completion, isNull);
@@ -137,7 +137,26 @@ final _disabledRetry = ChatRetryPolicy(
 /// stop 返回 Cancelled，projectProgress 记录。
 class _FakeHost implements ChatGenerationHost {
   final List<ChatGenerationProgress> progress = [];
+  final List<ChatGenerationProgress> projections = [];
+  final List<(bool Function(ChatGenerationProgress), Completer<void>)>
+  _projectionWaiters = [];
   int prepareCallCount = 0;
+
+  /// 等待 progress 投影满足 predicate；已满足时立即完成，不轮询。
+  Future<void> waitForProjection(
+    bool Function(ChatGenerationProgress) predicate,
+  ) {
+    for (final projection in projections) {
+      if (predicate(projection)) return Future<void>.value();
+    }
+    final completer = Completer<void>();
+    _projectionWaiters.add((predicate, completer));
+    return completer.future.timeout(
+      const Duration(seconds: 5),
+      onTimeout: () =>
+          throw TimeoutException('等待生成投影满足条件', const Duration(seconds: 5)),
+    );
+  }
 
   @override
   Future<ChatPrepareResult> prepare(ChatGenerationCommand command) async {
@@ -183,5 +202,11 @@ class _FakeHost implements ChatGenerationHost {
   @override
   void projectProgress(ChatGenerationProgress p) {
     progress.add(p);
+    projections.add(p);
+    for (final (predicate, completer) in List.of(_projectionWaiters)) {
+      if (!completer.isCompleted && predicate(p)) {
+        completer.complete();
+      }
+    }
   }
 }

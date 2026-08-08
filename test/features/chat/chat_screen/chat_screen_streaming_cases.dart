@@ -15,10 +15,7 @@ void registerChatScreenStreamingTests() {
     'chat screen streams reply and sends the active request history',
     (tester) async {
       final fakeClient = FakeChatCompletionClient();
-      fakeClient.enqueueDeltas([
-        const ChatCompletionChunk(contentDelta: '第一段 '),
-        const ChatCompletionChunk(contentDelta: '第二段'),
-      ], chunkDelay: const Duration(milliseconds: 200));
+      final controlled = fakeClient.enqueueControlledStream();
 
       await pumpChatScreen(tester, fakeClient: fakeClient);
 
@@ -28,11 +25,17 @@ void registerChatScreenStreamingTests() {
       await tester.tap(sendButton);
       await tester.pump();
 
-      await tester.pump(const Duration(milliseconds: 250));
+      // 受控流：等待 run 开始监听后逐步投递增量，不依赖真实延时。测试环境的
+      // 内存库让 prepare 链路全为微任务，tap+pump 已驱动到监听，故 await 立即完成。
+      await controlled.listened.timeout(const Duration(seconds: 5));
+      controlled.add(const ChatCompletionChunk(contentDelta: '第一段 '));
+      await tester.pump();
 
       expect(find.textContaining('第一段'), findsWidgets);
       expect(find.widgetWithText(FilledButton, '终止回答'), findsOneWidget);
 
+      controlled.add(const ChatCompletionChunk(contentDelta: '第二段'));
+      await controlled.close();
       await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(find.textContaining('帮我总结一下这个仓库'), findsWidgets);

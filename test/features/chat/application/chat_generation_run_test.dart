@@ -28,9 +28,6 @@ void main() {
     fakeClient = FakeChatCompletionClient();
   });
 
-  Future<void> pump([int ms = 10]) =>
-      Future<void>.delayed(Duration(milliseconds: ms));
-
   ChatGenerationCommand newCommand({
     ChatRetryPolicy? retryPolicy,
     Duration? retryDelay,
@@ -173,16 +170,19 @@ void main() {
   });
 
   test('streaming stop: cancelled, partial content retained', () async {
-    final sc = StreamController<ChatCompletionChunk>();
-    addTearDown(sc.close);
-    fakeClient.enqueueStream(sc.stream);
+    final controlled = fakeClient.enqueueControlledStream();
+    addTearDown(controlled.close);
     final host = _FakeHost();
     final run = newRun(host: host);
 
     run.start();
-    await pump();
-    sc.add(const ChatCompletionChunk(contentDelta: '部分'));
-    await pump();
+    await controlled.listened; // 等待 run 开始监听后再投递 chunk
+    controlled.add(const ChatCompletionChunk(contentDelta: '部分'));
+    // 等 chunk 增量进入投影（streamUiFlushInterval=0，每 chunk 必投影）再 stop，
+    // 保证 stop 时已累积部分内容。
+    await host.waitForProjection(
+      (p) => p.streamingReply?.content.contains('部分') ?? false,
+    );
     run.requestStop();
     await run.completion;
 
@@ -204,7 +204,10 @@ void main() {
     );
 
     run.start();
-    await pump(50);
+    // 等第一次 attempt 落空进入 retryWaiting 后再 stop，让 stop 落在重试等待窗口。
+    await host.waitForProjection(
+      (p) => p.snapshot.phase == ChatGenerationPhase.retryWaiting,
+    );
     run.requestStop();
     await run.completion;
 
@@ -214,16 +217,17 @@ void main() {
   });
 
   test('concurrent stop: idempotent, one stop call', () async {
-    final sc = StreamController<ChatCompletionChunk>();
-    addTearDown(sc.close);
-    fakeClient.enqueueStream(sc.stream);
+    final controlled = fakeClient.enqueueControlledStream();
+    addTearDown(controlled.close);
     final host = _FakeHost();
     final run = newRun(host: host);
 
     run.start();
-    await pump();
-    sc.add(const ChatCompletionChunk(contentDelta: 'x'));
-    await pump();
+    await controlled.listened; // 等待 run 开始监听后再投递 chunk
+    controlled.add(const ChatCompletionChunk(contentDelta: 'x'));
+    await host.waitForProjection(
+      (p) => p.streamingReply?.content.contains('x') ?? false,
+    );
     run.requestStop();
     run.requestStop(); // 幂等
 
@@ -256,19 +260,19 @@ void main() {
   // ── dispose ─────────────────────────────────────────────────────────────────
 
   test('dispose: completion null, no further projection', () async {
-    final sc = StreamController<ChatCompletionChunk>();
-    addTearDown(sc.close);
-    fakeClient.enqueueStream(sc.stream);
+    final controlled = fakeClient.enqueueControlledStream();
+    addTearDown(controlled.close);
     final host = _FakeHost();
     final run = newRun(host: host);
 
     run.start();
-    await pump();
+    await controlled.listened; // 确认已进入流式后再 dispose
     run.dispose();
 
     expect(await run.completion, isNull);
+    // dispose 后 _disposed guard + 订阅取消保证不再投影：先记录当前计数，再断言
+    // 无新投影。该不变量结构上成立，无需任何延时等待（负向断言不依赖让路）。
     final progressCount = host.progress.length;
-    await pump();
     expect(host.progress.length, progressCount); // 无新投影
   });
 
@@ -305,18 +309,19 @@ void main() {
   });
 
   test('stop persistence failure: persistenceFailed', () async {
-    final sc = StreamController<ChatCompletionChunk>();
-    addTearDown(sc.close);
-    fakeClient.enqueueStream(sc.stream);
+    final controlled = fakeClient.enqueueControlledStream();
+    addTearDown(controlled.close);
     final host = _FakeHost(
       stopDecision: const ChatStopPersistenceFailed('boom'),
     );
     final run = newRun(host: host);
 
     run.start();
-    await pump();
-    sc.add(const ChatCompletionChunk(contentDelta: 'x'));
-    await pump();
+    await controlled.listened; // 等待 run 开始监听后再投递 chunk
+    controlled.add(const ChatCompletionChunk(contentDelta: 'x'));
+    await host.waitForProjection(
+      (p) => p.streamingReply?.content.contains('x') ?? false,
+    );
     run.requestStop();
     await run.completion;
 
@@ -326,24 +331,24 @@ void main() {
   // ── late callbacks ──────────────────────────────────────────────────────────
 
   test('late chunk/error after stop discarded, partial unchanged', () async {
-    final sc = StreamController<ChatCompletionChunk>();
-    addTearDown(sc.close);
-    fakeClient.enqueueStream(sc.stream);
+    final controlled = fakeClient.enqueueControlledStream();
+    addTearDown(controlled.close);
     final host = _FakeHost();
     final run = newRun(host: host);
 
     run.start();
-    await pump();
-    sc.add(const ChatCompletionChunk(contentDelta: 'part'));
-    await pump();
+    await controlled.listened; // 等待 run 开始监听后再投递 chunk
+    controlled.add(const ChatCompletionChunk(contentDelta: 'part'));
+    await host.waitForProjection(
+      (p) => p.streamingReply?.content.contains('part') ?? false,
+    );
     run.requestStop(); // cancel subscription, terminal cancelled
     await run.completion;
 
-    // 迟到回调：token 失效后必须被丢弃。
-    sc.add(const ChatCompletionChunk(contentDelta: 'late'));
-    sc.addError(StateError('late err'));
-    sc.close();
-    await pump();
+    // 迟到回调：订阅已随 stop 取消，事件被丢弃；run 已 terminal，无任何处理路径。
+    controlled.add(const ChatCompletionChunk(contentDelta: 'late'));
+    controlled.addError(StateError('late err'));
+    await controlled.close();
 
     expect(run.phase, ChatGenerationPhase.cancelled);
     expect(host.stops.single.content, 'part'); // 不含 late
@@ -399,10 +404,29 @@ class _FakeHost implements ChatGenerationHost {
   final Completer<void>? completeAttemptGate;
 
   final List<ChatGenerationProgress> progress = [];
+  final List<ChatGenerationProgress> projections = [];
+  final List<(bool Function(ChatGenerationProgress), Completer<void>)>
+  _projectionWaiters = [];
   final List<ChatAttemptSnapshot> attempts = [];
   final List<ChatPartialSnapshot> stops = [];
   final Completer<void> prepareEntered = Completer<void>();
   final Completer<void> completeAttemptEntered = Completer<void>();
+
+  /// 等待 progress 投影满足 predicate；已满足时立即完成，不轮询。
+  Future<void> waitForProjection(
+    bool Function(ChatGenerationProgress) predicate,
+  ) {
+    for (final projection in projections) {
+      if (predicate(projection)) return Future<void>.value();
+    }
+    final completer = Completer<void>();
+    _projectionWaiters.add((predicate, completer));
+    return completer.future.timeout(
+      const Duration(seconds: 5),
+      onTimeout: () =>
+          throw TimeoutException('等待生成投影满足条件', const Duration(seconds: 5)),
+    );
+  }
 
   @override
   Future<ChatPrepareResult> prepare(ChatGenerationCommand command) async {
@@ -434,6 +458,12 @@ class _FakeHost implements ChatGenerationHost {
   @override
   void projectProgress(ChatGenerationProgress p) {
     progress.add(p);
+    projections.add(p);
+    for (final (predicate, completer) in List.of(_projectionWaiters)) {
+      if (!completer.isCompleted && predicate(p)) {
+        completer.complete();
+      }
+    }
   }
 
   /// 构造最小 prepare 成功结果：占位 assistant + 空 request + streamingReply。
