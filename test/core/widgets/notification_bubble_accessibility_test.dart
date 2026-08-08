@@ -44,6 +44,13 @@ Future<ProviderContainer> _pumpStack(WidgetTester tester) async {
 void main() {
   group('NotificationBubbleContent 语义', () {
     testWidgets('四种 type 参数化：每种只有一个完整 live region', (tester) async {
+      // 预期映射硬编码：独立于被测 getter，getter 写错时用例必须红
+      const expectedLabels = {
+        NotificationBubbleType.info: '信息通知',
+        NotificationBubbleType.success: '成功通知',
+        NotificationBubbleType.warning: '警告通知',
+        NotificationBubbleType.error: '错误通知',
+      };
       for (final type in NotificationBubbleType.values) {
         await tester.pumpWidget(
           _wrapContent(
@@ -53,18 +60,19 @@ void main() {
             ),
           ),
         );
-        final status = find.semantics.byLabel('${type.semanticLabel}：同步完成');
+        final expected = expectedLabels[type]!;
+        final status = find.semantics.byLabel('$expected：同步完成');
         expect(status, findsOneWidget, reason: '$type 应恰好一个 status 节点');
         expect(status, isSemantics(isLiveRegion: true));
         expect(
-          find.text(type.semanticLabel),
+          find.text(expected),
           findsNothing,
           reason: '类型名称只存在于语义 label，不产生可见文本',
         );
       }
     });
 
-    testWidgets('无 action：status 与「关闭通知」两个节点，图标/message 不重复', (tester) async {
+    testWidgets('无 action：status 与「关闭通知」语义完整，图标/message 不重复', (tester) async {
       await tester.pumpWidget(
         _wrapContent(
           NotificationBubbleContent(data: _data(), onDismiss: () {}),
@@ -80,7 +88,7 @@ void main() {
       expect(find.semantics.byLabel('同步完成'), findsNothing);
     });
 
-    testWidgets('有 action：status/action/close 各一个且均有 tap', (tester) async {
+    testWidgets('有 action：status/action/close 均有独立语义与 tap', (tester) async {
       await tester.pumpWidget(
         _wrapContent(
           NotificationBubbleContent(

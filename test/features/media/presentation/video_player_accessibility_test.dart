@@ -1,3 +1,6 @@
+// 本文件及后续 a11y 测试的语义断言依赖 testWidgets 默认启用语义
+// （Flutter 3.44+，无需 ensureSemantics）；若未来 Flutter 版本改变该
+// 默认值，需恢复显式 ensureSemantics，否则 find.semantics 查不到节点。
 import 'dart:async';
 
 import 'package:flutter/material.dart';

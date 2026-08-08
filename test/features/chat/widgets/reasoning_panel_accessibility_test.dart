@@ -46,9 +46,11 @@ void main() {
         header,
         isSemantics(hasExpandedState: true, isExpanded: true, hint: '激活以收起'),
       );
+      // findsWidgets：Markdown 渲染器可能把内容拆成多个语义节点，
+      // 只要求内容可读，不承诺恰好一个节点
       expect(
         find.semantics.byPredicate((n) => n.label.contains('推理内容')),
-        findsOneWidget,
+        findsWidgets,
       );
 
       tester.semantics.tap(header);

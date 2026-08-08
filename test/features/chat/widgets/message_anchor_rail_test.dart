@@ -548,6 +548,8 @@ void main() {
         );
         await tester.sendKeyEvent(LogicalKeyboardKey.tab);
         await tester.pump();
+        // 焦点进入 rail 后展开、预览可见——验证键盘路径在两端视口成立
+        expect(find.text('第 1 条消息内容'), findsOneWidget);
         await tester.sendKeyEvent(LogicalKeyboardKey.enter);
         await tester.pump();
         expect(tester.takeException(), isNull);
