@@ -157,6 +157,32 @@ void main() {
       expect(semanticsByTooltip('暂停'), findsNothing);
       expect(find.semantics.byLabel('播放进度'), findsNothing);
     });
+
+    testWidgets('暂停后 Enter 隐藏控制栏，value/hint 同步为隐藏态', (tester) async {
+      final fake = FakeVideoPlayerController();
+      await _pumpVideo(tester, fake);
+      await _tab(tester); // 聚焦播放表面
+
+      // 暂停：value 先进入「已暂停，控件已显示」分支
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await tester.pump();
+      expect(
+        find.semantics.byLabel('视频播放器：test-video.mp4'),
+        isSemantics(value: '已暂停，播放控件已显示'),
+      );
+
+      // Enter 隐藏控制栏：value 与 hint 同步为隐藏态，两字段不再矛盾
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+      final surface = find.semantics.byLabel('视频播放器：test-video.mp4');
+      expect(
+        surface,
+        isSemantics(
+          value: '已暂停，播放控件已隐藏',
+          hint: '激活以显示播放控件；空格键播放或暂停，左右方向键快退或快进 15 秒',
+        ),
+      );
+    });
   });
 
   group('播放状态与快捷键', () {
