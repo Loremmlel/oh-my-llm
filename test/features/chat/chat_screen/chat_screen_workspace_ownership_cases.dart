@@ -6,26 +6,36 @@ import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dar
 import 'package:oh_my_llm/features/chat/application/composer_draft_controller.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
+import 'package:oh_my_llm/features/chat/presentation/widgets/chat_message_bubble.dart';
+import 'package:oh_my_llm/features/chat/presentation/widgets/composer/composer_template_variable_fields.dart';
 import 'package:oh_my_llm/features/settings/application/template_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
 
 import 'chat_screen_test_helpers.dart';
 
-/// composer 输入框的公开 test-key（`sendMessage` 等既有 helper 已复用）。
-final _composerFinder = find.byKey(const ValueKey('chat-message-composer'));
+/// composer 输入框：与 helpers 的 sendMessage 共用同一可见 label 定位，
+/// 不依赖内部 test-key。
+final _composerFinder = chatMessageComposerFinder;
 
 String _composerText(WidgetTester tester) =>
     tester.widget<TextField>(_composerFinder).controller!.text;
 
-/// 点击指定消息气泡（按消息 id 定位）的「编辑消息」按钮。
+/// 模板变量区域的变量输入框：按变量名 label 定位并限定在变量区域内，
+/// 避免与页面其他同名文本（如会话标题）混淆。
+Finder _variableField(String name) => find.descendant(
+  of: find.byType(ComposerTemplateVariableFields),
+  matching: find.widgetWithText(TextField, name),
+);
+
+/// 点击指定消息气泡（按完整可见用户消息正文定位）的「编辑消息」按钮。
 ///
 /// 消息列表经 ScrollablePositionedList 渲染，其元素树遍历顺序与显示顺序相反，
-/// 不能依赖 `find.byTooltip('编辑消息').last` 命中最新消息；用消息 id 的
-/// KeyedSubtree 定位气泡后取其后代编辑按钮，与列表顺序解耦。
-Future<void> _tapEditMessage(WidgetTester tester, String messageId) async {
+/// 不能依赖 `find.byTooltip('编辑消息').last` 命中最新消息；用完整可见正文
+/// 定位气泡（会话内唯一）后取其后代编辑按钮，与列表顺序解耦。
+Future<void> _tapEditMessage(WidgetTester tester, String messageContent) async {
   await tester.tap(
     find.descendant(
-      of: find.byKey(ValueKey<String>(messageId)),
+      of: find.widgetWithText(ChatMessageBubble, messageContent),
       matching: find.byTooltip('编辑消息'),
     ),
   );
@@ -144,7 +154,7 @@ void registerChatScreenWorkspaceOwnershipTests() {
         );
     await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
-    final titleField = find.byKey(const ValueKey('template-variable-title'));
+    final titleField = _variableField('title');
 
     // A 选择模板并输入 title='甲'。
     await _selectTemplate(tester, '变量模板');
@@ -303,17 +313,12 @@ void registerChatScreenWorkspaceOwnershipTests() {
 
     await sendMessage(tester, '普通消息');
     await tester.pumpAndSettle(const Duration(milliseconds: 250));
-    final plainMessageId = container
-        .read(activeChatConversationProvider)
-        .messages
-        .lastWhere((m) => m.role == ChatMessageRole.user)
-        .id;
 
     // 会话级 draft 选中模板；编辑无模板消息时不应显示变量输入框。
     await _selectTemplate(tester, '变量模板');
     await tester.pumpAndSettle(const Duration(milliseconds: 250));
-    await _tapEditMessage(tester, plainMessageId);
-    expect(find.byKey(const ValueKey('template-variable-title')), findsNothing);
+    await _tapEditMessage(tester, '普通消息');
+    expect(_variableField('title'), findsNothing);
 
     // 提交编辑：新分支不带模板，会话级模板选择保留。
     await tester.enterText(_composerFinder, '普通消息修改');
@@ -352,25 +357,15 @@ void registerChatScreenWorkspaceOwnershipTests() {
     await tester.pump();
     await tester.enterText(_composerFinder, '模板问题');
     await tester.pump();
-    await tester.enterText(
-      find.byKey(const ValueKey('template-variable-title')),
-      '甲',
-    );
+    await tester.enterText(_variableField('title'), '甲');
     await tester.pump();
     await tester.tap(find.widgetWithText(FilledButton, '发送'));
     await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
-    // 编辑该消息：变量框携带 '甲'，改为 '乙' 后提交。
-    final templatedMessageId = container
-        .read(activeChatConversationProvider)
-        .messages
-        .lastWhere(
-          (m) =>
-              m.role == ChatMessageRole.user && m.templatePromptId == 'tp-var',
-        )
-        .id;
-    await _tapEditMessage(tester, templatedMessageId);
-    final titleField = find.byKey(const ValueKey('template-variable-title'));
+    // 编辑该消息：变量框携带 '甲'，改为 '乙' 后提交。气泡按完整可见正文
+    // 定位（模板拼接结果为「模板问题\n请按甲输出。」）。
+    await _tapEditMessage(tester, '模板问题\n请按甲输出。');
+    final titleField = _variableField('title');
     expect(tester.widget<TextField>(titleField).controller!.text, '甲');
     await tester.enterText(titleField, '乙');
     await tester.pump();
@@ -431,7 +426,7 @@ void registerChatScreenWorkspaceOwnershipTests() {
         );
     await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
-    final titleField = find.byKey(const ValueKey('template-variable-title'));
+    final titleField = _variableField('title');
 
     // 模板一：输入 '甲'。
     await _selectTemplate(tester, '模板一');

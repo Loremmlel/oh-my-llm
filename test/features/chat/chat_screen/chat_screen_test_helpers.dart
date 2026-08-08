@@ -123,12 +123,17 @@ Future<ChatScreenMountScope> pumpChatScreenScope(
   return ChatScreenMountScope(scope: scope, showChat: showChat);
 }
 
+/// composer 输入框：ChatScreen 范围内带「正文」label 的 TextField。
+///
+/// 用可见 label 定位而非内部 test-key，输入框结构调整时测试不耦合实现细节。
+final chatMessageComposerFinder = find.descendant(
+  of: find.byType(ChatScreen),
+  matching: find.widgetWithText(TextField, '正文'),
+);
+
 /// 在聊天输入框中填入内容并点击发送按钮。
 Future<void> sendMessage(WidgetTester tester, String content) async {
-  await tester.enterText(
-    find.byKey(const ValueKey('chat-message-composer')),
-    content,
-  );
+  await tester.enterText(chatMessageComposerFinder, content);
   final sendButton = find.widgetWithText(FilledButton, '发送');
   await tester.ensureVisible(sendButton);
   await tester.tap(sendButton);
