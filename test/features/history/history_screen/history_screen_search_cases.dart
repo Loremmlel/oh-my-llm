@@ -10,10 +10,13 @@ void registerHistoryScreenSearchTests() {
     await setUpHistoryScreen(tester);
 
     await tester.enterText(find.byType(TextField).first, 'Rust');
-    await tester.pump(
-      HistoryScreen.searchDebounce + const Duration(milliseconds: 50),
-    );
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    // 防抖 300ms 未到：搜索未触发，旧结果仍在
+    await tester.pump();
+    expect(find.text('Flutter 路线图'), findsOneWidget);
+
+    // 精确推进公开常量，防抖窗口恰好结束
+    await tester.pump(HistoryScreen.searchDebounce);
+    await tester.pump();
 
     expect(find.text('Rust 重构计划'), findsOneWidget);
     expect(find.text('Flutter 路线图'), findsNothing);
@@ -23,10 +26,12 @@ void registerHistoryScreenSearchTests() {
     await setUpHistoryScreen(tester);
 
     await tester.enterText(find.byType(TextField).first, 'Widget 测试');
-    await tester.pump(
-      HistoryScreen.searchDebounce + const Duration(milliseconds: 50),
-    );
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    // 防抖 300ms 未到：搜索未触发，旧结果仍在
+    await tester.pump();
+    expect(find.text('Rust 重构计划'), findsOneWidget);
+
+    await tester.pump(HistoryScreen.searchDebounce);
+    await tester.pump();
 
     expect(find.text('Flutter 路线图'), findsOneWidget);
     expect(find.text('Rust 重构计划'), findsNothing);
@@ -38,10 +43,13 @@ void registerHistoryScreenSearchTests() {
     await setUpHistoryScreen(tester);
 
     await tester.enterText(find.byType(TextField).first, '不应匹配');
-    await tester.pump(
-      HistoryScreen.searchDebounce + const Duration(milliseconds: 50),
-    );
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    // 防抖 300ms 未到：搜索未触发，旧结果仍在且空态未出现
+    await tester.pump();
+    expect(find.text('Rust 重构计划'), findsOneWidget);
+    expect(find.textContaining('没有匹配'), findsNothing);
+
+    await tester.pump(HistoryScreen.searchDebounce);
+    await tester.pump();
 
     expect(find.textContaining('没有匹配'), findsOneWidget);
   });
@@ -52,10 +60,13 @@ void registerHistoryScreenSearchTests() {
     await setUpHistoryScreenWithTree(tester);
 
     await tester.enterText(find.byType(TextField).first, '分支关键词');
-    await tester.pump(
-      HistoryScreen.searchDebounce + const Duration(milliseconds: 50),
-    );
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    // 防抖 300ms 未到：搜索未触发，旧结果仍在且空态未出现
+    await tester.pump();
+    expect(find.text('树状会话'), findsOneWidget);
+    expect(find.textContaining('没有匹配'), findsNothing);
+
+    await tester.pump(HistoryScreen.searchDebounce);
+    await tester.pump();
 
     expect(find.text('树状会话'), findsOneWidget);
   });

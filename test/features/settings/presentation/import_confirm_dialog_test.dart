@@ -23,6 +23,7 @@ import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/import_confirm_dialog.dart';
 
 import '../../../helpers/test_harness.dart';
+import '../../../helpers/widget_test_animation.dart';
 
 // ── 工厂函数 ────────────────────────────────────────────────────────────────
 
@@ -96,9 +97,8 @@ SettingsExportData _buildFullData() {
 
 Future<void> _openDialog(WidgetTester tester, SettingsExportData data) async {
   await tester.tap(find.text('打开'));
-  await tester.pump();
-  // 等待 AlertDialog 入场。
-  await tester.pumpAndSettle(const Duration(milliseconds: 250));
+  // 等待 AlertDialog 入场动画结束。
+  await settleOverlayTransition(tester);
   expect(find.byType(ImportConfirmDialog), findsOneWidget);
 }
 
@@ -179,7 +179,8 @@ void main() {
       await _openDialog(tester, _buildFullData());
 
       await tester.tap(find.text('导入'));
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      // 导入 Future 完成后对话框出场，一次覆盖两者
+      await settleOverlayTransition(tester);
 
       expect(container.read(llmProviderConfigsProvider).length, 1);
       expect(container.read(llmProviderConfigsProvider).first.id, 'provider-1');
@@ -202,7 +203,8 @@ void main() {
       await _openDialog(tester, _buildFullData());
 
       await tester.tap(find.text('导入'));
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      // 导入 Future 完成后对话框出场，一次覆盖两者
+      await settleOverlayTransition(tester);
 
       final settings = container.read(autoRetrySettingsProvider);
       expect(settings.maxJitterSeconds, 20);
@@ -214,7 +216,7 @@ void main() {
       await _openDialog(tester, _buildFullData());
 
       await tester.tap(find.text('取消'));
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleOverlayTransition(tester);
 
       expect(container.read(llmProviderConfigsProvider), isEmpty);
       expect(container.read(memoryPromptsProvider), isEmpty);
@@ -252,12 +254,13 @@ void main() {
       await _openDialog(tester, _buildFullData());
 
       await tester.tap(find.text('导入'));
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      // 导入失败不走对话框出场，错误状态单帧渲染即可
+      await tester.pump();
 
       expect(find.byType(ImportConfirmDialog), findsOneWidget);
       expect(find.text('导入失败：Bad state: 写入失败'), findsOneWidget);
       await tester.tap(find.text('取消'));
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleOverlayTransition(tester);
       expect(find.byType(ImportConfirmDialog), findsNothing);
     });
   });

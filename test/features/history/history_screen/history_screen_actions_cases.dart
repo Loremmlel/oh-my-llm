@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../../helpers/widget_test_animation.dart';
 import 'history_screen_test_helpers.dart';
 
 void registerHistoryScreenActionsTests() {
@@ -8,7 +9,7 @@ void registerHistoryScreenActionsTests() {
     await setUpHistoryScreen(tester);
 
     await tester.tap(find.byTooltip('重命名会话').first);
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleOverlayTransition(tester);
 
     await tester.enterText(
       find.descendant(
@@ -18,7 +19,8 @@ void registerHistoryScreenActionsTests() {
       '新的历史标题',
     );
     await tester.tap(find.widgetWithText(FilledButton, '保存'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    // 重命名对话框出场，改名 Future 与本地标题修正随帧完成
+    await settleOverlayTransition(tester);
 
     expect(find.text('新的历史标题'), findsOneWidget);
   });
@@ -29,14 +31,16 @@ void registerHistoryScreenActionsTests() {
     await setUpHistoryScreen(tester);
 
     await tester.longPress(find.text('Flutter 路线图'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    // 长按只切换选中集合，单帧即可
+    await tester.pump();
     await tester.longPress(find.text('项目复盘'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await tester.pump();
 
     await tester.tap(find.widgetWithText(FilledButton, '删除 2 项'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleOverlayTransition(tester);
     await tester.tap(find.widgetWithText(FilledButton, '确认删除'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    // 确认对话框出场，删除 Future 随帧完成并本地移除
+    await settleOverlayTransition(tester);
 
     expect(find.text('Flutter 路线图'), findsNothing);
     expect(find.text('项目复盘'), findsNothing);
@@ -49,7 +53,7 @@ void registerHistoryScreenActionsTests() {
     await setUpHistoryScreen(tester);
 
     await tester.tap(find.text('Flutter 路线图'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleRouteTransition(tester);
 
     expect(find.text('聊天落点'), findsOneWidget);
   });
@@ -60,7 +64,8 @@ void registerHistoryScreenActionsTests() {
     await setUpHistoryScreen(tester);
 
     await tester.tap(find.byType(Checkbox).first);
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    // 复选框只切换选中集合，单帧即可
+    await tester.pump();
 
     expect(find.text('聊天落点'), findsNothing);
     expect(find.widgetWithText(FilledButton, '删除 1 项'), findsOneWidget);

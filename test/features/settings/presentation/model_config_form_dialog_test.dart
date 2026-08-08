@@ -10,6 +10,7 @@ import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.da
 import 'package:oh_my_llm/features/settings/presentation/widgets/form/model_config_form_dialog.dart';
 
 import '../../../helpers/test_harness.dart';
+import '../../../helpers/widget_test_animation.dart';
 
 void main() {
   LlmProviderConfig testProvider = const LlmProviderConfig(
@@ -133,7 +134,8 @@ void main() {
         await tester.pump();
 
         await tester.tap(find.text('保存'));
-        await tester.pumpAndSettle(const Duration(milliseconds: 250));
+        // 提交后对话框出场，提交 Future 随帧完成
+        await settleOverlayTransition(tester);
 
         expect(captured, isNotNull);
         expect(captured!.displayName, 'My Model');
@@ -333,7 +335,8 @@ void main() {
         await tester.pump();
 
         await tester.tap(find.text('添加所选模型'));
-        await tester.pumpAndSettle(const Duration(milliseconds: 250));
+        // 批量添加后对话框出场，onBatchAdd Future 随帧完成
+        await settleOverlayTransition(tester);
 
         expect(captured, isNotNull);
         expect(captured!.length, 1);
