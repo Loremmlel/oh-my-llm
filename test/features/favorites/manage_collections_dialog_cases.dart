@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../helpers/widget_test_animation.dart';
 import 'favorites_screen_test_helpers.dart';
 
 void registerManageCollectionsDialogTests() {
@@ -8,7 +9,7 @@ void registerManageCollectionsDialogTests() {
     await setUpFavoritesScreen(tester);
 
     await tester.tap(find.byTooltip('管理收藏夹'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleOverlayTransition(tester);
 
     expect(find.text('管理收藏夹'), findsOneWidget);
     expect(find.text('暂无收藏夹'), findsOneWidget);
@@ -23,14 +24,16 @@ void registerManageCollectionsDialogTests() {
     );
 
     await tester.tap(find.byTooltip('管理收藏夹'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleOverlayTransition(tester);
 
     await tester.tap(find.byTooltip('重命名'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    // 行内编辑态切换是 setState，单帧即可
+    await tester.pump();
 
     await tester.enterText(find.byType(TextField), '新名称');
     await tester.tap(find.byTooltip('确认重命名'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    // 重命名 Future 完成后行内编辑态退出
+    await tester.pump();
 
     expect(find.text('新名称'), findsWidgets);
     expect(find.text('旧名称'), findsNothing);
@@ -47,13 +50,14 @@ void registerManageCollectionsDialogTests() {
       );
 
       await tester.tap(find.byTooltip('管理收藏夹'));
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleOverlayTransition(tester);
 
       await tester.tap(find.byTooltip('删除收藏夹（内部收藏移入未分类）'));
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleOverlayTransition(tester);
 
       await tester.tap(find.widgetWithText(FilledButton, '删除'));
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      // 确认对话框出场，删除 Future 随帧完成
+      await settleOverlayTransition(tester);
 
       expect(find.text('要删除的收藏夹'), findsNothing);
       expect(find.text('暂无收藏夹'), findsOneWidget);
@@ -71,13 +75,13 @@ void registerManageCollectionsDialogTests() {
     );
 
     await tester.tap(find.byTooltip('管理收藏夹'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleOverlayTransition(tester);
 
     await tester.tap(find.byTooltip('删除收藏夹（内部收藏移入未分类）'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleOverlayTransition(tester);
 
     await tester.tap(find.widgetWithText(TextButton, '取消'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleOverlayTransition(tester);
 
     // Collection name still present in both filter chip and dialog.
     expect(find.text('保留的收藏夹'), findsWidgets);
@@ -94,14 +98,15 @@ void registerManageCollectionsDialogTests() {
     );
 
     await tester.tap(find.byTooltip('管理收藏夹'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleOverlayTransition(tester);
 
     await tester.tap(find.byTooltip('重命名'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    // 行内编辑态切换是 setState，单帧即可
+    await tester.pump();
 
     await tester.enterText(find.byType(TextField), '不应生效的名称');
     await tester.tap(find.byTooltip('取消'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await tester.pump();
 
     expect(find.text('原名'), findsWidgets);
     expect(find.text('不应生效的名称'), findsNothing);
@@ -118,14 +123,15 @@ void registerManageCollectionsDialogTests() {
     );
 
     await tester.tap(find.byTooltip('管理收藏夹'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleOverlayTransition(tester);
 
     await tester.tap(find.byTooltip('重命名'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await tester.pump();
 
     await tester.enterText(find.byType(TextField), '   ');
     await tester.tap(find.byTooltip('确认重命名'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    // 空名不触发重命名，只退出行内编辑态
+    await tester.pump();
 
     expect(find.text('现有名称'), findsWidgets);
   });

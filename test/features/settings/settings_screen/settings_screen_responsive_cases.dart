@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../../helpers/widget_test_animation.dart';
 import 'settings_screen_test_helpers.dart';
 
 /// 每个 tab 的关键 heading（内容区可滚动到达的文案）。
@@ -50,7 +51,7 @@ void registerSettingsScreenResponsiveTests() {
     );
 
     await tester.tap(find.text('新增服务商'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleOverlayTransition(tester);
 
     expect(find.text('服务商名称'), findsOneWidget);
     expect(find.text('保存'), findsOneWidget);
@@ -61,7 +62,7 @@ void registerSettingsScreenResponsiveTests() {
     // 业务校验树由既有模型表单测试覆盖，此处不重复。
     await tester.enterText(providerNameField(), '测试服务商');
     await tester.tap(find.text('取消'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleOverlayTransition(tester);
     expect(tester.takeException(), isNull);
   });
 
@@ -74,7 +75,7 @@ void registerSettingsScreenResponsiveTests() {
     await switchToTab(tester, 1);
 
     await tester.tap(find.text('新增预设'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleOverlayTransition(tester);
 
     expect(find.text('预设 Prompt 名称'), findsOneWidget);
     expect(find.text('保存'), findsOneWidget);

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../helpers/widget_test_animation.dart';
 import 'favorites_screen_test_helpers.dart';
 
 void registerFavoriteDetailScreenTests() {
@@ -21,7 +22,7 @@ void registerFavoriteDetailScreenTests() {
     );
 
     await tester.tap(find.textContaining('这是完整的用户'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleRouteTransition(tester);
 
     expect(find.text('收藏详情'), findsOneWidget);
     expect(find.text('这是完整的用户消息内容，用于详情测试'), findsOneWidget);
@@ -47,12 +48,12 @@ void registerFavoriteDetailScreenTests() {
     );
 
     await tester.tap(find.text('有来源的问题'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleRouteTransition(tester);
 
     expect(find.text('原始对话'), findsOneWidget);
 
     await tester.tap(find.text('原始对话'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleRouteTransition(tester);
 
     expect(find.text('聊天落点'), findsOneWidget);
   });
@@ -73,7 +74,7 @@ void registerFavoriteDetailScreenTests() {
     );
 
     await tester.tap(find.text('无来源的问题'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleRouteTransition(tester);
 
     expect(find.text('原始对话'), findsNothing);
   });
@@ -99,7 +100,7 @@ void registerFavoriteDetailScreenTests() {
     );
 
     await tester.tap(find.textContaining('移动端溢出回归测试'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleRouteTransition(tester);
 
     expect(find.text('收藏详情'), findsOneWidget);
     // 回归测试：防止窄屏下收藏详情溢出。
@@ -123,15 +124,16 @@ void registerFavoriteDetailScreenTests() {
     );
 
     await tester.tap(find.text('要删除的问题'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleRouteTransition(tester);
 
     expect(find.text('收藏详情'), findsOneWidget);
 
     await tester.tap(find.byTooltip('删除收藏').first);
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleOverlayTransition(tester);
 
     await tester.tap(find.widgetWithText(FilledButton, '删除'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    // 确认对话框与详情页路由出场叠在一起，一次等完
+    await settleRouteTransition(tester);
 
     expect(find.text('收藏详情'), findsNothing);
     expect(find.text('暂无收藏'), findsOneWidget);
@@ -154,12 +156,13 @@ void registerFavoriteDetailScreenTests() {
     );
 
     await tester.tap(find.text('有推理的问题'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleRouteTransition(tester);
 
     expect(find.text('深度思考'), findsOneWidget);
 
     await tester.tap(find.text('展开'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    // 推理内容展开是 AnimatedSize 动画
+    await settleAnimatedWidgetTransition(tester);
 
     expect(find.text('这是深度思考的推理过程'), findsOneWidget);
   });
@@ -181,13 +184,13 @@ void registerFavoriteDetailScreenTests() {
     );
 
     await tester.tap(find.text('未分类的收藏问题'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleRouteTransition(tester);
 
     expect(find.text('未分类'), findsOneWidget);
     expect(find.byIcon(Icons.drive_file_move_outline), findsOneWidget);
 
     await tester.tap(find.byIcon(Icons.drive_file_move_outline));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleOverlayTransition(tester);
 
     expect(find.text('移动到收藏夹'), findsOneWidget);
     expect(find.text('未分类'), findsWidgets);
@@ -211,7 +214,7 @@ void registerFavoriteDetailScreenTests() {
     );
 
     await tester.tap(find.text('无推理的问题'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleRouteTransition(tester);
 
     expect(find.text('无推理的回复'), findsOneWidget);
     expect(find.text('深度思考'), findsNothing);

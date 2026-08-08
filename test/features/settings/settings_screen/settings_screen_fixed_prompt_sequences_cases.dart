@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/features/settings/data/sqlite_fixed_prompt_sequence_repository.dart';
 import 'package:oh_my_llm/features/settings/presentation/settings_screen.dart';
 
+import '../../../helpers/widget_test_animation.dart';
 import 'settings_screen_test_helpers.dart';
 
 void registerSettingsScreenFixedPromptSequencesTests() {
@@ -19,18 +20,19 @@ void registerSettingsScreenFixedPromptSequencesTests() {
     expect(repository.loadAll(database), isEmpty);
 
     await tester.tap(find.text('新增序列'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleOverlayTransition(tester);
     expect(find.text('新增固定顺序提示词'), findsOneWidget);
 
     await tester.enterText(fixedPromptSequenceNameField(), '对比测试流程');
     await tester.enterText(fixedStepTitleField(), '标题1');
     await tester.enterText(fixedStepContentField(), '请先总结这个需求的核心目标。');
     await tester.tap(find.text('新增步骤'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    // 步骤插入是 setState 直改列表，无动画
+    await tester.pump();
     await tester.enterText(fixedStepTitleField(), '标题2');
     await tester.enterText(fixedStepContentField(), '请列出三个可执行方案，并说明权衡。');
     await tester.tap(find.text('保存'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleOverlayTransition(tester);
 
     final createdSequence = repository.loadAll(database).single;
     expect(createdSequence.name, '对比测试流程');
@@ -49,13 +51,15 @@ void registerSettingsScreenFixedPromptSequencesTests() {
     );
 
     await tester.tap(find.text('新增序列'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleOverlayTransition(tester);
     await tester.enterText(fixedPromptSequenceNameField(), '对比测试流程');
     await tester.enterText(fixedStepTitleField(), '标题1');
     await tester.enterText(fixedStepContentField(), '内容1');
     await tester.tap(find.text('保存'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleOverlayTransition(tester);
 
+    // 「固定顺序提示词」标题在页面中唯一，其所在 Card 即序列所在分区；
+    // 提示词 tab 只有一个 ListView，无需取第一个
     final fixedSequencesSection = find.ancestor(
       of: find.text('固定顺序提示词'),
       matching: find.byType(Card),
@@ -65,19 +69,19 @@ void registerSettingsScreenFixedPromptSequencesTests() {
       matching: find.byType(ListView),
     );
     final editButton = find.descendant(
-      of: fixedSequencesSection.first,
+      of: fixedSequencesSection,
       matching: find.widgetWithText(OutlinedButton, '编辑'),
     );
     await tester.dragUntilVisible(
       editButton,
-      settingsList.first,
+      settingsList,
       const Offset(0, -300),
     );
     await tester.tap(editButton);
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleOverlayTransition(tester);
     await tester.enterText(fixedPromptSequenceNameField(), '对比测试流程 v2');
     await tester.tap(find.text('保存'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleOverlayTransition(tester);
 
     expect(
       fixedPromptSequenceRepository.loadAll(database).single.name,
@@ -96,12 +100,12 @@ void registerSettingsScreenFixedPromptSequencesTests() {
     );
 
     await tester.tap(find.text('新增序列'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleOverlayTransition(tester);
     await tester.enterText(fixedPromptSequenceNameField(), '对比测试流程');
     await tester.enterText(fixedStepTitleField(), '标题1');
     await tester.enterText(fixedStepContentField(), '内容1');
     await tester.tap(find.text('保存'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleOverlayTransition(tester);
 
     final fixedSequencesSection = find.ancestor(
       of: find.text('固定顺序提示词'),
@@ -112,16 +116,17 @@ void registerSettingsScreenFixedPromptSequencesTests() {
       matching: find.byType(ListView),
     );
     final deleteButton = find.descendant(
-      of: fixedSequencesSection.first,
+      of: fixedSequencesSection,
       matching: find.widgetWithText(OutlinedButton, '删除'),
     );
     await tester.dragUntilVisible(
       deleteButton,
-      settingsList.first,
+      settingsList,
       const Offset(0, -300),
     );
     await tester.tap(deleteButton);
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    // 删除直接走 Future 链，状态更新单帧即可
+    await tester.pump();
 
     expect(fixedPromptSequenceRepository.loadAll(database), isEmpty);
   });
@@ -136,7 +141,7 @@ void registerSettingsScreenFixedPromptSequencesTests() {
       );
 
       await tester.tap(find.text('新增序列'));
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleOverlayTransition(tester);
       final masterPane = find.ancestor(
         of: find.text('步骤列表'),
         matching: find.byType(DecoratedBox),
@@ -149,20 +154,21 @@ void registerSettingsScreenFixedPromptSequencesTests() {
       await tester.enterText(fixedStepContentField(), '内容1');
 
       await tester.tap(find.text('新增步骤'));
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      // 步骤插入与选中都是 setState，单帧即可
+      await tester.pump();
       await tester.enterText(fixedStepTitleField(), '标题2');
       await tester.enterText(fixedStepContentField(), '内容2');
 
       await tester.tap(find.text('新增步骤'));
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await tester.pump();
       await tester.enterText(fixedStepTitleField(), '标题3');
       await tester.enterText(fixedStepContentField(), '内容3');
 
       await tester.tap(stepTile('标题1'));
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await tester.pump();
 
       await tester.tap(find.text('新增步骤'));
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await tester.pump();
 
       // 新插入的步骤使用 fallback 标题，验证它在列表中显示
       // 硬编码期望值而非调用生产函数，避免循环测试

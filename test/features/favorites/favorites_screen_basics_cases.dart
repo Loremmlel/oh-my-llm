@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../helpers/widget_test_animation.dart';
 import 'favorites_screen_test_helpers.dart';
 
 void registerFavoritesScreenBasicsTests() {
@@ -44,7 +45,8 @@ void registerFavoritesScreenBasicsTests() {
     );
 
     await tester.tap(find.widgetWithText(FilterChip, '未分类'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    // 筛选切换是 provider 状态直更，无动画
+    await tester.pump();
 
     expect(find.text('未分类问题'), findsOneWidget);
     expect(find.text('未分类回复'), findsOneWidget);
@@ -61,12 +63,12 @@ void registerFavoritesScreenBasicsTests() {
     );
 
     await tester.tap(find.widgetWithText(FilterChip, '我的收藏夹'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await tester.pump();
 
     expect(find.textContaining('暂无收藏'), findsOneWidget);
 
     await tester.tap(find.widgetWithText(FilterChip, '未分类'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await tester.pump();
 
     expect(find.textContaining('暂无收藏'), findsOneWidget);
   });
@@ -87,7 +89,7 @@ void registerFavoritesScreenBasicsTests() {
     );
 
     await tester.tap(find.text('导航测试问题'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleRouteTransition(tester);
 
     expect(find.text('收藏详情'), findsOneWidget);
   });
@@ -144,7 +146,8 @@ void registerFavoritesScreenBasicsTests() {
     );
 
     await tester.tap(find.widgetWithText(FilterChip, '技术笔记'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    // 筛选切换是 provider 状态直更，无动画
+    await tester.pump();
 
     expect(find.text('技术问题'), findsOneWidget);
     expect(find.text('其他问题'), findsNothing);

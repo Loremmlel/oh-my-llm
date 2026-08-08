@@ -13,6 +13,7 @@ import 'package:oh_my_llm/features/history/presentation/widgets/history_paginati
 
 import '../../../helpers/fake_history_repository.dart';
 import '../../../helpers/test_harness.dart';
+import '../../../helpers/widget_test_animation.dart';
 
 /// 构造 N 条测试会话摘要。
 List<ChatConversationSummary> _summaries(int count) => List.generate(
@@ -202,9 +203,10 @@ void registerHistoryScreenPaginationBarTests() {
         find.text('每页'),
         warnIfMissed: false,
       ); // 左标签文本会因 button 内边距偏移到 decoration 区域，tap 坐标落在 DropdownButton 装饰层属正常行为
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleOverlayTransition(tester);
       await tester.tap(find.text('10'));
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      // 菜单收起与按新 pageSize 重载随帧完成
+      await settleOverlayTransition(tester);
 
       final s = _readState(tester);
       expect(s.pageSize, 10);
