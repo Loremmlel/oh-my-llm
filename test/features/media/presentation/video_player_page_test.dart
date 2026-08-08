@@ -107,8 +107,8 @@ Offset _center(WidgetTester tester) {
 
 /// 排出 DoubleTapGestureRecognizer 的挂起计时器。
 ///
-/// Phase 6 新增了 onDoubleTap 后，每次 tap 都会启动 ~300ms 的
-/// double-tap countdown timer。测试结束前需要排出这些 timer。
+/// onDoubleTap 会启动 double-tap countdown timer，测试结束前
+/// 需要排出这些 timer，否则挂起计时器会泄漏到后续用例。
 Future<void> _flushGestureTimers(WidgetTester tester) async {
   await tester.pump(const Duration(milliseconds: 500));
 }

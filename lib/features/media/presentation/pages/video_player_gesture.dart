@@ -221,6 +221,16 @@ class VideoPlayerGestureController {
     }
   }
 
+  /// 键盘焦点进入控制栏时调用：取消自动隐藏计时，控制栏保持可见。
+  void onControlsFocusEnter() {
+    state.hideTimer?.cancel();
+  }
+
+  /// 键盘焦点离开全部控制栏时调用：恢复自动隐藏计时。
+  void onControlsFocusExit() {
+    resetHideTimer();
+  }
+
   // ── 播放结束检测 ───────────────────────────────────────────────
 
   bool _isNearEnd(Duration position, Duration duration) {
@@ -272,34 +282,40 @@ class VideoPlayerGestureController {
     }
   }
 
-  // ── 双击 ─────────────────────────────────────────────────────
+  // ── 双击 / 键盘快进快退 ─────────────────────────────────────
 
   void handleDoubleTapDown(TapDownDetails details) {
     state.lastTapPositionDx = details.globalPosition.dx;
   }
 
-  void handleDoubleTap() {
+  /// 相对快退/快进 [offset]：双击与键盘方向键共用同一条
+  /// guard/clamp/seek/提示/手势状态机路径，避免两套逻辑分叉。
+  void seekRelative(Duration offset) {
     final ctrl = state.controller;
     if (ctrl == null || !state.isInitialized || state.hasError) return;
 
-    final isLeftHalf =
-        (state.lastTapPositionDx ?? 0) < state.cachedScreenWidth / 2;
-    final targetPosition = isLeftHalf
-        ? state.currentPosition - const Duration(seconds: 15)
-        : state.currentPosition + const Duration(seconds: 15);
-
-    final clamped = targetPosition < Duration.zero
+    final target = state.currentPosition + offset;
+    final clamped = target < Duration.zero
         ? Duration.zero
-        : (targetPosition > state.totalDuration
-              ? state.totalDuration
-              : targetPosition);
+        : (target > state.totalDuration ? state.totalDuration : target);
     ctrl.seekTo(clamped);
 
     beginGesture();
     showCenterHint(
-      isLeftHalf ? CenterHintType.rewind : CenterHintType.fastForward,
+      offset < Duration.zero
+          ? CenterHintType.rewind
+          : CenterHintType.fastForward,
       onHintDismissed: endGesture,
     );
+  }
+
+  void handleDoubleTap() {
+    if (state.controller == null || !state.isInitialized || state.hasError) {
+      return;
+    }
+    final isLeftHalf =
+        (state.lastTapPositionDx ?? 0) < state.cachedScreenWidth / 2;
+    seekRelative(Duration(seconds: isLeftHalf ? -15 : 15));
   }
 
   // ── 长按 ─────────────────────────────────────────────────────

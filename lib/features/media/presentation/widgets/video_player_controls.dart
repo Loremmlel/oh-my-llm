@@ -85,6 +85,7 @@ class VideoTopBar extends StatelessWidget {
         // ── 返回按钮 ──
         IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
+          tooltip: '返回',
           onPressed: onBack,
         ),
         const SizedBox(width: 8),
@@ -100,6 +101,7 @@ class VideoTopBar extends StatelessWidget {
         const SizedBox(width: 8),
         // ── 倍速选择器 ──
         PopupMenuButton<double>(
+          tooltip: '播放速度，当前 $playbackSpeed 倍',
           onOpened: onInteractionStarted,
           onCanceled: onInteractionEnded,
           onSelected: (speed) {
@@ -134,6 +136,7 @@ class VideoTopBar extends StatelessWidget {
         // ── 音量按钮 ──
         IconButton(
           icon: Icon(volumeIconData(volume), color: Colors.white),
+          tooltip: '音量，当前 ${(volume * 100).round()}%',
           onPressed: () => _showVolumeDialog(context),
         ),
       ],
@@ -263,6 +266,8 @@ class VideoBottomBar extends StatelessWidget {
 
     // 播放/暂停图标：播放结束或暂停时显示播放图标
     final showPlayIcon = hasEnded || (!isPlaying && !isDragging);
+    // 播放按钮 tooltip：与图标同源，结束态单独命名
+    final playTooltip = hasEnded ? '重新播放' : (showPlayIcon ? '播放' : '暂停');
     // 缓冲（仅在有时长且未结束时显示）
     final showBuffer = hasDuration && !hasEnded;
 
@@ -277,6 +282,7 @@ class VideoBottomBar extends StatelessWidget {
               color: Colors.white,
               size: 36,
             ),
+            tooltip: playTooltip,
             onPressed: onPlayPause,
           ),
           // ── 进度条区域 ──
@@ -292,15 +298,17 @@ class VideoBottomBar extends StatelessWidget {
                     Positioned(
                       left: 0,
                       right: 0,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(2),
-                        child: LinearProgressIndicator(
-                          value: bufferedPercent.clamp(0.0, 1.0),
-                          backgroundColor: Colors.white12,
-                          valueColor: const AlwaysStoppedAnimation(
-                            Colors.white24,
+                      child: ExcludeSemantics(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(2),
+                          child: LinearProgressIndicator(
+                            value: bufferedPercent.clamp(0.0, 1.0),
+                            backgroundColor: Colors.white12,
+                            valueColor: const AlwaysStoppedAnimation(
+                              Colors.white24,
+                            ),
+                            minHeight: 4,
                           ),
-                          minHeight: 4,
                         ),
                       ),
                     ),
@@ -317,6 +325,17 @@ class VideoBottomBar extends StatelessWidget {
                     ),
                     child: Slider(
                       value: normalizedValue,
+                      // 语义：label 固定「播放进度」；无时长时只禁用，
+                      // 控件名仍要随禁用状态播报。
+                      label: '播放进度',
+                      semanticFormatterCallback: hasDuration
+                          ? (double value) {
+                              final position = Duration(
+                                milliseconds: (value * totalMs).round(),
+                              );
+                              return '${formatVideoDuration(position)} / ${formatVideoDuration(totalDuration)}';
+                            }
+                          : null,
                       onChangeStart: hasDuration ? onSeekStart : null,
                       onChanged: hasDuration ? onSeekUpdate : null,
                       onChangeEnd: hasDuration ? (_) => onSeekEnd() : null,
@@ -327,15 +346,17 @@ class VideoBottomBar extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          // ── 时间显示 ──
-          SizedBox(
-            width: 96,
-            child: Text(
-              hasDuration
-                  ? '${formatVideoDuration(displayPosition)} / ${formatVideoDuration(totalDuration)}'
-                  : '--:--',
-              style: const TextStyle(color: Colors.white, fontSize: 13),
-              textAlign: TextAlign.right,
+          // 时间信息已由 Slider value 表达，视觉文本排除重复语义。
+          ExcludeSemantics(
+            child: SizedBox(
+              width: 96,
+              child: Text(
+                hasDuration
+                    ? '${formatVideoDuration(displayPosition)} / ${formatVideoDuration(totalDuration)}'
+                    : '--:--',
+                style: const TextStyle(color: Colors.white, fontSize: 13),
+                textAlign: TextAlign.right,
+              ),
             ),
           ),
         ],
@@ -422,15 +443,33 @@ class VideoCenterHint extends StatelessWidget {
         }
     }
 
+    // 提示以单一语义节点表达；可见内容整体排除，避免「图标+文字」重复播报。
+    // 快进/快退/临时倍速是离散结果，标 live region；seek 预览与暂停图标不标。
     return Center(
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          // 25% 透明度，符合 PRD 20%-35% 要求
-          color: Colors.black.withValues(alpha: 0.25),
-          borderRadius: BorderRadius.circular(16),
+      child: Semantics(
+        liveRegion:
+            hintType == CenterHintType.fastForward ||
+            hintType == CenterHintType.rewind ||
+            hintType == CenterHintType.speed,
+        label: switch (hintType) {
+          CenterHintType.fastForward => '已快进 15 秒',
+          CenterHintType.rewind => '已快退 15 秒',
+          CenterHintType.speed => '临时三倍速播放',
+          CenterHintType.seek =>
+            '预览位置 ${formatVideoDuration(seekPosition ?? Duration.zero)}',
+          CenterHintType.none => null,
+        },
+        child: ExcludeSemantics(
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              // 25% 透明度，符合 PRD 20%-35% 要求
+              color: Colors.black.withValues(alpha: 0.25),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: content,
+          ),
         ),
-        child: content,
       ),
     );
   }
