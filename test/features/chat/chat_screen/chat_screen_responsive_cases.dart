@@ -94,7 +94,7 @@ void registerChatScreenResponsiveTests() {
       // 展开动画中间帧内容先于宽度就位（AnimatedContainer 宽度过渡），会报告
       // 一次瞬时 RenderFlex overflow，动画结束即恢复；消费该瞬态后再校验
       // 稳态无布局异常，避免把动画过渡帧的报错当成稳态缺陷。
-      tester.takeException();
+      expect(tester.takeException(), isA<FlutterError>());
 
       expect(find.text('历史会话面板'), findsOneWidget);
       expect(tester.takeException(), isNull);

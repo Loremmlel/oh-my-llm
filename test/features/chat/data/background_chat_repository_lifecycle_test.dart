@@ -166,8 +166,8 @@ void main() {
         // 第一次 save：Future 完成即第一批已落盘并 ACK，debounce 窗口随之关闭。
         await bg.saveConversation(makeConv('seq_1', 'First'));
 
-        // 各批次行数分别断言：第一批只含 seq_1。若第二次保存被错误并入第一批
-        // （如 ACK 早于落盘的回归），此刻磁盘上就会同时出现两行。
+        // 各批次行数分别断言：第一批只含 seq_1。若第一批未落盘（早 ACK 回归——
+        // Future 先于落盘完成），此刻磁盘上应为 0 行。
         var rows = inner.loadAll();
         expect(rows.length, 1);
         expect(rows.single.id, 'seq_1');

@@ -252,7 +252,6 @@ void main() {
       await tester.pump();
 
       expect(find.semantics.byLabel('信息通知：同步完成'), findsNothing);
-      expect(find.semantics.byLabel('信息通知：同步完成'), findsNothing);
       expect(
         find.semantics.byPredicate((n) => n.tooltip == '关闭通知'),
         findsNothing,
