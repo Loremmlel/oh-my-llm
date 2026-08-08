@@ -18,6 +18,7 @@ import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dar
 import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
 
+import '../../../helpers/async_test_signals.dart';
 import '../../../helpers/controllable_chat_conversation_repository.dart';
 import '../../../helpers/fake_chat_completion_client.dart';
 
@@ -173,15 +174,20 @@ void main() {
       () async {
         repository.gateSave(1); // pending
         repository.gateSave(2); // stop save
-        final streamController = StreamController<ChatCompletionChunk>();
-        addTearDown(streamController.close);
-        fakeClient.enqueueStream(streamController.stream);
+        final controlled = fakeClient.enqueueControlledStream();
+        addTearDown(controlled.close);
 
         final sendFuture = sendMsg('hello');
         await repository.awaitReached(1);
         repository.releaseSave(1); // pending 完成，进入 streaming
-        streamController.add(const ChatCompletionChunk(contentDelta: '部分'));
-        await Future<void>.delayed(Duration.zero);
+        await controlled.listened; // 等待 run 开始监听受控流
+        controlled.add(const ChatCompletionChunk(contentDelta: '部分'));
+        await waitForProviderState(
+          container: container,
+          provider: chatSessionsProvider,
+          matches: (s) => s.streamingReply?.content.contains('部分') ?? false,
+          description: 'chunk 增量写入 streamingReply',
+        );
 
         final stop1 = container
             .read(chatSessionsProvider.notifier)
@@ -189,11 +195,11 @@ void main() {
         await repository.awaitReached(2); // 第一次 stop 的 save 进入 gate
 
         final saveCountBefore = repository.saveCallCount;
-        // 第二次 stop：幂等，返回同一 completion，不重复入队 stop、不重复 save。
+        // 第二次 stop：幂等。requestStop 的 _stopIntent guard 同步短路，不向串行
+        // 通道入队任何动作，save 计数可同步断言，无需任何让路。
         final stop2 = container
             .read(chatSessionsProvider.notifier)
             .stopStreaming();
-        await Future<void>.delayed(Duration.zero);
         expect(repository.saveCallCount, saveCountBefore); // 无新 save
 
         repository.releaseSave(2);
@@ -212,24 +218,24 @@ void main() {
       () async {
         repository.gateSave(1); // pending
         repository.gateSave(2); // terminal success save
-        final streamController = StreamController<ChatCompletionChunk>();
-        addTearDown(streamController.close);
-        fakeClient.enqueueStream(streamController.stream);
+        final controlled = fakeClient.enqueueControlledStream();
+        addTearDown(controlled.close);
 
         final sendFuture = sendMsg('hello');
         await repository.awaitReached(1);
         repository.releaseSave(1);
-        streamController.add(const ChatCompletionChunk(contentDelta: '回复'));
-        streamController
+        await controlled.listened; // 等待 run 开始监听受控流
+        controlled.add(const ChatCompletionChunk(contentDelta: '回复'));
+        await controlled
             .close(); // onDone -> attempt completed -> terminal save
         await repository.awaitReached(2); // terminal save 进入（finalizing）
 
-        // finalizing 期间 stop：不改 outcome，不触发额外 cancelled save。
+        // finalizing 期间 stop：stop action 入队后在 completeAttempt 返回、终态
+        // 提交之后执行，被 _outcome guard 短路——不改 outcome、不写 cancelled save。
         final saveBefore = repository.saveCallCount;
         final stopFuture = container
             .read(chatSessionsProvider.notifier)
             .stopStreaming();
-        await Future<void>.delayed(Duration.zero);
         expect(repository.saveCallCount, saveBefore); // 无 cancelled save
 
         repository.releaseSave(2);
@@ -246,17 +252,23 @@ void main() {
       'finalizing stop：等待原 terminal completion，outcome 仍为 success',
       () async {
         repository.gateSave(1);
-        final streamController = StreamController<ChatCompletionChunk>();
-        addTearDown(streamController.close);
-        fakeClient.enqueueStream(streamController.stream);
+        final controlled = fakeClient.enqueueControlledStream();
+        addTearDown(controlled.close);
 
         final sendFuture = sendMsg('hello');
         await repository.awaitReached(1);
         repository.releaseSave(1);
-        streamController.add(const ChatCompletionChunk(contentDelta: '回复'));
-        streamController
-            .close(); // onDone -> finalizing（无 gate，terminal save 直接完成）
-        await Future<void>.delayed(Duration.zero);
+        await controlled.listened; // 等待 run 开始监听受控流
+        controlled.add(const ChatCompletionChunk(contentDelta: '回复'));
+        await controlled.close(); // onDone -> attempt completed
+        // 等进入 finalizing 投影（completeAttempt 已入串行链）再 stop：stop action
+        // 排在 attempt 结算之后执行，被 _outcome guard 短路，outcome 保持 success。
+        await waitForProviderState(
+          container: container,
+          provider: chatSessionsProvider,
+          matches: (s) => s.generation?.phase == ChatGenerationPhase.finalizing,
+          description: 'run 进入 finalizing',
+        );
 
         // finalizing 期间 stop：等待原 success 终态完成，不改为 cancelled。
         final stopFuture = container
@@ -307,14 +319,19 @@ void main() {
     test('stop save 失败：仍完成停止并报 persistence 错误', () async {
       repository.gateSave(1);
       repository.gateSave(2); // stop save
-      final streamController = StreamController<ChatCompletionChunk>();
-      addTearDown(streamController.close);
-      fakeClient.enqueueStream(streamController.stream);
+      final controlled = fakeClient.enqueueControlledStream();
+      addTearDown(controlled.close);
       final sendFuture = sendMsg('hello');
       await repository.awaitReached(1);
       repository.releaseSave(1);
-      streamController.add(const ChatCompletionChunk(contentDelta: '部分'));
-      await Future<void>.delayed(Duration.zero);
+      await controlled.listened; // 等待 run 开始监听受控流
+      controlled.add(const ChatCompletionChunk(contentDelta: '部分'));
+      await waitForProviderState(
+        container: container,
+        provider: chatSessionsProvider,
+        matches: (s) => s.streamingReply?.content.contains('部分') ?? false,
+        description: 'chunk 增量写入 streamingReply',
+      );
       final stopFuture = container
           .read(chatSessionsProvider.notifier)
           .stopStreaming();
@@ -331,34 +348,38 @@ void main() {
     // ── 不变量 1/9：旧 run 迟到回调不写新 run state ───────────────────────────
     test('A stop 后迟到 chunk/error/done 不写 B state 或完成 B Future', () async {
       repository.gateSave(1);
-      final scA = StreamController<ChatCompletionChunk>();
-      addTearDown(scA.close);
-      fakeClient.enqueueStream(scA.stream);
+      final controlledA = fakeClient.enqueueControlledStream();
+      addTearDown(controlledA.close);
       final sendAFuture = sendMsg('AAA');
       await repository.awaitReached(1);
       repository.releaseSave(1);
-      scA.add(const ChatCompletionChunk(contentDelta: 'A1'));
-      await Future<void>.delayed(Duration.zero);
+      await controlledA.listened; // 等待 A 的 run 开始监听
+      controlledA.add(const ChatCompletionChunk(contentDelta: 'A1'));
+      await waitForProviderState(
+        container: container,
+        provider: chatSessionsProvider,
+        matches: (s) => s.streamingReply?.content.contains('A1') ?? false,
+        description: 'A 的 chunk 增量写入 streamingReply',
+      );
 
       // A stop。
       await container.read(chatSessionsProvider.notifier).stopStreaming();
       await sendAFuture;
 
       // B 发送。
-      final scB = StreamController<ChatCompletionChunk>();
-      addTearDown(scB.close);
-      fakeClient.enqueueStream(scB.stream);
+      final controlledB = fakeClient.enqueueControlledStream();
+      addTearDown(controlledB.close);
       final sendBFuture = sendMsg('BBB');
-      await Future<void>.delayed(Duration.zero);
+      await controlledB.listened; // B 开始监听后 A 的迟到回调才可能干扰 B
 
       // A 的迟到回调：token 失效后必须被丢弃，不污染 B。
-      scA.add(const ChatCompletionChunk(contentDelta: 'A-late'));
-      scA.addError(StateError('A late error'));
-      scA.close();
+      controlledA.add(const ChatCompletionChunk(contentDelta: 'A-late'));
+      controlledA.addError(StateError('A late error'));
+      await controlledA.close();
 
       // B 正常完成。
-      scB.add(const ChatCompletionChunk(contentDelta: 'B-reply'));
-      scB.close();
+      controlledB.add(const ChatCompletionChunk(contentDelta: 'B-reply'));
+      await controlledB.close();
       await sendBFuture.timeout(defaultTimeout);
 
       final state = container.read(chatSessionsProvider);
