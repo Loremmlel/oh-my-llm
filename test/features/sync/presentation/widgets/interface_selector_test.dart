@@ -30,7 +30,8 @@ Future<void> _pumpSelector(
       child: const MaterialApp(home: Scaffold(body: InterfaceSelector())),
     ),
   );
-  await tester.pumpAndSettle(const Duration(milliseconds: 250));
+  // 接口列表是同步返回的 Future Provider，异步解析后单帧渲染即可
+  await tester.pump();
 }
 
 void main() {

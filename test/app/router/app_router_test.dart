@@ -9,6 +9,7 @@ import 'package:oh_my_llm/features/favorites/data/sqlite_favorites_repository.da
 
 import '../../features/favorites/favorites_screen_test_helpers.dart';
 import '../../helpers/test_harness.dart';
+import '../../helpers/widget_test_animation.dart';
 
 Future<SharedPreferences> _testPrefs(AppDatabase db) async {
   return createEmptyPreferences(db);
@@ -84,7 +85,7 @@ void main() {
     expect(find.text('收藏链接无效'), findsOneWidget);
 
     await tester.tap(find.text('返回收藏列表'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleRouteTransition(tester);
     expect(router.routerDelegate.currentConfiguration.uri.path, '/favorites');
   });
 
@@ -125,7 +126,7 @@ void main() {
     await pumpTestApp(tester, preferences: prefs, database: db, router: router);
 
     await tester.tap(find.text('列表进入的问题'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleRouteTransition(tester);
 
     // push 是 imperative 路由，currentConfiguration.uri 只反映非 push 的
     // 顶层匹配，故用最后匹配位置的 matchedLocation 断言进入详情。
@@ -137,7 +138,7 @@ void main() {
 
     // AppBar 自动 leading 是 BackButton（tooltip 随 locale 变化，用类型 finder）。
     await tester.tap(find.byType(BackButton));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleRouteTransition(tester);
 
     expect(router.routerDelegate.currentConfiguration.uri.path, '/favorites');
     // pop 后 uri 同样恒为 /favorites（uri 排除 imperative match），
@@ -166,7 +167,7 @@ void main() {
       AppRouteName.mediaImage,
       queryParameters: {AppRouteParameter.mediaPath: '/相册/猫.jpg'},
     );
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleRouteTransition(tester);
 
     expect(
       router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
@@ -181,7 +182,7 @@ void main() {
     expect(find.text('媒体会话已失效'), findsOneWidget);
 
     router.pop();
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleRouteTransition(tester);
     expect(
       router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
       '/sync',
@@ -200,7 +201,7 @@ void main() {
       AppRouteName.mediaVideo,
       queryParameters: {AppRouteParameter.mediaPath: '/视频/demo.mp4'},
     );
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleRouteTransition(tester);
 
     expect(
       router.routerDelegate.currentConfiguration.matches.last.matchedLocation,

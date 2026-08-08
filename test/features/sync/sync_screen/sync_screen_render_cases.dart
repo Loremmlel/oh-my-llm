@@ -10,6 +10,7 @@ import 'package:oh_my_llm/features/sync/domain/models/sync_protocol_version.dart
 import 'package:oh_my_llm/features/sync/domain/models/sync_types.dart';
 import 'package:oh_my_llm/features/sync/presentation/widgets/sync_operation_tab.dart';
 
+import '../../../helpers/widget_test_animation.dart';
 import 'sync_screen_test_helpers.dart';
 
 void registerSyncScreenRenderTests() {
@@ -107,7 +108,7 @@ void registerSyncScreenRenderTests() {
       );
 
       await tester.tap(find.text('同步').last);
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleTabTransition(tester);
       await tester.tap(find.text(SyncCategory.presets.label));
       await tester.pump();
 
@@ -134,13 +135,13 @@ void registerSyncScreenRenderTests() {
       );
 
       await tester.tap(find.text('媒体'));
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleTabTransition(tester);
       expect(RecordingMediaBrowserController.lastState!.server, isNotNull);
       expect(RecordingMediaBrowserController.totalInitCount, 1);
       RecordingShufflePlaybackController.latest!.activateForTest();
 
       await tester.tap(find.text('连接'));
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleTabTransition(tester);
       expect(RecordingMediaBrowserController.lastState, MediaBrowserState());
       expect(
         RecordingShufflePlaybackController.lastState,
@@ -148,7 +149,7 @@ void registerSyncScreenRenderTests() {
       );
 
       await tester.tap(find.text('媒体'));
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleTabTransition(tester);
       expect(RecordingMediaBrowserController.totalInitCount, 2);
       debugDefaultTargetPlatformOverride = null;
     });
@@ -212,7 +213,7 @@ void registerSyncScreenRenderTests() {
       );
 
       await tester.tap(find.text('同步').last);
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleTabTransition(tester);
 
       expect(
         find.descendant(

@@ -9,6 +9,7 @@ import 'package:oh_my_llm/features/media/presentation/media_browser_tab.dart';
 import 'package:oh_my_llm/features/sync/application/sync_client_controller.dart';
 
 import '../../../helpers/responsive_viewport_cases.dart';
+import '../../../helpers/widget_test_animation.dart';
 import 'sync_screen_test_helpers.dart';
 
 Future<SharedPreferences> _freshPrefs() async {
@@ -38,7 +39,7 @@ void registerSyncScreenResponsiveTests() {
       await tester.tap(
         find.descendant(of: find.byType(TabBar), matching: find.text('同步')),
       );
-      await tester.pumpAndSettle(const Duration(milliseconds: 250));
+      await settleTabTransition(tester);
       expect(find.text('请先在「连接」标签页中连接到服务端'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
@@ -89,7 +90,7 @@ void registerSyncScreenResponsiveTests() {
     );
 
     await tester.tap(find.text('媒体'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleTabTransition(tester);
 
     expect(find.byType(MediaBrowserTab), findsOneWidget);
     expect(RecordingMediaBrowserController.lastState!.server, isNotNull);
@@ -99,7 +100,7 @@ void registerSyncScreenResponsiveTests() {
 
     // 离开媒体 tab：session reset 契约保持。
     await tester.tap(find.text('连接'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleTabTransition(tester);
     expect(RecordingMediaBrowserController.lastState, MediaBrowserState());
     expect(tester.takeException(), isNull);
     // 测试框架在 test body 末尾校验 foundation debug 变量已复位（addTearDown 在

@@ -41,7 +41,7 @@ void main() {
         ),
       ),
     );
-    // 直接传已启动的 pumpAndSettle future 会在 expectLater 的 guardSync
+    // 直接传已启动的 settle future 会在 expectLater 的 guardSync
     // 处触发"守卫函数冲突"，改为传闭包让 matcher 内部再启动。
     await expectLater(
       () => settleAnimatedWidgetTransition(tester),

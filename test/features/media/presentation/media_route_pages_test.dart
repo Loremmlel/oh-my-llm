@@ -8,6 +8,7 @@ import 'package:oh_my_llm/features/media/presentation/pages/media_route_pages.da
 import 'package:oh_my_llm/features/media/presentation/pages/video_player_page.dart';
 
 import '../../../helpers/test_harness.dart';
+import '../../../helpers/widget_test_animation.dart';
 import '../helpers/fake_video_player_controller.dart';
 import '../helpers/media_test_helpers.dart';
 
@@ -140,7 +141,8 @@ void main() {
       ),
     );
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
+    await fake.waitForInitializeCount(1);
+    await tester.pump();
 
     expect(fake.playCallCount, greaterThanOrEqualTo(1));
     expect(find.text('demo.mp4'), findsOneWidget);
@@ -203,7 +205,7 @@ void main() {
     // 本场景 media route 嵌套在 /sync 下，deep link 构建 2 层栈 → canPop
     // 为 true，点击后实际走 pop 分支退回 /sync；go 分支见下方用例。
     await tester.tap(find.text('返回局域网同步'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleRouteTransition(tester);
 
     expect(router.routerDelegate.currentConfiguration.uri.path, '/sync');
     expect(find.text('同步落点'), findsOneWidget);
@@ -233,7 +235,7 @@ void main() {
     // media route 为顶层绝对路径，直达时仅 1 层栈 → canPop 为 false，
     // 点击后走 go 分支跳回 /sync。
     await tester.tap(find.text('返回局域网同步'));
-    await tester.pumpAndSettle(const Duration(milliseconds: 250));
+    await settleRouteTransition(tester);
 
     expect(
       router.routerDelegate.currentConfiguration.matches.last.matchedLocation,

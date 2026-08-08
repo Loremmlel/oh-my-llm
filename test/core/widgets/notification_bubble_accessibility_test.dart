@@ -9,6 +9,7 @@ import 'package:oh_my_llm/core/widgets/notification_bubble_data.dart';
 import 'package:oh_my_llm/core/widgets/notification_bubble_stack.dart';
 
 import '../../helpers/responsive_viewport_cases.dart';
+import '../../helpers/widget_test_animation.dart';
 
 NotificationBubbleData _data({
   String message = '同步完成',
@@ -240,17 +241,17 @@ void main() {
           .read(notificationBubblesProvider.notifier)
           .show(message: '同步完成');
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300)); // 入场完成
+      await settleAnimatedWidgetTransition(tester);
 
       expect(find.semantics.byLabel('信息通知：同步完成'), findsOneWidget);
 
       container
           .read(notificationBubblesProvider.notifier)
           .dismiss(container.read(notificationBubblesProvider).single.id);
+      // 视觉淡出仍可能在播放，但语义与可交互节点在 dismiss 后的下一帧即退出
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 50)); // 出场进行中，< 200ms
 
-      // 视觉淡出可能仍在播放，但语义与可交互节点已退出
+      expect(find.semantics.byLabel('信息通知：同步完成'), findsNothing);
       expect(find.semantics.byLabel('信息通知：同步完成'), findsNothing);
       expect(
         find.semantics.byPredicate((n) => n.tooltip == '关闭通知'),
@@ -281,7 +282,7 @@ void main() {
           .read(notificationBubblesProvider.notifier)
           .show(message: '同步完成');
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
+      await settleAnimatedWidgetTransition(tester);
 
       expect(FocusManager.instance.primaryFocus, same(before));
 
@@ -291,7 +292,7 @@ void main() {
           .read(notificationBubblesProvider.notifier)
           .dismiss(container.read(notificationBubblesProvider).single.id);
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
+      await settleAnimatedWidgetTransition(tester);
     });
 
     testWidgets('最多三条回归：连续 show 4 条保留 3 条，各恰好一个 status', (tester) async {
@@ -301,7 +302,7 @@ void main() {
         notifier.show(message: '通知 $i');
       }
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
+      await settleAnimatedWidgetTransition(tester);
 
       expect(container.read(notificationBubblesProvider), hasLength(3));
       expect(find.semantics.byLabel('信息通知：通知 2'), findsOneWidget);
@@ -314,7 +315,7 @@ void main() {
         notifier.dismiss(d.id);
       }
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
+      await settleAnimatedWidgetTransition(tester);
     });
   });
 }
