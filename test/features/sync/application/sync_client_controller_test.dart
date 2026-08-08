@@ -12,6 +12,7 @@ import 'package:oh_my_llm/features/sync/domain/models/discovered_server.dart';
 import 'package:oh_my_llm/features/sync/domain/models/sync_protocol_version.dart';
 import 'package:oh_my_llm/features/sync/domain/models/sync_types.dart';
 
+import '../../../helpers/async_test_signals.dart';
 import 'sync_test_fakes.dart';
 
 void main() {
@@ -66,15 +67,33 @@ void main() {
         ],
       );
       addTearDown(container.dispose);
+      // 兜底收口：用例中途失败时也先关闭广播流、等 controller 进入终态，
+      // 再销毁容器，避免残留的流监听挂在未关闭的 StreamController 上。
+      // 注册在 dispose 之后，tearDown 逆序执行，先收口再销毁。
+      addTearDown(() async {
+        await transport.close();
+        await waitForProviderState(
+          container: container,
+          provider: syncClientControllerProvider,
+          matches: (s) => s.phase == SyncPhase.error || s.server == null,
+          description: '同步连接关闭',
+        );
+      });
     });
-
-    /// 让已排队的微任务（流事件分发、async 监听器）执行完毕。
-    Future<void> flushAsync() => Future<void>.delayed(Duration.zero);
 
     test('已连接后广播流关闭 → 清空会话状态并弹错误气泡', () async {
       final notifier = container.read(syncClientControllerProvider.notifier);
 
       await notifier.startDiscovery();
+
+      // 先注册连接建立 predicate 再推送发现事件，等待由可观察的状态信号
+      // 完成，不再依赖「flush 微任务」的时机假设。
+      final connected = waitForProviderState(
+        container: container,
+        provider: syncClientControllerProvider,
+        matches: (s) => s.phase == SyncPhase.connected,
+        description: '同步连接建立',
+      );
       transport.add(
         const DiscoveredServer(
           deviceName: '服务器',
@@ -83,22 +102,29 @@ void main() {
           serverId: 'srv-1',
         ),
       );
-      await flushAsync();
+      await connected;
 
-      final connected = container.read(syncClientControllerProvider);
-      expect(connected.phase, SyncPhase.connected);
-      expect(connected.server, isNotNull);
+      final connectedState = container.read(syncClientControllerProvider);
+      expect(connectedState.phase, SyncPhase.connected);
+      expect(connectedState.server, isNotNull);
 
+      // 断开同理：先注册终态 predicate 再关闭广播流。
+      final disconnected = waitForProviderState(
+        container: container,
+        provider: syncClientControllerProvider,
+        matches: (s) => s.phase == SyncPhase.error || s.server == null,
+        description: '同步连接关闭',
+      );
       await transport.close();
-      await flushAsync();
+      await disconnected;
 
-      final disconnected = container.read(syncClientControllerProvider);
-      expect(disconnected.phase, SyncPhase.error);
-      expect(disconnected.server, isNull);
-      expect(disconnected.sourceDeviceName, isNull);
-      expect(disconnected.isPaired, isFalse);
-      expect(disconnected.deduplicatedData, isNull);
-      expect(disconnected.errorMessage, '服务端已断开，请重新搜索');
+      final state = container.read(syncClientControllerProvider);
+      expect(state.phase, SyncPhase.error);
+      expect(state.server, isNull);
+      expect(state.sourceDeviceName, isNull);
+      expect(state.isPaired, isFalse);
+      expect(state.deduplicatedData, isNull);
+      expect(state.errorMessage, '服务端已断开，请重新搜索');
 
       final bubbles = container.read(notificationBubblesProvider);
       expect(bubbles, hasLength(1));
@@ -110,8 +136,16 @@ void main() {
       final notifier = container.read(syncClientControllerProvider.notifier);
 
       await notifier.startDiscovery();
+
+      // 先注册发现结束 predicate 再关闭广播流，等待由状态信号完成。
+      final discoveryEnded = waitForProviderState(
+        container: container,
+        provider: syncClientControllerProvider,
+        matches: (s) => s.phase == SyncPhase.error,
+        description: '发现流程结束',
+      );
       await transport.close();
-      await flushAsync();
+      await discoveryEnded;
 
       final state = container.read(syncClientControllerProvider);
       expect(state.phase, SyncPhase.error);
