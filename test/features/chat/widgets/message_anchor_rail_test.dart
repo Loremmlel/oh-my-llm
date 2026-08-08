@@ -1,5 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -10,6 +12,7 @@ import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/message_anchor_rail.dart';
 
+import '../../../helpers/responsive_viewport_cases.dart';
 import '../../../helpers/test_harness.dart';
 import '../../../test_database.dart';
 
@@ -60,6 +63,44 @@ final Finder railContainerFinder = find.byKey(
 
 /// 断言锚点条渲染出预期数量的可点击条目（InkWell）。
 Matcher findsNAnchorItems(int count) => findsNWidgets(count);
+
+/// 当前持有主焦点的语义节点。
+SemanticsFinder _focusedNode() =>
+    find.semantics.byFlag(SemanticsFlag.isFocused);
+
+/// 带尾部 TextField sentinel 的锚点挂载：焦点离开 rail 后落在 sentinel，
+/// 不会 wrap 回第一个锚点，保证「焦点完全离开后折叠」可验证。
+Future<AppDatabase> _pumpRailWithSentinel(
+  WidgetTester tester, {
+  required List<ChatMessage> userMessages,
+  String? activeMessageId,
+  ValueChanged<String>? onSelectMessage,
+  double maxHeight = 400,
+}) async {
+  SharedPreferences.setMockInitialValues({});
+  final prefs = await SharedPreferences.getInstance();
+
+  // InkWell 与 TextField 都需要 Material 祖先，MaterialApp 的 home 不会
+  // 自动提供（pumpAnchorRail 里已有的 Material 包裹同理）。
+  return pumpTestApp(
+    tester,
+    child: Material(
+      child: Column(
+        children: [
+          const SizedBox(height: 200),
+          MessageAnchorRail(
+            userMessages: userMessages,
+            activeMessageId: activeMessageId,
+            maxHeight: maxHeight,
+            onSelectMessage: onSelectMessage ?? (_) {},
+          ),
+          const TextField(),
+        ],
+      ),
+    ),
+    preferences: prefs,
+  );
+}
 
 void main() {
   group('extractPreviewText', () {
@@ -313,6 +354,204 @@ void main() {
       await tester.pumpAndSettle(const Duration(milliseconds: 250));
 
       expect(find.text('消息1'), findsNothing);
+    });
+  });
+
+  group('a11y 语义与焦点契约', () {
+    List<ChatMessage> fiveMessages() => [
+      for (var i = 1; i <= 5; i++)
+        _userMessage(id: 'msg-$i', content: '第 $i 条消息内容'),
+    ];
+
+    testWidgets('compact 未展开时 label 含序号与 preview，value 为 N/5', (tester) async {
+      await pumpAnchorRail(
+        tester,
+        userMessages: fiveMessages(),
+        activeMessageId: 'msg-2',
+      );
+
+      final first = find.semantics.byLabel('第 1 条用户消息：第 1 条消息内容');
+      expect(first, findsOneWidget);
+      expect(first, isSemantics(value: '1 / 5', isButton: true));
+      expect(find.semantics.byLabel('第 5 条用户消息：第 5 条消息内容'), findsOneWidget);
+    });
+
+    testWidgets('selected 只标记 active 项，且不是 live region', (tester) async {
+      await pumpAnchorRail(
+        tester,
+        userMessages: fiveMessages(),
+        activeMessageId: 'msg-2',
+      );
+
+      expect(
+        find.semantics.byLabel('第 2 条用户消息：第 2 条消息内容'),
+        isSemantics(
+          hasSelectedState: true,
+          isSelected: true,
+          isLiveRegion: false,
+        ),
+      );
+      expect(
+        find.semantics.byLabel('第 1 条用户消息：第 1 条消息内容'),
+        isSemantics(isSelected: false),
+      );
+    });
+
+    testWidgets('preview 为空时 label 仅序号，不带空冒号', (tester) async {
+      await pumpAnchorRail(
+        tester,
+        userMessages: [_userMessage(id: 'msg-1', content: '###')],
+      );
+
+      expect(find.semantics.byLabel('第 1 条用户消息'), findsOneWidget);
+      expect(find.semantics.byLabel('第 1 条用户消息：'), findsNothing);
+    });
+
+    testWidgets('semantics tap 激活对应锚点', (tester) async {
+      final selected = <String>[];
+      await pumpAnchorRail(
+        tester,
+        userMessages: fiveMessages(),
+        onSelectMessage: selected.add,
+      );
+
+      tester.semantics.tap(find.semantics.byLabel('第 2 条用户消息：第 2 条消息内容'));
+      await tester.pump();
+      expect(selected, ['msg-2']);
+    });
+
+    testWidgets('键盘进入 rail 展开，按顺序激活 msg-1、msg-2', (tester) async {
+      final selected = <String>[];
+      await _pumpRailWithSentinel(
+        tester,
+        userMessages: fiveMessages(),
+        onSelectMessage: selected.add,
+      );
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      // 焦点进入 rail 后预览展开，视觉 preview 出现
+      expect(find.text('第 1 条消息内容'), findsOneWidget);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+      expect(selected, ['msg-1']);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+      expect(selected, ['msg-1', 'msg-2']);
+    });
+
+    testWidgets('低 maxHeight 时连续 Tab 可到达末项并激活', (tester) async {
+      final selected = <String>[];
+      await _pumpRailWithSentinel(
+        tester,
+        userMessages: [
+          for (var i = 1; i <= 10; i++)
+            _userMessage(id: 'msg-$i', content: '第 $i 条消息内容'),
+        ],
+        maxHeight: 60,
+        onSelectMessage: selected.add,
+      );
+
+      for (var i = 0; i < 10; i++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+      }
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+      expect(selected, ['msg-10']);
+    });
+
+    testWidgets('父级重建更新 active ID 时 rail 保持展开且焦点不丢', (tester) async {
+      final selected = <String>[];
+      final messages = fiveMessages();
+      await _pumpRailWithSentinel(
+        tester,
+        userMessages: messages,
+        activeMessageId: 'msg-1',
+        onSelectMessage: selected.add,
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump(); // 聚焦第 2 项
+
+      await _pumpRailWithSentinel(
+        tester,
+        userMessages: messages,
+        activeMessageId: 'msg-2',
+        onSelectMessage: selected.add,
+      );
+      await tester.pump();
+
+      expect(find.text('第 2 条消息内容'), findsOneWidget); // 仍展开
+      // 焦点不丢：重建后持有主焦点的语义节点仍是第 2 项
+      expect(_focusedNode(), isSemantics(label: '第 2 条用户消息：第 2 条消息内容'));
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+      expect(selected, ['msg-2']);
+    });
+
+    testWidgets('焦点离开 rail 后折叠，且不误触发定位', (tester) async {
+      final selected = <String>[];
+      await _pumpRailWithSentinel(
+        tester,
+        userMessages: fiveMessages(),
+        onSelectMessage: selected.add,
+      );
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(find.text('第 1 条消息内容'), findsOneWidget); // 展开
+
+      // 5 个锚点各占一个 Tab 位：逐项走完后下一次 Tab 才落到尾部
+      // TextField sentinel，焦点完全离开 rail 触发折叠。
+      for (var i = 0; i < 5; i++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+      }
+
+      expect(find.text('第 1 条消息内容'), findsNothing); // 折叠
+      expect(selected, isEmpty);
+    });
+
+    testWidgets('viewport smoke：两种视口下语义与 Tab 路径成立', (tester) async {
+      for (final vp in [phonePortrait, wideDesktop]) {
+        SharedPreferences.setMockInitialValues({});
+        final prefs = await SharedPreferences.getInstance();
+        await pumpTestApp(
+          tester,
+          child: Material(
+            child: Column(
+              children: [
+                const SizedBox(height: 200),
+                MessageAnchorRail(
+                  userMessages: fiveMessages(),
+                  activeMessageId: 'msg-2',
+                  maxHeight: 400,
+                  onSelectMessage: (_) {},
+                ),
+                const TextField(),
+              ],
+            ),
+          ),
+          preferences: prefs,
+          viewportSize: vp.size,
+        );
+
+        expect(
+          find.semantics.byLabel('第 2 条用户消息：第 2 条消息内容'),
+          isSemantics(value: '2 / 5', isSelected: true),
+        );
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pump();
+        expect(tester.takeException(), isNull);
+      }
     });
   });
 }
