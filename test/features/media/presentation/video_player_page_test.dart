@@ -55,27 +55,18 @@ Widget _buildPushedTestPageWithFake({
   );
 }
 
-/// 创建使用真实 Controller 的测试页面（用于错误状态等需要真实失败的测试）。
-Widget _buildTestPage() {
-  return _wrapWithMaterialApp(
-    const VideoPlayerPage(
-      videoUrl: 'http://localhost:99999/nonexistent.mp4',
-      fileName: 'test-video.mp4',
-    ),
-  );
-}
-
-/// 等待初始化完成，并可选清除 init 过程产生的追踪记录。
+/// 等待初始化完成，并清除 init 过程产生的追踪记录。
 ///
-/// 传入 [controller] 可在 init 完成后自动清除追踪列表。
+/// 先推一帧（路由推入场景下初始化在此触发），再等初始化信号，
+/// 最后单帧应用初始化结果，不按固定时长盲等。
 Future<void> _pumpInit(
   WidgetTester tester, {
-  FakeVideoPlayerController? controller,
+  required FakeVideoPlayerController controller,
 }) async {
-  await tester.pump(); // build 帧
-  await tester.pump(); // initState 异步
-  await tester.pump(const Duration(milliseconds: 100)); // 初始化完成
-  if (controller != null) _resetTracking(controller);
+  await tester.pump(); // build 帧（路由推入时初始化在此触发）
+  await controller.waitForInitializeCount(1);
+  await tester.pump(); // 初始化信号已满足，单帧应用结果
+  _resetTracking(controller);
 }
 
 /// 清除 FakeController 的追踪列表。
@@ -154,41 +145,66 @@ void main() {
   });
 
   // ═══════════════════════════════════════════════════════════════════
-  // 错误状态（使用真实 Controller 快速失败）
+  // 错误状态（经 factory 注入失败 fake，确定性进入错误页）
   // ═══════════════════════════════════════════════════════════════════
 
   group('错误状态', () {
     testWidgets('加载失败时显示错误信息', (tester) async {
-      await tester.pumpWidget(_buildTestPage());
-      await tester.pumpAndSettle(const Duration(seconds: 5));
+      final failingController = FakeVideoPlayerController(
+        initializeError: StateError('初始化失败'),
+      );
+      await tester.pumpWidget(
+        _buildTestPageWithFake(fakeController: failingController),
+      );
+      await failingController.waitForInitializeCount(1);
+      await tester.pump();
+
       expect(find.byIcon(Icons.error_outline), findsOneWidget);
       expect(find.textContaining('视频加载失败'), findsOneWidget);
       await _flushGestureTimers(tester);
     });
 
     testWidgets('加载失败时显示重试按钮', (tester) async {
-      await tester.pumpWidget(_buildTestPage());
-      await tester.pumpAndSettle(const Duration(seconds: 5));
+      final failingController = FakeVideoPlayerController(
+        initializeError: StateError('初始化失败'),
+      );
+      await tester.pumpWidget(
+        _buildTestPageWithFake(fakeController: failingController),
+      );
+      await failingController.waitForInitializeCount(1);
+      await tester.pump();
+
       expect(find.text('重试'), findsOneWidget);
       await _flushGestureTimers(tester);
     });
 
     testWidgets('错误状态下可点击重试按钮', (tester) async {
-      await tester.pumpWidget(_buildTestPage());
-      await tester.pumpAndSettle(const Duration(seconds: 5));
-
+      final failingController = FakeVideoPlayerController(
+        initializeError: StateError('初始化失败'),
+      );
+      await tester.pumpWidget(
+        _buildTestPageWithFake(fakeController: failingController),
+      );
+      // 首次失败
+      await failingController.waitForInitializeCount(1);
+      await tester.pump();
       expect(find.byIcon(Icons.error_outline), findsOneWidget);
       expect(find.text('重试'), findsOneWidget);
 
-      // 点击重试按钮，验证不崩溃且重试流程走通
+      // 点击重试 → 第二次初始化
       await tester.tap(find.text('重试'));
-      await tester.pump();
+      // 外层双击识别器持有竞技场直到双击超时，按钮的 tap 延迟派发，
+      // 先排出该计时器，再等第二次初始化信号
       await _flushGestureTimers(tester);
-      await tester.pumpAndSettle(const Duration(seconds: 5));
+      await failingController.waitForInitializeCount(2);
+      await tester.pump();
 
-      // 重试后仍处于错误状态（测试环境无法真正加载视频），
+      // fake 持续抛出初始化错误，重试后仍处于错误状态，
       // 但重试按钮仍可用，说明重试流程完整执行
+      expect(failingController.initializeCallCount, 2);
+      expect(find.byIcon(Icons.error_outline), findsOneWidget);
       expect(find.text('重试'), findsOneWidget);
+      await _flushGestureTimers(tester);
     });
   });
 

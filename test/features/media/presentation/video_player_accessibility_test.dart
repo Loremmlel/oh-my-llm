@@ -20,15 +20,6 @@ SemanticsFinder semanticsByTooltip(String tooltip) =>
 /// 当前持有主焦点的语义节点。
 SemanticsFinder focusedNode() => find.semantics.byFlag(SemanticsFlag.isFocused);
 
-/// 初始化即失败的 Fake：快速、确定地进入错误状态，
-/// 不依赖真实网络请求的超时行为。
-class _FailingVideoPlayerController extends FakeVideoPlayerController {
-  @override
-  Future<void> initialize() async {
-    throw Exception('network error');
-  }
-}
-
 /// initialize 永不完成的 Fake：让页面稳定停留在加载态。
 ///
 /// 普通 Fake 的 initialize 在 pumpWidget 内部即随微任务完成，
@@ -71,9 +62,8 @@ Future<void> _pumpVideo(
       ),
     ),
   );
-  await tester.pump();
-  await tester.pump();
-  await tester.pump(const Duration(milliseconds: 100));
+  await fake.waitForInitializeCount(1);
+  await tester.pump(); // 初始化信号已满足，单帧应用初始化结果
   fake.seekToCalls.clear();
   fake.setPlaybackSpeedCalls.clear();
   fake.playCallCount = 0;
@@ -280,8 +270,9 @@ void main() {
         ),
       );
       await tester.tap(find.text('打开播放器'));
+      await tester.pump(); // 路由推入，初始化在此触发
+      await fake.waitForInitializeCount(1);
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
       fake.disposeCount = 0;
       fake.seekToCalls.clear();
 
@@ -334,18 +325,20 @@ void main() {
     });
 
     testWidgets('错误状态是 live status 且重试可操作，无播放表面', (tester) async {
+      final failing = FakeVideoPlayerController(
+        initializeError: Exception('network error'),
+      );
       await tester.pumpWidget(
         _wrapWithMaterialApp(
           VideoPlayerPage(
             videoUrl: 'http://localhost/test.mp4',
             fileName: 'test-video.mp4',
-            controllerFactory: (uri) => _FailingVideoPlayerController(),
+            controllerFactory: (uri) => failing,
           ),
         ),
       );
-      await tester.pump();
-      await tester.pump(); // initialize 抛异常
-      await tester.pump(const Duration(milliseconds: 100));
+      await failing.waitForInitializeCount(1);
+      await tester.pump(); // 单帧应用初始化失败的错误页
 
       final errorStatus = find.semantics.byPredicate(
         (node) =>
