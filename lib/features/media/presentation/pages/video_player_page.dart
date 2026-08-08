@@ -202,10 +202,10 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
 
     final controlsVisible = s.controlsVisible;
     final valueText = s.hasEnded
-        ? '播放已结束，播放控件已显示'
+        ? (controlsVisible ? '播放已结束，播放控件已显示' : '播放已结束，播放控件已隐藏')
         : s.isPlaying
         ? (controlsVisible ? '正在播放，播放控件已显示' : '正在播放，播放控件已隐藏')
-        : '已暂停，播放控件已显示';
+        : (controlsVisible ? '已暂停，播放控件已显示' : '已暂停，播放控件已隐藏');
     final hint = controlsVisible
         ? '激活以隐藏播放控件；空格键播放或暂停，左右方向键快退或快进 15 秒'
         : '激活以显示播放控件；空格键播放或暂停，左右方向键快退或快进 15 秒';
