@@ -3,13 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/chat/application/composer_draft_controller.dart';
 
-/// 让派生 Provider 的监听通知落定（Riverpod 3 对派生 provider 的 notify 是
-/// 异步微任务，不 flush 时同步断言会过早读到 0）。
-Future<void> _flushMicrotasks() async {
-  for (var i = 0; i < 5; i++) {
-    await Future<void>.delayed(Duration.zero);
-  }
-}
+import '../../../helpers/async_test_signals.dart';
 
 void main() {
   group('ComposerDraftController per-conversation aggregate', () {
@@ -67,18 +61,31 @@ void main() {
         composerTemplateSelectionProvider('conv-a'),
         (_, _) => selectionChanges++,
       );
+
+      // 无关修改（正文/变量写入）后紧跟一次相关选择事件作为观察窗口终点：
+      // 若无关修改误触发 selection listener，计数会超过 1。
       controller.setBody('conv-a', '正文');
       controller.setTemplateVariable('conv-a', 'tpl-1', 'title', '甲');
-      await _flushMicrotasks();
-      expect(selectionChanges, 0);
-
       controller.selectTemplate('conv-a', 'tpl-a');
-      await _flushMicrotasks();
+      await waitForProviderState<String?>(
+        container: container,
+        provider: composerTemplateSelectionProvider('conv-a'),
+        matches: (selection) => selection == 'tpl-a',
+        description: '等待 conv-a 模板选择落定',
+      );
       expect(selectionChanges, 1);
 
-      controller.selectTemplate('conv-b', 'tpl-b'); // 不同会话
-      await _flushMicrotasks();
-      expect(selectionChanges, 1);
+      // 无关修改（其他会话的选择）后紧跟同会话下一次选择作为窗口终点，
+      // 窗口内不应有任何额外回调。
+      controller.selectTemplate('conv-b', 'tpl-b');
+      controller.selectTemplate('conv-a', 'tpl-c');
+      await waitForProviderState<String?>(
+        container: container,
+        provider: composerTemplateSelectionProvider('conv-a'),
+        matches: (selection) => selection == 'tpl-c',
+        description: '等待 conv-a 模板选择再次落定',
+      );
+      expect(selectionChanges, 2);
     });
 
     test('dispose 后新建 provider container，draft 为空（证明非 App 持久态）', () {
