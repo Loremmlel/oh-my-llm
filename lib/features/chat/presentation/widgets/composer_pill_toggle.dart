@@ -25,7 +25,10 @@ class ComposerPillToggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final backgroundColor = !enabled
+    // 禁用视觉、Semantics enabled/action 与 InkWell onTap 必须同源，
+    // 禁止出现视觉可用但实际是 no-op 的可聚焦 InkWell。
+    final isInteractive = enabled && onChanged != null;
+    final backgroundColor = !isInteractive
         ? theme.colorScheme.surfaceContainerLow
         : value
         ? theme.colorScheme.primaryContainer
@@ -33,10 +36,10 @@ class ComposerPillToggle extends StatelessWidget {
     final borderColor = value
         ? theme.colorScheme.primary.withValues(alpha: 0.28)
         : theme.colorScheme.outlineVariant.withValues(alpha: 0.75);
-    final labelColor = enabled && value
+    final labelColor = isInteractive && value
         ? theme.colorScheme.onPrimaryContainer
         : theme.colorScheme.onSurfaceVariant;
-    final iconColor = enabled && value
+    final iconColor = isInteractive && value
         ? theme.colorScheme.primary
         : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6);
 
@@ -52,20 +55,34 @@ class ComposerPillToggle extends StatelessWidget {
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(16),
         clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: enabled ? () => onChanged?.call(!value) : null,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, size: 14, color: iconColor),
-                const SizedBox(width: 4),
-                Text(
-                  label,
-                  style: theme.textTheme.bodySmall?.copyWith(color: labelColor),
-                ),
-              ],
+        child: Semantics(
+          label: label,
+          toggled: value,
+          enabled: isInteractive,
+          button: true,
+          child: InkWell(
+            onTap: isInteractive ? () => onChanged!.call(!value) : null,
+            focusColor: theme.colorScheme.primary.withValues(alpha: 0.12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 视觉 icon/text 只负责外观，状态由 toggled/enabled 表达
+                  ExcludeSemantics(
+                    child: Icon(icon, size: 14, color: iconColor),
+                  ),
+                  const SizedBox(width: 4),
+                  ExcludeSemantics(
+                    child: Text(
+                      label,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: labelColor,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
