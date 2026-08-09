@@ -2,17 +2,19 @@
 
 本地 LLM 聊天客户端，Flutter 应用，Windows + Android 双端。无厂商绑定，兼容任意 OpenAI 接口。
 
-**技术栈**：Flutter ≥ 3.11.5 / Dart ≥ 3.x · Riverpod 3（`NotifierProvider`）· `sqlite3`（原始包，非 drift/sqflite）· 原始 `package:http`（无厂商 SDK）· `go_router`。
+**技术栈**：Flutter 3.44.x stable（CI 固定 3.44.6）/ Dart `^3.11.5` · Riverpod 3（`NotifierProvider`）· `sqlite3`（原始包，非 drift/sqflite）· 原始 `package:http`（无厂商 SDK）· `go_router`。
 
 ---
 
 ## 1. 命令
 
+仓库命令示例统一使用 **PowerShell 7**。原生 Windows Agent 应优先使用 PowerShell；仅执行 `.sh`、Git hook 验证或 POSIX 工具链时显式调用 Git Bash（如 `bash scripts/verify-version-hook.sh`）。不要在 Bash 中直接解释 PowerShell 语法，反之亦然。Claude Code 用户应启用原生 PowerShell tool（`CLAUDE_CODE_USE_POWERSHELL_TOOL=1`）；`CLAUDE.md` 通过 `@AGENTS.md` 复用本文件，不再维护第二份命令版本。
 
 ```powershell
 flutter pub get
 flutter analyze                                    # lint + 静态分析，提交前必过
-flutter test --reporter compact                    # 全量测试（dart_test.yaml: 并发 4, 超时 120s）
+dart run tool/check_import_boundaries.dart         # 架构依赖门禁
+flutter test --reporter compact                    # 全量测试（dart_test.yaml: 并发 8, 超时 120s）
 flutter test path/to/test.dart                     # 单文件
 flutter test path/to/test.dart --plain-name "name" # 单用例
 flutter run -d windows                             # 桌面调试
@@ -34,6 +36,16 @@ flutter test --reporter compact 2>&1 | Out-File -Encoding utf8 fltest.log; $E = 
 - 查详情：`Select-String -Pattern "关键词" -Path fltest.log -Context 0,30`；仅失败名：`Select-String -Pattern " -[1-9]" -Path fltest.log`。
 - ❌ 禁止不重定向直接 `flutter test` / 用 `tee`（同样截断）。全量输出已在 `fltest.log`，从该文件查即可。
 - 只跑单个文件同样套用重定向模式。
+
+### test 启动卡住排查（Windows）
+
+`flutter test` 卡在启动、连用例都未开始时，先排查残留 Dart 进程是否锁住 native assets DLL。`package:sqlite3` 的 native assets hook 需要写入 `build\native_assets\windows\sqlite3.dll`，已加载该 DLL 的残留进程会阻止覆盖：
+
+```powershell
+.\scripts\kill-stale-test-processes.ps1
+```
+
+清理后重新运行测试。代码已通过后台仓库 close 超时保护和测试 tearDown 兜底处理根因；该脚本是异常退出后的缓解措施。
 
 ### 构建脚本
 
@@ -70,21 +82,19 @@ flutter test --reporter compact 2>&1 | Out-File -Encoding utf8 fltest.log; $E = 
 
 ### commit message 格式
 
-**在 Bash 中执行 `git commit`，不要用 PowerShell here-string（`@'...'@`）**--Bash 不认识该语法，会原样写入 `.git/COMMIT_EDITMSG`，匹配不上 Conventional Commits 前缀。多行消息用多个 `-m` 或 Bash heredoc：
+直接在当前 PowerShell 中调用 `git commit`，不要把 PowerShell here-string 作为文本转交给 Bash。常规多段消息使用多个 `-m`，复杂消息先赋给 PowerShell 变量再作为单个参数传入：
 
-```bash
-# 方案 1：多个 -m 逐段追加（推荐）
-git commit -m "feat: 简短描述（hook 只看第一行）" \
-           -m "详细 body" \
-           -m "更多 body"
+```powershell
+# 方案 1：多个 -m 逐段追加（推荐，跨 shell 也最稳定）
+git commit -m "feat: 简短描述（hook 只看第一行）" -m "详细 body" -m "更多 body"
 
-# 方案 2：Bash here-doc（复杂消息）
-git commit -m "$(cat <<'EOF'
+# 方案 2：PowerShell here-string（复杂消息）
+$Message = @'
 feat: 简短描述
 
 详细 body
-EOF
-)"
+'@
+git commit -m $Message
 ```
 
 ### 提交粒度
@@ -103,13 +113,13 @@ EOF
 
 ```
 lib/
-  app/                      # app 入口、路由、shell、theme
+  app/                      # app 入口、路由、shell、theme、跨 feature composition
   bootstrap.dart            # 启动初始化
   core/                     # 跨 feature 基础设施（persistence / http / logging / utils / widgets）
   features/<feature>/
     domain/                 # 纯数据模型（Equatable），零框架依赖
     data/                   # Repository 实现、网络客户端、SSE 解析
-    application/            # Riverpod Notifier 控制器、纯业务函数
+    application/            # Riverpod Notifier、纯业务函数、上层所需 ports
     presentation/           # Screen / Widget
 ```
 
@@ -117,8 +127,10 @@ lib/
 
 **禁忌**：
 - `presentation` 不直接 `import` `data/` 或 `core/persistence/`，只通过 `ref.watch` / `ref.read` 消费 `application/` 的 Provider。
-- `application` 通过接口（如 `ChatConversationRepository`、`ChatCompletionClient`）访问 `data/`，不耦合具体实现。
+- `application` 所需接口归 `application/ports/`（或中性 domain contract）所有；`data` 只提供具体实现，绑定由 `app/composition/` / `bootstrap.dart` 完成。
+- 跨 feature 组合通过少量 application facade/command 与 `app/composition/` 完成；一个 feature 的 presentation 不得直接嵌入另一个 feature 的内部 presentation。
 - `domain` 零依赖，不导入 Flutter / Riverpod / sqlite3。
+- `dart run tool/check_import_boundaries.dart` 是 CI 门禁；禁止用宽泛 allowlist 绕过，例外必须窄、可解释且会检测 stale allowance。
 
 ### 启动顺序（`bootstrap.dart`）
 
@@ -150,6 +162,12 @@ lib/
 - 派生数据用 `Provider` + `ref.watch(xxxProvider.select((s) => s.field))`，避免不必要重建。
 - 大控制器用 **mixin 拆分**（如 `ChatSessionsController` = 主体 + `ChatSessionsControllerStreaming` + `ChatSessionsControllerSupport`），通过 `import` 引入。
 - `SettingsEntityController<T>`：模板方法基类，子类只提供 `repository`。
+
+### Chat generation 与 workspace ownership
+
+- Generation 时序由 `ChatGenerationCoordinator` / `ChatGenerationRun` 独占：prepare、stream、stop、cancel、retry、finalize 与持久化终态必须经过显式 `ChatGenerationPhase` / `ChatGenerationOutcome`。`ChatSessionsState` 中兼容字段只是生命周期快照的投影，不得另建第二套 flag 状态机。
+- Workspace 数据以不可变 `ChatWorkspaceViewState` / `ChatWorkspaceBindings` 传递；bindings 只在 build 时组合，不持久化 UI controller。
+- Composer 会话草稿归 `ComposerDraftController`；编辑事务、焦点、滚动等纯页面状态留在 `ChatScreen` 本地。切换会话不得泄漏模板变量或编辑快照。
 
 ---
 
@@ -198,10 +216,25 @@ lib/
 
 网络层用原始 `package:http`，无官方 SDK。厂商差异用两个 Strategy 链处理：
 
+- **HTTP 信任域**：外部 LLM 请求使用 `httpClientProvider`，可注入用户自定义 Header；局域网 Sync/Media peer 请求必须使用 `peerHttpClientProvider`，绝不继承 API key、Cookie 或自定义 Header。请求正文日志默认关闭，只有明确诊断路径可 opt-in；敏感 Header 必须统一脱敏。
+
 - **`VendorPayloadAdapter`**（`vendor_payload_adapters.dart`）：`matches(host)` + `buildPatch(reasoningEffort)`，按 host 注入 `thinking` / `extra_body.google.thinking_config` / `reasoning_effort`。`VendorPayloadAdapterRegistry` 优先级链式 `resolve(host)`，`DefaultPayloadAdapter` 兜底。
 - **`ChunkParseStrategy`**（`chunk_parse_strategy.dart`）：`canHandle(delta)` + `extract(delta)`，优先级 Gemini -> DeepSeek -> StandardOpenAi。处理 `delta.content` 为 List、`reasoning_content` / `reasoning` 字段等差异。
 - **SSE 解析**（`chat_chunk_parser.dart`）：`ChatChunkParser` 处理 `[DONE]` / 错误 / JSON 解码；`InlineReasoningTagSplitter` 跨 chunk 状态机解析 `<thought>` / `<thinking>` 标签。
 - **SSE idle timeout**（`openai_compatible_chat_client.dart`）：仅在 `data:` 行到达时重置计时器，SSE 注释行 keepalive 不算活动。
+
+### Sync 安全与协议
+
+- UDP 只承担发现；所有业务数据必须经过 HTTP 配对与授权，不能存在匿名兼容入口。
+- 当前 Sync v3 使用一次性配对码、持久化 peer identity/secret、加密 payload、短期 session token 与 nonce replay 防护。新增消息必须进入 typed `SyncProtocolMessage`，不得退回动态 Map 或二次 JSON 字符串。
+- 协议版本与 Settings export format 都有 supported range、迁移/拒绝语义；旧版、未来版或 malformed payload 必须显式失败。
+- 服务商 API key、自定义 Header 等敏感分类在请求端和导入端都需要显式确认；不得仅凭“同一局域网”视为可信。
+
+### 导航、响应式与可访问性
+
+- 收藏详情和媒体页面使用 GoRouter 的可序列化 ID/query 参数；禁止用 `state.extra` 传 domain entity，也不要在 feature 内新增 `MaterialPageRoute` 平行栈。
+- 响应式阈值使用 `AppBreakpoints` 的 shell/content/form/bubble 语义 token；局部约束可以保留，但不得复制同义魔法数。
+- 关键自绘交互必须提供非重复的 Semantics、键盘等价操作、可见焦点和 disabled/selected/live 状态；普通 Material 控件不重复包无价值 Semantics。
 
 ---
 
@@ -276,4 +309,4 @@ test/features/chat/
 |---------|-------------------------------------------|
 | Windows | Visual Studio 2022（含 **C++ 桌面开发** 工作负载）   |
 | Android | Android SDK；JDK（`keytool` 生成自签名 keystore） |
-| Flutter | ≥ 3.11.5（Dart ≥ 3.x）                      |
+| Flutter | 3.44.x stable（CI 固定 3.44.6）；Dart `^3.11.5` |

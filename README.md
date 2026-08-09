@@ -13,10 +13,10 @@
 - 🔍 **历史搜索**：按对话标题和用户消息全文检索，按时间分组展示，分页加载
 - ⭐ **收藏**：保存满意的模型回复，按收藏夹筛选并查看详情
 - 🖥️ **响应式布局**：桌面侧边导航轨、移动端底部导航条
-- 🌐 **网络设置**：自定义 HTTP 请求头规则，附加到所有发出的请求
+- 🌐 **网络设置**：为外部 LLM 请求配置自定义 HTTP Header；局域网 Sync/Media 请求使用隔离的 peer 信任域
 - 🔤 **字体与字号**：全局字体（默认思源黑体）与正文字号可调
 - 🔁 **自动重试**：支持每分钟窗口 / 固定间隔两种模式
-- 🔄 **同步**：设备间同步聊天记录与设置
+- 🔄 **安全同步**：通过配对、加密会话与分类授权在设备间同步聊天记录和设置
 - 🖼️ **媒体浏览器**：本地图片浏览与视频播放
 
 ---
@@ -33,7 +33,8 @@
 
 | 工具                             | 版本                      |
 |--------------------------------|-------------------------|
-| Flutter                        | ≥ 3.11.5（对应 Dart ≥ 3.x） |
+| Flutter                        | 3.44.x stable（CI 固定 3.44.6） |
+| Dart                           | `^3.11.5`                |
 | Android SDK                    | 仅构建 Android 时需要         |
 | Visual Studio 2022（含 C++ 桌面开发） | 仅构建 Windows 时需要         |
 
@@ -102,7 +103,7 @@ flutter run -d windows   # 或 -d <your_android_device_id>
 
 SSE 解析器（`chat_chunk_parser.dart`）同时支持：
 - 解析 `<thought>` XML 标签内容（Google Gemma 等模型）
-- 300 ms 节流合并窗口内正确累积各种 thinking 字段，防止内容丢失
+- 解析 Gemini / DeepSeek / OpenAI 兼容的正文与 thinking 字段；300 ms UI 投影节流位于 generation 生命周期，不污染 SSE parser
 
 ### Prompt 模板
 
@@ -110,10 +111,13 @@ SSE 解析器（`chat_chunk_parser.dart`）同时支持：
 - 可选的 **system 指令**
 - 零或多条 **附加消息**（user / assistant 角色）
 
-模板在每次请求前被拼接到对话历史开头，顺序为：
-1. system 指令
-2. 模板附加消息
-3. 实际对话消息
+实际请求按以下顺序组装：
+
+1. 检查点记忆消息（system）
+2. 模板中 `placement == before` 的消息
+3. 经请求过滤器处理的实际对话消息
+4. 模板中 `placement == beforeLatestInput` 的消息
+5. 模板中 `placement == after` 的消息
 
 在设置页的「默认 Prompt 模板」中选择后，新建会话将自动继承该模板。
 
@@ -158,7 +162,7 @@ SSE 解析器（`chat_chunk_parser.dart`）同时支持：
 
 ### 网络设置
 
-在设置页的「网络」标签页中自定义 HTTP 请求头规则，定义的请求头会附加到所有发出的请求中，同名请求头会覆盖应用的默认值。
+在设置页的「网络」标签页中定义外部 LLM 请求的自定义 HTTP Header，同名 Header 会覆盖应用默认值。Chat completion 与模型列表请求使用这套配置；局域网 Sync/Media 请求始终使用独立的 `peerHttpClientProvider`，不会继承 API key、Cookie 或其他用户 Header。网络日志默认不记录正文，并统一脱敏 token/key/secret/auth 类 Header。
 
 ### 自动重试
 
@@ -168,7 +172,13 @@ SSE 解析器（`chat_chunk_parser.dart`）同时支持：
 
 ### 同步
 
-设备间同步聊天记录与设置。Android 端提供连接 / 同步 / 媒体三个 Tab。
+设备间同步聊天记录与设置。Windows 与 Android 均提供连接、同步页面；Android 额外提供媒体浏览 Tab，Windows 可配置媒体根目录作为服务端。
+
+- 首次连接使用一次性配对码建立 peer identity 与长期密钥
+- 业务 payload 加密传输，并使用短期 session token 与 nonce replay 防护
+- UDP 只负责发现，未配对或未授权设备无法读取同步数据
+- 服务商 API key、自定义 Header 等敏感分类需要请求端与导入端显式确认
+- Sync protocol 与 Settings export 均有支持版本范围、迁移和明确拒绝语义
 
 ### 媒体浏览器
 
@@ -184,8 +194,9 @@ lib/
 ├── bootstrap.dart              # 初始化：SharedPreferences + SQLite + 数据迁移 + 日志系统
 ├── app/
 │   ├── app.dart                # MaterialApp + ProviderScope
+│   ├── composition/            # 跨 feature facade/port 绑定与 Sync+Media 组合页面
 │   ├── navigation/             # 顶层入口枚举（chat / history / favorites / settings / sync）
-│   ├── router/                 # GoRouter 路由
+│   ├── router/                 # GoRouter：可恢复 ID/query 路由
 │   ├── shell/                  # 响应式导航壳（NavigationRail / NavigationBar）
 │   └── theme/                  # 应用主题（app_theme.dart）
 ├── core/
@@ -198,9 +209,11 @@ lib/
 │   └── widgets/                # 通用 UI 组件（通知气泡等）
 └── features/
     ├── chat/
-    │   ├── application/        # ChatSessionsController + ChatSessionsState（核心编排器）
+    │   ├── application/        # 会话命令、Generation 生命周期、Workspace view-state
+    │   │   ├── ports/          # ChatCompletionClient / ChatConversationRepository 抽象
+    │   │   ├── chat_generation_*.dart  # 显式 prepare/stream/retry/stop/finalize 生命周期
+    │   │   └── ...
     │   ├── data/               # HTTP 客户端 + SSE 解析 + 厂商适配 + SQLite 仓库
-    │   │   ├── chat_completion_client.dart          # 抽象接口 + 异常类
     │   │   ├── openai_compatible_chat_client.dart   # HTTP 客户端实现
     │   │   ├── chat_chunk_parser.dart               # SSE 解析器（支持 `<thought>` 标签）
     │   │   ├── vendor_payload_adapters.dart         # Strategy 模式（厂商 API 差异）
@@ -212,12 +225,12 @@ lib/
     │   │   └── widgets/         # 消息气泡、推理面板、思考开关等组件
     │   └── ...
     ├── favorites/
-    │   ├── application/        # 收藏与收藏夹控制器
+    │   ├── application/        # 收藏控制器、application-owned ports 与跨 feature command
     │   ├── data/               # SQLite 收藏仓库 + 迁移
     │   ├── domain/             # 收藏 / 收藏夹模型
     │   └── presentation/       # 收藏页 + 收藏详情页
     ├── history/
-    │   ├── presentation/       # 历史页（搜索 + 分组 + 批量操作 + 分页）
+    │   ├── presentation/       # Chat read model：搜索 + 分组 + 批量操作 + 分页
     │   └── ...
     ├── media/
     │   ├── application/        # 媒体浏览器控制器 + 随机播放控制器
@@ -230,11 +243,14 @@ lib/
     │   ├── domain/             # 设置相关模型
     │   └── presentation/       # 设置页（网络 / 其他等标签页）
     └── sync/
-        ├── application/        # 同步客户端 / 服务端控制器
-        ├── data/               # 同步数据层
-        ├── domain/             # 同步模型
-        └── presentation/       # 同步页（连接 / 同步 / 媒体 Tab）
+        ├── application/        # 客户端/服务端 protocol coordinator、session registry
+        │   └── ports/          # transport、crypto、pairing、settings/media facade
+        ├── data/               # HTTP/UDP transport、加密实现、安全配对仓库
+        ├── domain/             # typed/versioned protocol、配对与 session 模型
+        └── presentation/       # 连接、同步与授权确认子视图
 ```
+
+跨 feature construction 集中在 `app/composition/`；presentation 不直接依赖 data 或 core persistence。收藏详情使用 ID 路由，媒体查看/播放使用 GoRouter query 路由。顶层目前有意保持平铺 `GoRoute`：尚无需要为状态保持引入 `StatefulShellRoute` 的明确 UX 触发条件。
 
 ### 持久化策略
 
@@ -249,6 +265,8 @@ lib/
 | 字体与字号设置       | SharedPreferences JSON                                |
 | 自定义请求头        | SharedPreferences JSON                                |
 | 自动重试设置        | SharedPreferences JSON                                |
+| Sync identity / 配对 metadata | SharedPreferences 版本化 JSON                    |
+| Sync 长期配对密钥    | OS-backed secure storage                              |
 
 历史版本使用 SharedPreferences 存储所有数据，升级时会自动执行一次性迁移，迁移完成后删除旧键。
 
@@ -256,7 +274,7 @@ lib/
 
 默认 `flutter_smooth_markdown` 路径使用 `StreamMarkdown` 直接消费增量 chunk，不再依赖"按字数动态定时全量重渲染"。
 
-UI 更新节流阈值仍为 300 ms：高频 SSE token 先在控制器层聚合，再统一触发 Riverpod 状态更新，减少状态层高频重建。
+UI 更新节流阈值为 300 ms：`ChatGenerationRun` 持续累积增量，并把独立 `ChatStreamingReply` 投影到状态；不会在每个 token 到达时重写持久化会话列表，避免侧栏等无关消费者高频重建。
 
 ---
 
@@ -265,7 +283,8 @@ UI 更新节流阈值仍为 300 ms：高频 SSE token 先在控制器层聚合�
 ```powershell
 flutter pub get          # 安装依赖
 flutter analyze          # 静态分析
-flutter test             # 运行全部测试（用例数随开发增长，见各模块目录）
+dart run tool/check_import_boundaries.dart  # 架构依赖门禁
+flutter test --reporter compact 2>&1 | Out-File -Encoding utf8 fltest.log; $E = $LASTEXITCODE; Write-Host "EXIT=$E"; Get-Content -Tail 150 fltest.log
 ```
 
 ### 代码规范
@@ -285,22 +304,21 @@ flutter test             # 运行全部测试（用例数随开发增长，见�
 | Favorites Controller | `test/features/favorites/application/` | 收藏和收藏夹 CRUD、过滤、级联 |
 | Favorites Repository | `test/features/favorites/data/`、`test/features/favorites/domain/` | SQLite 仓库、收藏 / 收藏夹模型 |
 | Chat↔Favorites Flow | `test/features/chat/chat_screen/` | 书签按钮、对话框、新建收藏夹流程 |
-| ChatSessionsController | `test/features/chat/application/` | 会话增删改、消息树编辑、重试、错误处理、内联错误显示 |
+| Chat Application | `test/features/chat/application/` | 会话 CRUD、消息树、Generation phase/outcome、停止/重试竞态、Workspace ownership |
 | Chat Domain | `test/features/chat/domain/` | 消息树、对话模型、分组、请求消息构建、检查点上下文 |
 | Chat Data | `test/features/chat/data/` | HTTP 客户端、请求体构建、模板/用户消息构建器、SSE 解析、厂商适配 |
 | Chat Presentation | `test/features/chat/presentation/`、`test/features/chat/widgets/` | 聊天页、锚点 Rail、字数统计、消息折叠 |
 | AppDatabase Migration | `test/core/persistence/` | schema、外键级联、索引、数据迁移、后台写入器、replace-all、版本化 JSON 存储 |
 | Core Utils | `test/core/utils/` | 日期格式化、ID 生成、文本格式化、JSON 截断 |
 | Core Logging | `test/core/logging/` | 日志存储、网络日志脱敏 redactor |
-| AppShellScaffold | `test/app/shell/` | 响应式布局、导航栏/Rail 切换、路由 |
+| App / Architecture | `test/app/`、`test/architecture/` | 响应式壳、可恢复路由、import boundary、测试韧性门禁 |
 | History | `test/features/history/` | 历史搜索、分组、分页 |
-| Media | `test/features/media/` | 媒体浏览器、目录扫描、随机播放、缩略图、图片/视频 HTTP 处理、MIME 类型 |
+| Media | `test/features/media/` | 媒体浏览器、目录扫描、随机播放、缩略图、GoRouter 页面、视频/路径可访问性 |
 | Settings | `test/features/settings/` | 服务商/模型配置、模板、序列、记忆提示词、字体、请求头、自动重试、导入导出去重 |
-| Sync | `test/features/sync/` | 同步客户端/服务端、UDP 发现、HTTP 服务、消息模型、同步页 |
+| Sync | `test/features/sync/` | 配对、加密协议、session/replay、版本拒绝、UDP 发现、transport 与同步页 |
 | Integration | `test/integration/` | 启动、消息版本持久化、多对话切换/重启恢复、收藏夹级联、PresetPrompt 拼接、Sync 多品类/端到端、厂商 payload 集成 |
 
-测试用 `SharedPreferences.setMockInitialValues(...)` 注入存储，用 `ProviderScope` 覆盖依赖。
-涉及聊天记录、收藏或收藏夹时同时覆盖 `appDatabaseProvider`（内存数据库）。
+Widget 测试统一通过 `test/helpers/test_harness.dart` 的 `pumpTestApp()` 注入 SharedPreferences、内存数据库、视口和 Provider overrides，并由 harness 完成 tearDown。测试数据优先使用 `TestFixtures` 和 Repository seed API；不要在 Widget 测试中手写 JSON 或 raw SQL。
 
 ---
 
