@@ -1,0 +1,4 @@
+# fork 保持上游源码结构，不继承主应用的 flutter_lints；编译错误由独立 analyze 拦截。
+analyzer:
+  exclude:
+    - build/**

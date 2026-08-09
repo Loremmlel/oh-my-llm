@@ -76,6 +76,9 @@ class ChatMessagesPanel extends StatefulWidget {
 }
 
 class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
+  // 固定像素缓存避免输入区高度动画逐帧改变虚拟列表的缓存边界。
+  static const _messageListCacheExtent = 400.0;
+
   // ── 缓存：以输入指纹失效，避免流式高频 rebuild 时重复 O(n) 计算 ─────────
   // 用 ChatConversation（Equatable 值比较）作 key，而非 messages getter
   // 返回的 List（identity 比较，跨 build 永不相等会导致缓存 100% miss）。
@@ -105,42 +108,42 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
     final versionInfoByMessageId = _resolveVersionInfoMap();
     final normalizedError = widget.errorMessage?.trim();
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // 移动端紧凑布局下整体缩小内边距，让消息气泡更宽。
-        final listPadding = AppBreakpoints.isCompactShell(context)
-            ? 10.0
-            : 14.0;
+    // 移动端紧凑布局下整体缩小内边距，让消息气泡更宽。
+    final listPadding = AppBreakpoints.isCompactShell(context) ? 10.0 : 14.0;
 
-        return Card(
-          clipBehavior: Clip.antiAlias,
-          child: Stack(
-            children: [
-              if (widget.messages.isEmpty)
-                EmptyConversationView(hasModels: widget.hasModels)
-              else
-                ScrollablePositionedList.separated(
-                  itemScrollController: widget.messageItemScrollController,
-                  itemPositionsListener: widget.messageItemPositionsListener,
-                  padding: EdgeInsets.all(listPadding),
-                  itemCount: displayMessages.length,
-                  separatorBuilder: (context, index) {
-                    return const SizedBox(height: 12);
-                  },
-                  itemBuilder: (context, index) => _buildBubbleItem(
-                    displayMessages[index],
-                    normalizedError: normalizedError,
-                    latestAssistantMessage: latestAssistantMessage,
-                    lastUserMessageId: lastUserMessageId,
-                    versionInfoByMessageId: versionInfoByMessageId,
-                  ),
-                ),
-              if (widget.userMessages.isNotEmpty)
-                Positioned(
-                  right: 8,
-                  top: 0,
-                  bottom: 0,
-                  child: Align(
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        children: [
+          if (widget.messages.isEmpty)
+            EmptyConversationView(hasModels: widget.hasModels)
+          else
+            ScrollablePositionedList.separated(
+              itemScrollController: widget.messageItemScrollController,
+              itemPositionsListener: widget.messageItemPositionsListener,
+              cacheExtent: _messageListCacheExtent,
+              padding: EdgeInsets.all(listPadding),
+              itemCount: displayMessages.length,
+              separatorBuilder: (context, index) {
+                return const SizedBox(height: 12);
+              },
+              itemBuilder: (context, index) => _buildBubbleItem(
+                displayMessages[index],
+                normalizedError: normalizedError,
+                latestAssistantMessage: latestAssistantMessage,
+                lastUserMessageId: lastUserMessageId,
+                versionInfoByMessageId: versionInfoByMessageId,
+              ),
+            ),
+          if (widget.userMessages.isNotEmpty)
+            Positioned(
+              right: 8,
+              top: 0,
+              bottom: 0,
+              // 仅锚点条依赖可用高度，输入区动画不会重建消息列表。
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return Align(
                     alignment: Alignment.centerRight,
                     // 锚点高亮随滚动局部刷新，不触发整页重建；
                     // ValueListenableBuilder 重建 MessageAnchorRail 时其
@@ -156,27 +159,27 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
                         );
                       },
                     ),
-                  ),
-                ),
-              ValueListenableBuilder<bool>(
-                valueListenable: widget.showScrollToBottomListenable,
-                builder: (context, showScrollToBottom, _) {
-                  if (!showScrollToBottom) return const SizedBox.shrink();
-                  return Positioned(
-                    right: 16,
-                    bottom: 16,
-                    child: FloatingActionButton.small(
-                      onPressed: widget.onScrollToBottomPressed,
-                      tooltip: '滚动到底部',
-                      child: const Icon(Icons.arrow_downward_rounded),
-                    ),
                   );
                 },
               ),
-            ],
+            ),
+          ValueListenableBuilder<bool>(
+            valueListenable: widget.showScrollToBottomListenable,
+            builder: (context, showScrollToBottom, _) {
+              if (!showScrollToBottom) return const SizedBox.shrink();
+              return Positioned(
+                right: 16,
+                bottom: 16,
+                child: FloatingActionButton.small(
+                  onPressed: widget.onScrollToBottomPressed,
+                  tooltip: '滚动到底部',
+                  child: const Icon(Icons.arrow_downward_rounded),
+                ),
+              );
+            },
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 

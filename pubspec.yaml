@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 3.29.73+0
+version: 3.29.74+0
 
 environment:
   sdk: ^3.11.5
@@ -42,7 +42,9 @@ dependencies:
   characters: ^1.4.1
   flutter_smooth_markdown: ^0.8.1
   http: ^1.6.0
-  scrollable_positioned_list: ^0.3.8
+  # 仓库内 fork：允许固定 cacheExtent，避免输入区高度动画放大消息布局开销。
+  scrollable_positioned_list:
+    path: third_party/scrollable_positioned_list
   meta: ^1.18.0
   sqlite3: ^3.5.1
   file_picker: ^11.0.3
