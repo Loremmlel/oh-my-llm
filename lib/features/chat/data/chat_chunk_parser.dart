@@ -1,110 +1,13 @@
 import 'dart:convert';
 
 import '../application/ports/chat_generation_client.dart';
+import 'chat_completions/inline_reasoning_tag_splitter.dart';
 import 'chunk_parse_strategy.dart';
 
-/// 内联 reasoning 标签分割结果。
-class InlineReasoningSplitResult {
-  const InlineReasoningSplitResult({this.content = '', this.reasoning = ''});
+// 内联标签分割器已迁移至 chat_completions/；此处 re-export 保持旧文件
+// 使用方的 import 路径不变，旧解析器下线时随本文件一并移除。
 
-  final String content;
-  final String reasoning;
-
-  bool get isEmpty => content.isEmpty && reasoning.isEmpty;
-}
-
-/// 从正文流中识别并分离 `<thought>`/`<thinking>` 标签内容，转入 reasoning 通道。
-///
-/// 用于 Gemma-IT 等以 `<thought>…</thought>` 方式内嵌思考过程的模型。
-/// 每个请求创建一个新实例，以保持跨 chunk 的标签解析状态。
-class InlineReasoningTagSplitter {
-  static final RegExp _openingTag = RegExp(
-    r'^<\s*(thoughts?|thinkings?)\b[^>]*>$',
-    caseSensitive: false,
-  );
-  static final RegExp _closingTag = RegExp(
-    r'^<\s*/\s*(thoughts?|thinkings?)\s*>$',
-    caseSensitive: false,
-  );
-
-  bool _insideReasoningTag = false;
-  String _tail = '';
-
-  InlineReasoningSplitResult splitContent(String delta) {
-    if (delta.isEmpty && _tail.isEmpty) {
-      return const InlineReasoningSplitResult();
-    }
-
-    final input = '$_tail$delta';
-    _tail = '';
-    final contentBuffer = StringBuffer();
-    final reasoningBuffer = StringBuffer();
-    var cursor = 0;
-
-    while (cursor < input.length) {
-      final tagStart = input.indexOf('<', cursor);
-      if (tagStart == -1) {
-        final remaining = input.substring(cursor);
-        if (_insideReasoningTag) {
-          reasoningBuffer.write(remaining);
-        } else {
-          contentBuffer.write(remaining);
-        }
-        break;
-      }
-
-      final beforeTag = input.substring(cursor, tagStart);
-      if (_insideReasoningTag) {
-        reasoningBuffer.write(beforeTag);
-      } else {
-        contentBuffer.write(beforeTag);
-      }
-
-      final tagEnd = input.indexOf('>', tagStart + 1);
-      if (tagEnd == -1) {
-        _tail = input.substring(tagStart);
-        break;
-      }
-
-      final candidateTag = input.substring(tagStart, tagEnd + 1);
-      if (!_insideReasoningTag && _openingTag.hasMatch(candidateTag)) {
-        _insideReasoningTag = true;
-        cursor = tagEnd + 1;
-        continue;
-      }
-
-      if (_insideReasoningTag && _closingTag.hasMatch(candidateTag)) {
-        _insideReasoningTag = false;
-        cursor = tagEnd + 1;
-        continue;
-      }
-
-      if (_insideReasoningTag) {
-        reasoningBuffer.write('<');
-      } else {
-        contentBuffer.write('<');
-      }
-      cursor = tagStart + 1;
-    }
-
-    return InlineReasoningSplitResult(
-      content: contentBuffer.toString(),
-      reasoning: reasoningBuffer.toString(),
-    );
-  }
-
-  /// 刷新缓冲区中残留的不完整标签内容。
-  ChatGenerationChunk? flushRemainder() {
-    if (_tail.isEmpty) return null;
-
-    final remainder = _tail;
-    _tail = '';
-    if (_insideReasoningTag) {
-      return ChatGenerationChunk(reasoningDelta: remainder);
-    }
-    return ChatGenerationChunk(contentDelta: remainder);
-  }
-}
+export 'chat_completions/inline_reasoning_tag_splitter.dart';
 
 /// 从单个 SSE delta/message payload 提取正文与推理增量。
 ///

@@ -745,35 +745,43 @@ void main() {
     },
   );
 
-  test('streamCompletion supports thoughts/thinkings tag variants', () async {
-    final client = OpenAiCompatibleChatClient(
-      httpClient: _FakeStreamingHttpClient((request) async {
-        return http.StreamedResponse(
-          Stream.fromIterable([
-            utf8.encode(
-              'data: {"choices":[{"delta":{"content":"A<THOUGHTS>R1</THOUGHTS>B<thinkings>R2</thinkings>C"}}]}\n\n',
+  test(
+    'streamCompletion treats thoughts/thinkings variants as ordinary content',
+    () async {
+      final client = OpenAiCompatibleChatClient(
+        httpClient: _FakeStreamingHttpClient((request) async {
+          return http.StreamedResponse(
+            Stream.fromIterable([
+              utf8.encode(
+                'data: {"choices":[{"delta":{"content":"A<THOUGHTS>R1</THOUGHTS>B<thinkings>R2</thinkings>C"}}]}\n\n',
+              ),
+              utf8.encode('data: [DONE]\n\n'),
+            ]),
+            200,
+          );
+        }),
+      );
+
+      final chunks = await client
+          .streamCompletion(
+            _request(
+              modelConfig: _modelConfig(),
+              messages: const [
+                ChatRequestMessage(role: ChatMessageRole.user, content: '你好'),
+              ],
             ),
-            utf8.encode('data: [DONE]\n\n'),
-          ]),
-          200,
-        );
-      }),
-    );
+          )
+          .toList();
 
-    final chunks = await client
-        .streamCompletion(
-          _request(
-            modelConfig: _modelConfig(),
-            messages: const [
-              ChatRequestMessage(role: ChatMessageRole.user, content: '你好'),
-            ],
-          ),
-        )
-        .toList();
-
-    expect(chunks.map((c) => c.contentDelta).join(), 'ABC');
-    expect(chunks.map((c) => c.reasoningDelta).join(), 'R1R2');
-  });
+      // 内联标签集合只含 <thought>/<thinking>/<think> 三种单数标签；
+      // 复数变体按普通正文保留。
+      expect(
+        chunks.map((c) => c.contentDelta).join(),
+        'A<THOUGHTS>R1</THOUGHTS>B<thinkings>R2</thinkings>C',
+      );
+      expect(chunks.map((c) => c.reasoningDelta).join(), isEmpty);
+    },
+  );
 
   test(
     'streamCompletion extracts inline reasoning across chunk boundaries',
