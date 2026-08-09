@@ -579,6 +579,32 @@ void main() {
       }
     });
 
+    test('超长空响应 rawSseData 截尾：responseBody 只保留尾部 200 行', () async {
+      final client = _FakeStreamingHttpClient((_) async {
+        return http.StreamedResponse(
+          Stream.fromIterable([
+            for (var i = 0; i < 250; i++)
+              utf8.encode('data: {"type":"ping","seq":$i}\n\n'),
+            utf8.encode('data: {"type":"message_stop"}\n\n'),
+          ]),
+          200,
+        );
+      });
+
+      try {
+        await buildAnthropicClient(client)
+            .streamCompletion(
+              _request(_messages(), modelConfig: _modelConfig()),
+            )
+            .drain<void>();
+        fail('Expected ChatGenerationException');
+      } on ChatGenerationException catch (error) {
+        expect(error.responseBody, isNotNull);
+        expect(error.responseBody!.split('\n'), hasLength(200));
+        expect(error.responseBody, endsWith('data: {"type":"message_stop"}'));
+      }
+    });
+
     test(
       'idle timeout → ChatGenerationException（cause 为 TimeoutException）',
       () async {

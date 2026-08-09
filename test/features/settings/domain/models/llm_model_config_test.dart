@@ -157,5 +157,27 @@ void main() {
         throwsFormatException,
       );
     });
+
+    test('fromJson apiProtocol 为非字符串值抛 FormatException', () {
+      for (final badValue in [
+        123,
+        true,
+        {'x': 1},
+        ['responses'],
+      ]) {
+        expect(
+          () => LlmModelConfig.fromJson({
+            'id': 'm1',
+            'displayName': 'D',
+            'apiUrl': 'url',
+            'apiKey': 'key',
+            'modelName': 'n',
+            'apiProtocol': badValue,
+          }),
+          throwsFormatException,
+          reason: '$badValue',
+        );
+      }
+    });
   });
 }

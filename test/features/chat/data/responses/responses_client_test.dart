@@ -315,6 +315,62 @@ void main() {
       expect(result.content, '你好世界');
     });
 
+    test('仅 reasoning delta（无 output_text）→ 正常结束且推理保留', () async {
+      final client = _FakeStreamingHttpClient((_) async {
+        return http.StreamedResponse(
+          Stream.fromIterable([
+            utf8.encode(
+              'data: {"type":"response.reasoning_summary_text.delta","delta":"思考中"}\n\n',
+            ),
+            utf8.encode('data: {"type":"response.completed"}\n\n'),
+            utf8.encode(
+              'data: {"type":"response.done","response":{"id":"r-1"}}\n\n',
+            ),
+          ]),
+          200,
+        );
+      });
+
+      final result = await buildResponsesClient(
+        client,
+      ).complete(_request(_messages(), modelConfig: _modelConfig()));
+
+      expect(result.reasoningContent, '思考中');
+      expect(result.content, isEmpty);
+      expect(result.finishReason, 'stop');
+    });
+
+    test('超长空响应 rawSseData 截尾：responseBody 只保留尾部 200 行', () async {
+      final client = _FakeStreamingHttpClient((_) async {
+        return http.StreamedResponse(
+          Stream.fromIterable([
+            for (var i = 0; i < 250; i++)
+              utf8.encode('data: {"type":"response.created","seq":$i}\n\n'),
+            utf8.encode(
+              'data: {"type":"response.done","response":{"id":"r-1"}}\n\n',
+            ),
+          ]),
+          200,
+        );
+      });
+
+      try {
+        await buildResponsesClient(client)
+            .streamCompletion(
+              _request(_messages(), modelConfig: _modelConfig()),
+            )
+            .drain<void>();
+        fail('Expected ChatGenerationException');
+      } on ChatGenerationException catch (error) {
+        expect(error.responseBody, isNotNull);
+        expect(error.responseBody!.split('\n'), hasLength(200));
+        expect(
+          error.responseBody,
+          endsWith('data: {"type":"response.done","response":{"id":"r-1"}}'),
+        );
+      }
+    });
+
     test('response.completed 携带 usage → 流尾部 chunk 填充用量', () async {
       final client = _FakeStreamingHttpClient((_) async {
         return http.StreamedResponse(

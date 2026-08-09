@@ -235,12 +235,8 @@ void main() {
       );
     });
 
-    test('未知事件名声明 tool/failed/incomplete → 不得按未知忽略', () {
-      for (final type in [
-        'message.tool_call',
-        'run.failed',
-        'run.incomplete',
-      ]) {
+    test('未知事件名按 _ 分词命中 tool/failed/incomplete → 不得按未知忽略', () {
+      for (final type in ['tool_use', 'run_failed', 'run_incomplete']) {
         expect(
           () => newParser().parse(event('{"type":"$type"}')),
           throwsA(
@@ -253,6 +249,13 @@ void main() {
           reason: type,
         );
       }
+    });
+
+    test('tooltip_ready 前缀近似 → 不再误触发，按未知事件忽略', () {
+      final result = newParser().parse(event('{"type":"tooltip_ready"}'));
+      expect(result.chunk, isNull);
+      expect(result.isDone, isFalse);
+      expect(result.recognized, isFalse);
     });
   });
 

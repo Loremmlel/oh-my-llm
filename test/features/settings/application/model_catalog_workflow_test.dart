@@ -92,6 +92,32 @@ void main() {
     expect(capturedProtocol, LlmApiProtocol.responses);
   });
 
+  test('invalid apiUrl derivation maps to ModelCatalogFailure', () async {
+    final workflow = ModelCatalogWorkflow(
+      fetchModels:
+          ({required modelsUrl, required apiKey, required apiProtocol}) async {
+            return const [];
+          },
+    );
+
+    await expectLater(
+      workflow.fetch(
+        const ModelCatalogRequest(
+          apiUrl: 'not a url',
+          apiKey: 'sk-test',
+          apiProtocol: LlmApiProtocol.chatCompletions,
+        ),
+      ),
+      throwsA(
+        isA<ModelCatalogFailure>().having(
+          (failure) => failure.message,
+          'message',
+          contains('未知错误'),
+        ),
+      ),
+    );
+  });
+
   test('maps data-client failures to a stable application failure', () async {
     final workflow = ModelCatalogWorkflow(
       fetchModels:

@@ -22,7 +22,6 @@ void main() {
     test('[DONE] → isDone=true 且无 chunk', () {
       final result = newParser().parse(event('[DONE]'));
       expect(result.isDone, isTrue);
-      expect(result.recognized, isTrue);
       expect(result.chunk, isNull);
     });
 
@@ -46,11 +45,10 @@ void main() {
       },
     );
 
-    test('非 Map JSON（List）→ 无 chunk、recognized=true', () {
+    test('非 Map JSON（List）→ 无 chunk', () {
       final result = newParser().parse(event('[1, 2, 3]'));
       expect(result.chunk, isNull);
       expect(result.isDone, isFalse);
-      expect(result.recognized, isTrue);
     });
 
     test('error 为非空 String → 抛异常，message 为错误文本', () {

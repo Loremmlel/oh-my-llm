@@ -225,4 +225,45 @@ void main() {
 
     await source.close();
   });
+
+  test('SseEvent 值相等（Equatable）', () {
+    const a = SseEvent(eventName: 'ping', data: 'x', rawData: 'data: x');
+    const b = SseEvent(eventName: 'ping', data: 'x', rawData: 'data: x');
+    const c = SseEvent(eventName: 'ping', data: 'y', rawData: 'data: x');
+
+    expect(a, b);
+    expect(a.hashCode, b.hashCode);
+    expect(a == c, isFalse);
+    expect(c == const SseEvent(data: 'x', rawData: 'data: x'), isFalse);
+  });
+
+  test('上游错误后取消 idle timer，不再触发超时', () {
+    fakeAsync((async) {
+      final source = StreamController<List<int>>();
+      final errors = <Object>[];
+      final subscription = decoder
+          .decode(source.stream, idleTimeout: const Duration(seconds: 1))
+          .listen((_) {}, onError: errors.add);
+
+      // data 行重置计时器到 t=1s。
+      source.add(utf8.encode('data: x\n\n'));
+      async.flushMicrotasks();
+      expect(errors, isEmpty);
+
+      // 上游直接报错（模拟网络中断）：错误转发后计时器必须取消。
+      source.addError(StateError('connection reset'));
+      async.flushMicrotasks();
+      expect(errors, hasLength(1));
+      expect(errors.single, isA<StateError>());
+
+      // 若计时器未取消，t=1s 后还会追加 TimeoutException。
+      async.elapse(const Duration(seconds: 2));
+      async.flushMicrotasks();
+      expect(errors, hasLength(1));
+
+      unawaited(subscription.cancel());
+      async.flushMicrotasks();
+      unawaited(source.close());
+    });
+  });
 }

@@ -25,7 +25,6 @@ void main() {
       expect(expectedSpy.requests, [
         same(request),
       ], reason: '${protocol.name} 应把原请求对象交给对应客户端');
-      expect(expectedSpy.requests, hasLength(1));
 
       for (final other in spies.others(protocol)) {
         expect(

@@ -313,6 +313,29 @@ void registerChatSessionsControllerGenerationCases() {
       expect(message, startsWith('请求失败'));
       expect(message, contains('429'));
       expect(message, contains('rate limit'));
+      // 缺字段时不出现对应小节。
+      expect(message, isNot(contains('协议：')));
+      expect(message, isNot(contains('请求地址：')));
+      expect(message, isNot(contains('API 错误码：')));
+    });
+
+    test('携带协议/请求地址/错误码时展开新字段', () {
+      final controller = container.read(chatSessionsProvider.notifier);
+      final message = controller.formatStreamingError(
+        ChatGenerationException(
+          '请求失败',
+          protocol: LlmApiProtocol.responses,
+          uri: Uri.parse('https://api.example.com/v1/responses'),
+          apiErrorCode: 'rate_limit_exceeded',
+          statusCode: 429,
+        ),
+        StackTrace.current,
+      );
+
+      expect(message, startsWith('请求失败'));
+      expect(message, contains('协议：Responses'));
+      expect(message, contains('请求地址：https://api.example.com/v1/responses'));
+      expect(message, contains('API 错误码：rate_limit_exceeded'));
     });
 
     test('超长响应体被截断并附省略提示', () {

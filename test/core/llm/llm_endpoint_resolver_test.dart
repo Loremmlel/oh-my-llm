@@ -153,6 +153,13 @@ void main() {
         'https://api.openai.com/v1/chat/completions/',
         'https://api.openai.com/v1/models',
       ),
+      // 已是模型列表端点：原样返回（含末尾斜杠）
+      ('https://host/v1/models', 'https://host/v1/models'),
+      ('https://host/v1/models/', 'https://host/v1/models/'),
+      (
+        'https://host/proxy/openai/v1/models',
+        'https://host/proxy/openai/v1/models',
+      ),
       // 自定义反向代理前缀
       ('https://host/proxy/openai/v1', 'https://host/proxy/openai/v1/models'),
       ('https://host/proxy/openai', 'https://host/proxy/openai/v1/models'),
