@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/persistence/versioned_json_storage.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_completion_client.dart';
@@ -37,6 +38,7 @@ class TestFixtures {
     String apiKey = 'sk-test',
     String providerId = '',
     String providerName = '',
+    LlmApiProtocol apiProtocol = LlmApiProtocol.chatCompletions,
   }) => LlmModelConfig(
     id: id,
     displayName: displayName,
@@ -46,6 +48,7 @@ class TestFixtures {
     supportsReasoning: supportsReasoning,
     providerId: providerId,
     providerName: providerName,
+    apiProtocol: apiProtocol,
   );
 
   static LlmModelConfig gpt41() => model(
@@ -260,6 +263,8 @@ class TestFixtures {
                   : first.providerName,
               apiUrl: first.apiUrl,
               apiKey: first.apiKey,
+              // 按模型组的协议还原服务商协议，与运行期 resolveForProvider 语义一致。
+              apiProtocol: first.apiProtocol,
               models: group
                   .map(
                     (m) => LlmProviderModelConfig(

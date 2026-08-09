@@ -6,6 +6,7 @@ import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/app/composition/cross_feature_bindings.dart';
+import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/features/settings/application/auto_retry_settings_controller.dart';
 import 'package:oh_my_llm/features/settings/application/fixed_prompt_sequences_controller.dart';
 import 'package:oh_my_llm/features/settings/application/llm_model_configs_controller.dart';
@@ -34,6 +35,7 @@ LlmProviderConfig _provider({
     name: name,
     apiUrl: apiUrl,
     apiKey: apiKey,
+    apiProtocol: LlmApiProtocol.chatCompletions,
     models: const [],
   );
 }

@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/features/settings/application/settings_import_executor.dart';
 import 'package:oh_my_llm/features/settings/domain/models/auto_retry_settings.dart';
 import 'package:oh_my_llm/features/settings/domain/models/custom_headers_config.dart';
@@ -56,6 +57,7 @@ SettingsExportData _fullData() => SettingsExportData(
       name: 'P',
       apiUrl: 'https://api.test',
       apiKey: 'key',
+      apiProtocol: LlmApiProtocol.chatCompletions,
       models: [],
     ),
   ],

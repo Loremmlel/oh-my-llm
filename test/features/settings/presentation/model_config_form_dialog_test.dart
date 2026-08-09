@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/features/settings/application/model_catalog_workflow.dart';
 import 'package:oh_my_llm/features/settings/domain/models/model_catalog_entry.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
@@ -18,6 +19,7 @@ void main() {
     name: 'TestProvider',
     apiUrl: 'https://api.example.com/v1/chat/completions',
     apiKey: 'sk-test',
+    apiProtocol: LlmApiProtocol.chatCompletions,
     models: [],
   );
 
@@ -28,6 +30,7 @@ void main() {
       name: 'TestProvider',
       apiUrl: 'https://api.example.com/v1/chat/completions',
       apiKey: 'sk-test',
+      apiProtocol: LlmApiProtocol.chatCompletions,
       models: [],
     );
   });
@@ -226,6 +229,7 @@ void main() {
           name: 'TestProvider',
           apiUrl: 'https://api.example.com/v1/chat/completions',
           apiKey: 'sk-test',
+          apiProtocol: LlmApiProtocol.chatCompletions,
           models: [
             LlmProviderModelConfig(
               id: 'm-existing',

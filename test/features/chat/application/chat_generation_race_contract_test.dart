@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
@@ -45,6 +46,7 @@ void main() {
             name: 'Test Provider',
             apiUrl: 'https://api.example.com/v1/chat/completions',
             apiKey: 'sk-test',
+            apiProtocol: LlmApiProtocol.chatCompletions,
             models: [
               LlmProviderModelConfig(
                 id: 'model-1',

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/features/settings/domain/models/auto_retry_settings.dart';
 import 'package:oh_my_llm/features/settings/domain/models/custom_headers_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/fixed_prompt_sequence.dart';
@@ -20,6 +21,7 @@ LlmProviderConfig _provider({String id = 'provider-1'}) {
     name: 'OpenAI',
     apiUrl: 'https://api.openai.com/v1/chat/completions',
     apiKey: 'sk-test',
+    apiProtocol: LlmApiProtocol.chatCompletions,
     models: const [],
   );
 }

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:oh_my_llm/app/navigation/app_destination.dart';
 import 'package:oh_my_llm/app/shell/app_shell_scaffold.dart';
+import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/core/utils/id_generator.dart';
 import '../application/fixed_prompt_sequences_controller.dart';
 import '../application/llm_model_configs_controller.dart';
@@ -449,6 +450,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                   name: formData.name,
                   apiUrl: formData.apiUrl,
                   apiKey: formData.apiKey,
+                  // 表单协议选择在后续任务加入；编辑时继承原协议，
+                  // 新建默认 Chat Completions，保证不丢已有协议。
+                  apiProtocol:
+                      initialValue?.apiProtocol ??
+                      LlmApiProtocol.chatCompletions,
                   models: initialValue?.models ?? const [],
                 );
 

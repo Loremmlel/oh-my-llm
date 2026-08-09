@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:equatable/equatable.dart';
 
+import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
+
 /// OpenAI 兼容模型配置。
 class LlmModelConfig extends Equatable {
   const LlmModelConfig({
@@ -13,6 +15,7 @@ class LlmModelConfig extends Equatable {
     required this.supportsReasoning,
     this.providerId = '',
     this.providerName = '',
+    this.apiProtocol = LlmApiProtocol.chatCompletions,
   });
 
   final String id;
@@ -23,6 +26,7 @@ class LlmModelConfig extends Equatable {
   final bool supportsReasoning;
   final String providerId;
   final String providerName;
+  final LlmApiProtocol apiProtocol;
 
   /// 复制模型配置，并允许覆盖任意字段。
   LlmModelConfig copyWith({
@@ -34,6 +38,7 @@ class LlmModelConfig extends Equatable {
     bool? supportsReasoning,
     String? providerId,
     String? providerName,
+    LlmApiProtocol? apiProtocol,
   }) {
     return LlmModelConfig(
       id: id ?? this.id,
@@ -44,6 +49,7 @@ class LlmModelConfig extends Equatable {
       supportsReasoning: supportsReasoning ?? this.supportsReasoning,
       providerId: providerId ?? this.providerId,
       providerName: providerName ?? this.providerName,
+      apiProtocol: apiProtocol ?? this.apiProtocol,
     );
   }
 
@@ -56,6 +62,7 @@ class LlmModelConfig extends Equatable {
       'apiKey': apiKey,
       'modelName': modelName,
       'supportsReasoning': supportsReasoning,
+      'apiProtocol': apiProtocol.storageValue,
       if (providerId.isNotEmpty) 'providerId': providerId,
       if (providerName.isNotEmpty) 'providerName': providerName,
     };
@@ -72,6 +79,10 @@ class LlmModelConfig extends Equatable {
       supportsReasoning: json['supportsReasoning'] as bool? ?? false,
       providerId: json['providerId'] as String? ?? '',
       providerName: json['providerName'] as String? ?? '',
+      // 缺字段回退 chatCompletions；显式未知值由枚举解析失败。
+      apiProtocol: json['apiProtocol'] == null
+          ? LlmApiProtocol.chatCompletions
+          : LlmApiProtocol.fromStorageValue(json['apiProtocol'] as String),
     );
   }
 
@@ -89,6 +100,7 @@ class LlmModelConfig extends Equatable {
       supportsReasoning,
       providerId,
       providerName,
+      apiProtocol,
     ];
   }
 }

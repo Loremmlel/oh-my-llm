@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/features/settings/application/llm_model_configs_controller.dart';
 import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
@@ -34,6 +35,7 @@ LlmProviderConfig _providerConfig({
     name: name,
     apiUrl: apiUrl,
     apiKey: apiKey,
+    apiProtocol: LlmApiProtocol.chatCompletions,
     models: models ?? [],
   );
 }

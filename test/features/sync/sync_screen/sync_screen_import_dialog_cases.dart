@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/memory_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/settings_export_data.dart';
@@ -25,6 +26,7 @@ void registerSyncScreenImportDialogTests() {
             name: 'OpenAI',
             apiUrl: 'https://api.openai.com/v1',
             apiKey: 'sk-test',
+            apiProtocol: LlmApiProtocol.chatCompletions,
             models: [
               LlmProviderModelConfig(
                 id: 'model-1',

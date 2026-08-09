@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:equatable/equatable.dart';
 
+import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
+
 import 'llm_model_config.dart';
 
 /// 服务商下单个模型的配置。
@@ -51,6 +53,8 @@ class LlmProviderModelConfig extends Equatable {
   }
 
   /// 把模型与服务商凭据拼成请求层需要的完整配置。
+  ///
+  /// 协议属于服务商，不落到单个模型配置上。
   LlmModelConfig resolveForProvider(LlmProviderConfig provider) {
     return LlmModelConfig(
       id: id,
@@ -61,6 +65,7 @@ class LlmProviderModelConfig extends Equatable {
       supportsReasoning: supportsReasoning,
       providerId: provider.id,
       providerName: provider.name,
+      apiProtocol: provider.apiProtocol,
     );
   }
 
@@ -71,13 +76,14 @@ class LlmProviderModelConfig extends Equatable {
   List<Object> get props => [id, displayName, modelName, supportsReasoning];
 }
 
-/// LLM 服务商配置，持有共享的 URL / Key 与其下模型列表。
+/// LLM 服务商配置，持有共享的 URL / Key / API 协议与其下模型列表。
 class LlmProviderConfig extends Equatable {
   const LlmProviderConfig({
     required this.id,
     required this.name,
     required this.apiUrl,
     required this.apiKey,
+    required this.apiProtocol,
     this.models = const [],
   });
 
@@ -85,6 +91,7 @@ class LlmProviderConfig extends Equatable {
   final String name;
   final String apiUrl;
   final String apiKey;
+  final LlmApiProtocol apiProtocol;
   final List<LlmProviderModelConfig> models;
 
   LlmProviderConfig copyWith({
@@ -92,6 +99,7 @@ class LlmProviderConfig extends Equatable {
     String? name,
     String? apiUrl,
     String? apiKey,
+    LlmApiProtocol? apiProtocol,
     List<LlmProviderModelConfig>? models,
   }) {
     return LlmProviderConfig(
@@ -99,6 +107,7 @@ class LlmProviderConfig extends Equatable {
       name: name ?? this.name,
       apiUrl: apiUrl ?? this.apiUrl,
       apiKey: apiKey ?? this.apiKey,
+      apiProtocol: apiProtocol ?? this.apiProtocol,
       models: models ?? this.models,
     );
   }
@@ -109,6 +118,7 @@ class LlmProviderConfig extends Equatable {
       'name': name,
       'apiUrl': apiUrl,
       'apiKey': apiKey,
+      'apiProtocol': apiProtocol.storageValue,
       'models': models.map((model) => model.toJson()).toList(growable: false),
     };
   }
@@ -120,6 +130,11 @@ class LlmProviderConfig extends Equatable {
       name: json['name'] as String,
       apiUrl: json['apiUrl'] as String,
       apiKey: json['apiKey'] as String,
+      // 旧 JSON 缺失 apiProtocol 时固定回退为 chatCompletions；
+      // 显式写入的未知值由枚举解析失败，不做静默降级。
+      apiProtocol: json['apiProtocol'] == null
+          ? LlmApiProtocol.chatCompletions
+          : LlmApiProtocol.fromStorageValue(json['apiProtocol'] as String),
       models: rawModels
           .map((item) {
             return LlmProviderModelConfig.fromJson(
@@ -141,5 +156,5 @@ class LlmProviderConfig extends Equatable {
   String toString() => jsonEncode(toJson());
 
   @override
-  List<Object> get props => [id, name, apiUrl, apiKey, models];
+  List<Object> get props => [id, name, apiUrl, apiKey, apiProtocol, models];
 }

@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
+import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/features/settings/application/llm_model_configs_controller.dart';
 import 'package:oh_my_llm/features/settings/application/memory_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/application/settings_sync_facade.dart';
@@ -47,6 +48,7 @@ void main() {
       name: '测试服务商',
       apiUrl: 'https://api.example.com/v1',
       apiKey: 'sk-test',
+      apiProtocol: LlmApiProtocol.chatCompletions,
       models: const [
         LlmProviderModelConfig(
           id: 'model-1',

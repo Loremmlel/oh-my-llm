@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/features/settings/application/settings_transfer_workflow.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
@@ -13,6 +14,7 @@ void main() {
           name: 'OpenAI',
           apiUrl: 'https://api.test',
           apiKey: 'key',
+          apiProtocol: LlmApiProtocol.chatCompletions,
           models: [],
         ),
       ],

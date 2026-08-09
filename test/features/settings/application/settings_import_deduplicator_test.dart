@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/features/settings/application/settings_import_deduplicator.dart';
 import 'package:oh_my_llm/features/settings/domain/models/auto_retry_settings.dart';
 import 'package:oh_my_llm/features/settings/domain/models/fixed_prompt_sequence.dart';
@@ -127,6 +128,7 @@ void main() {
       name: name,
       apiUrl: apiUrl,
       apiKey: apiKey,
+      apiProtocol: LlmApiProtocol.chatCompletions,
       models: models ?? [model()],
     );
   }
