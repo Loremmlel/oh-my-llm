@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dart';
 import 'package:oh_my_llm/features/settings/data/sqlite_memory_prompt_repository.dart';
@@ -41,6 +42,79 @@ void registerSettingsScreenModelsAndPromptsTests() {
     expect(createdProvider.name, 'OpenAI 官方');
     expect(repository.loadAll(), isEmpty);
     expect(find.text('OpenAI 官方'), findsWidgets);
+  });
+
+  testWidgets('settings screen shows protocol name in provider list', (
+    tester,
+  ) async {
+    await setUpSettingsScreen(tester);
+
+    await createTestProvider(tester);
+
+    // 新建默认 Chat Completions：服务商卡片 meta 显示协议名称。
+    expect(find.text('协议：Chat Completions'), findsOneWidget);
+  });
+
+  testWidgets('settings screen saves selected protocol and shows it', (
+    tester,
+  ) async {
+    await setUpSettingsScreen(tester);
+    final repository = ProviderScope.containerOf(
+      tester.element(find.byType(SettingsScreen)),
+    ).read(llmModelConfigRepositoryProvider);
+
+    await tester.tap(find.text('新增服务商'));
+    await settleOverlayTransition(tester);
+    await tester.enterText(providerNameField(), 'OpenAI 官方');
+    await tester.enterText(
+      providerApiUrlField(),
+      'https://api.example.com/v1/chat/completions',
+    );
+    await tester.enterText(providerApiKeyField(), 'sk-test-12345678');
+    await selectProviderProtocol(tester, LlmApiProtocol.responses);
+    await tester.tap(find.text('保存'));
+    await settleOverlayTransition(tester);
+
+    final createdProvider = repository.loadProviders().single;
+    expect(createdProvider.apiProtocol, LlmApiProtocol.responses);
+    expect(find.text('协议：Responses'), findsOneWidget);
+  });
+
+  testWidgets('settings screen applies edited protocol to all models', (
+    tester,
+  ) async {
+    await setUpSettingsScreen(tester);
+    final repository = ProviderScope.containerOf(
+      tester.element(find.byType(SettingsScreen)),
+    ).read(llmModelConfigRepositoryProvider);
+
+    // 先建服务商 + 模型（默认 Chat Completions）。
+    await createTestProvider(tester);
+    await tester.tap(find.text('新增模型'));
+    await settleOverlayTransition(tester);
+    await tester.enterText(modelDisplayNameField(), 'OpenAI 4.1');
+    await tester.enterText(modelApiNameField(), 'gpt-4.1');
+    await tester.tap(find.text('保存'));
+    await settleOverlayTransition(tester);
+
+    // 编辑服务商切换到 Anthropic：协议变更立即作用于全部模型。
+    await tester.tap(find.text('编辑服务商'));
+    await settleOverlayTransition(tester);
+    await selectProviderProtocol(tester, LlmApiProtocol.anthropic);
+    await tester.tap(find.text('保存'));
+    await settleOverlayTransition(tester);
+
+    final editedProvider = repository.loadProviders().single;
+    expect(editedProvider.apiProtocol, LlmApiProtocol.anthropic);
+    expect(editedProvider.models.single.id, isNotEmpty);
+    expect(editedProvider.models.single.modelName, 'gpt-4.1');
+    expect(
+      editedProvider.models.single
+          .resolveForProvider(editedProvider)
+          .apiProtocol,
+      LlmApiProtocol.anthropic,
+    );
+    expect(find.text('协议：Anthropic'), findsOneWidget);
   });
 
   testWidgets('settings screen creates a model under a provider', (

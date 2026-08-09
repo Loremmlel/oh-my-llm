@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/core/logging/app_network_logger_provider.dart';
 import 'package:oh_my_llm/core/logging/network_logger.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
@@ -127,6 +128,25 @@ Finder fieldInDialog<T extends Widget>(
 );
 
 Finder providerNameField() => fieldInDialog<ModelProviderFormDialog>('服务商名称');
+
+/// 服务商对话框中的协议下拉框（DropdownButtonFormField 不是 TextFormField，
+/// 需按泛型控件类型定位）。
+Finder providerProtocolDropdown() => find.descendant(
+  of: find.byType(ModelProviderFormDialog),
+  matching: find.byType(DropdownButtonFormField<LlmApiProtocol>),
+);
+
+/// 在服务商对话框中把协议切换为 [protocol]（菜单项渲染在 Overlay 中，
+/// 需等菜单开合动画结束）。
+Future<void> selectProviderProtocol(
+  WidgetTester tester,
+  LlmApiProtocol protocol,
+) async {
+  await tester.tap(providerProtocolDropdown());
+  await settleOverlayTransition(tester);
+  await tester.tap(find.text(protocol.displayName).last);
+  await settleOverlayTransition(tester);
+}
 
 Finder providerApiUrlField() =>
     fieldInDialog<ModelProviderFormDialog>('API URL');

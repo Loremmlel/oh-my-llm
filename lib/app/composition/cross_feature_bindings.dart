@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oh_my_llm/core/http/custom_headers_provider.dart';
 import 'package:oh_my_llm/core/http/http_client_provider.dart';
 import 'package:oh_my_llm/core/http/http_route_handler.dart';
+import 'package:oh_my_llm/core/http/llm_http_stream_transport.dart';
 import 'package:oh_my_llm/core/http/peer_http_client_provider.dart';
 import 'package:oh_my_llm/core/logging/app_network_logger_provider.dart';
 import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
@@ -12,8 +13,11 @@ import 'package:oh_my_llm/features/chat/application/chat_favorites_facade.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_conversation_repository.dart';
+import 'package:oh_my_llm/features/chat/data/anthropic/anthropic_messages_client.dart';
 import 'package:oh_my_llm/features/chat/data/background_chat_repository.dart';
-import 'package:oh_my_llm/features/chat/data/openai_compatible_chat_client.dart';
+import 'package:oh_my_llm/features/chat/data/chat_completions/chat_completions_client.dart';
+import 'package:oh_my_llm/features/chat/data/protocol_routing_chat_generation_client.dart';
+import 'package:oh_my_llm/features/chat/data/responses/responses_client.dart';
 import 'package:oh_my_llm/features/chat/data/sqlite_chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/favorites/application/collections_controller.dart';
 import 'package:oh_my_llm/features/favorites/application/favorite_source_conversation_command.dart';
@@ -117,15 +121,21 @@ List<dynamic> appCompositionOverrides({
       (ref) => _CompositionFavoriteSourceConversationCommand(ref),
     ),
     if (bindChatGenerationClient)
-      // Chat completion：生产环境绑定 OpenAI 兼容 HTTP 流式客户端。
-      chatGenerationClientProvider.overrideWith(
-        (ref) => OpenAiCompatibleChatClient(
+      // Chat generation：生产环境绑定按请求协议路由的唯一客户端；
+      // 三个协议客户端共享同一个流式传输（HTTP 客户端 / 日志 / 自定义 header）。
+      chatGenerationClientProvider.overrideWith((ref) {
+        final transport = LlmHttpStreamTransport(
           httpClient: ref.read(httpClientProvider),
           logger: ref.watch(appNetworkLoggerProvider),
           // 在请求构建阶段读取自定义 header，确保 logRequest 之前已附加到请求上。
           extraHeadersFactory: () => ref.read(customHeadersMapProvider),
-        ),
-      ),
+        );
+        return ProtocolRoutingChatGenerationClient(
+          chatCompletions: ChatCompletionsClient(transport: transport),
+          responses: ResponsesClient(transport: transport),
+          anthropic: AnthropicMessagesClient(transport: transport),
+        );
+      }),
     if (bindChatConversationRepository)
       // Chat conversation：SQLite inner + 后台 Isolate 写入代理，
       // 与迁移前的 data-owned factory 保持相同装配语义。

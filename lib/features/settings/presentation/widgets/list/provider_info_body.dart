@@ -23,6 +23,10 @@ class ProviderInfoBody extends StatelessWidget {
               icon: Icons.hub_outlined,
               label: '模型数量：${provider.models.length}',
             ),
+            ProviderMetaChip(
+              icon: Icons.api_rounded,
+              label: '协议：${provider.apiProtocol.displayName}',
+            ),
             Tooltip(
               message: provider.apiUrl,
               child: ProviderMetaChip(

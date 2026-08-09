@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
+
 import '../../../domain/models/llm_provider_config.dart';
 import '../settings_form_dialog_scaffold.dart';
 import '../settings_form_dialog_state_mixin.dart';
@@ -10,11 +12,13 @@ class ModelProviderFormData {
     required this.name,
     required this.apiUrl,
     required this.apiKey,
+    required this.apiProtocol,
   });
 
   final String name;
   final String apiUrl;
   final String apiKey;
+  final LlmApiProtocol apiProtocol;
 }
 
 /// 新增或编辑服务商的对话框。
@@ -38,6 +42,7 @@ class _ModelProviderFormDialogState extends State<ModelProviderFormDialog>
   late final TextEditingController _nameController;
   late final TextEditingController _apiUrlController;
   late final TextEditingController _apiKeyController;
+  late LlmApiProtocol _selectedProtocol;
 
   @override
   void initState() {
@@ -45,6 +50,9 @@ class _ModelProviderFormDialogState extends State<ModelProviderFormDialog>
     _nameController = initController(widget.initialValue?.name ?? '');
     _apiUrlController = initController(widget.initialValue?.apiUrl ?? '');
     _apiKeyController = initController(widget.initialValue?.apiKey ?? '');
+    // 编辑时沿用原协议，新建默认 Chat Completions（与持久化默认值一致）。
+    _selectedProtocol =
+        widget.initialValue?.apiProtocol ?? LlmApiProtocol.chatCompletions;
   }
 
   @override
@@ -87,6 +95,28 @@ class _ModelProviderFormDialogState extends State<ModelProviderFormDialog>
             validator: _validateUrl,
           ),
           const SizedBox(height: 12),
+          DropdownButtonFormField<LlmApiProtocol>(
+            key: const ValueKey('model-provider-protocol-field'), // test-key
+            initialValue: _selectedProtocol,
+            // 紧凑视口下选中项过长时省略显示，避免横向溢出。
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: 'API 模式'),
+            items: [
+              for (final protocol in LlmApiProtocol.values)
+                DropdownMenuItem(
+                  value: protocol,
+                  child: Text(protocol.displayName),
+                ),
+            ],
+            onChanged: (protocol) {
+              if (protocol != null) {
+                setState(() {
+                  _selectedProtocol = protocol;
+                });
+              }
+            },
+          ),
+          const SizedBox(height: 12),
           TextFormField(
             key: const ValueKey('model-provider-api-key-field'), // test-key
             controller: _apiKeyController,
@@ -110,6 +140,7 @@ class _ModelProviderFormDialogState extends State<ModelProviderFormDialog>
           name: _nameController.text.trim(),
           apiUrl: _apiUrlController.text.trim(),
           apiKey: _apiKeyController.text.trim(),
+          apiProtocol: _selectedProtocol,
         ),
       );
     });

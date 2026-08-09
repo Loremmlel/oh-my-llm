@@ -18,7 +18,7 @@ import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/data/background_chat_repository.dart';
-import 'package:oh_my_llm/features/chat/data/openai_compatible_chat_client.dart';
+import 'package:oh_my_llm/features/chat/data/protocol_routing_chat_generation_client.dart';
 import 'package:oh_my_llm/features/favorites/application/ports/collections_repository.dart';
 import 'package:oh_my_llm/features/favorites/application/ports/favorites_repository.dart';
 import 'package:oh_my_llm/features/favorites/data/sqlite_collections_repository.dart';
@@ -100,7 +100,7 @@ void main() {
     expect(logger, isA<NoopNetworkLogger>());
 
     final completion = container.read(chatGenerationClientProvider);
-    expect(completion, isA<OpenAiCompatibleChatClient>());
+    expect(completion, isA<ProtocolRoutingChatGenerationClient>());
 
     final conversation = container.read(chatConversationRepositoryProvider);
     expect(conversation, isA<BackgroundChatConversationRepository>());
