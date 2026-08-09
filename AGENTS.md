@@ -214,14 +214,13 @@ lib/
 
 ## 5. 流式与厂商适配
 
-网络层用原始 `package:http`，无官方 SDK。厂商差异用两个 Strategy 链处理：
+网络层用原始 `package:http`，无官方 SDK。协议差异由三个协议客户端 + 共享传输/解码层处理，不按 host 做厂商适配：
 
 - **HTTP 信任域**：外部 LLM 请求使用 `httpClientProvider`，可注入用户自定义 Header；局域网 Sync/Media peer 请求必须使用 `peerHttpClientProvider`，绝不继承 API key、Cookie 或自定义 Header。请求正文日志默认关闭，只有明确诊断路径可 opt-in；敏感 Header 必须统一脱敏。
 
-- **`VendorPayloadAdapter`**（`vendor_payload_adapters.dart`）：`matches(host)` + `buildPatch(reasoningEffort)`，按 host 注入 `thinking` / `extra_body.google.thinking_config` / `reasoning_effort`。`VendorPayloadAdapterRegistry` 优先级链式 `resolve(host)`，`DefaultPayloadAdapter` 兜底。
-- **`ChunkParseStrategy`**（`chunk_parse_strategy.dart`）：`canHandle(delta)` + `extract(delta)`，优先级 Gemini -> DeepSeek -> StandardOpenAi。处理 `delta.content` 为 List、`reasoning_content` / `reasoning` 字段等差异。
-- **SSE 解析**（`chat_chunk_parser.dart`）：`ChatChunkParser` 处理 `[DONE]` / 错误 / JSON 解码；`InlineReasoningTagSplitter` 跨 chunk 状态机解析 `<thought>` / `<thinking>` 标签。
-- **SSE idle timeout**（`openai_compatible_chat_client.dart`）：仅在 `data:` 行到达时重置计时器，SSE 注释行 keepalive 不算活动。
+- **协议客户端**：`chat_completions/chat_completions_client.dart`（Chat Completions；`ChatCompletionsParser` 处理 `[DONE]` / 错误 / JSON 解码，`InlineReasoningTagSplitter` 跨 chunk 解析 `<thought>` / `<thinking>` 标签）、`responses/responses_client.dart`（OpenAI Responses）、`anthropic/anthropic_messages_client.dart`（Anthropic Messages）。各客户端只负责本协议请求编码与增量解析；`ProtocolRoutingChatGenerationClient`（`protocol_routing_chat_generation_client.dart`）按 `request.target.protocol` 穷举路由，是生产唯一绑定。
+- **共享传输**（`core/http/llm_http_stream_transport.dart`）：发起流式 POST、包装连接异常与非 2xx 响应；SSE 行/事件边界解码与 idle timeout 由 `SseEventDecoder`（`core/http/sse_event_decoder.dart`）负责。
+- **SSE idle timeout**：仅在 `data:` 行到达时重置计时器，SSE 注释行 keepalive 不算活动。
 
 ### Sync 安全与协议
 

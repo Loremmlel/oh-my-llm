@@ -36,7 +36,7 @@ void main() {
       final violations = _checker().checkSources({
         'lib/app/composition/cross_feature_bindings.dart': """
           import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
-          import 'package:oh_my_llm/features/chat/data/openai_compatible_chat_client.dart';
+          import 'package:oh_my_llm/features/chat/data/protocol_routing_chat_generation_client.dart';
         """,
       });
       expect(violations, isEmpty);
@@ -158,8 +158,8 @@ void main() {
       final violations = _checker().checkSources({
         'lib/features/chat/presentation/chat_screen.dart': """
           // import 'package:oh_my_llm/features/chat/data/sqlite_chat_conversation_repository.dart';
-          import 'package:oh_my_llm/features/chat/data/openai_compatible_chat_client.dart'
-              if (dart.library.io) 'package:oh_my_llm/features/chat/data/vendor_payload_adapters.dart';
+          import 'package:oh_my_llm/features/chat/data/protocol_routing_chat_generation_client.dart'
+              if (dart.library.io) 'package:oh_my_llm/features/chat/data/chat_completions/chat_completions_client.dart';
         """,
       });
       expect(violations, hasLength(2));

@@ -93,7 +93,7 @@ void registerChatSessionsControllerRetryCases() {
     container
         .read(chatSessionsProvider.notifier)
         .updateActiveConversationPreferences(autoRetryEnabled: true);
-    // 用真实 OpenAiCompatibleChatClient 复现 SSE idle 超时的 async* 时序：
+    // 用真实 ChatCompletionsClient 复现 SSE idle 超时的 async* 时序：
     // 先收到部分内容，再经 fireTimeout 同步 addError + close。修复前
     // completeWithSuccess（onDone）会在 completeWithError（onError）的 await
     // 间隙执行，走成功路径把 completer 完成为非 null，导致自动重试循环误判
