@@ -352,14 +352,27 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
 
   /// 统一将流式错误格式化为面向开发者的详细文本（原始信息 + 堆栈）。
   ///
-  /// 不做「傻瓜友好」简化：`ChatGenerationException` 附带的 HTTP 状态码、
-  /// 响应体、源异常与源堆栈都会展开；其余异常直接展示 `toString()` + 堆栈。
+  /// 不做「傻瓜友好」简化：`ChatGenerationException` 附带的协议、请求地址、
+  /// 厂商错误码、HTTP 状态码、响应体、源异常与源堆栈都会展开；其余异常
+  /// 直接展示 `toString()` + 堆栈。
   String formatStreamingError(Object error, StackTrace stackTrace) {
     if (error is! ChatGenerationException) {
       return formatUnexpectedStreamingError(error, stackTrace);
     }
 
     final buffer = StringBuffer(error.message);
+    final protocol = error.protocol;
+    if (protocol != null) {
+      buffer.write('\n\n协议：${protocol.displayName}');
+    }
+    final uri = error.uri;
+    if (uri != null) {
+      buffer.write('\n\n请求地址：$uri');
+    }
+    final apiErrorCode = error.apiErrorCode;
+    if (apiErrorCode != null) {
+      buffer.write('\n\nAPI 错误码：$apiErrorCode');
+    }
     if (error.statusCode != null) {
       buffer.write('\n\nHTTP 状态码：${error.statusCode}');
     }

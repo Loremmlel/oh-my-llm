@@ -24,6 +24,9 @@ class ResponsesClient extends ChatGenerationClient {
     'Accept': 'text/event-stream',
   };
 
+  /// 空响应诊断缓冲的原始 SSE 行数上限：只保留尾部，防止超长流撑爆内存。
+  static const _maxRawSseLines = 200;
+
   @override
   Stream<ChatGenerationChunk> streamCompletion(
     ChatGenerationRequest request,
@@ -71,6 +74,10 @@ class ResponsesClient extends ChatGenerationClient {
         idleTimeout: request.streamIdleTimeout,
       )) {
         rawSseData.add(event.rawData);
+        // 诊断缓冲只保留尾部，超出的行直接丢弃。
+        if (rawSseData.length > _maxRawSseLines) {
+          rawSseData.removeRange(0, rawSseData.length - _maxRawSseLines);
+        }
         final parsed = parser.parse(event);
         if (!parsed.recognized) {
           // 未知且与文本无关的事件：记录诊断后忽略（生命周期/记账事件）。

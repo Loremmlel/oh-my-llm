@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:equatable/equatable.dart';
+
 /// SSE 解码事件。
 ///
 /// [data] 为多个 `data:` 行按换行连接后的值；[rawData] 保留原始 data 行
 /// 文本（含 `data:` 前缀），供日志与错误诊断。
-class SseEvent {
+class SseEvent extends Equatable {
   const SseEvent({this.eventName, required this.data, required this.rawData});
 
   /// `event:` 字段值；事件未声明事件名时为 null。
@@ -16,6 +18,9 @@ class SseEvent {
 
   /// 原始 data 行文本（含 `data:` 前缀），以换行连接。
   final String rawData;
+
+  @override
+  List<Object?> get props => [eventName, data, rawData];
 }
 
 /// SSE 事件解码器：把网络 byte chunk 流解码为事件流。
@@ -120,6 +125,8 @@ class SseEventDecoder {
         lineSubscription = lineStream.listen(
           handleLine,
           onError: (Object error, StackTrace stackTrace) {
+            // 上游已中断，闲置计时器不再有意义，先取消再转发错误。
+            idleTimer?.cancel();
             if (!controller.isClosed) {
               controller.addError(error, stackTrace);
             }

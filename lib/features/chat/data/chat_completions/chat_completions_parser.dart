@@ -9,12 +9,10 @@ import 'inline_reasoning_tag_splitter.dart';
 /// 单个 Chat Completions SSE 事件的解析结果。
 ///
 /// [chunk] 非空时由客户端 yield；[isDone] 为 true 表示正常流结束（`[DONE]`），
-/// 客户端应立即停止消费；[recognized] 为 false 表示未知且与文本无关的事件，
-/// 客户端记录诊断后忽略。
+/// 客户端应立即停止消费。本协议不存在未知事件概念，所有事件都有明确语义。
 typedef ChatCompletionsParseResult = ({
   ChatGenerationChunk? chunk,
   bool isDone,
-  bool recognized,
 });
 
 /// 解析 Chat Completions 协议 SSE 事件（[SseEvent.data] -> [ChatGenerationChunk]）。
@@ -48,7 +46,7 @@ class ChatCompletionsParser {
     // 事件 data 由 decoder 保证边界；两端空白不影响 JSON 解析。
     final data = event.data.trim();
     if (data == '[DONE]') {
-      return (chunk: null, isDone: true, recognized: true);
+      return (chunk: null, isDone: true);
     }
 
     late final Object? decoded;
@@ -65,7 +63,7 @@ class ChatCompletionsParser {
 
     if (decoded is! Map) {
       // 非对象 JSON（如数组）没有协议字段，按空事件忽略。
-      return (chunk: null, isDone: false, recognized: true);
+      return (chunk: null, isDone: false);
     }
 
     final error = decoded['error'];
@@ -95,7 +93,7 @@ class ChatCompletionsParser {
 
     final choices = decoded['choices'];
     if (choices is! List || choices.isEmpty || choices.first is! Map) {
-      return (chunk: null, isDone: false, recognized: true);
+      return (chunk: null, isDone: false);
     }
 
     final firstChoice = Map<String, dynamic>.from(choices.first as Map);
@@ -115,7 +113,6 @@ class ChatCompletionsParser {
               usage: usage,
             ),
       isDone: false,
-      recognized: true,
     );
   }
 

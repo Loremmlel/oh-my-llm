@@ -36,6 +36,9 @@ class AnthropicMessagesClient extends ChatGenerationClient {
   /// 输出 token 上限：本阶段使用协议内常量，不提供输出长度设置。
   static const _maxTokens = 8192;
 
+  /// 空响应诊断缓冲的原始 SSE 行数上限：只保留尾部，防止超长流撑爆内存。
+  static const _maxRawSseLines = 200;
+
   @override
   Stream<ChatGenerationChunk> streamCompletion(
     ChatGenerationRequest request,
@@ -61,10 +64,10 @@ class AnthropicMessagesClient extends ChatGenerationClient {
           {'role': message.role, 'content': message.content},
       ],
       // 只在模型支持 reasoning 且当前会话启用时发送，其余情况省略。
-      if (request.reasoningEffort != null)
+      if (request.reasoningEffort case final effort?) ...{
         'thinking': {'type': 'adaptive', 'display': 'summarized'},
-      if (request.reasoningEffort case final effort?)
         'output_config': {'effort': _anthropicEffort(effort)},
+      },
     };
 
     // 每次请求独立的 parser：事件间无状态，不跨请求复用。
@@ -85,6 +88,10 @@ class AnthropicMessagesClient extends ChatGenerationClient {
         idleTimeout: request.streamIdleTimeout,
       )) {
         rawSseData.add(event.rawData);
+        // 诊断缓冲只保留尾部，超出的行直接丢弃。
+        if (rawSseData.length > _maxRawSseLines) {
+          rawSseData.removeRange(0, rawSseData.length - _maxRawSseLines);
+        }
         final parsed = parser.parse(event);
         if (!parsed.recognized) {
           // 无法识别的新事件类型：原始 data 已进入缓冲日志（脱敏诊断）。

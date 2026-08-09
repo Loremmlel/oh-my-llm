@@ -79,10 +79,10 @@ class LlmModelConfig extends Equatable {
       supportsReasoning: json['supportsReasoning'] as bool? ?? false,
       providerId: json['providerId'] as String? ?? '',
       providerName: json['providerName'] as String? ?? '',
-      // 缺字段回退 chatCompletions；显式未知值由枚举解析失败。
+      // 缺字段回退 chatCompletions；显式未知值或非字符串值由解析失败。
       apiProtocol: json['apiProtocol'] == null
           ? LlmApiProtocol.chatCompletions
-          : LlmApiProtocol.fromStorageValue(json['apiProtocol'] as String),
+          : LlmApiProtocol.fromJsonValue(json['apiProtocol']),
     );
   }
 

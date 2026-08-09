@@ -69,11 +69,17 @@ class LlmEndpointResolver {
 
   /// 解析模型列表端点。
   ///
-  /// 从 API 根地址生成 `/v1/models`；完整生成端点先移除已知生成后缀，
-  /// 再替换为 `/models`。host、port、前缀与 query 保留。
+  /// 从 API 根地址生成 `/v1/models`；已是 `/v1/models` 结尾时原样返回，
+  /// 完整生成端点先移除已知生成后缀再替换为 `/models`。host、port、前缀
+  /// 与 query 保留。
   Uri resolveModelsEndpoint(String apiUrl) {
     final uri = _parseAndValidate(apiUrl);
     var path = _stripTrailingSlashes(uri.path);
+
+    if (path.endsWith('/v1/models')) {
+      // 已是模型列表端点：原样返回用户输入，避免二次拼接。
+      return uri;
+    }
 
     for (final suffix in _knownGenerationSuffixes) {
       if (path.endsWith(suffix)) {

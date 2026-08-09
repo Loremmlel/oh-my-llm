@@ -26,4 +26,15 @@ enum LlmApiProtocol {
       orElse: () => throw FormatException('未知 LLM API 协议：$value'),
     );
   }
+
+  /// 从 JSON 值解析协议。
+  ///
+  /// 非字符串值（数字、对象等）视为配置损坏，直接抛 [FormatException]，
+  /// 不做类型猜测或静默转换。
+  static LlmApiProtocol fromJsonValue(Object? value) {
+    if (value is! String) {
+      throw FormatException('apiProtocol 必须是字符串：$value');
+    }
+    return fromStorageValue(value);
+  }
 }

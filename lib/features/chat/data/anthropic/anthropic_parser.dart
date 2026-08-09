@@ -90,11 +90,18 @@ class AnthropicParser {
         // 已知生命周期/记账事件：与文本无关，忽略。
         return (chunk: null, isDone: false, recognized: true);
       default:
-        // 事件明确声明工具、错误或失败语义时不得按未知事件忽略。
-        if (type.contains('tool') ||
-            type.contains('error') ||
-            type.contains('failed') ||
-            type.contains('incomplete')) {
+        // 事件明确声明工具、错误或失败语义时不得按未知事件忽略；按 `_`
+        // 分词后与关键字精确匹配，避免 tooltip_ready 这类前缀近似误伤。
+        if (type
+            .toLowerCase()
+            .split('_')
+            .any(
+              (token) =>
+                  token == 'tool' ||
+                  token == 'error' ||
+                  token == 'failed' ||
+                  token == 'incomplete',
+            )) {
           throw ChatGenerationException(
             '不支持该响应类型：$type',
             protocol: _protocol,
