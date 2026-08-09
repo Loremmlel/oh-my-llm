@@ -62,6 +62,7 @@ class ModelFetchSectionState extends State<ModelFetchSection> {
     ModelCatalogRequest(
       apiUrl: widget.provider.apiUrl,
       apiKey: widget.provider.apiKey,
+      apiProtocol: widget.provider.apiProtocol,
     ),
   );
 
@@ -96,6 +97,7 @@ class ModelFetchSectionState extends State<ModelFetchSection> {
         ModelCatalogRequest(
           apiUrl: widget.provider.apiUrl,
           apiKey: widget.provider.apiKey,
+          apiProtocol: widget.provider.apiProtocol,
           modelsUrlOverride: _isUrlEdited ? _editedUrl : null,
         ),
       );

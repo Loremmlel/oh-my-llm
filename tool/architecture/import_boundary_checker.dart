@@ -49,7 +49,7 @@ class ArchitectureViolation {
   final String message;
 }
 
-/// 生产架构策略：Settings 的 8 条存量 application→data 旧边。
+/// 生产架构策略：Settings 的 7 条存量 application→data 旧边。
 ///
 /// 新增例外必须同步修改本策略、补 reason、补测试并经过 review；
 /// 不允许从配置文件读取任意通配符。
@@ -85,11 +85,6 @@ final architecturePolicy = ArchitecturePolicy(
           'lib/features/settings/application/model_catalog_workflow.dart',
       targetPath: 'lib/features/settings/data/model_list_client.dart',
     ): '现有 concrete HTTP client；没有 application-owned port。',
-    ImportEdge(
-      sourcePath:
-          'lib/features/settings/application/model_catalog_workflow.dart',
-      targetPath: 'lib/features/settings/data/model_list_url.dart',
-    ): 'data helper；不为迁移创建无收益 port。',
     ImportEdge(
       sourcePath:
           'lib/features/settings/application/preset_prompts_controller.dart',

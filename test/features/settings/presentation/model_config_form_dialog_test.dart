@@ -164,6 +164,37 @@ void main() {
         expect(find.widgetWithText(FilledButton, '拉取模型'), findsOneWidget);
       });
 
+      testWidgets('passes the provider apiProtocol in the catalog request', (
+        tester,
+      ) async {
+        testProvider = const LlmProviderConfig(
+          id: 'p-1',
+          name: 'TestProvider',
+          apiUrl: 'https://api.anthropic.com',
+          apiKey: 'sk-ant-test',
+          apiProtocol: LlmApiProtocol.anthropic,
+          models: [],
+        );
+        LlmApiProtocol? capturedProtocol;
+        final completer = Completer<List<ModelCatalogEntry>>();
+        await pumpDialog(
+          tester,
+          onSubmit: (_) async {},
+          onBatchAdd: (_) async {},
+          fetchModels: (request) async {
+            capturedProtocol = request.apiProtocol;
+            return completer.future;
+          },
+        );
+
+        await switchToFetchAndClickFetch(tester);
+
+        completer.complete(const []);
+        await tester.pump();
+
+        expect(capturedProtocol, LlmApiProtocol.anthropic);
+      });
+
       testWidgets('shows loading state when fetching', (tester) async {
         final completer = Completer<List<ModelCatalogEntry>>();
         await pumpDialog(

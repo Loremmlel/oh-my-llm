@@ -1,7 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
+import 'package:oh_my_llm/core/llm/llm_endpoint_resolver.dart';
+
 import '../data/model_list_client.dart';
-import '../data/model_list_url.dart';
 import '../domain/models/model_catalog_entry.dart';
 
 /// 模型目录请求输入。
@@ -9,11 +11,16 @@ final class ModelCatalogRequest {
   const ModelCatalogRequest({
     required this.apiUrl,
     required this.apiKey,
+    required this.apiProtocol,
     this.modelsUrlOverride,
   });
 
   final String apiUrl;
   final String apiKey;
+
+  /// 服务商协议，决定认证 Header 与 URL 推导语义。
+  final LlmApiProtocol apiProtocol;
+
   final String? modelsUrlOverride;
 }
 
@@ -32,6 +39,7 @@ typedef ModelCatalogFetcher =
     Future<List<ModelCatalogEntry>> Function({
       required String modelsUrl,
       required String apiKey,
+      required LlmApiProtocol apiProtocol,
     });
 
 /// 将 data 层模型列表客户端收敛为设置页稳定的请求和错误契约。
@@ -46,6 +54,7 @@ final class ModelCatalogWorkflow {
       return await _fetchModels(
         modelsUrl: resolveModelsUrl(request),
         apiKey: request.apiKey,
+        apiProtocol: request.apiProtocol,
       );
     } on ModelListException catch (error) {
       throw ModelCatalogFailure(
@@ -58,12 +67,14 @@ final class ModelCatalogWorkflow {
   }
 }
 
-/// 解析模型目录端点，覆盖地址优先于聊天完成端点推导。
+/// 解析模型目录端点，覆盖地址优先于 Resolver 推导。
 String resolveModelsUrl(ModelCatalogRequest request) {
   final override = request.modelsUrlOverride?.trim();
   return override?.isNotEmpty == true
       ? override!
-      : deriveModelsUrl(request.apiUrl);
+      : const LlmEndpointResolver()
+            .resolveModelsEndpoint(request.apiUrl)
+            .toString();
 }
 
 final modelCatalogWorkflowProvider = Provider<ModelCatalogWorkflow>((ref) {

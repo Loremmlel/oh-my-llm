@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
 import 'package:oh_my_llm/core/http/http_client_provider.dart';
+import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/core/logging/app_network_logger_provider.dart';
 import 'package:oh_my_llm/core/logging/json_truncator.dart';
 import 'package:oh_my_llm/core/logging/network_logger.dart';
@@ -55,10 +56,12 @@ class ModelListClient {
   /// 拉取模型列表。
   ///
   /// [modelsUrl] 是推导后的 models 端点 URL。
-  /// [apiKey] 用于 Authorization: Bearer 认证。
+  /// [apiProtocol] 决定认证 Header：Chat Completions / Responses 用
+  /// `Authorization: Bearer`，Anthropic 用 `x-api-key` + `anthropic-version`。
   Future<List<ModelCatalogEntry>> fetchModels({
     required String modelsUrl,
     required String apiKey,
+    required LlmApiProtocol apiProtocol,
   }) async {
     Uri uri;
     try {
@@ -70,9 +73,16 @@ class ModelListClient {
       throw ModelListException('API URL 格式无效（需要 http/https）：$modelsUrl');
     }
 
-    final requestHeaders = {
-      'Authorization': 'Bearer $apiKey',
-      'Accept': 'application/json',
+    final requestHeaders = switch (apiProtocol) {
+      LlmApiProtocol.chatCompletions || LlmApiProtocol.responses => {
+        'Authorization': 'Bearer $apiKey',
+        'Accept': 'application/json',
+      },
+      LlmApiProtocol.anthropic => {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'Accept': 'application/json',
+      },
     };
 
     _fireAndForget(

@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
+import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/features/settings/data/model_list_client.dart';
 
 void main() {
@@ -30,171 +31,228 @@ void main() {
       });
     }
 
-    test('fetchModels returns parsed model list', () async {
-      final mockClient = MockClient((request) async {
-        return http.Response(
-          modelsResponseJson(['gpt-4o', 'gpt-4o-mini']),
-          200,
+    // 解析与失败行为与协议无关（代码路径仅在认证 Header 处分叉），
+    // 三种协议共用同一组测试。
+    for (final protocol in LlmApiProtocol.values) {
+      group('$protocol', () {
+        test('fetchModels returns parsed model list', () async {
+          final mockClient = MockClient((request) async {
+            return http.Response(
+              modelsResponseJson(['gpt-4o', 'gpt-4o-mini']),
+              200,
+            );
+          });
+          client = createClient(mockClient);
+
+          final result = await client.fetchModels(
+            modelsUrl: 'https://api.openai.com/v1/models',
+            apiKey: 'sk-test',
+            apiProtocol: protocol,
+          );
+
+          expect(result.length, 2);
+          expect(result[0].id, 'gpt-4o');
+          expect(result[0].ownedBy, 'openai');
+          expect(result[1].id, 'gpt-4o-mini');
+        });
+
+        test('fetchModels returns empty list when data is empty', () async {
+          final mockClient = MockClient((request) async {
+            return http.Response(
+              jsonEncode({'object': 'list', 'data': []}),
+              200,
+            );
+          });
+          client = createClient(mockClient);
+
+          final result = await client.fetchModels(
+            modelsUrl: 'https://api.openai.com/v1/models',
+            apiKey: 'sk-test',
+            apiProtocol: protocol,
+          );
+
+          expect(result, isEmpty);
+        });
+
+        test(
+          'fetchModels returns empty list when data field is missing',
+          () async {
+            final mockClient = MockClient((request) async {
+              return http.Response(jsonEncode({'object': 'list'}), 200);
+            });
+            client = createClient(mockClient);
+
+            final result = await client.fetchModels(
+              modelsUrl: 'https://api.openai.com/v1/models',
+              apiKey: 'sk-test',
+              apiProtocol: protocol,
+            );
+
+            expect(result, isEmpty);
+          },
+        );
+
+        test('fetchModels throws ModelListException on HTTP error', () async {
+          final mockClient = MockClient((request) async {
+            return http.Response('{"error": "unauthorized"}', 401);
+          });
+          client = createClient(mockClient);
+
+          expect(
+            () => client.fetchModels(
+              modelsUrl: 'https://api.openai.com/v1/models',
+              apiKey: 'bad-key',
+              apiProtocol: protocol,
+            ),
+            throwsA(
+              isA<ModelListException>()
+                  .having((e) => e.statusCode, 'statusCode', 401)
+                  .having((e) => e.message, 'message', contains('401')),
+            ),
+          );
+        });
+
+        test('fetchModels throws ModelListException on invalid JSON', () async {
+          final mockClient = MockClient((request) async {
+            return http.Response('not json at all', 200);
+          });
+          client = createClient(mockClient);
+
+          expect(
+            () => client.fetchModels(
+              modelsUrl: 'https://api.openai.com/v1/models',
+              apiKey: 'sk-test',
+              apiProtocol: protocol,
+            ),
+            throwsA(
+              isA<ModelListException>().having(
+                (e) => e.message,
+                'message',
+                contains('解析失败'),
+              ),
+            ),
+          );
+        });
+
+        test(
+          'fetchModels throws ModelListException on network error',
+          () async {
+            final mockClient = MockClient((request) async {
+              throw http.ClientException('连接失败');
+            });
+            client = createClient(mockClient);
+
+            expect(
+              () => client.fetchModels(
+                modelsUrl: 'https://api.openai.com/v1/models',
+                apiKey: 'sk-test',
+                apiProtocol: protocol,
+              ),
+              throwsA(
+                isA<ModelListException>().having(
+                  (e) => e.message,
+                  'message',
+                  contains('网络请求失败'),
+                ),
+              ),
+            );
+          },
+        );
+
+        test('fetchModels throws ModelListException for invalid URL', () async {
+          final mockClient = MockClient((request) async {
+            return http.Response(modelsResponseJson(['gpt-4o']), 200);
+          });
+          client = createClient(mockClient);
+
+          expect(
+            () => client.fetchModels(
+              modelsUrl: 'not a url',
+              apiKey: 'sk-test',
+              apiProtocol: protocol,
+            ),
+            throwsA(
+              isA<ModelListException>().having(
+                (e) => e.message,
+                'message',
+                contains('URL 格式无效'),
+              ),
+            ),
+          );
+        });
+
+        test(
+          'fetchModels truncates long error response body in exception',
+          () async {
+            final longBody = 'x' * 500;
+            final mockClient = MockClient((request) async {
+              return http.Response(longBody, 500);
+            });
+            client = createClient(mockClient);
+
+            try {
+              await client.fetchModels(
+                modelsUrl: 'https://api.openai.com/v1/models',
+                apiKey: 'sk-test',
+                apiProtocol: protocol,
+              );
+              fail('Should have thrown');
+            } on ModelListException catch (e) {
+              expect(e.responseBody, isNotNull);
+              // truncateJsonValues 截断到 200 字符后追加 ...[truncated]
+              expect(e.responseBody!.length, lessThanOrEqualTo(220));
+              expect(e.responseBody, contains('...'));
+            }
+          },
         );
       });
-      client = createClient(mockClient);
+    }
 
-      final result = await client.fetchModels(
-        modelsUrl: 'https://api.openai.com/v1/models',
-        apiKey: 'sk-test',
-      );
+    group('auth headers by protocol', () {
+      for (final protocol in [
+        LlmApiProtocol.chatCompletions,
+        LlmApiProtocol.responses,
+      ]) {
+        test('$protocol sends Authorization Bearer header', () async {
+          Map<String, String>? capturedHeaders;
+          final mockClient = MockClient((request) async {
+            capturedHeaders = request.headers;
+            return http.Response(modelsResponseJson(['gpt-4o']), 200);
+          });
+          client = createClient(mockClient);
 
-      expect(result.length, 2);
-      expect(result[0].id, 'gpt-4o');
-      expect(result[0].ownedBy, 'openai');
-      expect(result[1].id, 'gpt-4o-mini');
-    });
+          await client.fetchModels(
+            modelsUrl: 'https://api.openai.com/v1/models',
+            apiKey: 'sk-my-key',
+            apiProtocol: protocol,
+          );
 
-    test('fetchModels returns empty list when data is empty', () async {
-      final mockClient = MockClient((request) async {
-        return http.Response(jsonEncode({'object': 'list', 'data': []}), 200);
-      });
-      client = createClient(mockClient);
+          expect(capturedHeaders?['Authorization'], 'Bearer sk-my-key');
+          expect(capturedHeaders?['Accept'], 'application/json');
+          expect(capturedHeaders?['x-api-key'], isNull);
+        });
+      }
 
-      final result = await client.fetchModels(
-        modelsUrl: 'https://api.openai.com/v1/models',
-        apiKey: 'sk-test',
-      );
-
-      expect(result, isEmpty);
-    });
-
-    test('fetchModels returns empty list when data field is missing', () async {
-      final mockClient = MockClient((request) async {
-        return http.Response(jsonEncode({'object': 'list'}), 200);
-      });
-      client = createClient(mockClient);
-
-      final result = await client.fetchModels(
-        modelsUrl: 'https://api.openai.com/v1/models',
-        apiKey: 'sk-test',
-      );
-
-      expect(result, isEmpty);
-    });
-
-    test('fetchModels sends Authorization header', () async {
-      String? capturedAuthHeader;
-      final mockClient = MockClient((request) async {
-        capturedAuthHeader = request.headers['Authorization'];
-        return http.Response(modelsResponseJson(['gpt-4o']), 200);
-      });
-      client = createClient(mockClient);
-
-      await client.fetchModels(
-        modelsUrl: 'https://api.openai.com/v1/models',
-        apiKey: 'sk-my-key',
-      );
-
-      expect(capturedAuthHeader, 'Bearer sk-my-key');
-    });
-
-    test('fetchModels throws ModelListException on HTTP error', () async {
-      final mockClient = MockClient((request) async {
-        return http.Response('{"error": "unauthorized"}', 401);
-      });
-      client = createClient(mockClient);
-
-      expect(
-        () => client.fetchModels(
-          modelsUrl: 'https://api.openai.com/v1/models',
-          apiKey: 'bad-key',
-        ),
-        throwsA(
-          isA<ModelListException>()
-              .having((e) => e.statusCode, 'statusCode', 401)
-              .having((e) => e.message, 'message', contains('401')),
-        ),
-      );
-    });
-
-    test('fetchModels throws ModelListException on invalid JSON', () async {
-      final mockClient = MockClient((request) async {
-        return http.Response('not json at all', 200);
-      });
-      client = createClient(mockClient);
-
-      expect(
-        () => client.fetchModels(
-          modelsUrl: 'https://api.openai.com/v1/models',
-          apiKey: 'sk-test',
-        ),
-        throwsA(
-          isA<ModelListException>().having(
-            (e) => e.message,
-            'message',
-            contains('解析失败'),
-          ),
-        ),
-      );
-    });
-
-    test('fetchModels throws ModelListException on network error', () async {
-      final mockClient = MockClient((request) async {
-        throw http.ClientException('连接失败');
-      });
-      client = createClient(mockClient);
-
-      expect(
-        () => client.fetchModels(
-          modelsUrl: 'https://api.openai.com/v1/models',
-          apiKey: 'sk-test',
-        ),
-        throwsA(
-          isA<ModelListException>().having(
-            (e) => e.message,
-            'message',
-            contains('网络请求失败'),
-          ),
-        ),
-      );
-    });
-
-    test('fetchModels throws ModelListException for invalid URL', () async {
-      final mockClient = MockClient((request) async {
-        return http.Response(modelsResponseJson(['gpt-4o']), 200);
-      });
-      client = createClient(mockClient);
-
-      expect(
-        () => client.fetchModels(modelsUrl: 'not a url', apiKey: 'sk-test'),
-        throwsA(
-          isA<ModelListException>().having(
-            (e) => e.message,
-            'message',
-            contains('URL 格式无效'),
-          ),
-        ),
-      );
-    });
-
-    test(
-      'fetchModels truncates long error response body in exception',
-      () async {
-        final longBody = 'x' * 500;
+      test('anthropic sends x-api-key and anthropic-version headers', () async {
+        Map<String, String>? capturedHeaders;
         final mockClient = MockClient((request) async {
-          return http.Response(longBody, 500);
+          capturedHeaders = request.headers;
+          return http.Response(modelsResponseJson(['claude-3-5-sonnet']), 200);
         });
         client = createClient(mockClient);
 
-        try {
-          await client.fetchModels(
-            modelsUrl: 'https://api.openai.com/v1/models',
-            apiKey: 'sk-test',
-          );
-          fail('Should have thrown');
-        } on ModelListException catch (e) {
-          expect(e.responseBody, isNotNull);
-          // truncateJsonValues 截断到 200 字符后追加 ...[truncated]
-          expect(e.responseBody!.length, lessThanOrEqualTo(220));
-          expect(e.responseBody, contains('...'));
-        }
-      },
-    );
+        await client.fetchModels(
+          modelsUrl: 'https://api.anthropic.com/v1/models',
+          apiKey: 'sk-ant-my-key',
+          apiProtocol: LlmApiProtocol.anthropic,
+        );
+
+        expect(capturedHeaders?['x-api-key'], 'sk-ant-my-key');
+        expect(capturedHeaders?['anthropic-version'], '2023-06-01');
+        expect(capturedHeaders?['Accept'], 'application/json');
+        // Anthropic 不用 Bearer，避免与 x-api-key 双认证混淆。
+        expect(capturedHeaders?['Authorization'], isNull);
+      });
+    });
   });
 }

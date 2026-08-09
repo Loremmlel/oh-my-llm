@@ -190,7 +190,7 @@ void main() {
       expect(sources, List<String>.of(sources)..sort());
     });
 
-    test('当前仓库零违规且 8 条例外均被消费', () {
+    test('当前仓库零违规且 7 条例外均被消费', () {
       final checker = ImportBoundaryChecker(policy: architecturePolicy);
       final violations = checker.checkDirectory(
         Directory('lib'),
