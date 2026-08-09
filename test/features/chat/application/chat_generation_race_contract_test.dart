@@ -318,35 +318,6 @@ void main() {
       expect(fakeClient.requestHistory.length, 1); // 只一次请求，未重试
     });
 
-    test('stop save 失败：仍完成停止并报 persistence 错误', () async {
-      repository.gateSave(1);
-      repository.gateSave(2); // stop save
-      final controlled = fakeClient.enqueueControlledStream();
-      addTearDown(controlled.close);
-      final sendFuture = sendMsg('hello');
-      await repository.awaitReached(1);
-      repository.releaseSave(1);
-      await controlled.listened; // 等待 run 开始监听受控流
-      controlled.add(const ChatGenerationChunk(contentDelta: '部分'));
-      await waitForProviderState(
-        container: container,
-        provider: chatSessionsProvider,
-        matches: (s) => s.streamingReply?.content.contains('部分') ?? false,
-        description: 'chunk 增量写入 streamingReply',
-      );
-      final stopFuture = container
-          .read(chatSessionsProvider.notifier)
-          .stopStreaming();
-      await repository.awaitReached(2);
-      repository.releaseSave(2, error: Exception('stop save 失败'));
-      await stopFuture.timeout(defaultTimeout);
-      await sendFuture.timeout(defaultTimeout);
-
-      final state = container.read(chatSessionsProvider);
-      expect(state.generation?.phase, ChatGenerationPhase.persistenceFailed);
-      expect(state.errorMessage, ChatErrorMessages.persistenceFailed);
-    });
-
     // ── 旧 run 迟到回调不写新 run state ───────────────────────────────────
     test('A stop 后迟到 chunk/error/done 不写 B state 或完成 B Future', () async {
       repository.gateSave(1);

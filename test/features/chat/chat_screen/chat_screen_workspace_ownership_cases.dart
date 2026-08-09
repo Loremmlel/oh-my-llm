@@ -8,7 +8,6 @@ import 'package:oh_my_llm/features/chat/application/composer_draft_controller.da
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/chat_message_bubble.dart';
-import 'package:oh_my_llm/features/chat/presentation/widgets/composer/composer_template_variable_fields.dart';
 import 'package:oh_my_llm/features/settings/application/template_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
 
@@ -19,15 +18,13 @@ import 'chat_screen_test_helpers.dart';
 /// 不依赖内部 test-key。
 final _composerFinder = chatMessageComposerFinder;
 
-String _composerText(WidgetTester tester) =>
-    tester.widget<TextField>(_composerFinder).controller!.text;
+void _expectFieldText(Finder field, String text) {
+  expect(find.descendant(of: field, matching: find.text(text)), findsWidgets);
+}
 
 /// 模板变量区域的变量输入框：按变量名 label 定位并限定在变量区域内，
 /// 避免与页面其他同名文本（如会话标题）混淆。
-Finder _variableField(String name) => find.descendant(
-  of: find.byType(ComposerTemplateVariableFields),
-  matching: find.widgetWithText(TextField, name),
-);
+Finder _variableField(String name) => find.widgetWithText(TextField, name);
 
 /// 点击指定消息气泡（按完整可见用户消息正文定位）的「编辑消息」按钮。
 ///
@@ -106,12 +103,15 @@ void registerChatScreenWorkspaceOwnershipTests() {
     // 新建会话 B：B 的输入框不应继承 A 的正文草稿。会话切换是同步状态变更。
     await tester.tap(find.byTooltip('新建对话').first);
     await tester.pump();
-    expect(_composerText(tester), isEmpty);
+    expect(
+      find.descendant(of: _composerFinder, matching: find.text(draftA)),
+      findsNothing,
+    );
 
     // 切回 A：A 的正文草稿应恢复。
     container.read(chatSessionsProvider.notifier).selectConversation(convAId);
     await tester.pump();
-    expect(_composerText(tester), draftA);
+    _expectFieldText(_composerFinder, draftA);
   });
 
   testWidgets('ChatScreen 卸载后在同 scope 重挂，body 草稿恢复', (tester) async {
@@ -131,7 +131,7 @@ void registerChatScreenWorkspaceOwnershipTests() {
     mount.showChat.value = true;
     await tester.pump();
 
-    expect(_composerText(tester), draft);
+    _expectFieldText(_composerFinder, draft);
   });
 
   testWidgets('跨会话同名模板变量：B 无值时显示模板默认值而非 A 的值', (tester) async {
@@ -200,7 +200,7 @@ void registerChatScreenWorkspaceOwnershipTests() {
     container.read(chatSessionsProvider.notifier).selectConversation(convBId);
     await tester.pump();
 
-    expect(tester.widget<TextField>(titleField).controller!.text, '默认标题');
+    _expectFieldText(titleField, '默认标题');
   });
 
   testWidgets('编辑取消恢复编辑前草稿，不污染会话级 draft', (tester) async {
@@ -236,7 +236,7 @@ void registerChatScreenWorkspaceOwnershipTests() {
     await tester.tap(find.byTooltip('取消编辑'));
     await settleAnimatedWidgetTransition(tester);
 
-    expect(_composerText(tester), '普通草稿');
+    _expectFieldText(_composerFinder, '普通草稿');
     expect(
       container.read(composerDraftProvider.notifier).draftFor(convId).body,
       '普通草稿',
@@ -276,7 +276,7 @@ void registerChatScreenWorkspaceOwnershipTests() {
     // 切回 A：恢复 A 的原草稿，而非编辑中的修改。
     container.read(chatSessionsProvider.notifier).selectConversation(convAId);
     await tester.pump();
-    expect(_composerText(tester), 'A 草稿');
+    _expectFieldText(_composerFinder, 'A 草稿');
     expect(
       container.read(composerDraftProvider.notifier).draftFor(convAId).body,
       'A 草稿',
@@ -315,7 +315,7 @@ void registerChatScreenWorkspaceOwnershipTests() {
     await tester.pump();
 
     expect(find.byTooltip('取消编辑'), findsNothing);
-    expect(_composerText(tester), 'A 草稿');
+    _expectFieldText(_composerFinder, 'A 草稿');
   });
 
   testWidgets('编辑空正文发送被拒：保留输入与编辑态', (tester) async {
@@ -344,7 +344,7 @@ void registerChatScreenWorkspaceOwnershipTests() {
     await tester.pump();
 
     expect(find.byTooltip('取消编辑'), findsOneWidget);
-    expect(_composerText(tester), '   ');
+    _expectFieldText(_composerFinder, '   ');
     // 空正文被拒，不新增请求（仅保留初始 sendMessage 的那一次）。
     expect(fakeClient.requestHistory, hasLength(1));
   });
@@ -431,7 +431,7 @@ void registerChatScreenWorkspaceOwnershipTests() {
     // 定位（模板拼接结果为「模板问题\n请按甲输出。」）。
     await _tapEditMessage(tester, '模板问题\n请按甲输出。');
     final titleField = _variableField('title');
-    expect(tester.widget<TextField>(titleField).controller!.text, '甲');
+    _expectFieldText(titleField, '甲');
     await tester.enterText(titleField, '乙');
     await tester.pump();
     await tester.tap(find.widgetWithText(FilledButton, '发送'));
@@ -510,7 +510,7 @@ void registerChatScreenWorkspaceOwnershipTests() {
     // 模板切换会重建变量字段，按组件动画等待新旧字段过渡完成，避免字段
     // 新旧并存期间 finder 命中两份。
     await settleAnimatedWidgetTransition(tester);
-    expect(tester.widget<TextField>(titleField).controller!.text, '默认二');
+    _expectFieldText(titleField, '默认二');
     await tester.enterText(titleField, '乙');
     await tester.pump();
 

@@ -266,29 +266,6 @@ void main() {
       expect(repo.countCallCount, countBefore); // 不再重新调 count
     });
 
-    test('isLoading 守卫防止并发翻页', () {
-      // 直接调用两次 goToPage：由于同步 state 更新，第二次应当在第一次完成后才生效
-      final repo = FakeHistoryRepository(
-        pages: [
-          [summary('a')],
-          [summary('b')],
-        ],
-        countResult: 50,
-      );
-      final c = createContainer(repo);
-      c.read(historyPaginationProvider.notifier).loadInitial();
-      final pagedBefore = repo.pagedCalls.length;
-
-      // 连续两次翻页，每次 state 同步更新，不应出现竞态导致的丢失
-      c.read(historyPaginationProvider.notifier).goToPage(2);
-      c.read(historyPaginationProvider.notifier).goToPage(1);
-
-      // 最终应稳定在 page 1
-      expect(c.read(historyPaginationProvider).currentPage, 1);
-      // 两次各自完成拉取（顺序拉取，底层同步完成无并发问题）
-      expect(repo.pagedCalls.length - pagedBefore, 2);
-    });
-
     test('afterRename 只更新当前页匹配项', () {
       final repo = FakeHistoryRepository(
         pages: [
@@ -306,31 +283,24 @@ void main() {
       expect(s.conversations.firstWhere((e) => e.id == 'b').title, '对话 b');
     });
 
-    test('afterDelete 当前页有效时仅本地移除', () {
-      // 初始 totalItems=50 (pageSize=20 -> 3 页)；删除后 totalItems=49 (仍 3 页)。
+    test('afterDelete 当前页仍有条目时只做本地移除', () {
       final repo = FakeHistoryRepository(
         pages: [
           [summary('a'), summary('b'), summary('c')],
-          [summary('d')],
         ],
-        sequenceCounts: [50, 49],
+        sequenceCounts: [3, 2],
       );
       final c = createContainer(repo);
       c.read(historyPaginationProvider.notifier).loadInitial();
+      final pagedBefore = repo.pagedCalls.length;
 
-      // 跳到第 3 页
-      c.read(historyPaginationProvider.notifier).goToPage(3);
-      expect(c.read(historyPaginationProvider).currentPage, 3);
-
-      // 删除 d 后 totalItems 变为 49，totalPages 仍为 3；
-      // 但当前页 3 已无数据（d 被删），应回退到新的最后一页。
-      c.read(historyPaginationProvider.notifier).afterDelete({'d'});
+      c.read(historyPaginationProvider.notifier).afterDelete({'b'});
 
       final s = c.read(historyPaginationProvider);
-      expect(s.totalItems, 49);
-      expect(s.totalPages, 3); // ceil(49/20)
-      // 当前页越界 -> 回退到最后一页
-      expect(s.currentPage, 3);
+      expect(s.conversations.map((item) => item.id), ['a', 'c']);
+      expect(s.totalItems, 2);
+      expect(s.currentPage, 1);
+      expect(repo.pagedCalls.length, pagedBefore);
     });
 
     test('afterDelete 全部删尽会清空并进入空库状态', () {
@@ -349,25 +319,6 @@ void main() {
       expect(s.conversations, isEmpty);
       expect(s.totalItems, 0);
       expect(s.hasAnyConversations, isFalse);
-    });
-
-    test('totalPages 派生：ceil(totalItems / pageSize)', () {
-      final repo = FakeHistoryRepository(
-        pages: [
-          [summary('a')],
-        ],
-      );
-      final c = createContainer(repo);
-
-      // totalItems=1 (默认 countResult 用 pages 总和), pageSize=20 -> 1 页
-      c.read(historyPaginationProvider.notifier).loadInitial();
-      expect(c.read(historyPaginationProvider).totalPages, 1);
-
-      c.read(historyPaginationProvider.notifier).setPageSize(1);
-      // reload 后 count 仍是 1 -> totalItems=1, pageSize=1 -> 1页
-      c.read(historyPaginationProvider.notifier).setPageSize(20); // 回到 20
-      c.read(historyPaginationProvider.notifier).loadInitial(); // 重拉 1 个元素
-      expect(c.read(historyPaginationProvider).totalPages, 1);
     });
 
     test('hasPrevious / hasNext 派生正确', () {

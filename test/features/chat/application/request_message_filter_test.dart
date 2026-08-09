@@ -21,15 +21,11 @@ void main() {
   // ── PassthroughMessageFilter ─────────────────────────────────
 
   group('PassthroughMessageFilter', () {
-    test('原样返回全部消息', () {
+    test('原样返回不可变的消息快照', () {
       final messages = [message('a'), message('b'), message('c')];
       final result = RequestMessageFilter.passthrough.apply(messages);
 
       expect(ids(result), ['a', 'b', 'c']);
-    });
-
-    test('返回不可变列表，修改抛异常', () {
-      final result = RequestMessageFilter.passthrough.apply([message('a')]);
       expect(() => result.add(message('b')), throwsUnsupportedError);
     });
   });
@@ -37,11 +33,14 @@ void main() {
   // ── ExcludeByIdMessageFilter ─────────────────────────────────
 
   group('ExcludeByIdMessageFilter', () {
-    test('排除命中项，保留其余且顺序不变', () {
+    test('排除命中项，保留顺序且不修改输入，结果不可变', () {
       final messages = [message('a'), message('b'), message('c'), message('d')];
       final filter = const ExcludeByIdMessageFilter({'b', 'd'});
+      final result = filter.apply(messages);
 
-      expect(ids(filter.apply(messages)), ['a', 'c']);
+      expect(ids(result), ['a', 'c']);
+      expect(ids(messages), ['a', 'b', 'c', 'd']);
+      expect(() => result.add(message('e')), throwsUnsupportedError);
     });
 
     test('空排除集合等价于 passthrough', () {
@@ -49,35 +48,6 @@ void main() {
       const filter = ExcludeByIdMessageFilter({});
 
       expect(ids(filter.apply(messages)), ['a', 'b']);
-    });
-
-    test('不含目标 id 时全部保留', () {
-      final messages = [message('a'), message('b')];
-      const filter = ExcludeByIdMessageFilter({'non-existent'});
-
-      expect(ids(filter.apply(messages)), ['a', 'b']);
-    });
-
-    test('排除全部 id 返回空列表', () {
-      final messages = [message('a'), message('b')];
-      const filter = ExcludeByIdMessageFilter({'a', 'b'});
-
-      expect(filter.apply(messages), isEmpty);
-    });
-
-    test('返回不可变列表，修改抛异常', () {
-      final result = const ExcludeByIdMessageFilter({
-        'b',
-      }).apply([message('a'), message('b')]);
-      expect(() => result.add(message('c')), throwsUnsupportedError);
-    });
-
-    test('不修改原输入列表', () {
-      final messages = [message('a'), message('b'), message('c')];
-      const filter = ExcludeByIdMessageFilter({'b'});
-
-      filter.apply(messages);
-      expect(ids(messages), ['a', 'b', 'c']);
     });
   });
 }

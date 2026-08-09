@@ -46,7 +46,8 @@ Future<void> _closeDrawer(WidgetTester tester) async {
 }
 
 void registerChatScreenResponsiveTests() {
-  for (final viewport in requiredShellViewports) {
+  // ChatScreen 只验证两个代表性端点；壳层断点矩阵由 AppShellScaffold 测试负责。
+  for (final viewport in [phonePortrait, wideDesktop]) {
     testWidgets('${viewport.name}: 标题/正文/发送入口可达', (tester) async {
       final fakeClient = FakeChatGenerationClient();
       await pumpChatScreen(tester, fakeClient: fakeClient, size: viewport.size);
@@ -58,9 +59,7 @@ void registerChatScreenResponsiveTests() {
     });
   }
 
-  for (final viewport in requiredShellViewports.where(
-    (v) => v.shellMode == ShellNavigationMode.bottomBar,
-  )) {
+  for (final viewport in [phonePortrait]) {
     testWidgets('${viewport.name}: 抽屉内历史/预设可达，关闭后正文可输入', (tester) async {
       final fakeClient = FakeChatGenerationClient();
       await pumpChatScreen(tester, fakeClient: fakeClient, size: viewport.size);
@@ -78,9 +77,7 @@ void registerChatScreenResponsiveTests() {
     });
   }
 
-  for (final viewport in requiredShellViewports.where(
-    (v) => v.shellMode == ShellNavigationMode.rail,
-  )) {
+  for (final viewport in [wideDesktop]) {
     testWidgets('${viewport.name}: activity bar 触发历史会话侧栏', (tester) async {
       final fakeClient = FakeChatGenerationClient();
       await pumpChatScreen(tester, fakeClient: fakeClient, size: viewport.size);

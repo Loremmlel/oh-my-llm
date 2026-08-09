@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -9,7 +10,6 @@ import 'package:oh_my_llm/features/chat/application/chat_generation_lifecycle.da
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
-import 'package:oh_my_llm/features/chat/presentation/widgets/reasoning_panel.dart';
 
 import '../../../helpers/widget_test_animation.dart';
 import 'chat_screen_test_helpers.dart';
@@ -88,21 +88,28 @@ void registerChatScreenStreamingTests() {
       description: '推理面板用例生成完成',
     );
 
-    // composer 折叠态常驻 AnimatedCrossFade 的另一侧 child，其「展开」按钮
-    // 文本会与 reasoning 面板的「展开」撞名；限定到 ReasoningPanel 内定位。
-    final reasoningExpand = find.descendant(
-      of: find.byType(ReasoningPanel),
-      matching: find.text('展开'),
+    final reasoningExpand = find.semantics.byPredicate((node) {
+      final data = node.getSemanticsData();
+      return data.label == '深度思考' &&
+          data.flagsCollection.isExpanded.toBoolOrNull() != null;
+    });
+    SemanticsData reasoningData() =>
+        reasoningExpand.evaluate().single.getSemanticsData();
+    expect(
+      reasoningData().flagsCollection.isExpanded.toBoolOrNull(),
+      isNotNull,
     );
-    expect(reasoningExpand, findsOneWidget);
+    expect(reasoningData().flagsCollection.isExpanded.toBoolOrNull(), isFalse);
+    expect(reasoningData().hint, '激活以展开');
     expect(find.text('这是思考过程'), findsNothing);
     expect(find.textContaining('这是最终回复'), findsWidgets);
 
-    await tester.tap(reasoningExpand);
+    tester.semantics.tap(reasoningExpand);
     await settleAnimatedWidgetTransition(tester);
 
     expect(find.text('这是思考过程'), findsOneWidget);
-    expect(find.text('收起'), findsOneWidget);
+    expect(reasoningData().flagsCollection.isExpanded.toBoolOrNull(), isTrue);
+    expect(reasoningData().hint, '激活以收起');
   });
 
   testWidgets('chat screen copies raw message content without reasoning', (

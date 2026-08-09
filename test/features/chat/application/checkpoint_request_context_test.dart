@@ -210,17 +210,6 @@ void main() {
       expect(result, isEmpty);
     });
 
-    test('单个检查点（无父节点）→ 单元素链', () {
-      final checkpoint = buildCheckpoint(id: 'cp-1', title: '唯一检查点');
-
-      final result = resolveCheckpointChain(
-        checkpoints: [checkpoint],
-        selectedCheckpointId: 'cp-1',
-      );
-
-      expect(result, [checkpoint]);
-    });
-
     test('3 个检查点链 → 返回祖先顺序（反转后从最旧到最新）', () {
       final cp1 = buildCheckpoint(id: 'cp-1', title: '第一');
       final cp2 = buildCheckpoint(
@@ -381,49 +370,7 @@ void main() {
       expect(lastUser.content, contains('记忆总结提示词'));
     });
 
-    test('presetPrompt before/after placement 正确放置消息', () {
-      final memoryPrompt = buildMemoryPrompt();
-      final conversationMessages = [buildMessage(id: 'm1', content: '对话')];
-      final presetPrompt = buildPresetPrompt(
-        messages: [
-          buildPromptMessage(
-            role: PromptMessageRole.system,
-            content: '前置系统消息',
-            placement: PromptMessagePlacement.before,
-          ),
-          buildPromptMessage(
-            role: PromptMessageRole.assistant,
-            content: '后置助手消息',
-            placement: PromptMessagePlacement.after,
-          ),
-        ],
-      );
-
-      final result = buildCheckpointSummaryMessages(
-        memoryPrompt: memoryPrompt,
-        conversationMessages: conversationMessages,
-        checkpointChain: const [],
-        presetPrompt: presetPrompt,
-      );
-
-      final rolesAndContents = result
-          .map((m) => '${m.role.apiValue}:${m.content}')
-          .toList();
-
-      // 前置 system 消息应在对话消息之前
-      final beforeSystemIndex = rolesAndContents.indexWhere(
-        (rc) => rc == 'system:前置系统消息',
-      );
-      final dialogIndex = rolesAndContents.indexWhere((rc) => rc == 'user:对话');
-      final afterAssistantIndex = rolesAndContents.indexWhere(
-        (rc) => rc == 'assistant:后置助手消息',
-      );
-
-      expect(beforeSystemIndex, lessThan(dialogIndex));
-      expect(dialogIndex, lessThan(afterAssistantIndex));
-    });
-
-    test('presetPrompt beforeLatestInput placement 排在会话消息之后、after 之前', () {
+    test('模板三种 placement 围绕对话与末尾总结指令按契约排序', () {
       final memoryPrompt = buildMemoryPrompt();
       final conversationMessages = [buildMessage(id: 'm1', content: '对话')];
       final presetPrompt = buildPresetPrompt(
@@ -458,11 +405,15 @@ void main() {
       final beforeIndex = contents.indexOf('前置系统消息');
       final dialogIndex = contents.indexOf('对话');
       final beforeLatestInputIndex = contents.indexOf('最新输入前消息');
+      final summaryInstructionIndex = contents.indexWhere(
+        (content) => content.contains('请按照以下记忆总结提示词'),
+      );
       final afterIndex = contents.indexOf('后置助手消息');
 
       expect(beforeIndex, lessThan(dialogIndex));
       expect(dialogIndex, lessThan(beforeLatestInputIndex));
-      expect(beforeLatestInputIndex, lessThan(afterIndex));
+      expect(beforeLatestInputIndex, lessThan(summaryInstructionIndex));
+      expect(summaryInstructionIndex, lessThan(afterIndex));
     });
   });
 }

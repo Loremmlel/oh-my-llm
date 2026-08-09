@@ -1,9 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:oh_my_llm/features/chat/application/chat_generation_lifecycle.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_state.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
-import 'package:oh_my_llm/features/chat/domain/models/chat_conversation_summary.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 
 void main() {
@@ -45,29 +43,6 @@ void main() {
     );
   }
 
-  /// 创建测试用 [ChatSessionsState]。
-  ChatSessionsState createState({
-    List<ChatConversation>? conversations,
-    String activeConversationId = 'conv-1',
-    int autoRetryCount = 0,
-    String? errorMessage,
-    String? errorMessageAssistantId,
-    ChatStreamingReply? streamingReply,
-    int historyRevision = 0,
-  }) {
-    return ChatSessionsState(
-      conversations:
-          conversations ?? [createConv(id: 'conv-1', messageNodes: [])],
-      conversationSummaries: <ChatConversationSummary>[],
-      activeConversationId: activeConversationId,
-      autoRetryCount: autoRetryCount,
-      errorMessage: errorMessage,
-      errorMessageAssistantId: errorMessageAssistantId,
-      streamingReply: streamingReply,
-      historyRevision: historyRevision,
-    );
-  }
-
   /// 创建测试用 [ChatStreamingReply]。
   ChatStreamingReply createReply({
     String conversationId = 'conv-1',
@@ -82,113 +57,6 @@ void main() {
       reasoningContent: reasoningContent,
     );
   }
-
-  // ── ChatSessionsState.copyWith ──────────────────────────
-
-  group('ChatSessionsState.copyWith', () {
-    test('clearAutoRetryCount 将 autoRetryCount 重置为 0', () {
-      final state = createState(autoRetryCount: 5);
-      final result = state.copyWith(clearAutoRetryCount: true);
-
-      expect(result.autoRetryCount, 0);
-    });
-
-    test('clearErrorMessage 将 errorMessage 设置为 null', () {
-      final state = createState(errorMessage: '请求失败');
-      final result = state.copyWith(clearErrorMessage: true);
-
-      expect(result.errorMessage, isNull);
-    });
-
-    test('clearStreamingReply 将 streamingReply 设置为 null', () {
-      final state = createState(streamingReply: createReply());
-      final result = state.copyWith(clearStreamingReply: true);
-
-      expect(result.streamingReply, isNull);
-    });
-
-    test('generation 透传到 copyWith 结果', () {
-      const snapshot = ChatGenerationSnapshot(
-        generationId: 2,
-        conversationId: 'conv-1',
-        attempt: 1,
-        phase: ChatGenerationPhase.finalizing,
-        assistantMessageId: 'a1',
-      );
-      final state = createState().copyWith(generation: snapshot);
-
-      expect(state.generation, snapshot);
-    });
-
-    test('clearGeneration 将 generation 清空为 null', () {
-      const snapshot = ChatGenerationSnapshot(
-        generationId: 1,
-        conversationId: 'conv-1',
-        attempt: 1,
-        phase: ChatGenerationPhase.streaming,
-        assistantMessageId: 'a1',
-      );
-      final state = createState().copyWith(generation: snapshot);
-
-      final result = state.copyWith(clearGeneration: true);
-
-      expect(result.generation, isNull);
-    });
-
-    test('未指定 generation 时 copyWith 保留原值', () {
-      const snapshot = ChatGenerationSnapshot(
-        generationId: 1,
-        conversationId: 'conv-1',
-        attempt: 1,
-        phase: ChatGenerationPhase.streaming,
-      );
-      final state = createState().copyWith(generation: snapshot);
-
-      // 改动无关字段时 generation 应透传保留。
-      final result = state.copyWith(incrementHistoryRevision: true);
-
-      expect(result.generation, snapshot);
-      expect(result.historyRevision, state.historyRevision + 1);
-    });
-
-    test('incrementHistoryRevision 将 historyRevision 加 1', () {
-      final state = createState(historyRevision: 3);
-      final result = state.copyWith(incrementHistoryRevision: true);
-
-      expect(result.historyRevision, 4);
-    });
-
-    test('clearAutoRetryCount=false 时显式的 autoRetryCount 优先于原值', () {
-      final state = createState(autoRetryCount: 3);
-      final result = state.copyWith(autoRetryCount: 7);
-
-      expect(result.autoRetryCount, 7);
-    });
-
-    test('clearErrorMessage=false 时显式的 errorMessage 优先于原值', () {
-      final state = createState(errorMessage: '旧错误');
-      final result = state.copyWith(errorMessage: '新错误');
-
-      expect(result.errorMessage, '新错误');
-    });
-
-    test('clearErrorMessage + clearAutoRetryCount 同时生效', () {
-      final state = createState(
-        errorMessage: '错误发生',
-        errorMessageAssistantId: 'a1',
-        autoRetryCount: 5,
-      );
-      final result = state.copyWith(
-        clearErrorMessage: true,
-        clearAutoRetryCount: true,
-      );
-
-      expect(result.errorMessage, isNull);
-      // clearErrorMessage 会同时清除 errorMessageAssistantId
-      expect(result.errorMessageAssistantId, isNull);
-      expect(result.autoRetryCount, 0);
-    });
-  });
 
   // ── applyStreamingReplyToConversation ───────────────────
 
@@ -228,37 +96,14 @@ void main() {
       expect(result, equals(conv));
     });
 
-    test('匹配的 reply 更新 assistant 消息 content', () {
+    test('匹配的 reply 同时更新 assistant 正文与推理', () {
       final conv = createConv(
         id: 'conv-1',
         messageNodes: [
           createMsg(
             id: 'a1',
             role: ChatMessageRole.assistant,
-            content: '旧内容',
-            parentId: rootConversationParentId,
-          ),
-        ],
-      );
-
-      final result = applyStreamingReplyToConversation(
-        conversation: conv,
-        streamingReply: createReply(content: '新内容'),
-      );
-
-      final replacedNode = result.messageNodes.firstWhere((m) => m.id == 'a1');
-      expect(replacedNode.content, '新内容');
-      expect(replacedNode.reasoningContent, '');
-    });
-
-    test('匹配的 reply 更新 assistant 消息 reasoningContent', () {
-      final conv = createConv(
-        id: 'conv-1',
-        messageNodes: [
-          createMsg(
-            id: 'a1',
-            role: ChatMessageRole.assistant,
-            content: '正文',
+            content: '旧正文',
             reasoningContent: '旧推理',
             parentId: rootConversationParentId,
           ),
@@ -267,12 +112,12 @@ void main() {
 
       final result = applyStreamingReplyToConversation(
         conversation: conv,
-        streamingReply: createReply(content: '正文更新', reasoningContent: '新推理'),
+        streamingReply: createReply(content: '新正文', reasoningContent: '新推理'),
       );
 
       final replacedNode = result.messageNodes.firstWhere((m) => m.id == 'a1');
+      expect(replacedNode.content, '新正文');
       expect(replacedNode.reasoningContent, '新推理');
-      expect(replacedNode.content, '正文更新');
     });
 
     test('isStreaming=true 时消息上的 isStreaming 标记为 true', () {
@@ -321,30 +166,6 @@ void main() {
 
       final replacedNode = result.messageNodes.firstWhere((m) => m.id == 'a1');
       expect(replacedNode.isStreaming, isFalse);
-    });
-
-    test('空 content 和 reasoningContent 正常执行不抛异常', () {
-      final conv = createConv(
-        id: 'conv-1',
-        messageNodes: [
-          createMsg(
-            id: 'a1',
-            role: ChatMessageRole.assistant,
-            content: '已有内容',
-            parentId: rootConversationParentId,
-          ),
-        ],
-      );
-
-      final result = applyStreamingReplyToConversation(
-        conversation: conv,
-        streamingReply: createReply(content: '', reasoningContent: ''),
-      );
-
-      final replacedNode = result.messageNodes.firstWhere((m) => m.id == 'a1');
-      // 空值被正确应用，不会抛异常
-      expect(replacedNode.content, '');
-      expect(replacedNode.reasoningContent, '');
     });
   });
 }

@@ -7,15 +7,15 @@ import 'package:oh_my_llm/features/chat/application/chat_sidebar_controller.dart
 
 void main() {
   group('ChatSidebarController', () {
-    late SharedPreferences sp;
+    late SharedPreferences preferences;
     late ProviderContainer container;
     late ChatSidebarController controller;
 
     Future<void> boot(Map<String, Object> initial) async {
       SharedPreferences.setMockInitialValues(initial);
-      sp = await SharedPreferences.getInstance();
+      preferences = await SharedPreferences.getInstance();
       container = ProviderContainer(
-        overrides: [sharedPreferencesProvider.overrideWithValue(sp)],
+        overrides: [sharedPreferencesProvider.overrideWithValue(preferences)],
       );
       addTearDown(container.dispose);
       controller = container.read(chatSidebarProvider.notifier);
@@ -23,18 +23,24 @@ void main() {
 
     ChatSidebarState readState() => container.read(chatSidebarProvider);
 
-    // ── build() 恢复 ────────────────────────────────────────────
-
-    test('无持久化数据时返回默认值', () async {
+    test('无持久化数据时返回默认状态', () async {
       await boot({});
+
       expect(readState().activeFunction, ChatSidebarFunction.history);
-      expect(readState().isExpanded, true);
+      expect(readState().isExpanded, isTrue);
       expect(readState().panelWidth, 260.0);
     });
 
-    test('从持久化恢复 activeFunction', () async {
-      await boot({'sidebar_activeFunction': 'preset'});
+    test('一次恢复 activeFunction、展开状态与面板宽度', () async {
+      await boot({
+        'sidebar_activeFunction': 'preset',
+        'sidebar_isExpanded': false,
+        'sidebar_panelWidth': 300.0,
+      });
+
       expect(readState().activeFunction, ChatSidebarFunction.preset);
+      expect(readState().isExpanded, isFalse);
+      expect(readState().panelWidth, 300.0);
     });
 
     test('无法识别的 function 值降级为 history', () async {
@@ -42,118 +48,73 @@ void main() {
       expect(readState().activeFunction, ChatSidebarFunction.history);
     });
 
-    test('从持久化恢复 isExpanded', () async {
-      await boot({'sidebar_isExpanded': false});
-      expect(readState().isExpanded, false);
+    test('恢复时把 panelWidth 夹取到上下限', () async {
+      for (final entry in const [
+        MapEntry(500.0, 400.0),
+        MapEntry(100.0, 180.0),
+      ]) {
+        await boot({'sidebar_panelWidth': entry.key});
+        expect(readState().panelWidth, entry.value);
+      }
     });
 
-    test('从持久化恢复 panelWidth', () async {
-      await boot({'sidebar_panelWidth': 300.0});
-      expect(readState().panelWidth, 300.0);
-    });
-
-    test('panelWidth 超出上限被 clamp', () async {
-      await boot({'sidebar_panelWidth': 500.0});
-      expect(readState().panelWidth, 400.0);
-    });
-
-    test('panelWidth 低于下限被 clamp', () async {
-      await boot({'sidebar_panelWidth': 100.0});
-      expect(readState().panelWidth, 180.0);
-    });
-
-    // ── toggleFunction ──────────────────────────────────────────
-
-    test('点击已激活项 → 切换展开/折叠', () async {
+    test('toggleFunction 区分当前项折叠与新项切换展开', () async {
       await boot({});
-      expect(readState().activeFunction, ChatSidebarFunction.history);
-      expect(readState().isExpanded, true);
 
       controller.toggleFunction(ChatSidebarFunction.history);
       expect(readState().activeFunction, ChatSidebarFunction.history);
-      expect(readState().isExpanded, false);
-    });
-
-    test('点击新项 → 切换功能并展开', () async {
-      await boot({});
-      controller.toggleFunction(ChatSidebarFunction.history);
-      expect(readState().isExpanded, false);
+      expect(readState().isExpanded, isFalse);
 
       controller.toggleFunction(ChatSidebarFunction.preset);
       expect(readState().activeFunction, ChatSidebarFunction.preset);
-      expect(readState().isExpanded, true);
+      expect(readState().isExpanded, isTrue);
     });
 
-    // ── collapse ────────────────────────────────────────────────
-
-    test('已展开时 collapse → 折叠', () async {
+    test('collapse 折叠后再次调用保持幂等', () async {
       await boot({});
-      expect(readState().isExpanded, true);
 
       controller.collapse();
-      expect(readState().isExpanded, false);
-    });
-
-    test('已折叠时 collapse → 无操作', () async {
-      await boot({});
+      expect(readState().isExpanded, isFalse);
       controller.collapse();
-      expect(readState().isExpanded, false);
-
-      controller.collapse();
-      expect(readState().isExpanded, false);
+      expect(readState().isExpanded, isFalse);
     });
 
-    // ── setPanelWidth ──────────────────────────────────────────
-
-    test('setPanelWidth 正常更新并 clamp', () async {
+    test('setPanelWidth 更新正常值并夹取上下限', () async {
       await boot({});
-      controller.setPanelWidth(350.0);
-      expect(readState().panelWidth, 350.0);
+
+      for (final entry in const [
+        MapEntry(350.0, 350.0),
+        MapEntry(999.0, 400.0),
+        MapEntry(50.0, 180.0),
+      ]) {
+        controller.setPanelWidth(entry.key);
+        expect(readState().panelWidth, entry.value);
+      }
     });
 
-    test('setPanelWidth 差值小于0.5 → 忽略（去抖）', () async {
+    test('setPanelWidth 忽略小于 0.5 的抖动', () async {
       await boot({});
-      expect(readState().panelWidth, 260.0);
 
       controller.setPanelWidth(260.3);
       expect(readState().panelWidth, 260.0);
-
       controller.setPanelWidth(260.6);
       expect(readState().panelWidth, 260.6);
     });
 
-    test('setPanelWidth 超范围被 clamp', () async {
-      await boot({});
-      controller.setPanelWidth(999.0);
-      expect(readState().panelWidth, 400.0);
-
-      controller.setPanelWidth(50.0);
-      expect(readState().panelWidth, 180.0);
-    });
-
-    // ── 持久化 ──────────────────────────────────────────────────
-
-    test('操作后 _save 写入 SharedPreferences', () async {
+    test('操作后的完整状态可由新容器恢复', () async {
       await boot({});
       controller.toggleFunction(ChatSidebarFunction.preset);
       controller.collapse();
-
-      expect(sp.getString('sidebar_activeFunction'), 'preset');
-      expect(sp.getBool('sidebar_isExpanded'), false);
-    });
-
-    test('_save 后重建容器能恢复完整状态', () async {
-      await boot({});
-      controller.toggleFunction(ChatSidebarFunction.preset);
       controller.setPanelWidth(350.0);
 
       final revived = ProviderContainer(
-        overrides: [sharedPreferencesProvider.overrideWithValue(sp)],
+        overrides: [sharedPreferencesProvider.overrideWithValue(preferences)],
       );
       addTearDown(revived.dispose);
 
       final restored = revived.read(chatSidebarProvider);
       expect(restored.activeFunction, ChatSidebarFunction.preset);
+      expect(restored.isExpanded, isFalse);
       expect(restored.panelWidth, 350.0);
     });
   });

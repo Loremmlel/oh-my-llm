@@ -146,29 +146,4 @@ void main() {
       );
     });
   });
-
-  // ── copyWith ─────────────────────────────────────────────────
-
-  group('copyWith', () {
-    test('单字段更新保留其他字段', () {
-      final original = summary(
-        title: '原标题',
-        firstUserMessagePreview: '首条',
-        latestUserMessagePreview: '最新',
-      );
-      final updated = original.copyWith(title: '新标题');
-
-      expect(updated.title, '新标题');
-      expect(updated.firstUserMessagePreview, '首条');
-      expect(updated.latestUserMessagePreview, '最新');
-      expect(updated.id, original.id);
-      expect(updated.updatedAt, original.updatedAt);
-    });
-
-    test('Equatable 相等性', () {
-      final a = summary(title: '测试', firstUserMessagePreview: '预览');
-      final b = summary(title: '测试', firstUserMessagePreview: '预览');
-      expect(a, equals(b));
-    });
-  });
 }

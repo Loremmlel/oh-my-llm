@@ -6,11 +6,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/chat/application/chat_generation_lifecycle.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
+import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
-import 'package:oh_my_llm/features/chat/presentation/widgets/composer/composer_helpers.dart';
-import 'package:oh_my_llm/features/chat/presentation/widgets/message_anchor_rail.dart';
-import 'package:oh_my_llm/features/chat/presentation/widgets/thinking_toggle.dart';
 import 'package:oh_my_llm/features/settings/application/llm_model_configs_controller.dart';
 import 'package:oh_my_llm/features/settings/application/memory_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/application/template_prompts_controller.dart';
@@ -20,6 +18,47 @@ import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
 import '../../../helpers/fixtures.dart';
 import '../../../helpers/widget_test_animation.dart';
 import 'chat_screen_test_helpers.dart';
+
+Map<String, dynamic> _conversationWithTurns(int turnCount) {
+  final nodes = <ChatMessage>[];
+  final selections = <String, String>{};
+  var parentId = rootConversationParentId;
+  final createdAt = DateTime(2026, 5, 5, 10);
+  for (var index = 1; index <= turnCount; index++) {
+    final userId = 'user-$index';
+    final assistantId = 'assistant-$index';
+    nodes.add(
+      ChatMessage(
+        id: userId,
+        role: ChatMessageRole.user,
+        content: '第 $index 条问题：${'内容 ' * 20}',
+        parentId: parentId,
+        createdAt: createdAt.add(Duration(minutes: index * 2)),
+      ),
+    );
+    nodes.add(
+      ChatMessage(
+        id: assistantId,
+        role: ChatMessageRole.assistant,
+        content: '第 $index 条回复：${'内容 ' * 20}',
+        parentId: userId,
+        createdAt: createdAt.add(Duration(minutes: index * 2 + 1)),
+      ),
+    );
+    selections[parentId] = userId;
+    selections[userId] = assistantId;
+    parentId = assistantId;
+  }
+
+  return ChatConversation(
+    id: 'conversation-with-$turnCount-turns',
+    title: '长会话',
+    messageNodes: nodes,
+    selectedChildByParentId: selections,
+    createdAt: createdAt,
+    updatedAt: createdAt.add(Duration(minutes: turnCount * 2 + 1)),
+  ).toJson();
+}
 
 void registerChatScreenBasicsTests() {
   testWidgets('chat screen uses remembered model for reasoning capability', (
@@ -62,7 +101,7 @@ void registerChatScreenBasicsTests() {
       fakeClient: fakeClient,
     );
 
-    expect(find.byType(ThinkingToggle), findsOneWidget);
+    expect(find.semantics.byLabel('深度思考'), findsOneWidget);
   });
 
   testWidgets('chat screen renames conversation without controller errors', (
@@ -380,52 +419,26 @@ void registerChatScreenBasicsTests() {
     expect(find.text('固定顺序提示词'), findsOneWidget);
   });
 
-  testWidgets(
-    'chat screen compact settings sheet keeps stable height when switching effort',
-    (tester) async {
-      final fakeClient = FakeChatGenerationClient();
+  testWidgets('chat screen compact settings updates reasoning effort summary', (
+    tester,
+  ) async {
+    final fakeClient = FakeChatGenerationClient();
 
-      await pumpChatScreen(
-        tester,
-        fakeClient: fakeClient,
-        size: const Size(430, 932),
-      );
+    await pumpChatScreen(
+      tester,
+      fakeClient: fakeClient,
+      size: const Size(430, 932),
+    );
 
-      await tester.tap(find.byIcon(Icons.tune_rounded));
-      await settleOverlayTransition(tester);
-      await tester.tap(find.text('深度思考'));
-      await settleAnimatedWidgetTransition(tester);
+    await tester.tap(find.byIcon(Icons.tune_rounded));
+    await settleOverlayTransition(tester);
+    await tester.tap(find.text('深度思考'));
+    await settleAnimatedWidgetTransition(tester);
 
-      // 用 descendant 限定，避免与折叠行摘要「更多设置 · med · 重试开」撞名。
-      Finder chipFor(ReasoningEffort effort) => find.descendant(
-        of: find.byType(ChoiceChip),
-        matching: find.text(effortLabel(effort)),
-      );
-      for (final effort in ReasoningEffort.values) {
-        expect(chipFor(effort), findsOneWidget);
-      }
-
-      // 切换档位时弹窗高度保持恒定：checkmark 的 150ms 宽度动画会让 Wrap
-      // 在窄屏跨越换行阈值、内容高度跳变，关闭 checkmark 后应完全稳定。
-      final sheet = find.byType(BottomSheet);
-      final initialHeight = tester.getSize(sheet).height;
-      for (final effort in ReasoningEffort.values) {
-        await tester.tap(chipFor(effort));
-        // 档位切换的 checkmark 宽度动画结束后弹窗高度应完全稳定。
-        await settleAnimatedWidgetTransition(tester);
-        expect(
-          tester.getSize(sheet).height,
-          moreOrLessEquals(initialHeight, epsilon: 0.01),
-          reason: '切换思考强度档位（$effort）时弹窗高度不应跳变',
-        );
-      }
-
-      // 选中态经回调正确传播到折叠行摘要。
-      await tester.tap(chipFor(ReasoningEffort.xhigh));
-      await settleAnimatedWidgetTransition(tester);
-      expect(find.text('更多设置 · xhigh · 重试关'), findsOneWidget);
-    },
-  );
+    await tester.tap(find.text('xhigh'));
+    await settleAnimatedWidgetTransition(tester);
+    expect(find.text('更多设置 · xhigh · 重试关'), findsOneWidget);
+  });
 
   testWidgets('chat screen can collapse and expand the composer', (
     tester,
@@ -681,9 +694,9 @@ void registerChatScreenBasicsTests() {
     );
 
     const content = '请使用快捷键发送这条消息';
-    await tester.tap(find.byType(TextField).first);
+    await tester.tap(chatMessageComposerFinder);
     await tester.pump();
-    await tester.enterText(find.byType(TextField).first, content);
+    await tester.enterText(chatMessageComposerFinder, content);
 
     await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
@@ -703,28 +716,21 @@ void registerChatScreenBasicsTests() {
     tester,
   ) async {
     final fakeClient = FakeChatGenerationClient();
-    for (var index = 1; index <= 8; index += 1) {
-      fakeClient.enqueueChunks(['第 $index 条回复：${'内容 ' * 20}']);
-    }
+    final database = AppDatabase.inMemory();
+    addTearDown(database.close);
+    final preferences = await TestFixtures.seedPreferences(
+      database: database,
+      models: [TestFixtures.gpt41()],
+      conversations: [_conversationWithTurns(8)],
+    );
 
     await pumpChatScreen(
       tester,
       fakeClient: fakeClient,
+      preferences: preferences,
+      database: database,
       size: const Size(900, 520),
     );
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ChatScreen)),
-    );
-
-    for (var index = 1; index <= 8; index += 1) {
-      await sendMessage(tester, '第 $index 条问题：${'内容 ' * 20}');
-      await waitForChatGeneration(
-        tester,
-        container,
-        (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
-        description: '滚动到底用例第 $index 轮生成完成',
-      );
-    }
 
     final scrollable = find.byType(Scrollable).first;
     // 拖拽后的 ballistic 滚动属滚动运动。
@@ -747,39 +753,50 @@ void registerChatScreenBasicsTests() {
     'anchor rail highlights follow visible user message while scrolling',
     (tester) async {
       final fakeClient = FakeChatGenerationClient();
-      for (var index = 1; index <= 5; index += 1) {
-        fakeClient.enqueueChunks(['第 $index 条回复：${'内容 ' * 20}']);
-      }
+      final database = AppDatabase.inMemory();
+      addTearDown(database.close);
+      final preferences = await TestFixtures.seedPreferences(
+        database: database,
+        models: [TestFixtures.gpt41()],
+        conversations: [_conversationWithTurns(5)],
+      );
 
       await pumpChatScreen(
         tester,
         fakeClient: fakeClient,
+        preferences: preferences,
+        database: database,
         size: const Size(900, 520),
       );
-      final container = ProviderScope.containerOf(
-        tester.element(find.byType(ChatScreen)),
-      );
 
-      for (var index = 1; index <= 5; index += 1) {
-        await sendMessage(tester, '第 $index 条问题：${'内容 ' * 20}');
-        await waitForChatGeneration(
-          tester,
-          container,
-          (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
-          description: '锚点高亮用例第 $index 轮生成完成',
-        );
+      int selectedAnchorIndex() {
+        final selected = <int>[];
+        for (var index = 1; index <= 5; index++) {
+          final semantics = find.semantics
+              .byLabel('第 $index 条用户消息：第 $index 条问题')
+              .evaluate()
+              .single;
+          if (semantics
+                  .getSemanticsData()
+                  .flagsCollection
+                  .isSelected
+                  .toBoolOrNull() ==
+              true) {
+            selected.add(index);
+          }
+        }
+        expect(selected, hasLength(1));
+        return selected.single;
       }
 
-      // 锚点条渲染 5 个条目（>3 条用户消息才会展开 rail）
-      expect(find.byType(MessageAnchorRail), findsOneWidget);
+      final beforeScroll = selectedAnchorIndex();
 
-      // 滚动到列表顶部附近，验证锚点高亮经 ValueNotifier 更新不抛异常且 rail 仍存在。
-      // 拖拽后的 ballistic 滚动属滚动运动。
       final scrollable = find.byType(Scrollable).first;
-      await tester.drag(scrollable, const Offset(0, -400));
+      await tester.drag(scrollable, const Offset(0, 400));
       await settleScrollMotion(tester);
 
-      expect(find.byType(MessageAnchorRail), findsOneWidget);
+      expect(selectedAnchorIndex(), isNot(beforeScroll));
+      expect(tester.takeException(), isNull);
     },
   );
 }

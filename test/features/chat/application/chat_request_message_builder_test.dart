@@ -6,358 +6,141 @@ import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
 
 void main() {
-  // ── 辅助函数 ─────────────────────────────────────────────────────────────
+  ChatMessage message(String id, ChatMessageRole role, String content) =>
+      ChatMessage(
+        id: id,
+        role: role,
+        content: content,
+        createdAt: DateTime(2026),
+      );
 
-  ChatMessage buildUserMessage(String content) => ChatMessage(
-    id: 'u1',
-    role: ChatMessageRole.user,
-    content: content,
-    createdAt: DateTime(2026),
-  );
-
-  ChatMessage buildAssistantMessage(String content) => ChatMessage(
-    id: 'a1',
-    role: ChatMessageRole.assistant,
-    content: content,
-    createdAt: DateTime(2026),
-  );
-
-  PresetPrompt buildTemplate({
-    String systemPrompt = '',
-    List<PromptMessage> messages = const [],
-  }) {
-    final effectiveMessages = systemPrompt.trim().isNotEmpty
-        ? <PromptMessage>[
-            PromptMessage(
-              id: '_legacy-system-message',
-              role: PromptMessageRole.system,
-              title: defaultSystemPromptTitle,
-              content: systemPrompt.trim(),
-            ),
-            ...messages,
-          ]
-        : messages;
-    return PresetPrompt(
-      id: 'tpl-1',
-      name: '测试模板',
-      messages: effectiveMessages,
-      updatedAt: DateTime(2026),
-    );
-  }
-
-  PromptMessage buildTemplateMessage(
+  PromptMessage promptMessage(
+    String id,
     PromptMessageRole role,
     String content, {
     PromptMessagePlacement placement = PromptMessagePlacement.before,
+    bool enabled = true,
   }) => PromptMessage(
-    id: 'pm1',
+    id: id,
     role: role,
     content: content,
     placement: placement,
+    enabled: enabled,
   );
 
-  // ── 无模板 ────────────────────────────────────────────────────────────────
+  PresetPrompt template(List<PromptMessage> messages) => PresetPrompt(
+    id: 'template',
+    name: '测试模板',
+    messages: messages,
+    updatedAt: DateTime(2026),
+  );
 
-  group('无模板（presetPrompt == null）', () {
-    test('透传会话消息，并在没有会话消息时返回空列表', () {
-      final result = buildRequestMessages(
-        presetPrompt: null,
-        conversationMessages: [
-          buildUserMessage('你好'),
-          buildAssistantMessage('你好！'),
-        ],
-      );
-
-      expect(result, hasLength(2));
-      expect(result[0].role, ChatMessageRole.user);
-      expect(result[1].role, ChatMessageRole.assistant);
-      expect(
-        buildRequestMessages(
-          presetPrompt: null,
-          conversationMessages: const [],
-        ),
-        isEmpty,
-      );
-    });
-  });
-
-  // ── 有模板：system prompt ─────────────────────────────────────────────────
-
-  group('模板含 systemPrompt', () {
-    test('非空 systemPrompt 会在首位插入裁剪后的 system 消息', () {
-      final result = buildRequestMessages(
-        presetPrompt: buildTemplate(systemPrompt: '  你是一名助手  '),
-        conversationMessages: [buildUserMessage('问题')],
-      );
-
-      expect(result[0].role, ChatMessageRole.system);
-      expect(result[0].content, '你是一名助手');
-      expect(result, hasLength(2));
-    });
-
-    test('纯空白 systemPrompt 不插入 system 消息', () {
-      final result = buildRequestMessages(
-        presetPrompt: buildTemplate(systemPrompt: '   '),
-        conversationMessages: [buildUserMessage('问题')],
-      );
-
-      expect(result.any((m) => m.role == ChatMessageRole.system), isFalse);
-    });
-  });
-
-  // ── 有模板：template messages ─────────────────────────────────────────────
-
-  group('模板含 messages', () {
-    test('模板消息排在会话消息前面', () {
-      final result = buildRequestMessages(
-        presetPrompt: buildTemplate(
-          messages: [
-            buildTemplateMessage(PromptMessageRole.user, '示例问题'),
-            buildTemplateMessage(PromptMessageRole.assistant, '示例回答'),
-          ],
-        ),
-        conversationMessages: [buildUserMessage('真实问题')],
-      );
-
-      expect(result[0].content, '示例问题');
-      expect(result[1].content, '示例回答');
-      expect(result[2].content, '真实问题');
-    });
-
-    test('模板 system 消息转换为 ChatMessageRole.system，并支持多条', () {
-      final result = buildRequestMessages(
-        presetPrompt: buildTemplate(
-          messages: [
-            buildTemplateMessage(PromptMessageRole.system, '系统前置'),
-            buildTemplateMessage(
-              PromptMessageRole.system,
-              '系统后置',
-              placement: PromptMessagePlacement.after,
-            ),
-          ],
-        ),
-        conversationMessages: [buildUserMessage('真实问题')],
-      );
-
-      expect(result.map((message) => message.role).toList(), [
-        ChatMessageRole.system,
-        ChatMessageRole.user,
-        ChatMessageRole.system,
-      ]);
-      expect(result.map((message) => message.content).toList(), [
-        '系统前置',
-        '真实问题',
-        '系统后置',
-      ]);
-    });
-
-    test('after 模板消息排在会话消息后面', () {
-      final result = buildRequestMessages(
-        presetPrompt: buildTemplate(
-          messages: [
-            buildTemplateMessage(
-              PromptMessageRole.assistant,
-              '后置提示',
-              placement: PromptMessagePlacement.after,
-            ),
-          ],
-        ),
-        conversationMessages: [buildUserMessage('真实问题')],
-      );
-
-      expect(result, hasLength(2));
-      expect(result[0].content, '真实问题');
-      expect(result[1].content, '后置提示');
-    });
-
-    test('filter 只会跳过被排除的会话消息', () {
-      final result = buildRequestMessages(
-        presetPrompt: buildTemplate(
-          systemPrompt: '系统指令',
-          messages: [
-            buildTemplateMessage(PromptMessageRole.user, '模板前置'),
-            buildTemplateMessage(
-              PromptMessageRole.assistant,
-              '模板后置',
-              placement: PromptMessagePlacement.after,
-            ),
-          ],
-        ),
-        filter: const ExcludeByIdMessageFilter({'a1'}),
-        conversationMessages: [
-          buildUserMessage('真实问题'),
-          buildAssistantMessage('不应继续发送的旧回复'),
-        ],
-      );
-
-      expect(result.map((message) => message.content).toList(growable: false), [
-        '系统指令',
-        '模板前置',
-        '真实问题',
-        '模板后置',
-      ]);
-    });
-
-    test('before 和 after 混用时，顺序为 before -> 会话 -> after', () {
-      final result = buildRequestMessages(
-        presetPrompt: buildTemplate(
-          messages: [
-            buildTemplateMessage(PromptMessageRole.user, '前置-1'),
-            buildTemplateMessage(
-              PromptMessageRole.assistant,
-              '后置-1',
-              placement: PromptMessagePlacement.after,
-            ),
-            buildTemplateMessage(PromptMessageRole.assistant, '前置-2'),
-          ],
-        ),
-        conversationMessages: [buildUserMessage('真实问题')],
-      );
-
-      expect(result.map((m) => m.content).toList(), [
-        '前置-1',
-        '前置-2',
-        '真实问题',
-        '后置-1',
-      ]);
-    });
-
-    test('beforeLatestInput 模板消息排在会话消息之后、after 模板消息之前', () {
-      final result = buildRequestMessages(
-        presetPrompt: buildTemplate(
-          messages: [
-            buildTemplateMessage(PromptMessageRole.system, '前置消息'),
-            buildTemplateMessage(
-              PromptMessageRole.user,
-              '最新输入前消息',
-              placement: PromptMessagePlacement.beforeLatestInput,
-            ),
-            buildTemplateMessage(
-              PromptMessageRole.assistant,
-              '后置消息',
-              placement: PromptMessagePlacement.after,
-            ),
-          ],
-        ),
-        conversationMessages: [buildUserMessage('真实问题')],
-      );
-
-      expect(result.map((m) => m.content).toList(), [
-        '前置消息',
-        '真实问题',
-        '最新输入前消息',
-        '后置消息',
-      ]);
-    });
-
-    test('三种位置混用时，顺序为 before -> 会话 -> beforeLatestInput -> after', () {
-      final result = buildRequestMessages(
-        presetPrompt: buildTemplate(
-          messages: [
-            buildTemplateMessage(PromptMessageRole.user, '前置-1'),
-            buildTemplateMessage(
-              PromptMessageRole.system,
-              '最新输入前-1',
-              placement: PromptMessagePlacement.beforeLatestInput,
-            ),
-            buildTemplateMessage(
-              PromptMessageRole.assistant,
-              '后置-1',
-              placement: PromptMessagePlacement.after,
-            ),
-            buildTemplateMessage(PromptMessageRole.assistant, '前置-2'),
-            buildTemplateMessage(
-              PromptMessageRole.user,
-              '最新输入前-2',
-              placement: PromptMessagePlacement.beforeLatestInput,
-            ),
-          ],
-        ),
-        conversationMessages: [buildUserMessage('真实问题')],
-      );
-
-      expect(result.map((m) => m.content).toList(), [
-        '前置-1',
-        '前置-2',
-        '真实问题',
-        '最新输入前-1',
-        '最新输入前-2',
-        '后置-1',
-      ]);
-    });
-  });
-
-  // ── 完整组合 ──────────────────────────────────────────────────────────────
-
-  group('完整组合：system + template messages + 会话消息', () {
-    test('顺序为 system → 模板消息 → 会话消息', () {
-      final result = buildRequestMessages(
-        presetPrompt: buildTemplate(
-          systemPrompt: '系统指令',
-          messages: [
-            buildTemplateMessage(PromptMessageRole.user, '示例用户'),
-            buildTemplateMessage(PromptMessageRole.assistant, '示例助手'),
-          ],
-        ),
-        conversationMessages: [
-          buildUserMessage('真实用户'),
-          buildAssistantMessage('真实助手'),
-        ],
-      );
-
-      expect(result, hasLength(5));
-      expect(result[0].role, ChatMessageRole.system);
-      expect(result[0].content, '系统指令');
-      expect(result[1].content, '示例用户');
-      expect(result[2].content, '示例助手');
-      expect(result[3].content, '真实用户');
-      expect(result[4].content, '真实助手');
-    });
-
-    test('会话消息的 content 原样透传', () {
-      const longContent = '这是一段比较长的内容，包含换行\n和特殊字符！@#\$%^';
-      final result = buildRequestMessages(
-        presetPrompt: null,
-        conversationMessages: [
-          ChatMessage(
-            id: 'u',
-            role: ChatMessageRole.user,
-            content: longContent,
-            createdAt: DateTime(2026),
-          ),
-        ],
-      );
-
-      expect(result.single.content, longContent);
-    });
-  });
-
-  test('启用检查点时会在会话消息前插入检查点 system 消息', () {
+  test('无模板时按原角色和内容透传会话消息，空输入仍为空', () {
     final result = buildRequestMessages(
       presetPrompt: null,
-      checkpointChain: [
-        ChatCheckpoint(
-          id: 'cp-1',
-          title: '检查点 1',
-          content: '已确认的长期记忆',
-          createdAt: DateTime(2026),
-        ),
+      conversationMessages: [
+        message('u1', ChatMessageRole.user, '你好\n！'),
+        message('a1', ChatMessageRole.assistant, '你好！'),
       ],
-      conversationMessages: [buildUserMessage('新的问题')],
     );
 
-    expect(result, hasLength(2));
-    expect(result.first.role, ChatMessageRole.system);
-    expect(result.first.content, contains('检查点 1'));
-    expect(result.last.content, '新的问题');
+    expect(result.map((item) => item.role), [
+      ChatMessageRole.user,
+      ChatMessageRole.assistant,
+    ]);
+    expect(result.map((item) => item.content), ['你好\n！', '你好！']);
+    expect(
+      buildRequestMessages(presetPrompt: null, conversationMessages: const []),
+      isEmpty,
+    );
   });
 
-  test('filter 不影响检查点 system 消息，只过滤会话消息', () {
+  test('三种模板位置保持各自顺序并正确转换全部角色', () {
     final result = buildRequestMessages(
-      presetPrompt: null,
+      presetPrompt: template([
+        promptMessage('before-user', PromptMessageRole.user, '前置用户'),
+        promptMessage(
+          'latest-system',
+          PromptMessageRole.system,
+          '最新输入前系统',
+          placement: PromptMessagePlacement.beforeLatestInput,
+        ),
+        promptMessage(
+          'after-assistant',
+          PromptMessageRole.assistant,
+          '后置助手',
+          placement: PromptMessagePlacement.after,
+        ),
+        promptMessage('before-assistant', PromptMessageRole.assistant, '前置助手'),
+        promptMessage(
+          'latest-user',
+          PromptMessageRole.user,
+          '最新输入前用户',
+          placement: PromptMessagePlacement.beforeLatestInput,
+        ),
+      ]),
+      conversationMessages: [message('u1', ChatMessageRole.user, '真实问题')],
+    );
+
+    expect(result.map((item) => item.content), [
+      '前置用户',
+      '前置助手',
+      '真实问题',
+      '最新输入前系统',
+      '最新输入前用户',
+      '后置助手',
+    ]);
+    expect(result.map((item) => item.role), [
+      ChatMessageRole.user,
+      ChatMessageRole.assistant,
+      ChatMessageRole.user,
+      ChatMessageRole.system,
+      ChatMessageRole.user,
+      ChatMessageRole.assistant,
+    ]);
+  });
+
+  test('禁用或纯空白模板消息不会进入请求', () {
+    final result = buildRequestMessages(
+      presetPrompt: template([
+        promptMessage(
+          'disabled',
+          PromptMessageRole.system,
+          '禁用',
+          enabled: false,
+        ),
+        promptMessage('blank', PromptMessageRole.system, '   '),
+        promptMessage('enabled', PromptMessageRole.system, '保留'),
+      ]),
+      conversationMessages: const [],
+    );
+
+    expect(result.map((item) => item.content), ['保留']);
+  });
+
+  test('filter 只过滤会话消息，不过滤模板消息', () {
+    final result = buildRequestMessages(
+      presetPrompt: template([
+        promptMessage('template', PromptMessageRole.system, '模板前置'),
+      ]),
+      filter: const ExcludeByIdMessageFilter({'a1'}),
+      conversationMessages: [
+        message('u1', ChatMessageRole.user, '真实问题'),
+        message('a1', ChatMessageRole.assistant, '被排除回复'),
+      ],
+    );
+
+    expect(result.map((item) => item.content), ['模板前置', '真实问题']);
+  });
+
+  test('检查点记忆在模板和会话之前，且不受会话 filter 影响', () {
+    final result = buildRequestMessages(
+      presetPrompt: template([
+        promptMessage('template', PromptMessageRole.system, '模板前置'),
+      ]),
       checkpointChain: [
         ChatCheckpoint(
-          id: 'cp-1',
+          id: 'checkpoint',
           title: '检查点 1',
           content: '已确认记忆',
           createdAt: DateTime(2026),
@@ -365,13 +148,17 @@ void main() {
       ],
       filter: const ExcludeByIdMessageFilter({'a1'}),
       conversationMessages: [
-        buildUserMessage('新的问题'),
-        buildAssistantMessage('旧回复'),
+        message('u1', ChatMessageRole.user, '新的问题'),
+        message('a1', ChatMessageRole.assistant, '旧回复'),
       ],
     );
 
-    expect(result, hasLength(2));
-    expect(result.first.role, ChatMessageRole.system);
-    expect(result.last.content, '新的问题');
+    expect(result.map((item) => item.role), [
+      ChatMessageRole.system,
+      ChatMessageRole.system,
+      ChatMessageRole.user,
+    ]);
+    expect(result.first.content, contains('检查点 1'));
+    expect(result.map((item) => item.content).skip(1), ['模板前置', '新的问题']);
   });
 }

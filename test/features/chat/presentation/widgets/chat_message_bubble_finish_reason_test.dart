@@ -37,14 +37,10 @@ void main() {
       expect(find.text('length'), findsNothing);
     });
 
-    testWidgets("finishReason 为 'stop' 时显示包含 stop 文字的 chip", (tester) async {
+    testWidgets('非空 finishReason 显示对应的 stop / length chip', (tester) async {
       await _pumpBubble(tester, _assistantMessage(finishReason: 'stop'));
       expect(find.text('stop'), findsOneWidget);
-    });
 
-    testWidgets("finishReason 为 'length' 时显示包含 length 文字的 chip", (
-      tester,
-    ) async {
       await _pumpBubble(tester, _assistantMessage(finishReason: 'length'));
       expect(find.text('length'), findsOneWidget);
     });

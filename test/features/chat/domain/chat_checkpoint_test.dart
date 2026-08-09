@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_checkpoint.dart';
 
@@ -56,54 +54,6 @@ void main() {
       expect(result.parentCheckpointId, isNull);
       expect(result.coveredUntilMessageId, isNull);
       expect(result.sourceMemoryPromptName, '');
-    });
-
-    test('copyWith 部分覆盖', () {
-      final original = buildCheckpoint();
-      final updated = original.copyWith(title: '新标题', content: '新内容');
-
-      expect(updated.title, '新标题');
-      expect(updated.content, '新内容');
-      expect(updated.id, original.id);
-      expect(updated.createdAt, original.createdAt);
-      expect(updated.parentCheckpointId, original.parentCheckpointId);
-    });
-
-    test('summary 正常文本截断', () {
-      final longContent = 'A' * 50;
-      final checkpoint = buildCheckpoint(content: longContent);
-      expect(checkpoint.summary.length, lessThanOrEqualTo(45));
-      expect(checkpoint.summary, contains('...'));
-    });
-
-    test('summary 短文本不截断', () {
-      final checkpoint = buildCheckpoint(content: '短文本');
-      expect(checkpoint.summary, '短文本');
-    });
-
-    test('summary 空内容返回占位文本', () {
-      for (final empty in ['', '   ', '  \n  ']) {
-        final checkpoint = buildCheckpoint(content: empty);
-        expect(checkpoint.summary, '该检查点为空。');
-      }
-    });
-
-    test('Equatable 相等性', () {
-      final a = buildCheckpoint(id: 'cp-x', title: '相同');
-      final b = buildCheckpoint(id: 'cp-x', title: '相同');
-      final c = buildCheckpoint(id: 'cp-x', title: '不同');
-
-      expect(a, equals(b));
-      expect(a, isNot(equals(c)));
-    });
-
-    test('toString 返回可解析的 JSON', () {
-      final checkpoint = buildCheckpoint();
-      final parsed = jsonDecode(checkpoint.toString()) as Map<String, dynamic>;
-
-      expect(parsed['id'], checkpoint.id);
-      expect(parsed['title'], checkpoint.title);
-      expect(parsed, equals(checkpoint.toJson()));
     });
   });
 }

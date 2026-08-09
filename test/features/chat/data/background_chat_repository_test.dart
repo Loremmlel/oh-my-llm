@@ -60,70 +60,6 @@ void main() {
   }
 
   group('BackgroundChatConversationRepository', () {
-    test(
-      'saveConversation via Isolate writes and inner repo reads back',
-      () async {
-        final inner = SqliteChatConversationRepository(db);
-        bg = BackgroundChatConversationRepository(inner, tempDbPath);
-
-        final conv = makeConv('isolate_test', 'Hello from Isolate');
-        await bg.saveConversation(conv);
-        // saveConversation 在 ACK 后完成，数据已落盘
-        final loaded = inner.loadConversation('isolate_test');
-        expect(loaded, isNotNull);
-        expect(loaded!.messages.length, 1);
-        expect(loaded.messages.first.content, 'Hello from Isolate');
-
-        await bg.close();
-      },
-    );
-
-    test('Map merge: two different conversations within debounce window '
-        'both persisted', () async {
-      final inner = SqliteChatConversationRepository(db);
-      bg = BackgroundChatConversationRepository(inner, tempDbPath);
-
-      final convA = makeConv('conv_a', 'Content A');
-      final convB = makeConv('conv_b', 'Content B');
-
-      // 在 80 ms 窗口内快速连续写入两条不同 ID 的会话
-      await bg.saveConversation(convA);
-      await bg.saveConversation(convB);
-      // 第二个 save 的 Future 在 debounce 合并后共享同一 batch ACK
-
-      final loadedA = inner.loadConversation('conv_a');
-      final loadedB = inner.loadConversation('conv_b');
-      expect(loadedA, isNotNull);
-      expect(loadedB, isNotNull);
-      expect(loadedA!.messages.first.content, 'Content A');
-      expect(loadedB!.messages.first.content, 'Content B');
-
-      await bg.close();
-    });
-
-    test('Map merge: same conversation twice within debounce window, '
-        'last write wins via Map overwrite', () async {
-      final inner = SqliteChatConversationRepository(db);
-      bg = BackgroundChatConversationRepository(inner, tempDbPath);
-
-      final convOrig = makeConv('same_conv', 'Original content');
-      final convModified = makeConv('same_conv', 'Modified content');
-
-      // 同一 ID 的两次写入，Map 应覆盖前者
-      await bg.saveConversation(convOrig);
-      await bg.saveConversation(convModified);
-
-      final loaded = inner.loadConversation('same_conv');
-      expect(loaded, isNotNull);
-      expect(
-        loaded!.messages.first.content,
-        'Modified content',
-        reason: 'Map merge 应以最后一次写入为准',
-      );
-
-      await bg.close();
-    });
-
     test('Pending write management: saveConversation before Isolate ready '
         'still persists data after Isolate initializes', () async {
       final inner = SqliteChatConversationRepository(db);
@@ -148,12 +84,12 @@ void main() {
         bg = BackgroundChatConversationRepository(inner, tempDbPath);
 
         final conv = makeConv('to_delete', 'Will be deleted');
-        await bg.saveConversation(conv);
+        final saveFuture = bg.saveConversation(conv);
 
-        // 在 debounce 触发前立即删除
+        // 不等待 save ACK，在同一 debounce 窗口内立即删除。
         await bg.deleteConversations(['to_delete']);
-
         await bg.flush();
+        await saveFuture;
 
         // 内层仓库已同步删除；debounce 触发时 pending write 应被清除，
         // 不会通过 Isolate 重新写入

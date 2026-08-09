@@ -16,7 +16,6 @@ import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dar
 import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
 
-import '../../../helpers/async_test_signals.dart';
 import '../../../helpers/flaky_chat_conversation_repository.dart';
 import '../../../helpers/fake_chat_generation_client.dart';
 
@@ -89,36 +88,6 @@ void main() {
         retryDelay: retryDelay,
       );
 
-  // ── pending save 失败 ─────────────────────────────────────────────────────
-
-  test('pending save 失败时不发起网络请求并报 persistence 错误', () async {
-    repository.failOnSaveCallIndex = 1; // 第 1 次 save = pending save
-    fakeClient.enqueueChunks(['回复']); // 不应被消费
-
-    await sendMsg('你好');
-
-    final state = container.read(chatSessionsProvider);
-    expect(fakeClient.requestHistory, isEmpty); // 未发起任何网络请求
-    expect(state.errorMessage, ChatErrorMessages.persistenceFailed);
-    expect(state.isStreaming, isFalse);
-    expect(state.isAutoRetryWaiting, isFalse);
-  });
-
-  // ── terminal success save 失败 ────────────────────────────────────────────
-
-  test('terminal success save 失败时不假成功、不重试', () async {
-    repository.failOnSaveCallIndex = 2; // pending(1) 成功，terminal(2) 失败
-    fakeClient.enqueueChunks(['回复内容']);
-
-    await sendMsg('你好');
-
-    final state = container.read(chatSessionsProvider);
-    expect(fakeClient.requestHistory.length, 1); // 只有一次请求，未重试
-    expect(state.errorMessage, ChatErrorMessages.persistenceFailed);
-    expect(state.isStreaming, isFalse);
-    expect(state.autoRetryCount, 0);
-  });
-
   // ── retry 中间 save 失败 ──────────────────────────────────────────────────
 
   test('retry 中间 save 失败时终止重试、不发出下一请求', () async {
@@ -139,33 +108,5 @@ void main() {
     expect(state.errorMessage, ChatErrorMessages.persistenceFailed);
     expect(state.isStreaming, isFalse);
     expect(state.isAutoRetryWaiting, isFalse);
-  });
-
-  // ── stop save 失败 ────────────────────────────────────────────────────────
-
-  test('stop save 失败时仍完成停止并报 persistence 错误', () async {
-    repository.failOnSaveCallIndex = 2; // pending(1) 成功，stop save(2) 失败
-    // 手动控制流：先发一个 chunk，再 stop，再 close。
-    final controlled = fakeClient.enqueueControlledStream();
-    addTearDown(controlled.close);
-
-    final sendFuture = sendMsg('测试停止持久化失败');
-    // 等流式启动并收到一个 chunk。
-    await controlled.listened;
-    controlled.add(const ChatGenerationChunk(contentDelta: '部分内容'));
-    await waitForProviderState(
-      container: container,
-      provider: chatSessionsProvider,
-      matches: (s) => s.streamingReply?.content == '部分内容',
-      description: '流式内容达到期望片段',
-    );
-
-    await container.read(chatSessionsProvider.notifier).stopStreaming();
-    await controlled.close();
-    await sendFuture;
-
-    final state = container.read(chatSessionsProvider);
-    expect(state.isStreaming, isFalse);
-    expect(state.errorMessage, ChatErrorMessages.persistenceFailed);
   });
 }

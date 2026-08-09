@@ -57,24 +57,6 @@ void main() {
   }
 
   group('ACK/flush/close lifecycle', () {
-    test(
-      'saveConversation Future completes after ACK (data durably on disk)',
-      () async {
-        final inner = SqliteChatConversationRepository(db);
-        bg = BackgroundChatConversationRepository(inner, tempDbPath);
-
-        final conv = makeConv('ack_test', 'ACK verify');
-        // Future 完成即意味着 ACK 已收到，数据已落盘
-        await bg.saveConversation(conv);
-
-        final loaded = inner.loadConversation('ack_test');
-        expect(loaded, isNotNull);
-        expect(loaded!.messages.first.content, 'ACK verify');
-
-        await bg.close();
-      },
-    );
-
     test('saveConversation Future 完成时数据必须立即可读（ACK 语义契约）', () async {
       final inner = SqliteChatConversationRepository(db);
       bg = BackgroundChatConversationRepository(inner, tempDbPath);
@@ -137,23 +119,6 @@ void main() {
         expect(inner.loadConversation('merge_c'), isNotNull);
 
         await bg.close();
-      },
-    );
-
-    test(
-      ':memory: path does not spawn Isolate and flush/close are no-ops',
-      () async {
-        final memDb = AppDatabase.inMemory();
-        addTearDown(() => memDb.close());
-
-        final inner = SqliteChatConversationRepository(memDb);
-        bg = BackgroundChatConversationRepository(inner, ':memory:');
-
-        await bg.saveConversation(makeConv('mem_lifecycle', 'In memory'));
-        await bg.flush();
-        await bg.close();
-
-        expect(inner.loadConversation('mem_lifecycle'), isNotNull);
       },
     );
 

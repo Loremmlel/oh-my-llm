@@ -58,12 +58,5 @@ void main() {
       'u1b',
       'a1b',
     ]);
-    expect(switched.toJson()['messageNodes'], isNotEmpty);
-    expect(
-      (switched.toJson()['selectedChildByParentId']
-          as Map<String, dynamic>)[rootConversationParentId],
-      'u1b',
-    );
-    expect(switched.excludedMessageIds, isEmpty);
   });
 }

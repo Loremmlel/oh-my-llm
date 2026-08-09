@@ -115,42 +115,19 @@ void main() {
       ]);
     });
 
-    test('空桶不出现在结果中', () {
+    test('未提供 now 时以当前时间分桶', () {
+      final current = DateTime.now();
       final conversations = [
-        conv('only-recent', age: const Duration(minutes: 10)),
+        ChatConversationSummary(
+          id: 'current',
+          updatedAt: current.subtract(const Duration(minutes: 5)),
+        ),
       ];
 
-      final groups = groupConversationSummariesByUpdatedAt(
-        conversations,
-        now: now,
-      );
+      final groups = groupConversationSummariesByUpdatedAt(conversations);
 
-      expect(groups, hasLength(1));
       expect(groups.single.bucket, ConversationTimeBucket.recent);
-    });
-
-    test('桶顺序遵循枚举声明顺序', () {
-      final conversations = [
-        conv('older', age: const Duration(days: 60)),
-        conv('recent', age: const Duration(minutes: 10)),
-      ];
-
-      final groups = groupConversationSummariesByUpdatedAt(
-        conversations,
-        now: now,
-      );
-
-      expect(groups.first.bucket, ConversationTimeBucket.recent);
-      expect(groups.last.bucket, ConversationTimeBucket.older);
-    });
-
-    test('未提供 now 时回退到 DateTime.now() 且不抛异常', () {
-      expect(
-        () => groupConversationSummariesByUpdatedAt([
-          conv('c1', age: const Duration(minutes: 5)),
-        ]),
-        returnsNormally,
-      );
+      expect(groups.single.conversations.single.id, 'current');
     });
   });
 
@@ -161,29 +138,10 @@ void main() {
       expect(flattenConversationSummaryGroups([]), isEmpty);
     });
 
-    test('输出 bucket 与 summary 交错排列', () {
+    test('按组输出 bucket 与全部 summary 的精确交错顺序', () {
       final conversations = [
         conv('a', age: const Duration(minutes: 10)),
         conv('b', age: const Duration(minutes: 20)),
-      ];
-
-      final groups = groupConversationSummariesByUpdatedAt(
-        conversations,
-        now: now,
-      );
-
-      final flat = flattenConversationSummaryGroups(groups);
-
-      // [bucket, summary, summary]
-      expect(flat, hasLength(3));
-      expect(flat[0], isA<ConversationTimeBucket>());
-      expect(flat[1], isA<ChatConversationSummary>());
-      expect(flat[2], isA<ChatConversationSummary>());
-    });
-
-    test('多个桶时交错结构正确', () {
-      final conversations = [
-        conv('recent', age: const Duration(minutes: 10)),
         conv('older', age: const Duration(days: 60)),
       ];
 
@@ -194,30 +152,34 @@ void main() {
 
       final flat = flattenConversationSummaryGroups(groups);
 
-      // [recent-bucket, recent-summary, older-bucket, older-summary]
-      expect(flat, hasLength(4));
-      expect(flat[0], isA<ConversationTimeBucket>());
-      expect(flat[1], isA<ChatConversationSummary>());
-      expect(flat[2], isA<ConversationTimeBucket>());
-      expect(flat[3], isA<ChatConversationSummary>());
+      expect(flat, [
+        ConversationTimeBucket.recent,
+        conversations[0],
+        conversations[1],
+        ConversationTimeBucket.older,
+        conversations[2],
+      ]);
     });
   });
 
   // ── ConversationTimeBucket ───────────────────────────────────
 
   group('ConversationTimeBucket', () {
-    test('各桶 label 非空', () {
-      for (final bucket in ConversationTimeBucket.values) {
-        expect(bucket.label, isNotEmpty);
-      }
-    });
-
-    test('枚举顺序从新到旧', () {
+    test('各桶暴露稳定的用户可见 label', () {
       expect(
-        ConversationTimeBucket.values.first,
-        ConversationTimeBucket.recent,
+        {
+          for (final bucket in ConversationTimeBucket.values)
+            bucket: bucket.label,
+        },
+        {
+          ConversationTimeBucket.recent: '最近',
+          ConversationTimeBucket.withinDay: '一天内',
+          ConversationTimeBucket.withinThreeDays: '三天内',
+          ConversationTimeBucket.withinWeek: '一周内',
+          ConversationTimeBucket.withinMonth: '一月内',
+          ConversationTimeBucket.older: '更早',
+        },
       );
-      expect(ConversationTimeBucket.values.last, ConversationTimeBucket.older);
     });
   });
 }

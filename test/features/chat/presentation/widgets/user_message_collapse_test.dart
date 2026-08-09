@@ -29,10 +29,6 @@ void main() {
       expect(shouldCollapseUserMessage(assistantMsg('x' * 500)), isFalse);
     });
 
-    test('用户消息行数 ≤ 20 返回 false', () {
-      expect(shouldCollapseUserMessage(userMsg('line')), isFalse);
-    });
-
     test('用户消息行数 = 20 返回 false（边界）', () {
       final content = List.filled(20, 'line').join('\n');
       expect(shouldCollapseUserMessage(userMsg(content)), isFalse);

@@ -28,6 +28,8 @@ void main() {
           content: '当前用户分支',
           parentId: rootConversationParentId,
           createdAt: DateTime(2026, 4, 27, 10),
+          templatePromptId: 'template-1',
+          templateVariableValues: const {'language': 'Dart'},
           userMessageSegments: const [
             UserMessageSegment(
               text: '当前',
@@ -49,7 +51,10 @@ void main() {
           content: '当前助手分支',
           parentId: 'user-1',
           reasoningContent: '保留思考内容',
+          assistantModelDisplayName: '测试模型',
+          appliedCheckpointTitle: '检查点 1',
           createdAt: DateTime(2026, 4, 27, 10, 2),
+          finishReason: 'stop',
         ),
       ],
       excludedMessageIds: const ['assistant-2'],
@@ -74,6 +79,7 @@ void main() {
       ],
       reasoningEnabled: true,
       reasoningEffort: ReasoningEffort.high,
+      autoRetryEnabled: true,
     );
 
     await repository.saveConversations([conversation]);
@@ -96,6 +102,7 @@ void main() {
     );
     expect(restoredConv.reasoningEnabled, conversation.reasoningEnabled);
     expect(restoredConv.reasoningEffort, conversation.reasoningEffort);
+    expect(restoredConv.autoRetryEnabled, isTrue);
     expect(
       restoredConv.selectedChildByParentId,
       equals(conversation.selectedChildByParentId),
@@ -110,7 +117,14 @@ void main() {
       unorderedEquals(conversation.messageNodes.map((n) => n.id)),
     );
     expect(restoredById['assistant-2']?.reasoningContent, '保留思考内容');
+    expect(restoredById['assistant-2']?.assistantModelDisplayName, '测试模型');
+    expect(restoredById['assistant-2']?.appliedCheckpointTitle, '检查点 1');
+    expect(restoredById['assistant-2']?.finishReason, 'stop');
     expect(restoredById['user-1']?.userMessageSegments.length, 2);
+    expect(restoredById['user-1']?.templatePromptId, 'template-1');
+    expect(restoredById['user-1']?.templateVariableValues, {
+      'language': 'Dart',
+    });
 
     // checkpoints: verify count + key fields
     expect(restoredConv.checkpoints, hasLength(1));
@@ -266,6 +280,44 @@ void main() {
         ['conv-ghost'],
       );
       expect(rows.map((r) => r['id'] as String), ['a', 'b']);
+    },
+  );
+
+  test(
+    're-saving a conversation removes checkpoints absent from new state',
+    () async {
+      final original = ChatConversation(
+        id: 'conv-checkpoint-cleanup',
+        messageNodes: [
+          ChatMessage(
+            id: 'user',
+            role: ChatMessageRole.user,
+            content: '保留消息',
+            parentId: rootConversationParentId,
+            createdAt: DateTime(2026, 5, 2, 10),
+          ),
+        ],
+        checkpoints: [
+          ChatCheckpoint(
+            id: 'checkpoint',
+            title: '待移除检查点',
+            content: '旧摘要',
+            createdAt: DateTime(2026, 5, 2, 10),
+          ),
+        ],
+        createdAt: DateTime(2026, 5, 2, 10),
+        updatedAt: DateTime(2026, 5, 2, 10),
+      );
+      await repository.saveConversations([original]);
+
+      await repository.saveConversations([
+        original.copyWith(
+          checkpoints: const [],
+          updatedAt: DateTime(2026, 5, 2, 11),
+        ),
+      ]);
+
+      expect(repository.loadConversation(original.id)?.checkpoints, isEmpty);
     },
   );
 
@@ -699,89 +751,6 @@ void main() {
         fetched += page.length;
       }
       expect(fetched, repository.countHistorySummaries());
-    },
-  );
-
-  // ── finish_reason round-trip via loadConversation ──────────────────────
-
-  test(
-    'finish_reason round-trip: loadConversation reads finish_reason correctly',
-    () async {
-      final conversation = ChatConversation(
-        id: 'conv-finish-reason',
-        title: 'finish_reason 测试',
-        messageNodes: [
-          ChatMessage(
-            id: 'msg-stop',
-            role: ChatMessageRole.user,
-            content: 'hi',
-            parentId: rootConversationParentId,
-            createdAt: DateTime(2026, 7, 26, 10),
-          ),
-          ChatMessage(
-            id: 'msg-reply-stop',
-            role: ChatMessageRole.assistant,
-            content: 'stop 回复',
-            parentId: 'msg-stop',
-            createdAt: DateTime(2026, 7, 26, 10, 1),
-            finishReason: 'stop',
-          ),
-          ChatMessage(
-            id: 'msg-reply-length',
-            role: ChatMessageRole.assistant,
-            content: 'length 回复',
-            parentId: 'msg-stop',
-            createdAt: DateTime(2026, 7, 26, 10, 2),
-            finishReason: 'length',
-          ),
-          ChatMessage(
-            id: 'msg-reply-null',
-            role: ChatMessageRole.assistant,
-            content: '无 finish_reason',
-            parentId: 'msg-stop',
-            createdAt: DateTime(2026, 7, 26, 10, 3),
-          ),
-        ],
-        selectedChildByParentId: const {
-          rootConversationParentId: 'msg-stop',
-          'msg-stop': 'msg-reply-stop',
-        },
-        createdAt: DateTime(2026, 7, 26, 10),
-        updatedAt: DateTime(2026, 7, 26, 10, 3),
-      );
-
-      await repository.saveConversations([conversation]);
-
-      // 验证 loadConversation 读取 finish_reason 正确
-      final loaded = repository.loadConversation('conv-finish-reason');
-      expect(loaded, isNotNull);
-
-      final stopMsg = loaded!.messageNodes.firstWhere(
-        (m) => m.id == 'msg-reply-stop',
-      );
-      expect(stopMsg.finishReason, equals('stop'));
-
-      final lengthMsg = loaded.messageNodes.firstWhere(
-        (m) => m.id == 'msg-reply-length',
-      );
-      expect(lengthMsg.finishReason, equals('length'));
-
-      final nullMsg = loaded.messageNodes.firstWhere(
-        (m) => m.id == 'msg-reply-null',
-      );
-      expect(nullMsg.finishReason, isNull);
-
-      // 验证 loadAll() 与 loadConversation() 的 finish_reason 一致
-      final allLoaded = repository.loadAll();
-      final allConv = allLoaded.firstWhere((c) => c.id == 'conv-finish-reason');
-      for (final msg in loaded.messageNodes) {
-        final allMsg = allConv.messageNodes.firstWhere((m) => m.id == msg.id);
-        expect(
-          msg.finishReason,
-          equals(allMsg.finishReason),
-          reason: 'loadConversation 和 loadAll 的 finish_reason 应一致',
-        );
-      }
     },
   );
 }

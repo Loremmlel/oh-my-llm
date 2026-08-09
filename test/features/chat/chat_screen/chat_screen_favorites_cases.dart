@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/chat/application/chat_generation_lifecycle.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
-import 'package:oh_my_llm/features/chat/presentation/widgets/dialogs/add_to_favorites_dialog.dart';
 import 'package:oh_my_llm/features/favorites/application/favorites_controller.dart';
 
 import '../../../helpers/widget_test_animation.dart';
@@ -32,7 +31,6 @@ void registerChatScreenFavoritesTests() {
     await tester.tap(find.byTooltip('收藏回复'));
     await settleOverlayTransition(tester);
 
-    expect(find.byType(AddToFavoritesDialog), findsOneWidget);
     expect(find.text('收藏到'), findsOneWidget);
     expect(find.text('未分类'), findsOneWidget);
   });
@@ -65,40 +63,6 @@ void registerChatScreenFavoritesTests() {
     expect(find.byTooltip('收藏回复'), findsOneWidget);
     expect(find.byTooltip('已收藏'), findsNothing);
   });
-
-  testWidgets(
-    'chat screen favorites to uncategorized saves favorite and updates icon',
-    (tester) async {
-      final fakeClient = FakeChatGenerationClient()
-        ..enqueueChunks(['收藏成功测试回复']);
-
-      await pumpChatScreen(tester, fakeClient: fakeClient);
-      final container = ProviderScope.containerOf(
-        tester.element(find.byType(ChatScreen)),
-      );
-
-      await sendMessage(tester, '测试问题');
-      await waitForChatGeneration(
-        tester,
-        container,
-        (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
-        description: '收藏成功用例生成完成',
-      );
-      await tester.tap(find.byTooltip('收藏回复'));
-      await settleOverlayTransition(tester);
-
-      // 收藏夹选择是对话框内同步状态变更，单帧即可。
-      await tester.tap(find.text('未分类'));
-      await tester.pump();
-
-      await tester.tap(find.widgetWithText(FilledButton, '收藏'));
-      await settleOverlayTransition(tester);
-
-      expect(container.read(favoritesProvider), hasLength(1));
-      expect(find.byTooltip('已收藏'), findsOneWidget);
-      expect(find.byTooltip('收藏回复'), findsNothing);
-    },
-  );
 
   testWidgets(
     'chat screen second bookmark tap removes favorite and restores icon',

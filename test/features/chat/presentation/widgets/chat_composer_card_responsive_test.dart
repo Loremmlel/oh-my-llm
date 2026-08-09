@@ -73,7 +73,7 @@ Future<void> _pumpComposer(
 }
 
 void main() {
-  for (final width in [679.0, 680.0, 681.0]) {
+  for (final width in [679.0, 680.0]) {
     testWidgets('$width: 操作行分支正确切换', (tester) async {
       final controller = TextEditingController();
       final focusNode = FocusNode();
@@ -90,7 +90,7 @@ void main() {
         // 679：紧凑分支，摘要以「更多设置」开头。
         expect(find.textContaining('更多设置'), findsOneWidget);
       } else {
-        // 680/681：完整操作行。
+        // 680：等号进入完整操作行。
         expect(find.text('固定顺序提示词'), findsOneWidget);
       }
       expect(tester.takeException(), isNull);

@@ -7,243 +7,101 @@ import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 void main() {
   final baseTime = DateTime(2026, 5, 26, 12);
 
-  // ── 工厂函数 ──────
-
-  /// 创建用户消息（默认无 parentId）。
-  ChatMessage userMsg(String id, String content) {
-    return ChatMessage(
-      id: id,
-      role: ChatMessageRole.user,
-      content: content,
-      createdAt: baseTime,
-    );
-  }
-
-  /// 创建助手消息（默认无 parentId）。
-  ChatMessage assistantMsg(
-    String id,
-    String content, {
-    String reasoningContent = '',
-  }) {
-    return ChatMessage(
-      id: id,
-      role: ChatMessageRole.assistant,
-      content: content,
-      createdAt: baseTime,
-      reasoningContent: reasoningContent,
-    );
-  }
-
-  /// 创建带 parentId 的用户消息节点。
-  ChatMessage userNode(String id, String parentId, String content) {
-    return userMsg(id, content).copyWith(parentId: parentId);
-  }
-
-  /// 创建带 parentId 的助手消息节点。
-  ChatMessage assistantNode(
+  ChatMessage node(
     String id,
     String parentId,
+    ChatMessageRole role,
     String content, {
     String reasoningContent = '',
-  }) {
-    return assistantMsg(
-      id,
-      content,
-      reasoningContent: reasoningContent,
-    ).copyWith(parentId: parentId);
-  }
+    bool isStreaming = false,
+  }) => ChatMessage(
+    id: id,
+    role: role,
+    content: content,
+    createdAt: baseTime,
+    parentId: parentId,
+    reasoningContent: reasoningContent,
+    isStreaming: isStreaming,
+  );
 
-  /// 创建基本会话。
-  ChatConversation conv({
-    required String id,
-    List<ChatMessage> messageNodes = const [],
-    Map<String, String> selectedChildByParentId = const {},
-  }) {
-    return ChatConversation(
-      id: id,
-      messageNodes: messageNodes,
-      selectedChildByParentId: selectedChildByParentId,
-      createdAt: baseTime,
-      updatedAt: baseTime,
-    );
-  }
-
-  /// 创建包含 messageNodes 的会话（树形数据已存在）。
-  ChatConversation treeConv({
-    required String id,
-    required List<ChatMessage> messageNodes,
-    required Map<String, String> selectedChildByParentId,
-  }) {
-    return ChatConversation(
-      id: id,
-      messageNodes: messageNodes,
-      selectedChildByParentId: selectedChildByParentId,
-      createdAt: baseTime,
-      updatedAt: baseTime,
-    );
-  }
-
-  /// 构建空的树状态。
-  // ignore: unused_element
-  ChatMessageTreeState emptyTree() {
-    return const ChatMessageTreeState(nodes: [], selections: {});
-  }
-
-  // ════════════════════════════════════════════════
-  // resolveMessageTreeState
-  // ════════════════════════════════════════════════
+  ChatConversation conversation({
+    List<ChatMessage> nodes = const [],
+    Map<String, String> selections = const {},
+  }) => ChatConversation(
+    id: 'conversation',
+    messageNodes: nodes,
+    selectedChildByParentId: selections,
+    createdAt: baseTime,
+    updatedAt: baseTime,
+  );
 
   group('resolveMessageTreeState', () {
-    test('messageNodes 不为空时直接复制节点和选择映射', () {
-      final tree = treeConv(
-        id: 'c1',
-        messageNodes: [
-          userNode('u1', rootConversationParentId, '你好'),
-          assistantNode('a1', 'u1', '你好！'),
+    test('复制已有节点和选择映射，不与会话共享可变容器', () {
+      final source = conversation(
+        nodes: [
+          node('u1', rootConversationParentId, ChatMessageRole.user, '你好'),
         ],
-        selectedChildByParentId: {rootConversationParentId: 'u1', 'u1': 'a1'},
+        selections: {rootConversationParentId: 'u1'},
       );
 
-      final result = resolveMessageTreeState(tree);
+      final result = resolveMessageTreeState(source);
 
-      expect(result.nodes.length, 2);
-      expect(result.nodes[0].id, 'u1');
-      expect(result.nodes[0].parentId, rootConversationParentId);
-      expect(result.nodes[1].id, 'a1');
-      expect(result.nodes[1].parentId, 'u1');
-      expect(result.selections.length, 2);
-      expect(result.selections[rootConversationParentId], 'u1');
-      expect(result.selections['u1'], 'a1');
-      // 验证深拷贝：修改返回结果不影响原始会话
-      expect(identical(result.nodes, tree.messageNodes), isFalse);
+      expect(result.nodes, source.messageNodes);
+      expect(result.selections, source.selectedChildByParentId);
+      expect(identical(result.nodes, source.messageNodes), isFalse);
+      expect(
+        identical(result.selections, source.selectedChildByParentId),
+        isFalse,
+      );
     });
 
-    test('空会话返回空的节点列表和空选择映射', () {
-      final c = conv(id: 'c3');
-
-      final result = resolveMessageTreeState(c);
+    test('空会话返回空树', () {
+      final result = resolveMessageTreeState(conversation());
 
       expect(result.nodes, isEmpty);
       expect(result.selections, isEmpty);
     });
   });
 
-  // ════════════════════════════════════════════════
-  // appendNodeToTree
-  // ════════════════════════════════════════════════
+  test('appendNodeToTree 追加节点、切换父节点选择并保留其他选择', () {
+    final tree = ChatMessageTreeState(
+      nodes: [
+        node('u1', rootConversationParentId, ChatMessageRole.user, '你好'),
+        node('a1', 'u1', ChatMessageRole.assistant, '旧回复'),
+      ],
+      selections: {rootConversationParentId: 'u1', 'u1': 'a1'},
+    );
+    final branch = node('a2', 'u1', ChatMessageRole.assistant, '新回复');
 
-  group('appendNodeToTree', () {
-    test('基本追加：将节点加入节点列表末尾并更新选择映射', () {
-      final tree = ChatMessageTreeState(
-        nodes: [userNode('u1', rootConversationParentId, '你好')],
-        selections: {rootConversationParentId: 'u1'},
-      );
-      final newNode = assistantNode('a1', 'u1', '回复');
+    final result = appendNodeToTree(
+      treeState: tree,
+      node: branch,
+      parentId: 'u1',
+    );
 
-      final result = appendNodeToTree(
-        treeState: tree,
-        node: newNode,
-        parentId: 'u1',
-      );
-
-      expect(result.nodes.length, 2);
-      expect(result.nodes[1].id, 'a1');
-      expect(result.nodes[1].parentId, 'u1');
-      expect(result.selections['u1'], 'a1');
-    });
-
-    test('追加节点时保留已有的其他选择映射条目不变', () {
-      final tree = ChatMessageTreeState(
-        nodes: [
-          userNode('u1', rootConversationParentId, '你好'),
-          assistantNode('a1', 'u1', '回复1'),
-        ],
-        selections: {rootConversationParentId: 'u1', 'u1': 'a1'},
-      );
-      final branchNode = assistantNode('a2', 'u1', '回复2');
-
-      final result = appendNodeToTree(
-        treeState: tree,
-        node: branchNode,
-        parentId: 'u1',
-      );
-
-      // root 的 selection 保持不变
-      expect(result.selections[rootConversationParentId], 'u1');
-      // u1 的 selection 更新为最新追加的节点
-      expect(result.selections['u1'], 'a2');
-      // 原有的 a1 仍然保留在 nodes 中（不会被删除）
-      expect(result.nodes.where((n) => n.id == 'a1').length, 1);
-    });
-
-    test('为尚未在选择映射中存在的 parentId 创建新条目', () {
-      final tree = ChatMessageTreeState(
-        nodes: [userNode('u1', rootConversationParentId, '你好')],
-        selections: {},
-      );
-      final newNode = assistantNode('a1', 'u1', '回复');
-
-      final result = appendNodeToTree(
-        treeState: tree,
-        node: newNode,
-        parentId: 'u1',
-      );
-
-      expect(result.selections['u1'], 'a1');
-    });
+    expect(result.nodes.map((item) => item.id), ['u1', 'a1', 'a2']);
+    expect(result.selections, {rootConversationParentId: 'u1', 'u1': 'a2'});
   });
-
-  // ════════════════════════════════════════════════
-  // replaceAssistantMessageInTree
-  // ════════════════════════════════════════════════
 
   group('replaceAssistantMessageInTree', () {
-    test('替换匹配 ID 的消息内容和推理内容、更新流式标志', () {
-      final tree = ChatMessageTreeState(
-        nodes: [assistantNode('a1', 'u1', '旧内容', reasoningContent: '旧推理')],
-        selections: {},
+    test('只替换匹配节点的正文、推理和流式状态', () {
+      final originalUser = node(
+        'u1',
+        rootConversationParentId,
+        ChatMessageRole.user,
+        '用户消息',
       );
-
-      final result = replaceAssistantMessageInTree(
-        treeState: tree,
-        assistantMessageId: 'a1',
-        nextContent: '新内容',
-        nextReasoningContent: '新推理',
-        isStreaming: true,
-      );
-
-      expect(result.nodes.single.content, '新内容');
-      expect(result.nodes.single.reasoningContent, '新推理');
-      expect(result.nodes.single.isStreaming, isTrue);
-    });
-
-    test('跳过 ID 不匹配的消息，保持不变', () {
       final tree = ChatMessageTreeState(
         nodes: [
-          userNode('u1', rootConversationParentId, '你好'),
-          assistantNode('a1', 'u1', '回复'),
-        ],
-        selections: {},
-      );
-
-      final result = replaceAssistantMessageInTree(
-        treeState: tree,
-        assistantMessageId: 'non-existent',
-        nextContent: '新内容',
-        nextReasoningContent: '',
-        isStreaming: false,
-      );
-
-      expect(result.nodes[0].content, '你好');
-      expect(result.nodes[1].content, '回复');
-      expect(result.nodes, tree.nodes);
-    });
-
-    test('其他节点和选择映射保持不变', () {
-      final tree = ChatMessageTreeState(
-        nodes: [
-          userNode('u1', rootConversationParentId, '你好'),
-          assistantNode('a1', 'u1', '旧回复'),
+          originalUser,
+          node(
+            'a1',
+            'u1',
+            ChatMessageRole.assistant,
+            '旧正文',
+            reasoningContent: '旧推理',
+            isStreaming: true,
+          ),
         ],
         selections: {rootConversationParentId: 'u1', 'u1': 'a1'},
       );
@@ -251,174 +109,91 @@ void main() {
       final result = replaceAssistantMessageInTree(
         treeState: tree,
         assistantMessageId: 'a1',
-        nextContent: '新回复',
-        nextReasoningContent: '',
+        nextContent: '新正文',
+        nextReasoningContent: '新推理',
         isStreaming: false,
       );
 
-      expect(result.nodes[0].content, '你好');
-      expect(result.nodes[0].role, ChatMessageRole.user);
+      expect(result.nodes.first, originalUser);
+      expect(result.nodes.last.content, '新正文');
+      expect(result.nodes.last.reasoningContent, '新推理');
+      expect(result.nodes.last.isStreaming, isFalse);
       expect(result.selections, tree.selections);
     });
 
-    test('isStreaming 为 false 时正确更新为 false', () {
+    test('目标 ID 不存在时节点内容保持不变', () {
       final tree = ChatMessageTreeState(
-        nodes: [assistantNode('a1', 'u1', '内容').copyWith(isStreaming: true)],
-        selections: {},
+        nodes: [node('a1', 'u1', ChatMessageRole.assistant, '旧正文')],
+        selections: const {},
       );
 
       final result = replaceAssistantMessageInTree(
         treeState: tree,
-        assistantMessageId: 'a1',
-        nextContent: '完成的内容',
-        nextReasoningContent: '',
+        assistantMessageId: 'missing',
+        nextContent: '新正文',
+        nextReasoningContent: '新推理',
         isStreaming: false,
       );
 
-      expect(result.nodes.single.isStreaming, isFalse);
-      expect(result.nodes.single.content, '完成的内容');
+      expect(result.nodes, tree.nodes);
     });
   });
 
-  // ════════════════════════════════════════════════
-  // removeNodeFromTree
-  // ════════════════════════════════════════════════
-
   group('removeNodeFromTree', () {
-    test('删除叶子节点：仅移除该节点，兄弟节点不受影响', () {
+    test('删除叶子节点并清理指向它的选择', () {
       final tree = ChatMessageTreeState(
         nodes: [
-          userNode('u1', rootConversationParentId, '你好'),
-          assistantNode('a1', 'u1', '回复1'),
+          node('u1', rootConversationParentId, ChatMessageRole.user, '用户'),
+          node('a1', 'u1', ChatMessageRole.assistant, '回复'),
         ],
         selections: {rootConversationParentId: 'u1', 'u1': 'a1'},
       );
 
       final result = removeNodeFromTree(treeState: tree, nodeId: 'a1');
 
-      expect(result.nodes.length, 1);
-      expect(result.nodes.single.id, 'u1');
+      expect(result.nodes.map((item) => item.id), ['u1']);
+      expect(result.selections, {rootConversationParentId: 'u1'});
     });
 
-    test('删除有子节点的节点时级联删除全部后代', () {
-      // 树结构: u1 → a1 → u2 → a2
+    test('级联删除目标分支全部后代，同时保留兄弟分支及其有效选择', () {
       final tree = ChatMessageTreeState(
         nodes: [
-          userNode('u1', rootConversationParentId, '消息1'),
-          assistantNode('a1', 'u1', '回复1'),
-          userNode('u2', 'a1', '消息2'),
-          assistantNode('a2', 'u2', '回复2'),
+          node('u1', rootConversationParentId, ChatMessageRole.user, '用户'),
+          node('a1', 'u1', ChatMessageRole.assistant, '分支 A'),
+          node('a2', 'u1', ChatMessageRole.assistant, '分支 B'),
+          node('u2', 'a1', ChatMessageRole.user, '后续用户'),
+          node('a3', 'u2', ChatMessageRole.assistant, '后续回复'),
         ],
         selections: {
           rootConversationParentId: 'u1',
           'u1': 'a1',
           'a1': 'u2',
-          'u2': 'a2',
+          'u2': 'a3',
+          'a2': 'external-selection',
         },
       );
 
-      // 删除 a1 节点，预期级联删除 a1、u2、a2
       final result = removeNodeFromTree(treeState: tree, nodeId: 'a1');
 
-      expect(result.nodes.length, 1);
-      expect(result.nodes.single.id, 'u1');
+      expect(result.nodes.map((item) => item.id), ['u1', 'a2']);
+      expect(result.selections, {
+        rootConversationParentId: 'u1',
+        'a2': 'external-selection',
+      });
     });
 
-    test('删除节点后清理选择映射中引用被删除节点的条目', () {
+    test('删除不存在的 ID 时树内容保持不变', () {
       final tree = ChatMessageTreeState(
         nodes: [
-          userNode('u1', rootConversationParentId, '你好'),
-          assistantNode('a1', 'u1', '回复'),
+          node('u1', rootConversationParentId, ChatMessageRole.user, '用户'),
         ],
-        selections: {rootConversationParentId: 'u1', 'u1': 'a1'},
-      );
-
-      final result = removeNodeFromTree(treeState: tree, nodeId: 'a1');
-
-      // a1 被删除，u1 → a1 的 selection 应被移除（a1 在 value 位置）
-      expect(result.selections.containsKey('u1'), isFalse);
-      // root → u1 的 selection 应保留（u1 未被删除）
-      expect(result.selections[rootConversationParentId], 'u1');
-    });
-
-    test('选择映射中被删除节点同时作为 key 和 value 时一并清理', () {
-      // 树结构: u1 → a1 → u2，删除 u2 后 a1 → u2 的 entry 应被清除
-      final tree = ChatMessageTreeState(
-        nodes: [
-          userNode('u1', rootConversationParentId, '消息1'),
-          assistantNode('a1', 'u1', '回复1'),
-          userNode('u2', 'a1', '消息2'),
-        ],
-        selections: {rootConversationParentId: 'u1', 'u1': 'a1', 'a1': 'u2'},
-      );
-
-      final result = removeNodeFromTree(treeState: tree, nodeId: 'u2');
-
-      // u2 被删除
-      expect(result.nodes.length, 2);
-      // a1 → u2 selection 被清理（u2 是 value）
-      expect(result.selections.containsKey('a1'), isFalse);
-      // root → u1 和 u1 → a1 保留
-      expect(result.selections[rootConversationParentId], 'u1');
-      expect(result.selections['u1'], 'a1');
-    });
-
-    test('单节点树删除唯一节点后节点列表和选择映射均为空', () {
-      final tree = ChatMessageTreeState(
-        nodes: [userNode('u1', rootConversationParentId, '唯一消息')],
         selections: {rootConversationParentId: 'u1'},
       );
 
-      final result = removeNodeFromTree(treeState: tree, nodeId: 'u1');
+      final result = removeNodeFromTree(treeState: tree, nodeId: 'missing');
 
-      expect(result.nodes, isEmpty);
-      expect(result.selections, isEmpty);
-    });
-
-    test('删除不存在的节点 ID 时树状态保持不变', () {
-      final tree = ChatMessageTreeState(
-        nodes: [userNode('u1', rootConversationParentId, '你好')],
-        selections: {rootConversationParentId: 'u1'},
-      );
-
-      final result = removeNodeFromTree(
-        treeState: tree,
-        nodeId: 'non-existent',
-      );
-
-      expect(result.nodes.length, 1);
-      expect(result.nodes.single.id, 'u1');
+      expect(result.nodes, tree.nodes);
       expect(result.selections, tree.selections);
-    });
-
-    test('删除根节点（rootConversationParentId 的直接子节点）时正确移除其所有后代', () {
-      // 树结构: root → u1 → a1 → u2 → a2
-      //               ↘ a1-alt（兄弟分支）
-      final tree = ChatMessageTreeState(
-        nodes: [
-          userNode('u1', rootConversationParentId, '消息1'),
-          assistantNode('a1', 'u1', '分支A回复'),
-          assistantNode('a1-alt', 'u1', '分支B回复'),
-          userNode('u2', 'a1', '消息2'),
-          assistantNode('a2', 'u2', '回复2'),
-        ],
-        selections: {
-          rootConversationParentId: 'u1',
-          'u1': 'a1',
-          'a1': 'u2',
-          'u2': 'a2',
-        },
-      );
-
-      // 删除 a1，级联删除 u2、a2，但保留 a1-alt
-      final result = removeNodeFromTree(treeState: tree, nodeId: 'a1');
-
-      final remainingIds = result.nodes.map((n) => n.id).toSet();
-      expect(remainingIds, {'u1', 'a1-alt'});
-      // 确认被删除的分支不在结果中
-      expect(remainingIds.contains('a1'), isFalse);
-      expect(remainingIds.contains('u2'), isFalse);
-      expect(remainingIds.contains('a2'), isFalse);
     });
   });
 }

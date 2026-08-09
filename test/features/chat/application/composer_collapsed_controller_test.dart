@@ -7,15 +7,15 @@ import 'package:oh_my_llm/features/chat/application/composer_collapsed_controlle
 
 void main() {
   group('ComposerCollapsedController', () {
-    late SharedPreferences sp;
+    late SharedPreferences preferences;
     late ProviderContainer container;
     late ComposerCollapsedController controller;
 
     Future<void> boot(Map<String, Object> initial) async {
       SharedPreferences.setMockInitialValues(initial);
-      sp = await SharedPreferences.getInstance();
+      preferences = await SharedPreferences.getInstance();
       container = ProviderContainer(
-        overrides: [sharedPreferencesProvider.overrideWithValue(sp)],
+        overrides: [sharedPreferencesProvider.overrideWithValue(preferences)],
       );
       addTearDown(container.dispose);
       controller = container.read(composerCollapsedProvider.notifier);
@@ -23,91 +23,42 @@ void main() {
 
     bool readState() => container.read(composerCollapsedProvider);
 
-    // ── build() 恢复 ────────────────────────────────────────────
+    test('从缺失、false、true 三种持久化状态恢复', () async {
+      for (final entry in <MapEntry<Map<String, Object>, bool>>[
+        const MapEntry({}, false),
+        const MapEntry({'composer_isCollapsed': false}, false),
+        const MapEntry({'composer_isCollapsed': true}, true),
+      ]) {
+        await boot(entry.key);
+        expect(readState(), entry.value, reason: 'initial=${entry.key}');
+      }
+    });
 
-    test('无持久化数据时默认展开（false）', () async {
+    test('toggle 连续翻转两端状态并持久化最终值', () async {
       await boot({});
-      expect(readState(), false);
-    });
-
-    test('从持久化恢复折叠状态为 true', () async {
-      await boot({'composer_isCollapsed': true});
-      expect(readState(), true);
-    });
-
-    test('从持久化恢复折叠状态为 false', () async {
-      await boot({'composer_isCollapsed': false});
-      expect(readState(), false);
-    });
-
-    // ── toggle ────────────────────────────────────────────────
-
-    test('toggle 从展开切换为折叠', () async {
-      await boot({});
-      expect(readState(), false);
 
       controller.toggle();
-      expect(readState(), true);
-    });
-
-    test('toggle 从折叠切换为展开', () async {
-      await boot({'composer_isCollapsed': true});
+      expect(readState(), isTrue);
       controller.toggle();
-      expect(readState(), false);
-    });
-
-    test('多次 toggle 在两端之间切换', () async {
-      await boot({});
+      expect(readState(), isFalse);
       controller.toggle();
-      expect(readState(), true);
-      controller.toggle();
-      expect(readState(), false);
-      controller.toggle();
-      expect(readState(), true);
-    });
-
-    // ── setCollapsed ───────────────────────────────────────────
-
-    test('setCollapsed 设相同值时无操作', () async {
-      await boot({'composer_isCollapsed': false});
-      controller.setCollapsed(false);
-      expect(readState(), false);
-    });
-
-    test('setCollapsed 设不同值时更新状态', () async {
-      await boot({});
-      controller.setCollapsed(true);
-      expect(readState(), true);
-    });
-
-    test('setCollapsed 后写入 SharedPreferences', () async {
-      await boot({});
-      controller.setCollapsed(true);
+      expect(readState(), isTrue);
       await Future.microtask(() {});
-      expect(sp.getBool('composer_isCollapsed'), true);
+
+      expect(preferences.getBool('composer_isCollapsed'), isTrue);
     });
 
-    // ── 持久化 ──────────────────────────────────────────────────
-
-    test('toggle 后写入 SharedPreferences', () async {
+    test('setCollapsed 更新后可由新容器恢复', () async {
       await boot({});
-      controller.toggle();
-      // _save 异步写回，等待微任务落地后再断言持久化值。
-      await Future.microtask(() {});
-      expect(sp.getBool('composer_isCollapsed'), true);
-    });
 
-    test('重建容器后能恢复上次折叠状态', () async {
-      await boot({});
-      controller.toggle();
+      controller.setCollapsed(true);
       await Future.microtask(() {});
 
       final revived = ProviderContainer(
-        overrides: [sharedPreferencesProvider.overrideWithValue(sp)],
+        overrides: [sharedPreferencesProvider.overrideWithValue(preferences)],
       );
       addTearDown(revived.dispose);
-
-      expect(revived.read(composerCollapsedProvider), true);
+      expect(revived.read(composerCollapsedProvider), isTrue);
     });
   });
 }

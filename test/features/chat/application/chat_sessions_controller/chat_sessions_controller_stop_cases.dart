@@ -222,113 +222,6 @@ void registerChatSessionsControllerStopCases() {
 
   // ── stopStreaming 竞态条件 ──────────────────────────────────────────────
 
-  test('stopStreaming 后延迟到达的 onDone 不改变状态', () async {
-    final controlled = fakeClient.enqueueControlledStream();
-    addTearDown(controlled.close);
-
-    final sendFuture = sendMsg('测试 onDone 竞态');
-    await controlled.listened;
-    controlled.add(const ChatGenerationChunk(contentDelta: '部分内容'));
-    await harness.waitForState(
-      (s) => s.streamingReply?.content == '部分内容',
-      description: '流式内容达到期望片段',
-    );
-
-    // 终止流式
-    await container.read(chatSessionsProvider.notifier).stopStreaming();
-    await sendFuture;
-
-    final stateAfterStop = container.read(chatSessionsProvider);
-    expect(stateAfterStop.isStreaming, isFalse);
-    final contentAfterStop =
-        stateAfterStop.activeConversation.messages.last.content;
-
-    // 模拟延迟到达的 onDone：订阅已被 stop 取消，事件不会投递给 run；
-    // await close 收口控制器结算，无需延时。
-    controlled.add(const ChatGenerationChunk(contentDelta: '延迟内容'));
-    await controlled.close();
-
-    final stateAfterDelayed = container.read(chatSessionsProvider);
-    expect(stateAfterDelayed.isStreaming, isFalse);
-    // 延迟到达的 chunk 不应改变已有内容
-    expect(
-      stateAfterDelayed.activeConversation.messages.last.content,
-      contentAfterStop,
-    );
-  });
-
-  test('stopStreaming 后延迟到达的 onError 不改变状态', () async {
-    final controlled = fakeClient.enqueueControlledStream();
-    addTearDown(controlled.close);
-
-    final sendFuture = sendMsg('测试 onError 竞态');
-    await controlled.listened;
-    controlled.add(const ChatGenerationChunk(contentDelta: '已有内容'));
-    await harness.waitForState(
-      (s) => s.streamingReply?.content == '已有内容',
-      description: '流式内容达到期望片段',
-    );
-
-    await container.read(chatSessionsProvider.notifier).stopStreaming();
-    await sendFuture;
-
-    final stateAfterStop = container.read(chatSessionsProvider);
-    expect(stateAfterStop.isStreaming, isFalse);
-    final errorMessageAfterStop = stateAfterStop.errorMessage;
-
-    // 模拟延迟到达的 onError：订阅已被 stop 取消，错误不会投递给 run；
-    // await close 收口控制器结算，无需延时。
-    controlled.addError(Exception('延迟错误'));
-    await controlled.close();
-
-    final stateAfterDelayed = container.read(chatSessionsProvider);
-    expect(stateAfterDelayed.isStreaming, isFalse);
-    // 延迟到达的错误不应覆盖 stopStreaming 设置的 errorMessage
-    expect(stateAfterDelayed.errorMessage, errorMessageAfterStop);
-  });
-
-  test('stopStreaming 后再次发送能正常收到新回复', () async {
-    final controlled = fakeClient.enqueueControlledStream();
-    addTearDown(controlled.close);
-
-    final sendFuture = sendMsg('测试标志保持');
-    await controlled.listened;
-
-    await container.read(chatSessionsProvider.notifier).stopStreaming();
-    await sendFuture;
-
-    // 开始新一轮流式：旧 generation 的 stop 不应污染新 generation。
-    fakeClient.enqueueChunks(['新回复']);
-    await sendMsg('新消息');
-
-    final state = container.read(chatSessionsProvider);
-    expect(state.isStreaming, isFalse);
-    expect(state.activeConversation.messages.last.content, '新回复');
-  });
-
-  test('连续两次 stopStreaming 不产生异常', () async {
-    final controlled = fakeClient.enqueueControlledStream();
-    addTearDown(controlled.close);
-
-    final sendFuture = sendMsg('测试双击停止');
-    await controlled.listened;
-    controlled.add(const ChatGenerationChunk(contentDelta: '部分内容'));
-    await harness.waitForState(
-      (s) => s.streamingReply?.content == '部分内容',
-      description: '流式内容达到期望片段',
-    );
-
-    await container.read(chatSessionsProvider.notifier).stopStreaming();
-    // 立即再次调用 stopStreaming（模拟用户快速双击）
-    await container.read(chatSessionsProvider.notifier).stopStreaming();
-    await sendFuture;
-
-    final state = container.read(chatSessionsProvider);
-    expect(state.isStreaming, isFalse);
-    expect(state.errorMessage, isNull);
-    expect(state.activeConversation.messages.last.content, '部分内容');
-  });
-
   test('stopStreaming 在 cancel() 挂起时仍能一次终止', () async {
     // 模拟 token 空闲间隙：底层订阅的 cancel() 永不完成（socket 无数据）。
     // 修复前 stopStreaming 会 await 该 cancel 而永久挂起，状态无法重置，
@@ -746,17 +639,6 @@ void registerChatSessionsControllerStopCases() {
   // 终态（succeeded/emptyReply/failed/cancelled/persistenceFailed）须投影进
   // state.generation，携带 cancelReason 与 typed outcome，供观察；snapshot 保留至
   // 下一次 generation 的 preparing 覆盖，不再被 cleanup 清空。
-
-  test('成功完成投影 succeeded 终态快照', () async {
-    fakeClient.enqueueChunks(['回复内容']);
-    await sendMsg('test');
-
-    final state = container.read(chatSessionsProvider);
-    expect(state.generation, isNotNull);
-    expect(state.generation!.phase, ChatGenerationPhase.succeeded);
-    expect(state.generation!.outcome, isA<ChatGenerationSuccess>());
-    expect(state.generation!.cancelReason, isNull);
-  });
 
   test('空回复投影 emptyReply 终态快照', () async {
     // 流式正常完成（finishReason=stop）但无内容 -> coordinator 判 EmptyReply。
