@@ -225,7 +225,7 @@ void main() {
     final cancelFuture = subscription.cancel();
 
     // async* 生成器暂停在 yield 处，需下一个网络 chunk 将其唤醒后才执行
-    // 取消；这与既有 OpenAiCompatibleChatClient 的取消语义一致（停止按钮
+    // 取消；这与既有 ChatCompletionsClient 的取消语义一致（停止按钮
     // 依赖流中仍有数据在流动）。
     source.add(utf8.encode('data: y\n\n'));
     await cancelFuture.timeout(const Duration(seconds: 5));

@@ -70,7 +70,8 @@ flutter run -d windows   # 或 -d <your_android_device_id>
 | 层级  | 字段         | 说明                                                                      |
 |-----|------------|-------------------------------------------------------------------------|
 | 服务商 | 服务商名称      | 例如 `DeepSeek 官方`、`OpenRouter`                                             |
-| 服务商 | API URL    | 完整的 chat completions 端点，例如 `https://api.openai.com/v1/chat/completions` |
+| 服务商 | 协议         | 生成接口协议：Chat Completions / Responses / Anthropic，其下全部模型继承          |
+| 服务商 | API URL    | 域名、API 根地址或完整生成端点，例如 `https://api.openai.com`（按所选协议解析）        |
 | 服务商 | API Key    | 接口密钥                                                                    |
 | 模型  | 显示名称       | 列表中展示的名字，可随意填写                                                          |
 | 模型  | Model Name | 模型名称，原样传给 API                                                           |
@@ -78,9 +79,10 @@ flutter run -d windows   # 或 -d <your_android_device_id>
 
 聊天页模型选择器为二级：先选服务商，再选该服务商下的模型。旧版平铺模型配置会在读取时按相同 `API URL + API Key` 自动聚合成服务商。
 
-> **OpenAI 官方主机**使用原生 `reasoning_effort` 字段；
-> **其他兼容主机**使用 `thinking: {"type": "enabled"|"disabled"}` 字段，
-> effort 值会自动归一化后传入。
+> 勾选「支持推理」的模型开启 thinking 后，各协议按自身语义编码：
+> Chat Completions 发送 `reasoning_effort`；Responses 发送 `reasoning` 配置
+> （summary 自动）；Anthropic 使用自适应 thinking（不手动传 `budget_tokens`）。
+> 不按模型名称或主机猜测协议能力。
 
 ### 日志系统
 
@@ -90,20 +92,22 @@ flutter run -d windows   # 或 -d <your_android_device_id>
 - **自动清理**：仅在日志超过 10 MB 时重置，应用退出或再次启动都不会主动清空日志
 - **调试用途**：开发者可从日志中直接复制请求信息重现问题，加快问题排查
 
-### 厂商 OpenAI 兼容处理
+### 多协议聊天生成
 
-`openai_compatible_chat_client.dart` 使用 **Strategy 模式**处理各厂商 API 差异，详见 `vendor_payload_adapters.dart`：
+聊天生成按服务商配置的协议路由，不再做厂商 host 匹配。生产环境唯一绑定
+`ProtocolRoutingChatGenerationClient`（`features/chat/data/`），它只根据请求
+协议把流原样委派给三个官方协议客户端之一：
 
-| 厂商                    | 差异处理                                                 |
-|------------------------|------------------------------------------------------|
-| **OpenAI 官方**         | 发送 `reasoning_effort` 字段；接收 `delta.reasoning_content` |
-| **Google AI（兼容）**   | 发送 `extra_body.google.thinking_config.include_thoughts: true`；接收 `delta.thinking` 或 `extra_content.google.thought_signature` |
-| **DeepSeek**            | 发送 `thinking` 字段；接收 `delta.thinking_content`        |
-| **其他兼容主机**        | 发送 `thinking: {"type": "enabled"\|"disabled"}`；接收 `delta.reasoning_content` |
+| 协议                 | 客户端 / 解析器                                                        | 推理内容展示                                        |
+|--------------------|---------------------------------------------------------------------|-------------------------------------------------|
+| **Chat Completions** | `chat_completions/`：`ChatCompletionsClient` + `ChatCompletionsParser` | `reasoning_content`；内联 `<thought>` / `<thinking>` 标签由 `InlineReasoningTagSplitter` 提取 |
+| **Responses**      | `responses/`：`ResponsesClient` + `ResponsesParser`                  | 本轮 `response.reasoning_summary_text` / `reasoning_text` 增量 |
+| **Anthropic**      | `anthropic/`：`AnthropicMessagesClient` + `AnthropicMessageTransformer` + `AnthropicParser` | 本轮 thinking（自适应模式，summarized 展示）；顶层 `cache_control` 触发自动 Prompt Cache |
 
-SSE 解析器（`chat_chunk_parser.dart`）同时支持：
-- 解析 `<thought>` XML 标签内容（Google Gemma 等模型）
-- 解析 Gemini / DeepSeek / OpenAI 兼容的正文与 thinking 字段；300 ms UI 投影节流位于 generation 生命周期，不污染 SSE parser
+三个客户端共用 `core/http/` 下的 `LlmHttpStreamTransport`（流式 POST、取消、
+SSE 行与事件边界解码、idle timeout、网络日志与脱敏）与 `SseEventDecoder`
+（不解析任何协议 JSON），只通过 `LlmEndpointResolver` 从配置的 API URL
+归一化请求端点。300 ms UI 投影节流位于 generation 生命周期，不污染 SSE 解析。
 
 ### Prompt 模板
 
@@ -213,10 +217,11 @@ lib/
     │   │   ├── ports/          # ChatGenerationClient / ChatConversationRepository 抽象
     │   │   ├── chat_generation_*.dart  # 显式 prepare/stream/retry/stop/finalize 生命周期
     │   │   └── ...
-    │   ├── data/               # HTTP 客户端 + SSE 解析 + 厂商适配 + SQLite 仓库
-    │   │   ├── openai_compatible_chat_client.dart   # HTTP 客户端实现
-    │   │   ├── chat_chunk_parser.dart               # SSE 解析器（支持 `<thought>` 标签）
-    │   │   ├── vendor_payload_adapters.dart         # Strategy 模式（厂商 API 差异）
+    │   ├── data/               # 协议客户端 + 共享传输 + SQLite 仓库
+    │   │   ├── protocol_routing_chat_generation_client.dart  # 按 LlmApiProtocol 路由的生产客户端
+    │   │   ├── chat_completions/   # Chat Completions 客户端 + parser（reasoning_content、内联标签）
+    │   │   ├── responses/          # Responses 客户端 + parser（reasoning summary/text）
+    │   │   ├── anthropic/          # Anthropic 客户端 + transformer + parser（thinking）
     │   │   └── ...
     │   ├── domain/             # ChatMessage / ChatConversation 模型 + 消息树
     │   ├── presentation/       # 聊天页 + 流式 Markdown 组件 + 滚动控制器
@@ -306,7 +311,7 @@ flutter test --reporter compact 2>&1 | Out-File -Encoding utf8 fltest.log; $E = 
 | Chat↔Favorites Flow | `test/features/chat/chat_screen/` | 书签按钮、对话框、新建收藏夹流程 |
 | Chat Application | `test/features/chat/application/` | 会话 CRUD、消息树、Generation phase/outcome、停止/重试竞态、Workspace ownership |
 | Chat Domain | `test/features/chat/domain/` | 消息树、对话模型、分组、请求消息构建、检查点上下文 |
-| Chat Data | `test/features/chat/data/` | HTTP 客户端、请求体构建、模板/用户消息构建器、SSE 解析、厂商适配 |
+| Chat Data | `test/features/chat/data/` | 协议客户端与解析器、请求体构建、模板/用户消息构建器、SSE 解析 |
 | Chat Presentation | `test/features/chat/presentation/`、`test/features/chat/widgets/` | 聊天页、锚点 Rail、字数统计、消息折叠 |
 | AppDatabase Migration | `test/core/persistence/` | schema、外键级联、索引、数据迁移、后台写入器、replace-all、版本化 JSON 存储 |
 | Core Utils | `test/core/utils/` | 日期格式化、ID 生成、文本格式化、JSON 截断 |
@@ -316,7 +321,7 @@ flutter test --reporter compact 2>&1 | Out-File -Encoding utf8 fltest.log; $E = 
 | Media | `test/features/media/` | 媒体浏览器、目录扫描、随机播放、缩略图、GoRouter 页面、视频/路径可访问性 |
 | Settings | `test/features/settings/` | 服务商/模型配置、模板、序列、记忆提示词、字体、请求头、自动重试、导入导出去重 |
 | Sync | `test/features/sync/` | 配对、加密协议、session/replay、版本拒绝、UDP 发现、transport 与同步页 |
-| Integration | `test/integration/` | 启动、消息版本持久化、多对话切换/重启恢复、收藏夹级联、PresetPrompt 拼接、Sync 多品类/端到端、厂商 payload 集成 |
+| Integration | `test/integration/` | 启动、消息版本持久化、多对话切换/重启恢复、收藏夹级联、PresetPrompt 拼接、Sync 多品类/端到端 |
 
 Widget 测试统一通过 `test/helpers/test_harness.dart` 的 `pumpTestApp()` 注入 SharedPreferences、内存数据库、视口和 Provider overrides，并由 harness 完成 tearDown。测试数据优先使用 `TestFixtures` 和 Repository seed API；不要在 Widget 测试中手写 JSON 或 raw SQL。
 
