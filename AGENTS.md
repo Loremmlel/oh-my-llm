@@ -256,11 +256,11 @@ lib/
   - `child` 与 `router` 互斥（至少传其一）；默认视口 `1440×1200`。
   - 注入 `appDatabaseProvider` / `sharedPreferencesProvider` / `customHeadersMapProvider`，可用 `extraOverrides` 追加。
   - 内部用 `createTestDatabase(preferences)`（`test/test_database.dart`）建内存库。
-- `TestFixtures`（`fixtures.dart`）：类型安全工厂，返回真实模型对象（编译期检查），需 JSON 时用模型 `toJson`。typed factory：`model()` / `gpt41()` / `claudeSonnet()` / `deepSeekV4()` / `promptMessage()` / `presetPrompt()` / `codeAssistantPrompt()` / `fixedSequence()` / `sequenceStep()` …。`seedPreferences()` 批量注入 SharedPreferences。**不要手写 JSON**。
+- `TestFixtures`（`fixtures.dart`）：类型安全工厂，返回真实模型对象（编译期检查），需 JSON 时用模型 `toJson`。typed factory：`model()` / `gpt41()` / `claudeSonnet()` / `deepSeekV4()` / `promptMessage()` / `presetPrompt()` / `codeAssistantPrompt()` / `fixedSequence()` / `sequenceStep()` …。`seedPreferences()` 批量注入 SharedPreferences。普通有效数据**不要手写 JSON**；malformed、旧版/未来版兼容、迁移与协议解码错误测试可直接构造原始 Map/JSON，但测试名称或注释必须说明所验证的边界。
 
 ### Widget 测试约定
 
-- **Setup 用 `pump()`，不用 `pumpAndSettle()`**：数据层（sqlite3、SharedPreferences getter）完全同步，单帧即可。仅 test body 需等动画时用 `pumpAndSettle()`。
+- **Setup 默认用 `pump()`，不用 `pumpAndSettle()`**：数据层（sqlite3、SharedPreferences getter）完全同步，通常单帧即可。异步或动画场景优先等待可观察的完成条件（Provider 状态、受控 stream、`Completer`、Repository ACK、IO Future 或有限动画状态）；仅 test body 确实需要等待已知有限动画时使用 `pumpAndSettle()`，不得把它当作通用“稳定一下”。
 - `FakeChatGenerationClient extends ChatGenerationClient` **只 `@override` `streamCompletion()`**，`complete()` 继承基类，不要重新实现。配 `enqueueChunks` / `enqueueDeltas` / `enqueueError` 排队响应，`requestHistory` / `requestedTargets` / `lastRequest` 记录调用。
 - 种子数据走 Repository API（`seedFavorite()` / `seedCollection()`）或 `TestFixtures.seedPreferences()`，**不要在 widget 测试写 raw SQL**。
 
@@ -285,19 +285,29 @@ test/features/chat/
 2. **测不可变契约，不测可变布局**：用逻辑 finder（`findsOneWidget` / `findsWidgets` / `hasLength`），不用像素定位（`getTopLeft().dy` / `getRect()`）。
 3. **测决策树分支，不测框架行为**：每个测试验证一个独立执行路径。空列表上查不到内容 -> 不需要测试；框架自动建 tab -> 不需要测「显示了 4 个 tab」。
 
+### 测试清理与去重
+
+- 删除测试前必须回答：哪个具体产品行为退化时该测试会独立失败；删除后哪个现存测试仍验证同一契约。无法指出产品行为的构造器、类型、框架转发或恒真断言应删除。
+- 行覆盖相同或操作相似不代表重复；只有**外部契约、测试层级和预期失败原因**都相同时才视为重复。不同层级对同一能力的互补验证可以保留。
+- 不要求限定目录的行覆盖率绝对不下降，但每一处下降必须归类为：已由其他测试覆盖、仅覆盖非业务代码，或意外丢失的行为覆盖。最后一种必须恢复；行覆盖率是诊断证据，不是保留低价值测试的理由。
+- integration 测试必须经过真实生产 wiring 或真实边界产生并验证下游结果。手工把控制器 A 的数据复制给控制器 B，不算集成测试。
+- 测试不得提前完成待验证动作，再把结果归因给被测对象。例如注入前已经迁移完成的数据库，不能证明 bootstrap 执行了迁移。
+- 当前 schema 契约集中验证一次；历史迁移测试从对应旧版本起步，重点断言数据回填、默认值、约束与兼容行为，不重复验证当前 schema 的全部列。
+
 ### 反模式与脆弱红线
 
 **禁止**：
-- ❌ 断言 widget 实现细节：`find.byKey`（内部 key）、`findsNothing` on widget 类型、像素位置、widget 属性值（`maxLines` / `expands` 等）。
+- ❌ 断言 widget 实现细节：依赖未声明为稳定测试契约的内部 `Key`、用 `findsNothing` on 具体 widget 类型替代可观察行为断言、像素位置、widget 属性值（`maxLines` / `expands` 等）。公开稳定 Key 确实是导航/集成契约时可以使用，但需注明原因；仍优先使用可见文本、Semantics 和真实交互。
 - ❌ controller 层测 ON DELETE SET NULL / 外键级联（属 schema 测试）。
 - ❌ 条件 early-return 测试（必须执行到 `expect`）。
 - ❌ schema / `user_version` 断言用 `==`（用 `>=`）。
 - ❌ `getTopLeft().dy` / `getRect()` 比较；依赖 ID 字母序＝时间序巧合的排序测试；`chunkDelay` + `pump(delay+2ms)` 微秒级 timing 依赖。
+- ❌ 用 `Future.delayed(Duration.zero)`、任意固定延迟或无条件 `pumpAndSettle()` 充当异步 flush。应等待真实完成信号；资源释放等例外必须窄化、解释并进入精确 allowlist。
 
 **结构规范**：
 - 结构相同的 round-trip / error-type / 比较器测试用循环或 `for` 参数化，不手动复制 4+ 次。
 - 同一文件重复 setUp 提取到 `setUp` / 共享 helper。
-- Widget 测试线性操作 >30 行应拆分；一个测试只验证一个交互场景。
+- Widget 测试线性操作 >30 行是拆分审查信号，而非机械上限；当测试包含多个行为场景，或准备/操作细节掩盖核心断言时再提取 helper。一个完整连贯的用户场景可以保留较长流程，但仍只验证一个交互场景。
 - 敏感字段脱敏测试全覆盖已知键名。
 
 ---
