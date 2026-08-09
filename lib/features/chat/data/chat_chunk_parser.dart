@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import '../application/ports/chat_completion_client.dart';
+import '../application/ports/chat_generation_client.dart';
 import 'chunk_parse_strategy.dart';
 
 /// 内联 reasoning 标签分割结果。
@@ -94,15 +94,15 @@ class InlineReasoningTagSplitter {
   }
 
   /// 刷新缓冲区中残留的不完整标签内容。
-  ChatCompletionChunk? flushRemainder() {
+  ChatGenerationChunk? flushRemainder() {
     if (_tail.isEmpty) return null;
 
     final remainder = _tail;
     _tail = '';
     if (_insideReasoningTag) {
-      return ChatCompletionChunk(reasoningDelta: remainder);
+      return ChatGenerationChunk(reasoningDelta: remainder);
     }
-    return ChatCompletionChunk(contentDelta: remainder);
+    return ChatGenerationChunk(contentDelta: remainder);
   }
 }
 
@@ -129,7 +129,7 @@ class ChatChunkParser {
   /// 解析完整的 SSE data 块（JSON 字符串），返回补全增量。
   ///
   /// 若为 `[DONE]` 或格式异常，返回 `null`。
-  ChatCompletionChunk? parseRawChunk(
+  ChatGenerationChunk? parseRawChunk(
     String rawChunk, {
     required InlineReasoningTagSplitter inlineReasoningSplitter,
   }) {
@@ -139,28 +139,28 @@ class ChatChunkParser {
     try {
       decoded = jsonDecode(rawChunk);
     } on FormatException {
-      throw ChatCompletionException(
+      throw ChatGenerationException(
         'SSE 数据解析失败：${rawChunk.length > 100 ? '${rawChunk.substring(0, 100)}…' : rawChunk}',
         responseBody: rawChunk,
       );
     }
 
-    if (decoded is! Map) return const ChatCompletionChunk();
+    if (decoded is! Map) return const ChatGenerationChunk();
 
     final error = decoded['error'];
     if (error is String && error.trim().isNotEmpty) {
-      throw ChatCompletionException(error.trim(), responseBody: rawChunk);
+      throw ChatGenerationException(error.trim(), responseBody: rawChunk);
     }
     if (error is Map) {
       final message = error['message'];
       if (message is String && message.trim().isNotEmpty) {
-        throw ChatCompletionException(message.trim(), responseBody: rawChunk);
+        throw ChatGenerationException(message.trim(), responseBody: rawChunk);
       }
     }
 
     final choices = decoded['choices'];
     if (choices is! List || choices.isEmpty || choices.first is! Map) {
-      return const ChatCompletionChunk();
+      return const ChatGenerationChunk();
     }
 
     final firstChoice = Map<String, dynamic>.from(choices.first as Map);
@@ -173,20 +173,20 @@ class ChatChunkParser {
     );
   }
 
-  ChatCompletionChunk _extractChunk(
+  ChatGenerationChunk _extractChunk(
     Object? payload, {
     required InlineReasoningTagSplitter inlineReasoningSplitter,
     String? finishReason,
   }) {
     if (payload is String) {
       final splitResult = inlineReasoningSplitter.splitContent(payload);
-      return ChatCompletionChunk(
+      return ChatGenerationChunk(
         contentDelta: splitResult.content,
         reasoningDelta: splitResult.reasoning,
         finishReason: finishReason,
       );
     }
-    if (payload is! Map) return ChatCompletionChunk(finishReason: finishReason);
+    if (payload is! Map) return ChatGenerationChunk(finishReason: finishReason);
 
     final delta = Map<String, dynamic>.from(payload);
     ChunkTextExtraction extraction = const ChunkTextExtraction();
@@ -201,7 +201,7 @@ class ChatChunkParser {
       extraction.content,
     );
 
-    return ChatCompletionChunk(
+    return ChatGenerationChunk(
       contentDelta: splitResult.content,
       reasoningDelta: '${extraction.reasoning}${splitResult.reasoning}',
       finishReason: finishReason,

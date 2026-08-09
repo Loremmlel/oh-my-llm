@@ -11,7 +11,7 @@ import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/core/persistence/versioned_json_storage.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/application/chat_generation_lifecycle.dart';
-import 'package:oh_my_llm/features/chat/application/ports/chat_completion_client.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/domain/chat_error_messages.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
@@ -21,7 +21,7 @@ import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.da
 
 import '../../../helpers/async_test_signals.dart';
 import '../../../helpers/controllable_chat_conversation_repository.dart';
-import '../../../helpers/fake_chat_completion_client.dart';
+import '../../../helpers/fake_chat_generation_client.dart';
 
 /// generation 生命周期的串行化竞态契约。
 ///
@@ -34,7 +34,7 @@ import '../../../helpers/fake_chat_completion_client.dart';
 void main() {
   late AppDatabase database;
   late ControllableChatConversationRepository repository;
-  late FakeChatCompletionClient fakeClient;
+  late FakeChatGenerationClient fakeClient;
   late ProviderContainer container;
 
   setUp(() async {
@@ -62,14 +62,14 @@ void main() {
     });
     database = AppDatabase.inMemory();
     repository = ControllableChatConversationRepository(database);
-    fakeClient = FakeChatCompletionClient();
+    fakeClient = FakeChatGenerationClient();
     container = ProviderContainer(
       overrides: [
         appDatabaseProvider.overrideWithValue(database),
         sharedPreferencesProvider.overrideWithValue(
           await SharedPreferences.getInstance(),
         ),
-        chatCompletionClientProvider.overrideWithValue(fakeClient),
+        chatGenerationClientProvider.overrideWithValue(fakeClient),
         chatConversationRepositoryProvider.overrideWithValue(repository),
       ],
     );
@@ -129,7 +129,7 @@ void main() {
     test('A preparing stop 的 stop save 期间保持 busy，新 command 被拒', () async {
       repository.gateSave(1); // A pending save
       repository.gateSave(2); // A stop save
-      final streamController = StreamController<ChatCompletionChunk>();
+      final streamController = StreamController<ChatGenerationChunk>();
       // preparing stop 路径下 streamController 不会被 listen，单订阅 controller 无
       // 消费者时 close 的 done future 不完成；用 void lambda 避免 tearDown await 它。
       addTearDown(() {
@@ -183,7 +183,7 @@ void main() {
         await repository.awaitReached(1);
         repository.releaseSave(1); // pending 完成，进入 streaming
         await controlled.listened; // 等待 run 开始监听受控流
-        controlled.add(const ChatCompletionChunk(contentDelta: '部分'));
+        controlled.add(const ChatGenerationChunk(contentDelta: '部分'));
         await waitForProviderState(
           container: container,
           provider: chatSessionsProvider,
@@ -227,7 +227,7 @@ void main() {
         await repository.awaitReached(1);
         repository.releaseSave(1);
         await controlled.listened; // 等待 run 开始监听受控流
-        controlled.add(const ChatCompletionChunk(contentDelta: '回复'));
+        controlled.add(const ChatGenerationChunk(contentDelta: '回复'));
         await controlled
             .close(); // onDone -> attempt completed -> terminal save
         await repository.awaitReached(2); // terminal save 进入（finalizing）
@@ -261,7 +261,7 @@ void main() {
         await repository.awaitReached(1);
         repository.releaseSave(1);
         await controlled.listened; // 等待 run 开始监听受控流
-        controlled.add(const ChatCompletionChunk(contentDelta: '回复'));
+        controlled.add(const ChatGenerationChunk(contentDelta: '回复'));
         await controlled.close(); // onDone -> attempt completed
         // 等进入 finalizing 投影（completeAttempt 已入串行链）再 stop：stop action
         // 排在 attempt 结算之后执行，被 _outcome guard 短路，outcome 保持 success。
@@ -327,7 +327,7 @@ void main() {
       await repository.awaitReached(1);
       repository.releaseSave(1);
       await controlled.listened; // 等待 run 开始监听受控流
-      controlled.add(const ChatCompletionChunk(contentDelta: '部分'));
+      controlled.add(const ChatGenerationChunk(contentDelta: '部分'));
       await waitForProviderState(
         container: container,
         provider: chatSessionsProvider,
@@ -356,7 +356,7 @@ void main() {
       await repository.awaitReached(1);
       repository.releaseSave(1);
       await controlledA.listened; // 等待 A 的 run 开始监听
-      controlledA.add(const ChatCompletionChunk(contentDelta: 'A1'));
+      controlledA.add(const ChatGenerationChunk(contentDelta: 'A1'));
       await waitForProviderState(
         container: container,
         provider: chatSessionsProvider,
@@ -375,12 +375,12 @@ void main() {
       await controlledB.listened; // B 开始监听后 A 的迟到回调才可能干扰 B
 
       // A 的迟到回调：token 失效后必须被丢弃，不污染 B。
-      controlledA.add(const ChatCompletionChunk(contentDelta: 'A-late'));
+      controlledA.add(const ChatGenerationChunk(contentDelta: 'A-late'));
       controlledA.addError(StateError('A late error'));
       await controlledA.close();
 
       // B 正常完成。
-      controlledB.add(const ChatCompletionChunk(contentDelta: 'B-reply'));
+      controlledB.add(const ChatGenerationChunk(contentDelta: 'B-reply'));
       await controlledB.close();
       await sendBFuture.timeout(defaultTimeout);
 

@@ -116,7 +116,7 @@ class ChatPrepareSuccess extends ChatPrepareResult {
     required this.streamingReply,
   });
 
-  final ChatGenerationRequest request;
+  final ChatGenerationLifecycleRequest request;
 
   /// 含占位 assistant 的会话快照（isStreaming=true）。
   final ChatConversation streamingConversation;

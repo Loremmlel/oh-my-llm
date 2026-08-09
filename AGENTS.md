@@ -262,7 +262,7 @@ lib/
 ### Widget 测试约定
 
 - **Setup 用 `pump()`，不用 `pumpAndSettle()`**：数据层（sqlite3、SharedPreferences getter）完全同步，单帧即可。仅 test body 需等动画时用 `pumpAndSettle()`。
-- `FakeChatCompletionClient extends ChatCompletionClient` **只 `@override` `streamCompletion()`**，`complete()` 继承基类，不要重新实现。配 `enqueueChunks` / `enqueueDeltas` / `enqueueError` 排队响应，`requestHistory` / `requestedModels` 记录调用。
+- `FakeChatGenerationClient extends ChatGenerationClient` **只 `@override` `streamCompletion()`**，`complete()` 继承基类，不要重新实现。配 `enqueueChunks` / `enqueueDeltas` / `enqueueError` 排队响应，`requestHistory` / `requestedTargets` / `lastRequest` 记录调用。
 - 种子数据走 Repository API（`seedFavorite()` / `seedCollection()`）或 `TestFixtures.seedPreferences()`，**不要在 widget 测试写 raw SQL**。
 
 ### 文件组织（case-file decomposition）

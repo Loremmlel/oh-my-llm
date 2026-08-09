@@ -8,7 +8,7 @@ import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/core/persistence/versioned_json_storage.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
-import 'package:oh_my_llm/features/chat/application/ports/chat_completion_client.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
@@ -81,7 +81,7 @@ Future<void> sendMsg(
 ProviderContainer createTestContainer({
   required AppDatabase database,
   required SharedPreferences preferences,
-  required ChatCompletionClient fakeClient,
+  required ChatGenerationClient fakeClient,
 }) {
   return ProviderContainer(
     overrides: [
@@ -91,9 +91,9 @@ ProviderContainer createTestContainer({
       // Riverpod 禁止同一容器内对同一 provider 重复 override。
       ...appCompositionOverrides(
         useInMemorySyncSecureStore: true,
-        bindChatCompletionClient: false,
+        bindChatGenerationClient: false,
       ),
-      chatCompletionClientProvider.overrideWithValue(fakeClient),
+      chatGenerationClientProvider.overrideWithValue(fakeClient),
     ],
   );
 }

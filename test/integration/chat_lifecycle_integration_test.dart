@@ -13,7 +13,7 @@ import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/features/chat/application/chat_generation_lifecycle.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
-import 'package:oh_my_llm/features/chat/application/ports/chat_completion_client.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/data/sqlite_chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/domain/chat_error_messages.dart';
@@ -31,7 +31,7 @@ void main() {
   test('对话持久化→容器重建→数据完整恢复', () async {
     final database = AppDatabase.inMemory();
     final preferences = await createSeededPreferences();
-    final fakeClientA = FakeChatCompletionClient();
+    final fakeClientA = FakeChatGenerationClient();
 
     final containerA = createTestContainer(
       database: database,
@@ -67,7 +67,7 @@ void main() {
     final containerB = createTestContainer(
       database: database,
       preferences: preferences,
-      fakeClient: FakeChatCompletionClient(),
+      fakeClient: FakeChatGenerationClient(),
     );
     addTearDown(() {
       containerB.dispose();
@@ -88,7 +88,7 @@ void main() {
   test('分支编辑后重建容器 — 分支选择保留', () async {
     final database = AppDatabase.inMemory();
     final preferences = await createSeededPreferences();
-    final fakeClientA = FakeChatCompletionClient();
+    final fakeClientA = FakeChatGenerationClient();
 
     final containerA = createTestContainer(
       database: database,
@@ -128,7 +128,7 @@ void main() {
     final containerB = createTestContainer(
       database: database,
       preferences: preferences,
-      fakeClient: FakeChatCompletionClient(),
+      fakeClient: FakeChatGenerationClient(),
     );
     addTearDown(() {
       containerB.dispose();
@@ -148,7 +148,7 @@ void main() {
   test('检查点创建后重建容器 — 检查点保留', () async {
     final database = AppDatabase.inMemory();
     final preferences = await createSeededPreferences();
-    final fakeClientA = FakeChatCompletionClient();
+    final fakeClientA = FakeChatGenerationClient();
 
     final containerA = createTestContainer(
       database: database,
@@ -185,7 +185,7 @@ void main() {
     final containerB = createTestContainer(
       database: database,
       preferences: preferences,
-      fakeClient: FakeChatCompletionClient(),
+      fakeClient: FakeChatGenerationClient(),
     );
     addTearDown(() {
       containerB.dispose();
@@ -206,7 +206,7 @@ void main() {
   test('sendMessage 流异常后容器重建 — 错误信息保留', () async {
     final database = AppDatabase.inMemory();
     final preferences = await createSeededPreferences();
-    final fakeClientA = FakeChatCompletionClient();
+    final fakeClientA = FakeChatGenerationClient();
 
     final containerA = createTestContainer(
       database: database,
@@ -215,7 +215,7 @@ void main() {
     );
     addTearDown(database.close);
 
-    fakeClientA.enqueueError(ChatCompletionException('模拟的网络错误'));
+    fakeClientA.enqueueError(ChatGenerationException('模拟的网络错误'));
     await containerA
         .read(chatSessionsProvider.notifier)
         .sendMessage(
@@ -240,7 +240,7 @@ void main() {
     final containerB = createTestContainer(
       database: database,
       preferences: preferences,
-      fakeClient: FakeChatCompletionClient(),
+      fakeClient: FakeChatGenerationClient(),
     );
     addTearDown(() {
       containerB.dispose();
@@ -260,7 +260,7 @@ void main() {
   test('send 成功带 finishReason -> 重建 -> finishReason 恢复', () async {
     final database = AppDatabase.inMemory();
     final preferences = await createSeededPreferences();
-    final fakeClientA = FakeChatCompletionClient();
+    final fakeClientA = FakeChatGenerationClient();
 
     final containerA = createTestContainer(
       database: database,
@@ -271,8 +271,8 @@ void main() {
 
     // 终态 chunk 携带 finishReason='stop'，验证其随 assistant 消息持久化并在重建后恢复。
     fakeClientA.enqueueDeltas(const [
-      ChatCompletionChunk(contentDelta: '完成了'),
-      ChatCompletionChunk(finishReason: 'stop'),
+      ChatGenerationChunk(contentDelta: '完成了'),
+      ChatGenerationChunk(finishReason: 'stop'),
     ]);
     await sendMsg(containerA, content: '请完成');
 
@@ -288,7 +288,7 @@ void main() {
     final containerB = createTestContainer(
       database: database,
       preferences: preferences,
-      fakeClient: FakeChatCompletionClient(),
+      fakeClient: FakeChatGenerationClient(),
     );
     addTearDown(containerB.dispose);
 
@@ -305,7 +305,7 @@ void main() {
   test('stop 后重建容器 - 部分内容持久化恢复', () async {
     final database = AppDatabase.inMemory();
     final preferences = await createSeededPreferences();
-    final fakeClientA = FakeChatCompletionClient();
+    final fakeClientA = FakeChatGenerationClient();
 
     final containerA = createTestContainer(
       database: database,
@@ -319,7 +319,7 @@ void main() {
 
     final sendFuture = sendMsg(containerA, content: '开始生成');
     await controlled.listened;
-    controlled.add(const ChatCompletionChunk(contentDelta: '部分回复'));
+    controlled.add(const ChatGenerationChunk(contentDelta: '部分回复'));
     // 等增量进入 provider 状态（首 chunk 同步投影到 streamingReply），确保 stop
     // 前内容已被 run 消费，部分内容可确定性落盘。
     await waitForProviderState(
@@ -343,7 +343,7 @@ void main() {
     final containerB = createTestContainer(
       database: database,
       preferences: preferences,
-      fakeClient: FakeChatCompletionClient(),
+      fakeClient: FakeChatGenerationClient(),
     );
     addTearDown(containerB.dispose);
 
@@ -359,7 +359,7 @@ void main() {
   test('空回复后重建容器 - 空助手占位恢复', () async {
     final database = AppDatabase.inMemory();
     final preferences = await createSeededPreferences();
-    final fakeClientA = FakeChatCompletionClient();
+    final fakeClientA = FakeChatGenerationClient();
 
     final containerA = createTestContainer(
       database: database,
@@ -385,7 +385,7 @@ void main() {
     final containerB = createTestContainer(
       database: database,
       preferences: preferences,
-      fakeClient: FakeChatCompletionClient(),
+      fakeClient: FakeChatGenerationClient(),
     );
     addTearDown(containerB.dispose);
 
@@ -403,7 +403,7 @@ void main() {
   test('generation 期间 stop 后新 generation 不被旧回调覆盖', () async {
     final database = AppDatabase.inMemory();
     final preferences = await createSeededPreferences();
-    final fakeClient = FakeChatCompletionClient();
+    final fakeClient = FakeChatGenerationClient();
 
     final container = createTestContainer(
       database: database,
@@ -418,7 +418,7 @@ void main() {
     addTearDown(controlledA.close);
     final sendA = sendMsg(container, content: '生成 A');
     await controlledA.listened;
-    controlledA.add(const ChatCompletionChunk(contentDelta: 'A 部分'));
+    controlledA.add(const ChatGenerationChunk(contentDelta: 'A 部分'));
     // 等 A 的增量进入 provider 状态后再 stop，确保 stop 前内容已被 run 消费。
     await waitForProviderState(
       container: container,
@@ -450,7 +450,7 @@ void main() {
   test('一次性 repository failure 后不自动重复请求，显式重试可继续', () async {
     final database = AppDatabase.inMemory();
     final preferences = await createSeededPreferences();
-    final fakeClient = FakeChatCompletionClient();
+    final fakeClient = FakeChatGenerationClient();
 
     final failingRepo = _FailingOnceRepository(
       SqliteChatConversationRepository(database),
@@ -459,7 +459,7 @@ void main() {
       overrides: [
         appDatabaseProvider.overrideWithValue(database),
         sharedPreferencesProvider.overrideWithValue(preferences),
-        chatCompletionClientProvider.overrideWithValue(fakeClient),
+        chatGenerationClientProvider.overrideWithValue(fakeClient),
         chatConversationRepositoryProvider.overrideWithValue(failingRepo),
       ],
     );
@@ -497,7 +497,7 @@ void main() {
   test('generation 进行中 createCheckpoint 被忙守卫拒绝', () async {
     final database = AppDatabase.inMemory();
     final preferences = await createSeededPreferences();
-    final fakeClient = FakeChatCompletionClient();
+    final fakeClient = FakeChatGenerationClient();
 
     final container = createTestContainer(
       database: database,
@@ -530,11 +530,11 @@ void main() {
             reasoningEnabled: false,
             reasoningEffort: ReasoningEffort.medium,
           ),
-      throwsA(isA<ChatCompletionException>()),
+      throwsA(isA<ChatGenerationException>()),
     );
 
     // 放行 generation 完成，验证未受 checkpoint 尝试影响。
-    controlled.add(const ChatCompletionChunk(contentDelta: '生成完成'));
+    controlled.add(const ChatGenerationChunk(contentDelta: '生成完成'));
     await controlled.close();
     await sendFuture;
 

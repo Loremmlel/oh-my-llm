@@ -35,7 +35,7 @@ void main() {
     test('app composition 组合 port 与 data concrete 零违规', () {
       final violations = _checker().checkSources({
         'lib/app/composition/cross_feature_bindings.dart': """
-          import 'package:oh_my_llm/features/chat/application/ports/chat_completion_client.dart';
+          import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
           import 'package:oh_my_llm/features/chat/data/openai_compatible_chat_client.dart';
         """,
       });
@@ -93,7 +93,7 @@ void main() {
     test('core 依赖 feature', () {
       final violations = _checker().checkSources({
         'lib/core/widgets/example_widget.dart':
-            "import 'package:oh_my_llm/features/chat/application/ports/chat_completion_client.dart';",
+            "import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';",
       });
       expect(violations.single.ruleId, 'CORE_TO_FEATURE');
     });

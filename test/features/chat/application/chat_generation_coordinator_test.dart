@@ -6,24 +6,24 @@ import 'package:oh_my_llm/features/chat/application/chat_generation_contract.dar
 import 'package:oh_my_llm/features/chat/application/chat_generation_coordinator.dart';
 import 'package:oh_my_llm/features/chat/application/chat_generation_lifecycle.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_state.dart';
-import 'package:oh_my_llm/features/chat/application/ports/chat_completion_client.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/settings/domain/models/auto_retry_settings.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
 
-import '../../../helpers/fake_chat_completion_client.dart';
+import '../../../helpers/fake_chat_generation_client.dart';
 
 /// ChatGenerationCoordinator 是 run 的薄包装：start/stop/dispose 转发到 run，
 /// 逻辑由 [ChatGenerationRun] 的 transition matrix 测试覆盖。此处只验证
 /// coordinator 的包装契约：start 返回 completion、stop 返回同一 completion（幂等）、
 /// dispose complete null、hasActive 随 terminal 翻转。
 void main() {
-  late FakeChatCompletionClient fakeClient;
+  late FakeChatGenerationClient fakeClient;
   late ChatGenerationCoordinator coordinator;
 
   setUp(() {
-    fakeClient = FakeChatCompletionClient();
+    fakeClient = FakeChatGenerationClient();
     coordinator = ChatGenerationCoordinator(client: fakeClient);
   });
   // 用 lambda 而非 tear-off：tearDown 在 main 顶层注册，此时 `coordinator`（late）
@@ -85,7 +85,7 @@ void main() {
     final host = _FakeHost();
     final completion = coordinator.start(newCommand(), host);
     await controlled.listened; // 等待 run 开始监听后再投递 chunk
-    controlled.add(const ChatCompletionChunk(contentDelta: '部分'));
+    controlled.add(const ChatGenerationChunk(contentDelta: '部分'));
     await host.waitForProjection(
       (p) => p.streamingReply?.content.contains('部分') ?? false,
     );
@@ -169,7 +169,7 @@ class _FakeHost implements ChatGenerationHost {
       parentId: command.parentMessageId,
       isStreaming: true,
     );
-    final request = ChatGenerationRequest(
+    final request = ChatGenerationLifecycleRequest(
       conversationId: command.conversation.id,
       assistantMessageId: assistantMessage.id,
       modelConfig: command.modelConfig,

@@ -7,7 +7,7 @@ import '../domain/models/chat_message.dart';
 import 'chat_generation_contract.dart';
 import 'chat_generation_lifecycle.dart';
 import 'chat_sessions_state.dart';
-import 'ports/chat_completion_client.dart';
+import 'ports/chat_generation_client.dart';
 
 /// 一次 generation 的完整生命周期 owner（不变量 1：单一 owner）。
 ///
@@ -30,7 +30,7 @@ class ChatGenerationRun {
   });
 
   final int generationId;
-  final ChatCompletionClient client;
+  final ChatGenerationClient client;
   final ChatGenerationHost host;
   final ChatGenerationCommand command;
   final Duration streamUiFlushInterval;
@@ -41,7 +41,7 @@ class ChatGenerationRun {
   /// 串行执行通道：所有 awaitable 操作排队，按入队顺序执行。
   Future<void> _tail = Future<void>.value();
 
-  StreamSubscription<ChatCompletionChunk>? _subscription;
+  StreamSubscription<ChatGenerationChunk>? _subscription;
   Timer? _retryTimer;
 
   ChatGenerationPhase phase = ChatGenerationPhase.idle;
@@ -57,7 +57,7 @@ class ChatGenerationRun {
   DateTime _lastFlushAt = DateTime(2000);
 
   // prepare 填充的 run context。
-  ChatGenerationRequest? _request;
+  ChatGenerationLifecycleRequest? _request;
   ChatConversation? _streamingConversation;
   ChatMessage? _assistantMessage;
   ChatStreamingReply? _streamingReply;
@@ -155,12 +155,18 @@ class ChatGenerationRun {
   // ── streaming ───────────────────────────────────────────────────────────────
 
   void _startStream() {
+    final lifecycleRequest = _request!;
     _subscription = client
         .streamCompletion(
-          modelConfig: _request!.modelConfig,
-          messages: _request!.messages,
-          reasoningEffort: _request!.reasoningEffort,
-          streamIdleTimeout: _request!.streamIdleTimeout,
+          ChatGenerationRequest(
+            // 过渡约定：从 modelConfig 派生协议中立 target。
+            target: ChatGenerationRequestTarget.fromModelConfig(
+              lifecycleRequest.modelConfig,
+            ),
+            messages: lifecycleRequest.messages,
+            reasoningEffort: lifecycleRequest.reasoningEffort,
+            streamIdleTimeout: lifecycleRequest.streamIdleTimeout,
+          ),
         )
         .listen(
           (chunk) {

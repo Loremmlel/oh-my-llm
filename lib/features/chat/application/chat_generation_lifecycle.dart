@@ -3,7 +3,7 @@ import 'package:equatable/equatable.dart';
 import 'package:oh_my_llm/features/settings/domain/models/auto_retry_settings.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
 import '../domain/models/chat_message.dart';
-import 'ports/chat_completion_client.dart';
+import 'ports/chat_generation_client.dart';
 
 /// 一次 generation 的生命周期阶段。
 ///
@@ -221,8 +221,8 @@ class ChatRetryPolicy extends Equatable {
 /// messages 已经过 5 步拼接（检查点记忆 -> before 模板 -> 对话过滤 ->
 /// beforeLatestInput 模板 -> after 模板）与 [ExcludeByIdMessageFilter] 过滤，
 /// coordinator 不重新构造 prompt，也不决定 checkpoint 顺序。
-class ChatGenerationRequest extends Equatable {
-  const ChatGenerationRequest({
+class ChatGenerationLifecycleRequest extends Equatable {
+  const ChatGenerationLifecycleRequest({
     required this.conversationId,
     required this.assistantMessageId,
     required this.modelConfig,
@@ -247,7 +247,7 @@ class ChatGenerationRequest extends Equatable {
   final ReasoningEffort? reasoningEffort;
 
   /// 已构建完成的请求消息序列。
-  final List<ChatCompletionRequestMessage> messages;
+  final List<ChatRequestMessage> messages;
 
   final ChatRetryPolicy retryPolicy;
 

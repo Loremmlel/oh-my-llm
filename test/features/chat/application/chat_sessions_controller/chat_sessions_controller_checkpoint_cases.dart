@@ -6,13 +6,13 @@ import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/settings/application/preset_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
 
-import '../../../../helpers/fake_chat_completion_client.dart';
+import '../../../../helpers/fake_chat_generation_client.dart';
 import 'chat_sessions_controller_test_helpers.dart';
 
 /// 检查点创建、链式 context、excluded messages、applied title 与 generation 互斥契约。
 void registerChatSessionsControllerCheckpointCases() {
   late ControllerTestHarness harness;
-  late FakeChatCompletionClient fakeClient;
+  late FakeChatGenerationClient fakeClient;
   late ProviderContainer container;
 
   setUp(() async {

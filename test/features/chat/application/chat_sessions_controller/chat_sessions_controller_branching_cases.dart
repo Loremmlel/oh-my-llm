@@ -2,17 +2,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
-import 'package:oh_my_llm/features/chat/application/ports/chat_completion_client.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 
-import '../../../../helpers/fake_chat_completion_client.dart';
+import '../../../../helpers/fake_chat_generation_client.dart';
 import 'chat_sessions_controller_test_helpers.dart';
 
 /// 编辑用户消息产生新分支、retry、deleteMessage 版本导航契约。
 void registerChatSessionsControllerBranchingCases() {
   late ControllerTestHarness harness;
-  late FakeChatCompletionClient fakeClient;
+  late FakeChatGenerationClient fakeClient;
   late ProviderContainer container;
 
   setUp(() async {
@@ -149,7 +149,7 @@ void registerChatSessionsControllerBranchingCases() {
   });
 
   test('retryLatestAssistant 可重试失败后的最新助手消息', () async {
-    fakeClient.enqueueError(ChatCompletionException('503 unavailable'));
+    fakeClient.enqueueError(ChatGenerationException('503 unavailable'));
     await sendMsg('先失败后重试');
     final failureState = container.read(chatSessionsProvider);
     // 空内容失败后空白节点保留在树中，用户消息 + 占位节点共 2 条

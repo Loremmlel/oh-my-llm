@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 
 import 'package:oh_my_llm/core/logging/network_logger.dart';
-import 'package:oh_my_llm/features/chat/application/ports/chat_completion_client.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/data/openai_compatible_chat_client.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
@@ -36,14 +36,13 @@ void main() {
 
     final chunks = await client
         .streamCompletion(
-          modelConfig: _modelConfig(),
-          messages: const [
-            ChatCompletionRequestMessage(
-              role: ChatMessageRole.user,
-              content: '你好',
-            ),
-          ],
-          reasoningEffort: ReasoningEffort.high,
+          _request(
+            modelConfig: _modelConfig(),
+            messages: const [
+              ChatRequestMessage(role: ChatMessageRole.user, content: '你好'),
+            ],
+            reasoningEffort: ReasoningEffort.high,
+          ),
         )
         .toList();
 
@@ -76,13 +75,12 @@ void main() {
 
     await client
         .streamCompletion(
-          modelConfig: _modelConfig(),
-          messages: const [
-            ChatCompletionRequestMessage(
-              role: ChatMessageRole.user,
-              content: 'hello',
-            ),
-          ],
+          _request(
+            modelConfig: _modelConfig(),
+            messages: const [
+              ChatRequestMessage(role: ChatMessageRole.user, content: 'hello'),
+            ],
+          ),
         )
         .drain<void>();
 
@@ -115,14 +113,13 @@ void main() {
       );
 
       final result = await client.complete(
-        modelConfig: _modelConfig(),
-        messages: const [
-          ChatCompletionRequestMessage(
-            role: ChatMessageRole.user,
-            content: '请总结',
-          ),
-        ],
-        reasoningEffort: ReasoningEffort.medium,
+        _request(
+          modelConfig: _modelConfig(),
+          messages: const [
+            ChatRequestMessage(role: ChatMessageRole.user, content: '请总结'),
+          ],
+          reasoningEffort: ReasoningEffort.medium,
+        ),
       );
 
       expect(result.content, '完整回复');
@@ -159,13 +156,12 @@ void main() {
 
       await client
           .streamCompletion(
-            modelConfig: _modelConfig(),
-            messages: const [
-              ChatCompletionRequestMessage(
-                role: ChatMessageRole.user,
-                content: '你好',
-              ),
-            ],
+            _request(
+              modelConfig: _modelConfig(),
+              messages: const [
+                ChatRequestMessage(role: ChatMessageRole.user, content: '你好'),
+              ],
+            ),
           )
           .drain<void>();
     },
@@ -192,16 +188,15 @@ void main() {
 
     await client
         .streamCompletion(
-          modelConfig: _modelConfig(
-            apiUrl: 'https://api.openai.com/v1/chat/completions',
-          ),
-          messages: const [
-            ChatCompletionRequestMessage(
-              role: ChatMessageRole.user,
-              content: '你好',
+          _request(
+            modelConfig: _modelConfig(
+              apiUrl: 'https://api.openai.com/v1/chat/completions',
             ),
-          ],
-          reasoningEffort: ReasoningEffort.xhigh,
+            messages: const [
+              ChatRequestMessage(role: ChatMessageRole.user, content: '你好'),
+            ],
+            reasoningEffort: ReasoningEffort.xhigh,
+          ),
         )
         .drain<void>();
   });
@@ -230,17 +225,16 @@ void main() {
 
     await client
         .streamCompletion(
-          modelConfig: _modelConfig(
-            apiUrl:
-                'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
-          ),
-          messages: const [
-            ChatCompletionRequestMessage(
-              role: ChatMessageRole.user,
-              content: '你好',
+          _request(
+            modelConfig: _modelConfig(
+              apiUrl:
+                  'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
             ),
-          ],
-          reasoningEffort: ReasoningEffort.medium,
+            messages: const [
+              ChatRequestMessage(role: ChatMessageRole.user, content: '你好'),
+            ],
+            reasoningEffort: ReasoningEffort.medium,
+          ),
         )
         .drain<void>();
   });
@@ -260,17 +254,16 @@ void main() {
     expect(
       client
           .streamCompletion(
-            modelConfig: _modelConfig(),
-            messages: const [
-              ChatCompletionRequestMessage(
-                role: ChatMessageRole.user,
-                content: '你好',
-              ),
-            ],
+            _request(
+              modelConfig: _modelConfig(),
+              messages: const [
+                ChatRequestMessage(role: ChatMessageRole.user, content: '你好'),
+              ],
+            ),
           )
           .drain<void>(),
       throwsA(
-        isA<ChatCompletionException>().having(
+        isA<ChatGenerationException>().having(
           (error) => error.message,
           'message',
           'invalid api key',
@@ -289,16 +282,15 @@ void main() {
     expect(
       client
           .streamCompletion(
-            modelConfig: _modelConfig(apiUrl: 'not-a-valid-url'),
-            messages: const [
-              ChatCompletionRequestMessage(
-                role: ChatMessageRole.user,
-                content: '你好',
-              ),
-            ],
+            _request(
+              modelConfig: _modelConfig(apiUrl: 'not-a-valid-url'),
+              messages: const [
+                ChatRequestMessage(role: ChatMessageRole.user, content: '你好'),
+              ],
+            ),
           )
           .drain<void>(),
-      throwsA(isA<ChatCompletionException>()),
+      throwsA(isA<ChatGenerationException>()),
     );
   });
 
@@ -315,17 +307,16 @@ void main() {
     expect(
       client
           .streamCompletion(
-            modelConfig: _modelConfig(),
-            messages: const [
-              ChatCompletionRequestMessage(
-                role: ChatMessageRole.user,
-                content: '你好',
-              ),
-            ],
+            _request(
+              modelConfig: _modelConfig(),
+              messages: const [
+                ChatRequestMessage(role: ChatMessageRole.user, content: '你好'),
+              ],
+            ),
           )
           .drain<void>(),
       throwsA(
-        isA<ChatCompletionException>().having(
+        isA<ChatGenerationException>().having(
           (e) => e.message,
           'message',
           contains('401'),
@@ -347,17 +338,16 @@ void main() {
     expect(
       client
           .streamCompletion(
-            modelConfig: _modelConfig(),
-            messages: const [
-              ChatCompletionRequestMessage(
-                role: ChatMessageRole.user,
-                content: '你好',
-              ),
-            ],
+            _request(
+              modelConfig: _modelConfig(),
+              messages: const [
+                ChatRequestMessage(role: ChatMessageRole.user, content: '你好'),
+              ],
+            ),
           )
           .drain<void>(),
       throwsA(
-        isA<ChatCompletionException>().having(
+        isA<ChatGenerationException>().having(
           (e) => e.message,
           'message',
           contains('500'),
@@ -384,13 +374,12 @@ void main() {
 
     final chunks = await client
         .streamCompletion(
-          modelConfig: _modelConfig(),
-          messages: const [
-            ChatCompletionRequestMessage(
-              role: ChatMessageRole.user,
-              content: '你好',
-            ),
-          ],
+          _request(
+            modelConfig: _modelConfig(),
+            messages: const [
+              ChatRequestMessage(role: ChatMessageRole.user, content: '你好'),
+            ],
+          ),
         )
         .toList();
 
@@ -410,16 +399,15 @@ void main() {
     expect(
       client
           .streamCompletion(
-            modelConfig: _modelConfig(),
-            messages: const [
-              ChatCompletionRequestMessage(
-                role: ChatMessageRole.user,
-                content: '你好',
-              ),
-            ],
+            _request(
+              modelConfig: _modelConfig(),
+              messages: const [
+                ChatRequestMessage(role: ChatMessageRole.user, content: '你好'),
+              ],
+            ),
           )
           .drain<void>(),
-      throwsA(isA<ChatCompletionException>()),
+      throwsA(isA<ChatGenerationException>()),
     );
   });
 
@@ -442,17 +430,16 @@ void main() {
       try {
         await client
             .streamCompletion(
-              modelConfig: _modelConfig(),
-              messages: const [
-                ChatCompletionRequestMessage(
-                  role: ChatMessageRole.user,
-                  content: '你好',
-                ),
-              ],
+              _request(
+                modelConfig: _modelConfig(),
+                messages: const [
+                  ChatRequestMessage(role: ChatMessageRole.user, content: '你好'),
+                ],
+              ),
             )
             .drain<void>();
-        fail('Expected ChatCompletionException');
-      } on ChatCompletionException catch (e) {
+        fail('Expected ChatGenerationException');
+      } on ChatGenerationException catch (e) {
         expect(e.statusCode, 200);
         expect(e.responseBody, contains('[1, 2, 3]'));
         expect(e.responseBody, contains('{"model":"gpt-4"}'));
@@ -476,17 +463,16 @@ void main() {
     expect(
       client
           .streamCompletion(
-            modelConfig: _modelConfig(),
-            messages: const [
-              ChatCompletionRequestMessage(
-                role: ChatMessageRole.user,
-                content: '你好',
-              ),
-            ],
+            _request(
+              modelConfig: _modelConfig(),
+              messages: const [
+                ChatRequestMessage(role: ChatMessageRole.user, content: '你好'),
+              ],
+            ),
           )
           .drain<void>(),
       throwsA(
-        isA<ChatCompletionException>().having(
+        isA<ChatGenerationException>().having(
           (e) => e.message,
           'message',
           'rate limit exceeded',
@@ -528,14 +514,13 @@ void main() {
 
         await client
             .streamCompletion(
-              modelConfig: _modelConfig(),
-              messages: const [
-                ChatCompletionRequestMessage(
-                  role: ChatMessageRole.user,
-                  content: '你好',
-                ),
-              ],
-              reasoningEffort: entry.key,
+              _request(
+                modelConfig: _modelConfig(),
+                messages: const [
+                  ChatRequestMessage(role: ChatMessageRole.user, content: '你好'),
+                ],
+                reasoningEffort: entry.key,
+              ),
             )
             .drain<void>();
 
@@ -573,16 +558,15 @@ void main() {
 
       await client
           .streamCompletion(
-            modelConfig: _modelConfig(
-              apiUrl: 'https://api.openai.com/v1/chat/completions',
-            ),
-            messages: const [
-              ChatCompletionRequestMessage(
-                role: ChatMessageRole.user,
-                content: '你好',
+            _request(
+              modelConfig: _modelConfig(
+                apiUrl: 'https://api.openai.com/v1/chat/completions',
               ),
-            ],
-            reasoningEffort: ReasoningEffort.low,
+              messages: const [
+                ChatRequestMessage(role: ChatMessageRole.user, content: '你好'),
+              ],
+              reasoningEffort: ReasoningEffort.low,
+            ),
           )
           .drain<void>();
 
@@ -609,13 +593,12 @@ void main() {
 
     final chunks = await client
         .streamCompletion(
-          modelConfig: _modelConfig(),
-          messages: const [
-            ChatCompletionRequestMessage(
-              role: ChatMessageRole.user,
-              content: '你好',
-            ),
-          ],
+          _request(
+            modelConfig: _modelConfig(),
+            messages: const [
+              ChatRequestMessage(role: ChatMessageRole.user, content: '你好'),
+            ],
+          ),
         )
         .toList();
 
@@ -641,14 +624,13 @@ void main() {
 
       final chunks = await client
           .streamCompletion(
-            modelConfig: _modelConfig(),
-            messages: const [
-              ChatCompletionRequestMessage(
-                role: ChatMessageRole.user,
-                content: '你好',
-              ),
-            ],
-            reasoningEffort: ReasoningEffort.high,
+            _request(
+              modelConfig: _modelConfig(),
+              messages: const [
+                ChatRequestMessage(role: ChatMessageRole.user, content: '你好'),
+              ],
+              reasoningEffort: ReasoningEffort.high,
+            ),
           )
           .toList();
 
@@ -682,14 +664,13 @@ void main() {
 
       final chunks = await client
           .streamCompletion(
-            modelConfig: _modelConfig(),
-            messages: const [
-              ChatCompletionRequestMessage(
-                role: ChatMessageRole.user,
-                content: '你好',
-              ),
-            ],
-            reasoningEffort: ReasoningEffort.high,
+            _request(
+              modelConfig: _modelConfig(),
+              messages: const [
+                ChatRequestMessage(role: ChatMessageRole.user, content: '你好'),
+              ],
+              reasoningEffort: ReasoningEffort.high,
+            ),
           )
           .toList();
 
@@ -717,14 +698,13 @@ void main() {
 
       final chunks = await client
           .streamCompletion(
-            modelConfig: _modelConfig(),
-            messages: const [
-              ChatCompletionRequestMessage(
-                role: ChatMessageRole.user,
-                content: '你好',
-              ),
-            ],
-            reasoningEffort: ReasoningEffort.high,
+            _request(
+              modelConfig: _modelConfig(),
+              messages: const [
+                ChatRequestMessage(role: ChatMessageRole.user, content: '你好'),
+              ],
+              reasoningEffort: ReasoningEffort.high,
+            ),
           )
           .toList();
 
@@ -751,13 +731,12 @@ void main() {
 
       final chunks = await client
           .streamCompletion(
-            modelConfig: _modelConfig(),
-            messages: const [
-              ChatCompletionRequestMessage(
-                role: ChatMessageRole.user,
-                content: '你好',
-              ),
-            ],
+            _request(
+              modelConfig: _modelConfig(),
+              messages: const [
+                ChatRequestMessage(role: ChatMessageRole.user, content: '你好'),
+              ],
+            ),
           )
           .toList();
 
@@ -783,13 +762,12 @@ void main() {
 
     final chunks = await client
         .streamCompletion(
-          modelConfig: _modelConfig(),
-          messages: const [
-            ChatCompletionRequestMessage(
-              role: ChatMessageRole.user,
-              content: '你好',
-            ),
-          ],
+          _request(
+            modelConfig: _modelConfig(),
+            messages: const [
+              ChatRequestMessage(role: ChatMessageRole.user, content: '你好'),
+            ],
+          ),
         )
         .toList();
 
@@ -822,13 +800,12 @@ void main() {
 
       final chunks = await client
           .streamCompletion(
-            modelConfig: _modelConfig(),
-            messages: const [
-              ChatCompletionRequestMessage(
-                role: ChatMessageRole.user,
-                content: '你好',
-              ),
-            ],
+            _request(
+              modelConfig: _modelConfig(),
+              messages: const [
+                ChatRequestMessage(role: ChatMessageRole.user, content: '你好'),
+              ],
+            ),
           )
           .toList();
 
@@ -848,6 +825,19 @@ LlmModelConfig _modelConfig({
     apiKey: 'sk-test-12345678',
     modelName: 'gpt-4.1',
     supportsReasoning: true,
+  );
+}
+
+/// 从模型配置派生协议中立请求（测试局部适配旧命名参数调用形状）。
+ChatGenerationRequest _request({
+  required LlmModelConfig modelConfig,
+  required List<ChatRequestMessage> messages,
+  ReasoningEffort? reasoningEffort,
+}) {
+  return ChatGenerationRequest(
+    target: ChatGenerationRequestTarget.fromModelConfig(modelConfig),
+    messages: messages,
+    reasoningEffort: reasoningEffort,
   );
 }
 

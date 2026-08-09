@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/chat/application/chat_generation_lifecycle.dart';
-import 'package:oh_my_llm/features/chat/application/ports/chat_completion_client.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/settings/domain/models/auto_retry_settings.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
@@ -196,17 +196,17 @@ void main() {
     });
   });
 
-  // ── ChatGenerationRequest ────────────────────────────────
+  // ── ChatGenerationLifecycleRequest ────────────────────────────────
 
-  group('ChatGenerationRequest', () {
-    ChatGenerationRequest request({
+  group('ChatGenerationLifecycleRequest', () {
+    ChatGenerationLifecycleRequest request({
       String conversationId = 'conv-1',
       String assistantMessageId = 'a1',
-      List<ChatCompletionRequestMessage> messages = const [
-        ChatCompletionRequestMessage(role: ChatMessageRole.user, content: 'hi'),
+      List<ChatRequestMessage> messages = const [
+        ChatRequestMessage(role: ChatMessageRole.user, content: 'hi'),
       ],
     }) {
-      return ChatGenerationRequest(
+      return ChatGenerationLifecycleRequest(
         conversationId: conversationId,
         assistantMessageId: assistantMessageId,
         modelConfig: modelConfig(),
@@ -235,18 +235,12 @@ void main() {
     test('Equatable：messages 内容不同则不等', () {
       final a = request(
         messages: const [
-          ChatCompletionRequestMessage(
-            role: ChatMessageRole.user,
-            content: 'a',
-          ),
+          ChatRequestMessage(role: ChatMessageRole.user, content: 'a'),
         ],
       );
       final b = request(
         messages: const [
-          ChatCompletionRequestMessage(
-            role: ChatMessageRole.user,
-            content: 'b',
-          ),
+          ChatRequestMessage(role: ChatMessageRole.user, content: 'b'),
         ],
       );
 

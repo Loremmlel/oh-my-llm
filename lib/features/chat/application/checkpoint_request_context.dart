@@ -3,7 +3,7 @@ import '../domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/settings/domain/models/memory_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
 import 'chat_request_message_builder.dart';
-import 'ports/chat_completion_client.dart';
+import 'ports/chat_generation_client.dart';
 
 /// 选中检查点后，真正参与请求拼装的上下文视图。
 class CheckpointRequestContext {
@@ -99,18 +99,18 @@ List<ChatCheckpoint> resolveCheckpointChain({
 }
 
 /// 构建创建新检查点时的总结请求。
-List<ChatCompletionRequestMessage> buildCheckpointSummaryMessages({
+List<ChatRequestMessage> buildCheckpointSummaryMessages({
   required MemoryPrompt memoryPrompt,
   required List<ChatMessage> conversationMessages,
   List<ChatCheckpoint> checkpointChain = const [],
   PresetPrompt? presetPrompt,
   RequestMessageFilter filter = RequestMessageFilter.passthrough,
 }) {
-  final requestMessages = <ChatCompletionRequestMessage>[];
+  final requestMessages = <ChatRequestMessage>[];
   final filteredMessages = filter.apply(conversationMessages);
 
   requestMessages.add(
-    ChatCompletionRequestMessage(
+    ChatRequestMessage(
       role: ChatMessageRole.system,
       content: checkpointChain.isEmpty
           ? '你正在为当前对话创建根检查点。请提炼可长期复用的重要事实、约束、决定、待办和上下文。输出应简洁、结构清晰，并适合后续继续对话时直接作为记忆使用。'
@@ -128,10 +128,7 @@ List<ChatCompletionRequestMessage> buildCheckpointSummaryMessages({
 
   requestMessages.addAll(
     filteredMessages.map((message) {
-      return ChatCompletionRequestMessage(
-        role: message.role,
-        content: message.content,
-      );
+      return ChatRequestMessage(role: message.role, content: message.content);
     }),
   );
 
@@ -142,7 +139,7 @@ List<ChatCompletionRequestMessage> buildCheckpointSummaryMessages({
   );
 
   requestMessages.add(
-    ChatCompletionRequestMessage(
+    ChatRequestMessage(
       role: ChatMessageRole.user,
       content: '请按照以下记忆总结提示词生成新的检查点：\n\n${memoryPrompt.content.trim()}',
     ),

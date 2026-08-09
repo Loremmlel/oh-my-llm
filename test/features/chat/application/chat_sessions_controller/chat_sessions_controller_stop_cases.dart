@@ -9,7 +9,7 @@ import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/application/chat_generation_lifecycle.dart';
-import 'package:oh_my_llm/features/chat/application/ports/chat_completion_client.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/data/sqlite_chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/domain/chat_error_messages.dart';
@@ -18,7 +18,7 @@ import 'package:oh_my_llm/features/chat/domain/models/chat_conversation_summary.
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 
 import '../../../../helpers/async_test_signals.dart';
-import '../../../../helpers/fake_chat_completion_client.dart';
+import '../../../../helpers/fake_chat_generation_client.dart';
 import 'chat_sessions_controller_test_helpers.dart';
 
 /// stop / cancel / 迟到回调 / dispose 竞态契约。
@@ -26,7 +26,7 @@ void registerChatSessionsControllerStopCases() {
   late ControllerTestHarness harness;
   late AppDatabase database;
   late SharedPreferences preferences;
-  late FakeChatCompletionClient fakeClient;
+  late FakeChatGenerationClient fakeClient;
   late ProviderContainer container;
 
   setUp(() async {
@@ -50,7 +50,7 @@ void registerChatSessionsControllerStopCases() {
 
     final sendFuture = sendMsg('请开始生成');
     await controlled.listened;
-    controlled.add(const ChatCompletionChunk(contentDelta: '部分回复'));
+    controlled.add(const ChatGenerationChunk(contentDelta: '部分回复'));
     // 等流式增量到达期望片段再 stop：stop 的快照取自 run 的累积缓冲，
     // 此刻 chunk 已被消费，快照内容确定。
     await harness.waitForState(
@@ -121,7 +121,7 @@ void registerChatSessionsControllerStopCases() {
         .updateActiveConversationPreferences(autoRetryEnabled: true);
 
     // 首次 attempt 失败 -> 重试等待窗口 -> 重试 attempt streaming。
-    fakeClient.enqueueError(ChatCompletionException('首次失败'));
+    fakeClient.enqueueError(ChatGenerationException('首次失败'));
     // 第二条受控流预排队：重试 attempt 会监听它。
     final retryStream = fakeClient.enqueueControlledStream();
     addTearDown(retryStream.close);
@@ -156,7 +156,7 @@ void registerChatSessionsControllerStopCases() {
         .updateActiveConversationPreferences(autoRetryEnabled: true);
 
     // 第一次请求会失败，重试会有一个可控的等待窗口
-    fakeClient.enqueueError(ChatCompletionException('首次失败'));
+    fakeClient.enqueueError(ChatGenerationException('首次失败'));
 
     // 用较大的 retryDelay 创造宽余的重试窗口，避免 CI timing 脆弱
     final sendFuture = sendMsg(
@@ -228,7 +228,7 @@ void registerChatSessionsControllerStopCases() {
 
     final sendFuture = sendMsg('测试 onDone 竞态');
     await controlled.listened;
-    controlled.add(const ChatCompletionChunk(contentDelta: '部分内容'));
+    controlled.add(const ChatGenerationChunk(contentDelta: '部分内容'));
     await harness.waitForState(
       (s) => s.streamingReply?.content == '部分内容',
       description: '流式内容达到期望片段',
@@ -245,7 +245,7 @@ void registerChatSessionsControllerStopCases() {
 
     // 模拟延迟到达的 onDone：订阅已被 stop 取消，事件不会投递给 run；
     // await close 收口控制器结算，无需延时。
-    controlled.add(const ChatCompletionChunk(contentDelta: '延迟内容'));
+    controlled.add(const ChatGenerationChunk(contentDelta: '延迟内容'));
     await controlled.close();
 
     final stateAfterDelayed = container.read(chatSessionsProvider);
@@ -263,7 +263,7 @@ void registerChatSessionsControllerStopCases() {
 
     final sendFuture = sendMsg('测试 onError 竞态');
     await controlled.listened;
-    controlled.add(const ChatCompletionChunk(contentDelta: '已有内容'));
+    controlled.add(const ChatGenerationChunk(contentDelta: '已有内容'));
     await harness.waitForState(
       (s) => s.streamingReply?.content == '已有内容',
       description: '流式内容达到期望片段',
@@ -312,7 +312,7 @@ void registerChatSessionsControllerStopCases() {
 
     final sendFuture = sendMsg('测试双击停止');
     await controlled.listened;
-    controlled.add(const ChatCompletionChunk(contentDelta: '部分内容'));
+    controlled.add(const ChatGenerationChunk(contentDelta: '部分内容'));
     await harness.waitForState(
       (s) => s.streamingReply?.content == '部分内容',
       description: '流式内容达到期望片段',
@@ -333,9 +333,9 @@ void registerChatSessionsControllerStopCases() {
     // 模拟 token 空闲间隙：底层订阅的 cancel() 永不完成（socket 无数据）。
     // 修复前 stopStreaming 会 await 该 cancel 而永久挂起，状态无法重置，
     // 需第二次点击才生效；修复后 cancel 即发即忘，单次调用即可终止。
-    // 不能直接用 ControlledChatCompletionStream：它不提供永不完成的 onCancel。
+    // 不能直接用 ControlledChatGenerationStream：它不提供永不完成的 onCancel。
     final listened = Completer<void>();
-    final streamController = StreamController<ChatCompletionChunk>(
+    final streamController = StreamController<ChatGenerationChunk>(
       onListen: listened.complete,
       onCancel: () => Completer<void>().future,
     );
@@ -348,7 +348,7 @@ void registerChatSessionsControllerStopCases() {
 
     final sendFuture = sendMsg('测试挂起 cancel');
     await listened.future;
-    streamController.add(const ChatCompletionChunk(contentDelta: '部分内容'));
+    streamController.add(const ChatGenerationChunk(contentDelta: '部分内容'));
     await harness.waitForState(
       (s) => s.streamingReply?.content == '部分内容',
       description: '流式内容达到期望片段',
@@ -378,13 +378,13 @@ void registerChatSessionsControllerStopCases() {
       overrides: [
         appDatabaseProvider.overrideWithValue(database),
         sharedPreferencesProvider.overrideWithValue(preferences),
-        chatCompletionClientProvider.overrideWithValue(fakeClient),
+        chatGenerationClientProvider.overrideWithValue(fakeClient),
         chatConversationRepositoryProvider.overrideWithValue(slowRepo),
       ],
     );
     addTearDown(slowContainer.dispose);
 
-    final streamController = StreamController<ChatCompletionChunk>();
+    final streamController = StreamController<ChatGenerationChunk>();
     // preparing 路径下 coordinator 未 start，streamController 不会被 listen；
     // 单订阅 controller 无消费者时 close 的 done future 不会完成，故 tearDown
     // 只触发 close、不 await 其 done future。
@@ -446,7 +446,7 @@ void registerChatSessionsControllerStopCases() {
       overrides: [
         appDatabaseProvider.overrideWithValue(database),
         sharedPreferencesProvider.overrideWithValue(preferences),
-        chatCompletionClientProvider.overrideWithValue(fakeClient),
+        chatGenerationClientProvider.overrideWithValue(fakeClient),
         chatConversationRepositoryProvider.overrideWithValue(repo),
       ],
     );
@@ -509,13 +509,13 @@ void registerChatSessionsControllerStopCases() {
       overrides: [
         appDatabaseProvider.overrideWithValue(database),
         sharedPreferencesProvider.overrideWithValue(preferences),
-        chatCompletionClientProvider.overrideWithValue(fakeClient),
+        chatGenerationClientProvider.overrideWithValue(fakeClient),
         chatConversationRepositoryProvider.overrideWithValue(slowRepo),
       ],
     );
     addTearDown(slowContainer.dispose);
 
-    final streamController = StreamController<ChatCompletionChunk>();
+    final streamController = StreamController<ChatGenerationChunk>();
     addTearDown(() {
       streamController.close();
     });
@@ -564,7 +564,7 @@ void registerChatSessionsControllerStopCases() {
       overrides: [
         appDatabaseProvider.overrideWithValue(database),
         sharedPreferencesProvider.overrideWithValue(preferences),
-        chatCompletionClientProvider.overrideWithValue(fakeClient),
+        chatGenerationClientProvider.overrideWithValue(fakeClient),
         chatConversationRepositoryProvider.overrideWithValue(slowRepo),
       ],
     );
@@ -638,7 +638,7 @@ void registerChatSessionsControllerStopCases() {
       overrides: [
         appDatabaseProvider.overrideWithValue(database),
         sharedPreferencesProvider.overrideWithValue(preferences),
-        chatCompletionClientProvider.overrideWithValue(fakeClient),
+        chatGenerationClientProvider.overrideWithValue(fakeClient),
         chatConversationRepositoryProvider.overrideWithValue(slowRepo),
       ],
     );
@@ -661,7 +661,7 @@ void registerChatSessionsControllerStopCases() {
     slowRepo.saveGate!.complete();
     // 投递部分内容使 streaming 非空，stop 时有内容可落盘。
     await controlled.listened;
-    controlled.add(const ChatCompletionChunk(contentDelta: '部分内容'));
+    controlled.add(const ChatGenerationChunk(contentDelta: '部分内容'));
     await waitForProviderState(
       container: slowContainer,
       provider: chatSessionsProvider,
@@ -702,7 +702,7 @@ void registerChatSessionsControllerStopCases() {
       overrides: [
         appDatabaseProvider.overrideWithValue(database),
         sharedPreferencesProvider.overrideWithValue(preferences),
-        chatCompletionClientProvider.overrideWithValue(fakeClient),
+        chatGenerationClientProvider.overrideWithValue(fakeClient),
         chatConversationRepositoryProvider.overrideWithValue(repo),
       ],
     );
@@ -721,7 +721,7 @@ void registerChatSessionsControllerStopCases() {
           reasoningEffort: ReasoningEffort.medium,
         );
     await controlled.listened;
-    controlled.add(const ChatCompletionChunk(contentDelta: '部分内容'));
+    controlled.add(const ChatGenerationChunk(contentDelta: '部分内容'));
     await waitForProviderState(
       container: slowContainer,
       provider: chatSessionsProvider,
@@ -764,7 +764,7 @@ void registerChatSessionsControllerStopCases() {
     addTearDown(controlled.close);
     final sendFuture = sendMsg('test');
     await controlled.listened;
-    controlled.add(const ChatCompletionChunk(finishReason: 'stop'));
+    controlled.add(const ChatGenerationChunk(finishReason: 'stop'));
     await controlled.close();
     await sendFuture;
 
@@ -775,7 +775,7 @@ void registerChatSessionsControllerStopCases() {
   });
 
   test('失败投影 failed 终态快照', () async {
-    fakeClient.enqueueError(ChatCompletionException('失败'));
+    fakeClient.enqueueError(ChatGenerationException('失败'));
     await sendMsg('test');
 
     final state = container.read(chatSessionsProvider);
@@ -832,7 +832,7 @@ void registerChatSessionsControllerStopCases() {
       overrides: [
         appDatabaseProvider.overrideWithValue(database),
         sharedPreferencesProvider.overrideWithValue(preferences),
-        chatCompletionClientProvider.overrideWithValue(fakeClient),
+        chatGenerationClientProvider.overrideWithValue(fakeClient),
         chatConversationRepositoryProvider.overrideWithValue(
           SqliteChatConversationRepository(database),
         ),
@@ -858,7 +858,7 @@ void registerChatSessionsControllerStopCases() {
             reasoningEffort: ReasoningEffort.medium,
           );
       await controlled.listened;
-      controlled.add(const ChatCompletionChunk(contentDelta: '部分'));
+      controlled.add(const ChatGenerationChunk(contentDelta: '部分'));
       await waitForProviderState(
         container: disposeContainer,
         provider: chatSessionsProvider,
@@ -874,7 +874,7 @@ void registerChatSessionsControllerStopCases() {
 
       // 订阅取消后迟到事件应静默丢弃，不触发回调、无未处理异常。
       // await close 收口控制器结算（done 已被取消的订阅丢弃），无需延时。
-      controlled.add(const ChatCompletionChunk(contentDelta: '迟到'));
+      controlled.add(const ChatGenerationChunk(contentDelta: '迟到'));
       await controlled.close();
     }, (error, stack) => unexpected.add(error));
 
@@ -889,7 +889,7 @@ void registerChatSessionsControllerStopCases() {
       overrides: [
         appDatabaseProvider.overrideWithValue(database),
         sharedPreferencesProvider.overrideWithValue(preferences),
-        chatCompletionClientProvider.overrideWithValue(fakeClient),
+        chatGenerationClientProvider.overrideWithValue(fakeClient),
         chatConversationRepositoryProvider.overrideWithValue(slowRepo),
       ],
     );
@@ -941,7 +941,7 @@ void registerChatSessionsControllerStopCases() {
       overrides: [
         appDatabaseProvider.overrideWithValue(database),
         sharedPreferencesProvider.overrideWithValue(preferences),
-        chatCompletionClientProvider.overrideWithValue(fakeClient),
+        chatGenerationClientProvider.overrideWithValue(fakeClient),
         chatConversationRepositoryProvider.overrideWithValue(
           SqliteChatConversationRepository(database),
         ),
@@ -955,9 +955,9 @@ void registerChatSessionsControllerStopCases() {
     final unexpected = <Object>[];
     await runZonedGuarded(() async {
       // sync: true 使 onListen/事件投递同步完成，close() 同步触发 onDone。
-      // 受控流需带 onListen 完成信号（ControlledChatCompletionStream 非 sync）。
+      // 受控流需带 onListen 完成信号（ControlledChatGenerationStream 非 sync）。
       final listened = Completer<void>();
-      final streamController = StreamController<ChatCompletionChunk>(
+      final streamController = StreamController<ChatGenerationChunk>(
         sync: true,
         onListen: listened.complete,
       );
@@ -978,7 +978,7 @@ void registerChatSessionsControllerStopCases() {
       expect(fakeClient.requestHistory.length, 1);
 
       streamController.add(
-        const ChatCompletionChunk(contentDelta: '回复', finishReason: 'stop'),
+        const ChatGenerationChunk(contentDelta: '回复', finishReason: 'stop'),
       );
       // sync close 同步触发 onDone -> _serialize 排队（微任务在 close() 返回后执行）。
       streamController.close();

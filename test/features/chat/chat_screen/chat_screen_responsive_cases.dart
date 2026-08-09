@@ -48,7 +48,7 @@ Future<void> _closeDrawer(WidgetTester tester) async {
 void registerChatScreenResponsiveTests() {
   for (final viewport in requiredShellViewports) {
     testWidgets('${viewport.name}: 标题/正文/发送入口可达', (tester) async {
-      final fakeClient = FakeChatCompletionClient();
+      final fakeClient = FakeChatGenerationClient();
       await pumpChatScreen(tester, fakeClient: fakeClient, size: viewport.size);
 
       expect(find.text('未命名对话'), findsOneWidget);
@@ -62,7 +62,7 @@ void registerChatScreenResponsiveTests() {
     (v) => v.shellMode == ShellNavigationMode.bottomBar,
   )) {
     testWidgets('${viewport.name}: 抽屉内历史/预设可达，关闭后正文可输入', (tester) async {
-      final fakeClient = FakeChatCompletionClient();
+      final fakeClient = FakeChatGenerationClient();
       await pumpChatScreen(tester, fakeClient: fakeClient, size: viewport.size);
 
       await tester.tap(find.byTooltip('打开侧边内容'));
@@ -82,7 +82,7 @@ void registerChatScreenResponsiveTests() {
     (v) => v.shellMode == ShellNavigationMode.rail,
   )) {
     testWidgets('${viewport.name}: activity bar 触发历史会话侧栏', (tester) async {
-      final fakeClient = FakeChatCompletionClient();
+      final fakeClient = FakeChatGenerationClient();
       await pumpChatScreen(tester, fakeClient: fakeClient, size: viewport.size);
 
       // 初始侧栏即展开；先折叠再通过 activity bar 重新展开，证明图标可操作。
@@ -102,7 +102,7 @@ void registerChatScreenResponsiveTests() {
   }
 
   testWidgets('600: compact composer 摘要与设置 sheet 可达', (tester) async {
-    final fakeClient = FakeChatCompletionClient();
+    final fakeClient = FakeChatGenerationClient();
     await pumpChatScreen(
       tester,
       fakeClient: fakeClient,
@@ -119,7 +119,7 @@ void registerChatScreenResponsiveTests() {
   });
 
   testWidgets('1440: 完整操作区固定顺序与消息过滤可达', (tester) async {
-    final fakeClient = FakeChatCompletionClient();
+    final fakeClient = FakeChatGenerationClient();
     await pumpChatScreen(
       tester,
       fakeClient: fakeClient,
@@ -140,7 +140,7 @@ void registerChatScreenResponsiveTests() {
       prompts: [TestFixtures.codeAssistantPrompt()],
       conversations: [_seededConversation()],
     );
-    final fakeClient = FakeChatCompletionClient();
+    final fakeClient = FakeChatGenerationClient();
     await pumpChatScreen(
       tester,
       fakeClient: fakeClient,

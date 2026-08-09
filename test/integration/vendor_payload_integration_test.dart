@@ -10,7 +10,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 
-import 'package:oh_my_llm/features/chat/application/ports/chat_completion_client.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/data/openai_compatible_chat_client.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
@@ -40,16 +40,15 @@ void main() {
 
       await client
           .streamCompletion(
-            modelConfig: _modelConfig(
-              apiUrl: 'https://api.deepseek.com/v1/chat/completions',
-            ),
-            messages: const [
-              ChatCompletionRequestMessage(
-                role: ChatMessageRole.user,
-                content: '你好',
+            _request(
+              modelConfig: _modelConfig(
+                apiUrl: 'https://api.deepseek.com/v1/chat/completions',
               ),
-            ],
-            reasoningEffort: ReasoningEffort.medium,
+              messages: const [
+                ChatRequestMessage(role: ChatMessageRole.user, content: '你好'),
+              ],
+              reasoningEffort: ReasoningEffort.medium,
+            ),
           )
           .drain<void>();
 
@@ -84,15 +83,14 @@ void main() {
 
       await client
           .streamCompletion(
-            modelConfig: _modelConfig(
-              apiUrl: 'https://api.deepseek.com/v1/chat/completions',
-            ),
-            messages: const [
-              ChatCompletionRequestMessage(
-                role: ChatMessageRole.user,
-                content: '你好',
+            _request(
+              modelConfig: _modelConfig(
+                apiUrl: 'https://api.deepseek.com/v1/chat/completions',
               ),
-            ],
+              messages: const [
+                ChatRequestMessage(role: ChatMessageRole.user, content: '你好'),
+              ],
+            ),
           )
           .drain<void>();
 
@@ -126,17 +124,16 @@ void main() {
 
       await client
           .streamCompletion(
-            modelConfig: _modelConfig(
-              apiUrl:
-                  'https://ark.cn-beijing.volces.com/api/v3/chat/completions',
-            ),
-            messages: const [
-              ChatCompletionRequestMessage(
-                role: ChatMessageRole.user,
-                content: '你好',
+            _request(
+              modelConfig: _modelConfig(
+                apiUrl:
+                    'https://ark.cn-beijing.volces.com/api/v3/chat/completions',
               ),
-            ],
-            reasoningEffort: ReasoningEffort.high,
+              messages: const [
+                ChatRequestMessage(role: ChatMessageRole.user, content: '你好'),
+              ],
+              reasoningEffort: ReasoningEffort.high,
+            ),
           )
           .drain<void>();
 
@@ -170,16 +167,15 @@ void main() {
 
       await client
           .streamCompletion(
-            modelConfig: _modelConfig(
-              apiUrl: 'https://api.example.com/v1/chat/completions',
-            ),
-            messages: const [
-              ChatCompletionRequestMessage(
-                role: ChatMessageRole.user,
-                content: '你好',
+            _request(
+              modelConfig: _modelConfig(
+                apiUrl: 'https://api.example.com/v1/chat/completions',
               ),
-            ],
-            reasoningEffort: ReasoningEffort.low,
+              messages: const [
+                ChatRequestMessage(role: ChatMessageRole.user, content: '你好'),
+              ],
+              reasoningEffort: ReasoningEffort.low,
+            ),
           )
           .drain<void>();
 
@@ -201,6 +197,19 @@ LlmModelConfig _modelConfig({
   modelName: 'test-model',
   supportsReasoning: true,
 );
+
+/// 从模型配置派生协议中立请求（测试局部适配旧命名参数调用形状）。
+ChatGenerationRequest _request({
+  required LlmModelConfig modelConfig,
+  required List<ChatRequestMessage> messages,
+  ReasoningEffort? reasoningEffort,
+}) {
+  return ChatGenerationRequest(
+    target: ChatGenerationRequestTarget.fromModelConfig(modelConfig),
+    messages: messages,
+    reasoningEffort: reasoningEffort,
+  );
+}
 
 class _FakeHttpClient extends http.BaseClient {
   _FakeHttpClient(this._handler);

@@ -11,7 +11,7 @@ import 'package:oh_my_llm/features/chat/application/chat_favorites_facade.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/application/chat_workspace_view_state.dart';
 import 'package:oh_my_llm/features/chat/application/composer_draft_controller.dart';
-import 'package:oh_my_llm/features/chat/application/ports/chat_completion_client.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
@@ -21,7 +21,7 @@ import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.da
 import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
 
 import '../../../helpers/controllable_chat_conversation_repository.dart';
-import '../../../helpers/fake_chat_completion_client.dart';
+import '../../../helpers/fake_chat_generation_client.dart';
 import '../../../helpers/fixtures.dart';
 
 /// 最小必填字段的空白会话（TestFixtures 未提供 conversation 工厂）。
@@ -306,7 +306,7 @@ void main() {
   group('chatWorkspaceReadModelProvider', () {
     late AppDatabase database;
     late ControllableChatConversationRepository repository;
-    late FakeChatCompletionClient fakeClient;
+    late FakeChatGenerationClient fakeClient;
     late ProviderContainer container;
 
     setUp(() async {
@@ -334,14 +334,14 @@ void main() {
       });
       database = AppDatabase.inMemory();
       repository = ControllableChatConversationRepository(database);
-      fakeClient = FakeChatCompletionClient();
+      fakeClient = FakeChatGenerationClient();
       container = ProviderContainer(
         overrides: [
           appDatabaseProvider.overrideWithValue(database),
           sharedPreferencesProvider.overrideWithValue(
             await SharedPreferences.getInstance(),
           ),
-          chatCompletionClientProvider.overrideWithValue(fakeClient),
+          chatGenerationClientProvider.overrideWithValue(fakeClient),
           chatConversationRepositoryProvider.overrideWithValue(repository),
           // read-model 依赖收藏 facade 快照，组合层未挂载时默认实现抛
           // StateError，此处注入空快照。

@@ -10,7 +10,7 @@ import 'package:oh_my_llm/core/persistence/versioned_json_storage.dart';
 import 'package:oh_my_llm/features/chat/application/chat_composer_command.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/application/composer_draft_controller.dart';
-import 'package:oh_my_llm/features/chat/application/ports/chat_completion_client.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
@@ -22,7 +22,7 @@ import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.da
 import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
 
 import '../../../helpers/controllable_chat_conversation_repository.dart';
-import '../../../helpers/fake_chat_completion_client.dart';
+import '../../../helpers/fake_chat_generation_client.dart';
 
 /// 标记「未显式传模型」的哨兵，区分「不传默认解析」与「显式传 null（无模型）」。
 const _useDefaultModel = Object();
@@ -32,7 +32,7 @@ const _useDefaultModel = Object();
 void main() {
   late AppDatabase database;
   late ControllableChatConversationRepository repository;
-  late FakeChatCompletionClient fakeClient;
+  late FakeChatGenerationClient fakeClient;
   late ProviderContainer container;
 
   setUp(() async {
@@ -83,14 +83,14 @@ void main() {
     });
     database = AppDatabase.inMemory();
     repository = ControllableChatConversationRepository(database);
-    fakeClient = FakeChatCompletionClient();
+    fakeClient = FakeChatGenerationClient();
     container = ProviderContainer(
       overrides: [
         appDatabaseProvider.overrideWithValue(database),
         sharedPreferencesProvider.overrideWithValue(
           await SharedPreferences.getInstance(),
         ),
-        chatCompletionClientProvider.overrideWithValue(fakeClient),
+        chatGenerationClientProvider.overrideWithValue(fakeClient),
         chatConversationRepositoryProvider.overrideWithValue(repository),
       ],
     );

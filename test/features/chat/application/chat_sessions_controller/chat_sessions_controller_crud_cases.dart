@@ -6,11 +6,11 @@ import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
-import 'package:oh_my_llm/features/chat/application/ports/chat_completion_client.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/data/sqlite_chat_conversation_repository.dart';
 
-import '../../../../helpers/fake_chat_completion_client.dart';
+import '../../../../helpers/fake_chat_generation_client.dart';
 import 'chat_sessions_controller_test_helpers.dart';
 
 /// 会话 CRUD、preferences、historyRevision 与 emptyReplyAssistantId 边界契约。
@@ -18,7 +18,7 @@ void registerChatSessionsControllerCrudCases() {
   late ControllerTestHarness harness;
   late AppDatabase database;
   late SharedPreferences preferences;
-  late FakeChatCompletionClient fakeClient;
+  late FakeChatGenerationClient fakeClient;
   late ProviderContainer container;
 
   setUp(() async {
@@ -52,8 +52,8 @@ void registerChatSessionsControllerCrudCases() {
       overrides: [
         appDatabaseProvider.overrideWithValue(database),
         sharedPreferencesProvider.overrideWithValue(preferences),
-        chatCompletionClientProvider.overrideWithValue(
-          FakeChatCompletionClient(),
+        chatGenerationClientProvider.overrideWithValue(
+          FakeChatGenerationClient(),
         ),
         chatConversationRepositoryProvider.overrideWithValue(
           SqliteChatConversationRepository(database),

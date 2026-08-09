@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/chat/application/chat_generation_lifecycle.dart';
-import 'package:oh_my_llm/features/chat/application/ports/chat_completion_client.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/reasoning_panel.dart';
@@ -18,7 +18,7 @@ void registerChatScreenStreamingTests() {
   testWidgets(
     'chat screen streams reply and sends the active request history',
     (tester) async {
-      final fakeClient = FakeChatCompletionClient();
+      final fakeClient = FakeChatGenerationClient();
       final controlled = fakeClient.enqueueControlledStream();
 
       await pumpChatScreen(tester, fakeClient: fakeClient);
@@ -36,13 +36,13 @@ void registerChatScreenStreamingTests() {
       // 内存库让 prepare 链路全为微任务，tap+pump 已驱动到监听，故 await 立即完成；
       // 内层 listened 无超时，外层 timeout 纯属冗余，挂死由 testWidgets 框架超时兜底。
       await controlled.listened;
-      controlled.add(const ChatCompletionChunk(contentDelta: '第一段 '));
+      controlled.add(const ChatGenerationChunk(contentDelta: '第一段 '));
       await tester.pump();
 
       expect(find.textContaining('第一段'), findsWidgets);
       expect(find.widgetWithText(FilledButton, '终止回答'), findsOneWidget);
 
-      controlled.add(const ChatCompletionChunk(contentDelta: '第二段'));
+      controlled.add(const ChatGenerationChunk(contentDelta: '第二段'));
       await controlled.close();
       await waitForChatGeneration(
         tester,
@@ -61,17 +61,18 @@ void registerChatScreenStreamingTests() {
         fakeClient.lastRequestMessages.single.content,
         '帮我总结一下这个仓库的结构和当前能力',
       );
-      expect(fakeClient.lastModelConfig?.displayName, equals('GPT-4.1'));
+      // 请求 target 命中活动模型的模型名（displayName 不在协议中立请求中）。
+      expect(fakeClient.lastRequest?.target.model, equals('gpt-4.1'));
     },
   );
 
   testWidgets('chat screen shows reasoning in a collapsible panel', (
     tester,
   ) async {
-    final fakeClient = FakeChatCompletionClient()
+    final fakeClient = FakeChatGenerationClient()
       ..enqueueDeltas([
-        const ChatCompletionChunk(reasoningDelta: '这是思考过程'),
-        const ChatCompletionChunk(contentDelta: '这是最终回复'),
+        const ChatGenerationChunk(reasoningDelta: '这是思考过程'),
+        const ChatGenerationChunk(contentDelta: '这是最终回复'),
       ]);
 
     await pumpChatScreen(tester, fakeClient: fakeClient);
@@ -107,10 +108,10 @@ void registerChatScreenStreamingTests() {
   testWidgets('chat screen copies raw message content without reasoning', (
     tester,
   ) async {
-    final fakeClient = FakeChatCompletionClient()
+    final fakeClient = FakeChatGenerationClient()
       ..enqueueDeltas([
-        const ChatCompletionChunk(reasoningDelta: '这是思考过程'),
-        const ChatCompletionChunk(contentDelta: '这是最终回复'),
+        const ChatGenerationChunk(reasoningDelta: '这是思考过程'),
+        const ChatGenerationChunk(contentDelta: '这是最终回复'),
       ]);
     String? clipboardText;
 
@@ -166,7 +167,7 @@ void registerChatScreenStreamingTests() {
   testWidgets('chat screen keeps user message markdown syntax as raw text', (
     tester,
   ) async {
-    final fakeClient = FakeChatCompletionClient()..enqueueChunks(['收到']);
+    final fakeClient = FakeChatGenerationClient()..enqueueChunks(['收到']);
     const userMessage = '**保留原样**\n- 这不是列表';
 
     await pumpChatScreen(tester, fakeClient: fakeClient);
@@ -189,8 +190,8 @@ void registerChatScreenStreamingTests() {
   testWidgets('chat screen shows a confirmation dialog before stopping', (
     tester,
   ) async {
-    final fakeClient = FakeChatCompletionClient();
-    final streamController = StreamController<ChatCompletionChunk>();
+    final fakeClient = FakeChatGenerationClient();
+    final streamController = StreamController<ChatGenerationChunk>();
     addTearDown(streamController.close);
     fakeClient.enqueueStream(streamController.stream);
 
@@ -199,7 +200,7 @@ void registerChatScreenStreamingTests() {
     await sendMessage(tester, '请开始长回复');
     await tester.pump();
 
-    streamController.add(const ChatCompletionChunk(contentDelta: '已生成部分'));
+    streamController.add(const ChatGenerationChunk(contentDelta: '已生成部分'));
     await tester.pump();
 
     await tester.tap(find.widgetWithText(FilledButton, '终止回答'));
@@ -216,7 +217,7 @@ void registerChatScreenStreamingTests() {
   testWidgets('mobile layout renders composer and sends message', (
     tester,
   ) async {
-    final fakeClient = FakeChatCompletionClient()..enqueueChunks(['移动端回复']);
+    final fakeClient = FakeChatGenerationClient()..enqueueChunks(['移动端回复']);
 
     await pumpChatScreen(
       tester,

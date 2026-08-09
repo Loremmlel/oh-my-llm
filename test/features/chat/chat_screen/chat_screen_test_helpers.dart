@@ -5,16 +5,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
-import 'package:oh_my_llm/features/chat/application/ports/chat_completion_client.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
 
 import '../../../helpers/async_test_signals.dart';
-import '../../../helpers/fake_chat_completion_client.dart';
+import '../../../helpers/fake_chat_generation_client.dart';
 import '../../../helpers/fixtures.dart';
 import '../../../helpers/test_harness.dart';
 import '../../../helpers/widget_test_animation.dart';
 
-export '../../../helpers/fake_chat_completion_client.dart';
+export '../../../helpers/fake_chat_generation_client.dart';
 
 /// 将默认种子数据写入 SQLite 数据库。
 ///
@@ -45,7 +45,7 @@ Future<SharedPreferences> seedDefaultTestData(AppDatabase database) async {
 /// 可通过 [database] 传入已种子数据的外部数据库实例。
 Future<AppDatabase> pumpChatScreen(
   WidgetTester tester, {
-  required FakeChatCompletionClient fakeClient,
+  required FakeChatGenerationClient fakeClient,
   SharedPreferences? preferences,
   AppDatabase? database,
   Size size = const Size(1440, 1600),
@@ -65,7 +65,7 @@ Future<AppDatabase> pumpChatScreen(
     database: db,
     viewportSize: size,
     extraOverrides: [
-      chatCompletionClientProvider.overrideWithValue(fakeClient),
+      chatGenerationClientProvider.overrideWithValue(fakeClient),
     ],
   );
 }
@@ -94,7 +94,7 @@ class ChatScreenMountScope {
 /// ChatScreen，验证内存态（如 composer draft）跨页面销毁重建仍能恢复。
 Future<ChatScreenMountScope> pumpChatScreenScope(
   WidgetTester tester, {
-  required FakeChatCompletionClient fakeClient,
+  required FakeChatGenerationClient fakeClient,
   SharedPreferences? preferences,
   AppDatabase? database,
   Size size = const Size(1440, 1600),
@@ -116,7 +116,7 @@ Future<ChatScreenMountScope> pumpChatScreenScope(
     ),
     viewportSize: size,
     extraOverrides: [
-      chatCompletionClientProvider.overrideWithValue(fakeClient),
+      chatGenerationClientProvider.overrideWithValue(fakeClient),
     ],
     database: db,
     preferences: prefs,

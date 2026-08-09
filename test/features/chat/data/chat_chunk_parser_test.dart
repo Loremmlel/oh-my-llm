@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/chat/data/chat_chunk_parser.dart';
-import 'package:oh_my_llm/features/chat/application/ports/chat_completion_client.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 
 void main() {
   // ── 辅助工厂 ─────────────────────────────────────────────────
@@ -9,7 +9,7 @@ void main() {
   const parser = ChatChunkParser();
 
   /// 解析单个 raw chunk，省去手写 splitter 的样板。
-  ChatCompletionChunk? parse(
+  ChatGenerationChunk? parse(
     String raw, {
     InlineReasoningTagSplitter? splitter,
   }) {
@@ -26,10 +26,10 @@ void main() {
       expect(parse('[DONE]'), isNull);
     });
 
-    test('非 JSON 字符串抛 ChatCompletionException', () {
+    test('非 JSON 字符串抛 ChatGenerationException', () {
       expect(
         () => parse('{not valid json}'),
-        throwsA(isA<ChatCompletionException>()),
+        throwsA(isA<ChatGenerationException>()),
       );
     });
 
@@ -49,7 +49,7 @@ void main() {
       expect(
         () => parse('{"error": "invalid api key"}'),
         throwsA(
-          isA<ChatCompletionException>().having(
+          isA<ChatGenerationException>().having(
             (e) => e.message,
             'message',
             'invalid api key',
@@ -62,7 +62,7 @@ void main() {
       expect(
         () => parse('{"error": {"message": "rate limit exceeded"}}'),
         throwsA(
-          isA<ChatCompletionException>().having(
+          isA<ChatGenerationException>().having(
             (e) => e.message,
             'message',
             'rate limit exceeded',

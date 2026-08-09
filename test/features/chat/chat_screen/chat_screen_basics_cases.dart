@@ -54,7 +54,7 @@ void registerChatScreenBasicsTests() {
       ],
     );
 
-    final fakeClient = FakeChatCompletionClient();
+    final fakeClient = FakeChatGenerationClient();
     await pumpChatScreen(
       tester,
       preferences: preferences,
@@ -68,7 +68,7 @@ void registerChatScreenBasicsTests() {
   testWidgets('chat screen renames conversation without controller errors', (
     tester,
   ) async {
-    final fakeClient = FakeChatCompletionClient();
+    final fakeClient = FakeChatGenerationClient();
 
     await pumpChatScreen(tester, fakeClient: fakeClient);
 
@@ -91,7 +91,7 @@ void registerChatScreenBasicsTests() {
   testWidgets('chat screen keeps custom title after sending a new reply', (
     tester,
   ) async {
-    final fakeClient = FakeChatCompletionClient()..enqueueChunks(['新的回答']);
+    final fakeClient = FakeChatGenerationClient()..enqueueChunks(['新的回答']);
 
     await pumpChatScreen(tester, fakeClient: fakeClient);
     final container = ProviderScope.containerOf(
@@ -127,7 +127,7 @@ void registerChatScreenBasicsTests() {
   testWidgets(
     'chat screen opens checkpoints dialog and shows current word count',
     (tester) async {
-      final fakeClient = FakeChatCompletionClient()..enqueueChunks(['已收到']);
+      final fakeClient = FakeChatGenerationClient()..enqueueChunks(['已收到']);
 
       await pumpChatScreen(tester, fakeClient: fakeClient);
       final container = ProviderScope.containerOf(
@@ -153,7 +153,7 @@ void registerChatScreenBasicsTests() {
   testWidgets(
     'chat screen checkpoints dialog shows current prompt template usage',
     (tester) async {
-      final fakeClient = FakeChatCompletionClient();
+      final fakeClient = FakeChatGenerationClient();
 
       await pumpChatScreen(tester, fakeClient: fakeClient);
 
@@ -178,7 +178,7 @@ void registerChatScreenBasicsTests() {
   testWidgets('chat screen checkpoints dialog renders markdown preview', (
     tester,
   ) async {
-    final fakeClient = FakeChatCompletionClient()
+    final fakeClient = FakeChatGenerationClient()
       ..enqueueChunks(['首轮回复'])
       ..enqueueChunks([
         '# 检查点标题\n\n'
@@ -244,7 +244,7 @@ void registerChatScreenBasicsTests() {
   testWidgets('chat screen can exclude a reply from future requests', (
     tester,
   ) async {
-    final fakeClient = FakeChatCompletionClient()
+    final fakeClient = FakeChatGenerationClient()
       ..enqueueChunks(['首轮回复'])
       ..enqueueChunks(['第二轮回复']);
 
@@ -284,7 +284,7 @@ void registerChatScreenBasicsTests() {
   testWidgets('chat screen can restore excluded messages from filter dialog', (
     tester,
   ) async {
-    final fakeClient = FakeChatCompletionClient()
+    final fakeClient = FakeChatGenerationClient()
       ..enqueueChunks(['首轮回复'])
       ..enqueueChunks(['第二轮回复']);
 
@@ -334,7 +334,7 @@ void registerChatScreenBasicsTests() {
   testWidgets(
     'message filter dialog uses the same word-count rule as checkpoints',
     (tester) async {
-      final fakeClient = FakeChatCompletionClient()
+      final fakeClient = FakeChatGenerationClient()
         ..enqueueChunks(['done 456']);
 
       await pumpChatScreen(tester, fakeClient: fakeClient);
@@ -360,7 +360,7 @@ void registerChatScreenBasicsTests() {
   testWidgets('chat screen opens compact secondary settings sheet on mobile', (
     tester,
   ) async {
-    final fakeClient = FakeChatCompletionClient();
+    final fakeClient = FakeChatGenerationClient();
 
     await pumpChatScreen(
       tester,
@@ -383,7 +383,7 @@ void registerChatScreenBasicsTests() {
   testWidgets(
     'chat screen compact settings sheet keeps stable height when switching effort',
     (tester) async {
-      final fakeClient = FakeChatCompletionClient();
+      final fakeClient = FakeChatGenerationClient();
 
       await pumpChatScreen(
         tester,
@@ -430,7 +430,7 @@ void registerChatScreenBasicsTests() {
   testWidgets('chat screen can collapse and expand the composer', (
     tester,
   ) async {
-    final fakeClient = FakeChatCompletionClient();
+    final fakeClient = FakeChatGenerationClient();
 
     await pumpChatScreen(tester, fakeClient: fakeClient);
 
@@ -460,7 +460,7 @@ void registerChatScreenBasicsTests() {
   testWidgets(
     'chat screen inserts body above template when 正文 placeholder is absent',
     (tester) async {
-      final fakeClient = FakeChatCompletionClient()..enqueueChunks(['已收到']);
+      final fakeClient = FakeChatGenerationClient()..enqueueChunks(['已收到']);
 
       await pumpChatScreen(tester, fakeClient: fakeClient);
 
@@ -509,7 +509,7 @@ void registerChatScreenBasicsTests() {
   testWidgets(
     'chat screen shows multiple template variable inputs on wide screens',
     (tester) async {
-      final fakeClient = FakeChatCompletionClient();
+      final fakeClient = FakeChatGenerationClient();
 
       await pumpChatScreen(tester, fakeClient: fakeClient);
 
@@ -570,7 +570,7 @@ void registerChatScreenBasicsTests() {
       ],
     );
 
-    final fakeClient = FakeChatCompletionClient()
+    final fakeClient = FakeChatGenerationClient()
       ..enqueueChunks(['第一次回复'])
       ..enqueueChunks(['第二次回复']);
 
@@ -614,16 +614,17 @@ void registerChatScreenBasicsTests() {
       description: '模型记忆用例第二轮生成完成',
     );
 
-    expect(fakeClient.requestedModels.map((config) => config.id).toList(), [
-      'model-new',
-      'model-new',
+    // 两次请求都命中记忆中的模型（target.model = 模型名）。
+    expect(fakeClient.requestedTargets.map((target) => target.model).toList(), [
+      'deepseek-v4-flash',
+      'deepseek-v4-flash',
     ]);
   });
 
   testWidgets('chat screen fills composer from fixed prompt sequence runner', (
     tester,
   ) async {
-    final fakeClient = FakeChatCompletionClient();
+    final fakeClient = FakeChatGenerationClient();
 
     await pumpChatScreen(tester, fakeClient: fakeClient);
 
@@ -643,7 +644,7 @@ void registerChatScreenBasicsTests() {
   testWidgets('chat screen sends fixed prompt sequence step and advances', (
     tester,
   ) async {
-    final fakeClient = FakeChatCompletionClient()..enqueueChunks(['已收到']);
+    final fakeClient = FakeChatGenerationClient()..enqueueChunks(['已收到']);
 
     await pumpChatScreen(tester, fakeClient: fakeClient);
     final container = ProviderScope.containerOf(
@@ -672,7 +673,7 @@ void registerChatScreenBasicsTests() {
   testWidgets('chat screen sends message with Ctrl+Enter shortcut', (
     tester,
   ) async {
-    final fakeClient = FakeChatCompletionClient()..enqueueChunks(['快捷键发送成功']);
+    final fakeClient = FakeChatGenerationClient()..enqueueChunks(['快捷键发送成功']);
 
     await pumpChatScreen(tester, fakeClient: fakeClient);
     final container = ProviderScope.containerOf(
@@ -701,7 +702,7 @@ void registerChatScreenBasicsTests() {
   testWidgets('chat screen scroll-to-bottom button returns to latest message', (
     tester,
   ) async {
-    final fakeClient = FakeChatCompletionClient();
+    final fakeClient = FakeChatGenerationClient();
     for (var index = 1; index <= 8; index += 1) {
       fakeClient.enqueueChunks(['第 $index 条回复：${'内容 ' * 20}']);
     }
@@ -745,7 +746,7 @@ void registerChatScreenBasicsTests() {
   testWidgets(
     'anchor rail highlights follow visible user message while scrolling',
     (tester) async {
-      final fakeClient = FakeChatCompletionClient();
+      final fakeClient = FakeChatGenerationClient();
       for (var index = 1; index <= 5; index += 1) {
         fakeClient.enqueueChunks(['第 $index 条回复：${'内容 ' * 20}']);
       }

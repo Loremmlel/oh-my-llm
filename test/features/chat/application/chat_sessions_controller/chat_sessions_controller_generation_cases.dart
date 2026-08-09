@@ -2,19 +2,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
-import 'package:oh_my_llm/features/chat/application/ports/chat_completion_client.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/domain/chat_error_messages.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/settings/application/output_processing_settings_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/output_processing_settings.dart';
 
-import '../../../../helpers/fake_chat_completion_client.dart';
+import '../../../../helpers/fake_chat_generation_client.dart';
 import 'chat_sessions_controller_test_helpers.dart';
 
 /// 生成成功 / 空回复 / 错误 / finish reason / 输出处理与流式错误格式化契约。
 void registerChatSessionsControllerGenerationCases() {
   late ControllerTestHarness harness;
-  late FakeChatCompletionClient fakeClient;
+  late FakeChatGenerationClient fakeClient;
   late ProviderContainer container;
 
   setUp(() async {
@@ -124,7 +124,7 @@ void registerChatSessionsControllerGenerationCases() {
   // ── 错误与空回复 ────────────────────────────────────────────────────────────
 
   test('sendMessage 错误时设置 errorMessage 并清除 isStreaming', () async {
-    fakeClient.enqueueError(ChatCompletionException('API 请求失败'));
+    fakeClient.enqueueError(ChatGenerationException('API 请求失败'));
     await sendMsg('触发错误');
 
     final state = container.read(chatSessionsProvider);
@@ -133,7 +133,7 @@ void registerChatSessionsControllerGenerationCases() {
   });
 
   test('sendMessage 错误且无部分内容时保留空白占位节点', () async {
-    fakeClient.enqueueError(ChatCompletionException('请求失败'));
+    fakeClient.enqueueError(ChatGenerationException('请求失败'));
     await sendMsg('触发错误');
 
     // 空流失败后空白 assistant 节点保留在树中，用户消息 + 占位节点共 2 条
@@ -151,13 +151,13 @@ void registerChatSessionsControllerGenerationCases() {
 
     final sendFuture = sendMsg('先思考再失败');
     await controlled.listened;
-    controlled.add(const ChatCompletionChunk(reasoningDelta: '思考中'));
+    controlled.add(const ChatGenerationChunk(reasoningDelta: '思考中'));
     // 等推理增量投影到状态再投递错误：错误与增量按序消费。
     await harness.waitForState(
       (s) => s.streamingReply?.reasoningContent == '思考中',
       description: '推理增量达到期望片段',
     );
-    controlled.addError(const ChatCompletionException('请求失败'));
+    controlled.addError(const ChatGenerationException('请求失败'));
     await sendFuture;
 
     final state = container.read(chatSessionsProvider);
@@ -207,7 +207,7 @@ void registerChatSessionsControllerGenerationCases() {
   });
 
   test('流式错误且空内容时保留空占位节点并设置内联错误', () async {
-    fakeClient.enqueueError(ChatCompletionException('模拟流式错误'));
+    fakeClient.enqueueError(ChatGenerationException('模拟流式错误'));
 
     await sendMsg('触发错误');
 
@@ -228,7 +228,7 @@ void registerChatSessionsControllerGenerationCases() {
   });
 
   test('handleStreamingFailure 空内容不设 emptyReplyAssistantId', () async {
-    fakeClient.enqueueError(ChatCompletionException('模拟流式错误'));
+    fakeClient.enqueueError(ChatGenerationException('模拟流式错误'));
     await sendMsg('触发错误');
 
     final state = container.read(chatSessionsProvider);
@@ -241,7 +241,7 @@ void registerChatSessionsControllerGenerationCases() {
 
   test('空回复时 errorMessageAssistantId 不会被清除', () async {
     // 先模拟错误 -> errorMessageAssistantId 设置，emptyReplyAssistantId 为空
-    fakeClient.enqueueError(ChatCompletionException('模拟错误'));
+    fakeClient.enqueueError(ChatGenerationException('模拟错误'));
     await sendMsg('触发错误');
 
     var state = container.read(chatSessionsProvider);
@@ -275,7 +275,7 @@ void registerChatSessionsControllerGenerationCases() {
 
   test('HTTP 429 错误显示为错误消息而非空回复', () async {
     fakeClient.enqueueError(
-      ChatCompletionException('请求失败（429）：rate limit exceeded'),
+      ChatGenerationException('请求失败（429）：rate limit exceeded'),
     );
     await sendMsg('触发 429 错误');
 
@@ -298,10 +298,10 @@ void registerChatSessionsControllerGenerationCases() {
   // ── formatStreamingError ────────────────────────────────────────────────────
 
   group('formatStreamingError', () {
-    test('ChatCompletionException 展开状态码与响应体', () {
+    test('ChatGenerationException 展开状态码与响应体', () {
       final controller = container.read(chatSessionsProvider.notifier);
       final message = controller.formatStreamingError(
-        const ChatCompletionException(
+        const ChatGenerationException(
           '请求失败',
           statusCode: 429,
           responseBody: '{"error":"rate limit"}',
@@ -318,7 +318,7 @@ void registerChatSessionsControllerGenerationCases() {
       final controller = container.read(chatSessionsProvider.notifier);
       final hugeBody = 'x' * 5000;
       final message = controller.formatStreamingError(
-        ChatCompletionException(
+        ChatGenerationException(
           '请求失败',
           statusCode: 500,
           responseBody: hugeBody,
@@ -333,7 +333,7 @@ void registerChatSessionsControllerGenerationCases() {
     test('携带源异常时展开 cause', () {
       final controller = container.read(chatSessionsProvider.notifier);
       final message = controller.formatStreamingError(
-        ChatCompletionException(
+        ChatGenerationException(
           '连接失败',
           cause: const SocketExceptionStub('连接被重置'),
           causeStackTrace: StackTrace.current,
@@ -345,7 +345,7 @@ void registerChatSessionsControllerGenerationCases() {
       expect(message, contains('连接被重置'));
     });
 
-    test('非 ChatCompletionException 降级为 toString + 堆栈', () {
+    test('非 ChatGenerationException 降级为 toString + 堆栈', () {
       final controller = container.read(chatSessionsProvider.notifier);
       final message = controller.formatStreamingError(
         StateError('未知错误'),
@@ -363,8 +363,8 @@ void registerChatSessionsControllerGenerationCases() {
     test('正常完成时 finishReason 写入消息', () async {
       // 模拟 chunk 序列：content chunk（无 finishReason）-> 空 chunk 带 finishReason
       fakeClient.enqueueDeltas(const [
-        ChatCompletionChunk(contentDelta: '你好'),
-        ChatCompletionChunk(finishReason: 'stop'),
+        ChatGenerationChunk(contentDelta: '你好'),
+        ChatGenerationChunk(finishReason: 'stop'),
       ]);
       await sendMsg('测试 finishReason');
 
@@ -378,7 +378,7 @@ void registerChatSessionsControllerGenerationCases() {
     test('空回复时 finishReason 仍保留', () async {
       // 空内容 chunk 带 finishReason，走 emptyReply 路径
       fakeClient.enqueueDeltas(const [
-        ChatCompletionChunk(finishReason: 'stop'),
+        ChatGenerationChunk(finishReason: 'stop'),
       ]);
       await sendMsg('空回复带 finishReason');
 
@@ -399,7 +399,7 @@ void registerChatSessionsControllerGenerationCases() {
       await controlled.listened;
       // 发送带 finishReason 的 chunk，随后中断流式
       controlled.add(
-        const ChatCompletionChunk(contentDelta: '部分内容', finishReason: 'stop'),
+        const ChatGenerationChunk(contentDelta: '部分内容', finishReason: 'stop'),
       );
       // 等 chunk 消费完成（run 的累积缓冲含 finishReason）再 stop，
       // 保证 stop 快照保留 finishReason。

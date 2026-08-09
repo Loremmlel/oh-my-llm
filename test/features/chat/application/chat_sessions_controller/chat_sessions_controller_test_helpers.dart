@@ -12,7 +12,7 @@ import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/core/persistence/versioned_json_storage.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
-import 'package:oh_my_llm/features/chat/application/ports/chat_completion_client.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/data/openai_compatible_chat_client.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dart';
@@ -23,7 +23,7 @@ import 'package:oh_my_llm/features/settings/domain/models/memory_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
 
 import '../../../../helpers/async_test_signals.dart';
-import '../../../../helpers/fake_chat_completion_client.dart';
+import '../../../../helpers/fake_chat_generation_client.dart';
 
 /// 测试用模型配置，与 SharedPreferences 中的 id 一致，确保 _resolveModelConfig 能找到它。
 final testModel = LlmModelConfig(
@@ -50,7 +50,7 @@ final memoryPrompt = MemoryPrompt(
 class ControllerTestHarness {
   late AppDatabase database;
   late SharedPreferences preferences;
-  late FakeChatCompletionClient fakeClient;
+  late FakeChatGenerationClient fakeClient;
   late ProviderContainer container;
 
   Future<void> init() async {
@@ -107,7 +107,7 @@ class ControllerTestHarness {
         updatedAt: DateTime(2026, 4, 30, 0, 1),
       ),
     ]);
-    fakeClient = FakeChatCompletionClient();
+    fakeClient = FakeChatGenerationClient();
     container = ProviderContainer(
       overrides: [
         appDatabaseProvider.overrideWithValue(database),
@@ -116,9 +116,9 @@ class ControllerTestHarness {
         // Riverpod 禁止同一容器内对同一 provider 重复 override。
         ...appCompositionOverrides(
           useInMemorySyncSecureStore: true,
-          bindChatCompletionClient: false,
+          bindChatGenerationClient: false,
         ),
-        chatCompletionClientProvider.overrideWithValue(fakeClient),
+        chatGenerationClientProvider.overrideWithValue(fakeClient),
       ],
     );
   }
@@ -162,17 +162,19 @@ class ControllerTestHarness {
   /// async StreamController 连续 addError + close。error 与 done 经 streamCompletion
   /// 的 async* 生成器投递，时序与生产环境一致。手工构造的 StreamController 或
   /// `Stream.error` 复现不出此 bug：事件不经 async* 生成器调度。
-  Stream<ChatCompletionChunk> realIdleTimeoutStream({
+  Stream<ChatGenerationChunk> realIdleTimeoutStream({
     Duration idleTimeout = const Duration(milliseconds: 50),
   }) {
     final httpClient = _IdleTimeoutHttpClient();
     final client = OpenAiCompatibleChatClient(httpClient: httpClient);
     return client.streamCompletion(
-      modelConfig: testModel,
-      messages: const [
-        ChatCompletionRequestMessage(role: ChatMessageRole.user, content: 'hi'),
-      ],
-      streamIdleTimeout: idleTimeout,
+      ChatGenerationRequest(
+        target: ChatGenerationRequestTarget.fromModelConfig(testModel),
+        messages: const [
+          ChatRequestMessage(role: ChatMessageRole.user, content: 'hi'),
+        ],
+        streamIdleTimeout: idleTimeout,
+      ),
     );
   }
 }

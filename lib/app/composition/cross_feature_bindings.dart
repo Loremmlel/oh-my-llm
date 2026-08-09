@@ -10,7 +10,7 @@ import 'package:oh_my_llm/core/logging/app_network_logger_provider.dart';
 import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/features/chat/application/chat_favorites_facade.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
-import 'package:oh_my_llm/features/chat/application/ports/chat_completion_client.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/data/background_chat_repository.dart';
 import 'package:oh_my_llm/features/chat/data/openai_compatible_chat_client.dart';
@@ -49,15 +49,15 @@ import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 ///
 /// 此处是 Sync transport、Settings snapshot 及媒体服务路由唯一的生产绑定点；
 /// 外层可在该列表之后覆盖其余 port 以注入测试 fake；chat 两 port
-/// （[chatCompletionClientProvider] / [chatConversationRepositoryProvider]）
+/// （[chatGenerationClientProvider] / [chatConversationRepositoryProvider]）
 /// 已被本函数绑定，需先以对应 bind 开关排除生产绑定后再覆盖。
 ///
-/// [bindChatCompletionClient] / [bindChatConversationRepository]：测试 harness
+/// [bindChatGenerationClient] / [bindChatConversationRepository]：测试 harness
 /// 需要以 fake 覆盖对应 port 时传 false——Riverpod 不允许同一容器内重复
 /// override 同一 provider，生产绑定与测试 fake 必须由调用方二选一。
 List<dynamic> appCompositionOverrides({
   bool useInMemorySyncSecureStore = false,
-  bool bindChatCompletionClient = true,
+  bool bindChatGenerationClient = true,
   bool bindChatConversationRepository = true,
 }) {
   return [
@@ -116,9 +116,9 @@ List<dynamic> appCompositionOverrides({
     favoriteSourceConversationCommandProvider.overrideWith(
       (ref) => _CompositionFavoriteSourceConversationCommand(ref),
     ),
-    if (bindChatCompletionClient)
+    if (bindChatGenerationClient)
       // Chat completion：生产环境绑定 OpenAI 兼容 HTTP 流式客户端。
-      chatCompletionClientProvider.overrideWith(
+      chatGenerationClientProvider.overrideWith(
         (ref) => OpenAiCompatibleChatClient(
           httpClient: ref.read(httpClientProvider),
           logger: ref.watch(appNetworkLoggerProvider),

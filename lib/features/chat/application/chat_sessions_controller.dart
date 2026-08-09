@@ -22,7 +22,7 @@ import '../domain/models/chat_conversation_summary.dart';
 import '../domain/chat_error_messages.dart';
 import '../domain/chat_message_parent.dart';
 import '../domain/models/chat_message.dart';
-import 'ports/chat_completion_client.dart';
+import 'ports/chat_generation_client.dart';
 import 'ports/chat_conversation_repository.dart';
 
 export 'chat_sessions_state.dart';
@@ -135,14 +135,14 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
   ChatConversationRepository get repository =>
       ref.read(chatConversationRepositoryProvider);
 
-  ChatCompletionClient get chatClient => ref.read(chatCompletionClientProvider);
+  ChatGenerationClient get chatClient => ref.read(chatGenerationClientProvider);
 
   // ── ChatGenerationCoordinator 桥接 ────────────────────────────────────────
 
   ChatGenerationCoordinator? _generationCoordinator;
 
   /// 懒初始化协调器：首次发送时才读取 chatClient，避免 build() 阶段触发
-  /// chatCompletionClientProvider（连带 appNetworkLogger）在未发送消息的
+  /// chatGenerationClientProvider（连带 appNetworkLogger）在未发送消息的
   /// 场景（如 widget bootstrap）下产生副作用。
   ChatGenerationCoordinator get _coordinator {
     _generationCoordinator ??= ChatGenerationCoordinator(client: chatClient);
@@ -507,7 +507,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     String? sourceCheckpointId,
   }) async {
     if (_isBusy) {
-      throw const ChatCompletionException(ChatErrorMessages.busy);
+      throw const ChatGenerationException(ChatErrorMessages.busy);
     }
 
     final currentConversation = state.activeConversation;
@@ -518,7 +518,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       conversationMessages: currentConversation.messages,
     );
     if (sourceCheckpointId != null && sourceContext.checkpointChain.isEmpty) {
-      throw const ChatCompletionException(
+      throw const ChatGenerationException(
         ChatErrorMessages.incompatibleCheckpoint,
       );
     }
@@ -527,7 +527,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         ? currentConversation.messages
         : sourceContext.tailMessages;
     if (summaryMessages.isEmpty) {
-      throw const ChatCompletionException(
+      throw const ChatGenerationException(
         ChatErrorMessages.noCheckpointContext,
       );
     }
@@ -539,23 +539,26 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     );
     try {
       final result = await chatClient.complete(
-        modelConfig: modelConfig,
-        messages: buildCheckpointSummaryMessages(
-          memoryPrompt: memoryPrompt,
-          conversationMessages: summaryMessages,
-          checkpointChain: sourceContext.checkpointChain,
-          presetPrompt: presetPrompt,
-          filter: ExcludeByIdMessageFilter(
-            currentConversation.excludedMessageIds.toSet(),
+        ChatGenerationRequest(
+          // 过渡约定：从 modelConfig 派生协议中立 target。
+          target: ChatGenerationRequestTarget.fromModelConfig(modelConfig),
+          messages: buildCheckpointSummaryMessages(
+            memoryPrompt: memoryPrompt,
+            conversationMessages: summaryMessages,
+            checkpointChain: sourceContext.checkpointChain,
+            presetPrompt: presetPrompt,
+            filter: ExcludeByIdMessageFilter(
+              currentConversation.excludedMessageIds.toSet(),
+            ),
           ),
+          reasoningEffort: reasoningEnabled && modelConfig.supportsReasoning
+              ? reasoningEffort
+              : null,
         ),
-        reasoningEffort: reasoningEnabled && modelConfig.supportsReasoning
-            ? reasoningEffort
-            : null,
       );
       final checkpointContent = result.content.trim();
       if (checkpointContent.isEmpty) {
-        throw const ChatCompletionException('模型没有返回可用的检查点内容。');
+        throw const ChatGenerationException('模型没有返回可用的检查点内容。');
       }
 
       final now = DateTime.now();
@@ -734,7 +737,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     if (pendingError != null) {
       return ChatPrepareFailure(pendingError);
     }
-    final request = ChatGenerationRequest(
+    final request = ChatGenerationLifecycleRequest(
       conversationId: streamingConversation.id,
       assistantMessageId: assistantMessage.id,
       parentMessageId: command.parentMessageId,

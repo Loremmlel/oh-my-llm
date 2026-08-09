@@ -1,7 +1,7 @@
 import '../domain/models/chat_conversation.dart';
 import 'chat_generation_contract.dart';
 import 'chat_generation_run.dart';
-import 'ports/chat_completion_client.dart';
+import 'ports/chat_generation_client.dart';
 
 /// generation 时序的唯一 owner（不变量 1）。
 ///
@@ -12,10 +12,10 @@ import 'ports/chat_completion_client.dart';
 /// coordinator 不操作 Riverpod、消息树或 repository--那些由 [ChatGenerationHost]
 ///（controller）负责。coordinator 只创建 run、转发 stop、在 dispose 时取消。
 class ChatGenerationCoordinator {
-  ChatGenerationCoordinator({required ChatCompletionClient client})
+  ChatGenerationCoordinator({required ChatGenerationClient client})
     : _client = client;
 
-  final ChatCompletionClient _client;
+  final ChatGenerationClient _client;
 
   ChatGenerationRun? _currentRun;
   bool _disposed = false;

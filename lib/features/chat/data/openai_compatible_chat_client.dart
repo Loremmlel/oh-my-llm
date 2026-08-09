@@ -3,15 +3,18 @@ import 'dart:async';
 
 import 'package:http/http.dart' as http;
 
+import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/core/logging/network_logger.dart';
-import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
-import '../application/ports/chat_completion_client.dart';
+import '../application/ports/chat_generation_client.dart';
 import '../domain/models/chat_message.dart';
 import 'chat_chunk_parser.dart';
 import 'vendor_payload_adapters.dart';
 
 /// 直接使用 HTTP 请求读取 SSE 流，并把返回内容拆成补全增量。
-class OpenAiCompatibleChatClient implements ChatCompletionClient {
+///
+/// OpenAI 兼容协议客户端：从 [ChatGenerationRequest.target] 取回
+/// endpoint/apiKey/model，继续走原请求编码与解析逻辑。
+class OpenAiCompatibleChatClient implements ChatGenerationClient {
   OpenAiCompatibleChatClient({
     required http.Client httpClient,
     NetworkLogger logger = const NoopNetworkLogger(),
@@ -31,16 +34,16 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
 
   @override
   /// 发送流式请求并把 SSE 事件转换为内容与推理增量。
-  Stream<ChatCompletionChunk> streamCompletion({
-    required LlmModelConfig modelConfig,
-    required List<ChatCompletionRequestMessage> messages,
-    ReasoningEffort? reasoningEffort,
-    Duration? streamIdleTimeout,
-  }) async* {
+  Stream<ChatGenerationChunk> streamCompletion(
+    ChatGenerationRequest request,
+  ) async* {
     final requestContext = _buildRequestContext(
-      modelConfig: modelConfig,
-      messages: messages,
-      reasoningEffort: reasoningEffort,
+      apiUrl: request.target.endpoint,
+      modelName: request.target.model,
+      apiKey: request.target.apiKey,
+      protocol: request.target.protocol,
+      messages: request.messages,
+      reasoningEffort: request.reasoningEffort,
       stream: true,
     );
     final response = await _sendRequest(requestContext);
@@ -51,6 +54,7 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
 
     // 超时包装：仅在 data: 行到达时重置计时器，
     // 避免服务器发送 SSE 注释行（keepalive）导致超时失效。
+    final streamIdleTimeout = request.streamIdleTimeout;
     final effectiveLineStream = streamIdleTimeout != null
         ? _applySseIdleTimeout(
             lineStream,
@@ -145,8 +149,10 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
     }
 
     if (!hadContent) {
-      throw ChatCompletionException(
+      throw ChatGenerationException(
         '请求未返回有效内容（HTTP ${response.statusCode}）',
+        protocol: requestContext.protocol,
+        uri: requestContext.uri,
         statusCode: response.statusCode,
         responseBody: rawSseData.isEmpty ? null : rawSseData.join('\n'),
       );
@@ -154,15 +160,14 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
   }
 
   @override
-  Future<ChatCompletionResult> complete({
-    required LlmModelConfig modelConfig,
-    required List<ChatCompletionRequestMessage> messages,
-    ReasoningEffort? reasoningEffort,
-  }) async {
+  Future<ChatGenerationResult> complete(ChatGenerationRequest request) async {
     final requestContext = _buildRequestContext(
-      modelConfig: modelConfig,
-      messages: messages,
-      reasoningEffort: reasoningEffort,
+      apiUrl: request.target.endpoint,
+      modelName: request.target.model,
+      apiKey: request.target.apiKey,
+      protocol: request.target.protocol,
+      messages: request.messages,
+      reasoningEffort: request.reasoningEffort,
       stream: false,
     );
     final response = await _sendRequest(requestContext);
@@ -179,13 +184,15 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
       inlineReasoningSplitter: InlineReasoningTagSplitter(),
     );
     if (parsed == null || parsed.isEmpty) {
-      throw ChatCompletionException(
+      throw ChatGenerationException(
         '请求未返回有效内容（HTTP ${response.statusCode}）',
+        protocol: requestContext.protocol,
+        uri: requestContext.uri,
         statusCode: response.statusCode,
         responseBody: responseBody.trim().isEmpty ? null : responseBody.trim(),
       );
     }
-    return ChatCompletionResult(
+    return ChatGenerationResult(
       content: parsed.contentDelta,
       reasoningContent: parsed.reasoningDelta,
       finishReason: parsed.finishReason,
@@ -227,26 +234,33 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
   }
 
   _OpenAiRequestContext _buildRequestContext({
-    required LlmModelConfig modelConfig,
-    required List<ChatCompletionRequestMessage> messages,
+    required String apiUrl,
+    required String modelName,
+    required String apiKey,
+    required LlmApiProtocol protocol,
+    required List<ChatRequestMessage> messages,
     required bool stream,
     ReasoningEffort? reasoningEffort,
   }) {
     Uri uri;
     try {
-      uri = Uri.parse(modelConfig.apiUrl);
+      uri = Uri.parse(apiUrl);
     } on FormatException catch (e) {
-      throw ChatCompletionException('API URL 格式无效：${e.message}');
+      throw ChatGenerationException(
+        'API URL 格式无效：${e.message}',
+        protocol: protocol,
+      );
     }
     if (uri.scheme != 'http' && uri.scheme != 'https') {
-      throw ChatCompletionException(
-        'API URL 协议不支持（需要 http/https）：${modelConfig.apiUrl}',
+      throw ChatGenerationException(
+        'API URL 协议不支持（需要 http/https）：$apiUrl',
+        protocol: protocol,
       );
     }
 
     final patch = _adapters.resolve(uri.host).buildPatch(reasoningEffort);
     final payload = <String, Object>{
-      'model': modelConfig.modelName,
+      'model': modelName,
       'stream': stream,
       'messages': messages.map((message) => message.toJson()).toList(),
       if (reasoningEffort != null && !patch.skipStandardReasoningEffort)
@@ -263,7 +277,7 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
       ..headers.addAll({
         'Content-Type': 'application/json',
         'Accept': stream ? 'text/event-stream' : 'application/json',
-        'Authorization': 'Bearer ${modelConfig.apiKey}',
+        'Authorization': 'Bearer $apiKey',
       })
       ..body = jsonEncode(payload);
 
@@ -272,6 +286,7 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
 
     return _OpenAiRequestContext(
       uri: uri,
+      protocol: protocol,
       payload: payload,
       request: request,
       extraHeaders: extraHeaders,
@@ -305,8 +320,10 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
         ),
       );
       // 包装源异常并保留原始堆栈，供上层展示完整诊断信息。
-      throw ChatCompletionException(
+      throw ChatGenerationException(
         error.toString(),
+        protocol: context.protocol,
+        uri: context.uri,
         cause: error,
         causeStackTrace: stackTrace,
       );
@@ -330,8 +347,10 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
               'HTTP ${response.statusCode}: ${trimmedBody.isEmpty ? "服务端未返回错误详情" : trimmedBody}',
         ),
       );
-      throw ChatCompletionException(
+      throw ChatGenerationException(
         '请求失败（${response.statusCode}）：${trimmedBody.isEmpty ? "服务端未返回错误详情" : trimmedBody}',
+        protocol: context.protocol,
+        uri: context.uri,
         statusCode: response.statusCode,
         responseBody: trimmedBody.isEmpty ? null : trimmedBody,
       );
@@ -348,7 +367,7 @@ class OpenAiCompatibleChatClient implements ChatCompletionClient {
 Stream<String> _applySseIdleTimeout(
   Stream<String> lineStream,
   Duration timeout, {
-  required void Function(ChatCompletionException) onTimeout,
+  required void Function(ChatGenerationException) onTimeout,
 }) {
   late StreamController<String> controller;
   late StreamSubscription<String> subscription;
@@ -360,7 +379,7 @@ Stream<String> _applySseIdleTimeout(
       'SSE stream idle timeout after ${timeout.inSeconds}s',
       timeout,
     );
-    final exception = ChatCompletionException(
+    final exception = ChatGenerationException(
       '服务器在 ${timeout.inSeconds} 秒内没有响应，连接超时',
       cause: cause,
     );
@@ -415,12 +434,14 @@ Stream<String> _applySseIdleTimeout(
 class _OpenAiRequestContext {
   const _OpenAiRequestContext({
     required this.uri,
+    required this.protocol,
     required this.payload,
     required this.request,
     this.extraHeaders = const {},
   });
 
   final Uri uri;
+  final LlmApiProtocol protocol;
   final Map<String, Object> payload;
   final http.Request request;
   final Map<String, String> extraHeaders;

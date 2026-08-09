@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/chat/application/chat_generation_lifecycle.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
-import 'package:oh_my_llm/features/chat/application/ports/chat_completion_client.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/domain/chat_error_messages.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
@@ -17,7 +17,7 @@ void registerChatScreenBranchingTests() {
   testWidgets(
     'chat screen edits user message and regenerates following replies',
     (tester) async {
-      final fakeClient = FakeChatCompletionClient()
+      final fakeClient = FakeChatGenerationClient()
         ..enqueueChunks(['原始回复一'])
         ..enqueueChunks(['原始回复二'])
         ..enqueueChunks(['原始回复三']);
@@ -89,7 +89,7 @@ void registerChatScreenBranchingTests() {
   );
 
   testWidgets('chat screen retries latest assistant reply', (tester) async {
-    final fakeClient = FakeChatCompletionClient()
+    final fakeClient = FakeChatGenerationClient()
       ..enqueueChunks(['原始回复'])
       ..enqueueChunks(['重试后的回复']);
 
@@ -123,7 +123,7 @@ void registerChatScreenBranchingTests() {
   });
 
   testWidgets('retry keeps assistant sibling versions in tree', (tester) async {
-    final fakeClient = FakeChatCompletionClient()
+    final fakeClient = FakeChatGenerationClient()
       ..enqueueChunks(['首次回复'])
       ..enqueueChunks(['重试后回复']);
 
@@ -181,8 +181,8 @@ void registerChatScreenBranchingTests() {
   testWidgets(
     'failed request shows inline error bubble and retries without 2/2',
     (tester) async {
-      final fakeClient = FakeChatCompletionClient()
-        ..enqueueError(ChatCompletionException('HTTP 503: unavailable'))
+      final fakeClient = FakeChatGenerationClient()
+        ..enqueueError(ChatGenerationException('HTTP 503: unavailable'))
         ..enqueueChunks(['重试恢复成功']);
 
       await pumpChatScreen(tester, fakeClient: fakeClient);
@@ -217,7 +217,7 @@ void registerChatScreenBranchingTests() {
   testWidgets('editing user message creates switchable root branches', (
     tester,
   ) async {
-    final fakeClient = FakeChatCompletionClient()
+    final fakeClient = FakeChatGenerationClient()
       ..enqueueChunks(['原始回复一'])
       ..enqueueChunks(['原始回复二'])
       ..enqueueChunks(['编辑后回复一']);
@@ -285,7 +285,7 @@ void registerChatScreenBranchingTests() {
 
   /// 创建一个有 2 个版本 assistant 回复的对话供删除测试使用
   Future<void> setupDeleteScenario(WidgetTester tester) async {
-    final fakeClient = FakeChatCompletionClient()
+    final fakeClient = FakeChatGenerationClient()
       ..enqueueChunks(['首次回复'])
       ..enqueueChunks(['重试后回复']);
 
@@ -347,7 +347,7 @@ void registerChatScreenBranchingTests() {
   testWidgets('空回复时渲染 ChatInlineEmptyReplyCard 而非 ChatInlineErrorCard', (
     tester,
   ) async {
-    final fakeClient = FakeChatCompletionClient()
+    final fakeClient = FakeChatGenerationClient()
       // 空字符串 chunk 触发空回复路径（anyChunkYielded=true + content 为空）
       ..enqueueChunks(['']);
 
@@ -370,8 +370,8 @@ void registerChatScreenBranchingTests() {
   testWidgets('真实错误时渲染 ChatInlineErrorCard 而非 ChatInlineEmptyReplyCard', (
     tester,
   ) async {
-    final fakeClient = FakeChatCompletionClient()
-      ..enqueueError(ChatCompletionException('测试网络错误'));
+    final fakeClient = FakeChatGenerationClient()
+      ..enqueueError(ChatGenerationException('测试网络错误'));
 
     await pumpChatScreen(tester, fakeClient: fakeClient);
     final container = ProviderScope.containerOf(

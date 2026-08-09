@@ -7,7 +7,7 @@ import 'chat_message_tree.dart';
 import 'chat_sessions_controller_support.dart';
 import 'chat_sessions_state.dart';
 import 'output_regex_processor.dart';
-import 'ports/chat_completion_client.dart';
+import 'ports/chat_generation_client.dart';
 
 /// [finishGenerationSuccess] 的终态判定结果，使 phase/outcome 一一对应。
 sealed class FinishGenerationResult {
@@ -352,10 +352,10 @@ mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
 
   /// 统一将流式错误格式化为面向开发者的详细文本（原始信息 + 堆栈）。
   ///
-  /// 不做「傻瓜友好」简化：`ChatCompletionException` 附带的 HTTP 状态码、
+  /// 不做「傻瓜友好」简化：`ChatGenerationException` 附带的 HTTP 状态码、
   /// 响应体、源异常与源堆栈都会展开；其余异常直接展示 `toString()` + 堆栈。
   String formatStreamingError(Object error, StackTrace stackTrace) {
-    if (error is! ChatCompletionException) {
+    if (error is! ChatGenerationException) {
       return formatUnexpectedStreamingError(error, stackTrace);
     }
 

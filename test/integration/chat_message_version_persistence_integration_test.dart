@@ -20,7 +20,7 @@ void main() {
   test('编辑后切换回旧版本 -> 重启后旧版本仍被选中', () async {
     final database = AppDatabase.inMemory();
     final preferences = await createSeededPreferences();
-    final fakeClient = FakeChatCompletionClient();
+    final fakeClient = FakeChatGenerationClient();
 
     final containerA = createTestContainer(
       database: database,
@@ -78,7 +78,7 @@ void main() {
     final containerB = createTestContainer(
       database: database,
       preferences: preferences,
-      fakeClient: FakeChatCompletionClient(),
+      fakeClient: FakeChatGenerationClient(),
     );
     addTearDown(containerB.dispose);
 
@@ -97,7 +97,7 @@ void main() {
   test('编辑后新分支被选中 -> 重启后新分支仍被选中', () async {
     final database = AppDatabase.inMemory();
     final preferences = await createSeededPreferences();
-    final fakeClient = FakeChatCompletionClient();
+    final fakeClient = FakeChatGenerationClient();
 
     final containerA = createTestContainer(
       database: database,
@@ -134,7 +134,7 @@ void main() {
     final containerB = createTestContainer(
       database: database,
       preferences: preferences,
-      fakeClient: FakeChatCompletionClient(),
+      fakeClient: FakeChatGenerationClient(),
     );
     addTearDown(containerB.dispose);
 

@@ -38,7 +38,7 @@ Future<AppDatabase> pumpTestApp(
 
   /// 默认 false（与 composition 默认 true 不同是故意的）：widget 测试由
   /// [extraOverrides] 注入 fake completion，故排除生产绑定。
-  bool bindChatCompletionClient = false,
+  bool bindChatGenerationClient = false,
 
   /// 默认 true：保持 SQLite 生产绑定，与 composition 默认一致。
   bool bindChatConversationRepository = true,
@@ -62,7 +62,7 @@ Future<AppDatabase> pumpTestApp(
       extraOverrides: extraOverrides,
       child: child,
       router: router,
-      bindChatCompletionClient: bindChatCompletionClient,
+      bindChatGenerationClient: bindChatGenerationClient,
       bindChatConversationRepository: bindChatConversationRepository,
     ),
   );
@@ -87,7 +87,7 @@ Future<ProviderScope> pumpTestAppScope(
 
   /// 默认 false（与 composition 默认 true 不同是故意的）：widget 测试由
   /// [extraOverrides] 注入 fake completion，故排除生产绑定。
-  bool bindChatCompletionClient = false,
+  bool bindChatGenerationClient = false,
 
   /// 默认 true：保持 SQLite 生产绑定，与 composition 默认一致。
   bool bindChatConversationRepository = true,
@@ -110,7 +110,7 @@ Future<ProviderScope> pumpTestAppScope(
     extraOverrides: extraOverrides,
     child: child,
     router: router,
-    bindChatCompletionClient: bindChatCompletionClient,
+    bindChatGenerationClient: bindChatGenerationClient,
     bindChatConversationRepository: bindChatConversationRepository,
   );
 }
@@ -136,7 +136,7 @@ ProviderScope _buildTestScope({
   required List<dynamic> extraOverrides,
   Widget? child,
   GoRouter? router,
-  bool bindChatCompletionClient = false,
+  bool bindChatGenerationClient = false,
   bool bindChatConversationRepository = true,
 }) {
   return ProviderScope(
@@ -149,7 +149,7 @@ ProviderScope _buildTestScope({
       // Riverpod 禁止同一容器内对同一 provider 重复 override。
       ...appCompositionOverrides(
         useInMemorySyncSecureStore: true,
-        bindChatCompletionClient: bindChatCompletionClient,
+        bindChatGenerationClient: bindChatGenerationClient,
         bindChatConversationRepository: bindChatConversationRepository,
       ),
       ...extraOverrides,

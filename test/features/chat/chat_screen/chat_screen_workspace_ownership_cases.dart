@@ -83,7 +83,7 @@ Future<void> _seedVariableTemplate(
 
 void registerChatScreenWorkspaceOwnershipTests() {
   testWidgets('A→B 首次切换 B 不显示 A 的正文，切回 A 恢复 A 的正文', (tester) async {
-    final fakeClient = FakeChatCompletionClient()..enqueueChunks(['已收到']);
+    final fakeClient = FakeChatGenerationClient()..enqueueChunks(['已收到']);
     await pumpChatScreen(tester, fakeClient: fakeClient);
     final container = ProviderScope.containerOf(
       tester.element(find.byType(ChatScreen)),
@@ -115,7 +115,7 @@ void registerChatScreenWorkspaceOwnershipTests() {
   });
 
   testWidgets('ChatScreen 卸载后在同 scope 重挂，body 草稿恢复', (tester) async {
-    final fakeClient = FakeChatCompletionClient();
+    final fakeClient = FakeChatGenerationClient();
     final mount = await pumpChatScreenScope(tester, fakeClient: fakeClient);
     await tester.pumpWidget(mount.scope);
     await tester.pump();
@@ -135,7 +135,7 @@ void registerChatScreenWorkspaceOwnershipTests() {
   });
 
   testWidgets('跨会话同名模板变量：B 无值时显示模板默认值而非 A 的值', (tester) async {
-    final fakeClient = FakeChatCompletionClient()
+    final fakeClient = FakeChatGenerationClient()
       ..enqueueChunks(['A 回复'])
       ..enqueueChunks(['B 回复']);
     await pumpChatScreen(tester, fakeClient: fakeClient);
@@ -204,7 +204,7 @@ void registerChatScreenWorkspaceOwnershipTests() {
   });
 
   testWidgets('编辑取消恢复编辑前草稿，不污染会话级 draft', (tester) async {
-    final fakeClient = FakeChatCompletionClient()..enqueueChunks(['已收到']);
+    final fakeClient = FakeChatGenerationClient()..enqueueChunks(['已收到']);
     await pumpChatScreen(tester, fakeClient: fakeClient);
     final container = ProviderScope.containerOf(
       tester.element(find.byType(ChatScreen)),
@@ -244,7 +244,7 @@ void registerChatScreenWorkspaceOwnershipTests() {
   });
 
   testWidgets('编辑后切换会话不污染旧会话草稿', (tester) async {
-    final fakeClient = FakeChatCompletionClient()..enqueueChunks(['已收到']);
+    final fakeClient = FakeChatGenerationClient()..enqueueChunks(['已收到']);
     await pumpChatScreen(tester, fakeClient: fakeClient);
     final container = ProviderScope.containerOf(
       tester.element(find.byType(ChatScreen)),
@@ -284,7 +284,7 @@ void registerChatScreenWorkspaceOwnershipTests() {
   });
 
   testWidgets('编辑后卸载重挂丢弃编辑模式，草稿恢复为会话级值', (tester) async {
-    final fakeClient = FakeChatCompletionClient()..enqueueChunks(['已收到']);
+    final fakeClient = FakeChatGenerationClient()..enqueueChunks(['已收到']);
     final mount = await pumpChatScreenScope(tester, fakeClient: fakeClient);
     await tester.pumpWidget(mount.scope);
     await tester.pump();
@@ -319,7 +319,7 @@ void registerChatScreenWorkspaceOwnershipTests() {
   });
 
   testWidgets('编辑空正文发送被拒：保留输入与编辑态', (tester) async {
-    final fakeClient = FakeChatCompletionClient()..enqueueChunks(['已收到']);
+    final fakeClient = FakeChatGenerationClient()..enqueueChunks(['已收到']);
     await pumpChatScreen(tester, fakeClient: fakeClient);
     final container = ProviderScope.containerOf(
       tester.element(find.byType(ChatScreen)),
@@ -350,7 +350,7 @@ void registerChatScreenWorkspaceOwnershipTests() {
   });
 
   testWidgets('编辑无模板消息不显示会话模板变量输入，提交分支不带模板', (tester) async {
-    final fakeClient = FakeChatCompletionClient()
+    final fakeClient = FakeChatGenerationClient()
       ..enqueueChunks(['普通回复'])
       ..enqueueChunks(['普通消息修改回复']);
     await pumpChatScreen(tester, fakeClient: fakeClient);
@@ -402,7 +402,7 @@ void registerChatScreenWorkspaceOwnershipTests() {
   });
 
   testWidgets('编辑带模板消息：变量输入框携带已保存值，修改后提交新分支', (tester) async {
-    final fakeClient = FakeChatCompletionClient()
+    final fakeClient = FakeChatGenerationClient()
       ..enqueueChunks(['模板回复'])
       ..enqueueChunks(['编辑后模板回复']);
     await pumpChatScreen(tester, fakeClient: fakeClient);
@@ -460,7 +460,7 @@ void registerChatScreenWorkspaceOwnershipTests() {
   });
 
   testWidgets('同名模板变量跨模板切换：输入写入当前模板，发送不回落默认值', (tester) async {
-    final fakeClient = FakeChatCompletionClient()..enqueueChunks(['模板二回复']);
+    final fakeClient = FakeChatGenerationClient()..enqueueChunks(['模板二回复']);
     await pumpChatScreen(tester, fakeClient: fakeClient);
     final container = ProviderScope.containerOf(
       tester.element(find.byType(ChatScreen)),

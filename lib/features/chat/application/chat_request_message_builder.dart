@@ -1,19 +1,19 @@
 import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
 import '../domain/models/chat_checkpoint.dart';
 import '../domain/models/chat_message.dart';
-import 'ports/chat_completion_client.dart';
+import 'ports/chat_generation_client.dart';
 import 'request_message_filter.dart';
 
 export 'request_message_filter.dart';
 
 /// 把提示词模板与会话消息拼装成模型请求消息列表。
-List<ChatCompletionRequestMessage> buildRequestMessages({
+List<ChatRequestMessage> buildRequestMessages({
   required PresetPrompt? presetPrompt,
   required List<ChatMessage> conversationMessages,
   List<ChatCheckpoint> checkpointChain = const [],
   RequestMessageFilter filter = RequestMessageFilter.passthrough,
 }) {
-  final requestMessages = <ChatCompletionRequestMessage>[];
+  final requestMessages = <ChatRequestMessage>[];
   final filteredMessages = filter.apply(conversationMessages);
 
   if (checkpointChain.isNotEmpty) {
@@ -28,10 +28,7 @@ List<ChatCompletionRequestMessage> buildRequestMessages({
 
   requestMessages.addAll(
     filteredMessages.map((message) {
-      return ChatCompletionRequestMessage(
-        role: message.role,
-        content: message.content,
-      );
+      return ChatRequestMessage(role: message.role, content: message.content);
     }),
   );
 
@@ -51,7 +48,7 @@ List<ChatCompletionRequestMessage> buildRequestMessages({
 }
 
 /// 构建检查点记忆系统消息，可被多处请求构建函数复用。
-List<ChatCompletionRequestMessage> buildCheckpointMemoryMessages(
+List<ChatRequestMessage> buildCheckpointMemoryMessages(
   List<ChatCheckpoint> checkpointChain,
 ) {
   if (checkpointChain.isEmpty) {
@@ -69,7 +66,7 @@ List<ChatCompletionRequestMessage> buildCheckpointMemoryMessages(
   }
 
   return [
-    ChatCompletionRequestMessage(
+    ChatRequestMessage(
       role: ChatMessageRole.system,
       content: buffer.toString().trim(),
     ),
@@ -78,7 +75,7 @@ List<ChatCompletionRequestMessage> buildCheckpointMemoryMessages(
 
 /// 将 [PresetPrompt] 中指定位置的消息追加到 [buffer]。
 void appendTemplateMessages({
-  required List<ChatCompletionRequestMessage> buffer,
+  required List<ChatRequestMessage> buffer,
   required PresetPrompt? presetPrompt,
   required PromptMessagePlacement placement,
 }) {
@@ -91,7 +88,7 @@ void appendTemplateMessages({
       .where((m) => m.content.trim().isNotEmpty);
   buffer.addAll(
     messages.map((message) {
-      return ChatCompletionRequestMessage(
+      return ChatRequestMessage(
         role: switch (message.role) {
           PromptMessageRole.system => ChatMessageRole.system,
           PromptMessageRole.user => ChatMessageRole.user,

@@ -210,7 +210,7 @@ lib/
 └── features/
     ├── chat/
     │   ├── application/        # 会话命令、Generation 生命周期、Workspace view-state
-    │   │   ├── ports/          # ChatCompletionClient / ChatConversationRepository 抽象
+    │   │   ├── ports/          # ChatGenerationClient / ChatConversationRepository 抽象
     │   │   ├── chat_generation_*.dart  # 显式 prepare/stream/retry/stop/finalize 生命周期
     │   │   └── ...
     │   ├── data/               # HTTP 客户端 + SSE 解析 + 厂商适配 + SQLite 仓库

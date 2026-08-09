@@ -8,7 +8,7 @@ import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/core/persistence/versioned_json_storage.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
-import 'package:oh_my_llm/features/chat/application/ports/chat_completion_client.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/domain/chat_error_messages.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
@@ -18,7 +18,7 @@ import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.da
 
 import '../../../helpers/async_test_signals.dart';
 import '../../../helpers/flaky_chat_conversation_repository.dart';
-import '../../../helpers/fake_chat_completion_client.dart';
+import '../../../helpers/fake_chat_generation_client.dart';
 
 /// 测试用模型配置，与 SharedPreferences 中的 id 一致。
 final _testModel = LlmModelConfig(
@@ -33,7 +33,7 @@ final _testModel = LlmModelConfig(
 void main() {
   late AppDatabase database;
   late FlakyChatConversationRepository repository;
-  late FakeChatCompletionClient fakeClient;
+  late FakeChatGenerationClient fakeClient;
   late ProviderContainer container;
 
   setUp(() async {
@@ -61,14 +61,14 @@ void main() {
     });
     database = AppDatabase.inMemory();
     repository = FlakyChatConversationRepository(database);
-    fakeClient = FakeChatCompletionClient();
+    fakeClient = FakeChatGenerationClient();
     container = ProviderContainer(
       overrides: [
         appDatabaseProvider.overrideWithValue(database),
         sharedPreferencesProvider.overrideWithValue(
           await SharedPreferences.getInstance(),
         ),
-        chatCompletionClientProvider.overrideWithValue(fakeClient),
+        chatGenerationClientProvider.overrideWithValue(fakeClient),
         chatConversationRepositoryProvider.overrideWithValue(repository),
       ],
     );
@@ -152,7 +152,7 @@ void main() {
     final sendFuture = sendMsg('测试停止持久化失败');
     // 等流式启动并收到一个 chunk。
     await controlled.listened;
-    controlled.add(const ChatCompletionChunk(contentDelta: '部分内容'));
+    controlled.add(const ChatGenerationChunk(contentDelta: '部分内容'));
     await waitForProviderState(
       container: container,
       provider: chatSessionsProvider,

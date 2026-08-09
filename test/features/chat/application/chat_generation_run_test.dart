@@ -5,27 +5,27 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/features/chat/application/chat_generation_contract.dart';
 import 'package:oh_my_llm/features/chat/application/chat_generation_lifecycle.dart';
 import 'package:oh_my_llm/features/chat/application/chat_generation_run.dart';
-import 'package:oh_my_llm/features/chat/application/ports/chat_completion_client.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_state.dart';
 import 'package:oh_my_llm/features/settings/domain/models/auto_retry_settings.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
 
-import '../../../helpers/fake_chat_completion_client.dart';
+import '../../../helpers/fake_chat_generation_client.dart';
 
 /// ChatGenerationRun 的 transition matrix 测试。
 ///
 /// 用 [_FakeHost]（可控返回 prepare/completeAttempt/stop 决策 + gate）+
-/// [FakeChatCompletionClient]（enqueueStream/chunks）覆盖完整状态机：
+/// [FakeChatGenerationClient]（enqueueStream/chunks）覆盖完整状态机：
 /// success / empty / failure / retry / 各阶段 stop / concurrent stop /
 /// finalizing stop / dispose / persistence failure / late callback。
 /// 不依赖 Riverpod 或真实 repository，只验证 run 的状态机不变量。
 void main() {
-  late FakeChatCompletionClient fakeClient;
+  late FakeChatGenerationClient fakeClient;
 
   setUp(() {
-    fakeClient = FakeChatCompletionClient();
+    fakeClient = FakeChatGenerationClient();
   });
 
   ChatGenerationCommand newCommand({
@@ -177,7 +177,7 @@ void main() {
 
     run.start();
     await controlled.listened; // 等待 run 开始监听后再投递 chunk
-    controlled.add(const ChatCompletionChunk(contentDelta: '部分'));
+    controlled.add(const ChatGenerationChunk(contentDelta: '部分'));
     // 等 chunk 增量进入投影（streamUiFlushInterval=0，每 chunk 必投影）再 stop，
     // 保证 stop 时已累积部分内容。
     await host.waitForProjection(
@@ -224,7 +224,7 @@ void main() {
 
     run.start();
     await controlled.listened; // 等待 run 开始监听后再投递 chunk
-    controlled.add(const ChatCompletionChunk(contentDelta: 'x'));
+    controlled.add(const ChatGenerationChunk(contentDelta: 'x'));
     await host.waitForProjection(
       (p) => p.streamingReply?.content.contains('x') ?? false,
     );
@@ -321,7 +321,7 @@ void main() {
 
     run.start();
     await controlled.listened; // 等待 run 开始监听后再投递 chunk
-    controlled.add(const ChatCompletionChunk(contentDelta: 'x'));
+    controlled.add(const ChatGenerationChunk(contentDelta: 'x'));
     await host.waitForProjection(
       (p) => p.streamingReply?.content.contains('x') ?? false,
     );
@@ -341,7 +341,7 @@ void main() {
 
     run.start();
     await controlled.listened; // 等待 run 开始监听后再投递 chunk
-    controlled.add(const ChatCompletionChunk(contentDelta: 'part'));
+    controlled.add(const ChatGenerationChunk(contentDelta: 'part'));
     await host.waitForProjection(
       (p) => p.streamingReply?.content.contains('part') ?? false,
     );
@@ -349,7 +349,7 @@ void main() {
     await run.completion;
 
     // 迟到回调：订阅已随 stop 取消，事件被丢弃；run 已 terminal，无任何处理路径。
-    controlled.add(const ChatCompletionChunk(contentDelta: 'late'));
+    controlled.add(const ChatGenerationChunk(contentDelta: 'late'));
     controlled.addError(StateError('late err'));
     await controlled.close();
 
@@ -485,7 +485,7 @@ class _FakeHost implements ChatGenerationHost {
       parentId: command.parentMessageId,
       isStreaming: true,
     );
-    final request = ChatGenerationRequest(
+    final request = ChatGenerationLifecycleRequest(
       conversationId: command.conversation.id,
       assistantMessageId: assistantMessage.id,
       modelConfig: command.modelConfig,

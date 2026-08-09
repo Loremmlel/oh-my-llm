@@ -4,20 +4,20 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/features/chat/application/chat_generation_lifecycle.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
-import 'package:oh_my_llm/features/chat/application/ports/chat_completion_client.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/domain/chat_error_messages.dart';
 import 'package:oh_my_llm/features/settings/application/auto_retry_settings_controller.dart';
 import 'package:oh_my_llm/features/settings/application/output_processing_settings_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/auto_retry_settings.dart';
 import 'package:oh_my_llm/features/settings/domain/models/output_processing_settings.dart';
 
-import '../../../../helpers/fake_chat_completion_client.dart';
+import '../../../../helpers/fake_chat_generation_client.dart';
 import 'chat_sessions_controller_test_helpers.dart';
 
 /// 自动重试策略、异常 finish_reason 重试、retry cap 与空回复重试边界契约。
 void registerChatSessionsControllerRetryCases() {
   late ControllerTestHarness harness;
-  late FakeChatCompletionClient fakeClient;
+  late FakeChatGenerationClient fakeClient;
   late ProviderContainer container;
 
   setUp(() async {
@@ -31,7 +31,7 @@ void registerChatSessionsControllerRetryCases() {
   Future<void> sendMsg(String content, {Duration? retryDelay}) =>
       harness.sendMsg(content, retryDelay: retryDelay);
 
-  Stream<ChatCompletionChunk> realIdleTimeoutStream({
+  Stream<ChatGenerationChunk> realIdleTimeoutStream({
     Duration idleTimeout = const Duration(milliseconds: 50),
   }) => harness.realIdleTimeoutStream(idleTimeout: idleTimeout);
 
@@ -59,7 +59,7 @@ void registerChatSessionsControllerRetryCases() {
     container
         .read(chatSessionsProvider.notifier)
         .updateActiveConversationPreferences(autoRetryEnabled: true);
-    fakeClient.enqueueError(ChatCompletionException('连接超时'));
+    fakeClient.enqueueError(ChatGenerationException('连接超时'));
     fakeClient.enqueueChunks(['重试成功']);
 
     await sendMsg('测试重试', retryDelay: Duration.zero);
@@ -76,8 +76,8 @@ void registerChatSessionsControllerRetryCases() {
     container
         .read(chatSessionsProvider.notifier)
         .updateActiveConversationPreferences(autoRetryEnabled: true);
-    fakeClient.enqueueError(ChatCompletionException('第一次失败'));
-    fakeClient.enqueueError(ChatCompletionException('第二次失败'));
+    fakeClient.enqueueError(ChatGenerationException('第一次失败'));
+    fakeClient.enqueueError(ChatGenerationException('第二次失败'));
     fakeClient.enqueueChunks(['第三次成功']);
 
     await sendMsg('测试多次重试', retryDelay: Duration.zero);
@@ -160,7 +160,7 @@ void registerChatSessionsControllerRetryCases() {
     container
         .read(chatSessionsProvider.notifier)
         .updateActiveConversationPreferences(autoRetryEnabled: true);
-    fakeClient.enqueueError(ChatCompletionException('请求失败'));
+    fakeClient.enqueueError(ChatGenerationException('请求失败'));
     fakeClient.enqueueChunks(['重试成功']);
 
     await sendMsg('测试清除错误', retryDelay: Duration.zero);
@@ -192,7 +192,7 @@ void registerChatSessionsControllerRetryCases() {
 
   test('autoRetryEnabled 默认值在 sendMessage 时不触发自动重试', () async {
     // 不设置 autoRetryEnabled（默认 false）
-    fakeClient.enqueueError(ChatCompletionException('错误'));
+    fakeClient.enqueueError(ChatGenerationException('错误'));
 
     await sendMsg('普通发送');
 
@@ -298,7 +298,7 @@ void registerChatSessionsControllerRetryCases() {
     container
         .read(chatSessionsProvider.notifier)
         .updateActiveConversationPreferences(autoRetryEnabled: true);
-    fakeClient.enqueueError(ChatCompletionException('连接超时'));
+    fakeClient.enqueueError(ChatGenerationException('连接超时'));
     fakeClient.enqueueChunks(['固定间隔重试成功']);
 
     await sendMsg('测试固定间隔重试', retryDelay: Duration.zero);
@@ -316,8 +316,8 @@ void registerChatSessionsControllerRetryCases() {
     container
         .read(chatSessionsProvider.notifier)
         .updateActiveConversationPreferences(autoRetryEnabled: true);
-    fakeClient.enqueueError(ChatCompletionException('第一次失败'));
-    fakeClient.enqueueError(ChatCompletionException('第二次失败'));
+    fakeClient.enqueueError(ChatGenerationException('第一次失败'));
+    fakeClient.enqueueError(ChatGenerationException('第二次失败'));
     fakeClient.enqueueChunks(['第三次成功']);
 
     await sendMsg('固定间隔多次重试', retryDelay: Duration.zero);
@@ -349,7 +349,7 @@ void registerChatSessionsControllerRetryCases() {
 
     // 第一次返回 length（异常），第二次返回 stop（正常）
     fakeClient.enqueueDeltas([
-      const ChatCompletionChunk(contentDelta: '部分内容', finishReason: 'length'),
+      const ChatGenerationChunk(contentDelta: '部分内容', finishReason: 'length'),
     ]);
     fakeClient.enqueueChunks(['重试成功']);
 
@@ -368,7 +368,7 @@ void registerChatSessionsControllerRetryCases() {
 
     // retryOnAbnormalFinishReason 保持默认 false
     fakeClient.enqueueDeltas([
-      const ChatCompletionChunk(contentDelta: '部分内容', finishReason: 'length'),
+      const ChatGenerationChunk(contentDelta: '部分内容', finishReason: 'length'),
     ]);
 
     await sendMsg('测试不重试');
@@ -394,7 +394,7 @@ void registerChatSessionsControllerRetryCases() {
     // 不开 autoRetryEnabled（默认 false）
 
     fakeClient.enqueueDeltas([
-      const ChatCompletionChunk(contentDelta: '部分内容', finishReason: 'length'),
+      const ChatGenerationChunk(contentDelta: '部分内容', finishReason: 'length'),
     ]);
 
     await sendMsg('测试会话级开关');
@@ -425,7 +425,7 @@ void registerChatSessionsControllerRetryCases() {
 
     // stop - 正常完成，不重试
     fakeClient.enqueueDeltas([
-      const ChatCompletionChunk(contentDelta: '正常回复', finishReason: 'stop'),
+      const ChatGenerationChunk(contentDelta: '正常回复', finishReason: 'stop'),
     ]);
 
     await sendMsg('测试 stop');
@@ -452,7 +452,7 @@ void registerChatSessionsControllerRetryCases() {
 
     // tool_calls - 正常完成，不重试
     fakeClient.enqueueDeltas([
-      const ChatCompletionChunk(
+      const ChatGenerationChunk(
         contentDelta: '工具调用',
         finishReason: 'tool_calls',
       ),
@@ -482,7 +482,7 @@ void registerChatSessionsControllerRetryCases() {
 
     // 第一次返回 content_filter（异常），第二次返回 stop（正常）
     fakeClient.enqueueDeltas([
-      const ChatCompletionChunk(
+      const ChatGenerationChunk(
         contentDelta: '过滤内容',
         finishReason: 'content_filter',
       ),
@@ -531,7 +531,7 @@ void registerChatSessionsControllerRetryCases() {
 
     // 模型返回 length（异常），但输出规则会清空正文
     fakeClient.enqueueDeltas([
-      const ChatCompletionChunk(contentDelta: '一些内容', finishReason: 'length'),
+      const ChatGenerationChunk(contentDelta: '一些内容', finishReason: 'length'),
     ]);
 
     await sendMsg('测试输出规则清空不重试', retryDelay: Duration.zero);
@@ -592,7 +592,7 @@ void registerChatSessionsControllerRetryCases() {
     // 异常 finish reason（length），maxRetryCount=1 -> 首次 attempt 即达上限，
     // 不重试。coordinator 投 AttemptCompleted(Success)，但异常 finish 属 error。
     fakeClient.enqueueDeltas([
-      const ChatCompletionChunk(contentDelta: '部分内容', finishReason: 'length'),
+      const ChatGenerationChunk(contentDelta: '部分内容', finishReason: 'length'),
     ]);
 
     await sendMsg('测试异常 finish 上限', retryDelay: Duration.zero);
