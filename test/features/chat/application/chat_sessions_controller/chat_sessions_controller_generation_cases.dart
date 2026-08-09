@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/domain/chat_error_messages.dart';
@@ -418,6 +419,80 @@ void registerChatSessionsControllerGenerationCases() {
       // stopStreaming 通过 buildConversationAfterStreamingInterrupt 保留 finishReason
       expect(assistant.finishReason, 'stop');
     });
+  });
+
+  // ── 生成端点解析（LlmEndpointResolver 接线）─────────────────────────────────
+
+  test('apiUrl 为根地址时 wire 请求解析后的完整生成端点（三协议参数化）', () async {
+    const cases = <(LlmApiProtocol, String)>[
+      (
+        LlmApiProtocol.chatCompletions,
+        'https://api.example.com/v1/chat/completions',
+      ),
+      (LlmApiProtocol.responses, 'https://api.example.com/v1/responses'),
+      (LlmApiProtocol.anthropic, 'https://api.example.com/v1/messages'),
+    ];
+
+    for (final (protocol, expectedEndpoint) in cases) {
+      fakeClient.enqueueChunks(['回复']);
+      await container
+          .read(chatSessionsProvider.notifier)
+          .sendMessage(
+            content: '问题',
+            modelConfig: testModel.copyWith(
+              apiProtocol: protocol,
+              apiUrl: 'https://api.example.com',
+            ),
+            presetPrompt: null,
+            reasoningEnabled: false,
+            reasoningEffort: ReasoningEffort.medium,
+          );
+      expect(
+        fakeClient.requestedTargets.last.endpoint,
+        expectedEndpoint,
+        reason: protocol.name,
+      );
+    }
+  });
+
+  test('apiUrl 为完整生成端点时 wire 上 URL 原样（resolver 幂等）', () async {
+    fakeClient.enqueueChunks(['回复']);
+    await harness.sendMsg('问题');
+
+    expect(
+      fakeClient.requestedTargets.last.endpoint,
+      'https://api.example.com/v1/chat/completions',
+    );
+  });
+
+  test('apiUrl 无法解析时以 inline assistant 错误展示而非崩溃', () async {
+    await container
+        .read(chatSessionsProvider.notifier)
+        .sendMessage(
+          content: '问题',
+          modelConfig: testModel.copyWith(apiUrl: 'not-a-url'),
+          presetPrompt: null,
+          reasoningEnabled: false,
+          reasoningEffort: ReasoningEffort.medium,
+        );
+
+    final state = container.read(chatSessionsProvider);
+    expect(state.errorMessage, contains('not-a-url'));
+    expect(state.errorMessageAssistantId, isNotNull);
+    expect(state.isStreaming, isFalse);
+
+    // run 已终止（非悬挂）：后续消息可正常发送。
+    fakeClient.enqueueChunks(['正常回复']);
+    await harness.sendMsg('后续问题');
+    expect(
+      container
+          .read(chatSessionsProvider)
+          .activeConversation
+          .messages
+          .last
+          .content,
+      '正常回复',
+    );
   });
 
   // ── 输出处理正则清空回复 ─────────────────────────────────────────────────────

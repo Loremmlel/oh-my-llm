@@ -114,7 +114,8 @@ class ChatCompletionsClient extends ChatGenerationClient {
     }
   }
 
-  /// 解析请求端点并做基础校验；不做生成后缀的 URL 解析（上层已完成）。
+  /// 解析请求端点并做基础校验；endpoint 为最终生成端点，由上层
+  /// （ChatGenerationRequestTarget.fromModelConfig）经 LlmEndpointResolver 解析。
   Uri _parseEndpoint(ChatGenerationRequest request) {
     final endpoint = request.target.endpoint;
     try {

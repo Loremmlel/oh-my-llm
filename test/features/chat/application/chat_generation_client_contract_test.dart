@@ -19,9 +19,89 @@ void main() {
       final target = ChatGenerationRequestTarget.fromModelConfig(config);
 
       expect(target.protocol, LlmApiProtocol.anthropic);
-      expect(target.endpoint, 'https://api.anthropic.com');
+      expect(target.endpoint, 'https://api.anthropic.com/v1/messages');
       expect(target.apiKey, 'sk-anthropic');
       expect(target.model, 'claude-sonnet');
+    });
+
+    test('fromModelConfig 将 API 根地址解析为最终生成端点（三种协议）', () {
+      const cases = <(LlmApiProtocol, String, String)>[
+        (
+          LlmApiProtocol.chatCompletions,
+          'https://api.openai.com',
+          'https://api.openai.com/v1/chat/completions',
+        ),
+        (
+          LlmApiProtocol.responses,
+          'https://api.openai.com',
+          'https://api.openai.com/v1/responses',
+        ),
+        (
+          LlmApiProtocol.anthropic,
+          'https://api.anthropic.com',
+          'https://api.anthropic.com/v1/messages',
+        ),
+      ];
+
+      for (final (protocol, apiUrl, expectedEndpoint) in cases) {
+        final target = ChatGenerationRequestTarget.fromModelConfig(
+          TestFixtures.model(apiUrl: apiUrl, apiProtocol: protocol),
+        );
+        expect(target.endpoint, expectedEndpoint, reason: protocol.name);
+        expect(target.protocol, protocol, reason: protocol.name);
+      }
+    });
+
+    test('fromModelConfig 对完整生成端点原样保留（resolver 幂等）', () {
+      const cases = <(LlmApiProtocol, String)>[
+        (
+          LlmApiProtocol.chatCompletions,
+          'https://api.example.com/v1/chat/completions',
+        ),
+        (LlmApiProtocol.responses, 'https://api.example.com/v1/responses'),
+        (LlmApiProtocol.anthropic, 'https://api.example.com/v1/messages'),
+      ];
+
+      for (final (protocol, apiUrl) in cases) {
+        final target = ChatGenerationRequestTarget.fromModelConfig(
+          TestFixtures.model(apiUrl: apiUrl, apiProtocol: protocol),
+        );
+        expect(target.endpoint, apiUrl, reason: protocol.name);
+      }
+    });
+
+    test('fromModelConfig 无效 URL → ChatGenerationException（protocol 填对）', () {
+      expect(
+        () => ChatGenerationRequestTarget.fromModelConfig(
+          TestFixtures.model(
+            apiUrl: 'not-a-url',
+            apiProtocol: LlmApiProtocol.anthropic,
+          ),
+        ),
+        throwsA(
+          isA<ChatGenerationException>()
+              .having((e) => e.protocol, 'protocol', LlmApiProtocol.anthropic)
+              .having((e) => e.message, 'message', contains('not-a-url')),
+        ),
+      );
+    });
+
+    test('fromModelConfig 非 http(s) 协议 URL → ChatGenerationException', () {
+      expect(
+        () => ChatGenerationRequestTarget.fromModelConfig(
+          TestFixtures.model(
+            apiUrl: 'ftp://api.example.com',
+            apiProtocol: LlmApiProtocol.chatCompletions,
+          ),
+        ),
+        throwsA(
+          isA<ChatGenerationException>().having(
+            (e) => e.protocol,
+            'protocol',
+            LlmApiProtocol.chatCompletions,
+          ),
+        ),
+      );
     });
 
     test('Equatable：字段相同则相等，字段不同则不等', () {

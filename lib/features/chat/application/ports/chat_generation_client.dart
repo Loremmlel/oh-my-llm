@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
+import 'package:oh_my_llm/core/llm/llm_endpoint_resolver.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
 import '../../domain/models/chat_message.dart';
 
@@ -51,8 +52,8 @@ class ChatGenerationException implements Exception {
 
 /// 一次生成的请求目标（协议中立）。
 ///
-/// 过渡阶段由 [ChatGenerationRequestTarget.fromModelConfig] 从模型配置派生；
-/// 接入 LlmEndpointResolver 后，调用方改传解析后的 endpoint。
+/// 由 [ChatGenerationRequestTarget.fromModelConfig] 从模型配置派生；
+/// endpoint 已解析为最终生成端点。
 class ChatGenerationRequestTarget extends Equatable {
   const ChatGenerationRequestTarget({
     required this.protocol,
@@ -61,13 +62,30 @@ class ChatGenerationRequestTarget extends Equatable {
     required this.model,
   });
 
-  /// 从模型配置派生请求目标（过渡约定，字段直接取配置原始值）。
+  /// 从模型配置派生请求目标。
+  ///
+  /// endpoint 经 [LlmEndpointResolver] 解析为最终生成端点：配置可填域名、
+  /// API 根地址或完整生成端点，这里统一解析为协议对应的标准生成后缀；
+  /// 配置 URL 无效（无法解析 / 非 http(s) / 含 fragment）时抛
+  /// [ChatGenerationException]（message 保留 resolver 的可读文本）。
   factory ChatGenerationRequestTarget.fromModelConfig(
     LlmModelConfig modelConfig,
   ) {
+    final Uri endpointUri;
+    try {
+      endpointUri = const LlmEndpointResolver().resolveGenerationEndpoint(
+        modelConfig.apiUrl.trim(),
+        modelConfig.apiProtocol,
+      );
+    } on LlmEndpointResolverException catch (error) {
+      throw ChatGenerationException(
+        error.message,
+        protocol: modelConfig.apiProtocol,
+      );
+    }
     return ChatGenerationRequestTarget(
       protocol: modelConfig.apiProtocol,
-      endpoint: modelConfig.apiUrl,
+      endpoint: endpointUri.toString(),
       apiKey: modelConfig.apiKey,
       model: modelConfig.modelName,
     );
@@ -75,7 +93,7 @@ class ChatGenerationRequestTarget extends Equatable {
 
   final LlmApiProtocol protocol;
 
-  /// 生成接口端点（本阶段为配置中的原始 apiUrl，不做 URL 解析）。
+  /// 生成接口端点（最终生成端点，已由 LlmEndpointResolver 解析）。
   final String endpoint;
 
   final String apiKey;

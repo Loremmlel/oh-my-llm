@@ -540,7 +540,8 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     try {
       final result = await chatClient.complete(
         ChatGenerationRequest(
-          // 过渡约定：从 modelConfig 派生协议中立 target。
+          // 从 modelConfig 派生协议中立 target（endpoint 由 fromModelConfig
+          // 经 LlmEndpointResolver 解析）。
           target: ChatGenerationRequestTarget.fromModelConfig(modelConfig),
           messages: buildCheckpointSummaryMessages(
             memoryPrompt: memoryPrompt,
