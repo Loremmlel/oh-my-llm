@@ -158,7 +158,7 @@ final class SettingsImportDeduplicator {
     for (final p in existingProviders) {
       existingById[p.id] = p;
     }
-    // 无 ID 匹配时的回退：展开所有已有模型用于 URL+Key+modelName 去重
+    // 无 ID 匹配时的回退：展开所有已有模型用于协议+URL+Key+modelName 去重
     final existingModels = existingProviders
         .expand((provider) => provider.resolvedModels)
         .toList(growable: false);
@@ -176,11 +176,12 @@ final class SettingsImportDeduplicator {
             .where((m) => !existingModelNames.contains(m.modelName))
             .toList(growable: false);
 
-        // 即使所有模型都重复，服务商级字段（URL/Name/Key）变更仍需透传
+        // 即使所有模型都重复，服务商级字段（URL/Name/Key/协议）变更仍需透传
         final hasProviderChanges =
             sameIdProvider.name != incomingProvider.name ||
             sameIdProvider.apiUrl != incomingProvider.apiUrl ||
-            sameIdProvider.apiKey != incomingProvider.apiKey;
+            sameIdProvider.apiKey != incomingProvider.apiKey ||
+            sameIdProvider.apiProtocol != incomingProvider.apiProtocol;
 
         if (hasProviderChanges || nextModels.isNotEmpty) {
           newProviders.add(incomingProvider.copyWith(models: nextModels));
@@ -188,11 +189,13 @@ final class SettingsImportDeduplicator {
         continue;
       }
 
-      // 无同 ID：按 apiUrl+apiKey+modelName 去重（原有逻辑）
+      // 无同 ID：按协议+apiUrl+apiKey+modelName 去重；
+      // 同 URL/Key 下不同协议是不同服务商，不能互相合并
       final nextModels = incomingProvider.models
           .where((model) {
             return !existingModels.any(
               (existing) =>
+                  existing.apiProtocol == incomingProvider.apiProtocol &&
                   existing.apiUrl == incomingProvider.apiUrl &&
                   existing.apiKey == incomingProvider.apiKey &&
                   existing.modelName == model.modelName,

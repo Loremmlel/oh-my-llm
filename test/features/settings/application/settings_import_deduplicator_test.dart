@@ -3,12 +3,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/features/settings/application/settings_import_deduplicator.dart';
 import 'package:oh_my_llm/features/settings/domain/models/auto_retry_settings.dart';
+import 'package:oh_my_llm/features/settings/domain/models/custom_headers_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/fixed_prompt_sequence.dart';
+import 'package:oh_my_llm/features/settings/domain/models/font_size_settings.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/memory_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
-import 'package:oh_my_llm/features/settings/domain/models/custom_headers_config.dart';
-import 'package:oh_my_llm/features/settings/domain/models/font_size_settings.dart';
 import 'package:oh_my_llm/features/settings/domain/models/settings_export_data.dart';
 import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
 
@@ -121,6 +121,7 @@ void main() {
     String name = 'OpenAI',
     String apiUrl = 'https://api.openai.com/v1',
     String apiKey = 'sk-abc123',
+    LlmApiProtocol apiProtocol = LlmApiProtocol.chatCompletions,
     List<LlmProviderModelConfig>? models,
   }) {
     return LlmProviderConfig(
@@ -128,7 +129,7 @@ void main() {
       name: name,
       apiUrl: apiUrl,
       apiKey: apiKey,
-      apiProtocol: LlmApiProtocol.chatCompletions,
+      apiProtocol: apiProtocol,
       models: models ?? [model()],
     );
   }
@@ -310,7 +311,7 @@ void main() {
   group('SettingsImportDeduplicator.deduplicate()', () {
     const deduplicator = SettingsImportDeduplicator();
 
-    test('按 apiUrl+apiKey+modelName 过滤已存在的模型服务商', () {
+    test('按协议+apiUrl+apiKey+modelName 过滤已存在的模型服务商', () {
       // 已有服务商：url1/key1 下有 gpt-4
       final existingProviders = [
         provider(
@@ -370,6 +371,54 @@ void main() {
       expect(result.modelProviders[1].apiUrl, 'https://url2.example.com');
       expect(result.modelProviders[1].models.length, 1);
       expect(result.modelProviders[1].models[0].modelName, 'gpt-4');
+    });
+
+    test('无同 ID 回退：同 URL/Key 不同协议不去重，同协议仍按 modelName 去重', () {
+      // 已有服务商：url1/key1 下 Chat Completions 协议有 gpt-4
+      final existingProviders = [
+        provider(
+          apiUrl: 'https://url1.example.com',
+          apiKey: 'key1',
+          apiProtocol: LlmApiProtocol.chatCompletions,
+          models: [model(modelName: 'gpt-4')],
+        ),
+      ];
+
+      final data = export(
+        modelProviders: [
+          // 同 URL/Key 但协议不同：gpt-4 不算重复，整个服务商保留
+          provider(
+            id: 'pvd-import-1',
+            apiUrl: 'https://url1.example.com',
+            apiKey: 'key1',
+            apiProtocol: LlmApiProtocol.responses,
+            models: [model(modelName: 'gpt-4')],
+          ),
+          // 同 URL/Key 且协议相同：按 modelName 去重，全部重复 → 整个服务商移除
+          provider(
+            id: 'pvd-import-2',
+            apiUrl: 'https://url1.example.com',
+            apiKey: 'key1',
+            apiProtocol: LlmApiProtocol.chatCompletions,
+            models: [model(modelName: 'gpt-4')],
+          ),
+        ],
+      );
+
+      final result = deduplicator.deduplicate(
+        data: data,
+        existingProviders: existingProviders,
+        existingMemoryPrompts: const [],
+        existingPresetPrompts: const [],
+        existingTemplatePrompts: const [],
+        existingSequences: const [],
+      );
+
+      expect(result.modelProviders.length, 1);
+      expect(result.modelProviders[0].id, 'pvd-import-1');
+      expect(result.modelProviders[0].apiProtocol, LlmApiProtocol.responses);
+      expect(result.modelProviders[0].models.length, 1);
+      expect(result.modelProviders[0].models[0].modelName, 'gpt-4');
     });
 
     test('过滤已存在的记忆提示词', () {
@@ -888,6 +937,45 @@ void main() {
       // URL 变更需透传给 mergeImportedProviders
       expect(result.modelProviders.length, 1);
       expect(result.modelProviders[0].apiUrl, 'https://api.youzi.today');
+      expect(result.modelProviders[0].models, isEmpty);
+    });
+
+    test('同 ID 协议变更时即使模型全部重复也透传服务商', () {
+      final existingProviders = [
+        provider(
+          id: 'pvd-1',
+          apiUrl: 'https://youzi.today',
+          apiKey: 'key1',
+          apiProtocol: LlmApiProtocol.chatCompletions,
+          models: [model(modelName: 'model-a')],
+        ),
+      ];
+
+      // 导入：同 ID，协议从 Chat Completions 变为 Anthropic，模型完全重复
+      final data = export(
+        modelProviders: [
+          provider(
+            id: 'pvd-1',
+            apiUrl: 'https://youzi.today',
+            apiKey: 'key1',
+            apiProtocol: LlmApiProtocol.anthropic,
+            models: [model(modelName: 'model-a')],
+          ),
+        ],
+      );
+
+      final result = deduplicator.deduplicate(
+        data: data,
+        existingProviders: existingProviders,
+        existingMemoryPrompts: const [],
+        existingPresetPrompts: const [],
+        existingTemplatePrompts: const [],
+        existingSequences: const [],
+      );
+
+      // 协议变更需透传给 mergeImportedProviders，模型仍按 modelName 去重
+      expect(result.modelProviders.length, 1);
+      expect(result.modelProviders[0].apiProtocol, LlmApiProtocol.anthropic);
       expect(result.modelProviders[0].models, isEmpty);
     });
 

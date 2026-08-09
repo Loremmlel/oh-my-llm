@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
+
 import 'auto_retry_settings.dart';
 import 'custom_headers_config.dart';
 import 'fixed_prompt_sequence.dart';
@@ -39,13 +41,43 @@ final class SettingsExportMalformed extends SettingsExportDecodeResult {
   const SettingsExportMalformed();
 }
 
-/// Settings v5 到 v6 的唯一支持迁移。
+/// Settings v5 到 v6 的唯一支持迁移：版本字段改名并落到 v6 结构。
+///
+/// 版本号固定写 6，后续版本升级由下一个迁移器接力完成（见
+/// [SettingsExportFormatMigratorV6ToV7]）。
 final class SettingsExportFormatMigratorV5ToV6 {
   const SettingsExportFormatMigratorV5ToV6();
 
   Map<String, Object?> migrate(Map<String, Object?> source) {
-    return {...source, 'formatVersion': SettingsExportData.formatVersion}
-      ..remove('version');
+    return {...source, 'formatVersion': 6}..remove('version');
+  }
+}
+
+/// Settings v6 到 v7 的唯一支持迁移：为全部服务商补默认协议。
+final class SettingsExportFormatMigratorV6ToV7 {
+  const SettingsExportFormatMigratorV6ToV7();
+
+  Map<String, Object?> migrate(Map<String, Object?> source) {
+    final rawProviders = source['modelProviders'];
+    if (rawProviders is! List) {
+      return {...source, 'formatVersion': SettingsExportData.formatVersion};
+    }
+    return {
+      ...source,
+      'formatVersion': SettingsExportData.formatVersion,
+      'modelProviders': rawProviders
+          .map((item) {
+            if (item is! Map) return item;
+            final provider = Map<String, Object?>.from(item);
+            // 只补缺失协议的旧条目；显式写入的协议（含未知值）保持原样
+            if (!provider.containsKey('apiProtocol')) {
+              provider['apiProtocol'] =
+                  LlmApiProtocol.chatCompletions.storageValue;
+            }
+            return provider;
+          })
+          .toList(growable: false),
+    };
   }
 }
 
@@ -107,9 +139,11 @@ final class SettingsExportCodec {
           version > maximumSupportedVersion) {
         return SettingsExportUnsupportedVersion(version);
       }
-      final normalized = version == 5
-          ? const SettingsExportFormatMigratorV5ToV6().migrate(source)
-          : source;
+      final normalized = switch (version) {
+        5 => _migrateV5ToCurrent(source),
+        6 => _migrateV6ToCurrent(source),
+        _ => source,
+      };
       return SettingsExportDecodeSuccess(
         data: _decodeCurrent(normalized),
         sourceVersion: version,
@@ -118,6 +152,17 @@ final class SettingsExportCodec {
     } catch (_) {
       return const SettingsExportMalformed();
     }
+  }
+
+  /// 版本 5 快照先补 v6 结构，再经 v6→v7 迁移到当前版本。
+  static Map<String, Object?> _migrateV5ToCurrent(Map<String, Object?> source) {
+    final v6 = const SettingsExportFormatMigratorV5ToV6().migrate(source);
+    return _migrateV6ToCurrent(v6);
+  }
+
+  /// 版本 6 快照经 v6→v7 迁移到当前版本。
+  static Map<String, Object?> _migrateV6ToCurrent(Map<String, Object?> source) {
+    return const SettingsExportFormatMigratorV6ToV7().migrate(source);
   }
 
   static SettingsExportData _decodeCurrent(Map<String, Object?> raw) {

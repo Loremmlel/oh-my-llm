@@ -23,7 +23,7 @@ import 'template_prompt.dart';
 /// ```json
 /// {
 ///   "identifier": "shikiyuzu-oh-my-llm",
-///   "formatVersion": 6,
+///   "formatVersion": 7,
 ///   "modelProviders": [...],
 ///   "memoryPrompts": [...],
 ///   "presetPrompts": [...],
@@ -47,7 +47,7 @@ class SettingsExportData {
   static const String identifier = 'shikiyuzu-oh-my-llm';
 
   /// 当前导出格式版本，未来格式变更时递增。
-  static const int formatVersion = 6;
+  static const int formatVersion = 7;
 
   final List<LlmProviderConfig> modelProviders;
   final List<MemoryPrompt> memoryPrompts;

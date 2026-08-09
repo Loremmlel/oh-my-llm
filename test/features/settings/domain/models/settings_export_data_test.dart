@@ -101,7 +101,7 @@ void main() {
       expect(jsonMap['identifier'], SettingsExportData.identifier);
       expect(jsonMap['identifier'], 'shikiyuzu-oh-my-llm');
       expect(jsonMap['formatVersion'], SettingsExportData.formatVersion);
-      expect(jsonMap['formatVersion'], 6);
+      expect(jsonMap['formatVersion'], 7);
     });
 
     test('toJsonString 再 tryParseJson 可还原完整数据（7 个分类）', () {
