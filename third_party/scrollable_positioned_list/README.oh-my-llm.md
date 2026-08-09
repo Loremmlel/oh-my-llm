@@ -11,6 +11,8 @@
   输入区高度动画逐帧改变缓存范围并重建昂贵的消息子树。
 - viewport 尺寸改变时通过 `ScrollMetricsNotification` 刷新可见项位置，保证固定
   缓存路径下 `ItemPositionsListener` 仍能更新。
+- 远距离滚动可临时使用范围外 alignment 定位超长项的末尾；动画完成后把持久
+  viewport anchor 恢复到合法范围，并用像素 offset 补偿以保持画面位置不变。
 - 未传 `cacheExtent` 时保留上游 `minCacheExtent` 与两倍 viewport 缓存的原行为，
   降低 fork 对其他调用方的影响。
 

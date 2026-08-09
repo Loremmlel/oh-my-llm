@@ -530,13 +530,25 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList>
     Curve curve = Curves.linear,
     required List<double> opacityAnimationWeights,
   }) async {
-    if (index > widget.itemCount - 1) {
-      index = widget.itemCount - 1;
-    }
-    if (_isTransitioning) {
-      final scrollCompleter = Completer<void>();
-      _stopScroll(canceled: true);
-      SchedulerBinding.instance.addPostFrameCallback((_) async {
+    try {
+      if (index > widget.itemCount - 1) {
+        index = widget.itemCount - 1;
+      }
+      if (_isTransitioning) {
+        final scrollCompleter = Completer<void>();
+        _stopScroll(canceled: true);
+        SchedulerBinding.instance.addPostFrameCallback((_) async {
+          await _startScroll(
+            index: index,
+            alignment: alignment,
+            duration: duration,
+            curve: curve,
+            opacityAnimationWeights: opacityAnimationWeights,
+          );
+          scrollCompleter.complete();
+        });
+        await scrollCompleter.future;
+      } else {
         await _startScroll(
           index: index,
           alignment: alignment,
@@ -544,18 +556,28 @@ class _ScrollablePositionedListState extends State<ScrollablePositionedList>
           curve: curve,
           opacityAnimationWeights: opacityAnimationWeights,
         );
-        scrollCompleter.complete();
-      });
-      await scrollCompleter.future;
-    } else {
-      await _startScroll(
-        index: index,
-        alignment: alignment,
-        duration: duration,
-        curve: curve,
-        opacityAnimationWeights: opacityAnimationWeights,
-      );
+      }
+    } finally {
+      _stabilizePrimaryAlignment();
     }
+  }
+
+  /// 超出公开契约范围的 alignment 只用于一次定位计算，不能长期作为 viewport
+  /// anchor。恢复到合法范围时同步补偿像素 offset，使当前画面保持不动。
+  void _stabilizePrimaryAlignment() {
+    if (!mounted || !primary.scrollController.hasClients) return;
+
+    final alignment = primary.alignment;
+    final stableAlignment = alignment.clamp(0.0, 1.0).toDouble();
+    if (alignment == stableAlignment) return;
+
+    final position = primary.scrollController.position;
+    final stableOffset = position.pixels +
+        (stableAlignment - alignment) * position.viewportDimension;
+    setState(() {
+      primary.alignment = stableAlignment;
+      primary.scrollController.jumpTo(stableOffset);
+    });
   }
 
   Future<void> _startScroll({

@@ -742,7 +742,7 @@ packages:
       path: "third_party/scrollable_positioned_list"
       relative: true
     source: path
-    version: "0.3.8+omll.1"
+    version: "0.3.8+omll.2"
   shared_preferences:
     dependency: "direct main"
     description:
