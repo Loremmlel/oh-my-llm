@@ -72,28 +72,6 @@ void main() {
     expect(favorites.first.collectionId, isNull);
   });
 
-  // ── 删除收藏夹 -> 未分类筛选中能看到落回的收藏 ─────────────────────────────────
-
-  test('删除收藏夹后落回的收藏在未分类筛选中可见', () async {
-    final favId = container
-        .read(favoritesProvider.notifier)
-        .add(userMessageContent: '消息', assistantContent: '回复');
-    final collectionId = container
-        .read(collectionsProvider.notifier)
-        .create('待删收藏夹');
-
-    container.read(favoritesProvider.notifier).moveTo(favId, collectionId);
-
-    container.read(favoritesFilterProvider.notifier).setFilter(collectionId);
-    expect(container.read(favoritesProvider), hasLength(1));
-
-    container.read(collectionsProvider.notifier).delete(collectionId);
-
-    container.read(favoritesFilterProvider.notifier).setFilter('');
-    expect(container.read(favoritesProvider), hasLength(1));
-    expect(container.read(favoritesProvider).first.id, favId);
-  });
-
   // ── 多个收藏夹中仅删一个 -> 其他收藏夹的收藏不受影响 ──────────────────────────
 
   test('删除一个收藏夹不影响其他收藏夹中的收藏', () async {

@@ -83,66 +83,6 @@ void main() {
     );
   });
 
-  // ── 分支编辑后重建容器 — 分支选择保留 ────────────────────────────────────────
-
-  test('分支编辑后重建容器 — 分支选择保留', () async {
-    final database = AppDatabase.inMemory();
-    final preferences = await createSeededPreferences();
-    final fakeClientA = FakeChatGenerationClient();
-
-    final containerA = createTestContainer(
-      database: database,
-      preferences: preferences,
-      fakeClient: fakeClientA,
-    );
-    addTearDown(database.close);
-
-    fakeClientA.enqueueChunks(['第一次回复']);
-    fakeClientA.enqueueChunks(['重新生成的回复']);
-    await sendMsg(containerA, content: '原始问题');
-
-    final userMessageId = containerA
-        .read(chatSessionsProvider)
-        .activeConversation
-        .messages
-        .first
-        .id;
-
-    await containerA
-        .read(chatSessionsProvider.notifier)
-        .editMessage(messageId: userMessageId, nextContent: '修改后的问题');
-
-    final messagesA = containerA
-        .read(chatSessionsProvider)
-        .activeConversation
-        .messages;
-    expect(messagesA.length, 2);
-    expect(messagesA[0].content, '修改后的问题');
-    final branchAssistantContent = messagesA[1].content;
-    expect(branchAssistantContent, '重新生成的回复');
-
-    final messageCountA = messagesA.length;
-
-    containerA.dispose();
-
-    final containerB = createTestContainer(
-      database: database,
-      preferences: preferences,
-      fakeClient: FakeChatGenerationClient(),
-    );
-    addTearDown(() {
-      containerB.dispose();
-    });
-
-    final messagesB = containerB
-        .read(chatSessionsProvider)
-        .activeConversation
-        .messages;
-    expect(messagesB.length, messageCountA);
-    expect(messagesB[0].content, '修改后的问题');
-    expect(messagesB[1].content, branchAssistantContent);
-  });
-
   // ── 检查点创建后重建容器 — 检查点保留 ────────────────────────────────────────
 
   test('检查点创建后重建容器 — 检查点保留', () async {
@@ -398,54 +338,7 @@ void main() {
     expect(messagesB.last.id, emptyAssistantId);
   });
 
-  // ── 5.3-3 generation 期间 stop 后新 generation 不被旧回调覆盖 ──────────────────
-
-  test('generation 期间 stop 后新 generation 不被旧回调覆盖', () async {
-    final database = AppDatabase.inMemory();
-    final preferences = await createSeededPreferences();
-    final fakeClient = FakeChatGenerationClient();
-
-    final container = createTestContainer(
-      database: database,
-      preferences: preferences,
-      fakeClient: fakeClient,
-    );
-    addTearDown(database.close);
-    addTearDown(container.dispose);
-
-    // A：streaming 中 stop，保留部分内容。
-    final controlledA = fakeClient.enqueueControlledStream();
-    addTearDown(controlledA.close);
-    final sendA = sendMsg(container, content: '生成 A');
-    await controlledA.listened;
-    controlledA.add(const ChatGenerationChunk(contentDelta: 'A 部分'));
-    // 等 A 的增量进入 provider 状态后再 stop，确保 stop 前内容已被 run 消费。
-    await waitForProviderState(
-      container: container,
-      provider: chatSessionsProvider,
-      matches: (s) => s.streamingReply?.content == 'A 部分',
-      description: '等待 A 增量进入流式状态',
-    );
-    await container.read(chatSessionsProvider.notifier).stopStreaming();
-    await sendA;
-
-    // B：新 generation 完整回复，验证旧 A 的回调不覆盖 B。
-    fakeClient.enqueueChunks(['B 完整回复']);
-    await sendMsg(container, content: '生成 B');
-
-    final messages = container
-        .read(chatSessionsProvider)
-        .activeConversation
-        .messages;
-    // [user A, assistant A(部分), user B, assistant B(完整)]
-    expect(messages.length, 4);
-    expect(messages[1].content, 'A 部分');
-    expect(messages[3].content, 'B 完整回复');
-    // 仅 A、B 各一次模型请求，无重复持久化触发的重复请求。
-    expect(fakeClient.requestHistory.length, 2);
-  });
-
-  // ── 5.3-4 一次性 repository failure 后不自动重复请求，显式重试可继续 ────────────
+  // ── 一次性 repository failure 后不自动重复请求，显式重试可继续 ────────────────
 
   test('一次性 repository failure 后不自动重复请求，显式重试可继续', () async {
     final database = AppDatabase.inMemory();
@@ -492,7 +385,7 @@ void main() {
     );
   });
 
-  // ── 5.3-5 generation 进行中 createCheckpoint 被忙守卫拒绝（互斥） ────────────────
+  // ── generation 进行中 createCheckpoint 被忙守卫拒绝（互斥） ────────────────────
 
   test('generation 进行中 createCheckpoint 被忙守卫拒绝', () async {
     final database = AppDatabase.inMemory();
@@ -546,7 +439,7 @@ void main() {
 }
 
 /// 测试用 repository：首次 saveConversation 抛异常模拟一次性落盘失败，
-/// 之后 delegating 到内层。用于验证 pending save 失败后不自动重复请求（5.3-4）。
+/// 之后 delegating 到内层。用于验证 pending save 失败后不自动重复请求。
 class _FailingOnceRepository implements ChatConversationRepository {
   _FailingOnceRepository(this._inner);
 

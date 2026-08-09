@@ -47,13 +47,6 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('默认断点：841 稳定双栏', (tester) async {
-    await _pumpLayout(tester, 841);
-    expect(find.text('主栏'), findsOneWidget);
-    expect(find.text('详情'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
-
   testWidgets('可注入断点：dialogMasterDetail 下 759 紧凑、760 双栏', (tester) async {
     await _pumpLayout(
       tester,

@@ -28,11 +28,12 @@ void main() {
   });
 
   group('SseLogBuffer', () {
-    test('正常入队 + flush 写入磁盘', () async {
+    test('flush 写入磁盘且无在途写入时幂等', () async {
       final buffer = SseLogBuffer(store: store, maxCapacity: 10, batchSize: 5);
 
       buffer.enqueue('line-1');
       buffer.enqueue('line-2');
+      await buffer.flush();
       await buffer.flush();
 
       final content = await File(logFilePath).readAsString();
@@ -102,16 +103,13 @@ void main() {
 
     test('空 flush 不写入任何内容', () async {
       final buffer = SseLogBuffer(store: store, maxCapacity: 10, batchSize: 5);
+      final file = File(logFilePath);
+      final lengthBefore = await file.exists() ? await file.length() : 0;
 
-      // 空 buffer flush
       await buffer.flush();
 
-      final file = File(logFilePath);
-      // 文件可能不存在或为空
-      if (await file.exists()) {
-        final content = await file.readAsString();
-        expect(content.trim().isEmpty, isTrue);
-      }
+      final lengthAfter = await file.exists() ? await file.length() : 0;
+      expect(lengthAfter, lengthBefore);
     });
   });
 
@@ -142,15 +140,6 @@ void main() {
       final content = await File('${tempDir.path}/network.log').readAsString();
       expect(content, contains('第一行'));
       expect(content, contains('第二行'));
-    });
-
-    test('无在途写入时 flush 幂等', () async {
-      buffer = SseLogBuffer(store: store, batchSize: 64);
-      buffer.enqueue('一行');
-      await buffer.flush();
-      await buffer.flush(); // 空 buffer、无在途写入，立即返回
-      final content = await File('${tempDir.path}/network.log').readAsString();
-      expect(content, contains('一行'));
     });
   });
 }

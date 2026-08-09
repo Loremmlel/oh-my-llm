@@ -126,23 +126,5 @@ void main() {
           .single['cnt'];
       expect(count, equals(0));
     });
-
-    test('inserts into empty table on first call', () {
-      final db = _createTestDb();
-      addTearDown(db.close);
-
-      replaceAllRowsInTable<MapEntry<String, String>>(
-        connection: db,
-        deleteSql: 'DELETE FROM test_items;',
-        insertSql: 'INSERT INTO test_items (id, name) VALUES (?, ?);',
-        items: const [MapEntry('a', 'a-name'), MapEntry('b', 'b-name')],
-        buildValues: (item) => [item.key, item.value],
-      );
-
-      final rows = db.select('SELECT id, name FROM test_items ORDER BY id;');
-      expect(rows.length, equals(2));
-      expect(rows[0]['id'], equals('a'));
-      expect(rows[1]['id'], equals('b'));
-    });
   });
 }

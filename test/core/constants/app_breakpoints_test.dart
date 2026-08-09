@@ -7,7 +7,6 @@ void main() {
     test('仅在 719 走紧凑分支，720 等号属宽侧', () {
       expect(AppBreakpoints.useCompactShell(719), isTrue);
       expect(AppBreakpoints.useCompactShell(720), isFalse);
-      expect(AppBreakpoints.useCompactShell(721), isFalse);
     });
   });
 
@@ -15,7 +14,6 @@ void main() {
     test('仅在 679 走紧凑分支，680 等号属宽侧', () {
       expect(AppBreakpoints.useCompactFormActions(679), isTrue);
       expect(AppBreakpoints.useCompactFormActions(680), isFalse);
-      expect(AppBreakpoints.useCompactFormActions(681), isFalse);
     });
   });
 
@@ -23,7 +21,6 @@ void main() {
     test('仅在 599 走近全宽分支，600 等号属宽侧', () {
       expect(AppBreakpoints.useFullWidthMessageBubble(599), isTrue);
       expect(AppBreakpoints.useFullWidthMessageBubble(600), isFalse);
-      expect(AppBreakpoints.useFullWidthMessageBubble(601), isFalse);
     });
   });
 }

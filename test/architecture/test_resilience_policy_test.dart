@@ -37,31 +37,22 @@ tester
       expect(_countOf(masked, _literalMsPumpPattern), 1);
     });
 
-    test('反例：新增违规会被拒绝', () {
-      // 构造"额外 find.byKey / 额外 raw settle / 额外 1ms delay"的模拟扫描
-      const violatingSource = '''
-find.byKey(const Key('x'));
-tester.pumpAndSettle();
-Future<void>.delayed(const Duration(milliseconds: 1));
-''';
-      final masked = _maskCommentsAndStrings(violatingSource);
-      expect(_countOf(masked, _findByKeyPattern), 1);
-      expect(_countOf(masked, _settlePattern), 1);
-      expect(_countOf(masked, _futureDelayedPattern), 1);
+    test('未登记路径出现违规会被拒绝', () {
+      expect(
+        () => _verifyExactAllow(
+          const {'fake/path.dart': 1},
+          _settleAllow,
+          'pumpAndSettle',
+        ),
+        throwsA(isA<TestFailure>()),
+      );
     });
 
-    test('反例：陈旧豁免会被拒绝', () {
-      // 模拟一次扫描：未登记路径出现 pumpAndSettle，_verifyExactAllow 必须拒绝
-      const staleSource = '''
-tester.pumpAndSettle();
-''';
-      final masked = _maskCommentsAndStrings(staleSource);
-      final counts = {'fake/path.dart': _countOf(masked, _settlePattern)};
-      // 允许列表只登记 widget_test_animation.dart：fake/path.dart 出现即越界
-      expect(counts['fake/path.dart'], 1);
-      expect(_settleAllow.containsKey('fake/path.dart'), isFalse);
+    test('登记路径不再出现违规时陈旧豁免会被拒绝', () {
       expect(
-        () => _verifyExactAllow(counts, _settleAllow, 'pumpAndSettle'),
+        () => _verifyExactAllow(const <String, int>{}, const {
+          'fake/path.dart': 1,
+        }, 'pumpAndSettle'),
         throwsA(isA<TestFailure>()),
       );
     });
@@ -113,12 +104,8 @@ const _settleAllow = {'test/helpers/widget_test_animation.dart': 1};
 
 /// 允许真实延时的位置（外部 socket 资源释放与负向观测，
 /// 已有 udp tag 且 CI 排除），按精确数量登记。
-/// 共享传输/解码器测试以 Duration.zero 冲刷事件循环，等待 async* 流
-/// 订阅建立（纯异步测试的标准负向观测手段），同样按精确数量登记。
 const _futureDelayedAllow = {
   'test/features/sync/data/sync_udp_discovery_test.dart': 3,
-  'test/core/http/llm_http_stream_transport_test.dart': 5,
-  'test/core/http/sse_event_decoder_test.dart': 1,
 };
 
 // 待查 token 均以片段拼接，避免门禁自身被匹配

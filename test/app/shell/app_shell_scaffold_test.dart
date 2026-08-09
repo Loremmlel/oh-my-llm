@@ -45,7 +45,15 @@ Future<void> _pumpShell(
 }
 
 void main() {
-  for (final viewport in requiredShellViewports) {
+  const navigationViewports = [
+    phonePortrait,
+    shellBelowBoundary,
+    shellAtBoundary,
+    wideDesktop,
+  ];
+  const drawerViewports = [phonePortrait, shellBelowBoundary];
+
+  for (final viewport in navigationViewports) {
     testWidgets('${viewport.name}: 目的地导航可达', (tester) async {
       await _pumpShell(
         tester,
@@ -72,9 +80,7 @@ void main() {
     });
   }
 
-  for (final viewport in requiredShellViewports.where(
-    (v) => v.shellMode == ShellNavigationMode.bottomBar,
-  )) {
+  for (final viewport in drawerViewports) {
     testWidgets('${viewport.name}: 抽屉可打开且内容可达', (tester) async {
       await _pumpShell(
         tester,

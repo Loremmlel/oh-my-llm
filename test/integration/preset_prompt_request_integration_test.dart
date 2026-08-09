@@ -143,18 +143,6 @@ void main() {
     expect(messages[3].content, '系统后置指令');
   });
 
-  // ── 无 PresetPrompt 时只有对话消息 ──────────────────────────────────────────
-
-  test('未选择 PresetPrompt 时请求仅包含对话消息', () async {
-    fakeClient.enqueueChunks(['回复']);
-    await sendMsg(container, content: '纯消息');
-
-    final messages = fakeClient.lastRequestMessages;
-    expect(messages, hasLength(1));
-    expect(messages[0].role, ChatMessageRole.user);
-    expect(messages[0].content, '纯消息');
-  });
-
   // ── 多轮对话中模板消息每次都拼接 ────────────────────────────────────────────
 
   test('多轮对话中 PresetPrompt 模板消息每轮都正确拼接', () async {

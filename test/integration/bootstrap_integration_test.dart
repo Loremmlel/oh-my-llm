@@ -26,21 +26,28 @@ import 'package:oh_my_llm/features/favorites/data/sqlite_favorites_repository.da
 
 const _viewportSize = Size(1440, 1024);
 
+Future<ProviderContainer> _pumpBootstrappedApp(WidgetTester tester) async {
+  SharedPreferences.setMockInitialValues({});
+  tester.view.physicalSize = _viewportSize;
+  tester.view.devicePixelRatio = 1;
+  addTearDown(() {
+    tester.view.resetPhysicalSize();
+    tester.view.resetDevicePixelRatio();
+  });
+
+  final db = AppDatabase.inMemory();
+  addTearDown(db.close);
+
+  await bootstrap(database: db, networkLogger: const NoopNetworkLogger());
+  await tester.pump();
+
+  final context = tester.element(find.byType(MaterialApp));
+  return ProviderScope.containerOf(context);
+}
+
 void main() {
   testWidgets('正常启动后渲染聊天页', (tester) async {
-    SharedPreferences.setMockInitialValues({});
-    tester.view.physicalSize = _viewportSize;
-    tester.view.devicePixelRatio = 1;
-    addTearDown(() {
-      tester.view.resetPhysicalSize();
-      tester.view.resetDevicePixelRatio();
-    });
-
-    final db = AppDatabase.inMemory();
-    addTearDown(() => db.close());
-
-    await bootstrap(database: db, networkLogger: const NoopNetworkLogger());
-    await tester.pump();
+    await _pumpBootstrappedApp(tester);
 
     expect(find.byType(MaterialApp), findsOneWidget);
 
@@ -51,44 +58,8 @@ void main() {
     expect(hasNav, isTrue);
   });
 
-  testWidgets('启动后执行了数据迁移', (tester) async {
-    SharedPreferences.setMockInitialValues({});
-    tester.view.physicalSize = _viewportSize;
-    tester.view.devicePixelRatio = 1;
-    addTearDown(() {
-      tester.view.resetPhysicalSize();
-      tester.view.resetDevicePixelRatio();
-    });
-
-    final db = AppDatabase.inMemory();
-    addTearDown(() => db.close());
-
-    await bootstrap(database: db, networkLogger: const NoopNetworkLogger());
-    await tester.pump();
-
-    final version =
-        db.connection.select('PRAGMA user_version;').single['user_version']
-            as int;
-    expect(version, greaterThanOrEqualTo(9));
-  });
-
   testWidgets('启动后 ProviderScope override 正确注入', (tester) async {
-    SharedPreferences.setMockInitialValues({});
-    tester.view.physicalSize = _viewportSize;
-    tester.view.devicePixelRatio = 1;
-    addTearDown(() {
-      tester.view.resetPhysicalSize();
-      tester.view.resetDevicePixelRatio();
-    });
-
-    final db = AppDatabase.inMemory();
-    addTearDown(() => db.close());
-
-    await bootstrap(database: db, networkLogger: const NoopNetworkLogger());
-    await tester.pump();
-
-    final context = tester.element(find.byType(MaterialApp));
-    final container = ProviderScope.containerOf(context);
+    final container = await _pumpBootstrappedApp(tester);
 
     final preferences = container.read(sharedPreferencesProvider);
     expect(preferences, isNotNull);

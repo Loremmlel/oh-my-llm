@@ -18,13 +18,13 @@ void main() {
       database.close();
     });
 
-    test('user_version 在迁移完成后为 10', () {
+    test('user_version 在迁移完成后不低于当前 schema 13', () {
       final version =
           database.connection
                   .select('PRAGMA user_version;')
                   .single['user_version']
               as int;
-      expect(version, greaterThanOrEqualTo(10));
+      expect(version, greaterThanOrEqualTo(13));
     });
 
     test('创建关键业务表', () {
@@ -293,26 +293,6 @@ void main() {
   });
 
   group('V10 迁移', () {
-    test('迁移后 favorites 表包含 title 列', () {
-      final db = AppDatabase.inMemory();
-      addTearDown(db.close);
-
-      final columns = db.connection.select('PRAGMA table_info(favorites);');
-      final columnNames = columns.map((row) => row['name'] as String).toList();
-
-      expect(columnNames, contains('title'));
-    });
-
-    test('迁移后 user_version >= 10', () {
-      final db = AppDatabase.inMemory();
-      addTearDown(db.close);
-
-      final version =
-          db.connection.select('PRAGMA user_version;').single['user_version']
-              as int;
-      expect(version, greaterThanOrEqualTo(10));
-    });
-
     test('全新安装 favorites 表含 title 列且默认为 NULL', () {
       final db = AppDatabase.inMemory();
       addTearDown(db.close);
@@ -392,26 +372,6 @@ void main() {
   });
 
   group('V13 迁移', () {
-    test('迁移后 messages 表包含 finish_reason 列', () {
-      final db = AppDatabase.inMemory();
-      addTearDown(db.close);
-
-      final columns = db.connection.select('PRAGMA table_info(messages);');
-      final columnNames = columns.map((row) => row['name'] as String).toList();
-
-      expect(columnNames, contains('finish_reason'));
-    });
-
-    test('迁移后 user_version >= 13', () {
-      final db = AppDatabase.inMemory();
-      addTearDown(db.close);
-
-      final version =
-          db.connection.select('PRAGMA user_version;').single['user_version']
-              as int;
-      expect(version, greaterThanOrEqualTo(13));
-    });
-
     test('全新安装 messages 表含 finish_reason 列且默认为 NULL', () {
       final db = AppDatabase.inMemory();
       addTearDown(db.close);

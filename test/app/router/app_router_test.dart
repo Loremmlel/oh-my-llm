@@ -16,26 +16,6 @@ Future<SharedPreferences> _testPrefs(AppDatabase db) async {
 }
 
 void main() {
-  testWidgets('favorite detail direct URL 不依赖 extra 恢复完整内容', (tester) async {
-    final db = AppDatabase.inMemory();
-    addTearDown(db.close);
-    seedFavorite(
-      db,
-      id: 'fav-direct',
-      userMessageContent: '直接打开的用户消息',
-      assistantContent: '直接打开的助手回复',
-      assistantModelDisplayName: 'DeepSeek V4 Flash',
-    );
-    final prefs = await _testPrefs(db);
-
-    final router = createAppRouter(initialLocation: '/favorites/fav-direct');
-    await pumpTestApp(tester, preferences: prefs, database: db, router: router);
-
-    expect(find.text('直接打开的用户消息'), findsOneWidget);
-    expect(find.text('直接打开的助手回复'), findsOneWidget);
-    expect(find.text('DeepSeek V4 Flash'), findsOneWidget);
-  });
-
   testWidgets('fresh router rebuild 后同一 URL 仍恢复详情', (tester) async {
     final db = AppDatabase.inMemory();
     addTearDown(db.close);
@@ -44,6 +24,7 @@ void main() {
       id: 'fav-rebuild',
       userMessageContent: '重建后的用户消息',
       assistantContent: '重建后的助手回复',
+      assistantModelDisplayName: 'DeepSeek V4 Flash',
     );
     final prefs = await _testPrefs(db);
 
@@ -72,6 +53,7 @@ void main() {
 
     expect(find.text('重建后的用户消息'), findsOneWidget);
     expect(find.text('重建后的助手回复'), findsOneWidget);
+    expect(find.text('DeepSeek V4 Flash'), findsOneWidget);
   });
 
   testWidgets('invalid ID 显示收藏链接无效并可返回列表', (tester) async {

@@ -6,212 +6,100 @@ void main() {
   const redactor = NetworkLogRedactor();
 
   group('redactHeaders', () {
-    test('masks Authorization bearer token (case-insensitive key)', () {
+    test('遮罩全部已知敏感类别并保留普通 header', () {
+      const sensitiveKeys = [
+        'Authorization',
+        'Cookie',
+        'X-API-Key',
+        'Token',
+        'Access-Token',
+        'Auth-Token',
+        'Secret',
+        'Client-Secret',
+        'Proxy-Authorization',
+      ];
       final headers = redactor.redactHeaders({
-        'Authorization': 'Bearer sk-test-123456',
+        for (final key in sensitiveKeys) key: 'sensitive-value',
         'Content-Type': 'application/json',
-      });
-
-      expect(headers['Authorization'], '***');
-      expect(headers['Content-Type'], 'application/json');
-    });
-
-    test('preserves non-sensitive headers', () {
-      final headers = redactor.redactHeaders({
         'X-Custom-Header': 'visible-value',
       });
 
+      for (final key in sensitiveKeys) {
+        expect(headers[key], '***', reason: '$key 必须脱敏');
+      }
+      expect(headers['Content-Type'], 'application/json');
       expect(headers['X-Custom-Header'], 'visible-value');
     });
 
-    test('handles empty headers map', () {
-      expect(redactor.redactHeaders({}), isEmpty);
-    });
-
-    test('masks Cookie header', () {
-      final headers = redactor.redactHeaders({'Cookie': 'session=abc123'});
-      expect(headers['Cookie'], '***');
-    });
-
-    test('masks X-API-Key header', () {
-      final headers = redactor.redactHeaders({'X-API-Key': 'sk-my-key'});
-      expect(headers['X-API-Key'], '***');
-    });
-
-    test('masks Token / Access-Token / Auth-Token headers', () {
-      final headers = redactor.redactHeaders({
-        'Token': 'jwt.ey',
-        'Access-Token': 'at-123',
-        'Auth-Token': 'auth-456',
-      });
-      expect(headers['Token'], '***');
-      expect(headers['Access-Token'], '***');
-      expect(headers['Auth-Token'], '***');
-    });
-
-    test('masks Secret / Client-Secret headers', () {
-      final headers = redactor.redactHeaders({
-        'Secret': 'my-secret',
-        'Client-Secret': 'cs-789',
-      });
-      expect(headers['Secret'], '***');
-      expect(headers['Client-Secret'], '***');
-    });
-
-    test('masks Proxy-Authorization header (contains authorization)', () {
-      final headers = redactor.redactHeaders({
-        'Proxy-Authorization': 'Basic dXNlcjpwYXNz',
-      });
-      expect(headers['Proxy-Authorization'], '***');
-    });
-
-    test('masks case-insensitive header keys', () {
+    test('敏感 header 匹配不区分大小写', () {
       final headers = redactor.redactHeaders({
         'AUTHORIZATION': 'Bearer x',
-        'Cookie': 'y',
+        'cookie': 'y',
         'x-api-key': 'z',
       });
-      expect(headers['AUTHORIZATION'], '***');
-      expect(headers['Cookie'], '***');
-      expect(headers['x-api-key'], '***');
+
+      expect(headers.values, everyElement('***'));
     });
   });
 
   group('redactPayload', () {
-    test('masks apiKey / api_key fields recursively', () {
+    test('递归遮罩 Map 与 List 中全部已知敏感字段', () {
       final payload =
           redactor.redactPayload({
                 'apiKey': 'sk-top-level',
-                'nested': {'api_key': 'sk-nested', 'value': 'ok'},
-              })
-              as Map<String, Object?>;
-
-      expect(payload['apiKey'], '***');
-      final nested = payload['nested']! as Map<String, Object?>;
-      expect(nested['api_key'], '***');
-      expect(nested['value'], 'ok');
-    });
-
-    test('masks case-insensitive api key field variants', () {
-      final payload =
-          redactor.redactPayload({
-                'API_KEY': 'sk-upper',
-                'ApiKey': 'sk-mixed',
-                'safe_field': 'keep-me',
-              })
-              as Map<String, Object?>;
-
-      expect(payload['API_KEY'], '***');
-      expect(payload['ApiKey'], '***');
-      expect(payload['safe_field'], 'keep-me');
-    });
-
-    test('handles null and non-map payloads', () {
-      expect(redactor.redactPayload(null), isNull);
-      expect(redactor.redactPayload(42), 42);
-      expect(redactor.redactPayload('hello'), 'hello');
-    });
-
-    test('masks values in list payloads', () {
-      final payload =
-          redactor.redactPayload([
-                {'apiKey': 'secret1'},
-                {'api_key': 'secret2'},
-              ])
-              as List;
-
-      expect((payload[0] as Map)['apiKey'], '***');
-      expect((payload[1] as Map)['api_key'], '***');
-    });
-
-    test('masks token / secret / password / credential fields', () {
-      final payload =
-          redactor.redactPayload({
-                'token': 'jwt-payload',
-                'secret': 'my-secret',
-                'password': 'hunter2',
-                'credential': 'cred-123',
+                'api_key': 'sk-snake-case',
+                'Token': 'case-insensitive-token',
+                'SECRET': 'case-insensitive-secret',
+                'Password': 'case-insensitive-password',
+                'CREDENTIAL': 'case-insensitive-credential',
                 'safe_value': 'keep-me',
+                'nested': {'token': 'nested-token', 'name': 'keep-nested'},
+                'items': [
+                  {'secret': 'list-secret'},
+                ],
               })
               as Map<String, Object?>;
 
-      expect(payload['token'], '***');
-      expect(payload['secret'], '***');
-      expect(payload['password'], '***');
-      expect(payload['credential'], '***');
+      for (final key in [
+        'apiKey',
+        'api_key',
+        'Token',
+        'SECRET',
+        'Password',
+        'CREDENTIAL',
+      ]) {
+        expect(payload[key], '***', reason: '$key 必须脱敏');
+      }
       expect(payload['safe_value'], 'keep-me');
+
+      final nested = payload['nested']! as Map<String, Object?>;
+      expect(nested['token'], '***');
+      expect(nested['name'], 'keep-nested');
+
+      final items = payload['items']! as List<Object?>;
+      expect((items.single! as Map)['secret'], '***');
     });
 
-    test('masks case-insensitive token/secret/password/credential', () {
-      final payload =
-          redactor.redactPayload({
-                'Token': 't1',
-                'SECRET': 's1',
-                'Password': 'p1',
-                'CREDENTIAL': 'c1',
-              })
-              as Map<String, Object?>;
-
-      expect(payload['Token'], '***');
-      expect(payload['SECRET'], '***');
-      expect(payload['Password'], '***');
-      expect(payload['CREDENTIAL'], '***');
-    });
-
-    test('masks nested token/secret/password fields', () {
-      final payload =
-          redactor.redactPayload({
-                'config': {
-                  'api': {'token': 'nested-token', 'name': 'keep'},
-                },
-              })
-              as Map<String, Object?>;
-
-      final config = payload['config']! as Map<String, Object?>;
-      final api = config['api']! as Map<String, Object?>;
-      expect(api['token'], '***');
-      expect(api['name'], 'keep');
+    test('null 与普通标量保持原值', () {
+      for (final value in <Object?>[null, 42, true, 'hello']) {
+        expect(redactor.redactPayload(value), value);
+      }
     });
   });
 
   group('redactText', () {
-    test('masks Bearer tokens inline', () {
-      final result = redactor.redactText(
-        'Authorization: Bearer sk-test-token-abc123',
+    test('遮罩内联 Bearer token', () {
+      expect(
+        redactor.redactText('Authorization: Bearer sk-test-token-abc123'),
+        'Authorization: Bearer ***',
       );
-      expect(result, 'Authorization: Bearer ***');
     });
 
-    test('masks JSON api key fields in text', () {
-      final result = redactor.redactText('{"apiKey": "sk-visible-in-json"}');
-      expect(result, '{"apiKey": "***"}');
-    });
-  });
-
-  group('isSensitiveHeader', () {
-    test('returns true for known sensitive headers', () {
-      expect(redactor.isSensitiveHeader('Authorization'), isTrue);
-      expect(redactor.isSensitiveHeader('Cookie'), isTrue);
-      expect(redactor.isSensitiveHeader('X-API-Key'), isTrue);
-      expect(redactor.isSensitiveHeader('Token'), isTrue);
-      expect(redactor.isSensitiveHeader('Access-Token'), isTrue);
-      expect(redactor.isSensitiveHeader('Auth-Token'), isTrue);
-      expect(redactor.isSensitiveHeader('Secret'), isTrue);
-      expect(redactor.isSensitiveHeader('Client-Secret'), isTrue);
-      expect(redactor.isSensitiveHeader('Proxy-Authorization'), isTrue);
-    });
-
-    test('returns false for non-sensitive headers', () {
-      expect(redactor.isSensitiveHeader('Content-Type'), isFalse);
-      expect(redactor.isSensitiveHeader('Accept'), isFalse);
-      expect(redactor.isSensitiveHeader('X-Custom'), isFalse);
-      expect(redactor.isSensitiveHeader('User-Agent'), isFalse);
-    });
-
-    test('is case-insensitive', () {
-      expect(redactor.isSensitiveHeader('authorization'), isTrue);
-      expect(redactor.isSensitiveHeader('COOKIE'), isTrue);
-      expect(redactor.isSensitiveHeader('x-api-key'), isTrue);
+    test('遮罩文本中的 JSON API key 字段', () {
+      expect(
+        redactor.redactText('{"apiKey": "sk-visible-in-json"}'),
+        '{"apiKey": "***"}',
+      );
     });
   });
 }

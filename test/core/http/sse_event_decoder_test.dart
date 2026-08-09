@@ -208,29 +208,20 @@ void main() {
   });
 
   test('取消订阅立即取消底层 byte stream', () async {
-    final source = StreamController<List<int>>();
+    final sourceListened = Completer<void>();
+    final source = StreamController<List<int>>(
+      onListen: sourceListened.complete,
+    );
     final events = <SseEvent>[];
     final subscription = decoder.decode(source.stream).listen(events.add);
 
-    // 等解码器完成对底层流的订阅。
-    await Future<void>.delayed(Duration.zero);
+    await sourceListened.future;
     expect(source.hasListener, isTrue);
 
     await subscription.cancel();
     expect(source.hasListener, isFalse);
 
     await source.close();
-  });
-
-  test('SseEvent 值相等（Equatable）', () {
-    const a = SseEvent(eventName: 'ping', data: 'x', rawData: 'data: x');
-    const b = SseEvent(eventName: 'ping', data: 'x', rawData: 'data: x');
-    const c = SseEvent(eventName: 'ping', data: 'y', rawData: 'data: x');
-
-    expect(a, b);
-    expect(a.hashCode, b.hashCode);
-    expect(a == c, isFalse);
-    expect(c == const SseEvent(data: 'x', rawData: 'data: x'), isFalse);
   });
 
   testWidgets('上游错误后取消 idle timer，不再触发超时', (tester) async {

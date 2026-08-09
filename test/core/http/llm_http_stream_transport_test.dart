@@ -152,16 +152,29 @@ void main() {
 
     final events = <SseEvent>[];
     final errors = <Object>[];
+    final firstEventReceived = Completer<void>();
+    final errorReceived = Completer<Object>();
     final subscription = transport
         .streamEvents(uri: testUri, headers: testHeaders, body: '{}')
-        .listen(events.add, onError: errors.add);
+        .listen(
+          (event) {
+            events.add(event);
+            if (!firstEventReceived.isCompleted) {
+              firstEventReceived.complete();
+            }
+          },
+          onError: (Object error) {
+            errors.add(error);
+            if (!errorReceived.isCompleted) errorReceived.complete(error);
+          },
+        );
 
     source.add(utf8.encode('data: {"a":1}\n\n'));
-    await Future<void>.delayed(Duration.zero);
+    await firstEventReceived.future;
     expect(events, hasLength(1));
 
     source.addError(http.ClientException('connection reset', testUri));
-    await Future<void>.delayed(Duration.zero);
+    await errorReceived.future;
 
     expect(errors, hasLength(1));
     expect(errors.single, isA<LlmHttpTransportException>());
@@ -190,10 +203,17 @@ void main() {
 
     final errors = <Object>[];
     final events = <SseEvent>[];
+    final errorReceived = Completer<Object>();
     final subscription = transport
         .streamEvents(uri: testUri, headers: testHeaders, body: '{}')
-        .listen(events.add, onError: errors.add);
-    await Future<void>.delayed(Duration.zero);
+        .listen(
+          events.add,
+          onError: (Object error) {
+            errors.add(error);
+            if (!errorReceived.isCompleted) errorReceived.complete(error);
+          },
+        );
+    await errorReceived.future;
 
     expect(errors, hasLength(1));
     expect(errors.single, isA<LlmHttpTransportException>());
@@ -205,22 +225,29 @@ void main() {
   });
 
   test('取消订阅释放底层 HTTP byte stream', () async {
-    final source = StreamController<List<int>>();
+    final sourceListened = Completer<void>();
+    final sourceCancelled = Completer<void>();
+    final source = StreamController<List<int>>(
+      onListen: sourceListened.complete,
+      onCancel: sourceCancelled.complete,
+    );
     final client = _FakeStreamingHttpClient((_) async {
       return http.StreamedResponse(source.stream, 200);
     });
     final transport = LlmHttpStreamTransport(httpClient: client);
 
+    final firstEventReceived = Completer<void>();
     final subscription = transport
         .streamEvents(uri: testUri, headers: testHeaders, body: '{}')
-        .listen((_) {});
+        .listen((_) {
+          if (!firstEventReceived.isCompleted) firstEventReceived.complete();
+        });
 
-    // 等底层 byte stream 订阅建立。
-    await Future<void>.delayed(Duration.zero);
+    await sourceListened.future;
     expect(source.hasListener, isTrue);
 
     source.add(utf8.encode('data: x\n\n'));
-    await Future<void>.delayed(Duration.zero);
+    await firstEventReceived.future;
 
     final cancelFuture = subscription.cancel();
 
@@ -229,6 +256,7 @@ void main() {
     // 依赖流中仍有数据在流动）。
     source.add(utf8.encode('data: y\n\n'));
     await cancelFuture.timeout(const Duration(seconds: 5));
+    await sourceCancelled.future.timeout(const Duration(seconds: 5));
 
     expect(source.hasListener, isFalse);
     await source.close();

@@ -32,31 +32,32 @@ void main() {
   });
 
   group('decodeObjectList', () {
-    test('supports current versioned format with empty items', () {
-      final decoded = VersionedJsonStorage.decodeObjectList(
-        rawJson: jsonEncode({
-          'version': VersionedJsonStorage.currentSchemaVersion,
-          'items': <dynamic>[],
-        }),
-        subject: 'test items',
-      );
-      expect(decoded, isEmpty);
-    });
+    test(
+      'supports current versioned format with empty and populated items',
+      () {
+        const cases = <(String, List<Map<String, String>>)>[
+          ('empty', []),
+          (
+            'populated',
+            [
+              {'id': 'item-a'},
+              {'id': 'item-b'},
+            ],
+          ),
+        ];
 
-    test('supports current versioned format with items', () {
-      final decoded = VersionedJsonStorage.decodeObjectList(
-        rawJson: jsonEncode({
-          'version': VersionedJsonStorage.currentSchemaVersion,
-          'items': [
-            {'id': 'item-a'},
-            {'id': 'item-b'},
-          ],
-        }),
-        subject: 'test items',
-      );
-      expect(decoded, hasLength(2));
-      expect(decoded.first['id'], 'item-a');
-    });
+        for (final (name, items) in cases) {
+          final decoded = VersionedJsonStorage.decodeObjectList(
+            rawJson: jsonEncode({
+              'version': VersionedJsonStorage.currentSchemaVersion,
+              'items': items,
+            }),
+            subject: 'test items',
+          );
+          expect(decoded, items, reason: name);
+        }
+      },
+    );
 
     test('rejects unsupported future versions', () {
       expect(
@@ -122,32 +123,19 @@ void main() {
       expect(decoded, isEmpty);
     });
 
-    test('accepts version 0', () {
-      final decoded = VersionedJsonStorage.decodeObjectList(
-        rawJson: jsonEncode({
-          'version': 0,
-          'items': [
-            {'id': 'a'},
-          ],
-        }),
-        subject: 'test items',
-      );
-      expect(decoded, hasLength(1));
-      expect(decoded.first['id'], 'a');
-    });
-
-    test('accepts negative version', () {
-      final decoded = VersionedJsonStorage.decodeObjectList(
-        rawJson: jsonEncode({
-          'version': -1,
-          'items': [
-            {'id': 'a'},
-          ],
-        }),
-        subject: 'test items',
-      );
-      expect(decoded, hasLength(1));
-      expect(decoded.first['id'], 'a');
+    test('accepts non-future version bounds', () {
+      for (final version in [0, -1]) {
+        final decoded = VersionedJsonStorage.decodeObjectList(
+          rawJson: jsonEncode({
+            'version': version,
+            'items': [
+              {'id': 'a'},
+            ],
+          }),
+          subject: 'test items',
+        );
+        expect(decoded.single['id'], 'a', reason: 'version=$version');
+      }
     });
   });
 
@@ -164,15 +152,6 @@ void main() {
       expect(decoded['items'], [
         {'id': 'x'},
       ]);
-    });
-
-    test('encodes empty list', () {
-      final encoded = VersionedJsonStorage.encodeObjectList(
-        items: <Map<String, dynamic>>[],
-        toJson: (item) => item,
-      );
-      final decoded = jsonDecode(encoded) as Map;
-      expect(decoded['items'], isEmpty);
     });
   });
 }

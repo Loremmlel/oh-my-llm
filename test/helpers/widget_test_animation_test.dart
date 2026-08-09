@@ -5,27 +5,22 @@ import 'widget_test_animation.dart';
 
 void main() {
   testWidgets('有限动画完成后 helper 返回', (tester) async {
+    final controller = AnimationController(
+      vsync: tester,
+      duration: const Duration(milliseconds: 120),
+    );
+    addTearDown(controller.dispose);
     await tester.pumpWidget(
-      const MaterialApp(
-        home: AnimatedOpacity(
-          opacity: 1.0,
-          duration: Duration(milliseconds: 120),
-          child: Text('内容'),
+      MaterialApp(
+        home: AnimatedBuilder(
+          animation: controller,
+          builder: (context, child) => const Text('内容'),
         ),
       ),
     );
-    await tester.pumpWidget(
-      const MaterialApp(
-        home: AnimatedOpacity(
-          opacity: 0.0,
-          duration: Duration(milliseconds: 120),
-          child: Text('内容'),
-        ),
-      ),
-    );
+    controller.forward();
     await settleAnimatedWidgetTransition(tester);
-    final widget = tester.widget<AnimatedOpacity>(find.byType(AnimatedOpacity));
-    expect(widget.opacity, 0.0);
+    expect(controller.status, AnimationStatus.completed);
   });
 
   testWidgets('无限动画触发超时保护', (tester) async {

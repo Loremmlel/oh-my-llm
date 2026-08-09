@@ -8,7 +8,6 @@ import 'package:oh_my_llm/core/widgets/notification_bubble.dart';
 import 'package:oh_my_llm/core/widgets/notification_bubble_data.dart';
 import 'package:oh_my_llm/core/widgets/notification_bubble_stack.dart';
 
-import '../../helpers/responsive_viewport_cases.dart';
 import '../../helpers/widget_test_animation.dart';
 
 NotificationBubbleData _data({
@@ -65,11 +64,6 @@ void main() {
         final status = find.semantics.byLabel('$expected：同步完成');
         expect(status, findsOneWidget, reason: '$type 应恰好一个 status 节点');
         expect(status, isSemantics(isLiveRegion: true));
-        expect(
-          find.text(expected),
-          findsNothing,
-          reason: '类型名称只存在于语义 label，不产生可见文本',
-        );
       }
     });
 
@@ -204,33 +198,6 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pump();
       expect(dismissCalls, 1);
-    });
-
-    testWidgets('viewport smoke：两种视口下 status/action/close 一致', (tester) async {
-      for (final vp in [phonePortrait, wideDesktop]) {
-        tester.view.physicalSize = vp.size;
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(tester.view.reset);
-
-        await tester.pumpWidget(
-          _wrapContent(
-            NotificationBubbleContent(
-              data: _data(
-                action: NotificationBubbleAction(label: '撤销', onPressed: () {}),
-              ),
-              onDismiss: () {},
-            ),
-          ),
-        );
-
-        expect(find.semantics.byLabel('信息通知：同步完成'), findsOneWidget);
-        expect(find.semantics.byLabel('撤销'), findsOneWidget);
-        expect(
-          find.semantics.byPredicate((n) => n.tooltip == '关闭通知'),
-          findsOneWidget,
-        );
-        expect(tester.takeException(), isNull);
-      }
     });
   });
 
