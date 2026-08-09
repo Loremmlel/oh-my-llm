@@ -15,13 +15,14 @@ class LlmEndpointResolverException implements Exception {
 /// 配置只保存用户原始输入（首尾空白由配置层清理），实际请求时由本类解析，
 /// 避免设置界面暗中重写用户配置。仅识别三种标准生成后缀，不为 Azure 等
 /// 特殊路由推断 deployment / api-version。
-class LlmEndpointResolver {
+final class LlmEndpointResolver {
   const LlmEndpointResolver();
 
   /// 三种已知的生成端点标准后缀。
   static const chatCompletionsSuffix = '/v1/chat/completions';
   static const responsesSuffix = '/v1/responses';
   static const anthropicSuffix = '/v1/messages';
+  static const modelsSuffix = '/v1/models';
 
   static const _knownGenerationSuffixes = <String>[
     chatCompletionsSuffix,
@@ -39,32 +40,22 @@ class LlmEndpointResolver {
   /// 5. 其他情况追加完整 `/v1/...` 后缀。
   ///
   /// host、port、自定义反向代理前缀和 query 均保留。
-  Uri resolveGenerationEndpoint(String apiUrl, LlmApiProtocol protocol) {
-    final uri = _parseAndValidate(apiUrl);
+  Uri resolveGenerationEndpoint({
+    required String rawUrl,
+    required LlmApiProtocol protocol,
+  }) {
+    final uri = _parseAndValidate(rawUrl);
     final targetSuffix = _suffixFor(protocol);
     final path = _stripTrailingSlashes(uri.path);
 
-    if (path == targetSuffix) {
+    if (path.endsWith(targetSuffix)) {
       // 已是目标协议完整后缀，直接使用用户原始输入。
       return uri;
     }
 
-    final matchedSuffix = _matchKnownSuffix(path);
-    if (matchedSuffix != null) {
-      // 末尾是另外两种已知生成后缀，替换为目标后缀。
-      final basePath = path.substring(0, path.length - matchedSuffix.length);
-      return uri.replace(path: '$basePath$targetSuffix');
-    }
-
-    if (path.endsWith('/v1')) {
-      // path 末尾是 /v1，追加目标协议末段。
-      return uri.replace(
-        path: '$path/${targetSuffix.substring('/v1/'.length)}',
-      );
-    }
-
-    // 其他情况追加完整 /v1/... 后缀。
-    return uri.replace(path: '$path$targetSuffix');
+    final root = resolveApiRoot(rawUrl);
+    final targetSegment = targetSuffix.substring('/v1'.length);
+    return root.replace(path: '${root.path}$targetSegment');
   }
 
   /// 解析模型列表端点。
@@ -74,24 +65,34 @@ class LlmEndpointResolver {
   /// 与 query 保留。
   Uri resolveModelsEndpoint(String apiUrl) {
     final uri = _parseAndValidate(apiUrl);
-    var path = _stripTrailingSlashes(uri.path);
+    final path = _stripTrailingSlashes(uri.path);
 
-    if (path.endsWith('/v1/models')) {
+    if (path.endsWith(modelsSuffix)) {
       // 已是模型列表端点：原样返回用户输入，避免二次拼接。
       return uri;
     }
 
-    for (final suffix in _knownGenerationSuffixes) {
+    final root = resolveApiRoot(apiUrl);
+    return root.replace(path: '${root.path}/models');
+  }
+
+  /// 解析统一 API 根地址，供端点生成与服务商等价判断复用。
+  ///
+  /// 已知生成端点和模型列表端点会先剥离；其余 path 视为代理前缀，
+  /// 最终统一为以 `/v1` 结尾的根地址。port 与 query 保持不变。
+  Uri resolveApiRoot(String rawUrl) {
+    final uri = _parseAndValidate(rawUrl);
+    var path = _stripTrailingSlashes(uri.path);
+
+    for (final suffix in [..._knownGenerationSuffixes, modelsSuffix]) {
       if (path.endsWith(suffix)) {
         path = path.substring(0, path.length - suffix.length);
         break;
       }
     }
 
-    final modelsPath = path.endsWith('/v1')
-        ? '$path/models'
-        : '$path/v1/models';
-    return uri.replace(path: modelsPath);
+    final rootPath = path.endsWith('/v1') ? path : '$path/v1';
+    return uri.replace(path: rootPath);
   }
 
   static String _suffixFor(LlmApiProtocol protocol) {
@@ -105,25 +106,19 @@ class LlmEndpointResolver {
     }
   }
 
-  static String? _matchKnownSuffix(String path) {
-    for (final suffix in _knownGenerationSuffixes) {
-      if (path.endsWith(suffix)) {
-        return suffix;
-      }
-    }
-    return null;
-  }
-
   /// 解析并校验配置 URL：仅接受绝对 http/https URI，fragment 视为配置错误。
   static Uri _parseAndValidate(String apiUrl) {
     Uri uri;
     try {
-      uri = Uri.parse(apiUrl);
+      uri = Uri.parse(apiUrl.trim());
     } on FormatException catch (e) {
       throw LlmEndpointResolverException('API URL 格式无效：${e.message}');
     }
     if (!uri.hasScheme || (uri.scheme != 'http' && uri.scheme != 'https')) {
       throw LlmEndpointResolverException('API URL 必须为绝对 http/https 地址：$apiUrl');
+    }
+    if (uri.host.isEmpty) {
+      throw LlmEndpointResolverException('API URL 必须包含非空 host：$apiUrl');
     }
     if (uri.hasFragment) {
       throw LlmEndpointResolverException('API URL 不允许包含 fragment（#）：$apiUrl');

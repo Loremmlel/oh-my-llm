@@ -540,9 +540,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     try {
       final result = await chatClient.complete(
         ChatGenerationRequest(
-          // 从 modelConfig 派生协议中立 target（endpoint 由 fromModelConfig
-          // 经 LlmEndpointResolver 解析）。
-          target: ChatGenerationRequestTarget.fromModelConfig(modelConfig),
+          target: _targetFromModelConfig(modelConfig),
           messages: buildCheckpointSummaryMessages(
             memoryPrompt: memoryPrompt,
             conversationMessages: summaryMessages,
@@ -594,6 +592,17 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       state = state.copyWith(isCheckpointing: false);
       rethrow;
     }
+  }
+
+  ChatGenerationRequestTarget _targetFromModelConfig(
+    LlmModelConfig modelConfig,
+  ) {
+    return ChatGenerationRequestTarget(
+      protocol: modelConfig.apiProtocol,
+      endpoint: modelConfig.apiUrl.trim(),
+      apiKey: modelConfig.apiKey,
+      model: modelConfig.modelName,
+    );
   }
 
   /// 切换某个父节点下的选中消息版本。
@@ -738,11 +747,8 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     if (pendingError != null) {
       return ChatPrepareFailure(pendingError);
     }
-    final request = ChatGenerationLifecycleRequest(
-      conversationId: streamingConversation.id,
-      assistantMessageId: assistantMessage.id,
-      parentMessageId: command.parentMessageId,
-      modelConfig: command.modelConfig,
+    final request = ChatGenerationRequest(
+      target: _targetFromModelConfig(command.modelConfig),
       messages: buildRequestMessages(
         presetPrompt: command.presetPrompt,
         conversationMessages: command.requestConversationMessages,
@@ -755,12 +761,10 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
           command.reasoningEnabled && command.modelConfig.supportsReasoning
           ? command.reasoningEffort
           : null,
-      retryPolicy: command.retryPolicy,
       streamIdleTimeout:
           command.retryPolicy.retryOnTimeout && command.retryPolicy.enabled
           ? command.retryPolicy.timeout
           : null,
-      retryDelay: command.retryDelay,
     );
     return ChatPrepareSuccess(
       request: request,

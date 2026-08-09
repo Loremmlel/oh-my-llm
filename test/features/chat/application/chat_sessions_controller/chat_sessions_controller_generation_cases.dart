@@ -444,19 +444,16 @@ void registerChatSessionsControllerGenerationCases() {
     });
   });
 
-  // ── 生成端点解析（LlmEndpointResolver 接线）─────────────────────────────────
+  // ── 原始请求目标接线 ────────────────────────────────────────────────────────
 
-  test('apiUrl 为根地址时 wire 请求解析后的完整生成端点（三协议参数化）', () async {
-    const cases = <(LlmApiProtocol, String)>[
-      (
-        LlmApiProtocol.chatCompletions,
-        'https://api.example.com/v1/chat/completions',
-      ),
-      (LlmApiProtocol.responses, 'https://api.example.com/v1/responses'),
-      (LlmApiProtocol.anthropic, 'https://api.example.com/v1/messages'),
+  test('apiUrl 为根地址时 wire 请求保留原始 URL 与协议（三协议参数化）', () async {
+    const protocols = <LlmApiProtocol>[
+      LlmApiProtocol.chatCompletions,
+      LlmApiProtocol.responses,
+      LlmApiProtocol.anthropic,
     ];
 
-    for (final (protocol, expectedEndpoint) in cases) {
+    for (final protocol in protocols) {
       fakeClient.enqueueChunks(['回复']);
       await container
           .read(chatSessionsProvider.notifier)
@@ -472,9 +469,10 @@ void registerChatSessionsControllerGenerationCases() {
           );
       expect(
         fakeClient.requestedTargets.last.endpoint,
-        expectedEndpoint,
+        'https://api.example.com',
         reason: protocol.name,
       );
+      expect(fakeClient.requestedTargets.last.protocol, protocol);
     }
   });
 
@@ -488,7 +486,13 @@ void registerChatSessionsControllerGenerationCases() {
     );
   });
 
-  test('apiUrl 无法解析时以 inline assistant 错误展示而非崩溃', () async {
+  test('客户端 URL 流错误以 inline assistant 错误展示而非崩溃', () async {
+    fakeClient.enqueueError(
+      const ChatGenerationException(
+        'API URL 格式无效：not-a-url',
+        protocol: LlmApiProtocol.chatCompletions,
+      ),
+    );
     await container
         .read(chatSessionsProvider.notifier)
         .sendMessage(

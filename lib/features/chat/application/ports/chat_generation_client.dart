@@ -2,8 +2,6 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
-import 'package:oh_my_llm/core/llm/llm_endpoint_resolver.dart';
-import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
 import '../../domain/models/chat_message.dart';
 
 /// 流式生成请求失败时抛出的业务异常。
@@ -52,8 +50,8 @@ class ChatGenerationException implements Exception {
 
 /// 一次生成的请求目标（协议中立）。
 ///
-/// 由 [ChatGenerationRequestTarget.fromModelConfig] 从模型配置派生；
-/// endpoint 已解析为最终生成端点。
+/// [endpoint] 保留配置层 trim 后的原始 URL；最终协议端点由具体 data client
+/// 在发送请求前通过共享 resolver 解析。
 class ChatGenerationRequestTarget extends Equatable {
   const ChatGenerationRequestTarget({
     required this.protocol,
@@ -62,38 +60,9 @@ class ChatGenerationRequestTarget extends Equatable {
     required this.model,
   });
 
-  /// 从模型配置派生请求目标。
-  ///
-  /// endpoint 经 [LlmEndpointResolver] 解析为最终生成端点：配置可填域名、
-  /// API 根地址或完整生成端点，这里统一解析为协议对应的标准生成后缀；
-  /// 配置 URL 无效（无法解析 / 非 http(s) / 含 fragment）时抛
-  /// [ChatGenerationException]（message 保留 resolver 的可读文本）。
-  factory ChatGenerationRequestTarget.fromModelConfig(
-    LlmModelConfig modelConfig,
-  ) {
-    final Uri endpointUri;
-    try {
-      endpointUri = const LlmEndpointResolver().resolveGenerationEndpoint(
-        modelConfig.apiUrl.trim(),
-        modelConfig.apiProtocol,
-      );
-    } on LlmEndpointResolverException catch (error) {
-      throw ChatGenerationException(
-        error.message,
-        protocol: modelConfig.apiProtocol,
-      );
-    }
-    return ChatGenerationRequestTarget(
-      protocol: modelConfig.apiProtocol,
-      endpoint: endpointUri.toString(),
-      apiKey: modelConfig.apiKey,
-      model: modelConfig.modelName,
-    );
-  }
-
   final LlmApiProtocol protocol;
 
-  /// 生成接口端点（最终生成端点，已由 LlmEndpointResolver 解析）。
+  /// 服务商配置中的原始 API URL（只清理首尾空白，不做端点改写）。
   final String endpoint;
 
   final String apiKey;
@@ -149,17 +118,22 @@ abstract class ChatGenerationClient {
     final contentBuffer = StringBuffer();
     final reasoningBuffer = StringBuffer();
     String? finishReason;
+    ChatGenerationUsage? usage;
     await for (final chunk in streamCompletion(request)) {
       contentBuffer.write(chunk.contentDelta);
       reasoningBuffer.write(chunk.reasoningDelta);
       if (chunk.finishReason != null) {
         finishReason = chunk.finishReason;
       }
+      if (chunk.usage != null) {
+        usage = usage?.merge(chunk.usage!) ?? chunk.usage;
+      }
     }
     return ChatGenerationResult(
       content: contentBuffer.toString(),
       reasoningContent: reasoningBuffer.toString(),
       finishReason: finishReason,
+      usage: usage,
     );
   }
 }
@@ -203,6 +177,16 @@ class ChatGenerationUsage extends Equatable {
   final int? reasoningTokens;
   final int? cachedInputTokens;
 
+  /// 合并分散在多个协议事件中的用量；新事件的非空字段优先。
+  ChatGenerationUsage merge(ChatGenerationUsage newer) {
+    return ChatGenerationUsage(
+      inputTokens: newer.inputTokens ?? inputTokens,
+      outputTokens: newer.outputTokens ?? outputTokens,
+      reasoningTokens: newer.reasoningTokens ?? reasoningTokens,
+      cachedInputTokens: newer.cachedInputTokens ?? cachedInputTokens,
+    );
+  }
+
   @override
   List<Object?> get props => [
     inputTokens,
@@ -218,6 +202,7 @@ class ChatGenerationResult {
     this.content = '',
     this.reasoningContent = '',
     this.finishReason,
+    this.usage,
   });
 
   final String content;
@@ -225,6 +210,9 @@ class ChatGenerationResult {
 
   /// 模型返回的停止原因（如 "stop"、"length"）。
   final String? finishReason;
+
+  /// 协议流自然提供并跨事件合并后的 token 用量。
+  final ChatGenerationUsage? usage;
 }
 
 /// 发给模型 API 的单条请求消息。

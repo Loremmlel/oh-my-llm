@@ -1,9 +1,6 @@
 import 'package:equatable/equatable.dart';
 
 import 'package:oh_my_llm/features/settings/domain/models/auto_retry_settings.dart';
-import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
-import '../domain/models/chat_message.dart';
-import 'ports/chat_generation_client.dart';
 
 /// 一次 generation 的生命周期阶段。
 ///
@@ -213,61 +210,6 @@ class ChatRetryPolicy extends Equatable {
     retryOnAbnormalFinishReason,
     retryOnTimeout,
     timeout,
-  ];
-}
-
-/// 一次 generation 的不可变请求。
-///
-/// messages 已经过 5 步拼接（检查点记忆 -> before 模板 -> 对话过滤 ->
-/// beforeLatestInput 模板 -> after 模板）与 [ExcludeByIdMessageFilter] 过滤，
-/// coordinator 不重新构造 prompt，也不决定 checkpoint 顺序。
-class ChatGenerationLifecycleRequest extends Equatable {
-  const ChatGenerationLifecycleRequest({
-    required this.conversationId,
-    required this.assistantMessageId,
-    required this.modelConfig,
-    required this.messages,
-    required this.retryPolicy,
-    this.parentMessageId,
-    this.reasoningEffort,
-    this.streamIdleTimeout,
-    this.retryDelay,
-  });
-
-  final String conversationId;
-
-  /// controller 预创建的 assistant 占位节点 ID。
-  final String assistantMessageId;
-
-  /// 占位节点的父消息 ID，用于校验写入归属。
-  final String? parentMessageId;
-
-  final LlmModelConfig modelConfig;
-
-  final ReasoningEffort? reasoningEffort;
-
-  /// 已构建完成的请求消息序列。
-  final List<ChatRequestMessage> messages;
-
-  final ChatRetryPolicy retryPolicy;
-
-  /// SSE 空闲超时；null 表示不启用。
-  final Duration? streamIdleTimeout;
-
-  /// 测试注入的重试等待时长；null 表示按 retryPolicy 计算。
-  final Duration? retryDelay;
-
-  @override
-  List<Object?> get props => [
-    conversationId,
-    assistantMessageId,
-    parentMessageId,
-    modelConfig,
-    reasoningEffort,
-    messages,
-    retryPolicy,
-    streamIdleTimeout,
-    retryDelay,
   ];
 }
 

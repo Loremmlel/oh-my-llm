@@ -8,7 +8,8 @@ import '../../application/ports/chat_generation_client.dart';
 /// 单个 Responses SSE 事件的解析结果。
 ///
 /// [chunk] 非空时由客户端 yield；[isDone] 为 true 表示流已到达
-/// `response.done` 结束标记，客户端应立即停止消费；[recognized] 为 false
+/// `response.completed` / `response.incomplete` 终态，客户端应立即停止消费；
+/// [recognized] 为 false
 /// 表示未知且与文本无关的事件，客户端记录诊断后忽略。
 typedef ResponsesParseResult = ({
   ChatGenerationChunk? chunk,
@@ -91,6 +92,15 @@ class ResponsesParser {
           rawFinishReason:
               _incompleteReason(decoded['response']) ?? 'incomplete',
         );
+      case 'response.output_text.done':
+      case 'response.reasoning_summary_text.done':
+      case 'response.reasoning_text.done':
+      case 'response.refusal.done':
+      case 'response.content_part.done':
+      case 'response.output_item.done':
+        // `.done` 携带完整项仅用于协议完整性观察，正文/推理已由 delta 追加，
+        // 这里不能重复发出内容。
+        return (chunk: null, isDone: false, recognized: true);
       case 'response.failed':
         return _throwFailed(decoded, data);
       case 'error':
@@ -142,7 +152,7 @@ class ResponsesParser {
         finishReason: _normalizeFinishReason(rawFinishReason),
         usage: usage,
       ),
-      isDone: false,
+      isDone: true,
       recognized: true,
     );
   }

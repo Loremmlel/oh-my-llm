@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/core/http/sse_event_decoder.dart';
@@ -148,67 +147,64 @@ void main() {
     expect(events.single.data, '');
   });
 
-  test('注释 keepalive 不重置 idle timeout，超时抛 TimeoutException', () {
-    fakeAsync((async) {
-      final source = StreamController<List<int>>();
-      final events = <SseEvent>[];
-      final errors = <Object>[];
-      final subscription = decoder
-          .decode(source.stream, idleTimeout: const Duration(seconds: 1))
-          .listen(events.add, onError: errors.add);
+  testWidgets('注释 keepalive 不重置 idle timeout，超时抛 TimeoutException', (
+    tester,
+  ) async {
+    final source = StreamController<List<int>>();
+    final events = <SseEvent>[];
+    final errors = <Object>[];
+    final subscription = decoder
+        .decode(source.stream, idleTimeout: const Duration(seconds: 1))
+        .listen(events.add, onError: errors.add);
 
-      source.add(utf8.encode(': keepalive\n: heartbeat\n'));
-      async.flushMicrotasks();
-      expect(events, isEmpty);
+    source.add(utf8.encode(': keepalive\n: heartbeat\n'));
+    await tester.pump();
+    expect(events, isEmpty);
 
-      async.elapse(const Duration(seconds: 2));
-      async.flushMicrotasks();
+    await tester.pump(const Duration(seconds: 2));
 
-      expect(events, isEmpty);
-      expect(errors, hasLength(1));
-      expect(errors.single, isA<TimeoutException>());
-      expect((errors.single as TimeoutException).message, contains('data'));
+    expect(events, isEmpty);
+    expect(errors, hasLength(1));
+    expect(errors.single, isA<TimeoutException>());
+    expect((errors.single as TimeoutException).message, contains('data'));
 
-      unawaited(subscription.cancel());
-      async.flushMicrotasks();
-      unawaited(source.close());
-    });
+    unawaited(subscription.cancel());
+    unawaited(source.close());
+    await tester.pump();
   });
 
-  test('data 行重置 idle timeout，重置后计时器仍生效', () {
-    fakeAsync((async) {
-      final source = StreamController<List<int>>();
-      final events = <SseEvent>[];
-      final errors = <Object>[];
-      final subscription = decoder
-          .decode(source.stream, idleTimeout: const Duration(seconds: 1))
-          .listen(events.add, onError: errors.add);
+  testWidgets('data 行重置 idle timeout，重置后计时器仍生效', (tester) async {
+    const dataArrivalDelay = Duration(milliseconds: 500);
+    const postResetObservationDelay = Duration(milliseconds: 600);
+    final source = StreamController<List<int>>();
+    final events = <SseEvent>[];
+    final errors = <Object>[];
+    final subscription = decoder
+        .decode(source.stream, idleTimeout: const Duration(seconds: 1))
+        .listen(events.add, onError: errors.add);
 
-      // t=0 注释行（不重置）；t=500ms data 行把计时器重置到 t=1.5s。
-      source.add(utf8.encode(': keepalive\n'));
-      async.flushMicrotasks();
-      async.elapse(const Duration(milliseconds: 500));
+    // t=0 注释行（不重置）；t=500ms data 行把计时器重置到 t=1.5s。
+    source.add(utf8.encode(': keepalive\n'));
+    await tester.pump();
+    await tester.pump(dataArrivalDelay);
 
-      source.add(utf8.encode('data: x\n\n'));
-      async.flushMicrotasks();
+    source.add(utf8.encode('data: x\n\n'));
+    await tester.pump();
 
-      // t=1.1s：已越过未重置时的 1s 死线，证明 data 行确实重置了计时器。
-      async.elapse(const Duration(milliseconds: 600));
-      async.flushMicrotasks();
-      expect(errors, isEmpty);
-      expect(events, hasLength(1));
-      expect(events.single.data, 'x');
+    // t=1.1s：已越过未重置时的 1s 死线，证明 data 行确实重置了计时器。
+    await tester.pump(postResetObservationDelay);
+    expect(errors, isEmpty);
+    expect(events, hasLength(1));
+    expect(events.single.data, 'x');
 
-      // t=2.2s：重置后的 1s 计时器到期。
-      async.elapse(const Duration(seconds: 1));
-      async.flushMicrotasks();
-      expect(errors, hasLength(1));
-      expect(errors.single, isA<TimeoutException>());
+    // t=2.1s：重置后的 1s 计时器到期。
+    await tester.pump(const Duration(seconds: 1));
+    expect(errors, hasLength(1));
+    expect(errors.single, isA<TimeoutException>());
 
-      unawaited(subscription.cancel());
-      async.flushMicrotasks();
-      unawaited(source.close());
-    });
+    unawaited(subscription.cancel());
+    unawaited(source.close());
+    await tester.pump();
   });
 
   test('取消订阅立即取消底层 byte stream', () async {
@@ -237,33 +233,30 @@ void main() {
     expect(c == const SseEvent(data: 'x', rawData: 'data: x'), isFalse);
   });
 
-  test('上游错误后取消 idle timer，不再触发超时', () {
-    fakeAsync((async) {
-      final source = StreamController<List<int>>();
-      final errors = <Object>[];
-      final subscription = decoder
-          .decode(source.stream, idleTimeout: const Duration(seconds: 1))
-          .listen((_) {}, onError: errors.add);
+  testWidgets('上游错误后取消 idle timer，不再触发超时', (tester) async {
+    final source = StreamController<List<int>>();
+    final errors = <Object>[];
+    final subscription = decoder
+        .decode(source.stream, idleTimeout: const Duration(seconds: 1))
+        .listen((_) {}, onError: errors.add);
 
-      // data 行重置计时器到 t=1s。
-      source.add(utf8.encode('data: x\n\n'));
-      async.flushMicrotasks();
-      expect(errors, isEmpty);
+    // data 行重置计时器到 t=1s。
+    source.add(utf8.encode('data: x\n\n'));
+    await tester.pump();
+    expect(errors, isEmpty);
 
-      // 上游直接报错（模拟网络中断）：错误转发后计时器必须取消。
-      source.addError(StateError('connection reset'));
-      async.flushMicrotasks();
-      expect(errors, hasLength(1));
-      expect(errors.single, isA<StateError>());
+    // 上游直接报错（模拟网络中断）：错误转发后计时器必须取消。
+    source.addError(StateError('connection reset'));
+    await tester.pump();
+    expect(errors, hasLength(1));
+    expect(errors.single, isA<StateError>());
 
-      // 若计时器未取消，t=1s 后还会追加 TimeoutException。
-      async.elapse(const Duration(seconds: 2));
-      async.flushMicrotasks();
-      expect(errors, hasLength(1));
+    // 若计时器未取消，t=1s 后还会追加 TimeoutException。
+    await tester.pump(const Duration(seconds: 2));
+    expect(errors, hasLength(1));
 
-      unawaited(subscription.cancel());
-      async.flushMicrotasks();
-      unawaited(source.close());
-    });
+    unawaited(subscription.cancel());
+    unawaited(source.close());
+    await tester.pump();
   });
 }

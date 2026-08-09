@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:oh_my_llm/core/http/llm_http_stream_transport.dart';
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
+import 'package:oh_my_llm/core/llm/llm_endpoint_resolver.dart';
 
 import '../../application/ports/chat_generation_client.dart';
 import '../../domain/models/chat_message.dart';
@@ -10,8 +11,8 @@ import 'anthropic_parser.dart';
 
 /// 官方 Anthropic Messages 协议客户端。
 ///
-/// 请求目标由上层解析（[ChatGenerationRequest.target.endpoint] 即最终生成
-/// 端点），本客户端只负责协议编码与解析：固定请求头与请求体形状，消息先经
+/// 请求目标携带原始 API URL，本客户端在发送前解析最终生成端点，并负责协议
+/// 编码与解析：固定请求头与请求体形状，消息先经
 /// [transformAnthropicMessages] 完成 System 转换与同角色合并，再经共享
 /// [LlmHttpStreamTransport] 发送与解码 SSE，由 [AnthropicParser] 转换为
 /// 协议中立增量。
@@ -50,7 +51,7 @@ class AnthropicMessagesClient extends ChatGenerationClient {
       );
     }
 
-    final uri = _parseEndpoint(request);
+    final uri = _resolveEndpoint(request);
     final transformed = transformAnthropicMessages(request.messages);
     final payload = <String, Object>{
       'model': request.target.model,
@@ -144,23 +145,19 @@ class AnthropicMessagesClient extends ChatGenerationClient {
     };
   }
 
-  /// 解析请求端点并做基础校验；endpoint 为最终生成端点，由上层
-  /// （ChatGenerationRequestTarget.fromModelConfig）经 LlmEndpointResolver 解析。
-  Uri _parseEndpoint(ChatGenerationRequest request) {
-    final endpoint = request.target.endpoint;
+  /// 在真正发送 HTTP 前把原始服务商 URL 解析为 Anthropic Messages 端点。
+  Uri _resolveEndpoint(ChatGenerationRequest request) {
     try {
-      final uri = Uri.parse(endpoint);
-      if (uri.scheme != 'http' && uri.scheme != 'https') {
-        throw ChatGenerationException(
-          'API URL 协议不支持（需要 http/https）：$endpoint',
-          protocol: request.target.protocol,
-        );
-      }
-      return uri;
-    } on FormatException catch (error) {
+      return const LlmEndpointResolver().resolveGenerationEndpoint(
+        rawUrl: request.target.endpoint,
+        protocol: LlmApiProtocol.anthropic,
+      );
+    } on LlmEndpointResolverException catch (error, stack) {
       throw ChatGenerationException(
-        'API URL 格式无效：${error.message}',
+        error.message,
         protocol: request.target.protocol,
+        cause: error,
+        causeStackTrace: stack,
       );
     }
   }

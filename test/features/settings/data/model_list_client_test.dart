@@ -4,7 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
+import 'package:oh_my_llm/core/http/custom_headers_http_client.dart';
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
+import 'package:oh_my_llm/core/logging/network_logger.dart';
 import 'package:oh_my_llm/features/settings/data/model_list_client.dart';
 
 void main() {
@@ -253,6 +255,63 @@ void main() {
         // Anthropic 不用 Bearer，避免与 x-api-key 双认证混淆。
         expect(capturedHeaders?['Authorization'], isNull);
       });
+
+      test('自定义 Header 覆盖认证默认值后 wire 与请求日志一致', () async {
+        const customHeaders = {
+          'authorization': 'Bearer user-override',
+          'X-Tenant': 'tenant-a',
+        };
+        Map<String, String>? wireHeaders;
+        final inner = MockClient((request) async {
+          wireHeaders = request.headers;
+          return http.Response(modelsResponseJson(['gpt-4o']), 200);
+        });
+        final logger = _CapturingNetworkLogger();
+        client = ModelListClient(
+          httpClient: CustomHeadersHttpClient(inner, customHeaders),
+          logger: logger,
+          extraHeadersFactory: () => customHeaders,
+        );
+
+        await client.fetchModels(
+          modelsUrl: 'https://api.openai.com/v1/models',
+          apiKey: 'default-key',
+          apiProtocol: LlmApiProtocol.responses,
+        );
+
+        expect(
+          _headerValue(wireHeaders!, 'authorization'),
+          'Bearer user-override',
+        );
+        expect(
+          _headerValue(logger.requestHeaders!, 'authorization'),
+          'Bearer user-override',
+        );
+        expect(_headerValue(logger.requestHeaders!, 'x-tenant'), 'tenant-a');
+      });
     });
   });
+}
+
+String? _headerValue(Map<String, String> headers, String name) {
+  final lowerName = name.toLowerCase();
+  for (final entry in headers.entries) {
+    if (entry.key.toLowerCase() == lowerName) return entry.value;
+  }
+  return null;
+}
+
+final class _CapturingNetworkLogger with NetworkLogger {
+  Map<String, String>? requestHeaders;
+
+  @override
+  Future<void> logRequest({
+    required Uri uri,
+    required String method,
+    required Map<String, String> headers,
+    required Object? payload,
+    bool logBody = false,
+  }) async {
+    requestHeaders = Map<String, String>.from(headers);
+  }
 }

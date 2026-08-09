@@ -4,122 +4,48 @@ import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 
-import '../../../helpers/fixtures.dart';
-
 void main() {
   group('ChatGenerationRequestTarget', () {
-    test('fromModelConfig 派生 protocol/endpoint/apiKey/model 四项', () {
-      final config = TestFixtures.model(
-        apiProtocol: LlmApiProtocol.anthropic,
-        apiUrl: 'https://api.anthropic.com',
+    test('协议中立目标原样携带原始 endpoint 与鉴权字段', () {
+      const target = ChatGenerationRequestTarget(
+        protocol: LlmApiProtocol.anthropic,
+        endpoint: 'https://api.anthropic.com',
         apiKey: 'sk-anthropic',
-        modelName: 'claude-sonnet',
+        model: 'claude-sonnet',
       );
-
-      final target = ChatGenerationRequestTarget.fromModelConfig(config);
-
       expect(target.protocol, LlmApiProtocol.anthropic);
-      expect(target.endpoint, 'https://api.anthropic.com/v1/messages');
+      expect(target.endpoint, 'https://api.anthropic.com');
       expect(target.apiKey, 'sk-anthropic');
       expect(target.model, 'claude-sonnet');
     });
 
-    test('fromModelConfig 将 API 根地址解析为最终生成端点（三种协议）', () {
-      const cases = <(LlmApiProtocol, String, String)>[
-        (
-          LlmApiProtocol.chatCompletions,
-          'https://api.openai.com',
-          'https://api.openai.com/v1/chat/completions',
-        ),
-        (
-          LlmApiProtocol.responses,
-          'https://api.openai.com',
-          'https://api.openai.com/v1/responses',
-        ),
-        (
-          LlmApiProtocol.anthropic,
-          'https://api.anthropic.com',
-          'https://api.anthropic.com/v1/messages',
-        ),
-      ];
-
-      for (final (protocol, apiUrl, expectedEndpoint) in cases) {
-        final target = ChatGenerationRequestTarget.fromModelConfig(
-          TestFixtures.model(apiUrl: apiUrl, apiProtocol: protocol),
-        );
-        expect(target.endpoint, expectedEndpoint, reason: protocol.name);
-        expect(target.protocol, protocol, reason: protocol.name);
-      }
-    });
-
-    test('fromModelConfig 对完整生成端点原样保留（resolver 幂等）', () {
-      const cases = <(LlmApiProtocol, String)>[
-        (
-          LlmApiProtocol.chatCompletions,
-          'https://api.example.com/v1/chat/completions',
-        ),
-        (LlmApiProtocol.responses, 'https://api.example.com/v1/responses'),
-        (LlmApiProtocol.anthropic, 'https://api.example.com/v1/messages'),
-      ];
-
-      for (final (protocol, apiUrl) in cases) {
-        final target = ChatGenerationRequestTarget.fromModelConfig(
-          TestFixtures.model(apiUrl: apiUrl, apiProtocol: protocol),
-        );
-        expect(target.endpoint, apiUrl, reason: protocol.name);
-      }
-    });
-
-    test('fromModelConfig 无效 URL → ChatGenerationException（protocol 填对）', () {
-      expect(
-        () => ChatGenerationRequestTarget.fromModelConfig(
-          TestFixtures.model(
-            apiUrl: 'not-a-url',
-            apiProtocol: LlmApiProtocol.anthropic,
-          ),
-        ),
-        throwsA(
-          isA<ChatGenerationException>()
-              .having((e) => e.protocol, 'protocol', LlmApiProtocol.anthropic)
-              .having((e) => e.message, 'message', contains('not-a-url')),
-        ),
-      );
-    });
-
-    test('fromModelConfig 非 http(s) 协议 URL → ChatGenerationException', () {
-      expect(
-        () => ChatGenerationRequestTarget.fromModelConfig(
-          TestFixtures.model(
-            apiUrl: 'ftp://api.example.com',
-            apiProtocol: LlmApiProtocol.chatCompletions,
-          ),
-        ),
-        throwsA(
-          isA<ChatGenerationException>().having(
-            (e) => e.protocol,
-            'protocol',
-            LlmApiProtocol.chatCompletions,
-          ),
-        ),
-      );
-    });
-
     test('Equatable：字段相同则相等，字段不同则不等', () {
-      final base = ChatGenerationRequestTarget.fromModelConfig(
-        TestFixtures.gpt41(),
+      const base = ChatGenerationRequestTarget(
+        protocol: LlmApiProtocol.chatCompletions,
+        endpoint: 'https://api.example.com',
+        apiKey: 'key',
+        model: 'model-a',
       );
       expect(
         base,
         equals(
-          ChatGenerationRequestTarget.fromModelConfig(TestFixtures.gpt41()),
+          const ChatGenerationRequestTarget(
+            protocol: LlmApiProtocol.chatCompletions,
+            endpoint: 'https://api.example.com',
+            apiKey: 'key',
+            model: 'model-a',
+          ),
         ),
       );
       expect(
         base,
         isNot(
           equals(
-            ChatGenerationRequestTarget.fromModelConfig(
-              TestFixtures.deepSeekV4(),
+            const ChatGenerationRequestTarget(
+              protocol: LlmApiProtocol.responses,
+              endpoint: 'https://api.example.com',
+              apiKey: 'key',
+              model: 'model-a',
             ),
           ),
         ),
@@ -130,8 +56,11 @@ void main() {
   group('ChatGenerationRequest', () {
     test('构造携带 target/messages 与可选参数', () {
       final request = ChatGenerationRequest(
-        target: ChatGenerationRequestTarget.fromModelConfig(
-          TestFixtures.gpt41(),
+        target: const ChatGenerationRequestTarget(
+          protocol: LlmApiProtocol.chatCompletions,
+          endpoint: 'https://api.example.com',
+          apiKey: 'key',
+          model: 'gpt-4.1',
         ),
         messages: const [
           ChatRequestMessage(role: ChatMessageRole.user, content: '你好'),
@@ -149,8 +78,11 @@ void main() {
 
     test('可选参数默认 null', () {
       final request = ChatGenerationRequest(
-        target: ChatGenerationRequestTarget.fromModelConfig(
-          TestFixtures.gpt41(),
+        target: const ChatGenerationRequestTarget(
+          protocol: LlmApiProtocol.chatCompletions,
+          endpoint: 'https://api.example.com',
+          apiKey: 'key',
+          model: 'gpt-4.1',
         ),
         messages: const [],
       );
@@ -191,6 +123,67 @@ void main() {
 
       expect(a, equals(b));
       expect(a, isNot(equals(c)));
+    });
+
+    test('merge：新值覆盖旧值，新值缺失时保留旧值', () {
+      const previous = ChatGenerationUsage(
+        inputTokens: 10,
+        outputTokens: 20,
+        cachedInputTokens: 3,
+      );
+      const newer = ChatGenerationUsage(inputTokens: 11, reasoningTokens: 5);
+
+      expect(
+        previous.merge(newer),
+        const ChatGenerationUsage(
+          inputTokens: 11,
+          outputTokens: 20,
+          reasoningTokens: 5,
+          cachedInputTokens: 3,
+        ),
+      );
+    });
+  });
+
+  group('ChatGenerationClient.complete', () {
+    test('折叠正文、推理、最后一个 finish reason 与分散 usage', () async {
+      final client = _ChunkSequenceClient([
+        const ChatGenerationChunk(
+          contentDelta: '正',
+          usage: ChatGenerationUsage(inputTokens: 10, cachedInputTokens: 3),
+        ),
+        const ChatGenerationChunk(
+          reasoningDelta: '思考',
+          finishReason: 'length',
+          usage: ChatGenerationUsage(outputTokens: 20, reasoningTokens: 5),
+        ),
+        const ChatGenerationChunk(contentDelta: '文', finishReason: 'stop'),
+      ]);
+
+      final result = await client.complete(
+        ChatGenerationRequest(
+          target: const ChatGenerationRequestTarget(
+            protocol: LlmApiProtocol.chatCompletions,
+            endpoint: 'https://api.example.com',
+            apiKey: 'key',
+            model: 'model',
+          ),
+          messages: const [],
+        ),
+      );
+
+      expect(result.content, '正文');
+      expect(result.reasoningContent, '思考');
+      expect(result.finishReason, 'stop');
+      expect(
+        result.usage,
+        const ChatGenerationUsage(
+          inputTokens: 10,
+          outputTokens: 20,
+          reasoningTokens: 5,
+          cachedInputTokens: 3,
+        ),
+      );
     });
   });
 
@@ -236,4 +229,15 @@ void main() {
       expect(exception.toString(), 'boom');
     });
   });
+}
+
+final class _ChunkSequenceClient extends ChatGenerationClient {
+  _ChunkSequenceClient(this.chunks);
+
+  final List<ChatGenerationChunk> chunks;
+
+  @override
+  Stream<ChatGenerationChunk> streamCompletion(ChatGenerationRequest request) {
+    return Stream.fromIterable(chunks);
+  }
 }

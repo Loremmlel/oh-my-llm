@@ -119,20 +119,23 @@ void main() {
     expect(SettingsExportCodec.decodeJson('{'), isA<SettingsExportMalformed>());
   });
 
-  test('缺协议字段的 v7 条目由 fromJson 默认回退 chatCompletions', () {
-    final success = decodeSuccess(
-      jsonEncode(
-        _snapshot(
-          version: SettingsExportData.formatVersion,
-          providers: [_providerJson()],
-        ),
-      ),
-    );
+  test('v7 服务商缺失、null 或未知协议均视为 malformed', () {
+    final providers = [
+      _providerJson(),
+      {..._providerJson(apiProtocol: 'responses'), 'apiProtocol': null},
+      _providerJson(apiProtocol: 'future-protocol'),
+    ];
 
-    expect(success.migrated, isFalse);
-    expect(
-      success.data.modelProviders.single.apiProtocol,
-      LlmApiProtocol.chatCompletions,
-    );
+    for (final provider in providers) {
+      final result = SettingsExportCodec.decodeJson(
+        jsonEncode(
+          _snapshot(
+            version: SettingsExportData.formatVersion,
+            providers: [provider],
+          ),
+        ),
+      );
+      expect(result, isA<SettingsExportMalformed>());
+    }
   });
 }

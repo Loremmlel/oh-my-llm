@@ -7,6 +7,7 @@ import '../domain/models/chat_conversation.dart';
 import '../domain/models/chat_message.dart';
 import 'chat_generation_lifecycle.dart';
 import 'chat_sessions_state.dart';
+import 'ports/chat_generation_client.dart';
 
 /// 一次 generation 的发送命令（immutable）。
 ///
@@ -116,7 +117,8 @@ class ChatPrepareSuccess extends ChatPrepareResult {
     required this.streamingReply,
   });
 
-  final ChatGenerationLifecycleRequest request;
+  /// pending 占位落盘后构建的唯一协议中立网络请求。
+  final ChatGenerationRequest request;
 
   /// 含占位 assistant 的会话快照（isStreaming=true）。
   final ChatConversation streamingConversation;

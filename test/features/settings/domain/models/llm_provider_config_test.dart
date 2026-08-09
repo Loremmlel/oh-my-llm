@@ -129,6 +129,19 @@ void main() {
       expect(provider.apiProtocol, LlmApiProtocol.chatCompletions);
     });
 
+    test('fromJson 显式 null apiProtocol 抛 FormatException', () {
+      expect(
+        () => LlmProviderConfig.fromJson({
+          'id': 'p1',
+          'name': 'P',
+          'apiUrl': 'url',
+          'apiKey': 'key',
+          'apiProtocol': null,
+        }),
+        throwsFormatException,
+      );
+    });
+
     test('三种协议 toJson → fromJson round-trip', () {
       for (final protocol in allProtocols) {
         final provider = LlmProviderConfig(

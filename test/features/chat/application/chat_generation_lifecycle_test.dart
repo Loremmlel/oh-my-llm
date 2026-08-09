@@ -1,10 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/chat/application/chat_generation_lifecycle.dart';
-import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
-import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/settings/domain/models/auto_retry_settings.dart';
-import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
 
 void main() {
   // ── 辅助工厂 ─────────────────────────────────────────────
@@ -46,15 +43,6 @@ void main() {
       timeoutSeconds: timeoutSeconds,
     );
   }
-
-  LlmModelConfig modelConfig() => const LlmModelConfig(
-    id: 'model-1',
-    displayName: 'Test',
-    apiUrl: 'https://api.example.com/v1/chat/completions',
-    apiKey: 'sk-test',
-    modelName: 'test-model',
-    supportsReasoning: true,
-  );
 
   // ── ChatGenerationSnapshot ───────────────────────────────
 
@@ -190,58 +178,6 @@ void main() {
       final b = ChatRetryPolicy.fromSnapshot(
         conversationAutoRetryEnabled: true,
         settings: retrySettings(retryMode: RetryMode.perMinuteWindow),
-      );
-
-      expect(a, isNot(equals(b)));
-    });
-  });
-
-  // ── ChatGenerationLifecycleRequest ────────────────────────────────
-
-  group('ChatGenerationLifecycleRequest', () {
-    ChatGenerationLifecycleRequest request({
-      String conversationId = 'conv-1',
-      String assistantMessageId = 'a1',
-      List<ChatRequestMessage> messages = const [
-        ChatRequestMessage(role: ChatMessageRole.user, content: 'hi'),
-      ],
-    }) {
-      return ChatGenerationLifecycleRequest(
-        conversationId: conversationId,
-        assistantMessageId: assistantMessageId,
-        modelConfig: modelConfig(),
-        messages: messages,
-        retryPolicy: ChatRetryPolicy.fromSnapshot(
-          conversationAutoRetryEnabled: false,
-          settings: AutoRetrySettings(),
-        ),
-      );
-    }
-
-    test('构造携带全部请求输入', () {
-      final r = request();
-
-      expect(r.conversationId, 'conv-1');
-      expect(r.assistantMessageId, 'a1');
-      expect(r.modelConfig.id, 'model-1');
-      expect(r.messages, hasLength(1));
-      expect(r.retryPolicy.enabled, isFalse);
-    });
-
-    test('Equatable：相同 messages 内容相等', () {
-      expect(request(), equals(request()));
-    });
-
-    test('Equatable：messages 内容不同则不等', () {
-      final a = request(
-        messages: const [
-          ChatRequestMessage(role: ChatMessageRole.user, content: 'a'),
-        ],
-      );
-      final b = request(
-        messages: const [
-          ChatRequestMessage(role: ChatMessageRole.user, content: 'b'),
-        ],
       );
 
       expect(a, isNot(equals(b)));

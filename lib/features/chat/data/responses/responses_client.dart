@@ -2,14 +2,15 @@ import 'dart:convert';
 
 import 'package:oh_my_llm/core/http/llm_http_stream_transport.dart';
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
+import 'package:oh_my_llm/core/llm/llm_endpoint_resolver.dart';
 
 import '../../application/ports/chat_generation_client.dart';
 import 'responses_parser.dart';
 
 /// 官方 OpenAI Responses 协议客户端。
 ///
-/// 请求目标由上层解析（[ChatGenerationRequest.target.endpoint] 即最终生成
-/// 端点），本客户端只负责协议编码与解析：固定请求头与请求体形状，经共享
+/// 请求目标携带原始 API URL，本客户端在发送前解析最终生成端点，并负责协议
+/// 编码与解析：固定请求头与请求体形状，经共享
 /// [LlmHttpStreamTransport] 发送与解码 SSE，再由 [ResponsesParser] 转换为
 /// 协议中立增量。客户端无状态：始终不发送 `previous_response_id` 或
 /// `conversation`，服务端续接字段全部省略。
@@ -38,7 +39,7 @@ class ResponsesClient extends ChatGenerationClient {
       );
     }
 
-    final uri = _parseEndpoint(request);
+    final uri = _resolveEndpoint(request);
     final payload = <String, Object>{
       'model': request.target.model,
       'stream': true,
@@ -91,7 +92,7 @@ class ResponsesClient extends ChatGenerationClient {
           yield chunk;
         }
         if (parsed.isDone) {
-          // response.done：正常流结束，停止消费。
+          // completed / incomplete：协议终态，立即停止消费底层连接。
           break;
         }
       }
@@ -118,23 +119,19 @@ class ResponsesClient extends ChatGenerationClient {
     }
   }
 
-  /// 解析请求端点并做基础校验；endpoint 为最终生成端点，由上层
-  /// （ChatGenerationRequestTarget.fromModelConfig）经 LlmEndpointResolver 解析。
-  Uri _parseEndpoint(ChatGenerationRequest request) {
-    final endpoint = request.target.endpoint;
+  /// 在真正发送 HTTP 前把原始服务商 URL 解析为 Responses 端点。
+  Uri _resolveEndpoint(ChatGenerationRequest request) {
     try {
-      final uri = Uri.parse(endpoint);
-      if (uri.scheme != 'http' && uri.scheme != 'https') {
-        throw ChatGenerationException(
-          'API URL 协议不支持（需要 http/https）：$endpoint',
-          protocol: request.target.protocol,
-        );
-      }
-      return uri;
-    } on FormatException catch (error) {
+      return const LlmEndpointResolver().resolveGenerationEndpoint(
+        rawUrl: request.target.endpoint,
+        protocol: LlmApiProtocol.responses,
+      );
+    } on LlmEndpointResolverException catch (error, stack) {
       throw ChatGenerationException(
-        'API URL 格式无效：${error.message}',
+        error.message,
         protocol: request.target.protocol,
+        cause: error,
+        causeStackTrace: stack,
       );
     }
   }

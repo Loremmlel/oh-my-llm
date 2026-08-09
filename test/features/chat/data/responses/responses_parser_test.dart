@@ -70,7 +70,7 @@ void main() {
     test('response.completed → finishReason stop', () {
       final result = newParser().parse(event('{"type":"response.completed"}'));
       expect(result.recognized, isTrue);
-      expect(result.isDone, isFalse);
+      expect(result.isDone, isTrue);
       expect(result.chunk!.finishReason, 'stop');
     });
 
@@ -81,6 +81,7 @@ void main() {
         ),
       );
       expect(result.chunk!.finishReason, 'length');
+      expect(result.isDone, isTrue);
     });
 
     test('response.incomplete 其他 reason → 保留原值', () {
@@ -194,6 +195,23 @@ void main() {
     });
   });
 
+  group('内容项 done 事件', () {
+    test('完整文本或推理只做校验，不重复追加增量', () {
+      for (final data in [
+        '{"type":"response.output_text.done","text":"完整正文"}',
+        '{"type":"response.reasoning_summary_text.done","text":"完整推理"}',
+        '{"type":"response.refusal.done","refusal":"完整拒绝"}',
+        '{"type":"response.content_part.done","part":{"type":"output_text","text":"完整正文"}}',
+        '{"type":"response.output_item.done","item":{"type":"message"}}',
+      ]) {
+        final result = newParser().parse(event(data));
+        expect(result.chunk, isNull, reason: data);
+        expect(result.isDone, isFalse, reason: data);
+        expect(result.recognized, isTrue, reason: data);
+      }
+    });
+  });
+
   // ── usage ─────────────────────────────────────────────────────
 
   group('usage 提取', () {
@@ -273,9 +291,6 @@ void main() {
         'response.created',
         'response.in_progress',
         'response.output_item.added',
-        'response.content_part.done',
-        'response.output_text.done',
-        'response.output_item.done',
       ]) {
         final result = newParser().parse(event('{"type":"$type"}'));
         expect(result.chunk, isNull, reason: type);

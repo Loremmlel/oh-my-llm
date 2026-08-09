@@ -24,11 +24,12 @@ typedef AnthropicParseResult = ({
 /// - `content_block_delta` + `delta.type=thinking_delta`：`delta.thinking`
 ///   进入 reasoningDelta。
 /// - `content_block_delta` + `delta.type=signature_delta`：忽略。
-/// - `message_delta.delta.stop_reason`：归一化后作为 finishReason；`usage`
-///   自然携带时填充用量。
+/// - `message_start.message.usage`：提取输入与缓存用量。
+/// - `message_delta.delta.stop_reason`：归一化后作为 finishReason；自然携带的
+///   输出用量与此前用量合并。
 /// - `message_stop`：正常结束标记。
-/// - `ping`、`message_start`、`content_block_start` / `content_block_stop`：
-///   已知生命周期事件，忽略。
+/// - `ping`、`content_block_start` / `content_block_stop`：已知生命周期事件，
+///   忽略。
 /// - `error`：从官方错误 envelope（`error.type`/`error.message`）提取
 ///   code/message 后抛 [ChatGenerationException]。
 /// - 工具内容块（`tool_use` / `server_tool_use` / `input_json_delta`）：
@@ -44,6 +45,7 @@ class AnthropicParser {
 
   final LlmApiProtocol _protocol;
   final Uri _uri;
+  ChatGenerationUsage? _usage;
 
   /// 解析一个 SSE 事件。
   AnthropicParseResult parse(SseEvent event) {
@@ -78,6 +80,8 @@ class AnthropicParser {
         return _handleContentBlockDelta(decoded, data);
       case 'message_delta':
         return _handleMessageDelta(decoded);
+      case 'message_start':
+        return _handleMessageStart(decoded);
       case 'message_stop':
         return (chunk: null, isDone: true, recognized: true);
       case 'content_block_start':
@@ -85,7 +89,6 @@ class AnthropicParser {
       case 'error':
         return _throwErrorEvent(decoded, data);
       case 'ping':
-      case 'message_start':
       case 'content_block_stop':
         // 已知生命周期/记账事件：与文本无关，忽略。
         return (chunk: null, isDone: false, recognized: true);
@@ -114,22 +117,36 @@ class AnthropicParser {
     }
   }
 
-  /// `content_block_start`：工具内容块明确失败，其余类型忽略。
+  /// `message_start`：从原生 message envelope 提取输入与缓存用量。
+  AnthropicParseResult _handleMessageStart(Map decoded) {
+    final message = decoded['message'];
+    final eventUsage = message is Map ? _extractUsage(message['usage']) : null;
+    if (eventUsage == null) {
+      return (chunk: null, isDone: false, recognized: true);
+    }
+    _usage = _usage?.merge(eventUsage) ?? eventUsage;
+    return (
+      chunk: ChatGenerationChunk(usage: _usage),
+      isDone: false,
+      recognized: true,
+    );
+  }
+
+  /// `content_block_start`：只接受普通文本与思考块，其余内容类型明确失败。
   AnthropicParseResult _handleContentBlockStart(Map decoded, String data) {
     final block = decoded['content_block'];
-    if (block is Map) {
-      final blockType = block['type'];
-      if (blockType == 'tool_use' || blockType == 'server_tool_use') {
-        throw ChatGenerationException(
-          '不支持该响应类型：收到 $blockType 内容块（普通聊天不发送 tools）',
-          protocol: _protocol,
-          uri: _uri,
-          responseBody: data,
-        );
-      }
+    final blockType = block is Map ? block['type'] : null;
+    if (blockType == 'text' ||
+        blockType == 'thinking' ||
+        blockType == 'redacted_thinking') {
+      return (chunk: null, isDone: false, recognized: true);
     }
-    // 文本/思考等已知内容块：生命周期事件，忽略。
-    return (chunk: null, isDone: false, recognized: true);
+    throw ChatGenerationException(
+      '不支持该响应类型：收到 ${blockType ?? 'unknown'} 内容块（普通聊天不发送 tools）',
+      protocol: _protocol,
+      uri: _uri,
+      responseBody: data,
+    );
   }
 
   /// `content_block_delta`：按 delta 类型分发文本增量与推理增量。
@@ -168,10 +185,13 @@ class AnthropicParser {
   AnthropicParseResult _handleMessageDelta(Map decoded) {
     final delta = decoded['delta'];
     final rawStopReason = delta is Map ? delta['stop_reason'] : null;
-    final usage = _extractUsage(decoded['usage']);
+    final eventUsage = _extractUsage(decoded['usage']);
+    if (eventUsage != null) {
+      _usage = _usage?.merge(eventUsage) ?? eventUsage;
+    }
 
     final stopReason = rawStopReason is String ? rawStopReason : null;
-    if (stopReason == null && usage == null) {
+    if (stopReason == null && eventUsage == null) {
       // 无 stop_reason 也无 usage 的记账事件，忽略。
       return (chunk: null, isDone: false, recognized: true);
     }
@@ -180,7 +200,7 @@ class AnthropicParser {
         finishReason: stopReason == null
             ? null
             : _normalizeFinishReason(stopReason),
-        usage: usage,
+        usage: eventUsage == null ? null : _usage,
       ),
       isDone: false,
       recognized: true,
@@ -233,7 +253,7 @@ class AnthropicParser {
     };
   }
 
-  /// 从 message_delta 的 `usage` 提取用量；缺失或非 int 的字段保持 null。
+  /// 从协议 `usage` 对象提取用量；缺失或非 int 的字段保持 null。
   ///
   /// cachedInputTokens 取自 `cache_read_input_tokens`；Anthropic 不报告
   /// reasoning tokens，该字段保持 null。

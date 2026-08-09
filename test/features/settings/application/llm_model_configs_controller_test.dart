@@ -28,6 +28,7 @@ LlmProviderConfig _providerConfig({
   String name = 'OpenAI',
   String apiUrl = 'https://api.openai.com/v1/chat/completions',
   String apiKey = 'sk-test',
+  LlmApiProtocol apiProtocol = LlmApiProtocol.chatCompletions,
   List<LlmProviderModelConfig>? models,
 }) {
   return LlmProviderConfig(
@@ -35,7 +36,7 @@ LlmProviderConfig _providerConfig({
     name: name,
     apiUrl: apiUrl,
     apiKey: apiKey,
-    apiProtocol: LlmApiProtocol.chatCompletions,
+    apiProtocol: apiProtocol,
     models: models ?? [],
   );
 }
@@ -288,6 +289,61 @@ void main() {
         ]);
       },
     );
+
+    test('mergeImportedProviders() 用归一化 API 根合并同协议服务商', () async {
+      await controller.upsertProvider(
+        _providerConfig(
+          id: 'existing',
+          apiUrl: 'https://same.url',
+          apiKey: 'same-key',
+          models: [_modelConfig(id: 'm-1', modelName: 'model-a')],
+        ),
+      );
+
+      await controller.mergeImportedProviders([
+        _providerConfig(
+          id: 'imported',
+          apiUrl: 'https://same.url/v1/chat/completions',
+          apiKey: 'same-key',
+          models: [_modelConfig(id: 'm-2', modelName: 'model-b')],
+        ),
+      ]);
+
+      final state = container.read(llmProviderConfigsProvider);
+      expect(state, hasLength(1));
+      expect(state.single.id, 'existing');
+      expect(state.single.models.map((model) => model.modelName).toSet(), {
+        'model-a',
+        'model-b',
+      });
+    });
+
+    test('mergeImportedProviders() 不合并相同 URL 与 Key 的不同协议', () async {
+      await controller.upsertProvider(
+        _providerConfig(
+          id: 'chat',
+          apiUrl: 'https://same.url/v1',
+          apiKey: 'same-key',
+          apiProtocol: LlmApiProtocol.chatCompletions,
+        ),
+      );
+
+      await controller.mergeImportedProviders([
+        _providerConfig(
+          id: 'responses',
+          apiUrl: 'https://same.url',
+          apiKey: 'same-key',
+          apiProtocol: LlmApiProtocol.responses,
+        ),
+      ]);
+
+      final state = container.read(llmProviderConfigsProvider);
+      expect(state, hasLength(2));
+      expect(state.map((provider) => provider.apiProtocol).toSet(), {
+        LlmApiProtocol.chatCompletions,
+        LlmApiProtocol.responses,
+      });
+    });
 
     test('mergeImportedProviders() skips duplicate models', () async {
       await controller.upsertProvider(

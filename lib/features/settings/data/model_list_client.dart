@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
+import 'package:oh_my_llm/core/http/custom_headers_provider.dart';
 import 'package:oh_my_llm/core/http/http_client_provider.dart';
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/core/logging/app_network_logger_provider.dart';
@@ -37,6 +38,7 @@ final modelListClientProvider = Provider<ModelListClient>((ref) {
   return ModelListClient(
     httpClient: ref.watch(httpClientProvider),
     logger: ref.watch(appNetworkLoggerProvider),
+    extraHeadersFactory: () => ref.read(customHeadersMapProvider),
   );
 });
 
@@ -47,11 +49,14 @@ class ModelListClient {
   ModelListClient({
     required http.Client httpClient,
     NetworkLogger logger = const NoopNetworkLogger(),
+    Map<String, String> Function()? extraHeadersFactory,
   }) : _httpClient = httpClient,
-       _logger = logger;
+       _logger = logger,
+       _extraHeadersFactory = extraHeadersFactory;
 
   final http.Client _httpClient;
   final NetworkLogger _logger;
+  final Map<String, String> Function()? _extraHeadersFactory;
 
   /// 拉取模型列表。
   ///
@@ -84,12 +89,16 @@ class ModelListClient {
         'Accept': 'application/json',
       },
     };
+    final effectiveRequestHeaders = _mergeHeadersCaseInsensitive(
+      requestHeaders,
+      _extraHeadersFactory?.call() ?? const <String, String>{},
+    );
 
     _fireAndForget(
       _logger.logRequest(
         uri: uri,
         method: 'GET',
-        headers: requestHeaders,
+        headers: effectiveRequestHeaders,
         payload: null,
         logBody: false,
       ),
@@ -166,6 +175,25 @@ class ModelListClient {
 
   void _fireAndForget(Future<void> future) {
     unawaited(future);
+  }
+
+  /// 按 HTTP Header 大小写不敏感语义合并，后者覆盖前者。
+  Map<String, String> _mergeHeadersCaseInsensitive(
+    Map<String, String> defaults,
+    Map<String, String> overrides,
+  ) {
+    final result = <String, String>{...defaults};
+    final keyByLowerName = <String, String>{
+      for (final key in result.keys) key.toLowerCase(): key,
+    };
+    for (final entry in overrides.entries) {
+      final lowerName = entry.key.toLowerCase();
+      final oldKey = keyByLowerName[lowerName];
+      if (oldKey != null) result.remove(oldKey);
+      result[entry.key] = entry.value;
+      keyByLowerName[lowerName] = entry.key;
+    }
+    return result;
   }
 
   /// 截断响应体到指定长度，使用 grapheme-aware 截断。

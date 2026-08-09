@@ -50,7 +50,7 @@ void main() {
   // ── 请求编码（外部协议契约）──────────────────────────────────
 
   group('请求编码', () {
-    test('最终 URL 为 target.endpoint 原值', () async {
+    test('客户端将原始 API 根解析为 Anthropic Messages 端点', () async {
       final client = _FakeStreamingHttpClient((request) async {
         expect(request.method, 'POST');
         expect(request.url, testUri);
@@ -58,8 +58,42 @@ void main() {
       });
 
       await buildAnthropicClient(client)
-          .streamCompletion(_request(_messages(), modelConfig: _modelConfig()))
+          .streamCompletion(
+            _request(
+              _messages(),
+              modelConfig: _modelConfig(apiUrl: 'https://api.example.com'),
+            ),
+          )
           .drain<void>();
+    });
+
+    test('无效原始 URL 在发 HTTP 前转换为 ChatGenerationException', () async {
+      var sent = false;
+      final client = _FakeStreamingHttpClient((request) async {
+        sent = true;
+        return okResponse();
+      });
+
+      await expectLater(
+        buildAnthropicClient(client)
+            .streamCompletion(
+              _request(
+                _messages(),
+                modelConfig: _modelConfig(apiUrl: 'not-a-url'),
+              ),
+            )
+            .drain<void>(),
+        throwsA(
+          isA<ChatGenerationException>()
+              .having(
+                (error) => error.protocol,
+                'protocol',
+                LlmApiProtocol.anthropic,
+              )
+              .having((error) => error.uri, 'uri', isNull),
+        ),
+      );
+      expect(sent, isFalse);
     });
 
     test('Header 逐字：x-api-key 与 anthropic-version', () async {
@@ -324,16 +358,19 @@ void main() {
       expect(chunks.last.finishReason, 'stop');
     });
 
-    test('message_delta 携带 usage → 流尾部 chunk 填充用量', () async {
+    test('原生两阶段 usage 经 client 与 complete 合并为完整用量', () async {
       final client = _FakeStreamingHttpClient((_) async {
         return http.StreamedResponse(
           Stream.fromIterable([
             utf8.encode(
+              'data: {"type":"message_start","message":{"usage":{"input_tokens":10,'
+              '"cache_creation_input_tokens":4,"cache_read_input_tokens":3}}}\n\n',
+            ),
+            utf8.encode(
               'data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"你好"}}\n\n',
             ),
             utf8.encode(
-              'data: {"type":"message_delta","usage":{"input_tokens":10,"output_tokens":20,'
-              '"cache_creation_input_tokens":4,"cache_read_input_tokens":3},'
+              'data: {"type":"message_delta","usage":{"output_tokens":20},'
               '"delta":{"stop_reason":"end_turn"}}\n\n',
             ),
             utf8.encode('data: {"type":"message_stop"}\n\n'),
@@ -342,13 +379,14 @@ void main() {
         );
       });
 
-      final chunks = await buildAnthropicClient(client)
-          .streamCompletion(_request(_messages(), modelConfig: _modelConfig()))
-          .toList();
+      final result = await buildAnthropicClient(
+        client,
+      ).complete(_request(_messages(), modelConfig: _modelConfig()));
 
-      expect(chunks.map((chunk) => chunk.contentDelta).join(), '你好');
+      expect(result.content, '你好');
+      expect(result.finishReason, 'stop');
       expect(
-        chunks.last.usage,
+        result.usage,
         const ChatGenerationUsage(
           inputTokens: 10,
           outputTokens: 20,
@@ -712,7 +750,12 @@ ChatGenerationRequest _request(
   Duration? streamIdleTimeout,
 }) {
   return ChatGenerationRequest(
-    target: ChatGenerationRequestTarget.fromModelConfig(modelConfig),
+    target: ChatGenerationRequestTarget(
+      protocol: modelConfig.apiProtocol,
+      endpoint: modelConfig.apiUrl.trim(),
+      apiKey: modelConfig.apiKey,
+      model: modelConfig.modelName,
+    ),
     messages: messages,
     reasoningEffort: reasoningEffort,
     streamIdleTimeout: streamIdleTimeout,

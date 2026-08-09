@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/llm_model_config_repository.dart';
 import '../domain/models/llm_model_config.dart';
 import '../domain/models/llm_provider_config.dart';
+import 'llm_provider_equivalence.dart';
 
 final llmProviderConfigsProvider =
     NotifierProvider<LlmProviderConfigsController, List<LlmProviderConfig>>(
@@ -56,12 +57,12 @@ class LlmProviderConfigsController extends Notifier<List<LlmProviderConfig>> {
     await _repository.saveProviders(state);
   }
 
-  /// 导入服务商配置；遇到同 ID 或同 URL / Key 的服务商时，合并其下新模型。
+  /// 导入服务商配置；遇到同 ID 或同等价键的服务商时，合并其下新模型。
   ///
   /// 匹配优先级：
   /// 1. **ID 匹配**：同一实体在不同设备上 URL 可能不同但 ID 相同，
   ///    此时用传入服务商的字段（name、apiUrl、apiKey）覆盖本地，合并模型。
-  /// 2. **URL+Key 匹配**：不同设备各自创建的同凭据服务商，
+  /// 2. **协议+API root+Key 匹配**：不同设备各自创建的同凭据服务商，
   ///    保留本地服务商身份，仅合并模型。
   /// 3. **无匹配**：作为新服务商添加。
   Future<void> mergeImportedProviders(List<LlmProviderConfig> providers) async {
@@ -90,17 +91,17 @@ class LlmProviderConfigsController extends Notifier<List<LlmProviderConfig>> {
         continue;
       }
 
-      // ID 未匹配时，按 URL+Key 匹配（兼容不同设备各自创建的同凭据服务商）
+      // ID 未匹配时，按共享等价键匹配不同设备各自创建的同凭据服务商。
+      final incomingKey = buildLlmProviderEquivalenceKey(incomingProvider);
       existingIndex = updated.indexWhere((provider) {
-        return provider.apiUrl == incomingProvider.apiUrl &&
-            provider.apiKey == incomingProvider.apiKey;
+        return buildLlmProviderEquivalenceKey(provider) == incomingKey;
       });
       if (existingIndex == -1) {
         updated.add(incomingProvider);
         continue;
       }
 
-      // URL+Key 匹配时保留本地服务商身份，仅合并模型
+      // 等价键匹配时保留本地服务商身份，仅合并模型。
       final existingProvider = updated[existingIndex];
       final mergedModels = [...existingProvider.models];
       for (final incomingModel in incomingProvider.models) {

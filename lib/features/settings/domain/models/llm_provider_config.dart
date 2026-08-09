@@ -130,9 +130,9 @@ class LlmProviderConfig extends Equatable {
       name: json['name'] as String,
       apiUrl: json['apiUrl'] as String,
       apiKey: json['apiKey'] as String,
-      // 旧 JSON 缺失 apiProtocol 时固定回退为 chatCompletions；
-      // 显式写入的未知值或非字符串值由解析失败，不做静默降级。
-      apiProtocol: json['apiProtocol'] == null
+      // 旧 JSON 缺失 apiProtocol 时固定回退为 chatCompletions；显式 null、
+      // 未知值或非字符串值均由解析失败，不做静默降级。
+      apiProtocol: !json.containsKey('apiProtocol')
           ? LlmApiProtocol.chatCompletions
           : LlmApiProtocol.fromJsonValue(json['apiProtocol']),
       models: rawModels

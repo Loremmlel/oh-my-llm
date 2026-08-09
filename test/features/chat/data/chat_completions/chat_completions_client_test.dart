@@ -45,7 +45,7 @@ void main() {
   // ── 请求编码：外部协议契约 ───────────────────────────────────
 
   group('请求编码', () {
-    test('最终 URL 为 target.endpoint 原值', () async {
+    test('客户端将原始 API 根解析为 Chat Completions 端点', () async {
       final client = _FakeStreamingHttpClient((request) async {
         expect(request.method, 'POST');
         expect(request.url, testUri);
@@ -53,8 +53,42 @@ void main() {
       });
 
       await buildChatClient(client)
-          .streamCompletion(_request(_messages(), modelConfig: _modelConfig()))
+          .streamCompletion(
+            _request(
+              _messages(),
+              modelConfig: _modelConfig(apiUrl: 'https://api.example.com'),
+            ),
+          )
           .drain<void>();
+    });
+
+    test('无效原始 URL 在发 HTTP 前转换为 ChatGenerationException', () async {
+      var sent = false;
+      final client = _FakeStreamingHttpClient((request) async {
+        sent = true;
+        return okResponse();
+      });
+
+      await expectLater(
+        buildChatClient(client)
+            .streamCompletion(
+              _request(
+                _messages(),
+                modelConfig: _modelConfig(apiUrl: 'not-a-url'),
+              ),
+            )
+            .drain<void>(),
+        throwsA(
+          isA<ChatGenerationException>()
+              .having(
+                (error) => error.protocol,
+                'protocol',
+                LlmApiProtocol.chatCompletions,
+              )
+              .having((error) => error.uri, 'uri', isNull),
+        ),
+      );
+      expect(sent, isFalse);
     });
 
     test('Header 逐字：Content-Type/Accept/Authorization', () async {
@@ -617,7 +651,12 @@ ChatGenerationRequest _request(
   Duration? streamIdleTimeout,
 }) {
   return ChatGenerationRequest(
-    target: ChatGenerationRequestTarget.fromModelConfig(modelConfig),
+    target: ChatGenerationRequestTarget(
+      protocol: modelConfig.apiProtocol,
+      endpoint: modelConfig.apiUrl.trim(),
+      apiKey: modelConfig.apiKey,
+      model: modelConfig.modelName,
+    ),
     messages: messages,
     reasoningEffort: reasoningEffort,
     streamIdleTimeout: streamIdleTimeout,

@@ -421,6 +421,86 @@ void main() {
       expect(result.modelProviders[0].models[0].modelName, 'gpt-4');
     });
 
+    test('无同 ID 回退：同协议的域名、v1 根与完整端点按同一 API 根去重', () {
+      final existingProviders = [
+        provider(
+          apiUrl: 'https://same.example.com',
+          apiKey: 'key1',
+          models: [model(modelName: 'gpt-4')],
+        ),
+      ];
+      final data = export(
+        modelProviders: [
+          provider(
+            id: 'v1-root',
+            apiUrl: 'https://same.example.com/v1',
+            apiKey: 'key1',
+            models: [model(modelName: 'gpt-4')],
+          ),
+          provider(
+            id: 'full-endpoint',
+            apiUrl: 'https://same.example.com/v1/chat/completions',
+            apiKey: 'key1',
+            models: [model(modelName: 'gpt-4')],
+          ),
+        ],
+      );
+
+      final result = deduplicator.deduplicate(
+        data: data,
+        existingProviders: existingProviders,
+        existingMemoryPrompts: const [],
+        existingPresetPrompts: const [],
+        existingTemplatePrompts: const [],
+        existingSequences: const [],
+      );
+
+      expect(result.modelProviders, isEmpty);
+    });
+
+    test('无同 ID 回退：不同 query 与不同无效 URL 不会错误合并', () {
+      final existingProviders = [
+        provider(
+          apiUrl: 'https://same.example.com?tenant=a',
+          apiKey: 'key1',
+          models: [model(modelName: 'gpt-4')],
+        ),
+        provider(
+          id: 'invalid-existing',
+          apiUrl: 'invalid-a',
+          apiKey: 'key1',
+          models: [model(modelName: 'gpt-4')],
+        ),
+      ];
+      final data = export(
+        modelProviders: [
+          provider(
+            id: 'query-b',
+            apiUrl: 'https://same.example.com?tenant=b',
+            apiKey: 'key1',
+            models: [model(modelName: 'gpt-4')],
+          ),
+          provider(
+            id: 'invalid-b',
+            apiUrl: 'invalid-b',
+            apiKey: 'key1',
+            models: [model(modelName: 'gpt-4')],
+          ),
+        ],
+      );
+
+      final result = deduplicator.deduplicate(
+        data: data,
+        existingProviders: existingProviders,
+        existingMemoryPrompts: const [],
+        existingPresetPrompts: const [],
+        existingTemplatePrompts: const [],
+        existingSequences: const [],
+      );
+
+      expect(result.modelProviders, hasLength(2));
+    });
+
     test('过滤已存在的记忆提示词', () {
       final existingMemoryPrompts = [mem(id: 'e-1', content: '常见的记忆内容')];
       final data = export(

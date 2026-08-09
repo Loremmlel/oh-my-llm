@@ -172,7 +172,12 @@ class ControllerTestHarness {
     );
     return client.streamCompletion(
       ChatGenerationRequest(
-        target: ChatGenerationRequestTarget.fromModelConfig(testModel),
+        target: ChatGenerationRequestTarget(
+          protocol: testModel.apiProtocol,
+          endpoint: testModel.apiUrl.trim(),
+          apiKey: testModel.apiKey,
+          model: testModel.modelName,
+        ),
         messages: const [
           ChatRequestMessage(role: ChatMessageRole.user, content: 'hi'),
         ],

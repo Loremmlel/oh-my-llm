@@ -50,7 +50,7 @@ void main() {
   // ── 请求编码：外部协议契约 ───────────────────────────────────
 
   group('请求编码', () {
-    test('最终 URL 为 target.endpoint 原值', () async {
+    test('客户端将原始 API 根解析为 Responses 端点', () async {
       final client = _FakeStreamingHttpClient((request) async {
         expect(request.method, 'POST');
         expect(request.url, testUri);
@@ -58,8 +58,76 @@ void main() {
       });
 
       await buildResponsesClient(client)
-          .streamCompletion(_request(_messages(), modelConfig: _modelConfig()))
+          .streamCompletion(
+            _request(
+              _messages(),
+              modelConfig: _modelConfig(apiUrl: 'https://api.example.com'),
+            ),
+          )
           .drain<void>();
+    });
+
+    test('无效原始 URL 在发 HTTP 前转换为 ChatGenerationException', () async {
+      var sent = false;
+      final client = _FakeStreamingHttpClient((request) async {
+        sent = true;
+        return okResponse();
+      });
+
+      await expectLater(
+        buildResponsesClient(client)
+            .streamCompletion(
+              _request(
+                _messages(),
+                modelConfig: _modelConfig(apiUrl: 'not-a-url'),
+              ),
+            )
+            .drain<void>(),
+        throwsA(
+          isA<ChatGenerationException>()
+              .having(
+                (error) => error.protocol,
+                'protocol',
+                LlmApiProtocol.responses,
+              )
+              .having((error) => error.uri, 'uri', isNull),
+        ),
+      );
+      expect(sent, isFalse);
+    });
+
+    test('response.completed 后即使 HTTP 流保持打开也立即结束', () async {
+      final cancelled = Completer<void>();
+      late final StreamController<List<int>> responseController;
+      responseController = StreamController<List<int>>(
+        onListen: () {
+          responseController.add(
+            utf8.encode(
+              'data: {"type":"response.output_text.delta","delta":"ok"}\n\n',
+            ),
+          );
+          responseController.add(
+            utf8.encode(
+              'data: {"type":"response.completed","response":{}}\n\n',
+            ),
+          );
+        },
+        onCancel: () {
+          if (!cancelled.isCompleted) cancelled.complete();
+        },
+      );
+      final httpClient = _FakeStreamingHttpClient(
+        (_) async => http.StreamedResponse(responseController.stream, 200),
+      );
+
+      final chunks = await buildResponsesClient(httpClient)
+          .streamCompletion(_request(_messages(), modelConfig: _modelConfig()))
+          .toList()
+          .timeout(const Duration(seconds: 1));
+
+      expect(chunks.map((chunk) => chunk.contentDelta).join(), 'ok');
+      expect(chunks.last.finishReason, 'stop');
+      await cancelled.future.timeout(const Duration(seconds: 1));
     });
 
     test('Header 逐字：Content-Type/Accept/Authorization', () async {
@@ -704,7 +772,12 @@ ChatGenerationRequest _request(
   Duration? streamIdleTimeout,
 }) {
   return ChatGenerationRequest(
-    target: ChatGenerationRequestTarget.fromModelConfig(modelConfig),
+    target: ChatGenerationRequestTarget(
+      protocol: modelConfig.apiProtocol,
+      endpoint: modelConfig.apiUrl.trim(),
+      apiKey: modelConfig.apiKey,
+      model: modelConfig.modelName,
+    ),
     messages: messages,
     reasoningEffort: reasoningEffort,
     streamIdleTimeout: streamIdleTimeout,

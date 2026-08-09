@@ -485,12 +485,14 @@ class _FakeHost implements ChatGenerationHost {
       parentId: command.parentMessageId,
       isStreaming: true,
     );
-    final request = ChatGenerationLifecycleRequest(
-      conversationId: command.conversation.id,
-      assistantMessageId: assistantMessage.id,
-      modelConfig: command.modelConfig,
+    final request = ChatGenerationRequest(
+      target: ChatGenerationRequestTarget(
+        protocol: command.modelConfig.apiProtocol,
+        endpoint: command.modelConfig.apiUrl.trim(),
+        apiKey: command.modelConfig.apiKey,
+        model: command.modelConfig.modelName,
+      ),
       messages: const [],
-      retryPolicy: command.retryPolicy,
     );
     return ChatPrepareSuccess(
       request: request,

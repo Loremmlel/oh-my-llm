@@ -218,6 +218,45 @@ void main() {
       );
     });
 
+    test('所有工具或未知 content_block_start 类型均明确失败', () {
+      for (final blockType in [
+        'web_search_tool_result',
+        'web_fetch_tool_result',
+        'code_execution_tool_result',
+        'mcp_tool_use',
+        'mcp_tool_result',
+        'future_tool_block',
+      ]) {
+        expect(
+          () => newParser().parse(
+            event(
+              '{"type":"content_block_start","content_block":{"type":"$blockType"}}',
+            ),
+          ),
+          throwsA(
+            isA<ChatGenerationException>().having(
+              (error) => error.message,
+              'message',
+              contains('不支持该响应类型'),
+            ),
+          ),
+          reason: blockType,
+        );
+      }
+    });
+
+    test('已知 text/thinking/redacted_thinking 内容块可忽略生命周期事件', () {
+      for (final blockType in ['text', 'thinking', 'redacted_thinking']) {
+        final result = newParser().parse(
+          event(
+            '{"type":"content_block_start","content_block":{"type":"$blockType"}}',
+          ),
+        );
+        expect(result.chunk, isNull, reason: blockType);
+        expect(result.recognized, isTrue, reason: blockType);
+      }
+    });
+
     test('content_block_delta + input_json_delta → 不支持异常', () {
       expect(
         () => newParser().parse(
@@ -262,18 +301,32 @@ void main() {
   // ── usage ─────────────────────────────────────────────────────
 
   group('usage 提取', () {
-    test('message_delta usage 自然携带时填充', () {
-      final chunk = newParser()
+    test('原生 message_start 输入用量与 message_delta 输出用量累计合并', () {
+      final parser = newParser();
+      final startChunk = parser
           .parse(
             event(
-              '{"type":"message_delta","usage":{"input_tokens":10,"output_tokens":20,'
-              '"cache_creation_input_tokens":4,"cache_read_input_tokens":3},'
+              '{"type":"message_start","message":{"role":"assistant",'
+              '"usage":{"input_tokens":10,"cache_creation_input_tokens":4,'
+              '"cache_read_input_tokens":3}}}',
+            ),
+          )
+          .chunk;
+      expect(
+        startChunk!.usage,
+        const ChatGenerationUsage(inputTokens: 10, cachedInputTokens: 3),
+      );
+
+      final deltaChunk = parser
+          .parse(
+            event(
+              '{"type":"message_delta","usage":{"output_tokens":20},'
               '"delta":{"stop_reason":"end_turn"}}',
             ),
           )
           .chunk;
       expect(
-        chunk!.usage,
+        deltaChunk!.usage,
         const ChatGenerationUsage(
           inputTokens: 10,
           outputTokens: 20,
@@ -281,6 +334,7 @@ void main() {
           cachedInputTokens: 3,
         ),
       );
+      expect(deltaChunk.finishReason, 'stop');
     });
 
     test('usage 缺失或全非 int → usage 为 null', () {

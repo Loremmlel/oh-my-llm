@@ -191,10 +191,14 @@ final class SettingsExportCodec {
 
     return SettingsExportData(
       modelProviders: list('modelProviders')
-          .map(
-            (item) =>
-                LlmProviderConfig.fromJson(Map<String, dynamic>.from(item)),
-          )
+          .map((item) {
+            // 当前格式必须显式声明协议；只有旧格式迁移器可以补默认值。
+            if (!item.containsKey('apiProtocol') ||
+                item['apiProtocol'] == null) {
+              throw const FormatException('v7 服务商缺少有效 apiProtocol');
+            }
+            return LlmProviderConfig.fromJson(Map<String, dynamic>.from(item));
+          })
           .toList(growable: false),
       memoryPrompts: list('memoryPrompts')
           .map((item) => MemoryPrompt.fromJson(Map<String, dynamic>.from(item)))

@@ -8,6 +8,7 @@ import '../domain/models/output_processing_settings.dart';
 import '../domain/models/preset_prompt.dart';
 import '../domain/models/settings_export_data.dart';
 import '../domain/models/template_prompt.dart';
+import 'llm_provider_equivalence.dart';
 
 /// 导入去重时的内容比较策略。
 abstract class SettingsImportComparator<T> {
@@ -158,9 +159,14 @@ final class SettingsImportDeduplicator {
     for (final p in existingProviders) {
       existingById[p.id] = p;
     }
-    // 无 ID 匹配时的回退：展开所有已有模型用于协议+URL+Key+modelName 去重
+    // 无 ID 匹配时的回退：统一 API 根后按服务商等价键与 modelName 去重。
     final existingModels = existingProviders
-        .expand((provider) => provider.resolvedModels)
+        .expand((provider) {
+          final providerKey = buildLlmProviderEquivalenceKey(provider);
+          return provider.models.map(
+            (model) => (providerKey: providerKey, modelName: model.modelName),
+          );
+        })
         .toList(growable: false);
 
     final newProviders = <LlmProviderConfig>[];
@@ -189,15 +195,16 @@ final class SettingsImportDeduplicator {
         continue;
       }
 
-      // 无同 ID：按协议+apiUrl+apiKey+modelName 去重；
+      // 无同 ID：按协议+API root+apiKey+modelName 去重；
       // 同 URL/Key 下不同协议是不同服务商，不能互相合并
+      final incomingProviderKey = buildLlmProviderEquivalenceKey(
+        incomingProvider,
+      );
       final nextModels = incomingProvider.models
           .where((model) {
             return !existingModels.any(
               (existing) =>
-                  existing.apiProtocol == incomingProvider.apiProtocol &&
-                  existing.apiUrl == incomingProvider.apiUrl &&
-                  existing.apiKey == incomingProvider.apiKey &&
+                  existing.providerKey == incomingProviderKey &&
                   existing.modelName == model.modelName,
             );
           })

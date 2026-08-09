@@ -20,6 +20,11 @@ void main() {
         LlmApiProtocol.responses,
         'https://api.openai.com/v1/responses',
       ),
+      (
+        'https://api.openai.com/v1/models',
+        LlmApiProtocol.responses,
+        'https://api.openai.com/v1/responses',
+      ),
       // 三种完整端点原样使用
       (
         'https://api.openai.com/v1/chat/completions',
@@ -122,9 +127,36 @@ void main() {
     for (final (input, protocol, expected) in cases) {
       test('$input + ${protocol.displayName} -> $expected', () {
         expect(
-          resolver.resolveGenerationEndpoint(input, protocol).toString(),
+          resolver
+              .resolveGenerationEndpoint(rawUrl: input, protocol: protocol)
+              .toString(),
           expected,
         );
+      });
+    }
+  });
+
+  group('resolveApiRoot', () {
+    const cases = <(String, String)>[
+      ('https://api.openai.com', 'https://api.openai.com/v1'),
+      ('https://api.openai.com/v1/', 'https://api.openai.com/v1'),
+      (
+        'https://api.openai.com/v1/chat/completions',
+        'https://api.openai.com/v1',
+      ),
+      ('https://api.openai.com/v1/responses', 'https://api.openai.com/v1'),
+      ('https://api.openai.com/v1/messages', 'https://api.openai.com/v1'),
+      ('https://api.openai.com/v1/models', 'https://api.openai.com/v1'),
+      (
+        'https://host:8443/gateway/team-a?q=1',
+        'https://host:8443/gateway/team-a/v1?q=1',
+      ),
+      ('  https://api.openai.com/v1  ', 'https://api.openai.com/v1'),
+    ];
+
+    for (final (input, expected) in cases) {
+      test('$input -> $expected', () {
+        expect(resolver.resolveApiRoot(input).toString(), expected);
       });
     }
   });
@@ -183,6 +215,7 @@ void main() {
       '/v1/chat/completions',
       'ftp://host/v1',
       'file:///tmp/api',
+      'https:///v1',
       'https://host/v1#section',
       'https://host/v1/chat/completions#frag',
     ];
@@ -191,8 +224,8 @@ void main() {
       test('生成端点拒绝：$input', () {
         expect(
           () => resolver.resolveGenerationEndpoint(
-            input,
-            LlmApiProtocol.chatCompletions,
+            rawUrl: input,
+            protocol: LlmApiProtocol.chatCompletions,
           ),
           throwsA(isA<LlmEndpointResolverException>()),
         );
@@ -209,8 +242,8 @@ void main() {
     test('异常消息说明拒绝原因', () {
       expect(
         () => resolver.resolveGenerationEndpoint(
-          'https://host/v1#frag',
-          LlmApiProtocol.chatCompletions,
+          rawUrl: 'https://host/v1#frag',
+          protocol: LlmApiProtocol.chatCompletions,
         ),
         throwsA(
           predicate(

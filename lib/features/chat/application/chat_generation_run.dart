@@ -57,7 +57,7 @@ class ChatGenerationRun {
   DateTime _lastFlushAt = DateTime(2000);
 
   // prepare 填充的 run context。
-  ChatGenerationLifecycleRequest? _request;
+  ChatGenerationRequest? _request;
   ChatConversation? _streamingConversation;
   ChatMessage? _assistantMessage;
   ChatStreamingReply? _streamingReply;
@@ -155,26 +155,7 @@ class ChatGenerationRun {
   // ── streaming ───────────────────────────────────────────────────────────────
 
   void _startStream() {
-    final lifecycleRequest = _request!;
-    final ChatGenerationRequest request;
-    try {
-      request = ChatGenerationRequest(
-        // 从 modelConfig 派生协议中立 target（endpoint 由 fromModelConfig
-        // 经 LlmEndpointResolver 解析）。
-        target: ChatGenerationRequestTarget.fromModelConfig(
-          lifecycleRequest.modelConfig,
-        ),
-        messages: lifecycleRequest.messages,
-        reasoningEffort: lifecycleRequest.reasoningEffort,
-        streamIdleTimeout: lifecycleRequest.streamIdleTimeout,
-      );
-    } catch (error, stack) {
-      // target 构建失败（如 API URL 无法解析为生成端点）发生在流建立之前，
-      // 与流错误走同一终态路径：以 inline assistant 错误展示并终止 run，
-      // 避免 run 悬挂在 streaming 阶段。
-      _serialize(() => _completeAttemptFromError(error, stack));
-      return;
-    }
+    final request = _request!;
     _subscription = client
         .streamCompletion(request)
         .listen(
