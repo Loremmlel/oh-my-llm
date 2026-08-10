@@ -161,25 +161,35 @@ void main() {
   group('MemoryPromptImportComparator', () {
     const comparator = MemoryPromptImportComparator();
 
-    test('内容相同时 isEquivalent 返回 true', () {
-      final existing = mem(content: 'hello');
-      final incoming = mem(content: 'hello');
+    test('按内容判断等价并覆盖长度守卫', () {
+      final cases = [
+        (
+          name: '内容相同',
+          existing: mem(content: 'hello'),
+          incoming: mem(content: 'hello'),
+          expected: true,
+        ),
+        (
+          name: '同长度但内容不同',
+          existing: mem(content: 'abc'),
+          incoming: mem(content: 'def'),
+          expected: false,
+        ),
+        (
+          name: '内容长度不同',
+          existing: mem(content: 'a'),
+          incoming: mem(content: 'abcdef'),
+          expected: false,
+        ),
+      ];
 
-      expect(comparator.isEquivalent(existing, incoming), isTrue);
-    });
-
-    test('内容不同时 isEquivalent 返回 false（同长度，测内容比较）', () {
-      final existing = mem(content: 'abc');
-      final incoming = mem(content: 'def');
-
-      expect(comparator.isEquivalent(existing, incoming), isFalse);
-    });
-
-    test('内容长度不同时 isEquivalent 通过长度守卫返回 false', () {
-      final existing = mem(content: 'a');
-      final incoming = mem(content: 'abcdef');
-
-      expect(comparator.isEquivalent(existing, incoming), isFalse);
+      for (final testCase in cases) {
+        expect(
+          comparator.isEquivalent(testCase.existing, testCase.incoming),
+          testCase.expected,
+          reason: testCase.name,
+        );
+      }
     });
   });
 
@@ -188,47 +198,52 @@ void main() {
   group('PresetPromptImportComparator', () {
     const comparator = PresetPromptImportComparator();
 
-    test('消息完全相同时 isEquivalent 返回 true', () {
-      final messages = [msg(content: 'hello', role: PromptMessageRole.user)];
-      final existing = preset(messages: messages);
-      final incoming = preset(messages: messages.map((m) => m).toList());
+    test('按消息数量和字段判断等价', () {
+      final cases = [
+        (
+          name: '消息完全相同',
+          existing: preset(messages: [msg(content: 'hello')]),
+          incoming: preset(messages: [msg(content: 'hello')]),
+          expected: true,
+        ),
+        (
+          name: '消息数量不同',
+          existing: preset(messages: [msg()]),
+          incoming: preset(
+            messages: [
+              msg(),
+              msg(id: 'msg-2', content: '第二条'),
+            ],
+          ),
+          expected: false,
+        ),
+        (
+          name: '标题不同',
+          existing: preset(messages: [msg(title: '标题A')]),
+          incoming: preset(messages: [msg(title: '标题B')]),
+          expected: false,
+        ),
+        (
+          name: '正文不同',
+          existing: preset(messages: [msg(content: '旧正文')]),
+          incoming: preset(messages: [msg(content: '新正文')]),
+          expected: false,
+        ),
+        (
+          name: '角色不同',
+          existing: preset(messages: [msg(role: PromptMessageRole.user)]),
+          incoming: preset(messages: [msg(role: PromptMessageRole.assistant)]),
+          expected: false,
+        ),
+      ];
 
-      expect(comparator.isEquivalent(existing, incoming), isTrue);
-    });
-
-    test('消息数量不同时 isEquivalent 返回 false', () {
-      final existing = preset(messages: [msg()]);
-      final incoming = preset(
-        messages: [
-          msg(),
-          msg(id: 'msg-2', content: '第二条'),
-        ],
-      );
-
-      expect(comparator.isEquivalent(existing, incoming), isFalse);
-    });
-
-    test('消息标题不同时 isEquivalent 返回 false', () {
-      final existing = preset(messages: [msg(title: '标题A')]);
-      final incoming = preset(messages: [msg(title: '标题B')]);
-
-      expect(comparator.isEquivalent(existing, incoming), isFalse);
-    });
-
-    test('消息正文不同时 isEquivalent 返回 false', () {
-      final existing = preset(messages: [msg(content: '旧正文')]);
-      final incoming = preset(messages: [msg(content: '新正文')]);
-
-      expect(comparator.isEquivalent(existing, incoming), isFalse);
-    });
-
-    test('消息角色不同时 isEquivalent 返回 false', () {
-      final existing = preset(messages: [msg(role: PromptMessageRole.user)]);
-      final incoming = preset(
-        messages: [msg(role: PromptMessageRole.assistant)],
-      );
-
-      expect(comparator.isEquivalent(existing, incoming), isFalse);
+      for (final testCase in cases) {
+        expect(
+          comparator.isEquivalent(testCase.existing, testCase.incoming),
+          testCase.expected,
+          reason: testCase.name,
+        );
+      }
     });
   });
 
@@ -237,45 +252,56 @@ void main() {
   group('TemplatePromptImportComparator', () {
     const comparator = TemplatePromptImportComparator();
 
-    test('内容与变量完全相同时 isEquivalent 返回 true', () {
-      final variables = [tplVar(name: '语气', defaultValue: '正式')];
-      final existing = tpl(content: '请用{{语气}}回复', variables: variables);
-      final incoming = tpl(
-        content: '请用{{语气}}回复',
-        variables: [tplVar(name: '语气', defaultValue: '正式')],
-      );
+    test('按正文、变量数量和变量字段判断等价', () {
+      final cases = [
+        (
+          name: '内容与变量完全相同',
+          existing: tpl(
+            content: '请用{{语气}}回复',
+            variables: [tplVar(name: '语气', defaultValue: '正式')],
+          ),
+          incoming: tpl(
+            content: '请用{{语气}}回复',
+            variables: [tplVar(name: '语气', defaultValue: '正式')],
+          ),
+          expected: true,
+        ),
+        (
+          name: '正文不同',
+          existing: tpl(content: '翻译{{正文}}'),
+          incoming: tpl(content: '改写{{正文}}'),
+          expected: false,
+        ),
+        (
+          name: '变量数量不同',
+          existing: tpl(variables: [tplVar(name: '语气')]),
+          incoming: tpl(
+            variables: [
+              tplVar(name: '语气'),
+              tplVar(name: '长度'),
+            ],
+          ),
+          expected: false,
+        ),
+        (
+          name: '变量名称或默认值不同',
+          existing: tpl(
+            variables: [tplVar(name: '语气', defaultValue: '正式')],
+          ),
+          incoming: tpl(
+            variables: [tplVar(name: '风格', defaultValue: '轻松')],
+          ),
+          expected: false,
+        ),
+      ];
 
-      expect(comparator.isEquivalent(existing, incoming), isTrue);
-    });
-
-    test('内容不同时 isEquivalent 返回 false', () {
-      final existing = tpl(content: '翻译{{正文}}');
-      final incoming = tpl(content: '改写{{正文}}');
-
-      expect(comparator.isEquivalent(existing, incoming), isFalse);
-    });
-
-    test('变量数量不同时 isEquivalent 返回 false', () {
-      final existing = tpl(variables: [tplVar(name: '语气')]);
-      final incoming = tpl(
-        variables: [
-          tplVar(name: '语气'),
-          tplVar(name: '长度'),
-        ],
-      );
-
-      expect(comparator.isEquivalent(existing, incoming), isFalse);
-    });
-
-    test('变量名称或默认值不同时 isEquivalent 返回 false', () {
-      final existing = tpl(
-        variables: [tplVar(name: '语气', defaultValue: '正式')],
-      );
-      final incoming = tpl(
-        variables: [tplVar(name: '风格', defaultValue: '轻松')],
-      );
-
-      expect(comparator.isEquivalent(existing, incoming), isFalse);
+      for (final testCase in cases) {
+        expect(
+          comparator.isEquivalent(testCase.existing, testCase.incoming),
+          testCase.expected,
+          reason: testCase.name,
+        );
+      }
     });
   });
 
@@ -284,25 +310,37 @@ void main() {
   group('FixedPromptSequenceImportComparator', () {
     const comparator = FixedPromptSequenceImportComparator();
 
-    test('步骤完全相同时 isEquivalent 返回 true', () {
-      final steps = [step(title: '步骤1', content: '你好')];
-      final existing = seq(steps: steps);
-      final incoming = seq(
-        steps: [step(title: '步骤1', content: '你好')],
-      );
+    test('按步骤字段判断等价', () {
+      final cases = [
+        (
+          name: '步骤完全相同',
+          existing: seq(
+            steps: [step(title: '步骤1', content: '你好')],
+          ),
+          incoming: seq(
+            steps: [step(title: '步骤1', content: '你好')],
+          ),
+          expected: true,
+        ),
+        (
+          name: '步骤不同',
+          existing: seq(
+            steps: [step(title: '步骤1', content: '你好')],
+          ),
+          incoming: seq(
+            steps: [step(title: '步骤2', content: '再见')],
+          ),
+          expected: false,
+        ),
+      ];
 
-      expect(comparator.isEquivalent(existing, incoming), isTrue);
-    });
-
-    test('步骤不同时 isEquivalent 返回 false', () {
-      final existing = seq(
-        steps: [step(title: '步骤1', content: '你好')],
-      );
-      final incoming = seq(
-        steps: [step(title: '步骤2', content: '再见')],
-      );
-
-      expect(comparator.isEquivalent(existing, incoming), isFalse);
+      for (final testCase in cases) {
+        expect(
+          comparator.isEquivalent(testCase.existing, testCase.incoming),
+          testCase.expected,
+          reason: testCase.name,
+        );
+      }
     });
   });
 
@@ -677,207 +715,68 @@ void main() {
       expect(result.fixedPromptSequences, isEmpty);
     });
 
-    test('不传 existingAutoRetrySettings 时 autoRetrySettings 透传', () {
-      const autoRetry = AutoRetrySettings(
-        maxJitterSeconds: 20,
-        maxRetryCount: 5,
-      );
-      final data = export(
-        memoryPrompts: [mem(content: '新记忆')],
-        autoRetrySettings: autoRetry,
-      );
-
-      final result = deduplicator.deduplicate(
-        data: data,
-        existingProviders: const [],
-        existingMemoryPrompts: const [],
-        existingPresetPrompts: const [],
-        existingTemplatePrompts: const [],
-        existingSequences: const [],
-      );
-
-      expect(result.autoRetrySettings, isNotNull);
-      expect(result.autoRetrySettings!.maxJitterSeconds, 20);
-      expect(result.autoRetrySettings!.maxRetryCount, 5);
-      // 不影响其他分类
-      expect(result.memoryPrompts.length, 1);
-    });
-
-    test(
-      '不传 existingAutoRetrySettings 时 data 仅含 autoRetry 则 hasContent 为 true',
-      () {
-        final data = export(autoRetrySettings: const AutoRetrySettings());
-
-        final result = deduplicator.deduplicate(
-          data: data,
-          existingProviders: const [],
-          existingMemoryPrompts: const [],
-          existingPresetPrompts: const [],
-          existingTemplatePrompts: const [],
-          existingSequences: const [],
-        );
-
-        expect(result.hasContent, isTrue);
-        expect(result.autoRetrySettings, isNotNull);
-      },
-    );
-
-    test('不传 existingFontSizeSettings 时 fontSizeSettings 透传', () {
-      final data = export(
-        fontSizeSettings: const FontSizeSettings(bodyFontSize: 18),
-      );
-      final result = deduplicator.deduplicate(
-        data: data,
-        existingProviders: const [],
-        existingMemoryPrompts: const [],
-        existingPresetPrompts: const [],
-        existingTemplatePrompts: const [],
-        existingSequences: const [],
-      );
-      expect(result.fontSizeSettings?.bodyFontSize, 18);
-    });
-
     // ── 标量型配置去重 ──────────────────────────────────────────────
 
-    test('autoRetrySettings 与本地一致时去重后为 null', () {
+    test('未提供本地标量配置时远端值全部透传且不影响实体分类', () {
       const autoRetry = AutoRetrySettings(
         maxJitterSeconds: 20,
         maxRetryCount: 5,
       );
-      final data = export(autoRetrySettings: autoRetry);
-
+      const customHeaders = CustomHeadersConfig(
+        headers: [CustomHeaderEntry(key: 'X-New', value: 'new')],
+      );
+      const fontSize = FontSizeSettings(bodyFontSize: 18);
       final result = deduplicator.deduplicate(
-        data: data,
+        data: export(
+          memoryPrompts: [mem(content: '新记忆')],
+          autoRetrySettings: autoRetry,
+          customHeadersConfig: customHeaders,
+          fontSizeSettings: fontSize,
+        ),
         existingProviders: const [],
         existingMemoryPrompts: const [],
         existingPresetPrompts: const [],
         existingTemplatePrompts: const [],
         existingSequences: const [],
-        existingAutoRetrySettings: autoRetry,
       );
 
-      expect(result.autoRetrySettings, isNull);
+      expect(result.autoRetrySettings, autoRetry);
+      expect(result.customHeadersConfig, customHeaders);
+      expect(result.fontSizeSettings, fontSize);
+      expect(result.memoryPrompts, hasLength(1));
+      expect(result.hasContent, isTrue);
     });
 
-    test('autoRetrySettings 与本地不同时保留远端值', () {
-      const existing = AutoRetrySettings(
-        maxJitterSeconds: 15,
-        maxRetryCount: 0,
-      );
-      const incoming = AutoRetrySettings(
+    test('全部标量配置与本地不同时保留远端值', () {
+      const incomingAutoRetry = AutoRetrySettings(
         maxJitterSeconds: 30,
         maxRetryCount: 5,
       );
-      final data = export(autoRetrySettings: incoming);
-
-      final result = deduplicator.deduplicate(
-        data: data,
-        existingProviders: const [],
-        existingMemoryPrompts: const [],
-        existingPresetPrompts: const [],
-        existingTemplatePrompts: const [],
-        existingSequences: const [],
-        existingAutoRetrySettings: existing,
-      );
-
-      expect(result.autoRetrySettings, isNotNull);
-      expect(result.autoRetrySettings!.maxJitterSeconds, 30);
-      expect(result.autoRetrySettings!.maxRetryCount, 5);
-    });
-
-    test('customHeadersConfig 与本地一致时去重后为 null', () {
-      const config = CustomHeadersConfig(
-        headers: [CustomHeaderEntry(key: 'X-Custom', value: 'test')],
-      );
-      final data = export(customHeadersConfig: config);
-
-      final result = deduplicator.deduplicate(
-        data: data,
-        existingProviders: const [],
-        existingMemoryPrompts: const [],
-        existingPresetPrompts: const [],
-        existingTemplatePrompts: const [],
-        existingSequences: const [],
-        existingCustomHeadersConfig: config,
-      );
-
-      expect(result.customHeadersConfig, isNull);
-    });
-
-    test('customHeadersConfig 与本地不同时保留远端值', () {
-      const existing = CustomHeadersConfig(
-        headers: [CustomHeaderEntry(key: 'X-Old', value: 'old')],
-      );
-      const incoming = CustomHeadersConfig(
+      const incomingHeaders = CustomHeadersConfig(
         headers: [CustomHeaderEntry(key: 'X-New', value: 'new')],
       );
-      final data = export(customHeadersConfig: incoming);
-
+      const incomingFontSize = FontSizeSettings(bodyFontSize: 20);
       final result = deduplicator.deduplicate(
-        data: data,
+        data: export(
+          autoRetrySettings: incomingAutoRetry,
+          customHeadersConfig: incomingHeaders,
+          fontSizeSettings: incomingFontSize,
+        ),
         existingProviders: const [],
         existingMemoryPrompts: const [],
         existingPresetPrompts: const [],
         existingTemplatePrompts: const [],
         existingSequences: const [],
-        existingCustomHeadersConfig: existing,
+        existingAutoRetrySettings: const AutoRetrySettings(),
+        existingCustomHeadersConfig: const CustomHeadersConfig(
+          headers: [CustomHeaderEntry(key: 'X-Old', value: 'old')],
+        ),
+        existingFontSizeSettings: const FontSizeSettings(bodyFontSize: 14),
       );
 
-      expect(result.customHeadersConfig, isNotNull);
-      expect(result.customHeadersConfig!.headers.first.key, 'X-New');
-    });
-
-    test('customHeadersConfig 远端为空列表时去重后为 null', () {
-      const incoming = CustomHeadersConfig(headers: []);
-      final data = export(customHeadersConfig: incoming);
-
-      final result = deduplicator.deduplicate(
-        data: data,
-        existingProviders: const [],
-        existingMemoryPrompts: const [],
-        existingPresetPrompts: const [],
-        existingTemplatePrompts: const [],
-        existingSequences: const [],
-        existingCustomHeadersConfig: const CustomHeadersConfig(),
-      );
-
-      expect(result.customHeadersConfig, isNull);
-    });
-
-    test('fontSizeSettings 与本地一致时去重后为 null', () {
-      const fontSize = FontSizeSettings(bodyFontSize: 18);
-      final data = export(fontSizeSettings: fontSize);
-
-      final result = deduplicator.deduplicate(
-        data: data,
-        existingProviders: const [],
-        existingMemoryPrompts: const [],
-        existingPresetPrompts: const [],
-        existingTemplatePrompts: const [],
-        existingSequences: const [],
-        existingFontSizeSettings: fontSize,
-      );
-
-      expect(result.fontSizeSettings, isNull);
-    });
-
-    test('fontSizeSettings 与本地不同时保留远端值', () {
-      const existing = FontSizeSettings(bodyFontSize: 14);
-      const incoming = FontSizeSettings(bodyFontSize: 20);
-      final data = export(fontSizeSettings: incoming);
-
-      final result = deduplicator.deduplicate(
-        data: data,
-        existingProviders: const [],
-        existingMemoryPrompts: const [],
-        existingPresetPrompts: const [],
-        existingTemplatePrompts: const [],
-        existingSequences: const [],
-        existingFontSizeSettings: existing,
-      );
-
-      expect(result.fontSizeSettings, isNotNull);
-      expect(result.fontSizeSettings!.bodyFontSize, 20);
+      expect(result.autoRetrySettings, incomingAutoRetry);
+      expect(result.customHeadersConfig, incomingHeaders);
+      expect(result.fontSizeSettings, incomingFontSize);
     });
 
     test('全部标量配置与本地一致时 hasContent 为 false', () {

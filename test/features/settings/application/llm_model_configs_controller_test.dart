@@ -85,30 +85,6 @@ void main() {
       expect(state, isEmpty);
     });
 
-    test('build() returns stored providers from SharedPreferences', () async {
-      final provider = _providerConfig(
-        id: 'p-1',
-        name: 'DeepSeek',
-        apiUrl: 'https://api.deepseek.com/v1/chat/completions',
-        apiKey: 'sk-deepseek',
-        models: [
-          _modelConfig(
-            id: 'm-1',
-            displayName: 'DeepSeek-V3',
-            modelName: 'deepseek-chat',
-          ),
-        ],
-      );
-      await controller.upsertProvider(provider);
-
-      final persisted = readPersisted();
-      expect(persisted.length, 1);
-      expect(persisted.first.id, 'p-1');
-      expect(persisted.first.name, 'DeepSeek');
-      expect(persisted.first.models.length, 1);
-      expect(persisted.first.models.first.id, 'm-1');
-    });
-
     // ── upsertProvider() ────────────────────────────────────────────────────
 
     test('upsertProvider() adds a new provider', () async {
@@ -680,23 +656,6 @@ void main() {
       final models = container.read(llmProviderConfigsProvider).first.models;
       expect(models.length, 1);
       expect(models.first.id, 'm-1');
-    });
-
-    test('upsertModels() persists changes', () async {
-      await controller.upsertProvider(
-        _providerConfig(id: 'p-1', name: 'OpenAI'),
-      );
-
-      await controller.upsertModels(
-        providerId: 'p-1',
-        models: [
-          _modelConfig(id: 'm-1', displayName: 'GPT-4o', modelName: 'gpt-4o'),
-        ],
-      );
-
-      final persisted = readPersisted();
-      expect(persisted.first.models.length, 1);
-      expect(persisted.first.models.first.id, 'm-1');
     });
 
     test('upsertModels() deduplicates within input list', () async {

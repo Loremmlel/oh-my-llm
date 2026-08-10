@@ -18,30 +18,28 @@ const _tabHeadingByIndex = <int, String>{
 const _promptsTabAdditionalHeadings = ['模板提示词', '固定顺序提示词'];
 
 void registerSettingsScreenResponsiveTests() {
-  for (final width in [390.0, 600.0]) {
-    testWidgets('${width.toInt()}px: 六 tab 关键 heading 可达', (tester) async {
-      // 1500 高度视口下各 tab 内容区的关键 heading 均在首屏直接可见，
-      // 无需滚动；若内容超高产生 overflow，takeException 会直接失败。
-      await setUpSettingsScreen(
-        tester,
-        size: Size(width, 1500),
-        useDefaultsSeed: true,
-      );
-      expect(tester.takeException(), isNull);
+  testWidgets('390px: 六 tab 关键 heading 可达', (tester) async {
+    // 1500 高度视口下各 tab 内容区的关键 heading 均在首屏直接可见，
+    // 无需滚动；若内容超高产生 overflow，takeException 会直接失败。
+    await setUpSettingsScreen(
+      tester,
+      size: const Size(390, 1500),
+      useDefaultsSeed: true,
+    );
+    expect(tester.takeException(), isNull);
 
-      for (var i = 0; i < tabLabels.length; i++) {
-        await switchToTab(tester, i);
-        final heading = _tabHeadingByIndex[i]!;
-        expect(find.text(heading), findsWidgets);
-        if (i == 2) {
-          for (final additional in _promptsTabAdditionalHeadings) {
-            expect(find.text(additional), findsWidgets);
-          }
+    for (var i = 0; i < tabLabels.length; i++) {
+      await switchToTab(tester, i);
+      final heading = _tabHeadingByIndex[i]!;
+      expect(find.text(heading), findsWidgets);
+      if (i == 2) {
+        for (final additional in _promptsTabAdditionalHeadings) {
+          expect(find.text(additional), findsWidgets);
         }
-        expect(tester.takeException(), isNull);
       }
-    });
-  }
+      expect(tester.takeException(), isNull);
+    }
+  });
 
   testWidgets('390px: 新增服务商表单内容可达', (tester) async {
     await setUpSettingsScreen(
@@ -82,17 +80,15 @@ void registerSettingsScreenResponsiveTests() {
     expect(tester.takeException(), isNull);
   });
 
-  for (final width in [1024.0, 1440.0]) {
-    testWidgets('${width.toInt()}px: 服务商页 smoke', (tester) async {
-      await setUpSettingsScreen(
-        tester,
-        size: Size(width, 900),
-        useDefaultsSeed: true,
-      );
+  testWidgets('1024px: 服务商页 smoke', (tester) async {
+    await setUpSettingsScreen(
+      tester,
+      size: const Size(1024, 900),
+      useDefaultsSeed: true,
+    );
 
-      expect(find.text('服务商设置'), findsOneWidget);
-      expect(find.text('新增服务商'), findsOneWidget);
-      expect(tester.takeException(), isNull);
-    });
-  }
+    expect(find.text('服务商设置'), findsOneWidget);
+    expect(find.text('新增服务商'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

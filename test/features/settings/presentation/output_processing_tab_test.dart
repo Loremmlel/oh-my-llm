@@ -37,7 +37,7 @@ void main() {
       preferences = await SharedPreferences.getInstance();
     });
 
-    Future<void> pumpTab(
+    Future<ProviderContainer> pumpTab(
       WidgetTester tester, {
       List<OutputRegexRule> initialRules = const [],
     }) async {
@@ -53,6 +53,7 @@ void main() {
                 ),
               ],
       );
+      return ProviderScope.containerOf(tester.element(find.text('输出正则处理')));
     }
 
     // ── 渲染 ──────────────────────────────────────────────────
@@ -74,17 +75,11 @@ void main() {
 
     // ── 新增 ──────────────────────────────────────────────────
 
-    testWidgets('点击新增按钮打开 dialog', (tester) async {
+    testWidgets('新增 dialog 显示并拒绝空表达式', (tester) async {
       await pumpTab(tester);
       await tester.tap(find.byIcon(Icons.add_rounded));
       await settleOverlayTransition(tester);
       expect(find.text('新增正则规则'), findsOneWidget);
-    });
-
-    testWidgets('dialog 中空表达式校验失败', (tester) async {
-      await pumpTab(tester);
-      await tester.tap(find.byIcon(Icons.add_rounded));
-      await settleOverlayTransition(tester);
 
       await tester.tap(find.text('保存'));
       await tester.pump();
@@ -123,22 +118,13 @@ void main() {
 
     // ── 编辑 ──────────────────────────────────────────────────
 
-    testWidgets('点击编辑按钮打开预填 dialog', (tester) async {
-      final rules = [_rule(title: '编辑测试', pattern: 'abc')];
-      await pumpTab(tester, initialRules: rules);
-
-      await tester.tap(find.byIcon(Icons.edit_outlined));
-      await settleOverlayTransition(tester);
-
-      expect(find.text('编辑正则规则'), findsOneWidget);
-    });
-
-    testWidgets('编辑提交后规则更新', (tester) async {
+    testWidgets('编辑 dialog 提交后规则更新', (tester) async {
       final rules = [_rule(title: '旧标题', pattern: 'abc')];
       await pumpTab(tester, initialRules: rules);
 
       await tester.tap(find.byIcon(Icons.edit_outlined));
       await settleOverlayTransition(tester);
+      expect(find.text('编辑正则规则'), findsOneWidget);
 
       final titleField = find.widgetWithText(TextField, '标题');
       await tester.enterText(titleField, '新标题');
@@ -153,7 +139,7 @@ void main() {
 
     testWidgets('点击 Switch 切换启用/禁用', (tester) async {
       final rules = [_rule(enabled: true)];
-      await pumpTab(tester, initialRules: rules);
+      final container = await pumpTab(tester, initialRules: rules);
 
       final switchWidget = find.byType(Switch);
       expect(switchWidget, findsOneWidget);
@@ -161,6 +147,10 @@ void main() {
       await tester.tap(switchWidget);
       // 开关状态与保存都是同步状态更新，动画纯视觉，单帧即可
       await tester.pump();
+      expect(
+        container.read(outputProcessingSettingsProvider).rules.single.enabled,
+        isFalse,
+      );
     });
 
     // ── 移动 ──────────────────────────────────────────────────
@@ -170,28 +160,23 @@ void main() {
         _rule(id: 'a', title: '规则A', order: 0),
         _rule(id: 'b', title: '规则B', order: 1),
       ];
-      await pumpTab(tester, initialRules: rules);
+      final container = await pumpTab(tester, initialRules: rules);
 
       final downButtons = find.byIcon(Icons.arrow_downward_rounded);
       await tester.tap(downButtons.first);
       // 移动直接改状态并保存，无列表动画，单帧即可
       await tester.pump();
 
-      expect(find.text('规则A'), findsOneWidget);
-      expect(find.text('规则B'), findsOneWidget);
+      expect(
+        container
+            .read(outputProcessingSettingsProvider)
+            .rules
+            .map((rule) => rule.title),
+        ['规则B', '规则A'],
+      );
     });
 
     // ── 删除 ──────────────────────────────────────────────────
-
-    testWidgets('点击删除弹出确认 dialog', (tester) async {
-      final rules = [_rule(title: '待删除')];
-      await pumpTab(tester, initialRules: rules);
-
-      await tester.tap(find.byIcon(Icons.delete_outline));
-      await settleOverlayTransition(tester);
-
-      expect(find.text('确认删除'), findsOneWidget);
-    });
 
     testWidgets('确认删除后规则移除', (tester) async {
       final rules = [_rule(title: '待删除')];
@@ -199,6 +184,7 @@ void main() {
 
       await tester.tap(find.byIcon(Icons.delete_outline));
       await settleOverlayTransition(tester);
+      expect(find.text('确认删除'), findsOneWidget);
 
       await tester.tap(find.text('删除'));
       // 确认对话框出场，同时删除状态已保存

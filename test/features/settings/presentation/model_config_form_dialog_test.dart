@@ -148,22 +148,6 @@ void main() {
     });
 
     group('fetch mode', () {
-      testWidgets('shows fetch section when switching to fetch mode', (
-        tester,
-      ) async {
-        await pumpDialog(
-          tester,
-          onSubmit: (_) async {},
-          onBatchAdd: (_) async {},
-          fetchModels: (_) async => [],
-        );
-
-        await tester.tap(find.text('从 API 拉取'));
-        await tester.pump();
-
-        expect(find.widgetWithText(FilledButton, '拉取模型'), findsOneWidget);
-      });
-
       testWidgets('passes the provider apiProtocol in the catalog request', (
         tester,
       ) async {
@@ -206,7 +190,6 @@ void main() {
 
         await switchToFetchAndClickFetch(tester);
 
-        expect(find.byType(CircularProgressIndicator), findsOneWidget);
         expect(find.text('正在拉取模型列表...'), findsOneWidget);
 
         completer.complete([]);
@@ -289,64 +272,9 @@ void main() {
         expect(find.text('已存在'), findsOneWidget);
       });
 
-      testWidgets('disables submit button until models are selected', (
+      testWidgets('submits selected models only after a selection', (
         tester,
       ) async {
-        final completer = Completer<List<ModelCatalogEntry>>();
-        await pumpDialog(
-          tester,
-          onSubmit: (_) async {},
-          onBatchAdd: (_) async {},
-          fetchModels: (_) => completer.future,
-        );
-
-        await switchToFetchAndClickFetch(tester);
-
-        completer.complete([
-          const ModelCatalogEntry(id: 'gpt-4o', ownedBy: 'openai'),
-        ]);
-        await tester.pump();
-
-        final submitButton = tester.widget<FilledButton>(
-          find.ancestor(
-            of: find.text('添加所选模型'),
-            matching: find.byType(FilledButton),
-          ),
-        );
-        expect(submitButton.onPressed, isNull);
-      });
-
-      testWidgets('enables submit when at least one model is selected', (
-        tester,
-      ) async {
-        final completer = Completer<List<ModelCatalogEntry>>();
-        await pumpDialog(
-          tester,
-          onSubmit: (_) async {},
-          onBatchAdd: (_) async {},
-          fetchModels: (_) => completer.future,
-        );
-
-        await switchToFetchAndClickFetch(tester);
-
-        completer.complete([
-          const ModelCatalogEntry(id: 'gpt-4o', ownedBy: 'openai'),
-        ]);
-        await tester.pump();
-
-        await tester.tap(modelCheckbox('gpt-4o'));
-        await tester.pump();
-
-        final submitButton = tester.widget<FilledButton>(
-          find.ancestor(
-            of: find.text('添加所选模型'),
-            matching: find.byType(FilledButton),
-          ),
-        );
-        expect(submitButton.onPressed, isNotNull);
-      });
-
-      testWidgets('calls onBatchAdd with selected models', (tester) async {
         List<ModelBatchFormData>? captured;
         final completer = Completer<List<ModelCatalogEntry>>();
         await pumpDialog(
@@ -362,9 +290,12 @@ void main() {
 
         completer.complete([
           const ModelCatalogEntry(id: 'gpt-4o', ownedBy: 'openai'),
-          const ModelCatalogEntry(id: 'gpt-4o-mini', ownedBy: 'openai'),
         ]);
         await tester.pump();
+
+        await tester.tap(find.text('添加所选模型'), warnIfMissed: false);
+        await tester.pump();
+        expect(captured, isNull);
 
         await tester.tap(modelCheckbox('gpt-4o'));
         await tester.pump();

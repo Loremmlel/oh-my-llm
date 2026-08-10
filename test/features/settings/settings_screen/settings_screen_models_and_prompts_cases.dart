@@ -8,13 +8,30 @@ import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dar
 import 'package:oh_my_llm/features/settings/data/sqlite_memory_prompt_repository.dart';
 import 'package:oh_my_llm/features/settings/data/sqlite_preset_prompt_repository.dart';
 import 'package:oh_my_llm/features/settings/data/sqlite_template_prompt_repository.dart';
+import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
+import 'package:oh_my_llm/features/settings/domain/models/memory_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
 import 'package:oh_my_llm/features/settings/presentation/settings_screen.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/form/template_prompt_form_dialog.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/settings_entity_card.dart';
 
+import '../../../helpers/fixtures.dart';
 import '../../../helpers/widget_test_animation.dart';
 import 'settings_screen_test_helpers.dart';
+
+LlmModelConfig _seededModel({
+  LlmApiProtocol protocol = LlmApiProtocol.chatCompletions,
+}) => LlmModelConfig(
+  id: 'model-seeded',
+  displayName: 'OpenAI 4.1',
+  modelName: 'gpt-4.1',
+  supportsReasoning: false,
+  apiUrl: 'https://api.example.com/v1/chat/completions',
+  apiKey: 'sk-test-12345678',
+  providerId: 'provider-seeded',
+  providerName: 'OpenAI 官方',
+  apiProtocol: protocol,
+);
 
 void registerSettingsScreenModelsAndPromptsTests() {
   testWidgets('settings screen creates a provider and verifies persistence', (
@@ -42,16 +59,6 @@ void registerSettingsScreenModelsAndPromptsTests() {
     expect(createdProvider.name, 'OpenAI 官方');
     expect(repository.loadAll(), isEmpty);
     expect(find.text('OpenAI 官方'), findsWidgets);
-  });
-
-  testWidgets('settings screen shows protocol name in provider list', (
-    tester,
-  ) async {
-    await setUpSettingsScreen(tester);
-
-    await createTestProvider(tester);
-
-    // 新建默认 Chat Completions：服务商卡片 meta 显示协议名称。
     expect(find.text('协议：Chat Completions'), findsOneWidget);
   });
 
@@ -83,19 +90,10 @@ void registerSettingsScreenModelsAndPromptsTests() {
   testWidgets('settings screen applies edited protocol to all models', (
     tester,
   ) async {
-    await setUpSettingsScreen(tester);
+    await setUpSettingsScreen(tester, models: [_seededModel()]);
     final repository = ProviderScope.containerOf(
       tester.element(find.byType(SettingsScreen)),
     ).read(llmModelConfigRepositoryProvider);
-
-    // 先建服务商 + 模型（默认 Chat Completions）。
-    await createTestProvider(tester);
-    await tester.tap(find.text('新增模型'));
-    await settleOverlayTransition(tester);
-    await tester.enterText(modelDisplayNameField(), 'OpenAI 4.1');
-    await tester.enterText(modelApiNameField(), 'gpt-4.1');
-    await tester.tap(find.text('保存'));
-    await settleOverlayTransition(tester);
 
     // 编辑服务商切换到 Anthropic：协议变更立即作用于全部模型。
     await tester.tap(find.text('编辑服务商'));
@@ -146,19 +144,10 @@ void registerSettingsScreenModelsAndPromptsTests() {
   });
 
   testWidgets('settings screen edits provider and model names', (tester) async {
-    await setUpSettingsScreen(tester);
+    await setUpSettingsScreen(tester, models: [_seededModel()]);
     final repository = ProviderScope.containerOf(
       tester.element(find.byType(SettingsScreen)),
     ).read(llmModelConfigRepositoryProvider);
-
-    await createTestProvider(tester);
-
-    await tester.tap(find.text('新增模型'));
-    await settleOverlayTransition(tester);
-    await tester.enterText(modelDisplayNameField(), 'OpenAI 4.1');
-    await tester.enterText(modelApiNameField(), 'gpt-4.1');
-    await tester.tap(find.text('保存'));
-    await settleOverlayTransition(tester);
 
     await tester.tap(find.text('编辑服务商'));
     await settleOverlayTransition(tester);
@@ -169,7 +158,9 @@ void registerSettingsScreenModelsAndPromptsTests() {
     expect(repository.loadProviders().single.name, 'OpenAI 官方 v2');
     expect(find.text('OpenAI 官方 v2'), findsWidgets);
 
-    await tester.tap(find.widgetWithText(OutlinedButton, '编辑').last);
+    await tester.tap(find.widgetWithText(OutlinedButton, '展开模型（1）'));
+    await settleAnimatedWidgetTransition(tester);
+    await tester.tap(find.widgetWithText(OutlinedButton, '编辑'));
     await settleOverlayTransition(tester);
     await tester.enterText(modelDisplayNameField(), 'OpenAI 4.1 Turbo');
     await tester.tap(find.text('保存'));
@@ -180,21 +171,14 @@ void registerSettingsScreenModelsAndPromptsTests() {
   });
 
   testWidgets('settings screen deletes model then provider', (tester) async {
-    await setUpSettingsScreen(tester);
+    await setUpSettingsScreen(tester, models: [_seededModel()]);
     final repository = ProviderScope.containerOf(
       tester.element(find.byType(SettingsScreen)),
     ).read(llmModelConfigRepositoryProvider);
 
-    await createTestProvider(tester);
-
-    await tester.tap(find.text('新增模型'));
-    await settleOverlayTransition(tester);
-    await tester.enterText(modelDisplayNameField(), 'OpenAI 4.1');
-    await tester.enterText(modelApiNameField(), 'gpt-4.1');
-    await tester.tap(find.text('保存'));
-    await settleOverlayTransition(tester);
-
-    await tester.tap(find.widgetWithText(OutlinedButton, '删除').last);
+    await tester.tap(find.widgetWithText(OutlinedButton, '展开模型（1）'));
+    await settleAnimatedWidgetTransition(tester);
+    await tester.tap(find.widgetWithText(OutlinedButton, '删除'));
     // 删除直接走 Future 链，无确认对话框，状态更新单帧即可
     await tester.pump();
 
@@ -268,26 +252,24 @@ void registerSettingsScreenModelsAndPromptsTests() {
   });
 
   testWidgets('settings screen edits a prompt template name', (tester) async {
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final preferences = await createEmptyPreferences(database);
-    await pumpSettingsScreen(
+    final database = await setUpSettingsScreen(
       tester,
-      preferences: preferences,
-      database: database,
       initialTabIndex: 1,
+      presetPrompts: [
+        TestFixtures.presetPrompt(
+          id: 'preset-seeded',
+          name: '代码审阅',
+          messages: [
+            TestFixtures.promptMessage(
+              id: 'message-seeded',
+              title: '前置要求',
+              content: '内容',
+            ).copyWith(enabled: false),
+          ],
+        ),
+      ],
     );
     final repository = presetPromptRepository;
-
-    await tester.tap(find.text('新增预设'));
-    await settleOverlayTransition(tester);
-    await tester.enterText(presetPromptNameField(), '代码审阅');
-    await tester.tap(find.text('新增条目'));
-    await tester.pump();
-    await tester.enterText(presetPromptTitleField(), '前置要求');
-    await tester.enterText(presetPromptContentField(), '内容');
-    await tester.tap(find.text('保存'));
-    await settleOverlayTransition(tester);
 
     await tester.tap(find.text('编辑'));
     await settleOverlayTransition(tester);
@@ -295,31 +277,22 @@ void registerSettingsScreenModelsAndPromptsTests() {
     await tester.tap(find.text('保存'));
     await settleOverlayTransition(tester);
 
-    expect(repository.loadAll(database).single.name, '代码审阅 v2');
+    final savedPrompt = repository.loadAll(database).single;
+    expect(savedPrompt.name, '代码审阅 v2');
+    expect(savedPrompt.messages.single.enabled, isFalse);
+    expect(savedPrompt.messages.single.title, '前置要求');
     expect(find.text('代码审阅 v2'), findsWidgets);
   });
 
   testWidgets('settings screen deletes a prompt template', (tester) async {
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final preferences = await createEmptyPreferences(database);
-    await pumpSettingsScreen(
+    final database = await setUpSettingsScreen(
       tester,
-      preferences: preferences,
-      database: database,
       initialTabIndex: 1,
+      presetPrompts: [
+        TestFixtures.presetPrompt(id: 'preset-seeded', name: '代码审阅'),
+      ],
     );
     final repository = presetPromptRepository;
-
-    await tester.tap(find.text('新增预设'));
-    await settleOverlayTransition(tester);
-    await tester.enterText(presetPromptNameField(), '代码审阅');
-    await tester.tap(find.text('新增条目'));
-    await tester.pump();
-    await tester.enterText(presetPromptTitleField(), '前置要求');
-    await tester.enterText(presetPromptContentField(), '内容');
-    await tester.tap(find.text('保存'));
-    await settleOverlayTransition(tester);
 
     await tester.tap(find.text('删除'));
     // 删除直接走 Future 链，状态更新单帧即可
@@ -409,37 +382,14 @@ void registerSettingsScreenModelsAndPromptsTests() {
   });
 
   testWidgets(
-    'prompt template dialog inserts a new item below the selected item',
+    'prompt template dialog inserts below selection and persists order',
     (tester) async {
-      final database = AppDatabase.inMemory();
-      addTearDown(database.close);
-      final preferences = await createEmptyPreferences(database);
-
-      await pumpSettingsScreen(
+      final database = await setUpSettingsScreen(
         tester,
-        preferences: preferences,
-        database: database,
         size: const Size(1440, 2200),
         initialTabIndex: 1,
       );
-      final masterPane = find.ancestor(
-        of: find.text('预设 Prompt 条目'),
-        matching: find.byType(DecoratedBox),
-      );
-      final addItemButton = find
-          .descendant(
-            of: masterPane,
-            matching: find.widgetWithText(OutlinedButton, '新增条目'),
-          )
-          .hitTestable();
-
-      Finder rawPresetTile(String title) {
-        return find.descendant(of: masterPane, matching: find.text(title));
-      }
-
-      Finder presetTile(String title) {
-        return rawPresetTile(title).hitTestable();
-      }
+      final addItemButton = find.widgetWithText(OutlinedButton, '新增条目');
 
       Future<void> fillSelectedItem(String title, String content) async {
         await tester.enterText(presetPromptTitleField(), title);
@@ -452,9 +402,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
       await tester.enterText(presetPromptNameField(), '插入测试模板');
 
       await tester.tap(addItemButton);
-      // 条目插入与选中都是 setState，单帧即可
       await tester.pump();
-      // 新条目使用 fallback 标题，填写后覆盖
       await fillSelectedItem('前置1', '内容1');
 
       await tester.tap(addItemButton);
@@ -466,107 +414,25 @@ void registerSettingsScreenModelsAndPromptsTests() {
       await tester.tap(find.text('后置').last);
       await settleOverlayTransition(tester);
 
-      await tester.tap(presetTile('前置1'));
+      await tester.tap(find.text('前置1').hitTestable());
       await tester.pump();
       await tester.tap(addItemButton);
       await tester.pump();
       await fillSelectedItem('前置1.5', '内容1.5');
+      await tester.tap(find.text('保存'));
+      await settleOverlayTransition(tester);
 
-      expect(presetTile('前置1'), findsOneWidget);
-      expect(presetTile('前置1.5'), findsOneWidget);
-      expect(presetTile('后置1'), findsOneWidget);
+      final savedMessages = presetPromptRepository
+          .loadAll(database)
+          .single
+          .messages;
+      expect(savedMessages.map((message) => message.title), [
+        '前置1',
+        '前置1.5',
+        '后置1',
+      ]);
     },
   );
-
-  testWidgets('prompt template dialog inserts items and keeps them ordered', (
-    tester,
-  ) async {
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final preferences = await createEmptyPreferences(database);
-
-    await pumpSettingsScreen(
-      tester,
-      preferences: preferences,
-      database: database,
-      size: const Size(1440, 2200),
-      initialTabIndex: 1,
-    );
-    final masterPane = find.ancestor(
-      of: find.text('预设 Prompt 条目'),
-      matching: find.byType(DecoratedBox),
-    );
-    final addItemButton = find
-        .descendant(
-          of: masterPane,
-          matching: find.widgetWithText(OutlinedButton, '新增条目'),
-        )
-        .hitTestable();
-    final presetList = find
-        .descendant(of: masterPane, matching: find.byType(ListView))
-        .hitTestable();
-
-    Finder rawPresetTile(String title) {
-      return find.descendant(of: masterPane, matching: find.text(title));
-    }
-
-    Finder presetTile(String title) {
-      return rawPresetTile(title).hitTestable();
-    }
-
-    Future<void> ensurePresetTileVisible(String title) async {
-      if (presetTile(title).evaluate().isNotEmpty) {
-        return;
-      }
-      await tester.dragUntilVisible(
-        rawPresetTile(title),
-        presetList,
-        const Offset(0, -240),
-      );
-      // 滚动停止后的惯性动画有限，等它结束再断言
-      await settleScrollMotion(tester);
-    }
-
-    Future<void> fillSelectedItem(String title, String content) async {
-      await tester.enterText(presetPromptTitleField(), title);
-      await tester.enterText(presetPromptContentField(), content);
-      await tester.pump();
-    }
-
-    await tester.tap(find.text('新增预设'));
-    await settleOverlayTransition(tester);
-    await tester.enterText(presetPromptNameField(), '排序测试模板');
-
-    await tester.tap(addItemButton);
-    // 条目插入是 setState 直改列表，无动画
-    await tester.pump();
-    await fillSelectedItem('前置1', '内容1');
-
-    await tester.tap(addItemButton);
-    await tester.pump();
-    await fillSelectedItem('前置2', '内容2');
-
-    await tester.tap(addItemButton);
-    await tester.pump();
-    await fillSelectedItem('后置1', '内容3');
-
-    await tester.tap(find.text('前置'));
-    await settleOverlayTransition(tester);
-    await tester.tap(find.text('后置').last);
-    await settleOverlayTransition(tester);
-
-    await tester.tap(presetTile('后置1'));
-    await tester.pump();
-    await tester.tap(addItemButton);
-    await tester.pump();
-    await fillSelectedItem('后置1.5', '内容3.5');
-    await ensurePresetTileVisible('后置1.5');
-
-    expect(presetTile('前置1'), findsOneWidget);
-    expect(presetTile('前置2'), findsOneWidget);
-    expect(presetTile('后置1'), findsOneWidget);
-    expect(presetTile('后置1.5'), findsOneWidget);
-  });
 
   testWidgets('settings screen creates a template prompt', (tester) async {
     final database = AppDatabase.inMemory();
@@ -608,23 +474,20 @@ void registerSettingsScreenModelsAndPromptsTests() {
   });
 
   testWidgets('settings screen edits a template prompt title', (tester) async {
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final preferences = await createEmptyPreferences(database);
-    await pumpSettingsScreen(
+    final database = await setUpSettingsScreen(
       tester,
-      preferences: preferences,
-      database: database,
       initialTabIndex: 2,
+      templatePrompts: [
+        TemplatePrompt(
+          id: 'template-seeded',
+          title: '翻译模板',
+          content: '内容',
+          variables: const [],
+          updatedAt: DateTime(2026),
+        ),
+      ],
     );
     final repository = templatePromptRepository;
-
-    await tester.tap(find.text('新增模板提示词'));
-    await settleOverlayTransition(tester);
-    await tester.enterText(templatePromptTitleField(), '翻译模板');
-    await tester.enterText(templatePromptContentField(), '内容');
-    await tester.tap(find.text('保存'));
-    await settleOverlayTransition(tester);
 
     await tester.tap(find.text('编辑'));
     await settleOverlayTransition(tester);
@@ -637,23 +500,20 @@ void registerSettingsScreenModelsAndPromptsTests() {
   });
 
   testWidgets('settings screen deletes a template prompt', (tester) async {
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final preferences = await createEmptyPreferences(database);
-    await pumpSettingsScreen(
+    final database = await setUpSettingsScreen(
       tester,
-      preferences: preferences,
-      database: database,
       initialTabIndex: 2,
+      templatePrompts: [
+        TemplatePrompt(
+          id: 'template-seeded',
+          title: '翻译模板',
+          content: '内容',
+          variables: const [],
+          updatedAt: DateTime(2026),
+        ),
+      ],
     );
     final repository = templatePromptRepository;
-
-    await tester.tap(find.text('新增模板提示词'));
-    await settleOverlayTransition(tester);
-    await tester.enterText(templatePromptTitleField(), '翻译模板');
-    await tester.enterText(templatePromptContentField(), '内容');
-    await tester.tap(find.text('保存'));
-    await settleOverlayTransition(tester);
 
     await tester.tap(find.text('删除'));
     // 删除直接走 Future 链，状态更新单帧即可
@@ -730,23 +590,19 @@ void registerSettingsScreenModelsAndPromptsTests() {
   });
 
   testWidgets('settings screen edits a memory prompt name', (tester) async {
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final preferences = await createEmptyPreferences(database);
-    await pumpSettingsScreen(
+    final database = await setUpSettingsScreen(
       tester,
-      preferences: preferences,
-      database: database,
       initialTabIndex: 2,
+      memoryPrompts: [
+        MemoryPrompt(
+          id: 'memory-seeded',
+          name: '研发任务总结',
+          content: '内容',
+          updatedAt: DateTime(2026),
+        ),
+      ],
     );
     final repository = memoryPromptRepository;
-
-    await tester.tap(find.text('新增记忆提示词'));
-    await settleOverlayTransition(tester);
-    await tester.enterText(memoryPromptNameField(), '研发任务总结');
-    await tester.enterText(memoryPromptContentField(), '内容');
-    await tester.tap(find.text('保存'));
-    await settleOverlayTransition(tester);
 
     await tester.tap(find.text('编辑'));
     await settleOverlayTransition(tester);
@@ -759,23 +615,19 @@ void registerSettingsScreenModelsAndPromptsTests() {
   });
 
   testWidgets('settings screen deletes a memory prompt', (tester) async {
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final preferences = await createEmptyPreferences(database);
-    await pumpSettingsScreen(
+    final database = await setUpSettingsScreen(
       tester,
-      preferences: preferences,
-      database: database,
       initialTabIndex: 2,
+      memoryPrompts: [
+        MemoryPrompt(
+          id: 'memory-seeded',
+          name: '研发任务总结',
+          content: '内容',
+          updatedAt: DateTime(2026),
+        ),
+      ],
     );
     final repository = memoryPromptRepository;
-
-    await tester.tap(find.text('新增记忆提示词'));
-    await settleOverlayTransition(tester);
-    await tester.enterText(memoryPromptNameField(), '研发任务总结');
-    await tester.enterText(memoryPromptContentField(), '内容');
-    await tester.tap(find.text('保存'));
-    await settleOverlayTransition(tester);
 
     await tester.tap(find.text('删除'));
     // 删除直接走 Future 链，状态更新单帧即可

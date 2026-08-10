@@ -7,6 +7,13 @@ import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/core/logging/app_network_logger_provider.dart';
 import 'package:oh_my_llm/core/logging/network_logger.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
+import 'package:oh_my_llm/features/settings/data/sqlite_memory_prompt_repository.dart';
+import 'package:oh_my_llm/features/settings/data/sqlite_template_prompt_repository.dart';
+import 'package:oh_my_llm/features/settings/domain/models/fixed_prompt_sequence.dart';
+import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
+import 'package:oh_my_llm/features/settings/domain/models/memory_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
 import 'package:oh_my_llm/features/settings/presentation/settings_screen.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/form/fixed_prompt_sequence_form_dialog.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/form/memory_prompt_form_dialog.dart';
@@ -83,12 +90,37 @@ Future<AppDatabase> setUpSettingsScreen(
   Size size = const Size(1440, 1500),
   int initialTabIndex = 0,
   bool useDefaultsSeed = false,
+  List<LlmModelConfig> models = const [],
+  List<PresetPrompt> presetPrompts = const [],
+  List<FixedPromptSequence> fixedPromptSequences = const [],
+  List<MemoryPrompt> memoryPrompts = const [],
+  List<TemplatePrompt> templatePrompts = const [],
 }) async {
+  assert(
+    !useDefaultsSeed ||
+        (models.isEmpty &&
+            presetPrompts.isEmpty &&
+            fixedPromptSequences.isEmpty &&
+            memoryPrompts.isEmpty &&
+            templatePrompts.isEmpty),
+    'useDefaultsSeed 不能与显式种子同时使用',
+  );
   final database = AppDatabase.inMemory();
   addTearDown(database.close);
   final preferences = useDefaultsSeed
       ? await createDefaultsSeededPreferences(database)
-      : await createEmptyPreferences(database);
+      : await TestFixtures.seedPreferences(
+          database: database,
+          models: models,
+          prompts: presetPrompts,
+          sequences: fixedPromptSequences,
+        );
+  if (memoryPrompts.isNotEmpty) {
+    await memoryPromptRepository.saveAll(database, memoryPrompts);
+  }
+  if (templatePrompts.isNotEmpty) {
+    await templatePromptRepository.saveAll(database, templatePrompts);
+  }
   await pumpSettingsScreen(
     tester,
     preferences: preferences,

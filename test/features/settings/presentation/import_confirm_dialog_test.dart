@@ -97,11 +97,11 @@ SettingsExportData _buildFullData() {
   );
 }
 
-Future<void> _openDialog(WidgetTester tester, SettingsExportData data) async {
+Future<void> _openDialog(WidgetTester tester) async {
   await tester.tap(find.text('打开'));
   // 等待 AlertDialog 入场动画结束。
   await settleOverlayTransition(tester);
-  expect(find.byType(ImportConfirmDialog), findsOneWidget);
+  expect(find.text('检测到配置导入数据'), findsOneWidget);
 }
 
 final class _FailingImportTargets implements SettingsImportTargets {
@@ -174,11 +174,9 @@ void main() {
       return ProviderScope.containerOf(element);
     }
 
-    testWidgets('点"导入"后写入 providers / memory / preset / template / sequence', (
-      tester,
-    ) async {
+    testWidgets('点"导入"后写入所有配置分类', (tester) async {
       final container = await pumpHost(tester, _buildFullData());
-      await _openDialog(tester, _buildFullData());
+      await _openDialog(tester);
 
       await tester.tap(find.text('导入'));
       // 导入 Future 完成后对话框出场，一次覆盖两者
@@ -191,23 +189,6 @@ void main() {
       expect(container.read(presetPromptsProvider).length, 1);
       expect(container.read(templatePromptsProvider).length, 1);
       expect(container.read(fixedPromptSequencesProvider).length, 1);
-    });
-
-    // 已知缺陷：deduplicator 丢弃 autoRetrySettings。
-    // 本用例验证 ImportConfirmDialog 本身写入逻辑是否正确处理 autoRetrySettings。
-    // 由于对话框直接从 exportData 读取，不经过 deduplicator，预期会通过。
-    // 真正的 bug 在 SettingsImportDeduplicator.deduplicate() 返回时未传递 autoRetrySettings，
-    // 后续在 settings_import_deduplicator_test.dart 中用 @Skip 标记该路径。
-    testWidgets('点"导入"后 autoRetrySettingsProvider 写入 autoRetrySettings', (
-      tester,
-    ) async {
-      final container = await pumpHost(tester, _buildFullData());
-      await _openDialog(tester, _buildFullData());
-
-      await tester.tap(find.text('导入'));
-      // 导入 Future 完成后对话框出场，一次覆盖两者
-      await settleOverlayTransition(tester);
-
       final settings = container.read(autoRetrySettingsProvider);
       expect(settings.maxJitterSeconds, 20);
       expect(settings.maxRetryCount, 5);
@@ -215,7 +196,7 @@ void main() {
 
     testWidgets('点"取消"后所有 provider 状态不变', (tester) async {
       final container = await pumpHost(tester, _buildFullData());
-      await _openDialog(tester, _buildFullData());
+      await _openDialog(tester);
 
       await tester.tap(find.text('取消'));
       await settleOverlayTransition(tester);
@@ -253,17 +234,17 @@ void main() {
           ),
         ),
       );
-      await _openDialog(tester, _buildFullData());
+      await _openDialog(tester);
 
       await tester.tap(find.text('导入'));
       // 导入失败不走对话框出场，错误状态单帧渲染即可
       await tester.pump();
 
-      expect(find.byType(ImportConfirmDialog), findsOneWidget);
+      expect(find.text('检测到配置导入数据'), findsOneWidget);
       expect(find.text('导入失败：Bad state: 写入失败'), findsOneWidget);
       await tester.tap(find.text('取消'));
       await settleOverlayTransition(tester);
-      expect(find.byType(ImportConfirmDialog), findsNothing);
+      expect(find.text('检测到配置导入数据'), findsNothing);
     });
   });
 }

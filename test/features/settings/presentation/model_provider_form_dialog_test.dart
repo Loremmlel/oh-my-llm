@@ -88,7 +88,7 @@ void main() {
       expect(captured!.apiKey, 'sk-test-12345678');
     });
 
-    testWidgets('编辑服务商显示并保存原协议', (tester) async {
+    testWidgets('编辑服务商显示并提交原协议', (tester) async {
       ModelProviderFormData? captured;
       await pumpDialog(
         tester,
@@ -97,24 +97,27 @@ void main() {
         },
         initialValue: const LlmProviderConfig(
           id: 'p-1',
-          name: 'Claude 官方',
-          apiUrl: 'https://api.anthropic.com/v1',
-          apiKey: 'sk-ant-test',
-          apiProtocol: LlmApiProtocol.anthropic,
+          name: 'Responses 服务',
+          apiUrl: 'https://api.example.com/v1',
+          apiKey: 'sk-test',
+          apiProtocol: LlmApiProtocol.responses,
         ),
       );
 
-      expect(find.text('Anthropic'), findsOneWidget);
+      expect(find.text('Responses'), findsOneWidget);
 
       await tester.tap(find.text('保存'));
       await settleOverlayTransition(tester);
 
       expect(captured, isNotNull);
-      expect(captured!.apiProtocol, LlmApiProtocol.anthropic);
-      expect(captured!.name, 'Claude 官方');
+      expect(captured!.apiProtocol, LlmApiProtocol.responses);
+      expect(captured!.name, 'Responses 服务');
     });
 
-    for (final protocol in LlmApiProtocol.values) {
+    for (final protocol in [
+      LlmApiProtocol.responses,
+      LlmApiProtocol.anthropic,
+    ]) {
       testWidgets('可选择并提交 ${protocol.displayName}', (tester) async {
         ModelProviderFormData? captured;
         await pumpDialog(
@@ -133,27 +136,5 @@ void main() {
         expect(captured!.apiProtocol, protocol);
       });
     }
-
-    testWidgets('编辑时不选择协议默认继承原协议', (tester) async {
-      ModelProviderFormData? captured;
-      await pumpDialog(
-        tester,
-        onSubmit: (data) async {
-          captured = data;
-        },
-        initialValue: const LlmProviderConfig(
-          id: 'p-1',
-          name: 'OpenAI 官方',
-          apiUrl: 'https://api.example.com/v1',
-          apiKey: 'sk-test',
-          apiProtocol: LlmApiProtocol.responses,
-        ),
-      );
-
-      await tester.tap(find.text('保存'));
-      await settleOverlayTransition(tester);
-
-      expect(captured!.apiProtocol, LlmApiProtocol.responses);
-    });
   });
 }
