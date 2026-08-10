@@ -10,34 +10,44 @@ class LlmEndpointResolverException implements Exception {
   String toString() => message;
 }
 
+/// 版本段正则：path 末段形如 `/v1`、`/v2`、`/v3` 等（如 Ark `/api/v3`、
+/// 智谱 `/api/paas/v4`），视为 API 根已含版本号，不再补 `/v1`。
+final _versionSegmentPattern = RegExp(r'^/v\d+$');
+
 /// LLM 端点解析器：从配置保存的 API 根地址解析生成端点与模型列表端点。
 ///
 /// 配置只保存用户原始输入（首尾空白由配置层清理），实际请求时由本类解析，
-/// 避免设置界面暗中重写用户配置。仅识别三种标准生成后缀，不为 Azure 等
-/// 特殊路由推断 deployment / api-version。
+/// 避免设置界面暗中重写用户配置。解析策略：
+/// - 终端段匹配：URL 已以目标协议末段（`/chat/completions`、`/responses`、
+///   `/messages`、`/models`）结尾时原样使用、不再追加任何内容。这样既兼容
+///   不带 `/v1` 根的服务商（如 Perplexity 只认 `/chat/completions`），也让
+///   用户直接粘贴完整端点即可生效，不必关心 `/v1` 是否存在。
+/// - 版本段识别：API 根若以 `/vN`（v1/v2/v3…）结尾则视为已含版本段，直接
+///   拼接协议末段（如 Ark `/api/v3/responses`、智谱 `/api/paas/v4/chat/completions`）；
+///   否则按 OpenAI 默认补 `/v1`（OpenAI、DeepSeek、自定义代理前缀等）。
+/// 不为 Azure 等特殊路由推断 deployment / api-version。
 final class LlmEndpointResolver {
   const LlmEndpointResolver();
 
-  /// 三种已知的生成端点标准后缀。
-  static const chatCompletionsSuffix = '/v1/chat/completions';
-  static const responsesSuffix = '/v1/responses';
-  static const anthropicSuffix = '/v1/messages';
-  static const modelsSuffix = '/v1/models';
+  /// 各协议/模型的终端段（不含 `/v1` 前缀），用于「已完整则不再填充」判定。
+  static const chatCompletionsTerminal = '/chat/completions';
+  static const responsesTerminal = '/responses';
+  static const anthropicTerminal = '/messages';
+  static const modelsTerminal = '/models';
 
-  static const _knownGenerationSuffixes = <String>[
-    chatCompletionsSuffix,
-    responsesSuffix,
-    anthropicSuffix,
+  static const _knownTerminalSegments = <String>[
+    chatCompletionsTerminal,
+    responsesTerminal,
+    anthropicTerminal,
+    modelsTerminal,
   ];
 
   /// 解析目标协议的生成端点。
   ///
   /// 规则：
   /// 1. 忽略 path 末尾 `/` 进行匹配；
-  /// 2. 已是目标协议完整后缀时原样使用；
-  /// 3. 末尾是另外两种已知生成后缀时替换为目标后缀；
-  /// 4. path 末尾是 `/v1` 时追加目标协议末段；
-  /// 5. 其他情况追加完整 `/v1/...` 后缀。
+  /// 2. 已是目标协议终端段结尾时原样使用（不自动填充）；
+  /// 3. 否则解析 API 根（含版本段识别），末尾拼接目标协议终端段。
   ///
   /// host、port、自定义反向代理前缀和 query 均保留。
   Uri resolveGenerationEndpoint({
@@ -45,65 +55,72 @@ final class LlmEndpointResolver {
     required LlmApiProtocol protocol,
   }) {
     final uri = _parseAndValidate(rawUrl);
-    final targetSuffix = _suffixFor(protocol);
+    final terminal = _terminalFor(protocol);
     final path = _stripTrailingSlashes(uri.path);
 
-    if (path.endsWith(targetSuffix)) {
-      // 已是目标协议完整后缀，直接使用用户原始输入。
+    if (path.endsWith(terminal)) {
+      // 已是目标协议终端段，直接使用用户原始输入。
       return uri;
     }
 
     final root = resolveApiRoot(rawUrl);
-    final targetSegment = targetSuffix.substring('/v1'.length);
-    return root.replace(path: '${root.path}$targetSegment');
+    return root.replace(path: '${root.path}$terminal');
   }
 
   /// 解析模型列表端点。
   ///
-  /// 从 API 根地址生成 `/v1/models`；已是 `/v1/models` 结尾时原样返回，
-  /// 完整生成端点先移除已知生成后缀再替换为 `/models`。host、port、前缀
-  /// 与 query 保留。
+  /// 已是 `/models` 结尾时原样返回；否则从 API 根（含版本段识别）追加
+  /// `/models`。host、port、前缀与 query 保留。
   Uri resolveModelsEndpoint(String apiUrl) {
     final uri = _parseAndValidate(apiUrl);
     final path = _stripTrailingSlashes(uri.path);
 
-    if (path.endsWith(modelsSuffix)) {
+    if (path.endsWith(modelsTerminal)) {
       // 已是模型列表端点：原样返回用户输入，避免二次拼接。
       return uri;
     }
 
     final root = resolveApiRoot(apiUrl);
-    return root.replace(path: '${root.path}/models');
+    return root.replace(path: '${root.path}$modelsTerminal');
   }
 
   /// 解析统一 API 根地址，供端点生成与服务商等价判断复用。
   ///
-  /// 已知生成端点和模型列表端点会先剥离；其余 path 视为代理前缀，
-  /// 最终统一为以 `/v1` 结尾的根地址。port 与 query 保持不变。
+  /// 已知协议终端段会先剥离；剩余 path 以 `/vN` 结尾时视为已含版本段保持
+  /// 不变，否则按 OpenAI 默认补 `/v1`。port 与 query 保持不变。
   Uri resolveApiRoot(String rawUrl) {
     final uri = _parseAndValidate(rawUrl);
     var path = _stripTrailingSlashes(uri.path);
 
-    for (final suffix in [..._knownGenerationSuffixes, modelsSuffix]) {
-      if (path.endsWith(suffix)) {
-        path = path.substring(0, path.length - suffix.length);
+    for (final terminal in _knownTerminalSegments) {
+      if (path.endsWith(terminal)) {
+        path = path.substring(0, path.length - terminal.length);
         break;
       }
     }
 
-    final rootPath = path.endsWith('/v1') ? path : '$path/v1';
+    final rootPath = _hasVersionSegment(path) ? path : '$path/v1';
     return uri.replace(path: rootPath);
   }
 
-  static String _suffixFor(LlmApiProtocol protocol) {
+  static String _terminalFor(LlmApiProtocol protocol) {
     switch (protocol) {
       case LlmApiProtocol.chatCompletions:
-        return chatCompletionsSuffix;
+        return chatCompletionsTerminal;
       case LlmApiProtocol.responses:
-        return responsesSuffix;
+        return responsesTerminal;
       case LlmApiProtocol.anthropic:
-        return anthropicSuffix;
+        return anthropicTerminal;
     }
+  }
+
+  /// path 末段是否为版本段（`/vN`）。
+  static bool _hasVersionSegment(String path) {
+    if (path.isEmpty) {
+      return false;
+    }
+    final lastSegment = path.substring(path.lastIndexOf('/'));
+    return _versionSegmentPattern.hasMatch(lastSegment);
   }
 
   /// 解析并校验配置 URL：仅接受绝对 http/https URI，fragment 视为配置错误。

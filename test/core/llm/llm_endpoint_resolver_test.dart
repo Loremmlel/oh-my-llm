@@ -122,6 +122,40 @@ void main() {
         LlmApiProtocol.responses,
         'https://host/v1/responses?q=1',
       ),
+      // 版本段识别：API 根以 /vN 结尾（如火山方舟 /api/v3、智谱 /api/paas/v4）
+      // 时不再补 /v1，直接拼协议末段
+      (
+        'https://ark.cn-beijing.volces.com/api/coding/v3',
+        LlmApiProtocol.responses,
+        'https://ark.cn-beijing.volces.com/api/coding/v3/responses',
+      ),
+      (
+        'https://ark.cn-beijing.volces.com/api/coding/v3',
+        LlmApiProtocol.chatCompletions,
+        'https://ark.cn-beijing.volces.com/api/coding/v3/chat/completions',
+      ),
+      (
+        'https://open.bigmodel.cn/api/paas/v4',
+        LlmApiProtocol.chatCompletions,
+        'https://open.bigmodel.cn/api/paas/v4/chat/completions',
+      ),
+      // 终端段匹配：完整端点原样使用，不额外补 /v1
+      (
+        'https://ark.cn-beijing.volces.com/api/coding/v3/responses',
+        LlmApiProtocol.responses,
+        'https://ark.cn-beijing.volces.com/api/coding/v3/responses',
+      ),
+      (
+        'https://api.perplexity.ai/chat/completions',
+        LlmApiProtocol.chatCompletions,
+        'https://api.perplexity.ai/chat/completions',
+      ),
+      // 已知端点相互替换（非 /v1 版本段根）
+      (
+        'https://ark.cn-beijing.volces.com/api/coding/v3/chat/completions',
+        LlmApiProtocol.responses,
+        'https://ark.cn-beijing.volces.com/api/coding/v3/responses',
+      ),
     ];
 
     for (final (input, protocol, expected) in cases) {
@@ -152,6 +186,21 @@ void main() {
         'https://host:8443/gateway/team-a/v1?q=1',
       ),
       ('  https://api.openai.com/v1  ', 'https://api.openai.com/v1'),
+      // 版本段识别：非 /v1 根保持原样
+      (
+        'https://ark.cn-beijing.volces.com/api/coding/v3',
+        'https://ark.cn-beijing.volces.com/api/coding/v3',
+      ),
+      // 终端段剥离后仍识别版本段
+      (
+        'https://ark.cn-beijing.volces.com/api/coding/v3/responses',
+        'https://ark.cn-beijing.volces.com/api/coding/v3',
+      ),
+      // 边界：版本段在中间（Gemini /v1beta/openai）时末段非 /vN，仍按代理前缀补 /v1
+      (
+        'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+        'https://generativelanguage.googleapis.com/v1beta/openai/v1',
+      ),
     ];
 
     for (final (input, expected) in cases) {
@@ -199,6 +248,11 @@ void main() {
       (
         'https://host:8443/proxy/openai/v1/chat/completions?q=1',
         'https://host:8443/proxy/openai/v1/models?q=1',
+      ),
+      // 版本段识别：非 /v1 根
+      (
+        'https://ark.cn-beijing.volces.com/api/coding/v3',
+        'https://ark.cn-beijing.volces.com/api/coding/v3/models',
       ),
     ];
 
