@@ -7,6 +7,7 @@ import 'package:oh_my_llm/core/providers/notification_bubble_provider.dart';
 import 'package:oh_my_llm/core/widgets/notification_bubble_data.dart';
 import 'package:oh_my_llm/features/settings/domain/models/settings_export_data.dart';
 import 'ports/settings_sync_facade.dart';
+import 'ports/sync_client_protocol.dart';
 import 'ports/sync_client_transport.dart';
 import 'ports/sync_clock.dart';
 import 'ports/sync_crypto.dart';
@@ -106,18 +107,24 @@ final syncClientControllerProvider =
 ///
 /// 该 Provider 在应用生命周期内保持存活，页面切换不会丢失发现与配对状态。
 class SyncClientController extends Notifier<SyncClientState> {
+  SyncClientController({SyncClientProtocol? protocol})
+    : _injectedProtocol = protocol;
+
+  final SyncClientProtocol? _injectedProtocol;
+  late final SyncClientProtocol _protocolCoordinator;
   StreamSubscription<DiscoveredServer>? _discoverySubscription;
-  late final SyncClientProtocolCoordinator _protocolCoordinator;
   int _generation = 0;
 
   @override
   SyncClientState build() {
-    _protocolCoordinator = SyncClientProtocolCoordinator(
-      transport: ref.read(syncClientTransportProvider),
-      pairingRepository: ref.read(syncPairingRepositoryProvider),
-      crypto: ref.read(syncCryptoProvider),
-      clock: ref.read(syncClockProvider),
-    );
+    _protocolCoordinator =
+        _injectedProtocol ??
+        SyncClientProtocolCoordinator(
+          transport: ref.read(syncClientTransportProvider),
+          pairingRepository: ref.read(syncPairingRepositoryProvider),
+          crypto: ref.read(syncCryptoProvider),
+          clock: ref.read(syncClockProvider),
+        );
     ref.onDispose(_invalidateDiscovery);
     return SyncClientState();
   }
