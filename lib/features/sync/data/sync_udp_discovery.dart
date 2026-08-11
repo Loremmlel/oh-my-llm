@@ -2,65 +2,66 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 
 import '../domain/models/discovered_server.dart';
+import 'sync_multicast_lock.dart';
 import 'sync_udp_announcement_codec.dart';
+import 'sync_udp_scheduler.dart';
+import 'sync_udp_sessions.dart';
+import 'sync_udp_socket.dart';
 
 export '../domain/models/discovered_server.dart';
 
-const MethodChannel _multicastChannel = MethodChannel(
-  'yuzu.shiki.oh_my_llm/multicast_lock',
-);
-
-/// Android 上获取 MulticastLock 以允许接收 UDP 广播包。
-Future<void> _acquireMulticastLock() async {
-  if (!Platform.isAndroid) return;
-  try {
-    await _multicastChannel.invokeMethod('acquire');
-  } catch (e) {
-    debugPrint('获取 MulticastLock 失败: $e');
-  }
-}
-
-/// 释放 Android MulticastLock。
-Future<void> _releaseMulticastLock() async {
-  if (!Platform.isAndroid) return;
-  try {
-    await _multicastChannel.invokeMethod('release');
-  } catch (e) {
-    debugPrint('释放 MulticastLock 失败: $e');
-  }
-}
-
-/// UDP 广播发现层。
+/// UDP 广播发现服务。
 ///
-/// 服务端定期广播自身信息到子网，客户端监听广播以发现服务端。
-/// Android 上自动管理 MulticastLock 生命周期。
-class SyncUdpDiscovery {
-  SyncUdpDiscovery._();
+/// socket、调度器与 MulticastLock 均为可注入边界：生产使用 [SyncUdpDiscovery.system]
+/// （真实 UDP socket + Timer + Android 平台通道），测试注入 fake 确定性驱动生命周期。
+final class SyncUdpDiscovery {
+  SyncUdpDiscovery({
+    required SyncUdpSocketFactory socketFactory,
+    required SyncUdpScheduler scheduler,
+    required SyncMulticastLock multicastLock,
+    SyncUdpAnnouncementCodec codec = const SyncUdpAnnouncementCodec(),
+  }) : _socketFactory = socketFactory,
+       _scheduler = scheduler,
+       _multicastLock = multicastLock,
+       _codec = codec;
 
-  static const int discoveryPort = 47280;
-  static const SyncUdpAnnouncementCodec _codec = SyncUdpAnnouncementCodec();
+  final SyncUdpSocketFactory _socketFactory;
+  final SyncUdpScheduler _scheduler;
+  final SyncMulticastLock _multicastLock;
+  final SyncUdpAnnouncementCodec _codec;
 
-  /// 开始周期性 UDP 广播，返回停止函数。
+  /// 生产默认发现端口：监听绑定与广播目标共用。
+  static const int defaultDiscoveryPort = 47280;
+
+  /// 生产实例：真实 socket、Timer 调度器与平台 MulticastLock。
+  static final SyncUdpDiscovery system = SyncUdpDiscovery(
+    socketFactory: const RawSyncUdpSocketFactory(),
+    scheduler: const TimerSyncUdpScheduler(),
+    multicastLock: const PlatformSyncMulticastLock(),
+  );
+
+  /// 开始周期性 UDP 广播，返回可停止的会话。
   ///
-  /// [broadcastAddress] 可选的定向广播地址；未传入时回退到 255.255.255.255。
-  /// [broadcastInterval] 广播周期；测试可传短周期加速用例，生产保持默认 2s。
-  static Future<Future<void> Function()> startBroadcasting({
+  /// 广播绑定 anyIPv4 的 OS 分配端口；[broadcastAddress] 缺省回退 255.255.255.255。
+  /// [broadcastInterval] 生产保持默认 2s。发送失败只记日志，不终止广播。
+  Future<SyncUdpBroadcastSession> startBroadcasting({
     required int httpPort,
     required String deviceName,
     required String serverId,
     InternetAddress? broadcastAddress,
     Duration broadcastInterval = const Duration(seconds: 2),
+    int discoveryPort = SyncUdpDiscovery.defaultDiscoveryPort,
   }) async {
-    await _acquireMulticastLock();
+    await _multicastLock.acquire();
 
-    final RawDatagramSocket socket;
+    final SyncUdpSocket socket;
     try {
-      socket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
-    } catch (e) {
-      await _releaseMulticastLock();
+      socket = await _socketFactory.bind(InternetAddress.anyIPv4, 0);
+    } catch (_) {
+      // 绑定失败：释放已获取的锁后重新抛出。
+      await _multicastLock.release();
       rethrow;
     }
     socket.broadcastEnabled = true;
@@ -82,89 +83,222 @@ class SyncUdpDiscovery {
     }
 
     sendBroadcast();
-    final timer = Timer.periodic(broadcastInterval, (_) => sendBroadcast());
+    final periodicTask = _scheduler.periodic(broadcastInterval, sendBroadcast);
 
-    return () async {
-      timer.cancel();
-      socket.close();
-      await _releaseMulticastLock();
-    };
+    return _SyncUdpBroadcastSessionImpl(() async {
+      periodicTask.cancel();
+      await socket.close();
+      await _multicastLock.release();
+    });
   }
 
-  /// 监听局域网内的服务端广播，返回发现流。
+  /// 监听局域网内的服务端广播，返回显式会话。
   ///
-  /// 取消订阅时会同步清理 socket 和 MulticastLock，不会泄漏资源。
-  static Stream<DiscoveredServer> listenForServers({
-    // 服务端每 2s 广播一次，6s 约覆盖 3 个广播周期，用于更快感知服务端停止。
+  /// 同步返回会话并内部异步启动：获取锁 -> 绑定 -> 使能广播 -> 就绪。
+  /// [bindAddress] 缺省绑定 anyIPv4；[timeout] 为无有效公告时的空闲超时，
+  /// 只有成功解码的公告才会重置截止定时器。取消订阅会触发会话清理。
+  SyncUdpListenSession listenForServers({
     Duration timeout = const Duration(seconds: 6),
+    InternetAddress? bindAddress,
+    int discoveryPort = SyncUdpDiscovery.defaultDiscoveryPort,
   }) {
-    RawDatagramSocket? socket;
-    Timer? timeoutTimer;
-    StreamSubscription? socketSub;
-    var cancelled = false;
+    return _SyncUdpListenSessionImpl(
+      socketFactory: _socketFactory,
+      scheduler: _scheduler,
+      multicastLock: _multicastLock,
+      codec: _codec,
+      bindAddress: bindAddress ?? InternetAddress.anyIPv4,
+      discoveryPort: discoveryPort,
+      timeout: timeout,
+    );
+  }
+}
 
-    final controller = StreamController<DiscoveredServer>(
-      onCancel: () async {
-        cancelled = true;
-        timeoutTimer?.cancel();
-        await socketSub?.cancel();
-        socket?.close();
-        await _releaseMulticastLock();
+/// 监听会话实现：独占绑定、空闲超时与清理状态机。
+///
+/// 状态单向推进：starting -> ready -> cleaning（任一步失败或关闭都进入 cleaning）。
+/// 清理 Future 共享且幂等：定时任务、socket 订阅、socket、锁、流都只释放一次，
+/// 取消订阅（onCancel）、close 与超时走同一条清理路径。
+///
+/// 生命周期完成规则：
+/// - 绑定成功 -> 记录端口 -> 完成 ready；
+/// - 绑定完成前关闭 -> ready 以 StateError('UDP 监听已关闭') 完成，迟到的 socket 立即关闭；
+/// - 绑定失败 -> ready 以绑定错误完成，关闭流、释放锁、完成 done；
+/// - 超时 -> 经共享清理关闭流并完成 done。
+final class _SyncUdpListenSessionImpl implements SyncUdpListenSession {
+  _SyncUdpListenSessionImpl({
+    required SyncUdpSocketFactory socketFactory,
+    required SyncUdpScheduler scheduler,
+    required SyncMulticastLock multicastLock,
+    required SyncUdpAnnouncementCodec codec,
+    required InternetAddress bindAddress,
+    required int discoveryPort,
+    required Duration timeout,
+  }) : _socketFactory = socketFactory,
+       _scheduler = scheduler,
+       _multicastLock = multicastLock,
+       _codec = codec,
+       _bindAddress = bindAddress,
+       _discoveryPort = discoveryPort,
+       _timeout = timeout {
+    // 控制器须在构造体内创建：onCancel 闭包访问实例状态，字段初始化器不允许。
+    _serversController = StreamController<DiscoveredServer>(
+      onCancel: () {
+        // onCancel 在消费方取消订阅或清理自身关闭流时触发；返回 void 而非清理
+        // Future，避免 close 的 done 投递等待清理 Future 形成循环等待。
+        if (_closed) return;
+        unawaited(_cleanup());
       },
     );
+    _startupFuture = _start();
+  }
 
-    () async {
-      try {
-        await _acquireMulticastLock();
-        if (cancelled) {
-          await _releaseMulticastLock();
-          return;
-        }
+  final SyncUdpSocketFactory _socketFactory;
+  final SyncUdpScheduler _scheduler;
+  final SyncMulticastLock _multicastLock;
+  final SyncUdpAnnouncementCodec _codec;
+  final InternetAddress _bindAddress;
+  final int _discoveryPort;
+  final Duration _timeout;
 
-        socket = await RawDatagramSocket.bind(
-          InternetAddress.anyIPv4,
-          discoveryPort,
-        );
-        if (cancelled) {
-          socket!.close();
-          await _releaseMulticastLock();
-          return;
-        }
-        socket!.broadcastEnabled = true;
+  late final StreamController<DiscoveredServer> _serversController;
 
-        void resetTimeout() {
-          timeoutTimer?.cancel();
-          timeoutTimer = Timer(timeout, () async {
-            socketSub?.cancel();
-            socket?.close();
-            await _releaseMulticastLock();
-            controller.close();
-          });
-        }
+  final _ready = Completer<void>();
+  final _done = Completer<void>();
 
-        resetTimeout();
+  /// 进行中的启动流程；清理会等待它，保证 close-before-bind 时 done 在
+  /// 迟到的 socket 关闭之后才完成。
+  Future<void>? _startupFuture;
+  Future<void>? _cleanupFuture;
+  SyncUdpSocket? _socket;
+  SyncUdpScheduledTask? _deadlineTask;
+  StreamSubscription<SyncUdpDatagram>? _socketSub;
+  int _port = 0;
+  bool _closed = false;
+  bool _lockReleased = false;
 
-        socketSub = socket!.listen((event) {
-          if (event != RawSocketEvent.read) return;
-          final datagram = socket?.receive();
-          if (datagram == null) return;
+  @override
+  Stream<DiscoveredServer> get servers => _serversController.stream;
 
-          final server = _codec.decode(
-            data: datagram.data,
-            sourceAddress: datagram.address.address,
-          );
-          if (server == null) return;
-          controller.add(server);
-          resetTimeout();
-        });
-      } catch (e) {
-        if (!cancelled) {
-          controller.addError(e);
-          controller.close();
-        }
-      }
-    }();
+  @override
+  Future<void> get ready => _ready.future;
 
-    return controller.stream;
+  @override
+  int get port => _port;
+
+  @override
+  Future<void> close() => _cleanup();
+
+  @override
+  Future<void> get done => _done.future;
+
+  Future<void> _start() async {
+    try {
+      await _multicastLock.acquire();
+    } catch (error) {
+      await _failStart(error);
+      return;
+    }
+    if (_closed) return;
+
+    final SyncUdpSocket socket;
+    try {
+      socket = await _socketFactory.bind(_bindAddress, _discoveryPort);
+    } catch (error) {
+      if (_closed) return;
+      await _failStart(error);
+      return;
+    }
+
+    // 绑定完成前已关闭：迟到的 socket 立即关闭，不发布任何事件。
+    if (_closed) {
+      await socket.close();
+      return;
+    }
+
+    _socket = socket;
+    _port = socket.port;
+    socket.broadcastEnabled = true;
+    _armDeadline();
+    _socketSub = socket.datagrams.listen(_onDatagram);
+    if (!_ready.isCompleted) _ready.complete();
+  }
+
+  void _onDatagram(SyncUdpDatagram datagram) {
+    final server = _codec.decode(
+      data: datagram.data,
+      sourceAddress: datagram.address.address,
+    );
+    if (server == null) return;
+    _serversController.add(server);
+    _armDeadline();
+  }
+
+  /// 重置空闲截止定时器：只有成功解码的公告才调用（替换旧的一次性任务）。
+  void _armDeadline() {
+    _deadlineTask?.cancel();
+    _deadlineTask = _scheduler.schedule(_timeout, () {
+      unawaited(_cleanup());
+    });
+  }
+
+  /// 启动失败：ready 以错误完成，关闭流、释放锁并完成 done。
+  Future<void> _failStart(Object error) async {
+    if (!_ready.isCompleted) _ready.completeError(error);
+    unawaited(_serversController.close());
+    await _releaseLock();
+    if (!_done.isCompleted) _done.complete();
+  }
+
+  Future<void> _releaseLock() async {
+    if (_lockReleased) return;
+    _lockReleased = true;
+    await _multicastLock.release();
+  }
+
+  Future<void> _cleanup() {
+    final running = _cleanupFuture;
+    if (running != null) return running;
+    _closed = true;
+    return _cleanupFuture = _runCleanup();
+  }
+
+  Future<void> _runCleanup() async {
+    _deadlineTask?.cancel();
+    _deadlineTask = null;
+    await _socketSub?.cancel();
+    _socketSub = null;
+    final socket = _socket;
+    _socket = null;
+    if (socket != null) await socket.close();
+    await _releaseLock();
+    // 不 await 关闭 Future：无人订阅的控制器 close 永不完成（挂起的 done 需等
+    // 后续订阅者），且 onCancel 已不返回清理 Future，done 投递不会等待清理。
+    unawaited(_serversController.close());
+    if (!_ready.isCompleted) {
+      _ready.completeError(StateError('UDP 监听已关闭'));
+    }
+    await _startupFuture;
+    if (!_done.isCompleted) _done.complete();
+  }
+}
+
+/// 广播会话实现：stop 幂等，共享同一个清理 Future；done 在清理完成后完成。
+final class _SyncUdpBroadcastSessionImpl implements SyncUdpBroadcastSession {
+  _SyncUdpBroadcastSessionImpl(this._cleanup);
+
+  final Future<void> Function() _cleanup;
+  Future<void>? _cleanupFuture;
+
+  @override
+  Future<void> stop() => _runCleanup();
+
+  @override
+  Future<void> get done => _runCleanup();
+
+  Future<void> _runCleanup() {
+    final running = _cleanupFuture;
+    if (running != null) return running;
+    return _cleanupFuture = _cleanup();
   }
 }
