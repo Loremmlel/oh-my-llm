@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - 批准设计是 `docs/superpowers/specs/2026-08-11-cross-platform-media-library-design.md`；若计划与设计冲突，以设计为准并停止执行、修订计划。
-- 本计划对设计第 12.3/12.4 节只做一个依赖顺序细化：先在 Task 2 隔离 `MediaFileItemDto`，再由 Task 3 实现依赖该 DTO 的 `RemoteMediaLibrary`；两项范围与设计一致，且保持两个独立可审查提交，不把 controller 垂直迁移提前到 data adapter 提交。
+- 本计划对设计第 12.3/12.4 节只做一个依赖顺序细化：Task 2 先在 data 层建立 `MediaFileItemDto` 和 `FileItem.hasThumbnail`，但在旧 application/presentation 消费者尚未迁移前保留 `FileItem` 的旧 JSON/`thumbnailUrl` 兼容成员；Task 3 实现依赖 DTO 的 `RemoteMediaLibrary`；Task 6 垂直迁移消费者后再原子删除兼容成员。任何中间提交都不得让 application/presentation 导入 data。
 - 当前实现基线是 commit `9ae0fe4`；开始执行前必须重新检查 `git status --short`，不得覆盖用户后续改动。
 - Task 0 的执行前提是本计划已经作为独立 docs 提交存在于执行分支；本次“撰写计划”不自动授权提交。若计划仍是 untracked，先取得用户提交指令，不得让 Task 0 的依赖提交顺带夹带计划文件。
 - Windows 和 Android 都使用同步页面第三个“媒体”Tab；不得新增一级 `AppDestination.media`。
@@ -524,7 +524,7 @@ Expected: clean status after post-commit version amend.
 
 ---
 
-### Task 2: Isolate media-list HTTP DTOs from FileItem
+### Task 2: Introduce the data-owned media-list DTO with bounded compatibility
 
 **Files:**
 - Create: `lib/features/media/data/dto/media_file_item_dto.dart`
@@ -532,21 +532,17 @@ Expected: clean status after post-commit version amend.
 - Modify: `lib/features/media/domain/models/file_item.dart:1-101`
 - Modify: `lib/features/media/data/media_directory_scanner.dart:124-137`
 - Modify: `lib/features/media/data/media_http_handler.dart:18-29`
-- Modify: `lib/features/media/application/media_browser_controller.dart:1-126` only to parse via DTO; direct HTTP removal is Task 6
-- Modify: `lib/features/media/presentation/widgets/media_file_tile.dart:70-117` only to derive the existing remote thumbnail URL from `hasThumbnail + relativePath`; resource-provider migration is Task 6
 - Modify: `test/features/media/domain/models/file_item_test.dart`
 - Modify: `test/features/media/data/media_directory_scanner_test.dart`
 - Modify: `test/features/media/data/media_http_handler_test.dart`
-- Modify: `test/features/media/application/media_browser_controller_test.dart`
-- Modify: `test/features/media/presentation/media_browser_navigation_test.dart`
 
 **Interfaces:**
 - Consumes: `FileItem` wire fields currently emitted by `/api/media/list`.
-- Produces: pure `FileItem.hasThumbnail`; `MediaFileItemDto.fromDomain`, `toDomain`, `toJson`, `fromJson`, `listFromJson`; byte-for-byte compatible JSON keys/semantics.
+- Produces: transport-neutral `FileItem.hasThumbnail`; data-owned `MediaFileItemDto.fromDomain`, `toDomain`, `toJson`, `fromJson`, `listFromJson`; byte-for-byte compatible JSON keys/semantics. `FileItem` 的旧 JSON/`thumbnailUrl` 成员是明确受限的过渡兼容面，只允许现有 application/presentation 消费者继续使用到 Task 6。
 
-- [ ] **Step 1: Move existing wire assertions into a failing DTO test**
+- [ ] **Step 1: Copy existing wire assertions into a failing DTO test**
 
-Create `media_file_item_dto_test.dart` and move the current file/directory/default/list cases out of `file_item_test.dart`. Use these key assertions:
+Create `media_file_item_dto_test.dart` and copy the current file/directory/default/list wire cases into the data-layer adapter test. Do not delete the old `FileItem` wire tests in this task because the old application controller still exercises that compatibility path until Task 6. Use these key assertions:
 
 ```dart
 test('file JSON remains protocol compatible', () {
@@ -594,14 +590,16 @@ Write-Host "EXIT=$E"
 Get-Content -Tail 80 task2-red.log
 ```
 
-- [ ] **Step 3: Make FileItem transport-neutral**
+- [ ] **Step 3: Add the transport-neutral thumbnail signal without breaking the old consumer**
 
 In `file_item.dart`:
 
-- remove `dart:convert`;
-- remove `thumbnailUrl`, `toJson`, `fromJson`, and `listFromJson`;
 - add `final bool hasThumbnail` with default `false`;
-- retain name/directory/size/path/modified/MIME/formattedSize/toString behavior.
+- retain `dart:convert`, `thumbnailUrl`, `toJson`, `fromJson`, and `listFromJson` unchanged for the current controller/tile;
+- retain name/directory/size/path/modified/MIME/formattedSize/toString behavior;
+- add a Task 6 plan assertion—not a production task marker—that these compatibility members are deleted in the same vertical migration that removes their final consumers.
+
+The temporary constructor target is deliberately dual-shaped:
 
 Constructor target:
 
@@ -614,8 +612,11 @@ const FileItem({
   this.lastModified = 0,
   this.mimeType,
   this.hasThumbnail = false,
+  this.thumbnailUrl,
 });
 ```
+
+`FileItem.fromJson` continues setting `thumbnailUrl` exactly as today and additionally sets `hasThumbnail: json['thumbnailUrl'] != null`. `toJson` continues emitting the legacy field from `thumbnailUrl`, so the old controller and tile behave unchanged. No application or presentation file may import `MediaFileItemDto`.
 
 - [ ] **Step 4: Implement the exact wire adapter**
 
@@ -652,32 +653,28 @@ final class MediaFileItemDto {
 
 Implement `fromJson`, `toJson`, and `listFromJson(String)` with the exact legacy defaults: missing `size`/`lastModified` become `0`; missing optional fields become null/false; malformed required `name`/`relativePath` remains a decoding failure for the remote adapter to map later.
 
-- [ ] **Step 5: Rewire scanner, handler, current client, and current tile without product change**
+- [ ] **Step 5: Rewire the scanner and HTTP handler inside data only**
 
 Use these replacements:
 
 ```dart
 // scanner
-hasThumbnail: !isDir && (isImageFile(name) || isVideoFile(name)),
+final hasThumbnail = !isDir && (isImageFile(name) || isVideoFile(name));
+// FileItem constructor fields during the bounded transition:
+hasThumbnail: hasThumbnail,
+thumbnailUrl: hasThumbnail ? '/api/media/thumbnail$relativePath' : null,
 
 // MediaHttpHandler
 final json = jsonEncode([
   for (final item in items) MediaFileItemDto.fromDomain(item).toJson(),
 ]);
-
-// current MediaBrowserController success branch
-final items = MediaFileItemDto.listFromJson(response.body);
-
-// current MediaFileTile._thumbnailFullUrl
-if (!item.hasThumbnail || thumbnailBaseUrl == null) return null;
-return '$thumbnailBaseUrl/api/media/thumbnail/${encodeMediaPath(item.relativePath)}';
 ```
 
-Normalize the slash exactly once: `encodeMediaPath('/a.jpg')` returns `a.jpg`, so the result contains one slash after `thumbnail/`.
+`MediaBrowserController` keeps calling `FileItem.listFromJson`; `MediaFileTile` keeps reading `item.thumbnailUrl`. This is intentional until Task 6 and prevents an application → data import. The handler output must remain identical.
 
 - [ ] **Step 6: Update existing tests and verify wire compatibility**
 
-Update constructors from `thumbnailUrl:` to `hasThumbnail:`. `file_item_test.dart` now covers only domain behavior/defaults/formatted size. `media_http_handler_test.dart` must continue asserting the literal `thumbnailUrl` JSON key and path.
+Update scanner/DTO fixtures to set both fields where the transitional legacy endpoint is observable. `file_item_test.dart` retains its existing wire compatibility cases and adds assertions that `fromJson` derives `hasThumbnail` while old JSON output is unchanged. `media_http_handler_test.dart` must continue asserting the literal `thumbnailUrl` JSON key and path.
 
 Run:
 
@@ -686,9 +683,7 @@ $Files = @(
   'test/features/media/data/media_file_item_dto_test.dart',
   'test/features/media/domain/models/file_item_test.dart',
   'test/features/media/data/media_directory_scanner_test.dart',
-  'test/features/media/data/media_http_handler_test.dart',
-  'test/features/media/application/media_browser_controller_test.dart',
-  'test/features/media/presentation/media_browser_navigation_test.dart'
+  'test/features/media/data/media_http_handler_test.dart'
 )
 flutter test $Files --reporter compact 2>&1 | Out-File -Encoding utf8 task2-green.log
 $E = $LASTEXITCODE
@@ -708,14 +703,24 @@ rg -n "thumbnailUrl|toJson\(|fromJson\(|listFromJson" lib/features/media test/fe
 
 Expected:
 
-- `thumbnailUrl` exists only in DTO, HTTP protocol tests, and protocol documentation/comments;
-- `FileItem` has no JSON methods;
-- controller parsing goes through DTO;
-- no presentation/domain file stores a thumbnail endpoint.
+- `MediaFileItemDto` imports/usages exist only under `lib/features/media/data/` and `test/features/media/data/`;
+- `media_browser_controller.dart` still calls `FileItem.listFromJson` and has no data import;
+- `media_file_tile.dart` still reads the transitional `FileItem.thumbnailUrl` and has no data import;
+- no new application/presentation → data edge exists;
+- handler wire keys and paths are unchanged.
+
+Run the boundary-specific audit explicitly:
+
+```powershell
+rg -n "features/media/data|\.\./data|data/dto/media_file_item_dto" `
+  lib/features/media/application lib/features/media/presentation
+```
+
+Expected: no matches introduced by Task 2. If the controller imports the DTO, stop and restore `FileItem.listFromJson` until Task 6.
 
 - [ ] **Step 8: Format, verify, and commit**
 
-Run the six targeted tests again after formatting, then:
+Run the four targeted tests again after formatting, then:
 
 ```powershell
 dart run tool/check_import_boundaries.dart
@@ -725,7 +730,7 @@ git commit -m "refactor(media): isolate media file HTTP DTO"
 git status --short
 ```
 
-Expected: clean worktree after version amend.
+Expected: import checker reports `0` violations and the commit leaves a clean worktree after version amend. Any `APPLICATION_TO_DATA` result is a Task 2 stop condition: do not commit; inspect staged imports and restore the old application parser.
 
 ---
 ### Task 3: Implement the remote peer-HTTP media library
@@ -1487,6 +1492,7 @@ git status --short
 **Files:**
 - Modify: `lib/features/media/application/media_browser_controller.dart`
 - Modify: `lib/features/media/application/shuffle_playback_controller.dart`
+- Modify: `lib/features/media/domain/models/file_item.dart`
 - Delete after all references are removed: `lib/features/media/domain/models/media_server_info.dart`
 - Modify: `lib/features/media/presentation/media_browser_tab.dart`
 - Modify: `lib/features/media/presentation/widgets/media_grid_view.dart`
@@ -1504,6 +1510,7 @@ git status --short
 - Modify: `test/features/media/application/media_browser_controller_test.dart`
 - Modify: `test/features/media/application/shuffle_playback_controller_test.dart`
 - Modify: `test/features/media/application/shuffle_playback_controller_behavior_test.dart`
+- Modify: `test/features/media/domain/models/file_item_test.dart`
 - Create: `test/features/media/presentation/media_image_resource_view_test.dart`
 - Create: `test/features/media/presentation/media_video_controller_factory_test.dart`
 - Modify: `test/features/media/presentation/media_browser_navigation_test.dart`
@@ -1519,10 +1526,11 @@ git status --short
 - Modify: `test/features/media/utils/path_utils_test.dart`
 
 **Interfaces:**
-- Consumes: active session/provider from Task 5, remote implementation from Task 3, resource values from Task 1.
+- Consumes: `MediaLibrary` port/resource values from Task 1 and active session/provider from Task 5. Only app composition reaches the concrete factory/data adapters; application and presentation do not consume `RemoteMediaLibrary` directly.
 - Produces:
   - `MediaBrowserController.initFromActiveSession()` and session-safe directory operations;
   - shuffle methods returning relative paths, never URLs;
+  - final transport-neutral `FileItem` with `hasThumbnail` and no JSON/endpoint members;
   - `MediaImageResourceView`;
   - `ImageViewerPage(imageRequests:, initialIndex:)`;
   - `MediaVideoControllerFactory` and `VideoPlayerPage(resource:, fileName:, controllerFactory:)`;
@@ -1916,6 +1924,8 @@ On leaving media: reset session first, then browser, then shuffle. AppBar action
 
 After all references compile:
 
+- remove `dart:convert`, `thumbnailUrl`, `toJson`, `fromJson`, and `listFromJson` from `file_item.dart`; its final constructor is the Task 2 constructor without `thumbnailUrl`;
+- delete the legacy wire cases from `file_item_test.dart`; keep domain defaults, equality-independent model behavior, formatted-size and `hasThumbnail` cases. `media_file_item_dto_test.dart` remains the sole file-list wire contract test;
 - delete `media_server_info.dart` with `apply_patch`;
 - remove `encodeMediaPath` and `buildMediaResourceUrl` from `path_utils.dart` because only `RemoteMediaLibrary` owns URL paths; retain `normalizeMediaRoutePath`;
 - replace `testServer` with a `RemoteMediaLibrarySource`/fake active session helper;
@@ -1929,9 +1939,10 @@ Run this audit:
 
 ```powershell
 rg -n "MediaServerInfo|initWithServer|thumbnailBaseUrl|buildMediaResourceUrl|encodeMediaPath|videoUrl|imageUrls|state\.server|server:" lib/features/media lib/app/composition test/features/media test/features/sync/sync_screen
+rg -n "FileItem\.(listFromJson|fromJson)|\.thumbnailUrl|thumbnailUrl:" lib/features/media test/features/media
 ```
 
-Expected: no obsolete production references. Test fixture text may contain `http://localhost` only inside explicit `NetworkMediaResource` construction.
+Expected: no obsolete production references; `thumbnailUrl` remains only inside `MediaFileItemDto`, its data-layer tests, and HTTP protocol assertions. Test fixture text may contain `http://localhost` only inside explicit `NetworkMediaResource` construction.
 
 - [ ] **Step 13: Run the full media + Sync screen + router targeted suite**
 
