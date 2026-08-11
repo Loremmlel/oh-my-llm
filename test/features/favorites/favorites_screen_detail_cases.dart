@@ -187,7 +187,6 @@ void registerFavoriteDetailScreenTests() {
     await settleRouteTransition(tester);
 
     expect(find.text('未分类'), findsOneWidget);
-    expect(find.byIcon(Icons.drive_file_move_outline), findsOneWidget);
 
     await tester.tap(find.byIcon(Icons.drive_file_move_outline));
     await settleOverlayTransition(tester);

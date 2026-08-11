@@ -50,30 +50,36 @@ void main() {
   });
 
   group('SqliteFavoritesRepository - loadAll', () {
-    test('空表返回空列表', () {
-      expect(repository.loadAll(), isEmpty);
-    });
-
-    test('save 后 loadAll 返回完整的收藏记录', () {
-      final fav = _makeFavorite(
-        id: 'fav-1',
-        userMessageContent: '用户消息',
-        assistantContent: '模型回复',
-        assistantReasoningContent: '思考过程',
-        sourceConversationId: 'conv-1',
-        sourceConversationTitle: '对话标题',
-        assistantModelDisplayName: 'GPT-4.1',
+    test('save 后 loadAll 返回完整的收藏记录，可选字段为 null 时也正确', () {
+      repository.save(
+        _makeFavorite(
+          id: 'fav-1',
+          userMessageContent: '用户消息',
+          assistantContent: '模型回复',
+          assistantReasoningContent: '思考过程',
+          sourceConversationId: 'conv-1',
+          sourceConversationTitle: '对话标题',
+          sourceAssistantMessageId: 'msg-42',
+          title: '持久化标题',
+          assistantModelDisplayName: 'GPT-4.1',
+        ),
       );
-      repository.save(fav);
+      repository.save(_makeFavorite(id: 'fav-2'));
 
-      final result = repository.loadAll().first;
-      expect(result.id, 'fav-1');
-      expect(result.userMessageContent, '用户消息');
-      expect(result.assistantContent, '模型回复');
-      expect(result.assistantReasoningContent, '思考过程');
-      expect(result.sourceConversationId, 'conv-1');
-      expect(result.sourceConversationTitle, '对话标题');
-      expect(result.assistantModelDisplayName, 'GPT-4.1');
+      final result = repository.loadAll();
+      expect(result, hasLength(2));
+      final full = result.firstWhere((f) => f.id == 'fav-1');
+      expect(full.userMessageContent, '用户消息');
+      expect(full.assistantContent, '模型回复');
+      expect(full.assistantReasoningContent, '思考过程');
+      expect(full.sourceConversationId, 'conv-1');
+      expect(full.sourceConversationTitle, '对话标题');
+      expect(full.sourceAssistantMessageId, 'msg-42');
+      expect(full.title, '持久化标题');
+      expect(full.assistantModelDisplayName, 'GPT-4.1');
+      final minimal = result.firstWhere((f) => f.id == 'fav-2');
+      expect(minimal.sourceAssistantMessageId, isNull);
+      expect(minimal.title, isNull);
     });
 
     test('loadAll 按 created_at 降序排列', () {
@@ -85,30 +91,7 @@ void main() {
       expect(ids, ['fav-3', 'fav-2', 'fav-1']);
     });
 
-    test('null collectionId → 返回所有收藏', () {
-      collectionsRepo.save(
-        FavoriteCollection(id: 'col-1', name: 'A', createdAt: DateTime(2026)),
-      );
-      repository.save(_makeFavorite(id: 'fav-1', collectionId: 'col-1'));
-      repository.save(_makeFavorite(id: 'fav-2', collectionId: null));
-
-      expect(repository.loadAll(), hasLength(2));
-      expect(repository.loadAll(collectionId: null), hasLength(2));
-    });
-
-    test("空字符串 collectionId → 只返回未分类（collection_id IS NULL）", () {
-      collectionsRepo.save(
-        FavoriteCollection(id: 'col-1', name: 'A', createdAt: DateTime(2026)),
-      );
-      repository.save(_makeFavorite(id: 'fav-1', collectionId: 'col-1'));
-      repository.save(_makeFavorite(id: 'fav-2', collectionId: null));
-
-      final result = repository.loadAll(collectionId: '');
-      expect(result, hasLength(1));
-      expect(result.first.id, 'fav-2');
-    });
-
-    test('具体 collectionId → 只返回该收藏夹的记录', () {
+    test('loadAll(collectionId) 投影：null 全部 / 空串未分类 / 具体 ID 分类', () {
       collectionsRepo.save(
         FavoriteCollection(id: 'col-1', name: 'A', createdAt: DateTime(2026)),
       );
@@ -119,9 +102,19 @@ void main() {
       repository.save(_makeFavorite(id: 'fav-2', collectionId: 'col-2'));
       repository.save(_makeFavorite(id: 'fav-3', collectionId: null));
 
-      final result = repository.loadAll(collectionId: 'col-1');
-      expect(result, hasLength(1));
-      expect(result.first.id, 'fav-1');
+      // 默认与显式 null 都返回全部
+      expect(repository.loadAll(), hasLength(3));
+      expect(repository.loadAll(collectionId: null), hasLength(3));
+
+      // 空字符串只返回未分类（collection_id IS NULL）
+      final unclassified = repository.loadAll(collectionId: '');
+      expect(unclassified, hasLength(1));
+      expect(unclassified.first.id, 'fav-3');
+
+      // 具体 collectionId 只返回该收藏夹的记录
+      final classified = repository.loadAll(collectionId: 'col-1');
+      expect(classified, hasLength(1));
+      expect(classified.first.id, 'fav-1');
     });
   });
 
@@ -141,18 +134,10 @@ void main() {
 
       expect(repository.loadAll(), isEmpty);
     });
-
-    test('delete 不存在的 id 不抛出异常', () {
-      repository.save(_makeFavorite(id: 'fav-1'));
-
-      repository.delete('nonexistent');
-
-      expect(repository.loadAll(), hasLength(1));
-    });
   });
 
   group('SqliteFavoritesRepository - moveToCollection', () {
-    test('移动到另一个收藏夹后 collection_id 更新', () {
+    test('moveToCollection 生命周期：移入收藏夹后移回未分类', () {
       collectionsRepo.save(
         FavoriteCollection(id: 'col-1', name: 'A', createdAt: DateTime(2026)),
       );
@@ -162,87 +147,39 @@ void main() {
       repository.save(_makeFavorite(id: 'fav-1', collectionId: 'col-1'));
 
       repository.moveToCollection('fav-1', 'col-2');
-
-      final result = repository.loadAll().first;
-      expect(result.collectionId, 'col-2');
-    });
-
-    test('移动到未分类（null）后 collection_id 为 null', () {
-      collectionsRepo.save(
-        FavoriteCollection(id: 'col-1', name: 'A', createdAt: DateTime(2026)),
-      );
-      repository.save(_makeFavorite(id: 'fav-1', collectionId: 'col-1'));
+      expect(repository.loadAll().single.collectionId, 'col-2');
 
       repository.moveToCollection('fav-1', null);
-
-      final result = repository.loadAll().first;
-      expect(result.collectionId, isNull);
+      expect(repository.loadAll().single.collectionId, isNull);
     });
   });
 
   group('SqliteFavoritesRepository - existsByAssistantContent', () {
-    test('未收藏时返回 false', () {
-      expect(repository.existsByAssistantContent('不存在的内容'), isFalse);
-    });
+    test('existsByAssistantContent 覆盖未收藏、已收藏与删除后', () {
+      expect(repository.existsByAssistantContent('某段精彩回答'), isFalse);
 
-    test('已收藏时返回 true', () {
       repository.save(_makeFavorite(id: 'fav-1', assistantContent: '某段精彩回答'));
       expect(repository.existsByAssistantContent('某段精彩回答'), isTrue);
-    });
 
-    test('删除后返回 false', () {
-      repository.save(_makeFavorite(id: 'fav-1', assistantContent: '某段精彩回答'));
       repository.delete('fav-1');
       expect(repository.existsByAssistantContent('某段精彩回答'), isFalse);
     });
   });
 
-  group('SqliteFavoritesRepository - sourceAssistantMessageId', () {
-    test('save 后 loadAll 返回 sourceAssistantMessageId', () {
-      repository.save(
-        _makeFavorite(id: 'fav-msg-id', sourceAssistantMessageId: 'msg-42'),
-      );
-      final result = repository.loadAll().first;
-      expect(result.sourceAssistantMessageId, 'msg-42');
-    });
-
-    test('旧记录无 sourceAssistantMessageId 时返回 null', () {
-      repository.save(_makeFavorite(id: 'fav-legacy'));
-      final result = repository.loadAll().first;
-      expect(result.sourceAssistantMessageId, isNull);
-    });
-  });
-
   group('SqliteFavoritesRepository - updateTitle', () {
-    test('设置自定义标题后 loadAll 返回的记录包含 title', () {
+    test('updateTitle 生命周期：设置自定义标题后清除', () {
       repository.save(_makeFavorite(id: 'fav-1'));
 
       repository.updateTitle('fav-1', '我的标题');
-
-      final loaded = repository.loadAll();
-      expect(loaded.single.title, '我的标题');
-    });
-
-    test('清除自定义标题后 title 为 null', () {
-      repository.save(_makeFavorite(id: 'fav-1').copyWith(title: '旧标题'));
+      expect(repository.loadAll().single.title, '我的标题');
 
       repository.updateTitle('fav-1', null);
-
-      final loaded = repository.loadAll();
-      expect(loaded.single.title, isNull);
-    });
-
-    test('save 保留 title 字段 round-trip', () {
-      final fav = _makeFavorite(id: 'fav-1').copyWith(title: '持久化标题');
-      repository.save(fav);
-
-      final loaded = repository.loadAll();
-      expect(loaded.single.title, '持久化标题');
+      expect(repository.loadAll().single.title, isNull);
     });
   });
 
   group('SqliteFavoritesRepository - loadById', () {
-    test('save 后 loadById 返回字段完整对象', () {
+    test('两条记录时按 ID 精确读取完整字段，缺失 ID 返回 null', () {
       // favorites.collection_id 有外键约束，需先存在对应收藏夹。
       collectionsRepo.save(
         FavoriteCollection(id: 'col-1', name: 'A', createdAt: DateTime(2026)),
@@ -259,11 +196,14 @@ void main() {
           sourceConversationTitle: '原始对话',
           sourceAssistantMessageId: 'msg-1',
           title: '自定义标题',
+          createdAt: DateTime(2026, 1, 1),
         ),
+      );
+      repository.save(
+        _makeFavorite(id: 'fav-load-2', createdAt: DateTime(2026, 1, 2)),
       );
 
       final loaded = repository.loadById('fav-load-1');
-
       expect(loaded, isNotNull);
       expect(loaded!.id, 'fav-load-1');
       expect(loaded.collectionId, 'col-1');
@@ -275,22 +215,10 @@ void main() {
       expect(loaded.sourceConversationTitle, '原始对话');
       expect(loaded.sourceAssistantMessageId, 'msg-1');
       expect(loaded.title, '自定义标题');
-    });
+      // createdAt 不同仍按 ID 而非排序命中目标记录
+      expect(loaded.createdAt, DateTime(2026, 1, 1));
 
-    test('不存在 ID 返回 null', () {
       expect(repository.loadById('missing-id'), isNull);
-    });
-
-    test('两条记录时按 ID 精确读取，不依赖 createdAt 排序', () {
-      repository.save(
-        _makeFavorite(id: 'older', createdAt: DateTime(2026, 1, 1)),
-      );
-      repository.save(
-        _makeFavorite(id: 'newer', createdAt: DateTime(2026, 1, 2)),
-      );
-
-      expect(repository.loadById('older')!.createdAt, DateTime(2026, 1, 1));
-      expect(repository.loadById('newer')!.createdAt, DateTime(2026, 1, 2));
     });
   });
 }

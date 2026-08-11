@@ -28,30 +28,6 @@ void registerFavoritesScreenBasicsTests() {
     expect(find.text('这是模型回复'), findsOneWidget);
   });
 
-  testWidgets('favorites screen uncategorized filter shows correct items', (
-    tester,
-  ) async {
-    await setUpFavoritesScreen(
-      tester,
-      seed: (db) {
-        seedFavorite(
-          db,
-          id: 'fav-1',
-          userMessageContent: '未分类问题',
-          assistantContent: '未分类回复',
-          collectionId: null,
-        );
-      },
-    );
-
-    await tester.tap(find.widgetWithText(FilterChip, '未分类'));
-    // 筛选切换是 provider 状态直更，无动画
-    await tester.pump();
-
-    expect(find.text('未分类问题'), findsOneWidget);
-    expect(find.text('未分类回复'), findsOneWidget);
-  });
-
   testWidgets('favorites screen shows empty hint for empty filters', (
     tester,
   ) async {
@@ -94,34 +70,7 @@ void registerFavoritesScreenBasicsTests() {
     expect(find.text('收藏详情'), findsOneWidget);
   });
 
-  testWidgets('favorites screen 全部 filter shows all items', (tester) async {
-    await setUpFavoritesScreen(
-      tester,
-      seed: (db) {
-        seedCollection(db, id: 'col-1', name: '我的收藏夹');
-        seedFavorite(
-          db,
-          id: 'fav-1',
-          userMessageContent: '分类问题',
-          assistantContent: '分类回复',
-          collectionId: 'col-1',
-        );
-        seedFavorite(
-          db,
-          id: 'fav-2',
-          userMessageContent: '未分类问题',
-          assistantContent: '未分类回复',
-          collectionId: null,
-        );
-      },
-    );
-
-    // "全部" 是默认选中状态，应显示所有收藏
-    expect(find.text('分类问题'), findsOneWidget);
-    expect(find.text('未分类问题'), findsOneWidget);
-  });
-
-  testWidgets('favorites screen collection filter shows correct items', (
+  testWidgets('favorites screen filters switch among 全部/收藏夹/未分类', (
     tester,
   ) async {
     await setUpFavoritesScreen(
@@ -138,18 +87,28 @@ void registerFavoritesScreenBasicsTests() {
         seedFavorite(
           db,
           id: 'fav-2',
-          userMessageContent: '其他问题',
-          assistantContent: '其他回复',
+          userMessageContent: '未分类问题',
+          assistantContent: '未分类回复',
           collectionId: null,
         );
       },
     );
+
+    // "全部" 是默认选中状态，应显示所有收藏
+    expect(find.text('技术问题'), findsOneWidget);
+    expect(find.text('未分类问题'), findsOneWidget);
 
     await tester.tap(find.widgetWithText(FilterChip, '技术笔记'));
     // 筛选切换是 provider 状态直更，无动画
     await tester.pump();
 
     expect(find.text('技术问题'), findsOneWidget);
-    expect(find.text('其他问题'), findsNothing);
+    expect(find.text('未分类问题'), findsNothing);
+
+    await tester.tap(find.widgetWithText(FilterChip, '未分类'));
+    await tester.pump();
+
+    expect(find.text('技术问题'), findsNothing);
+    expect(find.text('未分类问题'), findsOneWidget);
   });
 }

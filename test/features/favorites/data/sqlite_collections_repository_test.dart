@@ -18,35 +18,21 @@ void main() {
   });
 
   group('SqliteCollectionsRepository', () {
-    test('save 后 loadAll 返回该收藏夹', () {
-      final collection = FavoriteCollection(
-        id: 'col-1',
-        name: '技术笔记',
-        createdAt: DateTime(2026, 1, 1),
-      );
-      repository.save(collection);
-
-      final result = repository.loadAll();
-      expect(result, hasLength(1));
-      expect(result.first.id, 'col-1');
-      expect(result.first.name, '技术笔记');
-      expect(result.first.createdAt, DateTime(2026, 1, 1));
-    });
-
-    test('save 重复 id 执行 REPLACE（更新名称）', () {
+    test('save/delete 生命周期：保存、按 id 更新、删除', () {
       final original = FavoriteCollection(
         id: 'col-1',
         name: '旧名称',
         createdAt: DateTime(2026, 1, 1),
       );
+
       repository.save(original);
+      expect(repository.loadAll().single, original);
 
-      final updated = original.copyWith(name: '新名称');
-      repository.save(updated);
+      repository.save(original.copyWith(name: '新名称'));
+      expect(repository.loadAll().single.name, '新名称');
 
-      final result = repository.loadAll();
-      expect(result, hasLength(1));
-      expect(result.first.name, '新名称');
+      repository.delete(original.id);
+      expect(repository.loadAll(), isEmpty);
     });
 
     test('loadAll 按 created_at 升序排列', () {
@@ -75,19 +61,6 @@ void main() {
       final ids = repository.loadAll().map((c) => c.id).toList();
       // ID 顺序不按字母排列，确保按 created_at 而非 ID 排序
       expect(ids, ['col-a', 'col-c', 'col-b']);
-    });
-
-    test('delete 后收藏夹不再出现', () {
-      repository.save(
-        FavoriteCollection(
-          id: 'col-1',
-          name: '测试',
-          createdAt: DateTime(2026, 1, 1),
-        ),
-      );
-      repository.delete('col-1');
-
-      expect(repository.loadAll(), isEmpty);
     });
   });
 }
