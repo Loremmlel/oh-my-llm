@@ -102,11 +102,8 @@ tester
 /// 允许直接 pumpAndSettle 的唯一位置，精确 1 处。
 const _settleAllow = {'test/helpers/widget_test_animation.dart': 1};
 
-/// 允许真实延时的位置（外部 socket 资源释放与负向观测，
-/// 已有 udp tag 且 CI 排除），按精确数量登记。
-const _futureDelayedAllow = {
-  'test/features/sync/data/sync_udp_discovery_test.dart': 3,
-};
+/// 测试树内不允许任何真实 `Future.delayed`：无豁免路径。
+const _futureDelayedAllow = <String, int>{};
 
 // 待查 token 均以片段拼接，避免门禁自身被匹配
 final _findByKeyPattern = RegExp(

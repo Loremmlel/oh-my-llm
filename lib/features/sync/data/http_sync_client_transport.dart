@@ -9,13 +9,21 @@ import 'sync_udp_discovery.dart';
 
 /// 基于 peer HTTP client 与 UDP discovery 的 Sync 客户端传输实现。
 final class HttpSyncClientTransport implements SyncClientTransport {
-  const HttpSyncClientTransport(this._client);
+  HttpSyncClientTransport(this._client, {SyncUdpDiscovery? discovery})
+    : _discovery = discovery ?? SyncUdpDiscovery.system;
 
   final http.Client _client;
+  final SyncUdpDiscovery _discovery;
 
   @override
-  Stream<DiscoveredServer> discoverServers() {
-    return SyncUdpDiscovery.listenForServers();
+  Stream<DiscoveredServer> discoverServers() async* {
+    final session = _discovery.listenForServers();
+    try {
+      await session.ready;
+      yield* session.servers;
+    } finally {
+      await session.close();
+    }
   }
 
   @override
