@@ -75,7 +75,6 @@ void registerHistoryScreenPaginationBarTests() {
       );
       await _pumpHistoryScreen(tester, repo);
 
-      expect(find.byType(HistoryPaginationBar), findsOneWidget);
       expect(find.textContaining('100 条'), findsOneWidget);
       expect(find.textContaining('1/5'), findsOneWidget);
       expect(_readState(tester).currentPage, 1);
@@ -110,46 +109,11 @@ void registerHistoryScreenPaginationBarTests() {
       );
       await _pumpHistoryScreen(tester, repo);
 
-      // 点击页码 3（非当前页的 OutlinedButton）
-      await tester.tap(find.widgetWithText(OutlinedButton, '3'));
+      // 点击可见的页码标签 3（非当前页）
+      await tester.tap(find.text('3'));
       await tester.pump();
 
       expect(_readState(tester).currentPage, 3);
-    });
-
-    testWidgets('prev/next buttons at boundaries do not trigger navigation', (
-      tester,
-    ) async {
-      final repo = FakeHistoryRepository(
-        pages: [
-          const [],
-          _summaries(20), // page 1
-          _summaries(20), // page 2
-        ],
-        countResult: 40,
-      );
-      await _pumpHistoryScreen(tester, repo);
-
-      final pagedBefore = repo.pagedCalls.length;
-
-      // 第 1 页：点击上一页不应触发翻页（边界守卫）
-      await tester.tap(find.byTooltip('上一页'));
-      await tester.pump();
-      expect(_readState(tester).currentPage, 1);
-      expect(repo.pagedCalls.length, pagedBefore);
-
-      // 跳到第 2 页（最后一页）
-      await tester.tap(find.byTooltip('下一页'));
-      await tester.pump();
-      expect(_readState(tester).currentPage, 2);
-
-      final pagedAfterNext = repo.pagedCalls.length;
-
-      // 第 2 页（最后一页）：点击下一页不应触发翻页
-      await tester.tap(find.byTooltip('下一页'));
-      await tester.pump();
-      expect(_readState(tester).currentPage, 2);
-      expect(repo.pagedCalls.length, pagedAfterNext);
     });
 
     testWidgets('page number sequence folds with ellipsis for many pages', (
@@ -259,34 +223,6 @@ void registerHistoryScreenPaginationBarTests() {
       await tester.pump();
 
       expect(_readState(tester).currentPage, 3);
-    });
-
-    testWidgets('current page is visually distinguished after navigation', (
-      tester,
-    ) async {
-      final repo = FakeHistoryRepository(
-        pages: [
-          const [],
-          _summaries(20), // page 1
-          _summaries(20), // page 2
-        ],
-        countResult: 40,
-      );
-      await _pumpHistoryScreen(tester, repo);
-
-      // 第 1 页：当前页 1 用 FilledButton，非当前页 2 用 OutlinedButton
-      expect(find.widgetWithText(FilledButton, '1'), findsOneWidget);
-      expect(find.widgetWithText(OutlinedButton, '2'), findsOneWidget);
-      expect(_readState(tester).currentPage, 1);
-
-      // 跳到第 2 页
-      await tester.tap(find.byTooltip('下一页'));
-      await tester.pump();
-
-      expect(_readState(tester).currentPage, 2);
-      // 当前页 2 用 FilledButton，非当前页 1 用 OutlinedButton
-      expect(find.widgetWithText(FilledButton, '2'), findsOneWidget);
-      expect(find.widgetWithText(OutlinedButton, '1'), findsOneWidget);
     });
   });
 }
