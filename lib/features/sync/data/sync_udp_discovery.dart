@@ -1,12 +1,11 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../domain/models/discovered_server.dart';
-import '../domain/models/sync_protocol_version.dart';
+import 'sync_udp_announcement_codec.dart';
 
 export '../domain/models/discovered_server.dart';
 
@@ -42,8 +41,7 @@ class SyncUdpDiscovery {
   SyncUdpDiscovery._();
 
   static const int discoveryPort = 47280;
-  static const String _appId = 'oh-my-llm';
-  static const int _version = 3;
+  static const SyncUdpAnnouncementCodec _codec = SyncUdpAnnouncementCodec();
 
   /// 开始周期性 UDP 广播，返回停止函数。
   ///
@@ -69,16 +67,10 @@ class SyncUdpDiscovery {
 
     final targetAddress =
         broadcastAddress ?? InternetAddress('255.255.255.255');
-    final payload = utf8.encode(
-      jsonEncode({
-        'app': _appId,
-        'version': _version,
-        'minProtocolVersion': _version,
-        'maxProtocolVersion': _version,
-        'deviceName': deviceName,
-        'serverId': serverId,
-        'httpPort': httpPort,
-      }),
+    final payload = _codec.encode(
+      httpPort: httpPort,
+      deviceName: deviceName,
+      serverId: serverId,
     );
 
     void sendBroadcast() {
@@ -157,44 +149,13 @@ class SyncUdpDiscovery {
           final datagram = socket?.receive();
           if (datagram == null) return;
 
-          try {
-            final json = jsonDecode(utf8.decode(datagram.data));
-            if (json is! Map<String, dynamic>) return;
-            if (json['app'] != _appId) return;
-
-            final version = json['version'];
-            final minimum = json['minProtocolVersion'];
-            final maximum = json['maxProtocolVersion'];
-            final port = json['httpPort'];
-            final serverId = json['serverId'];
-            final deviceName = json['deviceName'];
-            if (version != _version ||
-                minimum is! int ||
-                maximum is! int ||
-                port is! int ||
-                port < 1 ||
-                port > 65535 ||
-                serverId is! String ||
-                serverId.isEmpty ||
-                deviceName is! String ||
-                deviceName.trim().isEmpty) {
-              return;
-            }
-            final server = DiscoveredServer(
-              deviceName: deviceName,
-              ip: datagram.address.address,
-              httpPort: port,
-              serverId: serverId,
-              protocolRange: SyncProtocolRange(
-                minimum: minimum,
-                maximum: maximum,
-              ),
-            );
-            controller.add(server);
-            resetTimeout();
-          } catch (e) {
-            debugPrint('UDP 数据报解析异常: $e');
-          }
+          final server = _codec.decode(
+            data: datagram.data,
+            sourceAddress: datagram.address.address,
+          );
+          if (server == null) return;
+          controller.add(server);
+          resetTimeout();
         });
       } catch (e) {
         if (!cancelled) {
