@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 3.37.13+0
+version: 3.37.14+0
 
 environment:
   sdk: ^3.11.5
@@ -55,6 +55,7 @@ dependencies:
   # Android Keystore / Windows DPAPI 后端，用于保存 Sync 配对长期密钥。
   flutter_secure_storage: ^10.0.0
   image: ^4.9.0          # 纯 Dart 图片缩放（缩略图生成）
+  video_player_win: ^3.2.2
 
 dev_dependencies:
   flutter_test:
