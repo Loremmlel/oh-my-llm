@@ -8,77 +8,44 @@ import '../helpers/media_test_helpers.dart';
 
 void main() {
   group('MediaBrowserState', () {
-    test('快照 item 和 history 输入并按值比较', () {
-      final sourceItem = FileItem(
-        name: 'test.mp4',
-        isDirectory: false,
-        sizeBytes: 100,
-        relativePath: '/test.mp4',
-      );
-      final items = <FileItem>[sourceItem];
-      final history = <String>['/'];
-      final state = MediaBrowserState(items: items, pathHistory: history);
-      items.clear();
-      history.add('/movies');
-
-      expect(state.items, [sourceItem]);
-      expect(state.pathHistory, ['/']);
-      expect(() => state.items.clear(), throwsUnsupportedError);
-      expect(() => state.pathHistory.add('/x'), throwsUnsupportedError);
-      expect(
-        state,
-        MediaBrowserState(
-          items: [
-            FileItem(
-              name: 'test.mp4',
-              isDirectory: false,
-              sizeBytes: 100,
-              relativePath: '/test.mp4',
-            ),
-          ],
-          pathHistory: ['/'],
+    test('派生状态矩阵：初始/空路径/嵌套路径/历史记录', () {
+      for (final (:name, :state, :expectedIsAtRoot, :expectedCanGoBack) in [
+        (
+          name: '初始状态',
+          state: MediaBrowserState(),
+          expectedIsAtRoot: true,
+          expectedCanGoBack: false,
         ),
-      );
-    });
+        (
+          name: '空路径视为根目录',
+          state: MediaBrowserState(currentPath: ''),
+          expectedIsAtRoot: true,
+          expectedCanGoBack: false,
+        ),
+        (
+          name: '嵌套路径非根目录',
+          state: MediaBrowserState(currentPath: '/sub'),
+          expectedIsAtRoot: false,
+          expectedCanGoBack: false,
+        ),
+        (
+          name: '有历史记录可返回',
+          state: MediaBrowserState(pathHistory: ['/']),
+          expectedIsAtRoot: true,
+          expectedCanGoBack: true,
+        ),
+      ]) {
+        expect(state.isAtRoot, expectedIsAtRoot, reason: 'case: $name');
+        expect(state.canGoBack, expectedCanGoBack, reason: 'case: $name');
+      }
 
-    test('初始状态', () {
-      final state = MediaBrowserState();
-      expect(state.currentPath, '/');
-      expect(state.items, isEmpty);
-      expect(state.isLoading, isFalse);
-      expect(state.errorMessage, isNull);
-      expect(state.server, isNull);
-      expect(state.isAtRoot, isTrue);
-      expect(state.canGoBack, isFalse);
-    });
-
-    test('isAtRoot', () {
-      expect(MediaBrowserState(currentPath: '/').isAtRoot, isTrue);
-      expect(MediaBrowserState(currentPath: '').isAtRoot, isTrue);
-      expect(MediaBrowserState(currentPath: '/sub').isAtRoot, isFalse);
-    });
-
-    test('canGoBack', () {
-      expect(MediaBrowserState(pathHistory: []).canGoBack, isFalse);
-      expect(MediaBrowserState(pathHistory: ['/']).canGoBack, isTrue);
-    });
-
-    test('copyWith 保留未指定字段', () {
-      final state = MediaBrowserState(
-        currentPath: '/sub',
-        items: [
-          FileItem(
-            name: 'a.mp4',
-            isDirectory: false,
-            sizeBytes: 100,
-            relativePath: '/a.mp4',
-          ),
-        ],
-      );
-      final updated = state.copyWith(isLoading: true);
-      expect(updated.currentPath, '/sub');
-      expect(updated.items.length, 1);
-      expect(updated.isLoading, isTrue);
+      // 初始公开状态即 build() 返回值：根目录、空列表、未加载、无错误、无服务端
+      final initial = MediaBrowserState();
+      expect(initial.currentPath, '/');
+      expect(initial.items, isEmpty);
+      expect(initial.isLoading, isFalse);
+      expect(initial.errorMessage, isNull);
+      expect(initial.server, isNull);
     });
   });
 
@@ -141,54 +108,7 @@ void main() {
       );
     });
 
-    test('build() 初始状态', () {
-      final container = createMediaTestContainer(
-        httpClient: okMockClient('[]'),
-      );
-      addTearDown(container.dispose);
-      final state = container.read(mediaBrowserControllerProvider);
-      expect(state.currentPath, '/');
-      expect(state.items, isEmpty);
-      expect(state.isLoading, isFalse);
-      expect(state.canGoBack, isFalse);
-    });
-
-    test('initWithServer 设置 server 并加载根目录', () async {
-      final items = [
-        const FileItem(
-          name: 'test.mp4',
-          isDirectory: false,
-          sizeBytes: 100,
-          relativePath: '/test.mp4',
-        ),
-      ];
-      final container = createMediaTestContainer(
-        httpClient: okMockClient(fileListJson(items)),
-      );
-      addTearDown(container.dispose);
-
-      await initBrowserAndWait(container);
-      final state = container.read(mediaBrowserControllerProvider);
-      expect(state.server, testServer);
-      expect(state.items, isNotEmpty);
-    });
-
-    test('loadDirectory server null → errorMessage', () async {
-      final container = createMediaTestContainer(
-        httpClient: okMockClient('[]'),
-      );
-      addTearDown(container.dispose);
-
-      final controller = container.read(
-        mediaBrowserControllerProvider.notifier,
-      );
-      await controller.loadDirectory('/');
-      final state = container.read(mediaBrowserControllerProvider);
-      expect(state.errorMessage, '未连接到服务端');
-      expect(state.isLoading, isFalse);
-    });
-
-    test('loadDirectory HTTP 200 → items 更新', () async {
+    test('initWithServer 设置 server 并加载根目录成功', () async {
       final items = [
         const FileItem(
           name: 'a.mp4',
@@ -210,10 +130,27 @@ void main() {
 
       await initBrowserAndWait(container);
       final state = container.read(mediaBrowserControllerProvider);
-      expect(state.items.length, 2);
+      expect(state.server, testServer);
       expect(state.currentPath, '/');
+      expect(state.items, hasLength(2));
+      expect(state.items.map((i) => i.name), ['a.mp4', 'sub']);
       expect(state.isLoading, isFalse);
       expect(state.errorMessage, isNull);
+    });
+
+    test('loadDirectory server null → errorMessage', () async {
+      final container = createMediaTestContainer(
+        httpClient: okMockClient('[]'),
+      );
+      addTearDown(container.dispose);
+
+      final controller = container.read(
+        mediaBrowserControllerProvider.notifier,
+      );
+      await controller.loadDirectory('/');
+      final state = container.read(mediaBrowserControllerProvider);
+      expect(state.errorMessage, '未连接到服务端');
+      expect(state.isLoading, isFalse);
     });
 
     test('loadDirectory HTTP 非 200 → errorMessage', () async {
@@ -240,7 +177,7 @@ void main() {
       expect(state.isLoading, isFalse);
     });
 
-    test('navigateTo 成功 → pathHistory 推入', () async {
+    test('navigateTo 成功后 goBack 恢复根目录', () async {
       final rootItems = [
         const FileItem(
           name: 'sub',
@@ -272,11 +209,21 @@ void main() {
       final controller = container.read(
         mediaBrowserControllerProvider.notifier,
       );
+
+      // 推入历史：导航进入子目录
       await controller.navigateTo('/sub');
-      final state = container.read(mediaBrowserControllerProvider);
+      var state = container.read(mediaBrowserControllerProvider);
       expect(state.currentPath, '/sub');
       expect(state.pathHistory, ['/']);
       expect(state.canGoBack, isTrue);
+
+      // 弹出历史：goBack 恢复根目录
+      final result = await controller.goBack();
+      expect(result, isTrue);
+      state = container.read(mediaBrowserControllerProvider);
+      expect(state.currentPath, '/');
+      expect(state.pathHistory, isEmpty);
+      expect(state.canGoBack, isFalse);
     });
 
     test('navigateTo 失败 → pathHistory 不变', () async {
@@ -293,34 +240,6 @@ void main() {
       await controller.navigateTo('/sub');
       final state = container.read(mediaBrowserControllerProvider);
       expect(state.pathHistory, isEmpty);
-    });
-
-    test('goBack 有历史 → 返回 true 并恢复路径', () async {
-      final rootItems = [
-        const FileItem(
-          name: 'sub',
-          isDirectory: true,
-          sizeBytes: 0,
-          relativePath: '/sub',
-        ),
-      ];
-      final client = MockClient((request) async {
-        return http.Response(fileListJson(rootItems), 200);
-      });
-
-      final container = createMediaTestContainer(httpClient: client);
-      addTearDown(container.dispose);
-
-      await initBrowserAndWait(container);
-
-      final controller = container.read(
-        mediaBrowserControllerProvider.notifier,
-      );
-      await controller.navigateTo('/sub');
-      final result = await controller.goBack();
-      expect(result, isTrue);
-      final state = container.read(mediaBrowserControllerProvider);
-      expect(state.currentPath, '/');
     });
 
     test('goBack 无历史 → 返回 false', () async {

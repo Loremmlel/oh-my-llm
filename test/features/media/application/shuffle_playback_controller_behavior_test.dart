@@ -197,21 +197,7 @@ void main() {
   });
 
   group('ShufflePlaybackController.playNext / playPrevious', () {
-    test('非活跃状态 → 返回 null', () {
-      final container = _createContainer(
-        httpClient: okMockClient('[]'),
-        browserState: MediaBrowserState(server: testServer),
-      );
-      addTearDown(container.dispose);
-
-      final controller = container.read(
-        shufflePlaybackControllerProvider.notifier,
-      );
-      expect(controller.playNext(), isNull);
-      expect(controller.playPrevious(), isNull);
-    });
-
-    test('playNext 非末尾 → 返回 URL，index+1', () async {
+    test('播放导航生命周期：非活跃返回 null，首位/末尾边界正确', () async {
       final videos = _videos(3);
       final container = _createContainer(
         httpClient: okMockClient(_videoListJson(videos)),
@@ -222,93 +208,39 @@ void main() {
       final controller = container.read(
         shufflePlaybackControllerProvider.notifier,
       );
+
+      // 非活跃状态：next/previous 均返回 null
+      expect(controller.playNext(), isNull);
+      expect(controller.playPrevious(), isNull);
+
       await controller.startShuffle('/dir');
-      final url = controller.playNext();
-      expect(url, isNotNull);
-      final state =
+
+      // 首位：previous 返回 null
+      expect(controller.playPrevious(), isNull);
+
+      // next 推进到 index 1
+      expect(controller.playNext(), isNotNull);
+      var state =
           container.read(shufflePlaybackControllerProvider)
               as ShufflePlaybackActive;
       expect(state.currentIndex, 1);
-    });
 
-    test('playNext 已末尾 → 返回 null', () async {
-      final videos = _videos(3);
-      final container = _createContainer(
-        httpClient: okMockClient(_videoListJson(videos)),
-        browserState: MediaBrowserState(server: testServer),
-      );
-      addTearDown(container.dispose);
-
-      final controller = container.read(
-        shufflePlaybackControllerProvider.notifier,
-      );
-      await controller.startShuffle('/dir');
-      controller.playNext();
-      controller.playNext();
-      expect(controller.playNext(), isNull);
-    });
-
-    test('playPrevious 非首位 → 返回 URL，index-1', () async {
-      final videos = _videos(3);
-      final container = _createContainer(
-        httpClient: okMockClient(_videoListJson(videos)),
-        browserState: MediaBrowserState(server: testServer),
-      );
-      addTearDown(container.dispose);
-
-      final controller = container.read(
-        shufflePlaybackControllerProvider.notifier,
-      );
-      await controller.startShuffle('/dir');
-      controller.playNext();
-      final url = controller.playPrevious();
-      expect(url, isNotNull);
-      final state =
+      // previous 回到 index 0
+      expect(controller.playPrevious(), isNotNull);
+      state =
           container.read(shufflePlaybackControllerProvider)
               as ShufflePlaybackActive;
       expect(state.currentIndex, 0);
-    });
 
-    test('playPrevious 已首位 → 返回 null', () async {
-      final videos = _videos(3);
-      final container = _createContainer(
-        httpClient: okMockClient(_videoListJson(videos)),
-        browserState: MediaBrowserState(server: testServer),
-      );
-      addTearDown(container.dispose);
-
-      final controller = container.read(
-        shufflePlaybackControllerProvider.notifier,
-      );
-      await controller.startShuffle('/dir');
-      expect(controller.playPrevious(), isNull);
+      // 推进到末尾：next 返回 null
+      controller.playNext();
+      controller.playNext();
+      expect(controller.playNext(), isNull);
     });
   });
 
   group('ShufflePlaybackController.onPlayerExited', () {
-    test('末尾视频退出 → 回到 Idle', () async {
-      final videos = _videos(1);
-      final container = _createContainer(
-        httpClient: okMockClient(_videoListJson(videos)),
-        browserState: MediaBrowserState(server: testServer),
-      );
-      addTearDown(container.dispose);
-
-      final controller = container.read(
-        shufflePlaybackControllerProvider.notifier,
-      );
-      await controller.startShuffle('/dir');
-      final state = container.read(shufflePlaybackControllerProvider);
-      expect(state, isA<ShufflePlaybackActive>());
-      expect((state as ShufflePlaybackActive).isLast, isTrue);
-      controller.onPlayerExited();
-      expect(
-        container.read(shufflePlaybackControllerProvider),
-        isA<ShufflePlaybackIdle>(),
-      );
-    });
-
-    test('非末尾视频退出 → 保持 Active', () async {
+    test('退出生命周期：非末尾保持 Active，末尾退出回到 Idle', () async {
       final videos = _videos(3);
       final container = _createContainer(
         httpClient: okMockClient(_videoListJson(videos)),
@@ -320,16 +252,37 @@ void main() {
         shufflePlaybackControllerProvider.notifier,
       );
       await controller.startShuffle('/dir');
+      expect(
+        container.read(shufflePlaybackControllerProvider),
+        isA<ShufflePlaybackActive>(),
+      );
+
+      // 非末尾退出：保持 Active
       controller.onPlayerExited();
       expect(
         container.read(shufflePlaybackControllerProvider),
         isA<ShufflePlaybackActive>(),
+      );
+
+      // 推进到末尾后退出：回到 Idle
+      controller.playNext();
+      controller.playNext();
+      expect(
+        (container.read(shufflePlaybackControllerProvider)
+                as ShufflePlaybackActive)
+            .isLast,
+        isTrue,
+      );
+      controller.onPlayerExited();
+      expect(
+        container.read(shufflePlaybackControllerProvider),
+        isA<ShufflePlaybackIdle>(),
       );
     });
   });
 
   group('ShufflePlaybackController.clearIfDirectoryChanged', () {
-    test('目录不同 → 回到 Idle', () async {
+    test('目录变更生命周期：相同目录保持 Active，不同目录回到 Idle', () async {
       final videos = _videos(3);
       final container = _createContainer(
         httpClient: okMockClient(_videoListJson(videos)),
@@ -345,29 +298,19 @@ void main() {
         container.read(shufflePlaybackControllerProvider),
         isA<ShufflePlaybackActive>(),
       );
-      controller.clearIfDirectoryChanged('/other');
-      expect(
-        container.read(shufflePlaybackControllerProvider),
-        isA<ShufflePlaybackIdle>(),
-      );
-    });
 
-    test('目录相同 → 保持 Active', () async {
-      final videos = _videos(3);
-      final container = _createContainer(
-        httpClient: okMockClient(_videoListJson(videos)),
-        browserState: MediaBrowserState(server: testServer),
-      );
-      addTearDown(container.dispose);
-
-      final controller = container.read(
-        shufflePlaybackControllerProvider.notifier,
-      );
-      await controller.startShuffle('/dir');
+      // 相同目录：保持 Active
       controller.clearIfDirectoryChanged('/dir');
       expect(
         container.read(shufflePlaybackControllerProvider),
         isA<ShufflePlaybackActive>(),
+      );
+
+      // 不同目录：回到 Idle
+      controller.clearIfDirectoryChanged('/other');
+      expect(
+        container.read(shufflePlaybackControllerProvider),
+        isA<ShufflePlaybackIdle>(),
       );
     });
   });
@@ -398,46 +341,40 @@ void main() {
   });
 
   group('ShufflePlaybackController.buildVideoUrl', () {
-    test('server null → 返回 null', () {
-      final container = _createContainer(
-        httpClient: okMockClient('[]'),
-        browserState: MediaBrowserState(),
-      );
-      addTearDown(container.dispose);
+    test('buildVideoUrl 矩阵：null 服务端/英文路径/中文路径编码', () {
+      for (final (:name, :server, :path, :expected) in [
+        (
+          name: 'server 为 null 返回 null',
+          server: null,
+          path: '/test.mp4',
+          expected: null,
+        ),
+        (
+          name: '英文路径正确拼接',
+          server: testServer,
+          path: '/test.mp4',
+          expected: 'http://192.168.1.5:8080/api/media/video/test.mp4',
+        ),
+        (
+          name: '中文路径正确编码',
+          server: testServer,
+          path: '/妹妹/视频.mp4',
+          expected:
+              'http://192.168.1.5:8080/api/media/video/'
+              '%E5%A6%B9%E5%A6%B9/%E8%A7%86%E9%A2%91.mp4',
+        ),
+      ]) {
+        final container = _createContainer(
+          httpClient: okMockClient('[]'),
+          browserState: MediaBrowserState(server: server),
+        );
+        addTearDown(container.dispose);
 
-      final controller = container.read(
-        shufflePlaybackControllerProvider.notifier,
-      );
-      expect(controller.buildVideoUrl('/test.mp4'), isNull);
-    });
-
-    test('有 server → 正确拼接 URL', () {
-      final container = _createContainer(
-        httpClient: okMockClient('[]'),
-        browserState: MediaBrowserState(server: testServer),
-      );
-      addTearDown(container.dispose);
-
-      final controller = container.read(
-        shufflePlaybackControllerProvider.notifier,
-      );
-      final url = controller.buildVideoUrl('/test.mp4');
-      expect(url, 'http://192.168.1.5:8080/api/media/video/test.mp4');
-    });
-
-    test('中文路径正确编码', () {
-      final container = _createContainer(
-        httpClient: okMockClient('[]'),
-        browserState: MediaBrowserState(server: testServer),
-      );
-      addTearDown(container.dispose);
-
-      final controller = container.read(
-        shufflePlaybackControllerProvider.notifier,
-      );
-      final url = controller.buildVideoUrl('/妹妹/视频.mp4');
-      expect(url, contains('%E5%A6%B9%E5%A6%B9'));
-      expect(url, contains('%E8%A7%86%E9%A2%91'));
+        final controller = container.read(
+          shufflePlaybackControllerProvider.notifier,
+        );
+        expect(controller.buildVideoUrl(path), expected, reason: 'case: $name');
+      }
     });
   });
 }
