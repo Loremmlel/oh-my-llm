@@ -66,7 +66,7 @@ void main() {
     });
 
     group('handle — 图片缩略图', () {
-      test('返回 200 + image/jpeg', () async {
+      test('首次生成与缓存命中返回一致的 JPEG 数据', () async {
         final imgFile = File('${tempDir.path}/photo.png');
         await imgFile.writeAsBytes(validPng);
 
@@ -79,57 +79,46 @@ void main() {
           final url = Uri.parse(
             'http://localhost:${serverInfo.port}/api/media/thumbnail/photo.png',
           );
-          final response = await http
-              .get(url)
-              .timeout(const Duration(seconds: 10));
-
-          expect(
-            response.statusCode,
-            200,
-            reason: 'Response body: ${response.body}',
-          );
-          expect(response.headers['content-type'], contains('image/jpeg'));
+          // 第一次请求（生成 + 写缓存）
+          final res1 = await http.get(url).timeout(const Duration(seconds: 10));
+          expect(res1.statusCode, 200, reason: 'Response body: ${res1.body}');
+          expect(res1.headers['content-type'], contains('image/jpeg'));
           // JPEG 以 0xFF 0xD8 开头
-          expect(response.bodyBytes[0], 0xFF);
-          expect(response.bodyBytes[1], 0xD8);
-        } finally {
-          await serverInfo.server.stop();
-        }
-      });
-
-      test('缓存命中返回 200 且数据一致', () async {
-        final imgFile = File('${tempDir.path}/photo.png');
-        await imgFile.writeAsBytes(validPng);
-
-        final serverInfo = await _startTestServer(
-          scanner: scanner,
-          handler: handler,
-        );
-
-        try {
-          final url = Uri.parse(
-            'http://localhost:${serverInfo.port}/api/media/thumbnail/photo.png',
-          );
-          // 第一次请求（生成 + 缓存）
-          final res1 = await http.get(url);
-          expect(res1.statusCode, 200);
-          // 第二次请求（应命中缓存）
+          expect(res1.bodyBytes[0], 0xFF);
+          expect(res1.bodyBytes[1], 0xD8);
+          // 第二次请求（应命中缓存），数据与首次一致
           final res2 = await http.get(url);
           expect(res2.statusCode, 200);
-          // 两次返回相同的 JPEG 数据
           expect(res2.bodyBytes, res1.bodyBytes);
         } finally {
           await serverInfo.server.stop();
         }
       });
 
-      test('不存在的文件返回 404', () async {
+      test('错误状态矩阵：404 / 400 / 403', () async {
         final serverInfo = await _startTestServer(
           scanner: scanner,
           handler: handler,
         );
 
         try {
+          for (final (:name, :path, :expected) in [
+            (name: '不存在的文件', path: '/nonexistent.jpg', expected: 404),
+            (name: '缺少路径', path: '/', expected: 400),
+            (name: '路径穿越', path: '/..%2F..%2Fetc', expected: 403),
+          ]) {
+            final url = Uri.parse(
+              'http://localhost:${serverInfo.port}/api/media/thumbnail$path',
+            );
+            final response = await http.get(url);
+            expect(
+              response.statusCode,
+              expected,
+              reason: 'case: $name, URI: $url',
+            );
+          }
+
+          // 404 错误体包含「文件不存在」提示
           final url = Uri.parse(
             'http://localhost:${serverInfo.port}/api/media/thumbnail/nonexistent.jpg',
           );
@@ -142,24 +131,7 @@ void main() {
         }
       });
 
-      test('缺少路径返回 400', () async {
-        final serverInfo = await _startTestServer(
-          scanner: scanner,
-          handler: handler,
-        );
-
-        try {
-          final url = Uri.parse(
-            'http://localhost:${serverInfo.port}/api/media/thumbnail/',
-          );
-          final response = await http.get(url);
-          expect(response.statusCode, 400);
-        } finally {
-          await serverInfo.server.stop();
-        }
-      });
-
-      test('中文路径正常工作', () async {
+      test('中文路径正常工作（覆盖 URI 解码）', () async {
         final chineseDir = Directory(
           '${tempDir.path}${Platform.pathSeparator}妹妹',
         );
@@ -181,23 +153,6 @@ void main() {
           );
           final response = await http.get(url);
           expect(response.statusCode, 200);
-        } finally {
-          await serverInfo.server.stop();
-        }
-      });
-
-      test('路径穿越被拒绝', () async {
-        final serverInfo = await _startTestServer(
-          scanner: scanner,
-          handler: handler,
-        );
-
-        try {
-          final url = Uri.parse(
-            'http://localhost:${serverInfo.port}/api/media/thumbnail/..%2F..%2Fetc',
-          );
-          final response = await http.get(url);
-          expect(response.statusCode, 403);
         } finally {
           await serverInfo.server.stop();
         }

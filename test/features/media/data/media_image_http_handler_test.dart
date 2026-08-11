@@ -49,23 +49,42 @@ void main() {
       tempRoot.deleteSync(recursive: true);
     });
 
-    test('GET 正常图片返回 200 和正确 Content-Type', () async {
-      final response = await http.get(
-        Uri.parse('http://127.0.0.1:$port/api/media/image/test.jpg'),
-      );
+    test('根目录与子目录图片返回 200 + 正确 Content-Type/Accept-Ranges', () async {
+      for (final (:name, :path, :contentType, :expectedBody) in [
+        (
+          name: '根目录 test.jpg',
+          path: '/test.jpg',
+          contentType: 'image/jpeg',
+          expectedBody: 'fake-jpeg-content-12345'.codeUnits,
+        ),
+        (
+          name: '子目录 nested.png',
+          path: '/subdir/nested.png',
+          contentType: 'image/png',
+          expectedBody: 'fake-png-content'.codeUnits,
+        ),
+      ]) {
+        final response = await http.get(
+          Uri.parse('http://127.0.0.1:$port/api/media/image$path'),
+        );
 
-      expect(response.statusCode, 200);
-      expect(response.headers['content-type'], contains('image/jpeg'));
-      expect(response.bodyBytes.toList(), 'fake-jpeg-content-12345'.codeUnits);
-    });
-
-    test('子目录图片正常返回', () async {
-      final response = await http.get(
-        Uri.parse('http://127.0.0.1:$port/api/media/image/subdir/nested.png'),
-      );
-
-      expect(response.statusCode, 200);
-      expect(response.headers['content-type'], contains('image/png'));
+        expect(response.statusCode, 200, reason: 'case: $name');
+        expect(
+          response.headers['content-type'],
+          contains(contentType),
+          reason: 'case: $name',
+        );
+        expect(
+          response.headers['accept-ranges'],
+          'bytes',
+          reason: 'case: $name',
+        );
+        expect(
+          response.bodyBytes.toList(),
+          expectedBody,
+          reason: 'case: $name',
+        );
+      }
     });
 
     test('无路径返回 400', () async {
@@ -97,14 +116,6 @@ void main() {
         response.headers['content-type'],
         contains('application/octet-stream'),
       );
-    });
-
-    test('Accept-Ranges 头存在', () async {
-      final response = await http.get(
-        Uri.parse('http://127.0.0.1:$port/api/media/image/test.jpg'),
-      );
-
-      expect(response.headers['accept-ranges'], 'bytes');
     });
   });
 }

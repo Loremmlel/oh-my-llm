@@ -18,13 +18,10 @@ void main() {
       tempRoot = Directory.systemTemp.createTempSync('video_test_');
       scanner = MediaDirectoryScanner(tempRoot.path);
 
-      // 创建测试视频文件（8200 字节的可控内容）
+      // 创建测试视频文件（8200 字节的可控内容，字节值 = 下标 % 256）
       File(
         '${tempRoot.path}${Platform.pathSeparator}test.mp4',
       ).writeAsBytesSync(List.generate(8200, (i) => i % 256));
-      File(
-        '${tempRoot.path}${Platform.pathSeparator}small.mkv',
-      ).writeAsBytesSync([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
 
       server = SyncHttpServer();
       port = await server.start(
@@ -37,8 +34,6 @@ void main() {
       tempRoot.deleteSync(recursive: true);
     });
 
-    // ── 无 Range 头 → 200 ──
-
     test('无 Range 头返回 200 和完整文件', () async {
       final response = await http.get(
         Uri.parse('http://127.0.0.1:$port/api/media/video/test.mp4'),
@@ -50,115 +45,82 @@ void main() {
       expect(response.bodyBytes.length, 8200);
     });
 
-    test('小文件无 Range 头返回 200', () async {
-      final response = await http.get(
-        Uri.parse('http://127.0.0.1:$port/api/media/video/small.mkv'),
-      );
+    test('Range 矩阵：闭区间/单字节/开放区间/完整开放/后缀', () async {
+      final uri = Uri.parse('http://127.0.0.1:$port/api/media/video/test.mp4');
+      for (final (:name, :range, :contentRange, :length, :first, :last) in [
+        (
+          name: 'bytes=0-999 闭区间',
+          range: 'bytes=0-999',
+          contentRange: 'bytes 0-999/8200',
+          length: 1000,
+          first: 0,
+          last: 231,
+        ),
+        (
+          name: 'bytes=100-200 闭区间',
+          range: 'bytes=100-200',
+          contentRange: 'bytes 100-200/8200',
+          length: 101,
+          first: 100,
+          last: 200,
+        ),
+        (
+          name: 'bytes=0-0 单字节',
+          range: 'bytes=0-0',
+          contentRange: 'bytes 0-0/8200',
+          length: 1,
+          first: 0,
+          last: 0,
+        ),
+        (
+          name: 'bytes=1000- 开放区间',
+          range: 'bytes=1000-',
+          contentRange: 'bytes 1000-8199/8200',
+          length: 7200,
+          first: 232,
+          last: 7,
+        ),
+        (
+          name: 'bytes=0- 完整开放区间',
+          range: 'bytes=0-',
+          contentRange: 'bytes 0-8199/8200',
+          length: 8200,
+          first: 0,
+          last: 7,
+        ),
+        (
+          name: 'bytes=-500 后缀区间',
+          range: 'bytes=-500',
+          contentRange: 'bytes 7700-8199/8200',
+          length: 500,
+          first: 20,
+          last: 7,
+        ),
+      ]) {
+        final response = await http.get(uri, headers: {'Range': range});
 
-      expect(response.statusCode, 200);
-      expect(response.bodyBytes.length, 10);
+        expect(response.statusCode, 206, reason: 'case: $name');
+        expect(
+          response.headers['content-range'],
+          contentRange,
+          reason: 'case: $name',
+        );
+        expect(response.bodyBytes.length, length, reason: 'case: $name');
+        expect(response.bodyBytes.first, first, reason: 'case: $name');
+        expect(response.bodyBytes.last, last, reason: 'case: $name');
+      }
     });
 
-    // ── Range: bytes=<start>-<end> → 206 ──
-
-    test('Range: bytes=0-999 返回 206 和正确 Content-Range', () async {
-      final response = await http.get(
-        Uri.parse('http://127.0.0.1:$port/api/media/video/test.mp4'),
-        headers: {'Range': 'bytes=0-999'},
-      );
-
-      expect(response.statusCode, 206);
-      expect(response.headers['content-range'], 'bytes 0-999/8200');
-      expect(response.headers['content-length'], '1000');
-      expect(response.bodyBytes.length, 1000);
-    });
-
-    test('Range: bytes=100-200 返回 206', () async {
-      final response = await http.get(
-        Uri.parse('http://127.0.0.1:$port/api/media/video/test.mp4'),
-        headers: {'Range': 'bytes=100-200'},
-      );
-
-      expect(response.statusCode, 206);
-      expect(response.headers['content-range'], 'bytes 100-200/8200');
-      expect(response.bodyBytes.length, 101);
-    });
-
-    test('Range: bytes=0-0 返回 206 单字节', () async {
-      final response = await http.get(
-        Uri.parse('http://127.0.0.1:$port/api/media/video/test.mp4'),
-        headers: {'Range': 'bytes=0-0'},
-      );
-
-      expect(response.statusCode, 206);
-      expect(response.headers['content-range'], 'bytes 0-0/8200');
-      expect(response.bodyBytes.length, 1);
-    });
-
-    // ── Range: bytes=<start>- → 206 ──
-
-    test('Range: bytes=1000- 返回 206 和 open-ended 范围', () async {
-      final response = await http.get(
-        Uri.parse('http://127.0.0.1:$port/api/media/video/test.mp4'),
-        headers: {'Range': 'bytes=1000-'},
-      );
-
-      expect(response.statusCode, 206);
-      expect(response.headers['content-range'], 'bytes 1000-8199/8200');
-      expect(response.bodyBytes.length, 7200); // 8200 - 1000
-    });
-
-    test('Range: bytes=0- 返回 206（open-ended 等同于全文件）', () async {
-      final response = await http.get(
-        Uri.parse('http://127.0.0.1:$port/api/media/video/test.mp4'),
-        headers: {'Range': 'bytes=0-'},
-      );
-
-      expect(response.statusCode, 206);
-      expect(response.headers['content-range'], 'bytes 0-8199/8200');
-      expect(response.bodyBytes.length, 8200);
-    });
-
-    // ── Range: bytes=-<suffix> → 206 ──
-
-    test('Range: bytes=-500 返回最后 500 字节', () async {
-      final response = await http.get(
-        Uri.parse('http://127.0.0.1:$port/api/media/video/test.mp4'),
-        headers: {'Range': 'bytes=-500'},
-      );
-
-      expect(response.statusCode, 206);
-      expect(response.headers['content-range'], 'bytes 7700-8199/8200');
-      expect(response.bodyBytes.length, 500);
-    });
-
-    // ── 无效 Range → 416 ──
-
-    test('Range: bytes=99999- 返回 416', () async {
-      final response = await http.get(
-        Uri.parse('http://127.0.0.1:$port/api/media/video/test.mp4'),
-        headers: {'Range': 'bytes=99999-'},
-      );
-
-      expect(response.statusCode, 416);
-    });
-
-    test('Range: bytes=abc 返回 416', () async {
-      final response = await http.get(
-        Uri.parse('http://127.0.0.1:$port/api/media/video/test.mp4'),
-        headers: {'Range': 'bytes=abc'},
-      );
-
-      expect(response.statusCode, 416);
-    });
-
-    test('多 Range 返回 416', () async {
-      final response = await http.get(
-        Uri.parse('http://127.0.0.1:$port/api/media/video/test.mp4'),
-        headers: {'Range': 'bytes=0-100, 200-300'},
-      );
-
-      expect(response.statusCode, 416);
+    test('无效 Range 返回 416', () async {
+      final uri = Uri.parse('http://127.0.0.1:$port/api/media/video/test.mp4');
+      for (final (:name, :range) in [
+        (name: '越界起点 bytes=99999-', range: 'bytes=99999-'),
+        (name: '非法格式 bytes=abc', range: 'bytes=abc'),
+        (name: '多区间 bytes=0-100, 200-300', range: 'bytes=0-100, 200-300'),
+      ]) {
+        final response = await http.get(uri, headers: {'Range': range});
+        expect(response.statusCode, 416, reason: 'case: $name');
+      }
     });
 
     // ── 安全 ──

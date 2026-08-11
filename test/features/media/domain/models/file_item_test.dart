@@ -4,21 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/features/media/domain/models/file_item.dart';
 
 void main() {
-  group('FileItem.toJson', () {
-    test('文件夹不含 mimeType 和 thumbnailUrl', () {
-      const item = FileItem(
-        name: 'subdir',
-        isDirectory: true,
-        sizeBytes: 0,
-        relativePath: '/subdir',
-      );
-      final json = item.toJson();
-      expect(json['type'], 'directory');
-      expect(json.containsKey('mimeType'), isFalse);
-      expect(json.containsKey('thumbnailUrl'), isFalse);
-    });
-
-    test('文件包含 mimeType 和 thumbnailUrl', () {
+  group('FileItem 序列化往返', () {
+    test('文件：可选键存在且反序列化还原', () {
       const item = FileItem(
         name: 'test.mp4',
         isDirectory: false,
@@ -28,62 +15,47 @@ void main() {
         mimeType: 'video/mp4',
         thumbnailUrl: '/api/media/thumbnail/test.mp4',
       );
+
       final json = item.toJson();
       expect(json['type'], 'file');
       expect(json['name'], 'test.mp4');
       expect(json['size'], 1024);
+      expect(json.containsKey('mimeType'), isTrue);
       expect(json['mimeType'], 'video/mp4');
+      expect(json.containsKey('thumbnailUrl'), isTrue);
       expect(json['thumbnailUrl'], '/api/media/thumbnail/test.mp4');
+
+      final decoded = FileItem.fromJson(json);
+      expect(decoded.name, 'test.mp4');
+      expect(decoded.isDirectory, isFalse);
+      expect(decoded.sizeBytes, 1024);
+      expect(decoded.relativePath, '/test.mp4');
+      expect(decoded.lastModified, 1712345678);
+      expect(decoded.mimeType, 'video/mp4');
+      expect(decoded.thumbnailUrl, '/api/media/thumbnail/test.mp4');
     });
 
-    test('文件 mimeType 为 null 时不输出该字段', () {
+    test('文件夹：可选键不输出且反序列化还原', () {
       const item = FileItem(
-        name: 'doc.txt',
-        isDirectory: false,
-        sizeBytes: 50,
-        relativePath: '/doc.txt',
+        name: 'subdir',
+        isDirectory: true,
+        sizeBytes: 0,
+        relativePath: '/subdir',
       );
+
       final json = item.toJson();
+      expect(json['type'], 'directory');
       expect(json.containsKey('mimeType'), isFalse);
       expect(json.containsKey('thumbnailUrl'), isFalse);
+
+      final decoded = FileItem.fromJson(json);
+      expect(decoded.isDirectory, isTrue);
+      expect(decoded.mimeType, isNull);
+      expect(decoded.thumbnailUrl, isNull);
     });
   });
 
   group('FileItem.fromJson', () {
-    test('正确反序列化文件', () {
-      final json = {
-        'type': 'file',
-        'name': 'cat.mp4',
-        'relativePath': '/sister/video/cat.mp4',
-        'size': 123,
-        'lastModified': 1712345678,
-        'mimeType': 'video/mp4',
-        'thumbnailUrl': '/api/media/thumbnail/sister/video/cat.mp4',
-      };
-      final item = FileItem.fromJson(json);
-      expect(item.name, 'cat.mp4');
-      expect(item.isDirectory, isFalse);
-      expect(item.sizeBytes, 123);
-      expect(item.relativePath, '/sister/video/cat.mp4');
-      expect(item.lastModified, 1712345678);
-      expect(item.mimeType, 'video/mp4');
-      expect(item.thumbnailUrl, '/api/media/thumbnail/sister/video/cat.mp4');
-    });
-
-    test('正确反序列化文件夹', () {
-      final json = {
-        'type': 'directory',
-        'name': 'video',
-        'relativePath': '/sister/video',
-        'size': 0,
-        'lastModified': 0,
-      };
-      final item = FileItem.fromJson(json);
-      expect(item.isDirectory, isTrue);
-      expect(item.mimeType, isNull);
-      expect(item.thumbnailUrl, isNull);
-    });
-
     test('缺失字段使用默认值', () {
       final json = {'type': 'file', 'name': 'a.mp4', 'relativePath': '/a.mp4'};
       final item = FileItem.fromJson(json);
@@ -120,29 +92,26 @@ void main() {
   });
 
   group('FileItem.formattedSize', () {
-    const cases = [
-      (sizeBytes: 0, isDirectory: true, expected: ''),
-      (sizeBytes: 500, isDirectory: false, expected: '500 B'),
-      (sizeBytes: 1024, isDirectory: false, expected: '1.0 KB'),
-      (sizeBytes: 1536, isDirectory: false, expected: '1.5 KB'),
-      (sizeBytes: 1048576, isDirectory: false, expected: '1.0 MB'),
-      (sizeBytes: 1073741824, isDirectory: false, expected: '1.00 GB'),
-      (sizeBytes: 0, isDirectory: false, expected: ''),
-    ];
+    test('格式化大小矩阵', () {
+      const cases = [
+        (sizeBytes: 0, isDirectory: true, expected: ''),
+        (sizeBytes: 500, isDirectory: false, expected: '500 B'),
+        (sizeBytes: 1024, isDirectory: false, expected: '1.0 KB'),
+        (sizeBytes: 1536, isDirectory: false, expected: '1.5 KB'),
+        (sizeBytes: 1048576, isDirectory: false, expected: '1.0 MB'),
+        (sizeBytes: 1073741824, isDirectory: false, expected: '1.00 GB'),
+        (sizeBytes: 0, isDirectory: false, expected: ''),
+      ];
 
-    for (final c in cases) {
-      test(
-        '${c.sizeBytes} bytes, isDirectory=${c.isDirectory} → "${c.expected}"',
-        () {
-          final item = FileItem(
-            name: 'test',
-            isDirectory: c.isDirectory,
-            sizeBytes: c.sizeBytes,
-            relativePath: '/test',
-          );
-          expect(item.formattedSize, c.expected);
-        },
-      );
-    }
+      for (final (:sizeBytes, :isDirectory, :expected) in cases) {
+        final item = FileItem(
+          name: 'test',
+          isDirectory: isDirectory,
+          sizeBytes: sizeBytes,
+          relativePath: '/test',
+        );
+        expect(item.formattedSize, expected, reason: 'size=$sizeBytes');
+      }
+    });
   });
 }

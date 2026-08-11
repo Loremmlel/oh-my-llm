@@ -31,27 +31,39 @@ void main() {
       tempRoot.deleteSync(recursive: true);
     });
 
-    for (final path in [
-      '/api/media/videos/recursive/sister',
-      '/api/media/videos/recursive',
-    ]) {
-      test('canHandle 匹配 GET $path', () {
-        final req = _FakeHttpRequest('GET', path);
-        expect(handler.canHandle(req), isTrue);
-      });
-    }
-
-    test('canHandle 拒绝 POST 请求', () {
-      final req = _FakeHttpRequest(
-        'POST',
-        '/api/media/videos/recursive/sister',
-      );
-      expect(handler.canHandle(req), isFalse);
-    });
-
-    test('canHandle 拒绝其他路径前缀', () {
-      final req = _FakeHttpRequest('GET', '/api/media/list/sister');
-      expect(handler.canHandle(req), isFalse);
+    test('canHandle 方法/路径矩阵', () {
+      for (final (:name, :method, :path, :expected) in [
+        (
+          name: 'GET 带路径段',
+          method: 'GET',
+          path: '/api/media/videos/recursive/sister',
+          expected: true,
+        ),
+        (
+          name: 'GET 无路径段',
+          method: 'GET',
+          path: '/api/media/videos/recursive',
+          expected: true,
+        ),
+        (
+          name: 'POST 拒绝',
+          method: 'POST',
+          path: '/api/media/videos/recursive/sister',
+          expected: false,
+        ),
+        (
+          name: '其他路径前缀拒绝',
+          method: 'GET',
+          path: '/api/media/list/sister',
+          expected: false,
+        ),
+      ]) {
+        expect(
+          handler.canHandle(_FakeHttpRequest(method, path)),
+          expected,
+          reason: 'case: $name',
+        );
+      }
     });
 
     test('handle 返回 200 和 JSON 视频列表（递归扫描子目录）', () async {

@@ -40,7 +40,7 @@ void main() {
       tempRoot.deleteSync(recursive: true);
     });
 
-    test('GET /api/media/list/ 返回根目录列表', () async {
+    test('GET /api/media/list/ 返回根目录列表（含 type/mimeType）', () async {
       final response = await http.get(
         Uri.parse('http://127.0.0.1:$port/api/media/list/'),
       );
@@ -51,9 +51,16 @@ void main() {
       expect(body.length, 3);
       final names = body.map((e) => e['name'] as String).toList();
       expect(names, containsAll(['photo.jpg', 'video.mp4', 'subdir']));
+
+      // 目录条目带 type: directory，文件条目带 type: file 与 mimeType
+      final dirItem = body.firstWhere((e) => e['name'] == 'subdir');
+      expect(dirItem['type'], 'directory');
+      final videoItem = body.firstWhere((e) => e['name'] == 'video.mp4');
+      expect(videoItem['mimeType'], 'video/mp4');
+      expect(videoItem['type'], 'file');
     });
 
-    test('GET /api/media/list 返回根目录列表', () async {
+    test('GET /api/media/list 无尾斜杠返回根目录列表', () async {
       final response = await http.get(
         Uri.parse('http://127.0.0.1:$port/api/media/list'),
       );
@@ -63,15 +70,28 @@ void main() {
       expect(body.length, 3);
     });
 
-    test('子目录扫描正确', () async {
-      final response = await http.get(
-        Uri.parse('http://127.0.0.1:$port/api/media/list/subdir'),
+    test('子目录与中文路径列表', () async {
+      final chineseDir = Directory(
+        '${tempRoot.path}${Platform.pathSeparator}妹妹',
       );
+      chineseDir.createSync();
+      File(
+        '${chineseDir.path}${Platform.pathSeparator}照片.jpg',
+      ).writeAsStringSync('chinese photo');
 
-      expect(response.statusCode, 200);
-      final body = jsonDecode(response.body) as List;
-      expect(body.length, 1);
-      expect(body[0]['name'], 'nested.png');
+      for (final (:name, :route, :expectedName) in [
+        (name: '子目录', route: '/subdir', expectedName: 'nested.png'),
+        (name: '中文路径', route: '/%E5%A6%B9%E5%A6%B9', expectedName: '照片.jpg'),
+      ]) {
+        final response = await http.get(
+          Uri.parse('http://127.0.0.1:$port/api/media/list$route'),
+        );
+
+        expect(response.statusCode, 200, reason: 'case: $name');
+        final body = jsonDecode(response.body) as List;
+        expect(body.length, 1, reason: 'case: $name');
+        expect(body[0]['name'], expectedName, reason: 'case: $name');
+      }
     });
 
     test('空目录返回 200 + 空数组', () async {
@@ -94,49 +114,6 @@ void main() {
       // POSIX 上 osError.errorCode==2 返回 404；
       // Windows 上 errorCode 不同，返回 500。两者均非 200。
       expect(response.statusCode, anyOf(404, 500));
-    });
-
-    test('中文路径正常工作', () async {
-      final chineseDir = Directory(
-        '${tempRoot.path}${Platform.pathSeparator}妹妹',
-      );
-      chineseDir.createSync();
-      File(
-        '${chineseDir.path}${Platform.pathSeparator}照片.jpg',
-      ).writeAsStringSync('chinese photo');
-
-      final encodedPath = '/%E5%A6%B9%E5%A6%B9';
-      final response = await http.get(
-        Uri.parse('http://127.0.0.1:$port/api/media/list$encodedPath'),
-      );
-
-      expect(response.statusCode, 200);
-      final body = jsonDecode(response.body) as List;
-      expect(body.length, 1);
-      expect(body[0]['name'], '照片.jpg');
-    });
-
-    test('目录条目包含 type: directory', () async {
-      final response = await http.get(
-        Uri.parse('http://127.0.0.1:$port/api/media/list/'),
-      );
-
-      expect(response.statusCode, 200);
-      final body = jsonDecode(response.body) as List;
-      final dirItem = body.firstWhere((e) => e['name'] == 'subdir');
-      expect(dirItem['type'], 'directory');
-    });
-
-    test('文件条目包含 mimeType', () async {
-      final response = await http.get(
-        Uri.parse('http://127.0.0.1:$port/api/media/list/'),
-      );
-
-      expect(response.statusCode, 200);
-      final body = jsonDecode(response.body) as List;
-      final videoItem = body.firstWhere((e) => e['name'] == 'video.mp4');
-      expect(videoItem['mimeType'], 'video/mp4');
-      expect(videoItem['type'], 'file');
     });
   });
 }

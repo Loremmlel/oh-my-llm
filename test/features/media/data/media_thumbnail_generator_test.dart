@@ -25,8 +25,7 @@ List<int> _generateImageBytes(String ext) {
       throw ArgumentError('Unknown extension: $ext');
   }
 }
-// Note: WebP encoding not supported by image 4.8.0, but the decoder works fine.
-// The generator correctly handles WebP input files at runtime.
+// 注：image 4.8.0 不支持 WebP 编码，但解码器可用；生成器在运行时能正确处理 WebP 输入。
 
 void main() {
   group('MediaThumbnailGenerator', () {
@@ -45,18 +44,18 @@ void main() {
     });
 
     group('图片缩略图', () {
-      for (final ext in ['png', 'jpg', 'gif']) {
-        test('$ext 格式生成缩略图成功', () async {
+      test('png/jpg/gif 格式生成缩略图成功（统一输出 JPEG）', () async {
+        for (final ext in ['png', 'jpg', 'gif']) {
           final imgFile = File('${tempDir.path}/test.$ext');
           await imgFile.writeAsBytes(_generateImageBytes(ext));
 
           final result = await generator.generate('/test.$ext');
-          expect(result, isNotEmpty);
+          expect(result, isNotEmpty, reason: 'ext: $ext');
           // JPEG 以 0xFF 0xD8 开头
-          expect(result[0], 0xFF);
-          expect(result[1], 0xD8);
-        });
-      }
+          expect(result[0], 0xFF, reason: 'ext: $ext');
+          expect(result[1], 0xD8, reason: 'ext: $ext');
+        }
+      });
 
       test('损坏的图片文件抛出异常', () async {
         final imgFile = File('${tempDir.path}/bad.png');

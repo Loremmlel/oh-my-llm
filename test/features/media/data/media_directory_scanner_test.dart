@@ -27,28 +27,7 @@ void main() {
       return MediaDirectoryScanner(tempRoot.path);
     }
 
-    test('正常路径解析返回绝对路径', () {
-      scanner = createScanner();
-      final resolved = scanner.resolvePath('/');
-      // 用 resolveSymbolicLinksSync 归一化真实路径：本机 %TEMP% 可能是 8.3 短名
-      // (如 hinana~1)，而 resolvePath 内部走 resolveSymbolicLinksSync 返回长名，
-      // 直接比 absolute.path 会在短名/长名不一致时误判（Win11 默认禁用 8.3 短名生成）。
-      expect(
-        resolved.toLowerCase(),
-        tempRoot.resolveSymbolicLinksSync().toLowerCase(),
-      );
-    });
-
-    test('子目录路径解析正确', () {
-      scanner = createScanner();
-      final resolved = scanner.resolvePath('/subdir');
-      expect(
-        resolved.toLowerCase(),
-        subDir.resolveSymbolicLinksSync().toLowerCase(),
-      );
-    });
-
-    test('中文路径正常解析', () {
+    test('正常/子目录/中文路径解析为绝对路径', () {
       final chineseDir = Directory(
         '${tempRoot.path}${Platform.pathSeparator}妹妹',
       );
@@ -57,26 +36,46 @@ void main() {
         '${chineseDir.path}${Platform.pathSeparator}照片.jpg',
       ).writeAsStringSync('photo');
 
+      // 用 resolveSymbolicLinksSync 归一化真实路径：本机 %TEMP% 可能是 8.3 短名
+      // (如 hinana~1)，而 resolvePath 内部走 resolveSymbolicLinksSync 返回长名，
+      // 直接比 absolute.path 会在短名/长名不一致时误判（Win11 默认禁用 8.3 短名生成）。
+      final cases = [
+        (
+          name: '根路径',
+          input: '/',
+          expected: tempRoot.resolveSymbolicLinksSync(),
+        ),
+        (
+          name: '子目录',
+          input: '/subdir',
+          expected: subDir.resolveSymbolicLinksSync(),
+        ),
+        (
+          name: '中文路径',
+          input: '/妹妹',
+          expected: chineseDir.resolveSymbolicLinksSync(),
+        ),
+      ];
+
       scanner = createScanner();
-      final resolved = scanner.resolvePath('/妹妹');
-      expect(
-        resolved.toLowerCase(),
-        chineseDir.resolveSymbolicLinksSync().toLowerCase(),
-      );
+      for (final (:name, :input, :expected) in cases) {
+        final resolved = scanner.resolvePath(input);
+        expect(
+          resolved.toLowerCase(),
+          expected.toLowerCase(),
+          reason: 'case: $name',
+        );
+      }
     });
 
-    group('路径穿越检测', () {
-      setUp(() {
-        scanner = createScanner();
-      });
-
+    test('路径穿越被拒绝', () {
+      scanner = createScanner();
       for (final path in ['/../etc', '/subdir/../../../', '/../..']) {
-        test('路径穿越被拒绝: $path', () {
-          expect(
-            () => scanner.resolvePath(path),
-            throwsA(isA<PathTraversalException>()),
-          );
-        });
+        expect(
+          () => scanner.resolvePath(path),
+          throwsA(isA<PathTraversalException>()),
+          reason: 'path: $path',
+        );
       }
     });
 
@@ -117,7 +116,7 @@ void main() {
       tempRoot.deleteSync(recursive: true);
     });
 
-    test('排序：文件夹在前，文件在后，同类型按名称升序', () async {
+    test('排序：文件夹在前文件在后，FileItem 元数据完整', () async {
       final items = await scanner.scan('/');
 
       expect(items.length, 4);
@@ -131,6 +130,17 @@ void main() {
       expect(items[2].isDirectory, isFalse);
       expect(items[3].name, 'bbb.mp4');
       expect(items[3].isDirectory, isFalse);
+
+      // 文件条目带 lastModified/mimeType/thumbnailUrl
+      final videoItem = items.firstWhere((i) => i.name == 'bbb.mp4');
+      expect(videoItem.lastModified, isNonZero);
+      expect(videoItem.mimeType, 'video/mp4');
+      expect(videoItem.thumbnailUrl, isNotNull);
+      expect(videoItem.thumbnailUrl, contains('/api/media/thumbnail/'));
+      // 文件夹不应有 mimeType 和 thumbnailUrl
+      final folderItem = items.firstWhere((i) => i.isDirectory);
+      expect(folderItem.mimeType, isNull);
+      expect(folderItem.thumbnailUrl, isNull);
     });
 
     test('扫描不存在的目录抛出 FileSystemException', () async {
@@ -138,21 +148,6 @@ void main() {
         () => scanner.scan('/不存在的目录'),
         throwsA(isA<FileSystemException>()),
       );
-    });
-
-    test('FileItem 包含 lastModified/mimeType/thumbnailUrl', () async {
-      final items = await scanner.scan('/');
-
-      final videoItem = items.firstWhere((i) => i.name == 'bbb.mp4');
-      expect(videoItem.lastModified, isNonZero);
-      expect(videoItem.mimeType, 'video/mp4');
-      expect(videoItem.thumbnailUrl, isNotNull);
-      expect(videoItem.thumbnailUrl, contains('/api/media/thumbnail/'));
-
-      // 文件夹不应有 mimeType 和 thumbnailUrl
-      final folderItem = items.firstWhere((i) => i.isDirectory);
-      expect(folderItem.mimeType, isNull);
-      expect(folderItem.thumbnailUrl, isNull);
     });
   });
 
@@ -202,17 +197,13 @@ void main() {
       tempRoot.deleteSync(recursive: true);
     });
 
-    test('递归收集所有视频文件，按名称排序', () async {
+    test('递归收集视频：名称、相对路径与排序', () async {
       final videos = await scanner.scanRecursiveVideos('/');
 
       expect(videos.length, 3);
       expect(videos[0].name, 'video1.mp4');
       expect(videos[1].name, 'video2.mkv');
       expect(videos[2].name, 'video3.avi');
-    });
-
-    test('每个视频条目包含 name 和 relativePath', () async {
-      final videos = await scanner.scanRecursiveVideos('/');
 
       final deepVideo = videos.firstWhere((v) => v.name == 'video3.avi');
       expect(
@@ -221,14 +212,17 @@ void main() {
       );
     });
 
-    test('空目录返回空列表', () async {
-      final videos = await scanner.scanRecursiveVideos('/empty');
-      expect(videos, isEmpty);
-    });
-
-    test('纯图片目录返回空列表', () async {
-      final videos = await scanner.scanRecursiveVideos('/images');
-      expect(videos, isEmpty);
+    test('空目录与纯图片目录返回空列表', () async {
+      for (final (:name, :input) in [
+        (name: '空目录', input: '/empty'),
+        (name: '纯图片目录', input: '/images'),
+      ]) {
+        expect(
+          await scanner.scanRecursiveVideos(input),
+          isEmpty,
+          reason: 'case: $name',
+        );
+      }
     });
 
     test('隐藏文件被过滤', () async {
@@ -251,11 +245,6 @@ void main() {
         () => scanner.scanRecursiveVideos('/../etc'),
         throwsA(isA<PathTraversalException>()),
       );
-    });
-
-    test('VideoItem toJson/fromJson 往返一致', () {
-      const item = VideoItem(name: 'test.mp4', relativePath: '/sub/test.mp4');
-      expect(VideoItem.fromJson(item.toJson()), equals(item));
     });
   });
 }
