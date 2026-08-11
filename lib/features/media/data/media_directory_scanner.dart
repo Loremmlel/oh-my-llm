@@ -16,13 +16,13 @@ class PathTraversalException implements Exception {
   String toString() => '路径穿越被拒绝: $path';
 }
 
-/// 服务端目录扫描器。
+/// 本地文件系统目录扫描器（HTTP 服务端与本地媒体库共享）。
 ///
 /// 负责扫描本地文件系统并返回 [FileItem] 列表，
 /// 包含路径穿越防护和排序逻辑。
 ///
 /// 构造时不执行 I/O——根目录的符号链接解析延迟到首次 [scan] 调用，
-/// 避免无效根目录阻止服务端启动。
+/// 避免无效根目录阻止媒体库启动。
 class MediaDirectoryScanner {
   /// 用户配置的原始根目录路径。
   final String _rawRoot;
