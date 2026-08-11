@@ -22,6 +22,14 @@ SemanticsFinder semanticsByTooltip(String tooltip) =>
 /// 当前持有主焦点的语义节点。
 SemanticsFinder focusedNode() => find.semantics.byFlag(SemanticsFlag.isFocused);
 
+/// 播放表面语义节点的全局中心。
+///
+/// 通过可访问 label 定位表面（不依赖页面类型），供手势与点击使用。
+Offset _surfaceCenter(WidgetTester tester) {
+  final node = find.semantics.byLabel('视频播放器：test-video.mp4').evaluate().single;
+  return node.rect.center;
+}
+
 /// initialize 永不完成的 Fake：让页面稳定停留在加载态。
 ///
 /// 普通 Fake 的 initialize 在 pumpWidget 内部即随微任务完成，
@@ -309,9 +317,7 @@ void main() {
 
       // 长按期间断言 live region 与 3.0x；hold 状态必须用 startGesture 维持，
       // longPressAt 内部会完整走完按下-抬起，回到测试代码时提示已消失。
-      final gesture = await tester.startGesture(
-        tester.getCenter(find.byType(VideoPlayerPage)),
-      );
+      final gesture = await tester.startGesture(_surfaceCenter(tester));
       await tester.pump(kLongPressTimeout);
 
       final status = find.semantics.byLabel('临时三倍速播放');
@@ -434,7 +440,7 @@ void main() {
 
       // onTap 受双击窗口（kDoubleTapTimeout）判定延迟，先推进窗口让 tap 生效，
       // 再 pump 一帧应用焦点恢复与语义更新。
-      await tester.tapAt(tester.getCenter(find.byType(VideoPlayerPage)));
+      await tester.tapAt(_surfaceCenter(tester));
       await tester.pump(kDoubleTapTimeout);
       await tester.pump();
 

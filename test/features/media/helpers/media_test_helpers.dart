@@ -17,13 +17,27 @@ export 'package:oh_my_llm/features/media/domain/models/media_server_info.dart';
 const testServer = MediaServerInfo(ip: '192.168.1.5', httpPort: 8080);
 
 /// 测试用 MediaBrowserController：不发起网络请求，直接返回注入的初始状态。
+///
+/// 可选 [itemsByPath] 让 [navigateTo] 按路径同步切换目录内容，
+/// 只验证 MediaBrowserTab 的浏览链路；生产 navigateTo 的加载与历史
+/// 语义由应用层测试覆盖。
 class FakeMediaBrowserController extends MediaBrowserController {
-  FakeMediaBrowserController(this.initialState);
+  FakeMediaBrowserController(this.initialState, {this.itemsByPath = const {}});
 
   final MediaBrowserState initialState;
+  final Map<String, List<FileItem>> itemsByPath;
 
   @override
   MediaBrowserState build() => initialState;
+
+  @override
+  Future<void> navigateTo(String path) async {
+    state = state.copyWith(
+      currentPath: path,
+      items: itemsByPath[path] ?? const [],
+      pathHistory: [...state.pathHistory, state.currentPath],
+    );
+  }
 }
 
 String fileListJson(List<FileItem> items) =>

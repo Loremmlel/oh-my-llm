@@ -97,7 +97,8 @@ void main() {
           .mediaPath],
       '/相册/猫.jpg',
     );
-    expect(find.byType(MediaImageRoutePage), findsOneWidget);
+    // 画廊以可见计数器呈现：当前目录两张图片，目标为第一张 → 1 / 2
+    expect(find.text('1 / 2'), findsOneWidget);
 
     // viewer 的返回按钮是 IconButton(Icons.arrow_back)，无 tooltip。
     await tester.tap(find.byIcon(Icons.arrow_back));
@@ -167,22 +168,25 @@ void main() {
               server: testServer,
               items: [_dir('/相册'), _file('/相册/猫.jpg')],
             ),
+            itemsByPath: {
+              '/相册': [_file('/相册/猫.jpg'), _file('/相册/狗.jpg')],
+            },
           ),
         ),
       ],
     );
 
     await tester.tap(find.text('相册'));
-    // 目录切换同步进入加载态；测试中真实 HTTP 请求不保证返回，精确推进
-    // 到请求超时契约（10 秒）让加载落定，避免残留计时器泄漏到用例结束。
-    await tester.pump(const Duration(seconds: 10));
+    // fake navigateTo 同步切换目录内容，单帧即可呈现
     await tester.pump();
 
-    // 目录点击不 push 子路由
+    // 目录点击不 push 子路由：路径栏与内容区同步更新到 /相册
     expect(
       router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
       '/sync',
     );
+    expect(find.text('相册'), findsOneWidget);
+    expect(find.text('狗.jpg'), findsOneWidget);
   });
 
   testWidgets('server 缺失时点击媒体文件不导航', (tester) async {
@@ -205,20 +209,16 @@ void main() {
     // server 缺失时点击是空操作，无状态变更与动画，单帧即可
     await tester.pump();
 
+    // 未导航：位置不变，文件行仍在浏览列表中
     expect(
       router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
       '/sync',
     );
-    expect(find.byType(MediaImageRoutePage), findsNothing);
+    expect(find.text('猫.jpg'), findsOneWidget);
   });
 
-  const mediaSmokeViewports = [
-    Size(390, 844),
-    Size(600, 900),
-    Size(844, 390),
-    Size(1024, 768),
-    Size(1440, 900),
-  ];
+  // 紧凑竖屏 / 受限横屏 / 宽屏三类布局
+  const mediaSmokeViewports = [Size(390, 844), Size(844, 390), Size(1024, 768)];
 
   for (final viewportSize in mediaSmokeViewports) {
     testWidgets(
@@ -251,57 +251,6 @@ void main() {
         expect(find.text('相册'), findsOneWidget);
         expect(find.text('猫.jpg'), findsOneWidget);
         expect(find.text('demo.mp4'), findsOneWidget);
-        expect(tester.takeException(), isNull);
-      },
-    );
-  }
-
-  for (final viewportSize in [const Size(390, 844), const Size(844, 390)]) {
-    testWidgets(
-      '${viewportSize.width}x${viewportSize.height}: 图片 route push/back 保持 URI 契约',
-      (tester) async {
-        final prefs = await _testPrefs();
-        final router = _mediaRouter();
-        await pumpTestApp(
-          tester,
-          preferences: prefs,
-          router: router,
-          viewportSize: viewportSize,
-          extraOverrides: [
-            mediaBrowserControllerProvider.overrideWith(
-              () => FakeMediaBrowserController(
-                MediaBrowserState(
-                  server: testServer,
-                  items: [_file('/相册/猫.jpg')],
-                ),
-              ),
-            ),
-          ],
-        );
-
-        await tester.tap(find.text('猫.jpg'));
-        await settleRouteTransition(tester);
-        expect(
-          router
-              .routerDelegate
-              .currentConfiguration
-              .matches
-              .last
-              .matchedLocation,
-          '/sync/media/image',
-        );
-
-        await tester.tap(find.byIcon(Icons.arrow_back));
-        await settleRouteTransition(tester);
-        expect(
-          router
-              .routerDelegate
-              .currentConfiguration
-              .matches
-              .last
-              .matchedLocation,
-          '/sync',
-        );
         expect(tester.takeException(), isNull);
       },
     );

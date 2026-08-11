@@ -3,9 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:oh_my_llm/features/media/presentation/pages/image_viewer_page.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/media_route_pages.dart';
-import 'package:oh_my_llm/features/media/presentation/pages/video_player_page.dart';
 
 import '../../../helpers/test_harness.dart';
 import '../../../helpers/widget_test_animation.dart';
@@ -53,7 +51,6 @@ void main() {
 
     // 计数器直接显示（无网络图片加载阻塞 build）
     expect(find.text('2 / 2'), findsOneWidget);
-    expect(find.byType(ImageViewerPage), findsOneWidget);
   });
 
   testWidgets('target 不在当前 items 时降级单图且不崩溃', (tester) async {
@@ -71,7 +68,11 @@ void main() {
       child: const MediaImageRoutePage(relativePath: '/相册/不存在.jpg'),
     );
 
-    expect(find.byType(ImageViewerPage), findsOneWidget);
+    // 降级为单图查看：单图不显示计数器，加载失败呈现错误文案
+    await tester.pump(); // 让 errorBuilder 的回调在下一帧设置错误状态
+    expect(find.text('1 / 1'), findsNothing);
+    expect(find.text('图片加载失败'), findsOneWidget);
+    expect(find.byIcon(Icons.arrow_back), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -146,7 +147,6 @@ void main() {
 
     expect(fake.playCallCount, greaterThanOrEqualTo(1));
     expect(find.text('demo.mp4'), findsOneWidget);
-    expect(find.byType(VideoPlayerPage), findsOneWidget);
   });
 
   testWidgets('视频 path 缺失显示恢复页', (tester) async {
