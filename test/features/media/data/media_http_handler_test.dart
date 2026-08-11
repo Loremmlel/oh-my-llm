@@ -55,9 +55,13 @@ void main() {
       // 目录条目带 type: directory，文件条目带 type: file 与 mimeType
       final dirItem = body.firstWhere((e) => e['name'] == 'subdir');
       expect(dirItem['type'], 'directory');
+      // 目录不输出文件专属键（含 thumbnailUrl）
+      expect(dirItem.containsKey('thumbnailUrl'), isFalse);
       final videoItem = body.firstWhere((e) => e['name'] == 'video.mp4');
       expect(videoItem['mimeType'], 'video/mp4');
       expect(videoItem['type'], 'file');
+      // 缩略图 wire 键与路径保持字面协议不变
+      expect(videoItem['thumbnailUrl'], '/api/media/thumbnail/video.mp4');
     });
 
     test('GET /api/media/list 无尾斜杠返回根目录列表', () async {

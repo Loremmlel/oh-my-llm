@@ -33,6 +33,8 @@ void main() {
       expect(decoded.lastModified, 1712345678);
       expect(decoded.mimeType, 'video/mp4');
       expect(decoded.thumbnailUrl, '/api/media/thumbnail/test.mp4');
+      // wire 的 thumbnailUrl 反推出传输无关信号
+      expect(decoded.hasThumbnail, isTrue);
     });
 
     test('文件夹：可选键不输出且反序列化还原', () {
@@ -52,6 +54,7 @@ void main() {
       expect(decoded.isDirectory, isTrue);
       expect(decoded.mimeType, isNull);
       expect(decoded.thumbnailUrl, isNull);
+      expect(decoded.hasThumbnail, isFalse);
     });
   });
 
@@ -63,6 +66,19 @@ void main() {
       expect(item.lastModified, 0);
       expect(item.mimeType, isNull);
       expect(item.thumbnailUrl, isNull);
+      expect(item.hasThumbnail, isFalse);
+    });
+
+    test('thumbnailUrl 存在时推导 hasThumbnail，旧 JSON 输出不变', () {
+      final item = FileItem.fromJson({
+        'type': 'file',
+        'name': 'a.mp4',
+        'relativePath': '/a.mp4',
+        'thumbnailUrl': '/api/media/thumbnail/a.mp4',
+      });
+      expect(item.hasThumbnail, isTrue);
+      // 旧序列化仍从 thumbnailUrl 输出 legacy 键
+      expect(item.toJson()['thumbnailUrl'], '/api/media/thumbnail/a.mp4');
     });
   });
 

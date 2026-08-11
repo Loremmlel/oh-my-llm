@@ -15,9 +15,20 @@ class FileItem {
   /// MIME 类型（如 "video/mp4"）；文件夹为 null。
   final String? mimeType;
 
+  /// 是否具备缩略图（传输无关的信号）。
+  ///
+  /// 由 data 层 DTO 从 wire 的 `thumbnailUrl` 反推并推导端点，
+  /// domain 自身不再负责拼接端点路径。
+  final bool hasThumbnail;
+
   /// 缩略图相对 API 路径（如 "/api/media/thumbnail/sister/cat.mp4"）；
   /// 文件夹和非图片/视频文件为 null。
   /// 此字段存储未编码的原始路径——客户端负责在发起 HTTP 请求前对路径段进行 URI 编码。
+  ///
+  /// 过渡兼容面：`thumbnailUrl` 与 `toJson`/`fromJson`/`listFromJson`
+  /// 是媒体列表协议向 data 层 DTO 迁移完成前的临时出口，只供尚未迁移的
+  /// 旧 application/presentation 消费者读取；它们随这些消费者在同一竖向
+  /// 迁移中一并移除，届时 wire 编码完全由 `MediaFileItemDto` 独占。
   final String? thumbnailUrl;
 
   const FileItem({
@@ -27,6 +38,7 @@ class FileItem {
     required this.relativePath,
     this.lastModified = 0,
     this.mimeType,
+    this.hasThumbnail = false,
     this.thumbnailUrl,
   });
 
@@ -78,6 +90,7 @@ class FileItem {
       relativePath: json['relativePath'] as String,
       lastModified: json['lastModified'] as int? ?? 0,
       mimeType: json['mimeType'] as String?,
+      hasThumbnail: json['thumbnailUrl'] != null,
       thumbnailUrl: json['thumbnailUrl'] as String?,
     );
   }
