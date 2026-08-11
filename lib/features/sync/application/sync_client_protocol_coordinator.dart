@@ -8,12 +8,13 @@ import '../domain/models/sync_protocol_message.dart';
 import '../domain/models/sync_session.dart';
 import '../domain/models/sync_types.dart';
 import 'ports/sync_clock.dart';
+import 'ports/sync_client_protocol.dart';
 import 'ports/sync_client_transport.dart';
 import 'ports/sync_crypto.dart';
 import 'ports/sync_pairing_repository.dart';
 
 /// 客户端的配对、session 与加密编排；controller 不处理密钥或 wire Map。
-final class SyncClientProtocolCoordinator {
+final class SyncClientProtocolCoordinator implements SyncClientProtocol {
   SyncClientProtocolCoordinator({
     required SyncClientTransport transport,
     required SyncPairingRepository pairingRepository,
@@ -30,11 +31,13 @@ final class SyncClientProtocolCoordinator {
   final SyncClock _clock;
   final Map<String, SyncSession> _sessions = {};
 
+  @override
   Future<bool> isPaired(DiscoveredServer server) async {
     if (server.serverId.isEmpty) return false;
     return (await _pairingRepository.load(server.serverId)) != null;
   }
 
+  @override
   Future<void> forgetPairing(DiscoveredServer server) async {
     _sessions.remove(server.serverId);
     if (server.serverId.isNotEmpty) {
@@ -42,6 +45,7 @@ final class SyncClientProtocolCoordinator {
     }
   }
 
+  @override
   Future<void> pair({
     required DiscoveredServer server,
     required String code,
@@ -120,6 +124,7 @@ final class SyncClientProtocolCoordinator {
     );
   }
 
+  @override
   Future<SettingsExportData> requestSettings({
     required DiscoveredServer server,
     required Set<SyncCategory> categories,
@@ -277,6 +282,7 @@ final class SyncClientProtocolCoordinator {
     return session;
   }
 
+  @override
   void clearSessions() => _sessions.clear();
 
   void _checkCompatible(DiscoveredServer server) {

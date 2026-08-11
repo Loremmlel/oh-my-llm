@@ -2,12 +2,14 @@ import 'dart:async';
 
 import 'package:oh_my_llm/features/settings/domain/models/settings_export_data.dart';
 import 'package:oh_my_llm/features/sync/application/ports/settings_sync_facade.dart';
+import 'package:oh_my_llm/features/sync/application/ports/sync_client_protocol.dart';
 import 'package:oh_my_llm/features/sync/application/ports/sync_client_transport.dart';
 import 'package:oh_my_llm/features/sync/application/ports/sync_clock.dart';
 import 'package:oh_my_llm/features/sync/application/ports/sync_pairing_repository.dart';
 import 'package:oh_my_llm/features/sync/domain/models/discovered_server.dart';
 import 'package:oh_my_llm/features/sync/domain/models/sync_pairing.dart';
 import 'package:oh_my_llm/features/sync/domain/models/sync_protocol_message.dart';
+import 'package:oh_my_llm/features/sync/domain/models/sync_types.dart';
 
 final class FakeSyncClock implements SyncClock {
   FakeSyncClock([DateTime? now]) : value = now ?? DateTime(2026, 1, 1);
@@ -63,7 +65,12 @@ final class FakeSyncClientTransport implements SyncClientTransport {
 
   void add(DiscoveredServer server) => _controller.add(server);
 
-  Future<void> close() => _controller.close();
+  void addError(Object error) => _controller.addError(error);
+
+  Future<void> close() async {
+    if (_controller.isClosed) return;
+    await _controller.close();
+  }
 
   @override
   Future<SyncProtocolMessage> send({
@@ -74,10 +81,77 @@ final class FakeSyncClientTransport implements SyncClientTransport {
   }
 }
 
+/// 可脚本化编排协议结果的 fake：配对、请求、撤销与清会话全部记录调用，
+/// 且可用 [pairGate] / [requestGate] 挂起等待，模拟晚到完成竞态。
+final class ScriptedSyncClientProtocol implements SyncClientProtocol {
+  bool paired = false;
+  Object? pairError;
+  Object? requestError;
+  SettingsExportData requestResult = const SettingsExportData(
+    modelProviders: [],
+    memoryPrompts: [],
+    presetPrompts: [],
+    templatePrompts: [],
+    fixedPromptSequences: [],
+  );
+  Completer<void>? pairGate;
+  Completer<void>? requestGate;
+  String? pairedCode;
+  bool? requestedSensitiveConfirmation;
+  Set<SyncCategory>? requestedCategories;
+  int forgetCount = 0;
+  int clearSessionsCount = 0;
+  int isPairedCount = 0;
+
+  @override
+  Future<bool> isPaired(DiscoveredServer server) async {
+    isPairedCount++;
+    return paired;
+  }
+
+  @override
+  Future<void> pair({
+    required DiscoveredServer server,
+    required String code,
+    required String displayName,
+  }) async {
+    if (pairGate != null) await pairGate!.future;
+    pairedCode = code;
+    if (pairError != null) throw pairError!;
+    paired = true;
+  }
+
+  @override
+  Future<SettingsExportData> requestSettings({
+    required DiscoveredServer server,
+    required Set<SyncCategory> categories,
+    required bool confirmedSensitive,
+  }) async {
+    if (requestGate != null) await requestGate!.future;
+    requestedCategories = categories;
+    requestedSensitiveConfirmation = confirmedSensitive;
+    if (requestError != null) throw requestError!;
+    return requestResult;
+  }
+
+  @override
+  Future<void> forgetPairing(DiscoveredServer server) async {
+    forgetCount++;
+    paired = false;
+  }
+
+  @override
+  void clearSessions() {
+    clearSessionsCount++;
+  }
+}
+
 final class FakeSettingsSyncFacade implements SettingsSyncFacade {
   var exportCount = 0;
+  SettingsExportData? deduplicatedResult;
   @override
-  SettingsExportData deduplicateIncoming(SettingsExportData data) => data;
+  SettingsExportData deduplicateIncoming(SettingsExportData data) =>
+      deduplicatedResult ?? data;
   @override
   SettingsExportData exportSelected(SettingsSyncSelection selection) {
     exportCount++;
