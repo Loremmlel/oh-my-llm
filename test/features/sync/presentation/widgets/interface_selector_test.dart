@@ -60,6 +60,7 @@ void main() {
       // /24 模式下广播地址以 .255 结尾，间接验证 /24 被默认选中；
       // 未选中的 /8 广播地址不应出现
       expect(find.textContaining('10.214.98.255'), findsOneWidget);
+      // 主人手机热点场景的修复点：/8 广播地址（10.255.255.255）不得出现
       expect(find.textContaining('10.255.255.255'), findsNothing);
     });
 

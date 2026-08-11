@@ -31,6 +31,16 @@ void main() {
       for (final ext in videoExtensions) {
         expect(isVideoFile('video.$ext'), isTrue, reason: 'video ext: $ext');
       }
+      // 固定扩展名集合成员：仅循环常量本身时，未来移除某项会悄然缩小循环而测试不失败；
+      // containsAll 只守住既有成员，不阻碍未来合法新增
+      expect(
+        imageExtensions,
+        containsAll(['jpg', 'jpeg', 'png', 'webp', 'gif']),
+      );
+      expect(
+        videoExtensions,
+        containsAll(['mp4', 'mkv', 'mov', 'avi', 'webm']),
+      );
       // 负例：视频不是图片、图片不是视频、无扩展名都不是
       expect(isImageFile('video.mp4'), isFalse);
       expect(isVideoFile('photo.jpg'), isFalse);
