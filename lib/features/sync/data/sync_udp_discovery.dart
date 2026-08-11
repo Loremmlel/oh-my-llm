@@ -216,12 +216,22 @@ final class _SyncUdpListenSessionImpl implements SyncUdpListenSession {
       return;
     }
 
-    _socket = socket;
-    _port = socket.port;
-    socket.broadcastEnabled = true;
-    _armDeadline();
-    _socketSub = socket.datagrams.listen(_onDatagram);
-    if (!_ready.isCompleted) _ready.complete();
+    // 绑定后初始化（broadcastEnabled / 调度 / 订阅）抛异常时走失败路径：
+    // 关闭已绑定 socket、以 ready 错误暴露问题、释放锁并完成 done，保证
+    // _startupFuture 不以错误完成、清理路径的 done 永不挂起。
+    try {
+      _socket = socket;
+      _port = socket.port;
+      socket.broadcastEnabled = true;
+      _armDeadline();
+      _socketSub = socket.datagrams.listen(_onDatagram);
+      if (!_ready.isCompleted) _ready.complete();
+    } catch (error) {
+      _socket = null;
+      // 关闭失败不阻断失败路径（仅注入 fake 可达，生产 socket 关闭不抛）。
+      await socket.close().then<void>((_) {}, onError: (Object _) {});
+      await _failStart(error);
+    }
   }
 
   void _onDatagram(SyncUdpDatagram datagram) {
@@ -278,27 +288,42 @@ final class _SyncUdpListenSessionImpl implements SyncUdpListenSession {
     if (!_ready.isCompleted) {
       _ready.completeError(StateError('UDP 监听已关闭'));
     }
-    await _startupFuture;
+    // 启动失败（注入的 socket/scheduler 抛异常）不阻塞 done：错误已由 ready
+    // 完成错误或 _failStart 投递，清理路径只须吞掉启动错误、保证 done 必完成。
+    await _startupFuture?.catchError((Object _) {});
     if (!_done.isCompleted) _done.complete();
   }
 }
 
-/// 广播会话实现：stop 幂等，共享同一个清理 Future；done 在清理完成后完成。
+/// 广播会话实现：stop 触发清理且幂等，共享同一个清理 Future；done 为纯被动
+/// 信号，不触发清理，只等待 stop 创建的清理 Future 完成（与监听会话的
+/// 被动 done 对称）；从未 stop 的会话 await done 会一直挂起。
 final class _SyncUdpBroadcastSessionImpl implements SyncUdpBroadcastSession {
   _SyncUdpBroadcastSessionImpl(this._cleanup);
 
   final Future<void> Function() _cleanup;
   Future<void>? _cleanupFuture;
+  final _done = Completer<void>();
 
   @override
   Future<void> stop() => _runCleanup();
 
   @override
-  Future<void> get done => _runCleanup();
+  Future<void> get done => _done.future;
 
   Future<void> _runCleanup() {
     final running = _cleanupFuture;
     if (running != null) return running;
-    return _cleanupFuture = _cleanup();
+    final cleanup = _cleanup();
+    _cleanupFuture = cleanup;
+    // 清理无论成败都投递 done 完成（错误吞掉，由 stop 的返回值向调用方
+    // 投递），等待 done 的调用方不会因注入的 socket/锁异常而挂起。
+    unawaited(
+      cleanup.then<void>(
+        (_) => _done.complete(),
+        onError: (Object _) => _done.complete(),
+      ),
+    );
+    return cleanup;
   }
 }
