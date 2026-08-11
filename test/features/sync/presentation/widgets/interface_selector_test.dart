@@ -47,7 +47,7 @@ void main() {
       preferences = await SharedPreferences.getInstance();
     });
 
-    testWidgets('渲染 /8 /16 /24 三个 SegmentedButton 选项', (tester) async {
+    testWidgets('渲染 /8 /16 /24 选项并默认选中 /24 广播地址', (tester) async {
       await _pumpSelector(
         tester,
         preferences: preferences,
@@ -57,17 +57,10 @@ void main() {
       expect(find.text('/8'), findsOneWidget);
       expect(find.text('/16'), findsOneWidget);
       expect(find.text('/24'), findsOneWidget);
-    });
-
-    testWidgets('默认选中 /24', (tester) async {
-      await _pumpSelector(
-        tester,
-        preferences: preferences,
-        interfaces: const [fakeInterface],
-      );
-
-      // /24 模式下广播地址以 .255 结尾，间接验证 /24 被默认选中
+      // /24 模式下广播地址以 .255 结尾，间接验证 /24 被默认选中；
+      // 未选中的 /8 广播地址不应出现
       expect(find.textContaining('10.214.98.255'), findsOneWidget);
+      expect(find.textContaining('10.255.255.255'), findsNothing);
     });
 
     testWidgets('SharedPreferences 存 16 时默认选中 /16', (tester) async {
@@ -86,7 +79,7 @@ void main() {
       expect(find.textContaining('10.214.255.255'), findsOneWidget);
     });
 
-    testWidgets('点击 /16 后 UI 选中 /16', (tester) async {
+    testWidgets('点击 /16 后可见广播地址从 /24 切换到 /16', (tester) async {
       await _pumpSelector(
         tester,
         preferences: preferences,
@@ -99,22 +92,9 @@ void main() {
       await tester.tap(find.text('/16'));
       await tester.pump();
 
-      // 切换到 /16 后广播地址变为 10.214.255.255
+      // 切换后原 /24 地址消失，改为 /16 广播地址 10.214.255.255
+      expect(find.textContaining('10.214.98.255'), findsNothing);
       expect(find.textContaining('10.214.255.255'), findsOneWidget);
-    });
-
-    testWidgets('展示当前计算的广播地址：/24 模式下 10.214.98.86 → 10.214.98.255', (
-      tester,
-    ) async {
-      // 这正是主人手机热点场景的修复点
-      await _pumpSelector(
-        tester,
-        preferences: preferences,
-        interfaces: const [fakeInterface],
-      );
-
-      expect(find.textContaining('10.214.98.255'), findsOneWidget);
-      expect(find.textContaining('10.255.255.255'), findsNothing);
     });
   });
 }

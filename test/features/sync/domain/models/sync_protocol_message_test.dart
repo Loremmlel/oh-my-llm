@@ -7,8 +7,12 @@ import 'package:oh_my_llm/features/sync/domain/models/sync_types.dart';
 
 void main() {
   group('SyncProtocolCodec', () {
-    test('v3 encrypted envelope round-trip 且无二次 JSON payload', () {
-      const message = EncryptedSyncRequest(
+    test('typed 消息 round-trip 还原同一消息，加密信封不二次 JSON 包裹 payload', () {
+      const pairingRequest = PairingChallengeRequest(
+        requestId: 'request',
+        clientIdentity: 'client',
+      );
+      const encryptedRequest = EncryptedSyncRequest(
         requestId: 'request-1',
         sessionId: 'session-1',
         sessionToken: 'dG9rZW4=',
@@ -16,12 +20,24 @@ void main() {
         nonce: 'MTIzNDU2Nzg5MDEy',
         ciphertext: 'Y2lwaGVydGV4dA==',
       );
+      const cases = <(String, SyncProtocolMessage)>[
+        ('pairingChallengeRequest', pairingRequest),
+        ('encryptedSyncRequest', encryptedRequest),
+      ];
+      for (final (name, message) in cases) {
+        final decoded = SyncProtocolCodec.decode(
+          SyncProtocolCodec.encode(message),
+        );
+        expect(decoded, isA<SyncProtocolDecodeSuccess>(), reason: name);
+        expect(
+          (decoded as SyncProtocolDecodeSuccess).message,
+          message,
+          reason: name,
+        );
+      }
 
-      final encoded = SyncProtocolCodec.encode(message);
-      final decoded = SyncProtocolCodec.decode(encoded);
-
-      expect(decoded, isA<SyncProtocolDecodeSuccess>());
-      expect((decoded as SyncProtocolDecodeSuccess).message, message);
+      // 加密信封断言：顶层是普通 JSON 对象，payload 未以字符串二次包裹
+      final encoded = SyncProtocolCodec.encode(encryptedRequest);
       expect(jsonDecode(encoded), isA<Map<String, dynamic>>());
       expect(encoded, isNot(contains('"data":"{')));
     });

@@ -12,12 +12,16 @@ void main() {
         (BroadcastPrefixLength.p16, '10.214.98.86', '10.214.255.255'),
         (BroadcastPrefixLength.p8, '10.214.98.86', '10.255.255.255'),
       ];
-      for (final (prefix, ip, expected) in cases) {
-        test('/${prefix.prefix} 模式下 $ip 得到 $expected', () {
+      test('IPv4 地址按前缀长度推算广播地址', () {
+        for (final (prefix, ip, expected) in cases) {
           final result = prefix.computeBroadcast(InternetAddress(ip));
-          expect(result.address, expected);
-        });
-      }
+          expect(
+            result.address,
+            expected,
+            reason: '/${prefix.prefix} 模式下 $ip 得到 $expected',
+          );
+        }
+      });
 
       test('非 IPv4 地址（raw.length != 4）回退到原地址对象', () {
         final v6 = InternetAddress('::1', type: InternetAddressType.IPv6);
@@ -35,11 +39,15 @@ void main() {
         ('非法值 20', 20, BroadcastPrefixLength.p24),
         ('非法值 999', 999, BroadcastPrefixLength.p24),
       ];
-      for (final (name, input, expected) in cases) {
-        test('fromStorage($name) → $expected', () {
-          expect(BroadcastPrefixLength.fromStorage(input), expected);
-        });
-      }
+      test('从存储值还原枚举，非法与 null 回退 /24', () {
+        for (final (name, input, expected) in cases) {
+          expect(
+            BroadcastPrefixLength.fromStorage(input),
+            expected,
+            reason: 'fromStorage($name) → $expected',
+          );
+        }
+      });
     });
   });
 }

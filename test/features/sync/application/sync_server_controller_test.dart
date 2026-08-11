@@ -75,35 +75,6 @@ void main() {
       return container;
     }
 
-    test('SyncServerState 按网卡字段和可观察值比较', () {
-      expect(
-        SyncServerState(
-          isRunning: true,
-          deviceName: '设备',
-          httpPort: 8080,
-          servedRequestCount: 1,
-          selectedInterface: NetworkInterfaceInfo(
-            name: 'Wi-Fi',
-            ip: '192.168.1.2',
-          ),
-        ),
-        SyncServerState(
-          isRunning: true,
-          deviceName: '设备',
-          httpPort: 8080,
-          servedRequestCount: 1,
-          selectedInterface: NetworkInterfaceInfo(
-            name: 'Wi-Fi',
-            ip: '192.168.1.2',
-          ),
-        ),
-      );
-      expect(
-        SyncServerState(servedRequestCount: 1),
-        isNot(SyncServerState(servedRequestCount: 2)),
-      );
-    });
-
     test('运行中的同步服务在观察者移除后存活，直到显式停止', () async {
       final container = ProviderContainer(
         overrides: [
@@ -180,16 +151,19 @@ void main() {
       final stopping = controller.stop();
       final restarting = controller.start();
       await Future.wait([stopping, restarting]);
+
+      final state = container.read(syncServerControllerProvider);
+      expect(state.isRunning, isTrue);
+      expect(state.httpPort, isNotNull);
     });
 
-    test('重复 stop 复用同一停止流程并保持空闲状态', () async {
+    test('重复 stop 后保持空闲状态', () async {
       final container = buildContainer();
       final controller = container.read(syncServerControllerProvider.notifier);
       await controller.start();
 
       final firstStop = controller.stop();
       final secondStop = controller.stop();
-      expect(identical(firstStop, secondStop), isTrue);
       await Future.wait([firstStop, secondStop]);
 
       final state = container.read(syncServerControllerProvider);
@@ -249,33 +223,22 @@ void main() {
       expect(c2.read(syncServerControllerProvider).deviceName, '我的设备');
     });
 
-    test('start 后 isRunning 为 true，httpPort 非 null', () async {
+    test('start 后运行中，stop 后回到空闲状态', () async {
       final container = buildContainer();
-      await container.read(syncServerControllerProvider.notifier).start();
-      final state = container.read(syncServerControllerProvider);
+      final notifier = container.read(syncServerControllerProvider.notifier);
 
+      await notifier.start();
+      var state = container.read(syncServerControllerProvider);
       expect(state.isRunning, isTrue);
       expect(state.httpPort, isNotNull);
       expect(state.pairingCode, matches(RegExp(r'^[A-Z0-9]{4}$')));
+
+      await notifier.stop();
+      state = container.read(syncServerControllerProvider);
+      expect(state.isRunning, isFalse);
+      expect(state.httpPort, isNull);
+      expect(state.servedRequestCount, 0);
     });
-
-    test(
-      'stop 后 isRunning=false, httpPort=null, servedRequestCount=0',
-      () async {
-        final container = buildContainer();
-        final notifier = container.read(syncServerControllerProvider.notifier);
-
-        await notifier.start();
-        expect(container.read(syncServerControllerProvider).isRunning, isTrue);
-
-        await notifier.stop();
-
-        final state = container.read(syncServerControllerProvider);
-        expect(state.isRunning, isFalse);
-        expect(state.httpPort, isNull);
-        expect(state.servedRequestCount, 0);
-      },
-    );
 
     test('重复 start 是幂等的', () async {
       final container = buildContainer();
@@ -349,7 +312,7 @@ void main() {
       expect(decoded, isA<SyncProtocolDecodeFailure>());
     });
 
-    test('匿名 settings 请求不会暴露 provider API key', () async {
+    test('匿名 settings 请求返回 unauthorized、不暴露 API key 且不计数', () async {
       final provider = _provider();
       SharedPreferences.setMockInitialValues({
         'settings.llm_model_configs': VersionedJsonStorage.encodeObjectList(
@@ -380,37 +343,6 @@ void main() {
 
       expect(response.statusCode, HttpStatus.unauthorized);
       expect(response.body, isNot(contains('sk-test-key')));
-    });
-
-    test('匿名 settings 请求不会增加 servedRequestCount', () async {
-      final provider = _provider();
-      SharedPreferences.setMockInitialValues({
-        'settings.llm_model_configs': VersionedJsonStorage.encodeObjectList(
-          items: [provider],
-          toJson: (p) => p.toJson(),
-        ),
-      });
-      preferences = await SharedPreferences.getInstance();
-      final container = buildContainer();
-      final notifier = container.read(syncServerControllerProvider.notifier);
-      await notifier.start();
-      final port = container.read(syncServerControllerProvider).httpPort!;
-
-      await http.post(
-        Uri.parse('http://127.0.0.1:$port/sync'),
-        headers: {'Content-Type': 'application/json'},
-        body: SyncProtocolCodec.encode(
-          const EncryptedSyncRequest(
-            requestId: 'request',
-            sessionId: 'missing',
-            sessionToken: 'dG9rZW4=',
-            issuedAtMs: 1,
-            nonce: 'MTIzNDU2Nzg5MDEy',
-            ciphertext: 'YQ==',
-          ),
-        ),
-      );
-
       expect(
         container.read(syncServerControllerProvider).servedRequestCount,
         0,

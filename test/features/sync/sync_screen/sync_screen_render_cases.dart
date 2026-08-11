@@ -27,7 +27,7 @@ void registerSyncScreenRenderTests() {
       RecordingShufflePlaybackController.lastState = null;
     });
 
-    testWidgets('渲染标题、标签页和连接模式选择器', (tester) async {
+    testWidgets('渲染标题、标签页与模式选择器，默认显示连接标签页内容', (tester) async {
       await pumpSyncScreen(tester, preferences: preferences);
 
       expect(find.text('局域网同步'), findsOneWidget);
@@ -35,11 +35,7 @@ void registerSyncScreenRenderTests() {
       expect(find.text('同步'), findsAtLeast(1));
       expect(find.text('作为客户端'), findsOneWidget);
       expect(find.text('作为服务端'), findsOneWidget);
-    });
-
-    testWidgets('默认显示连接标签页', (tester) async {
-      await pumpSyncScreen(tester, preferences: preferences);
-
+      // 默认连接标签页：显示服务端发现入口，不显示服务端广播面板
       expect(find.text('发现服务端'), findsWidgets);
       expect(find.text('服务端广播'), findsNothing);
     });
@@ -176,7 +172,7 @@ void registerSyncScreenRenderTests() {
       debugDefaultTargetPlatformOverride = null;
     });
 
-    testWidgets('断开后连接标签页显示断开文案并可重新搜索', (tester) async {
+    testWidgets('断开后连接标签页显示断开文案，同步标签页显示占位而非通用未连接文案', (tester) async {
       await pumpSyncScreen(
         tester,
         preferences: preferences,
@@ -192,26 +188,11 @@ void registerSyncScreenRenderTests() {
         ],
       );
 
+      // 连接标签页：断开文案与重新搜索入口
       expect(find.text('服务端已断开，请重新搜索'), findsOneWidget);
       expect(find.text('发现服务端'), findsWidgets);
-    });
 
-    testWidgets('断开后同步标签页显示断开占位而非通用未连接文案', (tester) async {
-      await pumpSyncScreen(
-        tester,
-        preferences: preferences,
-        extraOverrides: [
-          syncClientControllerProvider.overrideWith(
-            () => SeededSyncClientController(
-              SyncClientState(
-                phase: SyncPhase.error,
-                errorMessage: '服务端已断开，请重新搜索',
-              ),
-            ),
-          ),
-        ],
-      );
-
+      // 同步标签页：作用域内的断开占位，而非通用未连接文案
       await tester.tap(find.text('同步').last);
       await settleTabTransition(tester);
 

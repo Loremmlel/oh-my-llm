@@ -154,7 +154,7 @@ void main() {
       expect(container.read(memoryPromptsProvider), isEmpty);
     });
 
-    test('在 deduplicatedData 非空时推进到 imported', () async {
+    test('在 deduplicatedData 非空时推进到 imported 并写入全部六类数据', () async {
       final container = buildContainer(
         seed: SyncClientState(
           phase: SyncPhase.received,
@@ -172,20 +172,6 @@ void main() {
         container.read(syncClientControllerProvider).phase,
         SyncPhase.imported,
       );
-    });
-
-    test('在 deduplicatedData 非空时写入全部六类数据', () async {
-      final container = buildContainer(
-        seed: SyncClientState(
-          phase: SyncPhase.received,
-          deduplicatedData: _buildFullData(),
-          sourceDeviceName: 'Test-PC',
-        ),
-      );
-
-      await container
-          .read(syncClientControllerProvider.notifier)
-          .executeImport();
 
       final providers = container.read(llmProviderConfigsProvider);
       expect(providers.length, 1);
