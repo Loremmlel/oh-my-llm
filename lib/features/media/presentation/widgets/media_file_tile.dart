@@ -1,32 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:oh_my_llm/features/media/application/media_resource_provider.dart';
+import 'package:oh_my_llm/features/media/application/models/media_resource_request.dart';
 import '../../domain/media_file_classification.dart';
-import '../../utils/path_utils.dart';
 import '../../domain/models/file_item.dart';
+import 'media_image_resource_view.dart';
 
 /// 单个文件/文件夹卡片。
 ///
-/// 图片/视频文件：显示缩略图（从服务端 `thumbnailUrl` 懒加载）。
-/// 文件夹：显示文件夹图标。
+/// 图片/视频文件：经 [mediaResourceProvider] 懒解析缩略图（本地或远端
+/// 资源统一呈现）。文件夹：显示文件夹图标。
 /// 其他文件：显示通用文件图标。
-/// 缩略图加载失败时回退到图标显示。
-class MediaFileTile extends StatelessWidget {
+/// 缩略图加载失败/缺失时回退到图标显示。
+class MediaFileTile extends ConsumerWidget {
   final FileItem item;
-
-  /// 缩略图服务端 base URL（如 "http://192.168.1.5:12345"）。
-  /// 为 null 时不请求缩略图（回退到图标模式）。
-  final String? thumbnailBaseUrl;
   final VoidCallback onTap;
 
-  const MediaFileTile({
-    super.key,
-    required this.item,
-    this.thumbnailBaseUrl,
-    required this.onTap,
-  });
+  const MediaFileTile({super.key, required this.item, required this.onTap});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
 
     return Card(
@@ -39,7 +33,7 @@ class MediaFileTile extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               // 缩略图 / 图标区域
-              Expanded(child: _buildThumbnail(theme)),
+              Expanded(child: _buildThumbnail(context, ref, theme)),
               const SizedBox(height: 4),
               // 文件名
               Text(
@@ -68,52 +62,42 @@ class MediaFileTile extends StatelessWidget {
   }
 
   /// 构建缩略图或图标区域。
-  Widget _buildThumbnail(ThemeData theme) {
+  Widget _buildThumbnail(BuildContext context, WidgetRef ref, ThemeData theme) {
     // 文件夹 → 图标
     if (item.isDirectory) {
       return Icon(Icons.folder, size: 48, color: theme.colorScheme.primary);
     }
 
-    // 有缩略图 URL 且 base URL 已提供 → Image.network
-    final fullUrl = _thumbnailFullUrl();
-    if (fullUrl != null) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(4),
-        child: Image.network(
-          fullUrl,
-          fit: BoxFit.cover,
-          width: double.infinity,
-          height: double.infinity,
-          loadingBuilder: (context, child, loadingProgress) {
-            if (loadingProgress == null) return child;
-            return Center(
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                value: loadingProgress.expectedTotalBytes != null
-                    ? loadingProgress.cumulativeBytesLoaded /
-                          loadingProgress.expectedTotalBytes!
-                    : null,
-              ),
-            );
-          },
-          errorBuilder: (context, error, stackTrace) => _fallbackIcon(theme),
-        ),
-      );
+    // 无缩略图信号 → 图标
+    if (!item.hasThumbnail) return _fallbackIcon(theme);
+
+    final request = MediaThumbnailRequest(
+      relativePath: item.relativePath,
+      sizeBytes: item.sizeBytes,
+      lastModified: item.lastModified,
+      hasThumbnail: item.hasThumbnail,
+    );
+    final resource = ref.watch(mediaResourceProvider(request));
+    // Riverpod 3 的 FutureProvider 失败时状态是「带错误附着的 loading」，
+    // 必须先按 hasError 判定，否则错误会被当成加载中
+    if (resource.hasError) return _fallbackIcon(theme);
+    final resourceValue = switch (resource) {
+      AsyncData(:final value) => value,
+      _ => null,
+    };
+    if (resourceValue == null) {
+      // 加载中显示细进度条；缩略图缺失显示回退图标
+      return const Center(child: CircularProgressIndicator(strokeWidth: 2));
     }
-
-    // 无缩略图 → 图标
-    return _fallbackIcon(theme);
-  }
-
-  /// 构建缩略图完整 URL。
-  String? _thumbnailFullUrl() {
-    if (item.thumbnailUrl == null || thumbnailBaseUrl == null) return null;
-    final url = item.thumbnailUrl!;
-    // item.thumbnailUrl 如 "/api/media/thumbnail/sister/视频/cat.mp4"（未编码）
-    const prefix = '/api/media/thumbnail/';
-    if (!url.startsWith(prefix)) return '$thumbnailBaseUrl$url';
-    final path = url.substring(prefix.length);
-    return '$thumbnailBaseUrl$prefix${encodeMediaPath(path)}';
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(4),
+      child: MediaImageResourceView(
+        resource: resourceValue,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+      ),
+    );
   }
 
   /// 缩略图不可用时的回退图标。

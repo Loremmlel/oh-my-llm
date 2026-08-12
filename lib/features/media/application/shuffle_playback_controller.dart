@@ -1,14 +1,11 @@
-import 'dart:convert';
 import 'dart:math';
 
 import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:http/http.dart' as http;
 
-import 'package:oh_my_llm/core/http/peer_http_client_provider.dart';
-import '../utils/path_utils.dart';
-import '../domain/models/video_item.dart';
-import 'media_browser_controller.dart';
+import 'package:oh_my_llm/features/media/application/media_library_session_controller.dart';
+import 'package:oh_my_llm/features/media/application/models/media_library_failure.dart';
+import 'package:oh_my_llm/features/media/domain/models/video_item.dart';
 
 // ── 状态定义 ────────────────────────────────────────────
 
@@ -61,47 +58,31 @@ final shufflePlaybackControllerProvider =
 
 /// 随机播放控制器。
 ///
-/// 管理视频播放列表状态，协调服务端请求和客户端 shuffle。
-/// 通过 [mediaBrowserControllerProvider] 获取服务端地址构建 URL。
+/// 管理视频播放列表状态，播放列表来自活动媒体会话的递归扫描；
+/// 播放项以相对路径标识，不在此处拼接任何 URL。
 /// 这是页面级 auto-dispose 会话，不保活；离开媒体页面后重建为 Idle。
 class ShufflePlaybackController extends Notifier<ShufflePlaybackState> {
-  http.Client get _httpClient => ref.read(peerHttpClientProvider);
-  int _generation = 0;
+  int _operationGeneration = 0;
+  int _sessionGeneration = 0;
 
   @override
   ShufflePlaybackState build() => const ShufflePlaybackIdle();
 
   final _random = Random();
 
-  /// 从服务端获取视频列表、shuffle、设为 Active。
+  /// 从活动会话递归获取视频列表、shuffle、设为 Active。
   ///
-  /// 返回第一个视频的 URL，或 null（0 个视频 / 请求失败）。
+  /// 返回第一个视频的相对路径，或 null（会话不可用 / 无视频 / 请求失败）。
   Future<String?> startShuffle(String directoryPath) async {
-    final generation = ++_generation;
-    final browserState = ref.read(mediaBrowserControllerProvider);
-    final server = browserState.server;
-    if (server == null) return null;
-
+    final session = ref.read(mediaLibrarySessionProvider);
+    if (session is! MediaLibrarySessionActive) return null;
+    _sessionGeneration = session.generation;
+    final generation = ++_operationGeneration;
     state = const ShufflePlaybackLoading();
 
     try {
-      final encodedPath = encodeMediaPath(directoryPath);
-      final url = Uri.parse(
-        'http://${server.ip}:${server.httpPort}/api/media/videos/recursive/$encodedPath',
-      );
-      final response = await _httpClient
-          .get(url)
-          .timeout(const Duration(seconds: 15));
-      if (!_isCurrent(generation)) return null;
-
-      if (response.statusCode != 200) {
-        state = const ShufflePlaybackIdle();
-        return null;
-      }
-
-      final list = (jsonDecode(response.body) as List)
-          .map((e) => VideoItem.fromJson(e as Map<String, dynamic>))
-          .toList();
+      final list = await session.library.listVideosRecursively(directoryPath);
+      if (!_isCurrent(session, generation)) return null;
 
       if (list.isEmpty) {
         state = const ShufflePlaybackIdle();
@@ -111,7 +92,7 @@ class ShufflePlaybackController extends Notifier<ShufflePlaybackState> {
       // Fisher-Yates shuffle（只对 ≥2 个项有意义）
       if (list.length >= 2) list.shuffle(_random);
 
-      if (!_isCurrent(generation)) return null;
+      if (!_isCurrent(session, generation)) return null;
 
       state = ShufflePlaybackActive(
         playlist: list,
@@ -119,15 +100,20 @@ class ShufflePlaybackController extends Notifier<ShufflePlaybackState> {
         directoryPath: directoryPath,
       );
 
-      return buildVideoUrl(list.first.relativePath);
+      return list.first.relativePath;
+    } on MediaLibraryFailure {
+      if (!_isCurrent(session, generation)) return null;
+      state = const ShufflePlaybackIdle();
+      return null;
     } catch (_) {
-      if (!_isCurrent(generation)) return null;
+      // 未知异常同样回 Idle：不把底层细节泄露给用户
+      if (!_isCurrent(session, generation)) return null;
       state = const ShufflePlaybackIdle();
       return null;
     }
   }
 
-  /// 播放下一个视频。返回视频 URL，若已是最后一个则返回 null。
+  /// 播放下一个视频。返回新位置视频的相对路径，若已是最后一个则返回 null。
   String? playNext() {
     final s = state;
     if (s is! ShufflePlaybackActive) return null;
@@ -138,10 +124,10 @@ class ShufflePlaybackController extends Notifier<ShufflePlaybackState> {
       currentIndex: newIndex,
       directoryPath: s.directoryPath,
     );
-    return buildVideoUrl(s.playlist[newIndex].relativePath);
+    return s.playlist[newIndex].relativePath;
   }
 
-  /// 播放上一个视频。返回视频 URL，若已是第一个则返回 null。
+  /// 播放上一个视频。返回新位置视频的相对路径，若已是第一个则返回 null。
   String? playPrevious() {
     final s = state;
     if (s is! ShufflePlaybackActive) return null;
@@ -152,7 +138,7 @@ class ShufflePlaybackController extends Notifier<ShufflePlaybackState> {
       currentIndex: newIndex,
       directoryPath: s.directoryPath,
     );
-    return buildVideoUrl(s.playlist[newIndex].relativePath);
+    return s.playlist[newIndex].relativePath;
   }
 
   /// 播放器退出回调。若当前为最后一个视频则重置为 Idle。
@@ -173,16 +159,16 @@ class ShufflePlaybackController extends Notifier<ShufflePlaybackState> {
 
   /// 手动重置为 Idle。
   void reset() {
-    _generation++;
+    _operationGeneration++;
     state = const ShufflePlaybackIdle();
   }
 
-  /// 构建视频播放 URL。
-  String? buildVideoUrl(String relativePath) {
-    final server = ref.read(mediaBrowserControllerProvider).server;
-    if (server == null) return null;
-    return buildMediaResourceUrl(server, 'video', relativePath);
+  bool _isCurrent(MediaLibrarySessionActive captured, int operation) {
+    final current = ref.read(mediaLibrarySessionProvider);
+    return ref.mounted &&
+        operation == _operationGeneration &&
+        current is MediaLibrarySessionActive &&
+        current.generation == captured.generation &&
+        captured.generation == _sessionGeneration;
   }
-
-  bool _isCurrent(int generation) => ref.mounted && generation == _generation;
 }

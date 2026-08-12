@@ -5,13 +5,16 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/app/navigation/app_destination.dart';
-import 'package:oh_my_llm/features/media/application/shuffle_playback_controller.dart';
+import 'package:oh_my_llm/features/media/application/media_library_session_controller.dart';
+import 'package:oh_my_llm/features/media/application/models/media_resource.dart';
+import 'package:oh_my_llm/features/media/application/models/media_resource_request.dart';
 import 'package:oh_my_llm/features/media/domain/models/video_item.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/media_route_pages.dart';
 import 'package:oh_my_llm/features/media/presentation/widgets/shuffle_appbar_actions.dart';
 
 import '../../../helpers/test_harness.dart';
 import '../../../helpers/widget_test_animation.dart';
+import '../helpers/fake_media_library.dart';
 import '../helpers/fake_video_player_controller.dart';
 import '../helpers/media_test_helpers.dart';
 
@@ -36,6 +39,17 @@ Future<SharedPreferences> _testPrefs() async {
   return SharedPreferences.getInstance();
 }
 
+/// 预激活会话的库：为第二个视频提供资源解析结果，供播放路由渲染。
+FakeMediaLibrary _videoLibrary() {
+  return FakeMediaLibrary()
+    ..assetResults[const MediaAssetRequest(
+      kind: MediaAssetKind.video,
+      relativePath: '/视频/第二个.mp4',
+    )] = NetworkMediaResource(
+      Uri.parse('http://peer/api/media/video/视频/第二个.mp4'),
+    );
+}
+
 GoRouter _shuffleRouter(RecordingShuffleController shuffleController) {
   return GoRouter(
     initialLocation: AppDestination.sync.path,
@@ -55,13 +69,34 @@ GoRouter _shuffleRouter(RecordingShuffleController shuffleController) {
             builder: (context, state) => MediaVideoRoutePage(
               relativePath:
                   state.uri.queryParameters[AppRouteParameter.mediaPath],
-              controllerFactory: (uri) => FakeVideoPlayerController(),
+              controllerFactory: (resource) => FakeVideoPlayerController(),
             ),
           ),
         ],
       ),
     ],
   );
+}
+
+/// 组装预激活会话 + 录制随机播放控制器，返回承载路由供断言导航结果。
+Future<GoRouter> _pumpShuffleAppBar(
+  WidgetTester tester, {
+  required SharedPreferences prefs,
+  required RecordingShuffleController shuffleController,
+}) async {
+  final router = _shuffleRouter(shuffleController);
+  await pumpTestApp(
+    tester,
+    preferences: prefs,
+    router: router,
+    extraOverrides: [
+      mediaLibrarySessionProvider.overrideWith(
+        () => PreActivatedMediaLibrarySessionController(_videoLibrary()),
+      ),
+      shufflePlaybackControllerProvider.overrideWith(() => shuffleController),
+    ],
+  );
+  return router;
 }
 
 void main() {
@@ -79,18 +114,10 @@ void main() {
         directoryPath: '/视频',
       ),
     );
-    final router = _shuffleRouter(shuffleController);
-    await pumpTestApp(
+    final router = await _pumpShuffleAppBar(
       tester,
-      preferences: prefs,
-      router: router,
-      extraOverrides: [
-        shufflePlaybackControllerProvider.overrideWith(() => shuffleController),
-        mediaBrowserControllerProvider.overrideWith(
-          () =>
-              FakeMediaBrowserController(MediaBrowserState(server: testServer)),
-        ),
-      ],
+      prefs: prefs,
+      shuffleController: shuffleController,
     );
 
     await tester.tap(find.byTooltip('下一个'));
@@ -120,18 +147,10 @@ void main() {
         directoryPath: '/视频',
       ),
     );
-    final router = _shuffleRouter(shuffleController);
-    await pumpTestApp(
+    final router = await _pumpShuffleAppBar(
       tester,
-      preferences: prefs,
-      router: router,
-      extraOverrides: [
-        shufflePlaybackControllerProvider.overrideWith(() => shuffleController),
-        mediaBrowserControllerProvider.overrideWith(
-          () =>
-              FakeMediaBrowserController(MediaBrowserState(server: testServer)),
-        ),
-      ],
+      prefs: prefs,
+      shuffleController: shuffleController,
     );
 
     await tester.tap(find.byTooltip('下一个'));

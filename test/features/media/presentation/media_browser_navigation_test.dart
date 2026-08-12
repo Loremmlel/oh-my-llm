@@ -5,11 +5,15 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/app/navigation/app_destination.dart';
+import 'package:oh_my_llm/features/media/application/media_library_session_controller.dart';
+import 'package:oh_my_llm/features/media/application/models/media_resource.dart';
+import 'package:oh_my_llm/features/media/application/models/media_resource_request.dart';
 import 'package:oh_my_llm/features/media/presentation/media_browser_tab.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/media_route_pages.dart';
 
 import '../../../helpers/test_harness.dart';
 import '../../../helpers/widget_test_animation.dart';
+import '../helpers/fake_media_library.dart';
 import '../helpers/fake_video_player_controller.dart';
 import '../helpers/media_test_helpers.dart';
 
@@ -31,6 +35,17 @@ FileItem _dir(String path) => FileItem(
   sizeBytes: 0,
   relativePath: path,
 );
+
+/// 预激活会话的库：为视频资源解析提供结果，供播放路由渲染。
+FakeMediaLibrary _videoLibrary(String videoPath) {
+  return FakeMediaLibrary()
+    ..assetResults[MediaAssetRequest(
+      kind: MediaAssetKind.video,
+      relativePath: videoPath,
+    )] = NetworkMediaResource(
+      Uri.parse('http://peer/$videoPath'),
+    );
+}
 
 /// 最小 GoRouter 宿主：/sync 渲染 MediaBrowserTab，media 子路由走生产 routed pages。
 GoRouter _mediaRouter() {
@@ -56,10 +71,37 @@ GoRouter _mediaRouter() {
             builder: (context, state) => MediaVideoRoutePage(
               relativePath:
                   state.uri.queryParameters[AppRouteParameter.mediaPath],
-              controllerFactory: (uri) => FakeVideoPlayerController(),
+              controllerFactory: (resource) => FakeVideoPlayerController(),
             ),
           ),
         ],
+      ),
+    ],
+  );
+}
+
+/// 预激活会话 + Fake 浏览器控制器 + 测试路由的公共组装。
+Future<void> _pumpMediaTab(
+  WidgetTester tester, {
+  required SharedPreferences prefs,
+  required FakeMediaLibrary library,
+  required GoRouter router,
+  required MediaBrowserState browserState,
+  Map<String, List<FileItem>> itemsByPath = const {},
+  Size viewportSize = const Size(1440, 1200),
+}) {
+  return pumpTestApp(
+    tester,
+    preferences: prefs,
+    router: router,
+    viewportSize: viewportSize,
+    extraOverrides: [
+      mediaLibrarySessionProvider.overrideWith(
+        () => PreActivatedMediaLibrarySessionController(library),
+      ),
+      mediaBrowserControllerProvider.overrideWith(
+        () =>
+            FakeMediaBrowserController(browserState, itemsByPath: itemsByPath),
       ),
     ],
   );
@@ -69,20 +111,14 @@ void main() {
   testWidgets('点击图片文件名进入 media/image 子路由，back 回浏览列表', (tester) async {
     final prefs = await _testPrefs();
     final router = _mediaRouter();
-    await pumpTestApp(
+    await _pumpMediaTab(
       tester,
-      preferences: prefs,
+      prefs: prefs,
+      library: FakeMediaLibrary(),
       router: router,
-      extraOverrides: [
-        mediaBrowserControllerProvider.overrideWith(
-          () => FakeMediaBrowserController(
-            MediaBrowserState(
-              server: testServer,
-              items: [_file('/相册/猫.jpg'), _file('/相册/狗.jpg')],
-            ),
-          ),
-        ),
-      ],
+      browserState: MediaBrowserState(
+        items: [_file('/相册/猫.jpg'), _file('/相册/狗.jpg')],
+      ),
     );
 
     await tester.tap(find.text('猫.jpg'));
@@ -114,20 +150,14 @@ void main() {
   testWidgets('点击视频文件名进入 media/video 子路由，back 回浏览页', (tester) async {
     final prefs = await _testPrefs();
     final router = _mediaRouter();
-    await pumpTestApp(
+    await _pumpMediaTab(
       tester,
-      preferences: prefs,
+      prefs: prefs,
+      library: _videoLibrary('/视频/demo.mp4'),
       router: router,
-      extraOverrides: [
-        mediaBrowserControllerProvider.overrideWith(
-          () => FakeMediaBrowserController(
-            MediaBrowserState(
-              server: testServer,
-              items: [_file('/视频/demo.mp4'), _file('/视频/other.mp4')],
-            ),
-          ),
-        ),
-      ],
+      browserState: MediaBrowserState(
+        items: [_file('/视频/demo.mp4'), _file('/视频/other.mp4')],
+      ),
     );
 
     await tester.tap(find.text('demo.mp4'));
@@ -157,23 +187,15 @@ void main() {
   testWidgets('点击目录只改变浏览路径，不产生媒体子路由', (tester) async {
     final prefs = await _testPrefs();
     final router = _mediaRouter();
-    await pumpTestApp(
+    await _pumpMediaTab(
       tester,
-      preferences: prefs,
+      prefs: prefs,
+      library: FakeMediaLibrary(),
       router: router,
-      extraOverrides: [
-        mediaBrowserControllerProvider.overrideWith(
-          () => FakeMediaBrowserController(
-            MediaBrowserState(
-              server: testServer,
-              items: [_dir('/相册'), _file('/相册/猫.jpg')],
-            ),
-            itemsByPath: {
-              '/相册': [_file('/相册/猫.jpg'), _file('/相册/狗.jpg')],
-            },
-          ),
-        ),
-      ],
+      browserState: MediaBrowserState(items: [_dir('/相册'), _file('/相册/猫.jpg')]),
+      itemsByPath: {
+        '/相册': [_file('/相册/猫.jpg'), _file('/相册/狗.jpg')],
+      },
     );
 
     await tester.tap(find.text('相册'));
@@ -189,32 +211,17 @@ void main() {
     expect(find.text('狗.jpg'), findsOneWidget);
   });
 
-  testWidgets('server 缺失时点击媒体文件不导航', (tester) async {
+  testWidgets('会话不可用时显示媒体会话不可用占位，不渲染文件列表', (tester) async {
     final prefs = await _testPrefs();
     final router = _mediaRouter();
-    await pumpTestApp(
-      tester,
-      preferences: prefs,
-      router: router,
-      extraOverrides: [
-        mediaBrowserControllerProvider.overrideWith(
-          () => FakeMediaBrowserController(
-            MediaBrowserState(items: [_file('/相册/猫.jpg')]),
-          ),
-        ),
-      ],
-    );
+    await pumpTestApp(tester, preferences: prefs, router: router);
 
-    await tester.tap(find.text('猫.jpg'));
-    // server 缺失时点击是空操作，无状态变更与动画，单帧即可
-    await tester.pump();
-
-    // 未导航：位置不变，文件行仍在浏览列表中
+    // 未激活会话 → 占位页而非浏览网格
+    expect(find.text('媒体会话不可用'), findsOneWidget);
     expect(
       router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
       '/sync',
     );
-    expect(find.text('猫.jpg'), findsOneWidget);
   });
 
   // 紧凑竖屏 / 受限横屏 / 宽屏三类布局
@@ -226,25 +233,15 @@ void main() {
       (tester) async {
         final prefs = await _testPrefs();
         final router = _mediaRouter();
-        await pumpTestApp(
+        await _pumpMediaTab(
           tester,
-          preferences: prefs,
+          prefs: prefs,
+          library: FakeMediaLibrary(),
           router: router,
           viewportSize: viewportSize,
-          extraOverrides: [
-            mediaBrowserControllerProvider.overrideWith(
-              () => FakeMediaBrowserController(
-                MediaBrowserState(
-                  server: testServer,
-                  items: [
-                    _dir('/相册'),
-                    _file('/相册/猫.jpg'),
-                    _file('/视频/demo.mp4'),
-                  ],
-                ),
-              ),
-            ),
-          ],
+          browserState: MediaBrowserState(
+            items: [_dir('/相册'), _file('/相册/猫.jpg'), _file('/视频/demo.mp4')],
+          ),
         );
 
         expect(find.text('🏠'), findsOneWidget);

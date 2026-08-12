@@ -2,19 +2,39 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:oh_my_llm/features/media/application/media_library_session_controller.dart';
+import 'package:oh_my_llm/features/media/application/models/media_resource.dart';
+import 'package:oh_my_llm/features/media/application/models/media_resource_request.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/image_viewer_page.dart';
 
 import '../../../helpers/test_harness.dart';
 import '../../../helpers/widget_test_animation.dart';
+import '../helpers/fake_media_library.dart';
+import '../helpers/media_test_helpers.dart';
 
-/// 构建一组用于测试的假图片 URL。
-///
-/// 使用局域网 IP + 媒体 API 格式模拟真实场景。
-List<String> _fakeUrls(int count) {
+/// 构建一组用于测试的图片懒资源请求。
+List<MediaAssetRequest> _imageRequests(int count) {
   return List.generate(
     count,
-    (i) => 'http://192.168.1.100:8080/api/media/image/test/photo_${i + 1}.jpg',
+    (i) => MediaAssetRequest(
+      kind: MediaAssetKind.image,
+      relativePath: '/test/photo_${i + 1}.jpg',
+    ),
   );
+}
+
+/// 为全部请求配置远端资源结果的库；测试环境 mock HTTP 恒返回 400，
+/// 解码失败经 errorBuilder 呈现 broken-image 状态。
+FakeMediaLibrary _libraryWithImages(int count) {
+  final library = FakeMediaLibrary();
+  for (final request in _imageRequests(count)) {
+    library.assetResults[request] = NetworkMediaResource(
+      Uri.parse(
+        'http://192.168.1.100:8080/api/media/image${request.relativePath}',
+      ),
+    );
+  }
+  return library;
 }
 
 /// 创建设置默认值的 SharedPreferences 方便快捷。
@@ -32,7 +52,17 @@ void main() {
       await pumpTestApp(
         tester,
         preferences: prefs,
-        child: ImageViewerPage(imageUrls: _fakeUrls(5), initialIndex: 2),
+        extraOverrides: [
+          mediaLibrarySessionProvider.overrideWith(
+            () => PreActivatedMediaLibrarySessionController(
+              _libraryWithImages(5),
+            ),
+          ),
+        ],
+        child: ImageViewerPage(
+          imageRequests: _imageRequests(5),
+          initialIndex: 2,
+        ),
       );
 
       // 计数器格式与 initialIndex 生效一次覆盖：显示 "3 / 5"
@@ -44,7 +74,14 @@ void main() {
       await pumpTestApp(
         tester,
         preferences: prefs,
-        child: ImageViewerPage(imageUrls: _fakeUrls(1)),
+        extraOverrides: [
+          mediaLibrarySessionProvider.overrideWith(
+            () => PreActivatedMediaLibrarySessionController(
+              _libraryWithImages(1),
+            ),
+          ),
+        ],
+        child: ImageViewerPage(imageRequests: _imageRequests(1)),
       );
 
       // 单张图片不应显示 "1 / 1" 计数器
@@ -56,10 +93,19 @@ void main() {
       await pumpTestApp(
         tester,
         preferences: prefs,
-        child: ImageViewerPage(imageUrls: _fakeUrls(3)),
+        extraOverrides: [
+          mediaLibrarySessionProvider.overrideWith(
+            () => PreActivatedMediaLibrarySessionController(
+              _libraryWithImages(3),
+            ),
+          ),
+        ],
+        child: ImageViewerPage(imageRequests: _imageRequests(3)),
       );
 
-      // 额外 pump 让 addPostFrameCallback 执行（设置 _hasError）
+      // 帧 1：资源解析完成并渲染网络图；帧 2：mock HTTP 400 触发解码
+      // 失败，errorBuilder 的 postFrame 回调把错误状态置位
+      await tester.pump();
       await tester.pump();
 
       // broken_image 图标和文字应出现
@@ -77,9 +123,19 @@ void main() {
         tester,
         preferences: prefs,
         viewportSize: const Size(400, 800),
-        child: ImageViewerPage(imageUrls: _fakeUrls(5), initialIndex: 0),
+        extraOverrides: [
+          mediaLibrarySessionProvider.overrideWith(
+            () => PreActivatedMediaLibrarySessionController(
+              _libraryWithImages(5),
+            ),
+          ),
+        ],
+        child: ImageViewerPage(
+          imageRequests: _imageRequests(5),
+          initialIndex: 0,
+        ),
       );
-      await tester.pump(); // 让 errorBuilder 回调执行
+      await tester.pump(); // 让资源解析完成并渲染网络图
 
       // 初始在第 1 页
       expect(find.text('1 / 5'), findsOneWidget);
@@ -101,7 +157,14 @@ void main() {
       await pumpTestApp(
         tester,
         preferences: prefs,
-        child: ImageViewerPage(imageUrls: _fakeUrls(3)),
+        extraOverrides: [
+          mediaLibrarySessionProvider.overrideWith(
+            () => PreActivatedMediaLibrarySessionController(
+              _libraryWithImages(3),
+            ),
+          ),
+        ],
+        child: ImageViewerPage(imageRequests: _imageRequests(3)),
       );
 
       // 点击返回

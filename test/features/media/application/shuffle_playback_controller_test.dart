@@ -1,9 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
-import 'package:oh_my_llm/features/media/application/shuffle_playback_controller.dart';
-import 'package:oh_my_llm/features/media/data/media_directory_scanner.dart';
 
+import 'package:oh_my_llm/features/media/application/ports/media_library_factory.dart';
+import 'package:oh_my_llm/features/media/application/shuffle_playback_controller.dart';
+import 'package:oh_my_llm/features/media/domain/models/video_item.dart';
+
+import '../helpers/fake_media_library.dart';
 import '../helpers/media_test_helpers.dart';
 
 void main() {
@@ -75,7 +77,11 @@ void main() {
 
   test('随机播放页面会话在观察者释放后重建为 Idle', () async {
     final container = ProviderContainer(
-      overrides: [peerHttpClientProvider.overrideWithValue(http.Client())],
+      overrides: [
+        mediaLibraryFactoryProvider.overrideWithValue(
+          FakeMediaLibraryFactory(FakeMediaLibrary()),
+        ),
+      ],
     );
     addTearDown(container.dispose);
     final subscription = container.listen(

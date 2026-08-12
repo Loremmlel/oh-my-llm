@@ -1,22 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'package:oh_my_llm/features/media/application/media_resource_provider.dart';
+import 'package:oh_my_llm/features/media/application/models/media_resource_request.dart';
+import '../widgets/media_image_resource_view.dart';
 
 /// 全屏图片浏览器。
 ///
 /// 支持左右滑动切换图片、双击放大/恢复、双指缩放。
 /// 进入时根据 [initialIndex] 定位到被点击的图片，
-/// 图片列表来自当前目录下所有图片文件。
+/// 图片列表来自当前目录下所有图片文件（懒资源请求）。
 class ImageViewerPage extends StatefulWidget {
-  /// 当前目录所有图片的 HTTP URL 列表。
-  final List<String> imageUrls;
+  /// 当前目录所有图片的懒资源请求。
+  final List<MediaAssetRequest> imageRequests;
 
-  /// 被点击图片在 [imageUrls] 中的索引。
+  /// 被点击图片在 [imageRequests] 中的索引。
   final int initialIndex;
 
-  ImageViewerPage({super.key, required this.imageUrls, this.initialIndex = 0})
-    : assert(initialIndex >= 0),
-      assert(imageUrls.isNotEmpty),
-      assert(initialIndex < imageUrls.length);
+  // 非 const：assert 引用了参数上的方法调用（isNotEmpty），
+  // const 构造器的断言要求恒定表达式。
+  ImageViewerPage({
+    super.key,
+    required this.imageRequests,
+    this.initialIndex = 0,
+  }) : assert(initialIndex >= 0),
+       assert(imageRequests.isNotEmpty),
+       assert(initialIndex < imageRequests.length);
 
   @override
   State<ImageViewerPage> createState() => _ImageViewerPageState();
@@ -93,7 +103,7 @@ class _ImageViewerPageState extends State<ImageViewerPage>
             physics: _anyZoomed
                 ? const NeverScrollableScrollPhysics()
                 : const PageScrollPhysics(),
-            itemCount: widget.imageUrls.length,
+            itemCount: widget.imageRequests.length,
             onPageChanged: (index) {
               setState(() {
                 _currentIndex = index;
@@ -103,7 +113,7 @@ class _ImageViewerPageState extends State<ImageViewerPage>
             },
             itemBuilder: (context, index) {
               return _ZoomableImagePage(
-                imageUrl: widget.imageUrls[index],
+                request: widget.imageRequests[index],
                 pageIndex: index,
                 isZoomed: _pageZoomStates[index] ?? false,
                 zoomAnimationController: _zoomAnimationController,
@@ -121,7 +131,7 @@ class _ImageViewerPageState extends State<ImageViewerPage>
             ),
           ),
           // 页面计数器
-          if (widget.imageUrls.length > 1)
+          if (widget.imageRequests.length > 1)
             Positioned(
               top: MediaQuery.of(context).padding.top + 16,
               right: 16,
@@ -135,7 +145,7 @@ class _ImageViewerPageState extends State<ImageViewerPage>
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  '${_currentIndex + 1} / ${widget.imageUrls.length}',
+                  '${_currentIndex + 1} / ${widget.imageRequests.length}',
                   style: const TextStyle(color: Colors.white70, fontSize: 14),
                 ),
               ),
@@ -152,15 +162,17 @@ class _ImageViewerPageState extends State<ImageViewerPage>
 ///
 /// 封装 InteractiveViewer（双指缩放 + 平移）和 GestureDetector（双击缩放）。
 /// 使用 hysteresis 判断缩放状态，避免在边界反弹时频繁切换 PageView physics。
-class _ZoomableImagePage extends StatefulWidget {
-  final String imageUrl;
+/// 图片经 [mediaResourceProvider] 懒解析：加载中显示白色进度，
+/// 解析失败或解码失败呈现 broken-image 状态。
+class _ZoomableImagePage extends ConsumerStatefulWidget {
+  final MediaAssetRequest request;
   final int pageIndex;
   final bool isZoomed;
   final AnimationController zoomAnimationController;
   final void Function(int pageIndex, bool isZoomed) onZoomChanged;
 
   const _ZoomableImagePage({
-    required this.imageUrl,
+    required this.request,
     required this.pageIndex,
     required this.isZoomed,
     required this.zoomAnimationController,
@@ -168,14 +180,15 @@ class _ZoomableImagePage extends StatefulWidget {
   });
 
   @override
-  State<_ZoomableImagePage> createState() => _ZoomableImagePageState();
+  ConsumerState<_ZoomableImagePage> createState() => _ZoomableImagePageState();
 }
 
-class _ZoomableImagePageState extends State<_ZoomableImagePage> {
+class _ZoomableImagePageState extends ConsumerState<_ZoomableImagePage> {
   final TransformationController _transformController =
       TransformationController();
 
-  /// 当前是否处于图片加载失败状态。
+  /// 当前是否处于图片解码失败状态（资源解析失败直接呈现错误页，
+  /// 不经过此变量；解码失败由 errorBuilder 延迟置位）。
   bool _hasError = false;
 
   /// 双击缩放动画监听器引用，用于在添加新监听器前移除旧监听器。
@@ -200,8 +213,8 @@ class _ZoomableImagePageState extends State<_ZoomableImagePage> {
   @override
   void didUpdateWidget(covariant _ZoomableImagePage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // 切换图片时重置错误状态和变换矩阵
-    if (oldWidget.imageUrl != widget.imageUrl) {
+    // 切换图片（请求对象变化）时重置错误状态和变换矩阵
+    if (oldWidget.request != widget.request) {
       _hasError = false;
       _transformController.value = Matrix4.identity();
       // 延迟通知父级：didUpdateWidget 也在父级 build 期间被调用
@@ -320,23 +333,24 @@ class _ZoomableImagePageState extends State<_ZoomableImagePage> {
 
   @override
   Widget build(BuildContext context) {
-    // 图片加载失败时不包裹 InteractiveViewer，避免空白容器被缩放
-    if (_hasError) {
+    final resource = ref.watch(mediaResourceProvider(widget.request));
+    // Riverpod 3 的 FutureProvider 失败时状态是「带错误附着的 loading」，
+    // 必须先按 hasError 判定，否则错误会被当成加载中
+    if (resource.hasError || _hasError) {
+      return _buildErrorState();
+    }
+    final value = switch (resource) {
+      AsyncData(:final value) => value,
+      _ => null,
+    };
+    // 资源缺失或仍加载中 → 白色进度指示
+    if (value == null) {
       return const Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.broken_image, color: Colors.white54, size: 64),
-            SizedBox(height: 12),
-            Text(
-              '图片加载失败',
-              style: TextStyle(color: Colors.white54, fontSize: 16),
-            ),
-          ],
-        ),
+        child: CircularProgressIndicator(color: Colors.white54),
       );
     }
 
+    // 图片加载失败时不包裹 InteractiveViewer，避免空白容器被缩放
     return InteractiveViewer(
       transformationController: _transformController,
       minScale: 1.0,
@@ -349,22 +363,12 @@ class _ZoomableImagePageState extends State<_ZoomableImagePage> {
         onDoubleTap: _onDoubleTap,
         behavior: HitTestBehavior.translucent,
         child: Center(
-          child: Image.network(
-            widget.imageUrl,
+          child: MediaImageResourceView(
+            resource: value,
             fit: BoxFit.contain,
-            loadingBuilder: (context, child, loadingProgress) {
-              if (loadingProgress == null) return child;
-              final total = loadingProgress.expectedTotalBytes;
-              final progress = total != null
-                  ? loadingProgress.cumulativeBytesLoaded / total
-                  : null;
-              return Center(
-                child: CircularProgressIndicator(
-                  value: progress,
-                  color: Colors.white54,
-                ),
-              );
-            },
+            loading: const Center(
+              child: CircularProgressIndicator(color: Colors.white54),
+            ),
             errorBuilder: (context, error, stack) {
               // 在下一帧设置错误状态，避免在 build 中 setState
               WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -376,6 +380,20 @@ class _ZoomableImagePageState extends State<_ZoomableImagePage> {
             },
           ),
         ),
+      ),
+    );
+  }
+
+  /// broken-image 错误状态：无手势、不可缩放。
+  Widget _buildErrorState() {
+    return const Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.broken_image, color: Colors.white54, size: 64),
+          SizedBox(height: 12),
+          Text('图片加载失败', style: TextStyle(color: Colors.white54, fontSize: 16)),
+        ],
       ),
     );
   }

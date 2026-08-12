@@ -4,11 +4,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/features/media/application/media_browser_controller.dart';
+import 'package:oh_my_llm/features/media/application/models/media_library_source.dart';
+import 'package:oh_my_llm/features/media/application/ports/media_library_factory.dart';
 import 'package:oh_my_llm/features/media/presentation/media_browser_tab.dart';
 import 'package:oh_my_llm/features/sync/application/sync_client_controller.dart';
 
 import '../../../helpers/responsive_viewport_cases.dart';
 import '../../../helpers/widget_test_animation.dart';
+import '../../media/helpers/fake_media_library.dart';
 import 'sync_screen_test_helpers.dart';
 
 Future<SharedPreferences> _freshPrefs() async {
@@ -69,14 +72,17 @@ void registerSyncScreenResponsiveTests() {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
     addTearDown(() => debugDefaultTargetPlatformOverride = null);
     final preferences = await _freshPrefs();
+    final factory = FakeMediaLibraryFactory(FakeMediaLibrary());
     await pumpSyncScreen(
       tester,
       preferences: preferences,
       size: androidLandscape,
+      bindMediaLibraryFactory: false,
       extraOverrides: [
         syncClientControllerProvider.overrideWith(
           () => SeededSyncClientController(connectedSyncState()),
         ),
+        mediaLibraryFactoryProvider.overrideWithValue(factory),
         mediaBrowserControllerProvider.overrideWith(
           RecordingMediaBrowserController.new,
         ),
@@ -87,7 +93,15 @@ void registerSyncScreenResponsiveTests() {
     await settleTabTransition(tester);
 
     expect(find.byType(MediaBrowserTab), findsOneWidget);
-    expect(RecordingMediaBrowserController.lastState!.server, isNotNull);
+    // 激活远端会话：工厂记录到 RemoteMediaLibrarySource
+    expect(
+      factory.openedSources,
+      contains(
+        RemoteMediaLibrarySource(
+          Uri(scheme: 'http', host: '192.168.1.5', port: 8080),
+        ),
+      ),
+    );
     // 路径栏根 chip 在低高度横屏下仍可见，证明媒体内容区可达。
     expect(find.text('🏠'), findsOneWidget);
     expect(tester.takeException(), isNull);

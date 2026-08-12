@@ -108,7 +108,6 @@ void main() {
       );
       final domain = dto.toDomain();
       expect(domain.hasThumbnail, isTrue);
-      expect(domain.thumbnailUrl, isNull);
     });
   });
 

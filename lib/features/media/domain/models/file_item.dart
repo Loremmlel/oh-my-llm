@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 /// 媒体文件系统中的文件/文件夹统一抽象。
 ///
 /// [relativePath] 是唯一标识，客户端禁止依赖文件名作为唯一标识。
@@ -21,16 +19,6 @@ class FileItem {
   /// domain 自身不再负责拼接端点路径。
   final bool hasThumbnail;
 
-  /// 缩略图相对 API 路径（如 "/api/media/thumbnail/sister/cat.mp4"）；
-  /// 文件夹和非图片/视频文件为 null。
-  /// 此字段存储未编码的原始路径——客户端负责在发起 HTTP 请求前对路径段进行 URI 编码。
-  ///
-  /// 过渡兼容面：`thumbnailUrl` 与 `toJson`/`fromJson`/`listFromJson`
-  /// 是媒体列表协议向 data 层 DTO 迁移完成前的临时出口，只供尚未迁移的
-  /// 旧 application/presentation 消费者读取；它们随这些消费者在同一竖向
-  /// 迁移中一并移除，届时 wire 编码完全由 `MediaFileItemDto` 独占。
-  final String? thumbnailUrl;
-
   const FileItem({
     required this.name,
     required this.isDirectory,
@@ -39,7 +27,6 @@ class FileItem {
     this.lastModified = 0,
     this.mimeType,
     this.hasThumbnail = false,
-    this.thumbnailUrl,
   });
 
   /// 人类可读的文件大小，文件夹返回空字符串。
@@ -53,53 +40,6 @@ class FileItem {
       return '${(sizeBytes / (1024 * 1024)).toStringAsFixed(1)} MB';
     }
     return '${(sizeBytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
-  }
-
-  /// 序列化为 PRD 规范的 JSON 格式。
-  ///
-  /// 输出示例：
-  /// ```json
-  /// {"type":"directory","name":"video","relativePath":"/sister/video","size":0,"lastModified":0}
-  /// {"type":"file","name":"cat.mp4","relativePath":"/sister/video/cat.mp4","size":123,"lastModified":1712345678,"mimeType":"video/mp4","thumbnailUrl":"/api/media/thumbnail/sister/video/cat.mp4"}
-  /// ```
-  Map<String, dynamic> toJson() {
-    final json = <String, dynamic>{
-      'type': isDirectory ? 'directory' : 'file',
-      'name': name,
-      'relativePath': relativePath,
-      'size': sizeBytes,
-      'lastModified': lastModified,
-    };
-    if (!isDirectory) {
-      if (mimeType != null) json['mimeType'] = mimeType;
-      if (thumbnailUrl != null) json['thumbnailUrl'] = thumbnailUrl;
-    }
-    return json;
-  }
-
-  /// 从 JSON 反序列化。
-  factory FileItem.fromJson(Map<String, dynamic> json) {
-    final type = json['type'] as String?;
-    final isDir = type == 'directory';
-    final size = json['size'] as int? ?? 0;
-
-    return FileItem(
-      name: json['name'] as String,
-      isDirectory: isDir,
-      sizeBytes: size,
-      relativePath: json['relativePath'] as String,
-      lastModified: json['lastModified'] as int? ?? 0,
-      mimeType: json['mimeType'] as String?,
-      hasThumbnail: json['thumbnailUrl'] != null,
-      thumbnailUrl: json['thumbnailUrl'] as String?,
-    );
-  }
-
-  static List<FileItem> listFromJson(String jsonString) {
-    final list = jsonDecode(jsonString) as List<dynamic>;
-    return list
-        .map((e) => FileItem.fromJson(e as Map<String, dynamic>))
-        .toList();
   }
 
   @override

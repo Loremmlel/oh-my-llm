@@ -2,25 +2,29 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 
+import 'package:oh_my_llm/features/media/application/models/media_resource.dart';
 import '../widgets/video_player_controls.dart';
+import 'media_video_controller_factory.dart';
 import 'video_player_gesture.dart';
 import 'video_player_state.dart';
 
 /// 全屏视频播放器。
 ///
 /// 应用暂停只暂停播放；控制器和计时器仅在路由 dispose 时释放。
+/// 播放源是解析完成的 [MediaResource]，平台控制器经
+/// [controllerFactory] 创建（测试注入 Fake 的 seam）。
 class VideoPlayerPage extends StatefulWidget {
-  final String videoUrl;
+  final MediaResource resource;
   final String fileName;
 
-  /// 控制器工厂，用于测试注入。默认使用 [VideoPlayerController.networkUrl]。
-  final VideoPlayerController Function(Uri)? controllerFactory;
+  /// 平台控制器工厂：默认按资源类型选择本地/网络数据源。
+  final MediaVideoControllerFactory controllerFactory;
 
   const VideoPlayerPage({
     super.key,
-    required this.videoUrl,
+    required this.resource,
     required this.fileName,
-    this.controllerFactory,
+    this.controllerFactory = createMediaVideoController,
   });
 
   @override
@@ -58,9 +62,12 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     WidgetsBinding.instance.addObserver(this);
 
-    final factory =
-        widget.controllerFactory ?? VideoPlayerController.networkUrl;
-    _gesture.initPlayer(Uri.parse(widget.videoUrl), factory);
+    _initPlayer();
+  }
+
+  /// 按当前 [MediaResource] 创建并初始化播放器；重试与首次进入共用同一条路径。
+  void _initPlayer() {
+    _gesture.initPlayer(() => widget.controllerFactory(widget.resource));
   }
 
   @override
@@ -262,14 +269,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
             ),
           ),
           const SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: () {
-              final factory =
-                  widget.controllerFactory ?? VideoPlayerController.networkUrl;
-              _gesture.initPlayer(Uri.parse(widget.videoUrl), factory);
-            },
-            child: const Text('重试'),
-          ),
+          ElevatedButton(onPressed: _initPlayer, child: const Text('重试')),
         ],
       ),
     );

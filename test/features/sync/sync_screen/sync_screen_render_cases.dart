@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/features/media/application/media_browser_controller.dart';
+import 'package:oh_my_llm/features/media/application/models/media_library_source.dart';
+import 'package:oh_my_llm/features/media/application/ports/media_library_factory.dart';
 import 'package:oh_my_llm/features/media/application/shuffle_playback_controller.dart';
 import 'package:oh_my_llm/features/sync/application/sync_client_controller.dart';
 import 'package:oh_my_llm/features/sync/domain/models/discovered_server.dart';
@@ -11,6 +13,7 @@ import 'package:oh_my_llm/features/sync/domain/models/sync_types.dart';
 import 'package:oh_my_llm/features/sync/presentation/widgets/sync_operation_tab.dart';
 
 import '../../../helpers/widget_test_animation.dart';
+import '../../media/helpers/fake_media_library.dart';
 import 'sync_screen_test_helpers.dart';
 
 void registerSyncScreenRenderTests() {
@@ -114,13 +117,16 @@ void registerSyncScreenRenderTests() {
     testWidgets('Android 离开媒体 Tab 重置并重新进入时重新加载根目录', (tester) async {
       debugDefaultTargetPlatformOverride = TargetPlatform.android;
       addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      final factory = FakeMediaLibraryFactory(FakeMediaLibrary());
       await pumpSyncScreen(
         tester,
         preferences: preferences,
+        bindMediaLibraryFactory: false,
         extraOverrides: [
           syncClientControllerProvider.overrideWith(
             () => SeededSyncClientController(connectedSyncState()),
           ),
+          mediaLibraryFactoryProvider.overrideWithValue(factory),
           mediaBrowserControllerProvider.overrideWith(
             RecordingMediaBrowserController.new,
           ),
@@ -132,7 +138,15 @@ void registerSyncScreenRenderTests() {
 
       await tester.tap(find.text('媒体'));
       await settleTabTransition(tester);
-      expect(RecordingMediaBrowserController.lastState!.server, isNotNull);
+      // 激活远端会话：工厂记录到 RemoteMediaLibrarySource，浏览器从根目录加载
+      expect(
+        factory.openedSources,
+        contains(
+          RemoteMediaLibrarySource(
+            Uri(scheme: 'http', host: '192.168.1.5', port: 8080),
+          ),
+        ),
+      );
       expect(RecordingMediaBrowserController.totalInitCount, 1);
       RecordingShufflePlaybackController.latest!.activateForTest();
 
@@ -154,20 +168,33 @@ void registerSyncScreenRenderTests() {
       debugDefaultTargetPlatformOverride = TargetPlatform.android;
       addTearDown(() => debugDefaultTargetPlatformOverride = null);
       await preferences.setInt('sync.tab.last_index', 2);
+      final factory = FakeMediaLibraryFactory(FakeMediaLibrary());
       await pumpSyncScreen(
         tester,
         preferences: preferences,
+        bindMediaLibraryFactory: false,
         extraOverrides: [
           syncClientControllerProvider.overrideWith(
             () => SeededSyncClientController(connectedSyncState()),
           ),
+          mediaLibraryFactoryProvider.overrideWithValue(factory),
           mediaBrowserControllerProvider.overrideWith(
             RecordingMediaBrowserController.new,
           ),
         ],
       );
+      // post-frame 回调触发激活链，补一帧让异步微任务落定
+      await tester.pump();
 
       expect(find.text('媒体'), findsAtLeast(1));
+      expect(
+        factory.openedSources,
+        contains(
+          RemoteMediaLibrarySource(
+            Uri(scheme: 'http', host: '192.168.1.5', port: 8080),
+          ),
+        ),
+      );
       expect(RecordingMediaBrowserController.totalInitCount, 1);
       debugDefaultTargetPlatformOverride = null;
     });

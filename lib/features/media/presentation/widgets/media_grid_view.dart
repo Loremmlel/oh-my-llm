@@ -11,7 +11,6 @@ class MediaGridView extends StatelessWidget {
   final List<FileItem> items;
   final bool isLoading;
   final String? errorMessage;
-  final String? thumbnailBaseUrl;
   final ValueChanged<FileItem> onItemTap;
 
   const MediaGridView({
@@ -19,7 +18,6 @@ class MediaGridView extends StatelessWidget {
     required this.items,
     required this.isLoading,
     this.errorMessage,
-    this.thumbnailBaseUrl,
     required this.onItemTap,
   });
 
@@ -66,11 +64,7 @@ class MediaGridView extends StatelessWidget {
       itemCount: items.length,
       itemBuilder: (context, index) {
         final item = items[index];
-        return MediaFileTile(
-          item: item,
-          thumbnailBaseUrl: thumbnailBaseUrl,
-          onTap: () => onItemTap(item),
-        );
+        return MediaFileTile(item: item, onTap: () => onItemTap(item));
       },
     );
   }

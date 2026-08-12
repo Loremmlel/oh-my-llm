@@ -131,11 +131,8 @@ class MediaDirectoryScanner {
           relativePath: relativePath,
           lastModified: stat.modified.millisecondsSinceEpoch,
           mimeType: isDir ? null : mimeTypeFromExtension(name),
-          // 过渡期内同时设置传输无关信号与 legacy 端点，保持旧消费者可见
+          // 缩略图端点由 DTO 在序列化时推导，扫描器只标记传输无关信号
           hasThumbnail: hasThumbnail,
-          thumbnailUrl: hasThumbnail
-              ? '/api/media/thumbnail$relativePath'
-              : null,
         ),
       );
     }

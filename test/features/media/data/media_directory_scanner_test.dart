@@ -131,17 +131,15 @@ void main() {
       expect(items[3].name, 'bbb.mp4');
       expect(items[3].isDirectory, isFalse);
 
-      // 文件条目带 lastModified/mimeType/thumbnailUrl + 传输无关 hasThumbnail
+      // 文件条目带 lastModified/mimeType + 传输无关 hasThumbnail；
+      // 缩略图端点由 DTO 序列化时推导，扫描器不拼接
       final videoItem = items.firstWhere((i) => i.name == 'bbb.mp4');
       expect(videoItem.lastModified, isNonZero);
       expect(videoItem.mimeType, 'video/mp4');
-      expect(videoItem.thumbnailUrl, isNotNull);
-      expect(videoItem.thumbnailUrl, contains('/api/media/thumbnail/'));
       expect(videoItem.hasThumbnail, isTrue);
-      // 文件夹不应有 mimeType 和 thumbnailUrl，也没有缩略图信号
+      // 文件夹不应有 mimeType，也没有缩略图信号
       final folderItem = items.firstWhere((i) => i.isDirectory);
       expect(folderItem.mimeType, isNull);
-      expect(folderItem.thumbnailUrl, isNull);
       expect(folderItem.hasThumbnail, isFalse);
     });
 

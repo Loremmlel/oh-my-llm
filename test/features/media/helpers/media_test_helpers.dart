@@ -1,20 +1,18 @@
-import 'dart:convert';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 
-import 'package:oh_my_llm/core/http/peer_http_client_provider.dart';
-export 'package:oh_my_llm/core/http/peer_http_client_provider.dart';
 import 'package:oh_my_llm/features/media/application/media_browser_controller.dart';
 export 'package:oh_my_llm/features/media/application/media_browser_controller.dart';
+import 'package:oh_my_llm/features/media/application/media_library_session_controller.dart';
+import 'package:oh_my_llm/features/media/application/models/media_library_source.dart';
+import 'package:oh_my_llm/features/media/application/ports/media_library.dart';
+import 'package:oh_my_llm/features/media/application/ports/media_library_factory.dart';
+import 'package:oh_my_llm/features/media/application/shuffle_playback_controller.dart';
+export 'package:oh_my_llm/features/media/application/shuffle_playback_controller.dart';
 import 'package:oh_my_llm/features/media/domain/models/file_item.dart';
 export 'package:oh_my_llm/features/media/domain/models/file_item.dart';
-import 'package:oh_my_llm/features/media/domain/models/media_server_info.dart';
-export 'package:oh_my_llm/features/media/domain/models/media_server_info.dart';
 
-const testServer = MediaServerInfo(ip: '192.168.1.5', httpPort: 8080);
+import 'fake_media_library.dart';
 
 /// 测试用 MediaBrowserController：不发起网络请求，直接返回注入的初始状态。
 ///
@@ -40,46 +38,100 @@ class FakeMediaBrowserController extends MediaBrowserController {
   }
 }
 
-String fileListJson(List<FileItem> items) =>
-    jsonEncode(items.map((i) => i.toJson()).toList());
+/// 预激活媒体会话的测试替身：build 即返回 Active。
+///
+/// widget 测试经 `mediaLibrarySessionProvider.overrideWith` 注入，
+/// 免去真实激活的异步时序，从首帧起会话即可用。
+final class PreActivatedMediaLibrarySessionController
+    extends MediaLibrarySessionController {
+  PreActivatedMediaLibrarySessionController(
+    this.library, {
+    this.generation = 1,
+  });
 
-http.Client okMockClient(String body) =>
-    MockClient((_) async => http.Response(body, 200));
+  final MediaLibrary library;
+  final int generation;
 
-http.Client statusMockClient(int status) =>
-    MockClient((_) async => http.Response('{}', status));
-
-http.Client throwingMockClient() =>
-    MockClient((_) async => throw http.ClientException('网络错误'));
-
-ProviderContainer createMediaTestContainer({
-  required http.Client httpClient,
-  bool retainBrowserListener = true,
-}) {
-  final container = ProviderContainer(
-    overrides: [peerHttpClientProvider.overrideWithValue(httpClient)],
+  @override
+  MediaLibrarySessionState build() => MediaLibrarySessionActive(
+    sourceKind: MediaSourceKind.remote,
+    library: library,
+    generation: generation,
   );
-  if (retainBrowserListener) {
-    final subscription = container.listen(
-      mediaBrowserControllerProvider,
-      (_, _) {},
-    );
-    addTearDown(subscription.close);
-  } else {
-    container.read(mediaBrowserControllerProvider);
-  }
+}
+
+/// 应用层测试容器：注入 Fake 媒体库工厂并持有全部 autoDispose 控制器的订阅。
+///
+/// 会话/浏览器/随机播放三个 autoDispose 控制器由本 helper 统一订阅保活，
+/// 并在 tearDown 释放；单个测试不得再为这些控制器注册重复释放。
+ProviderContainer createMediaLibraryTestContainer(FakeMediaLibrary library) {
+  final container = ProviderContainer(
+    overrides: [
+      mediaLibraryFactoryProvider.overrideWithValue(
+        FakeMediaLibraryFactory(library),
+      ),
+    ],
+  );
+  final sessionSubscription = container.listen(
+    mediaLibrarySessionProvider,
+    (_, _) {},
+  );
+  final browserSubscription = container.listen(
+    mediaBrowserControllerProvider,
+    (_, _) {},
+  );
+  final shuffleSubscription = container.listen(
+    shufflePlaybackControllerProvider,
+    (_, _) {},
+  );
+  addTearDown(() {
+    sessionSubscription.close();
+    browserSubscription.close();
+    shuffleSubscription.close();
+    container.dispose();
+  });
   return container;
 }
 
-/// 设置 server 并等待 loadDirectory('/') 完成。
-///
-/// [initWithServer] 是 void，内部 fire-and-forget 调用 loadDirectory。
-/// 此函数轮询直到 isLoading 回到 false（表示请求完成）。
-Future<void> initBrowserAndWait(ProviderContainer container) async {
-  final controller = container.read(mediaBrowserControllerProvider.notifier);
-  controller.initWithServer(testServer);
-  for (int i = 0; i < 50; i++) {
-    await Future<void>.value();
-    if (!container.read(mediaBrowserControllerProvider).isLoading) break;
-  }
+/// 与 [createMediaLibraryTestContainer] 相同，但接受任意 [MediaLibrary]，
+/// 供需要自定义失败行为（如未知异常）的测试使用。
+ProviderContainer createMediaLibraryTestContainerWith(MediaLibrary library) {
+  final container = ProviderContainer(
+    overrides: [
+      mediaLibraryFactoryProvider.overrideWithValue(
+        FakeMediaLibraryFactory(library),
+      ),
+    ],
+  );
+  final sessionSubscription = container.listen(
+    mediaLibrarySessionProvider,
+    (_, _) {},
+  );
+  final browserSubscription = container.listen(
+    mediaBrowserControllerProvider,
+    (_, _) {},
+  );
+  final shuffleSubscription = container.listen(
+    shufflePlaybackControllerProvider,
+    (_, _) {},
+  );
+  addTearDown(() {
+    sessionSubscription.close();
+    browserSubscription.close();
+    shuffleSubscription.close();
+    container.dispose();
+  });
+  return container;
+}
+
+/// 激活远端媒体会话（192.168.1.5:8080），并断言会话进入 Active。
+Future<void> activateTestMediaSession(ProviderContainer container) async {
+  final activated = await container
+      .read(mediaLibrarySessionProvider.notifier)
+      .activate(RemoteMediaLibrarySource(Uri.parse('http://192.168.1.5:8080')));
+  expect(activated, isTrue);
+  expect(
+    container.read(mediaLibrarySessionProvider),
+    isA<MediaLibrarySessionActive>(),
+  );
 }

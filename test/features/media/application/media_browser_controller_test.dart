@@ -1,10 +1,53 @@
 import 'dart:async';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 
+import 'package:oh_my_llm/features/media/application/media_library_session_controller.dart';
+import 'package:oh_my_llm/features/media/application/models/media_library_failure.dart';
+import 'package:oh_my_llm/features/media/application/models/media_library_source.dart';
+import 'package:oh_my_llm/features/media/application/models/media_resource.dart';
+import 'package:oh_my_llm/features/media/application/models/media_resource_request.dart';
+import 'package:oh_my_llm/features/media/application/ports/media_library.dart';
+import 'package:oh_my_llm/features/media/application/ports/media_library_factory.dart';
+import 'package:oh_my_llm/features/media/domain/models/video_item.dart';
+
+import '../helpers/fake_media_library.dart';
 import '../helpers/media_test_helpers.dart';
+
+/// listDirectory 抛未知异常的库：验证未知异常转为固定文案而不泄露细节。
+final class _BoomDirectoryLibrary implements MediaLibrary {
+  @override
+  Future<List<FileItem>> listDirectory(String relativePath) async {
+    throw StateError('boom-directory');
+  }
+
+  @override
+  Future<List<VideoItem>> listVideosRecursively(String relativePath) =>
+      throw UnimplementedError();
+
+  @override
+  Future<MediaResource?> resolveThumbnail(MediaThumbnailRequest request) =>
+      throw UnimplementedError();
+
+  @override
+  Future<MediaResource> resolveAsset(MediaAssetRequest request) =>
+      throw UnimplementedError();
+}
+
+FileItem _file(String path) => FileItem(
+  name: path.split('/').last,
+  isDirectory: false,
+  sizeBytes: 1,
+  relativePath: path,
+);
+
+FileItem _dir(String path) => FileItem(
+  name: path.split('/').last,
+  isDirectory: true,
+  sizeBytes: 0,
+  relativePath: path,
+);
 
 void main() {
   group('MediaBrowserState', () {
@@ -39,46 +82,73 @@ void main() {
         expect(state.canGoBack, expectedCanGoBack, reason: 'case: $name');
       }
 
-      // 初始公开状态即 build() 返回值：根目录、空列表、未加载、无错误、无服务端
+      // 初始公开状态即 build() 返回值：根目录、空列表、未加载、无错误
       final initial = MediaBrowserState();
       expect(initial.currentPath, '/');
       expect(initial.items, isEmpty);
       expect(initial.isLoading, isFalse);
       expect(initial.errorMessage, isNull);
-      expect(initial.server, isNull);
     });
   });
 
   group('MediaBrowserController', () {
-    test('reset 后忽略已失效请求的响应', () async {
-      final responseCompleter = Completer<http.Response>();
-      final container = createMediaTestContainer(
-        httpClient: MockClient((_) => responseCompleter.future),
+    test('active session loads root and never exposes server state', () async {
+      const image = FileItem(
+        name: '猫.jpg',
+        isDirectory: false,
+        sizeBytes: 1,
+        relativePath: '/猫.jpg',
+        hasThumbnail: true,
       );
-      addTearDown(container.dispose);
+      final library = FakeMediaLibrary()..directoryResults['/'] = [image];
+      final container = createMediaLibraryTestContainer(library);
+      await activateTestMediaSession(container);
+      await container
+          .read(mediaBrowserControllerProvider.notifier)
+          .initFromActiveSession();
+      final state = container.read(mediaBrowserControllerProvider);
+      expect(state.items, [image]);
+      expect(library.listDirectoryCalls, ['/']);
+    });
+
+    test('会话未激活时 initFromActiveSession 发布媒体会话不可用', () async {
+      final container = createMediaLibraryTestContainer(FakeMediaLibrary());
+      final loaded = await container
+          .read(mediaBrowserControllerProvider.notifier)
+          .initFromActiveSession();
+      expect(loaded, isFalse);
+      final state = container.read(mediaBrowserControllerProvider);
+      expect(state.errorMessage, '媒体会话不可用');
+      expect(state.isLoading, isFalse);
+    });
+
+    test('会话未激活时 loadDirectory 发布媒体会话不可用', () async {
+      final container = createMediaLibraryTestContainer(FakeMediaLibrary());
+      final loaded = await container
+          .read(mediaBrowserControllerProvider.notifier)
+          .loadDirectory('/');
+      expect(loaded, isFalse);
+      expect(
+        container.read(mediaBrowserControllerProvider).errorMessage,
+        '媒体会话不可用',
+      );
+    });
+
+    test('reset 后忽略已失效请求的响应', () async {
+      final library = FakeMediaLibrary()
+        ..pendingDirectory = Completer<List<FileItem>>();
+      final container = createMediaLibraryTestContainer(library);
+      await activateTestMediaSession(container);
 
       final controller = container.read(
         mediaBrowserControllerProvider.notifier,
       );
-      controller.initWithServer(testServer);
+      final pending = controller.initFromActiveSession();
       expect(container.read(mediaBrowserControllerProvider).isLoading, isTrue);
 
       controller.reset();
-      responseCompleter.complete(
-        http.Response(
-          fileListJson([
-            const FileItem(
-              name: 'stale.mp4',
-              isDirectory: false,
-              sizeBytes: 1,
-              relativePath: '/stale.mp4',
-            ),
-          ]),
-          200,
-        ),
-      );
-      await responseCompleter.future;
-      await Future<void>.value();
+      library.pendingDirectory!.complete([_file('/stale.mp4')]);
+      expect(await pending, isFalse);
 
       expect(
         container.read(mediaBrowserControllerProvider),
@@ -87,18 +157,29 @@ void main() {
     });
 
     test('媒体浏览页面会话在观察者释放后重建为空状态', () async {
-      final container = createMediaTestContainer(
-        httpClient: okMockClient('[]'),
-        retainBrowserListener: false,
+      final container = ProviderContainer(
+        overrides: [
+          mediaLibraryFactoryProvider.overrideWithValue(
+            FakeMediaLibraryFactory(FakeMediaLibrary()),
+          ),
+        ],
       );
       addTearDown(container.dispose);
-      final subscription = container.listen(
+      final sessionSubscription = container.listen(
+        mediaLibrarySessionProvider,
+        (_, _) {},
+      );
+      final browserSubscription = container.listen(
         mediaBrowserControllerProvider,
         (_, _) {},
       );
-      await initBrowserAndWait(container);
+      await activateTestMediaSession(container);
+      await container
+          .read(mediaBrowserControllerProvider.notifier)
+          .initFromActiveSession();
 
-      subscription.close();
+      browserSubscription.close();
+      sessionSubscription.close();
       await container.pump();
 
       expect(container.exists(mediaBrowserControllerProvider), isFalse);
@@ -108,107 +189,48 @@ void main() {
       );
     });
 
-    test('initWithServer 设置 server 并加载根目录成功', () async {
-      final items = [
-        const FileItem(
-          name: 'a.mp4',
-          isDirectory: false,
-          sizeBytes: 100,
-          relativePath: '/a.mp4',
-        ),
-        const FileItem(
-          name: 'sub',
-          isDirectory: true,
-          sizeBytes: 0,
-          relativePath: '/sub',
-        ),
-      ];
-      final container = createMediaTestContainer(
-        httpClient: okMockClient(fileListJson(items)),
-      );
-      addTearDown(container.dispose);
+    test('目录加载失败发布失败原因', () async {
+      final library = FakeMediaLibrary()
+        ..directoryFailure = const MediaLibraryFailure(
+          MediaLibraryFailureCode.networkUnavailable,
+          '无法连接媒体服务',
+        );
+      final container = createMediaLibraryTestContainer(library);
+      await activateTestMediaSession(container);
 
-      await initBrowserAndWait(container);
+      await container
+          .read(mediaBrowserControllerProvider.notifier)
+          .initFromActiveSession();
       final state = container.read(mediaBrowserControllerProvider);
-      expect(state.server, testServer);
-      expect(state.currentPath, '/');
-      expect(state.items, hasLength(2));
-      expect(state.items.map((i) => i.name), ['a.mp4', 'sub']);
-      expect(state.isLoading, isFalse);
-      expect(state.errorMessage, isNull);
-    });
-
-    test('loadDirectory server null → errorMessage', () async {
-      final container = createMediaTestContainer(
-        httpClient: okMockClient('[]'),
-      );
-      addTearDown(container.dispose);
-
-      final controller = container.read(
-        mediaBrowserControllerProvider.notifier,
-      );
-      await controller.loadDirectory('/');
-      final state = container.read(mediaBrowserControllerProvider);
-      expect(state.errorMessage, '未连接到服务端');
+      expect(state.errorMessage, '无法连接媒体服务');
       expect(state.isLoading, isFalse);
     });
 
-    test('loadDirectory HTTP 非 200 → errorMessage', () async {
-      final container = createMediaTestContainer(
-        httpClient: statusMockClient(500),
+    test('未知异常转为固定文案且不泄露原始错误', () async {
+      final container = createMediaLibraryTestContainerWith(
+        _BoomDirectoryLibrary(),
       );
-      addTearDown(container.dispose);
+      await activateTestMediaSession(container);
 
-      await initBrowserAndWait(container);
+      await container
+          .read(mediaBrowserControllerProvider.notifier)
+          .initFromActiveSession();
       final state = container.read(mediaBrowserControllerProvider);
-      expect(state.errorMessage, isNotNull);
-      expect(state.isLoading, isFalse);
-    });
-
-    test('loadDirectory 网络异常 → 包含错误信息', () async {
-      final container = createMediaTestContainer(
-        httpClient: throwingMockClient(),
-      );
-      addTearDown(container.dispose);
-
-      await initBrowserAndWait(container);
-      final state = container.read(mediaBrowserControllerProvider);
-      expect(state.errorMessage, isNotNull);
-      expect(state.isLoading, isFalse);
+      expect(state.errorMessage, '加载媒体目录失败');
+      expect(state.errorMessage, isNot(contains('boom')));
     });
 
     test('navigateTo 成功后 goBack 恢复根目录', () async {
-      final rootItems = [
-        const FileItem(
-          name: 'sub',
-          isDirectory: true,
-          sizeBytes: 0,
-          relativePath: '/sub',
-        ),
-      ];
-      final subItems = [
-        const FileItem(
-          name: 'a.mp4',
-          isDirectory: false,
-          sizeBytes: 100,
-          relativePath: '/sub/a.mp4',
-        ),
-      ];
-      final client = MockClient((request) async {
-        if (request.url.path.contains('sub')) {
-          return http.Response(fileListJson(subItems), 200);
-        }
-        return http.Response(fileListJson(rootItems), 200);
-      });
-
-      final container = createMediaTestContainer(httpClient: client);
-      addTearDown(container.dispose);
-
-      await initBrowserAndWait(container);
+      final library = FakeMediaLibrary()
+        ..directoryResults['/'] = [_dir('/sub')]
+        ..directoryResults['/sub'] = [_file('/sub/a.mp4')];
+      final container = createMediaLibraryTestContainer(library);
+      await activateTestMediaSession(container);
 
       final controller = container.read(
         mediaBrowserControllerProvider.notifier,
       );
+      await controller.initFromActiveSession();
 
       // 推入历史：导航进入子目录
       await controller.navigateTo('/sub');
@@ -227,32 +249,60 @@ void main() {
     });
 
     test('navigateTo 失败 → pathHistory 不变', () async {
-      final container = createMediaTestContainer(
-        httpClient: statusMockClient(500),
-      );
-      addTearDown(container.dispose);
-
-      await initBrowserAndWait(container);
+      final library = FakeMediaLibrary()
+        ..directoryResults['/'] = [_dir('/sub')];
+      final container = createMediaLibraryTestContainer(library);
+      await activateTestMediaSession(container);
 
       final controller = container.read(
         mediaBrowserControllerProvider.notifier,
+      );
+      await controller.initFromActiveSession();
+
+      // 根目录加载成功后让后续目录请求失败
+      library.directoryFailure = const MediaLibraryFailure(
+        MediaLibraryFailureCode.invalidPath,
+        '媒体路径无效',
       );
       await controller.navigateTo('/sub');
       final state = container.read(mediaBrowserControllerProvider);
       expect(state.pathHistory, isEmpty);
+      expect(state.errorMessage, '媒体路径无效');
     });
 
     test('goBack 无历史 → 返回 false', () async {
-      final container = createMediaTestContainer(
-        httpClient: okMockClient('[]'),
-      );
-      addTearDown(container.dispose);
+      final container = createMediaLibraryTestContainer(FakeMediaLibrary());
+      await activateTestMediaSession(container);
+
+      final result = await container
+          .read(mediaBrowserControllerProvider.notifier)
+          .goBack();
+      expect(result, isFalse);
+    });
+
+    test('会话替换后旧会话的挂起列表不更新浏览器状态', () async {
+      final library = FakeMediaLibrary()
+        ..pendingDirectory = Completer<List<FileItem>>();
+      final container = createMediaLibraryTestContainer(library);
+      await activateTestMediaSession(container);
 
       final controller = container.read(
         mediaBrowserControllerProvider.notifier,
       );
-      final result = await controller.goBack();
-      expect(result, isFalse);
+      final pendingLoad = controller.initFromActiveSession();
+      expect(container.read(mediaBrowserControllerProvider).isLoading, isTrue);
+
+      // 激活会话 B：代数递增，A 的挂起请求随即过期
+      await container
+          .read(mediaLibrarySessionProvider.notifier)
+          .activate(
+            RemoteMediaLibrarySource(Uri.parse('http://192.168.1.6:8080')),
+          );
+      library.pendingDirectory!.complete([_file('/stale.mp4')]);
+      expect(await pendingLoad, isFalse);
+
+      // A 的过期结果不得写入浏览器状态
+      expect(container.read(mediaBrowserControllerProvider).items, isEmpty);
     });
   });
 }

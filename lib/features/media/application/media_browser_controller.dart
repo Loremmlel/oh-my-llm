@@ -1,13 +1,9 @@
-import 'dart:convert';
-
 import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:http/http.dart' as http;
 
-import 'package:oh_my_llm/core/http/peer_http_client_provider.dart';
-import '../utils/path_utils.dart';
-import '../domain/models/file_item.dart';
-import '../domain/models/media_server_info.dart';
+import 'package:oh_my_llm/features/media/application/media_library_session_controller.dart';
+import 'package:oh_my_llm/features/media/application/models/media_library_failure.dart';
+import 'package:oh_my_llm/features/media/domain/models/file_item.dart';
 
 const Object _sentinel = Object();
 
@@ -19,7 +15,6 @@ class MediaBrowserState extends Equatable {
     List<String> pathHistory = const [],
     this.isLoading = false,
     this.errorMessage,
-    this.server,
   }) : items = List.unmodifiable(items),
        pathHistory = List.unmodifiable(pathHistory);
 
@@ -28,7 +23,6 @@ class MediaBrowserState extends Equatable {
   final List<String> pathHistory;
   final bool isLoading;
   final String? errorMessage;
-  final MediaServerInfo? server;
 
   @override
   List<Object?> get props => [
@@ -41,7 +35,7 @@ class MediaBrowserState extends Equatable {
             item.relativePath,
             item.lastModified,
             item.mimeType,
-            item.thumbnailUrl,
+            item.hasThumbnail,
           ),
         )
         .toList(),
@@ -49,7 +43,6 @@ class MediaBrowserState extends Equatable {
     pathHistory,
     isLoading,
     errorMessage,
-    (server?.ip, server?.httpPort),
   ];
 
   MediaBrowserState copyWith({
@@ -58,7 +51,6 @@ class MediaBrowserState extends Equatable {
     List<String>? pathHistory,
     bool? isLoading,
     Object? errorMessage = _sentinel,
-    Object? server = _sentinel,
   }) {
     return MediaBrowserState(
       items: items ?? this.items,
@@ -68,9 +60,6 @@ class MediaBrowserState extends Equatable {
       errorMessage: identical(errorMessage, _sentinel)
           ? this.errorMessage
           : errorMessage as String?,
-      server: identical(server, _sentinel)
-          ? this.server
-          : server as MediaServerInfo?,
     );
   }
 
@@ -86,83 +75,65 @@ final mediaBrowserControllerProvider =
 
 /// 客户端媒体浏览器控制器。
 ///
-/// 管理浏览状态并通过 HTTP 调用服务端 API 获取目录内容。
+/// 目录操作必须持有活动媒体会话：会话在发起时捕获，过期结果由代数判定
+/// 丢弃，保证旧会话/旧目录的在途响应不会覆盖当前状态。
 /// 这是页面级 auto-dispose 会话，不保活；离开媒体页面后由 app composition reset。
 class MediaBrowserController extends Notifier<MediaBrowserState> {
-  http.Client get _httpClient => ref.read(peerHttpClientProvider);
-  int _generation = 0;
+  int _operationGeneration = 0;
+  int _sessionGeneration = 0;
 
   @override
   MediaBrowserState build() {
     return MediaBrowserState();
   }
 
-  /// 初始化：从同步客户端状态获取服务端地址。
-  void initWithServer(MediaServerInfo server) {
-    // server 未变且正在加载或有数据 → 跳过
-    if (state.server?.ip == server.ip &&
-        state.server?.httpPort == server.httpPort) {
-      if (state.isLoading || state.items.isNotEmpty) return;
+  /// 从当前活动会话初始化并加载根目录。
+  ///
+  /// 会话不可用时发布错误并返回 false；成功后所有在途请求以本次
+  /// 会话代数重新锚定。
+  Future<bool> initFromActiveSession() async {
+    final session = ref.read(mediaLibrarySessionProvider);
+    if (session is! MediaLibrarySessionActive) {
+      state = state.copyWith(isLoading: false, errorMessage: '媒体会话不可用');
+      return false;
     }
-    final generation = ++_generation;
-    state = MediaBrowserState(server: server);
-    _loadDirectory('/', generation);
+    _sessionGeneration = session.generation;
+    final operation = ++_operationGeneration;
+    state = MediaBrowserState();
+    return _loadDirectory('/', session, operation);
   }
 
   /// 加载指定目录。
   Future<bool> loadDirectory(String path) {
-    final generation = ++_generation;
-    return _loadDirectory(path, generation);
+    final session = ref.read(mediaLibrarySessionProvider);
+    if (session is! MediaLibrarySessionActive) {
+      state = state.copyWith(isLoading: false, errorMessage: '媒体会话不可用');
+      return Future.value(false);
+    }
+    final operation = ++_operationGeneration;
+    return _loadDirectory(path, session, operation);
   }
 
-  Future<bool> _loadDirectory(String path, int generation) async {
-    final server = state.server;
-    if (server == null) {
-      if (_isCurrent(generation)) {
-        state = state.copyWith(isLoading: false, errorMessage: '未连接到服务端');
-      }
-      return false;
-    }
-
+  Future<bool> _loadDirectory(
+    String path,
+    MediaLibrarySessionActive session,
+    int operation,
+  ) async {
     state = state.copyWith(isLoading: true, errorMessage: null);
 
     try {
-      // 路径每段单独编码以支持中文
-      final encodedPath = encodeMediaPath(path);
-      final url = Uri.parse(
-        'http://${server.ip}:${server.httpPort}/api/media/list/$encodedPath',
-      );
-
-      final response = await _httpClient
-          .get(url)
-          .timeout(const Duration(seconds: 10));
-
-      if (!_isCurrent(generation)) return false;
-
-      if (response.statusCode == 200) {
-        final items = FileItem.listFromJson(response.body);
-        state = state.copyWith(
-          items: items,
-          currentPath: path,
-          isLoading: false,
-        );
-        return true;
-      } else {
-        final body = jsonDecode(response.body) as Map<String, dynamic>?;
-        final error = body?['error'] as String? ?? '未知错误';
-        state = state.copyWith(isLoading: false, errorMessage: error);
-        return false;
-      }
-    } on http.ClientException catch (e) {
-      if (!_isCurrent(generation)) return false;
-      state = state.copyWith(
-        isLoading: false,
-        errorMessage: '网络错误: ${e.message}',
-      );
+      final items = await session.library.listDirectory(path);
+      if (!_isCurrent(session, operation)) return false;
+      state = state.copyWith(items: items, currentPath: path, isLoading: false);
+      return true;
+    } on MediaLibraryFailure catch (failure) {
+      if (!_isCurrent(session, operation)) return false;
+      state = state.copyWith(isLoading: false, errorMessage: failure.message);
       return false;
-    } catch (e) {
-      if (!_isCurrent(generation)) return false;
-      state = state.copyWith(isLoading: false, errorMessage: '加载失败: $e');
+    } catch (_) {
+      // 未知异常转固定文案：不把底层细节泄露给用户
+      if (!_isCurrent(session, operation)) return false;
+      state = state.copyWith(isLoading: false, errorMessage: '加载媒体目录失败');
       return false;
     }
   }
@@ -172,11 +143,16 @@ class MediaBrowserController extends Notifier<MediaBrowserState> {
   /// 仅在加载成功后推入历史，避免失败导航污染 pathHistory。
   Future<void> navigateTo(String path) async {
     if (state.currentPath == path) return;
+    final session = ref.read(mediaLibrarySessionProvider);
+    if (session is! MediaLibrarySessionActive) {
+      state = state.copyWith(isLoading: false, errorMessage: '媒体会话不可用');
+      return;
+    }
     final previousPath = state.currentPath;
-    final generation = ++_generation;
-    final loaded = await _loadDirectory(path, generation);
+    final operation = ++_operationGeneration;
+    final loaded = await _loadDirectory(path, session, operation);
     // 只有成功加载（currentPath 已更新到 path）时才推入历史
-    if (_isCurrent(generation) && loaded) {
+    if (_isCurrent(session, operation) && loaded) {
       state = state.copyWith(pathHistory: [...state.pathHistory, previousPath]);
     }
   }
@@ -189,18 +165,29 @@ class MediaBrowserController extends Notifier<MediaBrowserState> {
       // 已在根目录 → 不能退，由调用者处理（退出媒体浏览器 Tab）
       return false;
     }
+    final session = ref.read(mediaLibrarySessionProvider);
+    if (session is! MediaLibrarySessionActive) {
+      return false;
+    }
     final history = List<String>.from(state.pathHistory);
     final previousPath = history.removeLast();
     state = state.copyWith(pathHistory: history);
-    final generation = ++_generation;
-    return _loadDirectory(previousPath, generation);
+    final operation = ++_operationGeneration;
+    return _loadDirectory(previousPath, session, operation);
   }
 
   /// 结束当前页面会话，令所有在途响应失效。
   void reset() {
-    _generation++;
+    _operationGeneration++;
     state = MediaBrowserState();
   }
 
-  bool _isCurrent(int generation) => ref.mounted && generation == _generation;
+  bool _isCurrent(MediaLibrarySessionActive captured, int operation) {
+    final current = ref.read(mediaLibrarySessionProvider);
+    return ref.mounted &&
+        operation == _operationGeneration &&
+        current is MediaLibrarySessionActive &&
+        current.generation == captured.generation &&
+        captured.generation == _sessionGeneration;
+  }
 }

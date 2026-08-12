@@ -9,11 +9,16 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:oh_my_llm/features/media/application/models/media_resource.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/video_player_page.dart';
 
 import '../../../helpers/responsive_viewport_cases.dart';
 import '../../../helpers/widget_test_animation.dart';
 import '../helpers/fake_video_player_controller.dart';
+
+/// 测试用的远端资源（避免真实平台通道，控制器一律经 factory 注入 Fake）。
+NetworkMediaResource _testResource() =>
+    NetworkMediaResource(Uri.parse('http://localhost/test.mp4'));
 
 /// 按 tooltip 语义属性定位语义节点（IconButton/PopupMenuButton 的 tooltip 在语义树中为 tooltip 属性）。
 SemanticsFinder semanticsByTooltip(String tooltip) =>
@@ -66,9 +71,9 @@ Future<void> _pumpVideo(
   await tester.pumpWidget(
     _wrapWithMaterialApp(
       VideoPlayerPage(
-        videoUrl: 'http://localhost/test.mp4',
+        resource: _testResource(),
         fileName: 'test-video.mp4',
-        controllerFactory: (uri) => fake,
+        controllerFactory: (resource) => fake,
       ),
     ),
   );
@@ -129,9 +134,9 @@ void main() {
       await tester.pumpWidget(
         _wrapWithMaterialApp(
           VideoPlayerPage(
-            videoUrl: 'http://localhost/test.mp4',
+            resource: _testResource(),
             fileName: 'test-video.mp4',
-            controllerFactory: (uri) =>
+            controllerFactory: (resource) =>
                 _NeverInitializingVideoPlayerController(),
           ),
         ),
@@ -266,9 +271,9 @@ void main() {
               onPressed: () => Navigator.of(context).push(
                 PageRouteBuilder<void>(
                   pageBuilder: (_, _, _) => VideoPlayerPage(
-                    videoUrl: 'http://localhost/test.mp4',
+                    resource: _testResource(),
                     fileName: 'test-video.mp4',
-                    controllerFactory: (uri) => fake,
+                    controllerFactory: (resource) => fake,
                   ),
                   transitionDuration: Duration.zero,
                   reverseTransitionDuration: Duration.zero,
@@ -339,9 +344,9 @@ void main() {
       await tester.pumpWidget(
         _wrapWithMaterialApp(
           VideoPlayerPage(
-            videoUrl: 'http://localhost/test.mp4',
+            resource: _testResource(),
             fileName: 'test-video.mp4',
-            controllerFactory: (uri) => failing,
+            controllerFactory: (resource) => failing,
           ),
         ),
       );

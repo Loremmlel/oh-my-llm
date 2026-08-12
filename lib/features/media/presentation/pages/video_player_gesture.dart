@@ -24,10 +24,7 @@ class VideoPlayerGestureController {
 
   // ── 生命周期 ───────────────────────────────────────────────────
 
-  Future<void> initPlayer(
-    Uri uri,
-    VideoPlayerController Function(Uri) factory,
-  ) async {
+  Future<void> initPlayer(VideoPlayerController Function() factory) async {
     state.controller?.removeListener(_onControllerUpdate);
     state.controller?.dispose();
 
@@ -39,7 +36,7 @@ class VideoPlayerGestureController {
     state.totalDuration = Duration.zero;
 
     try {
-      final ctrl = factory(uri);
+      final ctrl = factory();
       state.controller = ctrl;
       ctrl.addListener(_onControllerUpdate);
 

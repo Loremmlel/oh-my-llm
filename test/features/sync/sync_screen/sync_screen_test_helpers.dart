@@ -9,7 +9,6 @@ import 'package:oh_my_llm/features/sync/presentation/widgets/sync_import_confirm
 import 'package:oh_my_llm/features/media/application/media_browser_controller.dart';
 import 'package:oh_my_llm/features/media/application/shuffle_playback_controller.dart';
 import 'package:oh_my_llm/features/media/domain/models/video_item.dart';
-import 'package:oh_my_llm/features/media/domain/models/media_server_info.dart';
 import 'package:oh_my_llm/features/sync/application/sync_client_controller.dart';
 import 'package:oh_my_llm/features/sync/data/sync_udp_discovery.dart';
 
@@ -22,6 +21,10 @@ Future<AppDatabase> pumpSyncScreen(
   AppDatabase? database,
   Size size = const Size(1440, 1200),
   List<dynamic> extraOverrides = const [],
+
+  /// 测试在 [extraOverrides] 覆盖 [mediaLibraryFactoryProvider] 时必须
+  /// 传 false，排除 composition 的生产绑定（避免重复 override）。
+  bool bindMediaLibraryFactory = true,
 }) async {
   return pumpTestApp(
     tester,
@@ -30,6 +33,7 @@ Future<AppDatabase> pumpSyncScreen(
     database: database,
     viewportSize: size,
     extraOverrides: extraOverrides,
+    bindMediaLibraryFactory: bindMediaLibraryFactory,
   );
 }
 
@@ -56,11 +60,11 @@ class RecordingMediaBrowserController extends MediaBrowserController {
   }
 
   @override
-  void initWithServer(MediaServerInfo server) {
+  Future<bool> initFromActiveSession() async {
     initCount++;
     totalInitCount++;
-    state = MediaBrowserState(server: server);
-    lastState = state;
+    lastState = MediaBrowserState();
+    return true;
   }
 
   @override

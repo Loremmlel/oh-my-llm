@@ -14,6 +14,8 @@ import '../../application/shuffle_playback_controller.dart';
 /// - Active → ◀ 上一个 | N/M | 下一个 ▶（边界自适应）
 ///
 /// [currentDirectoryPath] 用于向 controller 传递当前浏览目录。
+/// start/next/previous 的返回值是相对路径，直接交给媒体播放路由；
+/// 本组件不调用任何资源解析器。
 class ShuffleAppBarActions extends ConsumerWidget {
   final String currentDirectoryPath;
 
@@ -52,13 +54,13 @@ class ShuffleAppBarActions extends ConsumerWidget {
     WidgetRef ref,
     ShufflePlaybackController controller,
   ) async {
-    final videoUrl = await controller.startShuffle(currentDirectoryPath);
+    final path = await controller.startShuffle(currentDirectoryPath);
 
     if (!context.mounted) return;
 
     final state = ref.read(shufflePlaybackControllerProvider);
-    if (videoUrl != null && state is ShufflePlaybackActive) {
-      _navigateToPlayer(context, state.currentVideo.relativePath, controller);
+    if (path != null && state is ShufflePlaybackActive) {
+      _navigateToPlayer(context, path, controller);
     } else {
       context.showWarningBubble('当前目录下未找到视频文件');
     }
@@ -101,12 +103,9 @@ class ShuffleAppBarActions extends ConsumerWidget {
     WidgetRef ref,
     ShufflePlaybackController controller,
   ) async {
-    final videoUrl = controller.playNext();
-    if (videoUrl == null) return;
-    final state = ref.read(shufflePlaybackControllerProvider);
-    if (state is ShufflePlaybackActive) {
-      _navigateToPlayer(context, state.currentVideo.relativePath, controller);
-    }
+    final path = controller.playNext();
+    if (path == null) return;
+    _navigateToPlayer(context, path, controller);
   }
 
   Future<void> _onPrevPressed(
@@ -114,12 +113,9 @@ class ShuffleAppBarActions extends ConsumerWidget {
     WidgetRef ref,
     ShufflePlaybackController controller,
   ) async {
-    final videoUrl = controller.playPrevious();
-    if (videoUrl == null) return;
-    final state = ref.read(shufflePlaybackControllerProvider);
-    if (state is ShufflePlaybackActive) {
-      _navigateToPlayer(context, state.currentVideo.relativePath, controller);
-    }
+    final path = controller.playPrevious();
+    if (path == null) return;
+    _navigateToPlayer(context, path, controller);
   }
 
   Future<void> _navigateToPlayer(

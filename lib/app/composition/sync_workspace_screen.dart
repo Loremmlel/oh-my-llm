@@ -9,9 +9,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../navigation/app_destination.dart';
 import '../shell/app_shell_scaffold.dart';
 import 'package:oh_my_llm/features/media/application/media_browser_controller.dart';
+import 'package:oh_my_llm/features/media/application/media_library_session_controller.dart';
 import 'package:oh_my_llm/features/media/application/media_root_directory_controller.dart';
+import 'package:oh_my_llm/features/media/application/models/media_library_failure.dart';
+import 'package:oh_my_llm/features/media/application/models/media_library_source.dart';
 import 'package:oh_my_llm/features/media/application/shuffle_playback_controller.dart';
-import 'package:oh_my_llm/features/media/domain/models/media_server_info.dart';
 import 'package:oh_my_llm/features/media/presentation/media_browser_tab.dart';
 import 'package:oh_my_llm/features/media/presentation/widgets/shuffle_appbar_actions.dart';
 import 'package:oh_my_llm/features/sync/application/sync_client_controller.dart';
@@ -69,6 +71,8 @@ class _SyncWorkspaceScreenState extends ConsumerState<SyncWorkspaceScreen>
     if (_tabController.indexIsChanging) return;
     final nextIndex = _tabController.index;
     if (_hasMediaTab && _lastStableTabIndex == 2 && nextIndex != 2) {
+      // 离开媒体 Tab：先失效会话，再重置浏览器与随机播放
+      ref.read(mediaLibrarySessionProvider.notifier).reset();
       ref.read(mediaBrowserControllerProvider.notifier).reset();
       ref.read(shufflePlaybackControllerProvider.notifier).reset();
     }
@@ -80,29 +84,51 @@ class _SyncWorkspaceScreenState extends ConsumerState<SyncWorkspaceScreen>
     setState(() {});
   }
 
-  void _initMediaSession() {
+  /// 按已连接服务端激活远端媒体会话，并让浏览器从根目录加载。
+  Future<void> _initMediaSession() async {
     if (!mounted || !_hasMediaTab || _tabController.index != 2) return;
     final server = ref.read(syncClientControllerProvider).server;
-    if (server == null) return;
-    ref
-        .read(mediaBrowserControllerProvider.notifier)
-        .initWithServer(
-          MediaServerInfo(ip: server.ip, httpPort: server.httpPort),
+    if (server == null) {
+      ref
+          .read(mediaLibrarySessionProvider.notifier)
+          .fail(
+            const MediaLibraryFailure(
+              MediaLibraryFailureCode.sourceUnavailable,
+              '未连接到服务端',
+            ),
+          );
+      return;
+    }
+    final activated = await ref
+        .read(mediaLibrarySessionProvider.notifier)
+        .activate(
+          RemoteMediaLibrarySource(
+            Uri(scheme: 'http', host: server.ip, port: server.httpPort),
+          ),
         );
+    if (!mounted || _tabController.index != 2 || !activated) return;
+    await ref
+        .read(mediaBrowserControllerProvider.notifier)
+        .initFromActiveSession();
   }
 
   @override
   Widget build(BuildContext context) {
-    final mediaState = _hasMediaTab && _tabController.index == 2
+    final isMediaTab = _hasMediaTab && _tabController.index == 2;
+    final mediaSession = isMediaTab
+        ? ref.watch(mediaLibrarySessionProvider)
+        : null;
+    final mediaBrowser = isMediaTab
         ? ref.watch(mediaBrowserControllerProvider)
         : null;
     return AppShellScaffold(
       currentDestination: AppDestination.sync,
       title: '局域网同步',
-      actions: mediaState?.server != null
+      // 随机播放按钮只在媒体 Tab 且会话 Active 时可见
+      actions: mediaSession is MediaLibrarySessionActive && mediaBrowser != null
           ? [
               ShuffleAppBarActions(
-                currentDirectoryPath: mediaState!.currentPath,
+                currentDirectoryPath: mediaBrowser.currentPath,
               ),
             ]
           : null,

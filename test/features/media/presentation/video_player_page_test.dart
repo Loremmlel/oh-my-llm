@@ -2,6 +2,8 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:oh_my_llm/features/media/application/models/media_resource.dart';
+import 'package:oh_my_llm/features/media/presentation/pages/media_video_controller_factory.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/video_player_page.dart';
 import 'package:oh_my_llm/features/media/presentation/widgets/video_player_controls.dart';
 
@@ -9,6 +11,10 @@ import '../../../helpers/widget_test_animation.dart';
 import '../helpers/fake_video_player_controller.dart';
 
 // ── 测试助手 ─────────────────────────────────────────────────────────
+
+/// 测试用的远端资源（避免真实平台通道，控制器一律经 factory 注入 Fake）。
+NetworkMediaResource _testResource() =>
+    NetworkMediaResource(Uri.parse('http://localhost/test.mp4'));
 
 /// 包裹 widget 到 MaterialApp + Navigator 中，模拟真实导航场景。
 Widget _wrapWithMaterialApp(Widget child) {
@@ -23,12 +29,13 @@ Widget _wrapWithMaterialApp(Widget child) {
 /// 创建使用 FakeController 的测试页面。
 Widget _buildTestPageWithFake({
   required FakeVideoPlayerController fakeController,
+  MediaVideoControllerFactory? controllerFactory,
 }) {
   return _wrapWithMaterialApp(
     VideoPlayerPage(
-      videoUrl: 'http://localhost/test.mp4',
+      resource: _testResource(),
       fileName: 'test-video.mp4',
-      controllerFactory: (uri) => fakeController,
+      controllerFactory: controllerFactory ?? (resource) => fakeController,
     ),
   );
 }
@@ -43,9 +50,9 @@ Widget _buildPushedTestPageWithFake({
         onPressed: () => Navigator.of(context).push(
           PageRouteBuilder<void>(
             pageBuilder: (_, _, _) => VideoPlayerPage(
-              videoUrl: 'http://localhost/test.mp4',
+              resource: _testResource(),
               fileName: 'test-video.mp4',
-              controllerFactory: (uri) => fakeController,
+              controllerFactory: (resource) => fakeController,
             ),
             transitionDuration: Duration.zero,
             reverseTransitionDuration: Duration.zero,
@@ -138,8 +145,16 @@ void main() {
       final failingController = FakeVideoPlayerController(
         initializeError: StateError('初始化失败'),
       );
+      // 记录到达 factory 的资源：重试必须复用同一资源对象
+      final factoryCalls = <MediaResource>[];
       await tester.pumpWidget(
-        _buildTestPageWithFake(fakeController: failingController),
+        _buildTestPageWithFake(
+          fakeController: failingController,
+          controllerFactory: (resource) {
+            factoryCalls.add(resource);
+            return failingController;
+          },
+        ),
       );
       // 首次失败
       await failingController.waitForInitializeCount(1);
@@ -163,6 +178,9 @@ void main() {
       expect(failingController.initializeCallCount, 2);
       expect(find.byIcon(Icons.error_outline), findsOneWidget);
       expect(find.text('重试'), findsOneWidget);
+      // 同一资源对象到达 factory 两次（首次进入 + 重试）
+      expect(factoryCalls, hasLength(2));
+      expect(factoryCalls[0], factoryCalls[1]);
       await _flushGestureTimers(tester);
     });
   });
