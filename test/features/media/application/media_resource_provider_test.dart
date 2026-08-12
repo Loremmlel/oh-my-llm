@@ -86,15 +86,23 @@ Future<MediaResource?> readResource(
   }
 }
 
+/// 构建禁用自动重试的测试容器。
+///
+/// 本文件验证媒体资源分派与失败契约，不验证 Riverpod 的退避策略；保留默认
+/// 重试会让 `.future` 的预期失败断言等待全部指数退避结束。
+ProviderContainer _createContainer(MediaLibraryFactory factory) {
+  return ProviderContainer.test(
+    overrides: [mediaLibraryFactoryProvider.overrideWithValue(factory)],
+    retry: (_, _) => null,
+  );
+}
+
 void main() {
   test('未激活或打开中的会话返回 sourceUnavailable', () async {
     final library = FakeMediaLibrary();
     final factory = FakeMediaLibraryFactory(library)
       ..pendingOpen = Completer<MediaLibrary>();
-    final container = ProviderContainer(
-      overrides: [mediaLibraryFactoryProvider.overrideWithValue(factory)],
-    );
-    addTearDown(container.dispose);
+    final container = _createContainer(factory);
 
     // 初始 Inactive：资源解析直接失败。
     await expectLater(
@@ -136,10 +144,7 @@ void main() {
     );
     final library = FakeMediaLibrary();
     final factory = FakeMediaLibraryFactory(library);
-    final container = ProviderContainer(
-      overrides: [mediaLibraryFactoryProvider.overrideWithValue(factory)],
-    );
-    addTearDown(container.dispose);
+    final container = _createContainer(factory);
     final sub = container.listen(mediaLibrarySessionProvider, (_, _) {});
     addTearDown(sub.close);
 
@@ -158,10 +163,7 @@ void main() {
     );
     final library = FakeMediaLibrary()..assetResults[_assetRequest] = resource;
     final factory = FakeMediaLibraryFactory(library);
-    final container = ProviderContainer(
-      overrides: [mediaLibraryFactoryProvider.overrideWithValue(factory)],
-    );
-    addTearDown(container.dispose);
+    final container = _createContainer(factory);
     final sub = container.listen(mediaLibrarySessionProvider, (_, _) {});
     addTearDown(sub.close);
 
@@ -180,10 +182,7 @@ void main() {
     final library = FakeMediaLibrary()
       ..thumbnailResults[_thumbnailRequest] = resource;
     final factory = FakeMediaLibraryFactory(library);
-    final container = ProviderContainer(
-      overrides: [mediaLibraryFactoryProvider.overrideWithValue(factory)],
-    );
-    addTearDown(container.dispose);
+    final container = _createContainer(factory);
     final sub = container.listen(mediaLibrarySessionProvider, (_, _) {});
     addTearDown(sub.close);
 
@@ -206,10 +205,7 @@ void main() {
     final fresh = FakeMediaLibrary()
       ..assetResults[_assetRequest] = freshResource;
     final factory = _SwitchingMediaLibraryFactory([pending, fresh]);
-    final container = ProviderContainer(
-      overrides: [mediaLibraryFactoryProvider.overrideWithValue(factory)],
-    );
-    addTearDown(container.dispose);
+    final container = _createContainer(factory);
     final sub = container.listen(mediaLibrarySessionProvider, (_, _) {});
     addTearDown(sub.close);
 
