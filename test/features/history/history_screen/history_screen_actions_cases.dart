@@ -70,4 +70,19 @@ void registerHistoryScreenActionsTests() {
     expect(find.text('聊天落点'), findsNothing);
     expect(find.widgetWithText(FilledButton, '删除 1 项'), findsOneWidget);
   });
+
+  testWidgets('系统返回先清除历史选择态再离开页面', (tester) async {
+    await setUpHistoryScreen(tester);
+    await tester.longPress(find.text('Flutter 路线图'));
+    await tester.pump();
+
+    expect(find.byTooltip('取消选择'), findsOneWidget);
+    await tester.binding.handlePopRoute();
+    await tester.pump();
+
+    // 选择态是页面本地返回目标，Back 优先清选择而非离开页面。
+    expect(find.byTooltip('取消选择'), findsNothing);
+    expect(find.text('聊天落点'), findsNothing);
+    expect(find.text('Flutter 路线图'), findsOneWidget);
+  });
 }

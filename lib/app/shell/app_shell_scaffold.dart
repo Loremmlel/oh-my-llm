@@ -15,8 +15,10 @@ class AppShellScaffold extends StatelessWidget {
     required this.body,
     this.actions,
     this.endDrawer,
+    this.hasLocalBackTarget = false,
+    this.onLocalBack,
     super.key,
-  });
+  }) : assert(!hasLocalBackTarget || onLocalBack != null);
 
   final AppDestination currentDestination;
   final String title;
@@ -24,9 +26,46 @@ class AppShellScaffold extends StatelessWidget {
   final List<Widget>? actions;
   final Widget? endDrawer;
 
-  /// 构建自适应页面脚手架，并把路由切换交给 GoRouter。
+  /// 是否存在需要优先于路由切换处理的页面本地返回目标（历史选择态、聊天
+  /// 显式消息编辑事务）。普通 composer 草稿不属于本地返回目标，不拦返回。
+  final bool hasLocalBackTarget;
+
+  /// [hasLocalBackTarget] 为 true 时，系统返回应执行的本地清理回调。
+  final VoidCallback? onLocalBack;
+
+  /// 构建唯一的 App Shell 返回层级：系统返回先清本地目标，再回对话页，
+  /// 对话根无本地目标时交系统退出。
+  ///
+  /// 用 PopScope 而非 WillPopScope/Navigator.willPop：Android 预测性返回
+  /// 手势只认 PopScope 的 canPop/onPopInvokedWithResult 机制，旧 API 会被
+  /// 系统忽略。canPop 只依赖 build 时的同步 UI 状态，不在回调里查询异步
+  /// 条件后再决定是否放行路由 pop。
   @override
   Widget build(BuildContext context) {
+    final canPop =
+        currentDestination == AppDestination.chat && !hasLocalBackTarget;
+
+    return PopScope<void>(
+      canPop: canPop,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        // 页面本地返回目标优先：清理本地状态，路由保持不变。
+        if (hasLocalBackTarget) {
+          onLocalBack!.call();
+          return;
+        }
+        // 非对话顶层目的地统一退回对话页；对话根没有本地目标时不改写路由，
+        // 由系统处理退出。
+        if (currentDestination != AppDestination.chat) {
+          context.go(AppDestination.chat.path);
+        }
+      },
+      child: _buildShellLayout(context),
+    );
+  }
+
+  /// 构建自适应页面脚手架，并把路由切换交给 GoRouter。
+  Widget _buildShellLayout(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isCompact = AppBreakpoints.useCompactShell(constraints.maxWidth);

@@ -8,6 +8,39 @@ import 'package:oh_my_llm/app/shell/app_shell_scaffold.dart';
 import '../../helpers/responsive_viewport_cases.dart';
 import '../../helpers/widget_test_animation.dart';
 
+/// 各顶层目的地页面的可见正文：对话页用「聊天页面」与 label「对话」区分，
+/// 其余沿用既有约定的「{label}页面」。
+String _shellBodyText(AppDestination dest) =>
+    dest == AppDestination.chat ? '聊天页面' : '${dest.label}页面';
+
+/// 构造承载全部顶层目的地的 GoRouter，供顶层 Back 行为与导航用例复用。
+GoRouter _shellRouter({
+  required String initialLocation,
+  Widget? endDrawer,
+  List<Widget> actions = const [],
+  bool hasLocalBackTarget = false,
+  VoidCallback? onLocalBack,
+}) {
+  return GoRouter(
+    initialLocation: initialLocation,
+    routes: [
+      for (final dest in AppDestination.values)
+        GoRoute(
+          path: dest.path,
+          builder: (context, state) => AppShellScaffold(
+            currentDestination: dest,
+            title: dest.label,
+            body: Text(_shellBodyText(dest)),
+            endDrawer: endDrawer,
+            actions: actions,
+            hasLocalBackTarget: hasLocalBackTarget,
+            onLocalBack: onLocalBack,
+          ),
+        ),
+    ],
+  );
+}
+
 Future<void> _pumpShell(
   WidgetTester tester, {
   required AppDestination destination,
@@ -22,21 +55,10 @@ Future<void> _pumpShell(
     tester.view.resetDevicePixelRatio();
   });
 
-  final router = GoRouter(
+  final router = _shellRouter(
     initialLocation: destination.path,
-    routes: [
-      for (final dest in AppDestination.values)
-        GoRoute(
-          path: dest.path,
-          builder: (context, state) => AppShellScaffold(
-            currentDestination: dest,
-            title: dest.label,
-            body: Text('${dest.label}页面'),
-            endDrawer: endDrawer,
-            actions: actions,
-          ),
-        ),
-    ],
+    endDrawer: endDrawer,
+    actions: actions,
   );
 
   await tester.pumpWidget(MaterialApp.router(routerConfig: router));
@@ -96,4 +118,68 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('系统返回将非对话顶层目的地退回对话', (tester) async {
+    final router = _shellRouter(initialLocation: AppDestination.settings.path);
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+
+    expect(find.text('设置页面'), findsOneWidget);
+    await tester.binding.handlePopRoute();
+    await settleRouteTransition(tester);
+
+    expect(router.routeInformationProvider.value.uri.path, '/chat');
+    expect(find.text('聊天页面'), findsOneWidget);
+  });
+
+  for (final dest in [
+    AppDestination.history,
+    AppDestination.favorites,
+    AppDestination.sync,
+  ]) {
+    testWidgets('系统返回将${dest.label}顶层目的地退回对话', (tester) async {
+      final router = _shellRouter(initialLocation: dest.path);
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+
+      expect(find.text('${dest.label}页面'), findsOneWidget);
+      await tester.binding.handlePopRoute();
+      await settleRouteTransition(tester);
+
+      expect(router.routeInformationProvider.value.uri.path, '/chat');
+      expect(find.text('聊天页面'), findsOneWidget);
+    });
+  }
+
+  testWidgets('对话根无本地返回目标时系统返回不改写路由', (tester) async {
+    final router = _shellRouter(initialLocation: AppDestination.chat.path);
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+
+    expect(find.text('聊天页面'), findsOneWidget);
+    await tester.binding.handlePopRoute();
+    await settleRouteTransition(tester);
+
+    // chat 根没有 local target 时交系统退出，AppShell 不得改写为其他路由。
+    expect(router.routeInformationProvider.value.uri.path, '/chat');
+    expect(find.text('聊天页面'), findsOneWidget);
+  });
+
+  testWidgets('有本地返回目标时系统返回只调用一次本地回调', (tester) async {
+    var onLocalBackCalls = 0;
+    final router = _shellRouter(
+      initialLocation: AppDestination.chat.path,
+      hasLocalBackTarget: true,
+      onLocalBack: () {
+        onLocalBackCalls += 1;
+      },
+    );
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+
+    expect(find.text('聊天页面'), findsOneWidget);
+    await tester.binding.handlePopRoute();
+    await settleRouteTransition(tester);
+
+    // 本地返回目标优先：只调用一次 onLocalBack，路由不被改写。
+    expect(onLocalBackCalls, 1);
+    expect(router.routeInformationProvider.value.uri.path, '/chat');
+    expect(find.text('聊天页面'), findsOneWidget);
+  });
 }

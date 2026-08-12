@@ -231,6 +231,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     return AppShellScaffold(
       currentDestination: AppDestination.chat,
       title: conversation.resolvedTitle,
+      // 显式消息编辑事务是页面本地返回目标：系统返回先取消编辑恢复草稿，
+      // 而不是把编辑中的会话交还系统退出。普通 composer 草稿不拦返回。
+      hasLocalBackTarget: _editingMessageId != null,
+      onLocalBack: _cancelEditMode,
       endDrawer: _buildEndDrawer(
         conversationSummaries: conversationSummaries,
         activeConversationId: activeConversationId,

@@ -243,6 +243,49 @@ void registerChatScreenWorkspaceOwnershipTests() {
     );
   });
 
+  testWidgets('系统返回取消消息编辑并恢复草稿', (tester) async {
+    final fakeClient = FakeChatGenerationClient()..enqueueChunks(['已收到']);
+    await pumpChatScreen(tester, fakeClient: fakeClient);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
+    final convId = container.read(chatSessionsProvider).activeConversation.id;
+
+    // 先发一条消息，让用户消息气泡提供「编辑消息」入口。
+    await sendMessage(tester, '第一条问题');
+    await waitForChatGeneration(
+      tester,
+      container,
+      (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
+      description: '系统返回取消编辑用例生成完成',
+    );
+
+    // 发送 accepted 会清空 body，随后输入普通草稿进入会话级 draft。
+    await tester.enterText(_composerFinder, '普通草稿');
+    await tester.pump();
+
+    // 进入编辑模式并修改正文（只写页面草稿，不写会话级 draft）。
+    await tester.tap(find.byTooltip('编辑消息').last);
+    await settleAnimatedWidgetTransition(tester);
+    await tester.enterText(_composerFinder, '编辑中的修改');
+    await tester.pump();
+
+    expect(find.byTooltip('取消编辑'), findsOneWidget);
+
+    // 系统返回：显式消息编辑事务优先于导航，取消编辑并恢复草稿，
+    // ChatScreen 保持可见而不是被卸载。
+    await tester.binding.handlePopRoute();
+    await tester.pump();
+
+    expect(find.byTooltip('取消编辑'), findsNothing);
+    _expectFieldText(_composerFinder, '普通草稿');
+    expect(find.byType(ChatScreen), findsOneWidget);
+    expect(
+      container.read(composerDraftProvider.notifier).draftFor(convId).body,
+      '普通草稿',
+    );
+  });
+
   testWidgets('编辑后切换会话不污染旧会话草稿', (tester) async {
     final fakeClient = FakeChatGenerationClient()..enqueueChunks(['已收到']);
     await pumpChatScreen(tester, fakeClient: fakeClient);

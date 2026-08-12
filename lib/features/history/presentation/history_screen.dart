@@ -73,6 +73,9 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     return AppShellScaffold(
       currentDestination: AppDestination.history,
       title: '历史对话页',
+      // 选择态是页面本地返回目标：系统返回优先清选择，而不是直接退回对话页。
+      hasLocalBackTarget: _selectionMode,
+      onLocalBack: _clearSelection,
       actions: [
         if (_selectionMode)
           IconButton(
