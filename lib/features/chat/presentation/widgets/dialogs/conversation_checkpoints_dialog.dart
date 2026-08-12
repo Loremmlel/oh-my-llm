@@ -44,9 +44,22 @@ class _ConversationCheckpointsDialogState
 
   @override
   Widget build(BuildContext context) {
+    // 创建检查点期间阻止 system Back 与 barrier tap 关闭对话框（关闭按钮
+    // 已禁用，避免正在执行的总结被意外打断）；完成后 _isCreating 恢复 false，
+    // 路由回到可正常关闭状态。
+    return PopScope<void>(
+      canPop: !_isCreating,
+      child: _buildAlertDialog(context),
+    );
+  }
+
+  Widget _buildAlertDialog(BuildContext context) {
     final conversation = ref.watch(activeChatConversationProvider);
     final memoryPrompts = ref.watch(memoryPromptsProvider);
     final isBusy = ref.watch(isChatBusyProvider);
+    // 必须在选中项计算之前兜底默认值：否则首次构建时 selectedMemoryPrompt
+    // 恒为 null，创建按钮被禁用且没有后续重建来恢复。
+    _selectedMemoryPromptId ??= memoryPrompts.firstOrNull?.id;
     final compatibleCheckpoints = conversation.checkpoints
         .where(
           (checkpoint) => _isCheckpointCompatible(conversation, checkpoint),
@@ -72,8 +85,6 @@ class _ConversationCheckpointsDialogState
     final focusedCheckpoint = conversation.checkpoints
         .where((checkpoint) => checkpoint.id == focusedCheckpointId)
         .firstOrNull;
-
-    _selectedMemoryPromptId ??= memoryPrompts.firstOrNull?.id;
 
     return AlertDialog(
       title: const Text('对话检查点'),

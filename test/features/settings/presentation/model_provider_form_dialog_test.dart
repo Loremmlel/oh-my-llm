@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -136,5 +138,61 @@ void main() {
         expect(captured!.apiProtocol, protocol);
       });
     }
+
+    testWidgets('保存中 Back 与 barrier 点击不能关闭表单，保存完成后自动关闭', (tester) async {
+      // onSubmit 挂在两个 Completer 上：先确认保存已开始，再手动放行完成，
+      // 让 busy 窗口在测试内可确定地保持与结束，不依赖真实延时。
+      final submitStarted = Completer<void>();
+      final submitDone = Completer<void>();
+      // 经 showDialog 以真实 Dialog route 挂载，system Back 与 barrier tap
+      // 才会走路由 pop 逻辑——直接嵌在 body 中时根路由永远不可弹，测不出契约。
+      final sp = await SharedPreferences.getInstance();
+      await pumpTestApp(
+        tester,
+        preferences: sp,
+        child: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showDialog<void>(
+                context: context,
+                builder: (_) => ModelProviderFormDialog(
+                  onSubmit: (data) async {
+                    submitStarted.complete();
+                    await submitDone.future;
+                  },
+                ),
+              ),
+              child: const Text('打开表单'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('打开表单'));
+      await settleOverlayTransition(tester);
+
+      await fillRequiredFields(tester);
+      await tester.tap(find.widgetWithText(FilledButton, '保存'));
+      await submitStarted.future;
+      await tester.pump();
+
+      expect(find.text('保存中...'), findsOneWidget);
+
+      // busy 期间 system Back 不能弹出表单（PopScope canPop=false）。
+      await tester.binding.handlePopRoute();
+      // 等退场动画收敛：若路由真的在退场，动画结束后对话框必然消失，
+      // 单帧 pump 只会停在退场中途、树里仍有对话框，无法区分二者。
+      await settleOverlayTransition(tester);
+      expect(find.byType(ModelProviderFormDialog), findsOneWidget);
+
+      // busy 期间 barrier 点击同样不能关闭。
+      await tester.tapAt(Offset.zero);
+      await tester.pump();
+      expect(find.byType(ModelProviderFormDialog), findsOneWidget);
+
+      // 保存完成后 isSaving 恢复 false，表单自动关闭。
+      submitDone.complete();
+      await settleOverlayTransition(tester);
+      expect(find.byType(ModelProviderFormDialog), findsNothing);
+    });
   });
 }

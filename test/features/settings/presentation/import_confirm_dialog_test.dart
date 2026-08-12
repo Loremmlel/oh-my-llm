@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -104,6 +106,41 @@ Future<void> _openDialog(WidgetTester tester) async {
   expect(find.text('检测到配置导入数据'), findsOneWidget);
 }
 
+/// 所有写入都挂在 [gate] 上的导入目标：测试先确认 busy 窗口，
+/// 再通过完成/失败 gate 让导入流程结束，精确控制 busy 时长。
+final class _GateImportTargets implements SettingsImportTargets {
+  const _GateImportTargets(this.gate);
+
+  final Completer<void> gate;
+
+  Future<void> _awaitGate() async {
+    await gate.future;
+  }
+
+  @override
+  Future<void> mergeImportedProviders(List<LlmProviderConfig> value) =>
+      _awaitGate();
+  @override
+  Future<void> saveAutoRetrySettings(AutoRetrySettings value) => _awaitGate();
+  @override
+  Future<void> saveCustomHeaders(CustomHeadersConfig value) => _awaitGate();
+  @override
+  Future<void> saveFontSize(FontSizeSettings value) => _awaitGate();
+  @override
+  Future<void> saveOutputProcessing(OutputProcessingSettings value) =>
+      _awaitGate();
+  @override
+  Future<void> upsertFixedPromptSequences(List<FixedPromptSequence> value) =>
+      _awaitGate();
+  @override
+  Future<void> upsertMemoryPrompts(List<MemoryPrompt> value) => _awaitGate();
+  @override
+  Future<void> upsertPresetPrompts(List<PresetPrompt> value) => _awaitGate();
+  @override
+  Future<void> upsertTemplatePrompts(List<TemplatePrompt> value) =>
+      _awaitGate();
+}
+
 final class _FailingImportTargets implements SettingsImportTargets {
   const _FailingImportTargets();
 
@@ -147,11 +184,13 @@ void main() {
 
     Future<ProviderContainer> pumpHost(
       WidgetTester tester,
-      SettingsExportData data,
-    ) async {
+      SettingsExportData data, {
+      List<dynamic> extraOverrides = const [],
+    }) async {
       await pumpTestApp(
         tester,
         preferences: preferences,
+        extraOverrides: extraOverrides,
         child: Builder(
           builder: (context) {
             return Scaffold(
@@ -243,6 +282,51 @@ void main() {
       expect(find.text('检测到配置导入数据'), findsOneWidget);
       expect(find.text('导入失败：Bad state: 写入失败'), findsOneWidget);
       await tester.tap(find.text('取消'));
+      await settleOverlayTransition(tester);
+      expect(find.text('检测到配置导入数据'), findsNothing);
+    });
+
+    testWidgets('导入中 Back 不能关闭对话框，失败恢复后可关闭', (tester) async {
+      // 导入动作挂在 gate 上：先确认 busy 窗口（导入中 + 取消禁用），
+      // 再通过 completeError 让导入失败恢复 busy 状态，精确控制时长。
+      final gate = Completer<void>();
+      await pumpHost(
+        tester,
+        _buildFullData(),
+        extraOverrides: [
+          settingsImportExecutorProvider.overrideWithValue(
+            SettingsImportExecutor(targets: _GateImportTargets(gate)),
+          ),
+        ],
+      );
+      await _openDialog(tester);
+
+      await tester.tap(find.text('导入'));
+      // _isImporting 置 true 是同步状态，单帧渲染即可
+      await tester.pump();
+
+      expect(find.text('导入中...'), findsOneWidget);
+      final cancelButton = tester.widget<TextButton>(
+        find.widgetWithText(TextButton, '取消'),
+      );
+      expect(cancelButton.onPressed, isNull);
+
+      // busy 期间 system Back 不能关闭对话框（PopScope canPop=false）。
+      await tester.binding.handlePopRoute();
+      // 等退场动画收敛：若路由真的在退场，动画结束后对话框必然消失，
+      // 单帧 pump 只会停在退场中途、树里仍有对话框，无法区分二者。
+      await settleOverlayTransition(tester);
+      expect(find.text('检测到配置导入数据'), findsOneWidget);
+
+      // 导入失败后 busy 恢复为 false，Back 可以关闭。
+      gate.completeError(StateError('写入失败'));
+      // completeError 的错误沿 await 链以微任务传播，且错误气泡首次插入走
+      // AnimatedList initialItemCount，需收敛帧后文案才可见。
+      await settleAnimatedWidgetTransition(tester);
+      expect(find.text('导入失败：Bad state: 写入失败'), findsOneWidget);
+      expect(find.text('导入中...'), findsNothing);
+
+      await tester.binding.handlePopRoute();
       await settleOverlayTransition(tester);
       expect(find.text('检测到配置导入数据'), findsNothing);
     });

@@ -26,6 +26,16 @@ class _ImportConfirmDialogState extends ConsumerState<ImportConfirmDialog> {
   @override
   /// 构建导入确认对话框，展示各类条目数量并提供确认/取消按钮。
   Widget build(BuildContext context) {
+    // 导入期间阻止 system Back 与 barrier tap 关闭对话框（取消/导入按钮
+    // 已禁用，避免正在执行的导入被意外打断）；失败恢复 _isImporting=false
+    // 后路由回到可正常关闭状态。
+    return PopScope<void>(
+      canPop: !_isImporting,
+      child: _buildAlertDialog(context),
+    );
+  }
+
+  Widget _buildAlertDialog(BuildContext context) {
     final data = widget.exportData;
 
     return AlertDialog(

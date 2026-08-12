@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/chat/application/chat_generation_lifecycle.dart';
 import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
@@ -15,6 +16,7 @@ import 'package:oh_my_llm/features/settings/application/template_prompts_control
 import 'package:oh_my_llm/features/settings/domain/models/memory_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
 
+import '../../../helpers/async_test_signals.dart';
 import '../../../helpers/fixtures.dart';
 import '../../../helpers/widget_test_animation.dart';
 import 'chat_screen_test_helpers.dart';
@@ -278,6 +280,75 @@ void registerChatScreenBasicsTests() {
     await settleOverlayTransition(tester);
 
     expect(find.text('检查点标题'), findsOneWidget);
+  });
+
+  testWidgets('创建检查点期间 system Back 不能关闭对话框，完成后可关闭', (tester) async {
+    final fakeClient = FakeChatGenerationClient()..enqueueChunks(['已收到']);
+    // 创建检查点走非流式 complete()，受控流不结束即保持 _isCreating=true。
+    final controlled = fakeClient.enqueueControlledStream();
+
+    await pumpChatScreen(tester, fakeClient: fakeClient);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
+    await container
+        .read(memoryPromptsProvider.notifier)
+        .upsert(
+          MemoryPrompt(
+            id: 'memory-1',
+            name: '研发总结',
+            content: '请总结当前研发对话中的关键事实、约束与待办。',
+            updatedAt: DateTime(2026, 5, 6),
+          ),
+        );
+    // upsert 是同步持久化，单帧渲染即可。
+    await tester.pump();
+
+    await sendMessage(tester, '先生成一点上下文');
+    await waitForChatGeneration(
+      tester,
+      container,
+      (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
+      description: '检查点 busy 用例上下文生成完成',
+    );
+
+    await tester.tap(find.byTooltip('对话检查点'));
+    await settleOverlayTransition(tester);
+
+    await tester.tap(find.widgetWithText(FilledButton, '创建检查点'));
+    // 确认 complete() 已开始监听受控流，再进入 busy 断言。
+    await controlled.listened;
+    await tester.pump();
+
+    expect(find.text('总结中...'), findsOneWidget);
+    final closeButton = tester.widget<TextButton>(
+      find.widgetWithText(TextButton, '关闭'),
+    );
+    expect(closeButton.onPressed, isNull);
+
+    // busy 期间 system Back 不能关闭对话框（PopScope canPop=false）。
+    await tester.binding.handlePopRoute();
+    // 等退场动画收敛：若路由真的在退场，动画结束后对话框必然消失，
+    // 单帧 pump 只会停在退场中途、树里仍有对话框，无法区分二者。
+    await settleOverlayTransition(tester);
+    expect(find.text('对话检查点'), findsOneWidget);
+
+    // 检查点创建完成（busy 恢复 false）后，Back 可以关闭。
+    controlled.add(const ChatGenerationChunk(contentDelta: '检查点内容'));
+    await controlled.close();
+    await waitForProviderState(
+      container: container,
+      provider: chatSessionsProvider,
+      matches: (s) => !s.isCheckpointing,
+      description: '检查点创建完成',
+    );
+    await tester.pump();
+
+    expect(find.text('总结中...'), findsNothing);
+
+    await tester.binding.handlePopRoute();
+    await settleOverlayTransition(tester);
+    expect(find.text('对话检查点'), findsNothing);
   });
 
   testWidgets('chat screen can exclude a reply from future requests', (
