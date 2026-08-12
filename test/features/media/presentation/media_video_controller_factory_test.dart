@@ -11,10 +11,12 @@ void main() {
     expect(local.dataSourceType.name, 'file');
     expect(local.dataSource, contains('demo.mp4'));
 
-    final remote = createMediaVideoController(NetworkMediaResource(
-      Uri.parse('http://peer/api/media/video/demo.mp4'),
-      headers: const {'X-Peer': 'token'},
-    ));
+    final remote = createMediaVideoController(
+      NetworkMediaResource(
+        Uri.parse('http://peer/api/media/video/demo.mp4'),
+        headers: const {'X-Peer': 'token'},
+      ),
+    );
     expect(remote.dataSourceType.name, 'network');
     expect(remote.httpHeaders, {'X-Peer': 'token'});
   });

@@ -13,11 +13,9 @@ typedef MediaVideoControllerFactory =
 
 VideoPlayerController createMediaVideoController(MediaResource resource) =>
     switch (resource) {
-      LocalMediaResource(:final uri) =>
-        VideoPlayerController.file(File.fromUri(uri)),
+      LocalMediaResource(:final uri) => VideoPlayerController.file(
+        File.fromUri(uri),
+      ),
       NetworkMediaResource(:final uri, :final headers) =>
-        VideoPlayerController.networkUrl(
-          uri,
-          httpHeaders: headers,
-        ),
+        VideoPlayerController.networkUrl(uri, httpHeaders: headers),
     };
