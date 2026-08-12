@@ -82,6 +82,8 @@ flutter test --reporter compact 2>&1 | Out-File -Encoding utf8 fltest.log; $E = 
 
 ### commit message 格式
 
+**commit message 一律使用简体中文**：subject 描述与 body 均用中文撰写；`type(scope):` 前缀保留 conventional 语义（英文小写，post-commit 版本 bump 按前缀判断，不得改写成中文）。测试类提交同理（如 `test(media): 移除过时的双击等待`）。
+
 直接在当前 PowerShell 中调用 `git commit`，不要把 PowerShell here-string 作为文本转交给 Bash。常规多段消息使用多个 `-m`，复杂消息先赋给 PowerShell 变量再作为单个参数传入：
 
 ```powershell
@@ -240,6 +242,7 @@ lib/
 ## 6. 代码规范
 
 - 注释**简体中文**。`///` doc，`//` 行间注释写「为什么」不写「做了什么」。
+- **测试名称一律使用简体中文**：`test(...)` / `testWidgets(...)` 标题描述触发条件与预期行为时用中文撰写，不得使用英文标题。
 - **禁止留下临时性审查/重构编号**：注释里不得出现 `P1-2`、`Phase 9`、`第一轮审查` 等指向某次审查计划或重构阶段的编号引用。这类编号是开发过程的临时路标，重构完成后必须清除；留下的注释应描述「代码为什么这么写」，而非「这次改动对应计划第几节」。如需追溯某次改动的来由，查 git history 与 `docs/` 下的计划文档，不要把编号刻进代码。测试用例标题与注释同样适用。
 - **禁止 `part` / `part of`**，大文件用 `import` / `export` 拆分（全项目零 `part of`）。
 - **导入路径风格**：跨 feature、跨 `core/`、跨 `app/` 的引用一律用 `package:oh_my_llm/...` 根路径（如 `import 'package:oh_my_llm/core/http/http_route_handler.dart';`），不用 `../../..` 深相对路径--文件在 feature 内挪位置时跨层 import 不必改。同一 feature 内部用相对路径（`../application/...`），更简洁。`package:oh_my_llm/` 只解析到 `lib/`，`test/` 文件互引只能用相对路径。
