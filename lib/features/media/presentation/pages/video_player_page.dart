@@ -188,7 +188,8 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
   /// 优先命中控制栏，按钮 tap 不再被双击识别器的窗口拖延。overlay 左右
   /// 收缩出 systemGestureInsets，边缘拖动让位给系统手势（如 Android 返回
   /// 手势），`systemGestureInsets` 只影响命中区域、不缩小视频画面。
-  /// 错误/加载状态不建 overlay，重试按钮可立即点击。
+  /// 播放表面等比居中、不随视口拉伸；错误/加载状态不建 overlay，
+  /// 重试按钮可立即点击。
   Widget _buildPlaybackInteractionLayer(VideoPlayerUiState s) {
     final playbackSurface = FocusTraversalOrder(
       order: const NumericFocusOrder(1),
@@ -198,7 +199,9 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
 
     final insets = MediaQuery.systemGestureInsetsOf(context);
     return Stack(
-      fit: StackFit.expand,
+      // 播放表面按 16:9 等比布局并居中（loose fit，不随视口拉伸）；
+      // Positioned 手势 overlay 始终铺满全屏，系统边缘内仍可命中
+      alignment: Alignment.center,
       children: [
         playbackSurface,
         Positioned(

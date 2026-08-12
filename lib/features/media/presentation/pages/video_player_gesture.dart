@@ -445,9 +445,13 @@ class CancelAwareHorizontalDragRecognizer
 
   @override
   void didStopTrackingLastPointer(int pointer) {
-    if (_pointerWasCancelled && _dragAccepted) {
-      _pointerWasCancelled = false;
-      _dragAccepted = false;
+    // 无条件复位两个标志：接受前的 cancel 也会走到这里，若只在转译分支
+    // 内复位，残留的 _pointerWasCancelled 会让下一次正常完成的拖动
+    // 误判为取消（不提交 seek）。
+    final cancelled = _pointerWasCancelled && _dragAccepted;
+    _pointerWasCancelled = false;
+    _dragAccepted = false;
+    if (cancelled) {
       onCancel?.call();
     }
     super.didStopTrackingLastPointer(pointer);

@@ -533,6 +533,54 @@ void main() {
       expect(semanticsByTooltip('返回'), findsOneWidget);
       await _flushGestureTimers(tester);
     });
+
+    testWidgets('拖动手势在接受前被取消，不污染下一次完整横拖的 seek', (tester) async {
+      final fake = FakeVideoPlayerController();
+      fake.fakePosition = const Duration(seconds: 30);
+      await pumpPlayerInEdgeViewport(tester, fake);
+
+      // 手势 A：拖动接受前即被系统取消（如触摸瞬间的中断），
+      // 应不留任何残留状态
+      final cancelled = await tester.startGesture(const Offset(200, 400));
+      await cancelled.cancel();
+      await tester.pump();
+
+      // 手势 B：完整横拖以 up 结束，必须正常提交 seek
+      final gesture = await tester.startGesture(const Offset(200, 400));
+      final slop = const Offset(kDragSlopDefault, 0);
+      await gesture.moveBy(slop);
+      await gesture.moveBy(const Offset(100, 0) - slop);
+      await tester.pump();
+      await gesture.up();
+      await tester.pump();
+
+      expect(fake.seekToCalls, isNotEmpty);
+      await _flushGestureTimers(tester);
+    });
+
+    testWidgets('非 16:9 视口下播放表面保持等比，手势层仍覆盖全屏', (tester) async {
+      final fake = FakeVideoPlayerController();
+      fake.fakePosition = const Duration(seconds: 30);
+      await pumpPlayerInEdgeViewport(tester, fake);
+
+      // 视频按 16:9 等比渲染（AspectRatio 尺寸含焦点边框 2px 内缩），
+      // 不被 400×800 视口拉伸成 400×800
+      final videoSize = tester.getSize(find.byType(AspectRatio));
+      expect(videoSize.height, closeTo(videoSize.width * 9 / 16, 0.1));
+
+      // 视频区域之外（中央 y=120，位于等比视频上方）仍属全屏手势层：
+      // 横拖照常 seek，证明 overlay 不随视频等比收缩
+      final gesture = await tester.startGesture(const Offset(200, 120));
+      final slop = const Offset(kDragSlopDefault, 0);
+      await gesture.moveBy(slop);
+      await gesture.moveBy(const Offset(100, 0) - slop);
+      await tester.pump();
+      await gesture.up();
+      await tester.pump();
+
+      expect(fake.seekToCalls, isNotEmpty);
+      await _flushGestureTimers(tester);
+    });
   });
 
   // ═══════════════════════════════════════════════════════════════════
