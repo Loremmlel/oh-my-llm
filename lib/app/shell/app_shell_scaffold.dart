@@ -89,6 +89,10 @@ class AppShellScaffold extends StatelessWidget {
             ],
           ),
           endDrawer: isCompact ? endDrawer : null,
+          // Android 边缘返回手势与抽屉右缘拖拽抢占同一块屏幕边缘：禁用
+          // open drag，把右缘让回系统 Back。抽屉仍可由图标打开，由
+          // barrier 点击或系统返回关闭。
+          endDrawerEnableOpenDragGesture: false,
           bottomNavigationBar: isCompact
               ? NavigationBar(
                   height: 64,

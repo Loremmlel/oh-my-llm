@@ -103,7 +103,7 @@ void main() {
   }
 
   for (final viewport in drawerViewports) {
-    testWidgets('${viewport.name}: 抽屉可打开且内容可达', (tester) async {
+    testWidgets('${viewport.name}: 抽屉可打开、内容可达，系统返回仅关闭抽屉', (tester) async {
       await _pumpShell(
         tester,
         destination: AppDestination.chat,
@@ -114,8 +114,40 @@ void main() {
       await tester.tap(find.byTooltip('打开侧边内容'));
       await settleOverlayTransition(tester);
 
+      final scaffold = tester.state<ScaffoldState>(find.byType(Scaffold));
+      expect(scaffold.isEndDrawerOpen, isTrue);
       expect(find.text('侧边内容'), findsOneWidget);
+
+      // 抽屉打开时会向路由注册 LocalHistoryEntry，系统返回只弹出它关闭
+      // 抽屉，不会退出对话页。
+      await tester.binding.handlePopRoute();
+      await settleOverlayTransition(tester);
+
+      expect(scaffold.isEndDrawerOpen, isFalse);
+      expect(find.text('聊天页面'), findsOneWidget);
       expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('${viewport.name}: 右边缘拖拽不打开抽屉', (tester) async {
+      await _pumpShell(
+        tester,
+        destination: AppDestination.chat,
+        size: viewport.size,
+        endDrawer: const Drawer(child: Text('侧边内容')),
+      );
+
+      final scaffold = tester.state<ScaffoldState>(find.byType(Scaffold));
+      expect(scaffold.isEndDrawerOpen, isFalse);
+
+      // 右缘要保留给 Android 边缘返回手势，抽屉边缘拖拽不得抢占。
+      await tester.dragFrom(
+        Offset(viewport.size.width - 1, viewport.size.height / 2),
+        const Offset(-240, 0),
+      );
+      await settleOverlayTransition(tester);
+
+      expect(scaffold.isEndDrawerOpen, isFalse);
+      expect(find.text('侧边内容'), findsNothing);
     });
   }
 
