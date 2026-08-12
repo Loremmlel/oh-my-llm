@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform;
@@ -108,6 +110,21 @@ class _SyncWorkspaceScreenState extends ConsumerState<SyncWorkspaceScreen>
         .initFromActiveSession();
   }
 
+  /// 媒体目录返回的所有权：仅在媒体 Tab 可见时消费系统返回。
+  ///
+  /// 目录有历史则回上一级；已在根目录则切回「连接」Tab。先同步读
+  /// [MediaBrowserState.canGoBack] 决定分支，目录加载失败只会停在原地并
+  /// 显示 inline 错误，不会被误判成「已到根目录」而切走 Tab。
+  void _handleMediaBack() {
+    if (!_hasMediaTab || _tabController.index != 2) return;
+    final state = ref.read(mediaBrowserControllerProvider);
+    if (!state.canGoBack) {
+      _tabController.animateTo(0);
+      return;
+    }
+    unawaited(ref.read(mediaBrowserControllerProvider.notifier).goBack());
+  }
+
   /// 按平台选择媒体来源：Windows 用持久化根目录直接访问本地文件系统，
   /// Android 用当前可信同步会话的 peer 地址。来源选择只发生在这里，
   /// media feature 内不做平台分支。
@@ -139,6 +156,9 @@ class _SyncWorkspaceScreenState extends ConsumerState<SyncWorkspaceScreen>
     return AppShellScaffold(
       currentDestination: AppDestination.sync,
       title: '局域网同步',
+      // 仅媒体 Tab 可见时声明本地返回目标：目录返回/切 Tab 优先于回对话页
+      hasLocalBackTarget: isMediaTab,
+      onLocalBack: _handleMediaBack,
       // 随机播放按钮只在媒体 Tab 且会话 Active 时可见
       actions: mediaSession is MediaLibrarySessionActive && mediaBrowser != null
           ? [

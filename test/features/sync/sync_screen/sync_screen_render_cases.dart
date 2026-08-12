@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/features/media/application/media_browser_controller.dart';
@@ -378,6 +379,111 @@ void registerSyncScreenRenderTests() {
         findsOneWidget,
       );
       expect(find.text('请先在「连接」标签页中连接到服务端'), findsNothing);
+    });
+  });
+
+  group('SyncScreen 媒体目录返回', () {
+    late SharedPreferences preferences;
+
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({});
+      preferences = await SharedPreferences.getInstance();
+      RecordingMediaBrowserController.latest = null;
+      RecordingMediaBrowserController.lastState = null;
+      RecordingMediaBrowserController.totalInitCount = 0;
+      RecordingShufflePlaybackController.latest = null;
+      RecordingShufflePlaybackController.lastState = null;
+    });
+
+    /// Android + 已连接服务端 + 记录型浏览器控制器，进入媒体 Tab 后返回路由器。
+    ///
+    /// 媒体返回的所有权在 SyncWorkspaceScreen，必须让页面位于 /sync 顶层
+    /// 路由内才能断言返回被消费后路由是否变化。
+    Future<GoRouter> pumpAndroidMediaTab(WidgetTester tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      final router = syncWorkspaceTestRouter();
+      await pumpSyncScreen(
+        tester,
+        preferences: preferences,
+        bindMediaLibraryFactory: false,
+        router: router,
+        extraOverrides: [
+          syncClientControllerProvider.overrideWith(
+            () => SeededSyncClientController(connectedSyncState()),
+          ),
+          mediaLibraryFactoryProvider.overrideWithValue(
+            FakeMediaLibraryFactory(FakeMediaLibrary()),
+          ),
+          mediaBrowserControllerProvider.overrideWith(
+            RecordingMediaBrowserController.new,
+          ),
+        ],
+      );
+      await tester.tap(
+        find.descendant(of: find.byType(TabBar), matching: find.text('媒体')),
+      );
+      await settleTabTransition(tester);
+      return router;
+    }
+
+    testWidgets('媒体 Tab 有目录历史时系统返回只回上一级目录', (tester) async {
+      final router = await pumpAndroidMediaTab(tester);
+      RecordingMediaBrowserController.latest!.seedPathForTest(
+        currentPath: '/相册/旅行',
+        pathHistory: ['/相册'],
+      );
+
+      await tester.binding.handlePopRoute();
+      await tester.pump();
+
+      // 返回只消费一次目录回溯：路径回到 /相册，Tab 仍是媒体，路由不变
+      expect(RecordingMediaBrowserController.latest!.goBackCount, 1);
+      expect(RecordingMediaBrowserController.latest!.state.currentPath, '/相册');
+      expect(
+        RecordingMediaBrowserController.latest!.state.pathHistory,
+        isEmpty,
+      );
+      expect(router.routeInformationProvider.value.uri.path, '/sync');
+      expect(find.text('作为客户端'), findsNothing);
+      expect(find.text('相册'), findsOneWidget);
+      debugDefaultTargetPlatformOverride = null;
+    });
+
+    testWidgets('媒体根目录时系统返回切回连接 Tab 且留在 /sync', (tester) async {
+      final router = await pumpAndroidMediaTab(tester);
+      RecordingMediaBrowserController.latest!.seedPathForTest(
+        currentPath: '/',
+        pathHistory: [],
+      );
+
+      await tester.binding.handlePopRoute();
+      await settleTabTransition(tester);
+
+      // 根目录没有可退目录：不调用 goBack，直接切回「连接」Tab，路由保持
+      expect(RecordingMediaBrowserController.latest!.goBackCount, 0);
+      expect(router.routeInformationProvider.value.uri.path, '/sync');
+      expect(find.text('作为客户端'), findsOneWidget);
+      debugDefaultTargetPlatformOverride = null;
+    });
+
+    testWidgets('切回连接 Tab 后系统返回不回溯媒体目录而退回对话页', (tester) async {
+      final router = await pumpAndroidMediaTab(tester);
+      RecordingMediaBrowserController.latest!.seedPathForTest(
+        currentPath: '/相册/旅行',
+        pathHistory: ['/相册'],
+      );
+      await tester.tap(find.text('连接'));
+      await settleTabTransition(tester);
+
+      await tester.binding.handlePopRoute();
+      await settleRouteTransition(tester);
+
+      // 媒体 Tab 已离屏：返回权交回 AppShell，退回对话页且不再触碰目录
+      expect(RecordingMediaBrowserController.latest!.goBackCount, 0);
+      expect(router.routeInformationProvider.value.uri.path, '/chat');
+      expect(find.text('对话页'), findsOneWidget);
+      debugDefaultTargetPlatformOverride = null;
     });
   });
 }
