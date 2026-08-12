@@ -86,8 +86,9 @@ class MediaFileTile extends ConsumerWidget {
       _ => null,
     };
     if (resourceValue == null) {
-      // 加载中显示细进度条；缩略图缺失显示回退图标
-      return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+      // 加载中与解析为 null 均属「暂无数据」，统一先显示回退图标、
+      // 不区分中间态；数据就绪后由 MediaImageResourceView 替换显示
+      return _fallbackIcon(theme);
     }
     return ClipRRect(
       borderRadius: BorderRadius.circular(4),

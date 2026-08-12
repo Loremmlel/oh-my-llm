@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/app/navigation/app_destination.dart';
 import 'package:oh_my_llm/features/media/application/media_library_session_controller.dart';
+import 'package:oh_my_llm/features/media/application/models/media_library_failure.dart';
 import 'package:oh_my_llm/features/media/application/models/media_resource.dart';
 import 'package:oh_my_llm/features/media/application/models/media_resource_request.dart';
 import 'package:oh_my_llm/features/media/presentation/media_browser_tab.dart';
@@ -252,4 +253,48 @@ void main() {
       },
     );
   }
+
+  testWidgets('缩略图解析失败只回退该 tile 图标，网格其余项与整体渲染不受影响', (tester) async {
+    final prefs = await _testPrefs();
+    final router = _mediaRouter();
+    final library = FakeMediaLibrary()
+      ..thumbnailFailure = const MediaLibraryFailure(
+        MediaLibraryFailureCode.thumbnailUnavailable,
+        '缩略图不可用',
+      );
+    await _pumpMediaTab(
+      tester,
+      prefs: prefs,
+      library: library,
+      router: router,
+      browserState: MediaBrowserState(
+        items: [
+          // 带缩略图信号、解析必定失败的图片：验证单 tile 回退
+          FileItem(
+            name: '猫.jpg',
+            isDirectory: false,
+            sizeBytes: 1,
+            relativePath: '/相册/猫.jpg',
+            hasThumbnail: true,
+          ),
+          // 目录 tile 不参与缩略图解析
+          _dir('/相册'),
+          // 无缩略图信号的文件直接走回退图标
+          _file('/文档/笔记.txt'),
+        ],
+      ),
+    );
+
+    // 失败 item 的 tile 回退到图片图标
+    expect(find.byIcon(Icons.image), findsOneWidget);
+    // 其余 tile 正常渲染：目录图标、普通文件图标与文件名均可见
+    expect(find.byIcon(Icons.folder), findsOneWidget);
+    expect(find.byIcon(Icons.insert_drive_file), findsOneWidget);
+    expect(find.text('猫.jpg'), findsOneWidget);
+    expect(find.text('相册'), findsOneWidget);
+    expect(find.text('笔记.txt'), findsOneWidget);
+    // 缩略图失败不升格为 grid 级错误：错误态图标不出现
+    expect(find.byIcon(Icons.error_outline), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 }

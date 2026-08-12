@@ -43,6 +43,7 @@ final class LocalMediaLibrary implements MediaLibrary {
   @override
   Future<MediaResource?> resolveThumbnail(MediaThumbnailRequest request) async {
     if (!request.hasThumbnail) return null;
+    // 缓存读取不抛异常（existsSync 语义），故无需经 _mapFileSystem 映射
     final hit = _cache.get(
       request.relativePath,
       request.sizeBytes,
