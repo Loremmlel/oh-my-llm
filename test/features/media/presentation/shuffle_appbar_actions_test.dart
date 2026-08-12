@@ -156,9 +156,9 @@ void main() {
     await tester.tap(find.byTooltip('下一个'));
     await settleRouteTransition(tester);
 
-    // 点击播放器返回按钮（IconButton(Icons.arrow_back)，无 tooltip），
-    // pop 完成后应触发一次 onPlayerExited。
-    await tester.tap(find.byIcon(Icons.arrow_back));
+    // 点击播放器顶部关闭按钮（tooltip「关闭视频」），pop 完成后
+    // 应触发一次 onPlayerExited。
+    await tester.tap(find.byTooltip('关闭视频'));
     // 播放器页面级 GestureDetector 带 onDoubleTap：tap 后手势竞技场要等
     // 双击窗口（kDoubleTapTimeout）结束才解析按钮按下，先推进窗口再等 pop 动画。
     await tester.pump(kDoubleTapTimeout);

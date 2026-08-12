@@ -152,7 +152,7 @@ void main() {
   // ── 页面状态 ──────────────────────────────────────────────────
 
   group('页面状态', () {
-    testWidgets('返回按钮关闭页面', (tester) async {
+    testWidgets('顶部关闭按钮以关闭图片语义退出页面', (tester) async {
       final prefs = await _testPrefs();
       await pumpTestApp(
         tester,
@@ -167,13 +167,19 @@ void main() {
         child: ImageViewerPage(imageRequests: _imageRequests(3)),
       );
 
-      // 点击返回
-      await tester.tap(find.byIcon(Icons.arrow_back));
+      // 顶部按钮是 modal 关闭语义：Icons.close + tooltip「关闭图片」，
+      // 与 Android 系统返回的 dismiss 语义一致。
+      expect(find.byIcon(Icons.close), findsOneWidget);
+      expect(find.byTooltip('关闭图片'), findsOneWidget);
+
+      // 点击关闭
+      await tester.tap(find.byTooltip('关闭图片'));
       await settleRouteTransition(tester);
 
       // ImageViewerPage 是路由承载的页面，pop 后应返回父页面。
       // 在测试中作为唯一页面，pop 后不再有 ImageViewerPage 的内容。
-      expect(find.byIcon(Icons.arrow_back), findsNothing);
+      expect(find.byTooltip('关闭图片'), findsNothing);
+      expect(find.byIcon(Icons.close), findsNothing);
     });
   });
 }

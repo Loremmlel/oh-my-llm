@@ -105,12 +105,12 @@ void main() {
     );
 
     // 降级为单图查看：单图不显示计数器；测试环境 mock HTTP 恒 400，
-    // 两帧后解码失败呈现错误文案
+    // 两帧后解码失败呈现错误文案；顶部按钮仍是 modal 关闭语义
     await tester.pump();
     await tester.pump();
     expect(find.text('1 / 1'), findsNothing);
     expect(find.text('图片加载失败'), findsOneWidget);
-    expect(find.byIcon(Icons.arrow_back), findsOneWidget);
+    expect(find.byIcon(Icons.close), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

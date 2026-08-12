@@ -48,7 +48,7 @@ IconData volumeIconData(double volume) {
 
 /// 视频播放器顶部控制栏。
 ///
-/// 包含返回按钮、文件名、倍速选择器和音量按钮。
+/// 包含关闭按钮、文件名、倍速选择器和音量按钮。
 class VideoTopBar extends StatelessWidget {
   final String fileName;
   final double playbackSpeed;
@@ -82,10 +82,12 @@ class VideoTopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        // ── 返回按钮 ──
+        // ── 关闭按钮 ──
+        // 全屏播放是模态入口：关闭语义（Icons.close + 「关闭视频」）
+        // 与 Android 系统返回的 dismiss 一致，而不是层级导航 Up。
         IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          tooltip: '返回',
+          icon: const Icon(Icons.close, color: Colors.white),
+          tooltip: '关闭视频',
           onPressed: onBack,
         ),
         const SizedBox(width: 8),

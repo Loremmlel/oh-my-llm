@@ -376,7 +376,7 @@ void main() {
         await tester.pump();
         if (c.expectedClamp == null) {
           // 拖动进行中控制栏隐藏：其 tooltip 节点退出语义树
-          expect(semanticsByTooltip('返回'), findsNothing, reason: c.name);
+          expect(semanticsByTooltip('关闭视频'), findsNothing, reason: c.name);
         }
         await gesture.up();
         await tester.pump();
@@ -386,7 +386,7 @@ void main() {
           expect(fake.seekToCalls.last, c.expectedClamp, reason: c.name);
         } else {
           // 正常拖动：松手后控制栏恢复可见，seek 已执行
-          expect(semanticsByTooltip('返回'), findsOneWidget, reason: c.name);
+          expect(semanticsByTooltip('关闭视频'), findsOneWidget, reason: c.name);
           expect(fake.seekToCalls, isNotEmpty, reason: c.name);
         }
         await _flushGestureTimers(tester);
@@ -399,21 +399,21 @@ void main() {
   });
 
   // ═══════════════════════════════════════════════════════════════════
-  // 返回按钮
+  // 关闭按钮
   // ═══════════════════════════════════════════════════════════════════
 
-  group('返回按钮', () {
-    testWidgets('点击顶部返回按钮 pop 路由后一帧释放播放器', (tester) async {
+  group('关闭按钮', () {
+    testWidgets('点击顶部关闭按钮 pop 路由后一帧释放播放器', (tester) async {
       await tester.pumpWidget(
         _buildPushedTestPageWithFake(fakeController: fakeController),
       );
       await tester.tap(find.text('打开播放器'));
       await _pumpInit(tester, controller: fakeController);
 
-      // 通过顶部返回按钮（tooltip「返回」）触发 pop，替代页面级 Navigator 操作。
-      // 控制栏与手势层是兄弟层：按钮 tap 不再被双击识别器拖延，
-      // 路由 pop 后一帧即释放播放器
-      await tester.tap(find.byTooltip('返回'));
+      // 通过顶部关闭按钮（tooltip「关闭视频」）触发 pop，替代页面级
+      // Navigator 操作。控制栏与手势层是兄弟层：按钮 tap 不再被双击
+      // 识别器拖延，路由 pop 后一帧即释放播放器
+      await tester.tap(find.byTooltip('关闭视频'));
       await tester.pump();
       await tester.pump();
 
@@ -521,7 +521,7 @@ void main() {
         (node) => node.label.startsWith('预览位置'),
       );
       expect(seekHint, findsOneWidget);
-      expect(semanticsByTooltip('返回'), findsNothing);
+      expect(semanticsByTooltip('关闭视频'), findsNothing);
 
       // 系统取消（如 Android 返回手势抢占触摸）：不提交 seek，
       // 预览消失，控制栏恢复到手势前可见状态
@@ -530,7 +530,7 @@ void main() {
 
       expect(fake.seekToCalls, isEmpty);
       expect(seekHint, findsNothing);
-      expect(semanticsByTooltip('返回'), findsOneWidget);
+      expect(semanticsByTooltip('关闭视频'), findsOneWidget);
       await _flushGestureTimers(tester);
     });
 

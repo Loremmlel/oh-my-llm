@@ -102,7 +102,7 @@ void main() {
         await _pumpVideo(tester, fake, viewport: vp.size);
 
         expect(find.semantics.byLabel('视频播放器：test-video.mp4'), findsOneWidget);
-        expect(semanticsByTooltip('返回'), findsOneWidget);
+        expect(semanticsByTooltip('关闭视频'), findsOneWidget);
         expect(semanticsByTooltip('播放速度，当前 1.0 倍'), findsOneWidget);
         expect(semanticsByTooltip('音量，当前 100%'), findsOneWidget);
         expect(semanticsByTooltip('暂停'), findsOneWidget);
@@ -161,7 +161,7 @@ void main() {
           hint: '激活以显示播放控件；空格键播放或暂停，左右方向键快退或快进 15 秒',
         ),
       );
-      expect(semanticsByTooltip('返回'), findsNothing);
+      expect(semanticsByTooltip('关闭视频'), findsNothing);
       expect(semanticsByTooltip('暂停'), findsNothing);
       expect(find.semantics.byLabel('播放进度'), findsNothing);
     });
@@ -407,14 +407,14 @@ void main() {
   });
 
   group('焦点顺序与焦点恢复', () {
-    testWidgets('连续 Tab 顺序为 surface→返回→倍速→音量→暂停→播放进度', (tester) async {
+    testWidgets('连续 Tab 顺序为 surface→关闭→倍速→音量→暂停→播放进度', (tester) async {
       final fake = FakeVideoPlayerController();
       await _pumpVideo(tester, fake);
 
       await _tab(tester);
       expect(focusedNode(), isSemantics(label: '视频播放器：test-video.mp4'));
       await _tab(tester);
-      expect(focusedNode(), isSemantics(tooltip: '返回'));
+      expect(focusedNode(), isSemantics(tooltip: '关闭视频'));
       await _tab(tester);
       expect(focusedNode(), isSemantics(tooltip: '播放速度，当前 1.0 倍'));
       await _tab(tester);
@@ -428,20 +428,20 @@ void main() {
     testWidgets('控制聚焦时暂停自动隐藏，3 秒契约边界仍可见且焦点不变', (tester) async {
       final fake = FakeVideoPlayerController();
       await _pumpVideo(tester, fake);
-      await _tab(tester, 2); // 聚焦返回按钮
+      await _tab(tester, 2); // 聚焦关闭按钮
 
       // 焦点进入控制栏取消了自动隐藏计时，精确推进到 3 秒契约边界
       // 控制栏仍应可见；无淡出动画进行，settle 只用于排出有限动画。
       await tester.pump(const Duration(seconds: 3));
       await settleAnimatedWidgetTransition(tester);
-      expect(semanticsByTooltip('返回'), findsOneWidget);
-      expect(focusedNode(), isSemantics(tooltip: '返回'));
+      expect(semanticsByTooltip('关闭视频'), findsOneWidget);
+      expect(focusedNode(), isSemantics(tooltip: '关闭视频'));
     });
 
     testWidgets('控制聚焦时 pointer tap 隐藏控制栏，下一帧焦点恢复到 surface', (tester) async {
       final fake = FakeVideoPlayerController();
       await _pumpVideo(tester, fake);
-      await _tab(tester, 2); // 聚焦返回按钮
+      await _tab(tester, 2); // 聚焦关闭按钮
 
       // onTap 受双击窗口（kDoubleTapTimeout）判定延迟，先推进窗口让 tap 生效，
       // 再 pump 一帧应用焦点恢复与语义更新。
@@ -450,7 +450,7 @@ void main() {
       await tester.pump();
 
       expect(focusedNode(), isSemantics(label: '视频播放器：test-video.mp4'));
-      expect(semanticsByTooltip('返回'), findsNothing);
+      expect(semanticsByTooltip('关闭视频'), findsNothing);
     });
   });
 }

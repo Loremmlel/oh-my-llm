@@ -122,11 +122,15 @@ class _ImageViewerPageState extends State<ImageViewerPage>
             },
           ),
           // ── 顶部覆盖层 ──
+          // 全屏查看是模态入口：关闭语义（Icons.close + 「关闭图片」）
+          // 与 Android 系统返回的 dismiss 一致；不用 arrow_back 的层级
+          // 导航 Up 语义，避免与子路由 push/pop 的方向感混淆。
           Positioned(
             top: MediaQuery.of(context).padding.top + 8,
             left: 8,
             child: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              icon: const Icon(Icons.close, color: Colors.white),
+              tooltip: '关闭图片',
               onPressed: () => Navigator.pop(context),
             ),
           ),

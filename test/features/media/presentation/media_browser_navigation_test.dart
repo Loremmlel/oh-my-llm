@@ -11,6 +11,7 @@ import 'package:oh_my_llm/features/media/application/models/media_resource.dart'
 import 'package:oh_my_llm/features/media/application/models/media_resource_request.dart';
 import 'package:oh_my_llm/features/media/presentation/media_browser_tab.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/media_route_pages.dart';
+import 'package:oh_my_llm/features/media/presentation/pages/media_video_controller_factory.dart';
 
 import '../../../helpers/test_harness.dart';
 import '../../../helpers/widget_test_animation.dart';
@@ -49,7 +50,10 @@ FakeMediaLibrary _videoLibrary(String videoPath) {
 }
 
 /// 最小 GoRouter 宿主：/sync 渲染 MediaBrowserTab，media 子路由走生产 routed pages。
-GoRouter _mediaRouter() {
+///
+/// [videoControllerFactory] 供断言「system Back 后播放器按生命周期释放」的
+/// 用例注入并捕获 Fake 实例。
+GoRouter _mediaRouter({MediaVideoControllerFactory? videoControllerFactory}) {
   return GoRouter(
     initialLocation: AppDestination.sync.path,
     routes: [
@@ -72,7 +76,9 @@ GoRouter _mediaRouter() {
             builder: (context, state) => MediaVideoRoutePage(
               relativePath:
                   state.uri.queryParameters[AppRouteParameter.mediaPath],
-              controllerFactory: (resource) => FakeVideoPlayerController(),
+              controllerFactory:
+                  videoControllerFactory ??
+                  (resource) => FakeVideoPlayerController(),
             ),
           ),
         ],
@@ -137,8 +143,10 @@ void main() {
     // 画廊以可见计数器呈现：当前目录两张图片，目标为第一张 → 1 / 2
     expect(find.text('1 / 2'), findsOneWidget);
 
-    // viewer 的返回按钮是 IconButton(Icons.arrow_back)，无 tooltip。
-    await tester.tap(find.byIcon(Icons.arrow_back));
+    // viewer 的顶部按钮是 modal 关闭语义：Icons.close + tooltip「关闭图片」
+    expect(find.byIcon(Icons.close), findsOneWidget);
+    expect(find.byTooltip('关闭图片'), findsOneWidget);
+    await tester.tap(find.byTooltip('关闭图片'));
     await settleRouteTransition(tester);
 
     expect(
@@ -171,8 +179,9 @@ void main() {
     // push 后父浏览页仍在树中：列表 tile 与播放器标题各渲染一次文件名。
     expect(find.text('demo.mp4'), findsWidgets);
 
-    // VideoTopBar 的返回按钮也是 IconButton(Icons.arrow_back)，无 tooltip。
-    await tester.tap(find.byIcon(Icons.arrow_back));
+    // VideoTopBar 的顶部按钮是 modal 关闭语义：Icons.close + tooltip「关闭视频」
+    expect(find.byIcon(Icons.close), findsOneWidget);
+    await tester.tap(find.byTooltip('关闭视频'));
     // 播放器页面级 GestureDetector 带 onDoubleTap：tap 后手势竞技场要等
     // 双击窗口（kDoubleTapTimeout）结束才解析按钮按下，先推进窗口再等 pop 动画。
     await tester.pump(kDoubleTapTimeout);
@@ -183,6 +192,84 @@ void main() {
       '/sync',
     );
     expect(find.text('other.mp4'), findsOneWidget);
+  });
+
+  testWidgets('图片 viewer 第一页 system Back 关闭 viewer 回 /sync，不切页', (
+    tester,
+  ) async {
+    final prefs = await _testPrefs();
+    final router = _mediaRouter();
+    await _pumpMediaTab(
+      tester,
+      prefs: prefs,
+      library: FakeMediaLibrary(),
+      router: router,
+      browserState: MediaBrowserState(
+        items: [_file('/相册/猫.jpg'), _file('/相册/狗.jpg')],
+      ),
+    );
+
+    await tester.tap(find.text('猫.jpg'));
+    await settleRouteTransition(tester);
+
+    expect(
+      router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
+      '/sync/media/image',
+    );
+    // 确认处于第一页（1 / 2）后执行 system Back
+    expect(find.text('1 / 2'), findsOneWidget);
+
+    // 第一页从左边缘执行 system Back（Android 返回手势）由平台分发为
+    // popRoute：应关闭 viewer 回 /sync，而不是把左边缘手势当成切页。
+    // widget 测试只验证 route pop；手势 progress/cancel 的完整行为
+    // 留给 Android smoke 覆盖。
+    await tester.binding.handlePopRoute();
+    await settleRouteTransition(tester);
+
+    expect(
+      router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
+      '/sync',
+    );
+    expect(find.text('狗.jpg'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('视频播放器 system Back 回 /sync 且播放器按生命周期释放一次', (tester) async {
+    final prefs = await _testPrefs();
+    final fake = FakeVideoPlayerController();
+    final router = _mediaRouter(videoControllerFactory: (resource) => fake);
+    await _pumpMediaTab(
+      tester,
+      prefs: prefs,
+      library: _videoLibrary('/视频/demo.mp4'),
+      router: router,
+      browserState: MediaBrowserState(
+        items: [_file('/视频/demo.mp4'), _file('/视频/other.mp4')],
+      ),
+    );
+
+    await tester.tap(find.text('demo.mp4'));
+    await settleRouteTransition(tester);
+    await fake.waitForInitializeCount(1);
+    await tester.pump();
+
+    expect(
+      router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
+      '/sync/media/video',
+    );
+
+    // system Back 与顶部关闭按钮走同一条路由 pop：回 /sync 后页面
+    // dispose，播放器按既有生命周期只释放一次。
+    await tester.binding.handlePopRoute();
+    await settleRouteTransition(tester);
+    await tester.pump();
+
+    expect(
+      router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
+      '/sync',
+    );
+    expect(find.text('other.mp4'), findsOneWidget);
+    expect(fake.disposeCount, 1);
   });
 
   testWidgets('点击目录只改变浏览路径，不产生媒体子路由', (tester) async {
