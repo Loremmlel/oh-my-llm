@@ -1,4 +1,3 @@
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -182,9 +181,7 @@ void main() {
     // VideoTopBar 的顶部按钮是 modal 关闭语义：Icons.close + tooltip「关闭视频」
     expect(find.byIcon(Icons.close), findsOneWidget);
     await tester.tap(find.byTooltip('关闭视频'));
-    // 播放器页面级 GestureDetector 带 onDoubleTap：tap 后手势竞技场要等
-    // 双击窗口（kDoubleTapTimeout）结束才解析按钮按下，先推进窗口再等 pop 动画。
-    await tester.pump(kDoubleTapTimeout);
+    // 控制栏与手势层是兄弟层：按钮 tap 即时派发，无需等待双击窗口。
     await settleRouteTransition(tester);
 
     expect(
