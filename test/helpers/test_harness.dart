@@ -42,6 +42,11 @@ Future<AppDatabase> pumpTestApp(
 
   /// 默认 true：保持 SQLite 生产绑定，与 composition 默认一致。
   bool bindChatConversationRepository = true,
+
+  /// 默认 true：保持默认媒体库工厂绑定，与 composition 默认一致；
+  /// 测试在 [extraOverrides] 提供 [mediaLibraryFactoryProvider] 覆盖时必须
+  /// 传 false 排除生产绑定，避免 Riverpod 重复 override。
+  bool bindMediaLibraryFactory = true,
 }) async {
   assert(
     child != null || router != null,
@@ -64,6 +69,7 @@ Future<AppDatabase> pumpTestApp(
       router: router,
       bindChatGenerationClient: bindChatGenerationClient,
       bindChatConversationRepository: bindChatConversationRepository,
+      bindMediaLibraryFactory: bindMediaLibraryFactory,
     ),
   );
   await tester.pump();
@@ -91,6 +97,10 @@ Future<ProviderScope> pumpTestAppScope(
 
   /// 默认 true：保持 SQLite 生产绑定，与 composition 默认一致。
   bool bindChatConversationRepository = true,
+
+  /// 默认 true：保持默认媒体库工厂绑定；测试在 [extraOverrides] 提供
+  /// [mediaLibraryFactoryProvider] 覆盖时必须传 false。
+  bool bindMediaLibraryFactory = true,
 }) async {
   assert(
     child != null || router != null,
@@ -112,6 +122,7 @@ Future<ProviderScope> pumpTestAppScope(
     router: router,
     bindChatGenerationClient: bindChatGenerationClient,
     bindChatConversationRepository: bindChatConversationRepository,
+    bindMediaLibraryFactory: bindMediaLibraryFactory,
   );
 }
 
@@ -138,6 +149,7 @@ ProviderScope _buildTestScope({
   GoRouter? router,
   bool bindChatGenerationClient = false,
   bool bindChatConversationRepository = true,
+  bool bindMediaLibraryFactory = true,
 }) {
   return ProviderScope(
     overrides: [
@@ -151,6 +163,7 @@ ProviderScope _buildTestScope({
         useInMemorySyncSecureStore: true,
         bindChatGenerationClient: bindChatGenerationClient,
         bindChatConversationRepository: bindChatConversationRepository,
+        bindMediaLibraryFactory: bindMediaLibraryFactory,
       ),
       ...extraOverrides,
     ],

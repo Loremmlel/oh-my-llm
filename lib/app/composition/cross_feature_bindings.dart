@@ -27,6 +27,8 @@ import 'package:oh_my_llm/features/favorites/application/ports/favorites_reposit
 import 'package:oh_my_llm/features/favorites/data/sqlite_collections_repository.dart';
 import 'package:oh_my_llm/features/favorites/data/sqlite_favorites_repository.dart';
 import 'package:oh_my_llm/features/media/application/media_root_directory_controller.dart';
+import 'package:oh_my_llm/features/media/application/ports/media_library_factory.dart';
+import 'package:oh_my_llm/features/media/data/default_media_library_factory.dart';
 import 'package:oh_my_llm/features/media/data/media_directory_scanner.dart';
 import 'package:oh_my_llm/features/media/data/media_http_handler.dart';
 import 'package:oh_my_llm/features/media/data/media_image_http_handler.dart';
@@ -63,6 +65,7 @@ List<dynamic> appCompositionOverrides({
   bool useInMemorySyncSecureStore = false,
   bool bindChatGenerationClient = true,
   bool bindChatConversationRepository = true,
+  bool bindMediaLibraryFactory = true,
 }) {
   return [
     syncClientTransportProvider.overrideWith(
@@ -146,6 +149,14 @@ List<dynamic> appCompositionOverrides({
           database.path,
         );
       }),
+    if (bindMediaLibraryFactory)
+      // Media library：生产绑定默认工厂，peer HTTP 客户端走专用 provider，
+      // 不继承 API key/自定义 Header；测试需要注入 fake 时由该开关排除本绑定。
+      mediaLibraryFactoryProvider.overrideWith(
+        (ref) => DefaultMediaLibraryFactory(
+          peerHttpClient: ref.watch(peerHttpClientProvider),
+        ),
+      ),
     favoritesRepositoryProvider.overrideWith(
       (ref) => SqliteFavoritesRepository(ref.watch(appDatabaseProvider)),
     ),
