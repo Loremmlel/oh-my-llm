@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
@@ -151,24 +152,11 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
       backgroundColor: Colors.black,
       body: FocusTraversalGroup(
         policy: OrderedTraversalPolicy(),
-        child: GestureDetector(
-          onTap: _gesture.handleTap,
-          onDoubleTapDown: _gesture.handleDoubleTapDown,
-          onDoubleTap: _gesture.handleDoubleTap,
-          onLongPressStart: _gesture.handleLongPressStart,
-          onLongPressEnd: _gesture.handleLongPressEnd,
-          onLongPressCancel: _gesture.handleLongPressCancel,
-          onHorizontalDragStart: _gesture.handleHorizontalDragStart,
-          onHorizontalDragUpdate: _gesture.handleHorizontalDragUpdate,
-          onHorizontalDragEnd: _gesture.handleHorizontalDragEnd,
-          behavior: HitTestBehavior.translucent,
-          child: Stack(
-            children: [
-              FocusTraversalOrder(
-                order: const NumericFocusOrder(1),
-                child: _buildPlaybackSurface(s),
-              ),
-              Center(
+        child: Stack(
+          children: [
+            Positioned.fill(child: _buildPlaybackInteractionLayer(s)),
+            IgnorePointer(
+              child: Center(
                 child: VideoCenterHint(
                   visible:
                       s.isInitialized &&
@@ -179,18 +167,89 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
                   showPauseIcon: s.isInitialized && !s.hasError && !s.isPlaying,
                 ),
               ),
-              FocusTraversalOrder(
-                order: const NumericFocusOrder(2),
-                child: _buildTopControls(s),
-              ),
-              FocusTraversalOrder(
-                order: const NumericFocusOrder(3),
-                child: _buildBottomControls(s),
-              ),
-            ],
-          ),
+            ),
+            FocusTraversalOrder(
+              order: const NumericFocusOrder(2),
+              child: _buildTopControls(s),
+            ),
+            FocusTraversalOrder(
+              order: const NumericFocusOrder(3),
+              child: _buildBottomControls(s),
+            ),
+          ],
         ),
       ),
+    );
+  }
+
+  /// 播放交互层：播放表面 + 全屏手势 overlay。
+  ///
+  /// 手势 overlay 与控制栏是兄弟层：控制栏绘制在 overlay 之后，hit test
+  /// 优先命中控制栏，按钮 tap 不再被双击识别器的窗口拖延。overlay 左右
+  /// 收缩出 systemGestureInsets，边缘拖动让位给系统手势（如 Android 返回
+  /// 手势），`systemGestureInsets` 只影响命中区域、不缩小视频画面。
+  /// 错误/加载状态不建 overlay，重试按钮可立即点击。
+  Widget _buildPlaybackInteractionLayer(VideoPlayerUiState s) {
+    final playbackSurface = FocusTraversalOrder(
+      order: const NumericFocusOrder(1),
+      child: _buildPlaybackSurface(s),
+    );
+    if (!s.isInitialized || s.hasError) return playbackSurface;
+
+    final insets = MediaQuery.systemGestureInsetsOf(context);
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        playbackSurface,
+        Positioned(
+          left: insets.left,
+          right: insets.right,
+          top: 0,
+          bottom: 0,
+          child: RawGestureDetector(
+            excludeFromSemantics: true,
+            behavior: HitTestBehavior.translucent,
+            gestures: <Type, GestureRecognizerFactory>{
+              TapGestureRecognizer:
+                  GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
+                    () => TapGestureRecognizer(debugOwner: this),
+                    (instance) => instance.onTap = _gesture.handleTap,
+                  ),
+              DoubleTapGestureRecognizer:
+                  GestureRecognizerFactoryWithHandlers<
+                    DoubleTapGestureRecognizer
+                  >(() => DoubleTapGestureRecognizer(debugOwner: this), (
+                    instance,
+                  ) {
+                    instance.onDoubleTapDown = _gesture.handleDoubleTapDown;
+                    instance.onDoubleTap = _gesture.handleDoubleTap;
+                  }),
+              LongPressGestureRecognizer:
+                  GestureRecognizerFactoryWithHandlers<
+                    LongPressGestureRecognizer
+                  >(() => LongPressGestureRecognizer(debugOwner: this), (
+                    instance,
+                  ) {
+                    instance.onLongPressStart = _gesture.handleLongPressStart;
+                    instance.onLongPressEnd = _gesture.handleLongPressEnd;
+                    instance.onLongPressCancel = _gesture.handleLongPressCancel;
+                  }),
+              CancelAwareHorizontalDragRecognizer:
+                  GestureRecognizerFactoryWithHandlers<
+                    CancelAwareHorizontalDragRecognizer
+                  >(
+                    () => CancelAwareHorizontalDragRecognizer(debugOwner: this),
+                    (instance) {
+                      instance.onStart = _gesture.handleHorizontalDragStart;
+                      instance.onUpdate = _gesture.handleHorizontalDragUpdate;
+                      instance.onEnd = _gesture.handleHorizontalDragEnd;
+                      instance.onCancel = _gesture.handleHorizontalDragCancel;
+                    },
+                  ),
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -324,7 +383,12 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
   }
 
   /// 底部控制栏：同 [_buildTopControls] 的退出策略。
+  ///
+  /// Slider 是长按拖动目标，与系统手势（返回/边缘滑动）竞争触摸；
+  /// 左右按 systemGestureInsets 收缩命中区域让位给系统手势，
+  /// 渐变背景仍保持 edge-to-edge。
   Widget _buildBottomControls(VideoPlayerUiState s) {
+    final gestureInsets = MediaQuery.systemGestureInsetsOf(context);
     return Positioned(
       bottom: 0,
       left: 0,
@@ -350,20 +414,26 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
                   ),
                   child: SafeArea(
                     top: false,
-                    child: VideoBottomBar(
-                      isPlaying: s.isPlaying,
-                      hasEnded: s.hasEnded,
-                      currentPosition: s.currentPosition,
-                      totalDuration: s.totalDuration,
-                      bufferedPercent: s.bufferedPercent,
-                      isDragging: s.isDragging,
-                      dragPosition: Duration(
-                        milliseconds: s.dragPositionMs.round(),
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        left: gestureInsets.left,
+                        right: gestureInsets.right,
                       ),
-                      onPlayPause: _gesture.togglePlayPause,
-                      onSeekStart: _gesture.onSeekStart,
-                      onSeekUpdate: _gesture.onSeekUpdate,
-                      onSeekEnd: _gesture.onSeekEnd,
+                      child: VideoBottomBar(
+                        isPlaying: s.isPlaying,
+                        hasEnded: s.hasEnded,
+                        currentPosition: s.currentPosition,
+                        totalDuration: s.totalDuration,
+                        bufferedPercent: s.bufferedPercent,
+                        isDragging: s.isDragging,
+                        dragPosition: Duration(
+                          milliseconds: s.dragPositionMs.round(),
+                        ),
+                        onPlayPause: _gesture.togglePlayPause,
+                        onSeekStart: _gesture.onSeekStart,
+                        onSeekUpdate: _gesture.onSeekUpdate,
+                        onSeekEnd: _gesture.onSeekEnd,
+                      ),
                     ),
                   ),
                 ),

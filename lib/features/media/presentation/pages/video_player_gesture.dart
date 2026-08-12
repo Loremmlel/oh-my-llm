@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
@@ -383,15 +384,72 @@ class VideoPlayerGestureController {
   }
 
   void handleHorizontalDragEnd(DragEndDetails details) {
-    if (!_mounted) return;
-    if (!state.isHorizontalDragging) return;
+    _finishHorizontalDrag(commit: true);
+  }
+
+  void handleHorizontalDragCancel() {
+    _finishHorizontalDrag(commit: false);
+  }
+
+  /// 横拖唯一收口：提交 seek（commit=true）或回滚预览（commit=false）。
+  ///
+  /// 系统取消（Android 返回手势抢占触摸）经 [CancelAwareHorizontalDragRecognizer]
+  /// 转译为 onCancel 先到达这里：拖动状态复位、提示隐藏、控制栏恢复；
+  /// 随后框架对已接受拖动的 cancel 仍按 onEnd 派发，但会被
+  /// `isHorizontalDragging` 守卫拦截，不会二次提交 seek。
+  void _finishHorizontalDrag({required bool commit}) {
+    if (!_mounted || !state.isHorizontalDragging) return;
     state.isHorizontalDragging = false;
-    state.controller?.seekTo(state.seekPreviewPosition);
+    if (commit) {
+      state.controller?.seekTo(state.seekPreviewPosition);
+    }
     hideCenterHint();
     endGesture();
   }
 
   void onBack() {
     onBackPressed?.call();
+  }
+}
+
+// ── 取消感知的横向拖动识别器 ──────────────────────────────────
+
+/// 感知系统取消的横向拖动识别器。
+///
+/// Android 系统手势（如返回手势）抢占触摸时以 [PointerCancelEvent] 取消指针；
+/// 框架对「已接受的拖动」按 onEnd 派发而非 onCancel，播放器会照常提交
+/// seek，与系统返回手势发生冲突。此识别器把「拖动已接受后收到
+/// pointer cancel」转译为 onCancel：控制器先回滚（isHorizontalDragging
+/// 复位、隐藏提示、恢复控制栏），随后框架派发的 onEnd 被控制器守卫拦截，
+/// 不提交 seek。
+class CancelAwareHorizontalDragRecognizer
+    extends HorizontalDragGestureRecognizer {
+  CancelAwareHorizontalDragRecognizer({super.debugOwner});
+
+  bool _pointerWasCancelled = false;
+  bool _dragAccepted = false;
+
+  @override
+  void handleEvent(PointerEvent event) {
+    if (event is PointerCancelEvent) {
+      _pointerWasCancelled = true;
+    }
+    super.handleEvent(event);
+  }
+
+  @override
+  void acceptGesture(int pointer) {
+    _dragAccepted = true;
+    super.acceptGesture(pointer);
+  }
+
+  @override
+  void didStopTrackingLastPointer(int pointer) {
+    if (_pointerWasCancelled && _dragAccepted) {
+      _pointerWasCancelled = false;
+      _dragAccepted = false;
+      onCancel?.call();
+    }
+    super.didStopTrackingLastPointer(pointer);
   }
 }

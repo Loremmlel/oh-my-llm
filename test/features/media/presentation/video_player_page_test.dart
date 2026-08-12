@@ -27,17 +27,23 @@ Widget _wrapWithMaterialApp(Widget child) {
 }
 
 /// 创建使用 FakeController 的测试页面。
+///
+/// [mediaQuery] 非空时注入宿主 MediaQuery（路由内覆盖，播放器可见字段
+/// 逐项生效），用于模拟 systemGestureInsets 等系统边缘环境。
 Widget _buildTestPageWithFake({
   required FakeVideoPlayerController fakeController,
   MediaVideoControllerFactory? controllerFactory,
+  MediaQueryData? mediaQuery,
 }) {
-  return _wrapWithMaterialApp(
-    VideoPlayerPage(
-      resource: _testResource(),
-      fileName: 'test-video.mp4',
-      controllerFactory: controllerFactory ?? (resource) => fakeController,
-    ),
+  Widget page = VideoPlayerPage(
+    resource: _testResource(),
+    fileName: 'test-video.mp4',
+    controllerFactory: controllerFactory ?? (resource) => fakeController,
   );
+  if (mediaQuery != null) {
+    page = MediaQuery(data: mediaQuery, child: page);
+  }
+  return _wrapWithMaterialApp(page);
 }
 
 /// 以零时长路由推入页面，令 pop 的一帧断言只验证资源释放。
@@ -165,23 +171,19 @@ void main() {
       expect(find.textContaining('视频加载失败'), findsOneWidget);
       expect(find.text('重试'), findsOneWidget);
 
-      // 点击重试 → 第二次初始化
+      // 点击重试 → 第二次初始化。重试按钮与全屏手势层是兄弟层，
+      // tap 不再被双击识别器拖延：单帧内即可观察第二次初始化
       await tester.tap(find.text('重试'));
-      // 外层双击识别器持有竞技场直到双击超时，按钮的 tap 延迟派发，
-      // 先排出该计时器，再等第二次初始化信号
-      await _flushGestureTimers(tester);
-      await failingController.waitForInitializeCount(2);
       await tester.pump();
+      expect(failingController.initializeCallCount, 2);
 
       // fake 持续抛出初始化错误，重试后仍处于同一可恢复错误状态，
       // 但重试按钮仍可用，说明重试流程完整执行
-      expect(failingController.initializeCallCount, 2);
       expect(find.byIcon(Icons.error_outline), findsOneWidget);
       expect(find.text('重试'), findsOneWidget);
       // 同一资源对象到达 factory 两次（首次进入 + 重试）
       expect(factoryCalls, hasLength(2));
       expect(factoryCalls[0], factoryCalls[1]);
-      await _flushGestureTimers(tester);
     });
   });
 
@@ -306,10 +308,9 @@ void main() {
         await _pumpInit(tester, controller: fake);
 
         if (c.pauseBefore) {
-          // 点击暂停按钮使视频暂停（按钮 tap 在双击窗口中由 flush 排定）
+          // 点击暂停按钮使视频暂停（控制栏与手势层是兄弟层，tap 即时生效）
           await tester.tap(find.byIcon(Icons.pause));
           await tester.pump();
-          await _flushGestureTimers(tester);
         }
 
         final gesture = await tester.startGesture(_center(tester));
@@ -409,15 +410,127 @@ void main() {
       await tester.tap(find.text('打开播放器'));
       await _pumpInit(tester, controller: fakeController);
 
-      // 通过顶部返回按钮（tooltip「返回」）触发 pop，替代页面级 Navigator 操作
+      // 通过顶部返回按钮（tooltip「返回」）触发 pop，替代页面级 Navigator 操作。
+      // 控制栏与手势层是兄弟层：按钮 tap 不再被双击识别器拖延，
+      // 路由 pop 后一帧即释放播放器
       await tester.tap(find.byTooltip('返回'));
-      // 外层双击识别器持有竞技场直到双击超时，按钮的 tap 延迟派发，
-      // 先推进窗口再 pop 移除页面的一帧
-      await tester.pump(kDoubleTapTimeout);
+      await tester.pump();
       await tester.pump();
 
-      // 路由 pop 后一帧即释放播放器。
       expect(fakeController.disposeCount, 1);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 顶部控制按钮
+  // ═══════════════════════════════════════════════════════════════════
+
+  group('顶部控制按钮', () {
+    testWidgets('点击音量按钮后单帧内弹出音量弹窗', (tester) async {
+      await tester.pumpWidget(
+        _buildTestPageWithFake(fakeController: fakeController),
+      );
+      await _pumpInit(tester, controller: fakeController);
+
+      // 顶部控制栏与手势层是兄弟层：音量按钮 tap 立即派发，
+      // 弹窗应紧随一次 tap 的下一帧出现，不再受双击窗口拖延
+      await tester.tap(find.byTooltip('音量，当前 100%'));
+      await tester.pump();
+      expect(find.byType(AlertDialog), findsOneWidget);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 系统手势边缘与拖动取消
+  // ═══════════════════════════════════════════════════════════════════
+
+  group('系统手势边缘', () {
+    // 带左右 system gesture inset 的宿主环境：与 MediaQueryData 同源，
+    // 播放器可见字段（size / systemGestureInsets）逐项生效
+    const edgeMediaQuery = MediaQueryData(
+      size: Size(400, 800),
+      systemGestureInsets: EdgeInsets.only(left: 24, right: 24),
+    );
+
+    /// 在 400×800 逻辑视口 + 左右 24px 手势边缘的宿主下完成初始化。
+    Future<void> pumpPlayerInEdgeViewport(
+      WidgetTester tester,
+      FakeVideoPlayerController fake,
+    ) async {
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        _buildTestPageWithFake(
+          fakeController: fake,
+          mediaQuery: edgeMediaQuery,
+        ),
+      );
+      await _pumpInit(tester, controller: fake);
+    }
+
+    testWidgets('从系统手势边缘内开始横拖超过 slop 仍不 seek', (tester) async {
+      final fake = FakeVideoPlayerController();
+      fake.fakePosition = const Duration(seconds: 30);
+      await pumpPlayerInEdgeViewport(tester, fake);
+
+      // x=5 位于左手势边缘（24px）内：手势 overlay 收缩后不覆盖该区域，
+      // 简单横拖应被忽略，边缘拖动让位给系统返回手势
+      final gesture = await tester.startGesture(const Offset(5, 400));
+      await gesture.moveBy(const Offset(kDragSlopDefault, 0));
+      await gesture.moveBy(const Offset(80, 0));
+      await tester.pump();
+      await gesture.up();
+      await tester.pump();
+
+      expect(fake.seekToCalls, isEmpty);
+      await _flushGestureTimers(tester);
+    });
+
+    testWidgets('从手势边缘之间开始横拖仍能 seek', (tester) async {
+      final fake = FakeVideoPlayerController();
+      fake.fakePosition = const Duration(seconds: 30);
+      await pumpPlayerInEdgeViewport(tester, fake);
+
+      // x=200 位于左右手势边缘之间：普通横拖不受影响
+      final gesture = await tester.startGesture(const Offset(200, 400));
+      final slop = const Offset(kDragSlopDefault, 0);
+      await gesture.moveBy(slop);
+      await gesture.moveBy(const Offset(100, 0) - slop);
+      await tester.pump();
+      await gesture.up();
+      await tester.pump();
+
+      expect(fake.seekToCalls, isNotEmpty);
+      await _flushGestureTimers(tester);
+    });
+
+    testWidgets('拖动被系统取消时不 seek，回滚预览并恢复控制栏', (tester) async {
+      final fake = FakeVideoPlayerController();
+      fake.fakePosition = const Duration(seconds: 30);
+      await pumpPlayerInEdgeViewport(tester, fake);
+
+      final gesture = await tester.startGesture(const Offset(200, 400));
+      final slop = const Offset(kDragSlopDefault, 0);
+      await gesture.moveBy(slop);
+      await gesture.moveBy(const Offset(100, 0) - slop);
+      await tester.pump();
+
+      // 拖动中：seek 预览可见，控制栏隐藏
+      final seekHint = find.semantics.byPredicate(
+        (node) => node.label.startsWith('预览位置'),
+      );
+      expect(seekHint, findsOneWidget);
+      expect(semanticsByTooltip('返回'), findsNothing);
+
+      // 系统取消（如 Android 返回手势抢占触摸）：不提交 seek，
+      // 预览消失，控制栏恢复到手势前可见状态
+      await gesture.cancel();
+      await tester.pump();
+
+      expect(fake.seekToCalls, isEmpty);
+      expect(seekHint, findsNothing);
+      expect(semanticsByTooltip('返回'), findsOneWidget);
       await _flushGestureTimers(tester);
     });
   });
