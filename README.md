@@ -176,7 +176,7 @@ SSE 行与事件边界解码、idle timeout、网络日志与脱敏）与 `SseEv
 
 ### 同步
 
-设备间同步聊天记录与设置。Windows 与 Android 均提供连接、同步页面；Android 额外提供媒体浏览 Tab，Windows 可配置媒体根目录作为服务端。
+设备间同步聊天记录与设置。Windows 与 Android 均提供连接、同步和媒体 Tab：Windows 直接浏览已配置的本地媒体根目录；Android 通过已配对的局域网 peer 浏览同一逻辑根目录。
 
 - 首次连接使用一次性配对码建立 peer identity 与长期密钥
 - 业务 payload 加密传输，并使用短期 session token 与 nonce replay 防护
@@ -186,7 +186,7 @@ SSE 行与事件边界解码、idle timeout、网络日志与脱敏）与 `SseEv
 
 ### 媒体浏览器
 
-本地图片浏览与视频播放。支持目录浏览、路径导航和随机播放。
+支持目录浏览、路径导航、图片查看、视频播放与随机播放。Windows 与 Android 共用同一浏览界面：Windows 直接访问连接 Tab 中配置的本地媒体根目录（不经 HTTP）；Android 通过已配对的局域网 peer 访问同一逻辑根目录。Windows 本地浏览已实现并通过自动化门禁；真实视频播放的手动验证（实际视频格式兼容、中文路径播放等）尚未执行，待用户本机补做。
 
 ---
 
@@ -238,8 +238,8 @@ lib/
     │   ├── presentation/       # Chat read model：搜索 + 分组 + 批量操作 + 分页
     │   └── ...
     ├── media/
-    │   ├── application/        # 媒体浏览器控制器 + 随机播放控制器
-    │   ├── data/               # 目录扫描 + HTTP 处理
+    │   ├── application/        # 媒体库会话 + 浏览器/随机播放控制器 + 资源解析
+    │   ├── data/               # 本地/远端媒体库适配器 + 目录扫描 + HTTP 处理
     │   ├── domain/             # 媒体模型
     │   └── presentation/       # 媒体浏览器 Tab + 图片查看器 + 视频播放器
     ├── settings/
@@ -318,7 +318,7 @@ flutter test --reporter compact 2>&1 | Out-File -Encoding utf8 fltest.log; $E = 
 | Core Logging | `test/core/logging/` | 日志存储、网络日志脱敏 redactor |
 | App / Architecture | `test/app/`、`test/architecture/` | 响应式壳、可恢复路由、import boundary、测试韧性门禁 |
 | History | `test/features/history/` | 历史搜索、分组、分页 |
-| Media | `test/features/media/` | 媒体浏览器、目录扫描、随机播放、缩略图、GoRouter 页面、视频/路径可访问性 |
+| Media | `test/features/media/` | 本地/远端媒体库、媒体浏览器、目录扫描、随机播放、缩略图、GoRouter 页面、视频/路径可访问性 |
 | Settings | `test/features/settings/` | 服务商/模型配置、模板、序列、记忆提示词、字体、请求头、自动重试、导入导出去重 |
 | Sync | `test/features/sync/` | 配对、加密协议、session/replay、版本拒绝、UDP 发现、transport 与同步页 |
 | Integration | `test/integration/` | 启动、消息版本持久化、多对话切换/重启恢复、收藏夹级联、PresetPrompt 拼接、Sync 多品类/端到端 |
