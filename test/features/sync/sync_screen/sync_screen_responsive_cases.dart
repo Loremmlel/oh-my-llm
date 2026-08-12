@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/features/media/application/media_browser_controller.dart';
+import 'package:oh_my_llm/features/media/application/media_root_directory_controller.dart';
 import 'package:oh_my_llm/features/media/application/models/media_library_source.dart';
 import 'package:oh_my_llm/features/media/application/ports/media_library_factory.dart';
 import 'package:oh_my_llm/features/media/presentation/media_browser_tab.dart';
@@ -107,6 +108,37 @@ void registerSyncScreenResponsiveTests() {
     expect(tester.takeException(), isNull);
     // 测试框架在 test body 末尾校验 foundation debug 变量已复位（addTearDown 在
     // 该校验之后才执行），故 body 内显式复位，addTearDown 仅作失败路径兜底。
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets('960x640 Windows 窗口: 媒体 tab 可达且无异常', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    SharedPreferences.setMockInitialValues({
+      mediaRootDirectoryStorageKey: r'D:\Media',
+    });
+    final preferences = await SharedPreferences.getInstance();
+    final factory = FakeMediaLibraryFactory(FakeMediaLibrary());
+    await pumpSyncScreen(
+      tester,
+      preferences: preferences,
+      size: const Size(960, 640),
+      bindMediaLibraryFactory: false,
+      extraOverrides: [mediaLibraryFactoryProvider.overrideWithValue(factory)],
+    );
+
+    await tester.tap(
+      find.descendant(of: find.byType(TabBar), matching: find.text('媒体')),
+    );
+    await settleTabTransition(tester);
+
+    expect(find.byType(MediaBrowserTab), findsOneWidget);
+    // 激活本地来源：工厂记录到 LocalMediaLibrarySource
+    expect(factory.openedSources, [const LocalMediaLibrarySource(r'D:\Media')]);
+    // 路径栏根 chip 在受限窗口下仍可见，证明媒体内容区可达。
+    expect(find.text('🏠'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    // 与 Android 横屏用例相同：body 末尾显式复位，addTearDown 仅作失败路径兜底。
     debugDefaultTargetPlatformOverride = null;
   });
 }

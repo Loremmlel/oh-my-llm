@@ -59,8 +59,9 @@ class _MediaBrowserTabState extends ConsumerState<MediaBrowserTab> {
           title: failure.message,
           description: '请返回同步页重新打开媒体浏览器。',
           action: FilledButton(
+            // 返回按钮切回「连接」Tab，用户在此重新配置根目录或连接服务端
             onPressed: widget.onExitMediaBrowser,
-            child: const Text('返回同步页'),
+            child: const Text('返回连接'),
           ),
         ),
         MediaLibrarySessionInactive() => const AppEmptyState(

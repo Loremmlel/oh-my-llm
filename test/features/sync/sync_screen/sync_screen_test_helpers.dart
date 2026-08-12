@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -35,6 +36,15 @@ Future<AppDatabase> pumpSyncScreen(
     extraOverrides: extraOverrides,
     bindMediaLibraryFactory: bindMediaLibraryFactory,
   );
+}
+
+/// 在测试体内切换到 Windows 平台，并在 tearDown 中复位。
+///
+/// 测试框架会在 body 末尾校验 foundation 调试变量已复位，而 addTearDown 在该
+/// 校验之后才执行，故调用方仍需在 body 结束前显式复位（与 Android 用例一致）。
+void overrideWindowsPlatform() {
+  debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+  addTearDown(() => debugDefaultTargetPlatformOverride = null);
 }
 
 /// 固定已连接服务端，供媒体 Tab 会话测试驱动。

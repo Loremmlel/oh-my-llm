@@ -1,12 +1,18 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/features/media/application/media_browser_controller.dart';
+import 'package:oh_my_llm/features/media/application/media_library_session_controller.dart';
+import 'package:oh_my_llm/features/media/application/media_root_directory_controller.dart';
 import 'package:oh_my_llm/features/media/application/models/media_library_source.dart';
 import 'package:oh_my_llm/features/media/application/ports/media_library_factory.dart';
 import 'package:oh_my_llm/features/media/application/shuffle_playback_controller.dart';
+import 'package:oh_my_llm/features/media/domain/models/file_item.dart';
 import 'package:oh_my_llm/features/sync/application/sync_client_controller.dart';
+import 'package:oh_my_llm/features/sync/application/sync_server_controller.dart';
 import 'package:oh_my_llm/features/sync/domain/models/discovered_server.dart';
 import 'package:oh_my_llm/features/sync/domain/models/sync_protocol_version.dart';
 import 'package:oh_my_llm/features/sync/domain/models/sync_types.dart';
@@ -196,6 +202,147 @@ void registerSyncScreenRenderTests() {
         ),
       );
       expect(RecordingMediaBrowserController.totalInitCount, 1);
+      debugDefaultTargetPlatformOverride = null;
+    });
+
+    testWidgets(
+      'Windows shows media tab and missing root returns to Connection',
+      (tester) async {
+        debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+        addTearDown(() => debugDefaultTargetPlatformOverride = null);
+        SharedPreferences.setMockInitialValues({});
+        final preferences = await SharedPreferences.getInstance();
+        await pumpSyncScreen(tester, preferences: preferences);
+
+        await tester.tap(
+          find.descendant(of: find.byType(TabBar), matching: find.text('媒体')),
+        );
+        await settleTabTransition(tester);
+        expect(find.text('尚未配置媒体根目录'), findsOneWidget);
+        expect(find.text('返回连接'), findsOneWidget);
+        debugDefaultTargetPlatformOverride = null;
+      },
+    );
+
+    testWidgets('Windows 进入媒体 Tab 打开本地来源、加载根目录且不启动服务端', (tester) async {
+      overrideWindowsPlatform();
+      SharedPreferences.setMockInitialValues({
+        mediaRootDirectoryStorageKey: r'D:\Media',
+      });
+      final preferences = await SharedPreferences.getInstance();
+      final library = FakeMediaLibrary()
+        ..directoryResults['/'] = [
+          // 不带缩略图信号：tile 走静态回退图标，避免缩略图 FutureProvider
+          // 的「已解析 null」分支渲染永不结束的细进度条（该分支生产不可达）
+          const FileItem(
+            name: '猫.jpg',
+            isDirectory: false,
+            sizeBytes: 1,
+            relativePath: '/猫.jpg',
+          ),
+        ];
+      final factory = FakeMediaLibraryFactory(library);
+      await pumpSyncScreen(
+        tester,
+        preferences: preferences,
+        bindMediaLibraryFactory: false,
+        extraOverrides: [
+          mediaLibraryFactoryProvider.overrideWithValue(factory),
+        ],
+      );
+
+      await tester.tap(
+        find.descendant(of: find.byType(TabBar), matching: find.text('媒体')),
+      );
+      await settleTabTransition(tester);
+
+      // 激活本地来源：只打开配置的根目录，无任何远端来源
+      expect(factory.openedSources, [
+        const LocalMediaLibrarySource(r'D:\Media'),
+      ]);
+      // 浏览器从本地库加载根目录；未连接 Sync 服务端也无需启动同步服务
+      expect(library.listDirectoryCalls, ['/']);
+      expect(find.text('猫.jpg'), findsOneWidget);
+      // 会话 Active 后 AppBar 随机播放入口可见
+      expect(find.byIcon(Icons.shuffle), findsOneWidget);
+      // ProviderScope 的继承 scope 在树中位于 ProviderScope 之下，取子级
+      // context 才能解析容器；同步服务端不应因进入媒体 Tab 而启动。
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(MaterialApp)),
+      );
+      expect(container.read(syncServerControllerProvider).isRunning, isFalse);
+      debugDefaultTargetPlatformOverride = null;
+    });
+
+    testWidgets('Windows 离开媒体 Tab 失效会话并重置；活动期间修改根目录不影响来源，重新进入后生效', (
+      tester,
+    ) async {
+      overrideWindowsPlatform();
+      SharedPreferences.setMockInitialValues({
+        mediaRootDirectoryStorageKey: r'D:\Media',
+      });
+      final preferences = await SharedPreferences.getInstance();
+      final factory = FakeMediaLibraryFactory(FakeMediaLibrary());
+      await pumpSyncScreen(
+        tester,
+        preferences: preferences,
+        bindMediaLibraryFactory: false,
+        extraOverrides: [
+          mediaLibraryFactoryProvider.overrideWithValue(factory),
+          mediaBrowserControllerProvider.overrideWith(
+            RecordingMediaBrowserController.new,
+          ),
+          shufflePlaybackControllerProvider.overrideWith(
+            RecordingShufflePlaybackController.new,
+          ),
+        ],
+      );
+      // ProviderScope 的继承 scope 在树中位于 ProviderScope 之下，取子级
+      // context 才能解析容器；后续用它驱动根目录配置并观察会话状态。
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(MaterialApp)),
+      );
+
+      await tester.tap(
+        find.descendant(of: find.byType(TabBar), matching: find.text('媒体')),
+      );
+      await settleTabTransition(tester);
+      expect(factory.openedSources, [
+        const LocalMediaLibrarySource(r'D:\Media'),
+      ]);
+      expect(RecordingMediaBrowserController.totalInitCount, 1);
+
+      // 会话活动期间修改根目录配置：活动来源保持不变
+      await container
+          .read(mediaRootDirectoryProvider.notifier)
+          .setDirectory(r'E:\NewRoot');
+      expect(factory.openedSources, [
+        const LocalMediaLibrarySource(r'D:\Media'),
+      ]);
+
+      // 离开媒体 Tab：会话失效，浏览器与随机播放重置
+      await tester.tap(find.text('连接'));
+      await settleTabTransition(tester);
+      expect(
+        container.read(mediaLibrarySessionProvider),
+        isA<MediaLibrarySessionInactive>(),
+      );
+      expect(RecordingMediaBrowserController.lastState, MediaBrowserState());
+      expect(
+        RecordingShufflePlaybackController.lastState,
+        const ShufflePlaybackIdle(),
+      );
+
+      // 重新进入：以新根目录创建全新会话并再次加载根目录
+      await tester.tap(
+        find.descendant(of: find.byType(TabBar), matching: find.text('媒体')),
+      );
+      await settleTabTransition(tester);
+      expect(factory.openedSources, [
+        const LocalMediaLibrarySource(r'D:\Media'),
+        const LocalMediaLibrarySource(r'E:\NewRoot'),
+      ]);
+      expect(RecordingMediaBrowserController.totalInitCount, 2);
       debugDefaultTargetPlatformOverride = null;
     });
 

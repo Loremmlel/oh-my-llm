@@ -1,5 +1,3 @@
-import 'dart:io' show Platform;
-
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform;
@@ -38,7 +36,9 @@ class _SyncWorkspaceScreenState extends ConsumerState<SyncWorkspaceScreen>
   late final TabController _tabController;
   late int _lastStableTabIndex;
 
-  bool get _hasMediaTab => defaultTargetPlatform == TargetPlatform.android;
+  bool get _isAndroid => defaultTargetPlatform == TargetPlatform.android;
+  bool get _isWindows => defaultTargetPlatform == TargetPlatform.windows;
+  bool get _hasMediaTab => _isAndroid || _isWindows;
   int get _tabCount => _hasMediaTab ? 3 : 2;
 
   @override
@@ -84,32 +84,47 @@ class _SyncWorkspaceScreenState extends ConsumerState<SyncWorkspaceScreen>
     setState(() {});
   }
 
-  /// 按已连接服务端激活远端媒体会话，并让浏览器从根目录加载。
+  /// 激活当前平台来源的媒体会话，并让浏览器从根目录加载。
   Future<void> _initMediaSession() async {
     if (!mounted || !_hasMediaTab || _tabController.index != 2) return;
-    final server = ref.read(syncClientControllerProvider).server;
-    if (server == null) {
+    final source = _mediaSource();
+    if (source == null) {
       ref
           .read(mediaLibrarySessionProvider.notifier)
           .fail(
-            const MediaLibraryFailure(
+            MediaLibraryFailure(
               MediaLibraryFailureCode.sourceUnavailable,
-              '未连接到服务端',
+              _isWindows ? '尚未配置媒体根目录' : '未连接到服务端',
             ),
           );
       return;
     }
     final activated = await ref
         .read(mediaLibrarySessionProvider.notifier)
-        .activate(
-          RemoteMediaLibrarySource(
-            Uri(scheme: 'http', host: server.ip, port: server.httpPort),
-          ),
-        );
+        .activate(source);
     if (!mounted || _tabController.index != 2 || !activated) return;
     await ref
         .read(mediaBrowserControllerProvider.notifier)
         .initFromActiveSession();
+  }
+
+  /// 按平台选择媒体来源：Windows 用持久化根目录直接访问本地文件系统，
+  /// Android 用当前可信同步会话的 peer 地址。来源选择只发生在这里，
+  /// media feature 内不做平台分支。
+  MediaLibrarySource? _mediaSource() {
+    if (_isWindows) {
+      final root = ref.read(mediaRootDirectoryProvider)?.trim();
+      if (root == null || root.isEmpty) return null;
+      return LocalMediaLibrarySource(root);
+    }
+    if (_isAndroid) {
+      final server = ref.read(syncClientControllerProvider).server;
+      if (server == null) return null;
+      return RemoteMediaLibrarySource(
+        Uri(scheme: 'http', host: server.ip, port: server.httpPort),
+      );
+    }
+    return null;
   }
 
   @override
@@ -149,7 +164,7 @@ class _SyncWorkspaceScreenState extends ConsumerState<SyncWorkspaceScreen>
               controller: _tabController,
               children: [
                 SyncConnectionTab(
-                  serverConfiguration: Platform.isWindows
+                  serverConfiguration: _isWindows
                       ? const _MediaRootDirectoryConfiguration()
                       : null,
                 ),

@@ -41,6 +41,8 @@ void main() {
   );
 
   test('打开本地 source 对 peer client 零调用', () async {
+    // 只要本地路径误用 peer client，回调即抛错让测试立即失败——
+    // 比计数断言更响亮地证明本地打开与列表都不走 HTTP。
     var requestCount = 0;
     final root = await Directory.systemTemp.createTemp('omll_factory_');
     addTearDown(() => root.delete(recursive: true));
@@ -51,7 +53,7 @@ void main() {
     final factory = DefaultMediaLibraryFactory(
       peerHttpClient: MockClient((_) async {
         requestCount++;
-        return http.Response('', 500);
+        throw StateError('local source used peer HTTP');
       }),
       cacheFactory: () async => MediaThumbnailCache.custom(cacheDir),
       processRunner: const DartThumbnailProcessRunner(),
