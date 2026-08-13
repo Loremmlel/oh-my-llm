@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../domain/models/discovered_server.dart';
-import '../../domain/models/sync_protocol_message.dart';
+import '../../domain/models/discovery/discovered_server.dart';
+import '../../domain/models/protocol/sync_protocol_message.dart';
 
 /// Sync 客户端传输失败。
 ///

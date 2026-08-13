@@ -45,10 +45,10 @@ import 'package:oh_my_llm/features/sync/application/ports/sync_crypto.dart';
 import 'package:oh_my_llm/features/sync/application/ports/sync_media_route_factory.dart';
 import 'package:oh_my_llm/features/sync/application/ports/sync_pairing_repository.dart';
 import 'package:oh_my_llm/features/sync/application/ports/sync_server_transport.dart';
-import 'package:oh_my_llm/features/sync/data/cryptography_sync_crypto.dart';
-import 'package:oh_my_llm/features/sync/data/http_sync_client_transport.dart';
-import 'package:oh_my_llm/features/sync/data/http_udp_sync_server_transport.dart';
-import 'package:oh_my_llm/features/sync/data/secure_sync_pairing_repository.dart';
+import 'package:oh_my_llm/features/sync/data/security/cryptography_sync_crypto.dart';
+import 'package:oh_my_llm/features/sync/data/http/http_sync_client_transport.dart';
+import 'package:oh_my_llm/features/sync/data/http/http_udp_sync_server_transport.dart';
+import 'package:oh_my_llm/features/sync/data/security/secure_sync_pairing_repository.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 
 /// 组合跨 feature 的 concrete implementation。

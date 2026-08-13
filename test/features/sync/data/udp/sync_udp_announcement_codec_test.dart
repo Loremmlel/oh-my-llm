@@ -3,8 +3,8 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:oh_my_llm/features/sync/data/sync_udp_announcement_codec.dart';
-import 'package:oh_my_llm/features/sync/domain/models/sync_protocol_version.dart';
+import 'package:oh_my_llm/features/sync/data/udp/sync_udp_announcement_codec.dart';
+import 'package:oh_my_llm/features/sync/domain/models/protocol/sync_protocol_version.dart';
 
 /// UDP v3 公告信封纯编解码的契约测试。
 void main() {

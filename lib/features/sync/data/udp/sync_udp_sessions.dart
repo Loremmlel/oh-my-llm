@@ -1,4 +1,4 @@
-import '../domain/models/discovered_server.dart';
+import '../../domain/models/discovery/discovered_server.dart';
 
 /// 广播会话：stop 幂等且共享一次清理，done 在资源释放完成后完成。
 abstract interface class SyncUdpBroadcastSession {

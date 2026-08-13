@@ -8,7 +8,7 @@ import 'package:oh_my_llm/features/media/data/scanning/media_directory_scanner.d
 import 'package:oh_my_llm/features/media/data/scanning/media_thumbnail_cache.dart';
 import 'package:oh_my_llm/features/media/data/scanning/media_thumbnail_generator.dart';
 import 'package:oh_my_llm/features/media/data/http/media_thumbnail_http_handler.dart';
-import 'package:oh_my_llm/features/sync/data/sync_http_server.dart';
+import 'package:oh_my_llm/features/sync/data/http/sync_http_server.dart';
 
 /// 使用 image 包生成一个有效的 PNG 图片字节数组。
 List<int> _generatePng() {

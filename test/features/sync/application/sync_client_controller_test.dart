@@ -12,11 +12,11 @@ import 'package:oh_my_llm/features/sync/application/ports/sync_crypto.dart';
 import 'package:oh_my_llm/features/sync/application/ports/settings_sync_facade.dart';
 import 'package:oh_my_llm/features/sync/application/ports/sync_pairing_repository.dart';
 import 'package:oh_my_llm/features/sync/application/sync_client_controller.dart';
-import 'package:oh_my_llm/features/sync/data/cryptography_sync_crypto.dart';
-import 'package:oh_my_llm/features/sync/domain/models/discovered_server.dart';
-import 'package:oh_my_llm/features/sync/domain/models/sync_protocol_failure.dart';
-import 'package:oh_my_llm/features/sync/domain/models/sync_protocol_version.dart';
-import 'package:oh_my_llm/features/sync/domain/models/sync_types.dart';
+import 'package:oh_my_llm/features/sync/data/security/cryptography_sync_crypto.dart';
+import 'package:oh_my_llm/features/sync/domain/models/discovery/discovered_server.dart';
+import 'package:oh_my_llm/features/sync/domain/models/protocol/sync_protocol_failure.dart';
+import 'package:oh_my_llm/features/sync/domain/models/protocol/sync_protocol_version.dart';
+import 'package:oh_my_llm/features/sync/domain/models/protocol/sync_types.dart';
 
 import '../../../helpers/async_test_signals.dart';
 import 'sync_test_fakes.dart';

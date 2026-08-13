@@ -1,11 +1,11 @@
 import 'dart:convert';
 
 import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_export_data.dart';
-import '../domain/models/sync_pairing.dart';
-import '../domain/models/sync_protocol_failure.dart';
-import '../domain/models/sync_protocol_message.dart';
-import '../domain/models/sync_session.dart';
-import '../domain/models/sync_types.dart';
+import '../domain/models/session/sync_pairing.dart';
+import '../domain/models/protocol/sync_protocol_failure.dart';
+import '../domain/models/protocol/sync_protocol_message.dart';
+import '../domain/models/session/sync_session.dart';
+import '../domain/models/protocol/sync_types.dart';
 import 'ports/settings_sync_facade.dart';
 import 'ports/sync_clock.dart';
 import 'ports/sync_crypto.dart';

@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../domain/models/network_interface_info.dart';
-import '../domain/models/network_interface_utils.dart';
+import '../domain/models/discovery/network_interface_info.dart';
+import '../domain/models/discovery/network_interface_utils.dart';
 
 /// 本机可用的 IPv4 网络接口列表（异步加载）。
 ///

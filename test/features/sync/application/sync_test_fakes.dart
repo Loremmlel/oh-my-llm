@@ -6,10 +6,10 @@ import 'package:oh_my_llm/features/sync/application/ports/sync_client_protocol.d
 import 'package:oh_my_llm/features/sync/application/ports/sync_client_transport.dart';
 import 'package:oh_my_llm/features/sync/application/ports/sync_clock.dart';
 import 'package:oh_my_llm/features/sync/application/ports/sync_pairing_repository.dart';
-import 'package:oh_my_llm/features/sync/domain/models/discovered_server.dart';
-import 'package:oh_my_llm/features/sync/domain/models/sync_pairing.dart';
-import 'package:oh_my_llm/features/sync/domain/models/sync_protocol_message.dart';
-import 'package:oh_my_llm/features/sync/domain/models/sync_types.dart';
+import 'package:oh_my_llm/features/sync/domain/models/discovery/discovered_server.dart';
+import 'package:oh_my_llm/features/sync/domain/models/session/sync_pairing.dart';
+import 'package:oh_my_llm/features/sync/domain/models/protocol/sync_protocol_message.dart';
+import 'package:oh_my_llm/features/sync/domain/models/protocol/sync_types.dart';
 
 final class FakeSyncClock implements SyncClock {
   FakeSyncClock([DateTime? now]) : value = now ?? DateTime(2026, 1, 1);

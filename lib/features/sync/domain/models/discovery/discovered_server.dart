@@ -1,4 +1,4 @@
-import 'sync_protocol_version.dart';
+import '../protocol/sync_protocol_version.dart';
 
 /// 局域网内发现的远端 Sync 服务端信息。
 final class DiscoveredServer {

@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 
 import 'package:oh_my_llm/features/media/data/scanning/media_directory_scanner.dart';
 import 'package:oh_my_llm/features/media/data/http/media_image_http_handler.dart';
-import 'package:oh_my_llm/features/sync/data/sync_http_server.dart';
+import 'package:oh_my_llm/features/sync/data/http/sync_http_server.dart';
 
 void main() {
   group('MediaImageHttpHandler', () {

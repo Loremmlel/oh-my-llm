@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:oh_my_llm/features/sync/domain/models/sync_pairing.dart';
+import 'package:oh_my_llm/features/sync/domain/models/session/sync_pairing.dart';
 
 void main() {
   test('v3 配对记录不再携带分类授权', () {

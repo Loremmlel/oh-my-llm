@@ -1,7 +1,7 @@
 import 'dart:convert';
 
-import '../domain/models/discovered_server.dart';
-import '../domain/models/sync_protocol_version.dart';
+import '../../domain/models/discovery/discovered_server.dart';
+import '../../domain/models/protocol/sync_protocol_version.dart';
 
 /// UDP v3 公告信封的纯编解码边界。
 ///

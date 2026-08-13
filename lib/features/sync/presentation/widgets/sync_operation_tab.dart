@@ -5,7 +5,7 @@ import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_expo
 import 'package:oh_my_llm/core/widgets/notification_bubble_context_ext.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/shared/settings_section_card.dart';
 import '../../application/sync_client_controller.dart';
-import '../../domain/models/sync_types.dart';
+import '../../domain/models/protocol/sync_types.dart';
 import 'sync_import_confirm_dialog.dart';
 
 /// 同步页面 Tab 2：同步操作，选择同步内容并执行导入。

@@ -14,14 +14,14 @@ import 'package:oh_my_llm/features/media/application/shuffle_playback_controller
 import 'package:oh_my_llm/features/media/domain/models/file_item.dart';
 import 'package:oh_my_llm/features/sync/application/sync_client_controller.dart';
 import 'package:oh_my_llm/features/sync/application/sync_server_controller.dart';
-import 'package:oh_my_llm/features/sync/domain/models/discovered_server.dart';
-import 'package:oh_my_llm/features/sync/domain/models/sync_protocol_version.dart';
-import 'package:oh_my_llm/features/sync/domain/models/sync_types.dart';
+import 'package:oh_my_llm/features/sync/domain/models/discovery/discovered_server.dart';
+import 'package:oh_my_llm/features/sync/domain/models/protocol/sync_protocol_version.dart';
+import 'package:oh_my_llm/features/sync/domain/models/protocol/sync_types.dart';
 import 'package:oh_my_llm/features/sync/presentation/widgets/sync_operation_tab.dart';
 
 import '../../../helpers/widget_test_animation.dart';
-import '../../media/helpers/fake_media_library.dart';
-import 'sync_screen_test_helpers.dart';
+import '../../../features/media/helpers/fake_media_library.dart';
+import 'sync_workspace_screen_test_helpers.dart';
 
 void registerSyncScreenRenderTests() {
   group('SyncScreen 渲染', () {

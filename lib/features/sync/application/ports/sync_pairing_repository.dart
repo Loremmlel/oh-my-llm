@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../domain/models/sync_pairing.dart';
+import '../../domain/models/session/sync_pairing.dart';
 
 /// 配对 metadata 与 secure secret 的原子边界。
 abstract interface class SyncPairingRepository {

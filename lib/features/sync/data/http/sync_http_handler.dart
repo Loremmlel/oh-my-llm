@@ -4,8 +4,8 @@ import 'dart:io';
 
 import 'package:oh_my_llm/core/http/http_route_handler.dart';
 
-import '../domain/models/sync_protocol_failure.dart';
-import '../domain/models/sync_protocol_message.dart';
+import '../../domain/models/protocol/sync_protocol_failure.dart';
+import '../../domain/models/protocol/sync_protocol_message.dart';
 
 /// 处理 `POST /sync` 请求的 Handler。
 ///

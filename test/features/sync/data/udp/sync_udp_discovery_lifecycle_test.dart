@@ -4,9 +4,9 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:oh_my_llm/features/sync/data/sync_udp_announcement_codec.dart';
-import 'package:oh_my_llm/features/sync/data/sync_udp_discovery.dart';
-import 'package:oh_my_llm/features/sync/data/sync_udp_socket.dart';
+import 'package:oh_my_llm/features/sync/data/udp/sync_udp_announcement_codec.dart';
+import 'package:oh_my_llm/features/sync/data/udp/sync_udp_discovery.dart';
+import 'package:oh_my_llm/features/sync/data/udp/sync_udp_socket.dart';
 
 import 'sync_udp_test_fakes.dart';
 

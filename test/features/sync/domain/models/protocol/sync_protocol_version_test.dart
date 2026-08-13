@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:oh_my_llm/features/sync/domain/models/sync_protocol_version.dart';
+import 'package:oh_my_llm/features/sync/domain/models/protocol/sync_protocol_version.dart';
 
 void main() {
   group('SyncProtocolVersionPolicy', () {

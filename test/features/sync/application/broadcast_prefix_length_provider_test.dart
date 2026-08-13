@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/features/sync/application/broadcast_prefix_length_provider.dart';
-import 'package:oh_my_llm/features/sync/domain/models/broadcast_prefix_length.dart';
+import 'package:oh_my_llm/features/sync/domain/models/discovery/broadcast_prefix_length.dart';
 
 void main() {
   group('selectedBroadcastPrefixLengthProvider', () {

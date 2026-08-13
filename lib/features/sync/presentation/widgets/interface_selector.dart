@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../application/broadcast_prefix_length_provider.dart';
 import '../../application/network_interface_provider.dart';
 import '../../application/sync_server_controller.dart';
-import '../../domain/models/broadcast_prefix_length.dart';
+import '../../domain/models/discovery/broadcast_prefix_length.dart';
 
 /// 网络接口选择器 + 子网掩码选择器，用于在服务端模式下选择广播的网段。
 ///

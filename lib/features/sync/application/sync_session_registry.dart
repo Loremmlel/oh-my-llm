@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import '../domain/models/sync_session.dart';
+import '../domain/models/session/sync_session.dart';
 import 'ports/sync_clock.dart';
 
 /// session 和 replay nonce 都只保存在内存中。

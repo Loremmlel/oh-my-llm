@@ -15,8 +15,8 @@ import 'package:oh_my_llm/core/persistence/versioned_json_storage.dart';
 import 'package:oh_my_llm/features/settings/domain/models/providers/llm_provider_config.dart';
 import 'package:oh_my_llm/features/sync/application/sync_server_controller.dart';
 import 'package:oh_my_llm/features/sync/application/network_interface_provider.dart';
-import 'package:oh_my_llm/features/sync/domain/models/network_interface_info.dart';
-import 'package:oh_my_llm/features/sync/domain/models/sync_protocol_message.dart';
+import 'package:oh_my_llm/features/sync/domain/models/discovery/network_interface_info.dart';
+import 'package:oh_my_llm/features/sync/domain/models/protocol/sync_protocol_message.dart';
 
 // ── 工厂函数 ────────────────────────────────────────────────────────────────
 

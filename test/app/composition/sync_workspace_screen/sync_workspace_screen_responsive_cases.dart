@@ -12,8 +12,8 @@ import 'package:oh_my_llm/features/sync/application/sync_client_controller.dart'
 
 import '../../../helpers/responsive_viewport_cases.dart';
 import '../../../helpers/widget_test_animation.dart';
-import '../../media/helpers/fake_media_library.dart';
-import 'sync_screen_test_helpers.dart';
+import '../../../features/media/helpers/fake_media_library.dart';
+import 'sync_workspace_screen_test_helpers.dart';
 
 Future<SharedPreferences> _freshPrefs() async {
   SharedPreferences.setMockInitialValues({});

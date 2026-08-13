@@ -4,10 +4,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:oh_my_llm/features/sync/application/ports/sync_client_transport.dart';
-import 'package:oh_my_llm/features/sync/data/http_sync_client_transport.dart';
-import 'package:oh_my_llm/features/sync/domain/models/discovered_server.dart';
-import 'package:oh_my_llm/features/sync/domain/models/sync_protocol_failure.dart';
-import 'package:oh_my_llm/features/sync/domain/models/sync_protocol_message.dart';
+import 'package:oh_my_llm/features/sync/data/http/http_sync_client_transport.dart';
+import 'package:oh_my_llm/features/sync/domain/models/discovery/discovered_server.dart';
+import 'package:oh_my_llm/features/sync/domain/models/protocol/sync_protocol_failure.dart';
+import 'package:oh_my_llm/features/sync/domain/models/protocol/sync_protocol_message.dart';
 
 const server = DiscoveredServer(
   deviceName: '服务器',

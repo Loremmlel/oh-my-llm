@@ -13,7 +13,7 @@ import 'package:oh_my_llm/features/sync/presentation/widgets/sync_import_confirm
 
 import '../../../helpers/test_harness.dart';
 import '../../../helpers/widget_test_animation.dart';
-import 'sync_screen_test_helpers.dart';
+import 'sync_workspace_screen_test_helpers.dart';
 
 /// 导入动作挂在 [gate] 上的 SyncClientController 替身：
 /// 测试先确认 busy 窗口，再通过 gate 结束导入，精确控制 busy 时长。

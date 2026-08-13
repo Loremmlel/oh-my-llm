@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/features/sync/application/ports/sync_clock.dart';
 import 'package:oh_my_llm/features/sync/application/sync_session_registry.dart';
-import 'package:oh_my_llm/features/sync/domain/models/sync_session.dart';
+import 'package:oh_my_llm/features/sync/domain/models/session/sync_session.dart';
 
 final class _FakeClock implements SyncClock {
   _FakeClock(this.value);

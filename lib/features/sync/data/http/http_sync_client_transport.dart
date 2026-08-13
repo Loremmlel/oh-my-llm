@@ -2,10 +2,10 @@ import 'dart:async';
 
 import 'package:http/http.dart' as http;
 
-import '../application/ports/sync_client_transport.dart';
-import '../domain/models/sync_protocol_failure.dart';
-import '../domain/models/sync_protocol_message.dart';
-import 'sync_udp_discovery.dart';
+import '../../application/ports/sync_client_transport.dart';
+import '../../domain/models/protocol/sync_protocol_failure.dart';
+import '../../domain/models/protocol/sync_protocol_message.dart';
+import '../udp/sync_udp_discovery.dart';
 
 /// 基于 peer HTTP client 与 UDP discovery 的 Sync 客户端传输实现。
 final class HttpSyncClientTransport implements SyncClientTransport {

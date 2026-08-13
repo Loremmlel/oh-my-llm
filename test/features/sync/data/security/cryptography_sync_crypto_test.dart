@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:oh_my_llm/features/sync/data/cryptography_sync_crypto.dart';
+import 'package:oh_my_llm/features/sync/data/security/cryptography_sync_crypto.dart';
 
 void main() {
   test('AES-GCM 拒绝 AAD 和密文篡改，不返回明文', () async {

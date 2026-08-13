@@ -1,8 +1,8 @@
-import '../application/ports/sync_server_transport.dart';
+import '../../application/ports/sync_server_transport.dart';
 import 'sync_http_handler.dart';
 import 'sync_http_server.dart';
-import 'sync_udp_discovery.dart';
-import 'sync_udp_sessions.dart';
+import '../udp/sync_udp_discovery.dart';
+import '../udp/sync_udp_sessions.dart';
 
 /// 基于现有 HTTP router 和 UDP broadcaster 的 Sync 服务端传输实现。
 final class HttpUdpSyncServerTransport implements SyncServerTransport {

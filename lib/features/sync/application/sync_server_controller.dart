@@ -5,8 +5,8 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
-import '../domain/models/network_interface_info.dart';
-import '../domain/models/sync_pairing.dart';
+import '../domain/models/discovery/network_interface_info.dart';
+import '../domain/models/session/sync_pairing.dart';
 import 'broadcast_prefix_length_provider.dart';
 import 'network_interface_provider.dart';
 import 'ports/settings_sync_facade.dart';
@@ -16,7 +16,7 @@ import 'ports/sync_clock.dart';
 import 'ports/sync_crypto.dart';
 import 'ports/sync_pairing_repository.dart';
 import 'sync_server_protocol_coordinator.dart';
-import '../domain/models/sync_protocol_message.dart';
+import '../domain/models/protocol/sync_protocol_message.dart';
 
 const String _deviceNameKey = 'sync.device_name';
 

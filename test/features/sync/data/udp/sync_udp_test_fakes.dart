@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:oh_my_llm/features/sync/data/sync_multicast_lock.dart';
-import 'package:oh_my_llm/features/sync/data/sync_udp_scheduler.dart';
-import 'package:oh_my_llm/features/sync/data/sync_udp_socket.dart';
+import 'package:oh_my_llm/features/sync/data/udp/sync_multicast_lock.dart';
+import 'package:oh_my_llm/features/sync/data/udp/sync_udp_scheduler.dart';
+import 'package:oh_my_llm/features/sync/data/udp/sync_udp_socket.dart';
 
 /// 手动调度任务：fire 显式触发回调；一次性任务触发后立即失效。
 final class ManualSyncUdpTask implements SyncUdpScheduledTask {

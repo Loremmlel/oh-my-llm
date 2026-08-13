@@ -2,7 +2,7 @@ import 'dart:math';
 
 import 'package:cryptography/cryptography.dart';
 
-import '../application/ports/sync_crypto.dart';
+import '../../application/ports/sync_crypto.dart';
 
 /// 以 AES-GCM / HMAC-SHA256 / HKDF-SHA256 实现 Sync 的纯数据层加密端口。
 final class CryptographySyncCrypto implements SyncCrypto {

@@ -1,8 +1,8 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:oh_my_llm/features/sync/data/secure_sync_pairing_repository.dart';
-import 'package:oh_my_llm/features/sync/domain/models/sync_pairing.dart';
+import 'package:oh_my_llm/features/sync/data/security/secure_sync_pairing_repository.dart';
+import 'package:oh_my_llm/features/sync/domain/models/session/sync_pairing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// 记录写入/删除、可注入读写失败的 secure store 替身，用于验证隔离与清理契约。

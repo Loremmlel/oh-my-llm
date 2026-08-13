@@ -3,14 +3,14 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
-import '../domain/models/discovered_server.dart';
+import '../../domain/models/discovery/discovered_server.dart';
 import 'sync_multicast_lock.dart';
 import 'sync_udp_announcement_codec.dart';
 import 'sync_udp_scheduler.dart';
 import 'sync_udp_sessions.dart';
 import 'sync_udp_socket.dart';
 
-export '../domain/models/discovered_server.dart';
+export '../../domain/models/discovery/discovered_server.dart';
 
 /// UDP 广播发现服务。
 ///

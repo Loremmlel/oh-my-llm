@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/features/sync/application/sync_server_protocol_coordinator.dart';
-import 'package:oh_my_llm/features/sync/data/cryptography_sync_crypto.dart';
-import 'package:oh_my_llm/features/sync/domain/models/sync_protocol_failure.dart';
-import 'package:oh_my_llm/features/sync/domain/models/sync_protocol_message.dart';
+import 'package:oh_my_llm/features/sync/data/security/cryptography_sync_crypto.dart';
+import 'package:oh_my_llm/features/sync/domain/models/protocol/sync_protocol_failure.dart';
+import 'package:oh_my_llm/features/sync/domain/models/protocol/sync_protocol_message.dart';
 
 import 'sync_test_fakes.dart';
 

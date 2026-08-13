@@ -5,8 +5,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:oh_my_llm/features/sync/data/sync_udp_discovery.dart';
-import 'package:oh_my_llm/features/sync/data/sync_udp_sessions.dart';
+import 'package:oh_my_llm/features/sync/data/udp/sync_udp_discovery.dart';
+import 'package:oh_my_llm/features/sync/data/udp/sync_udp_sessions.dart';
 
 /// 单个 loopback UDP smoke。
 ///

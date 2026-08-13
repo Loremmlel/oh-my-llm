@@ -13,9 +13,9 @@ import 'ports/sync_clock.dart';
 import 'ports/sync_crypto.dart';
 import 'ports/sync_pairing_repository.dart';
 import 'sync_client_protocol_coordinator.dart';
-import '../domain/models/discovered_server.dart';
-import '../domain/models/sync_types.dart';
-import '../domain/models/sync_protocol_failure.dart';
+import '../domain/models/discovery/discovered_server.dart';
+import '../domain/models/protocol/sync_types.dart';
+import '../domain/models/protocol/sync_protocol_failure.dart';
 
 enum SyncPhase {
   idle,

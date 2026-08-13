@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:oh_my_llm/features/sync/domain/models/broadcast_prefix_length.dart';
+import 'package:oh_my_llm/features/sync/domain/models/discovery/broadcast_prefix_length.dart';
 
 void main() {
   group('BroadcastPrefixLength', () {

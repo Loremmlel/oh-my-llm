@@ -5,15 +5,15 @@ import 'package:http/http.dart' as http;
 import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_export_data.dart';
 import 'package:oh_my_llm/features/sync/application/sync_client_protocol_coordinator.dart';
 import 'package:oh_my_llm/features/sync/application/sync_server_protocol_coordinator.dart';
-import 'package:oh_my_llm/features/sync/data/cryptography_sync_crypto.dart';
-import 'package:oh_my_llm/features/sync/data/http_sync_client_transport.dart';
-import 'package:oh_my_llm/features/sync/data/sync_http_handler.dart';
-import 'package:oh_my_llm/features/sync/data/sync_http_server.dart';
-import 'package:oh_my_llm/features/sync/domain/models/discovered_server.dart';
-import 'package:oh_my_llm/features/sync/domain/models/sync_pairing.dart';
-import 'package:oh_my_llm/features/sync/domain/models/sync_protocol_failure.dart';
-import 'package:oh_my_llm/features/sync/domain/models/sync_protocol_version.dart';
-import 'package:oh_my_llm/features/sync/domain/models/sync_types.dart';
+import 'package:oh_my_llm/features/sync/data/security/cryptography_sync_crypto.dart';
+import 'package:oh_my_llm/features/sync/data/http/http_sync_client_transport.dart';
+import 'package:oh_my_llm/features/sync/data/http/sync_http_handler.dart';
+import 'package:oh_my_llm/features/sync/data/http/sync_http_server.dart';
+import 'package:oh_my_llm/features/sync/domain/models/discovery/discovered_server.dart';
+import 'package:oh_my_llm/features/sync/domain/models/session/sync_pairing.dart';
+import 'package:oh_my_llm/features/sync/domain/models/protocol/sync_protocol_failure.dart';
+import 'package:oh_my_llm/features/sync/domain/models/protocol/sync_protocol_version.dart';
+import 'package:oh_my_llm/features/sync/domain/models/protocol/sync_types.dart';
 
 import '../features/sync/application/sync_test_fakes.dart';
 

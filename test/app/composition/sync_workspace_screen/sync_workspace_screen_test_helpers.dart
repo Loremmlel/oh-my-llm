@@ -13,7 +13,7 @@ import 'package:oh_my_llm/features/media/application/media_browser_controller.da
 import 'package:oh_my_llm/features/media/application/shuffle_playback_controller.dart';
 import 'package:oh_my_llm/features/media/domain/models/video_item.dart';
 import 'package:oh_my_llm/features/sync/application/sync_client_controller.dart';
-import 'package:oh_my_llm/features/sync/data/sync_udp_discovery.dart';
+import 'package:oh_my_llm/features/sync/data/udp/sync_udp_discovery.dart';
 
 import '../../../helpers/test_harness.dart';
 import '../../../helpers/widget_test_animation.dart';
