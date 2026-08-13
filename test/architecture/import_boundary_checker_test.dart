@@ -11,7 +11,7 @@ ArchitecturePolicy get _settingsAllowance => ArchitecturePolicy(
   legacyApplicationDataEdges: {
     ImportEdge(
       sourcePath:
-          'lib/features/settings/application/chat_defaults_controller.dart',
+          'lib/features/settings/application/preferences/chat_defaults_controller.dart',
       targetPath: 'lib/features/settings/data/chat_defaults_repository.dart',
     ): '存量债务',
   },
@@ -53,8 +53,8 @@ void main() {
     test('精确 allowlist 边放行', () {
       final violations = ImportBoundaryChecker(policy: _settingsAllowance)
           .checkSources({
-            'lib/features/settings/application/chat_defaults_controller.dart':
-                "import '../data/chat_defaults_repository.dart';",
+            'lib/features/settings/application/preferences/chat_defaults_controller.dart':
+                "import '../../data/chat_defaults_repository.dart';",
           });
       expect(violations, isEmpty);
     });
@@ -129,8 +129,8 @@ void main() {
     test('allowlist 不放行同一 source 的其他 target', () {
       final violations = ImportBoundaryChecker(policy: _settingsAllowance)
           .checkSources({
-            'lib/features/settings/application/chat_defaults_controller.dart':
-                "import '../data/other_repository.dart';",
+            'lib/features/settings/application/preferences/chat_defaults_controller.dart':
+                "import '../../data/other_repository.dart';",
           });
       expect(violations.single.ruleId, 'APPLICATION_TO_DATA');
     });

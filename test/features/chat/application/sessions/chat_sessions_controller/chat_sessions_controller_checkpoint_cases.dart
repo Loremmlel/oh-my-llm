@@ -3,8 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
-import 'package:oh_my_llm/features/settings/application/preset_prompts_controller.dart';
-import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
+import 'package:oh_my_llm/features/settings/application/prompts/preset_prompts_controller.dart';
+import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
 
 import '../../../../../helpers/fake_chat_generation_client.dart';
 import 'chat_sessions_controller_test_helpers.dart';

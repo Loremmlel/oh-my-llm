@@ -14,12 +14,12 @@ import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client
 import 'package:oh_my_llm/features/chat/application/ports/chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
-import 'package:oh_my_llm/features/settings/application/chat_defaults_controller.dart';
-import 'package:oh_my_llm/features/settings/application/llm_model_configs_controller.dart';
-import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dart';
-import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
-import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
-import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
+import 'package:oh_my_llm/features/settings/application/preferences/chat_defaults_controller.dart';
+import 'package:oh_my_llm/features/settings/application/providers/llm_model_configs_controller.dart';
+import 'package:oh_my_llm/features/settings/data/providers/llm_model_config_repository.dart';
+import 'package:oh_my_llm/features/settings/domain/models/providers/llm_model_config.dart';
+import 'package:oh_my_llm/features/settings/domain/models/providers/llm_provider_config.dart';
+import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
 
 import '../../../../helpers/controllable_chat_conversation_repository.dart';
 import '../../../../helpers/fake_chat_generation_client.dart';

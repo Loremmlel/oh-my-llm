@@ -12,7 +12,7 @@ import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/app/composition/cross_feature_bindings.dart';
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/core/persistence/versioned_json_storage.dart';
-import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
+import 'package:oh_my_llm/features/settings/domain/models/providers/llm_provider_config.dart';
 import 'package:oh_my_llm/features/sync/application/sync_server_controller.dart';
 import 'package:oh_my_llm/features/sync/application/network_interface_provider.dart';
 import 'package:oh_my_llm/features/sync/domain/models/network_interface_info.dart';

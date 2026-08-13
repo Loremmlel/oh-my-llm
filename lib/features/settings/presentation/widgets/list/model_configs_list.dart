@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../domain/models/llm_provider_config.dart';
+import '../../../domain/models/providers/llm_provider_config.dart';
 import '../settings_empty_state.dart';
 import 'provider_tile.dart';
 

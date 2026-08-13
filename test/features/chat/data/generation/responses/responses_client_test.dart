@@ -11,7 +11,7 @@ import 'package:oh_my_llm/core/logging/network_logger.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/data/generation/responses/responses_client.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
-import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
+import 'package:oh_my_llm/features/settings/domain/models/providers/llm_model_config.dart';
 
 void main() {
   final testUri = Uri.parse('https://api.example.com/v1/responses');

@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:oh_my_llm/core/http/http_client_provider.dart';
 import 'package:oh_my_llm/core/widgets/notification_bubble_stack.dart';
-import 'package:oh_my_llm/features/settings/application/font_size_settings_controller.dart';
+import 'package:oh_my_llm/features/settings/application/preferences/font_size_settings_controller.dart';
 import 'router/app_router.dart';
 import 'theme/app_theme.dart';
 

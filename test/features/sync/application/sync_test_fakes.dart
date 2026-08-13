@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:oh_my_llm/features/settings/domain/models/settings_export_data.dart';
+import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_export_data.dart';
 import 'package:oh_my_llm/features/sync/application/ports/settings_sync_facade.dart';
 import 'package:oh_my_llm/features/sync/application/ports/sync_client_protocol.dart';
 import 'package:oh_my_llm/features/sync/application/ports/sync_client_transport.dart';

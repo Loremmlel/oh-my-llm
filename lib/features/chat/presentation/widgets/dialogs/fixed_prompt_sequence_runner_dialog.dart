@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'package:oh_my_llm/features/settings/domain/models/fixed_prompt_sequence.dart';
+import 'package:oh_my_llm/features/settings/domain/models/prompts/fixed_prompt_sequence.dart';
 
 /// 固定顺序提示词运行器关闭后要执行的动作。
 enum FixedPromptSequenceRunnerAction { none, fillComposer, sendStep }

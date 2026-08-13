@@ -1,0 +1,290 @@
+import '../../domain/models/preferences/auto_retry_settings.dart';
+import '../../domain/models/preferences/custom_headers_config.dart';
+import '../../domain/models/prompts/fixed_prompt_sequence.dart';
+import '../../domain/models/preferences/font_size_settings.dart';
+import '../../domain/models/providers/llm_provider_config.dart';
+import '../../domain/models/prompts/memory_prompt.dart';
+import '../../domain/models/preferences/output_processing_settings.dart';
+import '../../domain/models/prompts/preset_prompt.dart';
+import '../../domain/models/transfer/settings_export_data.dart';
+import '../../domain/models/prompts/template_prompt.dart';
+import '../providers/llm_provider_equivalence.dart';
+
+/// 导入去重时的内容比较策略。
+abstract class SettingsImportComparator<T> {
+  const SettingsImportComparator();
+
+  bool isEquivalent(T existing, T incoming);
+}
+
+class MemoryPromptImportComparator
+    extends SettingsImportComparator<MemoryPrompt> {
+  const MemoryPromptImportComparator();
+
+  @override
+  bool isEquivalent(MemoryPrompt existing, MemoryPrompt incoming) {
+    if (existing.content.length != incoming.content.length) {
+      return false;
+    }
+    return existing.content == incoming.content;
+  }
+}
+
+class PresetPromptImportComparator
+    extends SettingsImportComparator<PresetPrompt> {
+  const PresetPromptImportComparator();
+
+  @override
+  bool isEquivalent(PresetPrompt existing, PresetPrompt incoming) {
+    if (existing.messages.length != incoming.messages.length) {
+      return false;
+    }
+    for (var index = 0; index < existing.messages.length; index += 1) {
+      final left = existing.messages[index];
+      final right = incoming.messages[index];
+      if (left.title.length != right.title.length) {
+        return false;
+      }
+      if (left.title != right.title) {
+        return false;
+      }
+      if (left.role != right.role || left.placement != right.placement) {
+        return false;
+      }
+      if (left.content.length != right.content.length) {
+        return false;
+      }
+      if (left.content != right.content) {
+        return false;
+      }
+    }
+    return true;
+  }
+}
+
+class TemplatePromptImportComparator
+    extends SettingsImportComparator<TemplatePrompt> {
+  const TemplatePromptImportComparator();
+
+  @override
+  bool isEquivalent(TemplatePrompt existing, TemplatePrompt incoming) {
+    if (existing.content.length != incoming.content.length) {
+      return false;
+    }
+    if (existing.content != incoming.content) {
+      return false;
+    }
+    if (existing.variables.length != incoming.variables.length) {
+      return false;
+    }
+    for (var index = 0; index < existing.variables.length; index += 1) {
+      final left = existing.variables[index];
+      final right = incoming.variables[index];
+      if (left.name != right.name) {
+        return false;
+      }
+      if (left.defaultValue.length != right.defaultValue.length) {
+        return false;
+      }
+      if (left.defaultValue != right.defaultValue) {
+        return false;
+      }
+    }
+    return true;
+  }
+}
+
+class FixedPromptSequenceImportComparator
+    extends SettingsImportComparator<FixedPromptSequence> {
+  const FixedPromptSequenceImportComparator();
+
+  @override
+  bool isEquivalent(
+    FixedPromptSequence existing,
+    FixedPromptSequence incoming,
+  ) {
+    if (existing.steps.length != incoming.steps.length) {
+      return false;
+    }
+    for (var index = 0; index < existing.steps.length; index += 1) {
+      final left = existing.steps[index];
+      final right = incoming.steps[index];
+      if (left.title.length != right.title.length) {
+        return false;
+      }
+      if (left.title != right.title) {
+        return false;
+      }
+      if (left.content.length != right.content.length) {
+        return false;
+      }
+      if (left.content != right.content) {
+        return false;
+      }
+    }
+    return true;
+  }
+}
+
+/// 设置导入数据的去重协调器。
+final class SettingsImportDeduplicator {
+  const SettingsImportDeduplicator({
+    this.memoryPromptComparator = const MemoryPromptImportComparator(),
+    this.presetPromptComparator = const PresetPromptImportComparator(),
+    this.templatePromptComparator = const TemplatePromptImportComparator(),
+    this.fixedPromptSequenceComparator =
+        const FixedPromptSequenceImportComparator(),
+  });
+
+  final SettingsImportComparator<MemoryPrompt> memoryPromptComparator;
+  final SettingsImportComparator<PresetPrompt> presetPromptComparator;
+  final SettingsImportComparator<TemplatePrompt> templatePromptComparator;
+  final SettingsImportComparator<FixedPromptSequence>
+  fixedPromptSequenceComparator;
+
+  SettingsExportData deduplicate({
+    required SettingsExportData data,
+    required List<LlmProviderConfig> existingProviders,
+    required List<MemoryPrompt> existingMemoryPrompts,
+    required List<PresetPrompt> existingPresetPrompts,
+    required List<TemplatePrompt> existingTemplatePrompts,
+    required List<FixedPromptSequence> existingSequences,
+    AutoRetrySettings? existingAutoRetrySettings,
+    CustomHeadersConfig? existingCustomHeadersConfig,
+    FontSizeSettings? existingFontSizeSettings,
+    OutputProcessingSettings? existingOutputProcessingSettings,
+  }) {
+    // 按 ID 索引已有服务商，用于优先 ID 匹配
+    final existingById = <String, LlmProviderConfig>{};
+    for (final p in existingProviders) {
+      existingById[p.id] = p;
+    }
+    // 无 ID 匹配时的回退：统一 API 根后按服务商等价键与 modelName 去重。
+    final existingModels = existingProviders
+        .expand((provider) {
+          final providerKey = buildLlmProviderEquivalenceKey(provider);
+          return provider.models.map(
+            (model) => (providerKey: providerKey, modelName: model.modelName),
+          );
+        })
+        .toList(growable: false);
+
+    final newProviders = <LlmProviderConfig>[];
+    for (final incomingProvider in data.modelProviders) {
+      final sameIdProvider = existingById[incomingProvider.id];
+
+      if (sameIdProvider != null) {
+        // 同 ID：按 modelName 去重模型（URL 可能已变化，不参与模型匹配）
+        final existingModelNames = sameIdProvider.models
+            .map((m) => m.modelName)
+            .toSet();
+        final nextModels = incomingProvider.models
+            .where((m) => !existingModelNames.contains(m.modelName))
+            .toList(growable: false);
+
+        // 即使所有模型都重复，服务商级字段（URL/Name/Key/协议）变更仍需透传
+        final hasProviderChanges =
+            sameIdProvider.name != incomingProvider.name ||
+            sameIdProvider.apiUrl != incomingProvider.apiUrl ||
+            sameIdProvider.apiKey != incomingProvider.apiKey ||
+            sameIdProvider.apiProtocol != incomingProvider.apiProtocol;
+
+        if (hasProviderChanges || nextModels.isNotEmpty) {
+          newProviders.add(incomingProvider.copyWith(models: nextModels));
+        }
+        continue;
+      }
+
+      // 无同 ID：按协议+API root+apiKey+modelName 去重；
+      // 同 URL/Key 下不同协议是不同服务商，不能互相合并
+      final incomingProviderKey = buildLlmProviderEquivalenceKey(
+        incomingProvider,
+      );
+      final nextModels = incomingProvider.models
+          .where((model) {
+            return !existingModels.any(
+              (existing) =>
+                  existing.providerKey == incomingProviderKey &&
+                  existing.modelName == model.modelName,
+            );
+          })
+          .toList(growable: false);
+      if (nextModels.isNotEmpty) {
+        newProviders.add(incomingProvider.copyWith(models: nextModels));
+      }
+    }
+
+    final newMemoryPrompts = data.memoryPrompts
+        .where((incoming) {
+          return !existingMemoryPrompts.any(
+            (existing) =>
+                memoryPromptComparator.isEquivalent(existing, incoming),
+          );
+        })
+        .toList(growable: false);
+
+    final newTemplates = data.presetPrompts
+        .where((incoming) {
+          return !existingPresetPrompts.any(
+            (existing) =>
+                presetPromptComparator.isEquivalent(existing, incoming),
+          );
+        })
+        .toList(growable: false);
+
+    final newTemplatePrompts = data.templatePrompts
+        .where((incoming) {
+          return !existingTemplatePrompts.any(
+            (existing) =>
+                templatePromptComparator.isEquivalent(existing, incoming),
+          );
+        })
+        .toList(growable: false);
+
+    final newSequences = data.fixedPromptSequences
+        .where((incoming) {
+          return !existingSequences.any(
+            (existing) =>
+                fixedPromptSequenceComparator.isEquivalent(existing, incoming),
+          );
+        })
+        .toList(growable: false);
+
+    // ── 标量型配置去重：两端一致时置 null ──────────────────────────
+    final dedupAutoRetry =
+        (data.autoRetrySettings != null &&
+            data.autoRetrySettings == existingAutoRetrySettings)
+        ? null
+        : data.autoRetrySettings;
+
+    final dedupCustomHeaders =
+        (data.customHeadersConfig != null &&
+            data.customHeadersConfig == existingCustomHeadersConfig)
+        ? null
+        : data.customHeadersConfig;
+
+    final dedupFontSize =
+        (data.fontSizeSettings != null &&
+            data.fontSizeSettings == existingFontSizeSettings)
+        ? null
+        : data.fontSizeSettings;
+
+    final dedupOutputProcessing =
+        (data.outputProcessingSettings != null &&
+            data.outputProcessingSettings == existingOutputProcessingSettings)
+        ? null
+        : data.outputProcessingSettings;
+
+    return SettingsExportData(
+      modelProviders: newProviders,
+      memoryPrompts: newMemoryPrompts,
+      presetPrompts: newTemplates,
+      templatePrompts: newTemplatePrompts,
+      fixedPromptSequences: newSequences,
+      autoRetrySettings: dedupAutoRetry,
+      customHeadersConfig: dedupCustomHeaders,
+      fontSizeSettings: dedupFontSize,
+      outputProcessingSettings: dedupOutputProcessing,
+    );
+  }
+}

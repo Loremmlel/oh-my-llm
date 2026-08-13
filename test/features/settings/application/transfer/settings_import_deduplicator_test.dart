@@ -1,0 +1,1033 @@
+import 'package:flutter_test/flutter_test.dart';
+
+import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
+import 'package:oh_my_llm/features/settings/application/transfer/settings_import_deduplicator.dart';
+import 'package:oh_my_llm/features/settings/domain/models/preferences/auto_retry_settings.dart';
+import 'package:oh_my_llm/features/settings/domain/models/preferences/custom_headers_config.dart';
+import 'package:oh_my_llm/features/settings/domain/models/prompts/fixed_prompt_sequence.dart';
+import 'package:oh_my_llm/features/settings/domain/models/preferences/font_size_settings.dart';
+import 'package:oh_my_llm/features/settings/domain/models/providers/llm_provider_config.dart';
+import 'package:oh_my_llm/features/settings/domain/models/prompts/memory_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_export_data.dart';
+import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
+
+void main() {
+  final testDate = DateTime(2025, 1, 1);
+
+  // ── 工厂辅助函数 ──────...──────────...──────────...──────────
+
+  MemoryPrompt mem({
+    String id = 'mem-1',
+    String name = '测试记忆',
+    String content = 'hello world',
+  }) {
+    return MemoryPrompt(
+      id: id,
+      name: name,
+      content: content,
+      updatedAt: testDate,
+    );
+  }
+
+  PromptMessage msg({
+    String id = 'msg-1',
+    PromptMessageRole role = PromptMessageRole.user,
+    String title = '前置user1',
+    String content = '你好',
+    PromptMessagePlacement placement = PromptMessagePlacement.before,
+  }) {
+    return PromptMessage(
+      id: id,
+      role: role,
+      title: title,
+      content: content,
+      placement: placement,
+    );
+  }
+
+  PresetPrompt preset({
+    String id = 'pst-1',
+    String name = '测试模板',
+    List<PromptMessage>? messages,
+  }) {
+    return PresetPrompt(
+      id: id,
+      name: name,
+      messages: messages ?? [msg()],
+      updatedAt: testDate,
+    );
+  }
+
+  TemplatePromptVariable tplVar({
+    String name = '变量1',
+    String defaultValue = '默认值',
+  }) {
+    return TemplatePromptVariable(name: name, defaultValue: defaultValue);
+  }
+
+  TemplatePrompt tpl({
+    String id = 'tpl-1',
+    String title = '测试模板',
+    String content = '请处理{{正文}}',
+    List<TemplatePromptVariable>? variables,
+  }) {
+    return TemplatePrompt(
+      id: id,
+      title: title,
+      content: content,
+      variables: variables ?? [tplVar()],
+      updatedAt: testDate,
+    );
+  }
+
+  FixedPromptSequenceStep step({
+    String id = 'step-1',
+    String title = '步骤1',
+    String content = '第一步内容',
+  }) {
+    return FixedPromptSequenceStep(id: id, title: title, content: content);
+  }
+
+  FixedPromptSequence seq({
+    String id = 'seq-1',
+    String name = '测试序列',
+    List<FixedPromptSequenceStep>? steps,
+  }) {
+    return FixedPromptSequence(
+      id: id,
+      name: name,
+      steps: steps ?? [step()],
+      updatedAt: testDate,
+    );
+  }
+
+  LlmProviderModelConfig model({
+    String id = 'model-1',
+    String displayName = 'GPT-4',
+    String modelName = 'gpt-4',
+    bool supportsReasoning = false,
+  }) {
+    return LlmProviderModelConfig(
+      id: id,
+      displayName: displayName,
+      modelName: modelName,
+      supportsReasoning: supportsReasoning,
+    );
+  }
+
+  LlmProviderConfig provider({
+    String id = 'pvd-1',
+    String name = 'OpenAI',
+    String apiUrl = 'https://api.openai.com/v1',
+    String apiKey = 'sk-abc123',
+    LlmApiProtocol apiProtocol = LlmApiProtocol.chatCompletions,
+    List<LlmProviderModelConfig>? models,
+  }) {
+    return LlmProviderConfig(
+      id: id,
+      name: name,
+      apiUrl: apiUrl,
+      apiKey: apiKey,
+      apiProtocol: apiProtocol,
+      models: models ?? [model()],
+    );
+  }
+
+  SettingsExportData export({
+    List<LlmProviderConfig> modelProviders = const [],
+    List<MemoryPrompt> memoryPrompts = const [],
+    List<PresetPrompt> presetPrompts = const [],
+    List<TemplatePrompt> templatePrompts = const [],
+    List<FixedPromptSequence> fixedPromptSequences = const [],
+    AutoRetrySettings? autoRetrySettings,
+    FontSizeSettings? fontSizeSettings,
+    CustomHeadersConfig? customHeadersConfig,
+  }) {
+    return SettingsExportData(
+      modelProviders: modelProviders,
+      memoryPrompts: memoryPrompts,
+      presetPrompts: presetPrompts,
+      templatePrompts: templatePrompts,
+      fixedPromptSequences: fixedPromptSequences,
+      autoRetrySettings: autoRetrySettings,
+      fontSizeSettings: fontSizeSettings,
+      customHeadersConfig: customHeadersConfig,
+    );
+  }
+
+  // ── MemoryPromptImportComparator ──────...──────────...──────────
+
+  group('MemoryPromptImportComparator', () {
+    const comparator = MemoryPromptImportComparator();
+
+    test('按内容判断等价并覆盖长度守卫', () {
+      final cases = [
+        (
+          name: '内容相同',
+          existing: mem(content: 'hello'),
+          incoming: mem(content: 'hello'),
+          expected: true,
+        ),
+        (
+          name: '同长度但内容不同',
+          existing: mem(content: 'abc'),
+          incoming: mem(content: 'def'),
+          expected: false,
+        ),
+        (
+          name: '内容长度不同',
+          existing: mem(content: 'a'),
+          incoming: mem(content: 'abcdef'),
+          expected: false,
+        ),
+      ];
+
+      for (final testCase in cases) {
+        expect(
+          comparator.isEquivalent(testCase.existing, testCase.incoming),
+          testCase.expected,
+          reason: testCase.name,
+        );
+      }
+    });
+  });
+
+  // ── PresetPromptImportComparator ──────...──────────...──────────
+
+  group('PresetPromptImportComparator', () {
+    const comparator = PresetPromptImportComparator();
+
+    test('按消息数量和字段判断等价', () {
+      final cases = [
+        (
+          name: '消息完全相同',
+          existing: preset(messages: [msg(content: 'hello')]),
+          incoming: preset(messages: [msg(content: 'hello')]),
+          expected: true,
+        ),
+        (
+          name: '消息数量不同',
+          existing: preset(messages: [msg()]),
+          incoming: preset(
+            messages: [
+              msg(),
+              msg(id: 'msg-2', content: '第二条'),
+            ],
+          ),
+          expected: false,
+        ),
+        (
+          name: '标题不同',
+          existing: preset(messages: [msg(title: '标题A')]),
+          incoming: preset(messages: [msg(title: '标题B')]),
+          expected: false,
+        ),
+        (
+          name: '正文不同',
+          existing: preset(messages: [msg(content: '旧正文')]),
+          incoming: preset(messages: [msg(content: '新正文')]),
+          expected: false,
+        ),
+        (
+          name: '角色不同',
+          existing: preset(messages: [msg(role: PromptMessageRole.user)]),
+          incoming: preset(messages: [msg(role: PromptMessageRole.assistant)]),
+          expected: false,
+        ),
+      ];
+
+      for (final testCase in cases) {
+        expect(
+          comparator.isEquivalent(testCase.existing, testCase.incoming),
+          testCase.expected,
+          reason: testCase.name,
+        );
+      }
+    });
+  });
+
+  // ── TemplatePromptImportComparator ──────...──────────...──────────
+
+  group('TemplatePromptImportComparator', () {
+    const comparator = TemplatePromptImportComparator();
+
+    test('按正文、变量数量和变量字段判断等价', () {
+      final cases = [
+        (
+          name: '内容与变量完全相同',
+          existing: tpl(
+            content: '请用{{语气}}回复',
+            variables: [tplVar(name: '语气', defaultValue: '正式')],
+          ),
+          incoming: tpl(
+            content: '请用{{语气}}回复',
+            variables: [tplVar(name: '语气', defaultValue: '正式')],
+          ),
+          expected: true,
+        ),
+        (
+          name: '正文不同',
+          existing: tpl(content: '翻译{{正文}}'),
+          incoming: tpl(content: '改写{{正文}}'),
+          expected: false,
+        ),
+        (
+          name: '变量数量不同',
+          existing: tpl(variables: [tplVar(name: '语气')]),
+          incoming: tpl(
+            variables: [
+              tplVar(name: '语气'),
+              tplVar(name: '长度'),
+            ],
+          ),
+          expected: false,
+        ),
+        (
+          name: '变量名称或默认值不同',
+          existing: tpl(
+            variables: [tplVar(name: '语气', defaultValue: '正式')],
+          ),
+          incoming: tpl(
+            variables: [tplVar(name: '风格', defaultValue: '轻松')],
+          ),
+          expected: false,
+        ),
+      ];
+
+      for (final testCase in cases) {
+        expect(
+          comparator.isEquivalent(testCase.existing, testCase.incoming),
+          testCase.expected,
+          reason: testCase.name,
+        );
+      }
+    });
+  });
+
+  // ── FixedPromptSequenceImportComparator ──────...──────────...──────────
+
+  group('FixedPromptSequenceImportComparator', () {
+    const comparator = FixedPromptSequenceImportComparator();
+
+    test('按步骤字段判断等价', () {
+      final cases = [
+        (
+          name: '步骤完全相同',
+          existing: seq(
+            steps: [step(title: '步骤1', content: '你好')],
+          ),
+          incoming: seq(
+            steps: [step(title: '步骤1', content: '你好')],
+          ),
+          expected: true,
+        ),
+        (
+          name: '步骤不同',
+          existing: seq(
+            steps: [step(title: '步骤1', content: '你好')],
+          ),
+          incoming: seq(
+            steps: [step(title: '步骤2', content: '再见')],
+          ),
+          expected: false,
+        ),
+      ];
+
+      for (final testCase in cases) {
+        expect(
+          comparator.isEquivalent(testCase.existing, testCase.incoming),
+          testCase.expected,
+          reason: testCase.name,
+        );
+      }
+    });
+  });
+
+  // ── SettingsImportDeduplicator.deduplicate() ──────...──────────
+
+  group('SettingsImportDeduplicator.deduplicate()', () {
+    const deduplicator = SettingsImportDeduplicator();
+
+    test('按协议+apiUrl+apiKey+modelName 过滤已存在的模型服务商', () {
+      // 已有服务商：url1/key1 下有 gpt-4
+      final existingProviders = [
+        provider(
+          apiUrl: 'https://url1.example.com',
+          apiKey: 'key1',
+          models: [model(modelName: 'gpt-4')],
+        ),
+      ];
+
+      // 导入数据：
+      // p1: 相同 url1/key1，包含 gpt-4（重复）和 gpt-3.5（新）
+      // p2: 相同 url1/key1，仅含 gpt-4（全部重复，整个服务商应被移除）
+      // p3: 不同 url2/key2，含 gpt-4（不同服务商，不重复）
+      final data = export(
+        modelProviders: [
+          provider(
+            id: 'pvd-import-1',
+            apiUrl: 'https://url1.example.com',
+            apiKey: 'key1',
+            models: [
+              model(modelName: 'gpt-4'),
+              model(
+                id: 'model-2',
+                displayName: 'GPT-3.5',
+                modelName: 'gpt-3.5',
+              ),
+            ],
+          ),
+          provider(
+            id: 'pvd-import-2',
+            apiUrl: 'https://url1.example.com',
+            apiKey: 'key1',
+            models: [model(modelName: 'gpt-4')],
+          ),
+          provider(
+            id: 'pvd-import-3',
+            apiUrl: 'https://url2.example.com',
+            apiKey: 'key2',
+            models: [model(modelName: 'gpt-4')],
+          ),
+        ],
+      );
+
+      final result = deduplicator.deduplicate(
+        data: data,
+        existingProviders: existingProviders,
+        existingMemoryPrompts: const [],
+        existingPresetPrompts: const [],
+        existingTemplatePrompts: const [],
+        existingSequences: const [],
+      );
+
+      // p1 保留，仅含 gpt-3.5；p2 全重复被移除；p3 全保留
+      expect(result.modelProviders.length, 2);
+      expect(result.modelProviders[0].models.length, 1);
+      expect(result.modelProviders[0].models[0].modelName, 'gpt-3.5');
+      expect(result.modelProviders[1].apiUrl, 'https://url2.example.com');
+      expect(result.modelProviders[1].models.length, 1);
+      expect(result.modelProviders[1].models[0].modelName, 'gpt-4');
+    });
+
+    test('无同 ID 回退：同 URL/Key 不同协议不去重，同协议仍按 modelName 去重', () {
+      // 已有服务商：url1/key1 下 Chat Completions 协议有 gpt-4
+      final existingProviders = [
+        provider(
+          apiUrl: 'https://url1.example.com',
+          apiKey: 'key1',
+          apiProtocol: LlmApiProtocol.chatCompletions,
+          models: [model(modelName: 'gpt-4')],
+        ),
+      ];
+
+      final data = export(
+        modelProviders: [
+          // 同 URL/Key 但协议不同：gpt-4 不算重复，整个服务商保留
+          provider(
+            id: 'pvd-import-1',
+            apiUrl: 'https://url1.example.com',
+            apiKey: 'key1',
+            apiProtocol: LlmApiProtocol.responses,
+            models: [model(modelName: 'gpt-4')],
+          ),
+          // 同 URL/Key 且协议相同：按 modelName 去重，全部重复 → 整个服务商移除
+          provider(
+            id: 'pvd-import-2',
+            apiUrl: 'https://url1.example.com',
+            apiKey: 'key1',
+            apiProtocol: LlmApiProtocol.chatCompletions,
+            models: [model(modelName: 'gpt-4')],
+          ),
+        ],
+      );
+
+      final result = deduplicator.deduplicate(
+        data: data,
+        existingProviders: existingProviders,
+        existingMemoryPrompts: const [],
+        existingPresetPrompts: const [],
+        existingTemplatePrompts: const [],
+        existingSequences: const [],
+      );
+
+      expect(result.modelProviders.length, 1);
+      expect(result.modelProviders[0].id, 'pvd-import-1');
+      expect(result.modelProviders[0].apiProtocol, LlmApiProtocol.responses);
+      expect(result.modelProviders[0].models.length, 1);
+      expect(result.modelProviders[0].models[0].modelName, 'gpt-4');
+    });
+
+    test('无同 ID 回退：同协议的域名、v1 根与完整端点按同一 API 根去重', () {
+      final existingProviders = [
+        provider(
+          apiUrl: 'https://same.example.com',
+          apiKey: 'key1',
+          models: [model(modelName: 'gpt-4')],
+        ),
+      ];
+      final data = export(
+        modelProviders: [
+          provider(
+            id: 'v1-root',
+            apiUrl: 'https://same.example.com/v1',
+            apiKey: 'key1',
+            models: [model(modelName: 'gpt-4')],
+          ),
+          provider(
+            id: 'full-endpoint',
+            apiUrl: 'https://same.example.com/v1/chat/completions',
+            apiKey: 'key1',
+            models: [model(modelName: 'gpt-4')],
+          ),
+        ],
+      );
+
+      final result = deduplicator.deduplicate(
+        data: data,
+        existingProviders: existingProviders,
+        existingMemoryPrompts: const [],
+        existingPresetPrompts: const [],
+        existingTemplatePrompts: const [],
+        existingSequences: const [],
+      );
+
+      expect(result.modelProviders, isEmpty);
+    });
+
+    test('无同 ID 回退：不同 query 与不同无效 URL 不会错误合并', () {
+      final existingProviders = [
+        provider(
+          apiUrl: 'https://same.example.com?tenant=a',
+          apiKey: 'key1',
+          models: [model(modelName: 'gpt-4')],
+        ),
+        provider(
+          id: 'invalid-existing',
+          apiUrl: 'invalid-a',
+          apiKey: 'key1',
+          models: [model(modelName: 'gpt-4')],
+        ),
+      ];
+      final data = export(
+        modelProviders: [
+          provider(
+            id: 'query-b',
+            apiUrl: 'https://same.example.com?tenant=b',
+            apiKey: 'key1',
+            models: [model(modelName: 'gpt-4')],
+          ),
+          provider(
+            id: 'invalid-b',
+            apiUrl: 'invalid-b',
+            apiKey: 'key1',
+            models: [model(modelName: 'gpt-4')],
+          ),
+        ],
+      );
+
+      final result = deduplicator.deduplicate(
+        data: data,
+        existingProviders: existingProviders,
+        existingMemoryPrompts: const [],
+        existingPresetPrompts: const [],
+        existingTemplatePrompts: const [],
+        existingSequences: const [],
+      );
+
+      expect(result.modelProviders, hasLength(2));
+    });
+
+    test('过滤已存在的记忆提示词', () {
+      final existingMemoryPrompts = [mem(id: 'e-1', content: '常见的记忆内容')];
+      final data = export(
+        memoryPrompts: [
+          mem(id: 'i-1', content: '常见的记忆内容'), // 重复
+          mem(id: 'i-2', content: '全新的记忆内容'), // 新
+        ],
+      );
+
+      final result = deduplicator.deduplicate(
+        data: data,
+        existingProviders: const [],
+        existingMemoryPrompts: existingMemoryPrompts,
+        existingPresetPrompts: const [],
+        existingTemplatePrompts: const [],
+        existingSequences: const [],
+      );
+
+      expect(result.memoryPrompts.length, 1);
+      expect(result.memoryPrompts[0].content, '全新的记忆内容');
+    });
+
+    test('过滤已存在的预设提示词模板', () {
+      final existingPresetPrompts = [
+        preset(
+          messages: [msg(content: '已有系统指令', role: PromptMessageRole.system)],
+        ),
+      ];
+      final data = export(
+        presetPrompts: [
+          preset(
+            messages: [msg(content: '已有系统指令', role: PromptMessageRole.system)],
+          ), // 重复
+          preset(
+            id: 'pst-new',
+            messages: [msg(content: '全新系统指令', role: PromptMessageRole.system)],
+          ), // 新
+        ],
+      );
+
+      final result = deduplicator.deduplicate(
+        data: data,
+        existingProviders: const [],
+        existingMemoryPrompts: const [],
+        existingPresetPrompts: existingPresetPrompts,
+        existingTemplatePrompts: const [],
+        existingSequences: const [],
+      );
+
+      expect(result.presetPrompts.length, 1);
+      expect(result.presetPrompts[0].id, 'pst-new');
+    });
+
+    test('过滤已存在的模板提示词', () {
+      final existingTemplatePrompts = [
+        tpl(
+          content: '翻译成{{语言}}',
+          variables: [tplVar(name: '语言', defaultValue: '英文')],
+        ),
+      ];
+      final data = export(
+        templatePrompts: [
+          tpl(
+            content: '翻译成{{语言}}',
+            variables: [tplVar(name: '语言', defaultValue: '英文')],
+          ), // 重复
+          tpl(
+            id: 'tpl-new',
+            content: '改写成{{风格}}',
+            variables: [tplVar(name: '风格', defaultValue: '轻松')],
+          ), // 新
+        ],
+      );
+
+      final result = deduplicator.deduplicate(
+        data: data,
+        existingProviders: const [],
+        existingMemoryPrompts: const [],
+        existingPresetPrompts: const [],
+        existingTemplatePrompts: existingTemplatePrompts,
+        existingSequences: const [],
+      );
+
+      expect(result.templatePrompts.length, 1);
+      expect(result.templatePrompts[0].id, 'tpl-new');
+    });
+
+    test('过滤已存在的固定顺序提示词', () {
+      final existingSequences = [
+        seq(
+          steps: [step(title: '步骤1', content: '启动')],
+        ),
+      ];
+      final data = export(
+        fixedPromptSequences: [
+          seq(
+            steps: [step(title: '步骤1', content: '启动')],
+          ), // 重复
+          seq(
+            id: 'seq-new',
+            steps: [step(title: '步骤A', content: '初始化')],
+          ), // 新
+        ],
+      );
+
+      final result = deduplicator.deduplicate(
+        data: data,
+        existingProviders: const [],
+        existingMemoryPrompts: const [],
+        existingPresetPrompts: const [],
+        existingTemplatePrompts: const [],
+        existingSequences: existingSequences,
+      );
+
+      expect(result.fixedPromptSequences.length, 1);
+      expect(result.fixedPromptSequences[0].id, 'seq-new');
+    });
+
+    test('输入数据为空时返回空结果', () {
+      final result = deduplicator.deduplicate(
+        data: export(),
+        existingProviders: const [],
+        existingMemoryPrompts: const [],
+        existingPresetPrompts: const [],
+        existingTemplatePrompts: const [],
+        existingSequences: const [],
+      );
+
+      expect(result.modelProviders, isEmpty);
+      expect(result.memoryPrompts, isEmpty);
+      expect(result.presetPrompts, isEmpty);
+      expect(result.templatePrompts, isEmpty);
+      expect(result.fixedPromptSequences, isEmpty);
+    });
+
+    test('所有已有数据均匹配时返回全空分类', () {
+      final existingMemoryPrompts = [mem(content: '内容A')];
+      final existingPresetPrompts = [
+        preset(messages: [msg(content: '消息A')]),
+      ];
+      final existingTemplatePrompts = [tpl(content: '模板A')];
+      final existingSequences = [
+        seq(
+          steps: [step(title: '步A', content: '内容A')],
+        ),
+      ];
+
+      final data = export(
+        memoryPrompts: [mem(content: '内容A')],
+        presetPrompts: [
+          preset(messages: [msg(content: '消息A')]),
+        ],
+        templatePrompts: [tpl(content: '模板A')],
+        fixedPromptSequences: [
+          seq(
+            steps: [step(title: '步A', content: '内容A')],
+          ),
+        ],
+      );
+
+      final result = deduplicator.deduplicate(
+        data: data,
+        existingProviders: const [],
+        existingMemoryPrompts: existingMemoryPrompts,
+        existingPresetPrompts: existingPresetPrompts,
+        existingTemplatePrompts: existingTemplatePrompts,
+        existingSequences: existingSequences,
+      );
+
+      expect(result.modelProviders, isEmpty);
+      expect(result.memoryPrompts, isEmpty);
+      expect(result.presetPrompts, isEmpty);
+      expect(result.templatePrompts, isEmpty);
+      expect(result.fixedPromptSequences, isEmpty);
+    });
+
+    // ── 标量型配置去重 ──────────────────────────────────────────────
+
+    test('未提供本地标量配置时远端值全部透传且不影响实体分类', () {
+      const autoRetry = AutoRetrySettings(
+        maxJitterSeconds: 20,
+        maxRetryCount: 5,
+      );
+      const customHeaders = CustomHeadersConfig(
+        headers: [CustomHeaderEntry(key: 'X-New', value: 'new')],
+      );
+      const fontSize = FontSizeSettings(bodyFontSize: 18);
+      final result = deduplicator.deduplicate(
+        data: export(
+          memoryPrompts: [mem(content: '新记忆')],
+          autoRetrySettings: autoRetry,
+          customHeadersConfig: customHeaders,
+          fontSizeSettings: fontSize,
+        ),
+        existingProviders: const [],
+        existingMemoryPrompts: const [],
+        existingPresetPrompts: const [],
+        existingTemplatePrompts: const [],
+        existingSequences: const [],
+      );
+
+      expect(result.autoRetrySettings, autoRetry);
+      expect(result.customHeadersConfig, customHeaders);
+      expect(result.fontSizeSettings, fontSize);
+      expect(result.memoryPrompts, hasLength(1));
+      expect(result.hasContent, isTrue);
+    });
+
+    test('全部标量配置与本地不同时保留远端值', () {
+      const incomingAutoRetry = AutoRetrySettings(
+        maxJitterSeconds: 30,
+        maxRetryCount: 5,
+      );
+      const incomingHeaders = CustomHeadersConfig(
+        headers: [CustomHeaderEntry(key: 'X-New', value: 'new')],
+      );
+      const incomingFontSize = FontSizeSettings(bodyFontSize: 20);
+      final result = deduplicator.deduplicate(
+        data: export(
+          autoRetrySettings: incomingAutoRetry,
+          customHeadersConfig: incomingHeaders,
+          fontSizeSettings: incomingFontSize,
+        ),
+        existingProviders: const [],
+        existingMemoryPrompts: const [],
+        existingPresetPrompts: const [],
+        existingTemplatePrompts: const [],
+        existingSequences: const [],
+        existingAutoRetrySettings: const AutoRetrySettings(),
+        existingCustomHeadersConfig: const CustomHeadersConfig(
+          headers: [CustomHeaderEntry(key: 'X-Old', value: 'old')],
+        ),
+        existingFontSizeSettings: const FontSizeSettings(bodyFontSize: 14),
+      );
+
+      expect(result.autoRetrySettings, incomingAutoRetry);
+      expect(result.customHeadersConfig, incomingHeaders);
+      expect(result.fontSizeSettings, incomingFontSize);
+    });
+
+    test('全部标量配置与本地一致时 hasContent 为 false', () {
+      const autoRetry = AutoRetrySettings(
+        maxJitterSeconds: 20,
+        maxRetryCount: 5,
+      );
+      const customHeaders = CustomHeadersConfig(
+        headers: [CustomHeaderEntry(key: 'X-Custom', value: 'test')],
+      );
+      const fontSize = FontSizeSettings(bodyFontSize: 18);
+      final data = export(
+        autoRetrySettings: autoRetry,
+        customHeadersConfig: customHeaders,
+        fontSizeSettings: fontSize,
+      );
+
+      final result = deduplicator.deduplicate(
+        data: data,
+        existingProviders: const [],
+        existingMemoryPrompts: const [],
+        existingPresetPrompts: const [],
+        existingTemplatePrompts: const [],
+        existingSequences: const [],
+        existingAutoRetrySettings: autoRetry,
+        existingCustomHeadersConfig: customHeaders,
+        existingFontSizeSettings: fontSize,
+      );
+
+      expect(result.hasContent, isFalse);
+    });
+
+    test('混合场景：部分一致部分不一致', () {
+      const existingAutoRetry = AutoRetrySettings(maxJitterSeconds: 15);
+      const incomingAutoRetry = AutoRetrySettings(maxJitterSeconds: 15);
+      const existingFontSize = FontSizeSettings(bodyFontSize: 14);
+      const incomingFontSize = FontSizeSettings(bodyFontSize: 20);
+      final data = export(
+        autoRetrySettings: incomingAutoRetry,
+        fontSizeSettings: incomingFontSize,
+      );
+
+      final result = deduplicator.deduplicate(
+        data: data,
+        existingProviders: const [],
+        existingMemoryPrompts: const [],
+        existingPresetPrompts: const [],
+        existingTemplatePrompts: const [],
+        existingSequences: const [],
+        existingAutoRetrySettings: existingAutoRetry,
+        existingFontSizeSettings: existingFontSize,
+      );
+
+      expect(result.autoRetrySettings, isNull);
+      expect(result.fontSizeSettings, isNotNull);
+      expect(result.fontSizeSettings!.bodyFontSize, 20);
+      expect(result.hasContent, isTrue);
+    });
+
+    // ── 同 ID 不同 URL 的服务商去重 ────────────────────────────────
+
+    test('同 ID 不同 URL 时按 modelName 去重模型并透传服务商', () {
+      // 本地：id=pvd-1, url=youzi.today, 有 model-a
+      final existingProviders = [
+        provider(
+          id: 'pvd-1',
+          apiUrl: 'https://youzi.today',
+          apiKey: 'key1',
+          models: [model(modelName: 'model-a')],
+        ),
+      ];
+
+      // 导入：同 ID，URL 变为 api.youzi.today，有 model-a（重复）和 model-b（新）
+      final data = export(
+        modelProviders: [
+          provider(
+            id: 'pvd-1',
+            apiUrl: 'https://api.youzi.today',
+            apiKey: 'key1',
+            models: [
+              model(modelName: 'model-a'), // 同 modelName → 去重
+              model(id: 'model-2', displayName: 'B', modelName: 'model-b'),
+            ],
+          ),
+        ],
+      );
+
+      final result = deduplicator.deduplicate(
+        data: data,
+        existingProviders: existingProviders,
+        existingMemoryPrompts: const [],
+        existingPresetPrompts: const [],
+        existingTemplatePrompts: const [],
+        existingSequences: const [],
+      );
+
+      // 服务商保留（有 URL 变更 + 新模型），模型去重后只含 model-b
+      expect(result.modelProviders.length, 1);
+      expect(result.modelProviders[0].id, 'pvd-1');
+      expect(result.modelProviders[0].models.length, 1);
+      expect(result.modelProviders[0].models[0].modelName, 'model-b');
+    });
+
+    test('同 ID 不同 URL 无新模型但有字段变更时仍透传', () {
+      final existingProviders = [
+        provider(
+          id: 'pvd-1',
+          name: 'Old Name',
+          apiUrl: 'https://youzi.today',
+          apiKey: 'key1',
+          models: [model(modelName: 'model-a')],
+        ),
+      ];
+
+      // 导入：同 ID，URL 变了，模型完全重复
+      final data = export(
+        modelProviders: [
+          provider(
+            id: 'pvd-1',
+            name: 'New Name',
+            apiUrl: 'https://api.youzi.today',
+            apiKey: 'key1',
+            models: [model(modelName: 'model-a')],
+          ),
+        ],
+      );
+
+      final result = deduplicator.deduplicate(
+        data: data,
+        existingProviders: existingProviders,
+        existingMemoryPrompts: const [],
+        existingPresetPrompts: const [],
+        existingTemplatePrompts: const [],
+        existingSequences: const [],
+      );
+
+      // URL 变更需透传给 mergeImportedProviders
+      expect(result.modelProviders.length, 1);
+      expect(result.modelProviders[0].apiUrl, 'https://api.youzi.today');
+      expect(result.modelProviders[0].models, isEmpty);
+    });
+
+    test('同 ID 协议变更时即使模型全部重复也透传服务商', () {
+      final existingProviders = [
+        provider(
+          id: 'pvd-1',
+          apiUrl: 'https://youzi.today',
+          apiKey: 'key1',
+          apiProtocol: LlmApiProtocol.chatCompletions,
+          models: [model(modelName: 'model-a')],
+        ),
+      ];
+
+      // 导入：同 ID，协议从 Chat Completions 变为 Anthropic，模型完全重复
+      final data = export(
+        modelProviders: [
+          provider(
+            id: 'pvd-1',
+            apiUrl: 'https://youzi.today',
+            apiKey: 'key1',
+            apiProtocol: LlmApiProtocol.anthropic,
+            models: [model(modelName: 'model-a')],
+          ),
+        ],
+      );
+
+      final result = deduplicator.deduplicate(
+        data: data,
+        existingProviders: existingProviders,
+        existingMemoryPrompts: const [],
+        existingPresetPrompts: const [],
+        existingTemplatePrompts: const [],
+        existingSequences: const [],
+      );
+
+      // 协议变更需透传给 mergeImportedProviders，模型仍按 modelName 去重
+      expect(result.modelProviders.length, 1);
+      expect(result.modelProviders[0].apiProtocol, LlmApiProtocol.anthropic);
+      expect(result.modelProviders[0].models, isEmpty);
+    });
+
+    test('同 ID 完全相同时被过滤', () {
+      final existingProviders = [
+        provider(
+          id: 'pvd-1',
+          apiUrl: 'https://youzi.today',
+          apiKey: 'key1',
+          models: [model(modelName: 'model-a')],
+        ),
+      ];
+
+      // 导入：同 ID 同 URL 同 Key 同模型 → 完全重复
+      final data = export(
+        modelProviders: [
+          provider(
+            id: 'pvd-1',
+            apiUrl: 'https://youzi.today',
+            apiKey: 'key1',
+            models: [model(modelName: 'model-a')],
+          ),
+        ],
+      );
+
+      final result = deduplicator.deduplicate(
+        data: data,
+        existingProviders: existingProviders,
+        existingMemoryPrompts: const [],
+        existingPresetPrompts: const [],
+        existingTemplatePrompts: const [],
+        existingSequences: const [],
+      );
+
+      expect(result.modelProviders, isEmpty);
+    });
+
+    test('同 ID 不同 URL 与不同 ID 同 URL+Key 互不干扰', () {
+      final existingProviders = [
+        provider(
+          id: 'pvd-local',
+          apiUrl: 'https://shared.url',
+          apiKey: 'key1',
+          models: [model(modelName: 'model-a')],
+        ),
+      ];
+
+      final data = export(
+        modelProviders: [
+          // 不同 ID + 同 URL+Key → 走原有逻辑合并
+          provider(
+            id: 'pvd-remote',
+            apiUrl: 'https://shared.url',
+            apiKey: 'key1',
+            models: [model(modelName: 'model-b')],
+          ),
+        ],
+      );
+
+      final result = deduplicator.deduplicate(
+        data: data,
+        existingProviders: existingProviders,
+        existingMemoryPrompts: const [],
+        existingPresetPrompts: const [],
+        existingTemplatePrompts: const [],
+        existingSequences: const [],
+      );
+
+      // 不同 ID，按 URL+Key+modelName 去重：model-b 不在已有中 → 保留
+      expect(result.modelProviders.length, 1);
+      expect(result.modelProviders[0].id, 'pvd-remote');
+      expect(result.modelProviders[0].models.length, 1);
+      expect(result.modelProviders[0].models[0].modelName, 'model-b');
+    });
+  });
+}

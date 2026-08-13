@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../application/custom_headers_controller.dart';
-import '../../../domain/models/custom_headers_config.dart';
+import '../../../application/preferences/custom_headers_controller.dart';
+import '../../../domain/models/preferences/custom_headers_config.dart';
 import '../settings_helpers.dart';
 import '../settings_empty_state.dart';
 import '../settings_section_card.dart';

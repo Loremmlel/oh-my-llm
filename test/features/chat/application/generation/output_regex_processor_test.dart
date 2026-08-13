@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/features/chat/application/generation/output_regex_processor.dart';
-import 'package:oh_my_llm/features/settings/domain/models/output_processing_settings.dart';
+import 'package:oh_my_llm/features/settings/domain/models/preferences/output_processing_settings.dart';
 
 void main() {
   group('applyOutputRegexRules', () {

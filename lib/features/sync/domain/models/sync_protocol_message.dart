@@ -2,8 +2,8 @@ import 'dart:convert';
 
 import 'package:equatable/equatable.dart';
 
-import 'package:oh_my_llm/features/settings/domain/models/settings_export_codec.dart';
-import 'package:oh_my_llm/features/settings/domain/models/settings_export_data.dart';
+import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_export_codec.dart';
+import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_export_data.dart';
 import 'sync_protocol_failure.dart';
 import 'sync_protocol_version.dart';
 import 'sync_types.dart';

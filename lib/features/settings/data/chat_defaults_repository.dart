@@ -3,7 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/core/persistence/settings_key_value_store.dart';
 import 'package:oh_my_llm/core/persistence/versioned_json_store.dart';
-import '../domain/models/chat_defaults.dart';
+import '../domain/models/preferences/chat_defaults.dart';
 
 const String chatDefaultsStorageKey = 'settings.chat_defaults';
 

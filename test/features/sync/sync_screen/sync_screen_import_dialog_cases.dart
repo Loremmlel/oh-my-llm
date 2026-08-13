@@ -5,9 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
-import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
-import 'package:oh_my_llm/features/settings/domain/models/memory_prompt.dart';
-import 'package:oh_my_llm/features/settings/domain/models/settings_export_data.dart';
+import 'package:oh_my_llm/features/settings/domain/models/providers/llm_provider_config.dart';
+import 'package:oh_my_llm/features/settings/domain/models/prompts/memory_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_export_data.dart';
 import 'package:oh_my_llm/features/sync/application/sync_client_controller.dart';
 import 'package:oh_my_llm/features/sync/presentation/widgets/sync_import_confirm_dialog.dart';
 

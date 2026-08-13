@@ -6,7 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/app/navigation/app_destination.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
-import 'package:oh_my_llm/features/settings/domain/models/settings_export_data.dart';
+import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_export_data.dart';
 import 'package:oh_my_llm/app/composition/sync_workspace_screen.dart';
 import 'package:oh_my_llm/features/sync/presentation/widgets/sync_import_confirm_dialog.dart';
 import 'package:oh_my_llm/features/media/application/media_browser_controller.dart';

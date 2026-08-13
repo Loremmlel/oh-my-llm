@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/features/chat/application/requests/chat_request_message_builder.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_checkpoint.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
-import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
 
 void main() {
   ChatMessage message(String id, ChatMessageRole role, String content) =>

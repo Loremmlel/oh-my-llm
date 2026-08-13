@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:oh_my_llm/features/settings/data/sqlite_fixed_prompt_sequence_repository.dart';
-import 'package:oh_my_llm/features/settings/domain/models/fixed_prompt_sequence.dart';
+import 'package:oh_my_llm/features/settings/data/prompts/sqlite_fixed_prompt_sequence_repository.dart';
+import 'package:oh_my_llm/features/settings/domain/models/prompts/fixed_prompt_sequence.dart';
 
 import '../../../helpers/widget_test_animation.dart';
 import 'settings_screen_test_helpers.dart';

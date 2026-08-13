@@ -10,15 +10,15 @@ import 'package:oh_my_llm/features/chat/data/persistence/sqlite_chat_conversatio
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/settings/data/chat_defaults_repository.dart';
-import 'package:oh_my_llm/features/settings/data/fixed_prompt_sequence_repository.dart';
-import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dart';
-import 'package:oh_my_llm/features/settings/data/preset_prompt_repository.dart';
-import 'package:oh_my_llm/features/settings/domain/models/fixed_prompt_sequence.dart';
-import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
-import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
-import 'package:oh_my_llm/features/settings/domain/models/memory_prompt.dart';
-import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
-import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
+import 'package:oh_my_llm/features/settings/data/prompts/fixed_prompt_sequence_repository.dart';
+import 'package:oh_my_llm/features/settings/data/providers/llm_model_config_repository.dart';
+import 'package:oh_my_llm/features/settings/data/prompts/preset_prompt_repository.dart';
+import 'package:oh_my_llm/features/settings/domain/models/prompts/fixed_prompt_sequence.dart';
+import 'package:oh_my_llm/features/settings/domain/models/providers/llm_model_config.dart';
+import 'package:oh_my_llm/features/settings/domain/models/providers/llm_provider_config.dart';
+import 'package:oh_my_llm/features/settings/domain/models/prompts/memory_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
 
 /// 类型安全的测试数据工厂。
 ///

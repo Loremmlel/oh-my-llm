@@ -1,4 +1,4 @@
-import 'models/template_prompt.dart';
+import 'models/prompts/template_prompt.dart';
 
 final _templatePromptPlaceholderPattern = RegExp(r'\{\{([^{}]+)\}\}');
 

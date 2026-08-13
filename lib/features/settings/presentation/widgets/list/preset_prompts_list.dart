@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:oh_my_llm/core/utils/text_formatting.dart';
-import '../../../application/chat_defaults_controller.dart';
-import '../../../application/preset_prompts_controller.dart';
-import '../../../domain/models/preset_prompt.dart';
+import '../../../application/preferences/chat_defaults_controller.dart';
+import '../../../application/prompts/preset_prompts_controller.dart';
+import '../../../domain/models/prompts/preset_prompt.dart';
 import '../settings_card_grid.dart';
 import '../settings_empty_state.dart';
 import '../settings_entity_card.dart';

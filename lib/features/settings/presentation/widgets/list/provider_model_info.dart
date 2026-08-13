@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../domain/models/llm_provider_config.dart';
+import '../../../domain/models/providers/llm_provider_config.dart';
 import 'provider_model_info_body.dart';
 
 class ProviderModelInfo extends StatelessWidget {

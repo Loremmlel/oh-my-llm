@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/chat/application/composer/templated_user_message_builder.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
-import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
 
 void main() {
   test('buildTemplatedUserMessage returns raw body when template is null', () {

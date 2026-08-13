@@ -21,11 +21,11 @@ import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client
 import 'package:oh_my_llm/features/chat/application/ports/chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/data/persistence/sqlite_chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
-import 'package:oh_my_llm/features/settings/application/preset_prompts_controller.dart';
-import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dart';
-import 'package:oh_my_llm/features/settings/data/preset_prompt_repository.dart';
-import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
-import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
+import 'package:oh_my_llm/features/settings/application/prompts/preset_prompts_controller.dart';
+import 'package:oh_my_llm/features/settings/data/providers/llm_model_config_repository.dart';
+import 'package:oh_my_llm/features/settings/data/prompts/preset_prompt_repository.dart';
+import 'package:oh_my_llm/features/settings/domain/models/providers/llm_provider_config.dart';
+import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
 
 import '../features/chat/presentation/chat_screen/chat_screen_test_helpers.dart';
 import '../helpers/integration_test_helpers.dart';

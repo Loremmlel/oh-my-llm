@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:oh_my_llm/features/settings/application/output_processing_settings_controller.dart';
-import 'package:oh_my_llm/features/settings/domain/models/output_processing_settings.dart';
+import 'package:oh_my_llm/features/settings/application/preferences/output_processing_settings_controller.dart';
+import 'package:oh_my_llm/features/settings/domain/models/preferences/output_processing_settings.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/tab/output_processing_tab.dart';
 
 import '../../../helpers/test_harness.dart';

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
 import 'number_variable_field.dart';
 
 class ComposerTemplateVariableFields extends StatelessWidget {

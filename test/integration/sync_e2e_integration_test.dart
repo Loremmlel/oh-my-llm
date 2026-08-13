@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:oh_my_llm/features/settings/domain/models/settings_export_data.dart';
+import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_export_data.dart';
 import 'package:oh_my_llm/features/sync/application/sync_client_protocol_coordinator.dart';
 import 'package:oh_my_llm/features/sync/application/sync_server_protocol_coordinator.dart';
 import 'package:oh_my_llm/features/sync/data/cryptography_sync_crypto.dart';

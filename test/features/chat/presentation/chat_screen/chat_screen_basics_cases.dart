@@ -10,11 +10,11 @@ import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
-import 'package:oh_my_llm/features/settings/application/llm_model_configs_controller.dart';
-import 'package:oh_my_llm/features/settings/application/memory_prompts_controller.dart';
-import 'package:oh_my_llm/features/settings/application/template_prompts_controller.dart';
-import 'package:oh_my_llm/features/settings/domain/models/memory_prompt.dart';
-import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
+import 'package:oh_my_llm/features/settings/application/providers/llm_model_configs_controller.dart';
+import 'package:oh_my_llm/features/settings/application/prompts/memory_prompts_controller.dart';
+import 'package:oh_my_llm/features/settings/application/prompts/template_prompts_controller.dart';
+import 'package:oh_my_llm/features/settings/domain/models/prompts/memory_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
 
 import '../../../../helpers/async_test_signals.dart';
 import '../../../../helpers/fixtures.dart';

@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:oh_my_llm/core/utils/text_formatting.dart';
-import '../../../application/template_prompts_controller.dart';
-import '../../../domain/models/template_prompt.dart';
+import '../../../application/prompts/template_prompts_controller.dart';
+import '../../../domain/models/prompts/template_prompt.dart';
 import '../settings_card_grid.dart';
 import '../settings_empty_state.dart';
 import '../settings_entity_card.dart';

@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/core/persistence/settings_key_value_store.dart';
 import 'package:oh_my_llm/core/persistence/versioned_json_storage.dart';
 import 'package:oh_my_llm/core/persistence/versioned_json_store.dart';
-import 'package:oh_my_llm/features/settings/domain/models/font_size_settings.dart';
+import 'package:oh_my_llm/features/settings/domain/models/preferences/font_size_settings.dart';
 
 final class _FakeSettingsKeyValueStore implements SettingsKeyValueStore {
   _FakeSettingsKeyValueStore({

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:oh_my_llm/core/widgets/detail_display_dialog.dart';
-import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
 
 /// 预设 Prompt 消息的只读详情弹窗。
 ///

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../application/custom_headers_controller.dart';
+import '../../../application/preferences/custom_headers_controller.dart';
 import '../settings_form_dialog_scaffold.dart';
 import '../settings_form_dialog_state_mixin.dart';
 

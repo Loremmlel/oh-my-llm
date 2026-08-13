@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../../application/model_catalog_workflow.dart';
-import '../../../domain/models/model_catalog_entry.dart';
-import '../../../domain/models/llm_provider_config.dart';
+import '../../../application/providers/model_catalog_workflow.dart';
+import '../../../domain/models/providers/model_catalog_entry.dart';
+import '../../../domain/models/providers/llm_provider_config.dart';
 
 /// 拉取模式中单个模型的选择状态。
 class ModelSelectionEntry {

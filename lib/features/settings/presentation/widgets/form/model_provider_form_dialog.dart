@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 
-import '../../../domain/models/llm_provider_config.dart';
+import '../../../domain/models/providers/llm_provider_config.dart';
 import '../settings_form_dialog_scaffold.dart';
 import '../settings_form_dialog_state_mixin.dart';
 

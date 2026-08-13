@@ -1,6 +1,6 @@
 import 'package:equatable/equatable.dart';
 
-import 'package:oh_my_llm/features/settings/domain/models/auto_retry_settings.dart';
+import 'package:oh_my_llm/features/settings/domain/models/preferences/auto_retry_settings.dart';
 
 /// 一次 generation 的生命周期阶段。
 ///

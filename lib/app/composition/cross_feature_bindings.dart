@@ -37,7 +37,7 @@ import 'package:oh_my_llm/features/media/data/media_thumbnail_cache.dart';
 import 'package:oh_my_llm/features/media/data/media_thumbnail_generator.dart';
 import 'package:oh_my_llm/features/media/data/media_thumbnail_http_handler.dart';
 import 'package:oh_my_llm/features/media/data/media_video_http_handler.dart';
-import 'package:oh_my_llm/features/settings/application/settings_sync_facade.dart';
+import 'package:oh_my_llm/features/settings/application/transfer/settings_sync_facade.dart';
 import 'package:oh_my_llm/features/sync/application/ports/settings_sync_facade.dart';
 import 'package:oh_my_llm/features/sync/application/ports/sync_client_transport.dart';
 import 'package:oh_my_llm/features/sync/application/ports/sync_clock.dart';

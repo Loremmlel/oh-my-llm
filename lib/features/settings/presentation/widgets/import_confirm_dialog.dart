@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../application/settings_import_executor.dart';
-import '../../domain/models/settings_export_data.dart';
+import '../../application/transfer/settings_import_executor.dart';
+import '../../domain/models/transfer/settings_export_data.dart';
 import 'settings_helpers.dart';
 
 /// 配置导入确认对话框。

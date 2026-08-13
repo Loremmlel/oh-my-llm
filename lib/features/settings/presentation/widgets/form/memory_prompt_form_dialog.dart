@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../domain/models/memory_prompt.dart';
+import '../../../domain/models/prompts/memory_prompt.dart';
 import '../settings_form_dialog_scaffold.dart';
 import '../settings_form_dialog_state_mixin.dart';
 

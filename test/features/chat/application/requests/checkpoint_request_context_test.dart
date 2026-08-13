@@ -5,8 +5,8 @@ import 'package:oh_my_llm/features/chat/application/requests/chat_request_messag
 import 'package:oh_my_llm/features/chat/application/requests/request_message_filter.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_checkpoint.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
-import 'package:oh_my_llm/features/settings/domain/models/memory_prompt.dart';
-import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/models/prompts/memory_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
 
 void main() {
   // ── 辅助工厂 ───────────────────────────────────────────────────────────────

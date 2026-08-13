@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/chat/application/generation/chat_generation_lifecycle.dart';
-import 'package:oh_my_llm/features/settings/domain/models/auto_retry_settings.dart';
+import 'package:oh_my_llm/features/settings/domain/models/preferences/auto_retry_settings.dart';
 
 void main() {
   test('snapshot 值相等刻意忽略 terminal outcome 内容', () {

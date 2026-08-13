@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
-import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
+import 'package:oh_my_llm/features/settings/domain/models/providers/llm_provider_config.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/form/model_provider_form_dialog.dart';
 
 import '../../../helpers/test_harness.dart';

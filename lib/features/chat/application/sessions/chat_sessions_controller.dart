@@ -3,10 +3,10 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:oh_my_llm/core/utils/id_generator.dart';
-import 'package:oh_my_llm/features/settings/application/auto_retry_settings_controller.dart';
-import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
-import 'package:oh_my_llm/features/settings/domain/models/memory_prompt.dart';
-import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
+import 'package:oh_my_llm/features/settings/application/preferences/auto_retry_settings_controller.dart';
+import 'package:oh_my_llm/features/settings/domain/models/providers/llm_model_config.dart';
+import 'package:oh_my_llm/features/settings/domain/models/prompts/memory_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
 import '../generation/chat_generation_contract.dart';
 import '../generation/chat_generation_coordinator.dart';
 import '../generation/chat_generation_lifecycle.dart';

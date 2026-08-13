@@ -1,11 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:oh_my_llm/core/utils/id_generator.dart';
-import 'package:oh_my_llm/features/settings/application/chat_defaults_controller.dart';
-import 'package:oh_my_llm/features/settings/application/llm_model_configs_controller.dart';
-import 'package:oh_my_llm/features/settings/application/preset_prompts_controller.dart';
-import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
-import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
+import 'package:oh_my_llm/features/settings/application/preferences/chat_defaults_controller.dart';
+import 'package:oh_my_llm/features/settings/application/providers/llm_model_configs_controller.dart';
+import 'package:oh_my_llm/features/settings/application/prompts/preset_prompts_controller.dart';
+import 'package:oh_my_llm/features/settings/domain/models/providers/llm_model_config.dart';
+import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
 import '../../domain/models/chat_checkpoint.dart';
 import '../../domain/models/chat_conversation.dart';
 import '../../domain/models/chat_conversation_summary.dart';

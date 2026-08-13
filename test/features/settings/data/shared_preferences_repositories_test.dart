@@ -6,9 +6,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/core/persistence/settings_key_value_store.dart';
 import 'package:oh_my_llm/features/settings/data/chat_defaults_repository.dart';
-import 'package:oh_my_llm/features/settings/data/llm_model_config_repository.dart';
-import 'package:oh_my_llm/features/settings/domain/models/chat_defaults.dart';
-import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
+import 'package:oh_my_llm/features/settings/data/providers/llm_model_config_repository.dart';
+import 'package:oh_my_llm/features/settings/domain/models/preferences/chat_defaults.dart';
+import 'package:oh_my_llm/features/settings/domain/models/providers/llm_provider_config.dart';
 
 void main() {
   group('ChatDefaultsRepository', () {

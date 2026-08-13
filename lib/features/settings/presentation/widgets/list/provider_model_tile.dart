@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../application/chat_defaults_controller.dart';
-import '../../../application/llm_model_configs_controller.dart';
-import '../../../domain/models/llm_provider_config.dart';
+import '../../../application/preferences/chat_defaults_controller.dart';
+import '../../../application/providers/llm_model_configs_controller.dart';
+import '../../../domain/models/providers/llm_provider_config.dart';
 import '../settings_helpers.dart';
 import 'provider_model_info.dart';
 import 'provider_model_info_body.dart';

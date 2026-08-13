@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/template_prompt_parser.dart';
 
 void main() {

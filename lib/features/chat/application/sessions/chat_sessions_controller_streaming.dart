@@ -1,5 +1,5 @@
-import 'package:oh_my_llm/features/settings/application/output_processing_settings_controller.dart';
-import 'package:oh_my_llm/features/settings/domain/models/auto_retry_settings.dart';
+import 'package:oh_my_llm/features/settings/application/preferences/output_processing_settings_controller.dart';
+import 'package:oh_my_llm/features/settings/domain/models/preferences/auto_retry_settings.dart';
 import '../../domain/models/chat_conversation.dart';
 import '../../domain/chat_error_messages.dart';
 import '../../domain/models/chat_message.dart';

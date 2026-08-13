@@ -6,8 +6,8 @@ import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_contr
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/domain/chat_error_messages.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
-import 'package:oh_my_llm/features/settings/application/output_processing_settings_controller.dart';
-import 'package:oh_my_llm/features/settings/domain/models/output_processing_settings.dart';
+import 'package:oh_my_llm/features/settings/application/preferences/output_processing_settings_controller.dart';
+import 'package:oh_my_llm/features/settings/domain/models/preferences/output_processing_settings.dart';
 
 import '../../../../../helpers/fake_chat_generation_client.dart';
 import 'chat_sessions_controller_test_helpers.dart';

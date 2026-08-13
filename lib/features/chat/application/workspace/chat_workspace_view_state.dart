@@ -1,15 +1,15 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:oh_my_llm/features/settings/application/chat_defaults_controller.dart';
-import 'package:oh_my_llm/features/settings/application/fixed_prompt_sequences_controller.dart';
-import 'package:oh_my_llm/features/settings/application/llm_model_configs_controller.dart';
-import 'package:oh_my_llm/features/settings/application/template_prompts_controller.dart';
-import 'package:oh_my_llm/features/settings/domain/models/fixed_prompt_sequence.dart';
-import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
-import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
-import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
-import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
+import 'package:oh_my_llm/features/settings/application/preferences/chat_defaults_controller.dart';
+import 'package:oh_my_llm/features/settings/application/prompts/fixed_prompt_sequences_controller.dart';
+import 'package:oh_my_llm/features/settings/application/providers/llm_model_configs_controller.dart';
+import 'package:oh_my_llm/features/settings/application/prompts/template_prompts_controller.dart';
+import 'package:oh_my_llm/features/settings/domain/models/prompts/fixed_prompt_sequence.dart';
+import 'package:oh_my_llm/features/settings/domain/models/providers/llm_model_config.dart';
+import 'package:oh_my_llm/features/settings/domain/models/providers/llm_provider_config.dart';
+import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
 import '../../domain/models/chat_conversation.dart';
 import '../../domain/models/chat_message.dart';
 import '../favorites/chat_favorites_facade.dart';

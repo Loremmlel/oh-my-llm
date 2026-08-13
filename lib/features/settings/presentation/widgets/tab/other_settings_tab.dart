@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../application/auto_retry_settings_controller.dart';
-import '../../../application/font_size_settings_controller.dart';
-import '../../../domain/models/auto_retry_settings.dart';
+import '../../../application/preferences/auto_retry_settings_controller.dart';
+import '../../../application/preferences/font_size_settings_controller.dart';
+import '../../../domain/models/preferences/auto_retry_settings.dart';
 import '../settings_section_card.dart';
 
 /// 自动重试卡片内 Switch 项的统一形状：hover 高亮带圆角。

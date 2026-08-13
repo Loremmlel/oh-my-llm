@@ -13,7 +13,7 @@ import 'core/logging/network_logger.dart';
 import 'core/persistence/app_database.dart';
 import 'core/persistence/app_database_provider.dart';
 import 'core/persistence/shared_preferences_provider.dart';
-import 'features/settings/application/custom_headers_controller.dart';
+import 'features/settings/application/preferences/custom_headers_controller.dart';
 
 /// 应用启动入口：初始化持久化层，最后启动 Flutter 应用。
 ///
