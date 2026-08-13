@@ -243,6 +243,10 @@ lib/
 - 收藏详情和媒体页面使用 GoRouter 的可序列化 ID/query 参数；禁止用 `state.extra` 传 domain entity，也不要在 feature 内新增 `MaterialPageRoute` 平行栈。
 - 响应式阈值使用 `AppBreakpoints` 的 shell/content/form/bubble 语义 token；局部约束可以保留，但不得复制同义魔法数。
 - 关键自绘交互必须提供非重复的 Semantics、键盘等价操作、可见焦点和 disabled/selected/live 状态；普通 Material 控件不重复包无价值 Semantics。
+- 响应式组件优先使用 `LayoutBuilder` 获取父级实际宽度；除 app shell 等窗口级职责外，不用整窗宽度决策，也不按 Windows/Android/手机/平板标签切换布局。
+- 连续网格使用 `AppAdaptiveGrid` 与 feature-owned 规格约束项目最大宽度；不要用固定列数模拟设备适配。固定列数只有在列数本身是稳定业务契约时才能保留并解释。
+- 共享间距、圆角、内容限宽与命中区域使用 `AppSpacing` / `AppRadii` / `AppContentWidths` / `AppInteractionSizes`；局部业务几何可保留，不为追求零数字机械迁移。
+- 密度偏好由各 feature 独立拥有；平台只可在 app composition 提供无持久化值时的默认密度，不建立全局密度开关。
 
 ---
 
