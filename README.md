@@ -228,7 +228,7 @@ lib/
     │   ├── data/               # Generation 协议客户端与持久化仓库
     │   │   ├── generation/     # Chat Completions / Responses / Anthropic 客户端与 parser
     │   │   └── persistence/    # SQLite 会话仓库与后台写入器
-     │   ├── domain/             # ChatMessage / ChatConversation 等领域模型
+    │   ├── domain/             # ChatMessage / ChatConversation 等领域模型
     │   ├── presentation/       # 聊天页 + 流式 Markdown 组件 + 滚动控制器
     │   │   ├── chat_screen.dart
     │   │   ├── chat_scroll_controller.dart          # 滚动/锚点管理器
@@ -271,13 +271,13 @@ lib/
     │   │       ├── providers/
     │   │       ├── prompts/
     │   │       └── transfer/
-     │   └── presentation/       # 设置页（网络 / 其他等标签页）
-     │       └── widgets/
-     │           ├── providers/  # 服务商与模型表单、列表组件
-     │           ├── prompts/    # Prompt 表单与列表组件
-     │           ├── shared/     # 设置通用表单与列表组件
-     │           ├── tabs/       # 设置标签页组件
-     │           └── transfer/   # 设置导入确认组件
+    │   └── presentation/       # 设置页（网络 / 其他等标签页）
+    │       └── widgets/
+    │           ├── providers/  # 服务商与模型表单、列表组件
+    │           ├── prompts/    # Prompt 表单与列表组件
+    │           ├── shared/     # 设置通用表单与列表组件
+    │           ├── tabs/       # 设置标签页组件
+    │           └── transfer/   # 设置导入确认组件
     └── sync/
         ├── application/        # 客户端/服务端 protocol coordinator、session registry
         │   └── ports/          # transport、crypto、pairing、settings/media facade
@@ -349,9 +349,9 @@ flutter test --reporter compact 2>&1 | Out-File -Encoding utf8 logs/fltest.log; 
 | Favorites Repository | `test/features/favorites/data/`、`test/features/favorites/domain/` | SQLite 仓库、收藏 / 收藏夹模型 |
 | Chat↔Favorites Flow | `test/features/chat/presentation/chat_screen/` | 书签按钮、对话框、新建收藏夹流程 |
 | Chat Application | `test/features/chat/application/` | `composer/` 草稿、模板/用户消息构建与编辑命令；`favorites/` 收藏命令；`generation/` Generation phase/outcome、停止/重试竞态；`history/` 分页；`ports/` Generation client contract；`requests/` 请求消息过滤与检查点上下文；`sessions/` 会话 CRUD、消息树与状态；`sidebar/` 侧栏；`workspace/` Workspace ownership |
-| Chat Domain | `test/features/chat/domain/` | `models/` 聊天模型、会话分组、字数统计 |
+| Chat Domain | `test/features/chat/domain/`、`test/features/chat/domain/models/` | `domain/` 根目录：会话分组、字数统计；`domain/models/`：聊天模型 |
 | Chat Data | `test/features/chat/data/generation/`、`test/features/chat/data/persistence/` | `generation/` 协议路由、Chat Completions / Responses / Anthropic 客户端与解析器、流式 SSE/增量解析；`persistence/` SQLite 会话仓库与后台写入器 |
-| Chat Presentation | `test/features/chat/presentation/` | 聊天页、锚点 Rail、字数统计、消息折叠 |
+| Chat Presentation | `test/features/chat/presentation/` | 聊天页、锚点 Rail、消息折叠 |
 | AppDatabase Migration | `test/core/persistence/` | schema、外键级联、索引、数据迁移、后台写入器、replace-all、版本化 JSON 存储 |
 | Core Utils | `test/core/utils/` | 日期格式化、ID 生成、文本格式化、JSON 截断 |
 | Core Logging | `test/core/logging/` | 日志存储、网络日志脱敏 redactor |
