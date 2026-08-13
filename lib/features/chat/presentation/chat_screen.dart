@@ -12,18 +12,18 @@ import 'package:oh_my_llm/features/settings/domain/models/fixed_prompt_sequence.
 import 'package:oh_my_llm/features/settings/domain/models/llm_model_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/template_prompt.dart';
-import '../application/chat_composer_command.dart';
-import '../application/chat_message_tree.dart';
-import '../application/chat_sessions_controller.dart';
-import '../application/chat_sidebar_controller.dart';
-import '../application/composer_collapsed_controller.dart';
-import '../application/composer_draft_controller.dart';
+import '../application/composer/chat_composer_command.dart';
+import '../application/sessions/chat_message_tree.dart';
+import '../application/sessions/chat_sessions_controller.dart';
+import '../application/sidebar/chat_sidebar_controller.dart';
+import '../application/composer/composer_collapsed_controller.dart';
+import '../application/composer/composer_draft_controller.dart';
 import '../domain/chat_conversation_groups.dart';
 import '../domain/chat_message_parent.dart';
 import '../domain/models/chat_conversation.dart';
 import '../domain/models/chat_conversation_summary.dart';
 import '../domain/models/chat_message.dart';
-import '../application/chat_favorite_intent_command.dart';
+import '../application/favorites/chat_favorite_intent_command.dart';
 import 'chat_scroll_controller.dart';
 import 'widgets/widgets.dart';
 

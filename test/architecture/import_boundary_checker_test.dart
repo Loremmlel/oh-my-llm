@@ -22,12 +22,12 @@ void main() {
     test('同 feature 分层引用零违规', () {
       final violations = _checker().checkSources({
         'lib/features/chat/presentation/chat_screen.dart':
-            "import '../application/chat_sessions_controller.dart';\n"
+            "import '../application/sessions/chat_sessions_controller.dart';\n"
             "import '../../domain/models/chat_conversation.dart';",
-        'lib/features/chat/application/chat_sessions_controller.dart':
-            "import '../domain/models/chat_conversation.dart';",
-        'lib/features/chat/data/sqlite_chat_conversation_repository.dart':
-            "import '../application/ports/chat_conversation_repository.dart';",
+        'lib/features/chat/application/sessions/chat_sessions_controller.dart':
+            "import '../../domain/models/chat_conversation.dart';",
+        'lib/features/chat/data/persistence/sqlite_chat_conversation_repository.dart':
+            "import '../../application/ports/chat_conversation_repository.dart';",
       });
       expect(violations, isEmpty);
     });
@@ -36,7 +36,7 @@ void main() {
       final violations = _checker().checkSources({
         'lib/app/composition/cross_feature_bindings.dart': """
           import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
-          import 'package:oh_my_llm/features/chat/data/protocol_routing_chat_generation_client.dart';
+          import 'package:oh_my_llm/features/chat/data/generation/protocol_routing_chat_generation_client.dart';
         """,
       });
       expect(violations, isEmpty);
@@ -64,7 +64,7 @@ void main() {
     test('presentation 直达 data（package URI）', () {
       final violations = _checker().checkSources({
         'lib/features/chat/presentation/chat_screen.dart':
-            "import 'package:oh_my_llm/features/chat/data/sqlite_chat_conversation_repository.dart';",
+            "import 'package:oh_my_llm/features/chat/data/persistence/sqlite_chat_conversation_repository.dart';",
       });
       expect(violations.single.ruleId, 'PRESENTATION_TO_DATA');
     });
@@ -72,13 +72,13 @@ void main() {
     test('presentation 直达 data（相对 URI 解析一致）', () {
       final violations = _checker().checkSources({
         'lib/features/chat/presentation/screens/chat_screen.dart':
-            "import '../../data/sqlite_chat_conversation_repository.dart';",
+            "import '../../data/persistence/sqlite_chat_conversation_repository.dart';",
       });
       final v = violations.single;
       expect(v.ruleId, 'PRESENTATION_TO_DATA');
       expect(
         v.resolvedTarget,
-        'lib/features/chat/data/sqlite_chat_conversation_repository.dart',
+        'lib/features/chat/data/persistence/sqlite_chat_conversation_repository.dart',
       );
     });
 
@@ -120,8 +120,8 @@ void main() {
 
     test('application 直达 data（非 allowlist）', () {
       final violations = _checker().checkSources({
-        'lib/features/chat/application/chat_sessions_controller.dart':
-            "import 'package:oh_my_llm/features/chat/data/sqlite_chat_conversation_repository.dart';",
+        'lib/features/chat/application/sessions/chat_sessions_controller.dart':
+            "import 'package:oh_my_llm/features/chat/data/persistence/sqlite_chat_conversation_repository.dart';",
       });
       expect(violations.single.ruleId, 'APPLICATION_TO_DATA');
     });
@@ -138,7 +138,7 @@ void main() {
     test('export 不能绕过边界', () {
       final violations = _checker().checkSources({
         'lib/features/chat/presentation/chat_screen.dart':
-            "export 'package:oh_my_llm/features/chat/data/sqlite_chat_conversation_repository.dart' show ChatConversation;",
+            "export 'package:oh_my_llm/features/chat/data/persistence/sqlite_chat_conversation_repository.dart' show ChatConversation;",
       });
       expect(violations.single.ruleId, 'PRESENTATION_TO_DATA');
     });
@@ -157,9 +157,9 @@ void main() {
     test('注释中的伪 import 忽略；conditional 每个分支都检查', () {
       final violations = _checker().checkSources({
         'lib/features/chat/presentation/chat_screen.dart': """
-          // import 'package:oh_my_llm/features/chat/data/sqlite_chat_conversation_repository.dart';
-          import 'package:oh_my_llm/features/chat/data/protocol_routing_chat_generation_client.dart'
-              if (dart.library.io) 'package:oh_my_llm/features/chat/data/chat_completions/chat_completions_client.dart';
+          // import 'package:oh_my_llm/features/chat/data/persistence/sqlite_chat_conversation_repository.dart';
+          import 'package:oh_my_llm/features/chat/data/generation/protocol_routing_chat_generation_client.dart'
+              if (dart.library.io) 'package:oh_my_llm/features/chat/data/generation/chat_completions/chat_completions_client.dart';
         """,
       });
       expect(violations, hasLength(2));

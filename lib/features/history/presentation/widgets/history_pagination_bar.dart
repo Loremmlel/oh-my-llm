@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:oh_my_llm/features/chat/application/history_pagination_controller.dart';
+import 'package:oh_my_llm/features/chat/application/history/history_pagination_controller.dart';
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 
 /// 分页栏中显示的页码项：具体页码或省略标记。

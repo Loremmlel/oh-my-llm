@@ -6,7 +6,7 @@ import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/persistence/versioned_json_storage.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
-import 'package:oh_my_llm/features/chat/data/sqlite_chat_conversation_repository.dart';
+import 'package:oh_my_llm/features/chat/data/persistence/sqlite_chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/settings/data/chat_defaults_repository.dart';

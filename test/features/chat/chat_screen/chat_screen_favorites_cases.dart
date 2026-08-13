@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:oh_my_llm/features/chat/application/chat_generation_lifecycle.dart';
+import 'package:oh_my_llm/features/chat/application/generation/chat_generation_lifecycle.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
 import 'package:oh_my_llm/features/favorites/application/favorites_controller.dart';
 

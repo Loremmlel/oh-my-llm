@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/core/persistence/app_database.dart';
-import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
+import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
 

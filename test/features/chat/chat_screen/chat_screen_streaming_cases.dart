@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:oh_my_llm/features/chat/application/chat_generation_lifecycle.dart';
+import 'package:oh_my_llm/features/chat/application/generation/chat_generation_lifecycle.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';

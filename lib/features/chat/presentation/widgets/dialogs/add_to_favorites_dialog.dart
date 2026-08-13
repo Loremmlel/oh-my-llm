@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../application/chat_favorites_facade.dart';
+import '../../../application/favorites/chat_favorites_facade.dart';
 
 /// 点击收藏按钮后弹出的选择/新建收藏夹对话框。
 ///

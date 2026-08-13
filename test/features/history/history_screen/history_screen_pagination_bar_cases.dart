@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/core/persistence/app_database.dart';
-import 'package:oh_my_llm/features/chat/application/history_pagination_controller.dart';
+import 'package:oh_my_llm/features/chat/application/history/history_pagination_controller.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/domain/history_pagination_state.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation_summary.dart';

@@ -4,7 +4,7 @@ import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import '../../domain/models/chat_message.dart';
 import 'auto_retry_toggle.dart';
 import 'chat_workspace_bindings.dart';
-import '../../application/chat_workspace_view_state.dart';
+import '../../application/workspace/chat_workspace_view_state.dart';
 import 'composer/composer_compact_action_row.dart';
 import 'composer/composer_desktop_settings_row.dart';
 import 'composer/composer_helpers.dart';

@@ -4,7 +4,7 @@ import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import 'chat_composer_card.dart';
 import 'chat_messages_panel.dart';
 import 'chat_workspace_bindings.dart';
-import '../../application/chat_workspace_view_state.dart';
+import '../../application/workspace/chat_workspace_view_state.dart';
 
 /// 聊天页主工作区，组合消息列表、锚点条和消息输入区。
 class ChatWorkspace extends StatelessWidget {

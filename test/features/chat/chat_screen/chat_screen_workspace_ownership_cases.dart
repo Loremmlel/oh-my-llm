@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:oh_my_llm/features/chat/application/chat_generation_lifecycle.dart';
-import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
-import 'package:oh_my_llm/features/chat/application/composer_draft_controller.dart';
+import 'package:oh_my_llm/features/chat/application/generation/chat_generation_lifecycle.dart';
+import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_controller.dart';
+import 'package:oh_my_llm/features/chat/application/composer/composer_draft_controller.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/chat_message_bubble.dart';

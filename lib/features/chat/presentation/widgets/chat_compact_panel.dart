@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../application/chat_sidebar_controller.dart';
+import '../../application/sidebar/chat_sidebar_controller.dart';
 
 /// 紧凑模式下的侧栏面板，内置功能切换。
 ///

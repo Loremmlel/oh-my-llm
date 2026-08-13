@@ -5,7 +5,7 @@ export 'chat_sidebar_panel.dart';
 export 'chat_message_bubble.dart';
 export 'chat_workspace.dart';
 export 'chat_workspace_bindings.dart';
-export '../../application/chat_workspace_view_state.dart';
+export '../../application/workspace/chat_workspace_view_state.dart';
 export 'conversation_history_panel.dart';
 export 'empty_conversation_view.dart';
 export 'message_anchor_rail.dart';

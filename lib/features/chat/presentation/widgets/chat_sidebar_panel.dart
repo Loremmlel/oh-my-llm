@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../application/chat_sidebar_controller.dart';
+import '../../application/sidebar/chat_sidebar_controller.dart';
 
 /// 聊天页三级侧边面板。
 ///

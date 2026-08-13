@@ -11,10 +11,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
-import 'package:oh_my_llm/features/chat/application/chat_sessions_controller.dart';
+import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_conversation_repository.dart';
-import 'package:oh_my_llm/features/chat/data/sqlite_chat_conversation_repository.dart';
+import 'package:oh_my_llm/features/chat/data/persistence/sqlite_chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 
 import '../features/chat/chat_screen/chat_screen_test_helpers.dart';

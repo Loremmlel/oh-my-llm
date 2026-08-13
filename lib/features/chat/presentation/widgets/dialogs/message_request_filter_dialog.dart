@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import 'package:oh_my_llm/core/widgets/adaptive_master_detail_layout.dart';
-import '../../../application/chat_sessions_controller.dart';
+import '../../../application/sessions/chat_sessions_controller.dart';
 import '../../../domain/chat_word_counter.dart';
 import '../../../domain/models/chat_message.dart';
 

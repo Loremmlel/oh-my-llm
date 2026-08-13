@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../application/chat_sessions_controller.dart';
+import '../../../application/sessions/chat_sessions_controller.dart';
 import '../../../domain/models/chat_message.dart';
 
 /// 删除消息前的确认弹窗；有兄弟分支时允许选择当前分支或全部版本。
