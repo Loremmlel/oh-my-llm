@@ -95,14 +95,14 @@ flutter run -d windows   # 或 -d <your_android_device_id>
 ### 多协议聊天生成
 
 聊天生成按服务商配置的协议路由，不再做厂商 host 匹配。生产环境唯一绑定
-`ProtocolRoutingChatGenerationClient`（`features/chat/data/`），它只根据请求
+`ProtocolRoutingChatGenerationClient`（`features/chat/data/generation/protocol_routing_chat_generation_client.dart`），它只根据请求
 协议把流原样委派给三个官方协议客户端之一：
 
 | 协议                 | 客户端 / 解析器                                                        | 推理内容展示                                        |
 |--------------------|---------------------------------------------------------------------|-------------------------------------------------|
-| **Chat Completions** | `chat_completions/`：`ChatCompletionsClient` + `ChatCompletionsParser` | `reasoning_content`；内联 `<thought>` / `<thinking>` 标签由 `InlineReasoningTagSplitter` 提取 |
-| **Responses**      | `responses/`：`ResponsesClient` + `ResponsesParser`                  | 本轮 `response.reasoning_summary_text` / `reasoning_text` 增量 |
-| **Anthropic**      | `anthropic/`：`AnthropicMessagesClient` + `AnthropicMessageTransformer` + `AnthropicParser` | 本轮 thinking（自适应模式，summarized 展示）；顶层 `cache_control` 触发自动 Prompt Cache |
+| **Chat Completions** | `features/chat/data/generation/chat_completions/`：`ChatCompletionsClient` + `ChatCompletionsParser` | `reasoning_content`；内联 `<thought>` / `<thinking>` 标签由 `InlineReasoningTagSplitter` 提取 |
+| **Responses**      | `features/chat/data/generation/responses/`：`ResponsesClient` + `ResponsesParser` | 本轮 `response.reasoning_summary_text` / `reasoning_text` 增量 |
+| **Anthropic**      | `features/chat/data/generation/anthropic/`：`AnthropicMessagesClient` + `AnthropicMessageTransformer` + `AnthropicParser` | 本轮 thinking（自适应模式，summarized 展示）；顶层 `cache_control` 触发自动 Prompt Cache |
 
 三个客户端共用 `core/http/` 下的 `LlmHttpStreamTransport`（流式 POST、取消、
 SSE 行与事件边界解码、idle timeout、网络日志与脱敏）与 `SseEventDecoder`
@@ -228,7 +228,7 @@ lib/
     │   ├── data/               # Generation 协议客户端与持久化仓库
     │   │   ├── generation/     # Chat Completions / Responses / Anthropic 客户端与 parser
     │   │   └── persistence/    # SQLite 会话仓库与后台写入器
-    │   ├── domain/             # ChatMessage / ChatConversation 模型 + 消息树
+     │   ├── domain/             # ChatMessage / ChatConversation 等领域模型
     │   ├── presentation/       # 聊天页 + 流式 Markdown 组件 + 滚动控制器
     │   │   ├── chat_screen.dart
     │   │   ├── chat_scroll_controller.dart          # 滚动/锚点管理器
@@ -271,10 +271,13 @@ lib/
     │   │       ├── providers/
     │   │       ├── prompts/
     │   │       └── transfer/
-    │   └── presentation/       # 设置页（网络 / 其他等标签页）
-    │       └── widgets/
-    │           ├── shared/     # 设置通用表单与列表组件
-    │           └── tabs/       # 设置标签页组件
+     │   └── presentation/       # 设置页（网络 / 其他等标签页）
+     │       └── widgets/
+     │           ├── providers/  # 服务商与模型表单、列表组件
+     │           ├── prompts/    # Prompt 表单与列表组件
+     │           ├── shared/     # 设置通用表单与列表组件
+     │           ├── tabs/       # 设置标签页组件
+     │           └── transfer/   # 设置导入确认组件
     └── sync/
         ├── application/        # 客户端/服务端 protocol coordinator、session registry
         │   └── ports/          # transport、crypto、pairing、settings/media facade
@@ -345,9 +348,9 @@ flutter test --reporter compact 2>&1 | Out-File -Encoding utf8 logs/fltest.log; 
 | Favorites Controller | `test/features/favorites/application/` | 收藏和收藏夹 CRUD、过滤、级联 |
 | Favorites Repository | `test/features/favorites/data/`、`test/features/favorites/domain/` | SQLite 仓库、收藏 / 收藏夹模型 |
 | Chat↔Favorites Flow | `test/features/chat/presentation/chat_screen/` | 书签按钮、对话框、新建收藏夹流程 |
-| Chat Application | `test/features/chat/application/` | 会话 CRUD、消息树、Generation phase/outcome、停止/重试竞态、Workspace ownership |
-| Chat Domain | `test/features/chat/domain/` | 消息树、对话模型、分组、请求消息构建、检查点上下文 |
-| Chat Data | `test/features/chat/data/` | 协议客户端与解析器、请求体构建、模板/用户消息构建器、SSE 解析 |
+| Chat Application | `test/features/chat/application/` | `composer/` 草稿、模板/用户消息构建与编辑命令；`favorites/` 收藏命令；`generation/` Generation phase/outcome、停止/重试竞态；`history/` 分页；`ports/` Generation client contract；`requests/` 请求消息过滤与检查点上下文；`sessions/` 会话 CRUD、消息树与状态；`sidebar/` 侧栏；`workspace/` Workspace ownership |
+| Chat Domain | `test/features/chat/domain/` | `models/` 聊天模型、会话分组、字数统计 |
+| Chat Data | `test/features/chat/data/generation/`、`test/features/chat/data/persistence/` | `generation/` 协议路由、Chat Completions / Responses / Anthropic 客户端与解析器、流式 SSE/增量解析；`persistence/` SQLite 会话仓库与后台写入器 |
 | Chat Presentation | `test/features/chat/presentation/` | 聊天页、锚点 Rail、字数统计、消息折叠 |
 | AppDatabase Migration | `test/core/persistence/` | schema、外键级联、索引、数据迁移、后台写入器、replace-all、版本化 JSON 存储 |
 | Core Utils | `test/core/utils/` | 日期格式化、ID 生成、文本格式化、JSON 截断 |
