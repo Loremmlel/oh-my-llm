@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:oh_my_llm/app/navigation/app_destination.dart';
 import 'package:oh_my_llm/app/shell/app_shell_scaffold.dart';
+import 'package:oh_my_llm/core/widgets/app_adaptive_actions.dart';
 
 import '../../helpers/responsive_viewport_cases.dart';
 import '../../helpers/async/widget_test_animation.dart';
@@ -18,6 +19,7 @@ GoRouter _shellRouter({
   required String initialLocation,
   Widget? endDrawer,
   List<Widget> actions = const [],
+  AppAdaptiveActions? adaptiveActions,
   bool hasLocalBackTarget = false,
   VoidCallback? onLocalBack,
 }) {
@@ -33,6 +35,7 @@ GoRouter _shellRouter({
             body: Text(_shellBodyText(dest)),
             endDrawer: endDrawer,
             actions: actions,
+            adaptiveActions: adaptiveActions,
             hasLocalBackTarget: hasLocalBackTarget,
             onLocalBack: onLocalBack,
           ),
@@ -47,6 +50,7 @@ Future<void> _pumpShell(
   required Size size,
   Widget? endDrawer,
   List<Widget> actions = const [],
+  AppAdaptiveActions? adaptiveActions,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -59,6 +63,7 @@ Future<void> _pumpShell(
     initialLocation: destination.path,
     endDrawer: endDrawer,
     actions: actions,
+    adaptiveActions: adaptiveActions,
   );
 
   await tester.pumpWidget(MaterialApp.router(routerConfig: router));
@@ -213,5 +218,39 @@ void main() {
     expect(onLocalBackCalls, 1);
     expect(router.routeInformationProvider.value.uri.path, '/chat');
     expect(find.text('聊天页面'), findsOneWidget);
+  });
+
+  testWidgets('壳层保留固定动作，并按 720 断点选择响应式动作', (tester) async {
+    const adaptive = AppAdaptiveActions(
+      compactActions: [Text('紧凑动作')],
+      wideActions: [Text('宽侧动作')],
+    );
+    await _pumpShell(
+      tester,
+      destination: AppDestination.chat,
+      size: shellBelowBoundary.size,
+      actions: const [Text('固定动作')],
+      adaptiveActions: adaptive,
+    );
+    expect(find.text('固定动作'), findsOneWidget);
+    expect(find.text('紧凑动作'), findsOneWidget);
+    expect(find.text('宽侧动作'), findsNothing);
+  });
+
+  testWidgets('壳层在 720 等号走宽侧，固定动作仍保留', (tester) async {
+    const adaptive = AppAdaptiveActions(
+      compactActions: [Text('紧凑动作')],
+      wideActions: [Text('宽侧动作')],
+    );
+    await _pumpShell(
+      tester,
+      destination: AppDestination.chat,
+      size: shellAtBoundary.size,
+      actions: const [Text('固定动作')],
+      adaptiveActions: adaptive,
+    );
+    expect(find.text('固定动作'), findsOneWidget);
+    expect(find.text('宽侧动作'), findsOneWidget);
+    expect(find.text('紧凑动作'), findsNothing);
   });
 }

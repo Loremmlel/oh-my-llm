@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
+import 'package:oh_my_llm/core/widgets/app_adaptive_actions.dart';
 import '../navigation/app_destination.dart';
 
 /// 应用顶层页面共用的脚手架。
@@ -14,6 +15,7 @@ class AppShellScaffold extends StatelessWidget {
     required this.title,
     required this.body,
     this.actions,
+    this.adaptiveActions,
     this.endDrawer,
     this.hasLocalBackTarget = false,
     this.onLocalBack,
@@ -24,6 +26,10 @@ class AppShellScaffold extends StatelessWidget {
   final String title;
   final Widget body;
   final List<Widget>? actions;
+
+  /// 按壳层断点自动选择显示的响应式动作；与固定 [actions] 并存、追加在后。
+  final AppAdaptiveActions? adaptiveActions;
+
   final Widget? endDrawer;
 
   /// 是否存在需要优先于路由切换处理的页面本地返回目标（历史选择态、聊天
@@ -75,17 +81,10 @@ class AppShellScaffold extends StatelessWidget {
             title: Text(title),
             actions: [
               ...?actions,
+              // 响应式动作跟随壳层断点切换紧凑/宽侧分支，排在固定动作之后。
+              ...?adaptiveActions?.resolve(constraints.maxWidth),
               // 紧凑布局里才显示抽屉按钮，因为宽屏下侧边导航已经常驻可见。
-              if (isCompact && endDrawer != null)
-                Builder(
-                  builder: (context) {
-                    return IconButton(
-                      onPressed: Scaffold.of(context).openEndDrawer,
-                      tooltip: '打开侧边内容',
-                      icon: const Icon(Icons.view_sidebar_rounded),
-                    );
-                  },
-                ),
+              if (isCompact && endDrawer != null) _buildDrawerButton(),
             ],
           ),
           endDrawer: isCompact ? endDrawer : null,
@@ -128,6 +127,21 @@ class AppShellScaffold extends StatelessWidget {
       },
     );
   }
+}
+
+/// 构建打开 endDrawer 的按钮；必须在紧凑分支且存在 [endDrawer] 时使用。
+///
+/// 用 Builder 就近取 ScaffoldState，避免依赖 body 内部的 context。
+Widget _buildDrawerButton() {
+  return Builder(
+    builder: (context) {
+      return IconButton(
+        onPressed: Scaffold.of(context).openEndDrawer,
+        tooltip: '打开侧边内容',
+        icon: const Icon(Icons.view_sidebar_rounded),
+      );
+    },
+  );
 }
 
 /// 供 [AppShellScaffold] 在桌面端使用的导航栏。
