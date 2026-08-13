@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:oh_my_llm/features/media/application/media_resource_provider.dart';
-import 'package:oh_my_llm/features/media/application/models/media_resource_request.dart';
+import '../../application/media_resource_provider.dart';
+import '../../application/models/media_resource_request.dart';
 import '../../domain/media_file_classification.dart';
 import '../../domain/models/file_item.dart';
+import '../models/media_grid_layout_spec.dart';
+import '../models/media_grid_tile_metrics.dart';
 import 'media_image_resource_view.dart';
 
 /// 单个文件/文件夹卡片。
@@ -13,47 +15,71 @@ import 'media_image_resource_view.dart';
 /// 资源统一呈现）。文件夹：显示文件夹图标。
 /// 其他文件：显示通用文件图标。
 /// 缩略图加载失败/缺失时回退到图标显示。
+/// 卡片尺寸由上游 [metrics] 固定，不再依赖 Column 弹性伸展：缩略图、
+/// 标题与大小三段的固定高度累加后恰好填满统一行高，保证同一行对齐。
 class MediaFileTile extends ConsumerWidget {
   final FileItem item;
+  final MediaGridLayoutSpec layoutSpec;
+  final MediaGridTileMetrics metrics;
   final VoidCallback onTap;
 
-  const MediaFileTile({super.key, required this.item, required this.onTap});
+  const MediaFileTile({
+    super.key,
+    required this.item,
+    required this.layoutSpec,
+    required this.metrics,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
 
     return Card(
+      margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(8),
+          padding: EdgeInsets.all(layoutSpec.tilePadding),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               // 缩略图 / 图标区域
-              Expanded(child: _buildThumbnail(context, ref, theme)),
-              const SizedBox(height: 4),
-              // 文件名
-              Text(
-                item.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodySmall,
+              SizedBox(
+                width: double.infinity,
+                height: metrics.thumbnailHeight,
+                child: _buildThumbnail(context, ref, theme),
               ),
-              // 文件大小
-              if (item.formattedSize.isNotEmpty)
-                Text(
-                  item.formattedSize,
-                  maxLines: 1,
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    fontSize: 11,
+              const SizedBox(height: MediaGridTileMetrics.thumbnailMetadataGap),
+              // 文件名：固定标题区高度，超长省略并保留完整名称 tooltip
+              SizedBox(
+                height: metrics.titleHeight,
+                child: Tooltip(
+                  message: item.name,
+                  child: Text(
+                    item.name,
+                    maxLines: layoutSpec.maxTitleLines,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodySmall,
                   ),
                 ),
+              ),
+              const SizedBox(height: MediaGridTileMetrics.metadataLineGap),
+              // 文件大小：无大小的项保留行高占位，维持整行对齐
+              SizedBox(
+                height: metrics.sizeHeight,
+                child: item.formattedSize.isEmpty
+                    ? const SizedBox.shrink()
+                    : Text(
+                        item.formattedSize,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+              ),
             ],
           ),
         ),

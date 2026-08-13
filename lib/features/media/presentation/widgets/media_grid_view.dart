@@ -1,13 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
+import 'package:oh_my_llm/core/widgets/adaptive_grid/app_adaptive_grid.dart';
+
+import '../../application/media_grid_density_controller.dart';
 import '../../domain/models/file_item.dart';
+import '../models/media_grid_layout_spec.dart';
+import '../models/media_grid_tile_metrics.dart';
 import 'media_file_tile.dart';
 
 /// 媒体文件网格视图。
 ///
-/// 按 PRD 需求：固定方形卡片、不采用瀑布流/交错布局。
+/// 列数由父级可用宽度经 [AppAdaptiveGrid] 推导，不再固定三列；卡片尺寸与
+/// 统一行高由当前密度的 [MediaGridLayoutSpec] 与 [MediaGridTileMetrics] 解析，
+/// 同一行所有 tile 保持同一纵向高度。
 /// 内置 loading / error / empty 三种状态。
-class MediaGridView extends StatelessWidget {
+class MediaGridView extends ConsumerWidget {
   final List<FileItem> items;
   final bool isLoading;
   final String? errorMessage;
@@ -22,7 +31,7 @@ class MediaGridView extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     if (isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -33,7 +42,7 @@ class MediaGridView extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Icon(Icons.error_outline, size: 48),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpacing.xs),
             Text(errorMessage!, textAlign: TextAlign.center),
           ],
         ),
@@ -46,25 +55,49 @@ class MediaGridView extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.folder_open, size: 48),
-            SizedBox(height: 8),
+            SizedBox(height: AppSpacing.xs),
             Text('目录为空'),
           ],
         ),
       );
     }
 
-    return GridView.builder(
-      padding: const EdgeInsets.all(8),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        mainAxisSpacing: 4,
-        crossAxisSpacing: 4,
-        childAspectRatio: 0.85,
-      ),
+    final density = ref.watch(mediaGridDensityProvider);
+    final spec = MediaGridLayoutSpec.forDensity(density);
+    return AppAdaptiveGrid(
+      scrollViewKey: const PageStorageKey<String>('media-grid'),
       itemCount: items.length,
-      itemBuilder: (context, index) {
+      maxCrossAxisExtent: spec.maxCrossAxisExtent,
+      crossAxisSpacing: spec.spacing,
+      mainAxisSpacing: spec.spacing,
+      padding: spec.padding,
+      mainAxisExtentBuilder: (context, itemWidth) =>
+          MediaGridTileMetrics.resolve(
+            context: context,
+            spec: spec,
+            itemWidth: itemWidth,
+          ).mainAxisExtent,
+      findChildIndexCallback: (key) {
+        if (key is! ValueKey<String>) return null;
+        final index = items.indexWhere(
+          (item) => item.relativePath == key.value,
+        );
+        return index < 0 ? null : index;
+      },
+      itemBuilder: (context, index, itemWidth) {
         final item = items[index];
-        return MediaFileTile(item: item, onTap: () => onItemTap(item));
+        final metrics = MediaGridTileMetrics.resolve(
+          context: context,
+          spec: spec,
+          itemWidth: itemWidth,
+        );
+        return MediaFileTile(
+          key: ValueKey<String>(item.relativePath),
+          item: item,
+          layoutSpec: spec,
+          metrics: metrics,
+          onTap: () => onItemTap(item),
+        );
       },
     );
   }

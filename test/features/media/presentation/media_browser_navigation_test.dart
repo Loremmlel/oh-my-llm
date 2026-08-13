@@ -11,6 +11,7 @@ import 'package:oh_my_llm/features/media/application/models/media_resource_reque
 import 'package:oh_my_llm/features/media/presentation/media_browser_tab.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/media_route_pages.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/media_video_controller_factory.dart';
+import 'package:oh_my_llm/features/media/presentation/widgets/media_grid_view.dart';
 
 import '../../../helpers/test_harness.dart';
 import '../../../helpers/async/widget_test_animation.dart';
@@ -333,6 +334,8 @@ void main() {
         expect(find.text('相册'), findsOneWidget);
         expect(find.text('猫.jpg'), findsOneWidget);
         expect(find.text('demo.mp4'), findsOneWidget);
+        // 自适应网格随父约束重排，视口矩阵下网格本体必须可达
+        expect(find.byType(MediaGridView), findsOneWidget);
         expect(tester.takeException(), isNull);
       },
     );
