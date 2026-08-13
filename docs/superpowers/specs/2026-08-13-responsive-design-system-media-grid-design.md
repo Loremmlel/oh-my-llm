@@ -2,7 +2,7 @@
 
 **日期：** 2026-08-13
 
-**状态：** 已批准，待用户审阅书面规范
+**状态：** 已批准，已按书面审阅意见修订，待复审
 
 **范围：** 应用级响应式设计基础设施 + 媒体浏览器首个完整落地
 
@@ -261,7 +261,10 @@ media application 声明 `mediaGridDensityDefaultProvider`，其无 override 默
 
 ### 8.3 持久化
 
-媒体密度使用 SharedPreferences 的独立 key 和显式字符串编解码：
+媒体密度使用 SharedPreferences 的独立 key
+`app.feature.media.grid_density` 和显式字符串编解码。该命名空间固定采用
+`app.feature.<feature>.<preference>`，避免未来其他 feature 的设备本地偏好
+与通用设置 key 混杂：
 
 - 只存 `compact`、`standard`、`comfortable`；
 - 未知值回退平台默认值；
@@ -282,7 +285,8 @@ media application 声明 `mediaGridDensityDefaultProvider`，其无 override 默
 - `crossAxisSpacing`；
 - `mainAxisSpacing`；
 - `padding`；
-- feature 提供的项目高度或宽高策略；
+- feature 提供的 `mainAxisExtentBuilder`，根据项目宽度与当前
+  `BuildContext` 解析本轮统一行高；
 - builder、item count 和可选 scroll controller/key。
 
 它必须使用 `LayoutBuilder` 的父约束，不读取整窗宽度，不读取平台，也不持有业务状态。
@@ -296,36 +300,97 @@ media application 声明 `mediaGridDensityDefaultProvider`，其无 override 默
 - 横向间距 `S`；
 - 项目最大宽度 `M`。
 
-先得到 `usable = max(0, W - P)`，再计算：
+先得到 `usable = max(0, W - P)`。列数判定使用固定的
+`layoutTolerance = 0.5` 逻辑像素，吸收窗口缩放与 DPI 换算在临界宽度产生的
+亚像素抖动：
 
 ```text
-columns = max(1, ceil((usable + S) / (M + S)))
+columns = max(1, ceil(((usable + S) - layoutTolerance) / (M + S)))
 itemWidth = max(0, (usable - S * (columns - 1)) / columns)
 ```
 
-当约束有效时，`itemWidth` 不超过 `M`。窗口变宽时通过增加列数吸收空间；窗口变窄时减少列数；极窄场景保底一列。无效的非正 `M` 在 debug 下断言失败。
+容差只参与离散列数判定，不修改 Flutter 下发的实际约束。因此在临界区间内，
+`itemWidth` 最多比 `M` 大 `layoutTolerance`；超过该区间后必须增加一列。
+窗口变宽时通过增加列数吸收空间；窗口变窄时减少列数；极窄场景保底一列。
+`W` 必须有限，`M` 必须为有限正数，spacing 与 padding 必须为有限非负数；
+无效规格在 debug 下断言失败。
 
 布局计算应提取为不依赖 Widget 的纯值对象或纯函数，由 `AppAdaptiveGrid` 消费，以便精确覆盖边界测试。
 
 ### 9.3 高度与文字缩放
 
-共享网格不假设所有项目为正方形。Feature 可提供宽高比例或根据已解析的项目宽度计算统一行高。
+Flutter 的 regular sliver grid 会为同一布局中的所有 child 下发相同
+`childMainAxisExtent`。共享网格不允许某个 child 通过 intrinsic measurement
+反向改变单独一格的高度；feature 必须在构造 grid delegate 前解析出统一行高。
 
-媒体卡片由缩略图区域和元数据区域组成。元数据区域必须考虑 `TextScaler`，不得通过缩小字体解决溢出；放大文字时允许卡片行高增加。文件名继续使用受控行数和省略号，完整名称通过 Semantics/tooltip 可达。
+媒体新增纯 presentation 规格解析器 `MediaGridTileMetrics.resolve(...)`。它接收：
+
+- 当前密度对应的 `MediaGridTileSpec`；
+- 已由网格算法算出的 `itemWidth`；
+- `ThemeData` 中的文件名与辅助文字样式；
+- 当前 `MediaQuery.textScalerOf(context)`。
+
+它使用 `TextPainter.preferredLineHeight` 取得经过 `TextScaler` 处理的典型单行
+高度，再按下式得到本轮所有 tile 共用的 `mainAxisExtent`：
+
+```text
+contentWidth = max(0, itemWidth - 2 * tilePadding)
+thumbnailHeight = contentWidth / thumbnailAspectRatio
+titleHeight = scaledTitleLineHeight * maxTitleLines
+sizeHeight = scaledSizeLineHeight
+mainAxisExtent = 2 * tilePadding
+               + thumbnailHeight
+               + thumbnailMetadataGap
+               + titleHeight
+               + metadataLineGap
+               + sizeHeight
+```
+
+文件夹虽然没有文件大小，也预留同样的辅助文字行高度；短文件名也预留当前
+密度允许的最大标题行数。这样同一网格内的目录、短名称、长名称和带缩略图
+文件始终使用同一行高，内容差异不会造成错位或布局抖动。
+
+`MediaFileTile` 消费已经解析的 metrics，在固定 thumbnail/metadata 区域内呈现
+内容；它本身不测量并反向通知父级。放大文字时统一行高随 metrics 增加，
+不得通过缩小字体解决溢出。文件名使用密度规定的最大行数和省略号，完整名称
+通过 Semantics/tooltip 可达。Card 设为零外边距，网格 spacing 独占项目间距，
+避免默认 Card margin 成为行高公式外的隐式几何。
 
 ### 9.4 懒构建与状态
 
-`AppAdaptiveGrid` 使用 builder 形式，不把未知长度列表展开为完整 children。重新计算列数时保持相同的滚动控制器、PageStorage identity 和 item identity，不重建 feature controller 或数据请求。
+`AppAdaptiveGrid` 使用 `GridView.builder` 和计算后的
+`SliverGridDelegateWithFixedCrossAxisCount`；固定列 delegate 用于同时传入容差
+算法得出的列数和 metrics 得出的统一 `mainAxisExtent`。它不把未知长度列表展开
+为完整 children。
+
+Windows 实时拖动窗口时，约束变化可以触发 `LayoutBuilder` 和可见 tile 的
+正常 build；本设计不承诺 build context 永不重建。性能契约是：
+
+- `GridView` 的 key、scroll controller 和 PageStorage identity 保持稳定；
+- tile 根节点使用 `ValueKey(item.relativePath)`，不得使用 `UniqueKey`；
+- item 顺序发生变化的调用方提供按稳定 key 查 index 的 callback，使已有 state
+  能映射到新位置；仅改变列数不改变 item 顺序；
+- 宽度变化只更新 grid delegate/metrics，不重建 ProviderScope，不修改媒体会话、
+  `FileItem` 或 `MediaThumbnailRequest` identity；
+- 可见 tile 在窗口缩放期间不得因为布局更新重复调用媒体库解析同一缩略图；
+- 不为所有离屏 tile 强制 keep-alive。正常滚出惰性 viewport 的 tile 仍可释放，
+  避免用无限缓存换取拖拽性能；
+- 不主动清理 Flutter image cache、媒体库磁盘缩略图缓存或现有资源缓存。
+
+Widget 重建次数不是验收目标；可观察目标是滚动位置与子项状态保持、缩略图不
+重复解析，以及 profile-mode 窗口拖动无持续严重卡顿。
 
 ## 10. 媒体网格规格
 
-媒体将三种密度映射为下列首批规格：
+媒体缩略图区域统一采用 `4:3`（宽:高），图片与视频继续使用
+`BoxFit.cover`；文件夹和回退图标在同一区域居中。媒体将三种密度映射为下列
+首批规格：
 
-| 密度 | 最大卡片宽度 | 横纵间距 | 外层 padding | 主要用途 |
-|---|---:|---:|---:|---|
-| `compact` | 160 | 8 | 8 | 桌面快速浏览大量文件 |
-| `standard` | 220 | 12 | 12 | 常规图库与手机默认布局 |
-| `comfortable` | 360 | 16 | 16 | 强调缩略图和预览 |
+| 密度 | 最大卡片宽度 | 横纵间距 | 外层 padding | tile padding | 缩略图比例 | 文件名行数 | 主要用途 |
+|---|---:|---:|---:|---:|---:|---:|---|
+| `compact` | 160 | 8 | 8 | 8 | 4:3 | 1 | 桌面快速浏览大量文件 |
+| `standard` | 220 | 12 | 12 | 12 | 4:3 | 2 | 常规图库与手机默认布局 |
+| `comfortable` | 360 | 16 | 16 | 16 | 4:3 | 2 | 强调缩略图和预览 |
 
 这些值是产品规格，不按设备再次改写。平台差异只体现在首次默认密度。
 
@@ -345,7 +410,7 @@ itemWidth = max(0, (usable - S * (columns - 1)) / columns)
 
 ### 11.1 宽布局
 
-使用三个互斥图标按钮或 Material 分段按钮：
+使用三个互斥的 Material 3 `IconButton`：
 
 - 紧凑；
 - 标准；
@@ -355,11 +420,15 @@ itemWidth = max(0, (usable - S * (columns - 1)) / columns)
 
 ### 11.2 紧凑布局
 
-使用一个“显示密度”菜单按钮，菜单内展示三个互斥选项和当前选择。紧凑/宽布局的切换使用现有 shell 导航语义，不新增媒体专属设备断点。
+使用一个“显示密度”菜单按钮，菜单内展示三个互斥选项和当前选择。紧凑/宽
+布局的切换由 `AppAdaptiveActions` 使用现有 shell 导航语义统一解析，不新增
+媒体专属设备断点。
 
 ### 11.3 组合边界
 
-媒体 presentation 提供窄的 `MediaGridDensityActions`，app composition 决定何时将其放入 `AppShellScaffold.actions`，与现有 `ShuffleAppBarActions` 模式一致。媒体内部 presentation 不直接控制应用壳。
+媒体 presentation 提供窄的 `MediaGridDensityActions`，分别构造展开按钮组和
+紧凑菜单。App composition 将这两个分支包装为 `AppAdaptiveActions`，交给
+`AppShellScaffold`；媒体内部 presentation 不直接读取 shell 宽度或控制应用壳。
 
 ## 12. 共享布局原语
 
@@ -369,7 +438,16 @@ itemWidth = max(0, (usable - S * (columns - 1)) / columns)
 
 ### 12.2 AppAdaptiveActions
 
-接收宽侧 actions、紧凑 fallback 和语义断点，根据父约束选择展示方式。它不自行把任意按钮塞进 overflow menu，fallback 必须由业务提供，以保证菜单文案和操作优先级可审查。
+`AppAdaptiveActions` 是不可变的响应式 action 规格，接收宽侧 actions、紧凑
+fallback 和语义断点。`AppShellScaffold` 新增可选的 `adaptiveActions` 参数，
+在其现有顶层 `LayoutBuilder` 中把有界窗口宽度交给该规格解析，再与固定
+`actions` 合并放入 AppBar。
+
+该原语不在 AppBar 的 action `Row` 内另建 `LayoutBuilder`，因为 action 子项
+未必获得适合判断整页模式的有界横向约束。空间测量由 shell 负责，分支内容与
+阈值由 `AppAdaptiveActions` 负责。它也不自行把任意按钮塞进 overflow menu；
+紧凑 fallback 必须由业务提供，以保证菜单文案和操作优先级可审查。媒体密度
+入口是首个生产消费者，现有固定 actions API 保持兼容。
 
 ### 12.3 AdaptiveMasterDetailLayout
 
@@ -383,7 +461,7 @@ itemWidth = max(0, (usable - S * (columns - 1)) / columns)
 | 持久化字符串未知 | 忽略该值并使用平台默认值 |
 | SharedPreferences 写入失败 | 当前运行保留内存选择，不阻塞媒体浏览 |
 | 极窄父约束 | 网格退化为一列，不横向溢出 |
-| 系统文字放大 | 增加必要行高，不覆盖 TextScaler、不缩小字体 |
+| 系统文字放大 | 重新解析全网格统一 `mainAxisExtent`，不覆盖 TextScaler、不缩小字体 |
 | 密度切换 | 保持目录、历史、会话、资源 identity 与滚动状态 |
 | 缩略图失败 | 单 tile 回退图标，不升级为网格级错误 |
 | 加载、目录错误或空目录 | 继续沿用现有 MediaGridView 状态呈现 |
@@ -435,10 +513,13 @@ Chat、Settings、History、Favorites、Sync 的现有稳定页面不因本设�
 
 - 宽度小于单卡上限时一列；
 - 恰好容纳一列/两列的边界；
+- 每个列数临界点的 `-0.5`、等号、`+0.5` 容差边界与刚越过容差的值；
+- `411.42857142857144` 等长小数父宽度，重复计算结果稳定；
 - padding 与 spacing 参与后的列数；
 - 390、720、844、960、1440 等代表宽度；
 - 宽度增加时列数不减少；
-- 每个有效结果的项目宽度不超过上限；
+- 每个有效结果的项目宽度不超过“上限 + 0.5 逻辑像素”，且只有容差临界区
+  可以超过名义上限；
 - 零宽约束安全退化；
 - 非正最大卡片宽度触发 debug 断言。
 
@@ -448,6 +529,7 @@ Chat、Settings、History、Favorites、Sync 的现有稳定页面不因本设�
 - 运行时改变父约束会重新排布；
 - item builder 保持惰性；
 - 重排不丢失具有稳定 identity 的子项状态；
+- 可见子项在仅改变父宽度时保持稳定 key，且不重复触发对应缩略图解析；
 - `AppAdaptiveActions` 在边界等号遵循宽侧规则。
 
 ### 15.4 密度 controller
@@ -462,6 +544,10 @@ Chat、Settings、History、Favorites、Sync 的现有稳定页面不因本设�
 ### 15.5 媒体 presentation 与 composition
 
 - 三种密度分别映射正确的媒体规格；
+- 每种密度使用 4:3 缩略图和规定的文件名最大行数；
+- 同一密度、项目宽度和 TextScaler 下，目录、短文件名、长文件名与带大小文件
+  解析出同一个 `mainAxisExtent`；
+- 增大 TextScaler 后全网格统一行高增加，长名称仍受最大行数约束；
 - 宽布局显示互斥密度 actions；
 - 紧凑布局显示密度菜单；
 - selected、tooltip、键盘焦点和 Semantics 正确；
@@ -490,7 +576,8 @@ Widget 测试不使用 `getTopLeft()`、`getRect()` 或像素位置比较。列�
 Windows：
 
 1. 在 960px 和 1440px 宽度打开同一目录，确认卡片不会随窗口无限放大；
-2. 实时拖动窗口，确认列数平滑增减且无溢出；
+2. 在 profile mode 实时拖动窗口，确认列数稳定增减、无临界点闪烁、无溢出，
+   且没有持续严重卡顿或重复缩略图解析；
 3. 切换三种密度，确认目录与滚动状态保持；
 4. 使用鼠标、键盘操作密度入口；
 5. 关闭重开应用，确认设备本地偏好恢复。
@@ -518,7 +605,8 @@ Android：
 以下条件全部满足才算实现完成：
 
 1. 媒体网格不再使用固定三列作为生产布局；
-2. 960px 与 1440px Windows 窗口中，卡片宽度不超过当前密度规格上限，额外空间转化为更多列；
+2. 960px 与 1440px Windows 窗口中，卡片宽度不超过当前密度规格上限加
+   0.5 逻辑像素容差，额外空间转化为更多列；
 3. 极窄宽度保底一列且无横向溢出；
 4. Windows 默认紧凑，Android 默认标准；
 5. 用户可在两个平台切换紧凑、标准、舒适密度；
@@ -527,10 +615,13 @@ Android：
 8. 共享网格只依赖父约束和调用方规格，不读取平台或媒体状态；
 9. 媒体卡片不读取窗口宽度、平台或持久化偏好；
 10. 宽/紧凑操作入口具有 selected、tooltip、键盘和 Semantics 状态；
-11. 系统文字缩放保持生效且代表视口无布局异常；
-12. 新增令牌与原语遵循现有 core/app/feature import 边界；
-13. import boundary、`flutter analyze`、定向测试和全量测试通过；
-14. Windows 与 Android 手工 smoke 已执行，或明确标记 pending 而不声称视觉验收完成。
+11. 同一网格内所有媒体 tile 使用由当前密度、项目宽度、主题和 TextScaler
+    统一解析的确定行高；单个 tile 内容不能改变本行高度；
+12. 系统文字缩放保持生效且代表视口无布局异常；
+13. 窗口缩放不重复解析仍可见项目的同一缩略图，且不清理既有图片/磁盘缓存；
+14. 新增令牌与原语遵循现有 core/app/feature import 边界；
+15. import boundary、`flutter analyze`、定向测试和全量测试通过；
+16. Windows 与 Android 手工 smoke 已执行，或明确标记 pending 而不声称视觉验收完成。
 
 ## 18. 风险与控制
 
@@ -539,6 +630,9 @@ Android：
 | 设计系统变成全局常量仓库 | 令牌进入条件明确，局部业务尺寸继续留在 feature |
 | 平台判断重新泄漏到组件 | 默认值由 app composition 注入，presentation 只消费状态 |
 | 密度切换导致网络或缩略图重载 | 保持 item/resource identity，只替换布局规格 |
+| 临界宽度受浮点误差影响而闪烁 | 列数判定使用 0.5 逻辑像素容差并覆盖长小数边界 |
+| 子 tile 内容尝试撑高 regular grid | 上游 metrics 统一解析 `mainAxisExtent`，tile 只消费约束 |
+| 为避免 rebuild 而无限 keep-alive | 允许正常 build，只保持稳定 identity 和可见资源解析；离屏项仍惰性释放 |
 | 紧凑模式损害可访问性 | 可见尺寸与命中区域分离，覆盖键盘与 Semantics 测试 |
 | 固定宽高导致文字放大溢出 | 媒体行高考虑 TextScaler，不缩小系统字体 |
 | 一次性迁移产生大规模视觉回归 | 本次只完整迁移媒体，其他页面触及时评估 |
