@@ -69,6 +69,41 @@ void registerSyncScreenResponsiveTests() {
     });
   }
 
+  testWidgets('390x844 Android 竖屏: 活动媒体会话只显示密度菜单', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    final preferences = await _freshPrefs();
+    final factory = FakeMediaLibraryFactory(FakeMediaLibrary());
+    await pumpSyncScreen(
+      tester,
+      preferences: preferences,
+      size: phonePortrait.size,
+      bindMediaLibraryFactory: false,
+      extraOverrides: [
+        syncClientControllerProvider.overrideWith(
+          () => SeededSyncClientController(connectedSyncState()),
+        ),
+        mediaLibraryFactoryProvider.overrideWithValue(factory),
+        mediaBrowserControllerProvider.overrideWith(
+          RecordingMediaBrowserController.new,
+        ),
+      ],
+    );
+
+    await tester.tap(find.text('媒体'));
+    await settleTabTransition(tester);
+
+    // 紧凑壳层：只渲染「显示密度」菜单，不渲染三个展开 tooltip。
+    expect(find.byTooltip('显示密度'), findsOneWidget);
+    expect(find.byTooltip('紧凑密度'), findsNothing);
+    expect(find.byTooltip('标准密度'), findsNothing);
+    expect(find.byTooltip('舒适密度'), findsNothing);
+    expect(tester.takeException(), isNull);
+    // 测试框架在 test body 末尾校验 foundation debug 变量已复位（addTearDown 在
+    // 该校验之后才执行），故 body 内显式复位，addTearDown 仅作失败路径兜底。
+    debugDefaultTargetPlatformOverride = null;
+  });
+
   testWidgets('844x390 Android 横屏: 低高度下媒体 tab 可达且无异常', (tester) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
     addTearDown(() => debugDefaultTargetPlatformOverride = null);
@@ -139,6 +174,41 @@ void registerSyncScreenResponsiveTests() {
     expect(find.text('🏠'), findsOneWidget);
     expect(tester.takeException(), isNull);
     // 与 Android 横屏用例相同：body 末尾显式复位，addTearDown 仅作失败路径兜底。
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets('960x640 Windows: 活动媒体会话显示三个展开密度 tooltip', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    SharedPreferences.setMockInitialValues({
+      mediaRootDirectoryStorageKey: r'D:\Media',
+    });
+    final preferences = await SharedPreferences.getInstance();
+    final factory = FakeMediaLibraryFactory(FakeMediaLibrary());
+    await pumpSyncScreen(
+      tester,
+      preferences: preferences,
+      size: const Size(960, 640),
+      bindMediaLibraryFactory: false,
+      extraOverrides: [
+        mediaLibraryFactoryProvider.overrideWithValue(factory),
+        mediaBrowserControllerProvider.overrideWith(
+          RecordingMediaBrowserController.new,
+        ),
+      ],
+    );
+
+    await tester.tap(
+      find.descendant(of: find.byType(TabBar), matching: find.text('媒体')),
+    );
+    await settleTabTransition(tester);
+
+    // 宽壳层：渲染三个展开密度 tooltip，不渲染「显示密度」菜单。
+    expect(find.byTooltip('紧凑密度'), findsOneWidget);
+    expect(find.byTooltip('标准密度'), findsOneWidget);
+    expect(find.byTooltip('舒适密度'), findsOneWidget);
+    expect(find.byTooltip('显示密度'), findsNothing);
+    expect(tester.takeException(), isNull);
     debugDefaultTargetPlatformOverride = null;
   });
 }

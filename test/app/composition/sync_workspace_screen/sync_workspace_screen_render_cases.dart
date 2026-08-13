@@ -275,6 +275,48 @@ void registerSyncScreenRenderTests() {
       debugDefaultTargetPlatformOverride = null;
     });
 
+    testWidgets('Windows 媒体 Tab 中切换密度不重新打开来源、不重置目录', (tester) async {
+      overrideWindowsPlatform();
+      SharedPreferences.setMockInitialValues({
+        mediaRootDirectoryStorageKey: r'D:\Media',
+      });
+      final preferences = await SharedPreferences.getInstance();
+      final factory = FakeMediaLibraryFactory(FakeMediaLibrary());
+      await pumpSyncScreen(
+        tester,
+        preferences: preferences,
+        bindMediaLibraryFactory: false,
+        extraOverrides: [
+          mediaLibraryFactoryProvider.overrideWithValue(factory),
+          mediaBrowserControllerProvider.overrideWith(
+            RecordingMediaBrowserController.new,
+          ),
+        ],
+      );
+
+      await tester.tap(
+        find.descendant(of: find.byType(TabBar), matching: find.text('媒体')),
+      );
+      await settleTabTransition(tester);
+
+      // 记录切换密度前的基线：来源只打开一次、浏览器初始化一次、路径种子为 /相册
+      expect(factory.openedSources.length, 1);
+      expect(RecordingMediaBrowserController.latest!.initCount, 1);
+      RecordingMediaBrowserController.latest!.seedPathForTest(
+        currentPath: '/相册',
+        pathHistory: [],
+      );
+
+      await tester.tap(find.byTooltip('舒适密度'));
+      await tester.pump();
+
+      // 密度切换只消费密度 provider，不触碰媒体会话与浏览器状态
+      expect(factory.openedSources.length, 1);
+      expect(RecordingMediaBrowserController.latest!.initCount, 1);
+      expect(RecordingMediaBrowserController.latest!.state.currentPath, '/相册');
+      debugDefaultTargetPlatformOverride = null;
+    });
+
     testWidgets('Windows 离开媒体 Tab 失效会话并重置；活动期间修改根目录不影响来源，重新进入后生效', (
       tester,
     ) async {

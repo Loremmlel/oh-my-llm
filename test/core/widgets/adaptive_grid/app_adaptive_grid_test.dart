@@ -128,7 +128,7 @@ class _CountingCounter extends StatefulWidget {
 }
 
 class _CountingCounterState extends State<_CountingCounter> {
-  late int _count = widget.initialCount;
+  late final int _count = widget.initialCount;
 
   @override
   void initState() {

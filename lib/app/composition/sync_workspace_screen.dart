@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../navigation/app_destination.dart';
 import '../shell/app_shell_scaffold.dart';
+import 'package:oh_my_llm/core/widgets/app_adaptive_actions.dart';
 import 'package:oh_my_llm/features/media/application/media_browser_controller.dart';
 import 'package:oh_my_llm/features/media/application/media_library_session_controller.dart';
 import 'package:oh_my_llm/features/media/application/media_root_directory_controller.dart';
@@ -15,6 +16,7 @@ import 'package:oh_my_llm/features/media/application/models/media_library_failur
 import 'package:oh_my_llm/features/media/application/models/media_library_source.dart';
 import 'package:oh_my_llm/features/media/application/shuffle_playback_controller.dart';
 import 'package:oh_my_llm/features/media/presentation/media_browser_tab.dart';
+import 'package:oh_my_llm/features/media/presentation/widgets/media_grid_density_actions.dart';
 import 'package:oh_my_llm/features/media/presentation/widgets/shuffle_appbar_actions.dart';
 import 'package:oh_my_llm/features/sync/application/sync_client_controller.dart';
 import 'package:oh_my_llm/features/sync/application/sync_server_controller.dart';
@@ -166,6 +168,15 @@ class _SyncWorkspaceScreenState extends ConsumerState<SyncWorkspaceScreen>
                 currentDirectoryPath: mediaBrowser.currentPath,
               ),
             ]
+          : null,
+      // 密度切换跟随壳层断点：宽布局展开三按钮，窄布局折叠为菜单。
+      // actions widget 自己消费密度 provider，本页面不直接 watch。
+      adaptiveActions:
+          mediaSession is MediaLibrarySessionActive && mediaBrowser != null
+          ? const AppAdaptiveActions(
+              wideActions: [MediaGridDensityActions.expanded()],
+              compactActions: [MediaGridDensityActions.menu()],
+            )
           : null,
       body: Column(
         children: [
