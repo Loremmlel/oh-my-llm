@@ -289,7 +289,8 @@ UI 更新节流阈值为 300 ms：`ChatGenerationRun` 持续累积增量，并�
 flutter pub get          # 安装依赖
 flutter analyze          # 静态分析
 dart run tool/check_import_boundaries.dart  # 架构依赖门禁
-flutter test --reporter compact 2>&1 | Out-File -Encoding utf8 fltest.log; $E = $LASTEXITCODE; Write-Host "EXIT=$E"; Get-Content -Tail 150 fltest.log
+New-Item -ItemType Directory -Force logs | Out-Null
+flutter test --reporter compact 2>&1 | Out-File -Encoding utf8 logs/fltest.log; $TestExit = $LASTEXITCODE; Write-Host "EXIT=$TestExit"; Get-Content -Tail 150 logs/fltest.log
 ```
 
 ### 代码规范

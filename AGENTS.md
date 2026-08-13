@@ -29,13 +29,17 @@ flutter build apk --release                        # Android APK
 全量测试用例数随开发增长，直接跑会被截断。始终用单条复合命令：
 
 ```powershell
-flutter test --reporter compact 2>&1 | Out-File -Encoding utf8 fltest.log; $E = $LASTEXITCODE; Write-Host "EXIT=$E"; Get-Content -Tail 150 fltest.log
+New-Item -ItemType Directory -Force logs | Out-Null
+flutter test --reporter compact 2>&1 | Out-File -Encoding utf8 logs/fltest.log; $TestExit = $LASTEXITCODE; Write-Host "EXIT=$TestExit"; Get-Content -Tail 150 logs/fltest.log
 ```
 
-- `EXIT=0` -> 全过。`EXIT≠0` -> 失败摘要在 tail 输出。
-- 查详情：`Select-String -Pattern "关键词" -Path fltest.log -Context 0,30`；仅失败名：`Select-String -Pattern " -[1-9]" -Path fltest.log`。
-- ❌ 禁止不重定向直接 `flutter test` / 用 `tee`（同样截断）。全量输出已在 `fltest.log`，从该文件查即可。
+- `EXIT=0` -> 全过。`EXIT≠0` -> `logs/fltest.log` 的 tail 输出为失败摘要。
+- 查详情：`Select-String -Pattern "关键词" -Path logs/fltest.log -Context 0,30`；仅失败名：`Select-String -Pattern " -[1-9]" -Path logs/fltest.log`。
+- ❌ 禁止不重定向直接 `flutter test` / 用 `tee`（同样截断）。全量输出已在 `logs/fltest.log`，从该文件查即可。
 - 只跑单个文件同样套用重定向模式。
+- Agent 执行测试、`flutter analyze`、构建或诊断时，日志必须写入仓库根目录下 ignored 的 `logs/`，禁止在仓库根目录直接生成 `*.log`。
+- 写日志前先执行 `New-Item -ItemType Directory -Force logs | Out-Null`。全量测试使用 `logs/fltest.log`；red/green 证据使用能表达任务的 `logs/<任务>-red.log` / `logs/<任务>-green.log`。
+- `logs/` 内容是可再生成的本地产物，可以覆盖或清理；CI runner 根目录的 `fltest.log` 上传流程和应用 AppData 的 `network.log` 不受本规则影响。
 
 ### test 启动卡住排查（Windows）
 
@@ -54,6 +58,8 @@ flutter test --reporter compact 2>&1 | Out-File -Encoding utf8 fltest.log; $E = 
 | `build-windows-release.ps1` | Windows Release -> `artifacts\windows\oh_my_llm-windows-{version}.zip` |
 | `build-android-apk.ps1` | 首次自动生成自签名 keystore（`android/app/self-use-release.jks`），构建 APK -> `artifacts\android\` |
 | `scripts/bump-version.ps1 -Minor \| -Major` | 手动升 minor/major；日常 patch/minor/major 由 post-commit hook 自动管理 |
+
+Agent 若重定向脚本输出，Windows/Android 分别使用 `logs/build-windows.log`、`logs/build-android.log`。
 
 产物命名固定 `oh_my_llm-{platform}-{version}`，版本号从 `pubspec.yaml` 读取。
 
