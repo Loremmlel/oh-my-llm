@@ -210,24 +210,35 @@ lib/
 │   ├── persistence/            # SQLite AppDatabase + SharedPreferences provider
 │   ├── providers/              # 通用 Riverpod provider（通知气泡等）
 │   ├── utils/                  # ID 生成器、文本格式化等工具
-│   └── widgets/                # 通用 UI 组件（通知气泡等）
+│   └── widgets/                # 通用 UI 组件
+│       ├── dialogs/            # 通用确认/操作对话框
+│       └── notification_bubble/ # 应用内通知气泡
 └── features/
     ├── chat/
     │   ├── application/        # 会话命令、Generation 生命周期、Workspace view-state
+    │   │   ├── composer/       # 会话草稿与编辑命令
+    │   │   ├── favorites/      # 收藏命令与 facade
+    │   │   ├── generation/     # 显式 prepare/stream/retry/stop/finalize 生命周期
+    │   │   ├── history/        # 历史查询与分组
     │   │   ├── ports/          # ChatGenerationClient / ChatConversationRepository 抽象
-    │   │   ├── chat_generation_*.dart  # 显式 prepare/stream/retry/stop/finalize 生命周期
-    │   │   └── ...
-    │   ├── data/               # 协议客户端 + 共享传输 + SQLite 仓库
-    │   │   ├── protocol_routing_chat_generation_client.dart  # 按 LlmApiProtocol 路由的生产客户端
-    │   │   ├── chat_completions/   # Chat Completions 客户端 + parser（reasoning_content、内联标签）
-    │   │   ├── responses/          # Responses 客户端 + parser（reasoning summary/text）
-    │   │   ├── anthropic/          # Anthropic 客户端 + transformer + parser（thinking）
-    │   │   └── ...
+    │   │   ├── requests/       # 请求消息与请求目标
+    │   │   ├── sessions/       # 会话状态与控制器
+    │   │   ├── sidebar/        # 侧栏视图状态
+    │   │   └── workspace/      # Workspace view-state 与 bindings
+    │   ├── data/               # Generation 协议客户端与持久化仓库
+    │   │   ├── generation/     # Chat Completions / Responses / Anthropic 客户端与 parser
+    │   │   └── persistence/    # SQLite 会话仓库与后台写入器
     │   ├── domain/             # ChatMessage / ChatConversation 模型 + 消息树
     │   ├── presentation/       # 聊天页 + 流式 Markdown 组件 + 滚动控制器
     │   │   ├── chat_screen.dart
     │   │   ├── chat_scroll_controller.dart          # 滚动/锚点管理器
-    │   │   └── widgets/         # 消息气泡、推理面板、思考开关等组件
+    │   │   └── widgets/         # 聊天页组件
+    │   │       ├── composer/   # 输入框与发送控制
+    │   │       ├── dialogs/    # 聊天相关确认对话框
+    │   │       ├── messages/   # 消息气泡与推理面板
+    │   │       ├── prompts/    # Prompt 选择与变量
+    │   │       ├── sidebar/    # 会话侧栏
+    │   │       └── workspace/  # Workspace 组合组件
     │   └── ...
     ├── favorites/
     │   ├── application/        # 收藏控制器、application-owned ports 与跨 feature command
@@ -240,18 +251,42 @@ lib/
     ├── media/
     │   ├── application/        # 媒体库会话 + 浏览器/随机播放控制器 + 资源解析
     │   ├── data/               # 本地/远端媒体库适配器 + 目录扫描 + HTTP 处理
+    │   │   ├── libraries/     # 本地与远端媒体库
+    │   │   ├── scanning/      # 目录扫描
+    │   │   └── http/          # 媒体 HTTP 处理
     │   ├── domain/             # 媒体模型
     │   └── presentation/       # 媒体浏览器 Tab + 图片查看器 + 视频播放器
     ├── settings/
-    │   ├── application/        # 各 Notifier（服务商配置 / 模板 / 序列 / 记忆提示词 / 字体 / 请求头等）
+    │   ├── application/        # 各 Notifier（按 preferences / providers / prompts / transfer 分组）
+    │   │   ├── preferences/    # 聊天默认值、字体、请求头与重试设置
+    │   │   ├── providers/      # 服务商、模型与目录工作流
+    │   │   ├── prompts/        # 模板、序列与记忆提示词
+    │   │   └── transfer/       # 导入导出与同步 facade
     │   ├── data/               # SharedPreferences 仓库 + SQLite 仓库 + 迁移
-    │   ├── domain/             # 设置相关模型
+    │   │   ├── providers/      # 服务商与模型仓库
+    │   │   └── prompts/        # Prompt SQLite 仓库
+    │   ├── domain/             # 设置相关模型（按 preferences / providers / prompts / transfer 分组）
+    │   │   └── models/
+    │   │       ├── preferences/
+    │   │       ├── providers/
+    │   │       ├── prompts/
+    │   │       └── transfer/
     │   └── presentation/       # 设置页（网络 / 其他等标签页）
+    │       └── widgets/
+    │           ├── shared/     # 设置通用表单与列表组件
+    │           └── tabs/       # 设置标签页组件
     └── sync/
         ├── application/        # 客户端/服务端 protocol coordinator、session registry
         │   └── ports/          # transport、crypto、pairing、settings/media facade
         ├── data/               # HTTP/UDP transport、加密实现、安全配对仓库
+        │   ├── http/           # Sync HTTP transport
+        │   ├── udp/            # UDP discovery
+        │   └── security/       # 加密与安全配对仓库
         ├── domain/             # typed/versioned protocol、配对与 session 模型
+        │   └── models/
+        │       ├── discovery/  # 发现模型
+        │       ├── protocol/   # typed/versioned protocol 模型
+        │       └── session/    # 配对与 session 模型
         └── presentation/       # 连接、同步与授权确认子视图
 ```
 
@@ -309,15 +344,15 @@ flutter test --reporter compact 2>&1 | Out-File -Encoding utf8 logs/fltest.log; 
 | Favorites Widget | `test/features/favorites/` | 主页、详情页、收藏夹管理对话框 |
 | Favorites Controller | `test/features/favorites/application/` | 收藏和收藏夹 CRUD、过滤、级联 |
 | Favorites Repository | `test/features/favorites/data/`、`test/features/favorites/domain/` | SQLite 仓库、收藏 / 收藏夹模型 |
-| Chat↔Favorites Flow | `test/features/chat/chat_screen/` | 书签按钮、对话框、新建收藏夹流程 |
+| Chat↔Favorites Flow | `test/features/chat/presentation/chat_screen/` | 书签按钮、对话框、新建收藏夹流程 |
 | Chat Application | `test/features/chat/application/` | 会话 CRUD、消息树、Generation phase/outcome、停止/重试竞态、Workspace ownership |
 | Chat Domain | `test/features/chat/domain/` | 消息树、对话模型、分组、请求消息构建、检查点上下文 |
 | Chat Data | `test/features/chat/data/` | 协议客户端与解析器、请求体构建、模板/用户消息构建器、SSE 解析 |
-| Chat Presentation | `test/features/chat/presentation/`、`test/features/chat/widgets/` | 聊天页、锚点 Rail、字数统计、消息折叠 |
+| Chat Presentation | `test/features/chat/presentation/` | 聊天页、锚点 Rail、字数统计、消息折叠 |
 | AppDatabase Migration | `test/core/persistence/` | schema、外键级联、索引、数据迁移、后台写入器、replace-all、版本化 JSON 存储 |
 | Core Utils | `test/core/utils/` | 日期格式化、ID 生成、文本格式化、JSON 截断 |
 | Core Logging | `test/core/logging/` | 日志存储、网络日志脱敏 redactor |
-| App / Architecture | `test/app/`、`test/architecture/` | 响应式壳、可恢复路由、import boundary、测试韧性门禁 |
+| App / Architecture | `test/app/`、`test/app/composition/sync_workspace_screen/`、`test/architecture/` | 响应式壳、可恢复路由、Sync workspace 组合、import boundary、测试韧性门禁 |
 | History | `test/features/history/` | 历史搜索、分组、分页 |
 | Media | `test/features/media/` | 本地/远端媒体库、媒体浏览器、目录扫描、随机播放、缩略图、GoRouter 页面、视频/路径可访问性 |
 | Settings | `test/features/settings/` | 服务商/模型配置、模板、序列、记忆提示词、字体、请求头、自动重试、导入导出去重 |

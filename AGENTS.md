@@ -170,6 +170,7 @@ lib/
 - 派生数据用 `Provider` + `ref.watch(xxxProvider.select((s) => s.field))`，避免不必要重建。
 - 大控制器用 **mixin 拆分**（如 `ChatSessionsController` = 主体 + `ChatSessionsControllerStreaming` + `ChatSessionsControllerSupport`），通过 `import` 引入。
 - `SettingsEntityController<T>`：模板方法基类，子类只提供 `repository`。
+- Settings controller/model 示例按领域分组：`features/settings/application/preferences/chat_defaults_controller.dart` 对应 `features/settings/domain/models/preferences/chat_defaults.dart`；`features/settings/application/providers/llm_model_configs_controller.dart` / `features/settings/domain/models/providers/llm_model_config.dart`、`features/settings/application/prompts/template_prompts_controller.dart` / `features/settings/domain/models/prompts/template_prompt.dart`、`features/settings/application/transfer/settings_transfer_workflow.dart` / `features/settings/domain/models/transfer/settings_export_data.dart` 分别使用对应子目录。
 
 ### Chat generation 与 workspace ownership
 
@@ -226,7 +227,7 @@ lib/
 
 - **HTTP 信任域**：外部 LLM 请求使用 `httpClientProvider`，可注入用户自定义 Header；局域网 Sync/Media peer 请求必须使用 `peerHttpClientProvider`，绝不继承 API key、Cookie 或自定义 Header。请求正文日志默认关闭，只有明确诊断路径可 opt-in；敏感 Header 必须统一脱敏。
 
-- **协议客户端**：`chat_completions/chat_completions_client.dart`（Chat Completions；`ChatCompletionsParser` 处理 `[DONE]` / 错误 / JSON 解码，`InlineReasoningTagSplitter` 跨 chunk 解析 `<thought>` / `<thinking>` 标签）、`responses/responses_client.dart`（OpenAI Responses）、`anthropic/anthropic_messages_client.dart`（Anthropic Messages）。各客户端只负责本协议请求编码与增量解析；`ProtocolRoutingChatGenerationClient`（`protocol_routing_chat_generation_client.dart`）按 `request.target.protocol` 穷举路由，是生产唯一绑定。
+- **协议客户端**（`features/chat/data/generation/`）：`chat_completions/chat_completions_client.dart`（Chat Completions；`ChatCompletionsParser` 处理 `[DONE]` / 错误 / JSON 解码，`InlineReasoningTagSplitter` 跨 chunk 解析 `<thought>` / `<thinking>` 标签）、`responses/responses_client.dart`（OpenAI Responses）、`anthropic/anthropic_messages_client.dart`（Anthropic Messages）。各客户端只负责本协议请求编码与增量解析；`protocol_routing_chat_generation_client.dart` 按 `request.target.protocol` 穷举路由，是生产唯一绑定。
 - **共享传输**（`core/http/llm_http_stream_transport.dart`）：发起流式 POST、包装连接异常与非 2xx 响应；SSE 行/事件边界解码与 idle timeout 由 `SseEventDecoder`（`core/http/sse_event_decoder.dart`）负责。
 - **SSE idle timeout**：仅在 `data:` 行到达时重置计时器，SSE 注释行 keepalive 不算活动。
 
@@ -276,7 +277,7 @@ lib/
 ### 文件组织（case-file decomposition）
 
 ```
-test/features/chat/
+test/features/chat/presentation/
   chat_screen_test.dart            <- 入口：import cases，调用 register*()
   chat_screen/
     chat_screen_test_helpers.dart  <- pump 助手、Fake 实现、Finder 工厂
