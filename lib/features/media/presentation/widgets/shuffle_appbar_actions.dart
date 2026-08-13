@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:oh_my_llm/app/navigation/app_destination.dart';
-import 'package:oh_my_llm/core/widgets/notification_bubble_context_ext.dart';
+import 'package:oh_my_llm/core/widgets/notification_bubble/notification_bubble_context_ext.dart';
 import '../../application/shuffle_playback_controller.dart';
 
 /// AppBar 随机播放按钮组。

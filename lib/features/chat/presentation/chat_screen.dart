@@ -5,7 +5,7 @@ import 'package:oh_my_llm/app/navigation/app_destination.dart';
 import 'package:oh_my_llm/app/shell/app_shell_scaffold.dart';
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import 'package:oh_my_llm/core/providers/notification_bubble_provider.dart';
-import 'package:oh_my_llm/core/widgets/notification_bubble_data.dart';
+import 'package:oh_my_llm/core/widgets/notification_bubble/notification_bubble_data.dart';
 import 'package:oh_my_llm/features/settings/application/prompts/preset_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/application/prompts/template_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/fixed_prompt_sequence.dart';

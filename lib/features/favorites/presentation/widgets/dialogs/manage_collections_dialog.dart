@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:oh_my_llm/core/widgets/app_confirm_dialog.dart';
+import 'package:oh_my_llm/core/widgets/dialogs/app_confirm_dialog.dart';
 import 'package:oh_my_llm/core/widgets/app_empty_state.dart';
 import '../../../application/collections_controller.dart';
 import '../../../domain/models/collection.dart';

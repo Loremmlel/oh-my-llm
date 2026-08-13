@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../widgets/notification_bubble_data.dart';
+import '../widgets/notification_bubble/notification_bubble_data.dart';
 
 /// 全局通知气泡 Provider。
 ///

@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import 'package:oh_my_llm/core/utils/date_formatting.dart';
-import 'package:oh_my_llm/core/widgets/notification_bubble_context_ext.dart';
+import 'package:oh_my_llm/core/widgets/notification_bubble/notification_bubble_context_ext.dart';
 import 'package:oh_my_llm/core/widgets/adaptive_master_detail_layout.dart';
 import 'package:oh_my_llm/features/settings/application/prompts/memory_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/providers/llm_model_config.dart';

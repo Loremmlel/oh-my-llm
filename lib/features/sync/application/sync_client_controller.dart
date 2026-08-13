@@ -4,7 +4,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:oh_my_llm/core/providers/notification_bubble_provider.dart';
-import 'package:oh_my_llm/core/widgets/notification_bubble_data.dart';
+import 'package:oh_my_llm/core/widgets/notification_bubble/notification_bubble_data.dart';
 import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_export_data.dart';
 import 'ports/settings_sync_facade.dart';
 import 'ports/sync_client_protocol.dart';

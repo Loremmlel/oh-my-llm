@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../providers/notification_bubble_provider.dart';
+import '../../providers/notification_bubble_provider.dart';
 import 'notification_bubble.dart';
 import 'notification_bubble_data.dart';
 

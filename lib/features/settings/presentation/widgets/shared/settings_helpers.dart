@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'package:oh_my_llm/core/widgets/notification_bubble_context_ext.dart';
+import 'package:oh_my_llm/core/widgets/notification_bubble/notification_bubble_context_ext.dart';
 
 /// 设置页通用的通知气泡辅助函数。
 ///

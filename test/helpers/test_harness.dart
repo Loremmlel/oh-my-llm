@@ -10,7 +10,7 @@ import 'package:oh_my_llm/core/http/peer_http_client_provider.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
-import 'package:oh_my_llm/core/widgets/notification_bubble_stack.dart';
+import 'package:oh_my_llm/core/widgets/notification_bubble/notification_bubble_stack.dart';
 import 'package:oh_my_llm/app/composition/cross_feature_bindings.dart';
 
 import '../test_database.dart';

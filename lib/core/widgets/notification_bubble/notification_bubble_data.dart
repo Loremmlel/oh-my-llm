@@ -1,7 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter/material.dart';
 
-import '../utils/id_generator.dart';
+import '../../utils/id_generator.dart';
 
 /// 通知气泡的语义类型，决定默认图标、色调和停留时间。
 enum NotificationBubbleType {

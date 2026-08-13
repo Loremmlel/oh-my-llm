@@ -4,11 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/core/providers/notification_bubble_provider.dart';
-import 'package:oh_my_llm/core/widgets/notification_bubble.dart';
-import 'package:oh_my_llm/core/widgets/notification_bubble_data.dart';
-import 'package:oh_my_llm/core/widgets/notification_bubble_stack.dart';
+import 'package:oh_my_llm/core/widgets/notification_bubble/notification_bubble.dart';
+import 'package:oh_my_llm/core/widgets/notification_bubble/notification_bubble_data.dart';
+import 'package:oh_my_llm/core/widgets/notification_bubble/notification_bubble_stack.dart';
 
-import '../../helpers/widget_test_animation.dart';
+import '../../../helpers/widget_test_animation.dart';
 
 NotificationBubbleData _data({
   String message = '同步完成',

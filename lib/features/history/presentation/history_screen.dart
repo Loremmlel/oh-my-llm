@@ -6,8 +6,8 @@ import 'package:go_router/go_router.dart';
 
 import 'package:oh_my_llm/app/navigation/app_destination.dart';
 import 'package:oh_my_llm/app/shell/app_shell_scaffold.dart';
-import 'package:oh_my_llm/core/widgets/app_confirm_dialog.dart';
-import 'package:oh_my_llm/core/widgets/rename_conversation_dialog.dart';
+import 'package:oh_my_llm/core/widgets/dialogs/app_confirm_dialog.dart';
+import 'package:oh_my_llm/core/widgets/dialogs/rename_conversation_dialog.dart';
 import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/application/history/history_pagination_controller.dart';
 import 'package:oh_my_llm/features/chat/domain/chat_conversation_groups.dart';

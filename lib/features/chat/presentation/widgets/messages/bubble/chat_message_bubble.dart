@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
-import 'package:oh_my_llm/core/widgets/notification_bubble_context_ext.dart';
+import 'package:oh_my_llm/core/widgets/notification_bubble/notification_bubble_context_ext.dart';
 import '../../../../domain/chat_word_counter.dart';
 import '../../../../domain/models/chat_message.dart';
 import '../navigation/message_version_info.dart';

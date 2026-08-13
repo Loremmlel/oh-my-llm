@@ -1,8 +1,8 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../providers/notification_bubble_provider.dart';
-import '../widgets/notification_bubble_data.dart';
+import '../../providers/notification_bubble_provider.dart';
+import 'notification_bubble_data.dart';
 
 /// BuildContext 扩展：快捷显示通知气泡。
 ///
