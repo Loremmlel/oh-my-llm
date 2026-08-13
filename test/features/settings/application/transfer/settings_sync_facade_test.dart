@@ -7,6 +7,7 @@ import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/features/settings/application/providers/llm_model_configs_controller.dart';
+import 'package:oh_my_llm/features/media/application/media_grid_density_controller.dart';
 import 'package:oh_my_llm/features/settings/application/prompts/memory_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/application/transfer/settings_sync_facade.dart';
 import 'package:oh_my_llm/features/settings/domain/models/providers/llm_provider_config.dart';
@@ -101,5 +102,15 @@ void main() {
       container.read(memoryPromptsProvider),
       containsAll([existing, incoming]),
     );
+  });
+
+  test('设备本地媒体密度不进入设置同步导出', () async {
+    await preferences.setString(mediaGridDensityStorageKey, 'comfortable');
+    final data = facade.exportSelected(
+      const SettingsSyncSelection(other: true),
+    );
+    final json = data.toJsonString();
+    expect(json, isNot(contains(mediaGridDensityStorageKey)));
+    expect(json, isNot(contains('grid_density')));
   });
 }

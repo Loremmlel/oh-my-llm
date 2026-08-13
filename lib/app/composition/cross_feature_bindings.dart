@@ -1,7 +1,9 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:oh_my_llm/core/constants/app_layout_density.dart';
 import 'package:oh_my_llm/core/http/custom_headers_provider.dart';
 import 'package:oh_my_llm/core/http/http_client_provider.dart';
 import 'package:oh_my_llm/core/http/http_route_handler.dart';
@@ -26,6 +28,7 @@ import 'package:oh_my_llm/features/favorites/application/ports/collections_repos
 import 'package:oh_my_llm/features/favorites/application/ports/favorites_repository.dart';
 import 'package:oh_my_llm/features/favorites/data/sqlite_collections_repository.dart';
 import 'package:oh_my_llm/features/favorites/data/sqlite_favorites_repository.dart';
+import 'package:oh_my_llm/features/media/application/media_grid_density_controller.dart';
 import 'package:oh_my_llm/features/media/application/media_root_directory_controller.dart';
 import 'package:oh_my_llm/features/media/application/ports/media_library_factory.dart';
 import 'package:oh_my_llm/features/media/data/libraries/default_media_library_factory.dart';
@@ -157,6 +160,12 @@ List<dynamic> appCompositionOverrides({
           peerHttpClient: ref.watch(peerHttpClientProvider),
         ),
       ),
+    // 媒体网格密度是设备本地偏好：Windows 桌面默认紧凑，其余平台默认标准。
+    mediaGridDensityDefaultProvider.overrideWithValue(
+      defaultTargetPlatform == TargetPlatform.windows
+          ? AppLayoutDensity.compact
+          : AppLayoutDensity.standard,
+    ),
     favoritesRepositoryProvider.overrideWith(
       (ref) => SqliteFavoritesRepository(ref.watch(appDatabaseProvider)),
     ),
