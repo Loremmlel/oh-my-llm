@@ -24,7 +24,7 @@ import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/t
 
 import '../../../../helpers/fixtures.dart';
 import '../../../../helpers/test_harness.dart';
-import '../../../../helpers/widget_test_animation.dart';
+import '../../../../helpers/async/widget_test_animation.dart';
 
 const settingsLastTabIndexKey = 'settings.tab.last_index';
 

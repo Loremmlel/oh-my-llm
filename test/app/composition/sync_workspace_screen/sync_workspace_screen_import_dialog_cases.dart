@@ -12,7 +12,7 @@ import 'package:oh_my_llm/features/sync/application/sync_client_controller.dart'
 import 'package:oh_my_llm/features/sync/presentation/widgets/sync_import_confirm_dialog.dart';
 
 import '../../../helpers/test_harness.dart';
-import '../../../helpers/widget_test_animation.dart';
+import '../../../helpers/async/widget_test_animation.dart';
 import 'sync_workspace_screen_test_helpers.dart';
 
 /// 导入动作挂在 [gate] 上的 SyncClientController 替身：

@@ -10,7 +10,7 @@ import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client
 import 'package:oh_my_llm/features/chat/application/ports/chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/data/persistence/sqlite_chat_conversation_repository.dart';
 
-import '../../../../../helpers/fake_chat_generation_client.dart';
+import '../../../../../helpers/chat/fake_chat_generation_client.dart';
 import 'chat_sessions_controller_test_helpers.dart';
 
 /// 会话 CRUD、preferences、historyRevision 与 emptyReplyAssistantId 边界契约。

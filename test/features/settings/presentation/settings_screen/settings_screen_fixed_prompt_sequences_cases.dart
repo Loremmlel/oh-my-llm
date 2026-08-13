@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/features/settings/data/prompts/sqlite_fixed_prompt_sequence_repository.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/fixed_prompt_sequence.dart';
 
-import '../../../../helpers/widget_test_animation.dart';
+import '../../../../helpers/async/widget_test_animation.dart';
 import 'settings_screen_test_helpers.dart';
 
 FixedPromptSequence _seededSequence() => FixedPromptSequence(

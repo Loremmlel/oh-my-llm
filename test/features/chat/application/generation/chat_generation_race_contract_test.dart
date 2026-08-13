@@ -19,9 +19,9 @@ import 'package:oh_my_llm/features/settings/data/providers/llm_model_config_repo
 import 'package:oh_my_llm/features/settings/domain/models/providers/llm_model_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/providers/llm_provider_config.dart';
 
-import '../../../../helpers/async_test_signals.dart';
-import '../../../../helpers/controllable_chat_conversation_repository.dart';
-import '../../../../helpers/fake_chat_generation_client.dart';
+import '../../../../helpers/async/async_test_signals.dart';
+import '../../../../helpers/chat/controllable_chat_conversation_repository.dart';
+import '../../../../helpers/chat/fake_chat_generation_client.dart';
 
 /// generation 生命周期的串行化竞态契约。
 ///

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../../helpers/widget_test_animation.dart';
+import '../../../helpers/async/widget_test_animation.dart';
 import 'history_screen_test_helpers.dart';
 
 void registerHistoryScreenActionsTests() {

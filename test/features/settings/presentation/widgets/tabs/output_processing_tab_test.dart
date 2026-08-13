@@ -8,7 +8,7 @@ import 'package:oh_my_llm/features/settings/domain/models/preferences/output_pro
 import 'package:oh_my_llm/features/settings/presentation/widgets/tabs/output_processing_tab.dart';
 
 import '../../../../../helpers/test_harness.dart';
-import '../../../../../helpers/widget_test_animation.dart';
+import '../../../../../helpers/async/widget_test_animation.dart';
 
 OutputRegexRule _rule({
   String id = 'rule-1',

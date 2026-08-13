@@ -9,7 +9,7 @@ import 'package:oh_my_llm/features/chat/application/history/history_pagination_c
 import 'package:oh_my_llm/features/chat/application/ports/chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation_summary.dart';
 
-import '../../../../helpers/fake_history_repository.dart';
+import '../../../../helpers/chat/fake_history_repository.dart';
 
 void main() {
   late AppDatabase database;

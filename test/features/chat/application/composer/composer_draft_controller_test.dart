@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/chat/application/composer/composer_draft_controller.dart';
 
-import '../../../../helpers/async_test_signals.dart';
+import '../../../../helpers/async/async_test_signals.dart';
 
 void main() {
   group('ComposerDraftController per-conversation aggregate', () {

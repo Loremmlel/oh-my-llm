@@ -6,7 +6,7 @@ import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 
 import '../../../../helpers/fixtures.dart';
 import '../../../../helpers/responsive_viewport_cases.dart';
-import '../../../../helpers/widget_test_animation.dart';
+import '../../../../helpers/async/widget_test_animation.dart';
 import 'chat_screen_test_helpers.dart';
 
 /// 含一对 user/assistant 消息的会话 JSON，供窄父约束下气泡内容可达验证。

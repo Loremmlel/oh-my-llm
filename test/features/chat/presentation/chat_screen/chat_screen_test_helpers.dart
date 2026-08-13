@@ -8,13 +8,13 @@ import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_contr
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
 
-import '../../../../helpers/async_test_signals.dart';
-import '../../../../helpers/fake_chat_generation_client.dart';
+import '../../../../helpers/async/async_test_signals.dart';
+import '../../../../helpers/chat/fake_chat_generation_client.dart';
 import '../../../../helpers/fixtures.dart';
 import '../../../../helpers/test_harness.dart';
-import '../../../../helpers/widget_test_animation.dart';
+import '../../../../helpers/async/widget_test_animation.dart';
 
-export '../../../../helpers/fake_chat_generation_client.dart';
+export '../../../../helpers/chat/fake_chat_generation_client.dart';
 
 /// 将默认种子数据写入 SQLite 数据库。
 ///

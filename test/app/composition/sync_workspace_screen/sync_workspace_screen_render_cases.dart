@@ -19,7 +19,7 @@ import 'package:oh_my_llm/features/sync/domain/models/protocol/sync_protocol_ver
 import 'package:oh_my_llm/features/sync/domain/models/protocol/sync_types.dart';
 import 'package:oh_my_llm/features/sync/presentation/widgets/sync_operation_tab.dart';
 
-import '../../../helpers/widget_test_animation.dart';
+import '../../../helpers/async/widget_test_animation.dart';
 import '../../../features/media/helpers/fake_media_library.dart';
 import 'sync_workspace_screen_test_helpers.dart';
 

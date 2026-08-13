@@ -9,7 +9,7 @@ import 'package:oh_my_llm/features/favorites/data/sqlite_favorites_repository.da
 
 import '../../features/favorites/favorites_screen_test_helpers.dart';
 import '../../helpers/test_harness.dart';
-import '../../helpers/widget_test_animation.dart';
+import '../../helpers/async/widget_test_animation.dart';
 
 Future<SharedPreferences> _testPrefs(AppDatabase db) async {
   return createEmptyPreferences(db);

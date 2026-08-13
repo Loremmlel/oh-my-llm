@@ -8,7 +8,7 @@ import 'package:oh_my_llm/core/widgets/notification_bubble/notification_bubble.d
 import 'package:oh_my_llm/core/widgets/notification_bubble/notification_bubble_data.dart';
 import 'package:oh_my_llm/core/widgets/notification_bubble/notification_bubble_stack.dart';
 
-import '../../../helpers/widget_test_animation.dart';
+import '../../../helpers/async/widget_test_animation.dart';
 
 NotificationBubbleData _data({
   String message = '同步完成',

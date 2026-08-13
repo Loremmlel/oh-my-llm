@@ -11,9 +11,9 @@ import 'package:oh_my_llm/features/chat/domain/models/chat_conversation_summary.
 import 'package:oh_my_llm/features/history/presentation/history_screen.dart';
 import 'package:oh_my_llm/features/history/presentation/widgets/history_pagination_bar.dart';
 
-import '../../../helpers/fake_history_repository.dart';
+import '../../../helpers/chat/fake_history_repository.dart';
 import '../../../helpers/test_harness.dart';
-import '../../../helpers/widget_test_animation.dart';
+import '../../../helpers/async/widget_test_animation.dart';
 
 /// 构造 N 条测试会话摘要。
 List<ChatConversationSummary> _summaries(int count) => List.generate(

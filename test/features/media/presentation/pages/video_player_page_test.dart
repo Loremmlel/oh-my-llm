@@ -7,7 +7,7 @@ import 'package:oh_my_llm/features/media/presentation/pages/media_video_controll
 import 'package:oh_my_llm/features/media/presentation/pages/video_player_page.dart';
 import 'package:oh_my_llm/features/media/presentation/widgets/video_player_controls.dart';
 
-import '../../../../helpers/widget_test_animation.dart';
+import '../../../../helpers/async/widget_test_animation.dart';
 import '../../helpers/fake_video_player_controller.dart';
 
 // ── 测试助手 ─────────────────────────────────────────────────────────

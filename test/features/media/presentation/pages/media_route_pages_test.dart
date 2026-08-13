@@ -9,7 +9,7 @@ import 'package:oh_my_llm/features/media/application/models/media_resource_reque
 import 'package:oh_my_llm/features/media/presentation/pages/media_route_pages.dart';
 
 import '../../../../helpers/test_harness.dart';
-import '../../../../helpers/widget_test_animation.dart';
+import '../../../../helpers/async/widget_test_animation.dart';
 import '../../helpers/fake_media_library.dart';
 import '../../helpers/fake_video_player_controller.dart';
 import '../../helpers/media_test_helpers.dart';

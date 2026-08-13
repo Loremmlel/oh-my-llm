@@ -6,7 +6,7 @@ import 'package:oh_my_llm/features/chat/application/generation/chat_generation_l
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
 import 'package:oh_my_llm/features/favorites/application/favorites_controller.dart';
 
-import '../../../../helpers/widget_test_animation.dart';
+import '../../../../helpers/async/widget_test_animation.dart';
 import 'chat_screen_test_helpers.dart';
 
 void registerChatScreenFavoritesTests() {

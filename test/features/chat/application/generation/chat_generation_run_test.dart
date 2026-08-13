@@ -12,7 +12,7 @@ import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_state
 import 'package:oh_my_llm/features/settings/domain/models/preferences/auto_retry_settings.dart';
 import 'package:oh_my_llm/features/settings/domain/models/providers/llm_model_config.dart';
 
-import '../../../../helpers/fake_chat_generation_client.dart';
+import '../../../../helpers/chat/fake_chat_generation_client.dart';
 
 /// ChatGenerationRun 的 transition matrix 测试。
 ///

@@ -100,7 +100,7 @@ tester
 }
 
 /// 允许直接 pumpAndSettle 的唯一位置，精确 1 处。
-const _settleAllow = {'test/helpers/widget_test_animation.dart': 1};
+const _settleAllow = {'test/helpers/async/widget_test_animation.dart': 1};
 
 /// 测试树内不允许任何真实 `Future.delayed`：无豁免路径。
 const _futureDelayedAllow = <String, int>{};

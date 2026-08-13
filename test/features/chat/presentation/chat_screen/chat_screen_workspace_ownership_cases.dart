@@ -11,7 +11,7 @@ import 'package:oh_my_llm/features/chat/presentation/widgets/messages/bubble/cha
 import 'package:oh_my_llm/features/settings/application/prompts/template_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
 
-import '../../../../helpers/widget_test_animation.dart';
+import '../../../../helpers/async/widget_test_animation.dart';
 import 'chat_screen_test_helpers.dart';
 
 /// composer 输入框：与 helpers 的 sendMessage 共用同一可见 label 定位，

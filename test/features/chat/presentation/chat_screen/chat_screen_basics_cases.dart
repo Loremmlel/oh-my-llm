@@ -16,9 +16,9 @@ import 'package:oh_my_llm/features/settings/application/prompts/template_prompts
 import 'package:oh_my_llm/features/settings/domain/models/prompts/memory_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
 
-import '../../../../helpers/async_test_signals.dart';
+import '../../../../helpers/async/async_test_signals.dart';
 import '../../../../helpers/fixtures.dart';
-import '../../../../helpers/widget_test_animation.dart';
+import '../../../../helpers/async/widget_test_animation.dart';
 import 'chat_screen_test_helpers.dart';
 
 Map<String, dynamic> _conversationWithTurns(int turnCount) {

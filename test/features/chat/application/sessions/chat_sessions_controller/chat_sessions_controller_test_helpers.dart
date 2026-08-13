@@ -23,8 +23,8 @@ import 'package:oh_my_llm/features/settings/domain/models/providers/llm_provider
 import 'package:oh_my_llm/features/settings/domain/models/prompts/memory_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
 
-import '../../../../../helpers/async_test_signals.dart';
-import '../../../../../helpers/fake_chat_generation_client.dart';
+import '../../../../../helpers/async/async_test_signals.dart';
+import '../../../../../helpers/chat/fake_chat_generation_client.dart';
 
 /// 测试用模型配置，与 SharedPreferences 中的 id 一致，确保 _resolveModelConfig 能找到它。
 final testModel = LlmModelConfig(

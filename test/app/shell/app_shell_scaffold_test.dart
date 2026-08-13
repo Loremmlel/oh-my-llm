@@ -6,7 +6,7 @@ import 'package:oh_my_llm/app/navigation/app_destination.dart';
 import 'package:oh_my_llm/app/shell/app_shell_scaffold.dart';
 
 import '../../helpers/responsive_viewport_cases.dart';
-import '../../helpers/widget_test_animation.dart';
+import '../../helpers/async/widget_test_animation.dart';
 
 /// 各顶层目的地页面的可见正文：对话页用「聊天页面」与 label「对话」区分，
 /// 其余沿用既有约定的「{label}页面」。

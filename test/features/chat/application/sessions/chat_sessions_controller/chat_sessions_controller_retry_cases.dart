@@ -11,7 +11,7 @@ import 'package:oh_my_llm/features/settings/application/preferences/output_proce
 import 'package:oh_my_llm/features/settings/domain/models/preferences/auto_retry_settings.dart';
 import 'package:oh_my_llm/features/settings/domain/models/preferences/output_processing_settings.dart';
 
-import '../../../../../helpers/fake_chat_generation_client.dart';
+import '../../../../../helpers/chat/fake_chat_generation_client.dart';
 import 'chat_sessions_controller_test_helpers.dart';
 
 /// 自动重试策略、异常 finish_reason 重试、retry cap 与空回复重试边界契约。

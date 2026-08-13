@@ -12,7 +12,7 @@ import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/settings/domain/models/preferences/auto_retry_settings.dart';
 import 'package:oh_my_llm/features/settings/domain/models/providers/llm_model_config.dart';
 
-import '../../../../helpers/fake_chat_generation_client.dart';
+import '../../../../helpers/chat/fake_chat_generation_client.dart';
 
 /// ChatGenerationCoordinator 是 run 的薄包装：start/stop/dispose 转发到 run，
 /// 逻辑由 [ChatGenerationRun] 的 transition matrix 测试覆盖。此处只验证

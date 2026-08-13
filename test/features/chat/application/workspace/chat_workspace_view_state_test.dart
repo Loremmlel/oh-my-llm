@@ -20,8 +20,8 @@ import 'package:oh_my_llm/features/settings/data/providers/llm_model_config_repo
 import 'package:oh_my_llm/features/settings/domain/models/providers/llm_provider_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
 
-import '../../../../helpers/controllable_chat_conversation_repository.dart';
-import '../../../../helpers/fake_chat_generation_client.dart';
+import '../../../../helpers/chat/controllable_chat_conversation_repository.dart';
+import '../../../../helpers/chat/fake_chat_generation_client.dart';
 import '../../../../helpers/fixtures.dart';
 
 /// 最小必填字段的空白会话（TestFixtures 未提供 conversation 工厂）。

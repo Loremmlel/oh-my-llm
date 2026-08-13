@@ -13,7 +13,7 @@ import 'package:oh_my_llm/features/media/application/models/media_resource.dart'
 import 'package:oh_my_llm/features/media/presentation/pages/video_player_page.dart';
 
 import '../../../../helpers/responsive_viewport_cases.dart';
-import '../../../../helpers/widget_test_animation.dart';
+import '../../../../helpers/async/widget_test_animation.dart';
 import '../../helpers/fake_video_player_controller.dart';
 
 /// 测试用的远端资源（避免真实平台通道，控制器一律经 factory 注入 Fake）。

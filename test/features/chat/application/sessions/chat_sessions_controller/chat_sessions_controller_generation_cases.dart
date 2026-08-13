@@ -9,7 +9,7 @@ import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/settings/application/preferences/output_processing_settings_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/preferences/output_processing_settings.dart';
 
-import '../../../../../helpers/fake_chat_generation_client.dart';
+import '../../../../../helpers/chat/fake_chat_generation_client.dart';
 import 'chat_sessions_controller_test_helpers.dart';
 
 /// 生成成功 / 空回复 / 错误 / finish reason / 输出处理与流式错误格式化契约。

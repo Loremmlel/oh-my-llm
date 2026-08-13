@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../helpers/widget_test_animation.dart';
+import '../../helpers/async/widget_test_animation.dart';
 import 'favorites_screen_test_helpers.dart';
 
 void registerFavoriteDetailScreenTests() {

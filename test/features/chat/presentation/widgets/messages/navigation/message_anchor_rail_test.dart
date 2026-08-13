@@ -13,7 +13,7 @@ import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/messages/navigation/message_anchor_rail.dart';
 
 import '../../../../../../helpers/test_harness.dart';
-import '../../../../../../helpers/widget_test_animation.dart';
+import '../../../../../../helpers/async/widget_test_animation.dart';
 import '../../../../../../test_database.dart';
 
 ChatMessage _userMessage({

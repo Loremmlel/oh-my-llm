@@ -16,7 +16,7 @@ import 'package:oh_my_llm/features/sync/application/sync_client_controller.dart'
 import 'package:oh_my_llm/features/sync/data/udp/sync_udp_discovery.dart';
 
 import '../../../helpers/test_harness.dart';
-import '../../../helpers/widget_test_animation.dart';
+import '../../../helpers/async/widget_test_animation.dart';
 
 Future<AppDatabase> pumpSyncScreen(
   WidgetTester tester, {

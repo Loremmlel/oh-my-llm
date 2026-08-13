@@ -11,7 +11,7 @@ import 'package:oh_my_llm/features/media/presentation/media_browser_tab.dart';
 import 'package:oh_my_llm/features/sync/application/sync_client_controller.dart';
 
 import '../../../helpers/responsive_viewport_cases.dart';
-import '../../../helpers/widget_test_animation.dart';
+import '../../../helpers/async/widget_test_animation.dart';
 import '../../../features/media/helpers/fake_media_library.dart';
 import 'sync_workspace_screen_test_helpers.dart';
 

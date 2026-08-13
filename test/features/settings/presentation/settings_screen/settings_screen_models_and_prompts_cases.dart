@@ -16,7 +16,7 @@ import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/t
 import 'package:oh_my_llm/features/settings/presentation/widgets/shared/settings_entity_card.dart';
 
 import '../../../../helpers/fixtures.dart';
-import '../../../../helpers/widget_test_animation.dart';
+import '../../../../helpers/async/widget_test_animation.dart';
 import 'settings_screen_test_helpers.dart';
 
 LlmModelConfig _seededModel({

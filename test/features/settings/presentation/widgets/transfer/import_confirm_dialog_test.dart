@@ -26,7 +26,7 @@ import 'package:oh_my_llm/features/settings/domain/models/prompts/template_promp
 import 'package:oh_my_llm/features/settings/presentation/widgets/transfer/import_confirm_dialog.dart';
 
 import '../../../../../helpers/test_harness.dart';
-import '../../../../../helpers/widget_test_animation.dart';
+import '../../../../../helpers/async/widget_test_animation.dart';
 
 // ── 工厂函数 ────────────────────────────────────────────────────────────────
 

@@ -18,7 +18,7 @@ import 'package:oh_my_llm/features/sync/domain/models/protocol/sync_protocol_fai
 import 'package:oh_my_llm/features/sync/domain/models/protocol/sync_protocol_version.dart';
 import 'package:oh_my_llm/features/sync/domain/models/protocol/sync_types.dart';
 
-import '../../../helpers/async_test_signals.dart';
+import '../../../helpers/async/async_test_signals.dart';
 import 'sync_test_fakes.dart';
 
 /// 与本地协议区间重叠、可正常建立连接的发现服务端。

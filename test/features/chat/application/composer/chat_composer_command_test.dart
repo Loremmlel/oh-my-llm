@@ -21,8 +21,8 @@ import 'package:oh_my_llm/features/settings/domain/models/providers/llm_model_co
 import 'package:oh_my_llm/features/settings/domain/models/providers/llm_provider_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
 
-import '../../../../helpers/controllable_chat_conversation_repository.dart';
-import '../../../../helpers/fake_chat_generation_client.dart';
+import '../../../../helpers/chat/controllable_chat_conversation_repository.dart';
+import '../../../../helpers/chat/fake_chat_generation_client.dart';
 
 /// 标记「未显式传模型」的哨兵，区分「不传默认解析」与「显式传 null（无模型）」。
 const _useDefaultModel = Object();

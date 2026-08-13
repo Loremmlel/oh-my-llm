@@ -9,7 +9,7 @@ import 'package:oh_my_llm/features/settings/domain/models/providers/llm_provider
 import 'package:oh_my_llm/features/settings/presentation/widgets/providers/forms/model_provider_form_dialog.dart';
 
 import '../../../../../../helpers/test_harness.dart';
-import '../../../../../../helpers/widget_test_animation.dart';
+import '../../../../../../helpers/async/widget_test_animation.dart';
 
 void main() {
   setUp(() {
