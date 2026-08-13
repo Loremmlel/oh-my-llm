@@ -49,7 +49,9 @@ class NotificationBubbleContent extends StatelessWidget {
           child: Container(
             constraints: const BoxConstraints(maxWidth: 320),
             decoration: BoxDecoration(
-              color: cs.inverseSurface,
+              // 跟随主题方向的浮层表面色：light 浅底 / dark 深底，与主应用明暗一致。
+              // 不用 inverseSurface——那是 SnackBar 式「反色浮层」，会与主应用色调相反。
+              color: cs.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
@@ -77,10 +79,7 @@ class NotificationBubbleContent extends StatelessWidget {
                   child: ExcludeSemantics(
                     child: Text(
                       data.message,
-                      style: TextStyle(
-                        color: cs.onInverseSurface,
-                        fontSize: 14,
-                      ),
+                      style: TextStyle(color: cs.onSurface, fontSize: 14),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -114,7 +113,7 @@ class NotificationBubbleContent extends StatelessWidget {
                         tooltip: '关闭通知',
                         child: const Icon(Icons.close, size: 16),
                       ),
-                      color: cs.onInverseSurface.withValues(alpha: 0.6),
+                      color: cs.onSurface.withValues(alpha: 0.6),
                       padding: EdgeInsets.zero,
                       visualDensity: VisualDensity.compact,
                       splashRadius: 12,
