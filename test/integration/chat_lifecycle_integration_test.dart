@@ -21,7 +21,7 @@ import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation_summary.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 
-import '../features/chat/chat_screen/chat_screen_test_helpers.dart';
+import '../features/chat/presentation/chat_screen/chat_screen_test_helpers.dart';
 import '../helpers/async_test_signals.dart';
 import '../helpers/integration_test_helpers.dart';
 

@@ -13,7 +13,7 @@ import 'package:oh_my_llm/features/chat/application/history/history_pagination_c
 import 'package:oh_my_llm/features/chat/domain/chat_conversation_groups.dart';
 import 'package:oh_my_llm/features/chat/domain/history_pagination_state.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation_summary.dart';
-import 'package:oh_my_llm/features/chat/presentation/widgets/grouped_conversation_list.dart';
+import 'package:oh_my_llm/features/chat/presentation/widgets/sidebar/grouped_conversation_list.dart';
 import 'widgets/history_widgets.dart';
 
 /// Chat read model 的历史对话页入口，支持搜索、批量选择、删除和重命名。

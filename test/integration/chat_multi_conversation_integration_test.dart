@@ -17,7 +17,7 @@ import 'package:oh_my_llm/features/chat/application/ports/chat_conversation_repo
 import 'package:oh_my_llm/features/chat/data/persistence/sqlite_chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 
-import '../features/chat/chat_screen/chat_screen_test_helpers.dart';
+import '../features/chat/presentation/chat_screen/chat_screen_test_helpers.dart';
 import '../helpers/integration_test_helpers.dart';
 
 void main() {

@@ -27,7 +27,7 @@ import 'package:oh_my_llm/features/settings/data/preset_prompt_repository.dart';
 import 'package:oh_my_llm/features/settings/domain/models/llm_provider_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/preset_prompt.dart';
 
-import '../features/chat/chat_screen/chat_screen_test_helpers.dart';
+import '../features/chat/presentation/chat_screen/chat_screen_test_helpers.dart';
 import '../helpers/integration_test_helpers.dart';
 
 void main() {

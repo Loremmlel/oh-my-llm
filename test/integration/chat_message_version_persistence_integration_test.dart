@@ -11,7 +11,7 @@ import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_contr
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/domain/chat_message_parent.dart';
 
-import '../features/chat/chat_screen/chat_screen_test_helpers.dart';
+import '../features/chat/presentation/chat_screen/chat_screen_test_helpers.dart';
 import '../helpers/integration_test_helpers.dart';
 
 void main() {

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'package:oh_my_llm/core/utils/date_formatting.dart';
-import 'package:oh_my_llm/features/chat/presentation/widgets/reasoning_panel.dart';
-import 'package:oh_my_llm/features/chat/presentation/widgets/streaming_markdown_view.dart';
+import 'package:oh_my_llm/features/chat/presentation/widgets/messages/bubble/reasoning_panel.dart';
+import 'package:oh_my_llm/features/chat/presentation/widgets/messages/bubble/streaming_markdown_view.dart';
 import '../../domain/models/favorite.dart';
 
 /// 单条收藏卡片，展示用户消息、模型回复和来源元信息。

@@ -13,7 +13,7 @@ import '../../../application/requests/checkpoint_request_context.dart';
 import '../../../domain/chat_word_counter.dart';
 import '../../../domain/models/chat_checkpoint.dart';
 import '../../../domain/models/chat_conversation.dart';
-import '../streaming_markdown_view.dart';
+import '../messages/bubble/streaming_markdown_view.dart';
 import 'checkpoint_selection_header.dart';
 import 'checkpoint_selection_tile.dart';
 
