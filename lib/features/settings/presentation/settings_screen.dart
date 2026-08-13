@@ -20,11 +20,11 @@ import '../domain/models/providers/llm_provider_config.dart';
 import '../domain/models/prompts/memory_prompt.dart';
 import '../domain/models/prompts/preset_prompt.dart';
 import '../domain/models/prompts/template_prompt.dart';
-import 'widgets/import_confirm_dialog.dart';
+import 'widgets/transfer/import_confirm_dialog.dart';
 import 'widgets/settings_widgets.dart';
-import 'widgets/tab/network_settings_tab.dart';
-import 'widgets/tab/other_settings_tab.dart';
-import 'widgets/tab/output_processing_tab.dart';
+import 'widgets/tabs/network_settings_tab.dart';
+import 'widgets/tabs/other_settings_tab.dart';
+import 'widgets/tabs/output_processing_tab.dart';
 
 const _tabProviders = 0;
 const _tabPresets = 1;
