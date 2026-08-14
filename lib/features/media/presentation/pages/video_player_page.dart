@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -5,18 +7,20 @@ import 'package:video_player/video_player.dart';
 
 import 'package:oh_my_llm/features/media/application/models/media_resource.dart';
 import '../widgets/video_player_controls.dart';
+import 'desktop_video_interaction_controller.dart';
 import 'media_video_controller_factory.dart';
 import 'mobile_video_interaction_controller.dart';
 import 'video_playback_controller.dart';
 import 'video_playback_state.dart';
+import 'video_player_platform_bindings.dart';
 
 /// 全屏视频播放器。
 ///
 /// 应用暂停只暂停播放；控制器和计时器仅在路由 dispose 时释放。
 /// 播放源是解析完成的 [MediaResource]，平台控制器经
 /// [controllerFactory] 创建（测试注入 Fake 的 seam）。
-/// 页面只负责组合共享播放核心、移动端输入层、控制栏与焦点管理，
-/// 不再直接调用底层播放器命令。
+/// 页面只负责组合共享播放核心、当前平台输入层、控制栏与焦点管理，
+/// 不再直接调用底层播放器命令或平台系统 UI。
 class VideoPlayerPage extends StatefulWidget {
   final MediaResource resource;
   final String fileName;
@@ -24,10 +28,15 @@ class VideoPlayerPage extends StatefulWidget {
   /// 平台控制器工厂：默认按资源类型选择本地/网络数据源。
   final MediaVideoControllerFactory controllerFactory;
 
+  /// 页面级平台 bindings 工厂：一次生命周期调用一次，生成当前平台的
+  /// Mobile/Desktop bindings。由 app composition 注入，测试显式传 Fake。
+  final VideoPlayerPlatformBindingsFactory platformBindingsFactory;
+
   const VideoPlayerPage({
     super.key,
     required this.resource,
     required this.fileName,
+    required this.platformBindingsFactory,
     this.controllerFactory = createMediaVideoController,
   });
 
@@ -38,14 +47,31 @@ class VideoPlayerPage extends StatefulWidget {
 class _VideoPlayerPageState extends State<VideoPlayerPage>
     with WidgetsBindingObserver {
   late final VideoPlaybackController _playback;
-  late final MobileVideoInteractionController _mobile;
+  late final VideoPlayerPlatformBindings _bindings;
+  MobileVideoInteractionController? _mobile;
+  DesktopVideoInteractionController? _desktop;
 
   /// 播放表面焦点：键盘快捷键只在它拥有主焦点时生效。
   final _playerFocusNode = FocusNode();
 
+  /// 页面级按键作用域：Desktop 的 M/F/Escape 只在无更高层弹层时由此处理。
+  final _pageFocusNode = FocusNode(canRequestFocus: false);
+
   /// top/bottom 控制栏祖先焦点节点：只观察 descendant focus，自身不可请求焦点。
   final _topControlsFocusNode = FocusNode(canRequestFocus: false);
   final _bottomControlsFocusNode = FocusNode(canRequestFocus: false);
+
+  /// Desktop 初始化成功后已请求过一次表面焦点，重试后重新请求。
+  bool _desktopFocusedAfterInit = false;
+
+  /// 关闭流程进行中：阻止同一关闭命令被多次触发。
+  bool _closing = false;
+
+  /// 关闭流程已完成系统 UI / 全屏恢复；dispose 据此跳过重复 fallback。
+  bool _restoreCompleted = false;
+
+  /// 真正 pop 的短暂放行标志：恢复完成后置位，让 PopScope 允许本次 pop。
+  bool _allowPop = false;
 
   @override
   void initState() {
@@ -55,56 +81,105 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
       controllerFactory: widget.controllerFactory,
       onStateChanged: _handleStateChanged,
     );
-    _mobile = MobileVideoInteractionController(playback: _playback);
+    // 页面一次生命周期只创建一种 bindings：Android 建 Mobile、Windows 建
+    // Desktop，两个输入 controller 不同时存活。
+    _bindings = widget.platformBindingsFactory();
+    switch (_bindings) {
+      case MobileVideoPlayerBindings(:final systemUi):
+        _mobile = MobileVideoInteractionController(playback: _playback);
+        unawaited(systemUi.enter());
+      case DesktopVideoPlayerBindings(:final fullscreen):
+        _desktop = DesktopVideoInteractionController(
+          playback: _playback,
+          fullscreen: fullscreen,
+          onRequestClose: _requestClose,
+          onInteractionChanged: _handleStateChanged,
+        );
+        unawaited(fullscreen.initializeSession());
+    }
 
-    // 焦点边框随 focus 变化重建；控制栏焦点变化驱动 hide timer。
-    _playerFocusNode.addListener(() => setState(() {}));
+    // 焦点边框随 focus 变化重建；表面失焦时通知 Desktop 取消在途输入；
+    // 控制栏焦点变化驱动 hide timer。
+    _playerFocusNode.addListener(_onPlayerFocusChanged);
     _topControlsFocusNode.addListener(_onControlsFocusChanged);
     _bottomControlsFocusNode.addListener(_onControlsFocusChanged);
 
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     WidgetsBinding.instance.addObserver(this);
-
     _initPlayer();
   }
 
   /// 按当前 [MediaResource] 创建并初始化播放器；重试与首次进入共用同一条路径。
   void _initPlayer() {
+    _desktopFocusedAfterInit = false;
+    _desktop?.cancelForRetry();
     _playback.initialize();
-  }
-
-  /// 顶部关闭按钮与 Escape 共用的页面关闭路径。
-  void _popVideo() {
-    Navigator.pop(context);
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _playerFocusNode.dispose();
+    _pageFocusNode.dispose();
     _topControlsFocusNode.dispose();
     _bottomControlsFocusNode.dispose();
-    _mobile.dispose();
+    _desktop?.dispose();
+    _mobile?.dispose();
     _playback.dispose();
-
-    SystemChrome.setEnabledSystemUIMode(
-      SystemUiMode.manual,
-      overlays: SystemUiOverlay.values,
-    );
-    SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+    if (!_restoreCompleted) {
+      // 外部强制移除路由的兜底：幂等恢复系统 UI / 全屏会话，不得 await。
+      final bindings = _bindings;
+      if (bindings is DesktopVideoPlayerBindings) {
+        unawaited(bindings.fullscreen.restoreAndDispose());
+      } else if (bindings is MobileVideoPlayerBindings) {
+        unawaited(bindings.systemUi.restore());
+      }
+    }
     super.dispose();
   }
 
-  /// 状态变化回调：控制栏被隐藏时若控制内仍有键盘焦点，
-  /// 下一帧把焦点恢复到播放表面，禁止留下不可见焦点。
+  /// 顶部关闭、windowed Escape、系统返回与 GoRouter pop 共用的关闭路径。
+  ///
+  /// 先等待平台会话恢复（桌面全屏恢复 / 移动系统 UI 恢复），再把 PopScope
+  /// 放行状态置位并等待一帧，最后执行真正的 route pop。等待 [endOfFrame]
+  /// 只用于让 `PopScope.canPop` 的放行状态进入树，不是通用异步 flush；
+  /// 恢复失败仍继续 pop，不把用户困在播放器。
+  Future<void> _requestClose() async {
+    if (_closing) return;
+    _closing = true;
+    final bindings = _bindings;
+    if (bindings is DesktopVideoPlayerBindings) {
+      await bindings.fullscreen.restoreAndDispose();
+    } else if (bindings is MobileVideoPlayerBindings) {
+      await bindings.systemUi.restore();
+    }
+    _restoreCompleted = true;
+    if (!mounted) return;
+    setState(() => _allowPop = true);
+    await WidgetsBinding.instance.endOfFrame;
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  void _handlePopInvokedWithResult(bool didPop, Object? result) {
+    if (didPop) return;
+    unawaited(_requestClose());
+  }
+
+  /// 状态变化回调：Desktop 初始化成功后在下一帧自动聚焦播放表面；
+  /// 控制栏被隐藏时若控制内仍有键盘焦点，下一帧把焦点恢复到播放表面。
   void _handleStateChanged() {
     if (!mounted) return;
-    final controlsHidden = !_playback.state.controlsVisible;
+    final s = _playback.state;
+    final desktop = _desktop;
+    if (desktop != null &&
+        !_desktopFocusedAfterInit &&
+        s.isInitialized &&
+        !s.hasError) {
+      _desktopFocusedAfterInit = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _playerFocusNode.requestFocus();
+      });
+    }
+    final controlsHidden = !s.controlsVisible;
     final controlsFocused =
         _topControlsFocusNode.hasFocus || _bottomControlsFocusNode.hasFocus;
     if (controlsHidden && controlsFocused) {
@@ -113,6 +188,14 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
       });
     }
     setState(() {});
+  }
+
+  /// 播放表面焦点变化：边框随焦点重建；失焦时通知 Desktop 取消在途方向键。
+  void _onPlayerFocusChanged() {
+    setState(() {});
+    if (!_playerFocusNode.hasPrimaryFocus) {
+      _desktop?.onSurfaceFocusLost();
+    }
   }
 
   /// 焦点进入任一控制栏时暂停自动隐藏；全部离开后恢复原计时。
@@ -124,64 +207,99 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
     }
   }
 
-  /// 播放表面按键：只响应 KeyDown（忽略 KeyUp/KeyRepeat），
-  /// 且仅在表面拥有主焦点时生效，其余情况交还平台默认行为。
-  KeyEventResult _handlePlayerKeyEvent(FocusNode node, KeyEvent event) {
+  /// 播放表面按键：Desktop 直接交给桌面状态机；Mobile 只在表面拥有主焦点
+  /// 时响应 Escape 关闭与 Enter/Space/左右方向键。
+  KeyEventResult _handleSurfaceKeyEvent(FocusNode node, KeyEvent event) {
+    final desktop = _desktop;
+    if (desktop != null) return desktop.handleSurfaceKey(event);
+    final mobile = _mobile;
+    if (mobile == null) return KeyEventResult.ignored;
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
     if (!_playerFocusNode.hasPrimaryFocus) return KeyEventResult.ignored;
     if (event.logicalKey == LogicalKeyboardKey.escape) {
-      _popVideo();
+      unawaited(_requestClose());
       return KeyEventResult.handled;
     }
-    return _mobile.handleSurfaceKey(event);
+    return mobile.handleSurfaceKey(event);
+  }
+
+  /// 页面级按键：Desktop 的 M/F/Escape 在事件冒泡到视频页时处理；
+  /// Mobile 无页面级快捷键。弹层持有焦点时事件先被弹层消费，不会到达这里。
+  KeyEventResult _handlePageKeyEvent(FocusNode node, KeyEvent event) {
+    final desktop = _desktop;
+    if (desktop == null) return KeyEventResult.ignored;
+    return desktop.handlePageKey(event);
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState lifecycleState) {
-    if (lifecycleState == AppLifecycleState.paused) {
+    if (lifecycleState == AppLifecycleState.inactive ||
+        lifecycleState == AppLifecycleState.paused) {
       _playback.onAppLifecyclePaused();
+      _desktop?.onWindowBlur();
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final s = _playback.state;
-    _mobile.updateScreenWidth(MediaQuery.sizeOf(context).width);
+    _mobile?.updateScreenWidth(MediaQuery.sizeOf(context).width);
 
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: FocusTraversalGroup(
-        policy: OrderedTraversalPolicy(),
-        child: Stack(
-          children: [
-            Positioned.fill(child: _buildPlaybackInteractionLayer(s)),
-            IgnorePointer(
-              child: Center(
-                child: VideoCenterHint(
-                  visible:
-                      s.isInitialized &&
-                      !s.hasError &&
-                      (!s.isPlaying || s.centerFeedback != null),
-                  feedback: s.centerFeedback,
-                  showPauseIcon: s.isInitialized && !s.hasError && !s.isPlaying,
+    return PopScope(
+      canPop: _allowPop,
+      onPopInvokedWithResult: _handlePopInvokedWithResult,
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: Focus(
+          // 页面级按键作用域不参与 focus 语义：canRequestFocus 为 false，
+          // includeSemantics 关闭避免在语义树中生成合并节点干扰播放表面。
+          focusNode: _pageFocusNode,
+          includeSemantics: false,
+          onKeyEvent: _handlePageKeyEvent,
+          child: FocusTraversalGroup(
+            policy: OrderedTraversalPolicy(),
+            child: Stack(
+              children: [
+                Positioned.fill(child: _buildInteractionLayer(s)),
+                IgnorePointer(
+                  child: Center(
+                    child: VideoCenterHint(
+                      visible:
+                          s.isInitialized &&
+                          !s.hasError &&
+                          (!s.isPlaying || s.centerFeedback != null),
+                      feedback: s.centerFeedback,
+                      showPauseIcon:
+                          s.isInitialized && !s.hasError && !s.isPlaying,
+                    ),
+                  ),
                 ),
-              ),
+                FocusTraversalOrder(
+                  order: const NumericFocusOrder(2),
+                  child: _buildTopControls(s),
+                ),
+                FocusTraversalOrder(
+                  order: const NumericFocusOrder(3),
+                  child: _buildBottomControls(s),
+                ),
+              ],
             ),
-            FocusTraversalOrder(
-              order: const NumericFocusOrder(2),
-              child: _buildTopControls(s),
-            ),
-            FocusTraversalOrder(
-              order: const NumericFocusOrder(3),
-              child: _buildBottomControls(s),
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  /// 播放交互层：播放表面 + 全屏手势 overlay。
+  /// 按当前平台 bindings 构建交互层：Mobile 保留触摸手势，Desktop 只保留
+  /// 单击/双击基础层（鼠标活动、光标与滚轮由后续任务扩展）。
+  Widget _buildInteractionLayer(VideoPlaybackState s) {
+    return switch (_bindings) {
+      MobileVideoPlayerBindings() => _buildMobileInteractionLayer(s),
+      DesktopVideoPlayerBindings() => _buildDesktopInteractionLayer(s),
+    };
+  }
+
+  /// 移动端交互层：播放表面 + 全屏手势 overlay。
   ///
   /// 手势 overlay 与控制栏是兄弟层：控制栏绘制在 overlay 之后，hit test
   /// 优先命中控制栏，按钮 tap 不再被双击识别器的窗口拖延。overlay 左右
@@ -189,12 +307,14 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
   /// 手势），`systemGestureInsets` 只影响命中区域、不缩小视频画面。
   /// 播放表面等比居中、不随视口拉伸；错误/加载状态不建 overlay，
   /// 重试按钮可立即点击。
-  Widget _buildPlaybackInteractionLayer(VideoPlaybackState s) {
+  Widget _buildMobileInteractionLayer(VideoPlaybackState s) {
     final playbackSurface = FocusTraversalOrder(
       order: const NumericFocusOrder(1),
       child: _buildPlaybackSurface(s),
     );
     if (!s.isInitialized || s.hasError) return playbackSurface;
+    final mobile = _mobile;
+    if (mobile == null) return playbackSurface;
 
     final insets = MediaQuery.systemGestureInsetsOf(context);
     return Stack(
@@ -215,7 +335,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
               TapGestureRecognizer:
                   GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
                     () => TapGestureRecognizer(debugOwner: this),
-                    (instance) => instance.onTap = _mobile.handleTap,
+                    (instance) => instance.onTap = mobile.handleTap,
                   ),
               DoubleTapGestureRecognizer:
                   GestureRecognizerFactoryWithHandlers<
@@ -223,8 +343,8 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
                   >(() => DoubleTapGestureRecognizer(debugOwner: this), (
                     instance,
                   ) {
-                    instance.onDoubleTapDown = _mobile.handleDoubleTapDown;
-                    instance.onDoubleTap = _mobile.handleDoubleTap;
+                    instance.onDoubleTapDown = mobile.handleDoubleTapDown;
+                    instance.onDoubleTap = mobile.handleDoubleTap;
                   }),
               LongPressGestureRecognizer:
                   GestureRecognizerFactoryWithHandlers<
@@ -232,9 +352,9 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
                   >(() => LongPressGestureRecognizer(debugOwner: this), (
                     instance,
                   ) {
-                    instance.onLongPressStart = _mobile.handleLongPressStart;
-                    instance.onLongPressEnd = _mobile.handleLongPressEnd;
-                    instance.onLongPressCancel = _mobile.handleLongPressCancel;
+                    instance.onLongPressStart = mobile.handleLongPressStart;
+                    instance.onLongPressEnd = mobile.handleLongPressEnd;
+                    instance.onLongPressCancel = mobile.handleLongPressCancel;
                   }),
               CancelAwareHorizontalDragRecognizer:
                   GestureRecognizerFactoryWithHandlers<
@@ -242,10 +362,10 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
                   >(
                     () => CancelAwareHorizontalDragRecognizer(debugOwner: this),
                     (instance) {
-                      instance.onStart = _mobile.handleHorizontalDragStart;
-                      instance.onUpdate = _mobile.handleHorizontalDragUpdate;
-                      instance.onEnd = _mobile.handleHorizontalDragEnd;
-                      instance.onCancel = _mobile.handleHorizontalDragCancel;
+                      instance.onStart = mobile.handleHorizontalDragStart;
+                      instance.onUpdate = mobile.handleHorizontalDragUpdate;
+                      instance.onEnd = mobile.handleHorizontalDragEnd;
+                      instance.onCancel = mobile.handleHorizontalDragCancel;
                     },
                   ),
             },
@@ -253,6 +373,43 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
         ),
       ],
     );
+  }
+
+  /// 桌面交互层：播放表面 + 单击/双击 overlay。
+  ///
+  /// 单击播放/暂停，双击切换原生全屏；不安装移动端双击 Seek、长按倍速与
+  /// 横拖 Seek。overlay 与控制栏是兄弟层，控制栏绘制在其上，优先命中。
+  Widget _buildDesktopInteractionLayer(VideoPlaybackState s) {
+    final playbackSurface = FocusTraversalOrder(
+      order: const NumericFocusOrder(1),
+      child: _buildPlaybackSurface(s),
+    );
+    if (!s.isInitialized || s.hasError) return playbackSurface;
+
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        playbackSurface,
+        Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: _playback.togglePlayPause,
+            onDoubleTap: () => unawaited(_toggleDesktopFullscreen()),
+            child: const SizedBox.expand(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 双击切换原生全屏：插件失败只显示固定安全文案，不伪造状态、不关闭页面。
+  Future<void> _toggleDesktopFullscreen() async {
+    final bindings = _bindings;
+    if (bindings is! DesktopVideoPlayerBindings) return;
+    final result = await bindings.fullscreen.toggle();
+    if (!result.succeeded) {
+      _playback.showOperationFailure('无法切换全屏');
+    }
   }
 
   /// 已初始化的播放表面：可聚焦、可激活、带键盘快捷键与焦点边框。
@@ -284,10 +441,10 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
       hint: hint,
       button: true,
       enabled: true,
-      onTap: _mobile.handleTap,
+      onTap: _handleSurfaceSemanticsTap,
       child: Focus(
         focusNode: _playerFocusNode,
-        onKeyEvent: _handlePlayerKeyEvent,
+        onKeyEvent: _handleSurfaceKeyEvent,
         child: Container(
           decoration: BoxDecoration(
             // 聚焦时在播放区域边缘显示主题 primary 色焦点边框。
@@ -305,6 +462,16 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
         ),
       ),
     );
+  }
+
+  /// 语义 tap 的等价键盘操作：Mobile 切换控制栏，Desktop 播放/暂停。
+  void _handleSurfaceSemanticsTap() {
+    final mobile = _mobile;
+    if (mobile != null) {
+      mobile.handleTap();
+      return;
+    }
+    _playback.togglePlayPause();
   }
 
   /// 错误状态：单一 live status 节点；可见 icon/text 排除重复语义，
@@ -368,7 +535,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
                       fileName: widget.fileName,
                       playbackSpeed: s.persistentSpeed,
                       volume: s.volume,
-                      onBack: _popVideo,
+                      onBack: () => unawaited(_requestClose()),
                       onSpeedChanged: _playback.setPersistentSpeed,
                       onVolumeChanged: _playback.setVolume,
                       onInteractionStarted: _playback.holdControlsVisible,

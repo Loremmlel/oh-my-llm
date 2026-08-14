@@ -11,13 +11,19 @@ import 'package:oh_my_llm/features/media/application/models/media_resource_reque
 import 'package:oh_my_llm/features/media/presentation/media_browser_tab.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/media_route_pages.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/media_video_controller_factory.dart';
+import 'package:oh_my_llm/features/media/presentation/pages/video_player_platform_bindings.dart';
 import 'package:oh_my_llm/features/media/presentation/widgets/media_grid_view.dart';
 
 import '../../../helpers/test_harness.dart';
 import '../../../helpers/async/widget_test_animation.dart';
 import '../helpers/fake_media_library.dart';
 import '../helpers/fake_video_player_controller.dart';
+import '../helpers/fake_video_player_platform_bindings.dart';
 import '../helpers/media_test_helpers.dart';
+
+/// 测试用的 Mobile bindings factory：显式注入 Fake，禁止依赖宿主 Windows 平台。
+VideoPlayerPlatformBindings _mobileTestBindings() =>
+    MobileVideoPlayerBindings(systemUi: FakeMobileVideoSystemUiController());
 
 Future<SharedPreferences> _testPrefs() async {
   SharedPreferences.setMockInitialValues({});
@@ -76,6 +82,7 @@ GoRouter _mediaRouter({MediaVideoControllerFactory? videoControllerFactory}) {
             builder: (context, state) => MediaVideoRoutePage(
               relativePath:
                   state.uri.queryParameters[AppRouteParameter.mediaPath],
+              bindingsFactory: _mobileTestBindings,
               controllerFactory:
                   videoControllerFactory ??
                   (resource) => FakeVideoPlayerController(),

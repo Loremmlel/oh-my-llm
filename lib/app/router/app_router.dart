@@ -7,8 +7,10 @@ import 'package:oh_my_llm/features/favorites/presentation/favorite_detail_screen
 import 'package:oh_my_llm/features/favorites/presentation/favorites_screen.dart';
 import 'package:oh_my_llm/features/history/presentation/history_screen.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/media_route_pages.dart';
+import 'package:oh_my_llm/features/media/presentation/pages/video_player_platform_bindings.dart';
 import 'package:oh_my_llm/features/settings/presentation/settings_screen.dart';
 import '../composition/sync_workspace_screen.dart';
+import '../composition/video_player_platform_bindings_factory.dart';
 import '../navigation/app_destination.dart';
 
 /// 应用顶层路由配置。
@@ -17,16 +19,24 @@ import '../navigation/app_destination.dart';
 /// 收藏详情是 favorites 的 child，经 pushNamed 进入、pop 回到列表。
 /// 初始落地页为聊天页。
 final appRouterProvider = Provider<GoRouter>((ref) {
-  final router = createAppRouter();
+  final router = createAppRouter(
+    videoPlayerBindingsFactory: createAppVideoPlayerBindingsFactory(),
+  );
   ref.onDispose(router.dispose);
   return router;
 });
 
 /// 创建应用 GoRouter，可传入 [initialLocation] 供测试直接打开深链。
 ///
+/// [videoPlayerBindingsFactory] 由 app composition 提供页面级平台 bindings：
+/// 每次打开视频时由页面调用一次。测试显式注入 fake 工厂，禁止依赖宿主平台。
+///
 /// 默认参数必须是编译期常量，而枚举实例属性不能出现在常量表达式中，
 /// 故用可空参数 + 运行时兜底指向聊天页。
-GoRouter createAppRouter({String? initialLocation}) {
+GoRouter createAppRouter({
+  String? initialLocation,
+  required VideoPlayerPlatformBindingsFactory videoPlayerBindingsFactory,
+}) {
   return GoRouter(
     initialLocation: initialLocation ?? AppDestination.chat.path,
     routes: [
@@ -78,6 +88,7 @@ GoRouter createAppRouter({String? initialLocation}) {
             builder: (context, state) => MediaVideoRoutePage(
               relativePath:
                   state.uri.queryParameters[AppRouteParameter.mediaPath],
+              bindingsFactory: videoPlayerBindingsFactory,
             ),
           ),
         ],

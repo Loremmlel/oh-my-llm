@@ -9,13 +9,19 @@ import 'package:oh_my_llm/features/media/application/models/media_resource.dart'
 import 'package:oh_my_llm/features/media/application/models/media_resource_request.dart';
 import 'package:oh_my_llm/features/media/domain/models/video_item.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/media_route_pages.dart';
+import 'package:oh_my_llm/features/media/presentation/pages/video_player_platform_bindings.dart';
 import 'package:oh_my_llm/features/media/presentation/widgets/shuffle_appbar_actions.dart';
 
 import '../../../../helpers/test_harness.dart';
 import '../../../../helpers/async/widget_test_animation.dart';
 import '../../helpers/fake_media_library.dart';
 import '../../helpers/fake_video_player_controller.dart';
+import '../../helpers/fake_video_player_platform_bindings.dart';
 import '../../helpers/media_test_helpers.dart';
+
+/// 测试用的 Mobile bindings factory：显式注入 Fake，禁止依赖宿主 Windows 平台。
+VideoPlayerPlatformBindings _mobileTestBindings() =>
+    MobileVideoPlayerBindings(systemUi: FakeMobileVideoSystemUiController());
 
 /// 记录 onPlayerExited 调用次数的随机播放控制器替身。
 class RecordingShuffleController extends ShufflePlaybackController {
@@ -68,6 +74,7 @@ GoRouter _shuffleRouter(RecordingShuffleController shuffleController) {
             builder: (context, state) => MediaVideoRoutePage(
               relativePath:
                   state.uri.queryParameters[AppRouteParameter.mediaPath],
+              bindingsFactory: _mobileTestBindings,
               controllerFactory: (resource) => FakeVideoPlayerController(),
             ),
           ),

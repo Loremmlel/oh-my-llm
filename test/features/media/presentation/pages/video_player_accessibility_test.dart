@@ -11,16 +11,22 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/media/application/models/media_resource.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/video_player_page.dart';
+import 'package:oh_my_llm/features/media/presentation/pages/video_player_platform_bindings.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/video_playback_state.dart';
 import 'package:oh_my_llm/features/media/presentation/widgets/video_player_controls.dart';
 
 import '../../../../helpers/responsive_viewport_cases.dart';
 import '../../../../helpers/async/widget_test_animation.dart';
 import '../../helpers/fake_video_player_controller.dart';
+import '../../helpers/fake_video_player_platform_bindings.dart';
 
 /// 测试用的远端资源（避免真实平台通道，控制器一律经 factory 注入 Fake）。
 NetworkMediaResource _testResource() =>
     NetworkMediaResource(Uri.parse('http://localhost/test.mp4'));
+
+/// 测试用的 Mobile bindings factory：显式注入 Fake，禁止依赖宿主 Windows 平台。
+VideoPlayerPlatformBindings _mobileTestBindings() =>
+    MobileVideoPlayerBindings(systemUi: FakeMobileVideoSystemUiController());
 
 /// 按 tooltip 语义属性定位语义节点（IconButton/PopupMenuButton 的 tooltip 在语义树中为 tooltip 属性）。
 SemanticsFinder semanticsByTooltip(String tooltip) =>
@@ -76,6 +82,7 @@ Future<void> _pumpVideo(
         resource: _testResource(),
         fileName: 'test-video.mp4',
         controllerFactory: (resource) => fake,
+        platformBindingsFactory: _mobileTestBindings,
       ),
     ),
   );
@@ -140,6 +147,7 @@ void main() {
             fileName: 'test-video.mp4',
             controllerFactory: (resource) =>
                 _NeverInitializingVideoPlayerController(),
+            platformBindingsFactory: _mobileTestBindings,
           ),
         ),
       );
@@ -276,6 +284,7 @@ void main() {
                     resource: _testResource(),
                     fileName: 'test-video.mp4',
                     controllerFactory: (resource) => fake,
+                    platformBindingsFactory: _mobileTestBindings,
                   ),
                   transitionDuration: Duration.zero,
                   reverseTransitionDuration: Duration.zero,
@@ -349,6 +358,7 @@ void main() {
             resource: _testResource(),
             fileName: 'test-video.mp4',
             controllerFactory: (resource) => failing,
+            platformBindingsFactory: _mobileTestBindings,
           ),
         ),
       );

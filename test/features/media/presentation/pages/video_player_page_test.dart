@@ -5,17 +5,23 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/features/media/application/models/media_resource.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/media_video_controller_factory.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/video_player_page.dart';
+import 'package:oh_my_llm/features/media/presentation/pages/video_player_platform_bindings.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/video_playback_state.dart';
 import 'package:oh_my_llm/features/media/presentation/widgets/video_player_controls.dart';
 
 import '../../../../helpers/async/widget_test_animation.dart';
 import '../../helpers/fake_video_player_controller.dart';
+import '../../helpers/fake_video_player_platform_bindings.dart';
 
 // ── 测试助手 ─────────────────────────────────────────────────────────
 
 /// 测试用的远端资源（避免真实平台通道，控制器一律经 factory 注入 Fake）。
 NetworkMediaResource _testResource() =>
     NetworkMediaResource(Uri.parse('http://localhost/test.mp4'));
+
+/// 测试用的 Mobile bindings factory：显式注入 Fake，禁止依赖宿主 Windows 平台。
+VideoPlayerPlatformBindings _mobileTestBindings() =>
+    MobileVideoPlayerBindings(systemUi: FakeMobileVideoSystemUiController());
 
 /// 包裹 widget 到 MaterialApp + Navigator 中，模拟真实导航场景。
 Widget _wrapWithMaterialApp(Widget child) {
@@ -35,11 +41,13 @@ Widget _buildTestPageWithFake({
   required FakeVideoPlayerController fakeController,
   MediaVideoControllerFactory? controllerFactory,
   MediaQueryData? mediaQuery,
+  VideoPlayerPlatformBindingsFactory? bindingsFactory,
 }) {
   Widget page = VideoPlayerPage(
     resource: _testResource(),
     fileName: 'test-video.mp4',
     controllerFactory: controllerFactory ?? (resource) => fakeController,
+    platformBindingsFactory: bindingsFactory ?? _mobileTestBindings,
   );
   if (mediaQuery != null) {
     page = MediaQuery(data: mediaQuery, child: page);
@@ -50,6 +58,7 @@ Widget _buildTestPageWithFake({
 /// 以零时长路由推入页面，令 pop 的一帧断言只验证资源释放。
 Widget _buildPushedTestPageWithFake({
   required FakeVideoPlayerController fakeController,
+  VideoPlayerPlatformBindingsFactory? bindingsFactory,
 }) {
   return MaterialApp(
     home: Builder(
@@ -60,6 +69,7 @@ Widget _buildPushedTestPageWithFake({
               resource: _testResource(),
               fileName: 'test-video.mp4',
               controllerFactory: (resource) => fakeController,
+              platformBindingsFactory: bindingsFactory ?? _mobileTestBindings,
             ),
             transitionDuration: Duration.zero,
             reverseTransitionDuration: Duration.zero,
@@ -419,6 +429,37 @@ void main() {
       await tester.pump();
 
       expect(fakeController.disposeCount, 1);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 移动系统 UI 会话
+  // ═══════════════════════════════════════════════════════════════════
+
+  group('移动系统 UI 会话', () {
+    testWidgets('打开进入沉浸式系统 UI，关闭后恢复一次', (tester) async {
+      final systemUi = FakeMobileVideoSystemUiController();
+      final fake = FakeVideoPlayerController();
+      await tester.pumpWidget(
+        _buildPushedTestPageWithFake(
+          fakeController: fake,
+          bindingsFactory: () => MobileVideoPlayerBindings(systemUi: systemUi),
+        ),
+      );
+      await tester.tap(find.text('打开播放器'));
+      await tester.pump();
+      await fake.waitForInitializeCount(1);
+      await tester.pump();
+
+      // 页面打开：进入一次；重复 restore（正常关闭 + dispose fallback）
+      // 因 fake 幂等只记录一次。
+      expect(systemUi.calls, ['enter']);
+
+      await tester.tap(find.byTooltip('关闭视频'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(systemUi.calls, ['enter', 'restore']);
     });
   });
 

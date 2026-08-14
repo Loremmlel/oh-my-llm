@@ -8,6 +8,7 @@ final class FakeVideoFullscreenController implements VideoFullscreenController {
   bool actual = false;
   bool desired = false;
   bool failNext = false;
+  bool failRestore = false;
   final calls = <String>[];
 
   @override
@@ -50,18 +51,29 @@ final class FakeVideoFullscreenController implements VideoFullscreenController {
   @override
   Future<bool> restoreAndDispose() async {
     calls.add('restoreAndDispose');
-    return true;
+    return !failRestore;
   }
 }
 
 /// 用于测试的 Fake 移动系统 UI 控制器：记录进入/恢复调用顺序。
+///
+/// 与生产 [AndroidVideoSystemUiController] 一致地幂等：restore 只在已进入时
+/// 记录一次，重复到达不重复计数，保证「进入一次、恢复一次」的契约可断言。
 final class FakeMobileVideoSystemUiController
     implements MobileVideoSystemUiController {
   final calls = <String>[];
+  bool _entered = false;
 
   @override
-  Future<void> enter() async => calls.add('enter');
+  Future<void> enter() async {
+    calls.add('enter');
+    _entered = true;
+  }
 
   @override
-  Future<void> restore() async => calls.add('restore');
+  Future<void> restore() async {
+    if (!_entered) return;
+    calls.add('restore');
+    _entered = false;
+  }
 }

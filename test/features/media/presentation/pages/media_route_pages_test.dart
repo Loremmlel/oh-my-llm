@@ -7,17 +7,23 @@ import 'package:oh_my_llm/features/media/application/media_library_session_contr
 import 'package:oh_my_llm/features/media/application/models/media_resource.dart';
 import 'package:oh_my_llm/features/media/application/models/media_resource_request.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/media_route_pages.dart';
+import 'package:oh_my_llm/features/media/presentation/pages/video_player_platform_bindings.dart';
 
 import '../../../../helpers/test_harness.dart';
 import '../../../../helpers/async/widget_test_animation.dart';
 import '../../helpers/fake_media_library.dart';
 import '../../helpers/fake_video_player_controller.dart';
+import '../../helpers/fake_video_player_platform_bindings.dart';
 import '../../helpers/media_test_helpers.dart';
 
 Future<SharedPreferences> _testPrefs() async {
   SharedPreferences.setMockInitialValues({});
   return SharedPreferences.getInstance();
 }
+
+/// 测试用的 Mobile bindings factory：显式注入 Fake，禁止依赖宿主 Windows 平台。
+VideoPlayerPlatformBindings _mobileTestBindings() =>
+    MobileVideoPlayerBindings(systemUi: FakeMobileVideoSystemUiController());
 
 FileItem _image(String path) => FileItem(
   name: path.split('/').last,
@@ -164,6 +170,7 @@ void main() {
       ],
       child: MediaVideoRoutePage(
         relativePath: '/视频/demo.mp4',
+        bindingsFactory: _mobileTestBindings,
         controllerFactory: (resource) => fake,
       ),
     );
@@ -180,7 +187,12 @@ void main() {
     await pumpTestApp(
       tester,
       preferences: prefs,
-      router: _recoveryRouter(const MediaVideoRoutePage(relativePath: null)),
+      router: _recoveryRouter(
+        const MediaVideoRoutePage(
+          relativePath: null,
+          bindingsFactory: _mobileTestBindings,
+        ),
+      ),
     );
 
     expect(find.text('媒体链接无效'), findsOneWidget);
@@ -192,7 +204,10 @@ void main() {
       tester,
       preferences: prefs,
       router: _recoveryRouter(
-        const MediaVideoRoutePage(relativePath: '/a/readme.txt'),
+        const MediaVideoRoutePage(
+          relativePath: '/a/readme.txt',
+          bindingsFactory: _mobileTestBindings,
+        ),
       ),
     );
 

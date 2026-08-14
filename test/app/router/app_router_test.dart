@@ -6,14 +6,20 @@ import 'package:oh_my_llm/app/navigation/app_destination.dart';
 import 'package:oh_my_llm/app/router/app_router.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/favorites/data/sqlite_favorites_repository.dart';
+import 'package:oh_my_llm/features/media/presentation/pages/video_player_platform_bindings.dart';
 
 import '../../features/favorites/favorites_screen_test_helpers.dart';
+import '../../features/media/helpers/fake_video_player_platform_bindings.dart';
 import '../../helpers/test_harness.dart';
 import '../../helpers/async/widget_test_animation.dart';
 
 Future<SharedPreferences> _testPrefs(AppDatabase db) async {
   return createEmptyPreferences(db);
 }
+
+/// 测试用的 Mobile bindings factory：显式注入 Fake，禁止依赖宿主 Windows 平台。
+VideoPlayerPlatformBindings _mobileTestBindings() =>
+    MobileVideoPlayerBindings(systemUi: FakeMobileVideoSystemUiController());
 
 void main() {
   testWidgets('fresh router rebuild 后同一 URL 仍恢复详情', (tester) async {
@@ -32,7 +38,10 @@ void main() {
       tester,
       preferences: prefs,
       database: db,
-      router: createAppRouter(initialLocation: '/favorites/fav-rebuild'),
+      router: createAppRouter(
+        initialLocation: '/favorites/fav-rebuild',
+        videoPlayerBindingsFactory: _mobileTestBindings,
+      ),
     );
     await tester.pumpWidget(scope1);
     await tester.pump();
@@ -46,7 +55,10 @@ void main() {
       tester,
       preferences: prefs,
       database: db,
-      router: createAppRouter(initialLocation: '/favorites/fav-rebuild'),
+      router: createAppRouter(
+        initialLocation: '/favorites/fav-rebuild',
+        videoPlayerBindingsFactory: _mobileTestBindings,
+      ),
     );
     await tester.pumpWidget(scope2);
     await tester.pump();
@@ -61,7 +73,10 @@ void main() {
     addTearDown(db.close);
     final prefs = await _testPrefs(db);
 
-    final router = createAppRouter(initialLocation: '/favorites/%20');
+    final router = createAppRouter(
+      initialLocation: '/favorites/%20',
+      videoPlayerBindingsFactory: _mobileTestBindings,
+    );
     await pumpTestApp(tester, preferences: prefs, database: db, router: router);
 
     expect(find.text('收藏链接无效'), findsOneWidget);
@@ -84,7 +99,10 @@ void main() {
     // 通过 repository API 删除，模拟记录已被移除。
     SqliteFavoritesRepository(db).delete('fav-deleted');
 
-    final router = createAppRouter(initialLocation: '/favorites/fav-deleted');
+    final router = createAppRouter(
+      initialLocation: '/favorites/fav-deleted',
+      videoPlayerBindingsFactory: _mobileTestBindings,
+    );
     await pumpTestApp(tester, preferences: prefs, database: db, router: router);
 
     expect(find.text('收藏不存在'), findsOneWidget);
@@ -104,6 +122,7 @@ void main() {
 
     final router = createAppRouter(
       initialLocation: AppDestination.favorites.path,
+      videoPlayerBindingsFactory: _mobileTestBindings,
     );
     await pumpTestApp(tester, preferences: prefs, database: db, router: router);
 
@@ -142,7 +161,10 @@ void main() {
     addTearDown(db.close);
     final prefs = await _testPrefs(db);
 
-    final router = createAppRouter(initialLocation: AppDestination.sync.path);
+    final router = createAppRouter(
+      initialLocation: AppDestination.sync.path,
+      videoPlayerBindingsFactory: _mobileTestBindings,
+    );
     await pumpTestApp(tester, preferences: prefs, database: db, router: router);
 
     router.pushNamed(
@@ -176,7 +198,10 @@ void main() {
     addTearDown(db.close);
     final prefs = await _testPrefs(db);
 
-    final router = createAppRouter(initialLocation: AppDestination.sync.path);
+    final router = createAppRouter(
+      initialLocation: AppDestination.sync.path,
+      videoPlayerBindingsFactory: _mobileTestBindings,
+    );
     await pumpTestApp(tester, preferences: prefs, database: db, router: router);
 
     router.pushNamed(
@@ -197,7 +222,10 @@ void main() {
     addTearDown(db.close);
     final prefs = await _testPrefs(db);
 
-    final router = createAppRouter(initialLocation: '/sync/media/image');
+    final router = createAppRouter(
+      initialLocation: '/sync/media/image',
+      videoPlayerBindingsFactory: _mobileTestBindings,
+    );
     await pumpTestApp(tester, preferences: prefs, database: db, router: router);
 
     expect(find.text('媒体链接无效'), findsOneWidget);

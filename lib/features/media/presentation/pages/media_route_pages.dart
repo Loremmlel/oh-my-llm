@@ -14,6 +14,7 @@ import '../../utils/path_utils.dart';
 import 'image_viewer_page.dart';
 import 'media_video_controller_factory.dart';
 import 'video_player_page.dart';
+import 'video_player_platform_bindings.dart';
 
 /// 图片查看的 GoRouter 子路由适配页。
 ///
@@ -73,16 +74,20 @@ class MediaImageRoutePage extends ConsumerWidget {
 /// 视频播放的 GoRouter 子路由适配页。
 ///
 /// 从 URL query 接收媒体相对路径，经 [mediaResourceProvider] 懒解析
-/// 后重建 [VideoPlayerPage]；[controllerFactory] 仅作测试注入的播放器
+/// 后重建 [VideoPlayerPage]；[bindingsFactory] 由 app composition 注入的
+/// 页面级平台 bindings factory，只在资源解析成功、真正创建播放器时传入
+/// 页面（恢复页不创建 bindings）；[controllerFactory] 仅作测试注入的播放器
 /// 平台替换，不进入 route state。
 class MediaVideoRoutePage extends ConsumerWidget {
   const MediaVideoRoutePage({
     required this.relativePath,
+    required this.bindingsFactory,
     this.controllerFactory,
     super.key,
   });
 
   final String? relativePath;
+  final VideoPlayerPlatformBindingsFactory bindingsFactory;
   final MediaVideoControllerFactory? controllerFactory;
 
   @override
@@ -125,6 +130,7 @@ class MediaVideoRoutePage extends ConsumerWidget {
       resource: value,
       fileName: _fileNameOf(normalized),
       controllerFactory: controllerFactory ?? createMediaVideoController,
+      platformBindingsFactory: bindingsFactory,
     );
   }
 
