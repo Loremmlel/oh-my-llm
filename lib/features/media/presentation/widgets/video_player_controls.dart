@@ -1,24 +1,6 @@
 import 'package:flutter/material.dart';
 
-// ── 中央提示类型 ────────────────────────────────────────────────────
-
-/// 视频播放器中央提示类型（手势系统使用）。
-enum CenterHintType {
-  /// 无提示（默认）
-  none,
-
-  /// 快进 15s >>
-  fastForward,
-
-  /// << 15s 快退
-  rewind,
-
-  /// 拖动 seek，显示目标时间
-  seek,
-
-  /// 长按倍速 3.0x
-  speed,
-}
+import '../pages/video_playback_state.dart';
 
 // ── 时间格式化 ──────────────────────────────────────────────────────
 
@@ -372,16 +354,14 @@ class VideoBottomBar extends StatelessWidget {
 /// 视频播放器中央提示区域。
 ///
 /// 圆角矩形半透明背景，尺寸仅包裹内容。
-/// 支持多种提示类型：暂停/播放结束图标、快进/快退提示、Seek 时间预览、倍速提示。
+/// 通过结构化 [VideoCenterFeedback] 读取实际 delta/target/speed/volume，
+/// 不再写死 15 秒 / 3.0 倍速；无反馈时支持暂停图标。
 class VideoCenterHint extends StatelessWidget {
   /// 是否显示
   final bool visible;
 
-  /// 提示类型
-  final CenterHintType hintType;
-
-  /// Seek 预览时间（[hintType] 为 [CenterHintType.seek] 时有效）
-  final Duration? seekPosition;
+  /// 当前结构化中央反馈；为 null 时仅显示暂停图标（[showPauseIcon] 为 true）
+  final VideoCenterFeedback? feedback;
 
   /// 是否在无手势提示时显示暂停图标
   final bool showPauseIcon;
@@ -389,8 +369,7 @@ class VideoCenterHint extends StatelessWidget {
   const VideoCenterHint({
     super.key,
     required this.visible,
-    this.hintType = CenterHintType.none,
-    this.seekPosition,
+    this.feedback,
     this.showPauseIcon = true,
   });
 
@@ -398,38 +377,41 @@ class VideoCenterHint extends StatelessWidget {
   Widget build(BuildContext context) {
     if (!visible) return const SizedBox.shrink();
 
+    final feedback = this.feedback;
     Widget content;
-    switch (hintType) {
-      case CenterHintType.fastForward:
-        content = const _HintContent(
-          icon: Icons.fast_forward,
-          label: '15s',
-          iconFirst: true,
+    String? semanticsLabel;
+    var liveRegion = false;
+
+    switch (feedback) {
+      case VideoRelativeSeekFeedback(:final delta):
+        content = _HintContent(
+          icon: delta.isNegative ? Icons.fast_rewind : Icons.fast_forward,
+          label: '${delta.abs().inSeconds}s',
+          iconFirst: !delta.isNegative,
         );
-      case CenterHintType.rewind:
-        content = const _HintContent(
-          icon: Icons.fast_rewind,
-          label: '15s',
-          iconFirst: false,
-        );
-      case CenterHintType.seek:
+        semanticsLabel = delta.isNegative
+            ? '已快退 ${delta.abs().inSeconds} 秒'
+            : '已快进 ${delta.inSeconds} 秒';
+        liveRegion = true;
+      case VideoSeekPreviewFeedback(:final target):
         content = Text(
-          formatVideoDuration(seekPosition ?? Duration.zero),
+          formatVideoDuration(target),
           style: const TextStyle(
             color: Colors.white,
             fontSize: 18,
             fontWeight: FontWeight.bold,
           ),
         );
-      case CenterHintType.speed:
-        content = const Row(
+        semanticsLabel = '预览位置 ${formatVideoDuration(target)}';
+      case VideoTemporarySpeedFeedback(:final speed):
+        content = Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.speed, color: Colors.white, size: 24),
-            SizedBox(width: 4),
+            const Icon(Icons.speed, color: Colors.white, size: 24),
+            const SizedBox(width: 4),
             Text(
-              '3.0x',
-              style: TextStyle(
+              '${speed.toStringAsFixed(1)}x',
+              style: const TextStyle(
                 color: Colors.white,
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -437,7 +419,38 @@ class VideoCenterHint extends StatelessWidget {
             ),
           ],
         );
-      case CenterHintType.none:
+        semanticsLabel = '临时 ${speed.toStringAsFixed(1)} 倍速播放';
+        liveRegion = true;
+      case VideoVolumeFeedback(:final volume, :final isMuted):
+        content = Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isMuted ? Icons.volume_off : volumeIconData(volume),
+              color: Colors.white,
+              size: 24,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              isMuted ? '已静音' : '${(volume * 100).round()}%',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        );
+        semanticsLabel = isMuted ? '已静音' : '音量 ${(volume * 100).round()}%';
+        liveRegion = true;
+      case VideoOperationFailureFeedback(:final message):
+        content = Text(
+          message,
+          style: const TextStyle(color: Colors.white, fontSize: 16),
+        );
+        semanticsLabel = message;
+        liveRegion = true;
+      case null:
         if (showPauseIcon) {
           content = const Icon(Icons.play_arrow, color: Colors.white, size: 48);
         } else {
@@ -446,21 +459,12 @@ class VideoCenterHint extends StatelessWidget {
     }
 
     // 提示以单一语义节点表达；可见内容整体排除，避免「图标+文字」重复播报。
-    // 快进/快退/临时倍速是离散结果，标 live region；seek 预览与暂停图标不标。
+    // 相对 Seek、临时倍速、音量与失败是离散结果，标 live region；
+    // Seek 预览与暂停图标不标。
     return Center(
       child: Semantics(
-        liveRegion:
-            hintType == CenterHintType.fastForward ||
-            hintType == CenterHintType.rewind ||
-            hintType == CenterHintType.speed,
-        label: switch (hintType) {
-          CenterHintType.fastForward => '已快进 15 秒',
-          CenterHintType.rewind => '已快退 15 秒',
-          CenterHintType.speed => '临时三倍速播放',
-          CenterHintType.seek =>
-            '预览位置 ${formatVideoDuration(seekPosition ?? Duration.zero)}',
-          CenterHintType.none => null,
-        },
+        liveRegion: liveRegion,
+        label: semanticsLabel,
         child: ExcludeSemantics(
           child: Container(
             padding: const EdgeInsets.all(20),

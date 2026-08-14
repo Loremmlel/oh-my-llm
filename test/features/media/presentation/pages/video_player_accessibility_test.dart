@@ -325,7 +325,7 @@ void main() {
       final gesture = await tester.startGesture(_surfaceCenter(tester));
       await tester.pump(kLongPressTimeout);
 
-      final status = find.semantics.byLabel('临时三倍速播放');
+      final status = find.semantics.byLabel('临时 3.0 倍速播放');
       expect(status, findsOneWidget);
       expect(status, isSemantics(isLiveRegion: true));
       expect(fake.setPlaybackSpeedCalls, [3.0]);
@@ -333,7 +333,7 @@ void main() {
       // 松手后恢复原速度；提示消失且不生成「消失」播报
       await gesture.up();
       await tester.pump();
-      expect(find.semantics.byLabel('临时三倍速播放'), findsNothing);
+      expect(find.semantics.byLabel('临时 3.0 倍速播放'), findsNothing);
       expect(fake.setPlaybackSpeedCalls.last, 1.0);
     });
 

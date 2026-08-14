@@ -6,14 +6,17 @@ import 'package:video_player/video_player.dart';
 import 'package:oh_my_llm/features/media/application/models/media_resource.dart';
 import '../widgets/video_player_controls.dart';
 import 'media_video_controller_factory.dart';
-import 'video_player_gesture.dart';
-import 'video_player_state.dart';
+import 'mobile_video_interaction_controller.dart';
+import 'video_playback_controller.dart';
+import 'video_playback_state.dart';
 
 /// 全屏视频播放器。
 ///
 /// 应用暂停只暂停播放；控制器和计时器仅在路由 dispose 时释放。
 /// 播放源是解析完成的 [MediaResource]，平台控制器经
 /// [controllerFactory] 创建（测试注入 Fake 的 seam）。
+/// 页面只负责组合共享播放核心、移动端输入层、控制栏与焦点管理，
+/// 不再直接调用底层播放器命令。
 class VideoPlayerPage extends StatefulWidget {
   final MediaResource resource;
   final String fileName;
@@ -34,7 +37,8 @@ class VideoPlayerPage extends StatefulWidget {
 
 class _VideoPlayerPageState extends State<VideoPlayerPage>
     with WidgetsBindingObserver {
-  final _gesture = VideoPlayerGestureController();
+  late final VideoPlaybackController _playback;
+  late final MobileVideoInteractionController _mobile;
 
   /// 播放表面焦点：键盘快捷键只在它拥有主焦点时生效。
   final _playerFocusNode = FocusNode();
@@ -46,9 +50,12 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
   @override
   void initState() {
     super.initState();
-    _gesture.onStateChanged = _handleStateChanged;
-    _gesture.onBackPressed = () => Navigator.pop(context);
-    _gesture.setMounted(true);
+    _playback = VideoPlaybackController(
+      resource: widget.resource,
+      controllerFactory: widget.controllerFactory,
+      onStateChanged: _handleStateChanged,
+    );
+    _mobile = MobileVideoInteractionController(playback: _playback);
 
     // 焦点边框随 focus 变化重建；控制栏焦点变化驱动 hide timer。
     _playerFocusNode.addListener(() => setState(() {}));
@@ -68,7 +75,12 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
 
   /// 按当前 [MediaResource] 创建并初始化播放器；重试与首次进入共用同一条路径。
   void _initPlayer() {
-    _gesture.initPlayer(() => widget.controllerFactory(widget.resource));
+    _playback.initialize();
+  }
+
+  /// 顶部关闭按钮与 Escape 共用的页面关闭路径。
+  void _popVideo() {
+    Navigator.pop(context);
   }
 
   @override
@@ -77,7 +89,8 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
     _playerFocusNode.dispose();
     _topControlsFocusNode.dispose();
     _bottomControlsFocusNode.dispose();
-    _gesture.dispose();
+    _mobile.dispose();
+    _playback.dispose();
 
     SystemChrome.setEnabledSystemUIMode(
       SystemUiMode.manual,
@@ -91,7 +104,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
   /// 下一帧把焦点恢复到播放表面，禁止留下不可见焦点。
   void _handleStateChanged() {
     if (!mounted) return;
-    final controlsHidden = !_gesture.state.controlsVisible;
+    final controlsHidden = !_playback.state.controlsVisible;
     final controlsFocused =
         _topControlsFocusNode.hasFocus || _bottomControlsFocusNode.hasFocus;
     if (controlsHidden && controlsFocused) {
@@ -105,9 +118,9 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
   /// 焦点进入任一控制栏时暂停自动隐藏；全部离开后恢复原计时。
   void _onControlsFocusChanged() {
     if (_topControlsFocusNode.hasFocus || _bottomControlsFocusNode.hasFocus) {
-      _gesture.onControlsFocusEnter();
+      _playback.holdControlsVisible();
     } else {
-      _gesture.onControlsFocusExit();
+      _playback.releaseControlsHold();
     }
   }
 
@@ -116,37 +129,24 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
   KeyEventResult _handlePlayerKeyEvent(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
     if (!_playerFocusNode.hasPrimaryFocus) return KeyEventResult.ignored;
-    switch (event.logicalKey) {
-      case LogicalKeyboardKey.enter:
-        _gesture.handleTap();
-        return KeyEventResult.handled;
-      case LogicalKeyboardKey.space:
-        _gesture.togglePlayPause();
-        return KeyEventResult.handled;
-      case LogicalKeyboardKey.arrowLeft:
-        _gesture.seekRelative(const Duration(seconds: -15));
-        return KeyEventResult.handled;
-      case LogicalKeyboardKey.arrowRight:
-        _gesture.seekRelative(const Duration(seconds: 15));
-        return KeyEventResult.handled;
-      case LogicalKeyboardKey.escape:
-        _gesture.onBack();
-        return KeyEventResult.handled;
+    if (event.logicalKey == LogicalKeyboardKey.escape) {
+      _popVideo();
+      return KeyEventResult.handled;
     }
-    return KeyEventResult.ignored;
+    return _mobile.handleSurfaceKey(event);
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState lifecycleState) {
     if (lifecycleState == AppLifecycleState.paused) {
-      _gesture.onAppLifecyclePaused();
+      _playback.onAppLifecyclePaused();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final s = _gesture.state;
-    s.cachedScreenWidth = MediaQuery.of(context).size.width;
+    final s = _playback.state;
+    _mobile.updateScreenWidth(MediaQuery.sizeOf(context).width);
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -161,9 +161,8 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
                   visible:
                       s.isInitialized &&
                       !s.hasError &&
-                      (!s.isPlaying || s.centerHint != CenterHintType.none),
-                  hintType: s.centerHint,
-                  seekPosition: s.seekPreviewPosition,
+                      (!s.isPlaying || s.centerFeedback != null),
+                  feedback: s.centerFeedback,
                   showPauseIcon: s.isInitialized && !s.hasError && !s.isPlaying,
                 ),
               ),
@@ -190,7 +189,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
   /// 手势），`systemGestureInsets` 只影响命中区域、不缩小视频画面。
   /// 播放表面等比居中、不随视口拉伸；错误/加载状态不建 overlay，
   /// 重试按钮可立即点击。
-  Widget _buildPlaybackInteractionLayer(VideoPlayerUiState s) {
+  Widget _buildPlaybackInteractionLayer(VideoPlaybackState s) {
     final playbackSurface = FocusTraversalOrder(
       order: const NumericFocusOrder(1),
       child: _buildPlaybackSurface(s),
@@ -216,7 +215,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
               TapGestureRecognizer:
                   GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
                     () => TapGestureRecognizer(debugOwner: this),
-                    (instance) => instance.onTap = _gesture.handleTap,
+                    (instance) => instance.onTap = _mobile.handleTap,
                   ),
               DoubleTapGestureRecognizer:
                   GestureRecognizerFactoryWithHandlers<
@@ -224,8 +223,8 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
                   >(() => DoubleTapGestureRecognizer(debugOwner: this), (
                     instance,
                   ) {
-                    instance.onDoubleTapDown = _gesture.handleDoubleTapDown;
-                    instance.onDoubleTap = _gesture.handleDoubleTap;
+                    instance.onDoubleTapDown = _mobile.handleDoubleTapDown;
+                    instance.onDoubleTap = _mobile.handleDoubleTap;
                   }),
               LongPressGestureRecognizer:
                   GestureRecognizerFactoryWithHandlers<
@@ -233,9 +232,9 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
                   >(() => LongPressGestureRecognizer(debugOwner: this), (
                     instance,
                   ) {
-                    instance.onLongPressStart = _gesture.handleLongPressStart;
-                    instance.onLongPressEnd = _gesture.handleLongPressEnd;
-                    instance.onLongPressCancel = _gesture.handleLongPressCancel;
+                    instance.onLongPressStart = _mobile.handleLongPressStart;
+                    instance.onLongPressEnd = _mobile.handleLongPressEnd;
+                    instance.onLongPressCancel = _mobile.handleLongPressCancel;
                   }),
               CancelAwareHorizontalDragRecognizer:
                   GestureRecognizerFactoryWithHandlers<
@@ -243,10 +242,10 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
                   >(
                     () => CancelAwareHorizontalDragRecognizer(debugOwner: this),
                     (instance) {
-                      instance.onStart = _gesture.handleHorizontalDragStart;
-                      instance.onUpdate = _gesture.handleHorizontalDragUpdate;
-                      instance.onEnd = _gesture.handleHorizontalDragEnd;
-                      instance.onCancel = _gesture.handleHorizontalDragCancel;
+                      instance.onStart = _mobile.handleHorizontalDragStart;
+                      instance.onUpdate = _mobile.handleHorizontalDragUpdate;
+                      instance.onEnd = _mobile.handleHorizontalDragEnd;
+                      instance.onCancel = _mobile.handleHorizontalDragCancel;
                     },
                   ),
             },
@@ -257,7 +256,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
   }
 
   /// 已初始化的播放表面：可聚焦、可激活、带键盘快捷键与焦点边框。
-  Widget _buildPlaybackSurface(VideoPlayerUiState s) {
+  Widget _buildPlaybackSurface(VideoPlaybackState s) {
     if (s.hasError) return _buildErrorState(s);
     if (!s.isInitialized) {
       return Semantics(
@@ -285,7 +284,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
       hint: hint,
       button: true,
       enabled: true,
-      onTap: _gesture.handleTap,
+      onTap: _mobile.handleTap,
       child: Focus(
         focusNode: _playerFocusNode,
         onKeyEvent: _handlePlayerKeyEvent,
@@ -310,7 +309,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
 
   /// 错误状态：单一 live status 节点；可见 icon/text 排除重复语义，
   /// 「重试」保留 ElevatedButton 自动语义。
-  Widget _buildErrorState(VideoPlayerUiState s) {
+  Widget _buildErrorState(VideoPlaybackState s) {
     return Semantics(
       container: true,
       explicitChildNodes: true,
@@ -339,7 +338,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
 
   /// 顶部控制栏：隐藏时同时退出 pointer/focus/semantics，
   /// 但祖先 FocusNode 始终存在以观察 descendant focus。
-  Widget _buildTopControls(VideoPlayerUiState s) {
+  Widget _buildTopControls(VideoPlaybackState s) {
     return Positioned(
       top: 0,
       left: 0,
@@ -367,13 +366,13 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
                     bottom: false,
                     child: VideoTopBar(
                       fileName: widget.fileName,
-                      playbackSpeed: s.currentSpeed,
-                      volume: s.currentVolume,
-                      onBack: _gesture.onBack,
-                      onSpeedChanged: _gesture.changeSpeed,
-                      onVolumeChanged: _gesture.setVolume,
-                      onInteractionStarted: _gesture.onControlsFocusEnter,
-                      onInteractionEnded: _gesture.onControlsFocusExit,
+                      playbackSpeed: s.persistentSpeed,
+                      volume: s.volume,
+                      onBack: _popVideo,
+                      onSpeedChanged: _playback.setPersistentSpeed,
+                      onVolumeChanged: _playback.setVolume,
+                      onInteractionStarted: _playback.holdControlsVisible,
+                      onInteractionEnded: _playback.releaseControlsHold,
                     ),
                   ),
                 ),
@@ -390,7 +389,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
   /// Slider 是长按拖动目标，与系统手势（返回/边缘滑动）竞争触摸；
   /// 左右按 systemGestureInsets 收缩命中区域让位给系统手势，
   /// 渐变背景仍保持 edge-to-edge。
-  Widget _buildBottomControls(VideoPlayerUiState s) {
+  Widget _buildBottomControls(VideoPlaybackState s) {
     final gestureInsets = MediaQuery.systemGestureInsetsOf(context);
     return Positioned(
       bottom: 0,
@@ -432,10 +431,10 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
                         dragPosition: Duration(
                           milliseconds: s.dragPositionMs.round(),
                         ),
-                        onPlayPause: _gesture.togglePlayPause,
-                        onSeekStart: _gesture.onSeekStart,
-                        onSeekUpdate: _gesture.onSeekUpdate,
-                        onSeekEnd: _gesture.onSeekEnd,
+                        onPlayPause: _playback.togglePlayPause,
+                        onSeekStart: _playback.onSeekStart,
+                        onSeekUpdate: _playback.onSeekUpdate,
+                        onSeekEnd: _playback.onSeekEnd,
                       ),
                     ),
                   ),

@@ -121,6 +121,13 @@ class FakeVideoPlayerController extends VideoPlayerController {
     // 不调用平台 dispose（测试中无平台通道）
   }
 
+  /// 主动触发一次 value 变化通知。
+  ///
+  /// 测试直接修改 [fakePosition] / [fakeIsPlaying] 等字段后调用，让
+  /// 控制器监听器按新值投影状态；与 `seekTo`/`play`/`pause` 等命令
+  /// 触发通知的方式等价，但不产生命令追踪记录。
+  void emitValueChanged() => _updateValue();
+
   /// 通知监听器状态已更新。
   void _updateValue() {
     value = VideoPlayerValue(
