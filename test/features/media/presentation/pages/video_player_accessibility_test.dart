@@ -567,7 +567,10 @@ void main() {
       expect(surface, findsOneWidget);
       expect(
         surface,
-        isSemantics(hint: '激活以播放或暂停；双击或 F 切换全屏，左右方向键快退或快进 5 秒，上下方向键调整音量，M 静音'),
+        isSemantics(
+          hint:
+              '激活以播放或暂停；双击或 F 切换全屏，左右方向键快退或快进 5 秒，右方向键长按临时 3 倍速，上下方向键调整音量，M 静音，Escape 退出全屏或关闭',
+        ),
       );
     });
 
