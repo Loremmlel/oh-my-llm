@@ -10,6 +10,12 @@ import 'package:oh_my_llm/features/media/presentation/pages/video_playback_state
 import '../../helpers/fake_video_player_controller.dart';
 import '../../helpers/fake_video_player_platform_bindings.dart';
 
+/// 右方向键长按分类阈值（与生产 400ms 契约一致）。
+const _rightHoldThreshold = Duration(milliseconds: 400);
+
+/// 阈值前一毫秒：断言「未达阈值不分类为长按」。
+const _rightHoldThresholdBefore = Duration(milliseconds: 399);
+
 /// 桌面输入测试装配：共享核心 + Fake 播放器 + Fake 全屏端口。
 ///
 /// 在 testWidgets fake-clock zone 内构造，Fake 播放器初始位置 30 秒
@@ -135,7 +141,7 @@ void main() {
       harness.keyDown(LogicalKeyboardKey.arrowRight);
       expect(harness.fake.seekToCalls, isEmpty);
 
-      await tester.pump(const Duration(milliseconds: 399));
+      await tester.pump(_rightHoldThresholdBefore);
       harness.keyUp(LogicalKeyboardKey.arrowRight);
 
       expect(harness.fake.seekToCalls, [const Duration(seconds: 35)]);
@@ -147,7 +153,7 @@ void main() {
       final harness = await createDesktopHarness();
       addTearDown(harness.desktop.dispose);
       harness.keyDown(LogicalKeyboardKey.arrowRight);
-      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(_rightHoldThreshold);
 
       expect(harness.fake.seekToCalls, isEmpty);
       expect(harness.fake.setPlaybackSpeedCalls, [3.0]);
@@ -165,7 +171,7 @@ void main() {
       harness.repeat(LogicalKeyboardKey.arrowRight);
       harness.repeat(LogicalKeyboardKey.arrowRight);
 
-      await tester.pump(const Duration(milliseconds: 399));
+      await tester.pump(_rightHoldThresholdBefore);
       harness.keyUp(LogicalKeyboardKey.arrowRight);
 
       expect(harness.fake.seekToCalls, [const Duration(seconds: 35)]);
@@ -177,7 +183,7 @@ void main() {
       final harness = await createDesktopHarness();
       addTearDown(harness.desktop.dispose);
       harness.keyDown(LogicalKeyboardKey.arrowRight);
-      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(_rightHoldThreshold);
       harness.repeat(LogicalKeyboardKey.arrowRight);
       harness.repeat(LogicalKeyboardKey.arrowRight);
 
@@ -197,7 +203,7 @@ void main() {
       expect(harness.playback.state.isPlaying, isFalse);
 
       harness.keyDown(LogicalKeyboardKey.arrowRight);
-      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(_rightHoldThreshold);
       harness.keyUp(LogicalKeyboardKey.arrowRight);
 
       expect(harness.fake.seekToCalls, isEmpty);
@@ -214,7 +220,7 @@ void main() {
       expect(harness.playback.state.hasEnded, isTrue);
 
       harness.keyDown(LogicalKeyboardKey.arrowRight);
-      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(_rightHoldThreshold);
       harness.keyUp(LogicalKeyboardKey.arrowRight);
 
       expect(harness.fake.seekToCalls, isEmpty);
@@ -231,7 +237,7 @@ void main() {
       expect(harness.playback.state.hasError, isTrue);
 
       harness.keyDown(LogicalKeyboardKey.arrowRight);
-      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(_rightHoldThreshold);
       harness.keyUp(LogicalKeyboardKey.arrowRight);
 
       expect(harness.fake.seekToCalls, isEmpty);
@@ -247,7 +253,7 @@ void main() {
       harness.keyDown(LogicalKeyboardKey.arrowRight);
 
       harness.desktop.onSurfaceFocusLost();
-      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(_rightHoldThreshold);
       harness.keyUp(LogicalKeyboardKey.arrowRight);
 
       expect(harness.fake.seekToCalls, isEmpty);
@@ -259,7 +265,7 @@ void main() {
       final harness = await createDesktopHarness();
       addTearDown(harness.desktop.dispose);
       harness.keyDown(LogicalKeyboardKey.arrowRight);
-      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(_rightHoldThreshold);
       expect(harness.fake.setPlaybackSpeedCalls, [3.0]);
 
       harness.desktop.onWindowBlur();
@@ -275,7 +281,7 @@ void main() {
       final harness = await createDesktopHarness();
       addTearDown(harness.desktop.dispose);
       harness.keyDown(LogicalKeyboardKey.arrowRight);
-      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(_rightHoldThreshold);
 
       harness.desktop.cancelForRetry();
       expect(harness.fake.setPlaybackSpeedCalls, [3.0, 1.0]);
@@ -289,7 +295,7 @@ void main() {
       final harness = await createDesktopHarness();
       addTearDown(harness.desktop.dispose);
       harness.keyDown(LogicalKeyboardKey.arrowRight);
-      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(_rightHoldThreshold);
       expect(harness.fake.setPlaybackSpeedCalls, [3.0]);
 
       harness.desktop.onPlaybackEnded();
@@ -306,7 +312,7 @@ void main() {
       harness.keyDown(LogicalKeyboardKey.arrowRight);
 
       harness.desktop.dispose();
-      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(_rightHoldThreshold);
       harness.keyUp(LogicalKeyboardKey.arrowRight);
 
       expect(harness.fake.seekToCalls, isEmpty);
