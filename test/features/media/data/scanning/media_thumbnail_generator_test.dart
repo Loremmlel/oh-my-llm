@@ -97,6 +97,22 @@ void main() {
         }
       });
 
+      test('并发生成多个图片缩略图全部成功（并发门控不丢失请求）', () async {
+        for (var i = 0; i < 8; i++) {
+          await File(
+            '${tempDir.path}/img$i.png',
+          ).writeAsBytes(_generateImageBytes('png'));
+        }
+        final results = await Future.wait([
+          for (var i = 0; i < 8; i++) generator.generate('/img$i.png'),
+        ]);
+        for (final r in results) {
+          expect(r, isNotEmpty);
+          expect(r[0], 0xFF);
+          expect(r[1], 0xD8);
+        }
+      });
+
       test('损坏的图片文件抛出异常', () async {
         final imgFile = File('${tempDir.path}/bad.png');
         // 足够长的随机数据，确保任何图片解码器都无法识别

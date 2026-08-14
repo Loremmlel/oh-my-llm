@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:image/image.dart' as img;
 
@@ -27,6 +29,12 @@ class MediaThumbnailGenerator {
   /// ffmpeg/ffprobe 操作超时（秒）。
   static const int ffmpegTimeoutSeconds = 30;
 
+  /// 同时生成的缩略图上限：网格一次可见的 tile 会并发触发生成，
+  /// 不设限会同时读取/解码大量原图，打满磁盘 IO 与内存。
+  static const int maxConcurrentThumbnails = 4;
+
+  final _ConcurrencyGate _gate = _ConcurrencyGate(maxConcurrentThumbnails);
+
   /// ffmpeg 可用性缓存：null = 未检测，true = 可用，false = 不可用。
   bool? _ffmpegAvailable;
 
@@ -47,34 +55,41 @@ class MediaThumbnailGenerator {
     if (!file.existsSync()) {
       throw FileSystemException('文件不存在', resolvedPath);
     }
-
-    final ext = extensionFromFileName(relativePath);
-    if (isImageFile(relativePath)) {
-      return _generateImageThumbnail(resolvedPath);
-    } else if (isVideoFile(relativePath)) {
-      return _generateVideoThumbnail(resolvedPath);
-    } else {
-      throw ThumbnailException('不支持的文件类型: $ext');
-    }
+    return _gate.run(() async {
+      final ext = extensionFromFileName(relativePath);
+      if (isImageFile(relativePath)) {
+        return _generateImageThumbnail(resolvedPath);
+      } else if (isVideoFile(relativePath)) {
+        return _generateVideoThumbnail(resolvedPath);
+      } else {
+        throw ThumbnailException('不支持的文件类型: $ext');
+      }
+    });
   }
 
-  /// 图片缩略图：读取 → 解码 → 缩放 → 编码 JPEG。
-  Future<List<int>> _generateImageThumbnail(String resolvedPath) async {
-    final bytes = await File(resolvedPath).readAsBytes();
-    final decoded = img.decodeImage(bytes);
-    if (decoded == null) {
-      throw ThumbnailException('无法解码图片: $resolvedPath');
-    }
+  /// 图片缩略图：读取 → 解码 → 缩放 → 编码 JPEG，整体在后台 isolate 执行。
+  ///
+  /// package:image 的解码/缩放/编码都是同步 CPU 密集操作，直接在主 isolate 跑会在
+  /// 图片多的文件夹一次加载网格时把事件循环阻塞数百毫秒到数秒，拖垮依赖主事件循环
+  /// 的视频播放与 UI。Isolate.run 只传入路径字符串、只传回 JPEG 字节，均是可发送类型。
+  Future<List<int>> _generateImageThumbnail(String resolvedPath) {
+    return Isolate.run<List<int>>(() {
+      final bytes = File(resolvedPath).readAsBytesSync();
+      final decoded = img.decodeImage(bytes);
+      if (decoded == null) {
+        throw ThumbnailException('无法解码图片: $resolvedPath');
+      }
 
-    // 缩放，保持宽高比，最长边 ≤ thumbnailMaxSize
-    final resized = img.copyResize(
-      decoded,
-      width: thumbnailMaxSize,
-      height: thumbnailMaxSize,
-      maintainAspect: true,
-    );
+      // 缩放，保持宽高比，最长边 ≤ thumbnailMaxSize
+      final resized = img.copyResize(
+        decoded,
+        width: thumbnailMaxSize,
+        height: thumbnailMaxSize,
+        maintainAspect: true,
+      );
 
-    return img.encodeJpg(resized, quality: jpegQuality);
+      return img.encodeJpg(resized, quality: jpegQuality);
+    });
   }
 
   /// 视频缩略图：调用 ffmpeg 取帧。
@@ -199,6 +214,45 @@ class MediaThumbnailGenerator {
 
     if (!_ffmpegAvailable!) {
       throw ThumbnailException('ffmpeg 未安装，无法生成视频缩略图');
+    }
+  }
+}
+
+/// 限制缩略图生成并发数量的 FIFO 门控。
+///
+/// 超出上限的请求排队等待，不丢失；门控只控制「同时进行中的生成」数量，
+/// 不引入额外延迟（空转时直接放行）。
+final class _ConcurrencyGate {
+  _ConcurrencyGate(this._limit);
+
+  final int _limit;
+  int _active = 0;
+  final List<Completer<void>> _waiters = [];
+
+  Future<T> run<T>(Future<T> Function() action) async {
+    await _acquire();
+    try {
+      return await action();
+    } finally {
+      _release();
+    }
+  }
+
+  Future<void> _acquire() async {
+    if (_active < _limit) {
+      _active++;
+      return;
+    }
+    final completer = Completer<void>();
+    _waiters.add(completer);
+    await completer.future;
+  }
+
+  void _release() {
+    if (_waiters.isNotEmpty) {
+      _waiters.removeAt(0).complete();
+    } else {
+      _active--;
     }
   }
 }
