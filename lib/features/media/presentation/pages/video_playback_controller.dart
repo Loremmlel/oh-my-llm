@@ -136,12 +136,7 @@ class VideoPlaybackController {
   /// 应用进入后台/暂停：暂停播放并释放临时倍速，防止暂停后残留 3 倍速。
   void onAppLifecyclePaused() {
     _controller?.pause();
-    if (_activeSpeedLease != null) {
-      _activeSpeedLease = null;
-      _controller?.setPlaybackSpeed(state.persistentSpeed);
-      _clearFeedback();
-      _emit(state.copyWith(effectiveSpeed: state.persistentSpeed));
-    }
+    _clearActiveSpeedLease();
   }
 
   // ── 状态投影 ───────────────────────────────────────────────────
@@ -162,6 +157,12 @@ class VideoPlaybackController {
     final wasEnded = state.hasEnded;
     final atEnd = _isNearEnd(value.position, value.duration);
     final ended = value.isCompleted && atEnd;
+
+    // 进入播放结束或由播放转为暂停：先释放临时倍速 lease，让后续状态投影
+    // 基于恢复后的常驻速度，防止 `effectiveSpeed` 残留 3 倍速。
+    if ((ended && !wasEnded) || (wasPlaying && !value.isPlaying)) {
+      _clearActiveSpeedLease();
+    }
 
     var next = state.copyWith(
       isPlaying: value.isPlaying,
@@ -307,6 +308,16 @@ class VideoPlaybackController {
 
   void endTemporarySpeed(VideoTemporarySpeedLease lease) {
     if (!identical(_activeSpeedLease, lease)) return;
+    _clearActiveSpeedLease();
+  }
+
+  /// 释放当前激活的临时倍速 lease 并恢复常驻倍速；无激活 lease 时为空操作。
+  ///
+  /// 播放结束、暂停等播放器驱动的事件会主动释放 lease，防止暂停后残留
+  /// 3 倍速；迟到的 KeyUp / 长按结束经 [endTemporarySpeed] 的 `identical`
+  /// 守卫走同一路径，重复调用幂等。
+  void _clearActiveSpeedLease() {
+    if (_activeSpeedLease == null) return;
     _activeSpeedLease = null;
     _emit(state.copyWith(effectiveSpeed: state.persistentSpeed));
     _controller?.setPlaybackSpeed(state.persistentSpeed);

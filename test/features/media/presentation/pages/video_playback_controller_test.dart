@@ -87,6 +87,43 @@ void main() {
     controller.dispose();
   });
 
+  group('临时倍速在播放状态变化时自动释放', () {
+    testWidgets('播放自然结束自动恢复常驻倍速', (tester) async {
+      final fake = FakeVideoPlayerController()
+        ..fakePosition = const Duration(seconds: 30);
+      final controller = createPlaybackController(fake);
+      addTearDown(controller.dispose);
+      await controller.initialize();
+      controller.beginTemporarySpeed(3.0);
+      expect(controller.state.effectiveSpeed, 3.0);
+      expect(fake.fakePlaybackSpeed, 3.0);
+
+      // 播放自然结束：底层置为 completed 并推进到近末尾位置
+      fake.fakeIsCompleted = true;
+      fake.fakePosition = fake.fakeDuration;
+      fake.emitValueChanged();
+
+      expect(controller.state.hasEnded, isTrue);
+      expect(controller.state.effectiveSpeed, 1.0);
+      expect(fake.fakePlaybackSpeed, 1.0);
+      controller.dispose();
+    });
+
+    testWidgets('临时加速中暂停立即恢复常驻倍速', (tester) async {
+      final harness = await createPlaybackHarness();
+      addTearDown(harness.controller.dispose);
+      harness.controller.beginTemporarySpeed(3.0);
+      expect(harness.controller.state.effectiveSpeed, 3.0);
+      expect(harness.fake.fakePlaybackSpeed, 3.0);
+
+      harness.controller.togglePlayPause();
+      expect(harness.controller.state.isPlaying, isFalse);
+      expect(harness.controller.state.effectiveSpeed, 1.0);
+      expect(harness.fake.fakePlaybackSpeed, 1.0);
+      harness.controller.dispose();
+    });
+  });
+
   group('音量与静音', () {
     testWidgets('普通步进边界正确 clamp 音量', (tester) async {
       final cases = [
