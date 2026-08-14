@@ -165,6 +165,27 @@ void main() {
         expect(extraction.stdoutEncoding, isNull);
       });
 
+      test('ffprobe 返回字节型 stdout 时仍能解析时长（真实 Process.run 默认返回字节）', () async {
+        await createVideoFile();
+        final jpeg = _generateImageBytes('jpg');
+        runner.enqueue(versionOk);
+        runner.enqueue(versionOk);
+        // 字节型 duration stdout：DartThumbnailProcessRunner.run 的 stdoutEncoding 参数
+        // 默认 null，真实 Process.run(..., stdoutEncoding: null) 返回 List<int> 而非 String。
+        runner.enqueue(
+          ThumbnailProcessResult(
+            exitCode: 0,
+            stdout: utf8.encode('8.0'),
+            stderr: '',
+          ),
+        );
+        runner.enqueue(extractionResult(jpeg));
+
+        final result = await generator.generate('/test.mp4');
+
+        expect(result, jpeg);
+      });
+
       test('同一生成器两次生成：版本检测仅一次，长视频取第 5 秒帧', () async {
         await createVideoFile();
         final jpeg = _generateImageBytes('jpg');

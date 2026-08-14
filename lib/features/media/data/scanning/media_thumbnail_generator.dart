@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:image/image.dart' as img;
@@ -135,15 +136,20 @@ class MediaThumbnailGenerator {
   /// 通过 ffprobe 获取视频时长（秒）。
   Future<double> _getVideoDuration(String filePath) async {
     final result = await _processRunner
-        .run('ffprobe', [
-          '-v',
-          'error',
-          '-show_entries',
-          'format=duration',
-          '-of',
-          'default=noprint_wrappers=1:nokey=1',
-          filePath,
-        ])
+        .run(
+          'ffprobe',
+          [
+            '-v',
+            'error',
+            '-show_entries',
+            'format=duration',
+            '-of',
+            'default=noprint_wrappers=1:nokey=1',
+            filePath,
+          ],
+          // ffprobe 输出是 UTF-8 文本，与 ffmpeg 取帧（显式 stdoutEncoding: null 取原始字节）不同。
+          stdoutEncoding: utf8,
+        )
         .timeout(
           const Duration(seconds: ffmpegTimeoutSeconds),
           onTimeout: () => throw ThumbnailException('ffprobe 执行超时'),
@@ -153,7 +159,13 @@ class MediaThumbnailGenerator {
       throw ThumbnailException('无法获取视频时长');
     }
 
-    final output = (result.stdout as String).trim();
+    // ThumbnailProcessRunner 的实现可能忽略 stdoutEncoding 约定（脚本化 runner、
+    // 或真实 Process.run 在部分环境返回字节），两种类型都要兼容。
+    final output = switch (result.stdout) {
+      String text => text,
+      List<int> bytes => String.fromCharCodes(bytes),
+      _ => '',
+    }.trim();
     final duration = double.tryParse(output);
     if (duration == null || duration <= 0) {
       throw ThumbnailException('无法解析视频时长: $output');
