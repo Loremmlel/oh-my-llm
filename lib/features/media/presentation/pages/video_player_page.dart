@@ -166,8 +166,10 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
 
   /// 状态变化回调：Desktop 初始化成功后在下一帧自动聚焦播放表面；
   /// 控制栏被隐藏时若控制内仍有键盘焦点，下一帧把焦点恢复到播放表面。
+  /// 播放状态每次变化都转发给 Desktop 控制器，由其自行决定是否重排光标计时。
   void _handleStateChanged() {
     if (!mounted) return;
+    _desktop?.onPlaybackStateChanged();
     final s = _playback.state;
     final desktop = _desktop;
     if (desktop != null &&
@@ -199,12 +201,47 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
   }
 
   /// 焦点进入任一控制栏时暂停自动隐藏；全部离开后恢复原计时。
+  ///
+  /// Desktop 由桌面控制器聚合 hover/focus/弹层并作为 hold 的唯一 owner，
+  /// 页面只转发组合后的焦点事实；Mobile 维持原来的直接 hold/release。
   void _onControlsFocusChanged() {
-    if (_topControlsFocusNode.hasFocus || _bottomControlsFocusNode.hasFocus) {
+    final hasFocus =
+        _topControlsFocusNode.hasFocus || _bottomControlsFocusNode.hasFocus;
+    final desktop = _desktop;
+    if (desktop != null) {
+      desktop.onControlsFocusChanged(hasFocus);
+      return;
+    }
+    if (hasFocus) {
       _playback.holdControlsVisible();
     } else {
       _playback.releaseControlsHold();
     }
+  }
+
+  /// 弹层/菜单打开：Desktop 交给桌面控制器持有控制栏，Mobile 直接 hold。
+  void _handleControlsInteractionStarted() {
+    final desktop = _desktop;
+    if (desktop != null) {
+      desktop.onControlsPopupOpened();
+    } else {
+      _playback.holdControlsVisible();
+    }
+  }
+
+  /// 弹层/菜单关闭：Desktop 依据真实 focus/hover 重新计算，Mobile 直接 release。
+  void _handleControlsInteractionEnded() {
+    final desktop = _desktop;
+    if (desktop != null) {
+      desktop.onControlsPopupClosed();
+    } else {
+      _playback.releaseControlsHold();
+    }
+  }
+
+  /// 控制栏内部焦点变化转发给桌面控制器（与页面组合焦点事实一致，幂等）。
+  void _handleDesktopControlsFocusChanged(bool focused) {
+    _desktop?.onControlsFocusChanged(focused);
   }
 
   /// 播放表面按键：Desktop 直接交给桌面状态机；Mobile 只在表面拥有主焦点
@@ -375,31 +412,58 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
     );
   }
 
-  /// 桌面交互层：播放表面 + 单击/双击 overlay。
+  /// 桌面交互层：播放表面 + 鼠标活动/光标 + 滚轮 + 单击/双击 overlay。
   ///
-  /// 单击播放/暂停，双击切换原生全屏；不安装移动端双击 Seek、长按倍速与
-  /// 横拖 Seek。overlay 与控制栏是兄弟层，控制栏绘制在其上，优先命中。
+  /// 单击播放/暂停并把焦点恢复到播放表面，双击切换原生全屏；不安装移动端
+  /// 双击 Seek、长按倍速与横拖 Seek。overlay 与控制栏是兄弟层，控制栏绘制
+  /// 在其上，优先命中。鼠标活动经 [MouseRegion] 转发给桌面控制器，滚轮经
+  /// [Listener] 转发，光标按 `isCursorVisible` 选择 basic/none。
   Widget _buildDesktopInteractionLayer(VideoPlaybackState s) {
     final playbackSurface = FocusTraversalOrder(
       order: const NumericFocusOrder(1),
       child: _buildPlaybackSurface(s),
     );
-    if (!s.isInitialized || s.hasError) return playbackSurface;
+    final desktop = _desktop;
+    if (!s.isInitialized || s.hasError || desktop == null) {
+      return playbackSurface;
+    }
 
     return Stack(
       alignment: Alignment.center,
       children: [
         playbackSurface,
         Positioned.fill(
-          child: GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onTap: _playback.togglePlayPause,
-            onDoubleTap: () => unawaited(_toggleDesktopFullscreen()),
-            child: const SizedBox.expand(),
+          child: MouseRegion(
+            cursor: desktop.isCursorVisible
+                ? SystemMouseCursors.basic
+                : SystemMouseCursors.none,
+            onEnter: (_) => desktop.onPointerActivity(),
+            onHover: (_) => desktop.onPointerActivity(),
+            child: Listener(
+              // opaque 保证滚轮事件命中本 overlay：MouseRegion 默认 opaque
+              // 会吞掉对 deferToChild 子树的命中，导致 onPointerSignal 收不到。
+              behavior: HitTestBehavior.opaque,
+              onPointerSignal: desktop.handlePointerSignal,
+              child: GestureDetector(
+                excludeFromSemantics: true,
+                behavior: HitTestBehavior.translucent,
+                onTap: _handleDesktopSurfaceTap,
+                onDoubleTap: () => unawaited(_toggleDesktopFullscreen()),
+                child: const SizedBox.expand(),
+              ),
+            ),
           ),
         ),
       ],
     );
+  }
+
+  /// Desktop 画面单击：鼠标活动显示控件与光标、恢复表面焦点并切换播放/暂停。
+  void _handleDesktopSurfaceTap() {
+    final desktop = _desktop;
+    desktop?.onPointerActivity();
+    _playerFocusNode.requestFocus();
+    _playback.togglePlayPause();
   }
 
   /// 双击切换原生全屏：插件失败只显示固定安全文案，不伪造状态、不关闭页面。
@@ -506,6 +570,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
   /// 顶部控制栏：隐藏时同时退出 pointer/focus/semantics，
   /// 但祖先 FocusNode 始终存在以观察 descendant focus。
   Widget _buildTopControls(VideoPlaybackState s) {
+    final desktop = _desktop;
     return Positioned(
       top: 0,
       left: 0,
@@ -538,8 +603,13 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
                       onBack: () => unawaited(_requestClose()),
                       onSpeedChanged: _playback.setPersistentSpeed,
                       onVolumeChanged: _playback.setVolume,
-                      onInteractionStarted: _playback.holdControlsVisible,
-                      onInteractionEnded: _playback.releaseControlsHold,
+                      onPointerEnter: desktop?.onControlsPointerEnter,
+                      onPointerExit: desktop?.onControlsPointerExit,
+                      onFocusChanged: desktop == null
+                          ? null
+                          : _handleDesktopControlsFocusChanged,
+                      onInteractionStarted: _handleControlsInteractionStarted,
+                      onInteractionEnded: _handleControlsInteractionEnded,
                     ),
                   ),
                 ),
@@ -558,6 +628,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
   /// 渐变背景仍保持 edge-to-edge。
   Widget _buildBottomControls(VideoPlaybackState s) {
     final gestureInsets = MediaQuery.systemGestureInsetsOf(context);
+    final desktop = _desktop;
     return Positioned(
       bottom: 0,
       left: 0,
@@ -602,6 +673,11 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
                         onSeekStart: _playback.onSeekStart,
                         onSeekUpdate: _playback.onSeekUpdate,
                         onSeekEnd: _playback.onSeekEnd,
+                        onPointerEnter: desktop?.onControlsPointerEnter,
+                        onPointerExit: desktop?.onControlsPointerExit,
+                        onFocusChanged: desktop == null
+                            ? null
+                            : _handleDesktopControlsFocusChanged,
                       ),
                     ),
                   ),

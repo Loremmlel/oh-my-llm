@@ -11,6 +11,9 @@ final class FakeVideoFullscreenController implements VideoFullscreenController {
   bool failRestore = false;
   final calls = <String>[];
 
+  /// 切换次数：与 [calls] 里 'toggle' 的出现次数一致，供双击用例直接断言。
+  int toggleCallCount = 0;
+
   @override
   bool get actualFullscreen => actual;
   @override
@@ -22,6 +25,7 @@ final class FakeVideoFullscreenController implements VideoFullscreenController {
   @override
   Future<VideoFullscreenCommandResult> toggle() async {
     calls.add('toggle');
+    toggleCallCount++;
     if (failNext) {
       failNext = false;
       return const VideoFullscreenCommandResult(

@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -35,6 +36,12 @@ class DesktopVideoTestHarness {
     );
     return focus.focusNode!;
   }
+
+  /// 播放画面 Widget：tap 命中其上方的桌面交互 overlay。
+  Finder get videoSurface => find.byType(VideoPlayer);
+
+  /// 播放画面中心：用于发送 pointer/scroll 事件到交互 overlay。
+  Offset get videoSurfaceCenter => tester.getCenter(find.byType(VideoPlayer));
 }
 
 /// 包裹 widget 到 MaterialApp + Navigator，模拟真实导航场景。
@@ -51,8 +58,11 @@ Widget _wrapWithMaterialApp(Widget child) {
 Future<DesktopVideoTestHarness> pumpDesktopVideo(
   WidgetTester tester, {
   Duration position = const Duration(seconds: 30),
+  double volume = 1.0,
 }) async {
-  final fake = FakeVideoPlayerController()..fakePosition = position;
+  final fake = FakeVideoPlayerController()
+    ..fakePosition = position
+    ..fakeVolume = volume;
   final fullscreen = FakeVideoFullscreenController();
   await tester.pumpWidget(
     _wrapWithMaterialApp(
@@ -264,6 +274,78 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pump();
       expect(find.byType(VideoPlayerPage), findsOneWidget);
+    });
+  });
+
+  group('Desktop 单击与双击', () {
+    testWidgets('画面单击切换播放并恢复表面焦点', (tester) async {
+      final harness = await pumpDesktopVideo(tester);
+      // Tab 把焦点移出表面，证明单击会恢复表面主焦点
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(harness.surfaceFocusNode.hasPrimaryFocus, isFalse);
+
+      await tester.tap(harness.videoSurface);
+      await tester.pump(kDoubleTapTimeout); // 双击窗口到期，单击提交
+      expect(harness.fake.pauseCallCount, 1);
+      expect(harness.surfaceFocusNode.hasPrimaryFocus, isTrue);
+    });
+
+    testWidgets('画面双击只切换全屏，不产生单击播放暂停也不 Seek', (tester) async {
+      final harness = await pumpDesktopVideo(tester);
+      await tester.tap(harness.videoSurface);
+      await tester.pump(kDoubleTapMinTime);
+      await tester.tap(harness.videoSurface);
+      await tester.pump();
+      expect(harness.fullscreen.toggleCallCount, 1);
+      expect(harness.fake.pauseCallCount, 0);
+      expect(harness.fake.seekToCalls, isEmpty);
+      // 双击识别后仍残留一个 kDoubleTapTimeout 识别器计时器，推进窗口排空。
+      await tester.pump(kDoubleTapTimeout);
+    });
+  });
+
+  group('Desktop 滚轮转发', () {
+    testWidgets('播放区域垂直滚轮上调音量百分之五', (tester) async {
+      final harness = await pumpDesktopVideo(tester, volume: 0.5);
+      await tester.sendEventToBinding(
+        PointerScrollEvent(
+          position: harness.videoSurfaceCenter,
+          scrollDelta: const Offset(0, -1),
+        ),
+      );
+      await tester.pump();
+      expect(harness.fake.setVolumeCalls.last, closeTo(0.55, 0.0001));
+    });
+
+    testWidgets('播放区域垂直滚轮下调音量百分之五', (tester) async {
+      final harness = await pumpDesktopVideo(tester, volume: 0.5);
+      await tester.sendEventToBinding(
+        PointerScrollEvent(
+          position: harness.videoSurfaceCenter,
+          scrollDelta: const Offset(0, 1),
+        ),
+      );
+      await tester.pump();
+      expect(harness.fake.setVolumeCalls.last, closeTo(0.45, 0.0001));
+    });
+
+    testWidgets('水平或横向主导滚轮不改变音量', (tester) async {
+      final harness = await pumpDesktopVideo(tester, volume: 0.5);
+      await tester.sendEventToBinding(
+        PointerScrollEvent(
+          position: harness.videoSurfaceCenter,
+          scrollDelta: const Offset(1, 0),
+        ),
+      );
+      await tester.sendEventToBinding(
+        PointerScrollEvent(
+          position: harness.videoSurfaceCenter,
+          scrollDelta: const Offset(1, 1),
+        ),
+      );
+      await tester.pump();
+      expect(harness.fake.setVolumeCalls, isEmpty);
     });
   });
 }

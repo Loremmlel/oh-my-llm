@@ -30,7 +30,9 @@ IconData volumeIconData(double volume) {
 
 /// 视频播放器顶部控制栏。
 ///
-/// 包含关闭按钮、文件名、倍速选择器和音量按钮。
+/// 包含关闭按钮、文件名、倍速选择器和音量按钮。根部用 MouseRegion/Focus
+/// 汇总子控件：指针进出与内部焦点变化通过可选回调上报，默认 null 时与
+/// Android（无桌面鼠标模型）等价。
 class VideoTopBar extends StatelessWidget {
   final String fileName;
   final double playbackSpeed;
@@ -38,6 +40,15 @@ class VideoTopBar extends StatelessWidget {
   final VoidCallback onBack;
   final ValueChanged<double> onSpeedChanged;
   final ValueChanged<double> onVolumeChanged;
+
+  /// 指针进入控制栏时调用（暂停自动隐藏计时器）。
+  final VoidCallback? onPointerEnter;
+
+  /// 指针离开控制栏时调用（恢复自动隐藏计时器）。
+  final VoidCallback? onPointerExit;
+
+  /// 控制栏内键盘焦点变化时调用（弹层/菜单打开时页面另行走 hold 路径）。
+  final ValueChanged<bool>? onFocusChanged;
 
   /// 弹窗打开时调用（用于取消自动隐藏计时器）
   final VoidCallback? onInteractionStarted;
@@ -53,6 +64,9 @@ class VideoTopBar extends StatelessWidget {
     required this.onBack,
     required this.onSpeedChanged,
     required this.onVolumeChanged,
+    this.onPointerEnter,
+    this.onPointerExit,
+    this.onFocusChanged,
     this.onInteractionStarted,
     this.onInteractionEnded,
   });
@@ -62,6 +76,20 @@ class VideoTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: onPointerEnter == null ? null : (_) => onPointerEnter!(),
+      onExit: onPointerExit == null ? null : (_) => onPointerExit!(),
+      child: Focus(
+        // 只观察 descendant focus，自身不可请求焦点，也不参与 Tab 遍历。
+        canRequestFocus: false,
+        includeSemantics: false,
+        onFocusChange: onFocusChanged,
+        child: _buildContent(context),
+      ),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
     return Row(
       children: [
         // ── 关闭按钮 ──
@@ -222,6 +250,15 @@ class VideoBottomBar extends StatelessWidget {
   /// 松手执行 seek
   final VoidCallback onSeekEnd;
 
+  /// 指针进入控制栏时调用（暂停自动隐藏计时器）。
+  final VoidCallback? onPointerEnter;
+
+  /// 指针离开控制栏时调用（恢复自动隐藏计时器）。
+  final VoidCallback? onPointerExit;
+
+  /// 控制栏内键盘焦点变化时调用。
+  final ValueChanged<bool>? onFocusChanged;
+
   const VideoBottomBar({
     super.key,
     required this.isPlaying,
@@ -235,10 +272,27 @@ class VideoBottomBar extends StatelessWidget {
     required this.onSeekStart,
     required this.onSeekUpdate,
     required this.onSeekEnd,
+    this.onPointerEnter,
+    this.onPointerExit,
+    this.onFocusChanged,
   });
 
   @override
   Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: onPointerEnter == null ? null : (_) => onPointerEnter!(),
+      onExit: onPointerExit == null ? null : (_) => onPointerExit!(),
+      child: Focus(
+        // 只观察 descendant focus，自身不可请求焦点，也不参与 Tab 遍历。
+        canRequestFocus: false,
+        includeSemantics: false,
+        onFocusChange: onFocusChanged,
+        child: _buildContent(context),
+      ),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
     final hasDuration = totalDuration > Duration.zero;
     final displayPosition = isDragging ? dragPosition : currentPosition;
 

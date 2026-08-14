@@ -28,6 +28,10 @@ NetworkMediaResource _testResource() =>
 VideoPlayerPlatformBindings _mobileTestBindings() =>
     MobileVideoPlayerBindings(systemUi: FakeMobileVideoSystemUiController());
 
+/// 测试用的 Desktop bindings factory：显式注入 Fake 全屏端口。
+VideoPlayerPlatformBindings _desktopTestBindings() =>
+    DesktopVideoPlayerBindings(fullscreen: FakeVideoFullscreenController());
+
 /// 按 tooltip 语义属性定位语义节点（IconButton/PopupMenuButton 的 tooltip 在语义树中为 tooltip 属性）。
 SemanticsFinder semanticsByTooltip(String tooltip) =>
     find.semantics.byPredicate((node) => node.tooltip == tooltip);
@@ -63,13 +67,14 @@ Widget _wrapWithMaterialApp(Widget child) {
   );
 }
 
-/// 使用 FakeController 构建页面并完成初始化；可选设置视口。
+/// 使用 FakeController 构建页面并完成初始化；可选设置视口与平台 bindings。
 ///
 /// init 完成后清空追踪记录，让断言只看测试内的调用。
 Future<void> _pumpVideo(
   WidgetTester tester,
   FakeVideoPlayerController fake, {
   Size? viewport,
+  VideoPlayerPlatformBindings Function()? bindings,
 }) async {
   if (viewport != null) {
     tester.view.physicalSize = viewport;
@@ -82,7 +87,7 @@ Future<void> _pumpVideo(
         resource: _testResource(),
         fileName: 'test-video.mp4',
         controllerFactory: (resource) => fake,
-        platformBindingsFactory: _mobileTestBindings,
+        platformBindingsFactory: bindings ?? _mobileTestBindings,
       ),
     ),
   );
@@ -515,6 +520,41 @@ void main() {
 
       expect(focusedNode(), isSemantics(label: '视频播放器：test-video.mp4'));
       expect(semanticsByTooltip('关闭视频'), findsNothing);
+    });
+  });
+
+  group('Desktop 鼠标操控语义', () {
+    testWidgets('表面语义 tap 切换播放暂停且不切换控制栏', (tester) async {
+      final fake = FakeVideoPlayerController();
+      await _pumpVideo(tester, fake, bindings: _desktopTestBindings);
+
+      tester.semantics.tap(find.semantics.byLabel('视频播放器：test-video.mp4'));
+      await tester.pump();
+      expect(fake.pauseCallCount, 1);
+      expect(
+        find.semantics.byLabel('视频播放器：test-video.mp4'),
+        isSemantics(value: '已暂停，播放控件已显示'),
+      );
+    });
+
+    testWidgets('播放中静止三秒控件退出语义树，鼠标活动后恢复', (tester) async {
+      final fake = FakeVideoPlayerController();
+      await _pumpVideo(tester, fake, bindings: _desktopTestBindings);
+      expect(semanticsByTooltip('关闭视频'), findsOneWidget);
+
+      // 播放中静止三秒：共享核心隐藏控制栏，控件退出语义树
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pump();
+      expect(semanticsByTooltip('关闭视频'), findsNothing);
+      expect(semanticsByTooltip('暂停'), findsNothing);
+
+      // 鼠标活动（hover 播放区域）恢复控件可见与语义
+      await tester.sendEventToBinding(
+        PointerHoverEvent(position: _surfaceCenter(tester)),
+      );
+      await tester.pump();
+      expect(semanticsByTooltip('关闭视频'), findsOneWidget);
+      expect(semanticsByTooltip('暂停'), findsOneWidget);
     });
   });
 }
