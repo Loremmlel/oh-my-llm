@@ -26,7 +26,11 @@ import 'package:oh_my_llm/features/favorites/data/sqlite_favorites_repository.da
 
 const _viewportSize = Size(1440, 1024);
 
-Future<ProviderContainer> _pumpBootstrappedApp(WidgetTester tester) async {
+Future<ProviderContainer> _pumpBootstrappedApp(
+  WidgetTester tester, {
+  WindowsWindowInitializer? windowsWindowInitializer,
+  TargetPlatform hostPlatform = TargetPlatform.windows,
+}) async {
   SharedPreferences.setMockInitialValues({});
   tester.view.physicalSize = _viewportSize;
   tester.view.devicePixelRatio = 1;
@@ -38,7 +42,12 @@ Future<ProviderContainer> _pumpBootstrappedApp(WidgetTester tester) async {
   final db = AppDatabase.inMemory();
   addTearDown(db.close);
 
-  await bootstrap(database: db, networkLogger: const NoopNetworkLogger());
+  await bootstrap(
+    database: db,
+    networkLogger: const NoopNetworkLogger(),
+    hostPlatform: hostPlatform,
+    windowsWindowInitializer: windowsWindowInitializer ?? () async {},
+  );
   await tester.pump();
 
   final context = tester.element(find.byType(MaterialApp));
@@ -81,5 +90,28 @@ void main() {
 
     final collections = container.read(collectionsRepositoryProvider);
     expect(collections, isA<SqliteCollectionsRepository>());
+  });
+
+  testWidgets('Windows 平台 window runtime 恰好初始化一次且不触发真实插件', (tester) async {
+    var calls = 0;
+    await _pumpBootstrappedApp(
+      tester,
+      windowsWindowInitializer: () async => calls++,
+    );
+
+    expect(calls, 1); // 注入的 no-op 初始化器生效，真实插件未被触发
+    expect(find.byType(MaterialApp), findsOneWidget);
+  });
+
+  testWidgets('非 Windows 平台不初始化 window runtime', (tester) async {
+    var calls = 0;
+    await _pumpBootstrappedApp(
+      tester,
+      windowsWindowInitializer: () async => calls++,
+      hostPlatform: TargetPlatform.android,
+    );
+
+    expect(calls, 0);
+    expect(find.byType(MaterialApp), findsOneWidget);
   });
 }

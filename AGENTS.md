@@ -142,9 +142,9 @@ lib/
 
 ### 启动顺序（`bootstrap.dart`）
 
-`bootstrap()` 接受三个可选参数用于测试注入：`sharedPreferences` / `database` / `networkLogger`。生产传 `null`，由内部 `.getInstance()` / `.open()` / `.create()` 获取；测试传实例注入。
+`bootstrap()` 接受五个可选参数用于测试注入：`sharedPreferences` / `database` / `networkLogger` / `windowsWindowInitializer` / `hostPlatform`。生产全部传 `null`，由内部 `.getInstance()` / `.open()` / `.create()` 获取；测试传实例注入，并可用 `hostPlatform` 显式指定目标平台（不改全局平台状态）、用 `windowsWindowInitializer` 注入 no-op 的 window runtime，避免测试依赖注册原生插件。
 
-顺序：`WidgetsFlutterBinding.ensureInitialized()` -> `SharedPreferences.getInstance()` -> `AppDatabase.open()` -> `AppNetworkLogger.create(directoryPath: db.path 父目录)` -> `logger.onAppLaunch()` -> `runApp(ProviderScope(...))`。
+顺序：`WidgetsFlutterBinding.ensureInitialized()` -> Windows window runtime 初始化（仅 Windows 平台，生产调用 `windowManager.ensureInitialized()`）-> `SharedPreferences.getInstance()` -> `AppDatabase.open()` -> `AppNetworkLogger.create(directoryPath: db.path 父目录)` -> `logger.onAppLaunch()` -> `runApp(ProviderScope(...))`。
 
 - `database` 与 `networkLogger` 成对：传 `database` 时 logger 不会自动按其路径建日志。
 - network logger 依赖 `AppDatabase.path`，必须在 database 之后初始化。日志文件 `{db_parent}/network.log`，10MB 滚动。
