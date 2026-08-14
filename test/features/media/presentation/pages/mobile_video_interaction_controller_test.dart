@@ -148,6 +148,21 @@ void main() {
       harness.dispose();
     });
 
+    testWidgets('拖动起点初始化后无 update 直接提交 seek 到当前位置而非开头', (tester) async {
+      final harness = await createMobileHarness();
+      harness.interaction.updateScreenWidth(400);
+
+      // slop 阈值被接受后立即抬起：onStart + onEnd、无 onUpdate。
+      // 共享核心必须把拖拽起点初始化为当前播放位置，否则会提交陈旧值 0。
+      harness.interaction.handleHorizontalDragStart(
+        DragStartDetails(globalPosition: const Offset(100, 100)),
+      );
+      harness.interaction.handleHorizontalDragEnd(DragEndDetails());
+
+      expect(harness.fake.seekToCalls, [const Duration(seconds: 30)]);
+      harness.dispose();
+    });
+
     testWidgets('取消标志不污染下一次横拖的 seek', (tester) async {
       final harness = await createMobileHarness();
       harness.interaction.updateScreenWidth(400);

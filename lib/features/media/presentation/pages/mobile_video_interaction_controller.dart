@@ -81,6 +81,12 @@ class MobileVideoInteractionController {
     _dragStartDx = details.globalPosition.dx;
     _dragStartPosition = _playback.state.currentPosition;
     _dragging = true;
+    // 把拖拽起点投影到共享 Seek 预览：slop 被接受后立即抬起（无 update）
+    // 时，onSeekEnd 提交当前位置而非陈旧的 0，避免跳到开头。
+    _playback.onSeekStart(
+      _playback.state.currentPosition.inMilliseconds /
+          _playback.state.totalDuration.inMilliseconds,
+    );
     _beginGesture();
   }
 
