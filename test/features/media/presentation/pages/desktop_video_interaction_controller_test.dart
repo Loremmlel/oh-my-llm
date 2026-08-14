@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -5,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/media/application/models/media_resource.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/desktop_video_interaction_controller.dart';
+import 'package:oh_my_llm/features/media/presentation/pages/video_player_platform_bindings.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/video_playback_controller.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/video_playback_state.dart';
 
@@ -87,6 +90,7 @@ class RequestCloseSpy {
 Future<DesktopHarness> createDesktopHarness({
   required WidgetTester tester,
   FakeVideoPlayerController? fake,
+  FakeVideoFullscreenController? fullscreen,
   bool isPlaying = true,
 }) async {
   final player =
@@ -97,11 +101,11 @@ Future<DesktopHarness> createDesktopHarness({
     controllerFactory: (resource) => player,
     onStateChanged: () {},
   );
-  final fullscreen = FakeVideoFullscreenController();
+  final fullscreenController = fullscreen ?? FakeVideoFullscreenController();
   final closeRequests = RequestCloseSpy();
   final desktop = DesktopVideoInteractionController(
     playback: playback,
-    fullscreen: fullscreen,
+    fullscreen: fullscreenController,
     onRequestClose: () async => closeRequests.count++,
     onInteractionChanged: () {},
   );
@@ -118,7 +122,7 @@ Future<DesktopHarness> createDesktopHarness({
   return DesktopHarness(
     playback: playback,
     fake: player,
-    fullscreen: fullscreen,
+    fullscreen: fullscreenController,
     desktop: desktop,
     timers: FakeTimers(tester),
     closeRequests: closeRequests,
@@ -173,6 +177,7 @@ void main() {
 
       expect(harness.fake.seekToCalls, [const Duration(seconds: 35)]);
       expect(harness.fake.setPlaybackSpeedCalls, isEmpty);
+      harness.desktop.dispose();
       harness.playback.dispose();
     });
 
@@ -188,6 +193,7 @@ void main() {
       harness.keyUp(LogicalKeyboardKey.arrowRight);
       expect(harness.fake.seekToCalls, isEmpty);
       expect(harness.fake.setPlaybackSpeedCalls, [3.0, 1.0]);
+      harness.desktop.dispose();
       harness.playback.dispose();
     });
 
@@ -203,6 +209,7 @@ void main() {
 
       expect(harness.fake.seekToCalls, [const Duration(seconds: 35)]);
       expect(harness.fake.setPlaybackSpeedCalls, isEmpty);
+      harness.desktop.dispose();
       harness.playback.dispose();
     });
 
@@ -218,6 +225,7 @@ void main() {
       harness.keyUp(LogicalKeyboardKey.arrowRight);
       expect(harness.fake.seekToCalls, isEmpty);
       expect(harness.fake.setPlaybackSpeedCalls, [3.0, 1.0]);
+      harness.desktop.dispose();
       harness.playback.dispose();
     });
   });
@@ -235,6 +243,7 @@ void main() {
 
       expect(harness.fake.seekToCalls, isEmpty);
       expect(harness.fake.setPlaybackSpeedCalls, isEmpty);
+      harness.desktop.dispose();
       harness.playback.dispose();
     });
 
@@ -252,6 +261,7 @@ void main() {
 
       expect(harness.fake.seekToCalls, isEmpty);
       expect(harness.fake.setPlaybackSpeedCalls, isEmpty);
+      harness.desktop.dispose();
       harness.playback.dispose();
     });
 
@@ -285,6 +295,7 @@ void main() {
 
       expect(harness.fake.seekToCalls, isEmpty);
       expect(harness.fake.setPlaybackSpeedCalls, isEmpty);
+      harness.desktop.dispose();
       harness.playback.dispose();
     });
 
@@ -301,6 +312,7 @@ void main() {
       harness.keyUp(LogicalKeyboardKey.arrowRight);
       expect(harness.fake.seekToCalls, isEmpty);
       expect(harness.fake.setPlaybackSpeedCalls, [3.0, 1.0]);
+      harness.desktop.dispose();
       harness.playback.dispose();
     });
 
@@ -338,6 +350,7 @@ void main() {
       harness.keyUp(LogicalKeyboardKey.arrowRight);
       expect(harness.fake.seekToCalls, isEmpty);
       expect(harness.fake.setPlaybackSpeedCalls, [3.0, 1.0]);
+      harness.desktop.dispose();
       harness.playback.dispose();
     });
 
@@ -367,6 +380,7 @@ void main() {
       harness.keyUp(LogicalKeyboardKey.arrowLeft);
 
       expect(harness.fake.seekToCalls, [const Duration(seconds: 25)]);
+      harness.desktop.dispose();
       harness.playback.dispose();
     });
 
@@ -390,6 +404,7 @@ void main() {
       harness.keyUp(LogicalKeyboardKey.arrowUp);
       harness.keyUp(LogicalKeyboardKey.arrowDown);
       expect(harness.fake.setVolumeCalls.length, 4);
+      harness.desktop.dispose();
       harness.playback.dispose();
     });
   });
@@ -411,6 +426,7 @@ void main() {
 
       expect(harness.fake.pauseCallCount, 1);
       expect(harness.fake.playCallCount, 1);
+      harness.desktop.dispose();
       harness.playback.dispose();
     });
 
@@ -425,6 +441,7 @@ void main() {
       harness.pageKeyRepeat(LogicalKeyboardKey.keyM);
       harness.pageKeyUp(LogicalKeyboardKey.keyM);
       expect(harness.playback.state.isMuted, isTrue);
+      harness.desktop.dispose();
       harness.playback.dispose();
     });
 
@@ -438,6 +455,7 @@ void main() {
       expect(harness.fullscreen.calls, ['toggle']);
       expect(harness.fullscreen.desired, isTrue);
       expect(harness.fullscreen.actual, isTrue);
+      harness.desktop.dispose();
       harness.playback.dispose();
     });
 
@@ -460,6 +478,7 @@ void main() {
           '无法切换全屏',
         ),
       );
+      harness.desktop.dispose();
       harness.playback.dispose();
     });
 
@@ -479,6 +498,48 @@ void main() {
   });
 
   group('Escape 回退', () {
+    testWidgets('全屏缓存尚未初始化时 Escape 仍由端口判定并留在页面', (tester) async {
+      final fullscreen = FakeVideoFullscreenController()
+        ..nextExitResult = const VideoFullscreenCommandResult(
+          consumed: true,
+          succeeded: true,
+        );
+      final harness = await createDesktopHarness(
+        tester: tester,
+        fullscreen: fullscreen,
+      );
+      addTearDown(harness.desktop.dispose);
+
+      harness.pageKeyDown(LogicalKeyboardKey.escape);
+      await tester.pump();
+
+      expect(harness.fullscreen.calls, ['exitIfFullscreen']);
+      expect(harness.closeRequestCount, 0);
+      harness.playback.dispose();
+    });
+
+    testWidgets('退出全屏失败时显示固定反馈且不关闭页面', (tester) async {
+      final fullscreen = FakeVideoFullscreenController()
+        ..nextExitResult = const VideoFullscreenCommandResult(
+          consumed: true,
+          succeeded: false,
+        );
+      final harness = await createDesktopHarness(
+        tester: tester,
+        fullscreen: fullscreen,
+      );
+      addTearDown(harness.desktop.dispose);
+
+      harness.pageKeyDown(LogicalKeyboardKey.escape);
+      await tester.pump();
+
+      final feedback = harness.playback.state.centerFeedback;
+      expect(feedback, isA<VideoOperationFailureFeedback>());
+      expect((feedback! as VideoOperationFailureFeedback).message, '无法切换全屏');
+      expect(harness.closeRequestCount, 0);
+      harness.playback.dispose();
+    });
+
     testWidgets('全屏时 Escape 只退出全屏且不请求关闭页面', (tester) async {
       final harness = await createDesktopHarness(tester: tester);
       addTearDown(harness.desktop.dispose);
@@ -494,6 +555,7 @@ void main() {
       expect(harness.fullscreen.desired, isFalse);
       expect(harness.fullscreen.actual, isFalse);
       expect(harness.closeRequestCount, 0);
+      harness.desktop.dispose();
       harness.playback.dispose();
     });
 
@@ -504,9 +566,10 @@ void main() {
       harness.pageKeyDown(LogicalKeyboardKey.escape);
       harness.pageKeyRepeat(LogicalKeyboardKey.escape);
       harness.pageKeyUp(LogicalKeyboardKey.escape);
+      await tester.pump();
 
       expect(harness.closeRequestCount, 1);
-      expect(harness.fullscreen.calls, isEmpty);
+      expect(harness.fullscreen.calls, ['exitIfFullscreen']);
       harness.playback.dispose();
     });
   });
@@ -567,6 +630,79 @@ void main() {
       await harness.timers.elapse(const Duration(seconds: 3));
 
       expect(harness.controller.isCursorVisible, isFalse);
+      harness.desktop.dispose();
+      harness.playback.dispose();
+    });
+
+    testWidgets('空闲隐藏后静音键显示控件与光标并重新计时', (tester) async {
+      final harness = await createDesktopHarness(tester: tester);
+      addTearDown(harness.desktop.dispose);
+      harness.desktop.onPlaybackStateChanged();
+      await harness.timers.elapse(const Duration(seconds: 3));
+      expect(harness.playback.state.controlsVisible, isFalse);
+      expect(harness.desktop.isCursorVisible, isFalse);
+
+      harness.pageKeyDown(LogicalKeyboardKey.keyM);
+
+      expect(harness.playback.state.controlsVisible, isTrue);
+      expect(harness.desktop.isCursorVisible, isTrue);
+      await harness.timers.elapse(const Duration(seconds: 3));
+      expect(harness.playback.state.controlsVisible, isFalse);
+      expect(harness.desktop.isCursorVisible, isFalse);
+      harness.desktop.dispose();
+      harness.playback.dispose();
+    });
+
+    testWidgets('空闲隐藏后方向键 Seek 显示控件且提示结束后仍与光标同步', (tester) async {
+      final harness = await createDesktopHarness(tester: tester);
+      addTearDown(harness.desktop.dispose);
+      harness.desktop.onPlaybackStateChanged();
+      await harness.timers.elapse(const Duration(seconds: 3));
+
+      harness.keyDown(LogicalKeyboardKey.arrowLeft);
+
+      expect(harness.playback.state.controlsVisible, isTrue);
+      expect(harness.desktop.isCursorVisible, isTrue);
+      await harness.timers.elapse(const Duration(seconds: 1));
+      expect(harness.playback.state.controlsVisible, isTrue);
+      await harness.timers.elapse(const Duration(seconds: 2));
+      expect(harness.playback.state.controlsVisible, isFalse);
+      expect(harness.desktop.isCursorVisible, isFalse);
+      harness.desktop.dispose();
+      harness.playback.dispose();
+    });
+
+    testWidgets('Enter 显式切换时控件与光标保持同一可见状态', (tester) async {
+      final harness = await createDesktopHarness(tester: tester);
+      addTearDown(harness.desktop.dispose);
+      harness.desktop.onPlaybackStateChanged();
+      await harness.timers.elapse(const Duration(seconds: 3));
+
+      harness.keyDown(LogicalKeyboardKey.enter);
+      expect(harness.playback.state.controlsVisible, isTrue);
+      expect(harness.desktop.isCursorVisible, isTrue);
+
+      harness.keyDown(LogicalKeyboardKey.enter);
+      expect(harness.playback.state.controlsVisible, isFalse);
+      expect(harness.desktop.isCursorVisible, isFalse);
+      harness.desktop.dispose();
+      harness.playback.dispose();
+    });
+
+    testWidgets('Enter 在暂停状态不隐藏控件或光标', (tester) async {
+      final harness = await createDesktopHarness(
+        tester: tester,
+        isPlaying: false,
+      );
+      addTearDown(harness.desktop.dispose);
+
+      harness.keyDown(LogicalKeyboardKey.enter);
+
+      expect(harness.playback.state.controlsVisible, isTrue);
+      expect(harness.desktop.isCursorVisible, isTrue);
+      await harness.timers.elapse(const Duration(seconds: 3));
+      expect(harness.playback.state.controlsVisible, isTrue);
+      expect(harness.desktop.isCursorVisible, isTrue);
       harness.desktop.dispose();
       harness.playback.dispose();
     });
@@ -835,5 +971,27 @@ void main() {
       harness.desktop.dispose();
       harness.playback.dispose();
     });
+  });
+
+  testWidgets('全屏退出结果晚于页面销毁时不再创建失败反馈', (tester) async {
+    final fullscreen = FakeVideoFullscreenController();
+    final exitGate = Completer<VideoFullscreenCommandResult>();
+    fullscreen.exitGate = exitGate;
+    final harness = await createDesktopHarness(
+      tester: tester,
+      fullscreen: fullscreen,
+    );
+
+    harness.pageKeyDown(LogicalKeyboardKey.escape);
+    expect(fullscreen.calls, ['exitIfFullscreen']);
+    harness.desktop.dispose();
+    exitGate.complete(
+      const VideoFullscreenCommandResult(consumed: true, succeeded: false),
+    );
+    await tester.pump();
+
+    expect(harness.playback.state.centerFeedback, isNull);
+    expect(harness.closeRequestCount, 0);
+    harness.playback.dispose();
   });
 }

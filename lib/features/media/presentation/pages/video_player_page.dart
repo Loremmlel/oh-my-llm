@@ -61,6 +61,9 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
   final _topControlsFocusNode = FocusNode(canRequestFocus: false);
   final _bottomControlsFocusNode = FocusNode(canRequestFocus: false);
 
+  /// Mobile 控制栏聚合焦点的上次值，只在进入/离开边沿更新共享 hold。
+  bool _mobileControlsHaveFocus = false;
+
   /// Desktop 初始化成功后已请求过一次表面焦点，重试后重新请求。
   bool _desktopFocusedAfterInit = false;
 
@@ -190,7 +193,9 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
         !s.hasError) {
       _desktopFocusedAfterInit = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _playerFocusNode.requestFocus();
+        if (mounted && ModalRoute.of(context)?.isCurrent == true) {
+          _playerFocusNode.requestFocus();
+        }
       });
     }
     final controlsHidden = !s.controlsVisible;
@@ -224,6 +229,8 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
       desktop.onControlsFocusChanged(hasFocus);
       return;
     }
+    if (hasFocus == _mobileControlsHaveFocus) return;
+    _mobileControlsHaveFocus = hasFocus;
     if (hasFocus) {
       _playback.holdControlsVisible();
     } else {

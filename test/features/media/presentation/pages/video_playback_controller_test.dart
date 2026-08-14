@@ -69,6 +69,45 @@ void main() {
     controller.dispose();
   });
 
+  testWidgets('相对 Seek 反馈被临时倍速替换时恢复此前控制栏状态', (tester) async {
+    final harness = await createPlaybackHarness();
+    addTearDown(harness.controller.dispose);
+
+    harness.controller.seekRelative(const Duration(seconds: 5));
+    expect(harness.controller.state.controlsVisible, isFalse);
+
+    final lease = harness.controller.beginTemporarySpeed(3.0)!;
+
+    expect(harness.controller.state.controlsVisible, isTrue);
+    expect(
+      harness.controller.state.centerFeedback,
+      isA<VideoTemporarySpeedFeedback>(),
+    );
+    harness.controller.endTemporarySpeed(lease);
+    harness.controller.dispose();
+  });
+
+  testWidgets('相对 Seek 后开始拖动时旧提示计时器不清除拖动预览', (tester) async {
+    final harness = await createPlaybackHarness();
+    addTearDown(harness.controller.dispose);
+
+    harness.controller.seekRelative(const Duration(seconds: 5));
+    harness.controller.onSeekStart(0.5);
+    await tester.pump(const Duration(seconds: 1));
+
+    expect(harness.controller.state.isDragging, isTrue);
+    expect(
+      harness.controller.state.centerFeedback,
+      isA<VideoSeekPreviewFeedback>().having(
+        (feedback) => feedback.target,
+        'target',
+        const Duration(minutes: 2, seconds: 30),
+      ),
+    );
+    harness.controller.onSeekCancel();
+    harness.controller.dispose();
+  });
+
   testWidgets('错误 lease 不能结束当前临时倍速且常驻倍速更新后再恢复', (tester) async {
     final fake = FakeVideoPlayerController();
     final controller = createPlaybackController(fake);

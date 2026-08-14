@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -140,6 +142,52 @@ void main() {
     testWidgets('初始化成功后播放表面自动获得主焦点', (tester) async {
       final harness = await pumpDesktopVideo(tester);
       expect(harness.surfaceFocusNode.hasPrimaryFocus, isTrue);
+    });
+
+    testWidgets('初始化完成时已打开弹层继续优先消费 Escape', (tester) async {
+      final gate = Completer<void>();
+      final fake = FakeVideoPlayerController()..initializeGate = gate;
+      final fullscreen = FakeVideoFullscreenController();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => ElevatedButton(
+              onPressed: () => Navigator.of(context).push(
+                PageRouteBuilder<void>(
+                  pageBuilder: (_, _, _) => VideoPlayerPage(
+                    resource: _testResource(),
+                    fileName: 'test-video.mp4',
+                    controllerFactory: (resource) => fake,
+                    platformBindingsFactory: () =>
+                        DesktopVideoPlayerBindings(fullscreen: fullscreen),
+                  ),
+                  transitionDuration: Duration.zero,
+                  reverseTransitionDuration: Duration.zero,
+                ),
+              ),
+              child: const Text('打开播放器'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('打开播放器'));
+      await tester.pump();
+      await fake.waitForInitializeCount(1);
+
+      await tester.tap(find.byTooltip('播放速度，当前 1.0 倍'));
+      await tester.pump();
+      expect(find.text('0.5x'), findsOneWidget);
+
+      gate.complete();
+      await tester.pump();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byType(VideoPlayerPage), findsOneWidget);
+      expect(find.text('0.5x'), findsNothing);
+      expect(fullscreen.calls, ['initialize']);
     });
   });
 

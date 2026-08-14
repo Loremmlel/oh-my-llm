@@ -211,21 +211,26 @@ class DesktopVideoInteractionController {
       case LogicalKeyboardKey.space:
       case LogicalKeyboardKey.mediaPlayPause:
         _playback.togglePlayPause();
+        onPointerActivity();
         return KeyEventResult.handled;
       case LogicalKeyboardKey.enter:
-        _playback.toggleControls();
+        _toggleControlsAndCursor();
         return KeyEventResult.handled;
       case LogicalKeyboardKey.arrowLeft:
         _playback.seekRelative(const Duration(seconds: -5));
+        onPointerActivity();
         return KeyEventResult.handled;
       case LogicalKeyboardKey.arrowRight:
         _onRightDown();
+        onPointerActivity();
         return KeyEventResult.handled;
       case LogicalKeyboardKey.arrowUp:
         _playback.adjustVolume(0.05);
+        onPointerActivity();
         return KeyEventResult.handled;
       case LogicalKeyboardKey.arrowDown:
         _playback.adjustVolume(-0.05);
+        onPointerActivity();
         return KeyEventResult.handled;
       default:
         return KeyEventResult.ignored;
@@ -236,9 +241,11 @@ class DesktopVideoInteractionController {
     switch (key) {
       case LogicalKeyboardKey.arrowUp:
         _playback.adjustVolume(0.05);
+        onPointerActivity();
         return KeyEventResult.handled;
       case LogicalKeyboardKey.arrowDown:
         _playback.adjustVolume(-0.05);
+        onPointerActivity();
         return KeyEventResult.handled;
       case LogicalKeyboardKey.arrowLeft:
       case LogicalKeyboardKey.arrowRight:
@@ -274,8 +281,10 @@ class DesktopVideoInteractionController {
     switch (key) {
       case LogicalKeyboardKey.keyM:
         _playback.toggleMute();
+        onPointerActivity();
         return KeyEventResult.handled;
       case LogicalKeyboardKey.keyF:
+        onPointerActivity();
         unawaited(_toggleFullscreen());
         return KeyEventResult.handled;
       case LogicalKeyboardKey.escape:
@@ -345,6 +354,20 @@ class DesktopVideoInteractionController {
   }
 
   // ── 鼠标活动、控制栏聚合与光标显隐 ──────────────────────────
+
+  /// Enter 显式切换控制栏时同步光标目标；显示后与控制栏共用三秒起点。
+  void _toggleControlsAndCursor() {
+    if (_playbackKeepsCursorVisible) {
+      _playback.showControls();
+      _scheduleCursorHide();
+      return;
+    }
+    _playback.toggleControls();
+    final visible = _playback.state.controlsVisible;
+    _cursorIdleTimer?.cancel();
+    _setCursorVisible(visible);
+    if (visible) _scheduleCursorHide();
+  }
 
   /// 播放状态是否要求保持光标/控件可见（暂停、结束、错误）。
   bool get _playbackKeepsCursorVisible =>
@@ -424,6 +447,7 @@ class DesktopVideoInteractionController {
   /// 切换原生全屏；插件失败只显示固定安全文案，不伪造状态、不关闭页面。
   Future<void> _toggleFullscreen() async {
     final result = await _fullscreen.toggle();
+    if (_disposed) return;
     if (!result.succeeded) {
       _playback.showOperationFailure('无法切换全屏');
     }
@@ -432,10 +456,12 @@ class DesktopVideoInteractionController {
   /// Escape 回退：当前或期望处于全屏时只退出全屏并留在播放器；
   /// 已是窗口模式时请求关闭页面。
   Future<void> _exitFullscreenOrClose() async {
-    if (_fullscreen.actualFullscreen || _fullscreen.desiredFullscreen) {
-      await _fullscreen.exitIfFullscreen();
+    final result = await _fullscreen.exitIfFullscreen();
+    if (_disposed) return;
+    if (!result.succeeded) {
+      _playback.showOperationFailure('无法切换全屏');
       return;
     }
-    await _onRequestClose();
+    if (!result.consumed) await _onRequestClose();
   }
 }

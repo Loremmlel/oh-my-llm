@@ -42,6 +42,7 @@ class VideoPlaybackController {
   VideoPlayerController? _controller;
   Timer? _hideTimer;
   Timer? _hintTimer;
+  VoidCallback? _feedbackCleanup;
   VideoTemporarySpeedLease? _activeSpeedLease;
   int _nextLeaseId = 0;
 
@@ -65,6 +66,7 @@ class VideoPlaybackController {
     final generation = ++_generation;
     _activeSpeedLease = null;
     _hintTimer?.cancel();
+    _feedbackCleanup = null;
     _hideTimer?.cancel();
     _seekControlsVisibleBefore = null;
     _controller?.removeListener(_onControllerUpdate);
@@ -127,6 +129,7 @@ class VideoPlaybackController {
     _disposed = true;
     _hideTimer?.cancel();
     _hintTimer?.cancel();
+    _feedbackCleanup = null;
     _activeSpeedLease = null;
     _controller?.removeListener(_onControllerUpdate);
     _controller?.dispose();
@@ -352,6 +355,7 @@ class VideoPlaybackController {
 
   void onSeekStart(double fraction) {
     if (state.isDragging) return;
+    _clearFeedback();
     _hideTimer?.cancel();
     final targetMs = fractionToMs(fraction);
     _emit(
@@ -398,6 +402,9 @@ class VideoPlaybackController {
   }
 
   void showControls() {
+    if (_seekControlsVisibleBefore != null) {
+      _seekControlsVisibleBefore = true;
+    }
     if (!state.controlsVisible) {
       _emit(state.copyWith(controlsVisible: true));
     }
@@ -439,20 +446,31 @@ class VideoPlaybackController {
     bool autoHide = true,
     VoidCallback? onHide,
   }) {
-    _hintTimer?.cancel();
+    if (_disposed) return;
+    _clearFeedback();
+    _feedbackCleanup = onHide;
     _emit(state.copyWith(centerFeedback: feedback));
     if (autoHide) {
       _hintTimer = Timer(const Duration(seconds: 1), () {
         if (_disposed) return;
+        _hintTimer = null;
+        final cleanup = _feedbackCleanup;
+        _feedbackCleanup = null;
         _emit(state.copyWith(centerFeedback: null));
-        onHide?.call();
+        cleanup?.call();
       });
     }
   }
 
   void _clearFeedback() {
     _hintTimer?.cancel();
-    _emit(state.copyWith(centerFeedback: null));
+    _hintTimer = null;
+    final cleanup = _feedbackCleanup;
+    _feedbackCleanup = null;
+    if (state.centerFeedback != null) {
+      _emit(state.copyWith(centerFeedback: null));
+    }
+    cleanup?.call();
   }
 
   /// 显示固定安全文案的操作失败反馈，不暴露平台异常细节（如全屏插件错误）。
@@ -476,7 +494,7 @@ class VideoPlaybackController {
     final target = state.hasEnded ? true : before;
     if (target != state.controlsVisible) {
       _emit(state.copyWith(controlsVisible: target));
+      resetHideTimer();
     }
-    resetHideTimer();
   }
 }

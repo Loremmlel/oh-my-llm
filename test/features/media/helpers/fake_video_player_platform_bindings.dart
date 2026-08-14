@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:oh_my_llm/features/media/presentation/pages/video_player_platform_bindings.dart';
 
 /// 用于测试的 Fake 全屏控制器：记录精确调用顺序，支持确定性失败。
@@ -9,6 +11,8 @@ final class FakeVideoFullscreenController implements VideoFullscreenController {
   bool desired = false;
   bool failNext = false;
   bool failRestore = false;
+  VideoFullscreenCommandResult? nextExitResult;
+  Completer<VideoFullscreenCommandResult>? exitGate;
   final calls = <String>[];
 
   /// 切换次数：与 [calls] 里 'toggle' 的出现次数一致，供双击用例直接断言。
@@ -41,6 +45,13 @@ final class FakeVideoFullscreenController implements VideoFullscreenController {
   @override
   Future<VideoFullscreenCommandResult> exitIfFullscreen() async {
     calls.add('exitIfFullscreen');
+    final gate = exitGate;
+    if (gate != null) return gate.future;
+    final override = nextExitResult;
+    if (override != null) {
+      nextExitResult = null;
+      return override;
+    }
     if (!desired && !actual) {
       return const VideoFullscreenCommandResult(
         consumed: false,

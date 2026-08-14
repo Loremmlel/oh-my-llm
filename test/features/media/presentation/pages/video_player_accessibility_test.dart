@@ -507,6 +507,22 @@ void main() {
       expect(focusedNode(), isSemantics(tooltip: '关闭视频'));
     });
 
+    testWidgets('焦点跨顶部和底部控制栏后离开时恢复自动隐藏', (tester) async {
+      final fake = FakeVideoPlayerController();
+      await _pumpVideo(tester, fake);
+
+      await _tab(tester, 5); // surface→关闭→倍速→音量→暂停，跨越两个控制栏
+      expect(focusedNode(), isSemantics(tooltip: '暂停'));
+      await _tab(tester, 2); // 播放进度→surface，全部离开控制栏
+      expect(focusedNode(), isSemantics(label: '视频播放器：test-video.mp4'));
+
+      await tester.pump(const Duration(seconds: 3));
+      await settleAnimatedWidgetTransition(tester);
+
+      expect(semanticsByTooltip('关闭视频'), findsNothing);
+      expect(semanticsByTooltip('暂停'), findsNothing);
+    });
+
     testWidgets('控制聚焦时 pointer tap 隐藏控制栏，下一帧焦点恢复到 surface', (tester) async {
       final fake = FakeVideoPlayerController();
       await _pumpVideo(tester, fake);

@@ -30,6 +30,7 @@ class FakeVideoPlayerController extends VideoPlayerController {
   // ── 初始化控制（确定性失败与时序） ──
   /// 设置后 [initialize] 递增计数后确定性抛出该错误。
   Object? initializeError;
+  Completer<void>? initializeGate;
   int initializeCallCount = 0;
   final List<({int expected, Completer<void> completer})> _initializeWaiters =
       [];
@@ -68,6 +69,8 @@ class FakeVideoPlayerController extends VideoPlayerController {
       }
       return false;
     });
+    final gate = initializeGate;
+    if (gate != null) await gate.future;
     if (initializeError != null) {
       fakeIsInitialized = false;
       _updateValue();
