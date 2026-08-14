@@ -4,6 +4,7 @@
 /// 所有测试均使用内存数据库和空操作日志记录器，不依赖文件系统或网络。
 library;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -103,7 +104,7 @@ void main() {
     expect(find.byType(MaterialApp), findsOneWidget);
   });
 
-  testWidgets('非 Windows 平台不初始化 window runtime', (tester) async {
+  testWidgets('非 Windows 平台不初始化 window runtime，也不篡改全局平台', (tester) async {
     var calls = 0;
     await _pumpBootstrappedApp(
       tester,
@@ -113,5 +114,7 @@ void main() {
 
     expect(calls, 0);
     expect(find.byType(MaterialApp), findsOneWidget);
+    // bootstrap 通过 hostPlatform 参数显式选择平台，不修改全局平台 override
+    expect(debugDefaultTargetPlatformOverride, isNull);
   });
 }

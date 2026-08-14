@@ -495,9 +495,19 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
         : s.isPlaying
         ? (controlsVisible ? '正在播放，播放控件已显示' : '正在播放，播放控件已隐藏')
         : (controlsVisible ? '已暂停，播放控件已显示' : '已暂停，播放控件已隐藏');
-    final hint = controlsVisible
-        ? '激活以隐藏播放控件；空格键播放或暂停，左右方向键快退或快进 15 秒'
-        : '激活以显示播放控件；空格键播放或暂停，左右方向键快退或快进 15 秒';
+    // 帮助文本由平台 bindings 决定：Android 描述触摸手势（单击/双击 15 秒/
+    // 长按/横拖），Windows 描述桌面交互（单击播放、双击全屏、5 秒方向键、
+    // 音量与静音）。保持单一 hint 结构与既有 a11y 契约一致。
+    final hint = switch (_bindings) {
+      MobileVideoPlayerBindings() =>
+        controlsVisible
+            ? '激活以隐藏播放控件；单击切换控制栏，双击快退或快进 15 秒，长按 3 倍速，左右拖动快进快退'
+            : '激活以显示播放控件；单击切换控制栏，双击快退或快进 15 秒，长按 3 倍速，左右拖动快进快退',
+      DesktopVideoPlayerBindings() =>
+        controlsVisible
+            ? '激活以播放或暂停；双击或 F 切换全屏，左右方向键快退或快进 5 秒，上下方向键调整音量，M 静音'
+            : '激活以播放或暂停；双击或 F 切换全屏，左右方向键快退或快进 5 秒，上下方向键调整音量，M 静音',
+    };
 
     return Semantics(
       label: '视频播放器：${widget.fileName}',

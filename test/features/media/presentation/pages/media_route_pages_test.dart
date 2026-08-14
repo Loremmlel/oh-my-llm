@@ -214,6 +214,136 @@ void main() {
     expect(find.text('媒体链接无效'), findsOneWidget);
   });
 
+  testWidgets('视频路由每次进入产生独立 bindings 会话，返回再进入不共享', (tester) async {
+    final fake = FakeVideoPlayerController();
+    final created = <VideoPlayerPlatformBindings>[];
+    final prefs = await _testPrefs();
+    await pumpTestApp(
+      tester,
+      preferences: prefs,
+      extraOverrides: [
+        mediaLibrarySessionProvider.overrideWith(
+          () => PreActivatedMediaLibrarySessionController(_libraryWithAssets()),
+        ),
+      ],
+      child: Builder(
+        builder: (context) => ElevatedButton(
+          onPressed: () => Navigator.of(context).push(
+            // 零时长路由：push/pop 单帧完成，动画不干扰后续断言时序
+            PageRouteBuilder<void>(
+              pageBuilder: (_, _, _) => MediaVideoRoutePage(
+                relativePath: '/视频/demo.mp4',
+                bindingsFactory: () {
+                  final bindings = _mobileTestBindings();
+                  created.add(bindings);
+                  return bindings;
+                },
+                controllerFactory: (resource) => fake,
+              ),
+              transitionDuration: Duration.zero,
+              reverseTransitionDuration: Duration.zero,
+            ),
+          ),
+          child: const Text('打开视频'),
+        ),
+      ),
+    );
+
+    // 第一次进入：push 后两帧内资源解析完成、页面构建（文件名出现），
+    // 证明初始化已触发，bindings 只创建一次
+    await tester.tap(find.text('打开视频'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('demo.mp4'), findsOneWidget);
+    expect(fake.initializeCallCount, 1);
+    expect(created, hasLength(1));
+
+    // 顶部关闭按钮 pop 回列表页
+    await tester.tap(find.byTooltip('关闭视频'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('打开视频'), findsOneWidget);
+
+    // 再次进入：生成新的 bindings 会话，不与第一次共享瞬态
+    await tester.tap(find.text('打开视频'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('demo.mp4'), findsOneWidget);
+    expect(fake.initializeCallCount, 2);
+    expect(created, hasLength(2));
+    expect(identical(created[0], created[1]), isFalse);
+  });
+
+  testWidgets('视频无效扩展名恢复页不创建 bindings', (tester) async {
+    var factoryCalls = 0;
+    final prefs = await _testPrefs();
+    await pumpTestApp(
+      tester,
+      preferences: prefs,
+      router: _recoveryRouter(
+        MediaVideoRoutePage(
+          relativePath: '/a/readme.txt',
+          bindingsFactory: () {
+            factoryCalls++;
+            return _mobileTestBindings();
+          },
+        ),
+      ),
+    );
+
+    expect(find.text('媒体链接无效'), findsOneWidget);
+    expect(factoryCalls, 0);
+  });
+
+  testWidgets('视频会话未激活恢复页不创建 bindings', (tester) async {
+    var factoryCalls = 0;
+    final prefs = await _testPrefs();
+    await pumpTestApp(
+      tester,
+      preferences: prefs,
+      router: _recoveryRouter(
+        MediaVideoRoutePage(
+          relativePath: '/视频/demo.mp4',
+          bindingsFactory: () {
+            factoryCalls++;
+            return _mobileTestBindings();
+          },
+        ),
+      ),
+    );
+
+    expect(find.text('媒体会话已失效'), findsOneWidget);
+    expect(factoryCalls, 0);
+  });
+
+  testWidgets('视频资源解析失败恢复页不创建 bindings', (tester) async {
+    var factoryCalls = 0;
+    final prefs = await _testPrefs();
+    await pumpTestApp(
+      tester,
+      preferences: prefs,
+      extraOverrides: [
+        mediaLibrarySessionProvider.overrideWith(
+          () => PreActivatedMediaLibrarySessionController(_libraryWithAssets()),
+        ),
+      ],
+      router: _recoveryRouter(
+        MediaVideoRoutePage(
+          relativePath: '/视频/不存在.mp4',
+          bindingsFactory: () {
+            factoryCalls++;
+            return _mobileTestBindings();
+          },
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('媒体资源不可用'), findsOneWidget);
+    expect(factoryCalls, 0);
+  });
+
   testWidgets('恢复页按钮 pop 或 go 回 /sync', (tester) async {
     final prefs = await _testPrefs();
     final router = GoRouter(

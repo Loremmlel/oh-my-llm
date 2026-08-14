@@ -136,7 +136,7 @@ void main() {
         surface,
         isSemantics(
           value: '正在播放，播放控件已显示',
-          hint: '激活以隐藏播放控件；空格键播放或暂停，左右方向键快退或快进 15 秒',
+          hint: '激活以隐藏播放控件；单击切换控制栏，双击快退或快进 15 秒，长按 3 倍速，左右拖动快进快退',
           isButton: true,
           isEnabled: true,
           hasTapAction: true,
@@ -173,7 +173,7 @@ void main() {
         surface,
         isSemantics(
           value: '正在播放，播放控件已隐藏',
-          hint: '激活以显示播放控件；空格键播放或暂停，左右方向键快退或快进 15 秒',
+          hint: '激活以显示播放控件；单击切换控制栏，双击快退或快进 15 秒，长按 3 倍速，左右拖动快进快退',
         ),
       );
       expect(semanticsByTooltip('关闭视频'), findsNothing);
@@ -202,7 +202,7 @@ void main() {
         surface,
         isSemantics(
           value: '已暂停，播放控件已隐藏',
-          hint: '激活以显示播放控件；空格键播放或暂停，左右方向键快退或快进 15 秒',
+          hint: '激活以显示播放控件；单击切换控制栏，双击快退或快进 15 秒，长按 3 倍速，左右拖动快进快退',
         ),
       );
     });
@@ -399,8 +399,8 @@ void main() {
         ),
       );
 
-      await pumpVolume(0.65, false);
-      final volumeStatus = find.semantics.byLabel('音量 65%');
+      await pumpVolume(0.55, false);
+      final volumeStatus = find.semantics.byLabel('音量 55%');
       expect(volumeStatus, findsOneWidget);
       expect(volumeStatus, isSemantics(isLiveRegion: true));
 
@@ -409,8 +409,8 @@ void main() {
       expect(find.semantics.byLabel('已静音'), findsOneWidget);
 
       // 恢复：播报恢复后的实际百分比
-      await pumpVolume(0.65, false);
-      expect(find.semantics.byLabel('音量 65%'), findsOneWidget);
+      await pumpVolume(0.55, false);
+      expect(find.semantics.byLabel('音量 55%'), findsOneWidget);
 
       // 任意时刻音量反馈只产生一个 live region 节点，不生成节点队列
       expect(
@@ -555,6 +555,39 @@ void main() {
       await tester.pump();
       expect(semanticsByTooltip('关闭视频'), findsOneWidget);
       expect(semanticsByTooltip('暂停'), findsOneWidget);
+    });
+  });
+
+  group('平台绑定帮助文本', () {
+    testWidgets('Windows 表面 hint 描述桌面交互且不出现 Android 15 秒', (tester) async {
+      final fake = FakeVideoPlayerController();
+      await _pumpVideo(tester, fake, bindings: _desktopTestBindings);
+
+      final surface = find.semantics.byLabel('视频播放器：test-video.mp4');
+      expect(surface, findsOneWidget);
+      expect(
+        surface,
+        isSemantics(hint: '激活以播放或暂停；双击或 F 切换全屏，左右方向键快退或快进 5 秒，上下方向键调整音量，M 静音'),
+      );
+    });
+
+    testWidgets('全屏切换失败反馈是 live region 且播报固定文案', (tester) async {
+      final fake = FakeVideoPlayerController();
+      final fullscreen = FakeVideoFullscreenController()..failNext = true;
+      await _pumpVideo(
+        tester,
+        fake,
+        bindings: () => DesktopVideoPlayerBindings(fullscreen: fullscreen),
+      );
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+      await tester.pump();
+
+      final status = find.semantics.byLabel('无法切换全屏');
+      expect(status, findsOneWidget);
+      expect(status, isSemantics(isLiveRegion: true));
+      // 固定安全文案不重复播报为可见文本节点
+      expect(find.text('无法切换全屏'), findsOneWidget);
     });
   });
 }

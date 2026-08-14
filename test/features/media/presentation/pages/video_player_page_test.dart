@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/media/application/models/media_resource.dart';
@@ -653,6 +654,36 @@ void main() {
       expect(status, isSemantics(isLiveRegion: true));
       // 可见文本整体排除重复语义，5s 不再额外播报
       expect(find.semantics.byValue('5s'), findsNothing);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 平台负向契约
+  // ═══════════════════════════════════════════════════════════════════
+
+  group('平台负向契约', () {
+    testWidgets('Mobile 页面不响应桌面 M/F/上下音量快捷键', (tester) async {
+      final fake = FakeVideoPlayerController();
+      fake.fakeVolume = 0.5;
+      await tester.pumpWidget(_buildTestPageWithFake(fakeController: fake));
+      await _pumpInit(tester, controller: fake);
+
+      // 聚焦播放表面（模拟外接键盘可访问性路径），让按键能到达页面按键层；
+      // Mobile 只处理 Enter/Space/左右 15 秒，桌面快捷键必须被忽略。
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyM);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+
+      // M 不静音、F 不切全屏、上下键不调音量、长按倍速不受影响
+      expect(fake.setVolumeCalls, isEmpty);
+      expect(fake.setPlaybackSpeedCalls, isEmpty);
+      expect(fake.pauseCallCount, 0);
+      expect(fake.playCallCount, 0);
     });
   });
 

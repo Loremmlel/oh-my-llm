@@ -11,6 +11,9 @@ import 'package:oh_my_llm/features/media/presentation/pages/video_player_platfor
 import '../../helpers/fake_video_player_controller.dart';
 import '../../helpers/fake_video_player_platform_bindings.dart';
 
+/// 右方向键长按分类阈值（与生产 400ms 契约一致）。
+const _rightHoldThreshold = Duration(milliseconds: 400);
+
 /// 测试用的远端资源（避免真实平台通道，控制器一律经 factory 注入 Fake）。
 NetworkMediaResource _testResource() =>
     NetworkMediaResource(Uri.parse('http://localhost/test.mp4'));
@@ -278,30 +281,66 @@ void main() {
   });
 
   group('Desktop 单击与双击', () {
-    testWidgets('画面单击切换播放并恢复表面焦点', (tester) async {
+    testWidgets('触摸 pointer 单击仍走桌面策略切换播放并恢复表面焦点', (tester) async {
       final harness = await pumpDesktopVideo(tester);
       // Tab 把焦点移出表面，证明单击会恢复表面主焦点
       await tester.sendKeyEvent(LogicalKeyboardKey.tab);
       await tester.pump();
       expect(harness.surfaceFocusNode.hasPrimaryFocus, isFalse);
 
-      await tester.tap(harness.videoSurface);
+      // 显式用触摸 pointer：桌面带触摸屏也仍走桌面单击策略（播放/暂停）
+      await tester.tap(harness.videoSurface, kind: PointerDeviceKind.touch);
       await tester.pump(kDoubleTapTimeout); // 双击窗口到期，单击提交
       expect(harness.fake.pauseCallCount, 1);
       expect(harness.surfaceFocusNode.hasPrimaryFocus, isTrue);
     });
 
-    testWidgets('画面双击只切换全屏，不产生单击播放暂停也不 Seek', (tester) async {
+    testWidgets('触摸 pointer 双击仍只切换全屏，不产生单击播放暂停也不 Seek', (tester) async {
       final harness = await pumpDesktopVideo(tester);
-      await tester.tap(harness.videoSurface);
+      // 触摸双击：桌面双击语义是原生全屏，不是 Android 的 ±15 秒 Seek
+      await tester.tap(harness.videoSurface, kind: PointerDeviceKind.touch);
       await tester.pump(kDoubleTapMinTime);
-      await tester.tap(harness.videoSurface);
+      await tester.tap(harness.videoSurface, kind: PointerDeviceKind.touch);
       await tester.pump();
       expect(harness.fullscreen.toggleCallCount, 1);
       expect(harness.fake.pauseCallCount, 0);
       expect(harness.fake.seekToCalls, isEmpty);
       // 双击识别后仍残留一个 kDoubleTapTimeout 识别器计时器，推进窗口排空。
       await tester.pump(kDoubleTapTimeout);
+    });
+
+    testWidgets('画面长按不申请 3 倍速也不 Seek', (tester) async {
+      final harness = await pumpDesktopVideo(tester);
+      final gesture = await tester.startGesture(harness.videoSurfaceCenter);
+      await tester.pump(kLongPressTimeout);
+
+      // 桌面交互层不安装长按识别器：按住跨过长按阈值也不产生临时倍速
+      expect(harness.fake.setPlaybackSpeedCalls, isEmpty);
+      expect(harness.fake.seekToCalls, isEmpty);
+
+      await gesture.up();
+      await tester.pump(kDoubleTapTimeout); // 排空单击/双击识别器计时
+    });
+
+    testWidgets('画面横拖不预览也不提交 Seek', (tester) async {
+      final harness = await pumpDesktopVideo(tester);
+      final gesture = await tester.startGesture(harness.videoSurfaceCenter);
+      final slop = const Offset(kDragSlopDefault, 0);
+      await gesture.moveBy(slop);
+      await gesture.moveBy(const Offset(120, 0) - slop);
+      await tester.pump();
+
+      // 桌面不安装横拖识别器：拖动过程无 Seek 预览，松手不提交
+      final seekPreview = find.semantics.byPredicate(
+        (node) => node.label.startsWith('预览位置'),
+      );
+      expect(seekPreview, findsNothing);
+      expect(harness.fake.seekToCalls, isEmpty);
+
+      await gesture.up();
+      await tester.pump();
+      expect(harness.fake.seekToCalls, isEmpty);
+      await tester.pump(kDoubleTapTimeout); // 排空单击/双击识别器计时
     });
   });
 
@@ -346,6 +385,31 @@ void main() {
       );
       await tester.pump();
       expect(harness.fake.setVolumeCalls, isEmpty);
+    });
+  });
+
+  group('Desktop 生命周期收口', () {
+    testWidgets('应用失焦取消右键长按并释放临时倍速，迟到 KeyUp 不补 Seek', (tester) async {
+      final harness = await pumpDesktopVideo(tester);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump(_rightHoldThreshold);
+      expect(harness.fake.setPlaybackSpeedCalls, [3.0]);
+
+      // 页面把应用生命周期事件转发给桌面控制器，按长按取消路径收口，
+      // 不等待可能丢失的 KeyUp
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      addTearDown(
+        () => tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        ),
+      );
+      await tester.pump();
+
+      expect(harness.fake.setPlaybackSpeedCalls, [3.0, 1.0]);
+      expect(harness.fake.seekToCalls, isEmpty);
+      // 迟到的 KeyUp 不再补做短按 Seek
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowRight);
+      expect(harness.fake.seekToCalls, isEmpty);
     });
   });
 }
