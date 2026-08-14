@@ -150,4 +150,20 @@ void main() {
       harness.controller.dispose();
     });
   });
+
+  testWidgets('showOperationFailure 显示固定失败反馈', (tester) async {
+    final harness = await createPlaybackHarness();
+    addTearDown(harness.controller.dispose);
+
+    harness.controller.showOperationFailure('无法切换全屏');
+    expect(
+      harness.controller.state.centerFeedback,
+      isA<VideoOperationFailureFeedback>().having(
+        (value) => value.message,
+        'message',
+        '无法切换全屏',
+      ),
+    );
+    harness.controller.dispose();
+  });
 }

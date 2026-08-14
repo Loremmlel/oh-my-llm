@@ -444,6 +444,11 @@ class VideoPlaybackController {
     _emit(state.copyWith(centerFeedback: null));
   }
 
+  /// 显示固定安全文案的操作失败反馈，不暴露平台异常细节（如全屏插件错误）。
+  void showOperationFailure(String message) {
+    _showFeedback(VideoOperationFailureFeedback(message));
+  }
+
   // ── 相对 Seek 手势期间控制栏暂存 ──────────────────────────────
 
   void _beginSeekGesture() {
