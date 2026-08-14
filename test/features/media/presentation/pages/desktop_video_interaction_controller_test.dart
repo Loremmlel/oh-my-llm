@@ -285,6 +285,22 @@ void main() {
       harness.playback.dispose();
     });
 
+    testWidgets('hold 中播放结束释放临时倍速且迟到 KeyUp 无副作用', (tester) async {
+      final harness = await createDesktopHarness();
+      addTearDown(harness.desktop.dispose);
+      harness.keyDown(LogicalKeyboardKey.arrowRight);
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(harness.fake.setPlaybackSpeedCalls, [3.0]);
+
+      harness.desktop.onPlaybackEnded();
+      expect(harness.fake.setPlaybackSpeedCalls, [3.0, 1.0]);
+
+      harness.keyUp(LogicalKeyboardKey.arrowRight);
+      expect(harness.fake.seekToCalls, isEmpty);
+      expect(harness.fake.setPlaybackSpeedCalls, [3.0, 1.0]);
+      harness.playback.dispose();
+    });
+
     testWidgets('pending 中 dispose 取消计时器且迟到 KeyUp 无副作用', (tester) async {
       final harness = await createDesktopHarness();
       harness.keyDown(LogicalKeyboardKey.arrowRight);
