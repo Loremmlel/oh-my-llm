@@ -318,14 +318,21 @@ void main() {
       harness.playback.dispose();
     });
 
-    testWidgets('hold 中播放结束释放临时倍速且迟到 KeyUp 无副作用', (tester) async {
+    testWidgets('播放结束过渡收口右键并释放临时倍速，迟到 KeyUp 无副作用', (tester) async {
       final harness = await createDesktopHarness(tester: tester);
       addTearDown(harness.desktop.dispose);
       harness.keyDown(LogicalKeyboardKey.arrowRight);
       await tester.pump(_rightHoldThreshold);
       expect(harness.fake.setPlaybackSpeedCalls, [3.0]);
 
-      harness.desktop.onPlaybackEnded();
+      // 播放自然结束：fake 置为 completed 并推进到近末尾位置，触发核心收口
+      harness.fake.fakeIsCompleted = true;
+      harness.fake.fakePosition = harness.fake.fakeDuration;
+      harness.fake.emitValueChanged();
+      // 页面在每次播放状态变化后转发给桌面控制器
+      harness.desktop.onPlaybackStateChanged();
+
+      expect(harness.playback.state.hasEnded, isTrue);
       expect(harness.fake.setPlaybackSpeedCalls, [3.0, 1.0]);
 
       harness.keyUp(LogicalKeyboardKey.arrowRight);
@@ -542,6 +549,23 @@ void main() {
 
       await harness.timers.elapse(const Duration(seconds: 3));
       expect(harness.playback.state.controlsVisible, isFalse);
+      expect(harness.controller.isCursorVisible, isFalse);
+      harness.desktop.dispose();
+      harness.playback.dispose();
+    });
+
+    testWidgets('全新打开播放后三秒静止光标自动隐藏', (tester) async {
+      final harness = await createDesktopHarness(
+        tester: tester,
+        isPlaying: true,
+      );
+      addTearDown(harness.desktop.dispose);
+      expect(harness.controller.isCursorVisible, isTrue);
+
+      // 模拟页面转发初始化后的播放状态变化；不依赖任何鼠标活动
+      harness.desktop.onPlaybackStateChanged();
+      await harness.timers.elapse(const Duration(seconds: 3));
+
       expect(harness.controller.isCursorVisible, isFalse);
       harness.desktop.dispose();
       harness.playback.dispose();

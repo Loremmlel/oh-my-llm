@@ -67,7 +67,14 @@ class DesktopVideoInteractionController {
   Timer? _cursorIdleTimer;
 
   /// 上一次影响保持策略的播放状态值：position tick 等无关变化不重排计时。
-  bool _lastPlaybackKeepsCursor = false;
+  ///
+  /// 初始为 true 与「播放前光标保持可见」的状态一致：首次进入播放时 keeps
+  /// 从 true→false 的过渡会 arm 光标隐藏计时，否则无鼠标活动的全新打开里
+  /// 光标永不隐藏。
+  bool _lastPlaybackKeepsCursor = true;
+
+  /// 上一次看到的播放结束标志：false→true 过渡时收口右方向键 pending/hold。
+  bool _playbackEnded = false;
 
   /// 滚轮 50ms leading-edge 节流：窗口内首个事件立即生效，其余忽略。
   bool _wheelThrottled = false;
@@ -138,9 +145,17 @@ class DesktopVideoInteractionController {
   }
 
   /// 共享播放状态变化后由页面转发；只在影响保持策略的值变化时重排光标计时，
-  /// 避免每个 position tick 都重启三秒。
+  /// 避免每个 position tick 都重启三秒。播放结束（hasEnded false→true）时
+  /// 收口右方向键 pending/hold，不等待可能丢失的 KeyUp。
   void onPlaybackStateChanged() {
     if (_disposed) return;
+    final hasEnded = _playback.state.hasEnded;
+    if (hasEnded && !_playbackEnded) {
+      _playbackEnded = true;
+      _cancelRightState();
+    } else if (!hasEnded && _playbackEnded) {
+      _playbackEnded = false;
+    }
     final keeps = _playbackKeepsCursorVisible;
     if (keeps == _lastPlaybackKeepsCursor) return;
     _lastPlaybackKeepsCursor = keeps;
@@ -173,9 +188,6 @@ class DesktopVideoInteractionController {
     _cancelWheelThrottle();
     _cancelCursorVisibility(notify: true);
   }
-
-  /// 播放结束：hold 收口，释放临时倍速，不执行短按 Seek。
-  void onPlaybackEnded() => _cancelRightState();
 
   /// 初始化重试前取消进行中的右方向键、滚轮节流与光标计时。
   void cancelForRetry() {
