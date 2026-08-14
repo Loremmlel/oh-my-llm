@@ -11,6 +11,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/media/application/models/media_resource.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/video_player_page.dart';
+import 'package:oh_my_llm/features/media/presentation/pages/video_playback_state.dart';
+import 'package:oh_my_llm/features/media/presentation/widgets/video_player_controls.dart';
 
 import '../../../../helpers/responsive_viewport_cases.dart';
 import '../../../../helpers/async/widget_test_animation.dart';
@@ -367,6 +369,58 @@ void main() {
         findsOneWidget,
       );
       expect(find.semantics.byLabel('视频播放器：test-video.mp4'), findsNothing);
+    });
+  });
+
+  group('音量与静音语义', () {
+    testWidgets('音量反馈播报实际百分比且静音/恢复为单一 live region', (tester) async {
+      Future<void> pumpVolume(double volume, bool isMuted) => tester.pumpWidget(
+        _wrapWithMaterialApp(
+          VideoCenterHint(
+            visible: true,
+            feedback: VideoVolumeFeedback(volume: volume, isMuted: isMuted),
+            showPauseIcon: false,
+          ),
+        ),
+      );
+
+      await pumpVolume(0.65, false);
+      final volumeStatus = find.semantics.byLabel('音量 65%');
+      expect(volumeStatus, findsOneWidget);
+      expect(volumeStatus, isSemantics(isLiveRegion: true));
+
+      // 静音：播报已静音，不叠加第二个 live region
+      await pumpVolume(0.0, true);
+      expect(find.semantics.byLabel('已静音'), findsOneWidget);
+
+      // 恢复：播报恢复后的实际百分比
+      await pumpVolume(0.65, false);
+      expect(find.semantics.byLabel('音量 65%'), findsOneWidget);
+
+      // 任意时刻音量反馈只产生一个 live region 节点，不生成节点队列
+      expect(
+        find.semantics.byPredicate((node) => node.flagsCollection.isLiveRegion),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('顶部音量按钮 tooltip 显示实际百分比', (tester) async {
+      await tester.pumpWidget(
+        _wrapWithMaterialApp(
+          // 页面中的顶部栏位于 Scaffold 内，这里用 Scaffold 提供 Material
+          Scaffold(
+            body: VideoTopBar(
+              fileName: 'test-video.mp4',
+              playbackSpeed: 1.0,
+              volume: 0.65,
+              onBack: () {},
+              onSpeedChanged: (_) {},
+              onVolumeChanged: (_) {},
+            ),
+          ),
+        ),
+      );
+      expect(semanticsByTooltip('音量，当前 65%'), findsOneWidget);
     });
   });
 

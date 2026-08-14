@@ -378,8 +378,7 @@ class VideoCenterHint extends StatelessWidget {
     if (!visible) return const SizedBox.shrink();
 
     final feedback = this.feedback;
-    Widget content;
-    String? semanticsLabel;
+    Widget? content;
     var liveRegion = false;
 
     switch (feedback) {
@@ -389,9 +388,6 @@ class VideoCenterHint extends StatelessWidget {
           label: '${delta.abs().inSeconds}s',
           iconFirst: !delta.isNegative,
         );
-        semanticsLabel = delta.isNegative
-            ? '已快退 ${delta.abs().inSeconds} 秒'
-            : '已快进 ${delta.inSeconds} 秒';
         liveRegion = true;
       case VideoSeekPreviewFeedback(:final target):
         content = Text(
@@ -402,7 +398,6 @@ class VideoCenterHint extends StatelessWidget {
             fontWeight: FontWeight.bold,
           ),
         );
-        semanticsLabel = '预览位置 ${formatVideoDuration(target)}';
       case VideoTemporarySpeedFeedback(:final speed):
         content = Row(
           mainAxisSize: MainAxisSize.min,
@@ -419,7 +414,6 @@ class VideoCenterHint extends StatelessWidget {
             ),
           ],
         );
-        semanticsLabel = '临时 ${speed.toStringAsFixed(1)} 倍速播放';
         liveRegion = true;
       case VideoVolumeFeedback(:final volume, :final isMuted):
         content = Row(
@@ -441,22 +435,35 @@ class VideoCenterHint extends StatelessWidget {
             ),
           ],
         );
-        semanticsLabel = isMuted ? '已静音' : '音量 ${(volume * 100).round()}%';
         liveRegion = true;
       case VideoOperationFailureFeedback(:final message):
         content = Text(
           message,
           style: const TextStyle(color: Colors.white, fontSize: 16),
         );
-        semanticsLabel = message;
         liveRegion = true;
       case null:
         if (showPauseIcon) {
           content = const Icon(Icons.play_arrow, color: Colors.white, size: 48);
-        } else {
-          return const SizedBox.shrink();
         }
     }
+    if (content == null) return const SizedBox.shrink();
+
+    // 可见文本与语义播报都取自反馈的实际值，不写死平台 15 秒/3.0 倍速。
+    final semanticsLabel = switch (feedback) {
+      VideoRelativeSeekFeedback(:final delta) =>
+        delta.isNegative
+            ? '已快退 ${delta.abs().inSeconds} 秒'
+            : '已快进 ${delta.inSeconds} 秒',
+      VideoSeekPreviewFeedback(:final target) =>
+        '预览位置 ${formatVideoDuration(target)}',
+      VideoTemporarySpeedFeedback(:final speed) =>
+        '临时 ${speed.toStringAsFixed(1)} 倍速播放',
+      VideoVolumeFeedback(isMuted: true) => '已静音',
+      VideoVolumeFeedback(:final volume) => '音量 ${(volume * 100).round()}%',
+      VideoOperationFailureFeedback(:final message) => message,
+      null => null,
+    };
 
     // 提示以单一语义节点表达；可见内容整体排除，避免「图标+文字」重复播报。
     // 相对 Seek、临时倍速、音量与失败是离散结果，标 live region；

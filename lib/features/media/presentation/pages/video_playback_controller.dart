@@ -81,7 +81,9 @@ class VideoPlaybackController {
       if (generation != _generation) return;
       if (!identical(ctrl, _controller)) return;
 
-      ctrl.setVolume(state.volume);
+      // 初始化从底层 controller value 投影真实音量：不为零时同步记忆音量，
+      // 为零时保留默认 100%，不把平台初始音量写死为固定值。
+      final projectedVolume = ctrl.value.volume.clamp(0.0, 1.0);
       ctrl.setPlaybackSpeed(state.persistentSpeed);
       ctrl.play();
 
@@ -96,6 +98,10 @@ class VideoPlaybackController {
           errorMessage: null,
           hasEnded: ended,
           isPlaying: true,
+          volume: projectedVolume,
+          lastNonZeroVolume: projectedVolume > 0.0
+              ? projectedVolume
+              : state.lastNonZeroVolume,
         ),
       );
       _startHideTimer();
@@ -232,10 +238,58 @@ class VideoPlaybackController {
     resetHideTimer();
   }
 
-  void setVolume(double volume) {
-    final next = volume.clamp(0.0, 1.0);
-    _controller?.setVolume(next);
-    _emit(state.copyWith(volume: next));
+  /// 设置绝对音量：clamp 到 [0,1] 并清除显式静音。
+  ///
+  /// Slider 直接设置音量时先解除静音；设为 0 不标记为显式静音，
+  /// 也不覆盖最后非零音量（见 [_applyVolume]）。
+  void setVolume(double value) {
+    final next = value.clamp(0.0, 1.0);
+    _applyVolume(next, isMuted: false);
+  }
+
+  /// 相对当前音量调整：静音时先以记忆音量解除静音，再应用步进。
+  ///
+  /// 手动零音量时按上调从 0% 开始（base 取当前音量 0），
+  /// 下调继续保持在 0%；未静音时 base 就是当前音量。
+  void adjustVolume(double delta) {
+    final base = state.isMuted ? state.lastNonZeroVolume : state.volume;
+    _applyVolume((base + delta).clamp(0.0, 1.0), isMuted: false);
+  }
+
+  /// 切换显式静音：非静音且音量大于零时保存当前音量并把底层音量置零；
+  /// 显式静音或手动零音量时恢复最后非零音量。
+  void toggleMute() {
+    if (state.isMuted || state.volume <= 0.0) {
+      _applyVolume(state.lastNonZeroVolume, isMuted: false);
+      return;
+    }
+    _applyVolume(0.0, isMuted: true, rememberedVolume: state.volume);
+  }
+
+  /// 音量命令唯一收口：一次 copyWith 写入 volume/mute/lastNonZero 后通知 UI。
+  ///
+  /// 只有新值与当前底层音量差异超过 0.0001 时才调用底层 setter，避免边界
+  /// 无变化时重复写播放器；[rememberedVolume] 优先作为记忆音量，否则大于零
+  /// 的新值更新 lastNonZero。每次成功命令都刷新同一个音量反馈节点。
+  void _applyVolume(
+    double value, {
+    required bool isMuted,
+    double? rememberedVolume,
+  }) {
+    final clamped = value.clamp(0.0, 1.0);
+    if ((clamped - state.volume).abs() > 0.0001) {
+      _controller?.setVolume(clamped);
+    }
+    final nextLastNonZero =
+        rememberedVolume ?? (clamped > 0.0 ? clamped : state.lastNonZeroVolume);
+    _emit(
+      state.copyWith(
+        volume: clamped,
+        isMuted: isMuted,
+        lastNonZeroVolume: nextLastNonZero,
+      ),
+    );
+    _showFeedback(VideoVolumeFeedback(volume: clamped, isMuted: isMuted));
   }
 
   // ── 临时倍速 lease ─────────────────────────────────────────────

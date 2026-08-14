@@ -17,6 +17,18 @@ VideoPlaybackController createPlaybackController(
   );
 }
 
+/// 构建已初始化的核心与 Fake，并在初始化前预置底层音量。
+///
+/// [initialVolume] 写入 fake 的底层音量，使核心初始化从 controller value
+/// 投影出该音量（与真实播放器从平台投影音量一致）。
+Future<({VideoPlaybackController controller, FakeVideoPlayerController fake})>
+createPlaybackHarness({double initialVolume = 1.0}) async {
+  final fake = FakeVideoPlayerController()..fakeVolume = initialVolume;
+  final controller = createPlaybackController(fake);
+  await controller.initialize();
+  return (controller: controller, fake: fake);
+}
+
 void main() {
   // testWidgets 会在挂起 Timer 检查之后再运行 addTearDown，无法及时取消
   // 共享核心持有的自动隐藏/提示计时器，因此各用例在断言后主动 dispose
@@ -73,5 +85,69 @@ void main() {
     controller.endTemporarySpeed(active);
     expect(fake.fakePlaybackSpeed, 1.5);
     controller.dispose();
+  });
+
+  group('音量与静音', () {
+    testWidgets('普通步进边界正确 clamp 音量', (tester) async {
+      final cases = [
+        (start: 0.98, delta: 0.05, expected: 1.0),
+        (start: 0.02, delta: -0.05, expected: 0.0),
+        (start: 0.50, delta: 0.05, expected: 0.55),
+      ];
+      for (final c in cases) {
+        final harness = await createPlaybackHarness(initialVolume: c.start);
+        addTearDown(harness.controller.dispose);
+        harness.controller.adjustVolume(c.delta);
+        expect(
+          harness.fake.setVolumeCalls.last,
+          closeTo(c.expected, 0.0001),
+          reason: 'start=${c.start} delta=${c.delta}',
+        );
+        harness.controller.dispose();
+      }
+    });
+
+    testWidgets('M 静音后再次切换恢复最后非零音量', (tester) async {
+      final harness = await createPlaybackHarness(initialVolume: 0.65);
+      addTearDown(harness.controller.dispose);
+      harness.controller.toggleMute();
+      expect(harness.controller.state.isMuted, isTrue);
+      expect(harness.fake.setVolumeCalls.last, 0.0);
+
+      harness.controller.toggleMute();
+      expect(harness.controller.state.isMuted, isFalse);
+      expect(harness.fake.setVolumeCalls.last, 0.65);
+      harness.controller.dispose();
+    });
+
+    testWidgets('显式静音时调音先恢复记忆音量再应用步进', (tester) async {
+      final harness = await createPlaybackHarness(initialVolume: 0.60);
+      addTearDown(harness.controller.dispose);
+      harness.controller.toggleMute();
+      harness.controller.adjustVolume(-0.05);
+      expect(harness.controller.state.isMuted, isFalse);
+      expect(harness.fake.setVolumeCalls.last, closeTo(0.55, 0.0001));
+      harness.controller.dispose();
+    });
+
+    testWidgets('手动零音量不覆盖记忆且上调从百分之五开始', (tester) async {
+      final harness = await createPlaybackHarness(initialVolume: 0.60);
+      addTearDown(harness.controller.dispose);
+      harness.controller.setVolume(0);
+      expect(harness.controller.state.lastNonZeroVolume, 0.60);
+      expect(harness.controller.state.isMuted, isFalse);
+      harness.controller.adjustVolume(0.05);
+      expect(harness.fake.setVolumeCalls.last, 0.05);
+      harness.controller.dispose();
+    });
+
+    testWidgets('边界无变化时不重复调用底层音量 setter', (tester) async {
+      final harness = await createPlaybackHarness(initialVolume: 0.5);
+      addTearDown(harness.controller.dispose);
+      harness.controller.setVolume(0.5);
+      harness.controller.adjustVolume(0.0);
+      expect(harness.fake.setVolumeCalls, isEmpty);
+      harness.controller.dispose();
+    });
   });
 }

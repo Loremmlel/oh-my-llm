@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/features/media/application/models/media_resource.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/media_video_controller_factory.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/video_player_page.dart';
+import 'package:oh_my_llm/features/media/presentation/pages/video_playback_state.dart';
 import 'package:oh_my_llm/features/media/presentation/widgets/video_player_controls.dart';
 
 import '../../../../helpers/async/widget_test_animation.dart';
@@ -580,6 +581,37 @@ void main() {
 
       expect(fake.seekToCalls, isNotEmpty);
       await _flushGestureTimers(tester);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 中央反馈渲染实际值
+  // ═══════════════════════════════════════════════════════════════════
+
+  group('中央反馈渲染实际值', () {
+    testWidgets('相对 Seek 反馈按实际秒数渲染，不写死平台 15 秒', (tester) async {
+      // 直接向核心输出的结构化反馈发送 5 秒（Windows 桌面输入产生的 Seek
+      // offset），Widget 必须显示反馈中的实际值而不是 Android 的固定 15 秒
+      await tester.pumpWidget(
+        _wrapWithMaterialApp(
+          VideoCenterHint(
+            visible: true,
+            feedback: VideoRelativeSeekFeedback(
+              delta: const Duration(seconds: 5),
+              target: const Duration(seconds: 35),
+            ),
+            showPauseIcon: false,
+          ),
+        ),
+      );
+
+      expect(find.text('5s'), findsOneWidget);
+      expect(find.text('15s'), findsNothing);
+      final status = find.semantics.byLabel('已快进 5 秒');
+      expect(status, findsOneWidget);
+      expect(status, isSemantics(isLiveRegion: true));
+      // 可见文本整体排除重复语义，5s 不再额外播报
+      expect(find.semantics.byValue('5s'), findsNothing);
     });
   });
 
