@@ -119,7 +119,19 @@ void main() {
         final badData = List<int>.generate(256, (i) => i % 256);
         await imgFile.writeAsBytes(badData);
 
-        expect(() => generator.generate('/bad.png'), throwsA(isA<Exception>()));
+        // 解码失败在 Isolate.run 后台 isolate 抛出，必须断言原类型而非泛化的
+        // Exception：isA<Exception>() 无法区分 ThumbnailException 与 RemoteError/
+        // ArgumentError（发送性检查失败），精确类型断言保护跨 isolate 异常类型契约。
+        expect(
+          () => generator.generate('/bad.png'),
+          throwsA(
+            isA<ThumbnailException>().having(
+              (e) => e.message,
+              'message',
+              contains('无法解码图片'),
+            ),
+          ),
+        );
       });
 
       test('不支持的文件类型抛出异常', () async {
