@@ -8,6 +8,7 @@ import 'package:oh_my_llm/features/settings/domain/models/preferences/custom_hea
 import 'package:oh_my_llm/features/settings/domain/models/preferences/font_size_settings.dart';
 import 'package:oh_my_llm/features/settings/domain/models/providers/llm_provider_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/preferences/output_processing_settings.dart';
+import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_export_data.dart';
 
 import '../../../../helpers/fixtures.dart';
@@ -172,6 +173,47 @@ void main() {
       expect(result, isNotNull);
       expect(result!.autoRetrySettings, const AutoRetrySettings());
       expect(result.fontSizeSettings, const FontSizeSettings());
+    });
+  });
+
+  group('buildSinglePresetExportData 只导出指定预设', () {
+    test('导出数据只含该预设，其余列表为空且可被原样解码回来', () {
+      // 默认构造：该方法不读任何注入的 controller，故不需要 seed 任何 reader。
+      final workflow = SettingsTransferWorkflow();
+      // 用带显式 title 的消息构造预设：PresetPrompt.fromJson 对空 title 会按
+      // placement+role 回退填充 ([]（副本 N）），那是不保证 round-trip 等价的
+      // 既有解码行为，不属于本次契约；显式 title 让解码可完整还原。
+      final preset = TestFixtures.presetPrompt(
+        id: 'preset-1',
+        name: '代码助手',
+        messages: [
+          TestFixtures.promptMessage(
+            id: 'message-1',
+            role: PromptMessageRole.user,
+            title: '前置要求',
+            content: '请优先关注实现细节。',
+            placement: PromptMessagePlacement.before,
+          ),
+        ],
+      );
+
+      final data = workflow.buildSinglePresetExportData(preset);
+
+      expect(data.presetPrompts, [preset]);
+      expect(data.modelProviders, isEmpty);
+      expect(data.memoryPrompts, isEmpty);
+      expect(data.templatePrompts, isEmpty);
+      expect(data.fixedPromptSequences, isEmpty);
+      expect(data.autoRetrySettings, isNull);
+      expect(data.customHeadersConfig, isNull);
+      expect(data.fontSizeSettings, isNull);
+      expect(data.outputProcessingSettings, isNull);
+
+      // round-trip：导出 JSON 再解码，预设应回到等同对象，证明产物能被另一台
+      // 设备的导入路径原样识别（identifier + formatVersion 由 codec 负责）。
+      final decoded = SettingsExportData.tryParseJson(data.toJsonString());
+      expect(decoded, isNotNull);
+      expect(decoded!.presetPrompts, [preset]);
     });
   });
 

@@ -163,6 +163,22 @@ final class SettingsTransferWorkflow {
     };
   }
 
+  /// 构造只含单条预设的导出包，供「复制某条预设到剪贴板」使用。
+  ///
+  /// 返回结构与「导出预设 tab」一致（含 identifier / formatVersion），但
+  /// `presetPrompts` 只放被点中的这一条，其余四个列表留空——这样贴到另一台
+  /// 设备的导入框时，会被 [prepareImport] 当作「预设 tab 有一条新预设」处理，
+  /// 与既有的去重与导入路径完全兼容。纯函数，不读任何注入的 controller。
+  SettingsExportData buildSinglePresetExportData(PresetPrompt preset) {
+    return SettingsExportData(
+      modelProviders: const [],
+      memoryPrompts: const [],
+      presetPrompts: [preset],
+      templatePrompts: const [],
+      fixedPromptSequences: const [],
+    );
+  }
+
   SettingsImportPreparation prepareImport({
     required SettingsTransferTab tab,
     required String? clipboardText,

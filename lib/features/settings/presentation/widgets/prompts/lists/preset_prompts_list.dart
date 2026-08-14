@@ -14,13 +14,13 @@ import '../../shared/settings_helpers.dart';
 class PresetPromptsList extends ConsumerWidget {
   const PresetPromptsList({
     required this.templates,
-    required this.onDuplicateRequested,
+    required this.onCopyToClipboardRequested,
     required this.onEditRequested,
     super.key,
   });
 
   final List<PresetPrompt> templates;
-  final Future<void> Function(PresetPrompt template) onDuplicateRequested;
+  final Future<void> Function(PresetPrompt template) onCopyToClipboardRequested;
   final ValueChanged<PresetPrompt> onEditRequested;
 
   @override
@@ -38,7 +38,7 @@ class PresetPromptsList extends ConsumerWidget {
         for (final template in templates)
           _PresetPromptTile(
             template: template,
-            onDuplicateRequested: onDuplicateRequested,
+            onCopyToClipboardRequested: onCopyToClipboardRequested,
             onEditRequested: onEditRequested,
           ),
       ],
@@ -50,12 +50,12 @@ class PresetPromptsList extends ConsumerWidget {
 class _PresetPromptTile extends ConsumerWidget {
   const _PresetPromptTile({
     required this.template,
-    required this.onDuplicateRequested,
+    required this.onCopyToClipboardRequested,
     required this.onEditRequested,
   });
 
   final PresetPrompt template;
-  final Future<void> Function(PresetPrompt template) onDuplicateRequested;
+  final Future<void> Function(PresetPrompt template) onCopyToClipboardRequested;
   final ValueChanged<PresetPrompt> onEditRequested;
 
   @override
@@ -86,7 +86,7 @@ class _PresetPromptTile extends ConsumerWidget {
       actions: [
         OutlinedButton.icon(
           onPressed: () async {
-            await onDuplicateRequested(template);
+            await onCopyToClipboardRequested(template);
           },
           icon: const Icon(Icons.content_copy_rounded),
           label: const Text('复制'),

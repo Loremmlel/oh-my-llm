@@ -50,8 +50,6 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen>
     with TickerProviderStateMixin {
-  static final _presetPromptCopySuffixPattern = RegExp(r'^(.+?)（副本(?: \d+)?）$');
-
   late final TabController _tabController;
 
   @override
@@ -195,8 +193,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                       ),
                       child: PresetPromptsList(
                         templates: presetPrompts,
-                        onDuplicateRequested: (template) {
-                          return _duplicatePresetPrompt(context, ref, template);
+                        onCopyToClipboardRequested: (template) {
+                          return _copyPresetPromptToClipboard(
+                            context,
+                            ref,
+                            template,
+                          );
                         },
                         onEditRequested: (template) {
                           _showPresetPromptDialog(
@@ -368,61 +370,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
 
   // ── 复制预设 ──────────────────────────────────────────────────
 
-  Future<void> _duplicatePresetPrompt(
+  /// 把单条预设序列化成导出 JSON 写入剪贴板，供贴到另一台设备的导入框。
+  Future<void> _copyPresetPromptToClipboard(
     BuildContext context,
     WidgetRef ref,
     PresetPrompt source,
   ) async {
-    final existingTemplates = ref.read(presetPromptsProvider);
-    final existingNames = existingTemplates
-        .map((template) => template.name.trim())
-        .toSet();
-    final duplicatedName = _buildDuplicatedPresetPromptName(
-      sourceName: source.name,
-      existingNames: existingNames,
-    );
-    final duplicatedTemplate = source.copyWith(
-      id: generateEntityId(),
-      name: duplicatedName,
-      updatedAt: DateTime.now(),
-      messages: source.messages
-          .map((message) => message.copyWith(id: generateEntityId()))
-          .toList(growable: false),
-    );
-    await ref.read(presetPromptsProvider.notifier).upsert(duplicatedTemplate);
+    final exportData = ref
+        .read(settingsTransferWorkflowProvider)
+        .buildSinglePresetExportData(source);
+    await Clipboard.setData(ClipboardData(text: exportData.toJsonString()));
     if (context.mounted) {
-      showSettingsSnackbar(context, '预设 Prompt 已复制');
+      showSettingsSnackbar(context, '已复制预设 Prompt 到剪贴板');
     }
-  }
-
-  String _buildDuplicatedPresetPromptName({
-    required String sourceName,
-    required Set<String> existingNames,
-  }) {
-    final normalizedSource = sourceName.trim();
-    final sourceCoreName = _extractPresetPromptCopyCoreName(normalizedSource);
-    final firstCandidate = '$sourceCoreName（副本）';
-    if (!existingNames.contains(firstCandidate)) {
-      return firstCandidate;
-    }
-
-    var suffix = 2;
-    while (true) {
-      final candidate = '$sourceCoreName（副本 $suffix）';
-      if (!existingNames.contains(candidate)) {
-        return candidate;
-      }
-      suffix += 1;
-    }
-  }
-
-  String _extractPresetPromptCopyCoreName(String name) {
-    final match = _presetPromptCopySuffixPattern.firstMatch(name);
-    final baseName = match?.group(1)?.trim();
-    if (baseName == null || baseName.isEmpty) {
-      return name;
-    }
-    return baseName;
   }
 
   // ── Dialog 方法 ───────────────────────────────────────────────
