@@ -278,6 +278,26 @@ void main() {
       await tester.pump();
       expect(find.byType(VideoPlayerPage), findsOneWidget);
     });
+
+    testWidgets('弹层关闭后恢复播放表面主焦点', (tester) async {
+      final harness = await pumpDesktopVideo(tester);
+      // Tab 把焦点移到顶部控制栏，模拟用户点按音量按钮后焦点留在控制栏
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(harness.surfaceFocusNode.hasPrimaryFocus, isFalse);
+
+      // 打开音量弹窗：焦点进入弹层，控制栏被保持可见
+      await tester.tap(find.byTooltip('音量，当前 100%'));
+      await tester.pump();
+      expect(find.byType(AlertDialog), findsOneWidget);
+
+      // 关闭弹窗：主焦点应回到播放表面，控制栏不再保持
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      await tester.pump();
+
+      expect(harness.surfaceFocusNode.hasPrimaryFocus, isTrue);
+    });
   });
 
   group('Desktop 单击与双击', () {
@@ -410,6 +430,21 @@ void main() {
       // 迟到的 KeyUp 不再补做短按 Seek
       await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowRight);
       expect(harness.fake.seekToCalls, isEmpty);
+    });
+
+    testWidgets('按住长按倍速时关闭页面不触发销毁后 setState', (tester) async {
+      final harness = await pumpPushedDesktopVideo(tester);
+      harness.fake.setPlaybackSpeedCalls.clear();
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump(_rightHoldThreshold);
+      expect(harness.fake.setPlaybackSpeedCalls, [3.0]);
+
+      // 关闭页面：dispose 释放临时倍速 lease 时不得在销毁中的 State 上 setState
+      await tester.tap(find.byTooltip('关闭视频'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('打开播放器'), findsOneWidget);
     });
   });
 }

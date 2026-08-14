@@ -24,6 +24,18 @@ NetworkMediaResource _testResource() =>
 VideoPlayerPlatformBindings _mobileTestBindings() =>
     MobileVideoPlayerBindings(systemUi: FakeMobileVideoSystemUiController());
 
+/// 恢复系统 UI 时确定性抛错的 fake：验证恢复失败不阻塞退出。
+class _ThrowingMobileVideoSystemUiController
+    implements MobileVideoSystemUiController {
+  @override
+  Future<void> enter() async {}
+
+  @override
+  Future<void> restore() async {
+    throw PlatformException(code: 'test-restore-failure');
+  }
+}
+
 /// 包裹 widget 到 MaterialApp + Navigator 中，模拟真实导航场景。
 Widget _wrapWithMaterialApp(Widget child) {
   return MaterialApp(
@@ -461,6 +473,28 @@ void main() {
       await tester.pump();
 
       expect(systemUi.calls, ['enter', 'restore']);
+    });
+
+    testWidgets('恢复系统 UI 失败仍退出播放器', (tester) async {
+      final systemUi = _ThrowingMobileVideoSystemUiController();
+      final fake = FakeVideoPlayerController();
+      await tester.pumpWidget(
+        _buildPushedTestPageWithFake(
+          fakeController: fake,
+          bindingsFactory: () => MobileVideoPlayerBindings(systemUi: systemUi),
+        ),
+      );
+      await tester.tap(find.text('打开播放器'));
+      await tester.pump();
+      await fake.waitForInitializeCount(1);
+      await tester.pump();
+
+      // restore 抛平台异常也不困住用户：仍放行 pop 并释放播放器
+      await tester.tap(find.byTooltip('关闭视频'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(fake.disposeCount, 1);
     });
   });
 

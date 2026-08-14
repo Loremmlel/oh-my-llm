@@ -73,6 +73,10 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
   /// 真正 pop 的短暂放行标志：恢复完成后置位，让 PopScope 允许本次 pop。
   bool _allowPop = false;
 
+  /// 销毁进行中：dispose 释放临时倍速 lease 会触发状态回调，用该守卫阻止
+  /// 已进入销毁流程的 State 再次 setState（此时 element 已标记 defunct）。
+  bool _disposing = false;
+
   @override
   void initState() {
     super.initState();
@@ -117,6 +121,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
 
   @override
   void dispose() {
+    _disposing = true;
     WidgetsBinding.instance.removeObserver(this);
     _playerFocusNode.dispose();
     _pageFocusNode.dispose();
@@ -147,12 +152,19 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
     if (_closing) return;
     _closing = true;
     final bindings = _bindings;
-    if (bindings is DesktopVideoPlayerBindings) {
-      await bindings.fullscreen.restoreAndDispose();
-    } else if (bindings is MobileVideoPlayerBindings) {
-      await bindings.systemUi.restore();
+    try {
+      if (bindings is DesktopVideoPlayerBindings) {
+        await bindings.fullscreen.restoreAndDispose();
+      } else if (bindings is MobileVideoPlayerBindings) {
+        await bindings.systemUi.restore();
+      }
+    } catch (_) {
+      // 恢复失败（如 Android 系统 UI 平台通道异常）不阻塞退出：吞掉异常后
+      // 仍放行 pop，与桌面侧 restoreAndDispose 内部捕获的保证一致，避免
+      // _closing 残留把用户困在播放器。
+    } finally {
+      _restoreCompleted = true;
     }
-    _restoreCompleted = true;
     if (!mounted) return;
     setState(() => _allowPop = true);
     await WidgetsBinding.instance.endOfFrame;
@@ -168,7 +180,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
   /// 控制栏被隐藏时若控制内仍有键盘焦点，下一帧把焦点恢复到播放表面。
   /// 播放状态每次变化都转发给 Desktop 控制器，由其自行决定是否重排光标计时。
   void _handleStateChanged() {
-    if (!mounted) return;
+    if (!mounted || _disposing) return;
     _desktop?.onPlaybackStateChanged();
     final s = _playback.state;
     final desktop = _desktop;
@@ -230,10 +242,17 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
   }
 
   /// 弹层/菜单关闭：Desktop 依据真实 focus/hover 重新计算，Mobile 直接 release。
+  ///
+  /// Desktop 弹层关闭后焦点通常留在控制栏锚点按钮，使控制栏保持 held 且
+  /// `_mustStayVisible` 恒真，光标永不自动隐藏；这里在下一帧把主焦点还给
+  /// 播放表面，让控制栏焦点事实归零、三秒自动隐藏重新生效。
   void _handleControlsInteractionEnded() {
     final desktop = _desktop;
     if (desktop != null) {
       desktop.onControlsPopupClosed();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _playerFocusNode.requestFocus();
+      });
     } else {
       _playback.releaseControlsHold();
     }
