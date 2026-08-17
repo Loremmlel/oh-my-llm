@@ -424,7 +424,8 @@ List<_Item> _scanItems(
     }
     final inner = content.substring(i + 2, close);
     if (inner.contains('{') || inner.contains('}')) {
-      // 内部含花括号的片段与旧解析器一致，作为普通文本留在原地。
+      // 内部含花括号的完整标签按普通文本留在原地：第一版没有 {{ 字面量
+      // 转义机制，这是与旧解析器一致的有意保留的旧行为。
       i += 2;
       continue;
     }
@@ -913,6 +914,19 @@ void _validateCondition(
   final operator = condition.operator;
   final literal = condition.literal;
   if (variable == null || operator == null || literal == null) {
+    return;
+  }
+  // 正文值在求值时不会进入 effectiveValues（inputVariables 排除正文），
+  // 放行会让「{{#if 正文 == ""}}」恒真、其他比较恒假，静默生成错误提示词，
+  // 因此编译期直接拒绝，复用条件语法错误码。
+  if (variable == templatePromptBodyVariableName) {
+    diagnostics.add(
+      _diag(
+        TemplatePromptErrorCode.invalidConditionSyntax,
+        _loc(content, condition.offset),
+        '{{正文}} 不能作为条件变量，请使用其他变量',
+      ),
+    );
     return;
   }
   final declaration = declarationsByName[variable];

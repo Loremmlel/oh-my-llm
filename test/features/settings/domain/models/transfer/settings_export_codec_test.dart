@@ -65,7 +65,8 @@ Map<String, Object?> _templateJson({
   };
 }
 
-/// 构造只含一条模板的 v8 快照（服务商显式协议，模板内容任意）。
+/// 构造只含一条模板的 v8 快照（服务商显式协议；导入端会逐条编译校验模板
+/// 定义，因此快照中的模板内容与存储变量必须满足 v8 编译校验）。
 Map<String, Object?> _snapshotWithTemplate(Map<String, Object?> template) {
   return _snapshot(
     version: 8,

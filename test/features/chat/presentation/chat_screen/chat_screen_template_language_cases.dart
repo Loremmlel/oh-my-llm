@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:oh_my_llm/features/chat/application/composer/composer_draft_controller.dart';
 import 'package:oh_my_llm/features/chat/application/generation/chat_generation_lifecycle.dart';
 import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
@@ -580,6 +581,9 @@ void registerChatScreenTemplateLanguageTests() {
     expect(_variableField('甲'), findsOneWidget);
     expect(_variableField('乙'), findsNothing);
 
+    // 选中旧选项 '二'：该值写入 composer 草稿，更新模板后将变成失效值。
+    await _selectSelectOption(tester, '一', '二');
+
     // 同 ID 更新模板：新选项集、新分支变量、默认切到 '三'。
     await container
         .read(templatePromptsProvider.notifier)
@@ -610,6 +614,18 @@ void registerChatScreenTemplateLanguageTests() {
     expect(_variableField('丙'), findsOneWidget);
     expect(_variableField('丁'), findsNothing);
     expect(find.text('三'), findsOneWidget);
+
+    // 失效的 '二' 经 post-frame 归一化写回 composer 草稿（不进入编辑模式
+    // 也生效），草稿值与字段展示一致。
+    await tester.pump();
+    final conversationId = container
+        .read(chatSessionsProvider)
+        .activeConversation
+        .id;
+    final draft = container
+        .read(composerDraftProvider.notifier)
+        .draftFor(conversationId);
+    expect(draft.templateVariableValuesByTemplateId['tp-dyn']?['人称'], '三');
   });
 }
 

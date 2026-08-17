@@ -100,6 +100,7 @@ TemplatePromptEvaluation evaluateTemplatePrompt({
 
   // 为每个声明变量解析有效值：空输入回落默认值，非空输入去除两端空白；
   // 非法数字与 select 值记录错误，且当该变量参与条件时标记为不可判。
+  // Dart 3 起非空 case 体隐式 break，数字/单选两类校验各自独立、不穿透。
   for (final variable in program.inputVariables) {
     final trimmed = (variableValues[variable.name] ?? '').trim();
     final candidate = trimmed.isEmpty ? variable.defaultValue : trimmed;
@@ -202,6 +203,8 @@ TemplatePromptEvaluation evaluateTemplatePrompt({
 
   // 无顶层正文变量时保持现有前置行为：非空正文在前，仅当模板渲染内容
   // 非空时再补一个换行；正文与模板始终是两种不同 kind 的片段。
+  // 与旧 builder「模板源码非空即前置」相比，这里以渲染内容非空为判定条件，
+  // 是有意保留的差异：模板渲染为空时不产生尾随换行。
   if (!program.containsBodyVariable && normalizedBody.isNotEmpty) {
     final renderedContent = chunks.map((chunk) => chunk.text).join();
     final prefix = renderedContent.isEmpty

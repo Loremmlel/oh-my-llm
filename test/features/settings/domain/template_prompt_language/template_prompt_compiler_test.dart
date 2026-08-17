@@ -243,6 +243,18 @@ void main() {
       );
     });
 
+    test('条件引用 {{正文}} 返回 invalidConditionSyntax，而不是静默放行', () {
+      final result = compileTemplatePromptContent(
+        '{{正文}}{{#if 正文 == ""}}x{{/if}}',
+      );
+
+      expect(result.program, isNull);
+      expect(
+        result.diagnostics.map((item) => item.code).toList(),
+        contains(TemplatePromptErrorCode.invalidConditionSyntax),
+      );
+    });
+
     test('不适用变量类型的运算符返回 invalidConditionOperator', () {
       final result = compileTemplatePromptContent(
         '{{文本}}{{#if 文本 > "a"}}x{{/if}}',
@@ -473,6 +485,18 @@ void main() {
   });
 
   group('组合条件与未激活分支', () {
+    test('非生效的 else if 分支引用未声明变量仍被诊断', () {
+      final result = compileTemplatePromptContent(
+        '{{a}}{{#if a == "1"}}A{{else if 未声明 == "x"}}B{{/if}}',
+      );
+
+      expect(result.program, isNull);
+      expect(
+        result.diagnostics.map((item) => item.code).toList(),
+        contains(TemplatePromptErrorCode.undefinedConditionVariable),
+      );
+    });
+
     test('组合条件、变量右值与未激活分支中的错误均被拒绝', () {
       for (final content in [
         '{{a}}{{#if a && b == "1"}}x{{/if}}',
@@ -594,6 +618,16 @@ void main() {
           ],
         ),
         ('{{语气}}{{起始:number}}', const [TemplatePromptVariable(name: '语气')]),
+        (
+          '{{人称:select|一|二|三}}',
+          const [
+            TemplatePromptVariable(
+              name: '人称',
+              defaultValue: '一',
+              type: TemplatePromptVariableType.select,
+            ),
+          ],
+        ),
       ];
       for (final (content, variables) in cases) {
         final prompt = TemplatePrompt(
