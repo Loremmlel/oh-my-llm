@@ -2,10 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../../../domain/models/prompts/template_prompt.dart';
-import '../../../../domain/template_prompt_parser.dart';
-import '../../shared/settings_form_dialog_scaffold.dart';
-import '../../shared/settings_form_dialog_state_mixin.dart';
+import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/template_prompt_language/template_prompt_compiler.dart';
+import 'package:oh_my_llm/features/settings/domain/template_prompt_language/template_prompt_program.dart';
+import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/template_prompt_syntax_help.dart';
+import 'package:oh_my_llm/features/settings/presentation/widgets/shared/settings_form_dialog_scaffold.dart';
+import 'package:oh_my_llm/features/settings/presentation/widgets/shared/settings_form_dialog_state_mixin.dart';
 
 /// 模板提示词表单提交数据。
 class TemplatePromptFormData {
@@ -49,6 +51,7 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
   late final TextEditingController _titleController;
   late final TextEditingController _contentController;
   final Map<String, TextEditingController> _variableControllers = {};
+  late TemplatePromptCompilation _compilation;
   late List<TemplatePromptVariable> _variables;
   Timer? _variableReconcileDebounceTimer;
   String _pendingContent = '';
@@ -59,10 +62,20 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
     super.initState();
     _titleController = initController(widget.initialValue?.title ?? '');
     _contentController = initController(widget.initialValue?.content ?? '');
-    _variables = reconcileTemplatePromptVariables(
-      content: _contentController.text,
-      existingVariables: widget.initialValue?.variables ?? const [],
-    );
+    // 先用编译器校验正文：语法有效才与已保存变量协调，再校验临时完整
+    // 定义，让合法旧 text/number 模板保留默认值，同时暴露不一致的存储元数据。
+    _compilation = compileTemplatePromptContent(_contentController.text);
+    if (_compilation.isValid) {
+      _variables = reconcileCompiledTemplatePromptVariables(
+        program: _compilation.program!,
+        existingVariables: widget.initialValue?.variables ?? const [],
+      );
+      _compilation = compileTemplatePromptDefinition(
+        _buildTemporaryTemplate(_contentController.text, _variables),
+      );
+    } else {
+      _variables = const [];
+    }
     _pendingContent = _contentController.text;
     _lastReconciledContent = _contentController.text;
     _syncVariableControllers();
@@ -89,6 +102,7 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
       title: isEditing ? '编辑模板提示词' : '新增模板提示词',
       formKey: formKey,
       isSaving: isSaving,
+      submitEnabled: _compilation.isValid,
       onSubmit: _handleSubmit,
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -116,12 +130,16 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
             ),
             validator: validateRequired,
           ),
+          if (_compilation.diagnostics.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              _formatDiagnostic(_compilation.diagnostics.first),
+              key: const ValueKey('template-prompt-compile-diagnostic'),
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ],
           const SizedBox(height: 8),
-          Text(
-            '使用 {{变量名}} 声明可注入变量；其中 {{正文}} 对应聊天页主输入框，不设置默认值。\n'
-            '使用 {{变量名:number}} 声明数字变量，默认为 1，聊天页提供箭头微调。',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
+          const TemplatePromptSyntaxHelp(),
           const SizedBox(height: 20),
           Text('变量默认值', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
@@ -144,6 +162,39 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
                       labelText: '${variable.name}（数字）',
                       hintText: '默认为 1',
                     ),
+                    validator: _validateNumberDefault,
+                  ),
+                )
+              else if (variable.isSelect)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: DropdownButtonFormField<String>(
+                    key: ValueKey(
+                      'template-prompt-variable-field-${variable.name}',
+                    ),
+                    initialValue: variable.defaultValue,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      labelText: '${variable.name}（单选）',
+                    ),
+                    items: [
+                      for (final option in variable.options)
+                        DropdownMenuItem(value: option, child: Text(option)),
+                    ],
+                    onChanged: (value) {
+                      if (value == null) {
+                        return;
+                      }
+                      setState(() {
+                        _variables = [
+                          for (final item in _variables)
+                            if (item.name == variable.name)
+                              item.copyWith(defaultValue: value)
+                            else
+                              item,
+                        ];
+                      });
+                    },
                   ),
                 )
               else
@@ -220,17 +271,52 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
     }
     _lastReconciledContent = nextContent;
 
-    final nextVariables = reconcileTemplatePromptVariables(
-      content: nextContent,
-      existingVariables: _buildVariablesFromControllers(),
-    );
-    if (_sameVariableShape(_variables, nextVariables)) {
+    final nextCompilation = compileTemplatePromptContent(nextContent);
+    if (!nextCompilation.isValid) {
+      // 源语法无效：仅更新编译状态并展示首个诊断，保留变量列表与全部
+      // 现有控制器，避免一次临时输入错误清空表单。
+      setState(() {
+        _compilation = nextCompilation;
+      });
       return;
     }
 
+    final nextVariables = reconcileCompiledTemplatePromptVariables(
+      program: nextCompilation.program!,
+      existingVariables: _buildVariablesFromControllers(),
+    );
+    final shapeChanged = !_sameVariableShape(_variables, nextVariables);
+    if (!shapeChanged && _compilation == nextCompilation) {
+      return;
+    }
     setState(() {
-      _variables = nextVariables;
-      _syncVariableControllers();
+      _compilation = nextCompilation;
+      if (shapeChanged) {
+        _variables = nextVariables;
+        _syncVariableControllers();
+      }
+    });
+  }
+
+  /// 变量默认值变化只影响保存门禁：存储元数据不一致在打开表单时由定义
+  /// 校验暴露，修复默认值后需要重新放行；内容语法已有效时默认值问题交给
+  /// 字段校验与提交路径处理，避免每次按键都关闭保存按钮。
+  void _handleVariableValueChanged() {
+    if (_compilation.isValid) {
+      return;
+    }
+    final contentCompilation = compileTemplatePromptContent(_pendingContent);
+    if (!contentCompilation.isValid) {
+      return;
+    }
+    final nextCompilation = compileTemplatePromptDefinition(
+      _buildTemporaryTemplate(
+        _pendingContent,
+        _buildVariablesFromControllers(),
+      ),
+    );
+    setState(() {
+      _compilation = nextCompilation;
     });
   }
 
@@ -244,7 +330,20 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
     for (var index = 0; index < current.length; index += 1) {
       if (current[index].name != next[index].name ||
           current[index].isBody != next[index].isBody ||
-          current[index].type != next[index].type) {
+          current[index].type != next[index].type ||
+          !_sameStringList(current[index].options, next[index].options)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  bool _sameStringList(List<String> first, List<String> second) {
+    if (first.length != second.length) {
+      return false;
+    }
+    for (var i = 0; i < first.length; i += 1) {
+      if (first[i] != second[i]) {
         return false;
       }
     }
@@ -257,6 +356,10 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
         : TemplatePromptFormDialog.variableReconcileDebounce;
   }
 
+  /// 从当前变量与控制器构建待提交的变量列表。
+  ///
+  /// 单选默认值由下拉框直接写入 [_variables]，不经过文本控制器；
+  /// 数字默认值不再把空值兜底为 1（新建数字变量的默认 1 由协调阶段写入）。
   List<TemplatePromptVariable> _buildVariablesFromControllers() {
     return _variables
         .map((variable) {
@@ -265,13 +368,19 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
               name: templatePromptBodyVariableName,
             );
           }
+          if (variable.isSelect) {
+            return TemplatePromptVariable(
+              name: variable.name,
+              defaultValue: variable.defaultValue,
+              type: variable.type,
+              options: variable.options,
+            );
+          }
           final rawDefault =
               _variableControllers[variable.name]?.text.trim() ?? '';
           return TemplatePromptVariable(
             name: variable.name,
-            defaultValue: variable.isNumber && rawDefault.isEmpty
-                ? '1'
-                : rawDefault,
+            defaultValue: rawDefault,
             type: variable.type,
           );
         })
@@ -280,7 +389,7 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
 
   void _syncVariableControllers() {
     final activeNames = _variables
-        .where((variable) => !variable.isBody)
+        .where((variable) => !variable.isBody && !variable.isSelect)
         .map((variable) => variable.name)
         .toSet();
     final removedNames = _variableControllers.keys
@@ -291,23 +400,67 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
     }
 
     for (final variable in _variables) {
-      if (variable.isBody) {
+      if (variable.isBody || variable.isSelect) {
         continue;
       }
-      _variableControllers.putIfAbsent(
-        variable.name,
-        () => TextEditingController(text: variable.defaultValue),
-      );
+      _variableControllers.putIfAbsent(variable.name, () {
+        final controller = TextEditingController(text: variable.defaultValue);
+        controller.addListener(_handleVariableValueChanged);
+        return controller;
+      });
     }
+  }
+
+  String _formatDiagnostic(TemplatePromptDiagnostic diagnostic) {
+    return '第 ${diagnostic.location.line} 行第 ${diagnostic.location.column} 列：'
+        '${diagnostic.message}';
+  }
+
+  /// 数字变量默认值校验：要求去空白后为整数，不允许空值（新建变量时的
+  /// 默认 1 由协调阶段写入控制器）。
+  String? _validateNumberDefault(String? value) {
+    final trimmed = value?.trim() ?? '';
+    if (trimmed.isEmpty || int.tryParse(trimmed) == null) {
+      return '默认值需为整数';
+    }
+    return null;
+  }
+
+  TemplatePrompt _buildTemporaryTemplate(
+    String content,
+    List<TemplatePromptVariable> variables,
+  ) {
+    return TemplatePrompt(
+      id: '',
+      title: '',
+      content: content,
+      variables: variables,
+      updatedAt: DateTime(0),
+    );
   }
 
   Future<void> _handleSubmit() async {
     _flushVariableReconcile();
+    if (!_compilation.isValid) {
+      return;
+    }
     if (!validateForm()) {
       return;
     }
 
     final variables = _buildVariablesFromControllers();
+    // 用表单正文与默认值构造临时完整定义再校验，防止字段校验与定义校验
+    // 口径不一致时把非法定义保存下去；不一致按 inline 表单失败处理。
+    final definitionCompilation = compileTemplatePromptDefinition(
+      _buildTemporaryTemplate(_contentController.text.trim(), variables),
+    );
+    if (!definitionCompilation.isValid) {
+      setState(() {
+        _compilation = definitionCompilation;
+      });
+      return;
+    }
+
     await submitAndClose(() {
       return widget.onSubmit(
         TemplatePromptFormData(
