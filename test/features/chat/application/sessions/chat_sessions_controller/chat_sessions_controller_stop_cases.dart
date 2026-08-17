@@ -92,27 +92,23 @@ void registerChatSessionsControllerStopCases() {
     expect(state.errorMessageAssistantId, messages.last.id);
   });
 
-  test('stopStreaming 在 auto-retry 等待期间取消重试', () async {
-    container
-        .read(chatSessionsProvider.notifier)
-        .updateActiveConversationPreferences(autoRetryEnabled: true);
-
-    // 手动设置 isAutoRetryWaiting 状态
+  test('stopStreaming 无 active run 时清除遗留错误标记', () async {
+    // 无进行中的 generation（completion 为 null）：stopStreaming 仍清除遗留的
+    // 错误标记；派生布尔（isStreaming/isAutoRetryWaiting/autoRetryCount）在无
+    // snapshot 时本就为 false/0，无需复位。真实的重试等待窗口取消由
+    // 「stopStreaming 在过渡窗口期间被调用后旧重试不继续」覆盖。
     final notifier = container.read(chatSessionsProvider.notifier);
     notifier.state = container
         .read(chatSessionsProvider)
-        .copyWith(
-          isAutoRetryWaiting: true,
-          autoRetryCount: 3,
-          errorMessage: '之前的错误',
-        );
+        .copyWith(errorMessage: '之前的错误');
 
     await notifier.stopStreaming();
 
     final state = container.read(chatSessionsProvider);
+    expect(state.errorMessage, isNull);
     expect(state.isAutoRetryWaiting, isFalse);
     expect(state.autoRetryCount, 0);
-    expect(state.errorMessage, isNull);
+    expect(state.isStreaming, isFalse);
   });
 
   test('重试 attempt 进行中可被 stop 停止', () async {

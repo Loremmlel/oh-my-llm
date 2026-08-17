@@ -175,11 +175,18 @@ void registerChatSessionsControllerRetryCases() {
         .read(chatSessionsProvider.notifier)
         .updateActiveConversationPreferences(autoRetryEnabled: true);
 
-    // 手动设置 isAutoRetryWaiting=true
+    // 手动放置 retryWaiting 阶段的 generation snapshot（无 active run），
+    // 验证 _isBusy 从 canonical phase 派生占用态。
     final notifier = container.read(chatSessionsProvider.notifier);
-    notifier.state = container
-        .read(chatSessionsProvider)
-        .copyWith(isAutoRetryWaiting: true);
+    final current = container.read(chatSessionsProvider);
+    notifier.state = current.copyWith(
+      generation: ChatGenerationSnapshot(
+        generationId: 1,
+        conversationId: current.activeConversationId,
+        attempt: 2,
+        phase: ChatGenerationPhase.retryWaiting,
+      ),
+    );
 
     fakeClient.enqueueChunks(['should not be sent']);
     await sendMsg('不会被发送的消息');

@@ -56,7 +56,8 @@ final activeConversationIdProvider = Provider<String>((ref) {
   );
 });
 
-/// 是否正在进行流式请求（仅在流开始/结束时重建）。
+/// 是否正在进行流式请求（由 [ChatSessionsState.isStreaming] 派生，仅在流开始/
+/// 结束时重建）。
 final isChatStreamingProvider = Provider<bool>((ref) {
   return ref.watch(chatSessionsProvider.select((state) => state.isStreaming));
 });
@@ -73,13 +74,9 @@ final isChatBusyProvider = Provider<bool>((ref) {
   return ref.watch(
     chatSessionsProvider.select((state) {
       // generation phase（如 finalizing 的 durable save 窗口）保持 busy，阻止
-      // UI 在终态落盘期间发送新 generation 覆盖桥接字段；无 snapshot
-      // 时回退兼容布尔投影，保留对直接设置兼容字段的兼容。
-      final phase = state.generation?.phase;
-      return (phase?.isBusy ?? false) ||
-          state.isStreaming ||
-          state.isCheckpointing ||
-          state.isAutoRetryWaiting;
+      // UI 在终态落盘期间发送新 generation 覆盖 run 字段；派生布尔
+      // （isStreaming/isAutoRetryWaiting）已被 phase.isBusy 涵盖，无需重复。
+      return (state.generation?.phase.isBusy ?? false) || state.isCheckpointing;
     }),
   );
 });
@@ -156,29 +153,40 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
   ///
   /// 从 [ChatSessionsState.generation] 的 phase 单向派生，使 attempt 终态后的
   /// durable save 窗口（`finalizing`）仍保持 busy，阻止新 generation 覆盖 run
-  /// 字段（不变量 5）。无 generation snapshot 时回退到兼容布尔投影，保留对直接
-  /// 设置兼容字段的兼容（如测试只设 `isAutoRetryWaiting` 而未走 run 路径）。
+  /// 字段（不变量 5）。无 generation snapshot 时仅检查点占用生效。
   bool get _isBusy {
     if (_generationCoordinator?.hasActive ?? false) {
       return true;
     }
-    final phase = state.generation?.phase;
-    if (phase != null) {
-      return phase.isBusy || state.isCheckpointing;
-    }
-    return state.isStreaming ||
-        state.isCheckpointing ||
-        state.isAutoRetryWaiting;
+    return (state.generation?.phase.isBusy ?? false) || state.isCheckpointing;
   }
 
-  /// 将 [ChatGenerationProgress] 投影到 state。委托 [projectGeneration] 纯函数
-  /// （不变量 10：兼容字段唯一写入点）。host 方法不再单独写 isStreaming 等--
-  /// run 在调 host 前预投影 finalizing/stopping。
+  /// 将 [ChatGenerationProgress] 投影到 state：写入 canonical snapshot 与流式
+  /// 增量，并在流式开始时清除错误/空回复标记、在 persistenceFailed 时补齐错误
+  /// 文案。派生布尔（isStreaming/isAutoRetryWaiting/autoRetryCount）由
+  /// [ChatSessionsState] 从 phase 单向派生，controller 不再单独维护（不变量：
+  /// 生命周期状态唯一事实来源）。run 在调 host 前预投影 finalizing/stopping。
   void _projectProgress(ChatGenerationProgress progress) {
-    state = projectGeneration(
-      state,
-      progress.snapshot,
+    final snapshot = progress.snapshot;
+    assert(checkGenerationInvariants(snapshot));
+    final phase = snapshot.phase;
+    // preparing 也计为「流式形态」：清除上一次的错误与空回复标记，保持停止
+    // 按钮可用（ComposerSendButton 的 isStopping 依据派生的 isStreaming）。
+    final isStreamingLike =
+        phase == ChatGenerationPhase.preparing ||
+        phase == ChatGenerationPhase.streaming;
+    // persistenceFailed 是终态，但 run 的 _terminal 只投影 phase；错误文字在此
+    // 统一补齐，使 save 失败对用户显式可见。
+    final isPersistenceFailed = phase == ChatGenerationPhase.persistenceFailed;
+    state = state.copyWith(
+      generation: snapshot,
       streamingReply: progress.streamingReply,
+      clearStreamingReply: progress.streamingReply == null,
+      errorMessage: isPersistenceFailed
+          ? ChatErrorMessages.persistenceFailed
+          : null,
+      clearErrorMessage: isStreamingLike,
+      clearEmptyReply: isStreamingLike,
     );
   }
 
@@ -679,14 +687,9 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
   Future<ChatConversation?> stopStreaming() async {
     final completion = _coordinator.currentCompletion;
     if (completion == null) {
-      // 无 active run：仍复位遗留的兼容 bool（手动设置或 run 终态后残留），
-      // 使停止按钮归位、清除等待与错误标记。
-      state = state.copyWith(
-        isStreaming: false,
-        isAutoRetryWaiting: false,
-        clearAutoRetryCount: true,
-        clearErrorMessage: true,
-      );
+      // 无 active run：无 snapshot 时派生布尔（isStreaming/isAutoRetryWaiting/
+      // autoRetryCount）本就为 false/0，此处仅清除遗留错误标记。
+      state = state.copyWith(clearErrorMessage: true);
       return state.activeConversation;
     }
     _coordinator.stop();
@@ -698,9 +701,8 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
   @override
   Future<ChatPrepareResult> prepare(ChatGenerationCommand command) async {
     // 创建占位 assistant、追加到树、写 state（conversation/streamingReply 业务
-    // 字段）、durable pending checkpoint。兼容 bool（isStreaming/错误清除）由 run
-    // 的 preparing 投影统一提供，此处不写（不变量 10）。失败返回
-    // ChatPrepareFailure，run 据此中止、不启动网络。
+    // 字段）、durable pending checkpoint。错误清除由 run 的 preparing 投影统一
+    // 提供，此处不写。失败返回 ChatPrepareFailure，run 据此中止、不启动网络。
     final timestamp = DateTime.now();
     final tree = resolveMessageTreeState(command.conversation);
     final assistantParentId =
@@ -874,8 +876,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         // 终态保留错误：reachedLimit（启用但达上限）设上限消息；否则保留
         // finishGenerationError 已投影的原始错误。clearErrorMessage=false 避免误清
         // 刚写入的错误（retry 禁用时清掉 finishGenerationError 的错误是 sendMessage
-        // 错误显示丢失的根因）。autoRetryCount 由 run terminal 投影归零，此处不写
-        // （不变量 10）。
+        // 错误显示丢失的根因）。autoRetryCount 由终端 phase 派生归零，此处不写。
         if (reachedLimit) {
           state = state.copyWith(
             errorMessage:
@@ -906,9 +907,9 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     final isEmpty =
         partial.content.trim().isEmpty && partial.reasoning.trim().isEmpty;
     final shouldMarkEmptyReply = isEmpty;
-    // 兼容 bool（isStreaming/isAutoRetryWaiting/autoRetryCount）由 run 的
-    // stopping 投影归位，此处只写终态业务字段（conversation/错误/空回复标记）
-    // 与清流式 reply（停止后不再流式渲染）（不变量 10）。
+    // 派生布尔（isStreaming/isAutoRetryWaiting/autoRetryCount）由 stopping phase
+    // 单向派生归位，此处只写终态业务字段（conversation/错误/空回复标记）与清流式
+    // reply（停止后不再流式渲染）。
     state = state.copyWith(
       conversations: replaceConversation(stoppedConversation),
       conversationSummaries: replaceOrAddSummary(

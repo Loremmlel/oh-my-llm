@@ -8,13 +8,13 @@ import 'package:oh_my_llm/features/settings/domain/models/preferences/auto_retry
 /// 在下一次 command 开始时统一转入新的 [preparing]，由 coordinator 单一所有权维护，
 /// 不再由散落的 clear* 布尔标志定义状态机。
 ///
-/// 兼容投影（`ChatSessionsState` 的旧 bool 展示字段已由 phase 单向派生，
-/// 业务代码禁止直接 copyWith 旧 bool 字段）：
+/// 派生语义（`ChatSessionsState` 的 isStreaming/isAutoRetryWaiting/autoRetryCount
+/// 为由 phase/attempt 单向派生的 getter，无独立存储，业务代码不直接写布尔）：
 ///
 /// | phase             | isStreaming | isAutoRetryWaiting | isBusy |
 /// |-------------------|-------------|--------------------|--------|
 /// | idle              | false       | false              | false  |
-/// | preparing         | false       | false              | true   |
+/// | preparing         | true        | false              | true   |
 /// | streaming         | true        | false              | true   |
 /// | stopping          | false       | false              | true   |
 /// | retryWaiting      | false       | true               | true   |
@@ -25,9 +25,10 @@ import 'package:oh_my_llm/features/settings/domain/models/preferences/auto_retry
 /// | cancelled         | false       | false              | false  |
 /// | persistenceFailed | false       | false              | false  |
 ///
-/// `stopping` 对外 `isStreaming=false`（停止按钮立即复位，防止需点两次），
-/// 但 `isBusy=true` 以防新 generation 打断中断快照与持久化。
-/// presentation 无需感知本枚举，仅消费上述兼容字段。
+/// `preparing` 派生 `isStreaming=true`（停止按钮立即可用，防止 prepare 期间
+/// 无法取消）；`stopping` 派生 `isStreaming=false`（停止按钮立即复位，防止需点
+/// 两次）。两者 `isBusy=true` 以防新 generation 打断中断快照与持久化。
+/// presentation 无需感知本枚举，仅消费上述派生语义。
 enum ChatGenerationPhase {
   idle,
   preparing,

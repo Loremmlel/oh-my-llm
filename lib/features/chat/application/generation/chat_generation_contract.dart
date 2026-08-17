@@ -303,8 +303,9 @@ class ChatStopPersistenceFailed extends ChatStopDecision {
 /// run 投递给 host 的 UI 投影数据。
 ///
 /// [snapshot] 为当前 generation 生命周期快照（phase / attempt / outcome），
-/// [streamingReply] 为 null 时表示清空流式增量。host 据此单向派生兼容字段
-/// （isStreaming / isAutoRetryWaiting / autoRetryCount）与 state.generation。
+/// [streamingReply] 为 null 时表示清空流式增量。host 据此写入 state.generation 与
+/// streamingReply；presentation 所需布尔/计数由 [ChatSessionsState] 从 phase 单向
+/// 派生，不再由 host 维护兼容字段。
 class ChatGenerationProgress extends Equatable {
   const ChatGenerationProgress({required this.snapshot, this.streamingReply});
 

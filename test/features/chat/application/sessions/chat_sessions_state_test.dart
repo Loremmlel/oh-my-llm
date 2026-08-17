@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:oh_my_llm/features/chat/application/generation/chat_generation_lifecycle.dart';
 import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_state.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
@@ -166,6 +167,145 @@ void main() {
 
       final replacedNode = result.messageNodes.firstWhere((m) => m.id == 'a1');
       expect(replacedNode.isStreaming, isFalse);
+    });
+  });
+
+  // ── generation 派生状态（单一事实来源） ──────────────────────────────
+  //
+  // isStreaming / isAutoRetryWaiting / autoRetryCount 不再是独立存储字段，
+  // 由 generation snapshot 的 phase/attempt 单向派生，presentation 直接消费。
+
+  ChatSessionsState stateWithGeneration(
+    ChatGenerationPhase phase, {
+    int attempt = 1,
+    ChatGenerationOutcome? outcome,
+  }) {
+    return ChatSessionsState(
+      conversations: [createConv(id: 'conv-1', messageNodes: [])],
+      conversationSummaries: const [],
+      activeConversationId: 'conv-1',
+      generation: ChatGenerationSnapshot(
+        generationId: 1,
+        conversationId: 'conv-1',
+        attempt: attempt,
+        phase: phase,
+        outcome: outcome,
+      ),
+    );
+  }
+
+  ChatSessionsState idleState() {
+    return ChatSessionsState(
+      conversations: [createConv(id: 'conv-1', messageNodes: [])],
+      conversationSummaries: const [],
+      activeConversationId: 'conv-1',
+    );
+  }
+
+  group('generation 派生 isStreaming', () {
+    test('preparing/streaming 阶段为 true（preparing 保持停止按钮可用）', () {
+      expect(
+        stateWithGeneration(ChatGenerationPhase.preparing).isStreaming,
+        isTrue,
+      );
+      expect(
+        stateWithGeneration(ChatGenerationPhase.streaming).isStreaming,
+        isTrue,
+      );
+    });
+
+    test('retryWaiting/finalizing/终态/空闲阶段为 false', () {
+      expect(
+        stateWithGeneration(ChatGenerationPhase.retryWaiting).isStreaming,
+        isFalse,
+      );
+      expect(
+        stateWithGeneration(ChatGenerationPhase.finalizing).isStreaming,
+        isFalse,
+      );
+      expect(
+        stateWithGeneration(
+          ChatGenerationPhase.succeeded,
+          outcome: ChatGenerationSuccess(
+            generationId: 1,
+            attempt: 1,
+            content: '回复',
+            reasoningContent: '',
+          ),
+        ).isStreaming,
+        isFalse,
+      );
+      expect(idleState().isStreaming, isFalse);
+    });
+  });
+
+  group('generation 派生 isAutoRetryWaiting', () {
+    test('仅在 retryWaiting 阶段为 true', () {
+      expect(
+        stateWithGeneration(
+          ChatGenerationPhase.retryWaiting,
+        ).isAutoRetryWaiting,
+        isTrue,
+      );
+      expect(
+        stateWithGeneration(ChatGenerationPhase.streaming).isAutoRetryWaiting,
+        isFalse,
+      );
+      expect(
+        stateWithGeneration(ChatGenerationPhase.preparing).isAutoRetryWaiting,
+        isFalse,
+      );
+      expect(idleState().isAutoRetryWaiting, isFalse);
+    });
+  });
+
+  group('generation 派生 autoRetryCount', () {
+    test('retryWaiting/streaming 阶段投影 attempt-1', () {
+      expect(
+        stateWithGeneration(
+          ChatGenerationPhase.retryWaiting,
+          attempt: 3,
+        ).autoRetryCount,
+        2,
+      );
+      expect(
+        stateWithGeneration(
+          ChatGenerationPhase.streaming,
+          attempt: 2,
+        ).autoRetryCount,
+        1,
+      );
+      // 首次 attempt（attempt=1）不显示「第 N 次重试」。
+      expect(
+        stateWithGeneration(
+          ChatGenerationPhase.streaming,
+          attempt: 1,
+        ).autoRetryCount,
+        0,
+      );
+    });
+
+    test('preparing/终态/空闲阶段为 0', () {
+      expect(
+        stateWithGeneration(
+          ChatGenerationPhase.preparing,
+          attempt: 2,
+        ).autoRetryCount,
+        0,
+      );
+      expect(
+        stateWithGeneration(
+          ChatGenerationPhase.failed,
+          attempt: 2,
+          outcome: ChatGenerationFailure(
+            generationId: 1,
+            attempt: 2,
+            error: '错误',
+          ),
+        ).autoRetryCount,
+        0,
+      );
+      expect(idleState().autoRetryCount, 0);
     });
   });
 }

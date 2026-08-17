@@ -241,7 +241,7 @@ class ChatGenerationRun {
       retryPolicy: command.retryPolicy,
     );
     // finalizing：attempt 终态已定，进入 durable save 窗口。保持 busy 阻止新
-    // generation 覆盖桥接字段，对外 isStreaming=false（finalizing 不可取消，
+    // generation 覆盖 run 字段，派生 isStreaming 为 false（finalizing 不可取消，
     // 不变量 7）。completeAttempt 内的 intermediate/terminal save 均在此窗口内。
     phase = ChatGenerationPhase.finalizing;
     _project();
@@ -333,8 +333,8 @@ class ChatGenerationRun {
     // 发起 stop 时的阶段（preparing/streaming/retryWaiting），传入 partial 供
     // host.stop 区分停止来源（ChatPartialSnapshot.phase 契约）。
     final stopOriginPhase = phase;
-    // stopping 投影：兼容 bool（isStreaming/isAutoRetryWaiting/autoRetryCount）由
-    // 投影统一归位，host.stop 不再单独写（不变量 10）。保留 streamingReply 使已
+    // stopping 投影：派生布尔（isStreaming/isAutoRetryWaiting/autoRetryCount）由
+    // stopping phase 单向派生归位，host.stop 不再单独写。保留 streamingReply 使已
     // 生成内容在保存窗口仍可见，host.stop 写终态 conversation 后再清。
     phase = ChatGenerationPhase.stopping;
     _project(streamingReply: _streamingReply);
