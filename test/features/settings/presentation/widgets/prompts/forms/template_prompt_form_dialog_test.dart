@@ -62,7 +62,7 @@ void main() {
     matching: find.byWidgetPredicate(
       (widget) =>
           widget is DropdownButtonFormField<String> &&
-          widget.decoration?.labelText == '$name（单选）',
+          widget.decoration.labelText == '$name（单选）',
     ),
   );
 
