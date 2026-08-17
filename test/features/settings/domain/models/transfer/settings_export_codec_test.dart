@@ -106,85 +106,6 @@ void main() {
     return result as SettingsExportDecodeSuccess;
   }
 
-  test('v6 快照导入：全部服务商补 chatCompletions，缺字段才补', () {
-    final success = decodeSuccess(
-      jsonEncode(
-        _snapshot(
-          version: 6,
-          providers: [
-            _providerJson(), // 缺协议字段 → 补 chatCompletions
-            _providerJson(apiProtocol: 'responses'), // 已有协议 → 保留
-          ],
-        ),
-      ),
-    );
-
-    expect(success.migrated, isTrue);
-    expect(success.sourceVersion, 6);
-    final providers = success.data.modelProviders;
-    expect(providers.length, 2);
-    expect(providers[0].apiProtocol, LlmApiProtocol.chatCompletions);
-    expect(providers[1].apiProtocol, LlmApiProtocol.responses);
-  });
-
-  test('v5 快照经链式迁移同样补全 chatCompletions', () {
-    final success = decodeSuccess(
-      jsonEncode(
-        _snapshot(
-          version: 5,
-          versionKey: 'version',
-          providers: [_providerJson()],
-        ),
-      ),
-    );
-
-    expect(success.migrated, isTrue);
-    expect(success.sourceVersion, 5);
-    expect(success.data.hasContent, isTrue);
-    expect(
-      success.data.modelProviders.single.apiProtocol,
-      LlmApiProtocol.chatCompletions,
-    );
-    // 迁移链终点格式为当前版本
-    expect(
-      jsonDecode(success.data.toJsonString())['formatVersion'],
-      SettingsExportData.formatVersion,
-    );
-  });
-
-  test('v7 快照迁移到 v8，显式协议原样保留', () {
-    final success = decodeSuccess(
-      jsonEncode(
-        _snapshot(
-          version: 7,
-          providers: [_providerJson(apiProtocol: 'anthropic')],
-        ),
-      ),
-    );
-
-    expect(success.migrated, isTrue);
-    expect(success.sourceVersion, 7);
-    expect(
-      success.data.modelProviders.single.apiProtocol,
-      LlmApiProtocol.anthropic,
-    );
-    expect(
-      jsonDecode(success.data.toJsonString())['formatVersion'],
-      SettingsExportData.formatVersion,
-    );
-  });
-
-  test('v6→v7 迁移写入字面量 7，再由 v7→v8 接力', () {
-    final v7 = const SettingsExportFormatMigratorV6ToV7().migrate({
-      'formatVersion': 6,
-      'modelProviders': [_providerJson()],
-    });
-    // 中间格式必须写字面量 7，不能跳级到当前版本号。
-    expect(v7['formatVersion'], 7);
-    final v8 = const SettingsExportFormatMigratorV7ToV8().migrate(v7);
-    expect(v8['formatVersion'], 8);
-  });
-
   test('v8 当前快照 round-trip 不迁移，显式协议原样保留', () {
     final success = decodeSuccess(
       jsonEncode(
@@ -223,48 +144,6 @@ void main() {
     );
     expect(select.options, ['一', '二', '三']);
     expect(select.defaultValue, '二');
-  });
-
-  test('v5-v7 的 text/number 模板成功迁移到 v8', () {
-    final template = _templateJson(
-      content: '请处理{{正文}}，重复{{次数:number}}次',
-      variables: [
-        _variableJson(name: templatePromptBodyVariableName),
-        _variableJson(name: '次数', defaultValue: '2', type: 'number'),
-      ],
-    );
-    for (final version in [5, 6, 7]) {
-      final success = decodeSuccess(
-        jsonEncode(
-          _snapshot(
-            version: version,
-            versionKey: version == 5 ? 'version' : 'formatVersion',
-            providers: [
-              // v5/v6 由迁移器补协议；v7 必须显式协议才结构有效。
-              if (version == 7)
-                _providerJson(apiProtocol: 'chatCompletions')
-              else
-                _providerJson(),
-            ],
-          )..['templatePrompts'] = [template],
-        ),
-      );
-
-      expect(success.sourceVersion, version, reason: 'v$version');
-      expect(success.migrated, isTrue, reason: 'v$version');
-      // 迁移链终点格式为当前版本（循环内自包含，不依赖其他用例兜底）
-      expect(
-        jsonDecode(success.data.toJsonString())['formatVersion'],
-        SettingsExportData.formatVersion,
-        reason: 'v$version',
-      );
-      final migrated = success.data.templatePrompts.single;
-      expect(migrated.variables, hasLength(2), reason: 'v$version');
-      final number = migrated.variables.singleWhere(
-        (variable) => variable.isNumber,
-      );
-      expect(number.defaultValue, '2', reason: 'v$version');
-    }
   });
 
   test('v8 模板定义按编译器错误族报告 malformed', () {
@@ -345,13 +224,63 @@ void main() {
     }
   });
 
-  test('旧版、未来版本和 malformed 明确区分', () {
-    for (final version in [4, 9]) {
+  test('缺失 formatVersion 时，即使携带旧 version 字段也拒绝导入', () {
+    // 版本号只从 formatVersion 读取；旧 version 字段不再参与解码，缺失即
+    // malformed。无论旧值是多少（含恰好等于当前版本号）都同样拒绝。
+    for (final version in [5, SettingsExportData.formatVersion]) {
+      final result = SettingsExportCodec.decodeJson(
+        jsonEncode(
+          _snapshot(
+            version: version,
+            versionKey: 'version',
+            providers: [_providerJson(apiProtocol: 'chatCompletions')],
+          ),
+        ),
+      );
+      expect(
+        result,
+        isA<SettingsExportMalformed>(),
+        reason: 'version=$version',
+      );
+    }
+  });
+
+  test('v5/v6/v7 快照返回显式 unsupported-version', () {
+    for (final version in [5, 6, 7]) {
       final result = SettingsExportCodec.decodeJson(
         jsonEncode(_snapshot(version: version, providers: [])),
       );
-      expect(result, isA<SettingsExportUnsupportedVersion>());
-      expect((result as SettingsExportUnsupportedVersion).version, version);
+      expect(
+        result,
+        isA<SettingsExportUnsupportedVersion>(),
+        reason: 'v$version',
+      );
+      expect(
+        (result as SettingsExportUnsupportedVersion).version,
+        version,
+        reason: 'v$version',
+      );
+    }
+  });
+
+  test('未来版本显式 unsupported，与 malformed 明确区分', () {
+    for (final version in [
+      SettingsExportData.formatVersion + 1,
+      SettingsExportData.formatVersion + 2,
+    ]) {
+      final result = SettingsExportCodec.decodeJson(
+        jsonEncode(_snapshot(version: version, providers: [])),
+      );
+      expect(
+        result,
+        isA<SettingsExportUnsupportedVersion>(),
+        reason: 'v$version',
+      );
+      expect(
+        (result as SettingsExportUnsupportedVersion).version,
+        version,
+        reason: 'v$version',
+      );
     }
     expect(SettingsExportCodec.decodeJson('{'), isA<SettingsExportMalformed>());
   });

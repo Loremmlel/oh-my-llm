@@ -1,7 +1,5 @@
 import 'dart:convert';
 
-import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
-
 import '../preferences/auto_retry_settings.dart';
 import '../preferences/custom_headers_config.dart';
 import '../prompts/fixed_prompt_sequence.dart';
@@ -27,7 +25,13 @@ final class SettingsExportDecodeSuccess extends SettingsExportDecodeResult {
   });
 
   final SettingsExportData data;
+
+  /// 已解码快照的格式版本。当前只接受 v8，恒等于
+  /// [SettingsExportData.formatVersion]；Sync snapshot 校验会用它与快照声明的
+  /// 版本核对。
   final int sourceVersion;
+
+  /// 是否经过旧版本迁移。v8 是唯一受支持格式，恒为 false。
   final bool migrated;
 }
 
@@ -42,66 +46,13 @@ final class SettingsExportMalformed extends SettingsExportDecodeResult {
   const SettingsExportMalformed();
 }
 
-/// Settings v5 到 v6 的唯一支持迁移：版本字段改名并落到 v6 结构。
-///
-/// 版本号固定写 6，后续版本升级由下一个迁移器接力完成（见
-/// [SettingsExportFormatMigratorV6ToV7]）。
-final class SettingsExportFormatMigratorV5ToV6 {
-  const SettingsExportFormatMigratorV5ToV6();
-
-  Map<String, Object?> migrate(Map<String, Object?> source) {
-    return {...source, 'formatVersion': 6}..remove('version');
-  }
-}
-
-/// Settings v6 到 v7 的唯一支持迁移：为全部服务商补默认协议。
-///
-/// 版本号固定写字面量 7：迁移器只负责 v6→v7 一步，绝不读取全局当前版本号，
-/// 否则在格式升级到 v8 后会错误地跳级写入 v8。
-final class SettingsExportFormatMigratorV6ToV7 {
-  const SettingsExportFormatMigratorV6ToV7();
-
-  Map<String, Object?> migrate(Map<String, Object?> source) {
-    final rawProviders = source['modelProviders'];
-    if (rawProviders is! List) {
-      return {...source, 'formatVersion': 7};
-    }
-    return {
-      ...source,
-      'formatVersion': 7,
-      'modelProviders': rawProviders
-          .map((item) {
-            if (item is! Map) return item;
-            final provider = Map<String, Object?>.from(item);
-            // 只补缺失协议的旧条目；显式写入的协议（含未知值）保持原样
-            if (!provider.containsKey('apiProtocol')) {
-              provider['apiProtocol'] =
-                  LlmApiProtocol.chatCompletions.storageValue;
-            }
-            return provider;
-          })
-          .toList(growable: false),
-    };
-  }
-}
-
-/// Settings v7 到 v8 的唯一支持迁移：只提升格式版本，不改写旧模板正文。
-///
-/// v8 引入条件控制语法与变量类型/选项字段，旧 v7 快照的模板正文仍是
-/// 纯变量语法，因此在结构上天然兼容当前解码的编译校验。
-final class SettingsExportFormatMigratorV7ToV8 {
-  const SettingsExportFormatMigratorV7ToV8();
-
-  Map<String, Object?> migrate(Map<String, Object?> source) {
-    return {...source, 'formatVersion': 8};
-  }
-}
-
 /// 只在 Settings 域内处理结构化版本化 snapshot，不了解 Sync wire 协议。
 final class SettingsExportCodec {
   const SettingsExportCodec._();
 
-  static const int minimumSupportedVersion = 5;
+  /// 当前只接受格式版本 v8：最低与最高支持版本都等于当前版本，v5/v6/v7
+  /// 及未来版本统一返回 unsupported。两个边界常量供 Sync snapshot 校验复用。
+  static const int minimumSupportedVersion = SettingsExportData.formatVersion;
   static const int maximumSupportedVersion = SettingsExportData.formatVersion;
 
   static Map<String, Object?> encode(SettingsExportData data) {
@@ -149,44 +100,21 @@ final class SettingsExportCodec {
       if (source['identifier'] != SettingsExportData.identifier) {
         return const SettingsExportMalformed();
       }
-      final version = source['formatVersion'] ?? source['version'];
+      // 版本号只从 formatVersion 读取；缺失（含仅有旧 version 字段）即 malformed。
+      final version = source['formatVersion'];
       if (version is! int) return const SettingsExportMalformed();
       if (version < minimumSupportedVersion ||
           version > maximumSupportedVersion) {
         return SettingsExportUnsupportedVersion(version);
       }
-      final normalized = switch (version) {
-        5 => _migrateV5ToCurrent(source),
-        6 => _migrateV6ToCurrent(source),
-        7 => _migrateV7ToCurrent(source),
-        8 => source,
-        _ => throw StateError('range guard must reject this version'),
-      };
       return SettingsExportDecodeSuccess(
-        data: _decodeCurrent(normalized),
+        data: _decodeCurrent(source),
         sourceVersion: version,
         migrated: version != SettingsExportData.formatVersion,
       );
     } catch (_) {
       return const SettingsExportMalformed();
     }
-  }
-
-  /// 版本 5 快照经 v5→v6→v7→v8 显式迁移链到当前版本。
-  static Map<String, Object?> _migrateV5ToCurrent(Map<String, Object?> source) {
-    final v6 = const SettingsExportFormatMigratorV5ToV6().migrate(source);
-    return _migrateV6ToCurrent(v6);
-  }
-
-  /// 版本 6 快照先经 v6→v7 迁移，再接力 v7→v8。
-  static Map<String, Object?> _migrateV6ToCurrent(Map<String, Object?> source) {
-    final v7 = const SettingsExportFormatMigratorV6ToV7().migrate(source);
-    return _migrateV7ToCurrent(v7);
-  }
-
-  /// 版本 7 快照只经 v7→v8 迁移到当前版本。
-  static Map<String, Object?> _migrateV7ToCurrent(Map<String, Object?> source) {
-    return const SettingsExportFormatMigratorV7ToV8().migrate(source);
   }
 
   static SettingsExportData _decodeCurrent(Map<String, Object?> raw) {
@@ -214,7 +142,7 @@ final class SettingsExportCodec {
     final outputProcessing = optionalMap('outputProcessing');
 
     // 先解码到局部不可变列表，再逐条编译校验，任一无效即整体拒绝，
-    // 不执行部分模板写入。校验发生在迁移之后，v5-v7 成功数据也必须结构有效。
+    // 不执行部分模板写入。
     final templatePrompts = list('templatePrompts')
         .map((item) => TemplatePrompt.fromJson(Map<String, dynamic>.from(item)))
         .toList(growable: false);
@@ -232,7 +160,7 @@ final class SettingsExportCodec {
     return SettingsExportData(
       modelProviders: list('modelProviders')
           .map((item) {
-            // 当前格式必须显式声明协议；只有旧格式迁移器可以补默认值。
+            // 当前格式必须显式声明协议；没有旧格式迁移器补默认值，缺失即 malformed。
             if (!item.containsKey('apiProtocol') ||
                 item['apiProtocol'] == null) {
               throw const FormatException('v8 服务商缺少有效 apiProtocol');
