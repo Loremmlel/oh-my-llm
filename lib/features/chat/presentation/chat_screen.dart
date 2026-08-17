@@ -12,7 +12,9 @@ import 'package:oh_my_llm/features/settings/domain/models/prompts/fixed_prompt_s
 import 'package:oh_my_llm/features/settings/domain/models/providers/llm_model_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/template_prompt_language/template_prompt_evaluator.dart';
 import '../application/composer/chat_composer_command.dart';
+import '../application/composer/template_prompt_compilation_provider.dart';
 import '../application/sessions/chat_message_tree.dart';
 import '../application/sessions/chat_sessions_controller.dart';
 import '../application/sidebar/chat_sidebar_controller.dart';
@@ -54,6 +56,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// 正在以编程方式把 composer draft 投影到 body/variable controllers，
   /// 期间抑制 listener 回写，避免 build/恢复时把 input 值写回 provider。
   bool _isApplyingComposerDraft = false;
+
+  /// 是否已为 stale select 归一化调度 post-frame 写回，防止一帧内重复调度。
+  bool _staleSelectWritebackScheduled = false;
 
   String? _editingMessageId;
 
@@ -543,10 +548,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     TemplatePrompt? template, {
     required ComposerDraft draft,
   }) {
-    final activeNames =
-        template?.inputVariables.map((v) => v.name).toSet() ?? const <String>{};
+    // 经唯一编译缓存边界编译，字段与发送共用同一份程序；编译无效时程序为 null。
+    final program = template == null
+        ? null
+        : ref.read(templatePromptCompilationProvider(template)).program;
+    // 控制器按「整个新模板定义」存活：只在整个定义中消失的变量才 dispose。
+    // 隐藏分支的变量不删除不重建，否则切回原分支时草稿值会丢失。
+    final allNames =
+        program?.inputVariables.map((v) => v.name).toSet() ?? const <String>{};
     final removedNames = _templateVariableControllers.keys
-        .where((name) => !activeNames.contains(name))
+        .where((name) => !allNames.contains(name))
         .toList(growable: false);
     for (final name in removedNames) {
       _templateVariableControllers.remove(name)?.dispose();
@@ -554,33 +565,38 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       _templateVariableTemplateIds.remove(name);
     }
 
-    if (template == null) {
+    if (program == null) {
       return;
     }
 
     final conversationId = _activeConversationIdOrNull();
-    for (final variable in template.inputVariables) {
-      final templateId = template.id;
+    final templateId = template!.id;
+    final staleSelectNames = <String>[];
+    for (final variable in program.inputVariables) {
       // 已存在也必须按当前会话 draft 重赋值，不能因 key 存在直接 continue，
       // 否则同名模板变量会跨会话泄漏。
       final savedValue = conversationId == null
           ? null
           : draft.templateVariableValuesByTemplateId[templateId]?[variable
                 .name];
+      // 归一化：空输入回落配置默认值；select 值不在选项列表回落默认值。
+      // 非法数字文本不静默替换，用户要看到并修复。
+      final resolved = normalizeTemplatePromptVariableDraftValue(
+        variable,
+        savedValue,
+      );
+      if (variable.isSelect && savedValue != null && resolved != savedValue) {
+        staleSelectNames.add(variable.name);
+      }
       final existing = _templateVariableControllers[variable.name];
       if (existing == null) {
-        final controller = TextEditingController(
-          text: savedValue ?? variable.defaultValue,
-        );
+        final controller = TextEditingController(text: resolved);
         _bindTemplateVariableListener(templateId, variable.name, controller);
         _templateVariableControllers[variable.name] = controller;
       } else {
-        // 目标会话没有该变量草稿值时必须回落到模板默认值，不能只覆盖「有值」的情况，
-        // 否则 B 选了同名模板但未输入时，字段会残留 A 会话上一次的值（跨会话泄漏）。
-        final targetValue = savedValue ?? variable.defaultValue;
-        if (existing.text != targetValue) {
+        if (existing.text != resolved) {
           _isApplyingComposerDraft = true;
-          existing.text = targetValue;
+          existing.text = resolved;
           _isApplyingComposerDraft = false;
         }
         // 同名变量可能来自不同模板：模板切换后必须重绑 listener 捕获当前
@@ -588,6 +604,73 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         _bindTemplateVariableListener(templateId, variable.name, existing);
       }
     }
+
+    // stale select 值必须写回草稿（持久归一化），但 build 中不得写 Provider：
+    // 恰好调度一次 post-frame 回调，在回调里重读当前会话/草稿并校验原值仍
+    // 匹配后再写回。
+    if (staleSelectNames.isNotEmpty && !_staleSelectWritebackScheduled) {
+      _staleSelectWritebackScheduled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _staleSelectWritebackScheduled = false;
+        if (!mounted) {
+          return;
+        }
+        _writeBackStaleSelectValues(templateId, staleSelectNames);
+      });
+    }
+  }
+
+  /// stale select 归一化写回：post-frame 重读当前会话/模板草稿，校验原始值
+  /// 与编辑事务仍匹配后才调用 [ComposerDraftController.replaceTemplateVariables]。
+  ///
+  /// 编辑事务期间绝不写会话级草稿：编辑中的归一化由 [_buildEditingDraft] 完成，
+  /// 因此编辑中同步到的是已归一化的页面草稿，不会走到这里。
+  void _writeBackStaleSelectValues(
+    String templateId,
+    List<String> variableNames,
+  ) {
+    if (_editingMessageId != null) {
+      return;
+    }
+    final conversationId = _activeConversationIdOrNull();
+    if (conversationId == null) {
+      return;
+    }
+    final template = resolveSelectedTemplatePrompt(
+      ref.read(templatePromptsProvider),
+      templateId,
+    );
+    final program = template == null
+        ? null
+        : ref.read(templatePromptCompilationProvider(template)).program;
+    if (program == null) {
+      return;
+    }
+    final currentDraft = ref
+        .read(composerDraftProvider.notifier)
+        .draftFor(conversationId);
+    final values = <String, String>{};
+    for (final variable in program.inputVariables) {
+      if (!variableNames.contains(variable.name)) {
+        continue;
+      }
+      final saved = currentDraft
+          .templateVariableValuesByTemplateId[templateId]?[variable.name];
+      final resolved = normalizeTemplatePromptVariableDraftValue(
+        variable,
+        saved,
+      );
+      // 原值仍存在且仍失效才写回，避免覆盖用户此间的新输入。
+      if (saved != null && resolved != saved) {
+        values[variable.name] = resolved;
+      }
+    }
+    if (values.isEmpty) {
+      return;
+    }
+    ref
+        .read(composerDraftProvider.notifier)
+        .replaceTemplateVariables(conversationId, templateId, values);
   }
 
   /// 绑定/重绑模板变量字段的 listener：同一变量名切到新模板时先解绑旧
@@ -687,7 +770,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
   }
 
-  /// 从草稿解析发送时的模板变量值：trim 后为空则回落模板默认值。
+  /// 从草稿解析发送时的模板变量值：与字段绑定共用同一归一化规则——
+  /// 空输入回落配置默认值；select 值不在选项列表回落配置默认值。
   Map<String, String> _resolveTemplatePromptValues(
     TemplatePrompt? templatePrompt,
     ComposerDraft draft,
@@ -699,10 +783,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         draft.templateVariableValuesByTemplateId[templatePrompt.id] ?? const {};
     return {
       for (final variable in templatePrompt.inputVariables)
-        variable.name: (() {
-          final typedValue = saved[variable.name]?.trim() ?? '';
-          return typedValue.isEmpty ? variable.defaultValue : typedValue;
-        })(),
+        variable.name: normalizeTemplatePromptVariableDraftValue(
+          variable,
+          saved[variable.name],
+        ),
     };
   }
 
@@ -738,9 +822,33 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final templateVariables = <String, Map<String, String>>{};
     final templateId = message.templatePromptId;
     if (templateId != null && message.templateVariableValues.isNotEmpty) {
-      templateVariables[templateId] = Map.unmodifiable(
-        message.templateVariableValues,
+      // 编辑恢复时按当前模板定义归一化：select 值已不在选项列表则回落配置
+      // 默认值，使编辑草稿与提交都使用当前默认，而不是保留已失效的历史值。
+      final template = resolveSelectedTemplatePrompt(
+        ref.read(templatePromptsProvider),
+        templateId,
       );
+      final program = template == null
+          ? null
+          : ref.read(templatePromptCompilationProvider(template)).program;
+      final variablesByName = <String, TemplatePromptVariable>{
+        if (program != null)
+          for (final variable in program.inputVariables)
+            variable.name: variable,
+      };
+      templateVariables[templateId] = Map.unmodifiable({
+        for (final entry in message.templateVariableValues.entries)
+          entry.key: (() {
+            final variable = variablesByName[entry.key];
+            if (variable == null) {
+              return entry.value;
+            }
+            return normalizeTemplatePromptVariableDraftValue(
+              variable,
+              entry.value,
+            );
+          })(),
+      });
     }
     return ComposerDraft(
       body: bodyText,

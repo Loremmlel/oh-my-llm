@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/chat/application/workspace/chat_workspace_view_state.dart';
@@ -58,13 +59,17 @@ Future<void> _pumpComposer(
     tester.view.resetPhysicalSize();
     tester.view.resetDevicePixelRatio();
   });
+  // ChatComposerCard 已是 ConsumerWidget（消费模板编译 provider），
+  // 直接挂载需包一层 ProviderScope；本测试不选模板，无需任何 override。
   await tester.pumpWidget(
-    MaterialApp(
-      home: Scaffold(
-        body: Center(
-          child: SizedBox(
-            width: constraintWidth + 8,
-            child: ChatComposerCard(state: state, bindings: bindings),
+    ProviderScope(
+      child: MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: constraintWidth + 8,
+              child: ChatComposerCard(state: state, bindings: bindings),
+            ),
           ),
         ),
       ),

@@ -156,6 +156,52 @@ class ComposerDraftController extends Notifier<ComposerDraftState> {
     );
   }
 
+  /// 整体替换所选模板的嵌套变量 map。
+  ///
+  /// 仅当长度或任一 key/value 有差异时才写入 state；Dart 的 `Map.==` 是同一性
+  /// 比较，不能用来判断内容相等，故逐项比较。只替换目标模板的嵌套 map，
+  /// 保留正文、模板选择、其他模板草稿与其他会话草稿。
+  void replaceTemplateVariables(
+    String conversationId,
+    String templateId,
+    Map<String, String> values,
+  ) {
+    final current = draftFor(conversationId);
+    final currentTemplateVariables =
+        current.templateVariableValuesByTemplateId[templateId] ?? const {};
+    final nextTemplateVariables = Map<String, String>.unmodifiable(values);
+    if (_sameStringMap(currentTemplateVariables, nextTemplateVariables)) {
+      return;
+    }
+    final nextVariables = Map<String, Map<String, String>>.from(
+      current.templateVariableValuesByTemplateId,
+    )..[templateId] = nextTemplateVariables;
+    state = state.copyWith(
+      draftsByConversationId: {
+        ...state.draftsByConversationId,
+        conversationId: current.copyWith(
+          templateVariableValuesByTemplateId: nextVariables,
+        ),
+      },
+    );
+  }
+
+  /// 逐项比较两张字符串 map 的内容是否相等（Dart `Map.==` 是同一性比较）。
+  static bool _sameStringMap(
+    Map<String, String> first,
+    Map<String, String> second,
+  ) {
+    if (first.length != second.length) {
+      return false;
+    }
+    for (final entry in first.entries) {
+      if (second[entry.key] != entry.value) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   /// send 后清空正文，但保留模板选择与变量草稿。
   void clearBody(String conversationId) {
     final current = draftFor(conversationId);

@@ -9,11 +9,15 @@ class NumberVariableField extends StatelessWidget {
   const NumberVariableField({
     required this.controller,
     required this.labelText,
+    this.errorText,
     super.key,
   });
 
   final TextEditingController controller;
   final String labelText;
+
+  /// 值错误信息（如「必须是整数」），附着在字段下方 inline 展示。
+  final String? errorText;
 
   static const _fallbackValue = 1;
 
@@ -57,6 +61,7 @@ class NumberVariableField extends StatelessWidget {
               ],
               decoration: InputDecoration(
                 labelText: labelText,
+                errorText: errorText,
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 8,
                   vertical: 12,
