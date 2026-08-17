@@ -172,12 +172,14 @@ void main() {
 
     // ── version 边界契约 ─────────────
 
-    test('accepts missing version field', () {
-      final decoded = VersionedJsonStorage.decodeObjectList(
-        rawJson: jsonEncode({'items': <dynamic>[]}),
-        subject: 'test items',
+    test('拒绝缺失版本字段', () {
+      expect(
+        () => VersionedJsonStorage.decodeObjectList(
+          rawJson: jsonEncode({'items': <dynamic>[]}),
+          subject: 'test items',
+        ),
+        throwsFormatException,
       );
-      expect(decoded, isEmpty);
     });
 
     test('accepts non-future version bounds', () {

@@ -68,12 +68,12 @@ final class VersionedJsonStorage {
     }
 
     final version = decoded['version'];
-    if (version != null && version is! int) {
+    if (version is! int) {
       throw FormatException(
         'Stored $subject payload version must be an integer.',
       );
     }
-    if (version is int && version > currentSchemaVersion) {
+    if (version > currentSchemaVersion) {
       throw FormatException(
         'Stored $subject payload version $version is not supported.',
       );
