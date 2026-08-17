@@ -116,7 +116,6 @@ void main() {
       ),
     );
 
-    expect(success.migrated, isFalse);
     expect(success.sourceVersion, SettingsExportData.formatVersion);
     expect(
       success.data.modelProviders.single.apiProtocol,
@@ -136,7 +135,6 @@ void main() {
 
     final success = decodeSuccess(data.toJsonString());
     expect(success.sourceVersion, 8);
-    expect(success.migrated, isFalse);
     final decoded = success.data.templatePrompts.single;
     expect(decoded, template);
     final select = decoded.variables.singleWhere(

@@ -229,20 +229,33 @@ void main() {
     test('低于当前基线的旧版数据库在打开时显式拒绝', () {
       for (final version in [1, 8, 12]) {
         final path = createDbFile('legacy_$version.db', version);
-        // 打开即抛异常：连接不会交给任何仓库层在旧 schema 上执行查询
+        // 打开即抛异常：连接不会交给任何仓库层在旧 schema 上执行查询，
+        // 且异常携带实际 user_version，供上层识别被拒绝的具体原因。
         expect(
           () => AppDatabase.forPath(path),
-          throwsA(isA<AppDatabaseSchemaVersionException>()),
+          throwsA(
+            isA<AppDatabaseSchemaVersionException>().having(
+              (exception) => exception.version,
+              'version',
+              version,
+            ),
+          ),
         );
       }
     });
 
     test('高于当前基线的未来版本数据库显式拒绝打开', () {
       final path = createDbFile('future_14.db', 14);
-      // 旧代码不静默读写更新版本应用创建的 schema
+      // 旧代码不静默读写更新版本应用创建的 schema；异常携带实际 user_version。
       expect(
         () => AppDatabase.forPath(path),
-        throwsA(isA<AppDatabaseSchemaVersionException>()),
+        throwsA(
+          isA<AppDatabaseSchemaVersionException>().having(
+            (exception) => exception.version,
+            'version',
+            14,
+          ),
+        ),
       );
     });
   });

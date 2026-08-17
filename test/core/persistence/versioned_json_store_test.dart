@@ -84,6 +84,19 @@ void main() {
     });
   });
 
+  test('含版本标记但缺失 value 的截断 envelope 按损坏回退且不重写', () async {
+    final storage = _FakeSettingsKeyValueStore(
+      stringValues: {'settings.font_size': '{"version":1}'},
+    );
+    final store = _createStore(storage);
+
+    expect(store.load(), const FontSizeSettings());
+    await pumpEventQueue();
+
+    // 截断 envelope 不得被误判为历史裸对象重写成损坏值，存储保持原样。
+    expect(storage.stringValues['settings.font_size'], '{"version":1}');
+  });
+
   test('returns fallback for malformed and unsupported stored values', () {
     for (final rawJson in [
       '{bad json}',

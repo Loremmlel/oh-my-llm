@@ -21,7 +21,6 @@ final class SettingsExportDecodeSuccess extends SettingsExportDecodeResult {
   const SettingsExportDecodeSuccess({
     required this.data,
     required this.sourceVersion,
-    required this.migrated,
   });
 
   final SettingsExportData data;
@@ -30,9 +29,6 @@ final class SettingsExportDecodeSuccess extends SettingsExportDecodeResult {
   /// [SettingsExportData.formatVersion]；Sync snapshot 校验会用它与快照声明的
   /// 版本核对。
   final int sourceVersion;
-
-  /// 是否经过旧版本迁移。v8 是唯一受支持格式，恒为 false。
-  final bool migrated;
 }
 
 final class SettingsExportUnsupportedVersion
@@ -110,7 +106,6 @@ final class SettingsExportCodec {
       return SettingsExportDecodeSuccess(
         data: _decodeCurrent(source),
         sourceVersion: version,
-        migrated: version != SettingsExportData.formatVersion,
       );
     } catch (_) {
       return const SettingsExportMalformed();
