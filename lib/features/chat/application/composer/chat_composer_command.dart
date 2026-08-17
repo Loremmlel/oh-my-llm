@@ -9,6 +9,7 @@ import '../../domain/models/chat_conversation.dart';
 import '../../domain/models/chat_message.dart';
 import '../sessions/chat_sessions_controller.dart';
 import 'composer_draft_controller.dart';
+import 'template_prompt_compilation_provider.dart';
 import 'templated_user_message_builder.dart';
 
 /// 用户点发送/提交编辑时携带的不可变输入。
@@ -43,7 +44,14 @@ sealed class ChatComposerDispatchResult {
   const ChatComposerDispatchResult();
 }
 
-enum ChatComposerRejectReason { empty, noModel, busy, staleConversation }
+enum ChatComposerRejectReason {
+  empty,
+  noModel,
+  busy,
+  staleConversation,
+  invalidTemplate,
+  invalidTemplateValue,
+}
 
 class ChatComposerRejected extends ChatComposerDispatchResult {
   const ChatComposerRejected(this.reason);
@@ -99,47 +107,67 @@ class ChatComposerCommand {
       return const ChatComposerRejected(ChatComposerRejectReason.noModel);
     }
 
-    // 只调用一次模板拼接；Screen/command 不得分别解析造成不一致。
-    final templated = buildTemplatedUserMessage(
+    // 选中的模板经唯一编译缓存边界编译一次，与 Screen 共用同一编译结果。
+    final templatePrompt = intent.templatePrompt;
+    final compilation = templatePrompt == null
+        ? null
+        : _ref.read(templatePromptCompilationProvider(templatePrompt));
+    final buildResult = buildTemplatedUserMessage(
       body: intent.body,
-      templatePrompt: intent.templatePrompt,
+      templatePrompt: templatePrompt,
+      compilation: compilation,
       variableValues: intent.variableValues,
     );
-    if (templated.content.trim().isEmpty) {
-      return const ChatComposerRejected(ChatComposerRejectReason.empty);
-    }
+    switch (buildResult) {
+      case TemplatedUserMessageBuildFailure(:final valueErrors):
+        // 编译诊断 -> 模板无效；运行时值错误 -> 值无效。拒绝路径零副作用。
+        return ChatComposerRejected(
+          valueErrors.isNotEmpty
+              ? ChatComposerRejectReason.invalidTemplateValue
+              : ChatComposerRejectReason.invalidTemplate,
+        );
+      case TemplatedUserMessageBuildSuccess(
+        :final message,
+        :final effectiveVariableValues,
+      ):
+        if (message.content.trim().isEmpty) {
+          return const ChatComposerRejected(ChatComposerRejectReason.empty);
+        }
 
-    final editingMessageId = intent.editingMessageId;
-    final wasEdit = editingMessageId != null;
-    final Future<void> completion;
-    if (wasEdit) {
-      completion = _ref
-          .read(chatSessionsProvider.notifier)
-          .editMessage(
-            messageId: editingMessageId,
-            nextContent: templated.content,
-            userMessageSegments: templated.userMessageSegments,
-            templatePromptId: intent.templatePrompt?.id,
-            templateVariableValues: intent.variableValues,
-          );
-    } else {
-      completion = _ref
-          .read(chatSessionsProvider.notifier)
-          .sendMessage(
-            content: templated.content,
-            userMessageSegments: templated.userMessageSegments,
-            modelConfig: model,
-            presetPrompt: intent.selectedPresetPrompt,
-            reasoningEnabled: intent.reasoningEnabled,
-            reasoningEffort: intent.reasoningEffort,
-            templatePromptId: intent.templatePrompt?.id,
-            templateVariableValues: intent.variableValues,
-          );
-    }
+        final editingMessageId = intent.editingMessageId;
+        final wasEdit = editingMessageId != null;
+        final Future<void> completion;
+        if (wasEdit) {
+          completion = _ref
+              .read(chatSessionsProvider.notifier)
+              .editMessage(
+                messageId: editingMessageId,
+                nextContent: message.content,
+                userMessageSegments: message.userMessageSegments,
+                templatePromptId: templatePrompt?.id,
+                templateVariableValues: effectiveVariableValues,
+              );
+        } else {
+          completion = _ref
+              .read(chatSessionsProvider.notifier)
+              .sendMessage(
+                content: message.content,
+                userMessageSegments: message.userMessageSegments,
+                modelConfig: model,
+                presetPrompt: intent.selectedPresetPrompt,
+                reasoningEnabled: intent.reasoningEnabled,
+                reasoningEffort: intent.reasoningEffort,
+                templatePromptId: templatePrompt?.id,
+                templateVariableValues: effectiveVariableValues,
+              );
+        }
 
-    // accepted 后立即把目标 draft 更新为「body 空、保留本次 template/variables」。
-    _ref.read(composerDraftProvider.notifier).clearBody(intent.conversationId);
-    return ChatComposerAccepted(completion: completion, wasEdit: wasEdit);
+        // accepted 后立即把目标 draft 更新为「body 空、保留本次 template/variables」。
+        _ref
+            .read(composerDraftProvider.notifier)
+            .clearBody(intent.conversationId);
+        return ChatComposerAccepted(completion: completion, wasEdit: wasEdit);
+    }
   }
 
   /// fixed-sequence sendStep：直接发送步骤文本，不消费普通 composer draft。

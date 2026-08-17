@@ -376,6 +376,267 @@ void main() {
     expect(draft.selectedTemplatePromptId, 'tp-1');
   });
 
+  test('模板语法无效返回 invalidTemplate，不发送且草稿完整保留', () async {
+    final command = container.read(chatComposerCommandProvider);
+    final conversationId = container.read(activeConversationIdProvider);
+    final template = TemplatePrompt(
+      id: 'tp-bad',
+      title: '损坏模板',
+      content: '{{#if x == "a"}}未闭合',
+      variables: const [],
+      updatedAt: DateTime(2026, 1, 1),
+    );
+    container
+        .read(composerDraftProvider.notifier)
+        .setBody(conversationId, '正文');
+    container
+        .read(composerDraftProvider.notifier)
+        .selectTemplate(conversationId, 'tp-bad');
+    container
+        .read(composerDraftProvider.notifier)
+        .setTemplateVariable(conversationId, 'tp-bad', 'x', 'a');
+
+    final result = command.dispatch(
+      intentFor(
+        '正文',
+        templatePrompt: template,
+        variableValues: const {'x': 'a'},
+      ),
+    );
+    expect(result, isA<ChatComposerRejected>());
+    expect(
+      (result as ChatComposerRejected).reason,
+      ChatComposerRejectReason.invalidTemplate,
+    );
+    expect(fakeClient.requestHistory, isEmpty);
+    final draft = container
+        .read(composerDraftProvider.notifier)
+        .draftFor(conversationId);
+    expect(draft.body, '正文');
+    expect(draft.selectedTemplatePromptId, 'tp-bad');
+    expect(draft.templateVariableValuesByTemplateId['tp-bad'], {'x': 'a'});
+  });
+
+  test('已保存变量与正文声明冲突返回 invalidTemplate', () async {
+    final command = container.read(chatComposerCommandProvider);
+    final conversationId = container.read(activeConversationIdProvider);
+    final template = TemplatePrompt(
+      id: 'tp-conflict',
+      title: '冲突模板',
+      content: '请按{{title}}输出。',
+      variables: const [TemplatePromptVariable(name: '其他变量')],
+      updatedAt: DateTime(2026, 1, 1),
+    );
+    container
+        .read(composerDraftProvider.notifier)
+        .setBody(conversationId, '正文');
+
+    final result = command.dispatch(intentFor('正文', templatePrompt: template));
+    expect(result, isA<ChatComposerRejected>());
+    expect(
+      (result as ChatComposerRejected).reason,
+      ChatComposerRejectReason.invalidTemplate,
+    );
+    expect(fakeClient.requestHistory, isEmpty);
+    expect(
+      container
+          .read(composerDraftProvider.notifier)
+          .draftFor(conversationId)
+          .body,
+      '正文',
+    );
+  });
+
+  test('数字值 "-" 返回 invalidTemplateValue，不发送且草稿保留', () async {
+    final command = container.read(chatComposerCommandProvider);
+    final conversationId = container.read(activeConversationIdProvider);
+    final template = TemplatePrompt(
+      id: 'tp-num',
+      title: '章节模板',
+      content: '第{{章:number}}章',
+      variables: const [
+        TemplatePromptVariable(
+          name: '章',
+          defaultValue: '1',
+          type: TemplatePromptVariableType.number,
+        ),
+      ],
+      updatedAt: DateTime(2026, 1, 1),
+    );
+    container
+        .read(composerDraftProvider.notifier)
+        .setBody(conversationId, '正文');
+
+    final result = command.dispatch(
+      intentFor(
+        '正文',
+        templatePrompt: template,
+        variableValues: const {'章': '-'},
+      ),
+    );
+    expect(result, isA<ChatComposerRejected>());
+    expect(
+      (result as ChatComposerRejected).reason,
+      ChatComposerRejectReason.invalidTemplateValue,
+    );
+    expect(fakeClient.requestHistory, isEmpty);
+    expect(
+      container
+          .read(composerDraftProvider.notifier)
+          .draftFor(conversationId)
+          .body,
+      '正文',
+    );
+  });
+
+  test('单选值不在选项列表返回 invalidTemplateValue', () async {
+    final command = container.read(chatComposerCommandProvider);
+    final conversationId = container.read(activeConversationIdProvider);
+    final template = TemplatePrompt(
+      id: 'tp-select',
+      title: '人称模板',
+      content: '请用{{人称:select|一|二|三}}。',
+      variables: const [
+        TemplatePromptVariable(
+          name: '人称',
+          defaultValue: '一',
+          type: TemplatePromptVariableType.select,
+          options: ['一', '二', '三'],
+        ),
+      ],
+      updatedAt: DateTime(2026, 1, 1),
+    );
+    container
+        .read(composerDraftProvider.notifier)
+        .setBody(conversationId, '正文');
+
+    final result = command.dispatch(
+      intentFor(
+        '正文',
+        templatePrompt: template,
+        variableValues: const {'人称': '四'},
+      ),
+    );
+    expect(result, isA<ChatComposerRejected>());
+    expect(
+      (result as ChatComposerRejected).reason,
+      ChatComposerRejectReason.invalidTemplateValue,
+    );
+    expect(fakeClient.requestHistory, isEmpty);
+    expect(
+      container
+          .read(composerDraftProvider.notifier)
+          .draftFor(conversationId)
+          .body,
+      '正文',
+    );
+  });
+
+  test('有效单选 dispatch 持久化字符串值而非索引，draft 只清 body', () async {
+    final command = container.read(chatComposerCommandProvider);
+    final conversationId = container.read(activeConversationIdProvider);
+    final template = TemplatePrompt(
+      id: 'tp-select',
+      title: '人称模板',
+      content: '请用{{人称:select|一|二|三}}。',
+      variables: const [
+        TemplatePromptVariable(
+          name: '人称',
+          defaultValue: '一',
+          type: TemplatePromptVariableType.select,
+          options: ['一', '二', '三'],
+        ),
+      ],
+      updatedAt: DateTime(2026, 1, 1),
+    );
+    container
+        .read(composerDraftProvider.notifier)
+        .selectTemplate(conversationId, 'tp-select');
+    fakeClient.enqueueChunks(['回复']);
+
+    final result = command.dispatch(
+      intentFor(
+        '正文',
+        templatePrompt: template,
+        variableValues: const {'人称': '二'},
+      ),
+    );
+    expect(result, isA<ChatComposerAccepted>());
+    await (result as ChatComposerAccepted).completion;
+
+    final conversation = container.read(activeChatConversationProvider);
+    final userMessage = conversation.messages.firstWhere(
+      (m) => m.role == ChatMessageRole.user,
+    );
+    expect(userMessage.templatePromptId, 'tp-select');
+    // 持久化的是选项字符串值，不是列表索引。
+    expect(userMessage.templateVariableValues['人称'], '二');
+    expect(
+      fakeClient.requestHistory.single.map((m) => m.content).join('\n'),
+      contains('请用二。'),
+    );
+    final draft = container
+        .read(composerDraftProvider.notifier)
+        .draftFor(conversation.id);
+    expect(draft.body, '');
+    expect(draft.selectedTemplatePromptId, 'tp-select');
+  });
+
+  test('省略的单选默认值写入发送与编辑元数据及渲染内容', () async {
+    final command = container.read(chatComposerCommandProvider);
+    final template = TemplatePrompt(
+      id: 'tp-select-default',
+      title: '默认人称模板',
+      content: '请用{{人称:select|一|二|三}}。',
+      variables: const [
+        TemplatePromptVariable(
+          name: '人称',
+          defaultValue: '二',
+          type: TemplatePromptVariableType.select,
+          options: ['一', '二', '三'],
+        ),
+      ],
+      updatedAt: DateTime(2026, 1, 1),
+    );
+    fakeClient.enqueueChunks(['首次回复']);
+
+    final sendResult = command.dispatch(
+      intentFor('正文', templatePrompt: template),
+    );
+    expect(sendResult, isA<ChatComposerAccepted>());
+    await (sendResult as ChatComposerAccepted).completion;
+
+    final conversation = container.read(activeChatConversationProvider);
+    final sentUserMessage = conversation.messages.firstWhere(
+      (m) => m.role == ChatMessageRole.user,
+    );
+    expect(sentUserMessage.templateVariableValues['人称'], '二');
+    expect(
+      fakeClient.requestHistory.single.map((m) => m.content).join('\n'),
+      contains('请用二。'),
+    );
+
+    // 编辑既有消息：省略的单选同样以配置默认值写入编辑元数据。
+    fakeClient.enqueueChunks(['编辑后回复']);
+    final editResult = command.dispatch(
+      intentFor(
+        '新正文',
+        editingMessageId: sentUserMessage.id,
+        templatePrompt: template,
+      ),
+    );
+    expect(editResult, isA<ChatComposerAccepted>());
+    await (editResult as ChatComposerAccepted).completion;
+
+    final editedConversation = container.read(activeChatConversationProvider);
+    final editedUserMessage = editedConversation.messages.firstWhere(
+      (m) => m.role == ChatMessageRole.user && m.content.contains('新正文'),
+    );
+    expect(editedUserMessage.templatePromptId, 'tp-select-default');
+    expect(editedUserMessage.templateVariableValues['人称'], '二');
+    expect(editedUserMessage.content, contains('请用二。'));
+  });
+
   test('dispatchDirect 直接发送步骤文本，不消费 composer draft', () async {
     final command = container.read(chatComposerCommandProvider);
     final conversationId = container.read(activeConversationIdProvider);
