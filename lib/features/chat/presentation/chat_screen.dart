@@ -57,8 +57,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// 期间抑制 listener 回写，避免 build/恢复时把 input 值写回 provider。
   bool _isApplyingComposerDraft = false;
 
-  /// 是否已为 stale select 归一化调度 post-frame 写回，防止一帧内重复调度。
-  bool _staleSelectWritebackScheduled = false;
+  /// stale select 归一化写回是否已有 post-frame 回调排队，防止一帧内重复
+  /// 调度。回调开始即清除：若本次因会话/草稿变化跳过写回，下一帧可再次
+  /// 排队，属预期重试语义，不是「只调度一次」的保证。
+  bool _staleSelectWritebackPending = false;
 
   String? _editingMessageId;
 
@@ -608,10 +610,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     // stale select 值必须写回草稿（持久归一化），但 build 中不得写 Provider：
     // 恰好调度一次 post-frame 回调，在回调里重读当前会话/草稿并校验原值仍
     // 匹配后再写回。
-    if (staleSelectNames.isNotEmpty && !_staleSelectWritebackScheduled) {
-      _staleSelectWritebackScheduled = true;
+    if (staleSelectNames.isNotEmpty && !_staleSelectWritebackPending) {
+      _staleSelectWritebackPending = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _staleSelectWritebackScheduled = false;
+        _staleSelectWritebackPending = false;
         if (!mounted) {
           return;
         }

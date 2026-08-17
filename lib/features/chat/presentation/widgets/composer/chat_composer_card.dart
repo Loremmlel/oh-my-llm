@@ -201,7 +201,11 @@ class ChatComposerCard extends ConsumerWidget {
                     ),
                     if (selectedTemplate != null) ...[
                       const SizedBox(height: 10),
-                      if (validation.compileErrorText != null)
+                      // program 为 null 也并入诊断分支：不依赖「编译失败必有
+                      // 诊断」的编译器不变量，编译器违约时同样不触碰 program
+                      // 字段，消除空安全 NPE 风险。
+                      if (validation.compileErrorText != null ||
+                          validation.program == null)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 4),
                           child: Text(

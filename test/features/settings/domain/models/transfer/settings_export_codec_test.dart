@@ -252,6 +252,12 @@ void main() {
 
       expect(success.sourceVersion, version, reason: 'v$version');
       expect(success.migrated, isTrue, reason: 'v$version');
+      // 迁移链终点格式为当前版本（循环内自包含，不依赖其他用例兜底）
+      expect(
+        jsonDecode(success.data.toJsonString())['formatVersion'],
+        SettingsExportData.formatVersion,
+        reason: 'v$version',
+      );
       final migrated = success.data.templatePrompts.single;
       expect(migrated.variables, hasLength(2), reason: 'v$version');
       final number = migrated.variables.singleWhere(

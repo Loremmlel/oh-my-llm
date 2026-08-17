@@ -93,6 +93,15 @@ void main() {
       expect(_evaluate(content, values: const {'x': 'z'}).content, 'zC');
     });
 
+    test('多个分支条件同时成立时只渲染第一个分支', () {
+      final result = _evaluate(
+        '{{x}}{{#if x == "a"}}A{{else if x == "a"}}B{{/if}}',
+        values: const {'x': 'a'},
+      );
+      expect(result.content, 'aA');
+      expect(result.content, isNot(contains('B')));
+    });
+
     test('无匹配且无 else 时条件块输出空', () {
       final result = _evaluate(
         '{{x}}{{#if x == "a"}}A{{/if}}',
