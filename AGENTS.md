@@ -158,8 +158,11 @@ lib/
 | 服务商/模型配置、聊天默认值、最近选择记忆                         | SharedPreferences JSON（经 `VersionedJsonStorage` 带版本号编解码） |
 
 **SQLite 基础设施**（`core/persistence/`）：
-- `AppDatabase`：`.open()`（生产，`getApplicationSupportDirectory`）/ `.inMemory()`（测试）/ `.forPath()`（跨 Isolate）。构造自动 `_configure()`（PRAGMA）+ `_migrate()`。
-- **迁移用 `PRAGMA user_version`**：当前 9->13，每个版本一个 `_migrateVN()` 方法。schema / `user_version` 断言用 `>=`，不用 `==`。
+- `AppDatabase`：`.open()`（生产，`getApplicationSupportDirectory`）/ `.inMemory()`（测试）/ `.forPath()`（跨 Isolate）。构造自动 `_configure()`（PRAGMA）+ `_initializeSchema()`（滚动基线校验）。
+- **滚动迁移基线（rolling baseline）**：schema 用 `PRAGMA user_version` 表达，当前基线为 `AppDatabase.currentSchemaVersion`。全新数据库直接创建完整当前 schema 并标记基线版本；等于基线的数据库正常打开、不迁移；低于或高于基线的数据库显式拒绝（`AppDatabaseSchemaVersionException`）。schema / `user_version` 断言用 `>=`，不用 `==`。
+- **临时迁移只允许存在一步**：引入新版本时，只保留「最后一个仍支持的旧基线 → 新版本」的临时迁移；两端受控终端升级确认后，把基线推进到新版本并删除该迁移，让全新安装直接创建新 schema。历史迁移链通常保持 0~1 步，不保留无限累加的逐级迁移。
+- 历史 JSON / settings 交换格式别名遵循同样的有界生命周期：当前格式是唯一 canonical，退出支持的旧格式必须显式失败，不做静默 fallback。
+- **compatibility shim 必须有退出条件**：新增时同时说明为什么需要、位于哪个边界、何时可删除、由哪些测试保护；一次性 canonicalization 类临时代码不得变成新的永久迁移层。
 - `SqliteEntityRepository<T>`：泛型基类，适用「全量加载 + 全量写入」。声明式配置 `tableName` / `selectColumns` / `insertColumns` / `rowToEntity` / `entityToValues`。
 - `HasIdAndUpdatedAt` mixin：泛型约束，配合 `SettingsEntityController<T extends HasIdAndUpdatedAt>`。
 - `BackgroundChatConversationRepository`：将写入委托到后台 Isolate，**80ms 防抖合并**。高频流式写入走这里，避免阻塞 UI。
@@ -214,7 +217,7 @@ lib/
 
 - **对话标题**：未手动命名时取首条用户消息前 15 字符（`characters` 包，`normalizedContent.characters.take(15)`）；手动命名后历史列表**不显示预览**。`hasCustomTitle` 检查 `title != null && title!.trim().isNotEmpty`。
 - **历史搜索**：只匹配对话标题 + 用户消息，**不匹配 assistant 回复**。
-- **`isStreaming` 不持久化**（仅内存 UI 状态）；`finishReason` 持久化（V13 新增列）。
+- **`isStreaming` 不持久化**（仅内存 UI 状态）；`finishReason` 持久化（当前 schema 的列）。
 - **流式 300ms 节流**在 UI 刷新层（`streamUiFlushInterval`），不在 SSE 解析层。流式增量存独立 `ChatStreamingReply`，不直接写会话列表，避免侧栏等无关组件重建。
 - **自动重试**：异常 `finish_reason`（如 `length`）触发重试，见 `chat_sessions_controller.dart` `_sendWithOptionalAutoRetry`。
 - **输出正则**：`output_regex_processor.dart` 按 `order` 升序链式应用，带 `RegExp` 编译缓存。
@@ -316,7 +319,7 @@ test/features/chat/presentation/
 - 不要求限定目录的行覆盖率绝对不下降，但每一处下降必须归类为：已由其他测试覆盖、仅覆盖非业务代码，或意外丢失的行为覆盖。最后一种必须恢复；行覆盖率是诊断证据，不是保留低价值测试的理由。
 - integration 测试必须经过真实生产 wiring 或真实边界产生并验证下游结果。手工把控制器 A 的数据复制给控制器 B，不算集成测试。
 - 测试不得提前完成待验证动作，再把结果归因给被测对象。例如注入前已经迁移完成的数据库，不能证明 bootstrap 执行了迁移。
-- 当前 schema 契约集中验证一次；历史迁移测试从对应旧版本起步，重点断言数据回填、默认值、约束与兼容行为，不重复验证当前 schema 的全部列。
+- 当前 schema 契约集中验证一次；若存在临时基线迁移（旧基线→新版本），测试从旧基线起步，重点断言数据保留与迁移语义，不重复验证当前 schema 的全部列；历史逐级迁移测试随迁移一起退役。
 
 ### 反模式与脆弱红线
 
