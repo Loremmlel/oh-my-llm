@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/features/chat/application/generation/chat_generation_lifecycle.dart';
 import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
@@ -235,11 +234,9 @@ void registerChatSessionsControllerRetryCases() {
         .updateActiveConversationPreferences(autoRetryEnabled: true);
 
     // 设置 maxRetryCount=2，3 次空回复后触发上限
-    final prefs = container.read(sharedPreferencesProvider);
-    await prefs.setString(
-      'settings.auto_retry',
-      '{"maxJitterSeconds":0,"maxRetryCount":2}',
-    );
+    await container
+        .read(autoRetrySettingsProvider.notifier)
+        .save(const AutoRetrySettings(maxJitterSeconds: 0, maxRetryCount: 2));
     fakeClient.enqueueChunks(['']); // 第 1 次空
     fakeClient.enqueueChunks(['']); // 第 2 次空
     fakeClient.enqueueChunks(['']); // 第 3 次空（超出上限）

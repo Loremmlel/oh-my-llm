@@ -53,34 +53,24 @@ VersionedJsonStore<FontSizeSettings> _createStore(
 }
 
 void main() {
-  test('loads legacy object then saves a versioned object envelope', () async {
+  test('历史裸对象不再被接受，读取回退到安全默认值', () {
     final storage = _FakeSettingsKeyValueStore(
       stringValues: {'settings.font_size': '{"bodyFontSize":18}'},
     );
     final store = _createStore(storage);
 
-    expect(store.load().bodyFontSize, 18);
+    expect(store.load(), const FontSizeSettings());
+  });
+
+  test('保存为当前版本化 envelope', () async {
+    final storage = _FakeSettingsKeyValueStore();
+    final store = _createStore(storage);
 
     await store.save(const FontSizeSettings(bodyFontSize: 20));
 
     expect(jsonDecode(storage.stringValues['settings.font_size']!), {
       'version': VersionedJsonStorage.currentSchemaVersion,
       'value': {'bodyFontSize': 20},
-    });
-  });
-
-  test('加载历史裸对象后回写为当前 envelope', () async {
-    final storage = _FakeSettingsKeyValueStore(
-      stringValues: {'settings.font_size': '{"bodyFontSize":18}'},
-    );
-    final store = _createStore(storage);
-
-    expect(store.load().bodyFontSize, 18);
-    await pumpEventQueue();
-
-    expect(jsonDecode(storage.stringValues['settings.font_size']!), {
-      'version': VersionedJsonStorage.currentSchemaVersion,
-      'value': {'bodyFontSize': 18},
     });
   });
 
@@ -93,7 +83,7 @@ void main() {
     expect(store.load(), const FontSizeSettings());
     await pumpEventQueue();
 
-    // 截断 envelope 不得被误判为历史裸对象重写成损坏值，存储保持原样。
+    // 截断 envelope 不得被改写成损坏值，存储保持原样。
     expect(storage.stringValues['settings.font_size'], '{"version":1}');
   });
 

@@ -281,24 +281,16 @@ void main() {
       );
     });
 
-    test(
-      'legacy JSON restores values and defaults missing newer fields',
-      () async {
-        final (:container, preferences: _) = await _boot({
-          autoRetrySettingsStorageKey:
-              '{"maxJitterSeconds":20,"maxRetryCount":2}',
-        });
-        addTearDown(container.dispose);
+    test('历史裸 JSON 不再被接受，读取回退到全部默认值', () async {
+      final (:container, preferences: _) = await _boot({
+        autoRetrySettingsStorageKey:
+            '{"maxJitterSeconds":20,"maxRetryCount":2}',
+      });
+      addTearDown(container.dispose);
 
-        final settings = container.read(autoRetrySettingsProvider);
-        expect(settings.maxJitterSeconds, 20);
-        expect(settings.maxRetryCount, 2);
-        expect(settings.retryMode, RetryMode.perMinuteWindow);
-        expect(settings.retryOnAbnormalFinishReason, isFalse);
-        expect(settings.retryOnTimeout, isFalse);
-        expect(settings.timeoutSeconds, 30);
-      },
-    );
+      final settings = container.read(autoRetrySettingsProvider);
+      expect(settings, const AutoRetrySettings());
+    });
 
     test('save updates current state and survives a rebuild', () async {
       final (:container, :preferences) = await _boot({});
