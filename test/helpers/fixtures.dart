@@ -178,13 +178,22 @@ class TestFixtures {
   static TemplatePromptVariable templateVariable({
     required String name,
     String defaultValue = '',
-  }) => TemplatePromptVariable(name: name, defaultValue: defaultValue);
+    TemplatePromptVariableType type = TemplatePromptVariableType.text,
+    List<String> options = const [],
+  }) => TemplatePromptVariable(
+    name: name,
+    defaultValue: defaultValue,
+    type: type,
+    options: options,
+  );
 
   static TemplatePrompt templatePrompt({
     required String id,
     String title = '测试模板',
     String content = '请处理{{正文}}',
-    List<TemplatePromptVariable> variables = const [],
+    List<TemplatePromptVariable> variables = const [
+      TemplatePromptVariable(name: templatePromptBodyVariableName),
+    ],
     DateTime? updatedAt,
   }) => TemplatePrompt(
     id: id,

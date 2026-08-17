@@ -89,4 +89,23 @@ void main() {
 
     expect(variable.type, TemplatePromptVariableType.text);
   });
+
+  test('select 变量 JSON 往返保留字符串选项且未知类型仍回退 text', () {
+    const variable = TemplatePromptVariable(
+      name: '人称',
+      defaultValue: '二',
+      type: TemplatePromptVariableType.select,
+      options: ['一', '二', '三'],
+    );
+
+    expect(TemplatePromptVariable.fromJson(variable.toJson()), variable);
+    expect(variable.isSelect, isTrue);
+    expect(
+      TemplatePromptVariable.fromJson(const {
+        'name': '旧变量',
+        'type': 'future-type',
+      }).type,
+      TemplatePromptVariableType.text,
+    );
+  });
 }

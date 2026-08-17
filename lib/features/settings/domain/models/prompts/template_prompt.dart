@@ -13,12 +13,16 @@ enum TemplatePromptVariableType {
   text,
 
   /// 数字变量，支持上下箭头微调。
-  number;
+  number,
+
+  /// 单选变量，从 [TemplatePromptVariable.options] 中选择一个字符串值。
+  select;
 
   /// 从字符串解析变量类型，未知值回退为 [text]。
   static TemplatePromptVariableType fromString(String? raw) {
     return switch (raw?.toLowerCase()) {
       'number' => TemplatePromptVariableType.number,
+      'select' => TemplatePromptVariableType.select,
       _ => TemplatePromptVariableType.text,
     };
   }
@@ -27,6 +31,7 @@ enum TemplatePromptVariableType {
   String toString() => switch (this) {
     TemplatePromptVariableType.text => 'text',
     TemplatePromptVariableType.number => 'number',
+    TemplatePromptVariableType.select => 'select',
   };
 }
 
@@ -36,11 +41,13 @@ class TemplatePromptVariable extends Equatable {
     required this.name,
     this.defaultValue = '',
     this.type = TemplatePromptVariableType.text,
+    this.options = const [],
   });
 
   final String name;
   final String defaultValue;
   final TemplatePromptVariableType type;
+  final List<String> options;
 
   /// 当前变量是否为主输入框对应的"正文"变量。
   bool get isBody => name == templatePromptBodyVariableName;
@@ -48,16 +55,22 @@ class TemplatePromptVariable extends Equatable {
   /// 当前变量是否为数字类型。
   bool get isNumber => type == TemplatePromptVariableType.number;
 
+  /// 当前变量是否为单选类型。
+  bool get isSelect => type == TemplatePromptVariableType.select;
+
   /// 复制变量并允许覆盖字段。
   TemplatePromptVariable copyWith({
     String? name,
     String? defaultValue,
     TemplatePromptVariableType? type,
+    List<String>? options,
   }) {
     return TemplatePromptVariable(
       name: name ?? this.name,
       defaultValue: defaultValue ?? this.defaultValue,
       type: type ?? this.type,
+      // 外部传入的选项列表可能是可变列表，拷贝时统一转为不可变快照。
+      options: options == null ? this.options : List.unmodifiable(options),
     );
   }
 
@@ -67,6 +80,7 @@ class TemplatePromptVariable extends Equatable {
       'name': name,
       'defaultValue': defaultValue,
       'type': type.toString(),
+      'options': options,
     };
   }
 
@@ -76,11 +90,15 @@ class TemplatePromptVariable extends Equatable {
       name: json['name'] as String,
       defaultValue: json['defaultValue'] as String? ?? '',
       type: TemplatePromptVariableType.fromString(json['type'] as String?),
+      // 旧数据可能缺少 options 字段，按空列表读取并转为不可变快照。
+      options: List<String>.unmodifiable(
+        (json['options'] as List<dynamic>? ?? const []).cast<String>(),
+      ),
     );
   }
 
   @override
-  List<Object> get props => [name, defaultValue, type];
+  List<Object> get props => [name, defaultValue, type, options];
 }
 
 /// 可在聊天页临时注入变量的模板提示词。
