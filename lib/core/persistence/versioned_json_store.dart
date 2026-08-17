@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'settings_key_value_store.dart';
 import 'versioned_json_storage.dart';
 
@@ -25,11 +28,36 @@ final class VersionedJsonStore<T> {
     if (rawJson == null || rawJson.isEmpty) return fallback();
 
     try {
+      final decoded = jsonDecode(rawJson);
+      if (decoded is Map && !decoded.containsKey('value')) {
+        return fromJson(_canonicalizeLegacyBareObject(decoded));
+      }
       return fromJson(
         VersionedJsonStorage.decodeObject(rawJson: rawJson, subject: subject),
       );
     } catch (_) {
       return fallback();
+    }
+  }
+
+  /// 把历史裸对象回写为当前版本化 envelope，避免收紧后旧数据不可读。
+  ///
+  /// 一次性规范化：两端各启动一次后历史裸对象被重写，本方法即可删除，
+  /// [VersionedJsonStorage.decodeObject] 保持仅接受当前 envelope 契约。
+  JsonMap _canonicalizeLegacyBareObject(Map<dynamic, dynamic> decoded) {
+    final json = Map<String, dynamic>.from(decoded);
+    unawaited(_rewriteCanonical(json));
+    return json;
+  }
+
+  Future<void> _rewriteCanonical(JsonMap json) async {
+    try {
+      await _storage.setString(
+        key,
+        VersionedJsonStorage.encodeObject(value: json),
+      );
+    } catch (_) {
+      // 尽力而为：回写失败不影响本次读取，下次启动会重试。
     }
   }
 

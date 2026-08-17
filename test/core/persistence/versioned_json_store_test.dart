@@ -69,6 +69,21 @@ void main() {
     });
   });
 
+  test('加载历史裸对象后回写为当前 envelope', () async {
+    final storage = _FakeSettingsKeyValueStore(
+      stringValues: {'settings.font_size': '{"bodyFontSize":18}'},
+    );
+    final store = _createStore(storage);
+
+    expect(store.load().bodyFontSize, 18);
+    await pumpEventQueue();
+
+    expect(jsonDecode(storage.stringValues['settings.font_size']!), {
+      'version': VersionedJsonStorage.currentSchemaVersion,
+      'value': {'bodyFontSize': 18},
+    });
+  });
+
   test('returns fallback for malformed and unsupported stored values', () {
     for (final rawJson in [
       '{bad json}',

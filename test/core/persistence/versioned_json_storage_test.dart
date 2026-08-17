@@ -20,14 +20,71 @@ void main() {
       );
     });
 
-    test('accepts a legacy object without a version wrapper', () {
+    test('拒绝无版本化包裹的历史裸对象', () {
       expect(
-        VersionedJsonStorage.decodeObject(
+        () => VersionedJsonStorage.decodeObject(
           rawJson: '{"bodyFontSize":18}',
           subject: 'font size settings',
         ),
-        {'bodyFontSize': 18},
+        throwsFormatException,
       );
+    });
+
+    const rejectionCases = <(String, Object)>[
+      ('版本非整数', {'version': 'v1', 'value': <String, dynamic>{}}),
+      (
+        '未来版本',
+        {
+          'version': VersionedJsonStorage.currentSchemaVersion + 1,
+          'value': <String, dynamic>{},
+        },
+      ),
+      ('value 不是对象', {'version': 1, 'value': 'not-an-object'}),
+      ('缺少 value 字段', {'version': 1}),
+      ('JSON 顶层不是对象', 'plain string'),
+      (
+        'JSON 顶层是数组',
+        [
+          {'bodyFontSize': 18},
+        ],
+      ),
+    ];
+
+    for (final (name, payload) in rejectionCases) {
+      test('拒绝 $name', () {
+        expect(
+          () => VersionedJsonStorage.decodeObject(
+            rawJson: jsonEncode(payload),
+            subject: 'font size settings',
+          ),
+          throwsFormatException,
+        );
+      });
+    }
+
+    test('拒绝非法 JSON 字符串', () {
+      expect(
+        () => VersionedJsonStorage.decodeObject(
+          rawJson: '{broken json',
+          subject: 'font size settings',
+        ),
+        throwsFormatException,
+      );
+    });
+
+    // ── version 边界契约 ─────────────
+
+    test('接受非未来版本边界', () {
+      for (final version in [0, -1]) {
+        final decoded = VersionedJsonStorage.decodeObject(
+          rawJson: jsonEncode({
+            'version': version,
+            'value': {'bodyFontSize': 18},
+          }),
+          subject: 'font size settings',
+        );
+        expect(decoded['bodyFontSize'], 18, reason: 'version=$version');
+      }
     });
   });
 

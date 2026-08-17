@@ -25,7 +25,7 @@ final class VersionedJsonStorage {
     return jsonEncode({'version': currentSchemaVersion, 'value': value});
   }
 
-  /// 解析单个对象包裹，并兼容历史裸对象格式。
+  /// 解析当前版本化对象包裹；缺失版本、缺失 value 或畸形载荷显式失败。
   static JsonMap decodeObject({
     required String rawJson,
     required String subject,
@@ -36,10 +36,6 @@ final class VersionedJsonStorage {
     }
 
     final object = Map<String, dynamic>.from(decoded);
-    if (!object.containsKey('value')) {
-      return object;
-    }
-
     final version = object['version'];
     if (version is! int) {
       throw FormatException(
