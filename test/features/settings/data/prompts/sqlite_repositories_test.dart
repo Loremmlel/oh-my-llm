@@ -42,10 +42,17 @@ TemplatePrompt templatePrompt(String id, {DateTime? updatedAt}) =>
     TemplatePrompt(
       id: id,
       title: '模板提示词 $id',
-      content: '请处理{{正文}}，并补充{{语气}}。',
+      content: '请处理{{正文}}，并补充{{语气}}，输出{{格式}}。',
       variables: const [
         TemplatePromptVariable(name: templatePromptBodyVariableName),
         TemplatePromptVariable(name: '语气', defaultValue: '专业'),
+        // 单选变量：配置的默认值是第二个选项，验证 select 元数据跨 SQLite 往返。
+        TemplatePromptVariable(
+          name: '格式',
+          type: TemplatePromptVariableType.select,
+          defaultValue: '二',
+          options: ['一', '二', '三'],
+        ),
       ],
       updatedAt: updatedAt ?? DateTime(2026, 1, 1),
     );
@@ -124,7 +131,13 @@ void main() {
   test('TemplatePrompt round-trip', () async {
     final original = templatePrompt('full', updatedAt: DateTime(2026, 3, 15));
     await templatePromptRepository.saveAll(database, [original]);
-    expect(templatePromptRepository.loadAll(database).single, original);
+    final loaded = templatePromptRepository.loadAll(database).single;
+    expect(loaded, original);
+    // select 元数据随 variables_json 往返：默认值按字符串原样保存，不依赖索引。
+    final select = loaded.variables.singleWhere(
+      (variable) => variable.type == TemplatePromptVariableType.select,
+    );
+    expect(select.defaultValue, '二');
   });
 
   test('MemoryPrompt round-trip', () async {

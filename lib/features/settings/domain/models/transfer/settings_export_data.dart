@@ -23,7 +23,7 @@ import '../prompts/template_prompt.dart';
 /// ```json
 /// {
 ///   "identifier": "shikiyuzu-oh-my-llm",
-///   "formatVersion": 7,
+///   "formatVersion": 8,
 ///   "modelProviders": [...],
 ///   "memoryPrompts": [...],
 ///   "presetPrompts": [...],
@@ -47,7 +47,10 @@ class SettingsExportData {
   static const String identifier = 'shikiyuzu-oh-my-llm';
 
   /// 当前导出格式版本，未来格式变更时递增。
-  static const int formatVersion = 7;
+  ///
+  /// v8：模板变量新增 `type` / `options` 字段并支持条件控制语法，旧应用
+  /// 会把控制标签当普通文本，因此通过版本边界阻止旧版本错误接收 v8 数据。
+  static const int formatVersion = 8;
 
   final List<LlmProviderConfig> modelProviders;
   final List<MemoryPrompt> memoryPrompts;

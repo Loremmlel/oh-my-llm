@@ -12,6 +12,7 @@ import '../preferences/output_processing_settings.dart';
 import '../prompts/preset_prompt.dart';
 import 'settings_export_data.dart';
 import '../prompts/template_prompt.dart';
+import '../../template_prompt_language/template_prompt_compiler.dart';
 
 /// Settings 导出格式的解码结果，保留格式不支持和内容损坏的区别。
 sealed class SettingsExportDecodeResult {
@@ -54,17 +55,20 @@ final class SettingsExportFormatMigratorV5ToV6 {
 }
 
 /// Settings v6 到 v7 的唯一支持迁移：为全部服务商补默认协议。
+///
+/// 版本号固定写字面量 7：迁移器只负责 v6→v7 一步，绝不读取全局当前版本号，
+/// 否则在格式升级到 v8 后会错误地跳级写入 v8。
 final class SettingsExportFormatMigratorV6ToV7 {
   const SettingsExportFormatMigratorV6ToV7();
 
   Map<String, Object?> migrate(Map<String, Object?> source) {
     final rawProviders = source['modelProviders'];
     if (rawProviders is! List) {
-      return {...source, 'formatVersion': SettingsExportData.formatVersion};
+      return {...source, 'formatVersion': 7};
     }
     return {
       ...source,
-      'formatVersion': SettingsExportData.formatVersion,
+      'formatVersion': 7,
       'modelProviders': rawProviders
           .map((item) {
             if (item is! Map) return item;
@@ -78,6 +82,18 @@ final class SettingsExportFormatMigratorV6ToV7 {
           })
           .toList(growable: false),
     };
+  }
+}
+
+/// Settings v7 到 v8 的唯一支持迁移：只提升格式版本，不改写旧模板正文。
+///
+/// v8 引入条件控制语法与变量类型/选项字段，旧 v7 快照的模板正文仍是
+/// 纯变量语法，因此在结构上天然兼容当前解码的编译校验。
+final class SettingsExportFormatMigratorV7ToV8 {
+  const SettingsExportFormatMigratorV7ToV8();
+
+  Map<String, Object?> migrate(Map<String, Object?> source) {
+    return {...source, 'formatVersion': 8};
   }
 }
 
@@ -142,7 +158,9 @@ final class SettingsExportCodec {
       final normalized = switch (version) {
         5 => _migrateV5ToCurrent(source),
         6 => _migrateV6ToCurrent(source),
-        _ => source,
+        7 => _migrateV7ToCurrent(source),
+        8 => source,
+        _ => throw StateError('range guard must reject this version'),
       };
       return SettingsExportDecodeSuccess(
         data: _decodeCurrent(normalized),
@@ -154,15 +172,21 @@ final class SettingsExportCodec {
     }
   }
 
-  /// 版本 5 快照先补 v6 结构，再经 v6→v7 迁移到当前版本。
+  /// 版本 5 快照经 v5→v6→v7→v8 显式迁移链到当前版本。
   static Map<String, Object?> _migrateV5ToCurrent(Map<String, Object?> source) {
     final v6 = const SettingsExportFormatMigratorV5ToV6().migrate(source);
     return _migrateV6ToCurrent(v6);
   }
 
-  /// 版本 6 快照经 v6→v7 迁移到当前版本。
+  /// 版本 6 快照先经 v6→v7 迁移，再接力 v7→v8。
   static Map<String, Object?> _migrateV6ToCurrent(Map<String, Object?> source) {
-    return const SettingsExportFormatMigratorV6ToV7().migrate(source);
+    final v7 = const SettingsExportFormatMigratorV6ToV7().migrate(source);
+    return _migrateV7ToCurrent(v7);
+  }
+
+  /// 版本 7 快照只经 v7→v8 迁移到当前版本。
+  static Map<String, Object?> _migrateV7ToCurrent(Map<String, Object?> source) {
+    return const SettingsExportFormatMigratorV7ToV8().migrate(source);
   }
 
   static SettingsExportData _decodeCurrent(Map<String, Object?> raw) {
@@ -189,13 +213,29 @@ final class SettingsExportCodec {
     final fontSize = optionalMap('fontSizeSettings');
     final outputProcessing = optionalMap('outputProcessing');
 
+    // 先解码到局部不可变列表，再逐条编译校验，任一无效即整体拒绝，
+    // 不执行部分模板写入。校验发生在迁移之后，v5-v7 成功数据也必须结构有效。
+    final templatePrompts = list('templatePrompts')
+        .map((item) => TemplatePrompt.fromJson(Map<String, dynamic>.from(item)))
+        .toList(growable: false);
+    for (final template in templatePrompts) {
+      final compilation = compileTemplatePromptDefinition(template);
+      if (!compilation.isValid) {
+        final codes = compilation.diagnostics
+            .map((diagnostic) => diagnostic.code.name)
+            .toSet()
+            .join('、');
+        throw FormatException('模板「${template.title}」定义无效（$codes）');
+      }
+    }
+
     return SettingsExportData(
       modelProviders: list('modelProviders')
           .map((item) {
             // 当前格式必须显式声明协议；只有旧格式迁移器可以补默认值。
             if (!item.containsKey('apiProtocol') ||
                 item['apiProtocol'] == null) {
-              throw const FormatException('v7 服务商缺少有效 apiProtocol');
+              throw const FormatException('v8 服务商缺少有效 apiProtocol');
             }
             return LlmProviderConfig.fromJson(Map<String, dynamic>.from(item));
           })
@@ -206,11 +246,7 @@ final class SettingsExportCodec {
       presetPrompts: list('presetPrompts')
           .map((item) => PresetPrompt.fromJson(Map<String, dynamic>.from(item)))
           .toList(growable: false),
-      templatePrompts: list('templatePrompts')
-          .map(
-            (item) => TemplatePrompt.fromJson(Map<String, dynamic>.from(item)),
-          )
-          .toList(growable: false),
+      templatePrompts: templatePrompts,
       fixedPromptSequences: list('fixedPromptSequences')
           .map(
             (item) =>

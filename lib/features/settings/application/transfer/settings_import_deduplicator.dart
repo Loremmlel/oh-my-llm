@@ -77,16 +77,10 @@ class TemplatePromptImportComparator
     if (existing.variables.length != incoming.variables.length) {
       return false;
     }
+    // 比较完整变量值对象：name / default / type / 有序 options 全部一致才去重，
+    // 不比较 select 选中索引或编译后的 AST 身份。
     for (var index = 0; index < existing.variables.length; index += 1) {
-      final left = existing.variables[index];
-      final right = incoming.variables[index];
-      if (left.name != right.name) {
-        return false;
-      }
-      if (left.defaultValue.length != right.defaultValue.length) {
-        return false;
-      }
-      if (left.defaultValue != right.defaultValue) {
+      if (existing.variables[index] != incoming.variables[index]) {
         return false;
       }
     }

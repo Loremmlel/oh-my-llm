@@ -62,8 +62,15 @@ void main() {
   TemplatePromptVariable tplVar({
     String name = '变量1',
     String defaultValue = '默认值',
+    TemplatePromptVariableType type = TemplatePromptVariableType.text,
+    List<String> options = const [],
   }) {
-    return TemplatePromptVariable(name: name, defaultValue: defaultValue);
+    return TemplatePromptVariable(
+      name: name,
+      defaultValue: defaultValue,
+      type: type,
+      options: options,
+    );
   }
 
   TemplatePrompt tpl({
@@ -292,6 +299,90 @@ void main() {
             variables: [tplVar(name: '风格', defaultValue: '轻松')],
           ),
           expected: false,
+        ),
+      ];
+
+      for (final testCase in cases) {
+        expect(
+          comparator.isEquivalent(testCase.existing, testCase.incoming),
+          testCase.expected,
+          reason: testCase.name,
+        );
+      }
+    });
+
+    test('默认值与正文相同但变量类型或选项不同时不去重', () {
+      final cases = [
+        (
+          name: 'text 与 select 类型不同',
+          existing: tpl(
+            content: '请用{{语气}}回复',
+            variables: [tplVar(name: '语气', defaultValue: '正式')],
+          ),
+          incoming: tpl(
+            content: '请用{{语气}}回复',
+            variables: [
+              tplVar(
+                name: '语气',
+                defaultValue: '正式',
+                type: TemplatePromptVariableType.select,
+                options: ['正式', '轻松'],
+              ),
+            ],
+          ),
+          expected: false,
+        ),
+        (
+          name: 'select 选项顺序不同',
+          existing: tpl(
+            content: '请用{{语气}}回复',
+            variables: [
+              tplVar(
+                name: '语气',
+                defaultValue: '正式',
+                type: TemplatePromptVariableType.select,
+                options: ['正式', '轻松'],
+              ),
+            ],
+          ),
+          incoming: tpl(
+            content: '请用{{语气}}回复',
+            variables: [
+              tplVar(
+                name: '语气',
+                defaultValue: '正式',
+                type: TemplatePromptVariableType.select,
+                options: ['轻松', '正式'],
+              ),
+            ],
+          ),
+          expected: false,
+        ),
+        (
+          name: '完全相等的 select 定义去重',
+          existing: tpl(
+            content: '请用{{语气}}回复',
+            variables: [
+              tplVar(
+                name: '语气',
+                defaultValue: '正式',
+                type: TemplatePromptVariableType.select,
+                options: ['正式', '轻松'],
+              ),
+            ],
+          ),
+          incoming: tpl(
+            content: '请用{{语气}}回复',
+            variables: [
+              tplVar(
+                name: '语气',
+                defaultValue: '正式',
+                type: TemplatePromptVariableType.select,
+                options: ['正式', '轻松'],
+              ),
+            ],
+          ),
+          expected: true,
         ),
       ];
 

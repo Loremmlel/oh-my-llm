@@ -48,8 +48,12 @@ TemplatePrompt _template({String id = 'tpl-1'}) {
   return TemplatePrompt(
     id: id,
     title: '测试模板',
-    content: '正文：{{body}}',
-    variables: const [],
+    content: '正文：{{正文}}',
+    // 成功路径夹具必须源声明与存储变量一致：content 声明 {{正文}}，
+    // 存储变量就只含正文变量，避免 v8 解码的完整编译校验误伤成功路径。
+    variables: const [
+      TemplatePromptVariable(name: templatePromptBodyVariableName),
+    ],
     updatedAt: DateTime(2026, 1, 1),
   );
 }
@@ -101,7 +105,7 @@ void main() {
       expect(jsonMap['identifier'], SettingsExportData.identifier);
       expect(jsonMap['identifier'], 'shikiyuzu-oh-my-llm');
       expect(jsonMap['formatVersion'], SettingsExportData.formatVersion);
-      expect(jsonMap['formatVersion'], 7);
+      expect(jsonMap['formatVersion'], 8);
     });
 
     test('toJsonString 再 tryParseJson 可还原完整数据（7 个分类）', () {
