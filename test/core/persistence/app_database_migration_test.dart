@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -7,7 +6,7 @@ import 'package:sqlite3/sqlite3.dart' as sqlite;
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 
 void main() {
-  group('AppDatabase migration', () {
+  group('AppDatabase 当前 schema 基线', () {
     late AppDatabase database;
 
     setUp(() {
@@ -18,16 +17,16 @@ void main() {
       database.close();
     });
 
-    test('user_version 在迁移完成后不低于当前 schema 13', () {
+    test('全新内存数据库直接创建当前完整 schema 并标记 user_version', () {
       final version =
           database.connection
                   .select('PRAGMA user_version;')
                   .single['user_version']
               as int;
-      expect(version, greaterThanOrEqualTo(13));
+      expect(version, greaterThanOrEqualTo(AppDatabase.currentSchemaVersion));
     });
 
-    test('创建关键业务表', () {
+    test('创建全部关键业务表', () {
       final tables = _tableNames(database);
       expect(
         tables,
@@ -44,6 +43,54 @@ void main() {
           'conversation_checkpoints',
         ]),
       );
+    });
+
+    test('conversations 表包含 selected_preset_prompt_id 列', () {
+      final columns = database.connection
+          .select('PRAGMA table_info(conversations);')
+          .map((row) => row['name'] as String)
+          .toList();
+      expect(columns, contains('selected_preset_prompt_id'));
+    });
+
+    test('preset_prompts 表不含 system_prompt 列', () {
+      final columns = database.connection
+          .select('PRAGMA table_info(preset_prompts);')
+          .map((row) => row['name'] as String)
+          .toList();
+      expect(columns, isNot(contains('system_prompt')));
+    });
+
+    test('favorites.title 列默认为 NULL', () {
+      database.connection.execute(
+        "INSERT INTO favorites (id, user_message_content, assistant_content, created_at) "
+        "VALUES ('fav-1', 'hello', 'world', '2025-01-01T00:00:00.000');",
+      );
+
+      final rows = database.connection.select(
+        'SELECT title FROM favorites WHERE id = ?;',
+        ['fav-1'],
+      );
+      expect(rows.length, 1);
+      expect(rows.first['title'], isNull);
+    });
+
+    test('messages.finish_reason 列默认为 NULL', () {
+      database.connection.execute('''
+        INSERT INTO conversations (id, created_at, updated_at, reasoning_effort)
+        VALUES ('c1', '2026-01-01', '2026-01-01', 'medium');
+      ''');
+      database.connection.execute('''
+        INSERT INTO messages (id, conversation_id, node_index, role, content, created_at)
+        VALUES ('m1', 'c1', 0, 'user', 'hello', '2026-01-01');
+      ''');
+
+      final rows = database.connection.select(
+        'SELECT finish_reason FROM messages WHERE id = ?;',
+        ['m1'],
+      );
+      expect(rows.length, 1);
+      expect(rows.first['finish_reason'], isNull);
     });
 
     test('删除 conversation 后清理消息、分支选择和检查点', () {
@@ -87,22 +134,6 @@ void main() {
       );
     });
 
-    test('conversations 表包含 selected_preset_prompt_id 列', () {
-      final columns = database.connection
-          .select('PRAGMA table_info(conversations);')
-          .map((row) => row['name'] as String)
-          .toList();
-      expect(columns, contains('selected_preset_prompt_id'));
-    });
-
-    test('preset_prompts 表不含 system_prompt 列', () {
-      final columns = database.connection
-          .select('PRAGMA table_info(preset_prompts);')
-          .map((row) => row['name'] as String)
-          .toList();
-      expect(columns, isNot(contains('system_prompt')));
-    });
-
     test('删除 collection 后 favorites.collection_id 置为 NULL', () {
       database.connection.execute('''
         INSERT INTO collections (id, name, created_at)
@@ -125,359 +156,94 @@ void main() {
     });
   });
 
-  // ────────────────────────────────────────────
-  // V9 迁移：从旧版 v8 数据库升级
-  // ────────────────────────────────────────────
-  group('V9 migration from legacy v8', () {
+  group('AppDatabase 版本边界打开行为', () {
     late Directory tempDir;
-    late String dbPath;
 
-    setUp(() async {
-      tempDir = await Directory.systemTemp.createTemp('v8-migration-test-');
-      dbPath = '${tempDir.path}${Platform.pathSeparator}migration.sqlite';
+    setUp(() {
+      tempDir = Directory.systemTemp.createTempSync('appdb-version-test-');
     });
 
-    tearDown(() async {
-      if (await tempDir.exists()) {
-        await tempDir.delete(recursive: true);
+    tearDown(() {
+      if (tempDir.existsSync()) {
+        tempDir.deleteSync(recursive: true);
       }
     });
 
-    /// 构造一个 v8 旧版数据库：preset_prompts 表含 system_prompt 列。
-    sqlite.Database createLegacyV8Db() {
-      final db = sqlite.sqlite3.open(dbPath);
+    /// 构造一个 user_version 为 [version] 的非空文件数据库。
+    ///
+    /// 建一张最小表代表旧版/未来版 schema，版本差异由 user_version 表达。
+    String createDbFile(String name, int version) {
+      final path = '${tempDir.path}${Platform.pathSeparator}$name';
+      final db = sqlite.sqlite3.open(path);
       db.execute('PRAGMA foreign_keys = ON;');
-      // 仅创建迁移所需的最小表结构（旧版形态）
       db.execute('''
-        CREATE TABLE preset_prompts (
-          id TEXT PRIMARY KEY,
-          name TEXT NOT NULL,
-          messages_json TEXT NOT NULL DEFAULT '[]',
-          system_prompt TEXT NOT NULL DEFAULT '',
-          updated_at TEXT NOT NULL
-        );
-      ''');
-      db.execute('PRAGMA user_version = 8;');
-      return db;
-    }
-
-    test('merges non-empty system_prompt into messages_json and drops column', () {
-      // 行 A：system_prompt 非空 + messages_json 无 system 消息 → 应被合并
-      final messagesA = [
-        {
-          'id': 'u1',
-          'role': 'user',
-          'title': 'user',
-          'content': '你好',
-          'placement': 'before',
-          'enabled': true,
-        },
-      ];
-      // 行 B：system_prompt 非空 + messages_json 已有 system 消息 → 应跳过
-      final messagesB = [
-        {
-          'id': 's0',
-          'role': 'system',
-          'title': 'system',
-          'content': '已有系统',
-          'placement': 'before',
-          'enabled': true,
-        },
-        {
-          'id': 'u2',
-          'role': 'user',
-          'title': 'user',
-          'content': '你好B',
-          'placement': 'before',
-          'enabled': true,
-        },
-      ];
-      // 行 C：system_prompt 为空 → 不动
-      final messagesC = [
-        {
-          'id': 'u3',
-          'role': 'user',
-          'title': 'user',
-          'content': '你好C',
-          'placement': 'before',
-          'enabled': true,
-        },
-      ];
-
-      final legacyDb = createLegacyV8Db();
-      legacyDb.execute(
-        "INSERT INTO preset_prompts (id, name, messages_json, system_prompt, updated_at) "
-        "VALUES ('a', 'A', ?, '你是助手', '2026-01-01');",
-        [jsonEncode(messagesA)],
-      );
-      legacyDb.execute(
-        "INSERT INTO preset_prompts (id, name, messages_json, system_prompt, updated_at) "
-        "VALUES ('b', 'B', ?, '你是助手B', '2026-01-01');",
-        [jsonEncode(messagesB)],
-      );
-      legacyDb.execute(
-        "INSERT INTO preset_prompts (id, name, messages_json, system_prompt, updated_at) "
-        "VALUES ('c', 'C', ?, '', '2026-01-01');",
-        [jsonEncode(messagesC)],
-      );
-      legacyDb.close();
-
-      // 重新打开同一文件，触发 _migrate → _migrateV9 的 else 分支
-      final migrated = AppDatabase.forPath(dbPath);
-      addTearDown(migrated.close);
-
-      // user_version 升到 >= 10
-      final version =
-          migrated.connection
-                  .select('PRAGMA user_version;')
-                  .single['user_version']
-              as int;
-      expect(version, greaterThanOrEqualTo(10));
-
-      // system_prompt 列已被 DROP
-      final columns = migrated.connection
-          .select('PRAGMA table_info(preset_prompts);')
-          .map((row) => row['name'] as String)
-          .toList();
-      expect(columns, isNot(contains('system_prompt')));
-
-      // 行 A：system_prompt 被合并到 messages_json 头部
-      final rowA = migrated.connection
-          .select("SELECT messages_json FROM preset_prompts WHERE id = 'a';")
-          .single;
-      final decodedA = jsonDecode(rowA['messages_json'] as String) as List;
-      expect(decodedA.length, equals(2));
-      expect(decodedA[0]['role'], equals('system'));
-      expect(decodedA[0]['content'], equals('你是助手'));
-      expect(decodedA[1]['role'], equals('user'));
-
-      // 行 B：已有 system 消息，未被重复合并
-      final rowB = migrated.connection
-          .select("SELECT messages_json FROM preset_prompts WHERE id = 'b';")
-          .single;
-      final decodedB = jsonDecode(rowB['messages_json'] as String) as List;
-      expect(decodedB.length, equals(2));
-      expect(decodedB[0]['content'], equals('已有系统'));
-      expect(decodedB[1]['role'], equals('user'));
-
-      // 行 C：system_prompt 为空，messages_json 不变
-      final rowC = migrated.connection
-          .select("SELECT messages_json FROM preset_prompts WHERE id = 'c';")
-          .single;
-      final decodedC = jsonDecode(rowC['messages_json'] as String) as List;
-      expect(decodedC.length, equals(1));
-      expect(decodedC[0]['role'], equals('user'));
-    });
-
-    test('handles legacy db with empty preset_prompts table', () {
-      // 旧库无任何 preset_prompts 行，迁移应正常完成
-      final legacyDb = createLegacyV8Db();
-      legacyDb.close();
-
-      final migrated = AppDatabase.forPath(dbPath);
-      addTearDown(migrated.close);
-
-      final version =
-          migrated.connection
-                  .select('PRAGMA user_version;')
-                  .single['user_version']
-              as int;
-      expect(version, greaterThanOrEqualTo(10));
-
-      final columns = migrated.connection
-          .select('PRAGMA table_info(preset_prompts);')
-          .map((row) => row['name'] as String)
-          .toList();
-      expect(columns, isNot(contains('system_prompt')));
-    });
-  });
-
-  group('V10 迁移', () {
-    test('全新安装 favorites 表含 title 列且默认为 NULL', () {
-      final db = AppDatabase.inMemory();
-      addTearDown(db.close);
-
-      db.connection.execute(
-        "INSERT INTO favorites (id, user_message_content, assistant_content, created_at) "
-        "VALUES ('fav-1', 'hello', 'world', '2025-01-01T00:00:00.000');",
-      );
-
-      final rows = db.connection.select(
-        'SELECT title FROM favorites WHERE id = ?;',
-        ['fav-1'],
-      );
-      expect(rows.length, 1);
-      expect(rows.first['title'], isNull);
-    });
-
-    test('从 v9 升级时 ALTER TABLE 添加 title 列且已有数据保留', () {
-      final tempDir = Directory.systemTemp.createTempSync('v9-migration-test-');
-      addTearDown(() {
-        if (tempDir.existsSync()) {
-          tempDir.deleteSync(recursive: true);
-        }
-      });
-      final dbPath = '${tempDir.path}${Platform.pathSeparator}test_v9.db';
-
-      // 构造一个 v9 数据库：favorites 表无 title 列
-      final legacyDb = sqlite.sqlite3.open(dbPath);
-      legacyDb.execute('PRAGMA foreign_keys = ON;');
-      legacyDb.execute('''
-        CREATE TABLE favorites (
-          id TEXT PRIMARY KEY,
-          collection_id TEXT,
-          user_message_content TEXT NOT NULL,
-          assistant_content TEXT NOT NULL,
-          assistant_reasoning_content TEXT NOT NULL DEFAULT '',
-          source_conversation_id TEXT,
-          source_conversation_title TEXT,
-          created_at TEXT NOT NULL,
-          assistant_model_display_name TEXT NOT NULL DEFAULT '匿名模型'
-        );
-      ''');
-      legacyDb.execute(
-        "INSERT INTO favorites (id, user_message_content, assistant_content, created_at) "
-        "VALUES ('fav-old', '旧消息', '旧回复', '2025-01-01T00:00:00.000');",
-      );
-      legacyDb.execute('PRAGMA user_version = 9;');
-      legacyDb.close();
-
-      // 重新打开触发 _migrateV10 的 ALTER TABLE 路径
-      final migrated = AppDatabase.forPath(dbPath);
-      addTearDown(migrated.close);
-
-      // user_version 升到 10
-      final version =
-          migrated.connection
-                  .select('PRAGMA user_version;')
-                  .single['user_version']
-              as int;
-      expect(version, greaterThanOrEqualTo(10));
-
-      // favorites 表包含 title 列
-      final columns = migrated.connection
-          .select('PRAGMA table_info(favorites);')
-          .map((row) => row['name'] as String)
-          .toList();
-      expect(columns, contains('title'));
-
-      // 旧数据保留，title 默认为 NULL
-      final rows = migrated.connection.select(
-        'SELECT id, title FROM favorites WHERE id = ?;',
-        ['fav-old'],
-      );
-      expect(rows.length, 1);
-      expect(rows.first['title'], isNull);
-    });
-  });
-
-  group('V13 迁移', () {
-    test('全新安装 messages 表含 finish_reason 列且默认为 NULL', () {
-      final db = AppDatabase.inMemory();
-      addTearDown(db.close);
-
-      db.connection.execute(
-        "INSERT INTO conversations (id, created_at, updated_at, reasoning_effort) "
-        "VALUES ('c1', '2026-01-01', '2026-01-01', 'medium');",
-      );
-      db.connection.execute(
-        "INSERT INTO messages (id, conversation_id, node_index, role, content, created_at) "
-        "VALUES ('m1', 'c1', 0, 'user', 'hello', '2026-01-01');",
-      );
-
-      final rows = db.connection.select(
-        'SELECT finish_reason FROM messages WHERE id = ?;',
-        ['m1'],
-      );
-      expect(rows.length, 1);
-      expect(rows.first['finish_reason'], isNull);
-    });
-
-    test('从 v12 升级时 ALTER TABLE 添加 finish_reason 列且已有数据保留', () {
-      final tempDir = Directory.systemTemp.createTempSync(
-        'v12-migration-test-',
-      );
-      addTearDown(() {
-        if (tempDir.existsSync()) {
-          tempDir.deleteSync(recursive: true);
-        }
-      });
-      final dbPath = '${tempDir.path}${Platform.pathSeparator}test_v12.db';
-
-      // 构造一个 v12 数据库：messages 表无 finish_reason 列（含 V12 新增的模板列）
-      final legacyDb = sqlite.sqlite3.open(dbPath);
-      legacyDb.execute('PRAGMA foreign_keys = ON;');
-      legacyDb.execute('''
         CREATE TABLE conversations (
           id TEXT PRIMARY KEY,
-          title TEXT,
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL,
-          selected_model_id TEXT,
-          selected_preset_prompt_id TEXT,
-          reasoning_enabled INTEGER NOT NULL DEFAULT 0,
-          reasoning_effort TEXT NOT NULL,
-          selected_checkpoint_id TEXT,
-          excluded_message_ids_json TEXT NOT NULL DEFAULT '[]',
-          auto_retry_enabled INTEGER NOT NULL DEFAULT 0
+          reasoning_effort TEXT NOT NULL
         );
       ''');
-      legacyDb.execute('''
-        CREATE TABLE messages (
-          id TEXT PRIMARY KEY,
-          conversation_id TEXT NOT NULL,
-          node_index INTEGER NOT NULL,
-          parent_id TEXT,
-          role TEXT NOT NULL,
-          content TEXT NOT NULL,
-          reasoning_content TEXT NOT NULL DEFAULT '',
-          created_at TEXT NOT NULL,
-          assistant_model_display_name TEXT NOT NULL DEFAULT '匿名模型',
-          user_message_segments_json TEXT NOT NULL DEFAULT '[]',
-          applied_checkpoint_title TEXT NOT NULL DEFAULT '',
-          template_prompt_id TEXT DEFAULT NULL,
-          template_variable_values_json TEXT NOT NULL DEFAULT '{}',
-          FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
-        );
+      db.execute('PRAGMA user_version = $version;');
+      db.close();
+      return path;
+    }
+
+    test('已处于当前版本的数据库重新打开时不改动数据', () {
+      final dbPath = '${tempDir.path}${Platform.pathSeparator}test_v13.db';
+
+      // 首次打开用当前代码建出完整当前 schema
+      final created = AppDatabase.forPath(dbPath);
+      created.connection.execute('''
+        INSERT INTO conversations (id, created_at, updated_at, reasoning_effort)
+        VALUES ('c1', '2026-01-01', '2026-01-01', 'medium');
       ''');
-      legacyDb.execute(
-        "INSERT INTO conversations (id, created_at, updated_at, reasoning_effort) "
-        "VALUES ('c1', '2026-01-01', '2026-01-01', 'medium');",
+      created.connection.execute('''
+        INSERT INTO messages (id, conversation_id, node_index, role, content, created_at)
+        VALUES ('m1', 'c1', 0, 'user', '你好', '2026-01-01');
+      ''');
+      expect(
+        created.connection.select('PRAGMA user_version;').single['user_version']
+            as int,
+        greaterThanOrEqualTo(AppDatabase.currentSchemaVersion),
       );
-      legacyDb.execute(
-        "INSERT INTO messages (id, conversation_id, node_index, role, content, created_at) "
-        "VALUES ('m-old', 'c1', 0, 'user', '旧消息内容', '2026-01-01');",
+      created.close();
+
+      // 再次打开：当前版本库直接可用，不重建 schema、不丢数据
+      final reopened = AppDatabase.forPath(dbPath);
+      addTearDown(reopened.close);
+
+      expect(
+        reopened.connection
+                .select('PRAGMA user_version;')
+                .single['user_version']
+            as int,
+        greaterThanOrEqualTo(AppDatabase.currentSchemaVersion),
       );
-      legacyDb.execute('PRAGMA user_version = 12;');
-      legacyDb.close();
+      final row = reopened.connection
+          .select("SELECT content FROM messages WHERE id = 'm1';")
+          .single;
+      expect(row['content'], equals('你好'));
+    });
 
-      // 重新打开触发 _migrateV13 的 ALTER TABLE 路径
-      final migrated = AppDatabase.forPath(dbPath);
-      addTearDown(migrated.close);
+    test('低于当前基线的旧版数据库在打开时显式拒绝', () {
+      for (final version in [1, 8, 12]) {
+        final path = createDbFile('legacy_$version.db', version);
+        // 打开即抛异常：连接不会交给任何仓库层在旧 schema 上执行查询
+        expect(
+          () => AppDatabase.forPath(path),
+          throwsA(isA<AppDatabaseSchemaVersionException>()),
+        );
+      }
+    });
 
-      // user_version 升到 >= 13
-      final version =
-          migrated.connection
-                  .select('PRAGMA user_version;')
-                  .single['user_version']
-              as int;
-      expect(version, greaterThanOrEqualTo(13));
-
-      // messages 表包含 finish_reason 列
-      final columns = migrated.connection
-          .select('PRAGMA table_info(messages);')
-          .map((row) => row['name'] as String)
-          .toList();
-      expect(columns, contains('finish_reason'));
-
-      // 旧数据保留，content 不变，finish_reason 默认为 NULL
-      final rows = migrated.connection.select(
-        'SELECT id, content, finish_reason FROM messages WHERE id = ?;',
-        ['m-old'],
+    test('高于当前基线的未来版本数据库显式拒绝打开', () {
+      final path = createDbFile('future_14.db', 14);
+      // 旧代码不静默读写更新版本应用创建的 schema
+      expect(
+        () => AppDatabase.forPath(path),
+        throwsA(isA<AppDatabaseSchemaVersionException>()),
       );
-      expect(rows.length, 1);
-      expect(rows.first['content'], equals('旧消息内容'));
-      expect(rows.first['finish_reason'], isNull);
     });
   });
 }

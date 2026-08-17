@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:meta/meta.dart';
@@ -13,9 +12,20 @@ const chatDatabaseFileName = 'chat_history.sqlite';
 class AppDatabase {
   AppDatabase._({required sqlite.Database connection, required this.path})
     : _connection = connection {
-    _configure();
-    _migrate();
+    try {
+      _configure();
+      _initializeSchema();
+    } catch (_) {
+      // schema 初始化失败（如版本不匹配被拒绝）时释放连接，避免文件句柄泄漏。
+      _connection.close();
+      rethrow;
+    }
   }
+
+  /// 当前滚动迁移基线：全新数据库直接创建到该版本。
+  ///
+  /// 历史 V9→V13 逐级迁移已退役，低于或高于该版本的数据库都会被显式拒绝打开。
+  static const int currentSchemaVersion = 13;
 
   final sqlite.Database _connection;
   final String path;
@@ -57,152 +67,25 @@ class AppDatabase {
     configureSqlitePragmas(_connection, isInMemory: path == ':memory:');
   }
 
-  void _migrate() {
+  /// 校验 schema 版本与当前滚动基线是否一致，并在全新库上直接建当前 schema。
+  ///
+  /// - `user_version == 0`：全新数据库，创建完整当前 schema 后标记为
+  ///   [currentSchemaVersion]；
+  /// - `user_version == [currentSchemaVersion]`：当前版本数据库，不做任何改动；
+  /// - `0 < user_version < [currentSchemaVersion]`：旧版应用遗留的数据库，
+  ///   显式拒绝，避免仓库层在旧 schema 上执行当前查询造成误读误写；
+  /// - `user_version > [currentSchemaVersion]`：更新版本应用创建的数据库，
+  ///   同样显式拒绝，避免旧代码静默读写新表结构。
+  void _initializeSchema() {
     final currentVersion =
         _connection.select('PRAGMA user_version;').single['user_version']
             as int;
-    if (currentVersion < 9) {
-      _migrateV9(currentVersion);
-    }
-    if (currentVersion < 10) {
-      _migrateV10(currentVersion);
-    }
-    if (currentVersion < 11) {
-      _migrateV11(currentVersion);
-    }
-    if (currentVersion < 12) {
-      _migrateV12(currentVersion);
-    }
-    if (currentVersion < 13) {
-      _migrateV13(currentVersion);
-    }
-  }
-
-  /// V9：移除 preset_prompts.system_prompt 列。
-  ///
-  /// 全新安装直接建表；已有数据库先合并旧 system_prompt 数据再删列。
-  void _migrateV9(int fromVersion) {
-    if (fromVersion == 0) {
+    if (currentVersion == 0) {
       _createSchema();
-    } else {
-      _mergeLegacySystemPrompts();
-      _connection.execute(
-        'ALTER TABLE preset_prompts DROP COLUMN system_prompt;',
-      );
+      _connection.execute('PRAGMA user_version = $currentSchemaVersion;');
+    } else if (currentVersion != currentSchemaVersion) {
+      throw AppDatabaseSchemaVersionException(currentVersion);
     }
-    _connection.execute('PRAGMA user_version = 9;');
-  }
-
-  /// 将 preset_prompts 中非空的 system_prompt 合并到 messages_json 头部。
-  void _mergeLegacySystemPrompts() {
-    final rows = _connection.select('''
-      SELECT id, system_prompt, messages_json
-      FROM preset_prompts
-      WHERE system_prompt != '' AND system_prompt IS NOT NULL;
-    ''');
-
-    for (final row in rows) {
-      final messagesJson = row['messages_json'] as String;
-      final messages = jsonDecode(messagesJson) as List;
-      final hasSystem = messages.any(
-        (item) => item is Map && item['role'] == 'system',
-      );
-      if (hasSystem) continue;
-
-      final systemMessage = {
-        'id': '_legacy-system-message',
-        'role': 'system',
-        'title': 'system',
-        'content': row['system_prompt'] as String,
-        'placement': 'before',
-        'enabled': true,
-      };
-      final updated = [systemMessage, ...messages];
-      final id = row['id'] as String;
-      _connection.execute(
-        'UPDATE preset_prompts SET messages_json = ? WHERE id = ?;',
-        [jsonEncode(updated), id],
-      );
-    }
-  }
-
-  /// V10：favorites 表新增 title 列，用于自定义收藏标题。
-  void _migrateV10(int fromVersion) {
-    if (fromVersion == 0) {
-      // 全新安装，_createSchema 已包含 title 列
-    } else {
-      // 旧版数据库可能没有 favorites 表（如 v8 测试库），先确保表存在
-      final hasFavorites = _connection
-          .select(
-            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'favorites';",
-          )
-          .isNotEmpty;
-      if (hasFavorites) {
-        _connection.execute('ALTER TABLE favorites ADD COLUMN title TEXT;');
-      }
-    }
-    _connection.execute('PRAGMA user_version = 10;');
-  }
-
-  /// V11：favorites 表新增 source_assistant_message_id 列，用于收藏跳转定位。
-  void _migrateV11(int fromVersion) {
-    if (fromVersion == 0) {
-      // 全新安装，_createSchema 已包含新列
-    } else {
-      final hasFavorites = _connection
-          .select(
-            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'favorites';",
-          )
-          .isNotEmpty;
-      if (hasFavorites) {
-        _connection.execute(
-          'ALTER TABLE favorites ADD COLUMN source_assistant_message_id TEXT;',
-        );
-      }
-    }
-    _connection.execute('PRAGMA user_version = 11;');
-  }
-
-  /// V12：messages 表新增 template_prompt_id 和 template_variable_values_json 列，
-  /// 用于持久化用户消息使用的模板提示词信息。
-  void _migrateV12(int fromVersion) {
-    if (fromVersion == 0) {
-      // 全新安装，_createSchema 已包含新列
-    } else {
-      final hasMessages = _connection
-          .select(
-            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'messages';",
-          )
-          .isNotEmpty;
-      if (hasMessages) {
-        _connection.execute(
-          'ALTER TABLE messages ADD COLUMN template_prompt_id TEXT DEFAULT NULL;',
-        );
-        _connection.execute(
-          "ALTER TABLE messages ADD COLUMN template_variable_values_json TEXT NOT NULL DEFAULT '{}';",
-        );
-      }
-    }
-    _connection.execute('PRAGMA user_version = 12;');
-  }
-
-  /// V13：messages 表新增 finish_reason 列，用于持久化 assistant 消息的流式结束原因。
-  void _migrateV13(int fromVersion) {
-    if (fromVersion == 0) {
-      // 全新安装，_createSchema 已包含新列
-    } else {
-      final hasMessages = _connection
-          .select(
-            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'messages';",
-          )
-          .isNotEmpty;
-      if (hasMessages) {
-        _connection.execute(
-          'ALTER TABLE messages ADD COLUMN finish_reason TEXT DEFAULT NULL;',
-        );
-      }
-    }
-    _connection.execute('PRAGMA user_version = 13;');
   }
 
   /// 创建全部业务表和索引（全新安装时使用）。
@@ -343,5 +226,27 @@ class AppDatabase {
       CREATE INDEX IF NOT EXISTS idx_conversation_checkpoints_conversation_created_at
       ON conversation_checkpoints(conversation_id, created_at DESC);
     ''');
+  }
+}
+
+/// 数据库 schema 版本与当前滚动基线不匹配时抛出。
+///
+/// 低于 [AppDatabase.currentSchemaVersion] 说明是旧版应用遗留的数据库，
+/// 高于则说明由更新版本的应用创建；两者都无法在当前代码下安全读写。
+class AppDatabaseSchemaVersionException implements Exception {
+  AppDatabaseSchemaVersionException(this.version);
+
+  /// 数据库实际报告的 user_version。
+  final int version;
+
+  @override
+  String toString() {
+    if (version < AppDatabase.currentSchemaVersion) {
+      return '不支持的旧版数据库 schema（user_version=$version < '
+          '${AppDatabase.currentSchemaVersion}）：已超出自动升级范围，'
+          '请使用当前版本重建或迁移数据';
+    }
+    return '数据库 schema 由更新版本的应用创建（user_version=$version > '
+        '${AppDatabase.currentSchemaVersion}）：当前版本拒绝打开以避免损坏数据';
   }
 }
