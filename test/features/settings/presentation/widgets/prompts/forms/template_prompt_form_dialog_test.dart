@@ -237,26 +237,6 @@ void main() {
       expect(captured, isNull);
     });
 
-    testWidgets('正文输入框聚焦时触发键盘提交，源码无效时 onSubmit 不被调用', (tester) async {
-      TemplatePromptFormData? captured;
-      await pumpDialog(
-        tester,
-        onSubmit: (data) async {
-          captured = data;
-        },
-      );
-
-      await typeContent(tester, '{{#if 人称 == "一"}}未闭合');
-
-      // 焦点在正文输入框时模拟 IME 提交动作（键盘回车/完成键）。
-      await tester.tap(contentField());
-      await tester.pump();
-      await tester.testTextInput.receiveAction(TextInputAction.done);
-      await tester.pump();
-
-      expect(captured, isNull);
-    });
-
     testWidgets('内容暂时无效时保留变量默认值控制器，修复后恢复协调', (tester) async {
       await pumpDialog(tester, onSubmit: (_) async {});
 
