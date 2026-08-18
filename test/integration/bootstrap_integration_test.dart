@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:oh_my_llm/app/platform/noop_chat_generation_foreground_service.dart';
 import 'package:oh_my_llm/bootstrap.dart';
 import 'package:oh_my_llm/core/logging/app_network_logger_provider.dart';
 import 'package:oh_my_llm/core/logging/network_logger.dart';
@@ -18,6 +19,7 @@ import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_conversation_repository.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_generation_foreground_service.dart';
 import 'package:oh_my_llm/features/chat/data/persistence/background_chat_repository.dart';
 import 'package:oh_my_llm/features/chat/data/generation/protocol_routing_chat_generation_client.dart';
 import 'package:oh_my_llm/features/favorites/application/ports/collections_repository.dart';
@@ -109,12 +111,22 @@ void main() {
     await _pumpBootstrappedApp(
       tester,
       windowsWindowInitializer: () async => calls++,
-      hostPlatform: TargetPlatform.android,
+      // 用 linux 而非 android：android 会绑定真实 MethodChannel adapter，
+      // 其命令超时 Timer 在测试环境无法被解析而残留；Android→adapter 的平台
+      // 选择契约已由 bindings 测试覆盖，此处只验证非 Windows 不初始化 window。
+      hostPlatform: TargetPlatform.linux,
     );
 
     expect(calls, 0);
     expect(find.byType(MaterialApp), findsOneWidget);
     // bootstrap 通过 hostPlatform 参数显式选择平台，不修改全局平台 override
     expect(debugDefaultTargetPlatformOverride, isNull);
+  });
+
+  testWidgets('Windows 宿主把生成前台服务绑定到 no-op 端口', (tester) async {
+    final container = await _pumpBootstrappedApp(tester);
+
+    final port = container.read(chatGenerationForegroundServiceProvider);
+    expect(port, isA<NoopChatGenerationForegroundService>());
   });
 }

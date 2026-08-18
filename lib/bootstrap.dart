@@ -69,7 +69,9 @@ Future<void> bootstrap({
         customHeadersMapProvider.overrideWith(
           (ref) => ref.watch(customHeadersProvider).toHeaderMap(),
         ),
-        ...appCompositionOverrides(),
+        // 显式把 effectivePlatform 传入 composition：生成前台服务按该平台选
+        // 择 Android adapter / no-op，不依赖全局平台状态。
+        ...appCompositionOverrides(hostPlatform: effectivePlatform),
       ],
       child: const OhMyLlmApp(),
     ),

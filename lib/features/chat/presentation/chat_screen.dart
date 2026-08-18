@@ -31,7 +31,11 @@ import 'widgets/widgets.dart';
 
 /// 聊天页入口，负责把会话状态、输入框和侧栏组合成完整页面。
 class ChatScreen extends ConsumerStatefulWidget {
-  const ChatScreen({super.key});
+  const ChatScreen({super.key, this.initialConversationId});
+
+  /// 路由 query 传入的可选会话 ID；trim 后为空或无效时静默 no-op，
+  /// 不显示恢复 UI，也不持久化该 query 参数。
+  final String? initialConversationId;
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -80,6 +84,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _messageController = TextEditingController();
     _messageFocusNode = FocusNode();
     _scroll = ChatScrollController();
+    _scheduleInitialConversationSelection(widget.initialConversationId);
     _scroll.itemPositionsListener.itemPositions.addListener(
       _scroll.handleVisibleItemsChanged,
     );
@@ -106,6 +111,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   @override
+  void didUpdateWidget(ChatScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 同一路由仅 query 变化时由 GoRouter 原地更新本 widget（不经 initState），
+    // 只有 ID 变化才重新调度一次 post-frame 选择。
+    if (oldWidget.initialConversationId != widget.initialConversationId) {
+      _scheduleInitialConversationSelection(widget.initialConversationId);
+    }
+  }
+
+  @override
   void dispose() {
     _messageController.removeListener(_onBodyChanged);
     _messageFocusNode.dispose();
@@ -118,6 +133,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
     _scroll.dispose();
     super.dispose();
+  }
+
+  /// 路由深链会话选择：仅当 trim 后非空时调度一次 post-frame 选择。
+  ///
+  /// 回调校验 mounted 后调用既有 [selectConversation]；空白 ID 不调度，
+  /// 无效 ID 由 selectConversation 静默 no-op。
+  void _scheduleInitialConversationSelection(String? rawId) {
+    final id = rawId?.trim() ?? '';
+    if (id.isEmpty) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(chatSessionsProvider.notifier).selectConversation(id);
+    });
   }
 
   /// 从 Provider 读回内存草稿（仅恢复用）。

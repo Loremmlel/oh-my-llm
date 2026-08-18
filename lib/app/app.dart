@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oh_my_llm/core/http/http_client_provider.dart';
 import 'package:oh_my_llm/core/widgets/notification_bubble/notification_bubble_stack.dart';
 import 'package:oh_my_llm/features/settings/application/preferences/font_size_settings_controller.dart';
+import 'composition/chat_generation_notification_coordinator.dart';
 import 'router/app_router.dart';
 import 'theme/app_theme.dart';
 
@@ -25,6 +26,10 @@ class _OhMyLlmAppState extends ConsumerState<OhMyLlmApp> {
     // 在应用根层 watch，确保 customHeadersSyncProvider 在冷启动后立即可用，
     // 不依赖用户是否访问过设置页。
     ref.watch(customHeadersSyncProvider);
+
+    // 在应用根层 eager watch 生成通知协调器：生命周期不依赖 ChatScreen 是否
+    // 挂载，ChatScreen 未挂载时发起的 generation 也会驱动前台服务通知。
+    ref.watch(chatGenerationNotificationCoordinatorProvider);
 
     final fontSizeSettings = ref.watch(fontSizeSettingsProvider);
     final bodyFontSize = fontSizeSettings.bodyFontSize;

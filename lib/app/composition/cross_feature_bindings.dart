@@ -10,11 +10,13 @@ import 'package:oh_my_llm/core/http/http_route_handler.dart';
 import 'package:oh_my_llm/core/http/llm_http_stream_transport.dart';
 import 'package:oh_my_llm/core/http/peer_http_client_provider.dart';
 import 'package:oh_my_llm/core/logging/app_network_logger_provider.dart';
+import 'package:oh_my_llm/app/composition/chat_generation_foreground_service_bindings.dart';
 import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/features/chat/application/favorites/chat_favorites_facade.dart';
 import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_conversation_repository.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_generation_foreground_service.dart';
 import 'package:oh_my_llm/features/chat/data/generation/anthropic/anthropic_messages_client.dart';
 import 'package:oh_my_llm/features/chat/data/persistence/background_chat_repository.dart';
 import 'package:oh_my_llm/features/chat/data/generation/chat_completions/chat_completions_client.dart';
@@ -69,7 +71,12 @@ List<dynamic> appCompositionOverrides({
   bool bindChatGenerationClient = true,
   bool bindChatConversationRepository = true,
   bool bindMediaLibraryFactory = true,
+  bool bindChatGenerationForegroundService = true,
+  TargetPlatform? hostPlatform,
 }) {
+  // bootstrap 把既有 effectivePlatform 显式传入；测试 harness 固定传
+  // TargetPlatform.windows，宿主 CI 绝不打开真实 Android MethodChannel。
+  final effectivePlatform = hostPlatform ?? defaultTargetPlatform;
   return [
     syncClientTransportProvider.overrideWith(
       (ref) => HttpSyncClientTransport(ref.watch(peerHttpClientProvider)),
@@ -151,6 +158,16 @@ List<dynamic> appCompositionOverrides({
           SqliteChatConversationRepository(database),
           database.path,
         );
+      }),
+    if (bindChatGenerationForegroundService)
+      // 生成前台服务端口：Android 绑 MethodChannel adapter，其余平台绑 no-op；
+      // 端口 dispose 随 provider 生命周期释放，测试注入 fake 时以开关排除本绑定。
+      chatGenerationForegroundServiceProvider.overrideWith((ref) {
+        final port = createChatGenerationForegroundService(
+          platform: effectivePlatform,
+        );
+        ref.onDispose(port.dispose);
+        return port;
       }),
     if (bindMediaLibraryFactory)
       // Media library：生产绑定默认工厂，peer HTTP 客户端走专用 provider，

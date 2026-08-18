@@ -49,6 +49,7 @@ Future<AppDatabase> pumpChatScreen(
   SharedPreferences? preferences,
   AppDatabase? database,
   Size size = const Size(1440, 1600),
+  String? initialConversationId,
 }) async {
   final db = database ?? AppDatabase.inMemory();
   final ownsDatabase = database == null;
@@ -60,7 +61,7 @@ Future<AppDatabase> pumpChatScreen(
 
   return pumpTestApp(
     tester,
-    child: const ChatScreen(),
+    child: ChatScreen(initialConversationId: initialConversationId),
     preferences: prefs,
     database: db,
     viewportSize: size,

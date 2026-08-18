@@ -61,4 +61,7 @@ abstract final class AppRouteName {
 abstract final class AppRouteParameter {
   static const favoriteId = 'favoriteId';
   static const mediaPath = 'path';
+
+  /// chat 路由的可序列化会话 ID query 参数键；禁止用 state.extra 传实体。
+  static const conversationId = 'conversationId';
 }

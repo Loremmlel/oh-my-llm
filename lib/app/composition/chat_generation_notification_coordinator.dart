@@ -1,9 +1,14 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'package:oh_my_llm/app/navigation/app_destination.dart';
+import 'package:oh_my_llm/app/router/app_router.dart';
 import 'package:oh_my_llm/features/chat/application/generation/chat_generation_lifecycle.dart';
 import 'package:oh_my_llm/features/chat/application/generation/chat_generation_notification.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_foreground_service.dart';
-import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_state.dart';
+import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_controller.dart';
 
 /// 流式通知更新节流间隔：同阶段同 attempt 的更新最多每秒一次。
 const chatGenerationNotificationUpdateInterval = Duration(seconds: 1);
@@ -397,3 +402,46 @@ final class ChatGenerationNotificationCoordinator {
     });
   }
 }
+
+/// 应用根部的生成通知协调器 Provider。
+///
+/// 被 [OhMyLlmApp] eager watch：生命周期不依赖 ChatScreen 是否挂载。读取平台
+/// 端口、启动 coordinator（同步订阅动作流后再取走冷启动待打开会话）、观察
+/// generation 窄投影，并把 stop/open 动作接到既有业务路径；dispose 时释放。
+final chatGenerationNotificationCoordinatorProvider =
+    Provider<ChatGenerationNotificationCoordinator>((ref) {
+      final coordinator = ChatGenerationNotificationCoordinator(
+        port: ref.watch(chatGenerationForegroundServiceProvider),
+        // 复用既有 durable stop：phase 停止性由 ChatSessionsController.stopStreaming
+        // 强制，coordinator 与绑定均不重复检查阶段。
+        stopGeneration: () async {
+          await ref.read(chatSessionsProvider.notifier).stopStreaming();
+        },
+        openConversation: (conversationId) {
+          ref
+              .read(appRouterProvider)
+              .goNamed(
+                AppDestination.chat.name,
+                queryParameters: {
+                  AppRouteParameter.conversationId: conversationId,
+                },
+              );
+        },
+        logDiagnostic: (category) {
+          debugPrint('[chat-generation-fgs] $category');
+        },
+      );
+      unawaited(coordinator.start());
+      ref.listen(
+        chatSessionsProvider.select(
+          (state) => (state.generation, state.streamingReply),
+        ),
+        (previous, next) => coordinator.onStateChanged(
+          snapshot: next.$1,
+          streamingReply: next.$2,
+        ),
+        fireImmediately: true,
+      );
+      ref.onDispose(coordinator.dispose);
+      return coordinator;
+    });

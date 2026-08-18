@@ -43,7 +43,11 @@ GoRouter createAppRouter({
       GoRoute(
         path: AppDestination.chat.path,
         name: AppDestination.chat.name,
-        builder: (context, state) => const ChatScreen(),
+        // 只消费 query 中的可序列化会话 ID；不传 state.extra 实体。
+        builder: (context, state) => ChatScreen(
+          initialConversationId:
+              state.uri.queryParameters[AppRouteParameter.conversationId],
+        ),
       ),
       GoRoute(
         path: AppDestination.history.path,

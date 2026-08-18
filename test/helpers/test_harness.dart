@@ -47,6 +47,10 @@ Future<AppDatabase> pumpTestApp(
   /// 测试在 [extraOverrides] 提供 [mediaLibraryFactoryProvider] 覆盖时必须
   /// 传 false 排除生产绑定，避免 Riverpod 重复 override。
   bool bindMediaLibraryFactory = true,
+
+  /// 默认 true：保持前台服务端口绑定，与 composition 默认一致；测试注入 fake
+  /// 端口时必须传 false 排除生产绑定。
+  bool bindChatGenerationForegroundService = true,
 }) async {
   assert(
     child != null || router != null,
@@ -70,6 +74,7 @@ Future<AppDatabase> pumpTestApp(
       bindChatGenerationClient: bindChatGenerationClient,
       bindChatConversationRepository: bindChatConversationRepository,
       bindMediaLibraryFactory: bindMediaLibraryFactory,
+      bindChatGenerationForegroundService: bindChatGenerationForegroundService,
     ),
   );
   await tester.pump();
@@ -101,6 +106,9 @@ Future<ProviderScope> pumpTestAppScope(
   /// 默认 true：保持默认媒体库工厂绑定；测试在 [extraOverrides] 提供
   /// [mediaLibraryFactoryProvider] 覆盖时必须传 false。
   bool bindMediaLibraryFactory = true,
+
+  /// 默认 true：保持前台服务端口绑定；测试注入 fake 端口时必须传 false。
+  bool bindChatGenerationForegroundService = true,
 }) async {
   assert(
     child != null || router != null,
@@ -123,6 +131,7 @@ Future<ProviderScope> pumpTestAppScope(
     bindChatGenerationClient: bindChatGenerationClient,
     bindChatConversationRepository: bindChatConversationRepository,
     bindMediaLibraryFactory: bindMediaLibraryFactory,
+    bindChatGenerationForegroundService: bindChatGenerationForegroundService,
   );
 }
 
@@ -150,6 +159,7 @@ ProviderScope _buildTestScope({
   bool bindChatGenerationClient = false,
   bool bindChatConversationRepository = true,
   bool bindMediaLibraryFactory = true,
+  bool bindChatGenerationForegroundService = true,
 }) {
   return ProviderScope(
     overrides: [
@@ -164,6 +174,10 @@ ProviderScope _buildTestScope({
         bindChatGenerationClient: bindChatGenerationClient,
         bindChatConversationRepository: bindChatConversationRepository,
         bindMediaLibraryFactory: bindMediaLibraryFactory,
+        bindChatGenerationForegroundService:
+            bindChatGenerationForegroundService,
+        // 固定 Windows 宿主：宿主 CI 绝不打开真实 Android MethodChannel。
+        hostPlatform: TargetPlatform.windows,
       ),
       ...extraOverrides,
     ],
