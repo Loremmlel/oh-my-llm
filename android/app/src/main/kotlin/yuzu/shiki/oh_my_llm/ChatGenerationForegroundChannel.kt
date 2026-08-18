@@ -2,7 +2,6 @@ package yuzu.shiki.oh_my_llm
 
 import android.Manifest
 import android.app.Activity
-import android.app.ForegroundServiceStartNotAllowedException
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
@@ -150,15 +149,20 @@ class ChatGenerationForegroundChannel(
         }
         try {
             ContextCompat.startForegroundService(activity, intent)
-        } catch (e: ForegroundServiceStartNotAllowedException) {
+        } catch (e: SecurityException) {
+            logCategory("start_security")
+            finishStart(commandId, NativeCommandResult.Unavailable(FAILURE_SECURITY))
+        } catch (e: IllegalStateException) {
+            // 后台启动被拒在 API 31+ 抛 ForegroundServiceStartNotAllowedException
+            // （IllegalStateException 的子类），低版本 API 直接抛
+            // IllegalStateException。不能直接 catch 那个 API 31+ 类：低版本设备
+            // 在异常匹配时会因类缺失触发 NoClassDefFoundError（Error，泛型
+            // Exception 捕获不了），因此统一按启动不允许映射为 startNotAllowed。
             logCategory("start_not_allowed")
             finishStart(
                 commandId,
                 NativeCommandResult.Unavailable(FAILURE_START_NOT_ALLOWED),
             )
-        } catch (e: SecurityException) {
-            logCategory("start_security")
-            finishStart(commandId, NativeCommandResult.Unavailable(FAILURE_SECURITY))
         } catch (e: Exception) {
             logCategory("start_native_failure")
             finishStart(commandId, NativeCommandResult.Unavailable(FAILURE_NATIVE_FAILURE))
