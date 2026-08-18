@@ -1,7 +1,7 @@
 # 统一设置传输 Registry 架构设计
 
 **日期：** 2026-08-18
-**状态：** 已确认，待实施计划
+**状态：** 已批准，待实施计划
 **适用范围：** Settings 剪贴板导入导出、单项设置分享与 Sync 设置同步
 
 ## 1. 背景
@@ -139,7 +139,6 @@ Catalog 定义六个稳定分组：
 ```dart
 abstract interface class SettingsTransferParticipant<T> {
   SettingsTransferKey get key;
-  int get schemaRevision;
   SettingsTransferGroup get group;
   String get label;
   int get order;
@@ -163,7 +162,6 @@ abstract interface class SettingsTransferParticipant<T> {
 字段语义：
 
 - `key`：section 的稳定 wire key；不得因类重命名而变化。
-- `schemaRevision`：该 section payload 的正整数 schema 修订号；codec 结构变化时必须提升。
 - `group`：六个稳定分组之一。
 - `label` / `order`：安全摘要的稳定显示与顺序。
 - `sensitivity`：至少区分 `standard` 和 `credentialBearing`。
@@ -175,6 +173,8 @@ abstract interface class SettingsTransferParticipant<T> {
 
 `encode` 必须返回非 null、JSON-safe 的 section payload。`decode` 必须对当前格式执行严格校验。旧字段别名、缺失默认和历史迁移只有在它们仍是当前格式的明确业务语义时才能存在，不能作为永久 fallback。
 
+`readLocal` 是同步契约：它必须立即返回已经加载到内存或可同步读取存储中的当前状态，不能在内部启动异步首载。当前九类数据满足此前提：SQLite 设置实体在 controller build 时同步全量加载，版本化 JSON 与服务商配置也使用同步 getter。未来若某个候选 participant 只能异步首载，必须先在 bootstrap / controller 生命周期中完成加载并暴露同步快照，或另行把 coordinator 与 facade 的 prepare 契约整体演进为 `Future`；不能只让单个 participant 偷渡异步行为。
+
 ### 7.2 Change 与摘要
 
 `SettingsTransferChange<T>` 至少保存：
@@ -183,7 +183,9 @@ abstract interface class SettingsTransferParticipant<T> {
 - prepare 时观察到的本地值或可比较指纹；
 - 准备好的最终写入值；
 - `SettingsTransferSummaryItem`；
-- 执行所需的受控类型化操作。
+- 用于执行的类型安全 participant 引用。
+
+执行时由 coordinator 使用该 participant 对准备好的最终值调用 `applyImport`。change 不内嵌任意可执行闭包，也不设计为可序列化对象；它只是一次导入会话中的短生命周期、类型化执行描述。
 
 摘要不能只有一个全局 `count` 假设。participant 根据 change 返回安全摘要，至少支持：
 
@@ -245,7 +247,7 @@ abstract class MergingCollectionParticipant<T>
 - 按 group 取得有序 participant；
 - 生成有内容的有序 group descriptors；
 - 聚合 group / document 敏感等级；
-- 计算 schema key 指纹；
+- 生成确定顺序的 participant key 清单；
 - 验证选中的 group ID；
 - 为 Clipboard 与 Sync 生成相同摘要投影。
 
@@ -256,11 +258,11 @@ Catalog 创建时立即验证：
 3. participant 只引用已定义分组；
 4. label 非空；
 5. sensitivity 已显式声明；
-6. `schemaRevision` 为正整数；
-7. codec、reader、prepare 与 writer 均存在；
-8. participant `key@schemaRevision` 集合与当前 formatVersion 的 schema 快照一致。
+6. codec、reader、prepare 与 writer 均存在。
 
 注册 participant 就是 opt-in。注册后不能单独关闭某个标准入口：当前分组导出、全局剪贴板导入和 Sync 都必须消费它。单项分享是额外调用方式，是否在业务 UI 提供按钮由具体 feature 决定。
+
+生产 catalog 与 formatVersion schema 快照的一致性不属于运行时 constructor 校验；它由第 9.4 节和第 16.1 节的生产 catalog 契约测试负责。这样测试专用 catalog 可以注册 fake participant，同时仍执行 key 唯一、分组、顺序和声明完整性等运行时结构校验。
 
 ## 9. Canonical 交换格式
 
@@ -273,7 +275,6 @@ Catalog 创建时立即验证：
   "identifier": "shikiyuzu-oh-my-llm",
   "formatVersion": 9,
   "sections": {
-    "modelProviders": [],
     "autoRetrySettings": {
       "enabled": true
     },
@@ -283,6 +284,8 @@ Catalog 创建时立即验证：
   }
 }
 ```
+
+示例故意不包含空的合并型集合。服务商、预设和提示词没有可导出内容时，对应 section 必须缺失；`customHeaders.headers` 的空列表则是替换型 participant 的有效清空值。
 
 `SettingsTransferDocument` 位于 Settings domain transfer 区域，是纯数据对象。它保存深度不可变、JSON-safe 的 section payload；只有统一 codec 和 coordinator 可以把原始 section 转成类型化 change。原始 map 不向 presentation 或具体 Controller 扩散。
 
@@ -320,11 +323,12 @@ participant 负责自己的 section schema。group、label、order、sensitivity
 3. sections 是合法对象；
 4. 每个 section key 都能在 catalog 中找到；
 5. 每个 payload 通过 participant decode 与领域校验；
-6. Sync response 的 section 都属于本次请求 group；
-7. 所有 participant 完成 `prepareImport`；
-8. coordinator 生成不可变 `SettingsImportBatch`。
+6. 所有 participant 完成 `prepareImport`；
+7. coordinator 生成不可变 `SettingsImportBatch`。
 
-未知 key、非法 payload、重复/非法结构、未请求分组或任一领域校验失败都拒绝整个 document。不静默跳过未知设置，也不把部分解码成功描述为完整同步。
+未知 key、非法 payload、重复/非法结构或任一领域校验失败都拒绝整个 document。不静默跳过未知设置，也不把部分解码成功描述为完整导入。
+
+Sync 路径在上述第 4 步之后增加一项 transport-specific 校验：每个已知 section 必须属于本次请求 group，验证通过后才进入 participant decode。Clipboard 路径没有 requested groups 约束，但仍执行完整的通用解码和敏感确认。
 
 ### 9.4 版本门禁
 
@@ -333,10 +337,12 @@ participant 负责自己的 section schema。group、label、order、sensitivity
 Catalog 契约测试固定：
 
 ```text
-formatVersion + 排序后的 participant key@schemaRevision 集合
+formatVersion + 排序后的 participant key 集合 + canonical encode fixtures
 ```
 
-每个 participant 还必须有 canonical encode fixture，固定当前 section JSON 形状。增加/删除注册项、提升 `schemaRevision` 或改变 canonical fixture 时，测试会要求显式更新 schema 快照；仓库规则要求 schema 快照变化必须同时提升 participant schemaRevision 与顶层 formatVersion。测试的作用是让 schema 漂移变成可见、可审查的改动，不能代替 code review 对“不得覆写同一版本快照”的检查。运行时入口不维护另一份字段 switch。
+每个 participant 必须有 canonical encode fixture，固定当前 section JSON 形状。增加/删除注册项或改变 canonical fixture 时，测试会要求显式更新生产 schema 快照；仓库规则要求该变化同时提升顶层 formatVersion。测试的作用是让 schema 漂移变成可见、可审查的改动，不能代替 code review 对“不得覆写同一版本快照”的检查。运行时入口不维护另一份字段 switch。
+
+本设计不引入 participant 级 `schemaRevision`。当前兼容策略是任何 section schema 变化都可能使旧应用误读整个 document，因此统一提升顶层 formatVersion 并整体拒绝旧格式；再增加一个必须同步 bump、又不进入 wire 的版本号没有独立价值。将来若产品需要各 section 独立演进，必须另行设计带 section revision 的 wire envelope、支持范围和错误语义，不能在本设计中预埋半套版本机制。
 
 ## 10. 首批 Participant
 
@@ -461,6 +467,8 @@ abstract interface class SettingsSyncFacade {
 `SettingsSyncGroupDescriptor` 是 Sync port DTO，只包含稳定 ID、显示名称、顺序和聚合敏感性。Settings 实现按 group wire key 做机械投影，不维护字段 switch。
 
 `SettingsSyncPreparedImport` 是只读、短生命周期的 port 抽象，暴露安全摘要、是否敏感和执行命令；Sync presentation 不读取具体 Settings participant 或原始 payload。
+
+`prepareIncoming` 有意保持同步：它只消费已经解密并解码出的 document，以及 participant 通过同步 `readLocal` 暴露的已加载状态，不执行文件、数据库或网络异步首载。若该前提未来不再成立，必须把 coordinator、Clipboard preparation 与 Sync facade 的 prepare 链路一起改为异步，不能只修改 facade 的一个签名。
 
 它应直接包装一次性的 Settings import batch，并通过 port-owned DTO 返回执行结果：
 
@@ -589,8 +597,8 @@ Clipboard 与 Sync 可以使用不同标题和上下文说明，但摘要列表�
 
 - key 唯一且顺序稳定；
 - group、label、order、sensitivity 完整；
-- `key@schemaRevision` 集合与 formatVersion 快照一致；
-- participant canonical encode fixture 与当前 schemaRevision 一致；
+- 生产 participant key 集合与 formatVersion schema 快照一致；
+- participant canonical encode fixture 与当前 formatVersion 一致；
 - 每个 participant 都存在 codec、reader、prepare 和 writer；
 - 每个 participant 使用类型化 fixture 完成 encode/decode round-trip；
 - group sensitivity 由 participant 自动聚合；
@@ -631,11 +639,11 @@ Clipboard 与 Sync 可以使用不同标题和上下文说明，但摘要列表�
 - 客户端与服务端都验证敏感确认；
 - 敏感 Clipboard / Sync import batch 未确认时 application 边界零写入；
 - Sync snapshot 使用结构化 document，不出现二次 JSON；
-- v3 / v8、未来版本、未知 group 与未请求 section 明确拒绝。
+- Sync v3、Settings v8、未来版本、未知 group 与未请求 section 明确拒绝。
 
 ### 16.5 自动适配证明
 
-测试注册一个生产代码中不存在的 fake participant，不修改 coordinator、Clipboard adapter、Sync facade 或摘要组件，然后验证它自动进入：
+测试使用测试专用 catalog 注册一个生产代码中不存在的 fake participant，不修改 coordinator、Clipboard adapter、Sync facade 或摘要组件。该 catalog 不与生产 schema 快照比较；若复用 schema contract helper，则传入包含 fake key 和 canonical fixture 的测试专用快照。随后验证 fake participant 自动进入：
 
 - 所属 group 导出；
 - Clipboard 导入准备与摘要；
@@ -702,4 +710,4 @@ Clipboard 与 Sync 可以使用不同标题和上下文说明，但摘要列表�
 - 新增宽泛 import-boundary allowlist 才能通过架构门禁；
 - 实施范围开始包含无关 Controller、Repository 或持久化重构。
 
-本设计完成后的下一步是编写详细实施计划；在书面规格经用户复核前，不开始生产代码迁移。
+本设计已通过书面复核，下一步是编写详细实施计划；实施计划再次明确任务边界、测试证据和提交顺序后，才开始生产代码迁移。
