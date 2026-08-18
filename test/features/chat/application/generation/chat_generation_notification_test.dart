@@ -279,7 +279,7 @@ void main() {
   });
 
   group('字数统计', () {
-    test('正文与推理分别按 Unicode 字符簇计数', () {
+    test('正文与推理复用聊天字数规则并忽略 emoji 等非字字符', () {
       const reply = ChatStreamingReply(
         conversationId: 'conv-1',
         assistantMessageId: 'assistant-1',
@@ -293,9 +293,9 @@ void main() {
 
       expect(
         projection.counts,
-        const ChatGenerationCharacterCounts(content: 3, reasoning: 2),
+        const ChatGenerationCharacterCounts(content: 2, reasoning: 1),
       );
-      expect(projection.payload.text, '正文 3 字 · 推理 2 字');
+      expect(projection.payload.text, '正文 2 字 · 推理 1 字');
     });
 
     test('finalizing 沿用最后一次流式回复的字数', () {
