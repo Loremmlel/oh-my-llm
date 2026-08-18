@@ -29,17 +29,6 @@ import '../../helpers/test_harness.dart';
 VideoPlayerPlatformBindings _unusedVideoBindings() =>
     MobileVideoPlayerBindings(systemUi: FakeMobileVideoSystemUiController());
 
-Map<String, dynamic> _conversation(
-  String id,
-  String title,
-  DateTime updatedAt,
-) => {
-  'id': id,
-  'title': title,
-  'createdAt': updatedAt.toIso8601String(),
-  'updatedAt': updatedAt.toIso8601String(),
-};
-
 /// 供组合测试注入的确定性前台端口 fake：命令调用同步记录，dispose 计数。
 final class FakeForegroundPort implements ChatGenerationForegroundServicePort {
   final actionsController =
@@ -182,7 +171,11 @@ void main() {
         database: db,
         models: [TestFixtures.gpt41()],
         conversations: [
-          _conversation('conv-eager', 'Eager 会话', DateTime(2026, 1, 3)),
+          TestFixtures.conversation(
+            'conv-eager',
+            'Eager 会话',
+            DateTime(2026, 1, 3),
+          ),
         ],
       );
       final fakePort = FakeForegroundPort();
@@ -237,7 +230,7 @@ void main() {
         database: db,
         models: [TestFixtures.gpt41()],
         conversations: [
-          _conversation('conv-stop', '停止会话', DateTime(2026, 1, 3)),
+          TestFixtures.conversation('conv-stop', '停止会话', DateTime(2026, 1, 3)),
         ],
       );
       final fakePort = FakeForegroundPort();

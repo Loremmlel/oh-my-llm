@@ -7,8 +7,6 @@ import 'package:oh_my_llm/app/navigation/app_destination.dart';
 import 'package:oh_my_llm/app/router/app_router.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_controller.dart';
-import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
-import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
 import 'package:oh_my_llm/features/favorites/data/sqlite_favorites_repository.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/video_player_platform_bindings.dart';
@@ -21,34 +19,6 @@ import '../../helpers/async/widget_test_animation.dart';
 
 Future<SharedPreferences> _testPrefs(AppDatabase db) async {
   return createEmptyPreferences(db);
-}
-
-/// 构造一条含单条用户消息的会话 JSON，供深链选中测试种子。
-///
-/// 历史摘要只收录有消息或检查点的会话，无消息的裸会话不会出现在摘要里，
-/// [selectConversation] 会因此静默 no-op，无法验证深链选中契约。
-Map<String, dynamic> _conversation(
-  String id,
-  String title,
-  DateTime updatedAt,
-) {
-  final messageId = '$id-message';
-  return ChatConversation(
-    id: id,
-    title: title,
-    messageNodes: [
-      ChatMessage(
-        id: messageId,
-        role: ChatMessageRole.user,
-        content: '$title 的首条用户消息',
-        parentId: rootConversationParentId,
-        createdAt: updatedAt.subtract(const Duration(minutes: 1)),
-      ),
-    ],
-    selectedChildByParentId: {rootConversationParentId: messageId},
-    createdAt: updatedAt.subtract(const Duration(minutes: 1)),
-    updatedAt: updatedAt,
-  ).toJson();
 }
 
 /// 测试用的 Mobile bindings factory：显式注入 Fake，禁止依赖宿主 Windows 平台。
@@ -274,8 +244,8 @@ void main() {
     final prefs = await TestFixtures.seedPreferences(
       database: db,
       conversations: [
-        _conversation('conv-a', '会话 A', DateTime(2026, 1, 2)),
-        _conversation('conv-b', '会话 B', DateTime(2026, 1, 3)),
+        TestFixtures.conversation('conv-a', '会话 A', DateTime(2026, 1, 2)),
+        TestFixtures.conversation('conv-b', '会话 B', DateTime(2026, 1, 3)),
       ],
     );
 
@@ -300,8 +270,8 @@ void main() {
     final prefs = await TestFixtures.seedPreferences(
       database: db,
       conversations: [
-        _conversation('conv-a', '会话 A', DateTime(2026, 1, 2)),
-        _conversation('conv-b', '会话 B', DateTime(2026, 1, 3)),
+        TestFixtures.conversation('conv-a', '会话 A', DateTime(2026, 1, 2)),
+        TestFixtures.conversation('conv-b', '会话 B', DateTime(2026, 1, 3)),
       ],
     );
     final router = createAppRouter(
@@ -329,7 +299,7 @@ void main() {
     final prefs = await TestFixtures.seedPreferences(
       database: db,
       conversations: [
-        _conversation('conv-default', '默认会话', DateTime(2026, 1, 3)),
+        TestFixtures.conversation('conv-default', '默认会话', DateTime(2026, 1, 3)),
       ],
     );
     for (final location in [
@@ -368,7 +338,9 @@ void main() {
     const specialId = '会话/猫 #1';
     final prefs = await TestFixtures.seedPreferences(
       database: db,
-      conversations: [_conversation(specialId, '特殊会话', DateTime(2026, 1, 3))],
+      conversations: [
+        TestFixtures.conversation(specialId, '特殊会话', DateTime(2026, 1, 3)),
+      ],
     );
     final encoded = Uri.encodeQueryComponent(specialId);
     final router = createAppRouter(

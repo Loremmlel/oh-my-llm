@@ -186,8 +186,14 @@ void main() {
         harness.port.payloads.where((p) => p.title == '结果保存失败'),
         isNotEmpty,
       );
-      expect(harness.port.payloads.last.text, '回复结果未能保存，请打开应用查看');
-      expect(harness.port.payloads.last.text, isNot(contains('模拟 stop 落盘失败')));
+      expect(
+        harness.port.payloads.lastWhere((p) => p.title == '结果保存失败').text,
+        '回复结果未能保存，请打开应用查看',
+      );
+      expect(
+        harness.port.payloads.lastWhere((p) => p.title == '结果保存失败').text,
+        isNot(contains('模拟 stop 落盘失败')),
+      );
       expect(harness.port.calls, isNot(contains('remove')));
     },
   );
@@ -312,9 +318,15 @@ void main() {
       expect(state.isStreaming, isFalse);
 
       await harness.port.waitForCall('fail');
-      expect(harness.port.payloads.last.title, '生成失败');
+      expect(
+        harness.port.payloads.lastWhere((p) => p.title == '生成失败').title,
+        '生成失败',
+      );
       // 安全载荷：不携带原始错误文本。
-      expect(harness.port.payloads.last.text, isNot(contains('协议测试错误')));
+      expect(
+        harness.port.payloads.lastWhere((p) => p.title == '生成失败').text,
+        isNot(contains('协议测试错误')),
+      );
       expect(harness.port.calls, isNot(contains('remove')));
     });
   }
@@ -332,8 +344,14 @@ void main() {
     expect(state.generation?.outcome, isA<ChatGenerationEmptyReply>());
 
     await harness.port.waitForCall('fail');
-    expect(harness.port.payloads.last.title, '生成失败');
-    expect(harness.port.payloads.last.text, '模型返回了空回复');
+    expect(
+      harness.port.payloads.lastWhere((p) => p.title == '生成失败').title,
+      '生成失败',
+    );
+    expect(
+      harness.port.payloads.lastWhere((p) => p.title == '生成失败').text,
+      '模型返回了空回复',
+    );
     expect(harness.port.calls, isNot(contains('remove')));
   });
 }

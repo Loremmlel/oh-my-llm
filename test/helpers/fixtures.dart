@@ -145,6 +145,36 @@ class TestFixtures {
     parentId: parentId,
   );
 
+  // ── 聊天会话 ──────────────────────────────────────────────
+
+  /// 构造一条含单条用户消息的会话 JSON，供深链选中测试种子。
+  ///
+  /// 历史摘要只收录有消息或检查点的会话，无消息的裸会话不会出现在摘要里，
+  /// [selectConversation] 会因此静默 no-op，无法验证深链选中契约。
+  static Map<String, dynamic> conversation(
+    String id,
+    String title,
+    DateTime updatedAt,
+  ) {
+    final messageId = '$id-message';
+    return ChatConversation(
+      id: id,
+      title: title,
+      messageNodes: [
+        ChatMessage(
+          id: messageId,
+          role: ChatMessageRole.user,
+          content: '$title 的首条用户消息',
+          parentId: rootConversationParentId,
+          createdAt: updatedAt.subtract(const Duration(minutes: 1)),
+        ),
+      ],
+      selectedChildByParentId: {rootConversationParentId: messageId},
+      createdAt: updatedAt.subtract(const Duration(minutes: 1)),
+      updatedAt: updatedAt,
+    ).toJson();
+  }
+
   // ── 流式补全 ──────────────────────────────────────────────
 
   static ChatGenerationChunk contentChunk(String delta) =>

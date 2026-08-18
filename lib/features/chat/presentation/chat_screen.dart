@@ -114,8 +114,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void didUpdateWidget(ChatScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     // 同一路由仅 query 变化时由 GoRouter 原地更新本 widget（不经 initState），
-    // 只有 ID 变化才重新调度一次 post-frame 选择。
-    if (oldWidget.initialConversationId != widget.initialConversationId) {
+    // 只有 ID 变化才重新调度一次 post-frame 选择。比较用 trim 后的值，
+    // 与 _scheduleInitialConversationSelection 的消费语义一致，纯空白变化
+    // （如 'conv-a' -> ' conv-a '）不触发冗余重新选中。
+    if (oldWidget.initialConversationId?.trim() !=
+        widget.initialConversationId?.trim()) {
       _scheduleInitialConversationSelection(widget.initialConversationId);
     }
   }

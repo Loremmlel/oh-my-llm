@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:oh_my_llm/app/composition/chat_generation_foreground_service_bindings.dart';
 import 'package:oh_my_llm/core/constants/app_layout_density.dart';
 import 'package:oh_my_llm/core/http/custom_headers_provider.dart';
 import 'package:oh_my_llm/core/http/http_client_provider.dart';
@@ -10,7 +11,6 @@ import 'package:oh_my_llm/core/http/http_route_handler.dart';
 import 'package:oh_my_llm/core/http/llm_http_stream_transport.dart';
 import 'package:oh_my_llm/core/http/peer_http_client_provider.dart';
 import 'package:oh_my_llm/core/logging/app_network_logger_provider.dart';
-import 'package:oh_my_llm/app/composition/chat_generation_foreground_service_bindings.dart';
 import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/features/chat/application/favorites/chat_favorites_facade.dart';
 import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_controller.dart';

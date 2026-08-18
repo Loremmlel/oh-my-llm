@@ -5,41 +5,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_controller.dart';
-import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
-import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
 
 import '../../../../helpers/fixtures.dart';
 import '../../../../helpers/test_harness.dart';
 import 'chat_screen_test_helpers.dart';
-
-/// 构造一条含单条用户消息的会话 JSON，供深链选中测试种子。
-///
-/// 历史摘要只收录有消息或检查点的会话，无消息的裸会话不会出现在摘要里，
-/// [selectConversation] 会因此静默 no-op，无法验证选中契约。
-Map<String, dynamic> _conversation(
-  String id,
-  String title,
-  DateTime updatedAt,
-) {
-  final messageId = '$id-message';
-  return ChatConversation(
-    id: id,
-    title: title,
-    messageNodes: [
-      ChatMessage(
-        id: messageId,
-        role: ChatMessageRole.user,
-        content: '$title 的首条用户消息',
-        parentId: rootConversationParentId,
-        createdAt: updatedAt.subtract(const Duration(minutes: 1)),
-      ),
-    ],
-    selectedChildByParentId: {rootConversationParentId: messageId},
-    createdAt: updatedAt.subtract(const Duration(minutes: 1)),
-    updatedAt: updatedAt,
-  ).toJson();
-}
 
 /// ChatScreen 对路由 query 传入的 initialConversationId 的消费契约：
 /// trim 后非空且变化时才调度一次 post-frame 选择，无效 ID 静默 no-op。
@@ -50,8 +20,8 @@ void registerChatScreenNavigationTests() {
     final preferences = await TestFixtures.seedPreferences(
       database: database,
       conversations: [
-        _conversation('conv-a', '会话 A', DateTime(2026, 1, 2)),
-        _conversation('conv-b', '会话 B', DateTime(2026, 1, 3)),
+        TestFixtures.conversation('conv-a', '会话 A', DateTime(2026, 1, 2)),
+        TestFixtures.conversation('conv-b', '会话 B', DateTime(2026, 1, 3)),
       ],
     );
     final fakeClient = FakeChatGenerationClient();
@@ -76,8 +46,8 @@ void registerChatScreenNavigationTests() {
     final preferences = await TestFixtures.seedPreferences(
       database: database,
       conversations: [
-        _conversation('conv-a', '会话 A', DateTime(2026, 1, 2)),
-        _conversation('conv-b', '会话 B', DateTime(2026, 1, 3)),
+        TestFixtures.conversation('conv-a', '会话 A', DateTime(2026, 1, 2)),
+        TestFixtures.conversation('conv-b', '会话 B', DateTime(2026, 1, 3)),
       ],
     );
     final fakeClient = FakeChatGenerationClient();
@@ -117,7 +87,7 @@ void registerChatScreenNavigationTests() {
     final preferences = await TestFixtures.seedPreferences(
       database: database,
       conversations: [
-        _conversation('conv-default', '默认会话', DateTime(2026, 1, 3)),
+        TestFixtures.conversation('conv-default', '默认会话', DateTime(2026, 1, 3)),
       ],
     );
     for (final id in ['', '   ', 'deleted-id']) {
