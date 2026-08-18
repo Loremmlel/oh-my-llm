@@ -41,6 +41,15 @@ flutter test --reporter compact 2>&1 | Out-File -Encoding utf8 logs/fltest.log; 
 - 写日志前先执行 `New-Item -ItemType Directory -Force logs | Out-Null`。全量测试使用 `logs/fltest.log`；red/green 证据使用能表达任务的 `logs/<任务>-red.log` / `logs/<任务>-green.log`。
 - `logs/` 内容是可再生成的本地产物，可以覆盖或清理；CI runner 根目录的 `fltest.log` 上传流程和应用 AppData 的 `network.log` 不受本规则影响。
 
+### 测试执行超时兜底（强制）
+
+`flutter test` 的 per-test `timeout`（`dart_test.yaml`: 120s）只覆盖测试体内部 `await` 卡住；编译/启动阶段、`setUpAll`/`tearDownAll`、native DLL 锁卡启动、测试进程不退出等进程级挂起不在其管辖。Agent 执行测试命令时必须**在命令层显式设置工具 `timeout`**（进程级硬超时，到点杀整棵进程树）：
+
+- 单文件测试：工具 `timeout` 显式设 `60000`ms（正常数秒内完成，超 1 分钟即视为挂起）。
+- 全量测试：工具 `timeout` 显式设 `240000`ms（并发 8 正常 2-3 分钟，超 4 分钟即视为挂起）。
+- ❌ 禁止用 `run_in_background` 跑需要同步结果的测试（无强制超时，挂起会无限等）。
+- 超时被杀 = 挂起信号：**先** `.\scripts\kill-stale-test-processes.ps1` 清理残留进程**再**诊断重跑，不得直接重跑（残留进程锁住 `sqlite3.dll` 会连环挂起）。被杀时 `logs/` 内已写入的部分输出仍可用于诊断。
+
 ### test 启动卡住排查（Windows）
 
 `flutter test` 卡在启动、连用例都未开始时，先排查残留 Dart 进程是否锁住 native assets DLL。`package:sqlite3` 的 native assets hook 需要写入 `build\native_assets\windows\sqlite3.dll`，已加载该 DLL 的残留进程会阻止覆盖：
