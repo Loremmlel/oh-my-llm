@@ -1,0 +1,4 @@
+<resources>
+    <string name="chat_generation_notification_channel_name">聊天生成</string>
+    <string name="chat_generation_notification_channel_description">聊天回复生成期间保持后台连接</string>
+</resources>

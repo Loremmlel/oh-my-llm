@@ -73,3 +73,11 @@ android {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // 前台服务通知（NotificationCompat / ServiceCompat）与原生单元测试依赖。
+    // 显式固定 1.17.0：本功能只需要稳定的 NotificationCompat / ServiceCompat，
+    // 不随更高版本升级 compile SDK 语义。
+    implementation("androidx.core:core:1.17.0")
+    testImplementation("junit:junit:4.13.2")
+}

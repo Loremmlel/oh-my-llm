@@ -1,6 +1,7 @@
 package yuzu.shiki.oh_my_llm
 
 import android.content.Context
+import android.content.Intent
 import android.net.wifi.WifiManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -9,6 +10,7 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
     private val channelName = "yuzu.shiki.oh_my_llm/multicast_lock"
     private var multicastLock: WifiManager.MulticastLock? = null
+    private var chatGenerationChannel: ChatGenerationForegroundChannel? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -26,6 +28,32 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+        // 现有 multicast channel 保持原样，不在本功能中重构。
+        chatGenerationChannel = ChatGenerationForegroundChannel(
+            activity = this,
+            messenger = flutterEngine.dartExecutor.binaryMessenger,
+        ).also { it.handleOpenConversationIntent(intent) }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        chatGenerationChannel?.handleOpenConversationIntent(intent)
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        chatGenerationChannel?.onRequestPermissionsResult(requestCode, permissions, grantResults)
+    }
+
+    override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        chatGenerationChannel?.dispose()
+        chatGenerationChannel = null
+        super.cleanUpFlutterEngine(flutterEngine)
     }
 
     private fun acquireMulticastLock() {
