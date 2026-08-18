@@ -279,12 +279,12 @@ void main() {
   });
 
   group('字数统计', () {
-    test('正文与推理复用聊天字数规则并忽略 emoji 等非字字符', () {
+    test('正文与推理复用聊天字数规则统计中英文并忽略 emoji', () {
       const reply = ChatStreamingReply(
         conversationId: 'conv-1',
         assistantMessageId: 'assistant-1',
-        content: '你👨‍👩‍👧‍👦é',
-        reasoningContent: '🤔好',
+        content: '你好 hello world 👨‍👩‍👧‍👦',
+        reasoningContent: '🤔好 test!',
       );
       final projection = const ChatGenerationNotificationProjector().project(
         snapshot: _snapshot(ChatGenerationPhase.streaming),
@@ -293,9 +293,9 @@ void main() {
 
       expect(
         projection.counts,
-        const ChatGenerationCharacterCounts(content: 2, reasoning: 1),
+        const ChatGenerationCharacterCounts(content: 4, reasoning: 2),
       );
-      expect(projection.payload.text, '正文 2 字 · 推理 1 字');
+      expect(projection.payload.text, '正文 4 字 · 推理 2 字');
     });
 
     test('finalizing 沿用最后一次流式回复的字数', () {
