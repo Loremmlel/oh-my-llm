@@ -6,6 +6,7 @@ import 'package:characters/characters.dart';
 import 'package:equatable/equatable.dart';
 
 import '../../domain/chat_error_messages.dart';
+import '../../domain/chat_word_counter.dart';
 import '../ports/chat_generation_client.dart';
 import '../ports/chat_generation_foreground_service.dart';
 import '../sessions/chat_sessions_state.dart';
@@ -29,7 +30,10 @@ enum ChatGenerationNotificationTerminalBehavior {
   retainError,
 }
 
-/// 正文与推理各自的 Unicode 字符簇计数。
+/// 正文与推理各自的聊天字数计数。
+///
+/// 类型名保留 CharacterCounts 以避免扩大本次修复范围；实际统计规则与
+/// [countChatWords] 一致，而通知文案截断仍单独按 Unicode 字符簇处理。
 final class ChatGenerationCharacterCounts extends Equatable {
   const ChatGenerationCharacterCounts({
     required this.content,
@@ -39,10 +43,10 @@ final class ChatGenerationCharacterCounts extends Equatable {
   /// 空计数。
   static const zero = ChatGenerationCharacterCounts(content: 0, reasoning: 0);
 
-  /// 回复正文的字符簇数。
+  /// 回复正文的聊天字数。
   final int content;
 
-  /// 推理内容的字符簇数。
+  /// 推理内容的聊天字数。
   final int reasoning;
 
   @override
@@ -80,7 +84,7 @@ final class ChatGenerationNotificationProjector {
 
   /// 投影一次通知。
   ///
-  /// [streamingReply] 非空时按字符簇统计其正文/推理字数；为空时使用
+  /// [streamingReply] 非空时复用聊天字数规则统计正文/推理；为空时使用
   /// [fallbackCounts]（finalizing 阶段由 coordinator 传入最后一次已知字数）。
   /// [ChatGenerationPhase.idle] 不会在活跃 run 中出现，此处显式拒绝，
   /// 防止一次意外的空闲投影启动前台服务。
@@ -92,8 +96,8 @@ final class ChatGenerationNotificationProjector {
   }) {
     final counts = streamingReply != null
         ? ChatGenerationCharacterCounts(
-            content: streamingReply.content.characters.length,
-            reasoning: streamingReply.reasoningContent.characters.length,
+            content: countChatWords(streamingReply.content),
+            reasoning: countChatWords(streamingReply.reasoningContent),
           )
         : fallbackCounts;
 
