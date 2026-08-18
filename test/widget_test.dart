@@ -35,7 +35,9 @@ void main() {
           appDatabaseProvider.overrideWithValue(database),
           sharedPreferencesProvider.overrideWithValue(preferences),
           customHeadersMapProvider.overrideWith((ref) => const {}),
-          ...appCompositionOverrides(),
+          // 固定 Windows 宿主：flutter_test 默认平台是 Android，会绑定真实
+          // MethodChannel adapter 并残留命令超时 Timer；与 test harness 约定一致。
+          ...appCompositionOverrides(hostPlatform: TargetPlatform.windows),
         ],
         child: const OhMyLlmApp(),
       ),
