@@ -98,7 +98,15 @@ final class ChatGenerationNotificationCoordinator {
         _logDiagnostic?.call('native_action_stream_error');
       },
     );
-    final pendingConversationId = await _port.takePendingOpenConversation();
+    // port 实现违反 contract 抛错时兜底：不向 zone 泄漏，订阅保持可用，
+    // 冷启动会话取不到只记固定诊断，绝不让 start 半途崩溃。
+    final String? pendingConversationId;
+    try {
+      pendingConversationId = await _port.takePendingOpenConversation();
+    } catch (_) {
+      _logDiagnostic?.call('take_pending_conversation_failed');
+      return;
+    }
     if (_disposed || pendingConversationId == null) return;
     _openConversation(pendingConversationId);
   }
@@ -348,7 +356,20 @@ final class ChatGenerationNotificationCoordinator {
     if (_stopInFlight) return; // 重复动作不重复调用 stop。
     _stopInFlight = true;
     // 复用现有 durable stop；协调器不直接关闭 HTTP client。
-    unawaited(_stopGeneration());
+    // 注入回调可抛错：经 _invokeStopSafely 兜底，失败只记固定诊断，不向 zone 泄漏。
+    unawaited(_invokeStopSafely());
+  }
+
+  /// 停止注入回调的安全边界：catch 住任何抛错并记录固定诊断分类。
+  ///
+  /// 与 [_logCommandFailure] 一致：诊断分类固定，不插值 payload/异常文本；
+  /// [_stopInFlight] 由下一 token 的 [_resetForNewToken] 清空，不在此回滚。
+  Future<void> _invokeStopSafely() async {
+    try {
+      await _stopGeneration();
+    } catch (_) {
+      _logDiagnostic?.call('stop_failed');
+    }
   }
 
   /// 平台超时：当前 token 失去前台保护，抑制 ongoing 更新且不重新启动。

@@ -144,6 +144,9 @@ final class FakeChatGenerationForegroundService
   /// 非 null 时阻塞 [takePendingOpenConversation]，用于验证订阅先于第一个 await。
   Completer<void>? takePendingGate;
 
+  /// 为 true 时 [takePendingOpenConversation] 抛错，验证 start 的兜底路径。
+  bool throwOnTakePending = false;
+
   /// 权限查询结果。
   ChatNotificationPermissionStatus permissionStatus =
       ChatNotificationPermissionStatus.granted;
@@ -193,6 +196,7 @@ final class FakeChatGenerationForegroundService
   @override
   Future<String?> takePendingOpenConversation() async {
     calls.add('takePendingOpenConversation');
+    if (throwOnTakePending) throw StateError('take pending 失败');
     final gate = takePendingGate;
     if (gate != null) await gate.future;
     return pendingOpenConversationId;
@@ -277,6 +281,19 @@ void main() {
         port.calls.where((c) => c == 'takePendingOpenConversation').length,
         1,
       );
+    });
+
+    test('takePendingOpenConversation 抛错时 start 兜底记录诊断且订阅仍可用', () async {
+      port.throwOnTakePending = true;
+      await coordinator.start();
+      expect(diagnostics, ['take_pending_conversation_failed']);
+
+      // 订阅未受影响：动作流仍可触达，协调器保持可用，不会因异常永久卡死。
+      port.actionsController.add(
+        const ChatGenerationOpenConversationRequested('conv-after-fail'),
+      );
+      await _flushTail();
+      expect(openedConversationIds, ['conv-after-fail']);
     });
 
     test('openConversationRequested 动作转发给注入回调', () async {
@@ -606,6 +623,43 @@ void main() {
       );
       await _flushTail();
       expect(port.calls.where((c) => c == 'remove'), ['remove']);
+    });
+
+    test('stopGeneration 抛错时记录固定诊断且不向 zone 泄漏，下一 token 仍可停止', () async {
+      final throwingCoordinator = ChatGenerationNotificationCoordinator(
+        port: port,
+        stopGeneration: () async => throw StateError('stop 失败'),
+        openConversation: openedConversationIds.add,
+        now: clock.call,
+        timerFactory: timers.create,
+        logDiagnostic: diagnostics.add,
+      );
+      addTearDown(throwingCoordinator.dispose);
+      await throwingCoordinator.start();
+      throwingCoordinator.onStateChanged(
+        snapshot: _snapshot(ChatGenerationPhase.preparing),
+        streamingReply: null,
+      );
+      await _flushTail();
+
+      port.actionsController.add(
+        const ChatGenerationStopRequested(token: 1, conversationId: 'conv-1'),
+      );
+      await _flushTail();
+      // catch 兜底：异常不逃逸到 zone（本用例正常结束即证明），只记固定诊断。
+      expect(diagnostics, contains('stop_failed'));
+
+      // 下一 token：_resetForNewToken 清空 _stopInFlight，stop 不永久卡死。
+      throwingCoordinator.onStateChanged(
+        snapshot: _snapshot(ChatGenerationPhase.preparing, generationId: 2),
+        streamingReply: null,
+      );
+      await _flushTail();
+      port.actionsController.add(
+        const ChatGenerationStopRequested(token: 2, conversationId: 'conv-1'),
+      );
+      await _flushTail();
+      expect(diagnostics.where((d) => d == 'stop_failed'), hasLength(2));
     });
   });
 
