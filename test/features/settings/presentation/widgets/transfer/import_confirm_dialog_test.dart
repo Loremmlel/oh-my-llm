@@ -1,177 +1,18 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
-import 'package:oh_my_llm/features/settings/application/preferences/auto_retry_settings_controller.dart';
-import 'package:oh_my_llm/features/settings/application/prompts/fixed_prompt_sequences_controller.dart';
-import 'package:oh_my_llm/features/settings/application/providers/llm_model_configs_controller.dart';
-import 'package:oh_my_llm/features/settings/application/prompts/memory_prompts_controller.dart';
-import 'package:oh_my_llm/features/settings/application/prompts/preset_prompts_controller.dart';
-import 'package:oh_my_llm/features/settings/application/transfer/settings_import_executor.dart';
-import 'package:oh_my_llm/features/settings/application/prompts/template_prompts_controller.dart';
-import 'package:oh_my_llm/features/settings/domain/models/preferences/auto_retry_settings.dart';
-import 'package:oh_my_llm/features/settings/domain/models/preferences/custom_headers_config.dart';
-import 'package:oh_my_llm/features/settings/domain/models/prompts/fixed_prompt_sequence.dart';
-import 'package:oh_my_llm/features/settings/domain/models/preferences/font_size_settings.dart';
-import 'package:oh_my_llm/features/settings/domain/models/providers/llm_provider_config.dart';
-import 'package:oh_my_llm/features/settings/domain/models/prompts/memory_prompt.dart';
-import 'package:oh_my_llm/features/settings/domain/models/preferences/output_processing_settings.dart';
-import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
-import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_export_data.dart';
-import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
+import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_catalog.dart';
+import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_coordinator.dart';
+import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_participant.dart';
+import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_types.dart';
+import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_transfer_document.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/transfer/import_confirm_dialog.dart';
 
-import '../../../../../helpers/test_harness.dart';
 import '../../../../../helpers/async/widget_test_animation.dart';
-
-// ── 工厂函数 ────────────────────────────────────────────────────────────────
-
-LlmProviderConfig _provider({
-  String id = 'provider-1',
-  String name = 'OpenAI',
-  String apiUrl = 'https://api.openai.com/v1/chat/completions',
-  String apiKey = 'sk-test',
-}) {
-  return LlmProviderConfig(
-    id: id,
-    name: name,
-    apiUrl: apiUrl,
-    apiKey: apiKey,
-    apiProtocol: LlmApiProtocol.chatCompletions,
-    models: const [],
-  );
-}
-
-MemoryPrompt _memory({String id = 'mem-1'}) {
-  return MemoryPrompt(
-    id: id,
-    name: '测试记忆',
-    content: '请总结关键事实。',
-    updatedAt: DateTime(2026, 1, 1),
-  );
-}
-
-PresetPrompt _preset({String id = 'preset-1'}) {
-  return PresetPrompt(
-    id: id,
-    name: '测试预设',
-    messages: const [],
-    updatedAt: DateTime(2026, 1, 1),
-  );
-}
-
-TemplatePrompt _template({String id = 'tpl-1'}) {
-  return TemplatePrompt(
-    id: id,
-    title: '测试模板',
-    content: '正文：{{body}}',
-    variables: const [],
-    updatedAt: DateTime(2026, 1, 1),
-  );
-}
-
-FixedPromptSequence _sequence({String id = 'seq-1'}) {
-  return FixedPromptSequence(
-    id: id,
-    name: '测试序列',
-    steps: const [],
-    updatedAt: DateTime(2026, 1, 1),
-  );
-}
-
-const AutoRetrySettings _autoRetry = AutoRetrySettings(
-  maxJitterSeconds: 20,
-  maxRetryCount: 5,
-);
-
-SettingsExportData _buildFullData() {
-  return SettingsExportData(
-    modelProviders: [_provider()],
-    memoryPrompts: [_memory()],
-    presetPrompts: [_preset()],
-    templatePrompts: [_template()],
-    fixedPromptSequences: [_sequence()],
-    autoRetrySettings: _autoRetry,
-  );
-}
-
-Future<void> _openDialog(WidgetTester tester) async {
-  await tester.tap(find.text('打开'));
-  // 等待 AlertDialog 入场动画结束。
-  await settleOverlayTransition(tester);
-  expect(find.text('检测到配置导入数据'), findsOneWidget);
-}
-
-/// 所有写入都挂在 [gate] 上的导入目标：测试先确认 busy 窗口，
-/// 再通过完成/失败 gate 让导入流程结束，精确控制 busy 时长。
-final class _GateImportTargets implements SettingsImportTargets {
-  const _GateImportTargets(this.gate);
-
-  final Completer<void> gate;
-
-  Future<void> _awaitGate() async {
-    await gate.future;
-  }
-
-  @override
-  Future<void> mergeImportedProviders(List<LlmProviderConfig> value) =>
-      _awaitGate();
-  @override
-  Future<void> saveAutoRetrySettings(AutoRetrySettings value) => _awaitGate();
-  @override
-  Future<void> saveCustomHeaders(CustomHeadersConfig value) => _awaitGate();
-  @override
-  Future<void> saveFontSize(FontSizeSettings value) => _awaitGate();
-  @override
-  Future<void> saveOutputProcessing(OutputProcessingSettings value) =>
-      _awaitGate();
-  @override
-  Future<void> upsertFixedPromptSequences(List<FixedPromptSequence> value) =>
-      _awaitGate();
-  @override
-  Future<void> upsertMemoryPrompts(List<MemoryPrompt> value) => _awaitGate();
-  @override
-  Future<void> upsertPresetPrompts(List<PresetPrompt> value) => _awaitGate();
-  @override
-  Future<void> upsertTemplatePrompts(List<TemplatePrompt> value) =>
-      _awaitGate();
-}
-
-final class _FailingImportTargets implements SettingsImportTargets {
-  const _FailingImportTargets();
-
-  Never _fail() => throw StateError('写入失败');
-
-  @override
-  Future<void> mergeImportedProviders(List<LlmProviderConfig> value) async =>
-      _fail();
-  @override
-  Future<void> saveAutoRetrySettings(AutoRetrySettings value) async => _fail();
-  @override
-  Future<void> saveCustomHeaders(CustomHeadersConfig value) async => _fail();
-  @override
-  Future<void> saveFontSize(FontSizeSettings value) async => _fail();
-  @override
-  Future<void> saveOutputProcessing(OutputProcessingSettings value) async =>
-      _fail();
-  @override
-  Future<void> upsertFixedPromptSequences(
-    List<FixedPromptSequence> value,
-  ) async => _fail();
-  @override
-  Future<void> upsertMemoryPrompts(List<MemoryPrompt> value) async => _fail();
-  @override
-  Future<void> upsertPresetPrompts(List<PresetPrompt> value) async => _fail();
-  @override
-  Future<void> upsertTemplatePrompts(List<TemplatePrompt> value) async =>
-      _fail();
-}
-
-// ── 测试主体 ────────────────────────────────────────────────────────────────
+import '../../../../../helpers/test_harness.dart';
 
 void main() {
   group('ImportConfirmDialog', () {
@@ -182,15 +23,13 @@ void main() {
       preferences = await SharedPreferences.getInstance();
     });
 
-    Future<ProviderContainer> pumpHost(
+    Future<void> pumpHost(
       WidgetTester tester,
-      SettingsExportData data, {
-      List<dynamic> extraOverrides = const [],
-    }) async {
+      SettingsImportBatch batch,
+    ) async {
       await pumpTestApp(
         tester,
         preferences: preferences,
-        extraOverrides: extraOverrides,
         child: Builder(
           builder: (context) {
             return Scaffold(
@@ -198,7 +37,7 @@ void main() {
                 onPressed: () {
                   showDialog<void>(
                     context: context,
-                    builder: (_) => ImportConfirmDialog(exportData: data),
+                    builder: (_) => ImportConfirmDialog(batch: batch),
                   );
                 },
                 child: const Text('打开'),
@@ -207,128 +46,263 @@ void main() {
           },
         ),
       );
-
-      // 借助 host 的 Element 取到 ProviderScope 的 container 用于断言。
-      final element = tester.element(find.text('打开'));
-      return ProviderScope.containerOf(element);
+      await tester.tap(find.text('打开'));
+      await settleOverlayTransition(tester);
+      expect(find.text('检测到配置导入数据'), findsOneWidget);
     }
 
-    testWidgets('点"导入"后写入所有配置分类', (tester) async {
-      final container = await pumpHost(tester, _buildFullData());
-      await _openDialog(tester);
-
-      await tester.tap(find.text('导入'));
-      // 导入 Future 完成后对话框出场，一次覆盖两者
-      await settleOverlayTransition(tester);
-
-      expect(container.read(llmProviderConfigsProvider).length, 1);
-      expect(container.read(llmProviderConfigsProvider).first.id, 'provider-1');
-      expect(container.read(memoryPromptsProvider).length, 1);
-      expect(container.read(memoryPromptsProvider).first.id, 'mem-1');
-      expect(container.read(presetPromptsProvider).length, 1);
-      expect(container.read(templatePromptsProvider).length, 1);
-      expect(container.read(fixedPromptSequencesProvider).length, 1);
-      final settings = container.read(autoRetrySettingsProvider);
-      expect(settings.maxJitterSeconds, 20);
-      expect(settings.maxRetryCount, 5);
-    });
-
-    testWidgets('点"取消"后所有 provider 状态不变', (tester) async {
-      final container = await pumpHost(tester, _buildFullData());
-      await _openDialog(tester);
-
-      await tester.tap(find.text('取消'));
-      await settleOverlayTransition(tester);
-
-      expect(container.read(llmProviderConfigsProvider), isEmpty);
-      expect(container.read(memoryPromptsProvider), isEmpty);
-      expect(container.read(presetPromptsProvider), isEmpty);
-      expect(container.read(templatePromptsProvider), isEmpty);
-      expect(container.read(fixedPromptSequencesProvider), isEmpty);
-      expect(
-        container.read(autoRetrySettingsProvider),
-        const AutoRetrySettings(),
-      );
-    });
-
-    testWidgets('导入失败时保持对话框打开并恢复导入操作', (tester) async {
-      await pumpTestApp(
-        tester,
-        preferences: preferences,
-        extraOverrides: [
-          settingsImportExecutorProvider.overrideWithValue(
-            SettingsImportExecutor(targets: const _FailingImportTargets()),
+    testWidgets('导入成功后写入所有 participant 并关闭对话框', (tester) async {
+      final writes = <String>[];
+      final batch = _buildBatch(
+        [
+          _FakeParticipant(
+            key: 'first',
+            label: '第一项',
+            write: (value) async => writes.add(value),
+          ),
+          _FakeParticipant(
+            key: 'second',
+            label: '第二项',
+            order: 1,
+            write: (value) async => writes.add(value),
           ),
         ],
-        child: Builder(
-          builder: (context) => Scaffold(
-            body: TextButton(
-              onPressed: () => showDialog<void>(
-                context: context,
-                builder: (_) =>
-                    ImportConfirmDialog(exportData: _buildFullData()),
-              ),
-              child: const Text('打开'),
-            ),
-          ),
-        ),
+        {'first': 'incoming-1', 'second': 'incoming-2'},
       );
-      await _openDialog(tester);
+      await pumpHost(tester, batch);
 
       await tester.tap(find.text('导入'));
-      // 导入失败不走对话框出场，错误状态单帧渲染即可
-      await tester.pump();
-
-      expect(find.text('检测到配置导入数据'), findsOneWidget);
-      expect(find.text('导入失败：Bad state: 写入失败'), findsOneWidget);
-      await tester.tap(find.text('取消'));
       await settleOverlayTransition(tester);
+
+      expect(writes, ['incoming-1', 'incoming-2']);
       expect(find.text('检测到配置导入数据'), findsNothing);
     });
 
-    testWidgets('导入中 Back 不能关闭对话框，失败恢复后可关闭', (tester) async {
-      // 导入动作挂在 gate 上：先确认 busy 窗口（导入中 + 取消禁用），
-      // 再通过 completeError 让导入失败恢复 busy 状态，精确控制时长。
-      final gate = Completer<void>();
-      await pumpHost(
-        tester,
-        _buildFullData(),
-        extraOverrides: [
-          settingsImportExecutorProvider.overrideWithValue(
-            SettingsImportExecutor(targets: _GateImportTargets(gate)),
+    testWidgets('敏感导入需要勾选确认且摘要不显示敏感值', (tester) async {
+      final writes = <String>[];
+      final batch = _buildBatch(
+        [
+          _FakeParticipant(
+            key: 'credential',
+            label: '凭据设置',
+            sensitivity: SettingsTransferSensitivity.credentialBearing,
+            write: (value) async => writes.add(value),
           ),
         ],
+        {'credential': 'credential-secret'},
       );
-      await _openDialog(tester);
+      await pumpHost(tester, batch);
 
+      expect(find.textContaining('credential-secret'), findsNothing);
+      final importButton = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, '导入'),
+      );
+      expect(importButton.onPressed, isNull);
+
+      await tester.tap(find.byType(Checkbox));
+      await tester.pump();
       await tester.tap(find.text('导入'));
-      // _isImporting 置 true 是同步状态，单帧渲染即可
+      await settleOverlayTransition(tester);
+
+      expect(writes, ['credential-secret']);
+      expect(find.text('检测到配置导入数据'), findsNothing);
+    });
+
+    testWidgets('本地设置变化时替换 batch、清除确认并阻止写入', (tester) async {
+      final writes = <String>[];
+      var local = 'old';
+      final batch = _buildBatch(
+        [
+          _FakeParticipant(
+            key: 'credential',
+            label: '凭据设置',
+            sensitivity: SettingsTransferSensitivity.credentialBearing,
+            read: () => local,
+            includeLocalInFingerprint: true,
+            write: (value) async => writes.add(value),
+          ),
+        ],
+        {'credential': 'incoming'},
+      );
+      local = 'changed';
+      await pumpHost(tester, batch);
+
+      await tester.tap(find.byType(Checkbox));
+      await tester.pump();
+      await tester.tap(find.text('导入'));
       await tester.pump();
 
-      expect(find.text('导入中...'), findsOneWidget);
-      final cancelButton = tester.widget<TextButton>(
-        find.widgetWithText(TextButton, '取消'),
+      expect(writes, isEmpty);
+      expect(find.text('本地设置已变化，请重新确认'), findsOneWidget);
+      final refreshedImportButton = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, '导入'),
       );
-      expect(cancelButton.onPressed, isNull);
+      expect(refreshedImportButton.onPressed, isNull);
 
-      // busy 期间 system Back 不能关闭对话框（PopScope canPop=false）。
+      await tester.tap(find.byType(Checkbox));
+      await tester.pump();
+      await tester.tap(find.text('导入'));
+      await settleOverlayTransition(tester);
+      expect(writes, ['incoming']);
+    });
+
+    testWidgets('部分失败时保留对话框并展示完成失败和未执行摘要', (tester) async {
+      final writes = <String>[];
+      final batch = _buildBatch(
+        [
+          _FakeParticipant(
+            key: 'completed',
+            label: '已完成配置',
+            write: (value) async => writes.add(value),
+          ),
+          _FakeParticipant(
+            key: 'failed',
+            label: '失败配置',
+            order: 1,
+            write: (_) async => throw StateError('secret failure'),
+          ),
+          _FakeParticipant(
+            key: 'notAttempted',
+            label: '未执行配置',
+            order: 2,
+            write: (value) async => writes.add(value),
+          ),
+        ],
+        {'completed': 'one', 'failed': 'two', 'notAttempted': 'three'},
+      );
+      await pumpHost(tester, batch);
+
+      await tester.tap(find.text('导入'));
+      await tester.pump();
+
+      expect(writes, ['one']);
+      expect(find.text('检测到配置导入数据'), findsOneWidget);
+      expect(find.text('部分配置已导入'), findsOneWidget);
+      expect(find.textContaining('已完成配置'), findsWidgets);
+      expect(find.textContaining('失败配置'), findsWidgets);
+      expect(find.textContaining('未执行配置'), findsWidgets);
+      expect(find.textContaining('secret failure'), findsNothing);
+    });
+
+    testWidgets('完整失败时保留对话框并展示安全原因', (tester) async {
+      final batch = _buildBatch(
+        [
+          _FakeParticipant(
+            key: 'failed',
+            label: '失败配置',
+            write: (_) async => throw StateError('credential-secret'),
+          ),
+        ],
+        {'failed': 'incoming'},
+      );
+      await pumpHost(tester, batch);
+
+      await tester.tap(find.text('导入'));
+      await tester.pump();
+
+      expect(find.text('检测到配置导入数据'), findsOneWidget);
+      expect(find.text('写入未完成，请检查本地存储后重试'), findsOneWidget);
+      expect(find.textContaining('credential-secret'), findsNothing);
+    });
+
+    testWidgets('导入进行中阻止返回并在完成后恢复关闭能力', (tester) async {
+      final gate = Completer<void>();
+      final writeCompleted = Completer<void>();
+      final batch = _buildBatch(
+        [
+          _FakeParticipant(
+            key: 'gated',
+            label: '等待写入',
+            write: (_) async {
+              await gate.future;
+              writeCompleted.complete();
+              throw StateError('写入失败');
+            },
+          ),
+        ],
+        {'gated': 'incoming'},
+      );
+      await pumpHost(tester, batch);
+
+      await tester.tap(find.text('导入'));
+      await tester.pump();
+      expect(find.text('导入中...'), findsOneWidget);
+      expect(
+        tester
+            .widget<TextButton>(find.widgetWithText(TextButton, '取消'))
+            .onPressed,
+        isNull,
+      );
+
       await tester.binding.handlePopRoute();
-      // 等退场动画收敛：若路由真的在退场，动画结束后对话框必然消失，
-      // 单帧 pump 只会停在退场中途、树里仍有对话框，无法区分二者。
       await settleOverlayTransition(tester);
       expect(find.text('检测到配置导入数据'), findsOneWidget);
 
-      // 导入失败后 busy 恢复为 false，Back 可以关闭。
-      gate.completeError(StateError('写入失败'));
-      // completeError 的错误沿 await 链以微任务传播，且错误气泡首次插入走
-      // AnimatedList initialItemCount，需收敛帧后文案才可见。
-      await settleAnimatedWidgetTransition(tester);
-      expect(find.text('导入失败：Bad state: 写入失败'), findsOneWidget);
+      gate.complete();
+      await writeCompleted.future;
+      await tester.pump();
+      await tester.pump();
       expect(find.text('导入中...'), findsNothing);
-
-      await tester.binding.handlePopRoute();
+      expect(find.text('写入未完成，请检查本地存储后重试'), findsOneWidget);
+      await tester.tap(find.text('取消'));
       await settleOverlayTransition(tester);
       expect(find.text('检测到配置导入数据'), findsNothing);
     });
   });
+}
+
+SettingsImportBatch _buildBatch(
+  List<_FakeParticipant> participants,
+  Map<String, Object?> sections,
+) {
+  final catalog = SettingsTransferCatalog([
+    for (final participant in participants)
+      SettingsTransferParticipantBox.erase(participant),
+  ]);
+  final coordinator = SettingsTransferCoordinator(catalog: catalog);
+  final preparation = coordinator.prepareDocument(
+    SettingsTransferDocument(sections: sections),
+  );
+  expect(preparation, isA<SettingsImportReady>());
+  return (preparation as SettingsImportReady).batch;
+}
+
+final class _FakeParticipant extends ReplacingValueParticipant<String> {
+  _FakeParticipant({
+    required String key,
+    required super.label,
+    required this.write,
+    this.read,
+    super.order = 0,
+    super.sensitivity = SettingsTransferSensitivity.standard,
+    this.includeLocalInFingerprint = false,
+  }) : super(key: SettingsTransferKey(key), group: SettingsTransferGroup.other);
+
+  final Future<void> Function(String value) write;
+  final String Function()? read;
+  final bool includeLocalInFingerprint;
+  String local = 'local';
+
+  @override
+  String readLocal() => read?.call() ?? local;
+
+  @override
+  Object encode(String value) => value;
+
+  @override
+  String decode(Object? payload) => payload as String;
+
+  @override
+  bool isEquivalent(String existing, String incoming) => existing == incoming;
+
+  @override
+  String fingerprintFor(String value) => includeLocalInFingerprint
+      ? '${readLocal()}::$value'
+      : super.fingerprintFor(value);
+
+  @override
+  Future<void> applyImport(String value) async {
+    await write(value);
+    local = value;
+  }
 }

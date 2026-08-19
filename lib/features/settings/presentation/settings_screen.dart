@@ -13,7 +13,9 @@ import '../application/prompts/memory_prompts_controller.dart';
 import '../application/providers/model_catalog_workflow.dart';
 import '../application/prompts/preset_prompts_controller.dart';
 import '../application/preferences/settings_tab_preferences.dart';
-import '../application/transfer/settings_transfer_workflow.dart';
+import '../application/transfer/settings_transfer_catalog_provider.dart';
+import '../application/transfer/settings_transfer_coordinator.dart';
+import '../application/transfer/settings_transfer_types.dart';
 import '../application/prompts/template_prompts_controller.dart';
 import '../domain/models/prompts/fixed_prompt_sequence.dart';
 import '../domain/models/providers/llm_provider_config.dart';
@@ -39,6 +41,15 @@ const _tabLabelPrompts = '提示词';
 const _tabLabelOther = '其它设置';
 const _tabLabelNetwork = '网络';
 const _tabLabelOutputProcessing = '输出处理';
+
+const _transferGroupsByTab = <SettingsTransferGroup>[
+  SettingsTransferGroup.providers,
+  SettingsTransferGroup.presets,
+  SettingsTransferGroup.prompts,
+  SettingsTransferGroup.network,
+  SettingsTransferGroup.outputProcessing,
+  SettingsTransferGroup.other,
+];
 
 /// 设置页入口，使用标签页组织服务商、预设、提示词和其它设置。
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -111,7 +122,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
         IconButton(
           onPressed: () => _importToCurrentTab(),
           icon: const Icon(Icons.download_rounded),
-          tooltip: '导入$_currentTabLabel',
+          tooltip: '从剪贴板导入设置',
         ),
         IconButton(
           onPressed: () => _exportCurrentTab(),
@@ -315,15 +326,44 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   // ── 导出/导入 ──────────────────────────────────────────────────
 
   Future<void> _exportCurrentTab() async {
-    final exportData = ref
-        .read(settingsTransferWorkflowProvider)
-        .buildExportData(_currentTransferTab);
-    if (exportData == null) {
+    final preparation = ref
+        .read(settingsTransferCoordinatorProvider)
+        .exportGroups({_currentTransferGroup});
+    if (preparation is SettingsExportNoContent) {
       showSettingsSnackbar(context, '$_currentTabLabel 没有可导出的数据');
       return;
     }
 
-    await Clipboard.setData(ClipboardData(text: exportData.toJsonString()));
+    final exportBatch = preparation as SettingsExportBatch;
+    var confirmedSensitive = false;
+    if (exportBatch.containsSensitive) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('确认复制敏感设置'),
+          content: const Text('服务商 API Key 和自定义 Header 值将进入系统剪贴板，可能被其他应用读取。'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('确认复制'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+      confirmedSensitive = true;
+    }
+
+    final exposed = exportBatch.exposeJson(
+      confirmedSensitive: confirmedSensitive,
+    );
+    if (exposed is! SettingsExportJsonExposed) return;
+    await Clipboard.setData(ClipboardData(text: exposed.text));
     if (mounted) {
       showSettingsSnackbar(context, '已复制$_currentTabLabel到剪贴板');
     }
@@ -332,41 +372,46 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   Future<void> _importToCurrentTab() async {
     final clipboardData = await Clipboard.getData(Clipboard.kTextPlain);
     final preparation = ref
-        .read(settingsTransferWorkflowProvider)
-        .prepareImport(
-          tab: _currentTransferTab,
-          clipboardText: clipboardData?.text,
-        );
-    switch (preparation.kind) {
-      case SettingsImportPreparationKind.invalidClipboard:
-        if (mounted) showSettingsSnackbar(context, '剪贴板中没有可识别的配置数据');
-        return;
-      case SettingsImportPreparationKind.unsupportedVersion:
-        if (mounted) showSettingsSnackbar(context, '剪贴板配置版本不受支持，请更新应用后重试');
-        return;
-      case SettingsImportPreparationKind.tabMismatch:
-        if (mounted) {
-          showSettingsSnackbar(context, '剪贴板数据与$_currentTabLabel不匹配，请切换到对应标签');
-        }
-        return;
-      case SettingsImportPreparationKind.noNewItems:
-        if (mounted) showSettingsSnackbar(context, '剪贴板中的配置在本地均已存在，无可导入项');
-        return;
-      case SettingsImportPreparationKind.ready:
-        final data = preparation.data;
-        if (data == null || !mounted) return;
-        final confirmed = await showDialog<bool>(
-          context: context,
-          builder: (dialogContext) => ImportConfirmDialog(exportData: data),
-        );
-        if (confirmed == true && mounted) {
-          showSettingsSnackbar(context, '$_currentTabLabel已成功导入');
-        }
+        .read(settingsTransferCoordinatorProvider)
+        .prepareJson(clipboardData?.text);
+    if (preparation is SettingsImportMalformed) {
+      if (mounted) showSettingsSnackbar(context, '导入内容无效');
+      return;
+    }
+    if (preparation is SettingsImportUnsupportedVersion) {
+      if (mounted) showSettingsSnackbar(context, '不支持的设置传输版本');
+      return;
+    }
+    if (preparation is SettingsImportUnknownSection) {
+      if (mounted) {
+        showSettingsSnackbar(context, '未知设置项：${preparation.sectionKey}');
+      }
+      return;
+    }
+    if (preparation is SettingsImportNoChanges) {
+      if (mounted) showSettingsSnackbar(context, '没有可导入的变化');
+      return;
+    }
+    if (preparation is SettingsImportSectionOutsideAllowedGroups ||
+        preparation is SettingsImportInvalidParticipantPayload) {
+      if (mounted) showSettingsSnackbar(context, '导入内容无效');
+      return;
+    }
+    if (preparation is SettingsImportReady) {
+      if (!mounted) return;
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) =>
+            ImportConfirmDialog(batch: preparation.batch),
+      );
+      if (confirmed == true && mounted) {
+        showSettingsSnackbar(context, '设置已成功导入');
+      }
     }
   }
 
-  SettingsTransferTab get _currentTransferTab =>
-      SettingsTransferTab.values[_tabController.index];
+  SettingsTransferGroup get _currentTransferGroup =>
+      _transferGroupsByTab[_tabController.index];
 
   // ── 复制预设 ──────────────────────────────────────────────────
 
@@ -376,10 +421,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     WidgetRef ref,
     PresetPrompt source,
   ) async {
-    final exportData = ref
-        .read(settingsTransferWorkflowProvider)
-        .buildSinglePresetExportData(source);
-    await Clipboard.setData(ClipboardData(text: exportData.toJsonString()));
+    final participant = ref
+        .read(settingsTransferCatalogProvider)
+        .participant<List<PresetPrompt>>(
+          const SettingsTransferKey('presetPrompts'),
+        );
+    final preparation = ref
+        .read(settingsTransferCoordinatorProvider)
+        .exportValue(participant, [source]);
+    if (preparation is! SettingsExportBatch) return;
+    final exposed = preparation.exposeJson(confirmedSensitive: false);
+    if (exposed is! SettingsExportJsonExposed) return;
+    await Clipboard.setData(ClipboardData(text: exposed.text));
     if (context.mounted) {
       showSettingsSnackbar(context, '已复制预设 Prompt 到剪贴板');
     }

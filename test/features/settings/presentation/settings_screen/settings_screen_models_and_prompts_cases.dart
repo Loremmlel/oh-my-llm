@@ -8,9 +8,12 @@ import 'package:oh_my_llm/features/settings/data/providers/llm_model_config_repo
 import 'package:oh_my_llm/features/settings/data/prompts/sqlite_memory_prompt_repository.dart';
 import 'package:oh_my_llm/features/settings/data/prompts/sqlite_preset_prompt_repository.dart';
 import 'package:oh_my_llm/features/settings/data/prompts/sqlite_template_prompt_repository.dart';
+import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_catalog_provider.dart';
+import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_coordinator.dart';
 import 'package:oh_my_llm/features/settings/domain/models/providers/llm_model_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/memory_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_transfer_document_codec.dart';
 import 'package:oh_my_llm/features/settings/presentation/settings_screen.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/template_prompt_form_dialog.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/shared/settings_entity_card.dart';
@@ -301,36 +304,49 @@ void registerSettingsScreenModelsAndPromptsTests() {
     expect(repository.loadAll(database), isEmpty);
   });
 
-  testWidgets(
-    'settings screen copies prompt template to clipboard as export json',
-    (tester) async {
-      await setUpSettingsScreen(
-        tester,
-        initialTabIndex: 1,
-        presetPrompts: [
-          TestFixtures.presetPrompt(id: 'preset-seeded', name: '代码审阅'),
-        ],
-      );
+  testWidgets('复制预设到剪贴板生成仅含预设的 v9 文档', (tester) async {
+    final clipboardWrites = <String>[];
+    await setUpSettingsScreen(
+      tester,
+      initialTabIndex: 1,
+      clipboardWrites: clipboardWrites,
+      presetPrompts: [
+        TestFixtures.presetPrompt(id: 'preset-seeded', name: '代码审阅'),
+      ],
+    );
 
-      // 锚定「代码审阅」卡片上的「复制」按钮：避免被同名的其它控件干扰。
-      final copyButton = find.descendant(
-        of: find.ancestor(
-          of: find.text('代码审阅'),
-          matching: find.byType(SettingsEntityCard),
-        ),
-        matching: find.widgetWithText(OutlinedButton, '复制'),
-      );
-      await tester.tap(copyButton);
-      // 复制是直接 Future（写剪贴板 + 提示），单帧即可。
-      await tester.pump();
+    // 锚定「代码审阅」卡片上的「复制」按钮：避免被同名的其它控件干扰。
+    final copyButton = find.descendant(
+      of: find.ancestor(
+        of: find.text('代码审阅'),
+        matching: find.byType(SettingsEntityCard),
+      ),
+      matching: find.widgetWithText(OutlinedButton, '复制'),
+    );
+    await tester.tap(copyButton);
+    // 复制是直接 Future（写剪贴板 + 提示），单帧即可。
+    await tester.pump();
 
-      // 新语义：把这条预设序列化成导出 JSON 写入剪贴板，不再克隆成库内副本。
-      // JSON 内容正确性由 settings_transfer_workflow 单测保证；此处只断言
-      // 用户可见反馈——复制成功的提示条出现，且没有克隆出同名「（副本）」卡片。
-      expect(find.text('已复制预设 Prompt 到剪贴板'), findsOneWidget);
-      expect(find.textContaining('（副本'), findsNothing);
-    },
-  );
+    expect(clipboardWrites, hasLength(1));
+    final decoded = SettingsTransferDocumentCodec.decodeJson(
+      clipboardWrites.single,
+    );
+    expect(decoded, isA<SettingsTransferDocumentDecodeSuccess>());
+    final document =
+        (decoded as SettingsTransferDocumentDecodeSuccess).document;
+    expect(document.sections.keys, ['presetPrompts']);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(SettingsScreen)),
+    );
+    expect(
+      container
+          .read(settingsTransferCoordinatorProvider)
+          .prepareJson(clipboardWrites.single),
+      isA<SettingsImportNoChanges>(),
+    );
+    expect(find.text('已复制预设 Prompt 到剪贴板'), findsOneWidget);
+    expect(find.textContaining('（副本'), findsNothing);
+  });
 
   testWidgets('prompt template dialog accepts multiple system messages', (
     tester,
