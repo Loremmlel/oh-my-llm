@@ -3,7 +3,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
+import 'package:oh_my_llm/core/persistence/settings_key_value_store.dart';
+import 'package:oh_my_llm/core/persistence/versioned_json_storage.dart';
 import 'package:oh_my_llm/features/settings/application/providers/llm_model_configs_controller.dart';
+import 'package:oh_my_llm/features/settings/application/providers/llm_provider_import_merger.dart';
 import 'package:oh_my_llm/features/settings/data/providers/llm_model_config_repository.dart';
 import 'package:oh_my_llm/features/settings/domain/models/providers/llm_provider_config.dart';
 
@@ -42,6 +45,184 @@ LlmProviderConfig _providerConfig({
 }
 
 void main() {
+  group('mergeImportedLlmProviders', () {
+    test('同 ID 时传入服务商字段替换本地字段并按模型名合并', () {
+      final result = mergeImportedLlmProviders(
+        local: [
+          _providerConfig(
+            id: 'provider-1',
+            name: '旧服务商',
+            apiUrl: 'https://old.example.com/v1',
+            apiKey: 'old-key',
+            apiProtocol: LlmApiProtocol.chatCompletions,
+            models: [
+              _modelConfig(
+                id: 'local-model',
+                displayName: '本地模型',
+                modelName: 'shared-model',
+              ),
+            ],
+          ),
+        ],
+        incoming: [
+          _providerConfig(
+            id: 'provider-1',
+            name: '新服务商',
+            apiUrl: 'https://new.example.com/v1',
+            apiKey: 'new-key',
+            apiProtocol: LlmApiProtocol.responses,
+            models: [
+              _modelConfig(
+                id: 'incoming-duplicate',
+                displayName: '传入重复模型',
+                modelName: 'shared-model',
+              ),
+              _modelConfig(
+                id: 'incoming-new',
+                displayName: '传入新模型',
+                modelName: 'new-model',
+              ),
+            ],
+          ),
+        ],
+      );
+
+      expect(result, hasLength(1));
+      final provider = result.single;
+      expect(provider.name, '新服务商');
+      expect(provider.apiUrl, 'https://new.example.com/v1');
+      expect(provider.apiKey, 'new-key');
+      expect(provider.apiProtocol, LlmApiProtocol.responses);
+      expect(provider.models.map((model) => model.modelName).toSet(), {
+        'shared-model',
+        'new-model',
+      });
+      expect(
+        provider.models
+            .firstWhere((model) => model.modelName == 'shared-model')
+            .id,
+        'local-model',
+      );
+    });
+
+    test('等价键匹配时保留本地服务商身份并合并新模型', () {
+      final result = mergeImportedLlmProviders(
+        local: [
+          _providerConfig(
+            id: 'local-provider',
+            name: '本地服务商',
+            apiUrl: 'https://same.example.com',
+            apiKey: 'same-key',
+            models: [_modelConfig(modelName: 'local-model')],
+          ),
+        ],
+        incoming: [
+          _providerConfig(
+            id: 'incoming-provider',
+            name: '传入服务商',
+            apiUrl: 'https://same.example.com/v1/chat/completions',
+            apiKey: 'same-key',
+            models: [
+              _modelConfig(id: 'incoming-model', modelName: 'new-model'),
+            ],
+          ),
+        ],
+      );
+
+      expect(result, hasLength(1));
+      expect(result.single.id, 'local-provider');
+      expect(result.single.name, '本地服务商');
+      expect(result.single.apiUrl, 'https://same.example.com');
+      expect(result.single.models.map((model) => model.modelName).toSet(), {
+        'local-model',
+        'new-model',
+      });
+    });
+
+    test('相同 URL 与密钥但协议不同时保留两个服务商', () {
+      final result = mergeImportedLlmProviders(
+        local: [
+          _providerConfig(
+            id: 'chat-provider',
+            name: 'Chat',
+            apiUrl: 'https://same.example.com/v1',
+            apiKey: 'same-key',
+            apiProtocol: LlmApiProtocol.chatCompletions,
+          ),
+        ],
+        incoming: [
+          _providerConfig(
+            id: 'responses-provider',
+            name: 'Responses',
+            apiUrl: 'https://same.example.com',
+            apiKey: 'same-key',
+            apiProtocol: LlmApiProtocol.responses,
+          ),
+        ],
+      );
+
+      expect(result, hasLength(2));
+      expect(result.map((provider) => provider.apiProtocol).toSet(), {
+        LlmApiProtocol.chatCompletions,
+        LlmApiProtocol.responses,
+      });
+    });
+
+    test('等价键匹配时重复模型名只保留一个模型', () {
+      final result = mergeImportedLlmProviders(
+        local: [
+          _providerConfig(
+            id: 'local-provider',
+            apiUrl: 'https://same.example.com/v1',
+            apiKey: 'same-key',
+            models: [
+              _modelConfig(
+                id: 'local-model',
+                displayName: '本地模型',
+                modelName: 'same-model',
+              ),
+            ],
+          ),
+        ],
+        incoming: [
+          _providerConfig(
+            id: 'incoming-provider',
+            apiUrl: 'https://same.example.com',
+            apiKey: 'same-key',
+            models: [
+              _modelConfig(
+                id: 'duplicate-model',
+                displayName: '重复模型',
+                modelName: 'same-model',
+              ),
+              _modelConfig(
+                id: 'new-model-first',
+                displayName: '新模型',
+                modelName: 'new-model',
+              ),
+              _modelConfig(
+                id: 'new-model-duplicate',
+                displayName: '新模型重复',
+                modelName: 'new-model',
+              ),
+            ],
+          ),
+        ],
+      );
+
+      final models = result.single.models;
+      expect(models, hasLength(2));
+      expect(models.map((model) => model.modelName).toSet(), {
+        'same-model',
+        'new-model',
+      });
+      expect(
+        models.firstWhere((model) => model.modelName == 'new-model').id,
+        'new-model-first',
+      );
+    });
+  });
+
   group('LlmProviderConfigsController', () {
     late SharedPreferences sp;
     late ProviderContainer container;
@@ -443,6 +624,47 @@ void main() {
       },
     );
 
+    test('导入服务商持久化失败时不发布新状态', () async {
+      final seed = _providerConfig(
+        id: 'seed-provider',
+        name: '种子服务商',
+        models: [_modelConfig(modelName: 'seed-model')],
+      );
+      final storage = _ReadableSettingsKeyValueStore(
+        readableValues: {
+          llmModelConfigsStorageKey: VersionedJsonStorage.encodeObjectList(
+            items: [seed],
+            toJson: (provider) => provider.toJson(),
+          ),
+        },
+      );
+      final failingContainer = ProviderContainer(
+        overrides: [
+          llmModelConfigRepositoryProvider.overrideWithValue(
+            LlmModelConfigRepository.fromStore(storage),
+          ),
+        ],
+      );
+      addTearDown(failingContainer.dispose);
+      final failingController = failingContainer.read(
+        llmProviderConfigsProvider.notifier,
+      );
+
+      expect(failingController.state, [seed]);
+      await expectLater(
+        failingController.mergeImportedProviders([
+          _providerConfig(
+            id: 'imported-provider',
+            name: '传入服务商',
+            models: [_modelConfig(modelName: 'imported-model')],
+          ),
+        ]),
+        throwsA(isA<StateError>()),
+      );
+
+      expect(failingController.state, [seed]);
+    });
+
     // ── deleteProviderById() ────────────────────────────────────────────────
 
     test('deleteProviderById() removes provider', () async {
@@ -681,4 +903,22 @@ void main() {
       expect(models.first.id, 'm-1');
     });
   });
+}
+
+final class _ReadableSettingsKeyValueStore implements SettingsKeyValueStore {
+  _ReadableSettingsKeyValueStore({required this.readableValues});
+
+  final Map<String, String> readableValues;
+
+  @override
+  String? getString(String key) => readableValues[key];
+
+  @override
+  Future<bool> setString(String key, String value) async => false;
+
+  @override
+  int? getInt(String key) => null;
+
+  @override
+  Future<bool> setInt(String key, int value) async => false;
 }
