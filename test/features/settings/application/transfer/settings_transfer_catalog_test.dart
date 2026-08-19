@@ -366,6 +366,30 @@ void main() {
       );
       expect(participant.writeCount, 0);
     });
+
+    test('direct participant 的 apply 会在正确 change 类型下拒绝错误写入值', () async {
+      final participant = _DirectIntParticipant(
+        key: const SettingsTransferKey('directApplyTypedValue'),
+        group: SettingsTransferGroup.other,
+        order: 0,
+      );
+      final box = SettingsTransferParticipantBox<int>(participant);
+      final wrongValueChange = SettingsTransferChange<Object?>.erased(
+        participant: participant,
+        incoming: 2,
+        writeValue: '不是整数',
+        fingerprint: 'invalid',
+        summary: participant.summarizeExport(2),
+        valueType: int,
+      );
+
+      expect(wrongValueChange.valueType, int);
+      await expectLater(
+        box.applyImport(wrongValueChange),
+        throwsA(isA<StateError>()),
+      );
+      expect(participant.writeCount, 0);
+    });
   });
 
   test('summary action 与 count 不一致时拒绝构造', () {

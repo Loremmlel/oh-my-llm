@@ -29,16 +29,30 @@ final class SettingsTransferChange<T> {
     required this.writeValue,
     required this.fingerprint,
     required this.summary,
-  });
+  }) : _valueType = T;
+
+  /// application 内部在 erased 边界构造待校验 change 的入口。
+  ///
+  /// 普通 participant 必须使用默认构造器；这里保留 [T] 的公开字段语义，
+  /// 只允许 box 通过 [valueType] 和实际值执行最终一致性校验。
+  const SettingsTransferChange.erased({
+    required this.participant,
+    required this.incoming,
+    required this.writeValue,
+    required this.fingerprint,
+    required this.summary,
+    required Type valueType,
+  }) : _valueType = valueType;
 
   final SettingsTransferParticipant<T> participant;
   final T incoming;
   final T writeValue;
   final String fingerprint;
   final SettingsTransferSummaryItem summary;
+  final Type _valueType;
 
   /// 供 application-internal 类型擦除适配器校验 change 的泛型参数。
-  Type get valueType => T;
+  Type get valueType => _valueType;
 }
 
 /// 以完整值替换本地设置的通用 participant 策略。
