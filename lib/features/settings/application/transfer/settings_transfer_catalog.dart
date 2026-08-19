@@ -29,7 +29,7 @@ final class SettingsTransferCatalog {
     final ordersByGroup = <SettingsTransferGroup, Set<int>>{};
 
     for (final candidate in participants) {
-      final box = SettingsTransferParticipantBox.erase(candidate);
+      final box = SettingsTransferParticipantBox.requireBox(candidate);
       final key = box.key.value;
       if (!_validKey.hasMatch(key)) {
         throw ArgumentError.value(
