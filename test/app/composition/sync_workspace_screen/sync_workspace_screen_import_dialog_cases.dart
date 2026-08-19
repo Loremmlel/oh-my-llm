@@ -141,10 +141,9 @@ void registerSyncScreenImportDialogTests() {
       await tester.pump();
 
       expect(find.text('导入中...'), findsOneWidget);
-      final cancelButton = tester.widget<TextButton>(
-        find.widgetWithText(TextButton, '取消'),
-      );
-      expect(cancelButton.onPressed, isNull);
+      await tester.tap(find.text('取消'));
+      await tester.pump();
+      expect(find.text('确认同步配置'), findsOneWidget);
 
       // busy 期间 system Back 不能关闭对话框（PopScope canPop=false）。
       await tester.binding.handlePopRoute();

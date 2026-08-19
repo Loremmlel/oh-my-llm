@@ -3,7 +3,7 @@ import 'dart:convert';
 import '../../domain/models/discovery/discovered_server.dart';
 import '../../domain/models/protocol/sync_protocol_version.dart';
 
-/// UDP v3 公告信封的纯编解码边界。
+/// UDP v4 公告信封的纯编解码边界。
 ///
 /// 只负责公告数据报的编码与校验，不接触 socket、定时器或平台通道；
 /// [decode] 对任何非法输入返回 null 而不抛异常，discovery 可直接短路。
@@ -13,10 +13,10 @@ final class SyncUdpAnnouncementCodec {
   /// 公告声明的应用标识；与局域网 HTTP 握手保持一致。
   static const String appId = 'oh-my-llm';
 
-  /// 公告固定声明的协议版本（Sync v3）。
+  /// 公告固定声明的协议版本（Sync v4）。
   static const int version = SyncProtocolVersionPolicy.current;
 
-  /// 编码公告数据报，字段名与取值保持 v3 线上字节格式不变。
+  /// 编码公告数据报，字段名与取值保持 v4 线上字节格式不变。
   List<int> encode({
     required int httpPort,
     required String deviceName,

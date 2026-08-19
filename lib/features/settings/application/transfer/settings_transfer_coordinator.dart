@@ -1,7 +1,7 @@
 import 'dart:async';
 
-import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_transfer_document.dart';
-import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_transfer_document_codec.dart';
+import '../../domain/models/transfer/settings_transfer_document.dart';
+import '../../domain/models/transfer/settings_transfer_document_codec.dart';
 
 import 'settings_transfer_catalog.dart';
 import 'settings_transfer_participant.dart';
@@ -59,8 +59,6 @@ final class SettingsExportJsonExposed extends SettingsExportExposureResult {
   const SettingsExportJsonExposed(this.text);
 
   final String text;
-
-  String get json => text;
 }
 
 /// 导入准备的 sealed 结果。
@@ -504,13 +502,3 @@ final class _SettingsTransferExecutionState {
 }
 
 const _safeWriteFailureReason = '写入未完成，请检查本地存储后重试';
-
-// 让测试和后续 application adapter 可以使用更具语义的别名，而不增加
-// 第二套结果层级或可绕过 sealed contract 的实现。
-typedef SettingsExportEmpty = SettingsExportNoContent;
-typedef SettingsExportJson = SettingsExportJsonExposed;
-typedef SettingsImportInvalidPayload = SettingsImportInvalidParticipantPayload;
-typedef SettingsImportSectionNotAllowed =
-    SettingsImportSectionOutsideAllowedGroups;
-typedef SettingsImportNoChange = SettingsImportNoChanges;
-typedef SettingsImportReadyBatch = SettingsImportReady;

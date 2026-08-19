@@ -102,10 +102,10 @@ void main() {
       await pumpHost(tester, batch);
 
       expect(find.textContaining('credential-secret'), findsNothing);
-      final importButton = tester.widget<FilledButton>(
-        find.widgetWithText(FilledButton, '导入'),
-      );
-      expect(importButton.onPressed, isNull);
+      await tester.tap(find.text('导入'));
+      await tester.pump();
+      expect(writes, isEmpty);
+      expect(find.text('检测到配置导入数据'), findsOneWidget);
 
       await tester.tap(find.byType(Checkbox));
       await tester.pump();
@@ -142,10 +142,10 @@ void main() {
 
       expect(writes, isEmpty);
       expect(find.text('本地设置已变化，请重新确认'), findsOneWidget);
-      final refreshedImportButton = tester.widget<FilledButton>(
-        find.widgetWithText(FilledButton, '导入'),
-      );
-      expect(refreshedImportButton.onPressed, isNull);
+      await tester.tap(find.text('导入'));
+      await tester.pump();
+      expect(writes, isEmpty);
+      expect(find.text('本地设置已变化，请重新确认'), findsOneWidget);
 
       await tester.tap(find.byType(Checkbox));
       await tester.pump();
@@ -235,12 +235,9 @@ void main() {
       await tester.tap(find.text('导入'));
       await tester.pump();
       expect(find.text('导入中...'), findsOneWidget);
-      expect(
-        tester
-            .widget<TextButton>(find.widgetWithText(TextButton, '取消'))
-            .onPressed,
-        isNull,
-      );
+      await tester.tap(find.text('取消'));
+      await tester.pump();
+      expect(find.text('检测到配置导入数据'), findsOneWidget);
 
       await tester.binding.handlePopRoute();
       await settleOverlayTransition(tester);

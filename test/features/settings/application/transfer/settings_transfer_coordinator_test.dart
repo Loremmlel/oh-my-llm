@@ -205,7 +205,7 @@ void main() {
       expect(participant.writeCount, 0);
     });
 
-    test('prepare 全程零写入且相同本地值返回 no changes', () {
+    test('准备阶段全程零写入且远端值变化时返回可执行批次', () {
       final participant = _FakeIntParticipant(
         key: const SettingsTransferKey('knownValue'),
         group: SettingsTransferGroup.other,

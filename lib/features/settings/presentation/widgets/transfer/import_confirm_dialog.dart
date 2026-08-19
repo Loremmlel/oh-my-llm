@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
 import 'package:oh_my_llm/core/widgets/transfer_summary_list.dart';
-import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_coordinator.dart';
-import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_types.dart';
+
+import '../../../application/transfer/settings_transfer_coordinator.dart';
+import '../../../application/transfer/settings_transfer_types.dart';
 
 /// 配置导入确认对话框。
 ///

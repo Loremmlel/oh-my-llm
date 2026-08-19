@@ -1,4 +1,4 @@
-import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_transfer_document.dart';
+import '../../domain/models/transfer/settings_transfer_document.dart';
 import 'package:oh_my_llm/features/sync/application/ports/settings_sync_facade.dart';
 import 'package:oh_my_llm/features/sync/domain/models/protocol/sync_types.dart';
 
