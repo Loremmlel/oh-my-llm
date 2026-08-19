@@ -36,18 +36,20 @@ class SyncClientState extends Equatable {
   SyncClientState({
     this.phase = SyncPhase.idle,
     this.server,
-    Set<SyncCategory> selectedCategories = const {},
+    Iterable<SettingsSyncGroupDescriptor> availableGroups = const [],
+    Iterable<SettingsSyncGroupId> selectedGroups = const {},
     this.errorMessage,
     this.preparedImport,
     this.sourceDeviceName,
     this.isPaired = false,
     this.sensitiveRequestConfirmed = false,
-  }) : selectedCategories = Set.unmodifiable(selectedCategories);
+  }) : availableGroups = List.unmodifiable(availableGroups),
+       selectedGroups = Set.unmodifiable(selectedGroups);
 
   final SyncPhase phase;
   final DiscoveredServer? server;
-  @Deprecated('Task 8 将以 catalog group ID 替换旧四分类。')
-  final Set<SyncCategory> selectedCategories;
+  final List<SettingsSyncGroupDescriptor> availableGroups;
+  final Set<SettingsSyncGroupId> selectedGroups;
   final String? errorMessage;
   final SettingsSyncPreparedImport? preparedImport;
   final String? sourceDeviceName;
@@ -58,7 +60,13 @@ class SyncClientState extends Equatable {
   List<Object?> get props => [
     phase,
     (server?.deviceName, server?.ip, server?.httpPort),
-    selectedCategories.map((category) => category.index).toList()..sort(),
+    availableGroups
+        .map(
+          (group) =>
+              (group.id.value, group.label, group.order, group.sensitivity),
+        )
+        .toList(),
+    selectedGroups.map((group) => group.value).toList()..sort(),
     errorMessage,
     preparedImport == null
         ? null
@@ -71,7 +79,8 @@ class SyncClientState extends Equatable {
   SyncClientState copyWith({
     SyncPhase? phase,
     Object? server = _sentinel,
-    Set<SyncCategory>? selectedCategories,
+    Iterable<SettingsSyncGroupDescriptor>? availableGroups,
+    Iterable<SettingsSyncGroupId>? selectedGroups,
     Object? errorMessage = _sentinel,
     Object? preparedImport = _sentinel,
     Object? sourceDeviceName = _sentinel,
@@ -83,7 +92,8 @@ class SyncClientState extends Equatable {
       server: identical(server, _sentinel)
           ? this.server
           : server as DiscoveredServer?,
-      selectedCategories: selectedCategories ?? this.selectedCategories,
+      availableGroups: availableGroups ?? this.availableGroups,
+      selectedGroups: selectedGroups ?? this.selectedGroups,
       errorMessage: identical(errorMessage, _sentinel)
           ? this.errorMessage
           : errorMessage as String?,
@@ -106,9 +116,6 @@ final syncClientControllerProvider =
     );
 
 /// 同步客户端控制器，管理 Sync 页面会话内的发现、请求和导入流程。
-///
-/// SyncCategory 仅是 Task 8 前的 presentation 兼容适配器；实际 wire 请求
-/// 和 Settings 导入都使用稳定 group ID 与 Settings-owned prepared import。
 class SyncClientController extends Notifier<SyncClientState> {
   SyncClientController({SyncClientProtocol? protocol})
     : _injectedProtocol = protocol;
@@ -120,6 +127,7 @@ class SyncClientController extends Notifier<SyncClientState> {
 
   @override
   SyncClientState build() {
+    final settingsFacade = ref.read(settingsSyncFacadeProvider);
     _protocolCoordinator =
         _injectedProtocol ??
         SyncClientProtocolCoordinator(
@@ -129,7 +137,7 @@ class SyncClientController extends Notifier<SyncClientState> {
           clock: ref.read(syncClockProvider),
         );
     ref.onDispose(_invalidateDiscovery);
-    return SyncClientState();
+    return SyncClientState(availableGroups: settingsFacade.availableGroups);
   }
 
   Future<void> startDiscovery() async {
@@ -202,35 +210,38 @@ class SyncClientController extends Notifier<SyncClientState> {
         );
   }
 
-  @Deprecated('Task 8 将改用稳定 SettingsSyncGroupId。')
-  void toggleCategory(SyncCategory category) {
-    final categories = Set<SyncCategory>.from(state.selectedCategories);
-    if (categories.contains(category)) {
-      categories.remove(category);
+  /// 切换一个由 Settings catalog 提供的稳定分组。
+  ///
+  /// 未知 ID 可能来自过期的页面事件或测试数据，忽略它可以避免把不在
+  /// 当前 catalog 中的内容送入请求，同时不清除仍然有效的用户确认。
+  void toggleGroup(SettingsSyncGroupId id) {
+    if (!state.availableGroups.any((group) => group.id == id)) return;
+
+    final groups = Set<SettingsSyncGroupId>.from(state.selectedGroups);
+    if (groups.contains(id)) {
+      groups.remove(id);
     } else {
-      categories.add(category);
+      groups.add(id);
     }
+    _setSelectedGroups(groups);
+  }
+
+  /// 选择当前 catalog 中的全部分组，顺序由 [availableGroups] 保留。
+  void selectAllGroups() {
+    _setSelectedGroups(state.availableGroups.map((group) => group.id).toSet());
+  }
+
+  void _setSelectedGroups(Set<SettingsSyncGroupId> groups) {
     state = state.copyWith(
       phase: state.server == null ? state.phase : SyncPhase.connected,
-      selectedCategories: categories,
+      selectedGroups: groups,
       sensitiveRequestConfirmed: false,
       preparedImport: null,
       errorMessage: null,
     );
   }
 
-  @Deprecated('Task 8 将改用 catalog descriptor。')
-  void selectAllCategories() {
-    state = state.copyWith(
-      phase: state.server == null ? state.phase : SyncPhase.connected,
-      selectedCategories: Set<SyncCategory>.from(SyncCategory.values),
-      sensitiveRequestConfirmed: false,
-      preparedImport: null,
-      errorMessage: null,
-    );
-  }
-
-  /// 仅将本次请求的用户意图保留在内存中；类别或连接变化会清除它。
+  /// 仅将本次请求的用户意图保留在内存中；分组或连接变化会清除它。
   void confirmSensitiveRequest() {
     state = state.copyWith(sensitiveRequestConfirmed: true);
   }
@@ -266,12 +277,12 @@ class SyncClientController extends Notifier<SyncClientState> {
   Future<void> requestSync() async {
     if (state.phase == SyncPhase.syncing) return;
     final server = state.server;
-    if (server == null || state.selectedCategories.isEmpty) return;
+    if (server == null || state.selectedGroups.isEmpty) return;
     final generation = _generation;
-    final requestedCategories = Set<SyncCategory>.from(
-      state.selectedCategories,
+    final requestedGroups = Set<SettingsSyncGroupId>.unmodifiable(
+      state.selectedGroups,
     );
-    final requestedGroups = _groupsForCategories(requestedCategories);
+    final confirmedSensitive = state.sensitiveRequestConfirmed;
 
     state = state.copyWith(
       phase: SyncPhase.syncing,
@@ -283,7 +294,7 @@ class SyncClientController extends Notifier<SyncClientState> {
       final document = await _protocolCoordinator.requestSettings(
         server: server,
         groups: requestedGroups,
-        confirmedSensitive: state.sensitiveRequestConfirmed,
+        confirmedSensitive: confirmedSensitive,
       );
       if (!_isCurrent(generation)) return;
 
@@ -393,7 +404,7 @@ class SyncClientController extends Notifier<SyncClientState> {
     _invalidateDiscovery();
     _protocolCoordinator.clearSessions();
     if (!ref.mounted) return;
-    state = SyncClientState();
+    state = SyncClientState(availableGroups: state.availableGroups);
   }
 
   int _invalidateDiscovery() {
@@ -406,25 +417,4 @@ class SyncClientController extends Notifier<SyncClientState> {
   bool _isCurrent(int generation) {
     return ref.mounted && generation == _generation;
   }
-}
-
-Set<SettingsSyncGroupId> _groupsForCategories(Set<SyncCategory> categories) {
-  final groups = <SettingsSyncGroupId>{};
-  for (final category in categories) {
-    switch (category) {
-      case SyncCategory.providers:
-        groups.add(const SettingsSyncGroupId('providers'));
-      case SyncCategory.presets:
-        groups.add(const SettingsSyncGroupId('presets'));
-      case SyncCategory.prompts:
-        groups.add(const SettingsSyncGroupId('prompts'));
-      case SyncCategory.other:
-        groups.addAll({
-          SettingsSyncGroupId('network'),
-          SettingsSyncGroupId('outputProcessing'),
-          SettingsSyncGroupId('other'),
-        });
-    }
-  }
-  return Set.unmodifiable(groups);
 }

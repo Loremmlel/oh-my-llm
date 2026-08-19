@@ -17,6 +17,7 @@ import 'package:oh_my_llm/features/sync/data/udp/sync_udp_discovery.dart';
 
 import '../../../helpers/test_harness.dart';
 import '../../../helpers/async/widget_test_animation.dart';
+import '../../../features/sync/application/sync_test_fakes.dart';
 
 Future<AppDatabase> pumpSyncScreen(
   WidgetTester tester, {
@@ -157,13 +158,16 @@ class RecordingShufflePlaybackController extends ShufflePlaybackController {
   }
 }
 
-SyncClientState connectedSyncState() => SyncClientState(
+SyncClientState connectedSyncState({
+  Iterable<SettingsSyncGroupDescriptor>? availableGroups,
+}) => SyncClientState(
   phase: SyncPhase.connected,
   server: const DiscoveredServer(
     deviceName: 'Test Android',
     ip: '192.168.1.5',
     httpPort: 8080,
   ),
+  availableGroups: availableGroups ?? defaultSettingsSyncGroups,
 );
 
 Future<void> pumpImportDialog(

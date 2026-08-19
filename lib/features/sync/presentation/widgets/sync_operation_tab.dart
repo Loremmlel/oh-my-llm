@@ -5,7 +5,6 @@ import 'package:oh_my_llm/core/widgets/notification_bubble/notification_bubble_c
 import 'package:oh_my_llm/features/settings/presentation/widgets/shared/settings_section_card.dart';
 import '../../application/ports/settings_sync_facade.dart';
 import '../../application/sync_client_controller.dart';
-import '../../domain/models/protocol/sync_types.dart';
 import 'sync_import_confirm_dialog.dart';
 
 /// 同步页面 Tab 2：同步操作，选择同步内容并执行导入。
@@ -72,7 +71,7 @@ class _SyncOperationTabState extends ConsumerState<SyncOperationTab>
         if (clientState.phase == SyncPhase.error) ...[
           _buildErrorMessage(context, ref, clientState),
         ] else ...[
-          _buildCategoryCard(context, ref, clientState),
+          _buildGroupCard(context, ref, clientState),
           const SizedBox(height: 16),
           _buildSyncButton(context, ref, clientState),
           if (clientState.phase == SyncPhase.imported) ...[
@@ -197,41 +196,43 @@ class _SyncOperationTabState extends ConsumerState<SyncOperationTab>
     );
   }
 
-  Widget _buildCategoryCard(
+  Widget _buildGroupCard(
     BuildContext context,
     WidgetRef ref,
     SyncClientState state,
   ) {
     final notifier = ref.read(syncClientControllerProvider.notifier);
+    final availableIds = state.availableGroups.map((group) => group.id).toSet();
     final allSelected =
-        state.selectedCategories.length == SyncCategory.values.length;
+        state.selectedGroups.length == availableIds.length &&
+        state.selectedGroups.containsAll(availableIds);
 
     return SettingsSectionCard(
       title: '同步内容',
-      description: '选择要从服务端同步到本机的配置类别',
+      description: '选择要从服务端同步到本机的配置分组',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Text('选择类别', style: Theme.of(context).textTheme.titleSmall),
+              Text('选择分组', style: Theme.of(context).textTheme.titleSmall),
               const Spacer(),
               TextButton(
-                onPressed: allSelected ? null : notifier.selectAllCategories,
+                onPressed: allSelected ? null : notifier.selectAllGroups,
                 child: const Text('全选'),
               ),
             ],
           ),
           const SizedBox(height: 8),
-          ...SyncCategory.values.map((category) {
+          ...state.availableGroups.map((group) {
             return CheckboxListTile(
               title: Text(
-                category.isCredentialBearing
-                    ? '${category.label}（含敏感凭据）'
-                    : category.label,
+                group.sensitivity == SettingsSyncSensitivity.credentialBearing
+                    ? '${group.label}（含敏感凭据）'
+                    : group.label,
               ),
-              value: state.selectedCategories.contains(category),
-              onChanged: (_) => notifier.toggleCategory(category),
+              value: state.selectedGroups.contains(group.id),
+              onChanged: (_) => notifier.toggleGroup(group.id),
               dense: true,
               contentPadding: EdgeInsets.zero,
             );
@@ -247,15 +248,16 @@ class _SyncOperationTabState extends ConsumerState<SyncOperationTab>
     SyncClientState state,
   ) {
     final isSyncing = state.phase == SyncPhase.syncing;
-    final needsSensitiveConfirmation = state.selectedCategories.any(
-      (category) => category.isCredentialBearing,
+    final needsSensitiveConfirmation = state.availableGroups.any(
+      (group) =>
+          state.selectedGroups.contains(group.id) &&
+          group.sensitivity == SettingsSyncSensitivity.credentialBearing,
     );
 
     return SizedBox(
       width: double.infinity,
       child: FilledButton.icon(
-        onPressed:
-            isSyncing || state.selectedCategories.isEmpty || !state.isPaired
+        onPressed: isSyncing || state.selectedGroups.isEmpty || !state.isPaired
             ? null
             : () async {
                 if (needsSensitiveConfirmation &&

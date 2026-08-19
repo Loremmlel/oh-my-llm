@@ -45,6 +45,18 @@ final _requestDocument = SettingsTransferDocument(
   sections: {'presetPrompts': <Object?>[]},
 );
 
+const _testOnlySyncGroup = SettingsSyncGroupDescriptor(
+  id: SettingsSyncGroupId('testOnly'),
+  label: '测试扩展',
+  order: 6,
+  sensitivity: SettingsSyncSensitivity.credentialBearing,
+);
+
+List<SettingsSyncGroupDescriptor> _dynamicGroups() => [
+  ...defaultSettingsSyncGroups,
+  _testOnlySyncGroup,
+];
+
 ProviderContainer _buildContainer({
   required FakeSyncClientTransport transport,
   required ScriptedSyncClientProtocol protocol,
@@ -88,36 +100,97 @@ void main() {
         serverId: 'stable-server',
         protocolRange: SyncProtocolRange.local,
       ),
-      selectedCategories: {SyncCategory.presets},
+      selectedGroups: {SettingsSyncGroupId('presets')},
       isPaired: true,
     );
 
     expect(state.isPaired, isTrue);
-    expect(state.selectedCategories, {SyncCategory.presets});
+    expect(state.selectedGroups, {SettingsSyncGroupId('presets')});
     expect(state.props.join(), isNot(contains('token')));
     expect(state.props.join(), isNot(contains('secret')));
   });
 
-  test('分类变更会清除仅本次的敏感接收确认和 prepared import', () {
-    final prepared = ScriptedSettingsSyncPreparedImport(
-      summaries: const [
-        SettingsSyncSummaryItem(label: '预设', trailingText: '新增 1 项'),
+  test('分组状态的等价比较按稳定 ID 排序而不依赖集合迭代顺序', () {
+    final first = SyncClientState(
+      selectedGroups: {
+        SettingsSyncGroupId('prompts'),
+        SettingsSyncGroupId('providers'),
+      },
+    );
+    final second = SyncClientState(
+      selectedGroups: {
+        SettingsSyncGroupId('providers'),
+        SettingsSyncGroupId('prompts'),
+      },
+    );
+
+    expect(first, second);
+  });
+
+  test('构建从设置目录读取分组描述并保留顺序', () {
+    final transport = FakeSyncClientTransport();
+    final facade = FakeSettingsSyncFacade(
+      availableGroups: [
+        const SettingsSyncGroupDescriptor(
+          id: SettingsSyncGroupId('second'),
+          label: '第二项',
+          order: 20,
+          sensitivity: SettingsSyncSensitivity.standard,
+        ),
+        const SettingsSyncGroupDescriptor(
+          id: SettingsSyncGroupId('first'),
+          label: '第一项',
+          order: 10,
+          sensitivity: SettingsSyncSensitivity.credentialBearing,
+        ),
       ],
     );
-    final state = SyncClientState(
-      selectedCategories: {SyncCategory.providers},
-      sensitiveRequestConfirmed: true,
-      preparedImport: prepared,
+    final container = _buildContainer(
+      transport: transport,
+      protocol: ScriptedSyncClientProtocol(),
+      settingsFacade: facade,
+    );
+    addTearDown(container.dispose);
+
+    final state = container.read(syncClientControllerProvider);
+
+    expect(state.availableGroups, facade.availableGroups);
+    expect(state.availableGroups.map((group) => group.id.value), [
+      'second',
+      'first',
+    ]);
+    expect(
+      () => state.availableGroups.add(facade.availableGroups.first),
+      throwsUnsupportedError,
+    );
+  });
+
+  test('全选复制所有分组描述 ID，未知分组保持状态不变', () {
+    final transport = FakeSyncClientTransport();
+    final facade = FakeSettingsSyncFacade(availableGroups: _dynamicGroups());
+    final container = _buildContainer(
+      transport: transport,
+      protocol: ScriptedSyncClientProtocol(),
+      settingsFacade: facade,
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(syncClientControllerProvider.notifier);
+    notifier.selectAllGroups();
+    final selected = container.read(syncClientControllerProvider);
+    final selectedBeforeUnknown = selected;
+
+    expect(
+      selected.selectedGroups,
+      _dynamicGroups().map((group) => group.id).toSet(),
     );
 
-    final changed = state.copyWith(
-      selectedCategories: {SyncCategory.presets},
-      sensitiveRequestConfirmed: false,
-      preparedImport: null,
-    );
+    notifier.toggleGroup(const SettingsSyncGroupId('unknown'));
 
-    expect(changed.sensitiveRequestConfirmed, isFalse);
-    expect(changed.preparedImport, isNull);
+    expect(
+      container.read(syncClientControllerProvider),
+      same(selectedBeforeUnknown),
+    );
   });
 
   group('服务端断开检测', () {
@@ -129,6 +202,9 @@ void main() {
       container = ProviderContainer(
         overrides: [
           syncClientTransportProvider.overrideWithValue(transport),
+          settingsSyncFacadeProvider.overrideWithValue(
+            FakeSettingsSyncFacade(),
+          ),
           syncPairingRepositoryProvider.overrideWithValue(
             FakePairingRepository(),
           ),
@@ -336,7 +412,7 @@ void main() {
       );
 
       final notifier = container.read(syncClientControllerProvider.notifier);
-      notifier.toggleCategory(SyncCategory.presets);
+      notifier.toggleGroup(const SettingsSyncGroupId('presets'));
       await notifier.requestSync();
 
       final state = container.read(syncClientControllerProvider);
@@ -358,7 +434,7 @@ void main() {
       );
 
       final notifier = container.read(syncClientControllerProvider.notifier);
-      notifier.toggleCategory(SyncCategory.presets);
+      notifier.toggleGroup(const SettingsSyncGroupId('presets'));
       await notifier.requestSync();
 
       final state = container.read(syncClientControllerProvider);
@@ -379,7 +455,7 @@ void main() {
       );
 
       final notifier = container.read(syncClientControllerProvider.notifier);
-      notifier.toggleCategory(SyncCategory.presets);
+      notifier.toggleGroup(const SettingsSyncGroupId('presets'));
       await notifier.requestSync();
 
       final state = container.read(syncClientControllerProvider);
@@ -388,7 +464,7 @@ void main() {
       expect(state.preparedImport, isNull);
     });
 
-    test('请求完成前切换分类仍使用请求开始时捕获的 group 子集', () async {
+    test('请求完成前切换分组仍使用请求开始时捕获的 group 子集', () async {
       protocol.requestResult = _requestDocument;
       final prepared = ScriptedSettingsSyncPreparedImport(
         summaries: const [
@@ -402,7 +478,7 @@ void main() {
         transport: transport,
       );
       final notifier = container.read(syncClientControllerProvider.notifier);
-      notifier.toggleCategory(SyncCategory.presets);
+      notifier.toggleGroup(const SettingsSyncGroupId('presets'));
       final requestFuture = notifier.requestSync();
       await waitForProviderState(
         container: container,
@@ -411,7 +487,7 @@ void main() {
         description: '同步请求开始',
       );
 
-      notifier.toggleCategory(SyncCategory.prompts);
+      notifier.toggleGroup(const SettingsSyncGroupId('prompts'));
       protocol.requestGate!.complete();
       await requestFuture;
 
@@ -437,7 +513,7 @@ void main() {
           transport: transport,
         );
         final notifier = container.read(syncClientControllerProvider.notifier);
-        notifier.toggleCategory(SyncCategory.presets);
+        notifier.toggleGroup(const SettingsSyncGroupId('presets'));
 
         await notifier.requestSync();
 
@@ -460,7 +536,7 @@ void main() {
         transport: transport,
       );
       final notifier = container.read(syncClientControllerProvider.notifier);
-      notifier.toggleCategory(SyncCategory.presets);
+      notifier.toggleGroup(const SettingsSyncGroupId('presets'));
 
       await notifier.requestSync();
 
@@ -480,7 +556,7 @@ void main() {
         transport: transport,
       );
       final notifier = container.read(syncClientControllerProvider.notifier);
-      notifier.toggleCategory(SyncCategory.presets);
+      notifier.toggleGroup(const SettingsSyncGroupId('presets'));
 
       await notifier.requestSync();
 
@@ -498,7 +574,7 @@ void main() {
         transport: transport,
       );
       final notifier = container.read(syncClientControllerProvider.notifier);
-      notifier.toggleCategory(SyncCategory.presets);
+      notifier.toggleGroup(const SettingsSyncGroupId('presets'));
 
       await notifier.requestSync();
 
@@ -507,7 +583,7 @@ void main() {
       expect(state.errorMessage, '同步失败: Bad state: boom');
     });
 
-    test('切换分类清除敏感确认、prepared import 与错误', () async {
+    test('切换分组清除敏感确认、待导入状态与错误', () async {
       protocol.requestResult = _requestDocument;
       settingsFacade.preparedImport = ScriptedSettingsSyncPreparedImport(
         summaries: const [
@@ -519,17 +595,17 @@ void main() {
         transport: transport,
       );
       final notifier = container.read(syncClientControllerProvider.notifier);
-      notifier.toggleCategory(SyncCategory.presets);
+      notifier.toggleGroup(const SettingsSyncGroupId('presets'));
       notifier.confirmSensitiveRequest();
       await notifier.requestSync();
 
-      notifier.toggleCategory(SyncCategory.prompts);
+      notifier.toggleGroup(const SettingsSyncGroupId('prompts'));
 
       final state = container.read(syncClientControllerProvider);
       expect(state.phase, SyncPhase.connected);
-      expect(state.selectedCategories, {
-        SyncCategory.presets,
-        SyncCategory.prompts,
+      expect(state.selectedGroups, {
+        SettingsSyncGroupId('presets'),
+        SettingsSyncGroupId('prompts'),
       });
       expect(state.sensitiveRequestConfirmed, isFalse);
       expect(state.preparedImport, isNull);
@@ -542,7 +618,7 @@ void main() {
         transport: transport,
       );
       final notifier = container.read(syncClientControllerProvider.notifier);
-      notifier.toggleCategory(SyncCategory.presets);
+      notifier.toggleGroup(const SettingsSyncGroupId('presets'));
 
       protocol.requestGate = Completer<void>();
       final requestFuture = notifier.requestSync();
@@ -550,7 +626,10 @@ void main() {
       protocol.requestGate!.complete();
       await requestFuture;
 
-      expect(container.read(syncClientControllerProvider), SyncClientState());
+      expect(
+        container.read(syncClientControllerProvider),
+        SyncClientState(availableGroups: defaultSettingsSyncGroups),
+      );
       expect(protocol.clearSessionsCount, 1);
     });
 
@@ -567,7 +646,10 @@ void main() {
       protocol.pairGate!.complete();
       await pairFuture;
 
-      expect(container.read(syncClientControllerProvider), SyncClientState());
+      expect(
+        container.read(syncClientControllerProvider),
+        SyncClientState(availableGroups: defaultSettingsSyncGroups),
+      );
     });
   });
 

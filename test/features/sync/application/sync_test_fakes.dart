@@ -142,7 +142,9 @@ final class ScriptedSyncClientProtocol implements SyncClientProtocol {
 
 final class FakeSettingsSyncFacade implements SettingsSyncFacade {
   FakeSettingsSyncFacade({List<SettingsSyncGroupDescriptor>? availableGroups})
-    : availableGroups = List.unmodifiable(availableGroups ?? _defaultGroups);
+    : availableGroups = List.unmodifiable(
+        availableGroups ?? defaultSettingsSyncGroups,
+      );
 
   @override
   final List<SettingsSyncGroupDescriptor> availableGroups;
@@ -200,7 +202,7 @@ final class ScriptedSettingsSyncPreparedImport
   }
 }
 
-const _defaultGroups = [
+const defaultSettingsSyncGroups = [
   SettingsSyncGroupDescriptor(
     id: SettingsSyncGroupId('providers'),
     label: '服务商',

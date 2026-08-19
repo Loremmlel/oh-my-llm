@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:oh_my_llm/core/widgets/transfer_summary_list.dart';
 import '../../application/ports/settings_sync_facade.dart';
 import '../../application/sync_client_controller.dart';
 
@@ -41,7 +42,13 @@ class _SyncImportConfirmDialogState
 
   Widget _buildAlertDialog(BuildContext context) {
     final hasSensitiveData = _containsSensitive;
-    final summaries = _summaries;
+    final summaries = [
+      for (final summary in _summaries)
+        TransferSummaryViewItem(
+          label: summary.label,
+          trailingText: summary.trailingText,
+        ),
+    ];
 
     return AlertDialog(
       title: const Text('确认同步配置'),
@@ -86,7 +93,7 @@ class _SyncImportConfirmDialogState
             ),
           ],
           const SizedBox(height: 12),
-          for (final summary in summaries) _buildSummaryRow(context, summary),
+          TransferSummaryList(items: summaries),
           if (summaries.isEmpty) const Text('没有可导入的变化'),
           const SizedBox(height: 12),
           Text(
@@ -119,28 +126,6 @@ class _SyncImportConfirmDialogState
           child: Text(_isImporting ? '导入中...' : '导入'),
         ),
       ],
-    );
-  }
-
-  Widget _buildSummaryRow(
-    BuildContext context,
-    SettingsSyncSummaryItem summary,
-  ) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          const Icon(Icons.settings_outlined, size: 18),
-          const SizedBox(width: 8),
-          Expanded(child: Text(summary.label)),
-          Text(
-            summary.trailingText,
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
-          ),
-        ],
-      ),
     );
   }
 
