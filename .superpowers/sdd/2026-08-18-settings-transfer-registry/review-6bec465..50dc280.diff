@@ -1,0 +1,1276 @@
+# Review package: 6bec4655af0965c946f1712241b12ab1b8040a24..50dc280d5044859acb09d2ed89c61a017351a775
+
+## Commits
+50dc280 feat(settings): 统一设置传输编排与执行
+
+## Files changed
+ .../transfer/settings_transfer_coordinator.dart    | 516 +++++++++++++++++
+ .../transfer/settings_transfer_participant.dart    |  26 +-
+ pubspec.yaml                                       |   2 +-
+ .../settings_transfer_coordinator_test.dart        | 610 +++++++++++++++++++++
+ 4 files changed, 1151 insertions(+), 3 deletions(-)
+
+## Diff
+diff --git a/lib/features/settings/application/transfer/settings_transfer_coordinator.dart b/lib/features/settings/application/transfer/settings_transfer_coordinator.dart
+new file mode 100644
+index 0000000..4209ade
+--- /dev/null
++++ b/lib/features/settings/application/transfer/settings_transfer_coordinator.dart
+@@ -0,0 +1,516 @@
++import 'dart:async';
++
++import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_transfer_document.dart';
++import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_transfer_document_codec.dart';
++
++import 'settings_transfer_catalog.dart';
++import 'settings_transfer_participant.dart';
++import 'settings_transfer_types.dart';
++
++/// 导出准备的 sealed 结果。
++sealed class SettingsExportPreparation {
++  const SettingsExportPreparation();
++}
++
++/// 当前选择的分组没有任何可导出的 participant 内容。
++final class SettingsExportNoContent extends SettingsExportPreparation {
++  const SettingsExportNoContent();
++}
++
++/// 已完成导出编码、但尚未把文本交给外部系统的批次。
++final class SettingsExportBatch extends SettingsExportPreparation {
++  SettingsExportBatch({
++    required this.document,
++    required Iterable<SettingsTransferSummaryItem> summaryItems,
++    required this.containsSensitive,
++  }) : summaryItems = List<SettingsTransferSummaryItem>.unmodifiable(
++         summaryItems,
++       );
++
++  final SettingsTransferDocument document;
++  final List<SettingsTransferSummaryItem> summaryItems;
++  final bool containsSensitive;
++
++  /// 供 Sync/application consumer 使用的同义只读视图。
++  List<SettingsTransferSummaryItem> get summaries => summaryItems;
++
++  /// 只有确认敏感内容后，才允许把完整文档序列化为可外传文本。
++  SettingsExportExposureResult exposeJson({required bool confirmedSensitive}) {
++    if (containsSensitive && !confirmedSensitive) {
++      return const SettingsExportSensitiveConfirmationRequired();
++    }
++    return SettingsExportJsonExposed(
++      SettingsTransferDocumentCodec.encodeJson(document),
++    );
++  }
++}
++
++/// 导出文本暴露给 Clipboard/Sync adapter 前的确认结果。
++sealed class SettingsExportExposureResult {
++  const SettingsExportExposureResult();
++}
++
++final class SettingsExportSensitiveConfirmationRequired
++    extends SettingsExportExposureResult {
++  const SettingsExportSensitiveConfirmationRequired();
++}
++
++final class SettingsExportJsonExposed extends SettingsExportExposureResult {
++  const SettingsExportJsonExposed(this.text);
++
++  final String text;
++
++  String get json => text;
++}
++
++/// 导入准备的 sealed 结果。
++sealed class SettingsImportPreparation {
++  const SettingsImportPreparation();
++}
++
++final class SettingsImportMalformed extends SettingsImportPreparation {
++  const SettingsImportMalformed();
++
++  String get code => 'malformed';
++  String get label => '导入内容无效';
++}
++
++final class SettingsImportUnsupportedVersion extends SettingsImportPreparation {
++  const SettingsImportUnsupportedVersion([this.version]);
++
++  final int? version;
++
++  String get code => 'unsupportedVersion';
++  String get label => '不支持的设置传输版本';
++}
++
++final class SettingsImportUnknownSection extends SettingsImportPreparation {
++  const SettingsImportUnknownSection(this.sectionKey);
++
++  final String sectionKey;
++
++  String get code => 'unknownSection';
++  String get label => '未知设置项';
++}
++
++final class SettingsImportSectionOutsideAllowedGroups
++    extends SettingsImportPreparation {
++  const SettingsImportSectionOutsideAllowedGroups({
++    required this.sectionKey,
++    required this.label,
++  });
++
++  final String sectionKey;
++  final String label;
++
++  String get code => 'sectionOutsideAllowedGroups';
++}
++
++final class SettingsImportInvalidParticipantPayload
++    extends SettingsImportPreparation {
++  const SettingsImportInvalidParticipantPayload({
++    required this.sectionKey,
++    required this.label,
++  });
++
++  final String sectionKey;
++  final String label;
++
++  String get code => 'invalidParticipantPayload';
++}
++
++final class SettingsImportNoChanges extends SettingsImportPreparation {
++  const SettingsImportNoChanges();
++
++  String get code => 'noChanges';
++  String get label => '没有可导入的变化';
++}
++
++final class SettingsImportReady extends SettingsImportPreparation {
++  const SettingsImportReady(this.batch);
++
++  final SettingsImportBatch batch;
++}
++
++/// 已接受的导入执行结果。
++sealed class SettingsImportExecutionResult {
++  const SettingsImportExecutionResult();
++}
++
++final class SettingsImportSuccess extends SettingsImportExecutionResult {
++  const SettingsImportSuccess();
++}
++
++final class SettingsImportSensitiveConfirmationRequired
++    extends SettingsImportExecutionResult {
++  const SettingsImportSensitiveConfirmationRequired();
++}
++
++final class SettingsImportStalePreview extends SettingsImportExecutionResult {
++  const SettingsImportStalePreview(this.refreshedBatch);
++
++  final SettingsImportBatch refreshedBatch;
++}
++
++final class SettingsImportFailure extends SettingsImportExecutionResult {
++  const SettingsImportFailure({
++    required this.failedLabel,
++    required this.safeReason,
++  });
++
++  final String failedLabel;
++  final String safeReason;
++}
++
++final class SettingsImportPartialFailure extends SettingsImportExecutionResult {
++  const SettingsImportPartialFailure({
++    required this.completed,
++    required this.failedLabel,
++    required this.notAttempted,
++    required this.safeReason,
++  });
++
++  final List<SettingsTransferSummaryItem> completed;
++  final String failedLabel;
++  final List<SettingsTransferSummaryItem> notAttempted;
++  final String safeReason;
++}
++
++final class SettingsImportAlreadyConsumed
++    extends SettingsImportExecutionResult {
++  const SettingsImportAlreadyConsumed();
++}
++
++/// 由 catalog 驱动设置传输的导出、准备、重校验和执行协调器。
++final class SettingsTransferCoordinator {
++  const SettingsTransferCoordinator({required this.catalog});
++
++  final SettingsTransferCatalog catalog;
++
++  static final Expando<_SettingsTransferExecutionState> _executionStates =
++      Expando<_SettingsTransferExecutionState>();
++
++  _SettingsTransferExecutionState get _executionState {
++    final existing = _executionStates[this];
++    if (existing != null) return existing;
++    final created = _SettingsTransferExecutionState();
++    _executionStates[this] = created;
++    return created;
++  }
++
++  // ── Public operations ────────────────────────────────────────────────
++
++  SettingsExportPreparation exportGroups(Set<SettingsTransferGroup> groups) {
++    final sections = <String, Object?>{};
++    final summaries = <SettingsTransferSummaryItem>[];
++    var containsSensitive = false;
++
++    for (final participant in catalog.participantsForGroups(groups)) {
++      final exported = participant.exportLocalIfExportable();
++      if (exported == null) continue;
++
++      sections[participant.key.value] = exported.encoded;
++      summaries.add(exported.summary);
++      containsSensitive =
++          containsSensitive ||
++          participant.sensitivity ==
++              SettingsTransferSensitivity.credentialBearing;
++    }
++
++    if (sections.isEmpty) return const SettingsExportNoContent();
++    return SettingsExportBatch(
++      document: SettingsTransferDocument(sections: sections),
++      summaryItems: summaries,
++      containsSensitive: containsSensitive,
++    );
++  }
++
++  SettingsExportPreparation exportValue<T>(
++    SettingsTransferParticipant<T> participant,
++    T value,
++  ) {
++    if (!participant.shouldExport(value)) {
++      return const SettingsExportNoContent();
++    }
++
++    return SettingsExportBatch(
++      document: SettingsTransferDocument(
++        sections: <String, Object?>{
++          participant.key.value: participant.encode(value),
++        },
++      ),
++      summaryItems: <SettingsTransferSummaryItem>[
++        participant.summarizeExport(value),
++      ],
++      containsSensitive:
++          participant.sensitivity ==
++          SettingsTransferSensitivity.credentialBearing,
++    );
++  }
++
++  SettingsImportPreparation prepareJson(
++    String? text, {
++    Set<SettingsTransferGroup>? allowedGroups,
++  }) {
++    final decoded = SettingsTransferDocumentCodec.decodeJson(text);
++    if (decoded is SettingsTransferDocumentMalformed) {
++      return const SettingsImportMalformed();
++    }
++    if (decoded is SettingsTransferDocumentUnsupportedVersion) {
++      return SettingsImportUnsupportedVersion(decoded.version);
++    }
++    return prepareDocument(
++      (decoded as SettingsTransferDocumentDecodeSuccess).document,
++      allowedGroups: allowedGroups,
++    );
++  }
++
++  SettingsImportPreparation prepareDocument(
++    SettingsTransferDocument document, {
++    Set<SettingsTransferGroup>? allowedGroups,
++  }) {
++    final participants = _allParticipants();
++    final participantsByKey = <String, ErasedSettingsTransferParticipant>{
++      for (final participant in participants)
++        participant.key.value: participant,
++    };
++
++    // 先完成 key 和 group 门禁，防止未请求 section 触发 participant decode。
++    for (final key in document.sections.keys) {
++      final participant = participantsByKey[key];
++      if (participant == null) {
++        return SettingsImportUnknownSection(key);
++      }
++      if (allowedGroups != null && !allowedGroups.contains(participant.group)) {
++        return SettingsImportSectionOutsideAllowedGroups(
++          sectionKey: key,
++          label: participant.label,
++        );
++      }
++    }
++
++    final decodedValues = <String, Object?>{};
++    String? invalidSectionKey;
++    String? invalidSectionLabel;
++    for (final entry in document.sections.entries) {
++      final participant = participantsByKey[entry.key]!;
++      try {
++        decodedValues[entry.key] = participant.decodePayload(entry.value);
++      } catch (_) {
++        invalidSectionKey ??= entry.key;
++        invalidSectionLabel ??= participant.label;
++      }
++    }
++    if (invalidSectionKey != null && invalidSectionLabel != null) {
++      return SettingsImportInvalidParticipantPayload(
++        sectionKey: invalidSectionKey,
++        label: invalidSectionLabel,
++      );
++    }
++
++    final changes = <_PreparedSettingsTransferChange>[];
++    String? preparationFailureKey;
++    String? preparationFailureLabel;
++    for (final participant in participants) {
++      final key = participant.key.value;
++      if (!decodedValues.containsKey(key)) continue;
++      try {
++        final change = participant.prepareImport(decodedValues[key]);
++        if (change != null) {
++          changes.add(
++            _PreparedSettingsTransferChange(
++              participant: participant,
++              change: change,
++            ),
++          );
++        }
++      } catch (_) {
++        preparationFailureKey ??= key;
++        preparationFailureLabel ??= participant.label;
++      }
++    }
++    if (preparationFailureKey != null && preparationFailureLabel != null) {
++      return SettingsImportInvalidParticipantPayload(
++        sectionKey: preparationFailureKey,
++        label: preparationFailureLabel,
++      );
++    }
++    if (changes.isEmpty) return const SettingsImportNoChanges();
++
++    return SettingsImportReady(
++      SettingsImportBatch._(
++        coordinator: this,
++        changes: changes,
++        allowedGroups: allowedGroups,
++      ),
++    );
++  }
++
++  // ── Internal execution ──────────────────────────────────────────────
++
++  List<ErasedSettingsTransferParticipant> _allParticipants() =>
++      catalog.participantsForGroups(SettingsTransferGroup.values.toSet());
++
++  Future<SettingsImportExecutionResult> _execute(SettingsImportBatch batch) {
++    return _enqueue(() async {
++      final revalidated = <_PreparedSettingsTransferChange>[];
++      var stale = false;
++
++      for (final prepared in batch._changes) {
++        SettingsTransferChange<Object?>? next;
++        try {
++          next = prepared.participant.reprepareImport(prepared.change);
++        } catch (_) {
++          return _failure(prepared.change.summary.label);
++        }
++
++        if (next == null || !_samePreparedChange(prepared.change, next)) {
++          stale = true;
++        }
++        if (next != null) {
++          revalidated.add(
++            _PreparedSettingsTransferChange(
++              participant: prepared.participant,
++              change: next,
++            ),
++          );
++        }
++      }
++
++      if (stale) {
++        final refreshedBatch = SettingsImportBatch._(
++          coordinator: this,
++          changes: revalidated,
++          allowedGroups: batch._allowedGroups,
++        );
++        return SettingsImportStalePreview(refreshedBatch);
++      }
++
++      final completed = <SettingsTransferSummaryItem>[];
++      for (var index = 0; index < revalidated.length; index += 1) {
++        final prepared = revalidated[index];
++        try {
++          await prepared.participant.applyImport(prepared.change);
++        } catch (_) {
++          final failedLabel = prepared.change.summary.label;
++          final safeReason = _safeWriteFailureReason;
++          if (completed.isEmpty) {
++            return SettingsImportFailure(
++              failedLabel: failedLabel,
++              safeReason: safeReason,
++            );
++          }
++          return SettingsImportPartialFailure(
++            completed: List<SettingsTransferSummaryItem>.unmodifiable(
++              completed,
++            ),
++            failedLabel: failedLabel,
++            notAttempted: List<SettingsTransferSummaryItem>.unmodifiable(
++              revalidated.skip(index + 1).map((item) => item.change.summary),
++            ),
++            safeReason: safeReason,
++          );
++        }
++        completed.add(prepared.change.summary);
++      }
++
++      return const SettingsImportSuccess();
++    });
++  }
++
++  Future<SettingsImportExecutionResult> _enqueue(
++    Future<SettingsImportExecutionResult> Function() action,
++  ) {
++    final previous = _executionState.tail;
++    final gate = Completer<void>();
++    _executionState.tail = gate.future;
++
++    return () async {
++      try {
++        await previous;
++        return await action();
++      } finally {
++        if (!gate.isCompleted) gate.complete();
++      }
++    }();
++  }
++
++  static bool _samePreparedChange(
++    SettingsTransferChange<Object?> previous,
++    SettingsTransferChange<Object?> next,
++  ) =>
++      previous.fingerprint == next.fingerprint &&
++      previous.summary == next.summary;
++
++  static SettingsImportFailure _failure(String label) => SettingsImportFailure(
++    failedLabel: label,
++    safeReason: _safeWriteFailureReason,
++  );
++}
++
++final class SettingsImportBatch {
++  SettingsImportBatch._({
++    required SettingsTransferCoordinator coordinator,
++    required List<_PreparedSettingsTransferChange> changes,
++    required Set<SettingsTransferGroup>? allowedGroups,
++  }) : _coordinator = coordinator,
++       _changes = List<_PreparedSettingsTransferChange>.unmodifiable(changes),
++       _allowedGroups = allowedGroups == null
++           ? null
++           : Set<SettingsTransferGroup>.unmodifiable(allowedGroups),
++       summaryItems = List<SettingsTransferSummaryItem>.unmodifiable(
++         changes.map((item) => item.change.summary),
++       ),
++       containsSensitive = changes.any(
++         (item) =>
++             item.participant.sensitivity ==
++             SettingsTransferSensitivity.credentialBearing,
++       );
++
++  final SettingsTransferCoordinator _coordinator;
++  final List<_PreparedSettingsTransferChange> _changes;
++  final Set<SettingsTransferGroup>? _allowedGroups;
++  final List<SettingsTransferSummaryItem> summaryItems;
++  final bool containsSensitive;
++  bool _consumed = false;
++
++  List<SettingsTransferSummaryItem> get summaries => summaryItems;
++
++  Future<SettingsImportExecutionResult> execute({
++    required bool confirmedSensitive,
++  }) {
++    if (_consumed) return Future.value(const SettingsImportAlreadyConsumed());
++    if (containsSensitive && !confirmedSensitive) {
++      return Future.value(const SettingsImportSensitiveConfirmationRequired());
++    }
++
++    _consumed = true;
++    return _coordinator._execute(this);
++  }
++}
++
++final class _PreparedSettingsTransferChange {
++  const _PreparedSettingsTransferChange({
++    required this.participant,
++    required this.change,
++  });
++
++  final ErasedSettingsTransferParticipant participant;
++  final SettingsTransferChange<Object?> change;
++}
++
++final class _SettingsTransferExecutionState {
++  Future<void> tail = Future<void>.value();
++}
++
++const _safeWriteFailureReason = '写入未完成，请检查本地存储后重试';
++
++// 让测试和后续 application adapter 可以使用更具语义的别名，而不增加
++// 第二套结果层级或可绕过 sealed contract 的实现。
++typedef SettingsExportEmpty = SettingsExportNoContent;
++typedef SettingsExportJson = SettingsExportJsonExposed;
++typedef SettingsImportInvalidPayload = SettingsImportInvalidParticipantPayload;
++typedef SettingsImportSectionNotAllowed =
++    SettingsImportSectionOutsideAllowedGroups;
++typedef SettingsImportNoChange = SettingsImportNoChanges;
++typedef SettingsImportReadyBatch = SettingsImportReady;
+diff --git a/lib/features/settings/application/transfer/settings_transfer_participant.dart b/lib/features/settings/application/transfer/settings_transfer_participant.dart
+index b184c93..59950e4 100644
+--- a/lib/features/settings/application/transfer/settings_transfer_participant.dart
++++ b/lib/features/settings/application/transfer/settings_transfer_participant.dart
+@@ -48,20 +48,31 @@ final class SettingsTransferChange<T> {
+   final T incoming;
+   final T writeValue;
+   final String fingerprint;
+   final SettingsTransferSummaryItem summary;
+   final Type _valueType;
+ 
+   /// 供 application-internal 类型擦除适配器校验 change 的泛型参数。
+   Type get valueType => _valueType;
+ }
+ 
++/// erased export 边界一次读取后同时保留编码值和安全摘要。
++final class SettingsTransferExportedValue {
++  const SettingsTransferExportedValue({
++    required this.encoded,
++    required this.summary,
++  });
++
++  final Object encoded;
++  final SettingsTransferSummaryItem summary;
++}
++
+ /// 以完整值替换本地设置的通用 participant 策略。
+ ///
+ /// 具体 participant 仍负责读取、编解码、等价判断和持久化；本类只统一
+ /// no-op、replace/clear 摘要和待写入指纹语义。
+ abstract class ReplacingValueParticipant<T>
+     implements SettingsTransferParticipant<T> {
+   const ReplacingValueParticipant({
+     required this.key,
+     required this.group,
+     required this.label,
+@@ -218,20 +229,21 @@ abstract class MergingCollectionParticipant<T>
+ /// sealed 保证 application 外部不能伪造 erased participant；唯一的实现是
+ /// 本文件中的 [SettingsTransferParticipantBox]。
+ sealed class ErasedSettingsTransferParticipant {
+   SettingsTransferKey get key;
+   SettingsTransferGroup get group;
+   String get label;
+   int get order;
+   SettingsTransferSensitivity get sensitivity;
+ 
+   Object? encodeLocalIfExportable();
++  SettingsTransferExportedValue? exportLocalIfExportable();
+   Object? decodePayload(Object? payload);
+   SettingsTransferChange<Object?>? prepareImport(Object? incoming);
+   SettingsTransferChange<Object?>? reprepareImport(
+     SettingsTransferChange<Object?> change,
+   );
+   Future<void> applyImport(SettingsTransferChange<Object?> change);
+ 
+   SettingsTransferParticipant<T> participantAs<T>();
+ }
+ 
+@@ -272,27 +284,37 @@ final class SettingsTransferParticipantBox<T>
+ 
+   @override
+   String get label => participant.label;
+ 
+   @override
+   int get order => participant.order;
+ 
+   @override
+   SettingsTransferSensitivity get sensitivity => participant.sensitivity;
+ 
++  @override
++  SettingsTransferExportedValue? exportLocalIfExportable() {
++    final value = participant.readLocal();
++    _validateValue(value, 'local');
++    if (!participant.shouldExport(value)) return null;
++    return SettingsTransferExportedValue(
++      encoded: participant.encode(value),
++      summary: participant.summarizeExport(value),
++    );
++  }
++
+   @override
+   Object? encodeLocalIfExportable() {
+     final value = participant.readLocal();
+     _validateValue(value, 'local');
+     if (!participant.shouldExport(value)) return null;
+-    final encoded = participant.encode(value);
+-    return encoded;
++    return participant.encode(value);
+   }
+ 
+   @override
+   Object? decodePayload(Object? payload) {
+     final decoded = participant.decode(payload);
+     _validateValue(decoded, 'decoded');
+     return decoded;
+   }
+ 
+   @override
+diff --git a/pubspec.yaml b/pubspec.yaml
+index 891ce3c..f430a45 100644
+--- a/pubspec.yaml
++++ b/pubspec.yaml
+@@ -9,21 +9,21 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+ # followed by an optional build number separated by a +.
+ # Both the version and the builder number may be overridden in flutter
+ # build by specifying --build-name and --build-number, respectively.
+ # In Android, build-name is used as versionName while build-number used as versionCode.
+ # Read more about Android versioning at https://developer.android.com/studio/publish/versioning
+ # In iOS, build-name is used as CFBundleShortVersionString while build-number is used as CFBundleVersion.
+ # Read more about iOS versioning at
+ # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
+ # In Windows, build-name is used as the major, minor, and patch parts
+ # of the product and file versions while build-number is used as the build suffix.
+-version: 3.62.2+0
++version: 3.63.0+0
+ 
+ environment:
+   sdk: ^3.11.5
+ 
+ # Dependencies specify other packages that your package needs in order to work.
+ # To automatically upgrade your package dependencies to the latest versions
+ # consider running `flutter pub upgrade --major-versions`. Alternatively,
+ # dependencies can be manually updated by changing the version numbers below to
+ # the latest version available on pub.dev. To see which dependencies have newer
+ # versions available, run `flutter pub outdated`.
+diff --git a/test/features/settings/application/transfer/settings_transfer_coordinator_test.dart b/test/features/settings/application/transfer/settings_transfer_coordinator_test.dart
+new file mode 100644
+index 0000000..74b83c9
+--- /dev/null
++++ b/test/features/settings/application/transfer/settings_transfer_coordinator_test.dart
+@@ -0,0 +1,610 @@
++import 'dart:async';
++import 'dart:convert';
++
++import 'package:flutter_test/flutter_test.dart';
++
++import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_catalog.dart';
++import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_coordinator.dart';
++import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_participant.dart';
++import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_types.dart';
++import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_transfer_document.dart';
++import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_transfer_document_codec.dart';
++
++void main() {
++  group('SettingsTransferCoordinator 导出', () {
++    test('按注册表顺序覆盖单组、多组和类型化单值导出', () {
++      final provider = _FakeIntParticipant(
++        key: const SettingsTransferKey('providerValue'),
++        group: SettingsTransferGroup.providers,
++        order: 0,
++        value: 11,
++      );
++      final prompt = _FakeCollectionParticipant(
++        key: const SettingsTransferKey('promptValues'),
++        group: SettingsTransferGroup.prompts,
++        order: 0,
++        value: [1, 2],
++      );
++      final coordinator = _coordinator([_box(prompt), _box(provider)]);
++
++      final oneGroup = coordinator.exportGroups({
++        SettingsTransferGroup.providers,
++      });
++      final oneGroupBatch = oneGroup as SettingsExportBatch;
++      expect(oneGroupBatch.document.sections, {'providerValue': 11});
++      expect(oneGroupBatch.summaryItems.map((item) => item.key.value), [
++        'providerValue',
++      ]);
++      expect(provider.readCount, 1);
++
++      final multipleGroups = coordinator.exportGroups({
++        SettingsTransferGroup.providers,
++        SettingsTransferGroup.prompts,
++      });
++      final multipleGroupsBatch = multipleGroups as SettingsExportBatch;
++      expect(multipleGroupsBatch.document.sections.keys, [
++        'providerValue',
++        'promptValues',
++      ]);
++
++      final singleValue = coordinator.exportValue(prompt, [3]);
++      final singleValueBatch = singleValue as SettingsExportBatch;
++      expect(singleValueBatch.document.sections, {
++        'promptValues': [3],
++      });
++      expect(singleValueBatch.summaryItems.single.trailingText, '新增 1 项');
++    });
++
++    test('空合并集合省略而空替换值保留为清空 section', () {
++      final merge = _FakeCollectionParticipant(
++        key: const SettingsTransferKey('emptyMerge'),
++        group: SettingsTransferGroup.prompts,
++        order: 0,
++      );
++      final replace = _FakeNullableStringParticipant(
++        key: const SettingsTransferKey('emptyReplace'),
++        group: SettingsTransferGroup.network,
++        order: 0,
++        value: null,
++      );
++      final coordinator = _coordinator([_box(merge), _box(replace)]);
++
++      final mergeExport = coordinator.exportGroups({
++        SettingsTransferGroup.prompts,
++      });
++      expect(mergeExport, isA<SettingsExportNoContent>());
++
++      final replaceExport = coordinator.exportGroups({
++        SettingsTransferGroup.network,
++      });
++      final replaceBatch = replaceExport as SettingsExportBatch;
++      expect(replaceBatch.document.sections, {
++        'emptyReplace': <String, Object?>{'value': null},
++      });
++      expect(
++        replaceBatch.summaryItems.single.action,
++        SettingsTransferSummaryAction.clear,
++      );
++    });
++
++    test('敏感导出未经确认不暴露 JSON', () {
++      final participant = _FakeIntParticipant(
++        key: const SettingsTransferKey('credentialValue'),
++        group: SettingsTransferGroup.providers,
++        order: 0,
++        sensitivity: SettingsTransferSensitivity.credentialBearing,
++        value: 42,
++      );
++      final coordinator = _coordinator([_box(participant)]);
++      final batch =
++          coordinator.exportGroups({SettingsTransferGroup.providers})
++              as SettingsExportBatch;
++
++      expect(
++        batch.exposeJson(confirmedSensitive: false),
++        isA<SettingsExportSensitiveConfirmationRequired>(),
++      );
++      final exposed = batch.exposeJson(confirmedSensitive: true);
++      expect(exposed, isA<SettingsExportJsonExposed>());
++      expect((exposed as SettingsExportJsonExposed).text, contains('42'));
++    });
++  });
++
++  group('SettingsTransferCoordinator 准备', () {
++    test('JSON 导入不依赖当前分组并路由所有已知 section', () {
++      final provider = _FakeIntParticipant(
++        key: const SettingsTransferKey('providerValue'),
++        group: SettingsTransferGroup.providers,
++        order: 0,
++      );
++      final other = _FakeIntParticipant(
++        key: const SettingsTransferKey('otherValue'),
++        group: SettingsTransferGroup.other,
++        order: 0,
++      );
++      final coordinator = _coordinator([_box(other), _box(provider)]);
++
++      final result = coordinator.prepareJson(
++        _documentJson({'otherValue': 2, 'providerValue': 3}),
++      );
++
++      final ready = result as SettingsImportReady;
++      expect(ready.batch.summaryItems.map((item) => item.key.value), [
++        'providerValue',
++        'otherValue',
++      ]);
++      expect(provider.value, 1);
++      expect(other.value, 1);
++      expect(provider.writeCount, 0);
++      expect(other.writeCount, 0);
++    });
++
++    test('未知 section 或一个非法 payload 会在写入前拒绝整个文档', () {
++      final participant = _FakeIntParticipant(
++        key: const SettingsTransferKey('knownValue'),
++        group: SettingsTransferGroup.other,
++        order: 0,
++      );
++      final coordinator = _coordinator([_box(participant)]);
++
++      final unknown = coordinator.prepareDocument(
++        _document({'unknownValue': 1}),
++      );
++      expect(unknown, isA<SettingsImportUnknownSection>());
++      expect(participant.decodeCount, 0);
++      expect(participant.writeCount, 0);
++
++      final invalid = coordinator.prepareDocument(
++        _document({'knownValue': '不是整数'}),
++      );
++      expect(invalid, isA<SettingsImportInvalidParticipantPayload>());
++      expect(participant.writeCount, 0);
++    });
++
++    test('allowedGroups 在 participant decode 前拒绝已知但未请求的 section', () {
++      final participant = _FakeIntParticipant(
++        key: const SettingsTransferKey('providerValue'),
++        group: SettingsTransferGroup.providers,
++        order: 0,
++      );
++      final coordinator = _coordinator([_box(participant)]);
++
++      final result = coordinator.prepareDocument(
++        _document({'providerValue': '应在 decode 前拒绝'}),
++        allowedGroups: {SettingsTransferGroup.other},
++      );
++
++      expect(result, isA<SettingsImportSectionOutsideAllowedGroups>());
++      expect(participant.decodeCount, 0);
++      expect(participant.writeCount, 0);
++    });
++
++    test('区分 malformed、unsupported version 和无变化结果', () {
++      final participant = _FakeIntParticipant(
++        key: const SettingsTransferKey('knownValue'),
++        group: SettingsTransferGroup.other,
++        order: 0,
++      );
++      final coordinator = _coordinator([_box(participant)]);
++
++      expect(coordinator.prepareJson(null), isA<SettingsImportMalformed>());
++      expect(
++        coordinator.prepareJson(
++          jsonEncode({
++            'identifier': SettingsTransferDocument.identifier,
++            'formatVersion': SettingsTransferDocument.formatVersion - 1,
++            'sections': <String, Object?>{},
++          }),
++        ),
++        isA<SettingsImportUnsupportedVersion>(),
++      );
++      expect(
++        coordinator.prepareDocument(_document({'knownValue': 1})),
++        isA<SettingsImportNoChanges>(),
++      );
++      expect(participant.writeCount, 0);
++    });
++
++    test('prepare 全程零写入且相同本地值返回 no changes', () {
++      final participant = _FakeIntParticipant(
++        key: const SettingsTransferKey('knownValue'),
++        group: SettingsTransferGroup.other,
++        order: 0,
++      );
++      final coordinator = _coordinator([_box(participant)]);
++
++      final result = coordinator.prepareJson(_documentJson({'knownValue': 2}));
++
++      expect(result, isA<SettingsImportReady>());
++      expect(participant.writeCount, 0);
++      expect(participant.value, 1);
++    });
++  });
++
++  group('SettingsImportBatch 执行', () {
++    test('敏感批次缺少确认时不消费，之后确认可执行', () async {
++      final participant = _FakeIntParticipant(
++        key: const SettingsTransferKey('credentialValue'),
++        group: SettingsTransferGroup.providers,
++        order: 0,
++        sensitivity: SettingsTransferSensitivity.credentialBearing,
++      );
++      final coordinator = _coordinator([_box(participant)]);
++      final ready =
++          coordinator.prepareDocument(_document({'credentialValue': 2}))
++              as SettingsImportReady;
++
++      final rejected = await ready.batch.execute(confirmedSensitive: false);
++      expect(rejected, isA<SettingsImportSensitiveConfirmationRequired>());
++      expect(participant.writeCount, 0);
++
++      final success = await ready.batch.execute(confirmedSensitive: true);
++      expect(success, isA<SettingsImportSuccess>());
++      expect(participant.writeCount, 1);
++      expect(participant.value, 2);
++    });
++
++    test('本地变化导致合并 fingerprint 和摘要变化时返回 stale 且零写入', () async {
++      final participant = _FakeCollectionParticipant(
++        key: const SettingsTransferKey('mergeValues'),
++        group: SettingsTransferGroup.prompts,
++        order: 0,
++      );
++      final coordinator = _coordinator([_box(participant)]);
++      final ready =
++          coordinator.prepareDocument(
++                _document({
++                  'mergeValues': [1, 2],
++                }),
++              )
++              as SettingsImportReady;
++      participant.value = [1];
++
++      final result = await ready.batch.execute(confirmedSensitive: true);
++
++      final stale = result as SettingsImportStalePreview;
++      expect(participant.writeCount, 0);
++      expect(stale.refreshedBatch.summaryItems.single.count, 1);
++    });
++
++    test('本地替换值变化但最终 fingerprint 相同时继续执行', () async {
++      final participant = _FakeIntParticipant(
++        key: const SettingsTransferKey('replaceValue'),
++        group: SettingsTransferGroup.other,
++        order: 0,
++      );
++      final coordinator = _coordinator([_box(participant)]);
++      final ready =
++          coordinator.prepareDocument(_document({'replaceValue': 3}))
++              as SettingsImportReady;
++      participant.value = 2;
++
++      final result = await ready.batch.execute(confirmedSensitive: true);
++
++      expect(result, isA<SettingsImportSuccess>());
++      expect(participant.value, 3);
++      expect(participant.writeCount, 1);
++    });
++
++    test('两个独立批次同时执行时 writer 临界区不重叠', () async {
++      final firstEntered = Completer<void>();
++      final releaseFirst = Completer<void>();
++      final secondEntered = Completer<void>();
++      var activeWriters = 0;
++      var maximumActiveWriters = 0;
++      var writeCall = 0;
++      final participant = _FakeIntParticipant(
++        key: const SettingsTransferKey('serializedValue'),
++        group: SettingsTransferGroup.other,
++        order: 0,
++      );
++      participant.writeAction = (value) async {
++        writeCall += 1;
++        activeWriters += 1;
++        if (activeWriters > maximumActiveWriters) {
++          maximumActiveWriters = activeWriters;
++        }
++        if (writeCall == 1) {
++          firstEntered.complete();
++          await releaseFirst.future;
++        } else {
++          secondEntered.complete();
++        }
++        participant.value = value;
++        activeWriters -= 1;
++      };
++      final coordinator = _coordinator([_box(participant)]);
++      final first =
++          coordinator.prepareDocument(_document({'serializedValue': 2}))
++              as SettingsImportReady;
++      final second =
++          coordinator.prepareDocument(_document({'serializedValue': 3}))
++              as SettingsImportReady;
++
++      final firstExecution = first.batch.execute(confirmedSensitive: true);
++      await firstEntered.future;
++      final secondExecution = second.batch.execute(confirmedSensitive: true);
++      expect(secondEntered.isCompleted, isFalse);
++
++      releaseFirst.complete();
++      await firstExecution;
++      await secondExecution;
++
++      expect(secondEntered.isCompleted, isTrue);
++      expect(maximumActiveWriters, 1);
++      expect(participant.value, 3);
++    });
++
++    test('第一项失败返回 failure 且不执行后续项', () async {
++      final failed = _FakeIntParticipant(
++        key: const SettingsTransferKey('failedValue'),
++        group: SettingsTransferGroup.other,
++        order: 0,
++        writeAction: (_) async {
++          throw StateError('secret-write-detail');
++        },
++      );
++      final notAttempted = _FakeIntParticipant(
++        key: const SettingsTransferKey('notAttemptedValue'),
++        group: SettingsTransferGroup.other,
++        order: 1,
++      );
++      final coordinator = _coordinator([_box(notAttempted), _box(failed)]);
++      final ready =
++          coordinator.prepareDocument(
++                _document({'notAttemptedValue': 2, 'failedValue': 2}),
++              )
++              as SettingsImportReady;
++
++      final result = await ready.batch.execute(confirmedSensitive: true);
++
++      final failure = result as SettingsImportFailure;
++      expect(failure.failedLabel, failed.label);
++      expect(failure.safeReason, '写入未完成，请检查本地存储后重试');
++      expect(failure.safeReason, isNot(contains('secret-write-detail')));
++      expect(failed.writeCount, 1);
++      expect(notAttempted.writeCount, 0);
++    });
++
++    test('中途失败返回部分成功、失败项和未执行项摘要', () async {
++      final completed = _FakeIntParticipant(
++        key: const SettingsTransferKey('completedValue'),
++        group: SettingsTransferGroup.other,
++        order: 0,
++      );
++      final failed = _FakeIntParticipant(
++        key: const SettingsTransferKey('failedValue'),
++        group: SettingsTransferGroup.other,
++        order: 1,
++        writeAction: (_) async {
++          throw StateError('secret-write-detail');
++        },
++      );
++      final notAttempted = _FakeIntParticipant(
++        key: const SettingsTransferKey('notAttemptedValue'),
++        group: SettingsTransferGroup.other,
++        order: 2,
++      );
++      final coordinator = _coordinator([
++        _box(notAttempted),
++        _box(failed),
++        _box(completed),
++      ]);
++      final ready =
++          coordinator.prepareDocument(
++                _document({
++                  'notAttemptedValue': 2,
++                  'failedValue': 2,
++                  'completedValue': 2,
++                }),
++              )
++              as SettingsImportReady;
++
++      final result = await ready.batch.execute(confirmedSensitive: true);
++
++      final partial = result as SettingsImportPartialFailure;
++      expect(partial.completed.map((item) => item.key.value), [
++        'completedValue',
++      ]);
++      expect(partial.failedLabel, failed.label);
++      expect(partial.notAttempted.map((item) => item.key.value), [
++        'notAttemptedValue',
++      ]);
++      expect(partial.safeReason, '写入未完成，请检查本地存储后重试');
++      expect(failed.writeCount, 1);
++      expect(notAttempted.writeCount, 0);
++    });
++
++    test('成功执行后再次执行返回 already consumed', () async {
++      final participant = _FakeIntParticipant(
++        key: const SettingsTransferKey('oneShotValue'),
++        group: SettingsTransferGroup.other,
++        order: 0,
++      );
++      final coordinator = _coordinator([_box(participant)]);
++      final ready =
++          coordinator.prepareDocument(_document({'oneShotValue': 2}))
++              as SettingsImportReady;
++
++      final first = await ready.batch.execute(confirmedSensitive: true);
++      final second = await ready.batch.execute(confirmedSensitive: true);
++
++      expect(first, isA<SettingsImportSuccess>());
++      expect(second, isA<SettingsImportAlreadyConsumed>());
++      expect(participant.writeCount, 1);
++    });
++
++    test('新增 fake participant 无需 coordinator 分支即可完成导出准备和执行', () async {
++      final participant = _FakeIntParticipant(
++        key: const SettingsTransferKey('newFakeParticipant'),
++        group: SettingsTransferGroup.network,
++        order: 9,
++        value: 1,
++      );
++      final coordinator = _coordinator([_box(participant)]);
++
++      final exported =
++          coordinator.exportGroups({SettingsTransferGroup.network})
++              as SettingsExportBatch;
++      expect(exported.document.sections, {'newFakeParticipant': 1});
++
++      final prepared =
++          coordinator.prepareDocument(_document({'newFakeParticipant': 2}))
++              as SettingsImportReady;
++      expect(
++        prepared.batch.summaryItems.single.key.value,
++        'newFakeParticipant',
++      );
++
++      final result = await prepared.batch.execute(confirmedSensitive: true);
++      expect(result, isA<SettingsImportSuccess>());
++      expect(participant.value, 2);
++    });
++  });
++}
++
++SettingsTransferCoordinator _coordinator(
++  Iterable<ErasedSettingsTransferParticipant> participants,
++) {
++  return SettingsTransferCoordinator(
++    catalog: SettingsTransferCatalog(participants),
++  );
++}
++
++ErasedSettingsTransferParticipant _box<T>(
++  SettingsTransferParticipant<T> participant,
++) => SettingsTransferParticipantBox.erase(participant);
++
++String _documentJson(Map<String, Object?> sections) =>
++    SettingsTransferDocumentCodec.encodeJson(_document(sections));
++
++SettingsTransferDocument _document(Map<String, Object?> sections) =>
++    SettingsTransferDocument(sections: sections);
++
++final class _FakeIntParticipant extends ReplacingValueParticipant<int> {
++  _FakeIntParticipant({
++    required super.key,
++    required super.group,
++    required super.order,
++    this.value = 1,
++    super.label = '整数设置',
++    super.sensitivity = SettingsTransferSensitivity.standard,
++    this.writeAction,
++  });
++
++  int value;
++  int readCount = 0;
++  int decodeCount = 0;
++  int writeCount = 0;
++  Future<void> Function(int value)? writeAction;
++
++  @override
++  bool isEquivalent(int existing, int incoming) => existing == incoming;
++
++  @override
++  int readLocal() {
++    readCount += 1;
++    return value;
++  }
++
++  @override
++  Object encode(int value) => value;
++
++  @override
++  int decode(Object? payload) {
++    decodeCount += 1;
++    if (payload is! int) throw const FormatException('必须是整数');
++    return payload;
++  }
++
++  @override
++  Future<void> applyImport(int value) async {
++    writeCount += 1;
++    if (writeAction case final action?) {
++      await action(value);
++      return;
++    }
++    this.value = value;
++  }
++}
++
++final class _FakeNullableStringParticipant
++    extends ReplacingValueParticipant<String?> {
++  _FakeNullableStringParticipant({
++    required super.key,
++    required super.group,
++    required super.order,
++    required this.value,
++    super.label = '可清空设置',
++    super.sensitivity = SettingsTransferSensitivity.standard,
++  });
++
++  String? value;
++
++  @override
++  String? readLocal() => value;
++
++  @override
++  bool isEquivalent(String? existing, String? incoming) => existing == incoming;
++
++  @override
++  bool isEmpty(String? value) => value == null;
++
++  @override
++  Object encode(String? value) => <String, Object?>{'value': value};
++
++  @override
++  String? decode(Object? payload) {
++    if (payload is! Map || !payload.containsKey('value')) {
++      throw const FormatException('必须是 nullable object');
++    }
++    final value = payload['value'];
++    if (value != null && value is! String) {
++      throw const FormatException('value 必须是字符串或 null');
++    }
++    return value as String?;
++  }
++
++  @override
++  Future<void> applyImport(String? value) async {
++    this.value = value;
++  }
++}
++
++final class _FakeCollectionParticipant
++    extends MergingCollectionParticipant<int> {
++  _FakeCollectionParticipant({
++    required super.key,
++    required super.group,
++    required super.order,
++    List<int>? value,
++    super.label = '集合设置',
++    super.sensitivity = SettingsTransferSensitivity.standard,
++  }) : value = value ?? [];
++
++  List<int> value;
++  int writeCount = 0;
++
++  @override
++  List<int> readLocal() => value;
++
++  @override
++  bool isEquivalent(int existing, int incoming) => existing == incoming;
++
++  @override
++  Object encode(List<int> value) => List<int>.unmodifiable(value);
++
++  @override
++  List<int> decode(Object? payload) {
++    if (payload is! List || payload.any((item) => item is! int)) {
++      throw const FormatException('必须是整数列表');
++    }
++    return List<int>.unmodifiable(payload.cast<int>());
++  }
++
++  @override
++  Future<void> applyImport(List<int> value) async {
++    writeCount += 1;
++    this.value = List<int>.from(value);
++  }
++}

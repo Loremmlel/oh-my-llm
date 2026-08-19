@@ -1,0 +1,1019 @@
+# Review package: 4304248d61aaa6560874e590c0aefd33116170cd..6a54b8d6c2718ccbacf1ed9127d38352ea1ecb59
+
+## Commits
+6a54b8d feat(settings): 建立设置传输 participant 注册表
+
+## Files changed
+ .../transfer/settings_transfer_catalog.dart        | 143 ++++++++
+ .../transfer/settings_transfer_participant.dart    | 394 +++++++++++++++++++++
+ .../transfer/settings_transfer_types.dart          |  59 +++
+ pubspec.yaml                                       |   2 +-
+ .../transfer/settings_transfer_catalog_test.dart   | 358 +++++++++++++++++++
+ 5 files changed, 955 insertions(+), 1 deletion(-)
+
+## Diff
+diff --git a/lib/features/settings/application/transfer/settings_transfer_catalog.dart b/lib/features/settings/application/transfer/settings_transfer_catalog.dart
+new file mode 100644
+index 0000000..5df4910
+--- /dev/null
++++ b/lib/features/settings/application/transfer/settings_transfer_catalog.dart
+@@ -0,0 +1,143 @@
++import 'package:equatable/equatable.dart';
++
++import 'settings_transfer_participant.dart';
++import 'settings_transfer_types.dart';
++
++/// 已注册 Settings transfer 分组的只读描述。
++final class SettingsTransferGroupDescriptor extends Equatable {
++  const SettingsTransferGroupDescriptor({
++    required this.group,
++    required this.containsSensitive,
++  });
++
++  final SettingsTransferGroup group;
++  final bool containsSensitive;
++
++  String get wireKey => group.wireKey;
++  String get label => group.label;
++  int get order => group.order;
++
++  @override
++  List<Object?> get props => [group, containsSensitive];
++}
++
++/// Settings transfer 的显式 participant 注册表。
++final class SettingsTransferCatalog {
++  SettingsTransferCatalog(Iterable<Object> participants) {
++    final boxes = <ErasedSettingsTransferParticipant>[];
++    final boxesByKey = <String, ErasedSettingsTransferParticipant>{};
++    final ordersByGroup = <SettingsTransferGroup, Set<int>>{};
++
++    for (final candidate in participants) {
++      final box = SettingsTransferParticipantBox.erase(candidate);
++      final key = box.key.value;
++      if (!_validKey.hasMatch(key)) {
++        throw ArgumentError.value(
++          key,
++          'participant.key',
++          '必须符合 ASCII lower-camel 规则 [a-z][A-Za-z0-9]*',
++        );
++      }
++      if (box.label.trim().isEmpty) {
++        throw ArgumentError.value(box.label, 'participant.label', '不能是空白字符串');
++      }
++      if (boxesByKey.containsKey(key)) {
++        throw ArgumentError.value(
++          key,
++          'participant.key',
++          'participant key 不能重复',
++        );
++      }
++
++      final orders = ordersByGroup.putIfAbsent(box.group, () => <int>{});
++      if (!orders.add(box.order)) {
++        throw ArgumentError.value(
++          box.order,
++          'participant.order',
++          '同一分组内 order 不能重复',
++        );
++      }
++
++      boxes.add(box);
++      boxesByKey[key] = box;
++    }
++
++    boxes.sort(_compareParticipants);
++    _participants = List<ErasedSettingsTransferParticipant>.unmodifiable(boxes);
++    _participantsByKey =
++        Map<String, ErasedSettingsTransferParticipant>.unmodifiable(boxesByKey);
++    _groups = List<SettingsTransferGroupDescriptor>.unmodifiable(
++      _buildGroupDescriptors(boxes),
++    );
++  }
++
++  late final List<ErasedSettingsTransferParticipant> _participants;
++  late final Map<String, ErasedSettingsTransferParticipant> _participantsByKey;
++  late final List<SettingsTransferGroupDescriptor> _groups;
++
++  List<SettingsTransferGroupDescriptor> get groups => _groups;
++
++  List<ErasedSettingsTransferParticipant> participantsForGroups(
++    Set<SettingsTransferGroup> groups,
++  ) {
++    final selected = _participants
++        .where((participant) => groups.contains(participant.group))
++        .toList(growable: false);
++    return List<ErasedSettingsTransferParticipant>.unmodifiable(selected);
++  }
++
++  SettingsTransferParticipant<T> participant<T>(SettingsTransferKey key) {
++    final box = _participantsByKey[key.value];
++    if (box == null) {
++      throw StateError('未注册 Settings transfer participant：${key.value}');
++    }
++    return box.participantAs<T>();
++  }
++
++  SettingsTransferGroup groupForKey(SettingsTransferKey key) {
++    final box = _participantsByKey[key.value];
++    if (box == null) {
++      throw StateError('未注册 Settings transfer participant：${key.value}');
++    }
++    return box.group;
++  }
++
++  static int _compareParticipants(
++    ErasedSettingsTransferParticipant left,
++    ErasedSettingsTransferParticipant right,
++  ) {
++    final groupOrder = left.group.order.compareTo(right.group.order);
++    if (groupOrder != 0) return groupOrder;
++    final participantOrder = left.order.compareTo(right.order);
++    if (participantOrder != 0) return participantOrder;
++    return left.key.value.compareTo(right.key.value);
++  }
++
++  static List<SettingsTransferGroupDescriptor> _buildGroupDescriptors(
++    Iterable<ErasedSettingsTransferParticipant> participants,
++  ) {
++    final sensitivityByGroup = <SettingsTransferGroup, bool>{};
++    for (final participant in participants) {
++      final hasSensitive =
++          participant.sensitivity ==
++          SettingsTransferSensitivity.credentialBearing;
++      sensitivityByGroup.update(
++        participant.group,
++        (current) => current || hasSensitive,
++        ifAbsent: () => hasSensitive,
++      );
++    }
++
++    final registeredGroups = sensitivityByGroup.keys.toList()
++      ..sort((left, right) => left.order.compareTo(right.order));
++    return [
++      for (final group in registeredGroups)
++        SettingsTransferGroupDescriptor(
++          group: group,
++          containsSensitive: sensitivityByGroup[group]!,
++        ),
++    ];
++  }
++}
++
++final _validKey = RegExp(r'^[a-z][A-Za-z0-9]*$');
+diff --git a/lib/features/settings/application/transfer/settings_transfer_participant.dart b/lib/features/settings/application/transfer/settings_transfer_participant.dart
+new file mode 100644
+index 0000000..e1b3f3e
+--- /dev/null
++++ b/lib/features/settings/application/transfer/settings_transfer_participant.dart
+@@ -0,0 +1,394 @@
++import 'dart:convert';
++
++import 'settings_transfer_types.dart';
++
++/// 一种设置的类型化传输声明。
++abstract interface class SettingsTransferParticipant<T> {
++  SettingsTransferKey get key;
++  SettingsTransferGroup get group;
++  String get label;
++  int get order;
++  SettingsTransferSensitivity get sensitivity;
++
++  T readLocal();
++  bool shouldExport(T value);
++  Object encode(T value);
++  T decode(Object? payload);
++  SettingsTransferChange<T>? prepareImport({
++    required T local,
++    required T incoming,
++  });
++  SettingsTransferSummaryItem summarizeExport(T value);
++  Future<void> applyImport(T value);
++}
++
++final class SettingsTransferChange<T> {
++  const SettingsTransferChange({
++    required this.participant,
++    required this.incoming,
++    required this.writeValue,
++    required this.fingerprint,
++    required this.summary,
++  });
++
++  final SettingsTransferParticipant<T> participant;
++  final T incoming;
++  final T writeValue;
++  final String fingerprint;
++  final SettingsTransferSummaryItem summary;
++
++  /// 供 application-internal 类型擦除适配器校验 change 的泛型参数。
++  Type get valueType => T;
++}
++
++/// Settings application 内部的运行时类型校验能力，不属于 participant 公共契约。
++abstract interface class SettingsTransferParticipantRuntime {
++  Type get valueType;
++
++  bool acceptsValue(Object? value);
++}
++
++/// 以完整值替换本地设置的通用 participant 策略。
++///
++/// 具体 participant 仍负责读取、编解码、等价判断和持久化；本类只统一
++/// no-op、replace/clear 摘要和待写入指纹语义。
++abstract class ReplacingValueParticipant<T>
++    implements
++        SettingsTransferParticipant<T>,
++        SettingsTransferParticipantRuntime {
++  const ReplacingValueParticipant({
++    required this.key,
++    required this.group,
++    required this.label,
++    required this.order,
++    required this.sensitivity,
++  });
++
++  @override
++  final SettingsTransferKey key;
++
++  @override
++  final SettingsTransferGroup group;
++
++  @override
++  final String label;
++
++  @override
++  final int order;
++
++  @override
++  final SettingsTransferSensitivity sensitivity;
++
++  @override
++  Type get valueType => T;
++
++  @override
++  bool acceptsValue(Object? value) => value is T;
++
++  @override
++  bool shouldExport(T value) => true;
++
++  /// 比较完整的本地值和传入值，不应只比较用于显示的字段。
++  bool isEquivalent(T existing, T incoming);
++
++  /// 子类可将有效空值定义为 clear；默认只把 null 视为空值。
++  bool isEmpty(T value) => value == null;
++
++  /// 默认以编码后的完整写入值作为重校验指纹。
++  String fingerprintFor(T value) => jsonEncode(encode(value));
++
++  @override
++  SettingsTransferChange<T>? prepareImport({
++    required T local,
++    required T incoming,
++  }) {
++    if (isEquivalent(local, incoming)) return null;
++
++    return SettingsTransferChange<T>(
++      participant: this,
++      incoming: incoming,
++      writeValue: incoming,
++      fingerprint: fingerprintFor(incoming),
++      summary: summarizeExport(incoming),
++    );
++  }
++
++  @override
++  SettingsTransferSummaryItem summarizeExport(T value) {
++    return SettingsTransferSummaryItem(
++      key: key,
++      label: label,
++      action: isEmpty(value)
++          ? SettingsTransferSummaryAction.clear
++          : SettingsTransferSummaryAction.replace,
++    );
++  }
++}
++
++/// 将传入集合中未出现于本地集合的内容追加写入的通用 participant 策略。
++///
++/// 具体 participant 仍负责元素编解码、内容等价判断和持久化；本类只统一
++/// 空集合省略、去重、add 摘要和新增项写入值。
++abstract class MergingCollectionParticipant<T>
++    implements
++        SettingsTransferParticipant<List<T>>,
++        SettingsTransferParticipantRuntime {
++  const MergingCollectionParticipant({
++    required this.key,
++    required this.group,
++    required this.label,
++    required this.order,
++    required this.sensitivity,
++  });
++
++  @override
++  final SettingsTransferKey key;
++
++  @override
++  final SettingsTransferGroup group;
++
++  @override
++  final String label;
++
++  @override
++  final int order;
++
++  @override
++  final SettingsTransferSensitivity sensitivity;
++
++  @override
++  Type get valueType => List<T>;
++
++  @override
++  bool acceptsValue(Object? value) => value is List<T>;
++
++  /// 比较集合元素的完整可传输内容。
++  bool isEquivalent(T existing, T incoming);
++
++  @override
++  bool shouldExport(List<T> value) => value.isNotEmpty;
++
++  /// 默认以编码后的完整写入集合作为重校验指纹。
++  String fingerprintFor(List<T> value) => jsonEncode(encode(value));
++
++  @override
++  SettingsTransferChange<List<T>>? prepareImport({
++    required List<T> local,
++    required List<T> incoming,
++  }) {
++    if (incoming.isEmpty) return null;
++
++    final additions = <T>[];
++    for (final candidate in incoming) {
++      final alreadyPresent = local.any(
++        (existing) => isEquivalent(existing, candidate),
++      );
++      if (alreadyPresent) continue;
++
++      final alreadyAdded = additions.any(
++        (existing) => isEquivalent(existing, candidate),
++      );
++      if (!alreadyAdded) additions.add(candidate);
++    }
++    if (additions.isEmpty) return null;
++
++    final writeValue = List<T>.unmodifiable(additions);
++    final incomingValue = List<T>.unmodifiable(incoming);
++    return SettingsTransferChange<List<T>>(
++      participant: this,
++      incoming: incomingValue,
++      writeValue: writeValue,
++      fingerprint: fingerprintFor(writeValue),
++      summary: SettingsTransferSummaryItem(
++        key: key,
++        label: label,
++        action: SettingsTransferSummaryAction.add,
++        count: additions.length,
++      ),
++    );
++  }
++
++  @override
++  SettingsTransferSummaryItem summarizeExport(List<T> value) {
++    if (value.isEmpty) {
++      throw StateError('空合并集合不能生成 add 摘要');
++    }
++    return SettingsTransferSummaryItem(
++      key: key,
++      label: label,
++      action: SettingsTransferSummaryAction.add,
++      count: value.length,
++    );
++  }
++}
++
++/// Settings application 内部使用的非泛型 participant 视图。
++///
++/// 该类型只允许出现在 Settings application transfer 边界内；presentation
++/// 与 Sync 不应依赖它，也不应自行执行类型转换。
++abstract interface class ErasedSettingsTransferParticipant {
++  SettingsTransferKey get key;
++  SettingsTransferGroup get group;
++  String get label;
++  int get order;
++  SettingsTransferSensitivity get sensitivity;
++
++  Object? encodeLocalIfExportable();
++  Object? decodePayload(Object? payload);
++  SettingsTransferChange<Object?>? prepareImport(Object? incoming);
++  SettingsTransferChange<Object?>? reprepareImport(
++    SettingsTransferChange<Object?> change,
++  );
++  Future<void> applyImport(SettingsTransferChange<Object?> change);
++
++  SettingsTransferParticipant<T> participantAs<T>();
++}
++
++/// Settings application 内部唯一允许执行 participant 类型擦除/恢复的 box。
++///
++/// [T] 在 catalog 的统一遍历中通常被擦除为 dynamic；真实值类型仍由底层
++/// participant 的 [SettingsTransferParticipant.valueType] 和 [acceptsValue]
++/// 在每次边界操作前校验。
++final class SettingsTransferParticipantBox<T>
++    implements ErasedSettingsTransferParticipant {
++  SettingsTransferParticipantBox(this.participant);
++
++  /// 将直接 participant 或已构造的 erased box 绑定到 application 边界。
++  ///
++  /// 该入口故意位于 box 内，使 catalog 不需要执行任何 participant payload
++  /// 或 change 的类型转换。
++  static ErasedSettingsTransferParticipant erase(Object candidate) {
++    if (candidate is ErasedSettingsTransferParticipant) return candidate;
++    if (candidate is! SettingsTransferParticipant<dynamic>) {
++      throw ArgumentError.value(
++        candidate,
++        'participant',
++        '必须是 SettingsTransferParticipant 或 erased participant box',
++      );
++    }
++    return SettingsTransferParticipantBox<dynamic>(candidate);
++  }
++
++  final SettingsTransferParticipant<T> participant;
++
++  Type? get _registeredValueType {
++    final candidate = participant;
++    if (candidate is SettingsTransferParticipantRuntime) {
++      final runtimeParticipant =
++          candidate as SettingsTransferParticipantRuntime;
++      return runtimeParticipant.valueType;
++    }
++    return null;
++  }
++
++  @override
++  SettingsTransferKey get key => participant.key;
++
++  @override
++  SettingsTransferGroup get group => participant.group;
++
++  @override
++  String get label => participant.label;
++
++  @override
++  int get order => participant.order;
++
++  @override
++  SettingsTransferSensitivity get sensitivity => participant.sensitivity;
++
++  @override
++  Object? encodeLocalIfExportable() {
++    final value = participant.readLocal();
++    if (!participant.shouldExport(value)) return null;
++    final encoded = participant.encode(value);
++    return encoded;
++  }
++
++  @override
++  Object? decodePayload(Object? payload) => participant.decode(payload);
++
++  @override
++  SettingsTransferChange<Object?>? prepareImport(Object? incoming) {
++    _validateValue(incoming, 'incoming');
++    final local = participant.readLocal();
++    final change = participant.prepareImport(
++      local: local,
++      incoming: incoming as T,
++    );
++    return _eraseChange(change);
++  }
++
++  @override
++  SettingsTransferChange<Object?>? reprepareImport(
++    SettingsTransferChange<Object?> change,
++  ) {
++    _validateChange(change);
++    final incoming = change.incoming;
++    _validateValue(incoming, 'incoming');
++    final next = participant.prepareImport(
++      local: participant.readLocal(),
++      incoming: incoming as T,
++    );
++    return _eraseChange(next);
++  }
++
++  @override
++  Future<void> applyImport(SettingsTransferChange<Object?> change) async {
++    _validateChange(change);
++    _validateValue(change.writeValue, 'writeValue');
++    await participant.applyImport(change.writeValue as T);
++  }
++
++  @override
++  SettingsTransferParticipant<R> participantAs<R>() {
++    final registeredValueType = _registeredValueType;
++    if (registeredValueType != null && registeredValueType != R) {
++      throw StateError(
++        'participant ${key.value} 的值类型是 $registeredValueType，'
++        '不能按 $R 读取',
++      );
++    }
++    try {
++      return participant as SettingsTransferParticipant<R>;
++    } catch (_) {
++      throw StateError('participant ${key.value} 的值类型与请求的 $R 不匹配');
++    }
++  }
++
++  void _validateValue(Object? value, String name) {
++    final candidate = participant;
++    if (candidate is! SettingsTransferParticipantRuntime) {
++      return;
++    }
++    final runtimeParticipant = candidate as SettingsTransferParticipantRuntime;
++    if (runtimeParticipant.acceptsValue(value)) return;
++    final registeredValueType = _registeredValueType;
++    if (registeredValueType != null) {
++      throw StateError(
++        'participant ${key.value} 收到错误的 $name 类型：'
++        '${value.runtimeType}，期望 $registeredValueType',
++      );
++    }
++  }
++
++  void _validateChange(SettingsTransferChange<Object?> change) {
++    if (!identical(change.participant, participant)) {
++      throw StateError('participant ${key.value} 的 change 来源不匹配');
++    }
++    final registeredValueType = _registeredValueType;
++    if (registeredValueType != null &&
++        change.valueType != registeredValueType) {
++      throw StateError(
++        'participant ${key.value} 的 change 类型是 ${change.valueType}，'
++        '期望 $registeredValueType',
++      );
++    }
++  }
++
++  SettingsTransferChange<Object?>? _eraseChange(
++    SettingsTransferChange<T>? change,
++  ) {
++    if (change == null) return null;
++    return change as SettingsTransferChange<Object?>;
++  }
++}
+diff --git a/lib/features/settings/application/transfer/settings_transfer_types.dart b/lib/features/settings/application/transfer/settings_transfer_types.dart
+new file mode 100644
+index 0000000..9a5c487
+--- /dev/null
++++ b/lib/features/settings/application/transfer/settings_transfer_types.dart
+@@ -0,0 +1,59 @@
++import 'package:equatable/equatable.dart';
++
++/// Settings transfer section 的稳定 key。
++final class SettingsTransferKey extends Equatable {
++  const SettingsTransferKey(this.value);
++
++  final String value;
++
++  @override
++  List<Object?> get props => [value];
++}
++
++/// Settings transfer 使用的稳定分组。
++enum SettingsTransferGroup {
++  providers('providers', '服务商', 0),
++  presets('presets', '预设', 1),
++  prompts('prompts', '提示词', 2),
++  network('network', '网络', 3),
++  outputProcessing('outputProcessing', '输出处理', 4),
++  other('other', '其它', 5);
++
++  const SettingsTransferGroup(this.wireKey, this.label, this.order);
++
++  final String wireKey;
++  final String label;
++  final int order;
++}
++
++enum SettingsTransferSensitivity { standard, credentialBearing }
++
++enum SettingsTransferSummaryAction { add, replace, clear }
++
++/// 导出或导入确认界面使用的安全摘要项。
++final class SettingsTransferSummaryItem extends Equatable {
++  const SettingsTransferSummaryItem({
++    required this.key,
++    required this.label,
++    required this.action,
++    this.count,
++  }) : assert(
++         action == SettingsTransferSummaryAction.add
++             ? count != null && count > 0
++             : count == null,
++       );
++
++  final SettingsTransferKey key;
++  final String label;
++  final SettingsTransferSummaryAction action;
++  final int? count;
++
++  String get trailingText => switch (action) {
++    SettingsTransferSummaryAction.add => '新增 $count 项',
++    SettingsTransferSummaryAction.replace => '替换',
++    SettingsTransferSummaryAction.clear => '清空',
++  };
++
++  @override
++  List<Object?> get props => [key, label, action, count];
++}
+diff --git a/pubspec.yaml b/pubspec.yaml
+index e39159d..e952671 100644
+--- a/pubspec.yaml
++++ b/pubspec.yaml
+@@ -9,21 +9,21 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+ # followed by an optional build number separated by a +.
+ # Both the version and the builder number may be overridden in flutter
+ # build by specifying --build-name and --build-number, respectively.
+ # In Android, build-name is used as versionName while build-number used as versionCode.
+ # Read more about Android versioning at https://developer.android.com/studio/publish/versioning
+ # In iOS, build-name is used as CFBundleShortVersionString while build-number is used as CFBundleVersion.
+ # Read more about iOS versioning at
+ # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
+ # In Windows, build-name is used as the major, minor, and patch parts
+ # of the product and file versions while build-number is used as the build suffix.
+-version: 3.61.1+0
++version: 3.62.0+0
+ 
+ environment:
+   sdk: ^3.11.5
+ 
+ # Dependencies specify other packages that your package needs in order to work.
+ # To automatically upgrade your package dependencies to the latest versions
+ # consider running `flutter pub upgrade --major-versions`. Alternatively,
+ # dependencies can be manually updated by changing the version numbers below to
+ # the latest version available on pub.dev. To see which dependencies have newer
+ # versions available, run `flutter pub outdated`.
+diff --git a/test/features/settings/application/transfer/settings_transfer_catalog_test.dart b/test/features/settings/application/transfer/settings_transfer_catalog_test.dart
+new file mode 100644
+index 0000000..fd6cc88
+--- /dev/null
++++ b/test/features/settings/application/transfer/settings_transfer_catalog_test.dart
+@@ -0,0 +1,358 @@
++import 'package:flutter_test/flutter_test.dart';
++
++import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_catalog.dart';
++import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_participant.dart';
++import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_types.dart';
++
++void main() {
++  group('SettingsTransferCatalog', () {
++    test('按分组顺序、participant 顺序和 key 排序', () {
++      final providerLater = _FakeIntParticipant(
++        key: const SettingsTransferKey('providerLater'),
++        group: SettingsTransferGroup.providers,
++        order: 2,
++      );
++      final providerEarlier = _FakeIntParticipant(
++        key: const SettingsTransferKey('providerEarlier'),
++        group: SettingsTransferGroup.providers,
++        order: 1,
++      );
++      final other = _FakeIntParticipant(
++        key: const SettingsTransferKey('other'),
++        group: SettingsTransferGroup.other,
++        order: 0,
++      );
++      final catalog = SettingsTransferCatalog([
++        other,
++        providerLater,
++        providerEarlier,
++      ]);
++
++      expect(
++        catalog
++            .participantsForGroups({
++              SettingsTransferGroup.other,
++              SettingsTransferGroup.providers,
++            })
++            .map((participant) => participant.key.value),
++        ['providerEarlier', 'providerLater', 'other'],
++      );
++    });
++
++    test('拒绝重复 key', () {
++      final first = _FakeIntParticipant(
++        key: const SettingsTransferKey('sameKey'),
++        group: SettingsTransferGroup.providers,
++        order: 0,
++      );
++      final second = _FakeIntParticipant(
++        key: const SettingsTransferKey('sameKey'),
++        group: SettingsTransferGroup.other,
++        order: 0,
++      );
++
++      expect(
++        () => SettingsTransferCatalog([first, second]),
++        throwsA(isA<ArgumentError>()),
++      );
++    });
++
++    test('拒绝同组重复 order', () {
++      final first = _FakeIntParticipant(
++        key: const SettingsTransferKey('first'),
++        group: SettingsTransferGroup.providers,
++        order: 0,
++      );
++      final second = _FakeIntParticipant(
++        key: const SettingsTransferKey('second'),
++        group: SettingsTransferGroup.providers,
++        order: 0,
++      );
++
++      expect(
++        () => SettingsTransferCatalog([first, second]),
++        throwsA(isA<ArgumentError>()),
++      );
++    });
++
++    test('拒绝空白或不符合规则的 key 以及空白 label', () {
++      final invalidKeys = ['', ' Providers', 'Providers', 'provider-key'];
++      for (final value in invalidKeys) {
++        expect(
++          () => SettingsTransferCatalog([
++            _FakeIntParticipant(
++              key: SettingsTransferKey(value),
++              group: SettingsTransferGroup.providers,
++              order: 0,
++            ),
++          ]),
++          throwsA(isA<ArgumentError>()),
++          reason: 'key=$value 应被拒绝',
++        );
++      }
++
++      expect(
++        () => SettingsTransferCatalog([
++          _FakeIntParticipant(
++            key: const SettingsTransferKey('validKey'),
++            group: SettingsTransferGroup.providers,
++            order: 0,
++            label: '  ',
++          ),
++        ]),
++        throwsA(isA<ArgumentError>()),
++      );
++    });
++
++    test('为已注册分组生成 descriptor 并聚合 credential sensitivity', () {
++      final sensitive = _FakeIntParticipant(
++        key: const SettingsTransferKey('sensitive'),
++        group: SettingsTransferGroup.providers,
++        order: 0,
++        sensitivity: SettingsTransferSensitivity.credentialBearing,
++      );
++      final standard = _FakeIntParticipant(
++        key: const SettingsTransferKey('standard'),
++        group: SettingsTransferGroup.other,
++        order: 0,
++      );
++      final catalog = SettingsTransferCatalog([sensitive, standard]);
++
++      expect(catalog.groups.map((descriptor) => descriptor.group), [
++        SettingsTransferGroup.providers,
++        SettingsTransferGroup.other,
++      ]);
++      expect(catalog.groups[0].wireKey, 'providers');
++      expect(catalog.groups[0].label, '服务商');
++      expect(catalog.groups[0].order, 0);
++      expect(catalog.groups[0].containsSensitive, isTrue);
++      expect(catalog.groups[1].containsSensitive, isFalse);
++    });
++
++    test('typed lookup 成功且错误类型在执行前失败', () {
++      final participant = _FakeIntParticipant(
++        key: const SettingsTransferKey('typedInt'),
++        group: SettingsTransferGroup.other,
++        order: 0,
++      );
++      final catalog = SettingsTransferCatalog([participant]);
++
++      expect(catalog.participant<int>(participant.key), same(participant));
++      expect(
++        () => catalog.participant<String>(participant.key),
++        throwsA(
++          isA<StateError>().having(
++            (error) => error.message,
++            'message',
++            contains('typedInt'),
++          ),
++        ),
++      );
++      expect(participant.readCount, 0);
++      expect(participant.writeCount, 0);
++    });
++
++    test('测试 catalog 可以注册不依赖生产 schema 的 fake key', () {
++      const key = SettingsTransferKey('testOnlyFake9');
++      final participant = _FakeIntParticipant(
++        key: key,
++        group: SettingsTransferGroup.other,
++        order: 0,
++      );
++      final catalog = SettingsTransferCatalog([participant]);
++
++      expect(catalog.groupForKey(key), SettingsTransferGroup.other);
++      expect(catalog.participant<int>(key), same(participant));
++    });
++  });
++
++  group('ReplacingValueParticipant', () {
++    test('相同完整值不产生 change', () {
++      final participant = _FakeIntParticipant(
++        key: const SettingsTransferKey('replaceInt'),
++        group: SettingsTransferGroup.other,
++        order: 0,
++      );
++
++      expect(participant.prepareImport(local: 7, incoming: 7), isNull);
++    });
++
++    test('空 replacement 生成 clear summary', () {
++      final participant = _FakeNullableStringParticipant(
++        key: const SettingsTransferKey('replaceNullable'),
++        group: SettingsTransferGroup.network,
++        order: 0,
++      );
++
++      final change = participant.prepareImport(local: '已有值', incoming: null);
++
++      expect(change, isNotNull);
++      expect(change!.summary.action, SettingsTransferSummaryAction.clear);
++      expect(change.summary.count, isNull);
++      expect(change.summary.trailingText, '清空');
++    });
++  });
++
++  group('MergingCollectionParticipant', () {
++    test('空 local 合并两个唯一值生成一条 add change', () {
++      final participant = _FakeCollectionParticipant(
++        key: const SettingsTransferKey('mergeItems'),
++        group: SettingsTransferGroup.prompts,
++        order: 0,
++      );
++
++      final change = participant.prepareImport(
++        local: const [],
++        incoming: [1, 2],
++      );
++
++      expect(change, isNotNull);
++      expect(change!.writeValue, [1, 2]);
++      expect(change.summary.action, SettingsTransferSummaryAction.add);
++      expect(change.summary.count, 2);
++      expect(change.summary.trailingText, '新增 2 项');
++    });
++
++    test('本地已有内容时 writeValue 只包含新增项', () {
++      final participant = _FakeCollectionParticipant(
++        key: const SettingsTransferKey('mergeItems'),
++        group: SettingsTransferGroup.prompts,
++        order: 0,
++      );
++
++      final change = participant.prepareImport(local: [1], incoming: [1, 2]);
++
++      expect(change, isNotNull);
++      expect(change!.writeValue, [2]);
++      expect(change.summary.count, 1);
++    });
++
++    test('空 collection 不参与导出', () {
++      final participant = _FakeCollectionParticipant(
++        key: const SettingsTransferKey('mergeItems'),
++        group: SettingsTransferGroup.prompts,
++        order: 0,
++      );
++
++      expect(participant.shouldExport(const []), isFalse);
++    });
++  });
++
++  test('summary action 与 count 不一致时拒绝构造', () {
++    expect(
++      () => SettingsTransferSummaryItem(
++        key: const SettingsTransferKey('invalidSummary'),
++        label: '无效',
++        action: SettingsTransferSummaryAction.add,
++      ),
++      throwsA(isA<AssertionError>()),
++    );
++    expect(
++      () => SettingsTransferSummaryItem(
++        key: const SettingsTransferKey('invalidSummary'),
++        label: '无效',
++        action: SettingsTransferSummaryAction.clear,
++        count: 1,
++      ),
++      throwsA(isA<AssertionError>()),
++    );
++  });
++}
++
++final class _FakeIntParticipant extends ReplacingValueParticipant<int> {
++  _FakeIntParticipant({
++    required super.key,
++    required super.group,
++    required super.order,
++    super.label = '整数设置',
++    super.sensitivity = SettingsTransferSensitivity.standard,
++  });
++
++  int value = 1;
++  int readCount = 0;
++  int writeCount = 0;
++
++  @override
++  int readLocal() {
++    readCount += 1;
++    return value;
++  }
++
++  @override
++  bool isEquivalent(int existing, int incoming) => existing == incoming;
++
++  @override
++  Object encode(int value) => value;
++
++  @override
++  int decode(Object? payload) => payload as int;
++
++  @override
++  Future<void> applyImport(int value) async {
++    writeCount += 1;
++    this.value = value;
++  }
++}
++
++final class _FakeNullableStringParticipant
++    extends ReplacingValueParticipant<String?> {
++  _FakeNullableStringParticipant({
++    required super.key,
++    required super.group,
++    required super.order,
++    super.label = '可清空设置',
++    super.sensitivity = SettingsTransferSensitivity.standard,
++  });
++
++  String? value = '已有值';
++
++  @override
++  String? readLocal() => value;
++
++  @override
++  bool isEquivalent(String? existing, String? incoming) => existing == incoming;
++
++  @override
++  bool isEmpty(String? value) => value == null;
++
++  @override
++  Object encode(String? value) => {'value': value};
++
++  @override
++  String? decode(Object? payload) => (payload as Map)['value'] as String?;
++
++  @override
++  Future<void> applyImport(String? value) async {
++    this.value = value;
++  }
++}
++
++final class _FakeCollectionParticipant
++    extends MergingCollectionParticipant<int> {
++  _FakeCollectionParticipant({
++    required super.key,
++    required super.group,
++    required super.order,
++    super.label = '集合设置',
++    super.sensitivity = SettingsTransferSensitivity.standard,
++  });
++
++  List<int> value = [];
++
++  @override
++  List<int> readLocal() => value;
++
++  @override
++  bool isEquivalent(int existing, int incoming) => existing == incoming;
++
++  @override
++  Object encode(List<int> value) => value;
++
++  @override
++  List<int> decode(Object? payload) => [...(payload as List).cast<int>()];
++
++  @override
++  Future<void> applyImport(List<int> value) async {
++    this.value = [...value];
++  }
++}
