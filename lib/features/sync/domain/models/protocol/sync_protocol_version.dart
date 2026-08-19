@@ -1,14 +1,14 @@
 import 'package:equatable/equatable.dart';
 
-/// Sync v3 的明确版本契约。
+/// Sync v4 的明确版本契约。
 ///
-/// v1 曾允许匿名、二次 JSON 的设置读取，不能安全迁移，因此永远不会被接受。
+/// v1-v3 曾允许旧的设置字段聚合或二次 JSON 语义，不能安全迁移，因此永远不会被接受。
 final class SyncProtocolVersionPolicy {
   const SyncProtocolVersionPolicy._();
 
-  static const int current = 3;
-  static const int minimumSupported = 3;
-  static const int maximumSupported = 3;
+  static const int current = 4;
+  static const int minimumSupported = 4;
+  static const int maximumSupported = 4;
 
   static SyncProtocolCompatibility check(int? version) {
     if (version == null || version < minimumSupported) {

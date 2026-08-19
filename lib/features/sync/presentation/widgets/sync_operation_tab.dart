@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_export_data.dart';
 import 'package:oh_my_llm/core/widgets/notification_bubble/notification_bubble_context_ext.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/shared/settings_section_card.dart';
+import '../../application/ports/settings_sync_facade.dart';
 import '../../application/sync_client_controller.dart';
 import '../../domain/models/protocol/sync_types.dart';
 import 'sync_import_confirm_dialog.dart';
@@ -40,13 +40,13 @@ class _SyncOperationTabState extends ConsumerState<SyncOperationTab>
           prev?.phase == SyncPhase.syncing && next.phase == SyncPhase.received;
       final enteredNoNewData =
           prev?.phase == SyncPhase.syncing && next.phase == SyncPhase.noNewData;
-      if (enteredReceived && next.deduplicatedData != null) {
+      if (enteredReceived && next.preparedImport != null) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (context.mounted) {
             _showImportDialog(
               context,
               ref,
-              next.deduplicatedData!,
+              next.preparedImport!,
               next.sourceDeviceName,
             );
           }
@@ -330,14 +330,14 @@ class _SyncOperationTabState extends ConsumerState<SyncOperationTab>
   Future<void> _showImportDialog(
     BuildContext context,
     WidgetRef ref,
-    SettingsExportData data,
+    SettingsSyncPreparedImport preparedImport,
     String? sourceDeviceName,
   ) async {
     final confirmed = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (_) => SyncImportConfirmDialog(
-        exportData: data,
+        preparedImport: preparedImport,
         sourceDeviceName: sourceDeviceName,
       ),
     );

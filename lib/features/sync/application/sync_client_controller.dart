@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:oh_my_llm/core/providers/notification_bubble_provider.dart';
 import 'package:oh_my_llm/core/widgets/notification_bubble/notification_bubble_data.dart';
-import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_export_data.dart';
 import 'ports/settings_sync_facade.dart';
 import 'ports/sync_client_protocol.dart';
 import 'ports/sync_client_transport.dart';
@@ -14,8 +13,8 @@ import 'ports/sync_crypto.dart';
 import 'ports/sync_pairing_repository.dart';
 import 'sync_client_protocol_coordinator.dart';
 import '../domain/models/discovery/discovered_server.dart';
-import '../domain/models/protocol/sync_types.dart';
 import '../domain/models/protocol/sync_protocol_failure.dart';
+import '../domain/models/protocol/sync_types.dart';
 
 enum SyncPhase {
   idle,
@@ -39,7 +38,7 @@ class SyncClientState extends Equatable {
     this.server,
     Set<SyncCategory> selectedCategories = const {},
     this.errorMessage,
-    this.deduplicatedData,
+    this.preparedImport,
     this.sourceDeviceName,
     this.isPaired = false,
     this.sensitiveRequestConfirmed = false,
@@ -47,9 +46,10 @@ class SyncClientState extends Equatable {
 
   final SyncPhase phase;
   final DiscoveredServer? server;
+  @Deprecated('Task 8 将以 catalog group ID 替换旧四分类。')
   final Set<SyncCategory> selectedCategories;
   final String? errorMessage;
-  final SettingsExportData? deduplicatedData;
+  final SettingsSyncPreparedImport? preparedImport;
   final String? sourceDeviceName;
   final bool isPaired;
   final bool sensitiveRequestConfirmed;
@@ -60,7 +60,9 @@ class SyncClientState extends Equatable {
     (server?.deviceName, server?.ip, server?.httpPort),
     selectedCategories.map((category) => category.index).toList()..sort(),
     errorMessage,
-    deduplicatedData?.toJsonString(),
+    preparedImport == null
+        ? null
+        : (preparedImport!.containsSensitive, preparedImport!.summaries),
     sourceDeviceName,
     isPaired,
     sensitiveRequestConfirmed,
@@ -71,7 +73,7 @@ class SyncClientState extends Equatable {
     Object? server = _sentinel,
     Set<SyncCategory>? selectedCategories,
     Object? errorMessage = _sentinel,
-    Object? deduplicatedData = _sentinel,
+    Object? preparedImport = _sentinel,
     Object? sourceDeviceName = _sentinel,
     bool? isPaired,
     bool? sensitiveRequestConfirmed,
@@ -85,9 +87,9 @@ class SyncClientState extends Equatable {
       errorMessage: identical(errorMessage, _sentinel)
           ? this.errorMessage
           : errorMessage as String?,
-      deduplicatedData: identical(deduplicatedData, _sentinel)
-          ? this.deduplicatedData
-          : deduplicatedData as SettingsExportData?,
+      preparedImport: identical(preparedImport, _sentinel)
+          ? this.preparedImport
+          : preparedImport as SettingsSyncPreparedImport?,
       sourceDeviceName: identical(sourceDeviceName, _sentinel)
           ? this.sourceDeviceName
           : sourceDeviceName as String?,
@@ -105,7 +107,8 @@ final syncClientControllerProvider =
 
 /// 同步客户端控制器，管理 Sync 页面会话内的发现、请求和导入流程。
 ///
-/// 该 Provider 在应用生命周期内保持存活，页面切换不会丢失发现与配对状态。
+/// SyncCategory 仅是 Task 8 前的 presentation 兼容适配器；实际 wire 请求
+/// 和 Settings 导入都使用稳定 group ID 与 Settings-owned prepared import。
 class SyncClientController extends Notifier<SyncClientState> {
   SyncClientController({SyncClientProtocol? protocol})
     : _injectedProtocol = protocol;
@@ -134,7 +137,7 @@ class SyncClientController extends Notifier<SyncClientState> {
     state = state.copyWith(
       phase: SyncPhase.discovering,
       errorMessage: null,
-      deduplicatedData: null,
+      preparedImport: null,
     );
 
     _discoverySubscription = ref
@@ -155,8 +158,6 @@ class SyncClientController extends Notifier<SyncClientState> {
                 ? state.isPaired
                 : await _protocolCoordinator.isPaired(server);
             if (!_isCurrent(generation)) return;
-            // 首次发现建立连接后继续保留广播监听，用于检测服务端停止。
-            // 后续广播只更新网络地址，不能打断正在进行的同步流程。
             state = state.copyWith(
               phase: state.phase == SyncPhase.discovering
                   ? SyncPhase.connected
@@ -175,18 +176,14 @@ class SyncClientController extends Notifier<SyncClientState> {
                 errorMessage: '未发现服务端，请确认服务端已启动且在同一局域网内',
               );
             } else if (state.server != null) {
-              // 服务端广播停止（通常意味着服务端被显式停止或应用退出）。
-              // 清掉会话状态，避免用户继续对已失效的地址发起同步请求。
               state = state.copyWith(
                 phase: SyncPhase.error,
                 server: null,
                 sourceDeviceName: null,
                 isPaired: false,
-                deduplicatedData: null,
+                preparedImport: null,
                 errorMessage: _disconnectedMessage,
               );
-              // 全局气泡通知：controller 应用生命周期存活，无论用户停留在哪个
-              // 页面（聊天/设置/其他 Tab）都能感知到服务端断开。
               ref
                   .read(notificationBubblesProvider.notifier)
                   .show(
@@ -205,6 +202,7 @@ class SyncClientController extends Notifier<SyncClientState> {
         );
   }
 
+  @Deprecated('Task 8 将改用稳定 SettingsSyncGroupId。')
   void toggleCategory(SyncCategory category) {
     final categories = Set<SyncCategory>.from(state.selectedCategories);
     if (categories.contains(category)) {
@@ -216,17 +214,18 @@ class SyncClientController extends Notifier<SyncClientState> {
       phase: state.server == null ? state.phase : SyncPhase.connected,
       selectedCategories: categories,
       sensitiveRequestConfirmed: false,
-      deduplicatedData: null,
+      preparedImport: null,
       errorMessage: null,
     );
   }
 
+  @Deprecated('Task 8 将改用 catalog descriptor。')
   void selectAllCategories() {
     state = state.copyWith(
       phase: state.server == null ? state.phase : SyncPhase.connected,
       selectedCategories: Set<SyncCategory>.from(SyncCategory.values),
       sensitiveRequestConfirmed: false,
-      deduplicatedData: null,
+      preparedImport: null,
       errorMessage: null,
     );
   }
@@ -269,32 +268,43 @@ class SyncClientController extends Notifier<SyncClientState> {
     final server = state.server;
     if (server == null || state.selectedCategories.isEmpty) return;
     final generation = _generation;
+    final requestedCategories = Set<SyncCategory>.from(
+      state.selectedCategories,
+    );
+    final requestedGroups = _groupsForCategories(requestedCategories);
 
     state = state.copyWith(
       phase: SyncPhase.syncing,
       errorMessage: null,
-      deduplicatedData: null,
+      preparedImport: null,
     );
 
     try {
-      final exportData = await _protocolCoordinator.requestSettings(
+      final document = await _protocolCoordinator.requestSettings(
         server: server,
-        categories: state.selectedCategories,
+        groups: requestedGroups,
         confirmedSensitive: state.sensitiveRequestConfirmed,
       );
       if (!_isCurrent(generation)) return;
 
-      final deduplicated = ref
+      final prepared = ref
           .read(settingsSyncFacadeProvider)
-          .deduplicateIncoming(exportData);
-      if (!deduplicated.hasContent) {
-        state = state.copyWith(phase: SyncPhase.noNewData);
-        return;
-      }
+          .prepareIncoming(document, requestedGroups: requestedGroups);
+      if (!_isCurrent(generation)) return;
 
       state = state.copyWith(
         phase: SyncPhase.received,
-        deduplicatedData: deduplicated,
+        preparedImport: prepared,
+      );
+    } on SettingsSyncNoNewDataException {
+      if (!_isCurrent(generation)) return;
+      state = state.copyWith(phase: SyncPhase.noNewData, preparedImport: null);
+    } on SettingsSyncPreparationException catch (error) {
+      if (!_isCurrent(generation)) return;
+      state = state.copyWith(
+        phase: SyncPhase.error,
+        preparedImport: null,
+        errorMessage: error.safeMessage,
       );
     } on SyncProtocolFailure catch (e) {
       if (!_isCurrent(generation)) return;
@@ -322,31 +332,65 @@ class SyncClientController extends Notifier<SyncClientState> {
     }
   }
 
-  /// 执行导入并返回是否成功。
-  Future<bool> executeImport() async {
-    final data = state.deduplicatedData;
-    if (data == null) return false;
+  /// 执行接收阶段的一次性 prepared import，并把安全结果投影回页面状态。
+  Future<SettingsSyncImportExecutionResult> executePreparedImport({
+    required bool confirmedSensitive,
+  }) async {
+    final prepared = state.preparedImport;
+    if (prepared == null) {
+      return const SettingsSyncImportAlreadyConsumed();
+    }
     final generation = _generation;
 
     try {
-      final success = await ref
-          .read(settingsSyncFacadeProvider)
-          .importDeduplicated(data);
-      if (success && _isCurrent(generation)) {
-        state = state.copyWith(phase: SyncPhase.imported);
+      final result = await prepared.execute(
+        confirmedSensitive: confirmedSensitive,
+      );
+      if (!_isCurrent(generation)) return result;
+      switch (result) {
+        case SettingsSyncImportSuccess():
+          state = state.copyWith(
+            phase: SyncPhase.imported,
+            preparedImport: null,
+          );
+        case SettingsSyncImportStalePreview(:final refreshedImport):
+          state = state.copyWith(
+            phase: SyncPhase.received,
+            preparedImport: refreshedImport,
+          );
+        case SettingsSyncImportSensitiveConfirmationRequired():
+        case SettingsSyncImportFailure():
+        case SettingsSyncImportPartialFailure():
+        case SettingsSyncImportAlreadyConsumed():
+          state = state.copyWith(phase: SyncPhase.received);
       }
-      return success;
+      return result;
     } catch (e) {
-      if (!_isCurrent(generation)) return false;
+      if (!_isCurrent(generation)) {
+        return const SettingsSyncImportFailure(
+          failedLabel: '导入',
+          safeReason: '导入未完成，请重试',
+        );
+      }
       state = state.copyWith(phase: SyncPhase.error, errorMessage: '导入失败: $e');
-      return false;
+      return SettingsSyncImportFailure(
+        failedLabel: '导入',
+        safeReason: '导入未完成，请重试',
+      );
     }
+  }
+
+  /// 兼容 Task 6 对话框替身；Task 7 对话框通过 prepared import 传入确认位。
+  @Deprecated('请调用 executePreparedImport(confirmedSensitive: ...)。')
+  Future<bool> executeImport() async {
+    final result = await executePreparedImport(confirmedSensitive: true);
+    return result is SettingsSyncImportSuccess;
   }
 
   void resetToConnected() {
     state = state.copyWith(
       phase: SyncPhase.connected,
-      deduplicatedData: null,
+      preparedImport: null,
       errorMessage: null,
       sensitiveRequestConfirmed: false,
     );
@@ -369,4 +413,25 @@ class SyncClientController extends Notifier<SyncClientState> {
   bool _isCurrent(int generation) {
     return ref.mounted && generation == _generation;
   }
+}
+
+Set<SettingsSyncGroupId> _groupsForCategories(Set<SyncCategory> categories) {
+  final groups = <SettingsSyncGroupId>{};
+  for (final category in categories) {
+    switch (category) {
+      case SyncCategory.providers:
+        groups.add(const SettingsSyncGroupId('providers'));
+      case SyncCategory.presets:
+        groups.add(const SettingsSyncGroupId('presets'));
+      case SyncCategory.prompts:
+        groups.add(const SettingsSyncGroupId('prompts'));
+      case SyncCategory.other:
+        groups.addAll({
+          SettingsSyncGroupId('network'),
+          SettingsSyncGroupId('outputProcessing'),
+          SettingsSyncGroupId('other'),
+        });
+    }
+  }
+  return Set.unmodifiable(groups);
 }

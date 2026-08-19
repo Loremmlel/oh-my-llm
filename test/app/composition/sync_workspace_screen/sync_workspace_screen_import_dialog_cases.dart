@@ -9,11 +9,13 @@ import 'package:oh_my_llm/features/settings/domain/models/providers/llm_provider
 import 'package:oh_my_llm/features/settings/domain/models/prompts/memory_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_export_data.dart';
 import 'package:oh_my_llm/features/sync/application/sync_client_controller.dart';
+import 'package:oh_my_llm/features/sync/application/ports/settings_sync_facade.dart';
 import 'package:oh_my_llm/features/sync/presentation/widgets/sync_import_confirm_dialog.dart';
 
 import '../../../helpers/test_harness.dart';
 import '../../../helpers/async/widget_test_animation.dart';
 import 'sync_workspace_screen_test_helpers.dart';
+import '../../../features/sync/application/sync_test_fakes.dart';
 
 /// 导入动作挂在 [gate] 上的 SyncClientController 替身：
 /// 测试先确认 busy 窗口，再通过 gate 结束导入，精确控制 busy 时长。
@@ -27,6 +29,28 @@ class _GateSyncClientController extends SyncClientController {
 
   @override
   Future<bool> executeImport() => gate.future;
+}
+
+class _PreparedSyncClientController extends SyncClientController {
+  _PreparedSyncClientController(this.preparedImport, this.gate);
+
+  final SettingsSyncPreparedImport preparedImport;
+  final Completer<SettingsSyncImportExecutionResult> gate;
+  bool? confirmedSensitive;
+
+  @override
+  SyncClientState build() => SyncClientState(
+    phase: SyncPhase.received,
+    preparedImport: preparedImport,
+  );
+
+  @override
+  Future<SettingsSyncImportExecutionResult> executePreparedImport({
+    required bool confirmedSensitive,
+  }) async {
+    this.confirmedSensitive = confirmedSensitive;
+    return gate.future;
+  }
 }
 
 void registerSyncScreenImportDialogTests() {
@@ -160,6 +184,53 @@ void registerSyncScreenImportDialogTests() {
 
       await tester.binding.handlePopRoute();
       await settleOverlayTransition(tester);
+      expect(find.text('确认同步配置'), findsNothing);
+    });
+
+    testWidgets('prepared import 对话框把导入时敏感确认传给 controller', (tester) async {
+      final prepared = ScriptedSettingsSyncPreparedImport(
+        summaries: const [
+          SettingsSyncSummaryItem(label: '测试设置', trailingText: '替换'),
+        ],
+        containsSensitive: true,
+      );
+      final gate = Completer<SettingsSyncImportExecutionResult>();
+      late _PreparedSyncClientController controller;
+
+      await pumpTestApp(
+        tester,
+        preferences: preferences,
+        extraOverrides: [
+          syncClientControllerProvider.overrideWith(() {
+            controller = _PreparedSyncClientController(prepared, gate);
+            return controller;
+          }),
+        ],
+        child: Builder(
+          builder: (context) => ElevatedButton(
+            onPressed: () => showDialog<void>(
+              context: context,
+              builder: (_) => SyncImportConfirmDialog(
+                preparedImport: prepared,
+                sourceDeviceName: 'TestPC',
+              ),
+            ),
+            child: const Text('打开对话框'),
+          ),
+        ),
+      );
+      await tester.tap(find.text('打开对话框'));
+      await settleOverlayTransition(tester);
+
+      await tester.tap(find.byType(Checkbox));
+      await tester.pump();
+      await tester.tap(find.text('导入'));
+      await tester.pump();
+      expect(find.text('导入中...'), findsOneWidget);
+
+      expect(controller.confirmedSensitive, isTrue);
+      gate.complete(const SettingsSyncImportSuccess());
+      await settleAnimatedWidgetTransition(tester);
       expect(find.text('确认同步配置'), findsNothing);
     });
   });

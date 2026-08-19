@@ -2,13 +2,13 @@ import 'dart:convert';
 
 import 'package:equatable/equatable.dart';
 
-import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_export_codec.dart';
-import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_export_data.dart';
+import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_transfer_document.dart';
+import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_transfer_document_codec.dart';
 import 'sync_protocol_failure.dart';
 import 'sync_protocol_version.dart';
 import 'sync_types.dart';
 
-/// v3 wire message 的封闭类型集合。解析完成后不再向调用方暴露动态 Map。
+/// v4 wire message 的封闭类型集合。解析完成后不再向调用方暴露动态 Map。
 sealed class SyncProtocolMessage extends Equatable {
   const SyncProtocolMessage({
     required this.requestId,
@@ -230,44 +230,31 @@ sealed class EncryptedSyncPayload extends Equatable {
 
 final class SettingsSyncRequestPayload extends EncryptedSyncPayload {
   SettingsSyncRequestPayload(
-    Set<SyncCategory> categories, {
+    Set<SettingsSyncGroupId> groups, {
     required this.confirmedSensitive,
-  }) : categories = Set.unmodifiable(categories);
+  }) : groups = Set.unmodifiable(groups);
 
-  final Set<SyncCategory> categories;
+  final Set<SettingsSyncGroupId> groups;
   final bool confirmedSensitive;
   @override
   String get kind => 'settingsSyncRequest';
 
   @override
   List<Object?> get props => [
-    categories.map((item) => item.index).toList()..sort(),
+    groups.map((group) => group.value).toList()..sort(),
     confirmedSensitive,
   ];
 }
 
-final class SettingsSnapshotPayload extends Equatable {
-  const SettingsSnapshotPayload({
-    required this.formatVersion,
-    required this.data,
-  });
-
-  final int formatVersion;
-  final SettingsExportData data;
-
-  @override
-  List<Object?> get props => [formatVersion, data.toJsonString()];
-}
-
 final class SettingsSyncResponsePayload extends EncryptedSyncPayload {
-  const SettingsSyncResponsePayload(this.snapshot);
+  const SettingsSyncResponsePayload(this.document);
 
-  final SettingsSnapshotPayload snapshot;
+  final SettingsTransferDocument document;
   @override
   String get kind => 'settingsSyncResponse';
 
   @override
-  List<Object?> get props => [snapshot];
+  List<Object?> get props => [document];
 }
 
 /// Codec 的错误不会泄漏原始 JSON；handler 可直接映射到 public error。
@@ -285,7 +272,7 @@ final class SyncProtocolDecodeFailure extends SyncProtocolDecodeResult {
   final SyncProtocolFailure failure;
 }
 
-/// Sync v3 唯一 JSON 边界。字段类型、ID、base64 和分类均严格验证。
+/// Sync v4 唯一 JSON 边界。字段类型、ID、base64 和 group/document 均严格验证。
 final class SyncProtocolCodec {
   const SyncProtocolCodec._();
 
@@ -327,21 +314,15 @@ final class SyncProtocolCodec {
 
   static Map<String, Object?> payloadToJson(EncryptedSyncPayload payload) =>
       switch (payload) {
-        SettingsSyncRequestPayload(
-          :final categories,
-          :final confirmedSensitive,
-        ) =>
+        SettingsSyncRequestPayload(:final groups, :final confirmedSensitive) =>
           {
             'kind': payload.kind,
-            'categories': categories.map((item) => item.payloadKey).toList(),
+            'groups': groups.map((group) => group.value).toList()..sort(),
             'confirmedSensitive': confirmedSensitive,
           },
-        SettingsSyncResponsePayload(:final snapshot) => {
+        SettingsSyncResponsePayload(:final document) => {
           'kind': payload.kind,
-          'snapshot': {
-            'formatVersion': snapshot.formatVersion,
-            'data': snapshot.data.toJson(),
-          },
+          'document': document.toJson(),
         },
       };
 
@@ -458,50 +439,41 @@ final class SyncProtocolCodec {
   static EncryptedSyncPayload _readPayload(Map<String, Object?> raw) {
     switch (_id(raw, 'kind')) {
       case 'settingsSyncRequest':
-        final list = raw['categories'];
+        if (!_hasExactKeys(raw, {'kind', 'groups', 'confirmedSensitive'})) {
+          throw const FormatException();
+        }
+        final list = raw['groups'];
         if (list is! List || list.isEmpty) throw const FormatException();
-        final categories = <SyncCategory>{};
+        final groups = <SettingsSyncGroupId>{};
         for (final value in list) {
-          if (value is! String) throw const FormatException();
-          final category = SyncCategory.values.where(
-            (item) => item.payloadKey == value,
-          );
-          if (category.isEmpty || !categories.add(category.single)) {
+          if (value is! String || !_isValidGroupId(value)) {
+            throw const FormatException();
+          }
+          if (!groups.add(SettingsSyncGroupId(value))) {
             throw const FormatException();
           }
         }
         final rawConfirmedSensitive = raw['confirmedSensitive'];
-        if (rawConfirmedSensitive != null && rawConfirmedSensitive is! bool) {
+        if (rawConfirmedSensitive is! bool) {
           throw const FormatException();
         }
         return SettingsSyncRequestPayload(
-          categories,
-          confirmedSensitive: rawConfirmedSensitive as bool? ?? false,
+          groups,
+          confirmedSensitive: rawConfirmedSensitive,
         );
       case 'settingsSyncResponse':
-        final snapshot = raw['snapshot'];
-        if (snapshot is! Map) throw const FormatException();
-        final snapshotMap = Map<String, Object?>.from(snapshot);
-        final data = snapshotMap['data'];
-        if (data is! Map) throw const FormatException();
-        final decoded = SettingsExportCodec.decode(
-          Map<String, Object?>.from(data),
-        );
-        if (decoded is! SettingsExportDecodeSuccess) {
+        if (!_hasExactKeys(raw, {'kind', 'document'})) {
           throw const FormatException();
         }
-        final formatVersion = _int(snapshotMap, 'formatVersion');
-        if (formatVersion != decoded.sourceVersion ||
-            formatVersion < SettingsExportCodec.minimumSupportedVersion ||
-            formatVersion > SettingsExportCodec.maximumSupportedVersion) {
+        final document = raw['document'];
+        if (document is! Map) throw const FormatException();
+        final decoded = SettingsTransferDocumentCodec.decodeObject(
+          Map<String, Object?>.from(document),
+        );
+        if (decoded is! SettingsTransferDocumentDecodeSuccess) {
           throw const FormatException();
         }
-        return SettingsSyncResponsePayload(
-          SettingsSnapshotPayload(
-            formatVersion: formatVersion,
-            data: decoded.data,
-          ),
-        );
+        return SettingsSyncResponsePayload(decoded.document);
       default:
         throw const FormatException();
     }
@@ -627,3 +599,9 @@ final class SyncProtocolCodec {
     }
   }
 }
+
+bool _isValidGroupId(String value) =>
+    RegExp(r'^[a-z][A-Za-z0-9]*$').hasMatch(value);
+
+bool _hasExactKeys(Map<String, Object?> raw, Set<String> expected) =>
+    raw.length == expected.length && raw.keys.every(expected.contains);

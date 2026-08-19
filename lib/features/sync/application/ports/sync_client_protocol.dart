@@ -1,4 +1,4 @@
-import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_export_data.dart';
+import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_transfer_document.dart';
 
 import '../../domain/models/discovery/discovered_server.dart';
 import '../../domain/models/protocol/sync_types.dart';
@@ -14,9 +14,10 @@ abstract interface class SyncClientProtocol {
     required String displayName,
   });
 
-  Future<SettingsExportData> requestSettings({
+  Future<SettingsTransferDocument> requestSettings({
     required DiscoveredServer server,
-    required Set<SyncCategory> categories,
+    Set<SettingsSyncGroupId>? groups,
+    @Deprecated('Sync v4 使用 groups；旧 categories 参数将在后续清理。') Object? categories,
     required bool confirmedSensitive,
   });
 

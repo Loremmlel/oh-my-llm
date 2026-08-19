@@ -1,4 +1,17 @@
-/// 可同步的设置分类。
+import 'package:equatable/equatable.dart';
+
+/// Sync v4 wire payload 使用的稳定设置分组 ID。
+final class SettingsSyncGroupId extends Equatable {
+  const SettingsSyncGroupId(this.value);
+
+  final String value;
+
+  @override
+  List<Object?> get props => [value];
+}
+
+/// v4 迁移期间保留的 presentation 兼容分类；Task 8 将移除。
+@Deprecated('仅供 Task 7 的旧四分类 presentation adapter 使用。')
 enum SyncCategory {
   providers,
   presets,
@@ -12,7 +25,7 @@ enum SyncCategory {
     other => '其它',
   };
 
-  /// 协议中使用的传输标识。
+  /// 旧 presentation adapter 映射所用的稳定标识；v4 wire 直接使用 group ID。
   String get payloadKey => switch (this) {
     providers => 'providers',
     presets => 'presets',
@@ -21,11 +34,11 @@ enum SyncCategory {
   };
 }
 
-/// 同步分类的敏感等级。
-///
-/// 此处是协议和界面共用的唯一事实源，避免因为显示文案变化而遗漏凭据确认。
+/// 仅供旧 presentation adapter 使用，不参与 v4 wire 或 server security。
+@Deprecated('Sync v4 使用 SettingsSyncSensitivity 和 catalog descriptor。')
 enum SyncCategorySensitivity { standard, credentialBearing }
 
+@Deprecated('Sync v4 使用 SettingsSyncGroupId；Task 8 将移除。')
 extension SyncCategorySecurity on SyncCategory {
   SyncCategorySensitivity get sensitivity => switch (this) {
     SyncCategory.providers ||
@@ -38,7 +51,7 @@ extension SyncCategorySecurity on SyncCategory {
       sensitivity == SyncCategorySensitivity.credentialBearing;
 }
 
-/// 仅用于隔离的 v1 rejection fixture；生产 Sync v3 不得引用这些值。
+/// 仅用于隔离的 v1 rejection fixture；生产 Sync v4 不得引用这些值。
 @Deprecated('Sync v1 已被拒绝；请使用 SyncProtocolMessage。')
 final class SyncMessageType {
   const SyncMessageType._();

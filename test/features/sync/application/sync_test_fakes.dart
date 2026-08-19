@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_export_data.dart';
+import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_transfer_document.dart';
 import 'package:oh_my_llm/features/sync/application/ports/settings_sync_facade.dart';
 import 'package:oh_my_llm/features/sync/application/ports/sync_client_protocol.dart';
 import 'package:oh_my_llm/features/sync/application/ports/sync_client_transport.dart';
@@ -54,8 +54,6 @@ final class FakePairingRepository implements SyncPairingRepository {
 }
 
 /// 可手动推送发现事件与关闭流的传输 fake，用于服务端断开检测用例。
-///
-/// 非广播单订阅流：一个用例只调用一次 `startDiscovery`。
 final class FakeSyncClientTransport implements SyncClientTransport {
   final StreamController<DiscoveredServer> _controller =
       StreamController<DiscoveredServer>();
@@ -87,17 +85,14 @@ final class ScriptedSyncClientProtocol implements SyncClientProtocol {
   bool paired = false;
   Object? pairError;
   Object? requestError;
-  SettingsExportData requestResult = const SettingsExportData(
-    modelProviders: [],
-    memoryPrompts: [],
-    presetPrompts: [],
-    templatePrompts: [],
-    fixedPromptSequences: [],
+  SettingsTransferDocument requestResult = SettingsTransferDocument(
+    sections: const {},
   );
   Completer<void>? pairGate;
   Completer<void>? requestGate;
   String? pairedCode;
   bool? requestedSensitiveConfirmation;
+  Set<SettingsSyncGroupId>? requestedGroups;
   Set<SyncCategory>? requestedCategories;
   int forgetCount = 0;
   int clearSessionsCount = 0;
@@ -122,13 +117,15 @@ final class ScriptedSyncClientProtocol implements SyncClientProtocol {
   }
 
   @override
-  Future<SettingsExportData> requestSettings({
+  Future<SettingsTransferDocument> requestSettings({
     required DiscoveredServer server,
-    required Set<SyncCategory> categories,
+    Set<SettingsSyncGroupId>? groups,
+    Object? categories,
     required bool confirmedSensitive,
   }) async {
     if (requestGate != null) await requestGate!.future;
-    requestedCategories = categories;
+    requestedGroups = groups;
+    requestedCategories = categories is Set<SyncCategory> ? categories : null;
     requestedSensitiveConfirmation = confirmedSensitive;
     if (requestError != null) throw requestError!;
     return requestResult;
@@ -147,23 +144,100 @@ final class ScriptedSyncClientProtocol implements SyncClientProtocol {
 }
 
 final class FakeSettingsSyncFacade implements SettingsSyncFacade {
+  FakeSettingsSyncFacade({List<SettingsSyncGroupDescriptor>? availableGroups})
+    : availableGroups = List.unmodifiable(availableGroups ?? _defaultGroups);
+
+  @override
+  final List<SettingsSyncGroupDescriptor> availableGroups;
+
   var exportCount = 0;
-  SettingsExportData? deduplicatedResult;
+  Set<SettingsSyncGroupId>? exportedGroups;
+  Set<SettingsSyncGroupId>? requestedGroups;
+  SettingsTransferDocument exportedDocument = SettingsTransferDocument(
+    sections: const {},
+  );
+  SettingsSyncPreparedImport? preparedImport;
+  Object? preparationError;
+
   @override
-  SettingsExportData deduplicateIncoming(SettingsExportData data) =>
-      deduplicatedResult ?? data;
-  @override
-  SettingsExportData exportSelected(SettingsSyncSelection selection) {
+  SettingsTransferDocument exportGroups(Set<SettingsSyncGroupId> groups) {
     exportCount++;
-    return const SettingsExportData(
-      modelProviders: [],
-      memoryPrompts: [],
-      presetPrompts: [],
-      templatePrompts: [],
-      fixedPromptSequences: [],
-    );
+    exportedGroups = Set.unmodifiable(groups);
+    return exportedDocument;
   }
 
   @override
-  Future<bool> importDeduplicated(SettingsExportData data) async => true;
+  SettingsSyncPreparedImport prepareIncoming(
+    SettingsTransferDocument document, {
+    required Set<SettingsSyncGroupId> requestedGroups,
+  }) {
+    this.requestedGroups = Set.unmodifiable(requestedGroups);
+    if (preparationError != null) throw preparationError!;
+    return preparedImport ?? ScriptedSettingsSyncPreparedImport();
+  }
 }
+
+final class ScriptedSettingsSyncPreparedImport
+    implements SettingsSyncPreparedImport {
+  ScriptedSettingsSyncPreparedImport({
+    this.summaries = const [],
+    this.containsSensitive = false,
+    this.executeResult = const SettingsSyncImportSuccess(),
+  });
+
+  @override
+  final List<SettingsSyncSummaryItem> summaries;
+
+  @override
+  final bool containsSensitive;
+
+  SettingsSyncImportExecutionResult executeResult;
+  bool? requestedSensitiveConfirmation;
+
+  @override
+  Future<SettingsSyncImportExecutionResult> execute({
+    required bool confirmedSensitive,
+  }) async {
+    requestedSensitiveConfirmation = confirmedSensitive;
+    return executeResult;
+  }
+}
+
+const _defaultGroups = [
+  SettingsSyncGroupDescriptor(
+    id: SettingsSyncGroupId('providers'),
+    label: '服务商',
+    order: 0,
+    sensitivity: SettingsSyncSensitivity.credentialBearing,
+  ),
+  SettingsSyncGroupDescriptor(
+    id: SettingsSyncGroupId('presets'),
+    label: '预设',
+    order: 1,
+    sensitivity: SettingsSyncSensitivity.standard,
+  ),
+  SettingsSyncGroupDescriptor(
+    id: SettingsSyncGroupId('prompts'),
+    label: '提示词',
+    order: 2,
+    sensitivity: SettingsSyncSensitivity.standard,
+  ),
+  SettingsSyncGroupDescriptor(
+    id: SettingsSyncGroupId('network'),
+    label: '网络',
+    order: 3,
+    sensitivity: SettingsSyncSensitivity.credentialBearing,
+  ),
+  SettingsSyncGroupDescriptor(
+    id: SettingsSyncGroupId('outputProcessing'),
+    label: '输出处理',
+    order: 4,
+    sensitivity: SettingsSyncSensitivity.standard,
+  ),
+  SettingsSyncGroupDescriptor(
+    id: SettingsSyncGroupId('other'),
+    label: '其它',
+    order: 5,
+    sensitivity: SettingsSyncSensitivity.standard,
+  ),
+];

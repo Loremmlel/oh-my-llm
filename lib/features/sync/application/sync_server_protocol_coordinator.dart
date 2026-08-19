@@ -1,11 +1,10 @@
 import 'dart:convert';
 
-import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_export_data.dart';
+import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_transfer_document.dart';
 import '../domain/models/session/sync_pairing.dart';
 import '../domain/models/protocol/sync_protocol_failure.dart';
 import '../domain/models/protocol/sync_protocol_message.dart';
 import '../domain/models/session/sync_session.dart';
-import '../domain/models/protocol/sync_types.dart';
 import 'ports/settings_sync_facade.dart';
 import 'ports/sync_clock.dart';
 import 'ports/sync_crypto.dart';
@@ -189,7 +188,7 @@ final class SyncServerProtocolCoordinator {
     final key = await _crypto.hkdf(
       secret: secret,
       salt: [...base64Decode(request.clientNonce), ...serverNonce],
-      info: utf8.encode('oh-my-llm-sync-v3-session'),
+      info: utf8.encode('oh-my-llm-sync-v4-session'),
     );
     final now = _clock.now();
     _sessions.open(
@@ -251,23 +250,37 @@ final class SyncServerProtocolCoordinator {
       _sessions.invalidatePeer(session.peerId);
       return _failure(request.requestId, SyncProtocolErrorCode.pairingRequired);
     }
-    if (payload.categories.any((item) => item.isCredentialBearing) &&
+    final availableGroups = {
+      for (final descriptor in _settingsFacade.availableGroups) descriptor.id,
+    };
+    if (!payload.groups.every(availableGroups.contains)) {
+      return _failure(
+        request.requestId,
+        SyncProtocolErrorCode.malformedMessage,
+      );
+    }
+    if (payload.groups.any(
+          (group) => _settingsFacade.availableGroups.any(
+            (descriptor) =>
+                descriptor.id == group &&
+                descriptor.sensitivity ==
+                    SettingsSyncSensitivity.credentialBearing,
+          ),
+        ) &&
         !payload.confirmedSensitive) {
       return _failure(
         request.requestId,
         SyncProtocolErrorCode.sensitiveConfirmationRequired,
       );
     }
-    final export = _settingsFacade.exportSelected(
-      _selection(payload.categories),
-    );
+    final export = _settingsFacade.exportGroups(payload.groups);
     return _encryptedSnapshot(request, session, export);
   }
 
   Future<SyncServerProtocolResult> _encryptedSnapshot(
     EncryptedSyncRequest request,
     SyncSession session,
-    SettingsExportData data,
+    SettingsTransferDocument document,
   ) async {
     final nonce = _crypto.randomBytes(12);
     final response = EncryptedSyncResponse(
@@ -278,12 +291,7 @@ final class SyncServerProtocolCoordinator {
       nonce: base64Encode(nonce),
       ciphertext: '',
     );
-    final payload = SettingsSyncResponsePayload(
-      SettingsSnapshotPayload(
-        formatVersion: SettingsExportData.formatVersion,
-        data: data,
-      ),
-    );
+    final payload = SettingsSyncResponsePayload(document);
     final ciphertext = await _crypto.encrypt(
       key: session.key,
       nonce: nonce,
@@ -318,14 +326,6 @@ final class SyncServerProtocolCoordinator {
 
   String _randomId(int bytes) =>
       base64UrlEncode(_crypto.randomBytes(bytes)).replaceAll('=', '');
-
-  SettingsSyncSelection _selection(Set<SyncCategory> categories) =>
-      SettingsSyncSelection(
-        providers: categories.contains(SyncCategory.providers),
-        presets: categories.contains(SyncCategory.presets),
-        prompts: categories.contains(SyncCategory.prompts),
-        other: categories.contains(SyncCategory.other),
-      );
 }
 
 final class SyncServerProtocolResult {
