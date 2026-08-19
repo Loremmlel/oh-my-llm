@@ -203,8 +203,15 @@ void registerSettingsScreenTransferTests() {
     expect(find.text('检测到配置导入数据'), findsOneWidget);
     expect(find.textContaining(apiKey), findsNothing);
     expect(find.textContaining(headerValue), findsNothing);
-    await tester.tap(find.text('取消'));
+
+    await tester.tap(find.byType(Checkbox));
+    await tester.pump();
+    await tester.tap(find.text('导入'));
     await settleOverlayTransition(tester);
+
+    expect(find.text('设置已成功导入'), findsOneWidget);
+    expect(find.textContaining(apiKey), findsNothing);
+    expect(find.textContaining(headerValue), findsNothing);
   });
 }
 

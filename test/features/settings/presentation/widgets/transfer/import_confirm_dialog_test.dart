@@ -25,8 +25,9 @@ void main() {
 
     Future<void> pumpHost(
       WidgetTester tester,
-      SettingsImportBatch batch,
-    ) async {
+      SettingsImportBatch batch, {
+      void Function(bool?)? onDialogResult,
+    }) async {
       await pumpTestApp(
         tester,
         preferences: preferences,
@@ -34,11 +35,12 @@ void main() {
           builder: (context) {
             return Scaffold(
               body: TextButton(
-                onPressed: () {
-                  showDialog<void>(
+                onPressed: () async {
+                  final result = await showDialog<bool>(
                     context: context,
                     builder: (_) => ImportConfirmDialog(batch: batch),
                   );
+                  onDialogResult?.call(result);
                 },
                 child: const Text('打开'),
               ),
@@ -69,12 +71,18 @@ void main() {
         ],
         {'first': 'incoming-1', 'second': 'incoming-2'},
       );
-      await pumpHost(tester, batch);
+      bool? dialogResult;
+      await pumpHost(
+        tester,
+        batch,
+        onDialogResult: (result) => dialogResult = result,
+      );
 
       await tester.tap(find.text('导入'));
       await settleOverlayTransition(tester);
 
       expect(writes, ['incoming-1', 'incoming-2']);
+      expect(dialogResult, isTrue);
       expect(find.text('检测到配置导入数据'), findsNothing);
     });
 
