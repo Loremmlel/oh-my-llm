@@ -4,9 +4,14 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/features/settings/application/transfer/participants/model_provider_transfer_participant.dart';
+import 'package:oh_my_llm/features/settings/application/transfer/participants/preference_transfer_participants.dart';
 import 'package:oh_my_llm/features/settings/application/transfer/participants/prompt_collection_transfer_participants.dart';
 import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_participant.dart';
 import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_types.dart';
+import 'package:oh_my_llm/features/settings/domain/models/preferences/auto_retry_settings.dart';
+import 'package:oh_my_llm/features/settings/domain/models/preferences/custom_headers_config.dart';
+import 'package:oh_my_llm/features/settings/domain/models/preferences/font_size_settings.dart';
+import 'package:oh_my_llm/features/settings/domain/models/preferences/output_processing_settings.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/fixed_prompt_sequence.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/memory_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
@@ -205,6 +210,261 @@ void main() {
       );
     });
   });
+
+  group('替换型 Settings transfer participant', () {
+    test('四个 participant 暴露稳定 key、分组、顺序和敏感级别', () {
+      final participants = _createPreferenceParticipants();
+
+      expect(
+        participants
+            .map(
+              (participant) => (
+                key: participant.key.value,
+                group: participant.group,
+                order: participant.order,
+                sensitivity: participant.sensitivity,
+              ),
+            )
+            .toList(),
+        [
+          (
+            key: 'customHeaders',
+            group: SettingsTransferGroup.network,
+            order: 0,
+            sensitivity: SettingsTransferSensitivity.credentialBearing,
+          ),
+          (
+            key: 'outputProcessing',
+            group: SettingsTransferGroup.outputProcessing,
+            order: 0,
+            sensitivity: SettingsTransferSensitivity.standard,
+          ),
+          (
+            key: 'fontSizeSettings',
+            group: SettingsTransferGroup.other,
+            order: 0,
+            sensitivity: SettingsTransferSensitivity.standard,
+          ),
+          (
+            key: 'autoRetrySettings',
+            group: SettingsTransferGroup.other,
+            order: 1,
+            sensitivity: SettingsTransferSensitivity.standard,
+          ),
+        ],
+      );
+    });
+
+    test('四个 participant 的完整值相同时都不产生 change', () {
+      final headers = _headers();
+      final output = _outputProcessing();
+      final fontSize = _fontSize();
+      final retry = _autoRetry();
+
+      expect(
+        _createHeadersParticipant().prepareImport(
+          local: headers,
+          incoming: headers,
+        ),
+        isNull,
+      );
+      expect(
+        _createOutputProcessingParticipant().prepareImport(
+          local: output,
+          incoming: output,
+        ),
+        isNull,
+      );
+      expect(
+        _createFontSizeParticipant().prepareImport(
+          local: fontSize,
+          incoming: fontSize,
+        ),
+        isNull,
+      );
+      expect(
+        _createAutoRetryParticipant().prepareImport(
+          local: retry,
+          incoming: retry,
+        ),
+        isNull,
+      );
+    });
+
+    test('非空 Header 和规则整体替换且摘要只暴露动作', () {
+      final incomingHeaders = _headers(
+        key: 'X-Transfer-Token',
+        value: 'test-header-secret',
+      );
+      final incomingOutput = _outputProcessing(
+        pattern: 'test-secret-pattern',
+        replacement: 'test-replacement',
+      );
+
+      final headerChange = _createHeadersParticipant().prepareImport(
+        local: const CustomHeadersConfig(),
+        incoming: incomingHeaders,
+      );
+      final outputChange = _createOutputProcessingParticipant().prepareImport(
+        local: const OutputProcessingSettings(),
+        incoming: incomingOutput,
+      );
+
+      expect(headerChange, isNotNull);
+      expect(headerChange!.writeValue, incomingHeaders);
+      expect(
+        headerChange.summary.action,
+        SettingsTransferSummaryAction.replace,
+      );
+      expect(headerChange.summary.count, isNull);
+      expect(
+        '${headerChange.summary.label} ${headerChange.summary.trailingText}',
+        isNot(contains('test-header-secret')),
+      );
+      expect(outputChange, isNotNull);
+      expect(outputChange!.writeValue, incomingOutput);
+      expect(
+        outputChange.summary.action,
+        SettingsTransferSummaryAction.replace,
+      );
+      expect(outputChange.summary.count, isNull);
+      final outputSummary =
+          '${outputChange.summary.label} ${outputChange.summary.trailingText}';
+      expect(outputSummary, isNot(contains('test-secret-pattern')));
+      expect(outputSummary, isNot(contains('test-replacement')));
+    });
+
+    test('空 Header 和规则生成 clear change 而不是 no-op', () {
+      final headerChange = _createHeadersParticipant().prepareImport(
+        local: _headers(),
+        incoming: const CustomHeadersConfig(),
+      );
+      final outputChange = _createOutputProcessingParticipant().prepareImport(
+        local: _outputProcessing(),
+        incoming: const OutputProcessingSettings(),
+      );
+
+      expect(headerChange, isNotNull);
+      expect(headerChange!.writeValue.headers, isEmpty);
+      expect(headerChange.summary.action, SettingsTransferSummaryAction.clear);
+      expect(headerChange.summary.trailingText, '清空');
+      expect(outputChange, isNotNull);
+      expect(outputChange!.writeValue.rules, isEmpty);
+      expect(outputChange.summary.action, SettingsTransferSummaryAction.clear);
+      expect(outputChange.summary.trailingText, '清空');
+      expect(
+        _createHeadersParticipant().shouldExport(const CustomHeadersConfig()),
+        isTrue,
+      );
+      expect(
+        _createOutputProcessingParticipant().shouldExport(
+          const OutputProcessingSettings(),
+        ),
+        isTrue,
+      );
+    });
+
+    test('字号和自动重试替换完整值', () {
+      const incomingFontSize = FontSizeSettings(bodyFontSize: 19.5);
+      const incomingRetry = AutoRetrySettings(
+        maxJitterSeconds: 7,
+        maxRetryCount: 3,
+        retryMode: RetryMode.fixedInterval,
+        retryOnAbnormalFinishReason: true,
+        retryOnTimeout: true,
+        timeoutSeconds: 45,
+      );
+
+      final fontChange = _createFontSizeParticipant().prepareImport(
+        local: const FontSizeSettings(),
+        incoming: incomingFontSize,
+      );
+      final retryChange = _createAutoRetryParticipant().prepareImport(
+        local: const AutoRetrySettings(),
+        incoming: incomingRetry,
+      );
+
+      expect(fontChange, isNotNull);
+      expect(fontChange!.writeValue, incomingFontSize);
+      expect(fontChange.summary.action, SettingsTransferSummaryAction.replace);
+      expect(retryChange, isNotNull);
+      expect(retryChange!.writeValue, incomingRetry);
+      expect(retryChange.summary.action, SettingsTransferSummaryAction.replace);
+    });
+
+    test('四个 map decoder 拒绝非 map 并委托当前模型 fromJson', () {
+      final headers = _createHeadersParticipant();
+      final output = _createOutputProcessingParticipant();
+      final fontSize = _createFontSizeParticipant();
+      final retry = _createAutoRetryParticipant();
+
+      expect(headers.decode(_headers().toJson()), _headers());
+      expect(output.decode(_outputProcessing().toJson()), _outputProcessing());
+      expect(fontSize.decode(_fontSize().toJson()), _fontSize());
+      expect(retry.decode(_autoRetry().toJson()), _autoRetry());
+
+      for (final decoder in <Object? Function(Object?)>[
+        headers.decode,
+        output.decode,
+        fontSize.decode,
+        retry.decode,
+      ]) {
+        expect(() => decoder(const []), throwsA(isA<FormatException>()));
+        expect(() => decoder(null), throwsA(isA<FormatException>()));
+      }
+    });
+
+    test('存储 Future 被拒绝时四个 participant 不改变调用方状态', () async {
+      var headers = _headers();
+      var output = _outputProcessing();
+      var fontSize = _fontSize();
+      var retry = _autoRetry();
+      final originalHeaders = headers;
+      final originalOutput = output;
+      final originalFontSize = fontSize;
+      final originalRetry = retry;
+      final rejected = StateError('测试存储拒绝');
+
+      final headerParticipant = CustomHeadersTransferParticipant(
+        readLocal: () => headers,
+        write: (_) async => throw rejected,
+      );
+      final outputParticipant = OutputProcessingTransferParticipant(
+        readLocal: () => output,
+        write: (_) async => throw rejected,
+      );
+      final fontParticipant = FontSizeSettingsTransferParticipant(
+        readLocal: () => fontSize,
+        write: (_) async => throw rejected,
+      );
+      final retryParticipant = AutoRetrySettingsTransferParticipant(
+        readLocal: () => retry,
+        write: (_) async => throw rejected,
+      );
+
+      await expectLater(
+        headerParticipant.applyImport(const CustomHeadersConfig()),
+        throwsA(same(rejected)),
+      );
+      await expectLater(
+        outputParticipant.applyImport(const OutputProcessingSettings()),
+        throwsA(same(rejected)),
+      );
+      await expectLater(
+        fontParticipant.applyImport(const FontSizeSettings(bodyFontSize: 20)),
+        throwsA(same(rejected)),
+      );
+      await expectLater(
+        retryParticipant.applyImport(const AutoRetrySettings(maxRetryCount: 2)),
+        throwsA(same(rejected)),
+      );
+
+      expect(headers, same(originalHeaders));
+      expect(output, same(originalOutput));
+      expect(fontSize, same(originalFontSize));
+      expect(retry, same(originalRetry));
+    });
+  });
 }
 
 void _expectRoundTrip<T>(
@@ -278,6 +538,80 @@ FixedPromptSequenceTransferParticipant _createSequenceParticipant() {
     write: (_) async {},
   );
 }
+
+List<SettingsTransferParticipant<dynamic>> _createPreferenceParticipants() {
+  return [
+    _createHeadersParticipant(),
+    _createOutputProcessingParticipant(),
+    _createFontSizeParticipant(),
+    _createAutoRetryParticipant(),
+  ];
+}
+
+CustomHeadersTransferParticipant _createHeadersParticipant() {
+  return CustomHeadersTransferParticipant(
+    readLocal: _headers,
+    write: (_) async {},
+  );
+}
+
+OutputProcessingTransferParticipant _createOutputProcessingParticipant() {
+  return OutputProcessingTransferParticipant(
+    readLocal: _outputProcessing,
+    write: (_) async {},
+  );
+}
+
+FontSizeSettingsTransferParticipant _createFontSizeParticipant() {
+  return FontSizeSettingsTransferParticipant(
+    readLocal: _fontSize,
+    write: (_) async {},
+  );
+}
+
+AutoRetrySettingsTransferParticipant _createAutoRetryParticipant() {
+  return AutoRetrySettingsTransferParticipant(
+    readLocal: _autoRetry,
+    write: (_) async {},
+  );
+}
+
+CustomHeadersConfig _headers({
+  String key = 'X-Test',
+  String value = 'test-value',
+}) {
+  return CustomHeadersConfig(
+    headers: [CustomHeaderEntry(key: key, value: value)],
+  );
+}
+
+OutputProcessingSettings _outputProcessing({
+  String pattern = '测试',
+  String replacement = '替换',
+}) {
+  return OutputProcessingSettings(
+    rules: [
+      OutputRegexRule(
+        id: 'rule-1',
+        title: '规则 A',
+        pattern: pattern,
+        replacement: replacement,
+        order: 1,
+      ),
+    ],
+  );
+}
+
+FontSizeSettings _fontSize() => const FontSizeSettings(bodyFontSize: 18.5);
+
+AutoRetrySettings _autoRetry() => const AutoRetrySettings(
+  maxJitterSeconds: 7,
+  maxRetryCount: 3,
+  retryMode: RetryMode.fixedInterval,
+  retryOnAbnormalFinishReason: true,
+  retryOnTimeout: true,
+  timeoutSeconds: 45,
+);
 
 SettingsTransferChange<dynamic>? _providerParticipantNoOpCase() {
   final local = _provider(models: [_model()]);
