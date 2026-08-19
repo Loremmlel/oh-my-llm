@@ -67,3 +67,10 @@ Task 3: minor (deferred): `settings_transfer_coordinator.dart` uses package impo
 Task 3: minor (deferred): one coordinator test title says “相同本地值” while its fixture intentionally uses a different local value; rename if the test remains in the final suite.
 Task 3: minor (deferred): full suite still has the unrelated pre-existing `test/features/sync/application/sync_server_controller_test.dart:124` failure; Task 3 focused tests, analyze and boundary gate pass.
 Task 3: complete (commits 6bec4655..50dc280d, review clean)
+
+## Remote recovery checkpoint
+
+- After Task 3 review passed, the current implementation branch was merged into the new `dev/settings-transfer-registry` branch with merge commit `e2f99fe26fa9133de765f749981ad65cc9b4e24e`.
+- `origin/dev/settings-transfer-registry` was created and pushed successfully; the local branch tracks that remote branch.
+- The checkpoint commit includes the Task 1–3 source/tests plus the complete plan-scoped `.superpowers/sdd/2026-08-18-settings-transfer-registry/` ledger, global constraints, task briefs, implementer reports and review packages. Reproducible `logs/` outputs remain ignored local artifacts and were intentionally not committed.
+- Next resume point: Task 4, from the first unchecked task in this ledger; current branch is `dev/settings-transfer-registry`.
