@@ -1,0 +1,479 @@
+# Review package: af00c2ef83d0b0d6491ecda13eac3872dfd4fbb2..bcd3f62ed5229132f887f54307dfb010f00050f3
+
+## Commits
+bcd3f62 feat(settings): 建立设置传输 v9 文档
+
+## Files changed
+ .../transfer/settings_transfer_document.dart       |  85 ++++++++
+ .../transfer/settings_transfer_document_codec.dart | 104 +++++++++
+ pubspec.yaml                                       |   2 +-
+ .../settings_transfer_document_codec_test.dart     | 232 +++++++++++++++++++++
+ 4 files changed, 422 insertions(+), 1 deletion(-)
+
+## Diff
+diff --git a/lib/features/settings/domain/models/transfer/settings_transfer_document.dart b/lib/features/settings/domain/models/transfer/settings_transfer_document.dart
+new file mode 100644
+index 0000000..bdd17f6
+--- /dev/null
++++ b/lib/features/settings/domain/models/transfer/settings_transfer_document.dart
+@@ -0,0 +1,85 @@
++import 'dart:convert';
++
++import 'package:equatable/equatable.dart';
++
++/// Settings transfer 的 canonical v9 文档，只保存不可变的 JSON-safe section。
++final class SettingsTransferDocument extends Equatable {
++  SettingsTransferDocument({required Map<String, Object?> sections})
++    : sections = _freezeJsonObject(sections);
++
++  static const identifier = 'shikiyuzu-oh-my-llm';
++  static const formatVersion = 9;
++
++  final Map<String, Object?> sections;
++
++  Map<String, Object?> toJson() => Map.unmodifiable({
++    'identifier': identifier,
++    'formatVersion': formatVersion,
++    'sections': sections,
++  });
++
++  @override
++  List<Object?> get props => [jsonEncode(toJson())];
++}
++
++Map<String, Object?> _freezeJsonObject(Map<String, Object?> source) {
++  final ancestors = Set<Object>.identity();
++  return _freezeJsonMap(source, ancestors, validateSectionKeys: true);
++}
++
++Object? _freezeJsonValue(Object? value, Set<Object> ancestors) {
++  if (value == null || value is bool || value is String) return value;
++  if (value is num) {
++    if (value is double && !value.isFinite) {
++      throw ArgumentError.value(value, 'value', '必须是有限 JSON 数字');
++    }
++    return value;
++  }
++  if (value is List) {
++    if (!ancestors.add(value)) {
++      throw ArgumentError.value(value, 'value', 'JSON 值不能包含循环引用');
++    }
++    try {
++      final frozen = <Object?>[];
++      for (final item in value) {
++        frozen.add(_freezeJsonValue(item, ancestors));
++      }
++      return List<Object?>.unmodifiable(frozen);
++    } finally {
++      ancestors.remove(value);
++    }
++  }
++  if (value is Map) {
++    return _freezeJsonMap(value, ancestors);
++  }
++  throw ArgumentError.value(value, 'value', '不是 JSON-safe 值');
++}
++
++Map<String, Object?> _freezeJsonMap(
++  Map source,
++  Set<Object> ancestors, {
++  bool validateSectionKeys = false,
++}) {
++  if (!ancestors.add(source)) {
++    throw ArgumentError.value(source, 'value', 'JSON 值不能包含循环引用');
++  }
++  try {
++    final frozen = <String, Object?>{};
++    for (final entry in source.entries) {
++      final key = entry.key;
++      if (key is! String) {
++        throw ArgumentError.value(key, 'key', 'JSON object 的 key 必须是字符串');
++      }
++      if (validateSectionKeys && !_isValidSectionKey(key)) {
++        throw ArgumentError.value(key, 'key', 'section key 语法无效');
++      }
++      frozen[key] = _freezeJsonValue(entry.value, ancestors);
++    }
++    return Map<String, Object?>.unmodifiable(frozen);
++  } finally {
++    ancestors.remove(source);
++  }
++}
++
++bool _isValidSectionKey(String key) =>
++    RegExp(r'^[a-z][A-Za-z0-9]*$').hasMatch(key);
+diff --git a/lib/features/settings/domain/models/transfer/settings_transfer_document_codec.dart b/lib/features/settings/domain/models/transfer/settings_transfer_document_codec.dart
+new file mode 100644
+index 0000000..7636d86
+--- /dev/null
++++ b/lib/features/settings/domain/models/transfer/settings_transfer_document_codec.dart
+@@ -0,0 +1,104 @@
++import 'dart:convert';
++
++import 'settings_transfer_document.dart';
++
++sealed class SettingsTransferDocumentDecodeResult {
++  const SettingsTransferDocumentDecodeResult();
++}
++
++final class SettingsTransferDocumentDecodeSuccess
++    extends SettingsTransferDocumentDecodeResult {
++  const SettingsTransferDocumentDecodeSuccess(this.document);
++
++  final SettingsTransferDocument document;
++}
++
++final class SettingsTransferDocumentUnsupportedVersion
++    extends SettingsTransferDocumentDecodeResult {
++  const SettingsTransferDocumentUnsupportedVersion(this.version);
++
++  final int version;
++}
++
++final class SettingsTransferDocumentMalformed
++    extends SettingsTransferDocumentDecodeResult {
++  const SettingsTransferDocumentMalformed();
++}
++
++/// 只负责校验 Settings transfer 文档的 canonical 顶层结构。
++final class SettingsTransferDocumentCodec {
++  const SettingsTransferDocumentCodec._();
++
++  static SettingsTransferDocumentDecodeResult decodeJson(String? text) {
++    if (text == null || text.trim().isEmpty) {
++      return const SettingsTransferDocumentMalformed();
++    }
++    try {
++      final decoded = jsonDecode(text);
++      final object = _asStringObject(decoded);
++      if (object == null) return const SettingsTransferDocumentMalformed();
++      return decodeObject(object);
++    } catch (_) {
++      return const SettingsTransferDocumentMalformed();
++    }
++  }
++
++  static SettingsTransferDocumentDecodeResult decodeObject(
++    Map<String, Object?> source,
++  ) {
++    if (source.length != 3 ||
++        !source.containsKey('identifier') ||
++        !source.containsKey('formatVersion') ||
++        !source.containsKey('sections')) {
++      return const SettingsTransferDocumentMalformed();
++    }
++    if (source['identifier'] != SettingsTransferDocument.identifier) {
++      return const SettingsTransferDocumentMalformed();
++    }
++
++    final version = source['formatVersion'];
++    if (version is! int) return const SettingsTransferDocumentMalformed();
++    if (version != SettingsTransferDocument.formatVersion) {
++      return SettingsTransferDocumentUnsupportedVersion(version);
++    }
++
++    final rawSections = source['sections'];
++    if (rawSections is! Map) {
++      return const SettingsTransferDocumentMalformed();
++    }
++
++    final sections = <String, Object?>{};
++    for (final entry in rawSections.entries) {
++      final key = entry.key;
++      if (key is! String || !_isValidSectionKey(key)) {
++        return const SettingsTransferDocumentMalformed();
++      }
++      sections[key] = entry.value;
++    }
++
++    try {
++      return SettingsTransferDocumentDecodeSuccess(
++        SettingsTransferDocument(sections: sections),
++      );
++    } catch (_) {
++      return const SettingsTransferDocumentMalformed();
++    }
++  }
++
++  static String encodeJson(SettingsTransferDocument document) =>
++      jsonEncode(document.toJson());
++}
++
++Map<String, Object?>? _asStringObject(Object? value) {
++  if (value is! Map) return null;
++  final object = <String, Object?>{};
++  for (final entry in value.entries) {
++    final key = entry.key;
++    if (key is! String) return null;
++    object[key] = entry.value;
++  }
++  return object;
++}
++
++bool _isValidSectionKey(String key) =>
++    RegExp(r'^[a-z][A-Za-z0-9]*$').hasMatch(key);
+diff --git a/pubspec.yaml b/pubspec.yaml
+index b17bcfa..adfdd27 100644
+--- a/pubspec.yaml
++++ b/pubspec.yaml
+@@ -9,21 +9,21 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+ # followed by an optional build number separated by a +.
+ # Both the version and the builder number may be overridden in flutter
+ # build by specifying --build-name and --build-number, respectively.
+ # In Android, build-name is used as versionName while build-number used as versionCode.
+ # Read more about Android versioning at https://developer.android.com/studio/publish/versioning
+ # In iOS, build-name is used as CFBundleShortVersionString while build-number is used as CFBundleVersion.
+ # Read more about iOS versioning at
+ # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
+ # In Windows, build-name is used as the major, minor, and patch parts
+ # of the product and file versions while build-number is used as the build suffix.
+-version: 3.60.6+0
++version: 3.61.0+0
+ 
+ environment:
+   sdk: ^3.11.5
+ 
+ # Dependencies specify other packages that your package needs in order to work.
+ # To automatically upgrade your package dependencies to the latest versions
+ # consider running `flutter pub upgrade --major-versions`. Alternatively,
+ # dependencies can be manually updated by changing the version numbers below to
+ # the latest version available on pub.dev. To see which dependencies have newer
+ # versions available, run `flutter pub outdated`.
+diff --git a/test/features/settings/domain/models/transfer/settings_transfer_document_codec_test.dart b/test/features/settings/domain/models/transfer/settings_transfer_document_codec_test.dart
+new file mode 100644
+index 0000000..138563b
+--- /dev/null
++++ b/test/features/settings/domain/models/transfer/settings_transfer_document_codec_test.dart
+@@ -0,0 +1,232 @@
++import 'dart:convert';
++
++import 'package:flutter_test/flutter_test.dart';
++
++import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_transfer_document.dart';
++import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_transfer_document_codec.dart';
++
++Map<String, Object?> _documentObject({
++  Object? identifier = SettingsTransferDocument.identifier,
++  Object? formatVersion = SettingsTransferDocument.formatVersion,
++  Object? sections = const <String, Object?>{},
++  bool includeIdentifier = true,
++  bool includeFormatVersion = true,
++  bool includeSections = true,
++}) {
++  final object = <String, Object?>{};
++  if (includeIdentifier) object['identifier'] = identifier;
++  if (includeFormatVersion) object['formatVersion'] = formatVersion;
++  if (includeSections) object['sections'] = sections;
++  return object;
++}
++
++void main() {
++  test('非空有序 sections map 经 JSON round-trip 后顺序与内容保持不变', () {
++    final document = SettingsTransferDocument(
++      sections: <String, Object?>{
++        'alphaSection': <String, Object?>{
++          'enabled': true,
++          'items': <Object?>['一', 2],
++        },
++        'betaSection': <Object?>[
++          null,
++          <String, Object?>{'name': '二'},
++        ],
++      },
++    );
++
++    final encoded = SettingsTransferDocumentCodec.encodeJson(document);
++    final result = SettingsTransferDocumentCodec.decodeJson(encoded);
++
++    expect(result, isA<SettingsTransferDocumentDecodeSuccess>());
++    final decoded = (result as SettingsTransferDocumentDecodeSuccess).document;
++    expect(decoded, document);
++    expect(decoded.sections.keys.toList(), ['alphaSection', 'betaSection']);
++    expect(decoded.toJson(), <String, Object?>{
++      'identifier': SettingsTransferDocument.identifier,
++      'formatVersion': SettingsTransferDocument.formatVersion,
++      'sections': <String, Object?>{
++        'alphaSection': <String, Object?>{
++          'enabled': true,
++          'items': <Object?>['一', 2],
++        },
++        'betaSection': <Object?>[
++          null,
++          <String, Object?>{'name': '二'},
++        ],
++      },
++    });
++  });
++
++  test('空 sections 是结构合法的 v9 document', () {
++    final result = SettingsTransferDocumentCodec.decodeObject(
++      _documentObject(),
++    );
++
++    expect(result, isA<SettingsTransferDocumentDecodeSuccess>());
++    final document = (result as SettingsTransferDocumentDecodeSuccess).document;
++    expect(document.sections, isEmpty);
++    expect(
++      SettingsTransferDocumentCodec.encodeJson(document),
++      jsonEncode(_documentObject()),
++    );
++  });
++
++  test('v8 和 v10 返回带原始版本号的 UnsupportedVersion', () {
++    for (final version in [8, 10]) {
++      final result = SettingsTransferDocumentCodec.decodeObject(
++        _documentObject(formatVersion: version),
++      );
++
++      expect(
++        result,
++        isA<SettingsTransferDocumentUnsupportedVersion>(),
++        reason: 'version=$version',
++      );
++      expect(
++        (result as SettingsTransferDocumentUnsupportedVersion).version,
++        version,
++      );
++    }
++  });
++
++  test('null、空白和非法 JSON 返回 Malformed', () {
++    for (final text in <String?>[null, '', '   ', '{']) {
++      expect(
++        SettingsTransferDocumentCodec.decodeJson(text),
++        isA<SettingsTransferDocumentMalformed>(),
++        reason: 'text=$text',
++      );
++    }
++  });
++
++  test('错误标识符、缺失或浮点版本号返回 Malformed', () {
++    final cases = <Map<String, Object?>>[
++      _documentObject(identifier: 'other-app'),
++      _documentObject(includeFormatVersion: false),
++      _documentObject(formatVersion: 9.0),
++    ];
++
++    for (final object in cases) {
++      expect(
++        SettingsTransferDocumentCodec.decodeObject(object),
++        isA<SettingsTransferDocumentMalformed>(),
++      );
++    }
++  });
++
++  test('缺失或非 map sections 以及未知顶层字段返回 Malformed', () {
++    final cases = <Map<String, Object?>>[
++      _documentObject(includeSections: false),
++      _documentObject(sections: <Object?>[]),
++      <String, Object?>{..._documentObject(), 'unexpected': true},
++    ];
++
++    for (final object in cases) {
++      expect(
++        SettingsTransferDocumentCodec.decodeObject(object),
++        isA<SettingsTransferDocumentMalformed>(),
++      );
++    }
++  });
++
++  test('非法 section key、非字符串嵌套 map key 和非 JSON-safe 值均被拒绝', () {
++    for (final key in ['', 'bad key', 'bad/key', '9section']) {
++      final result = SettingsTransferDocumentCodec.decodeObject(
++        _documentObject(sections: <String, Object?>{key: <Object?>[]}),
++      );
++      expect(
++        result,
++        isA<SettingsTransferDocumentMalformed>(),
++        reason: 'key=$key',
++      );
++    }
++
++    final nestedMapWithNonStringKey = <Object?, Object?>{1: 'value'};
++    expect(
++      SettingsTransferDocumentCodec.decodeObject(
++        _documentObject(
++          sections: <String, Object?>{
++            'validSection': nestedMapWithNonStringKey,
++          },
++        ),
++      ),
++      isA<SettingsTransferDocumentMalformed>(),
++    );
++
++    for (final value in <Object?>[
++      Object(),
++      DateTime(2026, 1, 1),
++      <Object?>{'not-json-safe'},
++      double.nan,
++      double.infinity,
++    ]) {
++      final result = SettingsTransferDocumentCodec.decodeObject(
++        _documentObject(sections: <String, Object?>{'validSection': value}),
++      );
++      expect(
++        result,
++        isA<SettingsTransferDocumentMalformed>(),
++        reason: 'value=${value.runtimeType}',
++      );
++    }
++
++    expect(
++      () => SettingsTransferDocument(
++        sections: <String, Object?>{'validSection': Object()},
++      ),
++      throwsA(isA<ArgumentError>()),
++    );
++  });
++
++  test('构造后修改源 map 或 list 不会改变 document', () {
++    final sourceList = <Object?>[
++      '初始',
++      <String, Object?>{'nested': true},
++    ];
++    final sourceNestedMap = <String, Object?>{'value': '初始'};
++    final source = <String, Object?>{
++      'firstSection': sourceList,
++      'secondSection': sourceNestedMap,
++    };
++    final document = SettingsTransferDocument(sections: source);
++
++    sourceList.add('后来添加');
++    (sourceList[1] as Map<String, Object?>)['nested'] = false;
++    sourceNestedMap['value'] = '后来修改';
++    source['thirdSection'] = true;
++
++    expect(document.sections.keys.toList(), ['firstSection', 'secondSection']);
++    final documentList = document.sections['firstSection']! as List<Object?>;
++    expect(documentList, [
++      '初始',
++      <String, Object?>{'nested': true},
++    ]);
++    expect(document.sections['secondSection'], <String, Object?>{
++      'value': '初始',
++    });
++  });
++
++  test('toJson 返回调用方不能修改的防御性结构', () {
++    final document = SettingsTransferDocument(
++      sections: <String, Object?>{
++        'section': <String, Object?>{
++          'items': <Object?>['初始'],
++        },
++      },
++    );
++    final json = document.toJson();
++    final sections = json['sections']! as Map<String, Object?>;
++    final section = sections['section']! as Map<String, Object?>;
++    final items = section['items']! as List<Object?>;
++
++    expect(() => json['unexpected'] = true, throwsUnsupportedError);
++    expect(
++      () => sections['anotherSection'] = <Object?>[],
++      throwsUnsupportedError,
++    );
++    expect(() => section['anotherValue'] = false, throwsUnsupportedError);
++    expect(() => items.add('后来添加'), throwsUnsupportedError);
++    expect(document.sections.keys, ['section']);
++  });
++}

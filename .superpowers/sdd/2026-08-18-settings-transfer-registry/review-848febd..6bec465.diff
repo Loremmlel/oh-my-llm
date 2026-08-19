@@ -1,0 +1,139 @@
+# Review package: 848febd632564d9a08f6bfbde82bdb08d94c95e1..6bec4655af0965c946f1712241b12ab1b8040a24
+
+## Commits
+6bec465 fix(settings): 补齐传输写入值边界回归
+
+## Files changed
+ .../transfer/settings_transfer_participant.dart    | 18 ++++++++++++++--
+ pubspec.yaml                                       |  2 +-
+ .../transfer/settings_transfer_catalog_test.dart   | 24 ++++++++++++++++++++++
+ 3 files changed, 41 insertions(+), 3 deletions(-)
+
+## Diff
+diff --git a/lib/features/settings/application/transfer/settings_transfer_participant.dart b/lib/features/settings/application/transfer/settings_transfer_participant.dart
+index 138e8ab..b184c93 100644
+--- a/lib/features/settings/application/transfer/settings_transfer_participant.dart
++++ b/lib/features/settings/application/transfer/settings_transfer_participant.dart
+@@ -22,30 +22,44 @@ abstract interface class SettingsTransferParticipant<T> {
+   Future<void> applyImport(T value);
+ }
+ 
+ final class SettingsTransferChange<T> {
+   const SettingsTransferChange({
+     required this.participant,
+     required this.incoming,
+     required this.writeValue,
+     required this.fingerprint,
+     required this.summary,
+-  });
++  }) : _valueType = T;
++
++  /// application 内部在 erased 边界构造待校验 change 的入口。
++  ///
++  /// 普通 participant 必须使用默认构造器；这里保留 [T] 的公开字段语义，
++  /// 只允许 box 通过 [valueType] 和实际值执行最终一致性校验。
++  const SettingsTransferChange.erased({
++    required this.participant,
++    required this.incoming,
++    required this.writeValue,
++    required this.fingerprint,
++    required this.summary,
++    required Type valueType,
++  }) : _valueType = valueType;
+ 
+   final SettingsTransferParticipant<T> participant;
+   final T incoming;
+   final T writeValue;
+   final String fingerprint;
+   final SettingsTransferSummaryItem summary;
++  final Type _valueType;
+ 
+   /// 供 application-internal 类型擦除适配器校验 change 的泛型参数。
+-  Type get valueType => T;
++  Type get valueType => _valueType;
+ }
+ 
+ /// 以完整值替换本地设置的通用 participant 策略。
+ ///
+ /// 具体 participant 仍负责读取、编解码、等价判断和持久化；本类只统一
+ /// no-op、replace/clear 摘要和待写入指纹语义。
+ abstract class ReplacingValueParticipant<T>
+     implements SettingsTransferParticipant<T> {
+   const ReplacingValueParticipant({
+     required this.key,
+diff --git a/pubspec.yaml b/pubspec.yaml
+index dcee143..891ce3c 100644
+--- a/pubspec.yaml
++++ b/pubspec.yaml
+@@ -9,21 +9,21 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+ # followed by an optional build number separated by a +.
+ # Both the version and the builder number may be overridden in flutter
+ # build by specifying --build-name and --build-number, respectively.
+ # In Android, build-name is used as versionName while build-number used as versionCode.
+ # Read more about Android versioning at https://developer.android.com/studio/publish/versioning
+ # In iOS, build-name is used as CFBundleShortVersionString while build-number is used as CFBundleVersion.
+ # Read more about iOS versioning at
+ # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
+ # In Windows, build-name is used as the major, minor, and patch parts
+ # of the product and file versions while build-number is used as the build suffix.
+-version: 3.62.1+0
++version: 3.62.2+0
+ 
+ environment:
+   sdk: ^3.11.5
+ 
+ # Dependencies specify other packages that your package needs in order to work.
+ # To automatically upgrade your package dependencies to the latest versions
+ # consider running `flutter pub upgrade --major-versions`. Alternatively,
+ # dependencies can be manually updated by changing the version numbers below to
+ # the latest version available on pub.dev. To see which dependencies have newer
+ # versions available, run `flutter pub outdated`.
+diff --git a/test/features/settings/application/transfer/settings_transfer_catalog_test.dart b/test/features/settings/application/transfer/settings_transfer_catalog_test.dart
+index 65fcc41..d90e9c2 100644
+--- a/test/features/settings/application/transfer/settings_transfer_catalog_test.dart
++++ b/test/features/settings/application/transfer/settings_transfer_catalog_test.dart
+@@ -359,20 +359,44 @@ void main() {
+         fingerprint: 'invalid',
+         summary: participant.summarizeExport(2),
+       );
+ 
+       await expectLater(
+         box.applyImport(wrongValueChange),
+         throwsA(isA<StateError>()),
+       );
+       expect(participant.writeCount, 0);
+     });
++
++    test('direct participant 的 apply 会在正确 change 类型下拒绝错误写入值', () async {
++      final participant = _DirectIntParticipant(
++        key: const SettingsTransferKey('directApplyTypedValue'),
++        group: SettingsTransferGroup.other,
++        order: 0,
++      );
++      final box = SettingsTransferParticipantBox<int>(participant);
++      final wrongValueChange = SettingsTransferChange<Object?>.erased(
++        participant: participant,
++        incoming: 2,
++        writeValue: '不是整数',
++        fingerprint: 'invalid',
++        summary: participant.summarizeExport(2),
++        valueType: int,
++      );
++
++      expect(wrongValueChange.valueType, int);
++      await expectLater(
++        box.applyImport(wrongValueChange),
++        throwsA(isA<StateError>()),
++      );
++      expect(participant.writeCount, 0);
++    });
+   });
+ 
+   test('summary action 与 count 不一致时拒绝构造', () {
+     expect(
+       () => SettingsTransferSummaryItem(
+         key: const SettingsTransferKey('invalidSummary'),
+         label: '无效',
+         action: SettingsTransferSummaryAction.add,
+       ),
+       throwsA(isA<AssertionError>()),
