@@ -81,5 +81,8 @@ Map<String, Object?> _freezeJsonMap(
   }
 }
 
+/// 稳定 wire key 固定采用 ASCII lower-camel 规则：正则为
+/// `[a-z][A-Za-z0-9]*`，首字符必须是小写英文字母，后续只能是英文字母或数字。
+/// 需要下划线、连字符或大写首字母时，必须先有显式规格并提升 formatVersion。
 bool _isValidSectionKey(String key) =>
     RegExp(r'^[a-z][A-Za-z0-9]*$').hasMatch(key);

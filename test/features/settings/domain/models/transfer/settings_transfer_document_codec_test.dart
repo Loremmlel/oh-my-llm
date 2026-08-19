@@ -72,6 +72,20 @@ void main() {
     );
   });
 
+  test('未知但符合 lower-camel 稳定规则的 section key 会被 codec 接受', () {
+    final result = SettingsTransferDocumentCodec.decodeObject(
+      _documentObject(
+        sections: <String, Object?>{
+          'futureParticipant42': <String, Object?>{'enabled': true},
+        },
+      ),
+    );
+
+    expect(result, isA<SettingsTransferDocumentDecodeSuccess>());
+    final document = (result as SettingsTransferDocumentDecodeSuccess).document;
+    expect(document.sections.keys, ['futureParticipant42']);
+  });
+
   test('v8 和 v10 返回带原始版本号的 UnsupportedVersion', () {
     for (final version in [8, 10]) {
       final result = SettingsTransferDocumentCodec.decodeObject(
@@ -131,7 +145,15 @@ void main() {
   });
 
   test('非法 section key、非字符串嵌套 map key 和非 JSON-safe 值均被拒绝', () {
-    for (final key in ['', 'bad key', 'bad/key', '9section']) {
+    for (final key in [
+      '',
+      'bad key',
+      'bad/key',
+      '9section',
+      'UpperCamel',
+      'snake_case',
+      'dash-key',
+    ]) {
       final result = SettingsTransferDocumentCodec.decodeObject(
         _documentObject(sections: <String, Object?>{key: <Object?>[]}),
       );
