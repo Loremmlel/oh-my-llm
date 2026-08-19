@@ -45,7 +45,7 @@ final class SettingsExportBatch extends SettingsExportPreparation {
   }
 }
 
-/// 导出文本暴露给 Clipboard/Sync adapter 前的确认结果。
+/// 导出文本暴露给外部 adapter 前的确认结果。
 sealed class SettingsExportExposureResult {
   const SettingsExportExposureResult();
 }
