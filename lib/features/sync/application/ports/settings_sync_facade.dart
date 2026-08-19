@@ -1,7 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../settings/domain/models/transfer/settings_transfer_document.dart';
+import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_transfer_document.dart';
 import '../../domain/models/protocol/sync_types.dart';
 
 /// Sync application 从 Settings catalog 获得的稳定分组描述。

@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/sync/data/udp/sync_udp_announcement_codec.dart';
+import 'package:oh_my_llm/features/sync/domain/models/discovery/discovered_server.dart';
 import 'package:oh_my_llm/features/sync/domain/models/protocol/sync_protocol_version.dart';
 
 /// UDP v4 公告信封纯编解码的契约测试。
@@ -15,15 +16,22 @@ void main() {
     Uint8List envelope([Map<String, Object?> overrides = const {}]) {
       final fields = <String, Object?>{
         'app': SyncUdpAnnouncementCodec.appId,
-        'version': 3,
-        'minProtocolVersion': 3,
-        'maxProtocolVersion': 3,
+        'version': SyncUdpAnnouncementCodec.version,
+        'minProtocolVersion': SyncProtocolRange.local.minimum,
+        'maxProtocolVersion': SyncProtocolRange.local.maximum,
         'deviceName': 'Test-PC',
         'serverId': 'server-1',
         'httpPort': 54321,
       }..addAll(overrides);
       return utf8.encode(jsonEncode(fields));
     }
+
+    test('默认公告信封可解码为合法服务端并使用本地协议范围', () {
+      final server = codec.decode(data: envelope(), sourceAddress: '127.0.0.1');
+
+      expect(server, isA<DiscoveredServer>());
+      expect(server?.protocolRange, SyncProtocolRange.local);
+    });
 
     test('合法公告 round-trip 后可按来源地址解出服务端', () {
       const codec = SyncUdpAnnouncementCodec();
@@ -45,14 +53,33 @@ void main() {
         ('顶层 JSON 是数组', utf8.encode('[1, 2, 3]')),
         ('顶层 JSON 是字符串', utf8.encode('"hello"')),
         ('app 不是 oh-my-llm', envelope({'app': 'other-app'})),
-        ('version 不是 3', envelope({'version': 2})),
-        ('version 是字符串', envelope({'version': '3'})),
+        (
+          'version 不是当前版本',
+          envelope({'version': SyncUdpAnnouncementCodec.version - 1}),
+        ),
+        (
+          'version 是字符串',
+          envelope({'version': SyncUdpAnnouncementCodec.version.toString()}),
+        ),
         ('缺少 minProtocolVersion', envelope({'minProtocolVersion': null})),
-        ('minProtocolVersion 非整数', envelope({'minProtocolVersion': '3'})),
+        (
+          'minProtocolVersion 非整数',
+          envelope({
+            'minProtocolVersion': SyncProtocolRange.local.minimum.toString(),
+          }),
+        ),
         ('minProtocolVersion 为零', envelope({'minProtocolVersion': 0})),
         ('缺少 maxProtocolVersion', envelope({'maxProtocolVersion': null})),
-        ('maxProtocolVersion 非整数', envelope({'maxProtocolVersion': '3'})),
-        ('maxProtocolVersion 低于 minimum', envelope({'maxProtocolVersion': 2})),
+        (
+          'maxProtocolVersion 非整数',
+          envelope({
+            'maxProtocolVersion': SyncProtocolRange.local.maximum.toString(),
+          }),
+        ),
+        (
+          'maxProtocolVersion 低于 minimum',
+          envelope({'maxProtocolVersion': SyncProtocolRange.local.minimum - 1}),
+        ),
         ('httpPort 为零', envelope({'httpPort': 0})),
         ('httpPort 超过 65535', envelope({'httpPort': 65536})),
         ('httpPort 非整数', envelope({'httpPort': '54321'})),
