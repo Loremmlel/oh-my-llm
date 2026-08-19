@@ -61,3 +61,27 @@ Task 9 已完成实现与验证，提交信息为：
 - 为满足 brief 明确要求的 Clipboard boundary zero-hit，清除了 `settings_transfer_coordinator.dart` 中一个不影响行为的旧英文注释词；这是严格文件清单之外的唯一 source path，已在交付中显式列出。
 - 未修改 schema、未生成代码、未执行 release/build/device 验证，未 push、未创建 PR。
 - 本次 full suite 未重现 brief 提到的 `test/features/sync/application/sync_server_controller_test.dart:124` 历史失败。
+
+## Fix round 1/5：组合证据补强
+
+本轮只修改 `test/integration/sync_e2e_integration_test.dart` 和本报告；没有修改生产代码、已删除文件或 `progress.md`。
+
+### Red / green
+
+- 先把原跨 store 用例的空 client 断言临时提升为本地 sentinel 断言；在尚未种入 sentinel 的旧 fixture 上实际失败，`logs/settings-transfer-fix-round1-red.log` 记录 `EXIT=1`，失败位置为 client memory 仍为空。这确认了 review 指出的证据缺口，而不是伪造生产失败。
+- 补入真实独立 store/provider wiring 后，两个 integration 文件通过，`logs/settings-transfer-fix-round1-focused.log` 实际 `EXIT=0`，共 `7` 个测试。
+- brief 指定 focused final suite 实际 `EXIT=0`，`213` 个测试通过，日志为 `logs/settings-transfer-focused-final.log`。
+- 串行静态门禁实际 `ANALYZE_EXIT=0`（`No issues found!`，`logs/settings-transfer-analyze.log`）和 `BOUNDARY_EXIT=0`（367 个文件、0 条违规，`logs/settings-transfer-import-boundaries.log`）。
+- 全量测试使用 `logs/fltest.log` 和命令层 `240000ms` 超时，实际 `EXIT=0`，`1930` 个测试通过，末尾为 `All tests passed!`。
+
+### Important 证据
+
+- 真实跨 store case 的 client 先用独立 `AppDatabase.inMemory()` 写入 `local-memory`，再用独立 `SharedPreferences` 通过真实 `customHeadersProvider.notifier.save` 写入 `X-Old: old-value`。敏感确认 `false` 后，Riverpod memory provider、SQLite repository、headers provider 和 SharedPreferences raw value 均仍是 sentinel。
+- 敏感确认 `true` 后，真实导入结果同时验证 Riverpod/SQLite memory IDs 为 `local-memory` 与 `remote-memory`，证明 merge 保留本地项并加入远端项；headers provider 精确等于仅含 `X-Remote: remote-secret` 的配置，SharedPreferences 持久化值含 `X-Remote` 且不含旧 `X-Old`，证明 replace 清除了旧 header。
+- 新增的恶意 response case 只请求 `SettingsSyncGroupId('prompts')`，通过真实 `SyncServerProtocolCoordinator`、loopback `SyncHttpServer`、`HttpSyncClientTransport` 和 `SyncClientProtocolCoordinator` 返回结构化 v9 document；server 记录的 export groups 只有 `prompts`，response 同时注入 `memoryPrompts` 和未请求的 `modelProviders` structured section。
+- client 通过真实 Provider composition 取得 `settingsSyncFacadeProvider` 并调用 `prepareIncoming`，在任何 `execute`/participant decode/write 前以精确 safe message `同步内容包含未请求的配置项` 拒绝。拒绝后验证真实 `llmProviderConfigsProvider` 及其 SharedPreferences raw sentinel、SQLite memory provider/repository sentinel、custom headers provider 及其 SharedPreferences raw sentinel 全部不变。
+- 两个新 case 均保持 v9 section 为 List/Map，不使用 nested JSON string；本轮没有复活旧 aggregate、v8 fallback 或兼容 wrapper。
+
+### 本轮交付状态
+
+- 本轮未执行 push、未创建 PR；仍只交付本地 commit 和报告。
