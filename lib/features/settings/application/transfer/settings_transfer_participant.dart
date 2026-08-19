@@ -55,6 +55,17 @@ final class SettingsTransferChange<T> {
   Type get valueType => _valueType;
 }
 
+/// erased export 边界一次读取后同时保留编码值和安全摘要。
+final class SettingsTransferExportedValue {
+  const SettingsTransferExportedValue({
+    required this.encoded,
+    required this.summary,
+  });
+
+  final Object encoded;
+  final SettingsTransferSummaryItem summary;
+}
+
 /// 以完整值替换本地设置的通用 participant 策略。
 ///
 /// 具体 participant 仍负责读取、编解码、等价判断和持久化；本类只统一
@@ -225,6 +236,7 @@ sealed class ErasedSettingsTransferParticipant {
   SettingsTransferSensitivity get sensitivity;
 
   Object? encodeLocalIfExportable();
+  SettingsTransferExportedValue? exportLocalIfExportable();
   Object? decodePayload(Object? payload);
   SettingsTransferChange<Object?>? prepareImport(Object? incoming);
   SettingsTransferChange<Object?>? reprepareImport(
@@ -280,12 +292,22 @@ final class SettingsTransferParticipantBox<T>
   SettingsTransferSensitivity get sensitivity => participant.sensitivity;
 
   @override
+  SettingsTransferExportedValue? exportLocalIfExportable() {
+    final value = participant.readLocal();
+    _validateValue(value, 'local');
+    if (!participant.shouldExport(value)) return null;
+    return SettingsTransferExportedValue(
+      encoded: participant.encode(value),
+      summary: participant.summarizeExport(value),
+    );
+  }
+
+  @override
   Object? encodeLocalIfExportable() {
     final value = participant.readLocal();
     _validateValue(value, 'local');
     if (!participant.shouldExport(value)) return null;
-    final encoded = participant.encode(value);
-    return encoded;
+    return participant.encode(value);
   }
 
   @override
