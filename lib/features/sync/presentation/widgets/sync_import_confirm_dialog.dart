@@ -1,25 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_export_data.dart';
 import '../../application/ports/settings_sync_facade.dart';
 import '../../application/sync_client_controller.dart';
 
 /// 同步导入确认对话框。
-///
-/// 正常路径只消费 Sync-owned prepared import；[exportData] 是 Task 6 测试
-/// 替身的一个提交期兼容入口，Task 8 会随旧四分类 UI 一起移除。
 class SyncImportConfirmDialog extends ConsumerStatefulWidget {
   const SyncImportConfirmDialog({
-    this.preparedImport,
-    @Deprecated('请传入 preparedImport。') this.exportData,
+    required this.preparedImport,
     this.sourceDeviceName,
     super.key,
-  }) : assert(preparedImport != null || exportData != null);
+  });
 
-  final SettingsSyncPreparedImport? preparedImport;
-  @Deprecated('请传入 preparedImport。')
-  final SettingsExportData? exportData;
+  final SettingsSyncPreparedImport preparedImport;
   final String? sourceDeviceName;
 
   @override
@@ -32,26 +25,11 @@ class _SyncImportConfirmDialogState
   bool _isImporting = false;
   bool _sensitiveAcknowledged = false;
   String? _errorMessage;
-  late SettingsSyncPreparedImport? _preparedImport = widget.preparedImport;
+  late SettingsSyncPreparedImport _preparedImport = widget.preparedImport;
 
-  bool get _legacyMode => _preparedImport == null;
+  List<SettingsSyncSummaryItem> get _summaries => _preparedImport.summaries;
 
-  List<SettingsSyncSummaryItem> get _summaries {
-    final prepared = _preparedImport;
-    if (prepared != null) return prepared.summaries;
-    final data = widget.exportData;
-    if (data == null) return const [];
-    return _legacySummaries(data);
-  }
-
-  bool get _containsSensitive {
-    final prepared = _preparedImport;
-    if (prepared != null) return prepared.containsSensitive;
-    final data = widget.exportData;
-    return data != null &&
-        (data.modelProviders.isNotEmpty ||
-            (data.customHeadersConfig?.headers.isNotEmpty ?? false));
-  }
+  bool get _containsSensitive => _preparedImport.containsSensitive;
 
   @override
   Widget build(BuildContext context) {
@@ -173,14 +151,6 @@ class _SyncImportConfirmDialogState
     });
 
     try {
-      if (_legacyMode) {
-        final success = await ref
-            .read(syncClientControllerProvider.notifier)
-            .executeImport();
-        if (mounted) Navigator.of(context).pop(success);
-        return;
-      }
-
       final result = await ref
           .read(syncClientControllerProvider.notifier)
           .executePreparedImport(confirmedSensitive: _sensitiveAcknowledged);
@@ -224,48 +194,8 @@ class _SyncImportConfirmDialogState
       if (!mounted) return;
       setState(() {
         _isImporting = false;
-        _errorMessage = _legacyMode ? '导入失败: $error' : '导入未完成，请重试';
+        _errorMessage = '导入未完成，请重试';
       });
     }
   }
 }
-
-List<SettingsSyncSummaryItem> _legacySummaries(SettingsExportData data) => [
-  if (data.modelProviders.isNotEmpty)
-    SettingsSyncSummaryItem(
-      label: 'LLM 服务商',
-      trailingText: '新增 ${data.modelProviders.length} 项',
-    ),
-  if (data.memoryPrompts.isNotEmpty)
-    SettingsSyncSummaryItem(
-      label: '记忆总结提示词',
-      trailingText: '新增 ${data.memoryPrompts.length} 项',
-    ),
-  if (data.presetPrompts.isNotEmpty)
-    SettingsSyncSummaryItem(
-      label: '预设 Prompt',
-      trailingText: '新增 ${data.presetPrompts.length} 项',
-    ),
-  if (data.templatePrompts.isNotEmpty)
-    SettingsSyncSummaryItem(
-      label: '模板提示词',
-      trailingText: '新增 ${data.templatePrompts.length} 项',
-    ),
-  if (data.fixedPromptSequences.isNotEmpty)
-    SettingsSyncSummaryItem(
-      label: '固定顺序提示词',
-      trailingText: '新增 ${data.fixedPromptSequences.length} 项',
-    ),
-  if (data.autoRetrySettings != null)
-    const SettingsSyncSummaryItem(label: '自动重试设置', trailingText: '替换'),
-  if (data.customHeadersConfig != null &&
-      data.customHeadersConfig!.headers.isNotEmpty)
-    SettingsSyncSummaryItem(
-      label: '自定义请求头',
-      trailingText: '新增 ${data.customHeadersConfig!.headers.length} 项',
-    ),
-  if (data.fontSizeSettings != null)
-    const SettingsSyncSummaryItem(label: '正文字号设置', trailingText: '替换'),
-  if (data.outputProcessingSettings != null)
-    const SettingsSyncSummaryItem(label: '输出处理', trailingText: '替换'),
-];

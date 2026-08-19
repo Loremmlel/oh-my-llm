@@ -127,18 +127,16 @@ final class SyncClientProtocolCoordinator implements SyncClientProtocol {
   @override
   Future<SettingsTransferDocument> requestSettings({
     required DiscoveredServer server,
-    Set<SettingsSyncGroupId>? groups,
-    @Deprecated('Sync v4 使用 groups；旧 categories 参数将在后续清理。') Object? categories,
+    required Set<SettingsSyncGroupId> groups,
     required bool confirmedSensitive,
   }) async {
     _checkCompatible(server);
-    final requestedGroups = groups ?? <SettingsSyncGroupId>{};
-    if (requestedGroups.isEmpty) {
+    if (groups.isEmpty) {
       throw const SyncProtocolFailure(SyncProtocolErrorCode.malformedMessage);
     }
     return _requestSettings(
       server: server,
-      groups: requestedGroups,
+      groups: groups,
       confirmedSensitive: confirmedSensitive,
       reopen: true,
     );

@@ -268,6 +268,60 @@ void main() {
       );
     });
 
+    test('发现流出错时显示发现过程错误', () async {
+      final notifier = container.read(syncClientControllerProvider.notifier);
+      await notifier.startDiscovery();
+
+      final failed = waitForProviderState(
+        container: container,
+        provider: syncClientControllerProvider,
+        matches: (s) => s.phase == SyncPhase.error,
+        description: '发现过程出错',
+      );
+      transport.addError(StateError('boom'));
+      await failed;
+
+      expect(
+        container.read(syncClientControllerProvider).errorMessage,
+        '发现过程出错: Bad state: boom',
+      );
+    });
+
+    test('配对被协议拒绝时显示协议用户文案', () async {
+      protocol.pairError = const SyncProtocolFailure(
+        SyncProtocolErrorCode.pairingRejected,
+      );
+      await connectToCompatibleServer(
+        container: container,
+        transport: transport,
+      );
+
+      await container
+          .read(syncClientControllerProvider.notifier)
+          .pairWithCode('123456');
+
+      final state = container.read(syncClientControllerProvider);
+      expect(state.phase, SyncPhase.error);
+      expect(state.errorMessage, '配对失败，请检查配对码后重试');
+      expect(protocol.paired, isFalse);
+    });
+
+    test('配对传输失败时显示传输用户文案', () async {
+      protocol.pairError = const SyncTransportException('传输失败');
+      await connectToCompatibleServer(
+        container: container,
+        transport: transport,
+      );
+
+      await container
+          .read(syncClientControllerProvider.notifier)
+          .pairWithCode('123456');
+
+      final state = container.read(syncClientControllerProvider);
+      expect(state.phase, SyncPhase.error);
+      expect(state.errorMessage, '传输失败');
+    });
+
     test('请求使用精确 stable group ID，并以 prepared import 进入 received', () async {
       protocol.requestResult = _requestDocument;
       final prepared = ScriptedSettingsSyncPreparedImport(
@@ -396,6 +450,63 @@ void main() {
       });
     }
 
+    test('普通协议失败时保留配对状态', () async {
+      protocol.paired = true;
+      protocol.requestError = const SyncProtocolFailure(
+        SyncProtocolErrorCode.sessionExpired,
+      );
+      await connectToCompatibleServer(
+        container: container,
+        transport: transport,
+      );
+      final notifier = container.read(syncClientControllerProvider.notifier);
+      notifier.toggleCategory(SyncCategory.presets);
+
+      await notifier.requestSync();
+
+      final state = container.read(syncClientControllerProvider);
+      expect(state.phase, SyncPhase.error);
+      expect(state.errorMessage, '同步会话已过期，请重新连接');
+      expect(state.isPaired, isTrue);
+      expect(protocol.forgetCount, 0);
+      expect(protocol.paired, isTrue);
+    });
+
+    test('请求传输失败时显示传输用户文案且不撤销配对', () async {
+      protocol.paired = true;
+      protocol.requestError = const SyncTransportException('传输失败');
+      await connectToCompatibleServer(
+        container: container,
+        transport: transport,
+      );
+      final notifier = container.read(syncClientControllerProvider.notifier);
+      notifier.toggleCategory(SyncCategory.presets);
+
+      await notifier.requestSync();
+
+      final state = container.read(syncClientControllerProvider);
+      expect(state.phase, SyncPhase.error);
+      expect(state.errorMessage, '传输失败');
+      expect(state.isPaired, isTrue);
+      expect(protocol.forgetCount, 0);
+    });
+
+    test('请求未预期异常时显示同步失败文案', () async {
+      protocol.requestError = StateError('boom');
+      await connectToCompatibleServer(
+        container: container,
+        transport: transport,
+      );
+      final notifier = container.read(syncClientControllerProvider.notifier);
+      notifier.toggleCategory(SyncCategory.presets);
+
+      await notifier.requestSync();
+
+      final state = container.read(syncClientControllerProvider);
+      expect(state.phase, SyncPhase.error);
+      expect(state.errorMessage, '同步失败: Bad state: boom');
+    });
+
     test('切换分类清除敏感确认、prepared import 与错误', () async {
       protocol.requestResult = _requestDocument;
       settingsFacade.preparedImport = ScriptedSettingsSyncPreparedImport(
@@ -442,6 +553,22 @@ void main() {
       expect(container.read(syncClientControllerProvider), SyncClientState());
       expect(protocol.clearSessionsCount, 1);
     });
+
+    test('配对被取消后晚到的成功不改变空闲状态', () async {
+      await connectToCompatibleServer(
+        container: container,
+        transport: transport,
+      );
+      final notifier = container.read(syncClientControllerProvider.notifier);
+
+      protocol.pairGate = Completer<void>();
+      final pairFuture = notifier.pairWithCode('123456');
+      notifier.cancelAndReset();
+      protocol.pairGate!.complete();
+      await pairFuture;
+
+      expect(container.read(syncClientControllerProvider), SyncClientState());
+    });
   });
 
   group('服务端 catalog 安全校验', () {
@@ -458,12 +585,39 @@ void main() {
           displayName: 'Client',
         ),
       );
-      final facade = FakeSettingsSyncFacade();
+      final clientView = FakeSettingsSyncFacade(
+        availableGroups: const [
+          SettingsSyncGroupDescriptor(
+            id: SettingsSyncGroupId('presets'),
+            label: '预设',
+            order: 0,
+            sensitivity: SettingsSyncSensitivity.standard,
+          ),
+        ],
+      );
+      final serverFacade = FakeSettingsSyncFacade(
+        availableGroups: const [
+          SettingsSyncGroupDescriptor(
+            id: SettingsSyncGroupId('presets'),
+            label: '预设',
+            order: 0,
+            sensitivity: SettingsSyncSensitivity.credentialBearing,
+          ),
+        ],
+      );
+      expect(
+        clientView.availableGroups.single.sensitivity,
+        SettingsSyncSensitivity.standard,
+      );
+      expect(
+        serverFacade.availableGroups.single.sensitivity,
+        SettingsSyncSensitivity.credentialBearing,
+      );
       final server = SyncServerProtocolCoordinator(
         pairingRepository: serverStore,
         crypto: CryptographySyncCrypto(),
         clock: FakeSyncClock(),
-        settingsFacade: facade,
+        settingsFacade: serverFacade,
       );
       final code = await server.generatePairingCode();
       final client = SyncClientProtocolCoordinator(
@@ -483,7 +637,7 @@ void main() {
       await expectLater(
         client.requestSettings(
           server: peer,
-          groups: {SettingsSyncGroupId('providers')},
+          groups: {SettingsSyncGroupId('presets')},
           confirmedSensitive: false,
         ),
         throwsA(
@@ -494,15 +648,15 @@ void main() {
           ),
         ),
       );
-      expect(facade.exportCount, 0);
+      expect(serverFacade.exportCount, 0);
 
       final exported = await client.requestSettings(
         server: peer,
-        groups: {SettingsSyncGroupId('providers')},
+        groups: {SettingsSyncGroupId('presets')},
         confirmedSensitive: true,
       );
       expect(exported.sections, isEmpty);
-      expect(facade.exportCount, 1);
+      expect(serverFacade.exportCount, 1);
 
       await expectLater(
         client.requestSettings(
@@ -518,7 +672,7 @@ void main() {
           ),
         ),
       );
-      expect(facade.exportCount, 1);
+      expect(serverFacade.exportCount, 1);
     });
   });
 }

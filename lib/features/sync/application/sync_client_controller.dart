@@ -380,13 +380,6 @@ class SyncClientController extends Notifier<SyncClientState> {
     }
   }
 
-  /// 兼容 Task 6 对话框替身；Task 7 对话框通过 prepared import 传入确认位。
-  @Deprecated('请调用 executePreparedImport(confirmedSensitive: ...)。')
-  Future<bool> executeImport() async {
-    final result = await executePreparedImport(confirmedSensitive: true);
-    return result is SettingsSyncImportSuccess;
-  }
-
   void resetToConnected() {
     state = state.copyWith(
       phase: SyncPhase.connected,

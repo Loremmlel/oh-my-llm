@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_export_data.dart';
+import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_transfer_document.dart';
 import 'package:oh_my_llm/features/sync/application/sync_client_protocol_coordinator.dart';
 import 'package:oh_my_llm/features/sync/application/sync_server_protocol_coordinator.dart';
 import 'package:oh_my_llm/features/sync/data/security/cryptography_sync_crypto.dart';
@@ -18,7 +18,7 @@ import 'package:oh_my_llm/features/sync/domain/models/protocol/sync_types.dart';
 import '../features/sync/application/sync_test_fakes.dart';
 
 void main() {
-  test('loopback v3 配对后直接获得结构化 Settings snapshot', () async {
+  test('loopback v4 配对后直接获得结构化 Settings document', () async {
     final serverStore = FakePairingRepository(
       identity: const SyncPeerIdentity(id: 'server-id', displayName: 'Server'),
     );
@@ -60,7 +60,7 @@ void main() {
     await expectLater(
       client.requestSettings(
         server: peer,
-        categories: {SyncCategory.presets},
+        groups: {const SettingsSyncGroupId('presets')},
         confirmedSensitive: false,
       ),
       throwsA(
@@ -80,13 +80,13 @@ void main() {
       code: pairingCode.toLowerCase(),
       displayName: 'Client',
     );
-    final snapshot = await client.requestSettings(
+    final document = await client.requestSettings(
       server: peer,
-      categories: {SyncCategory.presets},
+      groups: {const SettingsSyncGroupId('presets')},
       confirmedSensitive: false,
     );
 
-    expect(snapshot, isA<SettingsExportData>());
+    expect(document, isA<SettingsTransferDocument>());
     expect(serverFacade.exportCount, 1);
   });
 
@@ -129,12 +129,12 @@ void main() {
     final code = await coordinator.generatePairingCode();
     await client.pair(server: peer, code: code, displayName: 'Client');
 
-    final snapshot = await client.requestSettings(
+    final document = await client.requestSettings(
       server: peer,
-      categories: {SyncCategory.providers},
+      groups: {const SettingsSyncGroupId('providers')},
       confirmedSensitive: true,
     );
-    expect(snapshot, isA<SettingsExportData>());
+    expect(document, isA<SettingsTransferDocument>());
   });
 
   test('同一服务端会话配对码可供多个客户端重复配对', () async {

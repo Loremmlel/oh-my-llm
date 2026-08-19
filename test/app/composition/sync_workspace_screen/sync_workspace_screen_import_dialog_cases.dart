@@ -4,10 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
-import 'package:oh_my_llm/features/settings/domain/models/providers/llm_provider_config.dart';
-import 'package:oh_my_llm/features/settings/domain/models/prompts/memory_prompt.dart';
-import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_export_data.dart';
 import 'package:oh_my_llm/features/sync/application/sync_client_controller.dart';
 import 'package:oh_my_llm/features/sync/application/ports/settings_sync_facade.dart';
 import 'package:oh_my_llm/features/sync/presentation/widgets/sync_import_confirm_dialog.dart';
@@ -22,35 +18,27 @@ import '../../../features/sync/application/sync_test_fakes.dart';
 class _GateSyncClientController extends SyncClientController {
   _GateSyncClientController(this.gate);
 
-  final Completer<bool> gate;
+  final Completer<SettingsSyncImportExecutionResult> gate;
 
   @override
   SyncClientState build() => connectedSyncState();
 
   @override
-  Future<bool> executeImport() => gate.future;
+  Future<SettingsSyncImportExecutionResult> executePreparedImport({
+    required bool confirmedSensitive,
+  }) => gate.future;
 }
 
 class _PreparedSyncClientController extends SyncClientController {
-  _PreparedSyncClientController(this.preparedImport, this.gate);
+  _PreparedSyncClientController(this.preparedImport);
 
   final SettingsSyncPreparedImport preparedImport;
-  final Completer<SettingsSyncImportExecutionResult> gate;
-  bool? confirmedSensitive;
 
   @override
   SyncClientState build() => SyncClientState(
     phase: SyncPhase.received,
     preparedImport: preparedImport,
   );
-
-  @override
-  Future<SettingsSyncImportExecutionResult> executePreparedImport({
-    required bool confirmedSensitive,
-  }) async {
-    this.confirmedSensitive = confirmedSensitive;
-    return gate.future;
-  }
 }
 
 void registerSyncScreenImportDialogTests() {
@@ -62,44 +50,20 @@ void registerSyncScreenImportDialogTests() {
       preferences = await SharedPreferences.getInstance();
     });
 
-    SettingsExportData buildTestData() {
-      return SettingsExportData(
-        modelProviders: [
-          LlmProviderConfig(
-            id: 'pvd-1',
-            name: 'OpenAI',
-            apiUrl: 'https://api.openai.com/v1',
-            apiKey: 'sk-test',
-            apiProtocol: LlmApiProtocol.chatCompletions,
-            models: [
-              LlmProviderModelConfig(
-                id: 'model-1',
-                displayName: 'GPT-4',
-                modelName: 'gpt-4',
-                supportsReasoning: false,
-              ),
-            ],
-          ),
-        ],
-        memoryPrompts: [
-          MemoryPrompt(
-            id: 'mem-1',
-            name: '测试记忆',
-            content: '请总结关键事实',
-            updatedAt: DateTime(2026, 1, 1),
-          ),
-        ],
-        presetPrompts: const [],
-        templatePrompts: const [],
-        fixedPromptSequences: const [],
-      );
-    }
+    SettingsSyncPreparedImport buildTestData() =>
+        ScriptedSettingsSyncPreparedImport(
+          summaries: const [
+            SettingsSyncSummaryItem(label: 'LLM 服务商', trailingText: '新增 1 项'),
+            SettingsSyncSummaryItem(label: '记忆总结提示词', trailingText: '新增 1 项'),
+          ],
+          containsSensitive: true,
+        );
 
     testWidgets('显示来源设备名和各分类数量', (tester) async {
       await pumpImportDialog(
         tester,
         preferences: preferences,
-        exportData: buildTestData(),
+        preparedImport: buildTestData(),
       );
 
       expect(find.text('确认同步配置'), findsOneWidget);
@@ -112,13 +76,7 @@ void registerSyncScreenImportDialogTests() {
       await pumpImportDialog(
         tester,
         preferences: preferences,
-        exportData: const SettingsExportData(
-          modelProviders: [],
-          memoryPrompts: [],
-          presetPrompts: [],
-          templatePrompts: [],
-          fixedPromptSequences: [],
-        ),
+        preparedImport: ScriptedSettingsSyncPreparedImport(),
       );
       expect(find.text('确认同步配置'), findsOneWidget);
 
@@ -130,7 +88,7 @@ void registerSyncScreenImportDialogTests() {
     testWidgets('导入中 Back 不能关闭对话框，失败恢复后可关闭', (tester) async {
       // 导入动作挂在 gate 上：先确认 busy 窗口（导入中 + 取消禁用），
       // 再通过 completeError 让导入失败恢复 busy 状态，精确控制时长。
-      final gate = Completer<bool>();
+      final gate = Completer<SettingsSyncImportExecutionResult>();
       await pumpTestApp(
         tester,
         preferences: preferences,
@@ -144,7 +102,7 @@ void registerSyncScreenImportDialogTests() {
             onPressed: () => showDialog<void>(
               context: context,
               builder: (_) => SyncImportConfirmDialog(
-                exportData: buildTestData(),
+                preparedImport: buildTestData(),
                 sourceDeviceName: 'TestPC',
               ),
             ),
@@ -179,7 +137,7 @@ void registerSyncScreenImportDialogTests() {
       gate.completeError(StateError('写入失败'));
       // completeError 的错误沿 await 链以微任务传播，需收敛帧后恢复态才可见。
       await settleAnimatedWidgetTransition(tester);
-      expect(find.text('导入失败: Bad state: 写入失败'), findsOneWidget);
+      expect(find.text('导入未完成，请重试'), findsOneWidget);
       expect(find.text('导入中...'), findsNothing);
 
       await tester.binding.handlePopRoute();
@@ -194,17 +152,14 @@ void registerSyncScreenImportDialogTests() {
         ],
         containsSensitive: true,
       );
-      final gate = Completer<SettingsSyncImportExecutionResult>();
-      late _PreparedSyncClientController controller;
 
       await pumpTestApp(
         tester,
         preferences: preferences,
         extraOverrides: [
-          syncClientControllerProvider.overrideWith(() {
-            controller = _PreparedSyncClientController(prepared, gate);
-            return controller;
-          }),
+          syncClientControllerProvider.overrideWith(
+            () => _PreparedSyncClientController(prepared),
+          ),
         ],
         child: Builder(
           builder: (context) => ElevatedButton(
@@ -226,11 +181,8 @@ void registerSyncScreenImportDialogTests() {
       await tester.pump();
       await tester.tap(find.text('导入'));
       await tester.pump();
-      expect(find.text('导入中...'), findsOneWidget);
-
-      expect(controller.confirmedSensitive, isTrue);
-      gate.complete(const SettingsSyncImportSuccess());
       await settleAnimatedWidgetTransition(tester);
+      expect(prepared.requestedSensitiveConfirmation, isTrue);
       expect(find.text('确认同步配置'), findsNothing);
     });
   });

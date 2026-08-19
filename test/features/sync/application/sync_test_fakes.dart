@@ -93,7 +93,6 @@ final class ScriptedSyncClientProtocol implements SyncClientProtocol {
   String? pairedCode;
   bool? requestedSensitiveConfirmation;
   Set<SettingsSyncGroupId>? requestedGroups;
-  Set<SyncCategory>? requestedCategories;
   int forgetCount = 0;
   int clearSessionsCount = 0;
   int isPairedCount = 0;
@@ -119,13 +118,11 @@ final class ScriptedSyncClientProtocol implements SyncClientProtocol {
   @override
   Future<SettingsTransferDocument> requestSettings({
     required DiscoveredServer server,
-    Set<SettingsSyncGroupId>? groups,
-    Object? categories,
+    required Set<SettingsSyncGroupId> groups,
     required bool confirmedSensitive,
   }) async {
     if (requestGate != null) await requestGate!.future;
     requestedGroups = groups;
-    requestedCategories = categories is Set<SyncCategory> ? categories : null;
     requestedSensitiveConfirmation = confirmedSensitive;
     if (requestError != null) throw requestError!;
     return requestResult;
