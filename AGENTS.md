@@ -76,6 +76,15 @@ Agent 若重定向脚本输出，Windows/Android 分别使用 `logs/build-window
 
 ## 2. Git 工作流
 
+### 分支策略（master 受保护）
+
+- `master` 分支受保护：禁止直接 push，禁止直接在 master 上提交改动。
+- 所有开发改动一律在按规范命名的新分支上完成并提交，再通过 Pull Request 合入 `master`。
+- 分支命名沿用 conventional commit 前缀 + 简短 kebab-case 描述（英文或中文均可），与 commit message 语义一致，能一眼看出改动意图：
+  - 新功能 `feat/<scope>-<描述>`（如 `feat/settings-transfer`）
+  - 缺陷修复 `fix/<scope>-<描述>`（如 `fix/sync-server-dispose-test-proxy`）
+  - 重构 / 测试 / 杂项 / 文档依此类推：`refactor/`、`test/`、`chore/`、`docs/`
+
 ### 版本号自动 bump（post-commit hook）
 
 安装：`git config core.hooksPath .githooks`。**版本号由 `post-commit` hook 根据 commit message 第一行语义自动 bump，再用 `git commit --amend --no-edit` 并回本次提交**（同批次写入，版本号与本次 commit 语义一致）。`pre-commit` 仅做 >500 行大改动提醒，不碰版本号。
