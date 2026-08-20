@@ -167,6 +167,13 @@ final class AutoRetrySettingsTransferParticipant
   Future<void> applyImport(AutoRetrySettings value) => _write(value);
 }
 
+/// 构造自定义 Header participant；供注册表和测试复用同一入口。
+SettingsTransferParticipant<CustomHeadersConfig>
+customHeadersTransferParticipant({
+  required CustomHeadersConfig Function() readLocal,
+  required Future<void> Function(CustomHeadersConfig) write,
+}) => CustomHeadersTransferParticipant(readLocal: readLocal, write: write);
+
 Map<String, dynamic> _decodeMap(Object? payload, String label) {
   if (payload is! Map) {
     throw FormatException('$label 传输值必须是对象');
