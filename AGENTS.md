@@ -85,6 +85,113 @@ Agent 若重定向脚本输出，Windows/Android 分别使用 `logs/build-window
   - 缺陷修复 `fix/<scope>-<描述>`（如 `fix/sync-server-dispose-test-proxy`）
   - 重构 / 测试 / 杂项 / 文档依此类推：`refactor/`、`test/`、`chore/`、`docs/`
 
+### Pull Request 格式与撰写要求
+
+PR 是代码审查和变更记录，不是 commit 列表的复制。保持单一目标、规模可审查；如变更已经大到需要多个独立审查重点，应拆成多个 PR。详细原则参考 [GitHub 的审查友好性指南](https://docs.github.com/en/pull-requests/concepts/helping-others-review-your-changes) 与 [Sourcery 审查文档](https://docs.sourcery.ai/reviews/)。
+
+#### 标题
+
+- 标题一律使用简体中文描述，保留 Conventional Commit 前缀：`type(scope): 简短结果`，`scope` 可省略。
+- 标题描述合入后产生的结果，不写“更新代码”、“修改问题”等无信息表达，不在末尾加句号。
+- 前缀应与分支、核心 commit 的语义一致，但 PR 标题不要拼接所有 commit subject。
+
+#### 正文必填结构
+
+PR 正文一律使用简体中文，并保留以下六个二级标题；某项不适用时写“无”并简述原因，不得删除标题。
+
+```markdown
+## 变更摘要
+
+- 1~3 条说明可观察结果、主要范围和不在范围内的内容；不复制 commit 列表。
+
+## 变更原因
+
+说明现状、触发条件或目标，以及为什么需要这次变更。
+
+## 实现说明
+
+- 说明关键方案、受影响的组件和非显而易见的取舍；不逐文件复述 diff。
+
+## 验证
+
+- `实际执行的命令`：通过（简要结果）。
+- 手工验证：平台 / 设备 / 操作 / 结果。
+- 未执行项：明确原因与剩余风险；不得将未执行的检查写成已通过。
+
+## 风险与影响
+
+- 说明用户可见行为、兼容性 / 迁移、数据、安全和性能影响，以及必要的回滚或缓解方式。
+
+## 审查重点
+
+- 指出希望人工审查优先关注的文件、边界、取舍或仍有不确定性的部分。
+```
+
+#### 撰写与发布规则
+
+- 只记录当前 PR head 已实现、已验证的事实；新增 commit 改变了范围、方案、验证或风险时，必须同步更新正文。
+- 提请审查前先自审 base...head 完整 diff，确认没有意外文件、调试代码、敏感信息或与主题无关的变更，并确认正文与实际 diff 一致。
+- 用可回读的 UTF-8 Markdown 文件传入 `gh pr create --body-file <path>`，不在 PowerShell 的 `--body` 参数中手工拼接多行文本和转义字符。
+- 创建后必须用 `gh pr view --json title,body,baseRefName,headRefName,isDraft,url` 回读，确认标题、正文、base/head、draft 状态和 URL 正确。
+- 尚未准备好接受人工审查时使用 draft PR；验证证据和正文齐备后再标记 Ready for review。
+
+#### Sourcery AI 自动审查
+
+仓库已接入 [Sourcery AI GitHub App](https://github.com/apps/sourcery-ai)。Sourcery 是补充审查者，不是验证命令、人工审查或 PR 正文的替代品。
+
+- Sourcery 默认在 PR 打开及新 commit push 后审查，draft PR 默认跳过；标记 Ready for review 后确认 `Sourcery review` check 已触发。
+- Sourcery 会在 PR 正文中追加自己的摘要，并发布 reviewer guide、inline comments 和 status check。人工撰写的六个章节仍必须完整；后续编辑正文时保留 Sourcery 生成的区块。
+- 自动 re-review 不会重新生成摘要，摘要过期时发布独立评论 `@sourcery-ai summary`；需要重新完整审查或自动 re-review 计数已用尽时，发布独立评论 `@sourcery-ai review`。
+- 对 Sourcery 意见先对照需求、代码和可复现证据判断是否成立，再决定接受、修正或拒绝；不得无条件套用自动建议。
+- 每条意见都要有可追踪结果：成立则修改并回归验证，不成立则简要说明证据，已处理的对话再 resolve；超出本 PR 范围的建议不应顺手扩大当前 diff。
+
+#### 完整示例
+
+以“新增 PR 撰写规范”这类文档变更为例。示例只展示结构和证据粒度，实际使用时必须替换为当前 PR 的真实内容，禁止机械照抄。
+
+```markdown
+PR 标题：
+
+docs: 规范 Pull Request 描述与 Sourcery 审查流程
+
+PR 正文：
+
+## 变更摘要
+
+- 在 `AGENTS.md` 中增加 Pull Request 标题与正文规范。
+- 提供统一的中文 PR 描述模板。
+- 补充 Sourcery AI 自动审查的处理流程。
+
+## 变更原因
+
+仓库已启用 Sourcery AI 自动审查，但目前缺少统一的 PR 描述要求。不同作者可能遗漏变更背景、验证证据或审查重点，影响人工审查和自动审查对改动意图的理解。
+
+## 实现说明
+
+- PR 标题沿用 Conventional Commit 前缀，描述使用简体中文。
+- PR 正文统一包含变更摘要、变更原因、实现说明、验证、风险与影响、审查重点。
+- 要求如实记录已执行的验证命令与结果。
+- 说明 Sourcery 的自动摘要、重新审查命令和反馈处理要求。
+
+## 验证
+
+- `git diff --check master...HEAD`：通过。
+- 人工检查 `AGENTS.md` 的 Markdown 层级、列表缩进和示例格式：通过。
+- 未运行 Flutter 测试：本次仅修改协作说明，不涉及 Dart、Flutter 或运行时行为。
+
+## 风险与影响
+
+- 仅影响后续 Pull Request 的撰写和审查流程。
+- 不修改应用代码、构建配置、依赖或运行时行为。
+- 无兼容性或迁移风险。
+
+## 审查重点
+
+- PR 模板是否足够明确且便于直接填写。
+- 验证要求是否能阻止未执行测试却声称通过的情况。
+- Sourcery 相关说明是否与仓库当前审查流程一致。
+```
+
 ### 版本号自动 bump（post-commit hook）
 
 安装：`git config core.hooksPath .githooks`。**版本号由 `post-commit` hook 根据 commit message 第一行语义自动 bump，再用 `git commit --amend --no-edit` 并回本次提交**（同批次写入，版本号与本次 commit 语义一致）。`pre-commit` 仅做 >500 行大改动提醒，不碰版本号。
