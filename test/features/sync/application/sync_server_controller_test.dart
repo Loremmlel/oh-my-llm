@@ -121,9 +121,12 @@ void main() {
       subscription.close();
       await controller.shutdownFuture;
 
+      // 用原生 TCP 探测端口已关闭，而不是 http.get：http 客户端默认读取
+      // HTTP_PROXY/HTTPS_PROXY 环境变量，本机开代理时请求会被代理接管，
+      // 返回 502 错误页（Response）而非连接拒绝（ClientException），断言将误报。
       await expectLater(
-        http.get(Uri.parse('http://127.0.0.1:$port/sync')),
-        throwsA(isA<http.ClientException>()),
+        Socket.connect('127.0.0.1', port),
+        throwsA(isA<SocketException>()),
       );
       database.close();
     });
