@@ -21,10 +21,7 @@ void main() {
     final participant = _createProviderParticipant();
     final json = _provider().toJson()..remove('apiProtocol');
 
-    expect(
-      () => participant.decode([json]),
-      throwsA(isA<FormatException>()),
-    );
+    expect(() => participant.decode([json]), throwsA(isA<FormatException>()));
   });
 
   test('template 解码器拒绝无法编译的模板', () {

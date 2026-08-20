@@ -30,12 +30,7 @@ jobs:
 
       # 1) format 门禁：代码必须已按 dart format 规范化
       - name: format check
-        run: |
-          set +e
-          dart format --set-exit-if-changed lib test tool
-          CODE=$?
-          git diff -- test/features/settings/application/transfer/settings_transfer_participants_test.dart
-          exit $CODE
+        run: dart format --set-exit-if-changed lib test tool
 
       # 2) architecture 门禁：分层依赖规则（独立于 analyze/test 快速失败）
       - name: architecture boundaries
