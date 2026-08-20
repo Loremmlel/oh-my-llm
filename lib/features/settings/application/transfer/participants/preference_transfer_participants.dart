@@ -121,10 +121,3 @@ final class AutoRetrySettingsTransferParticipant
          decodeValue: AutoRetrySettings.fromJson,
        );
 }
-
-/// 构造自定义 Header participant；供注册表和测试复用同一入口。
-SettingsTransferParticipant<CustomHeadersConfig>
-customHeadersTransferParticipant({
-  required CustomHeadersConfig Function() readLocal,
-  required Future<void> Function(CustomHeadersConfig) write,
-}) => CustomHeadersTransferParticipant(readLocal: readLocal, write: write);
