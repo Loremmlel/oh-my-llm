@@ -6,8 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/app/navigation/app_destination.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
-import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_export_data.dart';
 import 'package:oh_my_llm/app/composition/sync_workspace_screen.dart';
+import 'package:oh_my_llm/features/sync/application/ports/settings_sync_facade.dart';
 import 'package:oh_my_llm/features/sync/presentation/widgets/sync_import_confirm_dialog.dart';
 import 'package:oh_my_llm/features/media/application/media_browser_controller.dart';
 import 'package:oh_my_llm/features/media/application/shuffle_playback_controller.dart';
@@ -17,6 +17,7 @@ import 'package:oh_my_llm/features/sync/data/udp/sync_udp_discovery.dart';
 
 import '../../../helpers/test_harness.dart';
 import '../../../helpers/async/widget_test_animation.dart';
+import '../../../features/sync/application/sync_test_fakes.dart';
 
 Future<AppDatabase> pumpSyncScreen(
   WidgetTester tester, {
@@ -157,19 +158,22 @@ class RecordingShufflePlaybackController extends ShufflePlaybackController {
   }
 }
 
-SyncClientState connectedSyncState() => SyncClientState(
+SyncClientState connectedSyncState({
+  Iterable<SettingsSyncGroupDescriptor>? availableGroups,
+}) => SyncClientState(
   phase: SyncPhase.connected,
   server: const DiscoveredServer(
     deviceName: 'Test Android',
     ip: '192.168.1.5',
     httpPort: 8080,
   ),
+  availableGroups: availableGroups ?? defaultSettingsSyncGroups,
 );
 
 Future<void> pumpImportDialog(
   WidgetTester tester, {
   required SharedPreferences preferences,
-  required SettingsExportData exportData,
+  required SettingsSyncPreparedImport preparedImport,
   String sourceDeviceName = 'TestPC',
 }) async {
   await pumpTestApp(
@@ -180,7 +184,7 @@ Future<void> pumpImportDialog(
         onPressed: () => showDialog<void>(
           context: context,
           builder: (_) => SyncImportConfirmDialog(
-            exportData: exportData,
+            preparedImport: preparedImport,
             sourceDeviceName: sourceDeviceName,
           ),
         ),

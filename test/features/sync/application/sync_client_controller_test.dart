@@ -4,17 +4,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/core/providers/notification_bubble_provider.dart';
 import 'package:oh_my_llm/core/widgets/notification_bubble/notification_bubble_data.dart';
-import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
-import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_export_data.dart';
+import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_transfer_document.dart';
+import 'package:oh_my_llm/features/sync/application/ports/settings_sync_facade.dart';
 import 'package:oh_my_llm/features/sync/application/ports/sync_client_transport.dart';
 import 'package:oh_my_llm/features/sync/application/ports/sync_clock.dart';
 import 'package:oh_my_llm/features/sync/application/ports/sync_crypto.dart';
-import 'package:oh_my_llm/features/sync/application/ports/settings_sync_facade.dart';
 import 'package:oh_my_llm/features/sync/application/ports/sync_pairing_repository.dart';
 import 'package:oh_my_llm/features/sync/application/sync_client_controller.dart';
+import 'package:oh_my_llm/features/sync/application/sync_client_protocol_coordinator.dart';
+import 'package:oh_my_llm/features/sync/application/sync_server_protocol_coordinator.dart';
 import 'package:oh_my_llm/features/sync/data/security/cryptography_sync_crypto.dart';
 import 'package:oh_my_llm/features/sync/domain/models/discovery/discovered_server.dart';
+import 'package:oh_my_llm/features/sync/domain/models/session/sync_pairing.dart';
 import 'package:oh_my_llm/features/sync/domain/models/protocol/sync_protocol_failure.dart';
+import 'package:oh_my_llm/features/sync/domain/models/protocol/sync_protocol_message.dart';
 import 'package:oh_my_llm/features/sync/domain/models/protocol/sync_protocol_version.dart';
 import 'package:oh_my_llm/features/sync/domain/models/protocol/sync_types.dart';
 
@@ -35,36 +38,25 @@ const incompatibleServer = DiscoveredServer(
   ip: '192.168.1.3',
   httpPort: 8080,
   serverId: 'srv-old',
-  protocolRange: SyncProtocolRange(minimum: 1, maximum: 2),
+  protocolRange: SyncProtocolRange(minimum: 1, maximum: 3),
 );
 
-/// 包含一个新预设的导出数据，用于验证请求成功路径。
-final presetExport = SettingsExportData(
-  modelProviders: [],
-  memoryPrompts: [],
-  presetPrompts: [
-    PresetPrompt(
-      id: 'preset-new',
-      name: '新预设',
-      messages: [],
-      updatedAt: DateTime(2026, 1, 1),
-    ),
-  ],
-  templatePrompts: [],
-  fixedPromptSequences: [],
+final _requestDocument = SettingsTransferDocument(
+  sections: {'presetPrompts': <Object?>[]},
 );
 
-/// 全空导出数据，模拟去重后已无新内容的场景。
-const emptyExport = SettingsExportData(
-  modelProviders: [],
-  memoryPrompts: [],
-  presetPrompts: [],
-  templatePrompts: [],
-  fixedPromptSequences: [],
+const _testOnlySyncGroup = SettingsSyncGroupDescriptor(
+  id: SettingsSyncGroupId('testOnly'),
+  label: '测试扩展',
+  order: 6,
+  sensitivity: SettingsSyncSensitivity.credentialBearing,
 );
 
-/// 构造注入脚本化协议的测试容器：控制器只依赖协议操作，不触碰配对仓库、
-/// 加密或时钟，因此无需任何 crypto 设置。
+List<SettingsSyncGroupDescriptor> _dynamicGroups() => [
+  ...defaultSettingsSyncGroups,
+  _testOnlySyncGroup,
+];
+
 ProviderContainer _buildContainer({
   required FakeSyncClientTransport transport,
   required ScriptedSyncClientProtocol protocol,
@@ -82,8 +74,6 @@ ProviderContainer _buildContainer({
 }
 
 /// 启动发现并等待兼容服务端建立连接。
-///
-/// 先注册连接建立 predicate 再推送发现事件，等待由可观察的状态信号完成。
 Future<void> connectToCompatibleServer({
   required ProviderContainer container,
   required FakeSyncClientTransport transport,
@@ -110,28 +100,97 @@ void main() {
         serverId: 'stable-server',
         protocolRange: SyncProtocolRange.local,
       ),
-      selectedCategories: {SyncCategory.presets},
+      selectedGroups: {SettingsSyncGroupId('presets')},
       isPaired: true,
     );
 
     expect(state.isPaired, isTrue);
-    expect(state.selectedCategories, {SyncCategory.presets});
+    expect(state.selectedGroups, {SettingsSyncGroupId('presets')});
     expect(state.props.join(), isNot(contains('token')));
     expect(state.props.join(), isNot(contains('secret')));
   });
 
-  test('分类变更会清除仅本次的敏感接收确认', () {
-    final state = SyncClientState(
-      selectedCategories: {SyncCategory.providers},
-      sensitiveRequestConfirmed: true,
+  test('分组状态的等价比较按稳定 ID 排序而不依赖集合迭代顺序', () {
+    final first = SyncClientState(
+      selectedGroups: {
+        SettingsSyncGroupId('prompts'),
+        SettingsSyncGroupId('providers'),
+      },
+    );
+    final second = SyncClientState(
+      selectedGroups: {
+        SettingsSyncGroupId('providers'),
+        SettingsSyncGroupId('prompts'),
+      },
     );
 
-    final changed = state.copyWith(
-      selectedCategories: {SyncCategory.presets},
-      sensitiveRequestConfirmed: false,
+    expect(first, second);
+  });
+
+  test('构建从设置目录读取分组描述并保留顺序', () {
+    final transport = FakeSyncClientTransport();
+    final facade = FakeSettingsSyncFacade(
+      availableGroups: [
+        const SettingsSyncGroupDescriptor(
+          id: SettingsSyncGroupId('second'),
+          label: '第二项',
+          order: 20,
+          sensitivity: SettingsSyncSensitivity.standard,
+        ),
+        const SettingsSyncGroupDescriptor(
+          id: SettingsSyncGroupId('first'),
+          label: '第一项',
+          order: 10,
+          sensitivity: SettingsSyncSensitivity.credentialBearing,
+        ),
+      ],
+    );
+    final container = _buildContainer(
+      transport: transport,
+      protocol: ScriptedSyncClientProtocol(),
+      settingsFacade: facade,
+    );
+    addTearDown(container.dispose);
+
+    final state = container.read(syncClientControllerProvider);
+
+    expect(state.availableGroups, facade.availableGroups);
+    expect(state.availableGroups.map((group) => group.id.value), [
+      'second',
+      'first',
+    ]);
+    expect(
+      () => state.availableGroups.add(facade.availableGroups.first),
+      throwsUnsupportedError,
+    );
+  });
+
+  test('全选复制所有分组描述 ID，未知分组保持状态不变', () {
+    final transport = FakeSyncClientTransport();
+    final facade = FakeSettingsSyncFacade(availableGroups: _dynamicGroups());
+    final container = _buildContainer(
+      transport: transport,
+      protocol: ScriptedSyncClientProtocol(),
+      settingsFacade: facade,
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(syncClientControllerProvider.notifier);
+    notifier.selectAllGroups();
+    final selected = container.read(syncClientControllerProvider);
+    final selectedBeforeUnknown = selected;
+
+    expect(
+      selected.selectedGroups,
+      _dynamicGroups().map((group) => group.id).toSet(),
     );
 
-    expect(changed.sensitiveRequestConfirmed, isFalse);
+    notifier.toggleGroup(const SettingsSyncGroupId('unknown'));
+
+    expect(
+      container.read(syncClientControllerProvider),
+      same(selectedBeforeUnknown),
+    );
   });
 
   group('服务端断开检测', () {
@@ -143,6 +202,9 @@ void main() {
       container = ProviderContainer(
         overrides: [
           syncClientTransportProvider.overrideWithValue(transport),
+          settingsSyncFacadeProvider.overrideWithValue(
+            FakeSettingsSyncFacade(),
+          ),
           syncPairingRepositoryProvider.overrideWithValue(
             FakePairingRepository(),
           ),
@@ -151,11 +213,6 @@ void main() {
         ],
       );
       addTearDown(container.dispose);
-      // 兜底收口：用例中途失败时也先关闭广播流、等 controller 进入终态，
-      // 再销毁容器，避免残留的流监听挂在未关闭的 StreamController 上。
-      // 注册在 dispose 之后，tearDown 逆序执行，先收口再销毁。
-      // StreamController.close() 对已关闭的 controller 幂等（SDK 保证：
-      // 仅首次调用生效），与用例体内的 transport.close() 双收口安全。
       addTearDown(() async {
         await transport.close();
         await waitForProviderState(
@@ -167,34 +224,19 @@ void main() {
       });
     });
 
-    test('已连接后广播流关闭 → 清空会话状态并弹错误气泡', () async {
+    test('已连接后广播流关闭时清空会话状态并弹错误气泡', () async {
       final notifier = container.read(syncClientControllerProvider.notifier);
-
       await notifier.startDiscovery();
 
-      // 先注册连接建立 predicate 再推送发现事件，等待由可观察的状态信号
-      // 完成，不再依赖「flush 微任务」的时机假设。
       final connected = waitForProviderState(
         container: container,
         provider: syncClientControllerProvider,
         matches: (s) => s.phase == SyncPhase.connected,
         description: '同步连接建立',
       );
-      transport.add(
-        const DiscoveredServer(
-          deviceName: '服务器',
-          ip: '192.168.1.2',
-          httpPort: 8080,
-          serverId: 'srv-1',
-        ),
-      );
+      transport.add(compatibleServer);
       await connected;
 
-      final connectedState = container.read(syncClientControllerProvider);
-      expect(connectedState.phase, SyncPhase.connected);
-      expect(connectedState.server, isNotNull);
-
-      // 断开同理：先注册终态 predicate 再关闭广播流。
       final disconnected = waitForProviderState(
         container: container,
         provider: syncClientControllerProvider,
@@ -209,7 +251,7 @@ void main() {
       expect(state.server, isNull);
       expect(state.sourceDeviceName, isNull);
       expect(state.isPaired, isFalse);
-      expect(state.deduplicatedData, isNull);
+      expect(state.preparedImport, isNull);
       expect(state.errorMessage, '服务端已断开，请重新搜索');
 
       final bubbles = container.read(notificationBubblesProvider);
@@ -218,12 +260,10 @@ void main() {
       expect(bubbles.single.type, NotificationBubbleType.error);
     });
 
-    test('搜索未发现时流关闭 → 只置错误文案，不弹气泡', () async {
+    test('搜索未发现时流关闭只置错误文案，不弹气泡', () async {
       final notifier = container.read(syncClientControllerProvider.notifier);
-
       await notifier.startDiscovery();
 
-      // 先注册发现结束 predicate 再关闭广播流，等待由状态信号完成。
       final discoveryEnded = waitForProviderState(
         container: container,
         provider: syncClientControllerProvider,
@@ -257,8 +297,6 @@ void main() {
         settingsFacade: settingsFacade,
       );
       addTearDown(container.dispose);
-      // 兜底收口：与「服务端断开检测」组一致，先关闭广播流、等 controller
-      // 进入终态，再销毁容器。
       addTearDown(() async {
         await transport.close();
         await waitForProviderState(
@@ -270,14 +308,15 @@ void main() {
       });
     });
 
-    test('配对成功：协议收到裁剪后的配对码，状态回到 connected 且 isPaired 为 true', () async {
+    test('配对成功时协议收到裁剪后的配对码并回到 connected', () async {
       await connectToCompatibleServer(
         container: container,
         transport: transport,
       );
-      final notifier = container.read(syncClientControllerProvider.notifier);
 
-      await notifier.pairWithCode(' 123456 ');
+      await container
+          .read(syncClientControllerProvider.notifier)
+          .pairWithCode(' 123456 ');
 
       expect(protocol.pairedCode, '123456');
       final state = container.read(syncClientControllerProvider);
@@ -285,7 +324,7 @@ void main() {
       expect(state.isPaired, isTrue);
     });
 
-    test('发现不兼容设备 → 显示版本错误且不调用 isPaired', () async {
+    test('发现不兼容设备时显示版本错误且不调用 isPaired', () async {
       final notifier = container.read(syncClientControllerProvider.notifier);
       await notifier.startDiscovery();
 
@@ -298,13 +337,14 @@ void main() {
       transport.add(incompatibleServer);
       await failed;
 
-      final state = container.read(syncClientControllerProvider);
-      expect(state.phase, SyncPhase.error);
-      expect(state.errorMessage, '设备版本不兼容，需要更新');
       expect(protocol.isPairedCount, 0);
+      expect(
+        container.read(syncClientControllerProvider).errorMessage,
+        '设备版本不兼容，需要更新',
+      );
     });
 
-    test('发现流出错 → 显示发现过程错误', () async {
+    test('发现流出错时显示发现过程错误', () async {
       final notifier = container.read(syncClientControllerProvider.notifier);
       await notifier.startDiscovery();
 
@@ -323,7 +363,7 @@ void main() {
       );
     });
 
-    test('配对被协议拒绝 → 显示协议用户文案', () async {
+    test('配对被协议拒绝时显示协议用户文案', () async {
       protocol.pairError = const SyncProtocolFailure(
         SyncProtocolErrorCode.pairingRejected,
       );
@@ -342,7 +382,7 @@ void main() {
       expect(protocol.paired, isFalse);
     });
 
-    test('配对传输失败 → 显示传输用户文案', () async {
+    test('配对传输失败时显示传输用户文案', () async {
       protocol.pairError = const SyncTransportException('传输失败');
       await connectToCompatibleServer(
         container: container,
@@ -358,46 +398,113 @@ void main() {
       expect(state.errorMessage, '传输失败');
     });
 
-    test('请求返回新预设 → received 并携带去重后数据', () async {
-      protocol.requestResult = presetExport;
+    test('请求使用精确 stable group ID，并以 prepared import 进入 received', () async {
+      protocol.requestResult = _requestDocument;
+      final prepared = ScriptedSettingsSyncPreparedImport(
+        summaries: const [
+          SettingsSyncSummaryItem(label: '预设', trailingText: '新增 1 项'),
+        ],
+      );
+      settingsFacade.preparedImport = prepared;
       await connectToCompatibleServer(
         container: container,
         transport: transport,
       );
-      final notifier = container.read(syncClientControllerProvider.notifier);
-      notifier.toggleCategory(SyncCategory.presets);
 
+      final notifier = container.read(syncClientControllerProvider.notifier);
+      notifier.toggleGroup(const SettingsSyncGroupId('presets'));
       await notifier.requestSync();
 
       final state = container.read(syncClientControllerProvider);
       expect(state.phase, SyncPhase.received);
-      expect(state.deduplicatedData?.presetPrompts.single.name, '新预设');
-      expect(protocol.requestedCategories, {SyncCategory.presets});
+      expect(state.preparedImport, same(prepared));
+      expect(protocol.requestedGroups, {const SettingsSyncGroupId('presets')});
+      expect(settingsFacade.requestedGroups, {
+        const SettingsSyncGroupId('presets'),
+      });
       expect(protocol.requestedSensitiveConfirmation, isFalse);
     });
 
-    test('请求返回的内容已被去重过滤 → noNewData', () async {
-      protocol.requestResult = presetExport;
-      settingsFacade.deduplicatedResult = emptyExport;
+    test('prepared import 无变化时进入 noNewData', () async {
+      protocol.requestResult = _requestDocument;
+      settingsFacade.preparationError = const SettingsSyncNoNewDataException();
+      await connectToCompatibleServer(
+        container: container,
+        transport: transport,
+      );
+
+      final notifier = container.read(syncClientControllerProvider.notifier);
+      notifier.toggleGroup(const SettingsSyncGroupId('presets'));
+      await notifier.requestSync();
+
+      final state = container.read(syncClientControllerProvider);
+      expect(state.phase, SyncPhase.noNewData);
+      expect(state.preparedImport, isNull);
+    });
+
+    test('响应包含未请求 section 时在任何写入前进入错误', () async {
+      protocol.requestResult = SettingsTransferDocument(
+        sections: {'modelProviders': <Object?>[]},
+      );
+      settingsFacade.preparationError = const SettingsSyncPreparationException(
+        '同步数据包含未请求的配置项',
+      );
+      await connectToCompatibleServer(
+        container: container,
+        transport: transport,
+      );
+
+      final notifier = container.read(syncClientControllerProvider.notifier);
+      notifier.toggleGroup(const SettingsSyncGroupId('presets'));
+      await notifier.requestSync();
+
+      final state = container.read(syncClientControllerProvider);
+      expect(state.phase, SyncPhase.error);
+      expect(state.errorMessage, '同步数据包含未请求的配置项');
+      expect(state.preparedImport, isNull);
+    });
+
+    test('请求完成前切换分组仍使用请求开始时捕获的 group 子集', () async {
+      protocol.requestResult = _requestDocument;
+      final prepared = ScriptedSettingsSyncPreparedImport(
+        summaries: const [
+          SettingsSyncSummaryItem(label: '预设', trailingText: '新增 1 项'),
+        ],
+      );
+      settingsFacade.preparedImport = prepared;
+      protocol.requestGate = Completer<void>();
       await connectToCompatibleServer(
         container: container,
         transport: transport,
       );
       final notifier = container.read(syncClientControllerProvider.notifier);
-      notifier.toggleCategory(SyncCategory.presets);
+      notifier.toggleGroup(const SettingsSyncGroupId('presets'));
+      final requestFuture = notifier.requestSync();
+      await waitForProviderState(
+        container: container,
+        provider: syncClientControllerProvider,
+        matches: (state) => state.phase == SyncPhase.syncing,
+        description: '同步请求开始',
+      );
 
-      await notifier.requestSync();
+      notifier.toggleGroup(const SettingsSyncGroupId('prompts'));
+      protocol.requestGate!.complete();
+      await requestFuture;
 
-      final state = container.read(syncClientControllerProvider);
-      expect(state.phase, SyncPhase.noNewData);
-      expect(state.deduplicatedData, isNull);
+      expect(settingsFacade.requestedGroups, {
+        const SettingsSyncGroupId('presets'),
+      });
+      expect(
+        container.read(syncClientControllerProvider).phase,
+        SyncPhase.received,
+      );
     });
 
     for (final code in [
       SyncProtocolErrorCode.pairingRequired,
       SyncProtocolErrorCode.pairingRejected,
     ]) {
-      test('请求遇到 ${code.name} → 撤销配对并显示协议用户文案', () async {
+      test('请求遇到 ${code.name} 时撤销配对并显示协议用户文案', () async {
         final failure = SyncProtocolFailure(code);
         protocol.paired = true;
         protocol.requestError = failure;
@@ -406,7 +513,7 @@ void main() {
           transport: transport,
         );
         final notifier = container.read(syncClientControllerProvider.notifier);
-        notifier.toggleCategory(SyncCategory.presets);
+        notifier.toggleGroup(const SettingsSyncGroupId('presets'));
 
         await notifier.requestSync();
 
@@ -419,7 +526,7 @@ void main() {
       });
     }
 
-    test('普通协议失败保留配对状态', () async {
+    test('普通协议失败时保留配对状态', () async {
       protocol.paired = true;
       protocol.requestError = const SyncProtocolFailure(
         SyncProtocolErrorCode.sessionExpired,
@@ -429,7 +536,7 @@ void main() {
         transport: transport,
       );
       final notifier = container.read(syncClientControllerProvider.notifier);
-      notifier.toggleCategory(SyncCategory.presets);
+      notifier.toggleGroup(const SettingsSyncGroupId('presets'));
 
       await notifier.requestSync();
 
@@ -441,7 +548,7 @@ void main() {
       expect(protocol.paired, isTrue);
     });
 
-    test('请求传输失败 → 显示传输用户文案且不撤销配对', () async {
+    test('请求传输失败时显示传输用户文案且不撤销配对', () async {
       protocol.paired = true;
       protocol.requestError = const SyncTransportException('传输失败');
       await connectToCompatibleServer(
@@ -449,7 +556,7 @@ void main() {
         transport: transport,
       );
       final notifier = container.read(syncClientControllerProvider.notifier);
-      notifier.toggleCategory(SyncCategory.presets);
+      notifier.toggleGroup(const SettingsSyncGroupId('presets'));
 
       await notifier.requestSync();
 
@@ -460,14 +567,14 @@ void main() {
       expect(protocol.forgetCount, 0);
     });
 
-    test('请求未预期异常 → 显示同步失败文案', () async {
+    test('请求未预期异常时显示同步失败文案', () async {
       protocol.requestError = StateError('boom');
       await connectToCompatibleServer(
         container: container,
         transport: transport,
       );
       final notifier = container.read(syncClientControllerProvider.notifier);
-      notifier.toggleCategory(SyncCategory.presets);
+      notifier.toggleGroup(const SettingsSyncGroupId('presets'));
 
       await notifier.requestSync();
 
@@ -476,69 +583,54 @@ void main() {
       expect(state.errorMessage, '同步失败: Bad state: boom');
     });
 
-    // 把控制器推进到「已接收 + 敏感确认 + 错误文案」三者并存的瞬时状态：
-    // 请求成功得到数据，再让配对失败产生错误，验证清除类操作的契约。
-    Future<void> reachStaleState() async {
-      protocol.paired = true;
+    test('切换分组清除敏感确认、待导入状态与错误', () async {
+      protocol.requestResult = _requestDocument;
+      settingsFacade.preparedImport = ScriptedSettingsSyncPreparedImport(
+        summaries: const [
+          SettingsSyncSummaryItem(label: '预设', trailingText: '新增 1 项'),
+        ],
+      );
       await connectToCompatibleServer(
         container: container,
         transport: transport,
       );
       final notifier = container.read(syncClientControllerProvider.notifier);
-      notifier.toggleCategory(SyncCategory.presets);
+      notifier.toggleGroup(const SettingsSyncGroupId('presets'));
       notifier.confirmSensitiveRequest();
-      protocol.requestResult = presetExport;
       await notifier.requestSync();
-      protocol.pairError = const SyncProtocolFailure(
-        SyncProtocolErrorCode.pairingRejected,
-      );
-      await notifier.pairWithCode('123456');
-    }
 
-    test('切换分类清除敏感确认、旧数据与错误', () async {
-      await reachStaleState();
-      final notifier = container.read(syncClientControllerProvider.notifier);
-
-      notifier.toggleCategory(SyncCategory.prompts);
+      notifier.toggleGroup(const SettingsSyncGroupId('prompts'));
 
       final state = container.read(syncClientControllerProvider);
       expect(state.phase, SyncPhase.connected);
-      expect(state.selectedCategories, {
-        SyncCategory.presets,
-        SyncCategory.prompts,
+      expect(state.selectedGroups, {
+        SettingsSyncGroupId('presets'),
+        SettingsSyncGroupId('prompts'),
       });
       expect(state.sensitiveRequestConfirmed, isFalse);
-      expect(state.deduplicatedData, isNull);
+      expect(state.preparedImport, isNull);
       expect(state.errorMessage, isNull);
     });
 
-    test('全选清除瞬时确认/数据/错误并选择全部类别', () async {
-      await reachStaleState();
+    test('请求被取消后晚到的数据不改变空闲状态且清空会话', () async {
+      await connectToCompatibleServer(
+        container: container,
+        transport: transport,
+      );
       final notifier = container.read(syncClientControllerProvider.notifier);
+      notifier.toggleGroup(const SettingsSyncGroupId('presets'));
 
-      notifier.selectAllCategories();
+      protocol.requestGate = Completer<void>();
+      final requestFuture = notifier.requestSync();
+      notifier.cancelAndReset();
+      protocol.requestGate!.complete();
+      await requestFuture;
 
-      final state = container.read(syncClientControllerProvider);
-      expect(state.phase, SyncPhase.connected);
-      expect(state.selectedCategories, SyncCategory.values.toSet());
-      expect(state.sensitiveRequestConfirmed, isFalse);
-      expect(state.deduplicatedData, isNull);
-      expect(state.errorMessage, isNull);
-    });
-
-    test('resetToConnected 清除瞬时状态但保留服务端与选择', () async {
-      await reachStaleState();
-      final notifier = container.read(syncClientControllerProvider.notifier);
-
-      notifier.resetToConnected();
-
-      final state = container.read(syncClientControllerProvider);
-      expect(state.phase, SyncPhase.connected);
-      expect(state.server, isNotNull);
-      expect(state.selectedCategories, {SyncCategory.presets});
-      expect(state.sensitiveRequestConfirmed, isFalse);
-      expect(state.deduplicatedData, isNull);
-      expect(state.errorMessage, isNull);
+      expect(
+        container.read(syncClientControllerProvider),
+        SyncClientState(availableGroups: defaultSettingsSyncGroups),
+      );
+      expect(protocol.clearSessionsCount, 1);
     });
 
     test('配对被取消后晚到的成功不改变空闲状态', () async {
@@ -554,25 +646,130 @@ void main() {
       protocol.pairGate!.complete();
       await pairFuture;
 
-      expect(container.read(syncClientControllerProvider), SyncClientState());
-    });
-
-    test('请求被取消后晚到的数据不改变空闲状态且清空会话', () async {
-      await connectToCompatibleServer(
-        container: container,
-        transport: transport,
+      expect(
+        container.read(syncClientControllerProvider),
+        SyncClientState(availableGroups: defaultSettingsSyncGroups),
       );
-      final notifier = container.read(syncClientControllerProvider.notifier);
-      notifier.toggleCategory(SyncCategory.presets);
-
-      protocol.requestGate = Completer<void>();
-      final requestFuture = notifier.requestSync();
-      notifier.cancelAndReset();
-      protocol.requestGate!.complete();
-      await requestFuture;
-
-      expect(container.read(syncClientControllerProvider), SyncClientState());
-      expect(protocol.clearSessionsCount, 1);
     });
   });
+
+  group('服务端 catalog 安全校验', () {
+    test('服务端按本地 descriptor 重算敏感性并拒绝未知 group', () async {
+      final serverStore = FakePairingRepository(
+        identity: const SyncPeerIdentity(
+          id: 'server-id',
+          displayName: 'Server',
+        ),
+      );
+      final clientStore = FakePairingRepository(
+        identity: const SyncPeerIdentity(
+          id: 'client-id',
+          displayName: 'Client',
+        ),
+      );
+      final clientView = FakeSettingsSyncFacade(
+        availableGroups: const [
+          SettingsSyncGroupDescriptor(
+            id: SettingsSyncGroupId('presets'),
+            label: '预设',
+            order: 0,
+            sensitivity: SettingsSyncSensitivity.standard,
+          ),
+        ],
+      );
+      final serverFacade = FakeSettingsSyncFacade(
+        availableGroups: const [
+          SettingsSyncGroupDescriptor(
+            id: SettingsSyncGroupId('presets'),
+            label: '预设',
+            order: 0,
+            sensitivity: SettingsSyncSensitivity.credentialBearing,
+          ),
+        ],
+      );
+      expect(
+        clientView.availableGroups.single.sensitivity,
+        SettingsSyncSensitivity.standard,
+      );
+      expect(
+        serverFacade.availableGroups.single.sensitivity,
+        SettingsSyncSensitivity.credentialBearing,
+      );
+      final server = SyncServerProtocolCoordinator(
+        pairingRepository: serverStore,
+        crypto: CryptographySyncCrypto(),
+        clock: FakeSyncClock(),
+        settingsFacade: serverFacade,
+      );
+      final code = await server.generatePairingCode();
+      final client = SyncClientProtocolCoordinator(
+        transport: _LoopbackSyncClientTransport(server),
+        pairingRepository: clientStore,
+        crypto: CryptographySyncCrypto(),
+        clock: FakeSyncClock(),
+      );
+      final peer = const DiscoveredServer(
+        deviceName: 'Server',
+        ip: '127.0.0.1',
+        httpPort: 8080,
+        serverId: 'server-id',
+      );
+      await client.pair(server: peer, code: code, displayName: 'Client');
+
+      await expectLater(
+        client.requestSettings(
+          server: peer,
+          groups: {SettingsSyncGroupId('presets')},
+          confirmedSensitive: false,
+        ),
+        throwsA(
+          isA<SyncProtocolFailure>().having(
+            (failure) => failure.code,
+            'code',
+            SyncProtocolErrorCode.sensitiveConfirmationRequired,
+          ),
+        ),
+      );
+      expect(serverFacade.exportCount, 0);
+
+      final exported = await client.requestSettings(
+        server: peer,
+        groups: {SettingsSyncGroupId('presets')},
+        confirmedSensitive: true,
+      );
+      expect(exported.sections, isEmpty);
+      expect(serverFacade.exportCount, 1);
+
+      await expectLater(
+        client.requestSettings(
+          server: peer,
+          groups: {SettingsSyncGroupId('futureGroup')},
+          confirmedSensitive: true,
+        ),
+        throwsA(
+          isA<SyncProtocolFailure>().having(
+            (failure) => failure.code,
+            'code',
+            SyncProtocolErrorCode.malformedMessage,
+          ),
+        ),
+      );
+      expect(serverFacade.exportCount, 1);
+    });
+  });
+}
+
+final class _LoopbackSyncClientTransport implements SyncClientTransport {
+  _LoopbackSyncClientTransport(this.server);
+
+  final SyncServerProtocolCoordinator server;
+
+  @override
+  Stream<DiscoveredServer> discoverServers() => const Stream.empty();
+
+  @override
+  Future<SyncProtocolMessage> send({
+    required DiscoveredServer server,
+    required SyncProtocolMessage request,
+  }) async => (await this.server.handle(request)).message;
 }

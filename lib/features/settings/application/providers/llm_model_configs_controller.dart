@@ -3,7 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/providers/llm_model_config_repository.dart';
 import '../../domain/models/providers/llm_model_config.dart';
 import '../../domain/models/providers/llm_provider_config.dart';
-import 'llm_provider_equivalence.dart';
+import '../../domain/services/llm_provider_normalization.dart';
+import 'llm_provider_import_merger.dart';
 
 final llmProviderConfigsProvider =
     NotifierProvider<LlmProviderConfigsController, List<LlmProviderConfig>>(
@@ -66,56 +67,18 @@ class LlmProviderConfigsController extends Notifier<List<LlmProviderConfig>> {
   ///    保留本地服务商身份，仅合并模型。
   /// 3. **无匹配**：作为新服务商添加。
   Future<void> mergeImportedProviders(List<LlmProviderConfig> providers) async {
-    final updated = [...state];
-    for (final incomingProvider in providers) {
-      // 优先按 ID 匹配：同一服务商同步后可能 URL 变了但 ID 不变
-      var existingIndex = updated.indexWhere(
-        (provider) => provider.id == incomingProvider.id,
-      );
+    final nextState = mergeImportedLlmProviders(
+      local: state,
+      incoming: providers,
+    );
+    await replaceAllAfterImport(nextState);
+  }
 
-      if (existingIndex != -1) {
-        final existingProvider = updated[existingIndex];
-        final mergedModels = [...existingProvider.models];
-        for (final incomingModel in incomingProvider.models) {
-          final alreadyExists = mergedModels.any(
-            (model) => model.modelName == incomingModel.modelName,
-          );
-          if (!alreadyExists) {
-            mergedModels.add(incomingModel);
-          }
-        }
-        // ID 匹配时覆盖服务商字段，确保 URL 等变更同步生效
-        updated[existingIndex] = incomingProvider.copyWith(
-          models: mergedModels,
-        );
-        continue;
-      }
-
-      // ID 未匹配时，按共享等价键匹配不同设备各自创建的同凭据服务商。
-      final incomingKey = buildLlmProviderEquivalenceKey(incomingProvider);
-      existingIndex = updated.indexWhere((provider) {
-        return buildLlmProviderEquivalenceKey(provider) == incomingKey;
-      });
-      if (existingIndex == -1) {
-        updated.add(incomingProvider);
-        continue;
-      }
-
-      // 等价键匹配时保留本地服务商身份，仅合并模型。
-      final existingProvider = updated[existingIndex];
-      final mergedModels = [...existingProvider.models];
-      for (final incomingModel in incomingProvider.models) {
-        final alreadyExists = mergedModels.any(
-          (model) => model.modelName == incomingModel.modelName,
-        );
-        if (!alreadyExists) {
-          mergedModels.add(incomingModel);
-        }
-      }
-      updated[existingIndex] = existingProvider.copyWith(models: mergedModels);
-    }
-    state = sortProviderConfigs(updated);
-    await _repository.saveProviders(state);
+  /// 导入流程在持久化确认后替换内存快照。
+  Future<void> replaceAllAfterImport(List<LlmProviderConfig> providers) async {
+    final nextState = sortProviderConfigs(providers);
+    await _repository.saveProviders(nextState);
+    state = nextState;
   }
 
   /// 删除一个服务商及其下所有模型。

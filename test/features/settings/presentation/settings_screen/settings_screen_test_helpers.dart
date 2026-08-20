@@ -45,6 +45,9 @@ Future<AppDatabase> pumpSettingsScreen(
   AppDatabase? database,
   Size size = const Size(1440, 1500),
   int initialTabIndex = 0,
+  String? clipboardText = '',
+  List<String>? clipboardWrites,
+  List<dynamic> extraOverrides = const [],
 }) async {
   await preferences.setInt(settingsLastTabIndexKey, initialTabIndex);
 
@@ -53,9 +56,12 @@ Future<AppDatabase> pumpSettingsScreen(
     SystemChannels.platform,
     (call) async {
       if (call.method == 'Clipboard.getData') {
-        return <String, dynamic>{'text': ''};
+        return <String, dynamic>{'text': clipboardText};
       }
       if (call.method == 'Clipboard.setData') {
+        final arguments = call.arguments;
+        final text = arguments is Map ? arguments['text'] : null;
+        if (text is String) clipboardWrites?.add(text);
         return null;
       }
       if (call.method == 'Clipboard.hasStrings') {
@@ -73,6 +79,7 @@ Future<AppDatabase> pumpSettingsScreen(
     viewportSize: size,
     extraOverrides: [
       appNetworkLoggerProvider.overrideWithValue(const NoopNetworkLogger()),
+      ...extraOverrides,
     ],
   );
 }
@@ -95,6 +102,9 @@ Future<AppDatabase> setUpSettingsScreen(
   List<FixedPromptSequence> fixedPromptSequences = const [],
   List<MemoryPrompt> memoryPrompts = const [],
   List<TemplatePrompt> templatePrompts = const [],
+  String? clipboardText = '',
+  List<String>? clipboardWrites,
+  List<dynamic> extraOverrides = const [],
 }) async {
   assert(
     !useDefaultsSeed ||
@@ -127,6 +137,9 @@ Future<AppDatabase> setUpSettingsScreen(
     database: database,
     size: size,
     initialTabIndex: initialTabIndex,
+    clipboardText: clipboardText,
+    clipboardWrites: clipboardWrites,
+    extraOverrides: extraOverrides,
   );
   return database;
 }

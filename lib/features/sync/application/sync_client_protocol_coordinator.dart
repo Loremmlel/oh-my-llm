@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_export_data.dart';
+import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_transfer_document.dart';
 import '../domain/models/discovery/discovered_server.dart';
 import '../domain/models/session/sync_pairing.dart';
 import '../domain/models/protocol/sync_protocol_failure.dart';
@@ -125,32 +125,26 @@ final class SyncClientProtocolCoordinator implements SyncClientProtocol {
   }
 
   @override
-  Future<SettingsExportData> requestSettings({
+  Future<SettingsTransferDocument> requestSettings({
     required DiscoveredServer server,
-    required Set<SyncCategory> categories,
+    required Set<SettingsSyncGroupId> groups,
     required bool confirmedSensitive,
   }) async {
     _checkCompatible(server);
-    if (categories.isEmpty) {
+    if (groups.isEmpty) {
       throw const SyncProtocolFailure(SyncProtocolErrorCode.malformedMessage);
-    }
-    if (categories.any((item) => item.isCredentialBearing) &&
-        !confirmedSensitive) {
-      throw const SyncProtocolFailure(
-        SyncProtocolErrorCode.sensitiveConfirmationRequired,
-      );
     }
     return _requestSettings(
       server: server,
-      categories: categories,
+      groups: groups,
       confirmedSensitive: confirmedSensitive,
       reopen: true,
     );
   }
 
-  Future<SettingsExportData> _requestSettings({
+  Future<SettingsTransferDocument> _requestSettings({
     required DiscoveredServer server,
-    required Set<SyncCategory> categories,
+    required Set<SettingsSyncGroupId> groups,
     required bool confirmedSensitive,
     required bool reopen,
   }) async {
@@ -170,7 +164,7 @@ final class SyncClientProtocolCoordinator implements SyncClientProtocol {
       plaintext: utf8.encode(
         SyncProtocolCodec.encodePayload(
           SettingsSyncRequestPayload(
-            categories,
+            groups,
             confirmedSensitive: confirmedSensitive,
           ),
         ),
@@ -210,7 +204,7 @@ final class SyncClientProtocolCoordinator implements SyncClientProtocol {
       if (payload is! SettingsSyncResponsePayload) {
         throw const SyncProtocolFailure(SyncProtocolErrorCode.replayRejected);
       }
-      return payload.snapshot.data;
+      return payload.document;
     } on SyncProtocolFailure catch (failure) {
       if (reopen &&
           (failure.code == SyncProtocolErrorCode.sessionExpired ||
@@ -219,7 +213,7 @@ final class SyncClientProtocolCoordinator implements SyncClientProtocol {
         _sessions.remove(server.serverId);
         return _requestSettings(
           server: server,
-          categories: categories,
+          groups: groups,
           confirmedSensitive: confirmedSensitive,
           reopen: false,
         );
@@ -267,7 +261,7 @@ final class SyncClientProtocolCoordinator implements SyncClientProtocol {
     final key = await _crypto.hkdf(
       secret: secret,
       salt: [...clientNonce, ...base64Decode(response.serverNonce)],
-      info: utf8.encode('oh-my-llm-sync-v3-session'),
+      info: utf8.encode('oh-my-llm-sync-v4-session'),
     );
     final now = _clock.now();
     final session = SyncSession(

@@ -1,116 +1,174 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
-import 'package:oh_my_llm/features/settings/application/providers/llm_model_configs_controller.dart';
 import 'package:oh_my_llm/features/media/application/media_grid_density_controller.dart';
-import 'package:oh_my_llm/features/settings/application/prompts/memory_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/application/transfer/settings_sync_facade.dart';
-import 'package:oh_my_llm/features/settings/domain/models/providers/llm_provider_config.dart';
-import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_export_data.dart';
+import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_catalog.dart';
+import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_catalog_provider.dart';
+import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_coordinator.dart';
+import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_participant.dart';
+import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_types.dart';
+import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_transfer_document.dart';
 import 'package:oh_my_llm/features/sync/application/ports/settings_sync_facade.dart';
-
-import '../../../../helpers/fixtures.dart';
+import 'package:oh_my_llm/features/sync/domain/models/protocol/sync_types.dart';
 
 void main() {
   late AppDatabase database;
   late SharedPreferences preferences;
-  late ProviderContainer container;
   late SettingsSyncFacade facade;
 
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
     preferences = await SharedPreferences.getInstance();
     database = AppDatabase.inMemory();
-    container = ProviderContainer(
+    final container = ProviderContainer(
       overrides: [
         appDatabaseProvider.overrideWithValue(database),
         sharedPreferencesProvider.overrideWithValue(preferences),
-        settingsSyncFacadeProvider.overrideWith(
-          (ref) => RiverpodSettingsSyncFacade(ref),
-        ),
       ],
     );
-    facade = container.read(settingsSyncFacadeProvider);
+    addTearDown(() {
+      container.dispose();
+      database.close();
+    });
+    facade = RiverpodSettingsSyncFacade(
+      catalog: container.read(settingsTransferCatalogProvider),
+      coordinator: container.read(settingsTransferCoordinatorProvider),
+    );
   });
 
-  tearDown(() {
-    container.dispose();
-    database.close();
-  });
-
-  test('exportSelected 只导出选择的 providers 与 prompts', () async {
-    final provider = LlmProviderConfig(
-      id: 'provider-1',
-      name: '测试服务商',
-      apiUrl: 'https://api.example.com/v1',
-      apiKey: 'sk-test',
-      apiProtocol: LlmApiProtocol.chatCompletions,
-      models: const [
-        LlmProviderModelConfig(
-          id: 'model-1',
-          displayName: 'Test',
-          modelName: 'test',
-          supportsReasoning: false,
-        ),
-      ],
-    );
-    final memory = TestFixtures.memoryPrompt(id: 'memory-1');
-    await container
-        .read(llmProviderConfigsProvider.notifier)
-        .upsertProvider(provider);
-    await container.read(memoryPromptsProvider.notifier).upsert(memory);
-
-    final data = facade.exportSelected(
-      const SettingsSyncSelection(providers: true, prompts: true),
-    );
-
-    expect(data.modelProviders, [provider]);
-    expect(data.memoryPrompts, [memory]);
-    expect(data.presetPrompts, isEmpty);
-    expect(data.autoRetrySettings, isNull);
-  });
-
-  test('deduplicateIncoming 过滤已有条目，importDeduplicated 写入新条目', () async {
-    final existing = TestFixtures.memoryPrompt(
-      id: 'memory-existing',
-      content: '已有内容',
-    );
-    final incoming = TestFixtures.memoryPrompt(
-      id: 'memory-new',
-      content: '全新内容',
-    );
-    await container.read(memoryPromptsProvider.notifier).upsert(existing);
-    final data = SettingsExportData(
-      modelProviders: const [],
-      memoryPrompts: [existing, incoming],
-      presetPrompts: const [],
-      templatePrompts: const [],
-      fixedPromptSequences: const [],
-    );
-
-    final deduplicated = facade.deduplicateIncoming(data);
-    expect(deduplicated.memoryPrompts, [incoming]);
-
-    final imported = await facade.importDeduplicated(deduplicated);
-    expect(imported, isTrue);
+  test('production facade 投影六个有序分组并聚合敏感性', () {
+    expect(facade.availableGroups.map((group) => group.id.value), [
+      'providers',
+      'presets',
+      'prompts',
+      'network',
+      'outputProcessing',
+      'other',
+    ]);
     expect(
-      container.read(memoryPromptsProvider),
-      containsAll([existing, incoming]),
+      facade.availableGroups
+          .firstWhere((group) => group.id.value == 'providers')
+          .sensitivity,
+      SettingsSyncSensitivity.credentialBearing,
+    );
+    expect(
+      facade.availableGroups
+          .firstWhere((group) => group.id.value == 'network')
+          .sensitivity,
+      SettingsSyncSensitivity.credentialBearing,
+    );
+    expect(
+      facade.availableGroups
+          .firstWhere((group) => group.id.value == 'other')
+          .sensitivity,
+      SettingsSyncSensitivity.standard,
     );
   });
 
-  test('设备本地媒体密度不进入设置同步导出', () async {
-    await preferences.setString(mediaGridDensityStorageKey, 'comfortable');
-    final data = facade.exportSelected(
-      const SettingsSyncSelection(other: true),
+  test('新增 participant 自动进入导出、摘要和执行，不需要 facade 分支', () async {
+    var localValue = 'local';
+    var writeCount = 0;
+    final participant = _StringParticipant(
+      readLocal: () => localValue,
+      write: (value) async {
+        writeCount++;
+        localValue = value;
+      },
     );
-    final json = data.toJsonString();
-    expect(json, isNot(contains(mediaGridDensityStorageKey)));
-    expect(json, isNot(contains('grid_density')));
+    final catalog = SettingsTransferCatalog([
+      SettingsTransferParticipantBox.erase(participant),
+    ]);
+    final adapter = RiverpodSettingsSyncFacade(
+      catalog: catalog,
+      coordinator: SettingsTransferCoordinator(catalog: catalog),
+    );
+
+    final exported = adapter.exportGroups({
+      const SettingsSyncGroupId('providers'),
+    });
+    expect(exported.sections, {'extraSetting': 'local'});
+
+    final prepared = adapter.prepareIncoming(
+      SettingsTransferDocument(sections: {'extraSetting': 'incoming'}),
+      requestedGroups: {const SettingsSyncGroupId('providers')},
+    );
+    expect(prepared.summaries, [
+      const SettingsSyncSummaryItem(label: '额外设置', trailingText: '替换'),
+    ]);
+    expect(prepared.containsSensitive, isFalse);
+
+    final result = await prepared.execute(confirmedSensitive: false);
+    expect(result, isA<SettingsSyncImportSuccess>());
+    expect(localValue, 'incoming');
+    expect(writeCount, 1);
   });
+
+  test('未知请求分组在 coordinator 之前被拒绝', () {
+    expect(
+      () => facade.exportGroups({const SettingsSyncGroupId('unknownGroup')}),
+      throwsA(isA<SettingsSyncPreparationException>()),
+    );
+  });
+
+  test('已知 section 不在请求分组内时在任何写入前被拒绝', () {
+    final document = SettingsTransferDocument(
+      sections: {'modelProviders': <Object?>[]},
+    );
+
+    expect(
+      () => facade.prepareIncoming(
+        document,
+        requestedGroups: {const SettingsSyncGroupId('prompts')},
+      ),
+      throwsA(isA<SettingsSyncPreparationException>()),
+    );
+  });
+
+  test('本地媒体密度不进入 catalog 投影或设置文档', () async {
+    await preferences.setString(mediaGridDensityStorageKey, 'comfortable');
+    final document = facade.exportGroups({const SettingsSyncGroupId('other')});
+    expect(document.sections, isNot(contains(mediaGridDensityStorageKey)));
+    expect(document.sections, isNot(contains('grid_density')));
+  });
+}
+
+final class _StringParticipant extends ReplacingValueParticipant<String> {
+  _StringParticipant({
+    required String Function() readLocal,
+    required Future<void> Function(String value) write,
+  }) : _readLocal = readLocal,
+       _write = write,
+       super(
+         key: const SettingsTransferKey('extraSetting'),
+         group: SettingsTransferGroup.providers,
+         label: '额外设置',
+         order: 99,
+         sensitivity: SettingsTransferSensitivity.standard,
+       );
+
+  final String Function() _readLocal;
+  final Future<void> Function(String value) _write;
+
+  @override
+  String readLocal() => _readLocal();
+
+  @override
+  Object encode(String value) => value;
+
+  @override
+  String decode(Object? payload) {
+    if (payload is! String) throw const FormatException();
+    return payload;
+  }
+
+  @override
+  bool isEquivalent(String existing, String incoming) => existing == incoming;
+
+  @override
+  Future<void> applyImport(String value) => _write(value);
 }

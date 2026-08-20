@@ -13,6 +13,7 @@ import 'package:oh_my_llm/features/media/application/ports/media_library_factory
 import 'package:oh_my_llm/features/media/application/shuffle_playback_controller.dart';
 import 'package:oh_my_llm/features/media/domain/models/file_item.dart';
 import 'package:oh_my_llm/features/sync/application/sync_client_controller.dart';
+import 'package:oh_my_llm/features/sync/application/ports/settings_sync_facade.dart';
 import 'package:oh_my_llm/features/sync/application/sync_server_controller.dart';
 import 'package:oh_my_llm/features/sync/domain/models/discovery/discovered_server.dart';
 import 'package:oh_my_llm/features/sync/domain/models/protocol/sync_protocol_version.dart';
@@ -21,6 +22,7 @@ import 'package:oh_my_llm/features/sync/presentation/widgets/sync_operation_tab.
 
 import '../../../helpers/async/widget_test_animation.dart';
 import '../../../features/media/helpers/fake_media_library.dart';
+import '../../../features/sync/application/sync_test_fakes.dart';
 import 'sync_workspace_screen_test_helpers.dart';
 
 void registerSyncScreenRenderTests() {
@@ -89,7 +91,7 @@ void registerSyncScreenRenderTests() {
       expect(find.text('重新搜索'), findsOneWidget);
     });
 
-    testWidgets('修改同步类别不会复用旧的一致性结果弹出消息', (tester) async {
+    testWidgets('修改同步分组不会复用旧的一致性结果弹出消息', (tester) async {
       await pumpSyncScreen(
         tester,
         preferences: preferences,
@@ -98,6 +100,7 @@ void registerSyncScreenRenderTests() {
             () => SeededSyncClientController(
               SyncClientState(
                 phase: SyncPhase.noNewData,
+                availableGroups: defaultSettingsSyncGroups,
                 server: const DiscoveredServer(
                   deviceName: 'Test PC',
                   ip: '192.168.1.2',
@@ -115,10 +118,92 @@ void registerSyncScreenRenderTests() {
 
       await tester.tap(find.text('同步').last);
       await settleTabTransition(tester);
-      await tester.tap(find.text(SyncCategory.presets.label));
+      await tester.tap(find.text('预设'));
       await tester.pump();
 
       expect(find.text('远端配置与本机完全一致，无需导入'), findsNothing);
+    });
+
+    testWidgets('同步项按分组描述动态渲染并只给敏感分组追加警告', (tester) async {
+      const testOnlyGroup = SettingsSyncGroupDescriptor(
+        id: SettingsSyncGroupId('testOnly'),
+        label: '测试扩展',
+        order: 6,
+        sensitivity: SettingsSyncSensitivity.credentialBearing,
+      );
+      final groups = [...defaultSettingsSyncGroups, testOnlyGroup];
+
+      await pumpSyncScreen(
+        tester,
+        preferences: preferences,
+        extraOverrides: [
+          syncClientControllerProvider.overrideWith(
+            () => SeededSyncClientController(
+              connectedSyncState(availableGroups: groups),
+            ),
+          ),
+        ],
+      );
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(TabBar)),
+      );
+      expect(
+        container.read(syncClientControllerProvider).availableGroups,
+        groups,
+      );
+
+      await tester.tap(find.text('同步').last);
+      await settleTabTransition(tester);
+
+      for (final label in const [
+        '服务商（含敏感凭据）',
+        '预设',
+        '提示词',
+        '网络（含敏感凭据）',
+        '输出处理',
+        '其它',
+      ]) {
+        expect(find.text(label), findsOneWidget);
+      }
+      expect(find.text('测试扩展（含敏感凭据）'), findsOneWidget);
+      expect(find.text('预设（含敏感凭据）'), findsNothing);
+      expect(find.text('输出处理（含敏感凭据）'), findsNothing);
+    });
+
+    testWidgets('全选只选择当前分组描述列表中的所有分组', (tester) async {
+      const testOnlyGroup = SettingsSyncGroupDescriptor(
+        id: SettingsSyncGroupId('testOnly'),
+        label: '测试扩展',
+        order: 6,
+        sensitivity: SettingsSyncSensitivity.standard,
+      );
+      final groups = [...defaultSettingsSyncGroups, testOnlyGroup];
+
+      await pumpSyncScreen(
+        tester,
+        preferences: preferences,
+        extraOverrides: [
+          syncClientControllerProvider.overrideWith(
+            () => SeededSyncClientController(
+              connectedSyncState(availableGroups: groups),
+            ),
+          ),
+        ],
+      );
+
+      await tester.tap(find.text('同步').last);
+      await settleTabTransition(tester);
+      await tester.tap(find.text('全选'));
+      await tester.pump();
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(SyncOperationTab)),
+      );
+      expect(
+        container.read(syncClientControllerProvider).selectedGroups,
+        groups.map((group) => group.id).toSet(),
+      );
     });
 
     testWidgets('Android 离开媒体 Tab 重置并重新进入时重新加载根目录', (tester) async {

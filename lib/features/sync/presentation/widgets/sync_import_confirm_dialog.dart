@@ -1,21 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_export_data.dart';
+import 'package:oh_my_llm/core/widgets/transfer_summary_list.dart';
+import '../../application/ports/settings_sync_facade.dart';
 import '../../application/sync_client_controller.dart';
 
 /// 同步导入确认对话框。
-///
-/// 展示来自远端设备的配置数据摘要，由用户确认是否覆盖本地配置。
-/// 导入逻辑与 [ImportConfirmDialog] 保持一致。
 class SyncImportConfirmDialog extends ConsumerStatefulWidget {
   const SyncImportConfirmDialog({
-    required this.exportData,
+    required this.preparedImport,
     this.sourceDeviceName,
     super.key,
   });
 
-  final SettingsExportData exportData;
+  final SettingsSyncPreparedImport preparedImport;
   final String? sourceDeviceName;
 
   @override
@@ -28,12 +26,14 @@ class _SyncImportConfirmDialogState
   bool _isImporting = false;
   bool _sensitiveAcknowledged = false;
   String? _errorMessage;
+  late SettingsSyncPreparedImport _preparedImport = widget.preparedImport;
+
+  List<SettingsSyncSummaryItem> get _summaries => _preparedImport.summaries;
+
+  bool get _containsSensitive => _preparedImport.containsSensitive;
 
   @override
   Widget build(BuildContext context) {
-    // 导入期间阻止 system Back 与 barrier tap 关闭对话框（取消/导入按钮
-    // 已禁用，避免正在执行的导入被意外打断）；失败恢复 _isImporting=false
-    // 后路由回到可正常关闭状态。
     return PopScope<void>(
       canPop: !_isImporting,
       child: _buildAlertDialog(context),
@@ -41,10 +41,14 @@ class _SyncImportConfirmDialogState
   }
 
   Widget _buildAlertDialog(BuildContext context) {
-    final data = widget.exportData;
-    final hasSensitiveData =
-        data.modelProviders.isNotEmpty ||
-        (data.customHeadersConfig?.headers.isNotEmpty ?? false);
+    final hasSensitiveData = _containsSensitive;
+    final summaries = [
+      for (final summary in _summaries)
+        TransferSummaryViewItem(
+          label: summary.label,
+          trailingText: summary.trailingText,
+        ),
+    ];
 
     return AlertDialog(
       title: const Text('确认同步配置'),
@@ -56,7 +60,7 @@ class _SyncImportConfirmDialogState
             Text('来源设备：${widget.sourceDeviceName}'),
             const SizedBox(height: 12),
           ],
-          const Text('即将覆盖本机以下配置：'),
+          const Text('即将导入本机以下配置：'),
           if (hasSensitiveData) ...[
             const SizedBox(height: 12),
             Container(
@@ -89,66 +93,11 @@ class _SyncImportConfirmDialogState
             ),
           ],
           const SizedBox(height: 12),
-          if (data.modelProviders.isNotEmpty)
-            _buildCountRow(
-              context,
-              icon: Icons.hub_outlined,
-              label: 'LLM 服务商',
-              count: data.modelProviders.length,
-            ),
-          if (data.memoryPrompts.isNotEmpty)
-            _buildCountRow(
-              context,
-              icon: Icons.memory_rounded,
-              label: '记忆总结提示词',
-              count: data.memoryPrompts.length,
-            ),
-          if (data.presetPrompts.isNotEmpty)
-            _buildCountRow(
-              context,
-              icon: Icons.text_snippet_outlined,
-              label: '预设 Prompt',
-              count: data.presetPrompts.length,
-            ),
-          if (data.templatePrompts.isNotEmpty)
-            _buildCountRow(
-              context,
-              icon: Icons.dynamic_form_outlined,
-              label: '模板提示词',
-              count: data.templatePrompts.length,
-            ),
-          if (data.fixedPromptSequences.isNotEmpty)
-            _buildCountRow(
-              context,
-              icon: Icons.playlist_play_rounded,
-              label: '固定顺序提示词',
-              count: data.fixedPromptSequences.length,
-            ),
-          if (data.autoRetrySettings != null)
-            _buildCountRow(
-              context,
-              icon: Icons.refresh_rounded,
-              label: '自动重试设置',
-              count: 1,
-            ),
-          if (data.customHeadersConfig != null &&
-              data.customHeadersConfig!.headers.isNotEmpty)
-            _buildCountRow(
-              context,
-              icon: Icons.http_outlined,
-              label: '自定义请求头',
-              count: data.customHeadersConfig!.headers.length,
-            ),
-          if (data.fontSizeSettings != null)
-            _buildCountRow(
-              context,
-              icon: Icons.format_size_rounded,
-              label: '正文字号设置',
-              count: 1,
-            ),
+          TransferSummaryList(items: summaries),
+          if (summaries.isEmpty) const Text('没有可导入的变化'),
           const SizedBox(height: 12),
           Text(
-            '与本地内容重复的条目已被过滤，以上均为新增项，导入后不影响已有配置。',
+            '与本地内容重复的条目已被过滤，以上均为待导入变化。',
             style: Theme.of(context).textTheme.bodySmall,
           ),
           if (_errorMessage != null) ...[
@@ -180,31 +129,6 @@ class _SyncImportConfirmDialogState
     );
   }
 
-  Widget _buildCountRow(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required int count,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Icon(icon, size: 18),
-          const SizedBox(width: 8),
-          Text(label),
-          const Spacer(),
-          Text(
-            '$count 项',
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<void> _handleImport() async {
     setState(() {
       _isImporting = true;
@@ -212,20 +136,51 @@ class _SyncImportConfirmDialogState
     });
 
     try {
-      final success = await ref
+      final result = await ref
           .read(syncClientControllerProvider.notifier)
-          .executeImport();
-
-      if (mounted) {
-        Navigator.of(context).pop(success);
+          .executePreparedImport(confirmedSensitive: _sensitiveAcknowledged);
+      if (!mounted) return;
+      switch (result) {
+        case SettingsSyncImportSuccess():
+          Navigator.of(context).pop(true);
+        case SettingsSyncImportSensitiveConfirmationRequired():
+          setState(() {
+            _isImporting = false;
+            _sensitiveAcknowledged = false;
+            _errorMessage = '请确认导入敏感内容后重试';
+          });
+        case SettingsSyncImportStalePreview(:final refreshedImport):
+          setState(() {
+            _isImporting = false;
+            _preparedImport = refreshedImport;
+            _sensitiveAcknowledged = false;
+            _errorMessage = '本地设置已变化，请重新确认';
+          });
+        case SettingsSyncImportFailure(:final safeReason):
+          setState(() {
+            _isImporting = false;
+            _errorMessage = safeReason;
+          });
+        case SettingsSyncImportPartialFailure(
+          :final failedLabel,
+          :final safeReason,
+        ):
+          setState(() {
+            _isImporting = false;
+            _errorMessage = '部分配置已导入：$failedLabel。$safeReason';
+          });
+        case SettingsSyncImportAlreadyConsumed():
+          setState(() {
+            _isImporting = false;
+            _errorMessage = '导入批次已处理，请重新同步';
+          });
       }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isImporting = false;
-          _errorMessage = '导入失败: $e';
-        });
-      }
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _isImporting = false;
+        _errorMessage = '导入未完成，请重试';
+      });
     }
   }
 }
