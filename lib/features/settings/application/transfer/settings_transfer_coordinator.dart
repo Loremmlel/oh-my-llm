@@ -31,9 +31,6 @@ final class SettingsExportBatch extends SettingsExportPreparation {
   final List<SettingsTransferSummaryItem> summaryItems;
   final bool containsSensitive;
 
-  /// 供 Sync/application consumer 使用的同义只读视图。
-  List<SettingsTransferSummaryItem> get summaries => summaryItems;
-
   /// 只有确认敏感内容后，才允许把完整文档序列化为可外传文本。
   SettingsExportExposureResult exposeJson({required bool confirmedSensitive}) {
     if (containsSensitive && !confirmedSensitive) {
@@ -69,7 +66,6 @@ sealed class SettingsImportPreparation {
 final class SettingsImportMalformed extends SettingsImportPreparation {
   const SettingsImportMalformed();
 
-  String get code => 'malformed';
   String get label => '导入内容无效';
 }
 
@@ -78,7 +74,6 @@ final class SettingsImportUnsupportedVersion extends SettingsImportPreparation {
 
   final int? version;
 
-  String get code => 'unsupportedVersion';
   String get label => '不支持的设置传输版本';
 }
 
@@ -87,7 +82,6 @@ final class SettingsImportUnknownSection extends SettingsImportPreparation {
 
   final String sectionKey;
 
-  String get code => 'unknownSection';
   String get label => '未知设置项';
 }
 
@@ -100,8 +94,6 @@ final class SettingsImportSectionOutsideAllowedGroups
 
   final String sectionKey;
   final String label;
-
-  String get code => 'sectionOutsideAllowedGroups';
 }
 
 final class SettingsImportInvalidParticipantPayload
@@ -113,14 +105,11 @@ final class SettingsImportInvalidParticipantPayload
 
   final String sectionKey;
   final String label;
-
-  String get code => 'invalidParticipantPayload';
 }
 
 final class SettingsImportNoChanges extends SettingsImportPreparation {
   const SettingsImportNoChanges();
 
-  String get code => 'noChanges';
   String get label => '没有可导入的变化';
 }
 
@@ -181,20 +170,10 @@ final class SettingsImportAlreadyConsumed
 
 /// 由 catalog 驱动设置传输的导出、准备、重校验和执行协调器。
 final class SettingsTransferCoordinator {
-  const SettingsTransferCoordinator({required this.catalog});
+  SettingsTransferCoordinator({required this.catalog});
 
   final SettingsTransferCatalog catalog;
-
-  static final Expando<_SettingsTransferExecutionState> _executionStates =
-      Expando<_SettingsTransferExecutionState>();
-
-  _SettingsTransferExecutionState get _executionState {
-    final existing = _executionStates[this];
-    if (existing != null) return existing;
-    final created = _SettingsTransferExecutionState();
-    _executionStates[this] = created;
-    return created;
-  }
+  Future<void> _executionTail = Future<void>.value();
 
   // ── Public operations ────────────────────────────────────────────────
 
@@ -419,9 +398,9 @@ final class SettingsTransferCoordinator {
   Future<SettingsImportExecutionResult> _enqueue(
     Future<SettingsImportExecutionResult> Function() action,
   ) {
-    final previous = _executionState.tail;
+    final previous = _executionTail;
     final gate = Completer<void>();
-    _executionState.tail = gate.future;
+    _executionTail = gate.future;
 
     return () async {
       try {
@@ -472,8 +451,6 @@ final class SettingsImportBatch {
   final bool containsSensitive;
   bool _consumed = false;
 
-  List<SettingsTransferSummaryItem> get summaries => summaryItems;
-
   Future<SettingsImportExecutionResult> execute({
     required bool confirmedSensitive,
   }) {
@@ -495,10 +472,6 @@ final class _PreparedSettingsTransferChange {
 
   final ErasedSettingsTransferParticipant participant;
   final SettingsTransferChange<Object?> change;
-}
-
-final class _SettingsTransferExecutionState {
-  Future<void> tail = Future<void>.value();
 }
 
 const _safeWriteFailureReason = '写入未完成，请检查本地存储后重试';

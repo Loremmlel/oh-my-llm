@@ -24,35 +24,16 @@ abstract interface class SettingsTransferParticipant<T> {
 
 final class SettingsTransferChange<T> {
   const SettingsTransferChange({
-    required this.participant,
     required this.incoming,
     required this.writeValue,
     required this.fingerprint,
     required this.summary,
-  }) : _valueType = T;
+  });
 
-  /// application 内部在 erased 边界构造待校验 change 的入口。
-  ///
-  /// 普通 participant 必须使用默认构造器；这里保留 [T] 的公开字段语义，
-  /// 只允许 box 通过 [valueType] 和实际值执行最终一致性校验。
-  const SettingsTransferChange.erased({
-    required this.participant,
-    required this.incoming,
-    required this.writeValue,
-    required this.fingerprint,
-    required this.summary,
-    required Type valueType,
-  }) : _valueType = valueType;
-
-  final SettingsTransferParticipant<T> participant;
   final T incoming;
   final T writeValue;
   final String fingerprint;
   final SettingsTransferSummaryItem summary;
-  final Type _valueType;
-
-  /// 供 application-internal 类型擦除适配器校验 change 的泛型参数。
-  Type get valueType => _valueType;
 }
 
 /// erased export 边界一次读取后同时保留编码值和安全摘要。
@@ -115,7 +96,6 @@ abstract class ReplacingValueParticipant<T>
     if (isEquivalent(local, incoming)) return null;
 
     return SettingsTransferChange<T>(
-      participant: this,
       incoming: incoming,
       writeValue: incoming,
       fingerprint: fingerprintFor(incoming),
@@ -197,7 +177,6 @@ abstract class MergingCollectionParticipant<T>
     final writeValue = List<T>.unmodifiable(additions);
     final incomingValue = List<T>.unmodifiable(incoming);
     return SettingsTransferChange<List<T>>(
-      participant: this,
       incoming: incomingValue,
       writeValue: writeValue,
       fingerprint: fingerprintFor(writeValue),
@@ -225,9 +204,6 @@ abstract class MergingCollectionParticipant<T>
 }
 
 /// Settings application 内部使用的非泛型 participant 视图。
-///
-/// sealed 保证 application 外部不能伪造 erased participant；唯一的实现是
-/// 本文件中的 [SettingsTransferParticipantBox]。
 sealed class ErasedSettingsTransferParticipant {
   SettingsTransferKey get key;
   SettingsTransferGroup get group;
@@ -235,7 +211,6 @@ sealed class ErasedSettingsTransferParticipant {
   int get order;
   SettingsTransferSensitivity get sensitivity;
 
-  Object? encodeLocalIfExportable();
   SettingsTransferExportedValue? exportLocalIfExportable();
   Object? decodePayload(Object? payload);
   SettingsTransferChange<Object?>? prepareImport(Object? incoming);
@@ -247,31 +222,15 @@ sealed class ErasedSettingsTransferParticipant {
   SettingsTransferParticipant<T> participantAs<T>();
 }
 
-/// Settings application 内部唯一允许执行 participant 类型擦除/恢复的 box。
-///
-/// [T] 是唯一受控的类型擦除边界。所有 erased change 在进入 participant
-/// 前都必须回到这个 box 的 [T] 并完成值类型和来源校验。
+/// Settings application 内部唯一的 participant 类型擦除边界。
 final class SettingsTransferParticipantBox<T>
     extends ErasedSettingsTransferParticipant {
   SettingsTransferParticipantBox(this.participant);
 
-  /// 将一个带有明确 [T] 的公共 participant 绑定到 application 边界。
   static SettingsTransferParticipantBox<T> erase<T>(
     SettingsTransferParticipant<T> participant,
   ) {
     return SettingsTransferParticipantBox<T>(participant);
-  }
-
-  /// catalog 只接受真实 box，避免从 [Object] 重新擦除公共 participant。
-  static ErasedSettingsTransferParticipant requireBox(Object candidate) {
-    if (candidate is SettingsTransferParticipantBox<dynamic>) {
-      return candidate;
-    }
-    throw ArgumentError.value(
-      candidate,
-      'participant',
-      'catalog 只接受 SettingsTransferParticipantBox',
-    );
   }
 
   final SettingsTransferParticipant<T> participant;
@@ -300,14 +259,6 @@ final class SettingsTransferParticipantBox<T>
       encoded: participant.encode(value),
       summary: participant.summarizeExport(value),
     );
-  }
-
-  @override
-  Object? encodeLocalIfExportable() {
-    final value = participant.readLocal();
-    _validateValue(value, 'local');
-    if (!participant.shouldExport(value)) return null;
-    return participant.encode(value);
   }
 
   @override
@@ -369,16 +320,7 @@ final class SettingsTransferParticipantBox<T>
     );
   }
 
-  void _validateChange<TChange>(SettingsTransferChange<TChange> change) {
-    if (!identical(change.participant, participant)) {
-      throw StateError('participant ${key.value} 的 change 来源不匹配');
-    }
-    if (change.valueType != T) {
-      throw StateError(
-        'participant ${key.value} 的 change 类型是 ${change.valueType}，'
-        '期望 $T',
-      );
-    }
+  void _validateChange(SettingsTransferChange<Object?> change) {
     _validateValue(change.incoming, 'incoming');
     _validateValue(change.writeValue, 'writeValue');
   }
@@ -387,7 +329,8 @@ final class SettingsTransferParticipantBox<T>
     SettingsTransferChange<T>? change,
   ) {
     if (change == null) return null;
-    _validateChange(change);
+    _validateValue(change.incoming, 'incoming');
+    _validateValue(change.writeValue, 'writeValue');
     return change as SettingsTransferChange<Object?>;
   }
 }

@@ -1,6 +1,7 @@
 import '../../providers/llm_provider_import_merger.dart';
 import '../../../domain/models/providers/llm_provider_config.dart';
 import '../settings_transfer_participant.dart';
+import '../settings_transfer_payload.dart';
 import '../settings_transfer_types.dart';
 
 /// 服务商集合的 Settings transfer participant。
@@ -32,7 +33,7 @@ final class ModelProviderTransferParticipant
 
   @override
   List<LlmProviderConfig> decode(Object? payload) {
-    final items = _decodeMapList(payload);
+    final items = decodeTransferObjectList(payload, '服务商');
     return items
         .map((item) {
           if (item['apiProtocol'] == null) {
@@ -61,7 +62,6 @@ final class ModelProviderTransferParticipant
 
     final writeValue = List<LlmProviderConfig>.unmodifiable(merged);
     return SettingsTransferChange<List<LlmProviderConfig>>(
-      participant: this,
       incoming: List<LlmProviderConfig>.unmodifiable(incoming),
       writeValue: writeValue,
       fingerprint: fingerprintFor(writeValue),
@@ -89,24 +89,6 @@ final class ModelProviderTransferParticipant
 
   @override
   Future<void> applyImport(List<LlmProviderConfig> value) => _write(value);
-}
-
-List<Map<String, dynamic>> _decodeMapList(Object? payload) {
-  if (payload is! List) {
-    throw const FormatException('服务商传输值必须是列表');
-  }
-  return payload
-      .map((item) {
-        if (item is! Map) {
-          throw const FormatException('服务商列表元素必须是对象');
-        }
-        try {
-          return Map<String, dynamic>.from(item);
-        } on Object {
-          throw const FormatException('服务商列表元素必须是字符串键对象');
-        }
-      })
-      .toList(growable: false);
 }
 
 bool _sameProviders(

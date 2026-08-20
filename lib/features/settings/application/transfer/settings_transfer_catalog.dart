@@ -23,13 +23,14 @@ final class SettingsTransferGroupDescriptor extends Equatable {
 
 /// Settings transfer 的显式 participant 注册表。
 final class SettingsTransferCatalog {
-  SettingsTransferCatalog(Iterable<Object> participants) {
+  SettingsTransferCatalog(
+    Iterable<ErasedSettingsTransferParticipant> participants,
+  ) {
     final boxes = <ErasedSettingsTransferParticipant>[];
     final boxesByKey = <String, ErasedSettingsTransferParticipant>{};
     final ordersByGroup = <SettingsTransferGroup, Set<int>>{};
 
-    for (final candidate in participants) {
-      final box = SettingsTransferParticipantBox.requireBox(candidate);
+    for (final box in participants) {
       final key = box.key.value;
       if (!_validKey.hasMatch(key)) {
         throw ArgumentError.value(

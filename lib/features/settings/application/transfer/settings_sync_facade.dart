@@ -91,7 +91,7 @@ List<SettingsSyncGroupDescriptor> _projectGroups(
 final class _PreparedImport implements SettingsSyncPreparedImport {
   _PreparedImport(this._batch)
     : summaries = List<SettingsSyncSummaryItem>.unmodifiable([
-        for (final item in _batch.summaries)
+        for (final item in _batch.summaryItems)
           SettingsSyncSummaryItem(
             label: item.label,
             trailingText: item.trailingText,

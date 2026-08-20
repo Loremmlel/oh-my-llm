@@ -3,7 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/providers/llm_model_config_repository.dart';
 import '../../domain/models/providers/llm_model_config.dart';
 import '../../domain/models/providers/llm_provider_config.dart';
-import 'llm_provider_import_merger.dart' hide sortProviderConfigs;
+import '../../domain/services/llm_provider_normalization.dart';
+import 'llm_provider_import_merger.dart';
 
 final llmProviderConfigsProvider =
     NotifierProvider<LlmProviderConfigsController, List<LlmProviderConfig>>(

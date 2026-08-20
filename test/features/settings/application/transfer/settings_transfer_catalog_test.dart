@@ -168,7 +168,6 @@ void main() {
       );
       final catalog = SettingsTransferCatalog([_box(participant)]);
 
-      expect(catalog.groupForKey(key), SettingsTransferGroup.other);
       expect(catalog.participant<int>(key), same(participant));
     });
   });
@@ -246,150 +245,25 @@ void main() {
     });
   });
 
-  group('SettingsTransferParticipantBox', () {
-    test('catalog 拒绝未经过 box 的公共 participant', () {
-      final participant = _DirectIntParticipant(
-        key: const SettingsTransferKey('unboxedDirect'),
-        group: SettingsTransferGroup.other,
-        order: 0,
-      );
+  test('erased box 在写入前拒绝错误值类型', () async {
+    final participant = _FakeIntParticipant(
+      key: const SettingsTransferKey('wrongValue'),
+      group: SettingsTransferGroup.other,
+      order: 0,
+    );
+    final box = SettingsTransferParticipantBox<int>(participant);
+    final wrongValueChange = SettingsTransferChange<Object?>(
+      incoming: 2,
+      writeValue: '不是整数',
+      fingerprint: 'invalid',
+      summary: participant.summarizeExport(2),
+    );
 
-      expect(
-        () => SettingsTransferCatalog([participant]),
-        throwsA(isA<ArgumentError>()),
-      );
-    });
-
-    test('direct participant 的 prepare 会校验返回 change 的 identity', () {
-      final other = _DirectIntParticipant(
-        key: const SettingsTransferKey('otherParticipant'),
-        group: SettingsTransferGroup.other,
-        order: 1,
-      );
-      final participant = _DirectIntParticipant(
-        key: const SettingsTransferKey('directPrepareIdentity'),
-        group: SettingsTransferGroup.other,
-        order: 0,
-        changeParticipant: other,
-      );
-      final box = SettingsTransferParticipantBox<int>(participant);
-
-      expect(() => box.prepareImport(2), throwsA(isA<StateError>()));
-      expect(participant.writeCount, 0);
-    });
-
-    test('direct participant 的 reprepare 会校验 change valueType', () {
-      final participant = _DirectIntParticipant(
-        key: const SettingsTransferKey('directReprepareType'),
-        group: SettingsTransferGroup.other,
-        order: 0,
-      );
-      final box = SettingsTransferParticipantBox<int>(participant);
-      final wrongTypeChange = SettingsTransferChange<Object?>(
-        participant: participant,
-        incoming: 2,
-        writeValue: 2,
-        fingerprint: '2',
-        summary: participant.summarizeExport(2),
-      );
-
-      expect(
-        () => box.reprepareImport(wrongTypeChange),
-        throwsA(isA<StateError>()),
-      );
-    });
-
-    test('direct participant 的 apply 会先拒绝错误 identity', () async {
-      final participant = _DirectIntParticipant(
-        key: const SettingsTransferKey('directApplyIdentity'),
-        group: SettingsTransferGroup.other,
-        order: 0,
-      );
-      final other = _DirectIntParticipant(
-        key: const SettingsTransferKey('otherApplyParticipant'),
-        group: SettingsTransferGroup.other,
-        order: 1,
-      );
-      final box = SettingsTransferParticipantBox<int>(participant);
-      final change = SettingsTransferChange<int>(
-        participant: other,
-        incoming: 2,
-        writeValue: 2,
-        fingerprint: '2',
-        summary: participant.summarizeExport(2),
-      );
-
-      await expectLater(box.applyImport(change), throwsA(isA<StateError>()));
-      expect(participant.writeCount, 0);
-    });
-
-    test('direct participant 的 apply 会先拒绝错误 change valueType', () async {
-      final participant = _DirectIntParticipant(
-        key: const SettingsTransferKey('directApplyType'),
-        group: SettingsTransferGroup.other,
-        order: 0,
-      );
-      final box = SettingsTransferParticipantBox<int>(participant);
-      final wrongTypeChange = SettingsTransferChange<Object?>(
-        participant: participant,
-        incoming: 2,
-        writeValue: 2,
-        fingerprint: '2',
-        summary: participant.summarizeExport(2),
-      );
-
-      await expectLater(
-        box.applyImport(wrongTypeChange),
-        throwsA(isA<StateError>()),
-      );
-      expect(participant.writeCount, 0);
-    });
-
-    test('direct participant 的 apply 会在写入前拒绝错误值', () async {
-      final participant = _DirectIntParticipant(
-        key: const SettingsTransferKey('directApplyValue'),
-        group: SettingsTransferGroup.other,
-        order: 0,
-      );
-      final box = SettingsTransferParticipantBox<int>(participant);
-      final wrongValueChange = SettingsTransferChange<Object?>(
-        participant: participant,
-        incoming: 2,
-        writeValue: '不是整数',
-        fingerprint: 'invalid',
-        summary: participant.summarizeExport(2),
-      );
-
-      await expectLater(
-        box.applyImport(wrongValueChange),
-        throwsA(isA<StateError>()),
-      );
-      expect(participant.writeCount, 0);
-    });
-
-    test('direct participant 的 apply 会在正确 change 类型下拒绝错误写入值', () async {
-      final participant = _DirectIntParticipant(
-        key: const SettingsTransferKey('directApplyTypedValue'),
-        group: SettingsTransferGroup.other,
-        order: 0,
-      );
-      final box = SettingsTransferParticipantBox<int>(participant);
-      final wrongValueChange = SettingsTransferChange<Object?>.erased(
-        participant: participant,
-        incoming: 2,
-        writeValue: '不是整数',
-        fingerprint: 'invalid',
-        summary: participant.summarizeExport(2),
-        valueType: int,
-      );
-
-      expect(wrongValueChange.valueType, int);
-      await expectLater(
-        box.applyImport(wrongValueChange),
-        throwsA(isA<StateError>()),
-      );
-      expect(participant.writeCount, 0);
-    });
+    await expectLater(
+      box.applyImport(wrongValueChange),
+      throwsA(isA<StateError>()),
+    );
+    expect(participant.writeCount, 0);
   });
 
   test('summary action 与 count 不一致时拒绝构造', () {
@@ -449,79 +323,6 @@ final class _FakeIntParticipant extends ReplacingValueParticipant<int> {
   Future<void> applyImport(int value) async {
     writeCount += 1;
     this.value = value;
-  }
-}
-
-final class _DirectIntParticipant implements SettingsTransferParticipant<int> {
-  _DirectIntParticipant({
-    required this.key,
-    required this.group,
-    required this.order,
-    this.changeParticipant,
-  }) : label = '直接整数设置',
-       sensitivity = SettingsTransferSensitivity.standard;
-
-  @override
-  final SettingsTransferKey key;
-
-  @override
-  final SettingsTransferGroup group;
-
-  @override
-  final int order;
-
-  @override
-  final String label;
-
-  @override
-  final SettingsTransferSensitivity sensitivity;
-
-  final SettingsTransferParticipant<int>? changeParticipant;
-  int readCount = 0;
-  int writeCount = 0;
-
-  @override
-  int readLocal() {
-    readCount += 1;
-    return 1;
-  }
-
-  @override
-  bool shouldExport(int value) => true;
-
-  @override
-  Object encode(int value) => value;
-
-  @override
-  int decode(Object? payload) => payload as int;
-
-  @override
-  SettingsTransferChange<int>? prepareImport({
-    required int local,
-    required int incoming,
-  }) {
-    if (local == incoming) return null;
-    return SettingsTransferChange<int>(
-      participant: changeParticipant ?? this,
-      incoming: incoming,
-      writeValue: incoming,
-      fingerprint: '$incoming',
-      summary: summarizeExport(incoming),
-    );
-  }
-
-  @override
-  SettingsTransferSummaryItem summarizeExport(int value) {
-    return SettingsTransferSummaryItem(
-      key: key,
-      label: label,
-      action: SettingsTransferSummaryAction.replace,
-    );
-  }
-
-  @override
-  Future<void> applyImport(int value) async {
-    writeCount += 1;
   }
 }
 
