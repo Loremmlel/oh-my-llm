@@ -5,6 +5,12 @@ import 'models/chat_conversation_summary.dart';
 /// 默认每页显示的对话数量。
 const defaultPageSize = 20;
 
+/// 可供用户选择的每页条数选项。
+const availablePageSizes = <int>[10, 20, 50];
+
+/// copyWith 中区分「未提供」与「显式置空」可空字段的哨兵。
+const Object _unset = Object();
+
 /// 历史页分页栏的状态快照。
 ///
 /// 与旧版「无限累积窗口」模型不同，本状态仅描述**当前页**的数据窗口；
@@ -17,6 +23,8 @@ class HistoryPaginationState extends Equatable {
   const HistoryPaginationState({
     this.conversations = const [],
     this.isLoading = false,
+    this.isInitialized = false,
+    this.errorMessage,
     this.keyword = '',
     this.hasAnyConversations = false,
     this.currentPage = 1,
@@ -29,6 +37,15 @@ class HistoryPaginationState extends Equatable {
 
   /// 是否正在执行分页加载（不论首次还是翻页）。
   final bool isLoading;
+
+  /// 是否已完成首次初始化加载；用于区分「尚未加载」与「加载失败」。
+  final bool isInitialized;
+
+  /// 最近一次查询的错误文案；为空表示当前窗口数据可信。
+  ///
+  /// 查询失败时保留旧页数据（stale content）供继续展示，
+  /// 由 UI 决定是否呈现错误与重试入口。
+  final String? errorMessage;
 
   /// 当前生效的搜索关键词。
   final String keyword;
@@ -57,6 +74,8 @@ class HistoryPaginationState extends Equatable {
   HistoryPaginationState copyWith({
     List<ChatConversationSummary>? conversations,
     bool? isLoading,
+    bool? isInitialized,
+    Object? errorMessage = _unset,
     String? keyword,
     bool? hasAnyConversations,
     int? currentPage,
@@ -66,6 +85,10 @@ class HistoryPaginationState extends Equatable {
     return HistoryPaginationState(
       conversations: conversations ?? this.conversations,
       isLoading: isLoading ?? this.isLoading,
+      isInitialized: isInitialized ?? this.isInitialized,
+      errorMessage: identical(errorMessage, _unset)
+          ? this.errorMessage
+          : errorMessage as String?,
       keyword: keyword ?? this.keyword,
       hasAnyConversations: hasAnyConversations ?? this.hasAnyConversations,
       currentPage: currentPage ?? this.currentPage,
@@ -78,6 +101,8 @@ class HistoryPaginationState extends Equatable {
   List<Object?> get props => [
     conversations,
     isLoading,
+    isInitialized,
+    errorMessage,
     keyword,
     hasAnyConversations,
     currentPage,
