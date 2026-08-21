@@ -23,7 +23,12 @@ Future<AppDatabase> pumpHistoryScreen(
     routes: [
       GoRoute(
         path: AppDestination.history.path,
-        builder: (context, state) => const HistoryScreen(),
+        // 与生产 app_router 一致地解析 query，保证测试可驱动深链窗口恢复。
+        builder: (context, state) => HistoryScreen(
+          routeQuery: HistoryBrowseRouteQuery.fromQueryParameters(
+            state.uri.queryParameters,
+          ),
+        ),
       ),
       GoRoute(
         path: AppDestination.chat.path,

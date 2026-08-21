@@ -140,6 +140,8 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         query.keyword.trim() == state.keyword;
     if (sameAsCurrent) return;
 
+    // 外部导航改变窗口时旧窗口的选中在新窗口不可见，先清空再加载。
+    _prepareForWindowChange();
     ref
         .read(historyPaginationProvider.notifier)
         .loadRoute(
