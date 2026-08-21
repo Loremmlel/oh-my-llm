@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:oh_my_llm/app/navigation/app_destination.dart';
 import 'package:oh_my_llm/app/shell/app_shell_scaffold.dart';
+import 'package:oh_my_llm/core/constants/app_reserved_entities.dart';
 import 'package:oh_my_llm/core/widgets/app_empty_state.dart';
 import '../application/collections_controller.dart';
 import '../application/favorites_controller.dart';
@@ -60,6 +61,10 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
     List<FavoriteCollection> collections,
     String? filter,
   ) {
+    // "未分类" chip 直接指向真实系统收藏夹行，不再使用空串 sentinel。
+    final isUncategorized =
+        filter == AppReservedEntities.uncategorizedFavoriteCollectionId ||
+        (filter != null && filter.isEmpty);
     return SizedBox(
       height: 52,
       child: ListView(
@@ -75,19 +80,24 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
           const SizedBox(width: 8),
           _FilterChip(
             label: '未分类',
-            selected: filter == '',
-            onSelected: () =>
-                ref.read(favoritesFilterProvider.notifier).setFilter(''),
+            selected: isUncategorized,
+            onSelected: () => ref
+                .read(favoritesFilterProvider.notifier)
+                .setFilter(
+                  AppReservedEntities.uncategorizedFavoriteCollectionId,
+                ),
           ),
           for (final collection in collections) ...[
             const SizedBox(width: 8),
-            _FilterChip(
-              label: collection.name,
-              selected: filter == collection.id,
-              onSelected: () => ref
-                  .read(favoritesFilterProvider.notifier)
-                  .setFilter(collection.id),
-            ),
+            // 系统收藏夹已由固定"未分类" chip 承担，列表里跳过避免重复。
+            if (!collection.isSystem)
+              _FilterChip(
+                label: collection.name,
+                selected: filter == collection.id,
+                onSelected: () => ref
+                    .read(favoritesFilterProvider.notifier)
+                    .setFilter(collection.id),
+              ),
           ],
         ],
       ),
@@ -106,9 +116,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
       separatorBuilder: (context, index) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
         final favorite = favorites[index];
-        final collection = favorite.collectionId != null
-            ? collectionById[favorite.collectionId]
-            : null;
+        final collection = collectionById[favorite.collectionId];
 
         return FavoriteListItem(
           favorite: favorite,
@@ -123,17 +131,19 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
   }
 
   Widget _buildEmptyView(String? filter) {
-    final title = filter == null ? '暂无收藏' : '该收藏夹暂无收藏';
-    final description = filter == null
+    final isAll = filter == null;
+    final isUncategorized =
+        filter == AppReservedEntities.uncategorizedFavoriteCollectionId ||
+        (filter != null && filter.isEmpty);
+    final title = isAll ? '暂无收藏' : '该收藏夹暂无收藏';
+    final description = isAll
         ? '在聊天页点击模型回复的书签图标开始收藏。'
-        : filter.isEmpty
+        : isUncategorized
         ? '未分类下暂时没有收藏。'
         : '可以先在聊天页收藏回复，再将其归入该收藏夹。';
 
     return AppEmptyState(
-      icon: filter == null
-          ? Icons.bookmark_border_rounded
-          : Icons.folder_outlined,
+      icon: isAll ? Icons.bookmark_border_rounded : Icons.folder_outlined,
       title: title,
       description: description,
     );

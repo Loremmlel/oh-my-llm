@@ -1,12 +1,14 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:oh_my_llm/core/constants/app_reserved_entities.dart';
 import 'package:oh_my_llm/core/utils/id_generator.dart';
 import 'ports/favorites_repository.dart';
 import '../domain/models/favorite.dart';
 
 /// 收藏列表过滤条件。
 ///
-/// null = 全部，'' = 未分类，其他 = 指定收藏夹 ID。
+/// null = 全部，'' = 未分类（临时兼容，repository 内映射到系统收藏夹），
+/// 其他 = 指定收藏夹 ID。
 final favoritesFilterProvider =
     NotifierProvider<FavoritesFilterNotifier, String?>(
       FavoritesFilterNotifier.new,
@@ -40,7 +42,9 @@ class FavoritesController extends Notifier<List<Favorite>> {
 
   /// 收藏一条模型回复。
   ///
-  /// 返回新创建的收藏 ID。
+  /// 返回新创建的收藏 ID。[collectionId] 为 null/空串时归入系统"未分类"
+  /// 收藏夹（旧调用方尚未携带非空归属的临时兼容，Task 8 收紧 Chat
+  /// interface 后删除该归一参数）。
   String add({
     required String userMessageContent,
     required String assistantContent,
@@ -51,9 +55,12 @@ class FavoritesController extends Notifier<List<Favorite>> {
     String? sourceConversationTitle,
     String? sourceAssistantMessageId,
   }) {
+    final createdAt = DateTime.now();
     final favorite = Favorite(
       id: generateEntityId(),
-      collectionId: collectionId,
+      collectionId: _resolveCollectionId(collectionId),
+      // 新收藏的归属时间与收藏时间同刻落定。
+      collectionAssignedAt: createdAt,
       userMessageContent: userMessageContent,
       assistantContent: assistantContent,
       assistantReasoningContent: assistantReasoningContent,
@@ -61,7 +68,7 @@ class FavoritesController extends Notifier<List<Favorite>> {
       sourceConversationId: sourceConversationId,
       sourceConversationTitle: sourceConversationTitle,
       sourceAssistantMessageId: sourceAssistantMessageId,
-      createdAt: DateTime.now(),
+      createdAt: createdAt,
     );
     _repo.save(favorite);
     _refresh();
@@ -74,9 +81,14 @@ class FavoritesController extends Notifier<List<Favorite>> {
     _refresh();
   }
 
-  /// 将指定收藏移动到另一个收藏夹（null 表示未分类）。
+  /// 将指定收藏移动到另一个收藏夹；null/空串归入系统"未分类"收藏夹，
+  /// 归属时间更新为移动时刻（与 add 同样的临时兼容，Task 8 删除）。
   void moveTo(String favoriteId, String? collectionId) {
-    _repo.moveToCollection(favoriteId, collectionId);
+    _repo.moveToCollection(
+      favoriteId,
+      _resolveCollectionId(collectionId),
+      assignedAt: DateTime.now(),
+    );
     _refresh();
   }
 
@@ -92,6 +104,14 @@ class FavoritesController extends Notifier<List<Favorite>> {
   /// 检查指定助手消息内容是否已被收藏。
   bool isFavorited(String assistantContent) {
     return _repo.existsByAssistantContent(assistantContent);
+  }
+
+  /// 把旧调用方的 null/空串归属归一为系统"未分类"收藏夹 ID。
+  String _resolveCollectionId(String? collectionId) {
+    if (collectionId == null || collectionId.isEmpty) {
+      return AppReservedEntities.uncategorizedFavoriteCollectionId;
+    }
+    return collectionId;
   }
 
   void _refresh() {

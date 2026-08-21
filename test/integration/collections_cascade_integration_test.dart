@@ -1,13 +1,14 @@
 /// 收藏夹删除级联集成测试。
 ///
-/// 验证 SQLite FK 约束 ON DELETE SET NULL 在跨模块场景下的正确性：
-/// 删除收藏夹后，关联的收藏项 collectionId 自动置空，收藏数据本身保留。
+/// 验证 v14 起删除普通收藏夹时，关联收藏在同一事务内移入系统"未分类"
+/// 收藏夹：收藏数据保留且归属非空，系统收藏夹始终存在。
 library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:oh_my_llm/core/constants/app_reserved_entities.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
@@ -44,9 +45,9 @@ void main() {
     addTearDown(database.close);
   });
 
-  // ── 删除收藏夹 -> 关联收藏变为未分类 ────────────────────────────────────────
+  // ── 删除收藏夹 -> 关联收藏移入系统未分类 ────────────────────────────────────
 
-  test('删除收藏夹后关联收藏自动变为未分类', () async {
+  test('删除收藏夹后关联收藏自动移入系统未分类', () async {
     final favId = container
         .read(favoritesProvider.notifier)
         .add(userMessageContent: '用户消息', assistantContent: '助手回复');
@@ -62,14 +63,19 @@ void main() {
     container.read(collectionsProvider.notifier).delete(collectionId);
 
     final collections = container.read(collectionsProvider);
-    expect(collections, isEmpty);
+    expect(collections.map((c) => c.id), [
+      AppReservedEntities.uncategorizedFavoriteCollectionId,
+    ]);
 
     // 收藏夹删除后 favoritesProvider 状态尚未刷新，切换过滤条件触发重建
     container.read(favoritesFilterProvider.notifier).setFilter('');
     favorites = container.read(favoritesProvider);
     expect(favorites, hasLength(1));
     expect(favorites.first.id, favId);
-    expect(favorites.first.collectionId, isNull);
+    expect(
+      favorites.first.collectionId,
+      AppReservedEntities.uncategorizedFavoriteCollectionId,
+    );
   });
 
   // ── 多个收藏夹中仅删一个 -> 其他收藏夹的收藏不受影响 ──────────────────────────
@@ -96,7 +102,10 @@ void main() {
     final favorites = container.read(favoritesProvider);
     final fav1 = favorites.firstWhere((f) => f.id == fav1Id);
     final fav2 = favorites.firstWhere((f) => f.id == fav2Id);
-    expect(fav1.collectionId, isNull);
+    expect(
+      fav1.collectionId,
+      AppReservedEntities.uncategorizedFavoriteCollectionId,
+    );
     expect(fav2.collectionId, colB);
   });
 }

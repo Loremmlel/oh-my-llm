@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:oh_my_llm/core/constants/app_reserved_entities.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/favorites/data/sqlite_collections_repository.dart';
 import 'package:oh_my_llm/features/favorites/data/sqlite_favorites_repository.dart';
@@ -9,6 +10,7 @@ import 'package:oh_my_llm/features/favorites/domain/models/favorite.dart';
 Favorite _makeFavorite({
   required String id,
   String? collectionId,
+  DateTime? collectionAssignedAt,
   String assistantContent = '助手回复',
   String userMessageContent = '用户消息',
   String assistantReasoningContent = '',
@@ -19,9 +21,13 @@ Favorite _makeFavorite({
   String? title,
   DateTime? createdAt,
 }) {
+  final resolvedCreatedAt = createdAt ?? DateTime(2026, 1, 1);
   return Favorite(
     id: id,
-    collectionId: collectionId,
+    // 未显式指定的收藏归入系统"未分类"收藏夹。
+    collectionId:
+        collectionId ?? AppReservedEntities.uncategorizedFavoriteCollectionId,
+    collectionAssignedAt: collectionAssignedAt ?? resolvedCreatedAt,
     userMessageContent: userMessageContent,
     assistantContent: assistantContent,
     assistantReasoningContent: assistantReasoningContent,
@@ -30,7 +36,7 @@ Favorite _makeFavorite({
     sourceConversationTitle: sourceConversationTitle,
     sourceAssistantMessageId: sourceAssistantMessageId,
     title: title,
-    createdAt: createdAt ?? DateTime(2026, 1, 1),
+    createdAt: resolvedCreatedAt,
   );
 }
 
@@ -77,6 +83,11 @@ void main() {
       expect(full.sourceAssistantMessageId, 'msg-42');
       expect(full.title, '持久化标题');
       expect(full.assistantModelDisplayName, 'GPT-4.1');
+      expect(
+        full.collectionId,
+        AppReservedEntities.uncategorizedFavoriteCollectionId,
+      );
+      expect(full.collectionAssignedAt, full.createdAt);
       final minimal = result.firstWhere((f) => f.id == 'fav-2');
       expect(minimal.sourceAssistantMessageId, isNull);
       expect(minimal.title, isNull);
@@ -91,7 +102,7 @@ void main() {
       expect(ids, ['fav-3', 'fav-2', 'fav-1']);
     });
 
-    test('loadAll(collectionId) 投影：null 全部 / 空串未分类 / 具体 ID 分类', () {
+    test('loadAll(collectionId) 投影：null 全部 / 空串系统未分类 / 具体 ID 分类', () {
       collectionsRepo.save(
         FavoriteCollection(id: 'col-1', name: 'A', createdAt: DateTime(2026)),
       );
@@ -100,16 +111,27 @@ void main() {
       );
       repository.save(_makeFavorite(id: 'fav-1', collectionId: 'col-1'));
       repository.save(_makeFavorite(id: 'fav-2', collectionId: 'col-2'));
-      repository.save(_makeFavorite(id: 'fav-3', collectionId: null));
+      repository.save(_makeFavorite(id: 'fav-3'));
 
       // 默认与显式 null 都返回全部
       expect(repository.loadAll(), hasLength(3));
       expect(repository.loadAll(collectionId: null), hasLength(3));
 
-      // 空字符串只返回未分类（collection_id IS NULL）
+      // 空字符串是旧扁平筛选的"未分类"sentinel，映射到系统收藏夹 ID
       final unclassified = repository.loadAll(collectionId: '');
       expect(unclassified, hasLength(1));
       expect(unclassified.first.id, 'fav-3');
+
+      // 系统收藏夹 ID 与空串等价
+      expect(
+        repository
+            .loadAll(
+              collectionId:
+                  AppReservedEntities.uncategorizedFavoriteCollectionId,
+            )
+            .map((f) => f.id),
+        ['fav-3'],
+      );
 
       // 具体 collectionId 只返回该收藏夹的记录
       final classified = repository.loadAll(collectionId: 'col-1');
@@ -128,6 +150,30 @@ void main() {
       expect(result.first.assistantContent, '新回答');
     });
 
+    test('save 完整保留归属与归属时间', () {
+      // favorites.collection_id 有外键约束，目标收藏夹需先存在。
+      collectionsRepo.save(
+        FavoriteCollection(
+          id: 'col-keep',
+          name: 'K',
+          createdAt: DateTime(2026),
+        ),
+      );
+      repository.save(
+        _makeFavorite(
+          id: 'fav-assign',
+          collectionId: 'col-keep',
+          collectionAssignedAt: DateTime(2026, 5, 1, 12, 30),
+          createdAt: DateTime(2026, 4, 1),
+        ),
+      );
+
+      final loaded = repository.loadById('fav-assign')!;
+      expect(loaded.collectionId, 'col-keep');
+      expect(loaded.collectionAssignedAt, DateTime(2026, 5, 1, 12, 30));
+      expect(loaded.createdAt, DateTime(2026, 4, 1));
+    });
+
     test('delete 后记录不再出现', () {
       repository.save(_makeFavorite(id: 'fav-1'));
       repository.delete('fav-1');
@@ -137,7 +183,7 @@ void main() {
   });
 
   group('SqliteFavoritesRepository - moveToCollection', () {
-    test('moveToCollection 生命周期：移入收藏夹后移回未分类', () {
+    test('moveToCollection 更新归属并刷新归属时间', () {
       collectionsRepo.save(
         FavoriteCollection(id: 'col-1', name: 'A', createdAt: DateTime(2026)),
       );
@@ -146,11 +192,28 @@ void main() {
       );
       repository.save(_makeFavorite(id: 'fav-1', collectionId: 'col-1'));
 
-      repository.moveToCollection('fav-1', 'col-2');
-      expect(repository.loadAll().single.collectionId, 'col-2');
+      repository.moveToCollection(
+        'fav-1',
+        'col-2',
+        assignedAt: DateTime(2026, 7, 1),
+      );
+      final moved = repository.loadById('fav-1')!;
+      expect(moved.collectionId, 'col-2');
+      expect(moved.collectionAssignedAt, DateTime(2026, 7, 1));
+      expect(moved.createdAt, DateTime(2026, 1, 1));
 
-      repository.moveToCollection('fav-1', null);
-      expect(repository.loadAll().single.collectionId, isNull);
+      // 移回系统"未分类"收藏夹。
+      repository.moveToCollection(
+        'fav-1',
+        AppReservedEntities.uncategorizedFavoriteCollectionId,
+        assignedAt: DateTime(2026, 7, 2),
+      );
+      final back = repository.loadById('fav-1')!;
+      expect(
+        back.collectionId,
+        AppReservedEntities.uncategorizedFavoriteCollectionId,
+      );
+      expect(back.collectionAssignedAt, DateTime(2026, 7, 2));
     });
   });
 
@@ -188,6 +251,7 @@ void main() {
         _makeFavorite(
           id: 'fav-load-1',
           collectionId: 'col-1',
+          collectionAssignedAt: DateTime(2026, 1, 3),
           assistantContent: '助手回复',
           userMessageContent: '用户消息',
           assistantReasoningContent: '推理过程',
@@ -207,6 +271,7 @@ void main() {
       expect(loaded, isNotNull);
       expect(loaded!.id, 'fav-load-1');
       expect(loaded.collectionId, 'col-1');
+      expect(loaded.collectionAssignedAt, DateTime(2026, 1, 3));
       expect(loaded.userMessageContent, '用户消息');
       expect(loaded.assistantContent, '助手回复');
       expect(loaded.assistantReasoningContent, '推理过程');

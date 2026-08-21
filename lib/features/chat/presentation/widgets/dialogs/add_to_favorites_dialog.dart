@@ -4,7 +4,8 @@ import '../../../application/favorites/chat_favorites_facade.dart';
 
 /// 点击收藏按钮后弹出的选择/新建收藏夹对话框。
 ///
-/// 返回用户选择的收藏夹 ID（'' 表示未分类）或 null（取消）。
+/// [collections] 由调用方提供且始终包含系统"未分类"收藏夹；
+/// 返回用户选择的收藏夹 ID 或 null（取消）。
 class AddToFavoritesDialog extends StatefulWidget {
   const AddToFavoritesDialog({
     required this.collections,
@@ -49,33 +50,24 @@ class _AddToFavoritesDialogState extends State<AddToFavoritesDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // 未分类选项
-            _CollectionTile(
-              label: '未分类',
-              icon: Icons.folder_off_outlined,
-              selected: _selectedCollectionId == '',
-              onTap: () => setState(() => _selectedCollectionId = ''),
-            ),
-            if (collections.isNotEmpty) ...[
-              const Divider(height: 16),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 240),
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: collections.length,
-                  itemBuilder: (context, index) {
-                    final collection = collections[index];
-                    return _CollectionTile(
-                      label: collection.name,
-                      icon: Icons.folder_outlined,
-                      selected: _selectedCollectionId == collection.id,
-                      onTap: () =>
-                          setState(() => _selectedCollectionId = collection.id),
-                    );
-                  },
-                ),
+            // "未分类"来自真实系统收藏夹行，不再渲染手写 sentinel 选项。
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 240),
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: collections.length,
+                itemBuilder: (context, index) {
+                  final collection = collections[index];
+                  return _CollectionTile(
+                    label: collection.name,
+                    icon: Icons.folder_outlined,
+                    selected: _selectedCollectionId == collection.id,
+                    onTap: () =>
+                        setState(() => _selectedCollectionId = collection.id),
+                  );
+                },
               ),
-            ],
+            ),
             const Divider(height: 16),
             if (_showNewCollectionField)
               Padding(

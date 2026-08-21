@@ -1,3 +1,4 @@
+import 'package:oh_my_llm/core/constants/app_reserved_entities.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import '../domain/models/favorite.dart';
 import '../application/ports/favorites_repository.dart';
@@ -10,24 +11,19 @@ class SqliteFavoritesRepository implements FavoritesRepository {
 
   @override
   List<Favorite> loadAll({String? collectionId}) {
-    if (collectionId == null) {
-      final rows = _database.connection.select(
-        'SELECT * FROM favorites ORDER BY created_at DESC;',
-      );
-      return rows.map(_rowToFavorite).toList(growable: false);
+    // 空串是旧扁平筛选契约的"未分类"sentinel，v14 起映射到系统收藏夹 ID。
+    if (collectionId != null && collectionId.isEmpty) {
+      collectionId = AppReservedEntities.uncategorizedFavoriteCollectionId;
     }
 
-    if (collectionId.isEmpty) {
-      final rows = _database.connection.select(
-        'SELECT * FROM favorites WHERE collection_id IS NULL ORDER BY created_at DESC;',
-      );
-      return rows.map(_rowToFavorite).toList(growable: false);
-    }
-
-    final rows = _database.connection.select(
-      'SELECT * FROM favorites WHERE collection_id = ? ORDER BY created_at DESC;',
-      [collectionId],
-    );
+    final rows = collectionId == null
+        ? _database.connection.select(
+            'SELECT * FROM favorites ORDER BY created_at DESC;',
+          )
+        : _database.connection.select(
+            'SELECT * FROM favorites WHERE collection_id = ? ORDER BY created_at DESC;',
+            [collectionId],
+          );
     return rows.map(_rowToFavorite).toList(growable: false);
   }
 
@@ -47,8 +43,9 @@ class SqliteFavoritesRepository implements FavoritesRepository {
       'INSERT OR REPLACE INTO favorites '
       '(id, collection_id, user_message_content, assistant_content, '
       'assistant_reasoning_content, assistant_model_display_name, source_conversation_id, '
-      'source_conversation_title, source_assistant_message_id, title, created_at) '
-      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);',
+      'source_conversation_title, source_assistant_message_id, title, created_at, '
+      'collection_assigned_at) '
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);',
       [
         favorite.id,
         favorite.collectionId,
@@ -61,6 +58,7 @@ class SqliteFavoritesRepository implements FavoritesRepository {
         favorite.sourceAssistantMessageId,
         favorite.title,
         favorite.createdAt.toIso8601String(),
+        favorite.collectionAssignedAt.toIso8601String(),
       ],
     );
   }
@@ -73,10 +71,14 @@ class SqliteFavoritesRepository implements FavoritesRepository {
   }
 
   @override
-  void moveToCollection(String favoriteId, String? collectionId) {
+  void moveToCollection(
+    String favoriteId,
+    String collectionId, {
+    required DateTime assignedAt,
+  }) {
     _database.connection.execute(
-      'UPDATE favorites SET collection_id = ? WHERE id = ?;',
-      [collectionId, favoriteId],
+      'UPDATE favorites SET collection_id = ?, collection_assigned_at = ? WHERE id = ?;',
+      [collectionId, assignedAt.toIso8601String(), favoriteId],
     );
   }
 
@@ -100,7 +102,10 @@ class SqliteFavoritesRepository implements FavoritesRepository {
   Favorite _rowToFavorite(Map<String, dynamic> row) {
     return Favorite(
       id: row['id'] as String,
-      collectionId: row['collection_id'] as String?,
+      collectionId: row['collection_id'] as String,
+      collectionAssignedAt: DateTime.parse(
+        row['collection_assigned_at'] as String,
+      ),
       userMessageContent: row['user_message_content'] as String,
       assistantContent: row['assistant_content'] as String,
       assistantReasoningContent: row['assistant_reasoning_content'] as String,

@@ -76,6 +76,15 @@ class _ManageCollectionsDialogState
     FavoriteCollection collection,
   ) {
     final isEditing = _editingId == collection.id;
+    // 系统收藏夹始终存在且不可改名/删除，只展示身份不提供操作。
+    if (collection.isSystem) {
+      return ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+        leading: const Icon(Icons.folder_special_outlined),
+        title: Text(collection.name),
+        subtitle: const Text('系统收藏夹'),
+      );
+    }
 
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 4),

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/app/navigation/app_destination.dart';
+import 'package:oh_my_llm/core/constants/app_reserved_entities.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/favorites/data/sqlite_collections_repository.dart';
 import 'package:oh_my_llm/features/favorites/data/sqlite_favorites_repository.dart';
@@ -63,6 +64,9 @@ Future<AppDatabase> pumpFavoritesScreen(
 }
 
 /// 通过 Repository API 写入一条收藏记录。
+///
+/// 未显式指定 [collectionId] 时归入系统"未分类"收藏夹；
+/// [collectionAssignedAt] 缺省与收藏时间同刻。
 Favorite seedFavorite(
   AppDatabase database, {
   required String id,
@@ -71,22 +75,26 @@ Favorite seedFavorite(
   String assistantReasoningContent = '',
   String assistantModelDisplayName = '匿名模型',
   String? collectionId,
+  DateTime? collectionAssignedAt,
   String? sourceConversationId,
   String? sourceConversationTitle,
   String? sourceAssistantMessageId,
   DateTime? createdAt,
 }) {
+  final resolvedCreatedAt = createdAt ?? DateTime(2026, 4, 28);
   final favorite = Favorite(
     id: id,
     userMessageContent: userMessageContent,
     assistantContent: assistantContent,
     assistantReasoningContent: assistantReasoningContent,
     assistantModelDisplayName: assistantModelDisplayName,
-    collectionId: collectionId,
+    collectionId:
+        collectionId ?? AppReservedEntities.uncategorizedFavoriteCollectionId,
+    collectionAssignedAt: collectionAssignedAt ?? resolvedCreatedAt,
     sourceConversationId: sourceConversationId,
     sourceConversationTitle: sourceConversationTitle,
     sourceAssistantMessageId: sourceAssistantMessageId,
-    createdAt: createdAt ?? DateTime(2026, 4, 28),
+    createdAt: resolvedCreatedAt,
   );
   SqliteFavoritesRepository(database).save(favorite);
   return favorite;

@@ -5,14 +5,19 @@ import '../../helpers/async/widget_test_animation.dart';
 import 'favorites_screen_test_helpers.dart';
 
 void registerManageCollectionsDialogTests() {
-  testWidgets('manage collections dialog shows empty state', (tester) async {
+  testWidgets('管理对话框始终显示系统未分类收藏夹且不提供操作', (tester) async {
     await setUpFavoritesScreen(tester);
 
     await tester.tap(find.byTooltip('管理收藏夹'));
     await settleOverlayTransition(tester);
 
     expect(find.text('管理收藏夹'), findsOneWidget);
-    expect(find.text('暂无收藏夹'), findsOneWidget);
+    // 系统收藏夹恒存在：显示身份标识，不提供重命名/删除入口。
+    // "未分类"同时出现在页面筛选 chip 与对话框条目中，用 findsWidgets。
+    expect(find.text('未分类'), findsWidgets);
+    expect(find.text('系统收藏夹'), findsOneWidget);
+    expect(find.byTooltip('重命名'), findsNothing);
+    expect(find.byTooltip('删除收藏夹（内部收藏移入未分类）'), findsNothing);
   });
 
   testWidgets('manage collections dialog renames collection', (tester) async {
@@ -60,7 +65,8 @@ void registerManageCollectionsDialogTests() {
       await settleOverlayTransition(tester);
 
       expect(find.text('要删除的收藏夹'), findsNothing);
-      expect(find.text('暂无收藏夹'), findsOneWidget);
+      // 系统未分类收藏夹始终保留（筛选 chip 与对话框条目各一处）。
+      expect(find.text('未分类'), findsWidgets);
     },
   );
 

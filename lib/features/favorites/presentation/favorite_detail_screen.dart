@@ -45,9 +45,7 @@ class _FavoriteDetailScreenState extends ConsumerState<FavoriteDetailScreen> {
 
     final collections = ref.watch(collectionsProvider);
     final collectionById = {for (final c in collections) c.id: c};
-    final collection = favorite.collectionId != null
-        ? collectionById[favorite.collectionId]
-        : null;
+    final collection = collectionById[favorite.collectionId];
 
     return Scaffold(
       appBar: AppBar(
@@ -132,6 +130,7 @@ class _FavoriteDetailScreenState extends ConsumerState<FavoriteDetailScreen> {
     Favorite favorite,
     List<FavoriteCollection> collections,
   ) async {
+    // "未分类"来自真实系统收藏夹行，不再渲染手写 sentinel 选项。
     String? selectedCollectionId = favorite.collectionId;
 
     final result = await showDialog<String?>(
@@ -141,38 +140,24 @@ class _FavoriteDetailScreenState extends ConsumerState<FavoriteDetailScreen> {
           title: const Text('移动到收藏夹'),
           content: SizedBox(
             width: double.maxFinite,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _MoveCollectionTile(
-                  label: '未分类',
-                  icon: Icons.folder_off_outlined,
-                  selected: selectedCollectionId == null,
-                  onTap: () => setState(() => selectedCollectionId = null),
-                ),
-                if (collections.isNotEmpty) ...[
-                  const Divider(height: 16),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxHeight: 240),
-                    child: ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: collections.length,
-                      itemBuilder: (context, index) {
-                        final collection = collections[index];
-                        return _MoveCollectionTile(
-                          label: collection.name,
-                          icon: Icons.folder_outlined,
-                          selected: selectedCollectionId == collection.id,
-                          onTap: () => setState(
-                            () => selectedCollectionId = collection.id,
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ],
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 240),
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: collections.length,
+                itemBuilder: (context, index) {
+                  final collection = collections[index];
+                  return _MoveCollectionTile(
+                    label: collection.name,
+                    icon: collection.isSystem
+                        ? Icons.folder_special_outlined
+                        : Icons.folder_outlined,
+                    selected: selectedCollectionId == collection.id,
+                    onTap: () =>
+                        setState(() => selectedCollectionId = collection.id),
+                  );
+                },
+              ),
             ),
           ),
           actions: [
@@ -182,7 +167,7 @@ class _FavoriteDetailScreenState extends ConsumerState<FavoriteDetailScreen> {
             ),
             FilledButton(
               onPressed: selectedCollectionId != favorite.collectionId
-                  ? () => Navigator.of(context).pop(selectedCollectionId ?? '')
+                  ? () => Navigator.of(context).pop(selectedCollectionId)
                   : null,
               child: const Text('移动'),
             ),
@@ -192,9 +177,8 @@ class _FavoriteDetailScreenState extends ConsumerState<FavoriteDetailScreen> {
     );
 
     if (result == null) return;
-    ref
-        .read(favoritesProvider.notifier)
-        .moveTo(favorite.id, result.isEmpty ? null : result);
+    // controller 入口把 null/空串归一为系统"未分类"收藏夹。
+    ref.read(favoritesProvider.notifier).moveTo(favorite.id, result);
   }
 
   Future<void> _confirmDelete(BuildContext context, Favorite favorite) async {
