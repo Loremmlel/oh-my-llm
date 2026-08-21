@@ -8,7 +8,7 @@
 
 **Tech Stack:** Flutter 3.44.x stable（CI 固定 3.44.6；计划编写机为 3.44.8）/ Dart `^3.11.5`（计划编写机为 3.12.2）/ Riverpod 3 `NotifierProvider` / Equatable / 原始 sqlite3 / SharedPreferences / typed Sync v4 / Flutter Widget tests。
 
-**Spec:** `docs/superpowers/specs/2026-08-18-settings-transfer-registry-design.md`
+**Spec:** `docs/specs/2026-08-18-settings-transfer-registry-design.md`
 
 ## Global Constraints
 

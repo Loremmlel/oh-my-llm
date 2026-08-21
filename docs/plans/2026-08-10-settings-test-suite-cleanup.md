@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- Modify only `test/features/settings`, this plan, and `docs/superpowers/specs/2026-08-10-settings-test-suite-cleanup-design.md`.
+- Modify only `test/features/settings`, this plan, and `docs/specs/2026-08-10-settings-test-suite-cleanup-design.md`.
 - Do not modify `lib/`, product behavior, persistence formats, `dart_test.yaml`, CI workflows, timeouts, tags, or concurrency.
 - Preserve every unique protocol, compatibility, malformed-input, persistence-failure, rollback, security Header, SQLite, and UI-wiring branch.
 - Do not add arbitrary delays, generic `pumpAndSettle`, internal `Key` finders, pixel assertions, timeout increases, or allowlist entries.

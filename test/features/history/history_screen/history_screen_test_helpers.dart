@@ -16,13 +16,19 @@ Future<AppDatabase> pumpHistoryScreen(
   WidgetTester tester, {
   required SharedPreferences preferences,
   AppDatabase? database,
+  Size viewportSize = const Size(1440, 1200),
 }) async {
   final router = GoRouter(
     initialLocation: AppDestination.history.path,
     routes: [
       GoRoute(
         path: AppDestination.history.path,
-        builder: (context, state) => const HistoryScreen(),
+        // 与生产 app_router 一致地解析 query，保证测试可驱动深链窗口恢复。
+        builder: (context, state) => HistoryScreen(
+          routeQuery: HistoryBrowseRouteQuery.fromQueryParameters(
+            state.uri.queryParameters,
+          ),
+        ),
       ),
       GoRoute(
         path: AppDestination.chat.path,
@@ -40,7 +46,7 @@ Future<AppDatabase> pumpHistoryScreen(
     tester,
     preferences: preferences,
     database: database,
-    viewportSize: const Size(1440, 1200),
+    viewportSize: viewportSize,
     router: router,
   );
   // GroupedConversationList（ListView.builder + AutomaticKeepAlive）在
@@ -139,6 +145,58 @@ Future<AppDatabase> setUpHistoryScreen(WidgetTester tester) async {
   addTearDown(database.close);
   final preferences = await createSeededPreferences(database);
   await pumpHistoryScreen(tester, preferences: preferences, database: database);
+  return database;
+}
+
+/// 生成 [count] 条批量会话的偏好种子；时间随序号递减保证排序稳定。
+Future<SharedPreferences> createBulkSeededPreferences(
+  AppDatabase database, {
+  required int count,
+}) {
+  return TestFixtures.seedPreferences(
+    database: database,
+    conversations: List.generate(count, (i) {
+      final updated = DateTime(2026, 6, 1, 12).subtract(Duration(minutes: i));
+      return {
+        'id': 'bulk-$i',
+        'title': '批量会话 $i',
+        'messageNodes': [
+          {
+            'id': 'bulk-u-$i',
+            'role': 'user',
+            'content': '批量用户消息 $i',
+            'parentId': rootConversationParentId,
+            'createdAt': updated.toIso8601String(),
+          },
+        ],
+        'selectedChildByParentId': {rootConversationParentId: 'bulk-u-$i'},
+        'createdAt': updated.toIso8601String(),
+        'updatedAt': updated.toIso8601String(),
+        'selectedModelId': 'model-1',
+        'selectedPresetPromptId': null,
+        'reasoningEnabled': false,
+        'reasoningEffort': 'medium',
+      };
+    }),
+  );
+}
+
+/// 同 [setUpHistoryScreen]，但使用 [count] 条批量生成的会话种子，
+/// 用于覆盖翻页（默认每页 20 条）场景。
+Future<AppDatabase> setUpHistoryScreenWithBulkConversations(
+  WidgetTester tester, {
+  required int count,
+  Size viewportSize = const Size(1440, 1200),
+}) async {
+  final database = AppDatabase.inMemory();
+  addTearDown(database.close);
+  final preferences = await createBulkSeededPreferences(database, count: count);
+  await pumpHistoryScreen(
+    tester,
+    preferences: preferences,
+    database: database,
+    viewportSize: viewportSize,
+  );
   return database;
 }
 

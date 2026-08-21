@@ -25,11 +25,13 @@ import 'package:oh_my_llm/features/chat/data/generation/responses/responses_clie
 import 'package:oh_my_llm/features/chat/data/persistence/sqlite_chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/favorites/application/collections_controller.dart';
 import 'package:oh_my_llm/features/favorites/application/favorite_source_conversation_command.dart';
+import 'package:oh_my_llm/features/favorites/application/favorites_browse_preferences_controller.dart';
 import 'package:oh_my_llm/features/favorites/application/favorites_controller.dart';
 import 'package:oh_my_llm/features/favorites/application/ports/collections_repository.dart';
 import 'package:oh_my_llm/features/favorites/application/ports/favorites_repository.dart';
 import 'package:oh_my_llm/features/favorites/data/sqlite_collections_repository.dart';
 import 'package:oh_my_llm/features/favorites/data/sqlite_favorites_repository.dart';
+import 'package:oh_my_llm/features/favorites/domain/models/favorite.dart';
 import 'package:oh_my_llm/features/media/application/media_grid_density_controller.dart';
 import 'package:oh_my_llm/features/media/application/media_root_directory_controller.dart';
 import 'package:oh_my_llm/features/media/application/ports/media_library_factory.dart';
@@ -73,6 +75,7 @@ List<dynamic> appCompositionOverrides({
   bool bindChatConversationRepository = true,
   bool bindMediaLibraryFactory = true,
   bool bindChatGenerationForegroundService = true,
+  bool bindFavoritesRepositories = true,
   TargetPlatform? hostPlatform,
 }) {
   // bootstrap 把既有 effectivePlatform 显式传入；测试 harness 固定传
@@ -104,36 +107,12 @@ List<dynamic> appCompositionOverrides({
     syncMediaRouteFactoryProvider.overrideWith(
       (ref) => _CompositionSyncMediaRouteFactory(ref),
     ),
-    chatFavoritesFacadeProvider.overrideWith(
-      (ref) => _CompositionChatFavoritesFacade(
-        ref,
-        ChatFavoritesSnapshot(
-          entries: [
-            for (final favorite in ref.watch(favoritesProvider))
-              ChatFavoriteEntry(
-                id: favorite.id,
-                draft: ChatFavoriteDraft(
-                  userMessageContent: favorite.userMessageContent,
-                  assistantContent: favorite.assistantContent,
-                  assistantReasoningContent: favorite.assistantReasoningContent,
-                  assistantModelDisplayName: favorite.assistantModelDisplayName,
-                  collectionId: favorite.collectionId,
-                  sourceAssistantMessageId: favorite.sourceAssistantMessageId,
-                  sourceConversationId: favorite.sourceConversationId,
-                  sourceConversationTitle: favorite.sourceConversationTitle,
-                ),
-              ),
-          ],
-          collections: [
-            for (final collection in ref.watch(collectionsProvider))
-              ChatFavoriteCollectionOption(
-                id: collection.id,
-                name: collection.name,
-              ),
-          ],
-        ),
-      ),
-    ),
+    chatFavoritesFacadeProvider.overrideWith((ref) {
+      // watch revision：任何成功 mutation 使本 provider 重建，
+      // 从而让消费方重新执行定向查询；不加载全量收藏 catalog。
+      ref.watch(favoritesLibraryProvider);
+      return _CompositionChatFavoritesFacade(ref);
+    }),
     favoriteSourceConversationCommandProvider.overrideWith(
       (ref) => _CompositionFavoriteSourceConversationCommand(ref),
     ),
@@ -187,26 +166,73 @@ List<dynamic> appCompositionOverrides({
           ? AppLayoutDensity.compact
           : AppLayoutDensity.standard,
     ),
-    favoritesRepositoryProvider.overrideWith(
-      (ref) => SqliteFavoritesRepository(ref.watch(appDatabaseProvider)),
-    ),
-    collectionsRepositoryProvider.overrideWith(
-      (ref) => SqliteCollectionsRepository(ref.watch(appDatabaseProvider)),
-    ),
+    // 收藏仓库：测试需要以故障注入装饰器覆盖时由开关排除生产绑定。
+    if (bindFavoritesRepositories) ...[
+      favoritesRepositoryProvider.overrideWith(
+        (ref) => SqliteFavoritesRepository(ref.watch(appDatabaseProvider)),
+      ),
+      collectionsRepositoryProvider.overrideWith(
+        (ref) => SqliteCollectionsRepository(ref.watch(appDatabaseProvider)),
+      ),
+    ],
   ];
 }
 
 final class _CompositionChatFavoritesFacade implements ChatFavoritesFacade {
-  const _CompositionChatFavoritesFacade(this._ref, this.snapshot);
+  const _CompositionChatFavoritesFacade(this._ref);
 
   final Ref _ref;
+
   @override
-  final ChatFavoritesSnapshot snapshot;
+  int get revision => _ref.read(favoritesLibraryProvider);
+
+  @override
+  ChatFavoritesSnapshot snapshotFor(Set<String> assistantContents) {
+    // 定向查询：只解析当前会话消息命中的收藏，不加载全量 catalog。
+    final favoritesRepository = _ref.read(favoritesRepositoryProvider);
+    final favoritedContents = favoritesRepository
+        .loadFavoritedAssistantContents(assistantContents);
+    final entries = <ChatFavoriteEntry>[];
+    for (final content in favoritedContents) {
+      final favorite = favoritesRepository.findByAssistantContent(content);
+      if (favorite != null) {
+        entries.add(
+          ChatFavoriteEntry(id: favorite.id, draft: _draftOf(favorite)),
+        );
+      }
+    }
+
+    return ChatFavoritesSnapshot(
+      entries: entries,
+      collections: [
+        for (final collection in _ref.watch(collectionsProvider))
+          ChatFavoriteCollectionOption(
+            id: collection.id,
+            name: collection.name,
+            isSystem: collection.isSystem,
+          ),
+      ],
+      defaultCollectionId: _ref.read(favoritesLastCollectionProvider),
+    );
+  }
+
+  ChatFavoriteDraft _draftOf(Favorite favorite) {
+    return ChatFavoriteDraft(
+      userMessageContent: favorite.userMessageContent,
+      assistantContent: favorite.assistantContent,
+      assistantReasoningContent: favorite.assistantReasoningContent,
+      assistantModelDisplayName: favorite.assistantModelDisplayName,
+      collectionId: favorite.collectionId,
+      sourceAssistantMessageId: favorite.sourceAssistantMessageId,
+      sourceConversationId: favorite.sourceConversationId,
+      sourceConversationTitle: favorite.sourceConversationTitle,
+    );
+  }
 
   @override
   void add(ChatFavoriteDraft draft) {
     _ref
-        .read(favoritesProvider.notifier)
+        .read(favoritesLibraryProvider.notifier)
         .add(
           userMessageContent: draft.userMessageContent,
           assistantContent: draft.assistantContent,
@@ -221,12 +247,12 @@ final class _CompositionChatFavoritesFacade implements ChatFavoritesFacade {
 
   @override
   String createCollection(String name) {
-    return _ref.read(collectionsProvider.notifier).create(name);
+    return _ref.read(favoritesLibraryProvider.notifier).createCollection(name);
   }
 
   @override
   void remove(String favoriteId) {
-    _ref.read(favoritesProvider.notifier).remove(favoriteId);
+    _ref.read(favoritesLibraryProvider.notifier).remove(favoriteId);
   }
 }
 

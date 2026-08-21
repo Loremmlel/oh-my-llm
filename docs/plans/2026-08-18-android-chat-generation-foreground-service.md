@@ -8,7 +8,7 @@
 
 **Tech Stack:** Flutter 3.44.x（CI 3.44.6）/ Dart `^3.11.5`、Riverpod 3 `NotifierProvider` / `Provider`、GoRouter 17、Flutter `MethodChannel`、Kotlin/JVM 17、Android foreground service `dataSync`、AndroidX Core 1.17.0、JUnit 4.13.2。
 
-**Spec:** `docs/superpowers/specs/2026-08-17-android-chat-generation-foreground-service-design.md`
+**Spec:** `docs/specs/2026-08-17-android-chat-generation-foreground-service-design.md`
 
 ## Global Constraints
 

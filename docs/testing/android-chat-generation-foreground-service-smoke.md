@@ -1,8 +1,8 @@
 # Android 聊天生成前台服务 — 真机 Smoke 手册
 
-**目的：** 按设计文档 `docs/superpowers/specs/2026-08-17-android-chat-generation-foreground-service-design.md` 第 15 节，在至少一台 Android 13+ 真机上验证生成前台服务、动态通知、权限与生命周期降级，并如实记录 PASS / FAIL / PENDING。
+**目的：** 按设计文档 `docs/specs/2026-08-17-android-chat-generation-foreground-service-design.md` 第 15 节，在至少一台 Android 13+ 真机上验证生成前台服务、动态通知、权限与生命周期降级，并如实记录 PASS / FAIL / PENDING。
 
-**对应任务：** Task 7（计划 `docs/superpowers/plans/2026-08-18-android-chat-generation-foreground-service.md`），在 Task 1–6 实现完成（HEAD `2dcec61`）之后执行。
+**对应任务：** Task 7（计划 `docs/plans/2026-08-18-android-chat-generation-foreground-service.md`），在 Task 1–6 实现完成（HEAD `2dcec61`）之后执行。
 
 > **诚实记录原则：** 未在真机上实际执行的行必须标 `PENDING`，并注明缺失的前置条件。任何行不得把 `PENDING` 当作通过。`PENDING` 不表示行为正确或错误，只表示「本环境无法验证」。
 

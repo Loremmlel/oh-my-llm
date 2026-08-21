@@ -1,21 +1,28 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'package:oh_my_llm/core/widgets/pagination/app_pagination_state.dart';
+import 'package:oh_my_llm/features/chat/application/history/history_browse_preferences_controller.dart';
 
 import '../../domain/history_pagination_state.dart';
 import '../ports/chat_conversation_repository.dart';
 
-/// 可供用户选择的每页条数选项。
-const availablePageSizes = <int>[10, 20, 50];
+/// 查询失败时的通用错误文案；具体呈现方式由 UI 决定。
+const historyLoadErrorMessage = '加载历史记录失败';
 
 /// 历史页分页栏数据控制器。
 ///
-/// 负责管理「翻页 / 切换每页条数 / 搜索 / 跳转」以及 rename/delete
-/// 后的本地数据修正。UI 层通过 [historyPaginationProvider] watch 此控制器的
-/// 状态，并将翻页/搜索事件转发为方法调用。
+/// 负责「route 加载 / 翻页 / 切换每页条数 / 搜索 / rename/delete 后修正」。
+/// UI 层通过 [historyPaginationProvider] watch 此控制器的状态，并将翻页/
+/// 搜索事件转发为方法调用。
 ///
 /// 使用 [Notifier]（而非 [AsyncNotifier]），因为底层 SQLite 查询是同步的。
 ///
-/// 状态语义与旧版「无限累积窗口」不同：[HistoryPaginationState.conversations]
-/// 仅包含**当前页**的数据；总条目数由 `totalItems` 显式持有，分页栏直接渲染。
+/// 状态语义：[HistoryPaginationState.conversations] 仅包含**当前页**的数据；
+/// 总条目数由 `totalItems` 显式持有。任何改变数据分布的操作（删除、搜索态
+/// rename）都通过 [_reloadCurrentWindow] 按数据库真实结果重新查询，不做
+/// 本地推断补页。
 class HistoryPaginationController extends Notifier<HistoryPaginationState> {
   @override
   HistoryPaginationState build() {
@@ -30,26 +37,76 @@ class HistoryPaginationController extends Notifier<HistoryPaginationState> {
   bool _calcHasAny(String keyword, int totalItems) =>
       keyword.isNotEmpty || totalItems > 0;
 
-  /// 首次加载（或搜索重置后）的分页查询。
+  // ── 查询核心 ────────────────────────────────────────────
+
+  /// 按 route 参数加载历史窗口；route 是 page/pageSize/keyword 的唯一入口。
   ///
-  /// 重置到第 1 页，同时拉取总数和当前页数据。
-  void loadInitial({String keyword = ''}) {
-    final totalItems = _repository.countHistorySummaries(keyword: keyword);
-    final result = _repository.loadHistorySummaries(
-      keyword: keyword,
-      limit: state.pageSize,
-      offset: 0,
-    );
-    state = state.copyWith(
-      conversations: result,
-      isLoading: false,
-      keyword: keyword,
-      hasAnyConversations: _calcHasAny(keyword, totalItems),
-      currentPage: 1,
-      pageSize: state.pageSize,
-      totalItems: totalItems,
+  /// 所有输入在此处统一 trim、校验与夹取：
+  /// - [keyword] trim 后生效，缺省沿用当前关键词；
+  /// - [pageSize] 仅接受 [appPageSizeOptions]；合法显式值回写偏好，
+  ///   非法或缺省回退持久化偏好（偏好自身保证合法，默认 20）；
+  /// - [page] 缺省视为 1，查询后按真实总数夹取到 [1, totalPages]。
+  void loadRoute({int? page, int? pageSize, String? keyword}) {
+    final nextKeyword = (keyword ?? state.keyword).trim();
+    int nextPageSize;
+    if (pageSize != null && appPageSizeOptions.contains(pageSize)) {
+      nextPageSize = pageSize;
+      // 合法的显式容量回写偏好；写失败不影响本次浏览。
+      unawaited(
+        ref.read(historyBrowsePreferencesProvider.notifier).save(pageSize),
+      );
+    } else {
+      nextPageSize = ref.read(historyBrowsePreferencesProvider);
+    }
+
+    state = state.copyWith(isLoading: true);
+    _reloadCurrentWindow(
+      requestedPage: page ?? 1,
+      keyword: nextKeyword,
+      pageSize: nextPageSize,
     );
   }
+
+  /// 统一的当前窗口重载：count → 夹取页码 → load 当前页 → 错误落定。
+  ///
+  /// 页码夹取基于查询后的真实总数，数据被外部变更时不会越界；
+  /// count 与 load 任一失败时保留旧窗口内容并写入错误文案。
+  void _reloadCurrentWindow({
+    required int requestedPage,
+    required String keyword,
+    required int pageSize,
+  }) {
+    try {
+      final totalItems = _repository.countHistorySummaries(keyword: keyword);
+      final totalPages = totalPagesForItems(totalItems, pageSize);
+      final targetPage = clampPageToValidRange(requestedPage, totalPages);
+      final result = _repository.loadHistorySummaries(
+        keyword: keyword,
+        limit: pageSize,
+        offset: (targetPage - 1) * pageSize,
+      );
+      state = state.copyWith(
+        conversations: result,
+        isLoading: false,
+        isInitialized: true,
+        errorMessage: null,
+        keyword: keyword,
+        hasAnyConversations: _calcHasAny(keyword, totalItems),
+        currentPage: targetPage,
+        pageSize: pageSize,
+        totalItems: totalItems,
+      );
+    } catch (_) {
+      // 查询失败：保留旧窗口内容（stale content），错误进入状态由 UI 呈现。
+      state = state.copyWith(
+        isLoading: false,
+        isInitialized: true,
+        errorMessage: historyLoadErrorMessage,
+      );
+    }
+  }
+
+  // ── 翻页与搜索 ──────────────────────────────────────────
 
   /// 跳转到指定页（夹取到 [1, totalPages] 区间）。
   void goToPage(int page) {
@@ -57,25 +114,14 @@ class HistoryPaginationController extends Notifier<HistoryPaginationState> {
 
     final totalPages = state.totalPages;
     if (totalPages <= 0) return;
-    final clamped = page.clamp(1, totalPages);
+    final clamped = page < 1 ? 1 : (page > totalPages ? totalPages : page);
     if (clamped == state.currentPage) return;
 
     state = state.copyWith(isLoading: true);
-
-    // 刷新总数（可能有外部写入），确保分页信息准确
-    final totalItems = _repository.countHistorySummaries(
+    _reloadCurrentWindow(
+      requestedPage: clamped,
       keyword: state.keyword,
-    );
-    final result = _repository.loadHistorySummaries(
-      keyword: state.keyword,
-      limit: state.pageSize,
-      offset: (clamped - 1) * state.pageSize,
-    );
-    state = state.copyWith(
-      conversations: result,
-      isLoading: false,
-      currentPage: clamped,
-      totalItems: totalItems,
+      pageSize: state.pageSize,
     );
   }
 
@@ -93,28 +139,43 @@ class HistoryPaginationController extends Notifier<HistoryPaginationState> {
 
   /// 修改每页条数并重置到第 1 页。
   ///
-  /// [size] 仅在 [availablePageSizes] 中生效，否则保持当前 pageSize 不变。
+  /// [size] 仅在 [appPageSizeOptions] 中生效，否则保持当前 pageSize 不变；
+  /// 生效时经 [loadRoute] 回写持久化偏好。
   void setPageSize(int size) {
-    if (!availablePageSizes.contains(size)) return;
+    if (!appPageSizeOptions.contains(size)) return;
     if (size == state.pageSize) return;
 
-    // 先更新 pageSize，loadInitial 内部读取 state.pageSize
     state = state.copyWith(pageSize: size);
-    loadInitial(keyword: state.keyword);
+    loadRoute(page: 1, pageSize: size, keyword: state.keyword);
   }
 
   /// 变更搜索关键词并重置到第 1 页。
   ///
   /// 空串且当前 keyword 也为空时直接返回，避免无意义刷新。
-  /// 入参会先 trim，与 [loadHistorySummaries] 的语义保持一致。
+  /// 入参经 [loadRoute] 统一 trim。
   void setKeyword(String keyword) {
     final trimmed = keyword.trim();
     if (trimmed.isEmpty && state.keyword.isEmpty) return;
-    loadInitial(keyword: trimmed);
+    loadRoute(page: 1, keyword: trimmed);
   }
 
-  /// 重命名后在当前页本地列表中更新标题，避免刷新丢失滚动位置。
+  // ── 数据变更后的窗口修正 ────────────────────────────────
+
+  /// 重命名后的窗口修正。
+  ///
+  /// 搜索态下 rename 可能改变匹配集合，必须按 repository 结果重拉；
+  /// 非搜索态仅本地更新标题，避免刷新丢失滚动位置。
   void afterRename(String conversationId, String newTitle) {
+    if (state.keyword.isNotEmpty) {
+      state = state.copyWith(isLoading: true);
+      _reloadCurrentWindow(
+        requestedPage: state.currentPage,
+        keyword: state.keyword,
+        pageSize: state.pageSize,
+      );
+      return;
+    }
+
     final updated = state.conversations.map((summary) {
       if (summary.id != conversationId) return summary;
       return summary.copyWith(title: newTitle);
@@ -123,57 +184,20 @@ class HistoryPaginationController extends Notifier<HistoryPaginationState> {
     state = state.copyWith(conversations: updated);
   }
 
-  /// 删除后从当前页本地列表中移除。
+  /// 删除后一律按数据库真实结果重拉当前窗口。
   ///
-  /// 若删除后当前页码超出新的总页数（例如删光最后一页的条目），
-  /// 自动回退到新的最后一页并重新拉取。若当前页条目全被删除但页码
-  /// 仍有效（跨页条目移位落入当前窗口），同样触发重新拉取而非展示空白页。
+  /// 删除会同时改变总数与 OFFSET 分布，任何「本地裁剪 + 推断补页」都会
+  /// 造成漏项或残留，因此不做本地移除，统一走 [_reloadCurrentWindow]
+  /// （页码越界由其按真实总数夹取回退）。
   void afterDelete(Set<String> deletedIds) {
-    final remaining = state.conversations
-        .where((c) => !deletedIds.contains(c.id))
-        .toList();
+    if (deletedIds.isEmpty) return;
 
-    final newTotalItems = _repository.countHistorySummaries(
+    state = state.copyWith(isLoading: true);
+    _reloadCurrentWindow(
+      requestedPage: state.currentPage,
       keyword: state.keyword,
+      pageSize: state.pageSize,
     );
-    final newTotalPages = newTotalItems <= 0
-        ? 0
-        : (newTotalItems / state.pageSize).ceil();
-
-    // 计算删除后应展示的页码
-    final targetPage = newTotalPages <= 0
-        ? 1
-        : state.currentPage.clamp(1, newTotalPages);
-
-    // 需要重新拉取的场景：
-    // - 库被清空（newTotalPages == 0）
-    // - 当前页越界（currentPage > newTotalPages）
-    // - 当前页条目全删但仍有其他数据（条目从后续页移位落入当前窗口）
-    final needsRefetch =
-        newTotalPages <= 0 ||
-        state.currentPage > newTotalPages ||
-        (remaining.isEmpty && newTotalItems > 0);
-
-    if (needsRefetch) {
-      final result = _repository.loadHistorySummaries(
-        keyword: state.keyword,
-        limit: state.pageSize,
-        offset: (targetPage - 1) * state.pageSize,
-      );
-      state = state.copyWith(
-        conversations: result,
-        hasAnyConversations: _calcHasAny(state.keyword, newTotalItems),
-        currentPage: targetPage,
-        totalItems: newTotalItems,
-      );
-    } else {
-      // 当前页仍有效，仅本地移除
-      state = state.copyWith(
-        conversations: remaining,
-        hasAnyConversations: _calcHasAny(state.keyword, newTotalItems),
-        totalItems: newTotalItems,
-      );
-    }
   }
 }
 

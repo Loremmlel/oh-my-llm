@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:oh_my_llm/core/constants/app_reserved_entities.dart';
 import 'package:oh_my_llm/features/chat/application/favorites/chat_favorite_intent_command.dart';
 import 'package:oh_my_llm/features/chat/application/favorites/chat_favorites_facade.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
@@ -15,7 +16,10 @@ class _RecordingFacade implements ChatFavoritesFacade {
   final createdNames = <String>[];
 
   @override
-  ChatFavoritesSnapshot get snapshot => _snapshot;
+  final int revision = 0;
+
+  @override
+  ChatFavoritesSnapshot snapshotFor(Set<String> assistantContents) => _snapshot;
 
   @override
   void add(ChatFavoriteDraft draft) => added.add(draft);
@@ -79,10 +83,14 @@ ChatConversation _conversationWithPath(List<ChatMessage> nodes) {
   );
 }
 
-const _emptySnapshot = ChatFavoritesSnapshot(entries: [], collections: []);
+const _emptySnapshot = ChatFavoritesSnapshot(
+  entries: [],
+  collections: [],
+  defaultCollectionId: AppReservedEntities.uncategorizedFavoriteCollectionId,
+);
 
 void main() {
-  test('无现有收藏时返回 needs-collection 且未调用 add', () {
+  test('无现有收藏时返回 needs-collection 且 draft 默认最近有效收藏夹', () {
     final user = _user('user-1', '问题');
     final assistant = _assistant(
       'assistant-1',
@@ -91,7 +99,13 @@ void main() {
       assistantModelDisplayName: 'Model-X',
     );
     final conversation = _conversationWithPath([user, assistant]);
-    final facade = _RecordingFacade(_emptySnapshot);
+    final facade = _RecordingFacade(
+      const ChatFavoritesSnapshot(
+        entries: [],
+        collections: [],
+        defaultCollectionId: 'col-last',
+      ),
+    );
     final command = ChatFavoriteIntentCommand(facade);
 
     final result = command.beginToggle(
@@ -105,7 +119,8 @@ void main() {
     expect(needs.draftWithoutCollection.assistantContent, '回复');
     expect(needs.draftWithoutCollection.assistantReasoningContent, '思考');
     expect(needs.draftWithoutCollection.assistantModelDisplayName, 'Model-X');
-    expect(needs.draftWithoutCollection.collectionId, isNull);
+    // 不再产生 null/空串 sentinel：默认归属最近有效收藏夹。
+    expect(needs.draftWithoutCollection.collectionId, 'col-last');
     expect(
       needs.draftWithoutCollection.sourceAssistantMessageId,
       'assistant-1',
@@ -186,7 +201,12 @@ void main() {
     );
     final entry = ChatFavoriteEntry(id: 'favorite-1', draft: draft);
     final facade = _RecordingFacade(
-      ChatFavoritesSnapshot(entries: [entry], collections: []),
+      ChatFavoritesSnapshot(
+        entries: [entry],
+        collections: [],
+        defaultCollectionId:
+            AppReservedEntities.uncategorizedFavoriteCollectionId,
+      ),
     );
     final command = ChatFavoriteIntentCommand(facade);
 
@@ -209,13 +229,14 @@ void main() {
     expect(restored.assistantContent, '回复');
     expect(restored.assistantReasoningContent, '思考');
     expect(restored.assistantModelDisplayName, 'Model');
+    // restore 使用原 non-null collectionId。
     expect(restored.collectionId, 'col-1');
     expect(restored.sourceAssistantMessageId, 'assistant-1');
     expect(restored.sourceConversationId, 'conv-1');
     expect(restored.sourceConversationTitle, '测试对话');
   });
 
-  test('addToCollection 的 "" 转 null、正常 ID 原样', () {
+  test('addToCollection 原样透传所选收藏夹 ID，不再做空串归一', () {
     final facade = _RecordingFacade(_emptySnapshot);
     final command = ChatFavoriteIntentCommand(facade);
     const base = ChatFavoriteDraft(
@@ -223,26 +244,34 @@ void main() {
       assistantContent: '回复',
       assistantReasoningContent: '',
       assistantModelDisplayName: 'Model',
-      collectionId: null,
+      collectionId: AppReservedEntities.uncategorizedFavoriteCollectionId,
       sourceAssistantMessageId: null,
       sourceConversationId: null,
       sourceConversationTitle: null,
     );
 
-    command.addToCollection(base, '');
-    expect(facade.added.single.collectionId, isNull);
-
     command.addToCollection(base, 'col-1');
-    expect(facade.added.last.collectionId, 'col-1');
+    expect(facade.added.single.collectionId, 'col-1');
+
+    command.addToCollection(
+      base,
+      AppReservedEntities.uncategorizedFavoriteCollectionId,
+    );
+    expect(
+      facade.added.last.collectionId,
+      AppReservedEntities.uncategorizedFavoriteCollectionId,
+    );
     expect(facade.added, hasLength(2));
   });
 
-  test('createCollection 委托一次；空 trimmed name 不产生空收藏夹', () {
+  test('createCollection 只创建并返回 ID，不自动 add', () {
     final facade = _RecordingFacade(_emptySnapshot);
     final command = ChatFavoriteIntentCommand(facade);
 
     expect(command.createCollection('  新夹  '), 'new-col');
     expect(facade.createdNames, ['新夹']);
+    // 创建与收藏是两个动作：dialog 选中新夹后由用户确认才 add。
+    expect(facade.added, isEmpty);
 
     expect(command.createCollection('   '), isNull);
     expect(command.createCollection(''), isNull);

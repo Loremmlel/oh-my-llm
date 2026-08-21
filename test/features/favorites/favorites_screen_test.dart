@@ -1,9 +1,15 @@
+import 'favorite_collection_tile_cases.dart';
 import 'favorites_screen_basics_cases.dart';
+import 'favorites_screen_collection_delete_cases.dart';
 import 'favorites_screen_detail_cases.dart';
-import 'manage_collections_dialog_cases.dart';
+import 'favorites_screen_pagination_cases.dart';
+import 'favorites_screen_selection_cases.dart';
 
 void main() {
   registerFavoritesScreenBasicsTests();
+  registerFavoriteCollectionTileTests();
+  registerFavoritesScreenPaginationTests();
+  registerFavoritesScreenSelectionTests();
+  registerFavoritesScreenCollectionDeleteTests();
   registerFavoriteDetailScreenTests();
-  registerManageCollectionsDialogTests();
 }

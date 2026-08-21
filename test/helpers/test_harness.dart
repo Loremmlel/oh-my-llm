@@ -51,6 +51,10 @@ Future<AppDatabase> pumpTestApp(
   /// 默认 true：保持前台服务端口绑定，与 composition 默认一致；测试注入 fake
   /// 端口时必须传 false 排除生产绑定。
   bool bindChatGenerationForegroundService = true,
+
+  /// 默认 true：保持收藏仓库生产绑定；测试以故障注入装饰器覆盖
+  /// favorites/collections 仓库时必须传 false。
+  bool bindFavoritesRepositories = true,
 }) async {
   assert(
     child != null || router != null,
@@ -75,6 +79,7 @@ Future<AppDatabase> pumpTestApp(
       bindChatConversationRepository: bindChatConversationRepository,
       bindMediaLibraryFactory: bindMediaLibraryFactory,
       bindChatGenerationForegroundService: bindChatGenerationForegroundService,
+      bindFavoritesRepositories: bindFavoritesRepositories,
     ),
   );
   await tester.pump();
@@ -109,6 +114,10 @@ Future<ProviderScope> pumpTestAppScope(
 
   /// 默认 true：保持前台服务端口绑定；测试注入 fake 端口时必须传 false。
   bool bindChatGenerationForegroundService = true,
+
+  /// 默认 true：保持收藏仓库生产绑定；测试以故障注入装饰器覆盖
+  /// favorites/collections 仓库时必须传 false。
+  bool bindFavoritesRepositories = true,
 }) async {
   assert(
     child != null || router != null,
@@ -132,6 +141,7 @@ Future<ProviderScope> pumpTestAppScope(
     bindChatConversationRepository: bindChatConversationRepository,
     bindMediaLibraryFactory: bindMediaLibraryFactory,
     bindChatGenerationForegroundService: bindChatGenerationForegroundService,
+    bindFavoritesRepositories: bindFavoritesRepositories,
   );
 }
 
@@ -160,6 +170,7 @@ ProviderScope _buildTestScope({
   bool bindChatConversationRepository = true,
   bool bindMediaLibraryFactory = true,
   bool bindChatGenerationForegroundService = true,
+  bool bindFavoritesRepositories = true,
 }) {
   return ProviderScope(
     overrides: [
@@ -176,6 +187,7 @@ ProviderScope _buildTestScope({
         bindMediaLibraryFactory: bindMediaLibraryFactory,
         bindChatGenerationForegroundService:
             bindChatGenerationForegroundService,
+        bindFavoritesRepositories: bindFavoritesRepositories,
         // 固定 Windows 宿主：宿主 CI 绝不打开真实 Android MethodChannel。
         hostPlatform: TargetPlatform.windows,
       ),

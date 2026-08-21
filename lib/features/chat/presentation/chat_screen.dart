@@ -1053,11 +1053,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   ) async {
     // 收藏 toggle 的准备/移除/恢复/新增编排收敛到 intent command，
     // 页面只 pattern-match 其结果并驱动 dialog/notification。
-    final command = ref.read(chatFavoriteIntentCommandProvider);
-    final result = command.beginToggle(
-      conversation: conversation,
-      assistantMessage: assistantMessage,
-    );
+    final result = ref
+        .read(chatFavoriteIntentCommandProvider)
+        .beginToggle(
+          conversation: conversation,
+          assistantMessage: assistantMessage,
+        );
     if (!context.mounted) return;
 
     switch (result) {
@@ -1068,7 +1069,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               message: '已取消收藏',
               action: NotificationBubbleAction(
                 label: '撤销',
-                onPressed: () => command.restore(removedEntry),
+                onPressed: () => ref
+                    .read(chatFavoriteIntentCommandProvider)
+                    .restore(removedEntry),
               ),
             );
       case ChatFavoriteNeedsCollection(
@@ -1079,11 +1082,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           context: context,
           builder: (context) => AddToFavoritesDialog(
             collections: collectionOptions,
-            onCreateCollection: command.createCollection,
+            // draft 的 collectionId 即最近有效收藏夹（缺省系统夹），
+            // 作为对话框预选项；确认后仍可改选。
+            initialCollectionId: draftWithoutCollection.collectionId,
+            onCreateCollection: (name) => ref
+                .read(chatFavoriteIntentCommandProvider)
+                .createCollection(name),
           ),
         );
         if (!mounted || selectedCollectionId == null) return;
-        command.addToCollection(draftWithoutCollection, selectedCollectionId);
+        // 对话框内新建收藏夹也是 mutation，会使 facade/command 链失效；
+        // async gap 后必须重读，不得复用 await 前的 controller 实例。
+        ref
+            .read(chatFavoriteIntentCommandProvider)
+            .addToCollection(draftWithoutCollection, selectedCollectionId);
         if (!mounted) return;
         ref
             .read(notificationBubblesProvider.notifier)

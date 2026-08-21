@@ -29,6 +29,12 @@ class FakeHistoryRepository implements ChatConversationRepository {
     List<int>? sequenceCounts,
   }) : _sequenceCounts = sequenceCounts;
 
+  /// 非 null 时下一次 [countHistorySummaries] 抛出该错误；测试可中途注入或清除。
+  Object? throwOnCount;
+
+  /// 非 null 时下一次 [loadHistorySummaries] 抛出该错误；测试可中途注入或清除。
+  Object? throwOnLoad;
+
   /// 按调用顺序返回的页面列表。
   final List<List<ChatConversationSummary>> pages;
 
@@ -68,12 +74,16 @@ class FakeHistoryRepository implements ChatConversationRepository {
     int? limit,
     int? offset,
   }) {
+    final loadError = throwOnLoad;
+    if (loadError != null) throw loadError;
     calls.add((keyword: keyword, limit: limit, offset: offset));
     return _next();
   }
 
   @override
   int countHistorySummaries({String keyword = ''}) {
+    final countError = throwOnCount;
+    if (countError != null) throw countError;
     countCallCount++;
     final seq = _sequenceCounts;
     if (seq != null && seq.isNotEmpty) {

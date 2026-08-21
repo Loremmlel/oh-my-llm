@@ -1,59 +1,49 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:oh_my_llm/core/constants/app_reserved_entities.dart';
 import 'package:oh_my_llm/core/utils/id_generator.dart';
+import 'favorites_browse_preferences_controller.dart';
+import 'favorites_clock_provider.dart';
+import 'ports/collections_repository.dart';
 import 'ports/favorites_repository.dart';
+import '../domain/models/collection.dart';
+import '../domain/models/collection_delete_request.dart';
 import '../domain/models/favorite.dart';
 
-/// 收藏列表过滤条件。
+/// 收藏库 mutation 控制器；state 是全局 revision。
 ///
-/// null = 全部，'' = 未分类，其他 = 指定收藏夹 ID。
-final favoritesFilterProvider =
-    NotifierProvider<FavoritesFilterNotifier, String?>(
-      FavoritesFilterNotifier.new,
-    );
-
-/// 过滤条件状态管理。
-class FavoritesFilterNotifier extends Notifier<String?> {
+/// 独占全部收藏库写操作（add/remove/rename/move/bulk/delete-collection/
+/// create/rename-collection），每次成功 mutation 后递增 revision；
+/// by-ID、summaries、browser page 与 Chat adapter 都 watch 该 revision
+/// 建立失效依赖。操作失败（repository 抛出）时 revision 不变。
+class FavoritesLibraryController extends Notifier<int> {
   @override
-  String? build() => null;
+  int build() => 0;
 
-  /// 切换过滤条件。
-  void setFilter(String? filter) => state = filter;
-}
-
-/// 收藏列表 Provider（随过滤条件变化而重建）。
-final favoritesProvider = NotifierProvider<FavoritesController, List<Favorite>>(
-  FavoritesController.new,
-);
-
-/// 收藏列表管理控制器。
-///
-/// 维护当前过滤条件下的收藏列表，支持新增、删除和移动收藏夹。
-class FavoritesController extends Notifier<List<Favorite>> {
   FavoritesRepository get _repo => ref.read(favoritesRepositoryProvider);
+  CollectionsRepository get _collectionsRepo =>
+      ref.read(collectionsRepositoryProvider);
 
-  @override
-  List<Favorite> build() {
-    final filter = ref.watch(favoritesFilterProvider);
-    return _repo.loadAll(collectionId: filter);
-  }
+  DateTime get _now => ref.read(favoritesClockProvider)();
 
-  /// 收藏一条模型回复。
+  /// 收藏一条模型回复到 [collectionId]（必填非空）。
   ///
-  /// 返回新创建的收藏 ID。
+  /// 返回新创建的收藏 ID；成功后记录最近归类目标。
   String add({
     required String userMessageContent,
     required String assistantContent,
     String assistantReasoningContent = '',
     String assistantModelDisplayName = '匿名模型',
-    String? collectionId,
+    required String collectionId,
     String? sourceConversationId,
     String? sourceConversationTitle,
     String? sourceAssistantMessageId,
   }) {
+    final now = _now;
     final favorite = Favorite(
       id: generateEntityId(),
       collectionId: collectionId,
+      collectionAssignedAt: now,
       userMessageContent: userMessageContent,
       assistantContent: assistantContent,
       assistantReasoningContent: assistantReasoningContent,
@@ -61,23 +51,36 @@ class FavoritesController extends Notifier<List<Favorite>> {
       sourceConversationId: sourceConversationId,
       sourceConversationTitle: sourceConversationTitle,
       sourceAssistantMessageId: sourceAssistantMessageId,
-      createdAt: DateTime.now(),
+      createdAt: now,
     );
     _repo.save(favorite);
-    _refresh();
+    ref.read(favoritesLastCollectionProvider.notifier).update(collectionId);
+    state++;
     return favorite.id;
   }
 
-  /// 删除指定收藏记录。
-  void remove(String favoriteId) {
-    _repo.delete(favoriteId);
-    _refresh();
+  /// 删除单条收藏。
+  void remove(String favoriteId) => deleteMany({favoriteId});
+
+  /// 批量删除收藏。
+  void deleteMany(Set<String> favoriteIds) {
+    if (favoriteIds.isEmpty) return;
+    _repo.deleteMany(favoriteIds);
+    state++;
   }
 
-  /// 将指定收藏移动到另一个收藏夹（null 表示未分类）。
-  void moveTo(String favoriteId, String? collectionId) {
-    _repo.moveToCollection(favoriteId, collectionId);
-    _refresh();
+  /// 批量移动收藏到目标收藏夹；成功后记录最近归类目标。
+  void moveMany(Set<String> favoriteIds, {required String targetCollectionId}) {
+    if (favoriteIds.isEmpty) return;
+    _repo.moveMany(
+      favoriteIds,
+      targetCollectionId: targetCollectionId,
+      assignedAt: _now,
+    );
+    ref
+        .read(favoritesLastCollectionProvider.notifier)
+        .update(targetCollectionId);
+    state++;
   }
 
   /// 重命名指定收藏的标题（null 或空字符串表示清除自定义标题）。
@@ -86,26 +89,87 @@ class FavoritesController extends Notifier<List<Favorite>> {
         ? null
         : title.trim();
     _repo.updateTitle(favoriteId, normalized);
-    _refresh();
+    state++;
   }
 
-  /// 检查指定助手消息内容是否已被收藏。
-  bool isFavorited(String assistantContent) {
-    return _repo.existsByAssistantContent(assistantContent);
+  /// 新建收藏夹并返回其 ID；保留名"未分类"被拒绝并归位系统夹。
+  String createCollection(String name) {
+    final trimmed = name.trim();
+    if (_isReservedName(trimmed)) {
+      return AppReservedEntities.uncategorizedFavoriteCollectionId;
+    }
+    final collection = FavoriteCollection(
+      id: generateEntityId(),
+      name: trimmed,
+      createdAt: _now,
+    );
+    _collectionsRepo.save(collection);
+    state++;
+    return collection.id;
   }
 
-  void _refresh() {
-    final filter = ref.read(favoritesFilterProvider);
-    state = _repo.loadAll(collectionId: filter);
+  /// 重命名指定收藏夹；系统夹与保留名不生效。
+  void renameCollection(String collectionId, String newName) {
+    if (collectionId == AppReservedEntities.uncategorizedFavoriteCollectionId ||
+        _isReservedName(newName.trim())) {
+      return;
+    }
+    final existing = _collectionsRepo
+        .loadAll()
+        .where((c) => c.id == collectionId)
+        .firstOrNull;
+    if (existing == null) return;
+    _collectionsRepo.save(existing.copyWith(name: newName.trim()));
+    state++;
+  }
+
+  /// 删除普通收藏夹；未指定去向时把内容移入系统"未分类"。
+  ///
+  /// [disposition] 决定夹内收藏的去向：移动到指定收藏夹，或随收藏夹一并
+  /// 删除。成功后若最近归类指向被删夹则回退系统夹。
+  void deleteCollection(
+    String collectionId, {
+    CollectionDeleteRequest? disposition,
+  }) {
+    if (collectionId == AppReservedEntities.uncategorizedFavoriteCollectionId) {
+      return;
+    }
+    _collectionsRepo.delete(
+      collectionId,
+      disposition:
+          disposition ??
+          CollectionDeleteRequest.moveItemsTo(
+            targetCollectionId:
+                AppReservedEntities.uncategorizedFavoriteCollectionId,
+            assignedAt: _now,
+          ),
+    );
+    final lastCollection = ref.read(favoritesLastCollectionProvider);
+    if (lastCollection == collectionId) {
+      ref
+          .read(favoritesLastCollectionProvider.notifier)
+          .update(AppReservedEntities.uncategorizedFavoriteCollectionId);
+    }
+    state++;
+  }
+
+  bool _isReservedName(String trimmedName) {
+    return trimmedName ==
+        AppReservedEntities.uncategorizedFavoriteCollectionName;
   }
 }
 
+/// 收藏库全局 revision provider：query readers 的失效信号。
+final favoritesLibraryProvider =
+    NotifierProvider<FavoritesLibraryController, int>(
+      FavoritesLibraryController.new,
+    );
+
 /// 按 ID 读取单条收藏。
 ///
-/// 与 filtered 列表解耦：详情页不依赖当前筛选是否包含该 ID。
-/// [favoritesProvider] 仅作为 add/remove/move/rename 的失效信号，
-/// 真实数据始终来自 repository 精确查询。
+/// watch revision 失效：任何成功 mutation 后重读 repository 精确查询，
+/// 与 filtered 列表解耦——详情页不依赖当前筛选是否包含该 ID。
 final favoriteByIdProvider = Provider.family<Favorite?, String>((ref, id) {
-  ref.watch(favoritesProvider);
+  ref.watch(favoritesLibraryProvider);
   return ref.watch(favoritesRepositoryProvider).loadById(id);
 });

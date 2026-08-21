@@ -53,15 +53,22 @@ enum AppDestination {
 /// 详情/媒体页面是顶层页面的子页面，不进入 [AppDestination.values]，
 /// 否则会错误出现在 NavigationRail/NavigationBar。
 abstract final class AppRouteName {
-  static const favoriteDetail = 'favoriteDetail';
+  static const favoriteCollectionItems = 'favoriteCollectionItems';
+  static const favoriteItemDetail = 'favoriteItemDetail';
   static const mediaImage = 'mediaImage';
   static const mediaVideo = 'mediaVideo';
 }
 
 abstract final class AppRouteParameter {
+  static const collectionId = 'collectionId';
   static const favoriteId = 'favoriteId';
   static const mediaPath = 'path';
 
   /// chat 路由的可序列化会话 ID query 参数键；禁止用 state.extra 传实体。
   static const conversationId = 'conversationId';
+
+  /// history 路由的浏览窗口 query 参数键（页码 / 容量 / 搜索关键词）。
+  static const page = 'page';
+  static const pageSize = 'pageSize';
+  static const q = 'q';
 }

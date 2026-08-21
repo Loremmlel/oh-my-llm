@@ -1,5 +1,6 @@
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import '../domain/models/favorite.dart';
+import '../domain/models/favorite_page.dart';
 import '../application/ports/favorites_repository.dart';
 
 /// 收藏记录的 SQLite 读写仓库。
@@ -9,26 +10,37 @@ class SqliteFavoritesRepository implements FavoritesRepository {
   final AppDatabase _database;
 
   @override
-  List<Favorite> loadAll({String? collectionId}) {
-    if (collectionId == null) {
-      final rows = _database.connection.select(
-        'SELECT * FROM favorites ORDER BY created_at DESC;',
-      );
-      return rows.map(_rowToFavorite).toList(growable: false);
-    }
-
+  FavoritePage loadPage({
+    required String collectionId,
+    required int limit,
+    required int offset,
+  }) {
     if (collectionId.isEmpty) {
-      final rows = _database.connection.select(
-        'SELECT * FROM favorites WHERE collection_id IS NULL ORDER BY created_at DESC;',
-      );
-      return rows.map(_rowToFavorite).toList(growable: false);
+      throw ArgumentError('collectionId 不能为空', 'collectionId');
+    }
+    if (limit <= 0) {
+      throw RangeError.range(limit, 1, null, 'limit');
+    }
+    if (offset < 0) {
+      throw RangeError.range(offset, 0, null, 'offset');
     }
 
+    final totalItems =
+        _database.connection.select(
+              'SELECT COUNT(*) AS c FROM favorites WHERE collection_id = ?;',
+              [collectionId],
+            ).single['c']
+            as int;
     final rows = _database.connection.select(
-      'SELECT * FROM favorites WHERE collection_id = ? ORDER BY created_at DESC;',
-      [collectionId],
+      'SELECT * FROM favorites WHERE collection_id = ? '
+      'ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?;',
+      [collectionId, limit, offset],
     );
-    return rows.map(_rowToFavorite).toList(growable: false);
+
+    return FavoritePage(
+      items: rows.map(_rowToFavorite).toList(growable: false),
+      totalItems: totalItems,
+    );
   }
 
   @override
@@ -42,13 +54,42 @@ class SqliteFavoritesRepository implements FavoritesRepository {
   }
 
   @override
+  Favorite? findByAssistantContent(String assistantContent) {
+    final rows = _database.connection.select(
+      'SELECT * FROM favorites WHERE assistant_content = ? '
+      'ORDER BY created_at DESC, id DESC LIMIT 1;',
+      [assistantContent],
+    );
+    if (rows.isEmpty) return null;
+    return _rowToFavorite(rows.first);
+  }
+
+  @override
+  Set<String> loadFavoritedAssistantContents(
+    Iterable<String> assistantContents,
+  ) {
+    final contents = assistantContents.toSet();
+    // 空集合不生成 IN ()。
+    if (contents.isEmpty) return const {};
+
+    final placeholders = List.filled(contents.length, '?').join(', ');
+    final rows = _database.connection.select(
+      'SELECT DISTINCT assistant_content FROM favorites '
+      'WHERE assistant_content IN ($placeholders);',
+      contents.toList(growable: false),
+    );
+    return {for (final row in rows) row['assistant_content'] as String};
+  }
+
+  @override
   void save(Favorite favorite) {
     _database.connection.execute(
       'INSERT OR REPLACE INTO favorites '
       '(id, collection_id, user_message_content, assistant_content, '
       'assistant_reasoning_content, assistant_model_display_name, source_conversation_id, '
-      'source_conversation_title, source_assistant_message_id, title, created_at) '
-      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);',
+      'source_conversation_title, source_assistant_message_id, title, created_at, '
+      'collection_assigned_at) '
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);',
       [
         favorite.id,
         favorite.collectionId,
@@ -61,23 +102,39 @@ class SqliteFavoritesRepository implements FavoritesRepository {
         favorite.sourceAssistantMessageId,
         favorite.title,
         favorite.createdAt.toIso8601String(),
+        favorite.collectionAssignedAt.toIso8601String(),
       ],
     );
   }
 
   @override
-  void delete(String favoriteId) {
-    _database.connection.execute('DELETE FROM favorites WHERE id = ?;', [
-      favoriteId,
-    ]);
+  int deleteMany(Set<String> favoriteIds) {
+    if (favoriteIds.isEmpty) return 0;
+    return _executeBulkWrite('DELETE FROM favorites WHERE id IN ', favoriteIds);
   }
 
   @override
-  void moveToCollection(String favoriteId, String? collectionId) {
-    _database.connection.execute(
-      'UPDATE favorites SET collection_id = ? WHERE id = ?;',
-      [collectionId, favoriteId],
-    );
+  int moveMany(
+    Set<String> favoriteIds, {
+    required String targetCollectionId,
+    required DateTime assignedAt,
+  }) {
+    if (favoriteIds.isEmpty) return 0;
+    final connection = _database.connection;
+    connection.execute('BEGIN;');
+    try {
+      // 单条 UPDATE 即可覆盖整批 ID，事务只为保证原子语义。
+      final affected = _executeBulkWrite(
+        'UPDATE favorites SET collection_id = ?, collection_assigned_at = ? WHERE id IN ',
+        favoriteIds,
+        leadingParams: [targetCollectionId, assignedAt.toIso8601String()],
+      );
+      connection.execute('COMMIT;');
+      return affected;
+    } catch (_) {
+      connection.execute('ROLLBACK;');
+      rethrow;
+    }
   }
 
   @override
@@ -88,19 +145,31 @@ class SqliteFavoritesRepository implements FavoritesRepository {
     );
   }
 
-  @override
-  bool existsByAssistantContent(String assistantContent) {
-    final rows = _database.connection.select(
-      'SELECT 1 FROM favorites WHERE assistant_content = ? LIMIT 1;',
-      [assistantContent],
+  /// 用受控 placeholders 执行带 IN 子句的写语句，返回受影响行数。
+  int _executeBulkWrite(
+    String prefixSql,
+    Set<String> ids, {
+    List<Object?> leadingParams = const [],
+  }) {
+    final connection = _database.connection;
+    final statement = connection.prepare(
+      '$prefixSql(${List.filled(ids.length, '?').join(', ')});',
     );
-    return rows.isNotEmpty;
+    try {
+      statement.execute([...leadingParams, ...ids]);
+      return connection.select('SELECT changes() AS c;').single['c'] as int;
+    } finally {
+      statement.close();
+    }
   }
 
   Favorite _rowToFavorite(Map<String, dynamic> row) {
     return Favorite(
       id: row['id'] as String,
-      collectionId: row['collection_id'] as String?,
+      collectionId: row['collection_id'] as String,
+      collectionAssignedAt: DateTime.parse(
+        row['collection_assigned_at'] as String,
+      ),
       userMessageContent: row['user_message_content'] as String,
       assistantContent: row['assistant_content'] as String,
       assistantReasoningContent: row['assistant_reasoning_content'] as String,

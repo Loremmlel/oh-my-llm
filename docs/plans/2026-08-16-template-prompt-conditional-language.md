@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- 权威设计为 `docs/superpowers/specs/2026-08-16-template-prompt-conditional-language-design.md`；发现矛盾时停止实现并回到设计评审，不自行扩大语法。
+- 权威设计为 `docs/specs/2026-08-16-template-prompt-conditional-language-design.md`；发现矛盾时停止实现并回到设计评审，不自行扩大语法。
 - 当前基线为 `4215177`、`pubspec.yaml` 版本 `3.51.1+0`；执行前重新读取，不能把这两个值当成长期事实。
 - 模板仍由聊天页手动选择；不得增加 `/模板名`、自动匹配或其他触发入口。
 - 第一版不得实现模板引用、嵌套 `if`、布尔组合、变量间比较、渲染预览、声明但不插值的变量、`|` 转义或完整 `{{...}}` 字面量转义。
@@ -25,7 +25,7 @@
 - 测试只等待 Provider 状态、控制器值或有限动画；不得新增 `Future.delayed(Duration.zero)`、任意固定延时或无条件 `pumpAndSettle()`。
 - 所有测试、分析和诊断日志写入仓库 ignored 的 `logs/`；完整测试固定写 `logs/fltest.log`。
 - 每次提交前格式化全部改动 Dart 文件，暂存后再次执行 `dart format --output=none --set-exit-if-changed`。
-- 每个任务只暂存其列出的文件；保留现有未跟踪文件 `docs/superpowers/plans/2026-08-14-fix-media-thumbnail-blocking-and-video-thumbnail.md`，不得修改或提交。
+- 每个任务只暂存其列出的文件；保留现有未跟踪文件 `docs/plans/2026-08-14-fix-media-thumbnail-blocking-and-video-thumbnail.md`，不得修改或提交。
 - 本计划不授权 push、PR、设备手测或发布；实施结束只报告实际完成的自动化验证。
 
 ### Review dispositions carried into implementation

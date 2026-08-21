@@ -1355,7 +1355,7 @@ git commit -m "refactor(test): 按用途归档共享测试辅助文件"
 - Modify: `AGENTS.md`
 - Modify: `README.md`
 - Verify only: `.github/workflows/ci.yml`
-- Verify only: historical `docs/superpowers/**`、`docs/第一轮审查/**`
+- Verify only: historical `docs/plans/**`、`docs/specs/**`、`docs/第一轮审查/**`
 - Verify: all production/test/tool files and final directory structure
 
 **Interfaces:**

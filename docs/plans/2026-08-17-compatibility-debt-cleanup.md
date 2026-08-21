@@ -4,7 +4,7 @@
 
 **Goal:** 在两个自用终端均已升级到当前版本的前提下，移除已经完成使命的历史兼容层，让当前 state/schema/交换格式成为唯一 canonical baseline，同时不破坏当前 provider、协议、平台与 runtime 兼容能力。
 
-**Architecture:** 按数据风险从低到高分阶段实施。内部状态先收敛到单一事实来源；外部交换格式再断代；SharedPreferences JSON 在证明/canonicalize 旧形状后收紧；SQLite 最后把 v13 提升为 rolling migration floor。每阶段独立提交、独立验证、可单独 revert。设计依据见 `docs/superpowers/specs/2026-08-17-compatibility-debt-cleanup-design.md`。
+**Architecture:** 按数据风险从低到高分阶段实施。内部状态先收敛到单一事实来源；外部交换格式再断代；SharedPreferences JSON 在证明/canonicalize 旧形状后收紧；SQLite 最后把 v13 提升为 rolling migration floor。每阶段独立提交、独立验证、可单独 revert。设计依据见 `docs/specs/2026-08-17-compatibility-debt-cleanup-design.md`。
 
 **Tech Stack:** Flutter 3.44.x, Dart 3.11+, Riverpod 3, raw `sqlite3`, SharedPreferences JSON, PowerShell 7.
 

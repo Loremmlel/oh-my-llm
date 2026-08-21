@@ -9,10 +9,11 @@ import 'package:oh_my_llm/core/constants/model_display_name.dart';
 class Favorite extends Equatable {
   const Favorite({
     required this.id,
+    required this.collectionId,
+    required this.collectionAssignedAt,
     required this.userMessageContent,
     required this.assistantContent,
     required this.createdAt,
-    this.collectionId,
     this.assistantReasoningContent = '',
     this.assistantModelDisplayName = anonymousAssistantModelDisplayName,
     this.sourceConversationId,
@@ -23,8 +24,11 @@ class Favorite extends Equatable {
 
   final String id;
 
-  /// 所属收藏夹 ID；为 null 表示未分类。
-  final String? collectionId;
+  /// 所属收藏夹 ID；收藏必属一个收藏夹，未归类时为系统"未分类"。
+  final String collectionId;
+
+  /// 加入当前收藏夹的时间；移动收藏夹时更新为移动时刻。
+  final DateTime collectionAssignedAt;
 
   /// 收藏时用户消息的文本内容。
   final String userMessageContent;
@@ -63,6 +67,7 @@ class Favorite extends Equatable {
   Favorite copyWith({
     String? id,
     String? collectionId,
+    DateTime? collectionAssignedAt,
     String? userMessageContent,
     String? assistantContent,
     String? assistantReasoningContent,
@@ -72,14 +77,12 @@ class Favorite extends Equatable {
     String? sourceAssistantMessageId,
     String? title,
     DateTime? createdAt,
-    bool clearCollectionId = false,
     bool clearTitle = false,
   }) {
     return Favorite(
       id: id ?? this.id,
-      collectionId: clearCollectionId
-          ? null
-          : collectionId ?? this.collectionId,
+      collectionId: collectionId ?? this.collectionId,
+      collectionAssignedAt: collectionAssignedAt ?? this.collectionAssignedAt,
       userMessageContent: userMessageContent ?? this.userMessageContent,
       assistantContent: assistantContent ?? this.assistantContent,
       assistantReasoningContent:
@@ -100,6 +103,7 @@ class Favorite extends Equatable {
   List<Object?> get props => [
     id,
     collectionId,
+    collectionAssignedAt,
     userMessageContent,
     assistantContent,
     assistantReasoningContent,
