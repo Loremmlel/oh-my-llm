@@ -101,43 +101,6 @@ void main() {
       final ids = repository.loadAll().map((f) => f.id).toList();
       expect(ids, ['fav-3', 'fav-2', 'fav-1']);
     });
-
-    test('loadAll(collectionId) 投影：null 全部 / 空串系统未分类 / 具体 ID 分类', () {
-      collectionsRepo.save(
-        FavoriteCollection(id: 'col-1', name: 'A', createdAt: DateTime(2026)),
-      );
-      collectionsRepo.save(
-        FavoriteCollection(id: 'col-2', name: 'B', createdAt: DateTime(2026)),
-      );
-      repository.save(_makeFavorite(id: 'fav-1', collectionId: 'col-1'));
-      repository.save(_makeFavorite(id: 'fav-2', collectionId: 'col-2'));
-      repository.save(_makeFavorite(id: 'fav-3'));
-
-      // 默认与显式 null 都返回全部
-      expect(repository.loadAll(), hasLength(3));
-      expect(repository.loadAll(collectionId: null), hasLength(3));
-
-      // 空字符串是旧扁平筛选的"未分类"sentinel，映射到系统收藏夹 ID
-      final unclassified = repository.loadAll(collectionId: '');
-      expect(unclassified, hasLength(1));
-      expect(unclassified.first.id, 'fav-3');
-
-      // 系统收藏夹 ID 与空串等价
-      expect(
-        repository
-            .loadAll(
-              collectionId:
-                  AppReservedEntities.uncategorizedFavoriteCollectionId,
-            )
-            .map((f) => f.id),
-        ['fav-3'],
-      );
-
-      // 具体 collectionId 只返回该收藏夹的记录
-      final classified = repository.loadAll(collectionId: 'col-1');
-      expect(classified, hasLength(1));
-      expect(classified.first.id, 'fav-1');
-    });
   });
 
   group('SqliteFavoritesRepository - save & delete', () {

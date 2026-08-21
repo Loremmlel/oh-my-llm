@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
+import 'package:oh_my_llm/features/favorites/presentation/favorite_collection_items_screen.dart';
 import 'package:oh_my_llm/features/favorites/presentation/favorite_collections_screen.dart';
 import 'package:oh_my_llm/features/favorites/presentation/favorite_detail_screen.dart';
 import 'package:oh_my_llm/features/history/presentation/history_screen.dart';
@@ -72,9 +73,15 @@ GoRouter createAppRouter({
           GoRoute(
             path: 'collections/:${AppRouteParameter.collectionId}',
             name: AppRouteName.favoriteCollectionItems,
-            builder: (context, state) => _FavoriteCollectionRoutePlaceholder(
-              collectionId:
+            builder: (context, state) => FavoriteCollectionItemsScreen(
+              routeCollectionId:
                   state.pathParameters[AppRouteParameter.collectionId],
+              routePage: int.tryParse(
+                state.uri.queryParameters[AppRouteParameter.page] ?? '',
+              ),
+              routePageSize: int.tryParse(
+                state.uri.queryParameters[AppRouteParameter.pageSize] ?? '',
+              ),
             ),
           ),
           GoRoute(
@@ -128,20 +135,4 @@ GoRouter createAppRouter({
       return Scaffold(body: Center(child: Text('未找到页面：${state.uri}')));
     },
   );
-}
-
-/// 收藏夹内容路由的落点占位：深链与总览卡片点击都先落到正确路由，
-/// 夹内的分页浏览列表由 favorites feature 的列表页承接后替换此占位。
-class _FavoriteCollectionRoutePlaceholder extends StatelessWidget {
-  const _FavoriteCollectionRoutePlaceholder({required this.collectionId});
-
-  final String? collectionId;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('收藏夹')),
-      body: Center(child: Text(collectionId ?? '')),
-    );
-  }
 }

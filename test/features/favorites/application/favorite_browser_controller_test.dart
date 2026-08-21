@@ -40,8 +40,7 @@ class _FlakyFavoritesRepository implements FavoritesRepository {
   }
 
   @override
-  List<Favorite> loadAll({String? collectionId}) =>
-      _inner.loadAll(collectionId: collectionId);
+  List<Favorite> loadAll() => _inner.loadAll();
 
   @override
   Favorite? loadById(String favoriteId) => _inner.loadById(favoriteId);

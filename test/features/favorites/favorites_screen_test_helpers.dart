@@ -20,32 +20,6 @@ import '../../helpers/test_harness.dart';
 VideoPlayerPlatformBindings _mobileTestBindings() =>
     MobileVideoPlayerBindings(systemUi: FakeMobileVideoSystemUiController());
 
-/// 挂载生产路由下的收藏页面到标准测试环境。
-///
-/// 使用与生产一致的 [createAppRouter]，避免测试维护平行的路由结构。
-/// 若传入 [database] 则使用已有实例（适合预先种子数据的场景），
-/// 否则自动创建内存库。
-Future<AppDatabase> pumpFavoritesScreen(
-  WidgetTester tester, {
-  required SharedPreferences preferences,
-  AppDatabase? database,
-  Size viewportSize = const Size(1440, 1200),
-  String? initialLocation,
-}) {
-  final router = createAppRouter(
-    initialLocation: initialLocation ?? AppDestination.favorites.path,
-    videoPlayerBindingsFactory: _mobileTestBindings,
-  );
-
-  return pumpTestApp(
-    tester,
-    preferences: preferences,
-    database: database,
-    viewportSize: viewportSize,
-    router: router,
-  );
-}
-
 /// 通过 Repository API 写入一条收藏记录。
 ///
 /// 未显式指定 [collectionId] 时归入系统"未分类"收藏夹；
@@ -105,23 +79,76 @@ Future<SharedPreferences> createEmptyPreferences(AppDatabase database) async {
 
 /// 标准收藏页面测试环境：内存 DB、种子数据、挂载生产路由。
 /// [seed] 回调用于预先写入收藏/收藏夹数据，[viewportSize] 控制视口尺寸，
-/// [initialLocation] 支持深链直达子路由。返回 [AppDatabase] 供后续验证使用。
+/// [initialLocation] 支持深链直达子路由，[extraOverrides] 追加 provider
+/// 覆盖（如故障注入仓库）。返回 [AppDatabase] 供后续验证使用。
 Future<AppDatabase> setUpFavoritesScreen(
   WidgetTester tester, {
   Size viewportSize = const Size(1440, 1200),
   void Function(AppDatabase database)? seed,
   String? initialLocation,
+  List<dynamic> extraOverrides = const [],
 }) async {
   final database = AppDatabase.inMemory();
   addTearDown(database.close);
   seed?.call(database);
   final preferences = await createEmptyPreferences(database);
-  await pumpFavoritesScreen(
+  await repumpFavoritesScreen(
     tester,
     preferences: preferences,
     database: database,
     viewportSize: viewportSize,
     initialLocation: initialLocation,
+    extraOverrides: extraOverrides,
   );
   return database;
+}
+
+/// 在已有数据库与偏好实例上重挂收藏页面。
+///
+/// 复用同一 [preferences] 实例是关键：运行时写入的容量等偏好保存在该
+/// 实例中，重挂后可验证持久化恢复语义。[extraOverrides] 覆盖 favorites/
+/// collections 仓库时必须传 [bindFavoritesRepositories] = false，
+/// 避免 composition 生产绑定与测试覆盖重复 override 同一 provider。
+Future<void> repumpFavoritesScreen(
+  WidgetTester tester, {
+  required SharedPreferences preferences,
+  required AppDatabase database,
+  Size viewportSize = const Size(1440, 1200),
+  String? initialLocation,
+  List<dynamic> extraOverrides = const [],
+  bool bindFavoritesRepositories = true,
+}) {
+  return pumpTestApp(
+    tester,
+    preferences: preferences,
+    database: database,
+    viewportSize: viewportSize,
+    router: createAppRouter(
+      initialLocation: initialLocation ?? AppDestination.favorites.path,
+      videoPlayerBindingsFactory: _mobileTestBindings,
+    ),
+    extraOverrides: extraOverrides,
+    bindFavoritesRepositories: bindFavoritesRepositories,
+  );
+}
+
+/// 向指定收藏夹批量写入 [count] 条收藏。
+///
+/// ID 为零填充递增、createdAt 全部同刻：排序契约 created_at DESC + id DESC
+/// 使编号最大的条目排在最前，断言窗口位置时不依赖时间巧合。
+void seedFavoriteItems(
+  AppDatabase database, {
+  required String collectionId,
+  required int count,
+}) {
+  for (var i = 1; i <= count; i++) {
+    final index = '$i'.padLeft(3, '0');
+    seedFavorite(
+      database,
+      id: 'fav-$index',
+      userMessageContent: '问题$index',
+      assistantContent: '回复$index',
+      collectionId: collectionId,
+    );
+  }
 }

@@ -2,12 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/features/chat/application/generation/chat_generation_lifecycle.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
-import 'package:oh_my_llm/features/favorites/application/favorites_controller.dart';
+import 'package:oh_my_llm/features/favorites/data/sqlite_favorites_repository.dart';
 
 import '../../../../helpers/async/widget_test_animation.dart';
 import 'chat_screen_test_helpers.dart';
+
+/// 直接经 repository 统计收藏数量，不依赖浏览窗口投影。
+int _favoriteCount(ProviderContainer container) {
+  return SqliteFavoritesRepository(
+    container.read(appDatabaseProvider),
+  ).loadAll().length;
+}
 
 void registerChatScreenFavoritesTests() {
   testWidgets('chat screen bookmark tap shows add to favorites dialog', (
@@ -27,6 +35,8 @@ void registerChatScreenFavoritesTests() {
       (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
       description: '收藏对话框用例生成完成',
     );
+
+    expect(_favoriteCount(container), 0);
 
     await tester.tap(find.byTooltip('收藏回复'));
     await settleOverlayTransition(tester);
@@ -59,7 +69,7 @@ void registerChatScreenFavoritesTests() {
     await tester.tap(find.widgetWithText(TextButton, '取消'));
     await settleOverlayTransition(tester);
 
-    expect(container.read(favoritesProvider), isEmpty);
+    expect(_favoriteCount(container), 0);
     expect(find.byTooltip('收藏回复'), findsOneWidget);
     expect(find.byTooltip('已收藏'), findsNothing);
   });
@@ -91,14 +101,14 @@ void registerChatScreenFavoritesTests() {
       await tester.tap(find.widgetWithText(FilledButton, '收藏'));
       await settleOverlayTransition(tester);
 
-      expect(container.read(favoritesProvider), hasLength(1));
+      expect(_favoriteCount(container), 1);
       expect(find.byTooltip('已收藏'), findsOneWidget);
 
       // 再次点击直接移除收藏（无确认弹窗），收藏状态同步更新。
       await tester.tap(find.byTooltip('已收藏'));
       await tester.pump();
 
-      expect(container.read(favoritesProvider), isEmpty);
+      expect(_favoriteCount(container), 0);
       expect(find.byTooltip('收藏回复'), findsOneWidget);
       expect(find.byTooltip('已收藏'), findsNothing);
     },
@@ -142,7 +152,11 @@ void registerChatScreenFavoritesTests() {
     expect(find.text('已收藏'), findsOneWidget);
     expect(find.byTooltip('已收藏'), findsOneWidget);
 
-    expect(container.read(favoritesProvider).length, 1);
-    expect(container.read(favoritesProvider).first.collectionId, isNotNull);
+    // 新建夹后收藏归属该新夹：collectionId 为非空且不等于系统夹。
+    final favorites = SqliteFavoritesRepository(
+      container.read(appDatabaseProvider),
+    ).loadAll();
+    expect(favorites, hasLength(1));
+    expect(favorites.single.collectionId, isNotEmpty);
   });
 }

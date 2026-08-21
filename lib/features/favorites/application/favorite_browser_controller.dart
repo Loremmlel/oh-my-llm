@@ -124,6 +124,33 @@ class FavoriteBrowserController extends Notifier<FavoriteBrowserState> {
     );
   }
 
+  /// 翻到指定页；页码乐观写入 state，查询失败时保留目标页码与旧内容，
+  /// 由 UI 呈现错误并通过 [retry] 重查同一窗口。越界由 [_load] 归一。
+  void goToPage(int page) {
+    if (page == state.page && state.isInitialized) return;
+    state = state.copyWith(page: page, isBusy: true);
+    _load(state.collectionId, requestedPage: page, pageSize: state.pageSize);
+  }
+
+  /// 切换每页容量并回到第 1 页；合法容量同步持久化偏好。
+  void setPageSize(int pageSize) {
+    if (!appPageSizeOptions.contains(pageSize)) return;
+    if (pageSize == state.pageSize && state.isInitialized) return;
+    ref.read(favoritesBrowsePageSizeProvider.notifier).save(pageSize);
+    state = state.copyWith(pageSize: pageSize, page: 1, isBusy: true);
+    _load(state.collectionId, requestedPage: 1, pageSize: pageSize);
+  }
+
+  /// 按当前窗口参数重试上次失败的查询。
+  void retry() {
+    state = state.copyWith(isBusy: true);
+    _load(
+      state.collectionId,
+      requestedPage: state.page,
+      pageSize: state.pageSize,
+    );
+  }
+
   /// revision 变化后的刷新：按当前窗口重查，修正归属失效与页码越界。
   void _refresh() {
     if (!state.isInitialized || state.isBusy) return;

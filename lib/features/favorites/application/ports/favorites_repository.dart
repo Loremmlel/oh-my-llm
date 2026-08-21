@@ -10,11 +10,8 @@ final favoritesRepositoryProvider = Provider<FavoritesRepository>((ref) {
 
 /// 收藏记录的读写仓库接口。
 abstract interface class FavoritesRepository {
-  /// 按收藏时间降序返回全部收藏记录，可选按收藏夹筛选。
-  ///
-  /// [collectionId] 为 null 时返回全部；为空串时查询系统"未分类"收藏夹
-  /// （旧扁平筛选契约的临时兼容，Task 10 随 FilterChip 路径一起删除）。
-  List<Favorite> loadAll({String? collectionId});
+  /// 按收藏时间降序返回全部收藏记录。
+  List<Favorite> loadAll();
 
   /// 加载指定收藏夹的一页收藏，按 created_at DESC, id DESC 稳定排序。
   ///

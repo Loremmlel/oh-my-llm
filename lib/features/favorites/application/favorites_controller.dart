@@ -10,23 +10,6 @@ import '../domain/models/collection.dart';
 import '../domain/models/collection_delete_request.dart';
 import '../domain/models/favorite.dart';
 
-/// 旧扁平浏览的过滤条件（Task 10 随 FilterChip 路径一起删除）。
-///
-/// null = 全部，'' = 未分类（repository 内映射到系统收藏夹），其他 = 收藏夹 ID。
-final favoritesFilterProvider =
-    NotifierProvider<FavoritesFilterNotifier, String?>(
-      FavoritesFilterNotifier.new,
-    );
-
-/// 过滤条件状态管理。
-class FavoritesFilterNotifier extends Notifier<String?> {
-  @override
-  String? build() => null;
-
-  /// 切换过滤条件。
-  void setFilter(String? filter) => state = filter;
-}
-
 /// 收藏库 mutation 控制器；state 是全局 revision。
 ///
 /// 独占全部收藏库写操作（add/remove/rename/move/bulk/delete-collection/
@@ -140,20 +123,26 @@ class FavoritesLibraryController extends Notifier<int> {
     state++;
   }
 
-  /// 删除普通收藏夹；默认把内容移入系统"未分类"，归属时间取当前时刻。
+  /// 删除普通收藏夹；未指定去向时把内容移入系统"未分类"。
   ///
-  /// 成功后若最近归类指向被删夹则回退系统夹。
-  void deleteCollection(String collectionId) {
+  /// [disposition] 决定夹内收藏的去向：移动到指定收藏夹，或随收藏夹一并
+  /// 删除。成功后若最近归类指向被删夹则回退系统夹。
+  void deleteCollection(
+    String collectionId, {
+    CollectionDeleteRequest? disposition,
+  }) {
     if (collectionId == AppReservedEntities.uncategorizedFavoriteCollectionId) {
       return;
     }
     _collectionsRepo.delete(
       collectionId,
-      disposition: CollectionDeleteRequest.moveItemsTo(
-        targetCollectionId:
-            AppReservedEntities.uncategorizedFavoriteCollectionId,
-        assignedAt: _now,
-      ),
+      disposition:
+          disposition ??
+          CollectionDeleteRequest.moveItemsTo(
+            targetCollectionId:
+                AppReservedEntities.uncategorizedFavoriteCollectionId,
+            assignedAt: _now,
+          ),
     );
     final lastCollection = ref.read(favoritesLastCollectionProvider);
     if (lastCollection == collectionId) {
@@ -175,14 +164,6 @@ final favoritesLibraryProvider =
     NotifierProvider<FavoritesLibraryController, int>(
       FavoritesLibraryController.new,
     );
-
-/// 旧扁平浏览列表（Task 10 随 FilterChip 路径一起删除）：
-/// watch revision 的只读投影，不再持有独立状态机。
-final favoritesProvider = Provider<List<Favorite>>((ref) {
-  ref.watch(favoritesLibraryProvider);
-  final filter = ref.watch(favoritesFilterProvider);
-  return ref.read(favoritesRepositoryProvider).loadAll(collectionId: filter);
-});
 
 /// 按 ID 读取单条收藏。
 ///

@@ -1,4 +1,3 @@
-import 'package:oh_my_llm/core/constants/app_reserved_entities.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import '../domain/models/favorite.dart';
 import '../domain/models/favorite_page.dart';
@@ -11,20 +10,10 @@ class SqliteFavoritesRepository implements FavoritesRepository {
   final AppDatabase _database;
 
   @override
-  List<Favorite> loadAll({String? collectionId}) {
-    // 空串是旧扁平筛选契约的"未分类"sentinel，v14 起映射到系统收藏夹 ID。
-    if (collectionId != null && collectionId.isEmpty) {
-      collectionId = AppReservedEntities.uncategorizedFavoriteCollectionId;
-    }
-
-    final rows = collectionId == null
-        ? _database.connection.select(
-            'SELECT * FROM favorites ORDER BY created_at DESC;',
-          )
-        : _database.connection.select(
-            'SELECT * FROM favorites WHERE collection_id = ? ORDER BY created_at DESC;',
-            [collectionId],
-          );
+  List<Favorite> loadAll() {
+    final rows = _database.connection.select(
+      'SELECT * FROM favorites ORDER BY created_at DESC;',
+    );
     return rows.map(_rowToFavorite).toList(growable: false);
   }
 

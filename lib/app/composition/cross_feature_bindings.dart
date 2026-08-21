@@ -75,6 +75,7 @@ List<dynamic> appCompositionOverrides({
   bool bindChatConversationRepository = true,
   bool bindMediaLibraryFactory = true,
   bool bindChatGenerationForegroundService = true,
+  bool bindFavoritesRepositories = true,
   TargetPlatform? hostPlatform,
 }) {
   // bootstrap 把既有 effectivePlatform 显式传入；测试 harness 固定传
@@ -165,12 +166,15 @@ List<dynamic> appCompositionOverrides({
           ? AppLayoutDensity.compact
           : AppLayoutDensity.standard,
     ),
-    favoritesRepositoryProvider.overrideWith(
-      (ref) => SqliteFavoritesRepository(ref.watch(appDatabaseProvider)),
-    ),
-    collectionsRepositoryProvider.overrideWith(
-      (ref) => SqliteCollectionsRepository(ref.watch(appDatabaseProvider)),
-    ),
+    // 收藏仓库：测试需要以故障注入装饰器覆盖时由开关排除生产绑定。
+    if (bindFavoritesRepositories) ...[
+      favoritesRepositoryProvider.overrideWith(
+        (ref) => SqliteFavoritesRepository(ref.watch(appDatabaseProvider)),
+      ),
+      collectionsRepositoryProvider.overrideWith(
+        (ref) => SqliteCollectionsRepository(ref.watch(appDatabaseProvider)),
+      ),
+    ],
   ];
 }
 
