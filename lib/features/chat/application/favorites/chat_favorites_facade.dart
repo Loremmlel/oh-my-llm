@@ -2,10 +2,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Chat 侧所需的收藏夹选项快照。
 final class ChatFavoriteCollectionOption {
-  const ChatFavoriteCollectionOption({required this.id, required this.name});
+  const ChatFavoriteCollectionOption({
+    required this.id,
+    required this.name,
+    this.isSystem = false,
+  });
 
   final String id;
   final String name;
+
+  /// 是否为系统收藏夹（如"未分类"），用于对话框内区分图标。
+  final bool isSystem;
 }
 
 /// Chat 侧传递的收藏内容及来源元数据。

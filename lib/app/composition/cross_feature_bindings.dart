@@ -209,6 +209,7 @@ final class _CompositionChatFavoritesFacade implements ChatFavoritesFacade {
           ChatFavoriteCollectionOption(
             id: collection.id,
             name: collection.name,
+            isSystem: collection.isSystem,
           ),
       ],
       defaultCollectionId: _ref.read(favoritesLastCollectionProvider),

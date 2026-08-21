@@ -31,6 +31,7 @@ Favorite seedFavorite(
   required String assistantContent,
   String assistantReasoningContent = '',
   String assistantModelDisplayName = '匿名模型',
+  String? title,
   String? collectionId,
   DateTime? collectionAssignedAt,
   String? sourceConversationId,
@@ -41,6 +42,7 @@ Favorite seedFavorite(
   final resolvedCreatedAt = createdAt ?? DateTime(2026, 4, 28);
   final favorite = Favorite(
     id: id,
+    title: title,
     userMessageContent: userMessageContent,
     assistantContent: assistantContent,
     assistantReasoningContent: assistantReasoningContent,

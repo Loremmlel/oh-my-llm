@@ -3,13 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:oh_my_llm/app/navigation/app_destination.dart';
-import 'package:oh_my_llm/core/widgets/app_empty_state.dart';
+import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
+import 'package:oh_my_llm/core/widgets/dialogs/app_confirm_dialog.dart';
 import '../application/collections_controller.dart';
 import '../application/favorite_source_conversation_command.dart';
 import '../application/favorites_controller.dart';
-import '../domain/models/collection.dart';
 import '../domain/models/favorite.dart';
-import 'package:oh_my_llm/core/widgets/dialogs/app_confirm_dialog.dart';
+import 'widgets/dialogs/move_favorites_dialog.dart';
 import 'widgets/favorite_card.dart';
 
 /// 单条收藏的详情页，展示完整对话内容。
@@ -43,39 +43,106 @@ class _FavoriteDetailScreenState extends ConsumerState<FavoriteDetailScreen> {
       );
     }
 
+    final theme = Theme.of(context);
     final collections = ref.watch(collectionsProvider);
     final collectionById = {for (final c in collections) c.id: c};
     final collection = collectionById[favorite.collectionId];
+
+    final hasSource = (favorite.sourceConversationId ?? '').trim().isNotEmpty;
+    final sourceTitle = favorite.sourceConversationTitle?.trim() ?? '';
 
     return Scaffold(
       appBar: AppBar(
         title: Text(favorite.title ?? '收藏详情'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.edit_note_rounded),
-            tooltip: '重命名',
-            onPressed: () => _showRenameDialog(context, favorite),
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete_outline_rounded),
-            tooltip: '删除收藏',
-            onPressed: () => _confirmDelete(context, favorite),
+          // 重命名/移动/删除收进溢出菜单，保持 AppBar 轻量。
+          MenuAnchor(
+            menuChildren: [
+              MenuItemButton(
+                onPressed: () => _showRenameDialog(context, favorite),
+                child: const Text('重命名'),
+              ),
+              MenuItemButton(
+                onPressed: () => _showMoveDialog(context, favorite),
+                child: const Text('移动到收藏夹'),
+              ),
+              MenuItemButton(
+                style: MenuItemButton.styleFrom(
+                  foregroundColor: theme.colorScheme.error,
+                ),
+                onPressed: () => _confirmDelete(context, favorite),
+                child: const Text('删除'),
+              ),
+            ],
+            builder: (context, controller, child) => IconButton(
+              onPressed: () => controller.open(),
+              tooltip: '更多操作',
+              icon: const Icon(Icons.more_vert),
+            ),
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-        child: FavoriteCard(
-          favorite: favorite,
-          collectionName: collection?.name,
-          onDeletePressed: () => _confirmDelete(context, favorite),
-          onMoveToCollection: () =>
-              _showMoveDialog(context, favorite, collections),
-          onGoToConversation: favorite.sourceConversationId != null
-              ? () => _goToConversation(context, favorite)
-              : null,
+      body: Center(
+        // 宽屏限宽可读宽度，窄屏由 ConstrainedBox 自然占满父宽。
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            maxWidth: AppContentWidths.readable,
+          ),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // ── 来源对话主操作 ────────────────────────────────────────
+                FilledButton.tonalIcon(
+                  onPressed: hasSource
+                      ? () => _goToConversation(context, favorite)
+                      : null,
+                  icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                  label: const Text('查看来源对话'),
+                ),
+                if (!hasSource)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      '这条收藏没有关联的来源对话。',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  )
+                else if (sourceTitle.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      sourceTitle,
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                const SizedBox(height: 12),
+                FavoriteCard(
+                  favorite: favorite,
+                  collectionName: collection?.name,
+                  onCollectionTap: collection == null
+                      ? null
+                      : () => _openCollection(collection.id),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
+    );
+  }
+
+  void _openCollection(String collectionId) {
+    context.pushNamed(
+      AppRouteName.favoriteCollectionItems,
+      pathParameters: {AppRouteParameter.collectionId: collectionId},
     );
   }
 
@@ -125,61 +192,17 @@ class _FavoriteDetailScreenState extends ConsumerState<FavoriteDetailScreen> {
         .rename(favorite.id, trimmed.isEmpty ? null : trimmed);
   }
 
-  Future<void> _showMoveDialog(
-    BuildContext context,
-    Favorite favorite,
-    List<FavoriteCollection> collections,
-  ) async {
-    // "未分类"来自真实系统收藏夹行，不再渲染手写 sentinel 选项。
-    String? selectedCollectionId = favorite.collectionId;
-
-    final result = await showDialog<String?>(
+  Future<void> _showMoveDialog(BuildContext context, Favorite favorite) async {
+    final targetCollectionId = await showDialog<String>(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: const Text('移动到收藏夹'),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 240),
-              child: ListView.builder(
-                shrinkWrap: true,
-                itemCount: collections.length,
-                itemBuilder: (context, index) {
-                  final collection = collections[index];
-                  return _MoveCollectionTile(
-                    label: collection.name,
-                    icon: collection.isSystem
-                        ? Icons.folder_special_outlined
-                        : Icons.folder_outlined,
-                    selected: selectedCollectionId == collection.id,
-                    onTap: () =>
-                        setState(() => selectedCollectionId = collection.id),
-                  );
-                },
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: selectedCollectionId != favorite.collectionId
-                  ? () => Navigator.of(context).pop(selectedCollectionId)
-                  : null,
-              child: const Text('移动'),
-            ),
-          ],
-        ),
-      ),
+      builder: (context) => const MoveFavoritesDialog(),
     );
+    if (targetCollectionId == null || !mounted) return;
 
-    if (result == null) return;
+    // 移动成功后留在详情页；所属收藏夹随 revision 重读自动更新。
     ref.read(favoritesLibraryProvider.notifier).moveMany({
       favorite.id,
-    }, targetCollectionId: result);
+    }, targetCollectionId: targetCollectionId);
   }
 
   Future<void> _confirmDelete(BuildContext context, Favorite favorite) async {
@@ -221,84 +244,27 @@ class _FavoriteDetailRecoveryPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final router = GoRouter.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('收藏详情')),
-      body: AppEmptyState(
-        icon: Icons.bookmark_remove_rounded,
-        title: title,
-        description: description,
-        action: FilledButton(
-          onPressed: () {
-            if (router.canPop()) {
-              router.pop();
-            } else {
-              router.go(AppDestination.favorites.path);
-            }
-          },
-          child: const Text('返回收藏列表'),
-        ),
-      ),
-    );
-  }
-}
-
-/// 移动收藏夹对话框中的选项行。
-class _MoveCollectionTile extends StatelessWidget {
-  const _MoveCollectionTile({
-    required this.label,
-    required this.icon,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final IconData icon;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Material(
-      color: selected
-          ? theme.colorScheme.secondaryContainer
-          : Colors.transparent,
-      borderRadius: BorderRadius.circular(8),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(8),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(
-            children: [
-              Icon(
-                icon,
-                size: 20,
-                color: selected
-                    ? theme.colorScheme.onSecondaryContainer
-                    : theme.colorScheme.onSurfaceVariant,
+      appBar: AppBar(title: Text(title)),
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.bookmark_border_rounded,
+              size: 48,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: 12),
+            Text(title, style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Text(
+              description,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  label,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: selected
-                        ? theme.colorScheme.onSecondaryContainer
-                        : null,
-                    fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-                  ),
-                ),
-              ),
-              if (selected)
-                Icon(
-                  Icons.check_rounded,
-                  size: 18,
-                  color: theme.colorScheme.onSecondaryContainer,
-                ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
