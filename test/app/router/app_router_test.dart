@@ -115,7 +115,82 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('从收藏列表点击 item 进入详情，返回回到列表', (tester) async {
+  testWidgets('旧详情 URL 自动重定向到新的 item 路由并显示内容', (tester) async {
+    final db = AppDatabase.inMemory();
+    addTearDown(db.close);
+    seedFavorite(
+      db,
+      id: 'fav-legacy',
+      userMessageContent: '旧链接的问题',
+      assistantContent: '旧链接的回复',
+    );
+    final prefs = await _testPrefs(db);
+
+    final router = createAppRouter(
+      initialLocation: '/favorites/fav-legacy',
+      videoPlayerBindingsFactory: _mobileTestBindings,
+    );
+    await pumpTestApp(tester, preferences: prefs, database: db, router: router);
+
+    expect(
+      router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
+      '/favorites/items/fav-legacy',
+    );
+    expect(find.text('旧链接的问题'), findsOneWidget);
+  });
+
+  testWidgets('收藏夹与条目静态段不被旧的动态详情参数吞掉', (tester) async {
+    final db = AppDatabase.inMemory();
+    addTearDown(db.close);
+    final prefs = await _testPrefs(db);
+
+    for (final location in ['/favorites/collections', '/favorites/items']) {
+      final router = createAppRouter(
+        initialLocation: location,
+        videoPlayerBindingsFactory: _mobileTestBindings,
+      );
+      await pumpTestApp(
+        tester,
+        preferences: prefs,
+        database: db,
+        router: router,
+      );
+
+      // 保留前缀回到收藏总览网格，而不是把 "collections"/"items"
+      // 当作收藏 ID 拼成畸形详情 URL。
+      expect(
+        router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
+        AppDestination.favorites.path,
+        reason: 'location=$location',
+      );
+      expect(find.text('未分类'), findsOneWidget, reason: 'location=$location');
+    }
+  });
+
+  testWidgets('collection 深链命中收藏夹路由而不落错误页', (tester) async {
+    final db = AppDatabase.inMemory();
+    addTearDown(db.close);
+    seedCollection(db, id: 'col-deep', name: '深链收藏夹');
+    final prefs = await _testPrefs(db);
+
+    final router = createAppRouter(
+      initialLocation: '/favorites/collections/col-deep?page=2&pageSize=10',
+      videoPlayerBindingsFactory: _mobileTestBindings,
+    );
+    await pumpTestApp(tester, preferences: prefs, database: db, router: router);
+
+    expect(
+      router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
+      '/favorites/collections/col-deep',
+    );
+    expect(
+      router.routerDelegate.state.uri.queryParameters[AppRouteParameter.page],
+      '2',
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('新 item 路由深链直达详情并可返回收藏总览', (tester) async {
     final db = AppDatabase.inMemory();
     addTearDown(db.close);
     seedFavorite(
@@ -127,19 +202,14 @@ void main() {
     final prefs = await _testPrefs(db);
 
     final router = createAppRouter(
-      initialLocation: AppDestination.favorites.path,
+      initialLocation: '${AppDestination.favorites.path}/items/fav-push',
       videoPlayerBindingsFactory: _mobileTestBindings,
     );
     await pumpTestApp(tester, preferences: prefs, database: db, router: router);
 
-    await tester.tap(find.text('列表进入的问题'));
-    await settleRouteTransition(tester);
-
-    // push 是 imperative 路由，currentConfiguration.uri 只反映非 push 的
-    // 顶层匹配，故用最后匹配位置的 matchedLocation 断言进入详情。
     expect(
       router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
-      '/favorites/fav-push',
+      '/favorites/items/fav-push',
     );
     expect(find.text('列表进入的回复'), findsOneWidget);
 
@@ -148,16 +218,40 @@ void main() {
     await settleRouteTransition(tester);
 
     expect(router.routerDelegate.currentConfiguration.uri.path, '/favorites');
-    // pop 后 uri 同样恒为 /favorites（uri 排除 imperative match），
-    // 用最后匹配位置的 matchedLocation 验证确实回到列表页。
     expect(
       router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
       '/favorites',
     );
-    expect(find.text('列表进入的问题'), findsOneWidget);
-    // 详情页专属 AppBar 标题不再出现，证明详情已出栈回到列表页。
-    // 不用回复文本区分：回复摘要同样会出现在列表条目中。
-    expect(find.text('收藏详情'), findsNothing);
+    // 返回的是收藏总览网格，系统未分类卡片可见。
+    expect(find.text('未分类'), findsOneWidget);
+  });
+
+  testWidgets('从收藏总览点击收藏夹卡片进入对应收藏夹路由', (tester) async {
+    final db = AppDatabase.inMemory();
+    addTearDown(db.close);
+    seedFavorite(
+      db,
+      id: 'fav-in-sys',
+      userMessageContent: '系统夹的问题',
+      assistantContent: '系统夹的回复',
+    );
+    seedCollection(db, id: 'col-grid', name: '网格收藏夹');
+    final prefs = await _testPrefs(db);
+
+    final router = createAppRouter(
+      initialLocation: AppDestination.favorites.path,
+      videoPlayerBindingsFactory: _mobileTestBindings,
+    );
+    await pumpTestApp(tester, preferences: prefs, database: db, router: router);
+
+    await tester.tap(find.text('未分类'));
+    await settleRouteTransition(tester);
+
+    expect(
+      router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
+      '/favorites/collections/__uncategorized_favorites__',
+    );
+    expect(find.text('未找到页面'), findsNothing);
   });
 
   testWidgets('pushNamed(mediaImage) 后 URI 携带 path，pop 回 /sync', (

@@ -1,23 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/app/navigation/app_destination.dart';
+import 'package:oh_my_llm/app/router/app_router.dart';
 import 'package:oh_my_llm/core/constants/app_reserved_entities.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/favorites/data/sqlite_collections_repository.dart';
 import 'package:oh_my_llm/features/favorites/data/sqlite_favorites_repository.dart';
 import 'package:oh_my_llm/features/favorites/domain/models/collection.dart';
 import 'package:oh_my_llm/features/favorites/domain/models/favorite.dart';
-import 'package:oh_my_llm/features/favorites/presentation/favorite_detail_screen.dart';
-import 'package:oh_my_llm/features/favorites/presentation/favorites_screen.dart';
+import 'package:oh_my_llm/features/media/presentation/pages/video_player_platform_bindings.dart';
 
+import '../../features/media/helpers/fake_video_player_platform_bindings.dart';
 import '../../helpers/fixtures.dart';
 import '../../helpers/test_harness.dart';
 
-/// 挂载 FavoritesScreen 到标准测试环境。
+/// 测试用的视频 bindings 工厂：显式注入 Fake，禁止依赖宿主 Windows 平台。
+VideoPlayerPlatformBindings _mobileTestBindings() =>
+    MobileVideoPlayerBindings(systemUi: FakeMobileVideoSystemUiController());
+
+/// 挂载生产路由下的收藏页面到标准测试环境。
 ///
+/// 使用与生产一致的 [createAppRouter]，避免测试维护平行的路由结构。
 /// 若传入 [database] 则使用已有实例（适合预先种子数据的场景），
 /// 否则自动创建内存库。
 Future<AppDatabase> pumpFavoritesScreen(
@@ -26,32 +31,10 @@ Future<AppDatabase> pumpFavoritesScreen(
   AppDatabase? database,
   Size viewportSize = const Size(1440, 1200),
   String? initialLocation,
-}) async {
-  final router = GoRouter(
+}) {
+  final router = createAppRouter(
     initialLocation: initialLocation ?? AppDestination.favorites.path,
-    routes: [
-      GoRoute(
-        path: AppDestination.favorites.path,
-        name: AppDestination.favorites.name,
-        builder: (context, state) => const FavoritesScreen(),
-      ),
-      GoRoute(
-        path: '/favorites/:favoriteId',
-        name: AppRouteName.favoriteDetail,
-        builder: (context, state) => FavoriteDetailScreen(
-          favoriteId: state.pathParameters[AppRouteParameter.favoriteId],
-        ),
-      ),
-      GoRoute(
-        path: AppDestination.chat.path,
-        builder: (context, state) =>
-            const Scaffold(body: Center(child: Text('聊天落点'))),
-      ),
-      GoRoute(
-        path: AppDestination.settings.path,
-        builder: (context, state) => const SizedBox.shrink(),
-      ),
-    ],
+    videoPlayerBindingsFactory: _mobileTestBindings,
   );
 
   return pumpTestApp(
@@ -120,13 +103,14 @@ Future<SharedPreferences> createEmptyPreferences(AppDatabase database) async {
   return TestFixtures.seedPreferences(database: database);
 }
 
-/// 标准收藏页面测试环境：内存 DB、种子数据、挂载 FavoritesScreen。
-/// [seed] 回调用于预先写入收藏/收藏夹数据，[viewportSize] 控制视口尺寸。
-/// 返回 [AppDatabase] 供后续验证使用。
+/// 标准收藏页面测试环境：内存 DB、种子数据、挂载生产路由。
+/// [seed] 回调用于预先写入收藏/收藏夹数据，[viewportSize] 控制视口尺寸，
+/// [initialLocation] 支持深链直达子路由。返回 [AppDatabase] 供后续验证使用。
 Future<AppDatabase> setUpFavoritesScreen(
   WidgetTester tester, {
   Size viewportSize = const Size(1440, 1200),
   void Function(AppDatabase database)? seed,
+  String? initialLocation,
 }) async {
   final database = AppDatabase.inMemory();
   addTearDown(database.close);
@@ -137,6 +121,7 @@ Future<AppDatabase> setUpFavoritesScreen(
     preferences: preferences,
     database: database,
     viewportSize: viewportSize,
+    initialLocation: initialLocation,
   );
   return database;
 }

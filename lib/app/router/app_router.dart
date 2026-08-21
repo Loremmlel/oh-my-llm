@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
+import 'package:oh_my_llm/features/favorites/presentation/favorite_collections_screen.dart';
 import 'package:oh_my_llm/features/favorites/presentation/favorite_detail_screen.dart';
-import 'package:oh_my_llm/features/favorites/presentation/favorites_screen.dart';
 import 'package:oh_my_llm/features/history/presentation/history_screen.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/media_route_pages.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/video_player_platform_bindings.dart';
@@ -16,8 +16,8 @@ import '../navigation/app_destination.dart';
 /// 应用顶层路由配置。
 ///
 /// 以 GoRouter 管理顶层页面与子页面跳转。顶层保持平铺 GoRoute；
-/// 收藏详情是 favorites 的 child，经 pushNamed 进入、pop 回到列表。
-/// 初始落地页为聊天页。
+/// 收藏浏览为三级结构：总览网格 -> 收藏夹内容 -> 收藏详情，详情经
+/// pushNamed 进入、pop 回到上一级。初始落地页为聊天页。
 final appRouterProvider = Provider<GoRouter>((ref) {
   final router = createAppRouter(
     videoPlayerBindingsFactory: createAppVideoPlayerBindingsFactory(),
@@ -67,14 +67,35 @@ GoRouter createAppRouter({
       GoRoute(
         path: AppDestination.favorites.path,
         name: AppDestination.favorites.name,
-        builder: (context, state) => const FavoritesScreen(),
+        builder: (context, state) => const FavoriteCollectionsScreen(),
         routes: [
           GoRoute(
-            path: ':favoriteId',
-            name: AppRouteName.favoriteDetail,
+            path: 'collections/:${AppRouteParameter.collectionId}',
+            name: AppRouteName.favoriteCollectionItems,
+            builder: (context, state) => _FavoriteCollectionRoutePlaceholder(
+              collectionId:
+                  state.pathParameters[AppRouteParameter.collectionId],
+            ),
+          ),
+          GoRoute(
+            path: 'items/:${AppRouteParameter.favoriteId}',
+            name: AppRouteName.favoriteItemDetail,
             builder: (context, state) => FavoriteDetailScreen(
               favoriteId: state.pathParameters[AppRouteParameter.favoriteId],
             ),
+          ),
+          // 旧版扁平详情 URL 的兼容入口：必须排在静态 collections/items
+          // 之后，且保留段直接回总览，避免被解析成畸形收藏 ID。
+          GoRoute(
+            path: ':${AppRouteParameter.favoriteId}',
+            redirect: (context, state) {
+              final favoriteId =
+                  state.pathParameters[AppRouteParameter.favoriteId] ?? '';
+              if (favoriteId == 'collections' || favoriteId == 'items') {
+                return AppDestination.favorites.path;
+              }
+              return '${AppDestination.favorites.path}/items/$favoriteId';
+            },
           ),
         ],
       ),
@@ -107,4 +128,20 @@ GoRouter createAppRouter({
       return Scaffold(body: Center(child: Text('未找到页面：${state.uri}')));
     },
   );
+}
+
+/// 收藏夹内容路由的落点占位：深链与总览卡片点击都先落到正确路由，
+/// 夹内的分页浏览列表由 favorites feature 的列表页承接后替换此占位。
+class _FavoriteCollectionRoutePlaceholder extends StatelessWidget {
+  const _FavoriteCollectionRoutePlaceholder({required this.collectionId});
+
+  final String? collectionId;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('收藏夹')),
+      body: Center(child: Text(collectionId ?? '')),
+    );
+  }
 }

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+
+import 'package:oh_my_llm/app/navigation/app_destination.dart';
 
 import '../../helpers/async/widget_test_animation.dart';
 import 'favorites_screen_test_helpers.dart';
@@ -10,6 +13,7 @@ void registerFavoriteDetailScreenTests() {
   ) async {
     await setUpFavoritesScreen(
       tester,
+      initialLocation: '/favorites/items/fav-detail',
       seed: (db) {
         seedFavorite(
           db,
@@ -20,9 +24,6 @@ void registerFavoriteDetailScreenTests() {
         );
       },
     );
-
-    await tester.tap(find.textContaining('这是完整的用户'));
-    await settleRouteTransition(tester);
 
     expect(find.text('收藏详情'), findsOneWidget);
     expect(find.text('这是完整的用户消息内容，用于详情测试'), findsOneWidget);
@@ -35,6 +36,7 @@ void registerFavoriteDetailScreenTests() {
   ) async {
     await setUpFavoritesScreen(
       tester,
+      initialLocation: '/favorites/items/fav-with-source',
       seed: (db) {
         seedFavorite(
           db,
@@ -47,15 +49,17 @@ void registerFavoriteDetailScreenTests() {
       },
     );
 
-    await tester.tap(find.text('有来源的问题'));
-    await settleRouteTransition(tester);
-
     expect(find.text('原始对话'), findsOneWidget);
+    final router = GoRouter.of(tester.element(find.text('原始对话')));
 
     await tester.tap(find.text('原始对话'));
     await settleRouteTransition(tester);
 
-    expect(find.text('聊天落点'), findsOneWidget);
+    // 生产路由下聊天页是真实 ChatScreen，用路由位置断言跳转成功。
+    expect(
+      router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
+      AppDestination.chat.path,
+    );
   });
 
   testWidgets('favorites detail hides source metadata when source is absent', (
@@ -63,6 +67,7 @@ void registerFavoriteDetailScreenTests() {
   ) async {
     await setUpFavoritesScreen(
       tester,
+      initialLocation: '/favorites/items/fav-no-source',
       seed: (db) {
         seedFavorite(
           db,
@@ -73,9 +78,6 @@ void registerFavoriteDetailScreenTests() {
       },
     );
 
-    await tester.tap(find.text('无来源的问题'));
-    await settleRouteTransition(tester);
-
     expect(find.text('原始对话'), findsNothing);
   });
 
@@ -85,6 +87,7 @@ void registerFavoriteDetailScreenTests() {
     await setUpFavoritesScreen(
       tester,
       viewportSize: const Size(390, 844),
+      initialLocation: '/favorites/items/fav-mobile-overflow',
       seed: (db) {
         seedFavorite(
           db,
@@ -99,9 +102,6 @@ void registerFavoriteDetailScreenTests() {
       },
     );
 
-    await tester.tap(find.textContaining('移动端溢出回归测试'));
-    await settleRouteTransition(tester);
-
     expect(find.text('收藏详情'), findsOneWidget);
     // 回归测试：防止窄屏下收藏详情溢出。
     // takeException() 仅捕获当帧异常，若 Flutter 溢出处理机制变更需更新。
@@ -113,6 +113,7 @@ void registerFavoriteDetailScreenTests() {
   ) async {
     await setUpFavoritesScreen(
       tester,
+      initialLocation: '/favorites/items/fav-to-delete',
       seed: (db) {
         seedFavorite(
           db,
@@ -122,9 +123,6 @@ void registerFavoriteDetailScreenTests() {
         );
       },
     );
-
-    await tester.tap(find.text('要删除的问题'));
-    await settleRouteTransition(tester);
 
     expect(find.text('收藏详情'), findsOneWidget);
 
@@ -136,7 +134,8 @@ void registerFavoriteDetailScreenTests() {
     await settleRouteTransition(tester);
 
     expect(find.text('收藏详情'), findsNothing);
-    expect(find.text('暂无收藏'), findsOneWidget);
+    // 删除后返回收藏总览网格，系统未分类卡片仍在。
+    expect(find.text('未分类'), findsOneWidget);
   });
 
   testWidgets('favorites detail shows reasoning content when present', (
@@ -144,6 +143,7 @@ void registerFavoriteDetailScreenTests() {
   ) async {
     await setUpFavoritesScreen(
       tester,
+      initialLocation: '/favorites/items/fav-reasoning',
       seed: (db) {
         seedFavorite(
           db,
@@ -154,9 +154,6 @@ void registerFavoriteDetailScreenTests() {
         );
       },
     );
-
-    await tester.tap(find.text('有推理的问题'));
-    await settleRouteTransition(tester);
 
     expect(find.text('深度思考'), findsOneWidget);
 
@@ -172,6 +169,7 @@ void registerFavoriteDetailScreenTests() {
   ) async {
     await setUpFavoritesScreen(
       tester,
+      initialLocation: '/favorites/items/fav-uncategorized',
       seed: (db) {
         seedFavorite(
           db,
@@ -182,9 +180,6 @@ void registerFavoriteDetailScreenTests() {
         seedCollection(db, id: 'col-1', name: '技术收藏');
       },
     );
-
-    await tester.tap(find.text('未分类的收藏问题'));
-    await settleRouteTransition(tester);
 
     expect(find.text('未分类'), findsOneWidget);
 
@@ -201,6 +196,7 @@ void registerFavoriteDetailScreenTests() {
   ) async {
     await setUpFavoritesScreen(
       tester,
+      initialLocation: '/favorites/items/fav-no-reasoning',
       seed: (db) {
         seedFavorite(
           db,
@@ -211,9 +207,6 @@ void registerFavoriteDetailScreenTests() {
         );
       },
     );
-
-    await tester.tap(find.text('无推理的问题'));
-    await settleRouteTransition(tester);
 
     expect(find.text('无推理的回复'), findsOneWidget);
     expect(find.text('深度思考'), findsNothing);
