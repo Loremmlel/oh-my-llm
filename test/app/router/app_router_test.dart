@@ -103,7 +103,7 @@ void main() {
     );
     final prefs = await _testPrefs(db);
     // 通过 repository API 删除，模拟记录已被移除。
-    SqliteFavoritesRepository(db).delete('fav-deleted');
+    SqliteFavoritesRepository(db).deleteMany({'fav-deleted'});
 
     final router = createAppRouter(
       initialLocation: '/favorites/fav-deleted',

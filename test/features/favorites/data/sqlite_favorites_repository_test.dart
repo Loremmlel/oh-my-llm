@@ -176,14 +176,14 @@ void main() {
 
     test('delete 后记录不再出现', () {
       repository.save(_makeFavorite(id: 'fav-1'));
-      repository.delete('fav-1');
+      repository.deleteMany({'fav-1'});
 
       expect(repository.loadAll(), isEmpty);
     });
   });
 
-  group('SqliteFavoritesRepository - moveToCollection', () {
-    test('moveToCollection 更新归属并刷新归属时间', () {
+  group('SqliteFavoritesRepository - 单条移动（moveMany 包装）', () {
+    test('moveMany 更新归属并刷新归属时间，移回系统未分类', () {
       collectionsRepo.save(
         FavoriteCollection(id: 'col-1', name: 'A', createdAt: DateTime(2026)),
       );
@@ -192,9 +192,9 @@ void main() {
       );
       repository.save(_makeFavorite(id: 'fav-1', collectionId: 'col-1'));
 
-      repository.moveToCollection(
-        'fav-1',
-        'col-2',
+      repository.moveMany(
+        {'fav-1'},
+        targetCollectionId: 'col-2',
         assignedAt: DateTime(2026, 7, 1),
       );
       final moved = repository.loadById('fav-1')!;
@@ -203,9 +203,10 @@ void main() {
       expect(moved.createdAt, DateTime(2026, 1, 1));
 
       // 移回系统"未分类"收藏夹。
-      repository.moveToCollection(
-        'fav-1',
-        AppReservedEntities.uncategorizedFavoriteCollectionId,
+      repository.moveMany(
+        {'fav-1'},
+        targetCollectionId:
+            AppReservedEntities.uncategorizedFavoriteCollectionId,
         assignedAt: DateTime(2026, 7, 2),
       );
       final back = repository.loadById('fav-1')!;
@@ -217,15 +218,15 @@ void main() {
     });
   });
 
-  group('SqliteFavoritesRepository - existsByAssistantContent', () {
-    test('existsByAssistantContent 覆盖未收藏、已收藏与删除后', () {
-      expect(repository.existsByAssistantContent('某段精彩回答'), isFalse);
+  group('SqliteFavoritesRepository - findByAssistantContent', () {
+    test('findByAssistantContent 覆盖未收藏、已收藏与删除后', () {
+      expect(repository.findByAssistantContent('某段精彩回答'), isNull);
 
       repository.save(_makeFavorite(id: 'fav-1', assistantContent: '某段精彩回答'));
-      expect(repository.existsByAssistantContent('某段精彩回答'), isTrue);
+      expect(repository.findByAssistantContent('某段精彩回答'), isNotNull);
 
-      repository.delete('fav-1');
-      expect(repository.existsByAssistantContent('某段精彩回答'), isFalse);
+      repository.deleteMany({'fav-1'});
+      expect(repository.findByAssistantContent('某段精彩回答'), isNull);
     });
   });
 
@@ -284,6 +285,227 @@ void main() {
       expect(loaded.createdAt, DateTime(2026, 1, 1));
 
       expect(repository.loadById('missing-id'), isNull);
+    });
+  });
+
+  group('SqliteFavoritesRepository - loadPage', () {
+    /// 写入 [count] 条系统夹收藏，createdAt 逐条递增。
+    void seedSystemFavorites(int count, {String prefix = 'fav'}) {
+      for (var i = 1; i <= count; i++) {
+        repository.save(
+          _makeFavorite(
+            id: '$prefix-$i',
+            createdAt: DateTime(2026, 1, 1).add(Duration(minutes: i)),
+          ),
+        );
+      }
+    }
+
+    test('空收藏夹返回零总数与空页', () {
+      final page = repository.loadPage(
+        collectionId: AppReservedEntities.uncategorizedFavoriteCollectionId,
+        limit: 20,
+        offset: 0,
+      );
+
+      expect(page.items, isEmpty);
+      expect(page.totalItems, 0);
+    });
+
+    test('单条收藏返回一页且总数为 1', () {
+      seedSystemFavorites(1);
+
+      final page = repository.loadPage(
+        collectionId: AppReservedEntities.uncategorizedFavoriteCollectionId,
+        limit: 20,
+        offset: 0,
+      );
+
+      expect(page.items.map((f) => f.id), ['fav-1']);
+      expect(page.totalItems, 1);
+    });
+
+    test('21 条按容量 20 分页：第 1 页取最新 20 条且总数正确', () {
+      seedSystemFavorites(21);
+
+      final page = repository.loadPage(
+        collectionId: AppReservedEntities.uncategorizedFavoriteCollectionId,
+        limit: 20,
+        offset: 0,
+      );
+
+      expect(page.items, hasLength(20));
+      // created_at DESC：最新条目在前。
+      expect(page.items.first.id, 'fav-21');
+      expect(page.items.last.id, 'fav-2');
+      expect(page.totalItems, 21);
+    });
+
+    test('51 条连续翻页无重复无遗漏，末页补齐剩余条目', () {
+      seedSystemFavorites(51);
+
+      final seen = <String>[];
+      var offset = 0;
+      while (true) {
+        final page = repository.loadPage(
+          collectionId: AppReservedEntities.uncategorizedFavoriteCollectionId,
+          limit: 20,
+          offset: offset,
+        );
+        if (page.items.isEmpty) break;
+        seen.addAll(page.items.map((f) => f.id));
+        offset += 20;
+      }
+
+      expect(seen, hasLength(51));
+      expect(seen.toSet(), hasLength(51));
+      // 覆盖全部 ID 且顺序与全局排序一致。
+      expect(seen, [for (var i = 51; i >= 1; i--) 'fav-$i']);
+    });
+
+    test('相同 createdAt 时按 id DESC 稳定 tie-break', () {
+      for (final id in ['fav-a', 'fav-b', 'fav-c']) {
+        repository.save(_makeFavorite(id: id, createdAt: DateTime(2026)));
+      }
+
+      final page = repository.loadPage(
+        collectionId: AppReservedEntities.uncategorizedFavoriteCollectionId,
+        limit: 20,
+        offset: 0,
+      );
+
+      expect(page.items.map((f) => f.id), ['fav-c', 'fav-b', 'fav-a']);
+    });
+
+    test('只返回指定收藏夹的条目', () {
+      collectionsRepo.save(
+        FavoriteCollection(id: 'col-1', name: 'A', createdAt: DateTime(2026)),
+      );
+      repository.save(_makeFavorite(id: 'sys-1'));
+      repository.save(_makeFavorite(id: 'col-1-fav', collectionId: 'col-1'));
+
+      final page = repository.loadPage(
+        collectionId: 'col-1',
+        limit: 20,
+        offset: 0,
+      );
+
+      expect(page.items.map((f) => f.id), ['col-1-fav']);
+      expect(page.totalItems, 1);
+    });
+
+    test('非法 limit/offset/空 collectionId 显式拒绝', () {
+      for (final (limit, offset) in [(0, 0), (-1, 0), (20, -1)]) {
+        expect(
+          () => repository.loadPage(
+            collectionId: AppReservedEntities.uncategorizedFavoriteCollectionId,
+            limit: limit,
+            offset: offset,
+          ),
+          throwsArgumentError,
+          reason: 'limit=$limit offset=$offset',
+        );
+      }
+      expect(
+        () => repository.loadPage(collectionId: '', limit: 20, offset: 0),
+        throwsArgumentError,
+      );
+    });
+  });
+
+  group('SqliteFavoritesRepository - 定向收藏身份查询', () {
+    test('findByAssistantContent 命中返回完整记录、未命中返回 null', () {
+      repository.save(_makeFavorite(id: 'fav-1', assistantContent: '命中内容'));
+
+      final found = repository.findByAssistantContent('命中内容');
+      expect(found, isNotNull);
+      expect(found!.id, 'fav-1');
+
+      expect(repository.findByAssistantContent('不存在的内容'), isNull);
+    });
+
+    test('loadFavoritedAssistantContents 只返回请求集合中已收藏的内容', () {
+      repository.save(_makeFavorite(id: 'fav-1', assistantContent: '已收藏甲'));
+      repository.save(_makeFavorite(id: 'fav-2', assistantContent: '已收藏乙'));
+
+      final favorited = repository.loadFavoritedAssistantContents([
+        '已收藏甲',
+        '未收藏丙',
+        '已收藏乙',
+      ]);
+      expect(favorited, {'已收藏甲', '已收藏乙'});
+
+      // 空集合不生成 IN () 且直接返回空结果。
+      expect(repository.loadFavoritedAssistantContents(const []), isEmpty);
+    });
+  });
+
+  group('SqliteFavoritesRepository - 批量 mutation', () {
+    test('deleteMany 批量删除并返回受影响数量，空集合 no-op', () {
+      repository.save(_makeFavorite(id: 'fav-1'));
+      repository.save(_makeFavorite(id: 'fav-2'));
+      repository.save(_makeFavorite(id: 'fav-3'));
+
+      expect(repository.deleteMany({'fav-1', 'fav-3'}), 2);
+      expect(repository.loadAll().map((f) => f.id), ['fav-2']);
+
+      expect(repository.deleteMany(const {}), 0);
+      expect(repository.loadAll(), hasLength(1));
+    });
+
+    test('moveMany 批量移动并统一更新归属时间，空集合 no-op', () {
+      collectionsRepo.save(
+        FavoriteCollection(id: 'col-1', name: 'A', createdAt: DateTime(2026)),
+      );
+      repository.save(
+        _makeFavorite(
+          id: 'fav-1',
+          createdAt: DateTime(2026, 1, 1),
+          collectionAssignedAt: DateTime(2026, 1, 1),
+        ),
+      );
+      repository.save(
+        _makeFavorite(
+          id: 'fav-2',
+          createdAt: DateTime(2026, 1, 2),
+          collectionAssignedAt: DateTime(2026, 1, 2),
+        ),
+      );
+
+      final movedCount = repository.moveMany(
+        {'fav-1', 'fav-2'},
+        targetCollectionId: 'col-1',
+        assignedAt: DateTime(2026, 8, 1),
+      );
+      expect(movedCount, 2);
+
+      for (final id in ['fav-1', 'fav-2']) {
+        final favorite = repository.loadById(id)!;
+        expect(favorite.collectionId, 'col-1');
+        expect(favorite.collectionAssignedAt, DateTime(2026, 8, 1));
+      }
+
+      expect(
+        repository.moveMany(
+          const {},
+          targetCollectionId: 'col-1',
+          assignedAt: DateTime(2026, 8, 2),
+        ),
+        0,
+      );
+    });
+
+    test('moveMany 目标收藏夹不存在时被外键拒绝', () {
+      repository.save(_makeFavorite(id: 'fav-1'));
+
+      expect(
+        () => repository.moveMany(
+          {'fav-1'},
+          targetCollectionId: 'missing-col',
+          assignedAt: DateTime(2026, 8, 1),
+        ),
+        throwsA(isA<Exception>()),
+      );
     });
   });
 }

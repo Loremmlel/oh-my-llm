@@ -4,6 +4,7 @@ import 'package:oh_my_llm/core/constants/app_reserved_entities.dart';
 import 'package:oh_my_llm/core/utils/id_generator.dart';
 import 'ports/collections_repository.dart';
 import '../domain/models/collection.dart';
+import '../domain/models/collection_delete_request.dart';
 
 /// 收藏夹状态 Provider。
 final collectionsProvider =
@@ -62,7 +63,14 @@ class CollectionsController extends Notifier<List<FavoriteCollection>> {
     if (collectionId == AppReservedEntities.uncategorizedFavoriteCollectionId) {
       return;
     }
-    _repo.delete(collectionId);
+    _repo.delete(
+      collectionId,
+      disposition: CollectionDeleteRequest.moveItemsTo(
+        targetCollectionId:
+            AppReservedEntities.uncategorizedFavoriteCollectionId,
+        assignedAt: DateTime.now(),
+      ),
+    );
     state = _loadVisibleCollections();
   }
 

@@ -77,16 +77,16 @@ class FavoritesController extends Notifier<List<Favorite>> {
 
   /// 删除指定收藏记录。
   void remove(String favoriteId) {
-    _repo.delete(favoriteId);
+    _repo.deleteMany({favoriteId});
     _refresh();
   }
 
   /// 将指定收藏移动到另一个收藏夹；null/空串归入系统"未分类"收藏夹，
   /// 归属时间更新为移动时刻（与 add 同样的临时兼容，Task 8 删除）。
   void moveTo(String favoriteId, String? collectionId) {
-    _repo.moveToCollection(
-      favoriteId,
-      _resolveCollectionId(collectionId),
+    _repo.moveMany(
+      {favoriteId},
+      targetCollectionId: _resolveCollectionId(collectionId),
       assignedAt: DateTime.now(),
     );
     _refresh();
@@ -103,7 +103,7 @@ class FavoritesController extends Notifier<List<Favorite>> {
 
   /// 检查指定助手消息内容是否已被收藏。
   bool isFavorited(String assistantContent) {
-    return _repo.existsByAssistantContent(assistantContent);
+    return _repo.findByAssistantContent(assistantContent) != null;
   }
 
   /// 把旧调用方的 null/空串归属归一为系统"未分类"收藏夹 ID。
