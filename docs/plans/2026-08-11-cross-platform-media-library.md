@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- 批准设计是 `docs/superpowers/specs/2026-08-11-cross-platform-media-library-design.md`；若计划与设计冲突，以设计为准并停止执行、修订计划。
+- 批准设计是 `docs/specs/2026-08-11-cross-platform-media-library-design.md`；若计划与设计冲突，以设计为准并停止执行、修订计划。
 - 本计划对设计第 12.3/12.4 节只做一个依赖顺序细化：Task 2 先在 data 层建立 `MediaFileItemDto` 和 `FileItem.hasThumbnail`，但在旧 application/presentation 消费者尚未迁移前保留 `FileItem` 的旧 JSON/`thumbnailUrl` 兼容成员；Task 3 实现依赖 DTO 的 `RemoteMediaLibrary`；Task 6 垂直迁移消费者后再原子删除兼容成员。任何中间提交都不得让 application/presentation 导入 data。
 - 当前实现基线是 commit `9ae0fe4`；开始执行前必须重新检查 `git status --short`，不得覆盖用户后续改动。
 - Task 0 的执行前提是本计划已经作为独立 docs 提交存在于执行分支；本次“撰写计划”不自动授权提交。若计划仍是 untracked，先取得用户提交指令，不得让 Task 0 的依赖提交顺带夹带计划文件。
@@ -2169,7 +2169,7 @@ git status --short
 **Files:**
 - Modify: `README.md:177-190,239-245,321`
 - Modify: `docs/视频局域网广播-prd.md:19-35,38-56,286-296,891-909,1000-1047`
-- Verify only: `docs/superpowers/specs/2026-08-11-cross-platform-media-library-design.md`
+- Verify only: `docs/specs/2026-08-11-cross-platform-media-library-design.md`
 - Verify only: `AGENTS.md`
 
 **Interfaces:**

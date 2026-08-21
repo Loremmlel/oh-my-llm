@@ -729,7 +729,7 @@ The warmed joint JSON run completed in 15.84 test-runner seconds. The joint LCOV
 - [ ] **Step 6: Run formatting, architecture, analyzer, and diff gates**
 
   ```powershell
-  $ChangedDart = git diff --name-only (git log -1 --format=%H -- docs/superpowers/plans/2026-08-11-favorites-history-media-sync-test-cleanup.md) -- '*.dart'
+  $ChangedDart = git diff --name-only (git log -1 --format=%H -- docs/plans/2026-08-11-favorites-history-media-sync-test-cleanup.md) -- '*.dart'
   if ($ChangedDart) { dart format --output=none --set-exit-if-changed $ChangedDart }
   dart run tool/check_import_boundaries.dart
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -752,7 +752,7 @@ The warmed joint JSON run completed in 15.84 test-runner seconds. The joint LCOV
 - [ ] **Step 8: Audit implementation scope**
 
   ```powershell
-  $PlanCommit = git log -1 --format=%H -- docs/superpowers/plans/2026-08-11-favorites-history-media-sync-test-cleanup.md
+  $PlanCommit = git log -1 --format=%H -- docs/plans/2026-08-11-favorites-history-media-sync-test-cleanup.md
   $Changed = git diff --name-only "$PlanCommit..HEAD"
   $Changed
   $OutOfScope = $Changed | Where-Object {

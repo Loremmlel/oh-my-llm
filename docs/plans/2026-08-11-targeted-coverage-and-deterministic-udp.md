@@ -8,7 +8,7 @@
 
 **Tech Stack:** Flutter 3.44.x stable (CI 3.44.6), Dart `^3.11.5`, Riverpod 3 `NotifierProvider`, `shared_preferences`, `package:http`, `dart:io` UDP, `flutter_test`, PowerShell 7, LCOV.
 
-**Design Reference:** `docs/superpowers/specs/2026-08-11-targeted-coverage-and-deterministic-udp-design.md`
+**Design Reference:** `docs/specs/2026-08-11-targeted-coverage-and-deterministic-udp-design.md`
 
 ## Global Constraints
 
@@ -1409,7 +1409,7 @@ Expected baseline: CI-equivalent suite passes with 1,358 cases; UDP file passes 
   If verification required code/test corrections, commit them with the narrowest accurate semantic message after rerunning their focused test. When documentation commits are authorized, stage only:
 
   ```powershell
-  git add -- docs/superpowers/specs/2026-08-11-targeted-coverage-and-deterministic-udp-design.md docs/superpowers/plans/2026-08-11-targeted-coverage-and-deterministic-udp.md
+  git add -- docs/specs/2026-08-11-targeted-coverage-and-deterministic-udp-design.md docs/plans/2026-08-11-targeted-coverage-and-deterministic-udp.md
   git commit -m "docs: 记录定向覆盖与 UDP 测试方案"
   ```
 

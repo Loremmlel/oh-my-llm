@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- 批准设计是 `docs/superpowers/specs/2026-08-13-desktop-video-player-controls-design.md`；任何实现与设计冲突时立即停止，先修订设计/计划，不凭实现者偏好猜测。
+- 批准设计是 `docs/specs/2026-08-13-desktop-video-player-controls-design.md`；任何实现与设计冲突时立即停止，先修订设计/计划，不凭实现者偏好猜测。
 - 当前实现基线是 commit `0a2c33cf9e24bb27625cbcbbe409b3a57c74b41a`，版本 `3.45.2+0`；执行前重新检查 `git status --short` 和 `git log -1`，不得覆盖后续用户改动。
 - 本计划文件在撰写阶段不自动提交；执行者必须从所有功能提交的 `git add` 路径中排除它，除非用户另行明确授权提交计划。
 - Windows 始终采用 Desktop bindings；即使存在触摸屏也不安装 Android 双击 Seek、画面长按或横拖 Seek。
