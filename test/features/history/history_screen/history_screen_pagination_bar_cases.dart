@@ -1,228 +1,102 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:oh_my_llm/core/persistence/app_database.dart';
-import 'package:oh_my_llm/features/chat/application/history/history_pagination_controller.dart';
-import 'package:oh_my_llm/features/chat/application/ports/chat_conversation_repository.dart';
-import 'package:oh_my_llm/features/chat/domain/history_pagination_state.dart';
-import 'package:oh_my_llm/features/chat/domain/models/chat_conversation_summary.dart';
-import 'package:oh_my_llm/features/history/presentation/history_screen.dart';
-import 'package:oh_my_llm/features/history/presentation/widgets/history_pagination_bar.dart';
-
-import '../../../helpers/chat/fake_history_repository.dart';
-import '../../../helpers/test_harness.dart';
 import '../../../helpers/async/widget_test_animation.dart';
-
-/// 构造 N 条测试会话摘要。
-List<ChatConversationSummary> _summaries(int count) => List.generate(
-  count,
-  (i) => ChatConversationSummary(
-    id: 'c$i',
-    title: '对话 $i',
-    updatedAt: DateTime(2026, 6, 1).add(Duration(minutes: i)),
-  ),
-);
-
-/// 读取 provider 当前状态。
-HistoryPaginationState _readState(WidgetTester tester) =>
-    ProviderScope.containerOf(
-      tester.element(find.byType(HistoryPaginationBar)),
-    ).read(historyPaginationProvider);
-
-/// 挂载 HistoryScreen 并注入 FakeHistoryRepository。
-///
-/// `pages` 列表的每一项按调用顺序提供给 fake：
-/// - 第 0 项被 ChatSessionsController.build() 的无参调用消耗（供侧栏使用）；
-/// - 第 1 项起被 HistoryPaginationController 的带 limit 调用按顺序消耗。
-Future<void> _pumpHistoryScreen(
-  WidgetTester tester,
-  FakeHistoryRepository repo,
-) async {
-  SharedPreferences.setMockInitialValues({});
-  final preferences = await SharedPreferences.getInstance();
-  final database = AppDatabase.inMemory();
-  addTearDown(database.close);
-
-  await pumpTestApp(
-    tester,
-    child: const HistoryScreen(),
-    preferences: preferences,
-    database: database,
-    viewportSize: const Size(1440, 1200),
-    // 该测试以 FakeHistoryRepository 接管会话仓库：从 composition 排除生产
-    // 绑定，避免同一容器内重复 override。
-    bindChatConversationRepository: false,
-    extraOverrides: [
-      chatConversationRepositoryProvider.overrideWithValue(repo),
-    ],
-  );
-  // pumpTestApp 已执行一次 pump(), 驱动的 HistoryScreen.initState 中的
-  // addPostFrameCallback 执行 → loadInitial。再 pump() 使更新后的
-  // 状态触发重建，让 UI 与 state 同步。
-  await tester.pump();
-}
+import 'history_screen_test_helpers.dart';
 
 void registerHistoryScreenPaginationBarTests() {
-  group('HistoryPaginationBar', () {
-    testWidgets('renders pagination bar with correct state info', (
-      tester,
-    ) async {
-      final repo = FakeHistoryRepository(
-        pages: [const [], _summaries(20)],
-        countResult: 100,
-      );
-      await _pumpHistoryScreen(tester, repo);
+  testWidgets('总条数为零时分页栏完全不渲染', (tester) async {
+    await setUpHistoryScreenWithBulkConversations(tester, count: 0);
 
-      expect(find.textContaining('100 条'), findsOneWidget);
-      expect(find.textContaining('1/5'), findsOneWidget);
-      expect(_readState(tester).currentPage, 1);
-    });
+    expect(find.byTooltip('下一页'), findsNothing);
+    expect(find.text('每页'), findsNothing);
+  });
 
-    testWidgets('clicking next page button loads page 2', (tester) async {
-      final repo = FakeHistoryRepository(
-        pages: [
-          const [],
-          _summaries(20), // page 1 (loadInitial)
-          _summaries(20), // page 2 (next)
-        ],
-        countResult: 100,
-      );
-      await _pumpHistoryScreen(tester, repo);
+  testWidgets('仅一页时翻页控件不可用', (tester) async {
+    await setUpHistoryScreen(tester);
 
-      await tester.tap(find.byTooltip('下一页'));
-      await tester.pump();
+    expect(find.textContaining('/1 页'), findsOneWidget);
+    await tester.tap(find.byTooltip('下一页'));
+    await tester.pump();
 
-      expect(_readState(tester).currentPage, 2);
-    });
+    // 翻页无效果，列表仍显示唯一一页内容。
+    expect(find.text('Rust 重构计划'), findsOneWidget);
+    expect(find.textContaining('/1 页'), findsOneWidget);
+  });
 
-    testWidgets('clicking page number navigates to that page', (tester) async {
-      final repo = FakeHistoryRepository(
-        pages: [
-          const [],
-          _summaries(20), // page 1
-          _summaries(20), // page 2
-          _summaries(20), // page 3
-        ],
-        countResult: 60,
-      );
-      await _pumpHistoryScreen(tester, repo);
+  testWidgets('分页栏固定在列表底部且不随列表滚动', (tester) async {
+    // 25 条 → 2 页（每页 20）。
+    await setUpHistoryScreenWithBulkConversations(tester, count: 25);
 
-      // 点击可见的页码标签 3（非当前页）
-      await tester.tap(find.text('3'));
-      await tester.pump();
+    expect(find.textContaining('共 25 条'), findsOneWidget);
+    expect(find.byTooltip('下一页'), findsOneWidget);
 
-      expect(_readState(tester).currentPage, 3);
-    });
+    // 列表滚到底后分页栏仍可命中，说明它固定在 Card 底部。
+    await tester.drag(find.byType(ListView).last, const Offset(0, -800));
+    await tester.pump();
 
-    testWidgets('page number sequence folds with ellipsis for many pages', (
-      tester,
-    ) async {
-      final repo = FakeHistoryRepository(
-        pages: [
-          const [],
-          _summaries(20),
-          _summaries(20),
-          _summaries(20),
-          _summaries(20),
-          _summaries(20),
-          _summaries(20),
-          _summaries(20),
-        ],
-        countResult: 160,
-      );
-      await _pumpHistoryScreen(tester, repo);
+    expect(find.textContaining('共 25 条').hitTestable(), findsOneWidget);
+  });
 
-      // 第 1 页：应显示 1 2 … 8（省略号折叠中间）
-      expect(find.text('1'), findsOneWidget);
-      expect(find.text('2'), findsOneWidget);
-      expect(find.text('8'), findsOneWidget);
-      // 省略号
-      expect(find.text('…'), findsWidgets);
-      expect(_readState(tester).currentPage, 1);
-    });
+  testWidgets('点击下一页加载第 2 页内容', (tester) async {
+    await setUpHistoryScreenWithBulkConversations(tester, count: 25);
 
-    testWidgets('changing page size reloads with new size and resets to page 1', (
-      tester,
-    ) async {
-      final repo = FakeHistoryRepository(
-        pages: [
-          const [],
-          _summaries(20), // page 1 (size=20)
-          _summaries(20), // page 2 (size=20)
-          _summaries(10), // page 1 (size=10)
-        ],
-        countResult: 50,
-      );
-      await _pumpHistoryScreen(tester, repo);
+    await tester.tap(find.byTooltip('下一页'));
+    await tester.pump();
 
-      // 跳到第 2 页
-      await tester.tap(find.byTooltip('下一页'));
-      await tester.pump();
-      expect(_readState(tester).currentPage, 2);
+    expect(find.text('批量会话 20'), findsOneWidget);
+    expect(find.text('批量会话 24'), findsOneWidget);
+    expect(find.text('批量会话 0'), findsNothing);
+  });
 
-      // 切换每页条数为 10（通过下拉菜单 label 定位）
-      await tester.tap(
-        find.text('每页'),
-        warnIfMissed: false,
-      ); // 左标签文本会因 button 内边距偏移到 decoration 区域，tap 坐标落在 DropdownButton 装饰层属正常行为
-      await settleOverlayTransition(tester);
-      await tester.tap(find.text('10'));
-      // 菜单收起与按新 pageSize 重载随帧完成
-      await settleOverlayTransition(tester);
+  testWidgets('跳转越界页码夹取到末页', (tester) async {
+    await setUpHistoryScreenWithBulkConversations(tester, count: 25);
 
-      final s = _readState(tester);
-      expect(s.pageSize, 10);
-      expect(s.currentPage, 1);
-      expect(s.totalPages, 5); // ceil(50/10)
-    });
+    final jumpField = find.ancestor(
+      of: find.text('页码'),
+      matching: find.byType(TextField),
+    );
+    await tester.enterText(jumpField, '99');
+    await tester.tap(find.widgetWithText(TextButton, '跳转'));
+    await tester.pump();
 
-    testWidgets('jump to page clamps out-of-range input', (tester) async {
-      final repo = FakeHistoryRepository(
-        pages: [
-          const [],
-          _summaries(20), // page 1
-          _summaries(20), // page 2
-          _summaries(10), // page 3
-        ],
-        countResult: 50,
-      );
-      await _pumpHistoryScreen(tester, repo);
+    expect(find.text('批量会话 24'), findsOneWidget);
+    expect(find.textContaining('共 25 条 · 2/2 页'), findsOneWidget);
+  });
 
-      // 跳转输入框（label 为「页码」的 TextField）
-      final jumpInput = find.ancestor(
-        of: find.text('页码'),
-        matching: find.byType(TextField),
-      );
-      await tester.enterText(jumpInput, '999');
-      await tester.tap(find.widgetWithText(TextButton, '跳转'));
-      await tester.pump();
+  testWidgets('翻页前清空当前页选择', (tester) async {
+    await setUpHistoryScreenWithBulkConversations(tester, count: 25);
 
-      expect(_readState(tester).currentPage, 3); // 夹取到 last
-    });
+    await tester.longPress(find.text('批量会话 0'));
+    await tester.pump();
+    await tester.longPress(find.text('批量会话 1'));
+    await tester.pump();
+    expect(find.textContaining('已选择 2 项'), findsOneWidget);
 
-    testWidgets('jump to page navigates to target', (tester) async {
-      final repo = FakeHistoryRepository(
-        pages: [
-          const [],
-          _summaries(20), // page 1
-          _summaries(20), // page 2
-          _summaries(20), // page 3
-        ],
-        countResult: 60,
-      );
-      await _pumpHistoryScreen(tester, repo);
+    await tester.tap(find.byTooltip('下一页'));
+    await tester.pump();
 
-      final jumpInput = find.ancestor(
-        of: find.text('页码'),
-        matching: find.byType(TextField),
-      );
-      await tester.enterText(jumpInput, '3');
-      await tester.tap(find.widgetWithText(TextButton, '跳转'));
-      await tester.pump();
+    expect(find.textContaining('已选择'), findsNothing);
+  });
 
-      expect(_readState(tester).currentPage, 3);
-    });
+  testWidgets('修改每页容量清空选择并回到第 1 页', (tester) async {
+    await setUpHistoryScreenWithBulkConversations(tester, count: 25);
+
+    // 跳到第 2 页并选择一项。
+    await tester.tap(find.byTooltip('下一页'));
+    await tester.pump();
+    await tester.longPress(find.text('批量会话 20'));
+    await tester.pump();
+    expect(find.textContaining('已选择 1 项'), findsOneWidget);
+
+    // 切换容量为 10：回到第 1 页且选择态清空。
+    await tester.tap(find.text('每页'), warnIfMissed: false);
+    await settleOverlayTransition(tester);
+    await tester.tap(find.text('10').last);
+    await settleOverlayTransition(tester);
+
+    expect(find.textContaining('已选择'), findsNothing);
+    expect(find.text('批量会话 0'), findsOneWidget);
+    expect(find.textContaining('共 25 条 · 1/3 页'), findsOneWidget);
   });
 }
