@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:equatable/equatable.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -298,7 +297,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
             onSelectRequested: () =>
                 _toggleSelectionWithAnchor(conversation.id),
             onRenameRequested: () =>
-                _showRenameDialog(context, conversation: conversation),
+                _showRenameDialog(conversation: conversation),
             onDeleteRequested: () => _confirmDeleteSingle(conversation.id),
           ),
         );
@@ -436,7 +435,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     final overlay =
         Overlay.of(context).context.findRenderObject()! as RenderBox;
     showMenu<String>(
-      context: this.context,
+      context: context,
       position: RelativeRect.fromLTRB(
         center.dx,
         center.dy,
@@ -457,7 +456,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
               .where((c) => c.id == conversationId)
               .toList();
           if (matches.isEmpty) return;
-          _showRenameDialog(this.context, conversation: matches.first);
+          _showRenameDialog(conversation: matches.first);
         case 'delete':
           _confirmDeleteSingle(conversationId);
       }
@@ -493,13 +492,12 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
 
   // ── 重命名 ───────────────────────────────────────────────────────────────
 
-  Future<void> _showRenameDialog(
-    BuildContext context, {
+  Future<void> _showRenameDialog({
     required ChatConversationSummary conversation,
   }) async {
     final nextTitle = await showDialog<String>(
       context: context,
-      builder: (context) =>
+      builder: (dialogContext) =>
           RenameConversationDialog(initialTitle: conversation.resolvedTitle),
     );
 
@@ -525,7 +523,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   /// 单项删除入口（overflow / 右键菜单）。
   Future<void> _confirmDeleteSingle(String conversationId) async {
     final confirmed = await showDialog<bool>(
-      context: this.context,
+      context: context,
       builder: (context) => AppConfirmDialog(
         title: '删除选中的对话',
         message: '将删除 1 个会话，此操作不可撤销。',
@@ -542,7 +540,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     final count = _selectedConversationIds.length;
     if (count == 0) return;
     final confirmed = await showDialog<bool>(
-      context: this.context,
+      context: context,
       builder: (context) => AppConfirmDialog(
         title: '删除选中的对话',
         message: '将删除 $count 个会话，此操作不可撤销。',

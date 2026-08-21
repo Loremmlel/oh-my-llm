@@ -1,4 +1,3 @@
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import 'package:oh_my_llm/core/utils/date_formatting.dart';
@@ -73,7 +72,7 @@ class HistoryConversationTile extends StatelessWidget {
       ),
       items: _buildMenuItems(selectionMode),
     ).then((action) {
-      if (action == null) return;
+      if (action == null || !context.mounted) return;
       _handleMenuAction(action, context: context);
     });
   }
