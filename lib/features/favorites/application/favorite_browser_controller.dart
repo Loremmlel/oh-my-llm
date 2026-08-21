@@ -17,7 +17,7 @@ class FavoriteBrowserState extends Equatable {
   const FavoriteBrowserState({
     this.collectionId = AppReservedEntities.uncategorizedFavoriteCollectionId,
     this.page = 1,
-    this.pageSize = 20,
+    this.pageSize = appDefaultPageSize,
     this.items = const [],
     this.totalItems = 0,
     this.isBusy = false,
@@ -194,9 +194,7 @@ class FavoriteBrowserController extends Notifier<FavoriteBrowserState> {
       );
       var targetPage = requestedPage;
       // 页码越界（数据被删导致末页消失）时回退最后一页补齐内容。
-      final totalPages = pageSize <= 0
-          ? 0
-          : (result.totalItems / pageSize).ceil();
+      final totalPages = totalPagesForItems(result.totalItems, pageSize);
       if (result.items.isEmpty &&
           result.totalItems > 0 &&
           requestedPage > totalPages) {

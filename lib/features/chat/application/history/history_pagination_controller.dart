@@ -2,12 +2,11 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:oh_my_llm/core/widgets/pagination/app_pagination_state.dart';
 import 'package:oh_my_llm/features/chat/application/history/history_browse_preferences_controller.dart';
 
 import '../../domain/history_pagination_state.dart';
 import '../ports/chat_conversation_repository.dart';
-
-export '../../domain/history_pagination_state.dart' show availablePageSizes;
 
 /// 查询失败时的通用错误文案；具体呈现方式由 UI 决定。
 const historyLoadErrorMessage = '加载历史记录失败';
@@ -44,13 +43,13 @@ class HistoryPaginationController extends Notifier<HistoryPaginationState> {
   ///
   /// 所有输入在此处统一 trim、校验与夹取：
   /// - [keyword] trim 后生效，缺省沿用当前关键词；
-  /// - [pageSize] 仅接受 [availablePageSizes]；合法显式值回写偏好，
+  /// - [pageSize] 仅接受 [appPageSizeOptions]；合法显式值回写偏好，
   ///   非法或缺省回退持久化偏好（偏好自身保证合法，默认 20）；
   /// - [page] 缺省视为 1，查询后按真实总数夹取到 [1, totalPages]。
   void loadRoute({int? page, int? pageSize, String? keyword}) {
     final nextKeyword = (keyword ?? state.keyword).trim();
     int nextPageSize;
-    if (pageSize != null && availablePageSizes.contains(pageSize)) {
+    if (pageSize != null && appPageSizeOptions.contains(pageSize)) {
       nextPageSize = pageSize;
       // 合法的显式容量回写偏好；写失败不影响本次浏览。
       unawaited(
@@ -79,12 +78,8 @@ class HistoryPaginationController extends Notifier<HistoryPaginationState> {
   }) {
     try {
       final totalItems = _repository.countHistorySummaries(keyword: keyword);
-      final totalPages = pageSize <= 0 ? 0 : (totalItems / pageSize).ceil();
-      final targetPage = totalPages <= 0
-          ? 1
-          : requestedPage < 1
-          ? 1
-          : (requestedPage > totalPages ? totalPages : requestedPage);
+      final totalPages = totalPagesForItems(totalItems, pageSize);
+      final targetPage = clampPageToValidRange(requestedPage, totalPages);
       final result = _repository.loadHistorySummaries(
         keyword: keyword,
         limit: pageSize,
@@ -144,10 +139,10 @@ class HistoryPaginationController extends Notifier<HistoryPaginationState> {
 
   /// 修改每页条数并重置到第 1 页。
   ///
-  /// [size] 仅在 [availablePageSizes] 中生效，否则保持当前 pageSize 不变；
+  /// [size] 仅在 [appPageSizeOptions] 中生效，否则保持当前 pageSize 不变；
   /// 生效时经 [loadRoute] 回写持久化偏好。
   void setPageSize(int size) {
-    if (!availablePageSizes.contains(size)) return;
+    if (!appPageSizeOptions.contains(size)) return;
     if (size == state.pageSize) return;
 
     state = state.copyWith(pageSize: size);

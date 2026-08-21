@@ -79,6 +79,54 @@ void main() {
     });
   });
 
+  group('clampPageToValidRange 与 totalPagesForItems', () {
+    test('请求页码在边界内保持原值，越界夹取到有效区间', () {
+      expect(clampPageToValidRange(1, 3), 1);
+      expect(clampPageToValidRange(2, 3), 2);
+      expect(clampPageToValidRange(3, 3), 3);
+      expect(clampPageToValidRange(0, 3), 1);
+      expect(clampPageToValidRange(-2, 3), 1);
+      expect(clampPageToValidRange(99, 3), 3);
+    });
+
+    test('空数据（总页数为 0）时归一为第 1 页', () {
+      expect(clampPageToValidRange(1, 0), 1);
+      expect(clampPageToValidRange(5, 0), 1);
+    });
+
+    test('容量非法时总页数为 0，否则按进位取整', () {
+      expect(totalPagesForItems(41, 20), 3);
+      expect(totalPagesForItems(40, 20), 2);
+      expect(totalPagesForItems(5, 20), 1);
+      expect(totalPagesForItems(100, 0), 0);
+      expect(totalPagesForItems(100, -1), 0);
+    });
+
+    test('构造器归一与共享夹取函数在参数网格上语义一致', () {
+      // 构造器因 const 约束保留内联孪生；本用例锁定两者不随演进漂移。
+      for (final (pageSize, totalItems) in [
+        (20, 0),
+        (20, 5),
+        (20, 40),
+        (20, 41),
+        (10, 1),
+      ]) {
+        final totalPages = totalPagesForItems(totalItems, pageSize);
+        for (final page in [-3, 0, 1, 2, 3, 99]) {
+          expect(
+            AppPaginationState(
+              currentPage: page,
+              pageSize: pageSize,
+              totalItems: totalItems,
+            ).currentPage,
+            clampPageToValidRange(page, totalPages),
+            reason: 'pageSize=$pageSize totalItems=$totalItems page=$page',
+          );
+        }
+      }
+    });
+  });
+
   group('resolveVisiblePageNumbers', () {
     test('总页数不超过 7 时完整显示所有页码且无省略', () {
       final pages = resolveVisiblePageNumbers(7, 4);

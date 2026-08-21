@@ -58,8 +58,7 @@ class _AppPaginationBarState extends State<AppPaginationBar> {
     final parsed = int.tryParse(text);
     if (parsed == null) return;
 
-    final totalPages = widget.state.totalPages;
-    final target = parsed < 1 ? 1 : (parsed > totalPages ? totalPages : parsed);
+    final target = clampPageToValidRange(parsed, widget.state.totalPages);
     if (target == widget.state.currentPage) return;
     widget.onPageChanged(target);
     _jumpController.clear();

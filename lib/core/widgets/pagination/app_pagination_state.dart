@@ -1,10 +1,24 @@
 import 'package:equatable/equatable.dart';
 
-/// 分页容量可选项；各 feature 共用同一组容量契约。
-const List<int> appPageSizeOptions = <int>[10, 20, 50];
+import 'package:oh_my_llm/core/constants/app_page_sizes.dart';
 
-/// 默认每页条数。
-const int appDefaultPageSize = 20;
+// 容量契约定义在 core/constants（domain 也可直接引用）；
+// 此处 re-export 让分页模块的消费方保持单一 import 路径。
+export 'package:oh_my_llm/core/constants/app_page_sizes.dart';
+
+/// 由总条数与容量推导总页数；容量非法（<= 0）时为 0。
+int totalPagesForItems(int totalItems, int pageSize) =>
+    pageSize <= 0 ? 0 : (totalItems / pageSize).ceil();
+
+/// 把请求页码夹取到 [1, totalPages]；总页数为 0（空数据）时归一为 1。
+///
+/// [AppPaginationState] 构造器因 const 约束保留同语义的内联表达式，
+/// 两者的一致性由 app_pagination_state_test 的参数化用例锁定。
+int clampPageToValidRange(int page, int totalPages) => totalPages <= 0
+    ? 1
+    : page < 1
+    ? 1
+    : (page > totalPages ? totalPages : page);
 
 /// 分页栏中显示的页码项：具体页码或省略标记。
 typedef AppPaginationPageItem = ({int? page, bool isEllipsis});
@@ -60,7 +74,8 @@ List<AppPaginationPageItem> resolveVisiblePageNumbers(
 ///
 /// 当前页在构造时安全归一：总数为 0 归一为 1，越界收拢到有效区间，使派生
 /// 属性在任何输入下自洽。归一以内联纯运算符完成，保证构造函数保持 const
-/// 可用（const 表达式不允许方法调用）。
+/// 可用（const 表达式不允许方法调用）；语义与 [clampPageToValidRange] /
+/// [totalPagesForItems] 一致。
 final class AppPaginationState extends Equatable {
   const AppPaginationState({
     int currentPage = 1,
@@ -89,7 +104,7 @@ final class AppPaginationState extends Equatable {
   final bool isBusy;
 
   /// 派生：总页数。
-  int get totalPages => pageSize <= 0 ? 0 : (totalItems / pageSize).ceil();
+  int get totalPages => totalPagesForItems(totalItems, pageSize);
 
   /// 派生：是否存在上一页。
   bool get hasPrevious => currentPage > 1;

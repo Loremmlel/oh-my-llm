@@ -1,12 +1,8 @@
 import 'package:equatable/equatable.dart';
 
+import 'package:oh_my_llm/core/constants/app_page_sizes.dart';
+
 import 'models/chat_conversation_summary.dart';
-
-/// 默认每页显示的对话数量。
-const defaultPageSize = 20;
-
-/// 可供用户选择的每页条数选项。
-const availablePageSizes = <int>[10, 20, 50];
 
 /// copyWith 中区分「未提供」与「显式置空」可空字段的哨兵。
 const Object _unset = Object();
@@ -28,7 +24,7 @@ class HistoryPaginationState extends Equatable {
     this.keyword = '',
     this.hasAnyConversations = false,
     this.currentPage = 1,
-    this.pageSize = defaultPageSize,
+    this.pageSize = appDefaultPageSize,
     this.totalItems = 0,
   });
 
