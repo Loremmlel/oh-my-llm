@@ -52,7 +52,12 @@ GoRouter createAppRouter({
       GoRoute(
         path: AppDestination.history.path,
         name: AppDestination.history.name,
-        builder: (context, state) => const HistoryScreen(),
+        // 只消费 query 中的可序列化浏览窗口参数；校验与夹取在 controller。
+        builder: (context, state) => HistoryScreen(
+          routeQuery: HistoryBrowseRouteQuery.fromQueryParameters(
+            state.uri.queryParameters,
+          ),
+        ),
       ),
       GoRoute(
         path: AppDestination.settings.path,

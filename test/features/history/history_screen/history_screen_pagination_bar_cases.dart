@@ -99,4 +99,26 @@ void registerHistoryScreenPaginationBarTests() {
     expect(find.text('批量会话 0'), findsOneWidget);
     expect(find.textContaining('共 25 条 · 1/3 页'), findsOneWidget);
   });
+
+  testWidgets('打开会话可返回且返回后恢复页码与滚动位置', (tester) async {
+    await setUpHistoryScreenWithBulkConversations(tester, count: 25);
+
+    // 第 1 页滚动到深处，露出靠后的行。
+    await tester.drag(find.byType(ListView).last, const Offset(0, -900));
+    await tester.pump();
+    expect(find.text('批量会话 15'), findsOneWidget);
+
+    await tester.tap(find.text('批量会话 15'));
+    await settleRouteTransition(tester);
+    expect(find.text('聊天落点'), findsOneWidget);
+
+    // 系统返回 pop 回历史页：页码与滚动都保持。
+    await tester.binding.handlePopRoute();
+    await settleRouteTransition(tester);
+
+    expect(find.text('聊天落点'), findsNothing);
+    expect(find.textContaining('共 25 条 · 1/2 页'), findsOneWidget);
+    expect(find.text('批量会话 15'), findsOneWidget);
+    expect(find.text('批量会话 0'), findsNothing);
+  });
 }

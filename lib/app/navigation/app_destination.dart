@@ -64,4 +64,9 @@ abstract final class AppRouteParameter {
 
   /// chat 路由的可序列化会话 ID query 参数键；禁止用 state.extra 传实体。
   static const conversationId = 'conversationId';
+
+  /// history 路由的浏览窗口 query 参数键（页码 / 容量 / 搜索关键词）。
+  static const page = 'page';
+  static const pageSize = 'pageSize';
+  static const q = 'q';
 }

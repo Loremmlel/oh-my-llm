@@ -143,16 +143,12 @@ Future<AppDatabase> setUpHistoryScreen(WidgetTester tester) async {
   return database;
 }
 
-/// 同 [setUpHistoryScreen]，但使用 [count] 条批量生成的会话种子，
-/// 用于覆盖翻页（默认每页 20 条）场景。
-Future<AppDatabase> setUpHistoryScreenWithBulkConversations(
-  WidgetTester tester, {
+/// 生成 [count] 条批量会话的偏好种子；时间随序号递减保证排序稳定。
+Future<SharedPreferences> createBulkSeededPreferences(
+  AppDatabase database, {
   required int count,
-  Size viewportSize = const Size(1440, 1200),
-}) async {
-  final database = AppDatabase.inMemory();
-  addTearDown(database.close);
-  final preferences = await TestFixtures.seedPreferences(
+}) {
+  return TestFixtures.seedPreferences(
     database: database,
     conversations: List.generate(count, (i) {
       final updated = DateTime(2026, 6, 1, 12).subtract(Duration(minutes: i));
@@ -178,6 +174,18 @@ Future<AppDatabase> setUpHistoryScreenWithBulkConversations(
       };
     }),
   );
+}
+
+/// 同 [setUpHistoryScreen]，但使用 [count] 条批量生成的会话种子，
+/// 用于覆盖翻页（默认每页 20 条）场景。
+Future<AppDatabase> setUpHistoryScreenWithBulkConversations(
+  WidgetTester tester, {
+  required int count,
+  Size viewportSize = const Size(1440, 1200),
+}) async {
+  final database = AppDatabase.inMemory();
+  addTearDown(database.close);
+  final preferences = await createBulkSeededPreferences(database, count: count);
   await pumpHistoryScreen(
     tester,
     preferences: preferences,

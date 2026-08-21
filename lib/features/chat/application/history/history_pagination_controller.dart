@@ -111,11 +111,6 @@ class HistoryPaginationController extends Notifier<HistoryPaginationState> {
     }
   }
 
-  /// 首次加载（或搜索重置后）的兼容入口；route 接管初始化后删除。
-  void loadInitial({String keyword = ''}) {
-    loadRoute(page: 1, keyword: keyword);
-  }
-
   // ── 翻页与搜索 ──────────────────────────────────────────
 
   /// 跳转到指定页（夹取到 [1, totalPages] 区间）。

@@ -41,7 +41,7 @@ void main() {
   );
 
   group('HistoryPaginationController', () {
-    test('loadInitial 写入首份数据、count 与 totalItems', () {
+    test('loadRoute 默认加载第 1 页并写入 count 与 totalItems', () {
       final repo = FakeHistoryRepository(
         pages: [
           [summary('a')],
@@ -50,7 +50,7 @@ void main() {
       );
       final c = createContainer(repo);
 
-      c.read(historyPaginationProvider.notifier).loadInitial();
+      c.read(historyPaginationProvider.notifier).loadRoute(page: 1);
 
       final s = c.read(historyPaginationProvider);
       expect(s.conversations, hasLength(1));
@@ -60,11 +60,11 @@ void main() {
       expect(repo.countCallCount, 1);
     });
 
-    test('loadInitial 空串 keyword 下 hasAnyConversations 跟随 totalItems', () {
+    test('loadRoute 空串关键词下 hasAnyConversations 跟随 totalItems', () {
       final repo = FakeHistoryRepository(pages: const [[]], countResult: 0);
       final c = createContainer(repo);
 
-      c.read(historyPaginationProvider.notifier).loadInitial();
+      c.read(historyPaginationProvider.notifier).loadRoute(page: 1);
 
       final s = c.read(historyPaginationProvider);
       expect(s.hasAnyConversations, isFalse);
@@ -72,11 +72,13 @@ void main() {
       expect(s.totalPages, 0);
     });
 
-    test('loadInitial 带 keyword 时 hasAnyConversations 恒为 true', () {
+    test('loadRoute 带关键词时 hasAnyConversations 恒为 true', () {
       final repo = FakeHistoryRepository(pages: const [[]], countResult: 0);
       final c = createContainer(repo);
 
-      c.read(historyPaginationProvider.notifier).loadInitial(keyword: 'foo');
+      c
+          .read(historyPaginationProvider.notifier)
+          .loadRoute(page: 1, keyword: 'foo');
 
       final s = c.read(historyPaginationProvider);
       expect(s.hasAnyConversations, isTrue);
@@ -85,13 +87,13 @@ void main() {
     test('goToPage 跳转到目标页并正确计算 offset', () {
       final repo = FakeHistoryRepository(
         pages: [
-          [summary('a')], // page 1 (loadInitial)
+          [summary('a')], // page 1 (首次 loadRoute)
           [summary('b'), summary('c')], // page 3 (goToPage 3)
         ],
         countResult: 50,
       );
       final c = createContainer(repo);
-      c.read(historyPaginationProvider.notifier).loadInitial();
+      c.read(historyPaginationProvider.notifier).loadRoute(page: 1);
       repo.countCallCount = 0; // 只关注翻页后的调用
 
       c.read(historyPaginationProvider.notifier).goToPage(3);
@@ -112,7 +114,7 @@ void main() {
         countResult: 50,
       );
       final c = createContainer(repo);
-      c.read(historyPaginationProvider.notifier).loadInitial();
+      c.read(historyPaginationProvider.notifier).loadRoute(page: 1);
 
       c.read(historyPaginationProvider.notifier).goToPage(99);
       expect(c.read(historyPaginationProvider).currentPage, 3); // ceil(50/20)
@@ -132,7 +134,7 @@ void main() {
         countResult: 50,
       );
       final c = createContainer(repo);
-      c.read(historyPaginationProvider.notifier).loadInitial();
+      c.read(historyPaginationProvider.notifier).loadRoute(page: 1);
       final pagedBefore = repo.pagedCalls.length;
 
       c.read(historyPaginationProvider.notifier).goToPage(1);
@@ -150,7 +152,7 @@ void main() {
         countResult: 60,
       );
       final c = createContainer(repo);
-      c.read(historyPaginationProvider.notifier).loadInitial();
+      c.read(historyPaginationProvider.notifier).loadRoute(page: 1);
 
       // 在第 1 调用 prev，应仍为 1。
       c.read(historyPaginationProvider.notifier).prev();
@@ -177,7 +179,7 @@ void main() {
         countResult: 60,
       );
       final c = createContainer(repo);
-      c.read(historyPaginationProvider.notifier).loadInitial();
+      c.read(historyPaginationProvider.notifier).loadRoute(page: 1);
 
       c.read(historyPaginationProvider.notifier).last();
       expect(c.read(historyPaginationProvider).currentPage, 3);
@@ -195,7 +197,7 @@ void main() {
         countResult: 50,
       );
       final c = createContainer(repo);
-      c.read(historyPaginationProvider.notifier).loadInitial();
+      c.read(historyPaginationProvider.notifier).loadRoute(page: 1);
       c.read(historyPaginationProvider.notifier).goToPage(3);
       expect(c.read(historyPaginationProvider).currentPage, 3);
 
@@ -207,7 +209,7 @@ void main() {
       expect(s.pageSize, 10);
       expect(s.currentPage, 1);
       expect(s.totalPages, 5); // ceil(50/10)
-      expect(repo.countCallCount, 1); // loadInitial 内部 count
+      expect(repo.countCallCount, 1); // loadRoute 内部 count
     });
 
     test('setPageSize 非法值不生效', () {
@@ -218,7 +220,7 @@ void main() {
         countResult: 50,
       );
       final c = createContainer(repo);
-      c.read(historyPaginationProvider.notifier).loadInitial();
+      c.read(historyPaginationProvider.notifier).loadRoute(page: 1);
       final sizeBefore = c.read(historyPaginationProvider).pageSize;
 
       c.read(historyPaginationProvider.notifier).setPageSize(999);
@@ -235,7 +237,7 @@ void main() {
         countResult: 30,
       );
       final c = createContainer(repo);
-      c.read(historyPaginationProvider.notifier).loadInitial();
+      c.read(historyPaginationProvider.notifier).loadRoute(page: 1);
       c.read(historyPaginationProvider.notifier).goToPage(2);
       expect(c.read(historyPaginationProvider).currentPage, 2);
 
@@ -256,7 +258,7 @@ void main() {
         countResult: 10,
       );
       final c = createContainer(repo);
-      c.read(historyPaginationProvider.notifier).loadInitial();
+      c.read(historyPaginationProvider.notifier).loadRoute(page: 1);
       final countBefore = repo.countCallCount;
 
       c
@@ -274,7 +276,7 @@ void main() {
         countResult: 50,
       );
       final c = createContainer(repo);
-      c.read(historyPaginationProvider.notifier).loadInitial();
+      c.read(historyPaginationProvider.notifier).loadRoute(page: 1);
 
       c.read(historyPaginationProvider.notifier).afterRename('a', '新名字');
 
@@ -289,14 +291,14 @@ void main() {
       final all = List.generate(40, (i) => summary('item$i'));
       final repo = FakeHistoryRepository(
         pages: [
-          all.sublist(0, 20), // loadInitial：原第 1 页
+          all.sublist(0, 20), // 首次 loadRoute：原第 1 页
           [...all.sublist(1, 20), all[20]], // 删除后补页的第 1 页（模拟数据库真实分布）
           all.sublist(21, 40), // 新的第 2 页：19 条
         ],
         sequenceCounts: [40, 39, 39],
       );
       final c = createContainer(repo);
-      c.read(historyPaginationProvider.notifier).loadInitial();
+      c.read(historyPaginationProvider.notifier).loadRoute(page: 1);
       final pagedBefore = repo.pagedCalls.length;
 
       c.read(historyPaginationProvider.notifier).afterDelete({'item0'});
@@ -334,7 +336,9 @@ void main() {
         sequenceCounts: [2, 1],
       );
       final c = createContainer(repo);
-      c.read(historyPaginationProvider.notifier).loadInitial(keyword: '旧');
+      c
+          .read(historyPaginationProvider.notifier)
+          .loadRoute(page: 1, keyword: '旧');
       final pagedBefore = repo.pagedCalls.length;
 
       c.read(historyPaginationProvider.notifier).afterRename('b', '新名字');
@@ -360,7 +364,9 @@ void main() {
         sequenceCounts: [1, 2],
       );
       final c = createContainer(repo);
-      c.read(historyPaginationProvider.notifier).loadInitial(keyword: '新');
+      c
+          .read(historyPaginationProvider.notifier)
+          .loadRoute(page: 1, keyword: '新');
       final pagedBefore = repo.pagedCalls.length;
 
       c.read(historyPaginationProvider.notifier).afterRename('b', '新名字');
@@ -379,7 +385,7 @@ void main() {
         sequenceCounts: [1, 0],
       );
       final c = createContainer(repo);
-      c.read(historyPaginationProvider.notifier).loadInitial();
+      c.read(historyPaginationProvider.notifier).loadRoute(page: 1);
 
       c.read(historyPaginationProvider.notifier).afterDelete({'a'});
 
@@ -399,7 +405,7 @@ void main() {
         countResult: 60,
       );
       final c = createContainer(repo);
-      c.read(historyPaginationProvider.notifier).loadInitial();
+      c.read(historyPaginationProvider.notifier).loadRoute(page: 1);
 
       // page 1
       expect(c.read(historyPaginationProvider).hasPrevious, isFalse);
@@ -413,13 +419,13 @@ void main() {
     test('loadRoute 使用 route 页码、容量与关键词查询', () {
       final repo = FakeHistoryRepository(
         pages: [
-          [summary('a')], // loadInitial
+          [summary('a')], // 首次 loadRoute
           [summary('b')], // loadRoute 第 2 页
         ],
         countResult: 50,
       );
       final c = createContainer(repo);
-      c.read(historyPaginationProvider.notifier).loadInitial();
+      c.read(historyPaginationProvider.notifier).loadRoute(page: 1);
 
       c
           .read(historyPaginationProvider.notifier)
@@ -446,7 +452,7 @@ void main() {
         countResult: 10,
       );
       final c = createContainer(repo);
-      c.read(historyPaginationProvider.notifier).loadInitial();
+      c.read(historyPaginationProvider.notifier).loadRoute(page: 1);
 
       c.read(historyPaginationProvider.notifier).loadRoute(keyword: '  空格  ');
 
@@ -464,7 +470,7 @@ void main() {
         countResult: 50,
       );
       final c = createContainer(repo);
-      c.read(historyPaginationProvider.notifier).loadInitial();
+      c.read(historyPaginationProvider.notifier).loadRoute(page: 1);
 
       c.read(historyPaginationProvider.notifier).loadRoute(pageSize: 999);
 
@@ -480,7 +486,7 @@ void main() {
         countResult: 50,
       );
       final c = createContainer(repo);
-      c.read(historyPaginationProvider.notifier).loadInitial();
+      c.read(historyPaginationProvider.notifier).loadRoute(page: 1);
 
       // 数据变化后真实末页为 3，越界请求夹取到第 3 页。
       c.read(historyPaginationProvider.notifier).loadRoute(page: 99);
@@ -499,7 +505,7 @@ void main() {
         sequenceCounts: [10, 0],
       );
       final c = createContainer(repo);
-      c.read(historyPaginationProvider.notifier).loadInitial();
+      c.read(historyPaginationProvider.notifier).loadRoute(page: 1);
 
       c.read(historyPaginationProvider.notifier).loadRoute(page: 5);
 
@@ -516,12 +522,12 @@ void main() {
       ]) {
         final repo = FakeHistoryRepository(
           pages: [
-            [summary('a')], // loadInitial 正常
+            [summary('a')], // 首次 loadRoute 正常
           ],
           countResult: 10,
         );
         final c = createContainer(repo);
-        c.read(historyPaginationProvider.notifier).loadInitial();
+        c.read(historyPaginationProvider.notifier).loadRoute(page: 1);
 
         inject(repo);
         c.read(historyPaginationProvider.notifier).loadRoute(page: 2);
@@ -537,13 +543,13 @@ void main() {
     test('错误后重试成功清除错误并载入目标窗口', () {
       final repo = FakeHistoryRepository(
         pages: [
-          [summary('a')], // loadInitial
+          [summary('a')], // 首次 loadRoute
           [summary('b')], // 重试成功后的第 2 页
         ],
         countResult: 50,
       );
       final c = createContainer(repo);
-      c.read(historyPaginationProvider.notifier).loadInitial();
+      c.read(historyPaginationProvider.notifier).loadRoute(page: 1);
       repo.throwOnLoad = StateError('boom');
       c.read(historyPaginationProvider.notifier).loadRoute(page: 2);
       expect(c.read(historyPaginationProvider).errorMessage, isNotNull);
@@ -566,7 +572,7 @@ void main() {
         countResult: 50,
       );
       final c = createContainer(repo);
-      c.read(historyPaginationProvider.notifier).loadInitial();
+      c.read(historyPaginationProvider.notifier).loadRoute(page: 1);
 
       c.read(historyPaginationProvider.notifier).setPageSize(10);
 

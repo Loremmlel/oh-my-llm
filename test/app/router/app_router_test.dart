@@ -9,9 +9,11 @@ import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
 import 'package:oh_my_llm/features/favorites/data/sqlite_favorites_repository.dart';
+import 'package:oh_my_llm/features/history/presentation/history_screen.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/video_player_platform_bindings.dart';
 
 import '../../features/favorites/favorites_screen_test_helpers.dart';
+import '../../features/history/history_screen/history_screen_test_helpers.dart';
 import '../../features/media/helpers/fake_video_player_platform_bindings.dart';
 import '../../helpers/fixtures.dart';
 import '../../helpers/test_harness.dart';
@@ -364,5 +366,104 @@ void main() {
     );
     expect(find.text('特殊会话'), findsWidgets);
     expect(tester.takeException(), isNull);
+  });
+
+  group('History route query', () {
+    HistoryBrowseRouteQuery parse(Map<String, String> params) =>
+        HistoryBrowseRouteQuery.fromQueryParameters(params);
+
+    test('无参数时页码与容量为空、关键词为空串', () {
+      final query = parse(const {});
+
+      expect(query.page, isNull);
+      expect(query.pageSize, isNull);
+      expect(query.keyword, isEmpty);
+    });
+
+    test('非法整数解析为空交由运行时回退', () {
+      final query = parse(const {'page': 'abc', 'pageSize': '1.5'});
+
+      expect(query.page, isNull);
+      expect(query.pageSize, isNull);
+    });
+
+    test('负数页码保留数值交由运行时夹取', () {
+      final query = parse(const {'page': '-5'});
+
+      expect(query.page, -5);
+    });
+
+    test('query 参数经 round-trip 后窗口一致', () {
+      const original = HistoryBrowseRouteQuery(
+        page: 3,
+        pageSize: 50,
+        keyword: '关键词',
+      );
+      final restored = parse(
+        original.toQueryParameters(resolvedPage: 3, resolvedPageSize: 50),
+      );
+
+      expect(restored.page, 3);
+      expect(restored.pageSize, 50);
+      expect(restored.keyword, '关键词');
+    });
+
+    test('空关键词在序列化时省略 q 参数', () {
+      const query = HistoryBrowseRouteQuery(page: 2, pageSize: 20);
+
+      expect(
+        query
+            .toQueryParameters(resolvedPage: 2, resolvedPageSize: 20)
+            .containsKey('q'),
+        isFalse,
+      );
+    });
+
+    testWidgets('中文关键词深链恢复搜索结果且不抛异常', (tester) async {
+      final db = AppDatabase.inMemory();
+      addTearDown(db.close);
+      final prefs = await createSeededPreferences(db);
+
+      final router = createAppRouter(
+        initialLocation: '/history?q=${Uri.encodeQueryComponent('重构')}',
+        videoPlayerBindingsFactory: _mobileTestBindings,
+      );
+      await pumpTestApp(
+        tester,
+        preferences: prefs,
+        database: db,
+        router: router,
+      );
+
+      expect(find.text('Rust 重构计划'), findsOneWidget);
+      expect(find.text('Flutter 路线图'), findsNothing);
+      expect(router.routerDelegate.state.uri.queryParameters['q'], '重构');
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('page 与 pageSize 深链直接恢复目标窗口', (tester) async {
+      final db = AppDatabase.inMemory();
+      addTearDown(db.close);
+      final prefs = await createBulkSeededPreferences(db, count: 25);
+
+      final router = createAppRouter(
+        initialLocation: '/history?page=2&pageSize=10',
+        videoPlayerBindingsFactory: _mobileTestBindings,
+      );
+      await pumpTestApp(
+        tester,
+        preferences: prefs,
+        database: db,
+        router: router,
+      );
+
+      // 每页 10 条时第 2 页为第 11-20 条（排序按更新时间倒序）；
+      // 列表虚拟化只渲染可视区，断言页首附近的条目即可锁定窗口位置。
+      expect(find.text('批量会话 10'), findsOneWidget);
+      expect(find.text('批量会话 12'), findsOneWidget);
+      expect(find.text('批量会话 9'), findsNothing);
+      expect(find.textContaining('共 25 条 · 2/3 页'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
   });
 }
