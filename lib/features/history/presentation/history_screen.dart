@@ -225,8 +225,8 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                 isBusy: paginationState.isLoading,
               ),
               pageIdentity:
-                  '${paginationState.keyword} '
-                  '${paginationState.currentPage} '
+                  '${paginationState.keyword} '
+                  '${paginationState.currentPage} '
                   '${paginationState.pageSize}',
               initialLoading: !paginationState.isInitialized,
               error: paginationState.errorMessage,
