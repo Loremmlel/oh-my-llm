@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:oh_my_llm/app/navigation/app_destination.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
+import 'package:oh_my_llm/core/widgets/app_empty_state.dart';
 import 'package:oh_my_llm/core/widgets/dialogs/app_confirm_dialog.dart';
 import '../application/collections_controller.dart';
 import '../application/favorite_source_conversation_command.dart';
@@ -244,27 +245,22 @@ class _FavoriteDetailRecoveryPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final router = GoRouter.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.bookmark_border_rounded,
-              size: 48,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(height: 12),
-            Text(title, style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Text(
-              description,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
+      appBar: AppBar(title: const Text('收藏详情')),
+      body: AppEmptyState(
+        icon: Icons.bookmark_remove_rounded,
+        title: title,
+        description: description,
+        action: FilledButton(
+          onPressed: () {
+            if (router.canPop()) {
+              router.pop();
+            } else {
+              router.go(AppDestination.favorites.path);
+            }
+          },
+          child: const Text('返回收藏列表'),
         ),
       ),
     );
