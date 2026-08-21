@@ -10,9 +10,6 @@ final favoritesRepositoryProvider = Provider<FavoritesRepository>((ref) {
 
 /// 收藏记录的读写仓库接口。
 abstract interface class FavoritesRepository {
-  /// 按收藏时间降序返回全部收藏记录。
-  List<Favorite> loadAll();
-
   /// 加载指定收藏夹的一页收藏，按 created_at DESC, id DESC 稳定排序。
   ///
   /// count 与 page 由本方法一次返回；[limit] 必须 > 0、[offset] 必须 >= 0、

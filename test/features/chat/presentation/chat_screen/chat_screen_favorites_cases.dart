@@ -7,15 +7,17 @@ import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/features/chat/application/generation/chat_generation_lifecycle.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
 import 'package:oh_my_llm/features/favorites/data/sqlite_favorites_repository.dart';
+import 'package:oh_my_llm/features/favorites/domain/models/favorite.dart';
 
 import '../../../../helpers/async/widget_test_animation.dart';
 import 'chat_screen_test_helpers.dart';
 
-/// 直接经 repository 统计收藏数量，不依赖浏览窗口投影。
-int _favoriteCount(ProviderContainer container) {
+/// 直接经 repository 按 assistant 内容定位收藏；与收藏身份判定同通道，
+/// 不依赖浏览窗口投影。
+Favorite? _findFavorite(ProviderContainer container, String assistantContent) {
   return SqliteFavoritesRepository(
     container.read(appDatabaseProvider),
-  ).loadAll().length;
+  ).findByAssistantContent(assistantContent);
 }
 
 /// 打开 assistant 回复的收藏对话框。
@@ -41,7 +43,7 @@ void registerChatScreenFavoritesTests() {
       description: '收藏对话框用例生成完成',
     );
 
-    expect(_favoriteCount(container), 0);
+    expect(_findFavorite(container, '收藏对话框测试回复'), isNull);
 
     await _openAddDialog(tester);
 
@@ -57,12 +59,10 @@ void registerChatScreenFavoritesTests() {
     );
     await settleOverlayTransition(tester);
 
-    expect(_favoriteCount(container), 1);
-    final favorites = SqliteFavoritesRepository(
-      container.read(appDatabaseProvider),
-    ).loadAll();
+    final favorite = _findFavorite(container, '收藏对话框测试回复');
+    expect(favorite, isNotNull);
     expect(
-      favorites.single.collectionId,
+      favorite!.collectionId,
       AppReservedEntities.uncategorizedFavoriteCollectionId,
     );
   });
@@ -88,7 +88,7 @@ void registerChatScreenFavoritesTests() {
     await tester.tap(find.widgetWithText(TextButton, '取消'));
     await settleOverlayTransition(tester);
 
-    expect(_favoriteCount(container), 0);
+    expect(_findFavorite(container, '取消收藏测试回复'), isNull);
     expect(find.byTooltip('收藏回复'), findsOneWidget);
     expect(find.byTooltip('已收藏'), findsNothing);
   });
@@ -119,14 +119,14 @@ void registerChatScreenFavoritesTests() {
     );
     await settleOverlayTransition(tester);
 
-    expect(_favoriteCount(container), 1);
+    expect(_findFavorite(container, '取消收藏流程测试'), isNotNull);
     expect(find.byTooltip('已收藏'), findsOneWidget);
 
     // 再次点击直接移除收藏（无确认弹窗），收藏状态同步更新。
     await tester.tap(find.byTooltip('已收藏'));
     await tester.pump();
 
-    expect(_favoriteCount(container), 0);
+    expect(_findFavorite(container, '取消收藏流程测试'), isNull);
     expect(find.byTooltip('收藏回复'), findsOneWidget);
     expect(find.byTooltip('已收藏'), findsNothing);
   });
@@ -169,9 +169,7 @@ void registerChatScreenFavoritesTests() {
     );
     await settleOverlayTransition(tester);
 
-    final newCollectionId = SqliteFavoritesRepository(
-      container.read(appDatabaseProvider),
-    ).loadAll().single.collectionId;
+    final newCollectionId = _findFavorite(container, '预选上次归类测试')!.collectionId;
     expect(
       newCollectionId,
       isNot(AppReservedEntities.uncategorizedFavoriteCollectionId),
@@ -181,7 +179,7 @@ void registerChatScreenFavoritesTests() {
     // 直接确认即落库到该夹，无需再点选项。
     await tester.tap(find.byTooltip('已收藏'));
     await tester.pump();
-    expect(_favoriteCount(container), 0);
+    expect(_findFavorite(container, '预选上次归类测试'), isNull);
 
     await _openAddDialog(tester);
     await tester.tap(
@@ -192,13 +190,8 @@ void registerChatScreenFavoritesTests() {
     );
     await settleOverlayTransition(tester);
 
-    expect(_favoriteCount(container), 1);
-    expect(
-      SqliteFavoritesRepository(
-        container.read(appDatabaseProvider),
-      ).loadAll().single.collectionId,
-      newCollectionId,
-    );
+    expect(_findFavorite(container, '预选上次归类测试'), isNotNull);
+    expect(_findFavorite(container, '预选上次归类测试')!.collectionId, newCollectionId);
   });
 
   testWidgets('对话框内新建收藏夹仅选中，需再次确认才落库', (tester) async {
@@ -235,7 +228,7 @@ void registerChatScreenFavoritesTests() {
 
     // 创建后停留在对话框且新夹被选中，但尚未产生收藏。
     expect(find.text('收藏到'), findsOneWidget);
-    expect(_favoriteCount(container), 0);
+    expect(_findFavorite(container, '新建收藏夹测试回复'), isNull);
     expect(find.byTooltip('已收藏'), findsNothing);
 
     // 再次确认才真正收藏，归属为新夹。
@@ -248,13 +241,11 @@ void registerChatScreenFavoritesTests() {
     await settleOverlayTransition(tester);
 
     expect(find.byTooltip('已收藏'), findsOneWidget);
-    final favorites = SqliteFavoritesRepository(
-      container.read(appDatabaseProvider),
-    ).loadAll();
-    expect(favorites, hasLength(1));
-    expect(favorites.single.collectionId, isNotEmpty);
+    final favorite = _findFavorite(container, '新建收藏夹测试回复');
+    expect(favorite, isNotNull);
+    expect(favorite!.collectionId, isNotEmpty);
     expect(
-      favorites.single.collectionId,
+      favorite.collectionId,
       isNot(AppReservedEntities.uncategorizedFavoriteCollectionId),
     );
   });
@@ -290,6 +281,6 @@ void registerChatScreenFavoritesTests() {
 
     // 对话框保持打开并内联报错，收藏与收藏夹均未创建。
     expect(find.text('该名称被系统收藏夹保留'), findsOneWidget);
-    expect(_favoriteCount(container), 0);
+    expect(_findFavorite(container, '保留名校验测试'), isNull);
   });
 }

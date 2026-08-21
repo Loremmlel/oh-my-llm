@@ -29,9 +29,6 @@ class _FlakyFavoritesRepository implements FavoritesRepository {
   }
 
   @override
-  List<Favorite> loadAll() => _inner.loadAll();
-
-  @override
   FavoritePage loadPage({
     required String collectionId,
     required int limit,

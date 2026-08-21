@@ -6,6 +6,7 @@ import 'package:oh_my_llm/features/favorites/data/sqlite_collections_repository.
 import 'package:oh_my_llm/features/favorites/data/sqlite_favorites_repository.dart';
 import 'package:oh_my_llm/features/favorites/domain/models/collection.dart';
 import 'package:oh_my_llm/features/favorites/domain/models/favorite.dart';
+import 'package:oh_my_llm/features/favorites/domain/models/favorite_page.dart';
 
 Favorite _makeFavorite({
   required String id,
@@ -55,8 +56,15 @@ void main() {
     database.close();
   });
 
-  group('SqliteFavoritesRepository - loadAll', () {
-    test('save 后 loadAll 返回完整的收藏记录，可选字段为 null 时也正确', () {
+  /// 读取系统未分类收藏夹整页，作为全量语义的验证通道。
+  FavoritePage loadUncategorizedPage() => repository.loadPage(
+    collectionId: AppReservedEntities.uncategorizedFavoriteCollectionId,
+    limit: 20,
+    offset: 0,
+  );
+
+  group('SqliteFavoritesRepository - save & delete', () {
+    test('save 后 loadById 返回完整的收藏记录，可选字段为 null 时也正确', () {
       repository.save(
         _makeFavorite(
           id: 'fav-1',
@@ -72,9 +80,7 @@ void main() {
       );
       repository.save(_makeFavorite(id: 'fav-2'));
 
-      final result = repository.loadAll();
-      expect(result, hasLength(2));
-      final full = result.firstWhere((f) => f.id == 'fav-1');
+      final full = repository.loadById('fav-1')!;
       expect(full.userMessageContent, '用户消息');
       expect(full.assistantContent, '模型回复');
       expect(full.assistantReasoningContent, '思考过程');
@@ -88,29 +94,17 @@ void main() {
         AppReservedEntities.uncategorizedFavoriteCollectionId,
       );
       expect(full.collectionAssignedAt, full.createdAt);
-      final minimal = result.firstWhere((f) => f.id == 'fav-2');
+      final minimal = repository.loadById('fav-2')!;
       expect(minimal.sourceAssistantMessageId, isNull);
       expect(minimal.title, isNull);
     });
 
-    test('loadAll 按 created_at 降序排列', () {
-      repository.save(_makeFavorite(id: 'fav-1', createdAt: DateTime(2026, 1)));
-      repository.save(_makeFavorite(id: 'fav-3', createdAt: DateTime(2026, 3)));
-      repository.save(_makeFavorite(id: 'fav-2', createdAt: DateTime(2026, 2)));
-
-      final ids = repository.loadAll().map((f) => f.id).toList();
-      expect(ids, ['fav-3', 'fav-2', 'fav-1']);
-    });
-  });
-
-  group('SqliteFavoritesRepository - save & delete', () {
     test('save 重复 id 执行 REPLACE（更新内容）', () {
       repository.save(_makeFavorite(id: 'fav-1', assistantContent: '旧回答'));
       repository.save(_makeFavorite(id: 'fav-1', assistantContent: '新回答'));
 
-      final result = repository.loadAll();
-      expect(result, hasLength(1));
-      expect(result.first.assistantContent, '新回答');
+      expect(repository.loadById('fav-1')!.assistantContent, '新回答');
+      expect(loadUncategorizedPage().totalItems, 1);
     });
 
     test('save 完整保留归属与归属时间', () {
@@ -141,7 +135,9 @@ void main() {
       repository.save(_makeFavorite(id: 'fav-1'));
       repository.deleteMany({'fav-1'});
 
-      expect(repository.loadAll(), isEmpty);
+      final page = loadUncategorizedPage();
+      expect(page.items, isEmpty);
+      expect(page.totalItems, 0);
     });
   });
 
@@ -198,10 +194,10 @@ void main() {
       repository.save(_makeFavorite(id: 'fav-1'));
 
       repository.updateTitle('fav-1', '我的标题');
-      expect(repository.loadAll().single.title, '我的标题');
+      expect(repository.loadById('fav-1')!.title, '我的标题');
 
       repository.updateTitle('fav-1', null);
-      expect(repository.loadAll().single.title, isNull);
+      expect(repository.loadById('fav-1')!.title, isNull);
     });
   });
 
@@ -410,10 +406,10 @@ void main() {
       repository.save(_makeFavorite(id: 'fav-3'));
 
       expect(repository.deleteMany({'fav-1', 'fav-3'}), 2);
-      expect(repository.loadAll().map((f) => f.id), ['fav-2']);
+      expect(loadUncategorizedPage().items.map((f) => f.id), ['fav-2']);
 
       expect(repository.deleteMany(const {}), 0);
-      expect(repository.loadAll(), hasLength(1));
+      expect(loadUncategorizedPage().totalItems, 1);
     });
 
     test('moveMany 批量移动并统一更新归属时间，空集合 no-op', () {

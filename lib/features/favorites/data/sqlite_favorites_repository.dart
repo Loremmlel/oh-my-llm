@@ -10,14 +10,6 @@ class SqliteFavoritesRepository implements FavoritesRepository {
   final AppDatabase _database;
 
   @override
-  List<Favorite> loadAll() {
-    final rows = _database.connection.select(
-      'SELECT * FROM favorites ORDER BY created_at DESC;',
-    );
-    return rows.map(_rowToFavorite).toList(growable: false);
-  }
-
-  @override
   FavoritePage loadPage({
     required String collectionId,
     required int limit,
