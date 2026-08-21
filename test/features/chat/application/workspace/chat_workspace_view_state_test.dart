@@ -36,8 +36,15 @@ ChatConversation _conversation() {
 /// 空收藏快照的 facade，替代生产组合层绑定（默认实现直接抛 StateError）。
 class _EmptyFavoritesFacade implements ChatFavoritesFacade {
   @override
-  ChatFavoritesSnapshot get snapshot =>
-      const ChatFavoritesSnapshot(entries: [], collections: []);
+  int get revision => 0;
+
+  @override
+  ChatFavoritesSnapshot snapshotFor(Set<String> assistantContents) =>
+      const ChatFavoritesSnapshot(
+        entries: [],
+        collections: [],
+        defaultCollectionId: 'sys',
+      );
 
   @override
   String createCollection(String name) => name;

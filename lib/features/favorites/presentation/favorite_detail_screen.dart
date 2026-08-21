@@ -119,9 +119,9 @@ class _FavoriteDetailScreenState extends ConsumerState<FavoriteDetailScreen> {
 
     if (result == null) return;
     final trimmed = result.trim();
-    // 变更后由 favoriteByIdProvider 重读，页面无需本地同步。
+    // 变更后由 favoriteByIdProvider 随 revision 重读，页面无需本地同步。
     ref
-        .read(favoritesProvider.notifier)
+        .read(favoritesLibraryProvider.notifier)
         .rename(favorite.id, trimmed.isEmpty ? null : trimmed);
   }
 
@@ -177,8 +177,9 @@ class _FavoriteDetailScreenState extends ConsumerState<FavoriteDetailScreen> {
     );
 
     if (result == null) return;
-    // controller 入口把 null/空串归一为系统"未分类"收藏夹。
-    ref.read(favoritesProvider.notifier).moveTo(favorite.id, result);
+    ref.read(favoritesLibraryProvider.notifier).moveMany({
+      favorite.id,
+    }, targetCollectionId: result);
   }
 
   Future<void> _confirmDelete(BuildContext context, Favorite favorite) async {
@@ -192,7 +193,7 @@ class _FavoriteDetailScreenState extends ConsumerState<FavoriteDetailScreen> {
     );
 
     if (confirmed == true) {
-      ref.read(favoritesProvider.notifier).remove(favorite.id);
+      ref.read(favoritesLibraryProvider.notifier).remove(favorite.id);
       if (context.mounted) context.pop();
     }
   }

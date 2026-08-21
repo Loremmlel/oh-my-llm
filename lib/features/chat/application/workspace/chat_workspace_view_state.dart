@@ -322,7 +322,13 @@ final chatWorkspaceReadModelProvider = Provider<ChatWorkspaceReadModel>((ref) {
     composerTemplateSelectionProvider(activeConversationId),
   );
   final isComposerCollapsed = ref.watch(composerCollapsedProvider);
-  final favorites = ref.watch(chatFavoritesFacadeProvider).snapshot;
+  // watch facade（内部依赖收藏 revision）建立失效依赖，
+  // 再按当前会话的 assistant 消息定向查询收藏身份，不加载全量 catalog。
+  final facade = ref.watch(chatFavoritesFacadeProvider);
+  final favorites = facade.snapshotFor({
+    for (final message in conversation.messages)
+      if (message.role == ChatMessageRole.assistant) message.content,
+  });
 
   final selectedModel = resolveSelectedModel(
     modelConfigs: modelConfigs,

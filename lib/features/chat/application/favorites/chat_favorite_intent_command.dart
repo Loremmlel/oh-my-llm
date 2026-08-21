@@ -37,20 +37,22 @@ class ChatFavoriteIntentCommand {
     required ChatConversation conversation,
     required ChatMessage assistantMessage,
   }) {
-    final snapshot = _facade.snapshot;
+    final snapshot = _facade.snapshotFor({assistantMessage.content});
     final existing = snapshot.findByAssistantContent(assistantMessage.content);
     if (existing != null) {
       _facade.remove(existing.id);
       return ChatFavoriteRemoved(existing);
     }
 
+    // 默认归属最近有效收藏夹（失效回退系统"未分类"），不再产生 null sentinel；
+    // Add dialog 以该值为初始选择，用户确认后仍可改选。
     final draft = ChatFavoriteDraft(
       userMessageContent: _resolveUserContent(conversation, assistantMessage),
       assistantContent: assistantMessage.content,
       assistantReasoningContent: assistantMessage.reasoningContent,
       assistantModelDisplayName:
           assistantMessage.resolvedAssistantModelDisplayName,
-      collectionId: null,
+      collectionId: snapshot.defaultCollectionId,
       sourceAssistantMessageId: assistantMessage.id,
       sourceConversationId: conversation.id,
       sourceConversationTitle: conversation.resolvedTitle,
@@ -62,11 +64,7 @@ class ChatFavoriteIntentCommand {
   }
 
   void addToCollection(ChatFavoriteDraft draft, String selectedCollectionId) {
-    // '' 表示未分类 -> null。
-    final normalized = selectedCollectionId.isEmpty
-        ? null
-        : selectedCollectionId;
-    _facade.add(draft.copyWithCollectionId(normalized));
+    _facade.add(draft.copyWithCollectionId(selectedCollectionId));
   }
 
   void restore(ChatFavoriteEntry entry) => _facade.add(entry.draft);

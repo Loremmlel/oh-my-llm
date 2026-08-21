@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oh_my_llm/core/widgets/dialogs/app_confirm_dialog.dart';
 import 'package:oh_my_llm/core/widgets/app_empty_state.dart';
 import '../../../application/collections_controller.dart';
+import '../../../application/favorites_controller.dart';
 import '../../../domain/models/collection.dart';
 
 /// 收藏夹管理对话框，支持查看、重命名和删除收藏夹。
@@ -145,7 +146,9 @@ class _ManageCollectionsDialogState
   void _commitRename(String collectionId) {
     final name = _renameController.text.trim();
     if (name.isNotEmpty) {
-      ref.read(collectionsProvider.notifier).rename(collectionId, name);
+      ref
+          .read(favoritesLibraryProvider.notifier)
+          .renameCollection(collectionId, name);
     }
     setState(() => _editingId = null);
   }
@@ -164,7 +167,9 @@ class _ManageCollectionsDialogState
     );
 
     if (confirmed == true) {
-      ref.read(collectionsProvider.notifier).delete(collection.id);
+      ref
+          .read(favoritesLibraryProvider.notifier)
+          .deleteCollection(collection.id);
     }
   }
 }
