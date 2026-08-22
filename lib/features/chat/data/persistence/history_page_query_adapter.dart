@@ -170,6 +170,13 @@ class SqliteHistoryPageQueryAdapter implements HistoryPageQuery {
       completer.completeError(error);
     }
     _completeAllPending(error);
+    // onExit 事件与 Exit 响应分属两个端口、无顺序保证：优雅 dispose 时若
+    // onExit 先到，worker 已死的事实等价于退出完成，立即放行等待，不靠
+    // dispose 的超时兜底。
+    final exited = _exited;
+    if (exited != null && !exited.isCompleted) {
+      exited.complete();
+    }
   }
 
   void _completeAllPending(HistoryPageQueryException error) {
