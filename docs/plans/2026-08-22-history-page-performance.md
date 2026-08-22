@@ -605,6 +605,8 @@ screen：
 
 `history_screen_async_query_cases.dart` 注册下列新测试；既有 search/actions/pagination cases 只迁移异步等待方式并保留原行为断言：
 
+实施记录：search/actions/pagination 既有 case 文件与 `test/app/router/app_router_test.dart` 实际零改动——内存库 in-process adapter 在微任务内完成，旧式同步断言仍直接观察 committed 状态（已实跑两个套件确认全过），机械迁移只会扩大 diff 无行为收益。
+
 1. `查询未完成时 loading 动画可 pump 且搜索输入仍可编辑`。
 2. `搜索成功前 URL 保持旧值，成功后才 replace`。
 3. `搜索失败保留旧 URL 和旧列表并显示加载失败`。

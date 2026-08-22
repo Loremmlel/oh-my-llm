@@ -317,6 +317,35 @@ void main() {
       expect(c.read(historyPaginationProvider).totalItems, 2);
     });
 
+    test('搜索态 delete 强制刷新且不会被删除前在途查询复活', () async {
+      final query = ControllableHistoryPageQuery();
+      final c = createContainer(query);
+      final initial = c
+          .read(historyPaginationProvider.notifier)
+          .loadRoute(page: 1);
+      query.completeSuccess(0, items: [summary('a')], totalItems: 10);
+      await initial;
+
+      // 删除触发按最新目标重查，删除前在途的旧查询结果不能写回。
+      final outcomeSearch = c
+          .read(historyPaginationProvider.notifier)
+          .setKeyword('旧');
+      final outcomeDelete = c
+          .read(historyPaginationProvider.notifier)
+          .afterDelete({'a'});
+
+      query.completeSuccess(1, items: [summary('旧结果')], totalItems: 9);
+      expect(await outcomeSearch, HistoryWindowLoadOutcome.ignored);
+
+      expect(query.requests.last.keyword, '旧');
+      query.completeSuccess(2, items: [summary('b')], totalItems: 1);
+      expect(await outcomeDelete, HistoryWindowLoadOutcome.committed);
+      expect(c.read(historyPaginationProvider).conversations.map((e) => e.id), [
+        'b',
+      ]);
+      expect(c.read(historyPaginationProvider).totalItems, 1);
+    });
+
     test('查询在途时 goToPage 返回 ignored 且不发送新请求', () async {
       final query = ControllableHistoryPageQuery();
       final c = createContainer(query);

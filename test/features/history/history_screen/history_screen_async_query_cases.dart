@@ -38,6 +38,23 @@ Future<void> _completeAndSettle(
   await tester.pump();
 }
 
+/// 完成第 [index] 次查询为失败并结算到稳定帧（失败态 + route 回滚）。
+Future<void> _completeFailureAndSettle(
+  WidgetTester tester,
+  HistoryScreenQueryEnv env,
+  int index,
+) async {
+  env.query.completeFailure(index);
+  await tester.pump();
+  await tester.pump();
+}
+
+/// 搜索框 finder：按 hintText 锚定；rename 对话框打开出现第二个
+/// TextField 时仍指向搜索框，不依赖 widget 顺序。
+Finder _searchField() => find.byWidgetPredicate(
+  (widget) => widget is TextField && widget.decoration?.hintText == '搜索历史对话',
+);
+
 void registerHistoryScreenAsyncQueryTests() {
   testWidgets('查询未完成时 loading 动画可 pump 且搜索输入仍可编辑', (tester) async {
     final env = await pumpControllableHistoryScreen(tester);
@@ -45,7 +62,7 @@ void registerHistoryScreenAsyncQueryTests() {
     expect(env.query.pendingCount, 1);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
 
-    final searchField = find.byType(TextField).first;
+    final searchField = _searchField();
     expect(tester.widget<TextField>(searchField).enabled ?? true, isTrue);
     await tester.enterText(searchField, '关键词');
     await tester.pump();
@@ -63,7 +80,7 @@ void registerHistoryScreenAsyncQueryTests() {
     );
     expect(env.router.routerDelegate.state.uri.queryParameters['q'], isNull);
 
-    await tester.enterText(find.byType(TextField).first, 'Rust');
+    await tester.enterText(_searchField(), 'Rust');
     await tester.pump(HistoryScreen.searchDebounce);
     await tester.pump();
 
@@ -94,13 +111,11 @@ void registerHistoryScreenAsyncQueryTests() {
       totalItems: 2,
     );
 
-    await tester.enterText(find.byType(TextField).first, '不存在的关键词');
+    await tester.enterText(_searchField(), '不存在的关键词');
     await tester.pump(HistoryScreen.searchDebounce);
     await tester.pump();
 
-    env.query.completeFailure(1);
-    await tester.pump();
-    await tester.pump();
+    await _completeFailureAndSettle(tester, env, 1);
 
     expect(env.router.routerDelegate.state.uri.queryParameters['q'], isNull);
     expect(find.text('Rust 重构计划'), findsOneWidget);
@@ -119,7 +134,7 @@ void registerHistoryScreenAsyncQueryTests() {
       totalItems: 1,
     );
 
-    await tester.enterText(find.byType(TextField).first, 'Rust');
+    await tester.enterText(_searchField(), 'Rust');
     await tester.pump(HistoryScreen.searchDebounce);
     await tester.pump();
     env.query.completeFailure(1);
@@ -161,9 +176,7 @@ void registerHistoryScreenAsyncQueryTests() {
     await tester.pump();
     expect(env.query.pendingCount, 1);
 
-    env.query.completeFailure(1);
-    await tester.pump();
-    await tester.pump();
+    await _completeFailureAndSettle(tester, env, 1);
 
     final uri = env.router.routerDelegate.state.uri;
     expect(uri.queryParameters['q'], isNull);
@@ -209,7 +222,7 @@ void registerHistoryScreenAsyncQueryTests() {
       totalItems: 2,
     );
 
-    await tester.enterText(find.byType(TextField).first, 'Rust');
+    await tester.enterText(_searchField(), 'Rust');
     await tester.pump(HistoryScreen.searchDebounce);
     await tester.pump();
     expect(env.query.pendingCount, 1);
@@ -252,13 +265,13 @@ void registerHistoryScreenAsyncQueryTests() {
     );
 
     // A：搜索 Rust 进入在途。
-    await tester.enterText(find.byType(TextField).first, 'Rust');
+    await tester.enterText(_searchField(), 'Rust');
     await tester.pump(HistoryScreen.searchDebounce);
     await tester.pump();
     // B→C：连续输入使 C 成为 latest pending（B 未进入查询）。
-    await tester.enterText(find.byType(TextField).first, 'Flutter');
+    await tester.enterText(_searchField(), 'Flutter');
     await tester.pump(HistoryScreen.searchDebounce);
-    await tester.enterText(find.byType(TextField).first, '复盘');
+    await tester.enterText(_searchField(), '复盘');
     await tester.pump(HistoryScreen.searchDebounce);
     await tester.pump();
 
@@ -322,7 +335,7 @@ void registerHistoryScreenAsyncQueryTests() {
     );
 
     // 搜索态：只命中标题包含 Rust 的会话。
-    await tester.enterText(find.byType(TextField).first, 'Rust');
+    await tester.enterText(_searchField(), 'Rust');
     await tester.pump(HistoryScreen.searchDebounce);
     await tester.pump();
     await _completeAndSettle(
@@ -382,7 +395,7 @@ void registerHistoryScreenAsyncQueryTests() {
     );
 
     // 删除前先制造一个在途查询（进入搜索防抖窗口）。
-    await tester.enterText(find.byType(TextField).first, '路');
+    await tester.enterText(_searchField(), '路');
     await tester.pump(HistoryScreen.searchDebounce);
     await tester.pump();
     expect(env.query.pendingCount, 1);
@@ -451,7 +464,7 @@ void registerHistoryScreenAsyncQueryTests() {
     expect(env.query.requests, hasLength(requestsWhileBusy));
 
     // 搜索输入不受 busy 影响，可继续编辑。
-    final searchField = find.byType(TextField).first;
+    final searchField = _searchField();
     expect(tester.widget<TextField>(searchField).enabled ?? true, isTrue);
     await tester.enterText(searchField, '关键词');
     await tester.pump();
