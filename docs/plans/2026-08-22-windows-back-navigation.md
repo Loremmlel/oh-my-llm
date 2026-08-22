@@ -336,3 +336,13 @@ Windows build 使用与仓库构建命令相称的工具级硬超时。最终 di
 7. 真实鼠标 smoke 明确记录 `PASS/FAIL/PENDING`，未执行不冒充通过；
 8. diff 无无关文件、临时日志、调试代码、平台泛化或新依赖；
 9. 未经授权不 push、不创建 PR。
+
+## 10. 执行记录（2026-08-22）
+
+Task 1–4 已在分支 `feat/desktop-back-navigation` 完成，门禁与真机验证结论：
+
+- 红/绿证据：`logs/windows-back-task1-red.log`（编译失败=接口缺失）→ `windows-back-task1-green.log`（EXIT=0，12 例）；`windows-back-task2-red.log`（仅「Windows 宿主鼠标后退侧键把设置页退回对话」失败）→ `windows-back-task2-green.log`（EXIT=0，25 例）；`windows-back-video-green.log`（EXIT=0）。
+- 与草图的偏差：Flutter 3.44 的 `BackButtonDispatcher.invokeCallback` 必传 defaultValue，实现统一为 `invokeCallback(Future.value(false))`；§8.1 的 `test/features/media/presentation/video_player_page_test.dart` 实际位于 `pages/` 子目录，定向门禁以 `pages/video_player_page_test.dart` 与 `pages/video_player_desktop_test.dart` 两个文件替代。
+- §6 审计结论：History 选择态（`history_screen_actions_cases.dart`「系统返回先清除历史选择态再离开页面」）、Chat 编辑态（`chat_screen_workspace_ownership_cases.dart`「系统返回取消消息编辑并恢复草稿」）、Sync 媒体目录（`sync_workspace_screen_render_cases.dart` 三条）、busy Dialog（chat 检查点用例）已由既有测试覆盖；收藏选择态 generic Back 原缺直接用例，已补 `favorites_screen_selection_cases.dart`「系统返回先清除收藏选择态且留在收藏夹页」。
+- 空焦点场景核查：Navigator 自带 `Focus(autofocus: true)`（flutter/widgets/navigator.dart），`MaterialApp.router` 下主焦点恒在 adapter 子树内，browserBack 键盘路径不会因「无任何节点持有焦点」而丢失，非缺陷。
+- 真机 smoke：第 1–9 项 PASS（2026-08-22 用户真机验证，硬件型号待补填），第 10 项 PENDING（无 browserBack 映射设备），见 `docs/testing/windows-back-navigation-smoke.md`。
