@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -5,6 +7,7 @@ import 'package:oh_my_llm/core/http/http_client_provider.dart';
 import 'package:oh_my_llm/core/widgets/notification_bubble/notification_bubble_stack.dart';
 import 'package:oh_my_llm/features/settings/application/preferences/font_size_settings_controller.dart';
 import 'composition/chat_generation_notification_coordinator.dart';
+import 'platform/windows_navigation_input_adapter.dart';
 import 'router/app_router.dart';
 import 'theme/app_theme.dart';
 
@@ -44,7 +47,20 @@ class _OhMyLlmAppState extends ConsumerState<OhMyLlmApp> {
       themeMode: ThemeMode.system,
       routerConfig: router,
       builder: (context, child) {
-        return Stack(children: [child!, const NotificationBubbleStack()]);
+        final content = Stack(
+          children: [child!, const NotificationBubbleStack()],
+        );
+        // 仅 Windows 宿主把鼠标后退侧键与 browserBack 翻译成 dispatcher 的
+        // 返回请求；其余平台沿用系统返回通道，不新增键盘/指针适配。
+        if (defaultTargetPlatform != TargetPlatform.windows) {
+          return content;
+        }
+        return WindowsNavigationInputAdapter(
+          // defaultValue 传 false：Router 尚未注册回调时视为未消费。
+          onBackRequested: () =>
+              router.backButtonDispatcher.invokeCallback(Future.value(false)),
+          child: content,
+        );
       },
     );
   }
