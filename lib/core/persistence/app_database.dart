@@ -105,6 +105,13 @@ class AppDatabase {
     );
   }
 
+  /// 判断 [tableName] 是否已存在名为 [columnName] 的列。
+  bool _hasColumn(String tableName, String columnName) {
+    return _connection
+        .select('PRAGMA table_info($tableName);')
+        .any((row) => row['name'] == columnName);
+  }
+
   /// favorites 表 v14 结构；[tableName] 供迁移重建时使用中间表名。
   String _favoritesTableV14Ddl(String tableName) =>
       '''
@@ -133,6 +140,12 @@ class AppDatabase {
   void _migrateFavoritesFromV13ToV14() {
     _connection.execute('BEGIN;');
     try {
+      // 兼容缺口：历史上有未经 master 的构建把 user_version 写成 13，
+      // favorites 却停留在无 title 列的旧结构（title 由 V10 迁移引入）。
+      // 该自愈随本临时迁移一起退役：v13→v14 迁移删除时一并删除。
+      if (!_hasColumn('favorites', 'title')) {
+        _connection.execute('ALTER TABLE favorites ADD COLUMN title TEXT;');
+      }
       // 按固定 ID 播种系统夹，不按名称复用可能存在的同名普通行。
       _seedSystemFavoriteCollection();
 
