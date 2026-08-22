@@ -142,13 +142,30 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
 
     // 外部导航改变窗口时旧窗口的选中在新窗口不可见，先清空再加载。
     _prepareForWindowChange();
-    ref
-        .read(historyPaginationProvider.notifier)
-        .loadRoute(
-          page: query.page ?? 1,
-          pageSize: query.pageSize,
-          keyword: query.keyword,
-        );
+    _awaitLoadAndSyncRoute(
+      ref
+          .read(historyPaginationProvider.notifier)
+          .loadRoute(
+            page: query.page ?? 1,
+            pageSize: query.pageSize,
+            keyword: query.keyword,
+          ),
+    );
+  }
+
+  /// 等待一次窗口加载结束后按三态结论收尾 route。
+  ///
+  /// `committed`：以新 committed 窗口 canonicalize 地址（含越界页夹取）。
+  /// `failed`：controller 保留最后成功窗口，replace 把地址恢复为其 canonical
+  /// 形式（初次深链失败时即默认窗口）。
+  /// `ignored`：本调用不拥有提交权（no-op / 被更新目标超越 / dispose），
+  /// 地址让更新的请求接管，不做 route mutation。
+  Future<void> _awaitLoadAndSyncRoute(
+    Future<HistoryWindowLoadOutcome> load,
+  ) async {
+    final outcome = await load;
+    if (!mounted || outcome == HistoryWindowLoadOutcome.ignored) return;
+    _replaceRouteLocation();
   }
 
   /// mutation 后以 replace 更新当前 location，避免堆叠历史记录。
@@ -231,22 +248,20 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
           error: paginationState.errorMessage,
           onRetry: paginationState.errorMessage == null
               ? null
-              : () => ref
-                    .read(historyPaginationProvider.notifier)
-                    .loadRoute(
-                      page: paginationState.currentPage,
-                      pageSize: paginationState.pageSize,
-                      keyword: paginationState.keyword,
-                    ),
+              : () => _awaitLoadAndSyncRoute(
+                  ref.read(historyPaginationProvider.notifier).retry(),
+                ),
           onPageChanged: (page) {
             _prepareForWindowChange();
-            ref.read(historyPaginationProvider.notifier).goToPage(page);
-            _replaceRouteLocation();
+            _awaitLoadAndSyncRoute(
+              ref.read(historyPaginationProvider.notifier).goToPage(page),
+            );
           },
           onPageSizeChanged: (size) {
             _prepareForWindowChange();
-            ref.read(historyPaginationProvider.notifier).setPageSize(size);
-            _replaceRouteLocation();
+            _awaitLoadAndSyncRoute(
+              ref.read(historyPaginationProvider.notifier).setPageSize(size),
+            );
           },
           bodyBuilder: (context, scrollController) => _buildConversationList(
             context,
@@ -467,26 +482,28 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     _searchDebounceTimer?.cancel();
     final nextKeyword = value.trim();
 
-    if (nextKeyword.isEmpty && _currentKeyword().isEmpty) return;
-
     _searchDebounceTimer = Timer(HistoryScreen.searchDebounce, () {
-      if (!mounted || _currentKeyword() == nextKeyword) return;
-      // 搜索生效改变结果集，先清空选择再查询并同步 location。
+      if (!mounted) return;
+      // 搜索生效改变结果集，先清空选择再查询并同步 location；
+      // no-op 判定交给 controller（在途目标优先于 committed 关键词）。
       _prepareForWindowChange();
-      ref.read(historyPaginationProvider.notifier).setKeyword(nextKeyword);
-      _replaceRouteLocation();
+      _awaitLoadAndSyncRoute(
+        ref.read(historyPaginationProvider.notifier).setKeyword(nextKeyword),
+      );
     });
   }
 
+  /// 文本框被明确清空时总是提交空关键词目标。
+  ///
+  /// 不能用 committed keyword 为空直接返回：在途非空搜索仍未提交时，
+  /// 清空必须生成新目标去超越它；no-op 由 controller 判定。
   void _handleSearchCleared() {
     _searchDebounceTimer?.cancel();
-    if (_currentKeyword().isEmpty) return;
     _prepareForWindowChange();
-    ref.read(historyPaginationProvider.notifier).setKeyword('');
-    _replaceRouteLocation();
+    _awaitLoadAndSyncRoute(
+      ref.read(historyPaginationProvider.notifier).setKeyword(''),
+    );
   }
-
-  String _currentKeyword() => ref.read(historyPaginationProvider).keyword;
 
   // ── 重命名 ───────────────────────────────────────────────────────────────
 
@@ -506,14 +523,13 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         .renameConversation(conversationId: conversation.id, title: nextTitle);
 
     if (!mounted) return;
-    if (ref.read(historyPaginationProvider).keyword.isNotEmpty) {
-      // 搜索态下 rename 改变匹配集合，controller 会重新查询；
-      // 非搜索态才做本地标题更新以保留滚动位置。
-      return;
-    }
-    ref
-        .read(historyPaginationProvider.notifier)
-        .afterRename(conversation.id, nextTitle);
+    // 非搜索态由 controller 本地更新标题保留滚动位置；搜索态由 controller
+    // 重查匹配集合，两种语义统一经 afterRename 收尾。
+    _awaitLoadAndSyncRoute(
+      ref
+          .read(historyPaginationProvider.notifier)
+          .afterRename(conversation.id, nextTitle),
+    );
   }
 
   // ── 删除 ─────────────────────────────────────────────────────────────────
@@ -559,6 +575,8 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     _clearSelection();
 
     // controller 按数据库真实结果重拉当前窗口并处理页码回退。
-    ref.read(historyPaginationProvider.notifier).afterDelete(deletedIds);
+    _awaitLoadAndSyncRoute(
+      ref.read(historyPaginationProvider.notifier).afterDelete(deletedIds),
+    );
   }
 }

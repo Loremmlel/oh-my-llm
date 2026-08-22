@@ -9,8 +9,9 @@ import 'package:oh_my_llm/features/chat/domain/models/chat_conversation_summary.
 /// 关键 checkpoint 的 durable save 失败被正确感知（persistenceFailed / inline error），
 /// 且不触发重复网络请求或假成功。
 ///
-/// 与 [FakeHistoryRepository] 不同：本类显式转发全部方法到真实仓库，避免
-/// `noSuchMethod` 转发导致 generation 路径上的 save/load 行为不一致。
+/// 委托真实 SQLite 仓库而非 noSuchMethod 转发，是为了让 generation 路径上的
+/// save/load 行为与生产完全一致（历史页读取已迁移到独立的
+/// HistoryPageQuery 后端，本类仍服务写入路径的故障注入）。
 class FlakyChatConversationRepository implements ChatConversationRepository {
   FlakyChatConversationRepository(AppDatabase database)
     : _inner = SqliteChatConversationRepository(database);

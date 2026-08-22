@@ -646,6 +646,28 @@ screen：
 
 结果写 `logs/history-perf-post-summary-{10000x10,1000x100}.txt`，把摘要数字追加到本计划 8.6 的“实施记录”小节；原始 timeline JSON 留在 ignored `logs/`。若 UI 仍冻结且 SQL 已确认在 worker，命中停止条件：记录新的 UI isolate 热点并停止，不引入 FTS 或 Chat storage 重构。若 UI 流畅但 500–800ms 等待体感仍不可接受，Candidate B 仍算完成，另开 FTS/schema 设计。
 
+#### 实施记录（2026-08-22）
+
+环境：Windows desktop profile build（`flutter run --profile -d windows`），VM Service timeline 流 `Dart/Embedder/GC`；数据集 `logs/history-perf-data-10000x10.sqlite`（193MB）与 `logs/history-perf-data-1000x100.sqlite`（190MB）。摘要：`logs/history-perf-post-summary-10000x10.txt`、`logs/history-perf-post-summary-1000x100.txt`；原始 timeline JSON 留在 ignored `logs/`。
+
+验收逐条对照（数字取自两份摘要的 profile 实测）：
+
+| 验收项 | 10000x10 | 1000x100 |
+|---|---|---|
+| `count.sql/page.sql` 所在 isolate | 全部在 worker isolate（DartWorker 线程映射的 `isolates/1858357091969963`），UI isolate 上 0 条 | 全部在 worker `isolates/401089290511115`，UI isolate 上 0 条 |
+| 有交互活动的查询窗口内帧产出 | 不命中 548ms 内 29 个 UI 帧（maxFrame 6.37ms）；消息命中 351ms 内 30 帧（2.64ms）；清空在途 566ms 内 28 帧（1.61ms）；overlap 首查询 550ms 内 30 帧（5.18ms） | 不命中 639ms 内 14 个 UI 帧（8.40ms）；消息命中 260ms 内 14 帧（4.19ms）；清空在途 564ms 内 14 帧（2.38ms）；overlap 首查询 597ms 内 14 帧（7.39ms） |
+| 场景内最长单帧 | 11.80ms，无任何与 query 等长的冻结区间 | 15.72ms，无任何与 query 等长的冻结区间 |
+| query wall-clock 与基线同量级 | 不命中 548ms / 标题命中 568ms / 消息命中 351ms（§6.2 基线同数据集搜索态 128–834ms，无数量级回退） | 不命中 639ms / 标题命中 615ms / 消息命中 260ms |
+| latest-wins 只发 active+latest | `search.overlap` 三连输入仅 2 个 worker query（A 与 C；B 从未 dispatch），controller.load n=2 | 同样仅 2 个 worker query |
+| 最终 committed URL/window | route 同步 span 每场景 1–2 次、≤0.4ms；URL 断言由 13 个异步 widget 用例覆盖 | 同左 |
+| 非关键词窗口 | 首次进入 19ms、翻页 17ms、pageSize=50 18ms；同路由重复进入（`enter.2.same`）零新查询 | 首次进入 11ms、翻页 8ms、pageSize=50 8ms；同路由重复进入零新查询 |
+
+「UI 不再冻结」与「SQL 总延迟仍存在」的区分：关键词搜索的 count+page 仍在数百毫秒量级（10000x10 约 278–311ms + 267–290ms；1000x100 约 237–325ms + 313–322ms），用户可感知的等待依旧存在；但查询期间 UI/raster 帧在有输入与动画活动时持续产出、单帧峰值 ≤15.72ms，输入与 loading 不再被 SQL 阻塞。标题命中等纯静止窗口内帧数少是「无绘制请求」而非「无帧能力」——同数据集的不命中/清空在途窗口在等长查询内分别产出 28–30 帧（10000x10）与 14 帧（1000x100）。
+
+RED/GREEN：controller 行为红灯 `logs/history-perf-controller-red.log`（38 失败，断言级而非编译级）；GREEN 证据 `logs/history-perf-{controller,adapter,screen,composition}-green.log` 全部 EXIT=0。
+
+清理确认：Task 8 采集用的 in-app 驱动、VM Service 抓取/分析工具与全部 `HISTORY-PERF-TEMP` timeline span 已删除（`rg "HISTORY-PERF|TimelineTask|dart:developer" lib tool test` 零命中）；用户 SharedPreferences 已从 `logs/history-perf-prefs-backup/` 恢复。
+
 ### 8.7 replace-don't-layer 清单
 
 | 旧内容 | 最终处理 |
@@ -794,13 +816,13 @@ Task 8 的 profile 是 performance 修复完成条件，不由普通 CI 时间�
 
 1. [x] 初稿提交 `a1cac05 docs: 落盘历史页打开与搜索性能诊断实施计划`。
 2. [x] 测量与 Candidate 选择提交 `0e15b84 docs(perf): 根据测量细化历史页优化方案`。
-3. [ ] 本轮深 module/并发/生命周期深化仅修改计划；若用户授权提交，使用独立中文 docs commit：
+3. [x] 本轮深 module/并发/生命周期深化仅修改计划；若用户授权提交，使用独立中文 docs commit（已提交 `79950e6`）：
 
 ```powershell
 git commit -m "docs(perf): 深化历史页后台查询实施计划"
 ```
 
-4. [ ] production 获得明确授权后，Task 3–8 的实现、red/green 测试和最终计划实施记录进入一个可工作的行为提交，不留下编译失败或红灯中间提交：
+4. [x] production 获得明确授权后，Task 3–8 的实现、red/green 测试和最终计划实施记录进入一个可工作的行为提交，不留下编译失败或红灯中间提交：
 
 ```powershell
 git commit -m "perf(history): 历史分页查询移入后台读 isolate 消除界面阻塞"
