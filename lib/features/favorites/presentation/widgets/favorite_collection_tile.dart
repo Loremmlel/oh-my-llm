@@ -48,22 +48,38 @@ class FavoriteCollectionTile extends StatefulWidget {
 }
 
 class _FavoriteCollectionTileState extends State<FavoriteCollectionTile> {
-  final MenuController _menuController = MenuController();
+  /// 卡片级菜单锚点：右键 / 长按时按触点位置打开。
+  final MenuController _cardMenuController = MenuController();
+
+  /// 溢出按钮级菜单锚点：按钮点击与键盘等价操作从按钮处弹出。
+  final MenuController _buttonMenuController = MenuController();
+
+  /// 最近一次指针落点（卡片区域局部坐标）；长按回调不带坐标，用原始
+  /// 指针事件补记，让长按菜单与右键一样在触点处打开。
+  Offset? _pointerDownLocalPosition;
 
   bool get _hasMenu =>
       widget.summary.collection.isSystem == false &&
       (widget.onRename != null || widget.onDelete != null);
 
-  void _toggleMenu() {
-    if (_menuController.isOpen) {
-      _menuController.close();
+  /// 两个锚点共用的菜单项。
+  List<Widget> _buildMenuChildren() => [
+    if (widget.onRename != null)
+      MenuItemButton(onPressed: widget.onRename, child: const Text('重命名')),
+    if (widget.onDelete != null)
+      MenuItemButton(onPressed: widget.onDelete, child: const Text('删除收藏夹')),
+  ];
+
+  void _toggleButtonMenu() {
+    if (_buttonMenuController.isOpen) {
+      _buttonMenuController.close();
       return;
     }
-    _menuController.open();
+    _buttonMenuController.open();
   }
 
-  void _openMenuAt(Offset localPosition) {
-    _menuController.open(position: localPosition);
+  void _openCardMenuAt(Offset localPosition) {
+    _cardMenuController.open(position: localPosition);
   }
 
   @override
@@ -72,74 +88,86 @@ class _FavoriteCollectionTileState extends State<FavoriteCollectionTile> {
     final collection = widget.summary.collection;
     final isSystem = collection.isSystem;
 
-    final card = Tooltip(
-      message: collection.name,
-      child: Card(
-        margin: EdgeInsets.zero,
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadii.md),
-          side: BorderSide(color: theme.colorScheme.outlineVariant),
-        ),
-        child: InkWell(
-          autofocus: widget.autofocus,
-          onTap: widget.onOpen,
-          onLongPress: _hasMenu ? _toggleMenu : null,
-          onSecondaryTapUp: _hasMenu
-              ? (details) => _openMenuAt(details.localPosition)
-              : null,
-          borderRadius: BorderRadius.circular(AppRadii.md),
-          child: Padding(
-            padding: EdgeInsets.all(widget.spec.tilePadding),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      isSystem
-                          ? Icons.folder_special_rounded
-                          : Icons.folder_rounded,
-                      color: theme.colorScheme.primary,
+    final card = Listener(
+      onPointerDown: (event) => _pointerDownLocalPosition = event.localPosition,
+      child: Tooltip(
+        message: collection.name,
+        child: Card(
+          margin: EdgeInsets.zero,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadii.md),
+            side: BorderSide(color: theme.colorScheme.outlineVariant),
+          ),
+          child: InkWell(
+            autofocus: widget.autofocus,
+            onTap: widget.onOpen,
+            // 长按按触点打开（坐标由 Listener 补记），与右键行为一致。
+            onLongPress: _hasMenu
+                ? () =>
+                      _openCardMenuAt(_pointerDownLocalPosition ?? Offset.zero)
+                : null,
+            onSecondaryTapUp: _hasMenu
+                ? (details) => _openCardMenuAt(details.localPosition)
+                : null,
+            borderRadius: BorderRadius.circular(AppRadii.md),
+            child: Padding(
+              padding: EdgeInsets.all(widget.spec.tilePadding),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        isSystem
+                            ? Icons.folder_special_rounded
+                            : Icons.folder_rounded,
+                        color: theme.colorScheme.primary,
+                      ),
+                      const Spacer(),
+                      if (_hasMenu)
+                        // 按钮自带菜单锚点：从这里打开的菜单在按钮处弹出。
+                        MenuAnchor(
+                          controller: _buttonMenuController,
+                          menuChildren: _buildMenuChildren(),
+                          child: IconButton(
+                            onPressed: _toggleButtonMenu,
+                            tooltip: '更多操作',
+                            icon: const Icon(Icons.more_vert),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        ),
+                    ],
+                  ),
+                  Text(
+                    collection.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleMedium,
+                  ),
+                  if (isSystem)
+                    Padding(
+                      padding: const EdgeInsets.only(top: AppSpacing.xxs),
+                      child: Text(
+                        '系统',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
                     ),
-                    const Spacer(),
-                    if (_hasMenu)
-                      IconButton(
-                        onPressed: _toggleMenu,
-                        tooltip: '更多操作',
-                        icon: const Icon(Icons.more_vert),
-                        visualDensity: VisualDensity.compact,
-                      ),
-                  ],
-                ),
-                Text(
-                  collection.name,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleMedium,
-                ),
-                if (isSystem)
-                  Padding(
-                    padding: const EdgeInsets.only(top: AppSpacing.xxs),
-                    child: Text(
-                      '系统',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
+                  const Spacer(),
+                  Text(
+                    '${widget.summary.itemCount} 项收藏',
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                  Text(
+                    formatDateOnly(widget.summary.recentAssignedAt),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
-                const Spacer(),
-                Text(
-                  '${widget.summary.itemCount} 项收藏',
-                  style: theme.textTheme.bodyMedium,
-                ),
-                Text(
-                  formatDateOnly(widget.summary.recentAssignedAt),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -151,16 +179,8 @@ class _FavoriteCollectionTileState extends State<FavoriteCollectionTile> {
     }
 
     return MenuAnchor(
-      controller: _menuController,
-      menuChildren: [
-        if (widget.onRename != null)
-          MenuItemButton(onPressed: widget.onRename, child: const Text('重命名')),
-        if (widget.onDelete != null)
-          MenuItemButton(
-            onPressed: widget.onDelete,
-            child: const Text('删除收藏夹'),
-          ),
-      ],
+      controller: _cardMenuController,
+      menuChildren: _buildMenuChildren(),
       child: Shortcuts(
         shortcuts: const <ShortcutActivator, Intent>{
           SingleActivator(LogicalKeyboardKey.contextMenu):
@@ -172,7 +192,8 @@ class _FavoriteCollectionTileState extends State<FavoriteCollectionTile> {
           actions: <Type, Action<Intent>>{
             _OpenTileMenuIntent: CallbackAction<_OpenTileMenuIntent>(
               onInvoke: (_) {
-                _menuController.open();
+                // 键盘等价操作与按钮同锚点，菜单在可见按钮处弹出。
+                _buttonMenuController.open();
                 return null;
               },
             ),
