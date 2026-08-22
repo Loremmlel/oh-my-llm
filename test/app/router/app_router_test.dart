@@ -254,6 +254,40 @@ void main() {
     expect(find.text('未找到页面'), findsNothing);
   });
 
+  testWidgets('收藏夹内容页 AppBar 返回回到收藏总览', (tester) async {
+    final db = AppDatabase.inMemory();
+    addTearDown(db.close);
+    seedFavorite(
+      db,
+      id: 'fav-back',
+      userMessageContent: '返回总览的问题',
+      assistantContent: '返回总览的回复',
+    );
+    final prefs = await _testPrefs(db);
+
+    final router = createAppRouter(
+      initialLocation: AppDestination.favorites.path,
+      videoPlayerBindingsFactory: _mobileTestBindings,
+    );
+    await pumpTestApp(tester, preferences: prefs, database: db, router: router);
+
+    // 与生产路径一致：总览点卡片 push 进入内容页。
+    await tester.tap(find.text('未分类'));
+    await settleRouteTransition(tester);
+    expect(
+      router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
+      '/favorites/collections/__uncategorized_favorites__',
+    );
+
+    // AppBar 自动 leading 是 BackButton（tooltip 随 locale 变化，用类型 finder）。
+    await tester.tap(find.byType(BackButton));
+    await settleRouteTransition(tester);
+
+    // 返回收藏总览网格，而不是被「非对话顶层目的地退回对话页」兜底劫持。
+    expect(router.routerDelegate.currentConfiguration.uri.path, '/favorites');
+    expect(find.text('未分类'), findsOneWidget);
+  });
+
   testWidgets('pushNamed(mediaImage) 后 URI 携带 path，pop 回 /sync', (
     tester,
   ) async {

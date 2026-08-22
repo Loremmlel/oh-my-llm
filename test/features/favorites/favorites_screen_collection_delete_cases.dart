@@ -141,6 +141,31 @@ void registerFavoritesScreenCollectionDeleteTests() {
     expect(find.text('备用夹'), findsOneWidget);
   });
 
+  testWidgets('移动去向列表渲染在移入选项与危险删除选项之间', (tester) async {
+    await _openCollection(tester, itemCount: 2);
+
+    await _openDeleteDialog(tester);
+
+    // 顺序契约：去向单选列表在视觉上归属「移入其他收藏夹」选项，必须
+    // 渲染在它与危险删除选项之间；挂在删除选项之后会让用户误以为去向
+    // 从属于删除。widgetList 按树序遍历，与 Column 子项视觉顺序一致。
+    final texts = tester
+        .widgetList<Text>(
+          find.descendant(
+            of: find.byType(AlertDialog),
+            matching: find.byType(Text),
+          ),
+        )
+        .map((text) => text.data ?? '')
+        .toList();
+    final moveIndex = texts.indexOf('移入其他收藏夹');
+    final targetIndex = texts.indexOf('未分类');
+    final deleteIndex = texts.indexWhere((text) => text.contains('及其中'));
+    expect(moveIndex, greaterThanOrEqualTo(0));
+    expect(targetIndex, greaterThan(moveIndex));
+    expect(deleteIndex, greaterThan(targetIndex));
+  });
+
   testWidgets('对话框内新建收藏夹只选中仍需最终确认', (tester) async {
     await _openCollection(tester, itemCount: 1);
 
