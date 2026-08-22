@@ -16,7 +16,7 @@ import 'sqlite_chat_conversation_repository.dart';
 /// 不承诺消除 UI isolate 阻塞。
 class SqliteHistoryPageQueryAdapter implements HistoryPageQuery {
   SqliteHistoryPageQueryAdapter(AppDatabase database) : _database = database {
-    if (database.path == ':memory:') {
+    if (database.isInMemory) {
       _inProcess = _InProcessHistoryPageQuery(database);
     }
   }

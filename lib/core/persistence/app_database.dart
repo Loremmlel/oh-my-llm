@@ -31,6 +31,10 @@ class AppDatabase {
   final sqlite.Database _connection;
   final String path;
 
+  /// 是否为 `:memory:` 内存库：连接不能跨 isolate 发送，也无法用文件
+  /// 路径在别的 isolate 重建，调用方只能走进程内同连接路径。
+  bool get isInMemory => path == ':memory:';
+
   /// 打开正式数据库文件，并在首次使用时创建 schema。
   static Future<AppDatabase> open() async {
     final supportDirectory = await getApplicationSupportDirectory();
@@ -67,7 +71,7 @@ class AppDatabase {
   }
 
   void _configure() {
-    configureSqlitePragmas(_connection, isInMemory: path == ':memory:');
+    configureSqlitePragmas(_connection, isInMemory: isInMemory);
   }
 
   /// 校验 schema 版本与当前滚动基线是否一致，并在全新库上直接建当前 schema。

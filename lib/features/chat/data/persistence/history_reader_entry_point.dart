@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:isolate';
 
+import 'package:oh_my_llm/core/constants/app_page_sizes.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 
 import '../../application/ports/history_page_query.dart';
@@ -74,18 +75,11 @@ HistoryPageResult executeHistoryPageWindow({
     final totalItems = repository.countHistorySummaries(
       keyword: request.keyword,
     );
-    // 与 core/widgets 分页模块的 totalPagesForItems / clampPageToValidRange
-    // 同语义；data 层不依赖 widgets 模块，内联这两步纯计算。
-    final totalPages = request.pageSize <= 0
-        ? 0
-        : (totalItems / request.pageSize).ceil();
-    final committedPage = totalPages <= 0
-        ? 1
-        : request.requestedPage < 1
-        ? 1
-        : (request.requestedPage > totalPages
-              ? totalPages
-              : request.requestedPage);
+    final totalPages = totalPagesForItems(totalItems, request.pageSize);
+    final committedPage = clampPageToValidRange(
+      request.requestedPage,
+      totalPages,
+    );
     final items = repository.loadHistorySummaries(
       keyword: request.keyword,
       limit: request.pageSize,

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:oh_my_llm/core/constants/app_page_sizes.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/chat/application/ports/history_page_query.dart';
 import 'package:oh_my_llm/features/chat/data/persistence/history_page_query_adapter.dart';
@@ -72,12 +73,8 @@ void main() {
   }) {
     final repository = SqliteChatConversationRepository(database);
     final totalItems = repository.countHistorySummaries(keyword: keyword);
-    final totalPages = pageSize <= 0 ? 0 : (totalItems / pageSize).ceil();
-    final committedPage = totalPages <= 0
-        ? 1
-        : requestedPage < 1
-        ? 1
-        : (requestedPage > totalPages ? totalPages : requestedPage);
+    final totalPages = totalPagesForItems(totalItems, pageSize);
+    final committedPage = clampPageToValidRange(requestedPage, totalPages);
     return HistoryPageResult(
       items: repository.loadHistorySummaries(
         keyword: keyword,

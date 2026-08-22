@@ -219,7 +219,7 @@ class HistoryPaginationController extends Notifier<HistoryPaginationState> {
 
     final totalPages = state.totalPages;
     if (totalPages <= 0) return Future.value(HistoryWindowLoadOutcome.ignored);
-    final clamped = page < 1 ? 1 : (page > totalPages ? totalPages : page);
+    final clamped = clampPageToValidRange(page, totalPages);
     if (clamped == state.currentPage) {
       return Future.value(HistoryWindowLoadOutcome.ignored);
     }
