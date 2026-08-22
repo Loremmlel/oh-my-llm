@@ -205,27 +205,31 @@ void main() {
       variant: TargetPlatformVariant.only(TargetPlatform.windows),
     );
 
-    testWidgets('Android 宿主鼠标后退侧键不触发返回', (tester) async {
-      await _pumpFullApp(tester);
+    testWidgets(
+      'Android 宿主鼠标后退侧键不触发返回',
+      (tester) async {
+        await _pumpFullApp(tester);
 
-      await tester.tap(
-        find.descendant(
-          of: find.byType(NavigationRail),
-          matching: find.text('设置'),
-        ),
-      );
-      await settleRouteTransition(tester);
-      expect(find.text('服务商设置'), findsOneWidget);
+        await tester.tap(
+          find.descendant(
+            of: find.byType(NavigationRail),
+            matching: find.text('设置'),
+          ),
+        );
+        await settleRouteTransition(tester);
+        expect(find.text('服务商设置'), findsOneWidget);
 
-      await tester.tapAt(
-        tester.getCenter(find.byType(SettingsScreen)),
-        buttons: kBackMouseButton,
-      );
-      await settleRouteTransition(tester);
+        await tester.tapAt(
+          tester.getCenter(find.byType(SettingsScreen)),
+          buttons: kBackMouseButton,
+        );
+        await settleRouteTransition(tester);
 
-      // Android 不挂载 Windows adapter：侧键输入不产生任何导航。
-      expect(find.text('服务商设置'), findsOneWidget);
-    });
+        // Android 不挂载 Windows adapter：侧键输入不产生任何导航。
+        expect(find.text('服务商设置'), findsOneWidget);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.android),
+    );
   });
 
   group('真实返回链（BackButtonDispatcher）', () {
