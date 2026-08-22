@@ -10,6 +10,8 @@
 
 **Planning baseline:** `cfbb5299d8293196d1df9d37d11d115470c4ee51`。计划阶段完成了只读调用链审计和方向性内存 SQLite 合成基准，但没有在真实 Windows profile build 中录制 UI frame，没有修改生产代码，也不能把方向性数字写成修复验收结果。
 
+**诊断执行状态（2026-08-22）:** Task 0/1/2 已完成；测量证据与唯一路径选择见「Task 2：测量结果」。本修订只含计划文档改动，等待用户批准修订后的 Candidate B 实施方案后才允许修改 production。
+
 ## 1. 已确认事实
 
 ### 1.1 历史页打开调用链
@@ -98,24 +100,14 @@ AppShell context.go('/history')
 
 **Files:** 不修改 production；只运行现有测试。
 
-- [ ] 清理异常残留测试进程：
-
-```powershell
-./scripts/kill-stale-test-processes.ps1
-```
-
-- [ ] 运行 repository、controller、History screen 和 router 定向基线，每条命令工具级 timeout `60000`ms：
-
-```powershell
-New-Item -ItemType Directory -Force logs | Out-Null
-flutter test test/features/chat/data/persistence/sqlite_chat_conversation_repository_test.dart --reporter compact 2>&1 | Out-File -Encoding utf8 logs/history-perf-repository-baseline.log; $TestExit = $LASTEXITCODE; Write-Host "EXIT=$TestExit"; Get-Content -Tail 150 logs/history-perf-repository-baseline.log
-flutter test test/features/chat/application/history/history_pagination_controller_test.dart --reporter compact 2>&1 | Out-File -Encoding utf8 logs/history-perf-controller-baseline.log; $TestExit = $LASTEXITCODE; Write-Host "EXIT=$TestExit"; Get-Content -Tail 150 logs/history-perf-controller-baseline.log
-flutter test test/features/history/history_screen_test.dart --reporter compact 2>&1 | Out-File -Encoding utf8 logs/history-perf-screen-baseline.log; $TestExit = $LASTEXITCODE; Write-Host "EXIT=$TestExit"; Get-Content -Tail 150 logs/history-perf-screen-baseline.log
-flutter test test/app/router/app_router_test.dart --reporter compact 2>&1 | Out-File -Encoding utf8 logs/history-perf-router-baseline.log; $TestExit = $LASTEXITCODE; Write-Host "EXIT=$TestExit"; Get-Content -Tail 150 logs/history-perf-router-baseline.log
-```
-
-- [ ] 所有 baseline 必须 `EXIT=0`。已有失败先诊断并区分基线问题，不得把本性能 PR 当作顺手修复入口。
-- [ ] 记录测试数、HEAD、Flutter/Dart 版本到本计划“测量结果”章节。
+- [x] 清理异常残留测试进程：`./scripts/kill-stale-test-processes.ps1`（pwsh 7 执行，未发现残留）。
+- [x] 四组定向基线全部 `EXIT=0`，日志 `logs/history-perf-{repository,controller,screen,router}-baseline.log`：
+  - `sqlite_chat_conversation_repository_test.dart`：15 例通过。
+  - `history_pagination_controller_test.dart`：26 例通过。
+  - `history_screen_test.dart`：31 例通过。
+  - `app_router_test.dart`：23 例通过。
+- [x] 无既有失败；本 PR 未顺手修复任何基线问题。
+- [x] 测试数、HEAD、Flutter/Dart 版本已记录到「Task 2：测量结果」章节末尾的环境记录。
 
 ## 5. Task 1：建立可复现 profile 证据
 
@@ -187,6 +179,8 @@ flutter run --profile -d windows 2>&1 | Out-File -Encoding utf8 logs/history-per
 - 数据基数和 `EXPLAIN QUERY PLAN`；
 - 卡顿是否与 repository span 重合。
 
+**执行记录（2026-08-22）**：场景未使用手动 DevTools 录制，改为可复现的自动化等价物——临时 in-app 驱动（已删除）按上述场景序列导航/输入，等价调用真实入口（`router.go` 与 app shell 相同路径、搜索框 `TextField.onChanged` 回调、工具栏 `onSearchCleared`、`goToPage`/`setPageSize` 与分页按钮相同 controller 入口），每步以 `TimelineTask` 标记窗口；采集脚本通过 Dart VM Service（WebSocket）设置 `Dart`/`Embedder`/`GC` timeline 流并在场景完成后拉取 `getVMTimeline`。偏差声明：物理键盘/鼠标事件派发未经过（非测量对象），bootstrap 曾注入 3s 启动延迟以保证冷启动 span 进入录制窗口（不改变场景内测量）。全部场景按数据规模独立成 run（共 6 个 profile 进程），逐场景结果见 6.2；场景 7（查询重叠）按计划留待 B 实施后验证。
+
 ### 5.4 SQL 执行计划
 
 对实际 `countHistorySummaries` 与 `loadHistorySummaries` 的空/非空 keyword 版本执行 `EXPLAIN QUERY PLAN`，确认：
@@ -199,171 +193,139 @@ flutter run --profile -d windows 2>&1 | Out-File -Encoding utf8 logs/history-per
 
 不得仅看到 “SCAN” 就判定必须建索引；必须结合时间和数据规模。
 
-## 6. Task 2：填写测量结果并通过硬门禁
+## 6. Task 2：测量结果与硬门禁（已完成）
 
-Task 1 完成后，把下表真实填写回本计划；`TBD` 未清零前不得修改 production：
+以下数字全部来自真实 Windows profile build（`flutter run --profile -d windows`）+ Dart VM Service timeline（`Dart`/`Embedder`/`GC` 流），不是合成基准。采集方法、原始 JSON 与逐场景摘要见 ignored 的 `logs/history-perf-timeline-*.json` 与 `logs/history-perf-summary-*.txt`；合成数据集与执行计划日志见 `logs/history-perf-seed-*.log`。
+
+### 6.1 数据集与环境
+
+| 数据集 | 会话 | 消息 | 库文件大小 |
+|---|---:|---:|---:|
+| 1000x10 | 1,000 | 10,000 | 18.0MB |
+| 10000x10 | 10,000 | 100,000 | 181.9MB |
+| 1000x100 | 1,000 | 100,000 | 179.1MB |
+
+环境记录：HEAD `ca5b6276fd0f9c9cfc3b00ef49128b76a2ae46`（本计划文档已在其上提交）；Flutter 3.44.8 stable；Dart 3.11.x；基线测试数 15/26/31/23（见 Task 0）。
+
+### 6.2 测量表（每场景取 profile 实测最大 span，单位 ms）
 
 | 场景 | 数据规模 | UI 最慢帧 | count SQL | page SQL | mapping | build/layout/raster | 查询次数 | 归因 |
 |---|---:|---:|---:|---:|---:|---:|---:|---|
-| 首次空搜索 | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
-| 第二次相同 route | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
-| 不命中搜索 | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
-| 标题命中搜索 | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
-| 消息命中搜索 | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+| 首次空搜索 | 1000x10 | 16.75（1 帧超预算） | 1.44 | 0.76 | 0.78 | build 0.08 / raster 7.74 | 1+1 | reload 3.08ms，帧余量充足 |
+| 首次空搜索 | 10000x10 | 22.29（1 帧超预算） | 14.73 | 0.76 | 0.65 | build 0.08 / raster 8.89 | 1+1 | count 扫全会话成为主项，reload 16.22ms 贴帧预算 |
+| 首次空搜索 | 1000x100 | 15.50（0 帧超预算） | 5.27 | 0.96 | 0.74 | build 0.09 / raster 8.17 | 1+1 | reload 7.06ms，余量充足 |
+| 第二次相同 route | 三组全部 | 6.22–9.95（0 帧超预算） | — | — | — | — | 0 | `sameAsCurrent` 幂等跳过，route.sync 0.01–0.02ms，无 SQL |
+| 不命中搜索 | 1000x10 | 5.41 | 92.27 | 35.55 | 0.01 | build 0.01 | 1+1 | reload 127.95ms 单次 UI 同步冻结 |
+| 不命中搜索 | 10000x10 | 4.67 | 541.56 | 291.89 | 0.00 | build 0.01 | 1+1 | reload 833.57ms，UI 冻结近 1 秒 |
+| 不命中搜索 | 1000x100 | 4.96 | 482.22 | 256.89 | 0.00 | build 0.01 | 1+1 | reload 739.21ms，随消息总量线性 |
+| 标题命中搜索 | 1000x10 | 6.44 | 33.65 | 33.35 | 0.77 | build 0.02 | 1+1 | reload 67.32ms |
+| 标题命中搜索 | 10000x10 | 6.66 | 291.78 | 301.78 | 0.75 | build 0.02 | 1+1 | reload 593.88ms |
+| 标题命中搜索 | 1000x100 | 7.33 | 270.02 | 284.48 | 0.74 | build 0.03 | 1+1 | reload 554.77ms |
+| 消息命中搜索 | 1000x10 | 7.74 | 29.46 | 33.62 | 0.86 | build 0.01 | 1+1 | reload 63.40ms |
+| 消息命中搜索 | 10000x10 | 8.08 | 293.44 | 293.38 | 0.61 | build 0.01 | 1+1 | reload 587.05ms |
+| 消息命中搜索 | 1000x100 | 7.48 | 259.59 | 257.60 | 0.43 | build 0.02 | 1+1 | reload 517.50ms |
+| 清空/翻页/改容量（空搜索） | 1000x10 | 8.96 | 0.85–1.44 | 0.60–0.98 | 0.59–1.21 | — | 1+1 | reload 2.46–3.08ms |
+| 清空/翻页/改容量（空搜索） | 10000x10 | 7.80 | 13.60–15.44 | 0.62–1.63 | 0.45–1.27 | — | 1+1 | reload 16.17–16.52ms，临界一帧 |
+| 清空/翻页/改容量（空搜索） | 1000x100 | 6.38 | 3.40–4.54 | 1.52–1.83 | 0.48–1.14 | — | 1+1 | reload 4.72–7.59ms |
 
-同时填写：
+补充观察：
+
+- **搜索态卡顿的帧形态是「无帧」而非「慢帧」**：同步 SQL 阻塞 UI isolate 期间引擎无法调度新帧，因此上表搜索行的「UI 最慢帧」都不超预算，但 reload span 内列表完全无响应（1000x10 约 128ms；10 万消息级 517–834ms）。超帧归因必须看 span 而不是只看帧长。
+- `history.widget.build` 全场景 <0.1ms；当前页 row mapping ≤1.3ms；raster 峰值 8.89ms —— History build/layout/raster 不构成热点。
+- 1000x100 的 enter.2/enter.4（离开进入 Chat 页窗口）出现 25.03/20.45ms 超帧，且与任何 History span 不重合 —— 热点在 route transition / Chat 侧，记录为独立现象，不在本 PR 范围。
+- 每次搜索态 reload 内 COUNT 与 page SELECT 各自独立全量扫描（重复扫描确认）；单次 reload 的 count 与 page 耗时同量级。
+- 冷启动（场景窗口外，`chat.sessions.initial_summaries`，尾项 10.1）：1000x10 = 51.01ms 与 420.22ms 两次运行；10000x10 = 2286.70ms（其中无界 page SELECT 冷读 2002ms、row mapping 284ms）与 488.61ms；1000x100 = 325.55ms。冷启动阻塞随会话数线性放大且远超帧预算，是独立于本 PR 的后续问题。
+
+### 6.3 EXPLAIN QUERY PLAN 结论（详见 `logs/history-perf-seed-*.log`）
+
+- 空搜索 page：`SCAN c USING INDEX idx_conversations_updated_at` + `USE TEMP B-TREE FOR LAST TERM OF ORDER BY`（id tie-break）。实测空搜索 page 恒 <1ms，tie-break 临时 B-tree 不是热点（时间戳基本互异）。
+- 搜索态（count 与 page 同型）：keyword EXISTS 相关子查询 `SEARCH m USING COVERING INDEX idx_messages_conversation_node_index (conversation_id=?)` 后逐行过滤 `role='user' AND LOWER(m.content) LIKE '%kw%'` —— 每会话扫全量消息，COUNT 与 page 各扫一遍。
+- 候选索引实测：`conversations(updated_at DESC, id DESC)` 与 `messages(conversation_id, role, node_index)` 均不改变执行计划，warm 耗时无改善（前导 `%` LIKE 不可索引消除，role 过滤在 covering index 上同样要取行）。计划 5.4 的两个候选索引均不成立，不建索引。
+
+### 6.4 路径选择
 
 ```text
-选择的唯一路径：TBD（A SQL/query / B history read adapter / C UI/layout / STOP）
-排除另两条路径的证据：TBD
-涉及的精确 production 文件：TBD
-新增/修改测试文件：TBD
-red 失败原因：TBD
-green 可观察结果：TBD
-commit 划分：TBD
+选择的唯一路径：B（历史专用 read adapter）
+排除 Candidate A 的证据：进入条件要求「便宜 query rewrite/index 足以保持现有搜索语义」。
+  实测两个候选索引均不改变执行计划与耗时；消除 COUNT+page 重复扫描最多把
+  833.57ms 降到单次扫描的 ~540ms 量级，仍远超帧预算；把 %keyword% 搜索降到
+  帧预算内需要 FTS 或 schema 大迁移 —— 命中 A 的显式停止条件，故 A 不成立。
+排除 Candidate C 的证据：进入条件要求「controller/repository span 有充分安全余量」。
+  实测搜索态 reload 128–834ms 位居 UI isolate；history.widget.build <0.1ms、
+  raster 峰值 8.89ms、当前页 mapping ≤1.3ms，UI/layout 没有可点名的热点，C 不成立。
+涉及的精确 production 文件：见第 8 节展开的逐文件清单。
+新增/修改测试文件：见第 8 节展开的逐测试清单。
+red 失败原因：见第 8.4 节 red/green 证据规划。
+green 可观察结果：见第 8.4 节。
+commit 划分：单个行为提交 `perf(history): 历史分页查询移入后台读 isolate 消除 UI 阻塞`（含全部实现与测试，不留红灯 commit）。
 ```
 
-门禁规则：
+门禁规则（原样保留，执行结果）：
 
-- 只能选择一条路径；不得同时做 SQL + isolate + UI “保险优化”。
-- 路径确定后必须把 7/8/9 中对应分支展开成逐文件、逐测试、逐 commit 的无歧义任务，删除另外两个候选实施步骤。
-- 用户再次批准修订后的计划前，禁止修改 production 代码。
-- 若选择 `STOP`，删除所有临时 instrumentation，保留 ignored 证据并报告；不创建空 commit。
+- 只能选择一条路径 → 已选 B，A/C 实施步骤已从计划删除，仅保留排除证据。
+- 路径确定后必须展开成逐文件、逐测试、逐 commit 的无歧义任务 → 见第 8 节修订版。
+- 用户再次批准修订后的计划前，禁止修改 production 代码 → 当前等待批准，本轮未改 production。
+- 未选择 `STOP`；全部临时 instrumentation 已删除，工作树与 HEAD 一致，证据保留在 ignored `logs/`。
 
-## 7. Candidate A：SQL/query 路径（测量后才能展开）
+## 7. Candidate A：SQL/query 路径（已按测量排除）
 
-### 进入条件
+进入条件未成立：实测两个候选索引（`conversations(updated_at DESC, id DESC)`、`messages(conversation_id, role, node_index)`）都不改变执行计划与耗时；COUNT+page 重复扫描即便合并也只把 833.57ms 降到约 540ms 量级；把 `%keyword%` 搜索降到帧预算内需要 FTS 或滚动 schema 迁移，命中本路径显式停止条件。证据见 6.3 与 `logs/history-perf-seed-*.log`。本路径不实施。
 
-- UI 超帧与 `countHistorySummaries` 或 `loadHistorySummaries` span 重合；
-- 真实执行计划显示可消除的重复扫描、临时排序或相关子查询热点；
-- 便宜 query rewrite/index 足以保持现有搜索语义；
-- 不需要 FTS、schema 大迁移或修改页面契约。
+## 8. Candidate B：历史专用 read adapter（唯一实施路径，待用户批准）
 
-### 允许的最小方向
+**进入条件已由测量证实**：搜索态 SQLite 同步执行占用 UI isolate 128–834ms（远超帧预算）；Candidate A 无法在 bounded scope 内消除阻塞；目标是消除 UI 阻塞，不承诺查询总延迟消失。
 
-按顺序评估，前一项有效则停止：
+### 8.1 production 文件清单（逐文件）
 
-1. 在不改 schema 的前提下减少搜索态 `COUNT + page` 重复扫描；
-2. 只有执行计划证明排序热点时评估 `conversations(updated_at DESC, id DESC)`；
-3. 只有 role/node lookup 热点成立时评估 `messages(conversation_id, role, node_index)`；
-4. 把 total + 当前页原子返回给 controller，但不得改变无结果页码夹取语义。
+| # | 文件 | 改动 |
+|---|---|---|
+| 1 | `lib/features/chat/application/ports/history_page_query.dart`（新增） | `HistoryPageRequest{keyword, requestedPage, pageSize}`、`HistoryPageResult{items, totalItems, committedPage}`、`abstract interface class HistoryPageQuery { Future<HistoryPageResult> load(request); Future<void> dispose(); }`。module 隐藏 `COUNT -> clamp -> page SELECT -> mapping`，caller 原子收到一个窗口。 |
+| 2 | `lib/core/persistence/app_database.dart`（修改） | `AppDatabase.forPath` 从 `@visibleForTesting` 转为生产可用工厂（doc 注明用途：后台 read/write isolate 以自己的连接打开同一文件库；schema 校验与 PRAGMA 配置与主连接一致）。 |
+| 3 | `lib/features/chat/data/persistence/history_reader_entry_point.dart`（新增） | 长期 read isolate 入口：接收主 isolate 命令，**不复用** `chat_writer_entry_point.dart`（其串行 command loop 必须优先保证 durable write）。typed 命令协议：`HistoryQueryCommand{id, keyword, requestedPage, pageSize}` -> `HistoryQueryResponse{id, items(List<ChatConversationSummary>), totalItems, committedPage}` / `HistoryQueryErrorResponse{id, message}` / `CloseCommand` -> `ExitResponse`（对齐现有 `background_worker_command.dart` 的 typed 纪律；实体对象跨 isolate 直接 deep-copy 传输，不做二次 JSON 编解码）。worker 端用 `AppDatabase.forPath` 建自有连接 + `SqliteChatConversationRepository` 执行 count+clamp+load+mapping。 |
+| 4 | `lib/features/chat/data/persistence/history_page_query_adapter.dart`（新增） | `IsolateHistoryPageQueryAdapter implements HistoryPageQuery`：构造时 spawn read isolate（`path == ':memory:'` 时不 spawn，降级为 `_InProcessHistoryPageQuery`——同进程 `Future.microtask` 包同步 count+load，保证测试/内存库语义正确，绝不让 worker 打开另一个空的 `:memory:`）。`load` 返回独立 Future（不排队、不取消，串行执行）；`dispose` 发送 CloseCommand 并等待 ExitResponse ACK，超时（5s）后 kill isolate，app teardown 有界完成。错误映射：worker 异常/超时 -> `HistoryPageQueryException`，由 controller 按现有错误契约落 inline 错误态。 |
+| 5 | `lib/features/chat/application/history/history_pagination_controller.dart`（修改） | 依赖从 `chatConversationRepositoryProvider` 换为 `historyPageQueryProvider`；`loadRoute`/`_reloadCurrentWindow` 变 async：每次调用自增 monotonically increasing generation；`await query.load(...)` 完成后仅当 generation 仍为最新才 commit 成功或失败状态（latest-wins：旧成功与旧失败都不得覆盖最新请求）。保持现有状态字段与语义：初次 `isLoading` 驱动可动画 loading；已初始化时查询失败保留 stale content + `historyLoadErrorMessage`；页码夹取语义由 worker 端 clamp 结果带回（`committedPage`），空结果页码归一为 1 的现有行为不变。busy 守卫（`isLoading` 时 `goToPage` 直接返回）保持。controller 公开方法返回 `Future<bool>`（true=已提交）供 screen 决定 URL replace 时序。 |
+| 6 | `lib/features/chat/application/providers/`（或现有 provider 绑定处，修改） | 新增 `historyPageQueryProvider = Provider<HistoryPageQuery>`，生产绑定 `IsolateHistoryPageQueryAdapter(AppDatabase.path)`；与 `chatConversationRepositoryProvider` 同层定义，保持 application 拥有 port、data 提供实现、composition 不被 presentation 引用的现状。 |
+| 7 | `lib/features/history/presentation/history_screen.dart`（修改） | `_handleSearchChanged` 防抖回调、`onPageChanged`、`onPageSizeChanged`、`onRetry`、delete 后刷新改为 `await` controller 返回值，**仅最新请求成功提交后才 `_replaceRouteLocation()`**；失败保留上一个已提交 URL/window。其余 UI（loading 动画、错误卡片、分页禁用）依赖既有状态字段，无新增布局改动。 |
+| 8 | `lib/features/chat/application/sessions/chat_sessions_controller.dart`（不动） | 冷启动无界摘要与本 PR 无关（尾项 10.1）；`ChatSessionsController.build/selectConversation` 不异步化。 |
 
-### 必须补的 red/green contract
+### 8.2 测试文件清单（逐测试）
 
-- repository page 与 count 结果完全等价；
-- 同 updatedAt 下 ID tie-break 稳定；
-- 标题/用户消息搜索、assistant 排除、LIKE wildcard escaping 不变；
-- 空结果、越界页、rename/delete reconciliation 不变；
-- `EXPLAIN QUERY PLAN` 和 query 次数确实改善；
-- timing 只记录为 profile 证据，不写进 test expectation。
+| # | 文件 | 内容 |
+|---|---|---|
+| 1 | `test/features/chat/application/history/history_pagination_controller_test.dart`（迁移+新增） | 现有 26 例的行为契约保留，注入物从同步 repository fake 换为 controllable `FakeHistoryPageQuery`（`Completer` 精确编排每次 load 的完成时序与结果）。新增异步契约红灯用例（见 8.3）。 |
+| 2 | `test/features/chat/data/persistence/history_page_query_adapter_test.dart`（新增） | file-backed integration：真实文件库 + 真实 worker isolate —— (a) worker 用自有连接读到主 isolate 写入的数据；(b) count+clamp+page 结果与主 isolate `SqliteChatConversationRepository` 直接调用完全等价（含空结果页码归一、越界页夹取、keyword LIKE 转义语义）；(c) SQLite 错误映射为 `HistoryPageQueryException`；(d) `dispose` 收到 ExitResponse ACK 后 worker 连接关闭、进程不残留；(e) `:memory:` 路径不 spawn isolate 且结果等价。 |
+| 3 | `test/features/history/history_screen_test.dart`（迁移+新增） | 既有 31 例经 `pumpTestApp` 注入 in-process async adapter（同进程内存库）。新增/补强：(a) busy 时分页控件禁用、搜索输入仍可输入；(b) 搜索成功后 URL 才 replace、失败保留旧 URL；(c) dispose 后迟到结果不抛 zone error、不改可见状态；(d) rename/delete invalidation 不被旧查询复活。 |
+| 4 | `test/app/router/app_router_test.dart`（迁移） | History 深链恢复用例改走 async adapter 注入，断言 post-frame + 完成信号后的窗口恢复（等待可观察完成条件，不盲 pump 固定延迟）。 |
+| 5 | `test/helpers/chat/`（新增 shared fake） | `ControllableHistoryPageQuery`：enqueue 完成/失败/延迟，记录 requestHistory，供 1/3 复用（case-file decomposition 约定不变）。 |
 
-### 停止条件
+### 8.3 必须先写的红灯测试（对应计划原第 8 节契约）
 
-- 添加索引不改变真实执行计划；
-- query 已有安全余量而 UI 仍掉帧；
-- 需要 FTS 或滚动 schema migration 才能改善 `%keyword%`；
-- 原子 total/page 需要破坏空页夹取或错误语义。
+1. Future 未完成时 `isLoading=true` 且旧列表保留（初次 loading / 已初始化 stale content 两种）。
+2. 两请求逆序完成时 latest-wins：旧成功不覆盖新窗口。
+3. 旧失败不覆盖新成功。
+4. 最新失败保留已提交窗口（stale content + inline 错误）。
+5. URL（screen 层）成功后才更新，失败保留。
+6. controller/provider dispose 后迟到结果安全（无 zone error、无状态写入）。
+7. busy 时分页禁用、搜索仍可输入。
+8. rename/delete 后 invalidation 不被在途旧查询覆盖。
+9. adapter 生命周期：worker close、异常映射与 teardown 有界（8.2#2）。
 
-## 8. Candidate B：历史专用 read adapter（测量后才能展开）
+### 8.4 red/green 证据规划
 
-### 进入条件
+- **red**：先提交只含 8.3 全部红灯测试与 controllable fake 的测试改动，在当前同步实现（HEAD）上运行——同步实现下请求互相即时覆盖、无 generation 概念、busy/dispose/迟到结果语义不存在，latest-wins 逆序完成、迟到结果安全、URL 失败保留等用例必然失败；`logs/history-perf-adapter-red.log` 记录失败输出。
+- **green**：实现 8.1 全部文件后同批测试通过（`logs/history-perf-application-green.log` / `logs/history-perf-widget-green.log`）；可观察结果 = 搜索/翻页期间 UI 不再被同步 SQL 阻塞（实施后按 5.3 场景 7 重跑 profile：查询重叠时输入仍响应、旧结果不覆盖新请求），行为契约（第 2 节）逐条不变。
+- red 测试与实现合并为**同一个行为提交**，不留下永远失败的中间 commit。
 
-- SQLite/FFI/mapping 持续占用 UI isolate 超过帧预算；
-- Candidate A 不能在 bounded scope 内消除阻塞；
-- 目标是消除 UI 阻塞，而不是宣称查询总延迟消失。
+### 8.5 已知取舍与边界
 
-### 预期 seam
+- 单 worker 只消除 UI 阻塞，不真正取消 SQLite：慢搜索在 worker 内照常跑完（540–830ms 量级），期间新请求排队串行执行；这与第 2 节 latest-wins 契约一致（旧结果被丢弃，用户看到最新）。若未来需要查询级取消，回到 query complexity 问题另行设计，不做无限排队。
+- read worker 与 writer isolate 各持独立文件连接：SQLite WAL/busy 语义下并发读写安全性与主 isolate 现状一致；adapter 测试覆盖 busy 场景。
+- `AppDatabase.forPath` 转正不改变其 schema 校验行为：版本不匹配依旧显式拒绝。
+- 若实施中发现必须异步化 `ChatSessionsController` 或让 History presentation 直接 import data/persistence —— 命中停止条件，停下来重新评审。
 
-只有选择本路径后才允许创建：
+## 9. Candidate C：History UI/layout 路径（已按测量排除）
 
-```dart
-final class HistoryPageRequest {
-  const HistoryPageRequest({
-    required this.keyword,
-    required this.requestedPage,
-    required this.pageSize,
-  });
-}
-
-final class HistoryPageResult {
-  const HistoryPageResult({
-    required this.items,
-    required this.totalItems,
-    required this.committedPage,
-  });
-}
-
-abstract interface class HistoryPageQuery {
-  Future<HistoryPageResult> load(HistoryPageRequest request);
-  Future<void> dispose();
-}
-```
-
-module 必须隐藏 `COUNT -> clamp -> page SELECT -> mapping`，让 caller 原子收到一个窗口；不得让 UI 依次学习/调用 `count()` 和 `load()`。
-
-### adapter 与生命周期
-
-- 生产 `IsolateHistoryPageQueryAdapter` 使用长期 read isolate 和自己的文件数据库连接。
-- Controller 单测使用 controllable in-memory adapter，精确完成/失败请求。
-- Widget 测试的内存数据库必须显式 override 同进程 async adapter；不能让 worker 打开另一个空的 `:memory:` 数据库。
-- file-backed integration test 验证 worker 自有连接、SQLite busy/error 映射、close ACK。
-- 不复用 writer isolate；read dispose 必须等待 ACK，并在 app teardown 有界完成。
-
-### 异步状态契约
-
-- monotonically increasing request generation；只有最新 success/error 能提交。
-- URL 只在最新成功提交后 replace；失败保留旧 URL/window。
-- 初次 loading 持续动画；reload 保留 stale content。
-- 搜索输入保持可用；分页控件忙碌时禁用。
-- 页面离开/provider dispose 后迟到结果不得修改可见状态或抛 zone error。
-- delete/rename 与在途查询竞争时，旧结果不得复活已删除/旧名数据。
-- 单 worker 只保证 UI 不阻塞，不等于真正取消 SQLite；若旧慢搜索长期阻塞新请求，回到 query complexity，而非无限排队。
-
-### 必须先写的红灯测试
-
-- Future 未完成时 `isLoading=true` 且旧列表保留；
-- 两请求逆序完成时 latest-wins；
-- 旧失败不覆盖新成功；
-- 最新失败保留已提交窗口；
-- URL 成功后才更新；
-- dispose 后迟到结果安全；
-- busy 时分页禁用、搜索仍可输入；
-- rename/delete invalidation 不被旧查询覆盖；
-- worker close、异常与 teardown。
-
-### 停止条件
-
-- 查询本来低于帧预算，isolate/序列化反而更重；
-- 必须异步化全部 Chat repository 才能完成；
-- 无法在 bounded scope 内证明 worker 生命周期和迟到结果安全；
-- 需要让 History presentation 直接 import data/persistence。
-
-## 9. Candidate C：History UI/layout 路径（测量后才能展开）
-
-### 进入条件
-
-- controller/repository span 有充分安全余量；
-- Flutter frame chart 把超预算明确归因于 History build/layout/raster 或 route transition；
-- Profile Widget Builds/raster trace 能点名具体 History 子树。
-
-### 允许方向
-
-- 只修改 trace 点名的 History presentation/widget；
-- 保持每页 10/20/50 和 `ListView.builder`；
-- 不凭感觉增加 cache、RepaintBoundary、const 或预构建；
-- 不同时修改数据库。
-
-### 红/绿证据
-
-- 先写能复现多余 rebuild/layout 的结构或行为测试；
-- profile 前后比较同一数据集和 route；
-- 搜索、分页、选择、route、响应式与 Semantics 回归全过。
-
-### 停止条件
-
-- 无法稳定点名某个 widget/raster hotspot；
-- 热点来自 ChatScreen teardown 或 App Shell/router；
-- UI 调整后 repository span仍与掉帧重合。
+进入条件未成立：实测 `history.controller.reload` 搜索态 128–834ms 位居 UI isolate，无安全余量；`history.widget.build` <0.1ms、raster 峰值 8.89ms、当前页 mapping ≤1.3ms，frame chart 无法点名 History 子树热点（唯一的非搜索超帧出现在离开 History 后的 Chat/route transition 窗口，与 History span 不重合）。本路径不实施。
 
 ## 10. 后续聊天存储架构尾项（不实施）
 
@@ -372,8 +334,9 @@ module 必须隐藏 `COUNT -> clamp -> page SELECT -> mapping`，让 caller 原�
 ### 10.1 冷启动无界摘要
 
 - 触发链：`OhMyLlmApp` eager watch notification coordinator -> `chatSessionsProvider` -> `ChatSessionsController.build()` -> 无 limit `loadHistorySummaries()` -> 最新会话完整加载。
-- 风险：会话数增长时摘要 mapping 线性增长；方向性 10,000 会话已到约 41ms（仍非真实设备证据）。
-- 启动独立设计的条件：profile 证明冷启动超帧主要落在无界摘要，而非插件/窗口/首屏 build。
+- 风险：会话数增长时摘要 mapping 线性增长。
+- 实测（profile，`chat.sessions.initial_summaries` span，两次独立运行的波动来自 OS 页缓存冷热）：1000 会话 51–420ms；10,000 会话 489–2287ms（其中无界 page SELECT 冷读最高 2002ms、全量 row mapping 284ms）；1,000x100 消息 326ms。冷启动阻塞已远超帧预算并随会话数放大。
+- 启动独立设计的条件：已满足证据门槛（冷启动超帧主要落在无界摘要），但按计划范围约束仍不在本 PR 实施；B 路径的 `HistoryPageQuery` seam 不扩大到 ChatSessionsController。
 
 ### 10.2 超长会话完整反序列化
 
@@ -430,32 +393,26 @@ rg -n "TimelineTask|Stopwatch|debug_history|TBD" lib tool docs/plans/2026-08-22-
 
 本初稿只授权诊断，不授权 production 实现。获得用户批准后：
 
-1. 可独立提交本计划文档：
-
-```powershell
-git commit -m "docs(perf): 规划历史页性能诊断"
-```
-
-2. Task 1 测量只产生 ignored logs 和计划修订；临时 instrumentation 必须在提交前删除。
-3. 把真实证据和唯一 candidate 展开后，使用：
+1. [x] 可独立提交本计划文档（已提交：`docs: 落盘历史页打开与搜索性能诊断实施计划`）。
+2. [x] Task 1 测量只产生 ignored logs 和计划修订；临时 instrumentation 已在提交前删除。
+3. [x] 真实证据与唯一 candidate 展开完成，本次提交：
 
 ```powershell
 git commit -m "docs(perf): 根据测量细化历史页优化方案"
 ```
 
-4. 用户再次批准后，生产修复按修订计划拆成 1 个行为提交；不要为红灯测试单独留下永远失败的 commit。
+4. [ ] 用户再次批准后，生产修复按第 8 节修订计划拆成 1 个行为提交；不为红灯测试单独留下永远失败的 commit。
 5. 没有 production 修复时不创建 `perf:` 空提交。
 6. 未经授权不 push、不创建 PR。
 
-## 13. 当前阶段完成定义
+## 13. 阶段完成定义
 
-本初稿阶段只有以下条件全部满足才算“计划可进入诊断”：
+初稿阶段（已完成）要求：当前调用链、同步读事实、普通分页规模和高风险候选被准确区分；用户可见契约和范围固定；Task 0/1 给出可复现数据、profile 场景、Timeline span、执行计划与隐私规则；Task 2 硬门禁已清零；三个 candidate 有互斥进入条件且 A/C 已按测量排除；冷启动与超长会话只记录尾项；方向性 benchmark 与真实 Windows 验证已明确区分。
 
-1. 当前调用链、同步读事实、普通分页规模和高风险候选被准确区分；
-2. 用户可见契约和范围固定，不能靠删功能优化；
-3. Task 0/1 给出可复现数据、profile 场景、Timeline span、执行计划与隐私规则；
-4. Task 2 是硬门禁，`TBD` 未清零前禁止 production 改动；
-5. 三个 candidate 有互斥进入条件、red/green contract 和停止条件；
-6. 冷启动与超长会话只记录尾项，不在本 PR 实施；
-7. 当前文档不把方向性 benchmark 写成真实 Windows 验证；
-8. worktree 只留下本计划文档和 ignored logs，未 commit、未 push。
+诊断阶段（当前）额外确认：
+
+1. 测量结果 `TBD` 已全部清零（6.2/6.3/6.4）。
+2. 唯一路径 B 已展开为逐文件、逐测试、逐 commit 任务（8.1–8.5）。
+3. 全部临时 instrumentation、驱动与采集脚本已删除；`rg -n "TimelineTask|Stopwatch|debug_history|HISTORY-PERF" lib tool test` 无匹配；工作树与 HEAD 一致，仅本计划文档待提交。
+4. 证据（timeline JSON、逐场景摘要、seed/EQP/基线日志、数据集）保留在 ignored `logs/`；未 push、未创建 PR。
+5. **下一步被阻塞于用户对第 8 节实施方案的批准；批准前不修改任何 production 代码。**
