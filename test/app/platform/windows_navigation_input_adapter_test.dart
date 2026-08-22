@@ -89,17 +89,23 @@ Future<bool> sendWindowsKeyRepeat(WidgetTester tester, LogicalKeyboardKey key) {
   return tester.sendKeyRepeatEvent(key, platform: 'windows');
 }
 
+/// 挂载默认测试树（无自定义子树），返回回调记录与祖先事件记录。
+Future<(RecordingBackRequest, List<LogicalKeyboardKey>)> pumpAdapterTree(
+  WidgetTester tester, {
+  bool backResult = true,
+}) async {
+  final back = RecordingBackRequest(result: backResult);
+  final ancestorKeys = <LogicalKeyboardKey>[];
+  await tester.pumpWidget(
+    buildAdapterTree(onBackRequested: back.call, ancestorKeys: ancestorKeys),
+  );
+  return (back, ancestorKeys);
+}
+
 void main() {
   group('鼠标后退侧键', () {
     testWidgets('按下后退侧键时恰好请求一次返回', (tester) async {
-      final back = RecordingBackRequest();
-      final ancestorKeys = <LogicalKeyboardKey>[];
-      await tester.pumpWidget(
-        buildAdapterTree(
-          onBackRequested: back.call,
-          ancestorKeys: ancestorKeys,
-        ),
-      );
+      final (back, ancestorKeys) = await pumpAdapterTree(tester);
 
       await tester.tapAt(
         tester.getCenter(find.byType(WindowsNavigationInputAdapter)),
@@ -111,14 +117,7 @@ void main() {
     });
 
     testWidgets('普通主键点击不请求返回', (tester) async {
-      final back = RecordingBackRequest();
-      final ancestorKeys = <LogicalKeyboardKey>[];
-      await tester.pumpWidget(
-        buildAdapterTree(
-          onBackRequested: back.call,
-          ancestorKeys: ancestorKeys,
-        ),
-      );
+      final (back, ancestorKeys) = await pumpAdapterTree(tester);
 
       await tester.tapAt(
         tester.getCenter(find.byType(WindowsNavigationInputAdapter)),
@@ -129,14 +128,7 @@ void main() {
     });
 
     testWidgets('次键点击不请求返回', (tester) async {
-      final back = RecordingBackRequest();
-      final ancestorKeys = <LogicalKeyboardKey>[];
-      await tester.pumpWidget(
-        buildAdapterTree(
-          onBackRequested: back.call,
-          ancestorKeys: ancestorKeys,
-        ),
-      );
+      final (back, ancestorKeys) = await pumpAdapterTree(tester);
 
       await tester.tapAt(
         tester.getCenter(find.byType(WindowsNavigationInputAdapter)),
@@ -150,14 +142,7 @@ void main() {
 
   group('键盘 browserBack', () {
     testWidgets('首次按下 browserBack 请求一次返回并消费事件', (tester) async {
-      final back = RecordingBackRequest();
-      final ancestorKeys = <LogicalKeyboardKey>[];
-      await tester.pumpWidget(
-        buildAdapterTree(
-          onBackRequested: back.call,
-          ancestorKeys: ancestorKeys,
-        ),
-      );
+      final (back, ancestorKeys) = await pumpAdapterTree(tester);
 
       final handled = await sendWindowsKeyDown(
         tester,
@@ -170,14 +155,7 @@ void main() {
     });
 
     testWidgets('长按 repeat 与松开不重复请求返回', (tester) async {
-      final back = RecordingBackRequest();
-      final ancestorKeys = <LogicalKeyboardKey>[];
-      await tester.pumpWidget(
-        buildAdapterTree(
-          onBackRequested: back.call,
-          ancestorKeys: ancestorKeys,
-        ),
-      );
+      final (back, ancestorKeys) = await pumpAdapterTree(tester);
 
       await sendWindowsKeyDown(tester, LogicalKeyboardKey.browserBack);
       await sendWindowsKeyRepeat(tester, LogicalKeyboardKey.browserBack);
@@ -187,14 +165,7 @@ void main() {
     });
 
     testWidgets('browserForward 不请求返回', (tester) async {
-      final back = RecordingBackRequest();
-      final ancestorKeys = <LogicalKeyboardKey>[];
-      await tester.pumpWidget(
-        buildAdapterTree(
-          onBackRequested: back.call,
-          ancestorKeys: ancestorKeys,
-        ),
-      );
+      final (back, ancestorKeys) = await pumpAdapterTree(tester);
 
       await sendWindowsKeyDown(tester, LogicalKeyboardKey.browserForward);
       await sendWindowsKeyUp(tester, LogicalKeyboardKey.browserForward);
@@ -203,14 +174,7 @@ void main() {
     });
 
     testWidgets('Escape 不请求返回且不被吞掉', (tester) async {
-      final back = RecordingBackRequest();
-      final ancestorKeys = <LogicalKeyboardKey>[];
-      await tester.pumpWidget(
-        buildAdapterTree(
-          onBackRequested: back.call,
-          ancestorKeys: ancestorKeys,
-        ),
-      );
+      final (back, ancestorKeys) = await pumpAdapterTree(tester);
 
       await sendWindowsKeyDown(tester, LogicalKeyboardKey.escape);
       await sendWindowsKeyUp(tester, LogicalKeyboardKey.escape);
@@ -220,14 +184,7 @@ void main() {
     });
 
     testWidgets('方向键 Left 与 Alt+Left 不请求返回', (tester) async {
-      final back = RecordingBackRequest();
-      final ancestorKeys = <LogicalKeyboardKey>[];
-      await tester.pumpWidget(
-        buildAdapterTree(
-          onBackRequested: back.call,
-          ancestorKeys: ancestorKeys,
-        ),
-      );
+      final (back, ancestorKeys) = await pumpAdapterTree(tester);
 
       await sendWindowsKeyDown(tester, LogicalKeyboardKey.arrowLeft);
       await sendWindowsKeyUp(tester, LogicalKeyboardKey.arrowLeft);
@@ -290,13 +247,9 @@ void main() {
 
   group('根 no-op 与生命周期', () {
     testWidgets('返回请求返回 false 时无异常且不二次请求', (tester) async {
-      final back = RecordingBackRequest(result: false);
-      final ancestorKeys = <LogicalKeyboardKey>[];
-      await tester.pumpWidget(
-        buildAdapterTree(
-          onBackRequested: back.call,
-          ancestorKeys: ancestorKeys,
-        ),
+      final (back, ancestorKeys) = await pumpAdapterTree(
+        tester,
+        backResult: false,
       );
 
       await tester.tapAt(
@@ -312,14 +265,7 @@ void main() {
     });
 
     testWidgets('adapter 卸载后不再响应返回输入', (tester) async {
-      final back = RecordingBackRequest();
-      final ancestorKeys = <LogicalKeyboardKey>[];
-      await tester.pumpWidget(
-        buildAdapterTree(
-          onBackRequested: back.call,
-          ancestorKeys: ancestorKeys,
-        ),
-      );
+      final (back, ancestorKeys) = await pumpAdapterTree(tester);
       await tester.pumpWidget(const SizedBox.shrink());
 
       await tester.tapAt(const Offset(100, 100), buttons: kBackMouseButton);
