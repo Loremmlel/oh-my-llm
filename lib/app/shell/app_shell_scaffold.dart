@@ -39,8 +39,9 @@ class AppShellScaffold extends StatelessWidget {
   /// [hasLocalBackTarget] 为 true 时，系统返回应执行的本地清理回调。
   final VoidCallback? onLocalBack;
 
-  /// 构建唯一的 App Shell 返回层级：系统返回先清本地目标，再回对话页，
-  /// 对话根无本地目标时交系统退出。
+  /// 构建唯一的 App Shell 返回层级：系统返回先清本地目标；压栈子路由
+  /// （如收藏夹内容页）pop 回上一级；顶层非对话目的地退回对话页；对话根
+  /// 无本地目标时交系统退出。
   ///
   /// 用 PopScope 而非 WillPopScope/Navigator.willPop：Android 预测性返回
   /// 手势只认 PopScope 的 canPop/onPopInvokedWithResult 机制，旧 API 会被
@@ -48,8 +49,13 @@ class AppShellScaffold extends StatelessWidget {
   /// 条件后再决定是否放行路由 pop。
   @override
   Widget build(BuildContext context) {
+    // 压栈子路由可正常 pop 回上一级；无 router 环境（理论上不存在）时按
+    // 不可 pop 处理，维持顶层兜底语义。
+    final router = GoRouter.maybeOf(context);
     final canPop =
-        currentDestination == AppDestination.chat && !hasLocalBackTarget;
+        !hasLocalBackTarget &&
+        (currentDestination == AppDestination.chat ||
+            (router?.canPop() ?? false));
 
     return PopScope<void>(
       canPop: canPop,
