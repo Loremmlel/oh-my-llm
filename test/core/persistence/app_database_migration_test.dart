@@ -655,6 +655,63 @@ void main() {
       );
     });
 
+    test('favorites 缺失 title 列的 v13 库迁移时自动补列且数据完整', () {
+      final path = createV13Database('migrate_missing_title.db');
+      insertV13Collection(path, id: 'col-a', name: '技术笔记');
+      insertV13Favorite(
+        path,
+        id: 'fav-titled',
+        collectionId: 'col-a',
+        title: '会被丢弃的旧标题',
+        createdAt: '2026-03-01T10:00:00.000',
+      );
+      insertV13Favorite(
+        path,
+        id: 'fav-untitled',
+        createdAt: '2026-03-02T10:00:00.000',
+      );
+
+      // 真实用户库形态：未合入 master 的历史构建把 user_version 写成 13，
+      // 但 favorites 缺少 V10 引入的 title 列。这里删列复现该形态，
+      // 验证迁移对这种"版本号与结构脱节"的库自愈而非在 prepare 阶段崩溃。
+      final legacy = sqlite.sqlite3.open(path);
+      legacy.execute('ALTER TABLE favorites DROP COLUMN title;');
+      legacy.close();
+
+      final database = AppDatabase.forPath(path);
+      addTearDown(database.close);
+
+      expect(
+        database.connection
+                .select('PRAGMA user_version;')
+                .single['user_version']
+            as int,
+        greaterThanOrEqualTo(AppDatabase.currentSchemaVersion),
+      );
+      final titled = database.connection
+          .select(
+            "SELECT collection_id, title, collection_assigned_at "
+            "FROM favorites WHERE id = 'fav-titled';",
+          )
+          .single;
+      expect(titled['collection_id'], 'col-a');
+      expect(titled['title'], isNull);
+      expect(titled['collection_assigned_at'], '2026-03-01T10:00:00.000');
+
+      final untitled = database.connection
+          .select(
+            "SELECT collection_id, title, collection_assigned_at, created_at "
+            "FROM favorites WHERE id = 'fav-untitled';",
+          )
+          .single;
+      expect(
+        untitled['collection_id'],
+        AppReservedEntities.uncategorizedFavoriteCollectionId,
+      );
+      expect(untitled['title'], isNull);
+      expect(untitled['collection_assigned_at'], untitled['created_at']);
+    });
+
     test('迁移中途失败时回滚且原始 v13 数据完好', () {
       final path = createV13Database('migrate_rollback.db');
       insertV13Collection(path, id: 'col-a', name: '技术笔记');
