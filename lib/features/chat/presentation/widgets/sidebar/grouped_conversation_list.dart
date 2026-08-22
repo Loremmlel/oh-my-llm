@@ -19,6 +19,7 @@ class GroupedConversationList extends StatelessWidget {
     this.shrinkWrap = false,
     this.physics,
     this.cacheExtent,
+    this.padding = EdgeInsets.zero,
   });
 
   /// 按时间排序后的会话分组。
@@ -40,6 +41,10 @@ class GroupedConversationList extends StatelessWidget {
   final ScrollPhysics? physics;
   final double? cacheExtent;
 
+  /// 列表滚动区内边距；默认零由使用方自备外层框架（如聊天侧栏的
+  /// Card + Padding），历史页等整页场景直接传入以获得边距。
+  final EdgeInsetsGeometry padding;
+
   @override
   Widget build(BuildContext context) {
     final flatItems = flattenConversationSummaryGroups(groups);
@@ -48,6 +53,7 @@ class GroupedConversationList extends StatelessWidget {
       controller: scrollController,
       shrinkWrap: shrinkWrap,
       physics: physics,
+      padding: padding,
       // ignore: deprecated_member_use
       cacheExtent: cacheExtent,
       itemCount: flatItems.length,

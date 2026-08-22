@@ -197,67 +197,61 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         // 选择态是页面本地返回目标：系统返回优先清选择，而不是直接退回对话页。
         hasLocalBackTarget: _selectionMode,
         onLocalBack: _clearSelection,
-        body: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Card(
-            child: AppPaginatedListShell(
-              header: Padding(
-                padding: const EdgeInsets.all(12),
-                child: HistoryToolbar(
-                  mode: _selectionMode
-                      ? HistoryToolbarMode.selection
-                      : HistoryToolbarMode.search,
-                  searchController: _searchController,
-                  selectedCount: _selectedConversationIds.length,
-                  hasConversations: paginationState.hasAnyConversations,
-                  onSearchChanged: _handleSearchChanged,
-                  onSearchCleared: _handleSearchCleared,
-                  onSelectCurrentPage: _selectCurrentPage,
-                  onClearSelection: _clearSelection,
-                  onDeletePressed: _selectedConversationIds.isEmpty
-                      ? null
-                      : _confirmDeleteSelected,
-                  onExitSelection: _clearSelection,
-                ),
-              ),
-              paginationState: AppPaginationState(
-                currentPage: paginationState.currentPage,
-                pageSize: paginationState.pageSize,
-                totalItems: paginationState.totalItems,
-                isBusy: paginationState.isLoading,
-              ),
-              pageIdentity:
-                  '${paginationState.keyword} '
-                  '${paginationState.currentPage} '
-                  '${paginationState.pageSize}',
-              initialLoading: !paginationState.isInitialized,
-              error: paginationState.errorMessage,
-              onRetry: paginationState.errorMessage == null
+        body: AppPaginatedListShell(
+          header: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: HistoryToolbar(
+              mode: _selectionMode
+                  ? HistoryToolbarMode.selection
+                  : HistoryToolbarMode.search,
+              searchController: _searchController,
+              selectedCount: _selectedConversationIds.length,
+              hasConversations: paginationState.hasAnyConversations,
+              onSearchChanged: _handleSearchChanged,
+              onSearchCleared: _handleSearchCleared,
+              onSelectCurrentPage: _selectCurrentPage,
+              onClearSelection: _clearSelection,
+              onDeletePressed: _selectedConversationIds.isEmpty
                   ? null
-                  : () => ref
-                        .read(historyPaginationProvider.notifier)
-                        .loadRoute(
-                          page: paginationState.currentPage,
-                          pageSize: paginationState.pageSize,
-                          keyword: paginationState.keyword,
-                        ),
-              onPageChanged: (page) {
-                _prepareForWindowChange();
-                ref.read(historyPaginationProvider.notifier).goToPage(page);
-                _replaceRouteLocation();
-              },
-              onPageSizeChanged: (size) {
-                _prepareForWindowChange();
-                ref.read(historyPaginationProvider.notifier).setPageSize(size);
-                _replaceRouteLocation();
-              },
-              bodyBuilder: (context, scrollController) =>
-                  _buildConversationList(
-                    context,
-                    paginationState,
-                    scrollController,
-                  ),
+                  : _confirmDeleteSelected,
+              onExitSelection: _clearSelection,
             ),
+          ),
+          paginationState: AppPaginationState(
+            currentPage: paginationState.currentPage,
+            pageSize: paginationState.pageSize,
+            totalItems: paginationState.totalItems,
+            isBusy: paginationState.isLoading,
+          ),
+          pageIdentity:
+              '${paginationState.keyword} '
+              '${paginationState.currentPage} '
+              '${paginationState.pageSize}',
+          initialLoading: !paginationState.isInitialized,
+          error: paginationState.errorMessage,
+          onRetry: paginationState.errorMessage == null
+              ? null
+              : () => ref
+                    .read(historyPaginationProvider.notifier)
+                    .loadRoute(
+                      page: paginationState.currentPage,
+                      pageSize: paginationState.pageSize,
+                      keyword: paginationState.keyword,
+                    ),
+          onPageChanged: (page) {
+            _prepareForWindowChange();
+            ref.read(historyPaginationProvider.notifier).goToPage(page);
+            _replaceRouteLocation();
+          },
+          onPageSizeChanged: (size) {
+            _prepareForWindowChange();
+            ref.read(historyPaginationProvider.notifier).setPageSize(size);
+            _replaceRouteLocation();
+          },
+          bodyBuilder: (context, scrollController) => _buildConversationList(
+            context,
+            paginationState,
+            scrollController,
           ),
         ),
       ),
@@ -286,6 +280,8 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     return GroupedConversationList(
       groups: groups,
       scrollController: scrollController,
+      // 与收藏夹内容页一致：整页列表自带滚动区边距，不再依赖外层容器。
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
       itemBuilder: (context, conversation) {
         return Padding(
           padding: const EdgeInsets.only(bottom: 6),

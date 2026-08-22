@@ -84,9 +84,11 @@ class HistoryToolbar extends StatelessWidget {
               child: TextField(
                 controller: searchController,
                 onChanged: onSearchChanged,
+                // 只保留 hint + 前缀图标的紧凑单行：label 会把整行撑高，
+                // 让工具栏在整页宽度上显得空且重。
                 decoration: InputDecoration(
-                  labelText: '搜索历史对话',
-                  hintText: '仅匹配标题和用户消息',
+                  hintText: '搜索历史对话',
+                  isDense: true,
                   prefixIcon: const Icon(Icons.search_rounded),
                   // TextEditingController 是 Listenable；跟随输入显隐清空按钮。
                   suffixIcon: searchController == null
