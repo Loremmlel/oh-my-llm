@@ -113,6 +113,8 @@ class _DeleteCollectionDialogState
             ),
             const SizedBox(height: 8),
             // 处置方式组：移动到其他收藏夹，或连同收藏一并删除。
+            // 去向子列表紧随「移入其他收藏夹」选项、先于危险删除选项渲染，
+            // 视觉归属才与单选关系一致。
             RadioGroup<_CollectionDeleteDisposition>(
               groupValue: _disposition,
               onChanged: (value) => setState(() => _disposition = value!),
@@ -122,6 +124,39 @@ class _DeleteCollectionDialogState
                     value: _CollectionDeleteDisposition.move,
                     title: const Text('移入其他收藏夹'),
                   ),
+                  if (_disposition == _CollectionDeleteDisposition.move)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // 移动去向组：不含待删除的收藏夹自身。
+                          RadioGroup<String>(
+                            groupValue: _moveTargetId,
+                            onChanged: (value) =>
+                                setState(() => _moveTargetId = value!),
+                            child: Column(
+                              children: [
+                                for (final collection in moveTargets)
+                                  RadioListTile<String>(
+                                    value: collection.id,
+                                    title: Text(collection.name),
+                                    dense: true,
+                                  ),
+                              ],
+                            ),
+                          ),
+                          TextButton.icon(
+                            onPressed: _createMoveTarget,
+                            icon: const Icon(
+                              Icons.create_new_folder_outlined,
+                              size: 18,
+                            ),
+                            label: const Text('新建收藏夹作为去向'),
+                          ),
+                        ],
+                      ),
+                    ),
                   RadioListTile<_CollectionDeleteDisposition>(
                     value: _CollectionDeleteDisposition.deleteItems,
                     title: Text(
@@ -132,39 +167,6 @@ class _DeleteCollectionDialogState
                 ],
               ),
             ),
-            if (_disposition == _CollectionDeleteDisposition.move)
-              Padding(
-                padding: const EdgeInsets.only(left: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 移动去向组：不含待删除的收藏夹自身。
-                    RadioGroup<String>(
-                      groupValue: _moveTargetId,
-                      onChanged: (value) =>
-                          setState(() => _moveTargetId = value!),
-                      child: Column(
-                        children: [
-                          for (final collection in moveTargets)
-                            RadioListTile<String>(
-                              value: collection.id,
-                              title: Text(collection.name),
-                              dense: true,
-                            ),
-                        ],
-                      ),
-                    ),
-                    TextButton.icon(
-                      onPressed: _createMoveTarget,
-                      icon: const Icon(
-                        Icons.create_new_folder_outlined,
-                        size: 18,
-                      ),
-                      label: const Text('新建收藏夹作为去向'),
-                    ),
-                  ],
-                ),
-              ),
             if (_errorMessage != null)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
