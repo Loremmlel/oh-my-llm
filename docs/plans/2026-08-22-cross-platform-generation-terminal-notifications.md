@@ -1,6 +1,6 @@
 # 跨平台生成终态通知实施计划
 
-> 状态：Tasks 1–5 已实施并通过任务级评审；原 Windows 插件 spike 已真实 FAIL，Windows Tasks 6–9 已改为 runner-owned 原生方案，等待新 spike。
+> 状态：Tasks 1–5 已实施并通过任务级评审；Task 6A 插件方案 FAIL 证据已归档；Task 6B runner-owned spike 已按精简人工验收（A–E）全部 PASS，实测上界已回写第 8 节，Tasks 7–11 已解锁。
 >
 > 目标分支：`feat/cross-platform-generation-notifications`
 >
@@ -746,13 +746,13 @@ host start/secondary/callback/shutdown 的 native 最外层全部 `try/catch`，
 - pipe 使用显式 DACL，只允许当前 logon user SID 与 LocalSystem 完全访问，并启用 `PIPE_REJECT_REMOTE_CLIENTS`；SID/DACL 构造失败时 IPC/通知 host unavailable，但已持有的 instance mutex 仍维持唯一 Flutter owner，不能退回宽松 pipe ACL。同一 Windows 用户属于既有本地信任域，native framing/长度与 Dart decoder 仍必须执行两层严格白名单。
 - primary 收到 `notificationActivation` 后先写入上限 32、FIFO 的 native pending queue，再返回 ACK；队列满时拒绝新消息并记录固定 `native_activation_queue_full`，不逐出正在等待的旧 payload。
 - primary 收到 `activateWindow` 时只合并成一个 pending focus flag；窗口已 attach 时调用 runner 提供的恢复/聚焦 callback，窗口未 attach 时在首次 attach 后执行。
-- `activationRelay` 不写注册表、不创建 shortcut、不启动 Flutter。若 primary 已标记 activator ready，则 relay 只等待 RPCSS 将请求交给长期 owner 后有界退出；若尚未 ready，则 relay 竞争 activator lease，成功后注册同一 CLSID 的短命 native class object并运行 message loop，`Activate()` 收到 payload 后为每次 callback 建立独立 pipe request并等待 ACK。relay 不在首个 ACK 后立即退出：每次 callback 重置固定 `relayDrainGrace`，只有没有在途 callback/COM object且 grace 到期后才 revoke、释放 lease并退出；另有固定 `relayMaxLifetime` 防止永驻。两个值由 Task 6B 实测锁定。
+- `activationRelay` 不写注册表、不创建 shortcut、不启动 Flutter。若 primary 已标记 activator ready，则 relay 只等待 RPCSS 将请求交给长期 owner 后有界退出；若尚未 ready，则 relay 竞争 activator lease，成功后注册同一 CLSID 的短命 native class object并运行 message loop，`Activate()` 收到 payload 后为每次 callback 建立独立 pipe request并等待 ACK。relay 不在首个 ACK 后立即退出：每次 callback 重置固定 `relayDrainGrace`，只有没有在途 callback/COM object且 grace 到期后才 revoke、释放 lease并退出；另有固定 `relayMaxLifetime` 防止永驻。Task 6B 已锁定：`relayDrainGrace` 1000ms、`relayMaxLifetime` 15000ms。
 - primary 若发现 activator lease 暂由 relay 持有，只等待该 lease 的固定上界；取得后再注册长期 class object并设置 ready event。等待期间 pipe server 必须已经可接收 activation，因而 relay 不依赖 Flutter/Dart。spike 必须证明 `CoRegisterClassObject` 的实际 handoff 行为；不得把“RPCSS 必然重路由到任意进程”的猜测写成实现前提。
 - 若 primary 在 relay 期间退出，relay 关闭旧 instance mutex handle 后重新原子选主；只有确认为新 primary 才允许携带已捕获 payload 晋升并继续 Flutter 启动。primary 仍存在但 pipe/ACK 超时时，relay 有界退出，不能以“保底”为名启动第二个 Flutter。
 - `manualSecondary` 等待 ready event/pipe 使用固定有界超时；失败后重新选主，只有 primary 已退出才能晋升，否则退出并保持一个 Flutter owner。
 - relay OS 进程是预期协调机制，但任何 relay 执行 `DartProject`、出现 Flutter window、打开产品 SQLite/SharedPreferences，或退出后残留，都视为硬 FAIL。
 
-具体 wait/pipe/ACK 上界先在 Task 6B spike 测量后锁定；不得直接沿用 Dart MethodChannel 2 秒 timeout，也不得无限等待。产品值必须写入 named constants 并由 native test 覆盖。
+Task 6B spike（2026-08-23，Windows 11 Pro 25H2 build 26200 / Windows SDK 10.0.26100.0 / Flutter 3.44.8 stable）已实测锁定产品 named constants：lease 竞争切片 250ms、primary lease 总上界 30000ms、relay lease 总上界 3000ms、pipe 连接上界 2000ms、pipe ACK 上界 3000ms、`relayDrainGrace` 1000ms、`relayMaxLifetime` 15000ms；实测 pipe ACK p50=0ms/max=110ms（n=20）、relay handoff（`Activate`→pipe ACK）p50=0ms/max=1ms（n=2，真实 Toast 点击产生）、normal 变体 process_start→ready p50=49ms。RPCSS/handoff 规则已实测确认：pre-COM 窗口期点击按 LocalServer32 拉起 `-Embedding` relay，relay 经 activator lease 注册短命 class object、把 payload 经已就绪 pipe 交付给 COM 尚未注册的 primary（pipe server 先于 pre-COM 延迟启动），drain 后有界退出；primary 延迟结束取回 lease 注册长期 owner，全程任何时刻只有一个 class object owner。post-COM/pre-Flutter 窗口期点击由 notification STA 直接回调入队，`activation_received` 早于 `flutter_started`。不得直接沿用 Dart MethodChannel 2 秒 timeout，也不得无限等待；产品值必须写入 named constants 并由 native test 覆盖。
 
 ### 8.4 身份注册
 
