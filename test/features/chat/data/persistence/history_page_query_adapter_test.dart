@@ -343,6 +343,25 @@ void main() {
       await adapter.dispose();
     });
 
+    test('启动未就绪时 dispose 使在途 load 立即失败而非悬挂', () async {
+      final database = AppDatabase.forPath(databasePath('dispose-startup'));
+      final adapter = SqliteHistoryPageQueryAdapter(database);
+      addTearDown(database.close);
+
+      final loadFuture = adapter.load(
+        HistoryPageRequest(keyword: '', requestedPage: 1, pageSize: 20),
+      );
+      // 观察必须先于 dispose 挂接：错误在 dispose 的同步前缀就落地，若
+      // attach 晚于微任务传递，会以未处理异步错误污染测试。timeout 只是
+      // 红灯兜底：契约要求 dispose 后 load 失败而非永久悬挂。
+      final observed = expectLater(
+        loadFuture.timeout(const Duration(seconds: 5)),
+        throwsA(isA<HistoryPageQueryException>()),
+      );
+      await adapter.dispose();
+      await observed;
+    });
+
     test('dispose 完成后主连接可关闭且 sqlite 残留文件可删除', () async {
       final path = databasePath('handles');
       final database = AppDatabase.forPath(path);
@@ -414,6 +433,30 @@ void main() {
       expect(search.totalItems, 1);
 
       await adapter.dispose();
+    });
+
+    test('dispose 后新 load 立即失败且不再走内存直查', () async {
+      final database = AppDatabase.inMemory();
+      addTearDown(database.close);
+      await SqliteChatConversationRepository(database).saveConversations([
+        conversation(
+          id: 'mem',
+          title: '内存会话',
+          userContent: '内容',
+          updatedAt: DateTime(2026, 6, 7, 5),
+        ),
+      ]);
+      final adapter = SqliteHistoryPageQueryAdapter(database);
+
+      await adapter.dispose();
+
+      // 种子数据可查证明失败来自 dispose 拦截，而不是数据为空等偶发错误。
+      await expectLater(
+        adapter.load(
+          HistoryPageRequest(keyword: '', requestedPage: 1, pageSize: 20),
+        ),
+        throwsA(isA<HistoryPageQueryException>()),
+      );
     });
   });
 }

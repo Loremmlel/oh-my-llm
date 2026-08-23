@@ -46,14 +46,16 @@ class SqliteHistoryPageQueryAdapter implements HistoryPageQuery {
 
   @override
   Future<HistoryPageResult> load(HistoryPageRequest request) {
-    final inProcess = _inProcess;
-    if (inProcess != null) {
-      return inProcess.load(request);
-    }
+    // dispose 判定先于内存路径：端口契约要求 dispose 开始后新 load 立即
+    // 失败，内存实现不能豁免。
     if (_disposed) {
       return Future<HistoryPageResult>.error(
         const HistoryPageQueryException('HistoryPageQuery 已 dispose'),
       );
+    }
+    final inProcess = _inProcess;
+    if (inProcess != null) {
+      return inProcess.load(request);
     }
     return _loadViaWorker(request);
   }
@@ -115,6 +117,12 @@ class SqliteHistoryPageQueryAdapter implements HistoryPageQuery {
       errorsAreFatal: true,
     ).then(
       (isolate) {
+        if (_disposed) {
+          // dispose 先于 spawn 完成：worker 收不到 Close 命令，立即终止，
+          // 不让它带着自有连接存活。
+          isolate.kill(priority: Isolate.immediate);
+          return;
+        }
         _isolate = isolate;
       },
       onError: (Object error) {
@@ -156,7 +164,7 @@ class SqliteHistoryPageQueryAdapter implements HistoryPageQuery {
         _completeAllPending(
           const HistoryPageQueryException('历史页 read worker 已关闭'),
         );
-        _exited?.complete();
+        _completeExited();
     }
   }
 
@@ -173,6 +181,12 @@ class SqliteHistoryPageQueryAdapter implements HistoryPageQuery {
     // onExit 事件与 Exit 响应分属两个端口、无顺序保证：优雅 dispose 时若
     // onExit 先到，worker 已死的事实等价于退出完成，立即放行等待，不靠
     // dispose 的超时兜底。
+    _completeExited();
+  }
+
+  /// Exit 响应与 onExit 事件可能先后到达，二者都会尝试放行 dispose 的
+  /// 等待；完成动作必须幂等，否则后到者会在端口回调里抛 StateError。
+  void _completeExited() {
     final exited = _exited;
     if (exited != null && !exited.isCompleted) {
       exited.complete();
@@ -206,6 +220,14 @@ class SqliteHistoryPageQueryAdapter implements HistoryPageQuery {
 
     _startupTimer?.cancel();
     _startupTimer = null;
+    // 启动仍在途：readiness 以 dispose 错误收尾，等待它的 load 不得悬挂；
+    // 迟到的 Ready / StartupError 会被已完成的 completer 挡住。
+    final readyCompleter = _readyCompleter;
+    if (readyCompleter != null && !readyCompleter.isCompleted) {
+      readyCompleter.completeError(
+        const HistoryPageQueryException('HistoryPageQuery 已 dispose'),
+      );
+    }
     final commandPort = _commandPort;
     if (commandPort != null) {
       _exited = Completer<void>();
