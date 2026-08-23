@@ -11,8 +11,8 @@ import 'package:oh_my_llm/app/platform/android_system_notification_settings.dart
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_foreground_service.dart';
 import 'package:oh_my_llm/features/settings/application/ports/system_notification_settings.dart';
 
-/// 生产通道名：本任务暂用既有前台服务通道名，与尚未迁移的 Kotlin runtime 协作。
-const _channelName = 'yuzu.shiki.oh_my_llm/chat_generation_foreground_service';
+/// 生产通道名：与 Kotlin ChatGenerationNotificationProtocol 同一原子提交切换。
+const _channelName = 'yuzu.shiki.oh_my_llm/chat_generation_notifications';
 
 /// 固定测试 session 的合法 v1 payload（经共享严格 codec 编码）。
 String _validPayload() {

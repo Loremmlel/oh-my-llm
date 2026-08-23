@@ -5,8 +5,8 @@ import 'package:oh_my_llm/app/platform/android_chat_generation_foreground_servic
 import 'package:oh_my_llm/app/platform/android_chat_generation_platform_bridge.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_foreground_service.dart';
 
-/// 生产通道名：本任务暂用既有前台服务通道名，与尚未迁移的 Kotlin runtime 协作。
-const _channelName = 'yuzu.shiki.oh_my_llm/chat_generation_foreground_service';
+/// 生产通道名：与 Kotlin ChatGenerationNotificationProtocol 同一原子提交切换。
+const _channelName = 'yuzu.shiki.oh_my_llm/chat_generation_notifications';
 
 /// Dart 预编码的 foregroundProtectionTimedOut 激活 payload（共享严格 v1 codec
 /// 产物）；前台 adapter 只透传、不解析。

@@ -8,7 +8,7 @@ import 'package:oh_my_llm/app/platform/android_chat_generation_platform_bridge.d
 import 'package:oh_my_llm/app/platform/android_chat_generation_terminal_notification_adapter.dart';
 
 /// 生产通道名：与共享 bridge 默认构造一致。
-const _channelName = 'yuzu.shiki.oh_my_llm/chat_generation_foreground_service';
+const _channelName = 'yuzu.shiki.oh_my_llm/chat_generation_notifications';
 
 /// 固定测试 session 的合法 v1 payload（经共享严格 codec 编码）。
 String _validPayload() {

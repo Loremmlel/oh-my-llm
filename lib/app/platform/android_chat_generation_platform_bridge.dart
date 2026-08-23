@@ -8,12 +8,11 @@ import 'package:oh_my_llm/features/settings/application/ports/system_notificatio
 
 /// Android 生成通知共享 MethodChannel 名。
 ///
-/// 本提交暂沿用既有前台服务通道名，保证与尚未迁移的 Kotlin runtime 协作；
-/// Kotlin 侧实现 HIGH 终态通知与设置的同一原子提交会把 Dart/Kotlin 两端一起
-/// 切换到最终名 `yuzu.shiki.oh_my_llm/chat_generation_notifications`。不得为
-/// 兼容旧通道新增双写或双 handler。
+/// 前台服务、终态通知与系统设置三类职责共享一条通道；本名与 Kotlin
+/// `ChatGenerationNotificationProtocol` 在同一原子提交内切换，不得为兼容旧
+/// 通道新增双写或双 handler。
 const androidChatGenerationPlatformChannelName =
-    'yuzu.shiki.oh_my_llm/chat_generation_foreground_service';
+    'yuzu.shiki.oh_my_llm/chat_generation_notifications';
 
 /// 单次平台命令等待原生 ACK 的固定上界。
 ///

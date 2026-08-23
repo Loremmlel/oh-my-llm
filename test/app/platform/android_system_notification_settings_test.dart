@@ -8,7 +8,7 @@ import 'package:oh_my_llm/app/platform/android_system_notification_settings.dart
 import 'package:oh_my_llm/features/settings/application/ports/system_notification_settings.dart';
 
 /// 生产通道名：与共享 bridge 默认构造一致。
-const _channelName = 'yuzu.shiki.oh_my_llm/chat_generation_foreground_service';
+const _channelName = 'yuzu.shiki.oh_my_llm/chat_generation_notifications';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
