@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -17,8 +18,10 @@ import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_contr
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_foreground_service.dart';
+import 'package:oh_my_llm/features/chat/application/ports/history_page_query.dart';
 import 'package:oh_my_llm/features/chat/data/generation/anthropic/anthropic_messages_client.dart';
 import 'package:oh_my_llm/features/chat/data/persistence/background_chat_repository.dart';
+import 'package:oh_my_llm/features/chat/data/persistence/history_page_query_adapter.dart';
 import 'package:oh_my_llm/features/chat/data/generation/chat_completions/chat_completions_client.dart';
 import 'package:oh_my_llm/features/chat/data/generation/protocol_routing_chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/data/generation/responses/responses_client.dart';
@@ -73,6 +76,7 @@ List<dynamic> appCompositionOverrides({
   bool useInMemorySyncSecureStore = false,
   bool bindChatGenerationClient = true,
   bool bindChatConversationRepository = true,
+  bool bindHistoryPageQuery = true,
   bool bindMediaLibraryFactory = true,
   bool bindChatGenerationForegroundService = true,
   bool bindFavoritesRepositories = true,
@@ -141,6 +145,17 @@ List<dynamic> appCompositionOverrides({
           SqliteChatConversationRepository(database),
           database.path,
         );
+      }),
+    if (bindHistoryPageQuery)
+      // History page query：文件库走独立 read worker isolate（查询移出
+      // UI isolate），内存库复用同一连接；测试以 controllable fake 覆盖时
+      // 由开关排除本绑定。
+      historyPageQueryProvider.overrideWith((ref) {
+        final adapter = SqliteHistoryPageQueryAdapter(
+          ref.watch(appDatabaseProvider),
+        );
+        ref.onDispose(() => unawaited(adapter.dispose()));
+        return adapter;
       }),
     if (bindChatGenerationForegroundService)
       // 生成前台服务端口：Android 绑 MethodChannel adapter，其余平台绑 no-op；

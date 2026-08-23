@@ -122,6 +122,27 @@ void registerFavoritesScreenSelectionTests() {
     expect(find.text('问题005'), findsOneWidget);
   });
 
+  // 与上一用例构成差异契约：generic Back（Android 系统返回 / Windows 侧键
+  // 经 dispatcher 进入的同一条链）走 App Shell 本地返回目标，同样先清
+  // 选择态且留在收藏夹内容页，而不是把 Back 当成退出页面。
+  testWidgets('系统返回先清除收藏选择态且留在收藏夹页', (tester) async {
+    await _openSystemCollection(tester, itemCount: 5);
+
+    await _tapWithModifier(
+      tester,
+      '问题005',
+      modifier: LogicalKeyboardKey.controlLeft,
+    );
+    expect(find.text('已选择 1 项'), findsOneWidget);
+
+    await tester.binding.handlePopRoute();
+    await tester.pump();
+
+    expect(find.text('已选择 1 项'), findsNothing);
+    expect(find.text('问题005'), findsOneWidget);
+    expect(find.textContaining('共 5 条 · 1/1 页'), findsOneWidget);
+  });
+
   testWidgets('Delete 键对选中项发起删除确认且取消不生效', (tester) async {
     await _openSystemCollection(tester, itemCount: 5);
 

@@ -295,6 +295,19 @@ void main() {
       expect(find.text('打开播放器'), findsOneWidget);
     });
 
+    // 与上一用例构成差异契约：generic Back（Android 系统返回 / Windows 侧键
+    // 经 dispatcher 进入的同一条链）在全屏中直接等待恢复并关闭页面，
+    // 不像 Escape 那样只退出全屏。
+    testWidgets('全屏 generic Back 等待全屏恢复后关闭页面', (tester) async {
+      final harness = await pumpPushedDesktopVideo(tester, fullscreen: true);
+      await tester.binding.handlePopRoute();
+      await tester.pump();
+      await tester.pump();
+      expect(harness.fullscreen.calls, contains('restoreAndDispose'));
+      expect(find.text('打开播放器'), findsOneWidget);
+      expect(harness.fake.disposeCount, 1);
+    });
+
     testWidgets('顶部关闭 await 全屏恢复后再退出页面', (tester) async {
       final harness = await pumpPushedDesktopVideo(tester, fullscreen: true);
       await tester.tap(find.byTooltip('关闭视频'));

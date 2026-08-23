@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:meta/meta.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqlite3/sqlite3.dart' as sqlite;
 
@@ -32,6 +31,10 @@ class AppDatabase {
   final sqlite.Database _connection;
   final String path;
 
+  /// 是否为 `:memory:` 内存库：连接不能跨 isolate 发送，也无法用文件
+  /// 路径在别的 isolate 重建，调用方只能走进程内同连接路径。
+  bool get isInMemory => path == ':memory:';
+
   /// 打开正式数据库文件，并在首次使用时创建 schema。
   static Future<AppDatabase> open() async {
     final supportDirectory = await getApplicationSupportDirectory();
@@ -52,8 +55,10 @@ class AppDatabase {
     );
   }
 
-  /// 打开指定路径的文件数据库，用于需要跨 Isolate 共享的测试场景。
-  @visibleForTesting
+  /// 以独立连接打开指定路径的文件数据库。
+  ///
+  /// 供后台读写 isolate 对同一文件库各持连接使用；sqlite3 connection 不能
+  /// 跨 isolate 发送，跨 isolate 只能共享文件路径。
   factory AppDatabase.forPath(String path) {
     return AppDatabase._(connection: sqlite.sqlite3.open(path), path: path);
   }
@@ -66,7 +71,7 @@ class AppDatabase {
   }
 
   void _configure() {
-    configureSqlitePragmas(_connection, isInMemory: path == ':memory:');
+    configureSqlitePragmas(_connection, isInMemory: isInMemory);
   }
 
   /// 校验 schema 版本与当前滚动基线是否一致，并在全新库上直接建当前 schema。
