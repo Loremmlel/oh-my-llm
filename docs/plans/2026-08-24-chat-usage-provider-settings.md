@@ -27,6 +27,7 @@
 - 不修改 API Key 的 SharedPreferences 格式、Settings transfer 注册、剪贴板敏感确认、Sync 敏感确认、列表掩码或日志脱敏。
 - 不按模型名、host 或服务商猜测深度思考能力；远程模型目录不被视为 capability 权威来源。
 - Token 数据是 best-effort：只使用 SSE 实际返回的 usage，不使用 tokenizer 本地估算，不承诺与服务商 Dashboard 或账单完全一致。
+- SQLite 已发布迁移链不滚动退役：本计划保留 v13→v14，并追加 v14→v15；v13 和 v14 都必须能升级到 v15。
 
 ---
 
@@ -704,8 +705,8 @@ git commit -m "refactor(chat): 归一化流式 Token 用量契约"
 
 - 当前 schema 期望 15；fresh DB 存在 settlement 表、5 个业务列和 conversation 索引。
 - 创建合法 v14 fixture，打开后迁移到 v15，原 conversations/messages/favorites 数据保持。
-- v13 现在显式拒绝；删除旧 v13→v14 收藏迁移 helper 与其专项测试，不保留两步链。
-- v16 显式拒绝。
+- 保留合法 v13 fixture 和 v13→v14 收藏迁移测试；同一 v13 数据库继续执行 v14→v15，最终数据与两个版本迁移语义都保持。
+- v12（低于当前最低支持版本）与 v16（未来版本）显式拒绝。
 - 删除 conversation 后 settlement 级联删除；删除 message 不删除 settlement。
 
 ```dart
@@ -721,6 +722,15 @@ test('v14 数据库迁移到 v15 并保留聊天数据', () async {
     isNotEmpty,
   );
 });
+
+test('v13 数据库按顺序迁移到 v15 并保留收藏与聊天数据', () async {
+  final path = createV13Database('usage-v13.db');
+  final database = AppDatabase.forPath(path);
+  addTearDown(database.close);
+  expect(database.connection.select('PRAGMA user_version').single['user_version'], 15);
+  expectMigratedFavoriteOwnership(database.connection);
+  expectUsageSettlementSchema(database.connection);
+});
 ```
 
 - [ ] **Step 2: 运行 migration RED**
@@ -729,16 +739,16 @@ test('v14 数据库迁移到 v15 并保留聊天数据', () async {
 flutter test test/core/persistence/app_database_migration_test.dart --reporter compact 2>&1 | Out-File -Encoding utf8 logs/token-usage-migration-red.log; $TestExit = $LASTEXITCODE; Write-Host "EXIT=$TestExit"; Get-Content -Tail 200 logs/token-usage-migration-red.log
 ```
 
-预期：v15/table/migration 断言失败；正向 v14 fixture 必须能被独立 sqlite 打开，避免无效 fixture 造成假 RED。
+预期：v15/table/migration 断言失败；v13 与 v14 正向 fixture 必须先能被对应旧 schema 校验读取，避免无效 fixture 造成假 RED。
 
-- [ ] **Step 3: 实现 rolling migration**
+- [ ] **Step 3: 实现持久顺序迁移**
 
 - `currentSchemaVersion = 15`。
-- `_initializeSchema` 只接受 0、15、14；14 调用 `_migrateUsageSettlementsFromV14ToV15()`。
+- `_initializeSchema` 接受 0、13、14、15：13 先调用 `_migrateFavoritesFromV13ToV14()` 并继续，14 再调用 `_migrateUsageSettlementsFromV14ToV15()`；迁移结束必须精确为 15。
 - fresh `_createSchema()` 直接创建第 3.1 节表与索引。
 - v14→v15 在单事务中创建表/索引、foreign key check、设置 user_version 15。
-- 删除 `_migrateFavoritesFromV13ToV14` 与仅服务旧迁移的 `_hasColumn`；保留 fresh schema 需要的 `_favoritesTableV14Ddl` 和系统收藏夹播种。
-- 更新类注释说明 v14 是唯一临时旧基线。
+- 保留 `_migrateFavoritesFromV13ToV14`、`_hasColumn`、v13 fixture 和专项测试；删除现有注释中“随临时迁移退役”的描述。
+- 更新类注释：v13 是当前最低支持版本，v13→v14 与 v14→v15 都是持久迁移链的一部分，未来版本只能追加迁移步骤。
 
 - [ ] **Step 4: 运行 migration GREEN**
 
@@ -1073,13 +1083,13 @@ flutter test test/features/chat/application/sessions/chat_sessions_controller_pe
 
 不得用只检查 domain state 的测试替代 SQLite 断言。
 
-- [ ] **Step 4: rolling baseline 审计**
+- [ ] **Step 4: 持久迁移链审计**
 
 ```powershell
 rg -n "v13|V13|13→14|_migrateFavoritesFromV13ToV14" lib/core/persistence/app_database.dart test/core/persistence/app_database_migration_test.dart
 ```
 
-允许结果只包含“v13 被拒绝”的当前范围测试说明；不得残留 v13→v14 迁移实现、fixture 或两步迁移链。
+结果必须同时包含 v13→v14 迁移实现、合法 v13 fixture、v13→v15 完整链测试，以及 v14→v15 直接迁移测试；若任何旧迁移或其数据保留断言消失，审计失败。
 
 - [ ] **Step 5: 运行第 8 节统一门禁与 scope audit**
 
@@ -1179,7 +1189,7 @@ git log --oneline master..HEAD
 
 - `变更摘要`：消息四项 usage、会话命中率、final-generation receipt；明确 best-effort 与自动重试前序不计。
 - `验证`：三协议、run retry reset、settlement 幂等/删除、migration、UI、integration、static/full suite 的实际结果。
-- `风险与影响`：SQLite v15 只支持 v14→v15；v13 被拒绝；新增 receipt 随会话增长；删除消息不回退统计是产品契约。
+- `风险与影响`：SQLite v15 保留 v13→v14 并追加 v14→v15；v13/v14 均可升级，v12 与未来版本拒绝；新增 receipt 随会话增长；删除消息不回退统计是产品契约。
 - `审查重点`：receipt 是否唯一事实源、终态事务/后台 ACK、Chat usage-only chunk、Anthropic input 归一、null/0、删除语义。
 
 ## 10. 停止条件
@@ -1197,7 +1207,7 @@ git log --oneline master..HEAD
 
 ### PR C
 
-- 任何方案需要同时保留 v13→v14 与 v14→v15 时停止；违反 rolling baseline。
+- 任何方案删除 v13→v14 实现、fixture 或数据保留测试，或让 v13 无法顺序升级到 v15 时停止；违反持久迁移链。
 - 任何方案把 usage 同时写入 message columns、conversation totals 和 receipt 三处时停止；违反单一事实源。
 - background settlement 无法保证 conversation+receipt 同事务时停止；不能用两个独立 ACK 假装原子。
 - 需要完整记录自动重试前序 attempt、供应商原始 usage JSON、费用或模型分组时停止；这些超出批准范围。
@@ -1231,7 +1241,7 @@ git log --oneline master..HEAD
 - 自动重试前序 usage 丢弃；最终 attempt 的 usage 通过单一 settlement interface 落盘。
 - receipt 幂等、冲突回滚、消息删除不回退、会话删除 cascade、重开可恢复。
 - 消息底部和 composer 文案、顺序、null/0、格式、折叠/响应式全部符合第 2 节。
-- v15 fresh/migration/reject 语义、static、全量、scope audit 全部通过。
+- v15 fresh、v13→v14→v15、v14→v15、v12/v16 reject 语义、static、全量、scope audit 全部通过。
 
 ## 12. 执行顺序与交接
 
