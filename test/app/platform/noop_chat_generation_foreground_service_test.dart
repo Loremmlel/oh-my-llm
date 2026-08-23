@@ -35,12 +35,6 @@ void main() {
         ChatForegroundFailureCode.unsupportedPlatform,
       ),
     );
-    expect(
-      await noop.fail(_payload),
-      const ChatForegroundCommandResult.unavailable(
-        ChatForegroundFailureCode.unsupportedPlatform,
-      ),
-    );
   });
 
   test('权限返回 notRequired', () async {

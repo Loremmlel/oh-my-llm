@@ -72,14 +72,6 @@ final class FakeForegroundPort implements ChatGenerationForegroundServicePort {
   }
 
   @override
-  Future<ChatForegroundCommandResult> fail(
-    ChatGenerationForegroundPayload payload,
-  ) {
-    calls.add('fail');
-    return Future.value(const ChatForegroundCommandResult.accepted());
-  }
-
-  @override
   Future<String?> takePendingOpenConversation() async {
     calls.add('takePendingOpenConversation');
     return null;

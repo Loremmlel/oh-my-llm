@@ -79,16 +79,6 @@ final class AndroidChatGenerationForegroundService
   );
 
   @override
-  Future<ChatForegroundCommandResult> fail(
-    ChatGenerationForegroundPayload payload,
-  ) => _invokeCommand(
-    'failForegroundGeneration',
-    _encodePayload(payload),
-    _decodeCommandResult,
-    ChatForegroundCommandResult.unavailable,
-  );
-
-  @override
   Future<String?> takePendingOpenConversation() => _invokeCommand(
     'takePendingOpenConversation',
     null,

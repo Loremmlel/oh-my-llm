@@ -1,15 +1,15 @@
 /// 生成通知协调器的跨层集成测试。
 ///
 /// 把真实 Riverpod wiring（[chatGenerationNotificationCoordinatorProvider] 的
-/// eager watch + [chatSessionsProvider]）与可控 repository、fake 生成客户端和
-/// fake 平台端口接在一起，验证四条跨层契约：
+/// eager watch + [chatSessionsProvider]）与可控 repository、fake 生成客户端、
+/// fake 平台端口和 fake 终态通知端口接在一起，验证四条跨层契约：
 /// 1. 原生 stop 进入既有 durable stop：通知先显示 stopping、stop 落盘完成前不
 ///    remove，取消后部分正文/推理落盘并 remove；
-/// 2. stop 落盘失败：投影 persistenceFailed、inline 错误保持既有文案、端口收到
-///    安全 retain-error 载荷；
+/// 2. stop 落盘失败：投影 persistenceFailed、inline 错误保持既有文案、ongoing
+///    清理后报告安全收据；
 /// 3. 平台 start/update/remove 失败 fail-open：聊天结果与对照控制组完全一致，
 ///    不额外创建 assistant 消息；
-/// 4. 成功/错误/空回复经既有多协议 fake 路由链路投递正确终态通知。
+/// 4. 成功/错误/空回复经既有多协议 fake 路由链路清理 ongoing 并投递正确终态收据。
 ///
 /// 所有等待均基于 fake 端口调用信号与 repository ACK（gate reached），不使用
 /// 任意延时或无条件的 pumpAndSettle。
@@ -26,15 +26,18 @@ import 'package:http/http.dart' as http;
 
 import 'package:oh_my_llm/app/composition/chat_generation_notification_coordinator.dart';
 import 'package:oh_my_llm/app/composition/cross_feature_bindings.dart';
+import 'package:oh_my_llm/app/notifications/default_chat_generation_terminal_notifications.dart';
 import 'package:oh_my_llm/core/http/llm_http_stream_transport.dart';
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/features/chat/application/generation/chat_generation_lifecycle.dart';
+import 'package:oh_my_llm/features/chat/application/generation/chat_generation_terminal_notification.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_foreground_service.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_generation_terminal_notifications.dart';
 import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/data/generation/anthropic/anthropic_messages_client.dart';
 import 'package:oh_my_llm/features/chat/data/generation/chat_completions/chat_completions_client.dart';
@@ -180,21 +183,18 @@ void main() {
       // inline 错误保持既有持久化失败文案，不因通知链路改变。
       expect(state.errorMessage, ChatErrorMessages.persistenceFailed);
 
-      // 端口收到安全 retain-error 载荷：标题/文案固定，不携带原始异常文本。
-      await harness.port.waitForCall('fail');
+      // ongoing 清理后报告安全收据：只携带固定分类，不携带原始异常文本。
+      await harness.port.waitForCall('remove');
+      final receipt = harness.terminal.receipts.single;
       expect(
-        harness.port.payloads.where((p) => p.title == '结果保存失败'),
-        isNotEmpty,
+        receipt.terminalKind,
+        ChatGenerationTerminalKind.persistenceFailed,
       );
       expect(
-        harness.port.payloads.lastWhere((p) => p.title == '结果保存失败').text,
-        '回复结果未能保存，请打开应用查看',
+        receipt.failureKind,
+        ChatGenerationTerminalFailureKind.persistence,
       );
-      expect(
-        harness.port.payloads.lastWhere((p) => p.title == '结果保存失败').text,
-        isNot(contains('模拟 stop 落盘失败')),
-      );
-      expect(harness.port.calls, isNot(contains('remove')));
+      expect(harness.port.calls.where((c) => c == 'remove'), ['remove']);
     },
   );
 
@@ -275,7 +275,7 @@ void main() {
   // ── 多协议真实路由链路下的终态通知 ────────────────────────────────────────
 
   for (final protocol in LlmApiProtocol.values) {
-    test('${protocol.name} 真实路由链路：成功时投递 start/update/remove 通知', () async {
+    test('${protocol.name} 真实路由链路：成功时投递 start/update/remove 通知并报告收据', () async {
       final harness = await _createHarness(
         routingClient: _routingClient(protocol, fail: false),
       );
@@ -299,10 +299,13 @@ void main() {
       expect(harness.port.calls, contains('start'));
       expect(harness.port.calls, contains('update'));
       expect(harness.port.calls, contains('remove'));
-      expect(harness.port.calls, isNot(contains('fail')));
+      expect(
+        harness.terminal.receipts.single.terminalKind,
+        ChatGenerationTerminalKind.succeeded,
+      );
     });
 
-    test('${protocol.name} 真实路由链路：错误时投递安全 fail 通知载荷', () async {
+    test('${protocol.name} 真实路由链路：错误时清理 ongoing 并报告 failed 收据', () async {
       final harness = await _createHarness(
         routingClient: _routingClient(protocol, fail: true),
       );
@@ -317,23 +320,18 @@ void main() {
       expect(state.generation?.phase, ChatGenerationPhase.failed);
       expect(state.isStreaming, isFalse);
 
-      await harness.port.waitForCall('fail');
-      expect(
-        harness.port.payloads.lastWhere((p) => p.title == '生成失败').title,
-        '生成失败',
-      );
-      // 安全载荷：不携带原始错误文本。
-      expect(
-        harness.port.payloads.lastWhere((p) => p.title == '生成失败').text,
-        isNot(contains('协议测试错误')),
-      );
-      expect(harness.port.calls, isNot(contains('remove')));
+      await harness.port.waitForCall('remove');
+      final receipt = harness.terminal.receipts.single;
+      expect(receipt.terminalKind, ChatGenerationTerminalKind.failed);
+      // 安全收据：不携带原始错误文本，只携带固定失败分类。
+      expect(receipt.failureKind, ChatGenerationTerminalFailureKind.unknown);
+      expect(harness.port.calls.where((c) => c == 'remove'), ['remove']);
     });
   }
 
   // 空回复：多协议 SSE fake 助手（multi_protocol 集成测试）未提供空回复 SSE，
-  // 此处经通用 fake 客户端链路验证空回复仍投递安全 retain-error 载荷。
-  test('空回复经 fake 链路投影 emptyReply 并投递安全 fail 载荷', () async {
+  // 此处经通用 fake 客户端链路验证空回复仍清理 ongoing 并报告 emptyReply 收据。
+  test('空回复经 fake 链路投影 emptyReply 并报告安全收据', () async {
     final harness = await _createHarness();
     addTearDown(harness.dispose);
     harness.fakeClient.enqueueChunks(const <String>[]);
@@ -343,16 +341,11 @@ void main() {
     expect(state.generation?.phase, ChatGenerationPhase.emptyReply);
     expect(state.generation?.outcome, isA<ChatGenerationEmptyReply>());
 
-    await harness.port.waitForCall('fail');
-    expect(
-      harness.port.payloads.lastWhere((p) => p.title == '生成失败').title,
-      '生成失败',
-    );
-    expect(
-      harness.port.payloads.lastWhere((p) => p.title == '生成失败').text,
-      '模型返回了空回复',
-    );
-    expect(harness.port.calls, isNot(contains('remove')));
+    await harness.port.waitForCall('remove');
+    final receipt = harness.terminal.receipts.single;
+    expect(receipt.terminalKind, ChatGenerationTerminalKind.emptyReply);
+    expect(receipt.failureKind, ChatGenerationTerminalFailureKind.emptyReply);
+    expect(harness.port.calls.where((c) => c == 'remove'), ['remove']);
   });
 }
 
@@ -428,6 +421,7 @@ Future<_Harness> _createHarness({
   final fakeClient = FakeChatGenerationClient();
   final repo = ControllableChatConversationRepository(database);
   final servicePort = port ?? FakeForegroundServicePort();
+  final terminalNotifications = FakeTerminalNotifications();
   final container = ProviderContainer(
     overrides: [
       appDatabaseProvider.overrideWithValue(database),
@@ -444,6 +438,9 @@ Future<_Harness> _createHarness({
       ),
       chatConversationRepositoryProvider.overrideWithValue(repo),
       chatGenerationForegroundServiceProvider.overrideWithValue(servicePort),
+      chatGenerationTerminalNotificationsProvider.overrideWithValue(
+        terminalNotifications,
+      ),
     ],
   );
   // eager 读取通知协调器：生命周期不依赖 ChatScreen，模拟应用根部 watch。
@@ -453,6 +450,7 @@ Future<_Harness> _createHarness({
     fakeClient: fakeClient,
     repo: repo,
     port: servicePort,
+    terminal: terminalNotifications,
     container: container,
   );
 }
@@ -463,6 +461,7 @@ final class _Harness {
     required this.fakeClient,
     required this.repo,
     required this.port,
+    required this.terminal,
     required this.container,
   });
 
@@ -470,6 +469,7 @@ final class _Harness {
   final FakeChatGenerationClient fakeClient;
   final ControllableChatConversationRepository repo;
   final FakeForegroundServicePort port;
+  final FakeTerminalNotifications terminal;
   final ProviderContainer container;
 
   void dispose() {
@@ -546,11 +546,6 @@ class FakeForegroundServicePort implements ChatGenerationForegroundServicePort {
   }) => _record('remove');
 
   @override
-  Future<ChatForegroundCommandResult> fail(
-    ChatGenerationForegroundPayload payload,
-  ) => _record('fail', payload);
-
-  @override
   Future<String?> takePendingOpenConversation() async {
     calls.add('takePendingOpenConversation');
     return null;
@@ -560,6 +555,19 @@ class FakeForegroundServicePort implements ChatGenerationForegroundServicePort {
   void dispose() {
     if (!actionsController.isClosed) actionsController.close();
   }
+}
+
+/// 终态通知端口 fake：记录 coordinator 经真实 Riverpod wiring 报告的收据。
+class FakeTerminalNotifications implements ChatGenerationTerminalNotifications {
+  final receipts = <ChatGenerationTerminalReceipt>[];
+
+  @override
+  Future<void> report(ChatGenerationTerminalReceipt receipt) async {
+    receipts.add(receipt);
+  }
+
+  @override
+  Future<void> dispose() async {}
 }
 
 /// 按协议返回固定 SSE 响应体的假 HTTP 客户端（多协议集成测试同款模式）。

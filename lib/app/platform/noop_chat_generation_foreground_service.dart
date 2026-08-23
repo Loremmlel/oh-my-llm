@@ -36,13 +36,6 @@ final class NoopChatGenerationForegroundService
   );
 
   @override
-  Future<ChatForegroundCommandResult> fail(
-    ChatGenerationForegroundPayload payload,
-  ) async => const ChatForegroundCommandResult.unavailable(
-    ChatForegroundFailureCode.unsupportedPlatform,
-  );
-
-  @override
   Stream<ChatGenerationForegroundAction> get actions => const Stream.empty();
 
   @override

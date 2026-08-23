@@ -68,7 +68,7 @@ void main() {
   }
 
   group('输出编码', () {
-    test('start/update/remove/fail 编码为精确方法名与协议载荷', () async {
+    test('start/update/remove 编码为精确方法名与协议载荷', () async {
       response = {'accepted': true};
       final adapter = AndroidChatGenerationForegroundService(channel: channel);
       addTearDown(adapter.dispose);
@@ -85,16 +85,11 @@ void main() {
         adapter.remove(token: 7, conversationId: 'conv-1'),
         completion(const ChatForegroundCommandResult.accepted()),
       );
-      await expectLater(
-        adapter.fail(_payload),
-        completion(const ChatForegroundCommandResult.accepted()),
-      );
 
       expect(calls.map((call) => call.method), [
         'startForegroundGeneration',
         'updateForegroundGeneration',
         'removeForegroundGeneration',
-        'failForegroundGeneration',
       ]);
 
       const expectedPayload = {
@@ -113,7 +108,6 @@ void main() {
         calls[2].arguments,
         equals({'token': 7, 'conversationId': 'conv-1'}),
       );
-      expect(calls[3].arguments, equals(expectedPayload));
 
       // token 保持 int 类型。
       expect((calls[0].arguments as Map)['token'], isA<int>());
