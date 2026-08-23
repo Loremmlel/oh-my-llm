@@ -1,6 +1,6 @@
 # 跨平台生成终态通知实施计划
 
-> 状态：已完成两轮外部依赖与原生链路审计、待实施；本文件只定义实现与验证步骤，不包含产品代码改动。
+> 状态：Tasks 1–5 已实施并通过任务级评审；原 Windows 插件 spike 已真实 FAIL，Windows Tasks 6–9 已改为 runner-owned 原生方案，等待新 spike。
 >
 > 目标分支：`feat/cross-platform-generation-notifications`
 >
@@ -10,7 +10,7 @@
 
 ## 1. 结果定义
 
-本 PR 为聊天生成增加 Android 与 Windows 终态系统通知，并把“何时发、能显示什么、何时抑制、点击后去哪里”收敛到一个 Dart 深模块。Android Kotlin 与 Windows runner/plugin adapter 只执行平台命令，不参与生成结果判定。
+本 PR 为聊天生成增加 Android 与 Windows 终态系统通知，并把“何时发、能显示什么、何时抑制、点击后去哪里”收敛到一个 Dart 深模块。Android Kotlin 与 Windows runner 只执行平台命令，不参与生成结果判定。
 
 完成后必须同时满足：
 
@@ -20,10 +20,11 @@
 - Windows 通过系统 Toast 显示相同终态；不引入 MSIX、安装器或管理员权限要求。
 - Windows Toast 不配置自定义声音，使用系统默认通知声音并服从用户通知设置与专注助手。
 - Windows 应用热启动和完全退出两种情况下，点击 Toast 都能恢复并聚焦窗口，然后打开对应会话。
+- Windows 每个用户会话始终只有一个 Flutter engine/聊天存储 owner；第二次手工启动只恢复并聚焦既有窗口，极早期 COM 竞态允许出现不启动 Flutter、不打开存储的短命 native relay 进程。
 - 当前会话已删除时只回退聊天根页，不弹错误、不恢复数据。
 - Android 与 Windows 共享 Dart 收据、固定安全文案、资格判断、注意力抑制、通知 ID、payload、去重和导航规则。
 - 用户正在前台且正查看同一会话时不发送系统通知；其余页面、其他会话、后台或 Windows 失焦时发送。
-- Dart、MethodChannel、runner 注册和平台 adapter 可观察到的权限、注册、展示、设置查询或激活错误全部 fail-open，不改变 generation phase/outcome，不产生新的聊天错误。第三方 Windows 插件 native FFI 未捕获异常不在 Dart 可保证范围内；第 8.0 节必须如实记录该残余风险，Task 6/8 一旦观察到进程终止立即停止，不得把它写成已验证的 fail-open。
+- Dart、MethodChannel、runner 注册、COM/IPC、Toast 展示、设置查询或激活错误全部 fail-open，不改变 generation phase/outcome，不产生新的聊天错误。所有 C++ entrypoint/callback 必须在 native 边界捕获异常并返回固定失败分类；Task 6B/7 一旦观察到进程终止立即停止，不得把 native 崩溃写成已验证的 fail-open。
 - 设置页只显示系统通知状态与“打开系统通知设置”按钮，不增加应用内通知开关。
 
 ## 2. 范围边界
@@ -34,10 +35,10 @@
 - 现有 generation notification coordinator 的终态接入与 ongoing 清理修正。
 - app-owned 注意力快照、窗口抽象、终态通知深模块和导航激活。
 - Android 共享 MethodChannel bridge、HIGH 终态渠道、点击激活和设置入口。
-- Windows 未打包 Toast 注册、Toast adapter、窗口恢复和设置入口。
-- 在编写产品 runner 注册代码前，用独立身份的 throwaway Windows 工程验证 `flutter_local_notifications_windows` 3.1.1 的 warm/cold COM 激活、payload 和进程数。
+- Windows runner-owned 未打包 Toast 注册、原生 Toast 展示、COM activator、实例协调、Dart adapter、窗口恢复和设置入口。
+- 在编写产品 runner 模块前，用独立身份的 throwaway Windows 工程验证 runner-owned COM/Toast、唯一 Flutter owner、早期 activation 队列和 native relay。
 - 定向单元/widget 测试、现有测试替换、Android/Windows smoke 文档。
-- `flutter_local_notifications_windows: 3.1.1` 精确直接依赖；任何版本升级必须重新做源码审计和 Task 6 spike。
+- 不增加 `flutter_local_notifications_windows` 或 Windows App SDK 依赖；只使用当前 Windows SDK、C++/WinRT/WRL 与 Flutter Windows embedder 已提供的能力。
 - 复用现有 `window_manager: ^0.5.0`；它不是本 PR 的依赖变更。
 
 ### 2.2 本 PR 不包含
@@ -50,7 +51,7 @@
 - 聊天存储、生成协调器所有权、路由体系或设置传输格式重构。
 - 开始菜单快捷方式和 HKCU 注册项的卸载清理；删除应用目录后的残留保持现状。
 - Windows 多版本、多显示器、多用户、多安装位置测试矩阵。
-- 通用 Windows 单实例基础设施；Task 6 spike 必须先证明通知 warm/cold/快速连续激活以及“手工启动尚未注册 COM 时点击 Toast”都没有产生第二个进程，否则命中停止条件并另行设计 notification-specific runner 协调，不能接受双 Flutter 实例并发写存储。
+- 跨平台或可复用的通用单实例框架；本 PR 只实现 Windows 当前用户会话内、由 Toast COM 激活需求驱动的 runner 级唯一 Flutter owner。Linux/macOS、跨用户会话和多安装仲裁仍不在范围内。
 - 实机 smoke 的自动 CI 集成。第 14 节规定的 Android/Windows 最小原生 smoke 必须在 Ready for review 前由人工执行并为 `PASS`；更广的系统版本、专注助手、声音设备和多安装位置矩阵可以保留 `PENDING`。
 
 ## 3. 已确认的产品契约
@@ -161,7 +162,7 @@ public version 不含会话 ID、计数或失败细节。
 - payload v1 的 JSON 只允许 `v`、`eventKey`、`conversationId` 三个键，UTF-8 编码后总长度不得超过 1024 bytes。
 - decoder 只接受 `v == 1`；`eventKey` 必须不超过 128 字符并完全匹配 `v1:<32 lowercase hex>:<positive int64>:<known terminal kind>`；`conversationId` trim 后为 1..256 字符且不含控制字符。未知版本、额外/缺失字段、错类型、超长或语法不合法一律忽略并记录固定诊断类别。
 - Android warm activation 由 MethodChannel callback 交付；cold activation 由 Kotlin 一次性 pending slot 交付。
-- Windows warm activation 由插件 callback 交付；cold activation 由插件 launch details 交付。
+- Windows warm/cold activation 都由 runner-owned `INotificationActivationCallback` 接收；Flutter messenger 未 attach 时进入 native 有界队列，attach 后由 callback 或一次性 pending method 交付。
 - hot 与 pending 同时出现时按 `eventKey` 只消费一次。
 - Android ongoing 通知继续通过 foreground port 的 `openConversationRequested` / `takePendingOpenConversation()` 打开对应会话；不把该既有行为伪装成终态 activation，也不在本 PR 中删除。
 - Windows 激活顺序固定为 `restore/show -> focus -> 已保证调度的下一帧导航`。
@@ -180,7 +181,7 @@ public version 不含会话 ID、计数或失败细节。
   - `chat_generation_result`：HIGH、默认声音/振动、非 ongoing、auto-cancel，只用于终态。
 - 已创建 channel importance 不可由更新升级，因此终态必须使用新 ID。
 - Windows 不显示运行时权限弹窗；系统设置可能关闭应用通知，而未打包 API 无法可靠查询最终开关，所以 Windows 只报告“功能可用”，不伪装成“已开启”。
-- Windows `WindowsNotificationDetails()` 保持 `audio == null`，不生成显式 `<audio>` 配置；声音与横幅交给系统通知设置和专注助手决定，smoke 必须记录实际结果。
+- Windows runner 生成的 Toast XML 不包含 `<audio>`、`scenario` 或自定义音频 URI；声音与横幅交给系统通知设置和专注助手决定，smoke 必须记录实际结果。
 - 设置页没有应用内开关，显示 `已开启`、`系统已关闭`、`功能可用（由 Windows 管理）` 或 `不可用`，并提供系统设置入口。
 
 ## 4. 唯一架构
@@ -203,7 +204,7 @@ ChatGenerationTerminalNotifications
         ▼
 ChatGenerationTerminalNotificationAdapter
     ├─ Android adapter → AndroidChatGenerationPlatformBridge → Kotlin
-    ├─ Windows adapter → flutter_local_notifications_windows → Win32 registration
+    ├─ Windows adapter → MethodChannel → runner-owned WindowsNotificationHost
     └─ no-op adapter
 ```
 
@@ -215,7 +216,7 @@ ChatGenerationTerminalNotificationAdapter
 - `ChatGenerationNotificationProjector` 只投影 ongoing 前台服务 payload，不再持有终态错误摘要或 `retainError`。
 - 前台服务端口与终态通知端口分离。
 - Android 共享 bridge 只解决一个 MethodChannel 只能有一个 handler 的技术约束，不合并业务端口。
-- Windows runner 只保证身份注册并向 Dart 返回注册信息，不处理会话、generation 或路由。
+- Windows runner 深模块只拥有 Windows 身份、Toast、COM activation、实例协调和原始安全 payload 队列；它不解析 payload JSON，不处理会话、generation、注意力抑制或路由。
 - Settings presentation 只能依赖 settings application provider/port。
 
 ## 5. 纯 Dart 契约
@@ -425,7 +426,7 @@ DefaultChatGenerationTerminalNotifications({
 2. 在 `_startFuture` 的第一个 `await` 前订阅 `adapter.activations`，避免初始化期间丢 warm callback。
 3. 调 `adapter.initialize()`；错误记录 `terminal_adapter_initialize_failed` 并让 `_startFuture` 以“初始化不可用”完成，保持对象可 dispose，不抛给 generation。
 4. 初始化成功后调 `takePendingActivation()`；若存在，走同一 activation 消费路径。
-5. `report()` 先 `await _startFuture`；若调用时尚未显式 start，则内部幂等启动。初始化不可用时固定诊断后返回，不能在插件 ready 前调用 show。
+5. `report()` 先 `await _startFuture`；若调用时尚未显式 start，则内部幂等启动。初始化不可用时固定诊断后返回，不能在平台 adapter ready 前调用 show。
 6. report 用 `_reportingEventKeys` 拦截并发重复；读取注意力、route 和 active conversation。命中抑制条件时加入 `_reportedEventKeys`；展示成功时再加入；展示失败只移出 in-flight，允许未来重复 terminal snapshot 重试，但不自动循环。
 7. 将收据映射为固定安全 copy、ID 和 payload后调用 `adapter.show()`；错误记录 `terminal_notification_show_failed`，不 rethrow。
 8. activation 用 `_activationsInFlight` 拦截 hot/pending 并发重复，再 `await restoreHost()`。
@@ -650,156 +651,189 @@ fallback 的目的仅是原生前台服务已经失去 Dart 通道时仍告知�
 
 ## 8. Windows 未打包 Toast
 
-### 8.0 `flutter_local_notifications_windows` 3.1.1 源码核实
+### 8.0 已证伪方案与替换决策
 
-实施计划固定使用 pub.dev 3.1.1 archive；已核实的源码职责是：
+`flutter_local_notifications_windows` 3.1.1 方案已经完成真实 spike，并在关键窗口明确 FAIL：手工实例已经运行、但 Dart 插件尚未调用 `CoRegisterClassObject` 时点击 Toast，RPCSS 按 LocalServer32 启动了第二个完整 Flutter 进程；payload 被第二进程接收。该失败不是 shortcut、CLSID 或 payload 错误，而是 COM class object 的所有权建立得太晚。
 
-- Dart `FlutterLocalNotificationsWindows.initialize()` 调用 native `init()`；C++ `NativePlugin::registerApp()` 随后执行 `RegisterCallback()`，用 `CoRegisterClassObject(..., CLSCTX_LOCAL_SERVER, REGCLS_MULTIPLEUSE, ...)` 注册运行中 class object。
-- 插件 C++ 自带 `INotificationActivationCallback::Activate()` 与 class factory；warm 路径不需要 runner 再实现一套 COM callback。
-- `Activate()` 把 Windows 传入的 `args` 作为 UTF-8 payload 交给 Dart；初始化完成后的 Dart `_onDidReceiveNotificationResponse()` 会保存 `_details` 并调用 `onDidReceiveNotificationResponse`，`getNotificationAppLaunchDetails()` 再返回同一 payload。
-- 插件初始化会写 AUMID 的通知注册和 `CustomActivator`，但不创建开始菜单 shortcut，也不写 `HKCU\Software\Classes\CLSID\{CLSID}\LocalServer32`；这两项仍由 runner 负责。
-- 插件不读取或识别进程命令行参数。LocalServer32 不需要插件专用的 `--notification-activated`；COM 会自行附加 `-Embedding`，runner 和 Dart 都不得依赖该参数判断 activation。
-- 插件存在两个不能被计划文字掩盖的 native 风险：Dart `_isReady` 只在 native `init()` 返回后置 true，过早 activation callback 会被丢弃；C++ `UpdateRegistry/RegisterCallback` 使用 `winrt::check_win32/check_hresult`，但导出的 FFI `init` 没有 catch-all，Dart `try/catch` 不能证明异常一定 fail-open。插件也没有 `CoRevokeClassObject`，因此产品只允许进程生命周期内初始化一个 client，不能 dispose 后重建真实 client。
+因此后续 Windows 实现固定采用以下替换决策：
 
-以上是源码契约和已知限制，不代替真实 Windows Shell/COM 验证。Task 6 必须先用 throwaway 工程重复证明 warm/cold payload、手工启动窗口、进程复用和快速连续激活，再允许写产品 runner；任一 native crash/callback 丢失/第二实例都命中停止条件。
+- 不向 `pubspec.yaml` 添加 `flutter_local_notifications_windows` 或 `flutter_local_notifications`。
+- 不 fork 插件、不给插件增加“只展示、不注册 activator”的私有开关。
+- Windows runner 在 `DartProject`/Flutter engine/SharedPreferences/SQLite 之前永久拥有 COM activator；runner 同时用窄 C++/WinRT 实现一次性 Toast 展示。
+- runner 以 named mutex + named pipe 维护当前用户会话内唯一 Flutter/存储 owner；进程枚举、进程名、窗口标题和固定 sleep 都不是身份判断。
+- 极早期竞态中，RPCSS 仍可能创建第二个 OS 进程；该进程只能进入 native relay mode，不得构造 `DartProject`、Flutter engine、窗口、SharedPreferences、SQLite 或 network logger。验收关注唯一 Flutter/存储 owner，不再要求 PID 峰值永远为 1。
+- 原插件 FAIL 现场永久保留在 smoke 文档的“被否决方案”章节；新 spike 另建结果表，不得覆盖或改写旧证据。
 
-### 8.1 固定身份
+该决策消除插件 `_isReady` 窗口、FFI 未捕获异常、重复 COM owner、缺少 `CoRevokeClassObject` 和 Ubuntu DLL 加载问题。真实 Windows Shell/COM 仍属于外部环境；Task 6B 必须先验证 runner-owned 方案，再允许写产品模块。
+
+### 8.1 固定身份与进程模式
 
 - appName：`Oh My LLM`
 - AUMID：`YuzuShiki.OhMyLlm`
-- plugin GUID（传 Dart `WindowsInitializationSettings.guid`，固定 36 字符、无花括号）：`7E4B2C91-5D4A-4A8E-9F1B-2C6D3A80E751`
-- registry/COM CLSID 文本：`{7E4B2C91-5D4A-4A8E-9F1B-2C6D3A80E751}`
+- COM CLSID：`{7E4B2C91-5D4A-4A8E-9F1B-2C6D3A80E751}`
 - 开始菜单快捷方式：`FOLDERID_Programs\Oh My LLM.lnk`
-- registration channel：`yuzu.shiki.oh_my_llm/windows_notification_registration`
+- Flutter channel：`yuzu.shiki.oh_my_llm/windows_notifications`
+- named mutex：`Local\YuzuShiki.OhMyLlm.NotificationHost.7E4B2C915D4A4A8E9F1B2C6D3A80E751`
+- activator lease mutex：`Local\YuzuShiki.OhMyLlm.NotificationActivatorLease.7E4B2C915D4A4A8E9F1B2C6D3A80E751`
+- ready event：`Local\YuzuShiki.OhMyLlm.NotificationHostReady.7E4B2C915D4A4A8E9F1B2C6D3A80E751`
+- named pipe：`\\.\pipe\YuzuShiki.OhMyLlm.NotificationHost.v1`
 
-这些值提交后不得随版本号、构建号或目录变化。
+这些值提交后不得随版本号、构建号或目录变化。runner 只允许三种进程模式：
 
-固定 AUMID/CLSID 也意味着开发版、发布版和同一用户安装的多个副本共享同一通知身份；每次手工启动会把 shortcut 与 LocalServer32 修复为该次启动的 exe。并发运行多个安装副本不受支持，最后一次启动者接管后续冷启动激活。这是已知限制，不在本 PR 内引入多安装仲裁或动态身份。
+1. `primary`：当前用户会话内唯一可创建 Flutter engine、窗口和存储连接的进程；拥有长期 COM class object、pipe server 与 Toast notifier。
+2. `activationRelay`：命令行含 COM 实测传入的 `-Embedding`，且 named mutex 已存在；只运行原生 COM/message loop，把 payload 交给 primary 后退出。
+3. `manualSecondary`：不是 `-Embedding` 且 mutex 已存在；只向 primary 发 `activateWindow`，等待 ACK 后退出。
 
-### 8.2 runner 注册
+`-Embedding` 只用于 runner 选择进程模式，不携带 payload，也不进入 Dart。参数比较大小写不敏感，只接受独立的 `-Embedding` 或 `/Embedding` token，不做 substring 匹配。
 
-新增：
+固定身份意味着开发版、发布版和同一用户会话内的多个目录副本共享 mutex、pipe、AUMID 与 CLSID：先成为 primary 的副本保持所有权；后启动副本不得重写 shortcut/LocalServer32，只恢复既有 primary。primary 全部退出后，下一个成功成为 primary 的副本才幂等修复注册。这是明确的 Windows 单实例产品行为，不扩展到其他平台或其他用户会话。
 
-- `windows/runner/windows_notification_registration.h`
-- `windows/runner/windows_notification_registration.cpp`
+### 8.2 runner 深模块与启动顺序
 
-修改：
+新增一个外部 interface 很小、内部实现可拆分的深模块：
 
-- `windows/runner/main.cpp`
-- `windows/runner/flutter_window.h`
-- `windows/runner/flutter_window.cpp`
-- `windows/runner/CMakeLists.txt`
+- `windows/runner/windows_notification_host.h`
+- `windows/runner/windows_notification_host.cpp`
+- `windows/runner/windows_notification_registration.h/.cpp`（内部 identity helper）
+- `windows/runner/windows_notification_activator.h/.cpp`（内部 COM helper）
+- `windows/runner/windows_notification_instance_coordinator.h/.cpp`（内部 mutex/event/pipe helper）
+- `windows/runner/windows_notification_protocol.h/.cpp`（内部 framing/validation/XML helper，可由原生测试直接链接）
+- `windows/runner/windows_notification_toast.h/.cpp`（内部 C++/WinRT helper）
 
-在 `main.cpp` 已有 `CoInitializeEx` 之后、创建 `DartProject` 之前执行：
+只有 `windows_notification_host.h` 可以被 `main.cpp` / `flutter_window.*` include；其余 helper 是模块内部 seam，不向 Dart 或 app composition 暴露。
+
+COM activator 不注册在尚未进入 Flutter message loop 的 `wWinMain` STA 上。host 内部启动一条专用 notification STA thread：该线程独立 `CoInitializeEx(COINIT_APARTMENTTHREADED)`、注册/revoke class object并持续 pump native messages；primary 的 pipe server 使用另一条有界 native IO thread（或 overlapped IO），二者都不依赖 Flutter engine/Dart isolate。callback/pipe 只把 payload 写入加锁 native queue并通过 runner 自定义 window message 通知 UI thread；窗口/messenger 尚未 attach 时只排队。Toast show 的 WinRT 调用由已经运行 message loop 的 runner UI STA执行，避免跨 apartment 持有 notifier。
+
+概念 interface：
 
 ```cpp
-const auto notification_registration =
-    EnsureWindowsNotificationRegistration();
+class WindowsNotificationHost {
+ public:
+  static std::unique_ptr<WindowsNotificationHost> Start(
+      const std::vector<std::wstring>& command_line);
+
+  bool ShouldStartFlutter() const;
+  int RunSecondaryMode();
+  void AttachMessenger(flutter::BinaryMessenger* messenger);
+  void AttachWindowActivation(std::function<void()> activate_window);
+  void Shutdown();
+};
 ```
 
-`EnsureWindowsNotificationRegistration()`：
+`wWinMain` 固定顺序：
+
+1. runner UI thread 执行既有 `CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED)`；`S_OK/S_FALSE` 视为成功，其余记录固定 stage。
+2. `WindowsNotificationHost::Start(commandLine)` 完成原子选主；primary 在返回前创建 native queue/pipe IO thread、幂等身份注册并启动 notification STA thread。只有 STA thread 成功 `CoRegisterClassObject` 且开始 pump 后，host 才标记 activator ready。
+3. `ShouldStartFlutter()==false` 时直接 `RunSecondaryMode()`，此分支源码和测试必须证明不会执行 `flutter::DartProject project(L"data")`。
+4. primary 才创建 `DartProject`、`FlutterWindow` 和 Flutter engine。
+5. engine 成功后 `AttachMessenger()`；窗口创建后 `AttachWindowActivation()`，并允许 native workers 用自定义 window message 唤醒 UI thread排空队列/执行 focus。
+6. message loop 结束后先 `Shutdown()`：停止接收新工作，令 notification STA thread 在自身 apartment `CoRevokeClassObject` 后退出，停止/join pipe thread，再释放 WinRT 对象/handles；最后 UI thread `CoUninitialize()`。
+
+host start/secondary/callback/shutdown 的 native 最外层全部 `try/catch`，只返回固定 enum/stage，不允许 C++ exception 穿过 `wWinMain`、COM ABI 或 Flutter MethodChannel callback。primary 的通知 host 初始化失败时禁用 Windows 通知但继续启动应用；已经确认 primary 存在的 secondary 不得因 IPC 失败擅自创建第二个 Flutter engine。
+
+仓库 C++ 注释按 `AGENTS.md` 使用简体中文；Windows runner 与 native test target 显式启用 MSVC `/utf-8`，避免 CP936 环境的 C4819。
+
+为在产品 runner 上复验两个早期窗口，CMake 允许仅 Debug 的 `OMLL_NOTIFICATION_HOST_TESTING=ON`，并在该开关下接受 `OMLL_NOTIFICATION_PRE_COM_DELAY_MS` / `OMLL_NOTIFICATION_POST_COM_PRE_FLUTTER_DELAY_MS`；默认均为 0。Release 或 testing=OFF 时任一非零 delay 必须在 configure 阶段失败，源码不读取环境变量/命令行/Dart define。pre-COM delay 只能延迟 primary 竞争 activator lease，不能停 pipe IO；post-COM delay 只能延迟 `DartProject`，不能停 notification STA message pump。该 test hook 不进入用户设置或运行时协议。
+
+### 8.3 唯一 Flutter owner 与 relay 协议
+
+- 用 `CreateMutexW(nullptr, FALSE, fixedName)` + 紧随其后的 `GetLastError()==ERROR_ALREADY_EXISTS` 原子判断是否已有 primary；`Local\` namespace 已把 kernel objects 限定到当前 logon session，禁止 `GetProcessesByName`、PID 枚举或 exe 名/路径猜测。
+- primary 持有 instance mutex handle 到进程退出；创建 native queue、pipe IO thread 与 ready event 后，才执行可能较慢的 shortcut/COM/Flutter 初始化。pipe ACK 与入队不能依赖 Flutter UI thread 正在 pump。
+- ready event 是 manual-reset event，只表达“当前 instance-mutex owner 的长期 class object 已注册并开始 pump”。新 primary 选主成功后先 `ResetEvent`，长期 owner ready 后 `SetEvent`，shutdown 在 revoke 前再次 reset；relay 不得设置它。不能把上一任 primary 遗留的 signaled handle 当作当前 ready。
+- 长期 COM owner 与短命 relay 通过 activator lease mutex 串行。生产 primary 创建 pipe 后立即竞争 lease，成功后注册长期 class object 并持有 lease 到 shutdown；relay 只有在 primary 尚未标记 ready 且成功取得 lease 时才可注册短命 class object。任何时刻不得有两个本项目 class object owner。
+- pipe 使用 `PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS`；一条 request 必须是一个完整 pipe message，最大 1036 bytes。header 固定 12 bytes：ASCII magic `OMLN`（4 bytes）、little-endian `uint16 version=1`、`uint16 kind`（1=`notificationActivation`，2=`activateWindow`）、`uint32 payloadByteLength`；随后恰好是 payload bytes。activation payload 必须是合法 UTF-8 且最长 1024 bytes；focus length 必须为 0。未知 version/kind、超长、截断、focus 带 payload、header length 与 message length 不一致或 `ERROR_MORE_DATA` 一律拒绝。
+- 每个 request 都收到固定 8-byte ACK：ASCII magic `OMLA`、little-endian `uint16 version=1`、`uint16 status`（0=`accepted`、1=`invalidFrame`、2=`queueFull`、3=`shuttingDown`）。只有 status 0 允许 secondary 视为交付；一个 pipe connection 串行一条 request/ACK 后关闭，rapid activation 使用各自连接，不需要跨连接 request ID。
+- pipe 使用显式 DACL，只允许当前 logon user SID 与 LocalSystem 完全访问，并启用 `PIPE_REJECT_REMOTE_CLIENTS`；SID/DACL 构造失败时 IPC/通知 host unavailable，但已持有的 instance mutex 仍维持唯一 Flutter owner，不能退回宽松 pipe ACL。同一 Windows 用户属于既有本地信任域，native framing/长度与 Dart decoder 仍必须执行两层严格白名单。
+- primary 收到 `notificationActivation` 后先写入上限 32、FIFO 的 native pending queue，再返回 ACK；队列满时拒绝新消息并记录固定 `native_activation_queue_full`，不逐出正在等待的旧 payload。
+- primary 收到 `activateWindow` 时只合并成一个 pending focus flag；窗口已 attach 时调用 runner 提供的恢复/聚焦 callback，窗口未 attach 时在首次 attach 后执行。
+- `activationRelay` 不写注册表、不创建 shortcut、不启动 Flutter。若 primary 已标记 activator ready，则 relay 只等待 RPCSS 将请求交给长期 owner 后有界退出；若尚未 ready，则 relay 竞争 activator lease，成功后注册同一 CLSID 的短命 native class object并运行 message loop，`Activate()` 收到 payload 后为每次 callback 建立独立 pipe request并等待 ACK。relay 不在首个 ACK 后立即退出：每次 callback 重置固定 `relayDrainGrace`，只有没有在途 callback/COM object且 grace 到期后才 revoke、释放 lease并退出；另有固定 `relayMaxLifetime` 防止永驻。两个值由 Task 6B 实测锁定。
+- primary 若发现 activator lease 暂由 relay 持有，只等待该 lease 的固定上界；取得后再注册长期 class object并设置 ready event。等待期间 pipe server 必须已经可接收 activation，因而 relay 不依赖 Flutter/Dart。spike 必须证明 `CoRegisterClassObject` 的实际 handoff 行为；不得把“RPCSS 必然重路由到任意进程”的猜测写成实现前提。
+- 若 primary 在 relay 期间退出，relay 关闭旧 instance mutex handle 后重新原子选主；只有确认为新 primary 才允许携带已捕获 payload 晋升并继续 Flutter 启动。primary 仍存在但 pipe/ACK 超时时，relay 有界退出，不能以“保底”为名启动第二个 Flutter。
+- `manualSecondary` 等待 ready event/pipe 使用固定有界超时；失败后重新选主，只有 primary 已退出才能晋升，否则退出并保持一个 Flutter owner。
+- relay OS 进程是预期协调机制，但任何 relay 执行 `DartProject`、出现 Flutter window、打开产品 SQLite/SharedPreferences，或退出后残留，都视为硬 FAIL。
+
+具体 wait/pipe/ACK 上界先在 Task 6B spike 测量后锁定；不得直接沿用 Dart MethodChannel 2 秒 timeout，也不得无限等待。产品值必须写入 named constants 并由 native test 覆盖。
+
+### 8.4 身份注册
+
+只有 primary 调用 `EnsureWindowsNotificationRegistration()`：
 
 1. `GetModuleFileNameW` 取得当前 exe 绝对路径。
-2. 用 `SHGetKnownFolderPath(FOLDERID_Programs)` 取得当前用户 Programs。
-3. 创建或重写 `Oh My LLM.lnk`：
-   - target 指向当前 exe。
-   - working directory 指向 exe 目录。
-   - `PKEY_AppUserModel_ID` 写固定 AUMID。
-   - 用 `CLSIDFromString` 解析带花括号 CLSID；`PKEY_AppUserModel_ToastActivatorCLSID` 必须写 `PROPVARIANT{vt=VT_CLSID, puuid=<parsed CLSID>}`，不得用 `InitPropVariantFromString` 或 REG_SZ 代替。
-4. 写入 `HKCU\Software\Classes\CLSID\{CLSID}\LocalServer32` 默认值：
-   - `"绝对路径\oh_my_llm.exe"`
-   - exe 路径始终带双引号。
-   - 同 key 写 `ServerExecutable` REG_SZ，值为不带引号、不带参数的 exe 绝对路径；默认值与 `ServerExecutable` 必须来自同一已解析路径。
-   - 不附加自定义 activation 参数；接受 COM 自动附加的 `-Embedding`，应用启动流程不解析它。
-5. 返回结构体 `available/aumid/guid/appName`；`guid` 始终是无花括号 36 字符形式，Dart 不再 strip/补花括号。
-6. 每次启动幂等修复 shortcut target 和 LocalServer32，因此原目录直接覆盖更新不受影响；移动整个目录后首次手动启动会修复路径。
-7. 任一步失败返回 `available=false` 并输出固定 Win32 stage/code；继续启动 Flutter，不抛出会阻断进程的异常。
+2. `SHGetKnownFolderPath(FOLDERID_Programs)` 取得当前用户 Programs。
+3. 创建或重写 `Oh My LLM.lnk`：target 指向 exe，working directory 指向 exe 目录，`PKEY_AppUserModel_ID` 写固定 AUMID。
+4. 用 `CLSIDFromString` 解析带花括号 CLSID；`PKEY_AppUserModel_ToastActivatorCLSID` 必须写 `PROPVARIANT{vt=VT_CLSID, puuid=<parsed CLSID>}`，不得写 REG_SZ。
+5. 写 `HKCU\Software\Classes\CLSID\{CLSID}\LocalServer32`：默认值为带双引号、无参数的 exe 绝对路径；`ServerExecutable` REG_SZ 为不带引号、无参数的同一路径。接受 COM 自动附加 `-Embedding`，注册值不自创参数。
+6. 幂等写 `HKCU\Software\Classes\AppUserModelId\<AUMID>`：`DisplayName` 为 `REG_EXPAND_SZ` 的 `Oh My LLM`，`CustomActivator` 为 `REG_SZ` 的带花括号固定 CLSID；不得写动态图标路径或产品数据。
+7. 任一步失败只返回固定 `failureStage` 并把 host 标为 unavailable；不向 Dart 返回绝对路径、HRESULT 文本或系统消息。
 
-不写 HKLM，不请求管理员权限，不删除旧注册。
+只写 HKCU，不请求管理员权限，不删除旧注册。原目录覆盖更新不受影响；移动目录后首次成功成为 primary 的手工启动会修复路径。relay/manual secondary 绝不改变 first-running primary 的注册所有权。
 
-`FlutterWindow` 构造函数接收 registration info，并在 engine 创建后注册只读 MethodChannel：
+### 8.5 COM activator 与早期队列
 
-- method：`getRegistration`
-- success：返回 `available`、`appName`、`appUserModelId`、无花括号 `guid`
-- failure：返回 `available=false` 与固定 `failureStage`，不返回绝对路径或系统错误文本
+- runner 原生实现 `INotificationActivationCallback`、`IClassFactory`，notification STA thread 用 `CoRegisterClassObject(CLSCTX_LOCAL_SERVER, REGCLS_MULTIPLEUSE)` 注册，并保存 cookie、持续 pump native message loop。
+- primary 必须在 `DartProject` 之前启动并等待该 STA thread ready；relay 在确认自身模式并取得 activator lease 后启动同型短命 STA thread。`CoRegisterClassObject` 成功且 message pump 已开始后才对外标记 activator ready。
+- `Activate(appUserModelId, invokedArgs, data, count)` 为 `noexcept`，内部 catch-all；只验证 AUMID、nullable/长度和 UTF-16→UTF-8 转换，不解析 JSON、不判断 terminal kind、不读取 user input map。
+- 合法 `invokedArgs` 原样进入 native queue/pipe；最终仍由 Dart `ChatGenerationNotificationPayloadCodec` 判定安全性。非法输入记录固定类别并返回稳定 HRESULT，不记录 payload。
+- callback 不等待 Flutter、路由或窗口恢复；primary 只入队并向 runner UI window post 自定义 message（尚未 attach 时仅入队），relay 只完成有界 IPC。
+- activator/class factory 持有引用计数 shared host state，不保存裸 `FlutterWindow*`/messenger 指针。每次 `Activate()` 取得 in-flight callback lease；shutdown 先标记 stopping、reset ready、revoke class object，再等待所有有界 callback lease 释放，最后销毁 queue/IPC state，防止 callback 与窗口/host 析构 use-after-free。
+- `Shutdown()` 必须让注册 cookie 的同一 STA thread 调 `CoRevokeClassObject` 后退出 message pump；多次 shutdown 幂等，不能在其他 apartment 粗暴 revoke，也不能依赖进程退出替代 revoke。
+- native pending queue 上限 32，每项最多 1024 UTF-8 bytes；`takePendingNotificationActivations` 原子取走全部并清空，避免 cold/rapid-cold 只保留最后一次。
 
-`CMakeLists.txt`：
+### 8.6 Toast 展示与唯一 Flutter channel
 
-- 把 `windows_notification_registration.cpp` 加入 runner sources。
-- link `ole32.lib`、`shell32.lib`、`propsys.lib`、`advapi32.lib`。
-- 保留现有 `flutter`、`flutter_wrapper_app`、`dwmapi.lib`。
+runner 用当前 Windows SDK 的 C++/WinRT 创建 `ToastNotificationManager::CreateToastNotifier(AUMID)`，不引入第三方 DLL。产品只实现本 PR 所需的一次性 Toast：
 
-### 8.3 Dart 注册 decoder
+- XML 固定为 `toast/visual/binding template="ToastGeneric"/text+text`，root `launch` 为 Dart payload。
+- C++ 使用 DOM 或集中 XML escaping helper，禁止把 title/body/payload 直接拼进未转义 XML。
+- `ToastNotification.Tag` 使用十进制 notification ID；不实现 schedule、update、cancel、history 或 actions。
+- XML 不包含 `<audio>`、`scenario`、图片或自定义 URI，使用 Windows 默认声音语义。
+- native 再校验：参数 map 只能含 `id/title/body/payload`；ID 为 `10000..2147483646`，title/body 非空且分别不超过 128/512 UTF-8 bytes，payload 不超过 1024 bytes；不合规则返回 false。
 
-新增 `lib/app/platform/windows_notification_registration.dart`：
+唯一 channel `yuzu.shiki.oh_my_llm/windows_notifications`：
 
-- `WindowsNotificationRegistration` 不可变值对象，只含 `available/appName/appUserModelId/guid`。
-- `WindowsNotificationRegistrationClient` 只调用 registration channel。
-- decoder 要求 GUID 完全匹配固定无花括号值和 `^[0-9A-Fa-f-]{36}$`；缺任何固定字符串、返回带花括号 GUID 或 `available != true` 时返回 unavailable，不抛 raw `PlatformException`。
-- 单测用 fake `MethodChannel` handler 覆盖 success、unavailable、malformed、exception。
-- 插件 `iconPath` 明确传 `null`：现有 `app_icon.ico` 是 runner 源资源，不会以独立文件进入 ZIP 输出，本 PR 不新增图标复制链。
+| 方向 | method | 参数/返回 |
+| --- | --- | --- |
+| Dart → C++ | `getNotificationHostStatus` | 无 → `{available, failureStage?}` |
+| Dart → C++ | `showTerminalNotification` | `id/title/body/payload` → `bool` |
+| Dart → C++ | `takePendingNotificationActivations` | 无 → `List<String>`，原子清空 |
+| C++ → Dart | `notificationActivated` | 原始 payload string |
 
-### 8.4 插件边界
+`AttachMessenger()` 才创建 `flutter::MethodChannel<flutter::EncodableValue>`；host 在此之前收到的 payload 留在 native queue。channel 所有 handler/invoke 与 Toast WinRT show 都在 runner UI thread；notification/pipe workers 只能加锁入队并 post 自定义 window message，不能直接触碰 messenger/window。shutdown 后不再向 Dart 发送。failureStage 只能是固定 token，不返回路径、payload、HRESULT 文本或 exception。
 
-`pubspec.yaml` 增加直接依赖：
+### 8.7 Dart host client 与 terminal adapter
 
-```yaml
-flutter_local_notifications_windows: 3.1.1
-```
-
-不添加 `flutter_local_notifications` 主包。
-
-新增 `lib/app/platform/windows_local_notifications_client.dart`，把插件封在可 fake 接口后：
+新增 `lib/app/platform/windows_notification_host_client.dart`：
 
 ```dart
-abstract interface class WindowsLocalNotificationsClient {
-  Future<bool> initialize({
-    required WindowsNotificationRegistration registration,
-    required void Function(String? payload) onActivated,
-  });
+abstract interface class WindowsNotificationHostClient {
+  Stream<String> get activationPayloads;
 
-  Future<void> show({
+  Future<bool> getAvailable();
+
+  Future<bool> show({
     required int id,
     required String title,
     required String body,
     required String payload,
   });
 
-  Future<String?> takeLaunchPayload();
+  Future<List<String>> takePendingActivationPayloads();
 
   Future<void> dispose();
 }
 ```
 
-生产实现固定调用：
-
-- `FlutterLocalNotificationsWindows.initialize`
-- `WindowsInitializationSettings(appName, appUserModelId, guid, iconPath: null)`
-- `show(..., WindowsNotificationDetails())`
-- `getNotificationAppLaunchDetails`
-- `dispose`
-
-生产 client 构造函数不得实例化 `FlutterLocalNotificationsWindows`；真实插件对象只能在 Windows adapter 的 `initialize()` 内、runner registration 已验证可用后惰性创建。这样 import/构造 composition 值对象不会在 Ubuntu CI 尝试打开 `flutter_local_notifications_windows.dll`。真实 client 一旦初始化，无论成功失败都不在同一进程重建第二个实例。
-
-`WindowsNotificationDetails()` 不传 `audio`、`scenario` 或自定义音频 URI：Toast 使用 Windows 默认通知语义，并服从系统关闭通知、声音设置和专注助手。自动测试只断言没有显式静音/自定义声音；真实是否响铃只由 Windows smoke 记录。
-
-本 PR 不调用 cancel/getActiveNotifications，因为未打包应用对这些 API 没有稳定要求，产品契约也不需要。
-
-### 8.5 Windows terminal adapter
+生产 client 只包装上述 MethodChannel；构造/initialize 时先安装唯一 Dart handler，再执行任何 `await`。`dispose()` 只移除 Dart handler/关闭 stream，不调用 native host shutdown；native lifetime 始终归 runner 进程。
 
 新增 `lib/app/platform/windows_chat_generation_terminal_notification_adapter.dart`：
 
-- `initialize()` 先读取 runner registration；unavailable 时记录固定分类并保持 no-op。
-- registration available 后初始化 plugin client。
-- plugin callback payload 走共享严格 decoder，成功后发到 `activations`。
-- launch details 只在 `takePendingActivation()` 读取一次并清空。
-- `show()` 直接使用 Dart 已生成的 id/title/body/payload。
-- 任意插件异常映射为 adapter 异常，由默认深模块捕获；adapter 不解释 generation。
-- `dispose()` 幂等，关闭 stream 并释放 plugin。
+- `initialize()` 先订阅 client activation stream，再查询 host status；unavailable 时保持 no-op。
+- live 与 pending payload 都走共享严格 decoder；raw payload 不向上游暴露。
+- `takePendingActivation()` 一次取走 native list，返回首个合法 activation；其余合法项按 FIFO 发到 adapter stream，默认深模块继续按 event key 去重。
+- `show()` 直接传 Dart 已生成的 id/title/body/payload；false 或异常交给默认深模块记录固定分类。
+- `dispose()` 幂等并取消 adapter 自己的 activation 订阅，但不 dispose 共享 client；client 只由第 9.1 节 `disposeShared` 释放。不解释 generation、不 import presentation。
 
-这里的“插件异常”只指 Dart Future/FFI 正常返回的错误；不能声称捕获第 8.0 节所述、可能越过 FFI 的 C++ 异常。Task 6 和产品最小 smoke 没有观察到 crash 只能证明已测环境可用，不能升级为所有 Windows 环境的绝对进程级 fail-open 保证。
-
-### 8.6 Windows 窗口恢复
+### 8.8 Windows 窗口恢复
 
 `WindowsAppWindow.restoreAndFocus()` 固定：
 
@@ -809,7 +843,7 @@ abstract interface class WindowsLocalNotificationsClient {
 
 各调用分别 catch 并继续下一步；如果 focus 最终失败，activation 仍导航，诊断记录 `window_restore_or_focus_failed`。不因为窗口 API 失败丢失会话目标。
 
-### 8.7 Windows 设置
+### 8.9 Windows 设置
 
 新增 `lib/app/platform/windows_system_notification_settings.dart`。
 
@@ -825,7 +859,7 @@ Process.start(
 );
 ```
 
-禁止 `runInShell: true`，不拼接命令字符串。成功启动返回 true，异常返回 false。状态只能可靠报告 `available`（runner 注册先决条件可用，不承诺插件此刻或未来每次展示都成功）或 `unavailable`（注册不可用）；不要伪造系统级精确开关读取。
+禁止 `runInShell: true`，不拼接命令字符串。成功启动返回 true，异常返回 false。状态只通过共享 `WindowsNotificationHostClient.getAvailable()` 可靠报告 `available`（runner host 可用，不承诺系统开关开启或未来每次展示成功）或 `unavailable`；不要伪造系统级精确开关读取。
 
 ## 9. 平台 composition
 
@@ -867,11 +901,12 @@ createChatGenerationNotificationPlatformBindings({
 只有被选中的 factory 可以执行；不得先构造所有平台 adapter 再选记录：
 
 - Android：创建一个 `AndroidChatGenerationPlatformBridge`，三个窄 adapter 共享它，`disposeShared` 只 dispose bridge 一次。
-- Windows：foreground no-op + Windows terminal adapter + Windows settings adapter。
+- Windows：创建一个 `WindowsNotificationHostClient`，terminal adapter 与 settings adapter 共享它；foreground 使用 no-op，`disposeShared` 只 dispose client 一次。runner-owned `WindowsNotificationHost` 在 Dart composition 之前由 `main.cpp` 启动，不归 Provider 生命周期所有。
 - 其他：三个 no-op。
 
-端口各自 dispose 不得重复 dispose shared bridge；composition 只在 `disposeShared` 释放 shared owner。
-生产调用不传 factory，使用文件内默认实现。测试选择 `TargetPlatform.windows` 时必须传返回 fake/no-op 记录的 `windowsFactory`，从构造源头阻止真实 Windows client 和 DLL 加载；这只是 composition 内部测试 seam，不暴露给 feature。
+端口各自 dispose 不得重复 dispose shared bridge/client；composition 只在 `disposeShared` 释放 Dart shared owner。Dart client 的 dispose 只撤销 MethodChannel handler/关闭 stream，不得关闭 runner 的 COM class object、mutex、pipe 或原生队列；这些资源只由 `main.cpp` 的宿主生命周期释放。
+
+生产调用不传 factory，使用文件内默认实现。测试选择 `TargetPlatform.windows` 时必须传返回 fake/no-op 记录的 `windowsFactory`，从构造源头阻止真实 MethodChannel client；这只是 composition 内部测试 seam，不暴露给 feature。测试不实例化 Windows runner，也不依赖 Windows SDK。
 
 ### 9.2 AppWindow 绑定
 
@@ -906,9 +941,9 @@ createChatGenerationNotificationPlatformBindings({
 - `test/integration/bootstrap_integration_test.dart`
 - `test/integration/chat_generation_notification_integration_test.dart`
 
-`bootstrap()` 增加两个只供测试注入的可选参数 `notificationPlatformBindingsFactory` 与 `appWindowFactory`，生产均传 null；它们只向 `appCompositionOverrides` 透传，不改变平台判断。`test_harness` / integration helper 默认传 no-op/fake factory 并 override 固定 session，因此 `hostPlatform: TargetPlatform.windows` 也不触发真实 MethodChannel、`window_manager` 或 Windows DLL。需要 case-specific fake 时可传 `bindChatGenerationNotifications: false` / `bindAppWindow: false` 后自行 override。
+`bootstrap()` 增加两个只供测试注入的可选参数 `notificationPlatformBindingsFactory` 与 `appWindowFactory`，生产均传 null；它们只向 `appCompositionOverrides` 透传，不改变平台判断。`test_harness` / integration helper 默认传 no-op/fake factory 并 override 固定 session，因此 `hostPlatform: TargetPlatform.windows` 也不触发真实 MethodChannel 或 `window_manager`。需要 case-specific fake 时可传 `bindChatGenerationNotifications: false` / `bindAppWindow: false` 后自行 override。
 
-Ubuntu CI 必须执行一条 composition/bootstrap 测试：显式选择 `TargetPlatform.windows`、注入 fake factories、完成 root eager start，并证明没有 `DynamicLibrary.open('flutter_local_notifications_windows.dll')` 错误。不得通过跳过 Windows 平台选择测试来规避。
+Ubuntu CI 必须执行一条 composition/bootstrap 测试：显式选择 `TargetPlatform.windows`、注入 fake factories、完成 root eager start，并证明没有调用真实 MethodChannel 或依赖 Windows runner。不得通过跳过 Windows 平台选择测试来规避；C++/WinRT runner 编译与原生 helper 测试由 Windows gate 承担。
 
 ## 10. 设置 application 与 UI
 
@@ -1210,98 +1245,114 @@ New-Item -ItemType Directory -Force logs | Out-Null
 - Kotlin 需要参与真正 generation outcome 判定。
 - 需要重复弹 POST_NOTIFICATIONS 权限。
 
-### Task 6：Windows 插件激活机制 spike（阻塞）
+### Task 6：Windows runner-owned 激活 spike（阻塞）
 
-本 Task 必须在修改产品 `windows/runner/` 或实现 Windows adapter 前完成；它验证 true external dependency，不产出可复用产品模块。
+#### Task 6A：归档已证伪插件方案（已完成，FAIL）
+
+既有 `flutter_local_notifications_windows: 3.1.1` throwaway spike 是有效反例，不再重跑来争取偶然 PASS：手工实例已创建 Flutter、插件尚未 `CoRegisterClassObject` 时点击 Toast，RPCSS 启动第二个完整 Flutter 进程并把 payload 交给它。`docs/testing/windows-chat-generation-notifications-smoke.md` 中对应 OS、命令、PID 与 payload 记录必须原样保留，并明确标记“被否决方案”；它不再阻塞 Dart/Android 已完成工作，但禁止按原 Task 7–9 继续插件实现。
+
+#### Task 6B：验证 runner-owned COM + 唯一 Flutter owner（新阻塞 gate）
+
+本 Task 必须在修改产品 `windows/runner/` 前完成；它验证第 8 节仍属于外部环境的 Windows Shell/COM/SCM 行为，不产出可复用产品模块。
 
 **隔离方式**
 
-- 在仓库外的临时目录创建最小 Flutter Windows 工程，固定 `flutter_local_notifications_windows: 3.1.1`，使用与产品不同的临时 AUMID、CLSID、shortcut 名和 LocalServer32 key。
-- spike 只显示固定测试 Toast、进程 PID、warm callback payload 和 launch-details payload，不读取/写入 oh-my-llm SQLite、SharedPreferences 或应用目录。
-- shortcut 同时写 string AUMID 与 `VT_CLSID` activator；LocalServer32 默认值写带引号 exe，`ServerExecutable` 写不带引号 exe，不添加 `--notification-activated`；进程允许接收 COM 自动附加的 `-Embedding`。
-- spike 提供固定的 `SPIKE_INIT_DELAY_MS=10000` 构建模式，只延迟 plugin initialize，不延迟进程 PID 记录；用于重现手工启动但 class object 尚未注册的窗口。
-- 完成后只删除 spike 自己的 shortcut、`HKCU\Software\Classes\CLSID\{spike CLSID}`、`HKCU\Software\Classes\AppUserModelId\<spike AUMID>`、`HKCU\Software\Microsoft\Windows\CurrentVersion\PushNotifications\Backup\<spike AUMID>` 和临时目录；删除前逐项回读确认仍是 spike 身份，任何产品身份或其他注册项都不得触碰。
-- 把 OS 版本、插件版本、命令、PID、payload 与 PASS/FAIL 写入 `docs/testing/windows-chat-generation-notifications-smoke.md` 的“插件激活 spike”章节；不得只留口头结论。
-
-正常 build 与延迟 build 的命令都必须记录；延迟 build 使用 `flutter build windows --dart-define=SPIKE_INIT_DELAY_MS=10000`，不得通过 `sleep` 阻塞 runner message loop 或 COM apartment。
+- 在仓库外新建最小 Flutter Windows 工程，不添加任何本地通知插件；不得原地改写保留旧证据的插件 spike 工程。新工程使用与旧 spike、产品都不同的临时 AUMID、CLSID、shortcut、mutex、event、pipe 与注册表 key。
+- spike 在 runner 原生层实现最小 `INotificationActivationCallback`、`IClassFactory`、ToastGeneric show、instance/activator 两把 mutex、ready event、pipe 与内存队列；COM activator 运行在 Flutter 前已启动并持续 pump 的独立 notification STA thread，pipe 不依赖 Dart/UI thread。Dart 只显示固定状态和收到的 opaque payload。
+- 每个进程写结构化证据：PID、mode、是否创建 `DartProject`、COM register/revoke stage、pipe ACK、payload hash/byte count、正常退出。日志不得写产品绝对路径、完整通知正文或异常文本。
+- 正常、`PRE_COM_DELAY_MS=10000`、`POST_COM_PRE_FLUTTER_DELAY_MS=10000` 是三个独立 native build 变体；delay 由 throwaway CMake compile definition 写入 C++，不得用 Dart define、外部 `Start-Sleep` 或阻塞已启动的 pipe/notification STA message loop。pre-COM delay 位于 primary 创建 pipe 后、竞争 activator lease 前；post-COM delay 位于 notification STA 已注册并开始 pump 后、`DartProject` 前。
+- 注册格式严格使用第 8.4 节；LocalServer32 不自创参数，只接受 COM 自动附加的 `-Embedding`/`/Embedding`。
+- 完成后只清理经逐项回读仍属于 spike 身份的 shortcut、HKCU key、Toast backup 与临时目录；不得碰产品身份或其他注册项。
+- 把 OS/SDK/Flutter 版本、三个 build 命令、实际使用的 Windows SDK link libraries、每个 case 的 PID/mode/payload/耗时与 `PASS|FAIL` 追加到 smoke 文档“runner-owned spike”章节；不得覆盖 Task 6A。
 
 **阻塞验收清单**
 
-1. **LocalServer32**：注册值是正确引用的当前 spike exe；手工启动和 COM 启动都能进入同一 Flutter entrypoint，`-Embedding` 不导致参数解析失败。
-2. **warm class object**：应用已运行时点击 Toast，插件 callback 收到一次原 payload，PID 保持不变，进程列表没有第二个 spike 实例。
-3. **cold payload**：完全退出后点击 Toast，COM 启动一个进程；warm-style callback 收到原字符串，随后 `getNotificationAppLaunchDetails()` 也返回 `didNotificationLaunchApp == true` 与同一 `show(payload)` 原字符串，应用侧按 event key 去重后只记录一次。完全退出、重新发 Toast、点击、记录的循环至少执行 20 次，用于暴露插件 `_isReady` 窗口，不得只测一次。
-4. **连续 cold/多实例**：完全退出后快速连续点击同一或两条 Toast，最终只有一个 spike 进程；没有两个 Flutter engine 并行启动。
-5. **手工启动窗口**：使用 10 秒延迟模式手工启动，记录首个 PID；在 plugin initialize 前点击 Toast。最终仍只能有该一个 PID/Flutter engine，且原 payload 在 class object 注册后交付一次。这个 case 与“完全退出后连续 cold”不可互相替代。
-6. **非 ASCII**：payload 含中文时 warm/cold 都与输入 UTF-8 字符串完全一致。
-7. **native 生存性**：上述所有 case 进程退出码正常，没有 access violation、`std::terminate` 或未捕获 native exception；只捕获 Dart 异常不算通过。
+1. **身份与原生 show**：shortcut `VT_CLSID`、AUMID、quoted LocalServer32 default、unquoted `ServerExecutable` 全部回读匹配；runner 自己显示的 Toast 可点击，原始 UTF-8 payload 可达 activator。
+2. **warm**：primary 已 ready 时点击，payload 进入 primary native callback/queue 并到 Dart 一次；Flutter owner PID 不变；若 RPCSS 短暂创建 relay，该 relay 不创建 `DartProject` 且有界退出。
+3. **cold 20 轮**：完全退出、发送 Toast、点击的完整循环至少 20 次；每轮恰有一个 `flutter_started=true` owner、payload 一次交付、注册与 revoke 无 native crash。
+4. **快速连续 cold**：完全退出后快速点击两条不同 payload；允许出现短命 relay，但最终只有一个 Flutter/storage owner，两条合法 payload 按 FIFO 到达且没有残留 relay。
+5. **pre-COM race**：手工启动 pre-COM 变体，在 10 秒窗口点击；relay 必须通过 activator lease 成为短命 COM owner，并把 payload 经已就绪 pipe 交给 primary；relay 不启动 Flutter，primary 随后取得 lease、注册长期 owner并只启动一个 Flutter engine。
+6. **post-COM/pre-Flutter race**：手工启动 post-COM 变体，在 10 秒窗口点击；独立 notification STA 必须在 Flutter 未启动时完成 callback 并把 payload 放入 native queue，Flutter attach 后一次取出，不启动第二个 Flutter engine。若只能等 Flutter message loop 启动后才收到 callback，则本项 FAIL。
+7. **第二次手工启动**：primary warm 时再次双击 exe，secondary 只发送 `activateWindow` 并退出；现有窗口恢复/聚焦，未创建第二个 Flutter engine。
+8. **边界输入**：中文 payload warm/cold 完整一致；1024-byte 边界接受，1025-byte、未知 frame version/kind、截断 frame 被 native 拒绝且不写 payload。
+9. **失效恢复**：primary 正常退出后下一次启动可重新选主；primary 在 relay 交付期间退出时，最多一个进程按第 8.3 节重新选主并携带已捕获 payload 晋升；不存在仍有 primary 却由 secondary 启动 Flutter 的路径。
+10. **native 生存性与时限**：所有 case 无 access violation、`std::terminate`、未捕获异常或永不退出；记录 p50/max 的 primary registration、relay handoff、pipe ACK，据此锁定产品 named constants。单次 harness 硬上界 60 秒不等于产品 wait 值。
 
 **硬停止条件**
 
-- warm 点击启动第二个实例。
-- cold 点击不能启动，或 payload 与 `show(payload)` 不一致/丢失。
-- 快速连续 cold 激活产生两个进程。
-- 手工启动尚未注册 COM 时点击产生第二进程、payload 丢失或无法在默认 60 秒窗口内交付。
-- 任一初始化/激活 case 终止 native 进程。
-- 只有增加 MSIX、安装器、管理员权限或产品级单实例 IPC 才能通过。
+- 任一时刻出现两个 `flutter_started=true` 进程，或 relay 打开窗口/产品存储。
+- warm/cold/race payload 丢失、重复、乱序，或只能通过未验证的进程名/PID 枚举修补。
+- relay/secondary 需要无限等待，或 primary 仍存活时 IPC 失败会晋升第二个 Flutter owner。
+- `CoRegisterClassObject` handoff、activator lease 或 COM shutdown 无法做到无 native 进程终止。
+- 可靠实现必须依赖第三方通知插件、MSIX、安装器或管理员权限。
 
-任一项失败就保留 spike 证据并停止 Task 7–11；不得先写产品 runner 再把失败留给最终 smoke，也不得把双实例风险标成“接受”。全部 PASS 后才继续，并把实测命令行/注册格式回写第 8 节（若与源码审计不同则以实测触发重新设计，不直接改成猜测值）。
+任一项失败就保留证据并停止 Task 7–11；不得把“通常只有一个进程”替代“唯一 Flutter/storage owner”。全部 PASS 后才把实测 wait 上界、RPCSS 参数和 handoff 规则回写第 8 节，再开始产品实现。
 
-### Task 7：Windows runner 注册
+### Task 7：Windows runner 通知宿主与 Dart host client
 
 **文件**
 
-- 新增 `windows/runner/windows_notification_registration.h`
-- 新增 `windows/runner/windows_notification_registration.cpp`
+- 新增 `windows/runner/windows_notification_host.h/.cpp`
+- 新增 `windows/runner/windows_notification_registration.h/.cpp`
+- 新增 `windows/runner/windows_notification_activator.h/.cpp`
+- 新增 `windows/runner/windows_notification_instance_coordinator.h/.cpp`
+- 新增 `windows/runner/windows_notification_protocol.h/.cpp`
+- 新增 `windows/runner/windows_notification_toast.h/.cpp`
+- 新增 `windows/runner/tests/windows_notification_host_test.cpp`
 - 修改 `windows/runner/main.cpp`
-- 修改 `windows/runner/flutter_window.h`
-- 修改 `windows/runner/flutter_window.cpp`
+- 修改 `windows/runner/flutter_window.h/.cpp`
 - 修改 `windows/runner/CMakeLists.txt`
-- 新增 `lib/app/platform/windows_notification_registration.dart`
-- 新增 `test/app/platform/windows_notification_registration_test.dart`
-- 修改 `pubspec.yaml`、`pubspec.lock`
+- 新增 `scripts/test-windows-notification-host.ps1`
+- 新增 `lib/app/platform/windows_notification_host_client.dart`
+- 新增 `test/app/platform/windows_notification_host_client_test.dart`
+
+本 Task 不修改 `pubspec.yaml`/`pubspec.lock`，不添加 Windows 通知插件或 Windows App SDK。仅使用仓库 Flutter Windows embedder、当前 Windows SDK、WRL/C++/WinRT 与 Win32。
 
 **RED 测试/编译契约**
 
-- `注册 channel 只接受固定 AUMID 与无花括号 GUID`
-- `带花括号 GUID 被 Dart decoder 判为 unavailable`
-- `注册不可用和 malformed 返回 unavailable`
-- `注册 channel 异常不阻断 Dart 初始化`
-- 仓库当前没有 C++ runner test target；把 LocalServer32 默认值、`ServerExecutable`、GUID/CLSID 两种表示与固定身份构造集中在无 Win32 副作用的 helper，避免多处手拼。这里不虚构自动 C++ 断言：默认值引号、`ServerExecutable` 无引号、无自定义 activation 参数和 shortcut `VT_CLSID` 由代码审查、Task 6 真实 spike 与本 Task 的产品注册回读共同验证，Windows build 只承担 C++ 编译/链接门禁；本 PR 不为这一处 helper 新建测试框架。
+- 原生 test executable 覆盖：精确 `-Embedding` token 解析；primary/relay/manual secondary 模式决策；manual-reset ready event 的新 owner reset/长期 owner set/shutdown reset；当前 user SID + LocalSystem 的 pipe DACL 构造及失败时 host unavailable/instance mutex 仍持有；v1 frame round-trip 与未知/超长/截断拒绝；并发入队下的 FIFO 32 queue 与 focus 合并；UTF-8 byte 上限；XML escaping；notification ID/title/body/payload validation；固定 AUMID/CLSID/shortcut/registry value 构造；notification STA ready/register/revoke/shutdown 状态机幂等；in-flight callback 与 shutdown 竞态不发生 use-after-free；worker 只能 post UI dispatch、不能直接调用 messenger/window。
+- CMake configure test 覆盖默认 delay 为 0、testing=OFF/Release 拒绝非零 delay、testing=ON Debug 才能生成两个 race 变体；不得把 runtime delay 开关暴露给 Dart 或最终 release。
+- `main.cpp` 的可审计 control flow 保证 `ShouldStartFlutter()==false` 分支在任何 `DartProject` 构造之前 return；native test 用注入的 process-actions seam 断言 relay/manual secondary 的 `flutterStartCount==0`。
+- Dart tests：`host client 先安装唯一 handler 再查询状态`、`pending activation 一次取走完整列表`、`live callback 原样进入单一 stream`、`malformed 返回与 PlatformException 固定映射为 unavailable 或 false`、`dispose 幂等且不调用 native shutdown`。
+- 真实 shortcut/registry/COM/Toast OS 行为不伪装成纯测试已覆盖，沿用 Task 6B 与下方产品回读/smoke。
 
 **GREEN**
 
-- 实现第 8.1–8.3 节。
-- 精确写入 `flutter_local_notifications_windows: 3.1.1`，`flutter pub get` 更新 lock；回读 lock 确认仍为 3.1.1。
-- 运行 Dart test，日志 `logs/windows-notification-registration-green.log`。
-- 运行：
+- 严格实现第 8.1–8.7 节 runner host 与 Dart client；`main.cpp` 只依赖 `windows_notification_host.h`，内部 helpers 不泄漏到 Flutter/app composition。
+- runner 和 native test target 显式启用 C++17 与 MSVC `/utf-8`；notification STA、pipe IO thread 与 runner UI thread 的 ownership 写成类级中文 doc；所有 COM/WinRT/pipe callback 最外层 catch-all，日志只写固定 stage/token。
+- `windows/runner/CMakeLists.txt` 显式链接 Task 6B 已验证的最小 Windows SDK libraries（预计包含 Toast/WinRT、shell property store、HKCU 与 COM 所需的 `runtimeobject`/`windowsapp`、`shell32`、`propsys`、`advapi32`、`ole32`、`oleaut32`、`uuid`；以 spike 实际 link set 为准）。不得照抄官方 sample 中与本实现无关的 ODBC/GDI 库，也不得靠机器隐式 linker state。
+- `scripts/test-windows-notification-host.ps1` 负责构建并运行原生 test executable，非零立即退出；不得引入 gtest 或另一个测试框架。
+- 运行 Dart client 单测并写 `logs/windows-notification-host-client-green.log`，工具超时 60000ms。
+- 运行原生测试与 Windows build：
 
 ```powershell
 New-Item -ItemType Directory -Force logs | Out-Null
-flutter build windows 2>&1 | Out-File -Encoding utf8 logs/build-windows-registration.log; $BuildExit = $LASTEXITCODE; Write-Host "EXIT=$BuildExit"; Get-Content -Tail 150 logs/build-windows-registration.log
+.\scripts\test-windows-notification-host.ps1 2>&1 | Out-File -Encoding utf8 logs/windows-notification-host-native-green.log; $NativeExit = $LASTEXITCODE; Write-Host "EXIT=$NativeExit"; Get-Content -Tail 150 logs/windows-notification-host-native-green.log
+flutter build windows 2>&1 | Out-File -Encoding utf8 logs/build-windows-notification-host.log; $BuildExit = $LASTEXITCODE; Write-Host "EXIT=$BuildExit"; Get-Content -Tail 150 logs/build-windows-notification-host.log
 ```
 
-构建命令级硬超时 600000ms。
+两个命令级硬超时各 600000ms。
 
-**注册回读检查**
+**产品注册回读**
 
-- 启动当前 build 一次，通过 registration channel 回读固定 AUMID 与无花括号 GUID，并确认 `available=true`。
-- 用 Windows 属性存储 API 回读 `Oh My LLM.lnk` 的 target、AUMID 与 `VT_CLSID`，再回读 LocalServer32 默认值和 `ServerExecutable`；只记录是否匹配，不把绝对路径写入仓库文档。
-- 覆盖同目录 exe 后重新启动，确认 runner 幂等修复仍成功。
-- 本阶段 adapter 尚未实现，不能从产品代码发送 Toast，也不能把 Task 6 throwaway smoke 冒充为产品验收。warm/cold 产品 smoke 统一留到 Task 11。
+- 启动当前 build 一次，通过 host status 回读 `available=true` 与固定 failureStage 为空。
+- 用 Windows 属性存储 API 回读 `Oh My LLM.lnk` target/AUMID/`VT_CLSID`，再回读 LocalServer32 default 与 `ServerExecutable`；记录匹配结果，不把绝对路径提交到文档。
+- 覆盖同目录 exe 后重新启动，确认 primary 幂等修复；移动目录后先完全退出旧 primary，再手工启动新目录并确认修复。
+- 本 Task 已能用 runner channel 显示固定测试 Toast 与取得 native activation，但尚未接 terminal/domain adapter；不得把固定测试 payload 冒充端到端会话导航验收。
 
 **硬停止条件**
 
-- 自动测试或 build 证明 shortcut/AUMID/CLSID/LocalServer32 链不成立。
-- 已执行注册回读明确得到 shortcut、AUMID、CLSID 或 LocalServer32 `FAIL`。
-- 可靠实现必须引入 MSIX、安装器或管理员权限。
+- native tests、build 或产品回读证明模式隔离、注册、COM/pipe queue、Toast show 或 shutdown 链不成立。
+- relay/manual secondary 的任一路径能够构造 Flutter engine/窗口/存储。
+- 必须把 HWND、runner 对象或原始 HRESULT/异常暴露给 Dart 才能实现。
+- 可靠实现必须引入第三方插件、MSIX、安装器或管理员权限。
 
-发生硬停止时不继续 Task 8–11，不把“仅应用运行时 Toast”写成完成方案。
+发生硬停止时不继续 Task 8–11；保留 Task 6B 与 native 日志，不降级成“只支持应用运行时 Toast”。
 
-### Task 8：Windows adapter 与 AppWindow
+### Task 8：Windows terminal adapter、AppWindow 与设置
 
 **文件**
 
-- 新增 `lib/app/platform/windows_local_notifications_client.dart`
 - 新增 `lib/app/platform/windows_chat_generation_terminal_notification_adapter.dart`
 - 新增 `lib/app/platform/windows_app_window.dart`
 - 新增 `lib/app/platform/windows_system_notification_settings.dart`
@@ -1311,27 +1362,29 @@ flutter build windows 2>&1 | Out-File -Encoding utf8 logs/build-windows-registra
 
 **RED 测试**
 
-- `插件初始化使用固定 runner 注册信息`
-- `插件收到无花括号 GUID 且真实 client 只惰性构造一次`
-- `安全 payload 原样传给 Windows 插件`
-- `WindowsNotificationDetails 不显式静音或配置自定义声音`
-- `warm callback 与 cold launch details 转成统一 activation`
-- `同一 cold payload 只取一次`
-- `registration unavailable 时展示为 no-op`
-- `插件异常不向上抛出原始异常`
+- `安全 payload 和固定字段原样传给共享 Windows host client`
+- `host unavailable 时展示为 no-op`
+- `host show 返回 false 或异常时不泄漏原始异常`
+- `live 与 pending payload 使用同一严格 decoder`
+- `pending 列表一次取走且多个合法 activation 按 FIFO 交付`
+- `同一 pending payload 只取一次`
+- `超长 未知版本 额外字段和 malformed payload 被忽略`
 - `窗口不可见时先 show 再 focus`
 - `窗口最小化时先 restore 再 focus`
 - `窗口恢复部分失败仍尝试 focus`
+- `Windows 设置状态只反映共享 host 可用性`
 - `Windows 设置通过 launcher seam 只用 explorer 参数数组且异常返回 false`
 
 **GREEN**
 
-- 实现第 8.4–8.7 节。
-- 测试只 fake `WindowsLocalNotificationsClient`、`WindowsWindowManagerClient` 和 `WindowsProcessLauncher`，不加载真实插件或启动 explorer。
-- 单文件日志写 `logs/windows-terminal-adapter-green.log`，超时 60000ms。
+- 实现第 8.7–8.9 节；terminal/settings 由构造函数接收同一 `WindowsNotificationHostClient`，不得各自创建 MethodChannel handler。
+- adapter 不判定 generation outcome、不 import chat presentation；AppWindow 继续只包装 `window_manager`。
+- 测试只 fake `WindowsNotificationHostClient`、`WindowsWindowManagerClient` 与 `WindowsProcessLauncher`，不依赖 Windows runner、不显示 Toast、不启动 explorer。
+- 三个单文件日志分别写 `logs/windows-terminal-adapter-green.log`、`logs/windows-app-window-green.log`、`logs/windows-system-notification-settings-green.log`，每个工具超时 60000ms。
 
 **停止条件**
 
+- terminal/settings 需要分别拥有 channel handler 或关闭 runner host。
 - 必须在 adapter 内 import chat presentation。
 - 必须依赖 cancel/getActiveNotifications 才能完成一次性终态通知。
 
@@ -1356,10 +1409,11 @@ flutter build windows 2>&1 | Out-File -Encoding utf8 logs/build-windows-registra
 
 - `Android 绑定共享 bridge 与三个窄端口`
 - `Windows 平台选择只调用注入的 windowsFactory 并得到前台 no-op/terminal/settings 三个角色`
-- `Windows 平台 fake factory 在 Ubuntu 不构造真实插件 DLL`
+- `Windows production factory 只创建一个共享 host client 且只 dispose 一次`
+- `Windows 平台 fake factory 在 Ubuntu 不调用真实 MethodChannel 或 Windows runner`
 - `其他平台只绑定 no-op`
 - `shared bridge 只 dispose 一次`
-- `测试 harness 默认不触发真实 MethodChannel 或 Windows plugin`
+- `测试 harness 默认不触发真实 MethodChannel 或 Windows runner`
 - `bootstrap 的测试 factory 透传不改变生产默认绑定`
 - `固定 session override 同时进入 coordinator ongoing payload 与 terminal receipt`
 - `应用根部 eager 启动注意力 observer 和终态通知模块`
@@ -1370,7 +1424,7 @@ flutter build windows 2>&1 | Out-File -Encoding utf8 logs/build-windows-registra
 - 严格按第 9 节装配。
 - `lib/app/app.dart` 的 observer/terminal eager watch 只在本 Task 一次性接入；Task 2 不做临时装配。
 - 用 provider override 测平台选择，不修改全局 `debugDefaultTargetPlatformOverride`。
-- Windows 平台选择测试必须通过第 9.1 节的 factory seam 构造 fake 记录；不得先实例化 production client 后再用 provider override 覆盖。
+- Windows 平台选择测试必须通过第 9.1 节的 factory seam 构造 fake 记录；不得先实例化 production client 后再用 provider override 覆盖。production Windows factory 必须把一个 `WindowsNotificationHostClient` 共享给 terminal/settings，并只由 `disposeShared` 释放一次；Dart dispose 不得触发 runner `Shutdown()`。
 - 运行所有 app composition 定向测试，日志 `logs/notification-composition-green.log`，单文件超时 60000ms。
 
 ### Task 10：系统通知设置 UI
@@ -1427,21 +1481,23 @@ flutter test test/features/settings/presentation/settings_screen_test.dart --rep
   - warm/cold 点击、已删除会话回退。
   - 权限拒绝、设置入口。
 - 新增/更新 `docs/testing/windows-chat-generation-notifications-smoke.md`：
-  - Task 6 插件激活 spike 的 OS/插件版本、命令、PID、payload 与清理结果。
+  - 保留 Task 6A 插件方案的原始 FAIL 证据，并明确其已被 runner-owned 方案替代；不得删改 PID/payload 现场。
+  - 追加 Task 6B runner-owned spike 的 OS/SDK/Flutter 版本、三个 build 变体、进程 mode、Flutter owner、COM register/revoke、pipe ACK、payload 与清理结果。
   - 前台、失焦、最小化。
   - warm/cold 点击。
-  - 快速连续 cold 激活时只有一个进程。
+  - 快速连续 cold 激活、pre-COM race、post-COM/pre-Flutter race；允许短命 native relay，但必须只有一个 Flutter/storage owner，且 relay 有界退出。
+  - primary warm 时第二次手工启动只恢复/聚焦既有窗口，不创建第二个 Flutter engine。
   - 默认声音在系统声音开启/关闭与专注助手下的实际表现；不声称应用强制响铃。
   - 文档记录通知 ID 碰撞会让后一条覆盖前一条的已知限制；不要求人工构造碰撞或在生产中枚举碰撞。
   - 同目录覆盖更新。
-  - 移动目录后首次手动启动再点击。
+  - 覆盖同目录、移动目录后完全退出旧 primary 并首次手工启动，再点击。
   - 系统设置入口。
 - 每项只写 `PASS`、`FAIL` 或 `PENDING`；无实机证据保持 `PENDING`，但下面列出的最小原生 gate 不允许为 `PENDING`。
 
 **Ready 前最小原生 gate（人工、阻塞）**
 
 - Android：至少一台受支持 emulator/设备执行并 `PASS`：生成成功后出现 `chat_generation_result` HIGH 通知；点击打开精确会话；现有 ongoing 点击仍打开精确会话；应用前台查看同一会话时抑制。系统是否实际响铃受设备设置控制，可记录“channel 配置正确但设备静音”，不能把设备静音判成实现 FAIL。
-- Windows：用最终产品 build 执行并 `PASS`：warm 点击、完全退出后的 cold 点击、手工启动到 plugin ready 之间点击，三者 payload/导航正确且各只有一个产品进程；最小化恢复后导航；删除会话回退根页。必须记录 PID、进程数、AUMID/GUID 表示与启动到 class registration 的耗时。
+- Windows：用最终 Release 产品 build 执行 warm、至少 20 轮完全退出后的 cold、快速连续两条 cold activation、primary warm 时第二次手工启动、最小化恢复后导航与删除会话回退根页；再用第 8.2 节同一产品源码生成的两个 testing=ON Debug instrumented build执行 pre-COM 与 post-COM/pre-Flutter race。全部必须 `PASS`。记录每个 PID 的 mode/`flutter_started`、AUMID/CLSID、class registration/relay handoff/pipe ACK 耗时和 payload event key；Release configure/build 另证明确实拒绝非零 delay。允许观测到短命 relay PID，但任一 case 只能有一个 Flutter/storage owner，所有 relay 必须在固定上界内退出。
 - 任一最小 gate 为 `FAIL`：停止 Ready 并修复；无法执行：PR 保持 draft。只有扩展矩阵（其他 Windows 版本、专注助手组合、多个声音设备、多安装位置）允许 `PENDING`。
 
 **定向测试**
@@ -1489,6 +1545,8 @@ flutter build apk --debug 2>&1 | Out-File -Encoding utf8 logs/build-android.log;
 
 两个构建工具超时各 600000ms。若 Android 只执行 Gradle 单测而未构建 APK，PR 必须写“未执行 Android APK build”。
 
+Windows build 后再次执行 `scripts/test-windows-notification-host.ps1`；该脚本与 executable 必须 `EXIT=0`，日志使用 `logs/windows-notification-host-native-final.log`。这不替代真实 Shell/COM smoke。
+
 **范围审计**
 
 ```powershell
@@ -1498,7 +1556,8 @@ git diff --stat master...HEAD
 git diff --name-only master...HEAD
 rg -n '\bcontent\b|reasoningContent|errorMessage|stackTrace' lib/app/notifications lib/app/platform
 rg -n "MSIX|linux|macos|通知开关" lib android windows
-rg -n "flutter_local_notifications_windows:" pubspec.yaml pubspec.lock
+rg -n "flutter_local_notifications_windows|FlutterLocalNotificationsWindows|WindowsLocalNotificationsClient" pubspec.yaml pubspec.lock lib windows
+rg -n "GetProcessesByName|CreateToolhelp32Snapshot|Process32First|Process32Next" windows/runner
 ```
 
 逐项人工确认：
@@ -1512,9 +1571,12 @@ rg -n "flutter_local_notifications_windows:" pubspec.yaml pubspec.lock
 - Android ongoing 点击直达会话的旧契约仍有生产调用与回归测试；只有旧 LOW terminal 点击路径被替换。
 - Kotlin/runner 不判定 generation outcome。
 - Windows 只写 HKCU，未添加清理器。
+- Windows runner 只存在一个长期 COM owner 和一个 Flutter/storage owner；relay/manual secondary 源码路径不能构造 `DartProject`。
+- Windows 身份判断只使用固定 named kernel objects/pipe，不依赖进程名、PID 枚举、窗口标题或 exe 路径猜测。
+- Dart client dispose 不关闭 runner host；runner shutdown 明确 revoke COM 并关闭 IPC/handles。
 - 所有新测试标题和注释为简体中文。
 
-当前 CI 只有 Ubuntu gate，没有 Linux/macOS 桌面 build 矩阵。`flutter_local_notifications_windows` 在支持 FFI 的 Dart VM 会导出 FFI implementation，因此“只 import 不调用”不是隔离保证；第 9.1 节 factory seam 必须确保 Ubuntu 测试在对象构造前选择 fake/no-op。`flutter analyze`、全量 `flutter test` 与 CI 回读负责证明现有非 Windows gate 可编译且不会尝试打开 Windows DLL。不得把未存在的 macOS/Linux desktop build 写成已通过。
+当前 CI 只有 Ubuntu gate，没有 Linux/macOS 桌面 build 矩阵。Windows 通知实现没有第三方 DLL，但 runner C++/WinRT 仍只能由 Windows build/native test 验证；第 9.1 节 factory seam 必须确保 Ubuntu 测试在构造 production MethodChannel client 前选择 fake/no-op。`flutter analyze`、全量 `flutter test` 与 CI 回读负责证明 Dart composition 跨平台可编译；不得把未存在的 macOS/Linux desktop build 或未运行的 Windows native gate 写成已通过。
 
 ## 12. 替换而非叠加
 
@@ -1533,7 +1595,10 @@ rg -n "flutter_local_notifications_windows:" pubspec.yaml pubspec.lock
 | Kotlin 自行重建 timeout JSON/event key | Dart 预编码 opaque timeout activation payload |
 | `bindChatGenerationForegroundService` | `bindChatGenerationNotifications` |
 | 旧 bindings 文件名/测试名 | notification platform bindings |
-| Windows composition 构造真实插件后再 override | platform factory seam 在对象构造前选择 production 或 fake |
+| `flutter_local_notifications_windows` 的 Dart 初始化后 COM owner | runner 在 `DartProject` 前托管 COM、Toast show 与 native queue |
+| 进程名/PID 枚举式“单实例”猜测 | instance/activator named mutex + ready event + v1 named pipe |
+| 第二个完整 Flutter 冷启动实例 | 无 Flutter 的 activation relay 或 manual secondary；仅 primary 可拥有存储 |
+| Windows composition 构造真实 MethodChannel client 后再 override | platform factory seam 在对象构造前选择 production 或 fake |
 
 完成范围审计时，以上旧 symbol 应由 `rg` 得到零生产调用；仅迁移说明文档可出现。
 
@@ -1541,15 +1606,15 @@ rg -n "flutter_local_notifications_windows:" pubspec.yaml pubspec.lock
 
 ## 13. 提交顺序
 
-本计划文档已单独提交；产品实施按以下可独立构建、可独立审查，并按依赖逆序回滚的顺序提交。Task 3–8 是尚未完成平台 composition 的中间态，不得把其中任一 commit 单独发布或描述为跨平台终态通知已可用：
+本计划文档已单独提交；产品实施按以下可独立构建、可独立审查，并按依赖逆序回滚的顺序提交。Task 3–8 是尚未完成平台 composition 的中间态，不得把其中任一 commit 单独发布或描述为跨平台终态通知已可用。Task 6A 已有失败证据；Task 6B 只有真实 runner-owned spike 全 PASS 才允许提交第 7 项：
 
 1. `refactor(chat): 分离生成终态通知收据`
 2. `refactor(app): 增加生成通知注意力与激活模块`
 3. `refactor(app): 原子迁移生成通知协调与前台端口`
 4. `refactor(android): 收敛生成通知平台桥接`
 5. `feat(android): 增加生成终态高优先级通知`
-6. `test(windows): 验证未打包 Toast 激活链路`（只提交 Task 6 文档证据，不提交 throwaway 工程）
-7. `feat(windows): 注册未打包 Toast 身份`
+6. `test(windows): 验证 runner 托管 Toast 激活链路`（提交 Task 6A/6B 文档证据，不提交 throwaway 工程）
+7. `feat(windows): 增加 runner 通知宿主与单实例协调`
 8. `feat(windows): 接入生成终态通知与窗口恢复`
 9. `refactor(app): 装配跨平台生成通知生命周期`
 10. `feat(settings): 增加系统通知设置入口`
@@ -1565,7 +1630,7 @@ Task 1 不收窄 projector；Task 3 必须在同一个提交中同时迁移 coor
 - 提交信息使用简体中文。
 - post-commit hook 自动 bump 后重新读取 `HEAD`、`pubspec.yaml` 和 changed paths。
 
-Windows 注册若自动验证失败不得作为“功能完成”提交。Task 6 spike 和第 14 节最小原生 gate 未通过时，允许保留已验证的中间提交，但 PR 必须保持 draft；不能用 `PENDING` 标记 Ready。
+Windows runner host 任一自动验证/注册回读失败不得作为“功能完成”提交。Task 6B 和第 14 节最小原生 gate 未通过时，允许保留已验证的 Dart/Android 中间提交，但 Windows Task 7 不得开始，PR 必须保持 draft；不能用 `PENDING` 标记 Ready。
 
 ## 14. PR 完成定义
 
@@ -1582,14 +1647,16 @@ Windows 注册若自动验证失败不得作为“功能完成”提交。Task 6
 - 所有真正终态和取消都清理 ongoing；失败不再残留 LOW 普通通知。
 - Android terminal 使用新 HIGH channel、默认声音/振动；ongoing LOW 静音及点击直达对应会话保持不变。
 - Android 权限保持官方一次性请求行为。
-- Task 6 throwaway spike 已以真实 Windows Shell/COM 证明至少 20 轮 cold、warm、连续 cold、手工启动未 ready 窗口、非 ASCII payload 与单进程/native 生存性；失败时不得进入产品实现。
-- Windows 未打包注册通过 Dart 测试和 Windows build，不要求 MSIX/管理员权限。
+- Task 6A 插件方案 FAIL 证据被保留且明确标为被否决；产品依赖中没有 `flutter_local_notifications_windows`。
+- Task 6B runner-owned throwaway spike 已以真实 Windows Shell/COM 证明至少 20 轮 cold、warm、连续 cold、pre-COM、post-COM/pre-Flutter、第二次手工启动、非 ASCII/边界 payload、失效恢复与 native 生存性；失败时不得进入产品 Task 7。
+- Windows runner 在 `DartProject` 前注册长期 COM owner；instance/activator mutex、ready event、v1 pipe、relay 和 native queue 有自动原生测试及实测 wait 上界，不要求 MSIX/管理员权限。
+- 任一时刻只有一个 Flutter/storage owner；允许的 relay/manual secondary 从源码、原生测试和 smoke 三处都证明不会构造 Flutter engine、窗口或产品存储，且在固定上界内退出。
 - Windows warm/cold payload、窗口恢复、删除会话回退有自动测试。
-- Windows GUID/CLSID 两种表示、shortcut `VT_CLSID`、LocalServer32 quoted default 与 unquoted `ServerExecutable` 均有 spike/build/回读证据。
-- `flutter_local_notifications_windows` 精确锁定 3.1.1，Ubuntu 平台选择测试不构造真实 DLL。
+- Windows GUID/CLSID 两种表示、shortcut `VT_CLSID`、LocalServer32 quoted default 与 unquoted `ServerExecutable` 均有 Task 6B、native test、build 与产品回读证据。
+- Ubuntu 平台选择测试在 production MethodChannel client 构造前选择 fake；Windows runner native test 和 Windows build 均有日志。
 - Windows 不显式配置声音，smoke 如实记录系统设置/专注助手下的结果。
 - 设置页有 loading/状态/打开系统设置，没有开关。
-- Dart/MethodChannel/runner 可观察平台故障不改变 generation；Windows plugin 未捕获 native exception 的残余边界在风险中如实披露，已测路径没有进程终止。
+- Dart/MethodChannel/runner 可观察平台故障不改变 generation；所有 COM/WinRT/pipe/channel native 边界 catch-all，已测路径没有未捕获 exception 或进程终止。
 - 定向测试、analyze、import boundary、全量测试、Windows build 有日志证据。
 - Android/Windows smoke 文档存在，第 11 节最小原生 gate 均为 `PASS`；只有扩展矩阵未执行项可为 `PENDING`。
 - `git diff --check` 通过，base...head 无无关范围。
@@ -1599,11 +1666,12 @@ Windows 注册若自动验证失败不得作为“功能完成”提交。Task 6
 出现任一条件立即停止并报告，不自行扩大范围：
 
 - Windows 可靠冷启动必须依赖 MSIX、安装器或管理员权限。
-- Windows warm activation、快速连续 cold activation或手工启动尚未注册 COM 时点击产生两个 Flutter 进程。
-- 已执行 Windows cold activation smoke 明确失败。
-- 插件/runner 无法交付 cold payload。
-- 插件初始化/激活出现 access violation、`std::terminate` 或其他 native 进程终止。
-- Windows 支持必须在 Ubuntu test 构造真实 `flutter_local_notifications_windows.dll` 才能验证 composition。
+- Task 6B 的 warm、20 轮 cold、快速连续 cold、pre-COM、post-COM/pre-Flutter、第二次手工启动或失效恢复任一 gate 明确 `FAIL`。
+- 任一 race 产生两个 Flutter/storage owner，或 relay/manual secondary 构造 `DartProject`、窗口、SharedPreferences、SQLite/network logger。
+- runner 无法可靠交付 cold/queued/relay payload，或只能接受 payload 丢失、重复、乱序和无界等待。
+- instance/activator ownership 只能靠进程名、PID 枚举、窗口标题、固定 sleep 或可伪造的 exe 特征判断。
+- COM/WinRT/pipe/MethodChannel 初始化、激活或 shutdown 出现 access violation、`std::terminate`、未捕获 native exception、未 revoke class object 或残留 relay。
+- Ubuntu Dart composition 测试必须构造真实 Windows runner/MethodChannel 才能通过，或 Windows runner 无法由独立 Windows build/native test 覆盖。
 - 无法在一个原子 Task/commit 中保持 Android channel 两端一致或保持既有 ongoing cleanup/点击行为。
 - 无法给 event key 增加进程 session 而必须持久化通知碰撞表或修改聊天存储。
 - Android 横幅只能通过升级既有 LOW channel 实现。
@@ -1621,8 +1689,13 @@ Windows 注册若自动验证失败不得作为“功能完成”提交。Task 6
 - Flutter post-frame 调度：<https://api.flutter.dev/flutter/scheduler/SchedulerBinding/addPostFrameCallback.html>
 - Flutter `ensureVisualUpdate`：<https://api.flutter.dev/flutter/scheduler/SchedulerBinding/ensureVisualUpdate.html>
 - Microsoft 未打包桌面 Toast：<https://learn.microsoft.com/en-us/windows/apps/design/shell/tiles-and-notifications/send-local-toast-desktop-cpp-wrl>
+- Microsoft classic Desktop Toast C++ sample（`INotificationActivationCallback`）：<https://github.com/microsoft/Windows-classic-samples/blob/main/Samples/DesktopToasts/CPP/DesktopToastsSample.cpp>
 - Microsoft LocalServer32 注册与 `-Embedding`：<https://learn.microsoft.com/en-us/windows/win32/com/localserver32>
+- Microsoft `CoRegisterClassObject` / `CoRevokeClassObject`：<https://learn.microsoft.com/en-us/windows/win32/api/combaseapi/nf-combaseapi-coregisterclassobject>
+- Microsoft out-of-process COM server/SCM 启动模型：<https://learn.microsoft.com/en-us/windows/win32/com/out-of-process-server-implementation-helpers>
+- Microsoft named mutex：<https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-createmutexw>
+- Microsoft named pipe：<https://learn.microsoft.com/en-us/windows/win32/ipc/named-pipes>
 - Microsoft Toast activation：<https://learn.microsoft.com/en-us/previous-versions/windows/desktop/win32_tile_badge_notif/respond-to-toast-activations>
-- `flutter_local_notifications_windows`：<https://pub.dev/packages/flutter_local_notifications_windows>
+- 被否决插件方案的版本记录：<https://pub.dev/packages/flutter_local_notifications_windows>
 
-实施前只复核当前 lock、插件 3.1.1 API 与官方平台文档；不得借机升级无关依赖。
+实施前只复核当前 Windows SDK、Flutter runner API 与官方平台文档；不再复核或引入插件 3.1.1，不得借机升级无关依赖。
