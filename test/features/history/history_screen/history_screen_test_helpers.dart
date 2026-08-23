@@ -5,11 +5,37 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/app/navigation/app_destination.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
+import 'package:oh_my_llm/features/chat/application/ports/history_page_query.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/history/presentation/history_screen.dart';
 
+import '../../../helpers/chat/controllable_history_page_query.dart';
 import '../../../helpers/fixtures.dart';
 import '../../../helpers/test_harness.dart';
+
+GoRouter _historyTestRouter() => GoRouter(
+  initialLocation: AppDestination.history.path,
+  routes: [
+    GoRoute(
+      path: AppDestination.history.path,
+      // 与生产 app_router 一致地解析 query，保证测试可驱动深链窗口恢复。
+      builder: (context, state) => HistoryScreen(
+        routeQuery: HistoryBrowseRouteQuery.fromQueryParameters(
+          state.uri.queryParameters,
+        ),
+      ),
+    ),
+    GoRoute(
+      path: AppDestination.chat.path,
+      builder: (context, state) =>
+          const Scaffold(body: Center(child: Text('聊天落点'))),
+    ),
+    GoRoute(
+      path: AppDestination.settings.path,
+      builder: (context, state) => const SizedBox.shrink(),
+    ),
+  ],
+);
 
 /// 挂载 HistoryScreen 到标准测试环境。
 Future<AppDatabase> pumpHistoryScreen(
@@ -18,29 +44,7 @@ Future<AppDatabase> pumpHistoryScreen(
   AppDatabase? database,
   Size viewportSize = const Size(1440, 1200),
 }) async {
-  final router = GoRouter(
-    initialLocation: AppDestination.history.path,
-    routes: [
-      GoRoute(
-        path: AppDestination.history.path,
-        // 与生产 app_router 一致地解析 query，保证测试可驱动深链窗口恢复。
-        builder: (context, state) => HistoryScreen(
-          routeQuery: HistoryBrowseRouteQuery.fromQueryParameters(
-            state.uri.queryParameters,
-          ),
-        ),
-      ),
-      GoRoute(
-        path: AppDestination.chat.path,
-        builder: (context, state) =>
-            const Scaffold(body: Center(child: Text('聊天落点'))),
-      ),
-      GoRoute(
-        path: AppDestination.settings.path,
-        builder: (context, state) => const SizedBox.shrink(),
-      ),
-    ],
-  );
+  final router = _historyTestRouter();
 
   final db = await pumpTestApp(
     tester,
@@ -55,6 +59,48 @@ Future<AppDatabase> pumpHistoryScreen(
   // 额外 pump 一帧让 KeepAlive 结算完整，消除该竞态。属渲染层时序，非数据层异步。
   await tester.pump();
   return db;
+}
+
+/// 装配 controllable 查询替身的历史页环境；不自动完成初始查询。
+///
+/// 每个异步用例自行决定何时完成初次窗口，避免固定 pump 次数伪装业务完成；
+/// 种子数据仍写真实内存库（行点击等 chat 侧交互依赖）。
+Future<HistoryScreenQueryEnv> pumpControllableHistoryScreen(
+  WidgetTester tester,
+) async {
+  final database = AppDatabase.inMemory();
+  addTearDown(database.close);
+  final preferences = await createSeededPreferences(database);
+  final query = ControllableHistoryPageQuery();
+  final router = _historyTestRouter();
+
+  await pumpTestApp(
+    tester,
+    preferences: preferences,
+    database: database,
+    router: router,
+    bindHistoryPageQuery: false,
+    extraOverrides: [historyPageQueryProvider.overrideWithValue(query)],
+  );
+  await tester.pump();
+  return HistoryScreenQueryEnv(
+    database: database,
+    router: router,
+    query: query,
+  );
+}
+
+/// [pumpControllableHistoryScreen] 的装配产物。
+final class HistoryScreenQueryEnv {
+  HistoryScreenQueryEnv({
+    required this.database,
+    required this.router,
+    required this.query,
+  });
+
+  final AppDatabase database;
+  final GoRouter router;
+  final ControllableHistoryPageQuery query;
 }
 
 Future<SharedPreferences> createSeededPreferences(AppDatabase database) async {

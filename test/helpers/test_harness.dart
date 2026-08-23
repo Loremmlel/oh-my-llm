@@ -43,6 +43,10 @@ Future<AppDatabase> pumpTestApp(
   /// 默认 true：保持 SQLite 生产绑定，与 composition 默认一致。
   bool bindChatConversationRepository = true,
 
+  /// 默认 true：保持历史页查询生产绑定（内存库复用同一连接）；测试以
+  /// controllable fake 覆盖 [historyPageQueryProvider] 时必须传 false。
+  bool bindHistoryPageQuery = true,
+
   /// 默认 true：保持默认媒体库工厂绑定，与 composition 默认一致；
   /// 测试在 [extraOverrides] 提供 [mediaLibraryFactoryProvider] 覆盖时必须
   /// 传 false 排除生产绑定，避免 Riverpod 重复 override。
@@ -77,6 +81,7 @@ Future<AppDatabase> pumpTestApp(
       router: router,
       bindChatGenerationClient: bindChatGenerationClient,
       bindChatConversationRepository: bindChatConversationRepository,
+      bindHistoryPageQuery: bindHistoryPageQuery,
       bindMediaLibraryFactory: bindMediaLibraryFactory,
       bindChatGenerationForegroundService: bindChatGenerationForegroundService,
       bindFavoritesRepositories: bindFavoritesRepositories,
@@ -107,6 +112,9 @@ Future<ProviderScope> pumpTestAppScope(
 
   /// 默认 true：保持 SQLite 生产绑定，与 composition 默认一致。
   bool bindChatConversationRepository = true,
+
+  /// 默认 true：保持历史页查询生产绑定；测试以 fake 覆盖时传 false。
+  bool bindHistoryPageQuery = true,
 
   /// 默认 true：保持默认媒体库工厂绑定；测试在 [extraOverrides] 提供
   /// [mediaLibraryFactoryProvider] 覆盖时必须传 false。
@@ -139,6 +147,7 @@ Future<ProviderScope> pumpTestAppScope(
     router: router,
     bindChatGenerationClient: bindChatGenerationClient,
     bindChatConversationRepository: bindChatConversationRepository,
+    bindHistoryPageQuery: bindHistoryPageQuery,
     bindMediaLibraryFactory: bindMediaLibraryFactory,
     bindChatGenerationForegroundService: bindChatGenerationForegroundService,
     bindFavoritesRepositories: bindFavoritesRepositories,
@@ -168,6 +177,7 @@ ProviderScope _buildTestScope({
   GoRouter? router,
   bool bindChatGenerationClient = false,
   bool bindChatConversationRepository = true,
+  bool bindHistoryPageQuery = true,
   bool bindMediaLibraryFactory = true,
   bool bindChatGenerationForegroundService = true,
   bool bindFavoritesRepositories = true,
@@ -184,6 +194,7 @@ ProviderScope _buildTestScope({
         useInMemorySyncSecureStore: true,
         bindChatGenerationClient: bindChatGenerationClient,
         bindChatConversationRepository: bindChatConversationRepository,
+        bindHistoryPageQuery: bindHistoryPageQuery,
         bindMediaLibraryFactory: bindMediaLibraryFactory,
         bindChatGenerationForegroundService:
             bindChatGenerationForegroundService,
