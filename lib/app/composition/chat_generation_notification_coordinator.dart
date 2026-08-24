@@ -536,7 +536,13 @@ final class ChatGenerationNotificationCoordinator {
 
   void _openConversation(String conversationId) {
     if (_disposed) return;
-    _openConversationCallback(conversationId);
+    // 注入回调（composition 的 goNamed）契约外抛错时兜底：只记固定诊断，
+    // 不向动作流的 zone 泄漏，与 _invokeStopSafely 的兜底语义一致。
+    try {
+      _openConversationCallback(conversationId);
+    } catch (_) {
+      _logDiagnostic?.call('open_conversation_failed');
+    }
   }
 
   // ── 定时器辅助 ────────────────────────────────────────────

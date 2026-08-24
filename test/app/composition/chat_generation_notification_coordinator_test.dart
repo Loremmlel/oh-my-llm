@@ -710,6 +710,29 @@ void main() {
     });
   });
 
+  group('openConversation 回调兜底', () {
+    test('回调抛错时记录固定诊断且不向 zone 泄漏', () async {
+      final throwingCoordinator = ChatGenerationNotificationCoordinator(
+        port: port,
+        notificationSessionId: _notificationSessionId,
+        terminalNotifications: terminalNotifications,
+        stopGeneration: () async => stopCalls.add('stop'),
+        openConversation: (_) => throw StateError('导航失败'),
+        now: clock.call,
+        timerFactory: timers.create,
+        logDiagnostic: diagnostics.add,
+      );
+      addTearDown(throwingCoordinator.dispose);
+      await throwingCoordinator.start();
+      // warm 动作：回调抛错被兜底，只记固定诊断，不逃逸到 zone。
+      port.actionsController.add(
+        const ChatGenerationOpenConversationRequested('conv-warm'),
+      );
+      await _flushTail();
+      expect(diagnostics, contains('open_conversation_failed'));
+    });
+  });
+
   group('stop 动作', () {
     test('重复的有效 stop 动作只调用一次 stopGeneration', () async {
       await coordinator.start();
