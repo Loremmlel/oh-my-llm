@@ -189,8 +189,8 @@ void main() {
 
       await module.report(_receipt(conversationId: 'conv-1'));
       expect(harness.adapter.shownNotifications, isEmpty);
-      // 抑制不产生任何平台调用，也不记失败诊断。
-      expect(harness.diagnostics, isEmpty);
+      // 抑制被记录为固定诊断（不产生平台调用、无失败诊断）。
+      expect(harness.diagnostics, ['terminal_report_suppressed']);
     });
 
     test('查看其他会话时展示通知', () async {
@@ -409,6 +409,8 @@ void main() {
         suppressedAtTerminal: true,
       );
       expect(harness.adapter.shownNotifications, isEmpty);
+      // 冻结抑制同样记录固定诊断，不展示、无失败诊断。
+      expect(harness.diagnostics, ['terminal_report_suppressed']);
     });
   });
 

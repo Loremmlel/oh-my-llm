@@ -189,11 +189,12 @@ final class DefaultChatGenerationTerminalNotifications
     bool? suppressedAtTerminal,
   }) async {
     // 冻结值优先：终态时刻的决策由 coordinator 冻结，执行时刻的评估只作
-    // 无冻结值（timeout 路径等）时的回退。
+    // 未冻结的直接 report 调用时的回退。
     final suppressed =
         suppressedAtTerminal ?? _isSuppressed(receipt.conversationId);
     if (suppressed) {
-      // 抑制也算完成：避免后续失焦时重放旧事件。
+      // 抑制也算完成：避免后续失焦时重放旧事件；抑制本身记固定诊断。
+      _logDiagnostic('terminal_report_suppressed');
       _completeReport(eventKey);
       return;
     }

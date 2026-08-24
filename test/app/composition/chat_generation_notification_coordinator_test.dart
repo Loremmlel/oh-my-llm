@@ -79,6 +79,16 @@ ChatStreamingReply _reply(String content, String reasoning) {
 /// 让串行命令 tail 的微任务排空；端口调用在调用时刻同步记录到 fake。
 Future<void> _flushTail() => pumpEventQueue();
 
+/// 排空微任务直到 [condition] 满足（等待可观察完成条件，不用固定 delay）。
+Future<void> _untilInMicrotasks(bool Function() condition) async {
+  var rounds = 0;
+  while (!condition() && rounds < 200) {
+    await null;
+    rounds += 1;
+  }
+  expect(condition(), isTrue, reason: '微任务排空后条件仍未满足');
+}
+
 /// 手动定时器：不依赖真实时钟，由测试显式触发；cancel 后不再回调。
 final class ManualTimer implements Timer {
   ManualTimer(this.duration, this.callback);
@@ -1441,13 +1451,16 @@ void main() {
     });
 
     test('终态时刻的抑制决策被冻结并随 report 传递', () async {
+      // 可变注入：评估发生在终态入队时刻，tail 执行前翻转后 report 仍携带
+      // 冻结的 true，证明决策不是在 report 执行时刻评估。
+      var terminalSuppressed = true;
       final suppressingCoordinator = ChatGenerationNotificationCoordinator(
         port: port,
         notificationSessionId: _notificationSessionId,
         terminalNotifications: terminalNotifications,
         stopGeneration: () async => stopCalls.add('stop'),
         openConversation: openedConversationIds.add,
-        isTerminalSuppressed: (conversationId) => true,
+        isTerminalSuppressed: (_) => terminalSuppressed,
         now: clock.call,
         timerFactory: timers.create,
         logDiagnostic: diagnostics.add,
@@ -1466,6 +1479,8 @@ void main() {
         ),
         streamingReply: null,
       );
+      // 终态快照已入队（评估同步发生），tail 尚未执行：此时翻转。
+      terminalSuppressed = false;
       await _flushTail();
       // cleanup 照常执行；report 携带终态时刻冻结的抑制决策 true。
       expect(port.calls.where((c) => c == 'remove'), ['remove']);
@@ -1477,13 +1492,14 @@ void main() {
     });
 
     test('timeout 收据同样冻结终态时刻的抑制决策', () async {
+      var terminalSuppressed = true;
       final suppressingCoordinator = ChatGenerationNotificationCoordinator(
         port: port,
         notificationSessionId: _notificationSessionId,
         terminalNotifications: terminalNotifications,
         stopGeneration: () async => stopCalls.add('stop'),
         openConversation: openedConversationIds.add,
-        isTerminalSuppressed: (conversationId) => true,
+        isTerminalSuppressed: (_) => terminalSuppressed,
         now: clock.call,
         timerFactory: timers.create,
         logDiagnostic: diagnostics.add,
@@ -1501,6 +1517,10 @@ void main() {
           conversationId: 'conv-1',
         ),
       );
+      // 动作处理（评估同步发生）完成、收据已入队后翻转；report 仍携带冻结的
+      // true，证明 timeout 路径同样不在 report 执行时刻评估。
+      await _untilInMicrotasks(() => diagnostics.contains('platform_timeout'));
+      terminalSuppressed = false;
       await _flushTail();
       expect(
         terminalNotifications.receipts.single.terminalKind,
