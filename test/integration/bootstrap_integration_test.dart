@@ -14,12 +14,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:oh_my_llm/app/attention/app_attention_observer.dart';
 import 'package:oh_my_llm/app/composition/app_attention_bindings.dart';
 import 'package:oh_my_llm/app/composition/chat_generation_notification_platform_bindings.dart';
-import 'package:oh_my_llm/app/notifications/default_chat_generation_terminal_notifications.dart';
 import 'package:oh_my_llm/app/platform/noop_app_window.dart';
 import 'package:oh_my_llm/app/platform/noop_chat_generation_foreground_service.dart';
 import 'package:oh_my_llm/app/platform/noop_chat_generation_terminal_notification_adapter.dart';
 import 'package:oh_my_llm/app/platform/noop_system_notification_settings.dart';
-import 'package:oh_my_llm/app/platform/windows_app_window.dart';
 import 'package:oh_my_llm/app/platform/windows_chat_generation_terminal_notification_adapter.dart';
 import 'package:oh_my_llm/app/platform/windows_notification_host_client.dart';
 import 'package:oh_my_llm/app/platform/windows_system_notification_settings.dart';
@@ -38,7 +36,6 @@ import 'package:oh_my_llm/features/favorites/application/ports/collections_repos
 import 'package:oh_my_llm/features/favorites/application/ports/favorites_repository.dart';
 import 'package:oh_my_llm/features/favorites/data/sqlite_collections_repository.dart';
 import 'package:oh_my_llm/features/favorites/data/sqlite_favorites_repository.dart';
-import 'package:oh_my_llm/features/settings/application/ports/system_notification_settings.dart';
 
 const _viewportSize = Size(1440, 1024);
 
@@ -99,8 +96,13 @@ Future<ProviderContainer> _pumpBootstrappedApp(
     networkLogger: const NoopNetworkLogger(),
     hostPlatform: hostPlatform,
     windowsWindowInitializer: windowsWindowInitializer ?? () async {},
-    notificationPlatformBindingsFactory: notificationPlatformBindingsFactory,
-    appWindowFactory: appWindowFactory,
+    // 默认与 test_harness 同源：任何 hostPlatform 取值都从构造源头阻止真实
+    // MethodChannel client 与 window_manager 触达；case-specific 用例显式
+    // 传参覆盖本默认。
+    notificationPlatformBindingsFactory:
+        notificationPlatformBindingsFactory ??
+        createOtherPlatformChatGenerationNotificationBindings,
+    appWindowFactory: appWindowFactory ?? () => NoopAppWindow(),
   );
   await tester.pump();
 
@@ -109,6 +111,32 @@ Future<ProviderContainer> _pumpBootstrappedApp(
 }
 
 void main() {
+  setUpAll(TestWidgetsFlutterBinding.ensureInitialized);
+
+  test('生产默认绑定在 Windows 平台保持 no-op 前台与真实 Windows 角色', () {
+    // 纯构造级断言：只构造 dispatcher 的生产默认记录并验证角色类型，不触发
+    // initialize/getStatus/focus/pump 等任何生命周期调用——按计划 9.1 的构造
+    // 源头隔离规则，驱动生产默认 adapter 的通道行为不属于测试范围。
+    final bindings = createChatGenerationNotificationPlatformBindings(
+      platform: TargetPlatform.windows,
+    );
+
+    expect(
+      bindings.foregroundService,
+      isA<NoopChatGenerationForegroundService>(),
+    );
+    expect(
+      bindings.terminalAdapter,
+      isA<WindowsChatGenerationTerminalNotificationAdapter>(),
+    );
+    expect(
+      bindings.systemNotificationSettings,
+      isA<WindowsSystemNotificationSettings>(),
+    );
+    // disposeShared 是共享 host client 的唯一释放入口；此处只确认记录形状，
+    // 不调用（真实 client 的释放语义由 Task 7/8 各自的边界测试覆盖）。
+  });
+
   testWidgets('正常启动后渲染聊天页', (tester) async {
     await _pumpBootstrappedApp(tester);
 
@@ -179,27 +207,6 @@ void main() {
 
     final port = container.read(chatGenerationForegroundServiceProvider);
     expect(port, isA<NoopChatGenerationForegroundService>());
-  });
-
-  testWidgets('生产默认绑定在 Windows 平台保持 no-op 前台与真实 Windows 角色', (tester) async {
-    final container = await _pumpBootstrappedApp(tester);
-
-    // 生产路径（不传 factory）按平台默认装配：前台保持 no-op，terminal 与
-    // settings 共享真实 host client，窗口绑定真实 WindowsAppWindow。
-    expect(
-      container.read(chatGenerationForegroundServiceProvider),
-      isA<NoopChatGenerationForegroundService>(),
-    );
-    expect(container.read(appWindowProvider), isA<WindowsAppWindow>());
-    expect(
-      container.read(chatGenerationTerminalNotificationAdapterProvider),
-      isA<WindowsChatGenerationTerminalNotificationAdapter>(),
-    );
-    expect(
-      container.read(systemNotificationSettingsProvider),
-      isA<WindowsSystemNotificationSettings>(),
-    );
-    expect(debugDefaultTargetPlatformOverride, isNull);
   });
 
   testWidgets('bootstrap 的测试 factory 透传不改变生产默认绑定', (tester) async {
