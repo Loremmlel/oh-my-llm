@@ -8,6 +8,7 @@ import 'package:oh_my_llm/app/platform/android_chat_generation_foreground_servic
 import 'package:oh_my_llm/app/platform/android_chat_generation_platform_bridge.dart';
 import 'package:oh_my_llm/app/platform/android_chat_generation_terminal_notification_adapter.dart';
 import 'package:oh_my_llm/app/platform/android_system_notification_settings.dart';
+import 'package:oh_my_llm/app/platform/chat_generation_platform_command_timeout.dart';
 import 'package:oh_my_llm/features/chat/application/generation/chat_generation_notification_payload_codec.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_foreground_service.dart';
 import 'package:oh_my_llm/features/settings/application/ports/system_notification_settings.dart';
@@ -428,6 +429,13 @@ void main() {
   });
 
   group('失败边界', () {
+    test('Dart 侧平台命令超时锁定为 2 秒，与 Kotlin start ACK 超时对齐', () {
+      // 双端锁定：与 Kotlin 契约测试 `start_ACK_Kotlin侧超时与Dart通道超时对齐`
+      // （START_ACK_TIMEOUT_MS == 2000L）互为镜像；任一端改共享超时值都会使
+      // 对应端测试失败，防止 Android 慢设备上两端超时边界漂移。
+      expect(chatGenerationPlatformCommandTimeout, const Duration(seconds: 2));
+    });
+
     test('channel timeout 和 PlatformException 均映射为 fail-open 结果', () async {
       // PlatformException：所有域统一降级，不抛原始异常。
       messenger.setMockMethodCallHandler(channel, (call) async {

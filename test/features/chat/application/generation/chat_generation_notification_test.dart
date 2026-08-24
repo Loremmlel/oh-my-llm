@@ -196,9 +196,12 @@ void main() {
     test('传入 cachedTimeoutActivationPayload 时原样复用，不再重新编码', () async {
       const projector = ChatGenerationNotificationProjector();
       const session = '000102030405060708090a0b0c0d0e0f';
+      // conversationId 用 codec 无法产出的不透明值（给定快照的会话 ID 是
+      // conv-1）：若实现忽略 cached 参数照旧重编码，产物必然与之不同、断言
+      // 失败——钉住「原样复用」语义，而不只是参数存在。
       const cached =
           '{"v":1,"eventKey":"v1:$session:1:foregroundProtectionTimedOut",'
-          '"conversationId":"conv-1"}';
+          '"conversationId":"conv-1::not-parsed::opaque"}';
       final snapshot = ChatGenerationSnapshot(
         generationId: 1,
         conversationId: 'conv-1',

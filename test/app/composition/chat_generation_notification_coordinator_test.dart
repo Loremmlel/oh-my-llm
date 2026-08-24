@@ -868,7 +868,7 @@ void main() {
   });
 
   group('平台失败 fail-open', () {
-    test('start/update 失败将 token 标记不可用，不改变输入快照也不调用 stop', () async {
+    test('通道失败将 token 标记不可用，channelTimeout 例外不判死', () async {
       await coordinator.start();
       port.queuedResults.add(
         Future.value(

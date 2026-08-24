@@ -142,9 +142,10 @@ void main() {
       );
 
       // build 的旧查询随后完成：等框架把 build 结果写回 state 的微任务链
-      // （getStatus 恢复 → _queryStatus 恢复 → build 返回 → 框架 .then 写回）
-      // 排空后再断言。修复后该写回是「同值覆盖」，无可观察事件可当完成信号，
-      // 只能让出微任务；await null 不消耗真实时间，轮数只是给足链路跳数。
+      // （getStatus 恢复 → _queryStatus 恢复 → build 返回 → handleFuture .then
+      // 写回）排空后再断言。写回链实为 4 跳，8 轮 = 2 倍余量；修复后该写回
+      // 是「同值覆盖」，无可观察事件可当完成信号，只能让出微任务。await null
+      // 不消耗真实时间；Riverpod 升级若改变写回跳数，需重核轮数是否仍足量。
       buildGate.complete();
       for (var i = 0; i < 8; i++) {
         await null;

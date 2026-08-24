@@ -36,11 +36,10 @@ void main() {
           appDatabaseProvider.overrideWithValue(database),
           sharedPreferencesProvider.overrideWithValue(preferences),
           customHeadersMapProvider.overrideWith((ref) => const {}),
-          // 固定 Windows 宿主：flutter_test 默认平台是 Android，会绑定真实
-          // MethodChannel adapter 并残留命令超时 Timer；与 test harness 约定一致。
-          // 通知平台件用 no-op 记录（harness 同一约定）：本测试不验证通知，
-          // 且真实 Windows host client 与 Android bridge 一样带命令超时
-          // Timer，绑定会在测试结束时残留 pending Timer。
+          // 固定 Windows 宿主（与 test harness 约定一致）；通知平台件用 no-op
+          // 工厂注入，不创建真实 MethodChannel adapter——本测试不验证通知，
+          // 真实 Windows host client 与 Android bridge 都带命令超时 Timer，
+          // 绑定会在测试结束时残留 pending Timer。
           ...appCompositionOverrides(
             hostPlatform: TargetPlatform.windows,
             notificationPlatformBindingsFactory:

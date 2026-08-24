@@ -11,7 +11,7 @@ import org.junit.Test
 /**
  * 聊天生成通知协议的纯 JVM 测试：token 守卫、载荷解析（含 Dart 预编码超时
  * payload 的类型/长度校验）、终态通知请求解码、request code 推导、
- * timeout fallback 决策、渠道配置常量与设置状态判定。
+ * timeout fallback 决策、终态展示 ACK 决策、渠道配置常量与设置状态判定。
  *
  * 只依赖 Protocol 与 TerminalNotification 中的纯 Kotlin 类型；framework 行为
  * （真实横幅/声音）不在本文件伪装已验证，留给 smoke。
