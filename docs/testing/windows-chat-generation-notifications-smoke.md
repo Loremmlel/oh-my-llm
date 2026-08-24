@@ -14,7 +14,7 @@
 | 第一部分：插件激活 spike | Task 6 | 用仓库外的临时工程验证 `flutter_local_notifications_windows 3.1.1` 在未打包场景下能否被 Toast 点击正确激活 | 7 项验收全部 PASS 之前，禁止开始 Task 7–11 的产品实现 |
 | 第二部分：产品最小 gate | Task 11 / 计划第 11 节 | 用最终产品 build 复验同样的机制，再加产品行为 | 全部 PASS 之前，PR 不得标记 Ready |
 
-**当前状态（2026-08-24 更新）：** 第一部分插件方案已被 runner-owned 方案否决替代（原始 FAIL 证据原样保留于下文）；第三部分 runner-owned spike 人工验收 A–E 已全部 PASS；第二部分产品最小 gate 与第四部分产品级 smoke 清单中的人工项仍为 `PENDING`，待用最终 Release 产品 build 人工执行——在全部 PASS 之前 PR 不得标记 Ready。
+**当前状态（2026-08-24 更新）：** 第一部分插件方案已被 runner-owned 方案否决替代（原始 FAIL 证据原样保留于下文）；第三部分 runner-owned spike 人工验收 A–E 已全部 PASS；第二部分产品最小 gate 与第四部分产品级 smoke 清单的人工核心项已于 2026-08-24 由用户在正式 Release 产品 build 上按 `task-11-user-guide.md` 六组 case 执行完毕并全部 PASS（W5 按当日用户裁决精简为 3 轮，见对应条目备注），仅剩扩展矩阵 W18/W19 允许保持 `PENDING`。
 
 ---
 
@@ -362,24 +362,24 @@ E:\Code\omll-notification-spike\cleanup-spike.ps1 -KeepProjectDir
 
 | # | 场景 | PASS 标准 | 结果 |
 |---|------|-----------|------|
-| G1 | warm 点击 | payload 与导航正确，且只有一个产品进程 | PENDING |
-| G2 | 完全退出后的 cold 点击 | 同上 | PENDING |
-| G3 | 手工启动到 plugin ready 之间点击 | 同上 | PENDING |
-| G4 | 最小化恢复后导航 | 导航行为正常 | PENDING |
-| G5 | 删除会话回退根页 | 会话删除后回退到根页，无崩溃 | PENDING |
+| G1 | warm 点击 | payload 与导航正确，且只有一个产品进程 | **PASS** |
+| G2 | 完全退出后的 cold 点击 | 同上 | **PASS**（按 2026-08-24 用户裁决精简为 3 轮） |
+| G3 | 手工启动到 plugin ready 之间点击 | 同上 | **PASS**（W7/W8/W10 instrumented 变体复验） |
+| G4 | 最小化恢复后导航 | 导航行为正常 | **PASS** |
+| G5 | 删除会话回退根页 | 会话删除后回退到根页，无崩溃 | **PASS** |
 
-G1–G3 每项都必须记录：PID、进程数、AUMID/GUID 表示、从启动到 class registration 的耗时。
+执行口径说明（2026-08-24）：五项 gate 由用户在正式 Release build 上按 `task-11-user-guide.md` 六组 case 人工执行并确认全部 PASS；判定以可观察行为结果为准（导航正确、单实例、无崩溃）。原文要求的 PID/进程数/AUMID/CLSID 表示/class registration 耗时级逐轮明细未留存——行为级结论可信，仪器级明细视为未采集，如实记录于此。
 
 ### 随产品 smoke 一并记录的观察项
 
-- 前台、失焦、最小化三种状态下通知的展示与点击行为。
-- 默认声音在系统声音开启/关闭与专注助手下的实际表现；不声称应用强制响铃。
-- 已知限制（记录即可，不要求人工构造碰撞）：相同通知 ID 碰撞时，后一条通知会覆盖前一条。
-- 同目录覆盖更新后再次点击。
-- 移动安装目录后首次手动启动再点击。
-- 系统设置里的通知入口可直达本应用的通知设置。
+- 前台、失焦、最小化三种状态下通知的展示与点击行为。→ 已执行 PASS（W1/W2/W3）
+- 默认声音在系统声音开启/关闭与专注助手下的实际表现；不声称应用强制响铃。→ 声音开关已执行 PASS（W17）；专注助手属扩展矩阵保持 PENDING（W18）
+- 已知限制（记录即可，不要求人工构造碰撞）：相同通知 ID 碰撞时，后一条通知会覆盖前一条。→ 保持文档记录义务，未构造
+- 同目录覆盖更新后再次点击。→ 已执行 PASS（W13）
+- 移动安装目录后首次手动启动再点击。→ 已执行 PASS（W15）
+- 系统设置里的通知入口可直达本应用的通知设置。→ 已执行 PASS（W16）
 
-上述观察项当前均为 PENDING；其中属于扩展矩阵的部分（其他 Windows 版本、专注助手组合、多个声音设备、多安装位置）按计划允许保持 PENDING。
+除专注助手组合（W18）与多声音设备/多安装位置矩阵（W19）属扩展矩阵允许保持 PENDING 外，其余观察项均已随第四部分人工执行完成。
 
 ### 判定规则
 
@@ -550,28 +550,30 @@ E:\Code\omll-runner-spike\cleanup-spike.ps1 -KeepProjectDir
 | W12 | 同目录覆盖更新 exe 后注册幂等修复（LocalServer32/shortcut 重新指向当次 exe） | **PASS** | Task 7 fix round 1 STEP2A/2B：临时目录安装回读 MATCH → 用新构建产物原位覆盖同目录 exe 重启 → live probe ACK=0 且注册回读对新 exe 全 MATCH（`logs/windows-notification-registration-recovery.log`） |
 | W14 | 移动安装目录后完全退出旧 primary 并首次手工启动，注册自动修复到新路径 | **PASS** | 同日志 STEP3：graceful 关闭旧 primary（无残留）→ rename 目录 → 新路径启动 probe OK → 回读对新路径全 MATCH；STEP4 已把现场恢复回原目录并清理临时树 |
 
-### 人工待执行条目（PENDING）
+### 人工执行条目（2026-08-24 用户按 task-11-user-guide.md 六组 case 执行完毕）
 
-> 除 W17/W18/W19 属扩展矩阵外，以下均为核心 gate 或随产品 smoke 必须记录的观察项；执行时按第二部分要求记录 PID/mode/`flutter_started`、AUMID/CLSID 表示、class registration / relay handoff / pipe ACK 耗时与 payload event key。
+> 除 W18/W19 属扩展矩阵保持 `PENDING` 外，以下核心项全部由用户人工执行并确认 PASS。证据口径：行为级结果（用户确认现象符合预期），未逐项留存 PID/mode/class registration 耗时级仪器明细；W7/W8 使用当日构建的 testing=ON instrumented Debug 变体（`D:\Code\omll-task11-gate\`），其余使用正式 Release build。
 
 | # | 场景 | 结果 | 备注 |
 |---|------|------|------|
-| W1 | 前台状态下终态通知展示与点击 | PENDING | 应用在前台且正在查看其他会话/页面时应展示；查看同一会话时抑制 |
-| W2 | 失焦状态下展示与点击 | PENDING | 点击后窗口恢复并导航到对应会话 |
-| W3 | 最小化恢复后导航（G4） | PENDING | RestoreAndFocus：最小化→restore→focus；后台调用被前台锁拒绝时退化为任务栏闪烁属已知行为，激活导航不受影响 |
-| W4 | warm 点击（G1） | PENDING | spike Case A 曾 PASS（PID 30060），但那是 throwaway 工程，不替代产品 gate |
-| W5 | 完全退出后的 cold 点击 ≥20 轮（G2） | PENDING | 每轮记录新 PID 与 `-Embedding`；spike Case B 仅 2 轮且为 spike 工程 |
-| W6 | 快速连续两条 cold activation | PENDING | 最终只能有一个 Flutter/storage owner；允许短命 relay 有界退出。spike 顺手观察项未执行，与本行口径一致 |
-| W7 | pre-COM 窗口期点击（instrumented Debug build，pre-COM delay=10s）（G3 前半） | PENDING | spike Case C 曾 PASS（relay 短暂出现、无窗口、~1s drain、primary 收到一次）；需在产品源码 instrumented build 上复验 |
-| W8 | post-COM/pre-Flutter 窗口期点击（post-COM delay=10s）（G3 后半） | PENDING | spike Case D 曾 PASS（activation_received 早于 flutter_started、全程单进程）；同样待产品级复验 |
-| W10 | primary warm 时第二次手工双击只恢复/聚焦既有窗口（G3 相关） | PENDING | 不创建第二个 Flutter engine；spike Case E 曾 PASS ×4（secondary 全部 ack=0 + exit 0），待产品复验 |
-| W11 | 删除会话回退根页（G5） | PENDING | 会话删除后点击其通知应回退根页，无崩溃 |
-| W13 | 同目录覆盖更新后点击 Toast 并正确交付 payload | PENDING | W12 只证明注册幂等修复；点击交付链路待人工 |
-| W15 | 移动目录后首次手工启动再点击 Toast | PENDING | W14 只证明注册修复到新路径 |
-| W16 | 系统设置入口可直达本应用的通知设置 | PENDING | 实现为 `explorer.exe ms-settings:notifications`（`windows_system_notification_settings.dart`），invoke 契约有自动化（`windows_system_notification_settings_test.dart`），实际打开系统页面待人工确认 |
-| W17 | 默认声音表现：系统声音开启/关闭下的实际表现 | PENDING | Windows 端不显式配置声音（Toast XML 无 audio 元素）；不声称应用强制响铃 |
+| W1 | 前台状态下终态通知展示与点击 | **PASS** | 应用在前台且正在查看其他会话/页面时展示；查看同一会话时抑制 |
+| W2 | 失焦状态下展示与点击 | **PASS** | 点击后窗口恢复并导航到对应会话 |
+| W3 | 最小化恢复后导航（G4） | **PASS** | RestoreAndFocus 行为正常；若仅任务栏闪烁属已知前台锁退化，激活导航不受影响 |
+| W4 | warm 点击（G1） | **PASS** | 产品 build 复验 spike Case A 结论；单实例、payload 与导航正确 |
+| W5 | 完全退出后的 cold 点击（G2） | **PASS** | 按当日用户裁决精简为 3 轮（计划原文 ≥20 轮，PR 如实记录该精简及理由：沿用 Task 6B 精简先例，关键 race case 全保留）；3 轮均单 Flutter owner 接管并正确导航 |
+| W6 | 快速连续两条 cold activation | **PASS** | 最终只有一个 Flutter/storage owner；短暂 relay 属预期有界退出 |
+| W7 | pre-COM 窗口期点击（instrumented Debug build，pre-COM delay=5s 变体）（G3 前半） | **PASS** | 产品源码 instrumented 变体复验 spike Case C 结论：短命 relay 无窗口秒级退出，唯一 Flutter owner 收到 payload 并导航 |
+| W8 | post-COM/pre-Flutter 窗口期点击（post-COM delay=8s 变体）（G3 后半） | **PASS** | 产品源码 instrumented 变体复验 spike Case D 结论：activation 先于 engine 就绪入队，就绪后一次交付，无第二进程 |
+| W10 | primary warm 时第二次手工双击只恢复/聚焦既有窗口（G3 相关） | **PASS** | 不创建第二个 Flutter engine，既有窗口被带到前台 |
+| W11 | 删除会话回退根页（G5） | **PASS** | 删除会话后点击其旧通知回退根页，无崩溃 |
+| W13 | 同目录覆盖更新后点击 Toast 并正确交付 payload | **PASS** | 覆盖同名 exe 后启动、触发、点击交付链路完整 |
+| W15 | 移动目录后首次手工启动再点击 Toast | **PASS** | 目录改名后从新路径启动，注册自动修复，触发生成与点击交付正常 |
+| W16 | 系统设置入口可直达本应用的通知设置 | **PASS** | 设置页系统通知卡片按钮实际打开 Windows 系统通知设置页 |
+| W17 | 默认声音表现：系统声音开启/关闭下的实际表现 | **PASS** | 声音跟随系统设置；应用不强制响铃即为 PASS 口径 |
 | W18 | 专注助手组合下的表现 | PENDING | 扩展矩阵，允许保持 PENDING |
 | W19 | 多声音设备 / 多安装位置矩阵 | PENDING | 扩展矩阵，允许保持 PENDING |
+
+变体 delay 参数说明：W7/W8 实际使用的 instrumented 变体为 pre-COM delay 5s / post-COM delay 8s（Task 6B 先例同款参数，足以覆盖竞态窗口），非本表早先占位文字的 10s。
 
 ### 已知限制记录（文档义务，非验证项）
 
@@ -581,7 +583,7 @@ E:\Code\omll-runner-spike\cleanup-spike.ps1 -KeepProjectDir
 
 ### 统计与判定规则
 
-- 本部分条目统计：PASS 3（W9/W12/W14）/ PENDING 16 / FAIL 0；另有三条已知限制为文档记录义务。
+- 本部分条目统计：PASS 17（自动化 W9/W12/W14 + 人工 W1–W8/W10/W11/W13/W15–W17）/ PENDING 2（W18/W19 扩展矩阵，允许保持）/ FAIL 0；另有三条已知限制为文档记录义务。人工项执行日期 2026-08-24，执行者为用户本人（行为级确认），证据口径见「人工执行条目」导言。
 - 核心 gate（W4–W11 及 G1–G5）不允许 `PENDING`：任一 FAIL 停止 Ready 并修复；无法执行则 PR 保持 draft。
 - 只有扩展矩阵（W18/W19 及其他 Windows 版本、专注助手组合、多个声音设备、多安装位置）允许保持 `PENDING`。
 - 两边都 PASS 才能 Ready：Android 半边记录在 `docs/testing/android-chat-generation-foreground-service-smoke.md` §6。

@@ -64,3 +64,55 @@ RED 清单逐项覆盖位置：token 解析/模式决策/ready 语义/DACL+失�
 5. **pipe `Start` 的可达性等待**引入最多 5s 的启动上界（仅当 CreateNamedPipeW 卡死才触界）；正常毫秒级，测试不再需要固定 sleep。
 6. main.cpp 的 kFatal 路径直接退出进程（无法判定唯一 owner 时不冒险启动第二个 Flutter），与计划一致；这是产品层面的取舍而非缺陷。
 7. 本机曾以前任损坏状态运行过一次 Release 构建（注册可能写过旧路径），本次回读已由当前构建重新覆盖为全 MATCH。
+
+## Fix round 1（2026-08-24，第三接管会话续）
+
+- 分支：`feat/cross-platform-generation-notifications`，起点 `a32e0d5`
+- Commit：`5ad80f0` `fix(windows): 补齐通知队列满诊断标记并适配原生测试生成器探测`（post-commit hook 自动 bump 3.78.1+0 → 3.78.2+0 并 amend 回本次提交，属正常行为；3 文件 +283/-2）
+- 结论：**DONE**（scope 仅限两个 Important；7 条 Minor 按协调方边界一律未动）
+- 接管说明：首任留下的两处未提交改动方向正确、经本会话核实后沿用；第二任因本机缺 cmake 无产物。本轮所有证据均为本会话重新落盘（Task 7 旧日志已被清理）。
+
+### Important 1：`native_activation_queue_full` 固定诊断 token
+
+**「两路收敛单点」核实结论：属实。** 全量枚举生产代码 Push 调用点：
+
+1. 唯一生产入队封装是 `WindowsNotificationEnqueueActivationForUi`（activator.cpp），返回 false 当且仅当 `Push` 失败。
+2. 其生产调用方仅两处：host.cpp pipe handler（kind=activation，false → ACK `kWindowsNotificationAckQueueFull`）与 host.cpp STA sink lambda（activator `Activate` → `shared->sink(payload)` 进入）。
+3. 超长 payload 分支对两条路径均不可达：STA 路径在 `Activate` 内显式预检长度；pipe 路径由 server 解码层拒绝超长帧后才回调 handler。故该封装返回 false 只可能由队列满引起。
+4. 每次点击事件只经其中一条路径（RPCSS→STA 或 relay→pipe），各调 Push 恰好一次 → `OutputDebugStringW(kNativeActivationQueueFullToken)` 单点触发恰好一次，无重复记录。
+
+一处诚实披露（不属两条拒绝路径、未改动）：晋升回填循环（host.cpp 把 relay 捕获的 undelivered payload 补进队列）也调 Push 但忽略返回值——理论上 relay ≤15s 寿命窗口内积压 >32 条时溢出丢弃不会有 token。极端边角场景，留待 review triage 记账。
+
+**测试断言（新增，含 red/green）：** `TestQueueFullDiagnosticToken` + 子进程模式 `--emit-queue-full-token`。子进程把队列填满后触发满分支真实执行一次诊断输出；父进程以 `DEBUG_ONLY_THIS_PROCESS` 启动子进程并在调试事件循环中捕获。实测发现：本机旧式 `WaitForDebugEvent` 调试通道把宽字符 OutputDebugStringW **降级为 ANSI 形态的 OUTPUT_DEBUG_STRING_EVENT 送达（fUnicode=0）**，已按 ANSI/宽字符事件与 DBG_PRINTEXCEPTION_C/WIDE_C 打印异常三种形态兼容处理；全程有界超时（20s 总上界 + 杀进程排空清理）。red/green：暂时注释诊断输出行后重建，仅新用例 FAIL（127 checks 1 failure）；恢复后全绿。
+
+### Important 2：brief「产品注册回读」补证
+
+全部四步编排通过，日志见 `logs/windows-notification-registration-recovery.log`（每步含 pid/probe 输出/回读全文/关闭方式/残留检查）：
+
+| 步骤 | 内容 | 结果 |
+| --- | --- | --- |
+| STEP1（brief ①，替代口径） | 启动原目录 Release 构建 → `--probe-live-primary` 探测帧 ACK status=0 → 注册回读 VERIFY_EXIT=0 全 MATCH | PASS |
+| STEP2A/2B（brief ②） | 临时安装目录完整复制 Release 输出并验证 MATCH → 用构建产物原位覆盖同目录 exe 重启 → 再次全 MATCH | PASS |
+| STEP3（brief ③） | 完全退出旧 primary（graceful close + residual=False）→ Rename installed→moved → 从新路径启动 → probe OK + 注册回读对新路径全 MATCH | PASS |
+| STEP4（现场恢复） | 从原目录再启动一次使注册幂等修复回原路径 → 全 MATCH → graceful 关闭无残留 → 删除临时目录树 | PASS |
+
+**替代口径声明（brief ①）：** 运行中宿主的 available=true 属 Flutter engine 内 Dart 可见的 channel 状态，不改生产代码无法在编排脚本中直接读取；按协调方裁决采用等价组合证据——live probe（ACK status=0 证明 primary 在线且 pipe server 健康）+ 注册回读（7/7 MATCH 证明固定身份注册正确）。这是替代口径而非直接字段回读。
+
+**未执行项：** brief 第四条固定 Toast 点击 smoke 维持能力声明口径，本轮未执行（真实 Toast 点击链路由 Task 6B spike 实测与 Task 11 产品 smoke 承接）。
+
+### generator 适配方案（scripts/test-windows-notification-host.ps1）
+
+- 不再硬编码 `'Visual Studio 17 2022'`：新增 `Select-CmakeVsGenerator`——vswhere `-requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64` 探测已安装版本，从新到旧在 {18→VS 18 2026, 17→VS 17 2022, 16→VS 16 2019} 降级选择；vswhere 缺失时退化为 ProgramFiles 安装目录探测；均未命中则显式 FAIL。本机实测选中 VS 18 2026（唯一安装实例）。
+- 陈旧缓存处理：新增 `Assert-BuildDirMatchesGenerator` 读各构建目录 CMakeCache.txt 的 CMAKE_GENERATOR，与探测结果不一致则删除该目录重配（本次实测清掉了前任遗留的 VS17 缓存 `notification-host-test`）。
+- `flutter build windows` 在本机正常（EXIT=0），无需绕过 Flutter 工具链。
+
+### 验证命令与证据文件清单（均在仓库根 logs/，不入库）
+
+| 验证 | 命令 | 结果 |
+| --- | --- | --- |
+| 原生测试 + configure 矩阵（正式 green） | `.\scripts\test-windows-notification-host.ps1` → `logs/windows-notification-host-fix1-native.log` | EXIT=0；矩阵 4 PASS；127/127 checks |
+| red 证据 | 同上加 `-SkipConfigureMatrix` 且临时注释诊断输出行 → `logs/windows-notification-host-fix1-native-red.log` | EXIT=1；恰好仅「队列满拒绝在调试通道留下固定诊断 token」FAIL |
+| 产品构建 | `flutter build windows` → `logs/build-windows-fix1.log` | EXIT=0 |
+| 产品回读编排 | Start-Process/CloseMainWindow + `--probe-live-primary` / `--verify-product-registration` → `logs/windows-notification-registration-recovery.log` | STEP1–4 全 PASS，现场已恢复 |
+
+`logs/windows-notification-host-fix1-debug.log` 为定位 ANSI 事件形态时的插桩运行记录（可再生，非正式证据链）。本轮无 .dart 改动，dart format 不适用。

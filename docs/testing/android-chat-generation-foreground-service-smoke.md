@@ -175,28 +175,35 @@ adb shell am compat disable FGS_INTRODUCE_TIME_LIMITS yuzu.shiki.oh_my_llm
 
 本节属于计划 `docs/plans/2026-08-22-cross-platform-generation-terminal-notifications.md` 第 11 节「Ready 前最小原生 gate」的 Android 半边，与 §2 的旧前台服务矩阵**相互独立、互不替代**：§2 验证 ongoing 前台服务生命周期；本节验证生成**终态通知**（HIGH channel、激活与抑制）。诚实记录原则同前：未在真机上实际执行的行保持 `PENDING`，自动化证据只能支撑其标注的那一行，不得外推为真机 PASS。
 
-**执行状态（2026-08-24 回填时）：** `adb devices` 为空，无任何 Android 设备接入；除 A2 这类纯配置级条目有当日重跑的单测证据外，其余全部 `PENDING`，缺失前置条件均为「无受支持 emulator/设备接入」。
+**执行状态（2026-08-24 第二次更新）：** 用户已在 Android Studio 模拟器（emulator-5554）上人工执行计划「Android 最小原生 gate」四项核心（A1/A8/A10/A11），全部 PASS；执行包为 debug build（覆盖安装保留数据），证据口径为用户行为级确认，未留存 logcat/dumpsys 级明细（G2 缺陷诊断期间曾采集 45868 行 logcat 作为缺陷证据，见下方记录）。其余条目仍为 `PENDING`。
 
 | # | gate 场景 | 结果 | 证据 / 缺失前置条件 |
 |---|---|---|---|
-| A1 | 生成成功后出现 `chat_generation_result` HIGH 终态通知 | PENDING | 无真机。自动化佐证：Dart 收据→通知映射单测全绿（`test/app/notifications/default_chat_generation_terminal_notifications_test.dart` 等；全量 2265 例过，`logs/fltest.log` EXIT=0，2026-08-24） |
+| A1 | 生成成功后出现 `chat_generation_result` HIGH 终态通知 | **PASS** | 2026-08-24 用户模拟器人工确认：生成完成后 HIGH 终态通知出现并可点击。自动化佐证：Dart 收据→通知映射单测全绿（`logs/fltest.log` EXIT=0，2026-08-24） |
 | A2 | HIGH channel 配置正确：`IMPORTANCE_HIGH` + 默认声音 + 振动启用，且与 ongoing LOW channel 分离 | **PASS** | 源码 `ChatGenerationTerminalNotification.kt`（`CHANNEL_IMPORTANCE = IMPORTANCE_HIGH`、`setSound` / `enableVibration`）；Kotlin 单测 40/40 当日重跑 EXIT=0（`logs/task11-kotlin-unittest.log`，JAVA_HOME 用 Android Studio JBR）；范围审计确认 `ONGOING_CHANNEL_IMPORTANCE = IMPORTANCE_LOW` 与 terminal channel 分离 |
-| A3 | 默认声音实际表现（横幅/响铃由系统通知音量、静音模式等设备设置控制） | PENDING | 无真机；允许记录「channel 配置正确但设备静音」，不得把设备静音判成实现 FAIL |
-| A4 | 空回复终态通知（`emptyReply` 固定分类摘要） | PENDING | 无真机 |
-| A5 | 最终失败终态通知（network/timeout/authentication/rateLimited/server 等固定分类摘要，无原始异常） | PENDING | 无真机 |
-| A6 | 持久化失败终态通知 | PENDING | 无真机 |
-| A7 | 保护超时 fallback（`foregroundProtectionTimedOut` 收据 + Kotlin 固定 fallback） | PENDING | 无真机；超时注入仅限专用测试设备并按 §1.4 流程执行 |
-| A8 | 精确会话抑制：应用前台正在查看同一会话时不弹终态通知 | PENDING | 无真机。自动化佐证：`app_attention_observer_test.dart` 与深模块单测覆盖注意力判定逻辑 |
-| A9 | 其他会话 / 其他页面时展示终态通知 | PENDING | 无真机 |
-| A10 | 点击终态通知打开精确会话 | PENDING | 无真机 |
-| A11 | 现有 ongoing 通知点击仍打开对应会话（旧契约保留，只有旧 LOW 终态点击路径被替换） | PENDING | 无真机。自动化佐证：coordinator 生产调用 `takePendingOpenConversation`（`lib/app/composition/chat_generation_notification_coordinator.dart:151/451`）+ 回归测试全绿（`chat_generation_notification_coordinator_test.dart`、`chat_generation_notification_integration_test.dart`） |
-| A12 | warm 点击（应用进程存活时点终态通知） | PENDING | 无真机 |
-| A13 | cold 点击（进程不在时点通知拉起应用并直达会话） | PENDING | 无真机 |
-| A14 | 已删除会话回退（点击指向已删除会话的通知回退根页，不崩溃） | PENDING | 无真机 |
-| A15 | 权限拒绝：revoke `POST_NOTIFICATIONS` 后发送不中断、不重复弹权限 | PENDING | 无真机；复位命令见 §1.1 |
-| A16 | 设置入口：设置页显示系统通知状态卡并可打开系统通知设置 | PENDING | 无真机。自动化佐证：`system_notification_status_controller_test.dart`（3 例）+ `settings_screen_test.dart` 全绿（`logs/settings-system-notifications-green.log` 等） |
+| A3 | 默认声音实际表现（横幅/响铃由系统通知音量、静音模式等设备设置控制） | PENDING | 未在受控声音开关组合下执行；允许记录「channel 配置正确但设备静音」，不得把设备静音判成实现 FAIL |
+| A4 | 空回复终态通知（`emptyReply` 固定分类摘要） | PENDING | 未构造空回复场景 |
+| A5 | 最终失败终态通知（network/timeout/authentication/rateLimited/server 等固定分类摘要，无原始异常） | PENDING | 未注入故障服务端 |
+| A6 | 持久化失败终态通知 | PENDING | 未构造持久化失败场景 |
+| A7 | 保护超时 fallback（`foregroundProtectionTimedOut` 收据 + Kotlin 固定 fallback） | PENDING | 超时注入仅限专用测试设备并按 §1.4 流程执行；本次未执行 |
+| A8 | 精确会话抑制：应用前台正在查看同一会话时不弹终态通知 | **PASS** | 2026-08-24 用户模拟器人工确认抑制行为符合预期。自动化佐证：`app_attention_observer_test.dart` 与深模块单测覆盖注意力判定逻辑 |
+| A9 | 其他会话 / 其他页面时展示终态通知 | PENDING | 未单独执行（与 A1 同路径但未独立观察） |
+| A10 | 点击终态通知打开精确会话 | **PASS** | 2026-08-24 用户模拟器复验通过：点击 HIGH 终态通知直达对应会话、无异常页面闪现（含 G2 缺陷修复后的 green 复验，见下节）。自动化佐证：激活链路单测/集成测试全绿 |
+| A11 | 现有 ongoing 通知点击仍打开对应会话（旧契约保留，只有旧 LOW 终态点击路径被替换） | **PASS** | 2026-08-24 用户模拟器确认 LOW ongoing 通知点击正常直达会话（G2 诊断对照项）。自动化佐证：coordinator 生产调用 `takePendingOpenConversation` + 回归测试全绿 |
+| A12 | warm 点击（应用进程存活时点终态通知） | PENDING | 未单独区分 warm/cold 执行（用户验证的 HIGH 点击发生在进程存活的 DELIVERED_TO_TOP 投递路径，logcat 已证实） |
+| A13 | cold 点击（进程不在时点通知拉起应用并直达会话） | PENDING | 本次未执行 cold 路径 |
+| A14 | 已删除会话回退（点击指向已删除会话的通知回退根页，不崩溃） | PENDING | 未执行 |
+| A15 | 权限拒绝：revoke `POST_NOTIFICATIONS` 后发送不中断、不重复弹权限 | PENDING | 未执行；复位命令见 §1.1 |
+| A16 | 设置入口：设置页显示系统通知状态卡并可打开系统通知设置 | PENDING | 未执行。自动化佐证：`system_notification_status_controller_test.dart`（3 例）+ `settings_screen_test.dart` 全绿 |
 
-**统计：PASS 1（A2 配置级）/ PENDING 15 / FAIL 0。**
+**统计：PASS 5（A1/A2/A8/A10/A11）/ PENDING 11 / FAIL 0。**
+
+### G2 缺陷记录（2026-08-24 发现并修复，red/green 完整）
+
+- **现象（red）**：debug 包上点击 HIGH 终态通知跳转应用时，先闪现 GoRouter「未找到页面：oh-my-llm://generation-notification/&lt;id&gt;」页面再正常渲染目标会话；LOW ongoing 通知点击无此现象。
+- **根因**：终态通知 PendingIntent 携带 data URI（`oh-my-llm://generation-notification/<id>`）；Flutter embedding 对带 data 的启动/onNewIntent intent 自动把 dataString 转发为 Flutter 路由 → GoRouter 无匹配路由渲染 404 页 → 随后自有 payload 链路（KEY_PAYLOAD extra → method channel）接管导航。消费链路全程无人读 intent.data。
+- **修复**：commit `9476862` 移除 data URI（对计划 §7.4/:595、§7.5/:619 的有意偏离，偏离裁决记录于 SDD ledger）；PendingIntent 区分性由 request code 同源于通知 ID 单独保证；JVM 定向测试 EXIT=0（`logs/android-jvm-data-uri-fix-green.log`）。已知残留：升级安装前发出的旧通知点击仍带旧 data URI 闪现一次 404，一次性自愈。
+- **green**：3.81.2 debug 包覆盖安装后用户复验——HIGH 终态通知点击直接进入对应会话，无任何异常页闪现；LOW ongoing 对照正常。本缺陷关闭。
 
 ### 判定规则（与计划第 11/14 节一致）
 
