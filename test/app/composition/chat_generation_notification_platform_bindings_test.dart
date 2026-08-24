@@ -28,6 +28,7 @@ import 'package:oh_my_llm/app/platform/windows_system_notification_settings.dart
 import 'package:oh_my_llm/app/router/app_router.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/chat/application/generation/chat_generation_lifecycle.dart';
+import 'package:oh_my_llm/features/chat/application/generation/chat_generation_notification_payload_codec.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_foreground_service.dart';
 import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_controller.dart';

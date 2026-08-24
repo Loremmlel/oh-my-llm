@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/app/notifications/chat_generation_terminal_notification_adapter.dart';
 import 'package:oh_my_llm/app/platform/windows_chat_generation_terminal_notification_adapter.dart';
 import 'package:oh_my_llm/app/platform/windows_notification_host_client.dart';
+import 'package:oh_my_llm/features/chat/application/generation/chat_generation_notification_payload_codec.dart';
 
 /// 构造合法 eventKey：`v1:<32 位 hex>:<generation>:succeeded`。
 String _eventKey(int generation) => 'v1:${'a' * 32}:$generation:succeeded';

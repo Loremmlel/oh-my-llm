@@ -1,5 +1,6 @@
 import 'package:oh_my_llm/app/notifications/chat_generation_terminal_notification_adapter.dart';
 import 'package:oh_my_llm/app/platform/android_chat_generation_platform_bridge.dart';
+import 'package:oh_my_llm/features/chat/application/generation/chat_generation_notification_payload_codec.dart';
 
 /// Android 终态通知窄 adapter。
 ///

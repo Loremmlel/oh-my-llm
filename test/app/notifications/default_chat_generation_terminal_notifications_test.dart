@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/app/attention/app_attention_state.dart';
 import 'package:oh_my_llm/app/notifications/chat_generation_terminal_notification_adapter.dart';
 import 'package:oh_my_llm/app/notifications/default_chat_generation_terminal_notifications.dart';
+import 'package:oh_my_llm/features/chat/application/generation/chat_generation_notification_payload_codec.dart';
 import 'package:oh_my_llm/features/chat/application/generation/chat_generation_terminal_notification.dart';
 
 /// 固定测试进程会话 ID（与计划 5.2 预核对向量一致）。

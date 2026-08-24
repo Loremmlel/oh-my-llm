@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 
 import 'package:oh_my_llm/app/notifications/chat_generation_terminal_notification_adapter.dart';
 import 'package:oh_my_llm/app/platform/chat_generation_platform_command_timeout.dart';
+import 'package:oh_my_llm/features/chat/application/generation/chat_generation_notification_payload_codec.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_foreground_service.dart';
 import 'package:oh_my_llm/features/settings/application/ports/system_notification_settings.dart';
 

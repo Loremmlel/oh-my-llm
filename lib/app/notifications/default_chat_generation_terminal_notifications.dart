@@ -11,6 +11,7 @@ import 'package:oh_my_llm/app/notifications/chat_generation_terminal_notificatio
 import 'package:oh_my_llm/app/notifications/terminal_notification_suppression.dart';
 import 'package:oh_my_llm/app/platform/noop_chat_generation_terminal_notification_adapter.dart';
 import 'package:oh_my_llm/app/router/app_router.dart';
+import 'package:oh_my_llm/features/chat/application/generation/chat_generation_notification_payload_codec.dart';
 import 'package:oh_my_llm/features/chat/application/generation/chat_generation_terminal_notification.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_terminal_notifications.dart';
 import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_controller.dart';

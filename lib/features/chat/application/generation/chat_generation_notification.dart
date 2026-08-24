@@ -3,12 +3,11 @@ import 'dart:math' as math;
 import 'package:characters/characters.dart';
 import 'package:equatable/equatable.dart';
 
-import 'package:oh_my_llm/app/notifications/chat_generation_terminal_notification_adapter.dart';
-
 import '../../domain/chat_word_counter.dart';
 import '../ports/chat_generation_foreground_service.dart';
 import '../sessions/chat_sessions_state.dart';
 import 'chat_generation_lifecycle.dart';
+import 'chat_generation_notification_payload_codec.dart';
 import 'chat_generation_terminal_notification.dart';
 
 /// 通知标题最大字符簇数；超限时保留 47 个字符并追加单个「…」。

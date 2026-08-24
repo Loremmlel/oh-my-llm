@@ -8,6 +8,7 @@ import 'package:oh_my_llm/app/platform/android_chat_generation_foreground_servic
 import 'package:oh_my_llm/app/platform/android_chat_generation_platform_bridge.dart';
 import 'package:oh_my_llm/app/platform/android_chat_generation_terminal_notification_adapter.dart';
 import 'package:oh_my_llm/app/platform/android_system_notification_settings.dart';
+import 'package:oh_my_llm/features/chat/application/generation/chat_generation_notification_payload_codec.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_foreground_service.dart';
 import 'package:oh_my_llm/features/settings/application/ports/system_notification_settings.dart';
 
