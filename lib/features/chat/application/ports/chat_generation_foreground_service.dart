@@ -88,7 +88,9 @@ enum ChatGenerationNotificationActionKind {
 /// 投递给原生前台服务的脱敏通知载荷。
 ///
 /// 所有文本字段均已由 projector 本地化、截断并脱敏；原生侧只显示这些字段，
-/// 不解析任何 domain JSON。
+/// 不解析任何 domain JSON。[timeoutActivationPayload] 是唯一例外：它由共享
+/// Dart codec 预编码，原生侧只保存并在前台保护超时 fallback 中原样返回，
+/// 同样不解析内容。
 final class ChatGenerationForegroundPayload extends Equatable {
   const ChatGenerationForegroundPayload({
     required this.token,
@@ -99,6 +101,7 @@ final class ChatGenerationForegroundPayload extends Equatable {
     required this.publicText,
     required this.actionKind,
     this.actionLabel,
+    this.timeoutActivationPayload,
   });
 
   /// 当前进程内的 generation token（即 generationId），用于乱序保护。
@@ -125,6 +128,15 @@ final class ChatGenerationForegroundPayload extends Equatable {
   /// 动作按钮文案；[actionKind] 为 none 时为 null。
   final String? actionLabel;
 
+  /// Dart 预编码的 foregroundProtectionTimedOut 激活 payload（严格 v1 JSON，
+  /// 只含 v/eventKey/conversationId 三键且不超过 1024 UTF-8 bytes）。
+  ///
+  /// 由共享 codec 按 `v1:<notificationSessionId>:<token>:foregroundProtectionTimedOut`
+  /// 预编码；Kotlin 只保存并在前台保护超时 fallback 的 PendingIntent 中原样
+  /// 返回，不解析 event key、不复刻 JSON/session 规则。null 时原生侧按协议
+  /// 不符拒绝（fail-open）。
+  final String? timeoutActivationPayload;
+
   @override
   List<Object?> get props => [
     token,
@@ -135,6 +147,7 @@ final class ChatGenerationForegroundPayload extends Equatable {
     publicText,
     actionKind,
     actionLabel,
+    timeoutActivationPayload,
   ];
 }
 
@@ -154,7 +167,10 @@ final class ChatGenerationStopRequested extends ChatGenerationForegroundAction {
   final String conversationId;
 }
 
-/// 用户点击了「查看详情」，请求打开指定会话。
+/// 用户点击了 ongoing 通知，请求打开指定会话。
+///
+/// 只承载既有 Android ongoing 前台通知的点击直达会话契约；新终态通知的
+/// 点击激活走终态通知深模块，不经本动作。
 final class ChatGenerationOpenConversationRequested
     extends ChatGenerationForegroundAction {
   const ChatGenerationOpenConversationRequested(this.conversationId);
@@ -179,9 +195,9 @@ final class ChatGenerationForegroundTimedOut
 /// 非 Android 绑定 no-op。
 ///
 /// 端口方法返回可观察的成功/失败结果，但调用方不得把失败转换成聊天失败。
-/// [dispose] 只释放 Dart 侧 MethodChannel handler / stream controller，
-/// 不清理 generation state；原生 engine detach 清理由
-/// `ChatGenerationForegroundChannel.dispose()` 通知 Service 完成。
+/// 端口不拥有 MethodChannel；[dispose] 只释放实现自身的动作转发资源，
+/// 不清理 generation state，原生回调 handler 与通道的清理由共享 bridge 的
+/// dispose 路径统一完成（composition 持有 bridge 生命周期）。
 abstract interface class ChatGenerationForegroundServicePort {
   /// 查询并按需请求 Android 通知权限。
   Future<ChatNotificationPermissionStatus> ensureNotificationPermission();
@@ -196,16 +212,14 @@ abstract interface class ChatGenerationForegroundServicePort {
     ChatGenerationForegroundPayload payload,
   );
 
-  /// 成功/取消时移除前台通知并停止服务。
+  /// 所有终态与取消时移除前台通知并停止服务。
+  ///
+  /// 终态展示不再走前台通道：失败/空回复等普通错误通知职责已移交终态通知
+  /// 端口，本端口只保留 ongoing 前台服务的清理职责。
   Future<ChatForegroundCommandResult> remove({
     required int token,
     required String conversationId,
   });
-
-  /// 失败时停止前台服务并留下普通错误通知。
-  Future<ChatForegroundCommandResult> fail(
-    ChatGenerationForegroundPayload payload,
-  );
 
   /// 来自通知的 stopRequested / openConversationRequested / timeout 动作。
   Stream<ChatGenerationForegroundAction> get actions;
