@@ -10,7 +10,7 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
     private val channelName = "yuzu.shiki.oh_my_llm/multicast_lock"
     private var multicastLock: WifiManager.MulticastLock? = null
-    private var chatGenerationChannel: ChatGenerationForegroundChannel? = null
+    private var chatGenerationChannel: ChatGenerationNotificationChannel? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -29,16 +29,16 @@ class MainActivity : FlutterActivity() {
                 }
             }
         // 现有 multicast channel 保持原样，不在本功能中重构。
-        chatGenerationChannel = ChatGenerationForegroundChannel(
+        chatGenerationChannel = ChatGenerationNotificationChannel(
             activity = this,
             messenger = flutterEngine.dartExecutor.binaryMessenger,
-        ).also { it.handleOpenConversationIntent(intent) }
+        ).also { it.handleNotificationIntent(intent) }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        chatGenerationChannel?.handleOpenConversationIntent(intent)
+        chatGenerationChannel?.handleNotificationIntent(intent)
     }
 
     override fun onRequestPermissionsResult(

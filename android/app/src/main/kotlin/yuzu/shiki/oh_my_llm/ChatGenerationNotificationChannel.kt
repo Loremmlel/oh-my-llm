@@ -9,18 +9,20 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
 import androidx.core.app.ActivityCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 
 /**
- * 聊天生成前台服务的原生 MethodChannel：接收 Dart 的命令，持有 start 的
- * 挂起结果（按原生内部递增 commandId 关联），并暴露 companion 回调供
- * Service 回 ACK / 发送 stop/open/timeout 事件。任何通道失败都映射为固定
- * 失败分类，不向 Dart 抛出、不记录 payload 或异常原文。
+ * 聊天生成通知的原生 MethodChannel：接收 Dart 的命令（前台服务、终态通知、
+ * 系统设置三类职责共享一条通道），持有 start 的挂起结果（按原生内部递增
+ * commandId 关联），并暴露 companion 回调供 Service 回 ACK / 发送 stop/open/
+ * timeout/notificationActivated 事件。任何通道失败都映射为固定失败分类，
+ * 不向 Dart 抛出、不记录 payload 或异常原文。
  */
-class ChatGenerationForegroundChannel(
+class ChatGenerationNotificationChannel(
     private val activity: Activity,
     messenger: BinaryMessenger,
 ) : MethodChannel.MethodCallHandler {
@@ -44,14 +46,30 @@ class ChatGenerationForegroundChannel(
             METHOD_START_FOREGROUND_GENERATION -> handleStart(call, result)
             METHOD_UPDATE_FOREGROUND_GENERATION -> handleUpdate(call, result)
             METHOD_REMOVE_FOREGROUND_GENERATION -> handleRemove(call, result)
-            METHOD_FAIL_FOREGROUND_GENERATION -> handleFail(call, result)
             METHOD_TAKE_PENDING_OPEN_CONVERSATION -> handleTakePendingOpenConversation(result)
+            METHOD_SHOW_TERMINAL_NOTIFICATION -> handleShowTerminalNotification(call, result)
+            METHOD_TAKE_PENDING_NOTIFICATION_ACTIVATION ->
+                handleTakePendingNotificationActivation(result)
+            METHOD_GET_NOTIFICATION_SETTINGS_STATUS ->
+                handleGetNotificationSettingsStatus(result)
+            METHOD_OPEN_NOTIFICATION_SETTINGS -> handleOpenNotificationSettings(result)
             else -> result.notImplemented()
         }
     }
 
     /**
-     * 通知打开会话：总是先缓存到最后 conversation ID（冷启动兜底），
+     * 通知点击 Intent 分发：ongoing 点击直达会话与终态/fallback 点击激活是
+     * 两条互不重叠的窄路径，按 action 显式路由；未知 action 静默忽略。
+     */
+    fun handleNotificationIntent(intent: Intent?) {
+        when (intent?.action) {
+            NOTIFICATION_ACTION_OPEN_CONVERSATION -> handleOpenConversationIntent(intent)
+            NOTIFICATION_ACTION_GENERATION_ACTIVATED -> handleNotificationActivatedIntent(intent)
+        }
+    }
+
+    /**
+     * ongoing 通知点击打开会话：总是先缓存到最后 conversation ID（冷启动兜底），
      * 再向 warm engine 发送 openConversationRequested；Dart 受理返回 true
      * 时清除该缓存，避免经 stream 与 takePendingOpenConversation 双重投递。
      */
@@ -60,6 +78,18 @@ class ChatGenerationForegroundChannel(
         if (conversationId.isBlank()) return
         pendingOpenConversation = conversationId
         emitOpenConversation(conversationId)
+    }
+
+    /**
+     * 终态通知/timeout fallback 点击激活：payload 原样缓存到单槽（后一次覆盖
+     * 前一次），再向 warm engine 发送 notificationActivated；Dart 受理返回 true
+     * 时清槽，否则留给 takePendingNotificationActivation 取走一次。
+     */
+    fun handleNotificationActivatedIntent(intent: Intent) {
+        val payload = intent.getStringExtra(KEY_PAYLOAD) ?: return
+        if (payload.isEmpty()) return
+        pendingNotificationActivation = payload
+        emitNotificationActivated(payload)
     }
 
     fun onRequestPermissionsResult(
@@ -146,6 +176,7 @@ class ChatGenerationForegroundChannel(
             putExtra(KEY_PUBLIC_TEXT, payload.publicText)
             putExtra(KEY_ACTION_KIND, payload.actionKind.protocolName())
             if (payload.actionLabel != null) putExtra(KEY_ACTION_LABEL, payload.actionLabel)
+            putExtra(KEY_TIMEOUT_ACTIVATION_PAYLOAD, payload.timeoutActivationPayload)
         }
         try {
             ContextCompat.startForegroundService(activity, intent)
@@ -191,25 +222,88 @@ class ChatGenerationForegroundChannel(
             return
         }
         result.success(
-            ChatGenerationForegroundService
-                .removeOrResolveTimeout(activity, token, conversationId)
-                .toMap(),
+            ChatGenerationForegroundService.remove(token, conversationId).toMap(),
         )
-    }
-
-    private fun handleFail(call: MethodCall, result: MethodChannel.Result) {
-        val payload = parsePayloadArgument(call)
-        if (payload == null) {
-            result.success(unavailableCommandResult(FAILURE_MALFORMED_PAYLOAD))
-            return
-        }
-        result.success(ChatGenerationForegroundService.failOrResolveTimeout(activity, payload).toMap())
     }
 
     private fun handleTakePendingOpenConversation(result: MethodChannel.Result) {
         val id = pendingOpenConversation
         pendingOpenConversation = null
         result.success(id)
+    }
+
+    /** 展示终态通知：解析失败或原生失败都回 false，Dart fail-open 后可重试。 */
+    private fun handleShowTerminalNotification(call: MethodCall, result: MethodChannel.Result) {
+        val request =
+            parseTerminalNotificationRequest(call.arguments as? Map<*, *>)
+        if (request == null) {
+            result.success(false)
+            return
+        }
+        try {
+            showTerminalNotification(activity, request)
+            result.success(true)
+        } catch (e: Exception) {
+            logCategory("terminal_notification_failed")
+            result.success(false)
+        }
+    }
+
+    /**
+     * 取走一次冷启动/无 listener 激活 payload；应答为 nullable map
+     * `{payload: <原始字符串>}`，内容是否合法由 Dart 共享 codec 严格解码，
+     * 这里不做二次校验。
+     */
+    private fun handleTakePendingNotificationActivation(result: MethodChannel.Result) {
+        val payload = pendingNotificationActivation
+        pendingNotificationActivation = null
+        result.success(payload?.let { mapOf(KEY_PAYLOAD to it) })
+    }
+
+    /** 设置状态查询先幂等建渠道；获取系统服务失败映射为 unavailable。 */
+    private fun handleGetNotificationSettingsStatus(result: MethodChannel.Result) {
+        try {
+            ensureTerminalChannel(activity)
+            val manager =
+                activity.getSystemService(android.app.NotificationManager::class.java)
+            if (manager == null) {
+                result.success(STATUS_UNAVAILABLE)
+                return
+            }
+            val enabled =
+                NotificationManagerCompat.from(activity).areNotificationsEnabled()
+            val terminalImportance = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                manager.getNotificationChannel(TERMINAL_CHANNEL_ID)?.importance
+            } else {
+                null
+            }
+            result.success(
+                resolveNotificationSettingsStatus(
+                    notificationsEnabled = enabled,
+                    terminalChannelImportance = terminalImportance,
+                    sdkInt = Build.VERSION.SDK_INT,
+                ),
+            )
+        } catch (e: Exception) {
+            logCategory("settings_status_failed")
+            result.success(STATUS_UNAVAILABLE)
+        }
+    }
+
+    /** 打开系统通知设置页；无 Activity handler 或抛错回 false，不崩溃。 */
+    private fun handleOpenNotificationSettings(result: MethodChannel.Result) {
+        try {
+            val spec = appNotificationSettingsSpec(activity.packageName)
+            val intent = Intent(spec.action).apply {
+                putExtra(spec.packageExtraKey, spec.packageName)
+                if (spec.needsNewTaskFlag) addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            activity.startActivity(intent)
+            result.success(true)
+        } catch (e: Exception) {
+            logCategory("open_settings_failed")
+            result.success(false)
+        }
     }
 
     private fun parsePayloadArgument(call: MethodCall): NativeNotificationPayload? {
@@ -252,6 +346,33 @@ class ChatGenerationForegroundChannel(
         }
     }
 
+    private fun emitNotificationActivated(payload: String) {
+        if (instance !== this) return
+        channel.invokeMethod(
+            CALLBACK_NOTIFICATION_ACTIVATED,
+            payload,
+            object : MethodChannel.Result {
+                override fun success(value: Any?) {
+                    if (value == true) {
+                        // Dart 已受理（进入流或本地暂存槽），原生槽位可以清空。
+                        clearPendingActivationIf(payload)
+                    }
+                    // false/null：保留单槽，等 takePendingNotificationActivation 取走。
+                }
+
+                override fun error(errorCode: String, errorMessage: String?, errorDetails: Any?) {}
+
+                override fun notImplemented() {}
+            },
+        )
+    }
+
+    private fun clearPendingActivationIf(payload: String) {
+        if (pendingNotificationActivation == payload) {
+            pendingNotificationActivation = null
+        }
+    }
+
     private fun logCategory(category: String) {
         Log.w(TAG, "category=$category sdk=${Build.VERSION.SDK_INT}")
     }
@@ -263,11 +384,15 @@ class ChatGenerationForegroundChannel(
         private const val REQUEST_POST_NOTIFICATIONS = 4102
 
         @Volatile
-        private var instance: ChatGenerationForegroundChannel? = null
+        private var instance: ChatGenerationNotificationChannel? = null
 
         /** 冷启动打开会话的最后一个 conversation ID，取走一次后清空。 */
         @Volatile
         private var pendingOpenConversation: String? = null
+
+        /** 终态激活 payload 单槽：后一次点击覆盖前一次，取走一次后清空。 */
+        @Volatile
+        private var pendingNotificationActivation: String? = null
 
         // ── Service 侧回调 ──────────────────────────────────────────────
 
@@ -307,18 +432,37 @@ class ChatGenerationForegroundChannel(
             )
         }
 
-        /** Android 15 timeout 后的 best-effort 通知，不等待 Dart 返回。 */
-        fun emitTimedOut(token: Long, conversationId: String) {
-            val current = instance ?: return
+        /**
+         * 发出 foregroundServiceTimedOut 并按 ACK 决策 fallback：只有严格 true
+         * 表示事件已进入 Dart（由 Dart 展示终态通知）；false、null、异常、
+         * 未实现或 engine 已 detach 都立即执行 [onNotAccepted] 原生 HIGH fallback。
+         * ACK 不等待通知展示完成，也不承诺 durable delivery。
+         */
+        fun emitForegroundServiceTimedOut(
+            token: Long,
+            conversationId: String,
+            onNotAccepted: () -> Unit,
+        ) {
+            val current = instance
+            if (current == null) {
+                onNotAccepted()
+                return
+            }
             current.channel.invokeMethod(
                 CALLBACK_FOREGROUND_SERVICE_TIMED_OUT,
                 mapOf(KEY_TOKEN to token, KEY_CONVERSATION_ID to conversationId),
                 object : MethodChannel.Result {
-                    override fun success(value: Any?) {}
+                    override fun success(value: Any?) {
+                        if (!isTimeoutAcceptedByDart(value)) onNotAccepted()
+                    }
 
-                    override fun error(errorCode: String, errorMessage: String?, errorDetails: Any?) {}
+                    override fun error(errorCode: String, errorMessage: String?, errorDetails: Any?) {
+                        onNotAccepted()
+                    }
 
-                    override fun notImplemented() {}
+                    override fun notImplemented() {
+                        onNotAccepted()
+                    }
                 },
             )
         }

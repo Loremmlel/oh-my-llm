@@ -1,34 +1,43 @@
-import 'dart:async';
-
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/app/platform/android_chat_generation_foreground_service.dart';
+import 'package:oh_my_llm/app/platform/android_chat_generation_platform_bridge.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_foreground_service.dart';
 
-/// 生产通道名，与适配器默认构造保持一致。
-const _channelName = 'yuzu.shiki.oh_my_llm/chat_generation_foreground_service';
+/// 生产通道名：与 Kotlin ChatGenerationNotificationProtocol 同一原子提交切换。
+const _channelName = 'yuzu.shiki.oh_my_llm/chat_generation_notifications';
 
-const _payload = ChatGenerationForegroundPayload(
-  token: 7,
-  conversationId: 'conv-1',
-  title: '正在生成',
-  text: '正文 3 字 · 推理 2 字',
-  publicTitle: '正在生成',
-  publicText: '请打开应用查看进度',
-  actionKind: ChatGenerationNotificationActionKind.stop,
-  actionLabel: '停止生成',
-);
+/// Dart 预编码的 foregroundProtectionTimedOut 激活 payload（共享严格 v1 codec
+/// 产物）；前台 adapter 只透传、不解析。
+const _timeoutActivationPayload =
+    '{"v":1,"eventKey":"v1:000102030405060708090a0b0c0d0e0f:7:foregroundProtectionTimedOut","conversationId":"conv-1"}';
 
-const _noneActionPayload = ChatGenerationForegroundPayload(
-  token: 8,
-  conversationId: 'conv-2',
-  title: '正在停止',
-  text: '正在停止并保存已有内容',
-  publicTitle: '正在生成',
-  publicText: '请打开应用查看进度',
-  actionKind: ChatGenerationNotificationActionKind.none,
-);
+ChatGenerationForegroundPayload _payload({String? timeoutActivationPayload}) {
+  return ChatGenerationForegroundPayload(
+    token: 7,
+    conversationId: 'conv-1',
+    title: '正在生成',
+    text: '正文 3 字 · 推理 2 字',
+    publicTitle: '正在生成',
+    publicText: '请打开应用查看进度',
+    actionKind: ChatGenerationNotificationActionKind.stop,
+    actionLabel: '停止生成',
+    timeoutActivationPayload: timeoutActivationPayload,
+  );
+}
+
+ChatGenerationForegroundPayload _noneActionPayload() {
+  return const ChatGenerationForegroundPayload(
+    token: 8,
+    conversationId: 'conv-2',
+    title: '正在停止',
+    text: '正在停止并保存已有内容',
+    publicTitle: '正在生成',
+    publicText: '请打开应用查看进度',
+    actionKind: ChatGenerationNotificationActionKind.none,
+  );
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -38,15 +47,15 @@ void main() {
 
   late MethodChannel channel;
   final calls = <MethodCall>[];
-  Object? response;
+  Object? Function(MethodCall call)? responder;
 
   setUp(() {
     channel = MethodChannel(_channelName);
     calls.clear();
-    response = null;
+    responder = null;
     messenger.setMockMethodCallHandler(channel, (call) async {
       calls.add(call);
-      return response;
+      return responder?.call(call);
     });
   });
 
@@ -54,8 +63,21 @@ void main() {
     messenger.setMockMethodCallHandler(channel, null);
   });
 
-  /// 通过默认 binary messenger 发送一次「原生 → Dart」回调，返回解码后的
-  /// handler 返回值（有效回调为 true，malformed 为 false）。
+  /// 构造注入共享 bridge 的适配器；bridge 先注册 tearDown（LIFO 保证先释放
+  /// adapter 再释放 bridge）。
+  ({
+    AndroidChatGenerationPlatformBridge bridge,
+    AndroidChatGenerationForegroundService adapter,
+  })
+  createFixture() {
+    final bridge = AndroidChatGenerationPlatformBridge(channel: channel);
+    final adapter = AndroidChatGenerationForegroundService(bridge: bridge);
+    addTearDown(bridge.dispose);
+    addTearDown(adapter.dispose);
+    return (bridge: bridge, adapter: adapter);
+  }
+
+  /// 通过默认 binary messenger 发送一次「原生 → Dart」回调，返回 handler 应答。
   Future<Object?> sendNativeCallback(String method, Object? arguments) async {
     const codec = StandardMethodCodec();
     final message = codec.encodeMethodCall(MethodCall(method, arguments));
@@ -68,33 +90,18 @@ void main() {
   }
 
   group('输出编码', () {
-    test('start/update/remove/fail 编码为精确方法名与协议载荷', () async {
-      response = {'accepted': true};
-      final adapter = AndroidChatGenerationForegroundService(channel: channel);
-      addTearDown(adapter.dispose);
+    test('start/update/remove 编码为精确方法名与协议载荷', () async {
+      responder = (_) => {'accepted': true};
+      final fixture = createFixture();
 
-      await expectLater(
-        adapter.start(_payload),
-        completion(const ChatForegroundCommandResult.accepted()),
-      );
-      await expectLater(
-        adapter.update(_payload),
-        completion(const ChatForegroundCommandResult.accepted()),
-      );
-      await expectLater(
-        adapter.remove(token: 7, conversationId: 'conv-1'),
-        completion(const ChatForegroundCommandResult.accepted()),
-      );
-      await expectLater(
-        adapter.fail(_payload),
-        completion(const ChatForegroundCommandResult.accepted()),
-      );
+      await fixture.adapter.start(_payload());
+      await fixture.adapter.update(_payload());
+      await fixture.adapter.remove(token: 7, conversationId: 'conv-1');
 
       expect(calls.map((call) => call.method), [
         'startForegroundGeneration',
         'updateForegroundGeneration',
         'removeForegroundGeneration',
-        'failForegroundGeneration',
       ]);
 
       const expectedPayload = {
@@ -106,6 +113,7 @@ void main() {
         'publicText': '请打开应用查看进度',
         'actionKind': 'stop',
         'actionLabel': '停止生成',
+        'timeoutActivationPayload': null,
       };
       expect(calls[0].arguments, equals(expectedPayload));
       expect(calls[1].arguments, equals(expectedPayload));
@@ -113,7 +121,6 @@ void main() {
         calls[2].arguments,
         equals({'token': 7, 'conversationId': 'conv-1'}),
       );
-      expect(calls[3].arguments, equals(expectedPayload));
 
       // token 保持 int 类型。
       expect((calls[0].arguments as Map)['token'], isA<int>());
@@ -121,11 +128,10 @@ void main() {
     });
 
     test('actionKind 为 none 时 actionLabel 以 null 参与编码', () async {
-      response = {'accepted': true};
-      final adapter = AndroidChatGenerationForegroundService(channel: channel);
-      addTearDown(adapter.dispose);
+      responder = (_) => {'accepted': true};
+      final fixture = createFixture();
 
-      await adapter.update(_noneActionPayload);
+      await fixture.adapter.update(_noneActionPayload());
 
       expect(calls, hasLength(1));
       expect(
@@ -139,142 +145,105 @@ void main() {
           'publicText': '请打开应用查看进度',
           'actionKind': 'none',
           'actionLabel': null,
+          'timeoutActivationPayload': null,
         }),
       );
     });
 
-    test('未注入 channel 时使用生产通道名', () async {
-      response = {'accepted': true};
-      final adapter = AndroidChatGenerationForegroundService();
-      addTearDown(adapter.dispose);
+    test(
+      'foreground start update 原样传输 Dart 预编码 timeout activation payload',
+      () async {
+        responder = (_) => {'accepted': true};
+        final fixture = createFixture();
 
-      final result = await adapter.start(_payload);
+        // 合法 v1 payload 原样出现在 start/update wire map。
+        await fixture.adapter.start(
+          _payload(timeoutActivationPayload: _timeoutActivationPayload),
+        );
+        await fixture.adapter.update(
+          _payload(timeoutActivationPayload: _timeoutActivationPayload),
+        );
+        expect(
+          (calls[0].arguments as Map)['timeoutActivationPayload'],
+          _timeoutActivationPayload,
+        );
+        expect(
+          (calls[1].arguments as Map)['timeoutActivationPayload'],
+          _timeoutActivationPayload,
+        );
 
-      expect(result, const ChatForegroundCommandResult.accepted());
-      expect(calls.single.method, 'startForegroundGeneration');
-    });
-  });
+        // Dart 侧只透传不解析：非 JSON 字符串也逐字节原样传输。
+        await fixture.adapter.start(
+          _payload(timeoutActivationPayload: 'not-a-json'),
+        );
+        expect(
+          (calls[2].arguments as Map)['timeoutActivationPayload'],
+          'not-a-json',
+        );
 
-  group('结果解码', () {
-    test('ensureNotificationPermission 解码 status 映射', () async {
-      final adapter = AndroidChatGenerationForegroundService(channel: channel);
-      addTearDown(adapter.dispose);
+        // 未设置时键恒存在、值为 null（与 actionLabel 恒键约定一致）。
+        await fixture.adapter.start(_payload());
+        expect(
+          (calls[3].arguments as Map).containsKey('timeoutActivationPayload'),
+          isTrue,
+        );
+        expect((calls[3].arguments as Map)['timeoutActivationPayload'], isNull);
+      },
+    );
 
-      response = {'status': 'granted'};
-      expect(
-        await adapter.ensureNotificationPermission(),
-        ChatNotificationPermissionStatus.granted,
-      );
-      response = {'status': 'denied'};
-      expect(
-        await adapter.ensureNotificationPermission(),
-        ChatNotificationPermissionStatus.denied,
-      );
-      response = {'status': 'notRequired'};
-      expect(
-        await adapter.ensureNotificationPermission(),
-        ChatNotificationPermissionStatus.notRequired,
-      );
-      response = {'status': 'skippedAlreadyRequested'};
-      expect(
-        await adapter.ensureNotificationPermission(),
-        ChatNotificationPermissionStatus.skippedAlreadyRequested,
-      );
-      response = {'status': 'unavailable'};
-      expect(
-        await adapter.ensureNotificationPermission(),
-        ChatNotificationPermissionStatus.unavailable,
-      );
-      // 未知 status、非 map、null 都落到 unavailable。
-      response = {'status': 'bogus'};
-      expect(
-        await adapter.ensureNotificationPermission(),
-        ChatNotificationPermissionStatus.unavailable,
-      );
-      response = 'not-a-map';
-      expect(
-        await adapter.ensureNotificationPermission(),
-        ChatNotificationPermissionStatus.unavailable,
-      );
-      response = null;
-      expect(
-        await adapter.ensureNotificationPermission(),
-        ChatNotificationPermissionStatus.unavailable,
-      );
+    test('前台适配器只编码 ongoing 方法', () async {
+      responder = (_) => {'accepted': true};
+      final fixture = createFixture();
 
+      await fixture.adapter.ensureNotificationPermission();
+      await fixture.adapter.start(_payload());
+      await fixture.adapter.update(_payload());
+      await fixture.adapter.remove(token: 7, conversationId: 'conv-1');
+      await fixture.adapter.takePendingOpenConversation();
+
+      // 前台职责只覆盖 ongoing 协议；终态展示 / 终态激活 / 设置方法绝不出现。
       expect(calls.map((call) => call.method).toSet(), {
         'ensureNotificationPermission',
+        'startForegroundGeneration',
+        'updateForegroundGeneration',
+        'removeForegroundGeneration',
+        'takePendingOpenConversation',
       });
     });
 
-    test('命令结果只接受 accepted/failureCode 协议形状', () async {
-      final adapter = AndroidChatGenerationForegroundService(channel: channel);
+    test('未注入 bridge 时自建 bridge 使用生产通道名并在 dispose 时一并释放', () async {
+      responder = (_) => {'accepted': true};
+      final adapter = AndroidChatGenerationForegroundService();
       addTearDown(adapter.dispose);
 
-      response = {'accepted': true};
-      expect(
-        await adapter.start(_payload),
-        const ChatForegroundCommandResult.accepted(),
-      );
+      final result = await adapter.start(_payload());
 
-      response = {'accepted': false, 'failureCode': 'startNotAllowed'};
-      expect(
-        await adapter.start(_payload),
-        const ChatForegroundCommandResult.unavailable(
-          ChatForegroundFailureCode.startNotAllowed,
-        ),
-      );
+      // 调用到达本文件的生产通道名 mock，即证明自建 bridge 使用生产通道名。
+      expect(result, const ChatForegroundCommandResult.accepted());
+      expect(calls.single.method, 'startForegroundGeneration');
 
-      response = {'accepted': false, 'failureCode': 'staleToken'};
-      expect(
-        await adapter.start(_payload),
-        const ChatForegroundCommandResult.unavailable(
-          ChatForegroundFailureCode.staleToken,
-        ),
+      // 自建 bridge 归属本 adapter：dispose 连带移除 channel handler。
+      adapter.dispose();
+      const codec = StandardMethodCodec();
+      final message = codec.encodeMethodCall(
+        const MethodCall('openConversationRequested', {
+          'conversationId': 'conv-9',
+        }),
       );
-
-      // 未知 failureCode、缺 failureCode、accepted 类型错误、非 map 都按
-      // 协议不符处理，不抛异常。
-      response = {'accepted': false, 'failureCode': 'bogus'};
-      expect(
-        await adapter.start(_payload),
-        const ChatForegroundCommandResult.unavailable(
-          ChatForegroundFailureCode.malformedPayload,
-        ),
+      final reply = await messenger.handlePlatformMessage(
+        _channelName,
+        message,
+        null,
       );
-
-      response = {'accepted': false};
-      expect(
-        await adapter.start(_payload),
-        const ChatForegroundCommandResult.unavailable(
-          ChatForegroundFailureCode.malformedPayload,
-        ),
-      );
-
-      response = {'accepted': 'yes'};
-      expect(
-        await adapter.start(_payload),
-        const ChatForegroundCommandResult.unavailable(
-          ChatForegroundFailureCode.malformedPayload,
-        ),
-      );
-
-      response = 'boom';
-      expect(
-        await adapter.start(_payload),
-        const ChatForegroundCommandResult.unavailable(
-          ChatForegroundFailureCode.malformedPayload,
-        ),
-      );
+      expect(reply, isNull);
     });
   });
 
-  group('原生回调解码', () {
-    test('有效 stop/open/timeout 回调各 emit 一次 typed action 并返回 true', () async {
-      final adapter = AndroidChatGenerationForegroundService(channel: channel);
-      addTearDown(adapter.dispose);
+  group('动作转发', () {
+    test('stop open timeout 回调合并转发进 actions 窄流', () async {
+      final fixture = createFixture();
       final events = <ChatGenerationForegroundAction>[];
-      final subscription = adapter.actions.listen(events.add);
+      final subscription = fixture.adapter.actions.listen(events.add);
       addTearDown(subscription.cancel);
 
       expect(
@@ -297,8 +266,8 @@ void main() {
         }),
         isTrue,
       );
+      await pumpEventQueue();
 
-      // action 类型没有重写 ==，按类型与字段逐项断言（各恰好一次、顺序一致）。
       expect(events, hasLength(3));
       final stop = events[0] as ChatGenerationStopRequested;
       expect(stop.token, 7);
@@ -310,173 +279,87 @@ void main() {
       expect(timedOut.conversationId, 'conv-3');
     });
 
-    test('malformed 回调返回 false 且不发事件', () async {
-      final adapter = AndroidChatGenerationForegroundService(channel: channel);
-      addTearDown(adapter.dispose);
-      final events = <ChatGenerationForegroundAction>[];
-      final subscription = adapter.actions.listen(events.add);
-      addTearDown(subscription.cancel);
+    test(
+      'actions 无 listener 时 timeout 回调 ACK false 监听后恢复且 stop open 不受影响',
+      () async {
+        final fixture = createFixture();
 
-      final malformedCalls = <MethodCall>[
-        // stopRequested 缺 token。
-        const MethodCall('stopRequested', {'conversationId': 'conv-1'}),
-        // token 为 0。
-        const MethodCall('stopRequested', {
-          'token': 0,
-          'conversationId': 'conv-1',
-        }),
-        // token 为负。
-        const MethodCall('stopRequested', {
-          'token': -1,
-          'conversationId': 'conv-1',
-        }),
-        // token 为 double。
-        const MethodCall('stopRequested', {
-          'token': 7.0,
-          'conversationId': 'conv-1',
-        }),
-        // 空白 conversation ID。
-        const MethodCall('stopRequested', {
-          'token': 7,
-          'conversationId': '   ',
-        }),
-        // 缺 conversation ID。
-        const MethodCall('stopRequested', {'token': 7}),
-        // 未知方法。
-        const MethodCall('bogusMethod', {
-          'token': 7,
-          'conversationId': 'conv-1',
-        }),
-        // 未知动作方法。
-        const MethodCall('unknownAction', {
-          'token': 7,
-          'conversationId': 'conv-1',
-        }),
-        // 参数不是 map。
-        const MethodCall('stopRequested', 'not-a-map'),
-        // timeout 回调缺字段。
-        const MethodCall('foregroundServiceTimedOut', {'token': 7}),
-        // open 回调空白 ID。
-        const MethodCall('openConversationRequested', {'conversationId': '  '}),
-      ];
+        // 尚无 listener：timeout 不被受理（Kotlin 收到 false 走原生 fallback）；
+        // stop/open 沿用既有契约照常受理。
+        expect(
+          await sendNativeCallback('foregroundServiceTimedOut', {
+            'token': 9,
+            'conversationId': 'conv-3',
+          }),
+          isFalse,
+        );
+        expect(
+          await sendNativeCallback('openConversationRequested', {
+            'conversationId': 'conv-2',
+          }),
+          isTrue,
+        );
 
-      for (final call in malformedCalls) {
-        final reply = await sendNativeCallback(call.method, call.arguments);
-        expect(reply, isFalse, reason: '${call.method} 应被拒绝');
-      }
-      expect(events, isEmpty);
-    });
+        // actions 出现 listener：adapter 订阅桥接 timeout 流，ACK 恢复 true。
+        final events = <ChatGenerationForegroundAction>[];
+        final subscription = fixture.adapter.actions.listen(events.add);
+        await pumpEventQueue();
+        expect(
+          await sendNativeCallback('foregroundServiceTimedOut', {
+            'token': 9,
+            'conversationId': 'conv-3',
+          }),
+          isTrue,
+        );
+        await pumpEventQueue();
+        expect(events.single, isA<ChatGenerationForegroundTimedOut>());
+
+        // listener 全部取消：回到无受理状态。
+        await subscription.cancel();
+        await pumpEventQueue();
+        expect(
+          await sendNativeCallback('foregroundServiceTimedOut', {
+            'token': 9,
+            'conversationId': 'conv-3',
+          }),
+          isFalse,
+        );
+      },
+    );
   });
 
-  group('异常边界', () {
-    test('PlatformException 映射为 nativeFailure，不抛给调用方', () async {
-      messenger.setMockMethodCallHandler(channel, (call) async {
-        throw PlatformException(code: 'platform-boom');
-      });
-      final adapter = AndroidChatGenerationForegroundService(channel: channel);
-      addTearDown(adapter.dispose);
-
-      final result = await adapter.start(_payload);
-
-      expect(
-        result,
-        const ChatForegroundCommandResult.unavailable(
-          ChatForegroundFailureCode.nativeFailure,
-        ),
-      );
-    });
-
-    test('MissingPluginException 映射为 channelUnavailable', () async {
-      // 不注册 mock：未 mock 的通道调用抛 MissingPluginException。
-      messenger.setMockMethodCallHandler(channel, null);
-      final adapter = AndroidChatGenerationForegroundService(channel: channel);
-      addTearDown(adapter.dispose);
-
-      final result = await adapter.start(_payload);
-
-      expect(
-        result,
-        const ChatForegroundCommandResult.unavailable(
-          ChatForegroundFailureCode.channelUnavailable,
-        ),
-      );
-    });
-
-    test('永不完成的 invoke 映射为 channelTimeout', () async {
-      messenger.setMockMethodCallHandler(
-        channel,
-        (call) => Completer<Object?>().future,
-      );
-      final adapter = AndroidChatGenerationForegroundService(
-        channel: channel,
-        commandTimeout: const Duration(milliseconds: 50),
-      );
-      addTearDown(adapter.dispose);
-
-      final result = await adapter.start(_payload);
-
-      expect(
-        result,
-        const ChatForegroundCommandResult.unavailable(
-          ChatForegroundFailureCode.channelTimeout,
-        ),
-      );
-    });
-
-    test('权限与待打开会话在通道失败时也安全降级', () async {
-      messenger.setMockMethodCallHandler(channel, (call) async {
-        throw PlatformException(code: 'boom');
-      });
-      final adapter = AndroidChatGenerationForegroundService(channel: channel);
-      addTearDown(adapter.dispose);
-
-      expect(
-        await adapter.ensureNotificationPermission(),
-        ChatNotificationPermissionStatus.unavailable,
-      );
-      expect(await adapter.takePendingOpenConversation(), isNull);
-    });
-  });
-
-  group('待打开会话与 dispose', () {
-    test('takePendingOpenConversation 接受非空白字符串，其余为 null', () async {
-      final adapter = AndroidChatGenerationForegroundService(channel: channel);
-      addTearDown(adapter.dispose);
-
-      response = 'conv-1';
-      expect(await adapter.takePendingOpenConversation(), 'conv-1');
-      response = null;
-      expect(await adapter.takePendingOpenConversation(), isNull);
-      response = '   ';
-      expect(await adapter.takePendingOpenConversation(), isNull);
-      response = 123;
-      expect(await adapter.takePendingOpenConversation(), isNull);
-
-      expect(calls.map((call) => call.method).toSet(), {
-        'takePendingOpenConversation',
-      });
-    });
-
-    test('dispose 移除回调处理器并只关闭流一次', () async {
-      final adapter = AndroidChatGenerationForegroundService(channel: channel);
+  group('dispose', () {
+    test('dispose 移除动作订阅且可重复调用但不释放注入的共享 bridge', () async {
+      final fixture = createFixture();
       final events = <ChatGenerationForegroundAction>[];
-      final subscription = adapter.actions.listen(events.add);
+      final subscription = fixture.adapter.actions.listen(events.add);
 
       await sendNativeCallback('stopRequested', {
         'token': 7,
         'conversationId': 'conv-1',
       });
+      await pumpEventQueue();
       expect(events, hasLength(1));
 
-      adapter.dispose();
-      adapter.dispose(); // 幂等：第二次调用不再抛错。
+      fixture.adapter.dispose();
+      fixture.adapter.dispose(); // 幂等：第二次调用不再抛错。
 
-      // 处理器已移除：handlePlatformMessage 无响应返回 null。
+      // 动作流已关闭；共享 bridge 的 handler 仍然在位（端口各自 dispose
+      // 不得重复释放 shared owner）。
+      await expectLater(fixture.adapter.actions, emitsDone);
+      expect(
+        await sendNativeCallback('openConversationRequested', {
+          'conversationId': 'conv-9',
+        }),
+        isTrue,
+      );
+
+      // 只有 bridge.dispose 才真正移除 handler。
+      fixture.bridge.dispose();
       const codec = StandardMethodCodec();
       final message = codec.encodeMethodCall(
-        const MethodCall('stopRequested', {
-          'token': 7,
-          'conversationId': 'conv-1',
+        const MethodCall('openConversationRequested', {
+          'conversationId': 'conv-9',
         }),
       );
       final reply = await messenger.handlePlatformMessage(
@@ -485,9 +368,6 @@ void main() {
         null,
       );
       expect(reply, isNull);
-
-      // 流已关闭：emitsDone。
-      await expectLater(adapter.actions, emitsDone);
 
       await subscription.cancel();
     });
