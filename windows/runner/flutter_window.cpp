@@ -4,8 +4,9 @@
 
 #include "flutter/generated_plugin_registrant.h"
 
-FlutterWindow::FlutterWindow(const flutter::DartProject& project)
-    : project_(project) {}
+FlutterWindow::FlutterWindow(const flutter::DartProject& project,
+                             WindowsNotificationHost* notification_host)
+    : project_(project), notification_host_(notification_host) {}
 
 FlutterWindow::~FlutterWindow() {}
 
@@ -27,6 +28,14 @@ bool FlutterWindow::OnCreate() {
   RegisterPlugins(flutter_controller_->engine());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
+  // engine 就绪后立刻 attach：宿主此前收到的 activation 留在 native queue，
+  // Dart 侧 initialize 时一次取走；窗口回调就绪后 pending focus 立即执行。
+  if (notification_host_ != nullptr) {
+    notification_host_->AttachMessenger(flutter_controller_->engine()->messenger());
+    notification_host_->AttachWindowActivation(
+        [this]() { RestoreAndFocus(); });
+  }
+
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
     this->Show();
   });
@@ -40,11 +49,30 @@ bool FlutterWindow::OnCreate() {
 }
 
 void FlutterWindow::OnDestroy() {
+  if (notification_host_ != nullptr) {
+    // 窗口销毁先于宿主 shutdown：先摘除 messenger，之后不再向 Dart 发送。
+    notification_host_->DetachMessenger();
+    notification_host_->AttachWindowActivation(nullptr);
+  }
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
   }
 
   Win32Window::OnDestroy();
+}
+
+void FlutterWindow::RestoreAndFocus() {
+  const HWND window = GetHandle();
+  if (window == nullptr) {
+    return;
+  }
+  if (!IsWindowVisible(window)) {
+    ShowWindow(window, SW_SHOWNORMAL);
+  }
+  if (IsIconic(window)) {
+    ShowWindow(window, SW_RESTORE);
+  }
+  SetForegroundWindow(window);
 }
 
 LRESULT
