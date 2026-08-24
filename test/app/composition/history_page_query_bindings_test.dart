@@ -37,7 +37,7 @@ void main() {
           bindChatGenerationClient: false,
           bindChatConversationRepository: false,
           bindMediaLibraryFactory: false,
-          bindChatGenerationForegroundService: false,
+          bindChatGenerationNotifications: false,
           bindFavoritesRepositories: false,
           bindHistoryPageQuery: bindHistoryPageQuery,
           hostPlatform: TargetPlatform.windows,

@@ -6,7 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oh_my_llm/core/http/http_client_provider.dart';
 import 'package:oh_my_llm/core/widgets/notification_bubble/notification_bubble_stack.dart';
 import 'package:oh_my_llm/features/settings/application/preferences/font_size_settings_controller.dart';
+import 'attention/app_attention_observer.dart';
 import 'composition/chat_generation_notification_coordinator.dart';
+import 'notifications/default_chat_generation_terminal_notifications.dart';
 import 'platform/windows_navigation_input_adapter.dart';
 import 'router/app_router.dart';
 import 'theme/app_theme.dart';
@@ -29,6 +31,15 @@ class _OhMyLlmAppState extends ConsumerState<OhMyLlmApp> {
     // 在应用根层 watch，确保 customHeadersSyncProvider 在冷启动后立即可用，
     // 不依赖用户是否访问过设置页。
     ref.watch(customHeadersSyncProvider);
+
+    // 在应用根层 eager 启动注意力观察者：终态收据的抑制判定依赖注意力快照
+    // （生命周期 + 窗口焦点 + 路由），不能等聊天页挂载才开始收集。
+    ref.watch(appAttentionStateProvider);
+
+    // 在应用根层 eager 启动终态通知深模块：provider 创建即幂等 start 并消费
+    // 冷启动 pending 激活；若等首次 generation 报告才初始化，重启后的通知
+    // 点击会丢失。
+    ref.watch(chatGenerationTerminalNotificationsProvider);
 
     // 在应用根层 eager watch 生成通知协调器：生命周期不依赖 ChatScreen 是否
     // 挂载，ChatScreen 未挂载时发起的 generation 也会驱动前台服务通知。

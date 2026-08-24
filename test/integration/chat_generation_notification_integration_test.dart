@@ -26,6 +26,8 @@ import 'package:http/http.dart' as http;
 
 import 'package:oh_my_llm/app/composition/chat_generation_notification_coordinator.dart';
 import 'package:oh_my_llm/app/composition/cross_feature_bindings.dart';
+import 'package:oh_my_llm/app/notifications/chat_generation_notification_session.dart';
+import 'package:oh_my_llm/app/notifications/chat_generation_terminal_notification_adapter.dart';
 import 'package:oh_my_llm/app/notifications/default_chat_generation_terminal_notifications.dart';
 import 'package:oh_my_llm/core/http/llm_http_stream_transport.dart';
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
@@ -52,8 +54,43 @@ import '../helpers/async/async_test_signals.dart';
 import '../helpers/chat/controllable_chat_conversation_repository.dart';
 import '../helpers/chat/fake_chat_generation_client.dart';
 import '../helpers/integration_test_helpers.dart';
+import '../helpers/test_harness.dart';
+
+/// 本文件所有 harness 共用的固定通知 session：断言 session 同时进入 ongoing
+/// payload 与终态收据时不依赖全局随机状态。
+const _fixedSession = testChatGenerationNotificationSessionId;
 
 void main() {
+  // ── 固定 session 贯穿 ongoing payload 与终态收据 ──────────────────────────
+
+  test(
+    '固定 session override 同时进入 coordinator ongoing payload 与 terminal receipt',
+    () async {
+      final harness = await _createHarness();
+      addTearDown(harness.dispose);
+      harness.fakeClient.enqueueDeltas(const [
+        ChatGenerationChunk(contentDelta: '正文'),
+        ChatGenerationChunk(finishReason: 'stop'),
+      ]);
+      await _sendMessage(harness.container);
+
+      await harness.port.waitForCall('remove');
+      expect(harness.port.payloads, isNotEmpty);
+      const codec = ChatGenerationNotificationPayloadCodec();
+      for (final payload in harness.port.payloads) {
+        final activation = codec.decode(payload.timeoutActivationPayload!);
+        expect(activation, isNotNull);
+        expect(
+          activation!.eventKey,
+          startsWith('v1:$_fixedSession:'),
+          reason: 'ongoing 载荷中的保护超时激活必须携带同一固定 session',
+        );
+      }
+      final receipt = harness.terminal.receipts.single;
+      expect(receipt.notificationSessionId, _fixedSession);
+    },
+  );
+
   // ── 原生 stop 进入既有 durable stop 路径 ────────────────────────────────────
 
   test(
@@ -431,7 +468,11 @@ Future<_Harness> _createHarness({
         useInMemorySyncSecureStore: true,
         bindChatGenerationClient: false,
         bindChatConversationRepository: false,
-        bindChatGenerationForegroundService: false,
+        bindChatGenerationNotifications: false,
+      ),
+      // 固定 session：coordinator ongoing payload 与终态收据断言共用同一值。
+      chatGenerationNotificationSessionIdProvider.overrideWithValue(
+        _fixedSession,
       ),
       chatGenerationClientProvider.overrideWithValue(
         routingClient ?? fakeClient,

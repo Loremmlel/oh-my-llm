@@ -1,7 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:oh_my_llm/app/composition/chat_generation_notification_platform_bindings.dart';
 import 'package:oh_my_llm/app/composition/cross_feature_bindings.dart';
+import 'package:oh_my_llm/app/notifications/chat_generation_notification_session.dart';
+import 'package:oh_my_llm/app/platform/noop_app_window.dart';
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
@@ -14,6 +17,8 @@ import 'package:oh_my_llm/features/settings/data/providers/llm_model_config_repo
 import 'package:oh_my_llm/features/settings/domain/models/providers/llm_model_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/providers/llm_provider_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/memory_prompt.dart';
+
+import 'test_harness.dart';
 
 /// 集成测试共享夹具：测试用模型配置。
 ///
@@ -87,11 +92,19 @@ ProviderContainer createTestContainer({
     overrides: [
       appDatabaseProvider.overrideWithValue(database),
       sharedPreferencesProvider.overrideWithValue(preferences),
+      // 固定通知 session：与 widget harness 同一约定，测试不读取随机状态。
+      chatGenerationNotificationSessionIdProvider.overrideWithValue(
+        testChatGenerationNotificationSessionId,
+      ),
       // 排除 composition 的 completion 绑定（由 fakeClient 接管），
       // Riverpod 禁止同一容器内对同一 provider 重复 override。
       ...appCompositionOverrides(
         useInMemorySyncSecureStore: true,
         bindChatGenerationClient: false,
+        // 集成测试默认绑定 no-op 平台件：无论宿主平台都不触达 MethodChannel。
+        notificationPlatformBindingsFactory:
+            createOtherPlatformChatGenerationNotificationBindings,
+        appWindowFactory: () => NoopAppWindow(),
       ),
       chatGenerationClientProvider.overrideWithValue(fakeClient),
     ],

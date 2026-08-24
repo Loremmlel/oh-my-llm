@@ -100,6 +100,11 @@ final class DefaultChatGenerationTerminalNotifications
   Future<void> start() {
     final existing = _startFuture;
     if (existing != null) return existing;
+    if (_disposed) {
+      // 装配误用防御：dispose 后再 start 直接以已完成 future 收束，不订阅
+      // 任何流、不触碰 adapter（经端口接口正常不可达）。
+      return Future<void>.value();
+    }
     final future = _start();
     _startFuture = future;
     return future;
@@ -388,10 +393,10 @@ final class DefaultChatGenerationTerminalNotifications
 
 /// 默认终态通知深模块 Provider。
 ///
-/// 依赖 [chatGenerationTerminalNotificationAdapterProvider]（Task 2 起为
-/// no-op 安全默认值）；根部 eager 装配（app.dart watch + start）统一留在
-/// Task 9，本 provider 只负责组装与 dispose。会话存在性经 `ref.read` 在
-/// 导航帧读取，不在启动期捕获摘要列表快照。
+/// 依赖 [chatGenerationTerminalNotificationAdapterProvider]（平台 composition
+/// 完成前为 no-op 安全默认值）。创建即幂等启动：应用根部只需 eager watch 本
+/// provider，冷启动 pending 激活的消费不等首次 generation 报告。会话存在性
+/// 经 `ref.read` 在导航帧读取，不在启动期捕获摘要列表快照。
 final chatGenerationTerminalNotificationsProvider =
     Provider<ChatGenerationTerminalNotifications>((ref) {
       final module = DefaultChatGenerationTerminalNotifications(
@@ -419,6 +424,9 @@ final chatGenerationTerminalNotificationsProvider =
           debugPrint('[chat-generation-terminal] $category');
         },
       );
+      // 与协调器 provider 的根部启动先例一致：创建即幂等 start，端口接口因此
+      // 只需暴露业务能力（report），测试 fake 无需实现启动入口。
+      unawaited(module.start());
       ref.onDispose(() => unawaited(module.dispose()));
       return module;
     });
