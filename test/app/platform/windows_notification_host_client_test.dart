@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -167,5 +169,23 @@ void main() {
     );
     expect(await client.takePendingActivationPayloads(), isEmpty);
     expect(calls.length, callsBeforeDispose);
+  });
+
+  test('宿主命令超过固定超时后按不可用收束，不无限挂起', () async {
+    // 永不完成的原生应答：模拟宿主卡死（COM stall / 死管道）。
+    responder = (_) => Completer<Object?>().future;
+
+    final client = MethodChannelWindowsNotificationHostClient(
+      channel: channel,
+      commandTimeout: const Duration(milliseconds: 50),
+    );
+    addTearDown(client.dispose);
+
+    expect(await client.getAvailable(), isFalse);
+    expect(
+      await client.show(id: 1, title: 't', body: 'b', payload: '{}'),
+      isFalse,
+    );
+    expect(await client.takePendingActivationPayloads(), isEmpty);
   });
 }

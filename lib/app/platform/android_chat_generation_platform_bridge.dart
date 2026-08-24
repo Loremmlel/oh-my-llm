@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 
 import 'package:oh_my_llm/app/notifications/chat_generation_terminal_notification_adapter.dart';
+import 'package:oh_my_llm/app/platform/chat_generation_platform_command_timeout.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_foreground_service.dart';
 import 'package:oh_my_llm/features/settings/application/ports/system_notification_settings.dart';
 
@@ -13,12 +14,6 @@ import 'package:oh_my_llm/features/settings/application/ports/system_notificatio
 /// 通道新增双写或双 handler。
 const androidChatGenerationPlatformChannelName =
     'yuzu.shiki.oh_my_llm/chat_generation_notifications';
-
-/// 单次平台命令等待原生 ACK 的固定上界。
-///
-/// 原生侧未响应（Kotlin 无 handler、engine detach、死锁等）时，通道调用以
-/// [TimeoutException] 收束并按各域固定分类 fail-open。
-const chatGenerationPlatformCommandTimeout = Duration(seconds: 2);
 
 /// 终态通知未被原生确认展示的固定异常。
 ///

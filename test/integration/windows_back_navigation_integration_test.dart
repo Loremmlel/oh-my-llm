@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:oh_my_llm/app/app.dart';
+import 'package:oh_my_llm/app/composition/chat_generation_notification_platform_bindings.dart';
 import 'package:oh_my_llm/app/composition/cross_feature_bindings.dart';
 import 'package:oh_my_llm/app/navigation/app_destination.dart';
 import 'package:oh_my_llm/app/platform/windows_navigation_input_adapter.dart';
@@ -137,7 +138,10 @@ Future<GoRouter> _pumpIntegrationTree(
 }
 
 /// 全栈挂载真实 [OhMyLlmApp]；provider 组合固定 Windows 宿主，不打开真实
-/// Android MethodChannel。目标平台由用例的 TargetPlatformVariant 控制。
+/// Android MethodChannel。通知平台件用 no-op 记录：本集成只验证返回导航，
+/// 真实 Windows host client 与 Android bridge 一样带命令超时 Timer，绑定
+/// 会在测试结束时残留 pending Timer。目标平台由用例的 TargetPlatformVariant
+/// 控制。
 Future<void> _pumpFullApp(WidgetTester tester) async {
   final database = AppDatabase.inMemory();
   addTearDown(database.close);
@@ -161,7 +165,11 @@ Future<void> _pumpFullApp(WidgetTester tester) async {
         appDatabaseProvider.overrideWithValue(database),
         sharedPreferencesProvider.overrideWithValue(preferences),
         customHeadersMapProvider.overrideWith((ref) => const {}),
-        ...appCompositionOverrides(hostPlatform: TargetPlatform.windows),
+        ...appCompositionOverrides(
+          hostPlatform: TargetPlatform.windows,
+          notificationPlatformBindingsFactory:
+              createOtherPlatformChatGenerationNotificationBindings,
+        ),
       ],
       child: const OhMyLlmApp(),
     ),

@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 
+import 'package:oh_my_llm/app/platform/chat_generation_platform_command_timeout.dart';
+
 /// Windows 通知宿主共享 MethodChannel 名。
 ///
 /// 与 runner `windows_notification_host.cpp` 在同一原子提交内切换；宿主与
@@ -46,13 +48,17 @@ abstract interface class WindowsNotificationHostClient {
 /// 为固定值（false / 空列表），不向调用方泄漏异常原文。
 final class MethodChannelWindowsNotificationHostClient
     implements WindowsNotificationHostClient {
-  MethodChannelWindowsNotificationHostClient({MethodChannel? channel})
-    : _channel =
-          channel ?? const MethodChannel(windowsNotificationHostChannelName) {
+  MethodChannelWindowsNotificationHostClient({
+    MethodChannel? channel,
+    Duration commandTimeout = chatGenerationPlatformCommandTimeout,
+  }) : _channel =
+           channel ?? const MethodChannel(windowsNotificationHostChannelName),
+       _commandTimeout = commandTimeout {
     _channel.setMethodCallHandler(_handleNativeMethod);
   }
 
   final MethodChannel _channel;
+  final Duration _commandTimeout;
   final _activations = StreamController<String>.broadcast();
   bool _disposed = false;
 
@@ -63,13 +69,13 @@ final class MethodChannelWindowsNotificationHostClient
   Future<bool> getAvailable() async {
     if (_disposed) return false;
     try {
-      final value = await _channel.invokeMethod<Object?>(
-        'getNotificationHostStatus',
-      );
+      final value = await _channel
+          .invokeMethod<Object?>('getNotificationHostStatus')
+          .timeout(_commandTimeout);
       return _decodeAvailable(value);
     } on Exception {
-      // MissingPluginException / PlatformException / 通道失败统一映射为
-      // 不可用；不区分失败原因，避免向调用方暴露异常细节。
+      // MissingPluginException / PlatformException / TimeoutException / 通道
+      // 失败统一映射为不可用；不区分失败原因，避免向调用方暴露异常细节。
       return false;
     }
   }
@@ -83,10 +89,14 @@ final class MethodChannelWindowsNotificationHostClient
   }) async {
     if (_disposed) return false;
     try {
-      final value = await _channel.invokeMethod<Object?>(
-        'showTerminalNotification',
-        {'id': id, 'title': title, 'body': body, 'payload': payload},
-      );
+      final value = await _channel
+          .invokeMethod<Object?>('showTerminalNotification', {
+            'id': id,
+            'title': title,
+            'body': body,
+            'payload': payload,
+          })
+          .timeout(_commandTimeout);
       return value is bool && value;
     } on Exception {
       return false;
@@ -97,9 +107,9 @@ final class MethodChannelWindowsNotificationHostClient
   Future<List<String>> takePendingActivationPayloads() async {
     if (_disposed) return const [];
     try {
-      final value = await _channel.invokeMethod<Object?>(
-        'takePendingNotificationActivations',
-      );
+      final value = await _channel
+          .invokeMethod<Object?>('takePendingNotificationActivations')
+          .timeout(_commandTimeout);
       if (value is! List) return const [];
       // 逐项严格过滤：任何非字符串元素都按 malformed 处理，整表保持 FIFO。
       return [

@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:oh_my_llm/app/app.dart';
+import 'package:oh_my_llm/app/composition/chat_generation_notification_platform_bindings.dart';
 import 'package:oh_my_llm/app/composition/cross_feature_bindings.dart';
 import 'package:oh_my_llm/core/http/custom_headers_provider.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
@@ -37,7 +38,14 @@ void main() {
           customHeadersMapProvider.overrideWith((ref) => const {}),
           // 固定 Windows 宿主：flutter_test 默认平台是 Android，会绑定真实
           // MethodChannel adapter 并残留命令超时 Timer；与 test harness 约定一致。
-          ...appCompositionOverrides(hostPlatform: TargetPlatform.windows),
+          // 通知平台件用 no-op 记录（harness 同一约定）：本测试不验证通知，
+          // 且真实 Windows host client 与 Android bridge 一样带命令超时
+          // Timer，绑定会在测试结束时残留 pending Timer。
+          ...appCompositionOverrides(
+            hostPlatform: TargetPlatform.windows,
+            notificationPlatformBindingsFactory:
+                createOtherPlatformChatGenerationNotificationBindings,
+          ),
         ],
         child: const OhMyLlmApp(),
       ),
