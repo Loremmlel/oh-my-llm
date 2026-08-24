@@ -322,8 +322,9 @@ final class ChatGenerationNotificationCoordinator {
   /// 终态入口：投影收据并按固定顺序入队 cleanup -> report。
   ///
   /// 同一 context 只允许 terminal 入队一次；总是取消该 context 的 pending
-  /// timer。closure 捕获 context/receipt/conversationId/skipRemove，执行时
-  /// 不再比较 [_currentContext]，也不读取新 token 的任何字段。
+  /// timer。closure 捕获 context/receipt/conversationId，执行时不再比较
+  /// [_currentContext]，也不读取新 token 的任何字段；remove 的跳过判定
+  /// （timedOut）由 [_terminalOp] 在执行时读取捕获的 context。
   void _enqueueTerminal(
     _NotificationGenerationContext context,
     ChatGenerationSnapshot snapshot,
@@ -337,12 +338,11 @@ final class ChatGenerationNotificationCoordinator {
     context.pendingProjection = null;
     if (context.terminalEnqueued) return; // 重复 terminal：幂等 no-op。
     context.terminalEnqueued = true;
-    final skipRemove = context.timedOut;
     final conversationId = snapshot.conversationId;
-    _enqueue(() => _terminalOp(context, receipt, conversationId, skipRemove));
+    _enqueue(() => _terminalOp(context, receipt, conversationId));
   }
 
-  /// 终态收口：skipRemove=false 时先清理 ongoing，成功或耗尽后都报告收据。
+  /// 终态收口：timedOut=false 时先清理 ongoing，成功或耗尽后都报告收据。
   ///
   /// 串行 cleanup 后 report 是有意的产品权衡：避免 Android 同时展示「仍在
   /// 生成」的 ongoing 与「生成已结束」的终态通知。单次 cleanup 的上界为三次
@@ -353,9 +353,12 @@ final class ChatGenerationNotificationCoordinator {
     _NotificationGenerationContext context,
     ChatGenerationTerminalReceipt? receipt,
     String conversationId,
-    bool skipRemove,
   ) async {
     if (_disposed) return;
+    // 执行时才判定 skipRemove：若 terminal 入队后、remove 执行前收到了平台
+    // 超时（Kotlin 已自行移除 ongoing 并停止服务），这里读到 timedOut=true
+    // 就跳过 remove，不再对已停止的服务打 FAILURE_SERVICE_UNAVAILABLE。
+    final skipRemove = context.timedOut;
     // cancellation 收据为 null 只 cleanup；timeout 已清理（timedOut=true）时
     // Kotlin 侧已无可清理通知，完全 no-op（receipt 也必为 null）或直接 report。
     if (!skipRemove) {
@@ -488,15 +491,16 @@ final class ChatGenerationNotificationCoordinator {
     }
   }
 
-  /// 平台前台保护超时：只报告 timeout 收据，不再调用 remove、不停止生成。
+  /// 平台前台保护超时：只置位 timedOut，不再调用 remove、不停止生成。
   ///
   /// Kotlin 在发 callback 前已经移除 ongoing 并停止 Service，Dart 若再经
   /// MethodChannel 调 remove 会形成原生重入；因此这里只置位标记、取消挂起
-  /// 更新，并把收据 report 加入同一个 async tail，保持 timeout 与后续真正
-  /// 终态的报告顺序。
+  /// 更新，并把收据 report 加入同一个 async tail。若终态收据已入队（真正
+  /// 终态快照先到），只置位 timedOut 让已入队的 terminal op 执行时跳过
+  /// remove，不再重复报告 timeout 收据。
   void _handleForegroundTimedOut(int token) {
     final context = _currentContext;
-    if (context == null || token != context.token || context.terminalEnqueued) {
+    if (context == null || token != context.token) {
       _logDiagnostic?.call('stale_native_action');
       return;
     }
@@ -504,6 +508,12 @@ final class ChatGenerationNotificationCoordinator {
     context.timedOut = true;
     _cancelPendingTimer(context);
     context.pendingProjection = null;
+    if (context.terminalEnqueued) {
+      // 终态已入队：只置 timedOut 让已入队的 terminal op 执行时跳过 remove，
+      // 不再重复报告 timeout 收据（终态收据已在 FIFO 中）。
+      _logDiagnostic?.call('platform_timeout');
+      return;
+    }
     final receipt = ChatGenerationTerminalReceipt(
       notificationSessionId: notificationSessionId,
       generationId: context.token,

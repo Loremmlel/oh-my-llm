@@ -1513,6 +1513,46 @@ void main() {
         ChatGenerationTerminalKind.succeeded,
       );
     });
+
+    test('terminal 入队后、remove 执行前收到 timeout：跳过 remove、只报告终态收据', () async {
+      await coordinator.start();
+      final blockedStart = Completer<ChatForegroundCommandResult>();
+      port.queuedResults.add(blockedStart.future);
+      coordinator.onStateChanged(
+        snapshot: _snapshot(ChatGenerationPhase.preparing),
+        streamingReply: null,
+      );
+      await _flushTail();
+
+      // 终态快照在 start 阻塞期间到达：terminal op 排在 start 之后。
+      coordinator.onStateChanged(
+        snapshot: _snapshot(
+          ChatGenerationPhase.succeeded,
+          outcome: _outcomeFor(ChatGenerationPhase.succeeded),
+        ),
+        streamingReply: null,
+      );
+      await _flushTail();
+      expect(port.calls.where((c) => c == 'remove'), isEmpty);
+
+      // start 阻塞期间原生已超时：Kotlin 自行移除 ongoing 并停止服务。
+      port.actionsController.add(
+        const ChatGenerationForegroundTimedOut(
+          token: 1,
+          conversationId: 'conv-1',
+        ),
+      );
+      await _flushTail();
+
+      // start ACK 后 terminal op 执行：执行时读到 timedOut，跳过 remove。
+      blockedStart.complete(const ChatForegroundCommandResult.accepted());
+      await _flushTail();
+      expect(port.calls.where((c) => c == 'remove'), isEmpty);
+      expect(terminalNotifications.receipts.map((r) => r.terminalKind), [
+        ChatGenerationTerminalKind.succeeded,
+      ]);
+      expect(diagnostics, contains('platform_timeout'));
+    });
   });
 
   group('生命周期', () {
