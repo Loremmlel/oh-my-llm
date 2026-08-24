@@ -192,6 +192,28 @@ void main() {
         ),
       );
     });
+
+    test('传入 cachedTimeoutActivationPayload 时原样复用，不再重新编码', () async {
+      const projector = ChatGenerationNotificationProjector();
+      const session = '000102030405060708090a0b0c0d0e0f';
+      const cached =
+          '{"v":1,"eventKey":"v1:$session:1:foregroundProtectionTimedOut",'
+          '"conversationId":"conv-1"}';
+      final snapshot = ChatGenerationSnapshot(
+        generationId: 1,
+        conversationId: 'conv-1',
+        attempt: 1,
+        phase: ChatGenerationPhase.streaming,
+      );
+      final projection = projector.project(
+        snapshot: snapshot,
+        streamingReply: null,
+        notificationSessionId: session,
+        cachedTimeoutActivationPayload: cached,
+      );
+      expect(projection.payload.timeoutActivationPayload, cached);
+      expect(projection.payload.token, 1);
+    });
   });
 
   group('阶段收窄', () {

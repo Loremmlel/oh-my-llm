@@ -78,12 +78,15 @@ final class ChatGenerationNotificationProjector {
   /// [fallbackCounts]（finalizing 阶段由 coordinator 传入最后一次已知字数）。
   /// [notificationSessionId] 用于预编码前台保护超时的激活 payload，写入每次
   /// start/update 载荷，供原生侧在失去 Dart 通道时原样复用。
+  /// [cachedTimeoutActivationPayload] 为同一 token 首次投影的编码结果：传入时
+  /// 原样复用，避免每个快照都重复执行一次 codec 编码。
   ChatGenerationNotificationProjection project({
     required ChatGenerationSnapshot snapshot,
     required ChatStreamingReply? streamingReply,
     required String notificationSessionId,
     ChatGenerationCharacterCounts fallbackCounts =
         ChatGenerationCharacterCounts.zero,
+    String? cachedTimeoutActivationPayload,
   }) {
     if (!_isOngoingPhase(snapshot.phase)) {
       throw ArgumentError.value(
@@ -114,8 +117,9 @@ final class ChatGenerationNotificationProjector {
         publicText: _truncate(copy.publicText, notificationTextMaxCharacters),
         actionKind: copy.actionKind,
         actionLabel: copy.actionLabel,
-        timeoutActivationPayload: const ChatGenerationNotificationPayloadCodec()
-            .encode(
+        timeoutActivationPayload:
+            cachedTimeoutActivationPayload ??
+            const ChatGenerationNotificationPayloadCodec().encode(
               eventKey:
                   'v1:$notificationSessionId:${snapshot.generationId}:'
                   '${ChatGenerationTerminalKind.foregroundProtectionTimedOut.name}',

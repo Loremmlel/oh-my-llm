@@ -61,6 +61,9 @@ final class _NotificationGenerationContext {
   /// 成功终态的权威计数由收据 projector 从完整 outcome 重算。
   ChatGenerationCharacterCounts lastCounts = ChatGenerationCharacterCounts.zero;
 
+  /// 本 token 首次投影时编码的超时激活 payload；同 token 后续投影复用。
+  String? timeoutActivationPayload;
+
   Timer? pendingTimer;
   ChatGenerationNotificationProjection? pendingProjection;
 
@@ -221,10 +224,14 @@ final class ChatGenerationNotificationCoordinator {
         streamingReply: streamingReply,
         notificationSessionId: notificationSessionId,
         fallbackCounts: context.lastCounts,
+        cachedTimeoutActivationPayload: context.timeoutActivationPayload,
       );
     } on ArgumentError {
       return;
     }
+    // 首次投影后缓存编码结果，供同 token 后续投影复用。
+    context.timeoutActivationPayload ??=
+        projection.payload.timeoutActivationPayload;
     if (streamingReply != null) {
       // finalizing 无流式回复时沿用最后一次已知字数。
       context.lastCounts = projection.counts;

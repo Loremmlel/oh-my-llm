@@ -521,6 +521,26 @@ void main() {
       await _flushTail();
       expect(port.payloads.last.text, '正在保存结果 · 正文 3 字 · 推理 1 字');
     });
+
+    test('同一 token 的多次投影复用同一个超时激活载荷', () async {
+      await coordinator.start();
+      coordinator.onStateChanged(
+        snapshot: _snapshot(ChatGenerationPhase.preparing),
+        streamingReply: null,
+      );
+      await _flushTail();
+      final firstPayload = port.payloads.single.timeoutActivationPayload;
+
+      coordinator.onStateChanged(
+        snapshot: _snapshot(ChatGenerationPhase.streaming),
+        streamingReply: _reply('一', ''),
+      );
+      await _flushTail();
+      final secondPayload = port.payloads.last.timeoutActivationPayload;
+
+      expect(secondPayload, firstPayload);
+      expect(secondPayload, isNotEmpty);
+    });
   });
 
   group('串行化与 token 隔离', () {
