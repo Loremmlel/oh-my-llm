@@ -10,7 +10,7 @@ import org.junit.Test
 
 /**
  * 聊天生成通知协议的纯 JVM 测试：token 守卫、载荷解析（含 Dart 预编码超时
- * payload 的类型/长度校验）、终态通知请求解码、request code/data URI 推导、
+ * payload 的类型/长度校验）、终态通知请求解码、request code 推导、
  * timeout fallback 决策、渠道配置常量与设置状态判定。
  *
  * 只依赖 Protocol 与 TerminalNotification 中的纯 Kotlin 类型；framework 行为
@@ -377,18 +377,13 @@ class ChatGenerationNotificationProtocolTest {
     }
 
     @Test
-    fun 每个终态PendingIntent_request_code与data_URI由通知ID唯一推导() {
+    fun 每个终态PendingIntent_request_code由通知ID唯一推导且互不相同() {
         val ids = listOf(10_000, 16_728_334_28.toInt(), 2_147_483_646)
         ids.forEach { id ->
-            // request code 与 data URI 后缀都与通知 ID 同源，不同终态互不覆盖。
+            // request code 与通知 ID 同源同值，不同终态互不覆盖。
             assertEquals(id, terminalPendingRequestCode(id))
-            assertEquals(
-                "oh-my-llm://generation-notification/$id",
-                generationNotificationDataUri(id),
-            )
         }
         assertEquals(ids.size, ids.map { terminalPendingRequestCode(it) }.toSet().size)
-        assertEquals(ids.size, ids.map { generationNotificationDataUri(it) }.toSet().size)
     }
 
     // ── timeout fallback 决策 ─────────────────────────────────────────────
@@ -409,10 +404,6 @@ class ChatGenerationNotificationProtocolTest {
         assertEquals(4200, fallback.notificationId)
         assertEquals(TERMINAL_TIMEOUT_FALLBACK_NOTIFICATION_ID, fallback.notificationId)
         assertEquals(4200, timeoutFallbackPendingRequestCode())
-        assertEquals(
-            "oh-my-llm://generation-notification/4200",
-            generationNotificationDataUri(fallback.notificationId),
-        )
     }
 
     @Test

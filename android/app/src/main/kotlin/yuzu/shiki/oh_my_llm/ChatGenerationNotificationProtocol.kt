@@ -107,10 +107,6 @@ internal const val MIN_TERMINAL_NOTIFICATION_ID = 10000
  */
 internal const val TERMINAL_TIMEOUT_FALLBACK_NOTIFICATION_ID = 4200
 
-/** 终态与 fallback 点击激活 Intent 的 data URI 前缀。 */
-internal const val GENERATION_NOTIFICATION_DATA_URI_PREFIX =
-    "oh-my-llm://generation-notification/"
-
 /** timeoutActivationPayload 只校验类型与长度：UTF-8 上限与 Dart codec 一致。 */
 internal const val MAX_TIMEOUT_ACTIVATION_PAYLOAD_BYTES = 1024
 
@@ -324,14 +320,10 @@ internal fun nonBlankString(value: Any?): String? {
 // ── 终态点击 PendingIntent 推导 ──────────────────────────────────────────
 
 /**
- * 终态点击 PendingIntent request code 与通知 ID 同源同值：不同终态 ID 天然
- * 得到不同 request code 与 data URI，互不覆盖。
+ * 终态点击 PendingIntent request code 与通知 ID 同源同值；激活 Intent 不设置
+ * data，不同终态互不覆盖的区分性仅由本 request code 保证。
  */
 internal fun terminalPendingRequestCode(notificationId: Int): Int = notificationId
-
-/** 终态点击 Intent 的 data URI；后缀即通知 ID，保证每个终态 URI 唯一。 */
-internal fun generationNotificationDataUri(notificationId: Int): String =
-    "$GENERATION_NOTIFICATION_DATA_URI_PREFIX$notificationId"
 
 // ── timeout fallback 决策 ────────────────────────────────────────────────
 

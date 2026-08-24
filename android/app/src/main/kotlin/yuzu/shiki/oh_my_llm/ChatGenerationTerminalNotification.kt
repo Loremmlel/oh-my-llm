@@ -7,7 +7,6 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.media.AudioAttributes
-import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
@@ -235,8 +234,12 @@ private fun publicTerminalVersion(
 }
 
 /**
- * 点击激活 PendingIntent：指向 MainActivity，data URI 与 request code 都由
- * 通知 ID 推导，extras 只携带原始 payload 字符串。
+ * 点击激活 PendingIntent：指向 MainActivity，request code 由通知 ID 推导，
+ * extras 只携带原始 payload 字符串。
+ *
+ * 不设置 Intent data：带 data 的通知点击 intent 会被 Flutter embedding 自动
+ * 转发为 Flutter 路由并在 GoRouter 渲染「未找到页面」，payload 一律走 extras，
+ * 激活导航只经 KEY_PAYLOAD 链路接管。
  */
 private fun terminalActivationPendingIntent(
     context: Context,
@@ -245,7 +248,6 @@ private fun terminalActivationPendingIntent(
 ): PendingIntent {
     val intent = Intent(context, MainActivity::class.java).apply {
         action = NOTIFICATION_ACTION_GENERATION_ACTIVATED
-        data = Uri.parse(generationNotificationDataUri(notificationId))
         if (!payload.isNullOrEmpty()) {
             putExtra(KEY_PAYLOAD, payload)
         }
