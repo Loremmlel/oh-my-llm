@@ -459,6 +459,21 @@ class ChatGenerationNotificationProtocolTest {
         assertNull(timeoutFallbackRequest(null).payload)
     }
 
+    @Test
+    fun timeout_fallback文案与Dart固定安全文案保持一致() {
+        // 与 default_chat_generation_terminal_notifications.dart 的
+        // foregroundProtectionTimedOut 文案逐字一致；改任一端必须同步改
+        // 另一端与两端测试（Dart 侧断言见同文件对应测试）。
+        assertEquals(
+            "后台保护已结束",
+            ChatGenerationTerminalNotificationSpec.TIMEOUT_FALLBACK_TITLE,
+        )
+        assertEquals(
+            "请打开应用查看生成状态",
+            ChatGenerationTerminalNotificationSpec.TIMEOUT_FALLBACK_BODY,
+        )
+    }
+
     // ── ongoing 点击直达契约 ──────────────────────────────────────────────
 
     @Test
