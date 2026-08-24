@@ -265,8 +265,9 @@ class ChatGenerationForegroundService : Service() {
     }
 
     private fun ensureNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val manager = getSystemService(NotificationManager::class.java)
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        try {
+            val manager = getSystemService(NotificationManager::class.java) ?: return
             manager.createNotificationChannel(
                 NotificationChannel(
                     ONGOING_CHANNEL_ID,
@@ -276,6 +277,10 @@ class ChatGenerationForegroundService : Service() {
                     description = getString(R.string.chat_generation_notification_channel_description)
                 },
             )
+        } catch (e: Exception) {
+            // OEM 建渠道失败不致命：不阻塞 accepted ACK，startForeground 仍按
+            // 无渠道 best-effort 继续（与终态 ensureTerminalChannel 同一策略）。
+            logCategory("channel_create_failed")
         }
     }
 

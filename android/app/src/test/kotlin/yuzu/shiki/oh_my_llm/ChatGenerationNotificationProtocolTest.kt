@@ -534,6 +534,15 @@ class ChatGenerationNotificationProtocolTest {
         assertEquals("com.example.other", appNotificationSettingsSpec("com.example.other").packageName)
     }
 
+    // ── start ACK 超时兜底 ──────────────────────────────────────────────
+
+    @Test
+    fun start_ACK_Kotlin侧超时与Dart通道超时对齐() {
+        // Kotlin postDelayed 的兜底上界必须与 Dart 侧 2s 通道超时一致，
+        // 否则一端先超时会留下不一致的 pending 状态。
+        assertEquals(2_000L, ChatGenerationNotificationChannel.START_ACK_TIMEOUT_MS)
+    }
+
     // ── 命令结果 map ──────────────────────────────────────────────────────
 
     @Test

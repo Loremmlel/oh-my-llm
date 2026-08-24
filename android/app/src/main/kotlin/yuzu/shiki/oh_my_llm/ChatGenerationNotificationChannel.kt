@@ -7,6 +7,8 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationManagerCompat
@@ -165,6 +167,19 @@ class ChatGenerationNotificationChannel(
         }
         val commandId = nextCommandId++
         pendingStarts[commandId] = result
+        // 超时兜底：原生 ACK 迟迟不到（进程被杀 / handleStartCommand 抛错）时
+        // 按通道超时收束挂起结果并清理，避免 MethodChannel.Result 泄漏到进程
+        // 结束。completeStart 先到时 finishStart 已移除 entry，本定时器随后
+        // no-op（finishStart 幂等）。
+        Handler(Looper.getMainLooper()).postDelayed(
+            {
+                finishStart(
+                    commandId,
+                    NativeCommandResult.Unavailable(FAILURE_CHANNEL_TIMEOUT),
+                )
+            },
+            START_ACK_TIMEOUT_MS,
+        )
         val intent = Intent(activity, ChatGenerationForegroundService::class.java).apply {
             action = SERVICE_START_ACTION
             putExtra(EXTRA_COMMAND_ID, commandId)
@@ -398,6 +413,8 @@ class ChatGenerationNotificationChannel(
     }
 
     companion object {
+        /** start ACK 的 Kotlin 侧超时上界；与 Dart 侧 2s 通道超时对齐。 */
+        const val START_ACK_TIMEOUT_MS = 2_000L
         private const val TAG = "ChatGenerationFgs"
         private const val PERMISSION_PREFS = "chat_generation_notifications"
         private const val KEY_POST_NOTIFICATIONS_REQUESTED = "post_notifications_requested"
