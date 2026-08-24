@@ -199,7 +199,7 @@ WindowsNotificationRegistrationResult EnsureWindowsNotificationRegistration() {
   try {
     CLSID activator = {};
     if (FAILED(CLSIDFromString(kWindowsNotificationClsidBraced, &activator))) {
-      result.failure_stage = "exePath";
+      result.failure_stage = "clsid";
       return result;
     }
     std::wstring exe_path;

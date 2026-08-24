@@ -1,3 +1,5 @@
+#requires -Version 7
+
 # 构建并运行 windows_notification_host_test 原生测试（含 CMake configure
 # 规则矩阵：竞态 delay 开关的拒绝规则）。任一步失败立即以非零退出码结束。
 #

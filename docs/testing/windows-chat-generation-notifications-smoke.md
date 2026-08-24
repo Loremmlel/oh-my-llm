@@ -7,12 +7,14 @@
 1. **操作手册**：带你一步步在真机上验证 Windows 生成终态通知的底层机制。每一步都告诉你打开什么、点什么、看到什么写什么。
 2. **证据记录**：验证结果当场回填进本文档的表格。没做过实验的字段一律保持 `PENDING`——不预测结果，不编造数据。
 
-全文分两部分：
+全文分四部分：
 
 | 部分 | 对应计划 | 干什么 | 卡住什么 |
 |------|----------|--------|----------|
 | 第一部分：插件激活 spike | Task 6 | 用仓库外的临时工程验证 `flutter_local_notifications_windows 3.1.1` 在未打包场景下能否被 Toast 点击正确激活 | 7 项验收全部 PASS 之前，禁止开始 Task 7–11 的产品实现 |
 | 第二部分：产品最小 gate | Task 11 / 计划第 11 节 | 用最终产品 build 复验同样的机制，再加产品行为 | 全部 PASS 之前，PR 不得标记 Ready |
+| 第三部分：runner-owned spike | Task 6B | 用仓库外 throwaway 工程验证 runner 在 Flutter engine 之前持有 COM activator 的方案（独立 STA 线程 + named pipe 帧协议），人工验收 A–E | A–E 全部 PASS 之前，禁止开始 Task 7–11 的产品实现 |
+| 第四部分：产品级 smoke 清单 | Task 11 回填 | 回填自动化证据并记录产品级人工 smoke 清单（W 系列），与第二部分共同构成 Ready 判定依据 | 核心 smoke 项未全部 PASS 之前，PR 不得标记 Ready；仅扩展矩阵 W18/W19 允许保持 `PENDING` |
 
 **当前状态（2026-08-24 更新）：** 第一部分插件方案已被 runner-owned 方案否决替代（原始 FAIL 证据原样保留于下文）；第三部分 runner-owned spike 人工验收 A–E 已全部 PASS；第二部分产品最小 gate 与第四部分产品级 smoke 清单的人工核心项已于 2026-08-24 由用户在正式 Release 产品 build 上按 `task-11-user-guide.md` 六组 case 执行完毕并全部 PASS（W5 按当日用户裁决精简为 3 轮，见对应条目备注），仅剩扩展矩阵 W18/W19 允许保持 `PENDING`。
 
@@ -356,7 +358,7 @@ E:\Code\omll-notification-spike\cleanup-spike.ps1 -KeepProjectDir
 
 ## 第二部分：产品最小 gate（Task 11，阻塞 PR Ready）
 
-这部分用**最终产品 build**（真实的 Oh My LLM，不再是 spike 工程）复验同样机制，并叠加产品行为，由计划 Task 11 执行并回填。spike 7 项全 PASS、产品实现完成之前无从执行，因此当前全部 `PENDING`。
+这部分用**最终产品 build**（真实的 Oh My LLM，不再是 spike 工程）复验同样机制，并叠加产品行为，由计划 Task 11 执行并回填。该部分在 spike 全 PASS、产品实现完成之后才具备执行条件，初始记录时各项均为 `PENDING`；2026-08-24 已由用户在正式 Release build 上执行完毕并全部 PASS（见上表结果列与第四部分回填）。
 
 ### 最小原生 gate 清单（Ready 前必须全部 PASS，不允许 PENDING）
 
@@ -368,7 +370,7 @@ E:\Code\omll-notification-spike\cleanup-spike.ps1 -KeepProjectDir
 | G4 | 最小化恢复后导航 | 导航行为正常 | **PASS** |
 | G5 | 删除会话回退根页 | 会话删除后回退到根页，无崩溃 | **PASS** |
 
-执行口径说明（2026-08-24）：五项 gate 由用户在正式 Release build 上按 `task-11-user-guide.md` 六组 case 人工执行并确认全部 PASS；判定以可观察行为结果为准（导航正确、单实例、无崩溃）。原文要求的 PID/进程数/AUMID/CLSID 表示/class registration 耗时级逐轮明细未留存——行为级结论可信，仪器级明细视为未采集，如实记录于此。
+执行口径说明（2026-08-24）：五项 gate 中，G1/G2/G4/G5 四项由用户在正式 Release build 上执行；G3 前后半（W7/W8）经由 `-DOMLL_NOTIFICATION_HOST_TESTING=ON` 的 Debug instrumented 变体复验。以上均按 `task-11-user-guide.md` 六组 case 人工执行并确认全部 PASS；判定以可观察行为结果为准（导航正确、单实例、无崩溃）。原文要求的 PID/进程数/AUMID/CLSID 表示/class registration 耗时级逐轮明细未留存——行为级结论可信，仪器级明细视为未采集，如实记录于此。
 
 ### 随产品 smoke 一并记录的观察项
 

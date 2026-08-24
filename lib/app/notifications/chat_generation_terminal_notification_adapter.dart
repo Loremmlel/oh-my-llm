@@ -165,7 +165,7 @@ final RegExp _eventKeyPattern = RegExp(
 
 /// 由 eventKey 的 UTF-8 bytes 计算 FNV-1a 32-bit 稳定通知 ID。
 ///
-/// 公式（计划 5.2）：hash 初值 0x811C9DC5，逐字节
+/// 公式：hash 初值 0x811C9DC5，逐字节
 /// `hash = ((hash ^ byte) * 0x01000193) & 0xFFFFFFFF`，取正后映射到
 /// `10000 + (positive % 2147473647)`。结果固定落在 10000..2147483646，
 /// 不与 ongoing 通知 ID 4101 冲突；不使用 Dart `String.hashCode`

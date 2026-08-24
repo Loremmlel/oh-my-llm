@@ -89,4 +89,9 @@ bool WindowsNotificationUtf16FromUtf8(const std::string& input,
 // 对双引号 XML 属性内容做集中转义（& < > " '）。
 std::string WindowsNotificationXmlEscape(const std::string& input);
 
+// 队列满丢弃的唯一诊断出口：经调试通道输出固定 token
+// （native_activation_queue_full）。pending queue 满分支与 relay 晋升回填
+// 溢出都收敛到这里，字面量只有一处来源；token 不含任何动态内容。
+void WindowsNotificationReportQueueFullToken();
+
 #endif  // RUNNER_WINDOWS_NOTIFICATION_PROTOCOL_H_

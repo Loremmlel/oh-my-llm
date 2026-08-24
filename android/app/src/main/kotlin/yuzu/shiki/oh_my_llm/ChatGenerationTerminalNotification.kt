@@ -54,7 +54,7 @@ internal object ChatGenerationTerminalNotificationSpec {
     /** public version 锁屏可见性：公开副本只含固定安全文案，可全程显示。 */
     const val PUBLIC_VISIBILITY = NotificationCompat.VISIBILITY_PUBLIC
 
-    /** timeout 原生 fallback 固定文案（计划 Section 3.4 安全文案表）。 */
+    /** timeout 原生 fallback 固定文案，与 Dart 侧固定安全文案保持一致。 */
     const val TIMEOUT_FALLBACK_TITLE = "后台保护已结束"
     const val TIMEOUT_FALLBACK_BODY = "请打开应用查看生成状态"
 }

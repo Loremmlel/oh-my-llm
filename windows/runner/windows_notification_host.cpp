@@ -402,10 +402,13 @@ int WindowsNotificationHost::Core::TryPromoteOrExit() {
   instance_mutex = claim.instance_mutex;
   mode = WindowsNotificationHostMode::kPrimary;
   {
-    // 捕获的 payload 按原顺序补进 pending queue（冷启动语义）。
+    // 捕获的 payload 按原顺序补进 pending queue（冷启动语义）；积压超过
+    // queue 容量时丢弃溢出部分并留固定诊断标记，不阻塞晋升。
     std::lock_guard<std::mutex> lock(undelivered_mutex);
     for (const std::string& payload : undelivered) {
-      queue.Push(payload);
+      if (!queue.Push(payload)) {
+        WindowsNotificationReportQueueFullToken();
+      }
     }
     undelivered.clear();
   }

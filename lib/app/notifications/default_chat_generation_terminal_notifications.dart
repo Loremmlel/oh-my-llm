@@ -22,7 +22,7 @@ const _inFlightEventKeyLimit = 32;
 
 /// 平台终态通知 adapter 绑定点。
 ///
-/// 平台 composition（Task 9）完成前固定绑定 no-op 安全默认值，不抛「未
+/// 未被平台 composition override 时固定绑定 no-op 安全默认值，不抛「未
 /// 绑定」异常；Android/Windows 真实 adapter 由 composition override。
 final chatGenerationTerminalNotificationAdapterProvider =
     Provider<ChatGenerationTerminalNotificationAdapter>((ref) {
@@ -199,8 +199,8 @@ final class DefaultChatGenerationTerminalNotifications
     _completeReport(eventKey);
   }
 
-  /// 注意力抑制（计划 3.2 真值表）：仅宿主 attentive 且路由精确等于 /chat
-  /// 且当前可见会话与收据会话相同时抑制。
+  /// 注意力抑制：仅宿主 attentive 且路由精确等于 /chat 且当前可见会话与
+  /// 收据会话相同时抑制。
   ///
   /// `/chat` 用 `Uri.path` 精确比较（不用 startsWith，也不通过
   /// activeConversationId 反猜页面）；仅命中前两个条件时才读取
@@ -339,7 +339,7 @@ final class DefaultChatGenerationTerminalNotifications
     }
   }
 
-  // ── 固定安全文案（计划 3.4） ─────────────────────────────
+  // ── 固定安全文案 ─────────────────────────────
 
   String _titleFor(ChatGenerationTerminalReceipt receipt) {
     return switch (receipt.terminalKind) {

@@ -195,9 +195,9 @@ final class ChatGenerationForegroundTimedOut
 /// 非 Android 绑定 no-op。
 ///
 /// 端口方法返回可观察的成功/失败结果，但调用方不得把失败转换成聊天失败。
-/// [dispose] 只释放 Dart 侧 MethodChannel handler / stream controller，
-/// 不清理 generation state；原生 engine detach 清理由
-/// `ChatGenerationForegroundChannel.dispose()` 通知 Service 完成。
+/// 端口不拥有 MethodChannel；[dispose] 只释放实现自身的动作转发资源，
+/// 不清理 generation state，原生回调 handler 与通道的清理由共享 bridge 的
+/// dispose 路径统一完成（composition 持有 bridge 生命周期）。
 abstract interface class ChatGenerationForegroundServicePort {
   /// 查询并按需请求 Android 通知权限。
   Future<ChatNotificationPermissionStatus> ensureNotificationPermission();

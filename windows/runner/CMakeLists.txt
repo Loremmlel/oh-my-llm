@@ -43,6 +43,9 @@ target_compile_definitions(${BINARY_NAME} PRIVATE "FLUTTER_VERSION_BUILD=${FLUTT
 target_compile_definitions(${BINARY_NAME} PRIVATE "NOMINMAX")
 # 通知宿主用到的 Shell/COM/WinRT 头文件需要现代 Windows API level。
 target_compile_definitions(${BINARY_NAME} PRIVATE "_WIN32_WINNT=0x0A00")
+# Win32 泛型宏统一映射到宽字符（W）入口；顶层虽有 add_definitions 全局
+# 提供，此处在本 target 上显式声明，不依赖目录级副作用的隐式传递。
+target_compile_definitions(${BINARY_NAME} PRIVATE "UNICODE" "_UNICODE")
 
 # ── 通知宿主测试开关与竞态 delay 变体 ────────────────────────────────
 # delay 只用于在 Debug 构建上复验两个早期竞态窗口（pre-COM / post-COM），

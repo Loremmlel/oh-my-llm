@@ -293,11 +293,15 @@ struct PrimaryThreadParams {
 // pending queue / focus flag / worker 投递
 // ---------------------------------------------------------------------------
 
-// 队列满拒绝的固定诊断标记：pipe ACK 与 STA 入队两条拒绝路径都收敛到 Push
-// 的满分支，在此输出恰好一次，避免同一事件重复记录；固定 token 不含任何
-// 动态内容，绝不记录 payload。
+// 队列满丢弃的固定诊断 token：pipe ACK 拒绝、STA 入队拒绝与 relay 晋升回填
+// 溢出统一经 WindowsNotificationReportQueueFullToken 输出同一个固定 token，
+// 字面量只有一处来源；token 不含任何动态内容，绝不记录 payload。
 constexpr wchar_t kNativeActivationQueueFullToken[] =
     L"native_activation_queue_full\n";
+
+void WindowsNotificationReportQueueFullToken() {
+  OutputDebugStringW(kNativeActivationQueueFullToken);
+}
 
 bool WindowsNotificationPendingQueue::Push(const std::string& payload_utf8) {
   if (payload_utf8.size() > kWindowsNotificationMaxPayloadBytes) {
@@ -307,7 +311,7 @@ bool WindowsNotificationPendingQueue::Push(const std::string& payload_utf8) {
   if (entries_.size() >= 32) {
     // 队列满：拒绝新消息且不逐出正在等待的旧 payload（cold/rapid-cold 不
     // 允许只保留最后一次）；经调试通道留下固定诊断标记供事后定位。
-    OutputDebugStringW(kNativeActivationQueueFullToken);
+    WindowsNotificationReportQueueFullToken();
     return false;
   }
   entries_.push_back(payload_utf8);

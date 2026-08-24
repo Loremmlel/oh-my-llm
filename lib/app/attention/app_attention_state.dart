@@ -35,7 +35,7 @@ final class AppAttentionState extends Equatable {
   /// 宿主是否正在前台且窗口聚焦。
   ///
   /// Windows 只有 `lifecycle == resumed && windowFocused == true` 才算
-  /// attentive；不满足时终态通知一律展示（计划 3.2 真值表）。
+  /// attentive；不满足时终态通知一律展示。
   bool get hostIsAttentive =>
       lifecycleState == AppLifecycleState.resumed && windowFocused;
 

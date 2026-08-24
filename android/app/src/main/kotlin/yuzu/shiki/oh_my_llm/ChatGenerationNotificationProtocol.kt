@@ -9,7 +9,7 @@ import android.app.NotificationManager
  * 本文件不含任何 Android framework 调用：唯一的 framework 引用是
  * `NotificationManager.IMPORTANCE_*` 编译期常量（编译时内联），JVM 单元测试
  * 可直接加载。所有常量与方法名必须与 Dart 侧
- * `AndroidChatGenerationPlatformBridge` 以及计划 Section 7 协议逐字节一致。
+ * `AndroidChatGenerationPlatformBridge` 使用的协议逐字节一致。
  * 通道职责：
  *
  * - ongoing 前台服务：LOW 静音渠道 + 4101 通知，点击直达会话契约原样保留；

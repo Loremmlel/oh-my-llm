@@ -248,7 +248,8 @@ final Uri _windowsAppWindowDiagnosticUri = Uri(
 );
 
 /// 生产 Windows 窗口工厂：诊断接 core/logging 结构化日志（默认 debugPrint 在
-/// release 不可回读）；固定分类不含窗口句柄、异常原文或堆栈。测试注入的
+/// release 不可回读）；固定分类不含窗口句柄、异常原文或堆栈。信息性分类暂经
+/// logError 记录（logger 无更低级别），回读按分类过滤。测试注入的
 /// [AppWindowFactory] 不经过本路径，不受影响。
 WindowsAppWindow _productionWindowsAppWindowFactory(Ref ref) {
   return WindowsAppWindow(
