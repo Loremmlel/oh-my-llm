@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
+import 'package:oh_my_llm/features/settings/application/ports/system_notification_settings.dart';
 import 'package:oh_my_llm/core/logging/app_network_logger_provider.dart';
 import 'package:oh_my_llm/core/logging/network_logger.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
@@ -39,6 +42,10 @@ Future<void> switchToTab(WidgetTester tester, int index) async {
 }
 
 /// 挂载设置页并返回测试用数据库实例。
+///
+/// [systemNotificationSettings] 非 null 时排除生产通知平台绑定并把它注入
+/// [systemNotificationSettingsProvider]：Riverpod 禁止同一容器内重复
+/// override，注入 fake 必须先从 composition 中摘除默认 no-op 绑定。
 Future<AppDatabase> pumpSettingsScreen(
   WidgetTester tester, {
   required SharedPreferences preferences,
@@ -48,6 +55,7 @@ Future<AppDatabase> pumpSettingsScreen(
   String? clipboardText = '',
   List<String>? clipboardWrites,
   List<dynamic> extraOverrides = const [],
+  SystemNotificationSettings? systemNotificationSettings,
 }) async {
   await preferences.setInt(settingsLastTabIndexKey, initialTabIndex);
 
@@ -77,8 +85,13 @@ Future<AppDatabase> pumpSettingsScreen(
     preferences: preferences,
     database: database,
     viewportSize: size,
+    bindChatGenerationNotifications: systemNotificationSettings == null,
     extraOverrides: [
       appNetworkLoggerProvider.overrideWithValue(const NoopNetworkLogger()),
+      if (systemNotificationSettings != null)
+        systemNotificationSettingsProvider.overrideWithValue(
+          systemNotificationSettings,
+        ),
       ...extraOverrides,
     ],
   );
@@ -105,6 +118,7 @@ Future<AppDatabase> setUpSettingsScreen(
   String? clipboardText = '',
   List<String>? clipboardWrites,
   List<dynamic> extraOverrides = const [],
+  SystemNotificationSettings? systemNotificationSettings,
 }) async {
   assert(
     !useDefaultsSeed ||
@@ -140,6 +154,7 @@ Future<AppDatabase> setUpSettingsScreen(
     clipboardText: clipboardText,
     clipboardWrites: clipboardWrites,
     extraOverrides: extraOverrides,
+    systemNotificationSettings: systemNotificationSettings,
   );
   return database;
 }
@@ -153,6 +168,45 @@ Future<SharedPreferences> createDefaultsSeededPreferences(
     models: [TestFixtures.gpt41(), TestFixtures.claudeSonnet()],
     prompts: [TestFixtures.presetPrompt(id: 'prompt-1', name: '代码助手')],
   );
+}
+
+// ── 系统通知设置 Fake ──────────────────────────────────────
+
+/// 系统通知设置端口的可控 Fake：记录调用次数，允许用例改写应答，
+/// 并可用 [statusGate] 挂起 getStatus 以构造稳定的 loading 窗口。
+class FakeSystemNotificationSettings implements SystemNotificationSettings {
+  FakeSystemNotificationSettings({
+    this.status = SystemNotificationStatus.enabled,
+    this.openSettingsResult = true,
+  });
+
+  /// 下一次 getStatus 返回的状态。
+  SystemNotificationStatus status;
+
+  /// openSettings 的固定应答。
+  bool openSettingsResult;
+
+  /// 非 null 时 getStatus 在返回前等待该门被 complete。
+  Completer<void>? statusGate;
+
+  int getStatusCallCount = 0;
+  int openSettingsCallCount = 0;
+
+  @override
+  Future<SystemNotificationStatus> getStatus() async {
+    getStatusCallCount += 1;
+    final gate = statusGate;
+    if (gate != null) {
+      await gate.future;
+    }
+    return status;
+  }
+
+  @override
+  Future<bool> openSettings() async {
+    openSettingsCallCount += 1;
+    return openSettingsResult;
+  }
 }
 
 // ── Finder 工厂 ────────────────────────────────────────────

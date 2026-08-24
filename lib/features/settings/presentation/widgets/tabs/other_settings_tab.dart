@@ -1,9 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:oh_my_llm/core/widgets/notification_bubble/notification_bubble_context_ext.dart';
+
 import '../../../application/preferences/auto_retry_settings_controller.dart';
 import '../../../application/preferences/font_size_settings_controller.dart';
+import '../../../application/ports/system_notification_settings.dart';
+import '../../../application/system_notifications/system_notification_status_controller.dart';
 import '../../../domain/models/preferences/auto_retry_settings.dart';
 import '../shared/settings_section_card.dart';
 
@@ -14,14 +20,40 @@ const _switchTileShape = RoundedRectangleBorder(
   borderRadius: BorderRadius.all(Radius.circular(12)),
 );
 
-/// 其它设置标签页，包含自动重试等杂项配置。
-class OtherSettingsTab extends ConsumerWidget {
+/// 其它设置标签页，包含显示、系统通知与自动重试等配置。
+class OtherSettingsTab extends ConsumerStatefulWidget {
   const OtherSettingsTab({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<OtherSettingsTab> createState() => _OtherSettingsTabState();
+}
+
+class _OtherSettingsTabState extends ConsumerState<OtherSettingsTab> {
+  AppLifecycleListener? _lifecycleListener;
+
+  @override
+  void initState() {
+    super.initState();
+    // 用户可能跳去系统设置改通知开关后返回应用；resume 时重新查询一次，
+    // 卡片才能反映当前系统事实而不是进页时的旧值。
+    _lifecycleListener = AppLifecycleListener(
+      onResume: () => unawaited(
+        ref.read(systemNotificationStatusProvider.notifier).refresh(),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _lifecycleListener?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final settings = ref.watch(autoRetrySettingsProvider);
     final fontSizeSettings = ref.watch(fontSizeSettingsProvider);
+    final notificationStatus = ref.watch(systemNotificationStatusProvider);
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -63,6 +95,12 @@ class OtherSettingsTab extends ConsumerWidget {
               ),
             ],
           ),
+        ),
+        const SizedBox(height: 16),
+        SettingsSectionCard(
+          title: '系统通知',
+          description: '生成完成或失败时由系统显示通知；声音、横幅和权限由系统管理。',
+          child: _buildSystemNotificationContent(notificationStatus),
         ),
         const SizedBox(height: 16),
         SettingsSectionCard(
@@ -171,6 +209,67 @@ class OtherSettingsTab extends ConsumerWidget {
         ),
       ],
     );
+  }
+
+  // ── 系统通知卡片 ────────────────────────────────────────────
+
+  /// 查询期间保留流畅加载动画，数据返回后再渲染具体状态；入口按钮只在
+  /// 状态落地且平台可用时可点，避免对不可用平台发起无意义的打开请求。
+  Widget _buildSystemNotificationContent(
+    AsyncValue<SystemNotificationStatus> status,
+  ) {
+    final Widget statusChild;
+    if (status.isLoading) {
+      statusChild = const Row(
+        children: [
+          SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          SizedBox(width: 12),
+          Text('正在读取系统通知状态'),
+        ],
+      );
+    } else {
+      // controller 已把查询异常映射为 unavailable，value 为 null 只剩
+      // 理论路径，同样按不可用渲染兜底。
+      statusChild = Text(switch (status.value ??
+          SystemNotificationStatus.unavailable) {
+        SystemNotificationStatus.enabled => '系统通知已开启',
+        SystemNotificationStatus.disabled => '系统通知已关闭',
+        SystemNotificationStatus.available => '系统通知功能可用，具体横幅和声音由 Windows 管理',
+        SystemNotificationStatus.unavailable => '当前平台无法使用系统通知',
+      });
+    }
+
+    final canOpen =
+        !status.isLoading &&
+        status.value != SystemNotificationStatus.unavailable;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        statusChild,
+        const SizedBox(height: 12),
+        OutlinedButton(
+          onPressed: canOpen
+              ? () => unawaited(_openSystemNotificationSettings(context))
+              : null,
+          child: const Text('打开系统通知设置'),
+        ),
+      ],
+    );
+  }
+
+  /// 打开系统设置的失败用非阻塞气泡提示，不打断页面浏览。
+  Future<void> _openSystemNotificationSettings(BuildContext context) async {
+    final opened = await ref
+        .read(systemNotificationStatusProvider.notifier)
+        .openSettings();
+    if (!opened && context.mounted) {
+      context.showErrorBubble('无法打开系统通知设置');
+    }
   }
 }
 
