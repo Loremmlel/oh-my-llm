@@ -6,11 +6,21 @@ library;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:oh_my_llm/app/attention/app_attention_observer.dart';
+import 'package:oh_my_llm/app/composition/app_attention_bindings.dart';
+import 'package:oh_my_llm/app/composition/chat_generation_notification_platform_bindings.dart';
+import 'package:oh_my_llm/app/platform/noop_app_window.dart';
 import 'package:oh_my_llm/app/platform/noop_chat_generation_foreground_service.dart';
+import 'package:oh_my_llm/app/platform/noop_chat_generation_terminal_notification_adapter.dart';
+import 'package:oh_my_llm/app/platform/noop_system_notification_settings.dart';
+import 'package:oh_my_llm/app/platform/windows_chat_generation_terminal_notification_adapter.dart';
+import 'package:oh_my_llm/app/platform/windows_notification_host_client.dart';
+import 'package:oh_my_llm/app/platform/windows_system_notification_settings.dart';
 import 'package:oh_my_llm/bootstrap.dart';
 import 'package:oh_my_llm/core/logging/app_network_logger_provider.dart';
 import 'package:oh_my_llm/core/logging/network_logger.dart';
@@ -29,10 +39,46 @@ import 'package:oh_my_llm/features/favorites/data/sqlite_favorites_repository.da
 
 const _viewportSize = Size(1440, 1024);
 
+/// 仅用于验证 factory 透传的前台端口桩：不发起任何平台调用。
+final class _StubForegroundPort implements ChatGenerationForegroundServicePort {
+  @override
+  Stream<ChatGenerationForegroundAction> get actions => const Stream.empty();
+
+  @override
+  Future<ChatNotificationPermissionStatus>
+  ensureNotificationPermission() async =>
+      ChatNotificationPermissionStatus.notRequired;
+
+  @override
+  Future<ChatForegroundCommandResult> start(
+    ChatGenerationForegroundPayload payload,
+  ) async => const ChatForegroundCommandResult.accepted();
+
+  @override
+  Future<ChatForegroundCommandResult> update(
+    ChatGenerationForegroundPayload payload,
+  ) async => const ChatForegroundCommandResult.accepted();
+
+  @override
+  Future<ChatForegroundCommandResult> remove({
+    required int token,
+    required String conversationId,
+  }) async => const ChatForegroundCommandResult.accepted();
+
+  @override
+  Future<String?> takePendingOpenConversation() async => null;
+
+  @override
+  void dispose() {}
+}
+
 Future<ProviderContainer> _pumpBootstrappedApp(
   WidgetTester tester, {
   WindowsWindowInitializer? windowsWindowInitializer,
   TargetPlatform hostPlatform = TargetPlatform.windows,
+  ChatGenerationNotificationPlatformBindingsFactory?
+  notificationPlatformBindingsFactory,
+  AppWindowFactory? appWindowFactory,
 }) async {
   SharedPreferences.setMockInitialValues({});
   tester.view.physicalSize = _viewportSize;
@@ -50,6 +96,13 @@ Future<ProviderContainer> _pumpBootstrappedApp(
     networkLogger: const NoopNetworkLogger(),
     hostPlatform: hostPlatform,
     windowsWindowInitializer: windowsWindowInitializer ?? () async {},
+    // 默认与 test_harness 同源：任何 hostPlatform 取值都从构造源头阻止真实
+    // MethodChannel client 与 window_manager 触达；case-specific 用例显式
+    // 传参覆盖本默认。
+    notificationPlatformBindingsFactory:
+        notificationPlatformBindingsFactory ??
+        createOtherPlatformChatGenerationNotificationBindings,
+    appWindowFactory: appWindowFactory ?? () => NoopAppWindow(),
   );
   await tester.pump();
 
@@ -58,6 +111,32 @@ Future<ProviderContainer> _pumpBootstrappedApp(
 }
 
 void main() {
+  setUpAll(TestWidgetsFlutterBinding.ensureInitialized);
+
+  test('生产默认绑定在 Windows 平台保持 no-op 前台与真实 Windows 角色', () {
+    // 纯构造级断言：只构造 dispatcher 的生产默认记录并验证角色类型，不触发
+    // initialize/getStatus/focus/pump 等任何生命周期调用——按计划 9.1 的构造
+    // 源头隔离规则，驱动生产默认 adapter 的通道行为不属于测试范围。
+    final bindings = createChatGenerationNotificationPlatformBindings(
+      platform: TargetPlatform.windows,
+    );
+
+    expect(
+      bindings.foregroundService,
+      isA<NoopChatGenerationForegroundService>(),
+    );
+    expect(
+      bindings.terminalAdapter,
+      isA<WindowsChatGenerationTerminalNotificationAdapter>(),
+    );
+    expect(
+      bindings.systemNotificationSettings,
+      isA<WindowsSystemNotificationSettings>(),
+    );
+    // disposeShared 是共享 host client 的唯一释放入口；此处只确认记录形状，
+    // 不调用（真实 client 的释放语义由 Task 7/8 各自的边界测试覆盖）。
+  });
+
   testWidgets('正常启动后渲染聊天页', (tester) async {
     await _pumpBootstrappedApp(tester);
 
@@ -129,4 +208,68 @@ void main() {
     final port = container.read(chatGenerationForegroundServiceProvider);
     expect(port, isA<NoopChatGenerationForegroundService>());
   });
+
+  testWidgets('bootstrap 的测试 factory 透传不改变生产默认绑定', (tester) async {
+    final stubPort = _StubForegroundPort();
+    final stubWindow = NoopAppWindow();
+
+    // 注入 factory：端口/窗口来自 factory 本体；透传只影响注入来源，
+    // 不改变 hostPlatform 的平台判断（仍为 Windows），也不篡改全局状态。
+    final container = await _pumpBootstrappedApp(
+      tester,
+      hostPlatform: TargetPlatform.windows,
+      notificationPlatformBindingsFactory: () => (
+        foregroundService: stubPort,
+        terminalAdapter: NoopChatGenerationTerminalNotificationAdapter(),
+        systemNotificationSettings: NoopSystemNotificationSettings(),
+        disposeShared: () async {},
+      ),
+      appWindowFactory: () => stubWindow,
+    );
+
+    expect(
+      container.read(chatGenerationForegroundServiceProvider),
+      same(stubPort),
+    );
+    expect(container.read(appWindowProvider), same(stubWindow));
+    expect(debugDefaultTargetPlatformOverride, isNull);
+  });
+
+  testWidgets(
+    'Windows 平台 fake factory 在 Ubuntu 不调用真实 MethodChannel 或 Windows runner',
+    (tester) async {
+      final attemptedMethods = <String>[];
+      void guardChannel(MethodChannel channel) {
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          channel,
+          (call) async {
+            attemptedMethods.add('${channel.name}#${call.method}');
+            return null;
+          },
+        );
+        addTearDown(
+          () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+            channel,
+            null,
+          ),
+        );
+      }
+
+      guardChannel(const MethodChannel(windowsNotificationHostChannelName));
+      guardChannel(const MethodChannel('window_manager'));
+
+      final container = await _pumpBootstrappedApp(
+        tester,
+        hostPlatform: TargetPlatform.windows,
+        notificationPlatformBindingsFactory:
+            createOtherPlatformChatGenerationNotificationBindings,
+        appWindowFactory: () => NoopAppWindow(),
+      );
+      await tester.pump(); // 排空根部 eager 启动的微任务链。
+
+      // 根部 eager 启动完成且全程零通道触达：Ubuntu CI 不依赖 Windows runner。
+      expect(container.read(appAttentionStateProvider), isNotNull);
+      expect(attemptedMethods, isEmpty);
+    },
+  );
 }

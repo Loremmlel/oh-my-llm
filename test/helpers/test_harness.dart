@@ -5,6 +5,10 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:oh_my_llm/app/composition/app_attention_bindings.dart';
+import 'package:oh_my_llm/app/composition/chat_generation_notification_platform_bindings.dart';
+import 'package:oh_my_llm/app/notifications/chat_generation_notification_session.dart';
+import 'package:oh_my_llm/app/platform/noop_app_window.dart';
 import 'package:oh_my_llm/core/http/custom_headers_provider.dart';
 import 'package:oh_my_llm/core/http/peer_http_client_provider.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
@@ -14,6 +18,22 @@ import 'package:oh_my_llm/core/widgets/notification_bubble/notification_bubble_s
 import 'package:oh_my_llm/app/composition/cross_feature_bindings.dart';
 
 import '../test_database.dart';
+
+/// 测试统一使用的固定通知 session ID（合法 v1 eventKey 前缀形态）。
+///
+/// harness 与集成 helper 统一 override 该值：通知相关断言不依赖时间或
+/// 全局随机状态；session 格式本身由对应单元测试覆盖。
+const testChatGenerationNotificationSessionId =
+    '000102030405060708090a0b0c0d0e0f';
+
+/// harness 默认的通知平台绑定：其他平台 no-op 记录。
+///
+/// 无论 hostPlatform 取值如何都不创建 Android bridge / Windows host client，
+/// 从构造源头保证宿主 CI 不触达任何 MethodChannel；需要 case-specific fake
+/// 时经 [pumpTestApp] 的同名参数注入。
+ChatGenerationNotificationPlatformBindings
+_defaultTestNotificationPlatformBindings() =>
+    createOtherPlatformChatGenerationNotificationBindings();
 
 /// 统一的 Widget 测试环境组装工具。
 ///
@@ -52,9 +72,20 @@ Future<AppDatabase> pumpTestApp(
   /// 传 false 排除生产绑定，避免 Riverpod 重复 override。
   bool bindMediaLibraryFactory = true,
 
-  /// 默认 true：保持前台服务端口绑定，与 composition 默认一致；测试注入 fake
-  /// 端口时必须传 false 排除生产绑定。
-  bool bindChatGenerationForegroundService = true,
+  /// 默认 true：保持生成通知平台绑定（no-op 记录）；测试注入 case-specific
+  /// fake 时必须传 false 排除生产绑定后自行 override。
+  bool bindChatGenerationNotifications = true,
+
+  /// 默认 true：保持 AppWindow 绑定（no-op 窗口）；测试注入受控窗口时必须
+  /// 传 false 排除生产绑定后自行 override。
+  bool bindAppWindow = true,
+
+  /// 非 null 时替换 harness 默认的 no-op 平台绑定记录。
+  ChatGenerationNotificationPlatformBindingsFactory?
+  notificationPlatformBindingsFactory,
+
+  /// 非 null 时替换 harness 默认的 no-op 窗口工厂。
+  AppWindowFactory? appWindowFactory,
 
   /// 默认 true：保持收藏仓库生产绑定；测试以故障注入装饰器覆盖
   /// favorites/collections 仓库时必须传 false。
@@ -83,7 +114,10 @@ Future<AppDatabase> pumpTestApp(
       bindChatConversationRepository: bindChatConversationRepository,
       bindHistoryPageQuery: bindHistoryPageQuery,
       bindMediaLibraryFactory: bindMediaLibraryFactory,
-      bindChatGenerationForegroundService: bindChatGenerationForegroundService,
+      bindChatGenerationNotifications: bindChatGenerationNotifications,
+      bindAppWindow: bindAppWindow,
+      notificationPlatformBindingsFactory: notificationPlatformBindingsFactory,
+      appWindowFactory: appWindowFactory,
       bindFavoritesRepositories: bindFavoritesRepositories,
     ),
   );
@@ -120,8 +154,19 @@ Future<ProviderScope> pumpTestAppScope(
   /// [mediaLibraryFactoryProvider] 覆盖时必须传 false。
   bool bindMediaLibraryFactory = true,
 
-  /// 默认 true：保持前台服务端口绑定；测试注入 fake 端口时必须传 false。
-  bool bindChatGenerationForegroundService = true,
+  /// 默认 true：保持生成通知平台绑定（no-op 记录）；测试注入 case-specific
+  /// fake 时必须传 false 排除生产绑定后自行 override。
+  bool bindChatGenerationNotifications = true,
+
+  /// 默认 true：保持 AppWindow 绑定（no-op 窗口）。
+  bool bindAppWindow = true,
+
+  /// 非 null 时替换 harness 默认的 no-op 平台绑定记录。
+  ChatGenerationNotificationPlatformBindingsFactory?
+  notificationPlatformBindingsFactory,
+
+  /// 非 null 时替换 harness 默认的 no-op 窗口工厂。
+  AppWindowFactory? appWindowFactory,
 
   /// 默认 true：保持收藏仓库生产绑定；测试以故障注入装饰器覆盖
   /// favorites/collections 仓库时必须传 false。
@@ -149,7 +194,10 @@ Future<ProviderScope> pumpTestAppScope(
     bindChatConversationRepository: bindChatConversationRepository,
     bindHistoryPageQuery: bindHistoryPageQuery,
     bindMediaLibraryFactory: bindMediaLibraryFactory,
-    bindChatGenerationForegroundService: bindChatGenerationForegroundService,
+    bindChatGenerationNotifications: bindChatGenerationNotifications,
+    bindAppWindow: bindAppWindow,
+    notificationPlatformBindingsFactory: notificationPlatformBindingsFactory,
+    appWindowFactory: appWindowFactory,
     bindFavoritesRepositories: bindFavoritesRepositories,
   );
 }
@@ -179,7 +227,11 @@ ProviderScope _buildTestScope({
   bool bindChatConversationRepository = true,
   bool bindHistoryPageQuery = true,
   bool bindMediaLibraryFactory = true,
-  bool bindChatGenerationForegroundService = true,
+  bool bindChatGenerationNotifications = true,
+  bool bindAppWindow = true,
+  ChatGenerationNotificationPlatformBindingsFactory?
+  notificationPlatformBindingsFactory,
+  AppWindowFactory? appWindowFactory,
   bool bindFavoritesRepositories = true,
 }) {
   return ProviderScope(
@@ -188,6 +240,10 @@ ProviderScope _buildTestScope({
       sharedPreferencesProvider.overrideWithValue(preferences),
       customHeadersMapProvider.overrideWith((ref) => const {}),
       peerHttpClientProvider.overrideWithValue(http.Client()),
+      // 固定通知 session：根部装配与收据断言共用同一确定性值。
+      chatGenerationNotificationSessionIdProvider.overrideWithValue(
+        testChatGenerationNotificationSessionId,
+      ),
       // 需要 fake 的 port 从 composition 中排除，由 extraOverrides 接管：
       // Riverpod 禁止同一容器内对同一 provider 重复 override。
       ...appCompositionOverrides(
@@ -196,11 +252,16 @@ ProviderScope _buildTestScope({
         bindChatConversationRepository: bindChatConversationRepository,
         bindHistoryPageQuery: bindHistoryPageQuery,
         bindMediaLibraryFactory: bindMediaLibraryFactory,
-        bindChatGenerationForegroundService:
-            bindChatGenerationForegroundService,
+        bindChatGenerationNotifications: bindChatGenerationNotifications,
+        bindAppWindow: bindAppWindow,
         bindFavoritesRepositories: bindFavoritesRepositories,
-        // 固定 Windows 宿主：宿主 CI 绝不打开真实 Android MethodChannel。
+        // 固定 Windows 宿主：宿主 CI 绝不打开真实 Android MethodChannel；
+        // 平台件本身仍由 no-op 工厂提供，Windows host client 也不会被创建。
         hostPlatform: TargetPlatform.windows,
+        notificationPlatformBindingsFactory:
+            notificationPlatformBindingsFactory ??
+            _defaultTestNotificationPlatformBindings,
+        appWindowFactory: appWindowFactory ?? () => NoopAppWindow(),
       ),
       ...extraOverrides,
     ],
