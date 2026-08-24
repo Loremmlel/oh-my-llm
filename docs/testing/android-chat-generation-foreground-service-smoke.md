@@ -96,6 +96,8 @@ adb shell am compat disable FGS_INTRODUCE_TIME_LIMITS yuzu.shiki.oh_my_llm
 ## 2. 验证矩阵（15 项 Spec Smoke Case）
 
 > **当前执行状态：** 本机 `adb devices` 为空，没有任何 Android 设备接入；下述所有 Android 设备依赖行一律 `PENDING`，缺失前置条件为「无 Android 13+ 真机接入」。第 15 行（Windows）在具备交互式桌面会话时可执行，见行内状态。
+>
+> **修复待真机验证（2026-08-24）：** 「remove 立即清空守卫 / 过期 stop 动作不残留后台服务」两项修复待真机验证：前者覆盖背靠背 remove→start 不误判 STALE（对应第 6/13/14 行场景），后者覆盖点击过期停止动作不残留后台服务。
 
 | # | 用例（设计 §15） | 前置条件 | 状态 | 结果 / 缺失前置条件 |
 |---|---|---|---|---|

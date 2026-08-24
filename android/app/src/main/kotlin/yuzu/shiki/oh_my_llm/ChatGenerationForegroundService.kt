@@ -145,10 +145,14 @@ class ChatGenerationForegroundService : Service() {
         val conversationId = intent.getStringExtra(KEY_CONVERSATION_ID)
         if (token <= 0 || conversationId.isNullOrBlank()) {
             logCategory("malformed_stop_action")
+            // 无活跃 generation 的实例收不到任何合法动作：立即停止，不残留
+            // 已启动但非前台的 background service；有活跃 generation 时保留。
+            if (tokenGuard.activeToken == null) stopSelf(startId)
             return
         }
         if (tokenGuard.accepts(token) != TokenDecision.ACCEPTED) {
             logCategory("stale_stop_action")
+            if (tokenGuard.activeToken == null) stopSelf(startId)
             return
         }
         // 先把通知替换为固定停止文案并移除所有动作，再发出 stopRequested。
@@ -197,6 +201,10 @@ class ChatGenerationForegroundService : Service() {
 
     private fun removeActive() {
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+        // 立即清空守卫与活跃状态：stopSelf 的 onDestroy 是异步的，若下一个
+        // start 在销毁前到达并复用本实例，空守卫才能接受新 token——否则
+        // remove(A)→start(B) 背靠背会把 B 误判为 STALE，B 失去前台保护。
+        clearActiveState()
         stopSelf()
     }
 
