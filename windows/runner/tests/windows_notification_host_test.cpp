@@ -4,6 +4,13 @@
 // 额外模式：--verify-product-registration <exe路径>
 //   只读回读产品注册（快捷方式 AUMID/VT_CLSID、LocalServer32 双值、
 //   AppUserModelId 键），供产品注册回读脚本使用；不写任何注册表/文件。
+// 额外模式：--probe-live-primary
+//   向产品固定 pipe 发送一条 activateWindow 探测帧并校验 ACK status=0，
+//   用于确认运行中 primary 的宿主与 pipe server 健康；单次连接不重试，
+//   不写任何注册表/文件，也不参与选主。
+// 额外模式：--emit-queue-full-token
+//   内部辅助：把队列填满后触发一次满分支拒绝，供父进程以调试器身份
+//   捕获 OutputDebugStringW 输出，验证固定诊断 token 存在。
 
 #include <windows.h>
 
@@ -545,6 +552,178 @@ void TestQueueAndFocus() {
   flag.Request();
   Check(flag.Consume() && !flag.Consume(),
         "多次 activateWindow 合并为单个待处理 focus 标志");
+}
+
+// ---------------------------------------------------------------------------
+// 队列满诊断 token（经调试通道捕获 OutputDebugStringW）
+// ---------------------------------------------------------------------------
+
+// 与 windows_notification_activator.cpp 中 Push 满分支输出的固定标记一致；
+// 窄字节版本供旧式 ANSI 调试事件形态匹配（token 本身是纯 ASCII）。
+constexpr wchar_t kQueueFullTokenNeedle[] = L"native_activation_queue_full";
+constexpr char kQueueFullTokenNeedleNarrow[] = "native_activation_queue_full";
+
+// 子进程入口：把队列填满后再推一条，让 Push 的满分支真实执行一次诊断
+// 输出；退出码只反映入队前置条件是否成立，token 捕获由父进程完成。
+int EmitQueueFullToken() {
+  WindowsNotificationPendingQueue queue;
+  for (int i = 0; i < 32; ++i) {
+    queue.Push("fill-" + std::to_string(i));
+  }
+  const bool filled = queue.depth() == 32;
+  const bool rejected = !queue.Push("overflow");
+  std::printf("emit_queue_full filled=%d rejected=%d\n", filled ? 1 : 0,
+              rejected ? 1 : 0);
+  std::fflush(stdout);
+  return (filled && rejected) ? 0 : 1;
+}
+
+// 父进程以调试器身份运行子进程并捕获队列满分支的诊断输出：
+// OutputDebugStringW 只有在被调试时才能程序化捕获（无调试器时走内核调试
+// 通道，同进程内不可观测），因此这是验证「拒绝留下固定诊断标记」的唯一
+// 黑盒手段。输出形态随系统与调试接口组合而异：本机旧式 WaitForDebugEvent
+// 通道实测送达 ANSI 形态的 OUTPUT_DEBUG_STRING_EVENT；宽字符事件与
+// DBG_PRINTEXCEPTION_C/WIDE_C 打印异常也一并兼容。全程有界超时，异常
+// 路径杀掉子进程而非悬挂测试。
+void TestQueueFullDiagnosticToken() {
+  std::printf("== 队列满拒绝输出固定诊断 token ==\n");
+  wchar_t self_path[MAX_PATH] = {};
+  if (GetModuleFileNameW(nullptr, self_path, MAX_PATH) == 0) {
+    Check(false, "诊断 token 测试无法取得自身路径");
+    return;
+  }
+  std::wstring command_line =
+      std::wstring(L"\"") + self_path + L"\" --emit-queue-full-token";
+  STARTUPINFOW startup = {};
+  startup.cb = sizeof(startup);
+  PROCESS_INFORMATION child = {};
+  if (!CreateProcessW(self_path, command_line.data(), nullptr, nullptr, FALSE,
+                      DEBUG_ONLY_THIS_PROCESS, nullptr, nullptr, &startup,
+                      &child)) {
+    Check(false, "诊断 token 测试无法以调试模式启动子进程");
+    return;
+  }
+
+  bool token_seen = false;
+  bool child_exited = false;
+  bool timed_out = false;
+  const ULONGLONG deadline = GetTickCount64() + 20000;
+  while (!child_exited && !timed_out) {
+    DEBUG_EVENT event = {};
+    if (GetTickCount64() >= deadline || !WaitForDebugEvent(&event, 3000)) {
+      timed_out = true;
+      break;
+    }
+    DWORD continue_status = DBG_CONTINUE;
+    switch (event.dwDebugEventCode) {
+      case CREATE_PROCESS_DEBUG_EVENT:
+      case LOAD_DLL_DEBUG_EVENT: {
+        // 映像/DLL 句柄由本调试循环负责关闭，否则文件被拖住无法覆盖。
+        HANDLE file_handle =
+            event.dwDebugEventCode == CREATE_PROCESS_DEBUG_EVENT
+                ? event.u.CreateProcessInfo.hFile
+                : event.u.LoadDll.hFile;
+        if (file_handle != nullptr) {
+          CloseHandle(file_handle);
+        }
+        break;
+      }
+      case EXIT_PROCESS_DEBUG_EVENT:
+        child_exited = true;
+        break;
+      case OUTPUT_DEBUG_STRING_EVENT: {
+        // 旧式 WaitForDebugEvent 调试通道把宽字符输出降级为 ANSI 事件送达
+        //（fUnicode=0），宽字符形态只在部分系统/接口组合出现；token 是
+        // 纯 ASCII，按事件声明的编码分别读取匹配。
+        const auto& ods = event.u.DebugString;
+        if (ods.lpDebugStringData == nullptr || ods.nDebugStringLength == 0 ||
+            ods.nDebugStringLength > 4096) {
+          break;
+        }
+        SIZE_T read = 0;
+        if (ods.fUnicode) {
+          std::vector<wchar_t> buffer(ods.nDebugStringLength + 1, L'\0');
+          if (ReadProcessMemory(child.hProcess, ods.lpDebugStringData,
+                                buffer.data(),
+                                ods.nDebugStringLength * sizeof(wchar_t),
+                                &read) &&
+              std::wcsstr(buffer.data(), kQueueFullTokenNeedle) != nullptr) {
+            token_seen = true;
+          }
+        } else {
+          std::vector<char> buffer(ods.nDebugStringLength + 1, '\0');
+          if (ReadProcessMemory(child.hProcess, ods.lpDebugStringData,
+                                buffer.data(),
+                                ods.nDebugStringLength * sizeof(char),
+                                &read) &&
+              std::strstr(buffer.data(), kQueueFullTokenNeedleNarrow) !=
+                  nullptr) {
+            token_seen = true;
+          }
+        }
+        break;
+      }
+      case EXCEPTION_DEBUG_EVENT: {
+        const EXCEPTION_RECORD& record = event.u.Exception.ExceptionRecord;
+        constexpr DWORD kDbgPrintExceptionC = 0x40010006;
+        constexpr DWORD kDbgPrintExceptionWideC = 0x4001000A;
+        if (record.ExceptionCode == kDbgPrintExceptionC ||
+            record.ExceptionCode == kDbgPrintExceptionWideC) {
+          // 打印异常参数布局：[0]=宽窄标记、[1]=字符串地址、[2]=字符数。
+          if (record.NumberParameters >= 3 &&
+              record.ExceptionInformation[0] != 0 &&
+              record.ExceptionInformation[2] > 0 &&
+              record.ExceptionInformation[2] <= 4096) {
+            std::vector<wchar_t> buffer(
+                static_cast<size_t>(record.ExceptionInformation[2]) + 1,
+                L'\0');
+            SIZE_T read = 0;
+            if (ReadProcessMemory(
+                    child.hProcess,
+                    reinterpret_cast<LPCVOID>(record.ExceptionInformation[1]),
+                    buffer.data(),
+                    static_cast<SIZE_T>(record.ExceptionInformation[2]) *
+                        sizeof(wchar_t),
+                    &read) &&
+                std::wcsstr(buffer.data(), kQueueFullTokenNeedle) != nullptr) {
+              token_seen = true;
+            }
+          }
+          // 以已处理放行，OutputDebugStringW 在子进程中正常返回。
+          continue_status = DBG_CONTINUE;
+        } else if (record.ExceptionCode == EXCEPTION_BREAKPOINT) {
+          // 初始断点/加载器断点是调试协议的一部分，吞掉而不交给子进程 SEH；
+          // 其余异常原样交还子进程自身的 SEH/CRT 处理。
+          continue_status = DBG_CONTINUE;
+        } else {
+          continue_status = DBG_EXCEPTION_NOT_HANDLED;
+        }
+        break;
+      }
+      default:
+        break;
+    }
+    ContinueDebugEvent(event.dwProcessId, event.dwThreadId, continue_status);
+  }
+
+  if (timed_out) {
+    // 有界清理：杀掉子进程并排空剩余调试事件，避免悬挂句柄。
+    TerminateProcess(child.hProcess, 1);
+    DEBUG_EVENT drain = {};
+    while (WaitForDebugEvent(&drain, 2000)) {
+      const bool done = drain.dwDebugEventCode == EXIT_PROCESS_DEBUG_EVENT;
+      ContinueDebugEvent(drain.dwProcessId, drain.dwThreadId, DBG_CONTINUE);
+      if (done) {
+        break;
+      }
+    }
+  }
+  WaitForSingleObject(child.hProcess, 5000);
+  CloseHandle(child.hThread);
+  CloseHandle(child.hProcess);
+
+  Check(token_seen, "队列满拒绝在调试通道留下固定诊断 token");
+  Check(!timed_out, "诊断 token 子进程在有界时间内正常退出");
 }
 
 // ---------------------------------------------------------------------------
@@ -1577,6 +1756,30 @@ int VerifyProductRegistration(const std::wstring& expected_exe) {
   return mismatches == 0 ? 0 : 1;
 }
 
+// ---------------------------------------------------------------------------
+// 运行中 primary 健康探测（--probe-live-primary）
+// ---------------------------------------------------------------------------
+
+// 连接产品固定 pipe 并发送一条 activateWindow 探测帧：ACK status=0 说明
+// 运行中的 primary 宿主与 pipe server 健康，与注册回读共同构成 host status
+// 的替代回读证据。单次连接不重试；无 primary 在线时以非零退出码结束。
+int ProbeLivePrimary() {
+  CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+  const WindowsNotificationPipeClientResult result =
+      WindowsNotificationSendPipeFrame(kWindowsNotificationPipeName,
+                                       kWindowsNotificationKindActivateWindow,
+                                       nullptr, 0);
+  CoUninitialize();
+  std::printf("probe delivered=%d ack_received=%d ack_status=%u fail_code=%s\n",
+              result.delivered ? 1 : 0, result.ack_received ? 1 : 0,
+              static_cast<unsigned>(result.ack_status), result.fail_code);
+  const bool ok = result.delivered &&
+                  result.ack_status == kWindowsNotificationAckAccepted;
+  std::printf("probe_result=%s\n", ok ? "OK" : "FAIL");
+  std::fflush(stdout);
+  return ok ? 0 : 1;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -1595,6 +1798,12 @@ int main(int argc, char** argv) {
     CoUninitialize();
     return result;
   }
+  if (argc >= 2 && std::strcmp(argv[1], "--probe-live-primary") == 0) {
+    return ProbeLivePrimary();
+  }
+  if (argc >= 2 && std::strcmp(argv[1], "--emit-queue-full-token") == 0) {
+    return EmitQueueFullToken();
+  }
 
   CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
   TestEmbeddingTokenParsing();
@@ -1603,6 +1812,7 @@ int main(int argc, char** argv) {
   TestPipeSecurity();
   TestFrameProtocol();
   TestQueueAndFocus();
+  TestQueueFullDiagnosticToken();
   TestXmlAndShowValidation();
   TestFixedIdentity();
   TestPipeServeLoop();

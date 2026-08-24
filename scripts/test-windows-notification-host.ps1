@@ -22,8 +22,69 @@ New-Item -ItemType Directory -Force $LogDir | Out-Null
 # 测试进程以 UTF-8 输出中文用例名；按 UTF-8 解码子进程输出。
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
 
+# ── Visual Studio 生成器探测 ──────────────────────────────────────────
+# cmake --help 只列出「支持的」生成器而非「已安装的」VS 实例；硬编码单一
+# 版本会在只装了其他版本的机器上无法 configure。按 vswhere 探测结果从新到
+# 旧降级选择，缺失 vswhere 时退化为安装目录探测。
+
+function Select-CmakeVsGenerator {
+    $MajorToGenerator = @{
+        '18' = 'Visual Studio 18 2026'
+        '17' = 'Visual Studio 17 2022'
+        '16' = 'Visual Studio 16 2019'
+    }
+    $InstalledMajors = New-Object System.Collections.Generic.List[string]
+    $VsWhere = Join-Path ${env:ProgramFiles(x86)} `
+        'Microsoft Visual Studio\Installer\vswhere.exe'
+    if (Test-Path $VsWhere) {
+        # 仅认带 C++ 工具集的实例，避免选到纯 shell/Build Tools 缺件安装。
+        & $VsWhere -latest -products * `
+            -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+            -property installationVersion | ForEach-Object {
+            if ($_ -match '^(\d+)\.') { $InstalledMajors.Add($Matches[1]) }
+        }
+    }
+    if ($InstalledMajors.Count -eq 0) {
+        foreach ($ProgramFilesRoot in @($env:ProgramFiles, ${env:ProgramFiles(x86)})) {
+            if (-not $ProgramFilesRoot) { continue }
+            foreach ($Major in @('18', '17', '16')) {
+                $VersionDir = Join-Path $ProgramFilesRoot "Microsoft Visual Studio\$Major"
+                if ((Test-Path $VersionDir) -and -not $InstalledMajors.Contains($Major)) {
+                    $InstalledMajors.Add($Major)
+                }
+            }
+        }
+    }
+    foreach ($Major in @('18', '17', '16')) {
+        if ($InstalledMajors.Contains($Major)) { return $MajorToGenerator[$Major] }
+    }
+    return $null
+}
+
+$DetectedGenerator = Select-CmakeVsGenerator
+if (-not $DetectedGenerator) {
+    Write-Host 'FAIL: 未检测到带 C++ 工具集的 Visual Studio 安装，无法确定 CMake 生成器'
+    exit 1
+}
+Write-Host "使用 CMake 生成器：$DetectedGenerator"
+
 # 与 flutter build windows 一致的生成器参数，保证矩阵与正式构建同构。
-$GeneratorArgs = @('-G', 'Visual Studio 17 2022', '-A', 'x64')
+$GeneratorArgs = @('-G', $DetectedGenerator, '-A', 'x64')
+
+# 构建目录若由其他生成器 configure 过，CMakeCache 会拒绝换生成器复用；
+# 检测到不一致时清空该目录，让本次 configure 从干净状态开始。
+function Assert-BuildDirMatchesGenerator([string]$BuildDir) {
+    $Cache = Join-Path $BuildDir 'CMakeCache.txt'
+    if (-not (Test-Path $Cache)) { return }
+    $CachedLine = Select-String -Path $Cache `
+        -Pattern '^CMAKE_GENERATOR:INTERNAL=(.+)$' | Select-Object -First 1
+    if ($null -ne $CachedLine -and
+        $CachedLine.Matches[0].Groups[1].Value -ne $DetectedGenerator) {
+        Write-Host ("清理由 '{0}' configure 过的构建目录：{1}" -f `
+            $CachedLine.Matches[0].Groups[1].Value, $BuildDir)
+        Remove-Item -Recurse -Force $BuildDir
+    }
+}
 
 function Invoke-CmakeLogged([string[]]$ArgumentList, [string]$LogName) {
     $Log = Join-Path $LogDir $LogName
@@ -39,6 +100,7 @@ if (-not $SkipConfigureMatrix) {
 
     # 1) testing=OFF + 非零 pre delay → 必须失败。
     $MatrixOffDir = Join-Path $Root 'build\windows\notification-host-matrix-off'
+    Assert-BuildDirMatchesGenerator $MatrixOffDir
     $Exit = Invoke-CmakeLogged (@('-S', (Join-Path $Root 'windows'), '-B', $MatrixOffDir) +
         $GeneratorArgs + @(
             '-DOMLL_NOTIFICATION_HOST_TESTING=OFF',
@@ -54,6 +116,7 @@ if (-not $SkipConfigureMatrix) {
             @{ Dir = 'notification-host-matrix-pre'; Var = 'OMLL_NOTIFICATION_PRE_COM_DELAY_MS' },
             @{ Dir = 'notification-host-matrix-post'; Var = 'OMLL_NOTIFICATION_POST_COM_PRE_FLUTTER_DELAY_MS' })) {
         $MatrixDir = Join-Path $Root ("build\windows\" + $Pair.Dir)
+        Assert-BuildDirMatchesGenerator $MatrixDir
         $Other = if ($Pair.Var -eq 'OMLL_NOTIFICATION_PRE_COM_DELAY_MS') {
             'OMLL_NOTIFICATION_POST_COM_PRE_FLUTTER_DELAY_MS'
         } else {
@@ -90,6 +153,7 @@ if (-not $SkipConfigureMatrix) {
 
 # ── 常规 configure（testing=ON + 默认全 0 delay）────────────────────
 $CanonicalDir = Join-Path $Root 'build\windows\notification-host-test'
+Assert-BuildDirMatchesGenerator $CanonicalDir
 $Exit = Invoke-CmakeLogged (@('-S', (Join-Path $Root 'windows'), '-B', $CanonicalDir) +
     $GeneratorArgs + @('-DOMLL_NOTIFICATION_HOST_TESTING=ON',
         '-DOMLL_NOTIFICATION_PRE_COM_DELAY_MS=0',
