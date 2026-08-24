@@ -16,20 +16,31 @@ class _FakeSystemNotificationSettings implements SystemNotificationSettings {
   bool throwOnGetStatus = false;
   Completer<void>? statusGate;
 
+  /// 只拦截第一次查询（build）的 gate；用于构造 build 慢、refresh 快的乱序。
+  Completer<void>? firstCallGate;
+
   int getStatusCallCount = 0;
   int openSettingsCallCount = 0;
 
   @override
   Future<SystemNotificationStatus> getStatus() async {
     getStatusCallCount += 1;
+    // 慢查询返回发起时刻的应答：挂起期间改写 status 不影响本次查询结果，
+    // 才能构造「build 拿到旧值、refresh 拿到新值」的查询乱序。
+    final captured = status;
     final gate = statusGate;
     if (gate != null) {
       await gate.future;
+      statusGate = null; // 只拦下一次查询（既有语义不变）。
+    }
+    final firstGate = firstCallGate;
+    if (firstGate != null && getStatusCallCount == 1) {
+      await firstGate.future;
     }
     if (throwOnGetStatus) {
       throw StateError('平台状态查询失败');
     }
-    return status;
+    return captured;
   }
 
   @override
@@ -109,6 +120,40 @@ void main() {
         expect(opened, portResult);
         expect(fake.openSettingsCallCount, 1);
       }
+    });
+
+    test('build 慢查询期间 refresh 完成后，build 的旧结果不得覆盖新值', () async {
+      final fake = _FakeSystemNotificationSettings();
+      final container = _containerWith(fake);
+      addTearDown(container.dispose);
+
+      final buildGate = Completer<void>();
+      fake.firstCallGate = buildGate;
+      fake.status = SystemNotificationStatus.enabled;
+      // 触发 build：首次查询被 firstCallGate 挂起，构建「build 慢、refresh 快」。
+      container.read(systemNotificationStatusProvider);
+
+      // refresh 触发新查询并先完成（携带新值 disabled）。
+      fake.status = SystemNotificationStatus.disabled;
+      await container.read(systemNotificationStatusProvider.notifier).refresh();
+      expect(
+        container.read(systemNotificationStatusProvider).value,
+        SystemNotificationStatus.disabled,
+      );
+
+      // build 的旧查询随后完成：等框架把 build 结果写回 state 的微任务链
+      // （getStatus 恢复 → _queryStatus 恢复 → build 返回 → 框架 .then 写回）
+      // 排空后再断言。修复后该写回是「同值覆盖」，无可观察事件可当完成信号，
+      // 只能让出微任务；await null 不消耗真实时间，轮数只是给足链路跳数。
+      buildGate.complete();
+      for (var i = 0; i < 8; i++) {
+        await null;
+      }
+      expect(
+        container.read(systemNotificationStatusProvider).value,
+        SystemNotificationStatus.disabled,
+      );
+      expect(fake.getStatusCallCount, 2);
     });
   });
 }

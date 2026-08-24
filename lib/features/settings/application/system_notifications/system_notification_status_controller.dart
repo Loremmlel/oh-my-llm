@@ -8,14 +8,28 @@ import '../ports/system_notification_settings.dart';
 /// unavailable，让 UI 在查询失败时也能渲染确定的状态而不是错误分支。
 class SystemNotificationStatusController
     extends AsyncNotifier<SystemNotificationStatus> {
+  /// 查询代际：只有最新一代查询才允许写回 state，旧查询结果不得覆盖新值。
+  int _queryGeneration = 0;
+
   @override
-  Future<SystemNotificationStatus> build() => _queryStatus();
+  Future<SystemNotificationStatus> build() async {
+    final generation = ++_queryGeneration;
+    final status = await _queryStatus();
+    // build 完成时框架会把返回值写回 state；若期间已发生 refresh，让出
+    // 最新结果，避免慢查询（channel 调用可达 2s）的旧值覆盖新值。
+    if (ref.mounted && generation != _queryGeneration) {
+      final latest = state.value;
+      if (latest != null) return latest;
+    }
+    return status;
+  }
 
   /// 重新查询平台状态；查询期间把状态置回 loading，UI 可观察。
   Future<void> refresh() async {
+    final generation = ++_queryGeneration;
     state = const AsyncLoading<SystemNotificationStatus>();
     final status = await _queryStatus();
-    if (ref.mounted) {
+    if (ref.mounted && generation == _queryGeneration) {
       state = AsyncData(status);
     }
   }
