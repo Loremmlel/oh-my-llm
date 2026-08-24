@@ -378,6 +378,38 @@ void main() {
       expect(shown[5].publicTitle, '结果保存失败');
       expect(shown[5].publicBody, '请打开应用查看');
     });
+
+    test('suppressedAtTerminal 冻结值优先于执行时刻评估（冻结为不抑制则展示）', () async {
+      // 执行时刻满足抑制条件（/chat + activeConversationId=conv-2）。
+      final harness = ModuleHarness();
+      final module = harness.build();
+      addTearDown(module.dispose);
+      await module.start();
+      // 但终态时刻冻结为「不抑制」：必须展示。
+      await module.report(
+        _receipt(conversationId: 'conv-2'),
+        suppressedAtTerminal: false,
+      );
+      expect(harness.adapter.shownNotifications, hasLength(1));
+    });
+
+    test('suppressedAtTerminal 冻结为抑制时，即使执行时刻不满足抑制条件也跳过展示', () async {
+      final harness = ModuleHarness(
+        attention: AppAttentionState(
+          lifecycleState: AppLifecycleState.paused,
+          windowFocused: false,
+          location: Uri(path: '/other'),
+        ),
+      );
+      final module = harness.build();
+      addTearDown(module.dispose);
+      await module.start();
+      await module.report(
+        _receipt(conversationId: 'conv-1'),
+        suppressedAtTerminal: true,
+      );
+      expect(harness.adapter.shownNotifications, isEmpty);
+    });
   });
 
   group('report fail-open 与初始化时序', () {

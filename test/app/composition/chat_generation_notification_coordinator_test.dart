@@ -230,11 +230,18 @@ final class FakeChatGenerationTerminalNotifications
 
   final receipts = <ChatGenerationTerminalReceipt>[];
 
+  /// 每次 report 收到的 suppressedAtTerminal 参数（断言冻结决策被传递）。
+  final reportsWithSuppression = <bool?>[];
+
   /// 为 true 时 report 抛契约外异常，验证 coordinator 兜底不毒化。
   bool throwOnReport = false;
 
   @override
-  Future<void> report(ChatGenerationTerminalReceipt receipt) async {
+  Future<void> report(
+    ChatGenerationTerminalReceipt receipt, {
+    bool? suppressedAtTerminal,
+  }) async {
+    reportsWithSuppression.add(suppressedAtTerminal);
     sharedLog?.add(
       'report:${receipt.terminalKind.name}:${receipt.generationId}',
     );
@@ -1431,6 +1438,75 @@ void main() {
       await _flushTail();
       expect(terminalNotifications.receipts, isEmpty);
       expect(diagnostics, contains('stale_native_action'));
+    });
+
+    test('终态时刻的抑制决策被冻结并随 report 传递', () async {
+      final suppressingCoordinator = ChatGenerationNotificationCoordinator(
+        port: port,
+        notificationSessionId: _notificationSessionId,
+        terminalNotifications: terminalNotifications,
+        stopGeneration: () async => stopCalls.add('stop'),
+        openConversation: openedConversationIds.add,
+        isTerminalSuppressed: (conversationId) => true,
+        now: clock.call,
+        timerFactory: timers.create,
+        logDiagnostic: diagnostics.add,
+      );
+      addTearDown(suppressingCoordinator.dispose);
+      await suppressingCoordinator.start();
+      suppressingCoordinator.onStateChanged(
+        snapshot: _snapshot(ChatGenerationPhase.preparing),
+        streamingReply: null,
+      );
+      await _flushTail();
+      suppressingCoordinator.onStateChanged(
+        snapshot: _snapshot(
+          ChatGenerationPhase.succeeded,
+          outcome: _outcomeFor(ChatGenerationPhase.succeeded),
+        ),
+        streamingReply: null,
+      );
+      await _flushTail();
+      // cleanup 照常执行；report 携带终态时刻冻结的抑制决策 true。
+      expect(port.calls.where((c) => c == 'remove'), ['remove']);
+      expect(
+        terminalNotifications.receipts.single.terminalKind,
+        ChatGenerationTerminalKind.succeeded,
+      );
+      expect(terminalNotifications.reportsWithSuppression, [true]);
+    });
+
+    test('timeout 收据同样冻结终态时刻的抑制决策', () async {
+      final suppressingCoordinator = ChatGenerationNotificationCoordinator(
+        port: port,
+        notificationSessionId: _notificationSessionId,
+        terminalNotifications: terminalNotifications,
+        stopGeneration: () async => stopCalls.add('stop'),
+        openConversation: openedConversationIds.add,
+        isTerminalSuppressed: (conversationId) => true,
+        now: clock.call,
+        timerFactory: timers.create,
+        logDiagnostic: diagnostics.add,
+      );
+      addTearDown(suppressingCoordinator.dispose);
+      await suppressingCoordinator.start();
+      suppressingCoordinator.onStateChanged(
+        snapshot: _snapshot(ChatGenerationPhase.preparing),
+        streamingReply: null,
+      );
+      await _flushTail();
+      port.actionsController.add(
+        const ChatGenerationForegroundTimedOut(
+          token: 1,
+          conversationId: 'conv-1',
+        ),
+      );
+      await _flushTail();
+      expect(
+        terminalNotifications.receipts.single.terminalKind,
+        ChatGenerationTerminalKind.foregroundProtectionTimedOut,
+      );
+      expect(terminalNotifications.reportsWithSuppression, [true]);
     });
   });
 

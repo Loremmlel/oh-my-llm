@@ -8,6 +8,7 @@ import 'package:oh_my_llm/app/attention/app_attention_observer.dart';
 import 'package:oh_my_llm/app/attention/app_attention_state.dart';
 import 'package:oh_my_llm/app/navigation/app_destination.dart';
 import 'package:oh_my_llm/app/notifications/chat_generation_terminal_notification_adapter.dart';
+import 'package:oh_my_llm/app/notifications/terminal_notification_suppression.dart';
 import 'package:oh_my_llm/app/platform/noop_chat_generation_terminal_notification_adapter.dart';
 import 'package:oh_my_llm/app/router/app_router.dart';
 import 'package:oh_my_llm/features/chat/application/generation/chat_generation_terminal_notification.dart';
@@ -146,7 +147,10 @@ final class DefaultChatGenerationTerminalNotifications
   // ── report（收据投递） ────────────────────────────────────
 
   @override
-  Future<void> report(ChatGenerationTerminalReceipt receipt) async {
+  Future<void> report(
+    ChatGenerationTerminalReceipt receipt, {
+    bool? suppressedAtTerminal,
+  }) async {
     if (_disposed) return;
     // 调用时尚未显式 start：内部幂等启动，并与显式 start 共享同一个 future。
     final startFuture = _startFuture ?? start();
@@ -166,7 +170,11 @@ final class DefaultChatGenerationTerminalNotifications
     }
     _reportingEventKeys.add(eventKey);
     try {
-      await _deliverReceipt(eventKey, receipt);
+      await _deliverReceipt(
+        eventKey,
+        receipt,
+        suppressedAtTerminal: suppressedAtTerminal,
+      );
     } catch (_) {
       // 注入回调契约外抛错的兜底：fail-open，不向调用者抛出。
       _logDiagnostic('terminal_report_failed');
@@ -177,9 +185,14 @@ final class DefaultChatGenerationTerminalNotifications
 
   Future<void> _deliverReceipt(
     String eventKey,
-    ChatGenerationTerminalReceipt receipt,
-  ) async {
-    if (_isSuppressed(receipt.conversationId)) {
+    ChatGenerationTerminalReceipt receipt, {
+    bool? suppressedAtTerminal,
+  }) async {
+    // 冻结值优先：终态时刻的决策由 coordinator 冻结，执行时刻的评估只作
+    // 无冻结值（timeout 路径等）时的回退。
+    final suppressed =
+        suppressedAtTerminal ?? _isSuppressed(receipt.conversationId);
+    if (suppressed) {
       // 抑制也算完成：避免后续失焦时重放旧事件。
       _completeReport(eventKey);
       return;
@@ -199,17 +212,14 @@ final class DefaultChatGenerationTerminalNotifications
     _completeReport(eventKey);
   }
 
-  /// 注意力抑制：仅宿主 attentive 且路由精确等于 /chat 且当前可见会话与
-  /// 收据会话相同时抑制。
-  ///
-  /// `/chat` 用 `Uri.path` 精确比较（不用 startsWith，也不通过
-  /// activeConversationId 反猜页面）；仅命中前两个条件时才读取
-  /// activeConversationId。
+  /// 注意力抑制：委托共享判定，避免与 app composition 冻结路径分叉。
   bool _isSuppressed(String conversationId) {
-    final attention = _readAttention();
-    if (!attention.hostIsAttentive) return false;
-    if (attention.location.path != AppDestination.chat.path) return false;
-    return _readActiveConversationId() == conversationId;
+    return isTerminalNotificationSuppressed(
+      attention: _readAttention(),
+      // 惰性读取：仅 attentive 且 /chat 时才求值，保持既有读取契约。
+      readActiveConversationId: _readActiveConversationId,
+      conversationId: conversationId,
+    );
   }
 
   /// 收据 -> 安全文案 + 稳定 ID + payload；收据 invariant 保证编码成功，

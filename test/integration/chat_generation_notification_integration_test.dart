@@ -603,7 +603,10 @@ class FakeTerminalNotifications implements ChatGenerationTerminalNotifications {
   final receipts = <ChatGenerationTerminalReceipt>[];
 
   @override
-  Future<void> report(ChatGenerationTerminalReceipt receipt) async {
+  Future<void> report(
+    ChatGenerationTerminalReceipt receipt, {
+    bool? suppressedAtTerminal,
+  }) async {
     receipts.add(receipt);
   }
 

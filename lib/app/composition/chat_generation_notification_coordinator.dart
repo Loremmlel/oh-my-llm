@@ -3,9 +3,11 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:oh_my_llm/app/attention/app_attention_observer.dart';
 import 'package:oh_my_llm/app/navigation/app_destination.dart';
 import 'package:oh_my_llm/app/notifications/chat_generation_notification_session.dart';
 import 'package:oh_my_llm/app/notifications/default_chat_generation_terminal_notifications.dart';
+import 'package:oh_my_llm/app/notifications/terminal_notification_suppression.dart';
 import 'package:oh_my_llm/app/router/app_router.dart';
 import 'package:oh_my_llm/features/chat/application/generation/chat_generation_lifecycle.dart';
 import 'package:oh_my_llm/features/chat/application/generation/chat_generation_notification.dart';
@@ -31,6 +33,9 @@ typedef ChatNotificationTimerFactory =
 /// 生产默认定时器工厂（[Timer] 构造函数 tear-off 类型不稳定，显式包装）。
 Timer _defaultTimer(Duration duration, void Function() callback) =>
     Timer(duration, callback);
+
+/// 默认不抑制；生产由 app composition 显式注入真实 attention 判定。
+bool _neverSuppressed(String conversationId) => false;
 
 /// 单个 generation token 的通知投递瞬态。
 ///
@@ -97,6 +102,8 @@ final class ChatGenerationNotificationCoordinator {
     DateTime Function()? now,
     ChatNotificationTimerFactory? timerFactory,
     void Function(String category)? logDiagnostic,
+    bool Function(String conversationId) isTerminalSuppressed =
+        _neverSuppressed,
   }) : _port = port,
        _terminalNotifications = terminalNotifications,
        _stopGeneration = stopGeneration,
@@ -104,7 +111,8 @@ final class ChatGenerationNotificationCoordinator {
        _projector = projector,
        _now = now ?? DateTime.now,
        _timerFactory = timerFactory ?? _defaultTimer,
-       _logDiagnostic = logDiagnostic;
+       _logDiagnostic = logDiagnostic,
+       _isTerminalSuppressed = isTerminalSuppressed;
 
   // ── 注入依赖 ──────────────────────────────────────────────
 
@@ -121,6 +129,9 @@ final class ChatGenerationNotificationCoordinator {
   final DateTime Function() _now;
   final ChatNotificationTimerFactory _timerFactory;
   final void Function(String category)? _logDiagnostic;
+
+  /// 终态事件发生时刻的抑制评估；由 app composition 注入共享判定。
+  final bool Function(String conversationId) _isTerminalSuppressed;
 
   // ── 串行化与生命周期 ──────────────────────────────────────
 
@@ -339,7 +350,10 @@ final class ChatGenerationNotificationCoordinator {
     if (context.terminalEnqueued) return; // 重复 terminal：幂等 no-op。
     context.terminalEnqueued = true;
     final conversationId = snapshot.conversationId;
-    _enqueue(() => _terminalOp(context, receipt, conversationId));
+    // 冻结终态事件发生时刻的抑制决策：cleanup 延迟后 report 执行时，决策
+    // 不再随用户导航漂移。
+    final suppressed = _isTerminalSuppressed(snapshot.conversationId);
+    _enqueue(() => _terminalOp(context, receipt, conversationId, suppressed));
   }
 
   /// 终态收口：timedOut=false 时先清理 ongoing，成功或耗尽后都报告收据。
@@ -353,6 +367,7 @@ final class ChatGenerationNotificationCoordinator {
     _NotificationGenerationContext context,
     ChatGenerationTerminalReceipt? receipt,
     String conversationId,
+    bool suppressed,
   ) async {
     if (_disposed) return;
     // 执行时才判定 skipRemove：若 terminal 入队后、remove 执行前收到了平台
@@ -366,7 +381,7 @@ final class ChatGenerationNotificationCoordinator {
       if (_disposed) return;
     }
     if (receipt != null) {
-      await _reportSafely(receipt);
+      await _reportSafely(receipt, suppressedAtTerminal: suppressed);
     }
   }
 
@@ -392,9 +407,15 @@ final class ChatGenerationNotificationCoordinator {
 
   /// 终态报告边界：report 契约上 fail-open，契约外抛错兜底为固定诊断，
   /// 不打断串行 tail，也不毒化后续 operation。
-  Future<void> _reportSafely(ChatGenerationTerminalReceipt receipt) async {
+  Future<void> _reportSafely(
+    ChatGenerationTerminalReceipt receipt, {
+    bool? suppressedAtTerminal,
+  }) async {
     try {
-      await _terminalNotifications.report(receipt);
+      await _terminalNotifications.report(
+        receipt,
+        suppressedAtTerminal: suppressedAtTerminal,
+      );
     } catch (_) {
       _logDiagnostic?.call('terminal_report_failed');
     }
@@ -523,15 +544,20 @@ final class ChatGenerationNotificationCoordinator {
       reasoningCount: context.lastCounts.reasoning,
       failureKind: ChatGenerationTerminalFailureKind.foregroundProtection,
     );
-    _enqueue(() => _reportTimeoutReceipt(receipt));
+    // timeout 动作本身就是终态事件：同样冻结当前时刻的抑制决策随收据传递。
+    final suppressed = _isTerminalSuppressed(context.conversationId);
+    _enqueue(
+      () => _reportTimeoutReceipt(receipt, suppressedAtTerminal: suppressed),
+    );
     _logDiagnostic?.call('platform_timeout');
   }
 
   Future<void> _reportTimeoutReceipt(
-    ChatGenerationTerminalReceipt receipt,
-  ) async {
+    ChatGenerationTerminalReceipt receipt, {
+    bool? suppressedAtTerminal,
+  }) async {
     if (_disposed) return;
-    await _reportSafely(receipt);
+    await _reportSafely(receipt, suppressedAtTerminal: suppressedAtTerminal);
   }
 
   void _openConversation(String conversationId) {
@@ -601,6 +627,15 @@ final chatGenerationNotificationCoordinatorProvider =
         },
         logDiagnostic: (category) {
           debugPrint('[chat-generation-fgs] $category');
+        },
+        isTerminalSuppressed: (conversationId) {
+          // 与终态通知深模块共用同一共享判定，保证两端语义一致。
+          return isTerminalNotificationSuppressed(
+            attention: ref.read(appAttentionStateProvider),
+            readActiveConversationId: () =>
+                ref.read(activeConversationIdProvider),
+            conversationId: conversationId,
+          );
         },
       );
       unawaited(coordinator.start());
