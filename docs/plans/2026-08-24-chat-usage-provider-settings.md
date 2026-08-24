@@ -126,12 +126,17 @@ ON conversation_usage_settlements(conversation_id);
 
 ```dart
 final class ChatTokenUsage extends Equatable {
-  const ChatTokenUsage({
+  ChatTokenUsage({
     this.inputTotalTokens,
     this.cacheReadInputTokens,
     this.cacheWriteInputTokens,
     this.outputTokens,
-  });
+  }) {
+    _rejectNegative('inputTotalTokens', inputTotalTokens);
+    _rejectNegative('cacheReadInputTokens', cacheReadInputTokens);
+    _rejectNegative('cacheWriteInputTokens', cacheWriteInputTokens);
+    _rejectNegative('outputTokens', outputTokens);
+  }
 
   final int? inputTotalTokens;
   final int? cacheReadInputTokens;
@@ -142,6 +147,12 @@ final class ChatTokenUsage extends Equatable {
   ChatTokenUsage mergeSnapshot(ChatTokenUsage newer);
   Map<String, dynamic> toJson();
   factory ChatTokenUsage.fromJson(Map<String, dynamic> json);
+
+  static void _rejectNegative(String fieldName, int? value) {
+    if (value != null && value < 0) {
+      throw ArgumentError.value(value, fieldName, '不得为负数');
+    }
+  }
 }
 
 final class ChatTokenUsageSummary extends Equatable {
@@ -159,6 +170,7 @@ final class ChatTokenUsageSummary extends Equatable {
 不变量：
 
 - 四个 Token 字段只允许 null 或非负 int。
+- `ChatTokenUsage` constructor 必须是非 const，并在所有 build mode 无条件抛 `ArgumentError` 拒绝负数；不得用 release 中会关闭的 `assert` 维护该不变量。
 - `mergeSnapshot` 使用 newer 的非 null 值覆盖旧值，显式 0 同样覆盖；不得相加 SSE snapshot。
 - `cacheHitRate` 在任一累计值为 null、分母小于等于 0 时返回 null，否则返回 0～1 的 double。
 - `ChatMessage.tokenUsage` 与 `ChatConversation.tokenUsageSummary` 是 repository-owned 只读投影，必须进入 `copyWith` 与 `Equatable.props`。
@@ -307,9 +319,18 @@ flutter test test/features/settings/presentation/widgets/providers/forms/model_p
 - [ ] **Step 5: 格式化、暂存并提交**
 
 ```powershell
-dart format lib/features/settings/presentation/widgets/providers/forms/model_provider_form_dialog.dart test/features/settings/presentation/widgets/providers/forms/model_provider_form_dialog_test.dart
-git add lib/features/settings/presentation/widgets/providers/forms/model_provider_form_dialog.dart test/features/settings/presentation/widgets/providers/forms/model_provider_form_dialog_test.dart
-$StagedDartFiles = @(git diff --cached --name-only --diff-filter=ACMR -- '*.dart')
+$AllowedFiles = @(
+  'lib/features/settings/presentation/widgets/providers/forms/model_provider_form_dialog.dart',
+  'test/features/settings/presentation/widgets/providers/forms/model_provider_form_dialog_test.dart'
+)
+$DartFiles = @($AllowedFiles | Where-Object { $_ -like '*.dart' })
+dart format $DartFiles
+if (@(git diff --cached --name-only).Count -ne 0) { throw 'Task A1 提交前暂存区必须为空' }
+git add -- $AllowedFiles
+$StagedFiles = @(git diff --cached --name-only --diff-filter=ACMR)
+$Mismatch = @(Compare-Object -ReferenceObject ($AllowedFiles | Sort-Object -Unique) -DifferenceObject ($StagedFiles | Sort-Object -Unique))
+if ($Mismatch.Count -ne 0) { $Mismatch | Format-Table; throw 'Task A1 暂存文件与允许列表不一致' }
+$StagedDartFiles = @($StagedFiles | Where-Object { $_ -like '*.dart' })
 dart format --output=none --set-exit-if-changed $StagedDartFiles
 git commit -m "fix(settings): API Key 输入框支持明文复制粘贴"
 ```
@@ -398,9 +419,19 @@ flutter test test/features/settings/presentation/widgets/providers/forms/model_c
 - [ ] **Step 5: 提交独立修复**
 
 ```powershell
-dart format lib/features/settings/presentation/widgets/providers/forms/model_fetch_section.dart lib/features/settings/presentation/widgets/providers/forms/model_config_form_dialog.dart test/features/settings/presentation/widgets/providers/forms/model_config_form_dialog_test.dart
-git add lib/features/settings/presentation/widgets/providers/forms/model_fetch_section.dart lib/features/settings/presentation/widgets/providers/forms/model_config_form_dialog.dart test/features/settings/presentation/widgets/providers/forms/model_config_form_dialog_test.dart
-$StagedDartFiles = @(git diff --cached --name-only --diff-filter=ACMR -- '*.dart')
+$AllowedFiles = @(
+  'lib/features/settings/presentation/widgets/providers/forms/model_fetch_section.dart',
+  'lib/features/settings/presentation/widgets/providers/forms/model_config_form_dialog.dart',
+  'test/features/settings/presentation/widgets/providers/forms/model_config_form_dialog_test.dart'
+)
+$DartFiles = @($AllowedFiles | Where-Object { $_ -like '*.dart' })
+dart format $DartFiles
+if (@(git diff --cached --name-only).Count -ne 0) { throw 'Task B1 提交前暂存区必须为空' }
+git add -- $AllowedFiles
+$StagedFiles = @(git diff --cached --name-only --diff-filter=ACMR)
+$Mismatch = @(Compare-Object -ReferenceObject ($AllowedFiles | Sort-Object -Unique) -DifferenceObject ($StagedFiles | Sort-Object -Unique))
+if ($Mismatch.Count -ne 0) { $Mismatch | Format-Table; throw 'Task B1 暂存文件与允许列表不一致' }
+$StagedDartFiles = @($StagedFiles | Where-Object { $_ -like '*.dart' })
 dart format --output=none --set-exit-if-changed $StagedDartFiles
 git commit -m "fix(settings): 禁用拉取列表中的已有模型交互"
 ```
@@ -536,16 +567,21 @@ flutter test test/features/settings/presentation/settings_screen_test.dart --rep
 - [ ] **Step 8: 格式化、暂存并提交**
 
 ```powershell
-$DartFiles = @(
+$AllowedFiles = @(
   'lib/features/settings/presentation/widgets/providers/forms/model_fetch_section.dart',
   'lib/features/settings/presentation/widgets/providers/forms/model_config_form_dialog.dart',
   'lib/features/settings/presentation/settings_screen.dart',
   'test/features/settings/presentation/widgets/providers/forms/model_config_form_dialog_test.dart',
   'test/features/settings/presentation/settings_screen/settings_screen_models_and_prompts_cases.dart'
 )
+$DartFiles = @($AllowedFiles | Where-Object { $_ -like '*.dart' })
 dart format $DartFiles
-git add $DartFiles
-$StagedDartFiles = @(git diff --cached --name-only --diff-filter=ACMR -- '*.dart')
+if (@(git diff --cached --name-only).Count -ne 0) { throw 'Task B2 提交前暂存区必须为空' }
+git add -- $AllowedFiles
+$StagedFiles = @(git diff --cached --name-only --diff-filter=ACMR)
+$Mismatch = @(Compare-Object -ReferenceObject ($AllowedFiles | Sort-Object -Unique) -DifferenceObject ($StagedFiles | Sort-Object -Unique))
+if ($Mismatch.Count -ne 0) { $Mismatch | Format-Table; throw 'Task B2 暂存文件与允许列表不一致' }
+$StagedDartFiles = @($StagedFiles | Where-Object { $_ -like '*.dart' })
 dart format --output=none --set-exit-if-changed $StagedDartFiles
 git commit -m "feat(settings): 拉取模型时配置深度思考能力"
 ```
@@ -591,18 +627,18 @@ git commit -m "feat(settings): 拉取模型时配置深度思考能力"
 
 ```dart
 test('mergeSnapshot 保留 null 并让显式零覆盖旧值', () {
-  const old = ChatTokenUsage(
+  final old = ChatTokenUsage(
     inputTotalTokens: 100,
     cacheReadInputTokens: 40,
     outputTokens: 20,
   );
-  const newer = ChatTokenUsage(
+  final newer = ChatTokenUsage(
     cacheReadInputTokens: 0,
     cacheWriteInputTokens: 8,
   );
   expect(
     old.mergeSnapshot(newer),
-    const ChatTokenUsage(
+    ChatTokenUsage(
       inputTotalTokens: 100,
       cacheReadInputTokens: 0,
       cacheWriteInputTokens: 8,
@@ -623,7 +659,7 @@ flutter test test/features/chat/domain/models/chat_token_usage_test.dart --repor
 
 - [ ] **Step 3: 最小实现领域类型并迁移 client contract**
 
-- 创建第 3.2 节精确类型；constructor 使用 assert 或显式 `ArgumentError` 拒绝负数，测试与选择保持一致。
+- 创建第 3.2 节精确类型；constructor 改为非 const，并无条件抛出 `ArgumentError` 拒绝负数，测试覆盖每个字段且不得依赖 assert 是否启用。
 - `ChatGenerationChunk.usage`、`ChatGenerationResult.usage`、`complete()` fold 改用 `ChatTokenUsage` 和 `mergeSnapshot`。
 - 删除旧 `ChatGenerationUsage`，更新 contract test 的字段名；不保留 compatibility alias。
 
@@ -664,10 +700,30 @@ flutter test test/features/chat/data/generation/anthropic/anthropic_parser_test.
 - [ ] **Step 8: 格式化并提交**
 
 ```powershell
-$DartFiles = @(git diff --name-only -- '*.dart')
+$AllowedFiles = @(
+  'lib/features/chat/domain/models/chat_token_usage.dart',
+  'test/features/chat/domain/models/chat_token_usage_test.dart',
+  'lib/features/chat/application/ports/chat_generation_client.dart',
+  'test/features/chat/application/ports/chat_generation_client_contract_test.dart',
+  'lib/features/chat/data/generation/chat_completions/chat_completions_client.dart',
+  'lib/features/chat/data/generation/chat_completions/chat_completions_parser.dart',
+  'test/features/chat/data/generation/chat_completions/chat_completions_client_test.dart',
+  'test/features/chat/data/generation/chat_completions/chat_completions_parser_test.dart',
+  'lib/features/chat/data/generation/responses/responses_parser.dart',
+  'test/features/chat/data/generation/responses/responses_parser_test.dart',
+  'lib/features/chat/data/generation/anthropic/anthropic_parser.dart',
+  'test/features/chat/data/generation/anthropic/anthropic_parser_test.dart',
+  'test/features/chat/data/generation/responses/responses_client_test.dart',
+  'test/features/chat/data/generation/anthropic/anthropic_messages_client_test.dart'
+)
+$DartFiles = @($AllowedFiles | Where-Object { $_ -like '*.dart' })
 dart format $DartFiles
-git add lib/features/chat/domain/models/chat_token_usage.dart test/features/chat/domain/models/chat_token_usage_test.dart lib/features/chat/application/ports/chat_generation_client.dart test/features/chat/application/ports/chat_generation_client_contract_test.dart lib/features/chat/data/generation test/features/chat/data/generation
-$StagedDartFiles = @(git diff --cached --name-only --diff-filter=ACMR -- '*.dart')
+if (@(git diff --cached --name-only).Count -ne 0) { throw 'Task C1 提交前暂存区必须为空' }
+git add -- $AllowedFiles
+$StagedFiles = @(git diff --cached --name-only --diff-filter=ACMR)
+$Mismatch = @(Compare-Object -ReferenceObject ($AllowedFiles | Sort-Object -Unique) -DifferenceObject ($StagedFiles | Sort-Object -Unique))
+if ($Mismatch.Count -ne 0) { $Mismatch | Format-Table; throw 'Task C1 暂存文件与允许列表不一致' }
+$StagedDartFiles = @($StagedFiles | Where-Object { $_ -like '*.dart' })
 dart format --output=none --set-exit-if-changed $StagedDartFiles
 git commit -m "refactor(chat): 归一化流式 Token 用量契约"
 ```
@@ -776,7 +832,7 @@ flutter test test/core/persistence/app_database_migration_test.dart --reporter c
 final canonical = await repository.settleFinalGeneration(
   conversation: terminalConversation,
   assistantMessageId: 'assistant-1',
-  usage: const ChatTokenUsage(
+  usage: ChatTokenUsage(
     inputTotalTokens: 100,
     cacheReadInputTokens: 40,
     outputTokens: 20,
@@ -840,10 +896,33 @@ flutter test test/features/chat/data/persistence/sqlite_chat_conversation_reposi
 - [ ] **Step 10: 格式化并提交**
 
 ```powershell
-$DartFiles = @(git diff --name-only -- '*.dart')
+$AllowedFiles = @(
+  'lib/core/persistence/app_database.dart',
+  'test/core/persistence/app_database_migration_test.dart',
+  'lib/features/chat/domain/models/chat_message.dart',
+  'lib/features/chat/domain/models/chat_conversation.dart',
+  'test/features/chat/domain/models/chat_message_test.dart',
+  'test/features/chat/domain/models/chat_conversation_test.dart',
+  'lib/features/chat/application/ports/chat_conversation_repository.dart',
+  'lib/features/chat/data/persistence/chat_sql_codec.dart',
+  'lib/features/chat/data/persistence/sqlite_chat_conversation_repository.dart',
+  'lib/features/chat/data/persistence/background_chat_repository.dart',
+  'lib/features/chat/data/persistence/chat_writer_protocol.dart',
+  'lib/features/chat/data/persistence/chat_writer_entry_point.dart',
+  'test/features/chat/data/persistence/chat_usage_settlement_test.dart',
+  'test/features/chat/data/persistence/background_chat_repository_test.dart',
+  'test/helpers/chat/flaky_chat_conversation_repository.dart',
+  'test/helpers/chat/controllable_chat_conversation_repository.dart',
+  'test/integration/chat_lifecycle_integration_test.dart'
+)
+$DartFiles = @($AllowedFiles | Where-Object { $_ -like '*.dart' })
 dart format $DartFiles
-git add lib/core/persistence/app_database.dart test/core/persistence/app_database_migration_test.dart lib/features/chat/domain/models lib/features/chat/application/ports/chat_conversation_repository.dart lib/features/chat/data/persistence test/features/chat/domain/models test/features/chat/data/persistence
-$StagedDartFiles = @(git diff --cached --name-only --diff-filter=ACMR -- '*.dart')
+if (@(git diff --cached --name-only).Count -ne 0) { throw 'Task C2 提交前暂存区必须为空' }
+git add -- $AllowedFiles
+$StagedFiles = @(git diff --cached --name-only --diff-filter=ACMR)
+$Mismatch = @(Compare-Object -ReferenceObject ($AllowedFiles | Sort-Object -Unique) -DifferenceObject ($StagedFiles | Sort-Object -Unique))
+if ($Mismatch.Count -ne 0) { $Mismatch | Format-Table; throw 'Task C2 暂存文件与允许列表不一致' }
+$StagedDartFiles = @($StagedFiles | Where-Object { $_ -like '*.dart' })
 dart format --output=none --set-exit-if-changed $StagedDartFiles
 git commit -m "refactor(chat): 建立最终生成用量结算回执"
 ```
@@ -880,7 +959,7 @@ git commit -m "refactor(chat): 建立最终生成用量结算回执"
 ```dart
 expect(
   host.attempts.single.usage,
-  const ChatTokenUsage(
+  ChatTokenUsage(
     inputTotalTokens: 100,
     cacheReadInputTokens: 25,
     outputTokens: 30,
@@ -950,10 +1029,25 @@ flutter test test/features/chat/application/sessions/chat_sessions_controller_pe
 - [ ] **Step 9: 格式化并提交**
 
 ```powershell
-$DartFiles = @(git diff --name-only -- '*.dart')
+$AllowedFiles = @(
+  'lib/features/chat/application/generation/chat_generation_contract.dart',
+  'lib/features/chat/application/generation/chat_generation_run.dart',
+  'lib/features/chat/application/sessions/chat_sessions_controller.dart',
+  'lib/features/chat/application/sessions/chat_sessions_controller_support.dart',
+  'test/features/chat/application/generation/chat_generation_run_test.dart',
+  'test/features/chat/application/sessions/chat_sessions_controller/chat_sessions_controller_generation_cases.dart',
+  'test/features/chat/application/sessions/chat_sessions_controller/chat_sessions_controller_retry_cases.dart',
+  'test/features/chat/application/sessions/chat_sessions_controller/chat_sessions_controller_stop_cases.dart',
+  'test/features/chat/application/sessions/chat_sessions_controller/chat_sessions_controller_branching_cases.dart'
+)
+$DartFiles = @($AllowedFiles | Where-Object { $_ -like '*.dart' })
 dart format $DartFiles
-git add lib/features/chat/application/generation lib/features/chat/application/sessions test/features/chat/application/generation test/features/chat/application/sessions
-$StagedDartFiles = @(git diff --cached --name-only --diff-filter=ACMR -- '*.dart')
+if (@(git diff --cached --name-only).Count -ne 0) { throw 'Task C3 提交前暂存区必须为空' }
+git add -- $AllowedFiles
+$StagedFiles = @(git diff --cached --name-only --diff-filter=ACMR)
+$Mismatch = @(Compare-Object -ReferenceObject ($AllowedFiles | Sort-Object -Unique) -DifferenceObject ($StagedFiles | Sort-Object -Unique))
+if ($Mismatch.Count -ne 0) { $Mismatch | Format-Table; throw 'Task C3 暂存文件与允许列表不一致' }
+$StagedDartFiles = @($StagedFiles | Where-Object { $_ -like '*.dart' })
 dart format --output=none --set-exit-if-changed $StagedDartFiles
 git commit -m "refactor(chat): 结算最终生成的 Token 用量"
 ```
@@ -1042,10 +1136,25 @@ flutter test test/features/chat/application/workspace/chat_workspace_view_state_
 - [ ] **Step 8: 格式化并提交**
 
 ```powershell
-$DartFiles = @(git diff --name-only -- '*.dart')
+$AllowedFiles = @(
+  'lib/features/chat/presentation/formatters/chat_token_usage_formatter.dart',
+  'test/features/chat/presentation/formatters/chat_token_usage_formatter_test.dart',
+  'lib/features/chat/presentation/widgets/messages/bubble/chat_message_bubble.dart',
+  'test/features/chat/presentation/widgets/messages/bubble/chat_message_bubble_token_usage_test.dart',
+  'lib/features/chat/application/workspace/chat_workspace_view_state.dart',
+  'test/features/chat/application/workspace/chat_workspace_view_state_test.dart',
+  'lib/features/chat/presentation/widgets/composer/chat_composer_card.dart',
+  'test/features/chat/presentation/widgets/composer/chat_composer_card_token_usage_test.dart',
+  'test/features/chat/presentation/widgets/composer/chat_composer_card_responsive_test.dart'
+)
+$DartFiles = @($AllowedFiles | Where-Object { $_ -like '*.dart' })
 dart format $DartFiles
-git add lib/features/chat/presentation lib/features/chat/application/workspace test/features/chat/presentation test/features/chat/application/workspace
-$StagedDartFiles = @(git diff --cached --name-only --diff-filter=ACMR -- '*.dart')
+if (@(git diff --cached --name-only).Count -ne 0) { throw 'Task C4 提交前暂存区必须为空' }
+git add -- $AllowedFiles
+$StagedFiles = @(git diff --cached --name-only --diff-filter=ACMR)
+$Mismatch = @(Compare-Object -ReferenceObject ($AllowedFiles | Sort-Object -Unique) -DifferenceObject ($StagedFiles | Sort-Object -Unique))
+if ($Mismatch.Count -ne 0) { $Mismatch | Format-Table; throw 'Task C4 暂存文件与允许列表不一致' }
+$StagedDartFiles = @($StagedFiles | Where-Object { $_ -like '*.dart' })
 dart format --output=none --set-exit-if-changed $StagedDartFiles
 git commit -m "feat(chat): 展示 Token 用量与会话缓存命中率"
 ```
@@ -1091,7 +1200,26 @@ rg -n "v13|V13|13→14|_migrateFavoritesFromV13ToV14" lib/core/persistence/app_d
 
 结果必须同时包含 v13→v14 迁移实现、合法 v13 fixture、v13→v15 完整链测试，以及 v14→v15 直接迁移测试；若任何旧迁移或其数据保留断言消失，审计失败。
 
-- [ ] **Step 5: 运行第 8 节统一门禁与 scope audit**
+- [ ] **Step 5: 精确暂存并提交端到端测试**
+
+```powershell
+$AllowedFiles = @(
+  'test/integration/multi_protocol_chat_generation_integration_test.dart',
+  'test/features/chat/application/sessions/chat_sessions_controller_persistence_test.dart'
+)
+$DartFiles = @($AllowedFiles | Where-Object { $_ -like '*.dart' })
+dart format $DartFiles
+if (@(git diff --cached --name-only).Count -ne 0) { throw 'Task C5 提交前暂存区必须为空' }
+git add -- $AllowedFiles
+$StagedFiles = @(git diff --cached --name-only --diff-filter=ACMR)
+$Mismatch = @(Compare-Object -ReferenceObject ($AllowedFiles | Sort-Object -Unique) -DifferenceObject ($StagedFiles | Sort-Object -Unique))
+if ($Mismatch.Count -ne 0) { $Mismatch | Format-Table; throw 'Task C5 暂存文件与允许列表不一致' }
+$StagedDartFiles = @($StagedFiles | Where-Object { $_ -like '*.dart' })
+dart format --output=none --set-exit-if-changed $StagedDartFiles
+git commit -m "test(chat): 验证 Token 用量持久化闭环"
+```
+
+- [ ] **Step 6: 运行第 8 节统一门禁与 scope audit**
 
 全部通过后才能创建 PR C。若 full suite 超时，按全局规则先清理残留进程。
 
@@ -1114,15 +1242,13 @@ $VerificationPrefix = switch (git branch --show-current) {
 
 ```powershell
 $DartFiles = @(git diff --name-only master...HEAD -- '*.dart')
-if ($DartFiles.Count -gt 0) { dart format $DartFiles }
-git add $DartFiles
-$StagedDartFiles = @(git diff --cached --name-only --diff-filter=ACMR -- '*.dart')
-if ($StagedDartFiles.Count -gt 0) {
-  dart format --output=none --set-exit-if-changed $StagedDartFiles
+if (git status --porcelain) { throw '统一门禁开始前工作区和暂存区必须为空' }
+if ($DartFiles.Count -gt 0) {
+  dart format --output=none --set-exit-if-changed $DartFiles
 }
 ```
 
-若最后一次 format 改文件，重新运行对应定向 GREEN，不能只重新暂存。
+该命令只检查、不修改或暂存文件。若失败，回到拥有该文件的 Task 格式化，用该 Task 的精确允许列表提交，再重新运行对应定向 GREEN 和本节全部门禁。
 
 ### 8.2 import boundary
 
