@@ -386,6 +386,48 @@ class ChatGenerationNotificationProtocolTest {
         assertEquals(ids.size, ids.map { terminalPendingRequestCode(it) }.toSet().size)
     }
 
+    // ── 终态展示 ACK 决策 ───────────────────────────────────────────────
+
+    @Test
+    fun 权限未授予或通知禁用时终态展示不ACK成功() {
+        assertTrue(
+            shouldAcknowledgeTerminalShow(
+                notificationsEnabled = true,
+                postNotificationsGranted = true,
+                sdkInt = 34,
+            ),
+        )
+        assertFalse(
+            shouldAcknowledgeTerminalShow(
+                notificationsEnabled = false,
+                postNotificationsGranted = true,
+                sdkInt = 34,
+            ),
+        )
+        assertFalse(
+            shouldAcknowledgeTerminalShow(
+                notificationsEnabled = true,
+                postNotificationsGranted = false,
+                sdkInt = 33,
+            ),
+        )
+        // pre-33 无 POST_NOTIFICATIONS 权限概念：granted=false 也只取决于总开关。
+        assertTrue(
+            shouldAcknowledgeTerminalShow(
+                notificationsEnabled = true,
+                postNotificationsGranted = false,
+                sdkInt = 32,
+            ),
+        )
+        assertFalse(
+            shouldAcknowledgeTerminalShow(
+                notificationsEnabled = false,
+                postNotificationsGranted = true,
+                sdkInt = 26,
+            ),
+        )
+    }
+
     // ── timeout fallback 决策 ─────────────────────────────────────────────
 
     @Test

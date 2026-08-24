@@ -232,11 +232,31 @@ class ChatGenerationNotificationChannel(
         result.success(id)
     }
 
-    /** 展示终态通知：解析失败或原生失败都回 false，Dart fail-open 后可重试。 */
+    /** 展示终态通知：解析失败、权限/开关不可用或原生失败都回 false，Dart fail-open 后可重试。 */
     private fun handleShowTerminalNotification(call: MethodCall, result: MethodChannel.Result) {
         val request =
             parseTerminalNotificationRequest(call.arguments as? Map<*, *>)
         if (request == null) {
+            result.success(false)
+            return
+        }
+        val notificationsEnabled =
+            NotificationManagerCompat.from(activity).areNotificationsEnabled()
+        val postNotificationsGranted =
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                ContextCompat.checkSelfPermission(
+                    activity,
+                    Manifest.permission.POST_NOTIFICATIONS,
+                ) == PackageManager.PERMISSION_GRANTED
+        if (!shouldAcknowledgeTerminalShow(
+                notificationsEnabled,
+                postNotificationsGranted,
+                Build.VERSION.SDK_INT,
+            )
+        ) {
+            // 权限被拒/开关关闭时 notify 是静默 no-op：如实回 false，让 Dart
+            // 不完成去重，权限恢复后仍可重试。
+            logCategory("terminal_notification_denied")
             result.success(false)
             return
         }

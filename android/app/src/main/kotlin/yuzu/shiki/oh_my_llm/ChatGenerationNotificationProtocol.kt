@@ -1,14 +1,16 @@
 package yuzu.shiki.oh_my_llm
 
 import android.app.NotificationManager
+import android.os.Build
 
 /**
  * 聊天生成通知的原生协议定义：通道/方法/载荷键、命令结果 map、通知与渠道
  * ID、动作字符串、纯解析函数与 token 守卫。
  *
  * 本文件不含任何 Android framework 调用：唯一的 framework 引用是
- * `NotificationManager.IMPORTANCE_*` 编译期常量（编译时内联），JVM 单元测试
- * 可直接加载。所有常量与方法名必须与 Dart 侧
+ * `NotificationManager.IMPORTANCE_*` 与 `Build.VERSION_CODES.TIRAMISU`
+ * 编译期常量（编译时内联），JVM 单元测试可直接加载。所有常量与方法名必须
+ * 与 Dart 侧
  * `AndroidChatGenerationPlatformBridge` 使用的协议逐字节一致。
  * 通道职责：
  *
@@ -324,6 +326,23 @@ internal fun nonBlankString(value: Any?): String? {
  * data，不同终态互不覆盖的区分性仅由本 request code 保证。
  */
 internal fun terminalPendingRequestCode(notificationId: Int): Int = notificationId
+
+// ── 终态展示 ACK 决策 ───────────────────────────────────────────────────
+
+/**
+ * 终态展示是否可确认成功：POST_NOTIFICATIONS（API 33+）未授予或系统通知总
+ * 开关关闭时，notify 会静默 no-op，绝不能谎报成功让 Dart 永久去重。API 33
+ * 以下无该权限概念，只取决于总开关。
+ */
+internal fun shouldAcknowledgeTerminalShow(
+    notificationsEnabled: Boolean,
+    postNotificationsGranted: Boolean,
+    sdkInt: Int,
+): Boolean {
+    if (!notificationsEnabled) return false
+    if (sdkInt >= Build.VERSION_CODES.TIRAMISU && !postNotificationsGranted) return false
+    return true
+}
 
 // ── timeout fallback 决策 ────────────────────────────────────────────────
 
