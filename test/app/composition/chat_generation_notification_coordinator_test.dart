@@ -858,13 +858,15 @@ void main() {
       await _flushTail();
       expect(port.calls.where((c) => c == 'update'), ['update']);
       expect(diagnostics, contains('command_timeout'));
-      // 不可用后同一 token 的 streaming 更新被抑制。
+      // channelTimeout 不判死通道：后续 streaming 更新继续投递。
+      // 同阶段更新受 1s 尾缘节流约束，推进时钟使本次投递立即发生。
+      clock.advance(chatGenerationNotificationUpdateInterval);
       coordinator.onStateChanged(
         snapshot: _snapshot(ChatGenerationPhase.streaming, generationId: 2),
         streamingReply: _reply('二', ''),
       );
       await _flushTail();
-      expect(port.calls.where((c) => c == 'update').length, 1);
+      expect(port.calls.where((c) => c == 'update').length, 2);
       expect(stopCalls, isEmpty);
     });
 
@@ -946,6 +948,72 @@ void main() {
       await _flushTail();
       expect(port.calls.where((c) => c == 'start').length, 2);
       expect(port.payloads.last.token, 2);
+    });
+
+    test('channelTimeout 是假阴性：不判死通道，后续 update 与 terminal 清理照常', () async {
+      await coordinator.start();
+      port.queuedResults.add(
+        Future.value(
+          const ChatForegroundCommandResult.unavailable(
+            ChatForegroundFailureCode.channelTimeout,
+          ),
+        ),
+      );
+      coordinator.onStateChanged(
+        snapshot: _snapshot(ChatGenerationPhase.preparing),
+        streamingReply: null,
+      );
+      await _flushTail();
+      expect(diagnostics, contains('command_timeout'));
+      // channelTimeout 后 update 仍投递：原生可能已接受 start（慢设备 promotion）。
+      coordinator.onStateChanged(
+        snapshot: _snapshot(ChatGenerationPhase.streaming),
+        streamingReply: _reply('一', ''),
+      );
+      await _flushTail();
+      expect(port.calls.where((c) => c == 'update'), ['update']);
+      // terminal 清理照常执行。
+      coordinator.onStateChanged(
+        snapshot: _snapshot(
+          ChatGenerationPhase.succeeded,
+          outcome: _outcomeFor(ChatGenerationPhase.succeeded),
+        ),
+        streamingReply: null,
+      );
+      await _flushTail();
+      expect(port.calls.where((c) => c == 'remove'), ['remove']);
+    });
+
+    test('已入队的 update 在 timeout 到达后执行时被跳过，不再向已停止的服务补发', () async {
+      await coordinator.start();
+      // 阻塞 start，使后续 update 排队等待。
+      final blockedStart = Completer<ChatForegroundCommandResult>();
+      port.queuedResults.add(blockedStart.future);
+      coordinator.onStateChanged(
+        snapshot: _snapshot(ChatGenerationPhase.preparing),
+        streamingReply: null,
+      );
+      await _flushTail();
+      coordinator.onStateChanged(
+        snapshot: _snapshot(ChatGenerationPhase.streaming),
+        streamingReply: _reply('你', ''),
+      );
+      await _flushTail();
+      expect(port.calls.where((c) => c == 'update'), isEmpty);
+
+      // start 阻塞期间原生已超时：Kotlin 移除 ongoing 并停止服务。
+      port.actionsController.add(
+        const ChatGenerationForegroundTimedOut(
+          token: 1,
+          conversationId: 'conv-1',
+        ),
+      );
+      await _flushTail();
+
+      blockedStart.complete(const ChatForegroundCommandResult.accepted());
+      await _flushTail();
+      // 已入队的 update 执行时读到 timedOut：不再补发。
+      expect(port.calls.where((c) => c == 'update'), isEmpty);
     });
   });
 

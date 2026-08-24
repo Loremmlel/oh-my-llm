@@ -303,12 +303,19 @@ final class ChatGenerationNotificationCoordinator {
     // 同 token 前序命令已把通道判死时不再重试；这是通道级 fail-open，
     // 与 FIFO 完成语义无关。
     if (context.tokenUnavailable) return;
+    // timeout 后 Kotlin 已移除 ongoing 并停止服务：已入队的 update 不再补发，
+    // 避免对已停止的服务打 FAILURE_SERVICE_UNAVAILABLE。
+    if (context.timedOut) return;
     final result = await _invokeSafely(
       () => isStart ? _port.start(payload) : _port.update(payload),
     );
     if (_disposed) return; // 等待期间销毁。
     if (result.accepted) return;
-    context.tokenUnavailable = true;
+    // channelTimeout 是 2s 上界的假阴性：原生可能已接受（慢设备 promotion），
+    // 不得据此判死通道；其余失败（startNotAllowed/security/...）才置不可用。
+    if (result.failureCode != ChatForegroundFailureCode.channelTimeout) {
+      context.tokenUnavailable = true;
+    }
     _logCommandFailure(result.failureCode);
   }
 
