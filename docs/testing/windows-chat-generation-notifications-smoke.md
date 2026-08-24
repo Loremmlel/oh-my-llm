@@ -14,7 +14,7 @@
 | 第一部分：插件激活 spike | Task 6 | 用仓库外的临时工程验证 `flutter_local_notifications_windows 3.1.1` 在未打包场景下能否被 Toast 点击正确激活 | 7 项验收全部 PASS 之前，禁止开始 Task 7–11 的产品实现 |
 | 第二部分：产品最小 gate | Task 11 / 计划第 11 节 | 用最终产品 build 复验同样的机制，再加产品行为 | 全部 PASS 之前，PR 不得标记 Ready |
 
-**当前状态：两部分全部 `PENDING`，尚未人工执行。**
+**当前状态（2026-08-24 更新）：** 第一部分插件方案已被 runner-owned 方案否决替代（原始 FAIL 证据原样保留于下文）；第三部分 runner-owned spike 人工验收 A–E 已全部 PASS；第二部分产品最小 gate 与第四部分产品级 smoke 清单中的人工项仍为 `PENDING`，待用最终 Release 产品 build 人工执行——在全部 PASS 之前 PR 不得标记 Ready。
 
 ---
 
@@ -524,3 +524,64 @@ E:\Code\omll-runner-spike\cleanup-spike.ps1 -KeepProjectDir
 脚本每删一项前都会回读并断言仍是 spike 身份；断言失败会中止且不删任何东西，输出原样交给任务负责人。本任务的提交只包含本文档证据，不包含 throwaway 工程（仓库外，永不进仓库）。
 
 已于 2026-08-23 证据回填完成后执行：`-ReportOnly` 4 项身份断言全过，正式清理使用 `-KeepProjectDir`（快捷方式 / HKCU CLSID / AppUserModelId / Toast backup 已删，工程目录与 evidence、变体产物保留备复测；再次运行任一变体会重新注册 spike 身份）。
+
+---
+
+## 第四部分：产品级 smoke 清单（Task 11 回填，2026-08-24）
+
+本部分由计划 Task 11 执行者回填**自动化证据**并把人工项保持 `PENDING`。它不改变第二部分 G1–G5 的阻塞语义：G1–G5 与「至少 20 轮 cold」「快速连续 cold」「两个 race 变体」仍必须用最终 Release 产品 build 由人工执行并 PASS；第三部分 spike 的 PASS 属于 throwaway 工程，永远不能替代本部分的产品级验收。每项只写 `PASS` / `FAIL` / `PENDING` 三值之一。
+
+### 产品身份与产物
+
+| 项目 | 值 |
+|------|------|
+| AUMID | `YuzuShiki.OhMyLlm` |
+| CLSID | `{7E4B2C91-5D4A-4A8E-9F1B-2C6D3A80E751}` |
+| 快捷方式 | `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Oh My LLM.lnk` |
+| kernel objects | instance/activator lease mutex + ready event + pipe 均以 CLSID 无连字符形式命名，`Local\` 命名空间限定当前 logon session |
+| Release 产物 | `build\windows\x64\runner\Release\oh_my_llm.exe`（3.81.0+0；2026-08-24 `flutter build windows` EXIT=0，`logs/build-windows.log`） |
+| race 复验变体 | CMake `-DOMLL_NOTIFICATION_HOST_TESTING=ON` 的 Debug 构建 + `OMLL_NOTIFICATION_PRE_COM_DELAY_MS` / `OMLL_NOTIFICATION_POST_COM_PRE_FLUTTER_DELAY_MS`（见计划 8.2 节） |
+
+### 自动化已覆盖条目（PASS）
+
+| # | 场景 | 结果 | 证据 |
+|---|------|------|------|
+| W9 | Release / testing=OFF configure 确实拒绝非零 delay；delay 编译定义只进 Debug | **PASS** | `scripts/test-windows-notification-host.ps1` configure 规则矩阵 4 项全 PASS，原生测试 127/127 checks，EXIT=0（`logs/windows-notification-host-native-final.log`，2026-08-24） |
+| W12 | 同目录覆盖更新 exe 后注册幂等修复（LocalServer32/shortcut 重新指向当次 exe） | **PASS** | Task 7 fix round 1 STEP2A/2B：临时目录安装回读 MATCH → 用新构建产物原位覆盖同目录 exe 重启 → live probe ACK=0 且注册回读对新 exe 全 MATCH（`logs/windows-notification-registration-recovery.log`） |
+| W14 | 移动安装目录后完全退出旧 primary 并首次手工启动，注册自动修复到新路径 | **PASS** | 同日志 STEP3：graceful 关闭旧 primary（无残留）→ rename 目录 → 新路径启动 probe OK → 回读对新路径全 MATCH；STEP4 已把现场恢复回原目录并清理临时树 |
+
+### 人工待执行条目（PENDING）
+
+> 除 W17/W18/W19 属扩展矩阵外，以下均为核心 gate 或随产品 smoke 必须记录的观察项；执行时按第二部分要求记录 PID/mode/`flutter_started`、AUMID/CLSID 表示、class registration / relay handoff / pipe ACK 耗时与 payload event key。
+
+| # | 场景 | 结果 | 备注 |
+|---|------|------|------|
+| W1 | 前台状态下终态通知展示与点击 | PENDING | 应用在前台且正在查看其他会话/页面时应展示；查看同一会话时抑制 |
+| W2 | 失焦状态下展示与点击 | PENDING | 点击后窗口恢复并导航到对应会话 |
+| W3 | 最小化恢复后导航（G4） | PENDING | RestoreAndFocus：最小化→restore→focus；后台调用被前台锁拒绝时退化为任务栏闪烁属已知行为，激活导航不受影响 |
+| W4 | warm 点击（G1） | PENDING | spike Case A 曾 PASS（PID 30060），但那是 throwaway 工程，不替代产品 gate |
+| W5 | 完全退出后的 cold 点击 ≥20 轮（G2） | PENDING | 每轮记录新 PID 与 `-Embedding`；spike Case B 仅 2 轮且为 spike 工程 |
+| W6 | 快速连续两条 cold activation | PENDING | 最终只能有一个 Flutter/storage owner；允许短命 relay 有界退出。spike 顺手观察项未执行，与本行口径一致 |
+| W7 | pre-COM 窗口期点击（instrumented Debug build，pre-COM delay=10s）（G3 前半） | PENDING | spike Case C 曾 PASS（relay 短暂出现、无窗口、~1s drain、primary 收到一次）；需在产品源码 instrumented build 上复验 |
+| W8 | post-COM/pre-Flutter 窗口期点击（post-COM delay=10s）（G3 后半） | PENDING | spike Case D 曾 PASS（activation_received 早于 flutter_started、全程单进程）；同样待产品级复验 |
+| W10 | primary warm 时第二次手工双击只恢复/聚焦既有窗口（G3 相关） | PENDING | 不创建第二个 Flutter engine；spike Case E 曾 PASS ×4（secondary 全部 ack=0 + exit 0），待产品复验 |
+| W11 | 删除会话回退根页（G5） | PENDING | 会话删除后点击其通知应回退根页，无崩溃 |
+| W13 | 同目录覆盖更新后点击 Toast 并正确交付 payload | PENDING | W12 只证明注册幂等修复；点击交付链路待人工 |
+| W15 | 移动目录后首次手工启动再点击 Toast | PENDING | W14 只证明注册修复到新路径 |
+| W16 | 系统设置入口可直达本应用的通知设置 | PENDING | 实现为 `explorer.exe ms-settings:notifications`（`windows_system_notification_settings.dart`），invoke 契约有自动化（`windows_system_notification_settings_test.dart`），实际打开系统页面待人工确认 |
+| W17 | 默认声音表现：系统声音开启/关闭下的实际表现 | PENDING | Windows 端不显式配置声音（Toast XML 无 audio 元素）；不声称应用强制响铃 |
+| W18 | 专注助手组合下的表现 | PENDING | 扩展矩阵，允许保持 PENDING |
+| W19 | 多声音设备 / 多安装位置矩阵 | PENDING | 扩展矩阵，允许保持 PENDING |
+
+### 已知限制记录（文档义务，非验证项）
+
+- **通知 ID 碰撞覆盖**：不同终态若解析出相同通知 ID，后一条 Toast 会覆盖前一条（同一 Tag/ID）。这是记录在案的已知限制；按计划不要求人工构造碰撞，也不在生产中枚举碰撞。
+- **SetForegroundWindow 前台锁**：primary 在后台收到 secondary 的 activateWindow 时，`SetForegroundWindow` 可能被系统前台锁拒绝而退化为任务栏闪烁提醒（spike Case E 实测 foreground=0）；激活与导航本身不受影响。
+- **声音归属**：应用从不写 audio 配置；响铃与否完全由系统声音方案、应用通知设置与专注助手决定。
+
+### 统计与判定规则
+
+- 本部分条目统计：PASS 3（W9/W12/W14）/ PENDING 16 / FAIL 0；另有三条已知限制为文档记录义务。
+- 核心 gate（W4–W11 及 G1–G5）不允许 `PENDING`：任一 FAIL 停止 Ready 并修复；无法执行则 PR 保持 draft。
+- 只有扩展矩阵（W18/W19 及其他 Windows 版本、专注助手组合、多个声音设备、多安装位置）允许保持 `PENDING`。
+- 两边都 PASS 才能 Ready：Android 半边记录在 `docs/testing/android-chat-generation-foreground-service-smoke.md` §6。

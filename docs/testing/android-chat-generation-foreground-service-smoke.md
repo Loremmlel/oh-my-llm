@@ -168,3 +168,38 @@ adb shell am compat disable FGS_INTRODUCE_TIME_LIMITS yuzu.shiki.oh_my_llm
 - 前台服务只**降低**进程被系统回收的概率，不保证不杀进程；用户强停（Force stop）、极端内存回收或 OEM 附加策略下，进程与 SSE 仍可能被终止，此时没有回调保证。
 - 本手册所有 Android 真机行当前均为 `PENDING`（无设备接入），不代表行为验证通过，也不代表发现缺陷；需在接入 Android 13+ 真机后逐行执行并更新状态。
 - Android 15 超时参数修改只能在专用测试设备上进行，用户日常设备不得触碰。
+
+---
+
+## 6. 生成终态通知最小原生 gate（计划 2026-08-22 Task 11，2026-08-24 追加）
+
+本节属于计划 `docs/plans/2026-08-22-cross-platform-generation-terminal-notifications.md` 第 11 节「Ready 前最小原生 gate」的 Android 半边，与 §2 的旧前台服务矩阵**相互独立、互不替代**：§2 验证 ongoing 前台服务生命周期；本节验证生成**终态通知**（HIGH channel、激活与抑制）。诚实记录原则同前：未在真机上实际执行的行保持 `PENDING`，自动化证据只能支撑其标注的那一行，不得外推为真机 PASS。
+
+**执行状态（2026-08-24 回填时）：** `adb devices` 为空，无任何 Android 设备接入；除 A2 这类纯配置级条目有当日重跑的单测证据外，其余全部 `PENDING`，缺失前置条件均为「无受支持 emulator/设备接入」。
+
+| # | gate 场景 | 结果 | 证据 / 缺失前置条件 |
+|---|---|---|---|
+| A1 | 生成成功后出现 `chat_generation_result` HIGH 终态通知 | PENDING | 无真机。自动化佐证：Dart 收据→通知映射单测全绿（`test/app/notifications/default_chat_generation_terminal_notifications_test.dart` 等；全量 2265 例过，`logs/fltest.log` EXIT=0，2026-08-24） |
+| A2 | HIGH channel 配置正确：`IMPORTANCE_HIGH` + 默认声音 + 振动启用，且与 ongoing LOW channel 分离 | **PASS** | 源码 `ChatGenerationTerminalNotification.kt`（`CHANNEL_IMPORTANCE = IMPORTANCE_HIGH`、`setSound` / `enableVibration`）；Kotlin 单测 40/40 当日重跑 EXIT=0（`logs/task11-kotlin-unittest.log`，JAVA_HOME 用 Android Studio JBR）；范围审计确认 `ONGOING_CHANNEL_IMPORTANCE = IMPORTANCE_LOW` 与 terminal channel 分离 |
+| A3 | 默认声音实际表现（横幅/响铃由系统通知音量、静音模式等设备设置控制） | PENDING | 无真机；允许记录「channel 配置正确但设备静音」，不得把设备静音判成实现 FAIL |
+| A4 | 空回复终态通知（`emptyReply` 固定分类摘要） | PENDING | 无真机 |
+| A5 | 最终失败终态通知（network/timeout/authentication/rateLimited/server 等固定分类摘要，无原始异常） | PENDING | 无真机 |
+| A6 | 持久化失败终态通知 | PENDING | 无真机 |
+| A7 | 保护超时 fallback（`foregroundProtectionTimedOut` 收据 + Kotlin 固定 fallback） | PENDING | 无真机；超时注入仅限专用测试设备并按 §1.4 流程执行 |
+| A8 | 精确会话抑制：应用前台正在查看同一会话时不弹终态通知 | PENDING | 无真机。自动化佐证：`app_attention_observer_test.dart` 与深模块单测覆盖注意力判定逻辑 |
+| A9 | 其他会话 / 其他页面时展示终态通知 | PENDING | 无真机 |
+| A10 | 点击终态通知打开精确会话 | PENDING | 无真机 |
+| A11 | 现有 ongoing 通知点击仍打开对应会话（旧契约保留，只有旧 LOW 终态点击路径被替换） | PENDING | 无真机。自动化佐证：coordinator 生产调用 `takePendingOpenConversation`（`lib/app/composition/chat_generation_notification_coordinator.dart:151/451`）+ 回归测试全绿（`chat_generation_notification_coordinator_test.dart`、`chat_generation_notification_integration_test.dart`） |
+| A12 | warm 点击（应用进程存活时点终态通知） | PENDING | 无真机 |
+| A13 | cold 点击（进程不在时点通知拉起应用并直达会话） | PENDING | 无真机 |
+| A14 | 已删除会话回退（点击指向已删除会话的通知回退根页，不崩溃） | PENDING | 无真机 |
+| A15 | 权限拒绝：revoke `POST_NOTIFICATIONS` 后发送不中断、不重复弹权限 | PENDING | 无真机；复位命令见 §1.1 |
+| A16 | 设置入口：设置页显示系统通知状态卡并可打开系统通知设置 | PENDING | 无真机。自动化佐证：`system_notification_status_controller_test.dart`（3 例）+ `settings_screen_test.dart` 全绿（`logs/settings-system-notifications-green.log` 等） |
+
+**统计：PASS 1（A2 配置级）/ PENDING 15 / FAIL 0。**
+
+### 判定规则（与计划第 11/14 节一致）
+
+- A1/A8/A10/A11 四项即计划「Android 最小原生 gate」核心：任一 FAIL 停止 Ready 并修复；无法执行（无设备）则 PR 保持 draft。
+- 只有扩展矩阵（其他 ROM/厂商策略、专注助手组合、多声音设备等）允许保持 `PENDING`。
+- 自动化佐证只证明 Dart/Kotlin 层契约，永远不能替代表格中真机行的 PASS。
