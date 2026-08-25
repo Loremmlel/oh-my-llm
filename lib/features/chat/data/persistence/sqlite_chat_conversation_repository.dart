@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:oh_my_llm/core/persistence/app_database.dart';
+
 import '../../domain/models/chat_checkpoint.dart';
 import '../../domain/models/chat_conversation.dart';
 import '../../domain/models/chat_conversation_summary.dart';
@@ -202,10 +203,9 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
                     )
                     .toList(growable: false),
             templatePromptId: row['template_prompt_id'] as String?,
-            templateVariableValues:
-                (jsonDecode(row['template_variable_values_json'] as String)
-                        as Map<String, dynamic>)
-                    .map((k, v) => MapEntry(k, v as String)),
+            templateVariableValues: (jsonDecode(
+              row['template_variable_values_json'] as String,
+            ) as Map<String, dynamic>).map((k, v) => MapEntry(k, v as String)),
             finishReason: row['finish_reason'] as String?,
           ),
         )
@@ -281,11 +281,9 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
         (effort) => effort.apiValue == row['reasoning_effort'],
         orElse: () => ReasoningEffort.medium,
       ),
-      excludedMessageIds:
-          (jsonDecode(row['excluded_message_ids_json'] as String) as List)
-              .whereType<String>()
-              .toSet()
-              .toList(growable: false),
+      excludedMessageIds: (jsonDecode(
+        row['excluded_message_ids_json'] as String,
+      ) as List).whereType<String>().toSet().toList(growable: false),
       autoRetryEnabled: (row['auto_retry_enabled'] as int) == 1,
     );
   }

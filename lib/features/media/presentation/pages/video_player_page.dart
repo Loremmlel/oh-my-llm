@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 
 import 'package:oh_my_llm/features/media/application/models/media_resource.dart';
+
 import '../widgets/video_player_controls.dart';
 import 'desktop_video_interaction_controller.dart';
 import 'media_video_controller_factory.dart';

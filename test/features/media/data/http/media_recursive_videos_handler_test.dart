@@ -19,9 +19,8 @@ void main() {
 
       // 创建测试视频
       Directory('${tempRoot.path}${Platform.pathSeparator}sub').createSync();
-      File(
-        '${tempRoot.path}${Platform.pathSeparator}video1.mp4',
-      ).writeAsStringSync('v1');
+      File('${tempRoot.path}${Platform.pathSeparator}video1.mp4')
+          .writeAsStringSync('v1');
       File(
         '${tempRoot.path}${Platform.pathSeparator}sub${Platform.pathSeparator}video2.mp4',
       ).writeAsStringSync('v2');

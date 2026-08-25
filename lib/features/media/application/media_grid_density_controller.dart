@@ -5,8 +5,9 @@ import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 
 const String mediaGridDensityStorageKey = 'app.feature.media.grid_density';
 
-typedef MediaGridDensityWriter =
-    Future<bool> Function(AppLayoutDensity density);
+typedef MediaGridDensityWriter = Future<bool> Function(
+  AppLayoutDensity density,
+);
 
 final mediaGridDensityDefaultProvider = Provider<AppLayoutDensity>(
   (ref) => AppLayoutDensity.standard,

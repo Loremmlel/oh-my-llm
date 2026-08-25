@@ -39,9 +39,9 @@ final class RemoteMediaLibrary implements MediaLibrary {
       directoryTimeout,
     );
     try {
-      return MediaFileItemDto.listFromJson(
-        response.body,
-      ).map((dto) => dto.toDomain()).toList();
+      return MediaFileItemDto.listFromJson(response.body)
+          .map((dto) => dto.toDomain())
+          .toList();
     } on FormatException {
       throw const MediaLibraryFailure(
         MediaLibraryFailureCode.invalidResponse,

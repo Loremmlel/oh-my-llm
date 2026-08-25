@@ -190,9 +190,9 @@ void main() {
             .map((v) => v.relativePath)
             .toList();
         await controller.startShuffle('/dir');
-        final state =
-            container.read(shufflePlaybackControllerProvider)
-                as ShufflePlaybackActive;
+        final state = container.read(
+          shufflePlaybackControllerProvider,
+        ) as ShufflePlaybackActive;
         final shuffledPaths = state.playlist
             .map((v) => v.relativePath)
             .toList();
@@ -220,25 +220,25 @@ void main() {
       expect(controller.playPrevious(), isNull);
 
       await controller.startShuffle('/dir');
-      final active =
-          container.read(shufflePlaybackControllerProvider)
-              as ShufflePlaybackActive;
+      final active = container.read(
+        shufflePlaybackControllerProvider,
+      ) as ShufflePlaybackActive;
 
       // 首位：previous 返回 null
       expect(controller.playPrevious(), isNull);
 
       // next 推进到 index 1，返回新位置的相对路径
       expect(controller.playNext(), active.playlist[1].relativePath);
-      var state =
-          container.read(shufflePlaybackControllerProvider)
-              as ShufflePlaybackActive;
+      var state = container.read(
+        shufflePlaybackControllerProvider,
+      ) as ShufflePlaybackActive;
       expect(state.currentIndex, 1);
 
       // previous 回到 index 0，返回新位置的相对路径
       expect(controller.playPrevious(), state.playlist[0].relativePath);
-      state =
-          container.read(shufflePlaybackControllerProvider)
-              as ShufflePlaybackActive;
+      state = container.read(
+        shufflePlaybackControllerProvider,
+      ) as ShufflePlaybackActive;
       expect(state.currentIndex, 0);
 
       // 推进到末尾：next 返回 null
@@ -275,9 +275,9 @@ void main() {
       controller.playNext();
       controller.playNext();
       expect(
-        (container.read(shufflePlaybackControllerProvider)
-                as ShufflePlaybackActive)
-            .isLast,
+        (container.read(
+          shufflePlaybackControllerProvider,
+        ) as ShufflePlaybackActive).isLast,
         isTrue,
       );
       controller.onPlayerExited();

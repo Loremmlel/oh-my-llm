@@ -66,62 +66,50 @@ Future<void> _focusSettingsPage(WidgetTester tester) async {
 
 void main() {
   group('根部组合（真实 OhMyLlmApp）', () {
-    testWidgets(
-      'Windows 宿主鼠标后退侧键把设置页退回对话',
-      (tester) async {
-        await _pumpFullApp(tester);
-        await _openSettings(tester);
-        expect(find.text('服务商设置'), findsOneWidget);
+    testWidgets('Windows 宿主鼠标后退侧键把设置页退回对话', (tester) async {
+      await _pumpFullApp(tester);
+      await _openSettings(tester);
+      expect(find.text('服务商设置'), findsOneWidget);
 
-        await tester.tapAt(
-          tester.getCenter(find.byType(SettingsScreen)),
-          buttons: kBackMouseButton,
-        );
-        await settleRouteTransition(tester);
+      await tester.tapAt(
+        tester.getCenter(find.byType(SettingsScreen)),
+        buttons: kBackMouseButton,
+      );
+      await settleRouteTransition(tester);
 
-        expect(find.text('服务商设置'), findsNothing);
-        expect(find.text('历史会话面板'), findsOneWidget);
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.windows),
-    );
+      expect(find.text('服务商设置'), findsNothing);
+      expect(find.text('历史会话面板'), findsOneWidget);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 
-    testWidgets(
-      'Windows 宿主 browserBack 键盘键把设置页退回对话',
-      (tester) async {
-        await _pumpFullApp(tester);
-        await _openSettings(tester);
-        expect(find.text('服务商设置'), findsOneWidget);
+    testWidgets('Windows 宿主 browserBack 键盘键把设置页退回对话', (tester) async {
+      await _pumpFullApp(tester);
+      await _openSettings(tester);
+      expect(find.text('服务商设置'), findsOneWidget);
 
-        await _focusSettingsPage(tester);
-        await tester.sendKeyDownEvent(
-          LogicalKeyboardKey.browserBack,
-          platform: 'windows',
-        );
-        await settleRouteTransition(tester);
+      await _focusSettingsPage(tester);
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.browserBack,
+        platform: 'windows',
+      );
+      await settleRouteTransition(tester);
 
-        expect(find.text('服务商设置'), findsNothing);
-        expect(find.text('历史会话面板'), findsOneWidget);
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.windows),
-    );
+      expect(find.text('服务商设置'), findsNothing);
+      expect(find.text('历史会话面板'), findsOneWidget);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 
-    testWidgets(
-      'Android 宿主鼠标后退侧键不触发返回',
-      (tester) async {
-        await _pumpFullApp(tester);
-        await _openSettings(tester);
-        expect(find.text('服务商设置'), findsOneWidget);
+    testWidgets('Android 宿主鼠标后退侧键不触发返回', (tester) async {
+      await _pumpFullApp(tester);
+      await _openSettings(tester);
+      expect(find.text('服务商设置'), findsOneWidget);
 
-        await tester.tapAt(
-          tester.getCenter(find.byType(SettingsScreen)),
-          buttons: kBackMouseButton,
-        );
-        await settleRouteTransition(tester);
+      await tester.tapAt(
+        tester.getCenter(find.byType(SettingsScreen)),
+        buttons: kBackMouseButton,
+      );
+      await settleRouteTransition(tester);
 
-        // Android 不挂载 Windows adapter：侧键输入不产生任何导航。
-        expect(find.text('服务商设置'), findsOneWidget);
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.android),
-    );
+      // Android 不挂载 Windows adapter：侧键输入不产生任何导航。
+      expect(find.text('服务商设置'), findsOneWidget);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.android));
   });
 }

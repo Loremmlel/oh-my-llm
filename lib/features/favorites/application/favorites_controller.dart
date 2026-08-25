@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:oh_my_llm/core/constants/app_reserved_entities.dart';
 import 'package:oh_my_llm/core/utils/id_generator.dart';
+
 import 'favorites_browse_preferences_controller.dart';
 import 'favorites_clock_provider.dart';
 import 'ports/collections_repository.dart';

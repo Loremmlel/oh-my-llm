@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oh_my_llm/core/constants/app_reserved_entities.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/core/widgets/pagination/app_pagination_state.dart';
+
 import 'ports/collections_repository.dart';
 
 /// 收藏浏览的每页容量偏好 key；与 History 的偏好互不共用。

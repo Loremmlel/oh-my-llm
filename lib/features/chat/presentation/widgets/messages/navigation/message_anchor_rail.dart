@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:oh_my_llm/core/constants/app_animations.dart';
+
 import '../../../../domain/models/chat_message.dart';
 
 /// 右侧消息锚点条，用于快速跳转到用户消息。
@@ -165,9 +166,8 @@ class _MessageAnchorRailState extends State<MessageAnchorRail> {
                       vertical: 8,
                     ),
                     child: ScrollConfiguration(
-                      behavior: ScrollConfiguration.of(
-                        context,
-                      ).copyWith(scrollbars: false),
+                      behavior: ScrollConfiguration.of(context)
+                          .copyWith(scrollbars: false),
                       child: ListView.separated(
                         controller: _scrollController,
                         primary: false,

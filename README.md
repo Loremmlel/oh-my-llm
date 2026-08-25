@@ -33,8 +33,8 @@
 
 | 工具                             | 版本                      |
 |--------------------------------|-------------------------|
-| Flutter                        | 3.44.x stable（CI 固定 3.44.6） |
-| Dart                           | `^3.11.5`                |
+| Flutter                        | 3.47.x stable（CI 固定 3.47.1） |
+| Dart                           | `^3.13.1`                |
 | Android SDK                    | 仅构建 Android 时需要         |
 | Visual Studio 2022（含 C++ 桌面开发） | 仅构建 Windows 时需要         |
 

@@ -10,8 +10,7 @@ ImportBoundaryChecker _checker([ArchitecturePolicy? policy]) =>
 ArchitecturePolicy get _settingsAllowance => ArchitecturePolicy(
   legacyApplicationDataEdges: {
     ImportEdge(
-      sourcePath:
-          'lib/features/settings/application/preferences/chat_defaults_controller.dart',
+      sourcePath: 'lib/features/settings/application/preferences/chat_defaults_controller.dart',
       targetPath: 'lib/features/settings/data/chat_defaults_repository.dart',
     ): '存量债务',
   },
@@ -26,8 +25,7 @@ void main() {
             "import '../../domain/models/chat_conversation.dart';",
         'lib/features/chat/application/sessions/chat_sessions_controller.dart':
             "import '../../domain/models/chat_conversation.dart';",
-        'lib/features/chat/data/persistence/sqlite_chat_conversation_repository.dart':
-            "import '../../application/ports/chat_conversation_repository.dart';",
+        'lib/features/chat/data/persistence/sqlite_chat_conversation_repository.dart': "import '../../application/ports/chat_conversation_repository.dart';",
       });
       expect(violations, isEmpty);
     });
@@ -63,16 +61,14 @@ void main() {
   group('非法输入', () {
     test('presentation 直达 data（package URI）', () {
       final violations = _checker().checkSources({
-        'lib/features/chat/presentation/chat_screen.dart':
-            "import 'package:oh_my_llm/features/chat/data/persistence/sqlite_chat_conversation_repository.dart';",
+        'lib/features/chat/presentation/chat_screen.dart': "import 'package:oh_my_llm/features/chat/data/persistence/sqlite_chat_conversation_repository.dart';",
       });
       expect(violations.single.ruleId, 'PRESENTATION_TO_DATA');
     });
 
     test('presentation 直达 data（相对 URI 解析一致）', () {
       final violations = _checker().checkSources({
-        'lib/features/chat/presentation/screens/chat_screen.dart':
-            "import '../../data/persistence/sqlite_chat_conversation_repository.dart';",
+        'lib/features/chat/presentation/screens/chat_screen.dart': "import '../../data/persistence/sqlite_chat_conversation_repository.dart';",
       });
       final v = violations.single;
       expect(v.ruleId, 'PRESENTATION_TO_DATA');
@@ -92,8 +88,7 @@ void main() {
 
     test('core 依赖 feature', () {
       final violations = _checker().checkSources({
-        'lib/core/widgets/example_widget.dart':
-            "import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';",
+        'lib/core/widgets/example_widget.dart': "import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';",
       });
       expect(violations.single.ruleId, 'CORE_TO_FEATURE');
     });
@@ -120,8 +115,7 @@ void main() {
 
     test('application 直达 data（非 allowlist）', () {
       final violations = _checker().checkSources({
-        'lib/features/chat/application/sessions/chat_sessions_controller.dart':
-            "import 'package:oh_my_llm/features/chat/data/persistence/sqlite_chat_conversation_repository.dart';",
+        'lib/features/chat/application/sessions/chat_sessions_controller.dart': "import 'package:oh_my_llm/features/chat/data/persistence/sqlite_chat_conversation_repository.dart';",
       });
       expect(violations.single.ruleId, 'APPLICATION_TO_DATA');
     });
@@ -137,8 +131,7 @@ void main() {
 
     test('export 不能绕过边界', () {
       final violations = _checker().checkSources({
-        'lib/features/chat/presentation/chat_screen.dart':
-            "export 'package:oh_my_llm/features/chat/data/persistence/sqlite_chat_conversation_repository.dart' show ChatConversation;",
+        'lib/features/chat/presentation/chat_screen.dart': "export 'package:oh_my_llm/features/chat/data/persistence/sqlite_chat_conversation_repository.dart' show ChatConversation;",
       });
       expect(violations.single.ruleId, 'PRESENTATION_TO_DATA');
     });
@@ -146,9 +139,8 @@ void main() {
 
   group('allowlist 生命周期', () {
     test('stale allowlist 条目报 STALE_ALLOWANCE', () {
-      final violations = ImportBoundaryChecker(
-        policy: _settingsAllowance,
-      ).checkSources({}, verifyAllowlistUsage: true);
+      final violations = ImportBoundaryChecker(policy: _settingsAllowance)
+          .checkSources({}, verifyAllowlistUsage: true);
       expect(violations.single.ruleId, 'STALE_ALLOWANCE');
     });
   });

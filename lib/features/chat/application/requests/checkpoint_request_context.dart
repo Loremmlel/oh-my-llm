@@ -1,7 +1,9 @@
 import '../../domain/models/chat_checkpoint.dart';
 import '../../domain/models/chat_message.dart';
+
 import 'package:oh_my_llm/features/settings/domain/models/prompts/memory_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
+
 import 'chat_request_message_builder.dart';
 import '../ports/chat_generation_client.dart';
 

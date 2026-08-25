@@ -2,7 +2,7 @@
 
 本地 LLM 聊天客户端，Flutter 应用，Windows + Android 双端。无厂商绑定，兼容任意 OpenAI 接口。
 
-**技术栈**：Flutter 3.44.x stable（CI 固定 3.44.6）/ Dart `^3.11.5` · Riverpod 3（`NotifierProvider`）· `sqlite3`（原始包，非 drift/sqflite）· 原始 `package:http`（无厂商 SDK）· `go_router`。
+**技术栈**：Flutter 3.47.x stable（CI 固定 3.47.1）/ Dart `^3.13.1` · Riverpod 3（`NotifierProvider`）· `sqlite3`（原始包，非 drift/sqflite）· 原始 `package:http`（无厂商 SDK）· `go_router`。
 
 ---
 
@@ -470,4 +470,4 @@ test/features/chat/presentation/
 |---------|-------------------------------------------|
 | Windows | Visual Studio 2022（含 **C++ 桌面开发** 工作负载）   |
 | Android | Android SDK；JDK（`keytool` 生成自签名 keystore） |
-| Flutter | 3.44.x stable（CI 固定 3.44.6）；Dart `^3.11.5` |
+| Flutter | 3.47.x stable（CI 固定 3.47.1）；Dart `^3.13.1` |

@@ -150,9 +150,8 @@ class InterfaceSelector extends ConsumerWidget {
               const SizedBox(height: 6),
               Text(
                 '运行中，请先停止广播后再修改',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.error,
-                ),
+                style: Theme.of(context).textTheme.bodySmall
+                    ?.copyWith(color: Theme.of(context).colorScheme.error),
               ),
             ],
             const SizedBox(height: 4),

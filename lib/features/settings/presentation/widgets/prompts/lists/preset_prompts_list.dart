@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:oh_my_llm/core/utils/text_formatting.dart';
+
 import '../../../../application/preferences/chat_defaults_controller.dart';
 import '../../../../application/prompts/preset_prompts_controller.dart';
 import '../../../../domain/models/prompts/preset_prompt.dart';

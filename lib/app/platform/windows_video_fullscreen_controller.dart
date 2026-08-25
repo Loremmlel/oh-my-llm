@@ -29,8 +29,11 @@ abstract interface class WindowsVideoWindowGateway {
 ///
 /// 生产默认实现只输出安全文案，不得把异常文本、媒体 URI、Header 或 stack trace
 /// 写入日志；测试实现可以记录结构化参数。
-typedef VideoWindowErrorReporter =
-    void Function(String operation, Object error, StackTrace stackTrace);
+typedef VideoWindowErrorReporter = void Function(
+  String operation,
+  Object error,
+  StackTrace stackTrace,
+);
 
 /// 默认错误 reporter：只输出固定操作与异常类型，不泄漏敏感细节。
 void reportVideoWindowError(

@@ -96,9 +96,9 @@ void main() {
         value: 42,
       );
       final coordinator = _coordinator([_box(participant)]);
-      final batch =
-          coordinator.exportGroups({SettingsTransferGroup.providers})
-              as SettingsExportBatch;
+      final batch = coordinator.exportGroups({
+        SettingsTransferGroup.providers,
+      }) as SettingsExportBatch;
 
       expect(
         batch.exposeJson(confirmedSensitive: false),
@@ -230,9 +230,9 @@ void main() {
         sensitivity: SettingsTransferSensitivity.credentialBearing,
       );
       final coordinator = _coordinator([_box(participant)]);
-      final ready =
-          coordinator.prepareDocument(_document({'credentialValue': 2}))
-              as SettingsImportReady;
+      final ready = coordinator.prepareDocument(
+        _document({'credentialValue': 2}),
+      ) as SettingsImportReady;
 
       final rejected = await ready.batch.execute(confirmedSensitive: false);
       expect(rejected, isA<SettingsImportSensitiveConfirmationRequired>());
@@ -251,13 +251,11 @@ void main() {
         order: 0,
       );
       final coordinator = _coordinator([_box(participant)]);
-      final ready =
-          coordinator.prepareDocument(
-                _document({
-                  'mergeValues': [1, 2],
-                }),
-              )
-              as SettingsImportReady;
+      final ready = coordinator.prepareDocument(
+        _document({
+          'mergeValues': [1, 2],
+        }),
+      ) as SettingsImportReady;
       participant.value = [1];
 
       final result = await ready.batch.execute(confirmedSensitive: true);
@@ -274,9 +272,9 @@ void main() {
         order: 0,
       );
       final coordinator = _coordinator([_box(participant)]);
-      final ready =
-          coordinator.prepareDocument(_document({'replaceValue': 3}))
-              as SettingsImportReady;
+      final ready = coordinator.prepareDocument(
+        _document({'replaceValue': 3}),
+      ) as SettingsImportReady;
       participant.value = 2;
 
       final result = await ready.batch.execute(confirmedSensitive: true);
@@ -314,12 +312,12 @@ void main() {
         activeWriters -= 1;
       };
       final coordinator = _coordinator([_box(participant)]);
-      final first =
-          coordinator.prepareDocument(_document({'serializedValue': 2}))
-              as SettingsImportReady;
-      final second =
-          coordinator.prepareDocument(_document({'serializedValue': 3}))
-              as SettingsImportReady;
+      final first = coordinator.prepareDocument(
+        _document({'serializedValue': 2}),
+      ) as SettingsImportReady;
+      final second = coordinator.prepareDocument(
+        _document({'serializedValue': 3}),
+      ) as SettingsImportReady;
 
       final firstExecution = first.batch.execute(confirmedSensitive: true);
       await firstEntered.future;
@@ -350,11 +348,9 @@ void main() {
         order: 1,
       );
       final coordinator = _coordinator([_box(notAttempted), _box(failed)]);
-      final ready =
-          coordinator.prepareDocument(
-                _document({'notAttemptedValue': 2, 'failedValue': 2}),
-              )
-              as SettingsImportReady;
+      final ready = coordinator.prepareDocument(
+        _document({'notAttemptedValue': 2, 'failedValue': 2}),
+      ) as SettingsImportReady;
 
       final result = await ready.batch.execute(confirmedSensitive: true);
 
@@ -390,15 +386,13 @@ void main() {
         _box(failed),
         _box(completed),
       ]);
-      final ready =
-          coordinator.prepareDocument(
-                _document({
-                  'notAttemptedValue': 2,
-                  'failedValue': 2,
-                  'completedValue': 2,
-                }),
-              )
-              as SettingsImportReady;
+      final ready = coordinator.prepareDocument(
+        _document({
+          'notAttemptedValue': 2,
+          'failedValue': 2,
+          'completedValue': 2,
+        }),
+      ) as SettingsImportReady;
 
       final result = await ready.batch.execute(confirmedSensitive: true);
 
@@ -422,9 +416,9 @@ void main() {
         order: 0,
       );
       final coordinator = _coordinator([_box(participant)]);
-      final ready =
-          coordinator.prepareDocument(_document({'oneShotValue': 2}))
-              as SettingsImportReady;
+      final ready = coordinator.prepareDocument(
+        _document({'oneShotValue': 2}),
+      ) as SettingsImportReady;
 
       final first = await ready.batch.execute(confirmedSensitive: true);
       final second = await ready.batch.execute(confirmedSensitive: true);
@@ -443,14 +437,14 @@ void main() {
       );
       final coordinator = _coordinator([_box(participant)]);
 
-      final exported =
-          coordinator.exportGroups({SettingsTransferGroup.network})
-              as SettingsExportBatch;
+      final exported = coordinator.exportGroups({
+        SettingsTransferGroup.network,
+      }) as SettingsExportBatch;
       expect(exported.document.sections, {'newFakeParticipant': 1});
 
-      final prepared =
-          coordinator.prepareDocument(_document({'newFakeParticipant': 2}))
-              as SettingsImportReady;
+      final prepared = coordinator.prepareDocument(
+        _document({'newFakeParticipant': 2}),
+      ) as SettingsImportReady;
       expect(
         prepared.batch.summaryItems.single.key.value,
         'newFakeParticipant',

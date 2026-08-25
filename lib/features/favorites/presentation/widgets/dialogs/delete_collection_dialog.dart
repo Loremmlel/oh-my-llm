@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:oh_my_llm/core/constants/app_reserved_entities.dart';
+
 import '../../../application/collections_controller.dart';
 import '../../../application/favorites_clock_provider.dart';
 import '../../../application/favorites_controller.dart';

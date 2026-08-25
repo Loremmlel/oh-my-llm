@@ -2,6 +2,7 @@ import 'package:sqlite3/sqlite3.dart' as sqlite;
 
 import 'package:oh_my_llm/core/constants/app_reserved_entities.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
+
 import '../domain/models/collection.dart';
 import '../domain/models/collection_delete_request.dart';
 import '../domain/models/favorite_collection_summary.dart';

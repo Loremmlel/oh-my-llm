@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:oh_my_llm/core/constants/app_reserved_entities.dart';
+
 import 'favorites_controller.dart';
 import 'ports/collections_repository.dart';
 import '../domain/models/collection.dart';

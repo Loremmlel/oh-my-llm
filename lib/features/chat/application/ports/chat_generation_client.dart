@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
+
 import '../../domain/models/chat_message.dart';
 
 /// 流式生成请求失败时抛出的业务异常。

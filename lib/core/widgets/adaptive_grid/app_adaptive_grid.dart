@@ -2,14 +2,15 @@ import 'package:flutter/material.dart';
 
 import 'adaptive_grid_geometry.dart';
 
-typedef AppAdaptiveGridMainAxisExtentBuilder =
-    double Function(BuildContext context, double itemCrossAxisExtent);
-typedef AppAdaptiveGridItemBuilder =
-    Widget Function(
-      BuildContext context,
-      int index,
-      double itemCrossAxisExtent,
-    );
+typedef AppAdaptiveGridMainAxisExtentBuilder = double Function(
+  BuildContext context,
+  double itemCrossAxisExtent,
+);
+typedef AppAdaptiveGridItemBuilder = Widget Function(
+  BuildContext context,
+  int index,
+  double itemCrossAxisExtent,
+);
 
 class AppAdaptiveGrid extends StatelessWidget {
   const AppAdaptiveGrid({

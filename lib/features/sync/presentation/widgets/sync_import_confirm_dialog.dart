@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:oh_my_llm/core/widgets/transfer_summary_list.dart';
+
 import '../../application/ports/settings_sync_facade.dart';
 import '../../application/sync_client_controller.dart';
 
@@ -104,9 +105,8 @@ class _SyncImportConfirmDialogState
             const SizedBox(height: 12),
             Text(
               _errorMessage!,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.error,
-              ),
+              style: Theme.of(context).textTheme.bodyMedium
+                  ?.copyWith(color: Theme.of(context).colorScheme.error),
             ),
           ],
         ],

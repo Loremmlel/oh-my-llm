@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_transfer_document.dart';
+
 import '../domain/models/session/sync_pairing.dart';
 import '../domain/models/protocol/sync_protocol_failure.dart';
 import '../domain/models/protocol/sync_protocol_message.dart';
@@ -55,10 +56,10 @@ final class SyncServerProtocolCoordinator {
   Future<SyncServerProtocolResult> handle(SyncProtocolMessage request) async {
     try {
       return switch (request) {
-        PairingChallengeRequest() => _challenge(request),
-        PairingProofRequest() => _proof(request),
-        SessionOpenRequest() => _openSession(request),
-        EncryptedSyncRequest() => _sync(request),
+        PairingChallengeRequest() => await _challenge(request),
+        PairingProofRequest() => await _proof(request),
+        SessionOpenRequest() => await _openSession(request),
+        EncryptedSyncRequest() => await _sync(request),
         _ => _failure(
           request.requestId,
           SyncProtocolErrorCode.malformedMessage,

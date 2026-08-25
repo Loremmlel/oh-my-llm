@@ -23,20 +23,17 @@ void main() {
         '${tempRoot.path}${Platform.pathSeparator}subdir',
       );
       subDir.createSync();
-      File(
-        '${tempRoot.path}${Platform.pathSeparator}test.jpg',
-      ).writeAsStringSync('fake-jpeg-content-12345');
-      File(
-        '${subDir.path}${Platform.pathSeparator}nested.png',
-      ).writeAsStringSync('fake-png-content');
+      File('${tempRoot.path}${Platform.pathSeparator}test.jpg')
+          .writeAsStringSync('fake-jpeg-content-12345');
+      File('${subDir.path}${Platform.pathSeparator}nested.png')
+          .writeAsStringSync('fake-png-content');
       // 中文路径
       final chineseDir = Directory(
         '${tempRoot.path}${Platform.pathSeparator}照片',
       );
       chineseDir.createSync();
-      File(
-        '${chineseDir.path}${Platform.pathSeparator}小猫.jpg',
-      ).writeAsStringSync('chinese-path-content');
+      File('${chineseDir.path}${Platform.pathSeparator}小猫.jpg')
+          .writeAsStringSync('chinese-path-content');
 
       server = SyncHttpServer();
       port = await server.start(
@@ -104,9 +101,8 @@ void main() {
     });
 
     test('非图片扩展名仍返回 200（不校验扩展名）', () async {
-      File(
-        '${tempRoot.path}${Platform.pathSeparator}doc.txt',
-      ).writeAsStringSync('text file');
+      File('${tempRoot.path}${Platform.pathSeparator}doc.txt')
+          .writeAsStringSync('text file');
       final response = await http.get(
         Uri.parse('http://127.0.0.1:$port/api/media/image/doc.txt'),
       );

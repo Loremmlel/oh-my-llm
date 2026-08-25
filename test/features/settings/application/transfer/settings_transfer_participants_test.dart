@@ -26,9 +26,8 @@ void main() {
 
   test('template 解码器拒绝无法编译的模板', () {
     final participant = _createTemplateParticipant();
-    final invalid = _template(
-      now,
-    ).copyWith(content: '{{#if 人称 == "一"}}\n未闭合内容', variables: const []);
+    final invalid = _template(now)
+        .copyWith(content: '{{#if 人称 == "一"}}\n未闭合内容', variables: const []);
 
     expect(
       () => participant.decode([invalid.toJson()]),

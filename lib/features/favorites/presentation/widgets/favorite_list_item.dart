@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import 'package:oh_my_llm/core/utils/date_formatting.dart';
+
 import '../../domain/models/favorite.dart';
 
 /// 收藏夹分页列表中的单行条目。

@@ -78,11 +78,9 @@ void main() {
     ];
 
     for (final testCase in cases) {
-      expect(
-        prompt.messagesForPlacement(testCase.placement).map((m) => m.id),
-        [testCase.expectedId],
-        reason: testCase.placement.name,
-      );
+      expect(prompt.messagesForPlacement(testCase.placement).map((m) => m.id), [
+        testCase.expectedId,
+      ], reason: testCase.placement.name);
     }
   });
 

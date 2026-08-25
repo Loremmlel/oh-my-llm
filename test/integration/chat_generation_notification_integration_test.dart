@@ -117,9 +117,8 @@ void main() {
       expect(harness.port.calls, contains('remove'));
 
       // 持久化会话包含取消前的部分正文与推理。
-      final persisted = SqliteChatConversationRepository(
-        harness.database,
-      ).loadConversation(conversationId);
+      final persisted = SqliteChatConversationRepository(harness.database)
+          .loadConversation(conversationId);
       expect(persisted, isNotNull);
       expect(persisted!.messages.last.content, '部分正文');
       expect(persisted.messages.last.reasoningContent, '部分推理');

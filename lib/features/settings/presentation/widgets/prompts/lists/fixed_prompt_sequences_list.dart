@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:oh_my_llm/core/utils/text_formatting.dart';
+
 import '../../../../application/prompts/fixed_prompt_sequences_controller.dart';
 import '../../../../domain/models/prompts/fixed_prompt_sequence.dart';
 import '../../shared/settings_card_grid.dart';

@@ -209,9 +209,8 @@ void main() {
         '${root.path}${Platform.pathSeparator}sub'
         '${Platform.pathSeparator}deep',
       ).createSync(recursive: true);
-      File(
-        '${root.path}${Platform.pathSeparator}video1.mp4',
-      ).writeAsStringSync('v1');
+      File('${root.path}${Platform.pathSeparator}video1.mp4')
+          .writeAsStringSync('v1');
       File(
         '${root.path}${Platform.pathSeparator}sub'
         '${Platform.pathSeparator}deep${Platform.pathSeparator}video2.mkv',
@@ -239,9 +238,8 @@ void main() {
     test('本地资源为 file scheme 且不含 HTTP authority', () async {
       final root = await Directory.systemTemp.createTemp('omll_local_media_');
       addTearDown(() => root.delete(recursive: true));
-      File(
-        '${root.path}${Platform.pathSeparator}a.jpg',
-      ).writeAsBytesSync([1, 2, 3]);
+      File('${root.path}${Platform.pathSeparator}a.jpg')
+          .writeAsBytesSync([1, 2, 3]);
       final library = buildLocalLibraryForTest(root);
 
       final resource = await library.resolveAsset(

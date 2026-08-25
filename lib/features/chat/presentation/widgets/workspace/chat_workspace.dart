@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
+
 import '../composer/chat_composer_card.dart';
 import '../messages/chat_messages_panel.dart';
 import 'chat_workspace_bindings.dart';

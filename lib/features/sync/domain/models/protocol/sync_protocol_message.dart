@@ -4,6 +4,7 @@ import 'package:equatable/equatable.dart';
 
 import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_transfer_document.dart';
 import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_transfer_document_codec.dart';
+
 import 'sync_protocol_failure.dart';
 import 'sync_protocol_version.dart';
 import 'sync_types.dart';

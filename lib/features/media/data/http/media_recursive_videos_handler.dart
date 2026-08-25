@@ -18,9 +18,8 @@ class MediaRecursiveVideosHandler extends MediaHttpHandlerBase {
   Future<void> handleSafe(HttpRequest request, String relativePath) async {
     final videos = await scanner.scanRecursiveVideos(relativePath);
 
-    final json = const JsonEncoder.withIndent(
-      null,
-    ).convert(videos.map((v) => v.toJson()).toList());
+    final json = const JsonEncoder.withIndent(null)
+        .convert(videos.map((v) => v.toJson()).toList());
     request.response
       ..statusCode = HttpStatus.ok
       ..headers.contentType = ContentType.json

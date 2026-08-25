@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:oh_my_llm/core/persistence/sqlite_entity_repository.dart';
+
 import '../../domain/models/prompts/template_prompt.dart';
 
 final templatePromptRepository = SqliteEntityRepository<TemplatePrompt>(

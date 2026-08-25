@@ -242,9 +242,8 @@ void main() {
   group('generation 派生 isAutoRetryWaiting', () {
     test('仅在 retryWaiting 阶段为 true', () {
       expect(
-        stateWithGeneration(
-          ChatGenerationPhase.retryWaiting,
-        ).isAutoRetryWaiting,
+        stateWithGeneration(ChatGenerationPhase.retryWaiting)
+            .isAutoRetryWaiting,
         isTrue,
       );
       expect(
