@@ -283,4 +283,65 @@ void registerChatScreenFavoritesTests() {
     expect(find.text('该名称被系统收藏夹保留'), findsOneWidget);
     expect(_findFavorite(container, '保留名校验测试'), isNull);
   });
+
+  testWidgets('取消收藏后点击撤销通知按原收藏夹恢复收藏', (tester) async {
+    final fakeClient = FakeChatGenerationClient()..enqueueChunks(['撤销路径测试回复']);
+
+    await pumpChatScreen(tester, fakeClient: fakeClient);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
+
+    await sendMessage(tester, '测试问题');
+    await waitForChatGeneration(
+      tester,
+      container,
+      (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
+      description: '撤销路径用例生成完成',
+    );
+
+    // 首次点击：确认收藏到预选的系统未分类，并捕获移除前的完整收藏记录。
+    await _openAddDialog(tester);
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.widgetWithText(FilledButton, '收藏'),
+      ),
+    );
+    await settleOverlayTransition(tester);
+
+    final before = _findFavorite(container, '撤销路径测试回复');
+    expect(before, isNotNull);
+
+    // 再次点击已收藏消息：直接移除并弹出带撤销按钮的通知气泡。
+    await tester.tap(find.byTooltip('已收藏'));
+    await settleAnimatedWidgetTransition(tester);
+    expect(_findFavorite(container, '撤销路径测试回复'), isNull);
+    expect(find.text('已取消收藏'), findsOneWidget);
+    expect(find.text('撤销'), findsOneWidget);
+
+    // 点击撤销：按移除前捕获的 draft 恢复落库（原 collectionId 与来源元数据）。
+    await tester.tap(find.widgetWithText(TextButton, '撤销'));
+    await settleAnimatedWidgetTransition(tester);
+
+    final restored = _findFavorite(container, '撤销路径测试回复');
+    expect(restored, isNotNull);
+    expect(restored!.collectionId, before!.collectionId);
+    expect(restored.userMessageContent, before.userMessageContent);
+    expect(restored.assistantContent, before.assistantContent);
+    expect(
+      restored.assistantReasoningContent,
+      before.assistantReasoningContent,
+    );
+    expect(
+      restored.assistantModelDisplayName,
+      before.assistantModelDisplayName,
+    );
+    expect(restored.sourceConversationId, before.sourceConversationId);
+    expect(restored.sourceConversationTitle, before.sourceConversationTitle);
+    expect(restored.sourceAssistantMessageId, before.sourceAssistantMessageId);
+    // 点击操作按钮后气泡自动关闭，图标恢复为已收藏。
+    expect(find.text('撤销'), findsNothing);
+    expect(find.byTooltip('已收藏'), findsOneWidget);
+  });
 }
