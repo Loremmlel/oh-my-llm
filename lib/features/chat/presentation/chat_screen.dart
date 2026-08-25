@@ -25,8 +25,7 @@ import '../domain/chat_message_parent.dart';
 import '../domain/models/chat_conversation.dart';
 import '../domain/models/chat_conversation_summary.dart';
 import '../domain/models/chat_message.dart';
-import '../application/favorites/chat_favorite_user_content.dart';
-import '../application/favorites/chat_favorites_facade.dart';
+import '../application/favorites/chat_favorite_intent_command.dart';
 import 'chat_scroll_controller.dart';
 import 'widgets/widgets.dart';
 
@@ -1052,65 +1051,56 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     ChatMessage assistantMessage,
     ChatConversation conversation,
   ) async {
-    // 收藏 toggle 的准备/移除/新增编排直接调用跨 feature facade，
-    // 不再经薄 command 转发层。
-    final facade = ref.read(chatFavoritesFacadeProvider);
-    final snapshot = facade.snapshotFor({assistantMessage.content});
-    final existing = snapshot.findByAssistantContent(assistantMessage.content);
-    if (existing != null) {
-      // 已收藏：直接移除，并提供撤销入口。
-      facade.remove(existing.id);
-      ref
-          .read(notificationBubblesProvider.notifier)
-          .show(
-            message: '已取消收藏',
-            action: NotificationBubbleAction(
-              label: '撤销',
-              onPressed: () =>
-                  ref.read(chatFavoritesFacadeProvider).add(existing.draft),
-            ),
-          );
-      return;
+    // 收藏 toggle 的准备/移除/恢复/新增编排收敛到 intent command，
+    // 页面只 pattern-match 其结果并驱动 dialog/notification。
+    final result = ref
+        .read(chatFavoriteIntentCommandProvider)
+        .beginToggle(
+          conversation: conversation,
+          assistantMessage: assistantMessage,
+        );
+    if (!context.mounted) return;
+
+    switch (result) {
+      case ChatFavoriteRemoved(:final removedEntry):
+        ref
+            .read(notificationBubblesProvider.notifier)
+            .show(
+              message: '已取消收藏',
+              action: NotificationBubbleAction(
+                label: '撤销',
+                onPressed: () => ref
+                    .read(chatFavoriteIntentCommandProvider)
+                    .restore(removedEntry),
+              ),
+            );
+      case ChatFavoriteNeedsCollection(
+        :final draftWithoutCollection,
+        :final collectionOptions,
+      ):
+        final selectedCollectionId = await showDialog<String>(
+          context: context,
+          builder: (context) => AddToFavoritesDialog(
+            collections: collectionOptions,
+            // draft 的 collectionId 即最近有效收藏夹（缺省系统夹），
+            // 作为对话框预选项；确认后仍可改选。
+            initialCollectionId: draftWithoutCollection.collectionId,
+            onCreateCollection: (name) => ref
+                .read(chatFavoriteIntentCommandProvider)
+                .createCollection(name),
+          ),
+        );
+        if (!mounted || selectedCollectionId == null) return;
+        // 对话框内新建收藏夹也是 mutation，会使 facade/command 链失效；
+        // async gap 后必须重读，不得复用 await 前的 controller 实例。
+        ref
+            .read(chatFavoriteIntentCommandProvider)
+            .addToCollection(draftWithoutCollection, selectedCollectionId);
+        if (!mounted) return;
+        ref
+            .read(notificationBubblesProvider.notifier)
+            .show(message: '已收藏', type: NotificationBubbleType.success);
     }
-
-    // 默认归属最近有效收藏夹（失效回退系统"未分类"），不再产生 null sentinel；
-    // Add dialog 以该值为初始选择，用户确认后仍可改选。
-    final draft = ChatFavoriteDraft(
-      userMessageContent: resolveFavoriteUserContent(
-        conversation,
-        assistantMessage,
-      ),
-      assistantContent: assistantMessage.content,
-      assistantReasoningContent: assistantMessage.reasoningContent,
-      assistantModelDisplayName:
-          assistantMessage.resolvedAssistantModelDisplayName,
-      collectionId: snapshot.defaultCollectionId,
-      sourceAssistantMessageId: assistantMessage.id,
-      sourceConversationId: conversation.id,
-      sourceConversationTitle: conversation.resolvedTitle,
-    );
-
-    final selectedCollectionId = await showDialog<String>(
-      context: context,
-      builder: (context) => AddToFavoritesDialog(
-        collections: snapshot.collections,
-        // draft 的 collectionId 即最近有效收藏夹（缺省系统夹），
-        // 作为对话框预选项；确认后仍可改选。
-        initialCollectionId: draft.collectionId,
-        onCreateCollection: (name) =>
-            ref.read(chatFavoritesFacadeProvider).createCollection(name),
-      ),
-    );
-    if (!mounted || selectedCollectionId == null) return;
-    // 对话框内新建收藏夹也是 mutation，会使 facade 链失效；
-    // async gap 后必须重读 facade，不得复用 await 前的实例。
-    ref
-        .read(chatFavoritesFacadeProvider)
-        .add(draft.copyWithCollectionId(selectedCollectionId));
-    if (!mounted) return;
-    ref
-        .read(notificationBubblesProvider.notifier)
-        .show(message: '已收藏', type: NotificationBubbleType.success);
   }
 
   /// 弹出会话重命名对话框并提交新标题。
