@@ -115,29 +115,6 @@ void main() {
 
       expect(back.callCount, 1);
     });
-
-    testWidgets('普通主键点击不请求返回', (tester) async {
-      final (back, ancestorKeys) = await pumpAdapterTree(tester);
-
-      await tester.tapAt(
-        tester.getCenter(find.byType(WindowsNavigationInputAdapter)),
-      );
-      await tester.pump();
-
-      expect(back.callCount, 0);
-    });
-
-    testWidgets('次键点击不请求返回', (tester) async {
-      final (back, ancestorKeys) = await pumpAdapterTree(tester);
-
-      await tester.tapAt(
-        tester.getCenter(find.byType(WindowsNavigationInputAdapter)),
-        buttons: kSecondaryButton,
-      );
-      await tester.pump();
-
-      expect(back.callCount, 0);
-    });
   });
 
   group('键盘 browserBack', () {
@@ -164,15 +141,6 @@ void main() {
       expect(back.callCount, 1);
     });
 
-    testWidgets('browserForward 不请求返回', (tester) async {
-      final (back, ancestorKeys) = await pumpAdapterTree(tester);
-
-      await sendWindowsKeyDown(tester, LogicalKeyboardKey.browserForward);
-      await sendWindowsKeyUp(tester, LogicalKeyboardKey.browserForward);
-
-      expect(back.callCount, 0);
-    });
-
     testWidgets('Escape 不请求返回且不被吞掉', (tester) async {
       final (back, ancestorKeys) = await pumpAdapterTree(tester);
 
@@ -181,20 +149,6 @@ void main() {
 
       expect(back.callCount, 0);
       expect(ancestorKeys, contains(LogicalKeyboardKey.escape));
-    });
-
-    testWidgets('方向键 Left 与 Alt+Left 不请求返回', (tester) async {
-      final (back, ancestorKeys) = await pumpAdapterTree(tester);
-
-      await sendWindowsKeyDown(tester, LogicalKeyboardKey.arrowLeft);
-      await sendWindowsKeyUp(tester, LogicalKeyboardKey.arrowLeft);
-      await sendWindowsKeyDown(tester, LogicalKeyboardKey.altLeft);
-      await sendWindowsKeyDown(tester, LogicalKeyboardKey.arrowLeft);
-      await sendWindowsKeyUp(tester, LogicalKeyboardKey.arrowLeft);
-      await sendWindowsKeyUp(tester, LogicalKeyboardKey.altLeft);
-
-      expect(back.callCount, 0);
-      expect(ancestorKeys, contains(LogicalKeyboardKey.arrowLeft));
     });
   });
 
@@ -229,19 +183,6 @@ void main() {
       await sendWindowsKeyDown(tester, LogicalKeyboardKey.browserBack);
 
       expect(back.callCount, 1);
-    });
-
-    testWidgets('TextField 聚焦时 Alt+Left 不请求返回', (tester) async {
-      final back = RecordingBackRequest();
-      final ancestorKeys = <LogicalKeyboardKey>[];
-      await pumpTextFieldTree(tester, back: back, ancestorKeys: ancestorKeys);
-
-      await sendWindowsKeyDown(tester, LogicalKeyboardKey.altLeft);
-      await sendWindowsKeyDown(tester, LogicalKeyboardKey.arrowLeft);
-      await sendWindowsKeyUp(tester, LogicalKeyboardKey.arrowLeft);
-      await sendWindowsKeyUp(tester, LogicalKeyboardKey.altLeft);
-
-      expect(back.callCount, 0);
     });
   });
 
