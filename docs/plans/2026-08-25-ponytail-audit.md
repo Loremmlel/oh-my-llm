@@ -52,19 +52,9 @@
 
 PR #10 只新增约 73 行 production：一个约 56 行的 `WindowsNavigationInputAdapter` 加根节点挂载；同时新增约 718 行测试和 430 行 plan / smoke。production adapter 本身已经接近最小实现，主要问题在重复证明。
 
-保留：
+保留：pointer back；`browserBack` down / repeat / up 阶段；TextField 聚焦；一条真实 Windows root wiring；一条非 Windows gate；Favorites generic Back 与 video Back / Escape 的页面差异回归。
 
-- pointer back 触发一次 dispatcher request；
-- `browserBack` 首次 key down 被消费，repeat / up 不重复触发；
-- TextField 聚焦时 browserBack 仍可进入返回链；
-- 一条真实 Windows root wiring 和一条非 Windows gate；
-- Favorites generic Back 与 video Back / Escape 的页面差异回归。
-
-删除或合并：
-
-- primary / secondary / forward / Escape / Left / Alt+Left 等逐个负向测试，改成代表性放行用例；
-- integration 中已经由 AppShell、router、dialog、page tests 拥有的返回优先级矩阵；
-- 已完成的 implementation plan。硬件 smoke 结论已存在 Git history，不需要继续作为执行日志留在主分支。
+删除或合并：多个只证明放行分支的负向测试、integration 中已由 AppShell / router / dialog / page tests 拥有的返回优先级矩阵，以及已完成的 implementation plan。硬件 smoke 证据已在 Git history 中保留。
 
 这是推荐的第一个 cleanup PR：几乎不碰 production 行为，最适合验证“删重复证明、保真实行为”的方法。
 
@@ -74,14 +64,9 @@ PR #10 只新增约 73 行 production：一个约 56 行的 `WindowsNavigationIn
 **风险：** 极低  
 **预计净减：** docs 约 3,300–3,400 行
 
-重点包括：
+重点包括 PR #1 compatibility plan、Settings Transfer implementation plan、PR #7 pagination / favorites plan、PR #10 Windows Back plan。
 
-- PR #1 的 compatibility design / implementation plan；其中 rolling migration floor 已被后续真实野库事故和当前“已发布 migration 长期保留”规则否定。
-- Settings Transfer 已完成 implementation plan。
-- PR #7 已完成 pagination / favorites implementation plan。
-- PR #10 已完成 Windows Back implementation plan。
-
-稳定、仍有效的产品边界应压缩保留在短 spec 或 AGENTS 中；逐任务 red / green、命令记录、阶段路标属于开发脚手架，可由 Git history 恢复，不应永久成为维护文档。
+其中 PR #1 的 rolling migration floor 已被后续真实野库事故和当前“已发布 migration 长期保留”规则否定。稳定、仍有效的产品边界应压缩到短 spec 或 AGENTS；逐任务 red / green、命令记录和阶段路标属于执行脚手架，可由 Git history 恢复。
 
 ### 3. 内联收藏 intent 薄编排
 
@@ -93,7 +78,7 @@ PR #10 只新增约 73 行 production：一个约 56 行的 `WindowsNavigationIn
 
 建议删除 command、result 类型及 Provider，让 `ChatScreen` 直接调用仍保留的 `ChatFavoritesFacade`。最近 user message 解析若仍值得单独验证，只保留一个私有纯函数和最小参数化测试。
 
-不要删除 `ChatFavoritesFacade`：它仍承担 Chat 与 Favorites 的真实跨 feature 边界。
+`ChatFavoritesFacade` 不应删除：它仍承担 Chat 与 Favorites 的真实跨 feature 边界。
 
 ### 4. 收缩生成通知的重复测试矩阵
 
@@ -103,7 +88,7 @@ PR #10 只新增约 73 行 production：一个约 56 行的 `WindowsNavigationIn
 
 平台选择绑定本身很薄，但对应测试和 integration 又按多个 LLM 协议重复验证相同的 `start / update / remove / fail` 投递。协议客户端、notification projector 和 coordinator 已分别拥有自己的契约测试。
 
-应保留 coordinator 的 token、定时器、串行 tail、ACK retry、dispose、stale action、durable stop 和持久化终态等竞态；integration 只保留能证明真实 wiring 的少量成功、停止和 fail-open 链路，不再做协议 × 通知的交叉矩阵。
+保留 coordinator 的 token、定时器、串行 tail、ACK retry、dispose、stale action、durable stop 和持久化终态等竞态；integration 只保留能证明真实 wiring 的少量成功、停止和 fail-open 链路，不再做协议 × 通知交叉矩阵。
 
 ### 5. 压缩服务商配置控制器测试
 
@@ -113,9 +98,7 @@ PR #10 只新增约 73 行 production：一个约 56 行的 `WindowsNavigationIn
 
 `LlmProviderConfigsController` production 约 153 行，但测试约 821 行。普通 CRUD、unknown provider、empty input 和排序分支反复创建完整 ProviderContainer / fixture，很多用例只是逐方法锁定显然的列表操作。
 
-建议把机械 CRUD / no-op 合并为参数化测试，复用最小持久化断言。
-
-必须保留：导入等价键、协议隔离、重复模型、同批输入去重，以及持久化失败时不得发布错误状态等真实边界。
+建议把机械 CRUD / no-op 合并为参数化测试，复用最小持久化断言；保留导入等价键、协议隔离、重复模型、同批输入去重和持久化失败不发布状态等真实边界。
 
 ### 6. 清理 PR #7 的外围薄层和 test-only seam
 
@@ -123,13 +106,7 @@ PR #10 只新增约 73 行 production：一个约 56 行的 `WindowsNavigationIn
 **风险：** 低至中  
 **预计净减：** production 120–200 行、test 300–500 行
 
-PR #7 实质触及约 52 个 production、37 个 test 文件。migration、repository 和真实两级收藏浏览必须保留，但外围出现了一批成本高于价值的结构：
-
-- History `prev / next / first / last` 等无必要 convenience API；
-- preference writer Provider；
-- `bindFavoritesRepositories` 等 test-only composition flag；
-- `FavoriteCollectionGridSpec`、部分 route DTO / wrapper；
-- 与共享分页纯函数重复的 controller 测试。
+PR #7 实质触及约 52 个 production、37 个 test 文件。migration、repository 和真实两级收藏浏览必须保留，但外围有一批成本高于价值的结构：History `prev / next / first / last` convenience API、preference writer Provider、`bindFavoritesRepositories` test-only flag、`FavoriteCollectionGridSpec`、部分 route DTO / wrapper，以及与共享分页纯函数重复的 controller 测试。
 
 这一轮只清 perimeter，不改 schema、repository、History async race，也不重写 Favorites browser ownership。
 
@@ -151,9 +128,7 @@ PR #7 实质触及约 52 个 production、37 个 test 文件。migration、repos
 
 M / F / 方向键 / Escape / 长按 / 滚轮等输入在 desktop controller、desktop page 和 accessibility 三层重复验证。
 
-建议 controller 保留完整输入状态机；page 层每种输入只验证必要 wiring；accessibility 只验证 semantics、焦点顺序、keyboard equivalent 和 live region。
-
-必须保留失焦、销毁后 Future、全屏恢复失败、控制栏焦点等真实生命周期或历史 regression。
+controller 保留完整输入状态机；page 层只验证必要 wiring；accessibility 只验证 semantics、焦点顺序、keyboard equivalent 和 live region。失焦、销毁后 Future、全屏恢复失败、控制栏焦点等真实生命周期或历史 regression 应保留。
 
 ### 9. 压平 Settings Transfer 的固定注册表架构
 
@@ -161,7 +136,7 @@ M / F / 方向键 / Escape / 长按 / 滚轮等输入在 desktop controller、de
 **风险：** 中高  
 **预计净减：** production 550–850 行、test 950–1,350 行，另可压缩稳定 spec 约 400–500 行
 
-PR #3 在一次变更中同时创建了 participant hierarchy、type erasure / box、catalog / provider、coordinator、结果对象、fake participant 和大量扩展性测试。今天 production 仍只有一个固定 catalog，九个 participant 只由这个 provider 构造，没有 runtime plugin、用户注册或第二套 catalog。
+PR #3 一次性创建 participant hierarchy、type erasure / box、catalog / provider、coordinator、结果对象、fake participant 和大量扩展性测试。今天 production 仍只有一个固定 catalog，九个 participant 只由这个 provider 构造，没有 runtime plugin、用户注册或第二套 catalog。
 
 当前链路大致是：
 
@@ -183,66 +158,34 @@ PR #7 的 migration / repository 很有价值，但 UI 状态层存在重复 own
 
 同时，共享 pagination 从 PR 前约 270 行的 History bar 扩展成约 515 行 core state / bar / shell / constants，并配套约 592 行 core tests；两个 caller 的共享价值存在，但当前抽象面偏大。
 
-建议方向：
-
-- Favorites 以 route tuple + library revision 直接查询当前页，减少第二份 browser window owner；
-- History 保留真正需要的 async query controller 与竞态语义；
-- shared pagination 只保留两个页面真正共享的页码算法和 visual bar，评估 shell / state 是否仍有净收益；
-- selection 继续由页面本地拥有，不再创建新的 selection framework。
+建议让 Favorites 以 route tuple + library revision 直接查询当前页；History 保留真正需要的 async query controller 与竞态语义；shared pagination 只保留两个页面真正共享的页码算法和 visual bar；selection 继续由页面本地拥有，不再创建新的 selection framework。
 
 这一项必须单独设计和实施，不得触碰 migration、数据保留和 History isolate 生命周期。
 
 ## 其他暂缓候选
 
-以下仍有 cleanup 价值，但证据或收益暂不足以进入前十，后续在上述 PR 完成后重新评估：
-
-- Chat workspace 的 read-model / view-state / bindings 数据搬运层；
-- PR #7 之外的 preference writer fake seams；
-- 单方法 nominal ports 改成函数 Provider；
-- `cupertino_icons`、`meta` direct dependency 清理；
-- PR #6 中重复的 PR 模板完整示例。
+以下仍有 cleanup 价值，但证据或收益暂不足以进入前十，后续在上述 PR 完成后重新评估：Chat workspace 的 read-model / view-state / bindings 数据搬运层；PR #7 之外的 preference writer fake seams；单方法 nominal ports；`cupertino_icons` / `meta` direct dependency；PR #6 中重复的 PR 模板完整示例。
 
 不要为了“顺手”把这些内容塞入前十候选的实施 PR。
 
 ## PR #1–#10 Archaeology 摘要
 
-第二轮历史审计的作用只是校正当前 backlog，不再作为第二套 roadmap。
+第二轮历史审计只用于校正上面的前十候选，不再作为第二套 roadmap。
 
-| PR | 原始 diff：production | 原始 diff：test | 原始 diff：docs | 最终判断 |
+| PR | production diff | test diff | docs diff | 最终判断 |
 |---|---:|---:|---:|---|
-| #1 compatibility cleanup plan | `+0/-0` | `+0/-0` | `+535/-0` | **cleanup**：已失效 / 已完成的计划文档应退役 |
-| #2 notification word count | `+10/-6` | `+5/-5` | `+0/-0` | **no action**：直接复用已有 helper，属于理想的小修复 |
+| #1 compatibility cleanup plan | `+0/-0` | `+0/-0` | `+535/-0` | **cleanup**：失效 / 已完成计划退役 |
+| #2 notification word count | `+10/-6` | `+5/-5` | `+0/-0` | **no action**：理想的小修复 |
 | #3 Settings Transfer v9 | `+2700/-1632` | `+4633/-3101` | `+0/-0` | **deep simplification**：固定注册表被包装成可扩展 subsystem |
-| #4 native TCP probe test | `+0/-0` | `+5/-2` | `+0/-0` | **protected**：真实端口生命周期测试 |
+| #4 native TCP probe test | `+0/-0` | `+5/-2` | `+0/-0` | **protected**：真实端口生命周期 |
 | #5 branch rules | `+0/-0` | `+0/-0` | `+9/-0` | **no action** |
 | #6 PR / Sourcery rules | `+0/-0` | `+0/-0` | `+107/-0` | **minor cleanup**：示例可压缩，规则保留 |
 | #7 Favorites / Pagination | `+4226/-1539` | `+5152/-1111` | `+1042/-17` | **cleanup + deep simplification**：先外围，再 core |
-| #8 v13 -> v14 migration fix | `+13/-0` | `+57/-0` | `+0/-0` | **protected**：真实用户库与数据保留回归 |
-| #9 UI fixes | `+211/-178` | `+82/-0` | `+0/-0` | **no action**：针对具体用户可见缺陷 |
-| #10 Windows Back | `+73/-1` | `+718/-0` | `+430/-0` | **cleanup**：production 合理，测试和执行文档明显过量 |
+| #8 v13 -> v14 migration fix | `+13/-0` | `+57/-0` | `+0/-0` | **protected**：真实用户库与数据保留 |
+| #9 UI fixes | `+211/-178` | `+82/-0` | `+0/-0` | **no action**：具体用户可见缺陷 |
+| #10 Windows Back | `+73/-1` | `+718/-0` | `+430/-0` | **cleanup**：production 合理，测试 / 执行文档过量 |
 
-补充事实：
-
-- PR #3 虽然自身 docs diff 为 0，但其 base 中已有 Settings Transfer implementation plan 1,491 行、design spec 714 行；完成后的 implementation plan 属可退役脚手架。
-- PR #7 的 133 个 changed files 中约 41 个是 docs rename，但 production / test 净增仍很大，不能用 rename 解释。
-- PR #10 的 82 行 smoke 后来已经删除；当前仍保留约 349 行已完成 implementation plan。
-
-## 推荐实施顺序
-
-建议先连续完成低风险项，再进入 architecture flattening：
-
-1. Windows Back tests / completed plan。
-2. completed / obsolete plans 文档清理。
-3. Chat favorite intent inline。
-4. generation notification test shrink。
-5. provider config test shrink。
-6. PR #7 perimeter cleanup。
-7. Model Catalog workflow inline。
-8. video test shrink。
-9. Settings Transfer deep simplification。
-10. Favorites / pagination core simplification。
-
-前 8 项原则上都应保持 production 行为不变；第 9、10 项虽然目标同样是行为保持，但涉及架构 owner 和安全 / 数据边界，必须拆成独立 PR 并以保留契约为中心审查。
+补充：PR #3 虽自身 docs diff 为 0，但其 base 已有 1,491 行 implementation plan 和 714 行 design spec；PR #7 的 133 个 changed files 中约 41 个是 docs rename，但 production / test 净增仍很大；PR #10 的 smoke 后来已删除，当前仍保留约 349 行已完成 implementation plan。
 
 ## 执行原则
 
