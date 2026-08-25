@@ -19,14 +19,14 @@
 
 预计全部候选实施后可净减约：
 
-| 类别 | 预计净减 |
+| 类别 | 预计净减（修订后） |
 |---|---:|
-| production | 1,300–2,100 行 |
-| test / fake / helper | 3,700–5,300 行 |
-| docs / process artifacts | 3,700–4,000 行 |
-| **合计** | **8,700–11,400 行** |
+| production | 900–1,300 行 |
+| test / fake / helper | 2,100–2,600 行 |
+| docs / process artifacts | 3,600–3,750 行 |
+| **合计** | **6,600–7,700 行** |
 
-> **修正（2026-08-25 调查复核）：** 上表合计含 docs 类别重复计算（候选 1 的 348 行与候选 2 重叠），且多个候选收益被高估（候选 4/8 实为初估的 1/4~1/8，候选 7 受架构门禁约束仅约 25-40 行，候选 9 偏高 30-40%）。修订后的全量预期约 **6,600–7,700 行**；第一批已实际净减约 **4,100 行**（docs 3,398 / test 约 610 / production 约 130）。
+> 修订说明（2026-08-25 调查复核）：原审计初估的 8,700–11,400 行含 docs 类别重复计算（候选 1 的 348 行与候选 2 重叠），且候选 4/8/7/9 收益被高估，已全部按实测修订（各候选区间与第一批实际净减见文末「执行记录与审计修正」）。第一批已实际净减约 **4,100 行**（docs 3,398 / test 约 610 / production 约 130）。
 
 此外可移除 2 个当前源码未直接引用的 direct dependency：`cupertino_icons`、`meta`。依赖清理应单独实施并重新确认。
 
@@ -98,7 +98,7 @@ PR #10 只新增约 73 行 production：一个约 56 行的 `WindowsNavigationIn
 
 **标签：** `shrink`  
 **风险：** 低  
-**预计净减：** test 280–400 行
+**预计净减：** test 280–300 行（修订后）
 
 `LlmProviderConfigsController` production 约 153 行，但测试约 821 行。普通 CRUD、unknown provider、empty input 和排序分支反复创建完整 ProviderContainer / fixture，很多用例只是逐方法锁定显然的列表操作。
 
@@ -138,7 +138,7 @@ controller 保留完整输入状态机；page 层只验证必要 wiring；access
 
 **标签：** `yagni` / `shrink`  
 **风险：** 中高  
-**预计净减：** production 550–850 行、test 950–1,350 行，另可压缩稳定 spec 约 400–500 行
+**预计净减：** production 400–600 行、test 600–850 行，另可压缩稳定 spec 约 200–350 行（修订后）
 
 PR #3 一次性创建 participant hierarchy、type erasure / box、catalog / provider、coordinator、结果对象、fake participant 和大量扩展性测试。今天 production 仍只有一个固定 catalog，九个 participant 只由这个 provider 构造，没有 runtime plugin、用户注册或第二套 catalog。
 
@@ -156,7 +156,7 @@ PR #3 一次性创建 participant hierarchy、type erasure / box、catalog / pro
 
 **标签：** `shrink`  
 **风险：** 中高  
-**预计净减：** production 280–450 行、test 550–800 行
+**预计净减：** production 350–440 行、test 350–450 行（修订后）
 
 PR #7 的 migration / repository 很有价值，但 UI 状态层存在重复 owner：Favorites repository 本身是同步查询，route 已持有 page / pageSize 等可序列化状态，又额外通过 browser controller / state 缓存同一窗口，形成 URL、controller state、screen echo 三方同步成本。
 
