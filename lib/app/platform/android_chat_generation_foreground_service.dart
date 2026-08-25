@@ -20,13 +20,12 @@ final class AndroidChatGenerationForegroundService
     implements ChatGenerationForegroundServicePort {
   AndroidChatGenerationForegroundService({
     MethodChannel? channel,
-    Duration commandTimeout = chatGenerationForegroundChannelTimeout,
+    this._commandTimeout = chatGenerationForegroundChannelTimeout,
   }) : _channel =
            channel ??
            const MethodChannel(
              'yuzu.shiki.oh_my_llm/chat_generation_foreground_service',
-           ),
-       _commandTimeout = commandTimeout {
+           ) {
     _channel.setMethodCallHandler(_handleNativeMethod);
   }
 

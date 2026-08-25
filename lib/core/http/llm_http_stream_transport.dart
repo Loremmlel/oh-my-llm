@@ -44,14 +44,11 @@ class LlmHttpTransportException implements Exception {
 /// 本类不读取任何具体协议 JSON 字段。
 class LlmHttpStreamTransport {
   LlmHttpStreamTransport({
-    required http.Client httpClient,
-    NetworkLogger logger = const NoopNetworkLogger(),
-    Map<String, String> Function()? extraHeadersFactory,
-    SseEventDecoder decoder = const SseEventDecoder(),
-  }) : _httpClient = httpClient,
-       _logger = logger,
-       _extraHeadersFactory = extraHeadersFactory,
-       _decoder = decoder;
+    required this._httpClient,
+    this._logger = const NoopNetworkLogger(),
+    this._extraHeadersFactory,
+    this._decoder = const SseEventDecoder(),
+  });
 
   final http.Client _httpClient;
   final NetworkLogger _logger;

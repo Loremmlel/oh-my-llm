@@ -2,7 +2,7 @@ import 'dart:io';
 
 /// 文件日志存储：负责创建、追加写入、按阈值清空。
 final class AppLogStore {
-  AppLogStore._({required File file, required this.maxBytes}) : _file = file;
+  AppLogStore._({required this._file, required this.maxBytes});
 
   static const defaultLogFileName = 'network.log';
   static const defaultMaxBytes = 10 * 1024 * 1024;

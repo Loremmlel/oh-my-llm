@@ -22,8 +22,7 @@ import 'anthropic_parser.dart';
 /// reasoning：第一阶段只支持 adaptive thinking，不支持手动 budget_tokens；
 /// 未启用 reasoning 时省略 `thinking` 与 `output_config`，不按模型名称猜测。
 class AnthropicMessagesClient extends ChatGenerationClient {
-  AnthropicMessagesClient({required LlmHttpStreamTransport transport})
-    : _transport = transport;
+  AnthropicMessagesClient({required this._transport});
 
   final LlmHttpStreamTransport _transport;
 

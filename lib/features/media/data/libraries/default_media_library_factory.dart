@@ -20,12 +20,10 @@ typedef MediaThumbnailCacheFactory = Future<MediaThumbnailCache> Function();
 /// [Platform]，也不打开 peer client。
 final class DefaultMediaLibraryFactory implements MediaLibraryFactory {
   DefaultMediaLibraryFactory({
-    required http.Client peerHttpClient,
+    required this._peerHttpClient,
     MediaThumbnailCacheFactory? cacheFactory,
-    ThumbnailProcessRunner processRunner = const DartThumbnailProcessRunner(),
-  }) : _peerHttpClient = peerHttpClient,
-       _cacheFactory = cacheFactory ?? MediaThumbnailCache.defaultLocation,
-       _processRunner = processRunner;
+    this._processRunner = const DartThumbnailProcessRunner(),
+  }) : _cacheFactory = cacheFactory ?? MediaThumbnailCache.defaultLocation;
 
   final http.Client _peerHttpClient;
   final MediaThumbnailCacheFactory _cacheFactory;

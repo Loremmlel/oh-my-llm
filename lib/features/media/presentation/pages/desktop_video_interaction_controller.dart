@@ -23,16 +23,12 @@ import 'video_playback_controller.dart';
 /// 播放区域内的 pointer signal（滚轮）走 [handlePointerSignal]。
 class DesktopVideoInteractionController {
   DesktopVideoInteractionController({
-    required VideoPlaybackController playback,
-    required VideoFullscreenController fullscreen,
-    required Future<void> Function() onRequestClose,
-    required VoidCallback onInteractionChanged,
-    Timer Function(Duration, VoidCallback) timerFactory = Timer.new,
-  }) : _playback = playback,
-       _fullscreen = fullscreen,
-       _onRequestClose = onRequestClose,
-       _onInteractionChanged = onInteractionChanged,
-       _timerFactory = timerFactory;
+    required this._playback,
+    required this._fullscreen,
+    required this._onRequestClose,
+    required this._onInteractionChanged,
+    this._timerFactory = Timer.new,
+  });
 
   final VideoPlaybackController _playback;
   final VideoFullscreenController _fullscreen;

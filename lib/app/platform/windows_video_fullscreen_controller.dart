@@ -103,10 +103,9 @@ final class WindowManagerVideoWindowGateway
 final class WindowsVideoFullscreenController
     implements VideoFullscreenController {
   WindowsVideoFullscreenController({
-    required WindowsVideoWindowGateway gateway,
-    VideoWindowErrorReporter errorReporter = reportVideoWindowError,
-  }) : _gateway = gateway,
-       _errorReporter = errorReporter;
+    required this._gateway,
+    this._errorReporter = reportVideoWindowError,
+  });
 
   final WindowsVideoWindowGateway _gateway;
   final VideoWindowErrorReporter _errorReporter;

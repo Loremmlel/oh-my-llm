@@ -39,9 +39,7 @@ typedef AnthropicParseResult = ({
 ///
 /// 每次请求创建一个 parser 实例，不跨请求复用。
 class AnthropicParser {
-  AnthropicParser({required LlmApiProtocol protocol, required Uri uri})
-    : _protocol = protocol,
-      _uri = uri;
+  AnthropicParser({required this._protocol, required this._uri});
 
   final LlmApiProtocol _protocol;
   final Uri _uri;

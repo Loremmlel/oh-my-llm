@@ -52,10 +52,9 @@ final class FlutterSyncSecureStore implements SyncSecureStore {
 /// metadata 在 SharedPreferences，长期密钥仅在 OS-backed secure storage。
 final class SecureSyncPairingRepository implements SyncPairingRepository {
   SecureSyncPairingRepository({
-    required SharedPreferences preferences,
-    required SyncSecureStore secureStore,
-  }) : _preferences = preferences,
-       _secureStore = secureStore;
+    required this._preferences,
+    required this._secureStore,
+  });
 
   static const _identityKey = 'sync.v3.identity';
   static const _recordsKey = 'sync.v3.pairings';

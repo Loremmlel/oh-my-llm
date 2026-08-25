@@ -427,11 +427,10 @@ final class SettingsTransferCoordinator {
 
 final class SettingsImportBatch {
   SettingsImportBatch._({
-    required SettingsTransferCoordinator coordinator,
+    required this._coordinator,
     required List<_PreparedSettingsTransferChange> changes,
     required Set<SettingsTransferGroup>? allowedGroups,
-  }) : _coordinator = coordinator,
-       _changes = List<_PreparedSettingsTransferChange>.unmodifiable(changes),
+  }) : _changes = List<_PreparedSettingsTransferChange>.unmodifiable(changes),
        _allowedGroups = allowedGroups == null
            ? null
            : Set<SettingsTransferGroup>.unmodifiable(allowedGroups),

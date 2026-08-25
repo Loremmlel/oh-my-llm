@@ -138,18 +138,14 @@ void main() {
 }
 
 final class _StringParticipant extends ReplacingValueParticipant<String> {
-  _StringParticipant({
-    required String Function() readLocal,
-    required Future<void> Function(String value) write,
-  }) : _readLocal = readLocal,
-       _write = write,
-       super(
-         key: const SettingsTransferKey('extraSetting'),
-         group: SettingsTransferGroup.providers,
-         label: '额外设置',
-         order: 99,
-         sensitivity: SettingsTransferSensitivity.standard,
-       );
+  _StringParticipant({required this._readLocal, required this._write})
+    : super(
+        key: const SettingsTransferKey('extraSetting'),
+        group: SettingsTransferGroup.providers,
+        label: '额外设置',
+        order: 99,
+        sensitivity: SettingsTransferSensitivity.standard,
+      );
 
   final String Function() _readLocal;
   final Future<void> Function(String value) _write;

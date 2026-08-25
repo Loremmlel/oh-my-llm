@@ -12,8 +12,7 @@ import '../ports/chat_generation_client.dart';
 /// coordinator 不操作 Riverpod、消息树或 repository--那些由 [ChatGenerationHost]
 ///（controller）负责。coordinator 只创建 run、转发 stop、在 dispose 时取消。
 class ChatGenerationCoordinator {
-  ChatGenerationCoordinator({required ChatGenerationClient client})
-    : _client = client;
+  ChatGenerationCoordinator({required this._client});
 
   final ChatGenerationClient _client;
 

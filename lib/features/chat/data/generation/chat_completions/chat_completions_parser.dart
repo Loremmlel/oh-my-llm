@@ -29,12 +29,10 @@ typedef ChatCompletionsParseResult = ({
 /// 每次请求创建一个 parser 实例，splitter 状态不跨请求复用。
 class ChatCompletionsParser {
   ChatCompletionsParser({
-    required LlmApiProtocol protocol,
-    required Uri uri,
+    required this._protocol,
+    required this._uri,
     InlineReasoningTagSplitter? inlineReasoningSplitter,
-  }) : _protocol = protocol,
-       _uri = uri,
-       _inlineReasoningSplitter =
+  }) : _inlineReasoningSplitter =
            inlineReasoningSplitter ?? InlineReasoningTagSplitter();
 
   final LlmApiProtocol _protocol;

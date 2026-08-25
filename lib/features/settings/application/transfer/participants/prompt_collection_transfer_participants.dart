@@ -15,18 +15,13 @@ abstract class _JsonMergingCollectionTransferParticipant<T>
     required super.label,
     required super.order,
     required super.sensitivity,
-    required List<T> Function() readLocal,
-    required Future<void> Function(List<T>) write,
-    required Object Function(T) encodeItem,
-    required T Function(Map<String, dynamic>) decodeItem,
-    required bool Function(T, T) isEquivalentItem,
-    void Function(T)? validateItem,
-  }) : _readLocal = readLocal,
-       _write = write,
-       _encodeItem = encodeItem,
-       _decodeItem = decodeItem,
-       _isEquivalentItem = isEquivalentItem,
-       _validateItem = validateItem;
+    required this._readLocal,
+    required this._write,
+    required this._encodeItem,
+    required this._decodeItem,
+    required this._isEquivalentItem,
+    this._validateItem,
+  });
 
   final List<T> Function() _readLocal;
   final Future<void> Function(List<T>) _write;

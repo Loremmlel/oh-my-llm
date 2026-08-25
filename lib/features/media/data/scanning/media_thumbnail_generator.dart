@@ -39,10 +39,9 @@ class MediaThumbnailGenerator {
   bool? _ffmpegAvailable;
 
   MediaThumbnailGenerator({
-    required MediaDirectoryScanner scanner,
-    ThumbnailProcessRunner processRunner = const DartThumbnailProcessRunner(),
-  }) : _scanner = scanner,
-       _processRunner = processRunner;
+    required this._scanner,
+    this._processRunner = const DartThumbnailProcessRunner(),
+  });
 
   /// 生成缩略图，返回 JPEG 字节数组。
   ///

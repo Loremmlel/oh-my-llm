@@ -14,8 +14,7 @@ import 'chat_completions_parser.dart';
 /// [LlmHttpStreamTransport] 发送与解码 SSE，再由 [ChatCompletionsParser]
 /// 转换为协议中立增量。不包含任何厂商 host 匹配或请求补丁。
 class ChatCompletionsClient extends ChatGenerationClient {
-  ChatCompletionsClient({required LlmHttpStreamTransport transport})
-    : _transport = transport;
+  ChatCompletionsClient({required this._transport});
 
   final LlmHttpStreamTransport _transport;
 

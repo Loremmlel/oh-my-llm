@@ -15,11 +15,9 @@ class MediaThumbnailHttpHandler extends MediaHttpHandlerBase {
 
   MediaThumbnailHttpHandler({
     required super.scanner,
-    required MediaThumbnailGenerator generator,
-    required MediaThumbnailCache cache,
-  }) : _generator = generator,
-       _cache = cache,
-       super(urlPrefix: '/api/media/thumbnail/');
+    required this._generator,
+    required this._cache,
+  }) : super(urlPrefix: '/api/media/thumbnail/');
 
   @override
   Future<void> handleSafe(HttpRequest request, String relativePath) async {

@@ -6,13 +6,13 @@ import 'versioned_json_storage.dart';
 /// 单个设置项的版本化 JSON 存储。
 final class VersionedJsonStore<T> {
   const VersionedJsonStore({
-    required SettingsKeyValueStore storage,
+    required this._storage,
     required this.key,
     required this.subject,
     required this.fallback,
     required this.fromJson,
     required this.toJson,
-  }) : _storage = storage;
+  });
 
   final SettingsKeyValueStore _storage;
   final String key;

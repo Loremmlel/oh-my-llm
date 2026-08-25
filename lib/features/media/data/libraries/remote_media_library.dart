@@ -21,11 +21,10 @@ import 'package:oh_my_llm/features/media/domain/models/video_item.dart';
 final class RemoteMediaLibrary implements MediaLibrary {
   RemoteMediaLibrary({
     required Uri baseUri,
-    required http.Client httpClient,
+    required this._httpClient,
     this.directoryTimeout = const Duration(seconds: 10),
     this.recursiveTimeout = const Duration(seconds: 15),
-  }) : _baseUri = _validateBaseUri(baseUri),
-       _httpClient = httpClient;
+  }) : _baseUri = _validateBaseUri(baseUri);
 
   final Uri _baseUri;
   final http.Client _httpClient;

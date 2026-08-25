@@ -11,8 +11,7 @@ const chatDatabaseFileName = 'chat_history.sqlite';
 
 /// 应用级 SQLite 数据库，负责打开文件并维护基础 schema。
 class AppDatabase {
-  AppDatabase._({required sqlite.Database connection, required this.path})
-    : _connection = connection {
+  AppDatabase._({required this._connection, required this.path}) {
     try {
       _configure();
       _initializeSchema();

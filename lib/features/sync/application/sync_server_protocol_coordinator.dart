@@ -15,15 +15,12 @@ import 'sync_session_registry.dart';
 /// server protocol 的配对、会话与加密编排；HTTP handler 仅负责编解码和 status 映射。
 final class SyncServerProtocolCoordinator {
   SyncServerProtocolCoordinator({
-    required SyncPairingRepository pairingRepository,
-    required SyncCrypto crypto,
+    required this._pairingRepository,
+    required this._crypto,
     required SyncClock clock,
-    required SettingsSyncFacade settingsFacade,
+    required this._settingsFacade,
     SyncSessionRegistry? sessions,
-  }) : _pairingRepository = pairingRepository,
-       _crypto = crypto,
-       _clock = clock,
-       _settingsFacade = settingsFacade,
+  }) : _clock = clock,
        _sessions = sessions ?? SyncSessionRegistry(clock);
 
   static const _pairingCodeAlphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
