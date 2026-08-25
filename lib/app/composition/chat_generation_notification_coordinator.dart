@@ -42,21 +42,16 @@ Timer _defaultTimer(Duration duration, void Function() callback) =>
 /// - 平台失败 fail-open：只影响通知投递，不改写生成结果。
 final class ChatGenerationNotificationCoordinator {
   ChatGenerationNotificationCoordinator({
-    required ChatGenerationForegroundServicePort port,
-    required Future<void> Function() stopGeneration,
+    required this._port,
+    required this._stopGeneration,
     required void Function(String conversationId) openConversation,
-    ChatGenerationNotificationProjector projector =
-        const ChatGenerationNotificationProjector(),
+    this._projector = const ChatGenerationNotificationProjector(),
     DateTime Function()? now,
     ChatNotificationTimerFactory? timerFactory,
-    void Function(String category)? logDiagnostic,
-  }) : _port = port,
-       _stopGeneration = stopGeneration,
-       _openConversationCallback = openConversation,
-       _projector = projector,
+    this._logDiagnostic,
+  }) : _openConversationCallback = openConversation,
        _now = now ?? DateTime.now,
-       _timerFactory = timerFactory ?? _defaultTimer,
-       _logDiagnostic = logDiagnostic;
+       _timerFactory = timerFactory ?? _defaultTimer;
 
   // ── 注入依赖 ──────────────────────────────────────────────
 

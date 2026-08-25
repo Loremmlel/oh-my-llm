@@ -43,8 +43,7 @@ typedef ModelCatalogFetcher = Future<List<ModelCatalogEntry>> Function({
 
 /// 将 data 层模型列表客户端收敛为设置页稳定的请求和错误契约。
 final class ModelCatalogWorkflow {
-  const ModelCatalogWorkflow({required ModelCatalogFetcher fetchModels})
-    : _fetchModels = fetchModels;
+  const ModelCatalogWorkflow({required this._fetchModels});
 
   final ModelCatalogFetcher _fetchModels;
 

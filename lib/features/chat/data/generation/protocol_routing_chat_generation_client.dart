@@ -13,12 +13,10 @@ import 'responses/responses_client.dart';
 /// 原样透传。`complete()` 由基类折叠 `streamCompletion()` 得到，不覆写。
 class ProtocolRoutingChatGenerationClient extends ChatGenerationClient {
   ProtocolRoutingChatGenerationClient({
-    required ChatCompletionsClient chatCompletions,
-    required ResponsesClient responses,
-    required AnthropicMessagesClient anthropic,
-  }) : _chatCompletions = chatCompletions,
-       _responses = responses,
-       _anthropic = anthropic;
+    required ChatCompletionsClient this._chatCompletions,
+    required ResponsesClient this._responses,
+    required AnthropicMessagesClient this._anthropic,
+  });
 
   final ChatGenerationClient _chatCompletions;
   final ChatGenerationClient _responses;

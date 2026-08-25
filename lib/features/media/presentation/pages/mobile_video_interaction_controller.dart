@@ -11,8 +11,7 @@ import 'video_playback_controller.dart';
 /// 快照。双击落点、屏幕宽度、长按 lease、横拖起点与手势前控制栏显隐等
 /// 输入瞬态保存在本 controller 私有字段，不进入共享状态。
 class MobileVideoInteractionController {
-  MobileVideoInteractionController({required VideoPlaybackController playback})
-    : _playback = playback;
+  MobileVideoInteractionController({required this._playback});
 
   final VideoPlaybackController _playback;
 

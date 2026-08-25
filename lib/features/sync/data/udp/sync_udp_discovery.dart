@@ -18,14 +18,11 @@ export '../../domain/models/discovery/discovered_server.dart';
 /// （真实 UDP socket + Timer + Android 平台通道），测试注入 fake 确定性驱动生命周期。
 final class SyncUdpDiscovery {
   SyncUdpDiscovery({
-    required SyncUdpSocketFactory socketFactory,
-    required SyncUdpScheduler scheduler,
-    required SyncMulticastLock multicastLock,
-    SyncUdpAnnouncementCodec codec = const SyncUdpAnnouncementCodec(),
-  }) : _socketFactory = socketFactory,
-       _scheduler = scheduler,
-       _multicastLock = multicastLock,
-       _codec = codec;
+    required this._socketFactory,
+    required this._scheduler,
+    required this._multicastLock,
+    this._codec = const SyncUdpAnnouncementCodec(),
+  });
 
   final SyncUdpSocketFactory _socketFactory;
   final SyncUdpScheduler _scheduler;
@@ -127,20 +124,14 @@ final class SyncUdpDiscovery {
 /// - 超时 -> 经共享清理关闭流并完成 done。
 final class _SyncUdpListenSessionImpl implements SyncUdpListenSession {
   _SyncUdpListenSessionImpl({
-    required SyncUdpSocketFactory socketFactory,
-    required SyncUdpScheduler scheduler,
-    required SyncMulticastLock multicastLock,
-    required SyncUdpAnnouncementCodec codec,
-    required InternetAddress bindAddress,
-    required int discoveryPort,
-    required Duration timeout,
-  }) : _socketFactory = socketFactory,
-       _scheduler = scheduler,
-       _multicastLock = multicastLock,
-       _codec = codec,
-       _bindAddress = bindAddress,
-       _discoveryPort = discoveryPort,
-       _timeout = timeout {
+    required this._socketFactory,
+    required this._scheduler,
+    required this._multicastLock,
+    required this._codec,
+    required this._bindAddress,
+    required this._discoveryPort,
+    required this._timeout,
+  }) {
     // 控制器须在构造体内创建：onCancel 闭包访问实例状态，字段初始化器不允许。
     _serversController = StreamController<DiscoveredServer>(
       onCancel: () {

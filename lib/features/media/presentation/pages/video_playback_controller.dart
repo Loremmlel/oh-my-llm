@@ -25,12 +25,10 @@ final class VideoTemporarySpeedLease {
 /// 本文件。
 class VideoPlaybackController {
   VideoPlaybackController({
-    required MediaResource resource,
-    required MediaVideoControllerFactory controllerFactory,
-    required VoidCallback onStateChanged,
-  }) : _resource = resource,
-       _controllerFactory = controllerFactory,
-       _onStateChanged = onStateChanged;
+    required this._resource,
+    required this._controllerFactory,
+    required this._onStateChanged,
+  });
 
   final MediaResource _resource;
   final MediaVideoControllerFactory _controllerFactory;

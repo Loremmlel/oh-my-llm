@@ -37,9 +37,7 @@ typedef ResponsesParseResult = ({
 ///
 /// 每次请求创建一个 parser 实例，事件间无跨请求状态。
 class ResponsesParser {
-  ResponsesParser({required LlmApiProtocol protocol, required Uri uri})
-    : _protocol = protocol,
-      _uri = uri;
+  ResponsesParser({required this._protocol, required this._uri});
 
   final LlmApiProtocol _protocol;
   final Uri _uri;

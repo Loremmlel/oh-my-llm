@@ -14,16 +14,12 @@ abstract class _JsonReplacingTransferParticipant<T>
     required super.label,
     required super.order,
     required super.sensitivity,
-    required T Function() readLocal,
-    required Future<void> Function(T) write,
-    required Object Function(T) encodeValue,
-    required T Function(Map<String, dynamic>) decodeValue,
-    bool Function(T)? isEmptyValue,
-  }) : _readLocal = readLocal,
-       _write = write,
-       _encodeValue = encodeValue,
-       _decodeValue = decodeValue,
-       _isEmptyValue = isEmptyValue;
+    required this._readLocal,
+    required this._write,
+    required this._encodeValue,
+    required this._decodeValue,
+    this._isEmptyValue,
+  });
 
   final T Function() _readLocal;
   final Future<void> Function(T) _write;

@@ -33,9 +33,6 @@ linter:
   # `// ignore_for_file: name_of_lint` syntax on the line or in the file
   # producing the lint.
   rules:
-    # Dart 3.13 起允许私有字段 initializing formal（this._x），该 lint 随之激活。
-    # 历史构造器批量触发（88 处），属风格迁移而非本次 SDK 升级范围，后续单独迁移。
-    prefer_initializing_formals: false
     # avoid_print: false  # Uncomment to disable the `avoid_print` rule
     # prefer_single_quotes: true  # Uncomment to enable the `prefer_single_quotes` rule
 

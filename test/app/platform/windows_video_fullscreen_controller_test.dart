@@ -10,9 +10,8 @@ import 'package:oh_my_llm/app/platform/windows_video_fullscreen_controller.dart'
 final class FakeWindowsVideoWindowGateway implements WindowsVideoWindowGateway {
   FakeWindowsVideoWindowGateway({
     required bool initialFullscreen,
-    bool failIsFullScreen = false,
-  }) : _fullscreen = initialFullscreen,
-       _failIsFullScreen = failIsFullScreen;
+    this._failIsFullScreen = false,
+  }) : _fullscreen = initialFullscreen;
 
   bool _fullscreen;
   final bool _failIsFullScreen;

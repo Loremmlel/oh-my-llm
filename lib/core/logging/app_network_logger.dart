@@ -13,9 +13,8 @@ import 'sse_log_buffer.dart';
 final class AppNetworkLogger with NetworkLogger {
   AppNetworkLogger({
     required AppLogStore store,
-    NetworkLogRedactor redactor = const NetworkLogRedactor(),
+    this._redactor = const NetworkLogRedactor(),
   }) : _store = store,
-       _redactor = redactor,
        _sseBuffer = SseLogBuffer(store: store);
 
   final AppLogStore _store;

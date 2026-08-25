@@ -8,11 +8,9 @@ import '../settings_transfer_types.dart';
 final class ModelProviderTransferParticipant
     extends MergingCollectionParticipant<LlmProviderConfig> {
   ModelProviderTransferParticipant({
-    required List<LlmProviderConfig> Function() readLocal,
-    required Future<void> Function(List<LlmProviderConfig>) write,
-  }) : _readLocal = readLocal,
-       _write = write,
-       super(
+    required this._readLocal,
+    required this._write,
+  }) : super(
          key: const SettingsTransferKey('modelProviders'),
          group: SettingsTransferGroup.providers,
          label: '服务商',

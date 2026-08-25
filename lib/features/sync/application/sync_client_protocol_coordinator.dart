@@ -17,14 +17,11 @@ import 'ports/sync_pairing_repository.dart';
 /// 客户端的配对、session 与加密编排；controller 不处理密钥或 wire Map。
 final class SyncClientProtocolCoordinator implements SyncClientProtocol {
   SyncClientProtocolCoordinator({
-    required SyncClientTransport transport,
-    required SyncPairingRepository pairingRepository,
-    required SyncCrypto crypto,
-    required SyncClock clock,
-  }) : _transport = transport,
-       _pairingRepository = pairingRepository,
-       _crypto = crypto,
-       _clock = clock;
+    required this._transport,
+    required this._pairingRepository,
+    required this._crypto,
+    required this._clock,
+  });
 
   final SyncClientTransport _transport;
   final SyncPairingRepository _pairingRepository;

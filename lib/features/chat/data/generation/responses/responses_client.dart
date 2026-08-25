@@ -15,8 +15,7 @@ import 'responses_parser.dart';
 /// 协议中立增量。客户端无状态：始终不发送 `previous_response_id` 或
 /// `conversation`，服务端续接字段全部省略。
 class ResponsesClient extends ChatGenerationClient {
-  ResponsesClient({required LlmHttpStreamTransport transport})
-    : _transport = transport;
+  ResponsesClient({required this._transport});
 
   final LlmHttpStreamTransport _transport;
 

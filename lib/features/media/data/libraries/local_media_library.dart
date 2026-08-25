@@ -18,12 +18,10 @@ import '../scanning/media_thumbnail_generator.dart';
 /// 绝不把 `exception.path` 插进用户可见消息。
 final class LocalMediaLibrary implements MediaLibrary {
   LocalMediaLibrary({
-    required MediaDirectoryScanner scanner,
-    required MediaThumbnailCache cache,
-    required MediaThumbnailGenerator generator,
-  }) : _scanner = scanner,
-       _cache = cache,
-       _generator = generator;
+    required this._scanner,
+    required this._cache,
+    required this._generator,
+  });
 
   final MediaDirectoryScanner _scanner;
   final MediaThumbnailCache _cache;

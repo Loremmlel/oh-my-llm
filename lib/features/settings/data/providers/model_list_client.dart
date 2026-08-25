@@ -48,12 +48,10 @@ final modelListClientProvider = Provider<ModelListClient>((ref) {
 /// 仅支持 OpenAI 标准格式：`{object: "list", data: [{id, ...}]}`。
 class ModelListClient {
   ModelListClient({
-    required http.Client httpClient,
-    NetworkLogger logger = const NoopNetworkLogger(),
-    Map<String, String> Function()? extraHeadersFactory,
-  }) : _httpClient = httpClient,
-       _logger = logger,
-       _extraHeadersFactory = extraHeadersFactory;
+    required this._httpClient,
+    this._logger = const NoopNetworkLogger(),
+    this._extraHeadersFactory,
+  });
 
   final http.Client _httpClient;
   final NetworkLogger _logger;
