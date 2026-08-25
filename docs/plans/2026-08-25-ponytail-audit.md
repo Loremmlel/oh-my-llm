@@ -4,6 +4,8 @@
 **审计基线：** `master` / `1e4663c88bad1e54e9399ca45bad8302599bd990`  
 **审计范围：** 全仓生产代码、测试代码、测试辅助代码、直接依赖，以及已合入 `master` 的 PR #1–#10 历史
 
+**执行状态（2026-08-25 更新）：** 首批低风险清理（候选 1/2/3/6 + 依赖）已通过 PR #18/#19/#22/#23/#24 全部合入 master；候选 4/7/8 经调查确认收益大幅低于初估或另有取舍，不纳入实施；候选 5/9/10 留作第二批，需先走计划流程。详见文末「执行记录与审计修正」。
+
 ## 结论
 
 当前仓库约有：
@@ -17,12 +19,14 @@
 
 预计全部候选实施后可净减约：
 
-| 类别 | 预计净减 |
+| 类别 | 预计净减（修订后） |
 |---|---:|
-| production | 1,300–2,100 行 |
-| test / fake / helper | 3,700–5,300 行 |
-| docs / process artifacts | 3,700–4,000 行 |
-| **合计** | **8,700–11,400 行** |
+| production | 900–1,300 行 |
+| test / fake / helper | 2,100–2,600 行 |
+| docs / process artifacts | 3,600–3,750 行 |
+| **合计** | **6,600–7,700 行** |
+
+> 修订说明（2026-08-25 调查复核）：原审计初估的 8,700–11,400 行含 docs 类别重复计算（候选 1 的 348 行与候选 2 重叠），且候选 4/8/7/9 收益被高估，已全部按实测修订（各候选区间与第一批实际净减见文末「执行记录与审计修正」）。第一批已实际净减约 **4,100 行**（docs 3,398 / test 约 610 / production 约 130）。
 
 此外可移除 2 个当前源码未直接引用的 direct dependency：`cupertino_icons`、`meta`。依赖清理应单独实施并重新确认。
 
@@ -44,7 +48,7 @@
 
 以下按“高置信度、低风险、可删除净 LOC、适合作为独立 PR”综合排序。LOC 是保守估算，不是实施配额。
 
-### 1. 收缩 Windows Back 的重复测试与已完成计划
+### 1. ✅ 已实施 · 收缩 Windows Back 的重复测试与已完成计划
 
 **标签：** `delete` / `shrink`  
 **风险：** 低  
@@ -58,7 +62,7 @@ PR #10 只新增约 73 行 production：一个约 56 行的 `WindowsNavigationIn
 
 这是推荐的第一个 cleanup PR：几乎不碰 production 行为，最适合验证“删重复证明、保真实行为”的方法。
 
-### 2. 退役已完成或已经失效的 AI implementation plans
+### 2. ✅ 已实施 · 退役已完成或已经失效的 AI implementation plans
 
 **标签：** `delete`  
 **风险：** 极低  
@@ -68,7 +72,7 @@ PR #10 只新增约 73 行 production：一个约 56 行的 `WindowsNavigationIn
 
 其中 PR #1 的 rolling migration floor 已被后续真实野库事故和当前“已发布 migration 长期保留”规则否定。稳定、仍有效的产品边界应压缩到短 spec 或 AGENTS；逐任务 red / green、命令记录和阶段路标属于执行脚手架，可由 Git history 恢复。
 
-### 3. 内联收藏 intent 薄编排
+### 3. ✅ 已实施 · 内联收藏 intent 薄编排
 
 **标签：** `yagni`  
 **风险：** 低  
@@ -80,7 +84,7 @@ PR #10 只新增约 73 行 production：一个约 56 行的 `WindowsNavigationIn
 
 `ChatFavoritesFacade` 不应删除：它仍承担 Chat 与 Favorites 的真实跨 feature 边界。
 
-### 4. 收缩生成通知的重复测试矩阵
+### 4. ⏸ 暂缓 · 收缩生成通知的重复测试矩阵
 
 **标签：** `delete` / `shrink`  
 **风险：** 低  
@@ -90,17 +94,17 @@ PR #10 只新增约 73 行 production：一个约 56 行的 `WindowsNavigationIn
 
 保留 coordinator 的 token、定时器、串行 tail、ACK retry、dispose、stale action、durable stop 和持久化终态等竞态；integration 只保留能证明真实 wiring 的少量成功、停止和 fail-open 链路，不再做协议 × 通知交叉矩阵。
 
-### 5. 压缩服务商配置控制器测试
+### 5. 📋 第二批（计划） · 压缩服务商配置控制器测试
 
 **标签：** `shrink`  
 **风险：** 低  
-**预计净减：** test 280–400 行
+**预计净减：** test 280–300 行（修订后）
 
 `LlmProviderConfigsController` production 约 153 行，但测试约 821 行。普通 CRUD、unknown provider、empty input 和排序分支反复创建完整 ProviderContainer / fixture，很多用例只是逐方法锁定显然的列表操作。
 
 建议把机械 CRUD / no-op 合并为参数化测试，复用最小持久化断言；保留导入等价键、协议隔离、重复模型、同批输入去重和持久化失败不发布状态等真实边界。
 
-### 6. 清理 PR #7 的外围薄层和 test-only seam
+### 6. ✅ 已实施 · 清理 PR #7 的外围薄层和 test-only seam
 
 **标签：** `delete` / `inline`  
 **风险：** 低至中  
@@ -110,7 +114,7 @@ PR #7 实质触及约 52 个 production、37 个 test 文件。migration、repos
 
 这一轮只清 perimeter，不改 schema、repository、History async race，也不重写 Favorites browser ownership。
 
-### 7. 内联单 caller 的 Model Catalog workflow
+### 7. ❌ 建议搁置 · 内联单 caller 的 Model Catalog workflow
 
 **标签：** `yagni`  
 **风险：** 低  
@@ -120,7 +124,7 @@ PR #7 实质触及约 52 个 production、37 个 test 文件。migration、repos
 
 建议把 endpoint override / parsing 和稳定错误文案放回 `ModelListClient` 或 Settings 调用边界，删除 workflow Provider、专用 DTO 和异常层。
 
-### 8. 去重视频交互测试矩阵
+### 8. ⏸ 暂缓 · 去重视频交互测试矩阵
 
 **标签：** `delete` / `shrink`  
 **风险：** 低  
@@ -130,11 +134,11 @@ M / F / 方向键 / Escape / 长按 / 滚轮等输入在 desktop controller、de
 
 controller 保留完整输入状态机；page 层只验证必要 wiring；accessibility 只验证 semantics、焦点顺序、keyboard equivalent 和 live region。失焦、销毁后 Future、全屏恢复失败、控制栏焦点等真实生命周期或历史 regression 应保留。
 
-### 9. 压平 Settings Transfer 的固定注册表架构
+### 9. 📋 第二批（深度简化，计划） · 压平 Settings Transfer 的固定注册表架构
 
 **标签：** `yagni` / `shrink`  
 **风险：** 中高  
-**预计净减：** production 550–850 行、test 950–1,350 行，另可压缩稳定 spec 约 400–500 行
+**预计净减：** production 400–600 行、test 600–850 行，另可压缩稳定 spec 约 200–350 行（修订后）
 
 PR #3 一次性创建 participant hierarchy、type erasure / box、catalog / provider、coordinator、结果对象、fake participant 和大量扩展性测试。今天 production 仍只有一个固定 catalog，九个 participant 只由这个 provider 构造，没有 runtime plugin、用户注册或第二套 catalog。
 
@@ -148,11 +152,11 @@ PR #3 一次性创建 participant hierarchy、type erasure / box、catalog / pro
 
 这是深度 simplification，不与低风险 cleanup 混在同一个 PR 中。
 
-### 10. 压平 PR #7 的 Favorites / shared pagination core
+### 10. 📋 第二批（深度简化，计划） · 压平 PR #7 的 Favorites / shared pagination core
 
 **标签：** `shrink`  
 **风险：** 中高  
-**预计净减：** production 280–450 行、test 550–800 行
+**预计净减：** production 350–440 行、test 350–450 行（修订后）
 
 PR #7 的 migration / repository 很有价值，但 UI 状态层存在重复 owner：Favorites repository 本身是同步查询，route 已持有 page / pageSize 等可序列化状态，又额外通过 browser controller / state 缓存同一窗口，形成 URL、controller state、screen echo 三方同步成本。
 
@@ -164,7 +168,9 @@ PR #7 的 migration / repository 很有价值，但 UI 状态层存在重复 own
 
 ## 其他暂缓候选
 
-以下仍有 cleanup 价值，但证据或收益暂不足以进入前十，后续在上述 PR 完成后重新评估：Chat workspace 的 read-model / view-state / bindings 数据搬运层；PR #7 之外的 preference writer fake seams；单方法 nominal ports；`cupertino_icons` / `meta` direct dependency；PR #6 中重复的 PR 模板完整示例。
+以下仍有 cleanup 价值，但证据或收益暂不足以进入前十，后续在上述 PR 完成后重新评估：Chat workspace 的 read-model / view-state / bindings 数据搬运层；PR #7 之外的 preference writer fake seams；单方法 nominal ports；PR #6 中重复的 PR 模板完整示例。
+
+`cupertino_icons` / `meta` 依赖已于 2026-08-25 移除（PR #24），不再属于暂缓项。另有两个本次调查新增的后续项：收藏按来源元数据匹配（既有缺陷：同内容多条收藏时按内容取最新可能删错，Sourcery review 提出）与 `docs/plans/2026-08-22-history-page-performance.md` 状态过期（功能已实现但文档仍标"等待授权"）。
 
 不要为了“顺手”把这些内容塞入前十候选的实施 PR。
 
@@ -197,3 +203,47 @@ PR #7 的 migration / repository 很有价值，但 UI 状态层存在重复 own
 - production cleanup 原则上应净负 LOC；如果必须增加新 subsystem 才能完成，应停止重新评估。
 - 不顺手改变 schema、已发布 migration、wire format、敏感确认、持久化兼容或竞态语义。
 - 每个 cleanup PR 正文记录 production / test / docs 实际净变化、保留的行为契约和实际运行过的验证；未运行的测试不得写成已通过。
+
+---
+
+## 执行记录与审计修正（2026-08-25）
+
+### 第一批（已合入 master）
+
+| 候选 | PR | 内容 | 实际净减 |
+|---|---|---:|---:|
+| 2（退役 plans） | #18 | 删除 5 份已合入功能的 plan/design | docs -3,398 |
+| 1（Windows Back 测试） | #19 | 收缩重复测试 + 补 browserBack 根部用例 | test -339 |
+| 3（收藏 intent） | #22 | 内联薄编排（原 #20 因需人工审阅回滚后重提，经独立审阅 + 补撤销回归测试） | prod -75 / test -122 |
+| 6（PR #7 外围） | #23 | 死 API / 死 seam / GridSpec 内联 | 约 -205（含 test） |
+| 依赖 | #24 | 移除 `cupertino_icons` / `meta` | 0 |
+
+实际合计约 **4,100 行**（docs 3,398 / test 约 610 / production 约 130）。
+
+### 调查修正（相对原始审计）
+
+- **docs 类别重复计算**：候选 1 的 348 行（windows-back plan）与候选 2 重叠，两候选都实施时只删一次；原合计 8,700-11,400 行应下调至约 6,600-7,700。
+- **候选 4**：声称 400-550 行实为约 40-55 行（把应保留的契约/竞态测试计入了可减）。
+- **候选 8**：声称 250-400 实为约 68 行，且 accessibility 层被误判为第三层重复。
+- **候选 7**：因架构门禁（presentation 不得直触 data 层）净减仅约 25-40 行且必须保留 application seam，性价比最低。
+- **候选 9**：收益偏高 30-40%（prod 实约 400-600、test 约 600-850、spec 约 200-350）。
+- **候选 3**："最近 user message 解析"因禁 `part of` 只能提为 public 纯函数（约 +20 行），否则无法参数化测试。
+- **候选 5**：必须先补 `sortProviderConfigs` 单元测试再收缩（现有排序覆盖全在待删测试里）。
+- **新增撤销路径回归测试**（候选 3）：独立审阅发现内联后"撤销恢复收藏"契约失去测试保护，补用例后全量 2136 用例通过。
+
+### 第二批（未开始，需先走计划流程）
+
+- **候选 5**：压缩服务商配置控制器测试（test 约 280-300）。
+- **候选 9**：压平 Settings Transfer 固定注册表（prod 400-600 / test 600-850 / spec 200-350；深度简化，计划必含往返/边界/安全/快照验证）。
+- **候选 10**：压平 Favorites / shared pagination core（prod 350-440 / test 350-450；先外围后 core，须单独设计）。
+
+### 不做或暂缓
+
+- 候选 4：不做（6 个协议×通知用例是"多协议真实路由→通知"的唯一端到端证据）。
+- 候选 8：暂缓（收益约 68 行，且删后留 wiring 盲区）。
+- 候选 7：建议搁置（撞架构门禁，性价比最低）。
+
+### 后续改进项
+
+- 收藏按来源元数据匹配（`sourceAssistantMessageId` / `sourceConversationId` 优先，历史条目 fallback 内容匹配）——既有缺陷，待安排独立 PR。
+- `docs/plans/2026-08-22-history-page-performance.md` 状态过期（868 行）——可单独清理。
