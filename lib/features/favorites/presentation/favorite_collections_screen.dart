@@ -8,7 +8,6 @@ import 'package:oh_my_llm/core/widgets/dialogs/app_confirm_dialog.dart';
 import '../application/collections_controller.dart';
 import '../application/favorites_controller.dart';
 import '../domain/models/favorite_collection_summary.dart';
-import 'models/favorite_collection_grid_spec.dart';
 import 'widgets/dialogs/edit_collection_dialog.dart';
 import 'widgets/favorite_collection_grid.dart';
 
@@ -26,8 +25,6 @@ class FavoriteCollectionsScreen extends ConsumerStatefulWidget {
 
 class _FavoriteCollectionsScreenState
     extends ConsumerState<FavoriteCollectionsScreen> {
-  static const _gridSpec = FavoriteCollectionGridSpec();
-
   /// 刚新建完成、应获得焦点的收藏夹 ID；卡片渲染后不再保留。
   String? _focusCollectionId;
 
@@ -92,7 +89,6 @@ class _FavoriteCollectionsScreenState
       ],
       body: FavoriteCollectionGrid(
         summaries: summaries,
-        spec: _gridSpec,
         focusCollectionId: _focusCollectionId,
         onOpen: (summary) => context.pushNamed(
           AppRouteName.favoriteCollectionItems,

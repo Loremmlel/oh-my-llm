@@ -2,18 +2,15 @@ import 'package:flutter/material.dart';
 
 import 'package:oh_my_llm/core/widgets/adaptive_grid/app_adaptive_grid.dart';
 import '../../domain/models/favorite_collection_summary.dart';
-import '../models/favorite_collection_grid_spec.dart';
 import 'favorite_collection_tile.dart';
 
 /// 收藏夹总览的动态网格。
 ///
-/// 列数由父约束经 [FavoriteCollectionGridSpec] 推导；[focusCollectionId]
-/// 指向刚新建完成的收藏夹，其卡片以 autofocus 获得可见焦点，其余场景
-/// 不抢占焦点。
+/// 列数由父约束推导；[focusCollectionId] 指向刚新建完成的收藏夹，其卡片
+/// 以 autofocus 获得可见焦点，其余场景不抢占焦点。
 class FavoriteCollectionGrid extends StatelessWidget {
   const FavoriteCollectionGrid({
     required this.summaries,
-    required this.spec,
     required this.onOpen,
     required this.onRename,
     required this.onDelete,
@@ -22,7 +19,6 @@ class FavoriteCollectionGrid extends StatelessWidget {
   });
 
   final List<FavoriteCollectionSummary> summaries;
-  final FavoriteCollectionGridSpec spec;
 
   /// 打开收藏夹浏览页。
   final void Function(FavoriteCollectionSummary summary) onOpen;
@@ -41,11 +37,11 @@ class FavoriteCollectionGrid extends StatelessWidget {
     return AppAdaptiveGrid(
       scrollViewKey: const PageStorageKey<String>('favorite-collection-grid'),
       itemCount: summaries.length,
-      maxCrossAxisExtent: spec.maxCrossAxisExtent,
-      crossAxisSpacing: spec.spacing,
-      mainAxisSpacing: spec.spacing,
-      padding: spec.padding,
-      mainAxisExtentBuilder: (context, itemWidth) => spec.mainAxisExtent,
+      maxCrossAxisExtent: 300,
+      crossAxisSpacing: 16,
+      mainAxisSpacing: 16,
+      padding: const EdgeInsets.all(16),
+      mainAxisExtentBuilder: (context, itemWidth) => 168,
       findChildIndexCallback: (key) {
         if (key is! ValueKey<String>) return null;
         final index = summaries.indexWhere(
@@ -60,7 +56,6 @@ class FavoriteCollectionGrid extends StatelessWidget {
         return FavoriteCollectionTile(
           key: ValueKey<String>(collection.id),
           summary: summary,
-          spec: spec,
           autofocus: collection.id == focusCollectionId,
           onOpen: () => onOpen(summary),
           onRename: isSystem ? null : () => onRename(summary),

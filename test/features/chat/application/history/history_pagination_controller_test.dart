@@ -355,7 +355,9 @@ void main() {
       query.completeSuccess(0, items: [summary('a')], totalItems: 40);
       await initial;
 
-      final outcomeNext = c.read(historyPaginationProvider.notifier).next();
+      final outcomeNext = c
+          .read(historyPaginationProvider.notifier)
+          .goToPage(2);
       final requestsDuringBusy = query.requests.length;
 
       final outcomeSkip = c
@@ -507,78 +509,6 @@ void main() {
 
       expect(await outcome, HistoryWindowLoadOutcome.ignored);
       expect(query.requests, hasLength(requestsBefore));
-    });
-
-    test('next / prev 在边界处不越界', () async {
-      final query = ControllableHistoryPageQuery();
-      final c = createContainer(query);
-      final initial = c
-          .read(historyPaginationProvider.notifier)
-          .loadRoute(page: 1);
-      query.completeSuccess(0, items: [summary('a')], totalItems: 60);
-      await initial;
-
-      // 在第 1 页调用 prev：夹取回 1 且与当前页相同，直接 ignored。
-      expect(
-        await c.read(historyPaginationProvider.notifier).prev(),
-        HistoryWindowLoadOutcome.ignored,
-      );
-
-      var outcome = c.read(historyPaginationProvider.notifier).next();
-      query.completeSuccess(
-        1,
-        items: [summary('b')],
-        totalItems: 60,
-        committedPage: 2,
-      );
-      await outcome;
-      expect(c.read(historyPaginationProvider).currentPage, 2);
-
-      outcome = c.read(historyPaginationProvider.notifier).next();
-      query.completeSuccess(
-        2,
-        items: [summary('c')],
-        totalItems: 60,
-        committedPage: 3,
-      );
-      await outcome;
-      expect(c.read(historyPaginationProvider).currentPage, 3);
-
-      // 到达末页后再 next：夹取回 3 且与当前页相同，直接 ignored。
-      expect(
-        await c.read(historyPaginationProvider.notifier).next(),
-        HistoryWindowLoadOutcome.ignored,
-      );
-      expect(
-        await c.read(historyPaginationProvider.notifier).next(),
-        HistoryWindowLoadOutcome.ignored,
-      );
-      expect(c.read(historyPaginationProvider).currentPage, 3);
-    });
-
-    test('first / last 跳转边界', () async {
-      final query = ControllableHistoryPageQuery();
-      final c = createContainer(query);
-      final initial = c
-          .read(historyPaginationProvider.notifier)
-          .loadRoute(page: 1);
-      query.completeSuccess(0, items: [summary('a')], totalItems: 60);
-      await initial;
-
-      var outcome = c.read(historyPaginationProvider.notifier).last();
-      query.completeSuccess(
-        1,
-        items: [summary('c')],
-        totalItems: 60,
-        committedPage: 3,
-      );
-      await outcome;
-      expect(c.read(historyPaginationProvider).currentPage, 3);
-
-      outcome = c.read(historyPaginationProvider.notifier).first();
-      query.completeSuccess(2, items: [summary('a')], totalItems: 60);
-      await outcome;
-      expect(c.read(historyPaginationProvider).currentPage, 1);
     });
 
     test('setPageSize 重置到第 1 页并更新 totalPages', () async {
@@ -750,7 +680,7 @@ void main() {
       expect(s.errorMessage, isNull);
 
       // 下一页不漏项：从第 21 条开始。
-      outcome = c.read(historyPaginationProvider.notifier).next();
+      outcome = c.read(historyPaginationProvider.notifier).goToPage(2);
       expect(query.requests.last.requestedPage, 2);
       query.completeSuccess(
         2,
