@@ -233,18 +233,6 @@ class HistoryPaginationController extends Notifier<HistoryPaginationState> {
     );
   }
 
-  /// 跳转到上一页。
-  Future<HistoryWindowLoadOutcome> prev() => goToPage(state.currentPage - 1);
-
-  /// 跳转到下一页。
-  Future<HistoryWindowLoadOutcome> next() => goToPage(state.currentPage + 1);
-
-  /// 跳转到第一页。
-  Future<HistoryWindowLoadOutcome> first() => goToPage(1);
-
-  /// 跳转到最后一页。
-  Future<HistoryWindowLoadOutcome> last() => goToPage(state.totalPages);
-
   /// 修改每页条数并重置到第 1 页。
   ///
   /// [size] 仅在 [appPageSizeOptions] 中生效，否则保持当前 pageSize 不变；

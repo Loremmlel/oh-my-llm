@@ -14,18 +14,6 @@ const favoritesPageSizeStorageKey = 'app.feature.favorites.page_size';
 const favoritesLastCollectionStorageKey =
     'app.feature.favorites.last_collection_id';
 
-/// SharedPreferences 写入口；测试可注入 fake 观察写入或模拟失败。
-typedef FavoritesPreferenceWriter =
-    Future<bool> Function(String key, String value);
-
-/// 生产写入 adapter；由 app composition / 测试显式覆盖。
-final favoritesPreferenceWriterProvider = Provider<FavoritesPreferenceWriter>((
-  ref,
-) {
-  return (key, value) =>
-      ref.read(sharedPreferencesProvider).setString(key, value);
-});
-
 /// 每页容量偏好控制器；仅接受 [appPageSizeOptions]，非法值回退默认。
 class FavoritesBrowsePageSizeController extends Notifier<int> {
   @override
@@ -46,8 +34,8 @@ class FavoritesBrowsePageSizeController extends Notifier<int> {
     state = pageSize;
     unawaited(
       ref
-          .read(favoritesPreferenceWriterProvider)
-          .call(favoritesPageSizeStorageKey, '$pageSize'),
+          .read(sharedPreferencesProvider)
+          .setString(favoritesPageSizeStorageKey, '$pageSize'),
     );
   }
 }
@@ -72,8 +60,8 @@ class FavoritesLastCollectionController extends Notifier<String> {
       // 失效值立即修正为系统夹，避免下次读取重复走失效路径。
       unawaited(
         ref
-            .read(favoritesPreferenceWriterProvider)
-            .call(
+            .read(sharedPreferencesProvider)
+            .setString(
               favoritesLastCollectionStorageKey,
               AppReservedEntities.uncategorizedFavoriteCollectionId,
             ),
@@ -89,8 +77,8 @@ class FavoritesLastCollectionController extends Notifier<String> {
     state = collectionId;
     unawaited(
       ref
-          .read(favoritesPreferenceWriterProvider)
-          .call(favoritesLastCollectionStorageKey, collectionId),
+          .read(sharedPreferencesProvider)
+          .setString(favoritesLastCollectionStorageKey, collectionId),
     );
   }
 

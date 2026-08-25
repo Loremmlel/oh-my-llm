@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 import 'package:oh_my_llm/core/utils/date_formatting.dart';
 import '../../domain/models/favorite_collection_summary.dart';
-import '../models/favorite_collection_grid_spec.dart';
 
 /// 打开当前聚焦卡片上下文菜单的内部 intent；
 /// 由 Menu key 与 Shift+F10 触发，作为鼠标右键的键盘等价操作。
@@ -14,13 +13,11 @@ class _OpenTileMenuIntent extends Intent {
 
 /// 收藏夹总览网格中的单张收藏夹卡片。
 ///
-/// 卡片高度由 [FavoriteCollectionGridSpec.mainAxisExtent] 固定；普通卡片
-/// 提供点击/Enter 打开与右键、长按、Menu key 呼出的管理菜单；系统收藏夹
-/// 只保留低调的身份标识，不提供任何管理操作。
+/// 卡片高度由网格固定；普通卡片提供点击/Enter 打开与右键、长按、Menu key
+/// 呼出的管理菜单；系统收藏夹只保留低调的身份标识，不提供任何管理操作。
 class FavoriteCollectionTile extends StatefulWidget {
   const FavoriteCollectionTile({
     required this.summary,
-    required this.spec,
     required this.onOpen,
     this.onRename,
     this.onDelete,
@@ -29,7 +26,6 @@ class FavoriteCollectionTile extends StatefulWidget {
   });
 
   final FavoriteCollectionSummary summary;
-  final FavoriteCollectionGridSpec spec;
 
   /// 打开该收藏夹的浏览页。
   final VoidCallback onOpen;
@@ -112,7 +108,7 @@ class _FavoriteCollectionTileState extends State<FavoriteCollectionTile> {
                 : null,
             borderRadius: BorderRadius.circular(AppRadii.md),
             child: Padding(
-              padding: EdgeInsets.all(widget.spec.tilePadding),
+              padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
