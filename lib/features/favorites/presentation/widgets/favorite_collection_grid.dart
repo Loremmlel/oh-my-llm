@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:oh_my_llm/core/widgets/adaptive_grid/app_adaptive_grid.dart';
+
 import '../../domain/models/favorite_collection_summary.dart';
 import 'favorite_collection_tile.dart';
 

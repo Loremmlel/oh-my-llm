@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:oh_my_llm/app/navigation/app_destination.dart';
 import 'package:oh_my_llm/app/shell/app_shell_scaffold.dart';
 import 'package:oh_my_llm/core/widgets/dialogs/app_confirm_dialog.dart';
+
 import '../application/collections_controller.dart';
 import '../application/favorites_controller.dart';
 import '../domain/models/favorite_collection_summary.dart';

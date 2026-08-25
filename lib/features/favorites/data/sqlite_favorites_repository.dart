@@ -1,4 +1,5 @@
 import 'package:oh_my_llm/core/persistence/app_database.dart';
+
 import '../domain/models/favorite.dart';
 import '../domain/models/favorite_page.dart';
 import '../application/ports/favorites_repository.dart';

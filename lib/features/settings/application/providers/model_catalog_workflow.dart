@@ -35,12 +35,11 @@ final class ModelCatalogFailure implements Exception {
   String toString() => message;
 }
 
-typedef ModelCatalogFetcher =
-    Future<List<ModelCatalogEntry>> Function({
-      required String modelsUrl,
-      required String apiKey,
-      required LlmApiProtocol apiProtocol,
-    });
+typedef ModelCatalogFetcher = Future<List<ModelCatalogEntry>> Function({
+  required String modelsUrl,
+  required String apiKey,
+  required LlmApiProtocol apiProtocol,
+});
 
 /// 将 data 层模型列表客户端收敛为设置页稳定的请求和错误契约。
 final class ModelCatalogWorkflow {

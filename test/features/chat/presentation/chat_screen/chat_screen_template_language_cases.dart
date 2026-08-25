@@ -560,8 +560,7 @@ void registerChatScreenTemplateLanguageTests() {
       TemplatePrompt(
         id: 'tp-dyn',
         title: '动态模板',
-        content:
-            '人称：{{人称:select|一|二}}\n{{#if 人称 == "一"}}一分支：{{甲}}。{{else}}二分支：{{乙}}。{{/if}}',
+        content: '人称：{{人称:select|一|二}}\n{{#if 人称 == "一"}}一分支：{{甲}}。{{else}}二分支：{{乙}}。{{/if}}',
         variables: const [
           TemplatePromptVariable(
             name: '人称',
@@ -591,8 +590,7 @@ void registerChatScreenTemplateLanguageTests() {
           TemplatePrompt(
             id: 'tp-dyn',
             title: '动态模板',
-            content:
-                '人称：{{人称:select|三|四}}\n{{#if 人称 == "三"}}三分支：{{丙}}。{{else}}四分支：{{丁}}。{{/if}}',
+            content: '人称：{{人称:select|三|四}}\n{{#if 人称 == "三"}}三分支：{{丙}}。{{else}}四分支：{{丁}}。{{/if}}',
             variables: const [
               TemplatePromptVariable(
                 name: '人称',

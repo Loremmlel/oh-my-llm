@@ -10,6 +10,7 @@ import 'package:oh_my_llm/features/history/presentation/history_screen.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/media_route_pages.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/video_player_platform_bindings.dart';
 import 'package:oh_my_llm/features/settings/presentation/settings_screen.dart';
+
 import '../composition/sync_workspace_screen.dart';
 import '../composition/video_player_platform_bindings_factory.dart';
 import '../navigation/app_destination.dart';

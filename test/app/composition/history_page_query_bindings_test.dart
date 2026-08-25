@@ -70,9 +70,8 @@ void main() {
   }
 
   test('composition 绑定的 HistoryPageQuery 可完成一页内存库查询', () async {
-    await SqliteChatConversationRepository(
-      database,
-    ).saveConversations([conversation('c1', '组合绑定会话')]);
+    await SqliteChatConversationRepository(database)
+        .saveConversations([conversation('c1', '组合绑定会话')]);
     final c = createContainer();
 
     final query = c.read(historyPageQueryProvider);

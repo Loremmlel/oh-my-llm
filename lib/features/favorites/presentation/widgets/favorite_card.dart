@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:oh_my_llm/core/utils/date_formatting.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/messages/bubble/reasoning_panel.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/messages/bubble/streaming_markdown_view.dart';
+
 import '../../domain/models/favorite.dart';
 
 /// 单条收藏卡片：元信息行 + 用户消息、折叠推理与 Markdown 模型回复。

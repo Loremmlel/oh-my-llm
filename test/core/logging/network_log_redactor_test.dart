@@ -44,21 +44,19 @@ void main() {
 
   group('redactPayload', () {
     test('递归遮罩 Map 与 List 中全部已知敏感字段', () {
-      final payload =
-          redactor.redactPayload({
-                'apiKey': 'sk-top-level',
-                'api_key': 'sk-snake-case',
-                'Token': 'case-insensitive-token',
-                'SECRET': 'case-insensitive-secret',
-                'Password': 'case-insensitive-password',
-                'CREDENTIAL': 'case-insensitive-credential',
-                'safe_value': 'keep-me',
-                'nested': {'token': 'nested-token', 'name': 'keep-nested'},
-                'items': [
-                  {'secret': 'list-secret'},
-                ],
-              })
-              as Map<String, Object?>;
+      final payload = redactor.redactPayload({
+        'apiKey': 'sk-top-level',
+        'api_key': 'sk-snake-case',
+        'Token': 'case-insensitive-token',
+        'SECRET': 'case-insensitive-secret',
+        'Password': 'case-insensitive-password',
+        'CREDENTIAL': 'case-insensitive-credential',
+        'safe_value': 'keep-me',
+        'nested': {'token': 'nested-token', 'name': 'keep-nested'},
+        'items': [
+          {'secret': 'list-secret'},
+        ],
+      }) as Map<String, Object?>;
 
       for (final key in [
         'apiKey',

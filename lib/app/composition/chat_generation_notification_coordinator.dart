@@ -21,8 +21,10 @@ const chatGenerationNotificationCleanupRetryDelays = <Duration>[
 ];
 
 /// 定时器工厂：测试注入手动调度器以确定性触发节流与重试定时器。
-typedef ChatNotificationTimerFactory =
-    Timer Function(Duration duration, void Function() callback);
+typedef ChatNotificationTimerFactory = Timer Function(
+  Duration duration,
+  void Function() callback,
+);
 
 /// 生产默认定时器工厂（[Timer] 构造函数 tear-off 类型不稳定，显式包装）。
 Timer _defaultTimer(Duration duration, void Function() callback) =>

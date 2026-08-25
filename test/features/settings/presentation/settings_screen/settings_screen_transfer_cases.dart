@@ -141,8 +141,7 @@ void registerSettingsScreenTransferTests() {
   testWidgets('剪贴板 v8 文档显示版本不支持消息', (tester) async {
     await setUpSettingsScreen(
       tester,
-      clipboardText:
-          '{"identifier":"shikiyuzu-oh-my-llm","formatVersion":8,"sections":{}}',
+      clipboardText: '{"identifier":"shikiyuzu-oh-my-llm","formatVersion":8,"sections":{}}',
     );
 
     await tester.tap(find.byTooltip('从剪贴板导入设置'));

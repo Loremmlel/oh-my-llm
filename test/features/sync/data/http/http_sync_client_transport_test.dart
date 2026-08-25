@@ -53,9 +53,8 @@ void main() {
     });
     addTearDown(client.close);
 
-    final result = await HttpSyncClientTransport(
-      client,
-    ).send(server: server, request: request);
+    final result = await HttpSyncClientTransport(client)
+        .send(server: server, request: request);
 
     expect(result, expected);
   });

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import 'package:oh_my_llm/core/utils/id_generator.dart';
 import 'package:oh_my_llm/core/widgets/adaptive_master_detail_layout.dart';
+
 import '../../../../domain/models/prompts/fixed_prompt_sequence.dart';
 import '../../shared/settings_form_dialog_scaffold.dart';
 import '../../shared/settings_form_dialog_state_mixin.dart';
@@ -129,9 +130,8 @@ class _FixedPromptSequenceFormDialogState
     return DecoratedBox(
       key: key,
       decoration: BoxDecoration(
-        color: Theme.of(
-          context,
-        ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.22),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest
+            .withValues(alpha: 0.22),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Padding(padding: const EdgeInsets.all(16), child: child),
@@ -142,9 +142,8 @@ class _FixedPromptSequenceFormDialogState
     return DecoratedBox(
       key: const ValueKey('fixed-prompt-sequence-master-pane'), // test-key
       decoration: BoxDecoration(
-        color: Theme.of(
-          context,
-        ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.22),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest
+            .withValues(alpha: 0.22),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Padding(
@@ -187,9 +186,8 @@ class _FixedPromptSequenceFormDialogState
     return DecoratedBox(
       key: key,
       decoration: BoxDecoration(
-        color: Theme.of(
-          context,
-        ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.18),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest
+            .withValues(alpha: 0.18),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Padding(padding: const EdgeInsets.all(16), child: child),

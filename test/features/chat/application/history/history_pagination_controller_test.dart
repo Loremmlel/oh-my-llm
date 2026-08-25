@@ -123,11 +123,9 @@ void main() {
 
       query.completeSuccess(1, items: [summary('stale')], totalItems: 5);
       expect(await outcomeA, HistoryWindowLoadOutcome.ignored);
-      expect(
-        c.read(historyPaginationProvider).conversations.map((e) => e.id),
-        ['a'],
-        reason: '旧成功不得写入 state',
-      );
+      expect(c.read(historyPaginationProvider).conversations.map((e) => e.id), [
+        'a',
+      ], reason: '旧成功不得写入 state');
 
       query.completeSuccess(2, items: [summary('c1')], totalItems: 7);
       expect(await outcomeC, HistoryWindowLoadOutcome.committed);

@@ -102,11 +102,9 @@ void main() {
 
       for (final index in [-1, 99]) {
         await controller.removeHeader(index);
-        expect(
-          container.read(customHeadersProvider).toHeaderMap(),
-          {'X-A': '1'},
-          reason: 'index $index',
-        );
+        expect(container.read(customHeadersProvider).toHeaderMap(), {
+          'X-A': '1',
+        }, reason: 'index $index');
       }
     });
 
@@ -131,11 +129,9 @@ void main() {
 
       for (final index in [-1, 99]) {
         await controller.updateHeader(index, 'X-New', 'new');
-        expect(
-          container.read(customHeadersProvider).toHeaderMap(),
-          {'X-A': '1'},
-          reason: 'index $index',
-        );
+        expect(container.read(customHeadersProvider).toHeaderMap(), {
+          'X-A': '1',
+        }, reason: 'index $index');
       }
     });
 

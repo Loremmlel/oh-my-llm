@@ -59,42 +59,32 @@ class ArchitectureViolation {
 final architecturePolicy = ArchitecturePolicy(
   legacyApplicationDataEdges: {
     ImportEdge(
-      sourcePath:
-          'lib/features/settings/application/preferences/chat_defaults_controller.dart',
+      sourcePath: 'lib/features/settings/application/preferences/chat_defaults_controller.dart',
       targetPath: 'lib/features/settings/data/chat_defaults_repository.dart',
     ): '现有 concrete SharedPreferences repository；不属于已迁移的 port 闭环。',
     ImportEdge(
-      sourcePath:
-          'lib/features/settings/application/prompts/fixed_prompt_sequences_controller.dart',
-      targetPath:
-          'lib/features/settings/data/prompts/fixed_prompt_sequence_repository.dart',
+      sourcePath: 'lib/features/settings/application/prompts/fixed_prompt_sequences_controller.dart',
+      targetPath: 'lib/features/settings/data/prompts/fixed_prompt_sequence_repository.dart',
     ): '现有 concrete/top-level SQLite repository；保持既有行为。',
     ImportEdge(
-      sourcePath:
-          'lib/features/settings/application/providers/llm_model_configs_controller.dart',
-      targetPath:
-          'lib/features/settings/data/providers/llm_model_config_repository.dart',
+      sourcePath: 'lib/features/settings/application/providers/llm_model_configs_controller.dart',
+      targetPath: 'lib/features/settings/data/providers/llm_model_config_repository.dart',
     ): '现有 concrete repository；Settings 全组不在本次迁移范围。',
     ImportEdge(
-      sourcePath:
-          'lib/features/settings/application/prompts/memory_prompts_controller.dart',
-      targetPath:
-          'lib/features/settings/data/prompts/sqlite_memory_prompt_repository.dart',
+      sourcePath: 'lib/features/settings/application/prompts/memory_prompts_controller.dart',
+      targetPath: 'lib/features/settings/data/prompts/sqlite_memory_prompt_repository.dart',
     ): '现有 SQLite repository object；metadata/persistence ownership 另行处理。',
     ImportEdge(
-      sourcePath:
-          'lib/features/settings/application/providers/model_catalog_workflow.dart',
+      sourcePath: 'lib/features/settings/application/providers/model_catalog_workflow.dart',
       targetPath: 'lib/features/settings/data/providers/model_list_client.dart',
     ): '现有 concrete HTTP client；没有 application-owned port。',
     ImportEdge(
-      sourcePath:
-          'lib/features/settings/application/prompts/preset_prompts_controller.dart',
+      sourcePath: 'lib/features/settings/application/prompts/preset_prompts_controller.dart',
       targetPath:
           'lib/features/settings/data/prompts/preset_prompt_repository.dart',
     ): '现有 concrete/top-level SQLite repository。',
     ImportEdge(
-      sourcePath:
-          'lib/features/settings/application/prompts/template_prompts_controller.dart',
+      sourcePath: 'lib/features/settings/application/prompts/template_prompts_controller.dart',
       targetPath:
           'lib/features/settings/data/prompts/template_prompt_repository.dart',
     ): '现有 concrete/top-level SQLite repository。',

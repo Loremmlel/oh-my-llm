@@ -4,6 +4,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:sqlite3/sqlite3.dart' as sqlite;
 
 import 'package:oh_my_llm/core/constants/app_reserved_entities.dart';
+
 import 'sqlite_replace_all.dart';
 
 const chatDatabaseFileName = 'chat_history.sqlite';

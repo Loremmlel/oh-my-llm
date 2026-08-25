@@ -73,9 +73,8 @@ class _ImportConfirmDialogState extends State<ImportConfirmDialog> {
               const SizedBox(height: 12),
               Text(
                 _statusMessage!,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.error,
-                ),
+                style: Theme.of(context).textTheme.bodyMedium
+                    ?.copyWith(color: Theme.of(context).colorScheme.error),
               ),
               for (final detail in _statusDetails)
                 Padding(

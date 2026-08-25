@@ -167,9 +167,9 @@ void main() {
       for (final entry in expectedEfforts.entries) {
         String? sentEffort;
         final client = _FakeStreamingHttpClient((request) async {
-          final payload =
-              jsonDecode((request as http.Request).body)
-                  as Map<String, dynamic>;
+          final payload = jsonDecode(
+            (request as http.Request).body,
+          ) as Map<String, dynamic>;
           sentEffort = payload['reasoning_effort'] as String?;
           return okResponse();
         });
@@ -226,8 +226,7 @@ void main() {
             _request(
               _messages(),
               modelConfig: _modelConfig(
-                apiUrl:
-                    'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+                apiUrl: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
               ),
               reasoningEffort: ReasoningEffort.medium,
             ),
@@ -614,9 +613,8 @@ void main() {
         );
       });
 
-      final result = await buildChatClient(
-        client,
-      ).complete(_request(_messages(), modelConfig: _modelConfig()));
+      final result = await buildChatClient(client)
+          .complete(_request(_messages(), modelConfig: _modelConfig()));
 
       expect(result.content, '完整回复');
       expect(result.reasoningContent, '完整思考');

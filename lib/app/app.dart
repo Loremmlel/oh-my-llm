@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oh_my_llm/core/http/http_client_provider.dart';
 import 'package:oh_my_llm/core/widgets/notification_bubble/notification_bubble_stack.dart';
 import 'package:oh_my_llm/features/settings/application/preferences/font_size_settings_controller.dart';
+
 import 'composition/chat_generation_notification_coordinator.dart';
 import 'platform/windows_navigation_input_adapter.dart';
 import 'router/app_router.dart';

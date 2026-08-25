@@ -46,9 +46,8 @@ void main() {
       expect(assistant.finishReason, 'stop');
       expect(state.isStreaming, isFalse);
 
-      final persisted = SqliteChatConversationRepository(
-        harness.database,
-      ).loadConversation('conversation-1');
+      final persisted = SqliteChatConversationRepository(harness.database)
+          .loadConversation('conversation-1');
       expect(persisted, isNotNull);
       expect(persisted!.messages.last.content, _finalContent);
       expect(persisted.messages.last.reasoningContent, _finalReasoning);
@@ -75,9 +74,8 @@ void main() {
       expect(state.errorMessageAssistantId, assistant.id);
       expect(state.isStreaming, isFalse);
 
-      final persisted = SqliteChatConversationRepository(
-        harness.database,
-      ).loadConversation('conversation-1');
+      final persisted = SqliteChatConversationRepository(harness.database)
+          .loadConversation('conversation-1');
       expect(persisted, isNotNull);
       expect(persisted!.messages.last.id, assistant.id);
       expect(persisted.messages.last.content, '部分回复');

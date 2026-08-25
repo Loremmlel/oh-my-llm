@@ -6,8 +6,10 @@ import 'app_pagination_bar.dart';
 import 'app_pagination_state.dart';
 
 /// 正文构建器；获得 shell 持有的 [ScrollController]，caller 只构建列表内容。
-typedef AppPaginatedBodyBuilder =
-    Widget Function(BuildContext context, ScrollController scrollController);
+typedef AppPaginatedBodyBuilder = Widget Function(
+  BuildContext context,
+  ScrollController scrollController,
+);
 
 /// 固定底部分页列表外壳：header 与分页栏固定，正文独立滚动。
 ///

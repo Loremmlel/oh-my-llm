@@ -135,79 +135,76 @@ void main() {
 
   // ── 1. UPSERT idempotency ────────────────────────────────────────────
 
-  test(
-    'UPSERT idempotency: re-saving with modified content updates fields without changing count',
-    () async {
-      // Save initial conversation with 3 messages
-      final original = ChatConversation(
-        id: 'conv-idempotent',
-        title: '更改前标题',
-        messageNodes: [
-          ChatMessage(
-            id: 'msg-1',
-            role: ChatMessageRole.user,
-            content: '用户消息',
-            parentId: rootConversationParentId,
-            createdAt: DateTime(2026, 5, 1, 10),
-          ),
-          ChatMessage(
-            id: 'msg-2',
-            role: ChatMessageRole.assistant,
-            content: '原始回复',
-            parentId: 'msg-1',
-            createdAt: DateTime(2026, 5, 1, 10, 1),
-          ),
-          ChatMessage(
-            id: 'msg-3',
-            role: ChatMessageRole.assistant,
-            content: '另一个回复',
-            parentId: 'msg-1',
-            createdAt: DateTime(2026, 5, 1, 10, 2),
-          ),
-        ],
-        selectedChildByParentId: const {
-          rootConversationParentId: 'msg-1',
-          'msg-1': 'msg-2',
-        },
-        createdAt: DateTime(2026, 5, 1, 10),
-        updatedAt: DateTime(2026, 5, 1, 10, 2),
-        reasoningEnabled: false,
-        reasoningEffort: ReasoningEffort.medium,
-      );
-      await repository.saveConversations([original]);
+  test('UPSERT idempotency: re-saving with modified content updates fields without changing count', () async {
+    // Save initial conversation with 3 messages
+    final original = ChatConversation(
+      id: 'conv-idempotent',
+      title: '更改前标题',
+      messageNodes: [
+        ChatMessage(
+          id: 'msg-1',
+          role: ChatMessageRole.user,
+          content: '用户消息',
+          parentId: rootConversationParentId,
+          createdAt: DateTime(2026, 5, 1, 10),
+        ),
+        ChatMessage(
+          id: 'msg-2',
+          role: ChatMessageRole.assistant,
+          content: '原始回复',
+          parentId: 'msg-1',
+          createdAt: DateTime(2026, 5, 1, 10, 1),
+        ),
+        ChatMessage(
+          id: 'msg-3',
+          role: ChatMessageRole.assistant,
+          content: '另一个回复',
+          parentId: 'msg-1',
+          createdAt: DateTime(2026, 5, 1, 10, 2),
+        ),
+      ],
+      selectedChildByParentId: const {
+        rootConversationParentId: 'msg-1',
+        'msg-1': 'msg-2',
+      },
+      createdAt: DateTime(2026, 5, 1, 10),
+      updatedAt: DateTime(2026, 5, 1, 10, 2),
+      reasoningEnabled: false,
+      reasoningEffort: ReasoningEffort.medium,
+    );
+    await repository.saveConversations([original]);
 
-      // Re-save with same IDs but changed content on msg-2 and new title
-      final updated = original.copyWith(
-        title: '更改后标题',
-        messageNodes: [
-          original.messageNodes[0],
-          original.messageNodes[1].copyWith(content: '修改后的回复'),
-          original.messageNodes[2],
-        ],
-        updatedAt: DateTime(2026, 5, 1, 11),
-      );
-      await repository.saveConversations([updated]);
+    // Re-save with same IDs but changed content on msg-2 and new title
+    final updated = original.copyWith(
+      title: '更改后标题',
+      messageNodes: [
+        original.messageNodes[0],
+        original.messageNodes[1].copyWith(content: '修改后的回复'),
+        original.messageNodes[2],
+      ],
+      updatedAt: DateTime(2026, 5, 1, 11),
+    );
+    await repository.saveConversations([updated]);
 
-      final all = repository.loadAll();
-      expect(all, hasLength(1));
-      final restored = all.single;
+    final all = repository.loadAll();
+    expect(all, hasLength(1));
+    final restored = all.single;
 
-      // Title updated
-      expect(restored.title, '更改后标题');
-      // updatedAt updated
-      expect(restored.updatedAt, DateTime(2026, 5, 1, 11));
-      // Message count unchanged (3 messages total, same IDs)
-      expect(restored.messageNodes, hasLength(3));
-      // Content of msg-2 was updated by UPSERT
-      final msg2 = restored.messageNodes.firstWhere((n) => n.id == 'msg-2');
-      expect(msg2.content, '修改后的回复');
-      // msg-1 and msg-3 unchanged
-      final msg1 = restored.messageNodes.firstWhere((n) => n.id == 'msg-1');
-      expect(msg1.content, '用户消息');
-      final msg3 = restored.messageNodes.firstWhere((n) => n.id == 'msg-3');
-      expect(msg3.content, '另一个回复');
-    },
-  );
+    // Title updated
+    expect(restored.title, '更改后标题');
+    // updatedAt updated
+    expect(restored.updatedAt, DateTime(2026, 5, 1, 11));
+    // Message count unchanged (3 messages total, same IDs)
+    expect(restored.messageNodes, hasLength(3));
+    // Content of msg-2 was updated by UPSERT
+    final msg2 = restored.messageNodes.firstWhere((n) => n.id == 'msg-2');
+    expect(msg2.content, '修改后的回复');
+    // msg-1 and msg-3 unchanged
+    final msg1 = restored.messageNodes.firstWhere((n) => n.id == 'msg-1');
+    expect(msg1.content, '用户消息');
+    final msg3 = restored.messageNodes.firstWhere((n) => n.id == 'msg-3');
+    expect(msg3.content, '另一个回复');
+  });
 
   // ── 2. Ghost row cleanup ─────────────────────────────────────────────
 
@@ -323,100 +320,94 @@ void main() {
 
   // ── 3. Branch selection upsert ───────────────────────────────────────
 
-  test(
-    'branch selection upsert: re-saving with different child replaces old selection',
-    () async {
-      // Save conversation with parent → child1 selection
-      final withChild1 = ChatConversation(
-        id: 'conv-branch',
-        title: '分支选择',
-        messageNodes: [
-          ChatMessage(
-            id: 'u1',
-            role: ChatMessageRole.user,
-            content: '根消息',
-            parentId: rootConversationParentId,
-            createdAt: DateTime(2026, 5, 3, 10),
-          ),
-          ChatMessage(
-            id: 'a1',
-            role: ChatMessageRole.assistant,
-            content: '分支一',
-            parentId: 'u1',
-            createdAt: DateTime(2026, 5, 3, 10, 1),
-          ),
-          ChatMessage(
-            id: 'a2',
-            role: ChatMessageRole.assistant,
-            content: '分支二',
-            parentId: 'u1',
-            createdAt: DateTime(2026, 5, 3, 10, 2),
-          ),
-        ],
-        selectedChildByParentId: const {
-          rootConversationParentId: 'u1',
-          'u1': 'a1', // initially selects child1
-        },
-        createdAt: DateTime(2026, 5, 3, 10),
-        updatedAt: DateTime(2026, 5, 3, 10, 2),
-      );
-      await repository.saveConversations([withChild1]);
+  test('branch selection upsert: re-saving with different child replaces old selection', () async {
+    // Save conversation with parent → child1 selection
+    final withChild1 = ChatConversation(
+      id: 'conv-branch',
+      title: '分支选择',
+      messageNodes: [
+        ChatMessage(
+          id: 'u1',
+          role: ChatMessageRole.user,
+          content: '根消息',
+          parentId: rootConversationParentId,
+          createdAt: DateTime(2026, 5, 3, 10),
+        ),
+        ChatMessage(
+          id: 'a1',
+          role: ChatMessageRole.assistant,
+          content: '分支一',
+          parentId: 'u1',
+          createdAt: DateTime(2026, 5, 3, 10, 1),
+        ),
+        ChatMessage(
+          id: 'a2',
+          role: ChatMessageRole.assistant,
+          content: '分支二',
+          parentId: 'u1',
+          createdAt: DateTime(2026, 5, 3, 10, 2),
+        ),
+      ],
+      selectedChildByParentId: const {
+        rootConversationParentId: 'u1',
+        'u1': 'a1', // initially selects child1
+      },
+      createdAt: DateTime(2026, 5, 3, 10),
+      updatedAt: DateTime(2026, 5, 3, 10, 2),
+    );
+    await repository.saveConversations([withChild1]);
 
-      // Re-save with {parent: child2} to switch branch selection
-      final withChild2 = withChild1.copyWith(
-        selectedChildByParentId: const {
-          rootConversationParentId: 'u1',
-          'u1': 'a2', // switched to child2
-        },
-        updatedAt: DateTime(2026, 5, 3, 11),
-      );
-      await repository.saveConversations([withChild2]);
+    // Re-save with {parent: child2} to switch branch selection
+    final withChild2 = withChild1.copyWith(
+      selectedChildByParentId: const {
+        rootConversationParentId: 'u1',
+        'u1': 'a2', // switched to child2
+      },
+      updatedAt: DateTime(2026, 5, 3, 11),
+    );
+    await repository.saveConversations([withChild2]);
 
-      final all = repository.loadAll();
-      expect(all, hasLength(1));
-      final restored = all.single;
+    final all = repository.loadAll();
+    expect(all, hasLength(1));
+    final restored = all.single;
 
-      // Selection switched from a1 to a2
-      expect(restored.selectedChildByParentId['u1'], 'a2');
+    // Selection switched from a1 to a2
+    expect(restored.selectedChildByParentId['u1'], 'a2');
 
-      // Verify via raw SQL that only one row exists for this parent
-      final rows = database.connection.select(
-        'SELECT parent_id, child_id FROM conversation_branch_selections WHERE conversation_id = ? AND parent_id = ?',
-        ['conv-branch', 'u1'],
-      );
-      expect(rows, hasLength(1));
-      expect(rows.single['child_id'] as String, 'a2');
-    },
-  );
+    // Verify via raw SQL that only one row exists for this parent
+    final rows = database.connection.select(
+      'SELECT parent_id, child_id FROM conversation_branch_selections WHERE conversation_id = ? AND parent_id = ?',
+      ['conv-branch', 'u1'],
+    );
+    expect(rows, hasLength(1));
+    expect(rows.single['child_id'] as String, 'a2');
+  });
 
   // ── 4. Empty conversation filter ─────────────────────────────────────
 
-  test(
-    'empty conversation filter: saveConversation with no messages, no checkpoints, no title is skipped',
-    () async {
-      // Build an empty conversation
-      final empty = ChatConversation(
-        id: 'conv-empty',
-        title: null,
-        messageNodes: const [],
-        createdAt: DateTime(2026, 5, 4, 10),
-        updatedAt: DateTime(2026, 5, 4, 10),
-      );
+  test('empty conversation filter: saveConversation with no messages, no checkpoints, no title is skipped', () async {
+    // Build an empty conversation
+    final empty = ChatConversation(
+      id: 'conv-empty',
+      title: null,
+      messageNodes: const [],
+      createdAt: DateTime(2026, 5, 4, 10),
+      updatedAt: DateTime(2026, 5, 4, 10),
+    );
 
-      // saveConversation (single, with filter) should skip it
-      await repository.saveConversation(empty);
+    // saveConversation (single, with filter) should skip it
+    await repository.saveConversation(empty);
 
-      // loadAll should return nothing
-      expect(repository.loadAll(), isEmpty);
+    // loadAll should return nothing
+    expect(repository.loadAll(), isEmpty);
 
-      // Direct SQL check: conversations table should be empty
-      final rows = database.connection.select(
-        'SELECT id FROM conversations WHERE id = ?',
-        ['conv-empty'],
-      );
-      expect(rows, isEmpty);
-    },
-  );
+    // Direct SQL check: conversations table should be empty
+    final rows = database.connection.select(
+      'SELECT id FROM conversations WHERE id = ?',
+      ['conv-empty'],
+    );
+    expect(rows, isEmpty);
+  });
 
   // ── 5. Cross-conversation isolation ──────────────────────────────────
 

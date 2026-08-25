@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:oh_my_llm/core/persistence/sqlite_entity_repository.dart';
+
 import '../../data/prompts/preset_prompt_repository.dart';
 import '../../domain/models/prompts/preset_prompt.dart';
 import 'settings_entity_controller.dart';

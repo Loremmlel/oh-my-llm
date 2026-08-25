@@ -190,9 +190,9 @@ void main() {
       '不含 previous_response_id / conversation / encrypted include',
       () async {
         final client = _FakeStreamingHttpClient((request) async {
-          final payload =
-              jsonDecode((request as http.Request).body)
-                  as Map<String, dynamic>;
+          final payload = jsonDecode(
+            (request as http.Request).body,
+          ) as Map<String, dynamic>;
           expect(payload.containsKey('previous_response_id'), isFalse);
           expect(payload.containsKey('conversation'), isFalse);
           final reasoning = payload['reasoning'];
@@ -239,9 +239,9 @@ void main() {
       for (final entry in expectedEfforts.entries) {
         String? sentEffort;
         final client = _FakeStreamingHttpClient((request) async {
-          final payload =
-              jsonDecode((request as http.Request).body)
-                  as Map<String, dynamic>;
+          final payload = jsonDecode(
+            (request as http.Request).body,
+          ) as Map<String, dynamic>;
           sentEffort = (payload['reasoning'] as Map)['effort'] as String?;
           return okResponse();
         });
@@ -376,9 +376,8 @@ void main() {
         );
       });
 
-      final result = await buildResponsesClient(
-        client,
-      ).complete(_request(_messages(), modelConfig: _modelConfig()));
+      final result = await buildResponsesClient(client)
+          .complete(_request(_messages(), modelConfig: _modelConfig()));
 
       expect(result.content, '你好世界');
     });
@@ -399,9 +398,8 @@ void main() {
         );
       });
 
-      final result = await buildResponsesClient(
-        client,
-      ).complete(_request(_messages(), modelConfig: _modelConfig()));
+      final result = await buildResponsesClient(client)
+          .complete(_request(_messages(), modelConfig: _modelConfig()));
 
       expect(result.reasoningContent, '思考中');
       expect(result.content, isEmpty);

@@ -86,9 +86,8 @@ void main() {
         isEmpty,
       );
       expect(
-        compileTemplatePromptContent(
-          '{{x:select|a|b}}{{x:select|a|b}}',
-        ).diagnostics,
+        compileTemplatePromptContent('{{x:select|a|b}}{{x:select|a|b}}')
+            .diagnostics,
         isEmpty,
       );
 
@@ -699,9 +698,8 @@ void main() {
     });
 
     test('单选配置默认值失效时回落到首个选项', () {
-      final program = compileTemplatePromptContent(
-        '{{人称:select|一|二|三}}',
-      ).program!;
+      final program = compileTemplatePromptContent('{{人称:select|一|二|三}}')
+          .program!;
       final reconciled = reconcileCompiledTemplatePromptVariables(
         program: program,
         existingVariables: const [

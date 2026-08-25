@@ -10,6 +10,7 @@ import 'package:oh_my_llm/core/widgets/app_empty_state.dart';
 import 'package:oh_my_llm/core/widgets/dialogs/app_confirm_dialog.dart';
 import 'package:oh_my_llm/core/widgets/pagination/app_paginated_list_shell.dart';
 import 'package:oh_my_llm/core/widgets/pagination/app_pagination_state.dart';
+
 import '../application/collections_controller.dart';
 import '../application/favorite_browser_controller.dart';
 import '../application/favorites_controller.dart';

@@ -5,6 +5,7 @@ import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import 'package:oh_my_llm/features/chat/application/composer/template_prompt_compilation_provider.dart';
 import 'package:oh_my_llm/features/settings/domain/template_prompt_language/template_prompt_evaluator.dart';
 import 'package:oh_my_llm/features/settings/domain/template_prompt_language/template_prompt_program.dart';
+
 import '../../../domain/models/chat_message.dart';
 import '../workspace/chat_workspace_bindings.dart';
 import '../../../application/workspace/chat_workspace_view_state.dart';

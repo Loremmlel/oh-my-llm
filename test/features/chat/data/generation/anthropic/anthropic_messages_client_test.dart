@@ -114,9 +114,9 @@ void main() {
       '请求体逐字：max_tokens/cache_control/system/thinking/output_config',
       () async {
         final client = _FakeStreamingHttpClient((request) async {
-          final payload =
-              jsonDecode((request as http.Request).body)
-                  as Map<String, dynamic>;
+          final payload = jsonDecode(
+            (request as http.Request).body,
+          ) as Map<String, dynamic>;
           expect(payload, {
             'model': 'claude-4',
             'stream': true,
@@ -198,9 +198,9 @@ void main() {
       for (final entry in expectedEfforts.entries) {
         String? sentEffort;
         final client = _FakeStreamingHttpClient((request) async {
-          final payload =
-              jsonDecode((request as http.Request).body)
-                  as Map<String, dynamic>;
+          final payload = jsonDecode(
+            (request as http.Request).body,
+          ) as Map<String, dynamic>;
           sentEffort = (payload['output_config'] as Map)['effort'] as String?;
           expect(
             (payload['thinking'] as Map)['type'],
@@ -379,9 +379,8 @@ void main() {
         );
       });
 
-      final result = await buildAnthropicClient(
-        client,
-      ).complete(_request(_messages(), modelConfig: _modelConfig()));
+      final result = await buildAnthropicClient(client)
+          .complete(_request(_messages(), modelConfig: _modelConfig()));
 
       expect(result.content, '你好');
       expect(result.finishReason, 'stop');
@@ -440,9 +439,8 @@ void main() {
         );
       });
 
-      final result = await buildAnthropicClient(
-        client,
-      ).complete(_request(_messages(), modelConfig: _modelConfig()));
+      final result = await buildAnthropicClient(client)
+          .complete(_request(_messages(), modelConfig: _modelConfig()));
 
       expect(result.reasoningContent, '完整思考');
       expect(result.content, isEmpty);

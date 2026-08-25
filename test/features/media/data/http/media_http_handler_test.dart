@@ -21,12 +21,10 @@ void main() {
 
       // 创建测试目录结构
       Directory('${tempRoot.path}${Platform.pathSeparator}subdir').createSync();
-      File(
-        '${tempRoot.path}${Platform.pathSeparator}photo.jpg',
-      ).writeAsStringSync('fake image');
-      File(
-        '${tempRoot.path}${Platform.pathSeparator}video.mp4',
-      ).writeAsStringSync('fake video');
+      File('${tempRoot.path}${Platform.pathSeparator}photo.jpg')
+          .writeAsStringSync('fake image');
+      File('${tempRoot.path}${Platform.pathSeparator}video.mp4')
+          .writeAsStringSync('fake video');
       File(
         '${tempRoot.path}${Platform.pathSeparator}subdir${Platform.pathSeparator}nested.png',
       ).writeAsStringSync('nested image');
@@ -79,9 +77,8 @@ void main() {
         '${tempRoot.path}${Platform.pathSeparator}妹妹',
       );
       chineseDir.createSync();
-      File(
-        '${chineseDir.path}${Platform.pathSeparator}照片.jpg',
-      ).writeAsStringSync('chinese photo');
+      File('${chineseDir.path}${Platform.pathSeparator}照片.jpg')
+          .writeAsStringSync('chinese photo');
 
       for (final (:name, :route, :expectedName) in [
         (name: '子目录', route: '/subdir', expectedName: 'nested.png'),

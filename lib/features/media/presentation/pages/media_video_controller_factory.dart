@@ -8,8 +8,9 @@ import 'package:oh_my_llm/features/media/application/models/media_resource.dart'
 ///
 /// 这是 [MediaResource] → [VideoPlayerController] 的窄适配层，
 /// 不引入完整的播放器引擎抽象；初始化由播放页面负责。
-typedef MediaVideoControllerFactory =
-    VideoPlayerController Function(MediaResource resource);
+typedef MediaVideoControllerFactory = VideoPlayerController Function(
+  MediaResource resource,
+);
 
 VideoPlayerController createMediaVideoController(MediaResource resource) =>
     switch (resource) {

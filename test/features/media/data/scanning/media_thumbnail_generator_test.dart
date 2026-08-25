@@ -99,9 +99,8 @@ void main() {
 
       test('并发生成多个图片缩略图全部成功（并发门控不丢失请求）', () async {
         for (var i = 0; i < 8; i++) {
-          await File(
-            '${tempDir.path}/img$i.png',
-          ).writeAsBytes(_generateImageBytes('png'));
+          await File('${tempDir.path}/img$i.png')
+              .writeAsBytes(_generateImageBytes('png'));
         }
         final results = await Future.wait([
           for (var i = 0; i < 8; i++) generator.generate('/img$i.png'),
@@ -161,9 +160,8 @@ void main() {
 
       /// 创建仅需存在于磁盘的假视频文件（进程调用已脚本化，文件内容无关）。
       Future<void> createVideoFile() async {
-        await File(
-          '${tempDir.path}/test.mp4',
-        ).writeAsString('fake video content');
+        await File('${tempDir.path}/test.mp4')
+            .writeAsString('fake video content');
       }
 
       /// 时长探测成功结果（stdout 为时长文本）。

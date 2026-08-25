@@ -15,9 +15,8 @@ import 'chat_screen_test_helpers.dart';
 /// 直接经 repository 按 assistant 内容定位收藏；与收藏身份判定同通道，
 /// 不依赖浏览窗口投影。
 Favorite? _findFavorite(ProviderContainer container, String assistantContent) {
-  return SqliteFavoritesRepository(
-    container.read(appDatabaseProvider),
-  ).findByAssistantContent(assistantContent);
+  return SqliteFavoritesRepository(container.read(appDatabaseProvider))
+      .findByAssistantContent(assistantContent);
 }
 
 /// 打开 assistant 回复的收藏对话框。

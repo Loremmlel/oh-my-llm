@@ -225,9 +225,8 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
       padding: const EdgeInsets.only(bottom: 12),
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: Theme.of(
-            context,
-          ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+          color: Theme.of(context).colorScheme.surfaceContainerHighest
+              .withValues(alpha: 0.35),
           borderRadius: BorderRadius.circular(16),
         ),
         child: Padding(
