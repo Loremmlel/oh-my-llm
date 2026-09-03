@@ -20,11 +20,4 @@ void registerHistoryScreenResponsiveTests() {
 
     expect(tester.takeException(), isNull);
   });
-
-  testWidgets('1440px 宽视口下内容合理限宽不无限拉伸', (tester) async {
-    await setUpHistoryScreen(tester);
-
-    expect(find.text('搜索历史对话'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
 }

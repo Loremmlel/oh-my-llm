@@ -10,7 +10,6 @@ import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
-import 'package:oh_my_llm/features/settings/application/providers/llm_model_configs_controller.dart';
 import 'package:oh_my_llm/features/settings/application/prompts/memory_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/application/prompts/template_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/memory_prompt.dart';
@@ -129,42 +128,6 @@ void registerChatScreenBasicsTests() {
     expect(find.text('新的对话标题'), findsWidgets);
   });
 
-  testWidgets('chat screen keeps custom title after sending a new reply', (
-    tester,
-  ) async {
-    final fakeClient = FakeChatGenerationClient()..enqueueChunks(['新的回答']);
-
-    await pumpChatScreen(tester, fakeClient: fakeClient);
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ChatScreen)),
-    );
-
-    await tester.tap(find.byTooltip('修改对话标题'));
-    await settleOverlayTransition(tester);
-    await tester.enterText(
-      find.descendant(
-        of: find.byType(AlertDialog),
-        matching: find.byType(TextField),
-      ),
-      '自定义标题',
-    );
-    await tester.tap(find.widgetWithText(FilledButton, '保存'));
-    await settleOverlayTransition(tester);
-
-    await sendMessage(tester, '发送后不要重置标题');
-    await waitForChatGeneration(
-      tester,
-      container,
-      (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
-      description: '自定义标题用例生成完成',
-    );
-
-    expect(
-      container.read(chatSessionsProvider).activeConversation.resolvedTitle,
-      '自定义标题',
-    );
-  });
-
   testWidgets(
     'chat screen opens checkpoints dialog and shows current word count',
     (tester) async {
@@ -215,72 +178,6 @@ void registerChatScreenBasicsTests() {
       expect(find.text('当前总结会附带预设 Prompt：代码助手'), findsOneWidget);
     },
   );
-
-  testWidgets('chat screen checkpoints dialog renders markdown preview', (
-    tester,
-  ) async {
-    final fakeClient = FakeChatGenerationClient()
-      ..enqueueChunks(['首轮回复'])
-      ..enqueueChunks([
-        '# 检查点标题\n\n'
-            '- 第一条\n'
-            '- 第二条\n\n'
-            '```dart\n'
-            'void main() {\n'
-            "  print('hello');\n"
-            '}\n'
-            '```\n\n'
-            '${List.generate(24, (index) => '第 ${index + 1} 行详细内容。').join('\n\n')}',
-      ]);
-
-    await pumpChatScreen(tester, fakeClient: fakeClient);
-
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ChatScreen)),
-    );
-    await container
-        .read(memoryPromptsProvider.notifier)
-        .upsert(
-          MemoryPrompt(
-            id: 'memory-1',
-            name: '研发总结',
-            content: '请总结当前研发对话中的关键事实、约束与待办。',
-            updatedAt: DateTime(2026, 5, 6),
-          ),
-        );
-    // upsert 是同步持久化，单帧渲染即可。
-    await tester.pump();
-
-    await sendMessage(tester, '先生成一点上下文');
-    await waitForChatGeneration(
-      tester,
-      container,
-      (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
-      description: '检查点预览用例上下文生成完成',
-    );
-
-    await container
-        .read(chatSessionsProvider.notifier)
-        .createCheckpoint(
-          modelConfig: container.read(llmModelConfigsProvider).single,
-          memoryPrompt: MemoryPrompt(
-            id: 'memory-1',
-            name: '研发总结',
-            content: '请总结当前研发对话中的关键事实、约束与待办。',
-            updatedAt: DateTime(2026, 5, 6),
-          ),
-          reasoningEnabled: false,
-          reasoningEffort: ReasoningEffort.medium,
-        );
-    // 检查点走非流式 complete()，await 返回即已提交（内存库同步持久化），
-    // 不走 generation 生命周期，单帧渲染即可。
-    await tester.pump();
-
-    await tester.tap(find.byTooltip('对话检查点'));
-    await settleOverlayTransition(tester);
-
-    expect(find.text('检查点标题'), findsOneWidget);
-  });
 
   testWidgets('创建检查点期间 system Back 不能关闭对话框，完成后可关闭', (tester) async {
     final fakeClient = FakeChatGenerationClient()..enqueueChunks(['已收到']);
@@ -441,32 +338,6 @@ void registerChatScreenBasicsTests() {
     );
   });
 
-  testWidgets(
-    'message filter dialog uses the same word-count rule as checkpoints',
-    (tester) async {
-      final fakeClient = FakeChatGenerationClient()
-        ..enqueueChunks(['done 456']);
-
-      await pumpChatScreen(tester, fakeClient: fakeClient);
-      final container = ProviderScope.containerOf(
-        tester.element(find.byType(ChatScreen)),
-      );
-
-      await sendMessage(tester, 'hello 123 世界');
-      await waitForChatGeneration(
-        tester,
-        container,
-        (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
-        description: '字数规则用例生成完成',
-      );
-
-      await tester.tap(find.byIcon(Icons.filter_alt_outlined));
-      await settleOverlayTransition(tester);
-
-      expect(find.text('发送字数：4 / 4 字'), findsOneWidget);
-    },
-  );
-
   testWidgets('chat screen opens compact secondary settings sheet on mobile', (
     tester,
   ) async {
@@ -540,55 +411,6 @@ void registerChatScreenBasicsTests() {
 
     expect(find.widgetWithText(FilledButton, '发送'), findsOneWidget);
   });
-
-  testWidgets(
-    'chat screen inserts body above template when 正文 placeholder is absent',
-    (tester) async {
-      final fakeClient = FakeChatGenerationClient()..enqueueChunks(['已收到']);
-
-      await pumpChatScreen(tester, fakeClient: fakeClient);
-
-      final container = ProviderScope.containerOf(
-        tester.element(find.byType(ChatScreen)),
-      );
-      await container
-          .read(templatePromptsProvider.notifier)
-          .upsert(
-            TemplatePrompt(
-              id: 'tp-2',
-              title: '总结模板',
-              content: '请总结成{{语气}}。',
-              variables: const [
-                TemplatePromptVariable(name: '语气', defaultValue: '简洁'),
-              ],
-              updatedAt: DateTime(2026, 5, 5, 0, 1),
-            ),
-          );
-      // upsert 是同步持久化，单帧渲染即可。
-      await tester.pump();
-
-      // 下拉菜单开合属 overlay 过渡。
-      await tester.tap(
-        find.ancestor(
-          of: find.text('模板提示词'),
-          matching: find.byWidgetPredicate((w) => w is DropdownButtonFormField),
-        ),
-      );
-      await settleOverlayTransition(tester);
-      await tester.tap(find.text('总结模板').last);
-      await settleOverlayTransition(tester);
-
-      await sendMessage(tester, '这是一段原文');
-      await waitForChatGeneration(
-        tester,
-        container,
-        (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
-        description: '正文插入模板用例生成完成',
-      );
-
-      expect(fakeClient.requestHistory.last.last.content, '这是一段原文\n请总结成简洁。');
-    },
-  );
 
   testWidgets(
     'chat screen shows multiple template variable inputs on wide screens',
@@ -703,26 +525,6 @@ void registerChatScreenBasicsTests() {
       'deepseek-v4-flash',
       'deepseek-v4-flash',
     ]);
-  });
-
-  testWidgets('chat screen fills composer from fixed prompt sequence runner', (
-    tester,
-  ) async {
-    final fakeClient = FakeChatGenerationClient();
-
-    await pumpChatScreen(tester, fakeClient: fakeClient);
-
-    await tester.tap(find.byTooltip('固定顺序提示词'));
-    await settleOverlayTransition(tester);
-
-    expect(find.text('固定顺序提示词'), findsWidgets);
-    expect(find.text('请先总结当前实现的核心目标。'), findsOneWidget);
-
-    // 填入输入框后弹窗关闭，属 overlay 过渡。
-    await tester.tap(find.widgetWithText(OutlinedButton, '填入输入框'));
-    await settleOverlayTransition(tester);
-
-    expect(find.text('请先总结当前实现的核心目标。'), findsWidgets);
   });
 
   testWidgets('chat screen sends fixed prompt sequence step and advances', (

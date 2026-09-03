@@ -1,5 +1,7 @@
 # 测试精简实施方案
 
+第一批删减已经实施，结果与测量口径见 [first-batch-results.md](first-batch-results.md)。
+
 ## 结论
 
 这套测试不是“普遍无价值”，而是覆盖所有权失控：同一规则常在 domain/data、application/controller、page/widget、app composition、integration 五层重复证明。建议保留最低层的完整边界矩阵，并让上层只证明自己的接线与用户可见结果。

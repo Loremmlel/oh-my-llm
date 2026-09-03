@@ -158,16 +158,17 @@ void main() {
       ),
     ];
 
-    for (final (input, protocol, expected) in cases) {
-      test('$input + ${protocol.displayName} -> $expected', () {
+    test('生成端点表覆盖协议、代理前缀、版本段和查询参数', () {
+      for (final (input, protocol, expected) in cases) {
         expect(
           resolver
               .resolveGenerationEndpoint(rawUrl: input, protocol: protocol)
               .toString(),
           expected,
+          reason: '$input + ${protocol.displayName}',
         );
-      });
-    }
+      }
+    });
   });
 
   group('resolveApiRoot', () {
@@ -203,11 +204,15 @@ void main() {
       ),
     ];
 
-    for (final (input, expected) in cases) {
-      test('$input -> $expected', () {
-        expect(resolver.resolveApiRoot(input).toString(), expected);
-      });
-    }
+    test('API 根地址表覆盖端点剥离、版本段与代理前缀', () {
+      for (final (input, expected) in cases) {
+        expect(
+          resolver.resolveApiRoot(input).toString(),
+          expected,
+          reason: input,
+        );
+      }
+    });
   });
 
   group('resolveModelsEndpoint', () {
@@ -256,11 +261,15 @@ void main() {
       ),
     ];
 
-    for (final (input, expected) in cases) {
-      test('$input -> $expected', () {
-        expect(resolver.resolveModelsEndpoint(input).toString(), expected);
-      });
-    }
+    test('模型端点表覆盖完整端点、代理前缀和查询参数', () {
+      for (final (input, expected) in cases) {
+        expect(
+          resolver.resolveModelsEndpoint(input).toString(),
+          expected,
+          reason: input,
+        );
+      }
+    });
   });
 
   group('配置校验', () {
@@ -274,24 +283,23 @@ void main() {
       'https://host/v1/chat/completions#frag',
     ];
 
-    for (final input in invalidUrls) {
-      test('生成端点拒绝：$input', () {
+    test('生成端点与模型端点拒绝非法配置', () {
+      for (final input in invalidUrls) {
         expect(
           () => resolver.resolveGenerationEndpoint(
             rawUrl: input,
             protocol: LlmApiProtocol.chatCompletions,
           ),
           throwsA(isA<LlmEndpointResolverException>()),
+          reason: '生成端点：$input',
         );
-      });
-
-      test('模型列表端点拒绝：$input', () {
         expect(
           () => resolver.resolveModelsEndpoint(input),
           throwsA(isA<LlmEndpointResolverException>()),
+          reason: '模型端点：$input',
         );
-      });
-    }
+      }
+    });
 
     test('异常消息说明拒绝原因', () {
       expect(

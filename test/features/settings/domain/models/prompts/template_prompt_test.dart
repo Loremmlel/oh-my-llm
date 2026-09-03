@@ -2,33 +2,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
 
 void main() {
-  test(
-    'TemplatePrompt projects input variables and detects the body variable',
-    () {
-      final prompt = TemplatePrompt(
-        id: 't1',
-        title: '测试',
-        content: '',
-        variables: const [
-          TemplatePromptVariable(name: templatePromptBodyVariableName),
-          TemplatePromptVariable(name: '风格'),
-        ],
-        updatedAt: DateTime(2026),
-      );
-      final withoutBody = TemplatePrompt(
-        id: 't2',
-        title: '测试',
-        content: '',
-        variables: const [TemplatePromptVariable(name: '风格')],
-        updatedAt: DateTime(2026),
-      );
-
-      expect(prompt.inputVariables.map((variable) => variable.name), ['风格']);
-      expect(prompt.containsBodyVariable, isTrue);
-      expect(withoutBody.containsBodyVariable, isFalse);
-    },
-  );
-
   test('TemplatePromptVariableType parses known values and safe fallbacks', () {
     const cases = [
       (
@@ -57,18 +30,6 @@ void main() {
         reason: testCase.name,
       );
     }
-  });
-
-  test('TemplatePromptVariable exposes text and number type semantics', () {
-    const textVariable = TemplatePromptVariable(name: '文本');
-    const numberVariable = TemplatePromptVariable(
-      name: '起始',
-      type: TemplatePromptVariableType.number,
-    );
-
-    expect(textVariable.type, TemplatePromptVariableType.text);
-    expect(textVariable.isNumber, isFalse);
-    expect(numberVariable.isNumber, isTrue);
   });
 
   test('number variable JSON round-trip preserves every field', () {

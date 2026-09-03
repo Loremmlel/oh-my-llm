@@ -165,36 +165,4 @@ void registerFavoritesScreenBasicsTests() {
     // 未创建同名普通夹："未分类"仍只有系统夹一处。
     expect(find.text('未分类'), findsOneWidget);
   });
-
-  testWidgets('窄中宽三档父宽下网格连续布局且不溢出', (tester) async {
-    for (final width in [320.0, 720.0, 1200.0]) {
-      await setUpFavoritesScreen(
-        tester,
-        viewportSize: Size(width, 900),
-        seed: (db) {
-          seedFavorite(
-            db,
-            id: 'fav-width-$width',
-            userMessageContent: '宽度 $width',
-            assistantContent: '回复 $width',
-          );
-          seedCollection(db, id: 'col-a-$width', name: '收藏夹甲$width');
-          seedCollection(db, id: 'col-b-$width', name: '收藏夹乙$width');
-        },
-      );
-
-      expect(tester.takeException(), isNull, reason: 'width=$width');
-      expect(find.text('未分类'), findsOneWidget, reason: 'width=$width');
-      expect(
-        find.textContaining('收藏夹甲'),
-        findsOneWidget,
-        reason: 'width=$width',
-      );
-      expect(
-        find.textContaining('收藏夹乙'),
-        findsOneWidget,
-        reason: 'width=$width',
-      );
-    }
-  });
 }

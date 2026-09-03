@@ -170,38 +170,6 @@ void main() {
         isNot(isA<ShufflePlaybackActive>()),
       );
     });
-
-    // Fisher-Yates 对 20 项 shuffle 后与原始顺序完全相同的概率为 1/20! ≈ 4×10⁻¹⁹，
-    // 运行 5 次至少一次不同的概率 ≈ 1 − (1/20!)⁵ ≈ 1。概率性测试在此规模下足够可靠。
-    test('列表被 shuffle（多视频时顺序改变）', () async {
-      var wasShuffled = false;
-      for (int attempt = 0; attempt < 5; attempt++) {
-        // 每次尝试注入新列表：控制器会原地 shuffle 库返回的列表
-        final library = FakeMediaLibrary()
-          ..recursiveVideoResults['/dir'] = _videos(20);
-        final container = createMediaLibraryTestContainer(library);
-        await activateTestMediaSession(container);
-
-        final controller = container.read(
-          shufflePlaybackControllerProvider.notifier,
-        );
-        // shuffle 前快照原始顺序（列表被原地打乱，快照必须在调用前取）
-        final originalPaths = library.recursiveVideoResults['/dir']!
-            .map((v) => v.relativePath)
-            .toList();
-        await controller.startShuffle('/dir');
-        final state = container.read(
-          shufflePlaybackControllerProvider,
-        ) as ShufflePlaybackActive;
-        final shuffledPaths = state.playlist
-            .map((v) => v.relativePath)
-            .toList();
-        if (shuffledPaths.join(',') != originalPaths.join(',')) {
-          wasShuffled = true;
-        }
-      }
-      expect(wasShuffled, isTrue);
-    });
   });
 
   group('ShufflePlaybackController.playNext / playPrevious', () {

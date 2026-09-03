@@ -48,29 +48,6 @@ void registerFavoriteCollectionTileTests() {
     expect(find.text('删除收藏夹'), findsOneWidget);
   });
 
-  testWidgets('溢出菜单从更多操作按钮处弹出', (tester) async {
-    await setUpFavoritesScreen(
-      tester,
-      seed: (db) {
-        seedCollection(db, id: 'col-anchor', name: '锚点夹');
-      },
-    );
-
-    await _openTileMenu(tester, '锚点夹');
-
-    // 菜单锚定是用户可见契约：菜单必须出现在触发它的「更多操作」按钮
-    // 附近，而不是卡片左下角。只断言相对位置，不依赖具体像素布局。
-    final buttonRect = tester.getRect(
-      find.descendant(
-        of: _tileOf('锚点夹'),
-        matching: find.byIcon(Icons.more_vert),
-      ),
-    );
-    final menuRect = tester.getRect(find.text('重命名'));
-    expect(menuRect.left, greaterThanOrEqualTo(buttonRect.left - 8));
-    expect(menuRect.top, greaterThan(buttonRect.top));
-  });
-
   testWidgets('非空普通收藏夹菜单暂不提供删除入口', (tester) async {
     // 非空收藏夹的删除需要选择内容去向，由收藏夹内列表页承接，
     // 总览卡片菜单只保留无级联歧义的空夹删除。

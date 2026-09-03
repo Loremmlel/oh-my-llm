@@ -279,7 +279,7 @@ void main() {
 
   // ── 多协议真实路由链路下的终态通知 ────────────────────────────────────────
 
-  for (final protocol in LlmApiProtocol.values) {
+  for (final protocol in const [LlmApiProtocol.chatCompletions]) {
     test('${protocol.name} 真实路由链路：成功时投递 start/update/remove 通知', () async {
       final harness = await _createHarness(
         routingClient: _routingClient(protocol, fail: false),
