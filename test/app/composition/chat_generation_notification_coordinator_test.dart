@@ -136,6 +136,7 @@ final class FakeChatGenerationForegroundService
       StreamController<ChatGenerationForegroundAction>.broadcast();
   final calls = <String>[];
   final payloads = <ChatGenerationForegroundPayload>[];
+  final removals = <(int, String)>[];
   final queuedResults = Queue<Future<ChatForegroundCommandResult>>();
 
   /// 待打开的冷启动会话 ID；[takePendingOpenConversation] 返回它。
@@ -186,7 +187,10 @@ final class FakeChatGenerationForegroundService
   Future<ChatForegroundCommandResult> remove({
     required int token,
     required String conversationId,
-  }) => _record('remove', null);
+  }) {
+    removals.add((token, conversationId));
+    return _record('remove', null);
+  }
 
   @override
   Future<ChatForegroundCommandResult> fail(
@@ -895,6 +899,55 @@ void main() {
   });
 
   group('terminal 清理', () {
+    test('旧终态已入队后启动新 token 仍清理并重试且不投递旧结果', () async {
+      await coordinator.start();
+      coordinator.onStateChanged(
+        snapshot: _snapshot(ChatGenerationPhase.preparing, generationId: 1),
+        streamingReply: null,
+      );
+      await _flushTail();
+
+      final blockedUpdate = Completer<ChatForegroundCommandResult>();
+      port.queuedResults.add(blockedUpdate.future);
+      coordinator.onStateChanged(
+        snapshot: _snapshot(ChatGenerationPhase.streaming, generationId: 1),
+        streamingReply: _reply('一', ''),
+      );
+      await _flushTail();
+      port.queuedResults.addAll([
+        Future.value(
+          const ChatForegroundCommandResult.unavailable(
+            ChatForegroundFailureCode.serviceUnavailable,
+          ),
+        ),
+        Future.value(const ChatForegroundCommandResult.accepted()),
+      ]);
+      coordinator.onStateChanged(
+        snapshot: _snapshot(
+          ChatGenerationPhase.succeeded,
+          generationId: 1,
+          outcome: _outcomeFor(ChatGenerationPhase.succeeded, generationId: 1),
+        ),
+        streamingReply: null,
+      );
+      coordinator.onStateChanged(
+        snapshot: _snapshot(ChatGenerationPhase.preparing, generationId: 2),
+        streamingReply: null,
+      );
+
+      blockedUpdate.complete(const ChatForegroundCommandResult.accepted());
+      await _flushTail();
+
+      expect(port.removals, [(1, 'conv-1')]);
+      expect(timers.pending.single.duration, const Duration(milliseconds: 200));
+      timers.fireNext();
+      await _flushTail();
+
+      expect(port.removals, [(1, 'conv-1'), (1, 'conv-1')]);
+      expect(port.payloads.last.token, 2);
+      expect(terminalNotifications, isEmpty);
+    });
+
     test('成功和失败各投递一次系统通知，取消只清理', () async {
       await coordinator.start();
       final phases = <ChatGenerationPhase>[

@@ -39,7 +39,7 @@ Timer _defaultTimer(Duration duration, void Function() callback) =>
 /// - 同阶段同 attempt 的 streaming 更新按每秒一次尾缘合并；
 /// - phase/attempt/terminal 变化立即投递，不等待节流窗口；
 /// - start/update/terminal 经单一 async tail 串行，杜绝先清理后启动；
-/// - 旧 token 的迟到定时器/命令/动作/terminal 通过 token 校验丢弃；
+/// - 旧 token 的迟到状态/动作丢弃，已入队的 terminal 清理仍按顺序完成；
 /// - 平台失败 fail-open：只影响通知投递，不改写生成结果。
 final class ChatGenerationNotificationCoordinator {
   ChatGenerationNotificationCoordinator({
@@ -259,16 +259,15 @@ final class ChatGenerationNotificationCoordinator {
     ChatGenerationPhase phase,
     ChatGenerationForegroundPayload payload,
   ) async {
-    if (_disposed || token != _currentToken) return;
+    if (_disposed) return;
     await Future.wait([
       _terminalCleanupOp(
-        token,
         () => _port.remove(
           token: payload.token,
           conversationId: payload.conversationId,
         ),
       ),
-      if (phase != ChatGenerationPhase.cancelled)
+      if (phase != ChatGenerationPhase.cancelled && token == _currentToken)
         _showTerminalNotificationSafely(payload),
     ]);
   }
@@ -284,19 +283,19 @@ final class ChatGenerationNotificationCoordinator {
     }
   }
 
-  /// terminal 清理：等待 Kotlin ACK，失败按固定延迟有界重试，耗尽后只记诊断。
+  /// terminal 清理：已入队后不再依赖当前 token；async tail 保证它先于新 start。
+  /// 等待 Kotlin ACK 失败时按固定延迟有界重试，耗尽后只记诊断。
   Future<void> _terminalCleanupOp(
-    int token,
     Future<ChatForegroundCommandResult> Function() command,
   ) async {
-    if (_disposed || token != _currentToken) return;
+    if (_disposed) return;
     for (final delay in chatGenerationNotificationCleanupRetryDelays) {
       if (delay > Duration.zero) {
         await _waitFor(delay);
-        if (_disposed || token != _currentToken) return; // 等待期间被取代。
+        if (_disposed) return;
       }
       final result = await _invokeSafely(command);
-      if (_disposed || token != _currentToken) return;
+      if (_disposed) return;
       if (result.accepted) return;
       _logCommandFailure(result.failureCode);
     }
