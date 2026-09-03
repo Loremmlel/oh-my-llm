@@ -27,6 +27,7 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -77,6 +78,7 @@ flutter {
 }
 
 dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
     // 前台服务通知（NotificationCompat / ServiceCompat）与原生单元测试依赖。
     // 显式固定 1.17.0：本功能只需要稳定的 NotificationCompat / ServiceCompat，
     // 不随更高版本升级 compile SDK 语义。

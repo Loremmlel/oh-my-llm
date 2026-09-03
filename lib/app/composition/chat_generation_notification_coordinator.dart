@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:oh_my_llm/app/navigation/app_destination.dart';
+import 'package:oh_my_llm/app/platform/chat_generation_terminal_notification.dart';
 import 'package:oh_my_llm/app/router/app_router.dart';
 import 'package:oh_my_llm/features/chat/application/generation/chat_generation_lifecycle.dart';
 import 'package:oh_my_llm/features/chat/application/generation/chat_generation_notification.dart';
@@ -43,6 +44,7 @@ Timer _defaultTimer(Duration duration, void Function() callback) =>
 final class ChatGenerationNotificationCoordinator {
   ChatGenerationNotificationCoordinator({
     required this._port,
+    required this._sendTerminalNotification,
     required this._stopGeneration,
     required void Function(String conversationId) openConversation,
     this._projector = const ChatGenerationNotificationProjector(),
@@ -56,6 +58,7 @@ final class ChatGenerationNotificationCoordinator {
   // ── 注入依赖 ──────────────────────────────────────────────
 
   final ChatGenerationForegroundServicePort _port;
+  final ChatGenerationTerminalNotificationSender _sendTerminalNotification;
   final Future<void> Function() _stopGeneration;
   final void Function(String conversationId) _openConversationCallback;
   final ChatGenerationNotificationProjector _projector;
@@ -152,7 +155,7 @@ final class ChatGenerationNotificationCoordinator {
 
     if (projection.terminalBehavior !=
         ChatGenerationNotificationTerminalBehavior.ongoing) {
-      _deliverTerminal(token, projection);
+      _deliverTerminal(token, snapshot.phase, projection);
       return;
     }
 
@@ -237,30 +240,47 @@ final class ChatGenerationNotificationCoordinator {
     _logCommandFailure(result.failureCode);
   }
 
-  /// 终态立即投递：remove/fail 清理带固定次数有界重试。
+  /// 终态立即投递：清理 ongoing 通知，并按结果决定是否展示系统通知。
   void _deliverTerminal(
     int token,
+    ChatGenerationPhase phase,
     ChatGenerationNotificationProjection projection,
   ) {
     if (_terminalDelivered) return; // 重复 terminal：幂等 no-op。
     _terminalDelivered = true;
     _cancelPendingTimer();
     _pendingProjection = null;
-    final behavior = projection.terminalBehavior;
-    if (behavior == ChatGenerationNotificationTerminalBehavior.remove) {
-      _enqueue(
-        () => _terminalCleanupOp(
-          token,
-          () => _port.remove(
-            token: projection.payload.token,
-            conversationId: projection.payload.conversationId,
-          ),
+    _enqueue(() => _terminalOp(token, phase, projection.payload));
+  }
+
+  /// 清理 Android ongoing 通知，并独立尝试一次终态系统通知。
+  Future<void> _terminalOp(
+    int token,
+    ChatGenerationPhase phase,
+    ChatGenerationForegroundPayload payload,
+  ) async {
+    if (_disposed || token != _currentToken) return;
+    await Future.wait([
+      _terminalCleanupOp(
+        token,
+        () => _port.remove(
+          token: payload.token,
+          conversationId: payload.conversationId,
         ),
-      );
-    } else {
-      _enqueue(
-        () => _terminalCleanupOp(token, () => _port.fail(projection.payload)),
-      );
+      ),
+      if (phase != ChatGenerationPhase.cancelled)
+        _showTerminalNotificationSafely(payload),
+    ]);
+  }
+
+  /// 系统通知失败只记固定诊断，不改变生成结果，也不重试。
+  Future<void> _showTerminalNotificationSafely(
+    ChatGenerationForegroundPayload payload,
+  ) async {
+    try {
+      await _sendTerminalNotification(payload);
+    } catch (_) {
+      if (!_disposed) _logDiagnostic?.call('terminal_notification_failed');
     }
   }
 
@@ -430,6 +450,9 @@ final chatGenerationNotificationCoordinatorProvider =
     Provider<ChatGenerationNotificationCoordinator>((ref) {
       final coordinator = ChatGenerationNotificationCoordinator(
         port: ref.watch(chatGenerationForegroundServiceProvider),
+        sendTerminalNotification: ref.watch(
+          chatGenerationTerminalNotificationSenderProvider,
+        ),
         // 复用既有 durable stop：phase 停止性由 ChatSessionsController.stopStreaming
         // 强制，coordinator 与绑定均不重复检查阶段。
         stopGeneration: () async {
