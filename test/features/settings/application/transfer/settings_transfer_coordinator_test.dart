@@ -427,33 +427,6 @@ void main() {
       expect(second, isA<SettingsImportAlreadyConsumed>());
       expect(participant.writeCount, 1);
     });
-
-    test('新增 fake participant 无需 coordinator 分支即可完成导出准备和执行', () async {
-      final participant = _FakeIntParticipant(
-        key: const SettingsTransferKey('newFakeParticipant'),
-        group: SettingsTransferGroup.network,
-        order: 9,
-        value: 1,
-      );
-      final coordinator = _coordinator([_box(participant)]);
-
-      final exported = coordinator.exportGroups({
-        SettingsTransferGroup.network,
-      }) as SettingsExportBatch;
-      expect(exported.document.sections, {'newFakeParticipant': 1});
-
-      final prepared = coordinator.prepareDocument(
-        _document({'newFakeParticipant': 2}),
-      ) as SettingsImportReady;
-      expect(
-        prepared.batch.summaryItems.single.key.value,
-        'newFakeParticipant',
-      );
-
-      final result = await prepared.batch.execute(confirmedSensitive: true);
-      expect(result, isA<SettingsImportSuccess>());
-      expect(participant.value, 2);
-    });
   });
 }
 

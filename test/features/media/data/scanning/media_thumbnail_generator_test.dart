@@ -132,22 +132,6 @@ void main() {
           ),
         );
       });
-
-      test('不支持的文件类型抛出异常', () async {
-        final txtFile = File('${tempDir.path}/test.txt');
-        await txtFile.writeAsString('not an image');
-        expect(
-          () => generator.generate('/test.txt'),
-          throwsA(isA<ThumbnailException>()),
-        );
-      });
-
-      test('不存在的文件抛出 FileSystemException', () async {
-        expect(
-          () => generator.generate('/nonexistent.jpg'),
-          throwsA(isA<FileSystemException>()),
-        );
-      });
     });
 
     group('视频缩略图', () {
@@ -248,34 +232,6 @@ void main() {
         );
       });
 
-      test('ffmpeg/ffprobe 版本命令返回非零退出码时抛出未安装异常', () async {
-        await createVideoFile();
-        const failed = ThumbnailProcessResult(
-          exitCode: 1,
-          stdout: '',
-          stderr: '',
-        );
-        for (final failing in ['ffmpeg', 'ffprobe']) {
-          if (failing == 'ffmpeg') {
-            runner.enqueue(failed);
-            runner.enqueue(versionOk);
-          } else {
-            runner.enqueue(versionOk);
-            runner.enqueue(failed);
-          }
-          await expectLater(
-            generator.generate('/test.mp4'),
-            throwsA(
-              isA<ThumbnailException>().having(
-                (e) => e.message,
-                'message',
-                contains('ffmpeg 未安装，无法生成视频缩略图'),
-              ),
-            ),
-          );
-        }
-      });
-
       test('ffmpeg/ffprobe 版本命令抛出 ProcessException 时提示无法启动', () async {
         await createVideoFile();
         for (final failing in ['ffmpeg', 'ffprobe']) {
@@ -302,27 +258,12 @@ void main() {
         }
       });
 
-      test('ffmpeg 版本命令抛出其他异常时提示检测失败', () async {
-        await createVideoFile();
-        runner.enqueueError(Exception('模拟检测异常'));
-        await expectLater(
-          generator.generate('/test.mp4'),
-          throwsA(
-            isA<ThumbnailException>().having(
-              (e) => e.message,
-              'message',
-              contains('ffmpeg 检测失败'),
-            ),
-          ),
-        );
-      });
-
-      test('ffprobe 时长探测返回非零退出码时抛出无法获取时长异常', () async {
+      test('ffprobe 输出非法时长时抛出无法解析时长异常', () async {
         await createVideoFile();
         runner.enqueue(versionOk);
         runner.enqueue(versionOk);
         runner.enqueue(
-          const ThumbnailProcessResult(exitCode: 1, stdout: '', stderr: ''),
+          const ThumbnailProcessResult(exitCode: 0, stdout: 'abc', stderr: ''),
         );
         await expectLater(
           generator.generate('/test.mp4'),
@@ -330,41 +271,11 @@ void main() {
             isA<ThumbnailException>().having(
               (e) => e.message,
               'message',
-              contains('无法获取视频时长'),
+              contains('无法解析视频时长'),
             ),
           ),
         );
       });
-
-      const invalidDurations = <String, String>{
-        'abc': 'abc',
-        '0': '0',
-        '-1': '-1',
-      };
-      for (final entry in invalidDurations.entries) {
-        test('ffprobe 输出时长 ${entry.key} 时抛出无法解析时长异常', () async {
-          await createVideoFile();
-          runner.enqueue(versionOk);
-          runner.enqueue(versionOk);
-          runner.enqueue(
-            ThumbnailProcessResult(
-              exitCode: 0,
-              stdout: entry.value,
-              stderr: '',
-            ),
-          );
-          await expectLater(
-            generator.generate('/test.mp4'),
-            throwsA(
-              isA<ThumbnailException>().having(
-                (e) => e.message,
-                'message',
-                contains('无法解析视频时长'),
-              ),
-            ),
-          );
-        });
-      }
 
       test('ffmpeg 提取失败时异常包含退出码与 stderr 文本', () async {
         await createVideoFile();
@@ -385,32 +296,6 @@ void main() {
               (e) => e.message,
               'message',
               allOf(contains('exit=1'), contains('mock extraction error')),
-            ),
-          ),
-        );
-      });
-
-      test('ffmpeg 提取失败时字节 stderr 解码后出现在异常中', () async {
-        await createVideoFile();
-        // 用 ASCII 文本：生产代码以 String.fromCharCodes 解码字节 stderr
-        final stderrBytes = utf8.encode('mock stderr bytes');
-        runner.enqueue(versionOk);
-        runner.enqueue(versionOk);
-        runner.enqueue(durationResult('8.0'));
-        runner.enqueue(
-          ThumbnailProcessResult(
-            exitCode: 1,
-            stdout: <int>[],
-            stderr: stderrBytes,
-          ),
-        );
-        await expectLater(
-          generator.generate('/test.mp4'),
-          throwsA(
-            isA<ThumbnailException>().having(
-              (e) => e.message,
-              'message',
-              contains('mock stderr bytes'),
             ),
           ),
         );

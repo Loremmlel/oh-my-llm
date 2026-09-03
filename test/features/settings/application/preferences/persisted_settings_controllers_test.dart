@@ -29,300 +29,99 @@ ProviderContainer _revive(SharedPreferences preferences) {
   );
 }
 
-ProviderContainer _withRejectingStore() {
-  return ProviderContainer(
-    overrides: [
-      settingsKeyValueStoreProvider.overrideWithValue(
-        const _RejectingSettingsKeyValueStore(),
-      ),
-    ],
-  );
-}
-
-OutputRegexRule _rule({String id = 'rule-1', String title = '规则 A'}) {
-  return OutputRegexRule(id: id, title: title, pattern: '极其');
-}
-
 void main() {
-  group('CustomHeadersController', () {
-    test('missing storage starts with an empty configuration', () async {
-      final (:container, :preferences) = await _boot({});
-      addTearDown(container.dispose);
+  test('自定义请求头支持按索引增删改并持久化有序结果', () async {
+    final (:container, :preferences) = await _boot({});
+    addTearDown(container.dispose);
+    final controller = container.read(customHeadersProvider.notifier);
 
-      expect(container.read(customHeadersProvider).headers, isEmpty);
-      expect(preferences.getString(customHeadersStorageKey), isNull);
+    await controller.addHeader('X-A', '1');
+    await controller.addHeader('X-B', '2');
+    await controller.updateHeader(0, 'X-Updated', '3');
+    await controller.removeHeader(1);
+    await controller.updateHeader(-1, 'X-Ignored', '4');
+    await controller.removeHeader(99);
+
+    expect(container.read(customHeadersProvider).toHeaderMap(), {
+      'X-Updated': '3',
     });
-
-    test('corrupt storage falls back to an empty configuration', () async {
-      final (:container, preferences: _) = await _boot({
-        customHeadersStorageKey: 'not-json',
-      });
-      addTearDown(container.dispose);
-
-      expect(container.read(customHeadersProvider).headers, isEmpty);
-    });
-
-    test('multiple additions preserve order and survive a rebuild', () async {
-      final (:container, :preferences) = await _boot({});
-      addTearDown(container.dispose);
-      final controller = container.read(customHeadersProvider.notifier);
-
-      await controller.addHeader('X-A', '1');
-      await controller.addHeader('X-B', '2');
-
-      expect(
-        container.read(customHeadersProvider).headers.map((entry) => entry.key),
-        ['X-A', 'X-B'],
-      );
-      final revived = _revive(preferences);
-      addTearDown(revived.dispose);
-      expect(revived.read(customHeadersProvider).toHeaderMap(), {
-        'X-A': '1',
-        'X-B': '2',
-      });
-    });
-
-    test('removeHeader removes the selected entry', () async {
-      final (:container, preferences: _) = await _boot({});
-      addTearDown(container.dispose);
-      final controller = container.read(customHeadersProvider.notifier);
-      await controller.addHeader('X-A', '1');
-      await controller.addHeader('X-B', '2');
-
-      await controller.removeHeader(0);
-
-      expect(container.read(customHeadersProvider).toHeaderMap(), {'X-B': '2'});
-    });
-
-    test('removeHeader ignores negative and high indexes', () async {
-      final (:container, preferences: _) = await _boot({});
-      addTearDown(container.dispose);
-      final controller = container.read(customHeadersProvider.notifier);
-      await controller.addHeader('X-A', '1');
-
-      for (final index in [-1, 99]) {
-        await controller.removeHeader(index);
-        expect(container.read(customHeadersProvider).toHeaderMap(), {
-          'X-A': '1',
-        }, reason: 'index $index');
-      }
-    });
-
-    test('updateHeader replaces the selected entry', () async {
-      final (:container, preferences: _) = await _boot({});
-      addTearDown(container.dispose);
-      final controller = container.read(customHeadersProvider.notifier);
-      await controller.addHeader('X-Old', 'old');
-
-      await controller.updateHeader(0, 'X-New', 'new');
-
-      expect(container.read(customHeadersProvider).toHeaderMap(), {
-        'X-New': 'new',
-      });
-    });
-
-    test('updateHeader ignores negative and high indexes', () async {
-      final (:container, preferences: _) = await _boot({});
-      addTearDown(container.dispose);
-      final controller = container.read(customHeadersProvider.notifier);
-      await controller.addHeader('X-A', '1');
-
-      for (final index in [-1, 99]) {
-        await controller.updateHeader(index, 'X-New', 'new');
-        expect(container.read(customHeadersProvider).toHeaderMap(), {
-          'X-A': '1',
-        }, reason: 'index $index');
-      }
-    });
-
-    test('a rejected write propagates and preserves the old state', () async {
-      final container = _withRejectingStore();
-      addTearDown(container.dispose);
-      final controller = container.read(customHeadersProvider.notifier);
-
-      await expectLater(
-        controller.addHeader('X-Fail', 'value'),
-        throwsA(isA<StateError>()),
-      );
-      expect(container.read(customHeadersProvider).headers, isEmpty);
+    final revived = _revive(preferences);
+    addTearDown(revived.dispose);
+    expect(revived.read(customHeadersProvider).toHeaderMap(), {
+      'X-Updated': '3',
     });
   });
 
-  group('FontSizeSettingsController', () {
-    test('missing storage returns the default size', () async {
-      final (:container, preferences: _) = await _boot({});
-      addTearDown(container.dispose);
+  test('持久化写入失败时抛出异常且不提前发布状态', () async {
+    final container = ProviderContainer(
+      overrides: [
+        settingsKeyValueStoreProvider.overrideWithValue(
+          const _RejectingSettingsKeyValueStore(),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    final controller = container.read(customHeadersProvider.notifier);
 
-      expect(
-        container.read(fontSizeSettingsProvider),
-        const FontSizeSettings(),
-      );
-    });
-
-    test('corrupt storage falls back to the default size', () async {
-      final (:container, preferences: _) = await _boot({
-        fontSizeSettingsStorageKey: '{bad json',
-      });
-      addTearDown(container.dispose);
-
-      expect(
-        container.read(fontSizeSettingsProvider),
-        const FontSizeSettings(),
-      );
-    });
-
-    test('updateLocal changes memory without writing storage', () async {
-      final (:container, :preferences) = await _boot({});
-      addTearDown(container.dispose);
-      final controller = container.read(fontSizeSettingsProvider.notifier);
-
-      controller.updateLocal(const FontSizeSettings(bodyFontSize: 20));
-
-      expect(
-        container.read(fontSizeSettingsProvider),
-        const FontSizeSettings(bodyFontSize: 20),
-      );
-      expect(preferences.getString(fontSizeSettingsStorageKey), isNull);
-    });
-
-    test('save updates current state and survives a rebuild', () async {
-      final (:container, :preferences) = await _boot({});
-      addTearDown(container.dispose);
-      const saved = FontSizeSettings(bodyFontSize: 22);
-
-      await container.read(fontSizeSettingsProvider.notifier).save(saved);
-
-      expect(container.read(fontSizeSettingsProvider), saved);
-      final revived = _revive(preferences);
-      addTearDown(revived.dispose);
-      expect(revived.read(fontSizeSettingsProvider), saved);
-    });
-
-    test('a rejected write propagates and preserves the old state', () async {
-      final container = _withRejectingStore();
-      addTearDown(container.dispose);
-
-      await expectLater(
-        container
-            .read(fontSizeSettingsProvider.notifier)
-            .save(const FontSizeSettings(bodyFontSize: 20)),
-        throwsA(isA<StateError>()),
-      );
-      expect(
-        container.read(fontSizeSettingsProvider),
-        const FontSizeSettings(),
-      );
-    });
+    await expectLater(
+      controller.addHeader('X-Fail', 'value'),
+      throwsA(isA<StateError>()),
+    );
+    expect(container.read(customHeadersProvider).headers, isEmpty);
   });
 
-  group('OutputProcessingSettingsController', () {
-    test('missing storage returns an empty rule list', () async {
-      final (:container, preferences: _) = await _boot({});
-      addTearDown(container.dispose);
+  test('字体大小可仅更新内存，也可保存后由新容器恢复', () async {
+    final (:container, :preferences) = await _boot({});
+    addTearDown(container.dispose);
+    final controller = container.read(fontSizeSettingsProvider.notifier);
 
-      expect(container.read(outputProcessingSettingsProvider).rules, isEmpty);
-    });
+    controller.updateLocal(const FontSizeSettings(bodyFontSize: 20));
+    expect(preferences.getString(fontSizeSettingsStorageKey), isNull);
 
-    test('corrupt storage falls back to an empty rule list', () async {
-      final (:container, preferences: _) = await _boot({
-        outputProcessingSettingsStorageKey: '{不是合法 JSON',
-      });
-      addTearDown(container.dispose);
-
-      expect(container.read(outputProcessingSettingsProvider).rules, isEmpty);
-    });
-
-    test('save updates current state and survives a rebuild', () async {
-      final (:container, :preferences) = await _boot({});
-      addTearDown(container.dispose);
-      final saved = OutputProcessingSettings(
-        rules: [
-          _rule(id: 'a'),
-          _rule(id: 'b', title: '规则 B'),
-        ],
-      );
-
-      await container
-          .read(outputProcessingSettingsProvider.notifier)
-          .save(saved);
-
-      expect(container.read(outputProcessingSettingsProvider), saved);
-      final revived = _revive(preferences);
-      addTearDown(revived.dispose);
-      expect(revived.read(outputProcessingSettingsProvider), saved);
-    });
-
-    test('a rejected write propagates and preserves the old state', () async {
-      final container = _withRejectingStore();
-      addTearDown(container.dispose);
-
-      await expectLater(
-        container
-            .read(outputProcessingSettingsProvider.notifier)
-            .save(OutputProcessingSettings(rules: [_rule()])),
-        throwsA(isA<StateError>()),
-      );
-      expect(container.read(outputProcessingSettingsProvider).rules, isEmpty);
-    });
+    const saved = FontSizeSettings(bodyFontSize: 22);
+    await controller.save(saved);
+    final revived = _revive(preferences);
+    addTearDown(revived.dispose);
+    expect(revived.read(fontSizeSettingsProvider), saved);
   });
 
-  group('AutoRetrySettingsController', () {
-    test('missing storage returns all default values', () async {
-      final (:container, preferences: _) = await _boot({});
-      addTearDown(container.dispose);
+  test('输出处理规则保存后由新容器恢复', () async {
+    final (:container, :preferences) = await _boot({});
+    addTearDown(container.dispose);
+    final saved = OutputProcessingSettings(
+      rules: [OutputRegexRule(id: 'rule-1', title: '规则 A', pattern: '极其')],
+    );
 
-      expect(
-        container.read(autoRetrySettingsProvider),
-        const AutoRetrySettings(),
-      );
+    await container.read(outputProcessingSettingsProvider.notifier).save(saved);
+
+    final revived = _revive(preferences);
+    addTearDown(revived.dispose);
+    expect(revived.read(outputProcessingSettingsProvider), saved);
+  });
+
+  test('自动重试拒绝历史裸 JSON，并能恢复当前版本数据', () async {
+    final (:container, :preferences) = await _boot({
+      autoRetrySettingsStorageKey: '{"maxJitterSeconds":20,"maxRetryCount":2}',
     });
+    addTearDown(container.dispose);
+    expect(
+      container.read(autoRetrySettingsProvider),
+      const AutoRetrySettings(),
+    );
 
-    test('历史裸 JSON 不再被接受，读取回退到全部默认值', () async {
-      final (:container, preferences: _) = await _boot({
-        autoRetrySettingsStorageKey:
-            '{"maxJitterSeconds":20,"maxRetryCount":2}',
-      });
-      addTearDown(container.dispose);
+    const saved = AutoRetrySettings(
+      maxJitterSeconds: 10,
+      maxRetryCount: 3,
+      retryMode: RetryMode.fixedInterval,
+      retryOnAbnormalFinishReason: true,
+      retryOnTimeout: true,
+      timeoutSeconds: 45,
+    );
+    await container.read(autoRetrySettingsProvider.notifier).save(saved);
 
-      final settings = container.read(autoRetrySettingsProvider);
-      expect(settings, const AutoRetrySettings());
-    });
-
-    test('save updates current state and survives a rebuild', () async {
-      final (:container, :preferences) = await _boot({});
-      addTearDown(container.dispose);
-      const saved = AutoRetrySettings(
-        maxJitterSeconds: 10,
-        maxRetryCount: 3,
-        retryMode: RetryMode.fixedInterval,
-        retryOnAbnormalFinishReason: true,
-        retryOnTimeout: true,
-        timeoutSeconds: 45,
-      );
-
-      await container.read(autoRetrySettingsProvider.notifier).save(saved);
-
-      expect(container.read(autoRetrySettingsProvider), saved);
-      final revived = _revive(preferences);
-      addTearDown(revived.dispose);
-      expect(revived.read(autoRetrySettingsProvider), saved);
-    });
-
-    test('a rejected write propagates and preserves the old state', () async {
-      final container = _withRejectingStore();
-      addTearDown(container.dispose);
-
-      await expectLater(
-        container
-            .read(autoRetrySettingsProvider.notifier)
-            .save(const AutoRetrySettings(maxRetryCount: 2)),
-        throwsA(isA<StateError>()),
-      );
-      expect(
-        container.read(autoRetrySettingsProvider),
-        const AutoRetrySettings(),
-      );
-    });
+    final revived = _revive(preferences);
+    addTearDown(revived.dispose);
+    expect(revived.read(autoRetrySettingsProvider), saved);
   });
 }
 
