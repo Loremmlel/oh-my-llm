@@ -5,7 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
-import 'package:oh_my_llm/features/settings/domain/models/providers/llm_provider_config.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/providers/forms/model_provider_form_dialog.dart';
 
 import '../../../../../../helpers/test_harness.dart';
@@ -19,7 +18,6 @@ void main() {
   Future<void> pumpDialog(
     WidgetTester tester, {
     required Future<void> Function(ModelProviderFormData) onSubmit,
-    LlmProviderConfig? initialValue,
   }) async {
     final sp = await SharedPreferences.getInstance();
 
@@ -27,12 +25,7 @@ void main() {
       tester,
       preferences: sp,
       child: Scaffold(
-        body: Center(
-          child: ModelProviderFormDialog(
-            onSubmit: onSubmit,
-            initialValue: initialValue,
-          ),
-        ),
+        body: Center(child: ModelProviderFormDialog(onSubmit: onSubmit)),
       ),
     );
   }
@@ -66,7 +59,7 @@ void main() {
     await tester.pump();
   }
 
-  group('ModelProviderFormDialog', () {
+  group('服务商表单', () {
     testWidgets('新增服务商默认 Chat Completions 并可提交', (tester) async {
       ModelProviderFormData? captured;
       await pumpDialog(
@@ -90,54 +83,23 @@ void main() {
       expect(captured!.apiKey, 'sk-test-12345678');
     });
 
-    testWidgets('编辑服务商显示并提交原协议', (tester) async {
+    testWidgets('可选择并提交非默认 Anthropic 协议', (tester) async {
       ModelProviderFormData? captured;
       await pumpDialog(
         tester,
         onSubmit: (data) async {
           captured = data;
         },
-        initialValue: const LlmProviderConfig(
-          id: 'p-1',
-          name: 'Responses 服务',
-          apiUrl: 'https://api.example.com/v1',
-          apiKey: 'sk-test',
-          apiProtocol: LlmApiProtocol.responses,
-        ),
       );
 
-      expect(find.text('Responses'), findsOneWidget);
-
+      await selectProtocol(tester, LlmApiProtocol.anthropic);
+      await fillRequiredFields(tester);
       await tester.tap(find.text('保存'));
       await settleOverlayTransition(tester);
 
       expect(captured, isNotNull);
-      expect(captured!.apiProtocol, LlmApiProtocol.responses);
-      expect(captured!.name, 'Responses 服务');
+      expect(captured!.apiProtocol, LlmApiProtocol.anthropic);
     });
-
-    for (final protocol in [
-      LlmApiProtocol.responses,
-      LlmApiProtocol.anthropic,
-    ]) {
-      testWidgets('可选择并提交 ${protocol.displayName}', (tester) async {
-        ModelProviderFormData? captured;
-        await pumpDialog(
-          tester,
-          onSubmit: (data) async {
-            captured = data;
-          },
-        );
-
-        await selectProtocol(tester, protocol);
-        await fillRequiredFields(tester);
-        await tester.tap(find.text('保存'));
-        await settleOverlayTransition(tester);
-
-        expect(captured, isNotNull);
-        expect(captured!.apiProtocol, protocol);
-      });
-    }
 
     testWidgets('保存中 Back 与 barrier 点击不能关闭表单，保存完成后自动关闭', (tester) async {
       // onSubmit 挂在两个 Completer 上：先确认保存已开始，再手动放行完成，

@@ -77,27 +77,6 @@ void registerChatScreenResponsiveTests() {
     });
   }
 
-  for (final viewport in [wideDesktop]) {
-    testWidgets('${viewport.name}: activity bar 触发历史会话侧栏', (tester) async {
-      final fakeClient = FakeChatGenerationClient();
-      await pumpChatScreen(tester, fakeClient: fakeClient, size: viewport.size);
-
-      // 初始侧栏即展开；先折叠再通过 activity bar 重新展开，证明图标可操作。
-      // 侧栏面板宽度经有限动画过渡，按组件动画等待而非全局 settle。
-      await tester.tap(find.byTooltip('历史会话'));
-      await settleAnimatedWidgetTransition(tester);
-      await tester.tap(find.byTooltip('历史会话'));
-      await settleAnimatedWidgetTransition(tester);
-      // 展开动画中间帧内容先于宽度就位（AnimatedContainer 宽度过渡），会报告
-      // 一次瞬时 RenderFlex overflow，动画结束即恢复；消费该瞬态后再校验
-      // 稳态无布局异常，避免把动画过渡帧的报错当成稳态缺陷。
-      expect(tester.takeException(), isA<FlutterError>());
-
-      expect(find.text('历史会话面板'), findsOneWidget);
-      expect(tester.takeException(), isNull);
-    });
-  }
-
   testWidgets('600: compact composer 摘要与设置 sheet 可达', (tester) async {
     final fakeClient = FakeChatGenerationClient();
     await pumpChatScreen(

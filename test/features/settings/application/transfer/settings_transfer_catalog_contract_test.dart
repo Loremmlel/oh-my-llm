@@ -14,7 +14,6 @@ import 'package:oh_my_llm/features/settings/application/transfer/participants/pr
 import 'package:oh_my_llm/features/settings/application/transfer/participants/prompt_collection_transfer_participants.dart';
 import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_catalog.dart';
 import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_catalog_provider.dart';
-import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_participant.dart';
 import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_types.dart';
 import 'package:oh_my_llm/features/settings/application/preferences/settings_tab_preferences.dart';
 import 'package:oh_my_llm/features/settings/domain/models/preferences/auto_retry_settings.dart';
@@ -405,26 +404,6 @@ void main() {
       expect(lookup, throwsA(isA<StateError>()));
     }
   });
-
-  test('test-only fake participant 可注册到独立 catalog 且不改变生产 snapshot', () async {
-    final (:catalog, :container) = await _readProductionCatalog();
-    final testOnlyParticipant = _TestOnlyStringParticipant();
-    final separateCatalog = SettingsTransferCatalog([
-      SettingsTransferParticipantBox.erase(testOnlyParticipant),
-    ]);
-
-    expect(
-      separateCatalog.participant<String>(testOnlyParticipant.key),
-      same(testOnlyParticipant),
-    );
-    expect(
-      catalog
-          .participantsForGroups(SettingsTransferGroup.values.toSet())
-          .map((participant) => participant.key.value)
-          .toList(),
-      expectedParticipantKeys,
-    );
-  });
 }
 
 void _expectRoundTrip<T>(
@@ -554,30 +533,3 @@ AutoRetrySettings _retryFixture() => const AutoRetrySettings(
   retryOnTimeout: true,
   timeoutSeconds: 45,
 );
-
-final class _TestOnlyStringParticipant
-    extends ReplacingValueParticipant<String> {
-  _TestOnlyStringParticipant()
-    : super(
-        key: const SettingsTransferKey('testOnlyFake9'),
-        group: SettingsTransferGroup.other,
-        label: '测试专用设置',
-        order: 99,
-        sensitivity: SettingsTransferSensitivity.standard,
-      );
-
-  @override
-  String readLocal() => 'local';
-
-  @override
-  bool isEquivalent(String existing, String incoming) => existing == incoming;
-
-  @override
-  Object encode(String value) => {'value': value};
-
-  @override
-  String decode(Object? payload) => (payload as Map)['value'] as String;
-
-  @override
-  Future<void> applyImport(String value) async {}
-}

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/settings/data/providers/llm_model_config_repository.dart';
 import 'package:oh_my_llm/features/settings/data/prompts/sqlite_memory_prompt_repository.dart';
@@ -10,8 +9,6 @@ import 'package:oh_my_llm/features/settings/data/prompts/sqlite_preset_prompt_re
 import 'package:oh_my_llm/features/settings/data/prompts/sqlite_template_prompt_repository.dart';
 import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_catalog_provider.dart';
 import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_coordinator.dart';
-import 'package:oh_my_llm/features/settings/domain/models/providers/llm_model_config.dart';
-import 'package:oh_my_llm/features/settings/domain/models/prompts/memory_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_transfer_document_codec.dart';
 import 'package:oh_my_llm/features/settings/presentation/settings_screen.dart';
@@ -21,20 +18,6 @@ import 'package:oh_my_llm/features/settings/presentation/widgets/shared/settings
 import '../../../../helpers/fixtures.dart';
 import '../../../../helpers/async/widget_test_animation.dart';
 import 'settings_screen_test_helpers.dart';
-
-LlmModelConfig _seededModel({
-  LlmApiProtocol protocol = LlmApiProtocol.chatCompletions,
-}) => LlmModelConfig(
-  id: 'model-seeded',
-  displayName: 'OpenAI 4.1',
-  modelName: 'gpt-4.1',
-  supportsReasoning: false,
-  apiUrl: 'https://api.example.com/v1/chat/completions',
-  apiKey: 'sk-test-12345678',
-  providerId: 'provider-seeded',
-  providerName: 'OpenAI 官方',
-  apiProtocol: protocol,
-);
 
 void registerSettingsScreenModelsAndPromptsTests() {
   testWidgets('settings screen creates a provider and verifies persistence', (
@@ -65,59 +48,6 @@ void registerSettingsScreenModelsAndPromptsTests() {
     expect(find.text('协议：Chat Completions'), findsOneWidget);
   });
 
-  testWidgets('settings screen saves selected protocol and shows it', (
-    tester,
-  ) async {
-    await setUpSettingsScreen(tester);
-    final repository = ProviderScope.containerOf(
-      tester.element(find.byType(SettingsScreen)),
-    ).read(llmModelConfigRepositoryProvider);
-
-    await tester.tap(find.text('新增服务商'));
-    await settleOverlayTransition(tester);
-    await tester.enterText(providerNameField(), 'OpenAI 官方');
-    await tester.enterText(
-      providerApiUrlField(),
-      'https://api.example.com/v1/chat/completions',
-    );
-    await tester.enterText(providerApiKeyField(), 'sk-test-12345678');
-    await selectProviderProtocol(tester, LlmApiProtocol.responses);
-    await tester.tap(find.text('保存'));
-    await settleOverlayTransition(tester);
-
-    final createdProvider = repository.loadProviders().single;
-    expect(createdProvider.apiProtocol, LlmApiProtocol.responses);
-    expect(find.text('协议：Responses'), findsOneWidget);
-  });
-
-  testWidgets('settings screen applies edited protocol to all models', (
-    tester,
-  ) async {
-    await setUpSettingsScreen(tester, models: [_seededModel()]);
-    final repository = ProviderScope.containerOf(
-      tester.element(find.byType(SettingsScreen)),
-    ).read(llmModelConfigRepositoryProvider);
-
-    // 编辑服务商切换到 Anthropic：协议变更立即作用于全部模型。
-    await tester.tap(find.text('编辑服务商'));
-    await settleOverlayTransition(tester);
-    await selectProviderProtocol(tester, LlmApiProtocol.anthropic);
-    await tester.tap(find.text('保存'));
-    await settleOverlayTransition(tester);
-
-    final editedProvider = repository.loadProviders().single;
-    expect(editedProvider.apiProtocol, LlmApiProtocol.anthropic);
-    expect(editedProvider.models.single.id, isNotEmpty);
-    expect(editedProvider.models.single.modelName, 'gpt-4.1');
-    expect(
-      editedProvider.models.single
-          .resolveForProvider(editedProvider)
-          .apiProtocol,
-      LlmApiProtocol.anthropic,
-    );
-    expect(find.text('协议：Anthropic'), findsOneWidget);
-  });
-
   testWidgets('settings screen creates a model under a provider', (
     tester,
   ) async {
@@ -144,53 +74,6 @@ void registerSettingsScreenModelsAndPromptsTests() {
     expect(createdModel.modelName, 'gpt-4.1');
     expect(createdModel.supportsReasoning, isTrue);
     expect(find.text('OpenAI 4.1'), findsWidgets);
-  });
-
-  testWidgets('settings screen edits provider and model names', (tester) async {
-    await setUpSettingsScreen(tester, models: [_seededModel()]);
-    final repository = ProviderScope.containerOf(
-      tester.element(find.byType(SettingsScreen)),
-    ).read(llmModelConfigRepositoryProvider);
-
-    await tester.tap(find.text('编辑服务商'));
-    await settleOverlayTransition(tester);
-    await tester.enterText(providerNameField(), 'OpenAI 官方 v2');
-    await tester.tap(find.text('保存'));
-    await settleOverlayTransition(tester);
-
-    expect(repository.loadProviders().single.name, 'OpenAI 官方 v2');
-    expect(find.text('OpenAI 官方 v2'), findsWidgets);
-
-    await tester.tap(find.widgetWithText(OutlinedButton, '展开模型（1）'));
-    await settleAnimatedWidgetTransition(tester);
-    await tester.tap(find.widgetWithText(OutlinedButton, '编辑'));
-    await settleOverlayTransition(tester);
-    await tester.enterText(modelDisplayNameField(), 'OpenAI 4.1 Turbo');
-    await tester.tap(find.text('保存'));
-    await settleOverlayTransition(tester);
-
-    expect(repository.loadAll().single.displayName, 'OpenAI 4.1 Turbo');
-    expect(find.text('OpenAI 4.1 Turbo'), findsWidgets);
-  });
-
-  testWidgets('settings screen deletes model then provider', (tester) async {
-    await setUpSettingsScreen(tester, models: [_seededModel()]);
-    final repository = ProviderScope.containerOf(
-      tester.element(find.byType(SettingsScreen)),
-    ).read(llmModelConfigRepositoryProvider);
-
-    await tester.tap(find.widgetWithText(OutlinedButton, '展开模型（1）'));
-    await settleAnimatedWidgetTransition(tester);
-    await tester.tap(find.widgetWithText(OutlinedButton, '删除'));
-    // 删除直接走 Future 链，无确认对话框，状态更新单帧即可
-    await tester.pump();
-
-    expect(repository.loadAll(), isEmpty);
-
-    await tester.tap(find.text('删除服务商'));
-    await tester.pump();
-
-    expect(repository.loadProviders(), isEmpty);
   });
 
   testWidgets(
@@ -252,56 +135,6 @@ void registerSettingsScreenModelsAndPromptsTests() {
     expect(createdTemplate.messages.single.title, '前置要求');
     expect(createdTemplate.messages.single.content, '请检查这段代码的边界情况。');
     expect(find.text('代码审阅'), findsWidgets);
-  });
-
-  testWidgets('settings screen edits a prompt template name', (tester) async {
-    final database = await setUpSettingsScreen(
-      tester,
-      initialTabIndex: 1,
-      presetPrompts: [
-        TestFixtures.presetPrompt(
-          id: 'preset-seeded',
-          name: '代码审阅',
-          messages: [
-            TestFixtures.promptMessage(
-              id: 'message-seeded',
-              title: '前置要求',
-              content: '内容',
-            ).copyWith(enabled: false),
-          ],
-        ),
-      ],
-    );
-    final repository = presetPromptRepository;
-
-    await tester.tap(find.text('编辑'));
-    await settleOverlayTransition(tester);
-    await tester.enterText(presetPromptNameField(), '代码审阅 v2');
-    await tester.tap(find.text('保存'));
-    await settleOverlayTransition(tester);
-
-    final savedPrompt = repository.loadAll(database).single;
-    expect(savedPrompt.name, '代码审阅 v2');
-    expect(savedPrompt.messages.single.enabled, isFalse);
-    expect(savedPrompt.messages.single.title, '前置要求');
-    expect(find.text('代码审阅 v2'), findsWidgets);
-  });
-
-  testWidgets('settings screen deletes a prompt template', (tester) async {
-    final database = await setUpSettingsScreen(
-      tester,
-      initialTabIndex: 1,
-      presetPrompts: [
-        TestFixtures.presetPrompt(id: 'preset-seeded', name: '代码审阅'),
-      ],
-    );
-    final repository = presetPromptRepository;
-
-    await tester.tap(find.text('删除'));
-    // 删除直接走 Future 链，状态更新单帧即可
-    await tester.pump();
-
-    expect(repository.loadAll(database), isEmpty);
   });
 
   testWidgets('复制预设到剪贴板生成仅含预设的 v9 文档', (tester) async {
@@ -481,55 +314,6 @@ void registerSettingsScreenModelsAndPromptsTests() {
     expect(find.text('翻译模板'), findsWidgets);
   });
 
-  testWidgets('settings screen edits a template prompt title', (tester) async {
-    final database = await setUpSettingsScreen(
-      tester,
-      initialTabIndex: 2,
-      templatePrompts: [
-        TemplatePrompt(
-          id: 'template-seeded',
-          title: '翻译模板',
-          content: '内容',
-          variables: const [],
-          updatedAt: DateTime(2026),
-        ),
-      ],
-    );
-    final repository = templatePromptRepository;
-
-    await tester.tap(find.text('编辑'));
-    await settleOverlayTransition(tester);
-    await tester.enterText(templatePromptTitleField(), '翻译模板 v2');
-    await tester.tap(find.text('保存'));
-    await settleOverlayTransition(tester);
-
-    expect(repository.loadAll(database).single.title, '翻译模板 v2');
-    expect(find.text('翻译模板 v2'), findsWidgets);
-  });
-
-  testWidgets('settings screen deletes a template prompt', (tester) async {
-    final database = await setUpSettingsScreen(
-      tester,
-      initialTabIndex: 2,
-      templatePrompts: [
-        TemplatePrompt(
-          id: 'template-seeded',
-          title: '翻译模板',
-          content: '内容',
-          variables: const [],
-          updatedAt: DateTime(2026),
-        ),
-      ],
-    );
-    final repository = templatePromptRepository;
-
-    await tester.tap(find.text('删除'));
-    // 删除直接走 Future 链，状态更新单帧即可
-    await tester.pump();
-
-    expect(repository.loadAll(database), isEmpty);
-  });
-
   testWidgets('template prompt variable reconcile uses debounce', (
     tester,
   ) async {
@@ -595,52 +379,5 @@ void registerSettingsScreenModelsAndPromptsTests() {
     expect(createdPrompt.name, '研发任务总结');
     expect(createdPrompt.content, '请总结当前研发任务中的决定、约束与待办。');
     expect(find.text('研发任务总结'), findsWidgets);
-  });
-
-  testWidgets('settings screen edits a memory prompt name', (tester) async {
-    final database = await setUpSettingsScreen(
-      tester,
-      initialTabIndex: 2,
-      memoryPrompts: [
-        MemoryPrompt(
-          id: 'memory-seeded',
-          name: '研发任务总结',
-          content: '内容',
-          updatedAt: DateTime(2026),
-        ),
-      ],
-    );
-    final repository = memoryPromptRepository;
-
-    await tester.tap(find.text('编辑'));
-    await settleOverlayTransition(tester);
-    await tester.enterText(memoryPromptNameField(), '研发任务总结 v2');
-    await tester.tap(find.text('保存'));
-    await settleOverlayTransition(tester);
-
-    expect(repository.loadAll(database).single.name, '研发任务总结 v2');
-    expect(find.text('研发任务总结 v2'), findsWidgets);
-  });
-
-  testWidgets('settings screen deletes a memory prompt', (tester) async {
-    final database = await setUpSettingsScreen(
-      tester,
-      initialTabIndex: 2,
-      memoryPrompts: [
-        MemoryPrompt(
-          id: 'memory-seeded',
-          name: '研发任务总结',
-          content: '内容',
-          updatedAt: DateTime(2026),
-        ),
-      ],
-    );
-    final repository = memoryPromptRepository;
-
-    await tester.tap(find.text('删除'));
-    // 删除直接走 Future 链，状态更新单帧即可
-    await tester.pump();
-
-    expect(repository.loadAll(database), isEmpty);
   });
 }

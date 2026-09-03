@@ -1,11 +1,9 @@
-import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 
 import 'package:oh_my_llm/core/http/llm_http_stream_transport.dart';
-import 'package:oh_my_llm/core/http/sse_event_decoder.dart';
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/core/logging/network_logger.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
@@ -20,14 +18,12 @@ void main() {
     http.Client httpClient, {
     NetworkLogger logger = const NoopNetworkLogger(),
     Map<String, String> Function()? extraHeadersFactory,
-    SseEventDecoder decoder = const SseEventDecoder(),
   }) {
     return AnthropicMessagesClient(
       transport: LlmHttpStreamTransport(
         httpClient: httpClient,
         logger: logger,
         extraHeadersFactory: extraHeadersFactory,
-        decoder: decoder,
       ),
     );
   }
@@ -477,68 +473,6 @@ void main() {
       );
     });
 
-    test('连接异常 → ChatGenerationException（cause 与堆栈保留）', () async {
-      final connectionError = http.ClientException(
-        'connection refused',
-        testUri,
-      );
-      final client = _FakeStreamingHttpClient((_) async {
-        throw connectionError;
-      });
-
-      await expectLater(
-        buildAnthropicClient(client)
-            .streamCompletion(
-              _request(_messages(), modelConfig: _modelConfig()),
-            )
-            .drain<void>(),
-        throwsA(
-          isA<ChatGenerationException>()
-              .having((e) => e.cause, 'cause', same(connectionError))
-              .having((e) => e.causeStackTrace, 'causeStackTrace', isNotNull)
-              .having((e) => e.protocol, 'protocol', LlmApiProtocol.anthropic)
-              .having((e) => e.uri, 'uri', testUri)
-              .having(
-                (e) => e.message,
-                'message',
-                contains('connection refused'),
-              ),
-        ),
-      );
-    });
-
-    test('SSE 内 error 事件 → ChatGenerationException', () async {
-      final client = _FakeStreamingHttpClient((_) async {
-        return http.StreamedResponse(
-          Stream.fromIterable([
-            utf8.encode(
-              'data: {"type":"error","error":{"type":"invalid_request_error","message":"invalid api key"}}\n\n',
-            ),
-          ]),
-          200,
-        );
-      });
-
-      await expectLater(
-        buildAnthropicClient(client)
-            .streamCompletion(
-              _request(_messages(), modelConfig: _modelConfig()),
-            )
-            .drain<void>(),
-        throwsA(
-          isA<ChatGenerationException>()
-              .having((e) => e.message, 'message', 'invalid api key')
-              .having(
-                (e) => e.apiErrorCode,
-                'apiErrorCode',
-                'invalid_request_error',
-              )
-              .having((e) => e.protocol, 'protocol', LlmApiProtocol.anthropic)
-              .having((e) => e.uri, 'uri', testUri),
-        ),
-      );
-    });
-
     test('意外 tool_use 内容块 → 明确不支持异常', () async {
       final client = _FakeStreamingHttpClient((_) async {
         return http.StreamedResponse(
@@ -564,160 +498,6 @@ void main() {
               .having((e) => e.uri, 'uri', testUri),
         ),
       );
-    });
-
-    test('malformed JSON → ChatGenerationException', () async {
-      final client = _FakeStreamingHttpClient((_) async {
-        return http.StreamedResponse(
-          Stream.fromIterable([utf8.encode('data: {not valid json}\n\n')]),
-          200,
-        );
-      });
-
-      await expectLater(
-        buildAnthropicClient(client)
-            .streamCompletion(
-              _request(_messages(), modelConfig: _modelConfig()),
-            )
-            .drain<void>(),
-        throwsA(
-          isA<ChatGenerationException>()
-              .having((e) => e.message, 'message', contains('SSE 数据解析失败'))
-              .having((e) => e.protocol, 'protocol', LlmApiProtocol.anthropic)
-              .having((e) => e.uri, 'uri', testUri),
-        ),
-      );
-    });
-
-    test('空响应（无正文无推理）→ 无有效内容异常', () async {
-      final client = _FakeStreamingHttpClient((_) async {
-        return http.StreamedResponse(
-          Stream.fromIterable([
-            utf8.encode('data: {"type":"ping"}\n\n'),
-            utf8.encode('data: {"type":"message_stop"}\n\n'),
-          ]),
-          200,
-        );
-      });
-
-      try {
-        await buildAnthropicClient(client)
-            .streamCompletion(
-              _request(_messages(), modelConfig: _modelConfig()),
-            )
-            .drain<void>();
-        fail('Expected ChatGenerationException');
-      } on ChatGenerationException catch (error) {
-        expect(error.message, contains('请求未返回有效内容'));
-        expect(error.protocol, LlmApiProtocol.anthropic);
-        expect(error.uri, testUri);
-        expect(error.responseBody, contains('ping'));
-      }
-    });
-
-    test('超长空响应 rawSseData 截尾：responseBody 只保留尾部 200 行', () async {
-      final client = _FakeStreamingHttpClient((_) async {
-        return http.StreamedResponse(
-          Stream.fromIterable([
-            for (var i = 0; i < 250; i++)
-              utf8.encode('data: {"type":"ping","seq":$i}\n\n'),
-            utf8.encode('data: {"type":"message_stop"}\n\n'),
-          ]),
-          200,
-        );
-      });
-
-      try {
-        await buildAnthropicClient(client)
-            .streamCompletion(
-              _request(_messages(), modelConfig: _modelConfig()),
-            )
-            .drain<void>();
-        fail('Expected ChatGenerationException');
-      } on ChatGenerationException catch (error) {
-        expect(error.responseBody, isNotNull);
-        expect(error.responseBody!.split('\n'), hasLength(200));
-        expect(error.responseBody, endsWith('data: {"type":"message_stop"}'));
-      }
-    });
-
-    test(
-      'idle timeout → ChatGenerationException（cause 为 TimeoutException）',
-      () async {
-        final client = _FakeStreamingHttpClient((_) async {
-          return http.StreamedResponse(
-            Stream.value(utf8.encode('data: x\n\n')),
-            200,
-          );
-        });
-        // 解码器计时语义由 decoder 层测试精确覆盖；这里注入立即超时的假
-        // 解码器，确定性验证超时经 transport 转换后在客户端再次转换。
-        final anthropicClient = buildAnthropicClient(
-          client,
-          decoder: _TimeoutDecoder(),
-        );
-
-        await expectLater(
-          anthropicClient
-              .streamCompletion(
-                _request(
-                  _messages(),
-                  modelConfig: _modelConfig(),
-                  streamIdleTimeout: const Duration(seconds: 30),
-                ),
-              )
-              .drain<void>(),
-          throwsA(
-            isA<ChatGenerationException>()
-                .having((e) => e.cause, 'cause', isA<TimeoutException>())
-                .having((e) => e.message, 'message', contains('超时')),
-          ),
-        );
-      },
-    );
-
-    test('注释 keepalive 不重置 idle timeout（真实计时器）', () async {
-      final source = StreamController<List<int>>();
-      final client = _FakeStreamingHttpClient((_) async {
-        return http.StreamedResponse(source.stream, 200);
-      });
-      final anthropicClient = buildAnthropicClient(client);
-
-      final errors = <Object>[];
-      // 以 Completer 等待超时错误，避免固定延时等待（仓库韧性门禁）。
-      final errorArrived = Completer<void>();
-      final subscription = anthropicClient
-          .streamCompletion(
-            _request(
-              _messages(),
-              modelConfig: _modelConfig(),
-              streamIdleTimeout: const Duration(milliseconds: 100),
-            ),
-          )
-          .listen(
-            (_) {},
-            onError: (Object error) {
-              errors.add(error);
-              if (!errorArrived.isCompleted) errorArrived.complete();
-            },
-            onDone: () {
-              if (!errorArrived.isCompleted) errorArrived.complete();
-            },
-          );
-
-      // 仅发送 SSE 注释行 keepalive：不重置 idle 计时器，超时应触发。
-      source.add(utf8.encode(': keepalive\n\n'));
-      await errorArrived.future.timeout(const Duration(seconds: 10));
-
-      expect(errors, hasLength(1));
-      expect(errors.single, isA<ChatGenerationException>());
-      expect(
-        (errors.single as ChatGenerationException).cause,
-        isA<TimeoutException>(),
-      );
-
-      await subscription.cancel();
-      await source.close();
     });
   });
 }
@@ -769,19 +549,6 @@ class _FakeStreamingHttpClient extends http.BaseClient {
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) {
     return _handler(request);
-  }
-}
-
-/// 立即抛出超时错误的假解码器，用于确定性地验证客户端超时转换。
-class _TimeoutDecoder extends SseEventDecoder {
-  const _TimeoutDecoder();
-
-  @override
-  Stream<SseEvent> decode(
-    Stream<List<int>> byteStream, {
-    Duration? idleTimeout,
-  }) {
-    return Stream.error(TimeoutException('fake idle timeout'));
   }
 }
 

@@ -19,7 +19,7 @@ void main() {
     logFile = File('${directory.path}${Platform.pathSeparator}network.log');
   });
 
-  test('AppLogStore rotates file when size exceeds max bytes', () async {
+  test('日志文件超过容量时轮转', () async {
     final store = await AppLogStore.open(
       directoryPath: directory.path,
       fileName: 'network.log',
@@ -34,84 +34,56 @@ void main() {
     expect(content, contains('[log-rotated]'));
   });
 
-  test(
-    'AppNetworkLogger keeps request logs across relaunches and detach',
-    () async {
-      final logger = AppNetworkLogger(
-        store: await AppLogStore.open(directoryPath: directory.path),
-      );
+  test('请求日志跨应用重启保留且不会被 detach 清空', () async {
+    final logger = AppNetworkLogger(
+      store: await AppLogStore.open(directoryPath: directory.path),
+    );
 
-      await logger.onAppLaunch();
-      await logger.logRequest(
-        uri: Uri.parse('https://api.example.com/v1/chat/completions'),
-        method: 'POST',
-        headers: const {
-          'Authorization': 'Bearer sk-test-12345678',
-          'Content-Type': 'application/json',
-        },
-        payload: const {
-          'model': 'demo-model',
-          'messages': [
-            {'role': 'user', 'content': 'hello'},
-          ],
-        },
-        logBody: true,
-      );
-      await logger.onAppDetached();
+    await logger.onAppLaunch();
+    await logger.logRequest(
+      uri: Uri.parse('https://api.example.com/v1/chat/completions'),
+      method: 'POST',
+      headers: const {
+        'Authorization': 'Bearer sk-test-12345678',
+        'Content-Type': 'application/json',
+      },
+      payload: const {
+        'model': 'demo-model',
+        'messages': [
+          {'role': 'user', 'content': 'hello'},
+        ],
+      },
+      logBody: true,
+    );
+    await logger.onAppDetached();
 
-      final relaunchedLogger = AppNetworkLogger(
-        store: await AppLogStore.open(directoryPath: directory.path),
-      );
-      await relaunchedLogger.onAppLaunch();
+    final relaunchedLogger = AppNetworkLogger(
+      store: await AppLogStore.open(directoryPath: directory.path),
+    );
+    await relaunchedLogger.onAppLaunch();
 
-      final content = await logFile.readAsString();
-      expect(
-        content,
-        contains('[request] POST https://api.example.com/v1/chat/completions'),
-      );
-      expect(content, contains('"messages"'));
-      expect(content, isNot(contains('[log-cleared]')));
-    },
-  );
+    final content = await logFile.readAsString();
+    expect(
+      content,
+      contains('[request] POST https://api.example.com/v1/chat/completions'),
+    );
+    expect(content, contains('"messages"'));
+    expect(content, isNot(contains('[log-cleared]')));
+  });
 
-  test(
-    'AppNetworkLogger writes non-stream response bodies when logBody=true',
-    () async {
-      final logger = AppNetworkLogger(
-        store: await AppLogStore.open(directoryPath: directory.path),
-      );
-
-      await logger.logResponseBody(
-        uri: Uri.parse('https://api.example.com/v1/chat/completions'),
-        body: const {
-          'choices': [
-            {
-              'message': {'content': '完整回复', 'reasoning_content': '完整思考'},
-            },
-          ],
-        },
-        logBody: true,
-      );
-
-      final content = await logFile.readAsString();
-      expect(content, contains('[response-body]'));
-      expect(content, contains('完整回复'));
-      expect(content, contains('完整思考'));
-    },
-  );
-
-  test('AppLogStore.clear writes log-cleared marker with reason', () async {
+  test('批量写入后清空文件并记录原因', () async {
     final store = await AppLogStore.open(directoryPath: directory.path);
 
-    await store.appendLine('first line');
+    await store.appendLines(['line-A', 'line-B']);
+    expect(await logFile.readAsString(), contains('line-B'));
     await store.clear(reason: 'test rotation');
 
     final content = await logFile.readAsString();
     expect(content, contains('[log-cleared] test rotation'));
-    expect(content, isNot(contains('first line')));
+    expect(content, isNot(contains('line-A')));
   });
 
-  test('AppNetworkLogger.logResponse writes status and elapsed', () async {
+  test('响应日志写入状态、耗时和启用的正文', () async {
     final logger = AppNetworkLogger(
       store: await AppLogStore.open(directoryPath: directory.path),
     );
@@ -122,14 +94,22 @@ void main() {
       headers: const {'Content-Type': 'application/json'},
       elapsed: const Duration(milliseconds: 42),
     );
+    await logger.logResponseBody(
+      uri: Uri.parse('https://api.example.com/v1/chat/completions'),
+      body: const {'content': '完整回复', 'reasoning_content': '完整思考'},
+      logBody: true,
+    );
 
     final content = await logFile.readAsString();
     expect(content, contains('[response]'));
     expect(content, contains('status=200'));
     expect(content, contains('elapsedMs=42'));
+    expect(content, contains('[response-body]'));
+    expect(content, contains('完整回复'));
+    expect(content, contains('完整思考'));
   });
 
-  test('AppNetworkLogger.logSseLine parses JSON line', () async {
+  test('SSE 日志同时接受 JSON 和普通文本', () async {
     final logger = AppNetworkLogger(
       store: await AppLogStore.open(directoryPath: directory.path),
     );
@@ -138,33 +118,19 @@ void main() {
       uri: Uri.parse('https://api.example.com/v1/chat/completions'),
       line: '{"content":"hello"}',
     );
+    await logger.logSseLine(
+      uri: Uri.parse('https://api.example.com/v1/chat/completions'),
+      line: 'not-json-at-all',
+    );
     await logger.drain();
 
     final content = await logFile.readAsString();
     expect(content, contains('[sse]'));
     expect(content, contains('hello'));
+    expect(content, contains('not-json-at-all'));
   });
 
-  test(
-    'AppNetworkLogger.logSseLine falls back to text for invalid JSON',
-    () async {
-      final logger = AppNetworkLogger(
-        store: await AppLogStore.open(directoryPath: directory.path),
-      );
-
-      await logger.logSseLine(
-        uri: Uri.parse('https://api.example.com/v1/chat/completions'),
-        line: 'not-json-at-all',
-      );
-      await logger.drain();
-
-      final content = await logFile.readAsString();
-      expect(content, contains('[sse]'));
-      expect(content, contains('not-json-at-all'));
-    },
-  );
-
-  test('AppNetworkLogger.logError truncates stack trace to 12 lines', () async {
+  test('错误日志把堆栈截断为十二行', () async {
     final logger = AppNetworkLogger(
       store: await AppLogStore.open(directoryPath: directory.path),
     );
@@ -187,18 +153,7 @@ void main() {
     expect(content, isNot(contains('#12 some-frame')));
   });
 
-  test('AppLogStore.appendLines writes multiple lines in one flush', () async {
-    final store = await AppLogStore.open(directoryPath: directory.path);
-
-    await store.appendLines(['line-A', 'line-B', 'line-C']);
-
-    final content = await logFile.readAsString();
-    expect(content, contains('line-A'));
-    expect(content, contains('line-B'));
-    expect(content, contains('line-C'));
-  });
-
-  test('AppNetworkLogger.logResponseBody skips when logBody=false', () async {
+  test('正文日志关闭时请求与响应都不写入正文', () async {
     final logger = AppNetworkLogger(
       store: await AppLogStore.open(directoryPath: directory.path),
     );
@@ -208,30 +163,18 @@ void main() {
       body: const {'secret': 'should-not-appear'},
       logBody: false,
     );
+    await logger.logRequest(
+      uri: Uri.parse('https://api.example.com/v1/chat/completions'),
+      method: 'POST',
+      headers: const {'Content-Type': 'application/json'},
+      payload: const {'model': 'gpt-4'},
+      logBody: false,
+    );
 
     final content = await logFile.readAsString();
+    expect(content, contains('[request]'));
     expect(content, isNot(contains('[response-body]')));
     expect(content, isNot(contains('should-not-appear')));
+    expect(content, isNot(contains('payload=')));
   });
-
-  test(
-    'AppNetworkLogger.logRequest omits payload when logBody=false',
-    () async {
-      final logger = AppNetworkLogger(
-        store: await AppLogStore.open(directoryPath: directory.path),
-      );
-
-      await logger.logRequest(
-        uri: Uri.parse('https://api.example.com/v1/chat/completions'),
-        method: 'POST',
-        headers: const {'Content-Type': 'application/json'},
-        payload: const {'model': 'gpt-4'},
-        logBody: false,
-      );
-
-      final content = await logFile.readAsString();
-      expect(content, contains('[request]'));
-      expect(content, isNot(contains('payload=')));
-    },
-  );
 }

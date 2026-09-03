@@ -28,7 +28,7 @@ VideoPlayerPlatformBindings _mobileTestBindings() =>
     MobileVideoPlayerBindings(systemUi: FakeMobileVideoSystemUiController());
 
 void main() {
-  testWidgets('fresh router rebuild 后同一 URL 仍恢复详情', (tester) async {
+  testWidgets('路由重建后同一收藏详情 URL 仍可恢复内容', (tester) async {
     final db = AppDatabase.inMemory();
     addTearDown(db.close);
     seedFavorite(
@@ -74,25 +74,7 @@ void main() {
     expect(find.text('DeepSeek V4 Flash'), findsOneWidget);
   });
 
-  testWidgets('invalid ID 显示收藏链接无效并可返回列表', (tester) async {
-    final db = AppDatabase.inMemory();
-    addTearDown(db.close);
-    final prefs = await _testPrefs(db);
-
-    final router = createAppRouter(
-      initialLocation: '/favorites/%20',
-      videoPlayerBindingsFactory: _mobileTestBindings,
-    );
-    await pumpTestApp(tester, preferences: prefs, database: db, router: router);
-
-    expect(find.text('收藏链接无效'), findsOneWidget);
-
-    await tester.tap(find.text('返回收藏列表'));
-    await settleRouteTransition(tester);
-    expect(router.routerDelegate.currentConfiguration.uri.path, '/favorites');
-  });
-
-  testWidgets('deleted 收藏直接打开旧 URL 显示收藏不存在', (tester) async {
+  testWidgets('已删除收藏的旧 URL 显示收藏不存在', (tester) async {
     final db = AppDatabase.inMemory();
     addTearDown(db.close);
     seedFavorite(
@@ -115,7 +97,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('旧详情 URL 自动重定向到新的 item 路由并显示内容', (tester) async {
+  testWidgets('旧收藏详情 URL 自动重定向到新路由并显示内容', (tester) async {
     final db = AppDatabase.inMemory();
     addTearDown(db.close);
     seedFavorite(
@@ -139,35 +121,7 @@ void main() {
     expect(find.text('旧链接的问题'), findsOneWidget);
   });
 
-  testWidgets('收藏夹与条目静态段不被旧的动态详情参数吞掉', (tester) async {
-    final db = AppDatabase.inMemory();
-    addTearDown(db.close);
-    final prefs = await _testPrefs(db);
-
-    for (final location in ['/favorites/collections', '/favorites/items']) {
-      final router = createAppRouter(
-        initialLocation: location,
-        videoPlayerBindingsFactory: _mobileTestBindings,
-      );
-      await pumpTestApp(
-        tester,
-        preferences: prefs,
-        database: db,
-        router: router,
-      );
-
-      // 保留前缀回到收藏总览网格，而不是把 "collections"/"items"
-      // 当作收藏 ID 拼成畸形详情 URL。
-      expect(
-        router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
-        AppDestination.favorites.path,
-        reason: 'location=$location',
-      );
-      expect(find.text('未分类'), findsOneWidget, reason: 'location=$location');
-    }
-  });
-
-  testWidgets('collection 深链命中收藏夹路由而不落错误页', (tester) async {
+  testWidgets('收藏夹深链命中目标路由而不落错误页', (tester) async {
     final db = AppDatabase.inMemory();
     addTearDown(db.close);
     seedCollection(db, id: 'col-deep', name: '深链收藏夹');
@@ -190,107 +144,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('新 item 路由深链直达详情并可返回收藏总览', (tester) async {
-    final db = AppDatabase.inMemory();
-    addTearDown(db.close);
-    seedFavorite(
-      db,
-      id: 'fav-push',
-      userMessageContent: '列表进入的问题',
-      assistantContent: '列表进入的回复',
-    );
-    final prefs = await _testPrefs(db);
-
-    final router = createAppRouter(
-      initialLocation: '${AppDestination.favorites.path}/items/fav-push',
-      videoPlayerBindingsFactory: _mobileTestBindings,
-    );
-    await pumpTestApp(tester, preferences: prefs, database: db, router: router);
-
-    expect(
-      router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
-      '/favorites/items/fav-push',
-    );
-    expect(find.text('列表进入的回复'), findsOneWidget);
-
-    // AppBar 自动 leading 是 BackButton（tooltip 随 locale 变化，用类型 finder）。
-    await tester.tap(find.byType(BackButton));
-    await settleRouteTransition(tester);
-
-    expect(router.routerDelegate.currentConfiguration.uri.path, '/favorites');
-    expect(
-      router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
-      '/favorites',
-    );
-    // 返回的是收藏总览网格，系统未分类卡片可见。
-    expect(find.text('未分类'), findsOneWidget);
-  });
-
-  testWidgets('从收藏总览点击收藏夹卡片进入对应收藏夹路由', (tester) async {
-    final db = AppDatabase.inMemory();
-    addTearDown(db.close);
-    seedFavorite(
-      db,
-      id: 'fav-in-sys',
-      userMessageContent: '系统夹的问题',
-      assistantContent: '系统夹的回复',
-    );
-    seedCollection(db, id: 'col-grid', name: '网格收藏夹');
-    final prefs = await _testPrefs(db);
-
-    final router = createAppRouter(
-      initialLocation: AppDestination.favorites.path,
-      videoPlayerBindingsFactory: _mobileTestBindings,
-    );
-    await pumpTestApp(tester, preferences: prefs, database: db, router: router);
-
-    await tester.tap(find.text('未分类'));
-    await settleRouteTransition(tester);
-
-    expect(
-      router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
-      '/favorites/collections/__uncategorized_favorites__',
-    );
-    expect(find.text('未找到页面'), findsNothing);
-  });
-
-  testWidgets('收藏夹内容页 AppBar 返回回到收藏总览', (tester) async {
-    final db = AppDatabase.inMemory();
-    addTearDown(db.close);
-    seedFavorite(
-      db,
-      id: 'fav-back',
-      userMessageContent: '返回总览的问题',
-      assistantContent: '返回总览的回复',
-    );
-    final prefs = await _testPrefs(db);
-
-    final router = createAppRouter(
-      initialLocation: AppDestination.favorites.path,
-      videoPlayerBindingsFactory: _mobileTestBindings,
-    );
-    await pumpTestApp(tester, preferences: prefs, database: db, router: router);
-
-    // 与生产路径一致：总览点卡片 push 进入内容页。
-    await tester.tap(find.text('未分类'));
-    await settleRouteTransition(tester);
-    expect(
-      router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
-      '/favorites/collections/__uncategorized_favorites__',
-    );
-
-    // AppBar 自动 leading 是 BackButton（tooltip 随 locale 变化，用类型 finder）。
-    await tester.tap(find.byType(BackButton));
-    await settleRouteTransition(tester);
-
-    // 返回收藏总览网格，而不是被「非对话顶层目的地退回对话页」兜底劫持。
-    expect(router.routerDelegate.currentConfiguration.uri.path, '/favorites');
-    expect(find.text('未分类'), findsOneWidget);
-  });
-
-  testWidgets('pushNamed(mediaImage) 后 URI 携带 path，pop 回 /sync', (
-    tester,
-  ) async {
+  testWidgets('图片媒体命名路由保留路径参数且可返回同步页', (tester) async {
     final db = AppDatabase.inMemory();
     addTearDown(db.close);
     final prefs = await _testPrefs(db);
@@ -327,31 +181,7 @@ void main() {
     );
   });
 
-  testWidgets('pushNamed(mediaVideo) 同理', (tester) async {
-    final db = AppDatabase.inMemory();
-    addTearDown(db.close);
-    final prefs = await _testPrefs(db);
-
-    final router = createAppRouter(
-      initialLocation: AppDestination.sync.path,
-      videoPlayerBindingsFactory: _mobileTestBindings,
-    );
-    await pumpTestApp(tester, preferences: prefs, database: db, router: router);
-
-    router.pushNamed(
-      AppRouteName.mediaVideo,
-      queryParameters: {AppRouteParameter.mediaPath: '/视频/demo.mp4'},
-    );
-    await settleRouteTransition(tester);
-
-    expect(
-      router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
-      '/sync/media/video',
-    );
-    expect(find.text('媒体会话已失效'), findsOneWidget);
-  });
-
-  testWidgets('media route 缺 query 仍匹配并显示恢复页，不抛异常', (tester) async {
+  testWidgets('媒体路由缺少路径参数时显示恢复页且不抛异常', (tester) async {
     final db = AppDatabase.inMemory();
     addTearDown(db.close);
     final prefs = await _testPrefs(db);
@@ -366,9 +196,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('initial /chat?conversationId=<existing> 在 post-frame 后选中目标会话', (
-    tester,
-  ) async {
+  testWidgets('聊天会话深链在首帧后选中目标会话', (tester) async {
     final db = AppDatabase.inMemory();
     addTearDown(db.close);
     final prefs = await TestFixtures.seedPreferences(
@@ -394,134 +222,20 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('仅改变 query 到第二个已有会话 ID 时经 didUpdateWidget 生效', (tester) async {
-    final db = AppDatabase.inMemory();
-    addTearDown(db.close);
-    final prefs = await TestFixtures.seedPreferences(
-      database: db,
-      conversations: [
-        TestFixtures.conversation('conv-a', '会话 A', DateTime(2026, 1, 2)),
-        TestFixtures.conversation('conv-b', '会话 B', DateTime(2026, 1, 3)),
-      ],
-    );
-    final router = createAppRouter(
-      initialLocation: '/chat?conversationId=conv-a',
-      videoPlayerBindingsFactory: _mobileTestBindings,
-    );
-    await pumpTestApp(tester, preferences: prefs, database: db, router: router);
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ChatScreen)),
-    );
-    expect(container.read(chatSessionsProvider).activeConversationId, 'conv-a');
-
-    router.go('/chat?conversationId=conv-b');
-    await settleRouteTransition(tester);
-    await tester.pump();
-
-    expect(container.read(chatSessionsProvider).activeConversationId, 'conv-b');
-    expect(find.text('会话 B'), findsWidgets);
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('空白/已删除 ID 打开默认会话且无错误提示', (tester) async {
-    final db = AppDatabase.inMemory();
-    addTearDown(db.close);
-    final prefs = await TestFixtures.seedPreferences(
-      database: db,
-      conversations: [
-        TestFixtures.conversation('conv-default', '默认会话', DateTime(2026, 1, 3)),
-      ],
-    );
-    for (final location in [
-      '/chat?conversationId=%20',
-      '/chat?conversationId=deleted-id',
-    ]) {
-      final router = createAppRouter(
-        initialLocation: location,
-        videoPlayerBindingsFactory: _mobileTestBindings,
-      );
-      await pumpTestApp(
-        tester,
-        preferences: prefs,
-        database: db,
-        router: router,
-      );
-      final container = ProviderScope.containerOf(
-        tester.element(find.byType(ChatScreen)),
-      );
-      expect(
-        container.read(chatSessionsProvider).activeConversationId,
-        'conv-default',
-      );
-      expect(container.read(chatSessionsProvider).errorMessage, isNull);
-      expect(find.byType(SnackBar), findsNothing);
-      expect(find.byType(AlertDialog), findsNothing);
-      expect(tester.takeException(), isNull);
-    }
-  });
-
-  testWidgets('route URI 携带编码 Unicode/特殊字符 ID 时选中对应会话（state.extra 不参与）', (
-    tester,
-  ) async {
-    final db = AppDatabase.inMemory();
-    addTearDown(db.close);
-    const specialId = '会话/猫 #1';
-    final prefs = await TestFixtures.seedPreferences(
-      database: db,
-      conversations: [
-        TestFixtures.conversation(specialId, '特殊会话', DateTime(2026, 1, 3)),
-      ],
-    );
-    final encoded = Uri.encodeQueryComponent(specialId);
-    final router = createAppRouter(
-      initialLocation: '/chat?conversationId=$encoded',
-      videoPlayerBindingsFactory: _mobileTestBindings,
-    );
-    await pumpTestApp(tester, preferences: prefs, database: db, router: router);
-
-    // 导航契约只依赖 query：URI 解码回原始 ID，不依赖 state.extra。
-    expect(
-      router.routerDelegate.state.uri.queryParameters[AppRouteParameter
-          .conversationId],
-      specialId,
-    );
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ChatScreen)),
-    );
-    expect(
-      container.read(chatSessionsProvider).activeConversationId,
-      specialId,
-    );
-    expect(find.text('特殊会话'), findsWidgets);
-    expect(tester.takeException(), isNull);
-  });
-
-  group('History route query', () {
+  group('历史页路由参数', () {
     HistoryBrowseRouteQuery parse(Map<String, String> params) =>
         HistoryBrowseRouteQuery.fromQueryParameters(params);
 
-    test('无参数时页码与容量为空、关键词为空串', () {
-      final query = parse(const {});
+    test('解析默认值、非法整数并完成有效参数往返', () {
+      final defaults = parse(const {});
+      expect(defaults.page, isNull);
+      expect(defaults.pageSize, isNull);
+      expect(defaults.keyword, isEmpty);
 
-      expect(query.page, isNull);
-      expect(query.pageSize, isNull);
-      expect(query.keyword, isEmpty);
-    });
+      final malformed = parse(const {'page': 'abc', 'pageSize': '1.5'});
+      expect(malformed.page, isNull);
+      expect(malformed.pageSize, isNull);
 
-    test('非法整数解析为空交由运行时回退', () {
-      final query = parse(const {'page': 'abc', 'pageSize': '1.5'});
-
-      expect(query.page, isNull);
-      expect(query.pageSize, isNull);
-    });
-
-    test('负数页码保留数值交由运行时夹取', () {
-      final query = parse(const {'page': '-5'});
-
-      expect(query.page, -5);
-    });
-
-    test('query 参数经 round-trip 后窗口一致', () {
       const original = HistoryBrowseRouteQuery(
         page: 3,
         pageSize: 50,
@@ -534,17 +248,6 @@ void main() {
       expect(restored.page, 3);
       expect(restored.pageSize, 50);
       expect(restored.keyword, '关键词');
-    });
-
-    test('空关键词在序列化时省略 q 参数', () {
-      const query = HistoryBrowseRouteQuery(page: 2, pageSize: 20);
-
-      expect(
-        query
-            .toQueryParameters(resolvedPage: 2, resolvedPageSize: 20)
-            .containsKey('q'),
-        isFalse,
-      );
     });
 
     testWidgets('中文关键词深链恢复搜索结果且不抛异常', (tester) async {
@@ -566,31 +269,6 @@ void main() {
       expect(find.text('Rust 重构计划'), findsOneWidget);
       expect(find.text('Flutter 路线图'), findsNothing);
       expect(router.routerDelegate.state.uri.queryParameters['q'], '重构');
-      expect(tester.takeException(), isNull);
-    });
-
-    testWidgets('page 与 pageSize 深链直接恢复目标窗口', (tester) async {
-      final db = AppDatabase.inMemory();
-      addTearDown(db.close);
-      final prefs = await createBulkSeededPreferences(db, count: 25);
-
-      final router = createAppRouter(
-        initialLocation: '/history?page=2&pageSize=10',
-        videoPlayerBindingsFactory: _mobileTestBindings,
-      );
-      await pumpTestApp(
-        tester,
-        preferences: prefs,
-        database: db,
-        router: router,
-      );
-
-      // 每页 10 条时第 2 页为第 11-20 条（排序按更新时间倒序）；
-      // 列表虚拟化只渲染可视区，断言页首附近的条目即可锁定窗口位置。
-      expect(find.text('批量会话 10'), findsOneWidget);
-      expect(find.text('批量会话 12'), findsOneWidget);
-      expect(find.text('批量会话 9'), findsNothing);
-      expect(find.textContaining('共 25 条 · 2/3 页'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });

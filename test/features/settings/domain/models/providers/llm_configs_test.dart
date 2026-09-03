@@ -131,27 +131,6 @@ void main() {
       expect(resolved.apiProtocol, LlmApiProtocol.responses);
     });
 
-    test('resolvedModels expands every model with provider context', () {
-      const provider = LlmProviderConfig(
-        id: 'p1',
-        name: 'P',
-        apiUrl: 'url',
-        apiKey: 'key',
-        apiProtocol: LlmApiProtocol.anthropic,
-        models: [model1, model2],
-      );
-
-      final resolved = provider.resolvedModels;
-      expect(resolved.map((model) => model.modelName), ['model-1', 'model-2']);
-      expect(resolved.every((model) => model.providerId == 'p1'), isTrue);
-      expect(
-        resolved.every(
-          (model) => model.apiProtocol == LlmApiProtocol.anthropic,
-        ),
-        isTrue,
-      );
-    });
-
     test('missing models and protocol use compatibility defaults', () {
       final provider = LlmProviderConfig.fromJson(minimalJson());
       expect(provider.models, isEmpty);

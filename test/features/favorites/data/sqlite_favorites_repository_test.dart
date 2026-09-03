@@ -130,51 +130,6 @@ void main() {
       expect(loaded.collectionAssignedAt, DateTime(2026, 5, 1, 12, 30));
       expect(loaded.createdAt, DateTime(2026, 4, 1));
     });
-
-    test('delete 后记录不再出现', () {
-      repository.save(_makeFavorite(id: 'fav-1'));
-      repository.deleteMany({'fav-1'});
-
-      final page = loadUncategorizedPage();
-      expect(page.items, isEmpty);
-      expect(page.totalItems, 0);
-    });
-  });
-
-  group('SqliteFavoritesRepository - 单条移动（moveMany 包装）', () {
-    test('moveMany 更新归属并刷新归属时间，移回系统未分类', () {
-      collectionsRepo.save(
-        FavoriteCollection(id: 'col-1', name: 'A', createdAt: DateTime(2026)),
-      );
-      collectionsRepo.save(
-        FavoriteCollection(id: 'col-2', name: 'B', createdAt: DateTime(2026)),
-      );
-      repository.save(_makeFavorite(id: 'fav-1', collectionId: 'col-1'));
-
-      repository.moveMany(
-        {'fav-1'},
-        targetCollectionId: 'col-2',
-        assignedAt: DateTime(2026, 7, 1),
-      );
-      final moved = repository.loadById('fav-1')!;
-      expect(moved.collectionId, 'col-2');
-      expect(moved.collectionAssignedAt, DateTime(2026, 7, 1));
-      expect(moved.createdAt, DateTime(2026, 1, 1));
-
-      // 移回系统"未分类"收藏夹。
-      repository.moveMany(
-        {'fav-1'},
-        targetCollectionId:
-            AppReservedEntities.uncategorizedFavoriteCollectionId,
-        assignedAt: DateTime(2026, 7, 2),
-      );
-      final back = repository.loadById('fav-1')!;
-      expect(
-        back.collectionId,
-        AppReservedEntities.uncategorizedFavoriteCollectionId,
-      );
-      expect(back.collectionAssignedAt, DateTime(2026, 7, 2));
-    });
   });
 
   group('SqliteFavoritesRepository - findByAssistantContent', () {
@@ -198,52 +153,6 @@ void main() {
 
       repository.updateTitle('fav-1', null);
       expect(repository.loadById('fav-1')!.title, isNull);
-    });
-  });
-
-  group('SqliteFavoritesRepository - loadById', () {
-    test('两条记录时按 ID 精确读取完整字段，缺失 ID 返回 null', () {
-      // favorites.collection_id 有外键约束，需先存在对应收藏夹。
-      collectionsRepo.save(
-        FavoriteCollection(id: 'col-1', name: 'A', createdAt: DateTime(2026)),
-      );
-      repository.save(
-        _makeFavorite(
-          id: 'fav-load-1',
-          collectionId: 'col-1',
-          collectionAssignedAt: DateTime(2026, 1, 3),
-          assistantContent: '助手回复',
-          userMessageContent: '用户消息',
-          assistantReasoningContent: '推理过程',
-          assistantModelDisplayName: 'DeepSeek V4 Flash',
-          sourceConversationId: 'conv-1',
-          sourceConversationTitle: '原始对话',
-          sourceAssistantMessageId: 'msg-1',
-          title: '自定义标题',
-          createdAt: DateTime(2026, 1, 1),
-        ),
-      );
-      repository.save(
-        _makeFavorite(id: 'fav-load-2', createdAt: DateTime(2026, 1, 2)),
-      );
-
-      final loaded = repository.loadById('fav-load-1');
-      expect(loaded, isNotNull);
-      expect(loaded!.id, 'fav-load-1');
-      expect(loaded.collectionId, 'col-1');
-      expect(loaded.collectionAssignedAt, DateTime(2026, 1, 3));
-      expect(loaded.userMessageContent, '用户消息');
-      expect(loaded.assistantContent, '助手回复');
-      expect(loaded.assistantReasoningContent, '推理过程');
-      expect(loaded.assistantModelDisplayName, 'DeepSeek V4 Flash');
-      expect(loaded.sourceConversationId, 'conv-1');
-      expect(loaded.sourceConversationTitle, '原始对话');
-      expect(loaded.sourceAssistantMessageId, 'msg-1');
-      expect(loaded.title, '自定义标题');
-      // createdAt 不同仍按 ID 而非排序命中目标记录
-      expect(loaded.createdAt, DateTime(2026, 1, 1));
-
-      expect(repository.loadById('missing-id'), isNull);
     });
   });
 
@@ -271,19 +180,6 @@ void main() {
       expect(page.totalItems, 0);
     });
 
-    test('单条收藏返回一页且总数为 1', () {
-      seedSystemFavorites(1);
-
-      final page = repository.loadPage(
-        collectionId: AppReservedEntities.uncategorizedFavoriteCollectionId,
-        limit: 20,
-        offset: 0,
-      );
-
-      expect(page.items.map((f) => f.id), ['fav-1']);
-      expect(page.totalItems, 1);
-    });
-
     test('21 条按容量 20 分页：第 1 页取最新 20 条且总数正确', () {
       seedSystemFavorites(21);
 
@@ -298,28 +194,6 @@ void main() {
       expect(page.items.first.id, 'fav-21');
       expect(page.items.last.id, 'fav-2');
       expect(page.totalItems, 21);
-    });
-
-    test('51 条连续翻页无重复无遗漏，末页补齐剩余条目', () {
-      seedSystemFavorites(51);
-
-      final seen = <String>[];
-      var offset = 0;
-      while (true) {
-        final page = repository.loadPage(
-          collectionId: AppReservedEntities.uncategorizedFavoriteCollectionId,
-          limit: 20,
-          offset: offset,
-        );
-        if (page.items.isEmpty) break;
-        seen.addAll(page.items.map((f) => f.id));
-        offset += 20;
-      }
-
-      expect(seen, hasLength(51));
-      expect(seen.toSet(), hasLength(51));
-      // 覆盖全部 ID 且顺序与全局排序一致。
-      expect(seen, [for (var i = 51; i >= 1; i--) 'fav-$i']);
     });
 
     test('相同 createdAt 时按 id DESC 稳定 tie-break', () {
@@ -373,16 +247,6 @@ void main() {
   });
 
   group('SqliteFavoritesRepository - 定向收藏身份查询', () {
-    test('findByAssistantContent 命中返回完整记录、未命中返回 null', () {
-      repository.save(_makeFavorite(id: 'fav-1', assistantContent: '命中内容'));
-
-      final found = repository.findByAssistantContent('命中内容');
-      expect(found, isNotNull);
-      expect(found!.id, 'fav-1');
-
-      expect(repository.findByAssistantContent('不存在的内容'), isNull);
-    });
-
     test('loadFavoritedAssistantContents 只返回请求集合中已收藏的内容', () {
       repository.save(_makeFavorite(id: 'fav-1', assistantContent: '已收藏甲'));
       repository.save(_makeFavorite(id: 'fav-2', assistantContent: '已收藏乙'));

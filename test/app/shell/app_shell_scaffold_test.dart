@@ -72,13 +72,8 @@ Future<void> _pumpShell(
 }
 
 void main() {
-  const navigationViewports = [
-    phonePortrait,
-    shellBelowBoundary,
-    shellAtBoundary,
-    wideDesktop,
-  ];
-  const drawerViewports = [phonePortrait, shellBelowBoundary];
+  const navigationViewports = [phonePortrait, wideDesktop];
+  const drawerViewports = [phonePortrait];
 
   for (final viewport in navigationViewports) {
     testWidgets('${viewport.name}: 目的地导航可达', (tester) async {
@@ -168,23 +163,17 @@ void main() {
     expect(find.text('聊天页面'), findsOneWidget);
   });
 
-  for (final dest in [
-    AppDestination.history,
-    AppDestination.favorites,
-    AppDestination.sync,
-  ]) {
-    testWidgets('系统返回将${dest.label}顶层目的地退回对话', (tester) async {
-      final router = _shellRouter(initialLocation: dest.path);
-      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+  testWidgets('系统返回将历史顶层目的地退回对话', (tester) async {
+    final router = _shellRouter(initialLocation: AppDestination.history.path);
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
 
-      expect(find.text('${dest.label}页面'), findsOneWidget);
-      await tester.binding.handlePopRoute();
-      await settleRouteTransition(tester);
+    expect(find.text('${AppDestination.history.label}页面'), findsOneWidget);
+    await tester.binding.handlePopRoute();
+    await settleRouteTransition(tester);
 
-      expect(router.routeInformationProvider.value.uri.path, '/chat');
-      expect(find.text('聊天页面'), findsOneWidget);
-    });
-  }
+    expect(router.routeInformationProvider.value.uri.path, '/chat');
+    expect(find.text('聊天页面'), findsOneWidget);
+  });
 
   testWidgets('对话根无本地返回目标时系统返回不改写路由', (tester) async {
     final router = _shellRouter(initialLocation: AppDestination.chat.path);

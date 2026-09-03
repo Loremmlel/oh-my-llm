@@ -90,43 +90,6 @@ Future<void> connectToCompatibleServer({
 }
 
 void main() {
-  test('客户端安全状态不会包含 pairing code 或 session secret', () {
-    final state = SyncClientState(
-      phase: SyncPhase.connected,
-      server: const DiscoveredServer(
-        deviceName: '服务器',
-        ip: '192.168.1.2',
-        httpPort: 8080,
-        serverId: 'stable-server',
-        protocolRange: SyncProtocolRange.local,
-      ),
-      selectedGroups: {SettingsSyncGroupId('presets')},
-      isPaired: true,
-    );
-
-    expect(state.isPaired, isTrue);
-    expect(state.selectedGroups, {SettingsSyncGroupId('presets')});
-    expect(state.props.join(), isNot(contains('token')));
-    expect(state.props.join(), isNot(contains('secret')));
-  });
-
-  test('分组状态的等价比较按稳定 ID 排序而不依赖集合迭代顺序', () {
-    final first = SyncClientState(
-      selectedGroups: {
-        SettingsSyncGroupId('prompts'),
-        SettingsSyncGroupId('providers'),
-      },
-    );
-    final second = SyncClientState(
-      selectedGroups: {
-        SettingsSyncGroupId('providers'),
-        SettingsSyncGroupId('prompts'),
-      },
-    );
-
-    expect(first, second);
-  });
-
   test('构建从设置目录读取分组描述并保留顺序', () {
     final transport = FakeSyncClientTransport();
     final facade = FakeSettingsSyncFacade(

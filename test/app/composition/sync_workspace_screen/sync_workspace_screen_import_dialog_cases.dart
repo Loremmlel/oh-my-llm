@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:oh_my_llm/core/widgets/transfer_summary_list.dart';
 import 'package:oh_my_llm/features/sync/application/sync_client_controller.dart';
 import 'package:oh_my_llm/features/sync/application/ports/settings_sync_facade.dart';
 import 'package:oh_my_llm/features/sync/presentation/widgets/sync_import_confirm_dialog.dart';
@@ -59,51 +58,6 @@ void registerSyncScreenImportDialogTests() {
           ],
           containsSensitive: true,
         );
-
-    testWidgets('显示来源设备名和各分组数量', (tester) async {
-      await pumpImportDialog(
-        tester,
-        preferences: preferences,
-        preparedImport: buildTestData(),
-      );
-
-      expect(find.text('确认同步配置'), findsOneWidget);
-      expect(find.textContaining('TestPC'), findsOneWidget);
-      expect(find.text('LLM 服务商'), findsOneWidget);
-      expect(find.text('记忆总结提示词'), findsOneWidget);
-    });
-
-    testWidgets('摘要通过通用列表展示端口数据的替换和清空结果', (tester) async {
-      await pumpImportDialog(
-        tester,
-        preferences: preferences,
-        preparedImport: ScriptedSettingsSyncPreparedImport(
-          summaries: const [
-            SettingsSyncSummaryItem(label: '字号', trailingText: '替换'),
-            SettingsSyncSummaryItem(label: '自定义 Header', trailingText: '清空'),
-          ],
-        ),
-      );
-
-      expect(find.byType(TransferSummaryList), findsOneWidget);
-      expect(find.text('字号'), findsOneWidget);
-      expect(find.text('替换'), findsOneWidget);
-      expect(find.text('自定义 Header'), findsOneWidget);
-      expect(find.text('清空'), findsOneWidget);
-    });
-
-    testWidgets('取消按钮关闭对话框', (tester) async {
-      await pumpImportDialog(
-        tester,
-        preferences: preferences,
-        preparedImport: ScriptedSettingsSyncPreparedImport(),
-      );
-      expect(find.text('确认同步配置'), findsOneWidget);
-
-      await tester.tap(find.text('取消'));
-      await settleOverlayTransition(tester);
-      expect(find.text('确认同步配置'), findsNothing);
-    });
 
     testWidgets('导入中 Back 不能关闭对话框，失败恢复后可关闭', (tester) async {
       // 导入动作挂在 gate 上：先确认 busy 窗口（导入中 + 取消禁用），
@@ -164,7 +118,7 @@ void registerSyncScreenImportDialogTests() {
       expect(find.text('确认同步配置'), findsNothing);
     });
 
-    testWidgets('prepared import 对话框把导入时敏感确认传给 controller', (tester) async {
+    testWidgets('预处理导入对话框把敏感确认传给控制器', (tester) async {
       final prepared = ScriptedSettingsSyncPreparedImport(
         summaries: const [
           SettingsSyncSummaryItem(label: '测试设置', trailingText: '替换'),

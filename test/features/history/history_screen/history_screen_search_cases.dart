@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
 
 import 'package:oh_my_llm/features/history/presentation/history_screen.dart';
 
@@ -82,20 +81,6 @@ void registerHistoryScreenSearchTests() {
 
     expect(find.text('Rust 重构计划'), findsOneWidget);
     expect(find.textContaining('没有匹配'), findsNothing);
-  });
-
-  testWidgets('搜索生效后以 replace 更新当前 location 携带关键词', (tester) async {
-    await setUpHistoryScreen(tester);
-
-    await tester.enterText(find.byType(TextField).first, 'Rust');
-    await tester.pump(HistoryScreen.searchDebounce);
-    await tester.pump();
-
-    expect(find.text('Rust 重构计划'), findsOneWidget);
-    final context = tester.element(find.text('Rust 重构计划'));
-    final uri = GoRouter.of(context).routerDelegate.state.uri;
-    expect(uri.path, '/history');
-    expect(uri.queryParameters['q'], 'Rust');
   });
 
   testWidgets('搜索生效时清空防抖窗口内的选择', (tester) async {

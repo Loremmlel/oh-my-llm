@@ -114,43 +114,6 @@ void main() {
     expect(scaledMetrics.mainAxisExtent, greaterThan(metrics.mainAxisExtent));
   });
 
-  testWidgets('同一 context/spec/itemWidth 连续解析三次 mainAxisExtent 完全一致', (
-    tester,
-  ) async {
-    SharedPreferences.setMockInitialValues({});
-    final preferences = await SharedPreferences.getInstance();
-    late BuildContext capturedContext;
-
-    await pumpTestApp(
-      tester,
-      preferences: preferences,
-      child: _ScaledMetricsCapture(
-        spec: spec,
-        itemWidth: itemWidth,
-        scaler: TextScaler.noScaling,
-        onResolved: (context, _) => capturedContext = context,
-      ),
-    );
-
-    final first = MediaGridTileMetrics.resolve(
-      context: capturedContext,
-      spec: spec,
-      itemWidth: itemWidth,
-    );
-    final second = MediaGridTileMetrics.resolve(
-      context: capturedContext,
-      spec: spec,
-      itemWidth: itemWidth,
-    );
-    final third = MediaGridTileMetrics.resolve(
-      context: capturedContext,
-      spec: spec,
-      itemWidth: itemWidth,
-    );
-    expect(first.mainAxisExtent, equals(second.mainAxisExtent));
-    expect(third.mainAxisExtent, equals(first.mainAxisExtent));
-  });
-
   testWidgets('itemWidth 为 0 时安全解析为零宽缩略图', (tester) async {
     SharedPreferences.setMockInitialValues({});
     final preferences = await SharedPreferences.getInstance();

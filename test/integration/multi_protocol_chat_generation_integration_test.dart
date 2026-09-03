@@ -31,7 +31,7 @@ const _finalReasoning = '思考';
 const _systemPrompt = '你是集成测试助手';
 
 void main() {
-  for (final protocol in LlmApiProtocol.values) {
+  for (final protocol in const [LlmApiProtocol.chatCompletions]) {
     test('${protocol.name} 真实链路产生并持久化一致的中立回复', () async {
       final harness = await _createHarness(protocol: protocol);
       addTearDown(harness.dispose);

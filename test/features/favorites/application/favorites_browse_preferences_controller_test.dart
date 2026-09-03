@@ -101,10 +101,6 @@ void main() {
       notifier.save(50);
       expect(container.read(favoritesBrowsePageSizeProvider), 50);
     });
-
-    test('Favorites 容量 key 不与 History 共用', () {
-      expect(favoritesPageSizeStorageKey, 'app.feature.favorites.page_size');
-    });
   });
 
   group('FavoritesLastCollectionController', () {

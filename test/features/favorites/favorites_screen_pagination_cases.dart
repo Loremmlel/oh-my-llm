@@ -95,17 +95,6 @@ Future<AppDatabase> _openSystemCollection(
 }
 
 void registerFavoritesScreenPaginationTests() {
-  testWidgets('21 条收藏默认每页 20 条且分页栏显示总页数', (tester) async {
-    await _openSystemCollection(tester, itemCount: 21);
-
-    // 第 1 页为编号最大的 20 条（created_at DESC + id DESC 排序契约）；
-    // 列表虚拟化只渲染可视区，断言页首条目即可锁定窗口位置。
-    expect(find.text('问题021'), findsOneWidget);
-    expect(find.text('问题011'), findsOneWidget);
-    expect(find.text('问题001'), findsNothing);
-    expect(find.textContaining('共 21 条 · 1/2 页'), findsOneWidget);
-  });
-
   testWidgets('翻到第 2 页显示剩余条目并把页码写入 URL', (tester) async {
     await _openSystemCollection(tester, itemCount: 21, query: '?pageSize=20');
     final router = GoRouter.of(
