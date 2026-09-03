@@ -1,6 +1,6 @@
 # 测试精简实施方案
 
-第一批删减已经实施，结果与测量口径见 [first-batch-results.md](first-batch-results.md)。Chat generation / protocol 第二批结果见 [second-batch-results.md](second-batch-results.md)，媒体视频第三批结果见 [third-batch-results.md](third-batch-results.md)，Data / controller / infrastructure 第四批结果见 [fourth-batch-results.md](fourth-batch-results.md)，repository / logging / pagination 第五批结果见 [fifth-batch-results.md](fifth-batch-results.md)。
+第一批删减已经实施，结果与测量口径见 [first-batch-results.md](first-batch-results.md)。Chat generation / protocol 第二批结果见 [second-batch-results.md](second-batch-results.md)，媒体视频第三批结果见 [third-batch-results.md](third-batch-results.md)，Data / controller / infrastructure 第四批结果见 [fourth-batch-results.md](fourth-batch-results.md)，repository / logging / pagination 第五批结果见 [fifth-batch-results.md](fifth-batch-results.md)，三轮剖析驱动的慢分片收尾结果见 [slow-shard-results.md](slow-shard-results.md)。
 
 ## 结论
 

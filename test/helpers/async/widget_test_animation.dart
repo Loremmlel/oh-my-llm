@@ -22,12 +22,13 @@ Future<void> settleAnimatedWidgetTransition(WidgetTester tester) =>
 
 /// 全仓唯一直接调用 pumpAndSettle 的位置。
 ///
-/// 50ms 步进比默认 250ms 更快推进有限动画；2 秒超时是"有限动画没有结束"的
-/// 失败保护，不代表测试需要等满 2 秒。不导入生产动画时长，不提供通用
+/// 100ms 步进与 Flutter 默认一致，能结束常见有限动画而不多渲染中间帧；
+/// 2 秒超时是"有限动画没有结束"的失败保护，不代表测试需要等满 2 秒。
+/// 不导入生产动画时长，不提供通用
 /// settle API——等待对象必须由调用方命名。
 Future<void> _settleFiniteAnimation(WidgetTester tester) {
   return tester.pumpAndSettle(
-    const Duration(milliseconds: 50),
+    const Duration(milliseconds: 100),
     EnginePhase.sendSemanticsUpdate,
     const Duration(seconds: 2),
   );

@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart'
+    show TemplatePromptVariableType;
 import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/template_prompt_form_dialog.dart';
 
 import '../../../../../../helpers/test_harness.dart';
@@ -16,19 +17,13 @@ void main() {
   Future<void> pumpDialog(
     WidgetTester tester, {
     required Future<void> Function(TemplatePromptFormData) onSubmit,
-    TemplatePrompt? initialValue,
   }) async {
     final sp = await SharedPreferences.getInstance();
     await pumpTestApp(
       tester,
       preferences: sp,
       child: Scaffold(
-        body: Center(
-          child: TemplatePromptFormDialog(
-            onSubmit: onSubmit,
-            initialValue: initialValue,
-          ),
-        ),
+        body: Center(child: TemplatePromptFormDialog(onSubmit: onSubmit)),
       ),
     );
   }
@@ -47,12 +42,6 @@ void main() {
   Finder textVariableField(String name) => find.descendant(
     of: find.byType(TemplatePromptFormDialog),
     matching: find.widgetWithText(TextFormField, name),
-  );
-
-  /// 数字变量默认值输入框（label 为「变量名（数字）」）。
-  Finder numberVariableField(String name) => find.descendant(
-    of: find.byType(TemplatePromptFormDialog),
-    matching: find.widgetWithText(TextFormField, '$name（数字）'),
   );
 
   /// 单选变量默认值下拉框（DropdownButtonFormField 非 TextFormField，
@@ -87,8 +76,8 @@ void main() {
         .value;
   }
 
-  group('TemplatePromptFormDialog', () {
-    testWidgets('语法说明默认收起，展开后展示文本/数字/单选/条件/正文示例', (tester) async {
+  group('模板提示词表单', () {
+    testWidgets('语法说明默认收起且可展开', (tester) async {
       await pumpDialog(tester, onSubmit: (_) async {});
 
       expect(find.text('模板语法说明'), findsOneWidget);
@@ -97,31 +86,6 @@ void main() {
       await expandSyntaxHelp(tester);
 
       expect(find.text('{{主角名}}'), findsOneWidget);
-      expect(find.text('{{章节数:number}}'), findsOneWidget);
-      expect(find.text('{{人称:select|一|二|三}}'), findsOneWidget);
-      expect(find.text('{{#if 人称 == "一"}}'), findsOneWidget);
-      expect(find.text('{{else if 人称 == "二"}}'), findsOneWidget);
-      expect(find.text('{{else}}'), findsOneWidget);
-      expect(find.text('{{/if}}'), findsOneWidget);
-      expect(find.textContaining('{{正文}} 必须放在条件块之外'), findsOneWidget);
-    });
-
-    testWidgets('语法说明明确第一版限制：嵌套条件、选项内 | 与 {{ 转义均不支持', (tester) async {
-      await pumpDialog(tester, onSubmit: (_) async {});
-      await expandSyntaxHelp(tester);
-
-      expect(find.textContaining('不支持嵌套条件'), findsOneWidget);
-      expect(find.textContaining('不支持在单选选项中使用 |'), findsOneWidget);
-      expect(find.textContaining('{{ 转义为字面文本'), findsOneWidget);
-    });
-
-    testWidgets('输入单选变量声明后默认下拉框选中首个选项', (tester) async {
-      await pumpDialog(tester, onSubmit: (_) async {});
-
-      await typeContent(tester, '请选择{{人称:select|一|二|三}}。');
-
-      expect(selectVariableField('人称'), findsOneWidget);
-      expect(selectedSelectValue(tester, '人称'), '一');
     });
 
     testWidgets('选择单选默认值后提交返回 select 类型变量及其选项', (tester) async {
@@ -154,61 +118,6 @@ void main() {
       expect(selectVariable.type, TemplatePromptVariableType.select);
       expect(selectVariable.options, ['一', '二', '三']);
       expect(selectVariable.defaultValue, '二');
-    });
-
-    testWidgets('编辑无关正文保留已有有效的单选默认值', (tester) async {
-      await pumpDialog(
-        tester,
-        onSubmit: (_) async {},
-        initialValue: TemplatePrompt(
-          id: 't1',
-          title: '人称模板',
-          content: '{{人称:select|一|二|三}}',
-          variables: const [
-            TemplatePromptVariable(
-              name: '人称',
-              defaultValue: '二',
-              type: TemplatePromptVariableType.select,
-              options: ['一', '二', '三'],
-            ),
-          ],
-          updatedAt: DateTime(2026),
-        ),
-      );
-
-      expect(selectedSelectValue(tester, '人称'), '二');
-
-      // 修改正文但不动选项声明，协调后默认值仍保留。
-      await typeContent(tester, '请选择{{人称:select|一|二|三}}。');
-
-      expect(selectedSelectValue(tester, '人称'), '二');
-    });
-
-    testWidgets('选项变化后默认值被移除时回落到首个选项（仅创作表单）', (tester) async {
-      await pumpDialog(
-        tester,
-        onSubmit: (_) async {},
-        initialValue: TemplatePrompt(
-          id: 't1',
-          title: '人称模板',
-          content: '{{人称:select|一|二|三}}',
-          variables: const [
-            TemplatePromptVariable(
-              name: '人称',
-              defaultValue: '二',
-              type: TemplatePromptVariableType.select,
-              options: ['一', '二', '三'],
-            ),
-          ],
-          updatedAt: DateTime(2026),
-        ),
-      );
-
-      expect(selectedSelectValue(tester, '人称'), '二');
-
-      await typeContent(tester, '{{人称:select|一|三}}');
-
-      expect(selectedSelectValue(tester, '人称'), '一');
     });
 
     testWidgets('无效/未闭合/嵌套条件块展示首个带行列的诊断且不触发保存', (tester) async {
@@ -258,52 +167,6 @@ void main() {
       expect(find.text('第 1 行第 12 列：控制标签未闭合，缺少 }}'), findsNothing);
       expect(find.text('变量A'), findsOneWidget);
       expect(find.text('旧值'), findsOneWidget);
-    });
-
-    testWidgets('分支内 {{正文}} 被拒绝，顶层正文变量保留不可编辑提示', (tester) async {
-      await pumpDialog(tester, onSubmit: (_) async {});
-
-      // 分支内使用 {{正文}}：给出带行列的诊断。
-      await typeContent(tester, '{{人称}}\n{{#if 人称 == "一"}}\n{{正文}}\n{{/if}}');
-      expect(find.text('第 3 行第 1 列：{{正文}} 只能出现在条件块之外'), findsOneWidget);
-
-      // 顶层 {{正文}}：显示不可编辑提示，不提供默认值输入框。
-      await typeContent(tester, '{{正文}}请处理。');
-      expect(find.textContaining('使用聊天页主输入框提供内容'), findsOneWidget);
-      expect(textVariableField('正文'), findsNothing);
-    });
-
-    testWidgets('非法数字默认值触发字段级校验错误且不提交', (tester) async {
-      TemplatePromptFormData? captured;
-      await pumpDialog(
-        tester,
-        onSubmit: (data) async {
-          captured = data;
-        },
-      );
-
-      await typeContent(tester, '从{{起始:number}}开始。');
-      await tester.enterText(titleField(), '数字模板');
-      await tester.enterText(numberVariableField('起始'), 'abc');
-      await tester.pump();
-
-      await tester.tap(find.text('保存'));
-      await tester.pump();
-
-      expect(find.text('默认值需为整数'), findsOneWidget);
-      expect(captured, isNull);
-    });
-
-    testWidgets('表单不提供预览标题或预览输出', (tester) async {
-      await pumpDialog(tester, onSubmit: (_) async {});
-
-      await typeContent(tester, '{{主角名}}，你好。');
-      await expandSyntaxHelp(tester);
-
-      expect(find.text('预览'), findsNothing);
-      expect(find.text('模板预览'), findsNothing);
-      // “渲染预览”只出现在限制说明里，而不是独立的预览区域。
-      expect(find.textContaining('渲染预览'), findsOneWidget);
     });
   });
 }

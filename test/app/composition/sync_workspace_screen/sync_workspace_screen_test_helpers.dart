@@ -8,15 +8,11 @@ import 'package:oh_my_llm/app/navigation/app_destination.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/app/composition/sync_workspace_screen.dart';
 import 'package:oh_my_llm/features/sync/application/ports/settings_sync_facade.dart';
-import 'package:oh_my_llm/features/sync/presentation/widgets/sync_import_confirm_dialog.dart';
 import 'package:oh_my_llm/features/media/application/media_browser_controller.dart';
-import 'package:oh_my_llm/features/media/application/shuffle_playback_controller.dart';
-import 'package:oh_my_llm/features/media/domain/models/video_item.dart';
 import 'package:oh_my_llm/features/sync/application/sync_client_controller.dart';
 import 'package:oh_my_llm/features/sync/data/udp/sync_udp_discovery.dart';
 
 import '../../../helpers/test_harness.dart';
-import '../../../helpers/async/widget_test_animation.dart';
 import '../../../features/sync/application/sync_test_fakes.dart';
 
 Future<AppDatabase> pumpSyncScreen(
@@ -132,32 +128,6 @@ class RecordingMediaBrowserController extends MediaBrowserController {
   }
 }
 
-class RecordingShufflePlaybackController extends ShufflePlaybackController {
-  static RecordingShufflePlaybackController? latest;
-  static ShufflePlaybackState? lastState;
-
-  @override
-  ShufflePlaybackState build() {
-    latest = this;
-    return super.build();
-  }
-
-  void activateForTest() {
-    state = ShufflePlaybackActive(
-      playlist: const [VideoItem(name: 'test.mp4', relativePath: '/test.mp4')],
-      currentIndex: 0,
-      directoryPath: '/',
-    );
-    lastState = state;
-  }
-
-  @override
-  void reset() {
-    super.reset();
-    lastState = const ShufflePlaybackIdle();
-  }
-}
-
 SyncClientState connectedSyncState({
   Iterable<SettingsSyncGroupDescriptor>? availableGroups,
 }) => SyncClientState(
@@ -169,29 +139,3 @@ SyncClientState connectedSyncState({
   ),
   availableGroups: availableGroups ?? defaultSettingsSyncGroups,
 );
-
-Future<void> pumpImportDialog(
-  WidgetTester tester, {
-  required SharedPreferences preferences,
-  required SettingsSyncPreparedImport preparedImport,
-  String sourceDeviceName = 'TestPC',
-}) async {
-  await pumpTestApp(
-    tester,
-    preferences: preferences,
-    child: Builder(
-      builder: (context) => ElevatedButton(
-        onPressed: () => showDialog<void>(
-          context: context,
-          builder: (_) => SyncImportConfirmDialog(
-            preparedImport: preparedImport,
-            sourceDeviceName: sourceDeviceName,
-          ),
-        ),
-        child: const Text('打开对话框'),
-      ),
-    ),
-  );
-  await tester.tap(find.text('打开对话框'));
-  await settleOverlayTransition(tester);
-}

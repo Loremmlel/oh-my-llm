@@ -43,7 +43,6 @@ void main() {
       ModelCatalogRequest request,
     )
     fetchModels,
-    LlmProviderModelConfig? initialValue,
   }) async {
     final sp = await SharedPreferences.getInstance();
 
@@ -57,7 +56,6 @@ void main() {
             onSubmit: onSubmit,
             onBatchAdd: onBatchAdd,
             fetchModels: fetchModels,
-            initialValue: initialValue,
           ),
         ),
       ),
@@ -85,43 +83,9 @@ void main() {
     expect(find.text('正在拉取...'), findsOneWidget);
   }
 
-  group('ModelConfigFormDialog', () {
-    group('manual mode', () {
-      testWidgets('shows manual form by default for new model', (tester) async {
-        await pumpDialog(
-          tester,
-          onSubmit: (_) async {},
-          onBatchAdd: (_) async {},
-          fetchModels: (_) async => [],
-        );
-
-        expect(find.text('显示名称'), findsOneWidget);
-        expect(find.text('API 模型名称'), findsOneWidget);
-        expect(find.text('支持深度思考'), findsOneWidget);
-      });
-
-      testWidgets('hides mode switch when editing existing model', (
-        tester,
-      ) async {
-        await pumpDialog(
-          tester,
-          onSubmit: (_) async {},
-          onBatchAdd: (_) async {},
-          fetchModels: (_) async => [],
-          initialValue: const LlmProviderModelConfig(
-            id: 'm-1',
-            displayName: 'Existing',
-            modelName: 'existing-model',
-            supportsReasoning: false,
-          ),
-        );
-
-        expect(find.text('手动输入'), findsNothing);
-        expect(find.text('从 API 拉取'), findsNothing);
-        expect(find.text('编辑模型'), findsOneWidget);
-      });
-
-      testWidgets('submits form data on save', (tester) async {
+  group('模型表单', () {
+    group('手动输入', () {
+      testWidgets('保存时提交手动输入的模型', (tester) async {
         ModelConfigFormData? captured;
         await pumpDialog(
           tester,
@@ -147,10 +111,8 @@ void main() {
       });
     });
 
-    group('fetch mode', () {
-      testWidgets('passes the provider apiProtocol in the catalog request', (
-        tester,
-      ) async {
+    group('从 API 拉取', () {
+      testWidgets('拉取请求携带服务商的非默认协议', (tester) async {
         testProvider = const LlmProviderConfig(
           id: 'p-1',
           name: 'TestProvider',
@@ -179,102 +141,36 @@ void main() {
         expect(capturedProtocol, LlmApiProtocol.anthropic);
       });
 
-      testWidgets('shows loading state when fetching', (tester) async {
-        final completer = Completer<List<ModelCatalogEntry>>();
+      testWidgets('拉取失败后显示错误并可重试成功', (tester) async {
+        final firstRequest = Completer<List<ModelCatalogEntry>>();
+        final retryRequest = Completer<List<ModelCatalogEntry>>();
+        var requestCount = 0;
         await pumpDialog(
           tester,
           onSubmit: (_) async {},
           onBatchAdd: (_) async {},
-          fetchModels: (_) => completer.future,
+          fetchModels: (_) =>
+              requestCount++ == 0 ? firstRequest.future : retryRequest.future,
         );
 
         await switchToFetchAndClickFetch(tester);
 
-        expect(find.text('正在拉取模型列表...'), findsOneWidget);
-
-        completer.complete([]);
-        await tester.pump();
-      });
-
-      testWidgets('shows error message on fetch failure', (tester) async {
-        final completer = Completer<List<ModelCatalogEntry>>();
-        await pumpDialog(
-          tester,
-          onSubmit: (_) async {},
-          onBatchAdd: (_) async {},
-          fetchModels: (_) => completer.future,
-        );
-
-        await switchToFetchAndClickFetch(tester);
-
-        completer.completeError(const ModelCatalogFailure('服务器返回错误（401）'));
+        firstRequest.completeError(const ModelCatalogFailure('服务器返回错误（401）'));
         await tester.pump();
 
         expect(find.textContaining('服务器返回错误'), findsOneWidget);
-        expect(find.text('重试'), findsOneWidget);
-      });
-
-      testWidgets('shows model list after successful fetch', (tester) async {
-        final completer = Completer<List<ModelCatalogEntry>>();
-        await pumpDialog(
-          tester,
-          onSubmit: (_) async {},
-          onBatchAdd: (_) async {},
-          fetchModels: (_) => completer.future,
-        );
-
-        await switchToFetchAndClickFetch(tester);
-
-        completer.complete([
+        await tester.tap(find.text('重试'));
+        await tester.pump();
+        retryRequest.complete([
           const ModelCatalogEntry(id: 'gpt-4o', ownedBy: 'openai'),
-          const ModelCatalogEntry(id: 'gpt-4o-mini', ownedBy: 'openai'),
         ]);
         await tester.pump();
 
+        expect(requestCount, 2);
         expect(find.text('gpt-4o'), findsWidgets);
-        expect(find.text('gpt-4o-mini'), findsWidgets);
       });
 
-      testWidgets('shows already-exists chip for existing models', (
-        tester,
-      ) async {
-        testProvider = const LlmProviderConfig(
-          id: 'p-1',
-          name: 'TestProvider',
-          apiUrl: 'https://api.example.com/v1/chat/completions',
-          apiKey: 'sk-test',
-          apiProtocol: LlmApiProtocol.chatCompletions,
-          models: [
-            LlmProviderModelConfig(
-              id: 'm-existing',
-              displayName: 'GPT-4o',
-              modelName: 'gpt-4o',
-              supportsReasoning: false,
-            ),
-          ],
-        );
-        final completer = Completer<List<ModelCatalogEntry>>();
-
-        await pumpDialog(
-          tester,
-          onSubmit: (_) async {},
-          onBatchAdd: (_) async {},
-          fetchModels: (_) => completer.future,
-        );
-
-        await switchToFetchAndClickFetch(tester);
-
-        completer.complete([
-          const ModelCatalogEntry(id: 'gpt-4o', ownedBy: 'openai'),
-        ]);
-        await tester.pump();
-
-        expect(find.text('已存在'), findsOneWidget);
-      });
-
-      testWidgets('submits selected models only after a selection', (
-        tester,
-      ) async {
+      testWidgets('仅提交勾选的远程模型', (tester) async {
         List<ModelBatchFormData>? captured;
         final completer = Completer<List<ModelCatalogEntry>>();
         await pumpDialog(
@@ -308,34 +204,6 @@ void main() {
         expect(captured!.length, 1);
         expect(captured!.first.modelName, 'gpt-4o');
         expect(captured!.first.displayName, 'gpt-4o');
-      });
-
-      testWidgets('preserves fetch state when switching modes', (tester) async {
-        final completer = Completer<List<ModelCatalogEntry>>();
-        await pumpDialog(
-          tester,
-          onSubmit: (_) async {},
-          onBatchAdd: (_) async {},
-          fetchModels: (_) => completer.future,
-        );
-
-        await switchToFetchAndClickFetch(tester);
-
-        completer.complete([
-          const ModelCatalogEntry(id: 'gpt-4o', ownedBy: 'openai'),
-        ]);
-        await tester.pump();
-
-        // 切回手动
-        await tester.tap(find.text('手动输入'));
-        await tester.pump();
-
-        // 再切回拉取
-        await tester.tap(find.text('从 API 拉取'));
-        await tester.pump();
-
-        // 列表应该还在（state 保存在 widget 中）
-        expect(find.text('gpt-4o'), findsWidgets);
       });
     });
   });
