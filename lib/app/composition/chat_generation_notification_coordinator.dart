@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:oh_my_llm/app/navigation/app_destination.dart';
+import 'package:oh_my_llm/app/platform/chat_generation_terminal_notification.dart';
 import 'package:oh_my_llm/app/router/app_router.dart';
 import 'package:oh_my_llm/features/chat/application/generation/chat_generation_lifecycle.dart';
 import 'package:oh_my_llm/features/chat/application/generation/chat_generation_notification.dart';
@@ -38,11 +39,12 @@ Timer _defaultTimer(Duration duration, void Function() callback) =>
 /// - 同阶段同 attempt 的 streaming 更新按每秒一次尾缘合并；
 /// - phase/attempt/terminal 变化立即投递，不等待节流窗口；
 /// - start/update/terminal 经单一 async tail 串行，杜绝先清理后启动；
-/// - 旧 token 的迟到定时器/命令/动作/terminal 通过 token 校验丢弃；
+/// - 旧 token 的迟到状态/动作丢弃，已入队的 terminal 清理仍按顺序完成；
 /// - 平台失败 fail-open：只影响通知投递，不改写生成结果。
 final class ChatGenerationNotificationCoordinator {
   ChatGenerationNotificationCoordinator({
     required this._port,
+    required this._sendTerminalNotification,
     required this._stopGeneration,
     required void Function(String conversationId) openConversation,
     this._projector = const ChatGenerationNotificationProjector(),
@@ -56,6 +58,7 @@ final class ChatGenerationNotificationCoordinator {
   // ── 注入依赖 ──────────────────────────────────────────────
 
   final ChatGenerationForegroundServicePort _port;
+  final ChatGenerationTerminalNotificationSender _sendTerminalNotification;
   final Future<void> Function() _stopGeneration;
   final void Function(String conversationId) _openConversationCallback;
   final ChatGenerationNotificationProjector _projector;
@@ -152,7 +155,7 @@ final class ChatGenerationNotificationCoordinator {
 
     if (projection.terminalBehavior !=
         ChatGenerationNotificationTerminalBehavior.ongoing) {
-      _deliverTerminal(token, projection);
+      _deliverTerminal(token, snapshot.phase, projection);
       return;
     }
 
@@ -237,46 +240,62 @@ final class ChatGenerationNotificationCoordinator {
     _logCommandFailure(result.failureCode);
   }
 
-  /// 终态立即投递：remove/fail 清理带固定次数有界重试。
+  /// 终态立即投递：清理 ongoing 通知，并按结果决定是否展示系统通知。
   void _deliverTerminal(
     int token,
+    ChatGenerationPhase phase,
     ChatGenerationNotificationProjection projection,
   ) {
     if (_terminalDelivered) return; // 重复 terminal：幂等 no-op。
     _terminalDelivered = true;
     _cancelPendingTimer();
     _pendingProjection = null;
-    final behavior = projection.terminalBehavior;
-    if (behavior == ChatGenerationNotificationTerminalBehavior.remove) {
-      _enqueue(
-        () => _terminalCleanupOp(
-          token,
-          () => _port.remove(
-            token: projection.payload.token,
-            conversationId: projection.payload.conversationId,
-          ),
+    _enqueue(() => _terminalOp(token, phase, projection.payload));
+  }
+
+  /// 清理 Android ongoing 通知，并独立尝试一次终态系统通知。
+  Future<void> _terminalOp(
+    int token,
+    ChatGenerationPhase phase,
+    ChatGenerationForegroundPayload payload,
+  ) async {
+    if (_disposed) return;
+    await Future.wait([
+      _terminalCleanupOp(
+        () => _port.remove(
+          token: payload.token,
+          conversationId: payload.conversationId,
         ),
-      );
-    } else {
-      _enqueue(
-        () => _terminalCleanupOp(token, () => _port.fail(projection.payload)),
-      );
+      ),
+      if (phase != ChatGenerationPhase.cancelled && token == _currentToken)
+        _showTerminalNotificationSafely(payload),
+    ]);
+  }
+
+  /// 系统通知失败只记固定诊断，不改变生成结果，也不重试。
+  Future<void> _showTerminalNotificationSafely(
+    ChatGenerationForegroundPayload payload,
+  ) async {
+    try {
+      await _sendTerminalNotification(payload);
+    } catch (_) {
+      if (!_disposed) _logDiagnostic?.call('terminal_notification_failed');
     }
   }
 
-  /// terminal 清理：等待 Kotlin ACK，失败按固定延迟有界重试，耗尽后只记诊断。
+  /// terminal 清理：已入队后不再依赖当前 token；async tail 保证它先于新 start。
+  /// 等待 Kotlin ACK 失败时按固定延迟有界重试，耗尽后只记诊断。
   Future<void> _terminalCleanupOp(
-    int token,
     Future<ChatForegroundCommandResult> Function() command,
   ) async {
-    if (_disposed || token != _currentToken) return;
+    if (_disposed) return;
     for (final delay in chatGenerationNotificationCleanupRetryDelays) {
       if (delay > Duration.zero) {
         await _waitFor(delay);
-        if (_disposed || token != _currentToken) return; // 等待期间被取代。
+        if (_disposed) return;
       }
       final result = await _invokeSafely(command);
-      if (_disposed || token != _currentToken) return;
+      if (_disposed) return;
       if (result.accepted) return;
       _logCommandFailure(result.failureCode);
     }
@@ -430,6 +449,9 @@ final chatGenerationNotificationCoordinatorProvider =
     Provider<ChatGenerationNotificationCoordinator>((ref) {
       final coordinator = ChatGenerationNotificationCoordinator(
         port: ref.watch(chatGenerationForegroundServiceProvider),
+        sendTerminalNotification: ref.watch(
+          chatGenerationTerminalNotificationSenderProvider,
+        ),
         // 复用既有 durable stop：phase 停止性由 ChatSessionsController.stopStreaming
         // 强制，coordinator 与绑定均不重复检查阶段。
         stopGeneration: () async {

@@ -8,6 +8,7 @@ import 'package:window_manager/window_manager.dart';
 
 import 'app/app.dart';
 import 'app/composition/cross_feature_bindings.dart';
+import 'app/platform/chat_generation_terminal_notification.dart';
 import 'core/http/custom_headers_provider.dart';
 import 'core/logging/app_network_logger.dart';
 import 'core/logging/app_network_logger_provider.dart';
@@ -68,6 +69,11 @@ Future<void> bootstrap({
         // 将 feature 层的 CustomHeadersConfig 映射为 core 层所需的 Map。
         customHeadersMapProvider.overrideWith(
           (ref) => ref.watch(customHeadersProvider).toHeaderMap(),
+        ),
+        chatGenerationTerminalNotificationSenderProvider.overrideWithValue(
+          createChatGenerationTerminalNotificationSender(
+            platform: effectivePlatform,
+          ),
         ),
         // 显式把 effectivePlatform 传入 composition：生成前台服务按该平台选
         // 择 Android adapter / no-op，不依赖全局平台状态。

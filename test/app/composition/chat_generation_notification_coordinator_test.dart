@@ -136,6 +136,7 @@ final class FakeChatGenerationForegroundService
       StreamController<ChatGenerationForegroundAction>.broadcast();
   final calls = <String>[];
   final payloads = <ChatGenerationForegroundPayload>[];
+  final removals = <(int, String)>[];
   final queuedResults = Queue<Future<ChatForegroundCommandResult>>();
 
   /// 待打开的冷启动会话 ID；[takePendingOpenConversation] 返回它。
@@ -186,7 +187,10 @@ final class FakeChatGenerationForegroundService
   Future<ChatForegroundCommandResult> remove({
     required int token,
     required String conversationId,
-  }) => _record('remove', null);
+  }) {
+    removals.add((token, conversationId));
+    return _record('remove', null);
+  }
 
   @override
   Future<ChatForegroundCommandResult> fail(
@@ -217,6 +221,7 @@ void main() {
   final diagnostics = <String>[];
   final stopCalls = <String>[];
   final openedConversationIds = <String>[];
+  final terminalNotifications = <ChatGenerationForegroundPayload>[];
 
   setUp(() {
     port = FakeChatGenerationForegroundService();
@@ -225,8 +230,12 @@ void main() {
     diagnostics.clear();
     stopCalls.clear();
     openedConversationIds.clear();
+    terminalNotifications.clear();
     coordinator = ChatGenerationNotificationCoordinator(
       port: port,
+      sendTerminalNotification: (payload) async {
+        terminalNotifications.add(payload);
+      },
       stopGeneration: () async => stopCalls.add('stop'),
       openConversation: openedConversationIds.add,
       now: clock.call,
@@ -628,6 +637,7 @@ void main() {
     test('stopGeneration 抛错时记录固定诊断且不向 zone 泄漏，下一 token 仍可停止', () async {
       final throwingCoordinator = ChatGenerationNotificationCoordinator(
         port: port,
+        sendTerminalNotification: (_) async {},
         stopGeneration: () async => throw StateError('stop 失败'),
         openConversation: openedConversationIds.add,
         now: clock.call,
@@ -724,19 +734,14 @@ void main() {
       expect(stopCalls, isEmpty);
     });
 
-    test('token 不可用后 terminal 仍执行 remove/fail 清理，不提前跳过', () async {
+    test('token 不可用后 terminal 仍执行 remove 清理，不提前跳过', () async {
       await coordinator.start();
-      final cases = <(ChatGenerationPhase, ChatGenerationOutcome, String)>[
+      final cases = <(ChatGenerationPhase, ChatGenerationOutcome)>[
         (
           ChatGenerationPhase.succeeded,
           _outcomeFor(ChatGenerationPhase.succeeded),
-          'remove',
         ),
-        (
-          ChatGenerationPhase.failed,
-          _outcomeFor(ChatGenerationPhase.failed),
-          'fail',
-        ),
+        (ChatGenerationPhase.failed, _outcomeFor(ChatGenerationPhase.failed)),
       ];
       for (final (index, c) in cases.indexed) {
         final token = index + 1;
@@ -761,9 +766,9 @@ void main() {
         );
         await _flushTail();
         expect(
-          port.calls.where((x) => x == c.$3).length,
-          1,
-          reason: '${c.$3} 应恰好清理一次',
+          port.calls.where((x) => x == 'remove').length,
+          index + 1,
+          reason: '每个终态应恰好清理一次',
         );
         expect(stopCalls, isEmpty);
       }
@@ -854,14 +859,14 @@ void main() {
       expect(port.calls.where((c) => c == 'start').length, 1);
     });
 
-    test('超时后 success/cancel 调用 remove、failure 调用 fail', () async {
+    test('超时后的所有终态仍调用 remove 清理', () async {
       await coordinator.start();
-      final cases = <(ChatGenerationPhase, String)>[
-        (ChatGenerationPhase.succeeded, 'remove'),
-        (ChatGenerationPhase.cancelled, 'remove'),
-        (ChatGenerationPhase.failed, 'fail'),
+      final cases = <ChatGenerationPhase>[
+        ChatGenerationPhase.succeeded,
+        ChatGenerationPhase.cancelled,
+        ChatGenerationPhase.failed,
       ];
-      for (final (index, c) in cases.indexed) {
+      for (final (index, phase) in cases.indexed) {
         final token = index + 1;
         coordinator.onStateChanged(
           snapshot: _snapshot(
@@ -880,22 +885,134 @@ void main() {
         await _flushTail();
         coordinator.onStateChanged(
           snapshot: _snapshot(
-            c.$1,
+            phase,
             generationId: token,
-            outcome: _outcomeFor(c.$1, generationId: token),
+            outcome: _outcomeFor(phase, generationId: token),
           ),
           streamingReply: null,
         );
         await _flushTail();
       }
-      // 三个 token 各自只清理一次：remove 两次、fail 一次，不跨 token 泄漏。
-      expect(port.calls.where((x) => x == 'remove').length, 2);
-      expect(port.calls.where((x) => x == 'fail').length, 1);
+      expect(port.calls.where((x) => x == 'remove').length, 3);
       expect(stopCalls, isEmpty);
     });
   });
 
   group('terminal 清理', () {
+    test('旧终态已入队后启动新 token 仍清理并重试且不投递旧结果', () async {
+      await coordinator.start();
+      coordinator.onStateChanged(
+        snapshot: _snapshot(ChatGenerationPhase.preparing, generationId: 1),
+        streamingReply: null,
+      );
+      await _flushTail();
+
+      final blockedUpdate = Completer<ChatForegroundCommandResult>();
+      port.queuedResults.add(blockedUpdate.future);
+      coordinator.onStateChanged(
+        snapshot: _snapshot(ChatGenerationPhase.streaming, generationId: 1),
+        streamingReply: _reply('一', ''),
+      );
+      await _flushTail();
+      port.queuedResults.addAll([
+        Future.value(
+          const ChatForegroundCommandResult.unavailable(
+            ChatForegroundFailureCode.serviceUnavailable,
+          ),
+        ),
+        Future.value(const ChatForegroundCommandResult.accepted()),
+      ]);
+      coordinator.onStateChanged(
+        snapshot: _snapshot(
+          ChatGenerationPhase.succeeded,
+          generationId: 1,
+          outcome: _outcomeFor(ChatGenerationPhase.succeeded, generationId: 1),
+        ),
+        streamingReply: null,
+      );
+      coordinator.onStateChanged(
+        snapshot: _snapshot(ChatGenerationPhase.preparing, generationId: 2),
+        streamingReply: null,
+      );
+
+      blockedUpdate.complete(const ChatForegroundCommandResult.accepted());
+      await _flushTail();
+
+      expect(port.removals, [(1, 'conv-1')]);
+      expect(timers.pending.single.duration, const Duration(milliseconds: 200));
+      timers.fireNext();
+      await _flushTail();
+
+      expect(port.removals, [(1, 'conv-1'), (1, 'conv-1')]);
+      expect(port.payloads.last.token, 2);
+      expect(terminalNotifications, isEmpty);
+    });
+
+    test('成功和失败各投递一次系统通知，取消只清理', () async {
+      await coordinator.start();
+      final phases = <ChatGenerationPhase>[
+        ChatGenerationPhase.succeeded,
+        ChatGenerationPhase.failed,
+        ChatGenerationPhase.cancelled,
+      ];
+      for (final (index, phase) in phases.indexed) {
+        final token = index + 1;
+        coordinator.onStateChanged(
+          snapshot: _snapshot(
+            ChatGenerationPhase.preparing,
+            generationId: token,
+          ),
+          streamingReply: null,
+        );
+        await _flushTail();
+        coordinator.onStateChanged(
+          snapshot: _snapshot(
+            phase,
+            generationId: token,
+            outcome: _outcomeFor(phase, generationId: token),
+          ),
+          streamingReply: null,
+        );
+        await _flushTail();
+      }
+
+      expect(terminalNotifications.map((payload) => payload.title), [
+        '已完成',
+        '生成失败',
+      ]);
+      expect(port.calls.where((call) => call == 'remove'), hasLength(3));
+    });
+
+    test('系统通知投递失败只记录诊断且仍清理前台通知', () async {
+      final throwingCoordinator = ChatGenerationNotificationCoordinator(
+        port: port,
+        sendTerminalNotification: (_) async => throw StateError('通知失败'),
+        stopGeneration: () async {},
+        openConversation: (_) {},
+        now: clock.call,
+        timerFactory: timers.create,
+        logDiagnostic: diagnostics.add,
+      );
+      await throwingCoordinator.start();
+      throwingCoordinator.onStateChanged(
+        snapshot: _snapshot(ChatGenerationPhase.preparing),
+        streamingReply: null,
+      );
+      await _flushTail();
+      throwingCoordinator.onStateChanged(
+        snapshot: _snapshot(
+          ChatGenerationPhase.succeeded,
+          outcome: _outcomeFor(ChatGenerationPhase.succeeded),
+        ),
+        streamingReply: null,
+      );
+      await _flushTail();
+
+      expect(port.calls.where((call) => call == 'remove'), hasLength(1));
+      expect(diagnostics, contains('terminal_notification_failed'));
+      throwingCoordinator.dispose();
+    });
+
     test('terminal ACK 失败按 200ms/800ms 重试恰好 3 次后停止调度', () async {
       await coordinator.start();
       coordinator.onStateChanged(
