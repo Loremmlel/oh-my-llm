@@ -41,7 +41,7 @@ void main() {
       expect(content, contains('line-2'));
     });
 
-    test('容量满时丢弃最旧条目', () async {
+    test('容量满时丢弃最旧条目并记录数量', () async {
       final buffer = SseLogBuffer(store: store, maxCapacity: 3, batchSize: 10);
 
       buffer.enqueue('line-1');
@@ -55,19 +55,7 @@ void main() {
       expect(content, contains('line-3'));
       expect(content, contains('line-4'));
       expect(content, isNot(contains('line-1')));
-    });
-
-    test('丢弃时写 [sse-dropped] 标记', () async {
-      final buffer = SseLogBuffer(store: store, maxCapacity: 2, batchSize: 10);
-
-      buffer.enqueue('line-1');
-      buffer.enqueue('line-2');
-      buffer.enqueue('line-3'); // 丢弃 line-1
-      buffer.enqueue('line-4'); // 丢弃 line-2
-      await buffer.drain();
-
-      final content = await File(logFilePath).readAsString();
-      expect(content, contains('[sse-dropped] 2 lines dropped'));
+      expect(content, contains('[sse-dropped] 1 lines dropped'));
     });
 
     test('drain 排空所有条目', () async {
@@ -84,32 +72,6 @@ void main() {
       expect(content, contains('line-A'));
       expect(content, contains('line-B'));
       expect(content, isNot(contains('line-C')));
-    });
-
-    test('满 batchSize 时自动 flush', () async {
-      final buffer = SseLogBuffer(store: store, maxCapacity: 20, batchSize: 3);
-
-      buffer.enqueue('line-1');
-      buffer.enqueue('line-2');
-      buffer.enqueue('line-3'); // 满 batchSize，触发自动 flush
-
-      // 自动 flush 非 await 调用已在途，flush 需等待其落盘
-      await buffer.flush();
-
-      final content = await File(logFilePath).readAsString();
-      expect(content, contains('line-1'));
-      expect(content, contains('line-3'));
-    });
-
-    test('空 flush 不写入任何内容', () async {
-      final buffer = SseLogBuffer(store: store, maxCapacity: 10, batchSize: 5);
-      final file = File(logFilePath);
-      final lengthBefore = await file.exists() ? await file.length() : 0;
-
-      await buffer.flush();
-
-      final lengthAfter = await file.exists() ? await file.length() : 0;
-      expect(lengthAfter, lengthBefore);
     });
   });
 

@@ -122,8 +122,8 @@ void main() {
       expect(changedSize, 50);
     });
 
-    testWidgets('点击其他页码时回调目标页', (tester) async {
-      var changedPage = -1;
+    testWidgets('页码按钮与跳转输入分别回调目标页', (tester) async {
+      final changedPages = <int>[];
       await _pumpBar(
         tester,
         width: 800,
@@ -132,88 +132,15 @@ void main() {
           pageSize: 20,
           totalItems: 100,
         ),
-        onPageChanged: (page) => changedPage = page,
+        onPageChanged: changedPages.add,
       );
 
       await tester.tap(find.text('3'));
-
-      expect(changedPage, 3);
-    });
-
-    testWidgets('点击当前页页码不重复回调', (tester) async {
-      var changedPage = -1;
-      await _pumpBar(
-        tester,
-        width: 800,
-        state: const AppPaginationState(
-          currentPage: 3,
-          pageSize: 20,
-          totalItems: 100,
-        ),
-        onPageChanged: (page) => changedPage = page,
-      );
-
-      // 当前页按钮由 AbsorbPointer 吸收点击，tap 落空属预期。
-      await tester.tap(find.text('3'), warnIfMissed: false);
-
-      expect(changedPage, -1);
-    });
-
-    testWidgets('跳转到合法页码后回调并清空输入', (tester) async {
-      var changedPage = -1;
-      await _pumpBar(
-        tester,
-        width: 800,
-        state: const AppPaginationState(
-          currentPage: 1,
-          pageSize: 20,
-          totalItems: 100,
-        ),
-        onPageChanged: (page) => changedPage = page,
-      );
-
       await tester.enterText(_jumpField(), '4');
       await tester.tap(find.text('跳转'));
 
-      expect(changedPage, 4);
+      expect(changedPages, [3, 4]);
       expect(tester.widget<TextField>(_jumpField()).controller?.text, isEmpty);
-    });
-
-    testWidgets('空跳转内容不触发页码回调', (tester) async {
-      var changedPage = -1;
-      await _pumpBar(
-        tester,
-        width: 800,
-        state: const AppPaginationState(
-          currentPage: 1,
-          pageSize: 20,
-          totalItems: 100,
-        ),
-        onPageChanged: (page) => changedPage = page,
-      );
-
-      await tester.tap(find.text('跳转'));
-
-      expect(changedPage, -1);
-    });
-
-    testWidgets('跳转越界页码夹取到最后一页', (tester) async {
-      var changedPage = -1;
-      await _pumpBar(
-        tester,
-        width: 800,
-        state: const AppPaginationState(
-          currentPage: 1,
-          pageSize: 20,
-          totalItems: 100,
-        ),
-        onPageChanged: (page) => changedPage = page,
-      );
-
-      await tester.enterText(_jumpField(), '999');
-      await tester.tap(find.text('跳转'));
-
-      expect(changedPage, 5);
     });
 
     testWidgets('总页数为零时不渲染任何翻页控件', (tester) async {

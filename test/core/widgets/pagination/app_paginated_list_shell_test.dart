@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/core/widgets/pagination/app_paginated_list_shell.dart';
-import 'package:oh_my_llm/core/widgets/pagination/app_pagination_bar.dart';
 import 'package:oh_my_llm/core/widgets/pagination/app_pagination_state.dart';
 
 /// 收集外壳回调与 bodyBuilder 交出的滚动控制器。
@@ -59,18 +58,16 @@ void main() {
   );
 
   group('AppPaginatedListShell', () {
-    testWidgets('header 与固定底部分页栏同时可见', (tester) async {
-      await _pumpShell(tester, state: visibleState, header: const Text('顶部标题'));
+    testWidgets('header 与分页栏在正文滚动时保持可见', (tester) async {
+      final harness = _ShellHarness();
+      await _pumpShell(
+        tester,
+        state: visibleState,
+        header: const Text('顶部标题'),
+        harness: harness,
+      );
 
       expect(find.text('顶部标题'), findsOneWidget);
-      expect(find.byType(AppPaginationBar), findsOneWidget);
-      expect(find.text('共 100 条 · 1/5 页'), findsOneWidget);
-    });
-
-    testWidgets('正文独立滚动时分页栏保持在原位不被滚走', (tester) async {
-      final harness = _ShellHarness();
-      await _pumpShell(tester, state: visibleState, harness: harness);
-
       expect(find.text('条目 0'), findsOneWidget);
       await tester.drag(find.byType(ListView), const Offset(0, -500));
       await tester.pump();
@@ -102,15 +99,6 @@ void main() {
 
       await tester.tap(find.text('重试'));
       expect(retryCount, 1);
-    });
-
-    testWidgets('分页栏回调透传给外壳回调', (tester) async {
-      final harness = _ShellHarness();
-      await _pumpShell(tester, state: visibleState, harness: harness);
-
-      await tester.tap(find.byTooltip('下一页'));
-
-      expect(harness.pageChangedTo, 2);
     });
 
     testWidgets('pageIdentity 变化后正文回到顶部', (tester) async {

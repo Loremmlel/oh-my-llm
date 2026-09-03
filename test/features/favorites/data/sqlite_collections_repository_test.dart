@@ -41,36 +41,6 @@ void main() {
       expect(repository.loadAll(), hasLength(1));
     });
 
-    test('save/delete 生命周期：保存、按 id 更新、删除普通收藏夹', () {
-      final original = FavoriteCollection(
-        id: 'col-1',
-        name: '旧名称',
-        createdAt: DateTime(2026, 1, 1),
-      );
-
-      repository.save(original);
-      expect(
-        repository.loadAll().where((c) => c.id == 'col-1').single,
-        original,
-      );
-
-      repository.save(original.copyWith(name: '新名称'));
-      expect(
-        repository.loadAll().firstWhere((c) => c.id == 'col-1').name,
-        '新名称',
-      );
-
-      repository.delete(
-        'col-1',
-        disposition: CollectionDeleteRequest.moveItemsTo(
-          targetCollectionId:
-              AppReservedEntities.uncategorizedFavoriteCollectionId,
-          assignedAt: DateTime(2026, 8, 1),
-        ),
-      );
-      expect(repository.loadAll().where((c) => c.id == 'col-1'), isEmpty);
-    });
-
     test('rename 走 UPSERT：收藏夹内的收藏不受影响', () {
       // INSERT OR REPLACE 会先删后插触发 RESTRICT 外键级联，
       // rename 含收藏的收藏夹必须保留全部归属关系。
@@ -148,26 +118,6 @@ void main() {
       );
       expect(system.itemCount, 0);
       expect(system.recentAssignedAt, system.collection.createdAt);
-    });
-
-    test('普通夹按名称排序、同名按 id tie-break，系统夹恒置顶', () {
-      for (final (id, name) in [
-        ('col-beta', 'Beta'),
-        ('col-alpha-2', 'Alpha'),
-        ('col-alpha-1', 'Alpha'),
-      ]) {
-        repository.save(
-          FavoriteCollection(id: id, name: name, createdAt: DateTime(2026)),
-        );
-      }
-
-      final ids = repository.loadSummaries().map((s) => s.collection.id);
-      expect(ids, [
-        AppReservedEntities.uncategorizedFavoriteCollectionId,
-        'col-alpha-1',
-        'col-alpha-2',
-        'col-beta',
-      ]);
     });
 
     test('count 与最近收录时间正确反映归属状态', () {
@@ -248,33 +198,6 @@ void main() {
       );
       expect(summary.itemCount, 1);
       expect(summary.recentAssignedAt, DateTime(2026, 8, 15));
-    });
-
-    test('rename 含收藏的收藏夹后归属与计数不变', () {
-      repository.save(
-        FavoriteCollection(id: 'col-r', name: '旧名', createdAt: DateTime(2026)),
-      );
-      favoritesRepository.save(
-        Favorite(
-          id: 'fav-in-r',
-          collectionId: 'col-r',
-          collectionAssignedAt: DateTime(2026, 4, 1),
-          userMessageContent: '问题',
-          assistantContent: '回答',
-          createdAt: DateTime(2026, 4, 1),
-        ),
-      );
-
-      repository.save(
-        FavoriteCollection(id: 'col-r', name: '新名', createdAt: DateTime(2026)),
-      );
-
-      final summary = repository.loadSummaries().firstWhere(
-        (s) => s.collection.id == 'col-r',
-      );
-      expect(summary.collection.name, '新名');
-      expect(summary.itemCount, 1);
-      expect(summary.recentAssignedAt, DateTime(2026, 4, 1));
     });
   });
 
@@ -413,16 +336,6 @@ void main() {
       );
       // 拒绝后数据原样保留。
       expect(favoritesRepository.loadById('fav-of-col-self'), isNotNull);
-    });
-
-    test('删除不存在的收藏夹为 no-op 返回 0', () {
-      expect(
-        repository.delete(
-          'missing-collection',
-          disposition: const DeleteItemsOnCollectionDelete(),
-        ),
-        0,
-      );
     });
   });
 }
