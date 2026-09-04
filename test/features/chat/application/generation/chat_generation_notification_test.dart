@@ -8,7 +8,6 @@ import 'package:oh_my_llm/features/chat/application/generation/chat_generation_l
 import 'package:oh_my_llm/features/chat/application/generation/chat_generation_notification.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_foreground_service.dart';
-import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_state.dart';
 import 'package:oh_my_llm/features/chat/domain/chat_error_messages.dart';
 
 /// 构造指定阶段的 generation 快照；终态调用方自行传入匹配的 outcome。
@@ -226,7 +225,7 @@ void main() {
       test('${c.label}阶段投影为固定文案、动作与终态行为', () {
         final projection = const ChatGenerationNotificationProjector().project(
           snapshot: _snapshot(c.phase, outcome: c.outcome),
-          streamingReply: null,
+          counts: ChatGenerationCharacterCounts.zero,
         );
 
         expect(projection.payload.title, c.title, reason: c.label);
@@ -246,7 +245,7 @@ void main() {
           generationId: 7,
           conversationId: 'conv-42',
         ),
-        streamingReply: null,
+        counts: ChatGenerationCharacterCounts.zero,
       );
       expect(projection.payload.token, 7);
       expect(projection.payload.conversationId, 'conv-42');
@@ -255,7 +254,7 @@ void main() {
     test('流式标题使用当前 attempt', () {
       final projection = const ChatGenerationNotificationProjector().project(
         snapshot: _snapshot(ChatGenerationPhase.streaming, attempt: 3),
-        streamingReply: null,
+        counts: ChatGenerationCharacterCounts.zero,
       );
       expect(projection.payload.title, '正在生成 · 第 3 次尝试');
     });
@@ -271,24 +270,18 @@ void main() {
             ChatGenerationPhase.retryWaiting,
             attempt: attempt,
           ),
-          streamingReply: null,
+          counts: ChatGenerationCharacterCounts.zero,
         );
         expect(projection.payload.text, expected, reason: 'attempt: $attempt');
       }
     });
   });
 
-  group('字数统计', () {
-    test('正文与推理复用聊天字数规则统计中英文并忽略 emoji', () {
-      const reply = ChatStreamingReply(
-        conversationId: 'conv-1',
-        assistantMessageId: 'assistant-1',
-        content: '你好 hello world 👨‍👩‍👧‍👦',
-        reasoningContent: '🤔好 test!',
-      );
+  group('预计算字数', () {
+    test('流式阶段使用调用方提供的正文与推理字数', () {
       final projection = const ChatGenerationNotificationProjector().project(
         snapshot: _snapshot(ChatGenerationPhase.streaming),
-        streamingReply: reply,
+        counts: const ChatGenerationCharacterCounts(content: 4, reasoning: 2),
       );
 
       expect(
@@ -298,15 +291,10 @@ void main() {
       expect(projection.payload.text, '正文 4 字 · 推理 2 字');
     });
 
-    test('finalizing 沿用最后一次流式回复的字数', () {
+    test('finalizing 使用调用方保留的最后字数', () {
       final projection = const ChatGenerationNotificationProjector().project(
         snapshot: _snapshot(ChatGenerationPhase.finalizing),
-        streamingReply: const ChatStreamingReply(
-          conversationId: 'conv-1',
-          assistantMessageId: 'assistant-1',
-          content: '一二三',
-          reasoningContent: '四',
-        ),
+        counts: const ChatGenerationCharacterCounts(content: 3, reasoning: 1),
       );
       expect(
         projection.counts,
@@ -315,14 +303,10 @@ void main() {
       expect(projection.payload.text, '正在保存结果 · 正文 3 字 · 推理 1 字');
     });
 
-    test('finalizing 无流式回复时使用提供的 fallbackCounts', () {
+    test('finalizing 原样使用预计算字数', () {
       final projection = const ChatGenerationNotificationProjector().project(
         snapshot: _snapshot(ChatGenerationPhase.finalizing),
-        streamingReply: null,
-        fallbackCounts: const ChatGenerationCharacterCounts(
-          content: 7,
-          reasoning: 9,
-        ),
+        counts: const ChatGenerationCharacterCounts(content: 7, reasoning: 9),
       );
       expect(
         projection.counts,
@@ -486,7 +470,7 @@ void main() {
       for (final c in cases) {
         final projection = const ChatGenerationNotificationProjector().project(
           snapshot: _snapshot(c.phase, outcome: c.outcome),
-          streamingReply: null,
+          counts: ChatGenerationCharacterCounts.zero,
         );
 
         expect(
@@ -533,8 +517,7 @@ void main() {
             attempt: 9223372036854775807,
             outcome: phase.isTerminal ? _outcomeFor(phase) : null,
           ),
-          streamingReply: null,
-          fallbackCounts: const ChatGenerationCharacterCounts(
+          counts: const ChatGenerationCharacterCounts(
             content: 9223372036854775807,
             reasoning: 9223372036854775807,
           ),
@@ -558,17 +541,16 @@ void main() {
           ChatGenerationPhase.streaming,
           attempt: 9223372036854775807,
         ),
-        streamingReply: null,
+        counts: ChatGenerationCharacterCounts.zero,
       );
       expect(projection.payload.title, '正在生成 · 第 9223372036854775807 次尝试');
       expect(projection.payload.title.characters.length, 32);
     });
 
-    test('最长可达正文（fallbackCounts 为 int 上限）保持原样且不超 120 上限', () {
+    test('最长可达正文（预计算字数为 int 上限）保持原样且不超 120 上限', () {
       final projection = const ChatGenerationNotificationProjector().project(
         snapshot: _snapshot(ChatGenerationPhase.finalizing),
-        streamingReply: null,
-        fallbackCounts: const ChatGenerationCharacterCounts(
+        counts: const ChatGenerationCharacterCounts(
           content: 9223372036854775807,
           reasoning: 9223372036854775807,
         ),
@@ -585,7 +567,7 @@ void main() {
     expect(
       () => const ChatGenerationNotificationProjector().project(
         snapshot: _snapshot(ChatGenerationPhase.idle),
-        streamingReply: null,
+        counts: ChatGenerationCharacterCounts.zero,
       ),
       throwsArgumentError,
     );

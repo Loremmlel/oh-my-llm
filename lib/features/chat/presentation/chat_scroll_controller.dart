@@ -45,7 +45,7 @@ class ChatScrollController {
   String? get activeAnchorMessageId => activeAnchorMessageIdNotifier.value;
 
   String? _lastConversationId;
-  String? _lastRenderSignature;
+  String? _lastMessageId;
   List<ChatMessage> _latestMessages = const [];
   List<ChatMessage> _latestUserMessages = const [];
   List<int> _latestUserMessageIndexes = const [];
@@ -89,38 +89,28 @@ class ChatScrollController {
 
   // ── 滚动触发 ────────────────────────────────────────────────────────────────
 
-  /// 根据会话内容变化决定是否自动滚动到末尾。
-  void scheduleScrollSync({
+  /// 打开会话时定位末尾；同一会话新增一轮且用户原先在底部时再定位一次。
+  ///
+  /// [lastMessageId] 来自 canonical 消息结构，流式正文增长不会改变它，因而
+  /// 不会触发自动追底。
+  void scheduleConversationScroll({
     required String conversationId,
-    required List<ChatMessage> messages,
-    required bool isStreaming,
+    required String? lastMessageId,
     bool skipJumpToBottom = false,
   }) {
-    final signature = [
-      conversationId,
-      messages.length,
-      messages.lastOrNull?.content.length ?? 0,
-      messages.lastOrNull?.reasoningContent.length ?? 0,
-      isStreaming,
-    ].join('|');
-
-    if (_lastConversationId != conversationId) {
-      _lastConversationId = conversationId;
-      if (!skipJumpToBottom) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!itemScrollController.isAttached) return;
-          scrollToBottom(jump: true);
-        });
-      }
-    } else if (_lastRenderSignature != signature) {
-      final shouldAutoScroll = !showScrollToBottom;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!itemScrollController.isAttached) return;
-        if (shouldAutoScroll) scrollToBottom();
-      });
+    final conversationChanged = _lastConversationId != conversationId;
+    final messageTailChanged = _lastMessageId != lastMessageId;
+    final wasAtBottom = !showScrollToBottom;
+    _lastConversationId = conversationId;
+    _lastMessageId = lastMessageId;
+    if (skipJumpToBottom ||
+        (!conversationChanged && (!messageTailChanged || !wasAtBottom))) {
+      return;
     }
-
-    _lastRenderSignature = signature;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!itemScrollController.isAttached) return;
+      scrollToBottom(jump: true);
+    });
   }
 
   /// 滚动到消息列表底部；[jump] 为 true 时直接跳转，否则平滑动画。
@@ -151,15 +141,14 @@ class ChatScrollController {
 
   /// 根据上一帧的最后一条消息位置计算合适的 alignment。
   ///
-  /// - 如果消息 leading edge ≥ 0（消息从 viewport 顶部或以内开始），返回 0；
-  ///   此时 alignment: 0 把 leading edge 对齐顶部，短消息完整可见。
-  /// - 如果消息 leading edge < 0（消息比 viewport 更高，leading edge 已超出顶部），
+  /// - 如果消息完整位于 viewport 内，返回 0，把 leading edge 对齐顶部；
+  /// - 如果消息比 viewport 更高（无论当前 leading edge 是否已超出顶部），
   ///   返回 `1.0 - height`（height 为 trailing – leading 的 viewport 分数）；
   ///   此时 trailing edge 恰好对齐到 viewport 底部，用户看到消息末尾。
   double _computeScrollAlignment() {
-    if (_lastItemLeadingEdge >= 0) return 0;
     final height = _lastItemTrailingEdge - _lastItemLeadingEdge;
     if (height <= 0) return 0;
+    if (_lastItemLeadingEdge >= 0 && _lastItemTrailingEdge <= 1) return 0;
     return 1.0 - height;
   }
 

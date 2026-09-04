@@ -119,6 +119,11 @@ void main() {
       final replacedNode = result.messageNodes.firstWhere((m) => m.id == 'a1');
       expect(replacedNode.content, '新正文');
       expect(replacedNode.reasoningContent, '新推理');
+      expect(
+        identical(result.selectedChildByParentId, conv.selectedChildByParentId),
+        isTrue,
+      );
+      expect(conv.messageNodes.single.content, '旧正文');
     });
 
     test('isStreaming=true 时消息上的 isStreaming 标记为 true', () {

@@ -14,14 +14,14 @@ import 'navigation/message_version_info.dart';
 
 /// 聊天工作区中的消息展示面板。
 ///
-/// 用 [StatefulWidget] 缓存消息版本信息与展示消息列表，避免流式期间
-/// 每 300ms 重建时重复 O(n) 计算。缓存以输入指纹（conversation 与 messages
-/// 的引用相等性）失效，仅在真正变更时重算。
+/// 用 [StatefulWidget] 缓存消息版本信息与展示消息列表。版本关系以稳定的
+/// canonical 消息树为输入，流式正文变化不会使该缓存失效。
 class ChatMessagesPanel extends StatefulWidget {
   static const transientErrorMessageId = '__transient_error_message__';
 
   const ChatMessagesPanel({
     required this.conversation,
+    required this.structureConversation,
     required this.messages,
     required this.userMessages,
     required this.hasModels,
@@ -48,6 +48,7 @@ class ChatMessagesPanel extends StatefulWidget {
   });
 
   final ChatConversation conversation;
+  final ChatConversation structureConversation;
   final List<ChatMessage> messages;
   final List<ChatMessage> userMessages;
   final bool hasModels;
@@ -81,8 +82,7 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
   static const _messageListCacheExtent = 400.0;
 
   // ── 缓存：以输入指纹失效，避免流式高频 rebuild 时重复 O(n) 计算 ─────────
-  // 用 ChatConversation（Equatable 值比较）作 key，而非 messages getter
-  // 返回的 List（identity 比较，跨 build 永不相等会导致缓存 100% miss）。
+  // 使用不含流式正文覆盖的 canonical 会话作 key。
   ChatConversation? _versionInfoConversation;
   Map<String, MessageVersionInfo>? _versionInfoCache;
 
@@ -186,22 +186,20 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
 
   /// 把临时错误拼接为一条助手样式消息，仅用于 UI 展示，不写入会话树。
   ///
-  /// 仅当 conversation/error/errorAssistantId 变化时重算，否则复用缓存。
-  /// 用 [widget.conversation]（Equatable 值比较）作 key，而非
-  /// [widget.messages]——后者由 getter 每次返回全新 List，identity 比较
-  /// 永不相等会导致缓存 100% miss。
+  /// 常态及绑定到现有 assistant 的 inline error 直接复用 [widget.messages]；
+  /// 只有需要追加无归属临时错误时才构造列表，并按 conversation/error 缓存。
   ///
   /// 缓存命中分两层：
   /// - [identical] 快速路径：非流式 rebuild（如 setState）下 conversation
   ///   引用未变，O(1) 直接命中，跳过 Equatable 深度比较。
-  /// - `==` 值比较路径：流式期间 provider 每 300ms 通过 copyWith 产生新实例，
-  ///   identical 必然 false，此时降级到 Equatable 值比较。props 含
-  ///   messageNodes，长对话下为 O(n)，但只要字段未变即命中，避免无新 token
-  ///   时的重复拷贝。真正的 O(n) 优化需 props 精简，本次不做。
+  /// - `==` 值比较路径：非流式来源产生等值实例时仍可复用缓存。
   List<ChatMessage> _resolveDisplayMessages() {
     final normalizedError = widget.errorMessage?.trim();
     final hasError = normalizedError != null && normalizedError.isNotEmpty;
     final errorAssistantId = widget.errorMessageAssistantId;
+    if (!hasError || (errorAssistantId?.trim().isNotEmpty ?? false)) {
+      return widget.messages;
+    }
 
     final conversation = widget.conversation;
     if ((identical(_displayMessagesConversation, conversation) ||
@@ -212,25 +210,17 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
       return _displayMessagesCache!;
     }
 
-    final result = <ChatMessage>[];
-    if (!hasError ||
-        (errorAssistantId != null && errorAssistantId.trim().isNotEmpty)) {
-      result.addAll(widget.messages);
-    } else {
-      result
-        ..addAll(widget.messages)
-        ..add(
-          ChatMessage(
-            id: ChatMessagesPanel.transientErrorMessageId,
-            role: ChatMessageRole.assistant,
-            content: normalizedError,
-            createdAt: DateTime.fromMillisecondsSinceEpoch(0),
-            parentId:
-                widget.messages.lastOrNull?.id ?? rootConversationParentId,
-            assistantModelDisplayName: widget.errorModelDisplayName,
-          ),
-        );
-    }
+    final result = <ChatMessage>[
+      ...widget.messages,
+      ChatMessage(
+        id: ChatMessagesPanel.transientErrorMessageId,
+        role: ChatMessageRole.assistant,
+        content: normalizedError,
+        createdAt: DateTime.fromMillisecondsSinceEpoch(0),
+        parentId: widget.messages.lastOrNull?.id ?? rootConversationParentId,
+        assistantModelDisplayName: widget.errorModelDisplayName,
+      ),
+    ];
     _displayMessagesConversation = conversation;
     _displayMessagesError = normalizedError;
     _displayMessagesErrorAssistantId = errorAssistantId;
@@ -244,8 +234,7 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
   /// 正确命中缓存；messages getter 每次返回新 List 不可作 key。
   /// 同 [_resolveDisplayMessages]，先 [identical] 快速路径再降级 `==`。
   Map<String, MessageVersionInfo> _resolveVersionInfoMap() {
-    final conversation = widget.conversation;
-    final messages = widget.messages;
+    final conversation = widget.structureConversation;
     if (conversation.messageNodes.isEmpty) {
       _versionInfoCache = const {};
       _versionInfoConversation = conversation;
@@ -258,6 +247,7 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
       return _versionInfoCache!;
     }
 
+    final messages = conversation.messages;
     final siblingsByParent = <String, List<ChatMessage>>{};
     for (final node in conversation.messageNodes) {
       final parentId = node.effectiveParentId;
@@ -330,7 +320,10 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
             ? () => widget.onToggleRequestExclusion(message)
             : null,
         onFavoritePressed:
-            !isTransientError && isAssistant && widget.onFavoritePressed != null
+            !isTransientError &&
+                isAssistant &&
+                !message.isStreaming &&
+                widget.onFavoritePressed != null
             ? () => widget.onFavoritePressed!(message)
             : null,
         isFavorited:

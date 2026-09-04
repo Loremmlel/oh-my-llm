@@ -10,6 +10,7 @@ import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
+import 'package:oh_my_llm/features/chat/presentation/widgets/messages/chat_messages_panel.dart';
 import 'package:oh_my_llm/features/settings/application/prompts/memory_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/application/prompts/template_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/memory_prompt.dart';
@@ -585,9 +586,7 @@ void registerChatScreenBasicsTests() {
     expect(find.textContaining('快捷键发送成功'), findsWidgets);
   });
 
-  testWidgets('chat screen scroll-to-bottom button returns to latest message', (
-    tester,
-  ) async {
+  testWidgets('滚动到底部按钮可返回最新消息', (tester) async {
     final fakeClient = FakeChatGenerationClient();
     final database = AppDatabase.inMemory();
     addTearDown(database.close);
@@ -619,57 +618,147 @@ void registerChatScreenBasicsTests() {
     expect(find.textContaining('第 8 条回复'), findsWidgets);
   });
 
+  testWidgets('空会话首次发送后定位到新增助手消息', (tester) async {
+    final fakeClient = FakeChatGenerationClient();
+    final controlled = fakeClient.enqueueControlledStream();
+    await pumpChatScreen(
+      tester,
+      fakeClient: fakeClient,
+      size: const Size(900, 520),
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
+
+    await sendMessage(tester, '首轮问题${'很长的内容 ' * 200}');
+    await controlled.listened;
+    await tester.pump();
+    await tester.pump();
+
+    final messagesPanel = tester.widget<ChatMessagesPanel>(
+      find.byType(ChatMessagesPanel),
+    );
+    expect(
+      messagesPanel.messageItemPositionsListener.itemPositions.value.any(
+        (position) => position.index == 1,
+      ),
+      isTrue,
+    );
+
+    controlled.add(const ChatGenerationChunk(contentDelta: '首轮回复'));
+    await controlled.close();
+    await waitForChatGeneration(
+      tester,
+      container,
+      (state) => state.generation?.phase == ChatGenerationPhase.succeeded,
+      description: '空会话首轮滚动用例生成完成',
+    );
+  });
+
+  testWidgets('长会话位于底部时发送新一轮后定位到新增助手消息', (tester) async {
+    final fakeClient = FakeChatGenerationClient();
+    final controlled = fakeClient.enqueueControlledStream();
+    final database = AppDatabase.inMemory();
+    addTearDown(database.close);
+    final preferences = await TestFixtures.seedPreferences(
+      database: database,
+      models: [TestFixtures.gpt41()],
+      conversations: [_conversationWithTurns(8)],
+    );
+    await pumpChatScreen(
+      tester,
+      fakeClient: fakeClient,
+      preferences: preferences,
+      database: database,
+      size: const Size(900, 520),
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    await tester.tap(find.byTooltip('滚动到底部'));
+    await settleScrollMotion(tester);
+    final panelBeforeSend = tester.widget<ChatMessagesPanel>(
+      find.byType(ChatMessagesPanel),
+    );
+    expect(panelBeforeSend.showScrollToBottomListenable.value, isFalse);
+
+    await sendMessage(tester, '第九轮问题${'很长的内容 ' * 200}');
+    await controlled.listened;
+    await tester.pump();
+    await tester.pump();
+
+    final messagesPanel = tester.widget<ChatMessagesPanel>(
+      find.byType(ChatMessagesPanel),
+    );
+    final positions =
+        messagesPanel.messageItemPositionsListener.itemPositions.value;
+    expect(
+      positions.any((position) => position.index == 17),
+      isTrue,
+      reason: '当前可见位置：$positions',
+    );
+
+    controlled.add(const ChatGenerationChunk(contentDelta: '第九轮回复'));
+    await controlled.close();
+    await waitForChatGeneration(
+      tester,
+      container,
+      (state) => state.generation?.phase == ChatGenerationPhase.succeeded,
+      description: '长会话新一轮滚动用例生成完成',
+    );
+  });
+
   // 覆盖 ChatScrollController.handleVisibleItemsChanged -> ValueNotifier 链路：
   // 滚动消息列表时，用户消息锚点条的高亮会跟随当前可见区域切换，证明
   // ValueListenableBuilder 驱动了 UI 重绘（不再依赖宿主 setState）。
-  testWidgets(
-    'anchor rail highlights follow visible user message while scrolling',
-    (tester) async {
-      final fakeClient = FakeChatGenerationClient();
-      final database = AppDatabase.inMemory();
-      addTearDown(database.close);
-      final preferences = await TestFixtures.seedPreferences(
-        database: database,
-        models: [TestFixtures.gpt41()],
-        conversations: [_conversationWithTurns(5)],
-      );
+  testWidgets('滚动时锚点条高亮跟随当前可见用户消息', (tester) async {
+    final fakeClient = FakeChatGenerationClient();
+    final database = AppDatabase.inMemory();
+    addTearDown(database.close);
+    final preferences = await TestFixtures.seedPreferences(
+      database: database,
+      models: [TestFixtures.gpt41()],
+      conversations: [_conversationWithTurns(5)],
+    );
 
-      await pumpChatScreen(
-        tester,
-        fakeClient: fakeClient,
-        preferences: preferences,
-        database: database,
-        size: const Size(900, 520),
-      );
+    await pumpChatScreen(
+      tester,
+      fakeClient: fakeClient,
+      preferences: preferences,
+      database: database,
+      size: const Size(900, 520),
+    );
 
-      int selectedAnchorIndex() {
-        final selected = <int>[];
-        for (var index = 1; index <= 5; index++) {
-          final semantics = find.semantics
-              .byLabel('第 $index 条用户消息：第 $index 条问题')
-              .evaluate()
-              .single;
-          if (semantics
-                  .getSemanticsData()
-                  .flagsCollection
-                  .isSelected
-                  .toBoolOrNull() ==
-              true) {
-            selected.add(index);
-          }
+    int selectedAnchorIndex() {
+      final selected = <int>[];
+      for (var index = 1; index <= 5; index++) {
+        final semantics = find.semantics
+            .byLabel('第 $index 条用户消息：第 $index 条问题')
+            .evaluate()
+            .single;
+        if (semantics
+                .getSemanticsData()
+                .flagsCollection
+                .isSelected
+                .toBoolOrNull() ==
+            true) {
+          selected.add(index);
         }
-        expect(selected, hasLength(1));
-        return selected.single;
       }
+      expect(selected, hasLength(1));
+      return selected.single;
+    }
 
-      final beforeScroll = selectedAnchorIndex();
+    final beforeScroll = selectedAnchorIndex();
 
-      final scrollable = find.byType(Scrollable).first;
-      await tester.drag(scrollable, const Offset(0, 400));
-      await settleScrollMotion(tester);
+    final scrollable = find.byType(Scrollable).first;
+    await tester.drag(scrollable, const Offset(0, 400));
+    await settleScrollMotion(tester);
 
-      expect(selectedAnchorIndex(), isNot(beforeScroll));
-      expect(tester.takeException(), isNull);
-    },
-  );
+    expect(selectedAnchorIndex(), isNot(beforeScroll));
+    expect(tester.takeException(), isNull);
+  });
 }

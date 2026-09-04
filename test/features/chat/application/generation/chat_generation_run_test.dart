@@ -58,7 +58,6 @@ void main() {
       client: fakeClient,
       host: host ?? _FakeHost(),
       command: command ?? newCommand(),
-      streamUiFlushInterval: Duration.zero,
     );
   }
 
@@ -80,6 +79,36 @@ void main() {
     expect(snapshot.attempt, 1);
     expect(snapshot.generationId, 1);
     expect(host.attempts, hasLength(1));
+  });
+
+  test('连续协议 chunk 均立即投影完整累计内容', () async {
+    final controlled = fakeClient.enqueueControlledStream();
+    addTearDown(controlled.close);
+    final host = _FakeHost();
+    final run = newRun(host: host);
+
+    run.start();
+    await controlled.listened;
+    for (final (delta, expected) in [
+      ('第一段', '第一段'),
+      ('第二段', '第一段第二段'),
+      ('第三段', '第一段第二段第三段'),
+    ]) {
+      controlled.add(ChatGenerationChunk(contentDelta: delta));
+      await host.waitForProjection(
+        (progress) => progress.streamingReply?.content == expected,
+      );
+    }
+
+    final projectedContents = host.progress
+        .map((progress) => progress.streamingReply?.content)
+        .whereType<String>()
+        .where((content) => content.isNotEmpty)
+        .toList();
+    expect(projectedContents, ['第一段', '第一段第二段', '第一段第二段第三段']);
+
+    await controlled.close();
+    await run.completion;
   });
 
   test('empty reply -> GiveUp emptyReply', () async {
@@ -206,8 +235,7 @@ void main() {
         usage: ChatGenerationUsage(inputTokens: 8, cachedInputTokens: 2),
       ),
     );
-    // 等 chunk 增量进入投影（streamUiFlushInterval=0，每 chunk 必投影）再 stop，
-    // 保证 stop 时已累积部分内容。
+    // 等 chunk 增量进入投影再 stop，保证 stop 时已累积部分内容。
     await host.waitForProjection(
       (p) => p.streamingReply?.content.contains('部分') ?? false,
     );

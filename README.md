@@ -107,7 +107,8 @@ flutter run -d windows   # 或 -d <your_android_device_id>
 三个客户端共用 `core/http/` 下的 `LlmHttpStreamTransport`（流式 POST、取消、
 SSE 行与事件边界解码、idle timeout、网络日志与脱敏）与 `SseEventDecoder`
 （不解析任何协议 JSON），只通过 `LlmEndpointResolver` 从配置的 API URL
-归一化请求端点。300 ms UI 投影节流位于 generation 生命周期，不污染 SSE 解析。
+归一化请求端点。generation 生命周期会把每个协议 chunk 投影到独立流式状态，
+不会在 SSE 解析层合并或丢弃增量。
 
 ### Prompt 模板
 
@@ -359,9 +360,14 @@ lib/
 
 ### 流式渲染性能
 
-默认 `flutter_smooth_markdown` 路径使用 `StreamMarkdown` 直接消费增量 chunk，不再依赖"按字数动态定时全量重渲染"。
+默认 `flutter_smooth_markdown` 路径使用 `StreamMarkdown` 直接消费增量 chunk，
+由库内 50 ms 刷新机制合并 Markdown 重建，不附加普通文本尾巴。
 
-UI 更新节流阈值为 300 ms：`ChatGenerationRun` 持续累积增量，并把独立 `ChatStreamingReply` 投影到状态；不会在每个 token 到达时重写持久化会话列表，避免侧栏等无关消费者高频重建。
+`ChatGenerationRun` 将每个协议 chunk 的累计内容写入独立 `ChatStreamingReply`，
+但不重写持久化会话列表。消息区域通过窄 Provider 独立刷新，`ChatScreen`、
+侧栏、composer、收藏查询和滚动导航元数据不会随 chunk 重建。流式内容增长
+不再自动追底；打开或切换会话仍会定位到最新消息，用户原先位于底部时新增
+一轮消息也会一次性定位。
 
 ---
 

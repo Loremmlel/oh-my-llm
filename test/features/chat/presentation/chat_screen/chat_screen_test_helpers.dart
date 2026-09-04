@@ -144,10 +144,9 @@ Future<void> sendMessage(WidgetTester tester, String content) async {
 
 /// 等待生成状态满足条件（转调共享 helper，不复制 listener 逻辑）。
 ///
-/// 状态满足后还需等待消息列表布局收敛：新气泡落位与 scroll-to-bottom 同帧
-/// 发生，ScrollablePositionedList 需要额外若干帧消除瞬态重复气泡，单帧 pump
-/// 不足以稳定（如「展开」按钮/复制按钮会短暂出现两份）。此处按有限组件
-/// 动画收敛，与生成完成语义一并封装。
+/// 状态满足后还需等待消息列表布局收敛：新气泡落位和有限动画会让
+/// ScrollablePositionedList 短暂保留过渡中的 item，单帧 pump 不足以稳定
+/// （如「展开」按钮/复制按钮会短暂出现两份）。
 Future<void> waitForChatGeneration(
   WidgetTester tester,
   ProviderContainer container,

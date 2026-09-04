@@ -203,18 +203,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   /// 构建聊天页的整体布局与交互入口。
   Widget build(BuildContext context) {
-    // 工作区只读快照：消息面板与 composer 的全部展示值由 read-model 派生，
-    // 页面不再各自 watch 二十多个 provider，也不再维护 preset/template 本地镜像。
-    final readModel = ref.watch(chatWorkspaceReadModelProvider);
-    final conversation = readModel.messages.conversation;
+    // 页面只监听 canonical 会话和低频 composer 快照。流式正文由工作区内的
+    // 独立 Consumer 消费，避免带动 AppShell、侧栏和输入区重建。
+    final conversation = ref.watch(activeBaseConversationProvider);
+    final composerReadModel = ref.watch(chatWorkspaceComposerReadModelProvider);
     final conversationSummaries = ref.watch(chatConversationSummariesProvider);
     final activeConversationId = ref.watch(activeConversationIdProvider);
-    final isBusy = readModel.messages.isBusy;
-    final selectedModel = readModel.composer.selectedModel;
-    final supportsReasoning = readModel.composer.supportsReasoning;
-    final activeMessages = readModel.messages.messages;
-    final userMessages = readModel.messages.userMessages;
-    final isStreaming = readModel.composer.isStreaming;
+    final isBusy = composerReadModel.isBusy;
+    final selectedModel = composerReadModel.selectedModel;
+    final supportsReasoning = composerReadModel.supportsReasoning;
+    final activeMessages = conversation.messages;
+    final userMessages = activeMessages
+        .where((message) => message.role == ChatMessageRole.user)
+        .toList(growable: false);
     // 预设 Prompt 只用于动作区/对话框（检查点、发送），不属于 read-model，
     // 仍在页面按 build 快照解析，避免回调触发时使用与 build 时不同的预设。
     final presetPrompts = ref.watch(presetPromptsProvider);
@@ -224,38 +225,39 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
     // 页面编辑草稿为空时用会话级草稿；编辑中覆盖模板选择由 compose 完成。
     final editingDraft = _editingDraft ?? ComposerDraft.empty;
-    final workspaceState = ChatWorkspaceViewState.compose(
-      readModel: readModel,
+    final composerState = ChatWorkspaceComposerState.compose(
+      readModel: composerReadModel,
       editingDraft: editingDraft,
       isEditingMessage: _editingMessageId != null,
-      templatePrompts: readModel.composer.templatePrompts,
+      templatePrompts: composerReadModel.templatePrompts,
     );
     final workspaceBindings = _buildWorkspaceBindings(
       conversation: conversation,
-      composer: workspaceState.composer,
+      composer: composerState,
       selectedPresetPrompt: selectedPresetPrompt,
     );
 
     // 模板变量输入框跟随 effective（编辑时被覆盖的）模板与对应草稿同步：
     // 编辑中读页面草稿，否则读会话级草稿，避免编辑期间的变量写入污染会话级 draft。
     _syncTemplateVariableControllers(
-      workspaceState.composer.selectedTemplatePrompt,
+      composerState.selectedTemplatePrompt,
       draft:
           _editingDraft ??
           ref
               .read(composerDraftProvider.notifier)
               .draftFor(activeConversationId),
     );
-    _scroll.cacheVisibleMessageMetadata(activeMessages, userMessages);
     final pendingScrollId = ref.watch(
       chatSessionsProvider.select((state) => state.pendingScrollToMessageId),
     );
-    _scroll.scheduleScrollSync(
+    // 先读取旧视口是否位于底部，再替换消息元数据；这样 canonical 尾节点
+    // 新增时可以一次性定位，而流式正文覆盖因 ID 不变不会追底。
+    _scroll.scheduleConversationScroll(
       conversationId: conversation.id,
-      messages: activeMessages,
-      isStreaming: isStreaming,
+      lastMessageId: activeMessages.isEmpty ? null : activeMessages.last.id,
       skipJumpToBottom: pendingScrollId != null,
     );
+    _scroll.cacheVisibleMessageMetadata(activeMessages, userMessages);
 
     if (pendingScrollId != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -294,7 +296,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         activeConversationId: activeConversationId,
         hasDraft: !conversation.hasMessages,
         isBusy: isBusy,
-        workspaceState: workspaceState,
+        composerState: composerState,
         workspaceBindings: workspaceBindings,
       ),
     );
@@ -373,7 +375,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     required String activeConversationId,
     required bool hasDraft,
     required bool isBusy,
-    required ChatWorkspaceViewState workspaceState,
+    required ChatWorkspaceComposerState composerState,
     required ChatWorkspaceBindings workspaceBindings,
   }) {
     return LayoutBuilder(
@@ -404,7 +406,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               ],
               Expanded(
                 child: ChatWorkspace(
-                  state: workspaceState,
+                  composerState: composerState,
                   bindings: workspaceBindings,
                 ),
               ),
@@ -455,8 +457,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               .read(chatSessionsProvider.notifier)
               .selectMessageVersion(parentId: parentId, messageId: messageId);
         },
-        onFavoritePressed: (message) =>
-            _showAddToFavoritesDialog(context, message, conversation),
+        onFavoritePressed: (message) => _showAddToFavoritesDialog(
+          context,
+          message,
+          ref.read(activeChatConversationProvider),
+        ),
       ),
       composer: ChatWorkspaceComposerBindings(
         messageController: _messageController,

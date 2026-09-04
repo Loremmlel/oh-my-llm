@@ -52,9 +52,6 @@ class _StreamingMarkdownViewState extends State<StreamingMarkdownView> {
   /// smooth 流式路径下，已推送给 [StreamMarkdown] 的累计文本。
   String _smoothAccumulatedContent = '';
 
-  /// smooth 路径的实时尾部文本，用于在 StreamMarkdown 内部节流窗口中即时回显最新增量。
-  String _smoothLiveTail = '';
-
   // ── 生命周期 ──────────────────────────────────────────────────────────────
 
   @override
@@ -92,7 +89,6 @@ class _StreamingMarkdownViewState extends State<StreamingMarkdownView> {
     _closeSmoothStreamingSession();
     _smoothStreamController = StreamController<String>();
     _smoothAccumulatedContent = '';
-    _smoothLiveTail = '';
   }
 
   /// 结束 smooth 流式会话。
@@ -100,7 +96,6 @@ class _StreamingMarkdownViewState extends State<StreamingMarkdownView> {
     final controller = _smoothStreamController;
     _smoothStreamController = null;
     _smoothAccumulatedContent = '';
-    _smoothLiveTail = '';
     if (controller != null && !controller.isClosed) {
       controller.close();
     }
@@ -130,7 +125,6 @@ class _StreamingMarkdownViewState extends State<StreamingMarkdownView> {
 
     if (normalized.startsWith(_smoothAccumulatedContent)) {
       final delta = normalized.substring(_smoothAccumulatedContent.length);
-      _smoothLiveTail = delta;
       if (delta.isNotEmpty) {
         controller.add(delta);
       }
@@ -147,7 +141,6 @@ class _StreamingMarkdownViewState extends State<StreamingMarkdownView> {
       controller.add(normalized);
     }
     _smoothAccumulatedContent = normalized;
-    _smoothLiveTail = normalized;
   }
 
   /// 构建带主题样式的 Markdown。
@@ -184,27 +177,17 @@ class _StreamingMarkdownViewState extends State<StreamingMarkdownView> {
       );
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        smooth_md.StreamMarkdown(
-          stream: controller.stream,
-          selectable: true,
-          styleSheet: smooth_md.MarkdownStyleSheet.fromTheme(theme),
-          loadingWidget: Text(
-            '正在等待模型返回内容...',
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-              fontStyle: FontStyle.italic,
-            ),
-          ),
+    return smooth_md.StreamMarkdown(
+      stream: controller.stream,
+      selectable: true,
+      styleSheet: smooth_md.MarkdownStyleSheet.fromTheme(theme),
+      loadingWidget: Text(
+        '正在等待模型返回内容...',
+        style: theme.textTheme.bodyLarge?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+          fontStyle: FontStyle.italic,
         ),
-        if (_smoothLiveTail.isNotEmpty) ...[
-          const SizedBox(height: 4),
-          SelectableText(_smoothLiveTail, style: theme.textTheme.bodyLarge),
-        ],
-      ],
+      ),
     );
   }
 }

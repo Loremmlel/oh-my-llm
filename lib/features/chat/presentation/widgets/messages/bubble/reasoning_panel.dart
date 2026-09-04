@@ -1,14 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_smooth_markdown/flutter_smooth_markdown.dart'
-    as smooth_md;
 
 import 'package:oh_my_llm/core/constants/app_animations.dart';
 
+import 'streaming_markdown_view.dart';
+
 /// 折叠式推理内容面板，用于展示模型的深度思考文本。
 class ReasoningPanel extends StatefulWidget {
-  const ReasoningPanel({required this.content, super.key});
+  const ReasoningPanel({
+    required this.content,
+    this.isStreaming = false,
+    super.key,
+  });
 
   final String content;
+  final bool isStreaming;
 
   @override
   State<ReasoningPanel> createState() => _ReasoningPanelState();
@@ -25,11 +30,10 @@ class _ReasoningPanelState extends State<ReasoningPanel> {
     });
   }
 
-  Widget _buildReasoningMarkdown(BuildContext context, ThemeData theme) {
-    return smooth_md.SmoothMarkdown(
-      data: widget.content,
-      selectable: true,
-      styleSheet: smooth_md.MarkdownStyleSheet.fromTheme(theme),
+  Widget _buildReasoningMarkdown() {
+    return StreamingMarkdownView(
+      content: widget.content,
+      isStreaming: widget.isStreaming,
     );
   }
 
@@ -106,7 +110,7 @@ class _ReasoningPanelState extends State<ReasoningPanel> {
             child: _expanded
                 ? Padding(
                     padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                    child: _buildReasoningMarkdown(context, theme),
+                    child: _buildReasoningMarkdown(),
                   )
                 : const SizedBox.shrink(),
           ),

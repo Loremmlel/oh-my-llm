@@ -22,6 +22,7 @@ import '../composer/composer_draft_controller.dart';
 class ChatWorkspaceMessagesState extends Equatable {
   const ChatWorkspaceMessagesState({
     required this.conversation,
+    required this.structureConversation,
     required this.messages,
     required this.userMessages,
     required this.hasModels,
@@ -35,6 +36,9 @@ class ChatWorkspaceMessagesState extends Equatable {
   });
 
   final ChatConversation conversation;
+
+  /// 不含流式正文覆盖的稳定消息树，仅用于版本关系等结构计算。
+  final ChatConversation structureConversation;
 
   /// activeConversation 已合并 streaming reply 的可见消息。
   final List<ChatMessage> messages;
@@ -51,6 +55,7 @@ class ChatWorkspaceMessagesState extends Equatable {
   @override
   List<Object?> get props => [
     conversation,
+    structureConversation,
     messages,
     userMessages,
     hasModels,
@@ -151,11 +156,20 @@ class ChatWorkspaceComposerState extends ChatWorkspaceComposerReadModel {
 
   final bool isEditingMessage;
 
-  factory ChatWorkspaceComposerState.fromReadModel(
-    ChatWorkspaceComposerReadModel readModel, {
-    required TemplatePrompt? selectedTemplatePrompt,
+  factory ChatWorkspaceComposerState.compose({
+    required ChatWorkspaceComposerReadModel readModel,
+    required ComposerDraft editingDraft,
     required bool isEditingMessage,
+    required List<TemplatePrompt> templatePrompts,
   }) {
+    final editingTemplateId = editingDraft.selectedTemplatePromptId;
+    final selectedTemplatePrompt = isEditingMessage
+        ? (editingTemplateId == null
+              ? null
+              : templatePrompts
+                    .where((template) => template.id == editingTemplateId)
+                    .firstOrNull)
+        : readModel.selectedTemplatePrompt;
     return ChatWorkspaceComposerState(
       modelProviders: readModel.modelProviders,
       modelConfigs: readModel.modelConfigs,
@@ -182,64 +196,6 @@ class ChatWorkspaceComposerState extends ChatWorkspaceComposerReadModel {
 
   @override
   List<Object?> get props => [...super.props, isEditingMessage];
-}
-
-/// read-model provider 的产物：只含既有 owner 的快照，不含 UI controller。
-class ChatWorkspaceReadModel extends Equatable {
-  const ChatWorkspaceReadModel({
-    required this.messages,
-    required this.composer,
-  });
-
-  final ChatWorkspaceMessagesState messages;
-  final ChatWorkspaceComposerReadModel composer;
-
-  @override
-  List<Object?> get props => [messages, composer];
-}
-
-/// 页面最终交给 workspace 的 view-state：read-model + 页面瞬态 overlay。
-class ChatWorkspaceViewState extends Equatable {
-  const ChatWorkspaceViewState({
-    required this.messages,
-    required this.composer,
-  });
-
-  final ChatWorkspaceMessagesState messages;
-  final ChatWorkspaceComposerState composer;
-
-  /// 由 [ChatScreen] 用纯 factory 生成：编辑时用页面本地 [editingDraft] 的
-  /// template selection 覆盖 read-model 的 normal selection，并显式传
-  /// [isEditingMessage]。read-model 不变，仅有效值变化。
-  ///
-  /// 编辑无模板消息时 effective 为 null（不回落会话级模板）：UI 与提交解析
-  /// 共用同一 seam，避免 UI 展示的变量输入框在提交时被静默丢弃。
-  factory ChatWorkspaceViewState.compose({
-    required ChatWorkspaceReadModel readModel,
-    required ComposerDraft editingDraft,
-    required bool isEditingMessage,
-    required List<TemplatePrompt> templatePrompts,
-  }) {
-    final editingTemplateId = editingDraft.selectedTemplatePromptId;
-    final effectiveTemplate = isEditingMessage
-        ? (editingTemplateId != null
-              ? templatePrompts
-                    .where((t) => t.id == editingTemplateId)
-                    .firstOrNull
-              : null)
-        : readModel.composer.selectedTemplatePrompt;
-    return ChatWorkspaceViewState(
-      messages: readModel.messages,
-      composer: ChatWorkspaceComposerState.fromReadModel(
-        readModel.composer,
-        selectedTemplatePrompt: effectiveTemplate,
-        isEditingMessage: isEditingMessage,
-      ),
-    );
-  }
-
-  @override
-  List<Object?> get props => [messages, composer];
 }
 
 // ── 纯 resolver（可单测）───────────────────────────────────────────────────
@@ -300,106 +256,126 @@ PresetPrompt? resolveSelectedPresetPrompt(
 
 // ── derived provider ───────────────────────────────────────────────────────
 
-/// workspace 的不可变只读快照；只 watch 输入并调用纯函数。
-final chatWorkspaceReadModelProvider = Provider<ChatWorkspaceReadModel>((ref) {
-  final conversation = ref.watch(activeChatConversationProvider);
-  final isStreaming = ref.watch(isChatStreamingProvider);
-  final isAutoRetryWaiting = ref.watch(
-    chatSessionsProvider.select((state) => state.isAutoRetryWaiting),
-  );
-  final isBusy = ref.watch(isChatBusyProvider);
-  final autoRetryCount = ref.watch(
-    chatSessionsProvider.select((state) => state.autoRetryCount),
-  );
-  final errorMessage = ref.watch(chatErrorMessageProvider);
-  final errorMessageAssistantId = ref.watch(
-    chatErrorMessageAssistantIdProvider,
-  );
-  final emptyReplyAssistantId = ref.watch(
-    chatSessionsProvider.select((state) => state.emptyReplyAssistantId),
-  );
-  final rememberedSelections = ref.watch(chatDefaultsProvider);
-  final fixedPromptSequences = ref.watch(fixedPromptSequencesProvider);
-  final modelProviders = ref.watch(llmProviderConfigsProvider);
-  final modelConfigs = ref.watch(llmModelConfigsProvider);
-  final templatePrompts = ref.watch(templatePromptsProvider);
-  final activeConversationId = ref.watch(activeConversationIdProvider);
-  final selectedTemplatePromptId = ref.watch(
-    composerTemplateSelectionProvider(activeConversationId),
-  );
-  final isComposerCollapsed = ref.watch(composerCollapsedProvider);
-  // watch facade（内部依赖收藏 revision）建立失效依赖，
-  // 再按当前会话的 assistant 消息定向查询收藏身份，不加载全量 catalog。
+/// 当前活动会话中已收藏的助手正文。
+///
+/// 只依赖 canonical 会话和收藏 revision；流式 chunk 不会触发 SQLite 查询。
+final chatFavoritedAssistantContentsProvider = Provider<Set<String>>((ref) {
+  final conversation = ref.watch(activeBaseConversationProvider);
   final facade = ref.watch(chatFavoritesFacadeProvider);
-  final favorites = facade.snapshotFor({
+  final assistantContents = {
     for (final message in conversation.messages)
-      if (message.role == ChatMessageRole.assistant) message.content,
-  });
+      if (message.role == ChatMessageRole.assistant &&
+          message.content.isNotEmpty)
+        message.content,
+  };
+  return Set.unmodifiable(
+    facade.snapshotFor(assistantContents).favoritedAssistantContents,
+  );
+});
 
-  final selectedModel = resolveSelectedModel(
-    modelConfigs: modelConfigs,
-    selectedModelId: conversation.selectedModelId,
-    rememberedModelId: rememberedSelections.defaultModelId,
-  );
-  final selectableProviders = modelProviders
-      .where((provider) => provider.models.isNotEmpty)
-      .toList(growable: false);
-  final selectedProviderId = resolveSelectedProviderId(
-    providers: selectableProviders,
-    selectedModel: selectedModel,
-  );
-  final selectableModels = selectedProviderId == null
-      ? const <LlmModelConfig>[]
-      : modelConfigs
-            .where((config) => config.providerId == selectedProviderId)
-            .toList(growable: false);
-  final selectedTemplatePrompt = resolveSelectedTemplatePrompt(
-    templatePrompts,
-    selectedTemplatePromptId,
-  );
-  final activeMessages = conversation.messages;
-  final userMessages = activeMessages
-      .where((message) => message.role == ChatMessageRole.user)
-      .toList(growable: false);
-  final excludedVisibleMessageCount = activeMessages
-      .where((message) => conversation.isMessageExcluded(message.id))
-      .length;
-  final supportsReasoning = selectedModel?.supportsReasoning ?? false;
-
-  return ChatWorkspaceReadModel(
-    messages: ChatWorkspaceMessagesState(
-      conversation: conversation,
-      messages: List.unmodifiable(activeMessages),
-      userMessages: List.unmodifiable(userMessages),
-      hasModels: modelConfigs.isNotEmpty,
-      isBusy: isBusy,
-      errorMessage: errorMessage,
-      errorMessageAssistantId: errorMessageAssistantId,
-      emptyReplyAssistantId: emptyReplyAssistantId,
-      errorModelDisplayName: selectedModel?.displayName ?? '模型',
-      autoRetryCount: autoRetryCount,
-      favoritedAssistantContents: Set.unmodifiable(
-        favorites.favoritedAssistantContents,
-      ),
-    ),
-    composer: ChatWorkspaceComposerReadModel(
-      modelProviders: List.unmodifiable(selectableProviders),
-      modelConfigs: List.unmodifiable(selectableModels),
-      selectedProviderId: selectedProviderId,
-      selectedModel: selectedModel,
-      templatePrompts: List.unmodifiable(templatePrompts),
-      selectedTemplatePrompt: selectedTemplatePrompt,
-      fixedPromptSequences: List.unmodifiable(fixedPromptSequences),
-      isComposerCollapsed: isComposerCollapsed,
-      reasoningEnabled: supportsReasoning && conversation.reasoningEnabled,
-      reasoningEffort: conversation.reasoningEffort,
-      supportsReasoning: supportsReasoning,
-      autoRetryEnabled: conversation.autoRetryEnabled,
-      isBusy: isBusy,
-      isStreaming: isStreaming,
-      isAutoRetryWaiting: isAutoRetryWaiting,
-      excludedMessageCount: excludedVisibleMessageCount,
-      cacheHitRate: conversation.cacheHitRate,
+/// 当前 canonical 路径中的用户消息，只在消息树结构变化时重算。
+final _activeBaseUserMessagesProvider = Provider<List<ChatMessage>>((ref) {
+  final conversation = ref.watch(activeBaseConversationProvider);
+  return List.unmodifiable(
+    conversation.messages.where(
+      (message) => message.role == ChatMessageRole.user,
     ),
   );
 });
+
+/// composer 的低频只读快照，不依赖流式回复正文。
+final chatWorkspaceComposerReadModelProvider =
+    Provider<ChatWorkspaceComposerReadModel>((ref) {
+      final conversation = ref.watch(activeBaseConversationProvider);
+      final isStreaming = ref.watch(isChatStreamingProvider);
+      final isAutoRetryWaiting = ref.watch(
+        chatSessionsProvider.select((state) => state.isAutoRetryWaiting),
+      );
+      final isBusy = ref.watch(isChatBusyProvider);
+      final rememberedSelections = ref.watch(chatDefaultsProvider);
+      final fixedPromptSequences = ref.watch(fixedPromptSequencesProvider);
+      final modelProviders = ref.watch(llmProviderConfigsProvider);
+      final modelConfigs = ref.watch(llmModelConfigsProvider);
+      final templatePrompts = ref.watch(templatePromptsProvider);
+      final activeConversationId = ref.watch(activeConversationIdProvider);
+      final selectedTemplatePromptId = ref.watch(
+        composerTemplateSelectionProvider(activeConversationId),
+      );
+      final isComposerCollapsed = ref.watch(composerCollapsedProvider);
+      final selectedModel = resolveSelectedModel(
+        modelConfigs: modelConfigs,
+        selectedModelId: conversation.selectedModelId,
+        rememberedModelId: rememberedSelections.defaultModelId,
+      );
+      final selectableProviders = modelProviders
+          .where((provider) => provider.models.isNotEmpty)
+          .toList(growable: false);
+      final selectedProviderId = resolveSelectedProviderId(
+        providers: selectableProviders,
+        selectedModel: selectedModel,
+      );
+      final selectableModels = selectedProviderId == null
+          ? const <LlmModelConfig>[]
+          : modelConfigs
+                .where((config) => config.providerId == selectedProviderId)
+                .toList(growable: false);
+      final selectedTemplatePrompt = resolveSelectedTemplatePrompt(
+        templatePrompts,
+        selectedTemplatePromptId,
+      );
+      final activeMessages = conversation.messages;
+      final excludedVisibleMessageCount = activeMessages
+          .where((message) => conversation.isMessageExcluded(message.id))
+          .length;
+      final supportsReasoning = selectedModel?.supportsReasoning ?? false;
+
+      return ChatWorkspaceComposerReadModel(
+        modelProviders: List.unmodifiable(selectableProviders),
+        modelConfigs: List.unmodifiable(selectableModels),
+        selectedProviderId: selectedProviderId,
+        selectedModel: selectedModel,
+        templatePrompts: List.unmodifiable(templatePrompts),
+        selectedTemplatePrompt: selectedTemplatePrompt,
+        fixedPromptSequences: List.unmodifiable(fixedPromptSequences),
+        isComposerCollapsed: isComposerCollapsed,
+        reasoningEnabled: supportsReasoning && conversation.reasoningEnabled,
+        reasoningEffort: conversation.reasoningEffort,
+        supportsReasoning: supportsReasoning,
+        autoRetryEnabled: conversation.autoRetryEnabled,
+        isBusy: isBusy,
+        isStreaming: isStreaming,
+        isAutoRetryWaiting: isAutoRetryWaiting,
+        excludedMessageCount: excludedVisibleMessageCount,
+        cacheHitRate: conversation.cacheHitRate,
+      );
+    });
+
+/// 消息区域的高频只读快照；每个流式 chunk 仅使此 provider 的消费方重建。
+final chatWorkspaceMessagesStateProvider = Provider<ChatWorkspaceMessagesState>(
+  (ref) {
+    final conversation = ref.watch(activeChatConversationProvider);
+    final structureConversation = ref.watch(activeBaseConversationProvider);
+    final composer = ref.watch(chatWorkspaceComposerReadModelProvider);
+    final activeMessages = conversation.messages;
+    final userMessages = ref.watch(_activeBaseUserMessagesProvider);
+
+    return ChatWorkspaceMessagesState(
+      conversation: conversation,
+      structureConversation: structureConversation,
+      messages: activeMessages,
+      userMessages: userMessages,
+      hasModels: composer.modelConfigs.isNotEmpty,
+      isBusy: ref.watch(isChatBusyProvider),
+      errorMessage: ref.watch(chatErrorMessageProvider),
+      errorMessageAssistantId: ref.watch(chatErrorMessageAssistantIdProvider),
+      emptyReplyAssistantId: ref.watch(chatEmptyReplyAssistantIdProvider),
+      errorModelDisplayName: composer.selectedModel?.displayName ?? '模型',
+      autoRetryCount: ref.watch(
+        chatSessionsProvider.select((state) => state.autoRetryCount),
+      ),
+      favoritedAssistantContents: ref.watch(
+        chatFavoritedAssistantContentsProvider,
+      ),
+    );
+  },
+);

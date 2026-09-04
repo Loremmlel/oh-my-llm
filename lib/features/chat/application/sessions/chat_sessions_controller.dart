@@ -109,20 +109,32 @@ final chatHistoryRevisionProvider = Provider<int>((ref) {
   );
 });
 
+/// 当前活动会话的 canonical 快照，不合并流式正文。
+///
+/// 只随会话列表或活动会话 ID 变化，流式 chunk 不触发重建。
+final activeBaseConversationProvider = Provider<ChatConversation>((ref) {
+  final conversations = ref.watch(chatConversationsProvider);
+  final activeConversationId = ref.watch(activeConversationIdProvider);
+  return conversations.firstWhere(
+    (conversation) => conversation.id == activeConversationId,
+    orElse: () => conversations.first,
+  );
+});
+
+/// 当前流式回复的窄投影，每个协议 chunk 更新一次。
+final chatStreamingReplyProvider = Provider<ChatStreamingReply?>((ref) {
+  return ref.watch(
+    chatSessionsProvider.select((state) => state.streamingReply),
+  );
+});
+
 /// 当前活动会话的完整视图，已将流式增量合并进消息列表（高频刷新）。
-///
-/// 流式进行期间，此 provider 每次 [_streamUiFlushInterval] 重建一次，
-/// 而 [chatConversationsProvider] 和 [chatHistoryRevisionProvider] 保持静止，
-/// 以此隔离高频重建的影响范围。
-///
-/// 消息列表消费方（如 [ChatMessagesPanel]）必须监听此 provider 以逐 token
-/// 刷新；配置字段（模型/预设等）读取虽也走此 provider，但相关 O(n) 计算
-/// 已在消费侧用指纹 memoize 缓解，无需单独的配置视图 provider。
 final activeChatConversationProvider = Provider<ChatConversation>((ref) {
-  final state = ref.watch(chatSessionsProvider);
+  final conversation = ref.watch(activeBaseConversationProvider);
+  final streamingReply = ref.watch(chatStreamingReplyProvider);
   return applyStreamingReplyToConversation(
-    conversation: state.activeConversation,
-    streamingReply: state.streamingReply,
+    conversation: conversation,
+    streamingReply: streamingReply,
   );
 });
 

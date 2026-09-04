@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/core/constants/app_reserved_entities.dart';
 import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/features/chat/application/generation/chat_generation_lifecycle.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
 import 'package:oh_my_llm/features/favorites/data/sqlite_favorites_repository.dart';
 import 'package:oh_my_llm/features/favorites/domain/models/favorite.dart';
@@ -26,6 +27,32 @@ Future<void> _openAddDialog(WidgetTester tester) async {
 }
 
 void registerChatScreenFavoritesTests() {
+  testWidgets('流式助手回复不提供收藏入口，完成后恢复', (tester) async {
+    final fakeClient = FakeChatGenerationClient();
+    final controlled = fakeClient.enqueueControlledStream();
+    await pumpChatScreen(tester, fakeClient: fakeClient);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
+
+    await sendMessage(tester, '流式收藏边界');
+    await controlled.listened;
+    controlled.add(const ChatGenerationChunk(contentDelta: '尚未完成的回复'));
+    await tester.pump();
+
+    expect(find.byTooltip('收藏回复'), findsNothing);
+    expect(_findFavorite(container, '尚未完成的回复'), isNull);
+
+    await controlled.close();
+    await waitForChatGeneration(
+      tester,
+      container,
+      (state) => state.generation?.phase == ChatGenerationPhase.succeeded,
+      description: '流式收藏边界用例生成完成',
+    );
+    expect(find.byTooltip('收藏回复'), findsOneWidget);
+  });
+
   testWidgets('首次打开收藏对话框时系统未分类为预选且可直接确认', (tester) async {
     final fakeClient = FakeChatGenerationClient()..enqueueChunks(['收藏对话框测试回复']);
 

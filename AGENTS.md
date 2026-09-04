@@ -303,7 +303,7 @@ lib/
 ### Chat generation 与 workspace ownership
 
 - Generation 时序由 `ChatGenerationCoordinator` / `ChatGenerationRun` 独占：prepare、stream、stop、cancel、retry、finalize 与持久化终态必须经过显式 `ChatGenerationPhase` / `ChatGenerationOutcome`。`ChatSessionsState` 中兼容字段只是生命周期快照的投影，不得另建第二套 flag 状态机。
-- Workspace 数据以不可变 `ChatWorkspaceViewState` / `ChatWorkspaceBindings` 传递；bindings 只在 build 时组合，不持久化 UI controller。
+- Workspace 数据以不可变 `ChatWorkspaceComposerState` / `ChatWorkspaceMessagesState` / `ChatWorkspaceBindings` 传递；消息状态由工作区内独立 Consumer 消费，bindings 只在 build 时组合，不持久化 UI controller。
 - Composer 会话草稿归 `ComposerDraftController`；编辑事务、焦点、滚动等纯页面状态留在 `ChatScreen` 本地。切换会话不得泄漏模板变量或编辑快照。
 
 ---
@@ -343,7 +343,7 @@ lib/
 - **对话标题**：未手动命名时取首条用户消息前 15 字符（`characters` 包，`normalizedContent.characters.take(15)`）；手动命名后历史列表**不显示预览**。`hasCustomTitle` 检查 `title != null && title!.trim().isNotEmpty`。
 - **历史搜索**：只匹配对话标题 + 用户消息，**不匹配 assistant 回复**。
 - **`isStreaming` 不持久化**（仅内存 UI 状态）；`finishReason` 持久化（当前 schema 的列）。
-- **流式 300ms 节流**在 UI 刷新层（`streamUiFlushInterval`），不在 SSE 解析层。流式增量存独立 `ChatStreamingReply`，不直接写会话列表，避免侧栏等无关组件重建。
+- **流式刷新隔离**：每个协议 chunk 都写入独立 `ChatStreamingReply`，不直接写会话列表；只有消息区域监听高频状态。Markdown 重建由 `StreamMarkdown` 的库内刷新机制合并，侧栏、composer、收藏查询和滚动导航元数据不随 chunk 重建。
 - **自动重试**：异常 `finish_reason`（如 `length`）触发重试，见 `chat_sessions_controller.dart` `_sendWithOptionalAutoRetry`。
 - **输出正则**：`output_regex_processor.dart` 按 `order` 升序链式应用，带 `RegExp` 编译缓存。
 

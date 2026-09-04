@@ -21,21 +21,19 @@ import '../ports/chat_generation_client.dart';
 ///
 /// 串行性（不变量 3）：preparing / completeAttempt / stop / retry-fire /
 /// terminal-commit 都经 [_serialize] 排队，同一 run 不会有两个 awaitable
-/// 操作并发执行。chunk 的 UI 投影 [projectProgress] 保持同步节流，不入队。
+/// 操作并发执行。chunk 的 UI 投影 [projectProgress] 保持同步，不入队。
 class ChatGenerationRun {
   ChatGenerationRun({
     required this.generationId,
     required this.client,
     required this.host,
     required this.command,
-    this.streamUiFlushInterval = const Duration(milliseconds: 300),
   });
 
   final int generationId;
   final ChatGenerationClient client;
   final ChatGenerationHost host;
   final ChatGenerationCommand command;
-  final Duration streamUiFlushInterval;
 
   final Completer<ChatConversation?> _completion =
       Completer<ChatConversation?>();
@@ -57,7 +55,6 @@ class ChatGenerationRun {
   String _reasoning = '';
   String? _finishReason;
   ChatGenerationUsage? _usage;
-  DateTime _lastFlushAt = DateTime(2000);
 
   // prepare 填充的 run context。
   ChatGenerationRequest? _request;
@@ -144,7 +141,6 @@ class ChatGenerationRun {
     _streamingConversation = success.streamingConversation;
     _assistantMessage = success.assistantMessage;
     _streamingReply = success.streamingReply;
-    _lastFlushAt = DateTime.now().subtract(streamUiFlushInterval);
 
     // preparing 期间被 stop：不启动网络，stop action 会处理（不变量：preparing
     // stop 不启动网络）。
@@ -185,16 +181,13 @@ class ChatGenerationRun {
         );
   }
 
-  /// chunk 的同步节流投影。不入串行 queue（不变量 3：UI progress 同步）。
+  /// chunk 的同步投影。不入串行 queue（不变量 3：UI progress 同步）。
   void _onChunk() {
     _streamingReply = _streamingReply?.copyWith(
       content: _content,
       reasoningContent: _reasoning,
       finishReason: _finishReason ?? _streamingReply?.finishReason,
     );
-    final now = DateTime.now();
-    if (now.difference(_lastFlushAt) < streamUiFlushInterval) return;
-    _lastFlushAt = now;
     _project(streamingReply: _streamingReply);
   }
 
@@ -315,7 +308,6 @@ class ChatGenerationRun {
       assistantMessageId: _assistantMessage!.id,
     );
     phase = ChatGenerationPhase.streaming;
-    _lastFlushAt = DateTime.now().subtract(streamUiFlushInterval);
     _project(streamingReply: _streamingReply);
     _startStream();
   }
