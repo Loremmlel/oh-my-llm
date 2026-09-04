@@ -43,12 +43,14 @@ void main() {
       ModelCatalogRequest request,
     )
     fetchModels,
+    Size viewportSize = const Size(1440, 1200),
   }) async {
     final sp = await SharedPreferences.getInstance();
 
     await pumpTestApp(
       tester,
       preferences: sp,
+      viewportSize: viewportSize,
       child: Scaffold(
         body: Center(
           child: ModelConfigFormDialog(
@@ -69,10 +71,22 @@ void main() {
   );
 
   /// 按远端模型名定位所属行的选择框；模型名唯一标识该行。
-  Finder modelCheckbox(String remoteModelId) {
-    final row = find.widgetWithText(Row, remoteModelId);
-    return find.descendant(of: row, matching: find.byType(Checkbox));
-  }
+  Finder modelRow(String remoteModelId) =>
+      find.widgetWithText(Row, remoteModelId);
+
+  Finder modelCheckbox(String remoteModelId) => find
+      .descendant(of: modelRow(remoteModelId), matching: find.byType(Checkbox))
+      .first;
+
+  Finder modelReasoningCheckbox(String remoteModelId) => find.descendant(
+    of: modelRow(remoteModelId),
+    matching: find.byType(CheckboxListTile),
+  );
+
+  Finder modelDisplayNameField(String remoteModelId) => find.descendant(
+    of: modelRow(remoteModelId),
+    matching: find.byType(TextFormField),
+  );
 
   /// 切换到拉取模式并点击拉取按钮，随后断言按钮进入加载态。
   Future<void> switchToFetchAndClickFetch(WidgetTester tester) async {
@@ -204,6 +218,91 @@ void main() {
         expect(captured!.length, 1);
         expect(captured!.first.modelName, 'gpt-4o');
         expect(captured!.first.displayName, 'gpt-4o');
+      });
+
+      testWidgets('逐模型提交深度思考能力并禁用已有模型', (tester) async {
+        testProvider = const LlmProviderConfig(
+          id: 'p-1',
+          name: 'TestProvider',
+          apiUrl: 'https://api.example.com/v1/chat/completions',
+          apiKey: 'sk-test',
+          apiProtocol: LlmApiProtocol.chatCompletions,
+          models: [
+            LlmProviderModelConfig(
+              id: 'existing-id',
+              displayName: 'Existing',
+              modelName: 'existing-model',
+              supportsReasoning: false,
+            ),
+          ],
+        );
+        List<ModelBatchFormData>? captured;
+        final completer = Completer<List<ModelCatalogEntry>>();
+        await pumpDialog(
+          tester,
+          viewportSize: const Size(430, 932),
+          onSubmit: (_) async {},
+          onBatchAdd: (items) async {
+            captured = items;
+          },
+          fetchModels: (_) => completer.future,
+        );
+
+        await switchToFetchAndClickFetch(tester);
+        completer.complete(const [
+          ModelCatalogEntry(id: 'existing-model', ownedBy: 'vendor'),
+          ModelCatalogEntry(id: 'plain-model', ownedBy: 'vendor'),
+          ModelCatalogEntry(id: 'reasoning-model', ownedBy: 'vendor'),
+        ]);
+        await tester.pump();
+
+        expect(
+          tester.widget<Checkbox>(modelCheckbox('existing-model')).onChanged,
+          isNull,
+        );
+        expect(
+          tester
+              .widget<TextFormField>(modelDisplayNameField('existing-model'))
+              .enabled,
+          isFalse,
+        );
+        expect(
+          tester
+              .widget<CheckboxListTile>(
+                modelReasoningCheckbox('existing-model'),
+              )
+              .onChanged,
+          isNull,
+        );
+
+        await tester.tap(modelCheckbox('plain-model'));
+        await tester.pump();
+        await tester.tap(modelCheckbox('reasoning-model'));
+        await tester.pump();
+        await tester.tap(modelReasoningCheckbox('reasoning-model'));
+        await tester.pump();
+
+        await tester.tap(modelCheckbox('reasoning-model'));
+        await tester.pump();
+        await tester.tap(modelCheckbox('reasoning-model'));
+        await tester.pump();
+        expect(
+          tester
+              .widget<CheckboxListTile>(
+                modelReasoningCheckbox('reasoning-model'),
+              )
+              .value,
+          isTrue,
+        );
+
+        await tester.tap(find.text('添加所选模型'));
+        await settleOverlayTransition(tester);
+
+        expect(captured, hasLength(2));
+        expect(captured![0].modelName, 'plain-model');
+        expect(captured![0].supportsReasoning, isFalse);
+        expect(captured![1].modelName, 'reasoning-model');
+        expect(captured![1].supportsReasoning, isTrue);
       });
     });
   });

@@ -121,7 +121,9 @@ class _ModelProviderFormDialogState extends State<ModelProviderFormDialog>
             key: const ValueKey('model-provider-api-key-field'), // test-key
             controller: _apiKeyController,
             decoration: const InputDecoration(labelText: 'API Key'),
-            obscureText: true,
+            keyboardType: TextInputType.visiblePassword,
+            autocorrect: false,
+            enableSuggestions: false,
             validator: validateRequired,
           ),
         ],

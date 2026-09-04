@@ -514,7 +514,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                     id: generateEntityId(),
                     displayName: item.displayName,
                     modelName: item.modelName,
-                    supportsReasoning: false,
+                    supportsReasoning: item.supportsReasoning,
                   ),
                 )
                 .toList();

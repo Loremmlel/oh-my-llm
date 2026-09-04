@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
+import 'package:oh_my_llm/features/settings/application/providers/model_catalog_workflow.dart';
 import 'package:oh_my_llm/features/settings/data/providers/llm_model_config_repository.dart';
 import 'package:oh_my_llm/features/settings/data/prompts/sqlite_memory_prompt_repository.dart';
 import 'package:oh_my_llm/features/settings/data/prompts/sqlite_preset_prompt_repository.dart';
 import 'package:oh_my_llm/features/settings/data/prompts/sqlite_template_prompt_repository.dart';
 import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_coordinator_provider.dart';
 import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_coordinator.dart';
+import 'package:oh_my_llm/features/settings/domain/models/providers/model_catalog_entry.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_transfer_document_codec.dart';
 import 'package:oh_my_llm/features/settings/presentation/settings_screen.dart';
@@ -74,6 +77,69 @@ void registerSettingsScreenModelsAndPromptsTests() {
     expect(createdModel.modelName, 'gpt-4.1');
     expect(createdModel.supportsReasoning, isTrue);
     expect(find.text('OpenAI 4.1'), findsWidgets);
+  });
+
+  testWidgets('从 API 拉取模型时分别保存深度思考能力', (tester) async {
+    final workflow = ModelCatalogWorkflow(
+      fetchModels:
+          ({
+            required String modelsUrl,
+            required String apiKey,
+            required LlmApiProtocol apiProtocol,
+          }) async => const [
+            ModelCatalogEntry(id: 'plain-model', ownedBy: 'vendor'),
+            ModelCatalogEntry(id: 'reasoning-model', ownedBy: 'vendor'),
+          ],
+    );
+    await setUpSettingsScreen(
+      tester,
+      extraOverrides: [
+        modelCatalogWorkflowProvider.overrideWithValue(workflow),
+      ],
+    );
+    final repository = ProviderScope.containerOf(
+      tester.element(find.byType(SettingsScreen)),
+    ).read(llmModelConfigRepositoryProvider);
+    await createTestProvider(tester);
+
+    await tester.tap(find.text('新增模型'));
+    await settleOverlayTransition(tester);
+    await tester.tap(find.text('从 API 拉取'));
+    await tester.pump();
+    await tester.tap(find.widgetWithText(FilledButton, '拉取模型'));
+    await tester.pump();
+
+    Finder modelRow(String modelName) => find.widgetWithText(Row, modelName);
+    Finder selectionCheckbox(String modelName) => find
+        .descendant(of: modelRow(modelName), matching: find.byType(Checkbox))
+        .first;
+    Finder reasoningCheckbox(String modelName) => find.descendant(
+      of: modelRow(modelName),
+      matching: find.byType(CheckboxListTile),
+    );
+
+    await tester.tap(selectionCheckbox('plain-model'));
+    await tester.pump();
+    await tester.tap(selectionCheckbox('reasoning-model'));
+    await tester.pump();
+    await tester.tap(reasoningCheckbox('reasoning-model'));
+    await tester.pump();
+    await tester.tap(find.text('添加所选模型'));
+    await settleOverlayTransition(tester);
+
+    final models = repository.loadAll();
+    expect(
+      models
+          .singleWhere((model) => model.modelName == 'plain-model')
+          .supportsReasoning,
+      isFalse,
+    );
+    expect(
+      models
+          .singleWhere((model) => model.modelName == 'reasoning-model')
+          .supportsReasoning,
+      isTrue,
+    );
   });
 
   testWidgets(
