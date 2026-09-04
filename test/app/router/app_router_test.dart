@@ -121,26 +121,27 @@ void main() {
     expect(find.text('旧链接的问题'), findsOneWidget);
   });
 
-  testWidgets('收藏夹深链命中目标路由而不落错误页', (tester) async {
+  testWidgets('收藏夹深链命中目标路由并规范化非法容量', (tester) async {
     final db = AppDatabase.inMemory();
     addTearDown(db.close);
     seedCollection(db, id: 'col-deep', name: '深链收藏夹');
+    seedFavoriteItems(db, collectionId: 'col-deep', count: 21);
     final prefs = await _testPrefs(db);
 
     final router = createAppRouter(
-      initialLocation: '/favorites/collections/col-deep?page=2&pageSize=10',
+      initialLocation: '/favorites/collections/col-deep?page=2&pageSize=7',
       videoPlayerBindingsFactory: _mobileTestBindings,
     );
     await pumpTestApp(tester, preferences: prefs, database: db, router: router);
+    await settleRouteTransition(tester);
 
     expect(
       router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
       '/favorites/collections/col-deep',
     );
-    expect(
-      router.routerDelegate.state.uri.queryParameters[AppRouteParameter.page],
-      '2',
-    );
+    final queryParameters = router.routerDelegate.state.uri.queryParameters;
+    expect(queryParameters[AppRouteParameter.page], '2');
+    expect(queryParameters[AppRouteParameter.pageSize], '20');
     expect(tester.takeException(), isNull);
   });
 

@@ -12,7 +12,8 @@ import 'package:oh_my_llm/core/widgets/pagination/app_paginated_list_shell.dart'
 import 'package:oh_my_llm/core/widgets/pagination/app_pagination_state.dart';
 
 import '../application/collections_controller.dart';
-import '../application/favorite_browser_controller.dart';
+import '../application/favorite_page_window_provider.dart';
+import '../application/favorites_browse_preferences_controller.dart';
 import '../application/favorites_controller.dart';
 import '../domain/models/favorite.dart';
 import 'widgets/dialogs/delete_collection_dialog.dart';
@@ -22,9 +23,8 @@ import 'widgets/favorite_selection_toolbar.dart';
 
 /// 收藏夹内容页：真实分页浏览单个收藏夹内的收藏，支持多选移动与删除。
 ///
-/// route 是 collectionId/page/pageSize 的唯一 writer；本页把深链参数交给
-/// [FavoriteBrowserController.loadRoute]，翻页与容量变化经 controller 生效后
-/// 以 replace 回写 URL，保持深链可恢复。
+/// route 是 collectionId/page/pageSize 的唯一 writer；页面直接用 route tuple
+/// 查询当前窗口，翻页与容量变化只 replace URL，保持深链可恢复。
 class FavoriteCollectionItemsScreen extends ConsumerStatefulWidget {
   const FavoriteCollectionItemsScreen({
     required this.routeCollectionId,
@@ -55,14 +55,13 @@ class _FavoriteCollectionItemsScreenState
   /// Shift 区间选择锚点；只在当前页内有效。
   String? _selectionAnchorId;
 
-  late final FocusNode _keyboardFocusNode = FocusNode(skipTraversal: true);
+  /// 查询失败时仅用于继续显示上一个成功窗口，不参与查询或 URL 推导。
+  FavoritePageWindow? _lastSuccessfulWindow;
 
-  @override
-  void initState() {
-    super.initState();
-    // route 是初始化唯一入口；统一推迟到首帧后按 location 恢复窗口。
-    _scheduleSyncFromRoute();
-  }
+  String? _scheduledRouteLocation;
+  int? _scheduledPreferencePageSize;
+
+  late final FocusNode _keyboardFocusNode = FocusNode(skipTraversal: true);
 
   @override
   void didUpdateWidget(FavoriteCollectionItemsScreen oldWidget) {
@@ -70,36 +69,19 @@ class _FavoriteCollectionItemsScreenState
     if (widget.routeCollectionId != oldWidget.routeCollectionId ||
         widget.routePage != oldWidget.routePage ||
         widget.routePageSize != oldWidget.routePageSize) {
-      // 外部导航（前进/后退/新深链）改变 query 时重新加载；自身 replace 的
-      // 回声与当前窗口一致时由 loadRoute 前的一致性检查跳过。provider 不允许
-      // 在 rebuild 阶段同步修改，统一推迟到首帧后执行。
-      _scheduleSyncFromRoute();
+      _selectedIds.clear();
+      _selectionAnchorId = null;
+      _scheduledRouteLocation = null;
     }
   }
 
-  void _scheduleSyncFromRoute() {
+  void _schedulePreferenceSave(int pageSize) {
+    if (_scheduledPreferencePageSize == pageSize) return;
+    _scheduledPreferencePageSize = pageSize;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final browser = ref.read(favoriteBrowserProvider);
-      // 已初始化且窗口与 query 一致时视为自身 replace 的回声，
-      // 不再重复查询（翻页/容量回调已先行清空选择）。
-      final sameAsCurrent =
-          browser.isInitialized &&
-          (widget.routeCollectionId == null ||
-              widget.routeCollectionId == browser.collectionId) &&
-          (widget.routePage == null || widget.routePage == browser.page) &&
-          (widget.routePageSize == null ||
-              widget.routePageSize == browser.pageSize);
-      if (sameAsCurrent) return;
-
-      _prepareForWindowChange();
-      ref
-          .read(favoriteBrowserProvider.notifier)
-          .loadRoute(
-            collectionId: widget.routeCollectionId,
-            page: widget.routePage ?? 1,
-            pageSize: widget.routePageSize,
-          );
+      if (!mounted || _scheduledPreferencePageSize != pageSize) return;
+      ref.read(favoritesBrowsePageSizeProvider.notifier).save(pageSize);
+      _scheduledPreferencePageSize = null;
     });
   }
 
@@ -112,19 +94,53 @@ class _FavoriteCollectionItemsScreenState
   FavoritesLibraryController get _library =>
       ref.read(favoritesLibraryProvider.notifier);
 
-  /// mutation 后以 replace 更新 location，避免堆叠历史记录。
-  void _replaceRouteLocation() {
+  void _scheduleRouteCanonicalization(FavoritePageWindow window) {
+    final collectionChanged =
+        widget.routeCollectionId != window.effectiveCollection.id;
+    final pageChanged =
+        widget.routePage != null && widget.routePage != window.canonicalPage;
+    final pageSizeChanged =
+        widget.routePageSize != null && widget.routePageSize != window.pageSize;
+    if (!collectionChanged && !pageChanged && !pageSizeChanged) return;
+
+    final location = _routeLocation(
+      collectionId: window.effectiveCollection.id,
+      page: window.canonicalPage,
+      pageSize: window.pageSize,
+    );
+    if (_scheduledRouteLocation == location) return;
+    _scheduledRouteLocation = location;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _scheduledRouteLocation != location) return;
+      context.replace(location);
+    });
+  }
+
+  String _routeLocation({
+    required String collectionId,
+    required int page,
+    required int pageSize,
+  }) => Uri(
+    path: '${AppDestination.favorites.path}/collections/$collectionId',
+    queryParameters: {
+      AppRouteParameter.page: '$page',
+      AppRouteParameter.pageSize: '$pageSize',
+    },
+  ).toString();
+
+  /// 以 replace 更新 location，避免页码操作堆叠历史记录。
+  void _replaceRouteLocation({
+    required String collectionId,
+    required int page,
+    required int pageSize,
+  }) {
     if (!mounted) return;
-    final state = ref.read(favoriteBrowserProvider);
     context.replace(
-      Uri(
-        path:
-            '${AppDestination.favorites.path}/collections/${state.collectionId}',
-        queryParameters: {
-          AppRouteParameter.page: '${state.page}',
-          AppRouteParameter.pageSize: '${state.pageSize}',
-        },
-      ).toString(),
+      _routeLocation(
+        collectionId: collectionId,
+        page: page,
+        pageSize: pageSize,
+      ),
     );
   }
 
@@ -174,9 +190,7 @@ class _FavoriteCollectionItemsScreenState
 
   /// Shift 区间选择：从锚点到目标在当前页顺序上取闭区间全部选中。
   void _selectRangeTo(String targetId) {
-    final ids = ref
-        .read(favoriteBrowserProvider)
-        .items
+    final ids = (_lastSuccessfulWindow?.page.items ?? const <Favorite>[])
         .map((favorite) => favorite.id)
         .toList(growable: false);
     final anchorIndex = ids.indexOf(_selectionAnchorId!);
@@ -193,9 +207,7 @@ class _FavoriteCollectionItemsScreenState
   }
 
   void _selectCurrentPage() {
-    final ids = ref
-        .read(favoriteBrowserProvider)
-        .items
+    final ids = (_lastSuccessfulWindow?.page.items ?? const <Favorite>[])
         .map((favorite) => favorite.id)
         .toSet();
     if (ids.isEmpty) return;
@@ -279,13 +291,14 @@ class _FavoriteCollectionItemsScreenState
   }
 
   Future<void> _openDeleteCollectionDialog(
+    String collectionId,
     String collectionName,
     int itemCount,
   ) async {
     await showDialog<bool>(
       context: context,
       builder: (context) => DeleteCollectionDialog(
-        collectionId: widget.routeCollectionId ?? '',
+        collectionId: collectionId,
         collectionName: collectionName,
         itemCount: itemCount,
       ),
@@ -296,17 +309,55 @@ class _FavoriteCollectionItemsScreenState
 
   @override
   Widget build(BuildContext context) {
-    final browser = ref.watch(favoriteBrowserProvider);
+    final preferredPageSize = ref.watch(favoritesBrowsePageSizeProvider);
+    final explicitPageSize = widget.routePageSize;
+    final pageSize =
+        explicitPageSize != null &&
+            appPageSizeOptions.contains(explicitPageSize)
+        ? explicitPageSize
+        : preferredPageSize;
+    if (explicitPageSize != null &&
+        appPageSizeOptions.contains(explicitPageSize) &&
+        explicitPageSize != preferredPageSize) {
+      _schedulePreferenceSave(explicitPageSize);
+    }
+
+    final query = (
+      collectionId:
+          widget.routeCollectionId ??
+          AppReservedEntities.uncategorizedFavoriteCollectionId,
+      page: widget.routePage ?? 1,
+      pageSize: pageSize,
+    );
+    final result = ref.watch(favoritePageWindowProvider(query));
+    final freshWindow = result.asData?.value;
+    if (freshWindow != null) {
+      _lastSuccessfulWindow = freshWindow;
+      _scheduleRouteCanonicalization(freshWindow);
+    }
+    final window = freshWindow ?? _lastSuccessfulWindow;
+    final items = window?.page.items ?? const <Favorite>[];
+
     final summaries = ref.watch(collectionsSummariesProvider);
     final summaryById = {
       for (final summary in summaries) summary.collection.id: summary,
     };
-    final currentSummary =
-        summaryById[browser.collectionId] ?? summaries.firstOrNull;
-    final collectionName = currentSummary?.collection.name ?? '收藏夹';
+    final effectiveCollectionId =
+        freshWindow?.effectiveCollection.id ?? query.collectionId;
+    final currentSummary = summaryById[effectiveCollectionId];
+    final collectionName =
+        currentSummary?.collection.name ??
+        freshWindow?.effectiveCollection.name ??
+        '收藏夹';
     final isSystemCollection =
-        browser.collectionId ==
-        AppReservedEntities.uncategorizedFavoriteCollectionId;
+        currentSummary?.collection.isSystem ??
+        freshWindow?.effectiveCollection.isSystem ??
+        true;
+    final currentPage =
+        freshWindow?.canonicalPage ?? (query.page < 1 ? 1 : query.page);
+    final effectivePageSize = freshWindow?.pageSize ?? query.pageSize;
+    final totalItems = window?.page.totalItems ?? 0;
+    final error = result.hasError ? favoriteLoadErrorMessage : null;
 
     return KeyboardListener(
       focusNode: _keyboardFocusNode,
@@ -319,13 +370,14 @@ class _FavoriteCollectionItemsScreenState
         onLocalBack: _clearSelection,
         actions: [
           // 系统未分类不可删除；普通收藏夹提供带去向选择的删除入口。
-          if (!isSystemCollection)
+          if (currentSummary != null && !isSystemCollection)
             IconButton(
               tooltip: '删除收藏夹',
               icon: const Icon(Icons.folder_delete_outlined),
               onPressed: () => _openDeleteCollectionDialog(
+                currentSummary.collection.id,
                 collectionName,
-                currentSummary?.itemCount ?? 0,
+                currentSummary.itemCount,
               ),
             ),
         ],
@@ -338,9 +390,7 @@ class _FavoriteCollectionItemsScreenState
                   ),
                   child: FavoriteSelectionToolbar(
                     selectedCount: _selectedIds.length,
-                    currentPageIds: {
-                      for (final favorite in browser.items) favorite.id,
-                    },
+                    currentPageIds: {for (final favorite in items) favorite.id},
                     onSelectCurrentPage: _selectCurrentPage,
                     onClearSelection: _clearSelection,
                     onMove: _moveSelected,
@@ -350,30 +400,36 @@ class _FavoriteCollectionItemsScreenState
                 )
               : null,
           paginationState: AppPaginationState(
-            currentPage: browser.page,
-            pageSize: browser.pageSize,
-            totalItems: browser.totalItems,
-            isBusy: browser.isBusy,
+            currentPage: currentPage,
+            pageSize: effectivePageSize,
+            totalItems: totalItems,
+            isBusy: result.isLoading,
           ),
-          pageIdentity:
-              '${browser.collectionId} ${browser.page} ${browser.pageSize}',
-          initialLoading: !browser.isInitialized,
-          error: browser.errorMessage,
-          onRetry: browser.errorMessage == null
+          pageIdentity: query,
+          initialLoading: result.isLoading && window == null,
+          error: error,
+          onRetry: error == null
               ? null
-              : () => ref.read(favoriteBrowserProvider.notifier).retry(),
+              : () => ref.invalidate(favoritePageWindowProvider(query)),
           onPageChanged: (page) {
             _prepareForWindowChange();
-            ref.read(favoriteBrowserProvider.notifier).goToPage(page);
-            _replaceRouteLocation();
+            _replaceRouteLocation(
+              collectionId: query.collectionId,
+              page: page,
+              pageSize: query.pageSize,
+            );
           },
           onPageSizeChanged: (size) {
             _prepareForWindowChange();
-            ref.read(favoriteBrowserProvider.notifier).setPageSize(size);
-            _replaceRouteLocation();
+            ref.read(favoritesBrowsePageSizeProvider.notifier).save(size);
+            _replaceRouteLocation(
+              collectionId: query.collectionId,
+              page: 1,
+              pageSize: size,
+            );
           },
           bodyBuilder: (context, scrollController) {
-            if (browser.items.isEmpty) {
+            if (items.isEmpty) {
               return Center(
                 child: AppEmptyState(
                   icon: Icons.folder_open_rounded,
@@ -386,10 +442,10 @@ class _FavoriteCollectionItemsScreenState
             return ListView.separated(
               controller: scrollController,
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-              itemCount: browser.items.length,
+              itemCount: items.length,
               separatorBuilder: (context, index) => const SizedBox(height: 8),
               itemBuilder: (context, index) {
-                final favorite = browser.items[index];
+                final favorite = items[index];
                 return FavoriteListItem(
                   favorite: favorite,
                   selectionMode: _selectionMode,

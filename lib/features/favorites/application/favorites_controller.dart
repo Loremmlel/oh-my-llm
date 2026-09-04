@@ -15,7 +15,7 @@ import '../domain/models/favorite.dart';
 ///
 /// 独占全部收藏库写操作（add/remove/rename/move/bulk/delete-collection/
 /// create/rename-collection），每次成功 mutation 后递增 revision；
-/// by-ID、summaries、browser page 与 Chat adapter 都 watch 该 revision
+/// by-ID、summaries、分页窗口与 Chat adapter 都 watch 该 revision
 /// 建立失效依赖。操作失败（repository 抛出）时 revision 不变。
 class FavoritesLibraryController extends Notifier<int> {
   @override

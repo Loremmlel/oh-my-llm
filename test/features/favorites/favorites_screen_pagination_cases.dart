@@ -159,6 +159,9 @@ void registerFavoritesScreenPaginationTests() {
 
   testWidgets('末页唯一条目被删除后自动回退前一页', (tester) async {
     await _openSystemCollection(tester, itemCount: 21, query: '?page=2');
+    final router = GoRouter.of(
+      tester.element(find.byType(FavoriteCollectionItemsScreen)),
+    );
 
     // 第 2 页只有 fav-001：经行内溢出菜单删除并确认。
     await tester.tap(find.byIcon(Icons.more_vert).first);
@@ -171,6 +174,7 @@ void registerFavoritesScreenPaginationTests() {
     // 总数回到 20，页码从越界的第 2 页归一回最后一页（现在是第 1 页）。
     expect(find.textContaining('共 20 条 · 1/1 页'), findsOneWidget);
     expect(find.text('问题020'), findsOneWidget);
+    expect(router.routerDelegate.state.uri.queryParameters['page'], '1');
   });
 
   testWidgets('清空收藏夹后显示夹内空状态', (tester) async {
