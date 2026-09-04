@@ -14,7 +14,7 @@ import '../application/prompts/memory_prompts_controller.dart';
 import '../application/providers/model_catalog_workflow.dart';
 import '../application/prompts/preset_prompts_controller.dart';
 import '../application/preferences/settings_tab_preferences.dart';
-import '../application/transfer/settings_transfer_catalog_provider.dart';
+import '../application/transfer/settings_transfer_coordinator_provider.dart';
 import '../application/transfer/settings_transfer_coordinator.dart';
 import '../application/transfer/settings_transfer_types.dart';
 import '../application/prompts/template_prompts_controller.dart';
@@ -393,7 +393,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
       return;
     }
     if (preparation is SettingsImportSectionOutsideAllowedGroups ||
-        preparation is SettingsImportInvalidParticipantPayload) {
+        preparation is SettingsImportInvalidSectionPayload) {
       if (mounted) showSettingsSnackbar(context, '导入内容无效');
       return;
     }
@@ -421,14 +421,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     WidgetRef ref,
     PresetPrompt source,
   ) async {
-    final participant = ref
-        .read(settingsTransferCatalogProvider)
-        .participant<List<PresetPrompt>>(
-          const SettingsTransferKey('presetPrompts'),
-        );
     final preparation = ref
         .read(settingsTransferCoordinatorProvider)
-        .exportValue(participant, [source]);
+        .exportPreset(source);
     if (preparation is! SettingsExportBatch) return;
     final exposed = preparation.exposeJson(confirmedSensitive: false);
     if (exposed is! SettingsExportJsonExposed) return;

@@ -1,8 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/features/settings/application/transfer/settings_sync_facade.dart';
-import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_catalog.dart';
 import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_coordinator.dart';
-import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_participant.dart';
+import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_section.dart';
 import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_types.dart';
 import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_transfer_document.dart';
 import 'package:oh_my_llm/features/sync/application/ports/settings_sync_facade.dart';
@@ -19,26 +18,22 @@ void main() {
     expect(record.toJson(), isNot(contains('grantedCategories')));
   });
 
-  test('v9 facade 重试时已完成 participant 变为 no-op 且只执行剩余变更', () async {
-    final completed = _RetryingIntParticipant(
-      key: const SettingsTransferKey('completedValue'),
+  test('v9 facade 重试时已完成 section 变为 no-op 且只执行剩余变更', () async {
+    final completed = _RetryingIntSection(
+      key: 'completedValue',
       order: 0,
       value: 1,
     );
-    final failed = _RetryingIntParticipant(
-      key: const SettingsTransferKey('failedValue'),
+    final failed = _RetryingIntSection(
+      key: 'failedValue',
       order: 1,
       value: 1,
       failFirstWrite: true,
     );
-    final catalog = SettingsTransferCatalog([
-      SettingsTransferParticipantBox.erase(completed),
-      SettingsTransferParticipantBox.erase(failed),
-    ]);
-    final facade = RiverpodSettingsSyncFacade(
-      catalog: catalog,
-      coordinator: SettingsTransferCoordinator(catalog: catalog),
+    final coordinator = SettingsTransferCoordinator(
+      sections: [completed.section, failed.section],
     );
+    final facade = RiverpodSettingsSyncFacade(coordinator: coordinator);
     final groups = {const SettingsSyncGroupId('other')};
     final document = SettingsTransferDocument(
       sections: {'completedValue': 2, 'failedValue': 2},
@@ -66,44 +61,57 @@ void main() {
   });
 }
 
-final class _RetryingIntParticipant extends ReplacingValueParticipant<int> {
-  _RetryingIntParticipant({
-    required super.key,
-    required super.order,
+final class _RetryingIntSection {
+  _RetryingIntSection({
+    required String key,
+    required int order,
     required this.value,
     this.failFirstWrite = false,
-  }) : super(
-         group: SettingsTransferGroup.other,
-         label: '整数设置',
-         sensitivity: SettingsTransferSensitivity.standard,
-       );
+  }) {
+    section = SettingsTransferSection.custom<int>(
+      key: key,
+      group: SettingsTransferGroup.other,
+      label: '整数设置',
+      order: order,
+      sensitivity: SettingsTransferSensitivity.standard,
+      readLocal: () => value,
+      write: (next) async {
+        writeCount += 1;
+        if (failFirstWrite) {
+          failFirstWrite = false;
+          throw StateError('故意注入的 section 写入失败');
+        }
+        value = next;
+      },
+      shouldExport: (_) => true,
+      encode: (next) => next,
+      decode: (payload) {
+        if (payload is! int) throw const FormatException('必须是整数');
+        return payload;
+      },
+      prepareImport: (local, incoming) {
+        if (local == incoming) return null;
+        return SettingsTransferChange<int>(
+          incoming: incoming,
+          writeValue: incoming,
+          fingerprint: '$incoming',
+          summary: SettingsTransferSummaryItem(
+            key: key,
+            label: '整数设置',
+            action: SettingsTransferSummaryAction.replace,
+          ),
+        );
+      },
+      summarizeExport: (_) => SettingsTransferSummaryItem(
+        key: key,
+        label: '整数设置',
+        action: SettingsTransferSummaryAction.replace,
+      ),
+    );
+  }
 
+  late final SettingsTransferSection section;
   int value;
   bool failFirstWrite;
   int writeCount = 0;
-
-  @override
-  int readLocal() => value;
-
-  @override
-  Object encode(int value) => value;
-
-  @override
-  int decode(Object? payload) {
-    if (payload is! int) throw const FormatException('必须是整数');
-    return payload;
-  }
-
-  @override
-  bool isEquivalent(int existing, int incoming) => existing == incoming;
-
-  @override
-  Future<void> applyImport(int value) async {
-    writeCount += 1;
-    if (failFirstWrite) {
-      failFirstWrite = false;
-      throw StateError('故意注入的 participant 写入失败');
-    }
-    this.value = value;
-  }
 }

@@ -2,9 +2,9 @@ import 'dart:async';
 
 import '../../domain/models/transfer/settings_transfer_document.dart';
 import '../../domain/models/transfer/settings_transfer_document_codec.dart';
+import '../../domain/models/prompts/preset_prompt.dart';
 
-import 'settings_transfer_catalog.dart';
-import 'settings_transfer_participant.dart';
+import 'settings_transfer_section.dart';
 import 'settings_transfer_types.dart';
 
 /// 导出准备的 sealed 结果。
@@ -12,7 +12,7 @@ sealed class SettingsExportPreparation {
   const SettingsExportPreparation();
 }
 
-/// 当前选择的分组没有任何可导出的 participant 内容。
+/// 当前选择的分组没有任何可导出的 section 内容。
 final class SettingsExportNoContent extends SettingsExportPreparation {
   const SettingsExportNoContent();
 }
@@ -96,9 +96,9 @@ final class SettingsImportSectionOutsideAllowedGroups
   final String label;
 }
 
-final class SettingsImportInvalidParticipantPayload
+final class SettingsImportInvalidSectionPayload
     extends SettingsImportPreparation {
-  const SettingsImportInvalidParticipantPayload({
+  const SettingsImportInvalidSectionPayload({
     required this.sectionKey,
     required this.label,
   });
@@ -168,11 +168,50 @@ final class SettingsImportAlreadyConsumed
   const SettingsImportAlreadyConsumed();
 }
 
-/// 由 catalog 驱动设置传输的导出、准备、重校验和执行协调器。
+/// 固定设置项的导出、准备、重校验和执行协调器。
 final class SettingsTransferCoordinator {
-  SettingsTransferCoordinator({required this.catalog});
+  SettingsTransferCoordinator({
+    required Iterable<SettingsTransferSection> sections,
+  }) {
+    final ordered = sections.toList(growable: false)
+      ..sort((left, right) {
+        final byGroup = left.group.order.compareTo(right.group.order);
+        if (byGroup != 0) return byGroup;
+        final byOrder = left.order.compareTo(right.order);
+        if (byOrder != 0) return byOrder;
+        return left.key.compareTo(right.key);
+      });
+    final byKey = <String, SettingsTransferSection>{};
+    for (final section in ordered) {
+      if (byKey.containsKey(section.key)) {
+        throw ArgumentError.value(section.key, 'sections', '设置项 key 不能重复');
+      }
+      byKey[section.key] = section;
+    }
+    _sections = List<SettingsTransferSection>.unmodifiable(ordered);
+    _sectionsByKey = Map<String, SettingsTransferSection>.unmodifiable(byKey);
+    groups = List<SettingsTransferGroupDescriptor>.unmodifiable(
+      SettingsTransferGroup.values
+          .where((group) => ordered.any((section) => section.group == group))
+          .map((group) {
+            final groupSections = ordered.where(
+              (section) => section.group == group,
+            );
+            return SettingsTransferGroupDescriptor(
+              group: group,
+              containsSensitive: groupSections.any(
+                (section) =>
+                    section.sensitivity ==
+                    SettingsTransferSensitivity.credentialBearing,
+              ),
+            );
+          }),
+    );
+  }
 
-  final SettingsTransferCatalog catalog;
+  late final List<SettingsTransferSection> _sections;
+  late final Map<String, SettingsTransferSection> _sectionsByKey;
+  late final List<SettingsTransferGroupDescriptor> groups;
   Future<void> _executionTail = Future<void>.value();
 
   // ── Public operations ────────────────────────────────────────────────
@@ -182,16 +221,17 @@ final class SettingsTransferCoordinator {
     final summaries = <SettingsTransferSummaryItem>[];
     var containsSensitive = false;
 
-    for (final participant in catalog.participantsForGroups(groups)) {
-      final exported = participant.exportLocalIfExportable();
+    for (final section in _sections.where(
+      (section) => groups.contains(section.group),
+    )) {
+      final exported = section.exportLocalIfExportable();
       if (exported == null) continue;
 
-      sections[participant.key.value] = exported.encoded;
+      sections[section.key] = exported.encoded;
       summaries.add(exported.summary);
       containsSensitive =
           containsSensitive ||
-          participant.sensitivity ==
-              SettingsTransferSensitivity.credentialBearing;
+          section.sensitivity == SettingsTransferSensitivity.credentialBearing;
     }
 
     if (sections.isEmpty) return const SettingsExportNoContent();
@@ -202,26 +242,21 @@ final class SettingsTransferCoordinator {
     );
   }
 
-  SettingsExportPreparation exportValue<T>(
-    SettingsTransferParticipant<T> participant,
-    T value,
-  ) {
-    if (!participant.shouldExport(value)) {
-      return const SettingsExportNoContent();
+  SettingsExportPreparation exportPreset(PresetPrompt preset) {
+    final section = _sectionsByKey['presetPrompts'];
+    if (section == null) {
+      throw StateError('固定设置项 presetPrompts 未注册');
     }
+    final exported = section.exportValueIfExportable(<PresetPrompt>[preset]);
+    if (exported == null) return const SettingsExportNoContent();
 
     return SettingsExportBatch(
       document: SettingsTransferDocument(
-        sections: <String, Object?>{
-          participant.key.value: participant.encode(value),
-        },
+        sections: <String, Object?>{section.key: exported.encoded},
       ),
-      summaryItems: <SettingsTransferSummaryItem>[
-        participant.summarizeExport(value),
-      ],
+      summaryItems: <SettingsTransferSummaryItem>[exported.summary],
       containsSensitive:
-          participant.sensitivity ==
-          SettingsTransferSensitivity.credentialBearing,
+          section.sensitivity == SettingsTransferSensitivity.credentialBearing,
     );
   }
 
@@ -246,22 +281,16 @@ final class SettingsTransferCoordinator {
     SettingsTransferDocument document, {
     Set<SettingsTransferGroup>? allowedGroups,
   }) {
-    final participants = _allParticipants();
-    final participantsByKey = <String, ErasedSettingsTransferParticipant>{
-      for (final participant in participants)
-        participant.key.value: participant,
-    };
-
-    // 先完成 key 和 group 门禁，防止未请求 section 触发 participant decode。
+    // 先完成 key 和 group 门禁，防止未请求 section 触发 payload decode。
     for (final key in document.sections.keys) {
-      final participant = participantsByKey[key];
-      if (participant == null) {
+      final section = _sectionsByKey[key];
+      if (section == null) {
         return SettingsImportUnknownSection(key);
       }
-      if (allowedGroups != null && !allowedGroups.contains(participant.group)) {
+      if (allowedGroups != null && !allowedGroups.contains(section.group)) {
         return SettingsImportSectionOutsideAllowedGroups(
           sectionKey: key,
-          label: participant.label,
+          label: section.label,
         );
       }
     }
@@ -270,16 +299,16 @@ final class SettingsTransferCoordinator {
     String? invalidSectionKey;
     String? invalidSectionLabel;
     for (final entry in document.sections.entries) {
-      final participant = participantsByKey[entry.key]!;
+      final section = _sectionsByKey[entry.key]!;
       try {
-        decodedValues[entry.key] = participant.decodePayload(entry.value);
+        decodedValues[entry.key] = section.decodePayload(entry.value);
       } catch (_) {
         invalidSectionKey ??= entry.key;
-        invalidSectionLabel ??= participant.label;
+        invalidSectionLabel ??= section.label;
       }
     }
     if (invalidSectionKey != null && invalidSectionLabel != null) {
-      return SettingsImportInvalidParticipantPayload(
+      return SettingsImportInvalidSectionPayload(
         sectionKey: invalidSectionKey,
         label: invalidSectionLabel,
       );
@@ -288,26 +317,23 @@ final class SettingsTransferCoordinator {
     final changes = <_PreparedSettingsTransferChange>[];
     String? preparationFailureKey;
     String? preparationFailureLabel;
-    for (final participant in participants) {
-      final key = participant.key.value;
+    for (final section in _sections) {
+      final key = section.key;
       if (!decodedValues.containsKey(key)) continue;
       try {
-        final change = participant.prepareImport(decodedValues[key]);
+        final change = section.prepareImport(decodedValues[key]);
         if (change != null) {
           changes.add(
-            _PreparedSettingsTransferChange(
-              participant: participant,
-              change: change,
-            ),
+            _PreparedSettingsTransferChange(section: section, change: change),
           );
         }
       } catch (_) {
         preparationFailureKey ??= key;
-        preparationFailureLabel ??= participant.label;
+        preparationFailureLabel ??= section.label;
       }
     }
     if (preparationFailureKey != null && preparationFailureLabel != null) {
-      return SettingsImportInvalidParticipantPayload(
+      return SettingsImportInvalidSectionPayload(
         sectionKey: preparationFailureKey,
         label: preparationFailureLabel,
       );
@@ -325,9 +351,6 @@ final class SettingsTransferCoordinator {
 
   // ── Internal execution ──────────────────────────────────────────────
 
-  List<ErasedSettingsTransferParticipant> _allParticipants() =>
-      catalog.participantsForGroups(SettingsTransferGroup.values.toSet());
-
   Future<SettingsImportExecutionResult> _execute(SettingsImportBatch batch) {
     return _enqueue(() async {
       final revalidated = <_PreparedSettingsTransferChange>[];
@@ -336,7 +359,7 @@ final class SettingsTransferCoordinator {
       for (final prepared in batch._changes) {
         SettingsTransferChange<Object?>? next;
         try {
-          next = prepared.participant.reprepareImport(prepared.change);
+          next = prepared.section.reprepareImport(prepared.change);
         } catch (_) {
           return _failure(prepared.change.summary.label);
         }
@@ -347,7 +370,7 @@ final class SettingsTransferCoordinator {
         if (next != null) {
           revalidated.add(
             _PreparedSettingsTransferChange(
-              participant: prepared.participant,
+              section: prepared.section,
               change: next,
             ),
           );
@@ -367,7 +390,7 @@ final class SettingsTransferCoordinator {
       for (var index = 0; index < revalidated.length; index += 1) {
         final prepared = revalidated[index];
         try {
-          await prepared.participant.applyImport(prepared.change);
+          await prepared.section.applyImport(prepared.change);
         } catch (_) {
           final failedLabel = prepared.change.summary.label;
           final safeReason = _safeWriteFailureReason;
@@ -439,7 +462,7 @@ final class SettingsImportBatch {
        ),
        containsSensitive = changes.any(
          (item) =>
-             item.participant.sensitivity ==
+             item.section.sensitivity ==
              SettingsTransferSensitivity.credentialBearing,
        );
 
@@ -465,11 +488,11 @@ final class SettingsImportBatch {
 
 final class _PreparedSettingsTransferChange {
   const _PreparedSettingsTransferChange({
-    required this.participant,
+    required this.section,
     required this.change,
   });
 
-  final ErasedSettingsTransferParticipant participant;
+  final SettingsTransferSection section;
   final SettingsTransferChange<Object?> change;
 }
 

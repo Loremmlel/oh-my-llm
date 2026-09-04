@@ -7,7 +7,7 @@ import 'package:oh_my_llm/features/settings/data/providers/llm_model_config_repo
 import 'package:oh_my_llm/features/settings/data/prompts/sqlite_memory_prompt_repository.dart';
 import 'package:oh_my_llm/features/settings/data/prompts/sqlite_preset_prompt_repository.dart';
 import 'package:oh_my_llm/features/settings/data/prompts/sqlite_template_prompt_repository.dart';
-import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_catalog_provider.dart';
+import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_coordinator_provider.dart';
 import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_coordinator.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_transfer_document_codec.dart';

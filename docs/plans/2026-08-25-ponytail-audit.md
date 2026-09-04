@@ -134,11 +134,13 @@ M / F / 方向键 / Escape / 长按 / 滚轮等输入在 desktop controller、de
 
 controller 保留完整输入状态机；page 层只验证必要 wiring；accessibility 只验证 semantics、焦点顺序、keyboard equivalent 和 live region。失焦、销毁后 Future、全屏恢复失败、控制栏焦点等真实生命周期或历史 regression 应保留。
 
-### 9. 📋 第二批（深度简化，计划） · 压平 Settings Transfer 的固定注册表架构
+### 9. ✅ 第二批已完成 · 压平 Settings Transfer 的固定注册表架构
 
 **标签：** `yagni` / `shrink`  
 **风险：** 中高  
 **预计净减：** production 400–600 行、test 600–850 行，另可压缩稳定 spec 约 200–350 行（修订后）
+
+**2026-09-04 实施结果：** production 净减 426 行，test 净减 592 行；稳定 spec 从 751 行收敛到 144 行。旧 participant hierarchy、type erasure box、catalog、九个具体 participant 和 `SettingsTransferKey` 已删除，固定九项改由单一 closure-backed section 描述注册。Settings Transfer v9、Sync v4、九个 key、六个 group、canonical JSON、安全确认与四阶段执行语义保持不变。实施与验证记录见 `docs/plans/2026-09-04-settings-transfer-fixed-sections.md`。
 
 PR #3 一次性创建 participant hierarchy、type erasure / box、catalog / provider、coordinator、结果对象、fake participant 和大量扩展性测试。今天 production 仍只有一个固定 catalog，九个 participant 只由这个 provider 构造，没有 runtime plugin、用户注册或第二套 catalog。
 
@@ -182,7 +184,7 @@ PR #7 的 migration / repository 很有价值，但 UI 状态层存在重复 own
 |---|---:|---:|---:|---|
 | #1 compatibility cleanup plan | `+0/-0` | `+0/-0` | `+535/-0` | **cleanup**：失效 / 已完成计划退役 |
 | #2 notification word count | `+10/-6` | `+5/-5` | `+0/-0` | **no action**：理想的小修复 |
-| #3 Settings Transfer v9 | `+2700/-1632` | `+4633/-3101` | `+0/-0` | **deep simplification**：固定注册表被包装成可扩展 subsystem |
+| #3 Settings Transfer v9 | `+2700/-1632` | `+4633/-3101` | `+0/-0` | **已简化**：固定注册表已压平，prod -426 / test -592 |
 | #4 native TCP probe test | `+0/-0` | `+5/-2` | `+0/-0` | **protected**：真实端口生命周期 |
 | #5 branch rules | `+0/-0` | `+0/-0` | `+9/-0` | **no action** |
 | #6 PR / Sourcery rules | `+0/-0` | `+0/-0` | `+107/-0` | **minor cleanup**：示例可压缩，规则保留 |
@@ -226,15 +228,15 @@ PR #7 的 migration / repository 很有价值，但 UI 状态层存在重复 own
 - **候选 4**：声称 400-550 行实为约 40-55 行（把应保留的契约/竞态测试计入了可减）。
 - **候选 8**：声称 250-400 实为约 68 行，且 accessibility 层被误判为第三层重复。
 - **候选 7**：因架构门禁（presentation 不得直触 data 层）净减仅约 25-40 行且必须保留 application seam，性价比最低。
-- **候选 9**：收益偏高 30-40%（prod 实约 400-600、test 约 600-850、spec 约 200-350）。
+- **候选 9**：已完成；prod -426、test -592、spec -607，与修订预估基本一致。
 - **候选 3**："最近 user message 解析"因禁 `part of` 只能提为 public 纯函数（约 +20 行），否则无法参数化测试。
 - **候选 5**：必须先补 `sortProviderConfigs` 单元测试再收缩（现有排序覆盖全在待删测试里）。
 - **新增撤销路径回归测试**（候选 3）：独立审阅发现内联后"撤销恢复收藏"契约失去测试保护，补用例后全量 2136 用例通过。
 
-### 第二批（未开始，需先走计划流程）
+### 第二批进度
 
 - **候选 5**：压缩服务商配置控制器测试（test 约 280-300）。
-- **候选 9**：压平 Settings Transfer 固定注册表（prod 400-600 / test 600-850 / spec 200-350；深度简化，计划必含往返/边界/安全/快照验证）。
+- **候选 9**：已完成；固定 section 架构、外部接口契约测试和稳定 spec 已落地。
 - **候选 10**：压平 Favorites / shared pagination core（prod 350-440 / test 350-450；先外围后 core，须单独设计）。
 
 ### 不做或暂缓
