@@ -4,7 +4,7 @@
 **审计基线：** `master` / `1e4663c88bad1e54e9399ca45bad8302599bd990`  
 **审计范围：** 全仓生产代码、测试代码、测试辅助代码、直接依赖，以及已合入 `master` 的 PR #1–#10 历史
 
-**执行状态（2026-08-25 更新）：** 首批低风险清理（候选 1/2/3/6 + 依赖）已通过 PR #18/#19/#22/#23/#24 全部合入 master；候选 4/7/8 经调查确认收益大幅低于初估或另有取舍，不纳入实施；候选 5/9/10 留作第二批，需先走计划流程。详见文末「执行记录与审计修正」。
+**执行状态（2026-09-04 更新）：** 首批低风险清理（候选 1/2/3/6 + 依赖）已通过 PR #18/#19/#22/#23/#24 全部合入 master；候选 4/7/8 经调查确认收益大幅低于初估或另有取舍，不纳入实施；第二批候选 9/10 已完成，候选 5 仍待独立计划。详见文末「执行记录与审计修正」。
 
 ## 结论
 
@@ -154,19 +154,19 @@ PR #3 一次性创建 participant hierarchy、type erasure / box、catalog / pro
 
 这是深度 simplification，不与低风险 cleanup 混在同一个 PR 中。
 
-### 10. 📋 第二批（深度简化，计划） · 压平 PR #7 的 Favorites / shared pagination core
+### 10. ✅ 第二批已完成 · 路由独占 Favorites 分页查询
 
 **标签：** `shrink`  
-**风险：** 中高  
-**预计净减：** production 350–440 行、test 350–450 行（修订后）
+**风险：** 中
+**实际净减：** production 103 行、test 7 行
 
 PR #7 的 migration / repository 很有价值，但 UI 状态层存在重复 owner：Favorites repository 本身是同步查询，route 已持有 page / pageSize 等可序列化状态，又额外通过 browser controller / state 缓存同一窗口，形成 URL、controller state、screen echo 三方同步成本。
 
-同时，共享 pagination 从 PR 前约 270 行的 History bar 扩展成约 515 行 core state / bar / shell / constants，并配套约 592 行 core tests；两个 caller 的共享价值存在，但当前抽象面偏大。
+后续调查确认，共享 pagination 的 state/bar/shell 同时承载 Favorites 与 History 的受控页码、固定底栏、inline error 和滚动 identity，继续压缩会把逻辑复制回两个页面；History 还需要保留真正的异步查询与竞态 owner。因此本候选只删除 Favorites 的重复分页状态层，不修改共享 core。
 
-建议让 Favorites 以 route tuple + library revision 直接查询当前页；History 保留真正需要的 async query controller 与竞态语义；shared pagination 只保留两个页面真正共享的页码算法和 visual bar；selection 继续由页面本地拥有，不再创建新的 selection framework。
+**2026-09-04 实施结果：** 删除 237 行 `FavoriteBrowserController` / state / provider，以 78 行同步 family provider 直接从 route tuple 与 library revision 派生有效窗口。页面翻页和容量变化只写 URL，失败旧窗口仅为本地显示 cache；收藏夹失效与末页消失会规范化 URL。production 净减 103 行、test 净减 7 行；共享 pagination、History async controller、SQLite schema、repository 和路由格式均保持不变。实施与验证记录见 `docs/plans/2026-09-04-favorites-route-owned-pagination.md`。
 
-这一项必须单独设计和实施，不得触碰 migration、数据保留和 History isolate 生命周期。
+该项通过独立分支实施，未混入候选 5 或其他 audit 项，也未触碰 migration、数据保留和 History isolate 生命周期。
 
 ## 其他暂缓候选
 
@@ -188,7 +188,7 @@ PR #7 的 migration / repository 很有价值，但 UI 状态层存在重复 own
 | #4 native TCP probe test | `+0/-0` | `+5/-2` | `+0/-0` | **protected**：真实端口生命周期 |
 | #5 branch rules | `+0/-0` | `+0/-0` | `+9/-0` | **no action** |
 | #6 PR / Sourcery rules | `+0/-0` | `+0/-0` | `+107/-0` | **minor cleanup**：示例可压缩，规则保留 |
-| #7 Favorites / Pagination | `+4226/-1539` | `+5152/-1111` | `+1042/-17` | **cleanup + deep simplification**：先外围，再 core |
+| #7 Favorites / Pagination | `+4226/-1539` | `+5152/-1111` | `+1042/-17` | **已简化**：route 独占分页，prod -103 / test -7；共享 core 保留 |
 | #8 v13 -> v14 migration fix | `+13/-0` | `+57/-0` | `+0/-0` | **protected**：真实用户库与数据保留 |
 | #9 UI fixes | `+211/-178` | `+82/-0` | `+0/-0` | **no action**：具体用户可见缺陷 |
 | #10 Windows Back | `+73/-1` | `+718/-0` | `+430/-0` | **cleanup**：production 合理，测试 / 执行文档过量 |
@@ -229,6 +229,7 @@ PR #7 的 migration / repository 很有价值，但 UI 状态层存在重复 own
 - **候选 8**：声称 250-400 实为约 68 行，且 accessibility 层被误判为第三层重复。
 - **候选 7**：因架构门禁（presentation 不得直触 data 层）净减仅约 25-40 行且必须保留 application seam，性价比最低。
 - **候选 9**：已完成；prod -426、test -592、spec -607，与修订预估基本一致。
+- **候选 10**：已完成；原估把 shared pagination 误计为可删除，实施范围修订为只删除 Favorites 重复 owner，prod -103、test -7。
 - **候选 3**："最近 user message 解析"因禁 `part of` 只能提为 public 纯函数（约 +20 行），否则无法参数化测试。
 - **候选 5**：必须先补 `sortProviderConfigs` 单元测试再收缩（现有排序覆盖全在待删测试里）。
 - **新增撤销路径回归测试**（候选 3）：独立审阅发现内联后"撤销恢复收藏"契约失去测试保护，补用例后全量 2136 用例通过。
@@ -237,7 +238,7 @@ PR #7 的 migration / repository 很有价值，但 UI 状态层存在重复 own
 
 - **候选 5**：压缩服务商配置控制器测试（test 约 280-300）。
 - **候选 9**：已完成；固定 section 架构、外部接口契约测试和稳定 spec 已落地。
-- **候选 10**：压平 Favorites / shared pagination core（prod 350-440 / test 350-450；先外围后 core，须单独设计）。
+- **候选 10**：已完成；route tuple + library revision 直接查询分页窗口，共享 pagination 与 History async controller 保留。
 
 ### 不做或暂缓
 

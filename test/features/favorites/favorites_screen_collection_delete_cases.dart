@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/favorites/application/ports/collections_repository.dart';
+import 'package:oh_my_llm/features/favorites/application/ports/favorites_repository.dart';
 import 'package:oh_my_llm/features/favorites/data/sqlite_collections_repository.dart';
+import 'package:oh_my_llm/features/favorites/data/sqlite_favorites_repository.dart';
 import 'package:oh_my_llm/features/favorites/domain/models/collection.dart';
 import 'package:oh_my_llm/features/favorites/domain/models/collection_delete_request.dart';
 import 'package:oh_my_llm/features/favorites/domain/models/favorite_collection_summary.dart';
@@ -206,10 +208,16 @@ void registerFavoritesScreenCollectionDeleteTests() {
       preferences: preferences,
       database: db,
       initialLocation: '/favorites/collections/col-flaky',
-      extraOverrides: [collectionsRepositoryProvider.overrideWithValue(flaky)],
+      extraOverrides: [
+        collectionsRepositoryProvider.overrideWithValue(flaky),
+        favoritesRepositoryProvider.overrideWithValue(
+          SqliteFavoritesRepository(db),
+        ),
+      ],
       // 排除生产绑定，让故障注入装饰器接管收藏夹仓库。
       bindFavoritesRepositories: false,
     );
+    final router = GoRouter.of(tester.element(find.text('事务失败夹')));
 
     flaky.failDelete = true;
     await tester.tap(find.byTooltip('删除收藏夹'));
@@ -225,9 +233,14 @@ void registerFavoritesScreenCollectionDeleteTests() {
     await tester.tap(find.widgetWithText(FilledButton, '删除收藏夹'));
     await settleRouteTransition(tester);
 
-    // 重试成功后当前浏览的收藏夹被删除，浏览器回退系统未分类；
-    // 系统夹此时为空，展示夹内空状态。
-    expect(find.textContaining('暂无收藏'), findsOneWidget);
+    // 重试成功后当前收藏夹被删除，路由规范化到系统未分类；默认移动
+    // 处置保留原收藏，因此系统夹直接展示迁入条目。
+    expect(find.text('问题001'), findsOneWidget);
     expect(find.text('事务失败夹'), findsNothing);
+    expect(
+      router.routerDelegate.state.uri.path,
+      '/favorites/collections/__uncategorized_favorites__',
+    );
+    expect(router.routerDelegate.state.uri.queryParameters['page'], '1');
   });
 }

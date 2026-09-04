@@ -125,6 +125,7 @@ void main() {
     final db = AppDatabase.inMemory();
     addTearDown(db.close);
     seedCollection(db, id: 'col-deep', name: '深链收藏夹');
+    seedFavoriteItems(db, collectionId: 'col-deep', count: 11);
     final prefs = await _testPrefs(db);
 
     final router = createAppRouter(
