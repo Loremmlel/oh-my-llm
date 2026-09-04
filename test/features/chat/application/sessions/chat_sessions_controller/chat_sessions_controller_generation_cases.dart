@@ -125,13 +125,21 @@ void registerChatSessionsControllerGenerationCases() {
 
   // ── 错误与空回复 ────────────────────────────────────────────────────────────
 
-  test('sendMessage 错误时设置 errorMessage 并清除 isStreaming', () async {
-    fakeClient.enqueueError(ChatGenerationException('API 请求失败'));
+  test('sendMessage 错误时保存用量并清除 isStreaming', () async {
+    const usage = ChatGenerationUsage(
+      inputTokens: 100,
+      outputTokens: 8,
+      cachedInputTokens: 40,
+    );
+    fakeClient.enqueueError(
+      const ChatGenerationException('API 请求失败', usage: usage),
+    );
     await sendMsg('触发错误');
 
     final state = container.read(chatSessionsProvider);
     expect(state.errorMessage, isNotNull);
     expect(state.isStreaming, isFalse);
+    expect(state.activeConversation.messages.last.tokenUsage, usage);
   });
 
   test('sendMessage 错误且无部分内容时保留空白占位节点', () async {

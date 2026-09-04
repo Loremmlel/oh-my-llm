@@ -19,6 +19,7 @@ class ChatGenerationException implements Exception {
     this.statusCode,
     this.apiErrorCode,
     this.responseBody,
+    this.usage,
     this.cause,
     this.causeStackTrace,
   });
@@ -39,6 +40,9 @@ class ChatGenerationException implements Exception {
 
   /// 原始响应体（HTTP 错误或 SSE 解析失败时的原文）。
   final String? responseBody;
+
+  /// 失败终态自然携带的 Token 用量。
+  final ChatGenerationUsage? usage;
 
   /// 被包装的源异常（连接中断、TLS 握手失败等）。
   final Object? cause;

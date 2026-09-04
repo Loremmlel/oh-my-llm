@@ -457,13 +457,12 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
         spacing: 6,
         runSpacing: 2,
         children: [
-          for (var index = 0; index < values.length; index++) ...[
+          for (var index = 0; index < values.length; index++)
             Text(
-              '${values[index].$1} ${_formatTokenCount(values[index].$2!)}',
+              '${index == 0 ? '' : '· '}${values[index].$1} '
+              '${_formatTokenCount(values[index].$2!)}',
               style: style,
             ),
-            if (index < values.length - 1) Text('·', style: style),
-          ],
         ],
       ),
     );

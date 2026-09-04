@@ -90,6 +90,8 @@ repository 接口、冲突异常、后台 command/ACK、load join、summary 投�
   message。
 - 正常完成、空回复、异常 finish reason、最终错误或用户停止，只要最终 attempt
   收到 usage，就随终态消息保存。
+- Responses `response.failed` envelope 携带的 usage 先合并到当前 attempt，
+  再进入失败终态。
 - preparing 或 retry waiting 阶段停止时没有当前 attempt usage，不写用量。
 
 ## 3. 最小数据设计
@@ -212,6 +214,8 @@ pair 时返回 `null`。不增加 `ChatTokenUsageSummary`，不把累计值写�
 - 将 `ChatGenerationUsage` 下移到 domain，并更新现有引用；不创建兼容 alias。
 - Chat Completions 请求增加 `stream_options: {'include_usage': true}`；parser 在检查
   `choices` 前读取顶层 usage，使 `choices: []` 的 usage-only chunk 也能产出数据。
+- Chat Completions 遇到明确提及 `stream_options` / `include_usage` 不受
+  支持的 400/422 时，移除该字段并仅重试一次；其他错误不降级。
 - Chat Completions / Responses 读取 cache-write 字段（存在时保留显式 `0`）。
 - Anthropic 读取 `cache_creation_input_tokens`，并将
   `inputTokens = input + cache read + cache creation`；cache read/write 字段仍保留原值。
@@ -237,7 +241,7 @@ pair 时返回 `null`。不增加 `ChatTokenUsageSummary`，不把累计值写�
 ### 6.4 展示
 
 - `ChatMessageBubble` 在现有 finish reason 和 version navigator 之间生成已知字段文本，
-  用 `Wrap` 防止窄宽溢出；千位分隔使用文件内私有 helper。
+  用 `Wrap` 防止窄宽溢出；分隔点与后一字段绑定换行，千位分隔使用文件内私有 helper。
 - `ChatConversation.cacheHitRate` 直接派生比例。
 - `ChatWorkspaceComposerReadModel/State` 只增加一个 `double? cacheHitRate` 并透传。
 - `ChatComposerCard` 在 provider/model row 后显示一行；格式化使用文件内私有 helper，

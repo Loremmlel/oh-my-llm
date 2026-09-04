@@ -379,6 +379,63 @@ void main() {
       );
     });
 
+    test('stream_options 明确不受支持时移除后重试一次', () async {
+      final payloads = <Map<String, dynamic>>[];
+      final client = _FakeStreamingHttpClient((request) async {
+        payloads.add(
+          jsonDecode((request as http.Request).body) as Map<String, dynamic>,
+        );
+        if (payloads.length == 1) {
+          return http.StreamedResponse(
+            Stream.value(
+              utf8.encode(
+                '{"detail":[{"loc":["body","stream_options"],'
+                '"type":"extra_forbidden"}]}',
+              ),
+            ),
+            422,
+          );
+        }
+        return okResponse();
+      });
+
+      final chunks = await buildChatClient(client)
+          .streamCompletion(_request(_messages(), modelConfig: _modelConfig()))
+          .toList();
+
+      expect(chunks.map((chunk) => chunk.contentDelta).join(), 'ok');
+      expect(payloads, hasLength(2));
+      expect(payloads.first['stream_options'], {'include_usage': true});
+      expect(payloads.last.containsKey('stream_options'), isFalse);
+    });
+
+    test('普通 422 不做 stream_options 降级', () async {
+      var requestCount = 0;
+      final client = _FakeStreamingHttpClient((_) async {
+        requestCount++;
+        return http.StreamedResponse(
+          Stream.value(utf8.encode('{"error":{"message":"model not found"}}')),
+          422,
+        );
+      });
+
+      await expectLater(
+        buildChatClient(client)
+            .streamCompletion(
+              _request(_messages(), modelConfig: _modelConfig()),
+            )
+            .drain<void>(),
+        throwsA(
+          isA<ChatGenerationException>().having(
+            (error) => error.statusCode,
+            'statusCode',
+            422,
+          ),
+        ),
+      );
+      expect(requestCount, 1);
+    });
+
     test('超长空响应 rawSseData 截尾：responseBody 只保留尾部 200 行', () async {
       final client = _FakeStreamingHttpClient((_) async {
         return http.StreamedResponse(

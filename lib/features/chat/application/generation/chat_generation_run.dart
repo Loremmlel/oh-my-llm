@@ -221,6 +221,9 @@ class ChatGenerationRun {
 
   Future<void> _completeAttemptFromError(Object error, StackTrace stack) async {
     if (_outcome != null) return; // 拦截 onDone 后的迟到 onError
+    if (error is ChatGenerationException && error.usage != null) {
+      _usage = _usage?.merge(error.usage!) ?? error.usage;
+    }
     await _settleAttempt(
       ChatGenerationFailure(
         generationId: generationId,

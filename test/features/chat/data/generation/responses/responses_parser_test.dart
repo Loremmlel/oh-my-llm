@@ -129,11 +129,14 @@ void main() {
       );
     });
 
-    test('response.failed → 从 response.error 提取 message/code 抛异常', () {
+    test('response.failed → 从 response 提取错误与用量后抛异常', () {
       expect(
         () => newParser().parse(
           event(
-            '{"type":"response.failed","response":{"error":{"code":"server_error","message":"Server had an error"}}}',
+            '{"type":"response.failed","response":{'
+            '"error":{"code":"server_error","message":"Server had an error"},'
+            '"usage":{"input_tokens":100,"output_tokens":8,'
+            '"input_tokens_details":{"cached_tokens":40}}}}',
           ),
         ),
         throwsA(
@@ -141,7 +144,16 @@ void main() {
               .having((e) => e.message, 'message', 'Server had an error')
               .having((e) => e.apiErrorCode, 'apiErrorCode', 'server_error')
               .having((e) => e.protocol, 'protocol', protocol)
-              .having((e) => e.uri, 'uri', uri),
+              .having((e) => e.uri, 'uri', uri)
+              .having(
+                (e) => e.usage,
+                'usage',
+                const ChatGenerationUsage(
+                  inputTokens: 100,
+                  outputTokens: 8,
+                  cachedInputTokens: 40,
+                ),
+              ),
         ),
       );
     });

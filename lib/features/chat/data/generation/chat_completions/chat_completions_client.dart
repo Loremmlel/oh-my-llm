@@ -38,83 +38,94 @@ class ChatCompletionsClient extends ChatGenerationClient {
     }
 
     final uri = _resolveEndpoint(request);
-    final payload = <String, Object>{
-      'model': request.target.model,
-      'stream': true,
-      'stream_options': {'include_usage': true},
-      'messages': [
-        for (final message in request.messages)
-          {'role': message.role.apiValue, 'content': message.content},
-      ],
-      // 只在模型支持 reasoning 且当前会话启用时发送，其余情况省略。
-      if (request.reasoningEffort case final effort?)
-        'reasoning_effort': effort.apiValue,
-    };
+    var includeUsage = true;
+    while (true) {
+      final payload = <String, Object>{
+        'model': request.target.model,
+        'stream': true,
+        if (includeUsage) 'stream_options': {'include_usage': true},
+        'messages': [
+          for (final message in request.messages)
+            {'role': message.role.apiValue, 'content': message.content},
+        ],
+        // 只在模型支持 reasoning 且当前会话启用时发送，其余情况省略。
+        if (request.reasoningEffort case final effort?)
+          'reasoning_effort': effort.apiValue,
+      };
 
-    // 每次请求独立的 parser：splitter 的跨 chunk 状态不跨请求复用。
-    final parser = ChatCompletionsParser(
-      protocol: request.target.protocol,
-      uri: uri,
-    );
-
-    final rawSseData = <String>[];
-    var hadContent = false;
-
-    try {
-      await for (final event in _transport.streamEvents(
+      // 每次请求独立的 parser：splitter 的跨 chunk 状态不跨请求复用。
+      final parser = ChatCompletionsParser(
+        protocol: request.target.protocol,
         uri: uri,
-        headers: {
-          ..._baseHeaders,
-          'Authorization': 'Bearer ${request.target.apiKey}',
-        },
-        body: jsonEncode(payload),
-        idleTimeout: request.streamIdleTimeout,
-      )) {
-        rawSseData.add(event.rawData);
-        // 诊断缓冲只保留尾部，超出的行直接丢弃。
-        if (rawSseData.length > _maxRawSseLines) {
-          rawSseData.removeRange(0, rawSseData.length - _maxRawSseLines);
-        }
-        final parsed = parser.parse(event);
-        final chunk = parsed.chunk;
-        if (chunk != null) {
-          if (!chunk.isEmpty) {
-            hadContent = true;
+      );
+      final rawSseData = <String>[];
+      var hadContent = false;
+
+      try {
+        await for (final event in _transport.streamEvents(
+          uri: uri,
+          headers: {
+            ..._baseHeaders,
+            'Authorization': 'Bearer ${request.target.apiKey}',
+          },
+          body: jsonEncode(payload),
+          idleTimeout: request.streamIdleTimeout,
+        )) {
+          rawSseData.add(event.rawData);
+          // 诊断缓冲只保留尾部，超出的行直接丢弃。
+          if (rawSseData.length > _maxRawSseLines) {
+            rawSseData.removeRange(0, rawSseData.length - _maxRawSseLines);
           }
-          yield chunk;
+          final parsed = parser.parse(event);
+          final chunk = parsed.chunk;
+          if (chunk != null) {
+            if (!chunk.isEmpty) {
+              hadContent = true;
+            }
+            yield chunk;
+          }
+          if (parsed.isDone) {
+            // [DONE]：正常流结束，停止消费。
+            break;
+          }
         }
-        if (parsed.isDone) {
-          // [DONE]：正常流结束，停止消费。
-          break;
+      } on LlmHttpTransportException catch (error) {
+        final responseBody = error.responseBody?.toLowerCase() ?? '';
+        if (includeUsage &&
+            (error.statusCode == 400 || error.statusCode == 422) &&
+            (responseBody.contains('stream_options') ||
+                responseBody.contains('include_usage'))) {
+          includeUsage = false;
+          continue;
         }
+        // 传输层异常统一转换为业务异常，保留协议/URI/状态码与原始 cause。
+        throw ChatGenerationException(
+          error.message,
+          protocol: request.target.protocol,
+          uri: uri,
+          statusCode: error.statusCode,
+          responseBody: error.responseBody,
+          cause: error.cause,
+          causeStackTrace: error.causeStackTrace,
+        );
       }
-    } on LlmHttpTransportException catch (error) {
-      // 传输层异常统一转换为业务异常，保留协议/URI/状态码与原始 cause。
-      throw ChatGenerationException(
-        error.message,
-        protocol: request.target.protocol,
-        uri: uri,
-        statusCode: error.statusCode,
-        responseBody: error.responseBody,
-        cause: error.cause,
-        causeStackTrace: error.causeStackTrace,
-      );
-    }
 
-    // 流末尾的不完整标签文本按当前通道刷新。
-    final trailing = parser.finish();
-    if (trailing != null && !trailing.isEmpty) {
-      hadContent = true;
-      yield trailing;
-    }
+      // 流末尾的不完整标签文本按当前通道刷新。
+      final trailing = parser.finish();
+      if (trailing != null && !trailing.isEmpty) {
+        hadContent = true;
+        yield trailing;
+      }
 
-    if (!hadContent) {
-      throw ChatGenerationException(
-        '请求未返回有效内容',
-        protocol: request.target.protocol,
-        uri: uri,
-        responseBody: rawSseData.isEmpty ? null : rawSseData.join('\n'),
-      );
+      if (!hadContent) {
+        throw ChatGenerationException(
+          '请求未返回有效内容',
+          protocol: request.target.protocol,
+          uri: uri,
+          responseBody: rawSseData.isEmpty ? null : rawSseData.join('\n'),
+        );
+      }
+      break;
     }
   }
 

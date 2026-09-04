@@ -86,9 +86,9 @@ void main() {
         );
 
         expect(find.text('输入 4,000'), findsOneWidget, reason: '$width');
-        expect(find.text('缓存命中 1,500'), findsOneWidget, reason: '$width');
-        expect(find.text('缓存写入 800'), findsOneWidget, reason: '$width');
-        expect(find.text('输出 0'), findsOneWidget, reason: '$width');
+        expect(find.text('· 缓存命中 1,500'), findsOneWidget, reason: '$width');
+        expect(find.text('· 缓存写入 800'), findsOneWidget, reason: '$width');
+        expect(find.text('· 输出 0'), findsOneWidget, reason: '$width');
         expect(find.textContaining('推理'), findsNothing, reason: '$width');
         expect(tester.takeException(), isNull, reason: '$width');
       }

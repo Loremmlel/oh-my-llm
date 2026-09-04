@@ -181,6 +181,7 @@ class ResponsesParser {
           ? code.trim()
           : null,
       responseBody: data,
+      usage: response is Map ? _extractUsage(response['usage']) : null,
     );
   }
 
