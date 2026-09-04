@@ -62,7 +62,8 @@ class ChatConversation extends Equatable {
       if (message.role != ChatMessageRole.assistant ||
           usage?.inputTokens == null ||
           usage?.cachedInputTokens == null ||
-          usage!.inputTokens! <= 0) {
+          usage!.inputTokens! <= 0 ||
+          usage.cachedInputTokens! > usage.inputTokens!) {
         continue;
       }
       inputTokens += usage.inputTokens!;

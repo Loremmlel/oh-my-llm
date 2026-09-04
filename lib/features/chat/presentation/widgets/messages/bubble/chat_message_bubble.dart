@@ -149,6 +149,13 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
     final theme = Theme.of(context);
     final message = widget.message;
     final isUser = message.role == ChatMessageRole.user;
+    final usage = message.tokenUsage;
+    final hasDisplayableUsage =
+        usage != null &&
+        (usage.inputTokens != null ||
+            usage.cachedInputTokens != null ||
+            usage.cacheWriteInputTokens != null ||
+            usage.outputTokens != null);
     final needsCollapse = shouldCollapseUserMessage(message);
     final isUserCollapsed = needsCollapse && _isUserMessageCollapsed;
     final userContent = isUserCollapsed
@@ -298,9 +305,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                         message.finishReason != null &&
                         !message.isStreaming)
                       _buildFinishReasonChip(theme, message),
-                    if (!isUser &&
-                        !message.isStreaming &&
-                        message.tokenUsage?.hasAnyValue == true)
+                    if (!isUser && !message.isStreaming && hasDisplayableUsage)
                       _buildTokenUsageRow(theme, message),
                     if (isUser && widget.autoRetryCount > 0) ...[
                       const SizedBox(height: 8),

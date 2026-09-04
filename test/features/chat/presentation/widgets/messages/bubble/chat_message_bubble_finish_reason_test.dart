@@ -107,5 +107,25 @@ void main() {
       await _pumpBubble(tester, _assistantMessage());
       expect(find.textContaining('缓存命中'), findsNothing);
     });
+
+    testWidgets('仅有推理用量时不产生空白用量行', (tester) async {
+      await _pumpBubble(
+        tester,
+        _assistantMessage(
+          tokenUsage: const ChatGenerationUsage(reasoningTokens: 8),
+        ),
+      );
+
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Padding &&
+              widget.padding == const EdgeInsets.only(top: 8) &&
+              widget.child is Wrap &&
+              (widget.child! as Wrap).children.isEmpty,
+        ),
+        findsNothing,
+      );
+    });
   });
 }

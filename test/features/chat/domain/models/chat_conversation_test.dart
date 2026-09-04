@@ -121,4 +121,26 @@ void main() {
       isNull,
     );
   });
+
+  test('缓存用量超过输入总量时忽略该消息', () {
+    final conversation = ChatConversation(
+      id: 'invalid-usage',
+      createdAt: DateTime(2026),
+      updatedAt: DateTime(2026),
+      messageNodes: [
+        ChatMessage(
+          id: 'assistant',
+          role: ChatMessageRole.assistant,
+          content: 'reply',
+          createdAt: DateTime(2026),
+          tokenUsage: const ChatGenerationUsage(
+            inputTokens: 100,
+            cachedInputTokens: 150,
+          ),
+        ),
+      ],
+    );
+
+    expect(conversation.cacheHitRate, isNull);
+  });
 }
