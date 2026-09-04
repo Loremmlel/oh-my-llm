@@ -247,14 +247,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               .read(composerDraftProvider.notifier)
               .draftFor(activeConversationId),
     );
-    _scroll.cacheVisibleMessageMetadata(activeMessages, userMessages);
     final pendingScrollId = ref.watch(
       chatSessionsProvider.select((state) => state.pendingScrollToMessageId),
     );
-    _scroll.scheduleInitialConversationScroll(
+    // 先读取旧视口是否位于底部，再替换消息元数据；这样 canonical 尾节点
+    // 新增时可以一次性定位，而流式正文覆盖因 ID 不变不会追底。
+    _scroll.scheduleConversationScroll(
       conversationId: conversation.id,
+      lastMessageId: activeMessages.isEmpty ? null : activeMessages.last.id,
       skipJumpToBottom: pendingScrollId != null,
     );
+    _scroll.cacheVisibleMessageMetadata(activeMessages, userMessages);
 
     if (pendingScrollId != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {

@@ -320,7 +320,10 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
             ? () => widget.onToggleRequestExclusion(message)
             : null,
         onFavoritePressed:
-            !isTransientError && isAssistant && widget.onFavoritePressed != null
+            !isTransientError &&
+                isAssistant &&
+                !message.isStreaming &&
+                widget.onFavoritePressed != null
             ? () => widget.onFavoritePressed!(message)
             : null,
         isFavorited:

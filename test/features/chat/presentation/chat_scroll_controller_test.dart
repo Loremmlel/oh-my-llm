@@ -56,7 +56,10 @@ void main() {
     controller.cacheVisibleMessageMetadata(messages, const []);
 
     await tester.pumpWidget(_list(controller, lastHeight));
-    controller.scheduleInitialConversationScroll(conversationId: 'c1');
+    controller.scheduleConversationScroll(
+      conversationId: 'c1',
+      lastMessageId: messages.last.id,
+    );
     await tester.pump();
     await tester.pump();
     controller.handleVisibleItemsChanged();
@@ -69,7 +72,10 @@ void main() {
         .firstWhere((position) => position.index == 11)
         .itemLeadingEdge;
     lastHeight.value = 720;
-    controller.scheduleInitialConversationScroll(conversationId: 'c1');
+    controller.scheduleConversationScroll(
+      conversationId: 'c1',
+      lastMessageId: messages.last.id,
+    );
     await tester.pump();
     controller.handleVisibleItemsChanged();
 
@@ -97,7 +103,10 @@ void main() {
     controller.cacheVisibleMessageMetadata(messages, const []);
 
     await tester.pumpWidget(_list(controller, lastHeight));
-    controller.scheduleInitialConversationScroll(conversationId: 'c1');
+    controller.scheduleConversationScroll(
+      conversationId: 'c1',
+      lastMessageId: messages.last.id,
+    );
     await tester.pump();
     await tester.pump();
     expect(
@@ -109,7 +118,10 @@ void main() {
 
     controller.itemScrollController.jumpTo(index: 0);
     await tester.pump();
-    controller.scheduleInitialConversationScroll(conversationId: 'c2');
+    controller.scheduleConversationScroll(
+      conversationId: 'c2',
+      lastMessageId: messages.last.id,
+    );
     await tester.pump();
     await tester.pump();
     expect(
@@ -118,5 +130,42 @@ void main() {
       ),
       isTrue,
     );
+  });
+
+  testWidgets('离开底部后基础会话尾节点变化不自动滚动', (tester) async {
+    final controller = ChatScrollController();
+    final lastHeight = ValueNotifier<double>(48);
+    addTearDown(controller.dispose);
+    addTearDown(lastHeight.dispose);
+    final messages = _messages(12);
+    controller.cacheVisibleMessageMetadata(messages, const []);
+
+    await tester.pumpWidget(_list(controller, lastHeight));
+    controller.scheduleConversationScroll(
+      conversationId: 'c1',
+      lastMessageId: messages.last.id,
+    );
+    await tester.pump();
+    await tester.pump();
+
+    controller.itemScrollController.jumpTo(index: 0);
+    await tester.pump();
+    controller.handleVisibleItemsChanged();
+    expect(controller.showScrollToBottom, isTrue);
+
+    controller.scheduleConversationScroll(
+      conversationId: 'c1',
+      lastMessageId: 'new-tail',
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(
+      controller.itemPositionsListener.itemPositions.value.any(
+        (position) => position.index == 0,
+      ),
+      isTrue,
+    );
+    expect(controller.showScrollToBottom, isTrue);
   });
 }

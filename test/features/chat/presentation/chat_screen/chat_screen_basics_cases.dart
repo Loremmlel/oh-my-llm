@@ -10,6 +10,7 @@ import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
+import 'package:oh_my_llm/features/chat/presentation/widgets/messages/chat_messages_panel.dart';
 import 'package:oh_my_llm/features/settings/application/prompts/memory_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/application/prompts/template_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/memory_prompt.dart';
@@ -615,6 +616,99 @@ void registerChatScreenBasicsTests() {
     await settleScrollMotion(tester);
 
     expect(find.textContaining('第 8 条回复'), findsWidgets);
+  });
+
+  testWidgets('空会话首次发送后定位到新增助手消息', (tester) async {
+    final fakeClient = FakeChatGenerationClient();
+    final controlled = fakeClient.enqueueControlledStream();
+    await pumpChatScreen(
+      tester,
+      fakeClient: fakeClient,
+      size: const Size(900, 520),
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
+
+    await sendMessage(tester, '首轮问题${'很长的内容 ' * 200}');
+    await controlled.listened;
+    await tester.pump();
+    await tester.pump();
+
+    final messagesPanel = tester.widget<ChatMessagesPanel>(
+      find.byType(ChatMessagesPanel),
+    );
+    expect(
+      messagesPanel.messageItemPositionsListener.itemPositions.value.any(
+        (position) => position.index == 1,
+      ),
+      isTrue,
+    );
+
+    controlled.add(const ChatGenerationChunk(contentDelta: '首轮回复'));
+    await controlled.close();
+    await waitForChatGeneration(
+      tester,
+      container,
+      (state) => state.generation?.phase == ChatGenerationPhase.succeeded,
+      description: '空会话首轮滚动用例生成完成',
+    );
+  });
+
+  testWidgets('长会话位于底部时发送新一轮后定位到新增助手消息', (tester) async {
+    final fakeClient = FakeChatGenerationClient();
+    final controlled = fakeClient.enqueueControlledStream();
+    final database = AppDatabase.inMemory();
+    addTearDown(database.close);
+    final preferences = await TestFixtures.seedPreferences(
+      database: database,
+      models: [TestFixtures.gpt41()],
+      conversations: [_conversationWithTurns(8)],
+    );
+    await pumpChatScreen(
+      tester,
+      fakeClient: fakeClient,
+      preferences: preferences,
+      database: database,
+      size: const Size(900, 520),
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    await tester.tap(find.byTooltip('滚动到底部'));
+    await settleScrollMotion(tester);
+    final panelBeforeSend = tester.widget<ChatMessagesPanel>(
+      find.byType(ChatMessagesPanel),
+    );
+    expect(panelBeforeSend.showScrollToBottomListenable.value, isFalse);
+
+    await sendMessage(tester, '第九轮问题${'很长的内容 ' * 200}');
+    await controlled.listened;
+    await tester.pump();
+    await tester.pump();
+
+    final messagesPanel = tester.widget<ChatMessagesPanel>(
+      find.byType(ChatMessagesPanel),
+    );
+    final positions =
+        messagesPanel.messageItemPositionsListener.itemPositions.value;
+    expect(
+      positions.any((position) => position.index == 17),
+      isTrue,
+      reason: '当前可见位置：$positions',
+    );
+
+    controlled.add(const ChatGenerationChunk(contentDelta: '第九轮回复'));
+    await controlled.close();
+    await waitForChatGeneration(
+      tester,
+      container,
+      (state) => state.generation?.phase == ChatGenerationPhase.succeeded,
+      description: '长会话新一轮滚动用例生成完成',
+    );
   });
 
   // 覆盖 ChatScrollController.handleVisibleItemsChanged -> ValueNotifier 链路：

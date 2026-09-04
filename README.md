@@ -366,7 +366,8 @@ lib/
 `ChatGenerationRun` 将每个协议 chunk 的累计内容写入独立 `ChatStreamingReply`，
 但不重写持久化会话列表。消息区域通过窄 Provider 独立刷新，`ChatScreen`、
 侧栏、composer、收藏查询和滚动导航元数据不会随 chunk 重建。流式内容增长
-不再自动追底；打开或切换会话仍会一次性定位到最新消息。
+不再自动追底；打开或切换会话仍会定位到最新消息，用户原先位于底部时新增
+一轮消息也会一次性定位。
 
 ---
 

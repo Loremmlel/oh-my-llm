@@ -45,6 +45,7 @@ class ChatScrollController {
   String? get activeAnchorMessageId => activeAnchorMessageIdNotifier.value;
 
   String? _lastConversationId;
+  String? _lastMessageId;
   List<ChatMessage> _latestMessages = const [];
   List<ChatMessage> _latestUserMessages = const [];
   List<int> _latestUserMessageIndexes = const [];
@@ -88,19 +89,28 @@ class ChatScrollController {
 
   // ── 滚动触发 ────────────────────────────────────────────────────────────────
 
-  /// 会话变化时一次性定位到末尾；同一会话的内容增长不自动追底。
-  void scheduleInitialConversationScroll({
+  /// 打开会话时定位末尾；同一会话新增一轮且用户原先在底部时再定位一次。
+  ///
+  /// [lastMessageId] 来自 canonical 消息结构，流式正文增长不会改变它，因而
+  /// 不会触发自动追底。
+  void scheduleConversationScroll({
     required String conversationId,
+    required String? lastMessageId,
     bool skipJumpToBottom = false,
   }) {
-    if (_lastConversationId == conversationId) return;
+    final conversationChanged = _lastConversationId != conversationId;
+    final messageTailChanged = _lastMessageId != lastMessageId;
+    final wasAtBottom = !showScrollToBottom;
     _lastConversationId = conversationId;
-    if (!skipJumpToBottom) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!itemScrollController.isAttached) return;
-        scrollToBottom(jump: true);
-      });
+    _lastMessageId = lastMessageId;
+    if (skipJumpToBottom ||
+        (!conversationChanged && (!messageTailChanged || !wasAtBottom))) {
+      return;
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!itemScrollController.isAttached) return;
+      scrollToBottom(jump: true);
+    });
   }
 
   /// 滚动到消息列表底部；[jump] 为 true 时直接跳转，否则平滑动画。
