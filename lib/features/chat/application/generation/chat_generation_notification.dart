@@ -6,10 +6,8 @@ import 'package:characters/characters.dart';
 import 'package:equatable/equatable.dart';
 
 import '../../domain/chat_error_messages.dart';
-import '../../domain/chat_word_counter.dart';
 import '../ports/chat_generation_client.dart';
 import '../ports/chat_generation_foreground_service.dart';
-import '../sessions/chat_sessions_state.dart';
 import 'chat_generation_lifecycle.dart';
 
 /// 通知标题最大字符簇数；超限时保留 47 个字符并追加单个「…」。
@@ -84,23 +82,13 @@ final class ChatGenerationNotificationProjector {
 
   /// 投影一次通知。
   ///
-  /// [streamingReply] 非空时复用聊天字数规则统计正文/推理；为空时使用
-  /// [fallbackCounts]（finalizing 阶段由 coordinator 传入最后一次已知字数）。
+  /// [counts] 由 coordinator 增量计算，避免每个 chunk 重扫累计全文。
   /// [ChatGenerationPhase.idle] 不会在活跃 run 中出现，此处显式拒绝，
   /// 防止一次意外的空闲投影启动前台服务。
   ChatGenerationNotificationProjection project({
     required ChatGenerationSnapshot snapshot,
-    required ChatStreamingReply? streamingReply,
-    ChatGenerationCharacterCounts fallbackCounts =
-        ChatGenerationCharacterCounts.zero,
+    required ChatGenerationCharacterCounts counts,
   }) {
-    final counts = streamingReply != null
-        ? ChatGenerationCharacterCounts(
-            content: countChatWords(streamingReply.content),
-            reasoning: countChatWords(streamingReply.reasoningContent),
-          )
-        : fallbackCounts;
-
     final copy = _copyFor(snapshot, counts);
 
     return ChatGenerationNotificationProjection(

@@ -585,9 +585,7 @@ void registerChatScreenBasicsTests() {
     expect(find.textContaining('快捷键发送成功'), findsWidgets);
   });
 
-  testWidgets('chat screen scroll-to-bottom button returns to latest message', (
-    tester,
-  ) async {
+  testWidgets('滚动到底部按钮可返回最新消息', (tester) async {
     final fakeClient = FakeChatGenerationClient();
     final database = AppDatabase.inMemory();
     addTearDown(database.close);
@@ -622,54 +620,51 @@ void registerChatScreenBasicsTests() {
   // 覆盖 ChatScrollController.handleVisibleItemsChanged -> ValueNotifier 链路：
   // 滚动消息列表时，用户消息锚点条的高亮会跟随当前可见区域切换，证明
   // ValueListenableBuilder 驱动了 UI 重绘（不再依赖宿主 setState）。
-  testWidgets(
-    'anchor rail highlights follow visible user message while scrolling',
-    (tester) async {
-      final fakeClient = FakeChatGenerationClient();
-      final database = AppDatabase.inMemory();
-      addTearDown(database.close);
-      final preferences = await TestFixtures.seedPreferences(
-        database: database,
-        models: [TestFixtures.gpt41()],
-        conversations: [_conversationWithTurns(5)],
-      );
+  testWidgets('滚动时锚点条高亮跟随当前可见用户消息', (tester) async {
+    final fakeClient = FakeChatGenerationClient();
+    final database = AppDatabase.inMemory();
+    addTearDown(database.close);
+    final preferences = await TestFixtures.seedPreferences(
+      database: database,
+      models: [TestFixtures.gpt41()],
+      conversations: [_conversationWithTurns(5)],
+    );
 
-      await pumpChatScreen(
-        tester,
-        fakeClient: fakeClient,
-        preferences: preferences,
-        database: database,
-        size: const Size(900, 520),
-      );
+    await pumpChatScreen(
+      tester,
+      fakeClient: fakeClient,
+      preferences: preferences,
+      database: database,
+      size: const Size(900, 520),
+    );
 
-      int selectedAnchorIndex() {
-        final selected = <int>[];
-        for (var index = 1; index <= 5; index++) {
-          final semantics = find.semantics
-              .byLabel('第 $index 条用户消息：第 $index 条问题')
-              .evaluate()
-              .single;
-          if (semantics
-                  .getSemanticsData()
-                  .flagsCollection
-                  .isSelected
-                  .toBoolOrNull() ==
-              true) {
-            selected.add(index);
-          }
+    int selectedAnchorIndex() {
+      final selected = <int>[];
+      for (var index = 1; index <= 5; index++) {
+        final semantics = find.semantics
+            .byLabel('第 $index 条用户消息：第 $index 条问题')
+            .evaluate()
+            .single;
+        if (semantics
+                .getSemanticsData()
+                .flagsCollection
+                .isSelected
+                .toBoolOrNull() ==
+            true) {
+          selected.add(index);
         }
-        expect(selected, hasLength(1));
-        return selected.single;
       }
+      expect(selected, hasLength(1));
+      return selected.single;
+    }
 
-      final beforeScroll = selectedAnchorIndex();
+    final beforeScroll = selectedAnchorIndex();
 
-      final scrollable = find.byType(Scrollable).first;
-      await tester.drag(scrollable, const Offset(0, 400));
-      await settleScrollMotion(tester);
+    final scrollable = find.byType(Scrollable).first;
+    await tester.drag(scrollable, const Offset(0, 400));
+    await settleScrollMotion(tester);
 
-      expect(selectedAnchorIndex(), isNot(beforeScroll));
-      expect(tester.takeException(), isNull);
-    },
-  );
+    expect(selectedAnchorIndex(), isNot(beforeScroll));
+    expect(tester.takeException(), isNull);
+  });
 }

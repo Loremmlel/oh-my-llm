@@ -2,14 +2,13 @@ import 'package:equatable/equatable.dart';
 
 import '../../domain/models/chat_conversation.dart';
 import '../../domain/models/chat_conversation_summary.dart';
+import '../../domain/models/chat_message.dart';
 import '../generation/chat_generation_lifecycle.dart';
-import 'chat_message_tree.dart';
 
 /// 当前流式中的 assistant 消息增量。
 ///
-/// 流式进行期间，控制器以此对象在内存中累积内容，
-/// 只有到达刷新阈值时才将其写入 [activeChatConversationProvider]，
-/// 从而控制 Markdown 渲染频率。
+/// 流式进行期间，控制器以此对象在内存中累积内容，每个协议 chunk 都会写入
+/// 最新快照；消费方通过窄 Provider 把高频刷新限制在消息区域。
 class ChatStreamingReply extends Equatable {
   const ChatStreamingReply({
     required this.conversationId,
@@ -63,8 +62,8 @@ class ChatStreamingReply extends Equatable {
 /// 当前聊天会话集合与活动会话状态。
 ///
 /// 将流式增量 ([streamingReply]) 独立存储，而不是直接写进会话列表，
-/// 目的是让流式刷新只触发 [activeChatConversationProvider] 重建，
-/// 而不影响历史列表、导航栏等消费 [chatConversationsProvider] 的控件。
+/// 目的是让流式刷新只触发消息区域的窄 Provider 重建，而不影响历史列表、
+/// 导航栏等消费 [chatConversationsProvider] 的控件。
 class ChatSessionsState extends Equatable {
   const ChatSessionsState({
     required this.conversations,
@@ -266,16 +265,17 @@ ChatConversation applyStreamingReplyToConversation({
     return conversation;
   }
 
-  final nextTree = replaceAssistantMessageInTree(
-    treeState: resolveMessageTreeState(conversation),
-    assistantMessageId: streamingReply.assistantMessageId,
-    nextContent: streamingReply.content,
-    nextReasoningContent: streamingReply.reasoningContent,
+  final messageIndex = conversation.messageNodes.indexWhere(
+    (message) => message.id == streamingReply.assistantMessageId,
+  );
+  if (messageIndex == -1) return conversation;
+
+  final nodes = List<ChatMessage>.of(conversation.messageNodes);
+  nodes[messageIndex] = nodes[messageIndex].copyWith(
+    content: streamingReply.content,
+    reasoningContent: streamingReply.reasoningContent,
     isStreaming: isStreaming,
     finishReason: streamingReply.finishReason,
   );
-  return conversation.copyWith(
-    messageNodes: nextTree.nodes,
-    selectedChildByParentId: nextTree.selections,
-  );
+  return conversation.copyWith(messageNodes: nodes);
 }

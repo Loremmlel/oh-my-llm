@@ -12,59 +12,55 @@ import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
 
 import '../../../../helpers/async/widget_test_animation.dart';
+import '../../../../helpers/async/stream_markdown_test_animation.dart';
 import 'chat_screen_test_helpers.dart';
 
 void registerChatScreenStreamingTests() {
-  testWidgets(
-    'chat screen streams reply and sends the active request history',
-    (tester) async {
-      final fakeClient = FakeChatGenerationClient();
-      final controlled = fakeClient.enqueueControlledStream();
+  testWidgets('聊天页流式展示回复并发送当前请求历史', (tester) async {
+    final fakeClient = FakeChatGenerationClient();
+    final controlled = fakeClient.enqueueControlledStream();
 
-      await pumpChatScreen(tester, fakeClient: fakeClient);
-      final container = ProviderScope.containerOf(
-        tester.element(find.byType(ChatScreen)),
-      );
+    await pumpChatScreen(tester, fakeClient: fakeClient);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
 
-      await tester.enterText(find.byType(TextField), '帮我总结一下这个仓库的结构和当前能力');
-      final sendButton = find.widgetWithText(FilledButton, '发送');
-      await tester.ensureVisible(sendButton);
-      await tester.tap(sendButton);
-      await tester.pump();
+    await tester.enterText(find.byType(TextField), '帮我总结一下这个仓库的结构和当前能力');
+    final sendButton = find.widgetWithText(FilledButton, '发送');
+    await tester.ensureVisible(sendButton);
+    await tester.tap(sendButton);
+    await tester.pump();
 
-      // 受控流：等待 run 开始监听后逐步投递增量，不依赖真实延时。测试环境的
-      // 内存库让 prepare 链路全为微任务，tap+pump 已驱动到监听，故 await 立即完成；
-      // 内层 listened 无超时，外层 timeout 纯属冗余，挂死由 testWidgets 框架超时兜底。
-      await controlled.listened;
-      controlled.add(const ChatGenerationChunk(contentDelta: '第一段 '));
-      await tester.pump();
+    // 受控流：等待 run 开始监听后逐步投递增量，不依赖真实延时。测试环境的
+    // 内存库让 prepare 链路全为微任务，tap+pump 已驱动到监听，故 await 立即完成；
+    // 内层 listened 无超时，外层 timeout 纯属冗余，挂死由 testWidgets 框架超时兜底。
+    await controlled.listened;
+    controlled.add(const ChatGenerationChunk(contentDelta: '第一段 '));
+    await tester.pump();
+    await pumpStreamMarkdownRefresh(tester);
 
-      expect(find.textContaining('第一段'), findsWidgets);
-      expect(find.widgetWithText(FilledButton, '终止回答'), findsOneWidget);
+    expect(find.textContaining('第一段'), findsWidgets);
+    expect(find.widgetWithText(FilledButton, '终止回答'), findsOneWidget);
 
-      controlled.add(const ChatGenerationChunk(contentDelta: '第二段'));
-      await controlled.close();
-      await waitForChatGeneration(
-        tester,
-        container,
-        (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
-        description: '受控流关闭后生成完成',
-      );
+    controlled.add(const ChatGenerationChunk(contentDelta: '第二段'));
+    await controlled.close();
+    await waitForChatGeneration(
+      tester,
+      container,
+      (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
+      description: '受控流关闭后生成完成',
+    );
 
-      expect(find.textContaining('帮我总结一下这个仓库'), findsWidgets);
-      expect(find.textContaining('第一段 第二段'), findsWidgets);
-      expect(
-        fakeClient.lastRequestMessages.map((message) => message.role).toList(),
-        [ChatMessageRole.user],
-      );
-      expect(
-        fakeClient.lastRequestMessages.single.content,
-        '帮我总结一下这个仓库的结构和当前能力',
-      );
-      // 请求 target 命中活动模型的模型名（displayName 不在协议中立请求中）。
-      expect(fakeClient.lastRequest?.target.model, equals('gpt-4.1'));
-    },
-  );
+    expect(find.textContaining('帮我总结一下这个仓库'), findsWidgets);
+    expect(find.textContaining('第一段 第二段'), findsWidgets);
+    expect(
+      fakeClient.lastRequestMessages.map((message) => message.role).toList(),
+      [ChatMessageRole.user],
+    );
+    expect(fakeClient.lastRequestMessages.single.content, '帮我总结一下这个仓库的结构和当前能力');
+    // 请求 target 命中活动模型的模型名（displayName 不在协议中立请求中）。
+    expect(fakeClient.lastRequest?.target.model, equals('gpt-4.1'));
+  });
 
   testWidgets('chat screen shows reasoning in a collapsible panel', (
     tester,
@@ -194,9 +190,7 @@ void registerChatScreenStreamingTests() {
     expect(find.textContaining('收到'), findsWidgets);
   });
 
-  testWidgets('chat screen shows a confirmation dialog before stopping', (
-    tester,
-  ) async {
+  testWidgets('聊天页停止生成前显示确认对话框', (tester) async {
     final fakeClient = FakeChatGenerationClient();
     final streamController = StreamController<ChatGenerationChunk>();
     addTearDown(streamController.close);
@@ -209,6 +203,7 @@ void registerChatScreenStreamingTests() {
 
     streamController.add(const ChatGenerationChunk(contentDelta: '已生成部分'));
     await tester.pump();
+    await pumpStreamMarkdownRefresh(tester);
 
     await tester.tap(find.widgetWithText(FilledButton, '终止回答'));
     await tester.pump();

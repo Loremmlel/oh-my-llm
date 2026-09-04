@@ -10,6 +10,7 @@ import 'package:oh_my_llm/features/chat/application/generation/chat_generation_l
 import 'package:oh_my_llm/features/chat/application/generation/chat_generation_notification.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_foreground_service.dart';
 import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_controller.dart';
+import 'package:oh_my_llm/features/chat/domain/chat_word_counter.dart';
 
 /// 流式通知更新节流间隔：同阶段同 attempt 的更新最多每秒一次。
 const chatGenerationNotificationUpdateInterval = Duration(seconds: 1);
@@ -81,6 +82,11 @@ final class ChatGenerationNotificationCoordinator {
   DateTime? _lastDeliveredAt;
   ChatGenerationCharacterCounts _lastCounts =
       ChatGenerationCharacterCounts.zero;
+  int? _countsAttempt;
+  final StreamingChatWordCounter _contentWordCounter =
+      StreamingChatWordCounter();
+  final StreamingChatWordCounter _reasoningWordCounter =
+      StreamingChatWordCounter();
   Timer? _pendingTimer;
   ChatGenerationNotificationProjection? _pendingProjection;
   bool _tokenUnavailable = false;
@@ -138,21 +144,27 @@ final class ChatGenerationNotificationCoordinator {
       return; // 旧 token 的迟到快照：不得影响当前 token。
     }
 
+    if (_countsAttempt != snapshot.attempt) {
+      _countsAttempt = snapshot.attempt;
+      _lastCounts = ChatGenerationCharacterCounts.zero;
+      _contentWordCounter.reset();
+      _reasoningWordCounter.reset();
+    }
+    if (streamingReply != null) {
+      _contentWordCounter.update(streamingReply.content);
+      _reasoningWordCounter.update(streamingReply.reasoningContent);
+      _lastCounts = ChatGenerationCharacterCounts(
+        content: _contentWordCounter.count,
+        reasoning: _reasoningWordCounter.count,
+      );
+    }
+
     final ChatGenerationNotificationProjection projection;
     try {
-      projection = _projector.project(
-        snapshot: snapshot,
-        streamingReply: streamingReply,
-        fallbackCounts: _lastCounts,
-      );
+      projection = _projector.project(snapshot: snapshot, counts: _lastCounts);
     } on ArgumentError {
       return; // idle 等意外投影：防御性 no-op，不崩溃通知链路。
     }
-    if (streamingReply != null) {
-      // finalizing 无流式回复时沿用最后一次已知字数。
-      _lastCounts = projection.counts;
-    }
-
     if (projection.terminalBehavior !=
         ChatGenerationNotificationTerminalBehavior.ongoing) {
       _deliverTerminal(token, snapshot.phase, projection);
@@ -417,6 +429,9 @@ final class ChatGenerationNotificationCoordinator {
     _lastDeliveredAttempt = null;
     _lastDeliveredAt = null;
     _lastCounts = ChatGenerationCharacterCounts.zero;
+    _countsAttempt = null;
+    _contentWordCounter.reset();
+    _reasoningWordCounter.reset();
     _tokenUnavailable = false;
     _timedOut = false;
     _terminalDelivered = false;

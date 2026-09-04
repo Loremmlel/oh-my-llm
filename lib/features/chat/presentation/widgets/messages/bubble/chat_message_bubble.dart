@@ -291,7 +291,10 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                     if (!isUser &&
                         message.reasoningContent.trim().isNotEmpty) ...[
                       const SizedBox(height: 12),
-                      ReasoningPanel(content: message.reasoningContent),
+                      ReasoningPanel(
+                        content: message.reasoningContent,
+                        isStreaming: message.isStreaming,
+                      ),
                       const SizedBox(height: 8),
                     ] else
                       const SizedBox(height: 8),

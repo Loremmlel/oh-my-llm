@@ -79,7 +79,7 @@ class ChatGenerationCommand extends Equatable {
 ///
 /// [prepare] / [completeAttempt] / [stop] 返回的 Future 由 [ChatGenerationRun]
 /// await，terminal decision 与 persistence 不脱离 run 的串行控制流（不变量 3）。
-/// [projectProgress] 为同步 UI 投影，保持 300ms 节流，不入串行 queue。
+/// [projectProgress] 为同步 UI 投影，每个协议 chunk 都会调用，不入串行 queue。
 ///
 /// host 不持 phase / token / completion--那些由 run 单一拥有。host 方法每次 await
 /// 前后由实现方自行验证未 dispose 且 run 仍为当前 run（不变量 9）。
@@ -100,7 +100,7 @@ abstract interface class ChatGenerationHost {
   /// preparing / streaming / retryWaiting 三种 phase 统一经此落盘。
   Future<ChatStopDecision> stop(ChatPartialSnapshot partial);
 
-  /// chunk 与 phase 变化的 UI 投影，同步节流。run 把 [ChatGenerationSnapshot]
+  /// chunk 与 phase 变化的同步 UI 投影。run 把 [ChatGenerationSnapshot]
   /// 与 [ChatGenerationProgress.streamingReply] 交给 host 写入 state。
   void projectProgress(ChatGenerationProgress progress);
 }

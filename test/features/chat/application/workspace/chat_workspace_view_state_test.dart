@@ -24,27 +24,22 @@ import '../../../../helpers/chat/controllable_chat_conversation_repository.dart'
 import '../../../../helpers/chat/fake_chat_generation_client.dart';
 import '../../../../helpers/fixtures.dart';
 
-/// 最小必填字段的空白会话（TestFixtures 未提供 conversation 工厂）。
-ChatConversation _conversation() {
-  return ChatConversation(
-    id: 'c1',
-    createdAt: DateTime(2026, 1, 1),
-    updatedAt: DateTime(2026, 1, 1),
-  );
-}
+/// 可记录定向查询次数的空收藏 facade。
+class _CountingFavoritesFacade implements ChatFavoritesFacade {
+  int snapshotCallCount = 0;
 
-/// 空收藏快照的 facade，替代生产组合层绑定（默认实现直接抛 StateError）。
-class _EmptyFavoritesFacade implements ChatFavoritesFacade {
   @override
   int get revision => 0;
 
   @override
-  ChatFavoritesSnapshot snapshotFor(Set<String> assistantContents) =>
-      const ChatFavoritesSnapshot(
-        entries: [],
-        collections: [],
-        defaultCollectionId: 'sys',
-      );
+  ChatFavoritesSnapshot snapshotFor(Set<String> assistantContents) {
+    snapshotCallCount += 1;
+    return const ChatFavoritesSnapshot(
+      entries: [],
+      collections: [],
+      defaultCollectionId: 'sys',
+    );
+  }
 
   @override
   String createCollection(String name) => name;
@@ -214,7 +209,7 @@ void main() {
     });
   });
 
-  group('ChatWorkspaceViewState.compose', () {
+  group('ChatWorkspaceComposerState.compose', () {
     ChatWorkspaceComposerReadModel composerReadModel({
       TemplatePrompt? selectedTemplatePrompt,
       double? cacheHitRate,
@@ -240,35 +235,10 @@ void main() {
       );
     }
 
-    ChatWorkspaceReadModel readModel({
-      TemplatePrompt? selectedTemplatePrompt,
-      double? cacheHitRate,
-    }) {
-      return ChatWorkspaceReadModel(
-        messages: ChatWorkspaceMessagesState(
-          conversation: _conversation(),
-          messages: const [],
-          userMessages: const [],
-          hasModels: false,
-          isBusy: false,
-          errorMessage: null,
-          errorMessageAssistantId: null,
-          emptyReplyAssistantId: null,
-          errorModelDisplayName: '模型',
-          autoRetryCount: 0,
-          favoritedAssistantContents: const {},
-        ),
-        composer: composerReadModel(
-          selectedTemplatePrompt: selectedTemplatePrompt,
-          cacheHitRate: cacheHitRate,
-        ),
-      );
-    }
-
     test('非编辑态使用 read-model 的 normal selection', () {
       final template = TestFixtures.templatePrompt(id: 'tp-1');
-      final viewState = ChatWorkspaceViewState.compose(
-        readModel: readModel(
+      final state = ChatWorkspaceComposerState.compose(
+        readModel: composerReadModel(
           selectedTemplatePrompt: template,
           cacheHitRate: 0.375,
         ),
@@ -276,9 +246,9 @@ void main() {
         isEditingMessage: false,
         templatePrompts: [template],
       );
-      expect(viewState.composer.selectedTemplatePrompt, same(template));
-      expect(viewState.composer.isEditingMessage, isFalse);
-      expect(viewState.composer.cacheHitRate, 0.375);
+      expect(state.selectedTemplatePrompt, same(template));
+      expect(state.isEditingMessage, isFalse);
+      expect(state.cacheHitRate, 0.375);
     });
 
     test('编辑态用 editingDraft 的选择覆盖；无模板编辑不回落 normal selection', () {
@@ -287,43 +257,44 @@ void main() {
       final editingDraft = ComposerDraft(
         selectedTemplatePromptId: editingTemplate.id,
       );
-      final sourceReadModel = readModel(selectedTemplatePrompt: normalTemplate);
-      final viewState = ChatWorkspaceViewState.compose(
+      final sourceReadModel = composerReadModel(
+        selectedTemplatePrompt: normalTemplate,
+      );
+      final state = ChatWorkspaceComposerState.compose(
         readModel: sourceReadModel,
         editingDraft: editingDraft,
         isEditingMessage: true,
         templatePrompts: [normalTemplate, editingTemplate],
       );
-      expect(viewState.composer.selectedTemplatePrompt, same(editingTemplate));
-      expect(viewState.composer.isEditingMessage, isTrue);
-      // messages 原样透传 compose 入参的 read-model，不重建新实例。
-      expect(viewState.messages, same(sourceReadModel.messages));
+      expect(state.selectedTemplatePrompt, same(editingTemplate));
+      expect(state.isEditingMessage, isTrue);
 
       // 编辑无模板消息：effective 为 null，不回落会话级 normal selection。
-      final noTemplateEdit = ChatWorkspaceViewState.compose(
+      final noTemplateEdit = ChatWorkspaceComposerState.compose(
         readModel: sourceReadModel,
         editingDraft: ComposerDraft.empty,
         isEditingMessage: true,
         templatePrompts: [normalTemplate],
       );
-      expect(noTemplateEdit.composer.selectedTemplatePrompt, isNull);
+      expect(noTemplateEdit.selectedTemplatePrompt, isNull);
     });
 
     test('编辑选择指向已删除模板时解析为 null', () {
-      final viewState = ChatWorkspaceViewState.compose(
-        readModel: readModel(),
+      final state = ChatWorkspaceComposerState.compose(
+        readModel: composerReadModel(),
         editingDraft: const ComposerDraft(selectedTemplatePromptId: 'tp-gone'),
         isEditingMessage: true,
         templatePrompts: const [],
       );
-      expect(viewState.composer.selectedTemplatePrompt, isNull);
+      expect(state.selectedTemplatePrompt, isNull);
     });
   });
 
-  group('chatWorkspaceReadModelProvider', () {
+  group('workspace 拆分 provider', () {
     late AppDatabase database;
     late ControllableChatConversationRepository repository;
     late FakeChatGenerationClient fakeClient;
+    late _CountingFavoritesFacade favoritesFacade;
     late ProviderContainer container;
 
     setUp(() async {
@@ -352,6 +323,7 @@ void main() {
       database = AppDatabase.inMemory();
       repository = ControllableChatConversationRepository(database);
       fakeClient = FakeChatGenerationClient();
+      favoritesFacade = _CountingFavoritesFacade();
       container = ProviderContainer(
         overrides: [
           appDatabaseProvider.overrideWithValue(database),
@@ -360,11 +332,9 @@ void main() {
           ),
           chatGenerationClientProvider.overrideWithValue(fakeClient),
           chatConversationRepositoryProvider.overrideWithValue(repository),
-          // read-model 依赖收藏 facade 快照，组合层未挂载时默认实现抛
+          // 消息状态依赖收藏 facade 快照，组合层未挂载时默认实现抛
           // StateError，此处注入空快照。
-          chatFavoritesFacadeProvider.overrideWithValue(
-            _EmptyFavoritesFacade(),
-          ),
+          chatFavoritesFacadeProvider.overrideWithValue(favoritesFacade),
         ],
       );
     });
@@ -381,9 +351,9 @@ void main() {
             .read(chatSessionsProvider.notifier)
             .updateActiveConversationPreferences(reasoningEnabled: true);
 
-        final readModel = container.read(chatWorkspaceReadModelProvider);
-        expect(readModel.composer.reasoningEnabled, isFalse);
-        expect(readModel.composer.supportsReasoning, isFalse);
+        final composer = container.read(chatWorkspaceComposerReadModelProvider);
+        expect(composer.reasoningEnabled, isFalse);
+        expect(composer.supportsReasoning, isFalse);
         expect(
           container.read(activeChatConversationProvider).reasoningEnabled,
           isTrue,
@@ -411,41 +381,122 @@ void main() {
           .read(chatSessionsProvider.notifier)
           .setMessagesExcluded(messageIds: [excludedMessageId], excluded: true);
 
-      final readModel = container.read(chatWorkspaceReadModelProvider);
+      final messages = container.read(chatWorkspaceMessagesStateProvider);
+      final composer = container.read(chatWorkspaceComposerReadModelProvider);
       expect(
-        readModel.messages.userMessages.every(
-          (m) => m.role == ChatMessageRole.user,
-        ),
+        messages.userMessages.every((m) => m.role == ChatMessageRole.user),
         isTrue,
       );
       // excluded count 与 conversation.isMessageExcluded 按可见消息一致。
-      final conversation = readModel.messages.conversation;
-      final expectedExcluded = readModel.messages.messages
+      final conversation = messages.conversation;
+      final expectedExcluded = messages.messages
           .where((m) => conversation.isMessageExcluded(m.id))
           .length;
-      expect(readModel.composer.excludedMessageCount, expectedExcluded);
+      expect(composer.excludedMessageCount, expectedExcluded);
       // 排除动作确实生效：计数随真实排除从 0 变为正数。
-      expect(readModel.composer.excludedMessageCount, greaterThan(0));
+      expect(composer.excludedMessageCount, greaterThan(0));
     });
 
-    test('read-model 的 messages / favoritedAssistantContents 不可外部修改', () {
-      final readModel = container.read(chatWorkspaceReadModelProvider);
+    test('拆分状态中的集合不可外部修改', () {
+      final messages = container.read(chatWorkspaceMessagesStateProvider);
+      final composer = container.read(chatWorkspaceComposerReadModelProvider);
       expect(
-        () => readModel.messages.messages.add(
-          TestFixtures.userMessage(id: 'add-try'),
-        ),
+        () => messages.messages.add(TestFixtures.userMessage(id: 'add-try')),
         throwsUnsupportedError,
       );
       expect(
-        () => readModel.messages.favoritedAssistantContents.add('x'),
+        () => messages.favoritedAssistantContents.add('x'),
         throwsUnsupportedError,
       );
       expect(
-        () => readModel.composer.templatePrompts.add(
+        () => composer.templatePrompts.add(
           TestFixtures.templatePrompt(id: 'add-try'),
         ),
         throwsUnsupportedError,
       );
+    });
+
+    test('五十万字长会话流式更新只通知消息状态且不重复查询收藏', () async {
+      final longText = List.filled(4200, '字').join();
+      final nodes = <ChatMessage>[];
+      String? parentId;
+      for (var index = 0; index < 120; index += 1) {
+        final message = ChatMessage(
+          id: 'history-$index',
+          role: index.isEven ? ChatMessageRole.user : ChatMessageRole.assistant,
+          content: longText,
+          createdAt: DateTime(2026, 1, 1).add(Duration(seconds: index)),
+          parentId: parentId,
+        );
+        nodes.add(message);
+        parentId = message.id;
+      }
+      await repository.saveConversation(
+        ChatConversation(
+          id: 'long-conversation',
+          messageNodes: nodes,
+          createdAt: DateTime(2026, 1, 1),
+          updatedAt: DateTime(2026, 1, 2),
+        ),
+      );
+
+      final controlled = fakeClient.enqueueControlledStream();
+      addTearDown(controlled.close);
+      var composerNotifications = 0;
+      var messageNotifications = 0;
+      final composerSubscription = container.listen(
+        chatWorkspaceComposerReadModelProvider,
+        (_, _) => composerNotifications += 1,
+      );
+      final messageSubscription = container.listen(
+        chatWorkspaceMessagesStateProvider,
+        (_, _) => messageNotifications += 1,
+      );
+      addTearDown(composerSubscription.close);
+      addTearDown(messageSubscription.close);
+
+      final send = container
+          .read(chatSessionsProvider.notifier)
+          .sendMessage(
+            content: '新的问题',
+            modelConfig: container.read(llmModelConfigsProvider).first,
+            presetPrompt: null,
+            reasoningEnabled: false,
+            reasoningEffort: ReasoningEffort.medium,
+          );
+      await controlled.listened;
+      final messagesBeforeChunks = container.read(
+        chatWorkspaceMessagesStateProvider,
+      );
+      composerNotifications = 0;
+      messageNotifications = 0;
+      final favoriteCallsBeforeChunks = favoritesFacade.snapshotCallCount;
+
+      for (final delta in ['第一段', '第二段', '第三段']) {
+        controlled.add(ChatGenerationChunk(contentDelta: delta));
+        await Future<void>.value();
+      }
+
+      final messages = container.read(chatWorkspaceMessagesStateProvider);
+      expect(messages.messages.last.content, '第一段第二段第三段');
+      expect(
+        identical(messages.userMessages, messagesBeforeChunks.userMessages),
+        isTrue,
+      );
+      expect(
+        identical(
+          messages.structureConversation,
+          messagesBeforeChunks.structureConversation,
+        ),
+        isTrue,
+      );
+      expect(messageNotifications, greaterThan(0));
+      expect(messageNotifications, lessThanOrEqualTo(3));
+      expect(composerNotifications, 0);
+      expect(favoritesFacade.snapshotCallCount, favoriteCallsBeforeChunks);
+
+      await controlled.close();
+      await send;
     });
   });
 }

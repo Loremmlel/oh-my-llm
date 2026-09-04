@@ -458,6 +458,50 @@ void main() {
       await _flushTail();
       expect(port.payloads.last.text, '正在保存结果 · 正文 3 字 · 推理 1 字');
     });
+
+    test('累计增量、重试清空和新 generation 分别维护独立字数', () async {
+      await coordinator.start();
+      coordinator.onStateChanged(
+        snapshot: _snapshot(ChatGenerationPhase.preparing),
+        streamingReply: null,
+      );
+      coordinator.onStateChanged(
+        snapshot: _snapshot(ChatGenerationPhase.streaming),
+        streamingReply: _reply('hello', '一'),
+      );
+      clock.advance(chatGenerationNotificationUpdateInterval);
+      coordinator.onStateChanged(
+        snapshot: _snapshot(ChatGenerationPhase.streaming),
+        streamingReply: _reply('hello world', '一二'),
+      );
+      await _flushTail();
+      expect(port.payloads.last.text, '正文 2 字 · 推理 2 字');
+
+      coordinator.onStateChanged(
+        snapshot: _snapshot(ChatGenerationPhase.streaming, attempt: 2),
+        streamingReply: _reply('', ''),
+      );
+      await _flushTail();
+      expect(port.payloads.last.text, '正文 0 字 · 推理 0 字');
+      clock.advance(chatGenerationNotificationUpdateInterval);
+      coordinator.onStateChanged(
+        snapshot: _snapshot(ChatGenerationPhase.streaming, attempt: 2),
+        streamingReply: _reply('retry', '三'),
+      );
+      await _flushTail();
+      expect(port.payloads.last.text, '正文 1 字 · 推理 1 字');
+
+      coordinator.onStateChanged(
+        snapshot: _snapshot(ChatGenerationPhase.preparing, generationId: 2),
+        streamingReply: null,
+      );
+      coordinator.onStateChanged(
+        snapshot: _snapshot(ChatGenerationPhase.streaming, generationId: 2),
+        streamingReply: _reply('新一代', ''),
+      );
+      await _flushTail();
+      expect(port.payloads.last.text, '正文 3 字 · 推理 0 字');
+    });
   });
 
   group('串行化与 token 隔离', () {

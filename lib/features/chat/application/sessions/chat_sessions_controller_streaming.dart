@@ -39,8 +39,6 @@ class FinishRetry extends FinishGenerationResult {
 /// 时序、attempt、retry、cancel 由 [ChatGenerationCoordinator] 独占；controller
 /// 通过桥接字段与之协作，不再经 mixin 持有 subscription/completer/取消标志。
 mixin ChatSessionsControllerStreaming on ChatSessionsControllerSupport {
-  static const streamUiFlushInterval = Duration(milliseconds: 300);
-
   /// 在流式请求失败时，保留已生成内容或清除空白占位节点。
   Future<void> handleStreamingFailure({
     required ChatConversation conversation,
