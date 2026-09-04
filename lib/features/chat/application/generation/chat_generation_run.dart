@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:oh_my_llm/features/settings/domain/models/preferences/auto_retry_settings.dart';
 
 import '../../domain/models/chat_conversation.dart';
+import '../../domain/models/chat_generation_usage.dart';
 import '../../domain/models/chat_message.dart';
 import 'chat_generation_contract.dart';
 import 'chat_generation_lifecycle.dart';
@@ -55,6 +56,7 @@ class ChatGenerationRun {
   String _content = '';
   String _reasoning = '';
   String? _finishReason;
+  ChatGenerationUsage? _usage;
   DateTime _lastFlushAt = DateTime(2000);
 
   // prepare 填充的 run context。
@@ -168,6 +170,9 @@ class ChatGenerationRun {
             if (chunk.finishReason != null) {
               _finishReason = chunk.finishReason;
             }
+            if (chunk.usage != null) {
+              _usage = _usage?.merge(chunk.usage!) ?? chunk.usage;
+            }
             _onChunk();
           },
           onDone: () => _serialize(_completeAttemptFromDone),
@@ -216,6 +221,9 @@ class ChatGenerationRun {
 
   Future<void> _completeAttemptFromError(Object error, StackTrace stack) async {
     if (_outcome != null) return; // 拦截 onDone 后的迟到 onError
+    if (error is ChatGenerationException && error.usage != null) {
+      _usage = _usage?.merge(error.usage!) ?? error.usage;
+    }
     await _settleAttempt(
       ChatGenerationFailure(
         generationId: generationId,
@@ -239,6 +247,7 @@ class ChatGenerationRun {
             conversationId: _streamingConversation!.id,
             assistantMessageId: _assistantMessage!.id,
           ),
+      usage: _usage,
       retryPolicy: command.retryPolicy,
     );
     // finalizing：attempt 终态已定，进入 durable save 窗口。保持 busy 阻止新
@@ -284,6 +293,7 @@ class ChatGenerationRun {
   // ── retry ────────────────────────────────────────────────────────────────────
 
   Future<void> _scheduleRetry() async {
+    _usage = null;
     attempt++;
     phase = ChatGenerationPhase.retryWaiting;
     _project(); // retryWaiting，清 streamingReply
@@ -299,6 +309,7 @@ class ChatGenerationRun {
     _content = '';
     _reasoning = '';
     _finishReason = null;
+    _usage = null;
     _streamingReply = ChatStreamingReply(
       conversationId: _streamingConversation!.id,
       assistantMessageId: _assistantMessage!.id,
@@ -349,6 +360,7 @@ class ChatGenerationRun {
       content: _content,
       reasoning: _reasoning,
       finishReason: _finishReason,
+      usage: _usage,
       streamingConversation: _streamingConversation!,
       assistantMessage: _assistantMessage!,
       streamingReply: _streamingReply,

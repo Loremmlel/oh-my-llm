@@ -2,18 +2,27 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
+import 'package:oh_my_llm/features/chat/domain/models/chat_generation_usage.dart';
 
 void main() {
   test('complete 折叠正文、推理、末个 finish reason 与分散 usage', () async {
     final client = _ChunkSequenceClient([
       const ChatGenerationChunk(
         contentDelta: '正',
-        usage: ChatGenerationUsage(inputTokens: 10, cachedInputTokens: 3),
+        usage: ChatGenerationUsage(
+          inputTokens: 10,
+          cachedInputTokens: 3,
+          cacheWriteInputTokens: 2,
+        ),
       ),
       const ChatGenerationChunk(
         reasoningDelta: '思考',
         finishReason: 'length',
-        usage: ChatGenerationUsage(outputTokens: 20, reasoningTokens: 5),
+        usage: ChatGenerationUsage(
+          outputTokens: 20,
+          reasoningTokens: 5,
+          cachedInputTokens: 0,
+        ),
       ),
       const ChatGenerationChunk(contentDelta: '文', finishReason: 'stop'),
     ]);
@@ -39,7 +48,8 @@ void main() {
         inputTokens: 10,
         outputTokens: 20,
         reasoningTokens: 5,
-        cachedInputTokens: 3,
+        cachedInputTokens: 0,
+        cacheWriteInputTokens: 2,
       ),
     );
   });

@@ -20,6 +20,7 @@ import 'chat_sessions_state.dart';
 import '../../domain/models/chat_checkpoint.dart';
 import '../../domain/models/chat_conversation.dart';
 import '../../domain/models/chat_conversation_summary.dart';
+import '../../domain/models/chat_generation_usage.dart';
 import '../../domain/chat_error_messages.dart';
 import '../../domain/chat_message_parent.dart';
 import '../../domain/models/chat_message.dart';
@@ -835,16 +836,32 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     }
     switch (result) {
       case FinishSuccess(:final conversation):
-        final error = await saveConversationDurable(conversation);
+        final terminalConversation = _withAssistantTokenUsage(
+          conversation,
+          assistantMessage.id,
+          attempt.usage,
+        );
+        state = state.copyWith(
+          conversations: replaceConversation(terminalConversation),
+        );
+        final error = await saveConversationDurable(terminalConversation);
         if (_disposed) {
           return ChatAttemptPersistenceFailed(StateError('disposed'));
         }
         if (error != null) {
           return ChatAttemptPersistenceFailed(error);
         }
-        return ChatAttemptSucceed(conversation);
+        return ChatAttemptSucceed(terminalConversation);
       case FinishOutputRuleError(:final conversation):
-        final error = await saveConversationDurable(conversation);
+        final terminalConversation = _withAssistantTokenUsage(
+          conversation,
+          assistantMessage.id,
+          attempt.usage,
+        );
+        state = state.copyWith(
+          conversations: replaceConversation(terminalConversation),
+        );
+        final error = await saveConversationDurable(terminalConversation);
         if (_disposed) {
           return ChatAttemptPersistenceFailed(StateError('disposed'));
         }
@@ -852,7 +869,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
           return ChatAttemptPersistenceFailed(error);
         }
         return ChatAttemptOutputRuleFailed(
-          conversation,
+          terminalConversation,
           ChatGenerationFailure(
             generationId: attempt.generationId,
             attempt: attempt.attempt,
@@ -860,17 +877,34 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
           ),
         );
       case FinishRetry():
-        final intermediateError = await saveConversationDurable(
+        if (_canRetry(retryPolicy, attempt.attempt)) {
+          final intermediateError = await saveConversationDurable(
+            state.activeConversation,
+          );
+          if (_disposed) {
+            return ChatAttemptPersistenceFailed(StateError('disposed'));
+          }
+          if (intermediateError != null) {
+            return ChatAttemptPersistenceFailed(intermediateError);
+          }
+          return const ChatAttemptRetry();
+        }
+        final terminalConversation = _withAssistantTokenUsage(
           state.activeConversation,
+          assistantMessage.id,
+          attempt.usage,
+        );
+        state = state.copyWith(
+          conversations: replaceConversation(terminalConversation),
+        );
+        final terminalError = await saveConversationDurable(
+          terminalConversation,
         );
         if (_disposed) {
           return ChatAttemptPersistenceFailed(StateError('disposed'));
         }
-        if (intermediateError != null) {
-          return ChatAttemptPersistenceFailed(intermediateError);
-        }
-        if (_canRetry(retryPolicy, attempt.attempt)) {
-          return const ChatAttemptRetry();
+        if (terminalError != null) {
+          return ChatAttemptPersistenceFailed(terminalError);
         }
         final terminalOutcome = _retryExhaustedOutcome(attempt);
         final reachedLimit = retryPolicy.enabled;
@@ -900,9 +934,13 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
           conversationId: partial.streamingConversation.id,
           assistantMessageId: partial.assistantMessage.id,
         );
-    final stoppedConversation = buildConversationAfterStreamingInterrupt(
-      conversation: state.activeConversation,
-      streamingReply: streamingReply,
+    final stoppedConversation = _withAssistantTokenUsage(
+      buildConversationAfterStreamingInterrupt(
+        conversation: state.activeConversation,
+        streamingReply: streamingReply,
+      ),
+      partial.assistantMessage.id,
+      partial.usage,
     );
     final assistantMessageId = streamingReply.assistantMessageId;
     final isEmpty =
@@ -940,6 +978,23 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
   @override
   void projectProgress(ChatGenerationProgress progress) {
     _projectProgress(progress);
+  }
+
+  ChatConversation _withAssistantTokenUsage(
+    ChatConversation conversation,
+    String assistantMessageId,
+    ChatGenerationUsage? usage,
+  ) {
+    if (usage == null) return conversation;
+    return conversation.copyWith(
+      messageNodes: [
+        for (final message in conversation.messageNodes)
+          if (message.id == assistantMessageId)
+            message.copyWith(tokenUsage: usage)
+          else
+            message,
+      ],
+    );
   }
 
   /// 是否还能再重试一次（移植自旧 _GenerationHandle.scheduleRetry 的上限判定）。

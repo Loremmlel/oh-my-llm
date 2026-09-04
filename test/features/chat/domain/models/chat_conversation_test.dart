@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
+import 'package:oh_my_llm/features/chat/domain/models/chat_generation_usage.dart';
+import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 
 void main() {
   test('resolves active path from tree selections', () {
@@ -58,5 +60,87 @@ void main() {
       'u1b',
       'a1b',
     ]);
+  });
+
+  test('缓存命中率按整棵消息树的有效助手用量加权计算', () {
+    final conversation = ChatConversation(
+      id: 'usage',
+      createdAt: DateTime(2026),
+      updatedAt: DateTime(2026),
+      messageNodes: [
+        ChatMessage(
+          id: 'a1',
+          role: ChatMessageRole.assistant,
+          content: 'active',
+          createdAt: DateTime(2026),
+          tokenUsage: const ChatGenerationUsage(
+            inputTokens: 100,
+            cachedInputTokens: 25,
+          ),
+        ),
+        ChatMessage(
+          id: 'a2',
+          role: ChatMessageRole.assistant,
+          content: 'other branch',
+          createdAt: DateTime(2026),
+          tokenUsage: const ChatGenerationUsage(
+            inputTokens: 300,
+            cachedInputTokens: 150,
+          ),
+        ),
+        ChatMessage(
+          id: 'ignored-zero-input',
+          role: ChatMessageRole.assistant,
+          content: 'ignored',
+          createdAt: DateTime(2026),
+          tokenUsage: const ChatGenerationUsage(
+            inputTokens: 0,
+            cachedInputTokens: 10,
+          ),
+        ),
+        ChatMessage(
+          id: 'user',
+          role: ChatMessageRole.user,
+          content: 'ignored',
+          createdAt: DateTime(2026),
+          tokenUsage: const ChatGenerationUsage(
+            inputTokens: 100,
+            cachedInputTokens: 100,
+          ),
+        ),
+      ],
+    );
+
+    expect(conversation.cacheHitRate, 0.4375);
+    expect(
+      ChatConversation(
+        id: 'none',
+        createdAt: DateTime(2026),
+        updatedAt: DateTime(2026),
+      ).cacheHitRate,
+      isNull,
+    );
+  });
+
+  test('缓存用量超过输入总量时忽略该消息', () {
+    final conversation = ChatConversation(
+      id: 'invalid-usage',
+      createdAt: DateTime(2026),
+      updatedAt: DateTime(2026),
+      messageNodes: [
+        ChatMessage(
+          id: 'assistant',
+          role: ChatMessageRole.assistant,
+          content: 'reply',
+          createdAt: DateTime(2026),
+          tokenUsage: const ChatGenerationUsage(
+            inputTokens: 100,
+            cachedInputTokens: 150,
+          ),
+        ),
+      ],
+    );
+
+    expect(conversation.cacheHitRate, isNull);
   });
 }

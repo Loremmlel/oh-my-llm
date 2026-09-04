@@ -4,6 +4,7 @@ import 'package:oh_my_llm/core/http/sse_event_decoder.dart';
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/data/generation/chat_completions/chat_completions_parser.dart';
+import 'package:oh_my_llm/features/chat/domain/models/chat_generation_usage.dart';
 
 void main() {
   const protocol = LlmApiProtocol.chatCompletions;
@@ -256,7 +257,7 @@ void main() {
             event(
               '{"usage":{"prompt_tokens":10,"completion_tokens":20,'
               '"completion_tokens_details":{"reasoning_tokens":5},'
-              '"prompt_tokens_details":{"cached_tokens":3}},'
+              '"prompt_tokens_details":{"cached_tokens":3,"cache_write_tokens":0}},'
               '"choices":[{"delta":{"content":"hi"}}]}',
             ),
           )
@@ -268,8 +269,25 @@ void main() {
           outputTokens: 20,
           reasoningTokens: 5,
           cachedInputTokens: 3,
+          cacheWriteInputTokens: 0,
         ),
       );
+    });
+
+    test('空 choices 的流尾事件仍输出 usage', () {
+      final chunk = newParser()
+          .parse(
+            event(
+              '{"usage":{"prompt_tokens":10,"completion_tokens":2},"choices":[]}',
+            ),
+          )
+          .chunk;
+
+      expect(
+        chunk!.usage,
+        const ChatGenerationUsage(inputTokens: 10, outputTokens: 2),
+      );
+      expect(chunk.isEmpty, isTrue);
     });
 
     test('usage 缺失或全非 int → usage 为 null', () {
@@ -287,6 +305,15 @@ void main() {
           )
           .chunk;
       expect(notInt!.usage, isNull);
+
+      final negative = newParser()
+          .parse(
+            event(
+              '{"usage":{"prompt_tokens":-1},"choices":[{"delta":{"content":"hi"}}]}',
+            ),
+          )
+          .chunk;
+      expect(negative!.usage, isNull);
     });
   });
 

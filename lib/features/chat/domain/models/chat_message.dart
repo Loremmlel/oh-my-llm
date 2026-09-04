@@ -2,6 +2,8 @@ import 'package:equatable/equatable.dart';
 
 import 'package:oh_my_llm/core/constants/model_display_name.dart';
 
+import 'chat_generation_usage.dart';
+
 /// 聊天消息的发送角色。
 enum ChatMessageRole {
   system('system'),
@@ -84,6 +86,7 @@ class ChatMessage extends Equatable {
     this.templatePromptId,
     this.templateVariableValues = const {},
     this.finishReason,
+    this.tokenUsage,
   });
 
   final String id;
@@ -99,6 +102,7 @@ class ChatMessage extends Equatable {
   final String? templatePromptId;
   final Map<String, String> templateVariableValues;
   final String? finishReason;
+  final ChatGenerationUsage? tokenUsage;
 
   /// 复制消息，并允许覆盖常用字段。
   ChatMessage copyWith({
@@ -115,6 +119,7 @@ class ChatMessage extends Equatable {
     String? templatePromptId,
     Map<String, String>? templateVariableValues,
     String? finishReason,
+    ChatGenerationUsage? tokenUsage,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -133,6 +138,7 @@ class ChatMessage extends Equatable {
       templateVariableValues:
           templateVariableValues ?? this.templateVariableValues,
       finishReason: finishReason ?? this.finishReason,
+      tokenUsage: tokenUsage ?? this.tokenUsage,
     );
   }
 
@@ -153,6 +159,7 @@ class ChatMessage extends Equatable {
       'templatePromptId': templatePromptId,
       'templateVariableValues': templateVariableValues,
       'finishReason': finishReason,
+      'tokenUsage': tokenUsage?.toJson(),
     };
   }
 
@@ -190,6 +197,7 @@ class ChatMessage extends Equatable {
           ) ??
           const {},
       finishReason: json['finishReason'] as String?,
+      tokenUsage: ChatGenerationUsage.fromJson(json['tokenUsage']),
     );
   }
 
@@ -214,5 +222,6 @@ class ChatMessage extends Equatable {
     templatePromptId,
     templateVariableValues,
     finishReason,
+    tokenUsage,
   ];
 }

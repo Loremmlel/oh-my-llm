@@ -4,6 +4,7 @@ import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/chat/data/persistence/sqlite_chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_checkpoint.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
+import 'package:oh_my_llm/features/chat/domain/models/chat_generation_usage.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 
 void main() {
@@ -55,6 +56,12 @@ void main() {
           appliedCheckpointTitle: '检查点 1',
           createdAt: DateTime(2026, 4, 27, 10, 2),
           finishReason: 'stop',
+          tokenUsage: const ChatGenerationUsage(
+            inputTokens: 4000,
+            outputTokens: 900,
+            cachedInputTokens: 1500,
+            cacheWriteInputTokens: 800,
+          ),
         ),
       ],
       excludedMessageIds: const ['assistant-2'],
@@ -120,6 +127,10 @@ void main() {
     expect(restoredById['assistant-2']?.assistantModelDisplayName, '测试模型');
     expect(restoredById['assistant-2']?.appliedCheckpointTitle, '检查点 1');
     expect(restoredById['assistant-2']?.finishReason, 'stop');
+    expect(
+      restoredById['assistant-2']?.tokenUsage,
+      conversation.messageNodes.last.tokenUsage,
+    );
     expect(restoredById['user-1']?.userMessageSegments.length, 2);
     expect(restoredById['user-1']?.templatePromptId, 'template-1');
     expect(restoredById['user-1']?.templateVariableValues, {
@@ -236,6 +247,10 @@ void main() {
             content: 'C',
             parentId: 'b',
             createdAt: DateTime(2026, 5, 2, 10, 2),
+            tokenUsage: const ChatGenerationUsage(
+              inputTokens: 100,
+              cachedInputTokens: 50,
+            ),
           ),
         ],
         selectedChildByParentId: const {

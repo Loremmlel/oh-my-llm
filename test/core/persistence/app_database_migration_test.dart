@@ -129,7 +129,7 @@ void main() {
       expect(rows.first['title'], isNull);
     });
 
-    test('messages.finish_reason 列默认为 NULL', () {
+    test('messages.finish_reason 与 token_usage_json 列默认为 NULL', () {
       database.connection.execute('''
         INSERT INTO conversations (id, created_at, updated_at, reasoning_effort)
         VALUES ('c1', '2026-01-01', '2026-01-01', 'medium');
@@ -140,11 +140,12 @@ void main() {
       ''');
 
       final rows = database.connection.select(
-        'SELECT finish_reason FROM messages WHERE id = ?;',
+        'SELECT finish_reason, token_usage_json FROM messages WHERE id = ?;',
         ['m1'],
       );
       expect(rows.length, 1);
       expect(rows.first['finish_reason'], isNull);
+      expect(rows.first['token_usage_json'], isNull);
     });
 
     test('删除 conversation 后清理消息、分支选择和检查点', () {
@@ -316,7 +317,8 @@ void main() {
     });
 
     test('高于当前基线的未来版本数据库显式拒绝打开', () {
-      final path = createDbFile('future_15.db', 15);
+      final futureVersion = AppDatabase.currentSchemaVersion + 1;
+      final path = createDbFile('future.db', futureVersion);
       // 旧代码不静默读写更新版本应用创建的 schema；异常携带实际 user_version。
       expect(
         () => AppDatabase.forPath(path),
@@ -324,9 +326,56 @@ void main() {
           isA<AppDatabaseSchemaVersionException>().having(
             (exception) => exception.version,
             'version',
-            15,
+            futureVersion,
           ),
         ),
+      );
+    });
+  });
+
+  group('AppDatabase v14→v15 Token 用量迁移', () {
+    late Directory tempDir;
+
+    setUp(() {
+      tempDir = Directory.systemTemp.createTempSync('appdb-usage-v15-test-');
+    });
+
+    tearDown(() {
+      if (tempDir.existsSync()) {
+        tempDir.deleteSync(recursive: true);
+      }
+    });
+
+    test('新增可空列并保留旧消息', () {
+      final path = '${tempDir.path}${Platform.pathSeparator}migrate.db';
+      final legacy = sqlite.sqlite3.open(path);
+      legacy.execute('''
+        CREATE TABLE messages (
+          id TEXT PRIMARY KEY,
+          content TEXT NOT NULL
+        );
+      ''');
+      legacy.execute(
+        "INSERT INTO messages (id, content) VALUES ('m1', '旧消息');",
+      );
+      legacy.execute('PRAGMA user_version = 14;');
+      legacy.close();
+
+      final database = AppDatabase.forPath(path);
+      addTearDown(database.close);
+
+      final row = database.connection
+          .select(
+            "SELECT content, token_usage_json FROM messages WHERE id = 'm1';",
+          )
+          .single;
+      expect(row['content'], '旧消息');
+      expect(row['token_usage_json'], isNull);
+      expect(
+        database.connection
+            .select('PRAGMA user_version;')
+            .single['user_version'],
+        greaterThanOrEqualTo(AppDatabase.currentSchemaVersion),
       );
     });
   });
@@ -348,8 +397,7 @@ void main() {
 
     /// 构造一份真实的 v13 文件数据库。
     ///
-    /// 只建迁移涉及的 collections/favorites 两张表与旧索引；
-    /// 其余业务表与该迁移逻辑无关。
+    /// 建立收藏迁移所需表，并保留一条消息验证顺序迁移。
     String createV13Database(String name) {
       final path = '${tempDir.path}${Platform.pathSeparator}$name';
       final db = sqlite.sqlite3.open(path);
@@ -380,6 +428,8 @@ void main() {
       db.execute(
         'CREATE INDEX idx_favorites_created_at ON favorites(created_at DESC);',
       );
+      db.execute('CREATE TABLE messages (id TEXT PRIMARY KEY);');
+      db.execute("INSERT INTO messages (id) VALUES ('legacy-message');");
       db.execute('PRAGMA user_version = 13;');
       db.close();
       return path;
@@ -441,6 +491,27 @@ void main() {
       );
       db.close();
     }
+
+    test('v13 按顺序迁移到当前版本并保留旧消息', () {
+      final path = createV13Database('migrate-sequential.db');
+
+      final database = AppDatabase.forPath(path);
+      addTearDown(database.close);
+
+      final row = database.connection
+          .select(
+            "SELECT id, token_usage_json FROM messages WHERE id = 'legacy-message';",
+          )
+          .single;
+      expect(row['id'], 'legacy-message');
+      expect(row['token_usage_json'], isNull);
+      expect(
+        database.connection
+            .select('PRAGMA user_version;')
+            .single['user_version'],
+        greaterThanOrEqualTo(AppDatabase.currentSchemaVersion),
+      );
+    });
 
     test('未归属、空归属与孤儿收藏迁移进系统收藏夹且归属时间取收藏时间', () {
       final path = createV13Database('migrate_unassigned.db');

@@ -7,6 +7,7 @@ import 'package:oh_my_llm/features/chat/application/generation/chat_generation_l
 import 'package:oh_my_llm/features/chat/application/generation/chat_generation_run.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
+import 'package:oh_my_llm/features/chat/domain/models/chat_generation_usage.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_state.dart';
 import 'package:oh_my_llm/features/settings/domain/models/preferences/auto_retry_settings.dart';
@@ -123,8 +124,18 @@ void main() {
   test(
     'retry then success: attempt increments to 2, final succeeded',
     () async {
-      fakeClient.enqueueChunks(['']); // attempt 1 空 -> retry
-      fakeClient.enqueueChunks(['ok']); // attempt 2 成功
+      fakeClient.enqueueDeltas(const [
+        ChatGenerationChunk(
+          usage: ChatGenerationUsage(inputTokens: 10, cachedInputTokens: 5),
+        ),
+      ]); // attempt 1 空 -> retry
+      fakeClient.enqueueDeltas(const [
+        ChatGenerationChunk(
+          contentDelta: 'ok',
+          usage: ChatGenerationUsage(inputTokens: 7, cachedInputTokens: 0),
+        ),
+        ChatGenerationChunk(usage: ChatGenerationUsage(outputTokens: 3)),
+      ]); // attempt 2 成功
       final host = _FakeHost(
         attemptDecisionFor: (s) => s.attempt == 1
             ? const ChatAttemptRetry()
@@ -145,6 +156,18 @@ void main() {
       expect(host.attempts, hasLength(2));
       expect(host.attempts.first.attempt, 1);
       expect(host.attempts.last.attempt, 2);
+      expect(
+        host.attempts.first.usage,
+        const ChatGenerationUsage(inputTokens: 10, cachedInputTokens: 5),
+      );
+      expect(
+        host.attempts.last.usage,
+        const ChatGenerationUsage(
+          inputTokens: 7,
+          outputTokens: 3,
+          cachedInputTokens: 0,
+        ),
+      );
       expect(fakeClient.requestHistory, hasLength(2));
     },
   );
@@ -177,7 +200,12 @@ void main() {
 
     run.start();
     await controlled.listened; // 等待 run 开始监听后再投递 chunk
-    controlled.add(const ChatGenerationChunk(contentDelta: '部分'));
+    controlled.add(
+      const ChatGenerationChunk(
+        contentDelta: '部分',
+        usage: ChatGenerationUsage(inputTokens: 8, cachedInputTokens: 2),
+      ),
+    );
     // 等 chunk 增量进入投影（streamUiFlushInterval=0，每 chunk 必投影）再 stop，
     // 保证 stop 时已累积部分内容。
     await host.waitForProjection(
@@ -189,6 +217,10 @@ void main() {
     expect(run.phase, ChatGenerationPhase.cancelled);
     expect(host.stops, hasLength(1));
     expect(host.stops.single.content, '部分');
+    expect(
+      host.stops.single.usage,
+      const ChatGenerationUsage(inputTokens: 8, cachedInputTokens: 2),
+    );
   });
 
   test('retry-waiting stop: cancelled, no next attempt', () async {

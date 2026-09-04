@@ -4,6 +4,7 @@ import 'package:oh_my_llm/core/http/sse_event_decoder.dart';
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/data/generation/anthropic/anthropic_parser.dart';
+import 'package:oh_my_llm/features/chat/domain/models/chat_generation_usage.dart';
 
 void main() {
   const protocol = LlmApiProtocol.anthropic;
@@ -314,7 +315,11 @@ void main() {
           .chunk;
       expect(
         startChunk!.usage,
-        const ChatGenerationUsage(inputTokens: 10, cachedInputTokens: 3),
+        const ChatGenerationUsage(
+          inputTokens: 17,
+          cachedInputTokens: 3,
+          cacheWriteInputTokens: 4,
+        ),
       );
 
       final deltaChunk = parser
@@ -328,10 +333,11 @@ void main() {
       expect(
         deltaChunk!.usage,
         const ChatGenerationUsage(
-          inputTokens: 10,
+          inputTokens: 17,
           outputTokens: 20,
           reasoningTokens: null,
           cachedInputTokens: 3,
+          cacheWriteInputTokens: 4,
         ),
       );
       expect(deltaChunk.finishReason, 'stop');

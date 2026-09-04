@@ -4,6 +4,7 @@ import 'package:oh_my_llm/core/http/sse_event_decoder.dart';
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/data/generation/responses/responses_parser.dart';
+import 'package:oh_my_llm/features/chat/domain/models/chat_generation_usage.dart';
 
 void main() {
   const protocol = LlmApiProtocol.responses;
@@ -128,11 +129,14 @@ void main() {
       );
     });
 
-    test('response.failed → 从 response.error 提取 message/code 抛异常', () {
+    test('response.failed → 从 response 提取错误与用量后抛异常', () {
       expect(
         () => newParser().parse(
           event(
-            '{"type":"response.failed","response":{"error":{"code":"server_error","message":"Server had an error"}}}',
+            '{"type":"response.failed","response":{'
+            '"error":{"code":"server_error","message":"Server had an error"},'
+            '"usage":{"input_tokens":100,"output_tokens":8,'
+            '"input_tokens_details":{"cached_tokens":40}}}}',
           ),
         ),
         throwsA(
@@ -140,7 +144,16 @@ void main() {
               .having((e) => e.message, 'message', 'Server had an error')
               .having((e) => e.apiErrorCode, 'apiErrorCode', 'server_error')
               .having((e) => e.protocol, 'protocol', protocol)
-              .having((e) => e.uri, 'uri', uri),
+              .having((e) => e.uri, 'uri', uri)
+              .having(
+                (e) => e.usage,
+                'usage',
+                const ChatGenerationUsage(
+                  inputTokens: 100,
+                  outputTokens: 8,
+                  cachedInputTokens: 40,
+                ),
+              ),
         ),
       );
     });
@@ -221,7 +234,7 @@ void main() {
             event(
               '{"type":"response.completed","response":{"usage":{"input_tokens":10,"output_tokens":20,'
               '"output_tokens_details":{"reasoning_tokens":5},'
-              '"input_tokens_details":{"cached_tokens":3}}}}',
+              '"input_tokens_details":{"cached_tokens":3,"cache_write_tokens":0}}}}',
             ),
           )
           .chunk;
@@ -232,6 +245,7 @@ void main() {
           outputTokens: 20,
           reasoningTokens: 5,
           cachedInputTokens: 3,
+          cacheWriteInputTokens: 0,
         ),
       );
     });
@@ -250,6 +264,15 @@ void main() {
           )
           .chunk;
       expect(notInt!.usage, isNull);
+
+      final negative = newParser()
+          .parse(
+            event(
+              '{"type":"response.completed","response":{"usage":{"input_tokens":-1}}}',
+            ),
+          )
+          .chunk;
+      expect(negative!.usage, isNull);
     });
   });
 

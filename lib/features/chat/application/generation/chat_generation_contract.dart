@@ -5,6 +5,7 @@ import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.
 
 import '../../domain/models/chat_checkpoint.dart';
 import '../../domain/models/chat_conversation.dart';
+import '../../domain/models/chat_generation_usage.dart';
 import '../../domain/models/chat_message.dart';
 import 'chat_generation_lifecycle.dart';
 import '../sessions/chat_sessions_state.dart';
@@ -154,6 +155,7 @@ class ChatAttemptSnapshot extends Equatable {
     required this.streamingConversation,
     required this.assistantMessage,
     required this.streamingReply,
+    required this.usage,
     required this.retryPolicy,
   });
 
@@ -167,6 +169,7 @@ class ChatAttemptSnapshot extends Equatable {
   final ChatConversation streamingConversation;
   final ChatMessage assistantMessage;
   final ChatStreamingReply streamingReply;
+  final ChatGenerationUsage? usage;
   final ChatRetryPolicy retryPolicy;
 
   @override
@@ -177,6 +180,7 @@ class ChatAttemptSnapshot extends Equatable {
     streamingConversation,
     assistantMessage,
     streamingReply,
+    usage,
     retryPolicy,
   ];
 }
@@ -244,6 +248,7 @@ class ChatPartialSnapshot extends Equatable {
     required this.content,
     required this.reasoning,
     required this.finishReason,
+    required this.usage,
     required this.streamingConversation,
     required this.assistantMessage,
     required this.streamingReply,
@@ -255,6 +260,7 @@ class ChatPartialSnapshot extends Equatable {
   final String content;
   final String reasoning;
   final String? finishReason;
+  final ChatGenerationUsage? usage;
   final ChatConversation streamingConversation;
   final ChatMessage assistantMessage;
   final ChatStreamingReply? streamingReply;
@@ -269,6 +275,7 @@ class ChatPartialSnapshot extends Equatable {
     content,
     reasoning,
     finishReason,
+    usage,
     streamingConversation,
     assistantMessage,
     streamingReply,

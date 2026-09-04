@@ -53,6 +53,25 @@ class ChatConversation extends Equatable {
   /// 会话是否包含任何消息。
   bool get hasMessages => messages.isNotEmpty;
 
+  /// 整棵消息树中可计算用量的加权缓存命中率。
+  double? get cacheHitRate {
+    var inputTokens = 0;
+    var cachedInputTokens = 0;
+    for (final message in messageNodes) {
+      final usage = message.tokenUsage;
+      if (message.role != ChatMessageRole.assistant ||
+          usage?.inputTokens == null ||
+          usage?.cachedInputTokens == null ||
+          usage!.inputTokens! <= 0 ||
+          usage.cachedInputTokens! > usage.inputTokens!) {
+        continue;
+      }
+      inputTokens += usage.inputTokens!;
+      cachedInputTokens += usage.cachedInputTokens!;
+    }
+    return inputTokens == 0 ? null : cachedInputTokens / inputTokens;
+  }
+
   /// 当前消息是否被排除出后续请求上下文。
   bool isMessageExcluded(String messageId) {
     return excludedMessageIds.contains(messageId);

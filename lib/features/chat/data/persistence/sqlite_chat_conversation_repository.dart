@@ -94,6 +94,7 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
                           as Map<String, dynamic>)
                       .map((k, v) => MapEntry(k, v as String)),
               finishReason: row['finish_reason'] as String?,
+              tokenUsage: tokenUsageFromRow(row['token_usage_json']),
             ),
           );
     }
@@ -207,6 +208,7 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
               row['template_variable_values_json'] as String,
             ) as Map<String, dynamic>).map((k, v) => MapEntry(k, v as String)),
             finishReason: row['finish_reason'] as String?,
+            tokenUsage: tokenUsageFromRow(row['token_usage_json']),
           ),
         )
         .toList(growable: false);
