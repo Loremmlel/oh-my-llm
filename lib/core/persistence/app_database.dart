@@ -24,9 +24,8 @@ class AppDatabase {
 
   /// 当前滚动迁移基线：全新数据库直接创建到该版本。
   ///
-  /// 历史 V9→V13 逐级迁移已退役；v13 是唯一临时支持的旧基线
-  /// （v13→v14 收藏归属迁移），低于或高于该范围的数据库都会被显式拒绝打开。
-  static const int currentSchemaVersion = 14;
+  /// 历史 V9→V13 逐级迁移已退役；v13 起的已发布迁移按顺序保留。
+  static const int currentSchemaVersion = 15;
 
   final sqlite.Database _connection;
   final String path;
@@ -79,7 +78,8 @@ class AppDatabase {
   /// - `user_version == 0`：全新数据库，创建完整当前 schema 后标记为
   ///   [currentSchemaVersion]；
   /// - `user_version == [currentSchemaVersion]`：当前版本数据库，不做任何改动；
-  /// - `user_version == 13`：唯一临时支持的旧基线，执行 v13→v14 迁移；
+  /// - `user_version == 13`：按顺序执行 v13→v14→v15 迁移；
+  /// - `user_version == 14`：执行 v14→v15 迁移；
   /// - 其余版本（更旧的遗留库或更新版本应用创建的库）显式拒绝，
   ///   避免仓库层在不兼容的 schema 上误读误写。
   void _initializeSchema() {
@@ -93,6 +93,9 @@ class AppDatabase {
       // 当前版本数据库，直接可用。
     } else if (currentVersion == 13) {
       _migrateFavoritesFromV13ToV14();
+      _migrateMessagesFromV14ToV15();
+    } else if (currentVersion == 14) {
+      _migrateMessagesFromV14ToV15();
     } else {
       throw AppDatabaseSchemaVersionException(currentVersion);
     }
@@ -219,6 +222,21 @@ class AppDatabase {
     }
   }
 
+  /// v14 → v15：消息行增加可选 Token 用量 JSON。
+  void _migrateMessagesFromV14ToV15() {
+    _connection.execute('BEGIN;');
+    try {
+      _connection.execute(
+        'ALTER TABLE messages ADD COLUMN token_usage_json TEXT;',
+      );
+      _connection.execute('PRAGMA user_version = 15;');
+      _connection.execute('COMMIT;');
+    } catch (_) {
+      _connection.execute('ROLLBACK;');
+      rethrow;
+    }
+  }
+
   /// 创建全部业务表和索引（全新安装时使用）。
   void _createSchema() {
     _connection.execute('''
@@ -252,6 +270,7 @@ class AppDatabase {
         template_prompt_id TEXT DEFAULT NULL,
         template_variable_values_json TEXT NOT NULL DEFAULT '{}',
         finish_reason TEXT DEFAULT NULL,
+        token_usage_json TEXT,
         FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
       );
     ''');

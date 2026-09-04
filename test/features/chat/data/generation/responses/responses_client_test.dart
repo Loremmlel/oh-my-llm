@@ -9,6 +9,7 @@ import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/core/logging/network_logger.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/data/generation/responses/responses_client.dart';
+import 'package:oh_my_llm/features/chat/domain/models/chat_generation_usage.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/settings/domain/models/providers/llm_model_config.dart';
 
@@ -444,7 +445,7 @@ void main() {
             utf8.encode(
               'data: {"type":"response.completed","response":{"usage":{"input_tokens":10,"output_tokens":20,'
               '"output_tokens_details":{"reasoning_tokens":5},'
-              '"input_tokens_details":{"cached_tokens":3}}}}\n\n',
+              '"input_tokens_details":{"cached_tokens":3,"cache_write_tokens":0}}}}\n\n',
             ),
             utf8.encode(
               'data: {"type":"response.done","response":{"id":"r-1"}}\n\n',
@@ -466,6 +467,7 @@ void main() {
           outputTokens: 20,
           reasoningTokens: 5,
           cachedInputTokens: 3,
+          cacheWriteInputTokens: 0,
         ),
       );
     });

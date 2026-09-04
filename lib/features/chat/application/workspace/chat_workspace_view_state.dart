@@ -83,6 +83,7 @@ class ChatWorkspaceComposerReadModel extends Equatable {
     required this.isStreaming,
     required this.isAutoRetryWaiting,
     required this.excludedMessageCount,
+    required this.cacheHitRate,
   });
 
   final List<LlmProviderConfig> modelProviders;
@@ -101,6 +102,7 @@ class ChatWorkspaceComposerReadModel extends Equatable {
   final bool isStreaming;
   final bool isAutoRetryWaiting;
   final int excludedMessageCount;
+  final double? cacheHitRate;
 
   @override
   List<Object?> get props => [
@@ -120,6 +122,7 @@ class ChatWorkspaceComposerReadModel extends Equatable {
     isStreaming,
     isAutoRetryWaiting,
     excludedMessageCount,
+    cacheHitRate,
   ];
 }
 
@@ -142,6 +145,7 @@ class ChatWorkspaceComposerState extends ChatWorkspaceComposerReadModel {
     required super.isStreaming,
     required super.isAutoRetryWaiting,
     required super.excludedMessageCount,
+    required super.cacheHitRate,
     required this.isEditingMessage,
   });
 
@@ -171,6 +175,7 @@ class ChatWorkspaceComposerState extends ChatWorkspaceComposerReadModel {
       isStreaming: readModel.isStreaming,
       isAutoRetryWaiting: readModel.isAutoRetryWaiting,
       excludedMessageCount: readModel.excludedMessageCount,
+      cacheHitRate: readModel.cacheHitRate,
       isEditingMessage: isEditingMessage,
     );
   }
@@ -394,6 +399,7 @@ final chatWorkspaceReadModelProvider = Provider<ChatWorkspaceReadModel>((ref) {
       isStreaming: isStreaming,
       isAutoRetryWaiting: isAutoRetryWaiting,
       excludedMessageCount: excludedVisibleMessageCount,
+      cacheHitRate: conversation.cacheHitRate,
     ),
   );
 });

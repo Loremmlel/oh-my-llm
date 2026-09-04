@@ -4,6 +4,7 @@ import 'package:oh_my_llm/core/http/sse_event_decoder.dart';
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/data/generation/responses/responses_parser.dart';
+import 'package:oh_my_llm/features/chat/domain/models/chat_generation_usage.dart';
 
 void main() {
   const protocol = LlmApiProtocol.responses;
@@ -221,7 +222,7 @@ void main() {
             event(
               '{"type":"response.completed","response":{"usage":{"input_tokens":10,"output_tokens":20,'
               '"output_tokens_details":{"reasoning_tokens":5},'
-              '"input_tokens_details":{"cached_tokens":3}}}}',
+              '"input_tokens_details":{"cached_tokens":3,"cache_write_tokens":0}}}}',
             ),
           )
           .chunk;
@@ -232,6 +233,7 @@ void main() {
           outputTokens: 20,
           reasoningTokens: 5,
           cachedInputTokens: 3,
+          cacheWriteInputTokens: 0,
         ),
       );
     });
@@ -250,6 +252,15 @@ void main() {
           )
           .chunk;
       expect(notInt!.usage, isNull);
+
+      final negative = newParser()
+          .parse(
+            event(
+              '{"type":"response.completed","response":{"usage":{"input_tokens":-1}}}',
+            ),
+          )
+          .chunk;
+      expect(negative!.usage, isNull);
     });
   });
 

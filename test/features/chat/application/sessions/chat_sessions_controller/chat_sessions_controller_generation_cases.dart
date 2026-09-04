@@ -5,6 +5,7 @@ import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/domain/chat_error_messages.dart';
+import 'package:oh_my_llm/features/chat/domain/models/chat_generation_usage.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/settings/application/preferences/output_processing_settings_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/preferences/output_processing_settings.dart';
@@ -387,7 +388,10 @@ void registerChatSessionsControllerGenerationCases() {
     test('正常完成时 finishReason 写入消息', () async {
       // 模拟 chunk 序列：content chunk（无 finishReason）-> 空 chunk 带 finishReason
       fakeClient.enqueueDeltas(const [
-        ChatGenerationChunk(contentDelta: '你好'),
+        ChatGenerationChunk(
+          contentDelta: '你好',
+          usage: ChatGenerationUsage(inputTokens: 100, cachedInputTokens: 25),
+        ),
         ChatGenerationChunk(finishReason: 'stop'),
       ]);
       await sendMsg('测试 finishReason');
@@ -397,6 +401,10 @@ void registerChatSessionsControllerGenerationCases() {
       expect(assistant.role, ChatMessageRole.assistant);
       expect(assistant.content, '你好');
       expect(assistant.finishReason, 'stop');
+      expect(
+        assistant.tokenUsage,
+        const ChatGenerationUsage(inputTokens: 100, cachedInputTokens: 25),
+      );
     });
 
     test('空回复时 finishReason 仍保留', () async {
@@ -423,7 +431,11 @@ void registerChatSessionsControllerGenerationCases() {
       await controlled.listened;
       // 发送带 finishReason 的 chunk，随后中断流式
       controlled.add(
-        const ChatGenerationChunk(contentDelta: '部分内容', finishReason: 'stop'),
+        const ChatGenerationChunk(
+          contentDelta: '部分内容',
+          finishReason: 'stop',
+          usage: ChatGenerationUsage(inputTokens: 80, outputTokens: 4),
+        ),
       );
       // 等 chunk 消费完成（run 的累积缓冲含 finishReason）再 stop，
       // 保证 stop 快照保留 finishReason。
@@ -441,6 +453,10 @@ void registerChatSessionsControllerGenerationCases() {
       expect(assistant.content, '部分内容');
       // stopStreaming 通过 buildConversationAfterStreamingInterrupt 保留 finishReason
       expect(assistant.finishReason, 'stop');
+      expect(
+        assistant.tokenUsage,
+        const ChatGenerationUsage(inputTokens: 80, outputTokens: 4),
+      );
     });
   });
 

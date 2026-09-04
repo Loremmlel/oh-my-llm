@@ -298,6 +298,10 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                         message.finishReason != null &&
                         !message.isStreaming)
                       _buildFinishReasonChip(theme, message),
+                    if (!isUser &&
+                        !message.isStreaming &&
+                        message.tokenUsage?.hasAnyValue == true)
+                      _buildTokenUsageRow(theme, message),
                     if (isUser && widget.autoRetryCount > 0) ...[
                       const SizedBox(height: 8),
                       Row(
@@ -428,6 +432,42 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildTokenUsageRow(ThemeData theme, ChatMessage message) {
+    final usage = message.tokenUsage!;
+    final values = <(String, int?)>[
+      ('输入', usage.inputTokens),
+      ('缓存命中', usage.cachedInputTokens),
+      ('缓存写入', usage.cacheWriteInputTokens),
+      ('输出', usage.outputTokens),
+    ].where((entry) => entry.$2 != null).toList(growable: false);
+    final style = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 2,
+        children: [
+          for (var index = 0; index < values.length; index++) ...[
+            Text(
+              '${values[index].$1} ${_formatTokenCount(values[index].$2!)}',
+              style: style,
+            ),
+            if (index < values.length - 1) Text('·', style: style),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String _formatTokenCount(int value) {
+    return value.toString().replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+      (_) => ',',
     );
   }
 

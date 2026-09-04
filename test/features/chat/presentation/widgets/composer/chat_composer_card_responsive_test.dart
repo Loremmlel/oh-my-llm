@@ -7,7 +7,10 @@ import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/composer/chat_composer_card.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/workspace/chat_workspace_bindings.dart';
 
-ChatWorkspaceComposerState _composerState() => const ChatWorkspaceComposerState(
+ChatWorkspaceComposerState _composerState({
+  double? cacheHitRate,
+  bool isCollapsed = false,
+}) => ChatWorkspaceComposerState(
   modelProviders: [],
   modelConfigs: [],
   selectedProviderId: null,
@@ -15,7 +18,7 @@ ChatWorkspaceComposerState _composerState() => const ChatWorkspaceComposerState(
   templatePrompts: [],
   selectedTemplatePrompt: null,
   fixedPromptSequences: [],
-  isComposerCollapsed: false,
+  isComposerCollapsed: isCollapsed,
   reasoningEnabled: false,
   reasoningEffort: ReasoningEffort.low,
   supportsReasoning: false,
@@ -24,6 +27,7 @@ ChatWorkspaceComposerState _composerState() => const ChatWorkspaceComposerState(
   isStreaming: false,
   isAutoRetryWaiting: false,
   excludedMessageCount: 0,
+  cacheHitRate: cacheHitRate,
   isEditingMessage: false,
 );
 
@@ -101,4 +105,47 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('展开时显示一位小数命中率，无样本时显示暂无数据', (tester) async {
+    final controller = TextEditingController();
+    final focusNode = FocusNode();
+    addTearDown(controller.dispose);
+    addTearDown(focusNode.dispose);
+    final bindings = _bindings(controller: controller, focusNode: focusNode);
+
+    for (final width in [360.0, 680.0]) {
+      await _pumpComposer(
+        tester,
+        width,
+        state: _composerState(cacheHitRate: 0.375),
+        bindings: bindings,
+      );
+      expect(find.text('当前会话缓存命中率：37.5%'), findsOneWidget, reason: '$width');
+      expect(tester.takeException(), isNull, reason: '$width');
+    }
+
+    await _pumpComposer(
+      tester,
+      680,
+      state: _composerState(),
+      bindings: bindings,
+    );
+    expect(find.text('当前会话缓存命中率：暂无数据'), findsOneWidget);
+  });
+
+  testWidgets('收起输入区时隐藏会话命中率', (tester) async {
+    final controller = TextEditingController();
+    final focusNode = FocusNode();
+    addTearDown(controller.dispose);
+    addTearDown(focusNode.dispose);
+
+    await _pumpComposer(
+      tester,
+      680,
+      state: _composerState(cacheHitRate: 0.375, isCollapsed: true),
+      bindings: _bindings(controller: controller, focusNode: focusNode),
+    );
+
+    expect(find.textContaining('当前会话缓存命中率'), findsNothing);
+  });
 }

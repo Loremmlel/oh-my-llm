@@ -100,13 +100,14 @@ void main() {
           .drain<void>();
     });
 
-    test('请求体逐字：model/stream/messages/reasoning_effort', () async {
+    test('请求体逐字：启用流用量并保留模型、消息与推理强度', () async {
       final client = _FakeStreamingHttpClient((request) async {
         final payload =
             jsonDecode((request as http.Request).body) as Map<String, dynamic>;
         expect(payload, {
           'model': 'gpt-4.1',
           'stream': true,
+          'stream_options': {'include_usage': true},
           'messages': [
             {'role': 'system', 'content': '系统提示'},
             {'role': 'user', 'content': '你好'},

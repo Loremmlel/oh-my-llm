@@ -4,6 +4,7 @@ import 'package:sqlite3/sqlite3.dart' as sqlite;
 
 import '../../domain/models/chat_checkpoint.dart';
 import '../../domain/models/chat_conversation.dart';
+import '../../domain/models/chat_generation_usage.dart';
 import '../../domain/models/chat_message.dart';
 
 // ── UPSERT SQL 常量 ────────────────────────────────────────────
@@ -33,8 +34,8 @@ const kMessageUpsertSql = '''
     content, reasoning_content, assistant_model_display_name,
     applied_checkpoint_title, user_message_segments_json,
     template_prompt_id, template_variable_values_json,
-    finish_reason, created_at
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    finish_reason, token_usage_json, created_at
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   ON CONFLICT(id) DO UPDATE SET
     node_index = excluded.node_index,
     content = excluded.content,
@@ -45,6 +46,7 @@ const kMessageUpsertSql = '''
     template_prompt_id = excluded.template_prompt_id,
     template_variable_values_json = excluded.template_variable_values_json,
     finish_reason = excluded.finish_reason,
+    token_usage_json = excluded.token_usage_json,
     created_at = excluded.created_at
 ''';
 
@@ -80,7 +82,7 @@ const kMessageSelectColumns = '''
   content, reasoning_content, assistant_model_display_name,
   applied_checkpoint_title, user_message_segments_json,
   template_prompt_id, template_variable_values_json,
-  finish_reason, created_at
+  finish_reason, token_usage_json, created_at
 ''';
 
 // ── 编解码函数 ─────────────────────────────────────────────────
@@ -119,8 +121,19 @@ List<Object?> messageToRowParams(
   m.templatePromptId,
   jsonEncode(m.templateVariableValues),
   m.finishReason,
+  m.tokenUsage == null ? null : jsonEncode(m.tokenUsage!.toJson()),
   m.createdAt.toIso8601String(),
 ];
+
+/// 从 SQLite 可选 JSON 列恢复 Token 用量；无效值按未知处理。
+ChatGenerationUsage? tokenUsageFromRow(Object? value) {
+  if (value is! String) return null;
+  try {
+    return ChatGenerationUsage.fromJson(jsonDecode(value));
+  } on FormatException {
+    return null;
+  }
+}
 
 /// 将 [ChatCheckpoint] 编码为 conversation_checkpoints 表行参数。
 List<Object?> checkpointToRowParams(ChatCheckpoint cp, String conversationId) =>

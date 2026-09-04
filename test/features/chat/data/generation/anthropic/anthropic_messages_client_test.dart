@@ -8,6 +8,7 @@ import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/core/logging/network_logger.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/data/generation/anthropic/anthropic_messages_client.dart';
+import 'package:oh_my_llm/features/chat/domain/models/chat_generation_usage.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/settings/domain/models/providers/llm_model_config.dart';
 
@@ -383,9 +384,10 @@ void main() {
       expect(
         result.usage,
         const ChatGenerationUsage(
-          inputTokens: 10,
+          inputTokens: 17,
           outputTokens: 20,
           cachedInputTokens: 3,
+          cacheWriteInputTokens: 4,
         ),
       );
     });

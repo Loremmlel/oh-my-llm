@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 
 import '../../domain/models/chat_message.dart';
+import '../../domain/models/chat_generation_usage.dart';
 
 /// 流式生成请求失败时抛出的业务异常。
 ///
@@ -159,42 +160,6 @@ class ChatGenerationChunk {
 
   /// 当内容增量和推理增量都为空时，说明这段 chunk 没有有效内容。
   bool get isEmpty => contentDelta.isEmpty && reasoningDelta.isEmpty;
-}
-
-/// 一次请求的 token 用量（厂商提供时才非 null）。
-///
-/// 协议没有提供某项时保持 null，不以 0 伪装为已知值；本次不新增 usage
-/// 持久化或 UI。
-class ChatGenerationUsage extends Equatable {
-  const ChatGenerationUsage({
-    this.inputTokens,
-    this.outputTokens,
-    this.reasoningTokens,
-    this.cachedInputTokens,
-  });
-
-  final int? inputTokens;
-  final int? outputTokens;
-  final int? reasoningTokens;
-  final int? cachedInputTokens;
-
-  /// 合并分散在多个协议事件中的用量；新事件的非空字段优先。
-  ChatGenerationUsage merge(ChatGenerationUsage newer) {
-    return ChatGenerationUsage(
-      inputTokens: newer.inputTokens ?? inputTokens,
-      outputTokens: newer.outputTokens ?? outputTokens,
-      reasoningTokens: newer.reasoningTokens ?? reasoningTokens,
-      cachedInputTokens: newer.cachedInputTokens ?? cachedInputTokens,
-    );
-  }
-
-  @override
-  List<Object?> get props => [
-    inputTokens,
-    outputTokens,
-    reasoningTokens,
-    cachedInputTokens,
-  ];
 }
 
 /// 一次性请求返回的完整结果。

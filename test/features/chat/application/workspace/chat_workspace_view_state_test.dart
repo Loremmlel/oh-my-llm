@@ -217,6 +217,7 @@ void main() {
   group('ChatWorkspaceViewState.compose', () {
     ChatWorkspaceComposerReadModel composerReadModel({
       TemplatePrompt? selectedTemplatePrompt,
+      double? cacheHitRate,
     }) {
       return ChatWorkspaceComposerReadModel(
         modelProviders: const [],
@@ -235,10 +236,14 @@ void main() {
         isStreaming: false,
         isAutoRetryWaiting: false,
         excludedMessageCount: 0,
+        cacheHitRate: cacheHitRate,
       );
     }
 
-    ChatWorkspaceReadModel readModel({TemplatePrompt? selectedTemplatePrompt}) {
+    ChatWorkspaceReadModel readModel({
+      TemplatePrompt? selectedTemplatePrompt,
+      double? cacheHitRate,
+    }) {
       return ChatWorkspaceReadModel(
         messages: ChatWorkspaceMessagesState(
           conversation: _conversation(),
@@ -255,6 +260,7 @@ void main() {
         ),
         composer: composerReadModel(
           selectedTemplatePrompt: selectedTemplatePrompt,
+          cacheHitRate: cacheHitRate,
         ),
       );
     }
@@ -262,13 +268,17 @@ void main() {
     test('非编辑态使用 read-model 的 normal selection', () {
       final template = TestFixtures.templatePrompt(id: 'tp-1');
       final viewState = ChatWorkspaceViewState.compose(
-        readModel: readModel(selectedTemplatePrompt: template),
+        readModel: readModel(
+          selectedTemplatePrompt: template,
+          cacheHitRate: 0.375,
+        ),
         editingDraft: ComposerDraft.empty,
         isEditingMessage: false,
         templatePrompts: [template],
       );
       expect(viewState.composer.selectedTemplatePrompt, same(template));
       expect(viewState.composer.isEditingMessage, isFalse);
+      expect(viewState.composer.cacheHitRate, 0.375);
     });
 
     test('编辑态用 editingDraft 的选择覆盖；无模板编辑不回落 normal selection', () {

@@ -253,6 +253,15 @@ class ChatComposerCard extends ConsumerWidget {
                       onProviderSelected: bindings.onProviderSelected,
                       onModelSelected: bindings.onModelSelected,
                     ),
+                    if (!state.isComposerCollapsed) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        '当前会话缓存命中率：${_formatCacheHitRate(state.cacheHitRate)}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 6),
                     if (isCompactComposer)
                       ComposerCompactActionRow(
@@ -303,6 +312,10 @@ class ChatComposerCard extends ConsumerWidget {
         },
       ),
     );
+  }
+
+  String _formatCacheHitRate(double? value) {
+    return value == null ? '暂无数据' : '${(value * 100).toStringAsFixed(1)}%';
   }
 
   /// 由当前编译结果与控制器值求一次校验快照。

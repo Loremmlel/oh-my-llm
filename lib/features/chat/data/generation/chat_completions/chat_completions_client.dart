@@ -41,6 +41,7 @@ class ChatCompletionsClient extends ChatGenerationClient {
     final payload = <String, Object>{
       'model': request.target.model,
       'stream': true,
+      'stream_options': {'include_usage': true},
       'messages': [
         for (final message in request.messages)
           {'role': message.role.apiValue, 'content': message.content},

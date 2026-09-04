@@ -4,6 +4,7 @@ import 'package:oh_my_llm/core/http/sse_event_decoder.dart';
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 
 import '../../../application/ports/chat_generation_client.dart';
+import '../../../domain/models/chat_generation_usage.dart';
 
 /// 单个 Responses SSE 事件的解析结果。
 ///
@@ -226,16 +227,14 @@ class ResponsesParser {
       cachedInputTokens: inputDetails is Map
           ? _intOrNull(inputDetails['cached_tokens'])
           : null,
+      cacheWriteInputTokens: inputDetails is Map
+          ? _intOrNull(inputDetails['cache_write_tokens'])
+          : null,
     );
-    // 全字段缺失时不冒充已知值，视为未提供 usage。
-    if (extracted.inputTokens == null &&
-        extracted.outputTokens == null &&
-        extracted.reasoningTokens == null &&
-        extracted.cachedInputTokens == null) {
-      return null;
-    }
-    return extracted;
+    return extracted.hasAnyValue ? extracted : null;
   }
 
-  int? _intOrNull(Object? value) => value is int ? value : null;
+  int? _intOrNull(Object? value) {
+    return value is int && value >= 0 ? value : null;
+  }
 }

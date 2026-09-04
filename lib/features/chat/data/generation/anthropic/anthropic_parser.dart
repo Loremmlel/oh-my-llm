@@ -4,6 +4,7 @@ import 'package:oh_my_llm/core/http/sse_event_decoder.dart';
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 
 import '../../../application/ports/chat_generation_client.dart';
+import '../../../domain/models/chat_generation_usage.dart';
 
 /// 单个 Anthropic SSE 事件的解析结果。
 ///
@@ -253,24 +254,31 @@ class AnthropicParser {
 
   /// 从协议 `usage` 对象提取用量；缺失或非 int 的字段保持 null。
   ///
-  /// cachedInputTokens 取自 `cache_read_input_tokens`；Anthropic 不报告
-  /// reasoning tokens，该字段保持 null。
+  /// Anthropic 的 input_tokens 不含缓存读写，因此展示用的输入总数需求和。
   ChatGenerationUsage? _extractUsage(Object? usage) {
     if (usage is! Map) return null;
 
-    final extracted = ChatGenerationUsage(
-      inputTokens: _intOrNull(usage['input_tokens']),
-      outputTokens: _intOrNull(usage['output_tokens']),
-      cachedInputTokens: _intOrNull(usage['cache_read_input_tokens']),
+    final rawInputTokens = _nonNegativeIntOrNull(usage['input_tokens']);
+    final cachedInputTokens = _nonNegativeIntOrNull(
+      usage['cache_read_input_tokens'],
     );
-    // 全字段缺失时不冒充已知值，视为未提供 usage。
-    if (extracted.inputTokens == null &&
-        extracted.outputTokens == null &&
-        extracted.cachedInputTokens == null) {
-      return null;
-    }
-    return extracted;
+    final cacheWriteInputTokens = _nonNegativeIntOrNull(
+      usage['cache_creation_input_tokens'],
+    );
+    final extracted = ChatGenerationUsage(
+      inputTokens: rawInputTokens == null
+          ? null
+          : rawInputTokens +
+                (cachedInputTokens ?? 0) +
+                (cacheWriteInputTokens ?? 0),
+      outputTokens: _nonNegativeIntOrNull(usage['output_tokens']),
+      cachedInputTokens: cachedInputTokens,
+      cacheWriteInputTokens: cacheWriteInputTokens,
+    );
+    return extracted.hasAnyValue ? extracted : null;
   }
 
-  int? _intOrNull(Object? value) => value is int ? value : null;
+  int? _nonNegativeIntOrNull(Object? value) {
+    return value is int && value >= 0 ? value : null;
+  }
 }

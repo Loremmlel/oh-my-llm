@@ -4,6 +4,7 @@ import 'package:oh_my_llm/core/http/sse_event_decoder.dart';
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 
 import '../../../application/ports/chat_generation_client.dart';
+import '../../../domain/models/chat_generation_usage.dart';
 import 'inline_reasoning_tag_splitter.dart';
 
 /// 单个 Chat Completions SSE 事件的解析结果。
@@ -89,16 +90,18 @@ class ChatCompletionsParser {
       }
     }
 
+    final usage = _extractUsage(decoded['usage']);
     final choices = decoded['choices'];
     if (choices is! List || choices.isEmpty || choices.first is! Map) {
-      return (chunk: null, isDone: false);
+      return (
+        chunk: usage == null ? null : ChatGenerationChunk(usage: usage),
+        isDone: false,
+      );
     }
 
     final firstChoice = Map<String, dynamic>.from(choices.first as Map);
     final rawFinishReason = firstChoice['finish_reason'];
     final finishReason = rawFinishReason is String ? rawFinishReason : null;
-    final usage = _extractUsage(decoded['usage']);
-
     final envelope = firstChoice['delta'] ?? firstChoice['message'];
     final chunk = _extractChunk(envelope, finishReason: finishReason);
     return (
@@ -160,16 +163,14 @@ class ChatCompletionsParser {
       cachedInputTokens: promptDetails is Map
           ? _intOrNull(promptDetails['cached_tokens'])
           : null,
+      cacheWriteInputTokens: promptDetails is Map
+          ? _intOrNull(promptDetails['cache_write_tokens'])
+          : null,
     );
-    // 全字段缺失时不冒充已知值，视为未提供 usage。
-    if (extracted.inputTokens == null &&
-        extracted.outputTokens == null &&
-        extracted.reasoningTokens == null &&
-        extracted.cachedInputTokens == null) {
-      return null;
-    }
-    return extracted;
+    return extracted.hasAnyValue ? extracted : null;
   }
 
-  int? _intOrNull(Object? value) => value is int ? value : null;
+  int? _intOrNull(Object? value) {
+    return value is int && value >= 0 ? value : null;
+  }
 }
