@@ -50,7 +50,7 @@ Coordinator 使用 `group.order → section.order → key` 排序；key 全局�
 
 ```json
 {
-  "identifier": "oh-my-llm.settings-transfer",
+  "identifier": "shikiyuzu-oh-my-llm",
   "formatVersion": 9,
   "sections": {
     "presetPrompts": []
