@@ -1,15 +1,5 @@
 import 'package:equatable/equatable.dart';
 
-/// Settings transfer section 的稳定 key。
-final class SettingsTransferKey extends Equatable {
-  const SettingsTransferKey(this.value);
-
-  final String value;
-
-  @override
-  List<Object?> get props => [value];
-}
-
 /// Settings transfer 使用的稳定分组。
 enum SettingsTransferGroup {
   providers('providers', '服务商', 0),
@@ -28,6 +18,24 @@ enum SettingsTransferGroup {
 
 enum SettingsTransferSensitivity { standard, credentialBearing }
 
+/// 已配置 Settings transfer 分组的只读描述。
+final class SettingsTransferGroupDescriptor extends Equatable {
+  const SettingsTransferGroupDescriptor({
+    required this.group,
+    required this.containsSensitive,
+  });
+
+  final SettingsTransferGroup group;
+  final bool containsSensitive;
+
+  String get wireKey => group.wireKey;
+  String get label => group.label;
+  int get order => group.order;
+
+  @override
+  List<Object?> get props => [group, containsSensitive];
+}
+
 enum SettingsTransferSummaryAction { add, replace, clear }
 
 /// 导出或导入确认界面使用的安全摘要项。
@@ -43,7 +51,7 @@ final class SettingsTransferSummaryItem extends Equatable {
              : count == null,
        );
 
-  final SettingsTransferKey key;
+  final String key;
   final String label;
   final SettingsTransferSummaryAction action;
   final int? count;

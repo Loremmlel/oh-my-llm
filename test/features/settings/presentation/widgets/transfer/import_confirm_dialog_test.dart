@@ -4,9 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_catalog.dart';
 import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_coordinator.dart';
-import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_participant.dart';
+import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_section.dart';
 import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_types.dart';
 import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_transfer_document.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/transfer/import_confirm_dialog.dart';
@@ -53,16 +52,16 @@ void main() {
       expect(find.text('检测到配置导入数据'), findsOneWidget);
     }
 
-    testWidgets('导入成功后写入所有 participant 并关闭对话框', (tester) async {
+    testWidgets('导入成功后写入所有 section 并关闭对话框', (tester) async {
       final writes = <String>[];
       final batch = _buildBatch(
         [
-          _FakeParticipant(
+          _FakeSection(
             key: 'first',
             label: '第一项',
             write: (value) async => writes.add(value),
           ),
-          _FakeParticipant(
+          _FakeSection(
             key: 'second',
             label: '第二项',
             order: 1,
@@ -90,7 +89,7 @@ void main() {
       final writes = <String>[];
       final batch = _buildBatch(
         [
-          _FakeParticipant(
+          _FakeSection(
             key: 'credential',
             label: '凭据设置',
             sensitivity: SettingsTransferSensitivity.credentialBearing,
@@ -121,7 +120,7 @@ void main() {
       var local = 'old';
       final batch = _buildBatch(
         [
-          _FakeParticipant(
+          _FakeSection(
             key: 'credential',
             label: '凭据设置',
             sensitivity: SettingsTransferSensitivity.credentialBearing,
@@ -158,18 +157,18 @@ void main() {
       final writes = <String>[];
       final batch = _buildBatch(
         [
-          _FakeParticipant(
+          _FakeSection(
             key: 'completed',
             label: '已完成配置',
             write: (value) async => writes.add(value),
           ),
-          _FakeParticipant(
+          _FakeSection(
             key: 'failed',
             label: '失败配置',
             order: 1,
             write: (_) async => throw StateError('secret failure'),
           ),
-          _FakeParticipant(
+          _FakeSection(
             key: 'notAttempted',
             label: '未执行配置',
             order: 2,
@@ -195,7 +194,7 @@ void main() {
     testWidgets('完整失败时保留对话框并展示安全原因', (tester) async {
       final batch = _buildBatch(
         [
-          _FakeParticipant(
+          _FakeSection(
             key: 'failed',
             label: '失败配置',
             write: (_) async => throw StateError('credential-secret'),
@@ -218,7 +217,7 @@ void main() {
       final writeCompleted = Completer<void>();
       final batch = _buildBatch(
         [
-          _FakeParticipant(
+          _FakeSection(
             key: 'gated',
             label: '等待写入',
             write: (_) async {
@@ -257,14 +256,12 @@ void main() {
 }
 
 SettingsImportBatch _buildBatch(
-  List<_FakeParticipant> participants,
+  List<_FakeSection> descriptors,
   Map<String, Object?> sections,
 ) {
-  final catalog = SettingsTransferCatalog([
-    for (final participant in participants)
-      SettingsTransferParticipantBox.erase(participant),
-  ]);
-  final coordinator = SettingsTransferCoordinator(catalog: catalog);
+  final coordinator = SettingsTransferCoordinator(
+    sections: [for (final item in descriptors) item.section],
+  );
   final preparation = coordinator.prepareDocument(
     SettingsTransferDocument(sections: sections),
   );
@@ -272,42 +269,58 @@ SettingsImportBatch _buildBatch(
   return (preparation as SettingsImportReady).batch;
 }
 
-final class _FakeParticipant extends ReplacingValueParticipant<String> {
-  _FakeParticipant({
+final class _FakeSection {
+  _FakeSection({
     required String key,
-    required super.label,
+    required this.label,
     required this.write,
     this.read,
-    super.order = 0,
-    super.sensitivity = SettingsTransferSensitivity.standard,
+    int order = 0,
+    SettingsTransferSensitivity sensitivity =
+        SettingsTransferSensitivity.standard,
     this.includeLocalInFingerprint = false,
-  }) : super(key: SettingsTransferKey(key), group: SettingsTransferGroup.other);
+  }) {
+    section = SettingsTransferSection.custom<String>(
+      key: key,
+      group: SettingsTransferGroup.other,
+      label: label,
+      order: order,
+      sensitivity: sensitivity,
+      readLocal: () => read?.call() ?? local,
+      write: (value) async {
+        await write(value);
+        local = value;
+      },
+      shouldExport: (_) => true,
+      encode: (value) => value,
+      decode: (payload) => payload as String,
+      prepareImport: (local, incoming) {
+        if (local == incoming) return null;
+        return SettingsTransferChange<String>(
+          incoming: incoming,
+          writeValue: incoming,
+          fingerprint: includeLocalInFingerprint
+              ? '$local::$incoming'
+              : incoming,
+          summary: SettingsTransferSummaryItem(
+            key: key,
+            label: label,
+            action: SettingsTransferSummaryAction.replace,
+          ),
+        );
+      },
+      summarizeExport: (_) => SettingsTransferSummaryItem(
+        key: key,
+        label: label,
+        action: SettingsTransferSummaryAction.replace,
+      ),
+    );
+  }
 
+  late final SettingsTransferSection section;
+  final String label;
   final Future<void> Function(String value) write;
   final String Function()? read;
   final bool includeLocalInFingerprint;
   String local = 'local';
-
-  @override
-  String readLocal() => read?.call() ?? local;
-
-  @override
-  Object encode(String value) => value;
-
-  @override
-  String decode(Object? payload) => payload as String;
-
-  @override
-  bool isEquivalent(String existing, String incoming) => existing == incoming;
-
-  @override
-  String fingerprintFor(String value) => includeLocalInFingerprint
-      ? '${readLocal()}::$value'
-      : super.fingerprintFor(value);
-
-  @override
-  Future<void> applyImport(String value) async {
-    await write(value);
-    local = value;
-  }
 }

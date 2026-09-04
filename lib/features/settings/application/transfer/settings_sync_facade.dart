@@ -3,19 +3,17 @@ import '../../domain/models/transfer/settings_transfer_document.dart';
 import 'package:oh_my_llm/features/sync/application/ports/settings_sync_facade.dart';
 import 'package:oh_my_llm/features/sync/domain/models/protocol/sync_types.dart';
 
-import 'settings_transfer_catalog.dart';
 import 'settings_transfer_coordinator.dart';
 import 'settings_transfer_types.dart';
 
-/// 将 Settings transfer catalog 投影到 Sync-owned port 的唯一实现。
+/// 将 Settings transfer coordinator 投影到 Sync-owned port 的唯一实现。
 ///
-/// 这里仅负责稳定 ID、摘要和结果类型的机械适配；participant 的具体字段、
+/// 这里仅负责稳定 ID、摘要和结果类型的机械适配；section 的具体字段、
 /// 去重和持久化 ACK 仍由 Settings transfer coordinator 负责。
 final class RiverpodSettingsSyncFacade implements SettingsSyncFacade {
-  RiverpodSettingsSyncFacade({required this.catalog, required this.coordinator})
-    : availableGroups = _projectGroups(catalog);
+  RiverpodSettingsSyncFacade({required this.coordinator})
+    : availableGroups = _projectGroups(coordinator);
 
-  final SettingsTransferCatalog catalog;
   final SettingsTransferCoordinator coordinator;
 
   @override
@@ -53,7 +51,7 @@ final class RiverpodSettingsSyncFacade implements SettingsSyncFacade {
         throw const SettingsSyncPreparationException('同步内容包含未知设置项'),
       SettingsImportSectionOutsideAllowedGroups() =>
         throw const SettingsSyncPreparationException('同步内容包含未请求的配置项'),
-      SettingsImportInvalidParticipantPayload(:final label) =>
+      SettingsImportInvalidSectionPayload(:final label) =>
         throw SettingsSyncPreparationException('$label 的导入内容无效'),
     };
   }
@@ -66,7 +64,7 @@ final class RiverpodSettingsSyncFacade implements SettingsSyncFacade {
     for (final id in groupIds) {
       final group = groupsByWireKey[id.value];
       if (group == null ||
-          !catalog.groups.any((descriptor) => descriptor.group == group)) {
+          !coordinator.groups.any((descriptor) => descriptor.group == group)) {
         throw const SettingsSyncPreparationException('同步分组无效');
       }
       resolved.add(group);
@@ -76,9 +74,9 @@ final class RiverpodSettingsSyncFacade implements SettingsSyncFacade {
 }
 
 List<SettingsSyncGroupDescriptor> _projectGroups(
-  SettingsTransferCatalog catalog,
+  SettingsTransferCoordinator coordinator,
 ) => List<SettingsSyncGroupDescriptor>.unmodifiable([
-  for (final descriptor in catalog.groups)
+  for (final descriptor in coordinator.groups)
     SettingsSyncGroupDescriptor(
       id: SettingsSyncGroupId(descriptor.wireKey),
       label: descriptor.label,

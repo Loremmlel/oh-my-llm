@@ -48,7 +48,7 @@ import 'package:oh_my_llm/features/media/data/scanning/media_thumbnail_generator
 import 'package:oh_my_llm/features/media/data/http/media_thumbnail_http_handler.dart';
 import 'package:oh_my_llm/features/media/data/http/media_video_http_handler.dart';
 import 'package:oh_my_llm/features/settings/application/transfer/settings_sync_facade.dart';
-import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_catalog_provider.dart';
+import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_coordinator_provider.dart';
 import 'package:oh_my_llm/features/sync/application/ports/settings_sync_facade.dart';
 import 'package:oh_my_llm/features/sync/application/ports/sync_client_transport.dart';
 import 'package:oh_my_llm/features/sync/application/ports/sync_clock.dart';
@@ -104,7 +104,6 @@ List<dynamic> appCompositionOverrides({
     ),
     settingsSyncFacadeProvider.overrideWith(
       (ref) => RiverpodSettingsSyncFacade(
-        catalog: ref.read(settingsTransferCatalogProvider),
         coordinator: ref.read(settingsTransferCoordinatorProvider),
       ),
     ),
