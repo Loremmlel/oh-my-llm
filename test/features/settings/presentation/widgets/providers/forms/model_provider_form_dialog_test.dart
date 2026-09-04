@@ -60,6 +60,21 @@ void main() {
   }
 
   group('服务商表单', () {
+    testWidgets('API Key 字段明文显示并关闭输入建议', (tester) async {
+      await pumpDialog(tester, onSubmit: (_) async {});
+
+      final field = tester.widget<TextField>(
+        find.descendant(
+          of: formField('API Key'),
+          matching: find.byType(TextField),
+        ),
+      );
+      expect(field.obscureText, isFalse);
+      expect(field.keyboardType, TextInputType.visiblePassword);
+      expect(field.autocorrect, isFalse);
+      expect(field.enableSuggestions, isFalse);
+    });
+
     testWidgets('新增服务商默认 Chat Completions 并可提交', (tester) async {
       ModelProviderFormData? captured;
       await pumpDialog(

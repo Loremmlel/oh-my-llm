@@ -25,10 +25,12 @@ class ModelBatchFormData {
   const ModelBatchFormData({
     required this.displayName,
     required this.modelName,
+    required this.supportsReasoning,
   });
 
   final String displayName;
   final String modelName;
+  final bool supportsReasoning;
 }
 
 enum _FormMode { manual, fetch }
@@ -91,7 +93,7 @@ class _ModelConfigFormDialogState extends State<ModelConfigFormDialog>
     final section = _fetchSectionKey.currentState;
     if (section == null) return false;
     final entries = section.entries;
-    final selected = entries.where((e) => e.selected).toList();
+    final selected = entries.where((e) => e.selected && !e.alreadyExists);
     if (selected.isEmpty) return false;
     return selected.every((e) => e.controller.text.trim().isNotEmpty);
   }
@@ -225,7 +227,9 @@ class _ModelConfigFormDialogState extends State<ModelConfigFormDialog>
     final section = _fetchSectionKey.currentState;
     if (section == null) return;
 
-    final selectedEntries = section.entries.where((e) => e.selected).toList();
+    final selectedEntries = section.entries.where(
+      (e) => e.selected && !e.alreadyExists,
+    );
     if (selectedEntries.isEmpty) return;
 
     final items = selectedEntries
@@ -233,6 +237,7 @@ class _ModelConfigFormDialogState extends State<ModelConfigFormDialog>
           (e) => ModelBatchFormData(
             displayName: e.controller.text.trim(),
             modelName: e.remoteModel.id,
+            supportsReasoning: e.supportsReasoning,
           ),
         )
         .toList();

@@ -10,6 +10,7 @@ class ModelSelectionEntry {
     required this.remoteModel,
     required this.controller,
     this.alreadyExists = false,
+    this.supportsReasoning = false,
   });
 
   final ModelCatalogEntry remoteModel;
@@ -19,6 +20,8 @@ class ModelSelectionEntry {
   bool selected = false;
 
   final bool alreadyExists;
+
+  bool supportsReasoning;
 
   void dispose() {
     controller.dispose();
@@ -311,12 +314,14 @@ class ModelFetchSectionState extends State<ModelFetchSection> {
           Checkbox(
             key: ValueKey('model-fetch-checkbox-${entry.remoteModel.id}'),
             value: entry.selected,
-            onChanged: (value) {
-              setState(() {
-                entry.selected = value ?? false;
-              });
-              widget.onSelectionChanged?.call();
-            },
+            onChanged: entry.alreadyExists
+                ? null
+                : (value) {
+                    setState(() {
+                      entry.selected = value ?? false;
+                    });
+                    widget.onSelectionChanged?.call();
+                  },
           ),
           Expanded(
             child: Column(
@@ -362,7 +367,7 @@ class ModelFetchSectionState extends State<ModelFetchSection> {
                     'model-fetch-display-name-${entry.remoteModel.id}',
                   ),
                   controller: entry.controller,
-                  enabled: entry.selected,
+                  enabled: entry.selected && !entry.alreadyExists,
                   decoration: const InputDecoration(
                     labelText: '显示名称',
                     isDense: true,
@@ -372,6 +377,23 @@ class ModelFetchSectionState extends State<ModelFetchSection> {
                     setState(() {});
                     widget.onSelectionChanged?.call();
                   },
+                ),
+                CheckboxListTile(
+                  key: ValueKey(
+                    'model-fetch-reasoning-${entry.remoteModel.id}',
+                  ),
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  title: const Text('支持深度思考'),
+                  value: entry.supportsReasoning,
+                  onChanged: entry.selected && !entry.alreadyExists
+                      ? (value) {
+                          setState(() {
+                            entry.supportsReasoning = value ?? false;
+                          });
+                          widget.onSelectionChanged?.call();
+                        }
+                      : null,
                 ),
               ],
             ),
