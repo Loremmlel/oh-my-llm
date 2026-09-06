@@ -1,4 +1,4 @@
-# Oh My LLM - 项目协作指南
+# AGENTS.md
 
 本地 LLM 聊天客户端，Flutter 应用，Windows + Android 双端。无厂商绑定，兼容任意 OpenAI 接口。
 
