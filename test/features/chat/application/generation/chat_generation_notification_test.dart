@@ -164,7 +164,7 @@ void main() {
             phase: ChatGenerationPhase.succeeded,
             outcome: _outcomeFor(ChatGenerationPhase.succeeded),
             title: '已完成',
-            text: '已完成',
+            text: '正文 0 字 · 推理 0 字 · 已尝试 1 次',
             actionKind: ChatGenerationNotificationActionKind.none,
             actionLabel: null,
             terminal: ChatGenerationNotificationTerminalBehavior.remove,
@@ -188,7 +188,7 @@ void main() {
             phase: ChatGenerationPhase.emptyReply,
             outcome: _outcomeFor(ChatGenerationPhase.emptyReply),
             title: '生成失败',
-            text: '模型返回了空回复',
+            text: '模型返回了空回复 · 正文 0 字 · 推理 0 字 · 已尝试 1 次',
             actionKind: ChatGenerationNotificationActionKind.openConversation,
             actionLabel: '查看详情',
             terminal: ChatGenerationNotificationTerminalBehavior.retainError,
@@ -200,7 +200,7 @@ void main() {
             phase: ChatGenerationPhase.failed,
             outcome: _outcomeFor(ChatGenerationPhase.failed),
             title: '生成失败',
-            text: '生成失败，请打开应用查看详情',
+            text: '生成失败，请打开应用查看详情 · 正文 0 字 · 推理 0 字 · 已尝试 1 次',
             actionKind: ChatGenerationNotificationActionKind.openConversation,
             actionLabel: '查看详情',
             terminal: ChatGenerationNotificationTerminalBehavior.retainError,
@@ -212,7 +212,7 @@ void main() {
             phase: ChatGenerationPhase.persistenceFailed,
             outcome: _outcomeFor(ChatGenerationPhase.persistenceFailed),
             title: '结果保存失败',
-            text: '回复结果未能保存，请打开应用查看',
+            text: '回复结果未能保存，请打开应用查看 · 正文 0 字 · 推理 0 字 · 已尝试 1 次',
             actionKind: ChatGenerationNotificationActionKind.openConversation,
             actionLabel: '查看详情',
             terminal: ChatGenerationNotificationTerminalBehavior.retainError,
@@ -278,6 +278,26 @@ void main() {
   });
 
   group('预计算字数', () {
+    test('成功终态展示正文、推理和实际尝试次数', () {
+      final projection = const ChatGenerationNotificationProjector().project(
+        snapshot: _snapshot(
+          ChatGenerationPhase.succeeded,
+          attempt: 3,
+          outcome: const ChatGenerationSuccess(
+            generationId: 1,
+            attempt: 3,
+            content: '回复',
+            reasoningContent: '推理',
+          ),
+        ),
+        counts: const ChatGenerationCharacterCounts(
+          content: 1280,
+          reasoning: 360,
+        ),
+      );
+      expect(projection.payload.text, '正文 1280 字 · 推理 360 字 · 已尝试 3 次');
+    });
+
     test('流式阶段使用调用方提供的正文与推理字数', () {
       final projection = const ChatGenerationNotificationProjector().project(
         snapshot: _snapshot(ChatGenerationPhase.streaming),
@@ -475,7 +495,7 @@ void main() {
 
         expect(
           projection.payload.text,
-          c.expectedText,
+          '${c.expectedText} · 正文 0 字 · 推理 0 字 · 已尝试 1 次',
           reason: '${c.outcome.runtimeType} 摘要不符',
         );
         for (final fragment in secretFragments) {

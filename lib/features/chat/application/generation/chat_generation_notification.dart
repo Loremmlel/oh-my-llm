@@ -186,7 +186,7 @@ _NotificationCopy _copyFor(
     ),
     ChatGenerationPhase.succeeded => (
       title: '已完成',
-      text: '已完成',
+      text: _resultStatistics(snapshot, counts),
       publicTitle: _ongoingPublicCopy.title,
       publicText: _ongoingPublicCopy.text,
       actionKind: ChatGenerationNotificationActionKind.none,
@@ -204,7 +204,8 @@ _NotificationCopy _copyFor(
     ),
     ChatGenerationPhase.emptyReply => (
       title: '生成失败',
-      text: _errorTextFor(snapshot),
+      text:
+          '${_errorTextFor(snapshot)} · ${_resultStatistics(snapshot, counts)}',
       publicTitle: _errorPublicCopy.title,
       publicText: _errorPublicCopy.text,
       actionKind: ChatGenerationNotificationActionKind.openConversation,
@@ -213,7 +214,8 @@ _NotificationCopy _copyFor(
     ),
     ChatGenerationPhase.failed => (
       title: '生成失败',
-      text: _errorTextFor(snapshot),
+      text:
+          '${_errorTextFor(snapshot)} · ${_resultStatistics(snapshot, counts)}',
       publicTitle: _errorPublicCopy.title,
       publicText: _errorPublicCopy.text,
       actionKind: ChatGenerationNotificationActionKind.openConversation,
@@ -222,7 +224,8 @@ _NotificationCopy _copyFor(
     ),
     ChatGenerationPhase.persistenceFailed => (
       title: '结果保存失败',
-      text: _errorTextFor(snapshot),
+      text:
+          '${_errorTextFor(snapshot)} · ${_resultStatistics(snapshot, counts)}',
       publicTitle: _errorPublicCopy.title,
       publicText: _errorPublicCopy.text,
       actionKind: ChatGenerationNotificationActionKind.openConversation,
@@ -231,6 +234,12 @@ _NotificationCopy _copyFor(
     ),
   };
 }
+
+String _resultStatistics(
+  ChatGenerationSnapshot snapshot,
+  ChatGenerationCharacterCounts counts,
+) =>
+    '正文 ${counts.content} 字 · 推理 ${counts.reasoning} 字 · 已尝试 ${snapshot.attempt} 次';
 
 /// 终态错误阶段的正文：只允许 allowlist 安全摘要。
 ///

@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:oh_my_llm/app/navigation/app_destination.dart';
@@ -156,6 +156,17 @@ final class ChatGenerationNotificationCoordinator {
       _lastCounts = ChatGenerationCharacterCounts(
         content: _contentWordCounter.count,
         reasoning: _reasoningWordCounter.count,
+      );
+    }
+
+    // 输出规则可能改写最终正文，成功通知以最终结果而非最后一个流式片段计数。
+    if (snapshot.outcome case ChatGenerationSuccess(
+      :final content,
+      :final reasoningContent,
+    )) {
+      _lastCounts = ChatGenerationCharacterCounts(
+        content: countChatWords(content),
+        reasoning: countChatWords(reasoningContent),
       );
     }
 
@@ -462,11 +473,28 @@ final class ChatGenerationNotificationCoordinator {
 /// generation 窄投影，并把 stop/open 动作接到既有业务路径；dispose 时释放。
 final chatGenerationNotificationCoordinatorProvider =
     Provider<ChatGenerationNotificationCoordinator>((ref) {
+      final sendTerminalNotification = ref.watch(
+        chatGenerationTerminalNotificationSenderProvider,
+      );
       final coordinator = ChatGenerationNotificationCoordinator(
         port: ref.watch(chatGenerationForegroundServiceProvider),
-        sendTerminalNotification: ref.watch(
-          chatGenerationTerminalNotificationSenderProvider,
-        ),
+        sendTerminalNotification: (payload) async {
+          // 投递时读取当前页面和焦点，避免生成期间切换会话后沿用旧状态。
+          if (WidgetsBinding.instance.lifecycleState ==
+                  AppLifecycleState.resumed &&
+              ref
+                      .read(appRouterProvider)
+                      .routeInformationProvider
+                      .value
+                      .uri
+                      .path ==
+                  AppDestination.chat.path &&
+              ref.read(activeConversationIdProvider) ==
+                  payload.conversationId) {
+            return;
+          }
+          await sendTerminalNotification(payload);
+        },
         // 复用既有 durable stop：phase 停止性由 ChatSessionsController.stopStreaming
         // 强制，coordinator 与绑定均不重复检查阶段。
         stopGeneration: () async {
