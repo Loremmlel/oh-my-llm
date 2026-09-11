@@ -1,19 +1,19 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
+import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
 import 'package:oh_my_llm/core/utils/id_generator.dart';
 import 'package:oh_my_llm/features/settings/application/preferences/chat_defaults_controller.dart';
-import 'package:oh_my_llm/features/settings/application/providers/llm_model_configs_controller.dart';
 import 'package:oh_my_llm/features/settings/application/prompts/preset_prompts_controller.dart';
-import 'package:oh_my_llm/features/settings/domain/models/providers/llm_model_config.dart';
+import 'package:oh_my_llm/features/settings/application/providers/llm_model_configs_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/models/providers/llm_model_config.dart';
 
 import '../../domain/models/chat_checkpoint.dart';
 import '../../domain/models/chat_conversation.dart';
 import '../../domain/models/chat_conversation_summary.dart';
 import '../../domain/models/chat_message.dart';
+import '../ports/chat_conversation_repository.dart';
 import '../requests/checkpoint_request_context.dart';
 import 'chat_sessions_state.dart';
-import '../ports/chat_conversation_repository.dart';
 
 /// 为 [ChatSessionsController] 提供会话持久化与配置解析辅助。
 mixin ChatSessionsControllerSupport on Notifier<ChatSessionsState> {

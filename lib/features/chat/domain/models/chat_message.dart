@@ -1,8 +1,6 @@
 import 'package:equatable/equatable.dart';
-
 import 'package:oh_my_llm/core/constants/model_display_name.dart';
-
-import 'chat_generation_usage.dart';
+import 'package:oh_my_llm/core/llm/llm_usage.dart';
 
 /// 聊天消息的发送角色。
 enum ChatMessageRole {
@@ -11,19 +9,6 @@ enum ChatMessageRole {
   assistant('assistant');
 
   const ChatMessageRole(this.apiValue);
-
-  final String apiValue;
-}
-
-/// 模型推理强度枚举，保持与 API 的字符串值一致。
-enum ReasoningEffort {
-  low('low'),
-  medium('medium'),
-  high('high'),
-  xhigh('xhigh'),
-  max('max');
-
-  const ReasoningEffort(this.apiValue);
 
   final String apiValue;
 }
@@ -102,7 +87,7 @@ class ChatMessage extends Equatable {
   final String? templatePromptId;
   final Map<String, String> templateVariableValues;
   final String? finishReason;
-  final ChatGenerationUsage? tokenUsage;
+  final LlmUsage? tokenUsage;
 
   /// 复制消息，并允许覆盖常用字段。
   ChatMessage copyWith({
@@ -119,7 +104,7 @@ class ChatMessage extends Equatable {
     String? templatePromptId,
     Map<String, String>? templateVariableValues,
     String? finishReason,
-    ChatGenerationUsage? tokenUsage,
+    LlmUsage? tokenUsage,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -197,7 +182,7 @@ class ChatMessage extends Equatable {
           ) ??
           const {},
       finishReason: json['finishReason'] as String?,
-      tokenUsage: ChatGenerationUsage.fromJson(json['tokenUsage']),
+      tokenUsage: LlmUsage.fromJson(json['tokenUsage']),
     );
   }
 

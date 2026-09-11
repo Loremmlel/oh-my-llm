@@ -1,15 +1,15 @@
 import 'package:equatable/equatable.dart';
-
-import 'package:oh_my_llm/features/settings/domain/models/providers/llm_model_config.dart';
+import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
+import 'package:oh_my_llm/core/llm/llm_usage.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/models/providers/llm_model_config.dart';
 
 import '../../domain/models/chat_checkpoint.dart';
 import '../../domain/models/chat_conversation.dart';
-import '../../domain/models/chat_generation_usage.dart';
 import '../../domain/models/chat_message.dart';
-import 'chat_generation_lifecycle.dart';
-import '../sessions/chat_sessions_state.dart';
 import '../ports/chat_generation_client.dart';
+import '../sessions/chat_sessions_state.dart';
+import 'chat_generation_lifecycle.dart';
 
 /// 一次 generation 的发送命令（immutable）。
 ///
@@ -169,7 +169,7 @@ class ChatAttemptSnapshot extends Equatable {
   final ChatConversation streamingConversation;
   final ChatMessage assistantMessage;
   final ChatStreamingReply streamingReply;
-  final ChatGenerationUsage? usage;
+  final LlmUsage? usage;
   final ChatRetryPolicy retryPolicy;
 
   @override
@@ -260,7 +260,7 @@ class ChatPartialSnapshot extends Equatable {
   final String content;
   final String reasoning;
   final String? finishReason;
-  final ChatGenerationUsage? usage;
+  final LlmUsage? usage;
   final ChatConversation streamingConversation;
   final ChatMessage assistantMessage;
   final ChatStreamingReply? streamingReply;

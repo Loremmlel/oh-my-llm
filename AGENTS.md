@@ -355,7 +355,11 @@ lib/
 
 - **HTTP 信任域**：外部 LLM 请求使用 `httpClientProvider`，可注入用户自定义 Header；局域网 Sync/Media peer 请求必须使用 `peerHttpClientProvider`，绝不继承 API key、Cookie 或自定义 Header。请求正文日志默认关闭，只有明确诊断路径可 opt-in；敏感 Header 必须统一脱敏。
 
-- **协议客户端**（`features/chat/data/generation/`）：`chat_completions/chat_completions_client.dart`（Chat Completions；`ChatCompletionsParser` 处理 `[DONE]` / 错误 / JSON 解码，`InlineReasoningTagSplitter` 跨 chunk 解析 `<thought>` / `<thinking>` 标签）、`responses/responses_client.dart`（OpenAI Responses）、`anthropic/anthropic_messages_client.dart`（Anthropic Messages）。各客户端只负责本协议请求编码与增量解析；`protocol_routing_chat_generation_client.dart` 按 `request.target.protocol` 穷举路由，是生产唯一绑定。
+- **共享单次调用**（`core/llm/`）：`LlmClient.streamCompletion` 是单订阅惰性调用，`complete` 折叠同一事件流；`LlmCompleted` 是权威完整结果，不能再与增量重复拼接。`LlmUsage` 与 `ReasoningEffort` 在共享层，Chat 原 JSON 和 SQLite 字段不变。
+- **协议客户端**（`core/llm/protocols/`）：`chat_completions/chat_completions_client.dart`、`responses/responses_client.dart`、`anthropic/anthropic_messages_client.dart` 负责各协议原生函数工具、文本及续接编码解析；`protocol_routing_llm_client.dart` 穷举路由。`app/composition/llm_bindings.dart` 统一装配；feature 不导入协议实现或该 composition，调用经自身 application port 注入。
+- **Chat 文本政策**：`features/chat/data/generation/chat_text_generation_adapter.dart` 保留 Chat 的空回复异常、默认选项、Messages 文本 system 转换与同角色合并；内联推理标签仍由 Chat 下 `chat_completions/inline_reasoning_tag_splitter.dart` 处理。预设 Prompt、检查点、消息树、重试和持久化终态仍归 Chat。
+- **工具与续接边界**：共享层只提出工具调用，不执行工具。只有完整终态的 `LlmToolCall` 可交给调用方；每轮最多 32 个调用，单个参数／结果最多 1 MiB UTF-8。续接 `LlmAssistantTurn` 必须保持相同协议、解析后的 endpoint 和模型，并一次提交全部 pending 结果；Responses 原生 reasoning、Messages thinking 签名不能用显示摘要替换。缺少可靠原生输出时 `assistantTurn` 为 null，调用方不得自行猜补。
+- **调用取消与诊断**：`LlmCallControl` 只用于一次调用，请求级取消通过 `http.AbortableRequest`，不得关闭共享 HTTP client。响应头与 SSE idle timeout 分开，Chat 明确使用 60 秒响应头等待上限。日志用 requestId／attempt 区分调用与 CC 的一次窄兼容重发；工具或原生续接请求关闭 SSE 原文和错误体落盘，仅记录无内容的摘要。
 - **共享传输**（`core/http/llm_http_stream_transport.dart`）：发起流式 POST、包装连接异常与非 2xx 响应；SSE 行/事件边界解码与 idle timeout 由 `SseEventDecoder`（`core/http/sse_event_decoder.dart`）负责。
 - **SSE idle timeout**：仅在 `data:` 行到达时重置计时器，SSE 注释行 keepalive 不算活动。
 

@@ -1,10 +1,10 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
+import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
+import 'package:oh_my_llm/core/llm/llm_usage.dart';
 
 import '../../domain/models/chat_message.dart';
-import '../../domain/models/chat_generation_usage.dart';
 
 /// 流式生成请求失败时抛出的业务异常。
 ///
@@ -42,7 +42,7 @@ class ChatGenerationException implements Exception {
   final String? responseBody;
 
   /// 失败终态自然携带的 Token 用量。
-  final ChatGenerationUsage? usage;
+  final LlmUsage? usage;
 
   /// 被包装的源异常（连接中断、TLS 握手失败等）。
   final Object? cause;
@@ -124,7 +124,7 @@ abstract class ChatGenerationClient {
     final contentBuffer = StringBuffer();
     final reasoningBuffer = StringBuffer();
     String? finishReason;
-    ChatGenerationUsage? usage;
+    LlmUsage? usage;
     await for (final chunk in streamCompletion(request)) {
       contentBuffer.write(chunk.contentDelta);
       reasoningBuffer.write(chunk.reasoningDelta);
@@ -160,7 +160,7 @@ class ChatGenerationChunk {
   final String? finishReason;
 
   /// 厂商响应自然携带的用量统计，仅流尾部非 null；协议未提供时保持 null。
-  final ChatGenerationUsage? usage;
+  final LlmUsage? usage;
 
   /// 当内容增量和推理增量都为空时，说明这段 chunk 没有有效内容。
   bool get isEmpty => contentDelta.isEmpty && reasoningDelta.isEmpty;
@@ -182,7 +182,7 @@ class ChatGenerationResult {
   final String? finishReason;
 
   /// 协议流自然提供并跨事件合并后的 token 用量。
-  final ChatGenerationUsage? usage;
+  final LlmUsage? usage;
 }
 
 /// 发给模型 API 的单条请求消息。

@@ -1,12 +1,14 @@
 import 'package:flutter_test/flutter_test.dart';
-
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
-import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
-import 'package:oh_my_llm/features/chat/data/generation/anthropic/anthropic_messages_client.dart';
-import 'package:oh_my_llm/features/chat/data/generation/chat_completions/chat_completions_client.dart';
-import 'package:oh_my_llm/features/chat/data/generation/protocol_routing_chat_generation_client.dart';
-import 'package:oh_my_llm/features/chat/data/generation/responses/responses_client.dart';
-import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
+import 'package:oh_my_llm/core/llm/llm_call_control.dart';
+import 'package:oh_my_llm/core/llm/llm_client.dart';
+import 'package:oh_my_llm/core/llm/llm_content.dart';
+import 'package:oh_my_llm/core/llm/llm_event.dart';
+import 'package:oh_my_llm/core/llm/llm_request.dart';
+import 'package:oh_my_llm/core/llm/protocols/anthropic/anthropic_messages_client.dart';
+import 'package:oh_my_llm/core/llm/protocols/chat_completions/chat_completions_client.dart';
+import 'package:oh_my_llm/core/llm/protocols/protocol_routing_llm_client.dart';
+import 'package:oh_my_llm/core/llm/protocols/responses/responses_client.dart';
 
 void main() {
   test('按协议路由到且只路由到对应客户端（同一请求对象）', () async {
@@ -52,10 +54,10 @@ void main() {
     expect(spies.anthropic.requests, isEmpty);
   });
 
-  test('委派异常原样透传（同一实例，不包装不重试）', () async {
+  test('委派异常保留原始诊断并补充调用标识', () async {
     final spies = _SpyClients();
     final router = spies.router;
-    final error = ChatGenerationException(
+    final error = LlmException(
       '协议不匹配：Responses 客户端只能处理 responses 协议请求',
       protocol: LlmApiProtocol.chatCompletions,
     );
@@ -63,7 +65,12 @@ void main() {
 
     await expectLater(
       router.streamCompletion(_request(LlmApiProtocol.responses)).drain<void>(),
-      throwsA(same(error)),
+      throwsA(
+        isA<LlmException>()
+            .having((e) => e.message, '消息', error.message)
+            .having((e) => e.protocol, '协议', error.protocol)
+            .having((e) => e.requestId, '调用标识', isNotEmpty),
+      ),
     );
   });
 }
@@ -71,11 +78,11 @@ void main() {
 class _SpyClients {
   final chatCompletions = _SpyClient(
     protocol: LlmApiProtocol.chatCompletions,
-    emittedChunk: const ChatGenerationChunk(contentDelta: 'cc-正文'),
+    emittedChunk: const LlmEvent(contentDelta: 'cc-正文'),
   );
   final responses = _SpyClient(
     protocol: LlmApiProtocol.responses,
-    emittedChunk: const ChatGenerationChunk(
+    emittedChunk: const LlmEvent(
       contentDelta: 'responses-正文',
       reasoningDelta: 'responses-推理',
       finishReason: 'stop',
@@ -83,15 +90,14 @@ class _SpyClients {
   );
   final anthropic = _SpyClient(
     protocol: LlmApiProtocol.anthropic,
-    emittedChunk: const ChatGenerationChunk(contentDelta: 'anthropic-正文'),
+    emittedChunk: const LlmEvent(contentDelta: 'anthropic-正文'),
   );
 
-  ProtocolRoutingChatGenerationClient get router =>
-      ProtocolRoutingChatGenerationClient(
-        chatCompletions: chatCompletions,
-        responses: responses,
-        anthropic: anthropic,
-      );
+  ProtocolRoutingLlmClient get router => ProtocolRoutingLlmClient(
+    chatCompletions: chatCompletions,
+    responses: responses,
+    anthropic: anthropic,
+  );
 
   _SpyClient expected(LlmApiProtocol protocol) {
     return switch (protocol) {
@@ -116,35 +122,31 @@ class _SpyClients {
   }
 }
 
-ChatGenerationRequest _request(LlmApiProtocol protocol) {
-  return ChatGenerationRequest(
-    target: ChatGenerationRequestTarget(
+LlmRequest _request(LlmApiProtocol protocol) {
+  return LlmRequest(
+    target: LlmRequestTarget(
       protocol: protocol,
       endpoint: 'https://api.example.com/v1',
       apiKey: 'sk-test-12345678',
       model: 'test-model',
     ),
-    messages: const [
-      ChatRequestMessage(role: ChatMessageRole.user, content: '你好'),
-    ],
+    input: const [LlmTextMessage(role: LlmRole.user, text: '你好')],
   );
 }
 
 /// 记录型假客户端：实现三种具体客户端之一，记录收到的请求，
 /// 产出固定 chunk，并可注入失败。
-class _SpyClient extends ChatGenerationClient
+class _SpyClient extends LlmClient
     implements ChatCompletionsClient, ResponsesClient, AnthropicMessagesClient {
   _SpyClient({required this.protocol, required this.emittedChunk});
 
   final LlmApiProtocol protocol;
-  final ChatGenerationChunk emittedChunk;
-  final List<ChatGenerationRequest> requests = [];
+  final LlmEvent emittedChunk;
+  final List<LlmRequest> requests = [];
   final List<Object> failures = [];
 
   @override
-  Stream<ChatGenerationChunk> streamCompletion(
-    ChatGenerationRequest request,
-  ) async* {
+  Stream<LlmEvent> generate(LlmRequest request, LlmCallControl control) async* {
     requests.add(request);
     for (final failure in failures) {
       throw failure;

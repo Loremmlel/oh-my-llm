@@ -1,14 +1,27 @@
 import 'dart:async';
 
+import 'package:oh_my_llm/core/llm/llm_usage.dart';
+
 /// 网络日志接口：用于记录请求、响应、流式行与异常。
 ///
 /// 所有方法均有默认 no-op 实现，使用者只需 override 需要的方法。
 mixin NetworkLogger {
+  Future<void> logLlmCompletion({
+    required String requestId,
+    required String protocol,
+    required String model,
+    required String stopKind,
+    required int toolCallCount,
+    required Duration elapsed,
+    LlmUsage? usage,
+  }) async {}
   Future<void> onAppLaunch() async {}
 
   Future<void> onAppDetached() async {}
 
   Future<void> logRequest({
+    String? requestId,
+    int? attempt,
     required Uri uri,
     required String method,
     required Map<String, String> headers,
@@ -17,6 +30,8 @@ mixin NetworkLogger {
   }) async {}
 
   Future<void> logResponse({
+    String? requestId,
+    int? attempt,
     required Uri uri,
     required int statusCode,
     required Map<String, String> headers,
@@ -29,9 +44,16 @@ mixin NetworkLogger {
     bool logBody = false,
   }) async {}
 
-  Future<void> logSseLine({required Uri uri, required String line}) async {}
+  Future<void> logSseLine({
+    String? requestId,
+    int? attempt,
+    required Uri uri,
+    required String line,
+  }) async {}
 
   Future<void> logError({
+    String? requestId,
+    int? attempt,
     required Uri uri,
     required Object error,
     StackTrace? stackTrace,

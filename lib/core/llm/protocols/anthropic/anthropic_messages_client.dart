@@ -2,18 +2,21 @@ import 'dart:convert';
 
 import 'package:oh_my_llm/core/http/llm_http_stream_transport.dart';
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
+import 'package:oh_my_llm/core/llm/llm_call_control.dart';
+import 'package:oh_my_llm/core/llm/llm_client.dart';
 import 'package:oh_my_llm/core/llm/llm_endpoint_resolver.dart';
+import 'package:oh_my_llm/core/llm/llm_event.dart';
+import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
+import 'package:oh_my_llm/core/llm/llm_request.dart';
 
-import '../../../application/ports/chat_generation_client.dart';
-import '../../../domain/models/chat_message.dart';
-import 'anthropic_message_transformer.dart';
+import '../llm_input_encoder.dart';
+import '../llm_response_accumulator.dart';
 import 'anthropic_parser.dart';
 
 /// 官方 Anthropic Messages 协议客户端。
 ///
 /// 请求目标携带原始 API URL，本客户端在发送前解析最终生成端点，并负责协议
-/// 编码与解析：固定请求头与请求体形状，消息先经
-/// [transformAnthropicMessages] 完成 System 转换与同角色合并，再经共享
+/// 编码与解析：固定请求头与请求体形状，经共享
 /// [LlmHttpStreamTransport] 发送与解码 SSE，由 [AnthropicParser] 转换为
 /// 协议中立增量。
 ///
@@ -21,7 +24,7 @@ import 'anthropic_parser.dart';
 /// `cache_control`，是否命中由官方自动 Prompt Cache 按稳定请求前缀处理。
 /// reasoning：第一阶段只支持 adaptive thinking，不支持手动 budget_tokens；
 /// 未启用 reasoning 时省略 `thinking` 与 `output_config`，不按模型名称猜测。
-class AnthropicMessagesClient extends ChatGenerationClient {
+class AnthropicMessagesClient extends LlmClient {
   AnthropicMessagesClient({required this._transport});
 
   final LlmHttpStreamTransport _transport;
@@ -33,38 +36,36 @@ class AnthropicMessagesClient extends ChatGenerationClient {
 
   static const _apiVersion = '2023-06-01';
 
-  /// 输出 token 上限：本阶段使用协议内常量，不提供输出长度设置。
-  static const _maxTokens = 8192;
-
   /// 空响应诊断缓冲的原始 SSE 行数上限：只保留尾部，防止超长流撑爆内存。
   static const _maxRawSseLines = 200;
 
   @override
-  Stream<ChatGenerationChunk> streamCompletion(
-    ChatGenerationRequest request,
-  ) async* {
+  Stream<LlmEvent> generate(LlmRequest request, LlmCallControl control) async* {
     if (request.target.protocol != LlmApiProtocol.anthropic) {
-      throw ChatGenerationException(
+      throw LlmException(
         '协议不匹配：Anthropic 客户端只能处理 anthropic 协议请求',
         protocol: request.target.protocol,
       );
     }
 
     final uri = _resolveEndpoint(request);
-    final transformed = transformAnthropicMessages(request.messages);
+    final startedAt = DateTime.now();
+    if (request.options.maxOutputTokens == null) {
+      throw const LlmException(
+        'Messages 必须指定 maxOutputTokens',
+        kind: LlmFailureKind.invalidRequest,
+      );
+    }
     final payload = <String, Object>{
       'model': request.target.model,
       'stream': true,
-      'max_tokens': _maxTokens,
-      'cache_control': const {'type': 'ephemeral'},
-      // 无 leading System 时省略顶层 system。
-      if (transformed.system != null) 'system': transformed.system!,
-      'messages': [
-        for (final message in transformed.messages)
-          {'role': message.role, 'content': message.content},
-      ],
+      'max_tokens': request.options.maxOutputTokens!,
+
+      ...encodeLlmInput(request, uri),
+      ...encodeLlmTools(request),
+      ...encodeLlmOptions(request),
       // 只在模型支持 reasoning 且当前会话启用时发送，其余情况省略。
-      if (request.reasoningEffort case final effort?) ...{
+      if (request.options.reasoningEffort case final effort?) ...{
         'thinking': {'type': 'adaptive', 'display': 'summarized'},
         'output_config': {'effort': _anthropicEffort(effort)},
       },
@@ -74,7 +75,7 @@ class AnthropicMessagesClient extends ChatGenerationClient {
     final parser = AnthropicParser(protocol: request.target.protocol, uri: uri);
 
     final rawSseData = <String>[];
-    var hadContent = false;
+    final accumulated = LlmResponseAccumulator();
 
     try {
       await for (final event in _transport.streamEvents(
@@ -85,23 +86,36 @@ class AnthropicMessagesClient extends ChatGenerationClient {
           'anthropic-version': _apiVersion,
         },
         body: jsonEncode(payload),
-        idleTimeout: request.streamIdleTimeout,
+        idleTimeout: request.options.streamIdleTimeout,
+        responseHeaderTimeout: request.options.responseHeaderTimeout,
+        control: control,
+        requestId: control.requestId,
+        attempt: 1,
+        logRawResponse: !request.hasNativeContext,
       )) {
-        rawSseData.add(event.rawData);
+        if (!request.hasNativeContext) rawSseData.add(event.rawData);
         // 诊断缓冲只保留尾部，超出的行直接丢弃。
         if (rawSseData.length > _maxRawSseLines) {
           rawSseData.removeRange(0, rawSseData.length - _maxRawSseLines);
         }
         final parsed = parser.parse(event);
+        if (parser.hasToolCalls && request.tools.isEmpty) {
+          throw LlmException(
+            '不支持该响应类型：未声明工具却收到 tool_use',
+            protocol: request.target.protocol,
+            uri: uri,
+            responseBody: event.rawData,
+            kind: LlmFailureKind.unsupported,
+          );
+        }
+        yield* Stream.fromIterable(parser.takeToolDeltas());
         if (!parsed.recognized) {
           // 无法识别的新事件类型：原始 data 已进入缓冲日志（脱敏诊断）。
           continue;
         }
         final chunk = parsed.chunk;
         if (chunk != null) {
-          if (!chunk.isEmpty) {
-            hadContent = true;
-          }
+          accumulated.add(chunk);
           yield chunk;
         }
         if (parsed.isDone) {
@@ -111,8 +125,9 @@ class AnthropicMessagesClient extends ChatGenerationClient {
       }
     } on LlmHttpTransportException catch (error) {
       // 传输层异常统一转换为业务异常，保留协议/URI/状态码与原始 cause。
-      throw ChatGenerationException(
+      throw LlmException(
         error.message,
+        kind: error.kind,
         protocol: request.target.protocol,
         uri: uri,
         statusCode: error.statusCode,
@@ -121,15 +136,33 @@ class AnthropicMessagesClient extends ChatGenerationClient {
         causeStackTrace: error.causeStackTrace,
       );
     }
-
-    if (!hadContent) {
-      throw ChatGenerationException(
-        '请求未返回有效内容',
-        protocol: request.target.protocol,
-        uri: uri,
-        responseBody: rawSseData.isEmpty ? null : rawSseData.join('\n'),
-      );
-    }
+    final calls = parser.finishToolCalls();
+    final result = accumulated.finish(
+      diagnosticBody: request.hasNativeContext || rawSseData.isEmpty
+          ? null
+          : rawSseData.join('\n'),
+      requestId: control.requestId,
+      request: request,
+      endpoint: uri,
+      nativeItems: parser.hasReliableReplay ? parser.nativeItems : null,
+      toolCalls: calls,
+      stopKind: calls.isNotEmpty
+          ? LlmStopKind.toolCalls
+          : !parser.completed
+          ? LlmStopKind.unknown
+          : null,
+      rawFinishReason: parser.rawFinishReason,
+    );
+    _transport.recordCompletion(
+      requestId: control.requestId,
+      protocol: request.target.protocol.name,
+      model: request.target.model,
+      stopKind: result.stopKind.name,
+      toolCallCount: result.toolCalls.length,
+      elapsed: DateTime.now().difference(startedAt),
+      usage: result.usage,
+    );
+    yield LlmCompleted(result);
   }
 
   /// 应用层 reasoning effort 到 Anthropic 值的映射。
@@ -145,15 +178,16 @@ class AnthropicMessagesClient extends ChatGenerationClient {
   }
 
   /// 在真正发送 HTTP 前把原始服务商 URL 解析为 Anthropic Messages 端点。
-  Uri _resolveEndpoint(ChatGenerationRequest request) {
+  Uri _resolveEndpoint(LlmRequest request) {
     try {
       return const LlmEndpointResolver().resolveGenerationEndpoint(
         rawUrl: request.target.endpoint,
         protocol: LlmApiProtocol.anthropic,
       );
     } on LlmEndpointResolverException catch (error, stack) {
-      throw ChatGenerationException(
+      throw LlmException(
         error.message,
+        kind: LlmFailureKind.invalidRequest,
         protocol: request.target.protocol,
         cause: error,
         causeStackTrace: stack,

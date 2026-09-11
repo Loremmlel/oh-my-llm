@@ -1,10 +1,10 @@
 import 'dart:convert';
 
+import 'package:oh_my_llm/core/llm/llm_usage.dart';
 import 'package:sqlite3/sqlite3.dart' as sqlite;
 
 import '../../domain/models/chat_checkpoint.dart';
 import '../../domain/models/chat_conversation.dart';
-import '../../domain/models/chat_generation_usage.dart';
 import '../../domain/models/chat_message.dart';
 
 // ── UPSERT SQL 常量 ────────────────────────────────────────────
@@ -126,10 +126,10 @@ List<Object?> messageToRowParams(
 ];
 
 /// 从 SQLite 可选 JSON 列恢复 Token 用量；无效值按未知处理。
-ChatGenerationUsage? tokenUsageFromRow(Object? value) {
+LlmUsage? tokenUsageFromRow(Object? value) {
   if (value is! String) return null;
   try {
-    return ChatGenerationUsage.fromJson(jsonDecode(value));
+    return LlmUsage.fromJson(jsonDecode(value));
   } on FormatException {
     return null;
   }

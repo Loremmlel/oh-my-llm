@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:oh_my_llm/features/chat/domain/models/chat_generation_usage.dart';
+import 'package:oh_my_llm/core/llm/llm_usage.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 
 void main() {
@@ -13,7 +13,7 @@ void main() {
         templatePromptId: 'tpl-1',
         templateVariableValues: const {'lang': 'Dart'},
         finishReason: 'length',
-        tokenUsage: const ChatGenerationUsage(
+        tokenUsage: const LlmUsage(
           inputTokens: 4000,
           outputTokens: 900,
           reasoningTokens: 200,
@@ -67,10 +67,7 @@ void main() {
         'tokenUsage': {'inputTokens': -1},
       });
 
-      expect(
-        partiallyValid.tokenUsage,
-        const ChatGenerationUsage(outputTokens: 0),
-      );
+      expect(partiallyValid.tokenUsage, const LlmUsage(outputTokens: 0));
       expect(entirelyUnknown.tokenUsage, isNull);
     });
   });

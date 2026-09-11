@@ -1,10 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
-
 import 'package:oh_my_llm/core/http/sse_event_decoder.dart';
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
-import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
-import 'package:oh_my_llm/features/chat/data/generation/anthropic/anthropic_parser.dart';
-import 'package:oh_my_llm/features/chat/domain/models/chat_generation_usage.dart';
+import 'package:oh_my_llm/core/llm/llm_event.dart';
+import 'package:oh_my_llm/core/llm/llm_usage.dart';
+import 'package:oh_my_llm/core/llm/protocols/anthropic/anthropic_parser.dart';
 
 void main() {
   const protocol = LlmApiProtocol.anthropic;
@@ -161,7 +160,7 @@ void main() {
           ),
         ),
         throwsA(
-          isA<ChatGenerationException>()
+          isA<LlmException>()
               .having((e) => e.message, 'message', 'Overloaded')
               .having((e) => e.apiErrorCode, 'apiErrorCode', 'overloaded_error')
               .having((e) => e.protocol, 'protocol', protocol)
@@ -174,7 +173,7 @@ void main() {
       expect(
         () => newParser().parse(event('{"type":"error"}')),
         throwsA(
-          isA<ChatGenerationException>().having(
+          isA<LlmException>().having(
             (e) => e.message,
             'message',
             contains('error'),
@@ -185,21 +184,16 @@ void main() {
   });
 
   group('工具内容块明确失败', () {
-    test('content_block_start + tool_use → 不支持异常', () {
-      expect(
-        () => newParser().parse(
-          event(
-            '{"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"t-1","name":"f","input":{}}}',
-          ),
-        ),
-        throwsA(
-          isA<ChatGenerationException>().having(
-            (e) => e.message,
-            'message',
-            contains('不支持该响应类型'),
-          ),
+    test('合法 tool_use 起始块只记录调用而不执行', () {
+      final parser = newParser();
+      final result = parser.parse(
+        event(
+          '{"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"a","name":"read","input":{}}}',
         ),
       );
+      expect(result.chunk, isNull);
+      expect(parser.hasToolCalls, isTrue);
+      expect(() => parser.finishToolCalls(), throwsA(isA<LlmException>()));
     });
 
     test('content_block_start + server_tool_use → 不支持异常', () {
@@ -210,7 +204,7 @@ void main() {
           ),
         ),
         throwsA(
-          isA<ChatGenerationException>().having(
+          isA<LlmException>().having(
             (e) => e.message,
             'message',
             contains('不支持该响应类型'),
@@ -235,7 +229,7 @@ void main() {
             ),
           ),
           throwsA(
-            isA<ChatGenerationException>().having(
+            isA<LlmException>().having(
               (error) => error.message,
               'message',
               contains('不支持该响应类型'),
@@ -266,7 +260,7 @@ void main() {
           ),
         ),
         throwsA(
-          isA<ChatGenerationException>().having(
+          isA<LlmException>().having(
             (e) => e.message,
             'message',
             contains('不支持该响应类型'),
@@ -280,7 +274,7 @@ void main() {
         expect(
           () => newParser().parse(event('{"type":"$type"}')),
           throwsA(
-            isA<ChatGenerationException>().having(
+            isA<LlmException>().having(
               (e) => e.message,
               'message',
               contains('不支持该响应类型'),
@@ -315,7 +309,7 @@ void main() {
           .chunk;
       expect(
         startChunk!.usage,
-        const ChatGenerationUsage(
+        const LlmUsage(
           inputTokens: 17,
           cachedInputTokens: 3,
           cacheWriteInputTokens: 4,
@@ -332,7 +326,7 @@ void main() {
           .chunk;
       expect(
         deltaChunk!.usage,
-        const ChatGenerationUsage(
+        const LlmUsage(
           inputTokens: 17,
           outputTokens: 20,
           reasoningTokens: null,
@@ -369,11 +363,11 @@ void main() {
   // ── 格式错误与未知事件 ────────────────────────────────────────
 
   group('格式错误与未知事件', () {
-    test('malformed JSON → 抛 ChatGenerationException', () {
+    test('malformed JSON → 抛 LlmException', () {
       expect(
         () => newParser().parse(event('{not valid json}')),
         throwsA(
-          isA<ChatGenerationException>()
+          isA<LlmException>()
               .having((e) => e.message, 'message', contains('SSE 数据解析失败'))
               .having((e) => e.protocol, 'protocol', protocol)
               .having((e) => e.uri, 'uri', uri)

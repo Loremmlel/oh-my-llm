@@ -3,24 +3,25 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-
 import 'package:oh_my_llm/core/http/llm_http_stream_transport.dart';
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
+import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
+import 'package:oh_my_llm/core/llm/protocols/anthropic/anthropic_messages_client.dart';
+import 'package:oh_my_llm/core/llm/protocols/chat_completions/chat_completions_client.dart';
+import 'package:oh_my_llm/core/llm/protocols/protocol_routing_llm_client.dart';
+import 'package:oh_my_llm/core/llm/protocols/responses/responses_client.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
-import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_controller.dart';
-import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_conversation_repository.dart';
-import 'package:oh_my_llm/features/chat/data/generation/anthropic/anthropic_messages_client.dart';
-import 'package:oh_my_llm/features/chat/data/generation/chat_completions/chat_completions_client.dart';
-import 'package:oh_my_llm/features/chat/data/generation/protocol_routing_chat_generation_client.dart';
-import 'package:oh_my_llm/features/chat/data/generation/responses/responses_client.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
+import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_controller.dart';
+import 'package:oh_my_llm/features/chat/data/generation/chat_text_generation_adapter.dart';
 import 'package:oh_my_llm/features/chat/data/persistence/sqlite_chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
-import 'package:oh_my_llm/features/settings/domain/models/providers/llm_model_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/models/providers/llm_model_config.dart';
 
 import '../helpers/integration_test_helpers.dart';
 
@@ -97,10 +98,12 @@ Future<_Harness> _createHarness({
     fail: fail,
   );
   final transport = LlmHttpStreamTransport(httpClient: httpClient);
-  final router = ProtocolRoutingChatGenerationClient(
-    chatCompletions: ChatCompletionsClient(transport: transport),
-    responses: ResponsesClient(transport: transport),
-    anthropic: AnthropicMessagesClient(transport: transport),
+  final router = ChatTextGenerationAdapter(
+    ProtocolRoutingLlmClient(
+      chatCompletions: ChatCompletionsClient(transport: transport),
+      responses: ResponsesClient(transport: transport),
+      anthropic: AnthropicMessagesClient(transport: transport),
+    ),
   );
   final container = ProviderContainer(
     overrides: [

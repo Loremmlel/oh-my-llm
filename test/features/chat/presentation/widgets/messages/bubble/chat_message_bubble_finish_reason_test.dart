@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:oh_my_llm/features/chat/domain/models/chat_generation_usage.dart';
+import 'package:oh_my_llm/core/llm/llm_usage.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/messages/bubble/chat_message_bubble.dart';
 
@@ -9,7 +8,7 @@ ChatMessage _assistantMessage({
   String content = '正文',
   String? finishReason,
   bool isStreaming = false,
-  ChatGenerationUsage? tokenUsage,
+  LlmUsage? tokenUsage,
 }) {
   return ChatMessage(
     id: 'test',
@@ -75,7 +74,7 @@ void main() {
         await _pumpBubble(
           tester,
           _assistantMessage(
-            tokenUsage: const ChatGenerationUsage(
+            tokenUsage: const LlmUsage(
               inputTokens: 4000,
               cachedInputTokens: 1500,
               cacheWriteInputTokens: 800,
@@ -99,7 +98,7 @@ void main() {
         tester,
         _assistantMessage(
           isStreaming: true,
-          tokenUsage: const ChatGenerationUsage(inputTokens: 1),
+          tokenUsage: const LlmUsage(inputTokens: 1),
         ),
       );
       expect(find.text('输入 1'), findsNothing);
@@ -111,9 +110,7 @@ void main() {
     testWidgets('仅有推理用量时不产生空白用量行', (tester) async {
       await _pumpBubble(
         tester,
-        _assistantMessage(
-          tokenUsage: const ChatGenerationUsage(reasoningTokens: 8),
-        ),
+        _assistantMessage(tokenUsage: const LlmUsage(reasoningTokens: 8)),
       );
 
       expect(

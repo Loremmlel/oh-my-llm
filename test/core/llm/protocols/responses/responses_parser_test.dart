@@ -1,10 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
-
 import 'package:oh_my_llm/core/http/sse_event_decoder.dart';
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
-import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
-import 'package:oh_my_llm/features/chat/data/generation/responses/responses_parser.dart';
-import 'package:oh_my_llm/features/chat/domain/models/chat_generation_usage.dart';
+import 'package:oh_my_llm/core/llm/llm_event.dart';
+import 'package:oh_my_llm/core/llm/llm_usage.dart';
+import 'package:oh_my_llm/core/llm/protocols/responses/responses_parser.dart';
 
 void main() {
   const protocol = LlmApiProtocol.responses;
@@ -120,7 +119,7 @@ void main() {
           ),
         ),
         throwsA(
-          isA<ChatGenerationException>()
+          isA<LlmException>()
               .having((e) => e.message, 'message', 'invalid api key')
               .having((e) => e.apiErrorCode, 'apiErrorCode', 'invalid_api_key')
               .having((e) => e.protocol, 'protocol', protocol)
@@ -140,7 +139,7 @@ void main() {
           ),
         ),
         throwsA(
-          isA<ChatGenerationException>()
+          isA<LlmException>()
               .having((e) => e.message, 'message', 'Server had an error')
               .having((e) => e.apiErrorCode, 'apiErrorCode', 'server_error')
               .having((e) => e.protocol, 'protocol', protocol)
@@ -148,7 +147,7 @@ void main() {
               .having(
                 (e) => e.usage,
                 'usage',
-                const ChatGenerationUsage(
+                const LlmUsage(
                   inputTokens: 100,
                   outputTokens: 8,
                   cachedInputTokens: 40,
@@ -162,7 +161,7 @@ void main() {
       expect(
         () => newParser().parse(event('{"type":"response.failed"}')),
         throwsA(
-          isA<ChatGenerationException>().having(
+          isA<LlmException>().having(
             (e) => e.message,
             'message',
             contains('响应生成失败'),
@@ -198,7 +197,7 @@ void main() {
       expect(
         () => newParser().parse(event('{"type":"response.done"}')),
         throwsA(
-          isA<ChatGenerationException>().having(
+          isA<LlmException>().having(
             (e) => e.message,
             'message',
             contains('response.done'),
@@ -215,7 +214,7 @@ void main() {
         '{"type":"response.reasoning_summary_text.done","text":"完整推理"}',
         '{"type":"response.refusal.done","refusal":"完整拒绝"}',
         '{"type":"response.content_part.done","part":{"type":"output_text","text":"完整正文"}}',
-        '{"type":"response.output_item.done","item":{"type":"message"}}',
+        '{"type":"response.output_item.done","output_index":0,"item":{"type":"message","id":"m","role":"assistant","content":[]}}',
       ]) {
         final result = newParser().parse(event(data));
         expect(result.chunk, isNull, reason: data);
@@ -228,7 +227,7 @@ void main() {
   // ── usage ─────────────────────────────────────────────────────
 
   group('usage 提取', () {
-    test('response.usage 自然携带时映射为 ChatGenerationUsage', () {
+    test('response.usage 自然携带时映射为 LlmUsage', () {
       final chunk = newParser()
           .parse(
             event(
@@ -240,7 +239,7 @@ void main() {
           .chunk;
       expect(
         chunk!.usage,
-        const ChatGenerationUsage(
+        const LlmUsage(
           inputTokens: 10,
           outputTokens: 20,
           reasoningTokens: 5,
@@ -279,11 +278,11 @@ void main() {
   // ── 格式错误与未知事件 ────────────────────────────────────────
 
   group('格式错误与未知事件', () {
-    test('malformed JSON → 抛 ChatGenerationException', () {
+    test('malformed JSON → 抛 LlmException', () {
       expect(
         () => newParser().parse(event('{not valid json}')),
         throwsA(
-          isA<ChatGenerationException>()
+          isA<LlmException>()
               .having((e) => e.message, 'message', contains('SSE 数据解析失败'))
               .having((e) => e.protocol, 'protocol', protocol)
               .having((e) => e.uri, 'uri', uri)

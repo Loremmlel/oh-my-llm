@@ -3,29 +3,32 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-
 import 'package:oh_my_llm/core/http/llm_http_stream_transport.dart';
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
+import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
+import 'package:oh_my_llm/core/llm/llm_usage.dart';
+import 'package:oh_my_llm/core/llm/protocols/responses/responses_client.dart';
 import 'package:oh_my_llm/core/logging/network_logger.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
-import 'package:oh_my_llm/features/chat/data/generation/responses/responses_client.dart';
-import 'package:oh_my_llm/features/chat/domain/models/chat_generation_usage.dart';
+import 'package:oh_my_llm/features/chat/data/generation/chat_text_generation_adapter.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/settings/domain/models/providers/llm_model_config.dart';
 
 void main() {
   final testUri = Uri.parse('https://api.example.com/v1/responses');
 
-  ResponsesClient buildResponsesClient(
+  ChatGenerationClient buildResponsesClient(
     http.Client httpClient, {
     NetworkLogger logger = const NoopNetworkLogger(),
     Map<String, String> Function()? extraHeadersFactory,
   }) {
-    return ResponsesClient(
-      transport: LlmHttpStreamTransport(
-        httpClient: httpClient,
-        logger: logger,
-        extraHeadersFactory: extraHeadersFactory,
+    return ChatTextGenerationAdapter(
+      ResponsesClient(
+        transport: LlmHttpStreamTransport(
+          httpClient: httpClient,
+          logger: logger,
+          extraHeadersFactory: extraHeadersFactory,
+        ),
       ),
     );
   }
@@ -462,7 +465,7 @@ void main() {
       expect(chunks.map((chunk) => chunk.contentDelta).join(), '你好');
       expect(
         chunks.last.usage,
-        const ChatGenerationUsage(
+        const LlmUsage(
           inputTokens: 10,
           outputTokens: 20,
           reasoningTokens: 5,
@@ -584,6 +587,8 @@ final class _FakeNetworkLogger with NetworkLogger {
 
   @override
   Future<void> logRequest({
+    String? requestId,
+    int? attempt,
     required Uri uri,
     required String method,
     required Map<String, String> headers,

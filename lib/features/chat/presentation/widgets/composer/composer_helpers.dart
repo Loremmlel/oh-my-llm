@@ -1,4 +1,4 @@
-import '../../../domain/models/chat_message.dart';
+import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
 
 String effortLabel(ReasoningEffort effort) {
   return switch (effort) {

@@ -8,8 +8,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:oh_my_llm/app/platform/noop_chat_generation_foreground_service.dart';
 import 'package:oh_my_llm/bootstrap.dart';
 import 'package:oh_my_llm/core/logging/app_network_logger_provider.dart';
@@ -17,15 +15,15 @@ import 'package:oh_my_llm/core/logging/network_logger.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
-import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_conversation_repository.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_foreground_service.dart';
 import 'package:oh_my_llm/features/chat/data/persistence/background_chat_repository.dart';
-import 'package:oh_my_llm/features/chat/data/generation/protocol_routing_chat_generation_client.dart';
 import 'package:oh_my_llm/features/favorites/application/ports/collections_repository.dart';
 import 'package:oh_my_llm/features/favorites/application/ports/favorites_repository.dart';
 import 'package:oh_my_llm/features/favorites/data/sqlite_collections_repository.dart';
 import 'package:oh_my_llm/features/favorites/data/sqlite_favorites_repository.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 const _viewportSize = Size(1440, 1024);
 
@@ -83,7 +81,7 @@ void main() {
     expect(logger, isA<NoopNetworkLogger>());
 
     final completion = container.read(chatGenerationClientProvider);
-    expect(completion, isA<ProtocolRoutingChatGenerationClient>());
+    expect(completion, isA<ChatGenerationClient>());
 
     final conversation = container.read(chatConversationRepositoryProvider);
     expect(conversation, isA<BackgroundChatConversationRepository>());

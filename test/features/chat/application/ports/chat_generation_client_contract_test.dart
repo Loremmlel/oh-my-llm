@@ -1,15 +1,14 @@
 import 'package:flutter_test/flutter_test.dart';
-
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
+import 'package:oh_my_llm/core/llm/llm_usage.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
-import 'package:oh_my_llm/features/chat/domain/models/chat_generation_usage.dart';
 
 void main() {
   test('complete 折叠正文、推理、末个 finish reason 与分散 usage', () async {
     final client = _ChunkSequenceClient([
       const ChatGenerationChunk(
         contentDelta: '正',
-        usage: ChatGenerationUsage(
+        usage: LlmUsage(
           inputTokens: 10,
           cachedInputTokens: 3,
           cacheWriteInputTokens: 2,
@@ -18,7 +17,7 @@ void main() {
       const ChatGenerationChunk(
         reasoningDelta: '思考',
         finishReason: 'length',
-        usage: ChatGenerationUsage(
+        usage: LlmUsage(
           outputTokens: 20,
           reasoningTokens: 5,
           cachedInputTokens: 0,
@@ -44,7 +43,7 @@ void main() {
     expect(result.finishReason, 'stop');
     expect(
       result.usage,
-      const ChatGenerationUsage(
+      const LlmUsage(
         inputTokens: 10,
         outputTokens: 20,
         reasoningTokens: 5,
