@@ -992,6 +992,38 @@ void main() {
       expect(terminalNotifications, isEmpty);
     });
 
+    test('成功通知字数采用最终正文，失败通知保留当前尝试已收到的字数', () async {
+      await coordinator.start();
+      for (final phase in [
+        ChatGenerationPhase.succeeded,
+        ChatGenerationPhase.failed,
+      ]) {
+        final token = phase == ChatGenerationPhase.succeeded ? 1 : 2;
+        coordinator.onStateChanged(
+          snapshot: _snapshot(
+            ChatGenerationPhase.streaming,
+            generationId: token,
+          ),
+          streamingReply: _reply('原始正文', '推理'),
+        );
+        await _flushTail();
+        coordinator.onStateChanged(
+          snapshot: _snapshot(
+            phase,
+            generationId: token,
+            outcome: _outcomeFor(phase, generationId: token),
+          ),
+          streamingReply: null,
+        );
+        await _flushTail();
+      }
+      expect(terminalNotifications.first.text, '正文 1 字 · 推理 0 字 · 已尝试 1 次');
+      expect(
+        terminalNotifications.last.text,
+        '生成失败，请打开应用查看详情 · 正文 4 字 · 推理 2 字 · 已尝试 1 次',
+      );
+    });
+
     test('成功和失败各投递一次系统通知，取消只清理', () async {
       await coordinator.start();
       final phases = <ChatGenerationPhase>[

@@ -19,13 +19,14 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 
 import 'package:oh_my_llm/app/composition/chat_generation_notification_coordinator.dart';
 import 'package:oh_my_llm/app/composition/cross_feature_bindings.dart';
+import 'package:oh_my_llm/app/router/app_router.dart';
 import 'package:oh_my_llm/app/platform/chat_generation_terminal_notification.dart';
 import 'package:oh_my_llm/core/http/llm_http_stream_transport.dart';
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
@@ -52,6 +53,55 @@ import '../helpers/chat/fake_chat_generation_client.dart';
 import '../helpers/integration_test_helpers.dart';
 
 void main() {
+  final binding = TestWidgetsFlutterBinding.ensureInitialized();
+  for (final (label, lifecycle, path, otherConversation, suppressed) in [
+    ('正在查看生成会话', AppLifecycleState.resumed, '/chat', false, true),
+    ('窗口失焦', AppLifecycleState.inactive, '/chat', false, false),
+    ('应用进入后台', AppLifecycleState.hidden, '/chat', false, false),
+    ('正在查看设置', AppLifecycleState.resumed, '/settings', false, false),
+    ('正在查看其他会话', AppLifecycleState.resumed, '/chat', true, false),
+  ]) {
+    test('$label时按当前可见会话决定终态提醒且始终清理前台服务', () async {
+      final harness = await _createHarness();
+      addTearDown(harness.dispose);
+      addTearDown(
+        () =>
+            binding.handleAppLifecycleStateChanged(AppLifecycleState.detached),
+      );
+      final activeId = harness.container.read(activeConversationIdProvider);
+      final conversationId = otherConversation
+          ? 'other-conversation'
+          : activeId;
+      harness.container.read(appRouterProvider).go(path);
+      binding.handleAppLifecycleStateChanged(lifecycle);
+      harness.container
+          .read(chatGenerationNotificationCoordinatorProvider)
+          .onStateChanged(
+            snapshot: ChatGenerationSnapshot(
+              generationId: 1,
+              conversationId: conversationId,
+              attempt: 1,
+              phase: ChatGenerationPhase.succeeded,
+              outcome: const ChatGenerationSuccess(
+                generationId: 1,
+                attempt: 1,
+                content: '完成',
+                reasoningContent: '',
+              ),
+            ),
+            streamingReply: null,
+          );
+      await harness.port.waitForCall('remove');
+      expect(harness.terminalNotifications, hasLength(suppressed ? 0 : 1));
+      if (!suppressed) {
+        expect(
+          harness.terminalNotifications.single.conversationId,
+          conversationId,
+        );
+      }
+    });
+  }
+
   // ── 原生 stop 进入既有 durable stop 路径 ────────────────────────────────────
 
   test(
@@ -191,7 +241,7 @@ void main() {
         harness.terminalNotifications
             .lastWhere((p) => p.title == '结果保存失败')
             .text,
-        '回复结果未能保存，请打开应用查看',
+        startsWith('回复结果未能保存，请打开应用查看 · 正文 '),
       );
       expect(
         harness.terminalNotifications
@@ -356,7 +406,7 @@ void main() {
     );
     expect(
       harness.terminalNotifications.lastWhere((p) => p.title == '生成失败').text,
-      '模型返回了空回复',
+      '模型返回了空回复 · 正文 0 字 · 推理 0 字 · 已尝试 1 次',
     );
     expect(harness.port.calls, contains('remove'));
   });
