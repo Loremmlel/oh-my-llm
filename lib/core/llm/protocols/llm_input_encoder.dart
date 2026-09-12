@@ -188,7 +188,7 @@ Map<String, Object?> _replayItem(
           ]);
         case 'message':
           if (item['role'] != 'assistant') _invalid('续接消息必须是 assistant');
-          return pick(['type', 'id', 'role', 'content', 'status']);
+          return pick(['type', 'id', 'role', 'content', 'status', 'phase']);
         default:
           _invalid('不支持的 Responses 续接内容');
       }
