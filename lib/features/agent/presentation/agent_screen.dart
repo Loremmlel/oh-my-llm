@@ -11,13 +11,15 @@ import '../application/agent_workspace_controller.dart';
 import '../domain/agent_models.dart';
 import 'agent_documents_panel.dart';
 import 'agent_transcript.dart';
+import 'agent_configuration_dialog.dart';
+import 'agent_context_dialog.dart';
 
 class AgentScreen extends StatelessWidget {
   const AgentScreen({super.key});
   @override
   Widget build(BuildContext context) => const AppShellScaffold(
     currentDestination: AppDestination.agent,
-    title: 'Agent 工作区',
+    title: 'Agent 小说工作区',
     body: _WorkspaceBody(),
   );
 }
@@ -57,7 +59,7 @@ class _WorkspaceBodyState extends ConsumerState<_WorkspaceBody> {
                   value: workspace?.id,
                   isExpanded: true,
                   underline: const SizedBox.shrink(),
-                  hint: const Text('选择工作区'),
+                  hint: const Text('选择作品'),
                   items: [
                     for (final w in state.workspaces)
                       DropdownMenuItem(
@@ -74,18 +76,22 @@ class _WorkspaceBodyState extends ConsumerState<_WorkspaceBody> {
               ),
               IconButton(
                 onPressed: state.busy ? null : controller.createWorkspace,
-                tooltip: '新建工作区',
+                tooltip: '新建作品',
                 icon: const Icon(Icons.add),
               ),
               IconButton(
                 onPressed: workspace == null
                     ? null
-                    : () => showDialog<void>(
-                        context: context,
-                        builder: (_) => const _ConfigurationDialog(),
-                      ),
+                    : () => showAgentConfiguration(context),
                 tooltip: '模型与规则',
                 icon: const Icon(Icons.tune),
+              ),
+              IconButton(
+                onPressed: workspace == null || state.busy
+                    ? null
+                    : () => showAgentContext(context),
+                tooltip: '查看上下文',
+                icon: const Icon(Icons.manage_search),
               ),
               IconButton(
                 onPressed: workspace == null
@@ -98,6 +104,40 @@ class _WorkspaceBodyState extends ConsumerState<_WorkspaceBody> {
             ],
           ),
         ),
+        if (workspace != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+            child: Row(
+              children: [
+                Expanded(
+                  child: DropdownButton<String>(
+                    value: workspace.sessionId,
+                    isExpanded: true,
+                    items: [
+                      for (final session in controller.sessions)
+                        DropdownMenuItem(
+                          value: session.id,
+                          child: Text(
+                            session.title,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                    onChanged: state.busy
+                        ? null
+                        : (id) {
+                            if (id != null) controller.selectSession(id);
+                          },
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: state.busy ? null : controller.createSession,
+                  icon: const Icon(Icons.add_comment_outlined),
+                  label: const Text('新建会话'),
+                ),
+              ],
+            ),
+          ),
         if (workspace != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(
@@ -129,7 +169,7 @@ class _WorkspaceBodyState extends ConsumerState<_WorkspaceBody> {
                 ),
                 if (latest != null)
                   Text(
-                    '本轮主 Agent · ${agentUsageLabel(latest)}',
+                    '本轮全部 Agent 已报告用量 · ${agentTreeUsageLabel(latest, state.runs)}',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
               ],
@@ -162,7 +202,7 @@ class _WorkspaceBodyState extends ConsumerState<_WorkspaceBody> {
           const Expanded(
             child: Center(
               child: Text(
-                '新建工作区，开始写作、审稿或改写。\n文档和运行记录保存在本机。',
+                '新建作品，添加世界书和人物卡，再开始写作。\n文档和运行记录保存在本机。',
                 textAlign: TextAlign.center,
               ),
             ),
@@ -175,93 +215,16 @@ class _WorkspaceBodyState extends ConsumerState<_WorkspaceBody> {
                     child: AgentDocumentsPanel(),
                   )
                 : AgentTranscript(
-                    key: ValueKey(workspace.id),
+                    key: ValueKey('${workspace.id}/${workspace.sessionId}'),
                     records: roots,
                     allRuns: state.runs,
                   ),
           ),
-          if (!_documents) _Composer(key: ValueKey('composer/${workspace.id}')),
+          if (!_documents)
+            _Composer(
+              key: ValueKey('composer/${workspace.id}/${workspace.sessionId}'),
+            ),
         ],
-      ],
-    );
-  }
-}
-
-class _ConfigurationDialog extends ConsumerStatefulWidget {
-  const _ConfigurationDialog();
-  @override
-  ConsumerState<_ConfigurationDialog> createState() =>
-      _ConfigurationDialogState();
-}
-
-class _ConfigurationDialogState extends ConsumerState<_ConfigurationDialog> {
-  late final _rules = TextEditingController(
-    text: ref.read(agentWorkspaceProvider).workspace!.instructions,
-  );
-  @override
-  void dispose() {
-    _rules.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final state = ref.watch(agentWorkspaceProvider);
-    final models = ref.watch(agentModelsProvider);
-    final current = state.workspace!;
-    final locked = state.busy || current.history.isNotEmpty;
-    return AlertDialog(
-      title: const Text('模型与规则'),
-      content: SizedBox(
-        width: AppContentWidths.readable,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              DropdownButtonFormField<String>(
-                initialValue: models.any((m) => m.id == current.modelId)
-                    ? current.modelId
-                    : null,
-                isExpanded: true,
-                decoration: const InputDecoration(labelText: '运行模型（需支持工具调用）'),
-                items: [
-                  for (final m in models)
-                    DropdownMenuItem(
-                      value: m.id,
-                      child: Text(m.label, overflow: TextOverflow.ellipsis),
-                    ),
-                ],
-                onChanged: locked
-                    ? null
-                    : (id) => ref
-                          .read(agentWorkspaceProvider.notifier)
-                          .configure(modelId: id),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              TextField(
-                controller: _rules,
-                readOnly: locked,
-                minLines: 3,
-                maxLines: 8,
-                decoration: const InputDecoration(labelText: '规则与文风（可选）'),
-                onChanged: (text) => ref
-                    .read(agentWorkspaceProvider.notifier)
-                    .configure(instructions: text),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Text(locked ? '模型与规则已固定；更换配置请新建工作区。' : '模型与规则在首次运行后固定。'),
-              const Text('每次任务最多 24 次模型调用、2 个并发子任务、10 分钟。'),
-              if (models.isEmpty) const Text('先到设置添加支持工具调用的模型。'),
-            ],
-          ),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('完成'),
-        ),
       ],
     );
   }

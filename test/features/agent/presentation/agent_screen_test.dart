@@ -13,6 +13,7 @@ import 'package:oh_my_llm/features/agent/data/sqlite_agent_store.dart';
 import 'package:oh_my_llm/features/agent/domain/agent_models.dart';
 import 'package:oh_my_llm/features/agent/presentation/agent_screen.dart';
 import 'package:oh_my_llm/features/agent/presentation/agent_run_screen.dart';
+import 'package:oh_my_llm/features/agent/presentation/agent_document_editor.dart';
 
 import '../../../helpers/fixtures.dart';
 import '../../../helpers/test_harness.dart';
@@ -20,6 +21,83 @@ import '../../../helpers/async/widget_test_animation.dart';
 import '../agent_test_helpers.dart';
 
 void main() {
+  testWidgets('创建世界书并保存独立审稿模型方案，可查看输入和切换会话', (tester) async {
+    final database = AppDatabase.inMemory();
+    addTearDown(database.close);
+    final store = SqliteAgentStore(database);
+    store.saveWorkspace(
+      AgentWorkspace(id: 'novel', title: '配置试验', modelId: 'model-1'),
+    );
+    final preferences = await TestFixtures.seedPreferences(
+      database: database,
+      models: [
+        TestFixtures.model(providerName: '测试商', displayName: '写作模型'),
+        TestFixtures.model(
+          id: 'model-2',
+          providerName: '测试商',
+          displayName: '审稿模型',
+        ),
+      ],
+    );
+    await pumpTestApp(
+      tester,
+      preferences: preferences,
+      database: database,
+      child: const AgentScreen(),
+      viewportSize: const Size(780, 1000),
+    );
+    await tester.tap(find.byTooltip('工作文档'));
+    await tester.pump();
+    await tester.tap(find.text('新建文档'));
+    await settleOverlayTransition(tester);
+    await tester.enterText(find.widgetWithText(TextField, '文档名'), '世界规则');
+    await tester.tap(find.byType(DropdownButtonFormField<AgentDocumentKind>));
+    await settleOverlayTransition(tester);
+    await tester.tap(
+      find.text(agentDocumentKindLabel(AgentDocumentKind.worldBook)).last,
+    );
+    await settleOverlayTransition(tester);
+    await tester.enterText(find.widgetWithText(TextField, '正文'), '日落后禁止出城。');
+    await tester.tap(find.text('保存新版本'));
+    await settleOverlayTransition(tester);
+    expect(find.text('世界书 1'), findsOneWidget);
+    await tester.tap(find.byTooltip('模型与规则'));
+    await settleOverlayTransition(tester);
+    await tester.enterText(find.widgetWithText(TextField, '方案名称'), '独立审稿方案');
+    await tester.tap(find.byType(DropdownButtonFormField<AgentRole>));
+    await settleOverlayTransition(tester);
+    await tester.tap(find.text('审稿 Agent').last);
+    await settleOverlayTransition(tester);
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await settleOverlayTransition(tester);
+    await tester.tap(find.text('测试商 / 审稿模型').last);
+    await settleOverlayTransition(tester);
+    await tester.enterText(
+      find.widgetWithText(TextField, '角色提示词'),
+      '只报告有原文依据的矛盾。',
+    );
+    await tester.tap(find.text('保存方案'));
+    await tester.pump();
+    expect(find.text('已载入配置版本 1'), findsOneWidget);
+    await tester.tap(find.text('应用配置'));
+    await settleOverlayTransition(tester);
+    final saved = store.loadWorkspace('novel')!;
+    expect(saved.configuration.name, '独立审稿方案');
+    expect(saved.configuration.modelFor(AgentRole.reviewer), 'model-2');
+    await tester.tap(find.byTooltip('返回执行流'));
+    await tester.pump();
+    await tester.tap(find.byTooltip('查看上下文'));
+    await settleOverlayTransition(tester);
+    expect(find.textContaining('日落后禁止出城。'), findsOneWidget);
+    await tester.tap(find.text('关闭'));
+    await settleOverlayTransition(tester);
+    await tester.tap(find.text('新建会话'));
+    await tester.pump();
+    expect(find.text('会话 2'), findsOneWidget);
+    expect(store.listSessions('novel'), hasLength(2));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('子 Agent 运行时可以进入完整执行流，返回主会话后继续接收结果', (tester) async {
     final database = AppDatabase.inMemory();
     addTearDown(database.close);
@@ -156,7 +234,7 @@ void main() {
       router: router,
       extraOverrides: [llmClientProvider.overrideWithValue(client)],
     );
-    expect(find.text('Agent 工作区'), findsOneWidget);
+    expect(find.text('Agent 小说工作区'), findsOneWidget);
     await tester.enterText(find.widgetWithText(TextField, '任务'), '审阅正文');
     await tester.pump();
     final container = ProviderScope.containerOf(
@@ -183,7 +261,7 @@ void main() {
     await tester.enterText(find.widgetWithText(TextField, '旧稿'), '修订稿');
     await tester.tap(find.text('保存新版本'));
     await settleOverlayTransition(tester);
-    expect(find.text('版本 2 · 3 字符'), findsOneWidget);
+    expect(find.text('普通文档 · 版本 2 · 3 字符'), findsOneWidget);
     await tester.tap(find.text('正文'));
     await settleOverlayTransition(tester);
     await tester.tap(find.byTooltip('上一版本'));

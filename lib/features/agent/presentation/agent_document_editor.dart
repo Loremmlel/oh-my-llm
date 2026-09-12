@@ -27,11 +27,14 @@ class _DocumentEditorState extends ConsumerState<_DocumentEditor> {
   late final _content = TextEditingController(
     text: widget.document?.content ?? '',
   );
+  late AgentDocumentKind _kind =
+      widget.document?.kind ?? AgentDocumentKind.document;
   late int _revision = widget.document?.revision ?? 0;
   bool _allowClose = false;
   bool get _dirty =>
       _name.text != (widget.document?.name ?? '') ||
-      _content.text != (widget.document?.content ?? '');
+      _content.text != (widget.document?.content ?? '') ||
+      _kind != (widget.document?.kind ?? AgentDocumentKind.document);
   @override
   void dispose() {
     _name.dispose();
@@ -80,6 +83,25 @@ class _DocumentEditorState extends ConsumerState<_DocumentEditor> {
                   decoration: const InputDecoration(labelText: '文档名'),
                 ),
                 const SizedBox(height: AppSpacing.sm),
+                DropdownButtonFormField<AgentDocumentKind>(
+                  key: ValueKey('kind/$_kind'),
+                  initialValue: _kind,
+                  decoration: const InputDecoration(labelText: '资料类型'),
+                  isExpanded: true,
+                  items: [
+                    for (final kind in AgentDocumentKind.values)
+                      DropdownMenuItem(
+                        value: kind,
+                        child: Text(agentDocumentKindLabel(kind)),
+                      ),
+                  ],
+                  onChanged: state.busy
+                      ? null
+                      : (kind) {
+                          if (kind != null) setState(() => _kind = kind);
+                        },
+                ),
+                const SizedBox(height: AppSpacing.sm),
                 if (widget.document != null)
                   Row(
                     children: [
@@ -108,11 +130,15 @@ class _DocumentEditorState extends ConsumerState<_DocumentEditor> {
                   controller: _content,
                   minLines: 10,
                   maxLines: 20,
-                  decoration: const InputDecoration(
-                    labelText: '正文',
+                  decoration: InputDecoration(
+                    labelText: _kind == AgentDocumentKind.characterCard
+                        ? '作者设定'
+                        : '正文',
                     alignLabelWithHint: true,
                   ),
                 ),
+                if (_kind != AgentDocumentKind.document)
+                  const Text('世界书和人物卡在新会话开始时采用最新版本；已有会话继续使用原版本。'),
                 if (state.error.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: AppSpacing.xs),
@@ -137,6 +163,7 @@ class _DocumentEditorState extends ConsumerState<_DocumentEditor> {
                       _name.text.trim(),
                       _content.text,
                       widget.document?.revision ?? 0,
+                      kind: _kind,
                     );
                     if (ref.read(agentWorkspaceProvider).error.isEmpty) {
                       setState(() => _allowClose = true);
@@ -155,7 +182,8 @@ class _DocumentEditorState extends ConsumerState<_DocumentEditor> {
     final current = ref
         .read(agentWorkspaceProvider.notifier)
         .readRevision(_name.text, _revision);
-    if (current != null && _content.text != current.content) {
+    if (current != null &&
+        (_content.text != current.content || _kind != current.kind)) {
       final discard = await showDialog<bool>(
         context: context,
         builder: (_) => const AppConfirmDialog(
@@ -173,7 +201,14 @@ class _DocumentEditorState extends ConsumerState<_DocumentEditor> {
       setState(() {
         _revision = revision;
         _content.text = document.content;
+        _kind = document.kind;
       });
     }
   }
 }
+
+String agentDocumentKindLabel(AgentDocumentKind kind) => switch (kind) {
+  AgentDocumentKind.document => '普通文档',
+  AgentDocumentKind.worldBook => '世界书',
+  AgentDocumentKind.characterCard => '人物卡',
+};

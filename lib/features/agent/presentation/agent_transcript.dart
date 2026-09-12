@@ -7,6 +7,8 @@ import 'package:go_router/go_router.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 
 import '../domain/agent_models.dart';
+import '../application/agent_context.dart';
+import 'agent_context_dialog.dart';
 
 String agentRoleLabel(AgentRole role) => switch (role) {
   AgentRole.coordinator => '主 Agent',
@@ -27,10 +29,22 @@ String agentStatusLabel(AgentRunStatus status) => switch (status) {
 String agentUsageLabel(AgentRunRecord record) {
   final usage = record.usage;
   final input = usage?.inputTokens, cached = usage?.cachedInputTokens;
-  final rate = input != null && input > 0 && cached != null
-      ? ' (${(cached / input * 100).toStringAsFixed(1)}%)'
-      : '';
-  return '${record.modelCalls} 次调用 · 输入 ${input ?? '—'} · 输出 ${usage?.outputTokens ?? '—'} · 缓存读取 ${cached ?? '—'}$rate';
+  return '${record.modelCalls} 次调用 · 输入 ${input ?? '—'} · 输出 ${usage?.outputTokens ?? '—'} · 缓存读取 ${cached ?? '—'} · 缓存写入 ${usage?.cacheWriteInputTokens ?? '—'}${record.usageIncomplete || record.status != AgentRunStatus.completed ? '（部分用量未报告）' : ''}';
+}
+
+String agentTreeUsageLabel(AgentRunRecord root, List<AgentRunRecord> records) {
+  var total = root;
+  for (final child in records.where((r) => r.parentId == root.id)) {
+    total = total.copyWith(
+      modelCalls: total.modelCalls + child.modelCalls,
+      usage: addAgentUsage(total.usage, child.usage),
+      usageIncomplete:
+          total.usageIncomplete ||
+          child.usageIncomplete ||
+          child.status != AgentRunStatus.completed,
+    );
+  }
+  return agentUsageLabel(total);
 }
 
 class AgentChildLink extends StatelessWidget {
@@ -213,7 +227,11 @@ class _RunTranscript extends StatelessWidget {
               ),
             ),
           for (var i = 0; i < record.steps.length; i++)
-            _StepView(key: ValueKey('${record.id}/$i'), step: record.steps[i]),
+            _StepView(
+              key: ValueKey('${record.id}/$i'),
+              step: record.steps[i],
+              record: record,
+            ),
           if (record.steps.isEmpty && record.content.isNotEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
@@ -254,8 +272,9 @@ class _RunTranscript extends StatelessWidget {
 }
 
 class _StepView extends StatelessWidget {
-  const _StepView({super.key, required this.step});
+  const _StepView({super.key, required this.step, required this.record});
   final AgentStep step;
+  final AgentRunRecord record;
   @override
   Widget build(BuildContext context) {
     if (step.kind == AgentStepKind.tool) {
@@ -310,6 +329,16 @@ class _StepView extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (step.inputItemCount != null)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () =>
+                    showAgentContext(context, record: record, step: step),
+                icon: const Icon(Icons.manage_search),
+                label: Text('查看${step.label}的输入'),
+              ),
+            ),
           if (step.reasoning.isNotEmpty)
             _ReasoningView(text: step.reasoning, running: step.isRunning),
           if (step.isRunning && step.reasoning.isEmpty && step.content.isEmpty)

@@ -1,8 +1,10 @@
 import 'package:equatable/equatable.dart';
 import 'package:oh_my_llm/core/llm/llm_content.dart';
 import 'package:oh_my_llm/core/llm/llm_usage.dart';
+import 'package:oh_my_llm/core/llm/llm_request.dart';
 
-enum AgentRole { coordinator, writer, reviewer, character }
+import 'agent_configuration.dart';
+export 'agent_configuration.dart';
 
 enum AgentRunStatus {
   running,
@@ -13,37 +15,68 @@ enum AgentRunStatus {
   interrupted,
 }
 
+/// 作品与选中会话的只读视图；历史只由对应会话持久化。
 class AgentWorkspace extends Equatable {
   AgentWorkspace({
     required this.id,
     required this.title,
-    this.modelId,
-    this.instructions = '',
+    String? modelId,
+    String instructions = '',
+    AgentConfiguration? configuration,
+    this.sessionId = 'initial',
+    this.sessionTitle = '会话 1',
     this.draft = '',
     List<LlmInputItem> history = const [],
-  }) : history = List.unmodifiable(history);
-  final String id;
-  final String title;
-  final String? modelId;
-  final String instructions;
-  final String draft;
+    List<AgentDocument> references = const [],
+    this.referencesFrozen = false,
+  }) : configuration =
+           configuration ??
+           AgentConfiguration(modelId: modelId, preset: instructions),
+       history = List.unmodifiable(history),
+       references = List.unmodifiable(references);
+  final String id, title, sessionId, sessionTitle, draft;
+  final AgentConfiguration configuration;
+  String? get modelId => configuration.modelId;
+  String get instructions => configuration.preset;
   final List<LlmInputItem> history;
+  final List<AgentDocument> references;
+  final bool referencesFrozen;
   AgentWorkspace copyWith({
     String? title,
     String? modelId,
     String? instructions,
     String? draft,
+    String? sessionId,
+    String? sessionTitle,
+    AgentConfiguration? configuration,
     List<LlmInputItem>? history,
+    List<AgentDocument>? references,
+    bool? referencesFrozen,
   }) => AgentWorkspace(
     id: id,
     title: title ?? this.title,
-    modelId: modelId ?? this.modelId,
-    instructions: instructions ?? this.instructions,
+    sessionId: sessionId ?? this.sessionId,
+    sessionTitle: sessionTitle ?? this.sessionTitle,
+    configuration:
+        configuration ??
+        this.configuration.copyWith(modelId: modelId, preset: instructions),
     draft: draft ?? this.draft,
     history: history ?? this.history,
+    references: references ?? this.references,
+    referencesFrozen: referencesFrozen ?? this.referencesFrozen,
   );
   @override
-  List<Object?> get props => [id, title, modelId, instructions, draft, history];
+  List<Object?> get props => [
+    id,
+    title,
+    sessionId,
+    sessionTitle,
+    configuration,
+    draft,
+    history,
+    references,
+    referencesFrozen,
+  ];
 }
 
 class AgentDocument extends Equatable {
@@ -51,12 +84,14 @@ class AgentDocument extends Equatable {
     required this.name,
     required this.content,
     required this.revision,
+    this.id = '',
+    this.kind = AgentDocumentKind.document,
   });
-  final String name;
-  final String content;
+  final String id, name, content;
   final int revision;
+  final AgentDocumentKind kind;
   @override
-  List<Object?> get props => [name, content, revision];
+  List<Object?> get props => [id, name, content, revision, kind];
 }
 
 enum AgentStepKind { model, tool }
@@ -69,6 +104,7 @@ class AgentStep extends Equatable {
     this.isError = false,
     this.kind = AgentStepKind.model,
     this.isRunning = false,
+    this.inputItemCount,
   });
   final String label;
   final String content;
@@ -76,6 +112,7 @@ class AgentStep extends Equatable {
   final bool isError;
   final AgentStepKind kind;
   final bool isRunning;
+  final int? inputItemCount;
   AgentStep copyWith({
     String? content,
     String? reasoning,
@@ -87,6 +124,7 @@ class AgentStep extends Equatable {
     reasoning: reasoning ?? this.reasoning,
     kind: kind,
     isRunning: isRunning ?? this.isRunning,
+    inputItemCount: inputItemCount,
     isError: isError ?? this.isError,
   );
   @override
@@ -97,6 +135,7 @@ class AgentStep extends Equatable {
     isError,
     kind,
     isRunning,
+    inputItemCount,
   ];
 }
 
@@ -107,6 +146,12 @@ class AgentRunRecord extends Equatable {
     required this.prompt,
     required this.startedAt,
     this.parentId,
+    this.sessionId = 'initial',
+    this.modelId,
+    this.modelLabel = '',
+    this.usageIncomplete = false,
+    List<LlmInputItem> childHistory = const [],
+    List<LlmToolDefinition> tools = const [],
     this.role = AgentRole.coordinator,
     this.status = AgentRunStatus.running,
     this.content = '',
@@ -114,10 +159,17 @@ class AgentRunRecord extends Equatable {
     this.modelCalls = 0,
     this.usage,
     List<AgentStep> steps = const [],
-  }) : steps = List.unmodifiable(steps);
+  }) : steps = List.unmodifiable(steps),
+       childHistory = List.unmodifiable(childHistory),
+       tools = List.unmodifiable(tools);
   final String id;
   final String workspaceId;
   final String? parentId;
+  final String sessionId, modelLabel;
+  final String? modelId;
+  final bool usageIncomplete;
+  final List<LlmInputItem> childHistory;
+  final List<LlmToolDefinition> tools;
   final AgentRole role;
   final AgentRunStatus status;
   final String prompt;
@@ -134,10 +186,18 @@ class AgentRunRecord extends Equatable {
     int? modelCalls,
     LlmUsage? usage,
     List<AgentStep>? steps,
+    List<LlmInputItem>? childHistory,
+    bool? usageIncomplete,
   }) => AgentRunRecord(
     id: id,
     workspaceId: workspaceId,
     parentId: parentId,
+    sessionId: sessionId,
+    modelId: modelId,
+    modelLabel: modelLabel,
+    tools: tools,
+    childHistory: childHistory ?? this.childHistory,
+    usageIncomplete: usageIncomplete ?? this.usageIncomplete,
     role: role,
     prompt: prompt,
     startedAt: startedAt,
@@ -153,6 +213,12 @@ class AgentRunRecord extends Equatable {
     id,
     workspaceId,
     parentId,
+    sessionId,
+    modelId,
+    modelLabel,
+    tools,
+    childHistory,
+    usageIncomplete,
     role,
     status,
     prompt,

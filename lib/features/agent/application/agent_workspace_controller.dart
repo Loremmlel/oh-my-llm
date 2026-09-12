@@ -5,23 +5,13 @@ import 'package:oh_my_llm/core/utils/id_generator.dart';
 import 'package:oh_my_llm/core/llm/llm_client.dart';
 import 'package:oh_my_llm/core/llm/llm_content.dart';
 import 'package:oh_my_llm/core/llm/llm_endpoint_resolver.dart';
-import 'package:oh_my_llm/core/llm/llm_request.dart';
 
 import '../domain/agent_models.dart';
 import 'agent_runtime.dart';
+import 'agent_context.dart';
+import 'agent_model.dart';
+export 'agent_model.dart';
 import 'ports/agent_store.dart';
-
-class AgentModel {
-  const AgentModel({
-    required this.id,
-    required this.label,
-    required this.target,
-    required this.options,
-  });
-  final String id, label;
-  final LlmRequestTarget target;
-  final LlmGenerationOptions options;
-}
 
 final agentClientProvider = Provider<LlmClient>(
   (ref) => throw StateError('Agent LLM 未绑定'),
@@ -29,6 +19,10 @@ final agentClientProvider = Provider<LlmClient>(
 final agentStoreProvider = Provider<AgentStore>(
   (ref) => throw StateError('Agent 存储未绑定'),
 );
+final agentPresetsProvider = Provider<List<({String name, String content})>>(
+  (ref) => const [],
+);
+
 final agentModelsProvider = Provider<List<AgentModel>>(
   (ref) => throw StateError('Agent 模型未绑定'),
 );
@@ -117,7 +111,9 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
       return AgentWorkspaceState(
         workspaces: workspaces,
         workspace: selected,
-        runs: selected == null ? const [] : _store.listRuns(selected.id),
+        runs: selected == null
+            ? const []
+            : _store.listRuns(selected.id, sessionId: selected.sessionId),
         documents: selected == null
             ? const []
             : _store.listDocuments(selected.id),
@@ -135,7 +131,7 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
     }
     final workspace = AgentWorkspace(
       id: generateEntityId(),
-      title: '工作区 ${state.workspaces.length + 1}',
+      title: '作品 ${state.workspaces.length + 1}',
     );
     _store.saveWorkspace(workspace);
     _load(workspace.id);
@@ -151,7 +147,7 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
         if (workspace == null || state.busy) return;
         if (workspace.history.isNotEmpty &&
             (modelId != null || instructions != null)) {
-          throw const AgentWorkspaceException('已有上下文的模型和规则已固定；请新建工作区试验其他配置。');
+          throw const AgentWorkspaceException('已有上下文的模型和规则已固定；请应用配置并在本作品新建会话。');
         }
         flushDraft();
         _store.saveWorkspace(
@@ -163,6 +159,115 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
         );
         _load(workspace.id);
       });
+  List<({String id, String title})> get sessions =>
+      state.workspace == null ? [] : _store.listSessions(state.workspace!.id);
+  List<AgentConfiguration> get configurations => state.workspace == null
+      ? []
+      : _store.listConfigurations(state.workspace!.id);
+
+  AgentConfiguration? saveConfiguration(AgentConfiguration configuration) {
+    AgentConfiguration? saved;
+    _edit(() {
+      if (state.busy || state.workspace == null) return;
+      flushDraft();
+      saved = _store.saveConfiguration(
+        state.workspace!.id,
+        resolveAgentConfiguration(configuration),
+      );
+      _load(state.workspace!.id);
+    });
+    return saved;
+  }
+
+  void applyConfiguration(AgentConfiguration configuration) => _edit(() {
+    if (state.busy || state.workspace == null) return;
+    flushDraft();
+    final workspace = state.workspace!;
+    final saved = _store
+        .listConfigurations(workspace.id)
+        .where((c) => c == configuration)
+        .firstOrNull;
+    if (saved == null) throw const AgentWorkspaceException('请先保存此配置方案，再应用到会话。');
+    if (workspace.history.isEmpty) {
+      _store.saveWorkspace(
+        workspace.copyWith(
+          configuration: saved,
+          references: [],
+          referencesFrozen: false,
+        ),
+      );
+    } else {
+      _newSession(saved);
+    }
+    _load(workspace.id);
+  });
+
+  void createSession() => _edit(() {
+    if (state.busy || state.workspace == null) return;
+    flushDraft();
+    _newSession(state.workspace!.configuration);
+    _load(state.workspace!.id);
+  });
+
+  void _newSession(AgentConfiguration configuration) {
+    final workspace = state.workspace!;
+    _store.saveWorkspace(
+      AgentWorkspace(
+        id: workspace.id,
+        title: workspace.title,
+        sessionId: generateEntityId(),
+        sessionTitle: '会话 ${sessions.length + 1}',
+        configuration: resolveAgentConfiguration(configuration),
+      ),
+    );
+  }
+
+  void selectSession(String sessionId) => _edit(() {
+    if (state.busy || state.workspace == null) return;
+    flushDraft();
+    final workspace = _store.loadWorkspace(
+      state.workspace!.id,
+      sessionId: sessionId,
+    );
+    if (workspace == null) throw const AgentWorkspaceException('找不到本作品的会话。');
+    _store.saveWorkspace(workspace);
+    _load(workspace.id);
+  });
+
+  List<LlmInputItem> previewInput() {
+    final current = state.workspace;
+    if (current == null) return [];
+    final workspace = freezeAgentWorkspace(
+      current,
+      _store.listDocuments(current.id),
+    );
+    return [
+      ...workspace.history.isEmpty
+          ? buildAgentInitialContext(workspace, AgentRole.coordinator)
+          : workspace.history,
+      if (workspace.draft.trim().isNotEmpty)
+        LlmTextMessage(role: LlmRole.user, text: workspace.draft.trim()),
+    ];
+  }
+
+  List<LlmInputItem>? runInput(AgentRunRecord record, AgentStep step) {
+    final count = step.inputItemCount;
+    if (count == null) return null;
+    final history = record.parentId != null
+        ? record.childHistory
+        : (state.workspace?.id == record.workspaceId &&
+                  state.workspace?.sessionId == record.sessionId
+              ? state.workspace!.history
+              : _store
+                    .loadWorkspace(
+                      record.workspaceId,
+                      sessionId: record.sessionId,
+                    )
+                    ?.history);
+    if (history == null || count > history.length) return null;
+    return history.take(count).toList();
+  }
+
   void setDraft(String text) {
     final workspace = state.workspace;
     if (workspace == null || state.busy) return;
@@ -199,32 +304,40 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
     }
   }
 
-  void saveDocument(String name, String content, int expectedRevision) =>
-      _edit(() {
-        final workspace = state.workspace;
-        if (workspace == null || state.busy) return;
-        flushDraft();
-        _store.writeDocument(
-          workspace.id,
-          name,
-          content,
-          expectedRevision: expectedRevision,
-        );
-        // 手动修改通过新的消息告知模型，不改写旧工具结果。
-        final updated = workspace.history.isEmpty
-            ? workspace
-            : workspace.copyWith(
-                history: [
-                  ...workspace.history,
-                  LlmTextMessage(
-                    role: LlmRole.user,
-                    text: '用户在工作区保存了文档「$name」的新版本。下次使用前请重新读取。',
-                  ),
-                ],
-              );
-        _store.saveWorkspace(updated);
-        _load(updated.id);
-      });
+  void saveDocument(
+    String name,
+    String content,
+    int expectedRevision, {
+    AgentDocumentKind? kind,
+  }) => _edit(() {
+    final workspace = state.workspace;
+    if (workspace == null || state.busy) return;
+    flushDraft();
+    _store.writeDocument(
+      workspace.id,
+      name,
+      content,
+      expectedRevision: expectedRevision,
+      kind: kind,
+    );
+    // 手动修改通过新的消息告知模型，不改写旧工具结果。
+    final savedDocument = _store.readDocument(workspace.id, name)!;
+    final updated =
+        workspace.history.isEmpty ||
+            savedDocument.kind != AgentDocumentKind.document
+        ? workspace
+        : workspace.copyWith(
+            history: [
+              ...workspace.history,
+              LlmTextMessage(
+                role: LlmRole.user,
+                text: '用户在工作区保存了文档「$name」的新版本。下次使用前请重新读取。',
+              ),
+            ],
+          );
+    _store.saveWorkspace(updated);
+    _load(updated.id);
+  });
   AgentDocument? readRevision(String name, int revision) =>
       state.workspace == null
       ? null
@@ -241,7 +354,7 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
           .where((m) => m.id == workspace.modelId)
           .firstOrNull;
       if (model == null) {
-        throw const AgentWorkspaceException('请选择可用模型；若已删除，请恢复配置或新建工作区。');
+        throw const AgentWorkspaceException('请选择可用模型；若已删除，请应用新配置开始新会话。');
       }
       if (workspace.draft.trim().isEmpty) return;
       final endpoint = const LlmEndpointResolver().resolveGenerationEndpoint(
@@ -253,7 +366,7 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
             turn.replay.endpoint != endpoint ||
             turn.replay.model != model.target.model) {
           throw const AgentWorkspaceException(
-            '服务商的协议、端点或模型已改变；原生上下文不能迁移，请恢复配置或新建工作区。',
+            '服务商的协议、端点或模型已改变；原生上下文不能迁移，请恢复配置或在本作品新建会话。',
           );
         }
       }
@@ -264,6 +377,13 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
         workspace: workspace,
         target: model.target,
         options: model.options,
+        roleModels: {
+          for (final role in AgentRole.values)
+            role: ?ref
+                .read(agentModelsProvider)
+                .where((m) => m.id == workspace.configuration.modelFor(role))
+                .firstOrNull,
+        },
         onUpdate: (record) {
           if (_disposed) return;
           state = AgentWorkspaceState(
@@ -314,7 +434,9 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
     state = AgentWorkspaceState(
       workspaces: _store.listWorkspaces(),
       workspace: workspace,
-      runs: _store.listRuns(id),
+      runs: workspace == null
+          ? []
+          : _store.listRuns(id, sessionId: workspace.sessionId),
       documents: _store.listDocuments(id),
     );
   }

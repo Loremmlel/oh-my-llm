@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:path_provider/path_provider.dart';
 import 'package:sqlite3/sqlite3.dart' as sqlite;
@@ -25,7 +26,7 @@ class AppDatabase {
   /// 当前滚动迁移基线：全新数据库直接创建到该版本。
   ///
   /// 历史 V9→V13 逐级迁移已退役；v13 起的已发布迁移按顺序保留。
-  static const int currentSchemaVersion = 16;
+  static const int currentSchemaVersion = 17;
 
   final sqlite.Database _connection;
   final String path;
@@ -78,7 +79,7 @@ class AppDatabase {
   /// - `user_version == 0`：全新数据库，创建完整当前 schema 后标记为
   ///   [currentSchemaVersion]；
   /// - `user_version == [currentSchemaVersion]`：当前版本数据库，不做任何改动；
-  /// - `user_version` 为 13–15：按顺序执行到当前版本的迁移；
+  /// - `user_version` 为 13–16：按顺序执行到当前版本的迁移；
   /// - 其余版本（更旧的遗留库或更新版本应用创建的库）显式拒绝，
   ///   避免仓库层在不兼容的 schema 上误读误写。
   void _initializeSchema() {
@@ -90,15 +91,11 @@ class AppDatabase {
       _connection.execute('PRAGMA user_version = $currentSchemaVersion;');
     } else if (currentVersion == currentSchemaVersion) {
       // 当前版本数据库，直接可用。
-    } else if (currentVersion == 13) {
-      _migrateFavoritesFromV13ToV14();
-      _migrateMessagesFromV14ToV15();
-      _migrateAgentFromV15ToV16();
-    } else if (currentVersion == 14) {
-      _migrateMessagesFromV14ToV15();
-      _migrateAgentFromV15ToV16();
-    } else if (currentVersion == 15) {
-      _migrateAgentFromV15ToV16();
+    } else if (currentVersion >= 13 && currentVersion <= 16) {
+      if (currentVersion <= 13) _migrateFavoritesFromV13ToV14();
+      if (currentVersion <= 14) _migrateMessagesFromV14ToV15();
+      if (currentVersion <= 15) _migrateAgentFromV15ToV16();
+      _migrateNovelFromV16ToV17();
     } else {
       throw AppDatabaseSchemaVersionException(currentVersion);
     }
@@ -272,9 +269,99 @@ class AppDatabase {
     ''');
   }
 
+  void _createNovelSchema() {
+    _connection.execute('''
+      CREATE TABLE agent_sessions (
+        workspace_id TEXT NOT NULL, id TEXT NOT NULL, title TEXT NOT NULL,
+        created_at TEXT NOT NULL, record_json TEXT NOT NULL,
+        PRIMARY KEY(workspace_id, id),
+        FOREIGN KEY(workspace_id) REFERENCES agent_workspaces(id) ON DELETE CASCADE
+      );
+      CREATE TABLE agent_configurations (
+        workspace_id TEXT NOT NULL, revision INTEGER NOT NULL CHECK(revision > 0),
+        record_json TEXT NOT NULL, PRIMARY KEY(workspace_id, revision),
+        FOREIGN KEY(workspace_id) REFERENCES agent_workspaces(id) ON DELETE CASCADE
+      );
+      ALTER TABLE agent_runs ADD COLUMN session_id TEXT NOT NULL DEFAULT 'initial';
+      CREATE INDEX idx_agent_runs_session ON agent_runs(workspace_id, session_id, started_at DESC, id DESC);
+      ALTER TABLE agent_document_revisions ADD COLUMN document_id TEXT NOT NULL DEFAULT '';
+      ALTER TABLE agent_document_revisions ADD COLUMN kind TEXT NOT NULL DEFAULT 'document';
+    ''');
+  }
+
+  /// 一次迁移完成旧工作区到初始会话的归属转换，不在读取时保留兼容分支。
+  void _migrateNovelFromV16ToV17() {
+    _connection.execute('BEGIN;');
+    try {
+      _createNovelSchema();
+      final rows = _connection.select(
+        'SELECT id, updated_at, record_json FROM agent_workspaces;',
+      );
+      for (final row in rows) {
+        final old =
+            jsonDecode(row['record_json'] as String) as Map<String, dynamic>;
+        if (old['version'] != 1 ||
+            old['id'] != row['id'] ||
+            old['title'] is! String ||
+            old['instructions'] is! String ||
+            old['draft'] is! String ||
+            old['history'] is! List ||
+            (old['modelId'] != null && old['modelId'] is! String)) {
+          throw const FormatException('旧 Agent 工作区记录损坏，未迁移');
+        }
+        final session = {
+          ...old,
+          'version': 2,
+          'sessionId': 'initial',
+          'sessionTitle': '会话 1',
+          'configuration': {
+            'name': '原工作区方案',
+            'revision': 0,
+            'modelId': old['modelId'],
+            'preset': old['instructions'],
+            'presetRoles': ['coordinator', 'writer', 'reviewer', 'character'],
+            'roles': <String, Object?>{},
+          },
+          'references': <Object?>[],
+          'referencesFrozen': false,
+        };
+        _connection.execute(
+          'INSERT INTO agent_sessions VALUES (?, ?, ?, ?, ?);',
+          [
+            row['id'],
+            'initial',
+            '会话 1',
+            row['updated_at'],
+            jsonEncode(session),
+          ],
+        );
+        _connection.execute(
+          'UPDATE agent_workspaces SET record_json = ? WHERE id = ?;',
+          [
+            jsonEncode({
+              'version': 2,
+              'title': old['title'],
+              'activeSessionId': 'initial',
+            }),
+            row['id'],
+          ],
+        );
+      }
+      _connection.execute(
+        "UPDATE agent_document_revisions SET document_id = workspace_id || ':' || name;",
+      );
+      _connection.execute('PRAGMA user_version = 17;');
+      _connection.execute('COMMIT;');
+    } catch (_) {
+      _connection.execute('ROLLBACK;');
+      rethrow;
+    }
+  }
+
   /// 创建全部业务表和索引（全新安装时使用）。
   void _createSchema() {
     _createAgentSchema();
+    _createNovelSchema();
     _connection.execute('''
       CREATE TABLE IF NOT EXISTS conversations (
         id TEXT PRIMARY KEY,

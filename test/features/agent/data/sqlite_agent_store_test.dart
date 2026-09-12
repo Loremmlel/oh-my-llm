@@ -26,6 +26,94 @@ void main() {
     temp.deleteSync(recursive: true);
   });
 
+  test('会话分别保存草稿和历史，中断恢复不改变正在浏览的另一个会话', () {
+    final first = AgentWorkspace(
+      id: 'a',
+      title: '小说甲',
+      draft: '初始草稿',
+      history: const [LlmTextMessage(role: LlmRole.user, text: '旧会话')],
+    );
+    store.saveWorkspace(first);
+    store.checkpoint(
+      AgentRunRecord(
+        id: 'old-run',
+        workspaceId: 'a',
+        prompt: '未完成',
+        startedAt: DateTime(2026),
+      ),
+    );
+    final second = AgentWorkspace(
+      id: 'a',
+      title: '小说甲',
+      sessionId: 'second',
+      sessionTitle: '会话 2',
+      draft: '新草稿',
+    );
+    store.saveWorkspace(second);
+    store.recoverInterruptedRuns();
+    expect(store.loadWorkspace('a'), second);
+    expect(store.loadWorkspace('a', sessionId: 'initial')!.draft, '初始草稿');
+    expect(
+      store.loadWorkspace('a', sessionId: 'initial')!.history.length,
+      greaterThan(1),
+    );
+    expect(store.listRuns('a', sessionId: 'second'), isEmpty);
+    expect(
+      store.listRuns('a', sessionId: 'initial').single.status,
+      AgentRunStatus.interrupted,
+    );
+    expect(store.loadWorkspace('b', sessionId: 'second'), isNull);
+  });
+
+  test('配置和资料类型按版本保留，修改类型保留稳定 ID 和旧正文', () {
+    final config = AgentConfiguration(
+      name: '克制版',
+      modelId: 'main',
+      preset: '简洁',
+      roles: const {
+        AgentRole.writer: AgentRoleSettings(
+          modelId: 'writer',
+          instructions: '写作规则',
+        ),
+      },
+    );
+    final v1 = store.saveConfiguration('a', config);
+    final v2 = store.saveConfiguration(
+      'a',
+      config.copyWith(name: '抒情版', preset: '抒情'),
+    );
+    expect(store.listConfigurations('a'), [v2, v1]);
+    expect(store.listConfigurations('b'), isEmpty);
+    final card = store.writeDocument(
+      'a',
+      '甲',
+      '作者设定',
+      expectedRevision: 0,
+      kind: AgentDocumentKind.characterCard,
+    );
+    final world = store.writeDocument(
+      'a',
+      '港口',
+      '旧规则',
+      expectedRevision: 0,
+      kind: AgentDocumentKind.worldBook,
+    );
+    final updated = store.writeDocument('a', '港口', '新规则', expectedRevision: 1);
+    expect(updated.id, world.id);
+    expect(updated.kind, world.kind);
+    expect(store.readDocument('a', '港口', revision: 1), world);
+    final revisedCard = store.writeDocument(
+      'a',
+      '甲',
+      '人物笔记',
+      expectedRevision: 1,
+      kind: AgentDocumentKind.document,
+    );
+    expect(revisedCard.id, card.id);
+    expect(revisedCard.kind, AgentDocumentKind.document);
+    expect(store.readDocument('a', '甲', revision: 1), card);
+  });
+
   test('执行流保留步骤类型与活动状态，旧记录可读且子任务链接按工作区隔离', () {
     final record = AgentRunRecord(
       id: 'child',
@@ -182,7 +270,7 @@ void main() {
     store.saveWorkspace(workspace);
     expect(store.loadWorkspace('a'), workspace);
     // 明确测试未来格式拒绝，普通记录都通过 typed codec 构造。
-    final future = encodeAgentWorkspace(workspace)..['version'] = 2;
+    final future = encodeAgentWorkspace(workspace)..['version'] = 3;
     expect(() => decodeAgentWorkspace(future), throwsFormatException);
   });
 }
