@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
+import 'package:oh_my_llm/core/llm/llm_content.dart';
 import 'package:oh_my_llm/core/llm/llm_event.dart';
 import 'package:oh_my_llm/core/llm/llm_request.dart';
 import 'package:oh_my_llm/core/llm/protocols/llm_input_encoder.dart';
@@ -31,6 +32,38 @@ LlmRequest _request(
 );
 
 void main() {
+  test('Responses 续接保留 assistant 阶段且不向用户消息添加阶段', () {
+    final endpoint = Uri.parse('https://example.com');
+    final request = LlmRequest(
+      target: _request(LlmApiProtocol.responses).target,
+      input: [
+        const LlmTextMessage(role: LlmRole.user, text: '继续'),
+        LlmAssistantTurn(
+          text: '完成',
+          replay: LlmReplayEnvelope(
+            protocol: LlmApiProtocol.responses,
+            endpoint: endpoint,
+            model: 'test',
+            items: [
+              for (final phase in ['commentary', 'final_answer'])
+                {
+                  'type': 'message',
+                  'role': 'assistant',
+                  'phase': phase,
+                  'content': [
+                    {'type': 'output_text', 'text': phase},
+                  ],
+                },
+            ],
+          ),
+        ),
+      ],
+    );
+    final input = encodeLlmInput(request, endpoint)['input'] as List;
+    expect((input.first as Map).containsKey('phase'), isFalse);
+    expect(input[1]['phase'], 'commentary');
+    expect(input[2]['phase'], 'final_answer');
+  });
   for (final protocol in LlmApiProtocol.values) {
     for (final choice in [
       const LlmToolChoice.auto(),

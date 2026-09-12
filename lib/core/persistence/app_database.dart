@@ -25,7 +25,7 @@ class AppDatabase {
   /// 当前滚动迁移基线：全新数据库直接创建到该版本。
   ///
   /// 历史 V9→V13 逐级迁移已退役；v13 起的已发布迁移按顺序保留。
-  static const int currentSchemaVersion = 15;
+  static const int currentSchemaVersion = 16;
 
   final sqlite.Database _connection;
   final String path;
@@ -78,8 +78,7 @@ class AppDatabase {
   /// - `user_version == 0`：全新数据库，创建完整当前 schema 后标记为
   ///   [currentSchemaVersion]；
   /// - `user_version == [currentSchemaVersion]`：当前版本数据库，不做任何改动；
-  /// - `user_version == 13`：按顺序执行 v13→v14→v15 迁移；
-  /// - `user_version == 14`：执行 v14→v15 迁移；
+  /// - `user_version` 为 13–15：按顺序执行到当前版本的迁移；
   /// - 其余版本（更旧的遗留库或更新版本应用创建的库）显式拒绝，
   ///   避免仓库层在不兼容的 schema 上误读误写。
   void _initializeSchema() {
@@ -94,8 +93,12 @@ class AppDatabase {
     } else if (currentVersion == 13) {
       _migrateFavoritesFromV13ToV14();
       _migrateMessagesFromV14ToV15();
+      _migrateAgentFromV15ToV16();
     } else if (currentVersion == 14) {
       _migrateMessagesFromV14ToV15();
+      _migrateAgentFromV15ToV16();
+    } else if (currentVersion == 15) {
+      _migrateAgentFromV15ToV16();
     } else {
       throw AppDatabaseSchemaVersionException(currentVersion);
     }
@@ -237,8 +240,41 @@ class AppDatabase {
     }
   }
 
+  void _migrateAgentFromV15ToV16() {
+    _connection.execute('BEGIN;');
+    try {
+      _createAgentSchema();
+      _connection.execute('PRAGMA user_version = 16;');
+      _connection.execute('COMMIT;');
+    } catch (_) {
+      _connection.execute('ROLLBACK;');
+      rethrow;
+    }
+  }
+
+  /// Agent 数据具有独立所有权，不引用 Chat 消息或对话表。
+  void _createAgentSchema() {
+    _connection.execute('''
+      CREATE TABLE agent_workspaces (
+        id TEXT PRIMARY KEY, updated_at TEXT NOT NULL, record_json TEXT NOT NULL
+      );
+      CREATE TABLE agent_runs (
+        id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, started_at TEXT NOT NULL,
+        status TEXT NOT NULL, record_json TEXT NOT NULL,
+        FOREIGN KEY (workspace_id) REFERENCES agent_workspaces(id) ON DELETE CASCADE
+      );
+      CREATE INDEX idx_agent_runs_workspace ON agent_runs(workspace_id, started_at DESC, id DESC);
+      CREATE TABLE agent_document_revisions (
+        workspace_id TEXT NOT NULL, name TEXT NOT NULL, revision INTEGER NOT NULL CHECK(revision > 0),
+        content TEXT NOT NULL, PRIMARY KEY(workspace_id, name, revision),
+        FOREIGN KEY (workspace_id) REFERENCES agent_workspaces(id) ON DELETE CASCADE
+      );
+    ''');
+  }
+
   /// 创建全部业务表和索引（全新安装时使用）。
   void _createSchema() {
+    _createAgentSchema();
     _connection.execute('''
       CREATE TABLE IF NOT EXISTS conversations (
         id TEXT PRIMARY KEY,

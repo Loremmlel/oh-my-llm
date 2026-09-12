@@ -42,6 +42,9 @@ void main() {
           'template_prompts',
           'memory_prompts',
           'conversation_checkpoints',
+          'agent_workspaces',
+          'agent_runs',
+          'agent_document_revisions',
         ]),
       );
     });
@@ -333,6 +336,43 @@ void main() {
     });
   });
 
+  test('完整 v15 数据库升级后保留聊天数据并创建独立 Agent 表', () {
+    final directory = Directory.systemTemp.createTempSync('appdb-agent-v16-');
+    addTearDown(() => directory.deleteSync(recursive: true));
+    final path = '${directory.path}/database.sqlite';
+    final legacy = sqlite.sqlite3.open(path);
+    legacy.execute(
+      File('test/helpers/fixtures/schema_v15.sql').readAsStringSync(),
+    );
+    legacy.execute(
+      "INSERT INTO conversations (id, created_at, updated_at, reasoning_effort) VALUES ('legacy', '2026', '2026', 'medium');",
+    );
+    legacy.execute(
+      "INSERT INTO messages (id, conversation_id, node_index, role, content, created_at) VALUES ('message', 'legacy', 0, 'user', '保留的旧正文', '2026');",
+    );
+    legacy.close();
+    final migrated = AppDatabase.forPath(path);
+    addTearDown(migrated.close);
+    expect(
+      migrated.connection
+          .select("SELECT content FROM messages WHERE id = 'message';")
+          .single['content'],
+      '保留的旧正文',
+    );
+    expect(
+      _tableNames(migrated),
+      containsAll([
+        'agent_workspaces',
+        'agent_runs',
+        'agent_document_revisions',
+      ]),
+    );
+    expect(
+      migrated.connection.select('PRAGMA user_version;').single['user_version'],
+      greaterThanOrEqualTo(AppDatabase.currentSchemaVersion),
+    );
+  });
+
   group('AppDatabase v14→v15 Token 用量迁移', () {
     late Directory tempDir;
 
@@ -505,6 +545,14 @@ void main() {
           .single;
       expect(row['id'], 'legacy-message');
       expect(row['token_usage_json'], isNull);
+      expect(
+        _tableNames(database),
+        containsAll([
+          'agent_workspaces',
+          'agent_runs',
+          'agent_document_revisions',
+        ]),
+      );
       expect(
         database.connection
             .select('PRAGMA user_version;')
