@@ -127,4 +127,51 @@ void main() {
     final port = container.read(chatGenerationForegroundServiceProvider);
     expect(port, isA<NoopChatGenerationForegroundService>());
   });
+
+  testWidgets('启动初始化失败时显示错误页并保留原因', (tester) async {
+    await bootstrap(
+      hostPlatform: TargetPlatform.windows,
+      windowsWindowInitializer: () async {
+        throw StateError('模拟启动失败');
+      },
+    );
+    await tester.pump();
+
+    expect(find.text('应用启动失败'), findsOneWidget);
+    expect(find.textContaining('模拟启动失败'), findsOneWidget);
+  });
+
+  testWidgets('日志初始化失败时释放已获取的启动资源', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final database = AppDatabase.inMemory();
+    final logger = _FailingStartupNetworkLogger();
+    addTearDown(() {
+      database.close();
+    });
+
+    await bootstrap(
+      database: database,
+      networkLogger: logger,
+      hostPlatform: TargetPlatform.linux,
+    );
+    await tester.pump();
+
+    expect(find.text('应用启动失败'), findsOneWidget);
+    expect(logger.drainCalls, 1);
+    expect(() => database.connection.select('SELECT 1;'), throwsA(anything));
+  });
+}
+
+final class _FailingStartupNetworkLogger with NetworkLogger {
+  int drainCalls = 0;
+
+  @override
+  Future<void> onAppLaunch() async {
+    throw StateError('模拟日志初始化失败');
+  }
+
+  @override
+  Future<void> drain() async {
+    drainCalls++;
+  }
 }
