@@ -44,10 +44,6 @@ class AgentRunScreen extends ConsumerWidget {
     }
 
     final current = record;
-    final model = ref
-        .watch(agentModelsProvider)
-        .where((m) => m.id == workspace?.modelId)
-        .firstOrNull;
     return AppShellScaffold(
       currentDestination: AppDestination.agent,
       title: current == null ? '子 Agent' : agentRoleLabel(current.role),
@@ -85,7 +81,7 @@ class AgentRunScreen extends ConsumerWidget {
                 AppSpacing.xs,
               ),
               child: Text(
-                '${model?.label ?? '原模型已不可用'} · ${agentStatusLabel(current.status)}\n${agentUsageLabel(current)}',
+                '${current.modelLabel.isEmpty ? '旧记录未保存模型名称' : current.modelLabel} · ${agentStatusLabel(current.status)}\n${agentUsageLabel(current)}',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ),

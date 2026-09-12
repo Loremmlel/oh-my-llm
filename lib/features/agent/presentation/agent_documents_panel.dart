@@ -4,12 +4,23 @@ import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 
 import '../application/agent_workspace_controller.dart';
 import 'agent_document_editor.dart';
+import '../domain/agent_models.dart';
 
-class AgentDocumentsPanel extends ConsumerWidget {
+class AgentDocumentsPanel extends ConsumerStatefulWidget {
   const AgentDocumentsPanel({super.key});
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AgentDocumentsPanel> createState() =>
+      _AgentDocumentsPanelState();
+}
+
+class _AgentDocumentsPanelState extends ConsumerState<AgentDocumentsPanel> {
+  AgentDocumentKind? _kind;
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(agentWorkspaceProvider);
+    final documents = state.documents
+        .where((d) => _kind == null || d.kind == _kind)
+        .toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -30,18 +41,36 @@ class AgentDocumentsPanel extends ConsumerWidget {
             ],
           ),
         ),
+        Wrap(
+          spacing: AppSpacing.xs,
+          children: [
+            ChoiceChip(
+              label: Text('全部 ${state.documents.length}'),
+              selected: _kind == null,
+              onSelected: (_) => setState(() => _kind = null),
+            ),
+            for (final kind in AgentDocumentKind.values)
+              ChoiceChip(
+                label: Text(
+                  '${agentDocumentKindLabel(kind)} ${state.documents.where((d) => d.kind == kind).length}',
+                ),
+                selected: _kind == kind,
+                onSelected: (_) => setState(() => _kind = kind),
+              ),
+          ],
+        ),
         if (state.busy) const Text('运行结束后可编辑文档。'),
         Expanded(
-          child: state.documents.isEmpty
-              ? const Center(child: Text('还没有文档。先添加世界设定、角色资料或草稿。'))
+          child: documents.isEmpty
+              ? const Center(child: Text('此分类还没有资料。新建文档时可以选择世界书、人物卡或普通文档。'))
               : ListView.builder(
-                  itemCount: state.documents.length,
+                  itemCount: documents.length,
                   itemBuilder: (context, index) {
-                    final document = state.documents[index];
+                    final document = documents[index];
                     return ListTile(
                       title: Text(document.name),
                       subtitle: Text(
-                        '版本 ${document.revision} · ${document.content.length} 字符',
+                        '${agentDocumentKindLabel(document.kind)} · 版本 ${document.revision} · ${document.content.length} 字符',
                       ),
                       trailing: const Icon(Icons.edit_outlined),
                       enabled: !state.busy,

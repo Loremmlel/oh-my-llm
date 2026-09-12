@@ -7,10 +7,11 @@ import 'package:oh_my_llm/core/llm/llm_client.dart';
 import 'package:oh_my_llm/core/llm/llm_content.dart';
 import 'package:oh_my_llm/core/llm/llm_event.dart';
 import 'package:oh_my_llm/core/llm/llm_request.dart';
-import 'package:oh_my_llm/core/llm/llm_usage.dart';
 
 import '../domain/agent_models.dart';
 import 'agent_harness.dart';
+import 'agent_context.dart';
+import 'agent_model.dart';
 import 'ports/agent_store.dart';
 
 class AgentLimits {
@@ -46,6 +47,7 @@ class AgentRuntime {
       streamIdleTimeout: Duration(seconds: 60),
     ),
     this.limits = const AgentLimits(),
+    this.roleModels = const {},
     required this.onUpdate,
   });
   final LlmClient client;
@@ -54,6 +56,7 @@ class AgentRuntime {
   final LlmRequestTarget target;
   final LlmGenerationOptions options;
   final AgentLimits limits;
+  final Map<AgentRole, AgentModel> roleModels;
   final void Function(AgentRunRecord) onUpdate;
   final _controls = <LlmCallControl>{};
   final _children = <String, _Child>{};
@@ -82,17 +85,12 @@ class AgentRuntime {
       cancel();
     });
     try {
+      workspace = freezeAgentWorkspace(
+        workspace,
+        store.listDocuments(workspace.id),
+      );
       final history = workspace.history.isEmpty
-          ? <LlmInputItem>[
-              LlmTextMessage(
-                role: LlmRole.system,
-                text:
-                    agentMainInstructions +
-                    (workspace.instructions.isEmpty
-                        ? ''
-                        : '\n\n用户的写作规则：\n${workspace.instructions}'),
-              ),
-            ]
+          ? buildAgentInitialContext(workspace, AgentRole.coordinator)
           : [...workspace.history];
       history.add(LlmTextMessage(role: LlmRole.user, text: prompt));
       return await _execute(_newRecord(prompt, AgentRole.coordinator), history);
@@ -111,6 +109,10 @@ class AgentRuntime {
   }) => AgentRunRecord(
     id: generateEntityId(),
     workspaceId: workspace.id,
+    sessionId: workspace.sessionId,
+    modelId: _model(role).id,
+    modelLabel: _model(role).label,
+    tools: role == AgentRole.coordinator ? agentMainTools : agentReadTools,
     prompt: prompt,
     role: role,
     parentId: parentId,
@@ -123,7 +125,11 @@ class AgentRuntime {
   ) async {
     final main = record.parentId == null;
     void publish() {
-      if (main) workspace = workspace.copyWith(history: history, draft: '');
+      if (main) {
+        workspace = workspace.copyWith(history: history, draft: '');
+      } else {
+        record = record.copyWith(childHistory: history);
+      }
       store.checkpoint(record, workspace: main ? workspace : null);
       _unsavedRecords.remove(record.id);
       onUpdate(record);
@@ -138,7 +144,7 @@ class AgentRuntime {
           throw const _Limit('主任务与子任务合计模型调用次数已达上限。');
         }
         if (_historyBytes(history) > 4 * 1024 * 1024) {
-          throw const _Limit('上下文超过 4 MiB，请新建工作区并按需迁入文档。');
+          throw const _Limit('上下文超过 4 MiB，请在同一作品内新建会话。');
         }
         _modelCalls++;
         record = record.copyWith(
@@ -146,16 +152,20 @@ class AgentRuntime {
           content: '',
           steps: [
             ...record.steps,
-            AgentStep(label: '模型回复 ${record.modelCalls + 1}', isRunning: true),
+            AgentStep(
+              label: '模型回复 ${record.modelCalls + 1}',
+              isRunning: true,
+              inputItemCount: history.length,
+            ),
           ],
         );
         publish();
         final result = await _request(
           LlmRequest(
-            target: target,
+            target: _model(record.role).target,
             input: history,
             tools: main ? agentMainTools : agentReadTools,
-            options: options,
+            options: _model(record.role).options,
           ),
           (text, reasoning) {
             record = record.copyWith(
@@ -171,13 +181,18 @@ class AgentRuntime {
         _checkCancelled();
         record = record.copyWith(
           content: result.content,
-          usage: _addUsage(record.usage, result.usage),
+          usage: addAgentUsage(record.usage, result.usage),
+          usageIncomplete:
+              record.usageIncomplete ||
+              result.usage?.inputTokens == null ||
+              result.usage?.outputTokens == null,
           steps: [
             ...record.steps.take(record.steps.length - 1),
             AgentStep(
               label: '模型回复 ${record.modelCalls}',
               content: result.content,
               reasoning: result.reasoningContent,
+              inputItemCount: history.length,
             ),
           ],
         );
@@ -412,8 +427,10 @@ class AgentRuntime {
         throw const AgentWorkspaceException('该工具不存在或当前 Agent 无权调用。');
       }
       final properties = definition.parameters['properties']! as Map;
-      if (call.arguments.length != properties.length ||
-          !properties.keys.every(call.arguments.containsKey)) {
+      if (!call.arguments.keys.every(properties.containsKey) ||
+          !(definition.parameters['required']! as List).every(
+            call.arguments.containsKey,
+          )) {
         throw const AgentWorkspaceException('工具参数字段不匹配，拒绝缺失或额外字段。');
       }
       final args = call.arguments;
@@ -433,18 +450,38 @@ class AgentRuntime {
       switch (call.name) {
         case 'list_documents':
           output = [
-            for (final doc in store.listDocuments(workspace.id))
-              {'name': doc.name, 'revision': doc.revision},
+            for (final doc in _sessionDocuments())
+              {
+                'id': doc.id,
+                'name': doc.name,
+                'kind': doc.kind.name,
+                'revision': doc.revision,
+              },
           ];
         case 'read_document':
-          final document = store.readDocument(workspace.id, string('name'));
-          if (document == null) throw const AgentWorkspaceException('文档不存在。');
+          final document = _sessionDocuments()
+              .where((d) => d.name == string('name'))
+              .firstOrNull;
+          if (document == null) {
+            throw const AgentWorkspaceException('当前会话中找不到这份资料。新版设定请在新会话使用。');
+          }
           output = {
             'name': document.name,
             'revision': document.revision,
             'content': document.content,
           };
         case 'write_document':
+          final currentDocument = store.readDocument(
+            workspace.id,
+            string('name'),
+          );
+          if (currentDocument != null &&
+                  currentDocument.kind != AgentDocumentKind.document ||
+              workspace.references.any((d) => d.name == string('name'))) {
+            throw const AgentWorkspaceException(
+              '世界书和人物卡只能由用户编辑；请将修改建议保存为普通文档。',
+            );
+          }
           final revision = args['expected_revision'];
           if (revision is! int || revision < 0) {
             throw const AgentWorkspaceException('expected_revision 必须是非负整数。');
@@ -484,11 +521,7 @@ class AgentRuntime {
           _children[record.id] = child;
           child.future =
               _execute(record, [
-                LlmTextMessage(
-                  role: LlmRole.system,
-                  text:
-                      '${agentInstructions(role)}\n\n用户的写作规则：\n${workspace.instructions}',
-                ),
+                ...buildAgentInitialContext(workspace, role),
                 LlmTextMessage(role: LlmRole.user, text: task),
               ]).then((value) {
                 child.record = value;
@@ -526,6 +559,25 @@ class AgentRuntime {
       );
     }
   }
+
+  AgentModel _model(AgentRole role) {
+    if (roleModels.isEmpty) {
+      return AgentModel(
+        id: target.model,
+        label: target.model,
+        target: target,
+        options: options,
+      );
+    }
+    final model = roleModels[role];
+    if (model == null) {
+      throw const AgentWorkspaceException('此职责的模型已不可用，请保存新方案并新建会话。');
+    }
+    return model;
+  }
+
+  List<AgentDocument> _sessionDocuments() =>
+      agentSessionDocuments(workspace, store.listDocuments(workspace.id));
 
   Map<String, Object?> _childResult(AgentRunRecord record) => {
     'task_id': record.id,
@@ -568,18 +620,3 @@ int _historyBytes(List<LlmInputItem> items) => items.fold(
         LlmAssistantTurn() => jsonEncode(item.replay.items),
       }).length,
 );
-LlmUsage? _addUsage(LlmUsage? a, LlmUsage? b) {
-  if (b == null) return a;
-  int? sum(int? x, int? y) =>
-      x == null && y == null ? null : (x ?? 0) + (y ?? 0);
-  return LlmUsage(
-    inputTokens: sum(a?.inputTokens, b.inputTokens),
-    outputTokens: sum(a?.outputTokens, b.outputTokens),
-    reasoningTokens: sum(a?.reasoningTokens, b.reasoningTokens),
-    cachedInputTokens: sum(a?.cachedInputTokens, b.cachedInputTokens),
-    cacheWriteInputTokens: sum(
-      a?.cacheWriteInputTokens,
-      b.cacheWriteInputTokens,
-    ),
-  );
-}

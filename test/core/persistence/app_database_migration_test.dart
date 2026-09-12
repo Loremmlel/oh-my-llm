@@ -45,6 +45,8 @@ void main() {
           'agent_workspaces',
           'agent_runs',
           'agent_document_revisions',
+          'agent_sessions',
+          'agent_configurations',
         ]),
       );
     });

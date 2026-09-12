@@ -45,6 +45,7 @@ LlmToolCall agentCall(String id, String name, Map<String, Object?> arguments) =>
 
 LlmResult agentReply({
   String text = '完成',
+  LlmRequestTarget target = agentTestTarget,
   List<LlmToolCall> calls = const [],
   LlmStopKind? stopKind,
   LlmUsage? usage,
@@ -58,9 +59,9 @@ LlmResult agentReply({
     text: calls.isEmpty ? text : '',
     toolCalls: calls,
     replay: LlmReplayEnvelope(
-      protocol: agentTestTarget.protocol,
-      endpoint: Uri.parse(agentTestTarget.endpoint),
-      model: agentTestTarget.model,
+      protocol: target.protocol,
+      endpoint: Uri.parse(target.endpoint),
+      model: target.model,
       items: [
         {
           'role': 'assistant',
