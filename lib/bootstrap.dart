@@ -48,6 +48,8 @@ Future<void> bootstrap({
 }) async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  AppDatabase? appDatabase;
+  NetworkLogger? logger;
   try {
     final effectivePlatform = hostPlatform ?? defaultTargetPlatform;
     if (effectivePlatform == TargetPlatform.windows) {
@@ -56,8 +58,8 @@ Future<void> bootstrap({
 
     final preferences =
         sharedPreferences ?? await SharedPreferences.getInstance();
-    final appDatabase = database ?? await AppDatabase.open();
-    final logger =
+    appDatabase = database ?? await AppDatabase.open();
+    logger =
         networkLogger ??
         await AppNetworkLogger.create(
           directoryPath: File(appDatabase.path).parent.path,
@@ -87,6 +89,18 @@ Future<void> bootstrap({
       ),
     );
   } catch (error, stackTrace) {
+    try {
+      await logger?.drain();
+    } catch (cleanupError, cleanupStackTrace) {
+      debugPrint('启动失败后排空网络日志失败：$cleanupError');
+      debugPrintStack(stackTrace: cleanupStackTrace);
+    }
+    try {
+      appDatabase?.close();
+    } catch (cleanupError, cleanupStackTrace) {
+      debugPrint('启动失败后关闭数据库失败：$cleanupError');
+      debugPrintStack(stackTrace: cleanupStackTrace);
+    }
     debugPrint('应用启动失败：${error.runtimeType}');
     debugPrintStack(stackTrace: stackTrace);
     runApp(_StartupFailureApp(error: error));
