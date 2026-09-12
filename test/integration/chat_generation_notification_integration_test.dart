@@ -1,3 +1,8 @@
+library;
+
+import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
+import 'package:oh_my_llm/features/chat/data/generation/chat_text_generation_adapter.dart';
+
 /// 生成通知协调器的跨层集成测试。
 ///
 /// 把真实 Riverpod wiring（[chatGenerationNotificationCoordinatorProvider] 的
@@ -13,7 +18,6 @@
 ///
 /// 所有等待均基于 fake 端口调用信号与 repository ACK（gate reached），不使用
 /// 任意延时或无条件的 pumpAndSettle。
-library;
 
 import 'dart:async';
 import 'dart:collection';
@@ -38,10 +42,10 @@ import 'package:oh_my_llm/features/chat/application/ports/chat_conversation_repo
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_foreground_service.dart';
 import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_controller.dart';
-import 'package:oh_my_llm/features/chat/data/generation/anthropic/anthropic_messages_client.dart';
-import 'package:oh_my_llm/features/chat/data/generation/chat_completions/chat_completions_client.dart';
-import 'package:oh_my_llm/features/chat/data/generation/protocol_routing_chat_generation_client.dart';
-import 'package:oh_my_llm/features/chat/data/generation/responses/responses_client.dart';
+import 'package:oh_my_llm/core/llm/protocols/anthropic/anthropic_messages_client.dart';
+import 'package:oh_my_llm/core/llm/protocols/chat_completions/chat_completions_client.dart';
+import 'package:oh_my_llm/core/llm/protocols/protocol_routing_llm_client.dart';
+import 'package:oh_my_llm/core/llm/protocols/responses/responses_client.dart';
 import 'package:oh_my_llm/features/chat/data/persistence/sqlite_chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/domain/chat_error_messages.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
@@ -463,10 +467,12 @@ ChatGenerationClient _routingClient(
   final transport = LlmHttpStreamTransport(
     httpClient: _ProtocolStreamingHttpClient(protocol: protocol, fail: fail),
   );
-  return ProtocolRoutingChatGenerationClient(
-    chatCompletions: ChatCompletionsClient(transport: transport),
-    responses: ResponsesClient(transport: transport),
-    anthropic: AnthropicMessagesClient(transport: transport),
+  return ChatTextGenerationAdapter(
+    ProtocolRoutingLlmClient(
+      chatCompletions: ChatCompletionsClient(transport: transport),
+      responses: ResponsesClient(transport: transport),
+      anthropic: AnthropicMessagesClient(transport: transport),
+    ),
   );
 }
 

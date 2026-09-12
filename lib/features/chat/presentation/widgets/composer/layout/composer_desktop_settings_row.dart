@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
 
-import '../../../../domain/models/chat_message.dart';
-import '../controls/auto_retry_toggle.dart';
-import '../controls/thinking_toggle.dart';
-import '../controls/composer_effort_pill.dart';
 import '../composer_helpers.dart';
+import '../controls/auto_retry_toggle.dart';
+import '../controls/composer_effort_pill.dart';
 import '../controls/composer_send_button.dart';
+import '../controls/thinking_toggle.dart';
 
 class ComposerDesktopSettingsRow extends StatelessWidget {
   const ComposerDesktopSettingsRow({

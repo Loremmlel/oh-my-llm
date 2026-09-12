@@ -1,11 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
-import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_controller.dart';
+import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
+import 'package:oh_my_llm/core/llm/llm_usage.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
+import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/domain/chat_error_messages.dart';
-import 'package:oh_my_llm/features/chat/domain/models/chat_generation_usage.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/settings/application/preferences/output_processing_settings_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/preferences/output_processing_settings.dart';
@@ -126,7 +126,7 @@ void registerChatSessionsControllerGenerationCases() {
   // ── 错误与空回复 ────────────────────────────────────────────────────────────
 
   test('sendMessage 错误时保存用量并清除 isStreaming', () async {
-    const usage = ChatGenerationUsage(
+    const usage = LlmUsage(
       inputTokens: 100,
       outputTokens: 8,
       cachedInputTokens: 40,
@@ -398,7 +398,7 @@ void registerChatSessionsControllerGenerationCases() {
       fakeClient.enqueueDeltas(const [
         ChatGenerationChunk(
           contentDelta: '你好',
-          usage: ChatGenerationUsage(inputTokens: 100, cachedInputTokens: 25),
+          usage: LlmUsage(inputTokens: 100, cachedInputTokens: 25),
         ),
         ChatGenerationChunk(finishReason: 'stop'),
       ]);
@@ -411,7 +411,7 @@ void registerChatSessionsControllerGenerationCases() {
       expect(assistant.finishReason, 'stop');
       expect(
         assistant.tokenUsage,
-        const ChatGenerationUsage(inputTokens: 100, cachedInputTokens: 25),
+        const LlmUsage(inputTokens: 100, cachedInputTokens: 25),
       );
     });
 
@@ -442,7 +442,7 @@ void registerChatSessionsControllerGenerationCases() {
         const ChatGenerationChunk(
           contentDelta: '部分内容',
           finishReason: 'stop',
-          usage: ChatGenerationUsage(inputTokens: 80, outputTokens: 4),
+          usage: LlmUsage(inputTokens: 80, outputTokens: 4),
         ),
       );
       // 等 chunk 消费完成（run 的累积缓冲含 finishReason）再 stop，
@@ -463,7 +463,7 @@ void registerChatSessionsControllerGenerationCases() {
       expect(assistant.finishReason, 'stop');
       expect(
         assistant.tokenUsage,
-        const ChatGenerationUsage(inputTokens: 80, outputTokens: 4),
+        const LlmUsage(inputTokens: 80, outputTokens: 4),
       );
     });
   });

@@ -3,24 +3,23 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:oh_my_llm/app/app.dart';
 import 'package:oh_my_llm/app/composition/chat_generation_foreground_service_bindings.dart';
 import 'package:oh_my_llm/app/platform/android_chat_generation_foreground_service.dart';
 import 'package:oh_my_llm/app/platform/noop_chat_generation_foreground_service.dart';
 import 'package:oh_my_llm/app/router/app_router.dart';
+import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/chat/application/generation/chat_generation_lifecycle.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_foreground_service.dart';
 import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_controller.dart';
-import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/video_player_platform_bindings.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../features/media/helpers/fake_video_player_platform_bindings.dart';
 import '../../features/chat/presentation/chat_screen/chat_screen_test_helpers.dart';
+import '../../features/media/helpers/fake_video_player_platform_bindings.dart';
 import '../../helpers/chat/fake_chat_generation_client.dart';
 import '../../helpers/fixtures.dart';
 import '../../helpers/test_harness.dart';

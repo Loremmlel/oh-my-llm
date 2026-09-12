@@ -1,10 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
-
 import 'package:oh_my_llm/core/http/sse_event_decoder.dart';
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
-import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
-import 'package:oh_my_llm/features/chat/data/generation/chat_completions/chat_completions_parser.dart';
-import 'package:oh_my_llm/features/chat/domain/models/chat_generation_usage.dart';
+import 'package:oh_my_llm/core/llm/llm_event.dart';
+import 'package:oh_my_llm/core/llm/llm_usage.dart';
+import 'package:oh_my_llm/core/llm/protocols/chat_completions/chat_completions_parser.dart';
 
 void main() {
   const protocol = LlmApiProtocol.chatCompletions;
@@ -26,25 +25,22 @@ void main() {
       expect(result.chunk, isNull);
     });
 
-    test(
-      'malformed JSON → 抛 ChatGenerationException（携带 protocol/uri/body）',
-      () {
-        expect(
-          () => newParser().parse(event('{not valid json}')),
-          throwsA(
-            isA<ChatGenerationException>()
-                .having((e) => e.message, 'message', contains('SSE 数据解析失败'))
-                .having((e) => e.protocol, 'protocol', protocol)
-                .having((e) => e.uri, 'uri', uri)
-                .having(
-                  (e) => e.responseBody,
-                  'responseBody',
-                  '{not valid json}',
-                ),
-          ),
-        );
-      },
-    );
+    test('malformed JSON → 抛 LlmException（携带 protocol/uri/body）', () {
+      expect(
+        () => newParser().parse(event('{not valid json}')),
+        throwsA(
+          isA<LlmException>()
+              .having((e) => e.message, 'message', contains('SSE 数据解析失败'))
+              .having((e) => e.protocol, 'protocol', protocol)
+              .having((e) => e.uri, 'uri', uri)
+              .having(
+                (e) => e.responseBody,
+                'responseBody',
+                '{not valid json}',
+              ),
+        ),
+      );
+    });
 
     test('非 Map JSON（List）→ 无 chunk', () {
       final result = newParser().parse(event('[1, 2, 3]'));
@@ -56,7 +52,7 @@ void main() {
       expect(
         () => newParser().parse(event('{"error":"invalid api key"}')),
         throwsA(
-          isA<ChatGenerationException>()
+          isA<LlmException>()
               .having((e) => e.message, 'message', 'invalid api key')
               .having((e) => e.protocol, 'protocol', protocol)
               .having((e) => e.uri, 'uri', uri),
@@ -70,7 +66,7 @@ void main() {
           event('{"error":{"message":"rate limited","code":"rate_limit"}}'),
         ),
         throwsA(
-          isA<ChatGenerationException>()
+          isA<LlmException>()
               .having((e) => e.message, 'message', 'rate limited')
               .having((e) => e.apiErrorCode, 'apiErrorCode', 'rate_limit'),
         ),
@@ -132,43 +128,16 @@ void main() {
       expect(chunk.reasoningDelta, '推理');
     });
 
-    test('content 内联标签 → 标签剔除、内部文本入 reasoningDelta', () {
-      final chunk = newParser()
-          .parse(
-            event(
-              '{"choices":[{"delta":{"content":"前缀<think>隐藏</think>后缀"}}]}',
-            ),
-          )
-          .chunk;
-      expect(chunk!.contentDelta, '前缀后缀');
-      expect(chunk.reasoningDelta, '隐藏');
-    });
-
-    test('reasoning_content 与内联标签并存 → 先显式后内联', () {
+    test('共享解析器保留内联标签原文', () {
       final chunk = newParser()
           .parse(
             event(
               '{"choices":[{"delta":{"content":"A<think>内联</think>B","reasoning_content":"显式"}}]}',
             ),
           )
-          .chunk;
-      expect(chunk!.contentDelta, 'AB');
-      expect(chunk.reasoningDelta, '显式内联');
-    });
-
-    test('内联标签跨事件保持状态（同一 parser 实例）', () {
-      final parser = newParser();
-      final first = parser.parse(
-        event('{"choices":[{"delta":{"content":"A<think"}}]}'),
-      );
-      expect(first.chunk!.contentDelta, 'A');
-      expect(first.chunk!.reasoningDelta, isEmpty);
-
-      final second = parser.parse(
-        event('{"choices":[{"delta":{"content":"ing>R1</thinking>B"}}]}'),
-      );
-      expect(second.chunk!.contentDelta, 'B');
-      expect(second.chunk!.reasoningDelta, 'R1');
+          .chunk!;
+      expect(chunk.contentDelta, 'A<think>内联</think>B');
+      expect(chunk.reasoningDelta, '显式');
     });
 
     test('finish_reason 原样透传（stop/length/非常规值）', () {
@@ -251,7 +220,7 @@ void main() {
   // ── usage ──────────────────────────────────────────────────────
 
   group('usage 提取', () {
-    test('顶层 usage 自然携带时映射为 ChatGenerationUsage', () {
+    test('顶层 usage 自然携带时映射为 LlmUsage', () {
       final chunk = newParser()
           .parse(
             event(
@@ -264,7 +233,7 @@ void main() {
           .chunk;
       expect(
         chunk!.usage,
-        const ChatGenerationUsage(
+        const LlmUsage(
           inputTokens: 10,
           outputTokens: 20,
           reasoningTokens: 5,
@@ -283,10 +252,7 @@ void main() {
           )
           .chunk;
 
-      expect(
-        chunk!.usage,
-        const ChatGenerationUsage(inputTokens: 10, outputTokens: 2),
-      );
+      expect(chunk!.usage, const LlmUsage(inputTokens: 10, outputTokens: 2));
       expect(chunk.isEmpty, isTrue);
     });
 
@@ -318,32 +284,4 @@ void main() {
   });
 
   // ── finish ─────────────────────────────────────────────────────
-
-  group('finish() 尾部刷新', () {
-    test('不完整开标签残留 → 按 content 通道输出', () {
-      final parser = newParser();
-      parser.parse(event('{"choices":[{"delta":{"content":"正文<未闭合"}}]}'));
-      final remainder = parser.finish();
-      expect(remainder, isNotNull);
-      expect(remainder!.contentDelta, '<未闭合');
-      expect(remainder.reasoningDelta, isEmpty);
-    });
-
-    test('reasoning 状态残留 → 按 reasoning 通道输出', () {
-      final parser = newParser();
-      parser.parse(
-        event('{"choices":[{"delta":{"content":"<think>推理内容<未闭"}}]}'),
-      );
-      final remainder = parser.finish();
-      expect(remainder, isNotNull);
-      expect(remainder!.reasoningDelta, '<未闭');
-      expect(remainder.contentDelta, isEmpty);
-    });
-
-    test('无残留 → null', () {
-      final parser = newParser();
-      parser.parse(event('{"choices":[{"delta":{"content":"完整正文"}}]}'));
-      expect(parser.finish(), isNull);
-    });
-  });
 }

@@ -1,31 +1,31 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
+import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
+import 'package:oh_my_llm/core/llm/llm_usage.dart';
 import 'package:oh_my_llm/core/utils/id_generator.dart';
 import 'package:oh_my_llm/features/settings/application/preferences/auto_retry_settings_controller.dart';
-import 'package:oh_my_llm/features/settings/domain/models/providers/llm_model_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/memory_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/models/providers/llm_model_config.dart';
 
-import '../generation/chat_generation_contract.dart';
-import '../generation/chat_generation_coordinator.dart';
-import '../generation/chat_generation_lifecycle.dart';
-import '../requests/chat_request_message_builder.dart';
-import 'chat_sessions_controller_streaming.dart';
-import 'chat_sessions_controller_support.dart';
-import '../requests/checkpoint_request_context.dart';
-import 'chat_message_tree.dart';
-import 'chat_sessions_state.dart';
+import '../../domain/chat_error_messages.dart';
+import '../../domain/chat_message_parent.dart';
 import '../../domain/models/chat_checkpoint.dart';
 import '../../domain/models/chat_conversation.dart';
 import '../../domain/models/chat_conversation_summary.dart';
-import '../../domain/models/chat_generation_usage.dart';
-import '../../domain/chat_error_messages.dart';
-import '../../domain/chat_message_parent.dart';
 import '../../domain/models/chat_message.dart';
-import '../ports/chat_generation_client.dart';
+import '../generation/chat_generation_contract.dart';
+import '../generation/chat_generation_coordinator.dart';
+import '../generation/chat_generation_lifecycle.dart';
 import '../ports/chat_conversation_repository.dart';
+import '../ports/chat_generation_client.dart';
+import '../requests/chat_request_message_builder.dart';
+import '../requests/checkpoint_request_context.dart';
+import 'chat_message_tree.dart';
+import 'chat_sessions_controller_streaming.dart';
+import 'chat_sessions_controller_support.dart';
+import 'chat_sessions_state.dart';
 
 export 'chat_sessions_state.dart';
 
@@ -995,7 +995,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
   ChatConversation _withAssistantTokenUsage(
     ChatConversation conversation,
     String assistantMessageId,
-    ChatGenerationUsage? usage,
+    LlmUsage? usage,
   ) {
     if (usage == null) return conversation;
     return conversation.copyWith(

@@ -3,12 +3,36 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-
 import 'package:oh_my_llm/core/http/llm_http_stream_transport.dart';
 import 'package:oh_my_llm/core/http/sse_event_decoder.dart';
 import 'package:oh_my_llm/core/logging/network_logger.dart';
 
 void main() {
+  test('等待响应头时取消不依赖服务端继续发送', () async {
+    final started = Completer<void>();
+    final response = Completer<http.StreamedResponse>();
+    final transport = LlmHttpStreamTransport(
+      httpClient: _FakeStreamingHttpClient((_) {
+        started.complete();
+        return response.future;
+      }),
+    );
+    final subscription = transport
+        .streamEvents(
+          uri: Uri.parse('https://example.com/v1/chat/completions'),
+          headers: const {},
+          body: '{}',
+        )
+        .listen((_) {});
+    await started.future;
+    final cancelled = subscription.cancel();
+    try {
+      await cancelled.timeout(const Duration(seconds: 1));
+    } finally {
+      response.complete(http.StreamedResponse(const Stream.empty(), 200));
+      await cancelled;
+    }
+  });
   final testUri = Uri.parse('https://api.example.com/v1/chat/completions');
   const testHeaders = <String, String>{
     'Content-Type': 'application/json',
@@ -251,14 +275,17 @@ void main() {
 
     final cancelFuture = subscription.cancel();
 
-    // async* 生成器暂停在 yield 处，需下一个网络 chunk 将其唤醒后才执行
-    // 取消；这与既有 ChatCompletionsClient 的取消语义一致（停止按钮
-    // 依赖流中仍有数据在流动）。
-    source.add(utf8.encode('data: y\n\n'));
-    await cancelFuture.timeout(const Duration(seconds: 5));
-    await sourceCancelled.future.timeout(const Duration(seconds: 5));
+    try {
+      // 服务端不再发送任何数据，取消仍应释放订阅。
+      await cancelFuture.timeout(const Duration(seconds: 1));
+      await sourceCancelled.future.timeout(const Duration(seconds: 1));
+      expect(source.hasListener, isFalse);
+    } finally {
+      // 修复前的失败路径也要唤醒旧生成器，避免遗留测试资源。
+      if (source.hasListener) source.add(utf8.encode('data: cleanup\n\n'));
+      await cancelFuture;
+    }
 
-    expect(source.hasListener, isFalse);
     await source.close();
   });
 }
@@ -298,6 +325,8 @@ final class _FakeNetworkLogger with NetworkLogger {
 
   @override
   Future<void> logRequest({
+    String? requestId,
+    int? attempt,
     required Uri uri,
     required String method,
     required Map<String, String> headers,
@@ -311,6 +340,8 @@ final class _FakeNetworkLogger with NetworkLogger {
 
   @override
   Future<void> logResponse({
+    String? requestId,
+    int? attempt,
     required Uri uri,
     required int statusCode,
     required Map<String, String> headers,
@@ -320,12 +351,19 @@ final class _FakeNetworkLogger with NetworkLogger {
   }
 
   @override
-  Future<void> logSseLine({required Uri uri, required String line}) async {
+  Future<void> logSseLine({
+    String? requestId,
+    int? attempt,
+    required Uri uri,
+    required String line,
+  }) async {
     sseCount += 1;
   }
 
   @override
   Future<void> logError({
+    String? requestId,
+    int? attempt,
     required Uri uri,
     required Object error,
     StackTrace? stackTrace,

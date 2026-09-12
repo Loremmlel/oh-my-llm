@@ -1,15 +1,15 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-
+import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
+import 'package:oh_my_llm/core/llm/llm_usage.dart';
 import 'package:oh_my_llm/features/chat/application/generation/chat_generation_contract.dart';
 import 'package:oh_my_llm/features/chat/application/generation/chat_generation_lifecycle.dart';
 import 'package:oh_my_llm/features/chat/application/generation/chat_generation_run.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
-import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
-import 'package:oh_my_llm/features/chat/domain/models/chat_generation_usage.dart';
-import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_state.dart';
+import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
+import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/settings/domain/models/preferences/auto_retry_settings.dart';
 import 'package:oh_my_llm/features/settings/domain/models/providers/llm_model_config.dart';
 
@@ -155,15 +155,15 @@ void main() {
     () async {
       fakeClient.enqueueDeltas(const [
         ChatGenerationChunk(
-          usage: ChatGenerationUsage(inputTokens: 10, cachedInputTokens: 5),
+          usage: LlmUsage(inputTokens: 10, cachedInputTokens: 5),
         ),
       ]); // attempt 1 空 -> retry
       fakeClient.enqueueDeltas(const [
         ChatGenerationChunk(
           contentDelta: 'ok',
-          usage: ChatGenerationUsage(inputTokens: 7, cachedInputTokens: 0),
+          usage: LlmUsage(inputTokens: 7, cachedInputTokens: 0),
         ),
-        ChatGenerationChunk(usage: ChatGenerationUsage(outputTokens: 3)),
+        ChatGenerationChunk(usage: LlmUsage(outputTokens: 3)),
       ]); // attempt 2 成功
       final host = _FakeHost(
         attemptDecisionFor: (s) => s.attempt == 1
@@ -187,15 +187,11 @@ void main() {
       expect(host.attempts.last.attempt, 2);
       expect(
         host.attempts.first.usage,
-        const ChatGenerationUsage(inputTokens: 10, cachedInputTokens: 5),
+        const LlmUsage(inputTokens: 10, cachedInputTokens: 5),
       );
       expect(
         host.attempts.last.usage,
-        const ChatGenerationUsage(
-          inputTokens: 7,
-          outputTokens: 3,
-          cachedInputTokens: 0,
-        ),
+        const LlmUsage(inputTokens: 7, outputTokens: 3, cachedInputTokens: 0),
       );
       expect(fakeClient.requestHistory, hasLength(2));
     },
@@ -232,7 +228,7 @@ void main() {
     controlled.add(
       const ChatGenerationChunk(
         contentDelta: '部分',
-        usage: ChatGenerationUsage(inputTokens: 8, cachedInputTokens: 2),
+        usage: LlmUsage(inputTokens: 8, cachedInputTokens: 2),
       ),
     );
     // 等 chunk 增量进入投影再 stop，保证 stop 时已累积部分内容。
@@ -247,7 +243,7 @@ void main() {
     expect(host.stops.single.content, '部分');
     expect(
       host.stops.single.usage,
-      const ChatGenerationUsage(inputTokens: 8, cachedInputTokens: 2),
+      const LlmUsage(inputTokens: 8, cachedInputTokens: 2),
     );
   });
 

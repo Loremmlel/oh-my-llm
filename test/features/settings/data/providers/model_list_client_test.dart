@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-
 import 'package:oh_my_llm/core/http/custom_headers_http_client.dart';
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/core/logging/network_logger.dart';
@@ -253,6 +252,8 @@ final class _CapturingNetworkLogger with NetworkLogger {
 
   @override
   Future<void> logRequest({
+    String? requestId,
+    int? attempt,
     required Uri uri,
     required String method,
     required Map<String, String> headers,

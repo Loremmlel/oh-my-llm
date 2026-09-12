@@ -1,8 +1,8 @@
 import 'package:equatable/equatable.dart';
 
 /// 一次模型生成的 Token 用量；协议未提供的字段保持 null。
-class ChatGenerationUsage extends Equatable {
-  const ChatGenerationUsage({
+class LlmUsage extends Equatable {
+  const LlmUsage({
     this.inputTokens,
     this.outputTokens,
     this.reasoningTokens,
@@ -24,8 +24,8 @@ class ChatGenerationUsage extends Equatable {
       cacheWriteInputTokens != null;
 
   /// 合并分散在多个协议事件中的用量；新事件的已知字段优先。
-  ChatGenerationUsage merge(ChatGenerationUsage newer) {
-    return ChatGenerationUsage(
+  LlmUsage merge(LlmUsage newer) {
+    return LlmUsage(
       inputTokens: newer.inputTokens ?? inputTokens,
       outputTokens: newer.outputTokens ?? outputTokens,
       reasoningTokens: newer.reasoningTokens ?? reasoningTokens,
@@ -44,9 +44,9 @@ class ChatGenerationUsage extends Equatable {
   };
 
   /// 从协议或持久化 JSON 恢复；无任何有效值时返回 null。
-  static ChatGenerationUsage? fromJson(Object? json) {
+  static LlmUsage? fromJson(Object? json) {
     if (json is! Map) return null;
-    final usage = ChatGenerationUsage(
+    final usage = LlmUsage(
       inputTokens: _nonNegativeInt(json['inputTokens']),
       outputTokens: _nonNegativeInt(json['outputTokens']),
       reasoningTokens: _nonNegativeInt(json['reasoningTokens']),

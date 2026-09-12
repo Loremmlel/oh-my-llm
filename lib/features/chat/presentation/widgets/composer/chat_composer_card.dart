@@ -1,23 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
+import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
 import 'package:oh_my_llm/features/chat/application/composer/template_prompt_compilation_provider.dart';
 import 'package:oh_my_llm/features/settings/domain/template_prompt_language/template_prompt_evaluator.dart';
 import 'package:oh_my_llm/features/settings/domain/template_prompt_language/template_prompt_program.dart';
 
-import '../../../domain/models/chat_message.dart';
-import '../workspace/chat_workspace_bindings.dart';
 import '../../../application/workspace/chat_workspace_view_state.dart';
+import '../workspace/chat_workspace_bindings.dart';
+import 'composer_helpers.dart';
 import 'controls/auto_retry_toggle.dart';
 import 'controls/thinking_toggle.dart';
+import 'fields/composer_message_field.dart';
+import 'fields/composer_template_variable_fields.dart';
 import 'layout/composer_compact_action_row.dart';
 import 'layout/composer_desktop_settings_row.dart';
-import 'composer_helpers.dart';
-import 'fields/composer_message_field.dart';
 import 'layout/composer_provider_model_row.dart';
 import 'layout/composer_template_header.dart';
-import 'fields/composer_template_variable_fields.dart';
 
 /// 一次模板校验的展示结果：编译/值错误、活跃变量与发送可用性。
 class _ComposerTemplateValidation {

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:characters/characters.dart';
+import 'package:oh_my_llm/core/llm/llm_usage.dart';
 
 import 'app_log_store.dart';
 import 'json_truncator.dart';
@@ -36,12 +37,29 @@ final class AppNetworkLogger with NetworkLogger {
   }
 
   @override
+  Future<void> logLlmCompletion({
+    required String requestId,
+    required String protocol,
+    required String model,
+    required String stopKind,
+    required int toolCallCount,
+    required Duration elapsed,
+    LlmUsage? usage,
+  }) async {
+    await _writeLog(
+      '[llm-completed] ${jsonEncode({'requestId': requestId, 'protocol': protocol, 'model': model, 'stopKind': stopKind, 'toolCallCount': toolCallCount, 'elapsedMs': elapsed.inMilliseconds, if (usage != null) 'usage': usage.toJson()})}',
+    );
+  }
+
+  @override
   Future<void> onAppDetached() async {
     await drain();
   }
 
   @override
   Future<void> logRequest({
+    String? requestId,
+    int? attempt,
     required Uri uri,
     required String method,
     required Map<String, String> headers,
@@ -52,15 +70,19 @@ final class AppNetworkLogger with NetworkLogger {
     if (logBody) {
       final p = truncateJsonValues(_redactor.redactPayload(payload));
       await _writeLog(
-        '[request] $method $uri headers=${jsonEncode(h)} payload=${jsonEncode(p)}',
+        '[request]${_correlation(requestId, attempt)} $method $uri headers=${jsonEncode(h)} payload=${jsonEncode(p)}',
       );
     } else {
-      await _writeLog('[request] $method $uri headers=${jsonEncode(h)}');
+      await _writeLog(
+        '[request]${_correlation(requestId, attempt)} $method $uri headers=${jsonEncode(h)}',
+      );
     }
   }
 
   @override
   Future<void> logResponse({
+    String? requestId,
+    int? attempt,
     required Uri uri,
     required int statusCode,
     required Map<String, String> headers,
@@ -68,7 +90,7 @@ final class AppNetworkLogger with NetworkLogger {
   }) async {
     final h = _redactor.redactHeaders(headers);
     await _writeLog(
-      '[response] $uri status=$statusCode elapsedMs=${elapsed.inMilliseconds}'
+      '[response]${_correlation(requestId, attempt)} $uri status=$statusCode elapsedMs=${elapsed.inMilliseconds}'
       ' headers=${jsonEncode(h)}',
     );
   }
@@ -92,7 +114,12 @@ final class AppNetworkLogger with NetworkLogger {
   }
 
   @override
-  Future<void> logSseLine({required Uri uri, required String line}) async {
+  Future<void> logSseLine({
+    String? requestId,
+    int? attempt,
+    required Uri uri,
+    required String line,
+  }) async {
     String processLine(String s) {
       try {
         return jsonEncode(truncateJsonValues(jsonDecode(s)));
@@ -103,16 +130,22 @@ final class AppNetworkLogger with NetworkLogger {
 
     final now = DateTime.now().toIso8601String();
     final processed = _redactor.redactText(processLine(line));
-    _sseBuffer.enqueue('[$now] [sse] $uri $processed');
+    _sseBuffer.enqueue(
+      '[$now] [sse]${_correlation(requestId, attempt)} $uri $processed',
+    );
   }
 
   @override
   Future<void> logError({
+    String? requestId,
+    int? attempt,
     required Uri uri,
     required Object error,
     StackTrace? stackTrace,
   }) async {
-    await _writeLog('[error] $uri ${_redactor.redactText(error.toString())}');
+    await _writeLog(
+      '[error]${_correlation(requestId, attempt)} $uri ${_redactor.redactText(error.toString())}',
+    );
     if (stackTrace != null) {
       for (final stackLine in stackTrace.toString().split('\n').take(12)) {
         await _writeLog('  $stackLine');
@@ -135,6 +168,10 @@ final class AppNetworkLogger with NetworkLogger {
       stderr.writeln('[network-log] write failed: $error\n$stackTrace');
     }
   }
+
+  String _correlation(String? requestId, int? attempt) => requestId == null
+      ? ''
+      : ' requestId=$requestId${attempt == null ? "" : " attempt=$attempt"}';
 
   String _truncateText(String s) {
     final characters = s.characters;

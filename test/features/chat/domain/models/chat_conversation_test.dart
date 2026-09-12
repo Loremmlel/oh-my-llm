@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:oh_my_llm/core/llm/llm_usage.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
-import 'package:oh_my_llm/features/chat/domain/models/chat_generation_usage.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 
 void main() {
@@ -73,40 +73,28 @@ void main() {
           role: ChatMessageRole.assistant,
           content: 'active',
           createdAt: DateTime(2026),
-          tokenUsage: const ChatGenerationUsage(
-            inputTokens: 100,
-            cachedInputTokens: 25,
-          ),
+          tokenUsage: const LlmUsage(inputTokens: 100, cachedInputTokens: 25),
         ),
         ChatMessage(
           id: 'a2',
           role: ChatMessageRole.assistant,
           content: 'other branch',
           createdAt: DateTime(2026),
-          tokenUsage: const ChatGenerationUsage(
-            inputTokens: 300,
-            cachedInputTokens: 150,
-          ),
+          tokenUsage: const LlmUsage(inputTokens: 300, cachedInputTokens: 150),
         ),
         ChatMessage(
           id: 'ignored-zero-input',
           role: ChatMessageRole.assistant,
           content: 'ignored',
           createdAt: DateTime(2026),
-          tokenUsage: const ChatGenerationUsage(
-            inputTokens: 0,
-            cachedInputTokens: 10,
-          ),
+          tokenUsage: const LlmUsage(inputTokens: 0, cachedInputTokens: 10),
         ),
         ChatMessage(
           id: 'user',
           role: ChatMessageRole.user,
           content: 'ignored',
           createdAt: DateTime(2026),
-          tokenUsage: const ChatGenerationUsage(
-            inputTokens: 100,
-            cachedInputTokens: 100,
-          ),
+          tokenUsage: const LlmUsage(inputTokens: 100, cachedInputTokens: 100),
         ),
       ],
     );
@@ -133,10 +121,7 @@ void main() {
           role: ChatMessageRole.assistant,
           content: 'reply',
           createdAt: DateTime(2026),
-          tokenUsage: const ChatGenerationUsage(
-            inputTokens: 100,
-            cachedInputTokens: 150,
-          ),
+          tokenUsage: const LlmUsage(inputTokens: 100, cachedInputTokens: 150),
         ),
       ],
     );

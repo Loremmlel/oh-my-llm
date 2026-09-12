@@ -1,10 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
-
+import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
+import 'package:oh_my_llm/core/llm/llm_usage.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/chat/data/persistence/sqlite_chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_checkpoint.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
-import 'package:oh_my_llm/features/chat/domain/models/chat_generation_usage.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 
 void main() {
@@ -56,7 +56,7 @@ void main() {
           appliedCheckpointTitle: '检查点 1',
           createdAt: DateTime(2026, 4, 27, 10, 2),
           finishReason: 'stop',
-          tokenUsage: const ChatGenerationUsage(
+          tokenUsage: const LlmUsage(
             inputTokens: 4000,
             outputTokens: 900,
             cachedInputTokens: 1500,
@@ -247,10 +247,7 @@ void main() {
             content: 'C',
             parentId: 'b',
             createdAt: DateTime(2026, 5, 2, 10, 2),
-            tokenUsage: const ChatGenerationUsage(
-              inputTokens: 100,
-              cachedInputTokens: 50,
-            ),
+            tokenUsage: const LlmUsage(inputTokens: 100, cachedInputTokens: 50),
           ),
         ],
         selectedChildByParentId: const {

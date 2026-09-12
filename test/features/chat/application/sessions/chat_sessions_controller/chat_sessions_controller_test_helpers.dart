@@ -3,25 +3,26 @@ import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:oh_my_llm/app/composition/cross_feature_bindings.dart';
 import 'package:oh_my_llm/core/http/llm_http_stream_transport.dart';
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
+import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
+import 'package:oh_my_llm/core/llm/protocols/chat_completions/chat_completions_client.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/core/persistence/versioned_json_storage.dart';
-import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
-import 'package:oh_my_llm/features/chat/data/generation/chat_completions/chat_completions_client.dart';
+import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_controller.dart';
+import 'package:oh_my_llm/features/chat/data/generation/chat_text_generation_adapter.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
-import 'package:oh_my_llm/features/settings/data/providers/llm_model_config_repository.dart';
 import 'package:oh_my_llm/features/settings/data/prompts/preset_prompt_repository.dart';
-import 'package:oh_my_llm/features/settings/domain/models/providers/llm_model_config.dart';
-import 'package:oh_my_llm/features/settings/domain/models/providers/llm_provider_config.dart';
+import 'package:oh_my_llm/features/settings/data/providers/llm_model_config_repository.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/memory_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/models/providers/llm_model_config.dart';
+import 'package:oh_my_llm/features/settings/domain/models/providers/llm_provider_config.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../../helpers/async/async_test_signals.dart';
 import '../../../../../helpers/chat/fake_chat_generation_client.dart';
@@ -167,8 +168,10 @@ class ControllerTestHarness {
     Duration idleTimeout = const Duration(milliseconds: 50),
   }) {
     final httpClient = _IdleTimeoutHttpClient();
-    final client = ChatCompletionsClient(
-      transport: LlmHttpStreamTransport(httpClient: httpClient),
+    final client = ChatTextGenerationAdapter(
+      ChatCompletionsClient(
+        transport: LlmHttpStreamTransport(httpClient: httpClient),
+      ),
     );
     return client.streamCompletion(
       ChatGenerationRequest(

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:characters/characters.dart';
 import 'package:equatable/equatable.dart';
+import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
 
 import '../chat_message_parent.dart';
 import 'chat_checkpoint.dart';

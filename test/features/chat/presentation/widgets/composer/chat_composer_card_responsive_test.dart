@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-
+import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
 import 'package:oh_my_llm/features/chat/application/workspace/chat_workspace_view_state.dart';
-import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/composer/chat_composer_card.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/workspace/chat_workspace_bindings.dart';
 

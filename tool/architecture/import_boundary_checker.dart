@@ -223,6 +223,29 @@ class ImportBoundaryChecker {
         ? null
         : _featureLayer(resolvedTarget);
 
+    final llmImplementation =
+        resolvedTarget?.startsWith('lib/core/llm/protocols/') ?? false;
+    final llmContract =
+        sourcePath.startsWith('lib/core/llm/') &&
+        !sourcePath.startsWith('lib/core/llm/protocols/');
+    if ((sourcePath.startsWith('lib/features/') &&
+            (llmImplementation ||
+                resolvedTarget == 'lib/app/composition/llm_bindings.dart')) ||
+        (llmContract &&
+            (llmImplementation ||
+                (resolvedTarget?.startsWith('lib/core/http/') ?? false) ||
+                (resolvedTarget?.startsWith('lib/app/') ?? false) ||
+                _frameworkPackages.contains(_packageName(importUri))))) {
+      return _violation(
+        'LLM_IMPLEMENTATION_BOUNDARY',
+        sourcePath,
+        line,
+        importUri,
+        resolvedTarget,
+        'LLM 契约保持中立，协议实现仅由组合层装配',
+      );
+    }
+
     if (sourceLayer == 'presentation' && targetLayer == 'data') {
       return _violation(
         'PRESENTATION_TO_DATA',

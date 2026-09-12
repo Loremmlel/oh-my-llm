@@ -1,22 +1,22 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
+import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
 import 'package:oh_my_llm/features/settings/application/preferences/chat_defaults_controller.dart';
 import 'package:oh_my_llm/features/settings/application/prompts/fixed_prompt_sequences_controller.dart';
-import 'package:oh_my_llm/features/settings/application/providers/llm_model_configs_controller.dart';
 import 'package:oh_my_llm/features/settings/application/prompts/template_prompts_controller.dart';
+import 'package:oh_my_llm/features/settings/application/providers/llm_model_configs_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/fixed_prompt_sequence.dart';
-import 'package:oh_my_llm/features/settings/domain/models/providers/llm_model_config.dart';
-import 'package:oh_my_llm/features/settings/domain/models/providers/llm_provider_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/models/providers/llm_model_config.dart';
+import 'package:oh_my_llm/features/settings/domain/models/providers/llm_provider_config.dart';
 
 import '../../domain/models/chat_conversation.dart';
 import '../../domain/models/chat_message.dart';
-import '../favorites/chat_favorites_facade.dart';
-import '../sessions/chat_sessions_controller.dart';
 import '../composer/composer_collapsed_controller.dart';
 import '../composer/composer_draft_controller.dart';
+import '../favorites/chat_favorites_facade.dart';
+import '../sessions/chat_sessions_controller.dart';
 
 /// 消息面板的不可变显示快照，只含既有 owner 的投影值。
 class ChatWorkspaceMessagesState extends Equatable {

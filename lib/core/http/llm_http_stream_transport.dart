@@ -1,7 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:http/http.dart' as http;
-
+import 'package:oh_my_llm/core/llm/llm_call_control.dart';
+import 'package:oh_my_llm/core/llm/llm_event.dart';
+import 'package:oh_my_llm/core/llm/llm_usage.dart';
 import 'package:oh_my_llm/core/logging/network_logger.dart';
 
 import 'sse_event_decoder.dart';
@@ -17,9 +20,11 @@ class LlmHttpTransportException implements Exception {
     this.responseBody,
     this.cause,
     this.causeStackTrace,
+    this.kind = LlmFailureKind.transport,
   });
 
   final String message;
+  final LlmFailureKind kind;
 
   /// HTTP 状态码（非 2xx 响应时可用）。
   final int? statusCode;
@@ -55,6 +60,29 @@ class LlmHttpStreamTransport {
   final Map<String, String> Function()? _extraHeadersFactory;
   final SseEventDecoder _decoder;
 
+  /// 完整调用摘要不含正文、工具参数或原生推理块。
+  void recordCompletion({
+    required String requestId,
+    required String protocol,
+    required String model,
+    required String stopKind,
+    required int toolCallCount,
+    required Duration elapsed,
+    LlmUsage? usage,
+  }) {
+    unawaited(
+      _logger.logLlmCompletion(
+        requestId: requestId,
+        protocol: protocol,
+        model: model,
+        stopKind: stopKind,
+        toolCallCount: toolCallCount,
+        elapsed: elapsed,
+        usage: usage,
+      ),
+    );
+  }
+
   /// 发起流式 POST 并把响应体解码为 [SseEvent] 流。
   ///
   /// [headers] 由调用方构造（含认证头）；用户自定义 Header 的实际注入由
@@ -66,115 +94,194 @@ class LlmHttpStreamTransport {
     required Map<String, String> headers,
     required String body,
     Duration? idleTimeout,
-  }) async* {
-    final request = http.Request('POST', uri)
-      ..headers.addAll(headers)
-      ..body = body;
+    Duration? responseHeaderTimeout,
+    LlmCallControl? control,
+    bool logRawResponse = true,
+    String? requestId,
+    int? attempt,
+  }) {
+    late StreamController<SseEvent> output;
+    StreamSubscription<SseEvent>? events;
+    StreamSubscription<List<int>>? errorBody;
+    Timer? headerTimer;
+    Timer? bodyTimer;
+    final abort = Completer<void>();
+    var stopped = false;
+    void Function()? removeCancelListener;
 
-    // 读取自定义 header 供日志使用；实际注入由 CustomHeadersHttpClient.send() 完成。
-    final extraHeaders =
-        _extraHeadersFactory?.call() ?? const <String, String>{};
-    unawaited(
-      _logger.logRequest(
-        uri: uri,
-        method: request.method,
-        headers: {...request.headers, ...extraHeaders},
-        payload: body,
-        // 请求正文默认不记录，避免扩大日志采集。
-        logBody: false,
-      ),
-    );
-
-    final requestStartedAt = DateTime.now();
-    final http.StreamedResponse response;
-    try {
-      response = await _httpClient.send(request);
-    } catch (error, stackTrace) {
-      unawaited(
-        _logger.logError(uri: uri, error: error, stackTrace: stackTrace),
-      );
-      // 包装源异常并保留原始堆栈，供上层展示完整诊断信息。
-      throw LlmHttpTransportException(
-        '请求发送失败：$error',
-        cause: error,
-        causeStackTrace: stackTrace,
-      );
+    void release() {
+      headerTimer?.cancel();
+      bodyTimer?.cancel();
+      removeCancelListener?.call();
+      if (!abort.isCompleted) abort.complete();
+      final eventSubscription = events;
+      final bodySubscription = errorBody;
+      if (eventSubscription != null) unawaited(eventSubscription.cancel());
+      if (bodySubscription != null) unawaited(bodySubscription.cancel());
     }
 
-    unawaited(
-      _logger.logResponse(
-        uri: uri,
-        statusCode: response.statusCode,
-        headers: response.headers,
-        elapsed: DateTime.now().difference(requestStartedAt),
-      ),
-    );
-
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      final String responseBody;
-      try {
-        responseBody = await response.stream.bytesToString();
-      } catch (error, stackTrace) {
-        unawaited(
-          _logger.logError(uri: uri, error: error, stackTrace: stackTrace),
-        );
-        throw LlmHttpTransportException(
-          '读取错误响应体失败：$error',
-          cause: error,
-          causeStackTrace: stackTrace,
-        );
-      }
-      final trimmedBody = responseBody.trim();
+    void fail(Object error, [StackTrace? stack]) {
+      if (stopped) return;
+      stopped = true;
+      final converted = error is LlmHttpTransportException
+          ? error
+          : LlmHttpTransportException(
+              error is TimeoutException ? '服务器响应超时' : '请求失败：$error',
+              kind: error is TimeoutException
+                  ? LlmFailureKind.timeout
+                  : LlmFailureKind.transport,
+              cause: error,
+              causeStackTrace: stack,
+            );
       unawaited(
         _logger.logError(
+          requestId: requestId,
+          attempt: attempt,
           uri: uri,
-          error:
-              'HTTP ${response.statusCode}: ${trimmedBody.isEmpty ? "服务端未返回错误详情" : trimmedBody}',
+          error: logRawResponse ? converted.message : converted.kind.name,
+          stackTrace: logRawResponse ? stack : null,
         ),
       );
-      // 非 2xx：封装状态码与原始错误体，协议层再提取厂商错误详情。
-      throw LlmHttpTransportException(
-        '请求失败（${response.statusCode}）：${trimmedBody.isEmpty ? "服务端未返回错误详情" : trimmedBody}',
-        statusCode: response.statusCode,
-        responseBody: trimmedBody.isEmpty ? null : trimmedBody,
-      );
+      output.addError(converted, stack);
+      release();
+      unawaited(output.close());
     }
 
-    final eventStream = _decoder.decode(
-      response.stream,
-      idleTimeout: idleTimeout,
-    );
-    try {
-      await for (final event in eventStream) {
-        _logSseEvent(uri, event);
-        yield event;
+    Future<void> start() async {
+      removeCancelListener = control?.onCancel(
+        () => fail(
+          const LlmHttpTransportException(
+            '调用已取消',
+            kind: LlmFailureKind.cancelled,
+          ),
+        ),
+      );
+      if (stopped) return;
+      final request =
+          http.AbortableRequest('POST', uri, abortTrigger: abort.future)
+            ..headers.addAll(headers)
+            ..body = body;
+      final extraHeaders =
+          _extraHeadersFactory?.call() ?? const <String, String>{};
+      unawaited(
+        _logger.logRequest(
+          requestId: requestId,
+          attempt: attempt,
+          uri: uri,
+          method: request.method,
+          headers: {...request.headers, ...extraHeaders},
+          payload: body,
+          logBody: false,
+        ),
+      );
+      final startedAt = DateTime.now();
+      if (responseHeaderTimeout != null) {
+        headerTimer = Timer(
+          responseHeaderTimeout,
+          () => fail(TimeoutException('等待响应头超时', responseHeaderTimeout)),
+        );
       }
-    } on TimeoutException catch (error, stackTrace) {
-      unawaited(
-        _logger.logError(uri: uri, error: error, stackTrace: stackTrace),
-      );
-      throw LlmHttpTransportException(
-        '服务器在 ${idleTimeout?.inSeconds ?? 0} 秒内没有响应，连接超时',
-        cause: error,
-        causeStackTrace: stackTrace,
-      );
-    } catch (error, stackTrace) {
-      unawaited(
-        _logger.logError(uri: uri, error: error, stackTrace: stackTrace),
-      );
-      // 流中途的连接中断、解码失败等统一包装为传输异常。
-      throw LlmHttpTransportException(
-        '流式响应读取失败：$error',
-        cause: error,
-        causeStackTrace: stackTrace,
-      );
-    }
-  }
+      try {
+        final response = await _httpClient.send(request);
+        headerTimer?.cancel();
+        if (stopped) {
+          await response.stream.listen((_) {}).cancel();
+          return;
+        }
+        unawaited(
+          _logger.logResponse(
+            requestId: requestId,
+            attempt: attempt,
+            uri: uri,
+            statusCode: response.statusCode,
+            headers: response.headers,
+            elapsed: DateTime.now().difference(startedAt),
+          ),
+        );
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+          final bytes = <int>[];
+          void resetBodyTimer() {
+            bodyTimer?.cancel();
+            final timeout = idleTimeout ?? responseHeaderTimeout;
+            if (timeout != null) {
+              bodyTimer = Timer(
+                timeout,
+                () => fail(TimeoutException('读取错误响应体超时', timeout)),
+              );
+            }
+          }
 
-  /// 逐行记录事件原始 data 文本（含 `data:` 前缀），供缓冲日志诊断。
-  void _logSseEvent(Uri uri, SseEvent event) {
-    for (final line in event.rawData.split('\n')) {
-      unawaited(_logger.logSseLine(uri: uri, line: line));
+          resetBodyTimer();
+          errorBody = response.stream.listen(
+            (chunk) {
+              resetBodyTimer();
+              // 错误体只保留有界诊断尾部，防止异常服务无限占用内存。
+              bytes.addAll(chunk);
+              if (bytes.length > 1024 * 1024) {
+                bytes.removeRange(0, bytes.length - 1024 * 1024);
+              }
+            },
+            onError: fail,
+            onDone: () {
+              final text = utf8.decode(bytes, allowMalformed: true).trim();
+              fail(
+                LlmHttpTransportException(
+                  '请求失败（${response.statusCode}）：${text.isEmpty ? "服务端未返回错误详情" : text}',
+                  statusCode: response.statusCode,
+                  responseBody: text.isEmpty ? null : text,
+                ),
+              );
+            },
+          );
+          return;
+        }
+        events = _decoder
+            .decode(response.stream, idleTimeout: idleTimeout)
+            .listen(
+              (event) {
+                if (stopped) return;
+                if (logRawResponse) {
+                  for (final line in event.rawData.split('\n')) {
+                    unawaited(
+                      _logger.logSseLine(
+                        requestId: requestId,
+                        attempt: attempt,
+                        uri: uri,
+                        line: line,
+                      ),
+                    );
+                  }
+                }
+                output.add(event);
+              },
+              onError: fail,
+              onDone: () {
+                if (stopped) return;
+                stopped = true;
+                release();
+                unawaited(output.close());
+              },
+            );
+      } catch (error, stack) {
+        fail(error, stack);
+      }
     }
+
+    output = StreamController<SseEvent>(
+      onListen: () {
+        unawaited(
+          start().catchError(
+            (Object error, StackTrace stack) => fail(error, stack),
+          ),
+        );
+      },
+      onPause: () => events?.pause(),
+      onResume: () => events?.resume(),
+      onCancel: () {
+        stopped = true;
+        release();
+      },
+    );
+    return output.stream;
   }
 }

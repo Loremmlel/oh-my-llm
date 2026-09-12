@@ -3,28 +3,21 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:oh_my_llm/app/composition/chat_generation_foreground_service_bindings.dart';
 import 'package:oh_my_llm/core/constants/app_layout_density.dart';
-import 'package:oh_my_llm/core/http/custom_headers_provider.dart';
-import 'package:oh_my_llm/core/http/http_client_provider.dart';
 import 'package:oh_my_llm/core/http/http_route_handler.dart';
-import 'package:oh_my_llm/core/http/llm_http_stream_transport.dart';
 import 'package:oh_my_llm/core/http/peer_http_client_provider.dart';
-import 'package:oh_my_llm/core/logging/app_network_logger_provider.dart';
 import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
+import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/features/chat/application/favorites/chat_favorites_facade.dart';
-import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_controller.dart';
-import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_conversation_repository.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_foreground_service.dart';
 import 'package:oh_my_llm/features/chat/application/ports/history_page_query.dart';
-import 'package:oh_my_llm/features/chat/data/generation/anthropic/anthropic_messages_client.dart';
+import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_controller.dart';
+import 'package:oh_my_llm/features/chat/data/generation/chat_text_generation_adapter.dart';
 import 'package:oh_my_llm/features/chat/data/persistence/background_chat_repository.dart';
 import 'package:oh_my_llm/features/chat/data/persistence/history_page_query_adapter.dart';
-import 'package:oh_my_llm/features/chat/data/generation/chat_completions/chat_completions_client.dart';
-import 'package:oh_my_llm/features/chat/data/generation/protocol_routing_chat_generation_client.dart';
-import 'package:oh_my_llm/features/chat/data/generation/responses/responses_client.dart';
 import 'package:oh_my_llm/features/chat/data/persistence/sqlite_chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/favorites/application/collections_controller.dart';
 import 'package:oh_my_llm/features/favorites/application/favorite_source_conversation_command.dart';
@@ -38,15 +31,15 @@ import 'package:oh_my_llm/features/favorites/domain/models/favorite.dart';
 import 'package:oh_my_llm/features/media/application/media_grid_density_controller.dart';
 import 'package:oh_my_llm/features/media/application/media_root_directory_controller.dart';
 import 'package:oh_my_llm/features/media/application/ports/media_library_factory.dart';
-import 'package:oh_my_llm/features/media/data/libraries/default_media_library_factory.dart';
-import 'package:oh_my_llm/features/media/data/scanning/media_directory_scanner.dart';
 import 'package:oh_my_llm/features/media/data/http/media_http_handler.dart';
 import 'package:oh_my_llm/features/media/data/http/media_image_http_handler.dart';
 import 'package:oh_my_llm/features/media/data/http/media_recursive_videos_handler.dart';
-import 'package:oh_my_llm/features/media/data/scanning/media_thumbnail_cache.dart';
-import 'package:oh_my_llm/features/media/data/scanning/media_thumbnail_generator.dart';
 import 'package:oh_my_llm/features/media/data/http/media_thumbnail_http_handler.dart';
 import 'package:oh_my_llm/features/media/data/http/media_video_http_handler.dart';
+import 'package:oh_my_llm/features/media/data/libraries/default_media_library_factory.dart';
+import 'package:oh_my_llm/features/media/data/scanning/media_directory_scanner.dart';
+import 'package:oh_my_llm/features/media/data/scanning/media_thumbnail_cache.dart';
+import 'package:oh_my_llm/features/media/data/scanning/media_thumbnail_generator.dart';
 import 'package:oh_my_llm/features/settings/application/transfer/settings_sync_facade.dart';
 import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_coordinator_provider.dart';
 import 'package:oh_my_llm/features/sync/application/ports/settings_sync_facade.dart';
@@ -56,11 +49,12 @@ import 'package:oh_my_llm/features/sync/application/ports/sync_crypto.dart';
 import 'package:oh_my_llm/features/sync/application/ports/sync_media_route_factory.dart';
 import 'package:oh_my_llm/features/sync/application/ports/sync_pairing_repository.dart';
 import 'package:oh_my_llm/features/sync/application/ports/sync_server_transport.dart';
-import 'package:oh_my_llm/features/sync/data/security/cryptography_sync_crypto.dart';
 import 'package:oh_my_llm/features/sync/data/http/http_sync_client_transport.dart';
 import 'package:oh_my_llm/features/sync/data/http/http_udp_sync_server_transport.dart';
+import 'package:oh_my_llm/features/sync/data/security/cryptography_sync_crypto.dart';
 import 'package:oh_my_llm/features/sync/data/security/secure_sync_pairing_repository.dart';
-import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
+
+import 'llm_bindings.dart';
 
 /// 组合跨 feature 的 concrete implementation。
 ///
@@ -122,19 +116,9 @@ List<dynamic> appCompositionOverrides({
     if (bindChatGenerationClient)
       // Chat generation：生产环境绑定按请求协议路由的唯一客户端；
       // 三个协议客户端共享同一个流式传输（HTTP 客户端 / 日志 / 自定义 header）。
-      chatGenerationClientProvider.overrideWith((ref) {
-        final transport = LlmHttpStreamTransport(
-          httpClient: ref.read(httpClientProvider),
-          logger: ref.watch(appNetworkLoggerProvider),
-          // 在请求构建阶段读取自定义 header，确保 logRequest 之前已附加到请求上。
-          extraHeadersFactory: () => ref.read(customHeadersMapProvider),
-        );
-        return ProtocolRoutingChatGenerationClient(
-          chatCompletions: ChatCompletionsClient(transport: transport),
-          responses: ResponsesClient(transport: transport),
-          anthropic: AnthropicMessagesClient(transport: transport),
-        );
-      }),
+      chatGenerationClientProvider.overrideWith(
+        (ref) => ChatTextGenerationAdapter(ref.watch(llmClientProvider)),
+      ),
     if (bindChatConversationRepository)
       // Chat conversation：SQLite inner + 后台 Isolate 写入代理，
       // 与迁移前的 data-owned factory 保持相同装配语义。

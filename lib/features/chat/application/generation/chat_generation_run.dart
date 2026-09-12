@@ -1,15 +1,15 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:oh_my_llm/core/llm/llm_usage.dart';
 import 'package:oh_my_llm/features/settings/domain/models/preferences/auto_retry_settings.dart';
 
 import '../../domain/models/chat_conversation.dart';
-import '../../domain/models/chat_generation_usage.dart';
 import '../../domain/models/chat_message.dart';
+import '../ports/chat_generation_client.dart';
+import '../sessions/chat_sessions_state.dart';
 import 'chat_generation_contract.dart';
 import 'chat_generation_lifecycle.dart';
-import '../sessions/chat_sessions_state.dart';
-import '../ports/chat_generation_client.dart';
 
 /// 一次 generation 的完整生命周期 owner（不变量 1：单一 owner）。
 ///
@@ -54,7 +54,7 @@ class ChatGenerationRun {
   String _content = '';
   String _reasoning = '';
   String? _finishReason;
-  ChatGenerationUsage? _usage;
+  LlmUsage? _usage;
 
   // prepare 填充的 run context。
   ChatGenerationRequest? _request;

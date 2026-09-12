@@ -17,6 +17,28 @@ ArchitecturePolicy get _settingsAllowance => ArchitecturePolicy(
 );
 
 void main() {
+  test('LLM 契约和 feature 不得依赖协议实现或装配', () {
+    for (final source in [
+      'lib/core/llm/llm_request.dart',
+      'lib/features/chat/application/example.dart',
+    ]) {
+      for (final target in [
+        'core/llm/protocols/responses/responses_client.dart',
+        'app/composition/llm_bindings.dart',
+      ]) {
+        final violations = _checker().checkSources({
+          source: "import 'package:oh_my_llm/$target';",
+        });
+        expect(violations.single.ruleId, 'LLM_IMPLEMENTATION_BOUNDARY');
+      }
+    }
+    expect(
+      _checker().checkSources({
+        'lib/app/composition/llm_bindings.dart': "import 'package:oh_my_llm/core/llm/protocols/responses/responses_client.dart';",
+      }),
+      isEmpty,
+    );
+  });
   group('合法输入', () {
     test('同 feature 分层引用零违规', () {
       final violations = _checker().checkSources({
@@ -34,7 +56,7 @@ void main() {
       final violations = _checker().checkSources({
         'lib/app/composition/cross_feature_bindings.dart': """
           import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
-          import 'package:oh_my_llm/features/chat/data/generation/protocol_routing_chat_generation_client.dart';
+          import 'package:oh_my_llm/core/llm/protocols/protocol_routing_llm_client.dart';
         """,
       });
       expect(violations, isEmpty);
@@ -150,13 +172,13 @@ void main() {
       final violations = _checker().checkSources({
         'lib/features/chat/presentation/chat_screen.dart': """
           // import 'package:oh_my_llm/features/chat/data/persistence/sqlite_chat_conversation_repository.dart';
-          import 'package:oh_my_llm/features/chat/data/generation/protocol_routing_chat_generation_client.dart'
-              if (dart.library.io) 'package:oh_my_llm/features/chat/data/generation/chat_completions/chat_completions_client.dart';
+          import 'package:oh_my_llm/core/llm/protocols/protocol_routing_llm_client.dart'
+              if (dart.library.io) 'package:oh_my_llm/core/llm/protocols/chat_completions/chat_completions_client.dart';
         """,
       });
       expect(violations, hasLength(2));
       expect(
-        violations.every((v) => v.ruleId == 'PRESENTATION_TO_DATA'),
+        violations.every((v) => v.ruleId == 'LLM_IMPLEMENTATION_BOUNDARY'),
         isTrue,
       );
     });
