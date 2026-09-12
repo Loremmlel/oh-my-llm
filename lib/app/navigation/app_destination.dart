@@ -16,6 +16,12 @@ enum AppDestination {
     icon: Icons.history_rounded,
     selectedIcon: Icons.history_toggle_off_rounded,
   ),
+  agent(
+    path: '/agent',
+    label: 'Agent',
+    icon: Icons.auto_awesome_outlined,
+    selectedIcon: Icons.auto_awesome,
+  ),
   favorites(
     path: '/favorites',
     label: '收藏',

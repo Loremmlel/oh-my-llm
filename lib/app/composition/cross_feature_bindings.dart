@@ -54,6 +54,7 @@ import 'package:oh_my_llm/features/sync/data/http/http_udp_sync_server_transport
 import 'package:oh_my_llm/features/sync/data/security/cryptography_sync_crypto.dart';
 import 'package:oh_my_llm/features/sync/data/security/secure_sync_pairing_repository.dart';
 
+import 'agent_bindings.dart';
 import 'llm_bindings.dart';
 
 /// 组合跨 feature 的 concrete implementation。
@@ -80,6 +81,7 @@ List<dynamic> appCompositionOverrides({
   // TargetPlatform.windows，宿主 CI 绝不打开真实 Android MethodChannel。
   final effectivePlatform = hostPlatform ?? defaultTargetPlatform;
   return [
+    ...createAgentBindings(),
     syncClientTransportProvider.overrideWith(
       (ref) => HttpSyncClientTransport(ref.watch(peerHttpClientProvider)),
     ),

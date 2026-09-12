@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:oh_my_llm/features/agent/presentation/agent_screen.dart';
+import 'package:oh_my_llm/features/agent/presentation/agent_run_screen.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
 import 'package:oh_my_llm/features/favorites/presentation/favorite_collection_items_screen.dart';
 import 'package:oh_my_llm/features/favorites/presentation/favorite_collections_screen.dart';
@@ -65,6 +67,21 @@ GoRouter createAppRouter({
         path: AppDestination.settings.path,
         name: AppDestination.settings.name,
         builder: (context, state) => const SettingsScreen(),
+      ),
+      GoRoute(
+        path: AppDestination.agent.path,
+        name: AppDestination.agent.name,
+        builder: (context, state) => const AgentScreen(),
+        routes: [
+          GoRoute(
+            path: 'workspaces/:workspaceId/runs/:runId',
+            name: 'agentRun',
+            builder: (context, state) => AgentRunScreen(
+              workspaceId: state.pathParameters['workspaceId']!,
+              runId: state.pathParameters['runId']!,
+            ),
+          ),
+        ],
       ),
       GoRoute(
         path: AppDestination.favorites.path,
