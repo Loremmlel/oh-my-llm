@@ -20,6 +20,35 @@ function Get-ProjectVersion {
   return $versionLine.Matches[0].Groups[1].Value.Trim()
 }
 
+function Assert-LatestArtifactNotRunning {
+  param(
+    [Parameter(Mandatory)]
+    [string]$LatestDirectory
+  )
+
+  $latestExecutable = [System.IO.Path]::GetFullPath(
+    (Join-Path $LatestDirectory "oh_my_llm.exe")
+  )
+  $runningProcesses = @(
+    Get-CimInstance Win32_Process -Filter "Name='oh_my_llm.exe'" -ErrorAction SilentlyContinue |
+      Where-Object {
+        $_.ExecutablePath -and
+        [string]::Equals(
+          [System.IO.Path]::GetFullPath($_.ExecutablePath),
+          $latestExecutable,
+          [System.StringComparison]::OrdinalIgnoreCase
+        )
+      }
+  )
+
+  if ($runningProcesses.Count -eq 0) {
+    return
+  }
+
+  $processIds = ($runningProcesses.ProcessId | Sort-Object) -join ", "
+  throw "检测到 oh_my_llm-windows-latest 正在运行（PID: $processIds）。请先关闭这些窗口或进程，再重新构建；脚本尚未修改发布目录。"
+}
+
 $repoRoot = Split-Path -Parent $PSCommandPath
 $pubspecPath = Join-Path $repoRoot "pubspec.yaml"
 $projectVersion = Get-ProjectVersion -PubspecPath $pubspecPath
@@ -28,6 +57,8 @@ $artifactRoot = Join-Path $repoRoot $OutputDir
 $latestDir = Join-Path $artifactRoot "oh_my_llm-windows-latest"
 $zipPath = Join-Path $artifactRoot "oh_my_llm-windows-$safeVersion.zip"
 $releaseDir = Join-Path $repoRoot "build\windows\x64\runner\Release"
+
+Assert-LatestArtifactNotRunning -LatestDirectory $latestDir
 
 Write-Host "==> 准备 Windows Release 构建"
 Push-Location $repoRoot
@@ -52,8 +83,12 @@ if (-not (Test-Path $releaseDir)) {
 
 New-Item -ItemType Directory -Path $artifactRoot -Force | Out-Null
 
+# 构建期间仍可能有人启动 latest，发布前再次检查以避免删到一半。
+Assert-LatestArtifactNotRunning -LatestDirectory $latestDir
+
 # 清理旧版本文件夹（只保留 latest）
 Get-ChildItem -Path $artifactRoot -Directory -Filter "oh_my_llm-windows-*" -ErrorAction SilentlyContinue |
+  Where-Object { $_.FullName -ne $latestDir } |
   Remove-Item -Recurse -Force
 
 # 覆盖 latest 文件夹

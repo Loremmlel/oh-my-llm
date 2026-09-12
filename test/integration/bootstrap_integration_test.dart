@@ -127,4 +127,17 @@ void main() {
     final port = container.read(chatGenerationForegroundServiceProvider);
     expect(port, isA<NoopChatGenerationForegroundService>());
   });
+
+  testWidgets('启动初始化失败时显示错误页并保留原因', (tester) async {
+    await bootstrap(
+      hostPlatform: TargetPlatform.windows,
+      windowsWindowInitializer: () async {
+        throw StateError('模拟启动失败');
+      },
+    );
+    await tester.pump();
+
+    expect(find.text('应用启动失败'), findsOneWidget);
+    expect(find.textContaining('模拟启动失败'), findsOneWidget);
+  });
 }
