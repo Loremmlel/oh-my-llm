@@ -92,7 +92,7 @@ class SqliteAgentStore implements AgentStore {
           latest?.id != round.id) {
         throw const AgentWorkspaceException('作品有未完成的状态更新，请先重试或放弃该轮。');
       }
-      _checkStoryVersions(round);
+      _checkStoryInputs(round);
       result = current?.copyWith(stateAgentId: round.stateAgentId) ?? round;
       _saveStoryRound(result);
     });
@@ -132,7 +132,7 @@ class SqliteAgentStore implements AgentStore {
           child.role != AgentRole.state) {
         throw const AgentWorkspaceException('只有本轮绑定的状态 Agent 可以更新剧情。');
       }
-      _checkStoryVersions(round);
+      _checkStoryInputs(round);
       final next = round.beforeState.apply(operations, generateEntityId);
       result = round.copyWith(
         status: AgentStoryRoundStatus.committed,
@@ -145,13 +145,13 @@ class SqliteAgentStore implements AgentStore {
     return result;
   }
 
-  void _checkStoryVersions(AgentStoryRound round) {
+  void _checkStoryInputs(AgentStoryRound round) {
     if (readStoryState(round.beforeWorkspace.id).revision !=
             round.beforeState.revision ||
         readDocument(round.beforeWorkspace.id, round.document.name) !=
             round.document ||
         round.document.kind != AgentDocumentKind.document) {
-      throw const AgentWorkspaceException('正文或状态版本已变化，拒绝保存过期结果。请放弃本轮后重新开始。');
+      throw const AgentWorkspaceException('正文或状态已变化，拒绝保存过期结果。请放弃本轮后重新开始。');
     }
   }
 
@@ -218,6 +218,31 @@ class SqliteAgentStore implements AgentStore {
         ),
       );
       final current = loadWorkspace(workspaceId, sessionId: sessionId)!;
+      // 只恢复本轮仍拥有的写入；用户后来手动修改的文档不被撤回覆盖。
+      for (final entry in database.connection.select(
+        'SELECT * FROM agent_document_undo WHERE workspace_id = ? AND run_id = ?;',
+        [workspaceId, roundId],
+      )) {
+        final owned = database.connection.select(
+          'SELECT 1 FROM agent_documents WHERE workspace_id = ? AND name = ? AND source_run_id = ?;',
+          [workspaceId, entry['name'], roundId],
+        );
+        if (owned.isEmpty) continue;
+        database.connection.execute(
+          'DELETE FROM agent_documents WHERE workspace_id = ? AND name = ?;',
+          [workspaceId, entry['name']],
+        );
+        if (entry['before_json'] != null) {
+          final previous = decodeAgentDocument(
+            jsonDecode(entry['before_json'] as String),
+          );
+          _saveDocument(
+            workspaceId,
+            previous,
+            entry['before_source_run_id'] as String?,
+          );
+        }
+      }
       _saveWorkspace(
         current.copyWith(
           history: round.beforeWorkspace.history,
@@ -311,7 +336,7 @@ class SqliteAgentStore implements AgentStore {
   @override
   List<AgentConfiguration> listConfigurations(String workspaceId) => [
     for (final row in database.connection.select(
-      'SELECT record_json FROM agent_configurations WHERE workspace_id = ? ORDER BY revision DESC;',
+      'SELECT record_json FROM agent_configurations WHERE workspace_id = ? ORDER BY name;',
       [workspaceId],
     ))
       decodeAgentConfiguration(jsonDecode(row['record_json'] as String)),
@@ -336,19 +361,14 @@ class SqliteAgentStore implements AgentStore {
     late AgentConfiguration saved;
     _transaction(() {
       final current = listConfigurations(workspaceId);
-      if (current.length >= 200) {
-        throw const AgentWorkspaceException('每部作品最多保存 200 个配置版本。');
+      if (current.length >= 200 &&
+          !current.any((c) => c.name == configuration.name)) {
+        throw const AgentWorkspaceException('每部作品最多保存 200 个配置方案。');
       }
-      saved = configuration.copyWith(
-        revision: (current.firstOrNull?.revision ?? 0) + 1,
-      );
+      saved = configuration;
       database.connection.execute(
-        'INSERT INTO agent_configurations VALUES (?, ?, ?);',
-        [
-          workspaceId,
-          saved.revision,
-          jsonEncode(encodeAgentConfiguration(saved)),
-        ],
+        'INSERT INTO agent_configurations (workspace_id, name, record_json) VALUES (?, ?, ?) ON CONFLICT(workspace_id, name) DO UPDATE SET record_json = excluded.record_json;',
+        [workspaceId, saved.name, jsonEncode(encodeAgentConfiguration(saved))],
       );
     });
     return saved;
@@ -424,7 +444,7 @@ class SqliteAgentStore implements AgentStore {
             ...closePendingAgentTools(workspace.history),
             const LlmTextMessage(
               role: LlmRole.user,
-              text: '上次运行因应用关闭而中断。已保存的文档版本仍保留；请读取核实，不要假定所有工具成功。',
+              text: '上次运行因应用关闭而中断。已保存的文档仍保留；请读取核实，不要假定所有工具成功。',
             ),
           ],
         ),
@@ -435,30 +455,18 @@ class SqliteAgentStore implements AgentStore {
   @override
   List<AgentDocument> listDocuments(String workspaceId) => database.connection
       .select(
-        '''
-    SELECT * FROM agent_document_revisions AS d
-    WHERE workspace_id = ? AND revision = (SELECT MAX(revision) FROM agent_document_revisions AS r
-      WHERE workspace_id = d.workspace_id AND name = d.name
-      AND NOT EXISTS (SELECT 1 FROM agent_story_rounds AS s WHERE s.id = r.source_run_id AND s.status IN ('withdrawn', 'discarded'))) ORDER BY name;
-  ''',
+        'SELECT * FROM agent_documents WHERE workspace_id = ? ORDER BY name;',
         [workspaceId],
       )
       .map(_document)
       .toList();
+
   @override
-  AgentDocument? readDocument(
-    String workspaceId,
-    String name, {
-    int? revision,
-  }) {
+  AgentDocument? readDocument(String workspaceId, String name) {
     _validateName(name);
     final rows = database.connection.select(
-      '''
-      SELECT * FROM agent_document_revisions
-      WHERE workspace_id = ? AND name = ? ${revision == null ? "AND NOT EXISTS (SELECT 1 FROM agent_story_rounds AS s WHERE s.id = source_run_id AND s.status IN ('withdrawn', 'discarded'))" : 'AND revision = ?'}
-      ORDER BY revision DESC LIMIT 1;
-    ''',
-      [workspaceId, name, ?revision],
+      'SELECT * FROM agent_documents WHERE workspace_id = ? AND name = ?;',
+      [workspaceId, name],
     );
     return rows.isEmpty ? null : _document(rows.single);
   }
@@ -468,7 +476,6 @@ class SqliteAgentStore implements AgentStore {
     String workspaceId,
     String name,
     String content, {
-    required int expectedRevision,
     AgentDocumentKind? kind,
     String? sourceRunId,
   }) {
@@ -476,52 +483,62 @@ class SqliteAgentStore implements AgentStore {
     if (utf8.encode(content).length > 256 * 1024) {
       throw const AgentWorkspaceException('文档不能超过 256 KiB。');
     }
-    if (expectedRevision < 0) throw const AgentWorkspaceException('版本号不能为负数。');
     late AgentDocument document;
     _transaction(() {
       final current = readDocument(workspaceId, name);
-      if ((current?.revision ?? 0) != expectedRevision) {
-        throw const AgentWorkspaceException('文档版本冲突，请重新读取后再保存。');
-      }
       if (current == null && listDocuments(workspaceId).length >= 100) {
         throw const AgentWorkspaceException('每个工作区最多保存 100 份文档。');
       }
       if (sourceRunId != null) {
         final owner = loadRun(workspaceId, sourceRunId);
-        if (owner == null || owner.parentId != null) {
+        if (owner == null ||
+            owner.parentId != null ||
+            owner.status != AgentRunStatus.running) {
           throw const AgentWorkspaceException('文档写入不属于当前主任务。');
         }
+        final rows = database.connection.select(
+          'SELECT source_run_id FROM agent_documents WHERE workspace_id = ? AND name = ?;',
+          [workspaceId, name],
+        );
+        // 同一轮无论改稿多少次，只留写入前的一份撤回快照。
+        database.connection.execute(
+          'INSERT OR IGNORE INTO agent_document_undo (workspace_id, run_id, name, before_json, before_source_run_id) VALUES (?, ?, ?, ?, ?);',
+          [
+            workspaceId,
+            sourceRunId,
+            name,
+            current == null ? null : jsonEncode(encodeAgentDocument(current)),
+            rows.firstOrNull?['source_run_id'],
+          ],
+        );
       }
-      final revisions = database.connection.select(
-        'SELECT revision, document_id FROM agent_document_revisions WHERE workspace_id = ? AND name = ? ORDER BY revision DESC LIMIT 1;',
-        [workspaceId, name],
-      );
       document = AgentDocument(
-        id:
-            current?.id ??
-            (revisions.firstOrNull?['document_id'] as String?) ??
-            generateEntityId(),
+        id: current?.id ?? generateEntityId(),
         kind: kind ?? current?.kind ?? AgentDocumentKind.document,
         name: name,
         content: content,
-        revision: (revisions.firstOrNull?['revision'] as int? ?? 0) + 1,
       );
-      database.connection.execute(
-        '''
-        INSERT INTO agent_document_revisions (workspace_id, name, revision, content, document_id, kind, source_run_id) VALUES (?, ?, ?, ?, ?, ?, ?);
-      ''',
-        [
-          workspaceId,
-          name,
-          document.revision,
-          content,
-          document.id,
-          document.kind.name,
-          sourceRunId,
-        ],
-      );
+      _saveDocument(workspaceId, document, sourceRunId);
     });
     return document;
+  }
+
+  void _saveDocument(
+    String workspaceId,
+    AgentDocument document,
+    String? sourceRunId,
+  ) {
+    database.connection.execute(
+      'INSERT INTO agent_documents (workspace_id, name, content, document_id, kind, source_run_id) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(workspace_id, name) DO UPDATE SET content = excluded.content, kind = excluded.kind, source_run_id = excluded.source_run_id;',
+      [
+        workspaceId,
+        document.name,
+        document.content,
+        document.id,
+        document.kind.name,
+        sourceRunId,
+      ],
+    );
   }
 
   void _validateName(String name) {
@@ -540,7 +557,6 @@ class SqliteAgentStore implements AgentStore {
     kind: AgentDocumentKind.values.byName(row['kind'] as String),
     name: row['name'] as String,
     content: row['content'] as String,
-    revision: row['revision'] as int,
   );
   void _transaction(void Function() action) {
     database.connection.execute('BEGIN IMMEDIATE;');

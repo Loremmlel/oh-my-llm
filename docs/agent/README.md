@@ -1,8 +1,34 @@
 # Agent 小说工作区交接
 
+## 2026-09-15：实机反馈后的交付方式调整
+
+实施分支：`fix/agent-reading-flow`。当前行为以本节和[修订后的规格](../specs/2026-09-15-agent-story-state.md)为准，下面的版本与冻结说明保留为历史记录。
+
+- 正文直接显示在对话楼层。主 Agent 调用 `update_story_state(name)` 选定正文后，应用展示正文并折叠整轮执行过程；状态更新成功直接完成，不再请求主模型生成总结。
+- 工具调用收起时为紧凑单行，执行细节、子任务与本轮用量仍可展开查看。待更新、失败和撤回入口继续可见。
+- 资料编辑移除外层滚动，只有正文输入区滚动。保存覆盖同名文档，不再浏览或保留改稿版本；同名模型方案也直接覆盖。
+- 每轮使用当前世界书与人物卡，修改立即在下次运行生效，不必新建会话。历史实际输入供诊断，保持原样。
+- 文档工具去掉 `expected_revision`：`write_document(name, content)`、`read_document(name)`、`update_story_state(name)`。当前执行契约随请求发送，即使原先保存的提示词仍提到旧版本参数，也应遵循当前工具定义。
+- schema v19 顺序升级保留各文档当前有效内容和正式轮次。`agent_documents` 保存当前文档，`agent_document_undo` 每轮每文档仅保存首次写入前的快照，替代旧文档修订表。状态内部递增标记仅防止迟到提交，不提供版本浏览。
+- 版本移除范围是文档和模型方案的修订历史、相关读写参数及资料冻结。仍保留数据格式版本、已发布 schema 迁移、正式轮次／撤回快照和状态过期检查；运行历史中的旧工具输入保持原样。
+- 已发生剧情仍以楼层中的正式正文快照为准。以后修改同名工作文档不会改写已采用楼层。整轮撤回恢复状态、原指令和该轮仍拥有的文档写入；用户之后手动保存的内容保留。
+
+验证：
+
+- `flutter test --no-pub --reporter compact`：1872 项通过，日志 `logs/fltest.log`。包含三种协议的原生工具续接、迁移链和整轮撤回。
+- `flutter analyze --no-pub`、`dart run tool/check_import_boundaries.dart`：通过，架构门禁检查 419 个文件，0 违规。
+- 自动折叠的 red/green：临时移除选定正文后的折叠行为，用例在“候选稿仍可见”处失败；恢复后页面用例通过。证据在 `logs/agent-reading-red.log`、`logs/agent-reading-green.log`。
+- 残留检查清除了中断工具结果中的旧版本措辞及资料冻结遗留的无效辅助接口；上下文与运行器 16 项测试、静态分析通过，证据为 `logs/agent-version-cleanup.log`、`logs/agent-version-analyze.log`。
+- 使用实际字体离屏渲染 390×844 正文楼层、1280×900 工具过程及窄屏键盘弹出后的资料编辑；确认正文可读、工具行紧凑、编辑无双层滚动、保存按钮可达。截图为 `logs/agent-reading-narrow.png`、`logs/agent-reading-tools.png`、`logs/agent-editor-keyboard.png`。这是组件渲染验证，尚未验证新版原生桌面的文字注入。
+- UI 静态审计通过；`designmd lint DESIGN.md` 为 0 错误、7 个既有 token 映射提示，运行时主题继续由 Dart token 维护。
+- Windows Release 与 Android Release（ARM／ARM64）构建通过；构建日志为 `logs/build-windows.log`、`logs/build-android.log`。Android 工具链仍有 SDK XML 版本提示，未影响构建。
+
+真实模型的写作质量、状态遗漏和缓存命中率仍待新版连续试用。此次没有修改正在运行的旧版应用数据库。
+
+
 ## 2026-09-15：写作、状态更新与撤回
 
-实施分支：`feat/agent-story-state`。依据 [本阶段规格](../specs/2026-09-15-agent-story-state.md)，术语见 [领域词汇表](../../CONTEXT.md)。本节记录当前实现；后面的 2026-09-12 工作区基建记录保留为历史参考，其“尚未实现”“下一阶段”和 schema v17 均是当时状态。
+实施分支：`feat/agent-story-state`。依据 [本阶段规格](../specs/2026-09-15-agent-story-state.md)，术语见 [领域词汇表](../../CONTEXT.md)。本节记录实机反馈调整前的实现；后面的 2026-09-12 工作区基建记录也保留为历史参考，其“尚未实现”“下一阶段”和 schema v17 均是当时状态。
 
 ### 已实现流程
 

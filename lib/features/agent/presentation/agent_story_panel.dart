@@ -89,10 +89,7 @@ class AgentStoryPanel extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.md),
       children: [
-        Text(
-          '剧情状态 · 版本 ${state.storyState.revision}',
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
+        Text('剧情状态', style: Theme.of(context).textTheme.titleMedium),
         if (state.storyState.rows.isEmpty)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: AppSpacing.xs),
@@ -118,9 +115,7 @@ class AgentStoryPanel extends ConsumerWidget {
                 .reversed)
           ExpansionTile(
             key: PageStorageKey('story/${round.id}'),
-            title: Text(
-              '${round.document.name} · 版本 ${round.document.revision}',
-            ),
+            title: Text(round.document.name),
             subtitle: Text(
               round.status == AgentStoryRoundStatus.pending ? '状态待更新' : '已采用',
             ),
@@ -144,9 +139,7 @@ class AgentStoryPanel extends ConsumerWidget {
             children: [
               for (final round in rounds)
                 ListTile(
-                  title: Text(
-                    '${round.document.name} · 版本 ${round.document.revision}',
-                  ),
+                  title: Text(round.document.name),
                   subtitle: Text(switch (round.status) {
                     AgentStoryRoundStatus.pending => '状态待更新',
                     AgentStoryRoundStatus.committed => '已采用',

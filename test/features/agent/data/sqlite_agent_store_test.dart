@@ -65,7 +65,7 @@ void main() {
     expect(store.loadWorkspace('b', sessionId: 'second'), isNull);
   });
 
-  test('配置和资料类型按版本保留，修改类型保留稳定 ID 和旧正文', () {
+  test('同名方案覆盖保存，资料修改类型保留稳定 ID', () {
     final config = AgentConfiguration(
       name: '克制版',
       modelId: 'main',
@@ -82,36 +82,42 @@ void main() {
       'a',
       config.copyWith(name: '抒情版', preset: '抒情'),
     );
-    expect(store.listConfigurations('a'), [v2, v1]);
+    expect(store.listConfigurations('a'), containsAll([v2, v1]));
+    store.saveConfiguration('a', config.copyWith(preset: '新的文风'));
+    expect(store.listConfigurations('a'), hasLength(2));
+    expect(
+      store
+          .listConfigurations('a')
+          .singleWhere((c) => c.name == config.name)
+          .preset,
+      '新的文风',
+    );
     expect(store.listConfigurations('b'), isEmpty);
     final card = store.writeDocument(
       'a',
       '甲',
       '作者设定',
-      expectedRevision: 0,
       kind: AgentDocumentKind.characterCard,
     );
     final world = store.writeDocument(
       'a',
       '港口',
       '旧规则',
-      expectedRevision: 0,
       kind: AgentDocumentKind.worldBook,
     );
-    final updated = store.writeDocument('a', '港口', '新规则', expectedRevision: 1);
+    final updated = store.writeDocument('a', '港口', '新规则');
     expect(updated.id, world.id);
     expect(updated.kind, world.kind);
-    expect(store.readDocument('a', '港口', revision: 1), world);
+    expect(store.readDocument('a', '港口'), updated);
     final revisedCard = store.writeDocument(
       'a',
       '甲',
       '人物笔记',
-      expectedRevision: 1,
       kind: AgentDocumentKind.document,
     );
     expect(revisedCard.id, card.id);
     expect(revisedCard.kind, AgentDocumentKind.document);
-    expect(store.readDocument('a', '甲', revision: 1), card);
+    expect(store.readDocument('a', '甲'), revisedCard);
   });
 
   test('执行流保留步骤类型与活动状态，旧记录可读且子任务链接按工作区隔离', () {
@@ -146,34 +152,40 @@ void main() {
     expect(store.loadRun('a', 'child')!.steps.first.isRunning, isFalse);
   });
 
-  test('文档保留历史版本，冲突拒绝覆盖，不同工作区同名文档互不影响', () {
-    store.writeDocument('a', '正文', '旧稿', expectedRevision: 0);
-    store.writeDocument('a', '正文', '新稿', expectedRevision: 1);
-    store.writeDocument('b', '正文', '另一部小说', expectedRevision: 0);
-    expect(
-      () => store.writeDocument('a', '正文', '过期覆盖', expectedRevision: 1),
-      throwsA(isA<AgentWorkspaceException>()),
-    );
+  test('文档直接覆盖且只留一份，不同作品同名文档互不影响', () {
+    store.writeDocument('a', '正文', '旧稿');
+    store.writeDocument('a', '正文', '新稿');
+    store.writeDocument('b', '正文', '另一部小说');
     expect(store.readDocument('a', '正文')?.content, '新稿');
-    expect(store.readDocument('a', '正文', revision: 1)?.content, '旧稿');
     expect(store.readDocument('b', '正文')?.content, '另一部小说');
     expect(store.listDocuments('a'), hasLength(1));
+    expect(
+      database.connection.select(
+        "SELECT * FROM agent_documents WHERE workspace_id = 'a';",
+      ),
+      hasLength(1),
+    );
+    expect(
+      database.connection.select('SELECT * FROM agent_document_undo;'),
+      isEmpty,
+    );
+    expect(
+      database.connection.select(
+        "SELECT name FROM sqlite_master WHERE name = 'agent_document_revisions';",
+      ),
+      isEmpty,
+    );
   });
 
   test('文件库重开恢复正文与运行记录，中断调用补齐错误结果且不重复保存', () {
     final calls = [
-      agentCall('written', 'write_document', {
-        'name': '正文',
-        'content': '已保存',
-        'expected_revision': 0,
-      }),
+      agentCall('written', 'write_document', {'name': '正文', 'content': '已保存'}),
       agentCall('uncertain', 'write_document', {
         'name': '另一稿',
         'content': '不确定',
-        'expected_revision': 0,
       }),
     ];
-    store.writeDocument('a', '正文', '已保存', expectedRevision: 0);
+    store.writeDocument('a', '正文', '已保存');
     final workspace = AgentWorkspace(
       id: 'a',
       title: '小说甲',
@@ -238,7 +250,6 @@ void main() {
           .reasoning,
       '独立推理',
     );
-    expect(store.readDocument('a', '正文')?.revision, 1);
     expect(store.readDocument('a', '另一稿'), isNull);
     store.recoverInterruptedRuns();
     expect(store.loadWorkspace('a'), recovered);

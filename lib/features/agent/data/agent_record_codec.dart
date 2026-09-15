@@ -14,7 +14,6 @@ Map<String, dynamic> encodeAgentWorkspace(AgentWorkspace value) => {
   'sessionTitle': value.sessionTitle,
   'configuration': encodeAgentConfiguration(value.configuration),
   'references': value.references.map(encodeAgentDocument).toList(),
-  'referencesFrozen': value.referencesFrozen,
   'modelId': value.modelId,
   'instructions': value.instructions,
   'draft': value.draft,
@@ -33,7 +32,6 @@ AgentWorkspace decodeAgentWorkspace(Map<String, dynamic> json) {
     references: (json['references'] as List)
         .map((v) => decodeAgentDocument(Map<String, dynamic>.from(v as Map)))
         .toList(),
-    referencesFrozen: json['referencesFrozen'] as bool,
     modelId: json['modelId'] as String?,
     instructions: json['instructions'] as String,
     draft: json['draft'] as String,
@@ -207,7 +205,6 @@ LlmInputItem _decodeInput(Map<String, dynamic> json) => switch (json['type']) {
 
 Map<String, Object?> encodeAgentConfiguration(AgentConfiguration value) => {
   'name': value.name,
-  'revision': value.revision,
   'modelId': value.modelId,
   'preset': value.preset,
   'presetRoles': value.presetRoles.map((r) => r.name).toList(),
@@ -222,7 +219,6 @@ Map<String, Object?> encodeAgentConfiguration(AgentConfiguration value) => {
 AgentConfiguration decodeAgentConfiguration(Map<String, dynamic> json) =>
     AgentConfiguration(
       name: json['name'] as String,
-      revision: json['revision'] as int,
       modelId: json['modelId'] as String?,
       preset: json['preset'] as String,
       presetRoles: (json['presetRoles'] as List).map(
@@ -240,14 +236,12 @@ Map<String, Object?> encodeAgentDocument(AgentDocument d) => {
   'id': d.id,
   'name': d.name,
   'content': d.content,
-  'revision': d.revision,
   'kind': d.kind.name,
 };
 AgentDocument decodeAgentDocument(Map<String, dynamic> j) => AgentDocument(
   id: j['id'] as String,
   name: j['name'] as String,
   content: j['content'] as String,
-  revision: j['revision'] as int,
   kind: AgentDocumentKind.values.byName(j['kind'] as String),
 );
 

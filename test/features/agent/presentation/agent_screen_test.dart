@@ -58,7 +58,7 @@ void main() {
     );
     await settleOverlayTransition(tester);
     await tester.enterText(find.widgetWithText(TextField, '正文'), '日落后禁止出城。');
-    await tester.tap(find.text('保存新版本'));
+    await tester.tap(find.text('保存'));
     await settleOverlayTransition(tester);
     expect(find.text('世界书 1'), findsOneWidget);
     await tester.tap(find.byTooltip('模型与规则'));
@@ -78,7 +78,7 @@ void main() {
     );
     await tester.tap(find.text('保存方案'));
     await tester.pump();
-    expect(find.text('已载入配置版本 1'), findsOneWidget);
+    expect(store.listConfigurations('novel').single.name, '独立审稿方案');
     await tester.tap(find.text('应用配置'));
     await settleOverlayTransition(tester);
     final saved = store.loadWorkspace('novel')!;
@@ -105,7 +105,7 @@ void main() {
     store.saveWorkspace(
       AgentWorkspace(id: 'novel', title: '雾港', modelId: 'model-1'),
     );
-    store.writeDocument('novel', '设定', '阿弥不知道钥匙的位置。', expectedRevision: 0);
+    store.writeDocument('novel', '设定', '阿弥不知道钥匙的位置。');
     final preferences = await TestFixtures.seedPreferences(
       database: database,
       models: [TestFixtures.model()],
@@ -187,7 +187,7 @@ void main() {
     expect(find.byType(AgentRunScreen), findsOneWidget);
     expect(find.text('核对阿弥的知情边界，保留完整依据。'), findsOneWidget);
     expect(find.text('正在逐项核对角色已经知道的事情。'), findsOneWidget);
-    await tester.tap(find.text('read_document'));
+    await tester.tap(find.textContaining('read_document ·'));
     await settleOverlayTransition(tester);
     expect(find.textContaining('阿弥不知道钥匙的位置。'), findsOneWidget);
     expect(container.read(agentWorkspaceProvider).busy, isTrue);
@@ -207,14 +207,14 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('独立路由运行任务后展示结果，可编辑正文并查看旧版本', (tester) async {
+  testWidgets('独立路由运行任务后展示结果，编辑正文直接覆盖当前内容', (tester) async {
     final database = AppDatabase.inMemory();
     addTearDown(database.close);
     final store = SqliteAgentStore(database);
     store.saveWorkspace(
       AgentWorkspace(id: 'novel', title: '小说工作区', modelId: 'model-1'),
     );
-    store.writeDocument('novel', '正文', '旧稿', expectedRevision: 0);
+    store.writeDocument('novel', '正文', '旧稿');
     final preferences = await TestFixtures.seedPreferences(
       database: database,
       models: [TestFixtures.model()],
@@ -259,14 +259,13 @@ void main() {
     await tester.tap(find.text('正文'));
     await settleOverlayTransition(tester);
     await tester.enterText(find.widgetWithText(TextField, '旧稿'), '修订稿');
-    await tester.tap(find.text('保存新版本'));
+    await tester.tap(find.text('保存'));
     await settleOverlayTransition(tester);
-    expect(find.text('普通文档 · 版本 2 · 3 字符'), findsOneWidget);
+    expect(find.text('普通文档 · 3 字符'), findsOneWidget);
     await tester.tap(find.text('正文'));
     await settleOverlayTransition(tester);
-    await tester.tap(find.byTooltip('上一版本'));
-    await tester.pump();
-    expect(find.text('旧稿'), findsOneWidget);
+    expect(find.byTooltip('上一版本'), findsNothing);
+    expect(find.widgetWithText(TextField, '修订稿'), findsOneWidget);
     expect(store.readDocument('novel', '正文')?.content, '修订稿');
     expect(tester.takeException(), isNull);
   });

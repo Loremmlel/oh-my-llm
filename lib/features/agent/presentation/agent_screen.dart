@@ -255,6 +255,7 @@ class _WorkspaceBodyState extends ConsumerState<_WorkspaceBody> {
                     key: ValueKey('${workspace.id}/${workspace.sessionId}'),
                     records: roots,
                     allRuns: state.runs,
+                    storyRounds: state.storyRounds,
                   ),
           ),
           if (!_documents && !_story)

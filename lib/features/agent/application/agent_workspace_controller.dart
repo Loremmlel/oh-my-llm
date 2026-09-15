@@ -208,11 +208,7 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
     if (saved == null) throw const AgentWorkspaceException('请先保存此配置方案，再应用到会话。');
     if (workspace.history.isEmpty) {
       _store.saveWorkspace(
-        workspace.copyWith(
-          configuration: saved,
-          references: [],
-          referencesFrozen: false,
-        ),
+        workspace.copyWith(configuration: saved, references: []),
       );
     } else {
       _newSession(saved);
@@ -255,14 +251,12 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
   List<LlmInputItem> previewInput() {
     final current = state.workspace;
     if (current == null) return [];
-    final workspace = freezeAgentWorkspace(
+    final workspace = refreshAgentWorkspace(
       current,
       _store.listDocuments(current.id),
     );
     return [
-      ...workspace.history.isEmpty
-          ? buildAgentInitialContext(workspace, AgentRole.coordinator)
-          : workspace.history,
+      ...buildAgentMainContext(workspace),
       if (workspace.draft.trim().isNotEmpty)
         LlmTextMessage(role: LlmRole.user, text: workspace.draft.trim()),
     ];
@@ -287,6 +281,9 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
     if (history == null || count > history.length) return null;
     return history.take(count).toList();
   }
+
+  AgentStoryRound? storyRoundFor(AgentRunRecord record) =>
+      _store.readStoryRound(record.workspaceId, record.id);
 
   void setDraft(String text) {
     final workspace = state.workspace;
@@ -327,45 +324,30 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
     }
   }
 
-  void saveDocument(
-    String name,
-    String content,
-    int expectedRevision, {
-    AgentDocumentKind? kind,
-  }) => _edit(() {
-    final workspace = state.workspace;
-    if (workspace == null || state.busy) return;
-    flushDraft();
-    _store.writeDocument(
-      workspace.id,
-      name,
-      content,
-      expectedRevision: expectedRevision,
-      kind: kind,
-    );
-    // 手动修改通过新的消息告知模型，不改写旧工具结果。
-    final savedDocument = _store.readDocument(workspace.id, name)!;
-    final updated =
-        workspace.history.isEmpty ||
-            savedDocument.kind != AgentDocumentKind.document
-        ? workspace
-        : workspace.copyWith(
-            history: [
-              ...workspace.history,
-              LlmTextMessage(
-                role: LlmRole.user,
-                text: '用户在工作区保存了文档「$name」的新版本。下次使用前请重新读取。',
-              ),
-            ],
-          );
-    _store.saveWorkspace(updated);
-    _load(updated.id);
-  });
-  AgentDocument? readRevision(String name, int revision) =>
-      state.workspace == null
-      ? null
-      : _store.readDocument(state.workspace!.id, name, revision: revision);
-
+  void saveDocument(String name, String content, {AgentDocumentKind? kind}) =>
+      _edit(() {
+        final workspace = state.workspace;
+        if (workspace == null || state.busy) return;
+        flushDraft();
+        _store.writeDocument(workspace.id, name, content, kind: kind);
+        // 手动修改通过新的消息告知模型，不改写旧工具结果。
+        final savedDocument = _store.readDocument(workspace.id, name)!;
+        final updated =
+            workspace.history.isEmpty ||
+                savedDocument.kind != AgentDocumentKind.document
+            ? workspace
+            : workspace.copyWith(
+                history: [
+                  ...workspace.history,
+                  LlmTextMessage(
+                    role: LlmRole.user,
+                    text: '用户在工作区保存了文档「$name」。下次使用前请重新读取当前内容。',
+                  ),
+                ],
+              );
+        _store.saveWorkspace(updated);
+        _load(updated.id);
+      });
   Future<void> send({bool retryStory = false}) async {
     if (state.busy || state.workspace == null) return;
     AgentRuntime? runtime;

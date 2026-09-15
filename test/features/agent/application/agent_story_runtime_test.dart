@@ -63,7 +63,6 @@ void main() {
             agentCall('draft', 'write_document', {
               'name': '正文',
               'content': '废稿：乙已经知道秘密',
-              'expected_revision': 0,
             }),
           ],
         ),
@@ -72,16 +71,12 @@ void main() {
             agentCall('final', 'write_document', {
               'name': '正文',
               'content': '甲最终没有告诉乙秘密',
-              'expected_revision': 1,
             }),
           ],
         ),
         2 => agentReply(
           calls: [
-            agentCall('update', 'update_story_state', {
-              'name': '正文',
-              'expected_revision': 2,
-            }),
+            agentCall('update', 'update_story_state', {'name': '正文'}),
           ],
         ),
         _ => agentReply(text: '本轮已完成'),
@@ -110,7 +105,8 @@ void main() {
     );
     final result = await runtime.run('开场：甲乙来到图书馆');
     expect(result.status, AgentRunStatus.completed);
-    expect(client.requests, hasLength(5));
+    expect(client.requests, hasLength(4));
+    expect(result.content, '甲最终没有告诉乙秘密');
     expect(
       store.readStoryState('novel').rows.single.cells['knowledge'],
       '不知道秘密',
@@ -121,10 +117,7 @@ void main() {
     expect(store.loadWorkspace('novel')!.history, isEmpty);
     expect(store.loadWorkspace('novel')!.draft, '开场：甲乙来到图书馆');
     expect(store.listDocuments('novel'), isEmpty);
-    expect(
-      store.readDocument('novel', '正文', revision: 1)!.content,
-      contains('废稿'),
-    );
+    expect(store.readDocument('novel', '正文'), isNull);
     final archived = store.loadRun('novel', result.id)!;
     expect(archived.inputHistory, input);
     expect(
@@ -134,7 +127,7 @@ void main() {
             .last
             .inputItemCount!,
       ),
-      client.requests.last.input,
+      client.requests[2].input,
     );
   });
 
@@ -148,7 +141,6 @@ void main() {
               agentCall('denied', 'write_document', {
                 'name': '正文',
                 'content': '越权改稿',
-                'expected_revision': 1,
               }),
             ],
           );
@@ -162,16 +154,12 @@ void main() {
             agentCall('write', 'write_document', {
               'name': '正文',
               'content': '正式正文',
-              'expected_revision': 0,
             }),
           ],
         ),
         1 => agentReply(
           calls: [
-            agentCall('update', 'update_story_state', {
-              'name': '正文',
-              'expected_revision': 1,
-            }),
+            agentCall('update', 'update_story_state', {'name': '正文'}),
           ],
         ),
         _ => agentReply(text: '结束'),
@@ -215,16 +203,12 @@ void main() {
                   agentCall('write', 'write_document', {
                     'name': '正文',
                     'content': '已审查正文',
-                    'expected_revision': 0,
                   }),
                 ],
               )
             : agentReply(
                 calls: [
-                  agentCall('update', 'update_story_state', {
-                    'name': '正文',
-                    'expected_revision': 1,
-                  }),
+                  agentCall('update', 'update_story_state', {'name': '正文'}),
                 ],
               );
       });
@@ -247,7 +231,10 @@ void main() {
       if (!afterCommit) runtime.cancel();
       final result = await running;
       if (!afterCommit) release.complete();
-      expect(result.status, AgentRunStatus.cancelled);
+      expect(
+        result.status,
+        afterCommit ? AgentRunStatus.completed : AgentRunStatus.cancelled,
+      );
       expect(
         store.latestStoryRound('novel')!.status,
         afterCommit
@@ -266,16 +253,12 @@ void main() {
             agentCall('write', 'write_document', {
               'name': '正文',
               'content': '正式正文',
-              'expected_revision': 0,
             }),
           ],
         ),
         1 => agentReply(
           calls: [
-            agentCall('update', 'update_story_state', {
-              'name': '正文',
-              'expected_revision': 1,
-            }),
+            agentCall('update', 'update_story_state', {'name': '正文'}),
           ],
         ),
         _ => agentReply(text: '预算不足'),

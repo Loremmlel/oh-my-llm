@@ -30,16 +30,12 @@ void main() {
             agentCall('write', 'write_document', {
               'name': '正文',
               'content': '正式正文',
-              'expected_revision': 0,
             }),
           ],
         ),
         1 => agentReply(
           calls: [
-            agentCall('update', 'update_story_state', {
-              'name': '正文',
-              'expected_revision': 1,
-            }),
+            agentCall('update', 'update_story_state', {'name': '正文'}),
           ],
         ),
         _ => agentReply(text: '状态尚未保存'),

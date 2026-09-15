@@ -92,14 +92,12 @@ class AgentRuntime {
       cancel();
     });
     try {
-      workspace = freezeAgentWorkspace(
+      workspace = refreshAgentWorkspace(
         workspace,
         store.listDocuments(workspace.id),
       );
       _beforeRound = workspace.copyWith(draft: prompt);
-      final history = workspace.history.isEmpty
-          ? buildAgentInitialContext(workspace, AgentRole.coordinator)
-          : [...workspace.history];
+      final history = buildAgentMainContext(workspace);
       history.add(LlmTextMessage(role: LlmRole.user, text: prompt));
       return await _execute(_newRecord(prompt, AgentRole.coordinator), history);
     } finally {
@@ -261,6 +259,18 @@ class AgentRuntime {
             );
             publish();
           }
+          final adopted = main
+              ? store.readStoryRound(workspace.id, record.id)
+              : null;
+          if (adopted?.status == AgentStoryRoundStatus.committed) {
+            // 正文已经通过审查并完成状态更新，直接交付，无需再调用模型写总结。
+            record = record.copyWith(
+              status: AgentRunStatus.completed,
+              content: adopted!.document.content,
+            );
+            publish();
+            return record;
+          }
           if (record.role == AgentRole.state &&
               store.readStoryRound(workspace.id, record.parentId!)?.status ==
                   AgentStoryRoundStatus.committed) {
@@ -332,7 +342,7 @@ class AgentRuntime {
         error: _timedOut
             ? '运行时间已达上限。'
             : cancelled
-            ? '已停止，已保存的文档版本仍保留。'
+            ? '已停止，已保存的文档仍保留。'
             : error is AgentWorkspaceException
             ? error.message
             : error is _Limit
@@ -347,7 +357,7 @@ class AgentRuntime {
           LlmTextMessage(
             role: LlmRole.user,
             text:
-                '应用记录：上次任务${record.status.name}。${record.error}后续任务请先核实文档当前版本。',
+                '应用记录：上次任务${record.status.name}。${record.error}后续任务请先核实文档当前内容。',
           ),
         );
         cancel();
@@ -482,18 +492,14 @@ class AgentRuntime {
                       : store.readStoryState(workspace.id))
                   .toolData;
         case 'update_story_state':
-          final revision = args['expected_revision'];
           final document = store.readDocument(workspace.id, string('name'));
-          if (revision is! int ||
-              document == null ||
-              document.revision != revision ||
-              document.kind != AgentDocumentKind.document) {
-            throw const AgentWorkspaceException('请先保存审查通过的普通正文，并提供它的当前版本。');
+          if (document == null || document.kind != AgentDocumentKind.document) {
+            throw const AgentWorkspaceException('请先保存审查通过的普通正文，再提供文档名。');
           }
           final existing = store.readStoryRound(workspace.id, owner.id);
           if (existing?.status == AgentStoryRoundStatus.committed) {
             if (existing!.document != document) {
-              throw const AgentWorkspaceException('本轮已经采用另一版正文。');
+              throw const AgentWorkspaceException('本轮已经采用另一份正文。');
             }
             output = _storyResult(existing);
           } else {
@@ -507,7 +513,7 @@ class AgentRuntime {
                   stateAgentId: '',
                 );
             if (selected.document != document) {
-              throw const AgentWorkspaceException('本轮已绑定正文，请先放弃本轮再选择新版本。');
+              throw const AgentWorkspaceException('本轮已绑定正文，请先放弃本轮再重新写作。');
             }
             // 先保存待更新轮次，模型不可用或预算耗尽时仍可单独重试。
             if (existing == null) store.prepareStoryRound(selected);
@@ -533,25 +539,16 @@ class AgentRuntime {
         case 'list_documents':
           output = [
             for (final doc in _sessionDocuments())
-              {
-                'id': doc.id,
-                'name': doc.name,
-                'kind': doc.kind.name,
-                'revision': doc.revision,
-              },
+              {'id': doc.id, 'name': doc.name, 'kind': doc.kind.name},
           ];
         case 'read_document':
           final document = _sessionDocuments()
               .where((d) => d.name == string('name'))
               .firstOrNull;
           if (document == null) {
-            throw const AgentWorkspaceException('当前会话中找不到这份资料。新版设定请在新会话使用。');
+            throw const AgentWorkspaceException('当前作品中找不到这份资料。');
           }
-          output = {
-            'name': document.name,
-            'revision': document.revision,
-            'content': document.content,
-          };
+          output = {'name': document.name, 'content': document.content};
         case 'write_document':
           final adopted = store.readStoryRound(workspace.id, owner.id);
           if (adopted != null && adopted.document.name == string('name')) {
@@ -570,23 +567,14 @@ class AgentRuntime {
               '世界书和人物卡只能由用户编辑；请将修改建议保存为普通文档。',
             );
           }
-          final revision = args['expected_revision'];
-          if (revision is! int || revision < 0) {
-            throw const AgentWorkspaceException('expected_revision 必须是非负整数。');
-          }
           _checkCancelled();
           final document = store.writeDocument(
             workspace.id,
             string('name'),
             string('content'),
-            expectedRevision: revision,
             sourceRunId: owner.id,
           );
-          output = {
-            'name': document.name,
-            'revision': document.revision,
-            'saved': true,
-          };
+          output = {'name': document.name, 'saved': true};
         case 'spawn_subagent':
           final roleName = string('role'), task = string('task');
           final background = boolean('background');
@@ -658,7 +646,6 @@ class AgentRuntime {
     'saved': true,
     'round_id': round.id,
     'name': round.document.name,
-    'document_revision': round.document.revision,
     'state_revision': round.afterState!.revision,
     'changes': round.operations.map((op) => op.toJson()).toList(),
   };
@@ -676,7 +663,7 @@ class AgentRuntime {
     }
     _checkCancelled();
     final record = _newRecord(
-      '根据「${selected.document.name}」版本 ${selected.document.revision} 更新剧情状态',
+      '根据「${selected.document.name}」更新剧情状态',
       AgentRole.state,
       parentId: owner.id,
     );
@@ -698,7 +685,6 @@ class AgentRuntime {
               'opening_or_instruction': binding.beforeWorkspace.draft,
               'approved_document': {
                 'name': binding.document.name,
-                'revision': binding.document.revision,
                 'content': binding.document.content,
               },
             }),
@@ -745,7 +731,7 @@ class AgentRuntime {
       record = record.copyWith(
         status: AgentRunStatus.completed,
         error: '',
-        content: '本轮正文与剧情状态已保存。',
+        content: round.document.content,
       );
     } catch (error) {
       record = record.copyWith(
@@ -802,7 +788,7 @@ class AgentRuntime {
   }
 
   List<AgentDocument> _sessionDocuments() =>
-      agentSessionDocuments(workspace, store.listDocuments(workspace.id));
+      store.listDocuments(workspace.id)..sort((a, b) => a.id.compareTo(b.id));
 
   Map<String, Object?> _childResult(AgentRunRecord record) => {
     'task_id': record.id,

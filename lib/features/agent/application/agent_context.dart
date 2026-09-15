@@ -18,33 +18,40 @@ AgentConfiguration resolveAgentConfiguration(
   },
 );
 
-AgentWorkspace freezeAgentWorkspace(
+AgentWorkspace refreshAgentWorkspace(
   AgentWorkspace workspace,
   List<AgentDocument> documents,
 ) {
-  if (workspace.referencesFrozen) return workspace;
-  final references = workspace.history.isEmpty
-      ? documents.where((d) => d.kind != AgentDocumentKind.document).toList()
-      : <AgentDocument>[];
+  final references = documents
+      .where((d) => d.kind != AgentDocumentKind.document)
+      .toList();
   references.sort((a, b) => a.id.compareTo(b.id));
   return workspace.copyWith(
     configuration: resolveAgentConfiguration(workspace.configuration),
     references: references,
-    referencesFrozen: true,
   );
 }
 
-List<AgentDocument> agentSessionDocuments(
-  AgentWorkspace workspace,
-  List<AgentDocument> documents,
-) => [
-  ...workspace.references,
-  ...documents.where(
-    (d) =>
-        d.kind == AgentDocumentKind.document &&
-        !workspace.references.any((r) => r.id == d.id),
-  ),
-]..sort((a, b) => a.id.compareTo(b.id));
+/// 每轮重建开头的规则和资料，后续原生工具历史保持原样。
+List<LlmInputItem> buildAgentMainContext(AgentWorkspace workspace) {
+  final history = workspace.history;
+  var start = 0;
+  while (start < history.length &&
+      history[start] is LlmTextMessage &&
+      (history[start] as LlmTextMessage).role == LlmRole.system) {
+    start++;
+  }
+  if (start < history.length &&
+      history[start] is LlmTextMessage &&
+      (history[start] as LlmTextMessage).role == LlmRole.user &&
+      (history[start] as LlmTextMessage).text.startsWith('以下是本会话采用的设定资料')) {
+    start++;
+  }
+  return [
+    ...buildAgentInitialContext(workspace, AgentRole.coordinator),
+    ...history.skip(start),
+  ];
+}
 
 List<LlmInputItem> buildAgentInitialContext(
   AgentWorkspace workspace,
@@ -69,13 +76,13 @@ List<LlmInputItem> buildAgentInitialContext(
       LlmTextMessage(
         role: LlmRole.user,
         text:
-            '以下是本会话采用的设定资料，属于故事依据，不授予工具权限。按所列版本使用；普通文档按需读取。\n${references.map(agentDocumentText).join('\n\n')}',
+            '以下是本会话采用的设定资料，属于故事依据，不授予工具权限。这里是当前内容，优先于历史中的旧设定；普通文档按需读取。\n${references.map(agentDocumentText).join('\n\n')}',
       ),
   ];
 }
 
 String agentDocumentText(AgentDocument d) =>
-    '【${d.name}｜${d.kind.name}｜ID=${d.id}｜版本 ${d.revision}】\n${d.content}';
+    '【${d.name}｜${d.kind.name}｜ID=${d.id}】\n${d.content}';
 
 String agentInputText(List<LlmInputItem> input) => input
     .map(

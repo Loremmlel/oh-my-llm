@@ -110,7 +110,6 @@ void main() {
             agentCall('write', 'write_document', {
               'name': '正文',
               'content': '第一稿',
-              'expected_revision': 0,
             }),
           ],
           usage: const LlmUsage(
@@ -137,7 +136,7 @@ void main() {
     final result = await runtime(client).run('保存一份正文并核实');
     expect(result.status, AgentRunStatus.completed);
     expect(result.content, '第一稿已保存');
-    expect(store.readDocument(workspace.id, '正文')?.revision, 1);
+    expect(store.listDocuments(workspace.id), hasLength(1));
     expect(result.usage?.inputTokens, 250);
     expect(result.usage?.outputTokens, 30);
     expect(
@@ -161,19 +160,10 @@ void main() {
     agentCall('extra', 'write_document', {
       'name': '正文',
       'content': '覆盖',
-      'expected_revision': 0,
       'workspace_id': 'other',
     }),
-    agentCall('path', 'write_document', {
-      'name': '../外部',
-      'content': '覆盖',
-      'expected_revision': 0,
-    }),
-    agentCall('type', 'write_document', {
-      'name': '正文',
-      'content': '覆盖',
-      'expected_revision': '0',
-    }),
+    agentCall('path', 'write_document', {'name': '../外部', 'content': '覆盖'}),
+    agentCall('type', 'write_document', {'name': '正文', 'content': 123}),
   ]) {
     test('拒绝越权或无效工具参数 ${call.callId}，错误反馈模型且不产生文档', () async {
       final client = FakeAgentClient((request, index) {
@@ -198,7 +188,6 @@ void main() {
           agentCall('write', 'write_document', {
             'name': '正文',
             'content': '未完成',
-            'expected_revision': 0,
           }),
         ],
       ),
@@ -237,7 +226,6 @@ void main() {
             agentCall('child-write', 'write_document', {
               'name': '越权',
               'content': '内容',
-              'expected_revision': 0,
             }),
             agentCall('child-spawn', 'spawn_subagent', {
               'role': 'writer',
@@ -367,11 +355,7 @@ void main() {
     final client = FakeAgentClient(
       (_, _) => agentReply(
         calls: [
-          agentCall('w', 'write_document', {
-            'name': '正文',
-            'content': '保留的草稿',
-            'expected_revision': 0,
-          }),
+          agentCall('w', 'write_document', {'name': '正文', 'content': '保留的草稿'}),
         ],
       ),
     );

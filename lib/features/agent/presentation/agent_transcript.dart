@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 
 import '../domain/agent_models.dart';
+import '../domain/agent_story_state.dart';
 import '../application/agent_context.dart';
 import 'agent_context_dialog.dart';
 
@@ -75,8 +76,10 @@ class AgentTranscript extends StatefulWidget {
     super.key,
     required this.records,
     required this.allRuns,
+    this.storyRounds = const [],
   });
   final List<AgentRunRecord> records, allRuns;
+  final List<AgentStoryRound> storyRounds;
   @override
   State<AgentTranscript> createState() => _AgentTranscriptState();
 }
@@ -150,6 +153,9 @@ class _AgentTranscriptState extends State<AgentTranscript> {
                     child: _RunTranscript(
                       key: ValueKey(record.id),
                       record: record,
+                      round: widget.storyRounds
+                          .where((r) => r.id == record.id)
+                          .firstOrNull,
                       children:
                           widget.allRuns
                               .where((r) => r.parentId == record.id)
@@ -182,14 +188,36 @@ class _AgentTranscriptState extends State<AgentTranscript> {
   }
 }
 
-class _RunTranscript extends StatelessWidget {
+class _RunTranscript extends StatefulWidget {
   const _RunTranscript({
     super.key,
     required this.record,
     required this.children,
+    this.round,
   });
   final AgentRunRecord record;
   final List<AgentRunRecord> children;
+  final AgentStoryRound? round;
+  @override
+  State<_RunTranscript> createState() => _RunTranscriptState();
+}
+
+class _RunTranscriptState extends State<_RunTranscript> {
+  late bool _expanded = !_hasResult;
+  AgentRunRecord get record => widget.record;
+  List<AgentRunRecord> get children => widget.children;
+  bool get _hasResult =>
+      widget.round != null || record.status != AgentRunStatus.running;
+  @override
+  void didUpdateWidget(_RunTranscript oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if ((oldWidget.round == null && widget.round != null) ||
+        (oldWidget.record.status == AgentRunStatus.running &&
+            record.status != AgentRunStatus.running)) {
+      _expanded = false;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -216,28 +244,51 @@ class _RunTranscript extends StatelessWidget {
               ],
             ),
           ),
-          if (children.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-              child: Wrap(
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () => setState(() => _expanded = !_expanded),
+              icon: Icon(
+                _expanded ? Icons.expand_less : Icons.expand_more,
+                size: 18,
+              ),
+              label: Text(
+                '${_expanded ? '收起' : '展开'}执行过程 · ${record.steps.length} 步',
+              ),
+            ),
+          ),
+          if (_expanded) ...[
+            if (children.isNotEmpty)
+              Wrap(
                 spacing: AppSpacing.xs,
                 children: [
                   for (final child in children)
                     AgentChildLink(key: ValueKey(child.id), record: child),
                 ],
               ),
+            for (var i = 0; i < record.steps.length; i++)
+              _StepView(
+                key: ValueKey('${record.id}/$i'),
+                step: record.steps[i],
+                record: record,
+              ),
+            Text(
+              agentTreeUsageLabel(record, [record, ...children]),
+              style: theme.textTheme.bodySmall,
             ),
-          for (var i = 0; i < record.steps.length; i++)
-            _StepView(
-              key: ValueKey('${record.id}/$i'),
-              step: record.steps[i],
-              record: record,
-            ),
-          if (record.steps.isEmpty && record.content.isNotEmpty)
+          ],
+          if (widget.round != null ||
+              (record.status != AgentRunStatus.running &&
+                  record.content.isNotEmpty &&
+                  (!_expanded || record.steps.isEmpty)))
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-              child: _AgentMarkdown(content: record.content),
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+              child: _AgentMarkdown(
+                content: widget.round?.document.content ?? record.content,
+              ),
             ),
+          if (widget.round?.status == AgentStoryRoundStatus.pending)
+            const Text('正文已选定，剧情状态待更新。'),
           if (record.status == AgentRunStatus.running &&
               !record.steps.any((s) => s.isRunning))
             const Padding(
@@ -256,14 +307,10 @@ class _RunTranscript extends StatelessWidget {
           Semantics(
             liveRegion: true,
             child: Text(
-              agentStatusLabel(record.status),
+              widget.round?.status == AgentStoryRoundStatus.committed
+                  ? '正文已采用'
+                  : agentStatusLabel(record.status),
               style: theme.textTheme.labelMedium,
-            ),
-          ),
-          Text(
-            agentUsageLabel(record),
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
         ],
@@ -291,6 +338,9 @@ class _StepView extends StatelessWidget {
           : null;
       return ExpansionTile(
         tilePadding: EdgeInsets.zero,
+        minTileHeight: 48,
+        dense: true,
+        visualDensity: VisualDensity.compact,
         childrenPadding: const EdgeInsets.only(
           left: AppSpacing.lg,
           bottom: AppSpacing.sm,
@@ -304,18 +354,16 @@ class _StepView extends StatelessWidget {
           size: 18,
         ),
         title: Text(
-          step.label,
-          style: Theme.of(context).textTheme.labelLarge
-              ?.copyWith(fontWeight: FontWeight.w600),
-        ),
-        subtitle: Text(
           [
+            step.label,
             if (name != null) '$name',
             if (step.isRunning) '执行中',
             if (step.isError) '未成功',
           ].join(' · '),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.labelLarge
+              ?.copyWith(fontWeight: FontWeight.w600),
         ),
         children: [
           Align(

@@ -8,16 +8,14 @@ void main() {
     name: '阿弥',
     content: '作者秘密：她是继承人',
     kind: AgentDocumentKind.characterCard,
-    revision: 1,
   );
   const world = AgentDocument(
     id: 'w',
     name: '港口',
     content: '每天日落关城门',
     kind: AgentDocumentKind.worldBook,
-    revision: 1,
   );
-  test('完整设定稳定排序并冻结版本，各职责共用设定且预设按职责应用', () {
+  test('完整设定稳定排序并采用当前内容，各职责共用设定且预设按职责应用', () {
     final initial = AgentWorkspace(
       id: 'n',
       title: '雾港',
@@ -26,7 +24,7 @@ void main() {
         presetRoles: [AgentRole.writer],
       ),
     );
-    final workspace = freezeAgentWorkspace(initial, [world, card]);
+    final workspace = refreshAgentWorkspace(initial, [world, card]);
     final main = agentInputText(
       buildAgentInitialContext(workspace, AgentRole.coordinator),
     );
@@ -48,13 +46,15 @@ void main() {
       name: '港口',
       content: '城门全天开放',
       kind: AgentDocumentKind.worldBook,
-      revision: 2,
     );
-    expect(freezeAgentWorkspace(workspace, [updated, card]), workspace);
+    expect(refreshAgentWorkspace(workspace, [updated, card]).references, [
+      card,
+      updated,
+    ]);
     expect(
       agentInputText(
         buildAgentInitialContext(
-          freezeAgentWorkspace(initial, [updated, card]),
+          refreshAgentWorkspace(initial, [updated, card]),
           AgentRole.coordinator,
         ),
       ),

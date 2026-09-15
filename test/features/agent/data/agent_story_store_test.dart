@@ -91,12 +91,7 @@ void main() {
         startedAt: DateTime(2026),
       ),
     );
-    store.writeDocument(
-      'novel',
-      '正文',
-      '手工新版本',
-      expectedRevision: round.document.revision,
-    );
+    store.writeDocument('novel', '正文', '手工新版本');
     expect(
       () => store.commitStoryRound('novel', round.id, 'retry-agent', []),
       throwsA(isA<AgentWorkspaceException>()),
@@ -151,10 +146,7 @@ void main() {
     );
     expect(store.loadWorkspace('novel')!.draft, '原指令 second');
     expect(store.readDocument('novel', '正文'), first.document);
-    expect(
-      store.readDocument('novel', '正文', revision: second.document.revision),
-      second.document,
-    );
+    expect(store.readStoryRound('novel', second.id)!.document, second.document);
     expect(
       store.readStoryRound('novel', second.id)!.status,
       AgentStoryRoundStatus.withdrawn,
@@ -163,14 +155,9 @@ void main() {
       () => store.commitStoryRound('novel', second.id, second.stateAgentId, []),
       throwsA(isA<AgentWorkspaceException>()),
     );
-    final nextDocument = store.writeDocument(
-      'novel',
-      '正文',
-      '重新写',
-      expectedRevision: first.document.revision,
-    );
+    final nextDocument = store.writeDocument('novel', '正文', '重新写');
     expect(nextDocument.id, first.document.id);
-    expect(nextDocument.revision, greaterThan(second.document.revision));
+    expect(nextDocument.content, '重新写');
     store.withdrawStoryRound('novel', 'initial', first.id);
     expect(store.readStoryState('novel').rows, isEmpty);
   });
@@ -265,7 +252,6 @@ AgentStoryRound prepareRound(
     before.id,
     '正文',
     content,
-    expectedRevision: store.readDocument(before.id, '正文')?.revision ?? 0,
     sourceRunId: id,
   );
   final round = store.prepareStoryRound(

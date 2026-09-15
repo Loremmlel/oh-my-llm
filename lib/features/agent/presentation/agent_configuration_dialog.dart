@@ -60,7 +60,6 @@ class _ConfigurationDialogState extends ConsumerState<_ConfigurationDialog> {
 
   AgentConfiguration get _value => AgentConfiguration(
     name: _name.text.trim(),
-    revision: _saved.revision,
     modelId: _modelId,
     preset: _preset.text,
     presetRoles: _presetRoles,
@@ -136,36 +135,31 @@ class _ConfigurationDialogState extends ConsumerState<_ConfigurationDialog> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  '当前会话：${state.workspace!.sessionTitle} · ${state.workspace!.configuration.name} · 配置版本 ${state.workspace!.configuration.revision}',
+                  '当前会话：${state.workspace!.sessionTitle} · ${state.workspace!.configuration.name}',
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 if (configurations.isNotEmpty)
-                  DropdownButtonFormField<int>(
-                    key: ValueKey('history/${_saved.revision}'),
+                  DropdownButtonFormField<String>(
+                    key: ValueKey('configuration/${_saved.name}'),
                     decoration: const InputDecoration(labelText: '载入已保存方案'),
                     isExpanded: true,
                     items: [
                       for (final c in configurations)
                         DropdownMenuItem(
-                          value: c.revision,
-                          child: Text(
-                            '${c.name} · 版本 ${c.revision}',
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                          value: c.name,
+                          child: Text(c.name, overflow: TextOverflow.ellipsis),
                         ),
                     ],
                     onChanged: state.busy
                         ? null
-                        : (revision) async {
-                            if (revision == null ||
-                                !await _discard() ||
-                                !mounted) {
+                        : (name) async {
+                            if (name == null || !await _discard() || !mounted) {
                               return;
                             }
                             setState(
                               () => _load(
                                 configurations.firstWhere(
-                                  (c) => c.revision == revision,
+                                  (c) => c.name == name,
                                 ),
                               ),
                             );
@@ -320,9 +314,8 @@ class _ConfigurationDialogState extends ConsumerState<_ConfigurationDialog> {
                 Text(
                   state.busy
                       ? '运行中可以查看配置，结束后可编辑。'
-                      : '保存方案保留旧版本。已有历史时，应用配置会在本作品新建会话。',
+                      : '同名方案直接覆盖保存。已有历史时，应用模型配置会在本作品新建会话。',
                 ),
-                if (_saved.revision > 0) Text('已载入配置版本 ${_saved.revision}'),
                 if (state.error.isNotEmpty)
                   Text(
                     state.error,
@@ -344,9 +337,7 @@ class _ConfigurationDialogState extends ConsumerState<_ConfigurationDialog> {
             onPressed: state.busy
                 ? null
                 : () {
-                    final saved = _dirty || _saved.revision == 0
-                        ? _save()
-                        : _saved;
+                    final saved = _save();
                     if (saved == null) return;
                     controller.applyConfiguration(saved);
                     if (ref.read(agentWorkspaceProvider).error.isEmpty) {

@@ -15,7 +15,6 @@ class AgentRoleSettings extends Equatable {
 class AgentConfiguration extends Equatable {
   AgentConfiguration({
     this.name = '默认方案',
-    this.revision = 0,
     this.modelId,
     this.preset = '',
     Iterable<AgentRole> presetRoles = AgentRole.values,
@@ -24,7 +23,6 @@ class AgentConfiguration extends Equatable {
        roles = Map.unmodifiable(roles);
 
   final String name;
-  final int revision;
   final String? modelId;
   final String preset;
   final Set<AgentRole> presetRoles;
@@ -36,26 +34,17 @@ class AgentConfiguration extends Equatable {
       : settings(role).modelId ?? modelId;
   AgentConfiguration copyWith({
     String? name,
-    int? revision,
     String? modelId,
     String? preset,
     Iterable<AgentRole>? presetRoles,
     Map<AgentRole, AgentRoleSettings>? roles,
   }) => AgentConfiguration(
     name: name ?? this.name,
-    revision: revision ?? this.revision,
     modelId: modelId ?? this.modelId,
     preset: preset ?? this.preset,
     presetRoles: presetRoles ?? this.presetRoles,
     roles: roles ?? this.roles,
   );
   @override
-  List<Object?> get props => [
-    name,
-    revision,
-    modelId,
-    preset,
-    presetRoles,
-    roles,
-  ];
+  List<Object?> get props => [name, modelId, preset, presetRoles, roles];
 }

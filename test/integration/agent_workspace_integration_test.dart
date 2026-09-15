@@ -38,16 +38,9 @@ void main() {
         script: [
           (
             name: 'write_document',
-            arguments: {
-              'name': '正文',
-              'content': '工具保存的正文',
-              'expected_revision': 0,
-            },
+            arguments: {'name': '正文', 'content': '工具保存的正文'},
           ),
-          (
-            name: 'update_story_state',
-            arguments: {'name': '正文', 'expected_revision': 1},
-          ),
+          (name: 'update_story_state', arguments: {'name': '正文'}),
           (
             name: 'commit_story_state',
             arguments: {
@@ -95,16 +88,16 @@ void main() {
         store.readStoryState(state.workspace!.id).rows.single.cells['place'],
         '图书馆',
       );
-      expect(wire.requests, hasLength(4));
+      expect(wire.requests, hasLength(3));
       final bodyKey = protocol == LlmApiProtocol.responses
           ? 'input'
           : 'messages';
       final firstPrefix = wire.requests.first[bodyKey] as List;
       expect(
-        (wire.requests.last[bodyKey] as List).take(firstPrefix.length),
+        (wire.requests[1][bodyKey] as List).take(firstPrefix.length),
         firstPrefix,
       );
-      expect(wire.requests.last['tools'], wire.requests.first['tools']);
+      expect(wire.requests[1]['tools'], wire.requests.first['tools']);
       first.dispose();
       final second = createContainer();
       addTearDown(second.dispose);
@@ -118,8 +111,8 @@ void main() {
             .every((r) => r.status == AgentRunStatus.completed),
         isTrue,
       );
-      expect(wire.requests, hasLength(5));
-      expect(store.readDocument(state.workspace!.id, '正文')?.revision, 1);
+      expect(wire.requests, hasLength(4));
+      expect(store.listDocuments(state.workspace!.id), hasLength(1));
       restored.withdrawLatestRound();
       expect(store.readStoryState(state.workspace!.id).rows, isEmpty);
       expect(second.read(agentWorkspaceProvider).workspace!.draft, '保存一份正文');

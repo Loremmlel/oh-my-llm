@@ -33,12 +33,11 @@ abstract interface class AgentStore {
   void checkpoint(AgentRunRecord run, {AgentWorkspace? workspace});
   void recoverInterruptedRuns();
   List<AgentDocument> listDocuments(String workspaceId);
-  AgentDocument? readDocument(String workspaceId, String name, {int? revision});
+  AgentDocument? readDocument(String workspaceId, String name);
   AgentDocument writeDocument(
     String workspaceId,
     String name,
     String content, {
-    required int expectedRevision,
     AgentDocumentKind? kind,
     String? sourceRunId,
   });

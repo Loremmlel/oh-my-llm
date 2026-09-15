@@ -59,16 +59,12 @@ void main() {
             agentCall('write', 'write_document', {
               'name': '正文',
               'content': '甲把秘密留在心里。',
-              'expected_revision': 0,
             }),
           ],
         ),
         1 => agentReply(
           calls: [
-            agentCall('update', 'update_story_state', {
-              'name': '正文',
-              'expected_revision': 1,
-            }),
+            agentCall('update', 'update_story_state', {'name': '正文'}),
           ],
         ),
         _ => agentReply(text: '请重试状态更新'),
@@ -115,7 +111,7 @@ void main() {
     await tester.tap(find.byTooltip('剧情状态与正文'));
     await tester.pump();
     expect(find.text('地点：图书馆'), findsOneWidget);
-    await tester.tap(find.text('正文 · 版本 1'));
+    await tester.tap(find.text('正文'));
     await settleAnimatedWidgetTransition(tester);
     expect(find.textContaining('甲把秘密留在心里。', findRichText: true), findsWidgets);
     await tester.tap(find.byTooltip('返回执行流'));

@@ -26,7 +26,7 @@ class AppDatabase {
   /// 当前滚动迁移基线：全新数据库直接创建到该版本。
   ///
   /// 历史 V9→V13 逐级迁移已退役；v13 起的已发布迁移按顺序保留。
-  static const int currentSchemaVersion = 18;
+  static const int currentSchemaVersion = 19;
 
   final sqlite.Database _connection;
   final String path;
@@ -79,7 +79,7 @@ class AppDatabase {
   /// - `user_version == 0`：全新数据库，创建完整当前 schema 后标记为
   ///   [currentSchemaVersion]；
   /// - `user_version == [currentSchemaVersion]`：当前版本数据库，不做任何改动；
-  /// - `user_version` 为 13–17：按顺序执行到当前版本的迁移；
+  /// - `user_version` 为 13–18：按顺序执行到当前版本的迁移；
   /// - 其余版本（更旧的遗留库或更新版本应用创建的库）显式拒绝，
   ///   避免仓库层在不兼容的 schema 上误读误写。
   void _initializeSchema() {
@@ -91,12 +91,13 @@ class AppDatabase {
       _connection.execute('PRAGMA user_version = $currentSchemaVersion;');
     } else if (currentVersion == currentSchemaVersion) {
       // 当前版本数据库，直接可用。
-    } else if (currentVersion >= 13 && currentVersion <= 17) {
+    } else if (currentVersion >= 13 && currentVersion <= 18) {
       if (currentVersion <= 13) _migrateFavoritesFromV13ToV14();
       if (currentVersion <= 14) _migrateMessagesFromV14ToV15();
       if (currentVersion <= 15) _migrateAgentFromV15ToV16();
       if (currentVersion <= 16) _migrateNovelFromV16ToV17();
-      _migrateStoryFromV17ToV18();
+      if (currentVersion <= 17) _migrateStoryFromV17ToV18();
+      _migrateAgentDocumentsFromV18ToV19();
     } else {
       throw AppDatabaseSchemaVersionException(currentVersion);
     }
@@ -388,11 +389,91 @@ class AppDatabase {
     }
   }
 
+  /// 文档采用覆盖保存；仅保留正式轮次所需的撤回快照。
+  void _migrateAgentDocumentsFromV18ToV19() {
+    _connection.execute('BEGIN;');
+    try {
+      _connection.execute('''CREATE TABLE agent_documents (
+        workspace_id TEXT NOT NULL, name TEXT NOT NULL, content TEXT NOT NULL,
+        document_id TEXT NOT NULL, kind TEXT NOT NULL, source_run_id TEXT,
+        PRIMARY KEY(workspace_id, name),
+        FOREIGN KEY(workspace_id) REFERENCES agent_workspaces(id) ON DELETE CASCADE
+      );
+      CREATE TABLE agent_document_undo (
+        workspace_id TEXT NOT NULL, run_id TEXT NOT NULL, name TEXT NOT NULL,
+        before_json TEXT, before_source_run_id TEXT,
+        PRIMARY KEY(workspace_id, run_id, name),
+        FOREIGN KEY(workspace_id) REFERENCES agent_workspaces(id) ON DELETE CASCADE
+      );
+      INSERT INTO agent_documents SELECT workspace_id, name, content, document_id, kind, source_run_id
+      FROM agent_document_revisions d WHERE revision = (
+        SELECT MAX(revision) FROM agent_document_revisions r WHERE r.workspace_id = d.workspace_id AND r.name = d.name
+        AND NOT EXISTS (SELECT 1 FROM agent_story_rounds s WHERE s.id = r.source_run_id AND s.status IN ('withdrawn', 'discarded')));
+      ''');
+      final writes = _connection.select('''SELECT workspace_id, name, source_run_id, MIN(revision) AS first_revision
+        FROM agent_document_revisions WHERE source_run_id IN (SELECT id FROM agent_story_rounds WHERE status IN ('pending', 'committed'))
+        GROUP BY workspace_id, name, source_run_id;''');
+      for (final write in writes) {
+        final previous = _connection
+            .select(
+              '''SELECT * FROM agent_document_revisions d
+          WHERE workspace_id = ? AND name = ? AND revision < ?
+          AND NOT EXISTS (SELECT 1 FROM agent_story_rounds s WHERE s.id = d.source_run_id AND s.status IN ('withdrawn', 'discarded'))
+          ORDER BY revision DESC LIMIT 1;''',
+              [write['workspace_id'], write['name'], write['first_revision']],
+            )
+            .firstOrNull;
+        _connection.execute(
+          'INSERT INTO agent_document_undo VALUES (?, ?, ?, ?, ?);',
+          [
+            write['workspace_id'],
+            write['source_run_id'],
+            write['name'],
+            previous == null
+                ? null
+                : jsonEncode({
+                    'id': previous['document_id'],
+                    'name': previous['name'],
+                    'content': previous['content'],
+                    'kind': previous['kind'],
+                  }),
+            previous?['source_run_id'],
+          ],
+        );
+      }
+      _connection.execute('''DROP TABLE agent_document_revisions;
+        ALTER TABLE agent_configurations RENAME TO agent_configurations_old;
+        CREATE TABLE agent_configurations (
+          workspace_id TEXT NOT NULL, name TEXT NOT NULL, record_json TEXT NOT NULL,
+          PRIMARY KEY(workspace_id, name),
+          FOREIGN KEY(workspace_id) REFERENCES agent_workspaces(id) ON DELETE CASCADE
+        );''');
+      for (final row in _connection.select(
+        'SELECT * FROM agent_configurations_old ORDER BY revision;',
+      )) {
+        final record =
+            jsonDecode(row['record_json'] as String) as Map<String, dynamic>;
+        record.remove('revision');
+        _connection.execute(
+          'INSERT OR REPLACE INTO agent_configurations VALUES (?, ?, ?);',
+          [row['workspace_id'], record['name'], jsonEncode(record)],
+        );
+      }
+      _connection.execute(
+        'DROP TABLE agent_configurations_old; PRAGMA user_version = 19; COMMIT;',
+      );
+    } catch (_) {
+      _connection.execute('ROLLBACK;');
+      rethrow;
+    }
+  }
+
   /// 创建全部业务表和索引（全新安装时使用）。
   void _createSchema() {
     _createAgentSchema();
     _createNovelSchema();
     _createStorySchema();
+    _migrateAgentDocumentsFromV18ToV19();
     _connection.execute('''
       CREATE TABLE IF NOT EXISTS conversations (
         id TEXT PRIMARY KEY,
