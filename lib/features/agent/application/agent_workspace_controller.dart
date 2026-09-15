@@ -7,6 +7,7 @@ import 'package:oh_my_llm/core/llm/llm_content.dart';
 import 'package:oh_my_llm/core/llm/llm_endpoint_resolver.dart';
 
 import '../domain/agent_models.dart';
+import '../domain/agent_story_state.dart';
 import 'agent_runtime.dart';
 import 'agent_context.dart';
 import 'agent_model.dart';
@@ -69,15 +70,23 @@ class AgentWorkspaceState {
     this.workspace,
     List<AgentRunRecord> runs = const [],
     List<AgentDocument> documents = const [],
+    AgentStoryState? storyState,
+    List<AgentStoryRound> storyRounds = const [],
+    this.latestRound,
     this.busy = false,
     this.error = '',
   }) : workspaces = List.unmodifiable(workspaces),
        runs = List.unmodifiable(runs),
-       documents = List.unmodifiable(documents);
+       documents = List.unmodifiable(documents),
+       storyState = storyState ?? AgentStoryState(),
+       storyRounds = List.unmodifiable(storyRounds);
   final List<AgentWorkspace> workspaces;
   final AgentWorkspace? workspace;
   final List<AgentRunRecord> runs;
   final List<AgentDocument> documents;
+  final AgentStoryState storyState;
+  final List<AgentStoryRound> storyRounds;
+  final AgentStoryRound? latestRound;
   final bool busy;
   final String error;
 }
@@ -111,6 +120,15 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
       return AgentWorkspaceState(
         workspaces: workspaces,
         workspace: selected,
+        storyState: selected == null
+            ? null
+            : _store.readStoryState(selected.id),
+        storyRounds: selected == null
+            ? []
+            : _store.listStoryRounds(selected.id, selected.sessionId),
+        latestRound: selected == null
+            ? null
+            : _store.latestStoryRound(selected.id),
         runs: selected == null
             ? const []
             : _store.listRuns(selected.id, sessionId: selected.sessionId),
@@ -190,11 +208,7 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
     if (saved == null) throw const AgentWorkspaceException('请先保存此配置方案，再应用到会话。');
     if (workspace.history.isEmpty) {
       _store.saveWorkspace(
-        workspace.copyWith(
-          configuration: saved,
-          references: [],
-          referencesFrozen: false,
-        ),
+        workspace.copyWith(configuration: saved, references: []),
       );
     } else {
       _newSession(saved);
@@ -237,14 +251,12 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
   List<LlmInputItem> previewInput() {
     final current = state.workspace;
     if (current == null) return [];
-    final workspace = freezeAgentWorkspace(
+    final workspace = refreshAgentWorkspace(
       current,
       _store.listDocuments(current.id),
     );
     return [
-      ...workspace.history.isEmpty
-          ? buildAgentInitialContext(workspace, AgentRole.coordinator)
-          : workspace.history,
+      ...buildAgentMainContext(workspace),
       if (workspace.draft.trim().isNotEmpty)
         LlmTextMessage(role: LlmRole.user, text: workspace.draft.trim()),
     ];
@@ -253,20 +265,25 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
   List<LlmInputItem>? runInput(AgentRunRecord record, AgentStep step) {
     final count = step.inputItemCount;
     if (count == null) return null;
-    final history = record.parentId != null
-        ? record.childHistory
-        : (state.workspace?.id == record.workspaceId &&
-                  state.workspace?.sessionId == record.sessionId
-              ? state.workspace!.history
-              : _store
-                    .loadWorkspace(
-                      record.workspaceId,
-                      sessionId: record.sessionId,
-                    )
-                    ?.history);
+    final history =
+        record.inputHistory ??
+        (record.parentId != null
+            ? record.childHistory
+            : (state.workspace?.id == record.workspaceId &&
+                      state.workspace?.sessionId == record.sessionId
+                  ? state.workspace!.history
+                  : _store
+                        .loadWorkspace(
+                          record.workspaceId,
+                          sessionId: record.sessionId,
+                        )
+                        ?.history));
     if (history == null || count > history.length) return null;
     return history.take(count).toList();
   }
+
+  AgentStoryRound? storyRoundFor(AgentRunRecord record) =>
+      _store.readStoryRound(record.workspaceId, record.id);
 
   void setDraft(String text) {
     final workspace = state.workspace;
@@ -278,6 +295,9 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
       workspace: next,
       runs: state.runs,
       documents: state.documents,
+      storyState: state.storyState,
+      storyRounds: state.storyRounds,
+      latestRound: state.latestRound,
       error: state.error,
     );
     _draftTimer?.cancel();
@@ -304,51 +324,45 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
     }
   }
 
-  void saveDocument(
-    String name,
-    String content,
-    int expectedRevision, {
-    AgentDocumentKind? kind,
-  }) => _edit(() {
-    final workspace = state.workspace;
-    if (workspace == null || state.busy) return;
-    flushDraft();
-    _store.writeDocument(
-      workspace.id,
-      name,
-      content,
-      expectedRevision: expectedRevision,
-      kind: kind,
-    );
-    // 手动修改通过新的消息告知模型，不改写旧工具结果。
-    final savedDocument = _store.readDocument(workspace.id, name)!;
-    final updated =
-        workspace.history.isEmpty ||
-            savedDocument.kind != AgentDocumentKind.document
-        ? workspace
-        : workspace.copyWith(
-            history: [
-              ...workspace.history,
-              LlmTextMessage(
-                role: LlmRole.user,
-                text: '用户在工作区保存了文档「$name」的新版本。下次使用前请重新读取。',
-              ),
-            ],
-          );
-    _store.saveWorkspace(updated);
-    _load(updated.id);
-  });
-  AgentDocument? readRevision(String name, int revision) =>
-      state.workspace == null
-      ? null
-      : _store.readDocument(state.workspace!.id, name, revision: revision);
-
-  Future<void> send() async {
+  void saveDocument(String name, String content, {AgentDocumentKind? kind}) =>
+      _edit(() {
+        final workspace = state.workspace;
+        if (workspace == null || state.busy) return;
+        flushDraft();
+        _store.writeDocument(workspace.id, name, content, kind: kind);
+        // 手动修改通过新的消息告知模型，不改写旧工具结果。
+        final savedDocument = _store.readDocument(workspace.id, name)!;
+        final updated =
+            workspace.history.isEmpty ||
+                savedDocument.kind != AgentDocumentKind.document
+            ? workspace
+            : workspace.copyWith(
+                history: [
+                  ...workspace.history,
+                  LlmTextMessage(
+                    role: LlmRole.user,
+                    text: '用户在工作区保存了文档「$name」。下次使用前请重新读取当前内容。',
+                  ),
+                ],
+              );
+        _store.saveWorkspace(updated);
+        _load(updated.id);
+      });
+  Future<void> send({bool retryStory = false}) async {
     if (state.busy || state.workspace == null) return;
     AgentRuntime? runtime;
     try {
       flushDraft();
       var workspace = state.workspace!;
+      final pending = _store.latestStoryRound(workspace.id);
+      if (pending?.status == AgentStoryRoundStatus.pending && !retryStory) {
+        throw const AgentWorkspaceException('请先重试状态更新或放弃未完成轮次。');
+      }
+      if (retryStory &&
+          (pending?.status != AgentStoryRoundStatus.pending ||
+              pending?.beforeWorkspace.sessionId != workspace.sessionId)) {
+        throw const AgentWorkspaceException('请在未完成轮次所属会话重试状态更新。');
+      }
       final model = ref
           .read(agentModelsProvider)
           .where((m) => m.id == workspace.modelId)
@@ -356,7 +370,7 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
       if (model == null) {
         throw const AgentWorkspaceException('请选择可用模型；若已删除，请应用新配置开始新会话。');
       }
-      if (workspace.draft.trim().isEmpty) return;
+      if (!retryStory && workspace.draft.trim().isEmpty) return;
       final endpoint = const LlmEndpointResolver().resolveGenerationEndpoint(
         rawUrl: model.target.endpoint,
         protocol: model.target.protocol,
@@ -392,6 +406,9 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
             runs: [record, ...state.runs.where((run) => run.id != record.id)]
               ..sort((a, b) => b.startedAt.compareTo(a.startedAt)),
             documents: state.documents,
+            storyState: state.storyState,
+            storyRounds: state.storyRounds,
+            latestRound: state.latestRound,
             busy: true,
           );
         },
@@ -402,9 +419,16 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
         workspace: workspace,
         runs: state.runs,
         documents: state.documents,
+        storyState: state.storyState,
+        storyRounds: state.storyRounds,
+        latestRound: state.latestRound,
         busy: true,
       );
-      await runtime.run(workspace.draft.trim());
+      if (retryStory) {
+        await runtime.retryStory(pending!);
+      } else {
+        await runtime.run(workspace.draft.trim());
+      }
       if (!_disposed) {
         if (runtime.unsavedRecords.isEmpty) {
           _load(workspace.id);
@@ -416,6 +440,12 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
             workspace: runtime.workspace,
             runs: state.runs,
             documents: state.documents,
+            storyState: _store.readStoryState(workspace.id),
+            storyRounds: _store.listStoryRounds(
+              workspace.id,
+              workspace.sessionId,
+            ),
+            latestRound: _store.latestStoryRound(workspace.id),
             error: '执行记录未保存。修复存储后再次操作会重试保存，不会重跑旧工具。',
           );
         }
@@ -429,6 +459,15 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
   }
 
   void stop() => _runtime?.cancel();
+  void withdrawLatestRound() => _edit(() {
+    final workspace = state.workspace;
+    if (workspace == null || state.busy) return;
+    flushDraft();
+    final round = _store.latestStoryRound(workspace.id);
+    if (round == null) throw const AgentWorkspaceException('没有可撤回的正文轮次。');
+    _store.withdrawStoryRound(workspace.id, workspace.sessionId, round.id);
+    _load(workspace.id);
+  });
   void _load(String id) {
     final workspace = _store.loadWorkspace(id);
     state = AgentWorkspaceState(
@@ -438,6 +477,11 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
           ? []
           : _store.listRuns(id, sessionId: workspace.sessionId),
       documents: _store.listDocuments(id),
+      storyState: _store.readStoryState(id),
+      storyRounds: workspace == null
+          ? []
+          : _store.listStoryRounds(id, workspace.sessionId),
+      latestRound: _store.latestStoryRound(id),
     );
   }
 
@@ -455,6 +499,9 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
       workspace: state.workspace,
       runs: state.runs,
       documents: state.documents,
+      storyState: state.storyState,
+      storyRounds: state.storyRounds,
+      latestRound: state.latestRound,
       busy: _runtime != null && !(_runtime!.isCancelled),
       error: error is AgentWorkspaceException
           ? error.message

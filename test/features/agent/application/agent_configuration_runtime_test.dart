@@ -21,23 +21,11 @@ void main() {
       'n',
       '阿弥',
       '秘密身份是继承人',
-      expectedRevision: 0,
+
       kind: AgentDocumentKind.characterCard,
     );
-    store.writeDocument(
-      'n',
-      '公开规则',
-      '日落关门',
-      expectedRevision: 0,
-      kind: AgentDocumentKind.worldBook,
-    );
-    store.writeDocument(
-      'n',
-      '作者秘密',
-      '王室密令',
-      expectedRevision: 0,
-      kind: AgentDocumentKind.worldBook,
-    );
+    store.writeDocument('n', '公开规则', '日落关门', kind: AgentDocumentKind.worldBook);
+    store.writeDocument('n', '作者秘密', '王室密令', kind: AgentDocumentKind.worldBook);
     final childTarget = LlmRequestTarget(
       protocol: agentTestTarget.protocol,
       endpoint: agentTestTarget.endpoint,
@@ -57,7 +45,6 @@ void main() {
             agentCall('w', 'write_document', {
               'name': '作者秘密',
               'content': '擅自修改',
-              'expected_revision': 1,
             }),
           ],
         );
@@ -74,11 +61,7 @@ void main() {
             agentCall('l', 'list_documents', {}),
             agentCall('r', 'read_document', {'name': '作者秘密'}),
             agentCall('self', 'read_document', {'name': '阿弥'}),
-            agentCall('bad', 'write_document', {
-              'name': '稿',
-              'content': '越权',
-              'expected_revision': 0,
-            }),
+            agentCall('bad', 'write_document', {'name': '稿', 'content': '越权'}),
           ],
         );
       }

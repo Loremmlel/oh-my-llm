@@ -32,12 +32,7 @@ void main() {
     addTearDown(container.dispose);
     final controller = container.read(agentWorkspaceProvider.notifier);
     controller.createWorkspace();
-    controller.saveDocument(
-      '世界书',
-      '旧版世界',
-      0,
-      kind: AgentDocumentKind.worldBook,
-    );
+    controller.saveDocument('世界书', '旧版世界', kind: AgentDocumentKind.worldBook);
     final firstConfig = controller.saveConfiguration(
       AgentConfiguration(name: '方案甲', modelId: 'model', preset: '旧文风'),
     )!;
@@ -50,14 +45,9 @@ void main() {
     expect(client.requests.single.input, preview);
     expect(controller.runInput(record, record.steps.first), preview);
     controller.setDraft('旧会话待发送');
-    controller.saveDocument(
-      '世界书',
-      '新版世界',
-      1,
-      kind: AgentDocumentKind.worldBook,
-    );
-    expect(agentInputText(controller.previewInput()), contains('旧版世界'));
-    expect(agentInputText(controller.previewInput()), isNot(contains('新版世界')));
+    controller.saveDocument('世界书', '新版世界', kind: AgentDocumentKind.worldBook);
+    expect(agentInputText(controller.previewInput()), isNot(contains('旧版世界')));
+    expect(agentInputText(controller.previewInput()), contains('新版世界'));
     final secondConfig = controller.saveConfiguration(
       firstConfig.copyWith(name: '方案乙', preset: '新文风'),
     )!;

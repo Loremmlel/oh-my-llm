@@ -4,6 +4,7 @@ import 'package:oh_my_llm/core/llm/llm_usage.dart';
 import 'package:oh_my_llm/core/llm/llm_request.dart';
 
 import '../domain/agent_models.dart';
+import '../domain/agent_story_state.dart';
 
 Map<String, dynamic> encodeAgentWorkspace(AgentWorkspace value) => {
   'version': 2,
@@ -13,7 +14,6 @@ Map<String, dynamic> encodeAgentWorkspace(AgentWorkspace value) => {
   'sessionTitle': value.sessionTitle,
   'configuration': encodeAgentConfiguration(value.configuration),
   'references': value.references.map(encodeAgentDocument).toList(),
-  'referencesFrozen': value.referencesFrozen,
   'modelId': value.modelId,
   'instructions': value.instructions,
   'draft': value.draft,
@@ -32,7 +32,6 @@ AgentWorkspace decodeAgentWorkspace(Map<String, dynamic> json) {
     references: (json['references'] as List)
         .map((v) => decodeAgentDocument(Map<String, dynamic>.from(v as Map)))
         .toList(),
-    referencesFrozen: json['referencesFrozen'] as bool,
     modelId: json['modelId'] as String?,
     instructions: json['instructions'] as String,
     draft: json['draft'] as String,
@@ -52,6 +51,7 @@ Map<String, dynamic> encodeAgentRun(AgentRunRecord value) => {
   'modelLabel': value.modelLabel,
   'usageIncomplete': value.usageIncomplete,
   'childHistory': value.childHistory.map(_encodeInput).toList(),
+  'inputHistory': value.inputHistory?.map(_encodeInput).toList(),
   'tools': [
     for (final t in value.tools)
       {
@@ -95,6 +95,9 @@ AgentRunRecord decodeAgentRun(Map<String, dynamic> json) {
       for (final v in json['childHistory'] as List? ?? [])
         _decodeInput(Map<String, dynamic>.from(v as Map)),
     ],
+    inputHistory: (json['inputHistory'] as List?)
+        ?.map((v) => _decodeInput(Map<String, dynamic>.from(v as Map)))
+        .toList(),
     tools: [
       for (final v in json['tools'] as List? ?? [])
         LlmToolDefinition(
@@ -202,7 +205,6 @@ LlmInputItem _decodeInput(Map<String, dynamic> json) => switch (json['type']) {
 
 Map<String, Object?> encodeAgentConfiguration(AgentConfiguration value) => {
   'name': value.name,
-  'revision': value.revision,
   'modelId': value.modelId,
   'preset': value.preset,
   'presetRoles': value.presetRoles.map((r) => r.name).toList(),
@@ -217,7 +219,6 @@ Map<String, Object?> encodeAgentConfiguration(AgentConfiguration value) => {
 AgentConfiguration decodeAgentConfiguration(Map<String, dynamic> json) =>
     AgentConfiguration(
       name: json['name'] as String,
-      revision: json['revision'] as int,
       modelId: json['modelId'] as String?,
       preset: json['preset'] as String,
       presetRoles: (json['presetRoles'] as List).map(
@@ -235,13 +236,45 @@ Map<String, Object?> encodeAgentDocument(AgentDocument d) => {
   'id': d.id,
   'name': d.name,
   'content': d.content,
-  'revision': d.revision,
   'kind': d.kind.name,
 };
 AgentDocument decodeAgentDocument(Map<String, dynamic> j) => AgentDocument(
   id: j['id'] as String,
   name: j['name'] as String,
   content: j['content'] as String,
-  revision: j['revision'] as int,
   kind: AgentDocumentKind.values.byName(j['kind'] as String),
 );
+
+Map<String, Object?> encodeAgentStoryRound(AgentStoryRound round) => {
+  'version': 1,
+  'id': round.id,
+  'stateAgentId': round.stateAgentId,
+  'beforeWorkspace': encodeAgentWorkspace(round.beforeWorkspace),
+  'document': encodeAgentDocument(round.document),
+  'beforeState': round.beforeState.toJson(),
+  'afterState': round.afterState?.toJson(),
+  'status': round.status.name,
+  'operations': round.operations.map((op) => op.toJson()).toList(),
+};
+
+AgentStoryRound decodeAgentStoryRound(Map<String, dynamic> json) {
+  if (json['version'] != 1) throw const FormatException('不支持的剧情轮次版本');
+  return AgentStoryRound(
+    id: json['id'] as String,
+    stateAgentId: json['stateAgentId'] as String,
+    beforeWorkspace: decodeAgentWorkspace(
+      json['beforeWorkspace'] as Map<String, dynamic>,
+    ),
+    document: decodeAgentDocument(json['document'] as Map<String, dynamic>),
+    beforeState: AgentStoryState.fromJson(
+      json['beforeState'] as Map<String, dynamic>,
+    ),
+    afterState: json['afterState'] == null
+        ? null
+        : AgentStoryState.fromJson(json['afterState'] as Map<String, dynamic>),
+    status: AgentStoryRoundStatus.values.byName(json['status'] as String),
+    operations: (json['operations'] as List)
+        .map(AgentStateOperation.fromJson)
+        .toList(),
+  );
+}

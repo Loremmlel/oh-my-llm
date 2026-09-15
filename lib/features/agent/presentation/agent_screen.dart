@@ -9,6 +9,8 @@ import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 
 import '../application/agent_workspace_controller.dart';
 import '../domain/agent_models.dart';
+import '../domain/agent_story_state.dart';
+import 'agent_story_panel.dart';
 import 'agent_documents_panel.dart';
 import 'agent_transcript.dart';
 import 'agent_configuration_dialog.dart';
@@ -32,6 +34,7 @@ class _WorkspaceBody extends ConsumerStatefulWidget {
 
 class _WorkspaceBodyState extends ConsumerState<_WorkspaceBody> {
   bool _documents = false;
+  bool _story = false;
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(agentWorkspaceProvider);
@@ -41,8 +44,19 @@ class _WorkspaceBodyState extends ConsumerState<_WorkspaceBody> {
         .watch(agentModelsProvider)
         .where((m) => m.id == workspace?.modelId)
         .firstOrNull;
-    final roots = state.runs.where((r) => r.parentId == null).toList()
-      ..sort((a, b) => a.startedAt.compareTo(b.startedAt));
+    final removedRounds = state.storyRounds
+        .where(
+          (r) =>
+              r.status == AgentStoryRoundStatus.withdrawn ||
+              r.status == AgentStoryRoundStatus.discarded,
+        )
+        .map((r) => r.id)
+        .toSet();
+    final roots =
+        state.runs
+            .where((r) => r.parentId == null && !removedRounds.contains(r.id))
+            .toList()
+          ..sort((a, b) => a.startedAt.compareTo(b.startedAt));
     final latest = roots.lastOrNull;
     final activeChildren = state.runs
         .where((r) => r.parentId != null && r.status == AgentRunStatus.running)
@@ -96,10 +110,24 @@ class _WorkspaceBodyState extends ConsumerState<_WorkspaceBody> {
               IconButton(
                 onPressed: workspace == null
                     ? null
-                    : () => setState(() => _documents = !_documents),
+                    : () => setState(() {
+                        _documents = !_documents;
+                        _story = false;
+                      }),
                 tooltip: _documents ? '返回执行流' : '工作文档',
                 isSelected: _documents,
                 icon: const Icon(Icons.folder_open_outlined),
+              ),
+              IconButton(
+                onPressed: workspace == null
+                    ? null
+                    : () => setState(() {
+                        _story = !_story;
+                        _documents = false;
+                      }),
+                tooltip: _story ? '返回执行流' : '剧情状态与正文',
+                isSelected: _story,
+                icon: const Icon(Icons.table_chart_outlined),
               ),
             ],
           ),
@@ -172,6 +200,12 @@ class _WorkspaceBodyState extends ConsumerState<_WorkspaceBody> {
                     '本轮全部 Agent 已报告用量 · ${agentTreeUsageLabel(latest, state.runs)}',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
+                if (state.busy && (_story || _documents))
+                  TextButton.icon(
+                    onPressed: controller.stop,
+                    icon: const Icon(Icons.stop),
+                    label: const Text('停止'),
+                  ),
               ],
             ),
           ),
@@ -208,8 +242,11 @@ class _WorkspaceBodyState extends ConsumerState<_WorkspaceBody> {
             ),
           )
         else ...[
+          const AgentStoryActions(),
           Expanded(
-            child: _documents
+            child: _story
+                ? const AgentStoryPanel()
+                : _documents
                 ? const Padding(
                     padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
                     child: AgentDocumentsPanel(),
@@ -218,9 +255,10 @@ class _WorkspaceBodyState extends ConsumerState<_WorkspaceBody> {
                     key: ValueKey('${workspace.id}/${workspace.sessionId}'),
                     records: roots,
                     allRuns: state.runs,
+                    storyRounds: state.storyRounds,
                   ),
           ),
-          if (!_documents)
+          if (!_documents && !_story)
             _Composer(
               key: ValueKey('composer/${workspace.id}/${workspace.sessionId}'),
             ),
@@ -254,7 +292,10 @@ class _ComposerState extends ConsumerState<_Composer> {
         .watch(agentModelsProvider)
         .any((m) => m.id == state.workspace?.modelId);
     final canSend =
-        !state.busy && configured && state.workspace!.draft.trim().isNotEmpty;
+        !state.busy &&
+        state.latestRound?.status != AgentStoryRoundStatus.pending &&
+        configured &&
+        state.workspace!.draft.trim().isNotEmpty;
     ref.listen(agentWorkspaceProvider.select((s) => s.workspace?.draft), (
       _,
       text,

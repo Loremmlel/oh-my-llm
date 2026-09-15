@@ -44,7 +44,7 @@ void main() {
           'conversation_checkpoints',
           'agent_workspaces',
           'agent_runs',
-          'agent_document_revisions',
+          'agent_documents',
           'agent_sessions',
           'agent_configurations',
         ]),
@@ -363,11 +363,7 @@ void main() {
     );
     expect(
       _tableNames(migrated),
-      containsAll([
-        'agent_workspaces',
-        'agent_runs',
-        'agent_document_revisions',
-      ]),
+      containsAll(['agent_workspaces', 'agent_runs', 'agent_documents']),
     );
     expect(
       migrated.connection.select('PRAGMA user_version;').single['user_version'],
@@ -549,11 +545,7 @@ void main() {
       expect(row['token_usage_json'], isNull);
       expect(
         _tableNames(database),
-        containsAll([
-          'agent_workspaces',
-          'agent_runs',
-          'agent_document_revisions',
-        ]),
+        containsAll(['agent_workspaces', 'agent_runs', 'agent_documents']),
       );
       expect(
         database.connection

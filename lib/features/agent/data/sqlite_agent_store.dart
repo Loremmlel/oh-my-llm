@@ -6,11 +6,252 @@ import 'package:oh_my_llm/core/utils/id_generator.dart';
 
 import '../application/ports/agent_store.dart';
 import '../domain/agent_models.dart';
+import '../domain/agent_story_state.dart';
 import 'agent_record_codec.dart';
 
 class SqliteAgentStore implements AgentStore {
   SqliteAgentStore(this.database);
   final AppDatabase database;
+
+  @override
+  AgentStoryState readStoryState(String workspaceId) {
+    final rows = database.connection.select(
+      'SELECT record_json FROM agent_story_states WHERE workspace_id = ?;',
+      [workspaceId],
+    );
+    return rows.isEmpty
+        ? AgentStoryState()
+        : AgentStoryState.fromJson(
+            jsonDecode(rows.single['record_json'] as String)
+                as Map<String, dynamic>,
+          );
+  }
+
+  @override
+  AgentStoryRound? readStoryRound(String workspaceId, String roundId) {
+    final rows = database.connection.select(
+      'SELECT record_json FROM agent_story_rounds WHERE workspace_id = ? AND id = ?;',
+      [workspaceId, roundId],
+    );
+    return rows.isEmpty
+        ? null
+        : decodeAgentStoryRound(
+            jsonDecode(rows.single['record_json'] as String)
+                as Map<String, dynamic>,
+          );
+  }
+
+  @override
+  AgentStoryRound? latestStoryRound(String workspaceId) {
+    final rows = database.connection.select(
+      "SELECT record_json FROM agent_story_rounds WHERE workspace_id = ? AND status IN ('pending', 'committed') ORDER BY sequence DESC LIMIT 1;",
+      [workspaceId],
+    );
+    return rows.isEmpty
+        ? null
+        : decodeAgentStoryRound(
+            jsonDecode(rows.single['record_json'] as String)
+                as Map<String, dynamic>,
+          );
+  }
+
+  @override
+  List<AgentStoryRound> listStoryRounds(String workspaceId, String sessionId) =>
+      [
+        for (final row in database.connection.select(
+          'SELECT record_json FROM agent_story_rounds WHERE workspace_id = ? AND session_id = ? ORDER BY sequence DESC LIMIT 50;',
+          [workspaceId, sessionId],
+        ))
+          decodeAgentStoryRound(
+            jsonDecode(row['record_json'] as String) as Map<String, dynamic>,
+          ),
+      ];
+
+  @override
+  AgentStoryRound prepareStoryRound(AgentStoryRound round) {
+    late AgentStoryRound result;
+    _transaction(() {
+      final workspaceId = round.beforeWorkspace.id;
+      final owner = loadRun(workspaceId, round.id);
+      if (owner == null ||
+          owner.parentId != null ||
+          owner.role != AgentRole.coordinator ||
+          owner.status != AgentRunStatus.running ||
+          owner.sessionId != round.beforeWorkspace.sessionId) {
+        throw const AgentWorkspaceException('正文轮次不属于当前主任务。');
+      }
+      final current = readStoryRound(workspaceId, round.id);
+      if (current != null &&
+          (current.status != AgentStoryRoundStatus.pending ||
+              current.document != round.document ||
+              current.beforeState != round.beforeState)) {
+        throw const AgentWorkspaceException('本轮已保存或绑定了另一版正文，请先撤回或放弃本轮。');
+      }
+      final latest = latestStoryRound(workspaceId);
+      if (latest?.status == AgentStoryRoundStatus.pending &&
+          latest?.id != round.id) {
+        throw const AgentWorkspaceException('作品有未完成的状态更新，请先重试或放弃该轮。');
+      }
+      _checkStoryInputs(round);
+      result = current?.copyWith(stateAgentId: round.stateAgentId) ?? round;
+      _saveStoryRound(result);
+    });
+    return result;
+  }
+
+  @override
+  AgentStoryRound commitStoryRound(
+    String workspaceId,
+    String roundId,
+    String stateAgentId,
+    List<AgentStateOperation> operations,
+  ) {
+    late AgentStoryRound result;
+    _transaction(() {
+      final round = readStoryRound(workspaceId, roundId);
+      if (round == null || round.stateAgentId != stateAgentId) {
+        throw const AgentWorkspaceException('状态更新任务不匹配。');
+      }
+      if (round.status == AgentStoryRoundStatus.committed) {
+        if (operations.length != round.operations.length ||
+            Iterable<int>.generate(operations.length)
+                .any((i) => operations[i] != round.operations[i])) {
+          throw const AgentWorkspaceException('本轮已经保存，不能提交另一批修改。');
+        }
+        result = round;
+        return;
+      }
+      if (round.status != AgentStoryRoundStatus.pending ||
+          latestStoryRound(workspaceId)?.id != roundId) {
+        throw const AgentWorkspaceException('本轮已撤回或不再是最新轮次。');
+      }
+      final child = loadRun(workspaceId, stateAgentId);
+      if (child == null ||
+          child.parentId != roundId ||
+          child.status != AgentRunStatus.running ||
+          child.role != AgentRole.state) {
+        throw const AgentWorkspaceException('只有本轮绑定的状态 Agent 可以更新剧情。');
+      }
+      _checkStoryInputs(round);
+      final next = round.beforeState.apply(operations, generateEntityId);
+      result = round.copyWith(
+        status: AgentStoryRoundStatus.committed,
+        afterState: next,
+        operations: operations,
+      );
+      _saveStoryState(workspaceId, next);
+      _saveStoryRound(result);
+    });
+    return result;
+  }
+
+  void _checkStoryInputs(AgentStoryRound round) {
+    if (readStoryState(round.beforeWorkspace.id).revision !=
+            round.beforeState.revision ||
+        readDocument(round.beforeWorkspace.id, round.document.name) !=
+            round.document ||
+        round.document.kind != AgentDocumentKind.document) {
+      throw const AgentWorkspaceException('正文或状态已变化，拒绝保存过期结果。请放弃本轮后重新开始。');
+    }
+  }
+
+  void _saveStoryState(String workspaceId, AgentStoryState value) {
+    database.connection.execute(
+      'INSERT INTO agent_story_states (workspace_id, record_json) VALUES (?, ?) ON CONFLICT(workspace_id) DO UPDATE SET record_json = excluded.record_json;',
+      [workspaceId, jsonEncode(value.toJson())],
+    );
+  }
+
+  void _saveStoryRound(AgentStoryRound round) {
+    database.connection.execute(
+      'INSERT INTO agent_story_rounds (id, workspace_id, session_id, status, record_json) VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET status = excluded.status, record_json = excluded.record_json;',
+      [
+        round.id,
+        round.beforeWorkspace.id,
+        round.beforeWorkspace.sessionId,
+        round.status.name,
+        jsonEncode(encodeAgentStoryRound(round)),
+      ],
+    );
+  }
+
+  @override
+  void withdrawStoryRound(
+    String workspaceId,
+    String sessionId,
+    String roundId,
+  ) {
+    _transaction(() {
+      final round = latestStoryRound(workspaceId);
+      if (round == null ||
+          round.id != roundId ||
+          round.beforeWorkspace.sessionId != sessionId) {
+        throw const AgentWorkspaceException('只能在所属会话撤回作品最新一轮。');
+      }
+      if (database.connection.select(
+        "SELECT 1 FROM agent_runs WHERE workspace_id = ? AND status = 'running' LIMIT 1;",
+        [workspaceId],
+      ).isNotEmpty) {
+        throw const AgentWorkspaceException('请先停止作品的运行，再撤回。');
+      }
+      final state = readStoryState(workspaceId);
+      if (state !=
+          AgentStoryState(
+            revision: state.revision,
+            rows: (round.afterState ?? round.beforeState).rows,
+          )) {
+        throw const AgentWorkspaceException('状态已经变化，不能覆盖后续剧情。');
+      }
+      // 版本继续递增，防止撤回后旧异步结果误中相同版本。
+      _saveStoryState(
+        workspaceId,
+        AgentStoryState(
+          revision: state.revision + 1,
+          rows: round.beforeState.rows,
+        ),
+      );
+      _saveStoryRound(
+        round.copyWith(
+          status: round.status == AgentStoryRoundStatus.pending
+              ? AgentStoryRoundStatus.discarded
+              : AgentStoryRoundStatus.withdrawn,
+        ),
+      );
+      final current = loadWorkspace(workspaceId, sessionId: sessionId)!;
+      // 只恢复本轮仍拥有的写入；用户后来手动修改的文档不被撤回覆盖。
+      for (final entry in database.connection.select(
+        'SELECT * FROM agent_document_undo WHERE workspace_id = ? AND run_id = ?;',
+        [workspaceId, roundId],
+      )) {
+        final owned = database.connection.select(
+          'SELECT 1 FROM agent_documents WHERE workspace_id = ? AND name = ? AND source_run_id = ?;',
+          [workspaceId, entry['name'], roundId],
+        );
+        if (owned.isEmpty) continue;
+        database.connection.execute(
+          'DELETE FROM agent_documents WHERE workspace_id = ? AND name = ?;',
+          [workspaceId, entry['name']],
+        );
+        if (entry['before_json'] != null) {
+          final previous = decodeAgentDocument(
+            jsonDecode(entry['before_json'] as String),
+          );
+          _saveDocument(
+            workspaceId,
+            previous,
+            entry['before_source_run_id'] as String?,
+          );
+        }
+      }
+      _saveWorkspace(
+        current.copyWith(
+          history: round.beforeWorkspace.history,
+          draft: round.beforeWorkspace.draft,
+        ),
+      );
+    });
+  }
+
   @override
   List<AgentWorkspace> listWorkspaces() => [
     for (final row in database.connection.select(
@@ -95,7 +336,7 @@ class SqliteAgentStore implements AgentStore {
   @override
   List<AgentConfiguration> listConfigurations(String workspaceId) => [
     for (final row in database.connection.select(
-      'SELECT record_json FROM agent_configurations WHERE workspace_id = ? ORDER BY revision DESC;',
+      'SELECT record_json FROM agent_configurations WHERE workspace_id = ? ORDER BY name;',
       [workspaceId],
     ))
       decodeAgentConfiguration(jsonDecode(row['record_json'] as String)),
@@ -120,19 +361,14 @@ class SqliteAgentStore implements AgentStore {
     late AgentConfiguration saved;
     _transaction(() {
       final current = listConfigurations(workspaceId);
-      if (current.length >= 200) {
-        throw const AgentWorkspaceException('每部作品最多保存 200 个配置版本。');
+      if (current.length >= 200 &&
+          !current.any((c) => c.name == configuration.name)) {
+        throw const AgentWorkspaceException('每部作品最多保存 200 个配置方案。');
       }
-      saved = configuration.copyWith(
-        revision: (current.firstOrNull?.revision ?? 0) + 1,
-      );
+      saved = configuration;
       database.connection.execute(
-        'INSERT INTO agent_configurations VALUES (?, ?, ?);',
-        [
-          workspaceId,
-          saved.revision,
-          jsonEncode(encodeAgentConfiguration(saved)),
-        ],
+        'INSERT INTO agent_configurations (workspace_id, name, record_json) VALUES (?, ?, ?) ON CONFLICT(workspace_id, name) DO UPDATE SET record_json = excluded.record_json;',
+        [workspaceId, saved.name, jsonEncode(encodeAgentConfiguration(saved))],
       );
     });
     return saved;
@@ -208,7 +444,7 @@ class SqliteAgentStore implements AgentStore {
             ...closePendingAgentTools(workspace.history),
             const LlmTextMessage(
               role: LlmRole.user,
-              text: '上次运行因应用关闭而中断。已保存的文档版本仍保留；请读取核实，不要假定所有工具成功。',
+              text: '上次运行因应用关闭而中断。已保存的文档仍保留；请读取核实，不要假定所有工具成功。',
             ),
           ],
         ),
@@ -219,29 +455,18 @@ class SqliteAgentStore implements AgentStore {
   @override
   List<AgentDocument> listDocuments(String workspaceId) => database.connection
       .select(
-        '''
-    SELECT * FROM agent_document_revisions AS d
-    WHERE workspace_id = ? AND revision = (SELECT MAX(revision) FROM agent_document_revisions
-      WHERE workspace_id = d.workspace_id AND name = d.name) ORDER BY name;
-  ''',
+        'SELECT * FROM agent_documents WHERE workspace_id = ? ORDER BY name;',
         [workspaceId],
       )
       .map(_document)
       .toList();
+
   @override
-  AgentDocument? readDocument(
-    String workspaceId,
-    String name, {
-    int? revision,
-  }) {
+  AgentDocument? readDocument(String workspaceId, String name) {
     _validateName(name);
     final rows = database.connection.select(
-      '''
-      SELECT * FROM agent_document_revisions
-      WHERE workspace_id = ? AND name = ? ${revision == null ? '' : 'AND revision = ?'}
-      ORDER BY revision DESC LIMIT 1;
-    ''',
-      [workspaceId, name, ?revision],
+      'SELECT * FROM agent_documents WHERE workspace_id = ? AND name = ?;',
+      [workspaceId, name],
     );
     return rows.isEmpty ? null : _document(rows.single);
   }
@@ -251,45 +476,69 @@ class SqliteAgentStore implements AgentStore {
     String workspaceId,
     String name,
     String content, {
-    required int expectedRevision,
     AgentDocumentKind? kind,
+    String? sourceRunId,
   }) {
     _validateName(name);
     if (utf8.encode(content).length > 256 * 1024) {
       throw const AgentWorkspaceException('文档不能超过 256 KiB。');
     }
-    if (expectedRevision < 0) throw const AgentWorkspaceException('版本号不能为负数。');
     late AgentDocument document;
     _transaction(() {
       final current = readDocument(workspaceId, name);
-      if ((current?.revision ?? 0) != expectedRevision) {
-        throw const AgentWorkspaceException('文档版本冲突，请重新读取后再保存。');
-      }
       if (current == null && listDocuments(workspaceId).length >= 100) {
         throw const AgentWorkspaceException('每个工作区最多保存 100 份文档。');
+      }
+      if (sourceRunId != null) {
+        final owner = loadRun(workspaceId, sourceRunId);
+        if (owner == null ||
+            owner.parentId != null ||
+            owner.status != AgentRunStatus.running) {
+          throw const AgentWorkspaceException('文档写入不属于当前主任务。');
+        }
+        final rows = database.connection.select(
+          'SELECT source_run_id FROM agent_documents WHERE workspace_id = ? AND name = ?;',
+          [workspaceId, name],
+        );
+        // 同一轮无论改稿多少次，只留写入前的一份撤回快照。
+        database.connection.execute(
+          'INSERT OR IGNORE INTO agent_document_undo (workspace_id, run_id, name, before_json, before_source_run_id) VALUES (?, ?, ?, ?, ?);',
+          [
+            workspaceId,
+            sourceRunId,
+            name,
+            current == null ? null : jsonEncode(encodeAgentDocument(current)),
+            rows.firstOrNull?['source_run_id'],
+          ],
+        );
       }
       document = AgentDocument(
         id: current?.id ?? generateEntityId(),
         kind: kind ?? current?.kind ?? AgentDocumentKind.document,
         name: name,
         content: content,
-        revision: expectedRevision + 1,
       );
-      database.connection.execute(
-        '''
-        INSERT INTO agent_document_revisions (workspace_id, name, revision, content, document_id, kind) VALUES (?, ?, ?, ?, ?, ?);
-      ''',
-        [
-          workspaceId,
-          name,
-          document.revision,
-          content,
-          document.id,
-          document.kind.name,
-        ],
-      );
+      _saveDocument(workspaceId, document, sourceRunId);
     });
     return document;
+  }
+
+  void _saveDocument(
+    String workspaceId,
+    AgentDocument document,
+    String? sourceRunId,
+  ) {
+    database.connection.execute(
+      'INSERT INTO agent_documents (workspace_id, name, content, document_id, kind, source_run_id) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(workspace_id, name) DO UPDATE SET content = excluded.content, kind = excluded.kind, source_run_id = excluded.source_run_id;',
+      [
+        workspaceId,
+        document.name,
+        document.content,
+        document.id,
+        document.kind.name,
+        sourceRunId,
+      ],
+    );
   }
 
   void _validateName(String name) {
@@ -308,7 +557,6 @@ class SqliteAgentStore implements AgentStore {
     kind: AgentDocumentKind.values.byName(row['kind'] as String),
     name: row['name'] as String,
     content: row['content'] as String,
-    revision: row['revision'] as int,
   );
   void _transaction(void Function() action) {
     database.connection.execute('BEGIN IMMEDIATE;');

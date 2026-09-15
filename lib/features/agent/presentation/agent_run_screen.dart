@@ -7,6 +7,7 @@ import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 
 import '../application/agent_workspace_controller.dart';
 import '../domain/agent_models.dart';
+import '../domain/agent_story_state.dart';
 import 'agent_transcript.dart';
 
 class AgentRunScreen extends ConsumerWidget {
@@ -21,12 +22,16 @@ class AgentRunScreen extends ConsumerWidget {
     final state = ref.watch(agentWorkspaceProvider);
     AgentRunRecord? record;
     AgentWorkspace? workspace;
+    AgentStoryRound? round;
     String? error;
     try {
       record = ref.watch(
         agentRunProvider((workspaceId: workspaceId, runId: runId)),
       );
       workspace = ref.watch(agentWorkspaceDetailsProvider(workspaceId));
+      if (record != null) {
+        round = ref.read(agentWorkspaceProvider.notifier).storyRoundFor(record);
+      }
     } catch (_) {
       error = '无法读取执行记录，请检查本地存储后重试。';
     }
@@ -89,7 +94,11 @@ class AgentRunScreen extends ConsumerWidget {
           Expanded(
             child: current == null
                 ? Center(child: Text(error ?? '找不到此工作区的执行记录。'))
-                : AgentTranscript(records: [current], allRuns: state.runs),
+                : AgentTranscript(
+                    records: [current],
+                    allRuns: state.runs,
+                    storyRounds: [?round],
+                  ),
           ),
           SafeArea(
             top: false,

@@ -1,7 +1,20 @@
 import '../../domain/agent_models.dart';
+import '../../domain/agent_story_state.dart';
 
 /// 工作区与执行记录的原子检查点；工具只能拿到绑定的工作区 ID。
 abstract interface class AgentStore {
+  AgentStoryState readStoryState(String workspaceId);
+  AgentStoryRound? readStoryRound(String workspaceId, String roundId);
+  AgentStoryRound? latestStoryRound(String workspaceId);
+  List<AgentStoryRound> listStoryRounds(String workspaceId, String sessionId);
+  AgentStoryRound prepareStoryRound(AgentStoryRound round);
+  AgentStoryRound commitStoryRound(
+    String workspaceId,
+    String roundId,
+    String stateAgentId,
+    List<AgentStateOperation> operations,
+  );
+  void withdrawStoryRound(String workspaceId, String sessionId, String roundId);
   List<AgentWorkspace> listWorkspaces();
   AgentWorkspace? loadWorkspace(String id, {String? sessionId});
   void saveWorkspace(AgentWorkspace workspace);
@@ -20,12 +33,12 @@ abstract interface class AgentStore {
   void checkpoint(AgentRunRecord run, {AgentWorkspace? workspace});
   void recoverInterruptedRuns();
   List<AgentDocument> listDocuments(String workspaceId);
-  AgentDocument? readDocument(String workspaceId, String name, {int? revision});
+  AgentDocument? readDocument(String workspaceId, String name);
   AgentDocument writeDocument(
     String workspaceId,
     String name,
     String content, {
-    required int expectedRevision,
     AgentDocumentKind? kind,
+    String? sourceRunId,
   });
 }

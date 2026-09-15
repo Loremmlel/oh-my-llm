@@ -6,7 +6,7 @@ import 'package:sqlite3/sqlite3.dart' as sqlite;
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 
 void main() {
-  test('完整 v16 工作区升级为作品与会话，保留原生历史草稿和文档版本', () {
+  test('完整 v16 工作区升级为作品与会话，保留原生历史草稿和当前文档', () {
     final directory = Directory.systemTemp.createTempSync('novel-v16-');
     addTearDown(() => directory.deleteSync(recursive: true));
     final path = '${directory.path}/old.sqlite';
@@ -95,9 +95,9 @@ void main() {
     expect(session['draft'], '未发送草稿');
     expect(session['modelId'], 'old-model');
     final documents = database.connection.select(
-      'SELECT * FROM agent_document_revisions ORDER BY revision',
+      'SELECT * FROM agent_documents ORDER BY name',
     );
-    expect(documents.map((r) => r['content']), ['原文 1', '原文 2']);
+    expect(documents.map((r) => r['content']), ['原文 2']);
     expect(documents.map((r) => r['document_id']).toSet(), hasLength(1));
     expect(documents.every((r) => r['kind'] == 'document'), isTrue);
     expect(

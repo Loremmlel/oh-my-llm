@@ -19,7 +19,7 @@ import '../helpers/fake_tool_protocol_http_client.dart';
 
 void main() {
   for (final protocol in LlmApiProtocol.values) {
-    test('${protocol.name} 通过生产装配执行工具并持久化，重建控制器后继续同一上下文', () async {
+    test('${protocol.name} 通过生产装配保存正文与状态，重建控制器后继续并撤回', () async {
       final database = AppDatabase.inMemory();
       addTearDown(database.close);
       final store = SqliteAgentStore(database);
@@ -35,8 +35,28 @@ void main() {
       );
       final wire = FakeToolProtocolHttpClient(
         protocol,
-        toolName: 'write_document',
-        arguments: {'name': '正文', 'content': '工具保存的正文', 'expected_revision': 0},
+        script: [
+          (
+            name: 'write_document',
+            arguments: {'name': '正文', 'content': '工具保存的正文'},
+          ),
+          (name: 'update_story_state', arguments: {'name': '正文'}),
+          (
+            name: 'commit_story_state',
+            arguments: {
+              'operations': [
+                {
+                  'operation': 'insert',
+                  'table': 'scene',
+                  'row_id': '',
+                  'cells': [
+                    {'column': 'place', 'value': '图书馆'},
+                  ],
+                },
+              ],
+            },
+          ),
+        ],
       );
       ProviderContainer createContainer() => ProviderContainer(
         overrides: [
@@ -59,21 +79,25 @@ void main() {
       final state = first.read(agentWorkspaceProvider);
       expect(state.error, isEmpty);
       expect(
-        state.runs.single.status,
+        state.runs.firstWhere((r) => r.parentId == null).status,
         AgentRunStatus.completed,
-        reason: state.runs.single.error,
+        reason: state.runs.firstWhere((r) => r.parentId == null).error,
       );
       expect(store.readDocument(state.workspace!.id, '正文')?.content, '工具保存的正文');
-      expect(wire.requests, hasLength(2));
+      expect(
+        store.readStoryState(state.workspace!.id).rows.single.cells['place'],
+        '图书馆',
+      );
+      expect(wire.requests, hasLength(3));
       final bodyKey = protocol == LlmApiProtocol.responses
           ? 'input'
           : 'messages';
       final firstPrefix = wire.requests.first[bodyKey] as List;
       expect(
-        (wire.requests.last[bodyKey] as List).take(firstPrefix.length),
+        (wire.requests[1][bodyKey] as List).take(firstPrefix.length),
         firstPrefix,
       );
-      expect(wire.requests.last['tools'], wire.requests.first['tools']);
+      expect(wire.requests[1]['tools'], wire.requests.first['tools']);
       first.dispose();
       final second = createContainer();
       addTearDown(second.dispose);
@@ -87,8 +111,11 @@ void main() {
             .every((r) => r.status == AgentRunStatus.completed),
         isTrue,
       );
-      expect(wire.requests, hasLength(3));
-      expect(store.readDocument(state.workspace!.id, '正文')?.revision, 1);
+      expect(wire.requests, hasLength(4));
+      expect(store.listDocuments(state.workspace!.id), hasLength(1));
+      restored.withdrawLatestRound();
+      expect(store.readStoryState(state.workspace!.id).rows, isEmpty);
+      expect(second.read(agentWorkspaceProvider).workspace!.draft, '保存一份正文');
     });
   }
 }

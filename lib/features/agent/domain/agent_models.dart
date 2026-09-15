@@ -28,7 +28,6 @@ class AgentWorkspace extends Equatable {
     this.draft = '',
     List<LlmInputItem> history = const [],
     List<AgentDocument> references = const [],
-    this.referencesFrozen = false,
   }) : configuration =
            configuration ??
            AgentConfiguration(modelId: modelId, preset: instructions),
@@ -40,7 +39,6 @@ class AgentWorkspace extends Equatable {
   String get instructions => configuration.preset;
   final List<LlmInputItem> history;
   final List<AgentDocument> references;
-  final bool referencesFrozen;
   AgentWorkspace copyWith({
     String? title,
     String? modelId,
@@ -51,7 +49,6 @@ class AgentWorkspace extends Equatable {
     AgentConfiguration? configuration,
     List<LlmInputItem>? history,
     List<AgentDocument>? references,
-    bool? referencesFrozen,
   }) => AgentWorkspace(
     id: id,
     title: title ?? this.title,
@@ -63,7 +60,6 @@ class AgentWorkspace extends Equatable {
     draft: draft ?? this.draft,
     history: history ?? this.history,
     references: references ?? this.references,
-    referencesFrozen: referencesFrozen ?? this.referencesFrozen,
   );
   @override
   List<Object?> get props => [
@@ -75,7 +71,6 @@ class AgentWorkspace extends Equatable {
     draft,
     history,
     references,
-    referencesFrozen,
   ];
 }
 
@@ -83,15 +78,13 @@ class AgentDocument extends Equatable {
   const AgentDocument({
     required this.name,
     required this.content,
-    required this.revision,
     this.id = '',
     this.kind = AgentDocumentKind.document,
   });
   final String id, name, content;
-  final int revision;
   final AgentDocumentKind kind;
   @override
-  List<Object?> get props => [id, name, content, revision, kind];
+  List<Object?> get props => [id, name, content, kind];
 }
 
 enum AgentStepKind { model, tool }
@@ -151,6 +144,7 @@ class AgentRunRecord extends Equatable {
     this.modelLabel = '',
     this.usageIncomplete = false,
     List<LlmInputItem> childHistory = const [],
+    List<LlmInputItem>? inputHistory,
     List<LlmToolDefinition> tools = const [],
     this.role = AgentRole.coordinator,
     this.status = AgentRunStatus.running,
@@ -161,6 +155,9 @@ class AgentRunRecord extends Equatable {
     List<AgentStep> steps = const [],
   }) : steps = List.unmodifiable(steps),
        childHistory = List.unmodifiable(childHistory),
+       inputHistory = inputHistory == null
+           ? null
+           : List.unmodifiable(inputHistory),
        tools = List.unmodifiable(tools);
   final String id;
   final String workspaceId;
@@ -169,6 +166,9 @@ class AgentRunRecord extends Equatable {
   final String? modelId;
   final bool usageIncomplete;
   final List<LlmInputItem> childHistory;
+
+  /// 新运行保存实际输入历史，撤回会话后仍可查看；旧记录未保存时为空。
+  final List<LlmInputItem>? inputHistory;
   final List<LlmToolDefinition> tools;
   final AgentRole role;
   final AgentRunStatus status;
@@ -187,6 +187,7 @@ class AgentRunRecord extends Equatable {
     LlmUsage? usage,
     List<AgentStep>? steps,
     List<LlmInputItem>? childHistory,
+    List<LlmInputItem>? inputHistory,
     bool? usageIncomplete,
   }) => AgentRunRecord(
     id: id,
@@ -197,6 +198,7 @@ class AgentRunRecord extends Equatable {
     modelLabel: modelLabel,
     tools: tools,
     childHistory: childHistory ?? this.childHistory,
+    inputHistory: inputHistory ?? this.inputHistory,
     usageIncomplete: usageIncomplete ?? this.usageIncomplete,
     role: role,
     prompt: prompt,
@@ -218,6 +220,7 @@ class AgentRunRecord extends Equatable {
     modelLabel,
     tools,
     childHistory,
+    inputHistory,
     usageIncomplete,
     role,
     status,
@@ -250,7 +253,7 @@ List<LlmInputItem> closePendingAgentTools(List<LlmInputItem> history) {
         callId: call.callId,
         name: call.name,
         isError: true,
-        output: '运行被中断，此调用的结果未确认。文档可能已保存；先读取当前版本核实，不要直接重复写入。',
+        output: '运行被中断，此调用的结果未确认。文档可能已保存；先读取当前内容核实，不要直接重复写入。',
       ),
   ];
 }

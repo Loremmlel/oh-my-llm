@@ -30,7 +30,7 @@ class _AgentDocumentsPanelState extends ConsumerState<AgentDocumentsPanel> {
             alignment: WrapAlignment.spaceBetween,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              const Text('每次保存保留旧版本，正文可以直接修改。'),
+              const Text('修改后直接保存，下次运行采用当前内容。'),
               OutlinedButton.icon(
                 onPressed: state.busy
                     ? null
@@ -70,7 +70,7 @@ class _AgentDocumentsPanelState extends ConsumerState<AgentDocumentsPanel> {
                     return ListTile(
                       title: Text(document.name),
                       subtitle: Text(
-                        '${agentDocumentKindLabel(document.kind)} · 版本 ${document.revision} · ${document.content.length} 字符',
+                        '${agentDocumentKindLabel(document.kind)} · ${document.content.length} 字符',
                       ),
                       trailing: const Icon(Icons.edit_outlined),
                       enabled: !state.busy,
