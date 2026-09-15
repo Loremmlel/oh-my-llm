@@ -1,6 +1,6 @@
 import 'package:equatable/equatable.dart';
 
-enum AgentRole { coordinator, writer, reviewer, character }
+enum AgentRole { coordinator, writer, reviewer, character, state }
 
 enum AgentDocumentKind { document, worldBook, characterCard }
 

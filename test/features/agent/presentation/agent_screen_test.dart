@@ -316,6 +316,15 @@ void main() {
     await tester.tap(find.text('开始任务'));
     await tester.runAsync(() => started.future);
     await tester.pump();
+    await tester.tap(find.byTooltip('工作文档'));
+    await tester.pump();
+    expect(find.text('停止'), findsOneWidget);
+    await tester.tap(find.byTooltip('剧情状态与正文'));
+    await tester.pump();
+    expect(find.text('停止'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.byTooltip('返回执行流'));
+    await tester.pump();
     await tester.tap(find.text('停止全部'));
     await tester.runAsync(() => stopped.future);
     await tester.pump();

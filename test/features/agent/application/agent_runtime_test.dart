@@ -228,6 +228,7 @@ void main() {
           isNot(contains('主任务私有信息')),
         );
         expect(request.tools.map((t) => t.name), [
+          'read_story_state',
           'list_documents',
           'read_document',
         ]);

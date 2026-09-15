@@ -8,15 +8,22 @@ class FakeToolProtocolHttpClient extends http.BaseClient {
     this.protocol, {
     this.toolName = 'read',
     this.arguments = const {},
+    this.script,
   });
   final String toolName;
   final Map<String, Object?> arguments;
+  final List<({String name, Map<String, Object?> arguments})>? script;
   final LlmApiProtocol protocol;
   final requests = <Map<String, dynamic>>[];
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
     requests.add(jsonDecode((request as http.Request).body));
-    final first = requests.length == 1;
+    final index = requests.length - 1;
+    final calls = script ?? [(name: toolName, arguments: arguments)];
+    final first = index < calls.length;
+    final name = first ? calls[index].name : '';
+    final args = first ? calls[index].arguments : const <String, Object?>{};
+    final callId = index == 0 ? 'c' : 'c$index';
     final events = switch (protocol) {
       LlmApiProtocol.chatCompletions => [
         {
@@ -27,11 +34,11 @@ class FakeToolProtocolHttpClient extends http.BaseClient {
                       'tool_calls': [
                         {
                           'index': 0,
-                          'id': 'c',
+                          'id': callId,
                           'type': 'function',
                           'function': {
-                            'name': toolName,
-                            'arguments': jsonEncode(arguments),
+                            'name': name,
+                            'arguments': jsonEncode(args),
                           },
                         },
                       ],
@@ -51,10 +58,10 @@ class FakeToolProtocolHttpClient extends http.BaseClient {
               first
                   ? {
                       'type': 'function_call',
-                      'id': 'i',
-                      'call_id': 'c',
-                      'name': toolName,
-                      'arguments': jsonEncode(arguments),
+                      'id': index == 0 ? 'i' : 'i$index',
+                      'call_id': callId,
+                      'name': name,
+                      'arguments': jsonEncode(args),
                     }
                   : {
                       'type': 'message',
@@ -73,12 +80,7 @@ class FakeToolProtocolHttpClient extends http.BaseClient {
           'type': 'content_block_start',
           'index': 0,
           'content_block': first
-              ? {
-                  'type': 'tool_use',
-                  'id': 'c',
-                  'name': toolName,
-                  'input': arguments,
-                }
+              ? {'type': 'tool_use', 'id': callId, 'name': name, 'input': args}
               : {'type': 'text', 'text': ''},
         },
         if (!first)

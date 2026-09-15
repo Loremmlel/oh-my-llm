@@ -15,6 +15,7 @@ String agentRoleLabel(AgentRole role) => switch (role) {
   AgentRole.writer => '写作 Agent',
   AgentRole.reviewer => '审稿 Agent',
   AgentRole.character => '角色 Agent',
+  AgentRole.state => '状态 Agent',
 };
 
 String agentStatusLabel(AgentRunStatus status) => switch (status) {

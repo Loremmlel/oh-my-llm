@@ -151,6 +151,7 @@ class AgentRunRecord extends Equatable {
     this.modelLabel = '',
     this.usageIncomplete = false,
     List<LlmInputItem> childHistory = const [],
+    List<LlmInputItem>? inputHistory,
     List<LlmToolDefinition> tools = const [],
     this.role = AgentRole.coordinator,
     this.status = AgentRunStatus.running,
@@ -161,6 +162,9 @@ class AgentRunRecord extends Equatable {
     List<AgentStep> steps = const [],
   }) : steps = List.unmodifiable(steps),
        childHistory = List.unmodifiable(childHistory),
+       inputHistory = inputHistory == null
+           ? null
+           : List.unmodifiable(inputHistory),
        tools = List.unmodifiable(tools);
   final String id;
   final String workspaceId;
@@ -169,6 +173,9 @@ class AgentRunRecord extends Equatable {
   final String? modelId;
   final bool usageIncomplete;
   final List<LlmInputItem> childHistory;
+
+  /// 新运行保存实际输入历史，撤回会话后仍可查看；旧记录未保存时为空。
+  final List<LlmInputItem>? inputHistory;
   final List<LlmToolDefinition> tools;
   final AgentRole role;
   final AgentRunStatus status;
@@ -187,6 +194,7 @@ class AgentRunRecord extends Equatable {
     LlmUsage? usage,
     List<AgentStep>? steps,
     List<LlmInputItem>? childHistory,
+    List<LlmInputItem>? inputHistory,
     bool? usageIncomplete,
   }) => AgentRunRecord(
     id: id,
@@ -197,6 +205,7 @@ class AgentRunRecord extends Equatable {
     modelLabel: modelLabel,
     tools: tools,
     childHistory: childHistory ?? this.childHistory,
+    inputHistory: inputHistory ?? this.inputHistory,
     usageIncomplete: usageIncomplete ?? this.usageIncomplete,
     role: role,
     prompt: prompt,
@@ -218,6 +227,7 @@ class AgentRunRecord extends Equatable {
     modelLabel,
     tools,
     childHistory,
+    inputHistory,
     usageIncomplete,
     role,
     status,
