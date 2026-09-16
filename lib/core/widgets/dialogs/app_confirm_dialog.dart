@@ -32,6 +32,7 @@ class AppConfirmDialog extends StatelessWidget {
       content: Text(message),
       actions: [
         TextButton(
+          autofocus: true,
           onPressed: () => Navigator.of(context).pop(false),
           child: Text(cancelLabel),
         ),

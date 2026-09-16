@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:oh_my_llm/core/widgets/app_field_group.dart';
 
 import '../../../application/preferences/auto_retry_settings_controller.dart';
 import '../../../application/preferences/font_size_settings_controller.dart';
@@ -94,32 +95,36 @@ class OtherSettingsTab extends ConsumerWidget {
                 },
               ),
               const SizedBox(height: 16),
-              _AutoRetryNumberField(
-                key: const ValueKey('auto-retry-max-jitter-field'),
-                label: settings.retryMode == RetryMode.fixedInterval
-                    ? '重试间隔（秒）'
-                    : '最大重试间隔（秒）',
-                value: settings.maxJitterSeconds,
-                min: 0,
-                max: 60,
-                onChanged: (value) {
-                  ref
-                      .read(autoRetrySettingsProvider.notifier)
-                      .save(settings.copyWith(maxJitterSeconds: value));
-                },
-              ),
-              const SizedBox(height: 16),
-              _AutoRetryNumberField(
-                key: const ValueKey('auto-retry-max-count-field'),
-                label: '最大重试次数（0 不限）',
-                value: settings.maxRetryCount,
-                min: 0,
-                max: 100,
-                onChanged: (value) {
-                  ref
-                      .read(autoRetrySettingsProvider.notifier)
-                      .save(settings.copyWith(maxRetryCount: value));
-                },
+              AppFieldGroup(
+                fieldWidth: 240,
+                children: [
+                  _AutoRetryNumberField(
+                    key: const ValueKey('auto-retry-max-jitter-field'),
+                    label: settings.retryMode == RetryMode.fixedInterval
+                        ? '重试间隔（秒）'
+                        : '最大重试间隔（秒）',
+                    value: settings.maxJitterSeconds,
+                    min: 0,
+                    max: 60,
+                    onChanged: (value) {
+                      ref
+                          .read(autoRetrySettingsProvider.notifier)
+                          .save(settings.copyWith(maxJitterSeconds: value));
+                    },
+                  ),
+                  _AutoRetryNumberField(
+                    key: const ValueKey('auto-retry-max-count-field'),
+                    label: '最大重试次数（0 不限）',
+                    value: settings.maxRetryCount,
+                    min: 0,
+                    max: 100,
+                    onChanged: (value) {
+                      ref
+                          .read(autoRetrySettingsProvider.notifier)
+                          .save(settings.copyWith(maxRetryCount: value));
+                    },
+                  ),
+                ],
               ),
               const SizedBox(height: 16),
               SwitchListTile(
