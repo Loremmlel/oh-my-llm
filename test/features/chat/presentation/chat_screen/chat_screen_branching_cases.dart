@@ -314,7 +314,9 @@ void registerChatScreenBranchingTests() {
   ) async {
     await setupDeleteScenario(tester);
 
-    await tester.tap(find.byTooltip('删除消息').last);
+    await tester.tap(find.byTooltip('消息操作').last);
+    await settleOverlayTransition(tester);
+    await tester.tap(find.text('删除消息'));
     await settleOverlayTransition(tester);
 
     expect(find.text('删除哪个范围？'), findsOneWidget);
@@ -334,7 +336,9 @@ void registerChatScreenBranchingTests() {
   ) async {
     await setupDeleteScenario(tester);
 
-    await tester.tap(find.byTooltip('删除消息').last);
+    await tester.tap(find.byTooltip('消息操作').last);
+    await settleOverlayTransition(tester);
+    await tester.tap(find.text('删除消息'));
     await settleOverlayTransition(tester);
     await tester.tap(find.widgetWithText(FilledButton, '删除全部版本'));
     await settleOverlayTransition(tester);

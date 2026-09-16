@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_field_group.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
@@ -112,25 +113,66 @@ class _ConversationCheckpointsDialogState
                 style: Theme.of(context).textTheme.bodySmall,
               ),
               const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                initialValue: selectedMemoryPrompt?.id,
-                isExpanded: true,
-                decoration: const InputDecoration(labelText: '记忆总结提示词'),
-                items: memoryPrompts
-                    .map((prompt) {
-                      return DropdownMenuItem<String>(
-                        value: prompt.id,
-                        child: Text(prompt.name),
-                      );
-                    })
-                    .toList(growable: false),
-                onChanged: isBusy || memoryPrompts.isEmpty
-                    ? null
-                    : (value) {
-                        setState(() {
-                          _selectedMemoryPromptId = value;
-                        });
-                      },
+              AppFieldGroup(
+                children: [
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedMemoryPrompt?.id,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: '记忆总结提示词'),
+                    items: memoryPrompts
+                        .map((prompt) {
+                          return DropdownMenuItem<String>(
+                            value: prompt.id,
+                            child: Text(
+                              prompt.name,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          );
+                        })
+                        .toList(growable: false),
+                    onChanged: isBusy || memoryPrompts.isEmpty
+                        ? null
+                        : (value) {
+                            setState(() {
+                              _selectedMemoryPromptId = value;
+                            });
+                          },
+                  ),
+                  DropdownButtonFormField<String?>(
+                    initialValue: selectedSourceCheckpointId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: '总结来源'),
+                    items: [
+                      const DropdownMenuItem<String?>(
+                        value: null,
+                        child: Text('完整上下文'),
+                      ),
+                      ...compatibleCheckpoints.map((checkpoint) {
+                        final chain = resolveCheckpointChain(
+                          checkpoints: conversation.checkpoints,
+                          selectedCheckpointId: checkpoint.id,
+                        );
+                        final suffix = chain.length <= 1
+                            ? '根检查点'
+                            : '自动携带祖先链 ${chain.length} 条';
+                        return DropdownMenuItem<String?>(
+                          value: checkpoint.id,
+                          child: Text(
+                            '${checkpoint.title} · $suffix',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        );
+                      }),
+                    ],
+                    onChanged: isBusy
+                        ? null
+                        : (value) {
+                            setState(() {
+                              _selectedSourceCheckpointId = value;
+                            });
+                          },
+                  ),
+                ],
               ),
               if (memoryPrompts.isEmpty) ...[
                 const SizedBox(height: 8),
@@ -139,38 +181,6 @@ class _ConversationCheckpointsDialogState
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String?>(
-                initialValue: selectedSourceCheckpointId,
-                isExpanded: true,
-                decoration: const InputDecoration(labelText: '总结来源'),
-                items: [
-                  const DropdownMenuItem<String?>(
-                    value: null,
-                    child: Text('完整上下文'),
-                  ),
-                  ...compatibleCheckpoints.map((checkpoint) {
-                    final chain = resolveCheckpointChain(
-                      checkpoints: conversation.checkpoints,
-                      selectedCheckpointId: checkpoint.id,
-                    );
-                    final suffix = chain.length <= 1
-                        ? '根检查点'
-                        : '自动携带祖先链 ${chain.length} 条';
-                    return DropdownMenuItem<String?>(
-                      value: checkpoint.id,
-                      child: Text('${checkpoint.title} · $suffix'),
-                    );
-                  }),
-                ],
-                onChanged: isBusy
-                    ? null
-                    : (value) {
-                        setState(() {
-                          _selectedSourceCheckpointId = value;
-                        });
-                      },
-              ),
               const SizedBox(height: 12),
               FilledButton.icon(
                 onPressed:

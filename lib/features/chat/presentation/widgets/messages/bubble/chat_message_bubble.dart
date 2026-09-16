@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
+import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 import 'package:oh_my_llm/core/widgets/notification_bubble/notification_bubble_context_ext.dart';
 
 import '../../../../domain/chat_word_counter.dart';
@@ -88,13 +89,30 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
     );
   }
 
-  Widget _exclusionButton() {
-    return _iconButton(
-      onPressed: widget.onToggleRequestExclusionPressed,
-      tooltip: widget.isExcludedFromRequest ? '重新加入发送上下文' : '从发送上下文中排除',
-      icon: widget.isExcludedFromRequest
-          ? Icons.add_circle_outline_rounded
-          : Icons.remove_circle_outline_rounded,
+  Widget _moreButton() {
+    return PopupMenuButton<String>(
+      tooltip: '消息操作',
+      onSelected: (value) {
+        if (value == 'exclude') widget.onToggleRequestExclusionPressed?.call();
+        if (value == 'delete') widget.onDeletePressed?.call();
+      },
+      itemBuilder: (context) => [
+        if (widget.onToggleRequestExclusionPressed != null)
+          PopupMenuItem(
+            value: 'exclude',
+            child: Text(
+              widget.isExcludedFromRequest ? '重新加入发送上下文' : '从发送上下文中排除',
+            ),
+          ),
+        if (widget.onDeletePressed != null)
+          PopupMenuItem(
+            value: 'delete',
+            child: Text(
+              '删除消息',
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ),
+      ],
     );
   }
 
@@ -188,7 +206,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                     : theme.colorScheme.surfaceContainerHighest.withValues(
                         alpha: 0.55,
                       ),
-                borderRadius: BorderRadius.circular(22),
+                borderRadius: BorderRadius.circular(AppRadii.md),
               ),
               child: Padding(
                 padding: const EdgeInsets.all(16),
@@ -230,42 +248,24 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           ),
                         ],
+                        _copyButton(context),
+                        if (widget.onFavoritePressed != null) _favoriteButton(),
+                        if (widget.canEdit)
+                          _iconButton(
+                            onPressed: widget.onEditPressed,
+                            tooltip: '编辑消息',
+                            icon: Icons.edit_outlined,
+                          ),
+                        if (widget.canRetry)
+                          _iconButton(
+                            onPressed: widget.onRetryPressed,
+                            tooltip: '重试回复',
+                            icon: Icons.refresh_rounded,
+                          ),
+                        if (widget.onDeletePressed != null ||
+                            widget.onToggleRequestExclusionPressed != null)
+                          _moreButton(),
                       ],
-                    ),
-                    const SizedBox(height: 2),
-                    SizedBox(
-                      width: double.infinity,
-                      child: Wrap(
-                        spacing: 4,
-                        runSpacing: 2,
-                        alignment: WrapAlignment.end,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          _copyButton(context),
-                          if (widget.onToggleRequestExclusionPressed != null)
-                            _exclusionButton(),
-                          if (widget.onFavoritePressed != null)
-                            _favoriteButton(),
-                          if (widget.canEdit)
-                            _iconButton(
-                              onPressed: widget.onEditPressed,
-                              tooltip: '编辑消息',
-                              icon: Icons.edit_outlined,
-                            ),
-                          if (widget.canRetry)
-                            _iconButton(
-                              onPressed: widget.onRetryPressed,
-                              tooltip: '重试回复',
-                              icon: Icons.refresh_rounded,
-                            ),
-                          if (widget.onDeletePressed != null)
-                            _iconButton(
-                              onPressed: widget.onDeletePressed,
-                              tooltip: '删除消息',
-                              icon: Icons.delete_outline_rounded,
-                            ),
-                        ],
-                      ),
                     ),
                     if (!isUser &&
                         widget.inlineErrorMessage != null &&

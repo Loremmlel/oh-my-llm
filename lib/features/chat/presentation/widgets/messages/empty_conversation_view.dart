@@ -24,8 +24,8 @@ class EmptyConversationView extends StatelessWidget {
                 iconSize: 48,
                 title: hasModels ? '开始一段新对话' : '先准备服务商与模型',
                 description: hasModels
-                    ? '输入你的第一条消息后，这里会显示真实的流式回复，同时左侧历史列表和右侧悬浮定位条会一起工作。'
-                    : '你还没有配置服务商与模型。先去设置页添加服务商，并在其下新增至少一个模型，聊天页才能真正发起请求。',
+                    ? '写下你的问题，或选择一个模板开始。'
+                    : '添加服务商和模型后，即可开始对话。',
                 action: hasModels
                     ? null
                     : FilledButton.icon(

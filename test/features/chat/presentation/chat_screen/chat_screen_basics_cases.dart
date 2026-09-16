@@ -270,7 +270,10 @@ void registerChatScreenBasicsTests() {
     );
 
     // 排除是消息树同步变更，单帧渲染即可。
-    await tester.tap(find.byTooltip('从发送上下文中排除').last);
+    await tester.tap(find.byTooltip('消息操作').last);
+    await settleOverlayTransition(tester);
+    await tester.tap(find.text('从发送上下文中排除'));
+    await settleOverlayTransition(tester);
     await tester.pump();
 
     expect(find.byIcon(Icons.filter_alt_outlined), findsOneWidget);
@@ -310,7 +313,10 @@ void registerChatScreenBasicsTests() {
     );
 
     // 排除是消息树同步变更，单帧渲染即可。
-    await tester.tap(find.byTooltip('从发送上下文中排除').last);
+    await tester.tap(find.byTooltip('消息操作').last);
+    await settleOverlayTransition(tester);
+    await tester.tap(find.text('从发送上下文中排除'));
+    await settleOverlayTransition(tester);
     await tester.pump();
 
     await tester.tap(find.byIcon(Icons.filter_alt_outlined));
@@ -339,9 +345,7 @@ void registerChatScreenBasicsTests() {
     );
   });
 
-  testWidgets('chat screen opens compact secondary settings sheet on mobile', (
-    tester,
-  ) async {
+  testWidgets('窄屏打开更多设置后可调整思考并查看缓存命中率', (tester) async {
     final fakeClient = FakeChatGenerationClient();
 
     await pumpChatScreen(
@@ -353,7 +357,8 @@ void registerChatScreenBasicsTests() {
     await tester.tap(find.byIcon(Icons.tune_rounded));
     await settleOverlayTransition(tester);
 
-    expect(find.text('更多设置'), findsOneWidget);
+    expect(find.widgetWithText(BottomSheet, '更多设置'), findsOneWidget);
+    expect(find.text('当前会话缓存命中率：暂无数据'), findsOneWidget);
     expect(find.text('思考强度'), findsNothing);
     // 档位切换触发弹窗内容高度动画（checkmark 宽度过渡），按组件动画等待。
     await tester.tap(find.text('深度思考'));
@@ -380,7 +385,7 @@ void registerChatScreenBasicsTests() {
 
     await tester.tap(find.text('xhigh'));
     await settleAnimatedWidgetTransition(tester);
-    expect(find.text('更多设置 · xhigh · 重试关'), findsOneWidget);
+    expect(find.byTooltip('更多设置 · xhigh · 重试关'), findsOneWidget);
   });
 
   testWidgets('chat screen can collapse and expand the composer', (
