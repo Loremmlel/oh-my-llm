@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 3.85.10+0
+version: 3.85.12+0
 
 environment:
   sdk: ^3.13.1
@@ -44,7 +44,7 @@ dependencies:
   scrollable_positioned_list:
     path: third_party/scrollable_positioned_list
   sqlite3: ^3.5.1
-  file_picker: ^12.0.0
+  file_picker: ^13.0.0
   video_player: ^2.14.0
   crypto: ^3.0.3         # MD5 哈希（缩略图缓存 Key）
   # crypto 只提供散列/HMAC；Sync v2 需要 AEAD 保护局域网中的凭据负载。
