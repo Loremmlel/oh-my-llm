@@ -15,7 +15,7 @@ void main() {
     addTearDown(database.close);
     final store = SqliteAgentStore(database);
     var stateCalls = 0;
-    final client = FakeAgentClient((request, index) {
+    final client = reviewedAgentClient((request, index) {
       if (request.tools.any((t) => t.name == 'commit_story_state')) {
         if (stateCalls++ == 0) throw const LlmException('模拟服务不可用');
         return agentReply(

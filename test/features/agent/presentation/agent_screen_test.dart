@@ -191,7 +191,7 @@ void main() {
     await settleOverlayTransition(tester);
     expect(find.textContaining('阿弥不知道钥匙的位置。'), findsOneWidget);
     expect(container.read(agentWorkspaceProvider).busy, isTrue);
-    await tester.tap(find.text('返回主 Agent'));
+    await tester.tap(find.text('返回上级任务'));
     await settleOverlayTransition(tester);
     expect(find.byType(AgentScreen), findsOneWidget);
     release.complete();

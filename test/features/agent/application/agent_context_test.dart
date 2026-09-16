@@ -30,14 +30,18 @@ void main() {
     );
     expect(main, contains(card.content));
     expect(main, contains(world.content));
-    expect(main.indexOf('ID=a'), lessThan(main.indexOf('ID=w')));
+    expect(main.indexOf('ID=w'), lessThan(main.indexOf('ID=a')));
     expect(main, isNot(contains('克制文风')));
     final writer = agentInputText(
       buildAgentInitialContext(workspace, AgentRole.writer),
     );
     expect(writer, contains('克制文风'));
     final character = agentInputText(
-      buildAgentInitialContext(workspace, AgentRole.character),
+      buildAgentInitialContext(
+        workspace,
+        AgentRole.character,
+        characterCardId: card.id,
+      ),
     );
     expect(character, contains(card.content));
     expect(character, contains(world.content));

@@ -4,6 +4,7 @@ import 'package:oh_my_llm/core/llm/llm_usage.dart';
 import 'package:oh_my_llm/core/llm/llm_request.dart';
 
 import '../domain/agent_models.dart';
+import '../domain/agent_context_batch.dart';
 import '../domain/agent_story_state.dart';
 
 Map<String, dynamic> encodeAgentWorkspace(AgentWorkspace value) => {
@@ -46,6 +47,8 @@ Map<String, dynamic> encodeAgentRun(AgentRunRecord value) => {
   'id': value.id,
   'workspaceId': value.workspaceId,
   'parentId': value.parentId,
+  'rootRunId': value.rootRunId,
+  'summaryBatch': value.summaryBatch?.toJson(),
   'sessionId': value.sessionId,
   'modelId': value.modelId,
   'modelLabel': value.modelLabel,
@@ -87,6 +90,12 @@ AgentRunRecord decodeAgentRun(Map<String, dynamic> json) {
     id: json['id'] as String,
     workspaceId: json['workspaceId'] as String,
     parentId: json['parentId'] as String?,
+    rootRunId: json['rootRunId'] as String?,
+    summaryBatch: json['summaryBatch'] == null
+        ? null
+        : AgentContextBatch.fromJson(
+            Map<String, dynamic>.from(json['summaryBatch'] as Map),
+          ),
     sessionId: json['sessionId'] as String? ?? 'initial',
     modelId: json['modelId'] as String?,
     modelLabel: json['modelLabel'] as String? ?? '',
@@ -248,6 +257,7 @@ AgentDocument decodeAgentDocument(Map<String, dynamic> j) => AgentDocument(
 Map<String, Object?> encodeAgentStoryRound(AgentStoryRound round) => {
   'version': 1,
   'id': round.id,
+  'writerRunId': round.writerRunId,
   'stateAgentId': round.stateAgentId,
   'beforeWorkspace': encodeAgentWorkspace(round.beforeWorkspace),
   'document': encodeAgentDocument(round.document),
@@ -261,6 +271,7 @@ AgentStoryRound decodeAgentStoryRound(Map<String, dynamic> json) {
   if (json['version'] != 1) throw const FormatException('不支持的剧情轮次版本');
   return AgentStoryRound(
     id: json['id'] as String,
+    writerRunId: json['writerRunId'] as String?,
     stateAgentId: json['stateAgentId'] as String,
     beforeWorkspace: decodeAgentWorkspace(
       json['beforeWorkspace'] as Map<String, dynamic>,

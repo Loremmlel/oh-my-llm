@@ -17,6 +17,7 @@ String agentRoleLabel(AgentRole role) => switch (role) {
   AgentRole.reviewer => '审稿 Agent',
   AgentRole.character => '角色 Agent',
   AgentRole.state => '状态 Agent',
+  AgentRole.summarizer => '总结 Agent',
 };
 
 String agentStatusLabel(AgentRunStatus status) => switch (status) {
@@ -36,7 +37,17 @@ String agentUsageLabel(AgentRunRecord record) {
 
 String agentTreeUsageLabel(AgentRunRecord root, List<AgentRunRecord> records) {
   var total = root;
-  for (final child in records.where((r) => r.parentId == root.id)) {
+  final descendants = <String>{root.id};
+  var previous = -1;
+  while (previous != descendants.length) {
+    previous = descendants.length;
+    descendants.addAll(
+      records.where((r) => descendants.contains(r.parentId)).map((r) => r.id),
+    );
+  }
+  for (final child in records.where(
+    (r) => r.id != root.id && descendants.contains(r.id),
+  )) {
     total = total.copyWith(
       modelCalls: total.modelCalls + child.modelCalls,
       usage: addAgentUsage(total.usage, child.usage),
@@ -154,7 +165,12 @@ class _AgentTranscriptState extends State<AgentTranscript> {
                       key: ValueKey(record.id),
                       record: record,
                       round: widget.storyRounds
-                          .where((r) => r.id == record.id)
+                          .where(
+                            (r) =>
+                                (record.role == AgentRole.writer ||
+                                    record.role == AgentRole.coordinator) &&
+                                r.id == record.roundRunId,
+                          )
                           .firstOrNull,
                       children:
                           widget.allRuns

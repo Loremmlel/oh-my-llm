@@ -11,6 +11,7 @@ import '../application/agent_workspace_controller.dart';
 import '../domain/agent_models.dart';
 import '../domain/agent_story_state.dart';
 import 'agent_story_panel.dart';
+import 'agent_summary_dialog.dart';
 import 'agent_documents_panel.dart';
 import 'agent_transcript.dart';
 import 'agent_configuration_dialog.dart';
@@ -54,7 +55,12 @@ class _WorkspaceBodyState extends ConsumerState<_WorkspaceBody> {
         .toSet();
     final roots =
         state.runs
-            .where((r) => r.parentId == null && !removedRounds.contains(r.id))
+            .where(
+              (r) =>
+                  r.parentId == null &&
+                  r.role != AgentRole.summarizer &&
+                  !removedRounds.contains(r.id),
+            )
             .toList()
           ..sort((a, b) => a.startedAt.compareTo(b.startedAt));
     final latest = roots.lastOrNull;
@@ -157,6 +163,11 @@ class _WorkspaceBodyState extends ConsumerState<_WorkspaceBody> {
                             if (id != null) controller.selectSession(id);
                           },
                   ),
+                ),
+                IconButton(
+                  onPressed: () => showAgentSummaries(context),
+                  tooltip: '总结管理',
+                  icon: const Icon(Icons.summarize_outlined),
                 ),
                 TextButton.icon(
                   onPressed: state.busy ? null : controller.createSession,

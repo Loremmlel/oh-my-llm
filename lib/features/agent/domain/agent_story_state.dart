@@ -232,11 +232,13 @@ class AgentStoryRound extends Equatable {
     required this.document,
     required this.beforeState,
     required this.stateAgentId,
+    this.writerRunId,
     this.status = AgentStoryRoundStatus.pending,
     this.afterState,
     List<AgentStateOperation> operations = const [],
   }) : operations = List.unmodifiable(operations);
   final String id, stateAgentId;
+  final String? writerRunId;
   final AgentWorkspace beforeWorkspace;
   final AgentDocument document;
   final AgentStoryState beforeState;
@@ -254,6 +256,7 @@ class AgentStoryRound extends Equatable {
     document: document,
     beforeState: beforeState,
     stateAgentId: stateAgentId ?? this.stateAgentId,
+    writerRunId: writerRunId,
     status: status ?? this.status,
     afterState: afterState ?? this.afterState,
     operations: operations ?? this.operations,
@@ -265,6 +268,7 @@ class AgentStoryRound extends Equatable {
     document,
     beforeState,
     stateAgentId,
+    writerRunId,
     status,
     afterState,
     operations,

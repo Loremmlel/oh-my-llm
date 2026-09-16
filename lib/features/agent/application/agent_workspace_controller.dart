@@ -7,6 +7,7 @@ import 'package:oh_my_llm/core/llm/llm_content.dart';
 import 'package:oh_my_llm/core/llm/llm_endpoint_resolver.dart';
 
 import '../domain/agent_models.dart';
+import '../domain/agent_context_batch.dart';
 import '../domain/agent_story_state.dart';
 import 'agent_runtime.dart';
 import 'agent_context.dart';
@@ -256,7 +257,12 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
       _store.listDocuments(current.id),
     );
     return [
-      ...buildAgentMainContext(workspace),
+      ...buildAgentMainContext(
+        workspace,
+        batches: contextBatches,
+        rounds: state.storyRounds,
+      ),
+      agentStateMessage(_store.readStoryState(workspace.id)),
       if (workspace.draft.trim().isNotEmpty)
         LlmTextMessage(role: LlmRole.user, text: workspace.draft.trim()),
     ];
@@ -267,7 +273,7 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
     if (count == null) return null;
     final history =
         record.inputHistory ??
-        (record.parentId != null
+        (record.parentId != null || record.role == AgentRole.summarizer
             ? record.childHistory
             : (state.workspace?.id == record.workspaceId &&
                       state.workspace?.sessionId == record.sessionId
@@ -283,7 +289,9 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
   }
 
   AgentStoryRound? storyRoundFor(AgentRunRecord record) =>
-      _store.readStoryRound(record.workspaceId, record.id);
+      (record.role == AgentRole.coordinator || record.role == AgentRole.writer)
+      ? _store.readStoryRound(record.workspaceId, record.roundRunId)
+      : null;
 
   void setDraft(String text) {
     final workspace = state.workspace;
@@ -313,7 +321,9 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
       final record = _unsavedRuns.first;
       _store.checkpoint(
         record,
-        workspace: record.parentId == null ? _unsavedWorkspace : null,
+        workspace: record.role == AgentRole.coordinator
+            ? _unsavedWorkspace
+            : null,
       );
       _unsavedRuns.removeAt(0);
     }
@@ -348,7 +358,10 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
         _store.saveWorkspace(updated);
         _load(updated.id);
       });
-  Future<void> send({bool retryStory = false}) async {
+  Future<void> send({
+    bool retryStory = false,
+    AgentContextBatch? summaryBatch,
+  }) async {
     if (state.busy || state.workspace == null) return;
     AgentRuntime? runtime;
     try {
@@ -370,12 +383,18 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
       if (model == null) {
         throw const AgentWorkspaceException('请选择可用模型；若已删除，请应用新配置开始新会话。');
       }
-      if (!retryStory && workspace.draft.trim().isEmpty) return;
+      if (!retryStory &&
+          summaryBatch == null &&
+          workspace.draft.trim().isEmpty) {
+        return;
+      }
       final endpoint = const LlmEndpointResolver().resolveGenerationEndpoint(
         rawUrl: model.target.endpoint,
         protocol: model.target.protocol,
       );
-      for (final turn in workspace.history.whereType<LlmAssistantTurn>()) {
+      for (final turn
+          in (summaryBatch == null ? workspace.history : <LlmInputItem>[])
+              .whereType<LlmAssistantTurn>()) {
         if (turn.replay.protocol != model.target.protocol ||
             turn.replay.endpoint != endpoint ||
             turn.replay.model != model.target.model) {
@@ -424,7 +443,15 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
         latestRound: state.latestRound,
         busy: true,
       );
-      if (retryStory) {
+      if (summaryBatch != null) {
+        _lastSummaryBatch = summaryBatch;
+        _lastSummarySession = workspace.sessionId;
+        final result = await runtime.summarize(summaryBatch);
+        if (result.status != AgentRunStatus.completed) {
+          throw AgentWorkspaceException(result.error);
+        }
+        _lastSummaryBatch = null;
+      } else if (retryStory) {
         await runtime.retryStory(pending!);
       } else {
         await runtime.run(workspace.draft.trim());
@@ -452,11 +479,86 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
       }
     } catch (error) {
       runtime?.cancel();
+      if (runtime != null && runtime.unsavedRecords.isNotEmpty) {
+        _unsavedRuns.addAll(runtime.unsavedRecords);
+        _unsavedWorkspace = runtime.workspace;
+      }
       if (!_disposed) _showError(error);
     } finally {
       _runtime = null;
     }
   }
+
+  AgentContextBatch? _lastSummaryBatch;
+  String? _lastSummarySession;
+  AgentContextBatch? get retrySummaryBatch {
+    if (_lastSummarySession == state.workspace?.sessionId &&
+        _lastSummaryBatch != null) {
+      return _lastSummaryBatch;
+    }
+    final latest = state.runs
+        .where((r) => r.role == AgentRole.summarizer)
+        .firstOrNull;
+    if (latest == null ||
+        latest.status == AgentRunStatus.running ||
+        contextBatches.any((b) => b.summaryRunId == latest.id)) {
+      return null;
+    }
+    return latest.summaryBatch;
+  }
+
+  List<AgentContextBatch> get contextBatches => state.workspace == null
+      ? []
+      : _store.listContextBatches(
+          state.workspace!.id,
+          state.workspace!.sessionId,
+        );
+  List<AgentRunRecord> runsFor(AgentRunRecord record) => _store.listRuns(
+    record.workspaceId,
+    sessionId: record.sessionId,
+    limit: -1,
+  );
+
+  AgentContextBatch contextBatchFor(int count) {
+    final hidden = contextBatches
+        .where((b) => b.active)
+        .expand((b) => b.roundIds)
+        .toSet();
+    final available = state.storyRounds.reversed
+        .where(
+          (r) =>
+              r.status == AgentStoryRoundStatus.committed &&
+              !hidden.contains(r.id),
+        )
+        .toList();
+    if (count <= 0 || count > available.length) {
+      throw const AgentWorkspaceException('请选择有效的正文楼数。');
+    }
+    final committed = state.storyRounds.reversed
+        .where((r) => r.status == AgentStoryRoundStatus.committed)
+        .toList();
+    final start = committed.indexOf(available.first);
+    final contiguous = committed
+        .skip(start)
+        .takeWhile((r) => !hidden.contains(r.id))
+        .length;
+    if (count > contiguous) {
+      throw AgentWorkspaceException('本次最多处理连续的 $contiguous 楼，不能跨过已整理的批次。');
+    }
+    final selected = available.take(count).map((r) => r.id).toList();
+    return AgentContextBatch(id: generateEntityId(), roundIds: selected);
+  }
+
+  void saveContextBatch(AgentContextBatch batch) => _edit(() {
+    if (state.busy || state.workspace == null) return;
+    flushDraft();
+    _store.saveContextBatch(
+      state.workspace!.id,
+      state.workspace!.sessionId,
+      batch,
+    );
+    _load(state.workspace!.id);
+  });
 
   void stop() => _runtime?.cancel();
   void withdrawLatestRound() => _edit(() {

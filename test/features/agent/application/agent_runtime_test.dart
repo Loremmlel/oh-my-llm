@@ -204,7 +204,7 @@ void main() {
         return agentReply(
           calls: [
             agentCall('spawn', 'spawn_subagent', {
-              'role': 'writer',
+              'role': 'reviewer',
               'task': '仅此子任务',
               'background': false,
             }),
@@ -220,6 +220,7 @@ void main() {
           'read_story_state',
           'list_documents',
           'read_document',
+          'submit_review',
         ]);
         return agentReply(
           calls: [
@@ -228,7 +229,7 @@ void main() {
               'content': '内容',
             }),
             agentCall('child-spawn', 'spawn_subagent', {
-              'role': 'writer',
+              'role': 'reviewer',
               'task': '递归',
               'background': false,
             }),
@@ -265,12 +266,12 @@ void main() {
               'background': true,
             }),
             agentCall('b', 'spawn_subagent', {
-              'role': 'character',
+              'role': 'reviewer',
               'task': '子任务乙',
               'background': true,
             }),
             agentCall('c', 'spawn_subagent', {
-              'role': 'writer',
+              'role': 'reviewer',
               'task': '超并发',
               'background': true,
             }),
@@ -315,7 +316,7 @@ void main() {
         return agentReply(
           calls: [
             agentCall('s', 'spawn_subagent', {
-              'role': 'writer',
+              'role': 'reviewer',
               'task': '等待',
               'background': false,
             }),
@@ -443,7 +444,7 @@ void main() {
         return agentReply(
           calls: [
             agentCall('s', 'spawn_subagent', {
-              'role': 'writer',
+              'role': 'reviewer',
               'task': '子任务',
               'background': false,
             }),
