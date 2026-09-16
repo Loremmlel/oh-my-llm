@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 
 final class AppTheme {
   const AppTheme._();
@@ -25,9 +26,32 @@ final class AppTheme {
     final baseColor = brightness == Brightness.light
         ? const Color(0xFF4F46E5)
         : const Color(0xFF818CF8);
-    final colorScheme = ColorScheme.fromSeed(
-      seedColor: baseColor,
-      brightness: brightness,
+    final isLight = brightness == Brightness.light;
+    final surface = isLight ? const Color(0xFFFFFFFF) : const Color(0xFF1B1D22);
+    final canvas = isLight ? const Color(0xFFF5F6F8) : const Color(0xFF121418);
+    final colorScheme =
+        ColorScheme.fromSeed(
+          seedColor: baseColor,
+          brightness: brightness,
+        ).copyWith(
+          surface: surface,
+          surfaceContainerLowest: surface,
+          surfaceContainerLow: canvas,
+          surfaceContainer: isLight
+              ? const Color(0xFFF0F1F4)
+              : const Color(0xFF22252B),
+          surfaceContainerHigh: isLight
+              ? const Color(0xFFE9EBEF)
+              : const Color(0xFF2A2D34),
+          surfaceContainerHighest: isLight
+              ? const Color(0xFFE1E4EA)
+              : const Color(0xFF333740),
+          outlineVariant: isLight
+              ? const Color(0xFFD8DCE4)
+              : const Color(0xFF424752),
+        );
+    final controlShape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(AppRadii.sm),
     );
 
     // 按用户设置覆盖正文三级字号，其他层级沿用 M3 默认值。
@@ -49,9 +73,7 @@ final class AppTheme {
           fontSize: bodyFontSize - 2,
         ),
       ),
-      scaffoldBackgroundColor: brightness == Brightness.light
-          ? const Color(0xFFF7F7FB)
-          : const Color(0xFF0F1117),
+      scaffoldBackgroundColor: canvas,
       appBarTheme: AppBarTheme(
         centerTitle: false,
         elevation: 0,
@@ -68,37 +90,53 @@ final class AppTheme {
       ),
       cardTheme: CardThemeData(
         elevation: 0,
-        color: brightness == Brightness.light
-            ? Colors.white
-            : const Color(0xFF171A22),
+        color: surface,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-          side: BorderSide(
-            color: colorScheme.outlineVariant.withValues(alpha: 0.35),
-          ),
+          borderRadius: BorderRadius.circular(AppRadii.md),
+          side: BorderSide(color: colorScheme.outlineVariant),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: brightness == Brightness.light
-            ? Colors.white
-            : const Color(0xFF171A22),
+        fillColor: surface,
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: AppSpacing.sm,
+        ),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
-          borderSide: BorderSide(
-            color: colorScheme.outlineVariant.withValues(alpha: 0.35),
-          ),
+          borderRadius: BorderRadius.circular(AppRadii.sm),
+          borderSide: BorderSide(color: colorScheme.outlineVariant),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
-          borderSide: BorderSide(
-            color: colorScheme.outlineVariant.withValues(alpha: 0.35),
-          ),
+          borderRadius: BorderRadius.circular(AppRadii.sm),
+          borderSide: BorderSide(color: colorScheme.outlineVariant),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(AppRadii.sm),
           borderSide: BorderSide(color: colorScheme.primary),
         ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(shape: controlShape),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(shape: controlShape),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(shape: controlShape),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.dialog),
+        ),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: surface,
+        surfaceTintColor: Colors.transparent,
+        shape: controlShape,
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,

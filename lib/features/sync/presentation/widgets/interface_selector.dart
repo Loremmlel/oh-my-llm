@@ -43,15 +43,17 @@ class InterfaceSelector extends ConsumerWidget {
           return Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
-              color: Colors.orange.shade50,
+              color: Theme.of(context).colorScheme.secondaryContainer,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.orange.shade200),
+              border: Border.all(
+                color: Theme.of(context).colorScheme.outlineVariant,
+              ),
             ),
             child: Row(
               children: [
                 Icon(
                   Icons.warning_amber_rounded,
-                  color: Colors.orange.shade700,
+                  color: Theme.of(context).colorScheme.onSecondaryContainer,
                   size: 18,
                 ),
                 const SizedBox(width: 8),
@@ -59,7 +61,7 @@ class InterfaceSelector extends ConsumerWidget {
                   child: Text(
                     '未检测到可用网络接口，将使用全局广播',
                     style: TextStyle(
-                      color: Colors.orange.shade900,
+                      color: Theme.of(context).colorScheme.onSecondaryContainer,
                       fontSize: 12,
                     ),
                   ),
