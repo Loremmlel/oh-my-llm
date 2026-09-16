@@ -91,7 +91,7 @@ void main() {
     expect(find.textContaining('日落后禁止出城。'), findsOneWidget);
     await tester.tap(find.text('关闭'));
     await settleOverlayTransition(tester);
-    await tester.tap(find.byTooltip('新建会话'));
+    await tester.tap(find.text('新建会话'));
     await tester.pump();
     expect(find.text('会话 2'), findsOneWidget);
     expect(store.listSessions('novel'), hasLength(2));

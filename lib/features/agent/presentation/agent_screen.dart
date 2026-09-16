@@ -61,19 +61,17 @@ class _AgentScreenState extends ConsumerState<AgentScreen> {
         .where((r) => r.parentId != null && r.status == AgentRunStatus.running)
         .toList();
     final pageActions = [
-      IconButton(
-        onPressed: workspace == null
-            ? null
-            : () => showAgentConfiguration(context),
-        tooltip: '模型与规则',
-        icon: const Icon(Icons.tune),
+      TextButton.icon(
+        onPressed: state.busy ? null : controller.createWorkspace,
+        label: const Text('新建作品'),
+        icon: const Icon(Icons.add),
       ),
-      IconButton(
+      TextButton.icon(
         onPressed: workspace == null || state.busy
             ? null
-            : () => showAgentContext(context),
-        tooltip: '查看上下文',
-        icon: const Icon(Icons.manage_search),
+            : controller.createSession,
+        label: const Text('新建会话'),
+        icon: const Icon(Icons.add_comment_outlined),
       ),
     ];
     return AppShellScaffold(
@@ -85,19 +83,19 @@ class _AgentScreenState extends ConsumerState<AgentScreen> {
           PopupMenuButton<String>(
             tooltip: '工作区操作',
             onSelected: (value) {
-              if (value == 'configuration') showAgentConfiguration(context);
-              if (value == 'context') showAgentContext(context);
+              if (value == 'workspace') controller.createWorkspace();
+              if (value == 'session') controller.createSession();
             },
             itemBuilder: (_) => [
               PopupMenuItem(
-                value: 'configuration',
-                enabled: workspace != null,
-                child: const Text('模型与规则'),
+                value: 'workspace',
+                enabled: !state.busy,
+                child: const Text('新建作品'),
               ),
               PopupMenuItem(
-                value: 'context',
+                value: 'session',
                 enabled: workspace != null && !state.busy,
-                child: const Text('查看上下文'),
+                child: const Text('新建会话'),
               ),
             ],
           ),
@@ -123,7 +121,7 @@ class _AgentScreenState extends ConsumerState<AgentScreen> {
                       ),
                       child: LayoutBuilder(
                         builder: (context, constraints) {
-                          return Wrap(
+                          final contexts = Wrap(
                             spacing: AppSpacing.md,
                             runSpacing: AppSpacing.xs,
                             crossAxisAlignment: WrapCrossAlignment.center,
@@ -173,11 +171,12 @@ class _AgentScreenState extends ConsumerState<AgentScreen> {
                                       ),
                                     ),
                                     IconButton(
-                                      onPressed: state.busy
+                                      onPressed: workspace == null
                                           ? null
-                                          : controller.createWorkspace,
-                                      tooltip: '新建作品',
-                                      icon: const Icon(Icons.add),
+                                          : () =>
+                                                showAgentConfiguration(context),
+                                      tooltip: '模型与规则',
+                                      icon: const Icon(Icons.tune),
                                     ),
                                   ],
                                 ),
@@ -231,11 +230,9 @@ class _AgentScreenState extends ConsumerState<AgentScreen> {
                                       IconButton(
                                         onPressed: state.busy
                                             ? null
-                                            : controller.createSession,
-                                        tooltip: '新建会话',
-                                        icon: const Icon(
-                                          Icons.add_comment_outlined,
-                                        ),
+                                            : () => showAgentContext(context),
+                                        tooltip: '查看上下文',
+                                        icon: const Icon(Icons.manage_search),
                                       ),
                                       IconButton(
                                         onPressed: () =>
@@ -250,66 +247,22 @@ class _AgentScreenState extends ConsumerState<AgentScreen> {
                                 ),
                             ],
                           );
+                          return Wrap(
+                            alignment: WrapAlignment.spaceBetween,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            spacing: AppSpacing.md,
+                            runSpacing: AppSpacing.xs,
+                            children: [
+                              SizedBox(
+                                width: math.min(640, constraints.maxWidth),
+                                child: contexts,
+                              ),
+                              if (workspace != null) _buildViewTabs(),
+                            ],
+                          );
                         },
                       ),
                     ),
-                    if (workspace != null)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.md,
-                        ),
-                        child: Wrap(
-                          spacing: AppSpacing.xs,
-                          children: [
-                            for (final item in [
-                              (
-                                _WorkspaceView.transcript,
-                                '正文',
-                                Icons.article_outlined,
-                                '返回执行流',
-                              ),
-                              (
-                                _WorkspaceView.documents,
-                                '工作文档',
-                                Icons.folder_open_outlined,
-                                '工作文档',
-                              ),
-                              (
-                                _WorkspaceView.story,
-                                '剧情状态',
-                                Icons.table_chart_outlined,
-                                '剧情状态与正文',
-                              ),
-                            ])
-                              Tooltip(
-                                message: item.$4,
-                                child: TextButton.icon(
-                                  onPressed: () =>
-                                      setState(() => _view = item.$1),
-                                  style: TextButton.styleFrom(
-                                    backgroundColor: _view == item.$1
-                                        ? Theme.of(context)
-                                              .colorScheme
-                                              .secondaryContainer
-                                        : null,
-                                    foregroundColor: _view == item.$1
-                                        ? Theme.of(context)
-                                              .colorScheme
-                                              .onSecondaryContainer
-                                        : Theme.of(context)
-                                              .colorScheme
-                                              .onSurfaceVariant,
-                                  ),
-                                  icon: Icon(item.$3, size: 18),
-                                  label: Semantics(
-                                    selected: _view == item.$1,
-                                    child: Text(item.$2),
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
                     if (workspace != null)
                       Padding(
                         padding: const EdgeInsets.fromLTRB(
@@ -431,6 +384,44 @@ class _AgentScreenState extends ConsumerState<AgentScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildViewTabs() {
+    final colors = Theme.of(context).colorScheme;
+    return Wrap(
+      spacing: AppSpacing.xs,
+      children: [
+        for (final item in [
+          (_WorkspaceView.transcript, '正文', Icons.article_outlined, '返回执行流'),
+          (
+            _WorkspaceView.documents,
+            '工作文档',
+            Icons.folder_open_outlined,
+            '工作文档',
+          ),
+          (_WorkspaceView.story, '剧情状态', Icons.table_chart_outlined, '剧情状态与正文'),
+        ])
+          Tooltip(
+            message: item.$4,
+            child: TextButton.icon(
+              onPressed: () => setState(() => _view = item.$1),
+              style: TextButton.styleFrom(
+                backgroundColor: _view == item.$1
+                    ? colors.secondaryContainer
+                    : null,
+                foregroundColor: _view == item.$1
+                    ? colors.onSecondaryContainer
+                    : colors.onSurfaceVariant,
+              ),
+              icon: Icon(item.$3, size: 18),
+              label: Semantics(
+                selected: _view == item.$1,
+                child: Text(item.$2),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
