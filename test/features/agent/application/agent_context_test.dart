@@ -22,6 +22,9 @@ void main() {
       configuration: AgentConfiguration(
         preset: '克制文风',
         presetRoles: [AgentRole.writer],
+        roles: const {
+          AgentRole.writer: AgentRoleSettings(instructions: '保留我的写作规则'),
+        },
       ),
     );
     final workspace = refreshAgentWorkspace(initial, [world, card]);
@@ -36,6 +39,11 @@ void main() {
       buildAgentInitialContext(workspace, AgentRole.writer),
     );
     expect(writer, contains('克制文风'));
+    expect(writer, contains('保留我的写作规则'));
+    expect(writer, contains(card.content));
+    expect(writer, contains(world.content));
+    // 固定契约也适用于已保存的自定义规则，不能只更新新会话的默认提示词。
+    expect(writer, contains('不要为阅读已注入的设定调用 list_documents 或 read_document'));
     final character = agentInputText(
       buildAgentInitialContext(
         workspace,

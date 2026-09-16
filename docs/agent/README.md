@@ -1,5 +1,21 @@
 # Agent 小说工作区交接
 
+## 2026-09-16：长思考预算与已注入资料的使用
+
+实施分支：`fix/agent-long-reasoning-context`。
+
+- Agent 各职责单次输出预算从 8,192 提高到 65,536 tokens；生产模型装配与运行器默认值共用 `agentDefaultGenerationOptions`。三个协议发送各自原生的输出预算字段，Messages 自动缓存设置继续生效。
+- 等待响应头与 SSE 无新 data 行的超时均从 60 秒延长到 10 分钟；主任务及所有后代共享的整轮时限按用户要求仍为 10 分钟，请求等待也受整轮剩余时间约束。用户仍可随时停止。输出 token 截断与网络／整轮超时是不同限制，未拿到真实失败记录，不能断定实机反馈触发了哪一项。
+- 正文与可见思考合计的 UTF-8 输出保护由 512 KiB 提高到 2 MiB，流式增量与权威终态都校验。原生续接内容不裁剪，工具参数／结果、普通文档、剧情状态与累计上下文的现有大小校验继续生效。65,536 是请求预算，仍受服务商实际支持范围约束。
+- 固定 Harness 契约、默认职责规则、资料头和文档／委派工具说明统一指出：世界书与角色卡已全文注入；writer / reviewer 自动获得生效摘要、保留正文与状态；绑定审稿已附待审稿全文。直接使用这些资料，只有缺少普通文档、核对修改或用户明确要求时才读取。工具权限未移除，不能据此保证任何模型绝不重复调用。
+- 固定契约对已有会话和自定义职责规则同样生效，不覆盖用户保存的规则。资料仍按职责筛选；角色推演可见范围不扩大。
+
+验证：
+
+- 定向 23 项测试通过，覆盖三协议生产请求预算、长推理的流式／终态续接、超大输出不执行工具、虚拟时钟的整轮超时及自定义职责的注入说明。修复前失败记录：`logs/agent-long-reasoning-red.log`、`logs/agent-output-size-red.log`；修复后：`logs/agent-long-reasoning-green.log`。
+- `flutter test --no-pub --reporter compact`：1,890 项通过（`logs/fltest.log`）。`flutter analyze --no-pub` 无问题；`dart run tool/check_import_boundaries.dart` 检查 421 个文件，0 违规，记录分别为 `logs/agent-long-reasoning-analyze.log`、`logs/agent-long-reasoning-boundaries.log`。
+- 未使用真实模型请求验证长思考耗时或重复读取频率。
+
 ## 2026-09-16：子任务写作闭环与批量上下文整理
 
 实施分支：`feat/agent-delegation-context`。依据[本阶段规格](../specs/2026-09-16-agent-delegation-context.md)，以下为新行为；旧阶段记录保留作为历史。
