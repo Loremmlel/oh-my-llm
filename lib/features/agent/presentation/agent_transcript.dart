@@ -81,7 +81,7 @@ class AgentChildLink extends StatelessWidget {
   );
 }
 
-/// 主会话和子会话共用同一执行流；仅在读者停留末尾时跟随新输出。
+/// 主会话和子会话共用同一执行流，只有读者操作时才主动改变滚动位置。
 class AgentTranscript extends StatefulWidget {
   const AgentTranscript({
     super.key,
@@ -97,24 +97,7 @@ class AgentTranscript extends StatefulWidget {
 
 class _AgentTranscriptState extends State<AgentTranscript> {
   final _scroll = ScrollController();
-  bool _following = true;
-  @override
-  void initState() {
-    super.initState();
-    _follow();
-  }
-
-  @override
-  void didUpdateWidget(AgentTranscript oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (_following) _follow();
-  }
-
-  void _follow() => WidgetsBinding.instance.addPostFrameCallback((_) {
-    if (mounted && _scroll.hasClients && _following) {
-      _scroll.jumpTo(_scroll.position.maxScrollExtent);
-    }
-  });
+  bool _showLatestButton = false;
   @override
   void dispose() {
     _scroll.dispose();
@@ -136,13 +119,18 @@ class _AgentTranscriptState extends State<AgentTranscript> {
     }
     return Stack(
       children: [
-        NotificationListener<ScrollNotification>(
+        NotificationListener<Notification>(
           onNotification: (notification) {
-            if (notification.depth == 0 &&
-                notification is UserScrollNotification) {
-              final following = notification.metrics.extentAfter < 80;
-              if (following != _following) {
-                setState(() => _following = following);
+            // 内容增长也会改变末尾距离；通知只控制按钮，不触发自动滚动。
+            final metrics = switch (notification) {
+              ScrollNotification(depth: 0, :final metrics) ||
+              ScrollMetricsNotification(depth: 0, :final metrics) => metrics,
+              _ => null,
+            };
+            if (metrics != null) {
+              final showLatest = metrics.extentAfter > 80;
+              if (showLatest != _showLatestButton) {
+                setState(() => _showLatestButton = showLatest);
               }
             }
             return false;
@@ -186,14 +174,13 @@ class _AgentTranscriptState extends State<AgentTranscript> {
             ),
           ),
         ),
-        if (!_following)
+        if (_showLatestButton)
           Positioned(
             right: AppSpacing.md,
             bottom: AppSpacing.xs,
             child: FilledButton.tonalIcon(
               onPressed: () {
-                setState(() => _following = true);
-                _follow();
+                _scroll.jumpTo(_scroll.position.maxScrollExtent);
               },
               icon: const Icon(Icons.arrow_downward),
               label: const Text('回到最新'),

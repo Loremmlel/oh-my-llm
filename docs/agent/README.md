@@ -1,5 +1,16 @@
 # Agent 小说工作区交接
 
+## 2026-09-16：执行流改为手动滚动
+
+实施分支：`fix/agent-transcript-scroll`。
+
+- 按用户要求移除主会话和子任务执行流的自动跟随，打开执行流、运行记录刷新与工具展开均不再主动跳到底部。
+- “回到最新”仅由用户点击时定位一次，不开启后续跟随。滚动及内容高度变化只更新按钮是否显示，展开动画继续使用现有 Material 控件。
+- 组件测试覆盖桌面滚轮、390px 窄屏触摸、展开末尾工具、刷新时保持阅读位置以及手动返回后继续输出。取消自动跟随前失败记录在 `logs/agent-manual-scroll-red.log`，修复后两项通过，见 `logs/agent-manual-scroll-green.log`。
+- `flutter test --no-pub --reporter compact`：1,892 项通过（`logs/fltest.log`）；静态分析无问题，架构门禁 421 个文件、0 违规（`logs/agent-scroll-analyze.log`、`logs/agent-scroll-boundaries.log`）。UI strict audit 无违规；DESIGN lint 为 0 错误、7 个既有 token 映射提示。
+- Windows Release 构建通过（`logs/build-windows.log`），可执行文件位于 `build/windows/x64/runner/Release/oh_my_llm.exe`，包含此前的长思考预算与资料提示修正。
+- 滚动交互使用 WidgetTester 验证，尚未进行 Windows／Android 真机手工复测。
+
 ## 2026-09-16：长思考预算与已注入资料的使用
 
 实施分支：`fix/agent-long-reasoning-context`。
