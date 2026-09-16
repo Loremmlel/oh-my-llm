@@ -45,12 +45,14 @@ LlmToolCall agentCall(String id, String name, Map<String, Object?> arguments) =>
 
 LlmResult agentReply({
   String text = '完成',
+  String reasoning = '',
   LlmRequestTarget target = agentTestTarget,
   List<LlmToolCall> calls = const [],
   LlmStopKind? stopKind,
   LlmUsage? usage,
 }) => LlmResult(
   content: calls.isEmpty ? text : '',
+  reasoningContent: reasoning,
   stopKind:
       stopKind ??
       (calls.isEmpty ? LlmStopKind.completed : LlmStopKind.toolCalls),
@@ -66,6 +68,7 @@ LlmResult agentReply({
         {
           'role': 'assistant',
           'content': calls.isEmpty ? text : '',
+          if (reasoning.isNotEmpty) 'reasoning_content': reasoning,
           if (calls.isNotEmpty)
             'tool_calls': [
               for (final call in calls)

@@ -38,16 +38,14 @@ class AgentLimits {
 /// 一次用户任务及其子任务的 owner：循环、预算、取消与检查点集中在这里。
 class AgentRuntime {
   static const streamRefreshInterval = Duration(milliseconds: 60);
+  // UTF-8 字节保护独立于服务商 token 预算，必须给长推理及正文留出空间。
+  static const _maxOutputBytes = 2 * 1024 * 1024;
   AgentRuntime({
     required this.client,
     required this.store,
     required this.workspace,
     required this.target,
-    this.options = const LlmGenerationOptions(
-      maxOutputTokens: 8192,
-      responseHeaderTimeout: Duration(seconds: 60),
-      streamIdleTimeout: Duration(seconds: 60),
-    ),
+    this.options = agentDefaultGenerationOptions,
     this.limits = const AgentLimits(),
     this.roleModels = const {},
     required this.onUpdate,
@@ -488,8 +486,8 @@ class AgentRuntime {
               bytes +=
                   utf8.encode(event.contentDelta).length +
                   utf8.encode(event.reasoningDelta).length;
-              if (bytes > 512 * 1024) {
-                fail(const _Limit('单次输出超过 512 KiB。'));
+              if (bytes > _maxOutputBytes) {
+                fail(const _Limit('单次输出超过 2 MiB。'));
                 return;
               }
               text.write(event.contentDelta);
@@ -508,8 +506,8 @@ class AgentRuntime {
                 fail(const AgentWorkspaceException('模型流结束但没有权威终态。'));
               } else if (utf8.encode(result!.content).length +
                       utf8.encode(result!.reasoningContent).length >
-                  512 * 1024) {
-                fail(const _Limit('单次输出超过 512 KiB。'));
+                  _maxOutputBytes) {
+                fail(const _Limit('单次输出超过 2 MiB。'));
               } else {
                 done.complete(result!);
               }

@@ -24,6 +24,92 @@ void main() {
   });
   tearDown(() => database.close());
 
+  for (final streamed in [true, false]) {
+    test('长思考${streamed ? '流式' : '仅终态'}回复保留推理并执行完整工具续接', () async {
+      // 超过旧的 512 KiB 限制，UTF-8 中文与正文一起计入输出大小。
+      final reasoning = '核对人物动机。' * 32768;
+      final client = StreamingAgentClient((request, index) async* {
+        if (index == 0) {
+          if (streamed) yield LlmEvent(reasoningDelta: reasoning);
+          yield LlmCompleted(
+            agentReply(
+              reasoning: reasoning,
+              calls: [
+                agentCall('write', 'write_document', {
+                  'name': '正文',
+                  'content': '经过思考的草稿',
+                }),
+              ],
+            ),
+          );
+        } else {
+          final turn = request.input.whereType<LlmAssistantTurn>().single;
+          expect(turn.replay.items.single['reasoning_content'], reasoning);
+          yield LlmCompleted(agentReply(text: '已保存草稿'));
+        }
+      });
+      final result = await AgentRuntime(
+        client: client,
+        store: store,
+        workspace: workspace,
+        target: agentTestTarget,
+        onUpdate: (_) {},
+      ).run('核对后保存草稿');
+      expect(result.status, AgentRunStatus.completed, reason: result.error);
+      expect(result.steps.first.reasoning, reasoning);
+      expect(store.readDocument(workspace.id, '正文')?.content, '经过思考的草稿');
+    });
+
+    test('${streamed ? '流式' : '仅终态'}输出超过字节预算时停止且不执行工具', () async {
+      final reasoning = '想' * (700 * 1024);
+      final client = StreamingAgentClient((_, _) async* {
+        if (streamed) yield LlmEvent(reasoningDelta: reasoning);
+        yield LlmCompleted(
+          agentReply(
+            reasoning: reasoning,
+            calls: [
+              agentCall('write', 'write_document', {
+                'name': '正文',
+                'content': '不能执行的工具',
+              }),
+            ],
+          ),
+        );
+      });
+      final result = await AgentRuntime(
+        client: client,
+        store: store,
+        workspace: workspace,
+        target: agentTestTarget,
+        onUpdate: (_) {},
+      ).run('写作');
+      expect(result.status, AgentRunStatus.limitReached);
+      expect(result.error, contains('单次输出超过 2 MiB'));
+      expect(store.listDocuments(workspace.id), isEmpty);
+    });
+  }
+
+  testWidgets('长思考在整轮十分钟上限到达时取消并保留记录', (tester) async {
+    final stream = StreamController<LlmEvent>();
+    AgentRunRecord? finished;
+    final runner = AgentRuntime(
+      client: StreamingAgentClient((_, _) => stream.stream),
+      store: store,
+      workspace: workspace,
+      target: agentTestTarget,
+      onUpdate: (_) {},
+    );
+    unawaited(runner.run('继续深入思考').then((value) => finished = value));
+    await tester.pump();
+    await tester.pump(const Duration(minutes: 9));
+    expect(finished, isNull);
+    await tester.pump(const Duration(minutes: 1));
+    expect(finished?.status, AgentRunStatus.limitReached);
+    expect(finished?.error, contains('运行时间已达上限'));
+    unawaited(stream.close());
+    await tester.pump();
+  });
+
   test('实时思考与等待中的委派可见，停止后保留子任务部分推理', () async {
     final mainStarted = Completer<void>(), childStarted = Completer<void>();
     final visible = Completer<void>(), childVisible = Completer<void>();
@@ -136,6 +222,10 @@ void main() {
     final result = await runtime(client).run('保存一份正文并核实');
     expect(result.status, AgentRunStatus.completed);
     expect(result.content, '第一稿已保存');
+    expect(
+      client.requests.first.options.maxOutputTokens,
+      greaterThanOrEqualTo(65536),
+    );
     expect(store.listDocuments(workspace.id), hasLength(1));
     expect(result.usage?.inputTokens, 250);
     expect(result.usage?.outputTokens, 30);

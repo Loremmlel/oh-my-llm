@@ -87,6 +87,9 @@ void main() {
         ],
       );
       final first = createContainer();
+      final options = first.read(agentModelsProvider).single.options;
+      expect(options.responseHeaderTimeout, const Duration(minutes: 10));
+      expect(options.streamIdleTimeout, const Duration(minutes: 10));
       final controller = first.read(agentWorkspaceProvider.notifier);
       controller.createWorkspace();
       controller.configure(modelId: 'model-1');
@@ -105,6 +108,14 @@ void main() {
         '图书馆',
       );
       expect(wire.requests, hasLength(6));
+      final tokenKey = switch (protocol) {
+        LlmApiProtocol.chatCompletions => 'max_completion_tokens',
+        LlmApiProtocol.responses => 'max_output_tokens',
+        LlmApiProtocol.anthropic => 'max_tokens',
+      };
+      for (final request in wire.requests) {
+        expect(request[tokenKey], greaterThanOrEqualTo(65536));
+      }
       final bodyKey = protocol == LlmApiProtocol.responses
           ? 'input'
           : 'messages';

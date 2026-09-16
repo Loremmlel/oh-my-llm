@@ -39,9 +39,10 @@ List<dynamic> createAgentBindings() => [
             model: model.modelName,
           ),
           options: LlmGenerationOptions(
-            maxOutputTokens: 8192,
-            responseHeaderTimeout: const Duration(seconds: 60),
-            streamIdleTimeout: const Duration(seconds: 60),
+            maxOutputTokens: agentDefaultGenerationOptions.maxOutputTokens,
+            responseHeaderTimeout:
+                agentDefaultGenerationOptions.responseHeaderTimeout,
+            streamIdleTimeout: agentDefaultGenerationOptions.streamIdleTimeout,
             protocolOptions: model.apiProtocol == LlmApiProtocol.anthropic
                 ? const MessagesOptions(automaticCacheControl: true)
                 : null,
