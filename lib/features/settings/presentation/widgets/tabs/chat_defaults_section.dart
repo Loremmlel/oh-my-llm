@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:oh_my_llm/core/widgets/app_field_group.dart';
 
 import '../../../application/preferences/chat_defaults_controller.dart';
 import '../../../domain/models/providers/llm_model_config.dart';
@@ -38,8 +39,7 @@ class ChatDefaultsSection extends ConsumerWidget {
         ? defaultPresetPromptId
         : noPresetPromptValue;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return AppFieldGroup(
       children: [
         DropdownButtonFormField<String>(
           key: ValueKey(resolvedModelId),
@@ -68,7 +68,6 @@ class ChatDefaultsSection extends ConsumerWidget {
             helperText: '会作为聊天页最近一次模型选择记忆。',
           ),
         ),
-        const SizedBox(height: 12),
         DropdownButtonFormField<String>(
           key: ValueKey(resolvedPromptValue),
           initialValue: resolvedPromptValue,

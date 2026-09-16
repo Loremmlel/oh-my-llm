@@ -280,7 +280,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       endDrawer: _buildEndDrawer(
         conversationSummaries: conversationSummaries,
         activeConversationId: activeConversationId,
-        hasDraft: !conversation.hasMessages,
         isBusy: isBusy,
       ),
       actions: _buildActions(
@@ -294,7 +293,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         sidebarState: sidebarState,
         conversationSummaries: conversationSummaries,
         activeConversationId: activeConversationId,
-        hasDraft: !conversation.hasMessages,
         isBusy: isBusy,
         composerState: composerState,
         workspaceBindings: workspaceBindings,
@@ -306,7 +304,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Widget _buildEndDrawer({
     required List<ChatConversationSummary> conversationSummaries,
     required String activeConversationId,
-    required bool hasDraft,
     required bool isBusy,
   }) {
     return SafeArea(
@@ -316,7 +313,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           historyPanel: _buildHistoryPanel(
             conversationSummaries,
             activeConversationId: activeConversationId,
-            hasDraftConversation: hasDraft,
             isBusy: isBusy,
           ),
           presetPanel: PresetPromptPanel(
@@ -373,7 +369,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     required ChatSidebarState sidebarState,
     required List<ChatConversationSummary> conversationSummaries,
     required String activeConversationId,
-    required bool hasDraft,
     required bool isBusy,
     required ChatWorkspaceComposerState composerState,
     required ChatWorkspaceBindings workspaceBindings,
@@ -398,7 +393,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     sidebarState.activeFunction ?? ChatSidebarFunction.history,
                     conversationSummaries: conversationSummaries,
                     activeConversationId: activeConversationId,
-                    hasDraftConversation: hasDraft,
                     isBusy: isBusy,
                   ),
                 ),
@@ -538,13 +532,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Widget _buildHistoryPanel(
     List<ChatConversationSummary> conversationSummaries, {
     required String activeConversationId,
-    required bool hasDraftConversation,
     required bool isBusy,
   }) {
     return ConversationHistoryPanel(
       groups: _buildConversationGroups(conversationSummaries),
       activeConversationId: activeConversationId,
-      hasDraftConversation: hasDraftConversation,
       onCreateConversation: isBusy
           ? null
           : () => _createConversationAndScroll(),
@@ -564,14 +556,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     ChatSidebarFunction function, {
     required List<ChatConversationSummary> conversationSummaries,
     required String activeConversationId,
-    required bool hasDraftConversation,
     required bool isBusy,
   }) {
     return switch (function) {
       ChatSidebarFunction.history => _buildHistoryPanel(
         conversationSummaries,
         activeConversationId: activeConversationId,
-        hasDraftConversation: hasDraftConversation,
         isBusy: isBusy,
       ),
       ChatSidebarFunction.preset => PresetPromptPanel(

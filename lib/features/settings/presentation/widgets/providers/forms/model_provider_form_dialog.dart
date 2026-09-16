@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
+import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
+import 'package:oh_my_llm/core/widgets/app_field_group.dart';
 
 import '../../../../domain/models/providers/llm_provider_config.dart';
 import '../../shared/settings_form_dialog_scaffold.dart';
@@ -74,14 +76,46 @@ class _ModelProviderFormDialogState extends State<ModelProviderFormDialog>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          TextFormField(
-            key: const ValueKey('model-provider-name-field'), // test-key
-            controller: _nameController,
-            decoration: const InputDecoration(
-              labelText: '服务商名称',
-              hintText: '例如：DeepSeek 官方',
-            ),
-            validator: validateRequired,
+          AppFieldGroup(
+            fieldWidth: 254,
+            children: [
+              TextFormField(
+                key: const ValueKey('model-provider-name-field'), // test-key
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: '服务商名称',
+                  hintText: '例如：DeepSeek 官方',
+                ),
+                validator: validateRequired,
+              ),
+              DropdownButtonFormField<LlmApiProtocol>(
+                key: const ValueKey(
+                  'model-provider-protocol-field',
+                ), // test-key
+                initialValue: _selectedProtocol,
+                // 紧凑视口下选中项过长时省略显示，避免横向溢出。
+                isExpanded: true,
+                borderRadius: BorderRadius.circular(AppRadii.sm),
+                decoration: const InputDecoration(labelText: 'API 模式'),
+                items: [
+                  for (final protocol in LlmApiProtocol.values)
+                    DropdownMenuItem(
+                      value: protocol,
+                      child: Text(
+                        protocol.displayName,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                ],
+                onChanged: (protocol) {
+                  if (protocol != null) {
+                    setState(() {
+                      _selectedProtocol = protocol;
+                    });
+                  }
+                },
+              ),
+            ],
           ),
           const SizedBox(height: 12),
           TextFormField(
@@ -93,28 +127,6 @@ class _ModelProviderFormDialogState extends State<ModelProviderFormDialog>
             ),
             keyboardType: TextInputType.url,
             validator: _validateUrl,
-          ),
-          const SizedBox(height: 12),
-          DropdownButtonFormField<LlmApiProtocol>(
-            key: const ValueKey('model-provider-protocol-field'), // test-key
-            initialValue: _selectedProtocol,
-            // 紧凑视口下选中项过长时省略显示，避免横向溢出。
-            isExpanded: true,
-            decoration: const InputDecoration(labelText: 'API 模式'),
-            items: [
-              for (final protocol in LlmApiProtocol.values)
-                DropdownMenuItem(
-                  value: protocol,
-                  child: Text(protocol.displayName),
-                ),
-            ],
-            onChanged: (protocol) {
-              if (protocol != null) {
-                setState(() {
-                  _selectedProtocol = protocol;
-                });
-              }
-            },
           ),
           const SizedBox(height: 12),
           TextFormField(

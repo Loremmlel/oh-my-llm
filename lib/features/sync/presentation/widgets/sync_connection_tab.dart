@@ -3,6 +3,8 @@ import 'dart:io' show InternetAddress;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
+import 'package:oh_my_llm/core/widgets/app_field_group.dart';
 
 import 'package:oh_my_llm/features/settings/presentation/widgets/shared/settings_section_card.dart';
 
@@ -56,9 +58,25 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        _buildModeSelector(),
-        const SizedBox(height: 16),
-        if (_isServerMode) _buildServerSection() else _buildClientSection(),
+        Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              maxWidth: AppContentWidths.readable,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildModeSelector(),
+                const SizedBox(height: AppSpacing.md),
+                if (_isServerMode)
+                  _buildServerSection()
+                else
+                  _buildClientSection(),
+              ],
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -176,21 +194,15 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
     switch (state.phase) {
       case SyncPhase.idle:
       case SyncPhase.error:
-        return SizedBox(
-          width: double.infinity,
-          child: FilledButton.icon(
-            onPressed: notifier.startDiscovery,
-            icon: const Icon(Icons.radar_rounded),
-            label: const Text('发现服务端'),
-          ),
+        return FilledButton.icon(
+          onPressed: notifier.startDiscovery,
+          icon: const Icon(Icons.radar_rounded),
+          label: const Text('发现服务端'),
         );
       case SyncPhase.discovering:
-        return SizedBox(
-          width: double.infinity,
-          child: OutlinedButton(
-            onPressed: notifier.cancelAndReset,
-            child: const Text('取消搜索'),
-          ),
+        return OutlinedButton(
+          onPressed: notifier.cancelAndReset,
+          child: const Text('取消搜索'),
         );
       case SyncPhase.connected:
       case SyncPhase.syncing:
@@ -205,30 +217,21 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
     SyncClientState state,
     SyncClientController notifier,
   ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Wrap(
+      spacing: AppSpacing.xs,
+      runSpacing: AppSpacing.xs,
       children: [
         FilledButton(
           onPressed: () => _showPairingDialog(state),
           child: Text(state.isPaired ? '重新输入配对码' : '输入配对码'),
         ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: notifier.cancelAndReset,
-                child: const Text('断开连接'),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: OutlinedButton(
-                onPressed: notifier.startDiscovery,
-                child: const Text('重新搜索'),
-              ),
-            ),
-          ],
+        OutlinedButton(
+          onPressed: notifier.cancelAndReset,
+          child: const Text('断开连接'),
+        ),
+        OutlinedButton(
+          onPressed: notifier.startDiscovery,
+          child: const Text('重新搜索'),
         ),
       ],
     );
@@ -300,24 +303,23 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          TextField(
-            controller: _nameController,
-            decoration: const InputDecoration(
-              labelText: '设备名称',
-              border: OutlineInputBorder(),
-            ),
-            enabled: !serverState.isRunning,
-            onSubmitted: (value) {
-              ref
-                  .read(syncServerControllerProvider.notifier)
-                  .updateDeviceName(value);
-            },
+          AppFieldGroup(
+            fieldWidth: 352,
+            children: [
+              TextField(
+                controller: _nameController,
+                decoration: const InputDecoration(labelText: '设备名称'),
+                enabled: !serverState.isRunning,
+                onSubmitted: (value) {
+                  ref
+                      .read(syncServerControllerProvider.notifier)
+                      .updateDeviceName(value);
+                },
+              ),
+              ?widget.serverConfiguration,
+            ],
           ),
-          const SizedBox(height: 16),
-          if (widget.serverConfiguration case final configuration?) ...[
-            configuration,
-            const SizedBox(height: 16),
-          ],
+          const SizedBox(height: AppSpacing.md),
           if (!serverState.isRunning) ...[
             const InterfaceSelector(),
             const SizedBox(height: 16),
@@ -401,14 +403,11 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
               ),
               const SizedBox(height: 16),
             ],
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () =>
-                    ref.read(syncServerControllerProvider.notifier).stop(),
-                icon: const Icon(Icons.stop_circle_outlined),
-                label: const Text('停止广播'),
-              ),
+            OutlinedButton.icon(
+              onPressed: () =>
+                  ref.read(syncServerControllerProvider.notifier).stop(),
+              icon: const Icon(Icons.stop_circle_outlined),
+              label: const Text('停止广播'),
             ),
           ] else ...[
             if (serverState.lastError != null) ...[
@@ -420,14 +419,11 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
               ),
               const SizedBox(height: 12),
             ],
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: () =>
-                    ref.read(syncServerControllerProvider.notifier).start(),
-                icon: const Icon(Icons.sensors_rounded),
-                label: const Text('启动广播'),
-              ),
+            FilledButton.icon(
+              onPressed: () =>
+                  ref.read(syncServerControllerProvider.notifier).start(),
+              icon: const Icon(Icons.sensors_rounded),
+              label: const Text('启动广播'),
             ),
           ],
         ],

@@ -23,9 +23,7 @@ import '../../../../helpers/async/widget_test_animation.dart';
 import 'settings_screen_test_helpers.dart';
 
 void registerSettingsScreenModelsAndPromptsTests() {
-  testWidgets('settings screen creates a provider and verifies persistence', (
-    tester,
-  ) async {
+  testWidgets('创建服务商后显示协议与模型数量并持久保存', (tester) async {
     await setUpSettingsScreen(tester);
     final repository = ProviderScope.containerOf(
       tester.element(find.byType(SettingsScreen)),
@@ -48,7 +46,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
     expect(createdProvider.name, 'OpenAI 官方');
     expect(repository.loadAll(), isEmpty);
     expect(find.text('OpenAI 官方'), findsWidgets);
-    expect(find.text('协议：Chat Completions'), findsOneWidget);
+    expect(find.text('Chat Completions · 0 个模型'), findsOneWidget);
   });
 
   testWidgets('settings screen creates a model under a provider', (
@@ -142,29 +140,25 @@ void registerSettingsScreenModelsAndPromptsTests() {
     );
   });
 
-  testWidgets(
-    'settings screen keeps model list collapsed by default and expands on demand',
-    (tester) async {
-      final database = AppDatabase.inMemory();
-      addTearDown(database.close);
-      final preferences = await createDefaultsSeededPreferences(database);
+  testWidgets('服务商模型默认折叠，展开后可查看模型名称', (tester) async {
+    final database = AppDatabase.inMemory();
+    addTearDown(database.close);
+    final preferences = await createDefaultsSeededPreferences(database);
 
-      await pumpSettingsScreen(
-        tester,
-        preferences: preferences,
-        database: database,
-        size: const Size(430, 932),
-      );
+    await pumpSettingsScreen(
+      tester,
+      preferences: preferences,
+      database: database,
+      size: const Size(430, 932),
+    );
 
-      expect(find.textContaining('gpt-4.1'), findsNothing);
+    expect(find.textContaining('gpt-4.1'), findsNothing);
 
-      await tester.tap(find.widgetWithText(OutlinedButton, '展开模型（2）'));
-      // 模型列表展开是 AnimatedSize 动画
-      await settleAnimatedWidgetTransition(tester);
+    await tester.tap(find.text('展开模型（2）'));
+    await tester.pump();
 
-      expect(find.textContaining('gpt-4.1'), findsOneWidget);
-    },
-  );
+    expect(find.textContaining('gpt-4.1'), findsOneWidget);
+  });
 
   testWidgets('settings screen creates a prompt template', (tester) async {
     final database = AppDatabase.inMemory();

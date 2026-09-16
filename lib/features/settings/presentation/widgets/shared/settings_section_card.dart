@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 
-/// 设置页中用于包裹单个配置区域的统一卡片。
+/// 用标题和留白划分设置区域，避免为每层配置重复添加卡片。
 class SettingsSectionCard extends StatelessWidget {
   const SettingsSectionCard({
     required this.title,
@@ -16,35 +17,38 @@ class SettingsSectionCard extends StatelessWidget {
   final Widget? action;
 
   @override
-  /// 构建带标题、说明和可选操作按钮的设置卡片。
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(title, style: theme.textTheme.headlineSmall),
-                      const SizedBox(height: 8),
-                      Text(description, style: theme.textTheme.bodyMedium),
-                    ],
-                  ),
+    return Align(
+      alignment: Alignment.topLeft,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: AppContentWidths.wide),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Wrap(
+                spacing: AppSpacing.md,
+                runSpacing: AppSpacing.xs,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text(title, style: theme.textTheme.titleMedium),
+                  ?action,
+                ],
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                description,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
-                if (action != null) ...[const SizedBox(width: 16), action!],
-              ],
-            ),
-            const SizedBox(height: 20),
-            child,
-          ],
+              ),
+              const SizedBox(height: AppSpacing.md),
+              child,
+            ],
+          ),
         ),
       ),
     );

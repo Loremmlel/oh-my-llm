@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 
 import 'package:oh_my_llm/features/settings/domain/models/providers/llm_model_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/providers/llm_provider_config.dart';
@@ -28,9 +29,11 @@ class ComposerProviderModelRow extends StatelessWidget {
     return Row(
       children: [
         Expanded(
+          flex: 2,
           child: DropdownButtonFormField<String>(
             key: const ValueKey('chat-provider-selector'),
             isExpanded: true,
+            borderRadius: BorderRadius.circular(AppRadii.sm),
             initialValue: selectedProviderId,
             decoration: InputDecoration(
               labelText: '服务商',
@@ -57,10 +60,12 @@ class ComposerProviderModelRow extends StatelessWidget {
         ),
         const SizedBox(width: 6),
         Expanded(
+          flex: 3,
           child: DropdownButtonFormField<String>(
             key: const ValueKey('chat-model-selector'),
             initialValue: selectedModel?.id,
             isExpanded: true,
+            borderRadius: BorderRadius.circular(AppRadii.sm),
             decoration: InputDecoration(
               labelText: '模型',
               hintText: !hasModels

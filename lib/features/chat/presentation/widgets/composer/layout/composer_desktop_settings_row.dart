@@ -10,6 +10,7 @@ import '../controls/thinking_toggle.dart';
 class ComposerDesktopSettingsRow extends StatelessWidget {
   const ComposerDesktopSettingsRow({
     required this.theme,
+    required this.cacheHitRate,
     required this.hasModels,
     required this.supportsReasoning,
     required this.reasoningEnabled,
@@ -30,6 +31,7 @@ class ComposerDesktopSettingsRow extends StatelessWidget {
   });
 
   final ThemeData theme;
+  final double? cacheHitRate;
   final bool hasModels;
   final bool supportsReasoning;
   final bool reasoningEnabled;
@@ -78,18 +80,35 @@ class ComposerDesktopSettingsRow extends StatelessWidget {
               ),
               Tooltip(
                 message: '固定顺序提示词',
-                child: OutlinedButton.icon(
+                child: TextButton.icon(
                   onPressed: onOpenFixedPromptSequenceRunner,
                   icon: const Icon(Icons.playlist_play_rounded),
                   label: const Text('固定顺序提示词'),
                 ),
               ),
-              OutlinedButton.icon(
+              TextButton.icon(
                 key: const ValueKey('chat-message-filter-button'),
                 // 过滤对话框只是查看/标记，不影响进行中的请求。
                 onPressed: onOpenMessageFilter,
                 icon: const Icon(Icons.filter_alt_outlined),
                 label: Text(messageFilterLabel(excludedMessageCount)),
+              ),
+              Tooltip(
+                message:
+                    '当前会话缓存命中率：${cacheHitRate == null ? '暂无数据' : '${(cacheHitRate! * 100).toStringAsFixed(1)}%'}',
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.data_usage_outlined, size: 18),
+                    const SizedBox(width: 4),
+                    Text(
+                      cacheHitRate == null
+                          ? '—'
+                          : '${(cacheHitRate! * 100).toStringAsFixed(1)}%',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                ),
               ),
             ],
           ),

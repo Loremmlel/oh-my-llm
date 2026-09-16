@@ -256,13 +256,13 @@ void main() {
     expect(store.listRuns('novel').single.status, AgentRunStatus.completed);
     await tester.tap(find.byTooltip('工作文档'));
     await settleTabTransition(tester);
-    await tester.tap(find.text('正文'));
+    await tester.tap(find.widgetWithText(ListTile, '正文'));
     await settleOverlayTransition(tester);
     await tester.enterText(find.widgetWithText(TextField, '旧稿'), '修订稿');
     await tester.tap(find.text('保存'));
     await settleOverlayTransition(tester);
     expect(find.text('普通文档 · 3 字符'), findsOneWidget);
-    await tester.tap(find.text('正文'));
+    await tester.tap(find.widgetWithText(ListTile, '正文'));
     await settleOverlayTransition(tester);
     expect(find.byTooltip('上一版本'), findsNothing);
     expect(find.widgetWithText(TextField, '修订稿'), findsOneWidget);

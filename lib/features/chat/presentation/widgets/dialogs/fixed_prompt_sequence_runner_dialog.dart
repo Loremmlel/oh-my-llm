@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_field_group.dart';
 
 import 'package:oh_my_llm/features/settings/domain/models/prompts/fixed_prompt_sequence.dart';
 
@@ -110,57 +111,61 @@ class _FixedPromptSequenceRunnerDialogState
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    DropdownButtonFormField<String>(
-                      initialValue: sequence?.id,
-                      isExpanded: true,
-                      items: widget.sequences
-                          .map((item) {
-                            return DropdownMenuItem(
-                              value: item.id,
-                              child: Text(
-                                item.name,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            );
-                          })
-                          .toList(growable: false),
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedSequenceId = value;
-                          _stepIndex = 0;
-                        });
-                      },
-                      decoration: const InputDecoration(labelText: '选择序列'),
+                    AppFieldGroup(
+                      children: [
+                        DropdownButtonFormField<String>(
+                          initialValue: sequence?.id,
+                          isExpanded: true,
+                          items: widget.sequences
+                              .map((item) {
+                                return DropdownMenuItem(
+                                  value: item.id,
+                                  child: Text(
+                                    item.name,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                );
+                              })
+                              .toList(growable: false),
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedSequenceId = value;
+                              _stepIndex = 0;
+                            });
+                          },
+                          decoration: const InputDecoration(labelText: '选择序列'),
+                        ),
+                        if (sequence != null && sequence.steps.isNotEmpty)
+                          DropdownButtonFormField<int>(
+                            initialValue: _stepIndex,
+                            isExpanded: true,
+                            items: [
+                              for (
+                                var index = 0;
+                                index < sequence.steps.length;
+                                index += 1
+                              )
+                                DropdownMenuItem(
+                                  value: index,
+                                  child: Text(
+                                    '${index + 1}. ${_buildStepTitle(sequence.steps[index])}',
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                            ],
+                            onChanged: (value) {
+                              if (value == null) {
+                                return;
+                              }
+                              setState(() {
+                                _stepIndex = value;
+                              });
+                            },
+                            decoration: const InputDecoration(labelText: '定位'),
+                          ),
+                      ],
                     ),
-                    const SizedBox(height: 12),
                     if (sequence != null && sequence.steps.isNotEmpty) ...[
-                      DropdownButtonFormField<int>(
-                        initialValue: _stepIndex,
-                        isExpanded: true,
-                        items: [
-                          for (
-                            var index = 0;
-                            index < sequence.steps.length;
-                            index += 1
-                          )
-                            DropdownMenuItem(
-                              value: index,
-                              child: Text(
-                                '${index + 1}. ${_buildStepTitle(sequence.steps[index])}',
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                        ],
-                        onChanged: (value) {
-                          if (value == null) {
-                            return;
-                          }
-                          setState(() {
-                            _stepIndex = value;
-                          });
-                        },
-                        decoration: const InputDecoration(labelText: '定位'),
-                      ),
                       const SizedBox(height: 12),
                       Text(
                         '当前步骤内容',

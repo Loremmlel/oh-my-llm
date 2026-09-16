@@ -1,6 +1,19 @@
 import 'package:flutter/material.dart';
 
 import 'package:oh_my_llm/core/widgets/notification_bubble/notification_bubble_context_ext.dart';
+import 'package:oh_my_llm/core/widgets/dialogs/app_confirm_dialog.dart';
+
+Future<bool> confirmSettingsDeletion(
+  BuildContext context, {
+  required String title,
+  required String message,
+}) async =>
+    await showDialog<bool>(
+      context: context,
+      builder: (_) =>
+          AppConfirmDialog(title: title, message: message, confirmLabel: title),
+    ) ==
+    true;
 
 /// 设置页通用的通知气泡辅助函数。
 ///

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
@@ -191,13 +193,50 @@ class ChatComposerCard extends ConsumerWidget {
                           ),
                         ),
                       ),
-                    ComposerTemplateHeader(
-                      selectedTemplatePrompt: selectedTemplate,
-                      templatePrompts: state.templatePrompts,
-                      onTemplatePromptSelected:
-                          bindings.onTemplatePromptSelected,
-                      onToggleComposerCollapsed:
-                          bindings.onToggleComposerCollapsed,
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: LayoutBuilder(
+                            builder: (context, fields) {
+                              return Wrap(
+                                spacing: 8,
+                                runSpacing: 10,
+                                children: [
+                                  SizedBox(
+                                    width: math.min(240, fields.maxWidth),
+                                    child: ComposerTemplateHeader(
+                                      selectedTemplatePrompt: selectedTemplate,
+                                      templatePrompts: state.templatePrompts,
+                                      onTemplatePromptSelected:
+                                          bindings.onTemplatePromptSelected,
+                                    ),
+                                  ),
+                                  SizedBox(
+                                    width: math.min(420, fields.maxWidth),
+                                    child: ComposerProviderModelRow(
+                                      hasModels: hasModels,
+                                      modelProviders: state.modelProviders,
+                                      modelConfigs: state.modelConfigs,
+                                      selectedProviderId:
+                                          state.selectedProviderId,
+                                      selectedModel: state.selectedModel,
+                                      onProviderSelected:
+                                          bindings.onProviderSelected,
+                                      onModelSelected: bindings.onModelSelected,
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: bindings.onToggleComposerCollapsed,
+                          tooltip: '收起输入区',
+                          icon: const Icon(Icons.keyboard_arrow_up_rounded),
+                        ),
+                      ],
                     ),
                     if (selectedTemplate != null) ...[
                       const SizedBox(height: 10),
@@ -243,25 +282,6 @@ class ChatComposerCard extends ConsumerWidget {
                       onSendPressed: effectiveOnSend,
                     ),
                     const SizedBox(height: 8),
-                    ComposerProviderModelRow(
-                      hasModels: hasModels,
-                      modelProviders: state.modelProviders,
-                      modelConfigs: state.modelConfigs,
-                      selectedProviderId: state.selectedProviderId,
-                      selectedModel: state.selectedModel,
-                      onProviderSelected: bindings.onProviderSelected,
-                      onModelSelected: bindings.onModelSelected,
-                    ),
-                    if (!state.isComposerCollapsed) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        '当前会话缓存命中率：${_formatCacheHitRate(state.cacheHitRate)}',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 6),
                     if (isCompactComposer)
                       ComposerCompactActionRow(
                         hasModels: hasModels,
@@ -282,6 +302,7 @@ class ChatComposerCard extends ConsumerWidget {
                     else
                       ComposerDesktopSettingsRow(
                         theme: theme,
+                        cacheHitRate: state.cacheHitRate,
                         hasModels: hasModels,
                         supportsReasoning: state.supportsReasoning,
                         reasoningEnabled: state.reasoningEnabled,
@@ -320,7 +341,7 @@ class ChatComposerCard extends ConsumerWidget {
   /// 由当前编译结果与控制器值求一次校验快照。
   ///
   /// 求值只用于字段可见性/校验，不产生预览字符串；发送边界仍由
-  /// Task 3 的 command 权威校验。
+  /// 发送 command 权威校验。
   _ComposerTemplateValidation _resolveTemplateValidation(
     TemplatePromptCompilation? compilation,
   ) {
@@ -380,6 +401,10 @@ class ChatComposerCard extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('更多设置', style: theme.textTheme.titleMedium),
+                    Text(
+                      '当前会话缓存命中率：${_formatCacheHitRate(state.cacheHitRate)}',
+                      style: theme.textTheme.bodySmall,
+                    ),
                     const SizedBox(height: 12),
                     // 深度思考与自动重试自适应分布，不独占整行
                     Row(

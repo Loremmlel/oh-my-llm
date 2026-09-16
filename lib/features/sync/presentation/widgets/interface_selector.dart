@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
+import 'package:oh_my_llm/core/widgets/app_field_group.dart';
 
 import '../../application/broadcast_prefix_length_provider.dart';
 import '../../application/network_interface_provider.dart';
@@ -43,15 +45,17 @@ class InterfaceSelector extends ConsumerWidget {
           return Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
-              color: Colors.orange.shade50,
+              color: Theme.of(context).colorScheme.secondaryContainer,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.orange.shade200),
+              border: Border.all(
+                color: Theme.of(context).colorScheme.outlineVariant,
+              ),
             ),
             child: Row(
               children: [
                 Icon(
                   Icons.warning_amber_rounded,
-                  color: Colors.orange.shade700,
+                  color: Theme.of(context).colorScheme.onSecondaryContainer,
                   size: 18,
                 ),
                 const SizedBox(width: 8),
@@ -59,7 +63,7 @@ class InterfaceSelector extends ConsumerWidget {
                   child: Text(
                     '未检测到可用网络接口，将使用全局广播',
                     style: TextStyle(
-                      color: Colors.orange.shade900,
+                      color: Theme.of(context).colorScheme.onSecondaryContainer,
                       fontSize: 12,
                     ),
                   ),
@@ -79,19 +83,17 @@ class InterfaceSelector extends ConsumerWidget {
             .computeBroadcast(InternetAddress(selectedIface.ip))
             .address;
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        return AppFieldGroup(
+          fieldWidth: 352,
           children: [
             InputDecorator(
-              decoration: const InputDecoration(
-                labelText: '广播网卡',
-                border: OutlineInputBorder(),
-              ),
+              decoration: const InputDecoration(labelText: '广播网卡'),
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<int>(
                   value: safeIndex,
                   isExpanded: true,
                   isDense: true,
+                  borderRadius: BorderRadius.circular(AppRadii.sm),
                   items: interfaces.asMap().entries.map((entry) {
                     final i = entry.key;
                     final iface = entry.value;
@@ -116,50 +118,56 @@ class InterfaceSelector extends ConsumerWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 12),
-            Text(
-              '子网掩码',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 4),
-            SegmentedButton<BroadcastPrefixLength>(
-              segments: const [
-                ButtonSegment(
-                  value: BroadcastPrefixLength.p8,
-                  label: Text('/8'),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '子网掩码',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
-                ButtonSegment(
-                  value: BroadcastPrefixLength.p16,
-                  label: Text('/16'),
+                const SizedBox(height: 4),
+                SegmentedButton<BroadcastPrefixLength>(
+                  segments: const [
+                    ButtonSegment(
+                      value: BroadcastPrefixLength.p8,
+                      label: Text('/8'),
+                    ),
+                    ButtonSegment(
+                      value: BroadcastPrefixLength.p16,
+                      label: Text('/16'),
+                    ),
+                    ButtonSegment(
+                      value: BroadcastPrefixLength.p24,
+                      label: Text('/24'),
+                    ),
+                  ],
+                  selected: {selectedPrefix},
+                  onSelectionChanged: isServerRunning
+                      ? null
+                      : (s) => ref
+                            .read(
+                              selectedBroadcastPrefixLengthProvider.notifier,
+                            )
+                            .select(s.first),
                 ),
-                ButtonSegment(
-                  value: BroadcastPrefixLength.p24,
-                  label: Text('/24'),
+                if (isServerRunning) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    '运行中，请先停止广播后再修改',
+                    style: Theme.of(context).textTheme.bodySmall
+                        ?.copyWith(color: Theme.of(context).colorScheme.error),
+                  ),
+                ],
+                const SizedBox(height: 4),
+                Text(
+                  '广播地址: $broadcastAddr',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ],
-              selected: {selectedPrefix},
-              onSelectionChanged: isServerRunning
-                  ? null
-                  : (s) => ref
-                        .read(selectedBroadcastPrefixLengthProvider.notifier)
-                        .select(s.first),
-            ),
-            if (isServerRunning) ...[
-              const SizedBox(height: 6),
-              Text(
-                '运行中，请先停止广播后再修改',
-                style: Theme.of(context).textTheme.bodySmall
-                    ?.copyWith(color: Theme.of(context).colorScheme.error),
-              ),
-            ],
-            const SizedBox(height: 4),
-            Text(
-              '广播地址: $broadcastAddr',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
             ),
           ],
         );

@@ -39,12 +39,15 @@ class ComposerCompactActionRow extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: OutlinedButton.icon(
-            key: const ValueKey('chat-secondary-settings-button'),
-            // 打开"更多设置"面板本身不影响进行中的请求。
-            onPressed: onOpenSettings,
-            icon: const Icon(Icons.tune_rounded),
-            label: Text(_compactSettingsSummary()),
+          child: Tooltip(
+            message: _compactSettingsSummary(),
+            child: OutlinedButton.icon(
+              key: const ValueKey('chat-secondary-settings-button'),
+              // 打开"更多设置"面板本身不影响进行中的请求。
+              onPressed: onOpenSettings,
+              icon: const Icon(Icons.tune_rounded),
+              label: const Text('更多设置'),
+            ),
           ),
         ),
         const SizedBox(width: 6),

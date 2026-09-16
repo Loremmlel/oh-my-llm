@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 import 'package:oh_my_llm/core/widgets/dialogs/app_confirm_dialog.dart';
+import 'package:oh_my_llm/core/widgets/app_field_group.dart';
 
 import '../application/agent_workspace_controller.dart';
 import '../domain/agent_models.dart';
@@ -76,29 +77,33 @@ class _DocumentEditorState extends ConsumerState<_DocumentEditor> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              TextField(
-                controller: _name,
-                readOnly: widget.document != null,
-                decoration: const InputDecoration(labelText: '文档名'),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              DropdownButtonFormField<AgentDocumentKind>(
-                key: ValueKey('kind/$_kind'),
-                initialValue: _kind,
-                decoration: const InputDecoration(labelText: '资料类型'),
-                isExpanded: true,
-                items: [
-                  for (final kind in AgentDocumentKind.values)
-                    DropdownMenuItem(
-                      value: kind,
-                      child: Text(agentDocumentKindLabel(kind)),
-                    ),
+              AppFieldGroup(
+                children: [
+                  TextField(
+                    controller: _name,
+                    readOnly: widget.document != null,
+                    decoration: const InputDecoration(labelText: '文档名'),
+                  ),
+                  DropdownButtonFormField<AgentDocumentKind>(
+                    key: ValueKey('kind/$_kind'),
+                    initialValue: _kind,
+                    decoration: const InputDecoration(labelText: '资料类型'),
+                    isExpanded: true,
+                    borderRadius: BorderRadius.circular(AppRadii.sm),
+                    items: [
+                      for (final kind in AgentDocumentKind.values)
+                        DropdownMenuItem(
+                          value: kind,
+                          child: Text(agentDocumentKindLabel(kind)),
+                        ),
+                    ],
+                    onChanged: state.busy
+                        ? null
+                        : (kind) {
+                            if (kind != null) setState(() => _kind = kind);
+                          },
+                  ),
                 ],
-                onChanged: state.busy
-                    ? null
-                    : (kind) {
-                        if (kind != null) setState(() => _kind = kind);
-                      },
               ),
               const SizedBox(height: AppSpacing.sm),
               Expanded(

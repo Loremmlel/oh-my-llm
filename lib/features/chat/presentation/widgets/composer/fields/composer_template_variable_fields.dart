@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
@@ -30,17 +32,8 @@ class ComposerTemplateVariableFields extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        const minItemWidth = 220.0;
         const gap = 6.0;
-        final crossAxisCount =
-            ((constraints.maxWidth + gap) / (minItemWidth + gap)).floor().clamp(
-              1,
-              3,
-            );
-        final itemWidth = crossAxisCount == 1
-            ? constraints.maxWidth
-            : (constraints.maxWidth - gap * (crossAxisCount - 1)) /
-                  crossAxisCount;
+        final itemWidth = math.min(280.0, constraints.maxWidth);
 
         return Wrap(
           spacing: gap,

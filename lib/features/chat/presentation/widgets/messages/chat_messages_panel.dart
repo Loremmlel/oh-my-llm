@@ -112,8 +112,9 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
     // 移动端紧凑布局下整体缩小内边距，让消息气泡更宽。
     final listPadding = AppBreakpoints.isCompactShell(context) ? 10.0 : 14.0;
 
-    return Card(
-      clipBehavior: Clip.antiAlias,
+    return Material(
+      color: Theme.of(context).colorScheme.surface,
+      clipBehavior: Clip.hardEdge,
       child: Stack(
         children: [
           if (widget.messages.isEmpty)

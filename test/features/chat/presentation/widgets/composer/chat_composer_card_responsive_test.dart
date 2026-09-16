@@ -105,23 +105,21 @@ void main() {
     });
   }
 
-  testWidgets('展开时显示一位小数命中率，无样本时显示暂无数据', (tester) async {
+  testWidgets('工具栏命中率提示保留一位小数，无样本时提示暂无数据', (tester) async {
     final controller = TextEditingController();
     final focusNode = FocusNode();
     addTearDown(controller.dispose);
     addTearDown(focusNode.dispose);
     final bindings = _bindings(controller: controller, focusNode: focusNode);
 
-    for (final width in [360.0, 680.0]) {
-      await _pumpComposer(
-        tester,
-        width,
-        state: _composerState(cacheHitRate: 0.375),
-        bindings: bindings,
-      );
-      expect(find.text('当前会话缓存命中率：37.5%'), findsOneWidget, reason: '$width');
-      expect(tester.takeException(), isNull, reason: '$width');
-    }
+    await _pumpComposer(
+      tester,
+      680,
+      state: _composerState(cacheHitRate: 0.375),
+      bindings: bindings,
+    );
+    expect(find.byTooltip('当前会话缓存命中率：37.5%'), findsOneWidget);
+    expect(tester.takeException(), isNull);
 
     await _pumpComposer(
       tester,
@@ -129,7 +127,7 @@ void main() {
       state: _composerState(),
       bindings: bindings,
     );
-    expect(find.text('当前会话缓存命中率：暂无数据'), findsOneWidget);
+    expect(find.byTooltip('当前会话缓存命中率：暂无数据'), findsOneWidget);
   });
 
   testWidgets('收起输入区时隐藏会话命中率', (tester) async {
