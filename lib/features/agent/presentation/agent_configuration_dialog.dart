@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 import 'package:oh_my_llm/core/widgets/dialogs/app_confirm_dialog.dart';
+import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
+import 'package:oh_my_llm/core/widgets/app_field_group.dart';
 
 import '../application/agent_context.dart';
 import '../application/agent_harness.dart';
@@ -120,6 +122,75 @@ class _ConfigurationDialogState extends ConsumerState<_ConfigurationDialog> {
         ? _modelId
         : _roleModels[_role];
     final validModel = models.any((m) => m.id == selectedModel);
+    final roleEditor = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AppFieldGroup(
+          fieldWidth: 440,
+          children: [
+            DropdownButtonFormField<String>(
+              key: ValueKey('model/${_role.name}/$selectedModel'),
+              initialValue: validModel
+                  ? selectedModel
+                  : (_role == AgentRole.coordinator ? null : ''),
+              isExpanded: true,
+              borderRadius: BorderRadius.circular(AppRadii.sm),
+              decoration: InputDecoration(
+                labelText: _role == AgentRole.coordinator
+                    ? '主模型（需支持工具调用）'
+                    : '此职责的模型',
+                helperText: selectedModel != null && !validModel
+                    ? '已选模型不可用，请重新选择。'
+                    : null,
+              ),
+              items: [
+                if (_role != AgentRole.coordinator)
+                  const DropdownMenuItem(value: '', child: Text('继承主模型')),
+                for (final m in models)
+                  DropdownMenuItem(
+                    value: m.id,
+                    child: Text(m.label, overflow: TextOverflow.ellipsis),
+                  ),
+              ],
+              onChanged: state.busy
+                  ? null
+                  : (id) => setState(() {
+                      if (_role == AgentRole.coordinator) {
+                        _modelId = id;
+                      } else {
+                        _roleModels[_role] = id == '' ? null : id;
+                      }
+                    }),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        if (models.isEmpty) const Text('请先在设置中添加支持工具调用的模型。'),
+        TextField(
+          key: ValueKey(_role),
+          controller: _instructions[_role],
+          readOnly: state.busy,
+          minLines: 5,
+          maxLines: 12,
+          decoration: const InputDecoration(
+            labelText: '角色提示词',
+            helperText: '留空时采用此职责的默认提示词。',
+            alignLabelWithHint: true,
+          ),
+        ),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton(
+            onPressed: state.busy
+                ? null
+                : () => setState(
+                    () => _instructions[_role]!.text = agentInstructions(_role),
+                  ),
+            child: const Text('恢复此职责的默认提示词'),
+          ),
+        ),
+      ],
+    );
     return PopScope<void>(
       canPop: _allowClose,
       onPopInvokedWithResult: (didPop, _) {
@@ -128,7 +199,7 @@ class _ConfigurationDialogState extends ConsumerState<_ConfigurationDialog> {
       child: AlertDialog(
         title: const Text('模型与规则'),
         content: SizedBox(
-          width: AppContentWidths.readable,
+          width: AppContentWidths.form,
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -138,145 +209,149 @@ class _ConfigurationDialogState extends ConsumerState<_ConfigurationDialog> {
                   '当前会话：${state.workspace!.sessionTitle} · ${state.workspace!.configuration.name}',
                 ),
                 const SizedBox(height: AppSpacing.sm),
-                if (configurations.isNotEmpty)
-                  DropdownButtonFormField<String>(
-                    key: ValueKey('configuration/${_saved.name}'),
-                    decoration: const InputDecoration(labelText: '载入已保存方案'),
-                    isExpanded: true,
-                    items: [
-                      for (final c in configurations)
-                        DropdownMenuItem(
-                          value: c.name,
-                          child: Text(c.name, overflow: TextOverflow.ellipsis),
-                        ),
-                    ],
-                    onChanged: state.busy
-                        ? null
-                        : (name) async {
-                            if (name == null || !await _discard() || !mounted) {
-                              return;
-                            }
-                            setState(
-                              () => _load(
-                                configurations.firstWhere(
-                                  (c) => c.name == name,
-                                ),
+                AppFieldGroup(
+                  children: [
+                    if (configurations.isNotEmpty)
+                      DropdownButtonFormField<String>(
+                        key: ValueKey('configuration/${_saved.name}'),
+                        decoration: const InputDecoration(labelText: '载入已保存方案'),
+                        isExpanded: true,
+                        borderRadius: BorderRadius.circular(AppRadii.sm),
+                        items: [
+                          for (final c in configurations)
+                            DropdownMenuItem(
+                              value: c.name,
+                              child: Text(
+                                c.name,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                            );
-                          },
-                  ),
-                const SizedBox(height: AppSpacing.sm),
-                TextField(
-                  controller: _name,
-                  readOnly: state.busy,
-                  decoration: const InputDecoration(
-                    labelText: '方案名称',
-                    helperText: '更改名称后保存，可另存一套方案。',
-                  ),
+                            ),
+                        ],
+                        onChanged: state.busy
+                            ? null
+                            : (name) async {
+                                if (name == null ||
+                                    !await _discard() ||
+                                    !mounted) {
+                                  return;
+                                }
+                                setState(
+                                  () => _load(
+                                    configurations.firstWhere(
+                                      (c) => c.name == name,
+                                    ),
+                                  ),
+                                );
+                              },
+                      ),
+                    TextField(
+                      controller: _name,
+                      readOnly: state.busy,
+                      decoration: const InputDecoration(
+                        labelText: '方案名称',
+                        helperText: '更改名称后保存，可另存一套方案。',
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: AppSpacing.md),
-                DropdownButtonFormField<AgentRole>(
-                  initialValue: _role,
-                  isExpanded: true,
-                  decoration: const InputDecoration(labelText: '配置职责'),
-                  items: [
-                    for (final r in AgentRole.values)
-                      DropdownMenuItem(
-                        value: r,
-                        child: Text(agentRoleLabel(r)),
-                      ),
-                  ],
-                  onChanged: (r) {
-                    if (r != null) setState(() => _role = r);
-                  },
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                DropdownButtonFormField<String>(
-                  key: ValueKey('model/${_role.name}/$selectedModel'),
-                  initialValue: validModel
-                      ? selectedModel
-                      : (_role == AgentRole.coordinator ? null : ''),
-                  isExpanded: true,
-                  decoration: InputDecoration(
-                    labelText: _role == AgentRole.coordinator
-                        ? '主模型（需支持工具调用）'
-                        : '此职责的模型',
-                    helperText: selectedModel != null && !validModel
-                        ? '已选模型不可用，请重新选择。'
-                        : null,
-                  ),
-                  items: [
-                    if (_role != AgentRole.coordinator)
-                      const DropdownMenuItem(value: '', child: Text('继承主模型')),
-                    for (final m in models)
-                      DropdownMenuItem(
-                        value: m.id,
-                        child: Text(m.label, overflow: TextOverflow.ellipsis),
-                      ),
-                  ],
-                  onChanged: state.busy
-                      ? null
-                      : (id) => setState(() {
-                          if (_role == AgentRole.coordinator) {
-                            _modelId = id;
-                          } else {
-                            _roleModels[_role] = id == '' ? null : id;
-                          }
-                        }),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                if (models.isEmpty) const Text('请先在设置中添加支持工具调用的模型。'),
-                TextField(
-                  key: ValueKey(_role),
-                  controller: _instructions[_role],
-                  readOnly: state.busy,
-                  minLines: 5,
-                  maxLines: 12,
-                  decoration: const InputDecoration(
-                    labelText: '角色提示词',
-                    helperText: '留空时采用此职责的默认提示词。',
-                    alignLabelWithHint: true,
-                  ),
-                ),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: state.busy
-                        ? null
-                        : () => setState(
-                            () => _instructions[_role]!.text =
-                                agentInstructions(_role),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    if (constraints.maxWidth >=
+                        AppBreakpoints.contentMasterDetail) {
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SizedBox(
+                            width: 160,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Text(
+                                  '配置职责',
+                                  style: Theme.of(context).textTheme.labelLarge,
+                                ),
+                                const SizedBox(height: AppSpacing.xs),
+                                for (final role in AgentRole.values)
+                                  ListTile(
+                                    title: Text(agentRoleLabel(role)),
+                                    selected: _role == role,
+                                    selectedTileColor: Theme.of(context)
+                                        .colorScheme
+                                        .secondaryContainer,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(
+                                        AppRadii.sm,
+                                      ),
+                                    ),
+                                    onTap: () => setState(() => _role = role),
+                                  ),
+                              ],
+                            ),
                           ),
-                    child: const Text('恢复此职责的默认提示词'),
-                  ),
+                          const SizedBox(width: AppSpacing.md),
+                          Expanded(child: roleEditor),
+                        ],
+                      );
+                    }
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        DropdownButtonFormField<AgentRole>(
+                          initialValue: _role,
+                          isExpanded: true,
+                          borderRadius: BorderRadius.circular(AppRadii.sm),
+                          decoration: const InputDecoration(labelText: '配置职责'),
+                          items: [
+                            for (final r in AgentRole.values)
+                              DropdownMenuItem(
+                                value: r,
+                                child: Text(agentRoleLabel(r)),
+                              ),
+                          ],
+                          onChanged: (r) {
+                            if (r != null) setState(() => _role = r);
+                          },
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        roleEditor,
+                      ],
+                    );
+                  },
                 ),
                 const Divider(),
                 if (presets.isNotEmpty)
-                  DropdownButtonFormField<int>(
-                    decoration: const InputDecoration(labelText: '追加现有预设文本'),
-                    isExpanded: true,
-                    items: [
-                      for (var i = 0; i < presets.length; i++)
-                        DropdownMenuItem(
-                          value: i,
-                          child: Text(
-                            presets[i].name,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                  AppFieldGroup(
+                    children: [
+                      DropdownButtonFormField<int>(
+                        decoration: const InputDecoration(
+                          labelText: '追加现有预设文本',
                         ),
+                        isExpanded: true,
+                        items: [
+                          for (var i = 0; i < presets.length; i++)
+                            DropdownMenuItem(
+                              value: i,
+                              child: Text(
+                                presets[i].name,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                        ],
+                        onChanged: state.busy
+                            ? null
+                            : (index) {
+                                if (index != null) {
+                                  setState(
+                                    () => _preset.text = [
+                                      _preset.text,
+                                      presets[index].content,
+                                    ].where((s) => s.isNotEmpty).join('\n\n'),
+                                  );
+                                }
+                              },
+                      ),
                     ],
-                    onChanged: state.busy
-                        ? null
-                        : (index) {
-                            if (index != null) {
-                              setState(
-                                () => _preset.text = [
-                                  _preset.text,
-                                  presets[index].content,
-                                ].where((s) => s.isNotEmpty).join('\n\n'),
-                              );
-                            }
-                          },
                   ),
                 const SizedBox(height: AppSpacing.sm),
                 TextField(
