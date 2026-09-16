@@ -37,8 +37,24 @@ void main() {
         protocol,
         script: [
           (
+            name: 'spawn_subagent',
+            arguments: {
+              'role': 'writer',
+              'task': '撰写正文并审查交付',
+              'background': false,
+            },
+          ),
+          (
             name: 'write_document',
             arguments: {'name': '正文', 'content': '工具保存的正文'},
+          ),
+          (
+            name: 'review_document',
+            arguments: {'name': '正文', 'task': '核对当前稿件'},
+          ),
+          (
+            name: 'submit_review',
+            arguments: {'approved': true, 'feedback': '通过'},
           ),
           (name: 'update_story_state', arguments: {'name': '正文'}),
           (
@@ -71,6 +87,9 @@ void main() {
         ],
       );
       final first = createContainer();
+      final options = first.read(agentModelsProvider).single.options;
+      expect(options.responseHeaderTimeout, const Duration(minutes: 10));
+      expect(options.streamIdleTimeout, const Duration(minutes: 10));
       final controller = first.read(agentWorkspaceProvider.notifier);
       controller.createWorkspace();
       controller.configure(modelId: 'model-1');
@@ -88,16 +107,24 @@ void main() {
         store.readStoryState(state.workspace!.id).rows.single.cells['place'],
         '图书馆',
       );
-      expect(wire.requests, hasLength(3));
+      expect(wire.requests, hasLength(6));
+      final tokenKey = switch (protocol) {
+        LlmApiProtocol.chatCompletions => 'max_completion_tokens',
+        LlmApiProtocol.responses => 'max_output_tokens',
+        LlmApiProtocol.anthropic => 'max_tokens',
+      };
+      for (final request in wire.requests) {
+        expect(request[tokenKey], greaterThanOrEqualTo(65536));
+      }
       final bodyKey = protocol == LlmApiProtocol.responses
           ? 'input'
           : 'messages';
-      final firstPrefix = wire.requests.first[bodyKey] as List;
+      final firstPrefix = wire.requests[1][bodyKey] as List;
       expect(
-        (wire.requests[1][bodyKey] as List).take(firstPrefix.length),
+        (wire.requests[2][bodyKey] as List).take(firstPrefix.length),
         firstPrefix,
       );
-      expect(wire.requests[1]['tools'], wire.requests.first['tools']);
+      expect(wire.requests[2]['tools'], wire.requests[1]['tools']);
       first.dispose();
       final second = createContainer();
       addTearDown(second.dispose);
@@ -111,7 +138,7 @@ void main() {
             .every((r) => r.status == AgentRunStatus.completed),
         isTrue,
       );
-      expect(wire.requests, hasLength(4));
+      expect(wire.requests, hasLength(7));
       expect(store.listDocuments(state.workspace!.id), hasLength(1));
       restored.withdrawLatestRound();
       expect(store.readStoryState(state.workspace!.id).rows, isEmpty);

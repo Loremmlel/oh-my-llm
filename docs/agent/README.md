@@ -1,8 +1,62 @@
 # Agent 小说工作区交接
 
+## 2026-09-16：执行流改为手动滚动
+
+实施分支：`fix/agent-transcript-scroll`。
+
+- 按用户要求移除主会话和子任务执行流的自动跟随，打开执行流、运行记录刷新与工具展开均不再主动跳到底部。
+- “回到最新”仅由用户点击时定位一次，不开启后续跟随。滚动及内容高度变化只更新按钮是否显示，展开动画继续使用现有 Material 控件。
+- 组件测试覆盖桌面滚轮、390px 窄屏触摸、展开末尾工具、刷新时保持阅读位置以及手动返回后继续输出。取消自动跟随前失败记录在 `logs/agent-manual-scroll-red.log`，修复后两项通过，见 `logs/agent-manual-scroll-green.log`。
+- `flutter test --no-pub --reporter compact`：1,892 项通过（`logs/fltest.log`）；静态分析无问题，架构门禁 421 个文件、0 违规（`logs/agent-scroll-analyze.log`、`logs/agent-scroll-boundaries.log`）。UI strict audit 无违规；DESIGN lint 为 0 错误、7 个既有 token 映射提示。
+- Windows Release 构建通过（`logs/build-windows.log`），可执行文件位于 `build/windows/x64/runner/Release/oh_my_llm.exe`，包含此前的长思考预算与资料提示修正。
+- 滚动交互使用 WidgetTester 验证，尚未进行 Windows／Android 真机手工复测。
+
+## 2026-09-16：长思考预算与已注入资料的使用
+
+实施分支：`fix/agent-long-reasoning-context`。
+
+- Agent 各职责单次输出预算从 8,192 提高到 65,536 tokens；生产模型装配与运行器默认值共用 `agentDefaultGenerationOptions`。三个协议发送各自原生的输出预算字段，Messages 自动缓存设置继续生效。
+- 等待响应头与 SSE 无新 data 行的超时均从 60 秒延长到 10 分钟；主任务及所有后代共享的整轮时限按用户要求仍为 10 分钟，请求等待也受整轮剩余时间约束。用户仍可随时停止。输出 token 截断与网络／整轮超时是不同限制，未拿到真实失败记录，不能断定实机反馈触发了哪一项。
+- 正文与可见思考合计的 UTF-8 输出保护由 512 KiB 提高到 2 MiB，流式增量与权威终态都校验。原生续接内容不裁剪，工具参数／结果、普通文档、剧情状态与累计上下文的现有大小校验继续生效。65,536 是请求预算，仍受服务商实际支持范围约束。
+- 固定 Harness 契约、默认职责规则、资料头和文档／委派工具说明统一指出：世界书与角色卡已全文注入；writer / reviewer 自动获得生效摘要、保留正文与状态；绑定审稿已附待审稿全文。直接使用这些资料，只有缺少普通文档、核对修改或用户明确要求时才读取。工具权限未移除，不能据此保证任何模型绝不重复调用。
+- 固定契约对已有会话和自定义职责规则同样生效，不覆盖用户保存的规则。资料仍按职责筛选；角色推演可见范围不扩大。
+
+验证：
+
+- 定向 23 项测试通过，覆盖三协议生产请求预算、长推理的流式／终态续接、超大输出不执行工具、虚拟时钟的整轮超时及自定义职责的注入说明。修复前失败记录：`logs/agent-long-reasoning-red.log`、`logs/agent-output-size-red.log`；修复后：`logs/agent-long-reasoning-green.log`。
+- `flutter test --no-pub --reporter compact`：1,890 项通过（`logs/fltest.log`）。`flutter analyze --no-pub` 无问题；`dart run tool/check_import_boundaries.dart` 检查 421 个文件，0 违规，记录分别为 `logs/agent-long-reasoning-analyze.log`、`logs/agent-long-reasoning-boundaries.log`。
+- 未使用真实模型请求验证长思考耗时或重复读取频率。
+
+## 2026-09-16：子任务写作闭环与批量上下文整理
+
+实施分支：`feat/agent-delegation-context`。依据[本阶段规格](../specs/2026-09-16-agent-delegation-context.md)，以下为新行为；旧阶段记录保留作为历史。
+
+- 默认正文流程为 coordinator → writer → reviewer / state。writer 用 `write_document` 保存候选稿，再用 `review_document(name, task)` 直接启动审查；reviewer 用 `submit_review(approved, feedback)` 明确给出结论。结论绑定完整稿件，改稿后必须重新审查。
+- `update_story_state(name)` 将审查通过的稿件绑定到整轮，等待独立 state 原子提交后直接完成 writer 和主任务，不增加结束语模型调用。主 Agent 保留普通文档与审查工具，但交付同样校验稿件审查结果。
+- run 增加整轮归属 `rootRunId`，round 记录实际 writer。收取只允许直接父任务；写作文档撤回归主轮次。所有后代纳入用量、取消和全局预算；等待子任务的父任务不占执行并发名额。默认共 24 次模型调用、64 次工具调用、10 个子任务、2 个执行并发、10 分钟，单个主／子循环上限均为 12。
+- 主上下文按当前 Harness、预设、XML 世界书／人物卡、生效摘要、连续主历史、最新状态与用户输入组装。主模型的原生工具往返与 Reasoning 保留；每次新子任务重新组装，不继承父任务执行日志或上次同职责历史。
+- writer / reviewer 自动获得保留正文、摘要、完整作者设定与当前状态。`spawn_character(card_id, state_row_ids, task, background)` 绑定单张角色卡和局部状态，读取工具也受范围限制。无卡的新人物可传空卡 ID 并绑定已存在的人物状态行。世界书、人物卡及共享状态行可能包含角色未知信息，此功能不声称完成严格语义知情隔离。
+- 交付正文以带稳定楼层 ID 的独立消息追加；父层工具结果只返回交付关联，不逐层复制全文。应用保存的连续历史与下次发送的筛选投影分离，恢复原文不会丢失以前的正文。
+- 会话行新增“总结管理”入口：从较早未整理正文开始选择连续楼数，可直接隐藏、总结并替代、编辑摘要、重新总结或恢复原文。首版仅手动触发，不设自动整理或楼数提醒。来源读取不受运行列表页大小限制；运行列表按最近 50 个根任务及其完整后代读取。
+- summarizer 直接由窗口发起，默认继承主模型、不套用写作预设，可在职责配置中调整。它只读取选定正式正文与对应写作输入；摘要在独立窗口保存，不新增聊天回复或小说楼层。关闭窗口后任务继续，停止和重试仍可达，重启可从持久记录重新发起失败的总结任务。
+- 摘要与隐藏范围一起应用；失败、空结果、停止或保存失败保留旧选择。恢复原文使对应摘要退出输入；撤回摘要来源正文时整批失效，无关批次保持不变。原文和剧情状态不因整理而删除。
+- 隐藏只排除可独立定位的正式正文块。旧工具结果、工具参数与原生 Reasoning 中的正文副本不会被搜索替换或删去；窗口和预览明确说明这一限制，旧会话不能保证完整释放被隐藏正文的上下文。
+- schema v20 顺序迁移新增会话级 `agent_context_batches`，继续保留 v13 起的迁移链及合法旧 schema fixture。文档与用户提示词仍覆盖保存，不增加资料版本系统。剧本触发不在本次范围。
+
+验证：
+
+- `flutter test --no-pub --reporter compact`：1885 项通过，日志 `logs/fltest.log`。含完整三协议 HTTP → 生产装配 → 嵌套交付、重启、状态重试、迁移链和撤回。
+- 任务测试覆盖拒绝沿用旧稿审查、角色工具范围、嵌套停止、连续两轮原生主历史与新子上下文；总结测试覆盖 60 楼、来源绑定、取消／空结果／保存失败、恢复、重启和撤回失效。
+- 重试状态原输入快照的 red/green：`logs/agent-retry-input-red.log` 中断言失败；修复后 `logs/agent-retry-input-green.log` 的 5 项运行测试通过。重试仅请求 state，不再覆盖主模型原实际输入。
+- `flutter analyze --no-pub`、`dart run tool/check_import_boundaries.dart`：通过。UI strict audit 为 0 违规，`designmd lint DESIGN.md` 为 0 错误、7 个既有 token 映射提示。
+- 使用实际字体离屏渲染 1280×900 浅／深色与 390×844 窄屏、键盘弹出后的摘要编辑。截图 `logs/agent-summary-desktop.png`、`logs/agent-summary-dark.png`、`logs/agent-summary-mobile.png`、`logs/agent-summary-keyboard.png`；两项窗口交互测试验证关闭后继续、停止／重试、隐藏／恢复、保存和未保存退出保护。此为组件渲染与交互验证，没有连接 Android 真机。
+- Windows Release 与 Android Release（ARM／ARM64）构建通过（`logs/build-windows.log`、`logs/build-android.log`）。Android 工具链有 SDK XML 版本及既有 Cupertino 图标字体提示，未影响构建。
+
+真实模型的审查质量、摘要信息损失和缓存收益仍需连续写作试用。上述限制不因模拟测试通过而消失。
+
 ## 2026-09-15：实机反馈后的交付方式调整
 
-实施分支：`fix/agent-reading-flow`。当前行为以本节和[修订后的规格](../specs/2026-09-15-agent-story-state.md)为准，下面的版本与冻结说明保留为历史记录。
+实施分支：`fix/agent-reading-flow`。本节记录当时行为，后续调整见 2026-09-16；当时依据为[修订后的规格](../specs/2026-09-15-agent-story-state.md)为准，下面的版本与冻结说明保留为历史记录。
 
 - 正文直接显示在对话楼层。主 Agent 调用 `update_story_state(name)` 选定正文后，应用展示正文并折叠整轮执行过程；状态更新成功直接完成，不再请求主模型生成总结。
 - 工具调用收起时为紧凑单行，执行细节、子任务与本轮用量仍可展开查看。待更新、失败和撤回入口继续可见。

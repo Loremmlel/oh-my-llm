@@ -37,8 +37,9 @@ void main() {
         expect(agentInputText(request.input), contains('王室密令'));
         return agentReply(
           calls: [
-            agentCall('s', 'spawn_subagent', {
-              'role': 'character',
+            agentCall('s', 'spawn_character', {
+              'card_id': card.id,
+              'state_row_ids': <String>[],
               'task': '推演阿弥的行动',
               'background': false,
             }),

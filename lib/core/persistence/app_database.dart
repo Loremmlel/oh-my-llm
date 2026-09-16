@@ -26,7 +26,7 @@ class AppDatabase {
   /// 当前滚动迁移基线：全新数据库直接创建到该版本。
   ///
   /// 历史 V9→V13 逐级迁移已退役；v13 起的已发布迁移按顺序保留。
-  static const int currentSchemaVersion = 19;
+  static const int currentSchemaVersion = 20;
 
   final sqlite.Database _connection;
   final String path;
@@ -79,7 +79,7 @@ class AppDatabase {
   /// - `user_version == 0`：全新数据库，创建完整当前 schema 后标记为
   ///   [currentSchemaVersion]；
   /// - `user_version == [currentSchemaVersion]`：当前版本数据库，不做任何改动；
-  /// - `user_version` 为 13–18：按顺序执行到当前版本的迁移；
+  /// - `user_version` 为 13–19：按顺序执行到当前版本的迁移；
   /// - 其余版本（更旧的遗留库或更新版本应用创建的库）显式拒绝，
   ///   避免仓库层在不兼容的 schema 上误读误写。
   void _initializeSchema() {
@@ -91,13 +91,14 @@ class AppDatabase {
       _connection.execute('PRAGMA user_version = $currentSchemaVersion;');
     } else if (currentVersion == currentSchemaVersion) {
       // 当前版本数据库，直接可用。
-    } else if (currentVersion >= 13 && currentVersion <= 18) {
+    } else if (currentVersion >= 13 && currentVersion <= 19) {
       if (currentVersion <= 13) _migrateFavoritesFromV13ToV14();
       if (currentVersion <= 14) _migrateMessagesFromV14ToV15();
       if (currentVersion <= 15) _migrateAgentFromV15ToV16();
       if (currentVersion <= 16) _migrateNovelFromV16ToV17();
       if (currentVersion <= 17) _migrateStoryFromV17ToV18();
-      _migrateAgentDocumentsFromV18ToV19();
+      if (currentVersion <= 18) _migrateAgentDocumentsFromV18ToV19();
+      _migrateAgentContextFromV19ToV20();
     } else {
       throw AppDatabaseSchemaVersionException(currentVersion);
     }
@@ -468,12 +469,34 @@ class AppDatabase {
     }
   }
 
+  void _migrateAgentContextFromV19ToV20() {
+    _connection.execute('BEGIN;');
+    try {
+      _connection.execute('''
+        CREATE TABLE agent_context_batches (
+          sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+          workspace_id TEXT NOT NULL, session_id TEXT NOT NULL,
+          id TEXT NOT NULL, record_json TEXT NOT NULL,
+          UNIQUE(workspace_id, session_id, id),
+          FOREIGN KEY(workspace_id, session_id)
+            REFERENCES agent_sessions(workspace_id, id) ON DELETE CASCADE
+        );
+        PRAGMA user_version = 20;
+        COMMIT;
+      ''');
+    } catch (_) {
+      _connection.execute('ROLLBACK;');
+      rethrow;
+    }
+  }
+
   /// 创建全部业务表和索引（全新安装时使用）。
   void _createSchema() {
     _createAgentSchema();
     _createNovelSchema();
     _createStorySchema();
     _migrateAgentDocumentsFromV18ToV19();
+    _migrateAgentContextFromV19ToV20();
     _connection.execute('''
       CREATE TABLE IF NOT EXISTS conversations (
         id TEXT PRIMARY KEY,

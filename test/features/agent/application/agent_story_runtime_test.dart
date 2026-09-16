@@ -33,7 +33,7 @@ void main() {
       apiKey: 'state-key',
       model: 'state-model',
     );
-    final client = FakeAgentClient((request, index) {
+    final client = reviewedAgentClient((request, index) {
       if (request.target.model == 'state-model') {
         final input = agentInputText(request.input);
         expect(input, contains('甲最终没有告诉乙秘密'));
@@ -94,6 +94,12 @@ void main() {
           target: agentTestTarget,
           options: LlmGenerationOptions(),
         ),
+        AgentRole.reviewer: const AgentModel(
+          id: 'main',
+          label: '审查模型',
+          target: agentTestTarget,
+          options: LlmGenerationOptions(),
+        ),
         AgentRole.state: AgentModel(
           id: 'state',
           label: '状态模型',
@@ -105,7 +111,7 @@ void main() {
     );
     final result = await runtime.run('开场：甲乙来到图书馆');
     expect(result.status, AgentRunStatus.completed);
-    expect(client.requests, hasLength(4));
+    expect(client.requests, hasLength(5));
     expect(result.content, '甲最终没有告诉乙秘密');
     expect(
       store.readStoryState('novel').rows.single.cells['knowledge'],
@@ -133,7 +139,7 @@ void main() {
 
   test('状态 Agent 越权工具被拒绝，未提交不能作为成功完成', () async {
     var stateCalls = 0;
-    final client = FakeAgentClient((request, index) {
+    final client = reviewedAgentClient((request, index) {
       if (request.tools.any((t) => t.name == 'commit_story_state')) {
         if (stateCalls++ == 0) {
           return agentReply(
@@ -187,7 +193,7 @@ void main() {
       final entered = Completer<void>();
       final release = Completer<void>();
       late AgentRuntime runtime;
-      final client = FakeAgentClient((request, index) async {
+      final client = reviewedAgentClient((request, index) async {
         if (request.tools.any((t) => t.name == 'commit_story_state')) {
           entered.complete();
           if (!afterCommit) await release.future;
@@ -246,7 +252,7 @@ void main() {
   }
 
   test('子任务预算不足仍保存待处理轮次，后续普通任务被阻止', () async {
-    final client = FakeAgentClient(
+    final client = reviewedAgentClient(
       (_, index) => switch (index) {
         0 => agentReply(
           calls: [
@@ -269,7 +275,7 @@ void main() {
       store: store,
       workspace: store.loadWorkspace('novel')!,
       target: agentTestTarget,
-      limits: const AgentLimits(children: 0),
+      limits: const AgentLimits(children: 1),
       onUpdate: (_) {},
     );
     final result = await runtime.run('开场');

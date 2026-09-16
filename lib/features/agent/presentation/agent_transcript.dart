@@ -17,6 +17,7 @@ String agentRoleLabel(AgentRole role) => switch (role) {
   AgentRole.reviewer => '审稿 Agent',
   AgentRole.character => '角色 Agent',
   AgentRole.state => '状态 Agent',
+  AgentRole.summarizer => '总结 Agent',
 };
 
 String agentStatusLabel(AgentRunStatus status) => switch (status) {
@@ -36,7 +37,17 @@ String agentUsageLabel(AgentRunRecord record) {
 
 String agentTreeUsageLabel(AgentRunRecord root, List<AgentRunRecord> records) {
   var total = root;
-  for (final child in records.where((r) => r.parentId == root.id)) {
+  final descendants = <String>{root.id};
+  var previous = -1;
+  while (previous != descendants.length) {
+    previous = descendants.length;
+    descendants.addAll(
+      records.where((r) => descendants.contains(r.parentId)).map((r) => r.id),
+    );
+  }
+  for (final child in records.where(
+    (r) => r.id != root.id && descendants.contains(r.id),
+  )) {
     total = total.copyWith(
       modelCalls: total.modelCalls + child.modelCalls,
       usage: addAgentUsage(total.usage, child.usage),
@@ -70,7 +81,7 @@ class AgentChildLink extends StatelessWidget {
   );
 }
 
-/// 主会话和子会话共用同一执行流；仅在读者停留末尾时跟随新输出。
+/// 主会话和子会话共用同一执行流，只有读者操作时才主动改变滚动位置。
 class AgentTranscript extends StatefulWidget {
   const AgentTranscript({
     super.key,
@@ -86,24 +97,7 @@ class AgentTranscript extends StatefulWidget {
 
 class _AgentTranscriptState extends State<AgentTranscript> {
   final _scroll = ScrollController();
-  bool _following = true;
-  @override
-  void initState() {
-    super.initState();
-    _follow();
-  }
-
-  @override
-  void didUpdateWidget(AgentTranscript oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (_following) _follow();
-  }
-
-  void _follow() => WidgetsBinding.instance.addPostFrameCallback((_) {
-    if (mounted && _scroll.hasClients && _following) {
-      _scroll.jumpTo(_scroll.position.maxScrollExtent);
-    }
-  });
+  bool _showLatestButton = false;
   @override
   void dispose() {
     _scroll.dispose();
@@ -125,13 +119,18 @@ class _AgentTranscriptState extends State<AgentTranscript> {
     }
     return Stack(
       children: [
-        NotificationListener<ScrollNotification>(
+        NotificationListener<Notification>(
           onNotification: (notification) {
-            if (notification.depth == 0 &&
-                notification is UserScrollNotification) {
-              final following = notification.metrics.extentAfter < 80;
-              if (following != _following) {
-                setState(() => _following = following);
+            // 内容增长也会改变末尾距离；通知只控制按钮，不触发自动滚动。
+            final metrics = switch (notification) {
+              ScrollNotification(depth: 0, :final metrics) ||
+              ScrollMetricsNotification(depth: 0, :final metrics) => metrics,
+              _ => null,
+            };
+            if (metrics != null) {
+              final showLatest = metrics.extentAfter > 80;
+              if (showLatest != _showLatestButton) {
+                setState(() => _showLatestButton = showLatest);
               }
             }
             return false;
@@ -154,7 +153,12 @@ class _AgentTranscriptState extends State<AgentTranscript> {
                       key: ValueKey(record.id),
                       record: record,
                       round: widget.storyRounds
-                          .where((r) => r.id == record.id)
+                          .where(
+                            (r) =>
+                                (record.role == AgentRole.writer ||
+                                    record.role == AgentRole.coordinator) &&
+                                r.id == record.roundRunId,
+                          )
                           .firstOrNull,
                       children:
                           widget.allRuns
@@ -170,14 +174,13 @@ class _AgentTranscriptState extends State<AgentTranscript> {
             ),
           ),
         ),
-        if (!_following)
+        if (_showLatestButton)
           Positioned(
             right: AppSpacing.md,
             bottom: AppSpacing.xs,
             child: FilledButton.tonalIcon(
               onPressed: () {
-                setState(() => _following = true);
-                _follow();
+                _scroll.jumpTo(_scroll.position.maxScrollExtent);
               },
               icon: const Icon(Icons.arrow_downward),
               label: const Text('回到最新'),

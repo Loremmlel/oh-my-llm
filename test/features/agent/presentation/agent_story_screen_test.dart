@@ -36,7 +36,7 @@ void main() {
       ],
     );
     var stateCalls = 0;
-    final client = FakeAgentClient((request, index) {
+    final client = reviewedAgentClient((request, index) {
       if (request.tools.any((t) => t.name == 'commit_story_state')) {
         if (stateCalls++ == 0) throw const LlmException('模拟填表失败');
         return agentReply(

@@ -9,6 +9,7 @@ import 'package:oh_my_llm/core/llm/llm_event.dart';
 import 'package:oh_my_llm/core/llm/llm_request.dart';
 
 import '../domain/agent_models.dart';
+import '../domain/agent_context_batch.dart';
 import '../domain/agent_story_state.dart';
 import 'agent_harness.dart';
 import 'agent_context.dart';
@@ -19,9 +20,9 @@ class AgentLimits {
   const AgentLimits({
     this.totalModelCalls = 24,
     this.mainRounds = 12,
-    this.childRounds = 6,
+    this.childRounds = 12,
     this.totalToolCalls = 64,
-    this.children = 6,
+    this.children = 10,
     this.concurrentChildren = 2,
     this.duration = const Duration(minutes: 10),
   });
@@ -37,16 +38,14 @@ class AgentLimits {
 /// 一次用户任务及其子任务的 owner：循环、预算、取消与检查点集中在这里。
 class AgentRuntime {
   static const streamRefreshInterval = Duration(milliseconds: 60);
+  // UTF-8 字节保护独立于服务商 token 预算，必须给长推理及正文留出空间。
+  static const _maxOutputBytes = 2 * 1024 * 1024;
   AgentRuntime({
     required this.client,
     required this.store,
     required this.workspace,
     required this.target,
-    this.options = const LlmGenerationOptions(
-      maxOutputTokens: 8192,
-      responseHeaderTimeout: Duration(seconds: 60),
-      streamIdleTimeout: Duration(seconds: 60),
-    ),
+    this.options = agentDefaultGenerationOptions,
     this.limits = const AgentLimits(),
     this.roleModels = const {},
     required this.onUpdate,
@@ -68,6 +67,15 @@ class AgentRuntime {
   int _modelCalls = 0, _toolCalls = 0;
   bool _started = false, _timedOut = false;
   late AgentWorkspace _beforeRound;
+  List<LlmInputItem> _canonicalHistory = [];
+  int _appendStart = 0;
+  String? _rootId;
+  final _waiting = <String>{};
+  final _reviewDocuments = <String, AgentDocument>{};
+  final _reviewResults = <String, ({bool approved, String feedback})>{};
+  final _approvedDocuments = <String, AgentDocument>{};
+  final _characterCards = <String, String>{};
+  final _characterStates = <String, AgentStoryState>{};
   final _stateBindings = <String, AgentStoryRound>{};
   bool get isCancelled => _cancelled.isCompleted;
 
@@ -97,9 +105,18 @@ class AgentRuntime {
         store.listDocuments(workspace.id),
       );
       _beforeRound = workspace.copyWith(draft: prompt);
-      final history = buildAgentMainContext(workspace);
+      _canonicalHistory = agentConversationHistory(workspace);
+      final history = buildAgentMainContext(
+        workspace,
+        batches: _batches,
+        rounds: _rounds,
+      );
+      _appendStart = history.length;
+      history.add(agentStateMessage(store.readStoryState(workspace.id)));
       history.add(LlmTextMessage(role: LlmRole.user, text: prompt));
-      return await _execute(_newRecord(prompt, AgentRole.coordinator), history);
+      final record = _newRecord(prompt, AgentRole.coordinator);
+      _rootId = record.id;
+      return await _execute(record, history);
     } finally {
       timer.cancel();
       cancel();
@@ -112,6 +129,7 @@ class AgentRuntime {
     String prompt,
     AgentRole role, {
     String? parentId,
+    AgentContextBatch? summaryBatch,
   }) => AgentRunRecord(
     id: generateEntityId(),
     workspaceId: workspace.id,
@@ -122,6 +140,8 @@ class AgentRuntime {
     prompt: prompt,
     role: role,
     parentId: parentId,
+    summaryBatch: summaryBatch,
+    rootRunId: parentId == null ? null : _rootId,
     startedAt: DateTime.now(),
   );
 
@@ -129,10 +149,14 @@ class AgentRuntime {
     AgentRunRecord record,
     List<LlmInputItem> history,
   ) async {
-    final main = record.parentId == null;
+    final main =
+        record.role == AgentRole.coordinator && record.parentId == null;
     void publish() {
       if (main) {
-        workspace = workspace.copyWith(history: history, draft: '');
+        workspace = workspace.copyWith(
+          history: [..._canonicalHistory, ...history.skip(_appendStart)],
+          draft: '',
+        );
         record = record.copyWith(inputHistory: history);
       } else {
         record = record.copyWith(childHistory: history);
@@ -259,11 +283,12 @@ class AgentRuntime {
             );
             publish();
           }
-          final adopted = main
-              ? store.readStoryRound(workspace.id, record.id)
+          final adopted = main || record.role == AgentRole.writer
+              ? store.readStoryRound(workspace.id, record.roundRunId)
               : null;
           if (adopted?.status == AgentStoryRoundStatus.committed) {
-            // 正文已经通过审查并完成状态更新，直接交付，无需再调用模型写总结。
+            // 先闭合本层工具往返，再追加可独立选择的正式正文。
+            if (main) history.add(agentProseMessage(adopted!));
             record = record.copyWith(
               status: AgentRunStatus.completed,
               content: adopted!.document.content,
@@ -272,11 +297,19 @@ class AgentRuntime {
             return record;
           }
           if (record.role == AgentRole.state &&
-              store.readStoryRound(workspace.id, record.parentId!)?.status ==
+              store.readStoryRound(workspace.id, record.roundRunId)?.status ==
                   AgentStoryRoundStatus.committed) {
             record = record.copyWith(
               status: AgentRunStatus.completed,
               content: '剧情状态已保存。',
+            );
+            publish();
+            return record;
+          }
+          if (_reviewResults.containsKey(record.id)) {
+            record = record.copyWith(
+              status: AgentRunStatus.completed,
+              content: _reviewResults[record.id]!.feedback,
             );
             publish();
             return record;
@@ -288,12 +321,12 @@ class AgentRuntime {
         }
         if (main) {
           final uncollected = _children.values
-              .where((c) => !c.collected)
+              .where((c) => c.record.parentId == record.id && !c.collected)
               .toList();
           if (uncollected.isNotEmpty) {
             final results = <Object?>[];
             for (final child in uncollected) {
-              final finished = await child.future;
+              final finished = await _waitFor(record.id, child);
               _checkCancelled();
               child.collected = true;
               results.add(_childResult(finished));
@@ -305,12 +338,30 @@ class AgentRuntime {
                 text: '应用收到了尚未收取的子任务结果，请评估后完成本次任务：\n${jsonEncode(results)}',
               ),
             );
+            final adopted = store.readStoryRound(workspace.id, record.id);
+            if (adopted?.status == AgentStoryRoundStatus.committed) {
+              history.add(agentProseMessage(adopted!));
+              record = record.copyWith(
+                status: AgentRunStatus.completed,
+                content: adopted.document.content,
+              );
+              publish();
+              return record;
+            }
             publish();
             continue;
           }
         }
         if (result.content.trim().isEmpty) {
           throw const AgentWorkspaceException('模型返回空的完成结果，请检查模型与任务。');
+        }
+        if (_reviewDocuments.containsKey(record.id)) {
+          throw const AgentWorkspaceException('审查 Agent 未提交明确结论。');
+        }
+        if (record.role == AgentRole.writer &&
+            store.readStoryRound(workspace.id, record.roundRunId)?.status !=
+                AgentStoryRoundStatus.committed) {
+          throw const AgentWorkspaceException('写作任务尚未完成审查与交付，候选稿已保留。');
         }
         if (record.role == AgentRole.state) {
           throw const AgentWorkspaceException('状态 Agent 没有提交状态，本轮尚未完成。');
@@ -352,6 +403,29 @@ class AgentRuntime {
             : '运行或保存失败，请检查存储空间与服务配置。',
       );
       history = closePendingAgentTools(history);
+      final committed = (main || record.role == AgentRole.writer)
+          ? store.readStoryRound(workspace.id, record.roundRunId)
+          : null;
+      if (committed?.status == AgentStoryRoundStatus.committed) {
+        record = record.copyWith(
+          status: AgentRunStatus.completed,
+          error: '',
+          content: committed!.document.content,
+        );
+        if (main &&
+            !history.whereType<LlmTextMessage>().any(
+              (m) => m.text == agentProseMessage(committed).text,
+            )) {
+          history.add(agentProseMessage(committed));
+        }
+        try {
+          publish();
+        } catch (_) {
+          _unsavedRecords[record.id] = record;
+          onUpdate(record);
+        }
+        return record;
+      }
       if (main) {
         history.add(
           LlmTextMessage(
@@ -412,8 +486,8 @@ class AgentRuntime {
               bytes +=
                   utf8.encode(event.contentDelta).length +
                   utf8.encode(event.reasoningDelta).length;
-              if (bytes > 512 * 1024) {
-                fail(const _Limit('单次输出超过 512 KiB。'));
+              if (bytes > _maxOutputBytes) {
+                fail(const _Limit('单次输出超过 2 MiB。'));
                 return;
               }
               text.write(event.contentDelta);
@@ -432,8 +506,8 @@ class AgentRuntime {
                 fail(const AgentWorkspaceException('模型流结束但没有权威终态。'));
               } else if (utf8.encode(result!.content).length +
                       utf8.encode(result!.reasoningContent).length >
-                  512 * 1024) {
-                fail(const _Limit('单次输出超过 512 KiB。'));
+                  _maxOutputBytes) {
+                fail(const _Limit('单次输出超过 2 MiB。'));
               } else {
                 done.complete(result!);
               }
@@ -470,6 +544,11 @@ class AgentRuntime {
           )) {
         throw const AgentWorkspaceException('工具参数字段不匹配，拒绝缺失或额外字段。');
       }
+      final adoptedRound = store.readStoryRound(workspace.id, owner.roundRunId);
+      if (adoptedRound?.status == AgentStoryRoundStatus.committed &&
+          call.name != 'collect_subagent') {
+        throw const AgentWorkspaceException('本轮已交付，后续工具不再执行。');
+      }
       final args = call.arguments;
       String string(String key) {
         final value = args[key];
@@ -489,14 +568,25 @@ class AgentRuntime {
           output =
               (owner.role == AgentRole.state
                       ? _stateBindings[owner.id]!.beforeState
-                      : store.readStoryState(workspace.id))
+                      : _characterStates[owner.id] ??
+                            store.readStoryState(workspace.id))
                   .toolData;
         case 'update_story_state':
           final document = store.readDocument(workspace.id, string('name'));
           if (document == null || document.kind != AgentDocumentKind.document) {
             throw const AgentWorkspaceException('请先保存审查通过的普通正文，再提供文档名。');
           }
-          final existing = store.readStoryRound(workspace.id, owner.id);
+          if (_approvedDocuments[owner.id] != document) {
+            throw const AgentWorkspaceException(
+              '当前稿件尚未通过审查，请先调用 review_document；修改后需重新审查。',
+            );
+          }
+          final existing = store.readStoryRound(workspace.id, owner.roundRunId);
+          if (existing != null &&
+              existing.writerRunId !=
+                  (owner.role == AgentRole.writer ? owner.id : null)) {
+            throw const AgentWorkspaceException('该轮正文已由另一任务绑定，请重试原状态任务或放弃本轮。');
+          }
           if (existing?.status == AgentStoryRoundStatus.committed) {
             if (existing!.document != document) {
               throw const AgentWorkspaceException('本轮已经采用另一份正文。');
@@ -506,7 +596,8 @@ class AgentRuntime {
             final selected =
                 existing ??
                 AgentStoryRound(
-                  id: owner.id,
+                  id: owner.roundRunId,
+                  writerRunId: owner.role == AgentRole.writer ? owner.id : null,
                   beforeWorkspace: _beforeRound,
                   document: document,
                   beforeState: store.readStoryState(workspace.id),
@@ -525,7 +616,7 @@ class AgentRuntime {
             throw const AgentWorkspaceException('operations 必须是数组。');
           }
           final binding = _stateBindings[owner.id];
-          if (binding == null || binding.id != owner.parentId) {
+          if (binding == null || binding.id != owner.roundRunId) {
             throw const AgentWorkspaceException('状态任务没有绑定正文。');
           }
           _checkCancelled();
@@ -538,11 +629,11 @@ class AgentRuntime {
           output = _storyResult(saved);
         case 'list_documents':
           output = [
-            for (final doc in _sessionDocuments())
+            for (final doc in _sessionDocuments(owner))
               {'id': doc.id, 'name': doc.name, 'kind': doc.kind.name},
           ];
         case 'read_document':
-          final document = _sessionDocuments()
+          final document = _sessionDocuments(owner)
               .where((d) => d.name == string('name'))
               .firstOrNull;
           if (document == null) {
@@ -550,7 +641,7 @@ class AgentRuntime {
           }
           output = {'name': document.name, 'content': document.content};
         case 'write_document':
-          final adopted = store.readStoryRound(workspace.id, owner.id);
+          final adopted = store.readStoryRound(workspace.id, owner.roundRunId);
           if (adopted != null && adopted.document.name == string('name')) {
             throw const AgentWorkspaceException(
               '本轮正文已选定，不能在状态更新后继续改写。需要重写时先撤回或放弃本轮。',
@@ -575,53 +666,118 @@ class AgentRuntime {
             sourceRunId: owner.id,
           );
           output = {'name': document.name, 'saved': true};
+        case 'review_document':
+          final document = store.readDocument(workspace.id, string('name'));
+          if (document == null || document.kind != AgentDocumentKind.document) {
+            throw const AgentWorkspaceException('找不到待审查的普通文档。');
+          }
+          final task = string('task');
+          _approvedDocuments.remove(owner.id);
+          _checkChildBudget();
+          final reviewer = _newRecord(
+            task,
+            AgentRole.reviewer,
+            parentId: owner.id,
+          );
+          _reviewDocuments[reviewer.id] = document;
+          final child = _launch(reviewer, [
+            ..._childContext(AgentRole.reviewer),
+            LlmTextMessage(
+              role: LlmRole.user,
+              text:
+                  '审查要求：$task\n当前待审稿：\n${agentDocumentText(document)}\n必须调用 submit_review 提交结论。',
+            ),
+          ]);
+          final finished = await _waitFor(owner.id, child);
+          final verdict = _reviewResults[reviewer.id];
+          if (finished.status != AgentRunStatus.completed || verdict == null) {
+            throw AgentWorkspaceException('审查未完成：${finished.error}');
+          }
+          if (verdict.approved) {
+            _approvedDocuments[owner.id] = document;
+          } else {
+            _approvedDocuments.remove(owner.id);
+          }
+          output = {
+            'task_id': reviewer.id,
+            'approved': verdict.approved,
+            'feedback': verdict.feedback,
+          };
+        case 'submit_review':
+          if (!_reviewDocuments.containsKey(owner.id)) {
+            throw const AgentWorkspaceException('没有绑定待审稿件。');
+          }
+          _reviewResults[owner.id] = (
+            approved: boolean('approved'),
+            feedback: string('feedback'),
+          );
+          output = {'submitted': true};
         case 'spawn_subagent':
-          final roleName = string('role'), task = string('task');
-          final background = boolean('background');
-          final role = AgentRole.values
-              .where(
-                (r) =>
-                    r.name == roleName &&
-                    r != AgentRole.coordinator &&
-                    r != AgentRole.state,
-              )
-              .firstOrNull;
-          if (role == null) {
-            throw const AgentWorkspaceException('不支持该子 Agent 角色。');
-          }
+        case 'spawn_character':
+          final character = call.name == 'spawn_character';
+          final role = character
+              ? AgentRole.character
+              : switch (string('role')) {
+                  'writer' => AgentRole.writer,
+                  'reviewer' => AgentRole.reviewer,
+                  _ => throw const AgentWorkspaceException(
+                    '不支持该子 Agent 角色；角色推演使用 spawn_character。',
+                  ),
+                };
+          final task = string('task');
           _validateText(task, '子任务');
-          if (_children.length >= limits.children ||
-              _children.values
-                      .where((c) => c.record.status == AgentRunStatus.running)
-                      .length >=
-                  limits.concurrentChildren) {
-            throw const AgentWorkspaceException('子 Agent 总数或并发数已达上限，请先收取已有任务。');
-          }
+          _checkChildBudget();
           _checkCancelled();
           final record = _newRecord(task, role, parentId: owner.id);
-          final child = _Child(record);
-          _children[record.id] = child;
-          child.future =
-              _execute(record, [
-                ...buildAgentInitialContext(workspace, role),
-                LlmTextMessage(role: LlmRole.user, text: task),
-              ]).then((value) {
-                child.record = value;
-                return value;
-              });
-          if (background) {
-            output = {'task_id': record.id, 'status': 'running'};
-          } else {
-            child.collected = true;
-            output = _childResult(await child.future);
+          String? cardId;
+          AgentStoryState? scopedState;
+          if (character) {
+            cardId = string('card_id');
+            if (cardId.isNotEmpty &&
+                !workspace.references.any(
+                  (d) =>
+                      d.id == cardId &&
+                      d.kind == AgentDocumentKind.characterCard,
+                )) {
+              throw const AgentWorkspaceException('请选择当前作品的人物卡 ID。');
+            }
+            final ids = args['state_row_ids'];
+            final current = store.readStoryState(workspace.id);
+            if (ids is! List ||
+                ids.any(
+                  (id) => id is! String || !current.rows.any((r) => r.id == id),
+                )) {
+              throw const AgentWorkspaceException('状态行范围不合法。');
+            }
+            if (cardId.isEmpty &&
+                !current.rows.any(
+                  (r) =>
+                      r.table == AgentStateTable.characters &&
+                      ids.contains(r.id),
+                )) {
+              throw const AgentWorkspaceException('没有人物卡时需绑定新人物的状态行。');
+            }
+            scopedState = AgentStoryState(
+              revision: current.revision,
+              rows: current.rows.where((r) => ids.contains(r.id)).toList(),
+            );
+            _characterCards[record.id] = cardId;
+            _characterStates[record.id] = scopedState;
           }
+          final child = _launch(record, [
+            ..._childContext(role, cardId: cardId, state: scopedState),
+            LlmTextMessage(role: LlmRole.user, text: task),
+          ]);
+          output = boolean('background')
+              ? {'task_id': record.id, 'status': 'running'}
+              : _childResult(await _waitFor(owner.id, child));
         case 'collect_subagent':
           final child = _children[string('task_id')];
           final wait = boolean('wait');
-          if (child == null) {
+          if (child == null || child.record.parentId != owner.id) {
             throw const AgentWorkspaceException('子任务不属于本次主任务。');
           }
-          if (wait) await child.future;
+          if (wait) await _waitFor(owner.id, child);
           if (child.record.status != AgentRunStatus.running) {
             child.collected = true;
           }
@@ -654,13 +810,7 @@ class AgentRuntime {
     AgentStoryRound selected,
     AgentRunRecord owner,
   ) async {
-    if (_children.length >= limits.children ||
-        _children.values
-                .where((c) => c.record.status == AgentRunStatus.running)
-                .length >=
-            limits.concurrentChildren) {
-      throw const AgentWorkspaceException('子任务数量已达上限，请先收取任务后重试状态更新。');
-    }
+    _checkChildBudget();
     _checkCancelled();
     final record = _newRecord(
       '根据「${selected.document.name}」更新剧情状态',
@@ -693,7 +843,7 @@ class AgentRuntime {
           child.record = value;
           return value;
         });
-    final finished = await child.future;
+    final finished = await _waitFor(owner.id, child);
     final saved = store.readStoryRound(workspace.id, selected.id)!;
     // 提交后停止或通知失败不能抹掉已经完成的事务。
     if (saved.status == AgentStoryRoundStatus.committed) {
@@ -711,6 +861,7 @@ class AgentRuntime {
       throw const AgentWorkspaceException('没有本会话可重试的状态更新。');
     }
     _beforeRound = round.beforeWorkspace;
+    _rootId = round.id;
     var record = store.loadRun(workspace.id, round.id)!;
     final timer = Timer(limits.duration, () {
       _timedOut = true;
@@ -721,13 +872,26 @@ class AgentRuntime {
       record = record.copyWith(status: AgentRunStatus.running, error: '');
       store.checkpoint(record);
       onUpdate(record);
-      final result = await _updateStory(round, record);
+      final writer = round.writerRunId == null
+          ? record
+          : store.loadRun(workspace.id, round.writerRunId!)!;
+      final result = await _updateStory(round, writer);
       history.add(
         LlmTextMessage(
           role: LlmRole.user,
           text: '应用已重试状态更新，采用的正式正文及状态版本如下：${jsonEncode(result)}',
         ),
       );
+      history.add(agentProseMessage(round));
+      if (writer.id != record.id) {
+        store.checkpoint(
+          writer.copyWith(
+            status: AgentRunStatus.completed,
+            content: round.document.content,
+            error: '',
+          ),
+        );
+      }
       record = record.copyWith(
         status: AgentRunStatus.completed,
         error: '',
@@ -747,7 +911,7 @@ class AgentRuntime {
     }
     workspace = workspace.copyWith(history: history);
     record = record.copyWith(
-      inputHistory: history,
+      // 重试没有调用主模型，保留其原实际输入，不能用当前会话投影覆盖。
       steps: [
         ...record.steps,
         AgentStep(
@@ -787,15 +951,172 @@ class AgentRuntime {
     return model;
   }
 
-  List<AgentDocument> _sessionDocuments() =>
-      store.listDocuments(workspace.id)..sort((a, b) => a.id.compareTo(b.id));
+  List<AgentContextBatch> get _batches =>
+      store.listContextBatches(workspace.id, workspace.sessionId);
+  List<AgentStoryRound> get _rounds =>
+      store.listStoryRounds(workspace.id, workspace.sessionId);
+
+  List<LlmInputItem> _childContext(
+    AgentRole role, {
+    String? cardId,
+    AgentStoryState? state,
+  }) => buildAgentChildContext(
+    workspace,
+    role,
+    state: state ?? store.readStoryState(workspace.id),
+    batches: _batches,
+    rounds: _rounds,
+    characterCardId: cardId,
+  );
+
+  List<AgentDocument> _sessionDocuments(AgentRunRecord owner) =>
+      store
+          .listDocuments(workspace.id)
+          .where(
+            (d) =>
+                owner.role != AgentRole.character ||
+                d.kind == AgentDocumentKind.worldBook ||
+                d.id == _characterCards[owner.id],
+          )
+          .toList()
+        ..sort((a, b) => a.id.compareTo(b.id));
+
+  void _checkChildBudget() {
+    if (_children.length >= limits.children ||
+        _children.values
+                .where(
+                  (c) =>
+                      c.record.status == AgentRunStatus.running &&
+                      !_waiting.contains(c.record.id),
+                )
+                .length >=
+            limits.concurrentChildren) {
+      throw const AgentWorkspaceException('子任务数量或并发已达上限，请先收取任务。');
+    }
+  }
+
+  _Child _launch(AgentRunRecord record, List<LlmInputItem> history) {
+    final child = _Child(record);
+    _children[record.id] = child;
+    child.future = _execute(record, history).then((value) {
+      child.record = value;
+      return value;
+    });
+    return child;
+  }
+
+  Future<AgentRunRecord> _waitFor(String ownerId, _Child child) async {
+    _waiting.add(ownerId);
+    try {
+      return await child.future;
+    } finally {
+      _waiting.remove(ownerId);
+      child.collected = true;
+    }
+  }
 
   Map<String, Object?> _childResult(AgentRunRecord record) => {
     'task_id': record.id,
     'status': record.status.name,
-    'content': record.content,
+    if (record.role == AgentRole.writer &&
+        record.status == AgentRunStatus.completed)
+      'delivered_round_id': record.roundRunId
+    else
+      'content': record.content,
     'error': record.error,
   };
+
+  Future<AgentRunRecord> summarize(AgentContextBatch batch) async {
+    if (_started) throw StateError('运行器不能复用');
+    _started = true;
+    final rounds = _rounds.reversed
+        .where(
+          (r) =>
+              batch.roundIds.contains(r.id) &&
+              r.status == AgentStoryRoundStatus.committed,
+        )
+        .toList();
+    if (rounds.length != batch.roundIds.length || rounds.isEmpty) {
+      throw const AgentWorkspaceException('总结来源已失效。');
+    }
+    final committed = _rounds.reversed
+        .where((r) => r.status == AgentStoryRoundStatus.committed)
+        .toList();
+    final firstIndex = committed.indexWhere(
+      (r) => r.id == batch.roundIds.first,
+    );
+    if (Iterable<int>.generate(batch.roundIds.length).any(
+          (i) =>
+              firstIndex + i >= committed.length ||
+              committed[firstIndex + i].id != batch.roundIds[i],
+        ) ||
+        _batches.any(
+          (b) => b.id == batch.id
+              ? b.status == AgentContextBatchStatus.invalidated
+              : b.active && b.roundIds.any(batch.roundIds.contains),
+        )) {
+      throw const AgentWorkspaceException('总结范围不连续、已经覆盖或来源失效。');
+    }
+    workspace = refreshAgentWorkspace(
+      workspace,
+      store.listDocuments(workspace.id),
+    );
+    final timer = Timer(limits.duration, () {
+      _timedOut = true;
+      cancel();
+    });
+    try {
+      var record = await _execute(
+        _newRecord(
+          '总结 ${rounds.length} 楼正式正文（批次 ${batch.id}）',
+          AgentRole.summarizer,
+          summaryBatch: batch,
+        ),
+        [
+          ...buildAgentInitialContext(workspace, AgentRole.summarizer),
+          for (final round in rounds) ...[
+            LlmTextMessage(
+              role: LlmRole.user,
+              text: '该楼写作输入：${round.beforeWorkspace.draft}',
+            ),
+            agentProseMessage(round),
+          ],
+        ],
+      );
+      if (record.status == AgentRunStatus.completed) {
+        try {
+          _checkCancelled();
+          store.saveContextBatch(
+            workspace.id,
+            workspace.sessionId,
+            batch.copyWith(
+              summary: record.content,
+              summaryRunId: record.id,
+              status: AgentContextBatchStatus.active,
+            ),
+          );
+        } catch (_) {
+          record = record.copyWith(
+            status: isCancelled
+                ? AgentRunStatus.cancelled
+                : AgentRunStatus.failed,
+            error: '摘要尚未应用，原输入范围与摘要保持不变。请重试总结。',
+          );
+          try {
+            store.checkpoint(record);
+          } catch (_) {
+            _unsavedRecords[record.id] = record;
+          }
+          onUpdate(record);
+        }
+      }
+      return record;
+    } finally {
+      timer.cancel();
+      cancel();
+    }
+  }
+
   void _checkCancelled() {
     if (isCancelled) {
       throw const LlmException('运行已取消', kind: LlmFailureKind.cancelled);

@@ -1,6 +1,9 @@
 import 'package:equatable/equatable.dart';
 import 'package:oh_my_llm/core/llm/llm_content.dart';
 import 'package:oh_my_llm/core/llm/llm_usage.dart';
+
+import 'agent_context_batch.dart';
+
 import 'package:oh_my_llm/core/llm/llm_request.dart';
 
 import 'agent_configuration.dart';
@@ -139,6 +142,8 @@ class AgentRunRecord extends Equatable {
     required this.prompt,
     required this.startedAt,
     this.parentId,
+    this.rootRunId,
+    this.summaryBatch,
     this.sessionId = 'initial',
     this.modelId,
     this.modelLabel = '',
@@ -162,6 +167,9 @@ class AgentRunRecord extends Equatable {
   final String id;
   final String workspaceId;
   final String? parentId;
+  final String? rootRunId;
+  final AgentContextBatch? summaryBatch;
+  String get roundRunId => rootRunId ?? parentId ?? id;
   final String sessionId, modelLabel;
   final String? modelId;
   final bool usageIncomplete;
@@ -193,6 +201,8 @@ class AgentRunRecord extends Equatable {
     id: id,
     workspaceId: workspaceId,
     parentId: parentId,
+    rootRunId: rootRunId,
+    summaryBatch: summaryBatch,
     sessionId: sessionId,
     modelId: modelId,
     modelLabel: modelLabel,
@@ -215,6 +225,8 @@ class AgentRunRecord extends Equatable {
     id,
     workspaceId,
     parentId,
+    rootRunId,
+    summaryBatch,
     sessionId,
     modelId,
     modelLabel,

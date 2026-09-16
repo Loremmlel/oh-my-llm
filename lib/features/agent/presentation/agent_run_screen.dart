@@ -38,6 +38,11 @@ class AgentRunScreen extends ConsumerWidget {
     void back() {
       if (context.canPop()) {
         context.pop();
+      } else if (record?.parentId case final parent?) {
+        context.goNamed(
+          'agentRun',
+          pathParameters: {'workspaceId': workspaceId, 'runId': parent},
+        );
       } else {
         if (workspace != null) {
           ref
@@ -62,7 +67,7 @@ class AgentRunScreen extends ConsumerWidget {
                 TextButton.icon(
                   onPressed: back,
                   icon: const Icon(Icons.arrow_back),
-                  label: const Text('返回主 Agent'),
+                  label: const Text('返回上级任务'),
                 ),
                 if (current != null)
                   Expanded(
@@ -96,7 +101,19 @@ class AgentRunScreen extends ConsumerWidget {
                 ? Center(child: Text(error ?? '找不到此工作区的执行记录。'))
                 : AgentTranscript(
                     records: [current],
-                    allRuns: state.runs,
+                    allRuns: {
+                      for (final r
+                          in ref
+                              .read(agentWorkspaceProvider.notifier)
+                              .runsFor(current))
+                        r.id: r,
+                      for (final r in state.runs.where(
+                        (r) =>
+                            r.workspaceId == current.workspaceId &&
+                            r.sessionId == current.sessionId,
+                      ))
+                        r.id: r,
+                    }.values.toList(),
                     storyRounds: [?round],
                   ),
           ),
@@ -106,9 +123,7 @@ class AgentRunScreen extends ConsumerWidget {
               padding: const EdgeInsets.all(AppSpacing.md),
               child: Row(
                 children: [
-                  const Expanded(
-                    child: Text('子 Agent 由主 Agent 调度。返回后可继续下达任务。'),
-                  ),
+                  const Expanded(child: Text('子任务由父任务调度，执行过程保留供查看。')),
                   if (state.busy && current?.status == AgentRunStatus.running)
                     OutlinedButton.icon(
                       onPressed: ref.read(agentWorkspaceProvider.notifier).stop,

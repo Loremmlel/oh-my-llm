@@ -1,6 +1,6 @@
 import 'package:equatable/equatable.dart';
 
-enum AgentRole { coordinator, writer, reviewer, character, state }
+enum AgentRole { coordinator, writer, reviewer, character, state, summarizer }
 
 enum AgentDocumentKind { document, worldBook, characterCard }
 
@@ -17,7 +17,13 @@ class AgentConfiguration extends Equatable {
     this.name = '默认方案',
     this.modelId,
     this.preset = '',
-    Iterable<AgentRole> presetRoles = AgentRole.values,
+    Iterable<AgentRole> presetRoles = const [
+      AgentRole.coordinator,
+      AgentRole.writer,
+      AgentRole.reviewer,
+      AgentRole.character,
+      AgentRole.state,
+    ],
     Map<AgentRole, AgentRoleSettings> roles = const {},
   }) : presetRoles = Set.unmodifiable(presetRoles),
        roles = Map.unmodifiable(roles);

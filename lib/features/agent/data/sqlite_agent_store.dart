@@ -7,11 +7,85 @@ import 'package:oh_my_llm/core/utils/id_generator.dart';
 import '../application/ports/agent_store.dart';
 import '../domain/agent_models.dart';
 import '../domain/agent_story_state.dart';
+import '../domain/agent_context_batch.dart';
 import 'agent_record_codec.dart';
 
 class SqliteAgentStore implements AgentStore {
   SqliteAgentStore(this.database);
   final AppDatabase database;
+
+  @override
+  List<AgentContextBatch> listContextBatches(
+    String workspaceId,
+    String sessionId,
+  ) => [
+    for (final row in database.connection.select(
+      '''SELECT b.record_json FROM agent_context_batches b LEFT JOIN agent_story_rounds r ON r.workspace_id = b.workspace_id AND r.id = json_extract(b.record_json, '\$.roundIds[0]') WHERE b.workspace_id = ? AND b.session_id = ? ORDER BY r.sequence, b.sequence;''',
+      [workspaceId, sessionId],
+    ))
+      AgentContextBatch.fromJson(jsonDecode(row['record_json'] as String)),
+  ];
+
+  @override
+  void saveContextBatch(
+    String workspaceId,
+    String sessionId,
+    AgentContextBatch batch,
+  ) {
+    _transaction(() {
+      if (loadWorkspace(workspaceId, sessionId: sessionId) == null ||
+          database.connection.select(
+            "SELECT 1 FROM agent_runs WHERE workspace_id = ? AND status = 'running' LIMIT 1;",
+            [workspaceId],
+          ).isNotEmpty) {
+        throw const AgentWorkspaceException('请等待当前任务结束后整理上下文。');
+      }
+      final batches = listContextBatches(workspaceId, sessionId);
+      final previous = batches.where((b) => b.id == batch.id).firstOrNull;
+      final rounds = listStoryRounds(workspaceId, sessionId).reversed
+          .where((r) => r.status == AgentStoryRoundStatus.committed)
+          .toList();
+      final indices = batch.roundIds
+          .map((id) => rounds.indexWhere((r) => r.id == id))
+          .toList();
+      if (batch.id.isEmpty ||
+          indices.isEmpty ||
+          indices.any((i) => i < 0) ||
+          indices.toSet().length != indices.length ||
+          Iterable<int>.generate(indices.length - 1)
+              .any((i) => indices[i + 1] != indices[i] + 1) ||
+          batch.status == AgentContextBatchStatus.invalidated ||
+          previous?.status == AgentContextBatchStatus.invalidated ||
+          (previous != null &&
+              jsonEncode(previous.roundIds) != jsonEncode(batch.roundIds))) {
+        throw const AgentWorkspaceException('正文范围已变化或不是连续的有效楼层，请重新选择。');
+      }
+      if (utf8.encode(batch.summary).length > 256 * 1024) {
+        throw const AgentWorkspaceException('总结不能超过 256 KiB。');
+      }
+      if (batch.active &&
+          batches.any(
+            (b) =>
+                b.id != batch.id &&
+                b.active &&
+                b.roundIds.any(batch.roundIds.contains),
+          )) {
+        throw const AgentWorkspaceException('选定范围已经由另一批整理覆盖，请先恢复该批原文。');
+      }
+      _saveContextBatch(workspaceId, sessionId, batch);
+    });
+  }
+
+  void _saveContextBatch(
+    String workspaceId,
+    String sessionId,
+    AgentContextBatch batch,
+  ) {
+    database.connection.execute(
+      'INSERT INTO agent_context_batches (workspace_id, session_id, id, record_json) VALUES (?, ?, ?, ?) ON CONFLICT(workspace_id, session_id, id) DO UPDATE SET record_json = excluded.record_json;',
+      [workspaceId, sessionId, batch.id, jsonEncode(batch.toJson())],
+    );
+  }
 
   @override
   AgentStoryState readStoryState(String workspaceId) {
@@ -59,7 +133,7 @@ class SqliteAgentStore implements AgentStore {
   List<AgentStoryRound> listStoryRounds(String workspaceId, String sessionId) =>
       [
         for (final row in database.connection.select(
-          'SELECT record_json FROM agent_story_rounds WHERE workspace_id = ? AND session_id = ? ORDER BY sequence DESC LIMIT 50;',
+          'SELECT record_json FROM agent_story_rounds WHERE workspace_id = ? AND session_id = ? ORDER BY sequence DESC;',
           [workspaceId, sessionId],
         ))
           decodeAgentStoryRound(
@@ -81,6 +155,17 @@ class SqliteAgentStore implements AgentStore {
         throw const AgentWorkspaceException('正文轮次不属于当前主任务。');
       }
       final current = readStoryRound(workspaceId, round.id);
+      if (round.writerRunId case final writerId?) {
+        final writer = loadRun(workspaceId, writerId);
+        if (writer == null ||
+            writer.role != AgentRole.writer ||
+            writer.parentId != round.id ||
+            writer.roundRunId != round.id ||
+            writer.sessionId != owner.sessionId ||
+            (current == null && writer.status != AgentRunStatus.running)) {
+          throw const AgentWorkspaceException('写作任务不属于当前正文轮次。');
+        }
+      }
       if (current != null &&
           (current.status != AgentStoryRoundStatus.pending ||
               current.document != round.document ||
@@ -126,8 +211,12 @@ class SqliteAgentStore implements AgentStore {
         throw const AgentWorkspaceException('本轮已撤回或不再是最新轮次。');
       }
       final child = loadRun(workspaceId, stateAgentId);
-      if (child == null ||
-          child.parentId != roundId ||
+      final root = loadRun(workspaceId, round.id);
+      if (root?.status != AgentRunStatus.running ||
+          child == null ||
+          child.parentId != (round.writerRunId ?? roundId) ||
+          child.roundRunId != roundId ||
+          child.sessionId != round.beforeWorkspace.sessionId ||
           child.status != AgentRunStatus.running ||
           child.role != AgentRole.state) {
         throw const AgentWorkspaceException('只有本轮绑定的状态 Agent 可以更新剧情。');
@@ -249,6 +338,15 @@ class SqliteAgentStore implements AgentStore {
           draft: round.beforeWorkspace.draft,
         ),
       );
+      for (final batch in listContextBatches(workspaceId, sessionId)) {
+        if (batch.roundIds.contains(roundId)) {
+          _saveContextBatch(
+            workspaceId,
+            sessionId,
+            batch.copyWith(status: AgentContextBatchStatus.invalidated),
+          );
+        }
+      }
     });
   }
 
@@ -381,8 +479,8 @@ class SqliteAgentStore implements AgentStore {
     String? sessionId,
   }) => database.connection
       .select(
-        'SELECT record_json FROM agent_runs WHERE workspace_id = ? ${sessionId == null ? '' : 'AND session_id = ?'} ORDER BY started_at DESC, id DESC LIMIT ?;',
-        [workspaceId, ?sessionId, limit],
+        '''WITH RECURSIVE selected AS (SELECT id, record_json, started_at FROM agent_runs WHERE workspace_id = ? ${sessionId == null ? '' : 'AND session_id = ?'} AND json_extract(record_json, '\$.parentId') IS NULL ORDER BY started_at DESC, id DESC LIMIT ?), tree AS (SELECT * FROM selected UNION ALL SELECT child.id, child.record_json, child.started_at FROM agent_runs child JOIN tree parent ON json_extract(child.record_json, '\$.parentId') = parent.id WHERE child.workspace_id = ?) SELECT record_json FROM tree ORDER BY started_at DESC, id DESC;''',
+        [workspaceId, ?sessionId, limit, workspaceId],
       )
       .map((row) => decodeAgentRun(jsonDecode(row['record_json'] as String)))
       .toList();
@@ -490,12 +588,25 @@ class SqliteAgentStore implements AgentStore {
         throw const AgentWorkspaceException('每个工作区最多保存 100 份文档。');
       }
       if (sourceRunId != null) {
-        final owner = loadRun(workspaceId, sourceRunId);
+        final owner = loadRun(workspaceId, sourceRunId!);
         if (owner == null ||
-            owner.parentId != null ||
+            (owner.role != AgentRole.coordinator &&
+                owner.role != AgentRole.writer) ||
             owner.status != AgentRunStatus.running) {
           throw const AgentWorkspaceException('文档写入不属于当前主任务。');
         }
+        if (owner.parentId != null) {
+          final root = loadRun(workspaceId, owner.roundRunId);
+          if (root == null ||
+              root.parentId != null ||
+              root.role != AgentRole.coordinator ||
+              root.status != AgentRunStatus.running ||
+              owner.parentId != root.id ||
+              owner.sessionId != root.sessionId) {
+            throw const AgentWorkspaceException('写作任务不属于当前主任务。');
+          }
+        }
+        sourceRunId = owner.roundRunId;
         final rows = database.connection.select(
           'SELECT source_run_id FROM agent_documents WHERE workspace_id = ? AND name = ?;',
           [workspaceId, name],

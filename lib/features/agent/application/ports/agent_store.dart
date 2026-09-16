@@ -1,8 +1,18 @@
 import '../../domain/agent_models.dart';
 import '../../domain/agent_story_state.dart';
+import '../../domain/agent_context_batch.dart';
 
 /// 工作区与执行记录的原子检查点；工具只能拿到绑定的工作区 ID。
 abstract interface class AgentStore {
+  List<AgentContextBatch> listContextBatches(
+    String workspaceId,
+    String sessionId,
+  );
+  void saveContextBatch(
+    String workspaceId,
+    String sessionId,
+    AgentContextBatch batch,
+  );
   AgentStoryState readStoryState(String workspaceId);
   AgentStoryRound? readStoryRound(String workspaceId, String roundId);
   AgentStoryRound? latestStoryRound(String workspaceId);
