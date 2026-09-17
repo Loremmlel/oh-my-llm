@@ -6,6 +6,24 @@ import 'package:oh_my_llm/core/widgets/app_field_group.dart';
 
 import '../application/agent_workspace_controller.dart';
 import '../domain/agent_models.dart';
+import '../domain/agent_script.dart';
+
+const agentScriptExample = '''---
+name: 秋季校园风波
+description: 高一秋季加入文学社后相关，事件跨越两个月。
+---
+
+# 秋季校园风波
+
+文学社收到匿名投稿，暂不揭露投稿人。
+
+## 数周后
+从收到投稿之日起数周后，筹备会上发生署名争议。
+期间可以继续日常 RP，不需要直接跳过这些日子。
+
+## 两个月后
+校刊出版时，人物必须面对争议的后果。
+''';
 
 Future<void> showAgentDocumentEditor(
   BuildContext context, {
@@ -79,11 +97,12 @@ class _DocumentEditorState extends ConsumerState<_DocumentEditor> {
             children: [
               AppFieldGroup(
                 children: [
-                  TextField(
-                    controller: _name,
-                    readOnly: widget.document != null,
-                    decoration: const InputDecoration(labelText: '文档名'),
-                  ),
+                  if (_kind != AgentDocumentKind.script)
+                    TextField(
+                      controller: _name,
+                      readOnly: widget.document != null,
+                      decoration: const InputDecoration(labelText: '文档名'),
+                    ),
                   DropdownButtonFormField<AgentDocumentKind>(
                     key: ValueKey('kind/$_kind'),
                     initialValue: _kind,
@@ -106,6 +125,37 @@ class _DocumentEditorState extends ConsumerState<_DocumentEditor> {
                 ],
               ),
               const SizedBox(height: AppSpacing.sm),
+              if (_kind == AgentDocumentKind.script)
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text('开头用 --- 包围 name、description；名称取自 name。'),
+                    ),
+                    TextButton(
+                      onPressed: state.busy
+                          ? null
+                          : () => showDialog<void>(
+                              context: context,
+                              builder: (_) => AlertDialog(
+                                title: const Text('剧本 Markdown 示例'),
+                                content: const SingleChildScrollView(
+                                  child: SelectableText(agentScriptExample),
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(),
+                                    child: const Text('关闭'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                      child: const Text('查看示例'),
+                    ),
+                  ],
+                ),
+              if (_kind == AgentDocumentKind.script)
+                const SizedBox(height: AppSpacing.sm),
               Expanded(
                 child: TextField(
                   controller: _content,
@@ -122,7 +172,11 @@ class _DocumentEditorState extends ConsumerState<_DocumentEditor> {
                 ),
               ),
               if (_kind != AgentDocumentKind.document)
-                const Text('保存后覆盖当前内容，下次运行立即采用。'),
+                Text(
+                  _kind == AgentDocumentKind.script
+                      ? '元信息在下次主任务末尾追加，全文按需读取并保留。'
+                      : '保存后覆盖当前内容，下次运行立即采用。',
+                ),
               if (state.error.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: AppSpacing.xs),
@@ -137,6 +191,32 @@ class _DocumentEditorState extends ConsumerState<_DocumentEditor> {
           ),
         ),
         actions: [
+          if (_kind == AgentDocumentKind.script && widget.document != null)
+            TextButton(
+              onPressed: () {
+                final progress = controller.scriptProgressFor(widget.document!);
+                showDialog<void>(
+                  context: context,
+                  builder: (_) => AlertDialog(
+                    title: const Text('本会话剧本备忘'),
+                    content: SingleChildScrollView(
+                      child: SelectableText(
+                        progress == null
+                            ? '当前内容尚无备忘。主 Agent 读取剧本后可记录时间起点、未兑现约定与完成依据；新会话不继承其它会话的进度。'
+                            : '${progress.status.label}\n\n${progress.notes}\n\n来源正文：${progress.sourceRoundIds.isEmpty ? '无（仅计划）' : progress.sourceRoundIds.join('、')}',
+                      ),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('关闭'),
+                      ),
+                    ],
+                  ),
+                );
+              },
+              child: const Text('剧本备忘'),
+            ),
           TextButton(onPressed: _close, child: const Text('取消')),
           FilledButton(
             onPressed: state.busy
@@ -146,6 +226,7 @@ class _DocumentEditorState extends ConsumerState<_DocumentEditor> {
                       _name.text.trim(),
                       _content.text,
                       kind: _kind,
+                      documentId: widget.document?.id,
                     );
                     if (ref.read(agentWorkspaceProvider).error.isEmpty) {
                       setState(() => _allowClose = true);
@@ -164,4 +245,5 @@ String agentDocumentKindLabel(AgentDocumentKind kind) => switch (kind) {
   AgentDocumentKind.document => '普通文档',
   AgentDocumentKind.worldBook => '世界书',
   AgentDocumentKind.characterCard => '人物卡',
+  AgentDocumentKind.script => '剧本',
 };

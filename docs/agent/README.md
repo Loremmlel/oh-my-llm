@@ -1,5 +1,25 @@
 # Agent 小说工作区交接
 
+## 2026-09-17：Skill 式剧本发现与运行备忘
+
+实施分支：`feat/agent-script-skills`。依据[剧本发现、读取与上下文保留规格](../specs/2026-09-17-agent-script-skills.md)，首版采用以下行为。
+
+- 工作文档新增“剧本”资料类型。使用带 YAML `name`／`description` 的 Markdown，名称取自元信息；支持中文、多行描述、CRLF 和 BOM，保存原始全文。编辑按稳定 ID 定位，改名冲突及格式错误保留旧资料与编辑输入，窗口提供示例和本会话备忘查看入口。
+- 主会话首次发现只追加元信息；后续新增、修改（包括仅正文改变）及退出目录也在历史末尾通知，每个会话独立记录。输入预览使用同一组装规则且不提前标记已发送。世界书／角色卡区域不包含剧本。
+- `read_script(script_id)` 仅供主 Agent 读取当前作品中的完整剧本，结果留在原生工具往返位置。子职责及通用资料工具不提供剧本；主 Agent 通过委派描述传递本轮要求，writer 继续把约束转交 reviewer，state 只登记已发生事实。
+- Harness 按故事时间判断跨周／跨月事件，允许事件之间自由 RP，安排正文跨度时必须处理将到达的约定。它不把剧本变成连续 TODO，也不从读取时间计算“数周后”。自然语言触发仍由模型判断，没有新增确定性日历调度器。
+- `record_script_progress` 保存当前会话的简短备忘，记录时间起点、未兑现约定及完成依据。必须先读取当前全文；推进／完成必须引用本会话已提交的正文 ID。备忘可在下一轮开头更新，不增加交付后的模型调用；用户修改剧本后旧备忘需重新核对。
+- 已读原文、目录通知和备忘不参与普通正文隐藏／总结；重启恢复原生历史，撤回恢复轮前的发现记录及备忘。新会话重新发现，不自动继承其它会话进度。全部已读剧本仍占输入容量，达到既有 4 MiB 上限显式停止，不静默裁剪。
+- 复用现有文档表与会话 JSON，新增字段缺省为空，无 schema 迁移或资料版本系统。`yaml` 从已有传递依赖改为直接依赖。
+
+验证：
+
+- `flutter test --no-pub --reporter compact`：1,902 项通过（`logs/fltest.log`），含三协议原生剧本读取后继续嵌套写作／审查／状态提交，及解析、原文往返、目录追加、权限、备忘来源、总结保留、重载和撤回测试。
+- `flutter analyze --no-pub` 无问题；架构门禁检查 422 个文件、0 违规（`logs/agent-scripts-analyze.log`、`logs/agent-scripts-boundaries.log`）。UI strict audit 对 `lib/` 为 0 违规；DESIGN lint 为 0 错误、7 个既有提示。
+- 实字体离屏渲染 1280×900 浅／深色及 390×844 键盘弹出状态，保存截图至 `logs/agent-scripts-desktop.png`、`logs/agent-scripts-dark.png`、`logs/agent-scripts-keyboard.png`；窄屏组件交互覆盖示例、格式错误修正、保存、改名和查看备忘。
+- Windows Release 与 Android Release（ARM／ARM64）构建通过（`logs/build-windows.log`、`logs/build-android.log`）。Android 有既有 SDK XML 版本及 Cupertino 图标字体提示，未影响构建。
+- 尚未使用真实模型验证跨月 RP 的漏触发率、委派遗漏或缓存收益，也未进行 Windows／Android 真机手工复测。程序测试证明供给与保留合同，不证明模型判断永不遗漏。
+
 ## 2026-09-16：执行流改为手动滚动
 
 实施分支：`fix/agent-transcript-scroll`。

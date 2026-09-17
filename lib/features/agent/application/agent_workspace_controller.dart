@@ -11,6 +11,8 @@ import '../domain/agent_context_batch.dart';
 import '../domain/agent_story_state.dart';
 import 'agent_runtime.dart';
 import 'agent_context.dart';
+import 'agent_script_context.dart';
+import '../domain/agent_script.dart';
 import 'agent_model.dart';
 export 'agent_model.dart';
 import 'ports/agent_store.dart';
@@ -262,6 +264,7 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
         batches: contextBatches,
         rounds: state.storyRounds,
       ),
+      ...agentScriptUpdates(workspace, _store.listDocuments(workspace.id)),
       agentStateMessage(_store.readStoryState(workspace.id)),
       if (workspace.draft.trim().isNotEmpty)
         LlmTextMessage(role: LlmRole.user, text: workspace.draft.trim()),
@@ -334,30 +337,46 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
     }
   }
 
-  void saveDocument(String name, String content, {AgentDocumentKind? kind}) =>
-      _edit(() {
-        final workspace = state.workspace;
-        if (workspace == null || state.busy) return;
-        flushDraft();
-        _store.writeDocument(workspace.id, name, content, kind: kind);
-        // 手动修改通过新的消息告知模型，不改写旧工具结果。
-        final savedDocument = _store.readDocument(workspace.id, name)!;
-        final updated =
-            workspace.history.isEmpty ||
-                savedDocument.kind != AgentDocumentKind.document
-            ? workspace
-            : workspace.copyWith(
-                history: [
-                  ...workspace.history,
-                  LlmTextMessage(
-                    role: LlmRole.user,
-                    text: '用户在工作区保存了文档「$name」。下次使用前请重新读取当前内容。',
-                  ),
-                ],
-              );
-        _store.saveWorkspace(updated);
-        _load(updated.id);
-      });
+  AgentScriptProgress? scriptProgressFor(AgentDocument document) {
+    final progress = state.workspace?.scriptProgress[document.id];
+    return progress?.fingerprint == agentScriptFingerprint(document)
+        ? progress
+        : null;
+  }
+
+  void saveDocument(
+    String name,
+    String content, {
+    AgentDocumentKind? kind,
+    String? documentId,
+  }) => _edit(() {
+    final workspace = state.workspace;
+    if (workspace == null || state.busy) return;
+    flushDraft();
+    final savedDocument = _store.writeDocument(
+      workspace.id,
+      name,
+      content,
+      kind: kind,
+      documentId: documentId,
+    );
+    // 手动修改通过新的消息告知模型，不改写旧工具结果。
+    final updated =
+        workspace.history.isEmpty ||
+            savedDocument.kind != AgentDocumentKind.document
+        ? workspace
+        : workspace.copyWith(
+            history: [
+              ...workspace.history,
+              LlmTextMessage(
+                role: LlmRole.user,
+                text: '用户在工作区保存了文档「$name」。下次使用前请重新读取当前内容。',
+              ),
+            ],
+          );
+    _store.saveWorkspace(updated);
+    _load(updated.id);
+  });
   Future<void> send({
     bool retryStory = false,
     AgentContextBatch? summaryBatch,

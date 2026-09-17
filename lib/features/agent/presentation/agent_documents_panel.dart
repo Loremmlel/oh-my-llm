@@ -62,7 +62,7 @@ class _AgentDocumentsPanelState extends ConsumerState<AgentDocumentsPanel> {
         if (state.busy) const Text('运行结束后可编辑文档。'),
         Expanded(
           child: documents.isEmpty
-              ? const Center(child: Text('此分类还没有资料。新建文档时可以选择世界书、人物卡或普通文档。'))
+              ? const Center(child: Text('此分类还没有资料。新建文档时可以选择世界书、人物卡、剧本或普通文档。'))
               : ListView.builder(
                   itemCount: documents.length,
                   itemBuilder: (context, index) {
@@ -70,7 +70,9 @@ class _AgentDocumentsPanelState extends ConsumerState<AgentDocumentsPanel> {
                     return ListTile(
                       title: Text(document.name),
                       subtitle: Text(
-                        '${agentDocumentKindLabel(document.kind)} · ${document.content.length} 字符',
+                        '${agentDocumentKindLabel(document.kind)} · ${document.content.length} 字符${document.description.isEmpty ? '' : '\n${document.description}'}',
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
                       ),
                       trailing: const Icon(Icons.edit_outlined),
                       enabled: !state.busy,

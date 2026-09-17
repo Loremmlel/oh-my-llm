@@ -2,7 +2,7 @@ import 'package:equatable/equatable.dart';
 
 enum AgentRole { coordinator, writer, reviewer, character, state, summarizer }
 
-enum AgentDocumentKind { document, worldBook, characterCard }
+enum AgentDocumentKind { document, worldBook, characterCard, script }
 
 class AgentRoleSettings extends Equatable {
   const AgentRoleSettings({this.modelId, this.instructions = ''});
