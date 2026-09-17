@@ -86,80 +86,116 @@ class AgentStoryPanel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(agentWorkspaceProvider);
     final rounds = state.storyRounds;
-    return ListView(
+    final prose = rounds
+        .where(
+          (r) =>
+              r.status == AgentStoryRoundStatus.committed ||
+              r.status == AgentStoryRoundStatus.pending,
+        )
+        .toList()
+        .reversed
+        .toList();
+    return ListView.builder(
       padding: const EdgeInsets.all(AppSpacing.md),
-      children: [
-        Text('剧情状态', style: Theme.of(context).textTheme.titleMedium),
-        if (state.storyState.rows.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: AppSpacing.xs),
-            child: Text('尚无剧情记录。首轮正文审查通过后会自动建立状态。'),
-          ),
-        for (final table in AgentStateTable.values)
-          _StateTable(
-            key: ValueKey('${state.workspace?.id}/${table.name}'),
-            table: table,
-            rows: state.storyState.rows.where((r) => r.table == table).toList(),
-          ),
-        const Divider(),
-        Text('本会话正文', style: Theme.of(context).textTheme.titleMedium),
-        if (rounds.isEmpty) const Text('本会话尚未选定正文。'),
-        for (final round
-            in rounds
-                .where(
-                  (r) =>
-                      r.status == AgentStoryRoundStatus.committed ||
-                      r.status == AgentStoryRoundStatus.pending,
-                )
-                .toList()
-                .reversed)
-          ExpansionTile(
-            key: PageStorageKey('story/${round.id}'),
-            title: Text(round.document.name),
-            subtitle: Text(
-              round.status == AgentStoryRoundStatus.pending ? '状态待更新' : '已采用',
-            ),
+      itemCount: 1 + prose.length + (rounds.isEmpty ? 0 : 1),
+      itemBuilder: (context, index) {
+        if (index == 0) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Padding(
-                padding: const EdgeInsets.all(AppSpacing.xs),
-                child: smooth_md.SmoothMarkdown(
-                  data: round.document.content,
-                  selectable: true,
-                  styleSheet: smooth_md.MarkdownStyleSheet.fromTheme(
-                    Theme.of(context),
-                  ),
+              Text('剧情状态', style: Theme.of(context).textTheme.titleMedium),
+              if (state.storyState.rows.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: AppSpacing.xs),
+                  child: Text('尚无剧情记录。首轮正文审查通过后会自动建立状态。'),
+                ),
+              for (final table in AgentStateTable.values)
+                _StateTable(
+                  key: ValueKey('${state.workspace?.id}/${table.name}'),
+                  table: table,
+                  rows: state.storyState.rows
+                      .where((r) => r.table == table)
+                      .toList(),
+                ),
+              const Divider(),
+              Text('本会话正文', style: Theme.of(context).textTheme.titleMedium),
+              if (rounds.isEmpty) const Text('本会话尚未选定正文。'),
+            ],
+          );
+        }
+        if (index > prose.length) {
+          return _RoundHistory(
+            key: ValueKey(
+              '${state.workspace?.id}/${state.workspace?.sessionId}/history',
+            ),
+            rounds: rounds,
+          );
+        }
+        final round = prose[index - 1];
+        return ExpansionTile(
+          key: PageStorageKey('story/${round.id}'),
+          title: Text(round.document.name),
+          subtitle: Text(
+            round.status == AgentStoryRoundStatus.pending ? '状态待更新' : '已采用',
+          ),
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.xs),
+              child: smooth_md.SmoothMarkdown(
+                data: round.document.content,
+                selectable: true,
+                styleSheet: smooth_md.MarkdownStyleSheet.fromTheme(
+                  Theme.of(context),
                 ),
               ),
-            ],
-          ),
-        if (rounds.isNotEmpty)
-          ExpansionTile(
-            title: const Text('轮次历史'),
-            subtitle: const Text('查看已采用、撤回或放弃的正文与执行记录'),
-            children: [
-              for (final round in rounds)
-                ListTile(
-                  title: Text(round.document.name),
-                  subtitle: Text(switch (round.status) {
-                    AgentStoryRoundStatus.pending => '状态待更新',
-                    AgentStoryRoundStatus.committed => '已采用',
-                    AgentStoryRoundStatus.withdrawn => '已撤回',
-                    AgentStoryRoundStatus.discarded => '已放弃',
-                  }),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => context.pushNamed(
-                    'agentRun',
-                    pathParameters: {
-                      'workspaceId': round.beforeWorkspace.id,
-                      'runId': round.id,
-                    },
-                  ),
-                ),
-            ],
-          ),
-      ],
+            ),
+          ],
+        );
+      },
     );
   }
+}
+
+class _RoundHistory extends StatefulWidget {
+  const _RoundHistory({super.key, required this.rounds});
+  final List<AgentStoryRound> rounds;
+  @override
+  State<_RoundHistory> createState() => _RoundHistoryState();
+}
+
+class _RoundHistoryState extends State<_RoundHistory> {
+  static const _pageSize = 20;
+  int _visible = _pageSize;
+  @override
+  Widget build(BuildContext context) => ExpansionTile(
+    title: const Text('轮次历史'),
+    subtitle: const Text('查看已采用、撤回或放弃的正文与执行记录'),
+    children: [
+      for (final round in widget.rounds.take(_visible))
+        ListTile(
+          title: Text(round.document.name),
+          subtitle: Text(switch (round.status) {
+            AgentStoryRoundStatus.pending => '状态待更新',
+            AgentStoryRoundStatus.committed => '已采用',
+            AgentStoryRoundStatus.withdrawn => '已撤回',
+            AgentStoryRoundStatus.discarded => '已放弃',
+          }),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => context.pushNamed(
+            'agentRun',
+            pathParameters: {
+              'workspaceId': round.beforeWorkspace.id,
+              'runId': round.id,
+            },
+          ),
+        ),
+      if (_visible < widget.rounds.length)
+        TextButton(
+          onPressed: () => setState(() => _visible += _pageSize),
+          child: const Text('加载更多轮次'),
+        ),
+    ],
+  );
 }
 
 class _StateTable extends StatefulWidget {
