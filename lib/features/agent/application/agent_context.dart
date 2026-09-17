@@ -27,7 +27,11 @@ AgentWorkspace refreshAgentWorkspace(
   List<AgentDocument> documents,
 ) {
   final references = documents
-      .where((d) => d.kind != AgentDocumentKind.document)
+      .where(
+        (d) =>
+            d.kind == AgentDocumentKind.worldBook ||
+            d.kind == AgentDocumentKind.characterCard,
+      )
       .toList();
   references.sort((a, b) => a.id.compareTo(b.id));
   return workspace.copyWith(
@@ -139,9 +143,11 @@ List<LlmInputItem> buildAgentInitialContext(
       workspace.references
           .where(
             (d) =>
-                role != AgentRole.character ||
-                d.kind == AgentDocumentKind.worldBook ||
-                d.id == characterCardId,
+                (d.kind == AgentDocumentKind.worldBook ||
+                    d.kind == AgentDocumentKind.characterCard) &&
+                (role != AgentRole.character ||
+                    d.kind == AgentDocumentKind.worldBook ||
+                    d.id == characterCardId),
           )
           .toList()
         ..sort((a, b) => a.id.compareTo(b.id));
@@ -149,7 +155,7 @@ List<LlmInputItem> buildAgentInitialContext(
     LlmTextMessage(
       role: LlmRole.system,
       text:
-          '${configuration.settings(role).instructions}\n\n$agentExecutionContract',
+          '${configuration.settings(role).instructions}\n\n$agentExecutionContract\n\n${role == AgentRole.coordinator ? agentScriptInstructions : agentChildScriptInstructions}',
     ),
     if (configuration.presetRoles.contains(role) &&
         configuration.preset.isNotEmpty)

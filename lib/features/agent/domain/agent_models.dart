@@ -3,6 +3,7 @@ import 'package:oh_my_llm/core/llm/llm_content.dart';
 import 'package:oh_my_llm/core/llm/llm_usage.dart';
 
 import 'agent_context_batch.dart';
+import 'agent_script.dart';
 
 import 'package:oh_my_llm/core/llm/llm_request.dart';
 
@@ -31,17 +32,23 @@ class AgentWorkspace extends Equatable {
     this.draft = '',
     List<LlmInputItem> history = const [],
     List<AgentDocument> references = const [],
+    Map<String, String> knownScripts = const {},
+    Map<String, AgentScriptProgress> scriptProgress = const {},
   }) : configuration =
            configuration ??
            AgentConfiguration(modelId: modelId, preset: instructions),
        history = List.unmodifiable(history),
-       references = List.unmodifiable(references);
+       references = List.unmodifiable(references),
+       knownScripts = Map.unmodifiable(knownScripts),
+       scriptProgress = Map.unmodifiable(scriptProgress);
   final String id, title, sessionId, sessionTitle, draft;
   final AgentConfiguration configuration;
   String? get modelId => configuration.modelId;
   String get instructions => configuration.preset;
   final List<LlmInputItem> history;
   final List<AgentDocument> references;
+  final Map<String, String> knownScripts;
+  final Map<String, AgentScriptProgress> scriptProgress;
   AgentWorkspace copyWith({
     String? title,
     String? modelId,
@@ -52,6 +59,8 @@ class AgentWorkspace extends Equatable {
     AgentConfiguration? configuration,
     List<LlmInputItem>? history,
     List<AgentDocument>? references,
+    Map<String, String>? knownScripts,
+    Map<String, AgentScriptProgress>? scriptProgress,
   }) => AgentWorkspace(
     id: id,
     title: title ?? this.title,
@@ -63,6 +72,8 @@ class AgentWorkspace extends Equatable {
     draft: draft ?? this.draft,
     history: history ?? this.history,
     references: references ?? this.references,
+    knownScripts: knownScripts ?? this.knownScripts,
+    scriptProgress: scriptProgress ?? this.scriptProgress,
   );
   @override
   List<Object?> get props => [
@@ -74,6 +85,8 @@ class AgentWorkspace extends Equatable {
     draft,
     history,
     references,
+    knownScripts,
+    scriptProgress,
   ];
 }
 
@@ -83,11 +96,13 @@ class AgentDocument extends Equatable {
     required this.content,
     this.id = '',
     this.kind = AgentDocumentKind.document,
+    this.description = '',
   });
   final String id, name, content;
   final AgentDocumentKind kind;
+  final String description;
   @override
-  List<Object?> get props => [id, name, content, kind];
+  List<Object?> get props => [id, name, content, kind, description];
 }
 
 enum AgentStepKind { model, tool }

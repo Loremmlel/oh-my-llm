@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:oh_my_llm/core/llm/llm_content.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/utils/id_generator.dart';
+import 'package:oh_my_llm/core/utils/markdown_front_matter.dart';
 
 import '../application/ports/agent_store.dart';
 import '../domain/agent_models.dart';
@@ -336,6 +337,8 @@ class SqliteAgentStore implements AgentStore {
         current.copyWith(
           history: round.beforeWorkspace.history,
           draft: round.beforeWorkspace.draft,
+          knownScripts: round.beforeWorkspace.knownScripts,
+          scriptProgress: round.beforeWorkspace.scriptProgress,
         ),
       );
       for (final batch in listContextBatches(workspaceId, sessionId)) {
@@ -553,7 +556,7 @@ class SqliteAgentStore implements AgentStore {
   @override
   List<AgentDocument> listDocuments(String workspaceId) => database.connection
       .select(
-        'SELECT * FROM agent_documents WHERE workspace_id = ? ORDER BY name;',
+        "SELECT *, hex(substr(CAST(content AS BLOB), 1, 3)) = 'EFBBBF' AS has_bom FROM agent_documents WHERE workspace_id = ? ORDER BY name;",
         [workspaceId],
       )
       .map(_document)
@@ -563,7 +566,7 @@ class SqliteAgentStore implements AgentStore {
   AgentDocument? readDocument(String workspaceId, String name) {
     _validateName(name);
     final rows = database.connection.select(
-      'SELECT * FROM agent_documents WHERE workspace_id = ? AND name = ?;',
+      "SELECT *, hex(substr(CAST(content AS BLOB), 1, 3)) = 'EFBBBF' AS has_bom FROM agent_documents WHERE workspace_id = ? AND name = ?;",
       [workspaceId, name],
     );
     return rows.isEmpty ? null : _document(rows.single);
@@ -576,18 +579,51 @@ class SqliteAgentStore implements AgentStore {
     String content, {
     AgentDocumentKind? kind,
     String? sourceRunId,
+    String? documentId,
   }) {
-    _validateName(name);
     if (utf8.encode(content).length > 256 * 1024) {
       throw const AgentWorkspaceException('文档不能超过 256 KiB。');
     }
+    final original = documentId == null
+        ? null
+        : listDocuments(workspaceId)
+              .where((d) => d.id == documentId)
+              .firstOrNull;
+    if (documentId != null && original == null) {
+      throw const AgentWorkspaceException('要编辑的资料不存在，请重新打开。');
+    }
+    final effectiveKind =
+        kind ??
+        original?.kind ??
+        (name.trim().isEmpty ? null : readDocument(workspaceId, name)?.kind) ??
+        AgentDocumentKind.document;
+    var description = '';
+    if (effectiveKind == AgentDocumentKind.script) {
+      try {
+        final metadata = parseMarkdownFrontMatter(content);
+        name = metadata.name;
+        description = metadata.description;
+      } on FormatException catch (error) {
+        throw AgentWorkspaceException(error.message);
+      }
+    }
+    _validateName(name);
     late AgentDocument document;
     _transaction(() {
-      final current = readDocument(workspaceId, name);
+      final named = readDocument(workspaceId, name);
+      if (original != null && named != null && original.id != named.id) {
+        throw const AgentWorkspaceException('该名称已被其它资料使用，请修改 name。');
+      }
+      final current = original ?? named;
       if (current == null && listDocuments(workspaceId).length >= 100) {
         throw const AgentWorkspaceException('每个工作区最多保存 100 份文档。');
       }
       if (sourceRunId != null) {
+        if (documentId != null ||
+            effectiveKind != AgentDocumentKind.document ||
+            (current != null && current.kind != AgentDocumentKind.document)) {
+          throw const AgentWorkspaceException('模型只能保存普通文档，不能修改设定或剧本。');
+        }
         final owner = loadRun(workspaceId, sourceRunId!);
         if (owner == null ||
             (owner.role != AgentRole.coordinator &&
@@ -625,10 +661,17 @@ class SqliteAgentStore implements AgentStore {
       }
       document = AgentDocument(
         id: current?.id ?? generateEntityId(),
-        kind: kind ?? current?.kind ?? AgentDocumentKind.document,
+        kind: effectiveKind,
         name: name,
         content: content,
+        description: description,
       );
+      if (original != null && original.name != name) {
+        database.connection.execute(
+          'DELETE FROM agent_documents WHERE workspace_id = ? AND document_id = ?;',
+          [workspaceId, original.id],
+        );
+      }
       _saveDocument(workspaceId, document, sourceRunId);
     });
     return document;
@@ -667,7 +710,12 @@ class SqliteAgentStore implements AgentStore {
     id: row['document_id'] as String,
     kind: AgentDocumentKind.values.byName(row['kind'] as String),
     name: row['name'] as String,
-    content: row['content'] as String,
+    // sqlite3 的 UTF-8 解码会吞掉开头 BOM；全文往返需要显式保留它。
+    content:
+        '${row['has_bom'] == 1 ? '\uFEFF' : ''}${row['content'] as String}',
+    description: row['kind'] == AgentDocumentKind.script.name
+        ? parseMarkdownFrontMatter(row['content'] as String).description
+        : '',
   );
   void _transaction(void Function() action) {
     database.connection.execute('BEGIN IMMEDIATE;');

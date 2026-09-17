@@ -14,6 +14,7 @@ import '../domain/agent_story_state.dart';
 import 'agent_harness.dart';
 import 'agent_context.dart';
 import 'agent_model.dart';
+import 'agent_script_context.dart';
 import 'ports/agent_store.dart';
 
 class AgentLimits {
@@ -112,6 +113,17 @@ class AgentRuntime {
         rounds: _rounds,
       );
       _appendStart = history.length;
+      final documents = store.listDocuments(workspace.id);
+      history.addAll(agentScriptUpdates(workspace, documents));
+      final catalog = agentScriptCatalog(documents);
+      workspace = workspace.copyWith(
+        knownScripts: catalog,
+        scriptProgress: {
+          for (final entry in workspace.scriptProgress.entries)
+            if (catalog[entry.key] == entry.value.fingerprint)
+              entry.key: entry.value,
+        },
+      );
       history.add(agentStateMessage(store.readStoryState(workspace.id)));
       history.add(LlmTextMessage(role: LlmRole.user, text: prompt));
       final record = _newRecord(prompt, AgentRole.coordinator);
@@ -564,6 +576,44 @@ class AgentRuntime {
 
       Object? output;
       switch (call.name) {
+        case 'read_script':
+          final script = _script(string('script_id'));
+          output = {
+            'script_id': script.id,
+            'name': script.name,
+            'fingerprint': agentScriptFingerprint(script),
+            'content': script.content,
+          };
+        case 'record_script_progress':
+          final script = _script(string('script_id'));
+          final fingerprint = agentScriptFingerprint(script);
+          final hasRead = workspace.history.whereType<LlmToolResult>().any((
+            item,
+          ) {
+            if (item.name != 'read_script' || item.isError) return false;
+            final value = jsonDecode(item.output);
+            return value is Map &&
+                value['script_id'] == script.id &&
+                value['fingerprint'] == fingerprint;
+          });
+          if (!hasRead) {
+            throw const AgentWorkspaceException('请先读取当前剧本全文，再记录备忘。');
+          }
+          final progress = validateAgentScriptProgress(
+            document: script,
+            status: string('status'),
+            notes: string('notes'),
+            sourceRoundIds: args['source_round_ids'],
+            rounds: _rounds,
+          );
+          workspace = workspace.copyWith(
+            scriptProgress: {...workspace.scriptProgress, script.id: progress},
+          );
+          output = {
+            'script_id': script.id,
+            ...progress.toJson(),
+            'saved': true,
+          };
         case 'read_story_state':
           output =
               (owner.role == AgentRole.state
@@ -655,7 +705,7 @@ class AgentRuntime {
                   currentDocument.kind != AgentDocumentKind.document ||
               workspace.references.any((d) => d.name == string('name'))) {
             throw const AgentWorkspaceException(
-              '世界书和人物卡只能由用户编辑；请将修改建议保存为普通文档。',
+              '世界书、人物卡和剧本只能由用户编辑；请将修改建议保存为普通文档。',
             );
           }
           _checkCancelled();
@@ -974,12 +1024,20 @@ class AgentRuntime {
           .listDocuments(workspace.id)
           .where(
             (d) =>
-                owner.role != AgentRole.character ||
-                d.kind == AgentDocumentKind.worldBook ||
-                d.id == _characterCards[owner.id],
+                d.kind != AgentDocumentKind.script &&
+                (owner.role != AgentRole.character ||
+                    d.kind == AgentDocumentKind.worldBook ||
+                    d.id == _characterCards[owner.id]),
           )
           .toList()
         ..sort((a, b) => a.id.compareTo(b.id));
+
+  AgentDocument _script(String id) =>
+      store
+          .listDocuments(workspace.id)
+          .where((d) => d.id == id && d.kind == AgentDocumentKind.script)
+          .firstOrNull ??
+      (throw const AgentWorkspaceException('当前作品没有该剧本，请使用目录中的 script_id。'));
 
   void _checkChildBudget() {
     if (_children.length >= limits.children ||

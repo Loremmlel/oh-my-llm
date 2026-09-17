@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/app/composition/agent_bindings.dart';
@@ -23,6 +25,14 @@ void main() {
       final database = AppDatabase.inMemory();
       addTearDown(database.close);
       final store = SqliteAgentStore(database);
+      const workspaceId = 'script-novel';
+      store.saveWorkspace(AgentWorkspace(id: workspaceId, title: '剧本小说'));
+      final script = store.writeDocument(
+        workspaceId,
+        '',
+        '---\nname: 秋季来信\ndescription: 秋季相关\n---\n三周后必须面对争议。',
+        kind: AgentDocumentKind.script,
+      );
       final preferences = await TestFixtures.seedPreferences(
         database: database,
         models: [
@@ -36,6 +46,7 @@ void main() {
       final wire = FakeToolProtocolHttpClient(
         protocol,
         script: [
+          (name: 'read_script', arguments: {'script_id': script.id}),
           (
             name: 'spawn_subagent',
             arguments: {
@@ -91,7 +102,6 @@ void main() {
       expect(options.responseHeaderTimeout, const Duration(minutes: 10));
       expect(options.streamIdleTimeout, const Duration(minutes: 10));
       final controller = first.read(agentWorkspaceProvider.notifier);
-      controller.createWorkspace();
       controller.configure(modelId: 'model-1');
       controller.setDraft('保存一份正文');
       await controller.send();
@@ -107,7 +117,10 @@ void main() {
         store.readStoryState(state.workspace!.id).rows.single.cells['place'],
         '图书馆',
       );
-      expect(wire.requests, hasLength(6));
+      expect(wire.requests, hasLength(7));
+      expect(jsonEncode(wire.requests.first), isNot(contains('三周后必须面对争议')));
+      expect(jsonEncode(wire.requests[1]), contains('三周后必须面对争议'));
+      expect(jsonEncode(wire.requests[2]), isNot(contains('三周后必须面对争议')));
       final tokenKey = switch (protocol) {
         LlmApiProtocol.chatCompletions => 'max_completion_tokens',
         LlmApiProtocol.responses => 'max_output_tokens',
@@ -119,12 +132,12 @@ void main() {
       final bodyKey = protocol == LlmApiProtocol.responses
           ? 'input'
           : 'messages';
-      final firstPrefix = wire.requests[1][bodyKey] as List;
+      final firstPrefix = wire.requests[2][bodyKey] as List;
       expect(
-        (wire.requests[2][bodyKey] as List).take(firstPrefix.length),
+        (wire.requests[3][bodyKey] as List).take(firstPrefix.length),
         firstPrefix,
       );
-      expect(wire.requests[2]['tools'], wire.requests[1]['tools']);
+      expect(wire.requests[3]['tools'], wire.requests[2]['tools']);
       first.dispose();
       final second = createContainer();
       addTearDown(second.dispose);
@@ -138,8 +151,8 @@ void main() {
             .every((r) => r.status == AgentRunStatus.completed),
         isTrue,
       );
-      expect(wire.requests, hasLength(7));
-      expect(store.listDocuments(state.workspace!.id), hasLength(1));
+      expect(wire.requests, hasLength(8));
+      expect(store.listDocuments(state.workspace!.id), hasLength(2));
       restored.withdrawLatestRound();
       expect(store.readStoryState(state.workspace!.id).rows, isEmpty);
       expect(second.read(agentWorkspaceProvider).workspace!.draft, '保存一份正文');

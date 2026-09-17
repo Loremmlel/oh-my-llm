@@ -84,7 +84,7 @@ class _SummaryManagerState extends ConsumerState<_SummaryManager> {
             ),
             const SizedBox(height: AppSpacing.sm),
             const Text(
-              '总结放在正文之前。隐藏仅排除可定位的正式正文块；工具结果、Reasoning 和旧会话中已有的正文副本仍保留。原文和剧情状态不会删除。',
+              '总结放在正文之前。隐藏仅排除可定位的正式正文块；已读取的剧本、剧本备忘、工具结果、Reasoning 和旧会话中已有的正文副本仍保留。原文和剧情状态不会删除。',
             ),
             const SizedBox(height: AppSpacing.md),
             if (available.isEmpty)

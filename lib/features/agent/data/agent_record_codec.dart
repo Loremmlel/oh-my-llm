@@ -6,6 +6,7 @@ import 'package:oh_my_llm/core/llm/llm_request.dart';
 import '../domain/agent_models.dart';
 import '../domain/agent_context_batch.dart';
 import '../domain/agent_story_state.dart';
+import '../domain/agent_script.dart';
 
 Map<String, dynamic> encodeAgentWorkspace(AgentWorkspace value) => {
   'version': 2,
@@ -19,6 +20,10 @@ Map<String, dynamic> encodeAgentWorkspace(AgentWorkspace value) => {
   'instructions': value.instructions,
   'draft': value.draft,
   'history': value.history.map(_encodeInput).toList(),
+  'knownScripts': value.knownScripts,
+  'scriptProgress': value.scriptProgress.map(
+    (id, progress) => MapEntry(id, progress.toJson()),
+  ),
 };
 AgentWorkspace decodeAgentWorkspace(Map<String, dynamic> json) {
   if (json['version'] != 2) throw const FormatException('不支持的 Agent 会话版本');
@@ -39,6 +44,13 @@ AgentWorkspace decodeAgentWorkspace(Map<String, dynamic> json) {
     history: (json['history'] as List)
         .map((v) => _decodeInput(v as Map<String, dynamic>))
         .toList(),
+    knownScripts: Map<String, String>.from(json['knownScripts'] as Map? ?? {}),
+    scriptProgress: {
+      for (final entry in (json['scriptProgress'] as Map? ?? {}).entries)
+        entry.key as String: AgentScriptProgress.fromJson(
+          Map<String, dynamic>.from(entry.value as Map),
+        ),
+    },
   );
 }
 
@@ -246,12 +258,14 @@ Map<String, Object?> encodeAgentDocument(AgentDocument d) => {
   'name': d.name,
   'content': d.content,
   'kind': d.kind.name,
+  'description': d.description,
 };
 AgentDocument decodeAgentDocument(Map<String, dynamic> j) => AgentDocument(
   id: j['id'] as String,
   name: j['name'] as String,
   content: j['content'] as String,
   kind: AgentDocumentKind.values.byName(j['kind'] as String),
+  description: j['description'] as String? ?? '',
 );
 
 Map<String, Object?> encodeAgentStoryRound(AgentStoryRound round) => {

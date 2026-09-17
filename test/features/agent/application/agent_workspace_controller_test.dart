@@ -33,12 +33,22 @@ void main() {
     final controller = container.read(agentWorkspaceProvider.notifier);
     controller.createWorkspace();
     controller.saveDocument('世界书', '旧版世界', kind: AgentDocumentKind.worldBook);
+    controller.saveDocument(
+      '',
+      '---\nname: 秋季剧本\ndescription: 开学后相关\n---\n三周后发生争议。',
+      kind: AgentDocumentKind.script,
+    );
     final firstConfig = controller.saveConfiguration(
       AgentConfiguration(name: '方案甲', modelId: 'model', preset: '旧文风'),
     )!;
     controller.applyConfiguration(firstConfig);
     controller.setDraft('开始写作');
     final preview = controller.previewInput();
+    expect(controller.previewInput(), preview);
+    expect(
+      container.read(agentWorkspaceProvider).workspace!.knownScripts,
+      isEmpty,
+    );
     await controller.send();
     final first = container.read(agentWorkspaceProvider).workspace!;
     final record = container.read(agentWorkspaceProvider).runs.single;
@@ -56,6 +66,8 @@ void main() {
     expect(second.id, first.id);
     expect(second.sessionId, isNot(first.sessionId));
     expect(second.history, isEmpty);
+    expect(second.knownScripts, isEmpty);
+    expect(agentInputText(controller.previewInput()), contains('秋季剧本'));
     expect(container.read(agentWorkspaceProvider).runs, isEmpty);
     expect(agentInputText(controller.previewInput()), contains('新版世界'));
     expect(agentInputText(controller.previewInput()), contains('新文风'));

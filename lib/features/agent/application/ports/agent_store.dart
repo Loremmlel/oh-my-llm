@@ -50,5 +50,6 @@ abstract interface class AgentStore {
     String content, {
     AgentDocumentKind? kind,
     String? sourceRunId,
+    String? documentId,
   });
 }
