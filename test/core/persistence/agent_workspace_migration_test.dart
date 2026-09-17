@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart' as sqlite;
 import 'package:oh_my_llm/core/persistence/app_database.dart';
+import 'package:oh_my_llm/features/agent/data/agent_record_codec.dart';
+import 'package:oh_my_llm/features/agent/data/sqlite_agent_store.dart';
 
 void main() {
   test('完整 v16 工作区升级为作品与会话，保留原生历史草稿和当前文档', () {
@@ -84,13 +86,9 @@ void main() {
       database.connection.select('PRAGMA user_version').single['user_version'],
       greaterThanOrEqualTo(17),
     );
-    final session = jsonDecode(
-      database.connection.select(
-            'SELECT record_json FROM agent_sessions WHERE workspace_id = ?',
-            ['novel'],
-          ).single['record_json']
-          as String,
-    ) as Map;
+    final session = encodeAgentWorkspace(
+      SqliteAgentStore(database).loadWorkspace('novel')!,
+    );
     expect(session['history'], history);
     expect(session['draft'], '未发送草稿');
     expect(session['modelId'], 'old-model');

@@ -1003,8 +1003,11 @@ class AgentRuntime {
 
   List<AgentContextBatch> get _batches =>
       store.listContextBatches(workspace.id, workspace.sessionId);
-  List<AgentStoryRound> get _rounds =>
-      store.listStoryRounds(workspace.id, workspace.sessionId);
+  List<AgentStoryRound> get _rounds => store.listStoryRounds(
+    workspace.id,
+    workspace.sessionId,
+    includeHistory: false,
+  );
 
   List<LlmInputItem> _childContext(
     AgentRole role, {

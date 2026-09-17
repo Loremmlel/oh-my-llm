@@ -16,7 +16,13 @@ abstract interface class AgentStore {
   AgentStoryState readStoryState(String workspaceId);
   AgentStoryRound? readStoryRound(String workspaceId, String roundId);
   AgentStoryRound? latestStoryRound(String workspaceId);
-  List<AgentStoryRound> listStoryRounds(String workspaceId, String sessionId);
+
+  /// 列表可省略撤回用的输入历史，撤回和重试必须使用完整轮次读取。
+  List<AgentStoryRound> listStoryRounds(
+    String workspaceId,
+    String sessionId, {
+    bool includeHistory = true,
+  });
   AgentStoryRound prepareStoryRound(AgentStoryRound round);
   AgentStoryRound commitStoryRound(
     String workspaceId,
@@ -25,9 +31,10 @@ abstract interface class AgentStore {
     List<AgentStateOperation> operations,
   );
   void withdrawStoryRound(String workspaceId, String sessionId, String roundId);
-  List<AgentWorkspace> listWorkspaces();
+  List<({String id, String title})> listWorkspaces();
   AgentWorkspace? loadWorkspace(String id, {String? sessionId});
   void saveWorkspace(AgentWorkspace workspace);
+  void saveDraft(String workspaceId, String sessionId, String draft);
   void renameSession(String workspaceId, String sessionId, String title);
   List<({String id, String title})> listSessions(String workspaceId);
   List<AgentConfiguration> listConfigurations(String workspaceId);
@@ -35,12 +42,16 @@ abstract interface class AgentStore {
     String workspaceId,
     AgentConfiguration configuration,
   );
+
+  /// 列表可省略模型输入历史；查看实际输入时通过 [loadRun] 按需读取。
   List<AgentRunRecord> listRuns(
     String workspaceId, {
     int limit = 50,
     String? sessionId,
+    bool includeHistory = true,
   });
   AgentRunRecord? loadRun(String workspaceId, String runId);
+  List<AgentRunRecord> listChildRuns(String workspaceId, String parentId);
   void checkpoint(AgentRunRecord run, {AgentWorkspace? workspace});
   void recoverInterruptedRuns();
   List<AgentDocument> listDocuments(String workspaceId);

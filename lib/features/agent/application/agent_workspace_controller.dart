@@ -69,7 +69,7 @@ final agentRunProvider =
 
 class AgentWorkspaceState {
   AgentWorkspaceState({
-    List<AgentWorkspace> workspaces = const [],
+    List<({String id, String title})> workspaces = const [],
     this.workspace,
     List<AgentRunRecord> runs = const [],
     List<AgentDocument> documents = const [],
@@ -83,7 +83,7 @@ class AgentWorkspaceState {
        documents = List.unmodifiable(documents),
        storyState = storyState ?? AgentStoryState(),
        storyRounds = List.unmodifiable(storyRounds);
-  final List<AgentWorkspace> workspaces;
+  final List<({String id, String title})> workspaces;
   final AgentWorkspace? workspace;
   final List<AgentRunRecord> runs;
   final List<AgentDocument> documents;
@@ -119,7 +119,9 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
     try {
       _store.recoverInterruptedRuns();
       final workspaces = _store.listWorkspaces();
-      final selected = workspaces.firstOrNull;
+      final selected = workspaces.isEmpty
+          ? null
+          : _store.loadWorkspace(workspaces.first.id);
       return AgentWorkspaceState(
         workspaces: workspaces,
         workspace: selected,
@@ -128,13 +130,21 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
             : _store.readStoryState(selected.id),
         storyRounds: selected == null
             ? []
-            : _store.listStoryRounds(selected.id, selected.sessionId),
+            : _store.listStoryRounds(
+                selected.id,
+                selected.sessionId,
+                includeHistory: false,
+              ),
         latestRound: selected == null
             ? null
             : _store.latestStoryRound(selected.id),
         runs: selected == null
             ? const []
-            : _store.listRuns(selected.id, sessionId: selected.sessionId),
+            : _store.listRuns(
+                selected.id,
+                sessionId: selected.sessionId,
+                includeHistory: false,
+              ),
         documents: selected == null
             ? const []
             : _store.listDocuments(selected.id),
@@ -298,6 +308,10 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
   List<LlmInputItem>? runInput(AgentRunRecord record, AgentStep step) {
     final count = step.inputItemCount;
     if (count == null) return null;
+    // 列表不展开历史链；仅检查具体调用的输入时读取持久化快照。
+    if (record.inputHistory == null && record.childHistory.isEmpty) {
+      record = _store.loadRun(record.workspaceId, record.id) ?? record;
+    }
     final history =
         record.inputHistory ??
         (record.parentId != null || record.role == AgentRole.summarizer
@@ -356,7 +370,7 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
     }
     _unsavedWorkspace = null;
     if (_pendingDraft case final draft?) {
-      _store.saveWorkspace(draft);
+      _store.saveDraft(draft.id, draft.sessionId, draft.draft);
       _pendingDraft = null;
     }
   }
@@ -514,6 +528,7 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
             storyRounds: _store.listStoryRounds(
               workspace.id,
               workspace.sessionId,
+              includeHistory: false,
             ),
             latestRound: _store.latestStoryRound(workspace.id),
             error: '执行记录未保存。修复存储后再次操作会重试保存，不会重跑旧工具。',
@@ -556,11 +571,8 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
           state.workspace!.id,
           state.workspace!.sessionId,
         );
-  List<AgentRunRecord> runsFor(AgentRunRecord record) => _store.listRuns(
-    record.workspaceId,
-    sessionId: record.sessionId,
-    limit: -1,
-  );
+  List<AgentRunRecord> runsFor(AgentRunRecord record) =>
+      _store.listChildRuns(record.workspaceId, record.id);
 
   AgentContextBatch contextBatchFor(int count) {
     final hidden = contextBatches
@@ -620,12 +632,20 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
       workspace: workspace,
       runs: workspace == null
           ? []
-          : _store.listRuns(id, sessionId: workspace.sessionId),
+          : _store.listRuns(
+              id,
+              sessionId: workspace.sessionId,
+              includeHistory: false,
+            ),
       documents: _store.listDocuments(id),
       storyState: _store.readStoryState(id),
       storyRounds: workspace == null
           ? []
-          : _store.listStoryRounds(id, workspace.sessionId),
+          : _store.listStoryRounds(
+              id,
+              workspace.sessionId,
+              includeHistory: false,
+            ),
       latestRound: _store.latestStoryRound(id),
     );
   }

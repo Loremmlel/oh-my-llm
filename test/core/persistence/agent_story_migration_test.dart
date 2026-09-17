@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart' as sqlite;
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/agent/data/sqlite_agent_store.dart';
+import 'package:oh_my_llm/features/agent/data/agent_record_codec.dart';
 
 void main() {
   test('完整 v17 数据库升级后保留会话配置正文和原生记录，状态库初始为空', () {
@@ -95,18 +96,8 @@ void main() {
       database.connection.select('PRAGMA user_version').single['user_version'],
       greaterThanOrEqualTo(18),
     );
-    expect(
-      database.connection
-          .select('SELECT record_json FROM agent_sessions')
-          .single['record_json'],
-      jsonEncode(session),
-    );
-    expect(
-      database.connection
-          .select('SELECT record_json FROM agent_runs')
-          .single['record_json'],
-      record,
-    );
+    expect(store.loadWorkspace('novel'), decodeAgentWorkspace(session));
+    expect(store.loadRun('novel', 'run'), decodeAgentRun(jsonDecode(record)));
     expect(store.loadWorkspace('novel')!.draft, '未发送的原输入');
     expect(store.listConfigurations('novel').single.preset, '旧预设');
     expect(store.readDocument('novel', '正文')!.content, '旧正文');
