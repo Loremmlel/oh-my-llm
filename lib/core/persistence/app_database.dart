@@ -7,6 +7,7 @@ import 'package:sqlite3/sqlite3.dart' as sqlite;
 import 'package:oh_my_llm/core/constants/app_reserved_entities.dart';
 
 import 'sqlite_replace_all.dart';
+import 'sqlite_json_history.dart';
 
 const chatDatabaseFileName = 'chat_history.sqlite';
 
@@ -26,7 +27,7 @@ class AppDatabase {
   /// 当前滚动迁移基线：全新数据库直接创建到该版本。
   ///
   /// 历史 V9→V13 逐级迁移已退役；v13 起的已发布迁移按顺序保留。
-  static const int currentSchemaVersion = 20;
+  static const int currentSchemaVersion = 21;
 
   final sqlite.Database _connection;
   final String path;
@@ -79,7 +80,7 @@ class AppDatabase {
   /// - `user_version == 0`：全新数据库，创建完整当前 schema 后标记为
   ///   [currentSchemaVersion]；
   /// - `user_version == [currentSchemaVersion]`：当前版本数据库，不做任何改动；
-  /// - `user_version` 为 13–19：按顺序执行到当前版本的迁移；
+  /// - `user_version` 为 13–20：按顺序执行到当前版本的迁移；
   /// - 其余版本（更旧的遗留库或更新版本应用创建的库）显式拒绝，
   ///   避免仓库层在不兼容的 schema 上误读误写。
   void _initializeSchema() {
@@ -91,14 +92,15 @@ class AppDatabase {
       _connection.execute('PRAGMA user_version = $currentSchemaVersion;');
     } else if (currentVersion == currentSchemaVersion) {
       // 当前版本数据库，直接可用。
-    } else if (currentVersion >= 13 && currentVersion <= 19) {
+    } else if (currentVersion >= 13 && currentVersion <= 20) {
       if (currentVersion <= 13) _migrateFavoritesFromV13ToV14();
       if (currentVersion <= 14) _migrateMessagesFromV14ToV15();
       if (currentVersion <= 15) _migrateAgentFromV15ToV16();
       if (currentVersion <= 16) _migrateNovelFromV16ToV17();
       if (currentVersion <= 17) _migrateStoryFromV17ToV18();
       if (currentVersion <= 18) _migrateAgentDocumentsFromV18ToV19();
-      _migrateAgentContextFromV19ToV20();
+      if (currentVersion <= 19) _migrateAgentContextFromV19ToV20();
+      _migrateAgentHistoryFromV20ToV21();
     } else {
       throw AppDatabaseSchemaVersionException(currentVersion);
     }
@@ -490,6 +492,69 @@ class AppDatabase {
     }
   }
 
+  void _migrateAgentHistoryFromV20ToV21() {
+    _connection.execute('BEGIN;');
+    try {
+      _connection.execute('''
+        CREATE TABLE agent_history_items (
+          workspace_id TEXT NOT NULL, id TEXT NOT NULL, item_json TEXT NOT NULL,
+          PRIMARY KEY(workspace_id, id),
+          FOREIGN KEY(workspace_id) REFERENCES agent_workspaces(id) ON DELETE CASCADE
+        );
+        CREATE TABLE agent_history_entries (
+          workspace_id TEXT NOT NULL, id TEXT NOT NULL,
+          parent_id TEXT NOT NULL, item_id TEXT NOT NULL,
+          PRIMARY KEY(workspace_id, id),
+          FOREIGN KEY(workspace_id) REFERENCES agent_workspaces(id) ON DELETE CASCADE,
+          FOREIGN KEY(workspace_id, item_id) REFERENCES agent_history_items(workspace_id, id)
+        );
+        ALTER TABLE agent_sessions ADD COLUMN draft TEXT NOT NULL DEFAULT '';
+        CREATE INDEX idx_agent_runs_parent ON agent_runs(
+          workspace_id, json_extract(record_json, '\$.parentId'), started_at, id
+        );
+      ''');
+      final histories = SqliteJsonHistory(_connection);
+      // 逐条转换，避免迁移时同时持有全部会话和轮次的大 JSON。
+      for (final table in [
+        'agent_sessions',
+        'agent_runs',
+        'agent_story_rounds',
+      ]) {
+        final ids = _connection.select(
+          'SELECT rowid AS migration_rowid FROM $table;',
+        );
+        for (final id in ids) {
+          final row = _connection.select(
+            'SELECT workspace_id, record_json FROM $table WHERE rowid = ?;',
+            [id['migration_rowid']],
+          ).single;
+          final record =
+              jsonDecode(row['record_json'] as String) as Map<String, dynamic>;
+          final compact = histories.compact(
+            row['workspace_id'] as String,
+            record,
+          );
+          if (table == 'agent_sessions') {
+            final draft = compact.remove('draft') as String;
+            _connection.execute(
+              'UPDATE agent_sessions SET record_json = ?, draft = ? WHERE rowid = ?;',
+              [jsonEncode(compact), draft, id['migration_rowid']],
+            );
+          } else {
+            _connection.execute(
+              'UPDATE $table SET record_json = ? WHERE rowid = ?;',
+              [jsonEncode(compact), id['migration_rowid']],
+            );
+          }
+        }
+      }
+      _connection.execute('PRAGMA user_version = 21; COMMIT;');
+    } catch (_) {
+      _connection.execute('ROLLBACK;');
+      rethrow;
+    }
+  }
+
   /// 创建全部业务表和索引（全新安装时使用）。
   void _createSchema() {
     _createAgentSchema();
@@ -497,6 +562,7 @@ class AppDatabase {
     _createStorySchema();
     _migrateAgentDocumentsFromV18ToV19();
     _migrateAgentContextFromV19ToV20();
+    _migrateAgentHistoryFromV20ToV21();
     _connection.execute('''
       CREATE TABLE IF NOT EXISTS conversations (
         id TEXT PRIMARY KEY,

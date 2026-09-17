@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:oh_my_llm/core/llm/llm_content.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
+import 'package:oh_my_llm/core/persistence/sqlite_json_history.dart';
 import 'package:oh_my_llm/core/utils/id_generator.dart';
 import 'package:oh_my_llm/core/utils/markdown_front_matter.dart';
 
@@ -14,6 +15,20 @@ import 'agent_record_codec.dart';
 class SqliteAgentStore implements AgentStore {
   SqliteAgentStore(this.database);
   final AppDatabase database;
+  late final _histories = SqliteJsonHistory(database.connection);
+
+  Map<String, dynamic> _readRecord(
+    String workspaceId,
+    Object? json, {
+    bool includeHistory = true,
+  }) => _histories.expand(
+    workspaceId,
+    jsonDecode(json as String) as Map<String, dynamic>,
+    includeHistory: includeHistory,
+  );
+
+  String _writeRecord(String workspaceId, Map<String, dynamic> record) =>
+      jsonEncode(_histories.compact(workspaceId, record));
 
   @override
   List<AgentContextBatch> listContextBatches(
@@ -43,9 +58,11 @@ class SqliteAgentStore implements AgentStore {
       }
       final batches = listContextBatches(workspaceId, sessionId);
       final previous = batches.where((b) => b.id == batch.id).firstOrNull;
-      final rounds = listStoryRounds(workspaceId, sessionId).reversed
-          .where((r) => r.status == AgentStoryRoundStatus.committed)
-          .toList();
+      final rounds =
+          listStoryRounds(workspaceId, sessionId, includeHistory: false)
+              .reversed
+              .where((r) => r.status == AgentStoryRoundStatus.committed)
+              .toList();
       final indices = batch.roundIds
           .map((id) => rounds.indexWhere((r) => r.id == id))
           .toList();
@@ -111,8 +128,7 @@ class SqliteAgentStore implements AgentStore {
     return rows.isEmpty
         ? null
         : decodeAgentStoryRound(
-            jsonDecode(rows.single['record_json'] as String)
-                as Map<String, dynamic>,
+            _readRecord(workspaceId, rows.single['record_json']),
           );
   }
 
@@ -125,22 +141,28 @@ class SqliteAgentStore implements AgentStore {
     return rows.isEmpty
         ? null
         : decodeAgentStoryRound(
-            jsonDecode(rows.single['record_json'] as String)
-                as Map<String, dynamic>,
+            _readRecord(workspaceId, rows.single['record_json']),
           );
   }
 
   @override
-  List<AgentStoryRound> listStoryRounds(String workspaceId, String sessionId) =>
-      [
-        for (final row in database.connection.select(
-          'SELECT record_json FROM agent_story_rounds WHERE workspace_id = ? AND session_id = ? ORDER BY sequence DESC;',
-          [workspaceId, sessionId],
-        ))
-          decodeAgentStoryRound(
-            jsonDecode(row['record_json'] as String) as Map<String, dynamic>,
-          ),
-      ];
+  List<AgentStoryRound> listStoryRounds(
+    String workspaceId,
+    String sessionId, {
+    bool includeHistory = true,
+  }) => [
+    for (final row in database.connection.select(
+      'SELECT record_json FROM agent_story_rounds WHERE workspace_id = ? AND session_id = ? ORDER BY sequence DESC;',
+      [workspaceId, sessionId],
+    ))
+      decodeAgentStoryRound(
+        _readRecord(
+          workspaceId,
+          row['record_json'],
+          includeHistory: includeHistory,
+        ),
+      ),
+  ];
 
   @override
   AgentStoryRound prepareStoryRound(AgentStoryRound round) {
@@ -260,7 +282,7 @@ class SqliteAgentStore implements AgentStore {
         round.beforeWorkspace.id,
         round.beforeWorkspace.sessionId,
         round.status.name,
-        jsonEncode(encodeAgentStoryRound(round)),
+        _writeRecord(round.beforeWorkspace.id, encodeAgentStoryRound(round)),
       ],
     );
   }
@@ -354,11 +376,11 @@ class SqliteAgentStore implements AgentStore {
   }
 
   @override
-  List<AgentWorkspace> listWorkspaces() => [
+  List<({String id, String title})> listWorkspaces() => [
     for (final row in database.connection.select(
-      'SELECT id FROM agent_workspaces ORDER BY updated_at DESC, id DESC;',
+      "SELECT id, json_extract(record_json, '\$.title') AS title FROM agent_workspaces ORDER BY updated_at DESC, id DESC;",
     ))
-      loadWorkspace(row['id'] as String)!,
+      (id: row['id'] as String, title: row['title'] as String),
   ];
   @override
   AgentWorkspace? loadWorkspace(String id, {String? sessionId}) {
@@ -371,18 +393,31 @@ class SqliteAgentStore implements AgentStore {
         jsonDecode(projects.single['record_json'] as String) as Map;
     if (metadata['version'] != 2) throw const FormatException('不支持的作品记录版本');
     final rows = database.connection.select(
-      'SELECT record_json FROM agent_sessions WHERE workspace_id = ? AND id = ?;',
+      'SELECT record_json, draft FROM agent_sessions WHERE workspace_id = ? AND id = ?;',
       [id, sessionId ?? metadata['activeSessionId']],
     );
     return rows.isEmpty
         ? null
-        : decodeAgentWorkspace(jsonDecode(rows.single['record_json'] as String))
-              .copyWith(title: metadata['title'] as String);
+        : decodeAgentWorkspace({
+            ..._readRecord(id, rows.single['record_json']),
+            'draft': rows.single['draft'],
+          }).copyWith(title: metadata['title'] as String);
   }
 
   @override
   void saveWorkspace(AgentWorkspace workspace) =>
       _transaction(() => _saveWorkspace(workspace));
+
+  @override
+  void saveDraft(String workspaceId, String sessionId, String draft) {
+    database.connection.execute(
+      'UPDATE agent_sessions SET draft = ? WHERE workspace_id = ? AND id = ?;',
+      [draft, workspaceId, sessionId],
+    );
+    if (database.connection.updatedRows == 0) {
+      throw const AgentWorkspaceException('找不到本作品的会话。');
+    }
+  }
 
   @override
   void renameSession(String workspaceId, String sessionId, String title) =>
@@ -425,15 +460,19 @@ class SqliteAgentStore implements AgentStore {
     }
     database.connection.execute(
       '''
-      INSERT INTO agent_sessions (workspace_id, id, title, created_at, record_json) VALUES (?, ?, ?, ?, ?)
-      ON CONFLICT(workspace_id, id) DO UPDATE SET title = excluded.title, record_json = excluded.record_json;
+        INSERT INTO agent_sessions (workspace_id, id, title, created_at, record_json, draft) VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(workspace_id, id) DO UPDATE SET title = excluded.title, record_json = excluded.record_json, draft = excluded.draft;
     ''',
       [
         workspace.id,
         workspace.sessionId,
         workspace.sessionTitle,
         now,
-        jsonEncode(encodeAgentWorkspace(workspace)),
+        _writeRecord(
+          workspace.id,
+          encodeAgentWorkspace(workspace)..remove('draft'),
+        ),
+        workspace.draft,
       ],
     );
   }
@@ -493,12 +532,21 @@ class SqliteAgentStore implements AgentStore {
     String workspaceId, {
     int limit = 50,
     String? sessionId,
+    bool includeHistory = true,
   }) => database.connection
       .select(
         '''WITH RECURSIVE selected AS (SELECT id, record_json, started_at FROM agent_runs WHERE workspace_id = ? ${sessionId == null ? '' : 'AND session_id = ?'} AND json_extract(record_json, '\$.parentId') IS NULL ORDER BY started_at DESC, id DESC LIMIT ?), tree AS (SELECT * FROM selected UNION ALL SELECT child.id, child.record_json, child.started_at FROM agent_runs child JOIN tree parent ON json_extract(child.record_json, '\$.parentId') = parent.id WHERE child.workspace_id = ?) SELECT record_json FROM tree ORDER BY started_at DESC, id DESC;''',
         [workspaceId, ?sessionId, limit, workspaceId],
       )
-      .map((row) => decodeAgentRun(jsonDecode(row['record_json'] as String)))
+      .map(
+        (row) => decodeAgentRun(
+          _readRecord(
+            workspaceId,
+            row['record_json'],
+            includeHistory: includeHistory,
+          ),
+        ),
+      )
       .toList();
   @override
   AgentRunRecord? loadRun(String workspaceId, String runId) {
@@ -508,8 +556,19 @@ class SqliteAgentStore implements AgentStore {
     );
     return rows.isEmpty
         ? null
-        : decodeAgentRun(jsonDecode(rows.single['record_json'] as String));
+        : decodeAgentRun(_readRecord(workspaceId, rows.single['record_json']));
   }
+
+  @override
+  List<AgentRunRecord> listChildRuns(String workspaceId, String parentId) => [
+    for (final row in database.connection.select(
+      "SELECT record_json FROM agent_runs WHERE workspace_id = ? AND json_extract(record_json, '\$.parentId') = ? ORDER BY started_at, id;",
+      [workspaceId, parentId],
+    ))
+      decodeAgentRun(
+        _readRecord(workspaceId, row['record_json'], includeHistory: false),
+      ),
+  ];
 
   @override
   void checkpoint(AgentRunRecord run, {AgentWorkspace? workspace}) {
@@ -524,7 +583,7 @@ class SqliteAgentStore implements AgentStore {
           run.workspaceId,
           run.startedAt.toIso8601String(),
           run.status.name,
-          jsonEncode(encodeAgentRun(run)),
+          _writeRecord(run.workspaceId, encodeAgentRun(run)),
           run.sessionId,
         ],
       );
@@ -535,8 +594,14 @@ class SqliteAgentStore implements AgentStore {
   @override
   void recoverInterruptedRuns() {
     final runs = database.connection
-        .select("SELECT record_json FROM agent_runs WHERE status = 'running';")
-        .map((row) => decodeAgentRun(jsonDecode(row['record_json'] as String)))
+        .select(
+          "SELECT workspace_id, record_json FROM agent_runs WHERE status = 'running';",
+        )
+        .map(
+          (row) => decodeAgentRun(
+            _readRecord(row['workspace_id'] as String, row['record_json']),
+          ),
+        )
         .toList();
     for (final run in runs) {
       final workspace = run.parentId == null
