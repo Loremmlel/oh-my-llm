@@ -162,6 +162,30 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
     flushDraft();
     _load(id);
   });
+  void renameWorkspace(String id, String title) => _edit(() {
+    if (state.busy || state.workspace == null) return;
+    final name = _validatedTitle(title);
+    flushDraft();
+    final workspace = _store.loadWorkspace(id);
+    if (workspace == null) throw const AgentWorkspaceException('找不到此作品。');
+    _store.saveWorkspace(workspace.copyWith(title: name));
+    _load(state.workspace!.id);
+  });
+
+  void renameSession(String id, String title) => _edit(() {
+    if (state.busy || state.workspace == null) return;
+    final name = _validatedTitle(title);
+    flushDraft();
+    _store.renameSession(state.workspace!.id, id, name);
+    _load(state.workspace!.id);
+  });
+
+  String _validatedTitle(String title) {
+    final name = title.trim();
+    if (name.isEmpty) throw const AgentWorkspaceException('名称不能为空。');
+    return name;
+  }
+
   void configure({String? title, String? modelId, String? instructions}) =>
       _edit(() {
         final workspace = state.workspace;

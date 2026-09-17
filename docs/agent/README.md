@@ -1,5 +1,23 @@
 # Agent 小说工作区交接
 
+## 2026-09-17：作品／会话侧栏与重命名
+
+实施分支：`feat/agent-workspace-navigation`。原始设想、上下文边界和记忆增强表格插件的核对结果见[实现调查](2026-09-17-implementation-review.md)。
+
+- 作品和会话移入宽窄屏均可打开的右侧抽屉，提供本地搜索、清除、新建和逐条重命名。选作品后进入其会话列表，选会话后关闭抽屉；运行中允许浏览，禁用新建、切换和重命名。
+- 重命名沿用共享弹窗，只改显示名称，保留活动会话、未落盘草稿、配置和历史。非当前会话可直接改名，不需要临时切换；继续使用现有表，无 schema 迁移。
+- 设置分组水平居中并填满既有 `wide` 限宽；同步连接页恢复同宽的纵向表单，设备名、目录、网卡和掩码分别成行，保留自然高度与页面滚动。
+- 剧本发现、嵌套审查和状态更新保持原实现。本次调查确认这些能力已存在，同时明确主上下文仍保留原生历史、正文整理为手动操作、角色知情隔离只限制资料范围。
+
+验证：
+
+- `flutter test --no-pub --reporter compact`：1,904 项通过（`logs/fltest.log`）。新增 controller 测试保护非当前会话改名后的活动选择与草稿；页面测试覆盖 35 个作品的搜索、重命名与切换。旧剧情页面测试按正文展开条目定位，避免与同名导航入口混淆，最终单文件复测通过。
+- `flutter analyze --no-pub`：无问题；`dart run tool/check_import_boundaries.dart`：423 个文件、0 违规。日志为 `logs/agent-navigation-analyze.log`、`logs/agent-navigation-boundaries.log`。
+- UI strict audit 为 0 违规；DESIGN lint 为 0 错误、7 个既有提示。实字体离屏渲染覆盖 1600×1000、390×844、浅深主题、放大文字、抽屉、重命名弹窗与键盘弹出；6 项渲染测试通过，截图位于 `logs/navigation-*.png`。
+- `flutter build windows --release --no-pub`：通过（`logs/build-windows.log`）。
+- `flutter build apk --release --no-pub --target-platform android-arm,android-arm64`：通过（`logs/build-android.log`）。Android 仍有既有 SDK XML 版本及 Cupertino 图标字体提示，未影响构建。
+- 尚未进行 Windows／Android 真机手工验收或真实模型连续写作测试，组件渲染不替代这些验证。
+
 ## 2026-09-17：Skill 式剧本发现与运行备忘
 
 实施分支：`feat/agent-script-skills`。依据[剧本发现、读取与上下文保留规格](../specs/2026-09-17-agent-script-skills.md)，首版采用以下行为。

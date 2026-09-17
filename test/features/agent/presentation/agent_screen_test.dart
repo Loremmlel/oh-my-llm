@@ -21,6 +21,54 @@ import '../../../helpers/async/widget_test_animation.dart';
 import '../agent_test_helpers.dart';
 
 void main() {
+  testWidgets('侧栏搜索并重命名作品和会话后切换，保留各会话草稿', (tester) async {
+    final database = AppDatabase.inMemory();
+    addTearDown(database.close);
+    final store = SqliteAgentStore(database);
+    for (var i = 1; i <= 35; i++) {
+      store.saveWorkspace(AgentWorkspace(id: 'novel-$i', title: '作品 $i'));
+    }
+    final selected = store.loadWorkspace('novel-1')!;
+    store.saveWorkspace(selected.copyWith(draft: '开场草稿'));
+    store.saveWorkspace(
+      selected.copyWith(sessionId: 'later', sessionTitle: '后续', draft: '后续草稿'),
+    );
+    await pumpTestApp(
+      tester,
+      preferences: await TestFixtures.seedPreferences(database: database),
+      database: database,
+      child: const AgentScreen(),
+    );
+    await tester.tap(find.byTooltip('打开侧边内容'));
+    await settleOverlayTransition(tester);
+    await tester.enterText(find.widgetWithText(TextField, '搜索作品'), '作品 1');
+    await tester.pump();
+    await tester.tap(find.byTooltip('重命名作品「作品 1」'));
+    await settleOverlayTransition(tester);
+    await tester.enterText(find.widgetWithText(TextField, '作品名称'), '雾港');
+    await tester.tap(find.text('保存'));
+    await settleOverlayTransition(tester);
+    await tester.enterText(find.widgetWithText(TextField, '搜索作品'), '雾港');
+    await tester.pump();
+    await tester.tap(find.widgetWithText(ListTile, '雾港'));
+    await tester.pump();
+    await tester.enterText(find.widgetWithText(TextField, '搜索会话'), '无匹配');
+    await tester.pump();
+    expect(find.text('没有匹配的会话'), findsOneWidget);
+    await tester.tap(find.byTooltip('清除搜索'));
+    await tester.pump();
+    await tester.tap(find.byTooltip('重命名会话「会话 1」'));
+    await settleOverlayTransition(tester);
+    await tester.enterText(find.widgetWithText(TextField, '会话标题'), '港口开场');
+    await tester.tap(find.text('保存'));
+    await settleOverlayTransition(tester);
+    await tester.tap(find.widgetWithText(ListTile, '港口开场'));
+    await settleOverlayTransition(tester);
+    expect(find.text('开场草稿'), findsOneWidget);
+    expect(find.text('港口开场'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('创建世界书并保存独立审稿模型方案，可查看输入和切换会话', (tester) async {
     final database = AppDatabase.inMemory();
     addTearDown(database.close);

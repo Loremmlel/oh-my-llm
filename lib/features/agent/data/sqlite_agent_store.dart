@@ -384,6 +384,19 @@ class SqliteAgentStore implements AgentStore {
   void saveWorkspace(AgentWorkspace workspace) =>
       _transaction(() => _saveWorkspace(workspace));
 
+  @override
+  void renameSession(String workspaceId, String sessionId, String title) =>
+      _transaction(() {
+        final workspace = loadWorkspace(workspaceId, sessionId: sessionId);
+        if (workspace == null) {
+          throw const AgentWorkspaceException('找不到本作品的会话。');
+        }
+        _saveWorkspace(
+          workspace.copyWith(sessionTitle: title),
+          activate: false,
+        );
+      });
+
   void _saveWorkspace(AgentWorkspace workspace, {bool activate = true}) {
     final existing = database.connection.select(
       'SELECT 1 FROM agent_sessions WHERE workspace_id = ? AND id = ?;',

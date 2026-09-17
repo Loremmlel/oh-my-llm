@@ -28,6 +28,7 @@ abstract interface class AgentStore {
   List<AgentWorkspace> listWorkspaces();
   AgentWorkspace? loadWorkspace(String id, {String? sessionId});
   void saveWorkspace(AgentWorkspace workspace);
+  void renameSession(String workspaceId, String sessionId, String title);
   List<({String id, String title})> listSessions(String workspaceId);
   List<AgentConfiguration> listConfigurations(String workspaceId);
   AgentConfiguration saveConfiguration(
