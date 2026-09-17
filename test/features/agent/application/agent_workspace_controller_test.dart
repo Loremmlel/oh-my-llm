@@ -10,6 +10,37 @@ import 'package:oh_my_llm/features/agent/domain/agent_models.dart';
 import '../agent_test_helpers.dart';
 
 void main() {
+  test('重命名作品及非当前会话保留选择、草稿和配置，重新读取仍生效', () {
+    final database = AppDatabase.inMemory();
+    addTearDown(database.close);
+    final store = SqliteAgentStore(database);
+    final first = AgentWorkspace(id: 'novel', title: '旧作品', draft: '原草稿');
+    store.saveWorkspace(first);
+    final second = first.copyWith(
+      sessionId: 'second',
+      sessionTitle: '另一会话',
+      draft: '另一草稿',
+    );
+    store.saveWorkspace(second);
+    final container = ProviderContainer(
+      overrides: [agentStoreProvider.overrideWithValue(store)],
+    );
+    addTearDown(container.dispose);
+    final controller = container.read(agentWorkspaceProvider.notifier);
+    controller.setDraft('尚未落盘的草稿');
+    controller.renameSession(first.sessionId, ' 开场 ');
+    controller.renameWorkspace(first.id, ' 雾港 ');
+    final current = store.loadWorkspace(first.id)!;
+    expect(current, second.copyWith(title: '雾港', draft: '尚未落盘的草稿'));
+    expect(
+      store.loadWorkspace(first.id, sessionId: first.sessionId),
+      first.copyWith(title: '雾港', sessionTitle: '开场'),
+    );
+    controller.renameSession(first.sessionId, '  ');
+    expect(container.read(agentWorkspaceProvider).error, '名称不能为空。');
+    expect(store.listSessions(first.id).first.title, '开场');
+  });
+
   test('应用新方案在同作品建立独立会话，旧会话的配置设定和实际输入仍可核对', () async {
     final database = AppDatabase.inMemory();
     addTearDown(database.close);

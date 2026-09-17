@@ -111,7 +111,7 @@ void main() {
     await tester.tap(find.byTooltip('剧情状态与正文'));
     await tester.pump();
     expect(find.text('地点：图书馆'), findsOneWidget);
-    await tester.tap(find.text('正文'));
+    await tester.tap(find.widgetWithText(ExpansionTile, '正文'));
     await settleAnimatedWidgetTransition(tester);
     expect(find.textContaining('甲把秘密留在心里。', findRichText: true), findsWidgets);
     await tester.tap(find.byTooltip('返回执行流'));

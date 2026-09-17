@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -18,6 +17,7 @@ import 'agent_documents_panel.dart';
 import 'agent_transcript.dart';
 import 'agent_configuration_dialog.dart';
 import 'agent_context_dialog.dart';
+import 'agent_navigation_drawer.dart';
 
 enum _WorkspaceView { transcript, documents, story }
 
@@ -77,6 +77,8 @@ class _AgentScreenState extends ConsumerState<AgentScreen> {
     return AppShellScaffold(
       currentDestination: AppDestination.agent,
       title: 'Agent 小说工作区',
+      endDrawer: const AgentNavigationDrawer(),
+      endDrawerOnWide: true,
       adaptiveActions: AppAdaptiveActions(
         wideActions: pageActions,
         compactActions: [
@@ -119,148 +121,58 @@ class _AgentScreenState extends ConsumerState<AgentScreen> {
                         AppSpacing.md,
                         AppSpacing.xs,
                       ),
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          final contexts = Wrap(
-                            spacing: AppSpacing.md,
-                            runSpacing: AppSpacing.xs,
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            children: [
-                              SizedBox(
-                                width: math.min(288, constraints.maxWidth),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: InputDecorator(
-                                        decoration: const InputDecoration(
-                                          labelText: '作品',
-                                        ),
-                                        child: DropdownButtonHideUnderline(
-                                          child: DropdownButton<String>(
-                                            value: workspace?.id,
-                                            isExpanded: true,
-                                            isDense: true,
-                                            borderRadius: BorderRadius.circular(
-                                              AppRadii.sm,
-                                            ),
-                                            hint: const Text('选择作品'),
-                                            items: [
-                                              for (final w in state.workspaces)
-                                                DropdownMenuItem(
-                                                  value: w.id,
-                                                  child: Tooltip(
-                                                    message: w.title,
-                                                    child: Text(
-                                                      w.title,
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                    ),
-                                                  ),
-                                                ),
-                                            ],
-                                            onChanged: state.busy
-                                                ? null
-                                                : (id) {
-                                                    if (id != null) {
-                                                      controller
-                                                          .selectWorkspace(id);
-                                                    }
-                                                  },
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    IconButton(
-                                      onPressed: workspace == null
-                                          ? null
-                                          : () =>
-                                                showAgentConfiguration(context),
-                                      tooltip: '模型与规则',
-                                      icon: const Icon(Icons.tune),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              if (workspace != null)
-                                SizedBox(
-                                  width: math.min(336, constraints.maxWidth),
-                                  child: Row(
+                      child: Wrap(
+                        spacing: AppSpacing.md,
+                        runSpacing: AppSpacing.xs,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        alignment: WrapAlignment.spaceBetween,
+                        children: [
+                          if (workspace != null)
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      Expanded(
-                                        child: InputDecorator(
-                                          decoration: const InputDecoration(
-                                            labelText: '会话',
-                                          ),
-                                          child: DropdownButtonHideUnderline(
-                                            child: DropdownButton<String>(
-                                              value: workspace.sessionId,
-                                              isExpanded: true,
-                                              isDense: true,
-                                              borderRadius:
-                                                  BorderRadius.circular(
-                                                    AppRadii.sm,
-                                                  ),
-                                              items: [
-                                                for (final session
-                                                    in controller.sessions)
-                                                  DropdownMenuItem(
-                                                    value: session.id,
-                                                    child: Tooltip(
-                                                      message: session.title,
-                                                      child: Text(
-                                                        session.title,
-                                                        overflow: TextOverflow
-                                                            .ellipsis,
-                                                      ),
-                                                    ),
-                                                  ),
-                                              ],
-                                              onChanged: state.busy
-                                                  ? null
-                                                  : (id) {
-                                                      if (id != null) {
-                                                        controller
-                                                            .selectSession(id);
-                                                      }
-                                                    },
-                                            ),
-                                          ),
-                                        ),
+                                      Text(
+                                        workspace.title,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleSmall,
                                       ),
-                                      IconButton(
-                                        onPressed: state.busy
-                                            ? null
-                                            : () => showAgentContext(context),
-                                        tooltip: '查看上下文',
-                                        icon: const Icon(Icons.manage_search),
-                                      ),
-                                      IconButton(
-                                        onPressed: () =>
-                                            showAgentSummaries(context),
-                                        tooltip: '总结管理',
-                                        icon: const Icon(
-                                          Icons.summarize_outlined,
-                                        ),
+                                      Text(
+                                        workspace.sessionTitle,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ],
                                   ),
                                 ),
-                            ],
-                          );
-                          return Wrap(
-                            alignment: WrapAlignment.spaceBetween,
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            spacing: AppSpacing.md,
-                            runSpacing: AppSpacing.xs,
-                            children: [
-                              SizedBox(
-                                width: math.min(640, constraints.maxWidth),
-                                child: contexts,
-                              ),
-                              if (workspace != null) _buildViewTabs(),
-                            ],
-                          );
-                        },
+                                IconButton(
+                                  onPressed: () =>
+                                      showAgentConfiguration(context),
+                                  tooltip: '模型与规则',
+                                  icon: const Icon(Icons.tune),
+                                ),
+                                IconButton(
+                                  onPressed: state.busy
+                                      ? null
+                                      : () => showAgentContext(context),
+                                  tooltip: '查看上下文',
+                                  icon: const Icon(Icons.manage_search),
+                                ),
+                                IconButton(
+                                  onPressed: () => showAgentSummaries(context),
+                                  tooltip: '总结管理',
+                                  icon: const Icon(Icons.summarize_outlined),
+                                ),
+                              ],
+                            ),
+                          if (workspace != null) _buildViewTabs(),
+                        ],
                       ),
                     ),
                     if (workspace != null)

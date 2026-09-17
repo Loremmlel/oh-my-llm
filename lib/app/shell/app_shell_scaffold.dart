@@ -18,6 +18,7 @@ class AppShellScaffold extends StatelessWidget {
     this.actions,
     this.adaptiveActions,
     this.endDrawer,
+    this.endDrawerOnWide = false,
     this.hasLocalBackTarget = false,
     this.onLocalBack,
     super.key,
@@ -32,6 +33,9 @@ class AppShellScaffold extends StatelessWidget {
   final AppAdaptiveActions? adaptiveActions;
 
   final Widget? endDrawer;
+
+  /// 未提供常驻侧栏的页面可在宽屏继续使用弹出抽屉。
+  final bool endDrawerOnWide;
 
   /// 是否存在需要优先于路由切换处理的页面本地返回目标（历史选择态、聊天
   /// 显式消息编辑事务）。普通 composer 草稿不属于本地返回目标，不拦返回。
@@ -82,6 +86,8 @@ class AppShellScaffold extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isCompact = AppBreakpoints.useCompactShell(constraints.maxWidth);
+        final showEndDrawer =
+            endDrawer != null && (isCompact || endDrawerOnWide);
 
         return Scaffold(
           appBar: AppBar(
@@ -90,11 +96,10 @@ class AppShellScaffold extends StatelessWidget {
               ...?actions,
               // 响应式动作跟随壳层断点切换紧凑/宽侧分支，排在固定动作之后。
               ...?adaptiveActions?.resolve(constraints.maxWidth),
-              // 紧凑布局里才显示抽屉按钮，因为宽屏下侧边导航已经常驻可见。
-              if (isCompact && endDrawer != null) _buildDrawerButton(),
+              if (showEndDrawer) _buildDrawerButton(),
             ],
           ),
-          endDrawer: isCompact ? endDrawer : null,
+          endDrawer: showEndDrawer ? endDrawer : null,
           // Android 边缘返回手势与抽屉右缘拖拽抢占同一块屏幕边缘：禁用
           // open drag，把右缘让回系统 Back。抽屉仍可由图标打开，由
           // barrier 点击或系统返回关闭。
@@ -136,7 +141,7 @@ class AppShellScaffold extends StatelessWidget {
   }
 }
 
-/// 构建打开 endDrawer 的按钮；必须在紧凑分支且存在 [endDrawer] 时使用。
+/// 构建打开 endDrawer 的按钮；仅在当前布局提供抽屉时使用。
 ///
 /// 用 Builder 就近取 ScaffoldState，避免依赖 body 内部的 context。
 Widget _buildDrawerButton() {
