@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
-import 'package:oh_my_llm/core/widgets/app_field_group.dart';
 
 import 'package:oh_my_llm/features/settings/presentation/widgets/shared/settings_section_card.dart';
 
@@ -61,9 +60,7 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
         Align(
           alignment: Alignment.topCenter,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(
-              maxWidth: AppContentWidths.readable,
-            ),
+            constraints: const BoxConstraints(maxWidth: AppContentWidths.wide),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -303,23 +300,21 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          AppFieldGroup(
-            fieldWidth: 352,
-            children: [
-              TextField(
-                controller: _nameController,
-                decoration: const InputDecoration(labelText: '设备名称'),
-                enabled: !serverState.isRunning,
-                onSubmitted: (value) {
-                  ref
-                      .read(syncServerControllerProvider.notifier)
-                      .updateDeviceName(value);
-                },
-              ),
-              ?widget.serverConfiguration,
-            ],
+          TextField(
+            controller: _nameController,
+            decoration: const InputDecoration(labelText: '设备名称'),
+            enabled: !serverState.isRunning,
+            onSubmitted: (value) {
+              ref
+                  .read(syncServerControllerProvider.notifier)
+                  .updateDeviceName(value);
+            },
           ),
           const SizedBox(height: AppSpacing.md),
+          if (widget.serverConfiguration case final configuration?) ...[
+            configuration,
+            const SizedBox(height: AppSpacing.md),
+          ],
           if (!serverState.isRunning) ...[
             const InterfaceSelector(),
             const SizedBox(height: 16),

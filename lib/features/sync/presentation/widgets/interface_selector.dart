@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
-import 'package:oh_my_llm/core/widgets/app_field_group.dart';
 
 import '../../application/broadcast_prefix_length_provider.dart';
 import '../../application/network_interface_provider.dart';
@@ -83,8 +82,8 @@ class InterfaceSelector extends ConsumerWidget {
             .computeBroadcast(InternetAddress(selectedIface.ip))
             .address;
 
-        return AppFieldGroup(
-          fieldWidth: 352,
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             InputDecorator(
               decoration: const InputDecoration(labelText: '广播网卡'),
@@ -118,6 +117,7 @@ class InterfaceSelector extends ConsumerWidget {
                 ),
               ),
             ),
+            const SizedBox(height: AppSpacing.md),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
