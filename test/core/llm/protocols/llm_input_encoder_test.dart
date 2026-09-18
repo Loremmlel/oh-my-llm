@@ -65,6 +65,92 @@ void main() {
     expect(input[2]['phase'], 'final_answer');
   });
   for (final protocol in LlmApiProtocol.values) {
+    test('${protocol.name} 从公共历史编码正文、函数调用与结果', () {
+      final turn = LlmAssistantTurn.portable(
+        text: '读取正文',
+        toolCalls: [
+          LlmToolCall(callId: 'read_1', name: 'read', argumentsJson: '{}'),
+        ],
+      );
+      final wire = encodeLlmInput(
+        LlmRequest(
+          target: _request(protocol).target,
+          input: [
+            turn,
+            LlmToolResult(callId: 'read_1', name: 'read', output: '正文'),
+          ],
+        ),
+        Uri.parse('https://example.com'),
+      );
+      expect(wire, switch (protocol) {
+        LlmApiProtocol.chatCompletions => {
+          'messages': [
+            {
+              'role': 'assistant',
+              'content': '读取正文',
+              'tool_calls': [
+                {
+                  'id': 'read_1',
+                  'type': 'function',
+                  'function': {'name': 'read', 'arguments': '{}'},
+                },
+              ],
+            },
+            {'role': 'tool', 'tool_call_id': 'read_1', 'content': '正文'},
+          ],
+        },
+        LlmApiProtocol.responses => {
+          'input': [
+            {
+              'type': 'message',
+              'role': 'assistant',
+              'content': [
+                {'type': 'output_text', 'text': '读取正文', 'annotations': []},
+              ],
+            },
+            {
+              'type': 'function_call',
+              'call_id': 'read_1',
+              'name': 'read',
+              'arguments': '{}',
+            },
+            {
+              'type': 'function_call_output',
+              'call_id': 'read_1',
+              'output': '正文',
+            },
+          ],
+        },
+        LlmApiProtocol.anthropic => {
+          'messages': [
+            {
+              'role': 'assistant',
+              'content': [
+                {'type': 'text', 'text': '读取正文'},
+                {
+                  'type': 'tool_use',
+                  'id': 'read_1',
+                  'name': 'read',
+                  'input': {},
+                },
+              ],
+            },
+            {
+              'role': 'user',
+              'content': [
+                {
+                  'type': 'tool_result',
+                  'tool_use_id': 'read_1',
+                  'content': '正文',
+                  'is_error': false,
+                },
+              ],
+            },
+          ],
+        },
+      });
+      expect(turn.replay, isNull);
+    });
     for (final choice in [
       const LlmToolChoice.auto(),
       const LlmToolChoice.none(),
@@ -110,6 +196,44 @@ void main() {
     test('${protocol.name} 未配置缓存不发送缓存字段', () {
       final wire = encodeLlmOptions(_request(protocol));
       expect(wire, isEmpty);
+    });
+  }
+  for (final scenario in ['缺失结果', '未知结果', '重复结果', '名称不符', '重复调用']) {
+    test('公共历史拒绝工具往返中的$scenario', () {
+      final call = LlmToolCall(
+        callId: 'call',
+        name: 'read',
+        argumentsJson: '{}',
+      );
+      final result = LlmToolResult(callId: 'call', name: 'read', output: '正文');
+      final input = <LlmInputItem>[
+        LlmAssistantTurn.portable(
+          toolCalls: [call, if (scenario == '重复调用') call],
+        ),
+        if (scenario != '缺失结果')
+          LlmToolResult(
+            callId: scenario == '未知结果' ? 'unknown' : 'call',
+            name: scenario == '名称不符' ? 'other' : 'read',
+            output: '正文',
+          ),
+        if (scenario == '重复结果') result,
+      ];
+      expect(
+        () => encodeLlmInput(
+          LlmRequest(
+            target: _request(LlmApiProtocol.responses).target,
+            input: input,
+          ),
+          Uri.parse('https://example.com'),
+        ),
+        throwsA(
+          isA<LlmException>().having(
+            (e) => e.kind,
+            '类型',
+            LlmFailureKind.invalidRequest,
+          ),
+        ),
+      );
     });
   }
   test('无工具时省略 auto 和 none，拒绝 required 和 named', () {

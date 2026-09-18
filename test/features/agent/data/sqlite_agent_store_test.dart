@@ -246,7 +246,7 @@ void main() {
     );
   });
 
-  test('原生回放数据按值保留嵌套内容，未来记录版本显式失败', () {
+  test('原生与公共历史分别往返存储，损坏及未来记录显式失败', () {
     final turn = LlmAssistantTurn(
       text: '正文',
       reasoning: '摘要',
@@ -264,9 +264,27 @@ void main() {
         ],
       ),
     );
-    final workspace = AgentWorkspace(id: 'new', title: '小说甲', history: [turn]);
+    final portable = LlmAssistantTurn.portable(
+      text: '公共正文',
+      toolCalls: [
+        agentCall('read', 'read_document', {'name': '正文'}),
+      ],
+    );
+    final workspace = AgentWorkspace(
+      id: 'new',
+      title: '小说甲',
+      history: [
+        turn,
+        portable,
+        LlmToolResult(callId: 'read', name: 'read_document', output: '工具结果'),
+      ],
+    );
     store.saveWorkspace(workspace);
     expect(store.loadWorkspace('new'), workspace);
+    // 损坏的原生记录必须失败，不能默默降级成公共历史。
+    final malformed = encodeAgentWorkspace(workspace);
+    ((malformed['history'] as List).first as Map).remove('protocol');
+    expect(() => decodeAgentWorkspace(malformed), throwsFormatException);
     // 明确测试未来格式拒绝，普通记录都通过 typed codec 构造。
     final future = encodeAgentWorkspace(workspace)..['version'] = 4;
     expect(() => decodeAgentWorkspace(future), throwsFormatException);

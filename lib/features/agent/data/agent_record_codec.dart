@@ -173,13 +173,15 @@ Map<String, Object?> _encodeInput(LlmInputItem item) => switch (item) {
     'isError': item.isError,
   },
   LlmAssistantTurn() => {
-    'type': 'assistant',
+    'type': item.replay == null ? 'portable_assistant' : 'assistant',
     'text': item.text,
     'reasoning': item.reasoning,
-    'protocol': item.replay.protocol.storageValue,
-    'endpoint': item.replay.endpoint.toString(),
-    'model': item.replay.model,
-    'items': item.replay.items,
+    if (item.replay case final replay?) ...{
+      'protocol': replay.protocol.storageValue,
+      'endpoint': replay.endpoint.toString(),
+      'model': replay.model,
+      'items': replay.items,
+    },
     'calls': [
       for (final call in item.toolCalls)
         {
@@ -201,6 +203,10 @@ LlmInputItem _decodeInput(Map<String, dynamic> json) => switch (json['type']) {
     output: json['output'] as String,
     isError: json['isError'] as bool,
   ),
+  'portable_assistant' => LlmAssistantTurn.portable(
+    text: json['text'] as String,
+    toolCalls: _decodeToolCalls(json),
+  ),
   'assistant' => LlmAssistantTurn(
     text: json['text'] as String,
     reasoning: json['reasoning'] as String,
@@ -213,17 +219,19 @@ LlmInputItem _decodeInput(Map<String, dynamic> json) => switch (json['type']) {
           Map<String, Object?>.from(item as Map),
       ],
     ),
-    toolCalls: [
-      for (final call in json['calls'] as List)
-        LlmToolCall(
-          callId: call['callId'] as String,
-          name: call['name'] as String,
-          argumentsJson: call['arguments'] as String,
-        ),
-    ],
+    toolCalls: _decodeToolCalls(json),
   ),
   _ => throw const FormatException('无效的 Agent 上下文项'),
 };
+
+List<LlmToolCall> _decodeToolCalls(Map<String, dynamic> json) => [
+  for (final call in json['calls'] as List)
+    LlmToolCall(
+      callId: call['callId'] as String,
+      name: call['name'] as String,
+      argumentsJson: call['arguments'] as String,
+    ),
+];
 
 Map<String, Object?> encodeAgentConfiguration(AgentConfiguration value) => {
   'name': value.name,

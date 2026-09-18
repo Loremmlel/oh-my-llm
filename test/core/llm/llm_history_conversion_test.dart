@@ -63,6 +63,7 @@ void main() {
         expect(converted, hasLength(history.length));
         final turn = converted[1] as LlmAssistantTurn;
         expect(turn.reasoning, isEmpty);
+        expect(turn.replay, isNull);
         expect(turn.toolCalls.map((c) => c.callId).toSet(), hasLength(2));
         expect(turn.toolCalls.first.callId, isNot('omll_0'));
         expect(
@@ -88,6 +89,17 @@ void main() {
         }
         expect(original.reasoning, '不可迁移推理');
         expect(convertLlmHistory(converted, target), converted);
+        for (final nextProtocol in LlmApiProtocol.values) {
+          final nextTarget = LlmRequestTarget(
+            protocol: nextProtocol,
+            endpoint: 'https://third.example',
+            apiKey: '',
+            model: 'third-model',
+          );
+          final switched = convertLlmHistory(converted, nextTarget);
+          expect(identical(switched[1], turn), isTrue);
+          expect(switched, converted);
+        }
       });
     }
   }
@@ -129,7 +141,7 @@ void main() {
       final converted =
           convertLlmHistory([turn], changed).single as LlmAssistantTurn;
       expect(converted.reasoning, isEmpty);
-      expect(jsonEncode(converted.replay.items), isNot(contains('signature')));
+      expect(converted.replay, isNull);
     }
   });
 }

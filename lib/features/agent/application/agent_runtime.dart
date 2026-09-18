@@ -267,11 +267,11 @@ class AgentRuntime {
           );
         }
         final turn = result.assistantTurn;
-        if (turn == null) {
+        final replay = turn?.replay;
+        if (turn == null || replay == null) {
           throw const AgentWorkspaceException('服务商未返回可可靠续接的原生内容，已停止。');
         }
-        if (utf8.encode(jsonEncode(turn.replay.items)).length >
-            4 * 1024 * 1024) {
+        if (utf8.encode(jsonEncode(replay.items)).length > 4 * 1024 * 1024) {
           throw const _Limit('原生模型回复超过 4 MiB，未执行工具。');
         }
         history.add(turn);
@@ -1233,6 +1233,19 @@ int _historyBytes(List<LlmInputItem> items) => items.fold(
       utf8.encode(switch (item) {
         LlmTextMessage() => item.text,
         LlmToolResult() => item.output,
-        LlmAssistantTurn() => jsonEncode(item.replay.items),
+        LlmAssistantTurn() => jsonEncode(
+          item.replay?.items ??
+              {
+                'text': item.text,
+                'calls': [
+                  for (final call in item.toolCalls)
+                    {
+                      'id': call.callId,
+                      'name': call.name,
+                      'arguments': call.argumentsJson,
+                    },
+                ],
+              },
+        ),
       }).length,
 );
