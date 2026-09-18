@@ -159,6 +159,7 @@ class AgentRunRecord extends Equatable {
     this.parentId,
     this.rootRunId,
     this.summaryBatch,
+    this.beforeWorkspace,
     this.sessionId = 'initial',
     this.modelId,
     this.modelLabel = '',
@@ -184,6 +185,9 @@ class AgentRunRecord extends Equatable {
   final String? parentId;
   final String? rootRunId;
   final AgentContextBatch? summaryBatch;
+
+  /// 主任务执行前的会话快照，用于覆盖式重试；旧记录可能没有快照。
+  final AgentWorkspace? beforeWorkspace;
   String get roundRunId => rootRunId ?? parentId ?? id;
   final String sessionId, modelLabel;
   final String? modelId;
@@ -212,12 +216,14 @@ class AgentRunRecord extends Equatable {
     List<LlmInputItem>? childHistory,
     List<LlmInputItem>? inputHistory,
     bool? usageIncomplete,
+    AgentWorkspace? beforeWorkspace,
   }) => AgentRunRecord(
     id: id,
     workspaceId: workspaceId,
     parentId: parentId,
     rootRunId: rootRunId,
     summaryBatch: summaryBatch,
+    beforeWorkspace: beforeWorkspace ?? this.beforeWorkspace,
     sessionId: sessionId,
     modelId: modelId,
     modelLabel: modelLabel,
@@ -242,6 +248,7 @@ class AgentRunRecord extends Equatable {
     parentId,
     rootRunId,
     summaryBatch,
+    beforeWorkspace,
     sessionId,
     modelId,
     modelLabel,

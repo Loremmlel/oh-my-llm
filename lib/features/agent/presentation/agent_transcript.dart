@@ -88,9 +88,13 @@ class AgentTranscript extends StatefulWidget {
     required this.records,
     required this.allRuns,
     this.storyRounds = const [],
+    this.retryReplyId,
+    this.onRetry,
   });
   final List<AgentRunRecord> records, allRuns;
   final List<AgentStoryRound> storyRounds;
+  final String? retryReplyId;
+  final VoidCallback? onRetry;
   @override
   State<AgentTranscript> createState() => _AgentTranscriptState();
 }
@@ -152,6 +156,8 @@ class _AgentTranscriptState extends State<AgentTranscript> {
                     child: _RunTranscript(
                       key: ValueKey(record.id),
                       record: record,
+                      showRetry: record.id == widget.retryReplyId,
+                      onRetry: widget.onRetry,
                       round: widget.storyRounds
                           .where(
                             (r) =>
@@ -197,10 +203,14 @@ class _RunTranscript extends StatefulWidget {
     required this.record,
     required this.children,
     this.round,
+    this.showRetry = false,
+    this.onRetry,
   });
   final AgentRunRecord record;
   final List<AgentRunRecord> children;
   final AgentStoryRound? round;
+  final bool showRetry;
+  final VoidCallback? onRetry;
   @override
   State<_RunTranscript> createState() => _RunTranscriptState();
 }
@@ -218,6 +228,10 @@ class _RunTranscriptState extends State<_RunTranscript> {
         (oldWidget.record.status == AgentRunStatus.running &&
             record.status != AgentRunStatus.running)) {
       _expanded = false;
+    }
+    if (oldWidget.record.status != AgentRunStatus.running &&
+        record.status == AgentRunStatus.running) {
+      _expanded = true;
     }
   }
 
@@ -247,18 +261,27 @@ class _RunTranscriptState extends State<_RunTranscript> {
               ],
             ),
           ),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              onPressed: () => setState(() => _expanded = !_expanded),
-              icon: Icon(
-                _expanded ? Icons.expand_less : Icons.expand_more,
-                size: 18,
+          Wrap(
+            spacing: AppSpacing.sm,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              TextButton.icon(
+                onPressed: () => setState(() => _expanded = !_expanded),
+                icon: Icon(
+                  _expanded ? Icons.expand_less : Icons.expand_more,
+                  size: 18,
+                ),
+                label: Text(
+                  '${_expanded ? '收起' : '展开'}执行过程 · ${record.steps.length} 步',
+                ),
               ),
-              label: Text(
-                '${_expanded ? '收起' : '展开'}执行过程 · ${record.steps.length} 步',
-              ),
-            ),
+              if (widget.showRetry)
+                TextButton.icon(
+                  onPressed: widget.onRetry,
+                  icon: const Icon(Icons.refresh, size: 18),
+                  label: const Text('重试'),
+                ),
+            ],
           ),
           if (_expanded) ...[
             if (children.isNotEmpty)
