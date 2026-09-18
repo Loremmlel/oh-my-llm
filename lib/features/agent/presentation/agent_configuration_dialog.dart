@@ -81,7 +81,7 @@ class _ConfigurationDialogState extends ConsumerState<_ConfigurationDialog> {
             context: context,
             builder: (_) => const AppConfirmDialog(
               title: '放弃未保存的配置？',
-              message: '已保存的方案和现有会话不受影响。',
+              message: '已保存的方案和当前作品不受影响。',
               confirmLabel: '放弃修改',
             ),
           ) ==
@@ -206,7 +206,7 @@ class _ConfigurationDialogState extends ConsumerState<_ConfigurationDialog> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  '当前会话：${state.workspace!.sessionTitle} · ${state.workspace!.configuration.name}',
+                  '当前作品：${state.workspace!.title} · ${state.workspace!.configuration.name}',
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 AppFieldGroup(
@@ -353,6 +353,9 @@ class _ConfigurationDialogState extends ConsumerState<_ConfigurationDialog> {
                       ),
                     ],
                   ),
+                const Text(
+                  '切换模型、端点或协议时，仅转换文本和应用函数工具往返；不兼容的推理、签名、加密内容及厂商内置工具字段将丢弃，不保证模型专属能力延续。',
+                ),
                 const SizedBox(height: AppSpacing.sm),
                 TextField(
                   controller: _preset,
@@ -361,7 +364,7 @@ class _ConfigurationDialogState extends ConsumerState<_ConfigurationDialog> {
                   maxLines: 8,
                   decoration: const InputDecoration(
                     labelText: '共享预设与文风',
-                    helperText: '现有预设仅复制已启用文本；在本会话作为前置预设使用。',
+                    helperText: '现有预设仅复制已启用文本；在本作品作为前置预设使用。',
                     helperMaxLines: 3,
                   ),
                 ),
@@ -389,7 +392,7 @@ class _ConfigurationDialogState extends ConsumerState<_ConfigurationDialog> {
                 Text(
                   state.busy
                       ? '运行中可以查看配置，结束后可编辑。'
-                      : '同名方案直接覆盖保存。已有历史时，应用模型配置会在本作品新建会话。',
+                      : '同名方案直接覆盖保存。应用后从下一次调用起生效，保留历史、正文和剧情状态。',
                 ),
                 if (state.error.isNotEmpty)
                   Text(
@@ -420,7 +423,7 @@ class _ConfigurationDialogState extends ConsumerState<_ConfigurationDialog> {
                       Navigator.pop(context);
                     }
                   },
-            child: Text(state.workspace!.history.isEmpty ? '应用配置' : '应用并新建会话'),
+            child: Text('应用配置'),
           ),
         ],
       ),

@@ -195,7 +195,7 @@ void main() {
       original.whereType<LlmToolResult>().single.output,
       isNot(contains('最终正文')),
     );
-    store.withdrawStoryRound('novel', 'initial', second.id);
+    store.withdrawStoryRound('novel', second.id);
     expect(store.readDocument('novel', '正文')!.content, '最终正文 1');
     expect(store.loadWorkspace('novel')!.history, original);
   });

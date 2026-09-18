@@ -56,17 +56,13 @@ class _SummaryManagerState extends ConsumerState<_SummaryManager> {
           : '第 ${first + 1}—${last + 1} 楼';
     }
 
-    void apply(bool summarize) {
+    void apply() {
       try {
         final batch = controller.contextBatchFor(
           int.tryParse(_count.text) ?? 0,
         );
         setState(() => _error = null);
-        if (summarize) {
-          unawaited(controller.send(summaryBatch: batch));
-        } else {
-          controller.saveContextBatch(batch);
-        }
+        unawaited(controller.send(summaryBatch: batch));
       } on AgentWorkspaceException catch (error) {
         setState(() => _error = error.message);
       }
@@ -84,11 +80,11 @@ class _SummaryManagerState extends ConsumerState<_SummaryManager> {
             ),
             const SizedBox(height: AppSpacing.sm),
             const Text(
-              '总结放在正文之前。隐藏仅排除可定位的正式正文块；已读取的剧本、剧本备忘、工具结果、Reasoning 和旧会话中已有的正文副本仍保留。原文和剧情状态不会删除。',
+              '将已有累计摘要与新增正文合并为一份新摘要，替代旧摘要及覆盖范围内的完整任务记录，包括工具往返、推理和旧状态快照。本地原文与当前剧情状态保留。',
             ),
             const SizedBox(height: AppSpacing.md),
             if (available.isEmpty)
-              const Text('暂无可整理的正文。完成写作后可在这里批量隐藏或总结。')
+              const Text('暂无可整理的正文。完成写作后可在这里继续累计压缩。')
             else ...[
               Text('从较早未整理的正文开始（第 ${rounds.indexOf(available.first) + 1} 楼）'),
               const SizedBox(height: AppSpacing.sm),
@@ -97,7 +93,7 @@ class _SummaryManagerState extends ConsumerState<_SummaryManager> {
                 enabled: enabled,
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(
-                  labelText: '处理楼数',
+                  labelText: '新增压缩楼数',
                   errorText: _error,
                 ),
               ),
@@ -106,13 +102,9 @@ class _SummaryManagerState extends ConsumerState<_SummaryManager> {
                 spacing: AppSpacing.sm,
                 runSpacing: AppSpacing.xs,
                 children: [
-                  OutlinedButton(
-                    onPressed: enabled ? () => apply(false) : null,
-                    child: const Text('直接隐藏'),
-                  ),
                   FilledButton(
-                    onPressed: enabled ? () => apply(true) : null,
-                    child: const Text('总结并替代'),
+                    onPressed: enabled ? apply : null,
+                    child: const Text('压缩并替代'),
                   ),
                 ],
               ),
@@ -150,7 +142,7 @@ class _SummaryManagerState extends ConsumerState<_SummaryManager> {
               const Divider(),
               Text(
                 '${range(batch)} · ${switch (batch.status) {
-                  AgentContextBatchStatus.active => batch.summary.isEmpty ? '已隐藏' : '摘要生效',
+                  AgentContextBatchStatus.active => '累计摘要生效',
                   AgentContextBatchStatus.restored => '原文已恢复',
                   AgentContextBatchStatus.invalidated => '来源失效',
                 }}',
@@ -203,7 +195,7 @@ class _SummaryManagerState extends ConsumerState<_SummaryManager> {
                                 ),
                               )
                             : null,
-                        child: const Text('恢复原文'),
+                        child: const Text('恢复全部原文'),
                       ),
                   ],
                 ),

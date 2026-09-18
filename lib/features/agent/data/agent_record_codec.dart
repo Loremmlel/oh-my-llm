@@ -9,11 +9,9 @@ import '../domain/agent_story_state.dart';
 import '../domain/agent_script.dart';
 
 Map<String, dynamic> encodeAgentWorkspace(AgentWorkspace value) => {
-  'version': 2,
+  'version': 3,
   'id': value.id,
   'title': value.title,
-  'sessionId': value.sessionId,
-  'sessionTitle': value.sessionTitle,
   'configuration': encodeAgentConfiguration(value.configuration),
   'references': value.references.map(encodeAgentDocument).toList(),
   'modelId': value.modelId,
@@ -26,12 +24,10 @@ Map<String, dynamic> encodeAgentWorkspace(AgentWorkspace value) => {
   ),
 };
 AgentWorkspace decodeAgentWorkspace(Map<String, dynamic> json) {
-  if (json['version'] != 2) throw const FormatException('不支持的 Agent 会话版本');
+  if (json['version'] != 3) throw const FormatException('不支持的 Agent 作品版本');
   return AgentWorkspace(
     id: json['id'] as String,
     title: json['title'] as String,
-    sessionId: json['sessionId'] as String,
-    sessionTitle: json['sessionTitle'] as String,
     configuration: decodeAgentConfiguration(
       json['configuration'] as Map<String, dynamic>,
     ),
@@ -55,15 +51,15 @@ AgentWorkspace decodeAgentWorkspace(Map<String, dynamic> json) {
 }
 
 Map<String, dynamic> encodeAgentRun(AgentRunRecord value) => {
-  'version': 1,
+  'version': 2,
   'id': value.id,
   'workspaceId': value.workspaceId,
   'parentId': value.parentId,
   'rootRunId': value.rootRunId,
   'summaryBatch': value.summaryBatch?.toJson(),
+  'historyEnd': value.historyEnd,
   if (value.beforeWorkspace != null)
     'beforeWorkspace': encodeAgentWorkspace(value.beforeWorkspace!),
-  'sessionId': value.sessionId,
   'modelId': value.modelId,
   'modelLabel': value.modelLabel,
   'usageIncomplete': value.usageIncomplete,
@@ -105,6 +101,7 @@ AgentRunRecord decodeAgentRun(Map<String, dynamic> json) {
     workspaceId: json['workspaceId'] as String,
     parentId: json['parentId'] as String?,
     rootRunId: json['rootRunId'] as String?,
+    historyEnd: json['historyEnd'] as int?,
     beforeWorkspace: json['beforeWorkspace'] == null
         ? null
         : decodeAgentWorkspace(json['beforeWorkspace'] as Map<String, dynamic>),
@@ -113,7 +110,6 @@ AgentRunRecord decodeAgentRun(Map<String, dynamic> json) {
         : AgentContextBatch.fromJson(
             Map<String, dynamic>.from(json['summaryBatch'] as Map),
           ),
-    sessionId: json['sessionId'] as String? ?? 'initial',
     modelId: json['modelId'] as String?,
     modelLabel: json['modelLabel'] as String? ?? '',
     usageIncomplete: json['usageIncomplete'] as bool? ?? false,
@@ -160,7 +156,7 @@ AgentRunRecord decodeAgentRun(Map<String, dynamic> json) {
 }
 
 void _version(Map<String, dynamic> json) {
-  if (json['version'] != 1) throw const FormatException('不支持的 Agent 记录版本');
+  if (json['version'] != 2) throw const FormatException('不支持的 Agent 记录版本');
 }
 
 Map<String, Object?> _encodeInput(LlmInputItem item) => switch (item) {

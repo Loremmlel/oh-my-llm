@@ -108,9 +108,7 @@ class AgentRunScreen extends ConsumerWidget {
                               .runsFor(current))
                         r.id: r,
                       for (final r in state.runs.where(
-                        (r) =>
-                            r.workspaceId == current.workspaceId &&
-                            r.sessionId == current.sessionId,
+                        (r) => r.workspaceId == current.workspaceId,
                       ))
                         r.id: r,
                     }.values.toList(),

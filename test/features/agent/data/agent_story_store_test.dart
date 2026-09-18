@@ -134,10 +134,10 @@ void main() {
     ]);
     finishRound(store, second);
     expect(
-      () => store.withdrawStoryRound('novel', 'wrong-session', second.id),
+      () => store.withdrawStoryRound('other', second.id),
       throwsA(isA<AgentWorkspaceException>()),
     );
-    store.withdrawStoryRound('novel', 'initial', second.id);
+    store.withdrawStoryRound('novel', second.id);
     expect(store.readStoryState('novel').rows, old.rows);
     expect(store.readStoryState('novel').revision, greaterThan(old.revision));
     expect(
@@ -158,7 +158,7 @@ void main() {
     final nextDocument = store.writeDocument('novel', '正文', '重新写');
     expect(nextDocument.id, first.document.id);
     expect(nextDocument.content, '重新写');
-    store.withdrawStoryRound('novel', 'initial', first.id);
+    store.withdrawStoryRound('novel', first.id);
     expect(store.readStoryState('novel').rows, isEmpty);
   });
 
@@ -166,10 +166,10 @@ void main() {
     final first = prepareRound(store, 'empty');
     store.commitStoryRound('novel', first.id, first.stateAgentId, []);
     finishRound(store, first);
-    store.withdrawStoryRound('novel', 'initial', first.id);
+    store.withdrawStoryRound('novel', first.id);
     final pending = prepareRound(store, 'pending');
     finishRound(store, pending);
-    store.withdrawStoryRound('novel', 'initial', pending.id);
+    store.withdrawStoryRound('novel', pending.id);
     expect(store.latestStoryRound('novel'), isNull);
     expect(
       store.readStoryRound('novel', pending.id)!.status,
@@ -237,7 +237,6 @@ AgentStoryRound prepareRound(
     AgentRunRecord(
       id: id,
       workspaceId: before.id,
-      sessionId: before.sessionId,
       prompt: before.draft,
       startedAt: DateTime(2026),
     ),
@@ -268,7 +267,6 @@ AgentStoryRound prepareRound(
       id: round.stateAgentId,
       workspaceId: before.id,
       parentId: id,
-      sessionId: before.sessionId,
       role: AgentRole.state,
       prompt: '更新状态',
       startedAt: DateTime(2026),

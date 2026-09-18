@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oh_my_llm/core/utils/id_generator.dart';
 import 'package:oh_my_llm/core/llm/llm_client.dart';
 import 'package:oh_my_llm/core/llm/llm_content.dart';
-import 'package:oh_my_llm/core/llm/llm_endpoint_resolver.dart';
+import 'package:oh_my_llm/core/llm/llm_history_conversion.dart';
 
 import '../domain/agent_models.dart';
 import '../domain/agent_context_batch.dart';
@@ -130,21 +130,13 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
             : _store.readStoryState(selected.id),
         storyRounds: selected == null
             ? []
-            : _store.listStoryRounds(
-                selected.id,
-                selected.sessionId,
-                includeHistory: false,
-              ),
+            : _store.listStoryRounds(selected.id, includeHistory: false),
         latestRound: selected == null
             ? null
             : _store.latestStoryRound(selected.id),
         runs: selected == null
             ? const []
-            : _store.listRuns(
-                selected.id,
-                sessionId: selected.sessionId,
-                includeHistory: false,
-              ),
+            : _store.listRuns(selected.id, includeHistory: false),
         documents: selected == null
             ? const []
             : _store.listDocuments(selected.id),
@@ -182,14 +174,6 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
     _load(state.workspace!.id);
   });
 
-  void renameSession(String id, String title) => _edit(() {
-    if (state.busy || state.workspace == null) return;
-    final name = _validatedTitle(title);
-    flushDraft();
-    _store.renameSession(state.workspace!.id, id, name);
-    _load(state.workspace!.id);
-  });
-
   String _validatedTitle(String title) {
     final name = title.trim();
     if (name.isEmpty) throw const AgentWorkspaceException('名称不能为空。');
@@ -200,10 +184,6 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
       _edit(() {
         final workspace = state.workspace;
         if (workspace == null || state.busy) return;
-        if (workspace.history.isNotEmpty &&
-            (modelId != null || instructions != null)) {
-          throw const AgentWorkspaceException('已有上下文的模型和规则已固定；请应用配置并在本作品新建会话。');
-        }
         flushDraft();
         _store.saveWorkspace(
           workspace.copyWith(
@@ -214,8 +194,6 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
         );
         _load(workspace.id);
       });
-  List<({String id, String title})> get sessions =>
-      state.workspace == null ? [] : _store.listSessions(state.workspace!.id);
   List<AgentConfiguration> get configurations => state.workspace == null
       ? []
       : _store.listConfigurations(state.workspace!.id);
@@ -242,63 +220,36 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
         .listConfigurations(workspace.id)
         .where((c) => c == configuration)
         .firstOrNull;
-    if (saved == null) throw const AgentWorkspaceException('请先保存此配置方案，再应用到会话。');
-    if (workspace.history.isEmpty) {
-      _store.saveWorkspace(
-        workspace.copyWith(configuration: saved, references: []),
-      );
-    } else {
-      _newSession(saved);
-    }
-    _load(workspace.id);
-  });
-
-  void createSession() => _edit(() {
-    if (state.busy || state.workspace == null) return;
-    flushDraft();
-    _newSession(state.workspace!.configuration);
-    _load(state.workspace!.id);
-  });
-
-  void _newSession(AgentConfiguration configuration) {
-    final workspace = state.workspace!;
-    _store.saveWorkspace(
-      AgentWorkspace(
-        id: workspace.id,
-        title: workspace.title,
-        sessionId: generateEntityId(),
-        sessionTitle: '会话 ${sessions.length + 1}',
-        configuration: resolveAgentConfiguration(configuration),
-      ),
-    );
-  }
-
-  void selectSession(String sessionId) => _edit(() {
-    if (state.busy || state.workspace == null) return;
-    flushDraft();
-    final workspace = _store.loadWorkspace(
-      state.workspace!.id,
-      sessionId: sessionId,
-    );
-    if (workspace == null) throw const AgentWorkspaceException('找不到本作品的会话。');
-    _store.saveWorkspace(workspace);
+    if (saved == null) throw const AgentWorkspaceException('请先保存此配置方案，再应用到作品。');
+    _store.saveWorkspace(workspace.copyWith(configuration: saved));
     _load(workspace.id);
   });
 
   List<LlmInputItem> previewInput() {
     final current = state.workspace;
     if (current == null) return [];
+    final model = ref
+        .read(agentModelsProvider)
+        .where((m) => m.id == current.modelId)
+        .firstOrNull;
+    final documents = _store.listDocuments(current.id);
+    final batches = contextBatches;
+    // 与运行器同样先转换完整历史再压缩，保持重建后的工具 ID 一致。
     final workspace = refreshAgentWorkspace(
-      current,
-      _store.listDocuments(current.id),
+      model == null
+          ? current
+          : current.copyWith(
+              history: convertLlmHistory(current.history, model.target),
+            ),
+      documents,
     );
     return [
-      ...buildAgentMainContext(
+      ...buildAgentMainContext(workspace, batches: batches),
+      ...agentScriptUpdates(
         workspace,
-        batches: contextBatches,
-        rounds: state.storyRounds,
+        documents,
+        full: batches.any((b) => b.active),
       ),
-      ...agentScriptUpdates(workspace, _store.listDocuments(workspace.id)),
       agentStateMessage(_store.readStoryState(workspace.id)),
       if (workspace.draft.trim().isNotEmpty)
         LlmTextMessage(role: LlmRole.user, text: workspace.draft.trim()),
@@ -316,15 +267,9 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
         record.inputHistory ??
         (record.parentId != null || record.role == AgentRole.summarizer
             ? record.childHistory
-            : (state.workspace?.id == record.workspaceId &&
-                      state.workspace?.sessionId == record.sessionId
+            : (state.workspace?.id == record.workspaceId
                   ? state.workspace!.history
-                  : _store
-                        .loadWorkspace(
-                          record.workspaceId,
-                          sessionId: record.sessionId,
-                        )
-                        ?.history));
+                  : _store.loadWorkspace(record.workspaceId)?.history));
     if (history == null || count > history.length) return null;
     return history.take(count).toList();
   }
@@ -370,7 +315,7 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
     }
     _unsavedWorkspace = null;
     if (_pendingDraft case final draft?) {
-      _store.saveDraft(draft.id, draft.sessionId, draft.draft);
+      _store.saveDraft(draft.id, draft.draft);
       _pendingDraft = null;
     }
   }
@@ -431,17 +376,15 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
           retryReplyId != pending?.id) {
         throw const AgentWorkspaceException('请先重试状态更新或放弃未完成轮次。');
       }
-      if (retryStory &&
-          (pending?.status != AgentStoryRoundStatus.pending ||
-              pending?.beforeWorkspace.sessionId != workspace.sessionId)) {
-        throw const AgentWorkspaceException('请在未完成轮次所属会话重试状态更新。');
+      if (retryStory && (pending?.status != AgentStoryRoundStatus.pending)) {
+        throw const AgentWorkspaceException('请先完成或放弃未完成的正文轮次。');
       }
       final model = ref
           .read(agentModelsProvider)
           .where((m) => m.id == workspace.modelId)
           .firstOrNull;
       if (model == null) {
-        throw const AgentWorkspaceException('请选择可用模型；若已删除，请应用新配置开始新会话。');
+        throw const AgentWorkspaceException('请选择可用模型；若已删除，请重新选择模型。');
       }
       if (!retryStory &&
           retryReplyId == null &&
@@ -449,29 +392,10 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
           workspace.draft.trim().isEmpty) {
         return;
       }
-      final endpoint = const LlmEndpointResolver().resolveGenerationEndpoint(
-        rawUrl: model.target.endpoint,
-        protocol: model.target.protocol,
-      );
-      for (final turn
-          in (summaryBatch == null ? workspace.history : <LlmInputItem>[])
-              .whereType<LlmAssistantTurn>()) {
-        if (turn.replay.protocol != model.target.protocol ||
-            turn.replay.endpoint != endpoint ||
-            turn.replay.model != model.target.model) {
-          throw const AgentWorkspaceException(
-            '服务商的协议、端点或模型已改变；原生上下文不能迁移，请恢复配置或在本作品新建会话。',
-          );
-        }
-      }
       workspace = workspace.copyWith(modelId: model.id);
       AgentRunRecord? retryRun;
       if (retryReplyId != null) {
-        retryRun = _store.resetLatestReply(
-          workspace.id,
-          workspace.sessionId,
-          retryReplyId,
-        );
+        retryRun = _store.resetLatestReply(workspace.id, retryReplyId);
         _lastSummaryBatch = null;
         _load(workspace.id);
         workspace = state.workspace!;
@@ -517,7 +441,7 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
       );
       if (summaryBatch != null) {
         _lastSummaryBatch = summaryBatch;
-        _lastSummarySession = workspace.sessionId;
+        _lastSummaryWorkspace = workspace.id;
         final result = await runtime.summarize(summaryBatch);
         if (result.status != AgentRunStatus.completed) {
           throw AgentWorkspaceException(result.error);
@@ -545,7 +469,6 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
             storyState: _store.readStoryState(workspace.id),
             storyRounds: _store.listStoryRounds(
               workspace.id,
-              workspace.sessionId,
               includeHistory: false,
             ),
             latestRound: _store.latestStoryRound(workspace.id),
@@ -566,9 +489,9 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
   }
 
   AgentContextBatch? _lastSummaryBatch;
-  String? _lastSummarySession;
+  String? _lastSummaryWorkspace;
   AgentContextBatch? get retrySummaryBatch {
-    if (_lastSummarySession == state.workspace?.sessionId &&
+    if (_lastSummaryWorkspace == state.workspace?.id &&
         _lastSummaryBatch != null) {
       return _lastSummaryBatch;
     }
@@ -585,51 +508,33 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
 
   List<AgentContextBatch> get contextBatches => state.workspace == null
       ? []
-      : _store.listContextBatches(
-          state.workspace!.id,
-          state.workspace!.sessionId,
-        );
+      : _store.listContextBatches(state.workspace!.id);
   List<AgentRunRecord> runsFor(AgentRunRecord record) =>
       _store.listChildRuns(record.workspaceId, record.id);
 
   AgentContextBatch contextBatchFor(int count) {
-    final hidden = contextBatches
-        .where((b) => b.active)
-        .expand((b) => b.roundIds)
-        .toSet();
-    final available = state.storyRounds.reversed
-        .where(
-          (r) =>
-              r.status == AgentStoryRoundStatus.committed &&
-              !hidden.contains(r.id),
-        )
-        .toList();
-    if (count <= 0 || count > available.length) {
-      throw const AgentWorkspaceException('请选择有效的正文楼数。');
-    }
     final committed = state.storyRounds.reversed
         .where((r) => r.status == AgentStoryRoundStatus.committed)
         .toList();
-    final start = committed.indexOf(available.first);
-    final contiguous = committed
-        .skip(start)
-        .takeWhile((r) => !hidden.contains(r.id))
-        .length;
-    if (count > contiguous) {
-      throw AgentWorkspaceException('本次最多处理连续的 $contiguous 楼，不能跨过已整理的批次。');
+    final previous = contextBatches.where((b) => b.active).firstOrNull;
+    final covered = previous?.roundIds.length ?? 0;
+    if (count <= 0 || covered + count > committed.length) {
+      throw const AgentWorkspaceException('请选择有效的新增正文楼数。');
     }
-    final selected = available.take(count).map((r) => r.id).toList();
-    return AgentContextBatch(id: generateEntityId(), roundIds: selected);
+    final selected = committed.take(covered + count).map((r) => r.id).toList();
+    final end = _store.loadRun(state.workspace!.id, selected.last)?.historyEnd;
+    if (end == null) throw const AgentWorkspaceException('正文缺少完整任务边界，无法压缩。');
+    return AgentContextBatch(
+      id: generateEntityId(),
+      roundIds: selected,
+      historyEnd: end,
+    );
   }
 
   void saveContextBatch(AgentContextBatch batch) => _edit(() {
     if (state.busy || state.workspace == null) return;
     flushDraft();
-    _store.saveContextBatch(
-      state.workspace!.id,
-      state.workspace!.sessionId,
-      batch,
-    );
+    _store.saveContextBatch(state.workspace!.id, batch);
     _load(state.workspace!.id);
   });
 
@@ -640,7 +545,7 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
     flushDraft();
     final round = _store.latestStoryRound(workspace.id);
     if (round == null) throw const AgentWorkspaceException('没有可撤回的正文轮次。');
-    _store.withdrawStoryRound(workspace.id, workspace.sessionId, round.id);
+    _store.withdrawStoryRound(workspace.id, round.id);
     _load(workspace.id);
   });
   void _load(String id) {
@@ -648,22 +553,12 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
     state = AgentWorkspaceState(
       workspaces: _store.listWorkspaces(),
       workspace: workspace,
-      runs: workspace == null
-          ? []
-          : _store.listRuns(
-              id,
-              sessionId: workspace.sessionId,
-              includeHistory: false,
-            ),
+      runs: workspace == null ? [] : _store.listRuns(id, includeHistory: false),
       documents: _store.listDocuments(id),
       storyState: _store.readStoryState(id),
       storyRounds: workspace == null
           ? []
-          : _store.listStoryRounds(
-              id,
-              workspace.sessionId,
-              includeHistory: false,
-            ),
+          : _store.listStoryRounds(id, includeHistory: false),
       latestRound: _store.latestStoryRound(id),
     );
   }

@@ -15,15 +15,27 @@ Map<String, String> agentScriptCatalog(List<AgentDocument> documents) => {
     doc.id: agentScriptFingerprint(doc),
 };
 
-/// 发现只追加一次，已见内容由会话检查点保存，不从可伪造的用户文本推断。
+/// 发现只追加一次，已见内容由作品检查点保存，不从可伪造的用户文本推断。
 List<LlmInputItem> agentScriptUpdates(
   AgentWorkspace workspace,
-  List<AgentDocument> documents,
-) {
+  List<AgentDocument> documents, {
+  bool full = false,
+}) {
   final scripts =
       documents.where((d) => d.kind == AgentDocumentKind.script).toList()
         ..sort((a, b) => a.id.compareTo(b.id));
   final catalog = agentScriptCatalog(scripts);
+  if (full) {
+    return [
+      LlmTextMessage(
+        role: LlmRole.user,
+        text:
+            '当前完整剧本目录及有效进度（全文按需重新读取，未列出的旧剧本不再生效）：\n${jsonEncode([
+              for (final doc in scripts) {'script_id': doc.id, 'name': doc.name, 'description': doc.description, 'fingerprint': catalog[doc.id], if (workspace.scriptProgress[doc.id]?.fingerprint == catalog[doc.id]) 'progress': workspace.scriptProgress[doc.id]!.toJson()},
+            ])}',
+      ),
+    ];
+  }
   final changes = <Map<String, Object?>>[
     for (final doc in scripts)
       if (workspace.knownScripts[doc.id] != catalog[doc.id])
@@ -75,7 +87,7 @@ AgentScriptProgress validateAgentScriptProgress({
       sourceRoundIds.any((id) => id is! String || !committed.contains(id)) ||
       sourceRoundIds.toSet().length != sourceRoundIds.length ||
       (phase != AgentScriptStatus.planned && sourceRoundIds.isEmpty)) {
-    throw const AgentWorkspaceException('推进或完成必须关联本会话已经提交的正式正文；来源 ID 不得重复。');
+    throw const AgentWorkspaceException('推进或完成必须关联本作品已经提交的正式正文；来源 ID 不得重复。');
   }
   return AgentScriptProgress(
     fingerprint: agentScriptFingerprint(document),

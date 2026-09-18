@@ -33,18 +33,15 @@ void main() {
         scriptMarkdown(name, body),
         kind: AgentDocumentKind.script,
       );
-  AgentRuntime runtime(
-    FakeAgentClient client, {
-    String sessionId = 'initial',
-  }) => AgentRuntime(
+  AgentRuntime runtime(FakeAgentClient client) => AgentRuntime(
     client: client,
     store: store,
-    workspace: store.loadWorkspace('novel', sessionId: sessionId)!,
+    workspace: store.loadWorkspace('novel')!,
     target: agentTestTarget,
     onUpdate: (_) {},
   );
 
-  test('首次只发现元信息，新增修改退出目录都追加且按会话独立恢复', () async {
+  test('首次只发现元信息，新增修改退出目录都追加且重载保留发现状态', () async {
     final first = script('秋季', '未读剧本秘密');
     final client = FakeAgentClient((_, _) => agentReply());
     await runtime(client).run('讨论');
@@ -94,21 +91,6 @@ void main() {
       isEmpty,
     );
 
-    store.saveWorkspace(
-      AgentWorkspace(
-        id: 'novel',
-        title: '小说',
-        sessionId: 'second',
-        sessionTitle: '第二会话',
-      ),
-    );
-    await runtime(client, sessionId: 'second').run('重新发现');
-    expect(agentInputText(client.requests.last.input), contains('added'));
-    expect(
-      store.loadWorkspace('novel', sessionId: 'second')!.scriptProgress,
-      isEmpty,
-    );
-
     store.writeDocument(
       'novel',
       first.name,
@@ -119,12 +101,12 @@ void main() {
     await runtime(client).run('移出');
     expect(agentInputText(client.requests.last.input), contains('removed'));
     expect(
-      store.loadWorkspace('novel', sessionId: 'initial')!.knownScripts,
+      store.loadWorkspace('novel')!.knownScripts,
       isNot(contains(first.id)),
     );
   });
 
-  test('剧本全文和备忘不参与正文总结，重载及逐轮撤回恢复来源之前的备忘', () async {
+  test('压缩后补充有效剧本目录和备忘，逐轮撤回恢复来源之前的备忘', () async {
     final doc = script('秋季');
     Future<void> remember(
       AgentScriptStatus status,
@@ -160,9 +142,9 @@ void main() {
     await remember(AgentScriptStatus.completed, [first.id, second.id]);
     store.saveContextBatch(
       'novel',
-      'initial',
       AgentContextBatch(
         id: 'summary',
+        historyEnd: store.loadRun('novel', second.id)!.historyEnd!,
         roundIds: [first.id, second.id],
         summary: '日常继续。',
       ),
@@ -170,8 +152,7 @@ void main() {
     final loaded = store.loadWorkspace('novel')!;
     final input = buildAgentMainContext(
       loaded,
-      batches: store.listContextBatches('novel', 'initial'),
-      rounds: store.listStoryRounds('novel', 'initial'),
+      batches: store.listContextBatches('novel'),
     );
     expect(input, isNot(contains(agentProseMessage(first))));
     expect(
@@ -183,12 +164,26 @@ void main() {
     );
     expect(agentInputText(input), contains('9 月初收到投稿'));
     expect(loaded.scriptProgress[doc.id]!.status, AgentScriptStatus.completed);
-    store.withdrawStoryRound('novel', 'initial', second.id);
+    final nextClient = FakeAgentClient((request, _) {
+      final catalog = request.input.whereType<LlmTextMessage>().singleWhere(
+        (m) => m.text.startsWith('当前完整剧本目录及有效进度'),
+      );
+      expect(catalog.text, contains(doc.name));
+      expect(catalog.text, contains('9 月初收到投稿'));
+      expect(catalog.text, contains('completed'));
+      return agentReply(text: '继续');
+    });
+    expect(
+      (await runtime(nextClient).run('压缩后继续')).status,
+      AgentRunStatus.completed,
+    );
+
+    store.withdrawStoryRound('novel', second.id);
     expect(
       store.loadWorkspace('novel')!.scriptProgress[doc.id]!.status,
       AgentScriptStatus.active,
     );
-    store.withdrawStoryRound('novel', 'initial', first.id);
+    store.withdrawStoryRound('novel', first.id);
     expect(
       store.loadWorkspace('novel')!.scriptProgress[doc.id]!.status,
       AgentScriptStatus.planned,

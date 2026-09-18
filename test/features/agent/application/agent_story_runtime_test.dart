@@ -119,7 +119,7 @@ void main() {
     );
     final round = store.latestStoryRound('novel')!;
     final input = result.inputHistory!;
-    store.withdrawStoryRound('novel', 'initial', round.id);
+    store.withdrawStoryRound('novel', round.id);
     expect(store.loadWorkspace('novel')!.history, isEmpty);
     expect(store.loadWorkspace('novel')!.draft, '开场：甲乙来到图书馆');
     expect(store.listDocuments('novel'), isEmpty);

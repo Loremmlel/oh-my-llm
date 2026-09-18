@@ -19,12 +19,21 @@ import '../agent_story_test_helpers.dart';
 import '../agent_test_helpers.dart';
 
 void main() {
-  testWidgets('窄屏窗口隐藏恢复和编辑摘要，键盘弹出仍可保存且取消保护未保存内容', (tester) async {
+  testWidgets('窄屏窗口恢复和编辑累计摘要，键盘弹出仍可保存且取消保护未保存内容', (tester) async {
     final db = AppDatabase.inMemory();
     addTearDown(db.close);
     final store = SqliteAgentStore(db);
     store.saveWorkspace(AgentWorkspace(id: 'novel', title: '小说'));
     seedProseFloor(store, 1);
+    store.saveContextBatch(
+      'novel',
+      AgentContextBatch(
+        id: 'saved',
+        roundIds: ['floor-1'],
+        historyEnd: 1,
+        summary: '初始累计摘要',
+      ),
+    );
     await pumpTestApp(
       tester,
       database: db,
@@ -49,9 +58,8 @@ void main() {
     );
     await tester.tap(find.text('打开总结'));
     await settleOverlayTransition(tester);
-    await tester.tap(find.text('直接隐藏'));
-    await tester.pump();
-    expect(store.listContextBatches('novel', 'initial').single.active, isTrue);
+    expect(find.text('直接隐藏'), findsNothing);
+    expect(store.listContextBatches('novel').single.active, isTrue);
     await tester.ensureVisible(find.text('编辑摘要'));
     await tester.tap(find.text('编辑摘要'));
     await settleOverlayTransition(tester);
@@ -69,15 +77,12 @@ void main() {
     await settleOverlayTransition(tester);
     tester.view.resetViewInsets();
     await settleAnimatedWidgetTransition(tester);
-    expect(
-      store.listContextBatches('novel', 'initial').single.summary,
-      '窗口内的摘要',
-    );
-    await tester.ensureVisible(find.text('恢复原文'));
-    await tester.tap(find.text('恢复原文'));
+    expect(store.listContextBatches('novel').single.summary, '窗口内的摘要');
+    await tester.ensureVisible(find.text('恢复全部原文'));
+    await tester.tap(find.text('恢复全部原文'));
     await tester.pump();
     expect(
-      store.listContextBatches('novel', 'initial').single.status,
+      store.listContextBatches('novel').single.status,
       AgentContextBatchStatus.restored,
     );
     await tester.tap(find.text('关闭'));
@@ -130,7 +135,7 @@ void main() {
     );
     await tester.tap(find.text('打开总结'));
     await settleOverlayTransition(tester);
-    await tester.tap(find.text('总结并替代'));
+    await tester.tap(find.text('压缩并替代'));
     await tester.runAsync(
       () => entered.future.timeout(const Duration(seconds: 5)),
     );
@@ -151,7 +156,7 @@ void main() {
     sub.close();
     release.complete();
     await tester.pump();
-    expect(store.listContextBatches('novel', 'initial'), isEmpty);
+    expect(store.listContextBatches('novel'), isEmpty);
     await tester.ensureVisible(find.text('重试总结'));
     final retried = container
         .read(agentWorkspaceProvider.notifier)
@@ -162,7 +167,7 @@ void main() {
           .send(summaryBatch: retried),
     );
     await tester.pump();
-    expect(store.listContextBatches('novel', 'initial').single.summary, '正式摘要');
+    expect(store.listContextBatches('novel').single.summary, '正式摘要');
     expect(store.loadWorkspace('novel')!.history, history);
     expect(tester.takeException(), isNull);
   });

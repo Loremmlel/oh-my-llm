@@ -4,12 +4,11 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart' as sqlite;
 import 'package:oh_my_llm/core/persistence/app_database.dart';
-import 'package:oh_my_llm/features/agent/data/agent_record_codec.dart';
 import 'package:oh_my_llm/features/agent/data/sqlite_agent_store.dart';
 
 void main() {
   for (final malformed in [false, true]) {
-    test(malformed ? '损坏历史使迁移整体回滚，原草稿和正文仍在旧库' : '已发布 v20 历史迁移保留原生输入、草稿、撤回快照和整理记录，重开不重复迁移', () {
+    test(malformed ? '损坏历史使迁移整体回滚，原草稿和正文仍在旧库' : '已发布 v20 历史经过顺序迁移并清空旧 Agent 测试数据，重开不重复迁移', () {
       final directory = Directory.systemTemp.createTempSync(
         'agent-history-v20-',
       );
@@ -178,25 +177,13 @@ void main() {
                   .single['user_version'],
               greaterThanOrEqualTo(21),
             );
-            expect(
-              store.loadWorkspace('novel'),
-              decodeAgentWorkspace(jsonDecode(jsonEncode(workspace))),
-            );
-            expect(
-              store.loadRun('novel', 'root'),
-              decodeAgentRun(jsonDecode(jsonEncode(run))),
-            );
-            expect(
-              store.readStoryRound('novel', 'root'),
-              decodeAgentStoryRound(jsonDecode(jsonEncode(round))),
-            );
-            expect(
-              store.listContextBatches('novel', 'initial').single.summary,
-              '旧总结',
-            );
+            expect(store.loadWorkspace('novel'), isNull);
+            expect(store.loadRun('novel', 'root'), isNull);
+            expect(store.readStoryRound('novel', 'root'), isNull);
+            expect(store.listContextBatches('novel'), isEmpty);
             expect(
               database.connection.select('SELECT * FROM agent_history_items'),
-              hasLength(history.length),
+              isEmpty,
             );
             expect(
               database.connection.select('PRAGMA foreign_key_check'),

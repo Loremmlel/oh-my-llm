@@ -67,13 +67,6 @@ class _AgentScreenState extends ConsumerState<AgentScreen> {
         label: const Text('新建作品'),
         icon: const Icon(Icons.add),
       ),
-      TextButton.icon(
-        onPressed: workspace == null || state.busy
-            ? null
-            : controller.createSession,
-        label: const Text('新建会话'),
-        icon: const Icon(Icons.add_comment_outlined),
-      ),
     ];
     return AppShellScaffold(
       currentDestination: AppDestination.agent,
@@ -87,18 +80,12 @@ class _AgentScreenState extends ConsumerState<AgentScreen> {
             tooltip: '工作区操作',
             onSelected: (value) {
               if (value == 'workspace') controller.createWorkspace();
-              if (value == 'session') controller.createSession();
             },
             itemBuilder: (_) => [
               PopupMenuItem(
                 value: 'workspace',
                 enabled: !state.busy,
                 child: const Text('新建作品'),
-              ),
-              PopupMenuItem(
-                value: 'session',
-                enabled: workspace != null && !state.busy,
-                child: const Text('新建会话'),
               ),
             ],
           ),
@@ -143,11 +130,6 @@ class _AgentScreenState extends ConsumerState<AgentScreen> {
                                         style: Theme.of(context)
                                             .textTheme
                                             .titleSmall,
-                                      ),
-                                      Text(
-                                        workspace.sessionTitle,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ],
                                   ),
@@ -276,7 +258,7 @@ class _AgentScreenState extends ConsumerState<AgentScreen> {
                         child: AgentDocumentsPanel(),
                       )
                     : AgentTranscript(
-                        key: ValueKey('${workspace.id}/${workspace.sessionId}'),
+                        key: ValueKey(workspace.id),
                         records: roots,
                         allRuns: state.runs,
                         retryReplyId: latest?.id,
@@ -305,11 +287,7 @@ class _AgentScreenState extends ConsumerState<AgentScreen> {
                   constraints: BoxConstraints(
                     maxHeight: viewport.maxHeight * .45,
                   ),
-                  child: _Composer(
-                    key: ValueKey(
-                      'composer/${workspace.id}/${workspace.sessionId}',
-                    ),
-                  ),
+                  child: _Composer(key: ValueKey('composer/${workspace.id}')),
                 ),
             ],
           ],

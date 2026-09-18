@@ -7,6 +7,7 @@ import 'package:oh_my_llm/core/llm/llm_client.dart';
 import 'package:oh_my_llm/core/llm/llm_content.dart';
 import 'package:oh_my_llm/core/llm/llm_event.dart';
 import 'package:oh_my_llm/core/llm/llm_request.dart';
+import 'package:oh_my_llm/core/llm/llm_history_conversion.dart';
 
 import '../domain/agent_models.dart';
 import '../domain/agent_context_batch.dart';
@@ -107,16 +108,24 @@ class AgentRuntime {
         workspace,
         store.listDocuments(workspace.id),
       );
-      _beforeRound = workspace.copyWith(draft: prompt);
-      _canonicalHistory = agentConversationHistory(workspace);
-      final history = buildAgentMainContext(
-        workspace,
-        batches: _batches,
-        rounds: _rounds,
+      workspace = workspace.copyWith(
+        history: convertLlmHistory(
+          workspace.history,
+          _model(AgentRole.coordinator).target,
+        ),
       );
+      _beforeRound = workspace.copyWith(draft: prompt);
+      _canonicalHistory = workspace.history;
+      final history = buildAgentMainContext(workspace, batches: _batches);
       _appendStart = history.length;
       final documents = store.listDocuments(workspace.id);
-      history.addAll(agentScriptUpdates(workspace, documents));
+      history.addAll(
+        agentScriptUpdates(
+          workspace,
+          documents,
+          full: _batches.any((b) => b.active),
+        ),
+      );
       final catalog = agentScriptCatalog(documents);
       workspace = workspace.copyWith(
         knownScripts: catalog,
@@ -133,6 +142,9 @@ class AgentRuntime {
             status: AgentRunStatus.running,
             error: '',
             beforeWorkspace: _beforeRound,
+            modelId: _model(AgentRole.coordinator).id,
+            modelLabel: _model(AgentRole.coordinator).label,
+            tools: agentToolsFor(AgentRole.coordinator),
           );
       _rootId = record.id;
       return await _execute(record, history);
@@ -152,7 +164,6 @@ class AgentRuntime {
   }) => AgentRunRecord(
     id: generateEntityId(),
     workspaceId: workspace.id,
-    sessionId: workspace.sessionId,
     modelId: _model(role).id,
     modelLabel: _model(role).label,
     tools: agentToolsFor(role),
@@ -176,7 +187,10 @@ class AgentRuntime {
           history: [..._canonicalHistory, ...history.skip(_appendStart)],
           draft: _preservedDraft,
         );
-        record = record.copyWith(inputHistory: history);
+        record = record.copyWith(
+          inputHistory: history,
+          historyEnd: workspace.history.length,
+        );
       } else {
         record = record.copyWith(childHistory: history);
       }
@@ -194,7 +208,7 @@ class AgentRuntime {
           throw const _Limit('主任务与子任务合计模型调用次数已达上限。');
         }
         if (_historyBytes(history) > 4 * 1024 * 1024) {
-          throw const _Limit('上下文超过 4 MiB，请在同一作品内新建会话。');
+          throw const _Limit('上下文超过 4 MiB，请先压缩较早的正文轮次。');
         }
         _modelCalls++;
         record = record.copyWith(
@@ -686,11 +700,11 @@ class AgentRuntime {
           output = _storyResult(saved);
         case 'list_documents':
           output = [
-            for (final doc in _sessionDocuments(owner))
+            for (final doc in _workspaceDocuments(owner))
               {'id': doc.id, 'name': doc.name, 'kind': doc.kind.name},
           ];
         case 'read_document':
-          final document = _sessionDocuments(owner)
+          final document = _workspaceDocuments(owner)
               .where((d) => d.name == string('name'))
               .firstOrNull;
           if (document == null) {
@@ -913,9 +927,8 @@ class AgentRuntime {
     if (_started) throw StateError('运行器不能复用');
     _started = true;
     if (round.status != AgentStoryRoundStatus.pending ||
-        round.beforeWorkspace.id != workspace.id ||
-        round.beforeWorkspace.sessionId != workspace.sessionId) {
-      throw const AgentWorkspaceException('没有本会话可重试的状态更新。');
+        round.beforeWorkspace.id != workspace.id) {
+      throw const AgentWorkspaceException('没有本作品可重试的状态更新。');
     }
     _beforeRound = round.beforeWorkspace;
     _rootId = round.id;
@@ -968,7 +981,8 @@ class AgentRuntime {
     }
     workspace = workspace.copyWith(history: history);
     record = record.copyWith(
-      // 重试没有调用主模型，保留其原实际输入，不能用当前会话投影覆盖。
+      // 重试没有调用主模型，保留其原实际输入，不能用当前上下文投影覆盖。
+      historyEnd: history.length,
       steps: [
         ...record.steps,
         AgentStep(
@@ -1003,18 +1017,15 @@ class AgentRuntime {
     }
     final model = roleModels[role];
     if (model == null) {
-      throw const AgentWorkspaceException('此职责的模型已不可用，请保存新方案并新建会话。');
+      throw const AgentWorkspaceException('此职责的模型已不可用，请在模型与规则中应用可用模型。');
     }
     return model;
   }
 
   List<AgentContextBatch> get _batches =>
-      store.listContextBatches(workspace.id, workspace.sessionId);
-  List<AgentStoryRound> get _rounds => store.listStoryRounds(
-    workspace.id,
-    workspace.sessionId,
-    includeHistory: false,
-  );
+      store.listContextBatches(workspace.id);
+  List<AgentStoryRound> get _rounds =>
+      store.listStoryRounds(workspace.id, includeHistory: false);
 
   List<LlmInputItem> _childContext(
     AgentRole role, {
@@ -1029,7 +1040,7 @@ class AgentRuntime {
     characterCardId: cardId,
   );
 
-  List<AgentDocument> _sessionDocuments(AgentRunRecord owner) =>
+  List<AgentDocument> _workspaceDocuments(AgentRunRecord owner) =>
       store
           .listDocuments(workspace.id)
           .where(
@@ -1097,34 +1108,35 @@ class AgentRuntime {
   Future<AgentRunRecord> summarize(AgentContextBatch batch) async {
     if (_started) throw StateError('运行器不能复用');
     _started = true;
-    final rounds = _rounds.reversed
-        .where(
-          (r) =>
-              batch.roundIds.contains(r.id) &&
-              r.status == AgentStoryRoundStatus.committed,
-        )
-        .toList();
-    if (rounds.length != batch.roundIds.length || rounds.isEmpty) {
-      throw const AgentWorkspaceException('总结来源已失效。');
-    }
     final committed = _rounds.reversed
         .where((r) => r.status == AgentStoryRoundStatus.committed)
         .toList();
-    final firstIndex = committed.indexWhere(
-      (r) => r.id == batch.roundIds.first,
-    );
-    if (Iterable<int>.generate(batch.roundIds.length).any(
-          (i) =>
-              firstIndex + i >= committed.length ||
-              committed[firstIndex + i].id != batch.roundIds[i],
-        ) ||
+    final previous = _batches
+        .where((b) => b.active && b.id != batch.id)
+        .firstOrNull;
+    final covered = previous?.roundIds.length ?? 0;
+    if (batch.roundIds.isEmpty ||
+        batch.roundIds.length > committed.length ||
+        Iterable<int>.generate(batch.roundIds.length)
+            .any((i) => committed[i].id != batch.roundIds[i]) ||
+        (previous != null &&
+            (covered >= batch.roundIds.length ||
+                Iterable<int>.generate(covered)
+                    .any((i) => previous.roundIds[i] != batch.roundIds[i]))) ||
         _batches.any(
-          (b) => b.id == batch.id
-              ? b.status == AgentContextBatchStatus.invalidated
-              : b.active && b.roundIds.any(batch.roundIds.contains),
+          (b) =>
+              b.id == batch.id &&
+              b.status == AgentContextBatchStatus.invalidated,
         )) {
-      throw const AgentWorkspaceException('总结范围不连续、已经覆盖或来源失效。');
+      throw const AgentWorkspaceException('累计压缩来源已失效，请重新选择。');
     }
+    if (batch.historyEnd <= 0 ||
+        batch.historyEnd > workspace.history.length ||
+        store.loadRun(workspace.id, batch.roundIds.last)?.historyEnd !=
+            batch.historyEnd) {
+      throw const AgentWorkspaceException('压缩任务边界已失效，请重新选择。');
+    }
+    final rounds = committed.take(batch.roundIds.length).skip(covered).toList();
     workspace = refreshAgentWorkspace(
       workspace,
       store.listDocuments(workspace.id),
@@ -1136,12 +1148,17 @@ class AgentRuntime {
     try {
       var record = await _execute(
         _newRecord(
-          '总结 ${rounds.length} 楼正式正文（批次 ${batch.id}）',
+          '累计压缩 ${batch.roundIds.length} 楼正文（新增 ${rounds.length} 楼）',
           AgentRole.summarizer,
           summaryBatch: batch,
         ),
         [
           ...buildAgentInitialContext(workspace, AgentRole.summarizer),
+          const LlmTextMessage(
+            role: LlmRole.user,
+            text: '请将已有累计摘要与本次新增正文及写作指令合并为一份完整累计摘要。保留仍有效的事实、时间线、人物关系、未解决事项和写作约束，不要只总结新增部分。',
+          ),
+          if (previous != null) ...agentSummaryMessages([previous]),
           for (final round in rounds) ...[
             LlmTextMessage(
               role: LlmRole.user,
@@ -1156,7 +1173,6 @@ class AgentRuntime {
           _checkCancelled();
           store.saveContextBatch(
             workspace.id,
-            workspace.sessionId,
             batch.copyWith(
               summary: record.content,
               summaryRunId: record.id,

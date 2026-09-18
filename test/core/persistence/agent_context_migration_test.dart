@@ -5,10 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart' as sqlite;
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/agent/data/sqlite_agent_store.dart';
-import 'package:oh_my_llm/features/agent/domain/agent_models.dart';
 
 void main() {
-  test('完整已发布 v19 顺序升级，旧会话设定及自定义职责保持原值', () {
+  test('完整已发布 v19 顺序升级后清空旧 Agent 测试设定', () {
     final directory = Directory.systemTemp.createTempSync('agent-context-v19-');
     addTearDown(() => directory.deleteSync(recursive: true));
     final path = '${directory.path}/old.sqlite';
@@ -66,30 +65,12 @@ void main() {
       database.connection.select('PRAGMA user_version').single['user_version'],
       greaterThanOrEqualTo(20),
     );
-    expect(store.loadWorkspace('novel')!.draft, '原草稿');
-    expect(
-      store
-          .loadWorkspace('novel')!
-          .configuration
-          .settings(AgentRole.writer)
-          .instructions,
-      '用户自己的写作规则',
-    );
-    expect(
-      store
-          .loadWorkspace('novel')!
-          .configuration
-          .modelFor(AgentRole.summarizer),
-      'model',
-    );
-    expect(store.loadWorkspace('novel')!.configuration.presetRoles, [
-      AgentRole.writer,
-    ]);
-    expect(store.readDocument('novel', '世界')!.content, '旧设定');
-    expect(store.listContextBatches('novel', 'initial'), isEmpty);
+    expect(store.loadWorkspace('novel'), isNull);
+    expect(store.listDocuments('novel'), isEmpty);
+    expect(store.listContextBatches('novel'), isEmpty);
     database.close();
     final reopened = AppDatabase.forPath(path);
     addTearDown(reopened.close);
-    expect(SqliteAgentStore(reopened).loadWorkspace('novel')!.title, '旧小说');
+    expect(SqliteAgentStore(reopened).loadWorkspace('novel'), isNull);
   });
 }
