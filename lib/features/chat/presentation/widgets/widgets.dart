@@ -1,7 +1,5 @@
 export 'messages/bubble/cached_chat_message_bubble.dart';
-export 'sidebar/chat_activity_bar.dart';
-export 'sidebar/chat_compact_panel.dart';
-export 'sidebar/chat_sidebar_panel.dart';
+export 'sidebar/chat_navigation_drawer.dart';
 export 'messages/bubble/chat_message_bubble.dart';
 export 'workspace/chat_workspace.dart';
 export 'workspace/chat_workspace_bindings.dart';

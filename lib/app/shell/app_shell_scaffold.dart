@@ -34,7 +34,7 @@ class AppShellScaffold extends StatelessWidget {
 
   final Widget? endDrawer;
 
-  /// 未提供常驻侧栏的页面可在宽屏继续使用弹出抽屉。
+  /// 页面辅助内容在宽屏也通过右侧抽屉打开。
   final bool endDrawerOnWide;
 
   /// 是否存在需要优先于路由切换处理的页面本地返回目标（历史选择态、聊天

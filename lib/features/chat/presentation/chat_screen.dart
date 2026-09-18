@@ -18,7 +18,6 @@ import '../application/composer/chat_composer_command.dart';
 import '../application/composer/template_prompt_compilation_provider.dart';
 import '../application/sessions/chat_message_tree.dart';
 import '../application/sessions/chat_sessions_controller.dart';
-import '../application/sidebar/chat_sidebar_controller.dart';
 import '../application/composer/composer_collapsed_controller.dart';
 import '../application/composer/composer_draft_controller.dart';
 import '../domain/chat_conversation_groups.dart';
@@ -268,8 +267,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       });
     }
 
-    final sidebarState = ref.watch(chatSidebarProvider);
-
     return AppShellScaffold(
       currentDestination: AppDestination.chat,
       title: conversation.resolvedTitle,
@@ -277,6 +274,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       // 而不是把编辑中的会话交还系统退出。普通 composer 草稿不拦返回。
       hasLocalBackTarget: _editingMessageId != null,
       onLocalBack: _cancelEditMode,
+      endDrawerOnWide: true,
       endDrawer: _buildEndDrawer(
         conversationSummaries: conversationSummaries,
         activeConversationId: activeConversationId,
@@ -290,38 +288,42 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         conversation: conversation,
       ),
       body: _buildBody(
-        sidebarState: sidebarState,
-        conversationSummaries: conversationSummaries,
-        activeConversationId: activeConversationId,
-        isBusy: isBusy,
         composerState: composerState,
         workspaceBindings: workspaceBindings,
       ),
     );
   }
 
-  /// 构建紧凑模式下的 endDrawer，包含历史会话面板和预设 Prompt 面板。
+  /// 抽屉回调使用 Scaffold 下的 context，完成会话切换后返回正文。
   Widget _buildEndDrawer({
     required List<ChatConversationSummary> conversationSummaries,
     required String activeConversationId,
     required bool isBusy,
   }) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: ChatCompactPanel(
-          historyPanel: _buildHistoryPanel(
-            conversationSummaries,
-            activeConversationId: activeConversationId,
-            isBusy: isBusy,
-          ),
-          presetPanel: PresetPromptPanel(
-            selectedPresetPromptId: ref
-                .read(activeChatConversationProvider)
-                .selectedPresetPromptId,
-            onPresetPromptSelected: (id) =>
-                ref.read(chatComposerCommandProvider).selectPreset(id),
-          ),
+    return Builder(
+      builder: (context) => ChatNavigationDrawer(
+        historyPanel: ConversationHistoryPanel(
+          key: const PageStorageKey('chat-drawer-history'),
+          groups: _buildConversationGroups(conversationSummaries),
+          activeConversationId: activeConversationId,
+          onCreateConversation: isBusy
+              ? null
+              : () async {
+                  await _createConversationAndScroll();
+                  if (context.mounted) Scaffold.of(context).closeEndDrawer();
+                },
+          onConversationSelected: (id) {
+            if (isBusy) return;
+            ref.read(chatSessionsProvider.notifier).selectConversation(id);
+            Scaffold.of(context).closeEndDrawer();
+          },
+        ),
+        presetPanel: PresetPromptPanel(
+          selectedPresetPromptId: ref
+              .read(activeChatConversationProvider)
+              .selectedPresetPromptId,
+          onPresetPromptSelected: (id) =>
+              ref.read(chatComposerCommandProvider).selectPreset(id),
         ),
       ),
     );
@@ -363,51 +365,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     ];
   }
 
-  /// 构建页面主体布局：根据视口宽度决定侧栏显窄，并在宽屏模式下
-  /// 通过 LayoutBuilder 保持与 AppShellScaffold 断点判定一致。
   Widget _buildBody({
-    required ChatSidebarState sidebarState,
-    required List<ChatConversationSummary> conversationSummaries,
-    required String activeConversationId,
-    required bool isBusy,
     required ChatWorkspaceComposerState composerState,
     required ChatWorkspaceBindings workspaceBindings,
   }) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // 使用窗口级宽度与 AppShellScaffold 保持一致：父约束已被 NavigationRail
-        // 缩窄，不能拿内层 LayoutBuilder 宽度再判一次 shell。
-        final showSidePanels = !AppBreakpoints.isCompactShell(context);
-        // 移动端（紧凑布局）缩小四周 Padding，给消息区与输入区让出更多宽度。
-        final isCompact = !showSidePanels;
-
-        return Padding(
-          padding: EdgeInsets.all(isCompact ? 6 : 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (showSidePanels) ...[
-                const ChatActivityBar(),
-                ChatSidebarPanel(
-                  content: _buildSidebarContent(
-                    sidebarState.activeFunction ?? ChatSidebarFunction.history,
-                    conversationSummaries: conversationSummaries,
-                    activeConversationId: activeConversationId,
-                    isBusy: isBusy,
-                  ),
-                ),
-                const SizedBox(width: 12),
-              ],
-              Expanded(
-                child: ChatWorkspace(
-                  composerState: composerState,
-                  bindings: workspaceBindings,
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+    final isCompact = AppBreakpoints.isCompactShell(context);
+    return Padding(
+      padding: EdgeInsets.all(isCompact ? 6 : 12),
+      child: ChatWorkspace(
+        composerState: composerState,
+        bindings: workspaceBindings,
+      ),
     );
   }
 
@@ -525,53 +493,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     List<ChatConversationSummary> summaries,
   ) {
     return groupConversationSummariesByUpdatedAt(summaries);
-  }
-
-  /// 构建历史会话面板，供 endDrawer（紧凑模式）和 ChatSidebarPanel
-  /// （宽屏模式）共享使用。
-  Widget _buildHistoryPanel(
-    List<ChatConversationSummary> conversationSummaries, {
-    required String activeConversationId,
-    required bool isBusy,
-  }) {
-    return ConversationHistoryPanel(
-      groups: _buildConversationGroups(conversationSummaries),
-      activeConversationId: activeConversationId,
-      onCreateConversation: isBusy
-          ? null
-          : () => _createConversationAndScroll(),
-      onConversationSelected: (conversationId) {
-        if (isBusy) {
-          return;
-        }
-        ref
-            .read(chatSessionsProvider.notifier)
-            .selectConversation(conversationId);
-      },
-    );
-  }
-
-  /// 根据当前激活的侧栏功能，构建对应的内容面板。
-  Widget _buildSidebarContent(
-    ChatSidebarFunction function, {
-    required List<ChatConversationSummary> conversationSummaries,
-    required String activeConversationId,
-    required bool isBusy,
-  }) {
-    return switch (function) {
-      ChatSidebarFunction.history => _buildHistoryPanel(
-        conversationSummaries,
-        activeConversationId: activeConversationId,
-        isBusy: isBusy,
-      ),
-      ChatSidebarFunction.preset => PresetPromptPanel(
-        selectedPresetPromptId: ref
-            .read(activeChatConversationProvider)
-            .selectedPresetPromptId,
-        onPresetPromptSelected: (id) =>
-            ref.read(chatComposerCommandProvider).selectPreset(id),
-      ),
-    };
   }
 
   void _syncTemplateVariableControllers(

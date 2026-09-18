@@ -7,10 +7,10 @@ import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.
 import '../../../domain/models/chat_conversation.dart';
 import 'preset_prompt_message_card.dart';
 
-/// 预设 Prompt 三级面板内容组件。
+/// 聊天抽屉内的预设 Prompt 配置。
 ///
 /// 顶部下拉选择预设，下方列出该预设内所有消息的开关卡片。
-/// 宽屏三级栏和紧凑模式 endDrawer 共用此组件。
+/// 宽窄屏共用此组件，选择与消息开关即时生效。
 class PresetPromptPanel extends ConsumerWidget {
   const PresetPromptPanel({
     required this.selectedPresetPromptId,
@@ -102,6 +102,7 @@ class PresetPromptPanel extends ConsumerWidget {
     }
 
     return ListView.builder(
+      key: PageStorageKey('chat-drawer-preset-${selectedPreset.id}'),
       padding: const EdgeInsets.symmetric(vertical: 8),
       itemCount: selectedPreset.messages.length,
       itemBuilder: (context, index) {

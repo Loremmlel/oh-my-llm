@@ -59,7 +59,7 @@ void registerChatScreenResponsiveTests() {
     });
   }
 
-  for (final viewport in [phonePortrait]) {
+  for (final viewport in [phonePortrait, wideDesktop]) {
     testWidgets('${viewport.name}: 抽屉内历史/预设可达，关闭后正文可输入', (tester) async {
       final fakeClient = FakeChatGenerationClient();
       await pumpChatScreen(tester, fakeClient: fakeClient, size: viewport.size);
@@ -68,7 +68,7 @@ void registerChatScreenResponsiveTests() {
       await settleOverlayTransition(tester);
 
       expect(find.text('历史会话'), findsOneWidget);
-      expect(find.text('预设 Prompt'), findsOneWidget);
+      expect(find.text('预设'), findsOneWidget);
       expect(tester.takeException(), isNull);
 
       await _closeDrawer(tester);

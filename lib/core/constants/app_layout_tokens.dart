@@ -22,6 +22,8 @@ final class AppContentWidths {
   static const double readable = 720;
   static const double form = 900;
   static const double wide = 1200;
+  static const double navigationDrawer = 304;
+  static const double chatDrawer = 440;
 }
 
 final class AppInteractionSizes {
