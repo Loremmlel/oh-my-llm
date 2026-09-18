@@ -418,6 +418,7 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
   Future<void> send({
     bool retryStory = false,
     AgentContextBatch? summaryBatch,
+    String? retryReplyId,
   }) async {
     if (state.busy || state.workspace == null) return;
     AgentRuntime? runtime;
@@ -425,7 +426,9 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
       flushDraft();
       var workspace = state.workspace!;
       final pending = _store.latestStoryRound(workspace.id);
-      if (pending?.status == AgentStoryRoundStatus.pending && !retryStory) {
+      if (pending?.status == AgentStoryRoundStatus.pending &&
+          !retryStory &&
+          retryReplyId != pending?.id) {
         throw const AgentWorkspaceException('请先重试状态更新或放弃未完成轮次。');
       }
       if (retryStory &&
@@ -441,6 +444,7 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
         throw const AgentWorkspaceException('请选择可用模型；若已删除，请应用新配置开始新会话。');
       }
       if (!retryStory &&
+          retryReplyId == null &&
           summaryBatch == null &&
           workspace.draft.trim().isEmpty) {
         return;
@@ -461,6 +465,17 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
         }
       }
       workspace = workspace.copyWith(modelId: model.id);
+      AgentRunRecord? retryRun;
+      if (retryReplyId != null) {
+        retryRun = _store.resetLatestReply(
+          workspace.id,
+          workspace.sessionId,
+          retryReplyId,
+        );
+        _lastSummaryBatch = null;
+        _load(workspace.id);
+        workspace = state.workspace!;
+      }
       runtime = AgentRuntime(
         client: ref.read(agentClientProvider),
         store: _store,
@@ -511,7 +526,10 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
       } else if (retryStory) {
         await runtime.retryStory(pending!);
       } else {
-        await runtime.run(workspace.draft.trim());
+        await runtime.run(
+          retryRun?.prompt ?? workspace.draft.trim(),
+          retryRun: retryRun,
+        );
       }
       if (!_disposed) {
         if (runtime.unsavedRecords.isEmpty) {

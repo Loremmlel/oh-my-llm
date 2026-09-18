@@ -293,86 +293,185 @@ class SqliteAgentStore implements AgentStore {
     String sessionId,
     String roundId,
   ) {
+    _transaction(() => _withdrawStoryRound(workspaceId, sessionId, roundId));
+  }
+
+  void _withdrawStoryRound(
+    String workspaceId,
+    String sessionId,
+    String roundId,
+  ) {
+    final round = latestStoryRound(workspaceId);
+    if (round == null ||
+        round.id != roundId ||
+        round.beforeWorkspace.sessionId != sessionId) {
+      throw const AgentWorkspaceException('只能在所属会话撤回作品最新一轮。');
+    }
+    if (database.connection.select(
+      "SELECT 1 FROM agent_runs WHERE workspace_id = ? AND status = 'running' LIMIT 1;",
+      [workspaceId],
+    ).isNotEmpty) {
+      throw const AgentWorkspaceException('请先停止作品的运行，再撤回。');
+    }
+    final state = readStoryState(workspaceId);
+    if (state !=
+        AgentStoryState(
+          revision: state.revision,
+          rows: (round.afterState ?? round.beforeState).rows,
+        )) {
+      throw const AgentWorkspaceException('状态已经变化，不能覆盖后续剧情。');
+    }
+    // 版本继续递增，防止撤回后旧异步结果误中相同版本。
+    _saveStoryState(
+      workspaceId,
+      AgentStoryState(
+        revision: state.revision + 1,
+        rows: round.beforeState.rows,
+      ),
+    );
+    _saveStoryRound(
+      round.copyWith(
+        status: round.status == AgentStoryRoundStatus.pending
+            ? AgentStoryRoundStatus.discarded
+            : AgentStoryRoundStatus.withdrawn,
+      ),
+    );
+    final current = loadWorkspace(workspaceId, sessionId: sessionId)!;
+    _restoreRunDocuments(workspaceId, roundId);
+    _saveWorkspace(
+      current.copyWith(
+        history: round.beforeWorkspace.history,
+        draft: round.beforeWorkspace.draft,
+        knownScripts: round.beforeWorkspace.knownScripts,
+        scriptProgress: round.beforeWorkspace.scriptProgress,
+      ),
+    );
+    for (final batch in listContextBatches(workspaceId, sessionId)) {
+      if (batch.roundIds.contains(roundId)) {
+        _saveContextBatch(
+          workspaceId,
+          sessionId,
+          batch.copyWith(status: AgentContextBatchStatus.invalidated),
+        );
+      }
+    }
+  }
+
+  void _restoreRunDocuments(String workspaceId, String roundId) {
+    // 只恢复本轮仍拥有的写入；用户后来手动修改的文档不被撤回覆盖。
+    for (final entry in database.connection.select(
+      'SELECT * FROM agent_document_undo WHERE workspace_id = ? AND run_id = ?;',
+      [workspaceId, roundId],
+    )) {
+      final owned = database.connection.select(
+        'SELECT 1 FROM agent_documents WHERE workspace_id = ? AND name = ? AND source_run_id = ?;',
+        [workspaceId, entry['name'], roundId],
+      );
+      if (owned.isEmpty) continue;
+      database.connection.execute(
+        'DELETE FROM agent_documents WHERE workspace_id = ? AND name = ?;',
+        [workspaceId, entry['name']],
+      );
+      if (entry['before_json'] != null) {
+        final previous = decodeAgentDocument(
+          jsonDecode(entry['before_json'] as String),
+        );
+        _saveDocument(
+          workspaceId,
+          previous,
+          entry['before_source_run_id'] as String?,
+        );
+      }
+    }
+  }
+
+  @override
+  AgentRunRecord resetLatestReply(
+    String workspaceId,
+    String sessionId,
+    String runId,
+  ) {
+    late AgentRunRecord replacement;
     _transaction(() {
-      final round = latestStoryRound(workspaceId);
-      if (round == null ||
-          round.id != roundId ||
-          round.beforeWorkspace.sessionId != sessionId) {
-        throw const AgentWorkspaceException('只能在所属会话撤回作品最新一轮。');
+      final run = loadRun(workspaceId, runId);
+      final current = loadWorkspace(workspaceId, sessionId: sessionId);
+      final latest = database.connection.select(
+        "SELECT r.id FROM agent_runs r LEFT JOIN agent_story_rounds s ON s.workspace_id = r.workspace_id AND s.id = r.id WHERE r.workspace_id = ? AND json_extract(r.record_json, '\$.parentId') IS NULL AND json_extract(r.record_json, '\$.role') = 'coordinator' AND (s.status IS NULL OR s.status IN ('pending', 'committed')) ORDER BY r.started_at DESC, r.id DESC LIMIT 1;",
+        [workspaceId],
+      );
+      if (run == null ||
+          current == null ||
+          run.sessionId != sessionId ||
+          run.role != AgentRole.coordinator ||
+          run.parentId != null ||
+          latest.firstOrNull?['id'] != runId) {
+        throw const AgentWorkspaceException(
+          '只能重试作品最新的主 Agent 回复；其他会话已有后续任务时不能回退。',
+        );
       }
       if (database.connection.select(
         "SELECT 1 FROM agent_runs WHERE workspace_id = ? AND status = 'running' LIMIT 1;",
         [workspaceId],
       ).isNotEmpty) {
-        throw const AgentWorkspaceException('请先停止作品的运行，再撤回。');
+        throw const AgentWorkspaceException('请先停止作品的运行，再重试。');
       }
-      final state = readStoryState(workspaceId);
-      if (state !=
-          AgentStoryState(
-            revision: state.revision,
-            rows: (round.afterState ?? round.beforeState).rows,
-          )) {
-        throw const AgentWorkspaceException('状态已经变化，不能覆盖后续剧情。');
+      final round = readStoryRound(workspaceId, runId);
+      if (round != null &&
+          round.status != AgentStoryRoundStatus.pending &&
+          round.status != AgentStoryRoundStatus.committed) {
+        throw const AgentWorkspaceException('此回复已经撤回，请重新发送原指令。');
       }
-      // 版本继续递增，防止撤回后旧异步结果误中相同版本。
-      _saveStoryState(
-        workspaceId,
-        AgentStoryState(
-          revision: state.revision + 1,
-          rows: round.beforeState.rows,
+      final before = run.beforeWorkspace ?? round?.beforeWorkspace;
+      if (before == null ||
+          before.id != workspaceId ||
+          before.sessionId != sessionId) {
+        throw const AgentWorkspaceException('此旧回复没有运行前快照，无法安全重试。');
+      }
+      if (round != null) {
+        _withdrawStoryRound(workspaceId, sessionId, runId);
+      } else {
+        _restoreRunDocuments(workspaceId, runId);
+      }
+      // 原任务身份保持不变，旧子任务与轮次不能成为可切换的回复版本。
+      database.connection.execute(
+        '''WITH RECURSIVE children(id) AS (
+          SELECT id FROM agent_runs WHERE workspace_id = ? AND json_extract(record_json, '\$.parentId') = ?
+          UNION ALL SELECT r.id FROM agent_runs r JOIN children c ON json_extract(r.record_json, '\$.parentId') = c.id WHERE r.workspace_id = ?
+        ) DELETE FROM agent_runs WHERE workspace_id = ? AND id IN (SELECT id FROM children);''',
+        [workspaceId, runId, workspaceId, workspaceId],
+      );
+      database.connection.execute(
+        'DELETE FROM agent_story_rounds WHERE workspace_id = ? AND id = ?;',
+        [workspaceId, runId],
+      );
+      database.connection.execute(
+        'DELETE FROM agent_document_undo WHERE workspace_id = ? AND run_id = ?;',
+        [workspaceId, runId],
+      );
+      replacement = AgentRunRecord(
+        id: run.id,
+        workspaceId: workspaceId,
+        sessionId: sessionId,
+        prompt: run.prompt,
+        startedAt: run.startedAt,
+        modelId: run.modelId,
+        modelLabel: run.modelLabel,
+        tools: run.tools,
+        beforeWorkspace: before,
+        status: AgentRunStatus.interrupted,
+        error: '旧回复已撤回，重试尚未完成。',
+      );
+      _checkpoint(
+        replacement,
+        workspace: current.copyWith(
+          history: before.history,
+          references: before.references,
+          knownScripts: before.knownScripts,
+          scriptProgress: before.scriptProgress,
         ),
       );
-      _saveStoryRound(
-        round.copyWith(
-          status: round.status == AgentStoryRoundStatus.pending
-              ? AgentStoryRoundStatus.discarded
-              : AgentStoryRoundStatus.withdrawn,
-        ),
-      );
-      final current = loadWorkspace(workspaceId, sessionId: sessionId)!;
-      // 只恢复本轮仍拥有的写入；用户后来手动修改的文档不被撤回覆盖。
-      for (final entry in database.connection.select(
-        'SELECT * FROM agent_document_undo WHERE workspace_id = ? AND run_id = ?;',
-        [workspaceId, roundId],
-      )) {
-        final owned = database.connection.select(
-          'SELECT 1 FROM agent_documents WHERE workspace_id = ? AND name = ? AND source_run_id = ?;',
-          [workspaceId, entry['name'], roundId],
-        );
-        if (owned.isEmpty) continue;
-        database.connection.execute(
-          'DELETE FROM agent_documents WHERE workspace_id = ? AND name = ?;',
-          [workspaceId, entry['name']],
-        );
-        if (entry['before_json'] != null) {
-          final previous = decodeAgentDocument(
-            jsonDecode(entry['before_json'] as String),
-          );
-          _saveDocument(
-            workspaceId,
-            previous,
-            entry['before_source_run_id'] as String?,
-          );
-        }
-      }
-      _saveWorkspace(
-        current.copyWith(
-          history: round.beforeWorkspace.history,
-          draft: round.beforeWorkspace.draft,
-          knownScripts: round.beforeWorkspace.knownScripts,
-          scriptProgress: round.beforeWorkspace.scriptProgress,
-        ),
-      );
-      for (final batch in listContextBatches(workspaceId, sessionId)) {
-        if (batch.roundIds.contains(roundId)) {
-          _saveContextBatch(
-            workspaceId,
-            sessionId,
-            batch.copyWith(status: AgentContextBatchStatus.invalidated),
-          );
-        }
-      }
     });
+    return replacement;
   }
 
   @override
@@ -572,23 +671,25 @@ class SqliteAgentStore implements AgentStore {
 
   @override
   void checkpoint(AgentRunRecord run, {AgentWorkspace? workspace}) {
-    _transaction(() {
-      database.connection.execute(
-        '''
+    _transaction(() => _checkpoint(run, workspace: workspace));
+  }
+
+  void _checkpoint(AgentRunRecord run, {AgentWorkspace? workspace}) {
+    database.connection.execute(
+      '''
         INSERT INTO agent_runs (id, workspace_id, started_at, status, record_json, session_id) VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET status = excluded.status, record_json = excluded.record_json;
       ''',
-        [
-          run.id,
-          run.workspaceId,
-          run.startedAt.toIso8601String(),
-          run.status.name,
-          _writeRecord(run.workspaceId, encodeAgentRun(run)),
-          run.sessionId,
-        ],
-      );
-      if (workspace != null) _saveWorkspace(workspace, activate: false);
-    });
+      [
+        run.id,
+        run.workspaceId,
+        run.startedAt.toIso8601String(),
+        run.status.name,
+        _writeRecord(run.workspaceId, encodeAgentRun(run)),
+        run.sessionId,
+      ],
+    );
+    if (workspace != null) _saveWorkspace(workspace, activate: false);
   }
 
   @override

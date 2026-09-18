@@ -31,6 +31,13 @@ abstract interface class AgentStore {
     List<AgentStateOperation> operations,
   );
   void withdrawStoryRound(String workspaceId, String sessionId, String roundId);
+
+  /// 原子撤回最新主任务的副作用并清空原回复，保留任务身份和当前草稿。
+  AgentRunRecord resetLatestReply(
+    String workspaceId,
+    String sessionId,
+    String runId,
+  );
   List<({String id, String title})> listWorkspaces();
   AgentWorkspace? loadWorkspace(String id, {String? sessionId});
   void saveWorkspace(AgentWorkspace workspace);

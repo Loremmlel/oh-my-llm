@@ -71,6 +71,7 @@ class AgentRuntime {
   List<LlmInputItem> _canonicalHistory = [];
   int _appendStart = 0;
   String? _rootId;
+  String _preservedDraft = '';
   final _waiting = <String>{};
   final _reviewDocuments = <String, AgentDocument>{};
   final _reviewResults = <String, ({bool approved, String feedback})>{};
@@ -88,7 +89,7 @@ class AgentRuntime {
     }
   }
 
-  Future<AgentRunRecord> run(String prompt) async {
+  Future<AgentRunRecord> run(String prompt, {AgentRunRecord? retryRun}) async {
     if (_started) throw StateError('运行器不能复用');
     _validateText(prompt, '任务');
     if (store.latestStoryRound(workspace.id)?.status ==
@@ -96,6 +97,7 @@ class AgentRuntime {
       throw const AgentWorkspaceException('请先重试状态更新或放弃未完成轮次。');
     }
     _started = true;
+    _preservedDraft = retryRun == null ? '' : workspace.draft;
     final timer = Timer(limits.duration, () {
       _timedOut = true;
       cancel();
@@ -126,7 +128,12 @@ class AgentRuntime {
       );
       history.add(agentStateMessage(store.readStoryState(workspace.id)));
       history.add(LlmTextMessage(role: LlmRole.user, text: prompt));
-      final record = _newRecord(prompt, AgentRole.coordinator);
+      final record = (retryRun ?? _newRecord(prompt, AgentRole.coordinator))
+          .copyWith(
+            status: AgentRunStatus.running,
+            error: '',
+            beforeWorkspace: _beforeRound,
+          );
       _rootId = record.id;
       return await _execute(record, history);
     } finally {
@@ -167,7 +174,7 @@ class AgentRuntime {
       if (main) {
         workspace = workspace.copyWith(
           history: [..._canonicalHistory, ...history.skip(_appendStart)],
-          draft: '',
+          draft: _preservedDraft,
         );
         record = record.copyWith(inputHistory: history);
       } else {

@@ -61,6 +61,8 @@ Map<String, dynamic> encodeAgentRun(AgentRunRecord value) => {
   'parentId': value.parentId,
   'rootRunId': value.rootRunId,
   'summaryBatch': value.summaryBatch?.toJson(),
+  if (value.beforeWorkspace != null)
+    'beforeWorkspace': encodeAgentWorkspace(value.beforeWorkspace!),
   'sessionId': value.sessionId,
   'modelId': value.modelId,
   'modelLabel': value.modelLabel,
@@ -103,6 +105,9 @@ AgentRunRecord decodeAgentRun(Map<String, dynamic> json) {
     workspaceId: json['workspaceId'] as String,
     parentId: json['parentId'] as String?,
     rootRunId: json['rootRunId'] as String?,
+    beforeWorkspace: json['beforeWorkspace'] == null
+        ? null
+        : decodeAgentWorkspace(json['beforeWorkspace'] as Map<String, dynamic>),
     summaryBatch: json['summaryBatch'] == null
         ? null
         : AgentContextBatch.fromJson(

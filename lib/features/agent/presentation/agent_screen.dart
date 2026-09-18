@@ -7,6 +7,7 @@ import 'package:oh_my_llm/app/navigation/app_destination.dart';
 import 'package:oh_my_llm/app/shell/app_shell_scaffold.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 import 'package:oh_my_llm/core/widgets/app_adaptive_actions.dart';
+import 'package:oh_my_llm/core/widgets/dialogs/app_confirm_dialog.dart';
 
 import '../application/agent_workspace_controller.dart';
 import '../domain/agent_models.dart';
@@ -278,6 +279,24 @@ class _AgentScreenState extends ConsumerState<AgentScreen> {
                         key: ValueKey('${workspace.id}/${workspace.sessionId}'),
                         records: roots,
                         allRuns: state.runs,
+                        retryReplyId: latest?.id,
+                        onRetry: state.busy || latest == null
+                            ? null
+                            : () async {
+                                final confirmed = await showDialog<bool>(
+                                  context: context,
+                                  builder: (_) => const AppConfirmDialog(
+                                    title: '重试最新回复？',
+                                    message: '将撤回这次回复写入的正文和剧情状态，按原指令重新生成。原回复及子任务会被覆盖，不保留版本。当前未发送的输入会保留。',
+                                    confirmLabel: '重试并覆盖',
+                                  ),
+                                );
+                                if (confirmed == true && mounted) {
+                                  unawaited(
+                                    controller.send(retryReplyId: latest.id),
+                                  );
+                                }
+                              },
                         storyRounds: state.storyRounds,
                       ),
               ),
