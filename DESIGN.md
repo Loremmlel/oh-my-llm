@@ -54,7 +54,8 @@ Material 提供交互、焦点与可访问性基础。视觉以中性阅读画�
 | 能力 | 规范实现 | 行为与变体 |
 | --- | --- | --- |
 | 导航 | `AppShellScaffold` / `AppDestination` / GoRouter | 页面级操作进入 AppBar；窄屏用 `AppAdaptiveActions` 收纳低频动作。对象动作紧邻所属对象。 |
-| 作品导航 | `AgentNavigationDrawer` / Material `Drawer` | 宽窄屏均通过侧栏按钮打开；仅展示作品，支持就地搜索、清除与重命名，长列表独立滚动。选择作品后关闭侧栏，恢复该作品的唯一时间线和草稿。 |
+| 对话辅助内容 | `ChatNavigationDrawer` / `AppSideDrawer` | 宽窄屏均从右侧弹出，用分段按钮切换历史会话与预设；记住分段，保留列表滚动位置。选择或新建会话后关闭，预设调整保持打开。 |
+| 作品导航 | `AgentNavigationDrawer` / `AppSideDrawer` | 宽窄屏均通过侧栏按钮打开；仅展示作品，支持就地搜索、清除与重命名，长列表独立滚动。选择作品后关闭侧栏，恢复该作品的唯一时间线和草稿。 |
 | 发送配置 | `ComposerTemplateHeader` / `ComposerProviderModelRow` | 桌面模板、服务商、模型同排，模型获得更宽比例；窄屏换行。选择器内部可 isExpanded，父级不能无条件占满画布。 |
 | 短表单字段 | `AppFieldGroup` + `DropdownButtonFormField` / `TextField` | 默认字段上限 320，按可用宽度换行；短枚举不占整个弹窗。URL、密钥、长正文按编辑需要保留宽度。 |
 | 弹窗 | `SettingsFormDialogScaffold` / Material `AlertDialog` | 固定标题、动作，内容内部滚动。Agent 文档只有正文编辑区滚动，键盘弹出后保存仍可达。 |
@@ -70,6 +71,8 @@ Material 提供交互、焦点与可访问性基础。视觉以中性阅读画�
 按钮使用 Filled 表示主要动作，Text／Outlined 表示次级动作，IconButton 必须有 tooltip。沿用 Material 的键盘、hover、focus、disabled 语义；自绘选中视图补充 selected 语义，不重复包无意义 Semantics。操作不能只能靠 hover 发现，停止入口持续可达。表单保留真实 label、错误文字及失败输入，运行中不能重复提交。
 
 ## 对话工作区
+
+对话与作品共用右侧 Material 抽屉外壳、标题和关闭按钮。对话配置使用 `AppContentWidths.chatDrawer`（440），作品导航使用 `navigationDrawer`（304）；窄屏按父约束收缩，留出最小命中区宽度的遮罩。桌面对话不再保留第二列功能导航与常驻面板。抽屉开关不持久化，关闭按钮、遮罩、Escape 和系统返回沿用 Material 行为；右缘拖拽打开仍禁用。
 
 历史侧栏只保留一层区域标题。消息作者和动作位于**头部**；复制、收藏、编辑／重试直接可达，排除与删除进入消息操作菜单。推理、正文、inline 错误各自呈现，不把操作移到消息尾部，不把错误藏进临时通知。
 

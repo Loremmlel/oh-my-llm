@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
+import 'package:oh_my_llm/core/widgets/app_side_drawer.dart';
 import 'package:oh_my_llm/core/widgets/dialogs/rename_conversation_dialog.dart';
 
 import '../application/agent_workspace_controller.dart';
@@ -51,105 +52,85 @@ class _AgentNavigationDrawerState extends ConsumerState<AgentNavigationDrawer> {
       }
     }
 
-    return Drawer(
-      child: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      '作品',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: '关闭侧栏',
-                    onPressed: () => Scaffold.of(context).closeEndDrawer(),
-                    icon: const Icon(Icons.close),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-              child: Column(
-                children: [
-                  TextField(
-                    controller: _search,
-                    focusNode: _searchFocus,
-                    onChanged: (_) => setState(() {}),
-                    decoration: InputDecoration(
-                      labelText: '搜索作品',
-                      prefixIcon: const Icon(Icons.search),
-                      suffixIcon: _search.text.isEmpty
-                          ? null
-                          : IconButton(
-                              tooltip: '清除搜索',
-                              icon: const Icon(Icons.clear),
-                              onPressed: () {
-                                setState(_search.clear);
-                                _searchFocus.requestFocus();
-                              },
-                            ),
-                    ),
-                  ),
-                  TextButton.icon(
-                    onPressed: state.busy
+    return AppSideDrawer(
+      title: '作品',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+            child: Column(
+              children: [
+                TextField(
+                  controller: _search,
+                  focusNode: _searchFocus,
+                  onChanged: (_) => setState(() {}),
+                  decoration: InputDecoration(
+                    labelText: '搜索作品',
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: _search.text.isEmpty
                         ? null
-                        : () => select(controller.createWorkspace),
-                    icon: const Icon(Icons.add),
-                    label: const Text('新建作品'),
+                        : IconButton(
+                            tooltip: '清除搜索',
+                            icon: const Icon(Icons.clear),
+                            onPressed: () {
+                              setState(_search.clear);
+                              _searchFocus.requestFocus();
+                            },
+                          ),
                   ),
-                  if (state.busy) const Text('运行中，可浏览列表；停止后可切换或重命名。'),
-                  if (state.error.isNotEmpty)
-                    Text(
-                      state.error,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
+                ),
+                TextButton.icon(
+                  onPressed: state.busy
+                      ? null
+                      : () => select(controller.createWorkspace),
+                  icon: const Icon(Icons.add),
+                  label: const Text('新建作品'),
+                ),
+                if (state.busy) const Text('运行中，可浏览列表；停止后可切换或重命名。'),
+                if (state.error.isNotEmpty)
+                  Text(
+                    state.error,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
                     ),
-                ],
-              ),
+                  ),
+              ],
             ),
-            const Divider(height: 1),
-            Expanded(
-              child: entries.isEmpty
-                  ? Center(child: Text(query.isEmpty ? '新建作品后开始写作' : '没有匹配的作品'))
-                  : ListView.builder(
-                      itemCount: entries.length,
-                      itemBuilder: (context, index) {
-                        final entry = entries[index];
-                        return ListTile(
-                          selected: entry.id == state.workspace?.id,
-                          enabled: !state.busy,
-                          title: Tooltip(
-                            message: entry.title,
-                            child: Text(
-                              entry.title,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: entries.isEmpty
+                ? Center(child: Text(query.isEmpty ? '新建作品后开始写作' : '没有匹配的作品'))
+                : ListView.builder(
+                    itemCount: entries.length,
+                    itemBuilder: (context, index) {
+                      final entry = entries[index];
+                      return ListTile(
+                        selected: entry.id == state.workspace?.id,
+                        enabled: !state.busy,
+                        title: Tooltip(
+                          message: entry.title,
+                          child: Text(
+                            entry.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          trailing: IconButton(
-                            tooltip: '重命名作品「${entry.title}」',
-                            icon: const Icon(Icons.edit_outlined),
-                            onPressed: state.busy
-                                ? null
-                                : () => _rename(entry.id, entry.title),
-                          ),
-                          onTap: () => select(
-                            () => controller.selectWorkspace(entry.id),
-                          ),
-                        );
-                      },
-                    ),
-            ),
-          ],
-        ),
+                        ),
+                        trailing: IconButton(
+                          tooltip: '重命名作品「${entry.title}」',
+                          icon: const Icon(Icons.edit_outlined),
+                          onPressed: state.busy
+                              ? null
+                              : () => _rename(entry.id, entry.title),
+                        ),
+                        onTap: () =>
+                            select(() => controller.selectWorkspace(entry.id)),
+                      );
+                    },
+                  ),
+          ),
+        ],
       ),
     );
   }

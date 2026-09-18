@@ -683,6 +683,9 @@ void registerChatScreenBasicsTests() {
     await tester.pump();
     await tester.pump();
 
+    // 先离开底部再返回，不依赖初次布局的换行高度恰好露出导航按钮。
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, 600));
+    await settleScrollMotion(tester);
     await tester.tap(find.byTooltip('滚动到底部'));
     await settleScrollMotion(tester);
     final panelBeforeSend = tester.widget<ChatMessagesPanel>(

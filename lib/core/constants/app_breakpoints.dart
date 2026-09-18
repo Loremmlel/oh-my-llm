@@ -10,8 +10,8 @@ final class AppBreakpoints {
 
   /// 应用壳导航断点，接收窗口级宽度（顶层可用宽度）。
   ///
-  /// 控制 [NavigationBar]+endDrawer 与 [NavigationRail]+常驻侧栏之间的切换：
-  /// `width >= 720` 进入宽侧（rail + 常驻 Chat 侧栏），等号属宽侧。
+  /// 控制 [NavigationBar] 与 [NavigationRail] 之间的切换；辅助内容统一用右侧抽屉。
+  /// `width >= 720` 进入宽侧导航，等号属宽侧。
   static const double shellNavigation = 720.0;
 
   /// 通用内容区主从布局默认双栏阈值，接收父组件分配宽度。
