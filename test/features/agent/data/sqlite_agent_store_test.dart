@@ -26,12 +26,12 @@ void main() {
     temp.deleteSync(recursive: true);
   });
 
-  test('会话分别保存草稿和历史，中断恢复不改变正在浏览的另一个会话', () {
+  test('作品分别保存草稿和历史，中断恢复不会改动其他作品', () {
     final first = AgentWorkspace(
       id: 'a',
       title: '小说甲',
       draft: '初始草稿',
-      history: const [LlmTextMessage(role: LlmRole.user, text: '旧会话')],
+      history: const [LlmTextMessage(role: LlmRole.user, text: '旧输入')],
     );
     store.saveWorkspace(first);
     store.checkpoint(
@@ -42,27 +42,14 @@ void main() {
         startedAt: DateTime(2026),
       ),
     );
-    final second = AgentWorkspace(
-      id: 'a',
-      title: '小说甲',
-      sessionId: 'second',
-      sessionTitle: '会话 2',
-      draft: '新草稿',
-    );
+    final second = AgentWorkspace(id: 'b', title: '小说乙', draft: '另一草稿');
     store.saveWorkspace(second);
     store.recoverInterruptedRuns();
-    expect(store.loadWorkspace('a'), second);
-    expect(store.loadWorkspace('a', sessionId: 'initial')!.draft, '初始草稿');
-    expect(
-      store.loadWorkspace('a', sessionId: 'initial')!.history.length,
-      greaterThan(1),
-    );
-    expect(store.listRuns('a', sessionId: 'second'), isEmpty);
-    expect(
-      store.listRuns('a', sessionId: 'initial').single.status,
-      AgentRunStatus.interrupted,
-    );
-    expect(store.loadWorkspace('b', sessionId: 'second'), isNull);
+    expect(store.loadWorkspace('b'), second);
+    expect(store.loadWorkspace('a')!.draft, '初始草稿');
+    expect(store.loadWorkspace('a')!.history.length, greaterThan(1));
+    expect(store.listRuns('a').single.status, AgentRunStatus.interrupted);
+    expect(store.listRuns('b'), isEmpty);
   });
 
   test('同名方案覆盖保存，资料修改类型保留稳定 ID', () {
@@ -259,7 +246,7 @@ void main() {
     );
   });
 
-  test('原生回放数据按值保留嵌套内容，未来记录版本显式失败', () {
+  test('原生与公共历史分别往返存储，损坏及未来记录显式失败', () {
     final turn = LlmAssistantTurn(
       text: '正文',
       reasoning: '摘要',
@@ -277,11 +264,29 @@ void main() {
         ],
       ),
     );
-    final workspace = AgentWorkspace(id: 'a', title: '小说甲', history: [turn]);
+    final portable = LlmAssistantTurn.portable(
+      text: '公共正文',
+      toolCalls: [
+        agentCall('read', 'read_document', {'name': '正文'}),
+      ],
+    );
+    final workspace = AgentWorkspace(
+      id: 'new',
+      title: '小说甲',
+      history: [
+        turn,
+        portable,
+        LlmToolResult(callId: 'read', name: 'read_document', output: '工具结果'),
+      ],
+    );
     store.saveWorkspace(workspace);
-    expect(store.loadWorkspace('a'), workspace);
+    expect(store.loadWorkspace('new'), workspace);
+    // 损坏的原生记录必须失败，不能默默降级成公共历史。
+    final malformed = encodeAgentWorkspace(workspace);
+    ((malformed['history'] as List).first as Map).remove('protocol');
+    expect(() => decodeAgentWorkspace(malformed), throwsFormatException);
     // 明确测试未来格式拒绝，普通记录都通过 typed codec 构造。
-    final future = encodeAgentWorkspace(workspace)..['version'] = 3;
+    final future = encodeAgentWorkspace(workspace)..['version'] = 4;
     expect(() => decodeAgentWorkspace(future), throwsFormatException);
   });
 }

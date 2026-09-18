@@ -54,30 +54,31 @@ Map<String, Object> encodeLlmInput(LlmRequest request, Uri endpoint) {
         }
       case LlmAssistantTurn():
         final replay = item.replay;
-        if (replay.protocol != protocol ||
-            replay.endpoint != endpoint ||
-            replay.model != request.target.model) {
+        if (replay != null &&
+            (replay.protocol != protocol ||
+                replay.endpoint != endpoint ||
+                replay.model != request.target.model)) {
           _invalid('原生续接不能跨协议、端点或模型');
         }
         if (item.toolCalls.length > maxLlmToolCalls) _invalid('工具调用数量超过限制');
         final nativeCalls = <String, LlmToolCall>{};
-        if (replay.items.isEmpty) _invalid('缺少可续接的原生输出');
-        final nativeItems = [
-          for (final native in replay.items)
-            _replayItem(native, protocol, nativeCalls),
-        ];
+        if (replay != null && replay.items.isEmpty) _invalid('缺少可续接的原生输出');
+        final assistantItems = replay == null
+            ? _encodePortableAssistant(item, protocol)
+            : [
+                for (final native in replay.items)
+                  _replayItem(native, protocol, nativeCalls),
+              ];
         if (protocol == LlmApiProtocol.anthropic) {
           // Messages 的多个内容块属于同一条 assistant 消息。
-          encoded.add({'role': 'assistant', 'content': nativeItems});
+          encoded.add({'role': 'assistant', 'content': assistantItems});
         } else {
-          encoded.addAll(nativeItems);
+          encoded.addAll(assistantItems);
         }
         for (final call in item.toolCalls) {
           final nativeCall = nativeCalls.remove(call.callId);
-          if (!seen.add(call.callId) ||
-              nativeCall == null ||
-              nativeCall.name != call.name ||
-              nativeCall != call) {
+          if (!seen.add(call.callId)) _invalid('工具调用 ID 重复');
+          if (replay != null && nativeCall != call) {
             _invalid('工具调用 ID、名称或参数与原生内容不一致');
           }
           pending[call.callId] = call.name;
@@ -127,6 +128,66 @@ Map<String, Object> encodeLlmInput(LlmRequest request, Uri endpoint) {
   return {
     if (system.isNotEmpty) 'system': system.join('\n'),
     protocol == LlmApiProtocol.responses ? 'input' : 'messages': encoded,
+  };
+}
+
+/// 公共历史由目标协议编码；不会把重建的字段伪装成服务商原生回放。
+List<Map<String, Object?>> _encodePortableAssistant(
+  LlmAssistantTurn turn,
+  LlmApiProtocol protocol,
+) {
+  final calls = turn.toolCalls;
+  return switch (protocol) {
+    LlmApiProtocol.chatCompletions => [
+      {
+        'role': 'assistant',
+        'content': turn.text,
+        if (calls.isNotEmpty)
+          'tool_calls': [
+            for (final call in calls)
+              {
+                'id': call.callId,
+                'type': 'function',
+                'function': {
+                  'name': call.name,
+                  'arguments': call.argumentsJson,
+                },
+              },
+          ],
+      },
+    ],
+    LlmApiProtocol.responses => [
+      if (turn.text.isNotEmpty || calls.isEmpty)
+        {
+          'type': 'message',
+          'role': 'assistant',
+          'content': [
+            {
+              'type': 'output_text',
+              'text': turn.text,
+              'annotations': <Object?>[],
+            },
+          ],
+        },
+      for (final call in calls)
+        {
+          'type': 'function_call',
+          'call_id': call.callId,
+          'name': call.name,
+          'arguments': call.argumentsJson,
+        },
+    ],
+    LlmApiProtocol.anthropic => [
+      if (turn.text.isNotEmpty || calls.isEmpty)
+        {'type': 'text', 'text': turn.text},
+      for (final call in calls)
+        {
+          'type': 'tool_use',
+          'id': call.callId,
+          'name': call.name,
+          'input': call.arguments,
+        },
+    ],
   };
 }
 

@@ -27,7 +27,7 @@ class AppDatabase {
   /// 当前滚动迁移基线：全新数据库直接创建到该版本。
   ///
   /// 历史 V9→V13 逐级迁移已退役；v13 起的已发布迁移按顺序保留。
-  static const int currentSchemaVersion = 21;
+  static const int currentSchemaVersion = 22;
 
   final sqlite.Database _connection;
   final String path;
@@ -80,7 +80,7 @@ class AppDatabase {
   /// - `user_version == 0`：全新数据库，创建完整当前 schema 后标记为
   ///   [currentSchemaVersion]；
   /// - `user_version == [currentSchemaVersion]`：当前版本数据库，不做任何改动；
-  /// - `user_version` 为 13–20：按顺序执行到当前版本的迁移；
+  /// - `user_version` 为 13–21：按顺序执行到当前版本的迁移；
   /// - 其余版本（更旧的遗留库或更新版本应用创建的库）显式拒绝，
   ///   避免仓库层在不兼容的 schema 上误读误写。
   void _initializeSchema() {
@@ -92,7 +92,7 @@ class AppDatabase {
       _connection.execute('PRAGMA user_version = $currentSchemaVersion;');
     } else if (currentVersion == currentSchemaVersion) {
       // 当前版本数据库，直接可用。
-    } else if (currentVersion >= 13 && currentVersion <= 20) {
+    } else if (currentVersion >= 13 && currentVersion <= 21) {
       if (currentVersion <= 13) _migrateFavoritesFromV13ToV14();
       if (currentVersion <= 14) _migrateMessagesFromV14ToV15();
       if (currentVersion <= 15) _migrateAgentFromV15ToV16();
@@ -100,7 +100,8 @@ class AppDatabase {
       if (currentVersion <= 17) _migrateStoryFromV17ToV18();
       if (currentVersion <= 18) _migrateAgentDocumentsFromV18ToV19();
       if (currentVersion <= 19) _migrateAgentContextFromV19ToV20();
-      _migrateAgentHistoryFromV20ToV21();
+      if (currentVersion <= 20) _migrateAgentHistoryFromV20ToV21();
+      _migrateAgentTimelineFromV21ToV22();
     } else {
       throw AppDatabaseSchemaVersionException(currentVersion);
     }
@@ -555,6 +556,39 @@ class AppDatabase {
     }
   }
 
+  /// 清空获授权的 Agent 测试数据，作品直接拥有唯一时间线。
+  void _migrateAgentTimelineFromV21ToV22() {
+    _connection.execute('BEGIN IMMEDIATE;');
+    try {
+      // 用户明确授权丢弃尚未正式使用的 Agent 测试数据；其它业务表不受影响。
+      _connection.execute('''
+        DELETE FROM agent_workspaces;
+        DROP TABLE agent_context_batches;
+        DROP TABLE agent_story_rounds;
+        DROP TABLE agent_sessions;
+        DROP INDEX idx_agent_runs_session;
+        ALTER TABLE agent_runs DROP COLUMN session_id;
+        ALTER TABLE agent_workspaces ADD COLUMN draft TEXT NOT NULL DEFAULT '';
+        CREATE TABLE agent_story_rounds (
+          sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+          id TEXT NOT NULL UNIQUE, workspace_id TEXT NOT NULL,
+          status TEXT NOT NULL, record_json TEXT NOT NULL,
+          FOREIGN KEY(workspace_id) REFERENCES agent_workspaces(id) ON DELETE CASCADE
+        );
+        CREATE INDEX idx_agent_story_rounds_workspace ON agent_story_rounds(workspace_id, sequence DESC);
+        CREATE TABLE agent_context_batches (
+          workspace_id TEXT PRIMARY KEY, id TEXT NOT NULL, record_json TEXT NOT NULL,
+          FOREIGN KEY(workspace_id) REFERENCES agent_workspaces(id) ON DELETE CASCADE
+        );
+        PRAGMA user_version = 22;
+        COMMIT;
+      ''');
+    } catch (_) {
+      _connection.execute('ROLLBACK;');
+      rethrow;
+    }
+  }
+
   /// 创建全部业务表和索引（全新安装时使用）。
   void _createSchema() {
     _createAgentSchema();
@@ -563,6 +597,7 @@ class AppDatabase {
     _migrateAgentDocumentsFromV18ToV19();
     _migrateAgentContextFromV19ToV20();
     _migrateAgentHistoryFromV20ToV21();
+    _migrateAgentTimelineFromV21ToV22();
     _connection.execute('''
       CREATE TABLE IF NOT EXISTS conversations (
         id TEXT PRIMARY KEY,

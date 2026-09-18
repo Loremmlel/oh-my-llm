@@ -10,7 +10,7 @@ extension AgentScriptStatusLabel on AgentScriptStatus {
   };
 }
 
-/// 备忘绑定实际正文来源，随主会话检查点与撤回快照一起保存。
+/// 备忘绑定实际正文来源，随主时间线检查点与撤回快照一起保存。
 class AgentScriptProgress extends Equatable {
   AgentScriptProgress({
     required this.fingerprint,

@@ -7,7 +7,7 @@ import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/agent/data/sqlite_agent_store.dart';
 
 void main() {
-  test('完整 v18 升级去除改稿版本，保留当前正文和连续整轮撤回', () {
+  test('完整 v18 正文与撤回记录经过顺序迁移后按授权清空', () {
     final directory = Directory.systemTemp.createTempSync(
       'agent-documents-v18-',
     );
@@ -110,16 +110,10 @@ void main() {
       ),
       isEmpty,
     );
-    expect(store.listDocuments('w'), hasLength(1));
-    expect(store.readDocument('w', '正文')!.content, '稿 4');
-    expect(store.listConfigurations('w').single.preset, '文风 2');
-    expect(store.listStoryRounds('w', 'initial').first.document.content, '稿 4');
-    store.withdrawStoryRound('w', 'initial', 'second');
-    expect(store.readDocument('w', '正文')!.content, '稿 2');
-    store.withdrawStoryRound('w', 'initial', 'first');
-    expect(store.readDocument('w', '正文'), isNull);
-    expect(store.readStoryState('w').rows, isEmpty);
-    expect(store.loadWorkspace('w')!.draft, '原指令');
+    expect(store.listDocuments('w'), isEmpty);
+    expect(store.listConfigurations('w'), isEmpty);
+    expect(store.listStoryRounds('w'), isEmpty);
+    expect(store.loadWorkspace('w'), isNull);
     expect(database.connection.select('PRAGMA foreign_key_check'), isEmpty);
   });
 }

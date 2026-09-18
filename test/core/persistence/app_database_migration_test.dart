@@ -45,7 +45,6 @@ void main() {
           'agent_workspaces',
           'agent_runs',
           'agent_documents',
-          'agent_sessions',
           'agent_configurations',
           'agent_history_items',
           'agent_history_entries',

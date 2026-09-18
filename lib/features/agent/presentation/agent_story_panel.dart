@@ -19,8 +19,6 @@ class AgentStoryActions extends ConsumerWidget {
     final round = state.latestRound;
     if (round == null) return const SizedBox.shrink();
     final controller = ref.read(agentWorkspaceProvider.notifier);
-    final ownSession =
-        round.beforeWorkspace.sessionId == state.workspace?.sessionId;
     final pending = round.status == AgentStoryRoundStatus.pending;
     Future<void> withdraw() async {
       final draft = state.workspace!.draft;
@@ -52,28 +50,17 @@ class AgentStoryActions extends ConsumerWidget {
             pending ? '正文已保留 · 状态待更新' : '本轮正文与状态已保存',
             style: Theme.of(context).textTheme.bodySmall,
           ),
-          if (!ownSession)
-            TextButton(
+          if (pending)
+            OutlinedButton(
               onPressed: state.busy
                   ? null
-                  : () => controller.selectSession(
-                      round.beforeWorkspace.sessionId,
-                    ),
-              child: const Text('前往所属会话'),
-            )
-          else ...[
-            if (pending)
-              OutlinedButton(
-                onPressed: state.busy
-                    ? null
-                    : () => unawaited(controller.send(retryStory: true)),
-                child: const Text('重试状态更新'),
-              ),
-            TextButton(
-              onPressed: state.busy ? null : withdraw,
-              child: Text(pending ? '放弃本轮' : '撤回最新一轮'),
+                  : () => unawaited(controller.send(retryStory: true)),
+              child: const Text('重试状态更新'),
             ),
-          ],
+          TextButton(
+            onPressed: state.busy ? null : withdraw,
+            child: Text(pending ? '放弃本轮' : '撤回最新一轮'),
+          ),
         ],
       ),
     );
@@ -118,16 +105,14 @@ class AgentStoryPanel extends ConsumerWidget {
                       .toList(),
                 ),
               const Divider(),
-              Text('本会话正文', style: Theme.of(context).textTheme.titleMedium),
-              if (rounds.isEmpty) const Text('本会话尚未选定正文。'),
+              Text('本作品正文', style: Theme.of(context).textTheme.titleMedium),
+              if (rounds.isEmpty) const Text('本作品尚未选定正文。'),
             ],
           );
         }
         if (index > prose.length) {
           return _RoundHistory(
-            key: ValueKey(
-              '${state.workspace?.id}/${state.workspace?.sessionId}/history',
-            ),
+            key: ValueKey('${state.workspace?.id}/history'),
             rounds: rounds,
           );
         }

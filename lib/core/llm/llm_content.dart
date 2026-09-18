@@ -131,12 +131,21 @@ class LlmReplayEnvelope extends Equatable {
 
 class LlmAssistantTurn extends LlmInputItem {
   LlmAssistantTurn({
-    required this.replay,
+    required LlmReplayEnvelope this.replay,
     this.text = '',
     this.reasoning = '',
     List<LlmToolCall> toolCalls = const [],
   }) : toolCalls = List.unmodifiable(toolCalls);
-  final LlmReplayEnvelope replay;
+
+  /// 仅用于可移植的历史输入；没有可证明来源的原生内容，不携带推理与签名。
+  LlmAssistantTurn.portable({
+    this.text = '',
+    List<LlmToolCall> toolCalls = const [],
+  }) : replay = null,
+       reasoning = '',
+       toolCalls = List.unmodifiable(toolCalls);
+
+  final LlmReplayEnvelope? replay;
   final String text;
   final String reasoning;
   final List<LlmToolCall> toolCalls;

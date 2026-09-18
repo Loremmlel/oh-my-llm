@@ -198,11 +198,11 @@ class _DocumentEditorState extends ConsumerState<_DocumentEditor> {
                 showDialog<void>(
                   context: context,
                   builder: (_) => AlertDialog(
-                    title: const Text('本会话剧本备忘'),
+                    title: const Text('本作品剧本备忘'),
                     content: SingleChildScrollView(
                       child: SelectableText(
                         progress == null
-                            ? '当前内容尚无备忘。主 Agent 读取剧本后可记录时间起点、未兑现约定与完成依据；新会话不继承其它会话的进度。'
+                            ? '当前内容尚无备忘。主 Agent 读取剧本后可记录时间起点、未兑现约定与完成依据；进度随作品保留，压缩后仍会提供有效备忘。'
                             : '${progress.status.label}\n\n${progress.notes}\n\n来源正文：${progress.sourceRoundIds.isEmpty ? '无（仅计划）' : progress.sourceRoundIds.join('、')}',
                       ),
                     ),

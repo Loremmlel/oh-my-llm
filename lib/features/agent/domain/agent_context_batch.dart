@@ -2,19 +2,23 @@ import 'package:equatable/equatable.dart';
 
 enum AgentContextBatchStatus { active, restored, invalidated }
 
-/// 正文仍保存在楼层中；批次只决定下次输入使用原文还是摘要。
+/// 一部作品只保存一份当前累计摘要；原始楼层仍供查看与恢复。
 class AgentContextBatch extends Equatable {
   AgentContextBatch({
     required this.id,
     required List<String> roundIds,
     this.summary = '',
     this.summaryRunId,
+    this.historyEnd = 0,
     this.status = AgentContextBatchStatus.active,
   }) : roundIds = List.unmodifiable(roundIds);
 
   final String id, summary;
   final List<String> roundIds;
   final String? summaryRunId;
+
+  /// 原始历史的排他结束位置，覆盖完整任务及其工具往返。
+  final int historyEnd;
   final AgentContextBatchStatus status;
   bool get active => status == AgentContextBatchStatus.active;
 
@@ -28,21 +32,24 @@ class AgentContextBatch extends Equatable {
     summary: summary ?? this.summary,
     summaryRunId: summaryRunId ?? this.summaryRunId,
     status: status ?? this.status,
+    historyEnd: historyEnd,
   );
 
   Map<String, Object?> toJson() => {
-    'version': 1,
+    'version': 2,
     'id': id,
     'roundIds': roundIds,
     'summary': summary,
     'summaryRunId': summaryRunId,
     'status': status.name,
+    'historyEnd': historyEnd,
   };
 
   factory AgentContextBatch.fromJson(Map<String, dynamic> json) {
-    if (json['version'] != 1) throw const FormatException('不支持的总结格式');
+    if (json['version'] != 2) throw const FormatException('不支持的总结格式');
     return AgentContextBatch(
       id: json['id'] as String,
+      historyEnd: json['historyEnd'] as int,
       roundIds: List<String>.from(json['roundIds'] as List),
       summary: json['summary'] as String,
       summaryRunId: json['summaryRunId'] as String?,
@@ -51,5 +58,12 @@ class AgentContextBatch extends Equatable {
   }
 
   @override
-  List<Object?> get props => [id, roundIds, summary, summaryRunId, status];
+  List<Object?> get props => [
+    id,
+    roundIds,
+    summary,
+    summaryRunId,
+    status,
+    historyEnd,
+  ];
 }

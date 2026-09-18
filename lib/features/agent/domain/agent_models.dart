@@ -19,7 +19,7 @@ enum AgentRunStatus {
   interrupted,
 }
 
-/// 作品与选中会话的只读视图；历史只由对应会话持久化。
+/// 一部作品拥有一条主时间线，历史、正文、状态和配置归属同一工作区。
 class AgentWorkspace extends Equatable {
   AgentWorkspace({
     required this.id,
@@ -27,8 +27,6 @@ class AgentWorkspace extends Equatable {
     String? modelId,
     String instructions = '',
     AgentConfiguration? configuration,
-    this.sessionId = 'initial',
-    this.sessionTitle = '会话 1',
     this.draft = '',
     List<LlmInputItem> history = const [],
     List<AgentDocument> references = const [],
@@ -41,7 +39,7 @@ class AgentWorkspace extends Equatable {
        references = List.unmodifiable(references),
        knownScripts = Map.unmodifiable(knownScripts),
        scriptProgress = Map.unmodifiable(scriptProgress);
-  final String id, title, sessionId, sessionTitle, draft;
+  final String id, title, draft;
   final AgentConfiguration configuration;
   String? get modelId => configuration.modelId;
   String get instructions => configuration.preset;
@@ -54,8 +52,6 @@ class AgentWorkspace extends Equatable {
     String? modelId,
     String? instructions,
     String? draft,
-    String? sessionId,
-    String? sessionTitle,
     AgentConfiguration? configuration,
     List<LlmInputItem>? history,
     List<AgentDocument>? references,
@@ -64,8 +60,6 @@ class AgentWorkspace extends Equatable {
   }) => AgentWorkspace(
     id: id,
     title: title ?? this.title,
-    sessionId: sessionId ?? this.sessionId,
-    sessionTitle: sessionTitle ?? this.sessionTitle,
     configuration:
         configuration ??
         this.configuration.copyWith(modelId: modelId, preset: instructions),
@@ -79,8 +73,6 @@ class AgentWorkspace extends Equatable {
   List<Object?> get props => [
     id,
     title,
-    sessionId,
-    sessionTitle,
     configuration,
     draft,
     history,
@@ -160,7 +152,7 @@ class AgentRunRecord extends Equatable {
     this.rootRunId,
     this.summaryBatch,
     this.beforeWorkspace,
-    this.sessionId = 'initial',
+    this.historyEnd,
     this.modelId,
     this.modelLabel = '',
     this.usageIncomplete = false,
@@ -186,15 +178,18 @@ class AgentRunRecord extends Equatable {
   final String? rootRunId;
   final AgentContextBatch? summaryBatch;
 
-  /// 主任务执行前的会话快照，用于覆盖式重试；旧记录可能没有快照。
+  /// 主任务执行前的作品快照，用于覆盖式重试；旧记录可能没有快照。
   final AgentWorkspace? beforeWorkspace;
+
+  /// 作品原始历史中本任务的排他结束位置；压缩必须覆盖完整工具往返。
+  final int? historyEnd;
   String get roundRunId => rootRunId ?? parentId ?? id;
-  final String sessionId, modelLabel;
+  final String modelLabel;
   final String? modelId;
   final bool usageIncomplete;
   final List<LlmInputItem> childHistory;
 
-  /// 新运行保存实际输入历史，撤回会话后仍可查看；旧记录未保存时为空。
+  /// 新运行保存实际输入历史，撤回任务后仍可查看；旧记录未保存时为空。
   final List<LlmInputItem>? inputHistory;
   final List<LlmToolDefinition> tools;
   final AgentRole role;
@@ -217,6 +212,10 @@ class AgentRunRecord extends Equatable {
     List<LlmInputItem>? inputHistory,
     bool? usageIncomplete,
     AgentWorkspace? beforeWorkspace,
+    int? historyEnd,
+    String? modelId,
+    String? modelLabel,
+    List<LlmToolDefinition>? tools,
   }) => AgentRunRecord(
     id: id,
     workspaceId: workspaceId,
@@ -224,10 +223,10 @@ class AgentRunRecord extends Equatable {
     rootRunId: rootRunId,
     summaryBatch: summaryBatch,
     beforeWorkspace: beforeWorkspace ?? this.beforeWorkspace,
-    sessionId: sessionId,
-    modelId: modelId,
-    modelLabel: modelLabel,
-    tools: tools,
+    historyEnd: historyEnd ?? this.historyEnd,
+    modelId: modelId ?? this.modelId,
+    modelLabel: modelLabel ?? this.modelLabel,
+    tools: tools ?? this.tools,
     childHistory: childHistory ?? this.childHistory,
     inputHistory: inputHistory ?? this.inputHistory,
     usageIncomplete: usageIncomplete ?? this.usageIncomplete,
@@ -249,7 +248,7 @@ class AgentRunRecord extends Equatable {
     rootRunId,
     summaryBatch,
     beforeWorkspace,
-    sessionId,
+    historyEnd,
     modelId,
     modelLabel,
     tools,

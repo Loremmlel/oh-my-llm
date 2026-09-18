@@ -4,11 +4,10 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart' as sqlite;
 import 'package:oh_my_llm/core/persistence/app_database.dart';
-import 'package:oh_my_llm/features/agent/data/agent_record_codec.dart';
 import 'package:oh_my_llm/features/agent/data/sqlite_agent_store.dart';
 
 void main() {
-  test('完整 v16 工作区升级为作品与会话，保留原生历史草稿和当前文档', () {
+  test('完整 v16 工作区顺序迁移至单时间线并清空获授权的测试数据', () {
     final directory = Directory.systemTemp.createTempSync('novel-v16-');
     addTearDown(() => directory.deleteSync(recursive: true));
     final path = '${directory.path}/old.sqlite';
@@ -86,24 +85,12 @@ void main() {
       database.connection.select('PRAGMA user_version').single['user_version'],
       greaterThanOrEqualTo(17),
     );
-    final session = encodeAgentWorkspace(
-      SqliteAgentStore(database).loadWorkspace('novel')!,
-    );
-    expect(session['history'], history);
-    expect(session['draft'], '未发送草稿');
-    expect(session['modelId'], 'old-model');
-    final documents = database.connection.select(
-      'SELECT * FROM agent_documents ORDER BY name',
-    );
-    expect(documents.map((r) => r['content']), ['原文 2']);
-    expect(documents.map((r) => r['document_id']).toSet(), hasLength(1));
-    expect(documents.every((r) => r['kind'] == 'document'), isTrue);
+    expect(SqliteAgentStore(database).loadWorkspace('novel'), isNull);
     expect(
-      database.connection
-          .select('SELECT session_id FROM agent_runs')
-          .single['session_id'],
-      'initial',
+      database.connection.select('SELECT * FROM agent_documents'),
+      isEmpty,
     );
+    expect(database.connection.select('SELECT * FROM agent_runs'), isEmpty);
   });
   test('旧工作区包络损坏时整体回滚迁移，不遗留新表或提高版本', () {
     final directory = Directory.systemTemp.createTempSync('novel-malformed-');

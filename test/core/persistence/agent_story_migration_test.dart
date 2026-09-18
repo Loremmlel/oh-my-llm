@@ -5,10 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart' as sqlite;
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/agent/data/sqlite_agent_store.dart';
-import 'package:oh_my_llm/features/agent/data/agent_record_codec.dart';
 
 void main() {
-  test('完整 v17 数据库升级后保留会话配置正文和原生记录，状态库初始为空', () {
+  test('完整 v17 数据库顺序迁移并清空旧 Agent 配置正文和记录', () {
     final directory = Directory.systemTemp.createTempSync('story-v17-');
     addTearDown(() => directory.deleteSync(recursive: true));
     final path = '${directory.path}/old.sqlite';
@@ -96,13 +95,10 @@ void main() {
       database.connection.select('PRAGMA user_version').single['user_version'],
       greaterThanOrEqualTo(18),
     );
-    expect(store.loadWorkspace('novel'), decodeAgentWorkspace(session));
-    expect(store.loadRun('novel', 'run'), decodeAgentRun(jsonDecode(record)));
-    expect(store.loadWorkspace('novel')!.draft, '未发送的原输入');
-    expect(store.listConfigurations('novel').single.preset, '旧预设');
-    expect(store.readDocument('novel', '正文')!.content, '旧正文');
-    expect(store.readStoryState('novel').rows, isEmpty);
-    expect(store.latestStoryRound('novel'), isNull);
+    expect(store.loadWorkspace('novel'), isNull);
+    expect(store.loadRun('novel', 'run'), isNull);
+    expect(store.listConfigurations('novel'), isEmpty);
+    expect(store.listDocuments('novel'), isEmpty);
     expect(database.connection.select('PRAGMA foreign_key_check'), isEmpty);
   });
 }

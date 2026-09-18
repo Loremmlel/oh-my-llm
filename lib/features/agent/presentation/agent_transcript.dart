@@ -81,7 +81,7 @@ class AgentChildLink extends StatelessWidget {
   );
 }
 
-/// 主会话和子会话共用同一执行流，只有读者操作时才主动改变滚动位置。
+/// 主时间线和子任务共用同一执行流，只有读者操作时才主动改变滚动位置。
 class AgentTranscript extends StatefulWidget {
   const AgentTranscript({
     super.key,

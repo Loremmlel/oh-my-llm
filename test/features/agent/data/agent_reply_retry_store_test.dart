@@ -29,6 +29,7 @@ void main() {
       seedOperations(),
     );
     finishRound(store, round);
+    store.checkpoint(store.loadRun('novel', round.id)!.copyWith(historyEnd: 1));
     store.checkpoint(
       AgentRunRecord(
         id: 'grandchild',
@@ -42,11 +43,15 @@ void main() {
     );
     store.saveContextBatch(
       'novel',
-      'initial',
-      AgentContextBatch(id: 'summary', roundIds: [round.id]),
+      AgentContextBatch(
+        id: 'summary',
+        roundIds: [round.id],
+        historyEnd: 1,
+        summary: '累计摘要',
+      ),
     );
-    store.saveDraft('novel', 'initial', '未发送的草稿');
-    final replacement = store.resetLatestReply('novel', 'initial', round.id);
+    store.saveDraft('novel', '未发送的草稿');
+    final replacement = store.resetLatestReply('novel', round.id);
     expect(replacement.id, round.id);
     expect(replacement.content, isEmpty);
     expect(store.listRuns('novel'), hasLength(1));
@@ -60,7 +65,7 @@ void main() {
     );
     expect(store.loadWorkspace('novel')!.draft, '未发送的草稿');
     expect(
-      store.listContextBatches('novel', 'initial').single.status,
+      store.listContextBatches('novel').single.status,
       AgentContextBatchStatus.invalidated,
     );
     expect(
@@ -88,12 +93,12 @@ void main() {
         history: [const LlmTextMessage(role: LlmRole.user, text: '原指令')],
       ),
     );
-    store.resetLatestReply('novel', 'initial', root.id);
+    store.resetLatestReply('novel', root.id);
     expect(store.readDocument('novel', '候选'), isNull);
     expect(store.readDocument('novel', '手动修改')!.content, '用户新版');
     expect(store.loadWorkspace('novel')!.history, isEmpty);
     final reopened = SqliteAgentStore(database);
-    final retry = reopened.resetLatestReply('novel', 'initial', root.id);
+    final retry = reopened.resetLatestReply('novel', root.id);
     expect(retry.content, isEmpty);
     expect(reopened.listRuns('novel'), hasLength(1));
   });
@@ -113,10 +118,7 @@ void main() {
     database.connection.execute(
       "CREATE TRIGGER fail_retry BEFORE UPDATE ON agent_runs BEGIN SELECT RAISE(ABORT, 'disk failure'); END;",
     );
-    expect(
-      () => store.resetLatestReply('novel', 'initial', round.id),
-      throwsException,
-    );
+    expect(() => store.resetLatestReply('novel', round.id), throwsException);
     expect(store.listRuns('novel'), runs);
     expect(store.loadWorkspace('novel'), workspace);
     expect(store.readStoryState('novel'), state);
@@ -127,34 +129,29 @@ void main() {
     );
   });
 
-  test('旧主任务、子任务、跨会话、运行中和缺少快照的旧记录均不能重试', () {
+  test('旧主任务、子任务、跨作品、运行中和缺少快照的旧记录均不能重试', () {
     final before = store.loadWorkspace('novel')!;
-    AgentRunRecord record(
-      String id,
-      int time, {
-      String? parentId,
-      String session = 'initial',
-    }) => AgentRunRecord(
-      id: id,
-      workspaceId: 'novel',
-      prompt: '指令',
-      parentId: parentId,
-      sessionId: session,
-      beforeWorkspace: before.copyWith(sessionId: session),
-      startedAt: DateTime(2026).add(Duration(seconds: time)),
-      status: AgentRunStatus.completed,
-    );
+    AgentRunRecord record(String id, int time, {String? parentId}) =>
+        AgentRunRecord(
+          id: id,
+          workspaceId: 'novel',
+          prompt: '指令',
+          parentId: parentId,
+          beforeWorkspace: before,
+          startedAt: DateTime(2026).add(Duration(seconds: time)),
+          status: AgentRunStatus.completed,
+        );
     store.checkpoint(record('old', 1));
     store.checkpoint(record('latest', 2));
     store.checkpoint(record('child', 3, parentId: 'latest'));
     for (final id in ['old', 'child', 'missing']) {
       expect(
-        () => store.resetLatestReply('novel', 'initial', id),
+        () => store.resetLatestReply('novel', id),
         throwsA(isA<AgentWorkspaceException>()),
       );
     }
     expect(
-      () => store.resetLatestReply('novel', 'other', 'latest'),
+      () => store.resetLatestReply('other', 'latest'),
       throwsA(isA<AgentWorkspaceException>()),
     );
     store.checkpoint(
@@ -165,16 +162,10 @@ void main() {
       ).copyWith(status: AgentRunStatus.running),
     );
     expect(
-      () => store.resetLatestReply('novel', 'initial', 'latest'),
+      () => store.resetLatestReply('novel', 'latest'),
       throwsA(isA<AgentWorkspaceException>()),
     );
     store.checkpoint(record('child', 3, parentId: 'latest'));
-    store.saveWorkspace(before.copyWith(sessionId: 'second'));
-    store.checkpoint(record('new-session', 4, session: 'second'));
-    expect(
-      () => store.resetLatestReply('novel', 'initial', 'latest'),
-      throwsA(isA<AgentWorkspaceException>()),
-    );
     store.checkpoint(
       AgentRunRecord(
         id: 'legacy',
@@ -185,9 +176,9 @@ void main() {
       ),
     );
     expect(
-      () => store.resetLatestReply('novel', 'initial', 'legacy'),
+      () => store.resetLatestReply('novel', 'legacy'),
       throwsA(isA<AgentWorkspaceException>()),
     );
-    expect(store.listRuns('novel'), hasLength(5));
+    expect(store.listRuns('novel'), hasLength(4));
   });
 }

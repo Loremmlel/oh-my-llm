@@ -17,7 +17,7 @@ void main() {
   });
   tearDown(() => database.close());
 
-  test('草稿单独落盘，不重写会话历史且不覆盖随后保存的上下文', () {
+  test('草稿单独落盘，不重写作品历史且不覆盖随后保存的上下文', () {
     final container = ProviderContainer(
       overrides: [agentStoreProvider.overrideWithValue(store)],
     );
@@ -32,14 +32,14 @@ void main() {
     store.saveWorkspace(updated);
     // 故障注入只禁止重写历史载体，独立保存草稿仍应成功。
     database.connection.execute('''
-      CREATE TRIGGER reject_history_write BEFORE UPDATE OF record_json ON agent_sessions
+      CREATE TRIGGER reject_history_write BEFORE UPDATE OF record_json ON agent_workspaces
       BEGIN SELECT RAISE(ABORT, '不允许草稿重写历史'); END;
     ''');
     controller.flushDraft();
     expect(store.loadWorkspace('novel'), updated.copyWith(draft: '待发送'));
   });
 
-  test('作品目录只读取元数据，不加载任一会话历史', () {
+  test('作品目录只读取元数据，不加载任一作品历史', () {
     store.saveWorkspace(AgentWorkspace(id: 'other', title: '另一本小说'));
     store.workspaceReads = 0;
     expect(
@@ -110,15 +110,12 @@ void main() {
       lessThan(count * bytesPerFloor * 4 + 512 * 1024),
       reason: '历史、运行输入和撤回快照应共享已保存前缀，保留全文不需要重复复制',
     );
-    expect(
-      store.listStoryRounds('novel', 'initial'),
-      originals.reversed.toList(),
-    );
+    expect(store.listStoryRounds('novel'), originals.reversed.toList());
     expect(
       store.loadRun('novel', 'run-0')!.inputHistory!.skip(1).toList(),
       originals.first.beforeWorkspace.history,
     );
-    store.withdrawStoryRound('novel', 'initial', originals.last.id);
+    store.withdrawStoryRound('novel', originals.last.id);
     expect(
       store.loadWorkspace('novel')!.history,
       originals.last.beforeWorkspace.history,
@@ -130,8 +127,8 @@ class _ReadTrackingStore extends SqliteAgentStore {
   _ReadTrackingStore(super.database);
   int workspaceReads = 0;
   @override
-  AgentWorkspace? loadWorkspace(String id, {String? sessionId}) {
+  AgentWorkspace? loadWorkspace(String id) {
     workspaceReads++;
-    return super.loadWorkspace(id, sessionId: sessionId);
+    return super.loadWorkspace(id);
   }
 }

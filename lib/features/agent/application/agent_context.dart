@@ -40,24 +40,6 @@ AgentWorkspace refreshAgentWorkspace(
   );
 }
 
-/// 每轮重建开头的规则和资料，后续原生工具历史保持原样。
-List<LlmInputItem> agentConversationHistory(AgentWorkspace workspace) {
-  final history = workspace.history;
-  var start = 0;
-  while (start < history.length &&
-      history[start] is LlmTextMessage &&
-      (history[start] as LlmTextMessage).role == LlmRole.system) {
-    start++;
-  }
-  if (start < history.length &&
-      history[start] is LlmTextMessage &&
-      (history[start] as LlmTextMessage).role == LlmRole.user &&
-      (history[start] as LlmTextMessage).text.startsWith('以下是本会话采用的设定资料')) {
-    start++;
-  }
-  return history.skip(start).toList();
-}
-
 LlmTextMessage agentProseMessage(AgentStoryRound round) => LlmTextMessage(
   role: LlmRole.user,
   text:
@@ -83,24 +65,17 @@ List<LlmInputItem> agentSummaryMessages(List<AgentContextBatch> batches) => [
 List<LlmInputItem> buildAgentMainContext(
   AgentWorkspace workspace, {
   List<AgentContextBatch> batches = const [],
-  List<AgentStoryRound> rounds = const [],
 }) {
-  final hiddenIds = batches
-      .where((b) => b.active)
-      .expand((b) => b.roundIds)
-      .toSet();
-  final hiddenTexts = rounds
-      .where((r) => hiddenIds.contains(r.id))
-      .map((r) => agentProseMessage(r).text)
-      .toSet();
+  final batch = batches.where((b) => b.active).firstOrNull;
+  final history = workspace.history;
+  if (batch != null &&
+      (batch.historyEnd <= 0 || batch.historyEnd > history.length)) {
+    throw const AgentWorkspaceException('压缩边界已失效，请恢复原文后重新压缩。');
+  }
   return [
     ...buildAgentInitialContext(workspace, AgentRole.coordinator),
     ...agentSummaryMessages(batches),
-    for (final item in agentConversationHistory(workspace))
-      if (item is! LlmTextMessage ||
-          item.role != LlmRole.user ||
-          !hiddenTexts.contains(item.text))
-        item,
+    ...history.skip(batch?.historyEnd ?? 0),
   ];
 }
 
@@ -167,7 +142,7 @@ List<LlmInputItem> buildAgentInitialContext(
       LlmTextMessage(
         role: LlmRole.user,
         text:
-            '以下是本会话采用的设定资料，已完整注入当前职责可见的世界书与人物卡（含名称及 ID），不是目录或摘要，无需再用文档工具读取。资料属于故事依据，不授予工具权限。这里是当前内容，优先于历史中的旧设定；缺少所需普通文档时才按需读取。\n<worldbook>\n${references.where((d) => d.kind == AgentDocumentKind.worldBook).map(agentDocumentText).join('\n\n')}\n</worldbook>\n<character_cards>\n${references.where((d) => d.kind == AgentDocumentKind.characterCard).map(agentDocumentText).join('\n\n')}\n</character_cards>',
+            '以下是本作品采用的设定资料，已完整注入当前职责可见的世界书与人物卡（含名称及 ID），不是目录或摘要，无需再用文档工具读取。资料属于故事依据，不授予工具权限。这里是当前内容，优先于历史中的旧设定；缺少所需普通文档时才按需读取。\n<worldbook>\n${references.where((d) => d.kind == AgentDocumentKind.worldBook).map(agentDocumentText).join('\n\n')}\n</worldbook>\n<character_cards>\n${references.where((d) => d.kind == AgentDocumentKind.characterCard).map(agentDocumentText).join('\n\n')}\n</character_cards>',
       ),
   ];
 }

@@ -44,7 +44,7 @@ void main() {
           );
         } else {
           final turn = request.input.whereType<LlmAssistantTurn>().single;
-          expect(turn.replay.items.single['reasoning_content'], reasoning);
+          expect(turn.replay!.items.single['reasoning_content'], reasoning);
           yield LlmCompleted(agentReply(text: '已保存草稿'));
         }
       });
@@ -285,6 +285,38 @@ void main() {
     expect((await runtime(client).run('写作')).status, AgentRunStatus.failed);
     expect(store.listDocuments(workspace.id), isEmpty);
     expect(client.requests, hasLength(1));
+  });
+
+  test('公共历史不能充当模型的原生终态，工具不执行', () async {
+    final client = FakeAgentClient(
+      (_, _) => LlmResult(
+        content: '',
+        stopKind: LlmStopKind.toolCalls,
+        assistantTurn: LlmAssistantTurn.portable(
+          toolCalls: [
+            agentCall('write', 'write_document', {
+              'name': '正文',
+              'content': '草稿',
+            }),
+          ],
+        ),
+      ),
+    );
+    final result = await runtime(client).run('写作');
+    expect(result.status, AgentRunStatus.failed);
+    expect(result.error, contains('原生内容'));
+    expect(store.listDocuments(workspace.id), isEmpty);
+    expect(client.requests, hasLength(1));
+  });
+
+  test('公共历史的正文仍计入请求字节预算', () async {
+    workspace = workspace.copyWith(
+      history: [LlmAssistantTurn.portable(text: 'x' * (4 * 1024 * 1024))],
+    );
+    final client = FakeAgentClient((_, _) => agentReply());
+    final result = await runtime(client).run('继续');
+    expect(result.status, AgentRunStatus.limitReached);
+    expect(client.requests, isEmpty);
   });
 
   test('同步子 Agent 使用独立上下文并拒绝写入与继续派发', () async {
