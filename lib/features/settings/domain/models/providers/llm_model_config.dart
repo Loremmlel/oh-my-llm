@@ -13,6 +13,7 @@ class LlmModelConfig extends Equatable {
     required this.apiKey,
     required this.modelName,
     required this.supportsReasoning,
+    this.supportsImageInput = false,
     this.providerId = '',
     this.providerName = '',
     this.apiProtocol = LlmApiProtocol.chatCompletions,
@@ -24,6 +25,9 @@ class LlmModelConfig extends Equatable {
   final String apiKey;
   final String modelName;
   final bool supportsReasoning;
+
+  /// 显式声明图像输入能力；不根据名称推测，也不代表每次请求必须附图。
+  final bool supportsImageInput;
   final String providerId;
   final String providerName;
   final LlmApiProtocol apiProtocol;
@@ -36,6 +40,7 @@ class LlmModelConfig extends Equatable {
     String? apiKey,
     String? modelName,
     bool? supportsReasoning,
+    bool? supportsImageInput,
     String? providerId,
     String? providerName,
     LlmApiProtocol? apiProtocol,
@@ -47,6 +52,7 @@ class LlmModelConfig extends Equatable {
       apiKey: apiKey ?? this.apiKey,
       modelName: modelName ?? this.modelName,
       supportsReasoning: supportsReasoning ?? this.supportsReasoning,
+      supportsImageInput: supportsImageInput ?? this.supportsImageInput,
       providerId: providerId ?? this.providerId,
       providerName: providerName ?? this.providerName,
       apiProtocol: apiProtocol ?? this.apiProtocol,
@@ -62,6 +68,7 @@ class LlmModelConfig extends Equatable {
       'apiKey': apiKey,
       'modelName': modelName,
       'supportsReasoning': supportsReasoning,
+      'supportsImageInput': supportsImageInput,
       'apiProtocol': apiProtocol.storageValue,
       if (providerId.isNotEmpty) 'providerId': providerId,
       if (providerName.isNotEmpty) 'providerName': providerName,
@@ -77,6 +84,7 @@ class LlmModelConfig extends Equatable {
       apiKey: json['apiKey'] as String,
       modelName: json['modelName'] as String,
       supportsReasoning: json['supportsReasoning'] as bool? ?? false,
+      supportsImageInput: json['supportsImageInput'] as bool? ?? false,
       providerId: json['providerId'] as String? ?? '',
       providerName: json['providerName'] as String? ?? '',
       // 缺字段回退 chatCompletions；显式未知值或非字符串值由解析失败。
@@ -98,6 +106,7 @@ class LlmModelConfig extends Equatable {
       apiKey,
       modelName,
       supportsReasoning,
+      supportsImageInput,
       providerId,
       providerName,
       apiProtocol,

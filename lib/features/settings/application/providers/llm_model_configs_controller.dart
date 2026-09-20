@@ -94,6 +94,7 @@ class LlmProviderConfigsController extends Notifier<List<LlmProviderConfig>> {
     required String providerId,
     required LlmProviderModelConfig model,
   }) async {
+    final previous = state;
     final providers = [...state];
     final providerIndex = providers.indexWhere((item) => item.id == providerId);
     if (providerIndex == -1) {
@@ -109,8 +110,15 @@ class LlmProviderConfigsController extends Notifier<List<LlmProviderConfig>> {
       models[modelIndex] = model;
     }
     providers[providerIndex] = provider.copyWith(models: models);
-    state = sortProviderConfigs(providers);
-    await _repository.saveProviders(state);
+    final updated = sortProviderConfigs(providers);
+    state = updated;
+    try {
+      await _repository.saveProviders(updated);
+    } catch (_) {
+      // 直接切换能力时持久化失败需恢复显示，不能覆盖等待期间的其它操作。
+      if (identical(state, updated)) state = previous;
+      rethrow;
+    }
   }
 
   /// 在指定服务商下批量新增模型，跳过已存在同 modelName 的模型。

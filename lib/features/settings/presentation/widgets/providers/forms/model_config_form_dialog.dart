@@ -13,11 +13,13 @@ class ModelConfigFormData {
     required this.displayName,
     required this.modelName,
     required this.supportsReasoning,
+    this.supportsImageInput = false,
   });
 
   final String displayName;
   final String modelName;
   final bool supportsReasoning;
+  final bool supportsImageInput;
 }
 
 /// 批量添加模型的单项数据。
@@ -26,11 +28,13 @@ class ModelBatchFormData {
     required this.displayName,
     required this.modelName,
     required this.supportsReasoning,
+    this.supportsImageInput = false,
   });
 
   final String displayName;
   final String modelName;
   final bool supportsReasoning;
+  final bool supportsImageInput;
 }
 
 enum _FormMode { manual, fetch }
@@ -66,6 +70,7 @@ class _ModelConfigFormDialogState extends State<ModelConfigFormDialog>
   late final TextEditingController _displayNameController;
   late final TextEditingController _modelNameController;
   late bool _supportsReasoning;
+  late bool _supportsImageInput;
   _FormMode _mode = _FormMode.manual;
 
   final GlobalKey<ModelFetchSectionState> _fetchSectionKey =
@@ -79,6 +84,7 @@ class _ModelConfigFormDialogState extends State<ModelConfigFormDialog>
     );
     _modelNameController = initController(widget.initialValue?.modelName ?? '');
     _supportsReasoning = widget.initialValue?.supportsReasoning ?? false;
+    _supportsImageInput = widget.initialValue?.supportsImageInput ?? false;
   }
 
   @override
@@ -203,6 +209,14 @@ class _ModelConfigFormDialogState extends State<ModelConfigFormDialog>
           });
         },
       ),
+      SwitchListTile.adaptive(
+        key: const ValueKey('model-config-supports-image-field'),
+        contentPadding: EdgeInsets.zero,
+        value: _supportsImageInput,
+        title: const Text('多模态 · 图像'),
+        subtitle: const Text('仅在模型支持图像输入时开启；关闭后无法发送含图片的上下文。'),
+        onChanged: (value) => setState(() => _supportsImageInput = value),
+      ),
     ];
   }
 
@@ -217,6 +231,7 @@ class _ModelConfigFormDialogState extends State<ModelConfigFormDialog>
             displayName: _displayNameController.text.trim(),
             modelName: _modelNameController.text.trim(),
             supportsReasoning: _supportsReasoning,
+            supportsImageInput: _supportsImageInput,
           ),
         );
       });
@@ -238,6 +253,7 @@ class _ModelConfigFormDialogState extends State<ModelConfigFormDialog>
             displayName: e.controller.text.trim(),
             modelName: e.remoteModel.id,
             supportsReasoning: e.supportsReasoning,
+            supportsImageInput: e.supportsImageInput,
           ),
         )
         .toList();

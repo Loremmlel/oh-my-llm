@@ -65,6 +65,7 @@ class ChatGenerationRequestTarget extends Equatable {
     required this.endpoint,
     required this.apiKey,
     required this.model,
+    this.supportsImageInput = false,
   });
 
   final LlmApiProtocol protocol;
@@ -76,9 +77,16 @@ class ChatGenerationRequestTarget extends Equatable {
 
   /// 模型名（服务商侧模型标识）。
   final String model;
+  final bool supportsImageInput;
 
   @override
-  List<Object?> get props => [protocol, endpoint, apiKey, model];
+  List<Object?> get props => [
+    protocol,
+    endpoint,
+    apiKey,
+    model,
+    supportsImageInput,
+  ];
 }
 
 /// 协议中立的生成请求。

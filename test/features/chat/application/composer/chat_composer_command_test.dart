@@ -23,6 +23,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../helpers/chat/controllable_chat_conversation_repository.dart';
 import '../../../../helpers/chat/fake_chat_generation_client.dart';
+import '../../../../helpers/chat/test_chat_images.dart';
 
 /// 标记「未显式传模型」的哨兵，区分「不传默认解析」与「显式传 null（无模型）」。
 const _useDefaultModel = Object();
@@ -124,6 +125,37 @@ void main() {
       editingMessageId: editingMessageId,
     );
   }
+
+  test('未开启图像能力拒绝图片提交且不清空草稿或新建消息', () {
+    final id = container.read(activeConversationIdProvider);
+    final draft = ComposerDraft.empty.copyWith(
+      body: '保留',
+      images: [testChatImage],
+    );
+    container.read(composerDraftProvider.notifier).replaceDraft(id, draft);
+    final result = container
+        .read(chatComposerCommandProvider)
+        .dispatch(
+          ChatComposerSubmitIntent(
+            conversationId: id,
+            body: '保留',
+            images: [testChatImage],
+            selectedModel: model(),
+            reasoningEnabled: false,
+            reasoningEffort: ReasoningEffort.medium,
+          ),
+        );
+    expect(
+      (result as ChatComposerRejected).reason,
+      ChatComposerRejectReason.unsupportedImageInput,
+    );
+    expect(container.read(composerDraftProvider.notifier).draftFor(id), draft);
+    expect(
+      container.read(activeBaseConversationProvider).messageNodes,
+      isEmpty,
+    );
+    expect(fakeClient.requestHistory, isEmpty);
+  });
 
   test('normal accepted 返回 completion，draft body 清空、selection 保留', () async {
     final command = container.read(chatComposerCommandProvider);

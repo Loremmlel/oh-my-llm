@@ -156,12 +156,14 @@ class ChatWorkspaceComposerState extends ChatWorkspaceComposerReadModel {
     this.images = const [],
     this.isImportingImages = false,
     this.imageError,
+    this.imageInputBlocked = false,
   });
 
   final bool isEditingMessage;
   final List<ChatImageAttachment> images;
   final bool isImportingImages;
   final String? imageError;
+  final bool imageInputBlocked;
 
   factory ChatWorkspaceComposerState.compose({
     required ChatWorkspaceComposerReadModel readModel,
@@ -171,6 +173,7 @@ class ChatWorkspaceComposerState extends ChatWorkspaceComposerReadModel {
     List<ChatImageAttachment> images = const [],
     bool isImportingImages = false,
     String? imageError,
+    bool imageInputBlocked = false,
   }) {
     final editingTemplateId = editingDraft.selectedTemplatePromptId;
     final selectedTemplatePrompt = isEditingMessage
@@ -204,6 +207,7 @@ class ChatWorkspaceComposerState extends ChatWorkspaceComposerReadModel {
       images: List.unmodifiable(images),
       isImportingImages: isImportingImages,
       imageError: imageError,
+      imageInputBlocked: imageInputBlocked,
     );
   }
 
@@ -214,6 +218,7 @@ class ChatWorkspaceComposerState extends ChatWorkspaceComposerReadModel {
     images,
     isImportingImages,
     imageError,
+    imageInputBlocked,
   ];
 }
 

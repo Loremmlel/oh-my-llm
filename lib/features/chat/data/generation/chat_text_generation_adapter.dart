@@ -9,6 +9,7 @@ import 'package:oh_my_llm/core/llm/llm_request.dart';
 
 import '../../application/ports/chat_generation_client.dart';
 import '../../application/ports/chat_image_store.dart';
+import '../../application/requests/chat_image_input_policy.dart';
 import '../../domain/models/chat_message.dart';
 import 'anthropic/anthropic_message_transformer.dart';
 import 'chat_completions/inline_reasoning_tag_splitter.dart';
@@ -77,6 +78,10 @@ class ChatTextGenerationAdapter extends ChatGenerationClient {
     LlmCallControl control,
   ) async* {
     final protocol = request.target.protocol;
+    if (!request.target.supportsImageInput &&
+        request.messages.any((message) => message.images.isNotEmpty)) {
+      throw const ChatGenerationException(unsupportedChatImageInputMessage);
+    }
     final totalImageBytes = request.messages
         .expand((message) => message.images)
         .fold(0, (size, image) => size + image.byteLength);

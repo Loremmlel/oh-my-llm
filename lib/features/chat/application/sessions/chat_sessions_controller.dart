@@ -625,6 +625,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       endpoint: modelConfig.apiUrl.trim(),
       apiKey: modelConfig.apiKey,
       model: modelConfig.modelName,
+      supportsImageInput: modelConfig.supportsImageInput,
     );
   }
 

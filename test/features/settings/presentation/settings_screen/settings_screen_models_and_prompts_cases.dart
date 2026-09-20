@@ -49,9 +49,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
     expect(find.text('Chat Completions · 0 个模型'), findsOneWidget);
   });
 
-  testWidgets('settings screen creates a model under a provider', (
-    tester,
-  ) async {
+  testWidgets('新增模型后可以直接切换卡片中的思考与图像能力并保存', (tester) async {
     await setUpSettingsScreen(tester);
     final repository = ProviderScope.containerOf(
       tester.element(find.byType(SettingsScreen)),
@@ -75,9 +73,18 @@ void registerSettingsScreenModelsAndPromptsTests() {
     expect(createdModel.modelName, 'gpt-4.1');
     expect(createdModel.supportsReasoning, isTrue);
     expect(find.text('OpenAI 4.1'), findsWidgets);
+    final reasoningChip = find.widgetWithText(FilterChip, '深度思考');
+    await tester.ensureVisible(reasoningChip);
+    await tester.tap(reasoningChip);
+    await tester.pump();
+    final imageChip = find.widgetWithText(FilterChip, '图像');
+    await tester.tap(imageChip);
+    await tester.pump();
+    expect(repository.loadAll().single.supportsReasoning, isFalse);
+    expect(repository.loadAll().single.supportsImageInput, isTrue);
   });
 
-  testWidgets('从 API 拉取模型时分别保存深度思考能力', (tester) async {
+  testWidgets('从 API 拉取模型时分别保存深度思考与图像能力', (tester) async {
     final workflow = ModelCatalogWorkflow(
       fetchModels:
           ({
@@ -113,7 +120,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
         .first;
     Finder reasoningCheckbox(String modelName) => find.descendant(
       of: modelRow(modelName),
-      matching: find.byType(CheckboxListTile),
+      matching: find.widgetWithText(FilterChip, '深度思考'),
     );
 
     await tester.tap(selectionCheckbox('plain-model'));
@@ -121,11 +128,29 @@ void registerSettingsScreenModelsAndPromptsTests() {
     await tester.tap(selectionCheckbox('reasoning-model'));
     await tester.pump();
     await tester.tap(reasoningCheckbox('reasoning-model'));
+    await tester.tap(
+      find.descendant(
+        of: modelRow('reasoning-model'),
+        matching: find.widgetWithText(FilterChip, '图像'),
+      ),
+    );
     await tester.pump();
     await tester.tap(find.text('添加所选模型'));
     await settleOverlayTransition(tester);
 
     final models = repository.loadAll();
+    expect(
+      models
+          .singleWhere((model) => model.modelName == 'reasoning-model')
+          .supportsImageInput,
+      isTrue,
+    );
+    expect(
+      models
+          .singleWhere((model) => model.modelName == 'plain-model')
+          .supportsImageInput,
+      isFalse,
+    );
     expect(
       models
           .singleWhere((model) => model.modelName == 'plain-model')

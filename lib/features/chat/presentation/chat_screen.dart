@@ -20,6 +20,7 @@ import 'package:oh_my_llm/features/settings/domain/template_prompt_language/temp
 import '../application/composer/chat_composer_command.dart';
 import '../application/ports/chat_image_store.dart';
 import '../application/ports/chat_image_source.dart';
+import '../application/requests/chat_image_input_policy.dart';
 import '../domain/models/chat_image_attachment.dart';
 import '../application/composer/template_prompt_compilation_provider.dart';
 import '../application/sessions/chat_message_tree.dart';
@@ -110,6 +111,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   Future<bool> _importImages({bool clipboard = false}) async {
     if (_isImportingImages) return true;
+    bool supportsImages() =>
+        ref
+            .read(chatWorkspaceComposerReadModelProvider)
+            .selectedModel
+            ?.supportsImageInput ??
+        false;
+    if (!clipboard && !supportsImages()) {
+      setState(() => _imageError = unsupportedChatImageInputMessage);
+      return true;
+    }
     final operation = ++_imageOperation;
     final conversationId = ref.read(activeConversationIdProvider);
     final editId = _editingMessageId;
@@ -133,6 +144,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         selected = await source.pickImages();
       }
       if (!current() || selected.isEmpty) return true;
+      if (!supportsImages()) {
+        throw const FormatException(unsupportedChatImageInputMessage);
+      }
       if (selected.length + _currentImageDraft().images.length >
           ChatImageAttachment.maxPerMessage) {
         throw const FormatException('每条消息最多添加 8 张图片，请先移除部分图片');
@@ -142,6 +156,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       for (final image in selected) {
         imported.add(await store.importImage(image.bytes, name: image.name));
         if (!current()) return true;
+      }
+      if (!supportsImages()) {
+        throw const FormatException(unsupportedChatImageInputMessage);
       }
       // 重新添加同一图片可能修复缺失文件，让已显示的错误缩略图也重新读取。
       for (final image in imported) {
@@ -360,6 +377,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
     // 页面编辑草稿为空时用会话级草稿；编辑中覆盖模板选择由 compose 完成。
     final editingDraft = _editingDraft ?? ComposerDraft.empty;
+    final imageInputBlocked = isChatImageInputBlocked(
+      supportsImageInput: selectedModel?.supportsImageInput ?? false,
+      conversation: conversation,
+      draftImages: _editingDraft?.images ?? draftImages,
+      editingMessageId: _editingMessageId,
+    );
     final composerState = ChatWorkspaceComposerState.compose(
       readModel: composerReadModel,
       editingDraft: editingDraft,
@@ -367,7 +390,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       templatePrompts: composerReadModel.templatePrompts,
       images: _editingDraft?.images ?? draftImages,
       isImportingImages: _isImportingImages,
-      imageError: _imageError,
+      imageError: imageInputBlocked
+          ? unsupportedChatImageInputMessage
+          : _imageError == unsupportedChatImageInputMessage &&
+                (selectedModel?.supportsImageInput ?? false)
+          ? null
+          : _imageError,
+      imageInputBlocked: imageInputBlocked,
     );
     final workspaceBindings = _buildWorkspaceBindings(
       conversation: conversation,

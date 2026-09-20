@@ -138,7 +138,9 @@ class ChatComposerCard extends ConsumerWidget {
               builder: (context, _) {
                 final validation = _resolveTemplateValidation(compilation);
                 final effectiveOnSend =
-                    validation.sendAllowed && !state.isImportingImages
+                    validation.sendAllowed &&
+                        !state.isImportingImages &&
+                        !state.imageInputBlocked
                     ? bindings.onSendPressed
                     : null;
 
@@ -325,11 +327,12 @@ class ChatComposerCard extends ConsumerWidget {
                               ),
                             ),
                           ),
-                          IconButton(
-                            tooltip: '关闭图片提示',
-                            onPressed: bindings.onDismissImageError,
-                            icon: const Icon(Icons.close),
-                          ),
+                          if (!state.imageInputBlocked)
+                            IconButton(
+                              tooltip: '关闭图片提示',
+                              onPressed: bindings.onDismissImageError,
+                              icon: const Icon(Icons.close),
+                            ),
                         ],
                       ),
                     ComposerMessageField(

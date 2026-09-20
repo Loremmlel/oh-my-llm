@@ -8,6 +8,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/app/router/app_router.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/chat/application/composer/composer_draft_controller.dart';
+import 'package:oh_my_llm/features/chat/application/requests/chat_image_input_policy.dart';
+import 'package:oh_my_llm/features/settings/application/providers/llm_model_configs_controller.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_image_source.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_image_store.dart';
@@ -35,12 +37,15 @@ void main() {
   Future<ProviderContainer> pump(
     WidgetTester tester, {
     Size size = const Size(1440, 1200),
+    bool supportsImageInput = true,
   }) async {
     final database = AppDatabase.inMemory();
     addTearDown(database.close);
     final prefs = await TestFixtures.seedPreferences(
       database: database,
-      models: [TestFixtures.gpt41()],
+      models: [
+        TestFixtures.gpt41().copyWith(supportsImageInput: supportsImageInput),
+      ],
     );
     final router = createAppRouter(
       videoPlayerBindingsFactory: () => throw StateError('图片测试不应打开视频'),
@@ -61,6 +66,64 @@ void main() {
     await tester.pump();
     return ProviderScope.containerOf(tester.element(find.byType(ChatScreen)));
   }
+
+  testWidgets('未开启图像能力时选择和粘贴均提示且不导入图片', (tester) async {
+    final container = await pump(tester, supportsImageInput: false);
+    var openedPicker = false;
+    source.pick = () async {
+      openedPicker = true;
+      return [];
+    };
+    await tester.enterText(find.widgetWithText(TextField, '正文'), '保留正文');
+    await tester.tap(find.byTooltip('添加图片'));
+    await tester.pump();
+    expect(openedPicker, isFalse);
+    expect(find.text(unsupportedChatImageInputMessage), findsOneWidget);
+    source.clipboard = (name: testChatImage.name, bytes: testImageBytes);
+    await tester.tap(find.widgetWithText(TextField, '正文'));
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyV);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pump();
+    expect(find.byTooltip('预览图片：测试图片.png'), findsNothing);
+    expect(find.text('保留正文'), findsOneWidget);
+    expect(client.requestHistory, isEmpty);
+    expect(
+      container
+          .read(composerDraftProvider.notifier)
+          .draftFor(container.read(activeConversationIdProvider))
+          .images,
+      isEmpty,
+    );
+  });
+
+  testWidgets('关闭模型图像能力拦截已有草稿，重新开启后保留草稿可发送', (tester) async {
+    final container = await pump(tester);
+    await tester.tap(find.byTooltip('添加图片'));
+    await tester.enterText(find.widgetWithText(TextField, '正文'), '保留图文');
+    await tester.pump();
+    final provider = container.read(llmProviderConfigsProvider).single;
+    final controller = container.read(llmProviderConfigsProvider.notifier);
+    await controller.upsertModel(
+      providerId: provider.id,
+      model: provider.models.single.copyWith(supportsImageInput: false),
+    );
+    await tester.pump();
+    expect(find.text(unsupportedChatImageInputMessage), findsOneWidget);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pump();
+    expect(client.requestHistory, isEmpty);
+    expect(find.text('保留图文'), findsOneWidget);
+    expect(find.byTooltip('预览图片：测试图片.png'), findsOneWidget);
+    await controller.upsertModel(
+      providerId: provider.id,
+      model: provider.models.single,
+    );
+    await tester.pump();
+    expect(find.text(unsupportedChatImageInputMessage), findsNothing);
+  });
 
   testWidgets('选择图片可悬停预览并移除，剪贴板图片可单独发送到历史', (tester) async {
     final container = await pump(tester);
@@ -112,7 +175,7 @@ void main() {
   });
 
   testWidgets('普通 Ctrl+V 保留文本粘贴，编辑图片取消后恢复原草稿', (tester) async {
-    final container = await pump(tester);
+    final container = await pump(tester, supportsImageInput: false);
     String? clipboardText;
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
       SystemChannels.platform,

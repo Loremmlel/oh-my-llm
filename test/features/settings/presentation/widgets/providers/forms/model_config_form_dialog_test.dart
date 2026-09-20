@@ -44,6 +44,7 @@ void main() {
     )
     fetchModels,
     Size viewportSize = const Size(1440, 1200),
+    LlmProviderModelConfig? initialValue,
   }) async {
     final sp = await SharedPreferences.getInstance();
 
@@ -55,6 +56,7 @@ void main() {
         body: Center(
           child: ModelConfigFormDialog(
             provider: testProvider,
+            initialValue: initialValue,
             onSubmit: onSubmit,
             onBatchAdd: onBatchAdd,
             fetchModels: fetchModels,
@@ -80,7 +82,7 @@ void main() {
 
   Finder modelReasoningCheckbox(String remoteModelId) => find.descendant(
     of: modelRow(remoteModelId),
-    matching: find.byType(CheckboxListTile),
+    matching: find.widgetWithText(FilterChip, '深度思考'),
   );
 
   Finder modelDisplayNameField(String remoteModelId) => find.descendant(
@@ -99,6 +101,38 @@ void main() {
 
   group('模型表单', () {
     group('手动输入', () {
+      testWidgets('编辑已有图像模型预填能力且改名不清除能力', (tester) async {
+        ModelConfigFormData? captured;
+        await pumpDialog(
+          tester,
+          initialValue: const LlmProviderModelConfig(
+            id: 'm',
+            displayName: '原名称',
+            modelName: 'image-model',
+            supportsReasoning: true,
+            supportsImageInput: true,
+          ),
+          onSubmit: (data) async {
+            captured = data;
+          },
+          onBatchAdd: (_) async {},
+          fetchModels: (_) async => [],
+        );
+        expect(
+          tester
+              .widget<SwitchListTile>(
+                find.widgetWithText(SwitchListTile, '多模态 · 图像'),
+              )
+              .value,
+          isTrue,
+        );
+        await tester.enterText(modelField('显示名称'), '新名称');
+        await tester.tap(find.text('保存'));
+        await settleOverlayTransition(tester);
+        expect(captured!.displayName, '新名称');
+        expect(captured!.supportsImageInput, isTrue);
+        expect(captured!.supportsReasoning, isTrue);
+      });
       testWidgets('保存时提交手动输入的模型', (tester) async {
         ModelConfigFormData? captured;
         await pumpDialog(
@@ -114,6 +148,7 @@ void main() {
         await tester.enterText(modelField('API 模型名称'), 'my-model');
         await tester.pump();
 
+        await tester.tap(find.widgetWithText(SwitchListTile, '多模态 · 图像'));
         await tester.tap(find.text('保存'));
         // 提交后对话框出场，提交 Future 随帧完成
         await settleOverlayTransition(tester);
@@ -122,6 +157,7 @@ void main() {
         expect(captured!.displayName, 'My Model');
         expect(captured!.modelName, 'my-model');
         expect(captured!.supportsReasoning, false);
+        expect(captured!.supportsImageInput, true);
       });
     });
 
@@ -268,10 +304,8 @@ void main() {
         );
         expect(
           tester
-              .widget<CheckboxListTile>(
-                modelReasoningCheckbox('existing-model'),
-              )
-              .onChanged,
+              .widget<FilterChip>(modelReasoningCheckbox('existing-model'))
+              .onSelected,
           isNull,
         );
 
@@ -280,6 +314,12 @@ void main() {
         await tester.tap(modelCheckbox('reasoning-model'));
         await tester.pump();
         await tester.tap(modelReasoningCheckbox('reasoning-model'));
+        await tester.tap(
+          find.descendant(
+            of: modelRow('reasoning-model'),
+            matching: find.widgetWithText(FilterChip, '图像'),
+          ),
+        );
         await tester.pump();
 
         await tester.tap(modelCheckbox('reasoning-model'));
@@ -288,10 +328,8 @@ void main() {
         await tester.pump();
         expect(
           tester
-              .widget<CheckboxListTile>(
-                modelReasoningCheckbox('reasoning-model'),
-              )
-              .value,
+              .widget<FilterChip>(modelReasoningCheckbox('reasoning-model'))
+              .selected,
           isTrue,
         );
 
@@ -301,8 +339,10 @@ void main() {
         expect(captured, hasLength(2));
         expect(captured![0].modelName, 'plain-model');
         expect(captured![0].supportsReasoning, isFalse);
+        expect(captured![0].supportsImageInput, isFalse);
         expect(captured![1].modelName, 'reasoning-model');
         expect(captured![1].supportsReasoning, isTrue);
+        expect(captured![1].supportsImageInput, isTrue);
       });
     });
   });

@@ -24,6 +24,37 @@ const _request = ChatGenerationRequest(
 );
 
 void main() {
+  for (final protocol in LlmApiProtocol.values) {
+    test('${protocol.name} 未声明图像能力时在读取文件与调用模型之前拒绝图片', () async {
+      final core = _Client((_, _) => throw StateError('不得调用模型'));
+      final request = ChatGenerationRequest(
+        target: ChatGenerationRequestTarget(
+          protocol: protocol,
+          endpoint: 'https://example.com',
+          apiKey: '',
+          model: 'text-only',
+        ),
+        messages: [
+          ChatRequestMessage(
+            role: ChatMessageRole.user,
+            content: '',
+            images: [testChatImage],
+          ),
+        ],
+      );
+      await expectLater(
+        ChatTextGenerationAdapter(core).complete(request),
+        throwsA(
+          isA<ChatGenerationException>().having(
+            (e) => e.message,
+            '能力提示',
+            contains('未开启图像输入'),
+          ),
+        ),
+      );
+      expect(core.request, isNull);
+    });
+  }
   test('Messages 合并模板消息时保留图片与正文的相对顺序', () async {
     final core = _Client(
       (_, _) => Stream.value(const LlmEvent(contentDelta: '看到了')),
@@ -35,6 +66,7 @@ void main() {
         endpoint: 'https://example.com',
         apiKey: 'test',
         model: 'vision',
+        supportsImageInput: true,
       ),
       messages: [
         const ChatRequestMessage(role: ChatMessageRole.system, content: '前置系统'),
