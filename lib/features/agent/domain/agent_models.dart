@@ -25,7 +25,7 @@ class AgentWorkspace extends Equatable {
     required this.id,
     required this.title,
     String? modelId,
-    String instructions = '',
+    String instructions = agentDefaultPreset,
     AgentConfiguration? configuration,
     this.draft = '',
     List<LlmInputItem> history = const [],
