@@ -213,6 +213,9 @@ void main() {
     final database = AppDatabase.inMemory();
     addTearDown(database.close);
     final store = _FailingStore(database);
+    store.saveWorkspace(
+      AgentWorkspace(id: 'novel', title: '小说', modelId: 'model'),
+    );
     final client = FakeAgentClient((_, index) {
       if (index == 0) store.failCheckpoints = true;
       return agentReply(text: '已生成但未保存');
@@ -233,8 +236,6 @@ void main() {
     );
     addTearDown(container.dispose);
     final controller = container.read(agentWorkspaceProvider.notifier);
-    controller.createWorkspace();
-    controller.configure(modelId: 'model');
     controller.setDraft('写作');
     await controller.send();
     final state = container.read(agentWorkspaceProvider);
@@ -258,6 +259,9 @@ void main() {
     final database = AppDatabase.inMemory();
     addTearDown(database.close);
     final store = SqliteAgentStore(database);
+    store.saveWorkspace(
+      AgentWorkspace(id: 'novel', title: '小说', modelId: 'model'),
+    );
     final client = FakeAgentClient((_, _) => agentReply());
     final container = ProviderContainer(
       overrides: [
@@ -275,8 +279,6 @@ void main() {
     );
     addTearDown(container.dispose);
     final controller = container.read(agentWorkspaceProvider.notifier);
-    controller.createWorkspace();
-    controller.configure(modelId: 'model');
     controller.setDraft('字' * 65536);
     await controller.send();
     expect(container.read(agentWorkspaceProvider).busy, isFalse);

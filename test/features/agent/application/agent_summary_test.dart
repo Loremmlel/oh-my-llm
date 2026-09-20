@@ -26,12 +26,12 @@ void main() {
     client: client,
     store: store,
     workspace: store.loadWorkspace('novel')!,
-    target: agentTestTarget,
+    roleModels: agentTestModels,
     onUpdate: (_) {},
   );
   List<LlmInputItem> preview() => buildAgentMainContext(
     store.loadWorkspace('novel')!,
-    batches: store.listContextBatches('novel'),
+    batch: store.readContextBatch('novel'),
   );
 
   test('超过五十楼仍按完整任务边界压缩并可恢复，后续原生记录和实际输入保留', () async {
@@ -135,7 +135,7 @@ void main() {
     ).summarize(batch);
     expect(unsaved.status, AgentRunStatus.failed);
     expect(store.loadRun('novel', unsaved.id)!.error, contains('尚未应用'));
-    expect(store.listContextBatches('novel'), [batch]);
+    expect(store.readContextBatch('novel'), batch);
   });
 
   test('累计摘要替换旧摘要，撤回覆盖末楼使整份摘要失效并恢复原文', () {
@@ -170,12 +170,12 @@ void main() {
         summary: '累计第二份',
       ),
     );
-    expect(store.listContextBatches('novel'), hasLength(1));
+    expect(store.readContextBatch('novel')!.id, 'b');
     expect(agentInputText(preview()), contains('累计第二份'));
     expect(agentInputText(preview()), isNot(contains('第一份')));
     store.withdrawStoryRound('novel', second.id);
     expect(
-      store.listContextBatches('novel').single.status,
+      store.readContextBatch('novel')!.status,
       AgentContextBatchStatus.invalidated,
     );
     expect(agentInputText(preview()), contains('正式正文 1'));
@@ -237,7 +237,7 @@ void main() {
       )).status,
       AgentRunStatus.completed,
     );
-    expect(store.listContextBatches('novel'), hasLength(1));
+    expect(store.readContextBatch('novel')!.id, 'b');
     final text = agentInputText(preview());
     expect(text, contains('合并后的唯一摘要'));
     expect(text, isNot(contains('首轮累计摘要')));
@@ -268,7 +268,7 @@ void main() {
     final reopened = AppDatabase.forPath(path);
     addTearDown(reopened.close);
     final restored = SqliteAgentStore(reopened);
-    expect(restored.listContextBatches('novel'), [batch]);
-    expect(restored.listContextBatches('other'), isEmpty);
+    expect(restored.readContextBatch('novel'), batch);
+    expect(restored.readContextBatch('other'), isNull);
   });
 }

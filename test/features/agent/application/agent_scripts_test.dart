@@ -37,7 +37,7 @@ void main() {
     client: client,
     store: store,
     workspace: store.loadWorkspace('novel')!,
-    target: agentTestTarget,
+    roleModels: agentTestModels,
     onUpdate: (_) {},
   );
 
@@ -152,7 +152,7 @@ void main() {
     final loaded = store.loadWorkspace('novel')!;
     final input = buildAgentMainContext(
       loaded,
-      batches: store.listContextBatches('novel'),
+      batch: store.readContextBatch('novel'),
     );
     expect(input, isNot(contains(agentProseMessage(first))));
     expect(

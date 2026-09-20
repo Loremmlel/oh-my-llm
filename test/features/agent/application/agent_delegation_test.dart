@@ -24,7 +24,7 @@ void main() {
     client: client,
     store: store,
     workspace: store.loadWorkspace('novel')!,
-    target: agentTestTarget,
+    roleModels: agentTestModels,
     onUpdate: (_) {},
   );
 

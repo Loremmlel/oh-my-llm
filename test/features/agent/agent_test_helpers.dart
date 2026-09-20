@@ -8,6 +8,8 @@ import 'package:oh_my_llm/core/llm/llm_content.dart';
 import 'package:oh_my_llm/core/llm/llm_event.dart';
 import 'package:oh_my_llm/core/llm/llm_request.dart';
 import 'package:oh_my_llm/core/llm/llm_usage.dart';
+import 'package:oh_my_llm/features/agent/application/agent_model.dart';
+import 'package:oh_my_llm/features/agent/domain/agent_configuration.dart';
 
 const agentTestTarget = LlmRequestTarget(
   protocol: LlmApiProtocol.chatCompletions,
@@ -15,6 +17,16 @@ const agentTestTarget = LlmRequestTarget(
   apiKey: 'test-key-not-for-storage',
   model: 'test',
 );
+
+final agentTestModels = {
+  for (final role in AgentRole.values)
+    role: const AgentModel(
+      id: 'test',
+      label: '测试模型',
+      target: agentTestTarget,
+      options: agentDefaultGenerationOptions,
+    ),
+};
 
 class StreamingAgentClient extends LlmClient {
   StreamingAgentClient(this.respond);

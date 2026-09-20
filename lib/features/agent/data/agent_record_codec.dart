@@ -143,12 +143,8 @@ AgentRunRecord decodeAgentRun(Map<String, dynamic> json) {
           content: step['content'] as String,
           reasoning: step['reasoning'] as String,
           isError: step['isError'] as bool,
-          kind: step['kind'] == null
-              ? ((step['label'] as String).startsWith('模型回复 ')
-                    ? AgentStepKind.model
-                    : AgentStepKind.tool)
-              : AgentStepKind.values.byName(step['kind'] as String),
-          isRunning: step['isRunning'] as bool? ?? false,
+          kind: AgentStepKind.values.byName(step['kind'] as String),
+          isRunning: step['isRunning'] as bool,
           inputItemCount: step['inputItemCount'] as int?,
         ),
     ],

@@ -86,7 +86,6 @@ void main() {
       client: client,
       store: store,
       workspace: store.loadWorkspace('novel')!,
-      target: agentTestTarget,
       roleModels: {
         AgentRole.coordinator: const AgentModel(
           id: 'main',
@@ -175,7 +174,7 @@ void main() {
       client: client,
       store: store,
       workspace: store.loadWorkspace('novel')!,
-      target: agentTestTarget,
+      roleModels: agentTestModels,
       onUpdate: (_) {},
     );
     final result = await runtime.run('写作');
@@ -222,7 +221,7 @@ void main() {
         client: client,
         store: store,
         workspace: store.loadWorkspace('novel')!,
-        target: agentTestTarget,
+        roleModels: agentTestModels,
         onUpdate: (record) {
           if (afterCommit &&
               record.role == AgentRole.state &&
@@ -274,7 +273,7 @@ void main() {
       client: client,
       store: store,
       workspace: store.loadWorkspace('novel')!,
-      target: agentTestTarget,
+      roleModels: agentTestModels,
       limits: const AgentLimits(children: 1),
       onUpdate: (_) {},
     );
@@ -288,7 +287,7 @@ void main() {
       client: client,
       store: store,
       workspace: store.loadWorkspace('novel')!,
-      target: agentTestTarget,
+      roleModels: agentTestModels,
       onUpdate: (_) {},
     );
     await expectLater(next.run('下一轮'), throwsA(isA<AgentWorkspaceException>()));

@@ -51,10 +51,8 @@ LlmTextMessage agentStateMessage(AgentStoryState state) => LlmTextMessage(
   text: '本轮开始时的最新剧情状态（以此快照优先于历史状态）：\n${jsonEncode(state.toolData)}',
 );
 
-List<LlmInputItem> agentSummaryMessages(List<AgentContextBatch> batches) => [
-  for (final batch in batches.where(
-    (b) => b.active && b.summary.trim().isNotEmpty,
-  ))
+List<LlmInputItem> agentSummaryMessages(AgentContextBatch? batch) => [
+  if (batch != null && batch.active && batch.summary.trim().isNotEmpty)
     LlmTextMessage(
       role: LlmRole.user,
       text:
@@ -64,9 +62,9 @@ List<LlmInputItem> agentSummaryMessages(List<AgentContextBatch> batches) => [
 
 List<LlmInputItem> buildAgentMainContext(
   AgentWorkspace workspace, {
-  List<AgentContextBatch> batches = const [],
+  AgentContextBatch? batch,
 }) {
-  final batch = batches.where((b) => b.active).firstOrNull;
+  if (batch?.active != true) batch = null;
   final history = workspace.history;
   if (batch != null &&
       (batch.historyEnd <= 0 || batch.historyEnd > history.length)) {
@@ -74,7 +72,7 @@ List<LlmInputItem> buildAgentMainContext(
   }
   return [
     ...buildAgentInitialContext(workspace, AgentRole.coordinator),
-    ...agentSummaryMessages(batches),
+    ...agentSummaryMessages(batch),
     ...history.skip(batch?.historyEnd ?? 0),
   ];
 }
@@ -83,14 +81,11 @@ List<LlmInputItem> buildAgentChildContext(
   AgentWorkspace workspace,
   AgentRole role, {
   required AgentStoryState state,
-  List<AgentContextBatch> batches = const [],
+  AgentContextBatch? batch,
   List<AgentStoryRound> rounds = const [],
   String? characterCardId,
 }) {
-  final hidden = batches
-      .where((b) => b.active)
-      .expand((b) => b.roundIds)
-      .toSet();
+  final hidden = batch?.active == true ? batch!.roundIds.toSet() : <String>{};
   return [
     ...buildAgentInitialContext(
       workspace,
@@ -98,7 +93,7 @@ List<LlmInputItem> buildAgentChildContext(
       characterCardId: characterCardId,
     ),
     if (role == AgentRole.writer || role == AgentRole.reviewer) ...[
-      ...agentSummaryMessages(batches),
+      ...agentSummaryMessages(batch),
       for (final round in rounds.reversed)
         if (round.status == AgentStoryRoundStatus.committed &&
             !hidden.contains(round.id))

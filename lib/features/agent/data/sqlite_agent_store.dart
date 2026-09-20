@@ -31,13 +31,17 @@ class SqliteAgentStore implements AgentStore {
       jsonEncode(_histories.compact(workspaceId, record));
 
   @override
-  List<AgentContextBatch> listContextBatches(String workspaceId) => [
-    for (final row in database.connection.select(
+  AgentContextBatch? readContextBatch(String workspaceId) {
+    final rows = database.connection.select(
       'SELECT record_json FROM agent_context_batches WHERE workspace_id = ?;',
       [workspaceId],
-    ))
-      AgentContextBatch.fromJson(jsonDecode(row['record_json'] as String)),
-  ];
+    );
+    return rows.isEmpty
+        ? null
+        : AgentContextBatch.fromJson(
+            jsonDecode(rows.single['record_json'] as String),
+          );
+  }
 
   @override
   void saveContextBatch(String workspaceId, AgentContextBatch batch) {
@@ -49,7 +53,7 @@ class SqliteAgentStore implements AgentStore {
           ).isNotEmpty) {
         throw const AgentWorkspaceException('请等待当前任务结束后压缩上下文。');
       }
-      final previous = listContextBatches(workspaceId).firstOrNull;
+      final previous = readContextBatch(workspaceId);
       final rounds = listStoryRounds(workspaceId, includeHistory: false)
           .reversed
           .where((r) => r.status == AgentStoryRoundStatus.committed)
@@ -308,13 +312,12 @@ class SqliteAgentStore implements AgentStore {
         scriptProgress: round.beforeWorkspace.scriptProgress,
       ),
     );
-    for (final batch in listContextBatches(workspaceId)) {
-      if (batch.roundIds.contains(roundId)) {
-        _saveContextBatch(
-          workspaceId,
-          batch.copyWith(status: AgentContextBatchStatus.invalidated),
-        );
-      }
+    final batch = readContextBatch(workspaceId);
+    if (batch != null && batch.roundIds.contains(roundId)) {
+      _saveContextBatch(
+        workspaceId,
+        batch.copyWith(status: AgentContextBatchStatus.invalidated),
+      );
     }
   }
 

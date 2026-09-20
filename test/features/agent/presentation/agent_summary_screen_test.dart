@@ -59,7 +59,7 @@ void main() {
     await tester.tap(find.text('打开总结'));
     await settleOverlayTransition(tester);
     expect(find.text('直接隐藏'), findsNothing);
-    expect(store.listContextBatches('novel').single.active, isTrue);
+    expect(store.readContextBatch('novel')!.active, isTrue);
     await tester.ensureVisible(find.text('编辑摘要'));
     await tester.tap(find.text('编辑摘要'));
     await settleOverlayTransition(tester);
@@ -77,12 +77,12 @@ void main() {
     await settleOverlayTransition(tester);
     tester.view.resetViewInsets();
     await settleAnimatedWidgetTransition(tester);
-    expect(store.listContextBatches('novel').single.summary, '窗口内的摘要');
+    expect(store.readContextBatch('novel')!.summary, '窗口内的摘要');
     await tester.ensureVisible(find.text('恢复全部原文'));
     await tester.tap(find.text('恢复全部原文'));
     await tester.pump();
     expect(
-      store.listContextBatches('novel').single.status,
+      store.readContextBatch('novel')!.status,
       AgentContextBatchStatus.restored,
     );
     await tester.tap(find.text('关闭'));
@@ -156,7 +156,7 @@ void main() {
     sub.close();
     release.complete();
     await tester.pump();
-    expect(store.listContextBatches('novel'), isEmpty);
+    expect(store.readContextBatch('novel'), isNull);
     await tester.ensureVisible(find.text('重试总结'));
     final retried = container
         .read(agentWorkspaceProvider.notifier)
@@ -167,7 +167,7 @@ void main() {
           .send(summaryBatch: retried),
     );
     await tester.pump();
-    expect(store.listContextBatches('novel').single.summary, '正式摘要');
+    expect(store.readContextBatch('novel')!.summary, '正式摘要');
     expect(store.loadWorkspace('novel')!.history, history);
     expect(tester.takeException(), isNull);
   });

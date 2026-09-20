@@ -180,20 +180,6 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
     return name;
   }
 
-  void configure({String? title, String? modelId, String? instructions}) =>
-      _edit(() {
-        final workspace = state.workspace;
-        if (workspace == null || state.busy) return;
-        flushDraft();
-        _store.saveWorkspace(
-          workspace.copyWith(
-            title: title,
-            modelId: modelId,
-            instructions: instructions,
-          ),
-        );
-        _load(workspace.id);
-      });
   List<AgentConfiguration> get configurations => state.workspace == null
       ? []
       : _store.listConfigurations(state.workspace!.id);
@@ -233,7 +219,7 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
         .where((m) => m.id == current.modelId)
         .firstOrNull;
     final documents = _store.listDocuments(current.id);
-    final batches = contextBatches;
+    final batch = contextBatch;
     // 与运行器同样先转换完整历史再压缩，保持重建后的工具 ID 一致。
     final workspace = refreshAgentWorkspace(
       model == null
@@ -244,12 +230,8 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
       documents,
     );
     return [
-      ...buildAgentMainContext(workspace, batches: batches),
-      ...agentScriptUpdates(
-        workspace,
-        documents,
-        full: batches.any((b) => b.active),
-      ),
+      ...buildAgentMainContext(workspace, batch: batch),
+      ...agentScriptUpdates(workspace, documents, full: batch?.active ?? false),
       agentStateMessage(_store.readStoryState(workspace.id)),
       if (workspace.draft.trim().isNotEmpty)
         LlmTextMessage(role: LlmRole.user, text: workspace.draft.trim()),
@@ -404,8 +386,6 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
         client: ref.read(agentClientProvider),
         store: _store,
         workspace: workspace,
-        target: model.target,
-        options: model.options,
         roleModels: {
           for (final role in AgentRole.values)
             role: ?ref
@@ -500,15 +480,15 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
         .firstOrNull;
     if (latest == null ||
         latest.status == AgentRunStatus.running ||
-        contextBatches.any((b) => b.summaryRunId == latest.id)) {
+        contextBatch?.summaryRunId == latest.id) {
       return null;
     }
     return latest.summaryBatch;
   }
 
-  List<AgentContextBatch> get contextBatches => state.workspace == null
-      ? []
-      : _store.listContextBatches(state.workspace!.id);
+  AgentContextBatch? get contextBatch => state.workspace == null
+      ? null
+      : _store.readContextBatch(state.workspace!.id);
   List<AgentRunRecord> runsFor(AgentRunRecord record) =>
       _store.listChildRuns(record.workspaceId, record.id);
 
@@ -516,8 +496,8 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
     final committed = state.storyRounds.reversed
         .where((r) => r.status == AgentStoryRoundStatus.committed)
         .toList();
-    final previous = contextBatches.where((b) => b.active).firstOrNull;
-    final covered = previous?.roundIds.length ?? 0;
+    final previous = contextBatch;
+    final covered = previous?.active == true ? previous!.roundIds.length : 0;
     if (count <= 0 || covered + count > committed.length) {
       throw const AgentWorkspaceException('请选择有效的新增正文楼数。');
     }

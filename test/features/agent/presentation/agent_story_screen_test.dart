@@ -5,7 +5,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/app/composition/llm_bindings.dart';
-import 'package:oh_my_llm/core/llm/llm_event.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/agent/application/agent_workspace_controller.dart';
 import 'package:oh_my_llm/features/agent/data/sqlite_agent_store.dart';
@@ -17,6 +16,7 @@ import '../../../helpers/async/widget_test_animation.dart';
 import '../../../helpers/fixtures.dart';
 import '../../../helpers/test_harness.dart';
 import '../agent_test_helpers.dart';
+import '../agent_story_test_helpers.dart';
 
 void main() {
   testWidgets('窄屏可重试状态更新、查看正文和状态，并用键盘撤回恢复原指令', (tester) async {
@@ -26,6 +26,14 @@ void main() {
     store.saveWorkspace(
       AgentWorkspace(id: 'novel', title: '图书馆', modelId: 'model-1'),
     );
+    // 失败转移由 controller 测试覆盖；页面从已有待处理轮次验证重试与撤回入口。
+    final round = prepareRound(store, '开场', content: '甲把秘密留在心里。');
+    for (final id in [round.id, round.stateAgentId]) {
+      store.checkpoint(
+        store.loadRun('novel', id)!.copyWith(status: AgentRunStatus.failed),
+      );
+    }
+    store.saveDraft('novel', '');
     final preferences = await TestFixtures.seedPreferences(
       database: database,
       models: [
@@ -35,41 +43,21 @@ void main() {
         ),
       ],
     );
-    var stateCalls = 0;
-    final client = reviewedAgentClient((request, index) {
-      if (request.tools.any((t) => t.name == 'commit_story_state')) {
-        if (stateCalls++ == 0) throw const LlmException('模拟填表失败');
-        return agentReply(
-          calls: [
-            agentCall('commit', 'commit_story_state', {
-              'operations': [
-                AgentStateOperation(
-                  kind: AgentStateOperationKind.insert,
-                  table: AgentStateTable.scene,
-                  cells: {'place': '图书馆', 'time': '傍晚'},
-                ).toJson(),
-              ],
-            }),
-          ],
-        );
-      }
-      return switch (index) {
-        0 => agentReply(
-          calls: [
-            agentCall('write', 'write_document', {
-              'name': '正文',
-              'content': '甲把秘密留在心里。',
-            }),
-          ],
-        ),
-        1 => agentReply(
-          calls: [
-            agentCall('update', 'update_story_state', {'name': '正文'}),
-          ],
-        ),
-        _ => agentReply(text: '请重试状态更新'),
-      };
-    });
+    final client = FakeAgentClient(
+      (_, _) => agentReply(
+        calls: [
+          agentCall('commit', 'commit_story_state', {
+            'operations': [
+              AgentStateOperation(
+                kind: AgentStateOperationKind.insert,
+                table: AgentStateTable.scene,
+                cells: {'place': '图书馆', 'time': '傍晚'},
+              ).toJson(),
+            ],
+          }),
+        ],
+      ),
+    );
     await pumpTestApp(
       tester,
       preferences: preferences,
@@ -81,13 +69,8 @@ void main() {
     final container = ProviderScope.containerOf(
       tester.element(find.byType(AgentScreen)),
     );
-    final failed = Completer<void>(), saved = Completer<void>();
+    final saved = Completer<void>();
     final subscription = container.listen(agentWorkspaceProvider, (_, state) {
-      if (!state.busy &&
-          state.latestRound?.status == AgentStoryRoundStatus.pending &&
-          !failed.isCompleted) {
-        failed.complete();
-      }
       if (!state.busy &&
           state.latestRound?.status == AgentStoryRoundStatus.committed &&
           !saved.isCompleted) {
@@ -95,13 +78,6 @@ void main() {
       }
     });
     addTearDown(subscription.close);
-    await tester.enterText(find.widgetWithText(TextField, '任务'), '开场：两人来到图书馆');
-    await tester.pump();
-    await tester.tap(find.text('开始任务'));
-    await tester.runAsync(
-      () => failed.future.timeout(const Duration(seconds: 10)),
-    );
-    await tester.pump();
     expect(find.text('正文已保留 · 状态待更新'), findsOneWidget);
     await tester.tap(find.text('重试状态更新'));
     await tester.runAsync(
@@ -126,7 +102,10 @@ void main() {
     await tester.pump();
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pump();
-    expect(find.widgetWithText(TextField, '开场：两人来到图书馆'), findsOneWidget);
+    expect(
+      find.widgetWithText(TextField, round.beforeWorkspace.draft),
+      findsOneWidget,
+    );
     expect(find.text('撤回最新一轮'), findsNothing);
     expect(tester.takeException(), isNull);
   });
