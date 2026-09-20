@@ -1,8 +1,42 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:oh_my_llm/core/llm/llm_content.dart';
 import 'package:oh_my_llm/features/agent/application/agent_context.dart';
 import 'package:oh_my_llm/features/agent/domain/agent_models.dart';
 
 void main() {
+  test('默认共享预设只提供给创作职责，显式清空后不会重新填入', () {
+    final workspace = AgentWorkspace(id: 'defaults', title: '默认方案');
+    final preset = workspace.configuration.preset;
+    expect(preset, isNotEmpty);
+    const creativeRoles = {
+      AgentRole.coordinator,
+      AgentRole.writer,
+      AgentRole.reviewer,
+      AgentRole.character,
+    };
+    for (final role in AgentRole.values) {
+      final input = buildAgentInitialContext(workspace, role);
+      expect(
+        input.whereType<LlmTextMessage>().any(
+          (item) => item.text == '用户的写作预设：\n$preset',
+        ),
+        creativeRoles.contains(role),
+        reason: role.name,
+      );
+    }
+    final cleared = refreshAgentWorkspace(
+      workspace.copyWith(
+        configuration: workspace.configuration.copyWith(preset: ''),
+      ),
+      const [],
+    );
+    expect(cleared.configuration.preset, isEmpty);
+    expect(
+      agentInputText(buildAgentInitialContext(cleared, AgentRole.writer)),
+      isNot(contains('用户的写作预设：')),
+    );
+  });
+
   const card = AgentDocument(
     id: 'a',
     name: '阿弥',
