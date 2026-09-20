@@ -2,6 +2,8 @@ import 'package:equatable/equatable.dart';
 import 'package:oh_my_llm/core/constants/model_display_name.dart';
 import 'package:oh_my_llm/core/llm/llm_usage.dart';
 
+import 'chat_image_attachment.dart';
+
 /// 聊天消息的发送角色。
 enum ChatMessageRole {
   system('system'),
@@ -72,6 +74,7 @@ class ChatMessage extends Equatable {
     this.templateVariableValues = const {},
     this.finishReason,
     this.tokenUsage,
+    this.images = const [],
   });
 
   final String id;
@@ -88,6 +91,7 @@ class ChatMessage extends Equatable {
   final Map<String, String> templateVariableValues;
   final String? finishReason;
   final LlmUsage? tokenUsage;
+  final List<ChatImageAttachment> images;
 
   /// 复制消息，并允许覆盖常用字段。
   ChatMessage copyWith({
@@ -105,6 +109,7 @@ class ChatMessage extends Equatable {
     Map<String, String>? templateVariableValues,
     String? finishReason,
     LlmUsage? tokenUsage,
+    List<ChatImageAttachment>? images,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -124,6 +129,7 @@ class ChatMessage extends Equatable {
           templateVariableValues ?? this.templateVariableValues,
       finishReason: finishReason ?? this.finishReason,
       tokenUsage: tokenUsage ?? this.tokenUsage,
+      images: List.unmodifiable(images ?? this.images),
     );
   }
 
@@ -145,6 +151,7 @@ class ChatMessage extends Equatable {
       'templateVariableValues': templateVariableValues,
       'finishReason': finishReason,
       'tokenUsage': tokenUsage?.toJson(),
+      'images': images.map((image) => image.toJson()).toList(),
     };
   }
 
@@ -183,6 +190,13 @@ class ChatMessage extends Equatable {
           const {},
       finishReason: json['finishReason'] as String?,
       tokenUsage: LlmUsage.fromJson(json['tokenUsage']),
+      images: List.unmodifiable(
+        (json['images'] as List? ?? const []).map(
+          (image) => ChatImageAttachment.fromJson(
+            Map<String, dynamic>.from(image as Map),
+          ),
+        ),
+      ),
     );
   }
 
@@ -208,5 +222,6 @@ class ChatMessage extends Equatable {
     templateVariableValues,
     finishReason,
     tokenUsage,
+    images,
   ];
 }

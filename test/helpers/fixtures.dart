@@ -34,6 +34,7 @@ class TestFixtures {
     String displayName = 'Test Model',
     String modelName = 'test-model',
     bool supportsReasoning = false,
+    bool supportsImageInput = false,
     String apiUrl = 'https://api.example.com/v1/chat/completions',
     String apiKey = 'sk-test',
     String providerId = '',
@@ -46,6 +47,7 @@ class TestFixtures {
     apiKey: apiKey,
     modelName: modelName,
     supportsReasoning: supportsReasoning,
+    supportsImageInput: supportsImageInput,
     providerId: providerId,
     providerName: providerName,
     apiProtocol: apiProtocol,
@@ -311,6 +313,7 @@ class TestFixtures {
                       displayName: m.displayName,
                       modelName: m.modelName,
                       supportsReasoning: m.supportsReasoning,
+                      supportsImageInput: m.supportsImageInput,
                     ),
                   )
                   .toList(growable: false),

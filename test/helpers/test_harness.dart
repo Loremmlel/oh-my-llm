@@ -191,6 +191,7 @@ ProviderScope _buildTestScope({
       // 需要 fake 的 port 从 composition 中排除，由 extraOverrides 接管：
       // Riverpod 禁止同一容器内对同一 provider 重复 override。
       ...appCompositionOverrides(
+        bindChatImages: false,
         useInMemorySyncSecureStore: true,
         bindChatGenerationClient: bindChatGenerationClient,
         bindChatConversationRepository: bindChatConversationRepository,

@@ -48,6 +48,10 @@ class LlmRequest extends Equatable {
   bool get hasNativeContext =>
       tools.isNotEmpty ||
       input.any((item) => item is LlmAssistantTurn || item is LlmToolResult);
+
+  bool get hasImages => input.whereType<LlmUserMessage>().any(
+    (message) => message.content.any((part) => part is LlmImagePart),
+  );
 }
 
 class LlmToolDefinition extends Equatable {

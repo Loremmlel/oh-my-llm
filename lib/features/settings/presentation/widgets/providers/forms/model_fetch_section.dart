@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../application/providers/model_catalog_workflow.dart';
 import '../../../../domain/models/providers/model_catalog_entry.dart';
 import '../../../../domain/models/providers/llm_provider_config.dart';
+import '../model_capability_chips.dart';
 
 /// 拉取模式中单个模型的选择状态。
 class ModelSelectionEntry {
@@ -11,6 +12,7 @@ class ModelSelectionEntry {
     required this.controller,
     this.alreadyExists = false,
     this.supportsReasoning = false,
+    this.supportsImageInput = false,
   });
 
   final ModelCatalogEntry remoteModel;
@@ -22,6 +24,7 @@ class ModelSelectionEntry {
   final bool alreadyExists;
 
   bool supportsReasoning;
+  bool supportsImageInput;
 
   void dispose() {
     controller.dispose();
@@ -378,19 +381,20 @@ class ModelFetchSectionState extends State<ModelFetchSection> {
                     widget.onSelectionChanged?.call();
                   },
                 ),
-                CheckboxListTile(
-                  key: ValueKey(
-                    'model-fetch-reasoning-${entry.remoteModel.id}',
-                  ),
-                  contentPadding: EdgeInsets.zero,
-                  dense: true,
-                  title: const Text('支持深度思考'),
-                  value: entry.supportsReasoning,
-                  onChanged: entry.selected && !entry.alreadyExists
+                ModelCapabilityChips(
+                  supportsReasoning: entry.supportsReasoning,
+                  supportsImageInput: entry.supportsImageInput,
+                  onReasoningChanged: entry.selected && !entry.alreadyExists
                       ? (value) {
                           setState(() {
-                            entry.supportsReasoning = value ?? false;
+                            entry.supportsReasoning = value;
                           });
+                          widget.onSelectionChanged?.call();
+                        }
+                      : null,
+                  onImageInputChanged: entry.selected && !entry.alreadyExists
+                      ? (value) {
+                          setState(() => entry.supportsImageInput = value);
                           widget.onSelectionChanged?.call();
                         }
                       : null,

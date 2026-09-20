@@ -13,6 +13,7 @@ import 'package:oh_my_llm/features/settings/domain/models/providers/llm_provider
 
 import '../../domain/models/chat_conversation.dart';
 import '../../domain/models/chat_message.dart';
+import '../../domain/models/chat_image_attachment.dart';
 import '../composer/composer_collapsed_controller.dart';
 import '../composer/composer_draft_controller.dart';
 import '../favorites/chat_favorites_facade.dart';
@@ -152,15 +153,27 @@ class ChatWorkspaceComposerState extends ChatWorkspaceComposerReadModel {
     required super.excludedMessageCount,
     required super.cacheHitRate,
     required this.isEditingMessage,
+    this.images = const [],
+    this.isImportingImages = false,
+    this.imageError,
+    this.imageInputBlocked = false,
   });
 
   final bool isEditingMessage;
+  final List<ChatImageAttachment> images;
+  final bool isImportingImages;
+  final String? imageError;
+  final bool imageInputBlocked;
 
   factory ChatWorkspaceComposerState.compose({
     required ChatWorkspaceComposerReadModel readModel,
     required ComposerDraft editingDraft,
     required bool isEditingMessage,
     required List<TemplatePrompt> templatePrompts,
+    List<ChatImageAttachment> images = const [],
+    bool isImportingImages = false,
+    String? imageError,
+    bool imageInputBlocked = false,
   }) {
     final editingTemplateId = editingDraft.selectedTemplatePromptId;
     final selectedTemplatePrompt = isEditingMessage
@@ -191,11 +204,22 @@ class ChatWorkspaceComposerState extends ChatWorkspaceComposerReadModel {
       excludedMessageCount: readModel.excludedMessageCount,
       cacheHitRate: readModel.cacheHitRate,
       isEditingMessage: isEditingMessage,
+      images: List.unmodifiable(images),
+      isImportingImages: isImportingImages,
+      imageError: imageError,
+      imageInputBlocked: imageInputBlocked,
     );
   }
 
   @override
-  List<Object?> get props => [...super.props, isEditingMessage];
+  List<Object?> get props => [
+    ...super.props,
+    isEditingMessage,
+    images,
+    isImportingImages,
+    imageError,
+    imageInputBlocked,
+  ];
 }
 
 // ── 纯 resolver（可单测）───────────────────────────────────────────────────

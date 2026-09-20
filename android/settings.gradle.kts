@@ -27,3 +27,9 @@ plugins {
 }
 
 include(":app")
+
+// pasteboard 0.5.0 仍直接应用旧 KGP；仅替换其构建配置，复用原包源码。
+// 上游支持 built-in Kotlin 后升级依赖并删除此处与 android/pasteboard/。
+val pasteboardProject = project(":pasteboard")
+gradle.extra["pasteboardSources"] = pasteboardProject.projectDir.resolve("src/main")
+pasteboardProject.projectDir = file("pasteboard")

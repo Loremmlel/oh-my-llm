@@ -13,24 +13,28 @@ class LlmProviderModelConfig extends Equatable {
     required this.displayName,
     required this.modelName,
     required this.supportsReasoning,
+    this.supportsImageInput = false,
   });
 
   final String id;
   final String displayName;
   final String modelName;
   final bool supportsReasoning;
+  final bool supportsImageInput;
 
   LlmProviderModelConfig copyWith({
     String? id,
     String? displayName,
     String? modelName,
     bool? supportsReasoning,
+    bool? supportsImageInput,
   }) {
     return LlmProviderModelConfig(
       id: id ?? this.id,
       displayName: displayName ?? this.displayName,
       modelName: modelName ?? this.modelName,
       supportsReasoning: supportsReasoning ?? this.supportsReasoning,
+      supportsImageInput: supportsImageInput ?? this.supportsImageInput,
     );
   }
 
@@ -40,6 +44,7 @@ class LlmProviderModelConfig extends Equatable {
       'displayName': displayName,
       'modelName': modelName,
       'supportsReasoning': supportsReasoning,
+      'supportsImageInput': supportsImageInput,
     };
   }
 
@@ -49,6 +54,7 @@ class LlmProviderModelConfig extends Equatable {
       displayName: json['displayName'] as String,
       modelName: json['modelName'] as String,
       supportsReasoning: json['supportsReasoning'] as bool? ?? false,
+      supportsImageInput: json['supportsImageInput'] as bool? ?? false,
     );
   }
 
@@ -63,6 +69,7 @@ class LlmProviderModelConfig extends Equatable {
       apiKey: provider.apiKey,
       modelName: modelName,
       supportsReasoning: supportsReasoning,
+      supportsImageInput: supportsImageInput,
       providerId: provider.id,
       providerName: provider.name,
       apiProtocol: provider.apiProtocol,
@@ -73,7 +80,13 @@ class LlmProviderModelConfig extends Equatable {
   String toString() => jsonEncode(toJson());
 
   @override
-  List<Object> get props => [id, displayName, modelName, supportsReasoning];
+  List<Object> get props => [
+    id,
+    displayName,
+    modelName,
+    supportsReasoning,
+    supportsImageInput,
+  ];
 }
 
 /// LLM 服务商配置，持有共享的 URL / Key / API 协议与其下模型列表。

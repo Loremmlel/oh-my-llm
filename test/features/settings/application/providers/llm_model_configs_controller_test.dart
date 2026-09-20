@@ -277,7 +277,7 @@ void main() {
       });
     });
 
-    test('导入持久化失败时不发布新状态', () async {
+    test('导入或快捷能力修改持久化失败时保留原状态', () async {
       final seed = _provider(
         id: 'seed-provider',
         name: '种子服务商',
@@ -307,6 +307,14 @@ void main() {
         failingController.mergeImportedProviders([
           _provider(id: 'incoming-provider'),
         ]),
+        throwsA(isA<StateError>()),
+      );
+      expect(failingController.state, [seed]);
+      await expectLater(
+        failingController.upsertModel(
+          providerId: seed.id,
+          model: seed.models.single.copyWith(supportsImageInput: true),
+        ),
         throwsA(isA<StateError>()),
       );
       expect(failingController.state, [seed]);

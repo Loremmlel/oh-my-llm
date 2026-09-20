@@ -21,13 +21,26 @@ class ChatWorkspace extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(child: _ChatWorkspaceMessages(bindings: bindings)),
-        SizedBox(height: AppBreakpoints.isCompactShell(context) ? 8 : 12),
-        ChatComposerCard(state: composerState, bindings: bindings.composer),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: _ChatWorkspaceMessages(bindings: bindings)),
+          SizedBox(height: AppBreakpoints.isCompactShell(context) ? 8 : 12),
+          // 图片与软键盘共同占用空间时，输入区自行滚动，仍给消息保留可见区域。
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: constraints.maxHeight * 0.75,
+            ),
+            child: SingleChildScrollView(
+              child: ChatComposerCard(
+                state: composerState,
+                bindings: bindings.composer,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

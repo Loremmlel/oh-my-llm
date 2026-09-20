@@ -3,11 +3,15 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/core/llm/llm_call_control.dart';
+import 'package:oh_my_llm/core/llm/llm_content.dart';
 import 'package:oh_my_llm/core/llm/llm_client.dart';
 import 'package:oh_my_llm/core/llm/llm_event.dart';
 import 'package:oh_my_llm/core/llm/llm_request.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/data/generation/chat_text_generation_adapter.dart';
+import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
+
+import '../../../../helpers/chat/test_chat_images.dart';
 
 const _request = ChatGenerationRequest(
   target: ChatGenerationRequestTarget(
@@ -20,6 +24,75 @@ const _request = ChatGenerationRequest(
 );
 
 void main() {
+  for (final protocol in LlmApiProtocol.values) {
+    test('${protocol.name} 未声明图像能力时在读取文件与调用模型之前拒绝图片', () async {
+      final core = _Client((_, _) => throw StateError('不得调用模型'));
+      final request = ChatGenerationRequest(
+        target: ChatGenerationRequestTarget(
+          protocol: protocol,
+          endpoint: 'https://example.com',
+          apiKey: '',
+          model: 'text-only',
+        ),
+        messages: [
+          ChatRequestMessage(
+            role: ChatMessageRole.user,
+            content: '',
+            images: [testChatImage],
+          ),
+        ],
+      );
+      await expectLater(
+        ChatTextGenerationAdapter(core).complete(request),
+        throwsA(
+          isA<ChatGenerationException>().having(
+            (e) => e.message,
+            '能力提示',
+            contains('未开启图像输入'),
+          ),
+        ),
+      );
+      expect(core.request, isNull);
+    });
+  }
+  test('Messages 合并模板消息时保留图片与正文的相对顺序', () async {
+    final core = _Client(
+      (_, _) => Stream.value(const LlmEvent(contentDelta: '看到了')),
+    );
+    final store = TestChatImageStore();
+    final request = ChatGenerationRequest(
+      target: const ChatGenerationRequestTarget(
+        protocol: LlmApiProtocol.anthropic,
+        endpoint: 'https://example.com',
+        apiKey: 'test',
+        model: 'vision',
+        supportsImageInput: true,
+      ),
+      messages: [
+        const ChatRequestMessage(role: ChatMessageRole.system, content: '前置系统'),
+        ChatRequestMessage(
+          role: ChatMessageRole.user,
+          content: '看图',
+          images: [testChatImage],
+        ),
+        const ChatRequestMessage(role: ChatMessageRole.system, content: '后置模板'),
+      ],
+    );
+    await ChatTextGenerationAdapter(core, imageStore: store).complete(request);
+    final message = core.request!.input.last as LlmUserMessage;
+    expect((message.content.first as LlmImagePart).bytes, testImageBytes);
+    expect(message.content.whereType<LlmTextPart>().map((p) => p.text), [
+      '看图',
+      '\n后置模板',
+    ]);
+    store.missing = true;
+    core.request = null;
+    await expectLater(
+      ChatTextGenerationAdapter(core, imageStore: store).complete(request),
+      throwsFormatException,
+    );
+    expect(core.request, isNull);
+  });
   test('聊天适配器拆分跨片段标签且不重复追加最终正文', () async {
     final core = _Client(
       (request, control) => Stream.fromIterable([

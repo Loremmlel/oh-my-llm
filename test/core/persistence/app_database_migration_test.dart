@@ -539,11 +539,12 @@ void main() {
 
       final row = database.connection
           .select(
-            "SELECT id, token_usage_json FROM messages WHERE id = 'legacy-message';",
+            "SELECT id, token_usage_json, images_json FROM messages WHERE id = 'legacy-message';",
           )
           .single;
       expect(row['id'], 'legacy-message');
       expect(row['token_usage_json'], isNull);
+      expect(row['images_json'], '[]');
       expect(
         _tableNames(database),
         containsAll(['agent_workspaces', 'agent_runs', 'agent_documents']),

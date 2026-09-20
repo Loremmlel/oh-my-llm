@@ -32,9 +32,55 @@ Map<String, Object> encodeLlmInput(LlmRequest request, Uri endpoint) {
   final encoded = <Map<String, Object?>>[];
   final system = <String>[];
   final protocol = request.target.protocol;
+  var imageBytes = 0;
   for (final item in request.input) {
     if (item is! LlmToolResult && pending.isNotEmpty) _invalid('工具结果尚未完整提交');
     switch (item) {
+      case LlmUserMessage():
+        if (item.content.isEmpty) _invalid('用户消息不能为空');
+        final blocks = <Map<String, Object?>>[];
+        for (final part in item.content) {
+          switch (part) {
+            case LlmTextPart():
+              blocks.add({
+                'type': protocol == LlmApiProtocol.responses
+                    ? 'input_text'
+                    : 'text',
+                'text': part.text,
+              });
+            case LlmImagePart():
+              imageBytes += part.bytes.length;
+              if (imageBytes > LlmImagePart.maxRequestBytes) {
+                _invalid('本次上下文的图片总大小超过 20 MiB，请排除较早的图片消息');
+              }
+              blocks.add(switch (protocol) {
+                LlmApiProtocol.chatCompletions => {
+                  'type': 'image_url',
+                  'image_url': {'url': part.dataUrl},
+                },
+                LlmApiProtocol.responses => {
+                  'type': 'input_image',
+                  'image_url': part.dataUrl,
+                },
+                LlmApiProtocol.anthropic => {
+                  'type': 'image',
+                  'source': {
+                    'type': 'base64',
+                    'media_type': part.mimeType,
+                    'data': part.base64Data,
+                  },
+                },
+              });
+          }
+        }
+        if (protocol == LlmApiProtocol.anthropic &&
+            encoded.isNotEmpty &&
+            encoded.last['role'] == 'user' &&
+            encoded.last['content'] is List) {
+          (encoded.last['content'] as List).addAll(blocks);
+        } else {
+          encoded.add({'role': 'user', 'content': blocks});
+        }
       case LlmTextMessage():
         if (protocol == LlmApiProtocol.anthropic &&
             item.role == LlmRole.system) {

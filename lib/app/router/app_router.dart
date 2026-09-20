@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:oh_my_llm/features/agent/presentation/agent_screen.dart';
 import 'package:oh_my_llm/features/agent/presentation/agent_run_screen.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
+import 'package:oh_my_llm/features/chat/presentation/chat_image_preview_page.dart';
 import 'package:oh_my_llm/features/favorites/presentation/favorite_collection_items_screen.dart';
 import 'package:oh_my_llm/features/favorites/presentation/favorite_collections_screen.dart';
 import 'package:oh_my_llm/features/favorites/presentation/favorite_detail_screen.dart';
@@ -44,6 +45,11 @@ GoRouter createAppRouter({
   return GoRouter(
     initialLocation: initialLocation ?? AppDestination.chat.path,
     routes: [
+      GoRoute(
+        path: '/chat/images/:imageId',
+        builder: (context, state) =>
+            ChatImagePreviewPage(imageId: state.pathParameters['imageId']!),
+      ),
       GoRoute(
         path: AppDestination.chat.path,
         name: AppDestination.chat.name,

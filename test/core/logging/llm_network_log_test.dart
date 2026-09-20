@@ -1,18 +1,83 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:oh_my_llm/core/http/llm_http_stream_transport.dart';
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/core/llm/llm_content.dart';
 import 'package:oh_my_llm/core/llm/llm_event.dart';
 import 'package:oh_my_llm/core/llm/llm_request.dart';
 import 'package:oh_my_llm/core/llm/protocols/chat_completions/chat_completions_client.dart';
+import 'package:oh_my_llm/core/llm/protocols/responses/responses_client.dart';
+import 'package:oh_my_llm/core/llm/protocols/anthropic/anthropic_messages_client.dart';
 import 'package:oh_my_llm/core/logging/app_log_store.dart';
 import 'package:oh_my_llm/core/logging/app_network_logger.dart';
 
 void main() {
+  for (final protocol in LlmApiProtocol.values) {
+    test('${protocol.name} 图片错误回显不写入网络日志', () async {
+      final directory = await Directory.systemTemp.createTemp('llm-image-log-');
+      final logger = AppNetworkLogger(
+        store: await AppLogStore.open(directoryPath: directory.path),
+      );
+      final image = LlmImagePart(
+        mimeType: 'image/png',
+        bytes: Uint8List.fromList([11, 22, 33]),
+      );
+      final httpClient = MockClient(
+        (request) async =>
+            http.Response('private-image-echo ${image.dataUrl}', 400),
+      );
+      final transport = LlmHttpStreamTransport(
+        httpClient: httpClient,
+        logger: logger,
+      );
+      final client = switch (protocol) {
+        LlmApiProtocol.chatCompletions => ChatCompletionsClient(
+          transport: transport,
+        ),
+        LlmApiProtocol.responses => ResponsesClient(transport: transport),
+        LlmApiProtocol.anthropic => AnthropicMessagesClient(
+          transport: transport,
+        ),
+      };
+      try {
+        await expectLater(
+          client.complete(
+            LlmRequest(
+              target: LlmRequestTarget(
+                protocol: protocol,
+                endpoint: 'https://example.com',
+                apiKey: 'private-api-key',
+                model: 'vision',
+              ),
+              input: [
+                LlmUserMessage(content: [image]),
+              ],
+              options: const LlmGenerationOptions(maxOutputTokens: 20),
+            ),
+          ),
+          throwsA(isA<LlmException>()),
+        );
+        await logger.drain();
+        final log = await File('${directory.path}/network.log').readAsString();
+        for (final secret in [
+          image.dataUrl,
+          'private-image-echo',
+          'private-api-key',
+        ]) {
+          expect(log, isNot(contains(secret)));
+        }
+      } finally {
+        httpClient.close();
+        await logger.drain();
+        await directory.delete(recursive: true);
+      }
+    });
+  }
   test('工具请求关联兼容重发且默认日志不落参数、结果或错误回显', () async {
     final directory = await Directory.systemTemp.createTemp('llm-log-');
     final logger = AppNetworkLogger(

@@ -57,6 +57,7 @@ const expectedCanonicalSections = <String, Object?>{
           'displayName': '快照模型',
           'modelName': 'snapshot-model-name',
           'supportsReasoning': true,
+          'supportsImageInput': true,
         },
       ],
     },
@@ -488,6 +489,7 @@ LlmProviderConfig _providerFixture() {
         displayName: '快照模型',
         modelName: 'snapshot-model-name',
         supportsReasoning: true,
+        supportsImageInput: true,
       ),
     ],
   );

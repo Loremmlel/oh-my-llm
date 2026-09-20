@@ -1231,6 +1231,7 @@ int _historyBytes(List<LlmInputItem> items) => items.fold(
   (size, item) =>
       size +
       utf8.encode(switch (item) {
+        LlmUserMessage() => throw UnsupportedError('Agent 尚未启用多模态输入'),
         LlmTextMessage() => item.text,
         LlmToolResult() => item.output,
         LlmAssistantTurn() => jsonEncode(

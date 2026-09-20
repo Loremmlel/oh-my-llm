@@ -499,6 +499,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                   displayName: formData.displayName,
                   modelName: formData.modelName,
                   supportsReasoning: formData.supportsReasoning,
+                  supportsImageInput: formData.supportsImageInput,
                 );
 
                 return ref
@@ -515,6 +516,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                     displayName: item.displayName,
                     modelName: item.modelName,
                     supportsReasoning: item.supportsReasoning,
+                    supportsImageInput: item.supportsImageInput,
                   ),
                 )
                 .toList();

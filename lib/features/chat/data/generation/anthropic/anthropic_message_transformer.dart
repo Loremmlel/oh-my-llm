@@ -23,13 +23,20 @@ class AnthropicTransformedMessage extends Equatable {
   const AnthropicTransformedMessage({
     required this.role,
     required this.content,
+    this.sources = const [],
   });
 
   final String role;
   final String content;
+  final List<ChatRequestMessage> sources;
 
   @override
-  List<Object?> get props => [role, content];
+  List<Object?> get props => [
+    role,
+    content,
+    if (sources.any((source) => source.images.isNotEmpty))
+      for (final source in sources) [source.content, source.images],
+  ];
 }
 
 /// 把协议中立消息列表转换为 Anthropic Messages 协议形状（纯函数）。
@@ -40,7 +47,7 @@ class AnthropicTransformedMessage extends Equatable {
 /// 2. 从第一条非 System 消息开始，后续出现的 System 一律转为 User。
 /// 3. 相邻同角色消息合并，内容用单个换行符连接。
 ///
-/// 只消费 [ChatRequestMessage.content]，历史 reasoning 不参与转换。
+/// 正文与图片保留源消息顺序，历史 reasoning 不参与转换。
 AnthropicTransformedMessages transformAnthropicMessages(
   List<ChatRequestMessage> messages,
 ) {
@@ -55,15 +62,18 @@ AnthropicTransformedMessages transformAnthropicMessages(
   // 其余消息：System 转为 User，相邻同角色用单个换行符合并。
   final roles = <String>[];
   final contents = <String>[];
+  final sources = <List<ChatRequestMessage>>[];
   for (final message in messages.skip(index)) {
     final role = message.role == ChatMessageRole.system
         ? 'user'
         : message.role.apiValue;
     if (roles.isNotEmpty && roles.last == role) {
       contents[contents.length - 1] = '${contents.last}\n${message.content}';
+      sources.last.add(message);
     } else {
       roles.add(role);
       contents.add(message.content);
+      sources.add([message]);
     }
   }
 
@@ -71,7 +81,11 @@ AnthropicTransformedMessages transformAnthropicMessages(
     system: leadingSystem.isEmpty ? null : leadingSystem.join('\n'),
     messages: [
       for (var i = 0; i < roles.length; i++)
-        AnthropicTransformedMessage(role: roles[i], content: contents[i]),
+        AnthropicTransformedMessage(
+          role: roles[i],
+          content: contents[i],
+          sources: List.unmodifiable(sources[i]),
+        ),
     ],
   );
 }

@@ -7,7 +7,9 @@ import 'package:oh_my_llm/features/settings/domain/models/prompts/template_promp
 import 'package:oh_my_llm/features/settings/domain/models/providers/llm_model_config.dart';
 
 import '../../domain/models/chat_conversation.dart';
+import '../../domain/models/chat_image_attachment.dart';
 import '../sessions/chat_sessions_controller.dart';
+import '../requests/chat_image_input_policy.dart';
 import 'composer_draft_controller.dart';
 import 'template_prompt_compilation_provider.dart';
 import 'templated_user_message_builder.dart';
@@ -17,6 +19,7 @@ class ChatComposerSubmitIntent {
   const ChatComposerSubmitIntent({
     required this.conversationId,
     required this.body,
+    this.images = const [],
     this.templatePrompt,
     this.variableValues = const {},
     required this.selectedModel,
@@ -28,6 +31,7 @@ class ChatComposerSubmitIntent {
 
   final String conversationId;
   final String body;
+  final List<ChatImageAttachment> images;
   final TemplatePrompt? templatePrompt;
   final Map<String, String> variableValues;
   final LlmModelConfig? selectedModel;
@@ -51,6 +55,7 @@ enum ChatComposerRejectReason {
   staleConversation,
   invalidTemplate,
   invalidTemplateValue,
+  unsupportedImageInput,
 }
 
 class ChatComposerRejected extends ChatComposerDispatchResult {
@@ -106,6 +111,16 @@ class ChatComposerCommand {
     if (model == null) {
       return const ChatComposerRejected(ChatComposerRejectReason.noModel);
     }
+    if (isChatImageInputBlocked(
+      supportsImageInput: model.supportsImageInput,
+      conversation: conversation,
+      draftImages: intent.images,
+      editingMessageId: intent.editingMessageId,
+    )) {
+      return const ChatComposerRejected(
+        ChatComposerRejectReason.unsupportedImageInput,
+      );
+    }
 
     // 选中的模板经唯一编译缓存边界编译一次，与 Screen 共用同一编译结果。
     final templatePrompt = intent.templatePrompt;
@@ -130,7 +145,7 @@ class ChatComposerCommand {
         :final message,
         :final effectiveVariableValues,
       ):
-        if (message.content.trim().isEmpty) {
+        if (message.content.trim().isEmpty && intent.images.isEmpty) {
           return const ChatComposerRejected(ChatComposerRejectReason.empty);
         }
 
@@ -143,6 +158,7 @@ class ChatComposerCommand {
               .editMessage(
                 messageId: editingMessageId,
                 nextContent: message.content,
+                images: intent.images,
                 userMessageSegments: message.userMessageSegments,
                 templatePromptId: templatePrompt?.id,
                 templateVariableValues: effectiveVariableValues,
@@ -152,6 +168,7 @@ class ChatComposerCommand {
               .read(chatSessionsProvider.notifier)
               .sendMessage(
                 content: message.content,
+                images: intent.images,
                 userMessageSegments: message.userMessageSegments,
                 modelConfig: model,
                 presetPrompt: intent.selectedPresetPrompt,

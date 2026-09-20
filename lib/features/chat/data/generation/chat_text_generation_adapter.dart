@@ -8,13 +8,44 @@ import 'package:oh_my_llm/core/llm/llm_event.dart';
 import 'package:oh_my_llm/core/llm/llm_request.dart';
 
 import '../../application/ports/chat_generation_client.dart';
+import '../../application/ports/chat_image_store.dart';
+import '../../application/requests/chat_image_input_policy.dart';
+import '../../domain/models/chat_message.dart';
 import 'anthropic/anthropic_message_transformer.dart';
 import 'chat_completions/inline_reasoning_tag_splitter.dart';
 
 /// 聊天文本政策留在此边界，共享调用保留模型原始输出。
 class ChatTextGenerationAdapter extends ChatGenerationClient {
-  ChatTextGenerationAdapter(this.client);
+  ChatTextGenerationAdapter(this.client, {this.imageStore});
   final LlmClient client;
+  final ChatImageStore? imageStore;
+
+  Future<LlmInputItem> _inputMessage(
+    List<ChatRequestMessage> sources,
+    LlmRole role,
+    String text,
+  ) async {
+    if (sources.every((m) => m.images.isEmpty)) {
+      return LlmTextMessage(role: role, text: text);
+    }
+    if (role != LlmRole.user || imageStore == null) {
+      throw const ChatGenerationException('图片只能用于用户消息，且必须配置图片存储');
+    }
+    final parts = <LlmContentPart>[];
+    for (final (index, message) in sources.indexed) {
+      for (final image in message.images) {
+        parts.add(
+          LlmImagePart(
+            mimeType: image.mimeType,
+            bytes: await imageStore!.read(image.id),
+          ),
+        );
+      }
+      final text = '${index == 0 ? '' : '\n'}${message.content}';
+      if (text.isNotEmpty) parts.add(LlmTextPart(text));
+    }
+    return LlmUserMessage(content: parts);
+  }
 
   @override
   Stream<ChatGenerationChunk> streamCompletion(ChatGenerationRequest request) {
@@ -47,22 +78,49 @@ class ChatTextGenerationAdapter extends ChatGenerationClient {
     LlmCallControl control,
   ) async* {
     final protocol = request.target.protocol;
-    var input = [
-      for (final m in request.messages)
-        LlmTextMessage(
-          role: LlmRole.values.byName(m.role.name),
-          text: m.content,
-        ),
-    ];
+    if (!request.target.supportsImageInput &&
+        request.messages.any((message) => message.images.isNotEmpty)) {
+      throw const ChatGenerationException(unsupportedChatImageInputMessage);
+    }
+    final totalImageBytes = request.messages
+        .expand((message) => message.images)
+        .fold(0, (size, image) => size + image.byteLength);
+    if (totalImageBytes > LlmImagePart.maxRequestBytes) {
+      throw const ChatGenerationException('本次上下文的图片总大小超过 20 MiB，请排除较早的图片消息');
+    }
+    if (request.messages.any(
+      (m) => m.images.isNotEmpty && m.role != ChatMessageRole.user,
+    )) {
+      throw const ChatGenerationException('图片只能用于用户消息');
+    }
+    final input = <LlmInputItem>[];
     if (protocol == LlmApiProtocol.anthropic) {
       final transformed = transformAnthropicMessages(request.messages);
-      input = [
+      input.addAll([
         if (transformed.system case final system?)
           LlmTextMessage(role: LlmRole.system, text: system),
-        for (final m in transformed.messages)
-          LlmTextMessage(role: LlmRole.values.byName(m.role), text: m.content),
-      ];
+      ]);
+      for (final m in transformed.messages) {
+        input.add(
+          await _inputMessage(
+            m.sources,
+            LlmRole.values.byName(m.role),
+            m.content,
+          ),
+        );
+      }
+    } else {
+      for (final m in request.messages) {
+        input.add(
+          await _inputMessage(
+            [m],
+            LlmRole.values.byName(m.role.name),
+            m.content,
+          ),
+        );
+      }
     }
+    if (control.isCancelled) return;
     final llmRequest = LlmRequest(
       target: LlmRequestTarget(
         protocol: protocol,

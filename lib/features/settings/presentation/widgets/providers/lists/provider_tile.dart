@@ -130,6 +130,7 @@ class _ProviderTileState extends ConsumerState<ProviderTile> {
             if (provider.models.isEmpty) const Text('还没有模型，点击“新增模型”开始配置。'),
             for (final model in provider.models)
               ProviderModelTile(
+                key: ValueKey(model.id),
                 provider: provider,
                 model: model,
                 onEditModelRequested: widget.onEditModelRequested,
