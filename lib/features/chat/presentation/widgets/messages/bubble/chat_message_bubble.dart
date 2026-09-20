@@ -10,7 +10,7 @@ import 'package:oh_my_llm/core/widgets/notification_bubble/notification_bubble_c
 import '../../../../domain/chat_word_counter.dart';
 import '../../../../domain/models/chat_message.dart';
 import '../../images/chat_image_strip.dart';
-import '../navigation/message_version_info.dart';
+import 'chat_message_bubble_state.dart';
 import '../navigation/message_version_navigator.dart';
 import 'chat_inline_empty_reply_card.dart';
 import 'chat_inline_error_card.dart';
@@ -22,49 +22,14 @@ import 'user_message_collapse.dart';
 class ChatMessageBubble extends StatefulWidget {
   const ChatMessageBubble({
     required this.message,
-    this.canEdit = false,
-    this.canRetry = false,
-    this.onEditPressed,
-    this.onRetryPressed,
-    this.onDeletePressed,
-    this.onToggleRequestExclusionPressed,
-    this.isExcludedFromRequest = false,
-    this.onFavoritePressed,
-    this.isFavorited = false,
-    this.inlineErrorMessage,
-    this.versionInfo,
-    this.onSwitchVersion,
-    this.autoRetryCount = 0,
-    this.isEmptyReply = false,
+    this.state = const ChatMessageBubbleState(),
+    this.actions = const ChatMessageBubbleActions(),
     super.key,
   });
 
   final ChatMessage message;
-  final bool canEdit;
-  final bool canRetry;
-  final VoidCallback? onEditPressed;
-  final VoidCallback? onRetryPressed;
-  final VoidCallback? onDeletePressed;
-  final VoidCallback? onToggleRequestExclusionPressed;
-  final bool isExcludedFromRequest;
-
-  /// 收藏按钮回调，仅在助手消息上提供；为 null 则不显示收藏按钮。
-  final VoidCallback? onFavoritePressed;
-
-  /// 当前消息是否已被收藏，影响收藏图标的高亮状态。
-  final bool isFavorited;
-
-  /// 需要在该消息中展示的错误提示。
-  final String? inlineErrorMessage;
-
-  /// 当前自动重试次数，大于 0 时在用户消息中展示重试提示。
-  final int autoRetryCount;
-
-  /// 是否为模型返回的空回复错误。
-  final bool isEmptyReply;
-
-  final MessageVersionInfo? versionInfo;
-  final Future<void> Function(String targetMessageId)? onSwitchVersion;
+  final ChatMessageBubbleState state;
+  final ChatMessageBubbleActions actions;
 
   @override
   State<ChatMessageBubble> createState() => _ChatMessageBubbleState();
@@ -94,18 +59,20 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
     return PopupMenuButton<String>(
       tooltip: '消息操作',
       onSelected: (value) {
-        if (value == 'exclude') widget.onToggleRequestExclusionPressed?.call();
-        if (value == 'delete') widget.onDeletePressed?.call();
+        if (value == 'exclude') {
+          widget.actions.onToggleRequestExclusionPressed?.call();
+        }
+        if (value == 'delete') widget.actions.onDeletePressed?.call();
       },
       itemBuilder: (context) => [
-        if (widget.onToggleRequestExclusionPressed != null)
+        if (widget.actions.onToggleRequestExclusionPressed != null)
           PopupMenuItem(
             value: 'exclude',
             child: Text(
-              widget.isExcludedFromRequest ? '重新加入发送上下文' : '从发送上下文中排除',
+              widget.state.isExcludedFromRequest ? '重新加入发送上下文' : '从发送上下文中排除',
             ),
           ),
-        if (widget.onDeletePressed != null)
+        if (widget.actions.onDeletePressed != null)
           PopupMenuItem(
             value: 'delete',
             child: Text(
@@ -119,9 +86,9 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
 
   Widget _favoriteButton() {
     return _iconButton(
-      onPressed: widget.onFavoritePressed,
-      tooltip: widget.isFavorited ? '已收藏' : '收藏回复',
-      icon: widget.isFavorited
+      onPressed: widget.actions.onFavoritePressed,
+      tooltip: widget.state.isFavorited ? '已收藏' : '收藏回复',
+      icon: widget.state.isFavorited
           ? Icons.bookmark_rounded
           : Icons.bookmark_border_rounded,
     );
@@ -167,6 +134,8 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final message = widget.message;
+    final viewState = widget.state;
+    final versionInfo = viewState.versionInfo;
     final isUser = message.role == ChatMessageRole.user;
     final usage = message.tokenUsage;
     final hasDisplayableUsage =
@@ -234,7 +203,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
-                              if (widget.isExcludedFromRequest) ...[
+                              if (viewState.isExcludedFromRequest) ...[
                                 const SizedBox(height: 4),
                                 _buildRequestExclusionChip(theme, message.id),
                               ],
@@ -250,35 +219,37 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                           ),
                         ],
                         _copyButton(context),
-                        if (widget.onFavoritePressed != null) _favoriteButton(),
-                        if (widget.canEdit)
+                        if (widget.actions.onFavoritePressed != null)
+                          _favoriteButton(),
+                        if (viewState.canEdit)
                           _iconButton(
-                            onPressed: widget.onEditPressed,
+                            onPressed: widget.actions.onEditPressed,
                             tooltip: '编辑消息',
                             icon: Icons.edit_outlined,
                           ),
-                        if (widget.canRetry)
+                        if (viewState.canRetry)
                           _iconButton(
-                            onPressed: widget.onRetryPressed,
+                            onPressed: widget.actions.onRetryPressed,
                             tooltip: '重试回复',
                             icon: Icons.refresh_rounded,
                           ),
-                        if (widget.onDeletePressed != null ||
-                            widget.onToggleRequestExclusionPressed != null)
+                        if (widget.actions.onDeletePressed != null ||
+                            widget.actions.onToggleRequestExclusionPressed !=
+                                null)
                           _moreButton(),
                       ],
                     ),
                     if (!isUser &&
-                        widget.inlineErrorMessage != null &&
-                        widget.inlineErrorMessage!.trim().isNotEmpty) ...[
+                        viewState.inlineErrorMessage != null &&
+                        viewState.inlineErrorMessage!.trim().isNotEmpty) ...[
                       const SizedBox(height: 8),
-                      if (widget.isEmptyReply)
+                      if (viewState.isEmptyReply)
                         ChatInlineEmptyReplyCard(
-                          message: widget.inlineErrorMessage!.trim(),
+                          message: viewState.inlineErrorMessage!.trim(),
                         )
                       else
                         ChatInlineErrorCard(
-                          message: widget.inlineErrorMessage!.trim(),
+                          message: viewState.inlineErrorMessage!.trim(),
                         ),
                     ],
                     if (!isUser &&
@@ -316,7 +287,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                       _buildFinishReasonChip(theme, message),
                     if (!isUser && !message.isStreaming && hasDisplayableUsage)
                       _buildTokenUsageRow(theme, message),
-                    if (isUser && widget.autoRetryCount > 0) ...[
+                    if (isUser && viewState.autoRetryCount > 0) ...[
                       const SizedBox(height: 8),
                       Row(
                         mainAxisSize: MainAxisSize.min,
@@ -328,7 +299,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            '第 ${widget.autoRetryCount} 次重试中...',
+                            '第 ${viewState.autoRetryCount} 次重试中...',
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: theme.colorScheme.primary,
                             ),
@@ -357,35 +328,27 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                         ),
                       ),
                     ],
-                    if (widget.versionInfo != null) ...[
+                    if (versionInfo != null) ...[
                       const SizedBox(height: 8),
                       MessageVersionNavigator(
-                        currentIndex: widget.versionInfo!.currentIndex,
-                        total: widget.versionInfo!.siblings.length,
-                        onPrevious: widget.versionInfo!.currentIndex > 0
+                        currentIndex: versionInfo.currentIndex,
+                        total: versionInfo.siblings.length,
+                        onPrevious: versionInfo.currentIndex > 0
                             ? () {
-                                widget.onSwitchVersion?.call(
-                                  widget
-                                      .versionInfo!
-                                      .siblings[widget
-                                              .versionInfo!
-                                              .currentIndex -
-                                          1]
+                                widget.actions.onSwitchVersion?.call(
+                                  versionInfo
+                                      .siblings[versionInfo.currentIndex - 1]
                                       .id,
                                 );
                               }
                             : null,
                         onNext:
-                            widget.versionInfo!.currentIndex <
-                                widget.versionInfo!.siblings.length - 1
+                            versionInfo.currentIndex <
+                                versionInfo.siblings.length - 1
                             ? () {
-                                widget.onSwitchVersion?.call(
-                                  widget
-                                      .versionInfo!
-                                      .siblings[widget
-                                              .versionInfo!
-                                              .currentIndex +
-                                          1]
+                                widget.actions.onSwitchVersion?.call(
+                                  versionInfo
+                                      .siblings[versionInfo.currentIndex + 1]
                                       .id,
                                 );
                               }

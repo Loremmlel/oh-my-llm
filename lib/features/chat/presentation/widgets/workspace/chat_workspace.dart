@@ -55,33 +55,9 @@ class _ChatWorkspaceMessages extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(chatWorkspaceMessagesStateProvider);
     return ChatMessagesPanel(
-      conversation: state.conversation,
-      structureConversation: state.structureConversation,
-      messages: state.messages,
-      userMessages: state.userMessages,
-      hasModels: state.hasModels,
-      activeAnchorMessageIdListenable:
-          bindings.scroll.activeAnchorMessageIdListenable,
-      messageItemScrollController: bindings.scroll.messageItemScrollController,
-      messageItemPositionsListener:
-          bindings.scroll.messageItemPositionsListener,
-      isBusy: state.isBusy,
-      errorMessage: state.errorMessage,
-      errorMessageAssistantId: state.errorMessageAssistantId,
-      emptyReplyAssistantId: state.emptyReplyAssistantId,
-      errorModelDisplayName: state.errorModelDisplayName,
-      showScrollToBottomListenable:
-          bindings.scroll.showScrollToBottomListenable,
-      autoRetryCount: state.autoRetryCount,
-      onEditMessage: bindings.messages.onEditMessage,
-      onRetryLatestAssistant: bindings.messages.onRetryLatestAssistant,
-      onDeleteMessage: bindings.messages.onDeleteMessage,
-      onToggleRequestExclusion: bindings.messages.onToggleRequestExclusion,
-      onScrollToBottomPressed: bindings.scroll.onScrollToBottomPressed,
-      onSelectMessage: bindings.scroll.onSelectMessage,
-      onSelectMessageVersion: bindings.messages.onSelectMessageVersion,
-      onFavoritePressed: bindings.messages.onFavoritePressed,
-      favoritedAssistantContents: state.favoritedAssistantContents,
+      state: state,
+      messageBindings: bindings.messages,
+      scrollBindings: bindings.scroll,
     );
   }
 }

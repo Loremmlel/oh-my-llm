@@ -557,11 +557,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     required ChatWorkspaceComposerState composer,
     required PresetPrompt? selectedPresetPrompt,
   }) {
-    final selectedModel = composer.selectedModel;
-    final supportsReasoning = composer.supportsReasoning;
-    final isBusy = composer.isBusy;
-    final isStreaming = composer.isStreaming;
-    final isAutoRetryWaiting = composer.isAutoRetryWaiting;
+    final selectedModel = composer.readModel.selectedModel;
+    final supportsReasoning = composer.readModel.supportsReasoning;
+    final isBusy = composer.readModel.isBusy;
+    final isStreaming = composer.readModel.isStreaming;
+    final isAutoRetryWaiting = composer.readModel.isAutoRetryWaiting;
 
     return ChatWorkspaceBindings(
       messages: ChatWorkspaceMessageBindings(
@@ -627,7 +627,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         onOpenFixedPromptSequenceRunner: () async {
           await _showFixedPromptSequenceRunnerDialog(
             context,
-            fixedPromptSequences: composer.fixedPromptSequences,
+            fixedPromptSequences: composer.readModel.fixedPromptSequences,
             selectedModel: selectedModel,
             selectedPresetPrompt: selectedPresetPrompt,
             conversation: conversation,
@@ -1018,7 +1018,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final body = editingDraft?.body ?? _messageController.text;
     final templatePrompt = editingDraft != null
         ? resolveSelectedTemplatePrompt(
-            composer.templatePrompts,
+            composer.readModel.templatePrompts,
             editingDraft.selectedTemplatePromptId,
           )
         : composer.selectedTemplatePrompt;
@@ -1036,13 +1036,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   .read(composerDraftProvider.notifier)
                   .draftFor(conversation.id),
             ),
-      selectedModel: composer.selectedModel,
+      selectedModel: composer.readModel.selectedModel,
       selectedPresetPrompt: resolveSelectedPresetPrompt(
         ref.read(presetPromptsProvider),
         conversation.selectedPresetPromptId,
       ),
-      reasoningEnabled: composer.reasoningEnabled,
-      reasoningEffort: composer.reasoningEffort,
+      reasoningEnabled: composer.readModel.reasoningEnabled,
+      reasoningEffort: composer.readModel.reasoningEffort,
       editingMessageId: _editingMessageId,
     );
     final result = ref.read(chatComposerCommandProvider).dispatch(intent);

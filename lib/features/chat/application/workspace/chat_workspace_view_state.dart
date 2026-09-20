@@ -133,25 +133,10 @@ class ChatWorkspaceComposerReadModel extends Equatable {
 }
 
 /// 交给 composer widget 的 effective composer 状态（可能在编辑时被页面覆盖）。
-class ChatWorkspaceComposerState extends ChatWorkspaceComposerReadModel {
+class ChatWorkspaceComposerState extends Equatable {
   const ChatWorkspaceComposerState({
-    required super.modelProviders,
-    required super.modelConfigs,
-    required super.selectedProviderId,
-    required super.selectedModel,
-    required super.templatePrompts,
-    required super.selectedTemplatePrompt,
-    required super.fixedPromptSequences,
-    required super.isComposerCollapsed,
-    required super.reasoningEnabled,
-    required super.reasoningEffort,
-    required super.supportsReasoning,
-    required super.autoRetryEnabled,
-    required super.isBusy,
-    required super.isStreaming,
-    required super.isAutoRetryWaiting,
-    required super.excludedMessageCount,
-    required super.cacheHitRate,
+    required this.readModel,
+    required this.selectedTemplatePrompt,
     required this.isEditingMessage,
     this.images = const [],
     this.isImportingImages = false,
@@ -159,6 +144,8 @@ class ChatWorkspaceComposerState extends ChatWorkspaceComposerReadModel {
     this.imageInputBlocked = false,
   });
 
+  final ChatWorkspaceComposerReadModel readModel;
+  final TemplatePrompt? selectedTemplatePrompt;
   final bool isEditingMessage;
   final List<ChatImageAttachment> images;
   final bool isImportingImages;
@@ -184,25 +171,9 @@ class ChatWorkspaceComposerState extends ChatWorkspaceComposerReadModel {
                     .firstOrNull)
         : readModel.selectedTemplatePrompt;
     return ChatWorkspaceComposerState(
-      modelProviders: readModel.modelProviders,
-      modelConfigs: readModel.modelConfigs,
-      selectedProviderId: readModel.selectedProviderId,
-      selectedModel: readModel.selectedModel,
-      templatePrompts: readModel.templatePrompts,
-      // 传入值即最终值：编辑无模板消息时必须显式为 null，不能回退 read-model 的
-      // normal selection，否则 UI 展示会话模板的变量输入框而提交时这些值会被丢弃。
+      readModel: readModel,
+      // 编辑无模板消息时最终选择必须为 null，不能回退到会话模板。
       selectedTemplatePrompt: selectedTemplatePrompt,
-      fixedPromptSequences: readModel.fixedPromptSequences,
-      isComposerCollapsed: readModel.isComposerCollapsed,
-      reasoningEnabled: readModel.reasoningEnabled,
-      reasoningEffort: readModel.reasoningEffort,
-      supportsReasoning: readModel.supportsReasoning,
-      autoRetryEnabled: readModel.autoRetryEnabled,
-      isBusy: readModel.isBusy,
-      isStreaming: readModel.isStreaming,
-      isAutoRetryWaiting: readModel.isAutoRetryWaiting,
-      excludedMessageCount: readModel.excludedMessageCount,
-      cacheHitRate: readModel.cacheHitRate,
       isEditingMessage: isEditingMessage,
       images: List.unmodifiable(images),
       isImportingImages: isImportingImages,
@@ -213,7 +184,8 @@ class ChatWorkspaceComposerState extends ChatWorkspaceComposerReadModel {
 
   @override
   List<Object?> get props => [
-    ...super.props,
+    readModel,
+    selectedTemplatePrompt,
     isEditingMessage,
     images,
     isImportingImages,
