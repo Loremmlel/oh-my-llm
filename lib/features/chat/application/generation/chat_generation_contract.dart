@@ -4,11 +4,11 @@ import 'package:oh_my_llm/core/llm/llm_usage.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/providers/llm_model_config.dart';
 
-import '../../domain/models/chat_checkpoint.dart';
 import '../../domain/models/chat_conversation.dart';
 import '../../domain/models/chat_message.dart';
 import '../ports/chat_generation_client.dart';
 import '../sessions/chat_sessions_state.dart';
+import '../requests/checkpoint_request_context.dart';
 import 'chat_generation_lifecycle.dart';
 
 /// 一次 generation 的发送命令（immutable）。
@@ -22,12 +22,10 @@ class ChatGenerationCommand extends Equatable {
     required this.conversation,
     required this.modelConfig,
     required this.presetPrompt,
-    required this.requestConversationMessages,
-    required this.requestCheckpointChain,
+    required this.requestContext,
     required this.parentMessageId,
     required this.reasoningEnabled,
     required this.reasoningEffort,
-    required this.appliedCheckpointTitle,
     required this.retryPolicy,
     this.retryDelay,
   });
@@ -38,20 +36,14 @@ class ChatGenerationCommand extends Equatable {
   final LlmModelConfig modelConfig;
   final PresetPrompt? presetPrompt;
 
-  /// 经 checkpoint context 解析后的尾部消息序列。
-  final List<ChatMessage> requestConversationMessages;
-
-  /// 解析后的检查点链。
-  final List<ChatCheckpoint> requestCheckpointChain;
+  /// 检查点链与尾部消息共享同一次解析结果，标题由该上下文派生。
+  final CheckpointRequestContext requestContext;
 
   /// assistant 占位的父消息 ID。
   final String? parentMessageId;
 
   final bool reasoningEnabled;
   final ReasoningEffort reasoningEffort;
-
-  /// 显示在 assistant 消息上的检查点标题。
-  final String appliedCheckpointTitle;
 
   /// 从会话开关 + 全局设置一次性读取的重试策略快照。
   final ChatRetryPolicy retryPolicy;
@@ -64,12 +56,10 @@ class ChatGenerationCommand extends Equatable {
     conversation,
     modelConfig,
     presetPrompt,
-    requestConversationMessages,
-    requestCheckpointChain,
+    requestContext,
     parentMessageId,
     reasoningEnabled,
     reasoningEffort,
-    appliedCheckpointTitle,
     retryPolicy,
     retryDelay,
   ];
