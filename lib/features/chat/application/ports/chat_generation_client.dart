@@ -5,6 +5,7 @@ import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
 import 'package:oh_my_llm/core/llm/llm_usage.dart';
 
 import '../../domain/models/chat_message.dart';
+import '../../domain/models/chat_image_attachment.dart';
 
 /// 流式生成请求失败时抛出的业务异常。
 ///
@@ -187,14 +188,25 @@ class ChatGenerationResult {
 
 /// 发给模型 API 的单条请求消息。
 class ChatRequestMessage {
-  const ChatRequestMessage({required this.role, required this.content});
+  const ChatRequestMessage({
+    required this.role,
+    required this.content,
+    this.images = const [],
+  });
 
   final ChatMessageRole role;
   final String content;
 
-  /// 转换为 API 所需的 JSON 结构。
+  final List<ChatImageAttachment> images;
+
+  /// 诊断用协议中立快照；图片仅包含引用，实际内容块由协议层编码。
   Map<String, dynamic> toJson() {
-    return {'role': role.apiValue, 'content': content};
+    return {
+      'role': role.apiValue,
+      'content': content,
+      if (images.isNotEmpty)
+        'images': images.map((image) => image.toJson()).toList(),
+    };
   }
 }
 

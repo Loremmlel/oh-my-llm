@@ -160,6 +160,7 @@ void _version(Map<String, dynamic> json) {
 }
 
 Map<String, Object?> _encodeInput(LlmInputItem item) => switch (item) {
+  LlmUserMessage() => throw UnsupportedError('Agent 尚未启用多模态输入'),
   LlmTextMessage() => {
     'type': 'text',
     'role': item.role.name,

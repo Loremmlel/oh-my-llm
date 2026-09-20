@@ -86,9 +86,11 @@ class ResponsesClient extends LlmClient {
         control: control,
         requestId: control.requestId,
         attempt: 1,
-        logRawResponse: !request.hasNativeContext,
+        logRawResponse: !request.hasNativeContext && !request.hasImages,
       )) {
-        if (!request.hasNativeContext) rawSseData.add(event.rawData);
+        if (!request.hasNativeContext && !request.hasImages) {
+          rawSseData.add(event.rawData);
+        }
         // 诊断缓冲只保留尾部，超出的行直接丢弃。
         if (rawSseData.length > _maxRawSseLines) {
           rawSseData.removeRange(0, rawSseData.length - _maxRawSseLines);

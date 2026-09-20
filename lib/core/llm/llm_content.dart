@@ -5,6 +5,9 @@ import 'package:equatable/equatable.dart';
 
 import 'llm_api_protocol.dart';
 import 'llm_event.dart';
+import 'llm_input_content.dart';
+
+export 'llm_input_content.dart';
 
 enum LlmRole { system, user, assistant }
 
@@ -18,6 +21,15 @@ class LlmTextMessage extends LlmInputItem {
   final String text;
   @override
   List<Object?> get props => [role, text];
+}
+
+/// 图片输入只支持 user 角色；正文与图片的顺序由调用方显式决定。
+final class LlmUserMessage extends LlmInputItem {
+  LlmUserMessage({required List<LlmContentPart> content})
+    : content = List.unmodifiable(content);
+  final List<LlmContentPart> content;
+  @override
+  List<Object?> get props => [content];
 }
 
 const maxLlmToolCalls = 32;

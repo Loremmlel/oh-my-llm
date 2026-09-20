@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:oh_my_llm/app/navigation/app_destination.dart';
@@ -15,6 +18,9 @@ import 'package:oh_my_llm/features/settings/domain/models/prompts/template_promp
 import 'package:oh_my_llm/features/settings/domain/template_prompt_language/template_prompt_evaluator.dart';
 
 import '../application/composer/chat_composer_command.dart';
+import '../application/ports/chat_image_store.dart';
+import '../application/ports/chat_image_source.dart';
+import '../domain/models/chat_image_attachment.dart';
 import '../application/composer/template_prompt_compilation_provider.dart';
 import '../application/sessions/chat_message_tree.dart';
 import '../application/sessions/chat_sessions_controller.dart';
@@ -78,12 +84,134 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   /// 页面本地编辑草稿：编辑期间 body/模板/变量的唯一来源，独立于会话级 draft。
   ComposerDraft? _editingDraft;
+  int _imageOperation = 0;
+  bool _isImportingImages = false;
+  String? _imageError;
+
+  void _invalidateImageOperation() {
+    _imageOperation++;
+    _isImportingImages = false;
+    _imageError = null;
+  }
+
+  ComposerDraft _currentImageDraft() =>
+      _editingDraft ?? _restoreDraftFor(ref.read(activeConversationIdProvider));
+
+  void _setImages(List<ChatImageAttachment> images) {
+    final draft = _currentImageDraft().copyWith(images: images);
+    if (_editingMessageId != null) {
+      setState(() => _editingDraft = draft);
+    } else {
+      ref
+          .read(composerDraftProvider.notifier)
+          .replaceDraft(ref.read(activeConversationIdProvider), draft);
+    }
+  }
+
+  Future<bool> _importImages({bool clipboard = false}) async {
+    if (_isImportingImages) return true;
+    final operation = ++_imageOperation;
+    final conversationId = ref.read(activeConversationIdProvider);
+    final editId = _editingMessageId;
+    bool current() =>
+        mounted &&
+        operation == _imageOperation &&
+        conversationId == ref.read(activeConversationIdProvider) &&
+        editId == _editingMessageId;
+    setState(() {
+      _isImportingImages = true;
+      _imageError = null;
+    });
+    try {
+      final source = ref.read(chatImageSourceProvider);
+      final List<SelectedChatImage> selected;
+      if (clipboard) {
+        final image = await source.readClipboardImage();
+        if (image == null) return false;
+        selected = [image];
+      } else {
+        selected = await source.pickImages();
+      }
+      if (!current() || selected.isEmpty) return true;
+      if (selected.length + _currentImageDraft().images.length >
+          ChatImageAttachment.maxPerMessage) {
+        throw const FormatException('每条消息最多添加 8 张图片，请先移除部分图片');
+      }
+      final store = ref.read(chatImageStoreProvider);
+      final imported = <ChatImageAttachment>[];
+      for (final image in selected) {
+        imported.add(await store.importImage(image.bytes, name: image.name));
+        if (!current()) return true;
+      }
+      // 重新添加同一图片可能修复缺失文件，让已显示的错误缩略图也重新读取。
+      for (final image in imported) {
+        ref.invalidate(chatImageBytesProvider(image.id));
+      }
+      final merged = {
+        for (final image in [..._currentImageDraft().images, ...imported])
+          image.id: image,
+      };
+      _setImages(merged.values.toList());
+      _messageFocusNode.requestFocus();
+      return true;
+    } catch (error) {
+      if (current()) {
+        setState(
+          () => _imageError = error is FormatException
+              ? error.message
+              : '无法添加图片，请重新选择或粘贴。',
+        );
+      }
+      return true;
+    } finally {
+      if (current()) setState(() => _isImportingImages = false);
+    }
+  }
+
+  KeyEventResult _handleComposerKey(FocusNode node, KeyEvent event) {
+    if (event.logicalKey == LogicalKeyboardKey.keyV &&
+        (HardwareKeyboard.instance.isControlPressed ||
+            HardwareKeyboard.instance.isMetaPressed) &&
+        !HardwareKeyboard.instance.isShiftPressed &&
+        !(_messageController.value.composing.isValid &&
+            !_messageController.value.composing.isCollapsed)) {
+      if (event is KeyDownEvent) unawaited(_pasteIntoComposer());
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  Future<void> _pasteIntoComposer() async {
+    final before = _messageController.value;
+    final operation = _imageOperation + 1;
+    final conversationId = ref.read(activeConversationIdProvider);
+    final editId = _editingMessageId;
+    if (await _importImages(clipboard: true)) return;
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    // 异步读取期间切换会话、编辑或继续输入，不把旧剪贴板结果插入新草稿。
+    if (!mounted ||
+        operation != _imageOperation ||
+        ref.read(activeConversationIdProvider) != conversationId ||
+        _editingMessageId != editId ||
+        _messageController.value != before ||
+        data?.text == null) {
+      return;
+    }
+    final selection = before.selection.isValid
+        ? before.selection
+        : TextSelection.collapsed(offset: before.text.length);
+    final text = data!.text!;
+    _messageController.value = TextEditingValue(
+      text: before.text.replaceRange(selection.start, selection.end, text),
+      selection: TextSelection.collapsed(offset: selection.start + text.length),
+    );
+  }
 
   @override
   void initState() {
     super.initState();
     _messageController = TextEditingController();
-    _messageFocusNode = FocusNode();
+    _messageFocusNode = FocusNode(onKeyEvent: _handleComposerKey);
     _scroll = ChatScrollController();
     _scheduleInitialConversationSelection(widget.initialConversationId);
     _scroll.itemPositionsListener.itemPositions.addListener(
@@ -97,6 +225,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     ref.listenManual<String>(activeConversationIdProvider, (prev, next) {
       // 切换即丢弃编辑事务；旧会话的 session draft 从未被编辑写入，保持原值。
       setState(() {
+        _invalidateImageOperation();
         _editingMessageId = null;
         _editingDraft = null;
         _preEditDraft = null;
@@ -208,6 +337,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final composerReadModel = ref.watch(chatWorkspaceComposerReadModelProvider);
     final conversationSummaries = ref.watch(chatConversationSummariesProvider);
     final activeConversationId = ref.watch(activeConversationIdProvider);
+    final draftImages = ref.watch(
+      composerDraftProvider.select(
+        (state) =>
+            state.draftsByConversationId[activeConversationId]?.images ??
+            const <ChatImageAttachment>[],
+      ),
+    );
     final isBusy = composerReadModel.isBusy;
     final selectedModel = composerReadModel.selectedModel;
     final supportsReasoning = composerReadModel.supportsReasoning;
@@ -229,6 +365,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       editingDraft: editingDraft,
       isEditingMessage: _editingMessageId != null,
       templatePrompts: composerReadModel.templatePrompts,
+      images: _editingDraft?.images ?? draftImages,
+      isImportingImages: _isImportingImages,
+      imageError: _imageError,
     );
     final workspaceBindings = _buildWorkspaceBindings(
       conversation: conversation,
@@ -426,6 +565,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ),
       ),
       composer: ChatWorkspaceComposerBindings(
+        onAddImages: () async {
+          await _importImages();
+        },
+        onRemoveImage: (id) => _setImages(
+          _currentImageDraft().images.where((image) => image.id != id).toList(),
+        ),
+        onDismissImageError: () => setState(() => _imageError = null),
         messageController: _messageController,
         messageFocusNode: _messageFocusNode,
         templateVariableControllers: _templateVariableControllers,
@@ -750,6 +896,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         .draftFor(conversation.id);
     setState(() {
       _preEditDraft = currentDraft;
+      _invalidateImageOperation();
       _preEditCollapsed = ref.read(composerCollapsedProvider);
       _editingMessageId = message.id;
       _editingDraft = _buildEditingDraft(message, currentDraft);
@@ -803,6 +950,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
     return ComposerDraft(
       body: bodyText,
+      images: message.images,
       selectedTemplatePromptId: templateId,
       templateVariableValuesByTemplateId: templateVariables,
     );
@@ -811,6 +959,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void _cancelEditMode() {
     final preEditDraft = _preEditDraft;
     setState(() {
+      _invalidateImageOperation();
       _editingMessageId = null;
       _editingDraft = null;
       _preEditDraft = null;
@@ -828,6 +977,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// 发送/提交编辑：构造 intent 委托 command，只有 accepted 才清输入、退编辑并
   /// await completion；rejected 原样保留输入内容与编辑 banner。
   Future<void> _handleSendPressed(ChatWorkspaceComposerState composer) async {
+    if (_isImportingImages ||
+        (_messageController.value.composing.isValid &&
+            !_messageController.value.composing.isCollapsed)) {
+      return;
+    }
     final conversation = ref.read(activeChatConversationProvider);
     final editingDraft = _editingMessageId != null
         ? (_editingDraft ?? ComposerDraft.empty)
@@ -843,6 +997,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final intent = ChatComposerSubmitIntent(
       conversationId: conversation.id,
       body: body,
+      images: _currentImageDraft().images,
       templatePrompt: templatePrompt,
       variableValues: editingDraft != null
           ? _resolveTemplatePromptValues(templatePrompt, editingDraft)
@@ -863,6 +1018,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
     final result = ref.read(chatComposerCommandProvider).dispatch(intent);
     if (result is ChatComposerAccepted) {
+      _invalidateImageOperation();
       _messageController.clear();
       if (result.wasEdit) {
         setState(() {

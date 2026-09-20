@@ -43,6 +43,9 @@ class ChatWorkspaceComposerBindings {
     this.onSendPressed,
     this.onStopStreaming,
     this.onCancelEdit,
+    this.onAddImages,
+    this.onRemoveImage,
+    this.onDismissImageError,
   });
 
   final TextEditingController messageController;
@@ -60,6 +63,9 @@ class ChatWorkspaceComposerBindings {
   final Future<void> Function()? onSendPressed;
   final Future<void> Function()? onStopStreaming;
   final VoidCallback? onCancelEdit;
+  final Future<void> Function()? onAddImages;
+  final ValueChanged<String>? onRemoveImage;
+  final VoidCallback? onDismissImageError;
 }
 
 /// 滚动/锚点的 UI 资源与回调分组。

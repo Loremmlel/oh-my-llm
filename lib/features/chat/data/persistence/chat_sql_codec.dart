@@ -6,6 +6,7 @@ import 'package:sqlite3/sqlite3.dart' as sqlite;
 import '../../domain/models/chat_checkpoint.dart';
 import '../../domain/models/chat_conversation.dart';
 import '../../domain/models/chat_message.dart';
+import '../../domain/models/chat_image_attachment.dart';
 
 // ── UPSERT SQL 常量 ────────────────────────────────────────────
 
@@ -34,8 +35,8 @@ const kMessageUpsertSql = '''
     content, reasoning_content, assistant_model_display_name,
     applied_checkpoint_title, user_message_segments_json,
     template_prompt_id, template_variable_values_json,
-    finish_reason, token_usage_json, created_at
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    finish_reason, token_usage_json, created_at, images_json
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   ON CONFLICT(id) DO UPDATE SET
     node_index = excluded.node_index,
     content = excluded.content,
@@ -47,6 +48,7 @@ const kMessageUpsertSql = '''
     template_variable_values_json = excluded.template_variable_values_json,
     finish_reason = excluded.finish_reason,
     token_usage_json = excluded.token_usage_json,
+    images_json = excluded.images_json,
     created_at = excluded.created_at
 ''';
 
@@ -82,7 +84,7 @@ const kMessageSelectColumns = '''
   content, reasoning_content, assistant_model_display_name,
   applied_checkpoint_title, user_message_segments_json,
   template_prompt_id, template_variable_values_json,
-  finish_reason, token_usage_json, created_at
+  finish_reason, token_usage_json, created_at, images_json
 ''';
 
 // ── 编解码函数 ─────────────────────────────────────────────────
@@ -123,7 +125,15 @@ List<Object?> messageToRowParams(
   m.finishReason,
   m.tokenUsage == null ? null : jsonEncode(m.tokenUsage!.toJson()),
   m.createdAt.toIso8601String(),
+  jsonEncode(m.images.map((image) => image.toJson()).toList()),
 ];
+
+List<ChatImageAttachment> imagesFromRow(Object? value) => List.unmodifiable(
+  (jsonDecode(value as String) as List).map(
+    (image) =>
+        ChatImageAttachment.fromJson(Map<String, dynamic>.from(image as Map)),
+  ),
+);
 
 /// 从 SQLite 可选 JSON 列恢复 Token 用量；无效值按未知处理。
 LlmUsage? tokenUsageFromRow(Object? value) {

@@ -12,6 +12,10 @@ import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/features/chat/application/favorites/chat_favorites_facade.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_image_store.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_image_source.dart';
+import 'package:oh_my_llm/features/chat/data/images/file_chat_image_store.dart';
+import 'package:oh_my_llm/features/chat/data/images/platform_chat_image_source.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_foreground_service.dart';
 import 'package:oh_my_llm/features/chat/application/ports/history_page_query.dart';
 import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_controller.dart';
@@ -70,6 +74,7 @@ import 'llm_bindings.dart';
 List<dynamic> appCompositionOverrides({
   bool useInMemorySyncSecureStore = false,
   bool bindChatGenerationClient = true,
+  bool bindChatImages = true,
   bool bindChatConversationRepository = true,
   bool bindHistoryPageQuery = true,
   bool bindMediaLibraryFactory = true,
@@ -81,6 +86,18 @@ List<dynamic> appCompositionOverrides({
   // TargetPlatform.windows，宿主 CI 绝不打开真实 Android MethodChannel。
   final effectivePlatform = hostPlatform ?? defaultTargetPlatform;
   return [
+    if (bindChatImages) ...[
+      chatImageStoreProvider.overrideWith((ref) {
+        final database = ref.watch(appDatabaseProvider);
+        if (database.isInMemory) throw StateError('内存数据库的图片存储必须由测试显式注入');
+        return FileChatImageStore(
+          Directory(
+            '${File(database.path).parent.path}${Platform.pathSeparator}chat_images',
+          ),
+        );
+      }),
+      chatImageSourceProvider.overrideWith((ref) => PlatformChatImageSource()),
+    ],
     ...createAgentBindings(),
     syncClientTransportProvider.overrideWith(
       (ref) => HttpSyncClientTransport(ref.watch(peerHttpClientProvider)),
@@ -119,7 +136,12 @@ List<dynamic> appCompositionOverrides({
       // Chat generation：生产环境绑定按请求协议路由的唯一客户端；
       // 三个协议客户端共享同一个流式传输（HTTP 客户端 / 日志 / 自定义 header）。
       chatGenerationClientProvider.overrideWith(
-        (ref) => ChatTextGenerationAdapter(ref.watch(llmClientProvider)),
+        (ref) => ChatTextGenerationAdapter(
+          ref.watch(llmClientProvider),
+          imageStore: ref.watch(appDatabaseProvider).isInMemory
+              ? null
+              : ref.watch(chatImageStoreProvider),
+        ),
       ),
     if (bindChatConversationRepository)
       // Chat conversation：SQLite inner + 后台 Isolate 写入代理，

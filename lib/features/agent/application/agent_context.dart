@@ -153,6 +153,7 @@ String agentDocumentText(AgentDocument d) =>
 String agentInputText(List<LlmInputItem> input) => input
     .map(
       (item) => switch (item) {
+        LlmUserMessage() => throw UnsupportedError('Agent 尚未启用多模态输入'),
         LlmTextMessage() => '【${item.role.name}】\n${item.text}',
         LlmToolResult() => '【工具结果 ${item.name}】\n${item.output}',
         LlmAssistantTurn() =>

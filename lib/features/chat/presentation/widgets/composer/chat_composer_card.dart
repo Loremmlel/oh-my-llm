@@ -11,6 +11,7 @@ import 'package:oh_my_llm/features/settings/domain/template_prompt_language/temp
 import '../../../application/workspace/chat_workspace_view_state.dart';
 import '../workspace/chat_workspace_bindings.dart';
 import 'composer_helpers.dart';
+import '../images/chat_image_strip.dart';
 import 'controls/auto_retry_toggle.dart';
 import 'controls/thinking_toggle.dart';
 import 'fields/composer_message_field.dart';
@@ -136,7 +137,8 @@ class ChatComposerCard extends ConsumerWidget {
               ]),
               builder: (context, _) {
                 final validation = _resolveTemplateValidation(compilation);
-                final effectiveOnSend = validation.sendAllowed
+                final effectiveOnSend =
+                    validation.sendAllowed && !state.isImportingImages
                     ? bindings.onSendPressed
                     : null;
 
@@ -275,6 +277,61 @@ class ChatComposerCard extends ConsumerWidget {
                       ],
                     ],
                     const SizedBox(height: 10),
+                    if (state.images.isNotEmpty) ...[
+                      ChatImageStrip(
+                        images: state.images,
+                        onRemove: bindings.onRemoveImage,
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                    Row(
+                      children: [
+                        IconButton(
+                          tooltip: '添加图片',
+                          onPressed: state.isImportingImages
+                              ? null
+                              : bindings.onAddImages,
+                          icon: const Icon(Icons.add),
+                        ),
+                        if (state.isImportingImages)
+                          Expanded(
+                            child: Semantics(
+                              liveRegion: true,
+                              child: const Text('正在处理图片…'),
+                            ),
+                          )
+                        else if (state.images.isNotEmpty)
+                          Expanded(
+                            child: Text(
+                              '${state.images.length}/8 张图片 · 点击预览',
+                              style: theme.textTheme.bodySmall,
+                            ),
+                          ),
+                      ],
+                    ),
+                    if (state.imageError != null)
+                      Row(
+                        children: [
+                          const Icon(Icons.error_outline),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Semantics(
+                              liveRegion: true,
+                              child: Text(
+                                state.imageError!,
+                                style: TextStyle(
+                                  color: theme.colorScheme.error,
+                                ),
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: '关闭图片提示',
+                            onPressed: bindings.onDismissImageError,
+                            icon: const Icon(Icons.close),
+                          ),
+                        ],
+                      ),
                     ComposerMessageField(
                       messageController: bindings.messageController,
                       messageFocusNode: bindings.messageFocusNode,

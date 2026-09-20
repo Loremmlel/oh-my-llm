@@ -12,6 +12,7 @@ import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 
 import '../features/chat/presentation/chat_screen/chat_screen_test_helpers.dart';
 import '../helpers/integration_test_helpers.dart';
+import '../helpers/chat/test_chat_images.dart';
 
 void main() {
   // ── 编辑后切换回旧版本 -> 重启 -> 旧版本仍被选中 ──────────────────────────────
@@ -30,7 +31,7 @@ void main() {
 
     // 第一轮对话
     fakeClient.enqueueChunks(['原始回复']);
-    await sendMsg(containerA, content: '原始问题');
+    await sendMsg(containerA, content: '原始问题', images: [testChatImage]);
 
     final stateA = containerA.read(chatSessionsProvider);
     final userMessageId = stateA.activeConversation.messages
@@ -56,6 +57,7 @@ void main() {
         .activeConversation
         .messages;
     expect(messagesAfterEdit[0].content, '修改后的问题');
+    expect(messagesAfterEdit[0].images, [testChatImage]);
     expect(messagesAfterEdit[1].content, '编辑后的回复');
 
     // 切换回旧版本
@@ -87,6 +89,7 @@ void main() {
         .activeConversation
         .messages;
     expect(messagesB[0].content, '原始问题');
+    expect(messagesB[0].images, [testChatImage]);
     expect(messagesB[1].content, '原始回复');
     expect(messagesB[1].id, originalAssistantId);
   });

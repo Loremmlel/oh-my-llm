@@ -9,6 +9,7 @@ import 'package:oh_my_llm/core/widgets/notification_bubble/notification_bubble_c
 
 import '../../../../domain/chat_word_counter.dart';
 import '../../../../domain/models/chat_message.dart';
+import '../../images/chat_image_strip.dart';
 import '../navigation/message_version_info.dart';
 import '../navigation/message_version_navigator.dart';
 import 'chat_inline_empty_reply_card.dart';
@@ -298,12 +299,17 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                       const SizedBox(height: 8),
                     ] else
                       const SizedBox(height: 8),
-                    _buildMessageContent(
-                      theme,
-                      isUser: isUser,
-                      content: isUser ? userContent : message.content,
-                      segments: isUser ? displaySegments : const [],
-                    ),
+                    if (message.images.isNotEmpty) ...[
+                      ChatImageStrip(images: message.images),
+                      const SizedBox(height: 8),
+                    ],
+                    if (!isUser || message.content.isNotEmpty)
+                      _buildMessageContent(
+                        theme,
+                        isUser: isUser,
+                        content: isUser ? userContent : message.content,
+                        segments: isUser ? displaySegments : const [],
+                      ),
                     if (!isUser &&
                         message.finishReason != null &&
                         !message.isStreaming)

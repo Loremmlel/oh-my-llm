@@ -15,6 +15,7 @@ import '../../domain/models/chat_checkpoint.dart';
 import '../../domain/models/chat_conversation.dart';
 import '../../domain/models/chat_conversation_summary.dart';
 import '../../domain/models/chat_message.dart';
+import '../../domain/models/chat_image_attachment.dart';
 import '../generation/chat_generation_contract.dart';
 import '../generation/chat_generation_coordinator.dart';
 import '../generation/chat_generation_lifecycle.dart';
@@ -1036,6 +1037,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
   Future<void> editMessage({
     required String messageId,
     required String nextContent,
+    List<ChatImageAttachment>? images,
     List<UserMessageSegment> userMessageSegments = const [],
     String? templatePromptId,
     Map<String, String> templateVariableValues = const {},
@@ -1045,10 +1047,6 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     }
 
     final trimmedContent = nextContent.trim();
-    if (trimmedContent.isEmpty) {
-      return;
-    }
-
     final currentConversation = state.activeConversation;
     final tree = resolveMessageTreeState(currentConversation);
     final targetMessage = tree.nodes.where((message) {
@@ -1057,6 +1055,8 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     if (targetMessage == null) {
       return;
     }
+    final nextImages = images ?? targetMessage.images;
+    if (trimmedContent.isEmpty && nextImages.isEmpty) return;
 
     final modelConfig = resolveModelConfig(currentConversation);
     if (modelConfig == null) {
@@ -1071,6 +1071,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       content: trimmedContent,
       createdAt: DateTime.now(),
       parentId: targetMessage.parentId,
+      images: List.unmodifiable(nextImages),
       userMessageSegments: userMessageSegments,
       templatePromptId: templatePromptId,
       templateVariableValues: templateVariableValues,
@@ -1238,6 +1239,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
   /// 发送新消息并触发模型流式回复。
   Future<void> sendMessage({
     required String content,
+    List<ChatImageAttachment> images = const [],
     required LlmModelConfig modelConfig,
     required PresetPrompt? presetPrompt,
     required bool reasoningEnabled,
@@ -1252,7 +1254,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     }
 
     final trimmedContent = content.trim();
-    if (trimmedContent.isEmpty) {
+    if (trimmedContent.isEmpty && images.isEmpty) {
       return;
     }
 
@@ -1267,6 +1269,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       content: trimmedContent,
       createdAt: timestamp,
       parentId: parentId ?? rootConversationParentId,
+      images: List.unmodifiable(images),
       userMessageSegments: userMessageSegments,
       templatePromptId: templatePromptId,
       templateVariableValues: templateVariableValues,

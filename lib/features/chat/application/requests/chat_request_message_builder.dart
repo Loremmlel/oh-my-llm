@@ -29,7 +29,11 @@ List<ChatRequestMessage> buildRequestMessages({
 
   requestMessages.addAll(
     filteredMessages.map((message) {
-      return ChatRequestMessage(role: message.role, content: message.content);
+      return ChatRequestMessage(
+        role: message.role,
+        content: message.content,
+        images: message.images,
+      );
     }),
   );
 

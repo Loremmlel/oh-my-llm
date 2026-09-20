@@ -1,7 +1,9 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// 单个会话的输入草稿：正文、模板选择、模板变量。
+import '../../domain/models/chat_image_attachment.dart';
+
+/// 单个会话的输入草稿：正文、图片、模板选择、模板变量。
 ///
 /// 值对象不可变：构造/copy 时对每层嵌套 Map 做防御复制并 `Map.unmodifiable`，
 /// 避免外层包成 unmodifiable 后仍暴露可变内层。仅存于内存并按会话隔离，
@@ -9,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 class ComposerDraft extends Equatable {
   const ComposerDraft({
     this.body = '',
+    this.images = const [],
     this.selectedTemplatePromptId,
     this.templateVariableValuesByTemplateId = const {},
   });
@@ -17,6 +20,7 @@ class ComposerDraft extends Equatable {
   static const empty = ComposerDraft();
 
   final String body;
+  final List<ChatImageAttachment> images;
   final String? selectedTemplatePromptId;
 
   /// key = 模板 ID，value = 该模板的 {变量名: 值}。
@@ -24,12 +28,14 @@ class ComposerDraft extends Equatable {
 
   ComposerDraft copyWith({
     String? body,
+    List<ChatImageAttachment>? images,
     String? selectedTemplatePromptId,
     bool clearTemplateSelection = false,
     Map<String, Map<String, String>>? templateVariableValuesByTemplateId,
   }) {
     return ComposerDraft(
       body: body ?? this.body,
+      images: List.unmodifiable(images ?? this.images),
       selectedTemplatePromptId: clearTemplateSelection
           ? null
           : selectedTemplatePromptId ?? this.selectedTemplatePromptId,
@@ -57,6 +63,7 @@ class ComposerDraft extends Equatable {
   @override
   List<Object?> get props => [
     body,
+    images,
     selectedTemplatePromptId,
     templateVariableValuesByTemplateId,
   ];
@@ -202,14 +209,14 @@ class ComposerDraftController extends Notifier<ComposerDraftState> {
     return true;
   }
 
-  /// send 后清空正文，但保留模板选择与变量草稿。
+  /// send 后清空正文与图片，但保留模板选择与变量草稿。
   void clearBody(String conversationId) {
     final current = draftFor(conversationId);
-    if (current.body.isEmpty) return;
+    if (current.body.isEmpty && current.images.isEmpty) return;
     state = state.copyWith(
       draftsByConversationId: {
         ...state.draftsByConversationId,
-        conversationId: current.copyWith(body: ''),
+        conversationId: current.copyWith(body: '', images: const []),
       },
     );
   }
