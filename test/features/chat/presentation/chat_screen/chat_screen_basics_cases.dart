@@ -644,9 +644,12 @@ void registerChatScreenBasicsTests() {
       find.byType(ChatMessagesPanel),
     );
     expect(
-      messagesPanel.messageItemPositionsListener.itemPositions.value.any(
-        (position) => position.index == 1,
-      ),
+      messagesPanel
+          .scrollBindings
+          .messageItemPositionsListener
+          .itemPositions
+          .value
+          .any((position) => position.index == 1),
       isTrue,
     );
 
@@ -691,7 +694,10 @@ void registerChatScreenBasicsTests() {
     final panelBeforeSend = tester.widget<ChatMessagesPanel>(
       find.byType(ChatMessagesPanel),
     );
-    expect(panelBeforeSend.showScrollToBottomListenable.value, isFalse);
+    expect(
+      panelBeforeSend.scrollBindings.showScrollToBottomListenable.value,
+      isFalse,
+    );
 
     await sendMessage(tester, '第九轮问题${'很长的内容 ' * 200}');
     await controlled.listened;
@@ -701,8 +707,11 @@ void registerChatScreenBasicsTests() {
     final messagesPanel = tester.widget<ChatMessagesPanel>(
       find.byType(ChatMessagesPanel),
     );
-    final positions =
-        messagesPanel.messageItemPositionsListener.itemPositions.value;
+    final positions = messagesPanel
+        .scrollBindings
+        .messageItemPositionsListener
+        .itemPositions
+        .value;
     expect(
       positions.any((position) => position.index == 17),
       isTrue,

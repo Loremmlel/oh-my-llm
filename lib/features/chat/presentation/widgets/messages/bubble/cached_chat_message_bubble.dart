@@ -2,44 +2,20 @@ import 'package:flutter/material.dart';
 
 import '../../../../domain/models/chat_message.dart';
 import 'chat_message_bubble.dart';
-import '../navigation/message_version_info.dart';
+import 'chat_message_bubble_state.dart';
 
 /// 为稳定消息缓存气泡子树，避免流式期间重复重建历史 Markdown。
 class CachedChatMessageBubble extends StatefulWidget {
   const CachedChatMessageBubble({
     required this.message,
-    this.canEdit = false,
-    this.canRetry = false,
-    this.onEditPressed,
-    this.onRetryPressed,
-    this.onDeletePressed,
-    this.onToggleRequestExclusionPressed,
-    this.isExcludedFromRequest = false,
-    this.onFavoritePressed,
-    this.isFavorited = false,
-    this.inlineErrorMessage,
-    this.versionInfo,
-    this.onSwitchVersion,
-    this.autoRetryCount = 0,
-    this.isEmptyReply = false,
+    required this.state,
+    required this.actions,
     super.key,
   });
 
   final ChatMessage message;
-  final bool canEdit;
-  final bool canRetry;
-  final VoidCallback? onEditPressed;
-  final VoidCallback? onRetryPressed;
-  final VoidCallback? onDeletePressed;
-  final VoidCallback? onToggleRequestExclusionPressed;
-  final bool isExcludedFromRequest;
-  final VoidCallback? onFavoritePressed;
-  final bool isFavorited;
-  final String? inlineErrorMessage;
-  final int autoRetryCount;
-  final bool isEmptyReply;
-  final MessageVersionInfo? versionInfo;
-  final Future<void> Function(String targetMessageId)? onSwitchVersion;
+  final ChatMessageBubbleState state;
+  final ChatMessageBubbleActions actions;
 
   @override
   State<CachedChatMessageBubble> createState() =>
@@ -72,58 +48,14 @@ class _CachedChatMessageBubbleState extends State<CachedChatMessageBubble> {
 
   bool _canReuseChild(CachedChatMessageBubble oldWidget) {
     return oldWidget.message == widget.message &&
-        oldWidget.canEdit == widget.canEdit &&
-        oldWidget.canRetry == widget.canRetry &&
-        oldWidget.isExcludedFromRequest == widget.isExcludedFromRequest &&
-        oldWidget.isFavorited == widget.isFavorited &&
-        oldWidget.inlineErrorMessage == widget.inlineErrorMessage &&
-        oldWidget.autoRetryCount == widget.autoRetryCount &&
-        oldWidget.isEmptyReply == widget.isEmptyReply &&
-        _sameVersionInfo(oldWidget.versionInfo, widget.versionInfo);
-  }
-
-  bool _sameVersionInfo(
-    MessageVersionInfo? previous,
-    MessageVersionInfo? next,
-  ) {
-    if (identical(previous, next)) {
-      return true;
-    }
-    if (previous == null || next == null) {
-      return previous == next;
-    }
-
-    if (previous.parentId != next.parentId ||
-        previous.currentIndex != next.currentIndex ||
-        previous.siblings.length != next.siblings.length) {
-      return false;
-    }
-
-    for (var index = 0; index < previous.siblings.length; index += 1) {
-      if (previous.siblings[index] != next.siblings[index]) {
-        return false;
-      }
-    }
-    return true;
+        oldWidget.state == widget.state;
   }
 
   Widget _buildChild() {
     return ChatMessageBubble(
       message: widget.message,
-      canEdit: widget.canEdit,
-      canRetry: widget.canRetry,
-      onEditPressed: widget.onEditPressed,
-      onRetryPressed: widget.onRetryPressed,
-      onDeletePressed: widget.onDeletePressed,
-      onToggleRequestExclusionPressed: widget.onToggleRequestExclusionPressed,
-      isExcludedFromRequest: widget.isExcludedFromRequest,
-      onFavoritePressed: widget.onFavoritePressed,
-      isFavorited: widget.isFavorited,
-      inlineErrorMessage: widget.inlineErrorMessage,
-      autoRetryCount: widget.autoRetryCount,
-      isEmptyReply: widget.isEmptyReply,
-      versionInfo: widget.versionInfo,
-      onSwitchVersion: widget.onSwitchVersion,
+      state: widget.state,
+      actions: widget.actions,
     );
   }
 

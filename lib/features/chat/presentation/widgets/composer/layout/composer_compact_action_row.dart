@@ -1,35 +1,20 @@
 import 'package:flutter/material.dart';
-import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
+
+import '../../../../application/workspace/chat_workspace_view_state.dart';
 
 import '../composer_helpers.dart';
 import '../controls/composer_send_button.dart';
 
 class ComposerCompactActionRow extends StatelessWidget {
   const ComposerCompactActionRow({
-    required this.hasModels,
-    required this.isBusy,
-    required this.isStreaming,
-    required this.isAutoRetryWaiting,
-    required this.supportsReasoning,
-    required this.reasoningEnabled,
-    required this.reasoningEffort,
-    required this.autoRetryEnabled,
-    required this.excludedMessageCount,
+    required this.state,
     required this.onOpenSettings,
     required this.onSendPressed,
     required this.onStopStreaming,
     super.key,
   });
 
-  final bool hasModels;
-  final bool isBusy;
-  final bool isStreaming;
-  final bool isAutoRetryWaiting;
-  final bool supportsReasoning;
-  final bool reasoningEnabled;
-  final ReasoningEffort reasoningEffort;
-  final bool autoRetryEnabled;
-  final int excludedMessageCount;
+  final ChatWorkspaceComposerReadModel state;
   final VoidCallback onOpenSettings;
   final Future<void> Function()? onSendPressed;
   final Future<void> Function()? onStopStreaming;
@@ -53,10 +38,10 @@ class ComposerCompactActionRow extends StatelessWidget {
         const SizedBox(width: 6),
         ComposerSendButton(
           theme: Theme.of(context),
-          isBusy: isBusy,
-          isStreaming: isStreaming,
-          isAutoRetryWaiting: isAutoRetryWaiting,
-          hasModels: hasModels,
+          isBusy: state.isBusy,
+          isStreaming: state.isStreaming,
+          isAutoRetryWaiting: state.isAutoRetryWaiting,
+          hasModels: state.modelConfigs.isNotEmpty,
           expandLabel: true,
           onSendPressed: onSendPressed,
           onStopStreaming: onStopStreaming,
@@ -68,13 +53,13 @@ class ComposerCompactActionRow extends StatelessWidget {
   String _compactSettingsSummary() {
     final parts = <String>[];
     parts.add(
-      supportsReasoning && reasoningEnabled
-          ? effortLabel(reasoningEffort)
+      state.supportsReasoning && state.reasoningEnabled
+          ? effortLabel(state.reasoningEffort)
           : '思考关',
     );
-    parts.add(autoRetryEnabled ? '重试开' : '重试关');
-    if (excludedMessageCount > 0) {
-      parts.add('过滤 $excludedMessageCount 条');
+    parts.add(state.autoRetryEnabled ? '重试开' : '重试关');
+    if (state.excludedMessageCount > 0) {
+      parts.add('过滤 ${state.excludedMessageCount} 条');
     }
     return '更多设置 · ${parts.join(' · ')}';
   }

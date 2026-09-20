@@ -68,7 +68,7 @@ class ChatComposerCard extends ConsumerWidget {
       duration: const Duration(milliseconds: 220),
       firstChild: _buildCollapsed(context, theme),
       secondChild: _buildExpanded(context, theme, compilation),
-      crossFadeState: state.isComposerCollapsed
+      crossFadeState: state.readModel.isComposerCollapsed
           ? CrossFadeState.showFirst
           : CrossFadeState.showSecond,
       firstCurve: Curves.easeOut,
@@ -113,7 +113,7 @@ class ChatComposerCard extends ConsumerWidget {
   ) {
     // 是否有可用模型决定「去设置新增」还是「请先选择服务商」的提示。
     // 可选模型列表非空即等价于已配置任何模型（模型总被归入某服务商）。
-    final hasModels = state.modelConfigs.isNotEmpty;
+    final hasModels = state.readModel.modelConfigs.isNotEmpty;
     final selectedTemplate = state.selectedTemplatePrompt;
     return Card(
       child: LayoutBuilder(
@@ -211,7 +211,8 @@ class ChatComposerCard extends ConsumerWidget {
                                     width: math.min(240, fields.maxWidth),
                                     child: ComposerTemplateHeader(
                                       selectedTemplatePrompt: selectedTemplate,
-                                      templatePrompts: state.templatePrompts,
+                                      templatePrompts:
+                                          state.readModel.templatePrompts,
                                       onTemplatePromptSelected:
                                           bindings.onTemplatePromptSelected,
                                     ),
@@ -220,11 +221,14 @@ class ChatComposerCard extends ConsumerWidget {
                                     width: math.min(420, fields.maxWidth),
                                     child: ComposerProviderModelRow(
                                       hasModels: hasModels,
-                                      modelProviders: state.modelProviders,
-                                      modelConfigs: state.modelConfigs,
+                                      modelProviders:
+                                          state.readModel.modelProviders,
+                                      modelConfigs:
+                                          state.readModel.modelConfigs,
                                       selectedProviderId:
-                                          state.selectedProviderId,
-                                      selectedModel: state.selectedModel,
+                                          state.readModel.selectedProviderId,
+                                      selectedModel:
+                                          state.readModel.selectedModel,
                                       onProviderSelected:
                                           bindings.onProviderSelected,
                                       onModelSelected: bindings.onModelSelected,
@@ -344,15 +348,7 @@ class ChatComposerCard extends ConsumerWidget {
                     const SizedBox(height: 8),
                     if (isCompactComposer)
                       ComposerCompactActionRow(
-                        hasModels: hasModels,
-                        isBusy: state.isBusy,
-                        isStreaming: state.isStreaming,
-                        isAutoRetryWaiting: state.isAutoRetryWaiting,
-                        supportsReasoning: state.supportsReasoning,
-                        reasoningEnabled: state.reasoningEnabled,
-                        reasoningEffort: state.reasoningEffort,
-                        autoRetryEnabled: state.autoRetryEnabled,
-                        excludedMessageCount: state.excludedMessageCount,
+                        state: state.readModel,
                         onOpenSettings: () {
                           _showCompactSecondarySettingsSheet(context, theme);
                         },
@@ -361,28 +357,9 @@ class ChatComposerCard extends ConsumerWidget {
                       )
                     else
                       ComposerDesktopSettingsRow(
-                        theme: theme,
-                        cacheHitRate: state.cacheHitRate,
-                        hasModels: hasModels,
-                        supportsReasoning: state.supportsReasoning,
-                        reasoningEnabled: state.reasoningEnabled,
-                        reasoningEffort: state.reasoningEffort,
-                        autoRetryEnabled: state.autoRetryEnabled,
-                        isBusy: state.isBusy,
-                        isStreaming: state.isStreaming,
-                        isAutoRetryWaiting: state.isAutoRetryWaiting,
-                        onReasoningEnabledChanged:
-                            bindings.onReasoningEnabledChanged,
-                        onReasoningEffortChanged:
-                            bindings.onReasoningEffortChanged,
-                        onAutoRetryEnabledChanged:
-                            bindings.onAutoRetryEnabledChanged,
-                        onOpenFixedPromptSequenceRunner:
-                            bindings.onOpenFixedPromptSequenceRunner,
-                        onOpenMessageFilter: bindings.onOpenMessageFilter,
-                        excludedMessageCount: state.excludedMessageCount,
+                        state: state.readModel,
+                        bindings: bindings,
                         onSendPressed: effectiveOnSend,
-                        onStopStreaming: bindings.onStopStreaming,
                       ),
                   ],
                 );
@@ -443,9 +420,9 @@ class ChatComposerCard extends ConsumerWidget {
     ThemeData theme,
   ) {
     var localReasoningEnabled =
-        state.supportsReasoning && state.reasoningEnabled;
-    var localEffort = state.reasoningEffort;
-    var localAutoRetryEnabled = state.autoRetryEnabled;
+        state.readModel.supportsReasoning && state.readModel.reasoningEnabled;
+    var localEffort = state.readModel.reasoningEffort;
+    var localAutoRetryEnabled = state.readModel.autoRetryEnabled;
 
     return showModalBottomSheet<void>(
       context: context,
@@ -462,7 +439,7 @@ class ChatComposerCard extends ConsumerWidget {
                   children: [
                     Text('更多设置', style: theme.textTheme.titleMedium),
                     Text(
-                      '当前会话缓存命中率：${_formatCacheHitRate(state.cacheHitRate)}',
+                      '当前会话缓存命中率：${_formatCacheHitRate(state.readModel.cacheHitRate)}',
                       style: theme.textTheme.bodySmall,
                     ),
                     const SizedBox(height: 12),
@@ -471,9 +448,9 @@ class ChatComposerCard extends ConsumerWidget {
                       children: [
                         Flexible(
                           child: ThinkingToggle(
-                            enabled: state.supportsReasoning,
+                            enabled: state.readModel.supportsReasoning,
                             value: localReasoningEnabled,
-                            onChanged: state.supportsReasoning
+                            onChanged: state.readModel.supportsReasoning
                                 ? (value) {
                                     setModalState(() {
                                       localReasoningEnabled = value;
@@ -500,7 +477,8 @@ class ChatComposerCard extends ConsumerWidget {
                         ),
                       ],
                     ),
-                    if (state.supportsReasoning && localReasoningEnabled) ...[
+                    if (state.readModel.supportsReasoning &&
+                        localReasoningEnabled) ...[
                       const SizedBox(height: 12),
                       Text('思考强度', style: theme.textTheme.labelLarge),
                       const SizedBox(height: 8),
@@ -561,7 +539,9 @@ class ChatComposerCard extends ConsumerWidget {
                         },
                         icon: const Icon(Icons.filter_alt_outlined),
                         label: Text(
-                          messageFilterLabel(state.excludedMessageCount),
+                          messageFilterLabel(
+                            state.readModel.excludedMessageCount,
+                          ),
                         ),
                       ),
                     ),

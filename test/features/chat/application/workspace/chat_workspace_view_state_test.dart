@@ -248,7 +248,7 @@ void main() {
       );
       expect(state.selectedTemplatePrompt, same(template));
       expect(state.isEditingMessage, isFalse);
-      expect(state.cacheHitRate, 0.375);
+      expect(state.readModel.cacheHitRate, 0.375);
     });
 
     test('编辑态用 editingDraft 的选择覆盖；无模板编辑不回落 normal selection', () {

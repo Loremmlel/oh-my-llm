@@ -1,13 +1,15 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 
+import '../../../application/workspace/chat_workspace_view_state.dart';
+import '../workspace/chat_workspace_bindings.dart';
 import '../../../domain/models/chat_conversation.dart';
 import '../../../domain/chat_message_parent.dart';
 import '../../../domain/models/chat_message.dart';
 import 'bubble/cached_chat_message_bubble.dart';
+import 'bubble/chat_message_bubble_state.dart';
 import 'empty_conversation_view.dart';
 import 'navigation/message_anchor_rail.dart';
 import 'navigation/message_version_info.dart';
@@ -20,58 +22,15 @@ class ChatMessagesPanel extends StatefulWidget {
   static const transientErrorMessageId = '__transient_error_message__';
 
   const ChatMessagesPanel({
-    required this.conversation,
-    required this.structureConversation,
-    required this.messages,
-    required this.userMessages,
-    required this.hasModels,
-    required this.activeAnchorMessageIdListenable,
-    required this.messageItemScrollController,
-    required this.messageItemPositionsListener,
-    required this.isBusy,
-    required this.errorMessage,
-    required this.errorMessageAssistantId,
-    this.emptyReplyAssistantId,
-    required this.errorModelDisplayName,
-    required this.showScrollToBottomListenable,
-    this.autoRetryCount = 0,
-    required this.onEditMessage,
-    required this.onRetryLatestAssistant,
-    required this.onDeleteMessage,
-    required this.onToggleRequestExclusion,
-    required this.onScrollToBottomPressed,
-    required this.onSelectMessage,
-    required this.onSelectMessageVersion,
-    this.onFavoritePressed,
-    this.favoritedAssistantContents = const {},
+    required this.state,
+    required this.messageBindings,
+    required this.scrollBindings,
     super.key,
   });
 
-  final ChatConversation conversation;
-  final ChatConversation structureConversation;
-  final List<ChatMessage> messages;
-  final List<ChatMessage> userMessages;
-  final bool hasModels;
-  final ValueListenable<String?> activeAnchorMessageIdListenable;
-  final ItemScrollController messageItemScrollController;
-  final ItemPositionsListener messageItemPositionsListener;
-  final bool isBusy;
-  final String? errorMessage;
-  final String? errorMessageAssistantId;
-  final String? emptyReplyAssistantId;
-  final String errorModelDisplayName;
-  final ValueListenable<bool> showScrollToBottomListenable;
-  final int autoRetryCount;
-  final ValueChanged<ChatMessage> onEditMessage;
-  final Future<void> Function() onRetryLatestAssistant;
-  final ValueChanged<ChatMessage> onDeleteMessage;
-  final ValueChanged<ChatMessage> onToggleRequestExclusion;
-  final VoidCallback onScrollToBottomPressed;
-  final ValueChanged<String> onSelectMessage;
-  final Future<void> Function(String parentId, String messageId)
-  onSelectMessageVersion;
-  final ValueChanged<ChatMessage>? onFavoritePressed;
-  final Set<String> favoritedAssistantContents;
+  final ChatWorkspaceMessagesState state;
+  final ChatWorkspaceMessageBindings messageBindings;
+  final ChatWorkspaceScrollBindings scrollBindings;
 
   @override
   State<ChatMessagesPanel> createState() => _ChatMessagesPanelState();
@@ -107,7 +66,7 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
               )
               .id;
     final versionInfoByMessageId = _resolveVersionInfoMap();
-    final normalizedError = widget.errorMessage?.trim();
+    final normalizedError = widget.state.errorMessage?.trim();
 
     // 移动端紧凑布局下整体缩小内边距，让消息气泡更宽。
     final listPadding = AppBreakpoints.isCompactShell(context) ? 10.0 : 14.0;
@@ -117,12 +76,14 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
       clipBehavior: Clip.hardEdge,
       child: Stack(
         children: [
-          if (widget.messages.isEmpty)
-            EmptyConversationView(hasModels: widget.hasModels)
+          if (widget.state.messages.isEmpty)
+            EmptyConversationView(hasModels: widget.state.hasModels)
           else
             ScrollablePositionedList.separated(
-              itemScrollController: widget.messageItemScrollController,
-              itemPositionsListener: widget.messageItemPositionsListener,
+              itemScrollController:
+                  widget.scrollBindings.messageItemScrollController,
+              itemPositionsListener:
+                  widget.scrollBindings.messageItemPositionsListener,
               cacheExtent: _messageListCacheExtent,
               padding: EdgeInsets.all(listPadding),
               itemCount: displayMessages.length,
@@ -137,7 +98,7 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
                 versionInfoByMessageId: versionInfoByMessageId,
               ),
             ),
-          if (widget.userMessages.isNotEmpty)
+          if (widget.state.userMessages.isNotEmpty)
             Positioned(
               right: 8,
               top: 0,
@@ -151,13 +112,15 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
                     // ValueListenableBuilder 重建 MessageAnchorRail 时其
                     // didUpdateWidget 会折叠预览，保持滚动中紧凑体验。
                     child: ValueListenableBuilder<String?>(
-                      valueListenable: widget.activeAnchorMessageIdListenable,
+                      valueListenable:
+                          widget.scrollBindings.activeAnchorMessageIdListenable,
                       builder: (context, activeMessageId, _) {
                         return MessageAnchorRail(
-                          userMessages: widget.userMessages,
+                          userMessages: widget.state.userMessages,
                           activeMessageId: activeMessageId,
                           maxHeight: constraints.maxHeight * 0.5,
-                          onSelectMessage: widget.onSelectMessage,
+                          onSelectMessage:
+                              widget.scrollBindings.onSelectMessage,
                         );
                       },
                     ),
@@ -166,14 +129,14 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
               ),
             ),
           ValueListenableBuilder<bool>(
-            valueListenable: widget.showScrollToBottomListenable,
+            valueListenable: widget.scrollBindings.showScrollToBottomListenable,
             builder: (context, showScrollToBottom, _) {
               if (!showScrollToBottom) return const SizedBox.shrink();
               return Positioned(
                 right: 16,
                 bottom: 16,
                 child: FloatingActionButton.small(
-                  onPressed: widget.onScrollToBottomPressed,
+                  onPressed: widget.scrollBindings.onScrollToBottomPressed,
                   tooltip: '滚动到底部',
                   child: const Icon(Icons.arrow_downward_rounded),
                 ),
@@ -187,7 +150,7 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
 
   /// 把临时错误拼接为一条助手样式消息，仅用于 UI 展示，不写入会话树。
   ///
-  /// 常态及绑定到现有 assistant 的 inline error 直接复用 [widget.messages]；
+  /// 常态及绑定到现有 assistant 的 inline error 直接复用 [widget.state.messages]；
   /// 只有需要追加无归属临时错误时才构造列表，并按 conversation/error 缓存。
   ///
   /// 缓存命中分两层：
@@ -195,14 +158,14 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
   ///   引用未变，O(1) 直接命中，跳过 Equatable 深度比较。
   /// - `==` 值比较路径：非流式来源产生等值实例时仍可复用缓存。
   List<ChatMessage> _resolveDisplayMessages() {
-    final normalizedError = widget.errorMessage?.trim();
+    final normalizedError = widget.state.errorMessage?.trim();
     final hasError = normalizedError != null && normalizedError.isNotEmpty;
-    final errorAssistantId = widget.errorMessageAssistantId;
+    final errorAssistantId = widget.state.errorMessageAssistantId;
     if (!hasError || (errorAssistantId?.trim().isNotEmpty ?? false)) {
-      return widget.messages;
+      return widget.state.messages;
     }
 
-    final conversation = widget.conversation;
+    final conversation = widget.state.conversation;
     if ((identical(_displayMessagesConversation, conversation) ||
             _displayMessagesConversation == conversation) &&
         _displayMessagesError == normalizedError &&
@@ -212,14 +175,15 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
     }
 
     final result = <ChatMessage>[
-      ...widget.messages,
+      ...widget.state.messages,
       ChatMessage(
         id: ChatMessagesPanel.transientErrorMessageId,
         role: ChatMessageRole.assistant,
         content: normalizedError,
         createdAt: DateTime.fromMillisecondsSinceEpoch(0),
-        parentId: widget.messages.lastOrNull?.id ?? rootConversationParentId,
-        assistantModelDisplayName: widget.errorModelDisplayName,
+        parentId:
+            widget.state.messages.lastOrNull?.id ?? rootConversationParentId,
+        assistantModelDisplayName: widget.state.errorModelDisplayName,
       ),
     ];
     _displayMessagesConversation = conversation;
@@ -235,7 +199,7 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
   /// 正确命中缓存；messages getter 每次返回新 List 不可作 key。
   /// 同 [_resolveDisplayMessages]，先 [identical] 快速路径再降级 `==`。
   Map<String, MessageVersionInfo> _resolveVersionInfoMap() {
-    final conversation = widget.structureConversation;
+    final conversation = widget.state.structureConversation;
     if (conversation.messageNodes.isEmpty) {
       _versionInfoCache = const {};
       _versionInfoConversation = conversation;
@@ -292,7 +256,7 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
     final inlineErrorMessage =
         normalizedError != null &&
             normalizedError.isNotEmpty &&
-            widget.errorMessageAssistantId == message.id
+            widget.state.errorMessageAssistantId == message.id
         ? normalizedError
         : null;
 
@@ -300,50 +264,57 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
       key: ValueKey(message.id),
       child: CachedChatMessageBubble(
         message: message,
-        inlineErrorMessage: inlineErrorMessage,
-        isEmptyReply:
-            widget.emptyReplyAssistantId != null &&
-            widget.emptyReplyAssistantId == message.id,
-        canEdit: !widget.isBusy && isUser,
-        canRetry: !widget.isBusy && latestAssistantMessage?.id == message.id,
-        onEditPressed: isUser ? () => widget.onEditMessage(message) : null,
-        onRetryPressed: latestAssistantMessage?.id == message.id
-            ? () => widget.onRetryLatestAssistant()
-            : null,
-        onDeletePressed: !widget.isBusy && !isTransientError
-            ? () => widget.onDeleteMessage(message)
-            : null,
-        isExcludedFromRequest:
-            !isTransientError &&
-            widget.conversation.isMessageExcluded(message.id),
-        onToggleRequestExclusionPressed:
-            !widget.isBusy && !isTransientError && !message.isStreaming
-            ? () => widget.onToggleRequestExclusion(message)
-            : null,
-        onFavoritePressed:
-            !isTransientError &&
-                isAssistant &&
-                !message.isStreaming &&
-                widget.onFavoritePressed != null
-            ? () => widget.onFavoritePressed!(message)
-            : null,
-        isFavorited:
-            !isTransientError &&
-            isAssistant &&
-            widget.favoritedAssistantContents.contains(message.content),
-        autoRetryCount:
-            lastUserMessageId != null && message.id == lastUserMessageId
-            ? widget.autoRetryCount
-            : 0,
-        versionInfo: versionInfoByMessageId[message.id],
-        onSwitchVersion: (targetMessageId) async {
-          final versionInfo = versionInfoByMessageId[message.id];
-          if (versionInfo == null) return;
-          await widget.onSelectMessageVersion(
-            versionInfo.parentId,
-            targetMessageId,
-          );
-        },
+        state: ChatMessageBubbleState(
+          inlineErrorMessage: inlineErrorMessage,
+          isEmptyReply:
+              widget.state.emptyReplyAssistantId != null &&
+              widget.state.emptyReplyAssistantId == message.id,
+          canEdit: !widget.state.isBusy && isUser,
+          canRetry:
+              !widget.state.isBusy && latestAssistantMessage?.id == message.id,
+          isExcludedFromRequest:
+              !isTransientError &&
+              widget.state.conversation.isMessageExcluded(message.id),
+          isFavorited:
+              !isTransientError &&
+              isAssistant &&
+              widget.state.favoritedAssistantContents.contains(message.content),
+          autoRetryCount:
+              lastUserMessageId != null && message.id == lastUserMessageId
+              ? widget.state.autoRetryCount
+              : 0,
+          versionInfo: versionInfoByMessageId[message.id],
+        ),
+        actions: ChatMessageBubbleActions(
+          onEditPressed: isUser
+              ? () => widget.messageBindings.onEditMessage(message)
+              : null,
+          onRetryPressed: latestAssistantMessage?.id == message.id
+              ? () => widget.messageBindings.onRetryLatestAssistant()
+              : null,
+          onDeletePressed: !widget.state.isBusy && !isTransientError
+              ? () => widget.messageBindings.onDeleteMessage(message)
+              : null,
+          onToggleRequestExclusionPressed:
+              !widget.state.isBusy && !isTransientError && !message.isStreaming
+              ? () => widget.messageBindings.onToggleRequestExclusion(message)
+              : null,
+          onFavoritePressed:
+              !isTransientError &&
+                  isAssistant &&
+                  !message.isStreaming &&
+                  widget.messageBindings.onFavoritePressed != null
+              ? () => widget.messageBindings.onFavoritePressed!(message)
+              : null,
+          onSwitchVersion: (targetMessageId) async {
+            final versionInfo = versionInfoByMessageId[message.id];
+            if (versionInfo == null) return;
+            await widget.messageBindings.onSelectMessageVersion(
+              versionInfo.parentId,
+              targetMessageId,
+            );
+          },
+        ),
       ),
     );
   }
