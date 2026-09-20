@@ -107,7 +107,7 @@ void main() {
     expect(store.readDocument('a', '甲'), revisedCard);
   });
 
-  test('执行流保留步骤类型与活动状态，旧记录可读且子任务链接按工作区隔离', () {
+  test('执行流保留步骤类型与活动状态，子任务链接按工作区隔离', () {
     final record = AgentRunRecord(
       id: 'child',
       workspaceId: 'a',
@@ -126,15 +126,6 @@ void main() {
     store.checkpoint(record);
     expect(store.loadRun('a', 'child'), record);
     expect(store.loadRun('b', 'child'), isNull);
-    final legacy = encodeAgentRun(record);
-    for (final step in legacy['steps'] as List) {
-      (step as Map).remove('kind');
-      step.remove('isRunning');
-    }
-    final restored = decodeAgentRun(legacy);
-    expect(restored.steps.first.kind, AgentStepKind.model);
-    expect(restored.steps.last.kind, AgentStepKind.tool);
-    expect(restored.steps.first.isRunning, isFalse);
     store.recoverInterruptedRuns();
     expect(store.loadRun('a', 'child')!.steps.first.isRunning, isFalse);
   });

@@ -33,14 +33,11 @@ class _SummaryManagerState extends ConsumerState<_SummaryManager> {
   Widget build(BuildContext context) {
     final state = ref.watch(agentWorkspaceProvider);
     final controller = ref.read(agentWorkspaceProvider.notifier);
-    final batches = controller.contextBatches;
+    final batch = controller.contextBatch;
     final rounds = state.storyRounds.reversed
         .where((r) => r.status == AgentStoryRoundStatus.committed)
         .toList();
-    final hidden = batches
-        .where((b) => b.active)
-        .expand((b) => b.roundIds)
-        .toSet();
+    final hidden = batch?.active == true ? batch!.roundIds.toSet() : <String>{};
     final available = rounds.where((r) => !hidden.contains(r.id)).toList();
     final summaryRun = state.runs
         .where((r) => r.role == AgentRole.summarizer)
@@ -138,7 +135,7 @@ class _SummaryManagerState extends ConsumerState<_SummaryManager> {
                   child: const Text('重试总结'),
                 ),
             ],
-            for (final batch in batches) ...[
+            if (batch != null) ...[
               const Divider(),
               Text(
                 '${range(batch)} · ${switch (batch.status) {

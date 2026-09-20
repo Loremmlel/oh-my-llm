@@ -67,7 +67,7 @@ void main() {
     );
     expect(store.loadWorkspace('novel'), isNull);
     expect(store.listDocuments('novel'), isEmpty);
-    expect(store.listContextBatches('novel'), isEmpty);
+    expect(store.readContextBatch('novel'), isNull);
     database.close();
     final reopened = AppDatabase.forPath(path);
     addTearDown(reopened.close);

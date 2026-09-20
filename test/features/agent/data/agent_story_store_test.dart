@@ -1,11 +1,12 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:oh_my_llm/core/llm/llm_content.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/agent/data/sqlite_agent_store.dart';
 import 'package:oh_my_llm/features/agent/domain/agent_models.dart';
 import 'package:oh_my_llm/features/agent/domain/agent_story_state.dart';
+
+import '../agent_story_test_helpers.dart';
 
 void main() {
   late AppDatabase database;
@@ -226,54 +227,6 @@ List<AgentStateOperation> seedOperations() => [
     cells: {'event': '甲选择保密'},
   ),
 ];
-
-AgentStoryRound prepareRound(
-  SqliteAgentStore store,
-  String id, {
-  String content = '甲没有告诉乙秘密',
-}) {
-  final before = store.loadWorkspace('novel')!.copyWith(draft: '原指令 $id');
-  store.checkpoint(
-    AgentRunRecord(
-      id: id,
-      workspaceId: before.id,
-      prompt: before.draft,
-      startedAt: DateTime(2026),
-    ),
-    workspace: before.copyWith(
-      history: [
-        ...before.history,
-        LlmTextMessage(role: LlmRole.user, text: before.draft),
-      ],
-    ),
-  );
-  final document = store.writeDocument(
-    before.id,
-    '正文',
-    content,
-    sourceRunId: id,
-  );
-  final round = store.prepareStoryRound(
-    AgentStoryRound(
-      id: id,
-      beforeWorkspace: before,
-      document: document,
-      beforeState: store.readStoryState(before.id),
-      stateAgentId: '$id-state',
-    ),
-  );
-  store.checkpoint(
-    AgentRunRecord(
-      id: round.stateAgentId,
-      workspaceId: before.id,
-      parentId: id,
-      role: AgentRole.state,
-      prompt: '更新状态',
-      startedAt: DateTime(2026),
-    ),
-  );
-  return round;
-}
 
 void finishRound(SqliteAgentStore store, AgentStoryRound round) {
   for (final id in [round.id, round.stateAgentId]) {

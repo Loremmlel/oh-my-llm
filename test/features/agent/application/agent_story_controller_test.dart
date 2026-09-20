@@ -5,6 +5,7 @@ import 'package:oh_my_llm/core/llm/llm_request.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/agent/application/agent_workspace_controller.dart';
 import 'package:oh_my_llm/features/agent/data/sqlite_agent_store.dart';
+import 'package:oh_my_llm/features/agent/domain/agent_models.dart';
 import 'package:oh_my_llm/features/agent/domain/agent_story_state.dart';
 
 import '../agent_test_helpers.dart';
@@ -14,6 +15,9 @@ void main() {
     final database = AppDatabase.inMemory();
     addTearDown(database.close);
     final store = SqliteAgentStore(database);
+    store.saveWorkspace(
+      AgentWorkspace(id: 'novel', title: '小说', modelId: 'model'),
+    );
     var stateCalls = 0;
     final client = reviewedAgentClient((request, index) {
       if (request.tools.any((t) => t.name == 'commit_story_state')) {
@@ -57,8 +61,6 @@ void main() {
     );
     addTearDown(container.dispose);
     final controller = container.read(agentWorkspaceProvider.notifier);
-    controller.createWorkspace();
-    controller.configure(modelId: 'model');
     controller.setDraft('原开场');
     await controller.send();
     expect(

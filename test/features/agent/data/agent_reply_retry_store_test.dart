@@ -6,8 +6,8 @@ import 'package:oh_my_llm/features/agent/domain/agent_models.dart';
 import 'package:oh_my_llm/features/agent/domain/agent_context_batch.dart';
 import 'package:oh_my_llm/features/agent/domain/agent_story_state.dart';
 
-import 'agent_story_store_test.dart'
-    show prepareRound, finishRound, seedOperations;
+import '../agent_story_test_helpers.dart';
+import 'agent_story_store_test.dart' show finishRound, seedOperations;
 
 void main() {
   late AppDatabase database;
@@ -65,7 +65,7 @@ void main() {
     );
     expect(store.loadWorkspace('novel')!.draft, '未发送的草稿');
     expect(
-      store.listContextBatches('novel').single.status,
+      store.readContextBatch('novel')!.status,
       AgentContextBatchStatus.invalidated,
     );
     expect(

@@ -46,17 +46,13 @@ class AgentRuntime {
     required this.client,
     required this.store,
     required this.workspace,
-    required this.target,
-    this.options = agentDefaultGenerationOptions,
+    required this.roleModels,
     this.limits = const AgentLimits(),
-    this.roleModels = const {},
     required this.onUpdate,
   });
   final LlmClient client;
   final AgentStore store;
   AgentWorkspace workspace;
-  final LlmRequestTarget target;
-  final LlmGenerationOptions options;
   final AgentLimits limits;
   final Map<AgentRole, AgentModel> roleModels;
   final void Function(AgentRunRecord) onUpdate;
@@ -116,15 +112,12 @@ class AgentRuntime {
       );
       _beforeRound = workspace.copyWith(draft: prompt);
       _canonicalHistory = workspace.history;
-      final history = buildAgentMainContext(workspace, batches: _batches);
+      final batch = _batch;
+      final history = buildAgentMainContext(workspace, batch: batch);
       _appendStart = history.length;
       final documents = store.listDocuments(workspace.id);
       history.addAll(
-        agentScriptUpdates(
-          workspace,
-          documents,
-          full: _batches.any((b) => b.active),
-        ),
+        agentScriptUpdates(workspace, documents, full: batch?.active ?? false),
       );
       final catalog = agentScriptCatalog(documents);
       workspace = workspace.copyWith(
@@ -658,29 +651,22 @@ class AgentRuntime {
                   (owner.role == AgentRole.writer ? owner.id : null)) {
             throw const AgentWorkspaceException('该轮正文已由另一任务绑定，请重试原状态任务或放弃本轮。');
           }
-          if (existing?.status == AgentStoryRoundStatus.committed) {
-            if (existing!.document != document) {
-              throw const AgentWorkspaceException('本轮已经采用另一份正文。');
-            }
-            output = _storyResult(existing);
-          } else {
-            final selected =
-                existing ??
-                AgentStoryRound(
-                  id: owner.roundRunId,
-                  writerRunId: owner.role == AgentRole.writer ? owner.id : null,
-                  beforeWorkspace: _beforeRound,
-                  document: document,
-                  beforeState: store.readStoryState(workspace.id),
-                  stateAgentId: '',
-                );
-            if (selected.document != document) {
-              throw const AgentWorkspaceException('本轮已绑定正文，请先放弃本轮再重新写作。');
-            }
-            // 先保存待更新轮次，模型不可用或预算耗尽时仍可单独重试。
-            if (existing == null) store.prepareStoryRound(selected);
-            output = await _updateStory(selected, owner);
+          final selected =
+              existing ??
+              AgentStoryRound(
+                id: owner.roundRunId,
+                writerRunId: owner.role == AgentRole.writer ? owner.id : null,
+                beforeWorkspace: _beforeRound,
+                document: document,
+                beforeState: store.readStoryState(workspace.id),
+                stateAgentId: '',
+              );
+          if (selected.document != document) {
+            throw const AgentWorkspaceException('本轮已绑定正文，请先放弃本轮再重新写作。');
           }
+          // 先保存待更新轮次，模型不可用或预算耗尽时仍可单独重试。
+          if (existing == null) store.prepareStoryRound(selected);
+          output = await _updateStory(selected, owner);
         case 'commit_story_state':
           final operations = args['operations'];
           if (operations is! List) {
@@ -892,28 +878,21 @@ class AgentRuntime {
       selected.copyWith(stateAgentId: record.id),
     );
     _stateBindings[record.id] = binding;
-    final child = _Child(record);
-    _children[record.id] = child;
-    child.collected = true;
-    child.future =
-        _execute(record, [
-          ...buildAgentInitialContext(workspace, AgentRole.state),
-          LlmTextMessage(
-            role: LlmRole.user,
-            text: jsonEncode({
-              'round_id': binding.id,
-              'state': binding.beforeState.toolData,
-              'opening_or_instruction': binding.beforeWorkspace.draft,
-              'approved_document': {
-                'name': binding.document.name,
-                'content': binding.document.content,
-              },
-            }),
-          ),
-        ]).then((value) {
-          child.record = value;
-          return value;
-        });
+    final child = _launch(record, [
+      ...buildAgentInitialContext(workspace, AgentRole.state),
+      LlmTextMessage(
+        role: LlmRole.user,
+        text: jsonEncode({
+          'round_id': binding.id,
+          'state': binding.beforeState.toolData,
+          'opening_or_instruction': binding.beforeWorkspace.draft,
+          'approved_document': {
+            'name': binding.document.name,
+            'content': binding.document.content,
+          },
+        }),
+      ),
+    ])..collected = true;
     final finished = await _waitFor(owner.id, child);
     final saved = store.readStoryRound(workspace.id, selected.id)!;
     // 提交后停止或通知失败不能抹掉已经完成的事务。
@@ -1006,24 +985,11 @@ class AgentRuntime {
     return record;
   }
 
-  AgentModel _model(AgentRole role) {
-    if (roleModels.isEmpty) {
-      return AgentModel(
-        id: target.model,
-        label: target.model,
-        target: target,
-        options: options,
-      );
-    }
-    final model = roleModels[role];
-    if (model == null) {
-      throw const AgentWorkspaceException('此职责的模型已不可用，请在模型与规则中应用可用模型。');
-    }
-    return model;
-  }
+  AgentModel _model(AgentRole role) =>
+      roleModels[role] ??
+      (throw const AgentWorkspaceException('此职责的模型已不可用，请在模型与规则中应用可用模型。'));
 
-  List<AgentContextBatch> get _batches =>
-      store.listContextBatches(workspace.id);
+  AgentContextBatch? get _batch => store.readContextBatch(workspace.id);
   List<AgentStoryRound> get _rounds =>
       store.listStoryRounds(workspace.id, includeHistory: false);
 
@@ -1035,7 +1001,7 @@ class AgentRuntime {
     workspace,
     role,
     state: state ?? store.readStoryState(workspace.id),
-    batches: _batches,
+    batch: _batch,
     rounds: _rounds,
     characterCardId: cardId,
   );
@@ -1111,9 +1077,10 @@ class AgentRuntime {
     final committed = _rounds.reversed
         .where((r) => r.status == AgentStoryRoundStatus.committed)
         .toList();
-    final previous = _batches
-        .where((b) => b.active && b.id != batch.id)
-        .firstOrNull;
+    final current = _batch;
+    final previous = current != null && current.active && current.id != batch.id
+        ? current
+        : null;
     final covered = previous?.roundIds.length ?? 0;
     if (batch.roundIds.isEmpty ||
         batch.roundIds.length > committed.length ||
@@ -1123,11 +1090,8 @@ class AgentRuntime {
             (covered >= batch.roundIds.length ||
                 Iterable<int>.generate(covered)
                     .any((i) => previous.roundIds[i] != batch.roundIds[i]))) ||
-        _batches.any(
-          (b) =>
-              b.id == batch.id &&
-              b.status == AgentContextBatchStatus.invalidated,
-        )) {
+        (current?.id == batch.id &&
+            current?.status == AgentContextBatchStatus.invalidated)) {
       throw const AgentWorkspaceException('累计压缩来源已失效，请重新选择。');
     }
     if (batch.historyEnd <= 0 ||
@@ -1158,7 +1122,7 @@ class AgentRuntime {
             role: LlmRole.user,
             text: '请将已有累计摘要与本次新增正文及写作指令合并为一份完整累计摘要。保留仍有效的事实、时间线、人物关系、未解决事项和写作约束，不要只总结新增部分。',
           ),
-          if (previous != null) ...agentSummaryMessages([previous]),
+          ...agentSummaryMessages(previous),
           for (final round in rounds) ...[
             LlmTextMessage(
               role: LlmRole.user,

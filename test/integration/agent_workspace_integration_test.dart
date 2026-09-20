@@ -26,7 +26,9 @@ void main() {
       addTearDown(database.close);
       final store = SqliteAgentStore(database);
       const workspaceId = 'script-novel';
-      store.saveWorkspace(AgentWorkspace(id: workspaceId, title: '剧本小说'));
+      store.saveWorkspace(
+        AgentWorkspace(id: workspaceId, title: '剧本小说', modelId: 'model-1'),
+      );
       final script = store.writeDocument(
         workspaceId,
         '',
@@ -102,7 +104,6 @@ void main() {
       expect(options.responseHeaderTimeout, const Duration(minutes: 10));
       expect(options.streamIdleTimeout, const Duration(minutes: 10));
       final controller = first.read(agentWorkspaceProvider.notifier);
-      controller.configure(modelId: 'model-1');
       controller.setDraft('保存一份正文');
       await controller.send();
       final state = first.read(agentWorkspaceProvider);

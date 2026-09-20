@@ -180,7 +180,7 @@ void main() {
             expect(store.loadWorkspace('novel'), isNull);
             expect(store.loadRun('novel', 'root'), isNull);
             expect(store.readStoryRound('novel', 'root'), isNull);
-            expect(store.listContextBatches('novel'), isEmpty);
+            expect(store.readContextBatch('novel'), isNull);
             expect(
               database.connection.select('SELECT * FROM agent_history_items'),
               isEmpty,

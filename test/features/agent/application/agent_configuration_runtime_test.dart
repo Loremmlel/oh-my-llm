@@ -84,7 +84,6 @@ void main() {
       client: client,
       store: store,
       workspace: workspace,
-      target: agentTestTarget,
       roleModels: {
         AgentRole.coordinator: const AgentModel(
           id: 'main',

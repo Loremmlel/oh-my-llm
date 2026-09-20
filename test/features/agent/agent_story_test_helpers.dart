@@ -1,3 +1,4 @@
+import 'package:oh_my_llm/core/llm/llm_content.dart';
 import 'package:oh_my_llm/features/agent/application/agent_context.dart';
 import 'package:oh_my_llm/features/agent/data/sqlite_agent_store.dart';
 import 'package:oh_my_llm/features/agent/domain/agent_models.dart';
@@ -49,4 +50,52 @@ AgentStoryRound seedProseFloor(SqliteAgentStore store, int number) {
     ),
   );
   return saved;
+}
+
+AgentStoryRound prepareRound(
+  SqliteAgentStore store,
+  String id, {
+  String content = '甲没有告诉乙秘密',
+}) {
+  final before = store.loadWorkspace('novel')!.copyWith(draft: '原指令 $id');
+  store.checkpoint(
+    AgentRunRecord(
+      id: id,
+      workspaceId: before.id,
+      prompt: before.draft,
+      startedAt: DateTime(2026),
+    ),
+    workspace: before.copyWith(
+      history: [
+        ...before.history,
+        LlmTextMessage(role: LlmRole.user, text: before.draft),
+      ],
+    ),
+  );
+  final document = store.writeDocument(
+    before.id,
+    '正文',
+    content,
+    sourceRunId: id,
+  );
+  final round = store.prepareStoryRound(
+    AgentStoryRound(
+      id: id,
+      beforeWorkspace: before,
+      document: document,
+      beforeState: store.readStoryState(before.id),
+      stateAgentId: '$id-state',
+    ),
+  );
+  store.checkpoint(
+    AgentRunRecord(
+      id: round.stateAgentId,
+      workspaceId: before.id,
+      parentId: id,
+      role: AgentRole.state,
+      prompt: '更新状态',
+      startedAt: DateTime(2026),
+    ),
+  );
+  return round;
 }

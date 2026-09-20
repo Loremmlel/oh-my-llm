@@ -52,7 +52,7 @@ void main() {
         client: client,
         store: store,
         workspace: workspace,
-        target: agentTestTarget,
+        roleModels: agentTestModels,
         onUpdate: (_) {},
       ).run('核对后保存草稿');
       expect(result.status, AgentRunStatus.completed, reason: result.error);
@@ -80,7 +80,7 @@ void main() {
         client: client,
         store: store,
         workspace: workspace,
-        target: agentTestTarget,
+        roleModels: agentTestModels,
         onUpdate: (_) {},
       ).run('写作');
       expect(result.status, AgentRunStatus.limitReached);
@@ -96,7 +96,7 @@ void main() {
       client: StreamingAgentClient((_, _) => stream.stream),
       store: store,
       workspace: workspace,
-      target: agentTestTarget,
+      roleModels: agentTestModels,
       onUpdate: (_) {},
     );
     unawaited(runner.run('继续深入思考').then((value) => finished = value));
@@ -128,7 +128,7 @@ void main() {
       ),
       store: store,
       workspace: workspace,
-      target: agentTestTarget,
+      roleModels: agentTestModels,
       onUpdate: (record) {
         snapshots[record.id] = record;
         if (record.steps.any((s) => s.reasoning == '阿弥并不知道钥匙的位置') &&
@@ -183,7 +183,7 @@ void main() {
     client: client,
     store: store,
     workspace: workspace,
-    target: agentTestTarget,
+    roleModels: agentTestModels,
     limits: limits,
     onUpdate: (_) {},
   );
