@@ -64,7 +64,7 @@ class SqliteAgentStore implements AgentStore {
           Iterable<int>.generate(batch.roundIds.length)
               .any((i) => batch.roundIds[i] != rounds[i].id) ||
           batch.historyEnd !=
-              loadRun(workspaceId, batch.roundIds.last)?.historyEnd ||
+              loadRun(workspaceId, batch.roundIds.last)?.recovery.historyEnd ||
           batch.historyEnd <= 0 ||
           batch.status == AgentContextBatchStatus.invalidated ||
           (previous?.id == batch.id &&
@@ -378,7 +378,7 @@ class SqliteAgentStore implements AgentStore {
           round.status != AgentStoryRoundStatus.committed) {
         throw const AgentWorkspaceException('此回复已经撤回，请重新发送原指令。');
       }
-      final before = run.beforeWorkspace ?? round?.beforeWorkspace;
+      final before = run.recovery.beforeWorkspace ?? round?.beforeWorkspace;
       if (before == null || before.id != workspaceId) {
         throw const AgentWorkspaceException('此旧回复没有运行前快照，无法安全重试。');
       }
@@ -408,10 +408,12 @@ class SqliteAgentStore implements AgentStore {
         workspaceId: workspaceId,
         prompt: run.prompt,
         startedAt: run.startedAt,
-        modelId: run.modelId,
-        modelLabel: run.modelLabel,
-        tools: run.tools,
-        beforeWorkspace: before,
+        request: AgentRunRequestSnapshot(
+          modelId: run.request.modelId,
+          modelLabel: run.request.modelLabel,
+          tools: run.request.tools,
+        ),
+        recovery: AgentRunRecovery(beforeWorkspace: before),
         status: AgentRunStatus.interrupted,
         error: '旧回复已撤回，重试尚未完成。',
       );

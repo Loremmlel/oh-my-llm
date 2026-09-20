@@ -1,14 +1,15 @@
 import 'package:equatable/equatable.dart';
 import 'package:oh_my_llm/core/llm/llm_content.dart';
-import 'package:oh_my_llm/core/llm/llm_usage.dart';
-
-import 'agent_context_batch.dart';
-import 'agent_script.dart';
-
-import 'package:oh_my_llm/core/llm/llm_request.dart';
 
 import 'agent_configuration.dart';
+import 'agent_context_batch.dart';
+import 'agent_run_request_snapshot.dart';
+import 'agent_run_usage.dart';
+import 'agent_script.dart';
+
 export 'agent_configuration.dart';
+export 'agent_run_request_snapshot.dart';
+export 'agent_run_usage.dart';
 
 enum AgentRunStatus {
   running,
@@ -142,6 +143,24 @@ class AgentStep extends Equatable {
   ];
 }
 
+/// 覆盖式重试和压缩边界所需的恢复信息，旧记录可能没有快照。
+class AgentRunRecovery extends Equatable {
+  const AgentRunRecovery({this.beforeWorkspace, this.historyEnd});
+
+  final AgentWorkspace? beforeWorkspace;
+
+  /// 作品原始历史中本任务的排他结束位置；压缩必须覆盖完整工具往返。
+  final int? historyEnd;
+
+  AgentRunRecovery copyWith({int? historyEnd}) => AgentRunRecovery(
+    beforeWorkspace: beforeWorkspace,
+    historyEnd: historyEnd ?? this.historyEnd,
+  );
+
+  @override
+  List<Object?> get props => [beforeWorkspace, historyEnd];
+}
+
 class AgentRunRecord extends Equatable {
   AgentRunRecord({
     required this.id,
@@ -151,92 +170,59 @@ class AgentRunRecord extends Equatable {
     this.parentId,
     this.rootRunId,
     this.summaryBatch,
-    this.beforeWorkspace,
-    this.historyEnd,
-    this.modelId,
-    this.modelLabel = '',
-    this.usageIncomplete = false,
+    this.recovery = const AgentRunRecovery(),
+    AgentRunRequestSnapshot? request,
     List<LlmInputItem> childHistory = const [],
-    List<LlmInputItem>? inputHistory,
-    List<LlmToolDefinition> tools = const [],
     this.role = AgentRole.coordinator,
     this.status = AgentRunStatus.running,
     this.content = '',
     this.error = '',
-    this.modelCalls = 0,
-    this.usage,
+    this.usage = const AgentRunUsage(),
     List<AgentStep> steps = const [],
   }) : steps = List.unmodifiable(steps),
        childHistory = List.unmodifiable(childHistory),
-       inputHistory = inputHistory == null
-           ? null
-           : List.unmodifiable(inputHistory),
-       tools = List.unmodifiable(tools);
+       request = request ?? AgentRunRequestSnapshot();
   final String id;
   final String workspaceId;
   final String? parentId;
   final String? rootRunId;
   final AgentContextBatch? summaryBatch;
-
-  /// 主任务执行前的作品快照，用于覆盖式重试；旧记录可能没有快照。
-  final AgentWorkspace? beforeWorkspace;
-
-  /// 作品原始历史中本任务的排他结束位置；压缩必须覆盖完整工具往返。
-  final int? historyEnd;
+  final AgentRunRecovery recovery;
+  final AgentRunRequestSnapshot request;
   String get roundRunId => rootRunId ?? parentId ?? id;
-  final String modelLabel;
-  final String? modelId;
-  final bool usageIncomplete;
   final List<LlmInputItem> childHistory;
-
-  /// 新运行保存实际输入历史，撤回任务后仍可查看；旧记录未保存时为空。
-  final List<LlmInputItem>? inputHistory;
-  final List<LlmToolDefinition> tools;
   final AgentRole role;
   final AgentRunStatus status;
   final String prompt;
   final DateTime startedAt;
   final String content;
   final String error;
-  final int modelCalls;
-  final LlmUsage? usage;
+  final AgentRunUsage usage;
   final List<AgentStep> steps;
   AgentRunRecord copyWith({
     AgentRunStatus? status,
     String? content,
     String? error,
-    int? modelCalls,
-    LlmUsage? usage,
+    AgentRunUsage? usage,
     List<AgentStep>? steps,
     List<LlmInputItem>? childHistory,
-    List<LlmInputItem>? inputHistory,
-    bool? usageIncomplete,
-    AgentWorkspace? beforeWorkspace,
-    int? historyEnd,
-    String? modelId,
-    String? modelLabel,
-    List<LlmToolDefinition>? tools,
+    AgentRunRequestSnapshot? request,
+    AgentRunRecovery? recovery,
   }) => AgentRunRecord(
     id: id,
     workspaceId: workspaceId,
     parentId: parentId,
     rootRunId: rootRunId,
     summaryBatch: summaryBatch,
-    beforeWorkspace: beforeWorkspace ?? this.beforeWorkspace,
-    historyEnd: historyEnd ?? this.historyEnd,
-    modelId: modelId ?? this.modelId,
-    modelLabel: modelLabel ?? this.modelLabel,
-    tools: tools ?? this.tools,
+    recovery: recovery ?? this.recovery,
+    request: request ?? this.request,
     childHistory: childHistory ?? this.childHistory,
-    inputHistory: inputHistory ?? this.inputHistory,
-    usageIncomplete: usageIncomplete ?? this.usageIncomplete,
     role: role,
     prompt: prompt,
     startedAt: startedAt,
     status: status ?? this.status,
     content: content ?? this.content,
     error: error ?? this.error,
-    modelCalls: modelCalls ?? this.modelCalls,
     usage: usage ?? this.usage,
     steps: steps ?? this.steps,
   );
@@ -247,21 +233,15 @@ class AgentRunRecord extends Equatable {
     parentId,
     rootRunId,
     summaryBatch,
-    beforeWorkspace,
-    historyEnd,
-    modelId,
-    modelLabel,
-    tools,
+    recovery,
+    request,
     childHistory,
-    inputHistory,
-    usageIncomplete,
     role,
     status,
     prompt,
     startedAt,
     content,
     error,
-    modelCalls,
     usage,
     steps,
   ];

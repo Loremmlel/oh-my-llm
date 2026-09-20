@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:oh_my_llm/core/llm/llm_content.dart';
-import 'package:oh_my_llm/core/llm/llm_usage.dart';
 
 import '../domain/agent_models.dart';
 import '../domain/agent_context_batch.dart';
@@ -156,19 +155,3 @@ String agentInputText(List<LlmInputItem> input) => input
       },
     )
     .join('\n\n');
-
-LlmUsage? addAgentUsage(LlmUsage? a, LlmUsage? b) {
-  if (b == null) return a;
-  int? sum(int? x, int? y) =>
-      x == null && y == null ? null : (x ?? 0) + (y ?? 0);
-  return LlmUsage(
-    inputTokens: sum(a?.inputTokens, b.inputTokens),
-    outputTokens: sum(a?.outputTokens, b.outputTokens),
-    reasoningTokens: sum(a?.reasoningTokens, b.reasoningTokens),
-    cachedInputTokens: sum(a?.cachedInputTokens, b.cachedInputTokens),
-    cacheWriteInputTokens: sum(
-      a?.cacheWriteInputTokens,
-      b.cacheWriteInputTokens,
-    ),
-  );
-}

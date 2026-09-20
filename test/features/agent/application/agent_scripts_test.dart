@@ -144,7 +144,7 @@ void main() {
       'novel',
       AgentContextBatch(
         id: 'summary',
-        historyEnd: store.loadRun('novel', second.id)!.historyEnd!,
+        historyEnd: store.loadRun('novel', second.id)!.recovery.historyEnd!,
         roundIds: [first.id, second.id],
         summary: '日常继续。',
       ),

@@ -122,8 +122,8 @@ void main() {
     await controller.send(retryReplyId: record.id);
     final retried = container.read(agentWorkspaceProvider).runs.single;
     expect(retried.id, record.id);
-    expect(retried.modelId, 'second-model');
-    expect(retried.modelLabel, '新模型');
+    expect(retried.request.modelId, 'second-model');
+    expect(retried.request.modelLabel, '新模型');
     expect(retried.status, AgentRunStatus.completed);
     expect(client.requests.last.target, secondTarget);
     controller.setDraft('继续讨论');

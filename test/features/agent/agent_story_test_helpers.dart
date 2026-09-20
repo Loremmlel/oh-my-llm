@@ -43,7 +43,9 @@ AgentStoryRound seedProseFloor(SqliteAgentStore store, int number) {
     root.copyWith(
       status: AgentRunStatus.completed,
       content: document.content,
-      historyEnd: workspace.history.length + 1,
+      recovery: root.recovery.copyWith(
+        historyEnd: workspace.history.length + 1,
+      ),
     ),
     workspace: workspace.copyWith(
       history: [...workspace.history, agentProseMessage(saved)],

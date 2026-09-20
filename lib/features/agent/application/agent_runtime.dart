@@ -134,10 +134,16 @@ class AgentRuntime {
           .copyWith(
             status: AgentRunStatus.running,
             error: '',
-            beforeWorkspace: _beforeRound,
-            modelId: _model(AgentRole.coordinator).id,
-            modelLabel: _model(AgentRole.coordinator).label,
-            tools: agentToolsFor(AgentRole.coordinator),
+            recovery: AgentRunRecovery(
+              beforeWorkspace: _beforeRound,
+              historyEnd: retryRun?.recovery.historyEnd,
+            ),
+            request: AgentRunRequestSnapshot(
+              modelId: _model(AgentRole.coordinator).id,
+              modelLabel: _model(AgentRole.coordinator).label,
+              tools: agentToolsFor(AgentRole.coordinator),
+              inputHistory: retryRun?.request.inputHistory,
+            ),
           );
       _rootId = record.id;
       return await _execute(record, history);
@@ -157,9 +163,11 @@ class AgentRuntime {
   }) => AgentRunRecord(
     id: generateEntityId(),
     workspaceId: workspace.id,
-    modelId: _model(role).id,
-    modelLabel: _model(role).label,
-    tools: agentToolsFor(role),
+    request: AgentRunRequestSnapshot(
+      modelId: _model(role).id,
+      modelLabel: _model(role).label,
+      tools: agentToolsFor(role),
+    ),
     prompt: prompt,
     role: role,
     parentId: parentId,
@@ -181,8 +189,10 @@ class AgentRuntime {
           draft: _preservedDraft,
         );
         record = record.copyWith(
-          inputHistory: history,
-          historyEnd: workspace.history.length,
+          request: record.request.copyWith(inputHistory: history),
+          recovery: record.recovery.copyWith(
+            historyEnd: workspace.history.length,
+          ),
         );
       } else {
         record = record.copyWith(childHistory: history);
@@ -205,12 +215,12 @@ class AgentRuntime {
         }
         _modelCalls++;
         record = record.copyWith(
-          modelCalls: record.modelCalls + 1,
+          usage: record.usage.startCall(),
           content: '',
           steps: [
             ...record.steps,
             AgentStep(
-              label: '模型回复 ${record.modelCalls + 1}',
+              label: '模型回复 ${record.usage.modelCalls + 1}',
               isRunning: true,
               inputItemCount: history.length,
             ),
@@ -238,15 +248,11 @@ class AgentRuntime {
         _checkCancelled();
         record = record.copyWith(
           content: result.content,
-          usage: addAgentUsage(record.usage, result.usage),
-          usageIncomplete:
-              record.usageIncomplete ||
-              result.usage?.inputTokens == null ||
-              result.usage?.outputTokens == null,
+          usage: record.usage.addResponse(result.usage),
           steps: [
             ...record.steps.take(record.steps.length - 1),
             AgentStep(
-              label: '模型回复 ${record.modelCalls}',
+              label: '模型回复 ${record.usage.modelCalls}',
               content: result.content,
               reasoning: result.reasoningContent,
               inputItemCount: history.length,
@@ -961,7 +967,7 @@ class AgentRuntime {
     workspace = workspace.copyWith(history: history);
     record = record.copyWith(
       // 重试没有调用主模型，保留其原实际输入，不能用当前上下文投影覆盖。
-      historyEnd: history.length,
+      recovery: record.recovery.copyWith(historyEnd: history.length),
       steps: [
         ...record.steps,
         AgentStep(
@@ -1096,7 +1102,7 @@ class AgentRuntime {
     }
     if (batch.historyEnd <= 0 ||
         batch.historyEnd > workspace.history.length ||
-        store.loadRun(workspace.id, batch.roundIds.last)?.historyEnd !=
+        store.loadRun(workspace.id, batch.roundIds.last)?.recovery.historyEnd !=
             batch.historyEnd) {
       throw const AgentWorkspaceException('压缩任务边界已失效，请重新选择。');
     }

@@ -29,7 +29,10 @@ void main() {
       seedOperations(),
     );
     finishRound(store, round);
-    store.checkpoint(store.loadRun('novel', round.id)!.copyWith(historyEnd: 1));
+    final completed = store.loadRun('novel', round.id)!;
+    store.checkpoint(
+      completed.copyWith(recovery: completed.recovery.copyWith(historyEnd: 1)),
+    );
     store.checkpoint(
       AgentRunRecord(
         id: 'grandchild',
@@ -69,7 +72,7 @@ void main() {
       AgentContextBatchStatus.invalidated,
     );
     expect(
-      store.loadRun('novel', round.id)!.beforeWorkspace,
+      store.loadRun('novel', round.id)!.recovery.beforeWorkspace,
       round.beforeWorkspace,
     );
   });
@@ -81,7 +84,7 @@ void main() {
       workspaceId: 'novel',
       prompt: '原指令',
       startedAt: DateTime(2026),
-      beforeWorkspace: before,
+      recovery: AgentRunRecovery(beforeWorkspace: before),
     );
     store.checkpoint(root);
     store.writeDocument('novel', '候选', '工具写入', sourceRunId: root.id);
@@ -137,7 +140,7 @@ void main() {
           workspaceId: 'novel',
           prompt: '指令',
           parentId: parentId,
-          beforeWorkspace: before,
+          recovery: AgentRunRecovery(beforeWorkspace: before),
           startedAt: DateTime(2026).add(Duration(seconds: time)),
           status: AgentRunStatus.completed,
         );

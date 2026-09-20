@@ -8,7 +8,6 @@ import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 
 import '../domain/agent_models.dart';
 import '../domain/agent_story_state.dart';
-import '../application/agent_context.dart';
 import 'agent_context_dialog.dart';
 
 String agentRoleLabel(AgentRole role) => switch (role) {
@@ -29,14 +28,19 @@ String agentStatusLabel(AgentRunStatus status) => switch (status) {
   AgentRunStatus.interrupted => '意外中断',
 };
 
-String agentUsageLabel(AgentRunRecord record) {
-  final usage = record.usage;
+String agentUsageLabel(AgentRunRecord record) => _usageLabel(
+  record.usage,
+  completed: record.status == AgentRunStatus.completed,
+);
+
+String _usageLabel(AgentRunUsage total, {required bool completed}) {
+  final usage = total.tokens;
   final input = usage?.inputTokens, cached = usage?.cachedInputTokens;
-  return '${record.modelCalls} 次调用 · 输入 ${input ?? '—'} · 输出 ${usage?.outputTokens ?? '—'} · 缓存读取 ${cached ?? '—'} · 缓存写入 ${usage?.cacheWriteInputTokens ?? '—'}${record.usageIncomplete || record.status != AgentRunStatus.completed ? '（部分用量未报告）' : ''}';
+  return '${total.modelCalls} 次调用 · 输入 ${input ?? '—'} · 输出 ${usage?.outputTokens ?? '—'} · 缓存读取 ${cached ?? '—'} · 缓存写入 ${usage?.cacheWriteInputTokens ?? '—'}${total.incomplete || !completed ? '（部分用量未报告）' : ''}';
 }
 
 String agentTreeUsageLabel(AgentRunRecord root, List<AgentRunRecord> records) {
-  var total = root;
+  var total = root.usage;
   final descendants = <String>{root.id};
   var previous = -1;
   while (previous != descendants.length) {
@@ -48,16 +52,12 @@ String agentTreeUsageLabel(AgentRunRecord root, List<AgentRunRecord> records) {
   for (final child in records.where(
     (r) => r.id != root.id && descendants.contains(r.id),
   )) {
-    total = total.copyWith(
-      modelCalls: total.modelCalls + child.modelCalls,
-      usage: addAgentUsage(total.usage, child.usage),
-      usageIncomplete:
-          total.usageIncomplete ||
-          child.usageIncomplete ||
-          child.status != AgentRunStatus.completed,
+    total = total.add(
+      child.usage,
+      completed: child.status == AgentRunStatus.completed,
     );
   }
-  return agentUsageLabel(total);
+  return _usageLabel(total, completed: root.status == AgentRunStatus.completed);
 }
 
 class AgentChildLink extends StatelessWidget {

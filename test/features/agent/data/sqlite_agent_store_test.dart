@@ -3,7 +3,10 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/core/llm/llm_content.dart';
+import 'package:oh_my_llm/core/llm/llm_request.dart';
+import 'package:oh_my_llm/core/llm/llm_usage.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
+import 'package:oh_my_llm/core/persistence/sqlite_json_history.dart';
 import 'package:oh_my_llm/features/agent/data/agent_record_codec.dart';
 import 'package:oh_my_llm/features/agent/data/sqlite_agent_store.dart';
 import 'package:oh_my_llm/features/agent/domain/agent_models.dart';
@@ -50,6 +53,89 @@ void main() {
     expect(store.loadWorkspace('a')!.history.length, greaterThan(1));
     expect(store.listRuns('a').single.status, AgentRunStatus.interrupted);
     expect(store.listRuns('b'), isEmpty);
+  });
+
+  test('运行聚合读写沿用顶层字段，重开与重试保留模型信息并清空旧用量和输入', () {
+    final before = store.loadWorkspace('a')!;
+    final record = AgentRunRecord(
+      id: 'aggregate',
+      workspaceId: 'a',
+      prompt: '继续',
+      startedAt: DateTime(2026),
+      status: AgentRunStatus.completed,
+      recovery: AgentRunRecovery(beforeWorkspace: before, historyEnd: 1),
+      request: AgentRunRequestSnapshot(
+        modelId: 'model',
+        modelLabel: '写作模型',
+        tools: [
+          LlmToolDefinition(
+            name: 'read_document',
+            description: '读取文档',
+            parameters: const {'type': 'object'},
+          ),
+        ],
+        inputHistory: const [LlmTextMessage(role: LlmRole.user, text: '原始输入')],
+      ),
+      usage: const AgentRunUsage(
+        modelCalls: 2,
+        tokens: LlmUsage(inputTokens: 40, outputTokens: 5),
+        incomplete: true,
+      ),
+    );
+    store.checkpoint(record);
+    final storedJson = jsonDecode(
+      database.connection.select(
+            'SELECT record_json FROM agent_runs WHERE id = ?;',
+            [record.id],
+          ).single['record_json']
+          as String,
+    ) as Map<String, dynamic>;
+    expect(storedJson['inputHistory'], isA<String>());
+    expect(storedJson['beforeWorkspace'], isA<Map>());
+    expect(storedJson.containsKey('request'), isFalse);
+    expect(storedJson.containsKey('recovery'), isFalse);
+    final json = SqliteJsonHistory(database.connection).expand('a', storedJson);
+    expect(json['version'], 2);
+    expect(json['modelId'], 'model');
+    expect(json['modelLabel'], '写作模型');
+    expect(json['tools'], hasLength(1));
+    expect(json['inputHistory'], hasLength(1));
+    expect(json['beforeWorkspace'], encodeAgentWorkspace(before));
+    expect(json['historyEnd'], 1);
+    expect(json['modelCalls'], 2);
+    expect(json['usageIncomplete'], isTrue);
+    expect(json['usage'], record.usage.tokens!.toJson());
+    expect(json.containsKey('request'), isFalse);
+    expect(json.containsKey('recovery'), isFalse);
+    expect(decodeAgentRun(json), record);
+    // 旧记录未写入可选快照字段时，仍按原有缺省语义读取。
+    final legacy = Map<String, dynamic>.from(json)
+      ..remove('inputHistory')
+      ..remove('beforeWorkspace')
+      ..remove('historyEnd')
+      ..remove('tools')
+      ..remove('modelId')
+      ..remove('modelLabel')
+      ..remove('usageIncomplete');
+    final decodedLegacy = decodeAgentRun(legacy);
+    expect(decodedLegacy.request.inputHistory, isNull);
+    expect(decodedLegacy.request.modelId, isNull);
+    expect(decodedLegacy.request.modelLabel, isEmpty);
+    expect(decodedLegacy.request.tools, isEmpty);
+    expect(decodedLegacy.recovery, const AgentRunRecovery());
+    expect(decodedLegacy.usage.incomplete, isFalse);
+    database.close();
+    database = AppDatabase.forPath('${temp.path}/agent.sqlite');
+    store = SqliteAgentStore(database);
+    expect(store.loadRun('a', record.id), record);
+    final retry = store.resetLatestReply('a', record.id);
+    expect(retry.request.modelId, record.request.modelId);
+    expect(retry.request.modelLabel, record.request.modelLabel);
+    expect(retry.request.tools, record.request.tools);
+    expect(retry.request.inputHistory, isNull);
+    expect(retry.usage, const AgentRunUsage());
+    expect(retry.recovery.beforeWorkspace, before);
+    expect(retry.recovery.historyEnd, isNull);
   });
 
   test('同名方案覆盖保存，资料修改类型保留稳定 ID', () {
