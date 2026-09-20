@@ -1,3 +1,5 @@
+import 'package:equatable/equatable.dart';
+
 import '../../domain/models/chat_checkpoint.dart';
 import '../../domain/models/chat_message.dart';
 
@@ -8,7 +10,7 @@ import 'chat_request_message_builder.dart';
 import '../ports/chat_generation_client.dart';
 
 /// 选中检查点后，真正参与请求拼装的上下文视图。
-class CheckpointRequestContext {
+class CheckpointRequestContext extends Equatable {
   const CheckpointRequestContext({
     this.checkpointChain = const [],
     this.tailMessages = const [],
@@ -22,6 +24,9 @@ class CheckpointRequestContext {
 
   /// 当前激活检查点的标题，无检查点时返回空字符串。
   String get activeCheckpointTitle => activeCheckpoint?.title ?? '';
+
+  @override
+  List<Object?> get props => [checkpointChain, tailMessages];
 }
 
 /// 解析当前请求可用的检查点链与其后的增量消息。

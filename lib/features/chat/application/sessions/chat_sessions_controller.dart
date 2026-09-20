@@ -667,12 +667,10 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     required ChatConversation conversation,
     required LlmModelConfig modelConfig,
     required PresetPrompt? presetPrompt,
-    required List<ChatMessage> requestConversationMessages,
-    required List<ChatCheckpoint> requestCheckpointChain,
+    required CheckpointRequestContext requestContext,
     required String? parentMessageId,
     required bool reasoningEnabled,
     required ReasoningEffort reasoningEffort,
-    required String appliedCheckpointTitle,
     Duration? retryDelay,
   }) async {
     final retryPolicy = ChatRetryPolicy.fromSnapshot(
@@ -683,12 +681,10 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       conversation: conversation,
       modelConfig: modelConfig,
       presetPrompt: presetPrompt,
-      requestConversationMessages: requestConversationMessages,
-      requestCheckpointChain: requestCheckpointChain,
+      requestContext: requestContext,
       parentMessageId: parentMessageId,
       reasoningEnabled: reasoningEnabled,
       reasoningEffort: reasoningEffort,
-      appliedCheckpointTitle: appliedCheckpointTitle,
       retryPolicy: retryPolicy,
       retryDelay: retryDelay,
     );
@@ -731,7 +727,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       parentId: assistantParentId,
       isStreaming: true,
       assistantModelDisplayName: command.modelConfig.displayName,
-      appliedCheckpointTitle: command.appliedCheckpointTitle,
+      appliedCheckpointTitle: command.requestContext.activeCheckpointTitle,
     );
     final initialTree = appendNodeToTree(
       treeState: tree,
@@ -769,8 +765,8 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       target: _targetFromModelConfig(command.modelConfig),
       messages: buildRequestMessages(
         presetPrompt: command.presetPrompt,
-        conversationMessages: command.requestConversationMessages,
-        checkpointChain: command.requestCheckpointChain,
+        conversationMessages: command.requestContext.tailMessages,
+        checkpointChain: command.requestContext.checkpointChain,
         filter: ExcludeByIdMessageFilter(
           command.conversation.excludedMessageIds.toSet(),
         ),
@@ -1094,12 +1090,10 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       conversation: rebuiltConversation,
       modelConfig: modelConfig,
       presetPrompt: presetPrompt,
-      requestConversationMessages: checkpointContext.tailMessages,
-      requestCheckpointChain: checkpointContext.checkpointChain,
+      requestContext: checkpointContext,
       parentMessageId: branchUserMessage.id,
       reasoningEnabled: rebuiltConversation.reasoningEnabled,
       reasoningEffort: rebuiltConversation.reasoningEffort,
-      appliedCheckpointTitle: checkpointContext.activeCheckpointTitle,
     );
   }
 
@@ -1134,12 +1128,10 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         conversation: currentConversation.copyWith(updatedAt: DateTime.now()),
         modelConfig: modelConfig,
         presetPrompt: presetPrompt,
-        requestConversationMessages: checkpointContext.tailMessages,
-        requestCheckpointChain: checkpointContext.checkpointChain,
+        requestContext: checkpointContext,
         parentMessageId: latestMessage.id,
         reasoningEnabled: currentConversation.reasoningEnabled,
         reasoningEffort: currentConversation.reasoningEffort,
-        appliedCheckpointTitle: checkpointContext.activeCheckpointTitle,
       );
       return;
     }
@@ -1196,12 +1188,10 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         conversation: baseConversation,
         modelConfig: modelConfig,
         presetPrompt: presetPrompt,
-        requestConversationMessages: checkpointContext.tailMessages,
-        requestCheckpointChain: checkpointContext.checkpointChain,
+        requestContext: checkpointContext,
         parentMessageId: parentId == rootConversationParentId ? null : parentId,
         reasoningEnabled: baseConversation.reasoningEnabled,
         reasoningEffort: baseConversation.reasoningEffort,
-        appliedCheckpointTitle: checkpointContext.activeCheckpointTitle,
       );
       return;
     }
@@ -1228,12 +1218,10 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       conversation: baseConversation,
       modelConfig: modelConfig,
       presetPrompt: presetPrompt,
-      requestConversationMessages: checkpointContext.tailMessages,
-      requestCheckpointChain: checkpointContext.checkpointChain,
+      requestContext: checkpointContext,
       parentMessageId: parentId == rootConversationParentId ? null : parentId,
       reasoningEnabled: baseConversation.reasoningEnabled,
       reasoningEffort: baseConversation.reasoningEffort,
-      appliedCheckpointTitle: checkpointContext.activeCheckpointTitle,
     );
   }
 
@@ -1295,12 +1283,10 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       conversation: pendingConversation,
       modelConfig: modelConfig,
       presetPrompt: presetPrompt,
-      requestConversationMessages: checkpointContext.tailMessages,
-      requestCheckpointChain: checkpointContext.checkpointChain,
+      requestContext: checkpointContext,
       parentMessageId: userMessage.id,
       reasoningEnabled: reasoningEnabled,
       reasoningEffort: reasoningEffort,
-      appliedCheckpointTitle: checkpointContext.activeCheckpointTitle,
       retryDelay: retryDelay,
     );
   }
