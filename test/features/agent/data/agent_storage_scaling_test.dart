@@ -65,10 +65,12 @@ void main() {
         workspaceId: 'novel',
         prompt: '继续',
         startedAt: DateTime(2026).add(Duration(seconds: i)),
-        inputHistory: [
-          LlmTextMessage(role: LlmRole.system, text: '第 $i 轮的设定'),
-          ...workspace.history,
-        ],
+        request: AgentRunRequestSnapshot(
+          inputHistory: [
+            LlmTextMessage(role: LlmRole.system, text: '第 $i 轮的设定'),
+            ...workspace.history,
+          ],
+        ),
       );
       store.checkpoint(root, workspace: workspace);
       final document = store.writeDocument(
@@ -112,7 +114,7 @@ void main() {
     );
     expect(store.listStoryRounds('novel'), originals.reversed.toList());
     expect(
-      store.loadRun('novel', 'run-0')!.inputHistory!.skip(1).toList(),
+      store.loadRun('novel', 'run-0')!.request.inputHistory!.skip(1).toList(),
       originals.first.beforeWorkspace.history,
     );
     store.withdrawStoryRound('novel', originals.last.id);

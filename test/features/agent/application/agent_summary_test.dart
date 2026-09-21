@@ -66,13 +66,13 @@ void main() {
       return agentReply(text: '普通讨论');
     });
     final run = await runtime(client).run('讨论');
-    final actualInput = run.inputHistory;
+    final actualInput = run.request.inputHistory;
     store.saveContextBatch(
       'novel',
       batch.copyWith(status: AgentContextBatchStatus.restored),
     );
     expect(agentInputText(preview()), contains('round_id="floor-1"'));
-    expect(store.loadRun('novel', run.id)!.inputHistory, actualInput);
+    expect(store.loadRun('novel', run.id)!.request.inputHistory, actualInput);
     expect(store.readStoryState('novel').revision, 60);
   });
 

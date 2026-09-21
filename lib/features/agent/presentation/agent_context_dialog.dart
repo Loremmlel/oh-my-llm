@@ -26,7 +26,7 @@ class _ContextDialog extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final controller = ref.read(agentWorkspaceProvider.notifier);
     String text;
-    final tools = record?.tools ?? agentMainTools;
+    final tools = record?.request.tools ?? agentMainTools;
     try {
       final input = record == null
           ? controller.previewInput()
@@ -46,9 +46,9 @@ class _ContextDialog extends ConsumerWidget {
             children: [
               if (record != null)
                 Text(
-                  record!.modelLabel.isEmpty
+                  record!.request.modelLabel.isEmpty
                       ? '旧记录未保存模型名称'
-                      : record!.modelLabel,
+                      : record!.request.modelLabel,
                 ),
               Text('可读内容 ${text.length} 字符 · ${utf8.encode(text).length} 字节'),
               const Text('显示实际输入的可读部分；不展示协议签名等私有字段。字符数不是 Token 用量。'),

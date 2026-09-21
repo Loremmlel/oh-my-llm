@@ -57,16 +57,16 @@ Map<String, dynamic> encodeAgentRun(AgentRunRecord value) => {
   'parentId': value.parentId,
   'rootRunId': value.rootRunId,
   'summaryBatch': value.summaryBatch?.toJson(),
-  'historyEnd': value.historyEnd,
-  if (value.beforeWorkspace != null)
-    'beforeWorkspace': encodeAgentWorkspace(value.beforeWorkspace!),
-  'modelId': value.modelId,
-  'modelLabel': value.modelLabel,
-  'usageIncomplete': value.usageIncomplete,
+  'historyEnd': value.recovery.historyEnd,
+  if (value.recovery.beforeWorkspace != null)
+    'beforeWorkspace': encodeAgentWorkspace(value.recovery.beforeWorkspace!),
+  'modelId': value.request.modelId,
+  'modelLabel': value.request.modelLabel,
+  'usageIncomplete': value.usage.incomplete,
   'childHistory': value.childHistory.map(_encodeInput).toList(),
-  'inputHistory': value.inputHistory?.map(_encodeInput).toList(),
+  'inputHistory': value.request.inputHistory?.map(_encodeInput).toList(),
   'tools': [
-    for (final t in value.tools)
+    for (final t in value.request.tools)
       {
         'name': t.name,
         'description': t.description,
@@ -79,8 +79,8 @@ Map<String, dynamic> encodeAgentRun(AgentRunRecord value) => {
   'startedAt': value.startedAt.toIso8601String(),
   'content': value.content,
   'error': value.error,
-  'modelCalls': value.modelCalls,
-  'usage': value.usage?.toJson(),
+  'modelCalls': value.usage.modelCalls,
+  'usage': value.usage.tokens?.toJson(),
   'steps': [
     for (final step in value.steps)
       {
@@ -101,41 +101,49 @@ AgentRunRecord decodeAgentRun(Map<String, dynamic> json) {
     workspaceId: json['workspaceId'] as String,
     parentId: json['parentId'] as String?,
     rootRunId: json['rootRunId'] as String?,
-    historyEnd: json['historyEnd'] as int?,
-    beforeWorkspace: json['beforeWorkspace'] == null
-        ? null
-        : decodeAgentWorkspace(json['beforeWorkspace'] as Map<String, dynamic>),
+    recovery: AgentRunRecovery(
+      historyEnd: json['historyEnd'] as int?,
+      beforeWorkspace: json['beforeWorkspace'] == null
+          ? null
+          : decodeAgentWorkspace(
+              json['beforeWorkspace'] as Map<String, dynamic>,
+            ),
+    ),
     summaryBatch: json['summaryBatch'] == null
         ? null
         : AgentContextBatch.fromJson(
             Map<String, dynamic>.from(json['summaryBatch'] as Map),
           ),
-    modelId: json['modelId'] as String?,
-    modelLabel: json['modelLabel'] as String? ?? '',
-    usageIncomplete: json['usageIncomplete'] as bool? ?? false,
     childHistory: [
       for (final v in json['childHistory'] as List? ?? [])
         _decodeInput(Map<String, dynamic>.from(v as Map)),
     ],
-    inputHistory: (json['inputHistory'] as List?)
-        ?.map((v) => _decodeInput(Map<String, dynamic>.from(v as Map)))
-        .toList(),
-    tools: [
-      for (final v in json['tools'] as List? ?? [])
-        LlmToolDefinition(
-          name: v['name'] as String,
-          description: v['description'] as String,
-          parameters: Map<String, Object?>.from(v['parameters'] as Map),
-        ),
-    ],
+    request: AgentRunRequestSnapshot(
+      modelId: json['modelId'] as String?,
+      modelLabel: json['modelLabel'] as String? ?? '',
+      inputHistory: (json['inputHistory'] as List?)
+          ?.map((v) => _decodeInput(Map<String, dynamic>.from(v as Map)))
+          .toList(),
+      tools: [
+        for (final v in json['tools'] as List? ?? [])
+          LlmToolDefinition(
+            name: v['name'] as String,
+            description: v['description'] as String,
+            parameters: Map<String, Object?>.from(v['parameters'] as Map),
+          ),
+      ],
+    ),
     role: AgentRole.values.byName(json['role'] as String),
     status: AgentRunStatus.values.byName(json['status'] as String),
     prompt: json['prompt'] as String,
     startedAt: DateTime.parse(json['startedAt'] as String),
     content: json['content'] as String,
     error: json['error'] as String,
-    modelCalls: json['modelCalls'] as int,
-    usage: LlmUsage.fromJson(json['usage']),
+    usage: AgentRunUsage(
+      modelCalls: json['modelCalls'] as int,
+      tokens: LlmUsage.fromJson(json['usage']),
+      incomplete: json['usageIncomplete'] as bool? ?? false,
+    ),
     steps: [
       for (final step in json['steps'] as List)
         AgentStep(

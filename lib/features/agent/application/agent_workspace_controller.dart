@@ -242,11 +242,11 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
     final count = step.inputItemCount;
     if (count == null) return null;
     // 列表不展开历史链；仅检查具体调用的输入时读取持久化快照。
-    if (record.inputHistory == null && record.childHistory.isEmpty) {
+    if (record.request.inputHistory == null && record.childHistory.isEmpty) {
       record = _store.loadRun(record.workspaceId, record.id) ?? record;
     }
     final history =
-        record.inputHistory ??
+        record.request.inputHistory ??
         (record.parentId != null || record.role == AgentRole.summarizer
             ? record.childHistory
             : (state.workspace?.id == record.workspaceId
@@ -502,7 +502,10 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
       throw const AgentWorkspaceException('请选择有效的新增正文楼数。');
     }
     final selected = committed.take(covered + count).map((r) => r.id).toList();
-    final end = _store.loadRun(state.workspace!.id, selected.last)?.historyEnd;
+    final end = _store
+        .loadRun(state.workspace!.id, selected.last)
+        ?.recovery
+        .historyEnd;
     if (end == null) throw const AgentWorkspaceException('正文缺少完整任务边界，无法压缩。');
     return AgentContextBatch(
       id: generateEntityId(),

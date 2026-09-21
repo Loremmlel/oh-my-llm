@@ -83,7 +83,7 @@ void main() {
     final result = await runtime(client).retryStory(pending);
     expect(result.status, AgentRunStatus.completed, reason: result.error);
     expect(client.requests.length, previousCalls + 1);
-    expect(result.inputHistory, failed.inputHistory);
+    expect(result.request.inputHistory, failed.request.inputHistory);
     expect(store.latestStoryRound('novel')!.writerRunId, pending.writerRunId);
     expect(store.loadRun('novel', pending.writerRunId!)!.content, '绑定的最终正文');
     expect(store.loadWorkspace('novel')!.draft, '下一轮草稿');
@@ -344,7 +344,7 @@ void main() {
     expect(store.latestStoryRound('novel'), isNull);
     for (final record in store.listRuns('novel')) {
       expect(record.status, isNot(AgentRunStatus.running));
-      final history = record.inputHistory ?? record.childHistory;
+      final history = record.request.inputHistory ?? record.childHistory;
       expect(closePendingAgentTools(history), history);
     }
   });

@@ -105,10 +105,10 @@ void main() {
     expect(store.readDocument('n', '作者秘密')!.content, '王室密令');
     expect(store.readDocument('n', '稿'), isNull);
     final child = store.listRuns('n').singleWhere((r) => r.parentId != null);
-    expect(child.modelLabel, '角色专用模型');
+    expect(child.request.modelLabel, '角色专用模型');
     final inputCount = child.steps.first.inputItemCount!;
     expect(child.childHistory.take(inputCount), client.requests[1].input);
-    expect(child.tools, client.requests[1].tools);
+    expect(child.request.tools, client.requests[1].tools);
     expect(
       agentInputText(child.childHistory),
       isNot(contains(childTarget.apiKey)),

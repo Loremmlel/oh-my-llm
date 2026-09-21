@@ -227,8 +227,8 @@ void main() {
       greaterThanOrEqualTo(65536),
     );
     expect(store.listDocuments(workspace.id), hasLength(1));
-    expect(result.usage?.inputTokens, 250);
-    expect(result.usage?.outputTokens, 30);
+    expect(result.usage.tokens?.inputTokens, 250);
+    expect(result.usage.tokens?.outputTokens, 30);
     expect(
       client.requests.last.input.take(client.requests.first.input.length),
       client.requests.first.input,

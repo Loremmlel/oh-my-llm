@@ -117,16 +117,16 @@ void main() {
       '不知道秘密',
     );
     final round = store.latestStoryRound('novel')!;
-    final input = result.inputHistory!;
+    final input = result.request.inputHistory!;
     store.withdrawStoryRound('novel', round.id);
     expect(store.loadWorkspace('novel')!.history, isEmpty);
     expect(store.loadWorkspace('novel')!.draft, '开场：甲乙来到图书馆');
     expect(store.listDocuments('novel'), isEmpty);
     expect(store.readDocument('novel', '正文'), isNull);
     final archived = store.loadRun('novel', result.id)!;
-    expect(archived.inputHistory, input);
+    expect(archived.request.inputHistory, input);
     expect(
-      archived.inputHistory!.take(
+      archived.request.inputHistory!.take(
         result.steps
             .where((s) => s.kind == AgentStepKind.model)
             .last

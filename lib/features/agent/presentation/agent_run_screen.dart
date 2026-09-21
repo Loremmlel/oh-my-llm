@@ -91,7 +91,7 @@ class AgentRunScreen extends ConsumerWidget {
                 AppSpacing.xs,
               ),
               child: Text(
-                '${current.modelLabel.isEmpty ? '旧记录未保存模型名称' : current.modelLabel} · ${agentStatusLabel(current.status)}\n${agentUsageLabel(current)}',
+                '${current.request.modelLabel.isEmpty ? '旧记录未保存模型名称' : current.request.modelLabel} · ${agentStatusLabel(current.status)}\n${agentUsageLabel(current)}',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ),

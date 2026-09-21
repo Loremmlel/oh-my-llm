@@ -66,7 +66,9 @@ void main() {
       await tester.tap(find.textContaining('read_document'));
       await settleAnimatedWidgetTransition(tester);
       expect(position.pixels, closeTo(collapsedOffset, 0.01));
-      record.value = record.value.copyWith(modelCalls: 1);
+      record.value = record.value.copyWith(
+        usage: const AgentRunUsage(modelCalls: 1),
+      );
       await tester.pump();
       await tester.pump();
       expect(position.pixels, closeTo(collapsedOffset, 0.01));
@@ -92,7 +94,8 @@ void main() {
       final readingOffset = position.pixels;
       expect(position.extentAfter, greaterThan(0));
       // 在触摸尚未结束、鼠标仅滚动很小距离时模拟下一次运行更新。
-      record.value = _runningRecord(extraLines: 10).copyWith(modelCalls: 2);
+      record.value = _runningRecord(extraLines: 10)
+          .copyWith(usage: const AgentRunUsage(modelCalls: 2));
       await tester.pump();
       await tester.pump();
       final refreshedOffset = position.pixels;

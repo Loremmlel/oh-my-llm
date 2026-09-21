@@ -32,7 +32,7 @@ void main() {
           startedAt: DateTime(2026).add(Duration(seconds: i)),
           content: '回复 $i',
           status: AgentRunStatus.completed,
-          beforeWorkspace: before,
+          recovery: AgentRunRecovery(beforeWorkspace: before),
         ),
       );
     }
