@@ -13,10 +13,15 @@ import 'preset_prompt_list_tile.dart';
 
 /// 预设 Prompt 表单提交数据。
 class PresetPromptFormData {
-  const PresetPromptFormData({required this.name, required this.messages});
+  const PresetPromptFormData({
+    required this.name,
+    required this.messages,
+    this.syntax = PresetPromptSyntax.plain,
+  });
 
   final String name;
   final List<PromptMessage> messages;
+  final PresetPromptSyntax syntax;
 }
 
 /// 新增或编辑预设 Prompt 的对话框。
@@ -40,11 +45,15 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
   late final TextEditingController _nameController;
   late final List<EditablePresetPromptItem> _items;
   String? _selectedItemId;
+  late PresetPromptSyntax _syntax;
+  final _clearInsertionOrder = <PromptMessagePlacement>{};
+  bool get _usesMacros => _syntax == PresetPromptSyntax.sillyTavernSubsetV1;
 
   @override
   void initState() {
     super.initState();
     _nameController = initController(widget.initialValue?.name ?? '');
+    _syntax = widget.initialValue?.syntax ?? PresetPromptSyntax.plain;
     _items = _buildInitialItems(widget.initialValue);
     _selectedItemId = _items.isEmpty ? null : _items.first.id;
   }
@@ -185,6 +194,45 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
         Text('预设 Prompt 条目', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 12),
         _buildNameField(),
+        const SizedBox(height: 12),
+        DropdownButtonFormField<PresetPromptSyntax>(
+          initialValue: _syntax,
+          isExpanded: true,
+          decoration: const InputDecoration(labelText: '模板语法'),
+          items: const [
+            DropdownMenuItem(
+              value: PresetPromptSyntax.plain,
+              child: Text('普通文本'),
+            ),
+            DropdownMenuItem(
+              value: PresetPromptSyntax.sillyTavernSubsetV1,
+              child: Text('SillyTavern 有限宏'),
+            ),
+          ],
+          onChanged: (value) {
+            if (value != null) {
+              setState(() {
+                _syntax = value;
+                if (!_usesMacros) {
+                  final grouped = [
+                    for (final placement in PromptMessagePlacement.values)
+                      ..._items.where((item) => item.placement == placement),
+                  ];
+                  _items
+                    ..clear()
+                    ..addAll(grouped);
+                }
+              });
+            }
+          },
+        ),
+        if (_usesMacros)
+          const Padding(
+            padding: EdgeInsets.only(top: 8),
+            child: Text(
+              '按列表顺序执行启用条目；标题仅作提示。支持 setvar / getvar / 文本 addvar、user、lastUserMessage、注释和 trim。导入注入顺序可在上下文中查看；移动条目会恢复该位置的列表顺序。',
+            ),
+          ),
         const SizedBox(height: 16),
         Wrap(
           spacing: 8,
@@ -392,19 +440,27 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
   }
 
   List<EditablePresetPromptItem> _buildInitialItems(PresetPrompt? template) {
-    return (template?.messages ?? const <PromptMessage>[])
-        .where((message) => message.placement == PromptMessagePlacement.before)
-        .followedBy(
-          (template?.messages ?? const <PromptMessage>[]).where(
-            (message) =>
-                message.placement == PromptMessagePlacement.beforeLatestInput,
-          ),
-        )
-        .followedBy(
-          (template?.messages ?? const <PromptMessage>[]).where(
-            (message) => message.placement == PromptMessagePlacement.after,
-          ),
-        )
+    final original = template?.messages ?? const <PromptMessage>[];
+    final ordered = _usesMacros
+        ? original
+        : original
+              .where(
+                (message) => message.placement == PromptMessagePlacement.before,
+              )
+              .followedBy(
+                (template?.messages ?? const <PromptMessage>[]).where(
+                  (message) =>
+                      message.placement ==
+                      PromptMessagePlacement.beforeLatestInput,
+                ),
+              )
+              .followedBy(
+                (template?.messages ?? const <PromptMessage>[]).where(
+                  (message) =>
+                      message.placement == PromptMessagePlacement.after,
+                ),
+              );
+    return ordered
         .map((message) {
           return EditablePresetPromptItem(
             id: message.id,
@@ -488,6 +544,7 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
         placement: placement,
       );
       _items.insert(insertIndex, newItem);
+      _clearInsertionOrder.add(placement);
       _selectedItemId = newItem.id;
     });
   }
@@ -515,6 +572,7 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
     if (index < 0) {
       return false;
     }
+    if (_usesMacros) return index > 0;
     final selected = _items[index];
     return switch (selected.placement!) {
       PromptMessagePlacement.before => index > 0,
@@ -529,6 +587,7 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
     if (index < 0) {
       return false;
     }
+    if (_usesMacros) return index < _items.length - 1;
     final selected = _items[index];
     return switch (selected.placement!) {
       PromptMessagePlacement.before => index < _lastBeforeIndex,
@@ -551,11 +610,12 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
 
     final current = _items[index];
     final target = _items[nextIndex];
-    if (current.placement != target.placement) {
+    if (!_usesMacros && current.placement != target.placement) {
       return;
     }
 
     setState(() {
+      _clearInsertionOrder.add(current.placement!);
       _items[index] = target;
       _items[nextIndex] = current;
       _selectedItemId = current.id;
@@ -569,6 +629,11 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
     }
 
     setState(() {
+      _clearInsertionOrder.addAll([_items[index].placement!, placement]);
+      if (_usesMacros) {
+        _items[index] = _items[index].copyWith(placement: placement);
+        return;
+      }
       final current = _items.removeAt(index).copyWith(placement: placement);
       final insertIndex = switch (placement) {
         PromptMessagePlacement.before =>
@@ -668,7 +733,7 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
     }
 
     for (final item in _items) {
-      if (item.titleController.text.trim().isEmpty) {
+      if (!_usesMacros && item.titleController.text.trim().isEmpty) {
         _selectedItemId = item.id;
         setState(() {});
         showFormSnackBar('请填写每条预设 Prompt 的标题');
@@ -685,6 +750,9 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
 
     final messages = _items
         .map((item) {
+          final original = widget.initialValue?.messages
+              .where((m) => m.id == item.id)
+              .firstOrNull;
           return PromptMessage(
             id: item.id,
             role: switch (item.role) {
@@ -692,17 +760,25 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
               PresetPromptEditorRole.user => PromptMessageRole.user,
               PresetPromptEditorRole.assistant => PromptMessageRole.assistant,
             },
-            title: item.titleController.text.trim(),
-            content: item.contentController.text.trim(),
+            title: _usesMacros
+                ? item.titleController.text
+                : item.titleController.text.trim(),
+            content: _usesMacros
+                ? item.contentController.text
+                : item.contentController.text.trim(),
             placement: item.placement ?? PromptMessagePlacement.before,
             enabled: originalEnabledById[item.id] ?? true,
+            sourceIdentifier: original?.sourceIdentifier,
+            importInsertionOrder: _clearInsertionOrder.contains(item.placement)
+                ? null
+                : original?.importInsertionOrder,
           );
         })
         .toList(growable: false);
 
     await submitAndClose(() {
       return widget.onSubmit(
-        PresetPromptFormData(name: name, messages: messages),
+        PresetPromptFormData(name: name, messages: messages, syntax: _syntax),
       );
     });
   }

@@ -190,7 +190,7 @@ void main() {
         coordinator.prepareJson(
           jsonEncode({
             'identifier': SettingsTransferDocument.identifier,
-            'formatVersion': SettingsTransferDocument.formatVersion - 1,
+            'formatVersion': SettingsTransferDocument.minimumFormatVersion - 1,
             'sections': <String, Object?>{},
           }),
         ),

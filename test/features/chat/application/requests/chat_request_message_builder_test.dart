@@ -80,21 +80,22 @@ void main() {
         ),
       ]),
       conversationMessages: [message('u1', ChatMessageRole.user, '真实问题')],
+      latestInputMessageId: 'u1',
     );
 
     expect(result.map((item) => item.content), [
       '前置用户',
       '前置助手',
-      '真实问题',
       '最新输入前系统',
       '最新输入前用户',
+      '真实问题',
       '后置助手',
     ]);
     expect(result.map((item) => item.role), [
       ChatMessageRole.user,
       ChatMessageRole.assistant,
-      ChatMessageRole.user,
       ChatMessageRole.system,
+      ChatMessageRole.user,
       ChatMessageRole.user,
       ChatMessageRole.assistant,
     ]);

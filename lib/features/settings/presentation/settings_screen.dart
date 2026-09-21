@@ -28,6 +28,7 @@ import 'widgets/settings_widgets.dart';
 import 'widgets/tabs/network_settings_tab.dart';
 import 'widgets/tabs/other_settings_tab.dart';
 import 'widgets/tabs/output_processing_tab.dart';
+import 'widgets/prompts/forms/silly_tavern_import_dialog.dart';
 
 const _tabProviders = 0;
 const _tabPresets = 1;
@@ -197,10 +198,25 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                     SettingsSectionCard(
                       title: '预设 Prompt',
                       description: '配置可在聊天页选择的预设 Prompt，支持 system、前置、最新输入前与后置上下文，并记住最近一次使用的选择。',
-                      action: FilledButton.icon(
-                        onPressed: () => _showPresetPromptDialog(context, ref),
-                        icon: const Icon(Icons.add_rounded),
-                        label: const Text('新增预设'),
+                      action: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          FilledButton.icon(
+                            onPressed: () =>
+                                _showPresetPromptDialog(context, ref),
+                            icon: const Icon(Icons.add_rounded),
+                            label: const Text('新增预设'),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: () => showDialog<void>(
+                              context: context,
+                              builder: (_) => const SillyTavernImportDialog(),
+                            ),
+                            icon: const Icon(Icons.file_download_outlined),
+                            label: const Text('导入 SillyTavern'),
+                          ),
+                        ],
                       ),
                       child: PresetPromptsList(
                         templates: presetPrompts,
@@ -555,6 +571,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                   id: initialValue?.id ?? generateEntityId(),
                   name: formData.name,
                   messages: formData.messages,
+                  syntax: formData.syntax,
                   updatedAt: DateTime.now(),
                 );
 

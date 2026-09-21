@@ -25,6 +25,8 @@ class PromptMessage extends Equatable {
     this.title = '',
     this.placement = PromptMessagePlacement.before,
     this.enabled = true,
+    this.sourceIdentifier,
+    this.importInsertionOrder,
   });
 
   final String id;
@@ -33,6 +35,8 @@ class PromptMessage extends Equatable {
   final String title;
   final PromptMessagePlacement placement;
   final bool enabled;
+  final String? sourceIdentifier;
+  final int? importInsertionOrder;
 
   /// 复制消息，并允许覆盖常用字段。
   PromptMessage copyWith({
@@ -42,6 +46,9 @@ class PromptMessage extends Equatable {
     String? title,
     PromptMessagePlacement? placement,
     bool? enabled,
+    String? sourceIdentifier,
+    int? importInsertionOrder,
+    bool clearImportInsertionOrder = false,
   }) {
     return PromptMessage(
       id: id ?? this.id,
@@ -50,6 +57,10 @@ class PromptMessage extends Equatable {
       title: title ?? this.title,
       placement: placement ?? this.placement,
       enabled: enabled ?? this.enabled,
+      sourceIdentifier: sourceIdentifier ?? this.sourceIdentifier,
+      importInsertionOrder: clearImportInsertionOrder
+          ? null
+          : importInsertionOrder ?? this.importInsertionOrder,
     );
   }
 
@@ -62,6 +73,9 @@ class PromptMessage extends Equatable {
       'content': content,
       'placement': placement.apiValue,
       'enabled': enabled,
+      if (sourceIdentifier != null) 'sourceIdentifier': sourceIdentifier,
+      if (importInsertionOrder != null)
+        'importInsertionOrder': importInsertionOrder,
     };
   }
 
@@ -73,18 +87,27 @@ class PromptMessage extends Equatable {
     return PromptMessage(
       id: json['id'] as String,
       role: PromptMessageRole.fromApiValue(json['role'] as String),
-      title: (json['title'] as String?)?.trim().isNotEmpty == true
-          ? json['title'] as String
-          : (fallbackTitle ?? ''),
+      title: json['title'] as String? ?? fallbackTitle ?? '',
       content: json['content'] as String,
       placement: PromptMessagePlacement.fromApiValue(
         (json['placement'] as String?) ??
             PromptMessagePlacement.before.apiValue,
       ),
       enabled: (json['enabled'] as bool?) ?? true,
+      sourceIdentifier: json['sourceIdentifier'] as String?,
+      importInsertionOrder: json['importInsertionOrder'] as int?,
     );
   }
 
   @override
-  List<Object> get props => [id, role, title, content, placement, enabled];
+  List<Object?> get props => [
+    id,
+    role,
+    title,
+    content,
+    placement,
+    enabled,
+    sourceIdentifier,
+    importInsertionOrder,
+  ];
 }

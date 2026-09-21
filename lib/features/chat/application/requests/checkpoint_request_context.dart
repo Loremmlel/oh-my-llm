@@ -112,55 +112,48 @@ List<ChatRequestMessage> buildCheckpointSummaryMessages({
   List<ChatCheckpoint> checkpointChain = const [],
   PresetPrompt? presetPrompt,
   RequestMessageFilter filter = RequestMessageFilter.passthrough,
+}) => prepareCheckpointSummaryContext(
+  memoryPrompt: memoryPrompt,
+  conversationMessages: conversationMessages,
+  checkpointChain: checkpointChain,
+  presetPrompt: presetPrompt,
+  filter: filter,
+).requireMessages();
+
+ChatPreparedContext prepareCheckpointSummaryContext({
+  required MemoryPrompt memoryPrompt,
+  required List<ChatMessage> conversationMessages,
+  List<ChatCheckpoint> checkpointChain = const [],
+  PresetPrompt? presetPrompt,
+  RequestMessageFilter filter = RequestMessageFilter.passthrough,
 }) {
   final requestMessages = <ChatRequestMessage>[];
-  final filteredMessages = filter.apply(conversationMessages);
 
   requestMessages.add(
     ChatRequestMessage(
       role: ChatMessageRole.system,
+      sourceLabel: '检查点总结规则',
       content: checkpointChain.isEmpty
           ? '你正在为当前对话创建根检查点。请提炼可长期复用的重要事实、约束、决定、待办和上下文。输出应简洁、结构清晰，并适合后续继续对话时直接作为记忆使用。'
           : '你正在为当前对话创建新的链式检查点。已有检查点会与本次新检查点一起在后续对话中使用。除非为了消除歧义必须重述，否则不要机械重复旧检查点，重点总结自最后一个已提供检查点之后新增或变化的重要信息。',
     ),
   );
 
-  requestMessages.addAll(buildCheckpointMemoryMessages(checkpointChain));
-
-  appendTemplateMessages(
-    buffer: requestMessages,
+  // 合成输入不属于历史过滤范围，避免排除规则误伤总结指令。
+  final summaryInput = ChatMessage(
+    id: '__checkpoint_summary_input__',
+    role: ChatMessageRole.user,
+    content: '请按照以下记忆总结提示词生成新的检查点：\n\n${memoryPrompt.content.trim()}',
+    createdAt: DateTime.fromMillisecondsSinceEpoch(0),
+  );
+  final prepared = prepareChatContext(
     presetPrompt: presetPrompt,
-    placement: PromptMessagePlacement.before,
+    conversationMessages: [...filter.apply(conversationMessages), summaryInput],
+    latestInputMessageId: summaryInput.id,
+    checkpointChain: checkpointChain,
   );
-
-  requestMessages.addAll(
-    filteredMessages.map((message) {
-      return ChatRequestMessage(
-        role: message.role,
-        content: message.content,
-        images: message.images,
-      );
-    }),
+  return ChatPreparedContext(
+    prepared.hasErrors ? const [] : [...requestMessages, ...prepared.messages],
+    prepared.preset,
   );
-
-  appendTemplateMessages(
-    buffer: requestMessages,
-    presetPrompt: presetPrompt,
-    placement: PromptMessagePlacement.beforeLatestInput,
-  );
-
-  requestMessages.add(
-    ChatRequestMessage(
-      role: ChatMessageRole.user,
-      content: '请按照以下记忆总结提示词生成新的检查点：\n\n${memoryPrompt.content.trim()}',
-    ),
-  );
-
-  appendTemplateMessages(
-    buffer: requestMessages,
-    presetPrompt: presetPrompt,
-    placement: PromptMessagePlacement.after,
-  );
-
-  return List.unmodifiable(requestMessages);
 }
