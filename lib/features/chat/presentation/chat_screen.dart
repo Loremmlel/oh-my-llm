@@ -7,6 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oh_my_llm/app/navigation/app_destination.dart';
 import 'package:oh_my_llm/app/shell/app_shell_scaffold.dart';
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
+import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
+import 'package:oh_my_llm/core/widgets/app_adaptive_actions.dart';
 import 'package:oh_my_llm/core/providers/notification_bubble_provider.dart';
 import 'package:oh_my_llm/core/widgets/notification_bubble/notification_bubble_data.dart';
 import 'package:oh_my_llm/features/settings/application/prompts/preset_prompts_controller.dart';
@@ -18,6 +20,9 @@ import 'package:oh_my_llm/features/settings/domain/models/prompts/template_promp
 import 'package:oh_my_llm/features/settings/domain/template_prompt_language/template_prompt_evaluator.dart';
 
 import '../application/composer/chat_composer_command.dart';
+import '../application/composer/templated_user_message_builder.dart';
+import '../application/requests/chat_context_preview.dart';
+import 'chat_context_dialog.dart';
 import '../application/ports/chat_image_store.dart';
 import '../application/ports/chat_image_source.dart';
 import '../application/requests/chat_image_input_policy.dart';
@@ -448,7 +453,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         activeConversationId: activeConversationId,
         isBusy: isBusy,
       ),
-      actions: _buildActions(
+      adaptiveActions: _buildActions(
         isBusy: isBusy,
         selectedModel: selectedModel,
         selectedPresetPrompt: selectedPresetPrompt,
@@ -497,22 +502,29 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
-  /// 构建 AppBar 操作按钮区：新建对话、检查点、重命名。
-  List<Widget> _buildActions({
+  /// 窄屏把页面动作收进菜单，侧栏按钮仍由 shell 独占。
+  AppAdaptiveActions _buildActions({
     required bool isBusy,
     required LlmModelConfig? selectedModel,
     required PresetPrompt? selectedPresetPrompt,
     required bool supportsReasoning,
     required ChatConversation conversation,
   }) {
-    return [
-      IconButton(
-        onPressed: isBusy ? null : _createConversationAndScroll,
-        tooltip: '新建对话',
-        icon: const Icon(Icons.add_comment_outlined),
+    final actions = <({String label, IconData icon, VoidCallback? run})>[
+      (
+        label: '新建对话',
+        icon: Icons.add_comment_outlined,
+        run: isBusy ? null : _createConversationAndScroll,
       ),
-      IconButton(
-        onPressed: isBusy
+      (
+        label: '查看当前上下文',
+        icon: Icons.data_object_rounded,
+        run: _showCurrentContext,
+      ),
+      (
+        label: '对话检查点',
+        icon: Icons.memory_rounded,
+        run: isBusy
             ? null
             : () => _showCheckpointsDialog(
                 context,
@@ -520,17 +532,132 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 selectedPresetPrompt: selectedPresetPrompt,
                 supportsReasoning: supportsReasoning,
               ),
-        tooltip: '对话检查点',
-        icon: const Icon(Icons.memory_rounded),
       ),
-      IconButton(
-        onPressed: isBusy
+      (
+        label: '修改对话标题',
+        icon: Icons.edit_outlined,
+        run: isBusy
             ? null
             : () => _showRenameDialog(context, conversation.resolvedTitle),
-        tooltip: '修改对话标题',
-        icon: const Icon(Icons.edit_outlined),
       ),
     ];
+    Widget menu(Iterable<int> indices) => PopupMenuButton<int>(
+      tooltip: '更多对话操作',
+      icon: const Icon(Icons.more_vert),
+      onSelected: (index) => actions[index].run?.call(),
+      itemBuilder: (_) => [
+        for (final index in indices)
+          PopupMenuItem(
+            value: index,
+            enabled: actions[index].run != null,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(actions[index].icon),
+                const SizedBox(width: AppSpacing.md),
+                Text(actions[index].label),
+              ],
+            ),
+          ),
+      ],
+    );
+    return AppAdaptiveActions(
+      compactActions: [
+        menu([0, 1, 2, 3]),
+      ],
+      wideActions: [
+        for (final action in actions.take(3))
+          IconButton(
+            onPressed: action.run,
+            tooltip: action.label,
+            icon: Icon(action.icon),
+          ),
+        menu([3]),
+      ],
+    );
+  }
+
+  Future<void> _showCurrentContext() async {
+    final sessions = ref.read(chatSessionsProvider);
+    final controller = ref.read(chatSessionsProvider.notifier);
+    final conversation = sessions.activeConversation;
+    final preset = controller.resolvePresetPrompt(conversation);
+    ChatContextDialog view;
+    if (ref.read(isChatBusyProvider)) {
+      final request = controller.currentRequest;
+      view = ChatContextDialog(
+        conversationTitle: conversation.resolvedTitle,
+        presetName: request?.presetName ?? preset?.name ?? '',
+        status: request == null ? '本次请求 · 准备中（重新打开可刷新）' : '本次请求 · 已准备',
+        messages: request?.messages ?? const [],
+        diagnostics: request?.contextDiagnostics ?? const [],
+      );
+    } else {
+      try {
+        if (_isImportingImages) throw StateError('图片仍在处理中，请完成后再查看');
+        final draft = _currentImageDraft();
+        final template = resolveSelectedTemplatePrompt(
+          ref.read(templatePromptsProvider),
+          draft.selectedTemplatePromptId,
+        );
+        final built = buildTemplatedUserMessage(
+          body: draft.body,
+          templatePrompt: template,
+          compilation: template == null
+              ? null
+              : ref.read(templatePromptCompilationProvider(template)),
+          variableValues: _resolveTemplatePromptValues(template, draft),
+        );
+        if (built is! TemplatedUserMessageBuildSuccess) {
+          throw StateError('输入模板或变量尚未填写完整');
+        }
+        final preview = previewChatContext(
+          conversation: conversation,
+          presetPrompt: preset,
+          body: built.message.content,
+          images: draft.images,
+          editingMessageId: _editingMessageId,
+        );
+        final hasInput =
+            built.message.content.trim().isNotEmpty || draft.images.isNotEmpty;
+        final model = controller.resolveModelConfig(conversation);
+        final imagesBlocked = isChatImageInputBlocked(
+          supportsImageInput: model?.supportsImageInput ?? false,
+          conversation: conversation,
+          draftImages: draft.images,
+          editingMessageId: _editingMessageId,
+        );
+        view = ChatContextDialog(
+          conversationTitle: conversation.resolvedTitle,
+          presetName: preset?.name ?? '',
+          status: preview.hasErrors
+              ? '无法完成预览'
+              : _editingMessageId != null
+              ? '请求预览 · 编辑后的输入'
+              : hasInput
+              ? '请求预览 · 包含未发送草稿'
+              : '上下文预览 · 未加入新输入',
+          messages: preview.messages,
+          diagnostics: preview.preset.diagnostics,
+          note: !hasInput
+              ? '未加入新输入，“最新输入前”条目暂放在有效历史末尾。lastUserMessage 仅引用其中最后一条用户正文，没有则为空。'
+              : null,
+          error: preview.hasErrors
+              ? preview.errorText
+              : imagesBlocked
+              ? unsupportedChatImageInputMessage
+              : null,
+        );
+      } catch (error) {
+        view = ChatContextDialog(
+          conversationTitle: conversation.resolvedTitle,
+          presetName: preset?.name ?? '',
+          status: '无法完成预览',
+          error: '$error',
+        );
+      }
+    }
+    await showDialog<void>(context: context, builder: (_) => view);
   }
 
   Widget _buildBody({
