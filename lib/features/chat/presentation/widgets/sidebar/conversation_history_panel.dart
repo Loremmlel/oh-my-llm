@@ -44,29 +44,35 @@ class ConversationHistoryPanel extends StatelessWidget {
                       final theme = Theme.of(context);
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 8),
-                        child: ListTile(
+                        // 背景与墨水在行内绘制，才会随条目一起受到列表视口裁剪。
+                        child: Material(
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),
                           ),
-                          tileColor: conversation.id == activeConversationId
+                          clipBehavior: Clip.antiAlias,
+                          color: conversation.id == activeConversationId
                               ? theme.colorScheme.primaryContainer
                               : theme.colorScheme.surfaceContainerLow,
-                          title: Tooltip(
-                            message: conversation.resolvedTitle,
-                            child: Text(
-                              conversation.resolvedTitle,
-                              maxLines: conversation.hasCustomTitle ? 2 : 1,
-                              overflow: TextOverflow.ellipsis,
+                          child: ListTile(
+                            selected: conversation.id == activeConversationId,
+                            title: Tooltip(
+                              message: conversation.resolvedTitle,
+                              child: Text(
+                                conversation.resolvedTitle,
+                                maxLines: conversation.hasCustomTitle ? 2 : 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
+                            subtitle: conversation.hasCustomTitle
+                                ? null
+                                : Text(
+                                    conversation.previewText,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                            onTap: () =>
+                                onConversationSelected(conversation.id),
                           ),
-                          subtitle: conversation.hasCustomTitle
-                              ? null
-                              : Text(
-                                  conversation.previewText,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                          onTap: () => onConversationSelected(conversation.id),
                         ),
                       );
                     },
