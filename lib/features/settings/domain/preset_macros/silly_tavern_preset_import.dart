@@ -117,10 +117,7 @@ class SillyTavernPresetFile {
         if (item['enabled'] != null && item['enabled'] is! bool) {
           throw FormatException('$id 的 enabled 必须为布尔值');
         }
-        entries.add((
-          identifier: id,
-          enabled: item['enabled'] as bool? ?? true,
-        ));
+        entries.add((identifier: id, enabled: item['enabled'] == true));
       }
       if (entries.isNotEmpty) {
         orders.add((

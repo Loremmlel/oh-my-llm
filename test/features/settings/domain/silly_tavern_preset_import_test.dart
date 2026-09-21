@@ -158,6 +158,19 @@ void main() {
     expect(resolved.messages.map((m) => m.content), ['odd', 'slot']);
   });
 
+  test('顺序表缺失启用字段时保持关闭，与宿主仅接受显式 true 一致', () {
+    final source = SillyTavernPresetFile.parse(
+      file(
+        [prompt('a'), prompt('chatHistory', marker: true, content: '')],
+        [
+          {'identifier': 'a'},
+          entry('chatHistory'),
+        ],
+      ),
+    );
+    expect(source.plan(0).messages.single.enabled, isFalse);
+  });
+
   for (final input in [
     '{}',
     file([prompt('a'), prompt('a')], [entry('a')]),
