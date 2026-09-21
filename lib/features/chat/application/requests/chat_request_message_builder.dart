@@ -11,6 +11,7 @@ export 'request_message_filter.dart';
 List<ChatRequestMessage> buildRequestMessages({
   required PresetPrompt? presetPrompt,
   required List<ChatMessage> conversationMessages,
+  String? latestInputMessageId,
   List<ChatCheckpoint> checkpointChain = const [],
   RequestMessageFilter filter = RequestMessageFilter.passthrough,
 }) {
@@ -27,21 +28,31 @@ List<ChatRequestMessage> buildRequestMessages({
     placement: PromptMessagePlacement.before,
   );
 
-  requestMessages.addAll(
-    filteredMessages.map((message) {
-      return ChatRequestMessage(
-        role: message.role,
-        content: message.content,
-        images: message.images,
-      );
-    }),
+  final latestIndex = filteredMessages.indexWhere(
+    (message) =>
+        message.id == latestInputMessageId &&
+        message.role == ChatMessageRole.user,
   );
+  void appendHistory(Iterable<ChatMessage> messages) {
+    requestMessages.addAll(
+      messages.map(
+        (message) => ChatRequestMessage(
+          role: message.role,
+          content: message.content,
+          images: message.images,
+        ),
+      ),
+    );
+  }
 
+  final historyEnd = latestIndex < 0 ? filteredMessages.length : latestIndex;
+  appendHistory(filteredMessages.take(historyEnd));
   appendTemplateMessages(
     buffer: requestMessages,
     presetPrompt: presetPrompt,
     placement: PromptMessagePlacement.beforeLatestInput,
   );
+  appendHistory(filteredMessages.skip(historyEnd));
 
   appendTemplateMessages(
     buffer: requestMessages,

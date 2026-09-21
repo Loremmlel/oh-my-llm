@@ -766,6 +766,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       messages: buildRequestMessages(
         presetPrompt: command.presetPrompt,
         conversationMessages: command.requestContext.tailMessages,
+        latestInputMessageId: command.parentMessageId,
         checkpointChain: command.requestContext.checkpointChain,
         filter: ExcludeByIdMessageFilter(
           command.conversation.excludedMessageIds.toSet(),
