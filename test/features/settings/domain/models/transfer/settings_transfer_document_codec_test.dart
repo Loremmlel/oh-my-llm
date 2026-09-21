@@ -21,6 +21,21 @@ Map<String, Object?> _documentObject({
 }
 
 void main() {
+  test('v9 文档读取后再次导出升级为当前格式且保留原 section', () {
+    final source = _documentObject(
+      formatVersion: 9,
+      sections: {'presetPrompts': []},
+    );
+    final result = SettingsTransferDocumentCodec.decodeObject(
+      source,
+    ) as SettingsTransferDocumentDecodeSuccess;
+    expect(
+      result.document.toJson()['formatVersion'],
+      SettingsTransferDocument.formatVersion,
+    );
+    expect(result.document.sections, source['sections']);
+  });
+
   test('非空有序 sections map 经 JSON round-trip 后顺序与内容保持不变', () {
     final document = SettingsTransferDocument(
       sections: <String, Object?>{
@@ -58,7 +73,7 @@ void main() {
     });
   });
 
-  test('空 sections 是结构合法的 v9 document', () {
+  test('空 sections 是结构合法的当前版本文档', () {
     final result = SettingsTransferDocumentCodec.decodeObject(
       _documentObject(),
     );
@@ -86,8 +101,11 @@ void main() {
     expect(document.sections.keys, ['futureParticipant42']);
   });
 
-  test('v8 和 v10 返回带原始版本号的 UnsupportedVersion', () {
-    for (final version in [8, 10]) {
+  test('超出支持范围的版本返回原始版本号', () {
+    for (final version in [
+      SettingsTransferDocument.minimumFormatVersion - 1,
+      SettingsTransferDocument.formatVersion + 1,
+    ]) {
       final result = SettingsTransferDocumentCodec.decodeObject(
         _documentObject(formatVersion: version),
       );

@@ -561,23 +561,26 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       clearEmptyReply: true,
     );
     try {
-      final result = await chatClient.complete(
-        ChatGenerationRequest(
-          target: _targetFromModelConfig(modelConfig),
-          messages: buildCheckpointSummaryMessages(
-            memoryPrompt: memoryPrompt,
-            conversationMessages: summaryMessages,
-            checkpointChain: sourceContext.checkpointChain,
-            presetPrompt: presetPrompt,
-            filter: ExcludeByIdMessageFilter(
-              currentConversation.excludedMessageIds.toSet(),
-            ),
-          ),
-          reasoningEffort: reasoningEnabled && modelConfig.supportsReasoning
-              ? reasoningEffort
-              : null,
+      final prepared = prepareCheckpointSummaryContext(
+        memoryPrompt: memoryPrompt,
+        conversationMessages: summaryMessages,
+        checkpointChain: sourceContext.checkpointChain,
+        presetPrompt: presetPrompt,
+        filter: ExcludeByIdMessageFilter(
+          currentConversation.excludedMessageIds.toSet(),
         ),
       );
+      final request = ChatGenerationRequest(
+        target: _targetFromModelConfig(modelConfig),
+        messages: prepared.requireMessages(),
+        contextDiagnostics: prepared.preset.diagnostics,
+        presetName: presetPrompt?.name ?? '',
+        reasoningEffort: reasoningEnabled && modelConfig.supportsReasoning
+            ? reasoningEffort
+            : null,
+      );
+      _checkpointRequest = request;
+      final result = await chatClient.complete(request);
       final checkpointContent = result.content.trim();
       if (checkpointContent.isEmpty) {
         throw const ChatGenerationException('模型没有返回可用的检查点内容。');
@@ -614,6 +617,8 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     } catch (_) {
       state = state.copyWith(isCheckpointing: false);
       rethrow;
+    } finally {
+      _checkpointRequest = null;
     }
   }
 
@@ -673,6 +678,17 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     required ReasoningEffort reasoningEffort,
     Duration? retryDelay,
   }) async {
+    final checked = prepareChatContext(
+      presetPrompt: presetPrompt,
+      conversationMessages: requestContext.tailMessages,
+      latestInputMessageId: parentMessageId,
+      checkpointChain: requestContext.checkpointChain,
+      filter: ExcludeByIdMessageFilter(conversation.excludedMessageIds.toSet()),
+    );
+    if (checked.hasErrors) {
+      setErrorMessage(checked.errorText);
+      return;
+    }
     final retryPolicy = ChatRetryPolicy.fromSnapshot(
       conversationAutoRetryEnabled: conversation.autoRetryEnabled,
       settings: ref.read(autoRetrySettingsProvider),
@@ -709,6 +725,10 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
   }
 
   // ── ChatGenerationHost ───────────────────────────────────────────────────
+
+  ChatGenerationRequest? _checkpointRequest;
+  ChatGenerationRequest? get currentRequest =>
+      _coordinator.currentRequest ?? _checkpointRequest;
 
   @override
   Future<ChatPrepareResult> prepare(ChatGenerationCommand command) async {
@@ -761,17 +781,20 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     if (pendingError != null) {
       return ChatPrepareFailure(pendingError);
     }
+    final preparedContext = prepareChatContext(
+      presetPrompt: command.presetPrompt,
+      conversationMessages: command.requestContext.tailMessages,
+      latestInputMessageId: command.parentMessageId,
+      checkpointChain: command.requestContext.checkpointChain,
+      filter: ExcludeByIdMessageFilter(
+        command.conversation.excludedMessageIds.toSet(),
+      ),
+    );
     final request = ChatGenerationRequest(
       target: _targetFromModelConfig(command.modelConfig),
-      messages: buildRequestMessages(
-        presetPrompt: command.presetPrompt,
-        conversationMessages: command.requestContext.tailMessages,
-        latestInputMessageId: command.parentMessageId,
-        checkpointChain: command.requestContext.checkpointChain,
-        filter: ExcludeByIdMessageFilter(
-          command.conversation.excludedMessageIds.toSet(),
-        ),
-      ),
+      messages: preparedContext.requireMessages(),
+      contextDiagnostics: preparedContext.preset.diagnostics,
+      presetName: command.presetPrompt?.name ?? '',
       reasoningEffort:
           command.reasoningEnabled && command.modelConfig.supportsReasoning
           ? command.reasoningEffort
@@ -1173,13 +1196,6 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         selectedChildByParentId: nextTree.selections,
         updatedAt: DateTime.now(),
       );
-      state = state.copyWith(
-        conversations: replaceConversation(baseConversation),
-        clearErrorMessage: true,
-        clearEmptyReply: true,
-      );
-      saveConversation(baseConversation);
-
       final checkpointContext = resolveCheckpointContext(
         conversation: baseConversation,
         conversationMessages: requestMessages,
@@ -1203,13 +1219,6 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       selectedChildByParentId: nextSelections,
       updatedAt: DateTime.now(),
     );
-    state = state.copyWith(
-      conversations: replaceConversation(baseConversation),
-      clearErrorMessage: true,
-      clearEmptyReply: true,
-    );
-    saveConversation(baseConversation);
-
     final checkpointContext = resolveCheckpointContext(
       conversation: baseConversation,
       conversationMessages: requestMessages,

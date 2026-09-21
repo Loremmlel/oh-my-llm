@@ -29,7 +29,7 @@ import 'package:oh_my_llm/features/settings/domain/models/prompts/template_promp
 import 'package:oh_my_llm/features/settings/domain/models/providers/llm_provider_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_transfer_document.dart';
 
-const expectedFormatVersion = 9;
+const expectedFormatVersion = 10;
 
 const expectedSectionKeys = <String>[
   'modelProviders',
@@ -66,6 +66,7 @@ const expectedCanonicalSections = <String, Object?>{
     <String, Object?>{
       'id': 'snapshot-preset',
       'name': '快照预设',
+      'syntax': 'plain',
       'messages': <Object?>[
         <String, Object?>{
           'id': 'snapshot-message',
@@ -208,7 +209,7 @@ void main() {
     );
   });
 
-  test('生产 v9 canonical sections 与显式 secret-safe snapshot 一致', () async {
+  test('生产 v10 canonical sections 与显式 secret-safe snapshot 一致', () async {
     final (:coordinator, :container) = await _newContainer();
     await _seedFixtures(container);
     final batch = coordinator.exportGroups(
@@ -299,6 +300,45 @@ void main() {
     ]);
   });
 
+  test('宏预设交换保留语法、开关与注入排序，不与普通文本去重', () async {
+    final (:coordinator, :container) = await _newContainer();
+    final plain = _presetFixture();
+    await container.read(presetPromptsProvider.notifier).upsert(plain);
+    final incoming = plain.copyWith(
+      id: 'incoming',
+      syntax: PresetPromptSyntax.sillyTavernSubsetV1,
+      messages: [
+        plain.messages.single.copyWith(
+          sourceIdentifier: 'source',
+          importInsertionOrder: 2,
+          enabled: false,
+        ),
+      ],
+    );
+    final ready = coordinator.prepareDocument(
+      SettingsTransferDocument(
+        sections: {
+          'presetPrompts': [incoming.toJson()],
+        },
+      ),
+    ) as SettingsImportReady;
+    await ready.batch.execute(confirmedSensitive: false);
+    final saved = container
+        .read(presetPromptsProvider)
+        .singleWhere((p) => p.syntax == incoming.syntax);
+    expect(saved.messages, incoming.messages);
+    expect(
+      coordinator.prepareDocument(
+        SettingsTransferDocument(
+          sections: {
+            'presetPrompts': [saved.toJson()],
+          },
+        ),
+      ),
+      isA<SettingsImportNoChanges>(),
+    );
+  });
+
   test('四类提示词按内容等价规则去重', () async {
     final (:coordinator, :container) = await _newContainer();
     final now = DateTime.utc(2026, 8, 19);
@@ -323,10 +363,7 @@ void main() {
                   name: '另一个名字',
                   updatedAt: now.add(const Duration(days: 1)),
                   messages: [
-                    preset.messages.single.copyWith(
-                      id: 'incoming-message',
-                      enabled: false,
-                    ),
+                    preset.messages.single.copyWith(id: 'incoming-message'),
                   ],
                 )
                 .toJson(),

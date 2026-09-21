@@ -6,6 +6,7 @@ import 'package:oh_my_llm/features/agent/data/sqlite_agent_store.dart';
 import 'package:oh_my_llm/features/settings/application/providers/llm_model_configs_controller.dart';
 
 import 'package:oh_my_llm/features/settings/application/prompts/preset_prompts_controller.dart';
+import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
 
 import 'llm_bindings.dart';
 
@@ -13,13 +14,14 @@ List<dynamic> createAgentBindings() => [
   agentPresetsProvider.overrideWith(
     (ref) => [
       for (final preset in ref.watch(presetPromptsProvider))
-        (
-          name: preset.name,
-          content: preset.messages
-              .where((m) => m.enabled && m.content.trim().isNotEmpty)
-              .map((m) => m.content)
-              .join('\n\n'),
-        ),
+        if (preset.syntax == PresetPromptSyntax.plain)
+          (
+            name: preset.name,
+            content: preset.messages
+                .where((m) => m.enabled && m.content.trim().isNotEmpty)
+                .map((m) => m.content)
+                .join('\n\n'),
+          ),
     ],
   ),
   agentClientProvider.overrideWith((ref) => ref.watch(llmClientProvider)),

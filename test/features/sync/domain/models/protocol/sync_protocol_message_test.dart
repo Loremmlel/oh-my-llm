@@ -134,7 +134,7 @@ void main() {
       }
     });
 
-    test('v4 响应携带结构化 v9 document，不包含 snapshot.data 或二次 JSON', () {
+    test('v4 响应携带当前结构化 document，不包含 snapshot.data 或二次 JSON', () {
       final payload = SettingsSyncResponsePayload(
         _document(sections: {'providerValue': 'incoming'}),
       );
@@ -166,7 +166,7 @@ void main() {
         },
         {
           'identifier': SettingsTransferDocument.identifier,
-          'formatVersion': SettingsTransferDocument.formatVersion - 1,
+          'formatVersion': SettingsTransferDocument.minimumFormatVersion - 1,
           'sections': <String, Object?>{},
         },
         {

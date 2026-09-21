@@ -58,7 +58,8 @@ final class SettingsTransferDocumentCodec {
 
     final version = source['formatVersion'];
     if (version is! int) return const SettingsTransferDocumentMalformed();
-    if (version != SettingsTransferDocument.formatVersion) {
+    if (version < SettingsTransferDocument.minimumFormatVersion ||
+        version > SettingsTransferDocument.formatVersion) {
       return SettingsTransferDocumentUnsupportedVersion(version);
     }
 

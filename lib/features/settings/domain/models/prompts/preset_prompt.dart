@@ -14,6 +14,17 @@ export 'prompt_message_role.dart';
 
 const defaultSystemPromptTitle = 'system';
 
+enum PresetPromptSyntax {
+  plain,
+  sillyTavernSubsetV1;
+
+  static PresetPromptSyntax fromJson(Object? value) => switch (value) {
+    null || 'plain' => plain,
+    'sillyTavernSubsetV1' => sillyTavernSubsetV1,
+    _ => throw FormatException('不支持的预设语法版本：$value'),
+  };
+}
+
 /// 可复用的 Prompt 模板，使用统一消息列表表示 system / user / assistant 条目。
 class PresetPrompt extends Equatable with HasIdAndUpdatedAt {
   const PresetPrompt({
@@ -21,12 +32,14 @@ class PresetPrompt extends Equatable with HasIdAndUpdatedAt {
     required this.name,
     required this.messages,
     required this.updatedAt,
+    this.syntax = PresetPromptSyntax.plain,
   });
 
   @override
   final String id;
   final String name;
   final List<PromptMessage> messages;
+  final PresetPromptSyntax syntax;
   @override
   final DateTime updatedAt;
 
@@ -42,12 +55,14 @@ class PresetPrompt extends Equatable with HasIdAndUpdatedAt {
     String? name,
     List<PromptMessage>? messages,
     DateTime? updatedAt,
+    PresetPromptSyntax? syntax,
   }) {
     return PresetPrompt(
       id: id ?? this.id,
       name: name ?? this.name,
       messages: messages ?? this.messages,
       updatedAt: updatedAt ?? this.updatedAt,
+      syntax: syntax ?? this.syntax,
     );
   }
 
@@ -56,6 +71,7 @@ class PresetPrompt extends Equatable with HasIdAndUpdatedAt {
     return {
       'id': id,
       'name': name,
+      'syntax': syntax.name,
       'messages': messages.map((message) => message.toJson()).toList(),
       'updatedAt': updatedAt.toIso8601String(),
     };
@@ -69,6 +85,7 @@ class PresetPrompt extends Equatable with HasIdAndUpdatedAt {
     return PresetPrompt(
       id: json['id'] as String,
       name: json['name'] as String,
+      syntax: PresetPromptSyntax.fromJson(json['syntax']),
       messages: messages,
       updatedAt: DateTime.parse(json['updatedAt'] as String),
     );
@@ -87,7 +104,7 @@ class PresetPrompt extends Equatable with HasIdAndUpdatedAt {
   String toString() => jsonEncode(toJson());
 
   @override
-  List<Object> get props => [id, name, messages, updatedAt];
+  List<Object> get props => [id, name, messages, updatedAt, syntax];
 }
 
 List<PromptMessage> _deserializePromptMessages(List<dynamic> rawMessages) {

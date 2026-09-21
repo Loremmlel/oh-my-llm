@@ -57,6 +57,8 @@ class ChatGenerationCoordinator {
 
   /// 当前是否有未 terminal 的 run。
   bool get hasActive => _currentRun != null && !_currentRun!.isTerminal;
+  ChatGenerationRequest? get currentRequest =>
+      hasActive ? _currentRun?.preparedRequest : null;
 
   /// controller dispose 时调用：cancel 订阅/定时器，complete(null)。
   void dispose() {
