@@ -202,6 +202,7 @@ bool _sameProviders(
 }
 
 bool _samePresetPrompt(PresetPrompt existing, PresetPrompt incoming) {
+  if (existing.singleSystemPrompt != incoming.singleSystemPrompt) return false;
   if (existing.messages.length != incoming.messages.length) return false;
   for (var index = 0; index < existing.messages.length; index += 1) {
     final left = existing.messages[index];

@@ -8,9 +8,9 @@ import '../../domain/models/prompts/preset_prompt.dart';
 
 final presetPromptRepository = SqliteEntityRepository<PresetPrompt>(
   tableName: 'preset_prompts',
-  selectColumns: 'id, name, messages_json, updated_at',
-  insertColumns: 'id, name, messages_json, updated_at',
-  insertPlaceholders: '?, ?, ?, ?',
+  selectColumns: 'id, name, messages_json, single_system_prompt, updated_at',
+  insertColumns: 'id, name, messages_json, single_system_prompt, updated_at',
+  insertPlaceholders: '?, ?, ?, ?, ?',
   rowToEntity: (row) {
     final rawMessages = jsonDecode(row['messages_json'] as String) as List;
     final messages = rawMessages
@@ -24,6 +24,7 @@ final presetPromptRepository = SqliteEntityRepository<PresetPrompt>(
       id: row['id'] as String,
       name: row['name'] as String,
       messages: messages,
+      singleSystemPrompt: (row['single_system_prompt'] as int) != 0,
       updatedAt: DateTime.parse(row['updated_at'] as String),
     );
   },
@@ -31,6 +32,7 @@ final presetPromptRepository = SqliteEntityRepository<PresetPrompt>(
     t.id,
     t.name,
     jsonEncode(t.messages.map((m) => m.toJson()).toList()),
+    t.singleSystemPrompt ? 1 : 0,
     t.updatedAt.toIso8601String(),
   ],
 );

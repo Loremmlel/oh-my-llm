@@ -91,11 +91,17 @@ void main() {
       container.read(activeChatConversationProvider).selectedPresetPromptId,
       'writing',
     );
-    await tester.tap(find.byType(Switch).first);
+    await tester.tap(find.byType(Switch).at(1));
     await tester.pump();
     expect(
       container.read(presetPromptsProvider).single.messages.first.enabled,
       isFalse,
+    );
+    await tester.tap(find.text('单 System Prompt'));
+    await tester.pump();
+    expect(
+      container.read(presetPromptsProvider).single.singleSystemPrompt,
+      isTrue,
     );
     expect(find.byTooltip('关闭侧栏'), findsOneWidget);
     final target = find.text('写作规则条目 20');

@@ -555,6 +555,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                   id: initialValue?.id ?? generateEntityId(),
                   name: formData.name,
                   messages: formData.messages,
+                  singleSystemPrompt: initialValue?.singleSystemPrompt ?? false,
                   updatedAt: DateTime.now(),
                 );
 

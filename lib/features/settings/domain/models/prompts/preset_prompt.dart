@@ -21,12 +21,14 @@ class PresetPrompt extends Equatable with HasIdAndUpdatedAt {
     required this.name,
     required this.messages,
     required this.updatedAt,
+    this.singleSystemPrompt = false,
   });
 
   @override
   final String id;
   final String name;
   final List<PromptMessage> messages;
+  final bool singleSystemPrompt;
   @override
   final DateTime updatedAt;
 
@@ -41,12 +43,14 @@ class PresetPrompt extends Equatable with HasIdAndUpdatedAt {
     String? id,
     String? name,
     List<PromptMessage>? messages,
+    bool? singleSystemPrompt,
     DateTime? updatedAt,
   }) {
     return PresetPrompt(
       id: id ?? this.id,
       name: name ?? this.name,
       messages: messages ?? this.messages,
+      singleSystemPrompt: singleSystemPrompt ?? this.singleSystemPrompt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
@@ -57,6 +61,7 @@ class PresetPrompt extends Equatable with HasIdAndUpdatedAt {
       'id': id,
       'name': name,
       'messages': messages.map((message) => message.toJson()).toList(),
+      'singleSystemPrompt': singleSystemPrompt,
       'updatedAt': updatedAt.toIso8601String(),
     };
   }
@@ -70,6 +75,7 @@ class PresetPrompt extends Equatable with HasIdAndUpdatedAt {
       id: json['id'] as String,
       name: json['name'] as String,
       messages: messages,
+      singleSystemPrompt: json['singleSystemPrompt'] as bool? ?? false,
       updatedAt: DateTime.parse(json['updatedAt'] as String),
     );
   }
@@ -87,7 +93,7 @@ class PresetPrompt extends Equatable with HasIdAndUpdatedAt {
   String toString() => jsonEncode(toJson());
 
   @override
-  List<Object> get props => [id, name, messages, updatedAt];
+  List<Object> get props => [id, name, messages, singleSystemPrompt, updatedAt];
 }
 
 List<PromptMessage> _deserializePromptMessages(List<dynamic> rawMessages) {

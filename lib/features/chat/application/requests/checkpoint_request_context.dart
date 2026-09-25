@@ -162,5 +162,9 @@ List<ChatRequestMessage> buildCheckpointSummaryMessages({
     placement: PromptMessagePlacement.after,
   );
 
-  return List.unmodifiable(requestMessages);
+  return List.unmodifiable(
+    presetPrompt?.singleSystemPrompt == true
+        ? ChatRequestMessage.singleSystemPrompt(requestMessages)
+        : requestMessages,
+  );
 }
