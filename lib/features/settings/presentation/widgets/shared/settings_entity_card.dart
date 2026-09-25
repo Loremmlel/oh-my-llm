@@ -8,11 +8,15 @@ class SettingsEntityCard extends StatelessWidget {
     required this.title,
     required this.body,
     required this.actions,
+    this.trailing,
     super.key,
   });
 
   /// 卡片标题。
   final String title;
+
+  /// 与标题同行的紧凑操作。
+  final Widget? trailing;
 
   /// 标题和操作按钮之间的内容区域，每个 widget 需自带间距。
   final List<Widget> body;
@@ -34,7 +38,25 @@ class SettingsEntityCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: theme.textTheme.titleMedium),
+            if (trailing case final trailing?)
+              Row(
+                children: [
+                  Expanded(
+                    child: Tooltip(
+                      message: title,
+                      child: Text(
+                        title,
+                        style: theme.textTheme.titleMedium,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                  trailing,
+                ],
+              )
+            else
+              Text(title, style: theme.textTheme.titleMedium),
             ...body,
             const SizedBox(height: 12),
             Wrap(spacing: 8, runSpacing: 8, children: actions),

@@ -71,6 +71,15 @@ class PresetPromptPanel extends ConsumerWidget {
             },
           ),
         ),
+        if (selectedPreset != null)
+          SwitchListTile.adaptive(
+            title: const Text('单 System Prompt'),
+            subtitle: const Text('连续的前置 System 合为一条；其余 System 按 User 发送'),
+            value: selectedPreset.singleSystemPrompt,
+            onChanged: (enabled) => ref
+                .read(presetPromptsProvider.notifier)
+                .setSingleSystemPrompt(selectedPreset.id, enabled),
+          ),
         const Divider(height: 1),
         // ── 消息列表 / 空状态 ──────────────
         Expanded(child: _buildMessageList(theme, selectedPreset)),

@@ -47,13 +47,16 @@ void main() {
     updatedAt: DateTime(2026),
   );
 
-  PresetPrompt buildPresetPrompt({List<PromptMessage> messages = const []}) =>
-      PresetPrompt(
-        id: 'tpl-1',
-        name: '测试模板',
-        messages: messages,
-        updatedAt: DateTime(2026),
-      );
+  PresetPrompt buildPresetPrompt({
+    List<PromptMessage> messages = const [],
+    bool singleSystemPrompt = false,
+  }) => PresetPrompt(
+    id: 'tpl-1',
+    name: '测试模板',
+    messages: messages,
+    singleSystemPrompt: singleSystemPrompt,
+    updatedAt: DateTime(2026),
+  );
 
   PromptMessage buildPromptMessage({
     required PromptMessageRole role,
@@ -268,6 +271,34 @@ void main() {
   // ── buildCheckpointSummaryMessages ─────────────────────────────────────────
 
   group('buildCheckpointSummaryMessages', () {
+    test('单 System 模式的总结请求合并开头 System 并转换后置 System', () {
+      final result = buildCheckpointSummaryMessages(
+        memoryPrompt: buildMemoryPrompt(),
+        checkpointChain: [buildCheckpoint()],
+        conversationMessages: [buildMessage(content: '原始对话')],
+        presetPrompt: buildPresetPrompt(
+          singleSystemPrompt: true,
+          messages: [
+            buildPromptMessage(role: PromptMessageRole.system, content: '前置规则'),
+            buildPromptMessage(
+              role: PromptMessageRole.system,
+              content: '后置规则',
+              placement: PromptMessagePlacement.after,
+            ),
+          ],
+        ),
+      );
+
+      expect(
+        result.where((item) => item.role == ChatMessageRole.system),
+        hasLength(1),
+      );
+      expect(result.first.content, contains('检查点'));
+      expect(result.first.content, endsWith('\n前置规则'));
+      expect(result.last.role, ChatMessageRole.user);
+      expect(result.last.content, '后置规则');
+    });
+
     test('空 chain（根检查点）使用根检查点中文 system prompt', () {
       final memoryPrompt = buildMemoryPrompt();
       final conversationMessages = [buildMessage(id: 'm1', content: '对话消息')];

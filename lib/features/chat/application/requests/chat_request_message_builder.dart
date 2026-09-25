@@ -49,7 +49,11 @@ List<ChatRequestMessage> buildRequestMessages({
     placement: PromptMessagePlacement.after,
   );
 
-  return List.unmodifiable(requestMessages);
+  return List.unmodifiable(
+    presetPrompt?.singleSystemPrompt == true
+        ? ChatRequestMessage.singleSystemPrompt(requestMessages)
+        : requestMessages,
+  );
 }
 
 /// 构建检查点记忆系统消息，可被多处请求构建函数复用。

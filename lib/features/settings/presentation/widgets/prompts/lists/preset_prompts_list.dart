@@ -65,6 +65,33 @@ class _PresetPromptTile extends ConsumerWidget {
 
     return SettingsEntityCard(
       title: template.name,
+      trailing: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 180),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Flexible(
+              child: Text(
+                '单 System Prompt',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Semantics(
+              label: '单 System Prompt',
+              child: Tooltip(
+                message: '连续的前置 System 合为一条；其余 System 按 User 发送',
+                child: Switch.adaptive(
+                  value: template.singleSystemPrompt,
+                  onChanged: (enabled) => ref
+                      .read(presetPromptsProvider.notifier)
+                      .setSingleSystemPrompt(template.id, enabled),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
       body: [
         const SizedBox(height: 8),
         Text(template.summary),

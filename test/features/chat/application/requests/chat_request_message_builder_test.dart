@@ -28,10 +28,14 @@ void main() {
     enabled: enabled,
   );
 
-  PresetPrompt template(List<PromptMessage> messages) => PresetPrompt(
+  PresetPrompt template(
+    List<PromptMessage> messages, {
+    bool singleSystemPrompt = false,
+  }) => PresetPrompt(
     id: 'template',
     name: '测试模板',
     messages: messages,
+    singleSystemPrompt: singleSystemPrompt,
     updatedAt: DateTime(2026),
   );
 
@@ -160,5 +164,70 @@ void main() {
     ]);
     expect(result.first.content, contains('检查点 1'));
     expect(result.map((item) => item.content).skip(1), ['模板前置', '新的问题']);
+  });
+
+  test('单 System 模式合并检查点和连续前置条目，后续 System 转 User', () {
+    final result = buildRequestMessages(
+      presetPrompt: template([
+        promptMessage('leading-1', PromptMessageRole.system, '规则一'),
+        promptMessage('disabled', PromptMessageRole.user, '禁用', enabled: false),
+        promptMessage('leading-2', PromptMessageRole.system, '规则二'),
+        promptMessage('break', PromptMessageRole.user, '前置问题'),
+        promptMessage('late', PromptMessageRole.system, '后续规则'),
+        promptMessage(
+          'before-latest',
+          PromptMessageRole.system,
+          '输入前规则',
+          placement: PromptMessagePlacement.beforeLatestInput,
+        ),
+        promptMessage(
+          'after',
+          PromptMessageRole.system,
+          '后置规则',
+          placement: PromptMessagePlacement.after,
+        ),
+      ], singleSystemPrompt: true),
+      checkpointChain: [
+        ChatCheckpoint(
+          id: 'checkpoint',
+          title: '检查点',
+          content: '记忆',
+          createdAt: DateTime(2026),
+        ),
+      ],
+      conversationMessages: [message('u1', ChatMessageRole.user, '真实问题')],
+    );
+
+    expect(result.map((item) => item.role), [
+      ChatMessageRole.system,
+      ChatMessageRole.user,
+      ChatMessageRole.user,
+      ChatMessageRole.user,
+      ChatMessageRole.user,
+      ChatMessageRole.user,
+    ]);
+    expect(result.first.content, contains('检查点'));
+    expect(result.first.content, endsWith('\n规则一\n规则二'));
+    expect(result.map((item) => item.content).skip(1), [
+      '前置问题',
+      '后续规则',
+      '真实问题',
+      '输入前规则',
+      '后置规则',
+    ]);
+  });
+
+  test('单 System 模式没有开头 System 时将后续 System 转为 User', () {
+    final result = buildRequestMessages(
+      presetPrompt: template([
+        promptMessage('user', PromptMessageRole.user, '前置用户'),
+        promptMessage('system', PromptMessageRole.system, '中间系统'),
+      ], singleSystemPrompt: true),
+      conversationMessages: const [],
+    );
+    expect(result.map((item) => item.role), [
+      ChatMessageRole.user,
+      ChatMessageRole.user,
+    ]);
   });
 }

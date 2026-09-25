@@ -73,10 +73,11 @@ void main() {
 
   tearDown(() => database.close());
 
-  test('PresetPrompt round-trip', () async {
+  test('预设在 SQLite 和 JSON 往返，旧 JSON 默认关闭单 System 模式', () async {
     final original = PresetPrompt(
       id: 'full',
       name: '全字段',
+      singleSystemPrompt: true,
       messages: const [
         PromptMessage(
           id: 'msg-sys',
@@ -111,6 +112,10 @@ void main() {
 
     await presetPromptRepository.saveAll(database, [original]);
     expect(presetPromptRepository.loadAll(database).single, original);
+    expect(PresetPrompt.fromJson(original.toJson()), original);
+    final legacyJson = Map<String, dynamic>.from(original.toJson())
+      ..remove('singleSystemPrompt');
+    expect(PresetPrompt.fromJson(legacyJson).singleSystemPrompt, isFalse);
   });
 
   test('FixedPromptSequence round-trip', () async {

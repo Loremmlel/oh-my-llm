@@ -207,6 +207,31 @@ class ChatRequestMessage {
 
   final List<ChatImageAttachment> images;
 
+  /// 与 Messages 协议一致：合并开头连续的 System，后续 System 改为 User。
+  static List<ChatRequestMessage> singleSystemPrompt(
+    List<ChatRequestMessage> messages,
+  ) {
+    final leading = messages
+        .takeWhile((message) => message.role == ChatMessageRole.system)
+        .toList();
+    return [
+      if (leading.isNotEmpty)
+        ChatRequestMessage(
+          role: ChatMessageRole.system,
+          content: leading.map((message) => message.content).join('\n'),
+          images: [for (final message in leading) ...message.images],
+        ),
+      for (final message in messages.skip(leading.length))
+        message.role == ChatMessageRole.system
+            ? ChatRequestMessage(
+                role: ChatMessageRole.user,
+                content: message.content,
+                images: message.images,
+              )
+            : message,
+    ];
+  }
+
   /// 诊断用协议中立快照；图片仅包含引用，实际内容块由协议层编码。
   Map<String, dynamic> toJson() {
     return {
