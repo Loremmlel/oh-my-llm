@@ -17,11 +17,11 @@ typedef ChatCompletionsParseResult = ({LlmEvent? chunk, bool isDone});
 ///
 /// 规则：
 /// - `choices[0].delta.content`（String）原样进入 contentDelta。
-/// - `choices[0].delta.reasoning_content` 原样进入 reasoningDelta。
+/// - `choices[0].delta.reasoning_content` 优先进入 reasoningDelta；兼容仅返回
+///   `delta.reasoning` 的服务。服务统一使用前者后可移除别名，解析器测试保护此边界。
 /// - `choices[0].finish_reason` 原样透传，不归一化。
 /// - `[DONE]` 表示正常流结束；`choices[0].message` 作为 `delta` 的兼容 envelope。
-/// - 不再接收 `reasoning` 作为 `reasoning_content` 别名；`delta.content` 为
-///   List 等非 String 形状时按无内容处理，不提取文本。
+/// - `delta.content` 为 List 等非 String 形状时按无内容处理，不提取文本。
 /// - SSE 内 `error`（String 或 Map.message）抛 [LlmException]。
 ///
 /// 每次请求创建一个 parser 实例，参数缓冲不跨请求复用。
@@ -193,15 +193,13 @@ class ChatCompletionsParser {
     final delta = Map<String, dynamic>.from(envelope);
 
     final content = delta['content'];
-    final reasoningBuffer = StringBuffer();
-    final explicitReasoning = delta['reasoning_content'];
-    if (explicitReasoning is String) {
-      reasoningBuffer.write(explicitReasoning);
-    }
+    final explicitReasoning = delta['reasoning_content'] is String
+        ? delta['reasoning_content']
+        : delta['reasoning'];
 
     return LlmEvent(
       contentDelta: content is String ? content : '',
-      reasoningDelta: reasoningBuffer.toString(),
+      reasoningDelta: explicitReasoning is String ? explicitReasoning : '',
       finishReason: finishReason,
     );
   }
