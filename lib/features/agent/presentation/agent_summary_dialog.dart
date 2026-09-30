@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/dialogs/app_dialog_actions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 import 'package:oh_my_llm/core/widgets/dialogs/app_confirm_dialog.dart';
@@ -65,7 +66,7 @@ class _SummaryManagerState extends ConsumerState<_SummaryManager> {
       }
     }
 
-    return AlertDialog(
+    final dialog = AlertDialog(
       title: const Text('总结管理'),
       content: SizedBox(
         width: AppContentWidths.readable,
@@ -213,6 +214,7 @@ class _SummaryManagerState extends ConsumerState<_SummaryManager> {
         ),
       ],
     );
+    return AppDialogActions(child: dialog);
   }
 }
 
@@ -251,10 +253,21 @@ class _SummaryEditorState extends ConsumerState<_SummaryEditor> {
     }
   }
 
+  void _save() {
+    if (ref.read(agentWorkspaceProvider).busy) return;
+    ref
+        .read(agentWorkspaceProvider.notifier)
+        .saveContextBatch(widget.batch.copyWith(summary: _text.text));
+    if (ref.read(agentWorkspaceProvider).error.isEmpty) {
+      setState(() => _allowClose = true);
+      Navigator.of(context).pop();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(agentWorkspaceProvider);
-    return PopScope<void>(
+    final dialog = PopScope<void>(
       canPop: _allowClose,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _close();
@@ -290,23 +303,16 @@ class _SummaryEditorState extends ConsumerState<_SummaryEditor> {
         actions: [
           TextButton(onPressed: _close, child: const Text('取消')),
           FilledButton(
-            onPressed: state.busy
-                ? null
-                : () {
-                    ref
-                        .read(agentWorkspaceProvider.notifier)
-                        .saveContextBatch(
-                          widget.batch.copyWith(summary: _text.text),
-                        );
-                    if (ref.read(agentWorkspaceProvider).error.isEmpty) {
-                      setState(() => _allowClose = true);
-                      Navigator.of(context).pop();
-                    }
-                  },
+            onPressed: state.busy ? null : _save,
             child: const Text('保存'),
           ),
         ],
       ),
+    );
+    return AppDialogActions(
+      onCancel: _close,
+      onSubmit: state.busy ? null : _save,
+      child: dialog,
     );
   }
 }

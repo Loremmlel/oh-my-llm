@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -150,12 +151,57 @@ void registerSyncScreenImportDialogTests() {
       await tester.tap(find.text('打开对话框'));
       await settleOverlayTransition(tester);
 
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      expect(prepared.requestedSensitiveConfirmation, isNull);
       await tester.tap(find.byType(Checkbox));
       await tester.pump();
-      await tester.tap(find.text('导入'));
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
       await tester.pump();
       await settleAnimatedWidgetTransition(tester);
       expect(prepared.requestedSensitiveConfirmation, isTrue);
+      expect(find.text('确认同步配置'), findsNothing);
+    });
+
+    testWidgets('短屏同步导入摘要可触摸滚动且取消始终可达', (tester) async {
+      final prepared = ScriptedSettingsSyncPreparedImport(
+        summaries: const [
+          SettingsSyncSummaryItem(label: 'LLM 服务商', trailingText: '新增 1 项'),
+          SettingsSyncSummaryItem(label: '模板提示词', trailingText: '新增 1 项'),
+          SettingsSyncSummaryItem(label: '预设提示词', trailingText: '新增 1 项'),
+          SettingsSyncSummaryItem(label: '记忆总结提示词', trailingText: '新增 1 项'),
+          SettingsSyncSummaryItem(label: '固定顺序提示词', trailingText: '新增 1 项'),
+          SettingsSyncSummaryItem(label: '输出正则处理', trailingText: '新增 1 项'),
+        ],
+        containsSensitive: true,
+      );
+      await pumpTestApp(
+        tester,
+        preferences: preferences,
+        viewportSize: const Size(390, 480),
+        child: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => showDialog<void>(
+              context: context,
+              barrierDismissible: false,
+              builder: (_) => SyncImportConfirmDialog(preparedImport: prepared),
+            ),
+            child: const Text('打开导入'),
+          ),
+        ),
+      );
+      await tester.tap(find.text('打开导入'));
+      await settleOverlayTransition(tester);
+      expect(tester.takeException(), isNull);
+      await tester.drag(find.text('包含敏感凭据'), const Offset(0, -250));
+      await settleScrollMotion(tester);
+      expect(find.text('输出正则处理').hitTestable(), findsOneWidget);
+      expect(find.text('取消').hitTestable(), findsOneWidget);
+      await tester.tap(find.text('取消'));
+      await settleOverlayTransition(tester);
       expect(find.text('确认同步配置'), findsNothing);
     });
   });

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'app_dialog_actions.dart';
+
 /// 重命名会话标题的对话框。
 ///
 /// 供聊天页和历史页共用，避免代码重复。
@@ -43,29 +45,32 @@ class _RenameConversationDialogState extends State<RenameConversationDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(widget.title),
-      content: TextField(
-        controller: _titleController,
-        decoration: InputDecoration(labelText: widget.labelText),
-        autofocus: true,
+    return AppDialogActions(
+      onSubmit: _submit,
+      child: AlertDialog(
+        title: Text(widget.title),
+        content: TextField(
+          controller: _titleController,
+          decoration: InputDecoration(labelText: widget.labelText),
+          autofocus: true,
+          textInputAction: TextInputAction.done,
+          onSubmitted: (_) => _submit(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('取消'),
+          ),
+          FilledButton(onPressed: _submit, child: const Text('保存')),
+        ],
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('取消'),
-        ),
-        FilledButton(
-          onPressed: () {
-            final nextTitle = _titleController.text.trim();
-            if (nextTitle.isEmpty) {
-              return;
-            }
-            Navigator.of(context).pop(nextTitle);
-          },
-          child: const Text('保存'),
-        ),
-      ],
     );
+  }
+
+  void _submit() {
+    final value = _titleController.value;
+    if (value.composing.isValid && !value.composing.isCollapsed) return;
+    final nextTitle = value.text.trim();
+    if (nextTitle.isNotEmpty) Navigator.of(context).pop(nextTitle);
   }
 }

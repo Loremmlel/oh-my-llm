@@ -68,7 +68,7 @@ void main() {
     await tester.enterText(find.widgetWithText(TextField, '摘要'), '窗口内的摘要');
     await tester.pump();
     expect(tester.takeException(), isNull);
-    await tester.tap(find.text('取消'));
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await settleOverlayTransition(tester);
     expect(find.text('放弃未保存的修改？'), findsOneWidget);
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);

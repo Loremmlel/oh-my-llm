@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:oh_my_llm/core/widgets/transfer_summary_list.dart';
+import 'package:oh_my_llm/core/widgets/dialogs/app_dialog_actions.dart';
 
 import '../../../application/transfer/settings_transfer_coordinator.dart';
 import '../../../application/transfer/settings_transfer_types.dart';
@@ -35,9 +36,16 @@ class _ImportConfirmDialogState extends State<ImportConfirmDialog> {
   Widget build(BuildContext context) {
     // 导入期间阻止 system Back 与 barrier tap 关闭对话框；执行完成或失败后
     // 恢复可关闭状态，避免异步写入失去结果落点。
-    return PopScope<void>(
+    final dialog = PopScope<void>(
       canPop: !_isImporting,
       child: _buildAlertDialog(context),
+    );
+    return AppDialogActions(
+      onSubmit:
+          _isImporting || (_batch.containsSensitive && !_sensitiveAcknowledged)
+          ? null
+          : _handleImport,
+      child: dialog,
     );
   }
 
@@ -137,6 +145,9 @@ class _ImportConfirmDialogState extends State<ImportConfirmDialog> {
   }
 
   Future<void> _handleImport() async {
+    if (_isImporting || (_batch.containsSensitive && !_sensitiveAcknowledged)) {
+      return;
+    }
     setState(() {
       _isImporting = true;
       _statusMessage = null;

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 import 'package:oh_my_llm/core/widgets/dialogs/app_confirm_dialog.dart';
+import 'package:oh_my_llm/core/widgets/dialogs/app_dialog_actions.dart';
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import 'package:oh_my_llm/core/widgets/app_field_group.dart';
 
@@ -101,6 +102,17 @@ class _ConfigurationDialogState extends ConsumerState<_ConfigurationDialog> {
     return saved;
   }
 
+  void _apply() {
+    if (ref.read(agentWorkspaceProvider).busy) return;
+    final saved = _save();
+    if (saved == null) return;
+    ref.read(agentWorkspaceProvider.notifier).applyConfiguration(saved);
+    if (ref.read(agentWorkspaceProvider).error.isEmpty) {
+      setState(() => _allowClose = true);
+      Navigator.pop(context);
+    }
+  }
+
   @override
   void dispose() {
     _name.dispose();
@@ -191,7 +203,7 @@ class _ConfigurationDialogState extends ConsumerState<_ConfigurationDialog> {
         ),
       ],
     );
-    return PopScope<void>(
+    final dialog = PopScope<void>(
       canPop: _allowClose,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _close();
@@ -412,21 +424,16 @@ class _ConfigurationDialogState extends ConsumerState<_ConfigurationDialog> {
             child: const Text('保存方案'),
           ),
           FilledButton(
-            onPressed: state.busy
-                ? null
-                : () {
-                    final saved = _save();
-                    if (saved == null) return;
-                    controller.applyConfiguration(saved);
-                    if (ref.read(agentWorkspaceProvider).error.isEmpty) {
-                      setState(() => _allowClose = true);
-                      Navigator.pop(context);
-                    }
-                  },
+            onPressed: state.busy ? null : _apply,
             child: Text('应用配置'),
           ),
         ],
       ),
+    );
+    return AppDialogActions(
+      onCancel: _close,
+      onSubmit: state.busy ? null : _apply,
+      child: dialog,
     );
   }
 }

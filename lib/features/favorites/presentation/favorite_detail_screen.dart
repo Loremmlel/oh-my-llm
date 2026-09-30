@@ -6,6 +6,7 @@ import 'package:oh_my_llm/app/navigation/app_destination.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 import 'package:oh_my_llm/core/widgets/app_empty_state.dart';
 import 'package:oh_my_llm/core/widgets/dialogs/app_confirm_dialog.dart';
+import 'package:oh_my_llm/core/widgets/dialogs/app_dialog_actions.dart';
 
 import '../application/collections_controller.dart';
 import '../application/favorite_source_conversation_command.dart';
@@ -157,30 +158,40 @@ class _FavoriteDetailScreenState extends ConsumerState<FavoriteDetailScreen> {
     try {
       result = await showDialog<String>(
         context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('重命名收藏'),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            decoration: const InputDecoration(
-              labelText: '自定义标题',
-              hintText: '留空则使用消息摘要',
-              border: OutlineInputBorder(),
-              isDense: true,
+        builder: (context) {
+          void submit() {
+            if (!controller.value.isComposingRangeValid ||
+                controller.value.composing.isCollapsed) {
+              Navigator.of(context).pop(controller.text);
+            }
+          }
+
+          return AppDialogActions(
+            onSubmit: submit,
+            child: AlertDialog(
+              title: const Text('重命名收藏'),
+              content: TextField(
+                controller: controller,
+                autofocus: true,
+                textInputAction: TextInputAction.done,
+                decoration: const InputDecoration(
+                  labelText: '自定义标题',
+                  hintText: '留空则使用消息摘要',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                onSubmitted: (_) => submit(),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('取消'),
+                ),
+                FilledButton(onPressed: submit, child: const Text('确认')),
+              ],
             ),
-            onSubmitted: (value) => Navigator.of(context).pop(value),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(controller.text),
-              child: const Text('确认'),
-            ),
-          ],
-        ),
+          );
+        },
       );
     } finally {
       controller.dispose();

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/dialogs/app_confirm_dialog.dart';
+import 'package:oh_my_llm/core/widgets/dialogs/app_dialog_actions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:oh_my_llm/core/utils/id_generator.dart';
@@ -127,25 +129,12 @@ class OutputProcessingTab extends ConsumerWidget {
     final title = rules[index].title.isEmpty ? '未命名规则' : rules[index].title;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('确认删除'),
-          content: Text('确定要删除规则「$title」吗？'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              style: FilledButton.styleFrom(
-                backgroundColor: Theme.of(dialogContext).colorScheme.error,
-              ),
-              child: const Text('删除'),
-            ),
-          ],
-        );
-      },
+      builder: (_) => AppConfirmDialog(
+        title: '确认删除',
+        message: '确定要删除规则「$title」吗？',
+        confirmLabel: '删除',
+        isDestructive: true,
+      ),
     );
 
     if (confirmed == true) {
@@ -327,50 +316,53 @@ class _RuleFormDialogState extends State<_RuleFormDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(widget.initial == null ? '新增正则规则' : '编辑正则规则'),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: _titleController,
-              decoration: const InputDecoration(
-                labelText: '标题',
-                hintText: '例如：过滤「极其」增殖',
+    return AppDialogActions(
+      onSubmit: _submit,
+      child: AlertDialog(
+        title: Text(widget.initial == null ? '新增正则规则' : '编辑正则规则'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: _titleController,
+                decoration: const InputDecoration(
+                  labelText: '标题',
+                  hintText: '例如：过滤「极其」增殖',
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _patternController,
-              decoration: InputDecoration(
-                labelText: '正则表达式',
-                hintText: r'例如：极其',
-                errorText: _patternError,
+              const SizedBox(height: 12),
+              TextField(
+                controller: _patternController,
+                decoration: InputDecoration(
+                  labelText: '正则表达式',
+                  hintText: r'例如：极其',
+                  errorText: _patternError,
+                ),
+                maxLines: 2,
+                minLines: 1,
+                onChanged: (_) {
+                  if (_patternError != null) {
+                    setState(() => _patternError = null);
+                  }
+                },
               ),
-              maxLines: 2,
-              minLines: 1,
-              onChanged: (_) {
-                if (_patternError != null) {
-                  setState(() => _patternError = null);
-                }
-              },
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _replacementController,
-              decoration: const InputDecoration(labelText: '替换字（留空表示删除匹配）'),
-            ),
-          ],
+              const SizedBox(height: 12),
+              TextField(
+                controller: _replacementController,
+                decoration: const InputDecoration(labelText: '替换字（留空表示删除匹配）'),
+              ),
+            ],
+          ),
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('取消'),
+          ),
+          FilledButton(onPressed: _submit, child: const Text('保存')),
+        ],
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('取消'),
-        ),
-        FilledButton(onPressed: _submit, child: const Text('保存')),
-      ],
     );
   }
 }
