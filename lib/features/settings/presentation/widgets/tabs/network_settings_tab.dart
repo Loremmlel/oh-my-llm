@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/dialogs/app_confirm_dialog.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../application/preferences/custom_headers_controller.dart';
@@ -76,25 +77,12 @@ class NetworkSettingsTab extends ConsumerWidget {
   ) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('确认删除'),
-          content: Text('确定要删除请求头「$key」吗？'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              style: FilledButton.styleFrom(
-                backgroundColor: Theme.of(dialogContext).colorScheme.error,
-              ),
-              child: const Text('删除'),
-            ),
-          ],
-        );
-      },
+      builder: (_) => AppConfirmDialog(
+        title: '确认删除',
+        message: '确定要删除请求头「$key」吗？',
+        confirmLabel: '删除',
+        isDestructive: true,
+      ),
     );
 
     if (confirmed == true) {

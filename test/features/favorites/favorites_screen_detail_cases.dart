@@ -180,6 +180,7 @@ void registerFavoriteDetailScreenTests() {
     await _openDetail(
       tester,
       'fav-to-move',
+      viewportSize: const Size(390, 360),
       seed: (db) {
         seedFavorite(
           db,
@@ -192,6 +193,7 @@ void registerFavoriteDetailScreenTests() {
     );
 
     await _runOverflowAction(tester, '移动到收藏夹');
+    expect(tester.takeException(), isNull);
     await tester.tap(find.text('归档夹'));
     await tester.pump();
     await tester.tap(

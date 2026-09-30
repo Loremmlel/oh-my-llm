@@ -1,6 +1,7 @@
 import 'dart:io' show InternetAddress;
 
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/dialogs/app_dialog_actions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
@@ -239,28 +240,33 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
     final code = await showDialog<String>(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text('配对此设备'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(labelText: '输入服务端本地显示的配对码'),
-          maxLength: 4,
-          textCapitalization: TextCapitalization.characters,
-          inputFormatters: [
-            FilteringTextInputFormatter.allow(RegExp('[a-zA-Z0-9]')),
+      builder: (context) => AppDialogActions(
+        onSubmit: () => Navigator.pop(context, controller.text),
+        child: AlertDialog(
+          title: const Text('配对此设备'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => Navigator.pop(context, controller.text),
+            decoration: const InputDecoration(labelText: '输入服务端本地显示的配对码'),
+            maxLength: 4,
+            textCapitalization: TextCapitalization.characters,
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp('[a-zA-Z0-9]')),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, controller.text),
+              child: const Text('配对'),
+            ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text),
-            child: const Text('配对'),
-          ),
-        ],
       ),
     );
     controller.dispose();

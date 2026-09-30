@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'app_dialog_actions.dart';
+
 /// 通用确认弹窗。
 ///
 /// 适用于标题 + 消息 + 取消/确认 模式的简单确认场景。
@@ -10,6 +12,7 @@ class AppConfirmDialog extends StatelessWidget {
     required this.message,
     this.cancelLabel = '取消',
     required this.confirmLabel,
+    this.isDestructive = false,
     super.key,
   });
 
@@ -25,22 +28,33 @@ class AppConfirmDialog extends StatelessWidget {
   /// 确认按钮文案。
   final String confirmLabel;
 
+  final bool isDestructive;
+
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(title),
-      content: Text(message),
-      actions: [
-        TextButton(
-          autofocus: true,
-          onPressed: () => Navigator.of(context).pop(false),
-          child: Text(cancelLabel),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          child: Text(confirmLabel),
-        ),
-      ],
+    return AppDialogActions(
+      onCancel: () => Navigator.of(context).maybePop(false),
+      child: AlertDialog(
+        title: Text(title),
+        content: SingleChildScrollView(child: Text(message)),
+        actions: [
+          TextButton(
+            autofocus: true,
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(cancelLabel),
+          ),
+          FilledButton(
+            style: isDestructive
+                ? FilledButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.error,
+                    foregroundColor: Theme.of(context).colorScheme.onError,
+                  )
+                : null,
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(confirmLabel),
+          ),
+        ],
+      ),
     );
   }
 }
