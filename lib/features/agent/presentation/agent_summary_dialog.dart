@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/long_text_editing_controller.dart';
 import 'package:oh_my_llm/core/widgets/dialogs/app_dialog_actions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
@@ -227,7 +228,7 @@ class _SummaryEditor extends ConsumerStatefulWidget {
 }
 
 class _SummaryEditorState extends ConsumerState<_SummaryEditor> {
-  late final _text = TextEditingController(text: widget.batch.summary);
+  late final _text = LongTextEditingController(text: widget.batch.summary);
   bool _allowClose = false;
   @override
   void dispose() {
@@ -236,7 +237,7 @@ class _SummaryEditorState extends ConsumerState<_SummaryEditor> {
   }
 
   Future<void> _close() async {
-    if (_text.text != widget.batch.summary) {
+    if (_text.hasTextChanges) {
       final discard = await showDialog<bool>(
         context: context,
         builder: (_) => const AppConfirmDialog(
@@ -257,7 +258,7 @@ class _SummaryEditorState extends ConsumerState<_SummaryEditor> {
     if (ref.read(agentWorkspaceProvider).busy) return;
     ref
         .read(agentWorkspaceProvider.notifier)
-        .saveContextBatch(widget.batch.copyWith(summary: _text.text));
+        .saveContextBatch(widget.batch.copyWith(summary: _text.textForSave()));
     if (ref.read(agentWorkspaceProvider).error.isEmpty) {
       setState(() => _allowClose = true);
       Navigator.of(context).pop();

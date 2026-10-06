@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/long_text_editing_controller.dart';
 
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import 'package:oh_my_llm/core/utils/id_generator.dart';
@@ -415,7 +416,7 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
             },
             placement: message.placement,
             titleController: TextEditingController(text: message.title),
-            contentController: TextEditingController(text: message.content),
+            contentController: LongTextEditingController(text: message.content),
           );
         })
         .toList(growable: true);
@@ -479,7 +480,7 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
           placement: placement,
         ),
       ),
-      contentController: TextEditingController(),
+      contentController: LongTextEditingController(),
     );
 
     setState(() {
@@ -693,7 +694,7 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
               PresetPromptEditorRole.assistant => PromptMessageRole.assistant,
             },
             title: item.titleController.text.trim(),
-            content: item.contentController.text.trim(),
+            content: item.contentController.textForSave(trim: true),
             placement: item.placement ?? PromptMessagePlacement.before,
             enabled: originalEnabledById[item.id] ?? true,
           );

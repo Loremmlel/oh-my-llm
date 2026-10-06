@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/long_text_editing_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 import 'package:oh_my_llm/core/widgets/dialogs/app_confirm_dialog.dart';
@@ -26,9 +27,10 @@ class _ConfigurationDialog extends ConsumerStatefulWidget {
 }
 
 class _ConfigurationDialogState extends ConsumerState<_ConfigurationDialog> {
-  final _name = TextEditingController(), _preset = TextEditingController();
+  final _name = TextEditingController();
+  final _preset = LongTextEditingController();
   final _instructions = {
-    for (final role in AgentRole.values) role: TextEditingController(),
+    for (final role in AgentRole.values) role: LongTextEditingController(),
   };
   final _roleModels = <AgentRole, String?>{};
   final _presetRoles = <AgentRole>{};
@@ -50,13 +52,13 @@ class _ConfigurationDialogState extends ConsumerState<_ConfigurationDialog> {
   void _load(AgentConfiguration configuration) {
     _saved = configuration;
     _name.text = configuration.name;
-    _preset.text = configuration.preset;
+    _preset.loadText(configuration.preset);
     _modelId = configuration.modelId;
     _presetRoles
       ..clear()
       ..addAll(configuration.presetRoles);
     for (final role in AgentRole.values) {
-      _instructions[role]!.text = configuration.settings(role).instructions;
+      _instructions[role]!.loadText(configuration.settings(role).instructions);
       _roleModels[role] = configuration.settings(role).modelId;
     }
   }
@@ -64,13 +66,13 @@ class _ConfigurationDialogState extends ConsumerState<_ConfigurationDialog> {
   AgentConfiguration get _value => AgentConfiguration(
     name: _name.text.trim(),
     modelId: _modelId,
-    preset: _preset.text,
+    preset: _preset.textForSave(),
     presetRoles: _presetRoles,
     roles: {
       for (final role in AgentRole.values)
         role: AgentRoleSettings(
           modelId: role == AgentRole.coordinator ? null : _roleModels[role],
-          instructions: _instructions[role]!.text,
+          instructions: _instructions[role]!.textForSave(),
         ),
     },
   );
