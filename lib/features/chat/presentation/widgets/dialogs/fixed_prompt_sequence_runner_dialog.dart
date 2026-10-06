@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:oh_my_llm/core/widgets/app_field_group.dart';
+import 'package:oh_my_llm/core/widgets/dialogs/app_dialog_actions.dart';
 
 import 'package:oh_my_llm/features/settings/domain/models/prompts/fixed_prompt_sequence.dart';
 
@@ -97,7 +98,7 @@ class _FixedPromptSequenceRunnerDialogState
     final currentStep = _currentStep;
     final screenHeight = MediaQuery.of(context).size.height;
 
-    return AlertDialog(
+    final dialog = AlertDialog(
       title: const Text('固定顺序提示词'),
       content: SizedBox(
         width: 680,
@@ -294,6 +295,7 @@ class _FixedPromptSequenceRunnerDialogState
         ),
       ],
     );
+    return AppDialogActions(child: dialog);
   }
 
   /// 构建步骤标题，空标题时使用 fallback。

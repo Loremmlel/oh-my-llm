@@ -166,20 +166,20 @@ Windows 11 专业版 10.0.26300；AMD Ryzen 7 5800H；系统枚举 GPU 为 NVIDI
 
 | 生产表单输入路径 | UI 中位数 | UI P95 | UI 最大值 | raster 最大值 |
 |---|---:|---:|---:|---:|
-| 普通字符 | 9.017ms | 13.232ms | 16.334ms | 1.832ms |
-| composing | 8.833ms | 9.823ms | 13.063ms | 1.948ms |
+| 普通字符 | 10.142ms | 11.721ms | 11.978ms | 2.399ms |
+| composing | 9.974ms | 14.147ms | 14.512ms | 3.555ms |
 
-P95 使用每组 20 个样本的第 19 个有序值。相比之前原始 CRLF 独立输入框约 172ms 的慢布局，生产表单接入后回到约 9ms 的量级；两个实验的字体样式与几何约束不完全相同，因此不将这两组数字作为严格同场景加速比。此次测量走框架平台输入入口，包含实际表单布局，但没有真实系统 IME／物理键盘，也不是端到端显示延迟或持续 60fps 保证。Android 真机尚未验证。
+P95 使用每组 20 个样本的第 19 个有序值。表中为合并主干弹窗修复后的复测；此前一次中位数为 9.017／8.833ms，原始记录另存 `logs/long-text-form-profile-before-dialog-merge.json`。相比之前原始 CRLF 独立输入框约 172ms 的慢布局，生产表单接入后回到约 10ms 的量级；两个实验的字体样式与几何约束不完全相同，因此不将这两组数字作为严格同场景加速比。此次测量走框架平台输入入口，包含实际表单布局，但没有真实系统 IME／物理键盘，也不是端到端显示延迟或持续 60fps 保证。Android 真机尚未验证。
 
 ### 应用回归验证
 
-- `flutter test --reporter compact`：最终代码 2001 项全部通过，90 秒，完整日志 `logs/fltest.log`。进程硬超时设为 240 秒，未触发。
+- `flutter test --reporter compact`：合并最新主干弹窗修复后，2012 项全部通过，131 秒，完整日志 `logs/fltest.log`。进程硬超时设为 240 秒，未触发。
 - `flutter test test/features/agent/presentation/agent_screen_test.dart --reporter compact`：7 项通过，含 CRLF 草稿组字回写保护；硬超时 60 秒，未触发。
 - 修改／新增的 17 个应用及测试、生产表单探针 Dart 文件通过 `dart format --output=none --set-exit-if-changed`。
 - `git diff --check`：通过。
-- `flutter analyze`：通过，无问题；研究包隔离后再次检查为 14.3 秒，日志 `logs/long-text-analyze.log`。
+- `flutter analyze`：通过，无问题；合并主干后再次检查为 16.3 秒，日志 `logs/long-text-analyze.log`。
 - 独立研究包 `run.ps1 -Stage analyze -TimeoutMs 120000`：通过，无问题，6.9 秒，日志 `logs/long-text-benchmark-analyze.log`。根应用排除该独立包，避免 CI 在未还原其单独依赖时误分析。
-- `dart run tool/check_import_boundaries.dart`：检查 438 个文件，0 条违规，日志 `logs/long-text-boundaries.log`。
+- `dart run tool/check_import_boundaries.dart`：检查 439 个文件，0 条违规，日志 `logs/long-text-boundaries.log`。
 - Windows 生产表单 profile 构建与 40 次计时通过；没有替换正在运行的 Release 安装包，没有执行 Android 真机验收。
 
 ## CRLF 高开销的引擎机制

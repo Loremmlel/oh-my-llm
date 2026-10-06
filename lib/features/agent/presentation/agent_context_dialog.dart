@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
+import 'package:oh_my_llm/core/widgets/dialogs/app_dialog_actions.dart';
 
 import '../application/agent_context.dart';
 import '../application/agent_harness.dart';
@@ -35,7 +36,7 @@ class _ContextDialog extends ConsumerWidget {
     } catch (_) {
       text = '无法读取上下文，请检查本地存储后重试。';
     }
-    return AlertDialog(
+    final dialog = AlertDialog(
       title: Text(record == null ? '下一次输入预览' : '${step!.label}的实际输入'),
       content: SizedBox(
         width: AppContentWidths.readable,
@@ -81,6 +82,10 @@ class _ContextDialog extends ConsumerWidget {
           child: const Text('关闭'),
         ),
       ],
+    );
+    return AppDialogActions(
+      onSubmit: () => Navigator.of(context).maybePop(),
+      child: dialog,
     );
   }
 }

@@ -50,6 +50,7 @@ mixin SettingsFormDialogStateMixin<T extends StatefulWidget> on State<T> {
 
   @protected
   Future<void> submitAndClose(Future<void> Function() onSubmit) async {
+    if (isSaving) return;
     setState(() {
       isSaving = true;
     });

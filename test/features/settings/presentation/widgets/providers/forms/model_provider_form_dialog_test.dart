@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -88,7 +89,9 @@ void main() {
       expect(find.text('Chat Completions'), findsOneWidget);
 
       await fillRequiredFields(tester);
-      await tester.tap(find.text('保存'));
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
       await settleOverlayTransition(tester);
 
       expect(captured, isNotNull);

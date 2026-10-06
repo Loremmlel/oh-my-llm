@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:oh_my_llm/core/constants/app_reserved_entities.dart';
+import 'package:oh_my_llm/core/widgets/dialogs/app_dialog_actions.dart';
 
 import '../../../application/favorites/chat_favorites_facade.dart';
 
@@ -54,6 +55,8 @@ class _AddToFavoritesDialogState extends State<AddToFavoritesDialog> {
   }
 
   void _createAndSelect() {
+    final composing = _newNameController.value.composing;
+    if (composing.isValid && !composing.isCollapsed) return;
     final name = _newNameController.text.trim();
     if (name.isEmpty) {
       setState(() => _errorMessage = '请输入收藏夹名称');
@@ -80,67 +83,70 @@ class _AddToFavoritesDialogState extends State<AddToFavoritesDialog> {
     });
   }
 
+  void _submit() {
+    if (_showNewCollectionField) {
+      _createAndSelect();
+    } else if (_selectedCollectionId.isNotEmpty) {
+      Navigator.of(context).pop(_selectedCollectionId);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final collections = widget.collections;
 
-    return AlertDialog(
+    final dialog = AlertDialog(
       title: const Text('收藏到'),
-      content: SizedBox(
-        width: double.maxFinite,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // "未分类"来自真实系统收藏夹行，不再渲染手写 sentinel 选项。
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 240),
-              child: ListView.builder(
-                shrinkWrap: true,
-                itemCount: collections.length,
-                itemBuilder: (context, index) {
-                  final collection = collections[index];
-                  return _CollectionTile(
-                    label: collection.name,
-                    icon: collection.isSystem
-                        ? Icons.folder_special_outlined
-                        : Icons.folder_outlined,
-                    selected: _selectedCollectionId == collection.id,
-                    onTap: () {
-                      _clearError();
-                      setState(() => _selectedCollectionId = collection.id);
-                    },
-                  );
-                },
-              ),
-            ),
-            const Divider(height: 16),
-            if (_showNewCollectionField)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: TextField(
-                  controller: _newNameController,
-                  autofocus: true,
-                  decoration: InputDecoration(
-                    labelText: '收藏夹名称',
-                    border: const OutlineInputBorder(),
-                    isDense: true,
-                    errorText: _errorMessage,
+      content: SingleChildScrollView(
+        child: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // "未分类"来自真实系统收藏夹行，不再渲染手写 sentinel 选项。
+              for (final collection in collections)
+                _CollectionTile(
+                  label: collection.name,
+                  icon: collection.isSystem
+                      ? Icons.folder_special_outlined
+                      : Icons.folder_outlined,
+                  selected: _selectedCollectionId == collection.id,
+                  onTap: () {
+                    _clearError();
+                    setState(() => _selectedCollectionId = collection.id);
+                  },
+                ),
+              const Divider(height: 16),
+              if (_showNewCollectionField)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: TextField(
+                    controller: _newNameController,
+                    autofocus: true,
+                    textInputAction: TextInputAction.done,
+                    decoration: InputDecoration(
+                      labelText: '收藏夹名称',
+                      border: const OutlineInputBorder(),
+                      isDense: true,
+                      errorText: _errorMessage,
+                    ),
+                    onSubmitted: (_) => _createAndSelect(),
                   ),
-                  onSubmitted: (_) => _createAndSelect(),
+                )
+              else
+                TextButton.icon(
+                  onPressed: () =>
+                      setState(() => _showNewCollectionField = true),
+                  icon: const Icon(Icons.create_new_folder_outlined),
+                  label: const Text('新建收藏夹'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: theme.colorScheme.primary,
+                  ),
                 ),
-              )
-            else
-              TextButton.icon(
-                onPressed: () => setState(() => _showNewCollectionField = true),
-                icon: const Icon(Icons.create_new_folder_outlined),
-                label: const Text('新建收藏夹'),
-                style: TextButton.styleFrom(
-                  foregroundColor: theme.colorScheme.primary,
-                ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
       actions: [
@@ -159,6 +165,7 @@ class _AddToFavoritesDialogState extends State<AddToFavoritesDialog> {
           ),
       ],
     );
+    return AppDialogActions(onSubmit: _submit, child: dialog);
   }
 }
 

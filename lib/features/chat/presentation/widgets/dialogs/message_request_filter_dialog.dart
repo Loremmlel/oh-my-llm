@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import 'package:oh_my_llm/core/widgets/adaptive_master_detail_layout.dart';
+import 'package:oh_my_llm/core/widgets/dialogs/app_dialog_actions.dart';
 
 import '../../../application/sessions/chat_sessions_controller.dart';
 import '../../../domain/chat_word_counter.dart';
@@ -70,64 +71,66 @@ class _MessageRequestFilterDialogState
     }).firstOrNull;
     _syncDetailPreviewScroll(focusedMessage?.id);
 
-    return AlertDialog(
+    final dialog = AlertDialog(
       title: const Text('上下文过滤'),
-      content: SizedBox(
-        width: 920,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '关闭某条消息后，它会保留在当前对话中，但不会继续发给模型。',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              visibleMessages.isEmpty
-                  ? '当前分支还没有消息。'
-                  : '当前分支已排除 ${stats.excludedCount} / ${visibleMessages.length} 条消息。',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            if (visibleMessages.isNotEmpty) ...[
-              const SizedBox(height: 2),
+      content: SingleChildScrollView(
+        child: SizedBox(
+          width: 920,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Text(
-                '发送字数：${stats.includedChars} / ${stats.totalChars} 字',
+                '关闭某条消息后，它会保留在当前对话中，但不会继续发给模型。',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                visibleMessages.isEmpty
+                    ? '当前分支还没有消息。'
+                    : '当前分支已排除 ${stats.excludedCount} / ${visibleMessages.length} 条消息。',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
-            ],
-            const SizedBox(height: 16),
-            SizedBox(
-              height: 420,
-              child: AdaptiveMasterDetailLayout(
-                breakpoint: AppBreakpoints.dialogMasterDetail,
-                masterWidth: 320,
-                minHeight: 420,
-                compactChild: _buildCompactList(
-                  context,
-                  messages: visibleMessages,
-                  excludedMessageIds: excludedMessageIds,
-                  excludedCount: stats.excludedCount,
-                  scrollController: _compactScrollController,
+              if (visibleMessages.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(
+                  '发送字数：${stats.includedChars} / ${stats.totalChars} 字',
+                  style: Theme.of(context).textTheme.bodySmall,
                 ),
-                master: _buildMasterPane(
-                  context,
-                  messages: visibleMessages,
-                  excludedMessageIds: excludedMessageIds,
-                  excludedCount: stats.excludedCount,
-                  focusedMessageId: focusedMessageId,
-                  scrollController: _masterScrollController,
-                ),
-                detail: _buildDetailPane(
-                  context,
-                  message: focusedMessage,
-                  excluded: focusedMessage != null
-                      ? excludedMessageIds.contains(focusedMessage.id)
-                      : false,
+              ],
+              const SizedBox(height: 16),
+              SizedBox(
+                height: 420,
+                child: AdaptiveMasterDetailLayout(
+                  breakpoint: AppBreakpoints.dialogMasterDetail,
+                  masterWidth: 320,
+                  minHeight: 420,
+                  compactChild: _buildCompactList(
+                    context,
+                    messages: visibleMessages,
+                    excludedMessageIds: excludedMessageIds,
+                    excludedCount: stats.excludedCount,
+                    scrollController: _compactScrollController,
+                  ),
+                  master: _buildMasterPane(
+                    context,
+                    messages: visibleMessages,
+                    excludedMessageIds: excludedMessageIds,
+                    excludedCount: stats.excludedCount,
+                    focusedMessageId: focusedMessageId,
+                    scrollController: _masterScrollController,
+                  ),
+                  detail: _buildDetailPane(
+                    context,
+                    message: focusedMessage,
+                    excluded: focusedMessage != null
+                        ? excludedMessageIds.contains(focusedMessage.id)
+                        : false,
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
       actions: [
@@ -136,6 +139,10 @@ class _MessageRequestFilterDialogState
           child: const Text('关闭'),
         ),
       ],
+    );
+    return AppDialogActions(
+      onSubmit: () => Navigator.of(context).maybePop(),
+      child: dialog,
     );
   }
 
