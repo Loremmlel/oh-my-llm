@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/long_text_editing_controller.dart';
 
 import '../../../../domain/models/prompts/preset_prompt.dart';
 import 'preset_prompt_editor_role.dart';
@@ -17,14 +18,14 @@ class EditablePresetPromptItem {
   final PresetPromptEditorRole role;
   final PromptMessagePlacement? placement;
   final TextEditingController titleController;
-  final TextEditingController contentController;
+  final LongTextEditingController contentController;
 
   EditablePresetPromptItem copyWith({
     String? id,
     PresetPromptEditorRole? role,
     PromptMessagePlacement? placement,
     TextEditingController? titleController,
-    TextEditingController? contentController,
+    LongTextEditingController? contentController,
   }) {
     return EditablePresetPromptItem(
       id: id ?? this.id,

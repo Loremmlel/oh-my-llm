@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/long_text_editing_controller.dart';
 
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import 'package:oh_my_llm/core/utils/id_generator.dart';
@@ -49,7 +50,7 @@ class _FixedPromptSequenceFormDialogState
           return _EditableFixedPromptSequenceStep(
             id: step.id,
             titleController: TextEditingController(text: step.title),
-            contentController: TextEditingController(text: step.content),
+            contentController: LongTextEditingController(text: step.content),
           );
         })
         .toList(growable: true);
@@ -60,7 +61,7 @@ class _FixedPromptSequenceFormDialogState
           titleController: TextEditingController(
             text: buildFixedPromptStepFallbackTitle(1),
           ),
-          contentController: TextEditingController(),
+          contentController: LongTextEditingController(),
         ),
       );
     }
@@ -362,7 +363,7 @@ class _FixedPromptSequenceFormDialogState
       titleController: TextEditingController(
         text: buildFixedPromptStepFallbackTitle(_steps.length + 1),
       ),
-      contentController: TextEditingController(),
+      contentController: LongTextEditingController(),
     );
 
     setState(() {
@@ -431,7 +432,7 @@ class _FixedPromptSequenceFormDialogState
           return FixedPromptSequenceStep(
             id: step.id,
             title: step.titleController.text.trim(),
-            content: step.contentController.text.trim(),
+            content: step.contentController.textForSave(trim: true),
           );
         })
         .toList(growable: false);
@@ -502,5 +503,5 @@ class _EditableFixedPromptSequenceStep {
 
   final String id;
   final TextEditingController titleController;
-  final TextEditingController contentController;
+  final LongTextEditingController contentController;
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/long_text_editing_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 import 'package:oh_my_llm/core/widgets/dialogs/app_confirm_dialog.dart';
@@ -43,7 +44,7 @@ class _DocumentEditor extends ConsumerStatefulWidget {
 
 class _DocumentEditorState extends ConsumerState<_DocumentEditor> {
   late final _name = TextEditingController(text: widget.document?.name ?? '');
-  late final _content = TextEditingController(
+  late final _content = LongTextEditingController(
     text: widget.document?.content ?? '',
   );
   late AgentDocumentKind _kind =
@@ -51,7 +52,7 @@ class _DocumentEditorState extends ConsumerState<_DocumentEditor> {
   bool _allowClose = false;
   bool get _dirty =>
       _name.text != (widget.document?.name ?? '') ||
-      _content.text != (widget.document?.content ?? '') ||
+      _content.hasTextChanges ||
       _kind != (widget.document?.kind ?? AgentDocumentKind.document);
   @override
   void dispose() {
@@ -224,7 +225,7 @@ class _DocumentEditorState extends ConsumerState<_DocumentEditor> {
                 : () {
                     controller.saveDocument(
                       _name.text.trim(),
-                      _content.text,
+                      _content.textForSave(),
                       kind: _kind,
                       documentId: widget.document?.id,
                     );

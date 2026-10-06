@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/long_text_editing_controller.dart';
 
 import 'package:oh_my_llm/core/widgets/notification_bubble/notification_bubble_context_ext.dart';
 
@@ -13,6 +14,13 @@ mixin SettingsFormDialogStateMixin<T extends StatefulWidget> on State<T> {
     final ctrl = TextEditingController(text: initialText);
     _managedControllers.add(ctrl);
     return ctrl;
+  }
+
+  @protected
+  LongTextEditingController initLongTextController([String initialText = '']) {
+    final controller = LongTextEditingController(text: initialText);
+    _managedControllers.add(controller);
+    return controller;
   }
 
   @protected
