@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/long_text_editing_controller.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oh_my_llm/app/navigation/app_destination.dart';
@@ -342,7 +343,7 @@ class _Composer extends ConsumerStatefulWidget {
 }
 
 class _ComposerState extends ConsumerState<_Composer> {
-  late final _input = TextEditingController(
+  late final _input = LongTextEditingController(
     text: ref.read(agentWorkspaceProvider).workspace!.draft,
   );
   @override
@@ -367,7 +368,11 @@ class _ComposerState extends ConsumerState<_Composer> {
       _,
       text,
     ) {
-      if (text != null && text != _input.text) _input.text = text;
+      if (text != null &&
+          normalizeEditorLineEndings(text) !=
+              normalizeEditorLineEndings(_input.text)) {
+        _input.loadText(text);
+      }
     });
     void send() {
       // Enter 保留换行；组合输入尚未提交时快捷键也不发送。
@@ -409,7 +414,8 @@ class _ComposerState extends ConsumerState<_Composer> {
                         labelText: '任务',
                         hintText: '描述下一步要完成的任务…',
                       ),
-                      onChanged: controller.setDraft,
+                      onChanged: (_) =>
+                          controller.setDraft(_input.textForSave()),
                     ),
                   ),
                 ),

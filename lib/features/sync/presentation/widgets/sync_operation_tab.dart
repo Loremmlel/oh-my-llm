@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/dialogs/app_confirm_dialog.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:oh_my_llm/core/widgets/notification_bubble/notification_bubble_context_ext.dart';
@@ -266,21 +267,10 @@ class _SyncOperationTabState extends ConsumerState<SyncOperationTab>
                   final confirmed = await showDialog<bool>(
                     context: context,
                     barrierDismissible: false,
-                    builder: (context) => AlertDialog(
-                      title: const Text('确认接收敏感凭据'),
-                      content: const Text(
-                        '服务商 API Key 或自定义请求头可能包含 token。仅在确认了解风险后继续。',
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context, false),
-                          child: const Text('取消'),
-                        ),
-                        FilledButton(
-                          onPressed: () => Navigator.pop(context, true),
-                          child: const Text('确认接收'),
-                        ),
-                      ],
+                    builder: (_) => const AppConfirmDialog(
+                      title: '确认接收敏感凭据',
+                      message: '服务商 API Key 或自定义请求头可能包含 token。仅在确认了解风险后继续。',
+                      confirmLabel: '确认接收',
                     ),
                   );
                   if (confirmed != true || !context.mounted) return;

@@ -13,7 +13,10 @@ analyzer:
   # 仓库内依赖按其独立 package 边界验证，不套用应用层的最新 lint 集合。
   exclude:
     - third_party/**
+    # 独立调研包自行 pub get/analyze，不依赖根应用的 package_config。
+    - tool/long_text_benchmark/**
     - build/**
+    - logs/**
     - android/**
     - ios/**
     - web/**

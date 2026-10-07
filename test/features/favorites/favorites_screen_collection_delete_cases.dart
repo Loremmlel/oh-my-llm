@@ -49,6 +49,7 @@ Future<void> _openCollection(
   String collectionId = 'col-target',
   String collectionName = '待删夹',
   void Function(AppDatabase database)? extraSeed,
+  Size viewportSize = const Size(1440, 1200),
 }) async {
   await setUpFavoritesScreen(
     tester,
@@ -58,6 +59,7 @@ Future<void> _openCollection(
       extraSeed?.call(db);
     },
     initialLocation: '/favorites/collections/$collectionId',
+    viewportSize: viewportSize,
   );
 }
 
@@ -68,6 +70,30 @@ Future<void> _openDeleteDialog(WidgetTester tester) async {
 }
 
 void registerFavoritesScreenCollectionDeleteTests() {
+  testWidgets('短屏删除收藏夹可滚动选择大量去向且取消始终可达', (tester) async {
+    await _openCollection(
+      tester,
+      itemCount: 1,
+      viewportSize: const Size(390, 560),
+      extraSeed: (db) {
+        for (var index = 1; index <= 24; index++) {
+          seedCollection(db, id: 'target-$index', name: '去向$index');
+        }
+      },
+    );
+    await _openDeleteDialog(tester);
+    expect(tester.takeException(), isNull);
+    await tester.ensureVisible(find.text('去向24'));
+    expect(find.text('去向24').hitTestable(), findsOneWidget);
+    await tester.tap(find.text('去向24'));
+    await tester.pump();
+    expect(find.text('取消').hitTestable(), findsOneWidget);
+    await tester.tap(find.text('取消'));
+    await settleOverlayTransition(tester);
+    expect(find.text('待删夹'), findsOneWidget);
+    expect(find.text('去向24'), findsNothing);
+  });
+
   testWidgets('删除非空收藏夹对话框显示准确数量', (tester) async {
     await _openCollection(tester, itemCount: 3);
 

@@ -9,6 +9,7 @@ import 'package:oh_my_llm/app/shell/app_shell_scaffold.dart';
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 import 'package:oh_my_llm/core/widgets/app_adaptive_actions.dart';
+import 'package:oh_my_llm/core/widgets/long_text_editing_controller.dart';
 import 'package:oh_my_llm/core/providers/notification_bubble_provider.dart';
 import 'package:oh_my_llm/core/widgets/notification_bubble/notification_bubble_data.dart';
 import 'package:oh_my_llm/features/settings/application/prompts/preset_prompts_controller.dart';
@@ -56,10 +57,11 @@ class ChatScreen extends ConsumerStatefulWidget {
 
 /// 聊天页状态层，处理滚动同步、锚点定位和编辑弹窗等页面级交互。
 class _ChatScreenState extends ConsumerState<ChatScreen> {
-  late final TextEditingController _messageController;
+  late final LongTextEditingController _messageController;
   late final FocusNode _messageFocusNode;
   late final ChatScrollController _scroll;
-  final Map<String, TextEditingController> _templateVariableControllers = {};
+  final Map<String, LongTextEditingController> _templateVariableControllers =
+      {};
 
   /// 模板变量字段当前绑定的模板 ID（变量名 -> templateId），用于判断是否需要重绑。
   final Map<String, String> _templateVariableTemplateIds = {};
@@ -232,7 +234,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   void initState() {
     super.initState();
-    _messageController = TextEditingController();
+    _messageController = LongTextEditingController();
     _messageFocusNode = FocusNode(onKeyEvent: _handleComposerKey);
     _scroll = ChatScrollController();
     _scheduleInitialConversationSelection(widget.initialConversationId);
@@ -313,9 +315,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// 编程赋值期间用一个 guard 抑制所有 listener 回写 Provider，避免帧内副作用。
   void _applyDraftToControllers(ComposerDraft effectiveDraft) {
     _isApplyingComposerDraft = true;
-    _messageController.text = effectiveDraft.body;
+    _messageController.loadText(effectiveDraft.body);
     _messageController.selection = TextSelection.collapsed(
-      offset: effectiveDraft.body.length,
+      offset: _messageController.text.length,
     );
     final template = resolveSelectedTemplatePrompt(
       ref.read(templatePromptsProvider),
@@ -331,7 +333,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       // 编辑中只写页面本地草稿，绝不污染会话级 draft。
       setState(() {
         _editingDraft = (_editingDraft ?? ComposerDraft.empty).copyWith(
-          body: _messageController.text,
+          body: _messageController.textForSave(),
         );
       });
       return;
@@ -340,7 +342,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (conversationId == null) return;
     ref
         .read(composerDraftProvider.notifier)
-        .setBody(conversationId, _messageController.text);
+        .setBody(conversationId, _messageController.textForSave());
   }
 
   String? _activeConversationIdOrNull() {
@@ -843,13 +845,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       }
       final existing = _templateVariableControllers[variable.name];
       if (existing == null) {
-        final controller = TextEditingController(text: resolved);
+        final controller = LongTextEditingController(text: resolved);
         _bindTemplateVariableListener(templateId, variable.name, controller);
         _templateVariableControllers[variable.name] = controller;
       } else {
-        if (existing.text != resolved) {
+        if (existing.textForSave() != resolved) {
           _isApplyingComposerDraft = true;
-          existing.text = resolved;
+          existing.loadText(resolved);
           _isApplyingComposerDraft = false;
         }
         // 同名变量可能来自不同模板：模板切换后必须重绑 listener 捕获当前
@@ -931,7 +933,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void _bindTemplateVariableListener(
     String templateId,
     String variableName,
-    TextEditingController controller,
+    LongTextEditingController controller,
   ) {
     if (_templateVariableTemplateIds[variableName] == templateId) return;
     final previous = _templateVariableListeners[variableName];
@@ -949,18 +951,27 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void _onTemplateVariableChanged(
     String templateId,
     String variableName,
-    TextEditingController controller,
+    LongTextEditingController controller,
   ) {
     if (_isApplyingComposerDraft) return;
     if (_editingMessageId != null) {
-      _updateEditingTemplateVariable(templateId, variableName, controller.text);
+      _updateEditingTemplateVariable(
+        templateId,
+        variableName,
+        controller.textForSave(),
+      );
       return;
     }
     final cid = _activeConversationIdOrNull();
     if (cid == null) return;
     ref
         .read(composerDraftProvider.notifier)
-        .setTemplateVariable(cid, templateId, variableName, controller.text);
+        .setTemplateVariable(
+          cid,
+          templateId,
+          variableName,
+          controller.textForSave(),
+        );
   }
 
   void _handleTemplatePromptSelected(String? templatePromptId) {
@@ -1142,7 +1153,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final editingDraft = _editingMessageId != null
         ? (_editingDraft ?? ComposerDraft.empty)
         : null;
-    final body = editingDraft?.body ?? _messageController.text;
+    final body = editingDraft?.body ?? _messageController.textForSave();
     final templatePrompt = editingDraft != null
         ? resolveSelectedTemplatePrompt(
             composer.readModel.templatePrompts,
@@ -1222,12 +1233,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     switch (result.action) {
       case FixedPromptSequenceRunnerAction.fillComposer:
-        _messageController
-          ..text = result.content
-          ..selection = TextSelection.collapsed(offset: result.content.length);
+        _messageController.value = TextEditingValue(
+          text: result.content,
+          selection: TextSelection.collapsed(offset: result.content.length),
+        );
       case FixedPromptSequenceRunnerAction.sendStep:
         // 若普通正文草稿 trim 后恰好等于步骤 content 才清该正文；否则原草稿保留。
-        if (_messageController.text.trim() == result.content.trim()) {
+        if (_messageController.text.trim() ==
+            normalizeEditorLineEndings(result.content).trim()) {
           _messageController.clear();
         }
         await ref

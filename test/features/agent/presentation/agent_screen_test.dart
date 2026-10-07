@@ -21,6 +21,86 @@ import '../../../helpers/async/widget_test_animation.dart';
 import '../agent_test_helpers.dart';
 
 void main() {
+  testWidgets('Agent草稿显示LF且状态回写不打断含CRLF的组合输入', (tester) async {
+    final database = AppDatabase.inMemory();
+    addTearDown(database.close);
+    final store = SqliteAgentStore(database);
+    store.saveWorkspace(
+      AgentWorkspace(id: 'novel', title: '换行测试', draft: '甲\r\n乙'),
+    );
+    await pumpTestApp(
+      tester,
+      preferences: await TestFixtures.seedPreferences(database: database),
+      database: database,
+      child: const AgentScreen(),
+    );
+    final field = find.widgetWithText(TextField, '任务');
+    final input = tester.widget<TextField>(field).controller!;
+    expect(input.text, '甲\n乙');
+    expect(store.loadWorkspace('novel')!.draft, '甲\r\n乙');
+    await tester.showKeyboard(field);
+    const composing = TextEditingValue(
+      text: '甲\r\nni',
+      selection: TextSelection.collapsed(offset: 5),
+      composing: TextRange(start: 3, end: 5),
+    );
+    tester.testTextInput.updateEditingValue(composing);
+    await tester.pump();
+    expect(input.value, composing);
+    tester.testTextInput.updateEditingValue(
+      const TextEditingValue(
+        text: '甲\r\n你',
+        selection: TextSelection.collapsed(offset: 4),
+      ),
+    );
+    await tester.pump();
+    expect(input.text, '甲\n你');
+    expect(input.selection.extentOffset, 3);
+    ProviderScope.containerOf(tester.element(field))
+        .read(agentWorkspaceProvider.notifier)
+        .flushDraft();
+    expect(store.loadWorkspace('novel')!.draft, '甲\n你');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('打开含CRLF的Agent文档仅归一化显示取消时不提示未保存修改', (tester) async {
+    final database = AppDatabase.inMemory();
+    addTearDown(database.close);
+    SqliteAgentStore(database)
+        .saveWorkspace(AgentWorkspace(id: 'novel', title: '换行测试'));
+    await pumpTestApp(
+      tester,
+      preferences: await TestFixtures.seedPreferences(database: database),
+      database: database,
+      child: Scaffold(
+        body: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => showAgentDocumentEditor(
+              context,
+              document: const AgentDocument(
+                id: 'doc',
+                name: '文档',
+                content: '甲\r\n乙',
+              ),
+            ),
+            child: const Text('编辑'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('编辑'));
+    await settleOverlayTransition(tester);
+    final field = tester.widget<TextField>(
+      find.widgetWithText(TextField, '正文'),
+    );
+    expect(field.controller!.text, '甲\n乙');
+    await tester.tap(find.text('取消'));
+    await settleOverlayTransition(tester);
+    expect(find.text('放弃未保存的修改？'), findsNothing);
+    expect(find.text('编辑文档'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('侧栏搜索重命名和切换作品保留各作品草稿', (tester) async {
     final database = AppDatabase.inMemory();
     addTearDown(database.close);

@@ -26,4 +26,11 @@ class PresetPromptsController extends SettingsEntityController<PresetPrompt> {
     }).toList();
     return upsert(preset.copyWith(messages: updatedMessages));
   }
+
+  /// 切换预设级单 System Prompt 模式并持久化。
+  Future<void> setSingleSystemPrompt(String presetId, bool enabled) {
+    final preset = state.where((p) => p.id == presetId).firstOrNull;
+    if (preset == null) return Future.value();
+    return upsert(preset.copyWith(singleSystemPrompt: enabled));
+  }
 }

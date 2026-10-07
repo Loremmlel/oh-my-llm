@@ -33,6 +33,7 @@ class PresetPrompt extends Equatable with HasIdAndUpdatedAt {
     required this.messages,
     required this.updatedAt,
     this.syntax = PresetPromptSyntax.plain,
+    this.singleSystemPrompt = false,
   });
 
   @override
@@ -40,6 +41,7 @@ class PresetPrompt extends Equatable with HasIdAndUpdatedAt {
   final String name;
   final List<PromptMessage> messages;
   final PresetPromptSyntax syntax;
+  final bool singleSystemPrompt;
   @override
   final DateTime updatedAt;
 
@@ -54,6 +56,7 @@ class PresetPrompt extends Equatable with HasIdAndUpdatedAt {
     String? id,
     String? name,
     List<PromptMessage>? messages,
+    bool? singleSystemPrompt,
     DateTime? updatedAt,
     PresetPromptSyntax? syntax,
   }) {
@@ -61,6 +64,7 @@ class PresetPrompt extends Equatable with HasIdAndUpdatedAt {
       id: id ?? this.id,
       name: name ?? this.name,
       messages: messages ?? this.messages,
+      singleSystemPrompt: singleSystemPrompt ?? this.singleSystemPrompt,
       updatedAt: updatedAt ?? this.updatedAt,
       syntax: syntax ?? this.syntax,
     );
@@ -73,6 +77,7 @@ class PresetPrompt extends Equatable with HasIdAndUpdatedAt {
       'name': name,
       'syntax': syntax.name,
       'messages': messages.map((message) => message.toJson()).toList(),
+      'singleSystemPrompt': singleSystemPrompt,
       'updatedAt': updatedAt.toIso8601String(),
     };
   }
@@ -87,6 +92,7 @@ class PresetPrompt extends Equatable with HasIdAndUpdatedAt {
       name: json['name'] as String,
       syntax: PresetPromptSyntax.fromJson(json['syntax']),
       messages: messages,
+      singleSystemPrompt: json['singleSystemPrompt'] as bool? ?? false,
       updatedAt: DateTime.parse(json['updatedAt'] as String),
     );
   }
@@ -104,7 +110,14 @@ class PresetPrompt extends Equatable with HasIdAndUpdatedAt {
   String toString() => jsonEncode(toJson());
 
   @override
-  List<Object> get props => [id, name, messages, updatedAt, syntax];
+  List<Object> get props => [
+    id,
+    name,
+    messages,
+    singleSystemPrompt,
+    updatedAt,
+    syntax,
+  ];
 }
 
 List<PromptMessage> _deserializePromptMessages(List<dynamic> rawMessages) {

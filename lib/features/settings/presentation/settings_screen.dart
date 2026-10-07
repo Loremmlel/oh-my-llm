@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/dialogs/app_confirm_dialog.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -356,19 +357,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
       final confirmed = await showDialog<bool>(
         context: context,
         barrierDismissible: false,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('确认复制敏感设置'),
-          content: const Text('服务商 API Key 和自定义 Header 值将进入系统剪贴板，可能被其他应用读取。'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: const Text('确认复制'),
-            ),
-          ],
+        builder: (_) => const AppConfirmDialog(
+          title: '确认复制敏感设置',
+          message: '服务商 API Key 和自定义 Header 值将进入系统剪贴板，可能被其他应用读取。',
+          confirmLabel: '确认复制',
         ),
       );
       if (confirmed != true || !mounted) return;
@@ -572,6 +564,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                   name: formData.name,
                   messages: formData.messages,
                   syntax: formData.syntax,
+                  singleSystemPrompt: initialValue?.singleSystemPrompt ?? false,
                   updatedAt: DateTime.now(),
                 );
 

@@ -50,6 +50,7 @@ ChatPreparedContext prepareChatContext({
   String? latestInputMessageId,
   List<ChatCheckpoint> checkpointChain = const [],
   RequestMessageFilter filter = RequestMessageFilter.passthrough,
+  List<ChatRequestMessage> prefixMessages = const [],
 }) {
   final filtered = filter.apply(conversationMessages);
   final latestIndex = filtered.indexWhere(
@@ -68,6 +69,7 @@ ChatPreparedContext prepareChatContext({
   );
   if (rendered.hasErrors) return ChatPreparedContext(const [], rendered);
   final messages = <ChatRequestMessage>[
+    ...prefixMessages,
     ...buildCheckpointMemoryMessages(checkpointChain),
   ];
   void appendPreset(PromptMessagePlacement placement) {
@@ -118,7 +120,12 @@ ChatPreparedContext prepareChatContext({
   appendPreset(PromptMessagePlacement.beforeLatestInput);
   appendHistory(filtered.skip(historyEnd));
   appendPreset(PromptMessagePlacement.after);
-  return ChatPreparedContext(messages, rendered);
+  return ChatPreparedContext(
+    presetPrompt?.singleSystemPrompt == true
+        ? ChatRequestMessage.singleSystemPrompt(messages)
+        : messages,
+    rendered,
+  );
 }
 
 List<ChatRequestMessage> buildCheckpointMemoryMessages(

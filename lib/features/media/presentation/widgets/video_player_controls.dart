@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/dialogs/app_dialog_actions.dart';
 
 import '../pages/video_playback_state.dart';
 
@@ -203,7 +204,7 @@ class _VolumeDialogContentState extends State<_VolumeDialogContent> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    final dialog = AlertDialog(
       title: Text('音量 ${(_volume * 100).round()}%'),
       content: SizedBox(
         height: 200,
@@ -223,6 +224,7 @@ class _VolumeDialogContentState extends State<_VolumeDialogContent> {
         ),
       ),
     );
+    return AppDialogActions(child: dialog);
   }
 }
 

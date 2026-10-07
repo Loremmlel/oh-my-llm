@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:oh_my_llm/core/constants/app_reserved_entities.dart';
+import 'package:oh_my_llm/core/widgets/dialogs/app_dialog_actions.dart';
 
 /// 收藏夹编辑对话框的用途。
 enum EditCollectionDialogMode {
@@ -46,6 +47,8 @@ class _EditCollectionDialogState extends State<EditCollectionDialog> {
   String get _confirmLabel => _isCreate ? '创建' : '保存';
 
   void _validateAndSubmit() {
+    final composing = _controller.value.composing;
+    if (composing.isValid && !composing.isCollapsed) return;
     final trimmed = _controller.text.trim();
     if (trimmed.isEmpty) {
       setState(() => _errorMessage = '请输入收藏夹名称');
@@ -60,11 +63,12 @@ class _EditCollectionDialogState extends State<EditCollectionDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    final dialog = AlertDialog(
       title: Text(_title),
       content: TextField(
         controller: _controller,
         autofocus: true,
+        textInputAction: TextInputAction.done,
         decoration: InputDecoration(
           labelText: '收藏夹名称',
           border: const OutlineInputBorder(),
@@ -81,5 +85,6 @@ class _EditCollectionDialogState extends State<EditCollectionDialog> {
         FilledButton(onPressed: _validateAndSubmit, child: Text(_confirmLabel)),
       ],
     );
+    return AppDialogActions(onSubmit: _validateAndSubmit, child: dialog);
   }
 }

@@ -285,12 +285,15 @@ void main() {
   // ── 行为等价（流式集成，经 transport + 假 http.Client）─────────
 
   group('行为等价', () {
-    test('正文/推理流式产出 + finish_reason 透传 + [DONE] 正常结束', () async {
+    test('正文及两种推理字段流式产出，finish_reason 透传并正常结束', () async {
       final client = _FakeStreamingHttpClient((_) async {
         return http.StreamedResponse(
           Stream.fromIterable([
             utf8.encode(
               'data: {"choices":[{"delta":{"reasoning_content":"思考中"}}]}\n\n',
+            ),
+            utf8.encode(
+              'data: {"choices":[{"delta":{"reasoning":"继续思考"}}]}\n\n',
             ),
             utf8.encode('data: {"choices":[{"delta":{"content":"第一段 "}}]}\n\n'),
             utf8.encode(
@@ -314,10 +317,12 @@ void main() {
 
       expect(chunks.map((chunk) => chunk.reasoningDelta).toList(), [
         '思考中',
+        '继续思考',
         '',
         '',
       ]);
       expect(chunks.map((chunk) => chunk.contentDelta).toList(), [
+        '',
         '',
         '第一段 ',
         '第二段',

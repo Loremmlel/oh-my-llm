@@ -266,9 +266,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
     expect(find.textContaining('（副本'), findsNothing);
   });
 
-  testWidgets('prompt template dialog accepts multiple system messages', (
-    tester,
-  ) async {
+  testWidgets('设置页预设开关持久保存且编辑条目不重置开关', (tester) async {
     final database = AppDatabase.inMemory();
     addTearDown(database.close);
     final preferences = await createEmptyPreferences(database);
@@ -305,6 +303,46 @@ void registerSettingsScreenModelsAndPromptsTests() {
     await settleOverlayTransition(tester);
     expect(find.text('多 system 模板'), findsWidgets);
     expect(find.textContaining('共 2 条消息'), findsOneWidget);
+    final saved = presetPromptRepository.loadAll(database).single;
+    expect(saved.singleSystemPrompt, isFalse);
+    await tester.tap(find.byType(Switch).last);
+    await tester.pump();
+    expect(
+      presetPromptRepository.loadAll(database).single.singleSystemPrompt,
+      isTrue,
+    );
+    await tester.tap(find.widgetWithText(OutlinedButton, '编辑'));
+    await settleOverlayTransition(tester);
+    await tester.tap(find.text('保存'));
+    await settleOverlayTransition(tester);
+    expect(
+      presetPromptRepository.loadAll(database).single.singleSystemPrompt,
+      isTrue,
+    );
+    await tester.tap(find.byType(Switch).last);
+    await tester.pump();
+    expect(
+      presetPromptRepository.loadAll(database).single.singleSystemPrompt,
+      isFalse,
+    );
+  });
+
+  testWidgets('窄屏预设卡片的单 System 开关可切换且无溢出', (tester) async {
+    final database = await setUpSettingsScreen(
+      tester,
+      size: const Size(390, 844),
+      initialTabIndex: 1,
+      presetPrompts: [
+        TestFixtures.presetPrompt(id: 'narrow-preset', name: '窄屏预设'),
+      ],
+    );
+    await tester.tap(find.byType(Switch).first);
+    await tester.pump();
+    expect(
+      presetPromptRepository.loadAll(database).single.singleSystemPrompt,
+      isTrue,
+    );
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets(

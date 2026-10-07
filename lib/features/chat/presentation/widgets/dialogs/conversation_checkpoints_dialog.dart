@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/dialogs/app_dialog_actions.dart';
 import 'package:oh_my_llm/core/widgets/app_field_group.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -49,10 +50,11 @@ class _ConversationCheckpointsDialogState
     // 创建检查点期间阻止 system Back 与 barrier tap 关闭对话框（关闭按钮
     // 已禁用，避免正在执行的总结被意外打断）；完成后 _isCreating 恢复 false，
     // 路由回到可正常关闭状态。
-    return PopScope<void>(
+    final dialog = PopScope<void>(
       canPop: !_isCreating,
       child: _buildAlertDialog(context),
     );
+    return AppDialogActions(child: dialog);
   }
 
   Widget _buildAlertDialog(BuildContext context) {

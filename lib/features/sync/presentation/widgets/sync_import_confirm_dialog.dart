@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:oh_my_llm/core/widgets/transfer_summary_list.dart';
+import 'package:oh_my_llm/core/widgets/dialogs/app_dialog_actions.dart';
 
 import '../../application/ports/settings_sync_facade.dart';
 import '../../application/sync_client_controller.dart';
@@ -35,9 +36,15 @@ class _SyncImportConfirmDialogState
 
   @override
   Widget build(BuildContext context) {
-    return PopScope<void>(
+    final dialog = PopScope<void>(
       canPop: !_isImporting,
       child: _buildAlertDialog(context),
+    );
+    return AppDialogActions(
+      onSubmit: _isImporting || (_containsSensitive && !_sensitiveAcknowledged)
+          ? null
+          : _handleImport,
+      child: dialog,
     );
   }
 
@@ -53,63 +60,65 @@ class _SyncImportConfirmDialogState
 
     return AlertDialog(
       title: const Text('确认同步配置'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (widget.sourceDeviceName != null) ...[
-            Text('来源设备：${widget.sourceDeviceName}'),
-            const SizedBox(height: 12),
-          ],
-          const Text('即将导入本机以下配置：'),
-          if (hasSensitiveData) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.errorContainer,
-                borderRadius: BorderRadius.circular(8),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (widget.sourceDeviceName != null) ...[
+              Text('来源设备：${widget.sourceDeviceName}'),
+              const SizedBox(height: 12),
+            ],
+            const Text('即将导入本机以下配置：'),
+            if (hasSensitiveData) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.errorContainer,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('包含敏感凭据'),
+                    const SizedBox(height: 4),
+                    const Text('服务商 API Key 或自定义请求头可能包含 token。'),
+                    Row(
+                      children: [
+                        Checkbox(
+                          value: _sensitiveAcknowledged,
+                          onChanged: _isImporting
+                              ? null
+                              : (value) => setState(
+                                  () => _sensitiveAcknowledged = value ?? false,
+                                ),
+                        ),
+                        const Expanded(child: Text('我确认导入这些敏感内容')),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('包含敏感凭据'),
-                  const SizedBox(height: 4),
-                  const Text('服务商 API Key 或自定义请求头可能包含 token。'),
-                  Row(
-                    children: [
-                      Checkbox(
-                        value: _sensitiveAcknowledged,
-                        onChanged: _isImporting
-                            ? null
-                            : (value) => setState(
-                                () => _sensitiveAcknowledged = value ?? false,
-                              ),
-                      ),
-                      const Expanded(child: Text('我确认导入这些敏感内容')),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-          const SizedBox(height: 12),
-          TransferSummaryList(items: summaries),
-          if (summaries.isEmpty) const Text('没有可导入的变化'),
-          const SizedBox(height: 12),
-          Text(
-            '与本地内容重复的条目已被过滤，以上均为待导入变化。',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-          if (_errorMessage != null) ...[
+            ],
+            const SizedBox(height: 12),
+            TransferSummaryList(items: summaries),
+            if (summaries.isEmpty) const Text('没有可导入的变化'),
             const SizedBox(height: 12),
             Text(
-              _errorMessage!,
-              style: Theme.of(context).textTheme.bodyMedium
-                  ?.copyWith(color: Theme.of(context).colorScheme.error),
+              '与本地内容重复的条目已被过滤，以上均为待导入变化。',
+              style: Theme.of(context).textTheme.bodySmall,
             ),
+            if (_errorMessage != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                _errorMessage!,
+                style: Theme.of(context).textTheme.bodyMedium
+                    ?.copyWith(color: Theme.of(context).colorScheme.error),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
       actions: [
         TextButton(
@@ -130,6 +139,7 @@ class _SyncImportConfirmDialogState
   }
 
   Future<void> _handleImport() async {
+    if (_isImporting || (_containsSensitive && !_sensitiveAcknowledged)) return;
     setState(() {
       _isImporting = true;
       _errorMessage = null;

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/long_text_editing_controller.dart';
 
 import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/template_prompt_language/template_prompt_compiler.dart';
@@ -49,8 +50,8 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
   static const _largeContentThreshold = 6000;
 
   late final TextEditingController _titleController;
-  late final TextEditingController _contentController;
-  final Map<String, TextEditingController> _variableControllers = {};
+  late final LongTextEditingController _contentController;
+  final Map<String, LongTextEditingController> _variableControllers = {};
   late TemplatePromptCompilation _compilation;
   late List<TemplatePromptVariable> _variables;
   Timer? _variableReconcileDebounceTimer;
@@ -61,7 +62,9 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
   void initState() {
     super.initState();
     _titleController = initController(widget.initialValue?.title ?? '');
-    _contentController = initController(widget.initialValue?.content ?? '');
+    _contentController = initLongTextController(
+      widget.initialValue?.content ?? '',
+    );
     // 先用编译器校验正文：语法有效才与已保存变量协调，再校验临时完整
     // 定义，让合法旧 text/number 模板保留默认值，同时暴露不一致的存储元数据。
     _compilation = compileTemplatePromptContent(_contentController.text);
@@ -376,7 +379,8 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
             );
           }
           final rawDefault =
-              _variableControllers[variable.name]?.text.trim() ?? '';
+              _variableControllers[variable.name]?.textForSave(trim: true) ??
+              '';
           return TemplatePromptVariable(
             name: variable.name,
             defaultValue: rawDefault,
@@ -403,7 +407,9 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
         continue;
       }
       _variableControllers.putIfAbsent(variable.name, () {
-        final controller = TextEditingController(text: variable.defaultValue);
+        final controller = LongTextEditingController(
+          text: variable.defaultValue,
+        );
         controller.addListener(_handleVariableValueChanged);
         return controller;
       });
@@ -464,7 +470,7 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
       return widget.onSubmit(
         TemplatePromptFormData(
           title: _titleController.text.trim(),
-          content: _contentController.text.trim(),
+          content: _contentController.textForSave(trim: true),
           variables: variables,
         ),
       );
