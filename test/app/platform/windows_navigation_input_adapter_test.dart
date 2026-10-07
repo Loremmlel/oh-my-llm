@@ -118,7 +118,7 @@ void main() {
   });
 
   group('键盘 browserBack', () {
-    testWidgets('首次按下 browserBack 请求一次返回并消费事件', (tester) async {
+    testWidgets('browserBack 首次按下请求一次返回，长按与松开不重复请求', (tester) async {
       final (back, ancestorKeys) = await pumpAdapterTree(tester);
 
       final handled = await sendWindowsKeyDown(
@@ -129,12 +129,6 @@ void main() {
       expect(back.callCount, 1);
       expect(handled, isTrue);
       expect(ancestorKeys, isNot(contains(LogicalKeyboardKey.browserBack)));
-    });
-
-    testWidgets('长按 repeat 与松开不重复请求返回', (tester) async {
-      final (back, ancestorKeys) = await pumpAdapterTree(tester);
-
-      await sendWindowsKeyDown(tester, LogicalKeyboardKey.browserBack);
       await sendWindowsKeyRepeat(tester, LogicalKeyboardKey.browserBack);
       await sendWindowsKeyUp(tester, LogicalKeyboardKey.browserBack);
 

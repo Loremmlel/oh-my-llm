@@ -34,16 +34,14 @@ Future<void> _pumpLayout(
 }
 
 void main() {
-  testWidgets('默认断点：839 显示紧凑子项', (tester) async {
+  testWidgets('父宽度跨过默认断点时由紧凑内容切换为双栏', (tester) async {
     await _pumpLayout(tester, 839);
     expect(find.text('紧凑内容'), findsOneWidget);
     expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('默认断点：840 等号进入双栏', (tester) async {
     await _pumpLayout(tester, 840);
     expect(find.text('主栏'), findsOneWidget);
     expect(find.text('详情'), findsOneWidget);
+    expect(find.text('紧凑内容'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

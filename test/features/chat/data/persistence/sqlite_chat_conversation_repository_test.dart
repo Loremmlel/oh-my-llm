@@ -18,7 +18,7 @@ void main() {
 
   tearDown(() => database.close());
 
-  test('sqlite repository saves and restores branched conversations', () async {
+  test('保存并恢复会话的全部消息分支与检查点', () async {
     final conversation = ChatConversation(
       id: 'conversation-1',
       title: '分支会话',
@@ -116,7 +116,6 @@ void main() {
     );
     expect(restoredConv.excludedMessageIds, conversation.excludedMessageIds);
 
-    // messageNodes: verify count + IDs, spot-check content fields
     expect(restoredConv.messageNodes, hasLength(3));
     final restoredById = {for (final n in restoredConv.messageNodes) n.id: n};
     expect(
@@ -137,7 +136,6 @@ void main() {
       'language': 'Dart',
     });
 
-    // checkpoints: verify count + key fields
     expect(restoredConv.checkpoints, hasLength(1));
     expect(restoredConv.checkpoints.single.id, 'checkpoint-1');
     expect(restoredConv.checkpoints.single.title, '检查点 1');
@@ -146,8 +144,7 @@ void main() {
 
   // ── 1. UPSERT idempotency ────────────────────────────────────────────
 
-  test('UPSERT idempotency: re-saving with modified content updates fields without changing count', () async {
-    // Save initial conversation with 3 messages
+  test('重复保存相同 ID 更新标题与正文，保留未修改消息且不增加行数', () async {
     final original = ChatConversation(
       id: 'conv-idempotent',
       title: '更改前标题',
@@ -185,7 +182,6 @@ void main() {
     );
     await repository.saveConversations([original]);
 
-    // Re-save with same IDs but changed content on msg-2 and new title
     final updated = original.copyWith(
       title: '更改后标题',
       messageNodes: [
@@ -201,16 +197,11 @@ void main() {
     expect(all, hasLength(1));
     final restored = all.single;
 
-    // Title updated
     expect(restored.title, '更改后标题');
-    // updatedAt updated
     expect(restored.updatedAt, DateTime(2026, 5, 1, 11));
-    // Message count unchanged (3 messages total, same IDs)
     expect(restored.messageNodes, hasLength(3));
-    // Content of msg-2 was updated by UPSERT
     final msg2 = restored.messageNodes.firstWhere((n) => n.id == 'msg-2');
     expect(msg2.content, '修改后的回复');
-    // msg-1 and msg-3 unchanged
     final msg1 = restored.messageNodes.firstWhere((n) => n.id == 'msg-1');
     expect(msg1.content, '用户消息');
     final msg3 = restored.messageNodes.firstWhere((n) => n.id == 'msg-3');
@@ -219,121 +210,106 @@ void main() {
 
   // ── 2. Ghost row cleanup ─────────────────────────────────────────────
 
-  test(
-    'ghost row cleanup: removing a node from messageNodes removes it from DB',
-    () async {
-      // Save with A → B → C
-      final withThree = ChatConversation(
-        id: 'conv-ghost',
-        title: '三消息会话',
-        messageNodes: [
-          ChatMessage(
-            id: 'a',
-            role: ChatMessageRole.user,
-            content: 'A',
-            parentId: rootConversationParentId,
-            createdAt: DateTime(2026, 5, 2, 10),
-          ),
-          ChatMessage(
-            id: 'b',
-            role: ChatMessageRole.assistant,
-            content: 'B',
-            parentId: 'a',
-            createdAt: DateTime(2026, 5, 2, 10, 1),
-          ),
-          ChatMessage(
-            id: 'c',
-            role: ChatMessageRole.assistant,
-            content: 'C',
-            parentId: 'b',
-            createdAt: DateTime(2026, 5, 2, 10, 2),
-            tokenUsage: const LlmUsage(inputTokens: 100, cachedInputTokens: 50),
-          ),
-        ],
-        selectedChildByParentId: const {
-          rootConversationParentId: 'a',
-          'a': 'b',
-          'b': 'c',
-        },
-        createdAt: DateTime(2026, 5, 2, 10),
-        updatedAt: DateTime(2026, 5, 2, 10, 2),
-      );
-      await repository.saveConversations([withThree]);
-
-      // Re-save with only A → B (C removed)
-      // messageNodes array determines what gets persisted via DELETE + INSERT
-      final withoutC = withThree.copyWith(
-        messageNodes: [
-          withThree.messageNodes[0], // a
-          withThree.messageNodes[1], // b
-        ],
-        selectedChildByParentId: const {
-          rootConversationParentId: 'a',
-          'a': 'b',
-        },
-        updatedAt: DateTime(2026, 5, 2, 11),
-      );
-      await repository.saveConversations([withoutC]);
-
-      final all = repository.loadAll();
-      expect(all, hasLength(1));
-      final restored = all.single;
-
-      // Only 2 messages remain
-      expect(restored.messageNodes, hasLength(2));
-      expect(restored.messageNodes.map((n) => n.id), ['a', 'b']);
-
-      // Verify via raw SQL that C is truly absent from the database
-      final rows = database.connection.select(
-        'SELECT id FROM messages WHERE conversation_id = ? ORDER BY node_index',
-        ['conv-ghost'],
-      );
-      expect(rows.map((r) => r['id'] as String), ['a', 'b']);
-    },
-  );
-
-  test(
-    're-saving a conversation removes checkpoints absent from new state',
-    () async {
-      final original = ChatConversation(
-        id: 'conv-checkpoint-cleanup',
-        messageNodes: [
-          ChatMessage(
-            id: 'user',
-            role: ChatMessageRole.user,
-            content: '保留消息',
-            parentId: rootConversationParentId,
-            createdAt: DateTime(2026, 5, 2, 10),
-          ),
-        ],
-        checkpoints: [
-          ChatCheckpoint(
-            id: 'checkpoint',
-            title: '待移除检查点',
-            content: '旧摘要',
-            createdAt: DateTime(2026, 5, 2, 10),
-          ),
-        ],
-        createdAt: DateTime(2026, 5, 2, 10),
-        updatedAt: DateTime(2026, 5, 2, 10),
-      );
-      await repository.saveConversations([original]);
-
-      await repository.saveConversations([
-        original.copyWith(
-          checkpoints: const [],
-          updatedAt: DateTime(2026, 5, 2, 11),
+  test('删除消息节点后再次保存，数据库不残留旧节点', () async {
+    final withThree = ChatConversation(
+      id: 'conv-ghost',
+      title: '三消息会话',
+      messageNodes: [
+        ChatMessage(
+          id: 'a',
+          role: ChatMessageRole.user,
+          content: 'A',
+          parentId: rootConversationParentId,
+          createdAt: DateTime(2026, 5, 2, 10),
         ),
-      ]);
+        ChatMessage(
+          id: 'b',
+          role: ChatMessageRole.assistant,
+          content: 'B',
+          parentId: 'a',
+          createdAt: DateTime(2026, 5, 2, 10, 1),
+        ),
+        ChatMessage(
+          id: 'c',
+          role: ChatMessageRole.assistant,
+          content: 'C',
+          parentId: 'b',
+          createdAt: DateTime(2026, 5, 2, 10, 2),
+          tokenUsage: const LlmUsage(inputTokens: 100, cachedInputTokens: 50),
+        ),
+      ],
+      selectedChildByParentId: const {
+        rootConversationParentId: 'a',
+        'a': 'b',
+        'b': 'c',
+      },
+      createdAt: DateTime(2026, 5, 2, 10),
+      updatedAt: DateTime(2026, 5, 2, 10, 2),
+    );
+    await repository.saveConversations([withThree]);
 
-      expect(repository.loadConversation(original.id)?.checkpoints, isEmpty);
-    },
-  );
+    final withoutC = withThree.copyWith(
+      messageNodes: [
+        withThree.messageNodes[0], // a
+        withThree.messageNodes[1], // b
+      ],
+      selectedChildByParentId: const {rootConversationParentId: 'a', 'a': 'b'},
+      updatedAt: DateTime(2026, 5, 2, 11),
+    );
+    await repository.saveConversations([withoutC]);
+
+    final all = repository.loadAll();
+    expect(all, hasLength(1));
+    final restored = all.single;
+
+    expect(restored.messageNodes, hasLength(2));
+    expect(restored.messageNodes.map((n) => n.id), ['a', 'b']);
+
+    final rows = database.connection.select(
+      'SELECT id FROM messages WHERE conversation_id = ? ORDER BY node_index',
+      ['conv-ghost'],
+    );
+    expect(rows.map((r) => r['id'] as String), ['a', 'b']);
+  });
+
+  test('再次保存会话时删除新状态已移除的检查点', () async {
+    final original = ChatConversation(
+      id: 'conv-checkpoint-cleanup',
+      messageNodes: [
+        ChatMessage(
+          id: 'user',
+          role: ChatMessageRole.user,
+          content: '保留消息',
+          parentId: rootConversationParentId,
+          createdAt: DateTime(2026, 5, 2, 10),
+        ),
+      ],
+      checkpoints: [
+        ChatCheckpoint(
+          id: 'checkpoint',
+          title: '待移除检查点',
+          content: '旧摘要',
+          createdAt: DateTime(2026, 5, 2, 10),
+        ),
+      ],
+      createdAt: DateTime(2026, 5, 2, 10),
+      updatedAt: DateTime(2026, 5, 2, 10),
+    );
+    await repository.saveConversations([original]);
+
+    await repository.saveConversations([
+      original.copyWith(
+        checkpoints: const [],
+        updatedAt: DateTime(2026, 5, 2, 11),
+      ),
+    ]);
+
+    expect(repository.loadConversation(original.id)?.checkpoints, isEmpty);
+  });
 
   // ── 3. Branch selection upsert ───────────────────────────────────────
 
-  test('branch selection upsert: re-saving with different child replaces old selection', () async {
-    // Save conversation with parent → child1 selection
+  test('再次保存分支选择替换旧选中项且同一父节点只有一条选择记录', () async {
     final withChild1 = ChatConversation(
       id: 'conv-branch',
       title: '分支选择',
@@ -369,7 +345,6 @@ void main() {
     );
     await repository.saveConversations([withChild1]);
 
-    // Re-save with {parent: child2} to switch branch selection
     final withChild2 = withChild1.copyWith(
       selectedChildByParentId: const {
         rootConversationParentId: 'u1',
@@ -383,10 +358,8 @@ void main() {
     expect(all, hasLength(1));
     final restored = all.single;
 
-    // Selection switched from a1 to a2
     expect(restored.selectedChildByParentId['u1'], 'a2');
 
-    // Verify via raw SQL that only one row exists for this parent
     final rows = database.connection.select(
       'SELECT parent_id, child_id FROM conversation_branch_selections WHERE conversation_id = ? AND parent_id = ?',
       ['conv-branch', 'u1'],
@@ -397,8 +370,7 @@ void main() {
 
   // ── 4. Empty conversation filter ─────────────────────────────────────
 
-  test('empty conversation filter: saveConversation with no messages, no checkpoints, no title is skipped', () async {
-    // Build an empty conversation
+  test('没有标题、消息和检查点的空白会话不写入数据库', () async {
     final empty = ChatConversation(
       id: 'conv-empty',
       title: null,
@@ -407,13 +379,10 @@ void main() {
       updatedAt: DateTime(2026, 5, 4, 10),
     );
 
-    // saveConversation (single, with filter) should skip it
     await repository.saveConversation(empty);
 
-    // loadAll should return nothing
     expect(repository.loadAll(), isEmpty);
 
-    // Direct SQL check: conversations table should be empty
     final rows = database.connection.select(
       'SELECT id FROM conversations WHERE id = ?',
       ['conv-empty'],
@@ -423,182 +392,161 @@ void main() {
 
   // ── 5. Cross-conversation isolation ──────────────────────────────────
 
-  test(
-    'cross-conversation isolation: saving convA does not affect convB messages',
-    () async {
-      // Helper to build a simple conversation
-      ChatConversation makeConv(
-        String id,
-        String title,
-        List<String> contents,
-      ) {
-        final nodes = <ChatMessage>[];
-        var parent = rootConversationParentId;
-        for (var i = 0; i < contents.length; i++) {
-          final msgId = '$id-msg-$i';
-          nodes.add(
-            ChatMessage(
-              id: msgId,
-              role: i == 0 ? ChatMessageRole.user : ChatMessageRole.assistant,
-              content: contents[i],
-              parentId: parent,
-              createdAt: DateTime(2026, 5, 5, 10 + i),
-            ),
-          );
-          parent = msgId;
-        }
-
-        final selections = <String, String>{};
-        parent = rootConversationParentId;
-        for (var i = 0; i < contents.length; i++) {
-          final msgId = '$id-msg-$i';
-          selections[parent] = msgId;
-          parent = msgId;
-        }
-
-        return ChatConversation(
-          id: id,
-          title: title,
-          messageNodes: List.from(nodes),
-          selectedChildByParentId: Map.from(selections),
-          createdAt: DateTime(2026, 5, 5, 10),
-          updatedAt: DateTime(2026, 5, 5, 10 + contents.length),
+  test('更新一个会话时不修改另一个会话的消息', () async {
+    ChatConversation makeConv(String id, String title, List<String> contents) {
+      final nodes = <ChatMessage>[];
+      var parent = rootConversationParentId;
+      for (var i = 0; i < contents.length; i++) {
+        final msgId = '$id-msg-$i';
+        nodes.add(
+          ChatMessage(
+            id: msgId,
+            role: i == 0 ? ChatMessageRole.user : ChatMessageRole.assistant,
+            content: contents[i],
+            parentId: parent,
+            createdAt: DateTime(2026, 5, 5, 10 + i),
+          ),
         );
+        parent = msgId;
       }
 
-      final convA = makeConv('convA', '会话A', ['A-用户', 'A-回复1', 'A-回复2']);
-      final convB = makeConv('convB', '会话B', ['B-用户', 'B-回复1', 'B-回复2']);
+      final selections = <String, String>{};
+      parent = rootConversationParentId;
+      for (var i = 0; i < contents.length; i++) {
+        final msgId = '$id-msg-$i';
+        selections[parent] = msgId;
+        parent = msgId;
+      }
 
-      // Seed both conversations
-      await repository.saveConversations([convA, convB]);
-
-      // Re-save convA with modified content
-      final modifiedA = convA.copyWith(
-        title: '会话A-修改后',
-        messageNodes: [
-          convA.messageNodes[0],
-          convA.messageNodes[1].copyWith(content: 'A-回复1-修改'),
-          convA.messageNodes[2],
-        ],
-        updatedAt: DateTime(2026, 5, 5, 12),
+      return ChatConversation(
+        id: id,
+        title: title,
+        messageNodes: List.from(nodes),
+        selectedChildByParentId: Map.from(selections),
+        createdAt: DateTime(2026, 5, 5, 10),
+        updatedAt: DateTime(2026, 5, 5, 10 + contents.length),
       );
-      await repository.saveConversations([modifiedA]);
+    }
 
-      // Reload all
-      final all = repository.loadAll();
-      expect(all, hasLength(2));
+    final convA = makeConv('convA', '会话A', ['A-用户', 'A-回复1', 'A-回复2']);
+    final convB = makeConv('convB', '会话B', ['B-用户', 'B-回复1', 'B-回复2']);
 
-      final restoredA = all.firstWhere((c) => c.id == 'convA');
-      final restoredB = all.firstWhere((c) => c.id == 'convB');
+    await repository.saveConversations([convA, convB]);
 
-      // convA was updated
-      expect(restoredA.title, '会话A-修改后');
-      expect(restoredA.messageNodes, hasLength(3));
-      expect(
-        restoredA.messageNodes.firstWhere((n) => n.id == 'convA-msg-1').content,
-        'A-回复1-修改',
-      );
+    final modifiedA = convA.copyWith(
+      title: '会话A-修改后',
+      messageNodes: [
+        convA.messageNodes[0],
+        convA.messageNodes[1].copyWith(content: 'A-回复1-修改'),
+        convA.messageNodes[2],
+      ],
+      updatedAt: DateTime(2026, 5, 5, 12),
+    );
+    await repository.saveConversations([modifiedA]);
 
-      // convB messages are completely unchanged
-      expect(restoredB.title, '会话B');
-      expect(restoredB.messageNodes, hasLength(3));
-      expect(
-        restoredB.messageNodes.firstWhere((n) => n.id == 'convB-msg-0').content,
-        'B-用户',
-      );
-      expect(
-        restoredB.messageNodes.firstWhere((n) => n.id == 'convB-msg-1').content,
-        'B-回复1',
-      );
-      expect(
-        restoredB.messageNodes.firstWhere((n) => n.id == 'convB-msg-2').content,
-        'B-回复2',
-      );
-    },
-  );
+    final all = repository.loadAll();
+    expect(all, hasLength(2));
+
+    final restoredA = all.firstWhere((c) => c.id == 'convA');
+    final restoredB = all.firstWhere((c) => c.id == 'convB');
+
+    expect(restoredA.title, '会话A-修改后');
+    expect(restoredA.messageNodes, hasLength(3));
+    expect(
+      restoredA.messageNodes.firstWhere((n) => n.id == 'convA-msg-1').content,
+      'A-回复1-修改',
+    );
+
+    expect(restoredB.title, '会话B');
+    expect(restoredB.messageNodes, hasLength(3));
+    expect(
+      restoredB.messageNodes.firstWhere((n) => n.id == 'convB-msg-0').content,
+      'B-用户',
+    );
+    expect(
+      restoredB.messageNodes.firstWhere((n) => n.id == 'convB-msg-1').content,
+      'B-回复1',
+    );
+    expect(
+      restoredB.messageNodes.firstWhere((n) => n.id == 'convB-msg-2').content,
+      'B-回复2',
+    );
+  });
 
   // ── 6. node_index update ─────────────────────────────────────────────
 
-  test(
-    'node_index update: reordering messageNodes updates node_index values',
-    () async {
-      // Save conversation with messages at indexes 0, 1, 2
-      final original = ChatConversation(
-        id: 'conv-index',
-        title: '索引测试',
-        messageNodes: [
-          ChatMessage(
-            id: 'idx-first',
-            role: ChatMessageRole.user,
-            content: '第一条',
-            parentId: rootConversationParentId,
-            createdAt: DateTime(2026, 5, 6, 10),
-          ),
-          ChatMessage(
-            id: 'idx-second',
-            role: ChatMessageRole.assistant,
-            content: '第二条',
-            parentId: 'idx-first',
-            createdAt: DateTime(2026, 5, 6, 10, 1),
-          ),
-          ChatMessage(
-            id: 'idx-third',
-            role: ChatMessageRole.assistant,
-            content: '第三条',
-            parentId: 'idx-second',
-            createdAt: DateTime(2026, 5, 6, 10, 2),
-          ),
-        ],
-        selectedChildByParentId: const {
-          rootConversationParentId: 'idx-first',
-          'idx-first': 'idx-second',
-        },
-        createdAt: DateTime(2026, 5, 6, 10),
-        updatedAt: DateTime(2026, 5, 6, 10, 2),
-      );
-      await repository.saveConversations([original]);
+  test('调整消息顺序后数据库索引和读取顺序一致', () async {
+    final original = ChatConversation(
+      id: 'conv-index',
+      title: '索引测试',
+      messageNodes: [
+        ChatMessage(
+          id: 'idx-first',
+          role: ChatMessageRole.user,
+          content: '第一条',
+          parentId: rootConversationParentId,
+          createdAt: DateTime(2026, 5, 6, 10),
+        ),
+        ChatMessage(
+          id: 'idx-second',
+          role: ChatMessageRole.assistant,
+          content: '第二条',
+          parentId: 'idx-first',
+          createdAt: DateTime(2026, 5, 6, 10, 1),
+        ),
+        ChatMessage(
+          id: 'idx-third',
+          role: ChatMessageRole.assistant,
+          content: '第三条',
+          parentId: 'idx-second',
+          createdAt: DateTime(2026, 5, 6, 10, 2),
+        ),
+      ],
+      selectedChildByParentId: const {
+        rootConversationParentId: 'idx-first',
+        'idx-first': 'idx-second',
+      },
+      createdAt: DateTime(2026, 5, 6, 10),
+      updatedAt: DateTime(2026, 5, 6, 10, 2),
+    );
+    await repository.saveConversations([original]);
 
-      // Re-save with reordered messageNodes: second, third, first
-      final reordered = original.copyWith(
-        messageNodes: [
-          original.messageNodes[1], // idx-second → index 0
-          original.messageNodes[2], // idx-third  → index 1
-          original.messageNodes[0], // idx-first  → index 2
-        ],
-        // selections must be consistent with new parent-child relationships
-        selectedChildByParentId: const {
-          rootConversationParentId: 'idx-second',
-          'idx-second': 'idx-third',
-        },
-        updatedAt: DateTime(2026, 5, 6, 11),
-      );
-      await repository.saveConversations([reordered]);
+    final reordered = original.copyWith(
+      messageNodes: [
+        original.messageNodes[1], // idx-second → index 0
+        original.messageNodes[2], // idx-third  → index 1
+        original.messageNodes[0], // idx-first  → index 2
+      ],
+      // 分支选择必须与重新排列后的父子关系一致，保证 fixture 仍是合法消息树。
+      selectedChildByParentId: const {
+        rootConversationParentId: 'idx-second',
+        'idx-second': 'idx-third',
+      },
+      updatedAt: DateTime(2026, 5, 6, 11),
+    );
+    await repository.saveConversations([reordered]);
 
-      // Verify node_index values via raw SQL
-      final rows = database.connection.select(
-        'SELECT id, node_index FROM messages WHERE conversation_id = ? ORDER BY node_index',
-        ['conv-index'],
-      );
+    final rows = database.connection.select(
+      'SELECT id, node_index FROM messages WHERE conversation_id = ? ORDER BY node_index',
+      ['conv-index'],
+    );
 
-      expect(rows, hasLength(3));
-      // After reorder: idx-second should be at node_index 0, idx-third at 1, idx-first at 2
-      expect(rows[0]['id'] as String, 'idx-second');
-      expect(rows[0]['node_index'] as int, 0);
-      expect(rows[1]['id'] as String, 'idx-third');
-      expect(rows[1]['node_index'] as int, 1);
-      expect(rows[2]['id'] as String, 'idx-first');
-      expect(rows[2]['node_index'] as int, 2);
+    expect(rows, hasLength(3));
+    expect(rows[0]['id'] as String, 'idx-second');
+    expect(rows[0]['node_index'] as int, 0);
+    expect(rows[1]['id'] as String, 'idx-third');
+    expect(rows[1]['node_index'] as int, 1);
+    expect(rows[2]['id'] as String, 'idx-first');
+    expect(rows[2]['node_index'] as int, 2);
 
-      // loadConversation should also reflect the new order
-      final loaded = repository.loadConversation('conv-index');
-      expect(loaded, isNotNull);
-      expect(loaded!.messageNodes.map((n) => n.id), [
-        'idx-second',
-        'idx-third',
-        'idx-first',
-      ]);
-    },
-  );
+    final loaded = repository.loadConversation('conv-index');
+    expect(loaded, isNotNull);
+    expect(loaded!.messageNodes.map((n) => n.id), [
+      'idx-second',
+      'idx-third',
+      'idx-first',
+    ]);
+  });
 
   // ── 7. countHistorySummaries ────────────────────────────────────────
 
@@ -639,61 +587,67 @@ void main() {
     );
   }
 
-  test('countHistorySummaries returns 0 on empty db', () {
+  test('空数据库的全部和关键字历史计数均为零', () {
     expect(repository.countHistorySummaries(), 0);
     expect(repository.countHistorySummaries(keyword: ''), 0);
     expect(repository.countHistorySummaries(keyword: '不存在的词'), 0);
   });
 
-  test(
-    'countHistorySummaries counts all conversations when keyword empty',
-    () async {
-      await repository.saveConversations([
-        buildConv('a'),
-        buildConv('b'),
-        buildConv('c'),
-      ]);
+  test('空关键字统计全部非空会话', () async {
+    await repository.saveConversations([
+      buildConv('a'),
+      buildConv('b'),
+      buildConv('c'),
+    ]);
 
-      expect(repository.countHistorySummaries(), 3);
-    },
-  );
+    expect(repository.countHistorySummaries(), 3);
+  });
 
-  test(
-    'countHistorySummaries matches title keyword case-insensitively',
-    () async {
-      await repository.saveConversations([
-        buildConv('a', title: 'Rust 重构计划'),
-        buildConv('b', title: 'Flutter 路线图'),
-        buildConv('c', title: '项目复盘'),
-      ]);
+  test('历史搜索匹配标题且不区分大小写', () async {
+    await repository.saveConversations([
+      buildConv('a', title: 'Rust 重构计划'),
+      buildConv('b', title: 'Flutter 路线图'),
+      buildConv('c', title: '项目复盘'),
+    ]);
 
-      expect(repository.countHistorySummaries(keyword: 'rust'), 1);
-      expect(repository.countHistorySummaries(keyword: 'FLUTTER'), 1);
-      expect(repository.countHistorySummaries(keyword: '计划'), 1);
-      expect(repository.countHistorySummaries(keyword: '不存在的标题'), 0);
-    },
-  );
+    expect(repository.countHistorySummaries(keyword: 'rust'), 1);
+    expect(repository.countHistorySummaries(keyword: 'FLUTTER'), 1);
+    expect(repository.countHistorySummaries(keyword: '计划'), 1);
+    expect(repository.countHistorySummaries(keyword: '不存在的标题'), 0);
+  });
 
-  test(
-    'countHistorySummaries matches user message content across branches',
-    () async {
-      await repository.saveConversations([
-        buildConv('a', userMessageContent: '帮我整理 Rust 模块边界'),
-        buildConv('b', userMessageContent: '请给我一份 Widget 测试清单'),
-        buildConv('c', userMessageContent: '请总结本周推进情况'),
-      ]);
+  test('历史搜索匹配用户消息，包括未选中的分支', () async {
+    final branched = buildConv('a', userMessageContent: '帮我整理 Rust 模块边界');
+    await repository.saveConversations([
+      branched.copyWith(
+        messageNodes: [
+          ...branched.messageNodes,
+          ChatMessage(
+            id: 'hidden-user',
+            role: ChatMessageRole.user,
+            content: '隐藏分支内容',
+            parentId: rootConversationParentId,
+            createdAt: DateTime(2026, 6, 2),
+          ),
+        ],
+      ),
+      buildConv('b', userMessageContent: '请给我一份 Widget 测试清单'),
+      buildConv('c', userMessageContent: '请总结本周推进情况'),
+    ]);
 
-      expect(repository.countHistorySummaries(keyword: 'rust'), 1);
-      expect(repository.countHistorySummaries(keyword: 'widget'), 1);
-      expect(repository.countHistorySummaries(keyword: '总结'), 1);
-      expect(repository.countHistorySummaries(keyword: '模块边界'), 1);
-    },
-  );
+    expect(repository.countHistorySummaries(keyword: 'rust'), 1);
+    expect(repository.countHistorySummaries(keyword: 'widget'), 1);
+    expect(repository.countHistorySummaries(keyword: '总结'), 1);
+    expect(repository.countHistorySummaries(keyword: '模块边界'), 1);
+    expect(repository.countHistorySummaries(keyword: '隐藏分支'), 1);
+  });
 
-  test('countHistorySummaries escapes LIKE wildcards (% and _)', () async {
+  test('历史搜索将百分号和下划线按字面匹配，排除通配诱饵', () async {
     await repository.saveConversations([
       buildConv('pct', title: '进度 50%'),
       buildConv('us', title: '评分_优秀'),
+      buildConv('percent-bait', title: '进度 50X'),
+      buildConv('underscore-bait', title: '评分A优秀'),
       buildConv('a', title: '正常标题'),
     ]);
 
@@ -703,57 +657,51 @@ void main() {
     // '评分_优秀' 精确匹配——下划线被转义，不作为 LIKE 通配符
     expect(repository.countHistorySummaries(keyword: '评分_优秀'), 1);
 
-    // 若 _ 未被转义，'评分_' 应能模糊匹配；但转义后只精确匹配原文。
-    // 原文是 '评分_优秀'，三个字符依次是 评分_优秀。
-    // 搜索 '评分'（不含下划线）仍然通过前缀匹配命中 '评分_优秀'。
-    expect(repository.countHistorySummaries(keyword: '评分'), 1);
+    expect(repository.countHistorySummaries(keyword: '评分'), 2);
   });
 
-  test(
-    'countHistorySummaries excludes conversations without messages/checkpoints',
-    () async {
-      // 带消息的会话 -> 计入
-      await repository.saveConversations([buildConv('with-msg')]);
+  test('历史计数排除没有消息或检查点的会话', () async {
+    // 带消息的会话 -> 计入
+    await repository.saveConversations([buildConv('with-msg')]);
 
-      // 无消息、无 checkpoint、空 title 的会话 -> 被 saveConversation 跳过
-      // （skip rule），不能直接用 saveConversation 写入；改用 raw insert。
-      database.connection.execute(
-        'INSERT INTO conversations (id, title, created_at, updated_at, '
-        'reasoning_enabled, reasoning_effort, excluded_message_ids_json, '
-        'auto_retry_enabled) '
-        'VALUES (?, ?, ?, ?, 0, \'medium\', \'[]\', 0)',
-        [
-          'ghost',
-          null,
-          DateTime(2026, 1, 1).toIso8601String(),
-          DateTime(2026, 1, 1).toIso8601String(),
-        ],
+    // 无消息、无 checkpoint、空 title 的会话 -> 被 saveConversation 跳过
+    // （skip rule），不能直接用 saveConversation 写入；改用 raw insert。
+    database.connection.execute(
+      'INSERT INTO conversations (id, title, created_at, updated_at, '
+      'reasoning_enabled, reasoning_effort, excluded_message_ids_json, '
+      'auto_retry_enabled) '
+      'VALUES (?, ?, ?, ?, 0, \'medium\', \'[]\', 0)',
+      [
+        'ghost',
+        null,
+        DateTime(2026, 1, 1).toIso8601String(),
+        DateTime(2026, 1, 1).toIso8601String(),
+      ],
+    );
+
+    expect(repository.countHistorySummaries(), 1);
+    expect(repository.countHistorySummaries(keyword: 'ghost'), 0);
+  });
+
+  test('历史分页按时间返回全部会话，无遗漏或重复', () async {
+    final convs = List.generate(
+      7,
+      (i) => buildConv('c$i', updatedAt: DateTime(2026, 6, 1, 0, i)),
+    );
+    await repository.saveConversations(convs);
+
+    expect(repository.countHistorySummaries(), 7);
+
+    // limit=3 翻页，应该得到 7 条的总和
+    final fetchedIds = <String>[];
+    const pageSize = 3;
+    for (var offset = 0; offset < 7; offset += pageSize) {
+      final page = repository.loadHistorySummaries(
+        limit: pageSize,
+        offset: offset,
       );
-
-      expect(repository.countHistorySummaries(), 1);
-      expect(repository.countHistorySummaries(keyword: 'ghost'), 0);
-    },
-  );
-
-  test(
-    'countHistorySummaries result equals loadHistorySummaries pagination sum',
-    () async {
-      final convs = List.generate(7, (i) => buildConv('c$i'));
-      await repository.saveConversations(convs);
-
-      expect(repository.countHistorySummaries(), 7);
-
-      // limit=3 翻页，应该得到 7 条的总和
-      var fetched = 0;
-      const pageSize = 3;
-      for (var offset = 0; offset < 7; offset += pageSize) {
-        final page = repository.loadHistorySummaries(
-          limit: pageSize,
-          offset: offset,
-        );
-        fetched += page.length;
-      }
-      expect(fetched, repository.countHistorySummaries());
-    },
-  );
+      fetchedIds.addAll(page.map((item) => item.id));
+    }
+    expect(fetchedIds, ['c6', 'c5', 'c4', 'c3', 'c2', 'c1', 'c0']);
+  });
 }

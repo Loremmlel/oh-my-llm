@@ -4,7 +4,6 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/sync/data/udp/sync_udp_announcement_codec.dart';
-import 'package:oh_my_llm/features/sync/domain/models/discovery/discovered_server.dart';
 import 'package:oh_my_llm/features/sync/domain/models/protocol/sync_protocol_version.dart';
 
 /// UDP v4 公告信封纯编解码的契约测试。
@@ -26,19 +25,16 @@ void main() {
       return utf8.encode(jsonEncode(fields));
     }
 
-    test('默认公告信封可解码为合法服务端并使用本地协议范围', () {
-      final server = codec.decode(data: envelope(), sourceAddress: '127.0.0.1');
-
-      expect(server, isA<DiscoveredServer>());
-      expect(server?.protocolRange, SyncProtocolRange.local);
-    });
-
     test('合法公告 round-trip 后可按来源地址解出服务端', () {
       const codec = SyncUdpAnnouncementCodec();
       final bytes = codec.encode(
         httpPort: 54321,
         deviceName: 'Test-PC',
         serverId: 'server-1',
+      );
+      expect(
+        jsonDecode(utf8.decode(bytes)),
+        jsonDecode(utf8.decode(envelope())),
       );
       final server = codec.decode(data: bytes, sourceAddress: '127.0.0.1');
       expect(server?.deviceName, 'Test-PC');

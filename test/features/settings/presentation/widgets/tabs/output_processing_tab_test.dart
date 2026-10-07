@@ -56,12 +56,8 @@ void main() {
       return ProviderScope.containerOf(tester.element(find.text('输出正则处理')));
     }
 
-    // ── 渲染 ──────────────────────────────────────────────────
-
-    // ── 新增 ──────────────────────────────────────────────────
-
-    testWidgets('新增对话框拒绝无效正则', (tester) async {
-      await pumpTab(tester);
+    testWidgets('新增规则拒绝无效正则，修正后保存到列表', (tester) async {
+      final container = await pumpTab(tester);
       await tester.tap(find.byIcon(Icons.add_rounded));
       await settleOverlayTransition(tester);
 
@@ -73,27 +69,17 @@ void main() {
       await tester.pump();
 
       expect(find.textContaining('无效正则'), findsOneWidget);
-    });
-
-    testWidgets('新增对话框提交合法值后规则出现在列表', (tester) async {
-      await pumpTab(tester);
-      await tester.tap(find.byIcon(Icons.add_rounded));
-      await settleOverlayTransition(tester);
-
+      expect(container.read(outputProcessingSettingsProvider).rules, isEmpty);
       await tester.enterText(find.widgetWithText(TextField, '标题'), '新规则');
       await tester.enterText(find.widgetWithText(TextField, '正则表达式'), r'\d+');
       await tester.tap(find.text('保存'));
-      // 表单提交后对话框出场，列表随保存状态更新
       await settleOverlayTransition(tester);
-
       expect(find.text('新规则'), findsOneWidget);
+      expect(
+        container.read(outputProcessingSettingsProvider).rules.single.pattern,
+        r'\d+',
+      );
     });
-
-    // ── 编辑 ──────────────────────────────────────────────────
-
-    // ── 开关 ──────────────────────────────────────────────────
-
-    // ── 移动 ──────────────────────────────────────────────────
 
     testWidgets('切换启用状态后下移保留新状态与顺序', (tester) async {
       final rules = [
@@ -113,8 +99,6 @@ void main() {
       expect(result.map((rule) => rule.title), ['规则B', '规则A']);
       expect(result.last.enabled, isFalse);
     });
-
-    // ── 删除 ──────────────────────────────────────────────────
 
     testWidgets('确认删除后规则移除', (tester) async {
       final rules = [_rule(title: '待删除')];

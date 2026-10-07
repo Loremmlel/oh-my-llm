@@ -106,9 +106,7 @@ Future<GoRouter> _pumpShuffleAppBar(
 }
 
 void main() {
-  testWidgets('下一个按钮以 currentVideo.relativePath 打开 mediaVideo 路由', (
-    tester,
-  ) async {
+  testWidgets('下一个打开正确视频，关闭后只通知一次播放退出', (tester) async {
     final prefs = await _testPrefs();
     final shuffleController = RecordingShuffleController(
       ShufflePlaybackActive(
@@ -139,39 +137,10 @@ void main() {
       '/视频/第二个.mp4',
     );
     expect(find.text('第二个.mp4'), findsOneWidget);
-  });
-
-  testWidgets('pop 播放器后 onPlayerExited 恰好调用一次', (tester) async {
-    final prefs = await _testPrefs();
-    final shuffleController = RecordingShuffleController(
-      ShufflePlaybackActive(
-        playlist: const [
-          VideoItem(name: '第一个.mp4', relativePath: '/视频/第一个.mp4'),
-          VideoItem(name: '第二个.mp4', relativePath: '/视频/第二个.mp4'),
-        ],
-        currentIndex: 0,
-        directoryPath: '/视频',
-      ),
-    );
-    final router = await _pumpShuffleAppBar(
-      tester,
-      prefs: prefs,
-      shuffleController: shuffleController,
-    );
-
-    await tester.tap(find.byTooltip('下一个'));
-    await settleRouteTransition(tester);
-
-    // 点击播放器顶部关闭按钮（tooltip「关闭视频」），pop 完成后
-    // 应触发一次 onPlayerExited。
+    expect(shuffleController.onPlayerExitedCallCount, 0);
     await tester.tap(find.byTooltip('关闭视频'));
-    // 控制栏与手势层是兄弟层：按钮 tap 即时派发，无需等待双击窗口。
     await settleRouteTransition(tester);
-
     expect(shuffleController.onPlayerExitedCallCount, 1);
-    expect(
-      router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
-      '/sync',
-    );
+    expect(router.routerDelegate.state.uri.path, '/sync');
   });
 }

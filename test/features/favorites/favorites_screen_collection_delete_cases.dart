@@ -94,20 +94,12 @@ void registerFavoritesScreenCollectionDeleteTests() {
     expect(find.text('去向24'), findsNothing);
   });
 
-  testWidgets('删除非空收藏夹对话框显示准确数量', (tester) async {
-    await _openCollection(tester, itemCount: 3);
-
-    await _openDeleteDialog(tester);
-
-    expect(find.textContaining('3'), findsWidgets);
-    // 默认去向是移动到系统未分类。
-    expect(find.textContaining('移入'), findsOneWidget);
-  });
-
   testWidgets('默认移动到系统未分类且确认后收藏保留', (tester) async {
     await _openCollection(tester, itemCount: 2);
 
     await _openDeleteDialog(tester);
+    expect(find.text('移入其他收藏夹'), findsOneWidget);
+    expect(find.textContaining('中有 2 项收藏'), findsOneWidget);
     await tester.tap(find.widgetWithText(FilledButton, '删除收藏夹'));
     await settleRouteTransition(tester);
 
@@ -124,6 +116,11 @@ void registerFavoritesScreenCollectionDeleteTests() {
     );
 
     await _openDeleteDialog(tester);
+    expect(
+      find.descendant(of: find.byType(AlertDialog), matching: find.text('待删夹')),
+      findsNothing,
+    );
+    expect(find.text('未分类'), findsOneWidget);
     await tester.tap(find.text('备用夹'));
     await tester.pump();
     await tester.tap(find.widgetWithText(FilledButton, '删除收藏夹'));
@@ -152,46 +149,6 @@ void registerFavoritesScreenCollectionDeleteTests() {
     expect(find.text('待删夹'), findsNothing);
     expect(find.textContaining('共 0 条 · 0/0 页'), findsNothing);
     expect(find.textContaining('暂无收藏'), findsOneWidget);
-  });
-
-  testWidgets('移动去向不包含待删除的收藏夹自身', (tester) async {
-    await _openCollection(
-      tester,
-      itemCount: 1,
-      extraSeed: (db) => seedCollection(db, id: 'col-alt', name: '备用夹'),
-    );
-
-    await _openDeleteDialog(tester);
-
-    // 对话框内"待删夹"不作为可选去向出现；只有系统夹与备用夹。
-    expect(find.widgetWithText(RadioListTile<String>, '待删夹'), findsNothing);
-    expect(find.text('未分类'), findsOneWidget);
-    expect(find.text('备用夹'), findsOneWidget);
-  });
-
-  testWidgets('移动去向列表渲染在移入选项与危险删除选项之间', (tester) async {
-    await _openCollection(tester, itemCount: 2);
-
-    await _openDeleteDialog(tester);
-
-    // 顺序契约：去向单选列表在视觉上归属「移入其他收藏夹」选项，必须
-    // 渲染在它与危险删除选项之间；挂在删除选项之后会让用户误以为去向
-    // 从属于删除。widgetList 按树序遍历，与 Column 子项视觉顺序一致。
-    final texts = tester
-        .widgetList<Text>(
-          find.descendant(
-            of: find.byType(AlertDialog),
-            matching: find.byType(Text),
-          ),
-        )
-        .map((text) => text.data ?? '')
-        .toList();
-    final moveIndex = texts.indexOf('移入其他收藏夹');
-    final targetIndex = texts.indexOf('未分类');
-    final deleteIndex = texts.indexWhere((text) => text.contains('及其中'));
-    expect(moveIndex, greaterThanOrEqualTo(0));
-    expect(targetIndex, greaterThan(moveIndex));
-    expect(deleteIndex, greaterThan(targetIndex));
   });
 
   testWidgets('对话框内新建收藏夹只选中仍需最终确认', (tester) async {

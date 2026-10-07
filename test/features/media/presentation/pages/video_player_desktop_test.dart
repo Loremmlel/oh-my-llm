@@ -29,15 +29,6 @@ class DesktopVideoTestHarness {
   final FakeVideoFullscreenController fullscreen;
   final WidgetTester tester;
 
-  FocusNode get surfaceFocusNode {
-    final focus = tester.widget<Focus>(
-      find
-          .ancestor(of: find.byType(VideoPlayer), matching: find.byType(Focus))
-          .first,
-    );
-    return focus.focusNode!;
-  }
-
   Finder get videoSurface => find.byType(VideoPlayer);
 
   Offset get videoSurfaceCenter => tester.getCenter(videoSurface);
@@ -129,11 +120,6 @@ Future<DesktopVideoTestHarness> pumpPushedDesktopVideo(
 }
 
 void main() {
-  testWidgets('初始化成功后播放表面自动获得主焦点', (tester) async {
-    final harness = await pumpDesktopVideo(tester);
-    expect(harness.surfaceFocusNode.hasPrimaryFocus, isTrue);
-  });
-
   testWidgets('初始化期间打开的弹层优先消费 Escape', (tester) async {
     final gate = Completer<void>();
     final fake = FakeVideoPlayerController()..initializeGate = gate;
@@ -176,7 +162,7 @@ void main() {
     expect(find.text('0.5x'), findsNothing);
   });
 
-  testWidgets('左右方向键转发五秒 Seek', (tester) async {
+  testWidgets('初始化后无需点击即可用方向键快进与快退', (tester) async {
     final harness = await pumpDesktopVideo(tester);
     await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowRight);
     expect(harness.fake.seekToCalls, isEmpty);
@@ -241,7 +227,10 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(find.byType(VideoPlayerPage), findsOneWidget);
-    expect(harness.surfaceFocusNode.hasPrimaryFocus, isTrue);
+    final before = harness.fake.pauseCallCount;
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
+    await tester.pump();
+    expect(harness.fake.pauseCallCount, before + 1);
   });
 
   testWidgets('触摸双击在桌面只切换全屏', (tester) async {

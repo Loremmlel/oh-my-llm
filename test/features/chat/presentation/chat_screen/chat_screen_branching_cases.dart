@@ -3,126 +3,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/chat/application/generation/chat_generation_lifecycle.dart';
-import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/domain/chat_error_messages.dart';
-import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
-import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
+import 'package:oh_my_llm/features/chat/presentation/widgets/messages/bubble/chat_message_bubble.dart';
 
 import '../../../../helpers/async/widget_test_animation.dart';
 import 'chat_screen_test_helpers.dart';
 
 void registerChatScreenBranchingTests() {
-  testWidgets(
-    'chat screen edits user message and regenerates following replies',
-    (tester) async {
-      final fakeClient = FakeChatGenerationClient()
-        ..enqueueChunks(['原始回复一'])
-        ..enqueueChunks(['原始回复二'])
-        ..enqueueChunks(['原始回复三']);
-
-      await pumpChatScreen(tester, fakeClient: fakeClient);
-      final container = ProviderScope.containerOf(
-        tester.element(find.byType(ChatScreen)),
-      );
-
-      await sendMessage(tester, '第一条原始问题');
-      await waitForChatGeneration(
-        tester,
-        container,
-        (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
-        description: '编辑重算用例首轮生成完成',
-      );
-      await sendMessage(tester, '第二条问题');
-      await waitForChatGeneration(
-        tester,
-        container,
-        (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
-        description: '编辑重算用例第二轮生成完成',
-      );
-      await sendMessage(tester, '第三条问题');
-      await waitForChatGeneration(
-        tester,
-        container,
-        (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
-        description: '编辑重算用例第三轮生成完成',
-      );
-
-      fakeClient.enqueueChunks(['重算后的第二条回复']);
-      final activeConversation = container
-          .read(chatSessionsProvider)
-          .activeConversation;
-      final secondUserMessage = activeConversation.messages
-          .where((message) {
-            return message.role == ChatMessageRole.user;
-          })
-          .elementAt(1);
-
-      await container
-          .read(chatSessionsProvider.notifier)
-          .editMessage(
-            messageId: secondUserMessage.id,
-            nextContent: '第二条已修改问题',
-          );
-      await waitForChatGeneration(
-        tester,
-        container,
-        (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
-        description: '编辑消息后重算生成完成',
-      );
-
-      expect(find.textContaining('第一条原始问题'), findsWidgets);
-      expect(find.textContaining('原始回复一'), findsWidgets);
-      expect(find.textContaining('第二条已修改问题'), findsWidgets);
-      expect(find.textContaining('重算后的第二条回复'), findsWidgets);
-      expect(find.textContaining('原始回复二'), findsNothing);
-      expect(find.textContaining('第三条问题'), findsNothing);
-      expect(find.textContaining('原始回复三'), findsNothing);
-      expect(
-        fakeClient.requestHistory.last
-            .map((message) => message.content)
-            .toList(),
-        ['第一条原始问题', '原始回复一', '第二条已修改问题'],
-      );
-    },
-  );
-
-  testWidgets('chat screen retries latest assistant reply', (tester) async {
-    final fakeClient = FakeChatGenerationClient()
-      ..enqueueChunks(['原始回复'])
-      ..enqueueChunks(['重试后的回复']);
-
-    await pumpChatScreen(tester, fakeClient: fakeClient);
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ChatScreen)),
-    );
-
-    await sendMessage(tester, '帮我重试一下');
-    await waitForChatGeneration(
-      tester,
-      container,
-      (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
-      description: '重试用例首轮生成完成',
-    );
-
-    await tester.tap(find.byTooltip('重试回复'));
-    await waitForChatGeneration(
-      tester,
-      container,
-      (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
-      description: '重试后生成完成',
-    );
-
-    expect(find.textContaining('重试后的回复'), findsWidgets);
-    expect(find.textContaining('原始回复'), findsNothing);
-    expect(
-      fakeClient.requestHistory.last.map((message) => message.content).toList(),
-      ['帮我重试一下'],
-    );
-  });
-
-  testWidgets('retry keeps assistant sibling versions in tree', (tester) async {
+  testWidgets('重试回复显示新版本，通过上一版本入口可恢复原回复', (tester) async {
     final fakeClient = FakeChatGenerationClient()
       ..enqueueChunks(['首次回复'])
       ..enqueueChunks(['重试后回复']);
@@ -147,76 +37,55 @@ void registerChatScreenBranchingTests() {
       (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
       description: '保留兄弟版本用例重试生成完成',
     );
-    final activeConversation = container
-        .read(chatSessionsProvider)
-        .activeConversation;
-    final rootUser = activeConversation.messageNodes.firstWhere((message) {
-      return message.role == ChatMessageRole.user &&
-          (message.parentId ?? rootConversationParentId) ==
-              rootConversationParentId;
-    });
-    final assistantSiblings = activeConversation.messageNodes
-        .where((message) {
-          return message.role == ChatMessageRole.assistant &&
-              message.parentId == rootUser.id;
-        })
-        .toList(growable: false);
-
-    expect(assistantSiblings.length, 2);
     expect(find.textContaining('重试后回复'), findsWidgets);
+    expect(find.textContaining('首次回复'), findsNothing);
     expect(find.text('2/2'), findsOneWidget);
+    expect(fakeClient.lastRequestMessages.map((message) => message.content), [
+      '测试重试分支',
+    ]);
 
-    await container
-        .read(chatSessionsProvider.notifier)
-        .selectMessageVersion(
-          parentId: rootUser.id,
-          messageId: assistantSiblings.first.id,
-        );
+    await tester.tap(find.byTooltip('上一版本'));
     // 树版本切换是同步状态变更，单帧渲染即可。
     await tester.pump();
 
     expect(find.textContaining('首次回复'), findsWidgets);
   });
 
-  testWidgets(
-    'failed request shows inline error bubble and retries without 2/2',
-    (tester) async {
-      final fakeClient = FakeChatGenerationClient()
-        ..enqueueError(ChatGenerationException('HTTP 503: unavailable'))
-        ..enqueueChunks(['重试恢复成功']);
+  testWidgets('失败请求显示内联错误，重试恢复后不残留空的兄弟版本', (tester) async {
+    final fakeClient = FakeChatGenerationClient()
+      ..enqueueError(ChatGenerationException('HTTP 503: unavailable'))
+      ..enqueueChunks(['重试恢复成功']);
 
-      await pumpChatScreen(tester, fakeClient: fakeClient);
-      final container = ProviderScope.containerOf(
-        tester.element(find.byType(ChatScreen)),
-      );
+    await pumpChatScreen(tester, fakeClient: fakeClient);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
 
-      await sendMessage(tester, '先触发一次错误');
-      await waitForChatGeneration(
-        tester,
-        container,
-        (s) => s.generation?.phase == ChatGenerationPhase.failed,
-        description: '错误请求进入失败终态',
-      );
+    await sendMessage(tester, '先触发一次错误');
+    await waitForChatGeneration(
+      tester,
+      container,
+      (s) => s.generation?.phase == ChatGenerationPhase.failed,
+      description: '错误请求进入失败终态',
+    );
 
-      expect(find.textContaining('HTTP 503: unavailable'), findsWidgets);
-      expect(find.text('2/2'), findsNothing);
+    expect(find.textContaining('HTTP 503: unavailable'), findsWidgets);
+    expect(find.textContaining(ChatErrorMessages.emptyReply), findsNothing);
+    expect(find.text('2/2'), findsNothing);
 
-      await tester.tap(find.byTooltip('重试回复').last);
-      await waitForChatGeneration(
-        tester,
-        container,
-        (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
-        description: '错误恢复重试生成完成',
-      );
+    await tester.tap(find.byTooltip('重试回复').last);
+    await waitForChatGeneration(
+      tester,
+      container,
+      (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
+      description: '错误恢复重试生成完成',
+    );
 
-      expect(find.textContaining('重试恢复成功'), findsWidgets);
-      expect(find.text('2/2'), findsNothing);
-    },
-  );
+    expect(find.textContaining('重试恢复成功'), findsWidgets);
+    expect(find.text('2/2'), findsNothing);
+  });
 
-  testWidgets('editing user message creates switchable root branches', (
-    tester,
-  ) async {
+  testWidgets('编辑用户消息提交新分支，切回旧版可恢复原后续对话', (tester) async {
     final fakeClient = FakeChatGenerationClient()
       ..enqueueChunks(['原始回复一'])
       ..enqueueChunks(['原始回复二'])
@@ -241,20 +110,14 @@ void registerChatScreenBranchingTests() {
       (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
       description: '根分支用例第二轮生成完成',
     );
-    final beforeEditConversation = container
-        .read(chatSessionsProvider)
-        .activeConversation;
-    final originalRootUser = beforeEditConversation.messageNodes.firstWhere((
-      message,
-    ) {
-      return message.role == ChatMessageRole.user &&
-          (message.parentId ?? rootConversationParentId) ==
-              rootConversationParentId;
-    });
-
-    await container
-        .read(chatSessionsProvider.notifier)
-        .editMessage(messageId: originalRootUser.id, nextContent: '编辑后的用户1');
+    await tester.tap(
+      find.descendant(
+        of: find.widgetWithText(ChatMessageBubble, '原始用户1'),
+        matching: find.byTooltip('编辑消息'),
+      ),
+    );
+    await settleAnimatedWidgetTransition(tester);
+    await sendMessage(tester, '编辑后的用户1');
     await waitForChatGeneration(
       tester,
       container,
@@ -267,12 +130,7 @@ void registerChatScreenBranchingTests() {
     expect(find.textContaining('原始用户2'), findsNothing);
     expect(find.text('2/2'), findsOneWidget);
 
-    await container
-        .read(chatSessionsProvider.notifier)
-        .selectMessageVersion(
-          parentId: rootConversationParentId,
-          messageId: originalRootUser.id,
-        );
+    await tester.tap(find.byTooltip('上一版本'));
     // 树版本切换是同步状态变更，单帧渲染即可。
     await tester.pump();
 
@@ -281,13 +139,11 @@ void registerChatScreenBranchingTests() {
     expect(find.textContaining('原始回复二'), findsWidgets);
   });
 
-  // ── 删除分支测试共享 setup ──────────────────
-
-  /// 创建一个有 2 个版本 assistant 回复的对话供删除测试使用
-  Future<void> setupDeleteScenario(WidgetTester tester) async {
+  testWidgets('删除当前分支保留旧回复，再删除全部版本清空所有回复', (tester) async {
     final fakeClient = FakeChatGenerationClient()
       ..enqueueChunks(['首次回复'])
-      ..enqueueChunks(['重试后回复']);
+      ..enqueueChunks(['重试后回复'])
+      ..enqueueChunks(['再次重试回复']);
 
     await pumpChatScreen(tester, fakeClient: fakeClient);
     final container = ProviderScope.containerOf(
@@ -307,13 +163,6 @@ void registerChatScreenBranchingTests() {
       (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
       description: '删除场景重试生成完成',
     );
-  }
-
-  testWidgets('delete message dialog offers current branch or all versions', (
-    tester,
-  ) async {
-    await setupDeleteScenario(tester);
-
     await tester.tap(find.byTooltip('消息操作').last);
     await settleOverlayTransition(tester);
     await tester.tap(find.text('删除消息'));
@@ -329,13 +178,14 @@ void registerChatScreenBranchingTests() {
     expect(find.textContaining('首次回复'), findsWidgets);
     expect(find.textContaining('重试后回复'), findsNothing);
     expect(find.text('1/1'), findsNothing);
-  });
-
-  testWidgets('delete all assistant versions removes the reply node', (
-    tester,
-  ) async {
-    await setupDeleteScenario(tester);
-
+    await tester.tap(find.byTooltip('重试回复'));
+    await waitForChatGeneration(
+      tester,
+      container,
+      (state) => state.generation?.phase == ChatGenerationPhase.succeeded,
+      description: '删除旧分支后再次生成兄弟版本',
+    );
+    expect(find.text('2/2'), findsOneWidget);
     await tester.tap(find.byTooltip('消息操作').last);
     await settleOverlayTransition(tester);
     await tester.tap(find.text('删除消息'));
@@ -345,12 +195,11 @@ void registerChatScreenBranchingTests() {
 
     expect(find.textContaining('首次回复'), findsNothing);
     expect(find.textContaining('重试后回复'), findsNothing);
+    expect(find.textContaining('再次重试回复'), findsNothing);
     expect(find.textContaining('测试删除弹窗'), findsWidgets);
   });
 
-  testWidgets('空回复时渲染 ChatInlineEmptyReplyCard 而非 ChatInlineErrorCard', (
-    tester,
-  ) async {
+  testWidgets('空回复显示空回复提示', (tester) async {
     final fakeClient = FakeChatGenerationClient()
       // 空字符串 chunk 触发空回复路径（anyChunkYielded=true + content 为空）
       ..enqueueChunks(['']);
@@ -369,28 +218,5 @@ void registerChatScreenBranchingTests() {
     );
 
     expect(find.textContaining(ChatErrorMessages.emptyReply), findsOneWidget);
-  });
-
-  testWidgets('真实错误时渲染 ChatInlineErrorCard 而非 ChatInlineEmptyReplyCard', (
-    tester,
-  ) async {
-    final fakeClient = FakeChatGenerationClient()
-      ..enqueueError(ChatGenerationException('测试网络错误'));
-
-    await pumpChatScreen(tester, fakeClient: fakeClient);
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ChatScreen)),
-    );
-
-    await sendMessage(tester, '触发错误');
-    await waitForChatGeneration(
-      tester,
-      container,
-      (s) => s.generation?.phase == ChatGenerationPhase.failed,
-      description: '真实错误进入失败终态',
-    );
-
-    expect(find.textContaining('测试网络错误'), findsOneWidget);
-    expect(find.textContaining(ChatErrorMessages.emptyReply), findsNothing);
   });
 }

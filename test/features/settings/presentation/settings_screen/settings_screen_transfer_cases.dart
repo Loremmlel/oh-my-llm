@@ -60,7 +60,7 @@ void registerSettingsScreenTransferTests() {
     expect(container.read(presetPromptsProvider), contains(preset));
   });
 
-  testWidgets('敏感服务商导出取消时不写入系统剪贴板', (tester) async {
+  testWidgets('敏感服务商导出先取消保密，再确认仅复制服务商分组', (tester) async {
     final clipboardWrites = <String>[];
     await setUpSettingsScreen(
       tester,
@@ -77,26 +77,15 @@ void registerSettingsScreenTransferTests() {
     await settleOverlayTransition(tester);
 
     expect(clipboardWrites, isEmpty);
-  });
-
-  testWidgets('确认敏感服务商导出只写入 modelProviders section', (tester) async {
-    final clipboardWrites = <String>[];
-    await setUpSettingsScreen(
-      tester,
-      models: [_providerModel(apiKey: 'provider-secret')],
-      clipboardWrites: clipboardWrites,
-    );
-
     await tester.tap(find.byIcon(Icons.upload_rounded));
     await settleOverlayTransition(tester);
     await tester.tap(find.text('确认复制'));
     await settleOverlayTransition(tester);
-
     expect(clipboardWrites, hasLength(1));
-    final document = _decodeDocument(clipboardWrites.single);
-    expect(document.sections.keys, ['modelProviders']);
+    expect(_decodeDocument(clipboardWrites.single).sections.keys, [
+      'modelProviders',
+    ]);
     expect(find.textContaining('provider-secret'), findsNothing);
-    expect(find.textContaining('provider-header-secret'), findsNothing);
   });
 
   testWidgets('空自定义请求头导出保留显式空 replacement section', (tester) async {

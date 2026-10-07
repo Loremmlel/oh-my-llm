@@ -62,7 +62,7 @@ void main() {
 
   // ── 正常路径 ─────────────────────────────────────────────────────────────────
 
-  test('success: chunks -> succeeded, outcome=Success, attempt=1', () async {
+  test('正文完成进入成功终态且首次尝试身份一致', () async {
     fakeClient.enqueueChunks(['hello']);
     final host = _FakeHost();
     final run = newRun(host: host);
@@ -110,7 +110,7 @@ void main() {
     await run.completion;
   });
 
-  test('empty reply -> GiveUp emptyReply', () async {
+  test('空回复由结算决策进入空回复终态', () async {
     fakeClient.enqueueChunks(['']);
     final host = _FakeHost(
       attemptDecisionFor: (_) => const ChatAttemptGiveUp(
@@ -129,7 +129,7 @@ void main() {
     );
   });
 
-  test('stream error -> GiveUp failed', () async {
+  test('流错误由结算决策进入失败终态', () async {
     fakeClient.enqueueError(StateError('boom'));
     final host = _FakeHost(
       attemptDecisionFor: (s) => ChatAttemptGiveUp(
@@ -149,56 +149,53 @@ void main() {
     expect(host.progress.last.snapshot.outcome, isA<ChatGenerationFailure>());
   });
 
-  test(
-    'retry then success: attempt increments to 2, final succeeded',
-    () async {
-      fakeClient.enqueueDeltas(const [
-        ChatGenerationChunk(
-          usage: LlmUsage(inputTokens: 10, cachedInputTokens: 5),
-        ),
-      ]); // attempt 1 空 -> retry
-      fakeClient.enqueueDeltas(const [
-        ChatGenerationChunk(
-          contentDelta: 'ok',
-          usage: LlmUsage(inputTokens: 7, cachedInputTokens: 0),
-        ),
-        ChatGenerationChunk(usage: LlmUsage(outputTokens: 3)),
-      ]); // attempt 2 成功
-      final host = _FakeHost(
-        attemptDecisionFor: (s) => s.attempt == 1
-            ? const ChatAttemptRetry()
-            : ChatAttemptSucceed(s.streamingConversation),
-      );
-      final run = newRun(
-        host: host,
-        command: newCommand(
-          retryPolicy: enabledRetry(maxRetryCount: 5),
-          retryDelay: Duration.zero,
-        ),
-      );
+  test('重试后成功递增尝试编号，各次用量分别结算', () async {
+    fakeClient.enqueueDeltas(const [
+      ChatGenerationChunk(
+        usage: LlmUsage(inputTokens: 10, cachedInputTokens: 5),
+      ),
+    ]); // attempt 1 空 -> retry
+    fakeClient.enqueueDeltas(const [
+      ChatGenerationChunk(
+        contentDelta: 'ok',
+        usage: LlmUsage(inputTokens: 7, cachedInputTokens: 0),
+      ),
+      ChatGenerationChunk(usage: LlmUsage(outputTokens: 3)),
+    ]); // attempt 2 成功
+    final host = _FakeHost(
+      attemptDecisionFor: (s) => s.attempt == 1
+          ? const ChatAttemptRetry()
+          : ChatAttemptSucceed(s.streamingConversation),
+    );
+    final run = newRun(
+      host: host,
+      command: newCommand(
+        retryPolicy: enabledRetry(maxRetryCount: 5),
+        retryDelay: Duration.zero,
+      ),
+    );
 
-      run.start();
-      await run.completion;
+    run.start();
+    await run.completion;
 
-      expect(run.phase, ChatGenerationPhase.succeeded);
-      expect(host.attempts, hasLength(2));
-      expect(host.attempts.first.attempt, 1);
-      expect(host.attempts.last.attempt, 2);
-      expect(
-        host.attempts.first.usage,
-        const LlmUsage(inputTokens: 10, cachedInputTokens: 5),
-      );
-      expect(
-        host.attempts.last.usage,
-        const LlmUsage(inputTokens: 7, outputTokens: 3, cachedInputTokens: 0),
-      );
-      expect(fakeClient.requestHistory, hasLength(2));
-    },
-  );
+    expect(run.phase, ChatGenerationPhase.succeeded);
+    expect(host.attempts, hasLength(2));
+    expect(host.attempts.first.attempt, 1);
+    expect(host.attempts.last.attempt, 2);
+    expect(
+      host.attempts.first.usage,
+      const LlmUsage(inputTokens: 10, cachedInputTokens: 5),
+    );
+    expect(
+      host.attempts.last.usage,
+      const LlmUsage(inputTokens: 7, outputTokens: 3, cachedInputTokens: 0),
+    );
+    expect(fakeClient.requestHistory, hasLength(2));
+  });
 
   // ── stop ─────────────────────────────────────────────────────────────────────
 
-  test('preparing stop: no network, cancelled, stop phase=preparing', () async {
+  test('准备期间停止不发请求，取消快照保留停止来源', () async {
     fakeClient.enqueueChunks(['hello']); // 不应被消费
     final host = _FakeHost(prepareGate: Completer<void>());
     final run = newRun(host: host);
@@ -216,7 +213,7 @@ void main() {
     expect(host.stops.single.attempt, 1);
   });
 
-  test('streaming stop: cancelled, partial content retained', () async {
+  test('流式期间停止保留部分正文和用量', () async {
     final controlled = fakeClient.enqueueControlledStream();
     addTearDown(controlled.close);
     final host = _FakeHost();
@@ -246,7 +243,7 @@ void main() {
     );
   });
 
-  test('retry-waiting stop: cancelled, no next attempt', () async {
+  test('等待重试期间停止不启动下一次尝试', () async {
     fakeClient.enqueueChunks(['']); // 空 -> retry
     fakeClient.enqueueChunks(['ok']); // 不应消费
     final host = _FakeHost(attemptDecisionFor: (_) => const ChatAttemptRetry());
@@ -271,7 +268,7 @@ void main() {
     expect(fakeClient.requestHistory, hasLength(1));
   });
 
-  test('concurrent stop: idempotent, one stop call', () async {
+  test('并发停止只结算一次取消', () async {
     final controlled = fakeClient.enqueueControlledStream();
     addTearDown(controlled.close);
     final host = _FakeHost();
@@ -291,30 +288,25 @@ void main() {
     expect(host.stops, hasLength(1)); // 只一次 stop
   });
 
-  test(
-    'finalizing stop: outcome unchanged (still success), stop no-op',
-    () async {
-      fakeClient.enqueueChunks(['hello']);
-      final host = _FakeHost(completeAttemptGate: Completer<void>());
-      final run = newRun(host: host);
+  test('正在保存成功结果时停止不会覆盖已确定的终态', () async {
+    fakeClient.enqueueChunks(['hello']);
+    final host = _FakeHost(completeAttemptGate: Completer<void>());
+    final run = newRun(host: host);
 
-      run.start();
-      await host
-          .completeAttemptEntered
-          .future; // completeAttempt 进入（finalizing）
-      run.requestStop(); // finalizing 期间 stop
-      host.completeAttemptGate!.complete(); // completeAttempt 返回 Succeed
-      await run.completion;
+    run.start();
+    await host.completeAttemptEntered.future; // completeAttempt 进入（finalizing）
+    run.requestStop(); // finalizing 期间 stop
+    host.completeAttemptGate!.complete(); // completeAttempt 返回 Succeed
+    await run.completion;
 
-      expect(run.phase, ChatGenerationPhase.succeeded);
-      expect(host.progress.last.snapshot.outcome, isA<ChatGenerationSuccess>());
-      expect(host.stops, isEmpty); // stop no-op
-    },
-  );
+    expect(run.phase, ChatGenerationPhase.succeeded);
+    expect(host.progress.last.snapshot.outcome, isA<ChatGenerationSuccess>());
+    expect(host.stops, isEmpty); // stop no-op
+  });
 
   // ── dispose ─────────────────────────────────────────────────────────────────
 
-  test('dispose: completion null, no further projection', () async {
+  test('释放后返回空结果且迟到正文、错误和完成事件均不再投影', () async {
     final controlled = fakeClient.enqueueControlledStream();
     addTearDown(controlled.close);
     final host = _FakeHost();
@@ -322,21 +314,59 @@ void main() {
 
     run.start();
     await controlled.listened; // 确认已进入流式后再 dispose
-    run.dispose();
-    // 让路一个微任务：若 dispose 未正确取消订阅，在途投影事件会在此到达并改变
-    // progress 计数，使下方「无新投影」断言成为真实检验而非同步读恒等的永真式。
-    await Future<void>.value();
-
-    expect(await run.completion, isNull);
-    // dispose 后 _disposed guard + 订阅取消保证不再投影：先记录当前计数，再断言
-    // 无新投影。
     final progressCount = host.progress.length;
-    expect(host.progress.length, progressCount); // 无新投影
+    run.dispose();
+    controlled.add(const ChatGenerationChunk(contentDelta: '迟到正文'));
+    controlled.addError(StateError('迟到错误'));
+    await controlled.close();
+    expect(await run.completion, isNull);
+    expect(host.progress, hasLength(progressCount));
+    expect(host.attempts, isEmpty);
+    expect(host.stops, isEmpty);
+  });
+
+  testWidgets('固定间隔重试实际等待配置时长，随后仅启动下一次尝试', (tester) async {
+    const intervalSeconds = 2;
+    const interval = Duration(seconds: intervalSeconds);
+    const clockTick = Duration(milliseconds: 1);
+    const jitterWindow = Duration(seconds: 1);
+    fakeClient.enqueueChunks(['']);
+    fakeClient.enqueueChunks(['成功']);
+    final host = _FakeHost(
+      attemptDecisionFor: (attempt) => attempt.attempt == 1
+          ? const ChatAttemptRetry()
+          : ChatAttemptSucceed(attempt.streamingConversation),
+    );
+    final run = newRun(
+      host: host,
+      command: newCommand(
+        retryPolicy: const ChatRetryPolicy(
+          enabled: true,
+          maxRetryCount: 3,
+          retryMode: RetryMode.fixedInterval,
+          maxJitterSeconds: intervalSeconds,
+          retryOnAbnormalFinishReason: false,
+          retryOnTimeout: false,
+          timeout: Duration.zero,
+        ),
+      ),
+    );
+    addTearDown(run.dispose);
+    run.start();
+    await tester.pump();
+    expect(run.phase, ChatGenerationPhase.retryWaiting);
+    await tester.pump(interval - clockTick);
+    expect(fakeClient.requestHistory, hasLength(1));
+    // 固定间隔含不足一秒的随机抖动；用虚拟时钟跨过整个区间。
+    await tester.pump(jitterWindow + clockTick);
+    await run.completion;
+    expect(fakeClient.requestHistory, hasLength(2));
+    expect(run.phase, ChatGenerationPhase.succeeded);
   });
 
   // ── persistence failure ─────────────────────────────────────────────────────
 
-  test('prepare failure: persistenceFailed, no network', () async {
+  test('准备落盘失败不发请求且进入持久化失败终态', () async {
     final host = _FakeHost(prepareResult: const ChatPrepareFailure('boom'));
     final run = newRun(host: host);
 
@@ -353,7 +383,7 @@ void main() {
     expect(fakeClient.requestHistory, isEmpty);
   });
 
-  test('completeAttempt persistence failure: persistenceFailed', () async {
+  test('完成结算落盘失败进入持久化失败终态', () async {
     fakeClient.enqueueChunks(['hello']);
     final host = _FakeHost(
       attemptDecision: const ChatAttemptPersistenceFailed('boom'),
@@ -366,7 +396,7 @@ void main() {
     expect(run.phase, ChatGenerationPhase.persistenceFailed);
   });
 
-  test('stop persistence failure: persistenceFailed', () async {
+  test('停止落盘失败进入持久化失败终态', () async {
     final controlled = fakeClient.enqueueControlledStream();
     addTearDown(controlled.close);
     final host = _FakeHost(
@@ -388,7 +418,7 @@ void main() {
 
   // ── late callbacks ──────────────────────────────────────────────────────────
 
-  test('late chunk/error after stop discarded, partial unchanged', () async {
+  test('停止后的迟到正文和错误不改变已保存的部分内容', () async {
     final controlled = fakeClient.enqueueControlledStream();
     addTearDown(controlled.close);
     final host = _FakeHost();

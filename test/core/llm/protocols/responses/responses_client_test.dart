@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:oh_my_llm/core/http/llm_http_stream_transport.dart';
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
+import 'package:oh_my_llm/core/llm/llm_request.dart';
 import 'package:oh_my_llm/core/llm/llm_usage.dart';
 import 'package:oh_my_llm/core/llm/protocols/responses/responses_client.dart';
 import 'package:oh_my_llm/core/logging/network_logger.dart';
@@ -51,6 +52,35 @@ void main() {
   // ── 请求编码：外部协议契约 ───────────────────────────────────
 
   group('请求编码', () {
+    test('显式推理摘要在未配置 effort 时仍发送', () async {
+      var sends = 0;
+      final httpClient = _FakeStreamingHttpClient((request) async {
+        sends++;
+        final payload = jsonDecode((request as http.Request).body) as Map;
+        expect(payload['reasoning'], {'summary': 'auto'});
+        return okResponse();
+      });
+      await ResponsesClient(
+        transport: LlmHttpStreamTransport(httpClient: httpClient),
+      ).complete(
+        LlmRequest(
+          target: const LlmRequestTarget(
+            protocol: LlmApiProtocol.responses,
+            endpoint: 'https://api.example.com',
+            apiKey: 'test',
+            model: 'test',
+          ),
+          input: [],
+          options: const LlmGenerationOptions(
+            protocolOptions: ResponsesOptions(
+              reasoningSummary: ResponsesReasoningSummary.auto,
+            ),
+          ),
+        ),
+      );
+      expect(sends, 1);
+    });
+
     test('客户端将原始 API 根解析为 Responses 端点', () async {
       final client = _FakeStreamingHttpClient((request) async {
         expect(request.method, 'POST');

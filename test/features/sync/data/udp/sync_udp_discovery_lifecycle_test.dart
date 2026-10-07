@@ -41,7 +41,7 @@ void main() {
       addTearDown(socket.close);
     });
 
-    test('广播立即发送、周期触发后再发送、stop 后不再发送', () async {
+    test('广播按期发送到指定地址，重复停止只释放一次资源', () async {
       final session = await discovery.startBroadcasting(
         httpPort: 54321,
         deviceName: 'Test-PC',
@@ -51,33 +51,18 @@ void main() {
       );
 
       expect(socket.sent, hasLength(1));
+      expect(socket.sent.single.address, InternetAddress.loopbackIPv4);
+      expect(socket.sent.single.port, 48001);
       scheduler.periodicTasks.single.fire();
       expect(socket.sent, hasLength(2));
       await session.stop();
       scheduler.periodicTasks.single.fire();
       expect(socket.sent, hasLength(2));
+      await session.stop();
       await session.done;
-    });
-
-    test('stop 两次只关闭一次 socket 并只释放一次锁', () async {
-      final session = await discovery.startBroadcasting(
-        httpPort: 54321,
-        deviceName: 'Test-PC',
-        serverId: 'server-1',
-        broadcastAddress: InternetAddress.loopbackIPv4,
-        discoveryPort: 48001,
-      );
-
-      await session.stop();
-      await session.stop();
-
       expect(socket.closeCount, 1);
       expect(lock.acquireCount, 1);
       expect(lock.releaseCount, 1);
-      // 广播绑定 anyIPv4:0，目标地址与发现端口由参数显式指定。
-      expect(socket.sent.single.address, InternetAddress.loopbackIPv4);
-      expect(socket.sent.single.port, 48001);
-      await session.done;
     });
   });
 

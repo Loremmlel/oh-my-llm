@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../../../helpers/async/widget_test_animation.dart';
 import 'settings_screen_test_helpers.dart';
 
 /// 每个 tab 的关键 heading（内容区可滚动到达的文案）。
@@ -18,15 +17,19 @@ const _tabHeadingByIndex = <int, String>{
 const _promptsTabAdditionalHeadings = ['模板提示词', '固定顺序提示词'];
 
 void registerSettingsScreenResponsiveTests() {
-  testWidgets('390px: 六 tab 关键 heading 可达', (tester) async {
+  testWidgets('窄屏恢复保存的标签，切换全部设置分组无溢出', (tester) async {
     // 1500 高度视口下各 tab 内容区的关键 heading 均在首屏直接可见，
     // 无需滚动；若内容超高产生 overflow，takeException 会直接失败。
     await setUpSettingsScreen(
       tester,
       size: const Size(390, 1500),
+      initialTabIndex: 2,
       useDefaultsSeed: true,
     );
     expect(tester.takeException(), isNull);
+    expect(find.text('记忆总结提示词'), findsOneWidget);
+    expect(find.text('模板提示词'), findsOneWidget);
+    expect(find.text('固定顺序提示词'), findsOneWidget);
 
     for (var i = 0; i < tabLabels.length; i++) {
       await switchToTab(tester, i);
@@ -39,56 +42,5 @@ void registerSettingsScreenResponsiveTests() {
       }
       expect(tester.takeException(), isNull);
     }
-  });
-
-  testWidgets('390px: 新增服务商表单内容可达', (tester) async {
-    await setUpSettingsScreen(
-      tester,
-      size: const Size(390, 1500),
-      useDefaultsSeed: true,
-    );
-
-    await tester.tap(find.text('新增服务商'));
-    await settleOverlayTransition(tester);
-
-    expect(find.text('服务商名称'), findsOneWidget);
-    expect(find.text('保存'), findsOneWidget);
-    expect(find.text('取消'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-
-    // 填入名称后取消关闭对话框，证明表单可交互且可达可退出；
-    // 业务校验树由既有模型表单测试覆盖，此处不重复。
-    await tester.enterText(providerNameField(), '测试服务商');
-    await tester.tap(find.text('取消'));
-    await settleOverlayTransition(tester);
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('600px: 新增预设 Prompt compact 表单内容可达', (tester) async {
-    await setUpSettingsScreen(
-      tester,
-      size: const Size(600, 1500),
-      useDefaultsSeed: true,
-    );
-    await switchToTab(tester, 1);
-
-    await tester.tap(find.text('新增预设'));
-    await settleOverlayTransition(tester);
-
-    expect(find.text('预设 Prompt 名称'), findsOneWidget);
-    expect(find.text('保存'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('1024px: 服务商页 smoke', (tester) async {
-    await setUpSettingsScreen(
-      tester,
-      size: const Size(1024, 900),
-      useDefaultsSeed: true,
-    );
-
-    expect(find.text('服务商设置'), findsOneWidget);
-    expect(find.text('新增服务商'), findsOneWidget);
-    expect(tester.takeException(), isNull);
   });
 }

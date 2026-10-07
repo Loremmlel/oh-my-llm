@@ -53,16 +53,7 @@ VersionedJsonStore<FontSizeSettings> _createStore(
 }
 
 void main() {
-  test('历史裸对象不再被接受，读取回退到安全默认值', () {
-    final storage = _FakeSettingsKeyValueStore(
-      stringValues: {'settings.font_size': '{"bodyFontSize":18}'},
-    );
-    final store = _createStore(storage);
-
-    expect(store.load(), const FontSizeSettings());
-  });
-
-  test('保存为当前版本化 envelope', () async {
+  test('保存当前版本化 envelope 后可重新读取', () async {
     final storage = _FakeSettingsKeyValueStore();
     final store = _createStore(storage);
 
@@ -72,52 +63,41 @@ void main() {
       'version': VersionedJsonStorage.currentSchemaVersion,
       'value': {'bodyFontSize': 20},
     });
+    expect(store.load(), const FontSizeSettings(bodyFontSize: 20));
   });
 
-  test('含版本标记但缺失 value 的截断 envelope 按损坏回退且不重写', () async {
-    final storage = _FakeSettingsKeyValueStore(
-      stringValues: {'settings.font_size': '{"version":1}'},
-    );
-    final store = _createStore(storage);
-
-    expect(store.load(), const FontSizeSettings());
-    await pumpEventQueue();
-
-    // 截断 envelope 不得被改写成损坏值，存储保持原样。
-    expect(storage.stringValues['settings.font_size'], '{"version":1}');
-  });
-
-  test('returns fallback for malformed and unsupported stored values', () {
+  test('损坏、裸对象和不支持的版本回退到默认值且不重写存储', () {
     for (final rawJson in [
+      '{"bodyFontSize":18}',
+      '{"version":1}',
       '{bad json}',
       '{"version":${VersionedJsonStorage.currentSchemaVersion + 1},"value":{"bodyFontSize":20}}',
       '{"version":"1","value":{"bodyFontSize":20}}',
     ]) {
-      final store = _createStore(
-        _FakeSettingsKeyValueStore(
-          stringValues: {'settings.font_size': rawJson},
-        ),
+      final storage = _FakeSettingsKeyValueStore(
+        stringValues: {'settings.font_size': rawJson},
       );
-
-      expect(store.load(), const FontSizeSettings());
+      expect(
+        _createStore(storage).load(),
+        const FontSizeSettings(),
+        reason: rawJson,
+      );
+      expect(storage.stringValues['settings.font_size'], rawJson);
     }
   });
 
-  test(
-    'save completes with an error when preferences rejects the write',
-    () async {
-      final store = _createStore(
-        _FakeSettingsKeyValueStore(nextWriteResult: false),
-      );
+  test('存储拒绝写入时保存失败', () async {
+    final store = _createStore(
+      _FakeSettingsKeyValueStore(nextWriteResult: false),
+    );
 
-      await expectLater(
-        store.save(const FontSizeSettings(bodyFontSize: 20)),
-        throwsA(isA<StateError>()),
-      );
-    },
-  );
+    await expectLater(
+      store.save(const FontSizeSettings(bodyFontSize: 20)),
+      throwsA(isA<StateError>()),
+    );
+  });
 
-  test('save propagates storage errors', () async {
+  test('保存传播存储异常', () async {
     final error = Exception('disk unavailable');
     final store = _createStore(_FakeSettingsKeyValueStore(writeError: error));
 

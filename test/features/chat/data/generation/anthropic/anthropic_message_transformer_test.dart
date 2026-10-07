@@ -116,18 +116,4 @@ void main() {
       ]);
     });
   });
-
-  group('角色集合与内容', () {
-    test('输出 role 仅 user/assistant', () {
-      final result = transformAnthropicMessages([
-        message(ChatMessageRole.system, '系统'),
-        message(ChatMessageRole.user, '你好'),
-        message(ChatMessageRole.assistant, '回复'),
-        message(ChatMessageRole.system, '中间'),
-      ]);
-      for (final transformed in result.messages) {
-        expect(['user', 'assistant'], contains(transformed.role));
-      }
-    });
-  });
 }

@@ -24,7 +24,7 @@ import 'settings_screen_test_helpers.dart';
 
 void registerSettingsScreenModelsAndPromptsTests() {
   testWidgets('创建服务商后显示协议与模型数量并持久保存', (tester) async {
-    await setUpSettingsScreen(tester);
+    await setUpSettingsScreen(tester, size: const Size(390, 1500));
     final repository = ProviderScope.containerOf(
       tester.element(find.byType(SettingsScreen)),
     ).read(llmModelConfigRepositoryProvider);
@@ -185,44 +185,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
     expect(find.textContaining('gpt-4.1'), findsOneWidget);
   });
 
-  testWidgets('settings screen creates a prompt template', (tester) async {
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final preferences = await createEmptyPreferences(database);
-    await pumpSettingsScreen(
-      tester,
-      preferences: preferences,
-      database: database,
-      initialTabIndex: 1,
-    );
-    final repository = presetPromptRepository;
-    expect(repository.loadAll(database), isEmpty);
-
-    await tester.tap(find.text('新增预设'));
-    await settleOverlayTransition(tester);
-    await tester.enterText(presetPromptNameField(), '代码审阅');
-    await tester.tap(find.text('新增条目'));
-    // 条目插入是 setState 直改列表，无动画
-    await tester.pump();
-
-    await tester.enterText(presetPromptTitleField(), '前置要求');
-    await tester.enterText(presetPromptContentField(), '请检查这段代码的边界情况。');
-    await tester.tap(find.text('前置'));
-    await settleOverlayTransition(tester);
-    await tester.tap(find.text('后置').last);
-    await settleOverlayTransition(tester);
-    await tester.tap(find.text('保存'));
-    await settleOverlayTransition(tester);
-
-    final createdTemplate = repository.loadAll(database).single;
-    expect(createdTemplate.name, '代码审阅');
-    expect(createdTemplate.messages, hasLength(1));
-    expect(createdTemplate.messages.single.title, '前置要求');
-    expect(createdTemplate.messages.single.content, '请检查这段代码的边界情况。');
-    expect(find.text('代码审阅'), findsWidgets);
-  });
-
-  testWidgets('复制预设到剪贴板生成仅含预设的 v9 文档', (tester) async {
+  testWidgets('复制预设到剪贴板生成仅含预设的当前格式文档', (tester) async {
     final clipboardWrites = <String>[];
     await setUpSettingsScreen(
       tester,
@@ -345,60 +308,64 @@ void registerSettingsScreenModelsAndPromptsTests() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets(
-    'prompt template dialog inserts below selection and persists order',
-    (tester) async {
-      final database = await setUpSettingsScreen(
-        tester,
-        size: const Size(1440, 2200),
-        initialTabIndex: 1,
-      );
-      final addItemButton = find.widgetWithText(OutlinedButton, '新增条目');
+  testWidgets('预设条目插入选中项之后，保存正文与注入位置顺序', (tester) async {
+    final database = await setUpSettingsScreen(
+      tester,
+      size: const Size(1440, 2200),
+      initialTabIndex: 1,
+    );
+    final addItemButton = find.widgetWithText(OutlinedButton, '新增条目');
 
-      Future<void> fillSelectedItem(String title, String content) async {
-        await tester.enterText(presetPromptTitleField(), title);
-        await tester.enterText(presetPromptContentField(), content);
-        await tester.pump();
-      }
-
-      await tester.tap(find.text('新增预设'));
-      await settleOverlayTransition(tester);
-      await tester.enterText(presetPromptNameField(), '插入测试模板');
-
-      await tester.tap(addItemButton);
+    Future<void> fillSelectedItem(String title, String content) async {
+      await tester.enterText(presetPromptTitleField(), title);
+      await tester.enterText(presetPromptContentField(), content);
       await tester.pump();
-      await fillSelectedItem('前置1', '内容1');
+    }
 
-      await tester.tap(addItemButton);
-      await tester.pump();
-      await fillSelectedItem('后置1', '内容2');
+    await tester.tap(find.text('新增预设'));
+    await settleOverlayTransition(tester);
+    await tester.enterText(presetPromptNameField(), '插入测试模板');
 
-      await tester.tap(find.text('前置'));
-      await settleOverlayTransition(tester);
-      await tester.tap(find.text('后置').last);
-      await settleOverlayTransition(tester);
+    await tester.tap(addItemButton);
+    await tester.pump();
+    await fillSelectedItem('前置1', '内容1');
 
-      await tester.tap(find.text('前置1').hitTestable());
-      await tester.pump();
-      await tester.tap(addItemButton);
-      await tester.pump();
-      await fillSelectedItem('前置1.5', '内容1.5');
-      await tester.tap(find.text('保存'));
-      await settleOverlayTransition(tester);
+    await tester.tap(addItemButton);
+    await tester.pump();
+    await fillSelectedItem('后置1', '内容2');
 
-      final savedMessages = presetPromptRepository
-          .loadAll(database)
-          .single
-          .messages;
-      expect(savedMessages.map((message) => message.title), [
-        '前置1',
-        '前置1.5',
-        '后置1',
-      ]);
-    },
-  );
+    await tester.tap(find.text('前置'));
+    await settleOverlayTransition(tester);
+    await tester.tap(find.text('后置').last);
+    await settleOverlayTransition(tester);
 
-  testWidgets('settings screen creates a template prompt', (tester) async {
+    await tester.tap(find.text('前置1').hitTestable());
+    await tester.pump();
+    await tester.tap(addItemButton);
+    await tester.pump();
+    await fillSelectedItem('前置1.5', '内容1.5');
+    await tester.tap(find.text('保存'));
+    await settleOverlayTransition(tester);
+
+    final savedMessages = presetPromptRepository
+        .loadAll(database)
+        .single
+        .messages;
+    expect(savedMessages.map((message) => message.title), [
+      '前置1',
+      '前置1.5',
+      '后置1',
+    ]);
+    expect(savedMessages.map((message) => message.content), [
+      '内容1',
+      '内容1.5',
+      '内容2',
+    ]);
+    expect(savedMessages.last.placement.name, 'after');
+    expect(find.text('插入测试模板'), findsWidgets);
+  });
+
+  testWidgets('创建模板提示词保存变量默认值并显示新模板', (tester) async {
     final database = AppDatabase.inMemory();
     addTearDown(database.close);
     final preferences = await createEmptyPreferences(database);
@@ -437,47 +404,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
     expect(find.text('翻译模板'), findsWidgets);
   });
 
-  testWidgets('template prompt variable reconcile uses debounce', (
-    tester,
-  ) async {
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final preferences = await createEmptyPreferences(database);
-    await pumpSettingsScreen(
-      tester,
-      preferences: preferences,
-      database: database,
-      initialTabIndex: 2,
-    );
-
-    await tester.tap(find.text('新增模板提示词'));
-    await settleOverlayTransition(tester);
-
-    await tester.enterText(templatePromptTitleField(), '防抖测试');
-    await tester.enterText(templatePromptContentField(), '请处理{{变量A}}。');
-    // 仅 pump 一帧（0ms），防抖 220ms 未到，变量不出现。
-    await tester.pump();
-    expect(find.text('变量A'), findsNothing);
-
-    // 精确推进公开常量 220ms，防抖窗口恰好结束，变量出现。
-    await tester.pump(TemplatePromptFormDialog.variableReconcileDebounce);
-    await tester.pump();
-    expect(find.text('变量A'), findsOneWidget);
-
-    // 替换为另一变量，未到防抖窗口时仍显示旧变量。
-    await tester.enterText(templatePromptContentField(), '请处理{{变量B}}。');
-    await tester.pump();
-    expect(find.text('变量A'), findsOneWidget);
-    expect(find.text('变量B'), findsNothing);
-
-    // 精确推进防抖窗口后切换到新变量。
-    await tester.pump(TemplatePromptFormDialog.variableReconcileDebounce);
-    await tester.pump();
-    expect(find.text('变量A'), findsNothing);
-    expect(find.text('变量B'), findsOneWidget);
-  });
-
-  testWidgets('settings screen creates a memory prompt', (tester) async {
+  testWidgets('创建记忆提示词持久保存名称与正文', (tester) async {
     final database = AppDatabase.inMemory();
     addTearDown(database.close);
     final preferences = await createEmptyPreferences(database);

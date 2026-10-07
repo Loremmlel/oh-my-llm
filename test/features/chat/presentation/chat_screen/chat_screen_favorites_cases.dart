@@ -53,110 +53,6 @@ void registerChatScreenFavoritesTests() {
     expect(find.byTooltip('收藏回复'), findsOneWidget);
   });
 
-  testWidgets('首次打开收藏对话框时系统未分类为预选且可直接确认', (tester) async {
-    final fakeClient = FakeChatGenerationClient()..enqueueChunks(['收藏对话框测试回复']);
-
-    await pumpChatScreen(tester, fakeClient: fakeClient);
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ChatScreen)),
-    );
-
-    await sendMessage(tester, '测试问题');
-    await waitForChatGeneration(
-      tester,
-      container,
-      (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
-      description: '收藏对话框用例生成完成',
-    );
-
-    expect(_findFavorite(container, '收藏对话框测试回复'), isNull);
-
-    await _openAddDialog(tester);
-
-    expect(find.text('收藏到'), findsOneWidget);
-    expect(find.text('未分类'), findsOneWidget);
-
-    // 无历史归类目标：不点任何选项直接确认，应落入系统未分类。
-    await tester.tap(
-      find.descendant(
-        of: find.byType(AlertDialog),
-        matching: find.widgetWithText(FilledButton, '收藏'),
-      ),
-    );
-    await settleOverlayTransition(tester);
-
-    final favorite = _findFavorite(container, '收藏对话框测试回复');
-    expect(favorite, isNotNull);
-    expect(
-      favorite!.collectionId,
-      AppReservedEntities.uncategorizedFavoriteCollectionId,
-    );
-  });
-
-  testWidgets('取消收藏对话框不产生任何收藏', (tester) async {
-    final fakeClient = FakeChatGenerationClient()..enqueueChunks(['取消收藏测试回复']);
-
-    await pumpChatScreen(tester, fakeClient: fakeClient);
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ChatScreen)),
-    );
-
-    await sendMessage(tester, '测试问题');
-    await waitForChatGeneration(
-      tester,
-      container,
-      (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
-      description: '取消收藏用例生成完成',
-    );
-
-    await _openAddDialog(tester);
-
-    await tester.tap(find.widgetWithText(TextButton, '取消'));
-    await settleOverlayTransition(tester);
-
-    expect(_findFavorite(container, '取消收藏测试回复'), isNull);
-    expect(find.byTooltip('收藏回复'), findsOneWidget);
-    expect(find.byTooltip('已收藏'), findsNothing);
-  });
-
-  testWidgets('再次点击已收藏消息直接移除并恢复图标', (tester) async {
-    final fakeClient = FakeChatGenerationClient()..enqueueChunks(['取消收藏流程测试']);
-
-    await pumpChatScreen(tester, fakeClient: fakeClient);
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ChatScreen)),
-    );
-
-    await sendMessage(tester, '测试问题');
-    await waitForChatGeneration(
-      tester,
-      container,
-      (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
-      description: '取消收藏流程用例生成完成',
-    );
-
-    // 第一次点击：确认收藏到预选的系统未分类。
-    await _openAddDialog(tester);
-    await tester.tap(
-      find.descendant(
-        of: find.byType(AlertDialog),
-        matching: find.widgetWithText(FilledButton, '收藏'),
-      ),
-    );
-    await settleOverlayTransition(tester);
-
-    expect(_findFavorite(container, '取消收藏流程测试'), isNotNull);
-    expect(find.byTooltip('已收藏'), findsOneWidget);
-
-    // 再次点击直接移除收藏（无确认弹窗），收藏状态同步更新。
-    await tester.tap(find.byTooltip('已收藏'));
-    await tester.pump();
-
-    expect(_findFavorite(container, '取消收藏流程测试'), isNull);
-    expect(find.byTooltip('收藏回复'), findsOneWidget);
-    expect(find.byTooltip('已收藏'), findsNothing);
-  });
-
   testWidgets('对话框预选上次归类目标且无需再次选择即可确认', (tester) async {
     final fakeClient = FakeChatGenerationClient()..enqueueChunks(['预选上次归类测试']);
 
@@ -187,6 +83,9 @@ void registerChatScreenFavoritesTests() {
     await tester.tap(find.widgetWithText(FilledButton, '创建'));
     await settleOverlayTransition(tester);
     // 创建后仅选中：仍需再次确认才真正收藏。
+    expect(find.text('收藏到'), findsOneWidget);
+    expect(_findFavorite(container, '预选上次归类测试'), isNull);
+    expect(find.byTooltip('已收藏'), findsNothing);
     await tester.tap(
       find.descendant(
         of: find.byType(AlertDialog),
@@ -218,62 +117,6 @@ void registerChatScreenFavoritesTests() {
 
     expect(_findFavorite(container, '预选上次归类测试'), isNotNull);
     expect(_findFavorite(container, '预选上次归类测试')!.collectionId, newCollectionId);
-  });
-
-  testWidgets('对话框内新建收藏夹仅选中，需再次确认才落库', (tester) async {
-    final fakeClient = FakeChatGenerationClient()..enqueueChunks(['新建收藏夹测试回复']);
-
-    await pumpChatScreen(tester, fakeClient: fakeClient);
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ChatScreen)),
-    );
-
-    await sendMessage(tester, '测试问题');
-    await waitForChatGeneration(
-      tester,
-      container,
-      (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
-      description: '新建收藏夹用例生成完成',
-    );
-
-    await _openAddDialog(tester);
-
-    // 嵌套的创建表单同样经 overlay 开合动画。
-    await tester.tap(find.text('新建收藏夹'));
-    await settleOverlayTransition(tester);
-
-    await tester.enterText(
-      find.descendant(
-        of: find.byType(AlertDialog),
-        matching: find.byType(TextField),
-      ),
-      '我的新收藏夹',
-    );
-    await tester.tap(find.widgetWithText(FilledButton, '创建'));
-    await settleOverlayTransition(tester);
-
-    // 创建后停留在对话框且新夹被选中，但尚未产生收藏。
-    expect(find.text('收藏到'), findsOneWidget);
-    expect(_findFavorite(container, '新建收藏夹测试回复'), isNull);
-    expect(find.byTooltip('已收藏'), findsNothing);
-
-    // 再次确认才真正收藏，归属为新夹。
-    await tester.tap(
-      find.descendant(
-        of: find.byType(AlertDialog),
-        matching: find.widgetWithText(FilledButton, '收藏'),
-      ),
-    );
-    await settleOverlayTransition(tester);
-
-    expect(find.byTooltip('已收藏'), findsOneWidget);
-    final favorite = _findFavorite(container, '新建收藏夹测试回复');
-    expect(favorite, isNotNull);
-    expect(favorite!.collectionId, isNotEmpty);
-    expect(
-      favorite.collectionId,
-      isNot(AppReservedEntities.uncategorizedFavoriteCollectionId),
-    );
   });
 
   testWidgets('保留名新建被拒绝并内联提示且不产生收藏', (tester) async {
@@ -310,8 +153,12 @@ void registerChatScreenFavoritesTests() {
     expect(_findFavorite(container, '保留名校验测试'), isNull);
   });
 
-  testWidgets('取消收藏后点击撤销通知按原收藏夹恢复收藏', (tester) async {
-    final fakeClient = FakeChatGenerationClient()..enqueueChunks(['撤销路径测试回复']);
+  testWidgets('取消对话框不落库，默认收藏可移除并从撤销通知完整恢复', (tester) async {
+    final fakeClient = FakeChatGenerationClient()
+      ..enqueueDeltas(const [
+        ChatGenerationChunk(reasoningDelta: '收藏思考'),
+        ChatGenerationChunk(contentDelta: '撤销路径测试回复'),
+      ]);
 
     await pumpChatScreen(tester, fakeClient: fakeClient);
     final container = ProviderScope.containerOf(
@@ -326,7 +173,16 @@ void registerChatScreenFavoritesTests() {
       description: '撤销路径用例生成完成',
     );
 
-    // 首次点击：确认收藏到预选的系统未分类，并捕获移除前的完整收藏记录。
+    await _openAddDialog(tester);
+    expect(find.text('收藏到'), findsOneWidget);
+    expect(find.text('未分类'), findsOneWidget);
+    await tester.tap(find.widgetWithText(TextButton, '取消'));
+    await settleOverlayTransition(tester);
+    expect(_findFavorite(container, '撤销路径测试回复'), isNull);
+    expect(find.byTooltip('收藏回复'), findsOneWidget);
+    expect(find.byTooltip('已收藏'), findsNothing);
+
+    // 不点选项直接确认，应保存到系统未分类。
     await _openAddDialog(tester);
     await tester.tap(
       find.descendant(
@@ -338,11 +194,20 @@ void registerChatScreenFavoritesTests() {
 
     final before = _findFavorite(container, '撤销路径测试回复');
     expect(before, isNotNull);
+    expect(
+      before!.collectionId,
+      AppReservedEntities.uncategorizedFavoriteCollectionId,
+    );
+    expect(before.assistantReasoningContent, '收藏思考');
+    expect(before.userMessageContent, '测试问题');
+    expect(find.byTooltip('已收藏'), findsOneWidget);
 
     // 再次点击已收藏消息：直接移除并弹出带撤销按钮的通知气泡。
     await tester.tap(find.byTooltip('已收藏'));
     await settleAnimatedWidgetTransition(tester);
     expect(_findFavorite(container, '撤销路径测试回复'), isNull);
+    expect(find.byTooltip('收藏回复'), findsOneWidget);
+    expect(find.byTooltip('已收藏'), findsNothing);
     expect(find.text('已取消收藏'), findsOneWidget);
     expect(find.text('撤销'), findsOneWidget);
 
@@ -352,7 +217,7 @@ void registerChatScreenFavoritesTests() {
 
     final restored = _findFavorite(container, '撤销路径测试回复');
     expect(restored, isNotNull);
-    expect(restored!.collectionId, before!.collectionId);
+    expect(restored!.collectionId, before.collectionId);
     expect(restored.userMessageContent, before.userMessageContent);
     expect(restored.assistantContent, before.assistantContent);
     expect(

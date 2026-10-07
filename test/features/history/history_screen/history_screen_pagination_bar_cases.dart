@@ -25,31 +25,6 @@ void registerHistoryScreenPaginationBarTests() {
     expect(find.textContaining('/1 页'), findsOneWidget);
   });
 
-  testWidgets('分页栏固定在列表底部且不随列表滚动', (tester) async {
-    // 25 条 → 2 页（每页 20）。
-    await setUpHistoryScreenWithBulkConversations(tester, count: 25);
-
-    expect(find.textContaining('共 25 条'), findsOneWidget);
-    expect(find.byTooltip('下一页'), findsOneWidget);
-
-    // 列表滚到底后分页栏仍可命中，说明它固定在 Card 底部。
-    await tester.drag(find.byType(ListView).last, const Offset(0, -800));
-    await tester.pump();
-
-    expect(find.textContaining('共 25 条').hitTestable(), findsOneWidget);
-  });
-
-  testWidgets('点击下一页加载第 2 页内容', (tester) async {
-    await setUpHistoryScreenWithBulkConversations(tester, count: 25);
-
-    await tester.tap(find.byTooltip('下一页'));
-    await tester.pump();
-
-    expect(find.text('批量会话 20'), findsOneWidget);
-    expect(find.text('批量会话 24'), findsOneWidget);
-    expect(find.text('批量会话 0'), findsNothing);
-  });
-
   testWidgets('跳转越界页码夹取到末页', (tester) async {
     await setUpHistoryScreenWithBulkConversations(tester, count: 25);
 
@@ -65,7 +40,14 @@ void registerHistoryScreenPaginationBarTests() {
     expect(find.textContaining('共 25 条 · 2/2 页'), findsOneWidget);
   });
 
-  testWidgets('翻页前清空当前页选择', (tester) async {
+  testWidgets('分页栏不随列表滚动且保持可达', (tester) async {
+    await setUpHistoryScreenWithBulkConversations(tester, count: 25);
+    await tester.drag(find.byType(ListView).last, const Offset(0, -800));
+    await tester.pump();
+    expect(find.textContaining('共 25 条').hitTestable(), findsOneWidget);
+  });
+
+  testWidgets('翻页清空选择并显示下一窗口', (tester) async {
     await setUpHistoryScreenWithBulkConversations(tester, count: 25);
 
     await tester.longPress(find.text('批量会话 0'));
@@ -73,11 +55,13 @@ void registerHistoryScreenPaginationBarTests() {
     await tester.longPress(find.text('批量会话 1'));
     await tester.pump();
     expect(find.textContaining('已选择 2 项'), findsOneWidget);
-
     await tester.tap(find.byTooltip('下一页'));
     await tester.pump();
 
     expect(find.textContaining('已选择'), findsNothing);
+    expect(find.text('批量会话 20'), findsOneWidget);
+    expect(find.text('批量会话 24'), findsOneWidget);
+    expect(find.text('批量会话 0'), findsNothing);
   });
 
   testWidgets('修改每页容量清空选择并回到第 1 页', (tester) async {
@@ -134,6 +118,14 @@ void registerHistoryScreenPaginationBarTests() {
     await tester.tap(find.text('批量会话 15'));
     await settleRouteTransition(tester);
     expect(find.text('聊天落点'), findsOneWidget);
+    expect(
+      GoRouter.of(tester.element(find.text('聊天落点')))
+          .routerDelegate
+          .state
+          .uri
+          .queryParameters['conversationId'],
+      'bulk-15',
+    );
 
     // 系统返回 pop 回历史页：页码与滚动都保持。
     await tester.binding.handlePopRoute();

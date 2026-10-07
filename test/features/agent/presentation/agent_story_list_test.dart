@@ -36,7 +36,7 @@ void main() {
     );
     await tester.pump();
     expect(reads, lessThan(20), reason: '屏幕外的正文不应为了创建折叠条目而全部读取');
-    await tester.scrollUntilVisible(find.text('第 299 楼'), 500, maxScrolls: 100);
+    await tester.scrollUntilVisible(find.text('第 299 楼'), 3000, maxScrolls: 20);
     await tester.tap(find.widgetWithText(ExpansionTile, '第 299 楼'));
     await settleAnimatedWidgetTransition(tester);
     expect(

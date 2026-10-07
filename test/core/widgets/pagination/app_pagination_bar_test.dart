@@ -36,29 +36,6 @@ Finder _jumpField() =>
 
 void main() {
   group('AppPaginationBar', () {
-    testWidgets('宽父约束下显示总数、页码序列与跳转入口', (tester) async {
-      var changedPage = -1;
-      await _pumpBar(
-        tester,
-        width: 800,
-        state: const AppPaginationState(
-          currentPage: 1,
-          pageSize: 20,
-          totalItems: 100,
-        ),
-        onPageChanged: (page) => changedPage = page,
-      );
-
-      expect(find.text('共 100 条 · 1/5 页'), findsOneWidget);
-      // 5 页不超过折叠阈值，页码 1..5 全部可见。
-      expect(find.text('3'), findsOneWidget);
-      expect(find.byTooltip('上一页'), findsOneWidget);
-      expect(find.byTooltip('下一页'), findsOneWidget);
-      expect(tester.widget<TextField>(_jumpField()), isA<TextField>());
-      expect(find.text('跳转'), findsOneWidget);
-      expect(changedPage, -1);
-    });
-
     testWidgets('窄父约束下收缩为翻页按钮、页码概览与容量', (tester) async {
       await _pumpBar(
         tester,
@@ -122,7 +99,7 @@ void main() {
       expect(changedSize, 50);
     });
 
-    testWidgets('页码按钮与跳转输入分别回调目标页', (tester) async {
+    testWidgets('宽分页栏显示页码与可命中按钮，点击和输入可跳转', (tester) async {
       final changedPages = <int>[];
       await _pumpBar(
         tester,
@@ -135,12 +112,23 @@ void main() {
         onPageChanged: changedPages.add,
       );
 
+      expect(find.text('共 100 条 · 1/5 页'), findsOneWidget);
+      expect(_jumpField(), findsOneWidget);
+      expect(changedPages, isEmpty);
+      for (final tooltip in ['上一页', '下一页']) {
+        final size = tester.getSize(find.byTooltip(tooltip));
+        expect(size.width, greaterThanOrEqualTo(48));
+        expect(size.height, greaterThanOrEqualTo(48));
+      }
       await tester.tap(find.text('3'));
       await tester.enterText(_jumpField(), '4');
       await tester.tap(find.text('跳转'));
 
       expect(changedPages, [3, 4]);
-      expect(tester.widget<TextField>(_jumpField()).controller?.text, isEmpty);
+      expect(
+        find.descendant(of: _jumpField(), matching: find.text('4')),
+        findsNothing,
+      );
     });
 
     testWidgets('总页数为零时不渲染任何翻页控件', (tester) async {
@@ -149,25 +137,6 @@ void main() {
       expect(find.byTooltip('下一页'), findsNothing);
       expect(find.text('每页'), findsNothing);
       expect(find.text('跳转'), findsNothing);
-    });
-
-    testWidgets('翻页按钮保持 48 逻辑像素命中区域', (tester) async {
-      await _pumpBar(
-        tester,
-        width: 800,
-        state: const AppPaginationState(
-          currentPage: 1,
-          pageSize: 20,
-          totalItems: 100,
-        ),
-      );
-
-      final prevSize = tester.getSize(find.byTooltip('上一页'));
-      final nextSize = tester.getSize(find.byTooltip('下一页'));
-      expect(prevSize.width, greaterThanOrEqualTo(48));
-      expect(prevSize.height, greaterThanOrEqualTo(48));
-      expect(nextSize.width, greaterThanOrEqualTo(48));
-      expect(nextSize.height, greaterThanOrEqualTo(48));
     });
   });
 }

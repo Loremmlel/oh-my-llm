@@ -47,28 +47,6 @@ void main() {
   // ── 静态渲染 ──────────────────────────────────────────────────
 
   group('静态渲染', () {
-    testWidgets('initialIndex 指定起始页，计数器显示 3 / 5', (tester) async {
-      final prefs = await _testPrefs();
-      await pumpTestApp(
-        tester,
-        preferences: prefs,
-        extraOverrides: [
-          mediaLibrarySessionProvider.overrideWith(
-            () => PreActivatedMediaLibrarySessionController(
-              _libraryWithImages(5),
-            ),
-          ),
-        ],
-        child: ImageViewerPage(
-          imageRequests: _imageRequests(5),
-          initialIndex: 2,
-        ),
-      );
-
-      // 计数器格式与 initialIndex 生效一次覆盖：显示 "3 / 5"
-      expect(find.text('3 / 5'), findsOneWidget);
-    });
-
     testWidgets('单张图片时隐藏页面计数器', (tester) async {
       final prefs = await _testPrefs();
       await pumpTestApp(
@@ -117,7 +95,7 @@ void main() {
   // ── 手势 ──────────────────────────────────────────────────────
 
   group('手势', () {
-    testWidgets('滑动切换页面后计数器更新', (tester) async {
+    testWidgets('从指定第三张打开，滑动后显示第四张计数', (tester) async {
       final prefs = await _testPrefs();
       await pumpTestApp(
         tester,
@@ -132,20 +110,18 @@ void main() {
         ],
         child: ImageViewerPage(
           imageRequests: _imageRequests(5),
-          initialIndex: 0,
+          initialIndex: 2,
         ),
       );
       await tester.pump(); // 让资源解析完成并渲染网络图
 
-      // 初始在第 1 页
-      expect(find.text('1 / 5'), findsOneWidget);
+      expect(find.text('3 / 5'), findsOneWidget);
 
-      // 向左滑动切换到第 2 页
+      // 从非零初始页继续翻页。
       await tester.fling(find.byType(PageView), const Offset(-200, 0), 1000);
       await settleScrollMotion(tester);
 
-      // 计数器应更新为 2 / 5
-      expect(find.text('2 / 5'), findsOneWidget);
+      expect(find.text('4 / 5'), findsOneWidget);
     });
   });
 
