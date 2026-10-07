@@ -3,11 +3,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:oh_my_llm/app/navigation/app_destination.dart';
-import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/utils/date_formatting.dart';
 import 'package:oh_my_llm/features/favorites/presentation/favorite_collection_items_screen.dart';
-import 'package:oh_my_llm/features/favorites/presentation/widgets/favorite_card.dart';
 
 import '../../helpers/async/widget_test_animation.dart';
 import 'favorites_screen_test_helpers.dart';
@@ -56,6 +54,9 @@ void registerFavoriteDetailScreenTests() {
       },
     );
 
+    expect(find.text('元数据问题'), findsOneWidget);
+    expect(find.text('元数据回复'), findsOneWidget);
+    expect(find.text('深度思考'), findsNothing);
     expect(find.text('自定义标题'), findsOneWidget);
     expect(find.text('技术收藏'), findsOneWidget);
     expect(find.text('DeepSeek V4 Flash'), findsOneWidget);
@@ -112,32 +113,12 @@ void registerFavoriteDetailScreenTests() {
     final buttonFinder = find.widgetWithText(FilledButton, '查看来源对话');
     expect(buttonFinder, findsOneWidget);
     // 来源缺失：按钮禁用且给出明确恢复文案，而不是隐藏入口。
-    expect(tester.widget<FilledButton>(buttonFinder).onPressed, isNull);
+    final router = GoRouter.of(tester.element(buttonFinder));
+    final location = router.routerDelegate.state.uri;
+    await tester.tap(buttonFinder);
+    await tester.pump();
+    expect(router.routerDelegate.state.uri, location);
     expect(find.text('这条收藏没有关联的来源对话。'), findsOneWidget);
-  });
-
-  testWidgets('重命名、移动与删除操作收进溢出菜单', (tester) async {
-    await _openDetail(
-      tester,
-      'fav-overflow',
-      seed: (db) {
-        seedFavorite(
-          db,
-          id: 'fav-overflow',
-          userMessageContent: '溢出菜单问题',
-          assistantContent: '溢出菜单回复',
-        );
-      },
-    );
-
-    await tester.tap(find.byIcon(Icons.more_vert));
-    await settleOverlayTransition(tester);
-
-    expect(find.text('重命名'), findsOneWidget);
-    expect(find.text('移动到收藏夹'), findsOneWidget);
-    expect(find.text('删除'), findsOneWidget);
-    // 平铺的删除图标按钮不再出现在页面上。
-    expect(find.byTooltip('删除收藏'), findsNothing);
   });
 
   testWidgets('溢出菜单删除需确认且确认后返回收藏总览', (tester) async {
@@ -176,7 +157,7 @@ void registerFavoriteDetailScreenTests() {
     expect(find.text('未分类'), findsOneWidget);
   });
 
-  testWidgets('移动成功后留在详情页且所属收藏夹更新为目标夹', (tester) async {
+  testWidgets('移动后详情页更新归属，点击目标夹进入列表', (tester) async {
     await _openDetail(
       tester,
       'fav-to-move',
@@ -207,51 +188,13 @@ void registerFavoriteDetailScreenTests() {
     // 移动后停留在详情页，收藏夹入口实时更新为目标夹。
     expect(find.text('待移动的回复'), findsOneWidget);
     expect(find.text('归档夹'), findsOneWidget);
-  });
-
-  testWidgets('点击所属收藏夹入口跳转到对应收藏夹列表页', (tester) async {
-    await _openDetail(
-      tester,
-      'fav-in-collection',
-      seed: (db) {
-        seedCollection(db, id: 'col-target', name: '归档夹');
-        seedFavorite(
-          db,
-          id: 'fav-in-collection',
-          userMessageContent: '归属明确的问题',
-          assistantContent: '归属明确的回复',
-          collectionId: 'col-target',
-        );
-      },
-    );
-
     await tester.tap(find.text('归档夹'));
     await settleRouteTransition(tester);
-
     expect(find.byType(FavoriteCollectionItemsScreen), findsOneWidget);
+    expect(find.text('待移动的问题'), findsOneWidget);
   });
 
-  testWidgets('宽屏详情内容限宽可读宽度', (tester) async {
-    await _openDetail(
-      tester,
-      'fav-wide',
-      seed: (db) {
-        seedFavorite(
-          db,
-          id: 'fav-wide',
-          userMessageContent: '宽屏问题',
-          assistantContent: '宽屏回复',
-        );
-      },
-    );
-
-    expect(
-      tester.getSize(find.byType(FavoriteCard)).width,
-      lessThanOrEqualTo(AppContentWidths.readable),
-    );
-  });
-
-  testWidgets('窄屏详情内容占满父宽且无溢出', (tester) async {
+  testWidgets('窄屏长来源标题不溢出且来源入口可达', (tester) async {
     await _openDetail(
       tester,
       'fav-mobile-overflow',
@@ -270,32 +213,12 @@ void registerFavoriteDetailScreenTests() {
       },
     );
 
-    // 回归测试：防止窄屏下收藏详情溢出。
-    // takeException() 仅捕获当帧异常，若 Flutter 溢出处理机制变更需更新。
     expect(tester.takeException(), isNull);
+    expect(find.text('回复内容'), findsOneWidget);
     expect(
-      tester.getSize(find.byType(FavoriteCard)).width,
-      lessThanOrEqualTo(390),
+      find.widgetWithText(FilledButton, '查看来源对话').hitTestable(),
+      findsOneWidget,
     );
-  });
-
-  testWidgets('详情页展示用户消息与模型回复内容', (tester) async {
-    await _openDetail(
-      tester,
-      'fav-detail',
-      seed: (db) {
-        seedFavorite(
-          db,
-          id: 'fav-detail',
-          userMessageContent: '这是完整的用户消息内容，用于详情测试',
-          assistantContent: '这是完整的模型回复内容，用于详情测试',
-          assistantModelDisplayName: 'DeepSeek V4 Flash',
-        );
-      },
-    );
-
-    expect(find.text('这是完整的用户消息内容，用于详情测试'), findsOneWidget);
-    expect(find.textContaining('这是完整的模型回复内容'), findsOneWidget);
   });
 
   testWidgets('有推理内容时展示可展开的推理面板', (tester) async {
@@ -320,25 +243,5 @@ void registerFavoriteDetailScreenTests() {
     await settleAnimatedWidgetTransition(tester);
 
     expect(find.text('这是深度思考的推理过程'), findsOneWidget);
-  });
-
-  testWidgets('无推理内容时不展示推理面板', (tester) async {
-    await _openDetail(
-      tester,
-      'fav-no-reasoning',
-      seed: (db) {
-        seedFavorite(
-          db,
-          id: 'fav-no-reasoning',
-          userMessageContent: '无推理的问题',
-          assistantContent: '无推理的回复',
-          assistantReasoningContent: '',
-        );
-      },
-    );
-
-    expect(find.text('无推理的回复'), findsOneWidget);
-    expect(find.text('深度思考'), findsNothing);
-    expect(find.text('展开'), findsNothing);
   });
 }

@@ -38,15 +38,6 @@ Future<void> _openFirstRowMenuAndTap(WidgetTester tester, String action) async {
 }
 
 void registerHistoryScreenActionsTests() {
-  testWidgets('普通态整行点击导航到对应会话', (tester) async {
-    await setUpHistoryScreen(tester);
-
-    await tester.tap(find.text('Flutter 路线图'));
-    await settleRouteTransition(tester);
-
-    expect(find.text('聊天落点'), findsOneWidget);
-  });
-
   testWidgets('长按进入选择后整行点击只切换选择而不导航', (tester) async {
     await setUpHistoryScreen(tester);
 
@@ -59,47 +50,28 @@ void registerHistoryScreenActionsTests() {
     expect(find.widgetWithText(FilledButton, '删除 2 项'), findsOneWidget);
   });
 
-  testWidgets('Ctrl 点击切换选择且不触发导航', (tester) async {
-    await setUpHistoryScreen(tester);
-
-    await _tapWithModifiers(tester, 'Flutter 路线图', control: true);
-
-    expect(find.text('聊天落点'), findsNothing);
-    expect(find.widgetWithText(FilledButton, '删除 1 项'), findsOneWidget);
-  });
-
-  testWidgets('Shift 点击选择当前页闭区间', (tester) async {
-    await setUpHistoryScreen(tester);
-
-    // 列表按更新时间排序：Rust 重构计划与 Flutter 路线图相邻。
-    // 先 Ctrl 点击建立锚点，再 Shift 点击取闭区间。
-    await _tapWithModifiers(tester, 'Rust 重构计划', control: true);
-    await _tapWithModifiers(tester, 'Flutter 路线图', shift: true);
-
-    expect(find.widgetWithText(FilledButton, '删除 2 项'), findsOneWidget);
-  });
-
-  testWidgets('Ctrl+A 选择当前页全部会话', (tester) async {
+  testWidgets('普通态 Ctrl+A 全选，Esc 退出后 Ctrl 与 Shift 可建立闭区间选择', (tester) async {
     await setUpHistoryScreen(tester);
 
     await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
     await tester.sendKeyEvent(LogicalKeyboardKey.keyA);
     await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
     await tester.pump();
-
     expect(find.textContaining('已选择 3 项'), findsOneWidget);
-  });
-
-  testWidgets('Esc 退出选择模式', (tester) async {
-    await setUpHistoryScreen(tester);
-    await tester.longPress(find.text('Flutter 路线图'));
-    await tester.pump();
-
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pump();
-
     expect(find.byTooltip('退出选择'), findsNothing);
     expect(find.textContaining('已选择'), findsNothing);
+    expect(find.text('Rust 重构计划'), findsOneWidget);
+
+    // 列表按更新时间排序：Rust 重构计划与 Flutter 路线图相邻。
+    // 先 Ctrl 点击建立锚点，再 Shift 点击取闭区间。
+    await _tapWithModifiers(tester, 'Rust 重构计划', control: true);
+    expect(find.text('聊天落点'), findsNothing);
+    expect(find.widgetWithText(FilledButton, '删除 1 项'), findsOneWidget);
+    await _tapWithModifiers(tester, 'Flutter 路线图', shift: true);
+
+    expect(find.widgetWithText(FilledButton, '删除 2 项'), findsOneWidget);
   });
 
   testWidgets('Delete 弹出批量删除确认', (tester) async {

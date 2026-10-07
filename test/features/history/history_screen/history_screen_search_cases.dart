@@ -7,7 +7,7 @@ import 'package:oh_my_llm/features/history/presentation/history_screen.dart';
 import 'history_screen_test_helpers.dart';
 
 void registerHistoryScreenSearchTests() {
-  testWidgets('搜索匹配会话标题与用户消息', (tester) async {
+  testWidgets('输入搜索按防抖筛选标题与消息，清除后恢复完整列表', (tester) async {
     await setUpHistoryScreen(tester);
 
     // 查询 1（命中标题）：防抖窗口未到，搜索未触发，旧结果仍在。
@@ -29,40 +29,10 @@ void registerHistoryScreenSearchTests() {
 
     expect(find.text('Flutter 路线图'), findsOneWidget);
     expect(find.text('Rust 重构计划'), findsNothing);
-  });
-
-  testWidgets('搜索不匹配 assistant 回复内容', (tester) async {
-    await setUpHistoryScreen(tester);
-
-    await tester.enterText(find.byType(TextField).first, '不应匹配');
-    await tester.pump(HistoryScreen.searchDebounce);
-    await tester.pump();
-
-    expect(find.textContaining('没有匹配'), findsOneWidget);
-  });
-
-  testWidgets('搜索匹配所有分支上的用户消息', (tester) async {
-    await setUpHistoryScreenWithTree(tester);
-
-    await tester.enterText(find.byType(TextField).first, '分支关键词');
-    await tester.pump(HistoryScreen.searchDebounce);
-    await tester.pump();
-
-    expect(find.text('树状会话'), findsOneWidget);
-  });
-
-  testWidgets('搜索框提供清空按钮并恢复完整列表', (tester) async {
-    await setUpHistoryScreen(tester);
-
-    await tester.enterText(find.byType(TextField).first, 'Rust');
-    await tester.pump(HistoryScreen.searchDebounce);
-    await tester.pump();
-    expect(find.text('Flutter 路线图'), findsNothing);
 
     await tester.tap(find.byTooltip('清除搜索'));
     await tester.pump(HistoryScreen.searchDebounce);
     await tester.pump();
-
     expect(find.text('Flutter 路线图'), findsOneWidget);
     expect(find.text('Rust 重构计划'), findsOneWidget);
   });

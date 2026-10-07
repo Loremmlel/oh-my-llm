@@ -47,23 +47,6 @@ void main() {
       preferences = await SharedPreferences.getInstance();
     });
 
-    testWidgets('渲染 /8 /16 /24 选项并默认选中 /24 广播地址', (tester) async {
-      await _pumpSelector(
-        tester,
-        preferences: preferences,
-        interfaces: const [fakeInterface],
-      );
-
-      expect(find.text('/8'), findsOneWidget);
-      expect(find.text('/16'), findsOneWidget);
-      expect(find.text('/24'), findsOneWidget);
-      // /24 模式下广播地址以 .255 结尾，间接验证 /24 被默认选中；
-      // 未选中的 /8 广播地址不应出现
-      expect(find.textContaining('10.214.98.255'), findsOneWidget);
-      // 主人手机热点场景的修复点：/8 广播地址（10.255.255.255）不得出现
-      expect(find.textContaining('10.255.255.255'), findsNothing);
-    });
-
     testWidgets('SharedPreferences 存 16 时默认选中 /16', (tester) async {
       SharedPreferences.setMockInitialValues({
         'sync.broadcast_prefix_length': 16,
@@ -87,6 +70,10 @@ void main() {
         interfaces: const [fakeInterface],
       );
 
+      expect(find.text('/8'), findsOneWidget);
+      expect(find.text('/16'), findsOneWidget);
+      expect(find.text('/24'), findsOneWidget);
+      expect(find.textContaining('10.255.255.255'), findsNothing);
       // 默认 /24 -> 广播地址 10.214.98.255
       expect(find.textContaining('10.214.98.255'), findsOneWidget);
 
@@ -96,6 +83,7 @@ void main() {
       // 切换后原 /24 地址消失，改为 /16 广播地址 10.214.255.255
       expect(find.textContaining('10.214.98.255'), findsNothing);
       expect(find.textContaining('10.214.255.255'), findsOneWidget);
+      expect(preferences.getInt('sync.broadcast_prefix_length'), 16);
     });
   });
 }

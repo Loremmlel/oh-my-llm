@@ -109,7 +109,7 @@ void main() {
       expect(revision(), baseline);
     });
 
-    test('query readers 跟随 revision 失效：by-ID 与 summaries 同步更新', () {
+    test('改名、移动与删除后已读取的条目和收藏夹摘要同步更新', () {
       final library = container.read(favoritesLibraryProvider.notifier);
       final id = library.add(
         userMessageContent: '问题',
@@ -122,6 +122,13 @@ void main() {
       expect(container.read(favoriteByIdProvider(id))!.title, '新标题');
 
       final colId = library.createCollection('迁移夹');
+      expect(
+        container
+            .read(collectionsSummariesProvider)
+            .singleWhere((s) => s.collection.id == colId)
+            .itemCount,
+        0,
+      );
       library.moveMany({id}, targetCollectionId: colId);
       expect(container.read(favoriteByIdProvider(id))!.collectionId, colId);
 
@@ -133,6 +140,15 @@ void main() {
       expect(summaries[colId]!.itemCount, 1);
       expect(
         summaries[AppReservedEntities.uncategorizedFavoriteCollectionId]!
+            .itemCount,
+        0,
+      );
+      library.remove(id);
+      expect(container.read(favoriteByIdProvider(id)), isNull);
+      expect(
+        container
+            .read(collectionsSummariesProvider)
+            .singleWhere((s) => s.collection.id == colId)
             .itemCount,
         0,
       );

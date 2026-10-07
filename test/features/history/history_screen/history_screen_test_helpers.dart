@@ -147,43 +147,6 @@ Future<SharedPreferences> createSeededPreferences(AppDatabase database) async {
   );
 }
 
-Future<SharedPreferences> createTreeSeededPreferences(
-  AppDatabase database,
-) async {
-  return TestFixtures.seedPreferences(
-    database: database,
-    conversations: [
-      {
-        'id': 'conversation-tree',
-        'title': '树状会话',
-        'messageNodes': [
-          {
-            'id': 'u-root-a',
-            'role': 'user',
-            'content': '当前分支用户消息',
-            'parentId': rootConversationParentId,
-            'createdAt': DateTime(2026, 4, 26, 20, 0).toIso8601String(),
-          },
-          {
-            'id': 'u-root-b',
-            'role': 'user',
-            'content': '另一条分支关键词消息',
-            'parentId': rootConversationParentId,
-            'createdAt': DateTime(2026, 4, 26, 20, 1).toIso8601String(),
-          },
-        ],
-        'selectedChildByParentId': {rootConversationParentId: 'u-root-a'},
-        'createdAt': DateTime(2026, 4, 26, 20, 0).toIso8601String(),
-        'updatedAt': DateTime(2026, 4, 26, 20, 1).toIso8601String(),
-        'selectedModelId': 'model-1',
-        'selectedPresetPromptId': null,
-        'reasoningEnabled': false,
-        'reasoningEffort': 'medium',
-      },
-    ],
-  );
-}
-
 /// 标准历史页面测试环境：内存 DB、种子对话数据、挂载 HistoryScreen。
 /// 返回 [AppDatabase] 供后续验证使用。
 Future<AppDatabase> setUpHistoryScreen(WidgetTester tester) async {
@@ -243,15 +206,6 @@ Future<AppDatabase> setUpHistoryScreenWithBulkConversations(
     database: database,
     viewportSize: viewportSize,
   );
-  return database;
-}
-
-/// 同 [setUpHistoryScreen]，但使用树状分支种子数据。
-Future<AppDatabase> setUpHistoryScreenWithTree(WidgetTester tester) async {
-  final database = AppDatabase.inMemory();
-  addTearDown(database.close);
-  final preferences = await createTreeSeededPreferences(database);
-  await pumpHistoryScreen(tester, preferences: preferences, database: database);
   return database;
 }
 

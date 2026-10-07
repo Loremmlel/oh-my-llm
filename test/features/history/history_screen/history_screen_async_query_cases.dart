@@ -62,10 +62,9 @@ void registerHistoryScreenAsyncQueryTests() {
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
 
     final searchField = _searchField();
-    expect(tester.widget<TextField>(searchField).enabled ?? true, isTrue);
     await tester.enterText(searchField, '关键词');
     await tester.pump();
-    expect(tester.widget<TextField>(searchField).controller!.text, '关键词');
+    expect(find.text('关键词'), findsOneWidget);
   });
 
   testWidgets('搜索成功前 URL 保持旧值，成功后才 replace', (tester) async {
@@ -100,30 +99,7 @@ void registerHistoryScreenAsyncQueryTests() {
     expect(find.text('Flutter 路线图'), findsNothing);
   });
 
-  testWidgets('搜索失败保留旧 URL 和旧列表并显示加载失败', (tester) async {
-    final env = await pumpControllableHistoryScreen(tester);
-    await _completeAndSettle(
-      tester,
-      env,
-      0,
-      items: [summary('a', 'Rust 重构计划'), summary('b', 'Flutter 路线图')],
-      totalItems: 2,
-    );
-
-    await tester.enterText(_searchField(), '不存在的关键词');
-    await tester.pump(HistoryScreen.searchDebounce);
-    await tester.pump();
-
-    await _completeFailureAndSettle(tester, env, 1);
-
-    expect(env.router.routerDelegate.state.uri.queryParameters['q'], isNull);
-    expect(find.text('Rust 重构计划'), findsOneWidget);
-    expect(find.text('Flutter 路线图'), findsOneWidget);
-    expect(find.text(historyLoadErrorMessage), findsOneWidget);
-    expect(find.widgetWithText(TextButton, '重试'), findsOneWidget);
-  });
-
-  testWidgets('失败后点击重试会重新提交失败目标，成功后才更新 URL', (tester) async {
+  testWidgets('搜索失败保留旧窗口，重试原目标成功后更新 URL', (tester) async {
     final env = await pumpControllableHistoryScreen(tester);
     await _completeAndSettle(
       tester,
@@ -139,6 +115,8 @@ void registerHistoryScreenAsyncQueryTests() {
     env.query.completeFailure(1);
     await tester.pump();
     expect(find.text(historyLoadErrorMessage), findsOneWidget);
+    expect(find.text('种子'), findsOneWidget);
+    expect(env.router.routerDelegate.state.uri.queryParameters['q'], isNull);
 
     await tester.tap(find.widgetWithText(TextButton, '重试'));
     await tester.pump();

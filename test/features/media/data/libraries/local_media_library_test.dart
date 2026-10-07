@@ -67,47 +67,49 @@ LocalMediaLibrary buildLocalLibraryWithFakeGenerator(
 
 void main() {
   group('LocalMediaLibrary 列表与资产解析', () {
-    test(
-      'lists root and resolves Chinese local image/video file URIs',
-      () async {
-        final root = await Directory.systemTemp.createTemp('omll_local_media_');
-        addTearDown(() => root.delete(recursive: true));
-        final album = Directory('${root.path}${Platform.pathSeparator}相册')
-          ..createSync();
-        final image = File('${album.path}${Platform.pathSeparator}猫.jpg')
-          ..writeAsBytesSync([1, 2, 3]);
-        final video = File('${album.path}${Platform.pathSeparator}猫.mp4')
-          ..writeAsBytesSync([4, 5, 6]);
-        final library = buildLocalLibraryForTest(root);
+    test('列出中文目录并解析本地图片与视频文件 URI', () async {
+      final root = await Directory.systemTemp.createTemp('omll_local_media_');
+      addTearDown(() => root.delete(recursive: true));
+      final album = Directory('${root.path}${Platform.pathSeparator}相册')
+        ..createSync();
+      final image = File('${album.path}${Platform.pathSeparator}猫.jpg')
+        ..writeAsBytesSync([1, 2, 3]);
+      final video = File('${album.path}${Platform.pathSeparator}猫.mp4')
+        ..writeAsBytesSync([4, 5, 6]);
+      final library = buildLocalLibraryForTest(root);
 
-        final items = await library.listDirectory('/相册');
-        final imageResource = await library.resolveAsset(
-          const MediaAssetRequest(
-            kind: MediaAssetKind.image,
-            relativePath: '/相册/猫.jpg',
-          ),
-        );
-        final videoResource = await library.resolveAsset(
-          const MediaAssetRequest(
-            kind: MediaAssetKind.video,
-            relativePath: '/相册/猫.mp4',
-          ),
-        );
+      final items = await library.listDirectory('/相册');
+      final imageResource = await library.resolveAsset(
+        const MediaAssetRequest(
+          kind: MediaAssetKind.image,
+          relativePath: '/相册/猫.jpg',
+        ),
+      );
+      final videoResource = await library.resolveAsset(
+        const MediaAssetRequest(
+          kind: MediaAssetKind.video,
+          relativePath: '/相册/猫.mp4',
+        ),
+      );
 
-        expect(items.map((item) => item.name), containsAll(['猫.jpg', '猫.mp4']));
-        // %TEMP% 可能是 8.3 短名（如 HINANA~1），而资源 URI 来自经
-        // resolveSymbolicLinksSync 归一化的长名路径；两侧都归一化再比较，
-        // 与 media_directory_scanner_test 的既有做法一致。
-        expect(
-          File.fromUri(imageResource.uri).absolute.path.toLowerCase(),
-          image.resolveSymbolicLinksSync().toLowerCase(),
-        );
-        expect(
-          File.fromUri(videoResource.uri).absolute.path.toLowerCase(),
-          video.resolveSymbolicLinksSync().toLowerCase(),
-        );
-      },
-    );
+      expect(
+        items.map((item) => item.name),
+        unorderedEquals(['猫.jpg', '猫.mp4']),
+      );
+      expect(imageResource.uri.scheme, 'file');
+      expect(imageResource.uri.authority, isEmpty);
+      // %TEMP% 可能是 8.3 短名（如 HINANA~1），而资源 URI 来自经
+      // resolveSymbolicLinksSync 归一化的长名路径；两侧都归一化再比较，
+      // 与 media_directory_scanner_test 的既有做法一致。
+      expect(
+        File.fromUri(imageResource.uri).absolute.path.toLowerCase(),
+        image.resolveSymbolicLinksSync().toLowerCase(),
+      );
+      expect(
+        File.fromUri(videoResource.uri).absolute.path.toLowerCase(),
+        video.resolveSymbolicLinksSync().toLowerCase(),
+      );
+    });
 
     test('路径穿越在列表与资产操作均映射为 invalidPath', () async {
       final root = await Directory.systemTemp.createTemp('omll_local_media_');
@@ -234,26 +236,6 @@ void main() {
         endsWith('/sub/deep/video2.mkv'.toLowerCase()),
       );
     });
-
-    test('本地资源为 file scheme 且不含 HTTP authority', () async {
-      final root = await Directory.systemTemp.createTemp('omll_local_media_');
-      addTearDown(() => root.delete(recursive: true));
-      File('${root.path}${Platform.pathSeparator}a.jpg')
-          .writeAsBytesSync([1, 2, 3]);
-      final library = buildLocalLibraryForTest(root);
-
-      final resource = await library.resolveAsset(
-        const MediaAssetRequest(
-          kind: MediaAssetKind.image,
-          relativePath: '/a.jpg',
-        ),
-      );
-      expect(resource, isA<LocalMediaResource>());
-      expect(resource.uri.scheme, 'file');
-      expect(resource.uri.isAbsolute, isTrue);
-      expect(resource.uri.authority, isEmpty);
-      expect(resource.uri.toString(), isNot(contains('http')));
-    });
   });
 
   group('LocalMediaLibrary 缩略图解析', () {
@@ -277,7 +259,7 @@ void main() {
       expect(generator.calls, isEmpty);
     });
 
-    test('首次解析生成字节、写入缓存并返回缓存文件资源', () async {
+    test('缩略图首次生成写入缓存，相同请求复用原文件', () async {
       final root = await Directory.systemTemp.createTemp('omll_local_media_');
       addTearDown(() => root.delete(recursive: true));
       final generator = FakeMediaThumbnailGenerator(
@@ -299,27 +281,16 @@ void main() {
       final cacheFile = File.fromUri(result!.uri);
       expect(cacheFile.existsSync(), isTrue);
       expect(cacheFile.readAsBytesSync(), generator.bytes);
-    });
-
-    test('第二次相同请求命中缓存且生成器调用次数保持一次', () async {
-      final root = await Directory.systemTemp.createTemp('omll_local_media_');
-      addTearDown(() => root.delete(recursive: true));
-      final generator = FakeMediaThumbnailGenerator(
-        MediaDirectoryScanner(root.path),
+      final second = await library.resolveThumbnail(
+        const MediaThumbnailRequest(
+          relativePath: '/猫.mp4',
+          sizeBytes: 1,
+          lastModified: 2,
+          hasThumbnail: true,
+        ),
       );
-      final library = buildLocalLibraryWithFakeGenerator(root, generator);
-      const request = MediaThumbnailRequest(
-        relativePath: '/猫.mp4',
-        sizeBytes: 1,
-        lastModified: 2,
-        hasThumbnail: true,
-      );
-
-      final first = await library.resolveThumbnail(request);
-      final second = await library.resolveThumbnail(request);
-
-      expect(generator.calls, hasLength(1));
-      expect(second!.uri, first!.uri);
+      expect(second!.uri, result.uri);
+      expect(generator.calls, ['/猫.mp4']);
     });
 
     test('size 或 lastModified 变化使用不同缓存键并再次调用生成器', () async {

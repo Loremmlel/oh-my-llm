@@ -38,9 +38,9 @@ Future<ProviderContainer> _pumpActions(
 }
 
 void main() {
-  testWidgets('expanded 显示三个密度按钮，当前密度按钮带 selected 语义', (tester) async {
+  testWidgets('展开密度按钮反映当前选择，点击后更新语义与持久化', (tester) async {
     final preferences = await _prefs();
-    await _pumpActions(
+    final container = await _pumpActions(
       tester,
       preferences: preferences,
       actions: const MediaGridDensityActions.expanded(),
@@ -62,24 +62,21 @@ void main() {
       tester.getSemantics(find.byTooltip('舒适密度')).flagsCollection.isSelected,
       Tristate.isFalse,
     );
-  });
-
-  testWidgets('点击舒适密度更新 provider 并持久化', (tester) async {
-    final preferences = await _prefs();
-    final container = await _pumpActions(
-      tester,
-      preferences: preferences,
-      actions: const MediaGridDensityActions.expanded(),
-    );
-
     await tester.tap(find.byTooltip('舒适密度'));
     await tester.pump();
-
     expect(
       container.read(mediaGridDensityProvider),
       AppLayoutDensity.comfortable,
     );
     expect(preferences.getString(mediaGridDensityStorageKey), 'comfortable');
+    expect(
+      tester.getSemantics(find.byTooltip('舒适密度')).flagsCollection.isSelected,
+      Tristate.isTrue,
+    );
+    expect(
+      tester.getSemantics(find.byTooltip('标准密度')).flagsCollection.isSelected,
+      Tristate.isFalse,
+    );
   });
 
   testWidgets('menu 显示密度菜单，选择标准更新 provider 并持久化', (tester) async {

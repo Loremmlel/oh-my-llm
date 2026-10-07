@@ -14,6 +14,7 @@ import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/core/persistence/versioned_json_storage.dart';
 import 'package:oh_my_llm/features/settings/domain/models/providers/llm_provider_config.dart';
 import 'package:oh_my_llm/features/sync/application/sync_server_controller.dart';
+import 'package:oh_my_llm/features/sync/application/ports/sync_server_transport.dart';
 import 'package:oh_my_llm/features/sync/application/network_interface_provider.dart';
 import 'package:oh_my_llm/features/sync/domain/models/discovery/network_interface_info.dart';
 import 'package:oh_my_llm/features/sync/domain/models/protocol/sync_protocol_message.dart';
@@ -46,16 +47,24 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       preferences = await SharedPreferences.getInstance();
       database = AppDatabase.inMemory();
+      addTearDown(database.close);
     });
 
     ProviderContainer buildContainer({
       Future<List<NetworkInterfaceInfo>> Function()? interfaces,
+      SyncServerTransport? transport,
     }) {
       final container = ProviderContainer(
         overrides: [
-          ...appCompositionOverrides(),
+          ...appCompositionOverrides().where(
+            (override) =>
+                transport == null ||
+                override.origin != syncServerTransportProvider,
+          ),
           appDatabaseProvider.overrideWithValue(database),
           sharedPreferencesProvider.overrideWithValue(preferences),
+          if (transport != null)
+            syncServerTransportProvider.overrideWithValue(transport),
           if (interfaces != null)
             availableInterfacesProvider.overrideWith((ref) => interfaces()),
         ],
@@ -70,7 +79,6 @@ void main() {
         }
         subscription.close();
         container.dispose();
-        database.close();
       });
       return container;
     }
@@ -128,7 +136,6 @@ void main() {
         Socket.connect('127.0.0.1', port),
         throwsA(isA<SocketException>()),
       );
-      database.close();
     });
 
     test('start 等待网卡枚举时 stop 不会留下运行会话', () async {
@@ -158,20 +165,6 @@ void main() {
       final state = container.read(syncServerControllerProvider);
       expect(state.isRunning, isTrue);
       expect(state.httpPort, isNotNull);
-    });
-
-    test('重复 stop 后保持空闲状态', () async {
-      final container = buildContainer();
-      final controller = container.read(syncServerControllerProvider.notifier);
-      await controller.start();
-
-      final firstStop = controller.stop();
-      final secondStop = controller.stop();
-      await Future.wait([firstStop, secondStop]);
-
-      final state = container.read(syncServerControllerProvider);
-      expect(state.isRunning, isFalse);
-      expect(state.httpPort, isNull);
     });
 
     test('失败的设备名重启保留应用级 controller 状态', () async {
@@ -208,7 +201,6 @@ void main() {
       await container.pump();
       expect(container.exists(syncServerControllerProvider), isTrue);
       container.dispose();
-      database.close();
     });
 
     test('无存储时 deviceName 回退到 hostname', () async {
@@ -226,7 +218,7 @@ void main() {
       expect(c2.read(syncServerControllerProvider).deviceName, '我的设备');
     });
 
-    test('start 后运行中，stop 后回到空闲状态', () async {
+    test('启动生成配对码，重复启动与并发停止均幂等', () async {
       final container = buildContainer();
       final notifier = container.read(syncServerControllerProvider.notifier);
 
@@ -236,24 +228,16 @@ void main() {
       expect(state.httpPort, isNotNull);
       expect(state.pairingCode, matches(RegExp(r'^[A-Z0-9]{4}$')));
 
-      await notifier.stop();
+      final port = state.httpPort;
+      final code = state.pairingCode;
+      await notifier.start();
+      expect(container.read(syncServerControllerProvider).httpPort, port);
+      expect(container.read(syncServerControllerProvider).pairingCode, code);
+      await Future.wait([notifier.stop(), notifier.stop()]);
       state = container.read(syncServerControllerProvider);
       expect(state.isRunning, isFalse);
       expect(state.httpPort, isNull);
       expect(state.servedRequestCount, 0);
-    });
-
-    test('重复 start 是幂等的', () async {
-      final container = buildContainer();
-      final notifier = container.read(syncServerControllerProvider.notifier);
-
-      await notifier.start();
-      final port1 = container.read(syncServerControllerProvider).httpPort;
-
-      await notifier.start();
-      final port2 = container.read(syncServerControllerProvider).httpPort;
-
-      expect(port1, port2);
     });
 
     test('updateDeviceName 持久化到 SharedPreferences', () async {
@@ -266,24 +250,26 @@ void main() {
       expect(container.read(syncServerControllerProvider).deviceName, '新设备名');
     });
 
-    test('updateDeviceName 在运行中时重启服务', () async {
-      final container = buildContainer();
+    test('运行中改名持久保存，并以新名称重新发布服务', () async {
+      final transport = _RecordingServerTransport();
+      final container = buildContainer(transport: transport);
       final notifier = container.read(syncServerControllerProvider.notifier);
 
       await notifier.start();
-      final port1 = container.read(syncServerControllerProvider).httpPort;
 
       await notifier.updateDeviceName('新名字');
 
       final state = container.read(syncServerControllerProvider);
       expect(state.isRunning, isTrue);
       expect(state.deviceName, '新名字');
-      // 重启绑定新端口，证明服务确实重启了
-      expect(state.httpPort, isNot(port1));
+      expect(transport.names, [Platform.localHostname, '新名字']);
+      expect(transport.stopCount, 1);
+      expect(preferences.getString('sync.device_name'), '新名字');
     });
 
-    test('updateDeviceName 连续快速调用不会启动多个 server', () async {
-      final container = buildContainer();
+    test('连续改名合并为一次重启，发布最终名称', () async {
+      final transport = _RecordingServerTransport();
+      final container = buildContainer(transport: transport);
       final notifier = container.read(syncServerControllerProvider.notifier);
 
       await notifier.start();
@@ -296,6 +282,8 @@ void main() {
       final state = container.read(syncServerControllerProvider);
       expect(state.isRunning, isTrue);
       expect(state.deviceName, '设备B');
+      expect(transport.names, [Platform.localHostname, '设备B']);
+      expect(transport.stopCount, 1);
     });
 
     test('POST 旧协议请求返回 public unsupportedProtocol', () async {
@@ -352,4 +340,21 @@ void main() {
       );
     });
   });
+}
+
+/// 传输端口记录对外发布的名称；固定端口允许操作系统重用端口的等价行为。
+final class _RecordingServerTransport implements SyncServerTransport {
+  final names = <String>[];
+  var stopCount = 0;
+
+  @override
+  Future<SyncServerHandle> start(SyncServerStartRequest request) async {
+    names.add(request.deviceName);
+    return const SyncServerHandle(httpPort: 43000);
+  }
+
+  @override
+  Future<void> stop() async {
+    stopCount++;
+  }
 }

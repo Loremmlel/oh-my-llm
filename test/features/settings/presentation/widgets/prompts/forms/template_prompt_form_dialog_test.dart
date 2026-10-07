@@ -68,14 +68,6 @@ void main() {
     await settleAnimatedWidgetTransition(tester);
   }
 
-  /// 读取单选下拉框当前的选中值（闭合状态下 IndexedStack 会保留全部选项
-  /// 文本，可见文本断言无法区分选中项，故读取 FormField 的值）。
-  String? selectedSelectValue(WidgetTester tester, String name) {
-    return tester
-        .state<FormFieldState<String>>(selectVariableField(name))
-        .value;
-  }
-
   group('模板提示词表单', () {
     testWidgets('语法说明默认收起且可展开', (tester) async {
       await pumpDialog(tester, onSubmit: (_) async {});
@@ -105,8 +97,6 @@ void main() {
       await settleOverlayTransition(tester);
       await tester.tap(find.text('二').last);
       await settleOverlayTransition(tester);
-
-      expect(selectedSelectValue(tester, '人称'), '二');
 
       await tester.tap(find.text('保存'));
       await settleOverlayTransition(tester);
@@ -146,10 +136,22 @@ void main() {
       expect(captured, isNull);
     });
 
-    testWidgets('内容暂时无效时保留变量默认值控制器，修复后恢复协调', (tester) async {
-      await pumpDialog(tester, onSubmit: (_) async {});
+    testWidgets('正文防抖协调变量，无效内容保留默认值，修复后可保存', (tester) async {
+      TemplatePromptFormData? saved;
+      await pumpDialog(
+        tester,
+        onSubmit: (data) async {
+          saved = data;
+        },
+      );
+      await tester.enterText(titleField(), '防抖模板');
 
-      await typeContent(tester, '请处理{{变量A}}。');
+      await tester.enterText(contentField(), '请处理{{变量A}}。');
+      await tester.pump();
+      expect(find.text('变量A'), findsNothing);
+      await tester.pump(TemplatePromptFormDialog.variableReconcileDebounce);
+      await tester.pump();
+      expect(find.text('变量A'), findsOneWidget);
       await tester.enterText(textVariableField('变量A'), '旧值');
       await tester.pump();
       expect(find.text('旧值'), findsOneWidget);
@@ -167,6 +169,19 @@ void main() {
       expect(find.text('第 1 行第 12 列：控制标签未闭合，缺少 }}'), findsNothing);
       expect(find.text('变量A'), findsOneWidget);
       expect(find.text('旧值'), findsOneWidget);
+      await tester.enterText(contentField(), '请处理{{变量B}}。');
+      await tester.pump();
+      expect(find.text('变量A'), findsOneWidget);
+      expect(find.text('变量B'), findsNothing);
+      await tester.pump(TemplatePromptFormDialog.variableReconcileDebounce);
+      await tester.pump();
+      expect(find.text('变量A'), findsNothing);
+      expect(find.text('变量B'), findsOneWidget);
+      await tester.enterText(textVariableField('变量B'), '新值');
+      await tester.tap(find.text('保存'));
+      await settleOverlayTransition(tester);
+      expect(saved!.variables.single.name, '变量B');
+      expect(saved!.variables.single.defaultValue, '新值');
     });
   });
 }

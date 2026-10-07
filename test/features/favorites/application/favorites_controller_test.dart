@@ -44,27 +44,6 @@ void main() {
     database.close();
   });
 
-  group('favoriteByIdProvider', () {
-    test('rename/move/remove 后 by-ID 状态随 revision 同步更新', () {
-      final library = container.read(favoritesLibraryProvider.notifier);
-      final colX = library.createCollection('X');
-      final id = library.add(
-        userMessageContent: '问题',
-        assistantContent: '回复',
-        collectionId: AppReservedEntities.uncategorizedFavoriteCollectionId,
-      );
-
-      library.rename(id, '新标题');
-      expect(container.read(favoriteByIdProvider(id))!.title, '新标题');
-
-      library.moveMany({id}, targetCollectionId: colX);
-      expect(container.read(favoriteByIdProvider(id))!.collectionId, colX);
-
-      library.remove(id);
-      expect(container.read(favoriteByIdProvider(id)), isNull);
-    });
-  });
-
   group('collectionsProvider 可见列表', () {
     test('系统夹恒可见且同名普通行被过滤', () {
       final library = container.read(favoritesLibraryProvider.notifier);

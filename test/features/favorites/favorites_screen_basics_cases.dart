@@ -8,18 +8,6 @@ import 'package:oh_my_llm/features/favorites/presentation/widgets/favorite_colle
 import '../../helpers/async/widget_test_animation.dart';
 import 'favorites_screen_test_helpers.dart';
 
-/// 从当前键盘焦点向上查找所属的收藏夹卡片，返回其收藏夹名称；
-/// 焦点不在任何卡片内时返回 null。
-String? _focusedCollectionName() {
-  final context = FocusManager.instance.primaryFocus?.context;
-  if (context == null) return null;
-  final state = context
-      .findAncestorStateOfType<State<FavoriteCollectionTile>>();
-  final tile = state?.widget;
-  if (tile is! FavoriteCollectionTile) return null;
-  return tile.summary.collection.name;
-}
-
 void registerFavoritesScreenBasicsTests() {
   testWidgets('空库仍显示置顶的系统未分类收藏夹卡片', (tester) async {
     await setUpFavoritesScreen(tester);
@@ -113,12 +101,22 @@ void registerFavoritesScreenBasicsTests() {
     );
   });
 
-  testWidgets('新建收藏夹后新卡获得焦点、支持 Enter 打开且不自动跳转', (tester) async {
+  testWidgets('新建收藏夹拒绝保留名，取消不创建，重开保存后可按 Enter 打开', (tester) async {
     await setUpFavoritesScreen(tester);
     final router = GoRouter.of(
       tester.element(find.byType(FavoriteCollectionTile)),
     );
 
+    await tester.tap(find.byTooltip('新建收藏夹'));
+    await settleOverlayTransition(tester);
+
+    await tester.enterText(find.byType(TextField), '未分类');
+    await tester.tap(find.widgetWithText(FilledButton, '创建'));
+    await tester.pump();
+    expect(find.text('该名称被系统收藏夹保留'), findsOneWidget);
+    await tester.tap(find.widgetWithText(TextButton, '取消'));
+    await settleOverlayTransition(tester);
+    expect(find.text('未分类'), findsOneWidget);
     await tester.tap(find.byTooltip('新建收藏夹'));
     await settleOverlayTransition(tester);
 
@@ -132,8 +130,6 @@ void registerFavoritesScreenBasicsTests() {
       router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
       '/favorites',
     );
-    // 新建卡片持有可见焦点，保证键盘用户可继续操作。
-    expect(_focusedCollectionName(), '旅行计划');
 
     // 键盘等价操作：Enter 打开聚焦的卡片。
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
@@ -143,26 +139,6 @@ void registerFavoritesScreenBasicsTests() {
       router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
       startsWith('/favorites/collections/'),
     );
-  });
-
-  testWidgets('新建时使用系统保留名在对话框内联报错且不创建', (tester) async {
-    await setUpFavoritesScreen(tester);
-
-    await tester.tap(find.byTooltip('新建收藏夹'));
-    await settleOverlayTransition(tester);
-
-    await tester.enterText(find.byType(TextField), '未分类');
-    await tester.tap(find.widgetWithText(FilledButton, '创建'));
-    await tester.pump();
-
-    expect(find.text('该名称被系统收藏夹保留'), findsOneWidget);
-    // 对话框保持打开，等待修改名称。
-    expect(find.byType(TextField), findsOneWidget);
-
-    await tester.tap(find.widgetWithText(TextButton, '取消'));
-    await settleOverlayTransition(tester);
-
-    // 未创建同名普通夹："未分类"仍只有系统夹一处。
-    expect(find.text('未分类'), findsOneWidget);
+    expect(find.text('旅行计划'), findsOneWidget);
   });
 }

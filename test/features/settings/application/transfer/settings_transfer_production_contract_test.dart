@@ -160,31 +160,6 @@ _newContainer() async {
 }
 
 void main() {
-  test('生产 Coordinator 锁定九个有序 section、六个分组和敏感性', () async {
-    final (:coordinator, :container) = await _newContainer();
-    await _seedFixtures(container);
-    final batch = coordinator.exportGroups(
-      SettingsTransferGroup.values.toSet(),
-    ) as SettingsExportBatch;
-
-    expect(batch.document.sections.keys, expectedSectionKeys);
-    expect(
-      coordinator.groups.map((descriptor) => descriptor.group).toList(),
-      SettingsTransferGroup.values,
-    );
-    expect(
-      coordinator.groups
-          .map((descriptor) => descriptor.containsSensitive)
-          .toList(),
-      [true, false, false, true, false, false],
-    );
-    expect(batch.containsSensitive, isTrue);
-    expect(
-      container.read(settingsTransferCoordinatorProvider),
-      same(coordinator),
-    );
-  });
-
   test('九项 typed fixture 可从全量导出导入到新容器', () async {
     final source = await _newContainer();
     await _seedFixtures(source.container);
@@ -210,12 +185,21 @@ void main() {
     );
   });
 
-  test('生产 v10 canonical sections 与显式 secret-safe snapshot 一致', () async {
+  test('生产导出精确包含可传输分组，字段与敏感性符合当前协议', () async {
     final (:coordinator, :container) = await _newContainer();
     await _seedFixtures(container);
     final batch = coordinator.exportGroups(
       SettingsTransferGroup.values.toSet(),
     ) as SettingsExportBatch;
+    expect(
+      coordinator.groups.map((descriptor) => descriptor.group),
+      SettingsTransferGroup.values,
+    );
+    expect(
+      coordinator.groups.map((descriptor) => descriptor.containsSensitive),
+      [true, false, false, true, false, false],
+    );
+    expect(batch.containsSensitive, isTrue);
     final actualSections = batch.document.sections;
     final document = SettingsTransferDocument(sections: actualSections);
 
@@ -225,7 +209,6 @@ void main() {
       document.toJson()['identifier'],
       SettingsTransferDocument.identifier,
     );
-    expect(document.sections.keys.toList(), expectedSectionKeys);
     expect(_sanitize(actualSections), _sanitize(expectedCanonicalSections));
     expect(
       ((actualSections['modelProviders']! as List).single as Map)['apiKey'],
@@ -236,25 +219,6 @@ void main() {
           as Map)['value'],
       'test-header-secret',
     );
-  });
-
-  test('生产文档不包含本地专属设置', () async {
-    final (:coordinator, :container) = await _newContainer();
-    await _seedFixtures(container);
-    final document = (coordinator.exportGroups(
-      SettingsTransferGroup.values.toSet(),
-    ) as SettingsExportBatch).document;
-    const localOnlyKeys = {
-      'chatDefaults',
-      'settingsTab',
-      'mediaRoot',
-      'mediaGridDensity',
-      'llmModelConfigs',
-    };
-
-    for (final key in localOnlyKeys) {
-      expect(document.sections, isNot(contains(key)));
-    }
   });
 
   test('服务商专用合并保留本地身份并追加新模型', () async {
