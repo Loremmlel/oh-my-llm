@@ -331,12 +331,15 @@ lib/
 
 ### Prompt 拼接顺序（`chat_request_message_builder.dart`）
 
-实际顺序（5 步，非简单的 system->模板->对话）：
+实际顺序（最新输入由请求准备显式指定）：
 1. 检查点记忆消息（system 角色）
 2. 模板 `placement == before` 消息
-3. 对话消息（经 `request_message_filter` 过滤）
+3. 有效历史消息（经 `request_message_filter` 过滤，不含本次最新输入）
 4. 模板 `placement == beforeLatestInput` 消息
-5. 模板 `placement == after` 消息
+5. 本次最新用户输入
+6. 模板 `placement == after` 消息
+
+宏预设先按原条目列表求值，再按注入位置组装；普通预设不执行宏。上下文查看复用相同准备函数，生成中读取当前请求快照。
 
 ### 其他易错点
 

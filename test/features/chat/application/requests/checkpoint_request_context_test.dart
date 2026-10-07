@@ -299,6 +299,45 @@ void main() {
       expect(result.last.content, '后置规则');
     });
 
+    test('宏总结在完整拼接后合并系统规则并保留后置条目来源', () {
+      final preset = buildPresetPrompt(singleSystemPrompt: true).copyWith(
+        syntax: PresetPromptSyntax.sillyTavernSubsetV1,
+        messages: [
+          const PromptMessage(
+            id: 'before',
+            title: '前置',
+            role: PromptMessageRole.system,
+            content: '{{user}}规则',
+          ),
+          const PromptMessage(
+            id: 'after',
+            title: '后置',
+            role: PromptMessageRole.system,
+            content: '补充{{user}}',
+            placement: PromptMessagePlacement.after,
+          ),
+        ],
+      );
+      final result = prepareCheckpointSummaryContext(
+        memoryPrompt: buildMemoryPrompt(),
+        conversationMessages: [buildMessage()],
+        checkpointChain: [buildCheckpoint()],
+        presetPrompt: preset,
+      ).requireMessages();
+      expect(
+        result.where((m) => m.role == ChatMessageRole.system),
+        hasLength(1),
+      );
+      expect(result.first.content, endsWith('\nuser规则'));
+      expect(result.first.sourceLabel, contains('检查点总结规则'));
+      expect(result.first.sourceLabel, contains('检查点记忆'));
+      expect(result.first.sourceLabel, contains('前置'));
+      expect(result.last.role, ChatMessageRole.user);
+      expect(result.last.content, '补充user');
+      expect(result.last.sourceId, 'after');
+      expect(result.last.sourceLabel, contains('后置'));
+    });
+
     test('空 chain（根检查点）使用根检查点中文 system prompt', () {
       final memoryPrompt = buildMemoryPrompt();
       final conversationMessages = [buildMessage(id: 'm1', content: '对话消息')];

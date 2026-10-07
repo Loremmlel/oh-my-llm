@@ -58,6 +58,7 @@ class ChatGenerationRun {
 
   // prepare 填充的 run context。
   ChatGenerationRequest? _request;
+  ChatGenerationRequest? get preparedRequest => _request;
   ChatConversation? _streamingConversation;
   ChatMessage? _assistantMessage;
   ChatStreamingReply? _streamingReply;

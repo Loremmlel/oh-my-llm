@@ -398,6 +398,7 @@ void main() {
         "INSERT INTO messages (id, content) VALUES ('m1', '旧消息');",
       );
       legacy.execute('PRAGMA user_version = 14;');
+      _createLegacyPresets(legacy);
       legacy.close();
 
       final database = AppDatabase.forPath(path);
@@ -470,6 +471,7 @@ void main() {
       db.execute('CREATE TABLE messages (id TEXT PRIMARY KEY);');
       db.execute("INSERT INTO messages (id) VALUES ('legacy-message');");
       db.execute('PRAGMA user_version = 13;');
+      _createLegacyPresets(db);
       db.close();
       return path;
     }
@@ -876,4 +878,15 @@ List<String> _tableNames(AppDatabase database) {
       )
       .map((row) => row['name'] as String)
       .toList();
+}
+
+void _createLegacyPresets(sqlite.Database database) {
+  database.execute('''
+    CREATE TABLE preset_prompts (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      messages_json TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+  ''');
 }

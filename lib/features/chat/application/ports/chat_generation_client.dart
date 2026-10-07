@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
 import 'package:oh_my_llm/core/llm/llm_usage.dart';
+import 'package:oh_my_llm/features/settings/domain/preset_macros/preset_macro_renderer.dart';
 
 import '../../domain/models/chat_message.dart';
 import '../../domain/models/chat_image_attachment.dart';
@@ -91,8 +92,8 @@ class ChatGenerationRequestTarget extends Equatable {
 
 /// 协议中立的生成请求。
 ///
-/// 消息已由消息构建器完成 5 步拼接（检查点记忆 -> before 模板 -> 对话过滤 ->
-/// beforeLatestInput 模板 -> after 模板），client 只按 [target] 路由与编码，
+/// 消息已按检查点、前置、历史、最新输入前、输入、后置完成拼接，
+/// client 只按 [target] 路由与编码，
 /// 不再感知会话级上下文。
 class ChatGenerationRequest extends Equatable {
   const ChatGenerationRequest({
@@ -100,11 +101,15 @@ class ChatGenerationRequest extends Equatable {
     required this.messages,
     this.reasoningEffort,
     this.streamIdleTimeout,
+    this.contextDiagnostics = const [],
+    this.presetName = '',
   });
 
   final ChatGenerationRequestTarget target;
 
   final List<ChatRequestMessage> messages;
+  final List<PresetMacroDiagnostic> contextDiagnostics;
+  final String presetName;
 
   final ReasoningEffort? reasoningEffort;
 
@@ -117,6 +122,8 @@ class ChatGenerationRequest extends Equatable {
     messages,
     reasoningEffort,
     streamIdleTimeout,
+    contextDiagnostics,
+    presetName,
   ];
 }
 
@@ -200,12 +207,16 @@ class ChatRequestMessage {
     required this.role,
     required this.content,
     this.images = const [],
+    this.sourceLabel = '',
+    this.sourceId,
   });
 
   final ChatMessageRole role;
   final String content;
 
   final List<ChatImageAttachment> images;
+  final String sourceLabel;
+  final String? sourceId;
 
   /// 与 Messages 协议一致：合并开头连续的 System，后续 System 改为 User。
   static List<ChatRequestMessage> singleSystemPrompt(
@@ -216,17 +227,25 @@ class ChatRequestMessage {
         .toList();
     return [
       if (leading.isNotEmpty)
-        ChatRequestMessage(
-          role: ChatMessageRole.system,
-          content: leading.map((message) => message.content).join('\n'),
-          images: [for (final message in leading) ...message.images],
-        ),
+        leading.length == 1
+            ? leading.single
+            : ChatRequestMessage(
+                role: ChatMessageRole.system,
+                content: leading.map((message) => message.content).join('\n'),
+                images: [for (final message in leading) ...message.images],
+                sourceLabel: leading
+                    .map((message) => message.sourceLabel)
+                    .where((label) => label.isNotEmpty)
+                    .join('；'),
+              ),
       for (final message in messages.skip(leading.length))
         message.role == ChatMessageRole.system
             ? ChatRequestMessage(
                 role: ChatMessageRole.user,
                 content: message.content,
                 images: message.images,
+                sourceLabel: message.sourceLabel,
+                sourceId: message.sourceId,
               )
             : message,
     ];

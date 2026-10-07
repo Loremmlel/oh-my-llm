@@ -2,13 +2,16 @@ import 'dart:convert';
 
 import 'package:equatable/equatable.dart';
 
-/// Settings transfer 的 canonical v9 文档，只保存不可变的 JSON-safe section。
+/// Settings transfer 的 canonical 文档，只保存不可变的 JSON-safe section。
 final class SettingsTransferDocument extends Equatable {
   SettingsTransferDocument({required Map<String, Object?> sections})
     : sections = _freezeJsonObject(sections);
 
   static const identifier = 'shikiyuzu-oh-my-llm';
-  static const formatVersion = 9;
+  static const formatVersion = 10;
+  // v9 仅在导入边界接受，缺失语法的预设按 plain 读取；导出始终写 v10。
+  // 下次明确提升交换格式最低版本时连同 v9 兼容测试一起退役。
+  static const minimumFormatVersion = 9;
 
   final Map<String, Object?> sections;
 

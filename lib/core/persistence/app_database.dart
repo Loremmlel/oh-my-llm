@@ -27,7 +27,7 @@ class AppDatabase {
   /// 当前滚动迁移基线：全新数据库直接创建到该版本。
   ///
   /// 历史 V9→V13 逐级迁移已退役；v13 起的已发布迁移按顺序保留。
-  static const int currentSchemaVersion = 24;
+  static const int currentSchemaVersion = 25;
 
   final sqlite.Database _connection;
   final String path;
@@ -80,7 +80,7 @@ class AppDatabase {
   /// - `user_version == 0`：全新数据库，创建完整当前 schema 后标记为
   ///   [currentSchemaVersion]；
   /// - `user_version == [currentSchemaVersion]`：当前版本数据库，不做任何改动；
-  /// - `user_version` 为 13–23：按顺序执行到当前版本的迁移；
+  /// - `user_version` 为 13–24：按顺序执行到当前版本的迁移；
   /// - 其余版本（更旧的遗留库或更新版本应用创建的库）显式拒绝，
   ///   避免仓库层在不兼容的 schema 上误读误写。
   void _initializeSchema() {
@@ -92,7 +92,7 @@ class AppDatabase {
       _connection.execute('PRAGMA user_version = $currentSchemaVersion;');
     } else if (currentVersion == currentSchemaVersion) {
       // 当前版本数据库，直接可用。
-    } else if (currentVersion >= 13 && currentVersion <= 23) {
+    } else if (currentVersion >= 13 && currentVersion <= 24) {
       if (currentVersion <= 13) _migrateFavoritesFromV13ToV14();
       if (currentVersion <= 14) _migrateMessagesFromV14ToV15();
       if (currentVersion <= 15) _migrateAgentFromV15ToV16();
@@ -103,7 +103,10 @@ class AppDatabase {
       if (currentVersion <= 20) _migrateAgentHistoryFromV20ToV21();
       if (currentVersion <= 21) _migrateAgentTimelineFromV21ToV22();
       if (currentVersion <= 22) _migrateChatImagesFromV22ToV23();
-      _migratePresetSingleSystemFromV23ToV24(sourceVersion: currentVersion);
+      if (currentVersion <= 23) {
+        _migratePresetSingleSystemFromV23ToV24(sourceVersion: currentVersion);
+      }
+      _migratePresetSyntaxFromV24ToV25();
     } else {
       throw AppDatabaseSchemaVersionException(currentVersion);
     }
@@ -147,6 +150,19 @@ class AppDatabase {
         );
       }
       _connection.execute('PRAGMA user_version = 24; COMMIT;');
+    } catch (_) {
+      _connection.execute('ROLLBACK;');
+      rethrow;
+    }
+  }
+
+  void _migratePresetSyntaxFromV24ToV25() {
+    _connection.execute('BEGIN IMMEDIATE;');
+    try {
+      _connection.execute(
+        "ALTER TABLE preset_prompts ADD COLUMN syntax TEXT NOT NULL DEFAULT 'plain';",
+      );
+      _connection.execute('PRAGMA user_version = 25; COMMIT;');
     } catch (_) {
       _connection.execute('ROLLBACK;');
       rethrow;
@@ -707,6 +723,7 @@ class AppDatabase {
         name TEXT NOT NULL,
         messages_json TEXT NOT NULL DEFAULT '[]',
         single_system_prompt INTEGER NOT NULL DEFAULT 0,
+        syntax TEXT NOT NULL DEFAULT 'plain',
         updated_at TEXT NOT NULL
       );
     ''');

@@ -45,6 +45,8 @@ import 'package:oh_my_llm/features/media/data/scanning/media_directory_scanner.d
 import 'package:oh_my_llm/features/media/data/scanning/media_thumbnail_cache.dart';
 import 'package:oh_my_llm/features/media/data/scanning/media_thumbnail_generator.dart';
 import 'package:oh_my_llm/features/settings/application/transfer/settings_sync_facade.dart';
+import 'package:oh_my_llm/features/settings/application/ports/preset_import_source.dart';
+import 'package:oh_my_llm/features/settings/data/prompts/file_preset_import_source.dart';
 import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_coordinator_provider.dart';
 import 'package:oh_my_llm/features/sync/application/ports/settings_sync_facade.dart';
 import 'package:oh_my_llm/features/sync/application/ports/sync_client_transport.dart';
@@ -99,6 +101,7 @@ List<dynamic> appCompositionOverrides({
       chatImageSourceProvider.overrideWith((ref) => PlatformChatImageSource()),
     ],
     ...createAgentBindings(),
+    presetImportSourceProvider.overrideWith((ref) => pickPresetImportFile),
     syncClientTransportProvider.overrideWith(
       (ref) => HttpSyncClientTransport(ref.watch(peerHttpClientProvider)),
     ),

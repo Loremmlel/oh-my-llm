@@ -35,7 +35,7 @@ import '../features/sync/application/sync_test_fakes.dart';
 import '../helpers/fixtures.dart';
 
 void main() {
-  test('loopback v4 配对后通过稳定 group ID 获得结构化 v9 Settings document', () async {
+  test('loopback v4 配对后通过稳定 group ID 获得当前 Settings document', () async {
     final serverStore = FakePairingRepository(
       identity: const SyncPeerIdentity(id: 'server-id', displayName: 'Server'),
     );
@@ -111,7 +111,10 @@ void main() {
     );
 
     expect(document, isA<SettingsTransferDocument>());
-    expect(document.toJson()['formatVersion'], 9);
+    expect(
+      document.toJson()['formatVersion'],
+      SettingsTransferDocument.formatVersion,
+    );
     expect(document.sections.keys, {'presetPrompts'});
     expect(document.sections['presetPrompts'], isA<List<Object?>>());
     expect(
@@ -238,7 +241,7 @@ void main() {
   });
 
   test(
-    '真实 Provider composition 跨 SQLite 与 SharedPreferences 完成 v4/v9 导出导入',
+    '真实 Provider composition 跨 SQLite 与 SharedPreferences 完成当前格式导出导入',
     () async {
       final serverDatabase = AppDatabase.inMemory();
       final serverPreferences = await _newMockPreferences();
@@ -384,7 +387,10 @@ void main() {
         groups: groups,
         confirmedSensitive: true,
       );
-      expect(document.toJson()['formatVersion'], 9);
+      expect(
+        document.toJson()['formatVersion'],
+        SettingsTransferDocument.formatVersion,
+      );
       expect(document.sections.keys.toSet(), {
         'memoryPrompts',
         'customHeaders',
@@ -591,7 +597,10 @@ void main() {
       confirmedSensitive: false,
     );
     expect(serverFacade.exportedGroups, groups);
-    expect(document.toJson()['formatVersion'], 9);
+    expect(
+      document.toJson()['formatVersion'],
+      SettingsTransferDocument.formatVersion,
+    );
     expect(document.sections.keys.toSet(), {'memoryPrompts', 'modelProviders'});
     expect(document.sections['memoryPrompts'], isA<List<Object?>>());
     expect(document.sections['modelProviders'], isA<List<Object?>>());

@@ -1,4 +1,19 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/animation.dart';
+
+const _animationFrameStep = Duration(milliseconds: 100);
+
+/// 背景仍在流式加载时，只等待目标弹窗动画，不等待全局帧停止。
+Future<void> settleStreamingOverlayTransition(
+  WidgetTester tester,
+  Animation<double> animation,
+  AnimationStatus status,
+) async {
+  for (var frame = 0; animation.status != status && frame < 20; frame++) {
+    await tester.pump(_animationFrameStep);
+  }
+  if (animation.status != status) throw StateError('弹窗动画未在 2 秒内结束');
+}
 
 /// 等待一次有限的 Route/GoRouter 导航动画（push/pop/redirect）结束。
 Future<void> settleRouteTransition(WidgetTester tester) =>
@@ -28,7 +43,7 @@ Future<void> settleAnimatedWidgetTransition(WidgetTester tester) =>
 /// settle API——等待对象必须由调用方命名。
 Future<void> _settleFiniteAnimation(WidgetTester tester) {
   return tester.pumpAndSettle(
-    const Duration(milliseconds: 100),
+    _animationFrameStep,
     EnginePhase.sendSemanticsUpdate,
     const Duration(seconds: 2),
   );

@@ -10,6 +10,7 @@ import '../../domain/models/chat_conversation.dart';
 import '../../domain/models/chat_image_attachment.dart';
 import '../sessions/chat_sessions_controller.dart';
 import '../requests/chat_image_input_policy.dart';
+import '../requests/chat_context_preview.dart';
 import 'composer_draft_controller.dart';
 import 'template_prompt_compilation_provider.dart';
 import 'templated_user_message_builder.dart';
@@ -56,6 +57,7 @@ enum ChatComposerRejectReason {
   invalidTemplate,
   invalidTemplateValue,
   unsupportedImageInput,
+  invalidPreset,
 }
 
 class ChatComposerRejected extends ChatComposerDispatchResult {
@@ -151,6 +153,21 @@ class ChatComposerCommand {
 
         final editingMessageId = intent.editingMessageId;
         final wasEdit = editingMessageId != null;
+        final preview = previewChatContext(
+          conversation: conversation,
+          presetPrompt: intent.selectedPresetPrompt,
+          body: message.content,
+          images: intent.images,
+          editingMessageId: editingMessageId,
+        );
+        if (preview.hasErrors) {
+          _ref
+              .read(chatSessionsProvider.notifier)
+              .setErrorMessage(preview.errorText);
+          return const ChatComposerRejected(
+            ChatComposerRejectReason.invalidPreset,
+          );
+        }
         final Future<void> completion;
         if (wasEdit) {
           completion = _ref

@@ -17,6 +17,7 @@ import 'package:oh_my_llm/features/settings/application/preferences/chat_default
 import 'package:oh_my_llm/features/settings/application/providers/llm_model_configs_controller.dart';
 import 'package:oh_my_llm/features/settings/data/providers/llm_model_config_repository.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/providers/llm_model_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/providers/llm_provider_config.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -109,6 +110,7 @@ void main() {
     String? conversationId,
     Object? selectedModel = _useDefaultModel,
     TemplatePrompt? templatePrompt,
+    PresetPrompt? preset,
     Map<String, String> variableValues = const {},
   }) {
     return ChatComposerSubmitIntent(
@@ -116,6 +118,7 @@ void main() {
           conversationId ?? container.read(activeConversationIdProvider),
       body: body,
       templatePrompt: templatePrompt,
+      selectedPresetPrompt: preset,
       variableValues: variableValues,
       selectedModel: identical(selectedModel, _useDefaultModel)
           ? model()
@@ -125,6 +128,48 @@ void main() {
       editingMessageId: editingMessageId,
     );
   }
+
+  test('宏解析失败拒绝提交并保留草稿和消息树', () {
+    final id = container.read(activeConversationIdProvider);
+    container.read(composerDraftProvider.notifier).setBody(id, '保留正文');
+    final result = container
+        .read(chatComposerCommandProvider)
+        .dispatch(
+          intentFor(
+            '保留正文',
+            preset: PresetPrompt(
+              id: 'invalid',
+              name: '语法错误',
+              updatedAt: DateTime(2026),
+              syntax: PresetPromptSyntax.sillyTavernSubsetV1,
+              messages: const [
+                PromptMessage(
+                  id: 'bad',
+                  role: PromptMessageRole.system,
+                  content: '{{setvar::缺少值}}',
+                ),
+              ],
+            ),
+          ),
+        );
+    expect(
+      (result as ChatComposerRejected).reason,
+      ChatComposerRejectReason.invalidPreset,
+    );
+    expect(
+      container.read(composerDraftProvider.notifier).draftFor(id).body,
+      '保留正文',
+    );
+    expect(
+      container.read(activeBaseConversationProvider).messageNodes,
+      isEmpty,
+    );
+    expect(fakeClient.requestHistory, isEmpty);
+    expect(
+      container.read(chatSessionsProvider).errorMessage,
+      contains('缺少值参数'),
+    );
+  });
 
   test('未开启图像能力拒绝图片提交且不清空草稿或新建消息', () {
     final id = container.read(activeConversationIdProvider);

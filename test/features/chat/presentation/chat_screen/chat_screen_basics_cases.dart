@@ -106,14 +106,14 @@ void registerChatScreenBasicsTests() {
     expect(find.semantics.byLabel('深度思考'), findsOneWidget);
   });
 
-  testWidgets('chat screen renames conversation without controller errors', (
-    tester,
-  ) async {
+  testWidgets('通过更多菜单修改对话标题并保存', (tester) async {
     final fakeClient = FakeChatGenerationClient();
 
     await pumpChatScreen(tester, fakeClient: fakeClient);
 
-    await tester.tap(find.byTooltip('修改对话标题'));
+    await tester.tap(find.byTooltip('更多对话操作'));
+    await settleOverlayTransition(tester);
+    await tester.tap(find.text('修改对话标题'));
     await settleOverlayTransition(tester);
 
     await tester.enterText(
