@@ -139,31 +139,36 @@ class _SyncOperationTabState extends ConsumerState<SyncOperationTab>
               child: CircularProgressIndicator(strokeWidth: 2),
             ),
             const SizedBox(width: 12),
-            Text('正在同步配置...', style: theme.textTheme.bodyMedium),
           ] else if (state.phase == SyncPhase.error) ...[
             Icon(Icons.error_outline, color: theme.colorScheme.error, size: 20),
             const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                '同步出错',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.error,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
           ] else ...[
             Icon(Icons.check_circle, color: Colors.green.shade400, size: 20),
             const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                '${state.isPaired ? '已配对' : '尚未配对，请在连接页输入配对码'}：${state.sourceDeviceName ?? '未知设备'}',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
           ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${state.isPaired ? '已配对' : '尚未配对，请在连接页输入配对码'}：${state.sourceDeviceName ?? '未知设备'}',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (state.phase == SyncPhase.syncing)
+                  Text('正在同步配置...', style: theme.textTheme.bodyMedium)
+                else if (state.phase == SyncPhase.error)
+                  Text(
+                    '同步出错',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.error,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ],
       ),
     );

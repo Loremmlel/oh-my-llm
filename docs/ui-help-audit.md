@@ -59,3 +59,11 @@
 - `designmd lint DESIGN.md`：0 错误；7 条颜色 token 提示来自原有文档摘要与 Dart 运行时持有主题的方式，本次未改动主题。
 - Premium 静态审计默认扫描误纳入 ignored 的旧 HTML 研究产物；限定应用源码目录后 0 条发现。该审计器不解析 Dart，不能替代 Flutter 分析、测试或运行验证。
 - 未做 Windows 原生逐屏手工验收、Android 构建或真机验证。
+
+## 同步状态回归修复
+
+配对状态与来源设备必须独立于同步阶段持续可见，不能在同步中或出错时被通用进度／错误提示替换。`SyncOperationTab` 将配对信息放在公共展示区域，阶段消息与其同时显示。
+
+`test/features/sync/presentation/sync_operation_tab_test.dart` 在窄屏下覆盖同步中、已配对出错和配对失效出错三个场景：修复前均因缺失配对信息失败，修复后 3 项通过，且阶段提示和具体错误仍可见。red/green 日志为 `logs/sync-pairing-status-red.log`、`logs/sync-pairing-status-green.log`。
+
+修复后重新运行全量测试：1893 项通过；`flutter analyze --no-pub`、架构依赖检查（447 个文件、0 条违规）和 `flutter build windows --release --no-pub` 均通过。此次同步状态修复以组件测试验收，未追加原生平台手工验证。
