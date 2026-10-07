@@ -154,7 +154,6 @@ class _RoundHistoryState extends State<_RoundHistory> {
   @override
   Widget build(BuildContext context) => ExpansionTile(
     title: const Text('轮次历史'),
-    subtitle: const Text('查看已采用、撤回或放弃的正文与执行记录'),
     children: [
       for (final round in widget.rounds.take(_visible))
         ListTile(

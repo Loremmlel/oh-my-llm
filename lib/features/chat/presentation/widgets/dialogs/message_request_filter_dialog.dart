@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_help_button.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
@@ -72,7 +73,10 @@ class _MessageRequestFilterDialogState
     _syncDetailPreviewScroll(focusedMessage?.id);
 
     final dialog = AlertDialog(
-      title: const Text('上下文过滤'),
+      title: const AppHelpTitle(
+        title: '上下文过滤',
+        message: '关闭某条消息后，它会保留在当前对话中，但不会继续发给模型。',
+      ),
       content: SingleChildScrollView(
         child: SizedBox(
           width: 920,
@@ -80,11 +84,6 @@ class _MessageRequestFilterDialogState
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                '关闭某条消息后，它会保留在当前对话中，但不会继续发给模型。',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              const SizedBox(height: 4),
               Text(
                 visibleMessages.isEmpty
                     ? '当前分支还没有消息。'

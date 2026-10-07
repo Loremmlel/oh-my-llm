@@ -130,7 +130,6 @@ class _SyncOperationTabState extends ConsumerState<SyncOperationTab>
 
     return SettingsSectionCard(
       title: '连接状态',
-      description: state.isPaired ? '已配对的安全同步连接' : '请先在连接页输入服务端配对码',
       child: Row(
         children: [
           if (state.phase == SyncPhase.syncing) ...[
@@ -158,7 +157,7 @@ class _SyncOperationTabState extends ConsumerState<SyncOperationTab>
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                '${state.isPaired ? '已配对' : '尚未配对'}：${state.sourceDeviceName ?? '未知设备'}',
+                '${state.isPaired ? '已配对' : '尚未配对，请在连接页输入配对码'}：${state.sourceDeviceName ?? '未知设备'}',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   fontWeight: FontWeight.w600,
                 ),

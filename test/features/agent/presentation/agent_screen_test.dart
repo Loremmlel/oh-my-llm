@@ -160,7 +160,12 @@ void main() {
     expect(find.text('世界书 1'), findsOneWidget);
     await tester.tap(find.byTooltip('模型与规则'));
     await settleOverlayTransition(tester);
+    expect(find.text('切换模型会丢弃不兼容的原生推理与厂商字段。'), findsOneWidget);
+    await tester.tap(find.byTooltip('模型与规则说明'));
+    await settleOverlayTransition(tester);
     expect(find.textContaining('不兼容的推理、签名'), findsOneWidget);
+    await tester.tap(find.text('关闭').last);
+    await settleOverlayTransition(tester);
     await tester.enterText(find.widgetWithText(TextField, '方案名称'), '独立审稿方案');
     await tester.tap(find.byType(DropdownButtonFormField<AgentRole>));
     await settleOverlayTransition(tester);

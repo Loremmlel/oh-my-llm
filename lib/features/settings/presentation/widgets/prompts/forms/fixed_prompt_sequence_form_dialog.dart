@@ -85,6 +85,8 @@ class _FixedPromptSequenceFormDialogState
 
     return SettingsFormDialogScaffold(
       title: isEditing ? '编辑固定顺序提示词' : '新增固定顺序提示词',
+      helpText:
+          '选择步骤后编辑标题和内容，用上移／下移调整顺序。每一步作为用户消息使用；聊天页可填入输入框或发送当前步骤，不会自动整组连发。',
       formKey: formKey,
       isSaving: isSaving,
       onSubmit: _handleSubmit,
@@ -269,11 +271,6 @@ class _FixedPromptSequenceFormDialogState
             ),
           ],
         ),
-        const SizedBox(height: 12),
-        Text(
-          '左侧用于切换步骤与调整顺序，右侧编辑当前步骤的标题和内容。',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
       ],
     );
   }
@@ -301,11 +298,6 @@ class _FixedPromptSequenceFormDialogState
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('步骤详情', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8),
-        Text(
-          '这里的每一步都会作为用户消息逐步使用，聊天页不会自动整组发送。',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
         const SizedBox(height: 16),
         TextFormField(
           key: const ValueKey('fixed-step-title-field'), // test-key

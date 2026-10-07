@@ -62,22 +62,26 @@ void main() {
     await tester.pump();
   }
 
-  /// 展开默认收起的语法说明区（有限展开动画）。
+  /// 帮助在独立浮层展示，不改变表单内容高度。
   Future<void> expandSyntaxHelp(WidgetTester tester) async {
-    await tester.tap(find.text('模板语法说明'));
+    await tester.tap(find.byTooltip('新增模板提示词说明'));
     await settleAnimatedWidgetTransition(tester);
   }
 
   group('模板提示词表单', () {
-    testWidgets('语法说明默认收起且可展开', (tester) async {
+    testWidgets('语法说明按需弹出且可关闭返回表单', (tester) async {
       await pumpDialog(tester, onSubmit: (_) async {});
 
-      expect(find.text('模板语法说明'), findsOneWidget);
-      expect(find.text('{{主角名}}'), findsNothing);
+      expect(find.byTooltip('新增模板提示词说明'), findsOneWidget);
+      expect(find.textContaining('{{主角名}}'), findsNothing);
 
       await expandSyntaxHelp(tester);
 
-      expect(find.text('{{主角名}}'), findsOneWidget);
+      expect(find.textContaining('{{主角名}}'), findsOneWidget);
+      await tester.tap(find.text('关闭'));
+      await settleOverlayTransition(tester);
+      expect(find.textContaining('{{主角名}}'), findsNothing);
+      expect(titleField(), findsOneWidget);
     });
 
     testWidgets('选择单选默认值后提交返回 select 类型变量及其选项', (tester) async {

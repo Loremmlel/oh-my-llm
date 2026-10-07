@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_help_button.dart';
 import 'package:oh_my_llm/core/widgets/app_field_group.dart';
 import 'package:oh_my_llm/core/widgets/dialogs/app_dialog_actions.dart';
 
@@ -99,7 +100,10 @@ class _FixedPromptSequenceRunnerDialogState
     final screenHeight = MediaQuery.of(context).size.height;
 
     final dialog = AlertDialog(
-      title: const Text('固定顺序提示词'),
+      title: const AppHelpTitle(
+        title: '固定顺序提示词',
+        message: '可以先填入输入框再改，也可以直接发送当前步骤；发送后只会前进到下一步，不会自动连发。',
+      ),
       content: SizedBox(
         width: 680,
         child: widget.sequences.isEmpty
@@ -193,11 +197,6 @@ class _FixedPromptSequenceRunnerDialogState
                                     currentStep?.content ?? '',
                                   ),
                                 ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                '你可以先填入输入框再改，也可以直接发送当前步骤；发送后只会把当前位置前进到下一步，不会自动连发。',
-                                style: Theme.of(context).textTheme.bodySmall,
                               ),
                             ],
                           ),

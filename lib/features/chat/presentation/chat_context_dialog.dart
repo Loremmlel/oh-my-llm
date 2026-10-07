@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_help_button.dart';
 import 'package:flutter/services.dart';
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
@@ -61,8 +62,9 @@ class _ChatContextDialogState extends State<ChatContextDialog> {
               child: Row(
                 children: [
                   Expanded(
-                    child: Text(
-                      '当前上下文',
+                    child: AppHelpTitle(
+                      title: '当前上下文',
+                      message: '显示进入生成适配器的有序消息。协议层可能合并角色或编码图片；这里不是原始 HTTP 报文。关闭后重开可刷新。',
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                   ),
@@ -90,10 +92,6 @@ class _ChatContextDialogState extends State<ChatContextDialog> {
                     ),
                     Text(
                       '${widget.messages.length} 条消息 · ${widget.messages.fold<int>(0, (sum, m) => sum + m.content.characters.length)} 个文本字符（非 Token）',
-                    ),
-                    const SizedBox(height: AppSpacing.xs),
-                    const Text(
-                      '显示进入生成适配器的有序消息。协议层可能合并角色或编码图片；这里不是原始 HTTP 报文。关闭后重开可刷新。',
                     ),
                     if (widget.note != null) Text(widget.note!),
                     if (widget.error != null)

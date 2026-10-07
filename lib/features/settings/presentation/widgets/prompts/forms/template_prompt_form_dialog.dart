@@ -103,6 +103,7 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
 
     return SettingsFormDialogScaffold(
       title: isEditing ? '编辑模板提示词' : '新增模板提示词',
+      helpText: TemplatePromptSyntaxHelp.message,
       formKey: formKey,
       isSaving: isSaving,
       submitEnabled: _compilation.isValid,
@@ -141,8 +142,6 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           ],
-          const SizedBox(height: 8),
-          const TemplatePromptSyntaxHelp(),
           const SizedBox(height: 20),
           Text('变量默认值', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
@@ -238,7 +237,7 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
             children: [
               const Icon(Icons.notes_rounded),
               const SizedBox(width: 12),
-              Expanded(child: Text('${variable.name} 使用聊天页主输入框提供内容，不单独设置默认值。')),
+              Expanded(child: Text('${variable.name} · 来自聊天输入框')),
             ],
           ),
         ),

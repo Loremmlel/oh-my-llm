@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_help_button.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oh_my_llm/core/widgets/app_field_group.dart';
 
@@ -65,7 +66,10 @@ class ChatDefaultsSection extends ConsumerWidget {
                 },
           decoration: const InputDecoration(
             labelText: '默认模型',
-            helperText: '会作为聊天页最近一次模型选择记忆。',
+            suffixIcon: AppHelpButton(
+              title: '默认模型',
+              message: '会作为聊天页最近一次模型选择记忆。',
+            ),
           ),
         ),
         DropdownButtonFormField<String>(
@@ -93,7 +97,10 @@ class ChatDefaultsSection extends ConsumerWidget {
           },
           decoration: const InputDecoration(
             labelText: '预设 Prompt 记忆',
-            helperText: '会作为聊天页最近一次预设 Prompt 选择记忆。',
+            suffixIcon: AppHelpButton(
+              title: '预设 Prompt 记忆',
+              message: '会作为聊天页最近一次预设 Prompt 选择记忆。',
+            ),
           ),
         ),
       ],

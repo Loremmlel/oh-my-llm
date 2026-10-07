@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_help_button.dart';
 import 'package:oh_my_llm/core/widgets/long_text_editing_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
@@ -107,7 +108,12 @@ class _DocumentEditorState extends ConsumerState<_DocumentEditor> {
         if (!didPop) _close();
       },
       child: AlertDialog(
-        title: Text(widget.document == null ? '新建文档' : '编辑文档'),
+        title: AppHelpTitle(
+          title: widget.document == null ? '新建文档' : '编辑文档',
+          message: _kind == AgentDocumentKind.script
+              ? '开头用 --- 包围 name、description；名称取自 name。元信息在下次主任务末尾追加，全文按需读取并保留。\n\n$agentScriptExample'
+              : '保存后覆盖当前内容，下次运行采用。人物卡正文保存作者设定。',
+        ),
         content: SizedBox(
           width: AppContentWidths.readable,
           height: 480,
@@ -144,28 +150,6 @@ class _DocumentEditorState extends ConsumerState<_DocumentEditor> {
                 ],
               ),
               const SizedBox(height: AppSpacing.sm),
-              if (_kind == AgentDocumentKind.script)
-                Row(
-                  children: [
-                    const Expanded(
-                      child: Text('开头用 --- 包围 name、description；名称取自 name。'),
-                    ),
-                    TextButton(
-                      onPressed: state.busy
-                          ? null
-                          : () => showDialog<void>(
-                              context: context,
-                              builder: (_) => const DetailDisplayDialog(
-                                title: Text('剧本 Markdown 示例'),
-                                child: SelectableText(agentScriptExample),
-                              ),
-                            ),
-                      child: const Text('查看示例'),
-                    ),
-                  ],
-                ),
-              if (_kind == AgentDocumentKind.script)
-                const SizedBox(height: AppSpacing.sm),
               Expanded(
                 child: TextField(
                   controller: _content,
@@ -181,12 +165,6 @@ class _DocumentEditorState extends ConsumerState<_DocumentEditor> {
                   ),
                 ),
               ),
-              if (_kind != AgentDocumentKind.document)
-                Text(
-                  _kind == AgentDocumentKind.script
-                      ? '元信息在下次主任务末尾追加，全文按需读取并保留。'
-                      : '保存后覆盖当前内容，下次运行立即采用。',
-                ),
               if (state.error.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: AppSpacing.xs),
