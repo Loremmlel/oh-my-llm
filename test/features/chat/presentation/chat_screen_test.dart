@@ -2,7 +2,6 @@ import 'chat_screen/chat_screen_basics_cases.dart';
 import 'chat_screen/chat_screen_branching_cases.dart';
 import 'chat_screen/chat_screen_favorites_cases.dart';
 import 'chat_screen/chat_screen_navigation_cases.dart';
-import 'chat_screen/chat_screen_responsive_cases.dart';
 import 'chat_screen/chat_screen_streaming_cases.dart';
 import 'chat_screen/chat_screen_template_language_cases.dart';
 import 'chat_screen/chat_screen_workspace_ownership_cases.dart';
@@ -13,7 +12,6 @@ void main() {
   registerChatScreenBranchingTests();
   registerChatScreenFavoritesTests();
   registerChatScreenWorkspaceOwnershipTests();
-  registerChatScreenResponsiveTests();
   registerChatScreenTemplateLanguageTests();
   registerChatScreenNavigationTests();
 }

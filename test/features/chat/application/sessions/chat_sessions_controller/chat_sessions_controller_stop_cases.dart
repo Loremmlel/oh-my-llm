@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
+import 'package:oh_my_llm/core/llm/llm_usage.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
@@ -49,7 +50,13 @@ void registerChatSessionsControllerStopCases() {
 
     final sendFuture = sendMsg('请开始生成');
     await controlled.listened;
-    controlled.add(const ChatGenerationChunk(contentDelta: '部分回复'));
+    controlled.add(
+      const ChatGenerationChunk(
+        contentDelta: '部分回复',
+        finishReason: 'stop',
+        usage: LlmUsage(inputTokens: 80, outputTokens: 4),
+      ),
+    );
     await harness.waitForState(
       (state) => state.streamingReply?.content == '部分回复',
       description: '流式内容达到期望片段',
@@ -64,6 +71,11 @@ void registerChatSessionsControllerStopCases() {
     expect(state.activeConversation.messages, hasLength(2));
     expect(state.activeConversation.messages.last.content, '部分回复');
     expect(state.activeConversation.messages.last.isStreaming, isFalse);
+    expect(state.activeConversation.messages.last.finishReason, 'stop');
+    expect(
+      state.activeConversation.messages.last.tokenUsage,
+      const LlmUsage(inputTokens: 80, outputTokens: 4),
+    );
     expect(state.generation?.phase, ChatGenerationPhase.cancelled);
     expect(state.generation?.cancelReason, ChatCancelReason.userStop);
     expect(state.generation?.outcome, isA<ChatGenerationCancelled>());

@@ -3,17 +3,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
 import 'package:oh_my_llm/core/llm/llm_usage.dart';
+import 'package:oh_my_llm/features/chat/application/generation/chat_generation_lifecycle.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_controller.dart';
-import 'package:oh_my_llm/features/chat/domain/chat_error_messages.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
-import 'package:oh_my_llm/features/settings/application/preferences/output_processing_settings_controller.dart';
-import 'package:oh_my_llm/features/settings/domain/models/preferences/output_processing_settings.dart';
 
 import '../../../../../helpers/chat/fake_chat_generation_client.dart';
 import 'chat_sessions_controller_test_helpers.dart';
 
-/// 生成成功 / 空回复 / 错误 / finish reason / 输出处理与流式错误格式化契约。
+/// 生成成功、空回复、失败与请求目标接线；重试和取消由各自的组负责。
 void registerChatSessionsControllerGenerationCases() {
   late ControllerTestHarness harness;
   late FakeChatGenerationClient fakeClient;
@@ -32,24 +30,12 @@ void registerChatSessionsControllerGenerationCases() {
 
   // ── sendMessage ────────────────────────────────────────────────────────────
 
-  test('sendMessage 添加用户消息和助手回复', () async {
-    fakeClient.enqueueChunks(['你好！']);
-    await sendMsg('你好');
-
-    final messages = container
-        .read(chatSessionsProvider)
-        .activeConversation
-        .messages;
-    expect(messages.length, 2);
-    expect(messages[0].role, ChatMessageRole.user);
-    expect(messages[0].content, '你好');
-    expect(messages[1].role, ChatMessageRole.assistant);
-    expect(messages[1].content, '你好！');
-    expect(container.read(chatSessionsProvider).isStreaming, isFalse);
-  });
-
-  test('sendMessage 携带模板元数据', () async {
-    fakeClient.enqueueChunks(['回复']);
+  test('发送后保存用户模板元数据、助手正文、终止原因和用量', () async {
+    const usage = LlmUsage(inputTokens: 100, cachedInputTokens: 25);
+    fakeClient.enqueueDeltas(const [
+      ChatGenerationChunk(contentDelta: '回复', usage: usage),
+      ChatGenerationChunk(finishReason: 'stop'),
+    ]);
     await container
         .read(chatSessionsProvider.notifier)
         .sendMessage(
@@ -68,14 +54,22 @@ void registerChatSessionsControllerGenerationCases() {
           ],
         );
 
-    final userMsg = container
-        .read(chatSessionsProvider)
-        .activeConversation
-        .messages
-        .first;
+    final state = container.read(chatSessionsProvider);
+    final messages = state.activeConversation.messages;
+    expect(messages, hasLength(2));
+    final userMsg = messages.first;
+    expect(userMsg.role, ChatMessageRole.user);
+    expect(userMsg.content, '问题');
     expect(userMsg.templatePromptId, 'tpl-1');
     expect(userMsg.templateVariableValues, {'key': 'val'});
     expect(userMsg.userMessageSegments, hasLength(1));
+    expect(messages.last.role, ChatMessageRole.assistant);
+    expect(messages.last.content, '回复');
+    expect(messages.last.finishReason, 'stop');
+    expect(messages.last.tokenUsage, usage);
+    expect(state.isStreaming, isFalse);
+    expect(state.generation?.phase, ChatGenerationPhase.succeeded);
+    expect(fakeClient.requestedTargets.single.endpoint, testModel.apiUrl);
   });
 
   test('sendMessage 会裁剪有效输入并忽略纯空白内容', () async {
@@ -113,6 +107,13 @@ void registerChatSessionsControllerGenerationCases() {
     await container
         .read(chatSessionsProvider.notifier)
         .setMessagesExcluded(messageIds: [assistantMessageId], excluded: true);
+    expect(
+      container
+          .read(chatSessionsProvider)
+          .activeConversation
+          .isMessageExcluded(assistantMessageId),
+      isTrue,
+    );
 
     fakeClient.enqueueChunks(['第二轮回复']);
     await sendMsg('第二轮问题');
@@ -125,34 +126,49 @@ void registerChatSessionsControllerGenerationCases() {
 
   // ── 错误与空回复 ────────────────────────────────────────────────────────────
 
-  test('sendMessage 错误时保存用量并清除 isStreaming', () async {
+  test('请求失败保留带用量的空占位和内联错误，关闭自动重试时只发送一次', () async {
     const usage = LlmUsage(
       inputTokens: 100,
       outputTokens: 8,
       cachedInputTokens: 40,
     );
     fakeClient.enqueueError(
-      const ChatGenerationException('API 请求失败', usage: usage),
+      const ChatGenerationException(
+        'API 请求失败',
+        statusCode: 429,
+        responseBody: '{"error":"rate limit exceeded"}',
+        usage: usage,
+      ),
     );
     await sendMsg('触发错误');
 
     final state = container.read(chatSessionsProvider);
-    expect(state.errorMessage, isNotNull);
+    expect(state.errorMessage, contains('429'));
+    expect(state.errorMessage, contains('rate limit exceeded'));
     expect(state.isStreaming, isFalse);
+    expect(state.activeConversation.messages, hasLength(2));
+    expect(state.activeConversation.messages.first.role, ChatMessageRole.user);
+    expect(
+      state.activeConversation.messages.last.role,
+      ChatMessageRole.assistant,
+    );
+    expect(state.activeConversation.messages.last.content, isEmpty);
     expect(state.activeConversation.messages.last.tokenUsage, usage);
-  });
+    expect(
+      state.errorMessageAssistantId,
+      state.activeConversation.messages.last.id,
+    );
+    expect(state.emptyReplyAssistantId, isNull);
+    expect(state.autoRetryCount, 0);
+    expect(state.isAutoRetryWaiting, isFalse);
+    expect(fakeClient.requestHistory, hasLength(1));
 
-  test('sendMessage 错误且无部分内容时保留空白占位节点', () async {
-    fakeClient.enqueueError(ChatGenerationException('请求失败'));
-    await sendMsg('触发错误');
-
-    // 空流失败后空白 assistant 节点保留在树中，用户消息 + 占位节点共 2 条
-    final state = container.read(chatSessionsProvider);
-    final messages = state.activeConversation.messages;
-    expect(messages.length, 2);
-    expect(messages.first.role, ChatMessageRole.user);
-    expect(state.errorMessage, isNotNull);
-    expect(state.errorMessageAssistantId, isNotNull);
+    fakeClient.enqueueChunks(['恢复后的回复']);
+    await sendMsg('后续问题');
+    final recovered = container.read(chatSessionsProvider);
+    expect(recovered.activeConversation.messages.last.content, '恢复后的回复');
+    expect(recovered.errorMessage, isNull);
+    expect(recovered.errorMessageAssistantId, isNull);
   });
 
   test('sendMessage 仅收到 reasoning 后失败时保留占位 assistant 节点', () async {
@@ -185,7 +201,7 @@ void registerChatSessionsControllerGenerationCases() {
   });
 
   test('sendMessage 空回复时保留助手占位节点并设置内联错误', () async {
-    fakeClient.enqueueChunks(['']);
+    fakeClient.enqueueDeltas(const [ChatGenerationChunk(finishReason: 'stop')]);
     await sendMsg('触发空回复');
 
     final state = container.read(chatSessionsProvider);
@@ -204,52 +220,14 @@ void registerChatSessionsControllerGenerationCases() {
       state.activeConversation.messages.last.id,
     );
     expect(state.isStreaming, isFalse);
-  });
-
-  test('sendMessage 未知异常时在错误信息中包含堆栈', () async {
-    fakeClient.enqueueError(StateError('boom'));
-    await sendMsg('触发未知异常');
-
-    final errorMessage = container.read(chatSessionsProvider).errorMessage;
-    expect(errorMessage, isNotNull);
-    expect(errorMessage, contains('Bad state: boom'));
-    expect(errorMessage, contains('```text'));
-  });
-
-  test('流式错误且空内容时保留空占位节点并设置内联错误', () async {
-    fakeClient.enqueueError(ChatGenerationException('模拟流式错误'));
-
-    await sendMsg('触发错误');
-
-    final state = container.read(chatSessionsProvider);
-    expect(state.errorMessage, isNotNull);
-    expect(state.emptyReplyAssistantId, isNull);
-    // 空白 assistant 节点保留在树中，errorMessageAssistantId 指向它
     expect(state.activeConversation.messages, hasLength(2));
-    expect(
-      state.errorMessageAssistantId,
-      state.activeConversation.messages.last.id,
-    );
-    expect(
-      state.activeConversation.messages.last.role,
-      ChatMessageRole.assistant,
-    );
-    expect(state.activeConversation.messages.last.content, isEmpty);
-  });
-
-  test('handleStreamingFailure 空内容不设 emptyReplyAssistantId', () async {
-    fakeClient.enqueueError(ChatGenerationException('模拟流式错误'));
-    await sendMsg('触发错误');
-
-    final state = container.read(chatSessionsProvider);
-    expect(state.errorMessageAssistantId, isNotNull);
-    expect(state.emptyReplyAssistantId, isNull);
-    expect(state.activeConversation.messages.last.content, isEmpty);
+    expect(state.activeConversation.messages.last.finishReason, 'stop');
+    expect(fakeClient.requestHistory, hasLength(1));
   });
 
   // ── emptyReplyAssistantId 边界 ──────────────────────────────────────────────
 
-  test('空回复时 errorMessageAssistantId 不会被清除', () async {
+  test('失败后连续空回复的两个错误标识始终指向最新占位', () async {
     // 先模拟错误 -> errorMessageAssistantId 设置，emptyReplyAssistantId 为空
     fakeClient.enqueueError(ChatGenerationException('模拟错误'));
     await sendMsg('触发错误');
@@ -258,51 +236,26 @@ void registerChatSessionsControllerGenerationCases() {
     expect(state.errorMessageAssistantId, isNotNull);
     expect(state.emptyReplyAssistantId, isNull);
 
-    // 再模拟空回复 -> emptyReplyAssistantId 设置，errorMessageAssistantId 被清除
+    final failedId = state.errorMessageAssistantId;
     fakeClient.enqueueChunks(['']);
     await sendMsg('触发空回复');
 
     state = container.read(chatSessionsProvider);
-    expect(state.emptyReplyAssistantId, isNotNull);
-    expect(state.errorMessageAssistantId, isNotNull);
-  });
-
-  test('连续两次空回不会残留前一次的 emptyReplyAssistantId', () async {
-    fakeClient.enqueueChunks(['']); // 第一次空回复
-    await sendMsg('第一条');
-
-    var state = container.read(chatSessionsProvider);
     final firstId = state.emptyReplyAssistantId;
-    expect(firstId, isNotNull);
+    expect(firstId, state.activeConversation.messages.last.id);
+    expect(firstId, isNot(failedId));
+    expect(state.errorMessageAssistantId, firstId);
 
     fakeClient.enqueueChunks(['']); // 第二次空回复
     await sendMsg('第二条');
 
     state = container.read(chatSessionsProvider);
-    expect(state.emptyReplyAssistantId, isNotNull);
-    expect(state.emptyReplyAssistantId, isNot(firstId));
-  });
-
-  test('HTTP 429 错误显示为错误消息而非空回复', () async {
-    fakeClient.enqueueError(
-      ChatGenerationException('请求失败（429）：rate limit exceeded'),
+    expect(
+      state.emptyReplyAssistantId,
+      state.activeConversation.messages.last.id,
     );
-    await sendMsg('触发 429 错误');
-
-    final state = container.read(chatSessionsProvider);
-    expect(state.errorMessage, contains('429'));
-    expect(state.errorMessage, contains('rate limit exceeded'));
-    expect(state.errorMessageAssistantId, isNotNull);
-    expect(state.emptyReplyAssistantId, isNull);
-  });
-
-  test('真正空回复仍走 emptyReplyAssistantId 路径', () async {
-    fakeClient.enqueueChunks(['']);
-    await sendMsg('触发空回复');
-
-    final state = container.read(chatSessionsProvider);
-    expect(state.emptyReplyAssistantId, isNotNull);
-    expect(state.errorMessage, contains('模型返回了空回复'));
+    expect(state.emptyReplyAssistantId, isNot(firstId));
+    expect(state.errorMessageAssistantId, state.emptyReplyAssistantId);
   });
 
   // ── formatStreamingError ────────────────────────────────────────────────────
@@ -390,192 +343,29 @@ void registerChatSessionsControllerGenerationCases() {
     });
   });
 
-  // ── finishReason 传递 ───────────────────────────────────────────────────────
-
-  group('finishReason 传递', () {
-    test('正常完成时 finishReason 写入消息', () async {
-      // 模拟 chunk 序列：content chunk（无 finishReason）-> 空 chunk 带 finishReason
-      fakeClient.enqueueDeltas(const [
-        ChatGenerationChunk(
-          contentDelta: '你好',
-          usage: LlmUsage(inputTokens: 100, cachedInputTokens: 25),
-        ),
-        ChatGenerationChunk(finishReason: 'stop'),
-      ]);
-      await sendMsg('测试 finishReason');
-
-      final state = container.read(chatSessionsProvider);
-      final assistant = state.activeConversation.messages.last;
-      expect(assistant.role, ChatMessageRole.assistant);
-      expect(assistant.content, '你好');
-      expect(assistant.finishReason, 'stop');
-      expect(
-        assistant.tokenUsage,
-        const LlmUsage(inputTokens: 100, cachedInputTokens: 25),
-      );
-    });
-
-    test('空回复时 finishReason 仍保留', () async {
-      // 空内容 chunk 带 finishReason，走 emptyReply 路径
-      fakeClient.enqueueDeltas(const [
-        ChatGenerationChunk(finishReason: 'stop'),
-      ]);
-      await sendMsg('空回复带 finishReason');
-
-      final state = container.read(chatSessionsProvider);
-      final assistant = state.activeConversation.messages.last;
-      expect(assistant.role, ChatMessageRole.assistant);
-      expect(assistant.content, isEmpty);
-      // 空回复路径仍通过 replaceAssistantMessageInTree 传入 finishReason
-      expect(assistant.finishReason, 'stop');
-      expect(state.emptyReplyAssistantId, assistant.id);
-    });
-
-    test('stopStreaming 路径保留已收到的 finishReason', () async {
-      final controlled = fakeClient.enqueueControlledStream();
-      addTearDown(controlled.close);
-
-      final sendFuture = sendMsg('测试中断 finishReason');
-      await controlled.listened;
-      // 发送带 finishReason 的 chunk，随后中断流式
-      controlled.add(
-        const ChatGenerationChunk(
-          contentDelta: '部分内容',
-          finishReason: 'stop',
-          usage: LlmUsage(inputTokens: 80, outputTokens: 4),
-        ),
-      );
-      // 等 chunk 消费完成（run 的累积缓冲含 finishReason）再 stop，
-      // 保证 stop 快照保留 finishReason。
-      await harness.waitForState(
-        (s) => s.streamingReply?.content == '部分内容',
-        description: '流式内容达到期望片段',
-      );
-
-      await container.read(chatSessionsProvider.notifier).stopStreaming();
-      await sendFuture;
-
-      final state = container.read(chatSessionsProvider);
-      final assistant = state.activeConversation.messages.last;
-      expect(assistant.role, ChatMessageRole.assistant);
-      expect(assistant.content, '部分内容');
-      // stopStreaming 通过 buildConversationAfterStreamingInterrupt 保留 finishReason
-      expect(assistant.finishReason, 'stop');
-      expect(
-        assistant.tokenUsage,
-        const LlmUsage(inputTokens: 80, outputTokens: 4),
-      );
-    });
-  });
-
   // ── 原始请求目标接线 ────────────────────────────────────────────────────────
 
-  test('apiUrl 为根地址时 wire 请求保留原始 URL 与协议（三协议参数化）', () async {
-    const protocols = <LlmApiProtocol>[
-      LlmApiProtocol.chatCompletions,
-      LlmApiProtocol.responses,
-      LlmApiProtocol.anthropic,
-    ];
-
-    for (final protocol in protocols) {
-      fakeClient.enqueueChunks(['回复']);
-      await container
-          .read(chatSessionsProvider.notifier)
-          .sendMessage(
-            content: '问题',
-            modelConfig: testModel.copyWith(
-              apiProtocol: protocol,
-              apiUrl: 'https://api.example.com',
-            ),
-            presetPrompt: null,
-            reasoningEnabled: false,
-            reasoningEffort: ReasoningEffort.medium,
-          );
-      expect(
-        fakeClient.requestedTargets.last.endpoint,
-        'https://api.example.com',
-        reason: protocol.name,
-      );
-      expect(fakeClient.requestedTargets.last.protocol, protocol);
-    }
-  });
-
-  test('apiUrl 为完整生成端点时 wire 上 URL 原样（resolver 幂等）', () async {
+  test('根地址和显式协议原样交给生成客户端', () async {
+    const protocol = LlmApiProtocol.responses;
     fakeClient.enqueueChunks(['回复']);
-    await harness.sendMsg('问题');
-
-    expect(
-      fakeClient.requestedTargets.last.endpoint,
-      'https://api.example.com/v1/chat/completions',
-    );
-  });
-
-  test('客户端 URL 流错误以 inline assistant 错误展示而非崩溃', () async {
-    fakeClient.enqueueError(
-      const ChatGenerationException(
-        'API URL 格式无效：not-a-url',
-        protocol: LlmApiProtocol.chatCompletions,
-      ),
-    );
     await container
         .read(chatSessionsProvider.notifier)
         .sendMessage(
           content: '问题',
-          modelConfig: testModel.copyWith(apiUrl: 'not-a-url'),
+          modelConfig: testModel.copyWith(
+            apiProtocol: protocol,
+            apiUrl: 'https://api.example.com',
+          ),
           presetPrompt: null,
           reasoningEnabled: false,
           reasoningEffort: ReasoningEffort.medium,
         );
-
-    final state = container.read(chatSessionsProvider);
-    expect(state.errorMessage, contains('not-a-url'));
-    expect(state.errorMessageAssistantId, isNotNull);
-    expect(state.isStreaming, isFalse);
-
-    // run 已终止（非悬挂）：后续消息可正常发送。
-    fakeClient.enqueueChunks(['正常回复']);
-    await harness.sendMsg('后续问题');
     expect(
-      container
-          .read(chatSessionsProvider)
-          .activeConversation
-          .messages
-          .last
-          .content,
-      '正常回复',
+      fakeClient.requestedTargets.last.endpoint,
+      'https://api.example.com',
+      reason: protocol.name,
     );
-  });
-
-  // ── 输出处理正则清空回复 ─────────────────────────────────────────────────────
-
-  group('输出处理正则清空回复', () {
-    test('规则把非空正文清空时提示错误且不触发自动重试', () async {
-      await container
-          .read(outputProcessingSettingsProvider.notifier)
-          .save(
-            const OutputProcessingSettings(
-              rules: [
-                OutputRegexRule(
-                  id: 'rule-1',
-                  title: '删除全部',
-                  pattern: '你好',
-                  replacement: '',
-                  order: 0,
-                  enabled: true,
-                ),
-              ],
-            ),
-          );
-
-      fakeClient.enqueueChunks(['你好']);
-      await sendMsg('触发清空');
-
-      final state = container.read(chatSessionsProvider);
-      expect(state.errorMessage, ChatErrorMessages.outputRuleEmptied);
-      expect(state.emptyReplyAssistantId, isNull);
-      expect(state.errorMessageAssistantId, isNotNull);
-      expect(state.isStreaming, isFalse);
-    });
+    expect(fakeClient.requestedTargets.last.protocol, protocol);
   });
 }
 

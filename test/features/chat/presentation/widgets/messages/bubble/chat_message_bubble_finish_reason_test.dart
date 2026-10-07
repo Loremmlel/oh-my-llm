@@ -103,26 +103,18 @@ void main() {
       );
       expect(find.text('输入 1'), findsNothing);
 
-      await _pumpBubble(tester, _assistantMessage());
-      expect(find.textContaining('缓存命中'), findsNothing);
-    });
-
-    testWidgets('仅有推理用量时不产生空白用量行', (tester) async {
-      await _pumpBubble(
-        tester,
-        _assistantMessage(tokenUsage: const LlmUsage(reasoningTokens: 8)),
-      );
-
-      expect(
-        find.byWidgetPredicate(
-          (widget) =>
-              widget is Padding &&
-              widget.padding == const EdgeInsets.only(top: 8) &&
-              widget.child is Wrap &&
-              (widget.child! as Wrap).children.isEmpty,
-        ),
-        findsNothing,
-      );
+      for (final usage in <LlmUsage?>[
+        null,
+        const LlmUsage(reasoningTokens: 8),
+      ]) {
+        await _pumpBubble(tester, _assistantMessage(tokenUsage: usage));
+        expect(find.textContaining('输入 '), findsNothing);
+        expect(find.textContaining('输出 '), findsNothing);
+        expect(find.textContaining('缓存命中'), findsNothing);
+        expect(find.textContaining('缓存写入'), findsNothing);
+        expect(find.textContaining('推理'), findsNothing);
+        expect(find.text('正文'), findsOneWidget);
+      }
     });
   });
 }

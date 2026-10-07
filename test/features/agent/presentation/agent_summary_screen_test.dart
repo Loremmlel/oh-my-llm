@@ -13,6 +13,7 @@ import 'package:oh_my_llm/features/agent/domain/agent_models.dart';
 import 'package:oh_my_llm/features/agent/presentation/agent_summary_dialog.dart';
 
 import '../../../helpers/async/widget_test_animation.dart';
+import '../../../helpers/async/async_test_signals.dart';
 import '../../../helpers/test_harness.dart';
 import '../../../helpers/fixtures.dart';
 import '../agent_story_test_helpers.dart';
@@ -158,13 +159,21 @@ void main() {
     await tester.pump();
     expect(store.readContextBatch('novel'), isNull);
     await tester.ensureVisible(find.text('重试总结'));
-    final retried = container
-        .read(agentWorkspaceProvider.notifier)
-        .retrySummaryBatch!;
+    await tester.tap(find.text('重试总结'));
     await tester.runAsync(
-      () => container
-          .read(agentWorkspaceProvider.notifier)
-          .send(summaryBatch: retried),
+      () => waitForProviderState(
+        container: container,
+        provider: agentWorkspaceProvider,
+        matches: (state) =>
+            !state.busy &&
+            state.runs.any(
+              (run) =>
+                  run.role == AgentRole.summarizer &&
+                  run.status == AgentRunStatus.completed &&
+                  run.content == '正式摘要',
+            ),
+        description: '点击重试总结后保存正式摘要',
+      ),
     );
     await tester.pump();
     expect(store.readContextBatch('novel')!.summary, '正式摘要');

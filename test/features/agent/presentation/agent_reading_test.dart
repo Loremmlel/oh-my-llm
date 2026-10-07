@@ -7,7 +7,6 @@ import 'package:oh_my_llm/features/agent/data/sqlite_agent_store.dart';
 import 'package:oh_my_llm/features/agent/domain/agent_models.dart';
 import 'package:oh_my_llm/features/agent/domain/agent_story_state.dart';
 import 'package:oh_my_llm/features/agent/presentation/agent_document_editor.dart';
-import 'package:oh_my_llm/features/agent/presentation/agent_screen.dart';
 import 'package:oh_my_llm/features/agent/presentation/agent_transcript.dart';
 
 import '../../../helpers/test_harness.dart';
@@ -76,7 +75,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('窄屏资料编辑只有正文滚动，标题和保存按钮固定且键盘弹出后可编辑', (tester) async {
+  testWidgets('窄屏文档显示归一化换行，取消不改原文且滚动和键盘弹出后可保存', (tester) async {
     final database = AppDatabase.inMemory();
     addTearDown(database.close);
     final store = SqliteAgentStore(database);
@@ -84,7 +83,7 @@ void main() {
     final document = store.writeDocument(
       'w',
       '世界书',
-      List.filled(100, '校园设定').join('\n'),
+      List.filled(100, '校园设定').join('\r\n'),
       kind: AgentDocumentKind.worldBook,
     );
     final preferences = await TestFixtures.seedPreferences(database: database);
@@ -93,15 +92,32 @@ void main() {
       preferences: preferences,
       database: database,
       viewportSize: const Size(390, 844),
-      child: const AgentScreen(),
+      child: Scaffold(
+        body: Builder(
+          builder: (context) => TextButton(
+            onPressed: () =>
+                showAgentDocumentEditor(context, document: document),
+            child: const Text('编辑'),
+          ),
+        ),
+      ),
     );
-    showAgentDocumentEditor(
-      tester.element(find.byType(AgentScreen)),
-      document: document,
-    );
+    await tester.tap(find.text('编辑'));
     await settleOverlayTransition(tester);
     final name = find.widgetWithText(TextField, '文档名');
     final body = find.widgetWithText(TextField, '正文');
+    expect(
+      tester.widget<TextField>(body).controller!.text,
+      List.filled(100, '校园设定').join('\n'),
+    );
+    await tester.tap(find.text('取消'));
+    await settleOverlayTransition(tester);
+    expect(find.text('放弃未保存的修改？'), findsNothing);
+    expect(find.text('编辑文档'), findsNothing);
+    expect(store.readDocument('w', '世界书'), document);
+
+    await tester.tap(find.text('编辑'));
+    await settleOverlayTransition(tester);
     await tester.drag(body, const Offset(0, -180));
     await tester.pump();
     expect(name.hitTestable(), findsOneWidget);

@@ -12,8 +12,8 @@ import 'package:oh_my_llm/features/agent/application/agent_runtime.dart';
 import 'package:oh_my_llm/features/agent/data/sqlite_agent_store.dart';
 import 'package:oh_my_llm/features/agent/domain/agent_models.dart';
 import 'package:oh_my_llm/features/agent/presentation/agent_screen.dart';
-import 'package:oh_my_llm/features/agent/presentation/agent_run_screen.dart';
 import 'package:oh_my_llm/features/agent/presentation/agent_document_editor.dart';
+import 'package:oh_my_llm/features/agent/presentation/agent_run_screen.dart';
 
 import '../../../helpers/fixtures.dart';
 import '../../../helpers/test_harness.dart';
@@ -63,44 +63,6 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('打开含CRLF的Agent文档仅归一化显示取消时不提示未保存修改', (tester) async {
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    SqliteAgentStore(database)
-        .saveWorkspace(AgentWorkspace(id: 'novel', title: '换行测试'));
-    await pumpTestApp(
-      tester,
-      preferences: await TestFixtures.seedPreferences(database: database),
-      database: database,
-      child: Scaffold(
-        body: Builder(
-          builder: (context) => TextButton(
-            onPressed: () => showAgentDocumentEditor(
-              context,
-              document: const AgentDocument(
-                id: 'doc',
-                name: '文档',
-                content: '甲\r\n乙',
-              ),
-            ),
-            child: const Text('编辑'),
-          ),
-        ),
-      ),
-    );
-    await tester.tap(find.text('编辑'));
-    await settleOverlayTransition(tester);
-    final field = tester.widget<TextField>(
-      find.widgetWithText(TextField, '正文'),
-    );
-    expect(field.controller!.text, '甲\n乙');
-    await tester.tap(find.text('取消'));
-    await settleOverlayTransition(tester);
-    expect(find.text('放弃未保存的修改？'), findsNothing);
-    expect(find.text('编辑文档'), findsNothing);
-    expect(tester.takeException(), isNull);
-  });
-
   testWidgets('侧栏搜索重命名和切换作品保留各作品草稿', (tester) async {
     final database = AppDatabase.inMemory();
     addTearDown(database.close);
@@ -135,6 +97,23 @@ void main() {
     await settleOverlayTransition(tester);
     expect(find.text('开场草稿'), findsOneWidget);
     expect(find.text('新建会话'), findsNothing);
+
+    await tester.tap(find.byTooltip('打开侧边内容'));
+    await settleOverlayTransition(tester);
+    await tester.enterText(find.widgetWithText(TextField, '搜索作品'), '作品 2');
+    await tester.pump();
+    await tester.tap(find.widgetWithText(ListTile, '作品 2'));
+    await settleOverlayTransition(tester);
+    expect(find.text('后续草稿'), findsOneWidget);
+    expect(find.text('开场草稿'), findsNothing);
+
+    await tester.tap(find.byTooltip('打开侧边内容'));
+    await settleOverlayTransition(tester);
+    await tester.enterText(find.widgetWithText(TextField, '搜索作品'), '雾港');
+    await tester.pump();
+    await tester.tap(find.widgetWithText(ListTile, '雾港'));
+    await settleOverlayTransition(tester);
+    expect(find.text('开场草稿'), findsOneWidget);
     expect(store.loadWorkspace('novel-2')!.draft, '后续草稿');
     expect(tester.takeException(), isNull);
   });

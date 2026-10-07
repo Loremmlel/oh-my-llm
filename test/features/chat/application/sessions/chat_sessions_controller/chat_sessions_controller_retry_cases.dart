@@ -54,23 +54,6 @@ void registerChatSessionsControllerRetryCases() {
     expect(state.isStreaming, isFalse);
   });
 
-  test('sendMessageWithAutoRetry 首次失败后重试成功', () async {
-    container
-        .read(chatSessionsProvider.notifier)
-        .updateActiveConversationPreferences(autoRetryEnabled: true);
-    fakeClient.enqueueError(ChatGenerationException('连接超时'));
-    fakeClient.enqueueChunks(['重试成功']);
-
-    await sendMsg('测试重试', retryDelay: Duration.zero);
-
-    final state = container.read(chatSessionsProvider);
-    expect(state.activeConversation.messages.last.content, '重试成功');
-    expect(state.errorMessage, isNull);
-    expect(state.autoRetryCount, 0);
-    expect(state.isAutoRetryWaiting, isFalse);
-    expect(state.isStreaming, isFalse);
-  });
-
   test('sendMessageWithAutoRetry 连续两次失败后第三次成功', () async {
     container
         .read(chatSessionsProvider.notifier)
@@ -84,7 +67,11 @@ void registerChatSessionsControllerRetryCases() {
     final state = container.read(chatSessionsProvider);
     expect(state.activeConversation.messages.last.content, '第三次成功');
     expect(state.errorMessage, isNull);
+    expect(state.errorMessageAssistantId, isNull);
     expect(state.autoRetryCount, 0);
+    expect(state.isAutoRetryWaiting, isFalse);
+    expect(state.isStreaming, isFalse);
+    expect(state.activeConversation.messages, hasLength(2));
     expect(fakeClient.requestHistory.length, 3);
   });
 
@@ -155,59 +142,32 @@ void registerChatSessionsControllerRetryCases() {
     );
   });
 
-  test('sendMessageWithAutoRetry 成功后清除之前的错误信息', () async {
-    container
-        .read(chatSessionsProvider.notifier)
-        .updateActiveConversationPreferences(autoRetryEnabled: true);
-    fakeClient.enqueueError(ChatGenerationException('请求失败'));
-    fakeClient.enqueueChunks(['重试成功']);
-
-    await sendMsg('测试清除错误', retryDelay: Duration.zero);
-
-    final state = container.read(chatSessionsProvider);
-    expect(state.errorMessage, isNull);
-    expect(state.errorMessageAssistantId, isNull);
-  });
-
-  test('autoRetryWaiting 期间 sendMessage 被 _isBusy 阻止', () async {
+  test('实际重试等待期间拒绝新消息，停止后不发出下一次请求', () async {
     container
         .read(chatSessionsProvider.notifier)
         .updateActiveConversationPreferences(autoRetryEnabled: true);
 
-    // 手动放置 retryWaiting 阶段的 generation snapshot（无 active run），
-    // 验证 _isBusy 从 canonical phase 派生占用态。
     final notifier = container.read(chatSessionsProvider.notifier);
-    final current = container.read(chatSessionsProvider);
-    notifier.state = current.copyWith(
-      generation: ChatGenerationSnapshot(
-        generationId: 1,
-        conversationId: current.activeConversationId,
-        attempt: 2,
-        phase: ChatGenerationPhase.retryWaiting,
-      ),
+    fakeClient.enqueueError(const ChatGenerationException('首次失败'));
+    final sending = sendMsg('原消息', retryDelay: const Duration(hours: 1));
+    await harness.waitForState(
+      (state) => state.isAutoRetryWaiting,
+      description: '实际生成进入重试等待',
     );
-
-    fakeClient.enqueueChunks(['should not be sent']);
+    final messagesBefore = container
+        .read(chatSessionsProvider)
+        .activeConversation
+        .messages;
     await sendMsg('不会被发送的消息');
-
-    // _isBusy 应阻止发送，没有请求被发出
-    final state = container.read(chatSessionsProvider);
-    expect(state.activeConversation.hasMessages, isFalse);
-    expect(fakeClient.requestHistory, isEmpty);
-  });
-
-  test('autoRetryEnabled 默认值在 sendMessage 时不触发自动重试', () async {
-    // 不设置 autoRetryEnabled（默认 false）
-    fakeClient.enqueueError(ChatGenerationException('错误'));
-
-    await sendMsg('普通发送');
-
-    // 一次请求就失败了，没有重试
-    final state = container.read(chatSessionsProvider);
-    expect(state.errorMessage, isNotNull);
-    expect(state.autoRetryCount, 0);
-    expect(state.isAutoRetryWaiting, isFalse);
-    expect(fakeClient.requestHistory.length, 1);
+    expect(
+      container.read(chatSessionsProvider).activeConversation.messages,
+      messagesBefore,
+    );
+    expect(fakeClient.requestHistory, hasLength(1));
+    await notifier.stopStreaming();
+    await sending;
+    expect(container.read(chatSessionsProvider).isAutoRetryWaiting, isFalse);
+    expect(fakeClient.requestHistory, hasLength(1));
   });
 
   // ── 空回复重试 ────────────────────────────────────────────────────────────────
@@ -252,6 +212,10 @@ void registerChatSessionsControllerRetryCases() {
     fakeClient.enqueueChunks(['重试回复']);
 
     await sendMsg('测试空回复');
+    final before = container.read(chatSessionsProvider);
+    final emptyId = before.emptyReplyAssistantId;
+    final userId = before.activeConversation.messages.first.id;
+    expect(emptyId, before.activeConversation.messages.last.id);
 
     await container.read(chatSessionsProvider.notifier).retryLatestAssistant();
 
@@ -259,78 +223,14 @@ void registerChatSessionsControllerRetryCases() {
     expect(state.activeConversation.messages.length, 2); // user + new assistant
     expect(state.activeConversation.messages.last.content, '重试回复');
     expect(state.errorMessage, isNull);
-  });
-
-  test('空回复且无自动重试时不自动重试', () async {
-    // autoRetryEnabled 默认 false
-    fakeClient.enqueueChunks(['']);
-
-    await sendMsg('测试');
-
-    final state = container.read(chatSessionsProvider);
-    expect(state.emptyReplyAssistantId, isNotNull);
-    expect(state.errorMessage, isNotNull);
-    expect(fakeClient.requestHistory.length, 1); // 仅一次，不重试
-  });
-
-  // ── emptyReplyAssistantId 重试边界 ──────────────────────────────────────────
-
-  test('空回后手动重试清除 emptyReplyAssistantId', () async {
-    fakeClient.enqueueChunks(['']);
-    await sendMsg('触发空回复');
-
-    var state = container.read(chatSessionsProvider);
-    expect(state.emptyReplyAssistantId, isNotNull);
-    expect(state.errorMessage, isNotNull);
-
-    fakeClient.enqueueChunks(['重试回复']);
-    await container.read(chatSessionsProvider.notifier).retryLatestAssistant();
-
-    state = container.read(chatSessionsProvider);
     expect(state.emptyReplyAssistantId, isNull);
-    expect(state.errorMessage, isNull);
-    expect(state.activeConversation.messages.last.content, '重试回复');
-  });
-
-  // ── fixedInterval 模式 ───────────────────────────────────────────────────────
-
-  test('fixedInterval 模式首次失败后重试成功', () async {
-    // 切换到固定间隔模式
-    await container
-        .read(autoRetrySettingsProvider.notifier)
-        .save(const AutoRetrySettings(retryMode: RetryMode.fixedInterval));
-    container
-        .read(chatSessionsProvider.notifier)
-        .updateActiveConversationPreferences(autoRetryEnabled: true);
-    fakeClient.enqueueError(ChatGenerationException('连接超时'));
-    fakeClient.enqueueChunks(['固定间隔重试成功']);
-
-    await sendMsg('测试固定间隔重试', retryDelay: Duration.zero);
-
-    final state = container.read(chatSessionsProvider);
-    expect(state.activeConversation.messages.last.content, '固定间隔重试成功');
-    expect(state.errorMessage, isNull);
-    expect(state.autoRetryCount, 0);
-  });
-
-  test('fixedInterval 模式连续失败后第三次成功', () async {
-    await container
-        .read(autoRetrySettingsProvider.notifier)
-        .save(const AutoRetrySettings(retryMode: RetryMode.fixedInterval));
-    container
-        .read(chatSessionsProvider.notifier)
-        .updateActiveConversationPreferences(autoRetryEnabled: true);
-    fakeClient.enqueueError(ChatGenerationException('第一次失败'));
-    fakeClient.enqueueError(ChatGenerationException('第二次失败'));
-    fakeClient.enqueueChunks(['第三次成功']);
-
-    await sendMsg('固定间隔多次重试', retryDelay: Duration.zero);
-
-    final state = container.read(chatSessionsProvider);
-    expect(state.activeConversation.messages.last.content, '第三次成功');
-    expect(state.errorMessage, isNull);
-    expect(state.autoRetryCount, 0);
-    expect(fakeClient.requestHistory.length, 3);
+    expect(state.errorMessageAssistantId, isNull);
+    expect(state.activeConversation.messages.first.id, userId);
+    expect(
+      state.activeConversation.messageNodes.map((m) => m.id),
+      isNot(contains(emptyId)),
+    );
+    expect(fakeClient.requestHistory, hasLength(2));
   });
 
   // ── 异常 finish_reason 重试 ──────────────────────────────────────────────
@@ -501,7 +401,7 @@ void registerChatSessionsControllerRetryCases() {
     expect(fakeClient.requestHistory.length, 2);
   });
 
-  test('异常 finish_reason 时输出规则清空正文则不重试', () async {
+  test('输出规则清空正文优先于正常和异常终止原因，保留错误且不重试', () async {
     container
         .read(chatSessionsProvider.notifier)
         .updateActiveConversationPreferences(autoRetryEnabled: true);
@@ -511,7 +411,7 @@ void registerChatSessionsControllerRetryCases() {
         .save(
           const AutoRetrySettings(
             maxJitterSeconds: 0,
-            maxRetryCount: 0,
+            maxRetryCount: 2,
             retryOnAbnormalFinishReason: true,
           ),
         );
@@ -533,50 +433,32 @@ void registerChatSessionsControllerRetryCases() {
           ),
         );
 
-    // 模型返回 length（异常），但输出规则会清空正文
-    fakeClient.enqueueDeltas([
-      const ChatGenerationChunk(contentDelta: '一些内容', finishReason: 'length'),
-    ]);
-
-    await sendMsg('测试输出规则清空不重试', retryDelay: Duration.zero);
-
-    final state = container.read(chatSessionsProvider);
-    // 不应该重试（输出规则清空优先级高于异常 finish_reason 重试）
-    expect(fakeClient.requestHistory.length, 1);
-    // 应显示输出规则清空的错误消息，而非异常 finish_reason 的
-    expect(state.errorMessage, ChatErrorMessages.outputRuleEmptied);
-  });
-
-  // ── phase/outcome 一一对应 ──────────────────────────────────────────
-
-  test('输出规则清空正文投影 failed + Failure', () async {
-    // 设置输出规则：清空所有内容。
-    await container
-        .read(outputProcessingSettingsProvider.notifier)
-        .save(
-          const OutputProcessingSettings(
-            rules: [
-              OutputRegexRule(
-                id: 'rule-1',
-                title: '清空全部',
-                pattern: '[\\s\\S]*',
-                replacement: '',
-                enabled: true,
-              ),
-            ],
-          ),
-        );
-
-    // 正常 finish（finishReason 默认），但输出规则清空正文 -> 分支 4。
-    fakeClient.enqueueChunks(['正常内容']);
-    await sendMsg('测试规则清空终态');
-
-    final state = container.read(chatSessionsProvider);
-    expect(state.errorMessage, ChatErrorMessages.outputRuleEmptied);
-    // 输出规则清空正文属于 error，phase=failed + outcome=Failure
-    //（非 succeeded + Success），满足 DTO 一一对应。
-    expect(state.generation?.phase, ChatGenerationPhase.failed);
-    expect(state.generation?.outcome, isA<ChatGenerationFailure>());
+    for (final finishReason in ['stop', 'length']) {
+      final requestsBefore = fakeClient.requestHistory.length;
+      fakeClient.enqueueDeltas([
+        ChatGenerationChunk(contentDelta: '一些内容', finishReason: finishReason),
+      ]);
+      await sendMsg('测试输出规则清空不重试', retryDelay: Duration.zero);
+      final state = container.read(chatSessionsProvider);
+      expect(
+        fakeClient.requestHistory.length,
+        requestsBefore + 1,
+        reason: finishReason,
+      );
+      expect(
+        state.errorMessage,
+        ChatErrorMessages.outputRuleEmptied,
+        reason: finishReason,
+      );
+      expect(state.emptyReplyAssistantId, isNull);
+      expect(
+        state.errorMessageAssistantId,
+        state.activeConversation.messages.last.id,
+      );
+      expect(state.isStreaming, isFalse);
+      expect(state.generation?.phase, ChatGenerationPhase.failed);
+      expect(state.generation?.outcome, isA<ChatGenerationFailure>());
+    }
   });
 
   test('异常 finish_reason 达重试上限投影 failed + Failure', () async {

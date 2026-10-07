@@ -269,63 +269,49 @@ void registerChatSessionsControllerCrudCases() {
 
   // ── emptyReplyAssistantId 边界 ──────────────────────────────────────────────
 
-  test('切换会话清除 emptyReplyAssistantId', () async {
-    // 准备两个会话
-    fakeClient.enqueueChunks(['回复1']);
+  test('真实空回复后新建、切换和删除会话清除错误及空回复关联', () async {
+    fakeClient.enqueueChunks(['']);
     await sendMsg('第一条消息');
     final firstId = container.read(chatSessionsProvider).activeConversationId;
-
-    fakeClient.enqueueChunks(['回复2']);
-    await container.read(chatSessionsProvider.notifier).createConversation();
-    await sendMsg('第二条消息');
-    final secondId = container.read(chatSessionsProvider).activeConversationId;
-    expect(firstId, isNot(secondId));
-
     final notifier = container.read(chatSessionsProvider.notifier);
-    notifier.state = notifier.state.copyWith(emptyReplyAssistantId: 'test-id');
-    expect(
-      container.read(chatSessionsProvider).emptyReplyAssistantId,
-      'test-id',
-    );
 
-    // 切换到第一个会话应清除 emptyReplyAssistantId
-    notifier.selectConversation(firstId);
-    expect(container.read(chatSessionsProvider).emptyReplyAssistantId, isNull);
-  });
+    void expectEmptyReply() {
+      final state = container.read(chatSessionsProvider);
+      final assistantId = state.activeConversation.messages.last.id;
+      expect(state.emptyReplyAssistantId, assistantId);
+      expect(state.errorMessageAssistantId, assistantId);
+      expect(state.errorMessage, isNotNull);
+    }
 
-  test('createConversation 清除 emptyReplyAssistantId', () async {
-    fakeClient.enqueueChunks(['回复']);
-    await sendMsg('先发消息');
+    void expectCleared() {
+      final state = container.read(chatSessionsProvider);
+      expect(state.emptyReplyAssistantId, isNull);
+      expect(state.errorMessageAssistantId, isNull);
+      expect(state.errorMessage, isNull);
+    }
 
-    final notifier = container.read(chatSessionsProvider.notifier);
-    notifier.state = notifier.state.copyWith(emptyReplyAssistantId: 'test-id');
-    expect(
-      container.read(chatSessionsProvider).emptyReplyAssistantId,
-      'test-id',
-    );
-
+    expectEmptyReply();
     await notifier.createConversation();
+    final secondId = container.read(chatSessionsProvider).activeConversationId;
+    expect(secondId, isNot(firstId));
+    expectCleared();
 
-    expect(container.read(chatSessionsProvider).emptyReplyAssistantId, isNull);
-  });
+    fakeClient.enqueueChunks(['']);
+    await sendMsg('第二条消息');
+    expectEmptyReply();
+    notifier.selectConversation(firstId);
+    expect(container.read(chatSessionsProvider).activeConversationId, firstId);
+    expectCleared();
 
-  test('deleteConversations 清除 emptyReplyAssistantId', () async {
-    fakeClient.enqueueChunks(['回复1']);
-    fakeClient.enqueueChunks(['回复2']);
-    await sendMsg('消息1');
-
-    await container.read(chatSessionsProvider.notifier).createConversation();
-    await sendMsg('消息2');
-
-    var state = container.read(chatSessionsProvider);
-    expect(state.conversations.length, 2);
-
-    final notifier = container.read(chatSessionsProvider.notifier);
-    notifier.state = notifier.state.copyWith(emptyReplyAssistantId: 'test-id');
-
-    final activeId = state.activeConversationId;
-    await notifier.deleteConversations({activeId});
-
-    expect(container.read(chatSessionsProvider).emptyReplyAssistantId, isNull);
+    fakeClient.enqueueChunks(['']);
+    await sendMsg('再发一次空回复');
+    expectEmptyReply();
+    await notifier.deleteConversations({firstId});
+    expect(container.read(chatSessionsProvider).activeConversationId, secondId);
+    expect(
+      container.read(chatSessionsProvider).conversations.map((c) => c.id),
+      [secondId],
+    );
+    expectCleared();
   });
 }

@@ -383,18 +383,8 @@ void main() {
 
       final messages = container.read(chatWorkspaceMessagesStateProvider);
       final composer = container.read(chatWorkspaceComposerReadModelProvider);
-      expect(
-        messages.userMessages.every((m) => m.role == ChatMessageRole.user),
-        isTrue,
-      );
-      // excluded count 与 conversation.isMessageExcluded 按可见消息一致。
-      final conversation = messages.conversation;
-      final expectedExcluded = messages.messages
-          .where((m) => conversation.isMessageExcluded(m.id))
-          .length;
-      expect(composer.excludedMessageCount, expectedExcluded);
-      // 排除动作确实生效：计数随真实排除从 0 变为正数。
-      expect(composer.excludedMessageCount, greaterThan(0));
+      expect(messages.userMessages.map((m) => m.id), [excludedMessageId]);
+      expect(composer.excludedMessageCount, 1);
     });
 
     test('拆分状态中的集合不可外部修改', () {

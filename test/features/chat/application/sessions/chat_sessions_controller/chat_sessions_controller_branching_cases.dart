@@ -28,7 +28,7 @@ void registerChatSessionsControllerBranchingCases() {
 
   // ── editMessage ────────────────────────────────────────────────────────────
 
-  test('editMessage 创建新分支并重新生成回复', () async {
+  test('编辑用户消息忽略空白，提交正文后创建无模板元数据的新分支并重新生成', () async {
     fakeClient.enqueueChunks(['第一次回复']);
     fakeClient.enqueueChunks(['重新生成的回复']);
     await sendMsg('原始问题');
@@ -40,9 +40,13 @@ void registerChatSessionsControllerBranchingCases() {
         .first
         .id;
 
-    await container
-        .read(chatSessionsProvider.notifier)
-        .editMessage(messageId: userMessageId, nextContent: '修改后的问题');
+    final notifier = container.read(chatSessionsProvider.notifier);
+    final original = container.read(chatSessionsProvider).activeConversation;
+    await notifier.editMessage(messageId: userMessageId, nextContent: '   ');
+    expect(container.read(chatSessionsProvider).activeConversation, original);
+    expect(fakeClient.requestHistory, hasLength(1));
+
+    await notifier.editMessage(messageId: userMessageId, nextContent: '修改后的问题');
 
     final messages = container
         .read(chatSessionsProvider)
@@ -51,29 +55,9 @@ void registerChatSessionsControllerBranchingCases() {
     expect(messages.length, 2);
     expect(messages[0].content, '修改后的问题');
     expect(messages[1].content, '重新生成的回复');
-  });
-
-  test('editMessage 忽略纯空白内容', () async {
-    fakeClient.enqueueChunks(['回复']);
-    await sendMsg('原始问题');
-
-    final userMessageId = container
-        .read(chatSessionsProvider)
-        .activeConversation
-        .messages
-        .first
-        .id;
-
-    await container
-        .read(chatSessionsProvider.notifier)
-        .editMessage(messageId: userMessageId, nextContent: '   ');
-
-    // 消息树不应改变
-    final messages = container
-        .read(chatSessionsProvider)
-        .activeConversation
-        .messages;
-    expect(messages[0].content, '原始问题');
+    expect(messages[0].templatePromptId, isNull);
+    expect(messages[0].templateVariableValues, isEmpty);
+    expect(messages[0].userMessageSegments, isEmpty);
   });
 
   test('editMessage 新分支消息携带模板元数据', () async {
@@ -114,31 +98,6 @@ void registerChatSessionsControllerBranchingCases() {
       messages[0].userMessageSegments.first.kind,
       UserMessageSegmentKind.body,
     );
-  });
-
-  test('editMessage 默认不携带模板元数据（向后兼容）', () async {
-    fakeClient.enqueueChunks(['第一次回复']);
-    fakeClient.enqueueChunks(['重新生成的回复']);
-    await sendMsg('原始问题');
-
-    final userMessageId = container
-        .read(chatSessionsProvider)
-        .activeConversation
-        .messages
-        .first
-        .id;
-
-    await container
-        .read(chatSessionsProvider.notifier)
-        .editMessage(messageId: userMessageId, nextContent: '修改后的问题');
-
-    final messages = container
-        .read(chatSessionsProvider)
-        .activeConversation
-        .messages;
-    expect(messages[0].templatePromptId, isNull);
-    expect(messages[0].templateVariableValues, isEmpty);
-    expect(messages[0].userMessageSegments, isEmpty);
   });
 
   // ── retryLatestAssistant ───────────────────────────────────────────────────

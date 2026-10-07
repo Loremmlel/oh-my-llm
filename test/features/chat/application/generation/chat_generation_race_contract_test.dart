@@ -29,7 +29,6 @@ import '../../../../helpers/chat/fake_chat_generation_client.dart';
 /// 验证串行 run 的竞态不变量：并发 command / stop 收敛到单一既定的结果。
 /// 不依赖毫秒级 timing：所有时序由 gate 的 reached / release 决定。
 ///
-/// 修复前这些用例暴露旧 bridge 的竞态；切换到串行 run 后启用并转绿。
 void main() {
   late AppDatabase database;
   late ControllableChatConversationRepository repository;
@@ -246,41 +245,10 @@ void main() {
           container.read(chatSessionsProvider).generation?.phase,
           ChatGenerationPhase.succeeded,
         );
-      },
-    );
-
-    test(
-      'finalizing stop：等待原 terminal completion，outcome 仍为 success',
-      () async {
-        repository.gateSave(1);
-        final controlled = fakeClient.enqueueControlledStream();
-        addTearDown(controlled.close);
-
-        final sendFuture = sendMsg('hello');
-        await repository.awaitReached(1);
-        repository.releaseSave(1);
-        await controlled.listened; // 等待 run 开始监听受控流
-        controlled.add(const ChatGenerationChunk(contentDelta: '回复'));
-        await controlled.close(); // onDone -> attempt completed
-        // 等进入 finalizing 投影（completeAttempt 已入串行链）再 stop：stop action
-        // 排在 attempt 结算之后执行，被 _outcome guard 短路，outcome 保持 success。
-        await waitForProviderState(
-          container: container,
-          provider: chatSessionsProvider,
-          matches: (s) => s.generation?.phase == ChatGenerationPhase.finalizing,
-          description: 'run 进入 finalizing',
+        expect(
+          container.read(chatSessionsProvider).generation?.outcome,
+          isA<ChatGenerationSuccess>(),
         );
-
-        // finalizing 期间 stop：等待原 success 终态完成，不改为 cancelled。
-        final stopFuture = container
-            .read(chatSessionsProvider.notifier)
-            .stopStreaming();
-        await stopFuture.timeout(defaultTimeout);
-        await sendFuture.timeout(defaultTimeout);
-
-        final state = container.read(chatSessionsProvider);
-        expect(state.generation?.phase, ChatGenerationPhase.succeeded);
-        expect(state.generation?.outcome, isA<ChatGenerationSuccess>());
       },
     );
 

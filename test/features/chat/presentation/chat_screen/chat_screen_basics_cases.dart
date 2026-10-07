@@ -10,13 +10,13 @@ import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
-import 'package:oh_my_llm/features/chat/presentation/widgets/messages/chat_messages_panel.dart';
 import 'package:oh_my_llm/features/settings/application/prompts/memory_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/application/prompts/template_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/memory_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
 
 import '../../../../helpers/async/async_test_signals.dart';
+import '../../../../helpers/async/stream_markdown_test_animation.dart';
 import '../../../../helpers/fixtures.dart';
 import '../../../../helpers/async/widget_test_animation.dart';
 import 'chat_screen_test_helpers.dart';
@@ -63,49 +63,6 @@ Map<String, dynamic> _conversationWithTurns(int turnCount) {
 }
 
 void registerChatScreenBasicsTests() {
-  testWidgets('chat screen uses remembered model for reasoning capability', (
-    tester,
-  ) async {
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-
-    final preferences = await TestFixtures.seedPreferences(
-      database: database,
-      models: [
-        TestFixtures.model(
-          id: 'model-legacy',
-          displayName: 'Legacy',
-          modelName: 'legacy',
-          supportsReasoning: false,
-        ),
-        TestFixtures.deepSeekV4().copyWith(id: 'model-new'),
-      ],
-      chatDefaults: {'defaultModelId': 'model-new'},
-      conversations: [
-        {
-          'id': 'conversation-1',
-          'title': '旧会话',
-          'createdAt': DateTime(2026, 4, 29).toIso8601String(),
-          'updatedAt': DateTime(2026, 4, 29).toIso8601String(),
-          'selectedModelId': null,
-          'selectedPresetPromptId': null,
-          'reasoningEnabled': false,
-          'reasoningEffort': 'medium',
-        },
-      ],
-    );
-
-    final fakeClient = FakeChatGenerationClient();
-    await pumpChatScreen(
-      tester,
-      preferences: preferences,
-      database: database,
-      fakeClient: fakeClient,
-    );
-
-    expect(find.semantics.byLabel('深度思考'), findsOneWidget);
-  });
-
   testWidgets('通过更多菜单修改对话标题并保存', (tester) async {
     final fakeClient = FakeChatGenerationClient();
 
@@ -129,56 +86,34 @@ void registerChatScreenBasicsTests() {
     expect(find.text('新的对话标题'), findsWidgets);
   });
 
-  testWidgets(
-    'chat screen opens checkpoints dialog and shows current word count',
-    (tester) async {
-      final fakeClient = FakeChatGenerationClient()..enqueueChunks(['已收到']);
+  testWidgets('检查点窗口显示当前字数和选中预设，字数不含预设', (tester) async {
+    final fakeClient = FakeChatGenerationClient()..enqueueChunks(['已收到']);
 
-      await pumpChatScreen(tester, fakeClient: fakeClient);
-      final container = ProviderScope.containerOf(
-        tester.element(find.byType(ChatScreen)),
-      );
+    await pumpChatScreen(tester, fakeClient: fakeClient);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
+    container
+        .read(chatSessionsProvider.notifier)
+        .updateActiveConversationPreferences(
+          selectedPresetPromptId: 'prompt-1',
+        );
 
-      await sendMessage(tester, '你好');
-      await waitForChatGeneration(
-        tester,
-        container,
-        (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
-        description: '检查点字数用例生成完成',
-      );
+    await sendMessage(tester, '你好');
+    await waitForChatGeneration(
+      tester,
+      container,
+      (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
+      description: '检查点字数用例生成完成',
+    );
 
-      await tester.tap(find.byTooltip('对话检查点'));
-      await settleOverlayTransition(tester);
+    await tester.tap(find.byTooltip('对话检查点'));
+    await settleOverlayTransition(tester);
 
-      expect(find.text('对话检查点'), findsOneWidget);
-      expect(find.text('当前上下文字数：5 字（不含预设 Prompt）'), findsOneWidget);
-    },
-  );
-
-  testWidgets(
-    'chat screen checkpoints dialog shows current prompt template usage',
-    (tester) async {
-      final fakeClient = FakeChatGenerationClient();
-
-      await pumpChatScreen(tester, fakeClient: fakeClient);
-
-      final container = ProviderScope.containerOf(
-        tester.element(find.byType(ChatScreen)),
-      );
-      container
-          .read(chatSessionsProvider.notifier)
-          .updateActiveConversationPreferences(
-            selectedPresetPromptId: 'prompt-1',
-          );
-      // 会话偏好是同步状态变更，单帧渲染即可。
-      await tester.pump();
-
-      await tester.tap(find.byTooltip('对话检查点'));
-      await settleOverlayTransition(tester);
-
-      expect(find.text('当前总结会附带预设 Prompt：代码助手'), findsOneWidget);
-    },
-  );
+    expect(find.text('对话检查点'), findsOneWidget);
+    expect(find.text('当前上下文字数：5 字（不含预设 Prompt）'), findsOneWidget);
+    expect(find.text('当前总结会附带预设 Prompt：代码助手'), findsOneWidget);
+  });
 
   testWidgets('创建检查点期间 system Back 不能关闭对话框，完成后可关闭', (tester) async {
     final fakeClient = FakeChatGenerationClient()..enqueueChunks(['已收到']);
@@ -219,10 +154,9 @@ void registerChatScreenBasicsTests() {
     await tester.pump();
 
     expect(find.text('总结中...'), findsOneWidget);
-    final closeButton = tester.widget<TextButton>(
-      find.widgetWithText(TextButton, '关闭'),
-    );
-    expect(closeButton.onPressed, isNull);
+    await tester.tap(find.widgetWithText(TextButton, '关闭'));
+    await tester.pump();
+    expect(find.text('对话检查点'), findsOneWidget);
 
     // busy 期间 system Back 不能关闭对话框（PopScope canPop=false）。
     await tester.binding.handlePopRoute();
@@ -249,12 +183,11 @@ void registerChatScreenBasicsTests() {
     expect(find.text('对话检查点'), findsNothing);
   });
 
-  testWidgets('chat screen can exclude a reply from future requests', (
-    tester,
-  ) async {
+  testWidgets('排除回复改变下轮请求，过滤窗口恢复后再次发送包含原回复', (tester) async {
     final fakeClient = FakeChatGenerationClient()
       ..enqueueChunks(['首轮回复'])
-      ..enqueueChunks(['第二轮回复']);
+      ..enqueueChunks(['第二轮回复'])
+      ..enqueueChunks(['第三轮回复']);
 
     await pumpChatScreen(tester, fakeClient: fakeClient);
     final container = ProviderScope.containerOf(
@@ -290,35 +223,6 @@ void registerChatScreenBasicsTests() {
       fakeClient.requestHistory.last.map((message) => message.content).toList(),
       ['第一轮问题', '第二轮问题'],
     );
-  });
-
-  testWidgets('chat screen can restore excluded messages from filter dialog', (
-    tester,
-  ) async {
-    final fakeClient = FakeChatGenerationClient()
-      ..enqueueChunks(['首轮回复'])
-      ..enqueueChunks(['第二轮回复']);
-
-    await pumpChatScreen(tester, fakeClient: fakeClient);
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ChatScreen)),
-    );
-
-    await sendMessage(tester, '第一轮问题');
-    await waitForChatGeneration(
-      tester,
-      container,
-      (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
-      description: '恢复排除用例首轮生成完成',
-    );
-
-    // 排除是消息树同步变更，单帧渲染即可。
-    await tester.tap(find.byTooltip('消息操作').last);
-    await settleOverlayTransition(tester);
-    await tester.tap(find.text('从发送上下文中排除'));
-    await settleOverlayTransition(tester);
-    await tester.pump();
-
     await tester.tap(find.byIcon(Icons.filter_alt_outlined));
     await settleOverlayTransition(tester);
 
@@ -331,21 +235,21 @@ void registerChatScreenBasicsTests() {
 
     expect(find.text('不发送'), findsNothing);
 
-    await sendMessage(tester, '第二轮问题');
+    await sendMessage(tester, '第三轮问题');
     await waitForChatGeneration(
       tester,
       container,
       (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
-      description: '恢复排除用例第二轮生成完成',
+      description: '恢复后第三轮生成完成',
     );
 
     expect(
       fakeClient.requestHistory.last.map((message) => message.content).toList(),
-      ['第一轮问题', '首轮回复', '第二轮问题'],
+      ['第一轮问题', '首轮回复', '第二轮问题', '第二轮回复', '第三轮问题'],
     );
   });
 
-  testWidgets('窄屏打开更多设置后可调整思考并查看缓存命中率', (tester) async {
+  testWidgets('窄屏更多设置显示命中率并将思考强度同步到摘要', (tester) async {
     final fakeClient = FakeChatGenerationClient();
 
     await pumpChatScreen(
@@ -356,54 +260,33 @@ void registerChatScreenBasicsTests() {
 
     await tester.tap(find.byIcon(Icons.tune_rounded));
     await settleOverlayTransition(tester);
-
-    expect(find.widgetWithText(BottomSheet, '更多设置'), findsOneWidget);
     expect(find.text('当前会话缓存命中率：暂无数据'), findsOneWidget);
     expect(find.text('思考强度'), findsNothing);
-    // 档位切换触发弹窗内容高度动画（checkmark 宽度过渡），按组件动画等待。
     await tester.tap(find.text('深度思考'));
     await settleAnimatedWidgetTransition(tester);
     expect(find.text('思考强度'), findsOneWidget);
     expect(find.text('固定顺序提示词'), findsOneWidget);
-  });
-
-  testWidgets('chat screen compact settings updates reasoning effort summary', (
-    tester,
-  ) async {
-    final fakeClient = FakeChatGenerationClient();
-
-    await pumpChatScreen(
-      tester,
-      fakeClient: fakeClient,
-      size: const Size(430, 932),
-    );
-
-    await tester.tap(find.byIcon(Icons.tune_rounded));
-    await settleOverlayTransition(tester);
-    await tester.tap(find.text('深度思考'));
-    await settleAnimatedWidgetTransition(tester);
 
     await tester.tap(find.text('xhigh'));
     await settleAnimatedWidgetTransition(tester);
     expect(find.byTooltip('更多设置 · xhigh · 重试关'), findsOneWidget);
   });
 
-  testWidgets('chat screen can collapse and expand the composer', (
-    tester,
-  ) async {
-    final fakeClient = FakeChatGenerationClient();
+  testWidgets('收起输入区不能发送有效草稿，展开后保留草稿并可发送', (tester) async {
+    final fakeClient = FakeChatGenerationClient()..enqueueChunks(['已收到']);
 
     await pumpChatScreen(tester, fakeClient: fakeClient);
-
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
+    await tester.enterText(chatMessageComposerFinder, '等待展开后发送');
     expect(find.widgetWithText(FilledButton, '发送'), findsOneWidget);
 
     await tester.tap(find.byTooltip('收起输入区'));
     await settleAnimatedWidgetTransition(tester);
 
     expect(find.text('输入区已隐藏'), findsOneWidget);
-    // AnimatedCrossFade 下展开态 child 常驻树（仅 opacity 置 0），发送按钮
-    // 仍在 widget 树中、findsNothing 不可用；但其 RenderOpacity 命中测试返回
-    // false，折叠后点击不再触发发送--以行为契约替代存在性断言。
+    expect(find.widgetWithText(FilledButton, '发送').hitTestable(), findsNothing);
     await tester.tap(
       find.widgetWithText(FilledButton, '发送'),
       warnIfMissed: false,
@@ -416,56 +299,60 @@ void registerChatScreenBasicsTests() {
     await settleAnimatedWidgetTransition(tester);
 
     expect(find.widgetWithText(FilledButton, '发送'), findsOneWidget);
+    expect(find.text('等待展开后发送'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, '发送'));
+    await waitForChatGeneration(
+      tester,
+      container,
+      (state) => state.generation?.phase == ChatGenerationPhase.succeeded,
+      description: '展开后发送草稿完成',
+    );
+    expect(fakeClient.lastRequestMessages.single.content, '等待展开后发送');
   });
 
-  testWidgets(
-    'chat screen shows multiple template variable inputs on wide screens',
-    (tester) async {
-      final fakeClient = FakeChatGenerationClient();
+  testWidgets('宽屏选择模板后显示全部变量输入', (tester) async {
+    final fakeClient = FakeChatGenerationClient();
 
-      await pumpChatScreen(tester, fakeClient: fakeClient);
+    await pumpChatScreen(tester, fakeClient: fakeClient);
 
-      final container = ProviderScope.containerOf(
-        tester.element(find.byType(ChatScreen)),
-      );
-      await container
-          .read(templatePromptsProvider.notifier)
-          .upsert(
-            TemplatePrompt(
-              id: 'tp-grid',
-              title: '多变量模板',
-              content: '请按{{语气}}、{{长度}}、{{受众}}输出。',
-              variables: const [
-                TemplatePromptVariable(name: '语气', defaultValue: '正式'),
-                TemplatePromptVariable(name: '长度', defaultValue: '简短'),
-                TemplatePromptVariable(name: '受众', defaultValue: '开发者'),
-              ],
-              updatedAt: DateTime(2026, 5, 5, 0, 3),
-            ),
-          );
-      // upsert 是同步持久化，单帧渲染即可。
-      await tester.pump();
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
+    await container
+        .read(templatePromptsProvider.notifier)
+        .upsert(
+          TemplatePrompt(
+            id: 'tp-grid',
+            title: '多变量模板',
+            content: '请按{{语气}}、{{长度}}、{{受众}}输出。',
+            variables: const [
+              TemplatePromptVariable(name: '语气', defaultValue: '正式'),
+              TemplatePromptVariable(name: '长度', defaultValue: '简短'),
+              TemplatePromptVariable(name: '受众', defaultValue: '开发者'),
+            ],
+            updatedAt: DateTime(2026, 5, 5, 0, 3),
+          ),
+        );
+    // upsert 是同步持久化，单帧渲染即可。
+    await tester.pump();
 
-      // 下拉菜单开合属 overlay 过渡。
-      await tester.tap(
-        find.ancestor(
-          of: find.text('模板提示词'),
-          matching: find.byWidgetPredicate((w) => w is DropdownButtonFormField),
-        ),
-      );
-      await settleOverlayTransition(tester);
-      await tester.tap(find.text('多变量模板').last);
-      await settleOverlayTransition(tester);
+    // 下拉菜单开合属 overlay 过渡。
+    await tester.tap(
+      find.ancestor(
+        of: find.text('模板提示词'),
+        matching: find.byWidgetPredicate((w) => w is DropdownButtonFormField),
+      ),
+    );
+    await settleOverlayTransition(tester);
+    await tester.tap(find.text('多变量模板').last);
+    await settleOverlayTransition(tester);
 
-      expect(find.text('语气'), findsOneWidget);
-      expect(find.text('长度'), findsOneWidget);
-      expect(find.text('受众'), findsOneWidget);
-    },
-  );
+    expect(find.text('语气'), findsOneWidget);
+    expect(find.text('长度'), findsOneWidget);
+    expect(find.text('受众'), findsOneWidget);
+  });
 
-  testWidgets('chat screen remembers selected model for new conversations', (
-    tester,
-  ) async {
+  testWidgets('无模型的旧会话使用默认能力，手动选择模型后新会话沿用该模型', (tester) async {
     final database = AppDatabase.inMemory();
     addTearDown(database.close);
 
@@ -479,6 +366,15 @@ void registerChatScreenBasicsTests() {
           supportsReasoning: false,
         ),
         TestFixtures.deepSeekV4().copyWith(id: 'model-new'),
+      ],
+      chatDefaults: {'defaultModelId': 'model-new'},
+      conversations: [
+        ChatConversation(
+          id: 'legacy-conversation',
+          title: '旧会话',
+          createdAt: DateTime(2026, 4, 29),
+          updatedAt: DateTime(2026, 4, 29),
+        ).toJson(),
       ],
     );
 
@@ -497,6 +393,32 @@ void registerChatScreenBasicsTests() {
       tester.element(find.byType(ChatScreen)),
     );
 
+    void expectThinkingEnabled(bool enabled) {
+      expect(
+        find.semantics
+            .byLabel('深度思考')
+            .evaluate()
+            .single
+            .getSemanticsData()
+            .flagsCollection
+            .isEnabled
+            .toBoolOrNull(),
+        enabled,
+      );
+    }
+
+    expectThinkingEnabled(true);
+    await tester.tap(
+      find.ancestor(
+        of: find.text('模型'),
+        matching: find.byWidgetPredicate((w) => w is DropdownButtonFormField),
+      ),
+    );
+    await settleOverlayTransition(tester);
+    await tester.tap(find.text('Legacy').last);
+    await settleOverlayTransition(tester);
+    expectThinkingEnabled(false);
+
     // 模型下拉菜单开合属 overlay 过渡。
     await tester.tap(
       find.ancestor(
@@ -507,6 +429,7 @@ void registerChatScreenBasicsTests() {
     await settleOverlayTransition(tester);
     await tester.tap(find.text('DeepSeek V4 Flash').last);
     await settleOverlayTransition(tester);
+    expectThinkingEnabled(true);
 
     await sendMessage(tester, '第一次问题');
     await waitForChatGeneration(
@@ -518,6 +441,7 @@ void registerChatScreenBasicsTests() {
     // 新建对话是同步状态变更，单帧渲染即可。
     await tester.tap(find.byTooltip('新建对话').first);
     await tester.pump();
+    expectThinkingEnabled(true);
     await sendMessage(tester, '第二次问题');
     await waitForChatGeneration(
       tester,
@@ -533,9 +457,7 @@ void registerChatScreenBasicsTests() {
     ]);
   });
 
-  testWidgets('chat screen sends fixed prompt sequence step and advances', (
-    tester,
-  ) async {
+  testWidgets('固定顺序提示词发送当前步骤后推进下一步', (tester) async {
     final fakeClient = FakeChatGenerationClient()..enqueueChunks(['已收到']);
 
     await pumpChatScreen(tester, fakeClient: fakeClient);
@@ -562,9 +484,7 @@ void registerChatScreenBasicsTests() {
     expect(find.text('请列出三个可执行方案，并说明权衡。'), findsOneWidget);
   });
 
-  testWidgets('chat screen sends message with Ctrl+Enter shortcut', (
-    tester,
-  ) async {
+  testWidgets('Ctrl+Enter 发送当前正文并显示回复', (tester) async {
     final fakeClient = FakeChatGenerationClient()..enqueueChunks(['快捷键发送成功']);
 
     await pumpChatScreen(tester, fakeClient: fakeClient);
@@ -591,38 +511,6 @@ void registerChatScreenBasicsTests() {
     expect(find.textContaining('快捷键发送成功'), findsWidgets);
   });
 
-  testWidgets('滚动到底部按钮可返回最新消息', (tester) async {
-    final fakeClient = FakeChatGenerationClient();
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final preferences = await TestFixtures.seedPreferences(
-      database: database,
-      models: [TestFixtures.gpt41()],
-      conversations: [_conversationWithTurns(8)],
-    );
-
-    await pumpChatScreen(
-      tester,
-      fakeClient: fakeClient,
-      preferences: preferences,
-      database: database,
-      size: const Size(900, 520),
-    );
-
-    final scrollable = find.byType(Scrollable).first;
-    // 拖拽后的 ballistic 滚动属滚动运动。
-    await tester.drag(scrollable, const Offset(0, 600));
-    await settleScrollMotion(tester);
-
-    expect(find.byTooltip('滚动到底部'), findsOneWidget);
-
-    // 点击滚动到底部按钮后的回弹滚动同样属滚动运动。
-    await tester.tap(find.byTooltip('滚动到底部'));
-    await settleScrollMotion(tester);
-
-    expect(find.textContaining('第 8 条回复'), findsWidgets);
-  });
-
   testWidgets('空会话首次发送后定位到新增助手消息', (tester) async {
     final fakeClient = FakeChatGenerationClient();
     final controlled = fakeClient.enqueueControlledStream();
@@ -640,20 +528,10 @@ void registerChatScreenBasicsTests() {
     await tester.pump();
     await tester.pump();
 
-    final messagesPanel = tester.widget<ChatMessagesPanel>(
-      find.byType(ChatMessagesPanel),
-    );
-    expect(
-      messagesPanel
-          .scrollBindings
-          .messageItemPositionsListener
-          .itemPositions
-          .value
-          .any((position) => position.index == 1),
-      isTrue,
-    );
-
     controlled.add(const ChatGenerationChunk(contentDelta: '首轮回复'));
+    await tester.pump();
+    await pumpStreamMarkdownRefresh(tester);
+    expect(find.textContaining('首轮回复').hitTestable(), findsWidgets);
     await controlled.close();
     await waitForChatGeneration(
       tester,
@@ -663,7 +541,7 @@ void registerChatScreenBasicsTests() {
     );
   });
 
-  testWidgets('长会话位于底部时发送新一轮后定位到新增助手消息', (tester) async {
+  testWidgets('长会话离开底部可返回最新消息，发送长问题后新增回复可见', (tester) async {
     final fakeClient = FakeChatGenerationClient();
     final controlled = fakeClient.enqueueControlledStream();
     final database = AppDatabase.inMemory();
@@ -689,36 +567,20 @@ void registerChatScreenBasicsTests() {
     // 先离开底部再返回，不依赖初次布局的换行高度恰好露出导航按钮。
     await tester.drag(find.byType(Scrollable).first, const Offset(0, 600));
     await settleScrollMotion(tester);
+    expect(find.byTooltip('滚动到底部'), findsOneWidget);
     await tester.tap(find.byTooltip('滚动到底部'));
     await settleScrollMotion(tester);
-    final panelBeforeSend = tester.widget<ChatMessagesPanel>(
-      find.byType(ChatMessagesPanel),
-    );
-    expect(
-      panelBeforeSend.scrollBindings.showScrollToBottomListenable.value,
-      isFalse,
-    );
+    expect(find.textContaining('第 8 条回复').hitTestable(), findsWidgets);
 
     await sendMessage(tester, '第九轮问题${'很长的内容 ' * 200}');
     await controlled.listened;
     await tester.pump();
     await tester.pump();
 
-    final messagesPanel = tester.widget<ChatMessagesPanel>(
-      find.byType(ChatMessagesPanel),
-    );
-    final positions = messagesPanel
-        .scrollBindings
-        .messageItemPositionsListener
-        .itemPositions
-        .value;
-    expect(
-      positions.any((position) => position.index == 17),
-      isTrue,
-      reason: '当前可见位置：$positions',
-    );
-
     controlled.add(const ChatGenerationChunk(contentDelta: '第九轮回复'));
+    await tester.pump();
+    await pumpStreamMarkdownRefresh(tester);
+    expect(find.textContaining('第九轮回复').hitTestable(), findsWidgets);
     await controlled.close();
     await waitForChatGeneration(
       tester,
