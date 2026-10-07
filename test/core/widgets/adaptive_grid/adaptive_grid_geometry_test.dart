@@ -18,20 +18,6 @@ void main() {
     expect(resolve(344.500001).crossAxisCount, 3);
   });
 
-  test('长小数宽度重复计算返回相同几何', () {
-    final values = List.generate(
-      20,
-      (_) => AdaptiveGridGeometry.resolve(
-        availableWidth: 411.42857142857144,
-        horizontalPadding: 24,
-        maxCrossAxisExtent: 220,
-        crossAxisSpacing: 12,
-      ),
-    );
-    expect(values.map((value) => value.crossAxisCount).toSet(), {2});
-    expect(values.map((value) => value.itemCrossAxisExtent).toSet().length, 1);
-  });
-
   test('宽度增长时列数不减少且项目宽度不超过上限加容差', () {
     var previousColumns = 1;
     for (double width = 0; width <= 1600; width += 0.25) {

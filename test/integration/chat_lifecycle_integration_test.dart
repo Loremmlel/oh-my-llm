@@ -5,7 +5,7 @@ import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
 /// 对话生命周期集成测试。
 ///
 /// 验证对话数据的完整持久化链路：创建 → 写入 SQLite → 容器重建（模拟重启）→ 数据完整恢复。
-/// 覆盖消息持久化、分支编辑保留、检查点保留和流异常后的错误保留。
+/// 覆盖消息与生成终态持久化、检查点保留和异常后的助手占位恢复。
 /// 所有测试在 ProviderContainer 级别运行，不涉及 UI。
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,14 +24,14 @@ import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation_summary.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 
-import '../features/chat/presentation/chat_screen/chat_screen_test_helpers.dart';
+import '../helpers/chat/fake_chat_generation_client.dart';
 import '../helpers/async/async_test_signals.dart';
 import '../helpers/integration_test_helpers.dart';
 
 void main() {
   // ── 对话持久化→容器重建→数据完整恢复 ──────────────────────────────────────────
 
-  test('对话持久化→容器重建→数据完整恢复', () async {
+  test('多轮对话重启后恢复全部消息和生成终态', () async {
     final database = AppDatabase.inMemory();
     final preferences = await createSeededPreferences();
     final fakeClientA = FakeChatGenerationClient();
@@ -48,19 +48,21 @@ void main() {
     await sendMsg(containerA, content: '你好');
 
     // 发送第 2 轮对话
-    fakeClientA.enqueueChunks(['今天天气不错，适合出去走走。']);
+    fakeClientA.enqueueDeltas(const [
+      ChatGenerationChunk(contentDelta: '今天天气不错，适合出去走走。'),
+      ChatGenerationChunk(finishReason: 'stop'),
+    ]);
     await sendMsg(containerA, content: '今天天气如何');
 
     final stateA = containerA.read(chatSessionsProvider);
     final messagesA = stateA.activeConversation.messages;
-    expect(messagesA.length, equals(4));
-    expect(messagesA[0].role, ChatMessageRole.user);
-    expect(messagesA[0].content, '你好');
-    expect(messagesA[1].role, ChatMessageRole.assistant);
-    final firstAssistantContent = messagesA[1].content;
-    expect(firstAssistantContent, isNotEmpty);
-
-    final messageCountA = messagesA.length;
+    expect(messagesA.map((message) => (message.role, message.content)), [
+      (ChatMessageRole.user, '你好'),
+      (ChatMessageRole.assistant, '你好！很高兴见到你。'),
+      (ChatMessageRole.user, '今天天气如何'),
+      (ChatMessageRole.assistant, '今天天气不错，适合出去走走。'),
+    ]);
+    expect(messagesA.last.finishReason, 'stop');
     final revisionA = stateA.historyRevision;
     expect(revisionA, greaterThan(0));
 
@@ -78,12 +80,8 @@ void main() {
 
     final stateB = containerB.read(chatSessionsProvider);
     expect(stateB.conversations.length, 1);
-    expect(stateB.activeConversation.messages.length, messageCountA);
-    expect(stateB.activeConversation.messages[0].content, '你好');
-    expect(
-      stateB.activeConversation.messages[1].content,
-      firstAssistantContent,
-    );
+    expect(stateB.activeConversation.id, stateA.activeConversation.id);
+    expect(stateB.activeConversation.messages, messagesA);
   });
 
   // ── 检查点创建后重建容器 — 检查点保留 ────────────────────────────────────────
@@ -144,9 +142,9 @@ void main() {
     expect(checkpointsB.single.sourceMemoryPromptName, '研发总结');
   });
 
-  // ── 流异常后容器重建 — 错误信息保留 ──────────────────────────────────────────
+  // ── 流异常后容器重建 ─────────────────────────────────────────────────────────
 
-  test('sendMessage 流异常后容器重建 — 错误信息保留', () async {
+  test('流异常后的助手占位节点可以在重启后恢复', () async {
     final database = AppDatabase.inMemory();
     final preferences = await createSeededPreferences();
     final fakeClientA = FakeChatGenerationClient();
@@ -198,52 +196,7 @@ void main() {
     expect(messagesB.last.id, errorAssistantId);
   });
 
-  // ── 5.3-1 send 成功带 finishReason -> 重建 -> finishReason 恢复 ────────────────
-
-  test('send 成功带 finishReason -> 重建 -> finishReason 恢复', () async {
-    final database = AppDatabase.inMemory();
-    final preferences = await createSeededPreferences();
-    final fakeClientA = FakeChatGenerationClient();
-
-    final containerA = createTestContainer(
-      database: database,
-      preferences: preferences,
-      fakeClient: fakeClientA,
-    );
-    addTearDown(database.close);
-
-    // 终态 chunk 携带 finishReason='stop'，验证其随 assistant 消息持久化并在重建后恢复。
-    fakeClientA.enqueueDeltas(const [
-      ChatGenerationChunk(contentDelta: '完成了'),
-      ChatGenerationChunk(finishReason: 'stop'),
-    ]);
-    await sendMsg(containerA, content: '请完成');
-
-    final assistantA = containerA
-        .read(chatSessionsProvider)
-        .activeConversation
-        .messages[1];
-    expect(assistantA.content, '完成了');
-    expect(assistantA.finishReason, 'stop');
-
-    containerA.dispose();
-
-    final containerB = createTestContainer(
-      database: database,
-      preferences: preferences,
-      fakeClient: FakeChatGenerationClient(),
-    );
-    addTearDown(containerB.dispose);
-
-    final assistantB = containerB
-        .read(chatSessionsProvider)
-        .activeConversation
-        .messages[1];
-    expect(assistantB.content, '完成了');
-    expect(assistantB.finishReason, 'stop');
-  });
-
-  // ── 5.3-2 stop 后重建容器 - 部分内容持久化恢复 ────────────────────────────────
+  // ── 停止后重建容器 ────────────────────────────────────────────────────────────
 
   test('stop 后重建容器 - 部分内容持久化恢复', () async {
     final database = AppDatabase.inMemory();
@@ -297,7 +250,7 @@ void main() {
     expect(messagesB.last.content, '部分回复');
   });
 
-  // ── 5.3-2 空回复后重建容器 - 空助手占位恢复 ────────────────────────────────────
+  // ── 空回复后重建容器 ──────────────────────────────────────────────────────────
 
   test('空回复后重建容器 - 空助手占位恢复', () async {
     final database = AppDatabase.inMemory();

@@ -17,6 +17,32 @@ const _target = LlmRequestTarget(
 );
 
 void main() {
+  test('错协议选项在发送 HTTP 前失败', () async {
+    final httpClient = _Http();
+    final client = ChatCompletionsClient(
+      transport: LlmHttpStreamTransport(httpClient: httpClient),
+    );
+    await expectLater(
+      client.complete(
+        LlmRequest(
+          target: _target,
+          input: [],
+          options: const LlmGenerationOptions(
+            protocolOptions: MessagesOptions(),
+          ),
+        ),
+      ),
+      throwsA(
+        isA<LlmException>().having(
+          (e) => e.kind,
+          '类型',
+          LlmFailureKind.invalidRequest,
+        ),
+      ),
+    );
+    expect(httpClient.sends, 0);
+  });
+
   test('输入和嵌套工具 schema 在构造后保持不可变', () {
     final schema = <String, Object?>{
       'type': 'object',

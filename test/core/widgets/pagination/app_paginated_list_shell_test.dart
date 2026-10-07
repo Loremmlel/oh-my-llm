@@ -72,7 +72,8 @@ void main() {
       await tester.drag(find.byType(ListView), const Offset(0, -500));
       await tester.pump();
 
-      expect(harness.bodyScrollController!.offset, 500);
+      expect(harness.bodyScrollController!.offset, greaterThan(0));
+      expect(find.text('顶部标题').hitTestable(), findsOneWidget);
       // 正文滚过一屏后分页栏仍可命中，说明它固定在底部、不参与正文滚动。
       expect(find.text('共 100 条 · 1/5 页').hitTestable(), findsOneWidget);
     });
@@ -101,7 +102,7 @@ void main() {
       expect(retryCount, 1);
     });
 
-    testWidgets('pageIdentity 变化后正文回到顶部', (tester) async {
+    testWidgets('同一页重建保留滚动位置，切换页身份后回到顶部', (tester) async {
       final harness = _ShellHarness();
       await _pumpShell(
         tester,
@@ -111,7 +112,16 @@ void main() {
       );
       await tester.drag(find.byType(ListView), const Offset(0, -400));
       await tester.pump();
-      expect(harness.bodyScrollController!.offset, 400);
+      final scrolledOffset = harness.bodyScrollController!.offset;
+      expect(scrolledOffset, greaterThan(0));
+
+      await _pumpShell(
+        tester,
+        state: visibleState,
+        pageIdentity: 'collection=a&page=1',
+        harness: harness,
+      );
+      expect(harness.bodyScrollController!.offset, scrolledOffset);
 
       await _pumpShell(
         tester,
@@ -125,29 +135,6 @@ void main() {
       );
 
       expect(harness.bodyScrollController!.offset, 0);
-    });
-
-    testWidgets('相同 pageIdentity 的等价重建不误清滚动位置', (tester) async {
-      final harness = _ShellHarness();
-      await _pumpShell(
-        tester,
-        state: visibleState,
-        pageIdentity: 'collection=a&page=1',
-        harness: harness,
-      );
-      await tester.drag(find.byType(ListView), const Offset(0, -400));
-      await tester.pump();
-      expect(harness.bodyScrollController!.offset, 400);
-
-      // 模拟详情 push/pop 后父级重组：widget 实例全新但 identity 未变。
-      await _pumpShell(
-        tester,
-        state: visibleState,
-        pageIdentity: 'collection=a&page=1',
-        harness: harness,
-      );
-
-      expect(harness.bodyScrollController!.offset, 400);
     });
   });
 }

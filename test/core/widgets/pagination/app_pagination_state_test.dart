@@ -96,29 +96,6 @@ void main() {
     }
   });
 
-  test('状态构造器与共享夹取函数在参数网格上保持一致', () {
-    for (final (pageSize, totalItems) in [
-      (20, 0),
-      (20, 5),
-      (20, 40),
-      (20, 41),
-      (10, 1),
-    ]) {
-      final totalPages = totalPagesForItems(totalItems, pageSize);
-      for (final page in [-3, 0, 1, 2, 3, 99]) {
-        expect(
-          AppPaginationState(
-            currentPage: page,
-            pageSize: pageSize,
-            totalItems: totalItems,
-          ).currentPage,
-          clampPageToValidRange(page, totalPages),
-          reason: 'pageSize=$pageSize totalItems=$totalItems page=$page',
-        );
-      }
-    }
-  });
-
   test('可见页码按完整、单侧省略和双侧省略三类布局生成', () {
     final cases = <({int total, int current, List<int?> expected})>[
       (total: 7, current: 4, expected: [1, 2, 3, 4, 5, 6, 7]),

@@ -23,7 +23,7 @@ GoRouter _shellRouter({
   bool hasLocalBackTarget = false,
   VoidCallback? onLocalBack,
 }) {
-  return GoRouter(
+  final router = GoRouter(
     initialLocation: initialLocation,
     routes: [
       for (final dest in AppDestination.values)
@@ -42,6 +42,8 @@ GoRouter _shellRouter({
         ),
     ],
   );
+  addTearDown(router.dispose);
+  return router;
 }
 
 Future<void> _pumpShell(
@@ -114,16 +116,14 @@ void main() {
       await tester.tap(find.byTooltip('打开侧边内容'));
       await settleOverlayTransition(tester);
 
-      final scaffold = tester.state<ScaffoldState>(find.byType(Scaffold));
-      expect(scaffold.isEndDrawerOpen, isTrue);
-      expect(find.text('侧边内容'), findsOneWidget);
+      expect(find.text('侧边内容').hitTestable(), findsOneWidget);
 
       // 抽屉打开时会向路由注册 LocalHistoryEntry，系统返回只弹出它关闭
       // 抽屉，不会退出对话页。
       await tester.binding.handlePopRoute();
       await settleOverlayTransition(tester);
 
-      expect(scaffold.isEndDrawerOpen, isFalse);
+      expect(find.text('侧边内容').hitTestable(), findsNothing);
       expect(find.text('聊天页面'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
@@ -136,8 +136,7 @@ void main() {
         endDrawer: const Drawer(child: Text('侧边内容')),
       );
 
-      final scaffold = tester.state<ScaffoldState>(find.byType(Scaffold));
-      expect(scaffold.isEndDrawerOpen, isFalse);
+      expect(find.text('侧边内容').hitTestable(), findsNothing);
 
       // 右缘要保留给 Android 边缘返回手势，抽屉边缘拖拽不得抢占。
       await tester.dragFrom(
@@ -146,7 +145,6 @@ void main() {
       );
       await settleOverlayTransition(tester);
 
-      expect(scaffold.isEndDrawerOpen, isFalse);
       expect(find.text('侧边内容'), findsNothing);
     });
   }
@@ -156,18 +154,6 @@ void main() {
     await tester.pumpWidget(MaterialApp.router(routerConfig: router));
 
     expect(find.text('设置页面'), findsOneWidget);
-    await tester.binding.handlePopRoute();
-    await settleRouteTransition(tester);
-
-    expect(router.routeInformationProvider.value.uri.path, '/chat');
-    expect(find.text('聊天页面'), findsOneWidget);
-  });
-
-  testWidgets('系统返回将历史顶层目的地退回对话', (tester) async {
-    final router = _shellRouter(initialLocation: AppDestination.history.path);
-    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
-
-    expect(find.text('${AppDestination.history.label}页面'), findsOneWidget);
     await tester.binding.handlePopRoute();
     await settleRouteTransition(tester);
 
@@ -224,22 +210,22 @@ void main() {
     expect(find.text('固定动作'), findsOneWidget);
     expect(find.text('紧凑动作'), findsOneWidget);
     expect(find.text('宽侧动作'), findsNothing);
-  });
+    expect(find.byType(NavigationBar), findsOneWidget);
 
-  testWidgets('壳层在 720 等号走宽侧，固定动作仍保留', (tester) async {
-    const adaptive = AppAdaptiveActions(
-      compactActions: [Text('紧凑动作')],
-      wideActions: [Text('宽侧动作')],
-    );
-    await _pumpShell(
-      tester,
-      destination: AppDestination.chat,
-      size: shellAtBoundary.size,
-      actions: const [Text('固定动作')],
-      adaptiveActions: adaptive,
-    );
+    tester.view.physicalSize = shellAtBoundary.size;
+    await tester.pump();
     expect(find.text('固定动作'), findsOneWidget);
     expect(find.text('宽侧动作'), findsOneWidget);
     expect(find.text('紧凑动作'), findsNothing);
+    expect(find.byType(NavigationRail), findsOneWidget);
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationRail),
+        matching: find.text(AppDestination.history.label),
+      ),
+    );
+    await settleRouteTransition(tester);
+    expect(find.text('${AppDestination.history.label}页面'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }

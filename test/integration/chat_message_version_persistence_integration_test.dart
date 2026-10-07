@@ -1,7 +1,7 @@
 /// 消息版本导航持久化集成测试。
 ///
 /// 验证 selectedChildByParentId 在容器重建后的序列化/反序列化正确性：
-/// 编辑用户消息创建分支 -> 切换回旧分支 -> 重启 -> 验证选中的仍是旧分支。
+/// 编辑后重启保留新分支，再切换旧分支并重启保留旧分支与图片。
 library;
 
 import 'package:flutter_test/flutter_test.dart';
@@ -10,14 +10,12 @@ import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_contr
 import 'package:oh_my_llm/features/chat/domain/chat_message_parent.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 
-import '../features/chat/presentation/chat_screen/chat_screen_test_helpers.dart';
+import '../helpers/chat/fake_chat_generation_client.dart';
 import '../helpers/integration_test_helpers.dart';
 import '../helpers/chat/test_chat_images.dart';
 
 void main() {
-  // ── 编辑后切换回旧版本 -> 重启 -> 旧版本仍被选中 ──────────────────────────────
-
-  test('编辑后切换回旧版本 -> 重启后旧版本仍被选中', () async {
+  test('新旧消息版本的选中状态与图片均可在重启后恢复', () async {
     final database = AppDatabase.inMemory();
     final preferences = await createSeededPreferences();
     final fakeClient = FakeChatGenerationClient();
@@ -59,32 +57,44 @@ void main() {
     expect(messagesAfterEdit[0].content, '修改后的问题');
     expect(messagesAfterEdit[0].images, [testChatImage]);
     expect(messagesAfterEdit[1].content, '编辑后的回复');
+    containerA.dispose();
+
+    final containerB = createTestContainer(
+      database: database,
+      preferences: preferences,
+      fakeClient: FakeChatGenerationClient(),
+    );
+    final restoredNewBranch = containerB
+        .read(chatSessionsProvider)
+        .activeConversation
+        .messages;
+    expect(restoredNewBranch, messagesAfterEdit);
 
     // 切换回旧版本
-    containerA
+    containerB
         .read(chatSessionsProvider.notifier)
         .selectMessageVersion(parentId: parentId, messageId: userMessageId);
 
     // 验证旧版本被选中
-    final messagesAfterSwitch = containerA
+    final messagesAfterSwitch = containerB
         .read(chatSessionsProvider)
         .activeConversation
         .messages;
     expect(messagesAfterSwitch[0].content, '原始问题');
     expect(messagesAfterSwitch[1].content, '原始回复');
 
-    containerA.dispose();
+    containerB.dispose();
 
     // 模拟重启
-    final containerB = createTestContainer(
+    final containerC = createTestContainer(
       database: database,
       preferences: preferences,
       fakeClient: FakeChatGenerationClient(),
     );
-    addTearDown(containerB.dispose);
+    addTearDown(containerC.dispose);
 
     // 验证旧版本仍然被选中
-    final messagesB = containerB
+    final messagesB = containerC
         .read(chatSessionsProvider)
         .activeConversation
         .messages;
@@ -92,60 +102,5 @@ void main() {
     expect(messagesB[0].images, [testChatImage]);
     expect(messagesB[1].content, '原始回复');
     expect(messagesB[1].id, originalAssistantId);
-  });
-
-  // ── 编辑后新分支被选中 -> 重启 -> 新分支仍被选中 ──────────────────────────────
-
-  test('编辑后新分支被选中 -> 重启后新分支仍被选中', () async {
-    final database = AppDatabase.inMemory();
-    final preferences = await createSeededPreferences();
-    final fakeClient = FakeChatGenerationClient();
-
-    final containerA = createTestContainer(
-      database: database,
-      preferences: preferences,
-      fakeClient: fakeClient,
-    );
-    addTearDown(database.close);
-
-    fakeClient.enqueueChunks(['原始回复']);
-    await sendMsg(containerA, content: '原始问题');
-
-    final stateA = containerA.read(chatSessionsProvider);
-    final userMessageId = stateA.activeConversation.messages
-        .firstWhere((m) => m.role == ChatMessageRole.user)
-        .id;
-
-    // 编辑创建新分支
-    fakeClient.enqueueChunks(['新分支回复']);
-    await containerA
-        .read(chatSessionsProvider.notifier)
-        .editMessage(messageId: userMessageId, nextContent: '编辑后的问题');
-
-    // 验证新分支被选中
-    final messagesAfterEdit = containerA
-        .read(chatSessionsProvider)
-        .activeConversation
-        .messages;
-    expect(messagesAfterEdit[0].content, '编辑后的问题');
-    expect(messagesAfterEdit[1].content, '新分支回复');
-
-    containerA.dispose();
-
-    // 模拟重启
-    final containerB = createTestContainer(
-      database: database,
-      preferences: preferences,
-      fakeClient: FakeChatGenerationClient(),
-    );
-    addTearDown(containerB.dispose);
-
-    // 验证新分支仍然被选中
-    final messagesB = containerB
-        .read(chatSessionsProvider)
-        .activeConversation
-        .messages;
-    expect(messagesB[0].content, '编辑后的问题');
-    expect(messagesB[1].content, '新分支回复');
   });
 }

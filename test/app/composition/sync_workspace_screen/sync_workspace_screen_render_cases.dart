@@ -5,7 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:oh_my_llm/core/constants/app_layout_density.dart';
 import 'package:oh_my_llm/features/media/application/media_browser_controller.dart';
+import 'package:oh_my_llm/features/media/application/media_grid_density_controller.dart';
 import 'package:oh_my_llm/features/media/application/media_root_directory_controller.dart';
 import 'package:oh_my_llm/features/media/application/models/media_library_source.dart';
 import 'package:oh_my_llm/features/media/application/ports/media_library_factory.dart';
@@ -59,6 +61,13 @@ void registerSyncScreenRenderTests() {
         ),
       );
       expect(RecordingMediaBrowserController.totalInitCount, 1);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(MaterialApp)),
+      );
+      expect(
+        container.read(mediaGridDensityProvider),
+        AppLayoutDensity.standard,
+      );
       debugDefaultTargetPlatformOverride = null;
     });
 
@@ -102,6 +111,10 @@ void registerSyncScreenRenderTests() {
         tester.element(find.byType(MaterialApp)),
       );
       expect(container.read(syncServerControllerProvider).isRunning, isFalse);
+      expect(
+        container.read(mediaGridDensityProvider),
+        AppLayoutDensity.compact,
+      );
       debugDefaultTargetPlatformOverride = null;
     });
   });

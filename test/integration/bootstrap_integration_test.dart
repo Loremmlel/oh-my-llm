@@ -1,6 +1,6 @@
 /// bootstrap() 集成测试。
 ///
-/// 验证应用完整启动流程：初始化 → 数据迁移 → Provider 注入 → UI 渲染。
+/// 验证启动资源与组合绑定注入、UI 渲染及失败后的资源释放。
 /// 所有测试均使用内存数据库和空操作日志记录器，不依赖文件系统或网络。
 library;
 
@@ -8,31 +8,35 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:oh_my_llm/app/platform/noop_chat_generation_foreground_service.dart';
 import 'package:oh_my_llm/bootstrap.dart';
+import 'package:oh_my_llm/core/constants/app_reserved_entities.dart';
 import 'package:oh_my_llm/core/logging/app_network_logger_provider.dart';
 import 'package:oh_my_llm/core/logging/network_logger.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_conversation_repository.dart';
-import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_foreground_service.dart';
-import 'package:oh_my_llm/features/chat/data/persistence/background_chat_repository.dart';
 import 'package:oh_my_llm/features/favorites/application/ports/collections_repository.dart';
-import 'package:oh_my_llm/features/favorites/application/ports/favorites_repository.dart';
-import 'package:oh_my_llm/features/favorites/data/sqlite_collections_repository.dart';
-import 'package:oh_my_llm/features/favorites/data/sqlite_favorites_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 const _viewportSize = Size(1440, 1024);
 
-Future<ProviderContainer> _pumpBootstrappedApp(
+Future<
+  ({
+    ProviderContainer container,
+    AppDatabase database,
+    SharedPreferences preferences,
+    NetworkLogger logger,
+  })
+>
+_pumpBootstrappedApp(
   WidgetTester tester, {
   WindowsWindowInitializer? windowsWindowInitializer,
   TargetPlatform hostPlatform = TargetPlatform.windows,
 }) async {
   SharedPreferences.setMockInitialValues({});
+  final preferences = await SharedPreferences.getInstance();
   tester.view.physicalSize = _viewportSize;
   tester.view.devicePixelRatio = 1;
   addTearDown(() {
@@ -42,66 +46,54 @@ Future<ProviderContainer> _pumpBootstrappedApp(
 
   final db = AppDatabase.inMemory();
   addTearDown(db.close);
+  const logger = NoopNetworkLogger();
 
   await bootstrap(
     database: db,
-    networkLogger: const NoopNetworkLogger(),
+    networkLogger: logger,
     hostPlatform: hostPlatform,
     windowsWindowInitializer: windowsWindowInitializer ?? () async {},
   );
   await tester.pump();
 
   final context = tester.element(find.byType(MaterialApp));
-  return ProviderScope.containerOf(context);
+  return (
+    container: ProviderScope.containerOf(context),
+    database: db,
+    preferences: preferences,
+    logger: logger,
+  );
 }
 
 void main() {
-  testWidgets('正常启动后渲染聊天页', (tester) async {
-    await _pumpBootstrappedApp(tester);
-
-    expect(find.byType(MaterialApp), findsOneWidget);
-
-    // 验证导航壳层已渲染（Rail 或 Bar 均可）
-    final hasNav =
-        find.byType(NavigationRail).evaluate().isNotEmpty ||
-        find.byType(NavigationBar).evaluate().isNotEmpty;
-    expect(hasNav, isTrue);
-  });
-
-  testWidgets('启动后 ProviderScope override 正确注入', (tester) async {
-    final container = await _pumpBootstrappedApp(tester);
-
-    final preferences = container.read(sharedPreferencesProvider);
-    expect(preferences, isNotNull);
-
-    final database = container.read(appDatabaseProvider);
-    expect(database, isNotNull);
-
-    final logger = container.read(appNetworkLoggerProvider);
-    expect(logger, isA<NoopNetworkLogger>());
-
-    final completion = container.read(chatGenerationClientProvider);
-    expect(completion, isA<ChatGenerationClient>());
-
-    final conversation = container.read(chatConversationRepositoryProvider);
-    expect(conversation, isA<BackgroundChatConversationRepository>());
-
-    final favorites = container.read(favoritesRepositoryProvider);
-    expect(favorites, isA<SqliteFavoritesRepository>());
-
-    final collections = container.read(collectionsRepositoryProvider);
-    expect(collections, isA<SqliteCollectionsRepository>());
-  });
-
-  testWidgets('Windows 平台 window runtime 恰好初始化一次且不触发真实插件', (tester) async {
+  testWidgets('Windows 启动一次并渲染聊天导航，注入资源与仓库可用', (tester) async {
     var calls = 0;
-    await _pumpBootstrappedApp(
+    final boot = await _pumpBootstrappedApp(
       tester,
       windowsWindowInitializer: () async => calls++,
     );
 
-    expect(calls, 1); // 注入的 no-op 初始化器生效，真实插件未被触发
-    expect(find.byType(MaterialApp), findsOneWidget);
+    expect(calls, 1);
+    expect(find.text('对话'), findsWidgets);
+    expect(find.byType(NavigationRail), findsOneWidget);
+    final container = boot.container;
+    expect(container.read(sharedPreferencesProvider), same(boot.preferences));
+    expect(container.read(appDatabaseProvider), same(boot.database));
+    expect(container.read(appNetworkLoggerProvider), same(boot.logger));
+    expect(
+      container.read(chatConversationRepositoryProvider).loadAll(),
+      isEmpty,
+    );
+    expect(
+      container.read(collectionsRepositoryProvider).loadAll().single.id,
+      AppReservedEntities.uncategorizedFavoriteCollectionId,
+    );
+    expect(
+      await container
+          .read(chatGenerationForegroundServiceProvider)
+          .ensureNotificationPermission(),
+      ChatNotificationPermissionStatus.notRequired,
+    );
   });
 
   testWidgets('非 Windows 平台不初始化 window runtime，也不篡改全局平台', (tester) async {
@@ -119,13 +111,6 @@ void main() {
     expect(find.byType(MaterialApp), findsOneWidget);
     // bootstrap 通过 hostPlatform 参数显式选择平台，不修改全局平台 override
     expect(debugDefaultTargetPlatformOverride, isNull);
-  });
-
-  testWidgets('Windows 宿主把生成前台服务绑定到 no-op 端口', (tester) async {
-    final container = await _pumpBootstrappedApp(tester);
-
-    final port = container.read(chatGenerationForegroundServiceProvider);
-    expect(port, isA<NoopChatGenerationForegroundService>());
   });
 
   testWidgets('启动初始化失败时显示错误页并保留原因', (tester) async {

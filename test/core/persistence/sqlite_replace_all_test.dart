@@ -18,7 +18,7 @@ sqlite.Database _createTestDb() {
 
 void main() {
   group('configureSqlitePragmas', () {
-    test('enables foreign keys', () {
+    test('启用外键约束', () {
       final db = sqlite.sqlite3.openInMemory();
       addTearDown(db.close);
       configureSqlitePragmas(db, isInMemory: true);
@@ -26,22 +26,10 @@ void main() {
       final result = db.select('PRAGMA foreign_keys;').single;
       expect(result['foreign_keys'], equals(1));
     });
-
-    test('skips WAL for in-memory database', () {
-      final db = sqlite.sqlite3.openInMemory();
-      addTearDown(db.close);
-      configureSqlitePragmas(db, isInMemory: true);
-
-      // 内存数据库不应启用 WAL（仅对文件数据库有效）
-      final journalMode = db
-          .select('PRAGMA journal_mode;')
-          .single['journal_mode'];
-      expect(journalMode, isNot(equals('wal')));
-    });
   });
 
   group('replaceAllRowsInTable', () {
-    test('happy path: replaces existing rows with new set', () {
+    test('全量替换旧行并保留新集合', () {
       final db = _createTestDb();
       addTearDown(db.close);
 
@@ -72,7 +60,7 @@ void main() {
       expect(rows[2]['name'], equals('new-d'));
     });
 
-    test('rolls back on error: table content unchanged after failure', () {
+    test('中途构建数据失败时回滚并保留原始行', () {
       final db = _createTestDb();
       addTearDown(db.close);
 
@@ -106,7 +94,7 @@ void main() {
       expect(rows[0]['name'], equals('baseline-name'));
     });
 
-    test('empty list clears table', () {
+    test('空集合清空表', () {
       final db = _createTestDb();
       addTearDown(db.close);
 

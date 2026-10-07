@@ -32,6 +32,46 @@ LlmRequest _request(
 );
 
 void main() {
+  test('三种协议按各自字段编码输出上限和显式缓存配置', () {
+    for (final (protocol, options, expected) in [
+      (
+        LlmApiProtocol.chatCompletions,
+        const ChatCompletionsOptions(promptCacheKey: 'novel'),
+        {'max_completion_tokens': 256, 'prompt_cache_key': 'novel'},
+      ),
+      (
+        LlmApiProtocol.responses,
+        const ResponsesOptions(promptCacheKey: 'novel'),
+        {'max_output_tokens': 256, 'prompt_cache_key': 'novel'},
+      ),
+      (
+        LlmApiProtocol.anthropic,
+        const MessagesOptions(
+          automaticCacheControl: true,
+          cacheTtl: MessagesCacheTtl.oneHour,
+        ),
+        {
+          'max_tokens': 256,
+          'cache_control': {'type': 'ephemeral', 'ttl': '1h'},
+        },
+      ),
+    ]) {
+      expect(
+        encodeLlmOptions(
+          _request(
+            protocol,
+            options: LlmGenerationOptions(
+              maxOutputTokens: 256,
+              protocolOptions: options,
+            ),
+          ),
+        ),
+        expected,
+        reason: protocol.name,
+      );
+    }
+  });
+
   test('Responses 续接保留 assistant 阶段且不向用户消息添加阶段', () {
     final endpoint = Uri.parse('https://example.com');
     final request = LlmRequest(

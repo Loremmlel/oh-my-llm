@@ -25,9 +25,6 @@ void main() {
                   .single['user_version']
               as int;
       expect(version, greaterThanOrEqualTo(AppDatabase.currentSchemaVersion));
-    });
-
-    test('创建全部关键业务表', () {
       final tables = _tableNames(database);
       expect(
         tables,
@@ -50,22 +47,16 @@ void main() {
           'agent_history_entries',
         ]),
       );
-    });
-
-    test('conversations 表包含 selected_preset_prompt_id 列', () {
-      final columns = database.connection
+      final conversationColumns = database.connection
           .select('PRAGMA table_info(conversations);')
           .map((row) => row['name'] as String)
           .toList();
-      expect(columns, contains('selected_preset_prompt_id'));
-    });
-
-    test('preset_prompts 表不含 system_prompt 列', () {
-      final columns = database.connection
+      expect(conversationColumns, contains('selected_preset_prompt_id'));
+      final presetColumns = database.connection
           .select('PRAGMA table_info(preset_prompts);')
           .map((row) => row['name'] as String)
           .toList();
-      expect(columns, isNot(contains('system_prompt')));
+      expect(presetColumns, isNot(contains('system_prompt')));
     });
 
     test('全新数据库创建后立即播种系统未分类收藏夹', () {
