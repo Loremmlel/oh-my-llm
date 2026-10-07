@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:oh_my_llm/core/widgets/dialogs/app_dialog_actions.dart';
 
 import '../../../application/collections_controller.dart';
 import '../../../application/favorites_browse_preferences_controller.dart';
@@ -48,21 +49,20 @@ class _MoveFavoritesDialogState extends ConsumerState<MoveFavoritesDialog> {
   Widget build(BuildContext context) {
     final collections = ref.watch(collectionsProvider);
 
-    return AlertDialog(
+    final dialog = AlertDialog(
       title: const Text('移动到收藏夹'),
-      content: SizedBox(
-        width: 320,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 240),
-              child: RadioGroup<String>(
+      content: SingleChildScrollView(
+        child: SizedBox(
+          width: 320,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              RadioGroup<String>(
                 groupValue: _selectedCollectionId,
                 onChanged: (value) =>
                     setState(() => _selectedCollectionId = value),
-                child: ListView(
-                  shrinkWrap: true,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     for (final collection in collections)
                       RadioListTile<String>(
@@ -78,16 +78,16 @@ class _MoveFavoritesDialogState extends ConsumerState<MoveFavoritesDialog> {
                   ],
                 ),
               ),
-            ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: _createAndSelect,
-                icon: const Icon(Icons.create_new_folder_outlined, size: 18),
-                label: const Text('新建收藏夹'),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: _createAndSelect,
+                  icon: const Icon(Icons.create_new_folder_outlined, size: 18),
+                  label: const Text('新建收藏夹'),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
       actions: [
@@ -102,6 +102,12 @@ class _MoveFavoritesDialogState extends ConsumerState<MoveFavoritesDialog> {
           child: const Text('移动'),
         ),
       ],
+    );
+    return AppDialogActions(
+      onSubmit: _selectedCollectionId == null
+          ? null
+          : () => Navigator.of(context).pop(_selectedCollectionId),
+      child: dialog,
     );
   }
 }

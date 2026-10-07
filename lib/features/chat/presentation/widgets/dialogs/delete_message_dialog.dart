@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/dialogs/app_dialog_actions.dart';
 
 import '../../../application/sessions/chat_sessions_controller.dart';
 import '../../../domain/models/chat_message.dart';
@@ -24,7 +25,7 @@ class DeleteMessageDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    final dialog = AlertDialog(
       title: Text(_hasSiblingVersions ? '删除哪个范围？' : '确认删除？'),
       content: Text(
         _hasSiblingVersions
@@ -33,6 +34,7 @@ class DeleteMessageDialog extends StatelessWidget {
       ),
       actions: [
         TextButton(
+          autofocus: true,
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('取消'),
         ),
@@ -55,5 +57,6 @@ class DeleteMessageDialog extends StatelessWidget {
         ),
       ],
     );
+    return AppDialogActions(child: dialog);
   }
 }

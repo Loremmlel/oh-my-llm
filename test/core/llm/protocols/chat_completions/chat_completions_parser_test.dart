@@ -193,13 +193,24 @@ void main() {
       expect(chunk.reasoningDelta, isEmpty);
     });
 
-    test('delta.reasoning 别名 → 不进入 reasoningDelta', () {
+    test('delta.reasoning → reasoningDelta', () {
       final chunk = newParser()
           .parse(event('{"choices":[{"delta":{"reasoning":"别名推理"}}]}'))
           .chunk;
       expect(chunk, isNotNull);
-      expect(chunk!.reasoningDelta, isEmpty);
+      expect(chunk!.reasoningDelta, '别名推理');
       expect(chunk.contentDelta, isEmpty);
+    });
+
+    test('两个推理字段同存时优先 reasoning_content', () {
+      final chunk = newParser()
+          .parse(
+            event(
+              '{"choices":[{"delta":{"reasoning_content":"规范推理","reasoning":"别名推理"}}]}',
+            ),
+          )
+          .chunk;
+      expect(chunk!.reasoningDelta, '规范推理');
     });
 
     test('delta 缺失或非 Map → 仅保留 finishReason', () {

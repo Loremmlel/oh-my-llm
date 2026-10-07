@@ -26,7 +26,7 @@ void main() {
         const PromptMessage(
           id: 'set',
           role: PromptMessageRole.system,
-          content: '\n{{setvar::x::约束}}\n',
+          content: '\r\n{{setvar::x::约束}}\r\n',
           placement: PromptMessagePlacement.after,
           enabled: false,
           sourceIdentifier: 'source',

@@ -127,4 +127,48 @@ void main() {
     expect(preview.errorText, contains('坏条目'));
     expect(preview.requireMessages, throwsA(isA<Exception>()));
   });
+
+  test('宏预设的单 System 预览与发送顺序一致并保留转换条目的来源', () {
+    final combined = preset.copyWith(
+      singleSystemPrompt: true,
+      messages: [
+        const PromptMessage(
+          id: 'leading',
+          title: '前置规则',
+          role: PromptMessageRole.system,
+          content: '{{user}}规则',
+        ),
+        ...preset.messages,
+      ],
+    );
+    final preview = previewChatContext(
+      conversation: conversation,
+      presetPrompt: combined,
+      body: '新输入',
+    );
+    final sent = prepareChatContext(
+      presetPrompt: combined,
+      conversationMessages: [
+        ...conversation.messages,
+        message('new', 'a2', ChatMessageRole.user, '新输入'),
+      ],
+      latestInputMessageId: 'new',
+    );
+    expect(
+      preview.messages.map((m) => (m.role, m.content, m.sourceLabel)),
+      sent.messages.map((m) => (m.role, m.content, m.sourceLabel)),
+    );
+    expect(preview.messages.first.content, 'user规则');
+    expect(
+      preview.messages.where((m) => m.role == ChatMessageRole.system),
+      hasLength(1),
+    );
+    final inputIndex = preview.messages.indexWhere((m) => m.content == '新输入');
+    expect(preview.messages[inputIndex - 1].content, '要求');
+    expect(preview.messages[inputIndex - 1].role, ChatMessageRole.user);
+    expect(preview.messages[inputIndex - 1].sourceId, 'before');
+    expect(preview.messages[inputIndex - 1].sourceLabel, contains('最新输入前'));
+    expect(preview.messages.last.sourceId, 'after');
+    expect(preview.messages.last.sourceLabel, contains('预设'));
+  });
 }

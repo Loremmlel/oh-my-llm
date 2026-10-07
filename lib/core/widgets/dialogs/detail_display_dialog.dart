@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'app_dialog_actions.dart';
+
 /// 纯展示弹窗的统一壳层。
 ///
 /// 适用于只读详情、信息展示等不需要用户操作的弹窗。提供固定宽度和最大高度约束，
@@ -38,21 +40,25 @@ class DetailDisplayDialog extends StatelessWidget {
     final screenHeight = MediaQuery.of(context).size.height;
     final effectiveMaxHeight = maxContentHeight ?? (screenHeight * 0.65);
 
-    return AlertDialog(
-      title: title,
-      content: SizedBox(
-        width: width,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxHeight: effectiveMaxHeight),
-          child: SingleChildScrollView(child: child),
+    return AppDialogActions(
+      onSubmit: () => Navigator.of(context).maybePop(),
+      child: AlertDialog(
+        title: title,
+        content: SizedBox(
+          width: width,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: effectiveMaxHeight),
+            child: SingleChildScrollView(child: child),
+          ),
         ),
+        actions: [
+          TextButton(
+            autofocus: true,
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(closeLabel),
+          ),
+        ],
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(closeLabel),
-        ),
-      ],
     );
   }
 }

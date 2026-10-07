@@ -51,22 +51,16 @@ class AnthropicTransformedMessage extends Equatable {
 AnthropicTransformedMessages transformAnthropicMessages(
   List<ChatRequestMessage> messages,
 ) {
-  var index = 0;
-  final leadingSystem = <String>[];
-  while (index < messages.length &&
-      messages[index].role == ChatMessageRole.system) {
-    leadingSystem.add(messages[index].content);
-    index++;
-  }
+  final normalized = ChatRequestMessage.singleSystemPrompt(messages);
+  final hasSystem =
+      normalized.isNotEmpty && normalized.first.role == ChatMessageRole.system;
 
-  // 其余消息：System 转为 User，相邻同角色用单个换行符合并。
+  // 只需合并相邻同角色；System 角色已在共享请求消息规则中归一化。
   final roles = <String>[];
   final contents = <String>[];
   final sources = <List<ChatRequestMessage>>[];
-  for (final message in messages.skip(index)) {
-    final role = message.role == ChatMessageRole.system
-        ? 'user'
-        : message.role.apiValue;
+  for (final message in normalized.skip(hasSystem ? 1 : 0)) {
+    final role = message.role.apiValue;
     if (roles.isNotEmpty && roles.last == role) {
       contents[contents.length - 1] = '${contents.last}\n${message.content}';
       sources.last.add(message);
@@ -78,7 +72,7 @@ AnthropicTransformedMessages transformAnthropicMessages(
   }
 
   return AnthropicTransformedMessages(
-    system: leadingSystem.isEmpty ? null : leadingSystem.join('\n'),
+    system: hasSystem ? normalized.first.content : null,
     messages: [
       for (var i = 0; i < roles.length; i++)
         AnthropicTransformedMessage(

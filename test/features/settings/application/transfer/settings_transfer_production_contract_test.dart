@@ -77,6 +77,7 @@ const expectedCanonicalSections = <String, Object?>{
           'enabled': true,
         },
       ],
+      'singleSystemPrompt': false,
       'updatedAt': '2026-08-19T00:00:00.000Z',
     },
   ],

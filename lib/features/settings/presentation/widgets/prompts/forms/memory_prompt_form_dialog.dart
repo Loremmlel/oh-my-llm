@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/long_text_editing_controller.dart';
 
 import '../../../../domain/models/prompts/memory_prompt.dart';
 import '../../shared/settings_form_dialog_scaffold.dart';
@@ -30,13 +31,15 @@ class MemoryPromptFormDialog extends StatefulWidget {
 class _MemoryPromptFormDialogState extends State<MemoryPromptFormDialog>
     with SettingsFormDialogStateMixin {
   late final TextEditingController _nameController;
-  late final TextEditingController _contentController;
+  late final LongTextEditingController _contentController;
 
   @override
   void initState() {
     super.initState();
     _nameController = initController(widget.initialValue?.name ?? '');
-    _contentController = initController(widget.initialValue?.content ?? '');
+    _contentController = initLongTextController(
+      widget.initialValue?.content ?? '',
+    );
   }
 
   @override
@@ -93,7 +96,7 @@ class _MemoryPromptFormDialogState extends State<MemoryPromptFormDialog>
       return widget.onSubmit(
         MemoryPromptFormData(
           name: _nameController.text.trim(),
-          content: _contentController.text.trim(),
+          content: _contentController.textForSave(trim: true),
         ),
       );
     });

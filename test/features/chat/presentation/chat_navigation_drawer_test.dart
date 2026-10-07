@@ -6,6 +6,7 @@ import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/chat/application/generation/chat_generation_lifecycle.dart';
 import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
+import 'package:oh_my_llm/features/chat/application/composer/composer_draft_controller.dart';
 import 'package:oh_my_llm/features/settings/application/prompts/preset_prompts_controller.dart';
 
 import '../../../helpers/async/widget_test_animation.dart';
@@ -18,6 +19,50 @@ Future<void> _openDrawer(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets('恢复CRLF草稿使用LF光标位置且选择文本不改写原草稿', (tester) async {
+    final db = AppDatabase.inMemory();
+    addTearDown(db.close);
+    final preferences = await TestFixtures.seedPreferences(
+      database: db,
+      conversations: [
+        TestFixtures.conversation('a', '第一会话', DateTime(2026, 9, 18)),
+        TestFixtures.conversation('b', '第二会话', DateTime(2026, 9, 17)),
+      ],
+    );
+    await pumpChatScreen(
+      tester,
+      fakeClient: FakeChatGenerationClient(),
+      database: db,
+      preferences: preferences,
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
+    final drafts = container.read(composerDraftProvider.notifier);
+    drafts.setBody('b', '甲\r\n乙');
+    container.read(chatSessionsProvider.notifier).selectConversation('b');
+    await tester.pump();
+    await settleOverlayTransition(tester);
+    final field = tester.widget<TextField>(chatMessageComposerFinder);
+    expect(field.controller!.text, '甲\n乙');
+    expect(field.controller!.selection.extentOffset, 3);
+    field.controller!.selection = const TextSelection(
+      baseOffset: 0,
+      extentOffset: 3,
+    );
+    await tester.pump();
+    expect(drafts.draftFor('b').body, '甲\r\n乙');
+    await tester.enterText(chatMessageComposerFinder, '甲\n乙\r\n丙');
+    await tester.pump();
+    expect(drafts.draftFor('b').body, '甲\n乙\n丙');
+    container.read(chatSessionsProvider.notifier).selectConversation('a');
+    await tester.pump();
+    container.read(chatSessionsProvider.notifier).selectConversation('b');
+    await tester.pump();
+    expect(field.controller!.text, '甲\n乙\n丙');
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('选择与新建会话后关闭抽屉并恢复各会话草稿', (tester) async {
     final db = AppDatabase.inMemory();
     addTearDown(db.close);
@@ -91,11 +136,17 @@ void main() {
       container.read(activeChatConversationProvider).selectedPresetPromptId,
       'writing',
     );
-    await tester.tap(find.byType(Switch).first);
+    await tester.tap(find.byType(Switch).at(1));
     await tester.pump();
     expect(
       container.read(presetPromptsProvider).single.messages.first.enabled,
       isFalse,
+    );
+    await tester.tap(find.text('单 System Prompt'));
+    await tester.pump();
+    expect(
+      container.read(presetPromptsProvider).single.singleSystemPrompt,
+      isTrue,
     );
     expect(find.byTooltip('关闭侧栏'), findsOneWidget);
     final target = find.text('写作规则条目 20');
