@@ -6,7 +6,7 @@ import 'package:oh_my_llm/core/widgets/app_field_group.dart';
 import '../../helpers/async/widget_test_animation.dart';
 
 void main() {
-  testWidgets('窄容器大字号选择后提交实际值并保留表单校验', (tester) async {
+  testWidgets('窄容器大字号选择后无需父级重建即可更新提示并保留校验', (tester) async {
     final formKey = GlobalKey<FormState>();
     String? selected;
     await tester.pumpWidget(
@@ -23,7 +23,7 @@ void main() {
               child: Form(
                 key: formKey,
                 child: StatefulBuilder(
-                  builder: (context, setState) => AppFieldGroup(
+                  builder: (context, _) => AppFieldGroup(
                     children: [
                       AppDropdownField<String>(
                         initialValue: selected,
@@ -39,7 +39,7 @@ void main() {
                           ),
                         ],
                         validator: (value) => value == null ? '请选择服务商' : null,
-                        onChanged: (value) => setState(() => selected = value),
+                        onChanged: (value) => selected = value,
                       ),
                     ],
                   ),
@@ -58,6 +58,7 @@ void main() {
     await tester.tap(find.text('第二服务商').last);
     await settleOverlayTransition(tester);
     expect(selected, 'second');
+    expect(find.byTooltip('第二服务商'), findsOneWidget);
     expect(formKey.currentState!.validate(), isTrue);
     expect(tester.takeException(), isNull);
   });

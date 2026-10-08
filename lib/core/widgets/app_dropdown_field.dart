@@ -36,10 +36,6 @@ class AppDropdownField<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final style = theme.textTheme.titleMedium;
-    final selected = items
-        .where((item) => item.value == initialValue)
-        .firstOrNull;
-    final selectedText = selected == null ? null : _text(selected.child);
     final padding =
         (decoration.contentPadding ??
                 theme.inputDecorationTheme.contentPadding ??
@@ -86,19 +82,24 @@ class AppDropdownField<T> extends StatelessWidget {
               preferredWidth.ceilToDouble(),
             ),
           ),
-          child: Tooltip(
-            message: selectedText ?? '',
-            excludeFromSemantics: true,
-            child: DropdownButtonFormField<T>(
-              initialValue: initialValue,
-              decoration: decoration,
-              items: items,
-              onChanged: onChanged,
-              validator: validator,
-              borderRadius: borderRadius ?? BorderRadius.circular(AppRadii.sm),
-              isExpanded: isExpanded,
-              isDense: isDense,
-            ),
+          child: DropdownButtonFormField<T>(
+            initialValue: initialValue,
+            decoration: decoration,
+            items: items,
+            // 由 FormField 选择提示，避免父级不重建时仍显示旧值。
+            selectedItemBuilder: (context) => [
+              for (final item in items)
+                Tooltip(
+                  message: _text(item.child) ?? '',
+                  excludeFromSemantics: true,
+                  child: item.child,
+                ),
+            ],
+            onChanged: onChanged,
+            validator: validator,
+            borderRadius: borderRadius ?? BorderRadius.circular(AppRadii.sm),
+            isExpanded: isExpanded,
+            isDense: isDense,
           ),
         ),
       ),
