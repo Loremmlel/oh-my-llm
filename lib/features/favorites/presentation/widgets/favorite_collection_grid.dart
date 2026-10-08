@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
@@ -13,7 +14,7 @@ import 'favorite_collection_tile.dart';
 ///
 /// 列数由父约束推导；[focusCollectionId] 指向刚新建完成的收藏夹，其卡片
 /// 以 autofocus 获得可见焦点，其余场景不抢占焦点。
-class FavoriteCollectionGrid extends StatelessWidget {
+class FavoriteCollectionGrid extends StatefulWidget {
   const FavoriteCollectionGrid({
     required this.summaries,
     required this.onOpen,
@@ -38,10 +39,19 @@ class FavoriteCollectionGrid extends StatelessWidget {
   final String? focusCollectionId;
 
   @override
+  State<FavoriteCollectionGrid> createState() => _FavoriteCollectionGridState();
+}
+
+class _FavoriteCollectionGridState extends State<FavoriteCollectionGrid> {
+  List<FavoriteCollectionSummary> _measuredSummaries = const [];
+  (double, TextTheme, TextScaler, TextDirection)? _measurementInputs;
+  double? _measuredHeight;
+
+  @override
   Widget build(BuildContext context) {
     return AppAdaptiveGrid(
       scrollViewKey: const PageStorageKey<String>('favorite-collection-grid'),
-      itemCount: summaries.length,
+      itemCount: widget.summaries.length,
       maxCrossAxisExtent: 300,
       crossAxisSpacing: 16,
       mainAxisSpacing: 16,
@@ -49,24 +59,24 @@ class FavoriteCollectionGrid extends StatelessWidget {
       mainAxisExtentBuilder: _cardHeight,
       findChildIndexCallback: (key) {
         if (key is! ValueKey<String>) return null;
-        final index = summaries.indexWhere(
+        final index = widget.summaries.indexWhere(
           (summary) => summary.collection.id == key.value,
         );
         return index < 0 ? null : index;
       },
       itemBuilder: (context, index, itemWidth) {
-        final summary = summaries[index];
+        final summary = widget.summaries[index];
         final collection = summary.collection;
         final isSystem = collection.isSystem;
         return FavoriteCollectionTile(
           key: ValueKey<String>(collection.id),
           summary: summary,
-          autofocus: collection.id == focusCollectionId,
-          onOpen: () => onOpen(summary),
-          onRename: isSystem ? null : () => onRename(summary),
+          autofocus: collection.id == widget.focusCollectionId,
+          onOpen: () => widget.onOpen(summary),
+          onRename: isSystem ? null : () => widget.onRename(summary),
           // 空夹删除不产生级联歧义；非空夹的去向选择由收藏夹内列表承接。
           onDelete: !isSystem && summary.itemCount == 0
-              ? () => onDelete(summary)
+              ? () => widget.onDelete(summary)
               : null,
         );
       },
@@ -75,11 +85,19 @@ class FavoriteCollectionGrid extends StatelessWidget {
 
   double _cardHeight(BuildContext context, double itemWidth) {
     final textTheme = Theme.of(context).textTheme;
+    final textScaler = MediaQuery.textScalerOf(context);
+    final textDirection = Directionality.of(context);
+    final inputs = (itemWidth, textTheme, textScaler, textDirection);
+    // 滚动或父级重建不改变文字排版时，复用本次列表的测量结果。
+    if (_measurementInputs == inputs &&
+        listEquals(_measuredSummaries, widget.summaries)) {
+      return _measuredHeight!;
+    }
     double textHeight(String text, TextStyle? style, {int? maxLines}) {
       final painter = TextPainter(
         text: TextSpan(text: text, style: style),
-        textDirection: Directionality.of(context),
-        textScaler: MediaQuery.textScalerOf(context),
+        textDirection: textDirection,
+        textScaler: textScaler,
         maxLines: maxLines,
         ellipsis: maxLines == null ? null : '…',
       )..layout(maxWidth: math.max(0, itemWidth - AppSpacing.md * 2));
@@ -89,7 +107,7 @@ class FavoriteCollectionGrid extends StatelessWidget {
     }
 
     // 网格同排等高，按实际名称、身份与字号为最需要空间的卡片预留高度。
-    return summaries.fold(168, (height, summary) {
+    final height = widget.summaries.fold<double>(168, (height, summary) {
       final requiredHeight =
           AppSpacing.md * 2 +
           AppInteractionSizes.minimumHitTarget +
@@ -109,5 +127,9 @@ class FavoriteCollectionGrid extends StatelessWidget {
           );
       return math.max(height, requiredHeight).ceilToDouble();
     });
+    _measurementInputs = inputs;
+    _measuredSummaries = List.of(widget.summaries);
+    _measuredHeight = height;
+    return height;
   }
 }
