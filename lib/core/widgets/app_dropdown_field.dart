@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 
 /// 下拉字段共用内容宽度规则；长选项限宽，并提供完整选中值的提示。
-class AppDropdownField<T> extends StatelessWidget {
+class AppDropdownField<T> extends StatefulWidget {
   const AppDropdownField({
     required this.items,
     required this.onChanged,
@@ -26,6 +26,24 @@ class AppDropdownField<T> extends StatelessWidget {
   final bool isExpanded;
   final bool isDense;
 
+  @override
+  State<AppDropdownField<T>> createState() => _AppDropdownFieldState<T>();
+}
+
+class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
+  var _fieldKey = GlobalKey<FormFieldState<T>>();
+
+  @override
+  void didUpdateWidget(AppDropdownField<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final selected = _fieldKey.currentState?.value;
+    if (selected != null &&
+        !widget.items.any((item) => item.value == selected)) {
+      // initialValue 的变化由 Material 同步；仅移除内部已选项时重建字段。
+      _fieldKey = GlobalKey<FormFieldState<T>>();
+    }
+  }
+
   String? _text(Widget child) => switch (child) {
     Text(:final data) => data,
     Tooltip(:final child?) => _text(child),
@@ -37,7 +55,7 @@ class AppDropdownField<T> extends StatelessWidget {
     final theme = Theme.of(context);
     final style = theme.textTheme.titleMedium;
     final padding =
-        (decoration.contentPadding ??
+        (widget.decoration.contentPadding ??
                 theme.inputDecorationTheme.contentPadding ??
                 const EdgeInsets.symmetric(horizontal: AppSpacing.sm))
             .resolve(Directionality.of(context));
@@ -46,14 +64,14 @@ class AppDropdownField<T> extends StatelessWidget {
         padding.horizontal +
         24 +
         AppSpacing.sm +
-        (decoration.suffixIcon == null
+        (widget.decoration.suffixIcon == null
             ? 0
             : AppInteractionSizes.minimumHitTarget);
     var preferredWidth = 112.0;
     for (final text in [
-      decoration.labelText,
-      decoration.hintText,
-      for (final item in items) _text(item.child),
+      widget.decoration.labelText,
+      widget.decoration.hintText,
+      for (final item in widget.items) _text(item.child),
     ]) {
       if (text == null) continue;
       final painter = TextPainter(
@@ -66,7 +84,7 @@ class AppDropdownField<T> extends StatelessWidget {
       painter.dispose();
       if (preferredWidth >= AppContentWidths.shortField) break;
     }
-    if (items.any((item) => _text(item.child) == null)) {
+    if (widget.items.any((item) => _text(item.child) == null)) {
       preferredWidth = AppContentWidths.shortField;
     }
 
@@ -83,23 +101,25 @@ class AppDropdownField<T> extends StatelessWidget {
             ),
           ),
           child: DropdownButtonFormField<T>(
-            initialValue: initialValue,
-            decoration: decoration,
-            items: items,
+            key: _fieldKey,
+            initialValue: widget.initialValue,
+            decoration: widget.decoration,
+            items: widget.items,
             // 由 FormField 选择提示，避免父级不重建时仍显示旧值。
             selectedItemBuilder: (context) => [
-              for (final item in items)
+              for (final item in widget.items)
                 Tooltip(
                   message: _text(item.child) ?? '',
                   excludeFromSemantics: true,
                   child: item.child,
                 ),
             ],
-            onChanged: onChanged,
-            validator: validator,
-            borderRadius: borderRadius ?? BorderRadius.circular(AppRadii.sm),
-            isExpanded: isExpanded,
-            isDense: isDense,
+            onChanged: widget.onChanged,
+            validator: widget.validator,
+            borderRadius:
+                widget.borderRadius ?? BorderRadius.circular(AppRadii.sm),
+            isExpanded: widget.isExpanded,
+            isDense: widget.isDense,
           ),
         ),
       ),
