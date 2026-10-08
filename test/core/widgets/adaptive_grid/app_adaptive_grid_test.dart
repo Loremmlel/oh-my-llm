@@ -4,6 +4,39 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/core/widgets/adaptive_grid/app_adaptive_grid.dart';
 
 void main() {
+  testWidgets('内容网格未满一行时仍遵守卡片最大宽度', (tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    for (final count in [1, 2]) {
+      final widths = <double>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: AppAdaptiveGrid.content(
+              maxCrossAxisExtent: 480,
+              crossAxisSpacing: 16,
+              equalRowHeights: false,
+              children: List.generate(
+                count,
+                (index) => LayoutBuilder(
+                  builder: (context, constraints) {
+                    widths.add(constraints.maxWidth);
+                    return Text('卡片$index');
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(widths, hasLength(count));
+      expect(widths.every((width) => width <= 480), isTrue);
+      expect(find.text('卡片0'), findsOneWidget);
+    }
+  });
+
   testWidgets('网格使用父宽度并仅构建可见项', (tester) async {
     double? itemWidth;
     var buildCount = 0;

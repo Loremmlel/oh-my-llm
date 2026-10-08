@@ -72,11 +72,12 @@ class AppAdaptiveGrid extends StatelessWidget {
         );
         final extentBuilder = mainAxisExtentBuilder;
         if (extentBuilder == null) {
-          final columns = math.min(geometry.crossAxisCount, itemCount);
-          if (columns == 0) return const SizedBox.shrink();
-          final itemWidth =
-              (constraints.maxWidth - crossAxisSpacing * (columns - 1)) /
-              columns;
+          if (itemCount == 0) return const SizedBox.shrink();
+          final columns = geometry.crossAxisCount;
+          final itemWidth = math.min(
+            maxCrossAxisExtent,
+            geometry.itemCrossAxisExtent,
+          );
           Widget buildRow(int start) => Row(
             crossAxisAlignment: equalRowHeights
                 ? CrossAxisAlignment.stretch
