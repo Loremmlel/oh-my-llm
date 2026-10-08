@@ -18,6 +18,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   ::CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
 
   flutter::DartProject project(L"data");
+  // 避免 Impeller 的 Windows 冷启动开销；上游修复并验证后再恢复默认。
+  // https://github.com/flutter/flutter/issues/191860
+  project.set_impeller_switch(flutter::ImpellerSwitch::Disabled);
 
   std::vector<std::string> command_line_arguments =
       GetCommandLineArguments();
