@@ -56,14 +56,14 @@ Material 提供交互、焦点与可访问性基础。视觉以中性阅读画�
 | 导航 | `AppShellScaffold` / `AppDestination` / GoRouter | 页面级操作进入 AppBar；窄屏用 `AppAdaptiveActions` 收纳低频动作。对象动作紧邻所属对象。 |
 | 对话辅助内容 | `ChatNavigationDrawer` / `AppSideDrawer` | 宽窄屏均从右侧弹出，用分段按钮切换历史会话与预设；记住分段，保留列表滚动位置。选择或新建会话后关闭，预设调整保持打开。 |
 | 作品导航 | `AgentNavigationDrawer` / `AppSideDrawer` | 宽窄屏均通过侧栏按钮打开；仅展示作品，支持就地搜索、清除与重命名，长列表独立滚动。选择作品后关闭侧栏，恢复该作品的唯一时间线和草稿。 |
-| 发送配置 | `ComposerTemplateHeader` / `ComposerProviderModelRow` | 桌面模板、服务商、模型同排，模型获得更宽比例；窄屏换行。选择器内部可 isExpanded，父级不能无条件占满画布。 |
-| 短表单字段 | `AppFieldGroup` + `DropdownButtonFormField` / `TextField` | 默认字段上限 320，按可用宽度换行；短枚举不占整个弹窗。URL、密钥、长正文按编辑需要保留宽度。 |
+| 发送配置 | `ComposerTemplateHeader` / `ComposerProviderModelRow` | 宽屏模板、服务商、模型按内容宽度同排；窄屏模板与收起按钮同行，其余字段按父级可用宽度换行。 |
+| 短表单字段 | `AppFieldGroup` + `AppDropdownField` / `TextField` | 下拉统一测量选项、标签和当前字号，最多使用 `shortField` 宽度，并按父约束收缩；完整选中值可通过 tooltip 查看。字段组统一间距和换行；固定顺序与预设的紧凑 selector 同样接入。URL、密钥、长正文按编辑需要保留宽度。 |
 | 弹窗 | `SettingsFormDialogScaffold` / Material `AlertDialog` | 固定标题、动作，内容内部滚动。Agent 文档只有正文编辑区滚动，键盘弹出后保存仍可达。 |
 | 弹窗键盘 | `AppDialogActions` | Esc 复用取消流程与未保存／忙碌保护；有唯一提交动作的表单支持 Ctrl+Enter。单行输入支持 Enter 和手机键盘“完成”，多行输入保留 Enter 换行。组合输入期间不关闭、不提交，嵌套弹窗只操作最上层并恢复原焦点。 |
 | 确认 | `AppConfirmDialog` | 说明对象与后果，取消默认聚焦。删除服务商说明受影响模型数量，删除模型说明所属服务商；聊天记录保留。 |
 | 设置分组与列表 | `SettingsSectionCard` / `ProviderTile` | 分组使用标题与留白，静态说明通过标题旁的问号查看；服务商、模型使用平坦记录。低频编辑／删除进菜单，展开后显示详情。 |
 | 按需帮助 | `AppHelpButton` / `AppHelpTitle` + `DetailDisplayDialog` | 标题旁问号打开可滚动、可复制的说明浮层，不改变主内容高度；设置表单通过 `SettingsFormDialogScaffold.helpText` 接入。 |
-| 网格与主从 | `AppAdaptiveGrid` / `AdaptiveMasterDetailLayout` | 使用内容规格与语义断点，不按固定设备列数模拟适配。 |
+| 网格与主从 | `AppAdaptiveGrid` / `AdaptiveMasterDetailLayout` | 使用内容规格与语义断点，不按固定设备列数模拟适配。少量设置卡片用 `.content` 自然等高布局，操作区靠底；分区允许自然高度，避免嵌套滚动。 |
 | 滚动与状态 | Flutter ScrollBehavior / ScrollbarTheme、feature 状态 | 保留可操作滚动条，各内容区拥有滚动；真实终态驱动完成、失败、中断及停止反馈。 |
 
 选择菜单由 Flutter 绘制，使用应用主题与圆角，不另造选择器框架。职责只有少量稳定选项时，Agent 配置桌面采用左侧职责导航、右侧模型与提示词；窄屏保留下拉选择职责。共享规则独立分组。确认／重命名用小弹窗，复杂编辑按内容限宽，不给所有任务统一一个窄宽度。

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_dropdown_field.dart';
+import 'package:oh_my_llm/core/widgets/app_field_group.dart';
 import 'package:oh_my_llm/core/widgets/long_text_editing_controller.dart';
 
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
@@ -200,7 +202,7 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
         const SizedBox(height: 12),
         _buildNameField(),
         const SizedBox(height: 12),
-        DropdownButtonFormField<PresetPromptSyntax>(
+        AppDropdownField<PresetPromptSyntax>(
           initialValue: _syntax,
           isExpanded: true,
           decoration: const InputDecoration(labelText: '模板语法'),
@@ -271,7 +273,7 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
   /// 紧凑模式下用下拉菜单替代条目列表，节省垂直空间，
   /// 避免用户编辑正文前需要滚动经过所有条目标题。
   Widget _buildCompactItemSelector(BuildContext context) {
-    return DropdownButtonFormField<int>(
+    return AppDropdownField<int>(
       key: ValueKey('compact-item-selector-$_selectedItemId'),
       initialValue: _selectedIndex,
       isExpanded: true,
@@ -352,54 +354,57 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
           ),
         ),
         const SizedBox(height: 12),
-        DropdownButtonFormField<PresetPromptEditorRole>(
-          key: const ValueKey('preset-prompt-role-field'), // test-key
-          initialValue: selected.role,
-          items: const [
-            DropdownMenuItem(
-              value: PresetPromptEditorRole.system,
-              child: Text('System'),
+        AppFieldGroup(
+          children: [
+            AppDropdownField<PresetPromptEditorRole>(
+              key: const ValueKey('preset-prompt-role-field'), // test-key
+              initialValue: selected.role,
+              items: const [
+                DropdownMenuItem(
+                  value: PresetPromptEditorRole.system,
+                  child: Text('System'),
+                ),
+                DropdownMenuItem(
+                  value: PresetPromptEditorRole.user,
+                  child: Text('User'),
+                ),
+                DropdownMenuItem(
+                  value: PresetPromptEditorRole.assistant,
+                  child: Text('Assistant'),
+                ),
+              ],
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() {
+                    _replaceSelected(selected.copyWith(role: value));
+                  });
+                }
+              },
+              decoration: const InputDecoration(labelText: '角色'),
             ),
-            DropdownMenuItem(
-              value: PresetPromptEditorRole.user,
-              child: Text('User'),
-            ),
-            DropdownMenuItem(
-              value: PresetPromptEditorRole.assistant,
-              child: Text('Assistant'),
+            AppDropdownField<PromptMessagePlacement>(
+              key: const ValueKey('preset-prompt-placement-field'), // test-key
+              initialValue: selected.placement,
+              items: PromptMessagePlacement.values
+                  .map((placement) {
+                    return DropdownMenuItem(
+                      value: placement,
+                      child: Text(switch (placement) {
+                        PromptMessagePlacement.before => '前置',
+                        PromptMessagePlacement.beforeLatestInput => '最新输入前',
+                        PromptMessagePlacement.after => '后置',
+                      }),
+                    );
+                  })
+                  .toList(growable: false),
+              onChanged: (value) {
+                if (value != null) {
+                  _changeSelectedPlacement(value);
+                }
+              },
+              decoration: const InputDecoration(labelText: '位置'),
             ),
           ],
-          onChanged: (value) {
-            if (value != null) {
-              setState(() {
-                _replaceSelected(selected.copyWith(role: value));
-              });
-            }
-          },
-          decoration: const InputDecoration(labelText: '角色'),
-        ),
-        const SizedBox(height: 12),
-        DropdownButtonFormField<PromptMessagePlacement>(
-          key: const ValueKey('preset-prompt-placement-field'), // test-key
-          initialValue: selected.placement,
-          items: PromptMessagePlacement.values
-              .map((placement) {
-                return DropdownMenuItem(
-                  value: placement,
-                  child: Text(switch (placement) {
-                    PromptMessagePlacement.before => '前置',
-                    PromptMessagePlacement.beforeLatestInput => '最新输入前',
-                    PromptMessagePlacement.after => '后置',
-                  }),
-                );
-              })
-              .toList(growable: false),
-          onChanged: (value) {
-            if (value != null) {
-              _changeSelectedPlacement(value);
-            }
-          },
-          decoration: const InputDecoration(labelText: '位置'),
         ),
         const SizedBox(height: 12),
         if (isWide) Expanded(child: contentField) else contentField,

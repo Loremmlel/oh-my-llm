@@ -39,7 +39,7 @@ class NetworkSettingsTab extends ConsumerWidget {
               ? const SettingsEmptyState(
                   icon: Icons.dns_outlined,
                   title: '还没有自定义请求头',
-                  description: '点击右上角的「新增请求头」按钮开始添加。',
+                  description: '点击「新增请求头」开始添加。',
                 )
               : Column(
                   children: [

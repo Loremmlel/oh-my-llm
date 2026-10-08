@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_dropdown_field.dart';
 import 'package:oh_my_llm/core/widgets/app_help_button.dart';
 import 'package:oh_my_llm/core/widgets/app_field_group.dart';
 import 'package:oh_my_llm/core/widgets/dialogs/app_dialog_actions.dart';
@@ -118,7 +119,7 @@ class _FixedPromptSequenceRunnerDialogState
                   children: [
                     AppFieldGroup(
                       children: [
-                        DropdownButtonFormField<String>(
+                        AppDropdownField<String>(
                           initialValue: sequence?.id,
                           isExpanded: true,
                           items: widget.sequences
@@ -141,7 +142,7 @@ class _FixedPromptSequenceRunnerDialogState
                           decoration: const InputDecoration(labelText: '选择序列'),
                         ),
                         if (sequence != null && sequence.steps.isNotEmpty)
-                          DropdownButtonFormField<int>(
+                          AppDropdownField<int>(
                             initialValue: _stepIndex,
                             isExpanded: true,
                             items: [

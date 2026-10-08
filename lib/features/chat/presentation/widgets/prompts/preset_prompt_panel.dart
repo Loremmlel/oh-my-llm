@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_dropdown_field.dart';
 import 'package:oh_my_llm/core/widgets/app_help_button.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -42,7 +43,7 @@ class PresetPromptPanel extends ConsumerWidget {
         // ── 预设选择器 ──────────────────────
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: DropdownButtonFormField<String>(
+          child: AppDropdownField<String>(
             key: ValueKey(resolvedValue),
             initialValue: resolvedValue,
             decoration: const InputDecoration(

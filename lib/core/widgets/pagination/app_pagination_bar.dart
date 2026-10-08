@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_dropdown_field.dart';
 import 'package:flutter/services.dart';
 
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
@@ -173,7 +174,7 @@ class _AppPaginationBarState extends State<AppPaginationBar> {
             if (compact) ...pageControls,
             SizedBox(
               width: pageSizeWidth,
-              child: DropdownButtonFormField<int>(
+              child: AppDropdownField<int>(
                 // 容量不在选项内（如 route 携带非法值）时不预选，交由上层回退。
                 initialValue: widget.pageSizeOptions.contains(state.pageSize)
                     ? state.pageSize

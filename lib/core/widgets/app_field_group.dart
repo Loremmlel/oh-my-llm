@@ -7,7 +7,7 @@ import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 class AppFieldGroup extends StatelessWidget {
   const AppFieldGroup({
     required this.children,
-    this.fieldWidth = 320,
+    this.fieldWidth = AppContentWidths.shortField,
     super.key,
   });
   final List<Widget> children;
@@ -20,8 +20,10 @@ class AppFieldGroup extends StatelessWidget {
       runSpacing: AppSpacing.md,
       children: [
         for (final child in children)
-          SizedBox(
-            width: math.min(fieldWidth, constraints.maxWidth),
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: math.min(fieldWidth, constraints.maxWidth),
+            ),
             child: child,
           ),
       ],

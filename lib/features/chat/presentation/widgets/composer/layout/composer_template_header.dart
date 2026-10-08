@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_dropdown_field.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 
 import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
@@ -17,7 +18,7 @@ class ComposerTemplateHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DropdownButtonFormField<String?>(
+    return AppDropdownField<String?>(
       key: const ValueKey('template-prompt-selector'),
       initialValue: selectedTemplatePrompt?.id,
       isExpanded: true,

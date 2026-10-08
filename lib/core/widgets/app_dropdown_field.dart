@@ -1,0 +1,107 @@
+import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
+
+/// 下拉字段共用内容宽度规则；长选项限宽，并提供完整选中值的提示。
+class AppDropdownField<T> extends StatelessWidget {
+  const AppDropdownField({
+    required this.items,
+    required this.onChanged,
+    this.initialValue,
+    this.decoration = const InputDecoration(),
+    this.validator,
+    this.borderRadius,
+    this.isExpanded = true,
+    this.isDense = true,
+    super.key,
+  });
+
+  final List<DropdownMenuItem<T>> items;
+  final ValueChanged<T?>? onChanged;
+  final T? initialValue;
+  final InputDecoration decoration;
+  final FormFieldValidator<T>? validator;
+  final BorderRadius? borderRadius;
+  final bool isExpanded;
+  final bool isDense;
+
+  String? _text(Widget child) => switch (child) {
+    Text(:final data) => data,
+    Tooltip(:final child?) => _text(child),
+    _ => null,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final style = theme.textTheme.titleMedium;
+    final selected = items
+        .where((item) => item.value == initialValue)
+        .firstOrNull;
+    final selectedText = selected == null ? null : _text(selected.child);
+    final padding =
+        (decoration.contentPadding ??
+                theme.inputDecorationTheme.contentPadding ??
+                const EdgeInsets.symmetric(horizontal: AppSpacing.sm))
+            .resolve(Directionality.of(context));
+    // 箭头、字段内边距和帮助按钮都需要独立空间，不能挤掉选中值。
+    final chromeWidth =
+        padding.horizontal +
+        24 +
+        AppSpacing.sm +
+        (decoration.suffixIcon == null
+            ? 0
+            : AppInteractionSizes.minimumHitTarget);
+    var preferredWidth = 112.0;
+    for (final text in [
+      decoration.labelText,
+      decoration.hintText,
+      for (final item in items) _text(item.child),
+    ]) {
+      if (text == null) continue;
+      final painter = TextPainter(
+        text: TextSpan(text: text, style: style),
+        textDirection: Directionality.of(context),
+        textScaler: MediaQuery.textScalerOf(context),
+        maxLines: 1,
+      )..layout();
+      preferredWidth = math.max(preferredWidth, painter.width + chromeWidth);
+      painter.dispose();
+      if (preferredWidth >= AppContentWidths.shortField) break;
+    }
+    if (items.any((item) => _text(item.child) == null)) {
+      preferredWidth = AppContentWidths.shortField;
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) => Align(
+        alignment: AlignmentDirectional.centerStart,
+        widthFactor: 1,
+        child: SizedBox(
+          width: math.min(
+            constraints.maxWidth,
+            math.min(
+              AppContentWidths.shortField,
+              preferredWidth.ceilToDouble(),
+            ),
+          ),
+          child: Tooltip(
+            message: selectedText ?? '',
+            excludeFromSemantics: true,
+            child: DropdownButtonFormField<T>(
+              initialValue: initialValue,
+              decoration: decoration,
+              items: items,
+              onChanged: onChanged,
+              validator: validator,
+              borderRadius: borderRadius ?? BorderRadius.circular(AppRadii.sm),
+              isExpanded: isExpanded,
+              isDense: isDense,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

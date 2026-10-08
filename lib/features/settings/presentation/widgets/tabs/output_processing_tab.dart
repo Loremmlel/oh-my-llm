@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
+import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 import 'package:oh_my_llm/core/widgets/dialogs/app_confirm_dialog.dart';
 import 'package:oh_my_llm/core/widgets/dialogs/app_dialog_actions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -40,7 +42,7 @@ class OutputProcessingTab extends ConsumerWidget {
               ? const SettingsEmptyState(
                   icon: Icons.rule_folder_rounded,
                   title: '还没有正则规则',
-                  description: '点击右上角的「新增规则」按钮开始添加。',
+                  description: '点击「新增规则」开始添加。',
                 )
               : Column(
                   children: [
@@ -184,69 +186,95 @@ class _RuleTile extends StatelessWidget {
         margin: EdgeInsets.zero,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final details = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    rule.title.isEmpty ? '未命名规则' : rule.title,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    rule.pattern,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontFamilyFallback: const ['monospace'],
+                      color: theme.colorScheme.onSurface.withAlpha(179),
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    replacementLabel,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurface.withAlpha(140),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              );
+              final actions = Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Tooltip(
+                    message: rule.enabled ? '已启用' : '已停用',
+                    child: Switch(value: rule.enabled, onChanged: onToggle),
+                  ),
+                  IconButton(
+                    onPressed: onMoveUp,
+                    icon: const Icon(Icons.arrow_upward_rounded),
+                    tooltip: '上移',
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  IconButton(
+                    onPressed: onMoveDown,
+                    icon: const Icon(Icons.arrow_downward_rounded),
+                    tooltip: '下移',
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  IconButton(
+                    onPressed: onEdit,
+                    icon: const Icon(Icons.edit_outlined),
+                    tooltip: '编辑',
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  IconButton(
+                    onPressed: onDelete,
+                    icon: Icon(
+                      Icons.delete_outline,
+                      color: theme.colorScheme.error,
+                    ),
+                    tooltip: '删除',
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ],
+              );
+              if (AppBreakpoints.useCompactFormActions(constraints.maxWidth)) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(
-                      rule.title.isEmpty ? '未命名规则' : rule.title,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      rule.pattern,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontFamilyFallback: const ['monospace'],
-                        color: theme.colorScheme.onSurface.withAlpha(179),
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      replacementLabel,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withAlpha(140),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    details,
+                    const SizedBox(height: AppSpacing.xs),
+                    Align(
+                      alignment: AlignmentDirectional.centerEnd,
+                      child: actions,
                     ),
                   ],
-                ),
-              ),
-              Switch(value: rule.enabled, onChanged: onToggle),
-              IconButton(
-                onPressed: onMoveUp,
-                icon: const Icon(Icons.arrow_upward_rounded),
-                tooltip: '上移',
-                visualDensity: VisualDensity.compact,
-              ),
-              IconButton(
-                onPressed: onMoveDown,
-                icon: const Icon(Icons.arrow_downward_rounded),
-                tooltip: '下移',
-                visualDensity: VisualDensity.compact,
-              ),
-              IconButton(
-                onPressed: onEdit,
-                icon: const Icon(Icons.edit_outlined),
-                tooltip: '编辑',
-                visualDensity: VisualDensity.compact,
-              ),
-              IconButton(
-                onPressed: onDelete,
-                icon: Icon(
-                  Icons.delete_outline,
-                  color: theme.colorScheme.error,
-                ),
-                tooltip: '删除',
-                visualDensity: VisualDensity.compact,
-              ),
-            ],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(child: details),
+                  const SizedBox(width: AppSpacing.sm),
+                  actions,
+                ],
+              );
+            },
           ),
         ),
       ),

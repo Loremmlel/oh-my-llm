@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_dropdown_field.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 import 'package:oh_my_llm/core/utils/id_generator.dart';
@@ -141,7 +142,7 @@ class _SillyTavernImportDialogState
             ),
             const SizedBox(height: AppSpacing.md),
             if (source.orders.length > 1)
-              DropdownButtonFormField<int>(
+              AppDropdownField<int>(
                 initialValue: _order,
                 isExpanded: true,
                 decoration: const InputDecoration(labelText: '使用哪个顺序表'),
@@ -172,7 +173,7 @@ class _SillyTavernImportDialogState
             for (final issue in placementIssues!)
               Padding(
                 padding: const EdgeInsets.only(top: AppSpacing.md),
-                child: DropdownButtonFormField<PromptMessagePlacement>(
+                child: AppDropdownField<PromptMessagePlacement>(
                   key: ValueKey('placement-${issue.identifier}'),
                   initialValue: _placements[issue.identifier],
                   isExpanded: true,

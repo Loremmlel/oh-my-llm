@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_dropdown_field.dart';
 
 import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
 
@@ -21,28 +22,23 @@ class SelectVariableField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InputDecorator(
+    return AppDropdownField<String>(
+      key: ValueKey(controller.text),
+      initialValue: controller.text,
       decoration: InputDecoration(
         labelText: variable.name,
         errorText: errorText,
       ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          // 控制器在字段绑定阶段已按当前选项归一化，controller.text 必是有效选项。
-          value: controller.text,
-          isExpanded: true,
-          items: [
-            for (final option in variable.options)
-              DropdownMenuItem<String>(value: option, child: Text(option)),
-          ],
-          onChanged: (value) {
-            if (value == null) {
-              return;
-            }
-            controller.text = value;
-          },
-        ),
-      ),
+      items: [
+        for (final option in variable.options)
+          DropdownMenuItem<String>(value: option, child: Text(option)),
+      ],
+      onChanged: (value) {
+        if (value == null) {
+          return;
+        }
+        controller.text = value;
+      },
     );
   }
 }

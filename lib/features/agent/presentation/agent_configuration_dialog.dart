@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_dropdown_field.dart';
 import 'package:oh_my_llm/core/widgets/app_help_button.dart';
 import 'package:oh_my_llm/core/widgets/long_text_editing_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -143,7 +144,7 @@ class _ConfigurationDialogState extends ConsumerState<_ConfigurationDialog> {
         AppFieldGroup(
           fieldWidth: 440,
           children: [
-            DropdownButtonFormField<String>(
+            AppDropdownField<String>(
               key: ValueKey('model/${_role.name}/$selectedModel'),
               initialValue: validModel
                   ? selectedModel
@@ -234,7 +235,7 @@ class _ConfigurationDialogState extends ConsumerState<_ConfigurationDialog> {
                 AppFieldGroup(
                   children: [
                     if (configurations.isNotEmpty)
-                      DropdownButtonFormField<String>(
+                      AppDropdownField<String>(
                         key: ValueKey('configuration/${_saved.name}'),
                         decoration: const InputDecoration(labelText: '载入已保存方案'),
                         isExpanded: true,
@@ -316,7 +317,7 @@ class _ConfigurationDialogState extends ConsumerState<_ConfigurationDialog> {
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        DropdownButtonFormField<AgentRole>(
+                        AppDropdownField<AgentRole>(
                           initialValue: _role,
                           isExpanded: true,
                           borderRadius: BorderRadius.circular(AppRadii.sm),
@@ -342,7 +343,7 @@ class _ConfigurationDialogState extends ConsumerState<_ConfigurationDialog> {
                 if (presets.isNotEmpty)
                   AppFieldGroup(
                     children: [
-                      DropdownButtonFormField<int>(
+                      AppDropdownField<int>(
                         decoration: const InputDecoration(
                           labelText: '追加现有预设文本',
                         ),

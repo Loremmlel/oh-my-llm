@@ -58,6 +58,7 @@ class SettingsEntityCard extends StatelessWidget {
             else
               Text(title, style: theme.textTheme.titleMedium),
             ...body,
+            const Spacer(),
             const SizedBox(height: 12),
             Wrap(spacing: 8, runSpacing: 8, children: actions),
           ],
