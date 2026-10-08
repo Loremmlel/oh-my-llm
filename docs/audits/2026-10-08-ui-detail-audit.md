@@ -4,13 +4,13 @@
 
 本次按用户要求排查对齐、间距、内容填充、滚动和 selector 一致性。第二张截图指连接区域未居中；第三张截图指相邻控件缺少 padding、边框粘连。截图里的正文只作为布局样本。
 
-共登记 15 项问题：P1 2 项、P2 12 项、P3 1 项。已修复 11 项，剩余 4 项待修复；另保留 1 项已排除记录（UI-07）。原始现象与复现条件保留作为验收依据。
+初次登记 15 项问题，修复复验新增 1 项，共 16 项：P1 2 项、P2 13 项、P3 1 项。16 项均已修复并在隔离浏览器复验；另保留 1 项已排除记录（UI-07）。原始现象与复现条件保留作为验收依据，原生平台验证边界见文末。
 
 ## 修复进度
 
 | 问题 | 当前状态 | 修复提交 | 验证结果 |
 |---|---|---|---|
-| UI-14 | 已复验 | `27e9fd92` | 浏览器 320×640、字号 1.5，开启思考后底部按钮完整可见，并实际打开上下文过滤；无溢出日志。组件测试通过。 |
+| UI-14 | 已复验 | `27e9fd92` | 浏览器 320×640、字号 1.5，开启思考后底部按钮完整可见，并实际打开上下文过滤；模拟底部键盘占用 240 后仍可操作。无溢出日志，组件测试通过。 |
 | UI-15 | 已复验 | `2544a13f` | 浏览器 320×640、字号 1.5，系统及普通收藏夹的数量、日期完整可见；无溢出日志。长名称组件测试通过。 |
 | UI-01 | 已复验 | `913ad6c8` | 浏览器 1440×900，同排 8 / 1 / 3 条目的预设卡片操作靠底且齐平。 |
 | UI-03 | 已复验 | `913ad6c8` | 浏览器 1280×720，角色 / 位置按内容限宽并排，正文利用剩余宽高；编辑操作回归测试通过。 |
@@ -19,10 +19,17 @@
 | UI-12 | 已复验 | `913ad6c8` | 分区主操作靠右，窄分区另起一行；删除空状态的方位描述。浏览器宽屏提示词 / 窄屏输出处理确认。 |
 | UI-13 | 已复验 | `913ad6c8` | 浏览器 320×640、字号 1.5，正文与操作分行，两条规则均可读；排序首尾禁用状态保留。 |
 | UI-02 | 已复验 | `183c8926` | 浏览器 1280×720 预设移动图标同排；390×844 固定顺序工具栏同排，外层滚动量由 4 变为 0；紧凑 selector 实际切换至第二步。 |
-| UI-06 | 已复验 | `183c8926` | 浏览器 1440×900，30 行记忆及模板正文使用剩余高度，标题与保存可见；1024×600 Agent 文档正文填满，操作可达。 |
+| UI-06 | 已复验 | `183c8926` | 浏览器 1440×900，30 行记忆及模板正文使用剩余高度，标题与保存可见；1024×600 / 1440×900 Agent 文档正文填满。320×640、字号 1.5、模拟键盘占用 240 时，记忆表单滚动且保存可见。 |
 | UI-10 | 已复验 | `183c8926` | 浏览器 1440×900，总结空状态高度约 256（原约 728）；390×844 短步骤预览按内容收缩，操作与关闭之间无大片空白。 |
+| UI-04 | 已复验 | `9b4cdfd7` | 浏览器 1440×900，连接区 480 宽并在内容画布中居中；320×640、字号 1.5，客户端 / 服务端模式文字可换行，字段和广播按钮可达，无溢出日志。 |
+| UI-05 | 已复验 | `01c76b8b` | 浏览器 1440×900 与深色 390×844，分隔线、追加预设、说明、共享正文、职责 chips 留有间距；滚动到末尾后保存 / 应用始终可达。 |
+| UI-09 | 已复验 | `7e65c5cb` | 浏览器 1440×900，短收藏从工具栏下方开始，保持 720 可读限宽；不再垂直漂在页面中部。 |
+| UI-16 | 已复验 | `9b4cdfd7` | 浏览器 1440×900 的普通 / 错误状态，内容、开始同步、错误和重新同步共用 156 / 1356 边界；390×844 成功状态也共用边距。未执行真实同步。 |
+| UI-17 | 已复验 | `01c76b8b` | 浏览器 1440×900，Agent 配置向下滚动后，职责选中背景随内容裁剪，不再出现在固定标题后面。 |
 
-自动验证：溢出组件测试 7 项、共享布局现有回归测试 39 项、共享下拉选择 / 校验测试 2 项、弹窗相关回归测试 32 项通过（分组间包含重复用例，不相加作为独立总数）；`flutter analyze` 通过。修复前的失败证据位于 ignored `logs/ui-composer-overflow-red.log`、`logs/ui-favorite-overflow-red.log`；通过证据位于 `logs/ui-overflows-green.log`、`logs/ui-shared-green.log`、`logs/ui-dropdown-green.log`、`logs/ui-dialogs-green.log`。其它问题仍按下文顺序处理。
+自动验证：最终 `flutter test --reporter compact` 全量 1898 项通过（命令层 240 秒硬超时，实际约 63 秒）；`flutter analyze` 无问题；`dart run tool/check_import_boundaries.dart` 检查 448 个文件、0 条违规；提交前格式检查与 `git diff --check` 通过。日志为 ignored `logs/fltest.log`、`logs/ui-final-analyze.log`、`logs/ui-final-boundaries.log`。
+
+聚焦验证包括溢出组件测试 7 项、共享布局现有回归测试 39 项、共享下拉交互 / 校验测试 2 项、弹窗相关回归测试 32 项（分组间有重复，不相加作为独立总数）。红 / 绿证据分别为 `logs/ui-composer-overflow-red.log`、`logs/ui-favorite-overflow-red.log` 与 `logs/ui-overflows-green.log`、`logs/ui-shared-green.log`、`logs/ui-dropdown-green.log`、`logs/ui-dialogs-green.log`。复验还修正了共享下拉在父级不重建时 tooltip 停留在旧值的问题：`da31caa1`，由 Material 表单自己的选中项决定提示；测试红 / 绿证据为 `logs/ui-dropdown-tooltip-red.log`、`logs/ui-dropdown-tooltip-green.log`。
 
 ## 检查方法与边界
 
@@ -38,9 +45,9 @@
 
 | 页面 / 分区 | 桌面 | 窄屏 / 矮屏 | 相关弹窗与状态 | 当前结论 |
 |---|---|---|---|---|
-| 对话 | 1440×900；侧栏历史 / 预设两态 | 390×844；320×640、字号 1.5 | 上下文、过滤、固定顺序运行器、检查点空状态；更多设置开 / 关思考；预设下拉与消息只读详情 | UI-11、14；输入法键盘未模拟 |
+| 对话 | 1440×900；侧栏历史 / 预设两态 | 390×844；320×640、字号 1.5 | 上下文、过滤、固定顺序运行器、检查点空状态；更多设置开 / 关思考；预设下拉与消息只读详情；模拟键盘占用 240 | UI-11、14 已复验；原生输入法未验收 |
 | 历史对话 | 1440×900，普通 / 选择态 | 390×844 | 搜索框、条目菜单、批量选择、分页；重命名 / 删除源码 | 已看状态未见布局溢出 |
-| Agent | 1440×900，正文 / 工作文档 / 剧情状态；深色运行详情 | 390×844，执行过程展开 | 模型与规则宽 / 窄、文档编辑、上下文、总结空状态；运行详情展开 / 收起 | UI-05、06、10 |
+| Agent | 1440×900，正文 / 工作文档 / 剧情状态；深色运行详情 | 390×844，执行过程展开、深色配置 | 模型与规则宽 / 窄及末尾滚动、文档编辑、上下文、总结空状态；运行详情展开 / 收起 | UI-05、06、10、17 已复验 |
 | 收藏总览 / 收藏夹 / 详情 | 1440×900，三级视图 | 总览 390×844；320×640、字号 1.5 | 新建收藏夹与空值校验；移动 / 删除 / 重命名源码 | UI-09、15 |
 | 设置：服务商 | 1440×900，折叠 / 展开模型 | 390×844 | 服务商 / 模型编辑 390×844；API 拉取流程源码 | 已看短表单无溢出 |
 | 设置：预设 Prompt | 1440×900，3 张不同内容量卡片 | 列表 390×844；编辑 1280×720、1024×600 | 主从编辑、移动、角色 / 位置 selector；SillyTavern 导入初始弹窗 390×844，解析后状态源码 | UI-01～03；UI-07 为排除记录 |
@@ -49,7 +56,7 @@
 | 设置：输出处理 | 1440×900，2 条规则 | 390×844；320×640、字号 1.5 | 排序首尾禁用状态；编辑短表单 390×844 | UI-13；短表单已看状态正常 |
 | 设置：其它设置 | 1440×900 | 390×844 | 字号、重试分段 / 数字字段 / 开关；导入 / 导出确认源码 | 已看状态未见溢出 |
 | 同步：连接 | 1440×900，客户端空闲 | 390×844 已连接；320×640、字号 1.5 搜索中 / 服务端无网卡 | 配对输入表单 390×844；不提交配对或启动广播 / 搜索 | UI-04；有网卡分支受浏览器限制 |
-| 同步：同步 | 1440×900，连接前 / 已配对、5 分组 | 390×844，已连接、5 分组 | 导入确认与进度源码；不执行同步 | UI-16；已看状态无窄屏溢出 |
+| 同步：同步 | 1440×900，连接前 / 已配对、5 分组 / 错误 | 390×844，已连接、5 分组、成功提示 | 导入确认与进度源码；状态由合成数据注入，不执行同步 | UI-16 已复验；已看状态无窄屏溢出 |
 | 同步：媒体 | 1440×900，目录 / 图片页面 / 视频控制栏 | 390×844，网格 | 合成文件、图片占位资产；视频只检查生产控制栏 | 原生解码 / 全屏 / 文件选择未验收 |
 | 对话：图片预览 | 源码 | 390×844 | 文件无法读取状态、关闭与缩放工具栏 | 已看状态无布局溢出；成功加载 / 手势缩放仍需补测 |
 
@@ -76,6 +83,12 @@
 | UI-15 | P1 · 待修复 | 收藏总览 320×640、1.5 倍字号，“未分类”卡片底部溢出 6，日期受遮挡；普通卡片同尺寸正常。 | 浏览器可见溢出条与 `favorite_collection_tile.dart:113` 当次日志；`FavoriteCollectionGrid` 高度固定 168，系统卡片多一行身份文字，未计入字号缩放。 | 由字号 / 实际内容计算最小卡片高度，或使用能自然撑高的布局。验收：系统 / 普通卡片、双行长名称、大字号下无溢出，同排操作和元信息对齐。 |
 | UI-16 | P2 · 待修复 | 1440×900 已配对的同步页，内容分区左右边界约为 156 / 1356，“开始同步”按钮却扩展到约 88 / 1424，主操作与内容未对齐。 | 浏览器复现；`sync_operation_tab.dart` 的分区各自通过 `SettingsSectionCard` 限宽 1200，主按钮直接放在外层 ListView，以 `SizedBox(width: double.infinity)` 撑满。错误 / 成功分支的独立容器也需一起核对。 | 在整个页面内容层统一限宽与水平边界，避免每个分区分别居中。验收：连接状态、分组选项、主按钮及错误 / 成功信息共用边界，窄屏保留统一内边距。 |
 
+## 修复复验新增问题
+
+| 编号 | 优先级 | 现象与根因 | 修复与验收 |
+|---|---|---|---|
+| UI-17 | P2 | 1440×900 的 Agent 配置向下滚动时，左侧职责导航的选中背景越过内容区，露在固定标题后面。ListTile 的背景绘制到了弹窗祖先 Material，未随滚动内容裁剪。 | 职责导航使用局部透明 Material 承载背景与墨水。修复后在相同视口滚动到末尾，标题区域干净；选中与切换行为保留。 |
+
 ## 初始 selector 现状与修复
 
 之前的工作已经形成共享组件 `lib/core/widgets/app_field_group.dart`，并非完全在各页面重复几行代码。但它是“短字段限宽 + 按父约束换行”的布局组件：默认每个字段最多 320，窄容器取可用宽度；它不按选中文字测量宽度，也不会自动影响没有接入的 Dropdown。
@@ -84,14 +97,14 @@
 
 修复后全部业务下拉统一通过 `AppDropdownField` 绘制，内部保留 Material 菜单、键盘和表单校验；根据选项、标签、字号测量宽度，受 `AppContentWidths.shortField` 与父约束限制，完整选中值提供 tooltip。`AppFieldGroup` 仅负责字段间距与换行。预设、固定顺序的紧凑 selector、聊天选择、Agent、分页与网卡均接入；不再保留业务侧独立的 Dropdown 实现。
 
-## 建议修复顺序
+## 本次修复顺序
 
 1. 先处理 UI-14、15：消除真实溢出，保证大字号下的操作与元信息可见。
 2. 再处理共享布局：UI-01、08、12 的卡片 / 分区规则，UI-03、11 的短字段宽度；现有组件能承担的规则应复用，避免逐页面追加例外。
 3. 处理长文与短内容的高度：UI-02、06、10。长正文利用可用空间，空状态与短表单保持紧凑；只有实际超长区域滚动。
 4. 最后核对页面对齐和段落边界：UI-04、05、09、16。对齐基于可见内容块和统一边界验收，不能只检查外层是否存在 Center。
 
-每项完成后填写“修复提交 / 复验视口与字号 / 结果”；未复验之前不改为已解决。共同回归尺寸为 1440×900、1280×720、1024×600、390×844，以及 320×640、字号 1.5。涉及原生键盘或媒体的项另补真实 Windows / Android 验证。
+以上问题均记录了修复提交、复验视口与结果；共同回归尺寸为 1440×900、1280×720、1024×600、390×844，以及 320×640、字号 1.5。键盘占用空间通过 MediaQuery.viewInsets 模拟，不能替代真实 Windows / Android 输入法或媒体验证。
 
 ## 源码入口
 
@@ -99,7 +112,7 @@
 |---|---|
 | UI-01、08、12 | [卡片操作区](../../lib/features/settings/presentation/widgets/shared/settings_entity_card.dart)、[卡片网格](../../lib/features/settings/presentation/widgets/shared/settings_card_grid.dart)、[分区标题](../../lib/features/settings/presentation/widgets/shared/settings_section_card.dart) |
 | UI-02、03 | [预设编辑](../../lib/features/settings/presentation/widgets/prompts/forms/preset_prompt_form_dialog.dart)、[固定顺序编辑](../../lib/features/settings/presentation/widgets/prompts/forms/fixed_prompt_sequence_form_dialog.dart)、[短字段共享布局](../../lib/core/widgets/app_field_group.dart) |
-| UI-05、06、10 | [Agent 配置](../../lib/features/agent/presentation/agent_configuration_dialog.dart)、[文档编辑](../../lib/features/agent/presentation/agent_document_editor.dart)、[总结管理](../../lib/features/agent/presentation/agent_summary_dialog.dart)、[记忆编辑](../../lib/features/settings/presentation/widgets/prompts/forms/memory_prompt_form_dialog.dart)、[固定顺序运行器](../../lib/features/chat/presentation/widgets/dialogs/fixed_prompt_sequence_runner_dialog.dart) |
+| UI-05、06、10、17 | [Agent 配置](../../lib/features/agent/presentation/agent_configuration_dialog.dart)、[文档编辑](../../lib/features/agent/presentation/agent_document_editor.dart)、[总结管理](../../lib/features/agent/presentation/agent_summary_dialog.dart)、[记忆编辑](../../lib/features/settings/presentation/widgets/prompts/forms/memory_prompt_form_dialog.dart)、[固定顺序运行器](../../lib/features/chat/presentation/widgets/dialogs/fixed_prompt_sequence_runner_dialog.dart) |
 | UI-09、15 | [收藏详情](../../lib/features/favorites/presentation/favorite_detail_screen.dart)、[收藏卡片](../../lib/features/favorites/presentation/widgets/favorite_collection_tile.dart)、[收藏网格](../../lib/features/favorites/presentation/widgets/favorite_collection_grid.dart) |
 | UI-11、14 | [服务商与模型字段](../../lib/features/chat/presentation/widgets/composer/layout/composer_provider_model_row.dart)、[输入区更多设置](../../lib/features/chat/presentation/widgets/composer/chat_composer_card.dart) |
 | UI-13 | [输出规则列表及编辑](../../lib/features/settings/presentation/widgets/tabs/output_processing_tab.dart) |
