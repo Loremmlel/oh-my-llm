@@ -4,11 +4,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
 import 'package:oh_my_llm/features/chat/application/workspace/chat_workspace_view_state.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/composer/chat_composer_card.dart';
+import 'package:oh_my_llm/features/chat/presentation/widgets/composer/controls/thinking_toggle.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/workspace/chat_workspace_bindings.dart';
+
+import '../../../../../helpers/async/widget_test_animation.dart';
 
 ChatWorkspaceComposerState _composerState({
   double? cacheHitRate,
   bool isCollapsed = false,
+  bool supportsReasoning = false,
 }) => ChatWorkspaceComposerState(
   readModel: ChatWorkspaceComposerReadModel(
     modelProviders: [],
@@ -21,7 +25,7 @@ ChatWorkspaceComposerState _composerState({
     isComposerCollapsed: isCollapsed,
     reasoningEnabled: false,
     reasoningEffort: ReasoningEffort.low,
-    supportsReasoning: false,
+    supportsReasoning: supportsReasoning,
     autoRetryEnabled: false,
     isBusy: false,
     isStreaming: false,
@@ -36,6 +40,7 @@ ChatWorkspaceComposerState _composerState({
 ChatWorkspaceComposerBindings _bindings({
   required TextEditingController controller,
   required FocusNode focusNode,
+  Future<void> Function()? onOpenMessageFilter,
 }) => ChatWorkspaceComposerBindings(
   messageController: controller,
   messageFocusNode: focusNode,
@@ -45,7 +50,7 @@ ChatWorkspaceComposerBindings _bindings({
   onTemplatePromptSelected: (_) {},
   onToggleComposerCollapsed: () {},
   onOpenFixedPromptSequenceRunner: () async {},
-  onOpenMessageFilter: () async {},
+  onOpenMessageFilter: onOpenMessageFilter ?? () async {},
 );
 
 /// 以指定 formActions 父约束宽度挂载 composer。
@@ -58,8 +63,10 @@ Future<void> _pumpComposer(
   double constraintWidth, {
   required ChatWorkspaceComposerState state,
   required ChatWorkspaceComposerBindings bindings,
+  Size viewport = const Size(1000, 900),
+  double textScale = 1,
 }) async {
-  tester.view.physicalSize = const Size(1000, 900);
+  tester.view.physicalSize = viewport;
   tester.view.devicePixelRatio = 1;
   addTearDown(() {
     tester.view.resetPhysicalSize();
@@ -70,6 +77,11 @@ Future<void> _pumpComposer(
   await tester.pumpWidget(
     ProviderScope(
       child: MaterialApp(
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context)
+              .copyWith(textScaler: TextScaler.linear(textScale)),
+          child: child!,
+        ),
         home: Scaffold(
           body: Center(
             child: SizedBox(
@@ -84,6 +96,38 @@ Future<void> _pumpComposer(
 }
 
 void main() {
+  testWidgets('窄屏大字号展开思考后仍可打开上下文过滤', (tester) async {
+    final controller = TextEditingController();
+    final focusNode = FocusNode();
+    addTearDown(controller.dispose);
+    addTearDown(focusNode.dispose);
+    var filterOpened = false;
+    await _pumpComposer(
+      tester,
+      312,
+      viewport: const Size(320, 640),
+      textScale: 1.5,
+      state: _composerState(supportsReasoning: true),
+      bindings: _bindings(
+        controller: controller,
+        focusNode: focusNode,
+        onOpenMessageFilter: () async {
+          filterOpened = true;
+        },
+      ),
+    );
+    await tester.tap(find.textContaining('更多设置'));
+    await settleOverlayTransition(tester);
+    await tester.tap(find.widgetWithText(ThinkingToggle, '深度思考').last);
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    final filter = find.widgetWithText(OutlinedButton, '上下文过滤');
+    await tester.ensureVisible(filter);
+    await tester.tap(filter);
+    await settleOverlayTransition(tester);
+    expect(filterOpened, isTrue);
+  });
+
   for (final width in [679.0, 680.0]) {
     testWidgets('$width: 操作行分支正确切换', (tester) async {
       final controller = TextEditingController();
