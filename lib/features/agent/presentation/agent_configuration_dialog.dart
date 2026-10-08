@@ -284,29 +284,35 @@ class _ConfigurationDialogState extends ConsumerState<_ConfigurationDialog> {
                         children: [
                           SizedBox(
                             width: 160,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Text(
-                                  '配置职责',
-                                  style: Theme.of(context).textTheme.labelLarge,
-                                ),
-                                const SizedBox(height: AppSpacing.xs),
-                                for (final role in AgentRole.values)
-                                  ListTile(
-                                    title: Text(agentRoleLabel(role)),
-                                    selected: _role == role,
-                                    selectedTileColor: Theme.of(context)
-                                        .colorScheme
-                                        .secondaryContainer,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(
-                                        AppRadii.sm,
-                                      ),
-                                    ),
-                                    onTap: () => setState(() => _role = role),
+                            // 选中背景与墨水跟随内容滚动，不能绘制到弹窗标题后面。
+                            child: Material(
+                              color: Colors.transparent,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Text(
+                                    '配置职责',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelLarge,
                                   ),
-                              ],
+                                  const SizedBox(height: AppSpacing.xs),
+                                  for (final role in AgentRole.values)
+                                    ListTile(
+                                      title: Text(agentRoleLabel(role)),
+                                      selected: _role == role,
+                                      selectedTileColor: Theme.of(context)
+                                          .colorScheme
+                                          .secondaryContainer,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(
+                                          AppRadii.sm,
+                                        ),
+                                      ),
+                                      onTap: () => setState(() => _role = role),
+                                    ),
+                                ],
+                              ),
                             ),
                           ),
                           const SizedBox(width: AppSpacing.md),
@@ -339,8 +345,11 @@ class _ConfigurationDialogState extends ConsumerState<_ConfigurationDialog> {
                     );
                   },
                 ),
-                const Divider(),
-                if (presets.isNotEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+                  child: Divider(height: 1),
+                ),
+                if (presets.isNotEmpty) ...[
                   AppFieldGroup(
                     children: [
                       AppDropdownField<int>(
@@ -373,6 +382,8 @@ class _ConfigurationDialogState extends ConsumerState<_ConfigurationDialog> {
                       ),
                     ],
                   ),
+                  const SizedBox(height: AppSpacing.md),
+                ],
                 const Text('切换模型会丢弃不兼容的原生推理与厂商字段。'),
                 const SizedBox(height: AppSpacing.sm),
                 TextField(
@@ -382,8 +393,10 @@ class _ConfigurationDialogState extends ConsumerState<_ConfigurationDialog> {
                   maxLines: 8,
                   decoration: const InputDecoration(labelText: '共享预设与文风'),
                 ),
+                const SizedBox(height: AppSpacing.sm),
                 Wrap(
                   spacing: AppSpacing.xs,
+                  runSpacing: AppSpacing.xs,
                   children: [
                     for (final role in AgentRole.values)
                       FilterChip(

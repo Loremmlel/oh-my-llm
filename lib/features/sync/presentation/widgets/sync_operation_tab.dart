@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 import 'package:oh_my_llm/core/widgets/dialogs/app_confirm_dialog.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -68,19 +69,30 @@ class _SyncOperationTabState extends ConsumerState<SyncOperationTab>
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        _buildSyncStatusCard(context, ref, clientState),
-        const SizedBox(height: 16),
-        if (clientState.phase == SyncPhase.error) ...[
-          _buildErrorMessage(context, ref, clientState),
-        ] else ...[
-          _buildGroupCard(context, ref, clientState),
-          const SizedBox(height: 16),
-          _buildSyncButton(context, ref, clientState),
-          if (clientState.phase == SyncPhase.imported) ...[
-            const SizedBox(height: 16),
-            _buildImportedMessage(context),
-          ],
-        ],
+        Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: AppContentWidths.wide),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildSyncStatusCard(context, ref, clientState),
+                const SizedBox(height: 16),
+                if (clientState.phase == SyncPhase.error) ...[
+                  _buildErrorMessage(context, ref, clientState),
+                ] else ...[
+                  _buildGroupCard(context, ref, clientState),
+                  const SizedBox(height: 16),
+                  _buildSyncButton(context, ref, clientState),
+                  if (clientState.phase == SyncPhase.imported) ...[
+                    const SizedBox(height: 16),
+                    _buildImportedMessage(context),
+                  ],
+                ],
+              ],
+            ),
+          ),
+        ),
       ],
     );
   }

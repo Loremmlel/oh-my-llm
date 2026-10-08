@@ -85,7 +85,8 @@ class _FavoriteDetailScreenState extends ConsumerState<FavoriteDetailScreen> {
           ),
         ],
       ),
-      body: Center(
+      body: Align(
+        alignment: Alignment.topCenter,
         // 宽屏限宽可读宽度，窄屏由 ConstrainedBox 自然占满父宽。
         child: ConstrainedBox(
           constraints: const BoxConstraints(
