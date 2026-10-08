@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_help_button.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 import 'package:oh_my_llm/core/widgets/dialogs/app_dialog_actions.dart';
@@ -37,7 +38,12 @@ class _ContextDialog extends ConsumerWidget {
       text = '无法读取上下文，请检查本地存储后重试。';
     }
     final dialog = AlertDialog(
-      title: Text(record == null ? '下一次输入预览' : '${step!.label}的实际输入'),
+      title: AppHelpTitle(
+        title: record == null ? '下一次输入预览' : '${step!.label}的实际输入',
+        message:
+            '显示实际输入的可读部分；不展示协议签名等私有字段。字符数不是 Token 用量。'
+            '${record == null ? '\n\n批量隐藏只排除独立正式正文块；原生工具历史和 Reasoning 中的正文副本仍会保留。' : ''}',
+      ),
       content: SizedBox(
         width: AppContentWidths.readable,
         child: SingleChildScrollView(
@@ -52,9 +58,6 @@ class _ContextDialog extends ConsumerWidget {
                       : record!.request.modelLabel,
                 ),
               Text('可读内容 ${text.length} 字符 · ${utf8.encode(text).length} 字节'),
-              const Text('显示实际输入的可读部分；不展示协议签名等私有字段。字符数不是 Token 用量。'),
-              if (record == null)
-                const Text('批量隐藏只排除独立正式正文块；原生工具历史和 Reasoning 中的正文副本仍会保留。'),
               const SizedBox(height: AppSpacing.sm),
               SelectableText(text),
               ExpansionTile(

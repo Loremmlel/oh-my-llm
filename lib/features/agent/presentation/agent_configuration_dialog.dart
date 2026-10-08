@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_help_button.dart';
 import 'package:oh_my_llm/core/widgets/long_text_editing_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
@@ -188,7 +189,7 @@ class _ConfigurationDialogState extends ConsumerState<_ConfigurationDialog> {
           maxLines: 12,
           decoration: const InputDecoration(
             labelText: '角色提示词',
-            helperText: '留空时采用此职责的默认提示词。',
+            hintText: '留空使用默认提示词',
             alignLabelWithHint: true,
           ),
         ),
@@ -211,7 +212,14 @@ class _ConfigurationDialogState extends ConsumerState<_ConfigurationDialog> {
         if (!didPop) _close();
       },
       child: AlertDialog(
-        title: const Text('模型与规则'),
+        title: const AppHelpTitle(
+          title: '模型与规则',
+          message:
+              '角色提示词留空时采用此职责的默认提示词。更改方案名称后保存，可另存一套方案。\n\n'
+              '追加现有预设仅复制已启用文本；共享预设在本作品前置注入，只有选中的职责使用。工具权限由应用执行，修改提示词不会扩大权限。\n\n'
+              '切换模型、端点或协议时，仅转换文本和应用函数工具往返；不兼容的推理、签名、加密内容及厂商内置工具字段将丢弃，不保证模型专属能力延续。\n\n'
+              '应用配置从下一次调用起生效，保留历史、正文和剧情状态。',
+        ),
         content: SizedBox(
           width: AppContentWidths.form,
           child: SingleChildScrollView(
@@ -261,10 +269,7 @@ class _ConfigurationDialogState extends ConsumerState<_ConfigurationDialog> {
                     TextField(
                       controller: _name,
                       readOnly: state.busy,
-                      decoration: const InputDecoration(
-                        labelText: '方案名称',
-                        helperText: '更改名称后保存，可另存一套方案。',
-                      ),
+                      decoration: const InputDecoration(labelText: '方案名称'),
                     ),
                   ],
                 ),
@@ -367,20 +372,14 @@ class _ConfigurationDialogState extends ConsumerState<_ConfigurationDialog> {
                       ),
                     ],
                   ),
-                const Text(
-                  '切换模型、端点或协议时，仅转换文本和应用函数工具往返；不兼容的推理、签名、加密内容及厂商内置工具字段将丢弃，不保证模型专属能力延续。',
-                ),
+                const Text('切换模型会丢弃不兼容的原生推理与厂商字段。'),
                 const SizedBox(height: AppSpacing.sm),
                 TextField(
                   controller: _preset,
                   readOnly: state.busy,
                   minLines: 3,
                   maxLines: 8,
-                  decoration: const InputDecoration(
-                    labelText: '共享预设与文风',
-                    helperText: '现有预设仅复制已启用文本；在本作品作为前置预设使用。',
-                    helperMaxLines: 3,
-                  ),
+                  decoration: const InputDecoration(labelText: '共享预设与文风'),
                 ),
                 Wrap(
                   spacing: AppSpacing.xs,
@@ -401,13 +400,8 @@ class _ConfigurationDialogState extends ConsumerState<_ConfigurationDialog> {
                       ),
                   ],
                 ),
-                const Text('选中的职责会使用共享预设。工具权限由应用执行，修改提示词不会扩大权限。'),
                 const SizedBox(height: AppSpacing.sm),
-                Text(
-                  state.busy
-                      ? '运行中可以查看配置，结束后可编辑。'
-                      : '同名方案直接覆盖保存。应用后从下一次调用起生效，保留历史、正文和剧情状态。',
-                ),
+                Text(state.busy ? '运行中可以查看配置，结束后可编辑。' : '同名方案将覆盖；应用配置从下次调用生效。'),
                 if (state.error.isNotEmpty)
                   Text(
                     state.error,

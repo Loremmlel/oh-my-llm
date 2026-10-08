@@ -108,6 +108,7 @@ class _ModelConfigFormDialogState extends State<ModelConfigFormDialog>
   Widget build(BuildContext context) {
     return SettingsFormDialogScaffold(
       title: _isEditing ? '编辑模型' : '新增模型',
+      helpText: '深度思考能力决定聊天页是否展示思考选项。\n\n仅在模型支持图像输入时开启图像能力；关闭后无法发送含图片的上下文。',
       formKey: formKey,
       isSaving: isSaving,
       onSubmit: _handleSubmit,
@@ -202,7 +203,6 @@ class _ModelConfigFormDialogState extends State<ModelConfigFormDialog>
         contentPadding: EdgeInsets.zero,
         value: _supportsReasoning,
         title: const Text('支持深度思考'),
-        subtitle: const Text('聊天页会据此决定是否展示思考相关选项。'),
         onChanged: (value) {
           setState(() {
             _supportsReasoning = value;
@@ -214,7 +214,6 @@ class _ModelConfigFormDialogState extends State<ModelConfigFormDialog>
         contentPadding: EdgeInsets.zero,
         value: _supportsImageInput,
         title: const Text('多模态 · 图像'),
-        subtitle: const Text('仅在模型支持图像输入时开启；关闭后无法发送含图片的上下文。'),
         onChanged: (value) => setState(() => _supportsImageInput = value),
       ),
     ];

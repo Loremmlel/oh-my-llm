@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_help_button.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 
@@ -30,7 +31,10 @@ class _AgentDocumentsPanelState extends ConsumerState<AgentDocumentsPanel> {
             alignment: WrapAlignment.spaceBetween,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              const Text('修改后直接保存，下次运行采用当前内容。'),
+              const AppHelpButton(
+                title: '工作文档',
+                message: '文档按世界书、人物卡、剧本和普通文档分类。修改后直接保存，下次运行采用当前内容。',
+              ),
               OutlinedButton.icon(
                 onPressed: state.busy
                     ? null

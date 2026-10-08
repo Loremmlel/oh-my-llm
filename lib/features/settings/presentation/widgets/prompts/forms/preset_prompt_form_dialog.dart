@@ -76,6 +76,10 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
 
     return SettingsFormDialogScaffold(
       title: isEditing ? '编辑预设 Prompt' : '新增预设 Prompt',
+      helpText:
+          '条目标题仅用于识别。System / User / Assistant 条目均可增删。\n\n'
+          '前置消息位于历史之前；最新输入前消息位于历史之后、新输入之前；后置消息位于最后。System 条目以 system 角色发送。\n\n'
+          'SillyTavern 有限宏按列表顺序求值启用条目，再按位置注入。支持 setvar / getvar / 文本 addvar、user、lastUserMessage、注释和 trim。导入注入顺序可在上下文中查看；移动条目会恢复该位置的列表顺序。普通文本模式不执行宏。',
       formKey: formKey,
       isSaving: isSaving,
       onSubmit: _handleSubmit,
@@ -227,13 +231,6 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
             }
           },
         ),
-        if (_usesMacros)
-          const Padding(
-            padding: EdgeInsets.only(top: 8),
-            child: Text(
-              '按列表顺序执行启用条目；标题仅作提示。支持 setvar / getvar / 文本 addvar、user、lastUserMessage、注释和 trim。导入注入顺序可在上下文中查看；移动条目会恢复该位置的列表顺序。',
-            ),
-          ),
         const SizedBox(height: 16),
         Wrap(
           spacing: 8,
@@ -255,11 +252,6 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
               label: const Text('下移'),
             ),
           ],
-        ),
-        const SizedBox(height: 12),
-        Text(
-          '左侧仅显示条目标题；system / user / assistant 都可自由增删，最新输入前消息排在已有对话之后、新输入之前，后置消息排在最后。',
-          style: Theme.of(context).textTheme.bodySmall,
         ),
       ],
     );
@@ -350,11 +342,6 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(titleLabel, style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8),
-        Text(
-          '这里可以编辑标题、角色、位置和 Prompt 内容。system 条目会以 system 消息发送给模型。',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
         const SizedBox(height: 16),
         TextFormField(
           key: const ValueKey('preset-prompt-title-field'), // test-key

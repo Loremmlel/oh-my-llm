@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_help_button.dart';
 import 'package:oh_my_llm/core/widgets/dialogs/app_dialog_actions.dart';
 
 /// 设置页表单对话框的统一壳层。
@@ -9,6 +10,7 @@ class SettingsFormDialogScaffold extends StatelessWidget {
     required this.child,
     required this.isSaving,
     required this.onSubmit,
+    this.helpText,
     this.width = 720,
     this.submitLabel = '保存',
     this.savingLabel = '保存中...',
@@ -20,6 +22,7 @@ class SettingsFormDialogScaffold extends StatelessWidget {
   static bool _alwaysScrollContent(BoxConstraints _) => true;
 
   final String title;
+  final String? helpText;
   final GlobalKey<FormState> formKey;
   final Widget child;
   final bool isSaving;
@@ -46,7 +49,9 @@ class SettingsFormDialogScaffold extends StatelessWidget {
 
   Widget _buildAlertDialog(BuildContext context) {
     return AlertDialog(
-      title: Text(title),
+      title: helpText == null
+          ? Text(title)
+          : AppHelpTitle(title: title, message: helpText!),
       content: SizedBox(
         width: width,
         child: LayoutBuilder(

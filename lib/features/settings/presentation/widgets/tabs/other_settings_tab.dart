@@ -72,7 +72,9 @@ class OtherSettingsTab extends ConsumerWidget {
               '当请求失败时自动重试的间隔与次数控制。'
               '每分钟窗口：每分钟在前 n 秒内随机一个毫秒发起重试；'
               '固定间隔：每 n 秒 + 随机 1000ms 抖动发起重试。'
-              '最大次数设为 0 表示不限。',
+              '最大次数设为 0 表示不限。\n\n'
+              '异常 finish_reason 重试：当模型返回的 finish_reason 不是 stop 或 tool_calls 时自动重试。\n\n'
+              '超时自动重试：当服务器在指定时间内没有响应时自动断开并重试。',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -131,9 +133,6 @@ class OtherSettingsTab extends ConsumerWidget {
                 contentPadding: EdgeInsets.zero,
                 shape: _switchTileShape,
                 title: const Text('异常 finish_reason 重试'),
-                subtitle: const Text(
-                  '当模型返回的 finish_reason 不是 stop 或 tool_calls 时自动重试',
-                ),
                 value: settings.retryOnAbnormalFinishReason,
                 onChanged: (value) {
                   ref
@@ -148,7 +147,6 @@ class OtherSettingsTab extends ConsumerWidget {
                 contentPadding: EdgeInsets.zero,
                 shape: _switchTileShape,
                 title: const Text('超时自动重试'),
-                subtitle: const Text('当服务器在指定时间内没有响应时自动断开并重试'),
                 value: settings.retryOnTimeout,
                 onChanged: (value) {
                   ref

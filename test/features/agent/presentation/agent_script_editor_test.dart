@@ -31,9 +31,9 @@ void main() {
     await settleOverlayTransition(tester);
     await tester.tap(find.text('剧本').last);
     await settleOverlayTransition(tester);
-    await tester.tap(find.text('查看示例'));
+    await tester.tap(find.byTooltip('新建文档说明'));
     await settleOverlayTransition(tester);
-    expect(find.text(agentScriptExample), findsOneWidget);
+    expect(find.textContaining(agentScriptExample), findsOneWidget);
     await tester.tap(find.text('关闭'));
     await settleOverlayTransition(tester);
     final body = find.widgetWithText(TextField, '正文');

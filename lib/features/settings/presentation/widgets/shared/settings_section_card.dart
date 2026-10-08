@@ -1,18 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_help_button.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 
 /// 用标题和留白划分设置区域，避免为每层配置重复添加卡片。
 class SettingsSectionCard extends StatelessWidget {
   const SettingsSectionCard({
     required this.title,
-    required this.description,
+    this.description,
     required this.child,
     this.action,
     super.key,
   });
 
   final String title;
-  final String description;
+  final String? description;
   final Widget child;
   final Widget? action;
 
@@ -36,16 +37,16 @@ class SettingsSectionCard extends StatelessWidget {
                   runSpacing: AppSpacing.xs,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    Text(title, style: theme.textTheme.titleMedium),
+                    if (description case final description?)
+                      AppHelpTitle(
+                        title: title,
+                        message: description,
+                        style: theme.textTheme.titleMedium,
+                      )
+                    else
+                      Text(title, style: theme.textTheme.titleMedium),
                     ?action,
                   ],
-                ),
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  description,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
                 ),
                 const SizedBox(height: AppSpacing.md),
                 child,

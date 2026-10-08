@@ -104,6 +104,7 @@ class _SillyTavernImportDialogState
           ).diagnostics;
     return SettingsFormDialogScaffold(
       title: '导入 SillyTavern 预设',
+      helpText: '保留标题、正文、顺序和开关。仅适配 Chat 写作所需的有限宏；前端美化、正则、脚本及外部记忆不会运行。\n\n备用 Relative 条目默认前置。标题不决定互斥、启停或功能。{{user}} 固定为 user。',
       formKey: _formKey,
       isSaving: _busy,
       onSubmit: _save,
@@ -117,8 +118,6 @@ class _SillyTavernImportDialogState
             icon: const Icon(Icons.file_open_outlined),
             label: const Text('选择 JSON 文件'),
           ),
-          const SizedBox(height: AppSpacing.md),
-          const Text('保留标题、正文、顺序和开关。仅适配 Chat 写作所需的有限宏；前端美化、正则、脚本及外部记忆不会运行。'),
           if (_busy)
             const Padding(
               padding: EdgeInsets.all(AppSpacing.md),
@@ -170,7 +169,6 @@ class _SillyTavernImportDialogState
             Text(
               '导入 ${plan.messages.length} 条，其中 ${plan.spareCount} 条为默认关闭的备用条目。',
             ),
-            const Text('备用 Relative 条目默认前置。标题不决定互斥、启停或功能。{{user}} 固定为 user。'),
             for (final issue in placementIssues!)
               Padding(
                 padding: const EdgeInsets.only(top: AppSpacing.md),

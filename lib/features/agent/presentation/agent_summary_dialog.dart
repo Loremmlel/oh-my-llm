@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_help_button.dart';
 import 'package:oh_my_llm/core/widgets/long_text_editing_controller.dart';
 import 'package:oh_my_llm/core/widgets/dialogs/app_dialog_actions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -68,7 +69,10 @@ class _SummaryManagerState extends ConsumerState<_SummaryManager> {
     }
 
     final dialog = AlertDialog(
-      title: const Text('总结管理'),
+      title: const AppHelpTitle(
+        title: '总结管理',
+        message: '将已有累计摘要与新增正文合并为一份新摘要，替代旧摘要及覆盖范围内的完整任务记录，包括工具往返、推理和旧状态快照。本地原文与当前剧情状态保留。',
+      ),
       content: SizedBox(
         width: AppContentWidths.readable,
         height: 560,
@@ -78,9 +82,7 @@ class _SummaryManagerState extends ConsumerState<_SummaryManager> {
               '正式正文 ${rounds.length} 楼 · 原文参与 ${available.length} 楼 · 已整理 ${hidden.length} 楼',
             ),
             const SizedBox(height: AppSpacing.sm),
-            const Text(
-              '将已有累计摘要与新增正文合并为一份新摘要，替代旧摘要及覆盖范围内的完整任务记录，包括工具往返、推理和旧状态快照。本地原文与当前剧情状态保留。',
-            ),
+            const Text('压缩后用摘要替代所选范围的输入记录；本地原文保留。'),
             const SizedBox(height: AppSpacing.md),
             if (available.isEmpty)
               const Text('暂无可整理的正文。完成写作后可在这里继续累计压缩。')
