@@ -115,6 +115,7 @@ class _FixedPromptSequenceRunnerDialogState
             : ConstrainedBox(
                 constraints: BoxConstraints(maxHeight: screenHeight * 0.65),
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     AppFieldGroup(

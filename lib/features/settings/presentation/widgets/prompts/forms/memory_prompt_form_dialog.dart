@@ -57,32 +57,41 @@ class _MemoryPromptFormDialogState extends State<MemoryPromptFormDialog>
       formKey: formKey,
       isSaving: isSaving,
       onSubmit: _handleSubmit,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextFormField(
-            key: const ValueKey('memory-prompt-name-field'), // test-key
-            controller: _nameController,
-            decoration: const InputDecoration(
-              labelText: '名称',
-              hintText: '例如：研发任务总结 / 写作人设总结',
-            ),
-            validator: validateRequired,
-          ),
-          const SizedBox(height: 12),
-          TextFormField(
-            key: const ValueKey('memory-prompt-content-field'), // test-key
+      shouldScrollContent: (constraints) => constraints.maxHeight < 240,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final expand = constraints.hasBoundedHeight;
+          final editor = TextFormField(
+            key: const ValueKey('memory-prompt-content-field'),
             controller: _contentController,
-            minLines: 6,
-            maxLines: 12,
+            minLines: expand ? null : 6,
+            maxLines: expand ? null : 12,
+            expands: expand,
+            textAlignVertical: TextAlignVertical.top,
             decoration: const InputDecoration(
               labelText: '记忆总结提示词',
               hintText: '说明你希望模型如何总结当前上下文，例如保留哪些重点、输出什么结构。',
               alignLabelWithHint: true,
             ),
             validator: validateRequired,
-          ),
-        ],
+          );
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                key: const ValueKey('memory-prompt-name-field'), // test-key
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: '名称',
+                  hintText: '例如：研发任务总结 / 写作人设总结',
+                ),
+                validator: validateRequired,
+              ),
+              const SizedBox(height: 12),
+              if (expand) Expanded(child: editor) else editor,
+            ],
+          );
+        },
       ),
     );
   }

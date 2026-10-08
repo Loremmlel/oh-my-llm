@@ -243,15 +243,15 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
               icon: const Icon(Icons.add_comment_outlined),
               label: const Text('新增条目'),
             ),
-            OutlinedButton.icon(
+            IconButton.outlined(
               onPressed: canMoveUp ? () => _moveSelected(-1) : null,
               icon: const Icon(Icons.arrow_upward_rounded),
-              label: const Text('上移'),
+              tooltip: '上移',
             ),
-            OutlinedButton.icon(
+            IconButton.outlined(
               onPressed: canMoveDown ? () => _moveSelected(1) : null,
               icon: const Icon(Icons.arrow_downward_rounded),
-              label: const Text('下移'),
+              tooltip: '下移',
             ),
           ],
         ),

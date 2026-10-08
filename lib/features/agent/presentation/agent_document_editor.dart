@@ -117,7 +117,6 @@ class _DocumentEditorState extends ConsumerState<_DocumentEditor> {
         ),
         content: SizedBox(
           width: AppContentWidths.readable,
-          height: 480,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
