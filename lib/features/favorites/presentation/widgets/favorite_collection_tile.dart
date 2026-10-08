@@ -14,7 +14,7 @@ class _OpenTileMenuIntent extends Intent {
 
 /// 收藏夹总览网格中的单张收藏夹卡片。
 ///
-/// 卡片高度由网格固定；普通卡片提供点击/Enter 打开与右键、长按、Menu key
+/// 卡片高度由网格按内容和字号统一分配；普通卡片提供点击/Enter 打开与右键、长按、Menu key
 /// 呼出的管理菜单；系统收藏夹只保留低调的身份标识，不提供任何管理操作。
 class FavoriteCollectionTile extends StatefulWidget {
   const FavoriteCollectionTile({

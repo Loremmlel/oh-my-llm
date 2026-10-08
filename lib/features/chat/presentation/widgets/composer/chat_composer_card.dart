@@ -427,125 +427,135 @@ class ChatComposerCard extends ConsumerWidget {
     return showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
+      isScrollControlled: true,
+      useSafeArea: true,
       builder: (bottomSheetContext) {
         return StatefulBuilder(
           builder: (context, setModalState) {
-            return SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('更多设置', style: theme.textTheme.titleMedium),
-                    Text(
-                      '当前会话缓存命中率：${_formatCacheHitRate(state.readModel.cacheHitRate)}',
-                      style: theme.textTheme.bodySmall,
-                    ),
-                    const SizedBox(height: 12),
-                    // 深度思考与自动重试自适应分布，不独占整行
-                    Row(
-                      children: [
-                        Flexible(
-                          child: ThinkingToggle(
-                            enabled: state.readModel.supportsReasoning,
-                            value: localReasoningEnabled,
-                            onChanged: state.readModel.supportsReasoning
-                                ? (value) {
-                                    setModalState(() {
-                                      localReasoningEnabled = value;
-                                    });
-                                    bindings.onReasoningEnabledChanged?.call(
-                                      value,
-                                    );
-                                  }
-                                : null,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Flexible(
-                          child: AutoRetryToggle(
-                            enabled: true,
-                            value: localAutoRetryEnabled,
-                            onChanged: (value) {
-                              setModalState(() {
-                                localAutoRetryEnabled = value;
-                              });
-                              bindings.onAutoRetryEnabledChanged?.call(value);
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (state.readModel.supportsReasoning &&
-                        localReasoningEnabled) ...[
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.viewInsetsOf(context).bottom,
+              ),
+              child: SafeArea(
+                top: false,
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('更多设置', style: theme.textTheme.titleMedium),
+                      Text(
+                        '当前会话缓存命中率：${_formatCacheHitRate(state.readModel.cacheHitRate)}',
+                        style: theme.textTheme.bodySmall,
+                      ),
                       const SizedBox(height: 12),
-                      Text('思考强度', style: theme.textTheme.labelLarge),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
+                      // 深度思考与自动重试自适应分布，不独占整行
+                      Row(
                         children: [
-                          for (final effort in ReasoningEffort.values)
-                            ChoiceChip(
-                              // 关闭 checkmark：其 150ms 宽度动画会让 Wrap 在窄屏
-                              // 跨越换行阈值，导致弹窗高度随选中项跳变；
-                              // 选中态改由背景色与边框区分。
-                              showCheckmark: false,
-                              label: Text(effortLabel(effort)),
-                              labelPadding: const EdgeInsets.symmetric(
-                                horizontal: 2,
-                              ),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 0,
-                              ),
-                              selected: localEffort == effort,
-                              onSelected: (_) {
+                          Flexible(
+                            child: ThinkingToggle(
+                              enabled: state.readModel.supportsReasoning,
+                              value: localReasoningEnabled,
+                              onChanged: state.readModel.supportsReasoning
+                                  ? (value) {
+                                      setModalState(() {
+                                        localReasoningEnabled = value;
+                                      });
+                                      bindings.onReasoningEnabledChanged?.call(
+                                        value,
+                                      );
+                                    }
+                                  : null,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Flexible(
+                            child: AutoRetryToggle(
+                              enabled: true,
+                              value: localAutoRetryEnabled,
+                              onChanged: (value) {
                                 setModalState(() {
-                                  localEffort = effort;
+                                  localAutoRetryEnabled = value;
                                 });
-                                bindings.onReasoningEffortChanged?.call(effort);
+                                bindings.onAutoRetryEnabledChanged?.call(value);
                               },
                             ),
+                          ),
                         ],
                       ),
-                    ],
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: Tooltip(
-                        message: '固定顺序提示词',
-                        child: OutlinedButton.icon(
-                          // 流式中仍可打开：仅对话框内「发送当前步骤」按 !isBusy 锁定。
-                          onPressed: () async {
-                            Navigator.of(bottomSheetContext).pop();
-                            await bindings.onOpenFixedPromptSequenceRunner();
-                          },
-                          icon: const Icon(Icons.playlist_play_rounded),
-                          label: const Text('固定顺序提示词'),
+                      if (state.readModel.supportsReasoning &&
+                          localReasoningEnabled) ...[
+                        const SizedBox(height: 12),
+                        Text('思考强度', style: theme.textTheme.labelLarge),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            for (final effort in ReasoningEffort.values)
+                              ChoiceChip(
+                                // 关闭 checkmark：其 150ms 宽度动画会让 Wrap 在窄屏
+                                // 跨越换行阈值，导致弹窗高度随选中项跳变；
+                                // 选中态改由背景色与边框区分。
+                                showCheckmark: false,
+                                label: Text(effortLabel(effort)),
+                                labelPadding: const EdgeInsets.symmetric(
+                                  horizontal: 2,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 0,
+                                ),
+                                selected: localEffort == effort,
+                                onSelected: (_) {
+                                  setModalState(() {
+                                    localEffort = effort;
+                                  });
+                                  bindings.onReasoningEffortChanged?.call(
+                                    effort,
+                                  );
+                                },
+                              ),
+                          ],
                         ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        key: const ValueKey('chat-message-filter-button'),
-                        // 上下文过滤只影响下次发送，流式中无需锁定。
-                        onPressed: () async {
-                          Navigator.of(bottomSheetContext).pop();
-                          await bindings.onOpenMessageFilter();
-                        },
-                        icon: const Icon(Icons.filter_alt_outlined),
-                        label: Text(
-                          messageFilterLabel(
-                            state.readModel.excludedMessageCount,
+                      ],
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: Tooltip(
+                          message: '固定顺序提示词',
+                          child: OutlinedButton.icon(
+                            // 流式中仍可打开：仅对话框内「发送当前步骤」按 !isBusy 锁定。
+                            onPressed: () async {
+                              Navigator.of(bottomSheetContext).pop();
+                              await bindings.onOpenFixedPromptSequenceRunner();
+                            },
+                            icon: const Icon(Icons.playlist_play_rounded),
+                            label: const Text('固定顺序提示词'),
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          key: const ValueKey('chat-message-filter-button'),
+                          // 上下文过滤只影响下次发送，流式中无需锁定。
+                          onPressed: () async {
+                            Navigator.of(bottomSheetContext).pop();
+                            await bindings.onOpenMessageFilter();
+                          },
+                          icon: const Icon(Icons.filter_alt_outlined),
+                          label: Text(
+                            messageFilterLabel(
+                              state.readModel.excludedMessageCount,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             );
