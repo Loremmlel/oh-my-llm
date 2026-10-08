@@ -27,6 +27,8 @@ class SyncConnectionTab extends ConsumerStatefulWidget {
 
 class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
     with AutomaticKeepAliveClientMixin {
+  // 连接表单的可见操作块保持集中，避免短内容占据整个同步画布。
+  static const _connectionContentWidth = 480.0;
   bool _isServerMode = false;
   late TextEditingController _nameController;
 
@@ -61,7 +63,9 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
         Align(
           alignment: Alignment.topCenter,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: AppContentWidths.wide),
+            constraints: const BoxConstraints(
+              maxWidth: _connectionContentWidth,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -81,6 +85,7 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
 
   Widget _buildModeSelector() {
     return SegmentedButton<bool>(
+      expandedInsets: EdgeInsets.zero,
       segments: const [
         ButtonSegment(
           value: false,
