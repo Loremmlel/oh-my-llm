@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
+import 'package:oh_my_llm/core/widgets/adaptive_grid/app_adaptive_grid.dart';
 import 'package:oh_my_llm/core/widgets/dialogs/app_confirm_dialog.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -243,66 +245,84 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                 ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
-                    SettingsSectionCard(
-                      title: '记忆总结提示词',
-                      description: '配置聊天页创建检查点时可选择的总结提示词，用于适配不同场景下的记忆沉淀方式。',
-                      action: FilledButton.icon(
-                        onPressed: () => _showMemoryPromptDialog(context, ref),
-                        icon: const Icon(Icons.add_rounded),
-                        label: const Text('新增记忆提示词'),
-                      ),
-                      child: MemoryPromptsList(
-                        memoryPrompts: memoryPrompts,
-                        onEditRequested: (memoryPrompt) {
-                          _showMemoryPromptDialog(
-                            context,
-                            ref,
-                            initialValue: memoryPrompt,
-                          );
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    SettingsSectionCard(
-                      title: '模板提示词',
-                      description:
-                          '配置可在聊天页临时应用的变量模板。使用 {{变量名}} 声明注入位，{{正文}} 对应主输入框。',
-                      action: FilledButton.icon(
-                        onPressed: () =>
-                            _showTemplatePromptDialog(context, ref),
-                        icon: const Icon(Icons.add_rounded),
-                        label: const Text('新增模板提示词'),
-                      ),
-                      child: TemplatePromptsList(
-                        templatePrompts: templatePrompts,
-                        onEditRequested: (templatePrompt) {
-                          _showTemplatePromptDialog(
-                            context,
-                            ref,
-                            initialValue: templatePrompt,
-                          );
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    SettingsSectionCard(
-                      title: '固定顺序提示词',
-                      description: '配置可逐步发送的用户提示词序列，适合做模型对比测试，不会自动整组连发。',
-                      action: FilledButton.icon(
-                        onPressed: () =>
-                            _showFixedPromptSequenceDialog(context, ref),
-                        icon: const Icon(Icons.add_rounded),
-                        label: const Text('新增序列'),
-                      ),
-                      child: FixedPromptSequencesList(
-                        sequences: fixedPromptSequences,
-                        onEditRequested: (sequence) {
-                          _showFixedPromptSequenceDialog(
-                            context,
-                            ref,
-                            initialValue: sequence,
-                          );
-                        },
+                    Align(
+                      alignment: Alignment.topCenter,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(
+                          maxWidth: AppContentWidths.wide,
+                        ),
+                        child: AppAdaptiveGrid.content(
+                          equalRowHeights: false,
+                          maxCrossAxisExtent: 400,
+                          crossAxisSpacing: AppSpacing.lg,
+                          mainAxisSpacing: AppSpacing.sm,
+                          children: [
+                            SettingsSectionCard(
+                              title: '记忆总结提示词',
+                              description:
+                                  '配置聊天页创建检查点时可选择的总结提示词，用于适配不同场景下的记忆沉淀方式。',
+                              action: FilledButton.icon(
+                                onPressed: () =>
+                                    _showMemoryPromptDialog(context, ref),
+                                icon: const Icon(Icons.add_rounded),
+                                label: const Text('新增记忆提示词'),
+                              ),
+                              child: MemoryPromptsList(
+                                memoryPrompts: memoryPrompts,
+                                onEditRequested: (memoryPrompt) {
+                                  _showMemoryPromptDialog(
+                                    context,
+                                    ref,
+                                    initialValue: memoryPrompt,
+                                  );
+                                },
+                              ),
+                            ),
+                            SettingsSectionCard(
+                              title: '模板提示词',
+                              description: '配置可在聊天页临时应用的变量模板。使用 {{变量名}} 声明注入位，{{正文}} 对应主输入框。',
+                              action: FilledButton.icon(
+                                onPressed: () =>
+                                    _showTemplatePromptDialog(context, ref),
+                                icon: const Icon(Icons.add_rounded),
+                                label: const Text('新增模板提示词'),
+                              ),
+                              child: TemplatePromptsList(
+                                templatePrompts: templatePrompts,
+                                onEditRequested: (templatePrompt) {
+                                  _showTemplatePromptDialog(
+                                    context,
+                                    ref,
+                                    initialValue: templatePrompt,
+                                  );
+                                },
+                              ),
+                            ),
+                            SettingsSectionCard(
+                              title: '固定顺序提示词',
+                              description:
+                                  '配置可逐步发送的用户提示词序列，适合做模型对比测试，不会自动整组连发。',
+                              action: FilledButton.icon(
+                                onPressed: () => _showFixedPromptSequenceDialog(
+                                  context,
+                                  ref,
+                                ),
+                                icon: const Icon(Icons.add_rounded),
+                                label: const Text('新增序列'),
+                              ),
+                              child: FixedPromptSequencesList(
+                                sequences: fixedPromptSequences,
+                                onEditRequested: (sequence) {
+                                  _showFixedPromptSequenceDialog(
+                                    context,
+                                    ref,
+                                    initialValue: sequence,
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],

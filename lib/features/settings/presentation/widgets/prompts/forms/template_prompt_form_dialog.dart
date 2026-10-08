@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_dropdown_field.dart';
 import 'package:oh_my_llm/core/widgets/long_text_editing_controller.dart';
 
 import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
@@ -170,7 +171,7 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
               else if (variable.isSelect)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12),
-                  child: DropdownButtonFormField<String>(
+                  child: AppDropdownField<String>(
                     key: ValueKey(
                       'template-prompt-variable-field-${variable.name}',
                     ),

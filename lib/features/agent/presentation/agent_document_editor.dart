@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_dropdown_field.dart';
 import 'package:oh_my_llm/core/widgets/app_help_button.dart';
 import 'package:oh_my_llm/core/widgets/long_text_editing_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -128,7 +129,7 @@ class _DocumentEditorState extends ConsumerState<_DocumentEditor> {
                       readOnly: widget.document != null,
                       decoration: const InputDecoration(labelText: '文档名'),
                     ),
-                  DropdownButtonFormField<AgentDocumentKind>(
+                  AppDropdownField<AgentDocumentKind>(
                     key: ValueKey('kind/$_kind'),
                     initialValue: _kind,
                     decoration: const InputDecoration(labelText: '资料类型'),

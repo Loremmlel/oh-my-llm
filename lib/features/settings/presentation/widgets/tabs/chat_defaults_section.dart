@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_dropdown_field.dart';
 import 'package:oh_my_llm/core/widgets/app_help_button.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oh_my_llm/core/widgets/app_field_group.dart';
@@ -42,7 +43,7 @@ class ChatDefaultsSection extends ConsumerWidget {
 
     return AppFieldGroup(
       children: [
-        DropdownButtonFormField<String>(
+        AppDropdownField<String>(
           key: ValueKey(resolvedModelId),
           initialValue: resolvedModelId,
           isExpanded: true,
@@ -72,7 +73,7 @@ class ChatDefaultsSection extends ConsumerWidget {
             ),
           ),
         ),
-        DropdownButtonFormField<String>(
+        AppDropdownField<String>(
           key: ValueKey(resolvedPromptValue),
           initialValue: resolvedPromptValue,
           isExpanded: true,

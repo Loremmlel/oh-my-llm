@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_dropdown_field.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 
@@ -85,37 +86,34 @@ class InterfaceSelector extends ConsumerWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            InputDecorator(
+            AppDropdownField<int>(
+              key: ValueKey(safeIndex),
               decoration: const InputDecoration(labelText: '广播网卡'),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<int>(
-                  value: safeIndex,
-                  isExpanded: true,
-                  isDense: true,
-                  borderRadius: BorderRadius.circular(AppRadii.sm),
-                  items: interfaces.asMap().entries.map((entry) {
-                    final i = entry.key;
-                    final iface = entry.value;
-                    return DropdownMenuItem(
-                      value: i,
-                      child: Tooltip(
-                        message: 'IP: ${iface.ip}\n广播地址: $broadcastAddr',
-                        child: Text(
-                          '${iface.name} — ${iface.ip}',
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                  onChanged: (index) {
-                    if (index != null) {
-                      ref
-                          .read(selectedInterfaceIndexProvider.notifier)
-                          .select(index);
-                    }
-                  },
-                ),
-              ),
+              initialValue: safeIndex,
+              isExpanded: true,
+              isDense: true,
+              borderRadius: BorderRadius.circular(AppRadii.sm),
+              items: interfaces.asMap().entries.map((entry) {
+                final i = entry.key;
+                final iface = entry.value;
+                return DropdownMenuItem(
+                  value: i,
+                  child: Tooltip(
+                    message: 'IP: ${iface.ip}\n广播地址: $broadcastAddr',
+                    child: Text(
+                      '${iface.name} — ${iface.ip}',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                );
+              }).toList(),
+              onChanged: (index) {
+                if (index != null) {
+                  ref
+                      .read(selectedInterfaceIndexProvider.notifier)
+                      .select(index);
+                }
+              },
             ),
             const SizedBox(height: AppSpacing.md),
             Column(

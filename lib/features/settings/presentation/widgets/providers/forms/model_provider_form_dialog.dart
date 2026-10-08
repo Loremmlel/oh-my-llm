@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_dropdown_field.dart';
 
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
@@ -88,7 +89,7 @@ class _ModelProviderFormDialogState extends State<ModelProviderFormDialog>
                 ),
                 validator: validateRequired,
               ),
-              DropdownButtonFormField<LlmApiProtocol>(
+              AppDropdownField<LlmApiProtocol>(
                 key: const ValueKey(
                   'model-provider-protocol-field',
                 ), // test-key

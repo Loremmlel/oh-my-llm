@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import 'package:oh_my_llm/core/widgets/app_help_button.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 
@@ -32,21 +33,39 @@ class SettingsSectionCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Wrap(
-                  spacing: AppSpacing.md,
-                  runSpacing: AppSpacing.xs,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    if (description case final description?)
-                      AppHelpTitle(
-                        title: title,
-                        message: description,
-                        style: theme.textTheme.titleMedium,
-                      )
-                    else
-                      Text(title, style: theme.textTheme.titleMedium),
-                    ?action,
-                  ],
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final heading = description != null
+                        ? AppHelpTitle(
+                            title: title,
+                            message: description!,
+                            style: theme.textTheme.titleMedium,
+                          )
+                        : Text(title, style: theme.textTheme.titleMedium);
+                    if (action == null) return heading;
+                    if (AppBreakpoints.useCompactFormActions(
+                      constraints.maxWidth,
+                    )) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          heading,
+                          const SizedBox(height: AppSpacing.xs),
+                          Align(
+                            alignment: AlignmentDirectional.centerEnd,
+                            child: action,
+                          ),
+                        ],
+                      );
+                    }
+                    return Row(
+                      children: [
+                        Expanded(child: heading),
+                        const SizedBox(width: AppSpacing.md),
+                        action!,
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(height: AppSpacing.md),
                 child,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_dropdown_field.dart';
 import 'package:oh_my_llm/core/widgets/dialogs/app_dialog_actions.dart';
 import 'package:oh_my_llm/core/widgets/app_field_group.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -117,7 +118,7 @@ class _ConversationCheckpointsDialogState
               const SizedBox(height: 16),
               AppFieldGroup(
                 children: [
-                  DropdownButtonFormField<String>(
+                  AppDropdownField<String>(
                     initialValue: selectedMemoryPrompt?.id,
                     isExpanded: true,
                     decoration: const InputDecoration(labelText: '记忆总结提示词'),
@@ -140,7 +141,7 @@ class _ConversationCheckpointsDialogState
                             });
                           },
                   ),
-                  DropdownButtonFormField<String?>(
+                  AppDropdownField<String?>(
                     initialValue: selectedSourceCheckpointId,
                     isExpanded: true,
                     decoration: const InputDecoration(labelText: '总结来源'),

@@ -1,8 +1,7 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
+import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
 import 'package:oh_my_llm/features/chat/application/composer/template_prompt_compilation_provider.dart';
 import 'package:oh_my_llm/features/settings/domain/template_prompt_language/template_prompt_evaluator.dart';
@@ -197,54 +196,56 @@ class ChatComposerCard extends ConsumerWidget {
                           ),
                         ),
                       ),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: LayoutBuilder(
-                            builder: (context, fields) {
-                              return Wrap(
-                                spacing: 8,
-                                runSpacing: 10,
-                                children: [
-                                  SizedBox(
-                                    width: math.min(240, fields.maxWidth),
-                                    child: ComposerTemplateHeader(
-                                      selectedTemplatePrompt: selectedTemplate,
-                                      templatePrompts:
-                                          state.readModel.templatePrompts,
-                                      onTemplatePromptSelected:
-                                          bindings.onTemplatePromptSelected,
-                                    ),
-                                  ),
-                                  SizedBox(
-                                    width: math.min(420, fields.maxWidth),
-                                    child: ComposerProviderModelRow(
-                                      hasModels: hasModels,
-                                      modelProviders:
-                                          state.readModel.modelProviders,
-                                      modelConfigs:
-                                          state.readModel.modelConfigs,
-                                      selectedProviderId:
-                                          state.readModel.selectedProviderId,
-                                      selectedModel:
-                                          state.readModel.selectedModel,
-                                      onProviderSelected:
-                                          bindings.onProviderSelected,
-                                      onModelSelected: bindings.onModelSelected,
-                                    ),
-                                  ),
-                                ],
-                              );
-                            },
-                          ),
-                        ),
-                        IconButton(
+                    LayoutBuilder(
+                      builder: (context, fields) {
+                        final compact = AppBreakpoints.useCompactFormActions(
+                          fields.maxWidth,
+                        );
+                        final template = ComposerTemplateHeader(
+                          selectedTemplatePrompt: selectedTemplate,
+                          templatePrompts: state.readModel.templatePrompts,
+                          onTemplatePromptSelected:
+                              bindings.onTemplatePromptSelected,
+                        );
+                        final collapse = IconButton(
                           onPressed: bindings.onToggleComposerCollapsed,
                           tooltip: '收起输入区',
                           icon: const Icon(Icons.keyboard_arrow_up_rounded),
-                        ),
-                      ],
+                        );
+                        final selectors = ComposerProviderModelRow(
+                          templateField: compact ? null : template,
+                          hasModels: hasModels,
+                          modelProviders: state.readModel.modelProviders,
+                          modelConfigs: state.readModel.modelConfigs,
+                          selectedProviderId:
+                              state.readModel.selectedProviderId,
+                          selectedModel: state.readModel.selectedModel,
+                          onProviderSelected: bindings.onProviderSelected,
+                          onModelSelected: bindings.onModelSelected,
+                        );
+                        if (compact) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(child: template),
+                                  collapse,
+                                ],
+                              ),
+                              const SizedBox(height: AppSpacing.sm),
+                              selectors,
+                            ],
+                          );
+                        }
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(child: selectors),
+                            collapse,
+                          ],
+                        );
+                      },
                     ),
                     if (selectedTemplate != null) ...[
                       const SizedBox(height: 10),

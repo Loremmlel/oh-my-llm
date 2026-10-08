@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_dropdown_field.dart';
+import 'package:oh_my_llm/core/widgets/app_field_group.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 
 import 'package:oh_my_llm/features/settings/domain/models/providers/llm_model_config.dart';
@@ -13,6 +15,7 @@ class ComposerProviderModelRow extends StatelessWidget {
     required this.selectedModel,
     required this.onProviderSelected,
     required this.onModelSelected,
+    this.templateField,
     super.key,
   });
 
@@ -23,79 +26,74 @@ class ComposerProviderModelRow extends StatelessWidget {
   final LlmModelConfig? selectedModel;
   final ValueChanged<String> onProviderSelected;
   final ValueChanged<String> onModelSelected;
+  final Widget? templateField;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return AppFieldGroup(
       children: [
-        Expanded(
-          flex: 2,
-          child: DropdownButtonFormField<String>(
-            key: const ValueKey('chat-provider-selector'),
-            isExpanded: true,
-            borderRadius: BorderRadius.circular(AppRadii.sm),
-            initialValue: selectedProviderId,
-            decoration: InputDecoration(
-              labelText: '服务商',
-              hintText: hasModels ? null : '请先在设置页新增服务商与模型',
-            ),
-            items: modelProviders
-                .map((provider) {
-                  return DropdownMenuItem<String>(
-                    value: provider.id,
-                    child: Text(provider.name, overflow: TextOverflow.ellipsis),
-                  );
-                })
-                .toList(growable: false),
-            // 流式期间切换服务商/模型只影响下次发送，进行中的请求使用发送时快照。
-            onChanged: modelProviders.isEmpty
-                ? null
-                : (value) {
-                    if (value == null) {
-                      return;
-                    }
-                    onProviderSelected(value);
-                  },
+        ?templateField,
+        AppDropdownField<String>(
+          key: const ValueKey('chat-provider-selector'),
+          isExpanded: true,
+          borderRadius: BorderRadius.circular(AppRadii.sm),
+          initialValue: selectedProviderId,
+          decoration: InputDecoration(
+            labelText: '服务商',
+            hintText: hasModels ? null : '请先在设置页新增服务商与模型',
           ),
+          items: modelProviders
+              .map((provider) {
+                return DropdownMenuItem<String>(
+                  value: provider.id,
+                  child: Text(provider.name, overflow: TextOverflow.ellipsis),
+                );
+              })
+              .toList(growable: false),
+          // 流式期间切换服务商/模型只影响下次发送，进行中的请求使用发送时快照。
+          onChanged: modelProviders.isEmpty
+              ? null
+              : (value) {
+                  if (value == null) {
+                    return;
+                  }
+                  onProviderSelected(value);
+                },
         ),
-        const SizedBox(width: 6),
-        Expanded(
-          flex: 3,
-          child: DropdownButtonFormField<String>(
-            key: const ValueKey('chat-model-selector'),
-            initialValue: selectedModel?.id,
-            isExpanded: true,
-            borderRadius: BorderRadius.circular(AppRadii.sm),
-            decoration: InputDecoration(
-              labelText: '模型',
-              hintText: !hasModels
-                  ? '请先在设置页新增服务商与模型'
-                  : selectedProviderId == null
-                  ? '请先选择服务商'
-                  : modelConfigs.isEmpty
-                  ? '当前服务商还没有模型'
-                  : null,
-            ),
-            items: modelConfigs
-                .map((config) {
-                  return DropdownMenuItem<String>(
-                    value: config.id,
-                    child: Text(
-                      config.displayName,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  );
-                })
-                .toList(growable: false),
-            onChanged: modelConfigs.isEmpty
-                ? null
-                : (value) {
-                    if (value == null) {
-                      return;
-                    }
-                    onModelSelected(value);
-                  },
+        AppDropdownField<String>(
+          key: const ValueKey('chat-model-selector'),
+          initialValue: selectedModel?.id,
+          isExpanded: true,
+          borderRadius: BorderRadius.circular(AppRadii.sm),
+          decoration: InputDecoration(
+            labelText: '模型',
+            hintText: !hasModels
+                ? '请先在设置页新增服务商与模型'
+                : selectedProviderId == null
+                ? '请先选择服务商'
+                : modelConfigs.isEmpty
+                ? '当前服务商还没有模型'
+                : null,
           ),
+          items: modelConfigs
+              .map((config) {
+                return DropdownMenuItem<String>(
+                  value: config.id,
+                  child: Text(
+                    config.displayName,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                );
+              })
+              .toList(growable: false),
+          onChanged: modelConfigs.isEmpty
+              ? null
+              : (value) {
+                  if (value == null) {
+                    return;
+                  }
+                  onModelSelected(value);
+                },
         ),
       ],
     );

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_dropdown_field.dart';
 import 'package:oh_my_llm/core/widgets/long_text_editing_controller.dart';
 
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
@@ -211,7 +212,7 @@ class _FixedPromptSequenceFormDialogState
   /// 紧凑模式下用下拉菜单替代步骤列表，节省垂直空间，
   /// 避免用户编辑正文前需要滚动经过所有步骤标题。
   Widget _buildCompactStepSelector(BuildContext context) {
-    return DropdownButtonFormField<int>(
+    return AppDropdownField<int>(
       key: ValueKey('compact-step-selector-$_selectedStepId'),
       initialValue: _selectedStepIndex,
       isExpanded: true,
