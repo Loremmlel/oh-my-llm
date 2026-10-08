@@ -1,5 +1,9 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
+import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
+import 'package:oh_my_llm/core/utils/date_formatting.dart';
 import 'package:oh_my_llm/core/widgets/adaptive_grid/app_adaptive_grid.dart';
 
 import '../../domain/models/favorite_collection_summary.dart';
@@ -42,7 +46,7 @@ class FavoriteCollectionGrid extends StatelessWidget {
       crossAxisSpacing: 16,
       mainAxisSpacing: 16,
       padding: const EdgeInsets.all(16),
-      mainAxisExtentBuilder: (context, itemWidth) => 168,
+      mainAxisExtentBuilder: _cardHeight,
       findChildIndexCallback: (key) {
         if (key is! ValueKey<String>) return null;
         final index = summaries.indexWhere(
@@ -67,5 +71,43 @@ class FavoriteCollectionGrid extends StatelessWidget {
         );
       },
     );
+  }
+
+  double _cardHeight(BuildContext context, double itemWidth) {
+    final textTheme = Theme.of(context).textTheme;
+    double textHeight(String text, TextStyle? style, {int? maxLines}) {
+      final painter = TextPainter(
+        text: TextSpan(text: text, style: style),
+        textDirection: Directionality.of(context),
+        textScaler: MediaQuery.textScalerOf(context),
+        maxLines: maxLines,
+        ellipsis: maxLines == null ? null : '…',
+      )..layout(maxWidth: math.max(0, itemWidth - AppSpacing.md * 2));
+      final height = painter.height;
+      painter.dispose();
+      return height;
+    }
+
+    // 网格同排等高，按实际名称、身份与字号为最需要空间的卡片预留高度。
+    return summaries.fold(168, (height, summary) {
+      final requiredHeight =
+          AppSpacing.md * 2 +
+          AppInteractionSizes.minimumHitTarget +
+          textHeight(
+            summary.collection.name,
+            textTheme.titleMedium,
+            maxLines: 2,
+          ) +
+          (summary.collection.isSystem
+              ? AppSpacing.xxs + textHeight('系统', textTheme.labelSmall)
+              : 0) +
+          AppSpacing.xs +
+          textHeight('${summary.itemCount} 项收藏', textTheme.bodyMedium) +
+          textHeight(
+            formatDateOnly(summary.recentAssignedAt),
+            textTheme.bodySmall,
+          );
+      return math.max(height, requiredHeight).ceilToDouble();
+    });
   }
 }
